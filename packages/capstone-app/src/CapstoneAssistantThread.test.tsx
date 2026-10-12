@@ -32,7 +32,7 @@ describe('CapstoneAssistantThread', () => {
       event('attempt_completed', 4, { answer: '计算未完成；已记录失败步骤。', admission: { mode: 'limited', assurance: 'limited' } }, 'study'),
     ]
     render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
-    fireEvent.click(screen.getByRole('button', { name: '查看分析结果' }))
+    fireEvent.click(screen.getByRole('button', { name: '查看计算结果' }))
     expect(screen.getByText('执行失败')).toBeTruthy()
     expect(screen.getByText('核验未通过')).toBeTruthy()
     expect(screen.getByText('grid_analysis_run')).toBeTruthy()
@@ -182,12 +182,12 @@ describe('CapstoneAssistantThread', () => {
       event('attempt_failed', 4, { error_code: 'answer_admission_failed' }, 'unavailable'),
       event('assistant_text_delta', 5, { text: '还在计算。' }, 'pending'),
     ]} disabled={false} isRunning={true} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
-    const actions = screen.getAllByRole('button', { name: '查看证据' }) as HTMLButtonElement[]
+    const actions = screen.getAllByRole('button', { name: '查看推演证据' }) as HTMLButtonElement[]
     expect(actions.map((action) => action.dataset.evidenceState)).toEqual(['available', 'not_applicable', 'missing', 'unavailable', 'pending'])
     expect(actions.map((action) => action.disabled)).toEqual([false, true, true, true, true])
-    expect(actions.map((action) => action.title)).toEqual(['查看证据', '普通信息回答无需运行证据', '缺少所需证据', '证据暂不可用', '证据同步中'])
+    expect(actions.map((action) => action.title)).toEqual(['查看推演证据', '普通信息回答无需运行证据', '缺少所需证据', '证据暂不可用', '证据同步中'])
     fireEvent.click(actions[0])
-    expect(screen.getByRole('region', { name: '当前运行证据' }).textContent).toContain('evidence:1')
+    expect(screen.getByRole('region', { name: '推演证据' }).textContent).toContain('evidence:1')
   })
   it('uses the committed answer instead of provisional streamed text', () => {
     const messages = projectAssistantMessages([
@@ -672,13 +672,13 @@ describe('CapstoneAssistantThread', () => {
     const toolbar = screen.getByLabelText('回答操作')
     const buttons = within(toolbar).getAllByRole('button')
     expect(buttons.map((button) => button.getAttribute('aria-label'))).toEqual([
-      '复制回答', '查看此指令电网图', '查看分析结果', '查看证据', '查看运行过程', '重试本次指令', '更多回答操作',
+      '复制回答', '查看此指令电网图', '查看计算结果', '查看推演证据', '查看运行过程', '重试本次指令', '更多回答操作',
     ])
     expect(buttons.map((button) => (button as HTMLButtonElement).disabled)).toEqual([
       false, true, true, true, true, true, false,
     ])
     buttons.slice(1, 6).forEach((button) => fireEvent.click(button))
-    expect(screen.queryByLabelText('当前运行证据')).toBeNull()
+    expect(screen.queryByLabelText('推演证据')).toBeNull()
     expect(screen.queryByLabelText('本次运行过程')).toBeNull()
   })
   it('keeps unfinished feedback actions disabled inside More', async () => {
@@ -854,12 +854,12 @@ describe('CapstoneAssistantThread', () => {
       event('attempt_completed', 4, { answer: '潮流已收敛。', result_refs: ['result:run_1:powerflow'], evidence_refs: ['evidence:run_1:powerflow'], admission: { status: 'admitted' } }, 'attempt_1'),
     ]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} onRegenerate={async () => {}} />)
 
-    expect(screen.getByRole('button', { name: '查看证据' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '查看推演证据' })).toBeTruthy()
     expect(screen.getByRole('button', { name: '查看运行过程' })).toBeTruthy()
     expect(screen.getByRole('status').textContent).toContain('1 项结构化结果')
-    expect(screen.queryByLabelText('当前运行证据')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: '查看证据' }))
-    expect(screen.getByLabelText('当前运行证据').textContent).toContain('evidence:run_1:powerflow')
+    expect(screen.queryByLabelText('推演证据')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '查看推演证据' }))
+    expect(screen.getByLabelText('推演证据').textContent).toContain('evidence:run_1:powerflow')
   })
 
   it('keeps repeated tool calls and each conversation activity separate', () => {
@@ -943,9 +943,9 @@ describe('CapstoneAssistantThread', () => {
     render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
 
     expect(screen.getByRole('status').textContent).toContain('1 项结构化结果')
-    expect(screen.queryByLabelText('当前运行证据')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: '查看证据' }))
-    expect(screen.getByLabelText('当前运行证据')).toBeTruthy()
+    expect(screen.queryByLabelText('推演证据')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '查看推演证据' }))
+    expect(screen.getByLabelText('推演证据')).toBeTruthy()
     expect(screen.getByRole('status').textContent).toContain('已准入')
     expect(screen.queryByText(/admission:run_1/)).toBeNull()
   })
@@ -969,12 +969,26 @@ describe('CapstoneAssistantThread', () => {
       summary: [{ metricId: 'total_active_loss_2', label: '电压偏差', value: 0.02, unit: 'pu' }], tables: [], elementRefs: [],
     }]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} onFocusElement={onFocusElement} />)
 
-    fireEvent.click(screen.getByRole('button', { name: '查看分析结果' }))
-    expect(screen.getAllByRole('region', { name: '结构化分析结果' })).toHaveLength(2)
+    fireEvent.click(screen.getByRole('button', { name: '查看计算结果' }))
+    expect(screen.getAllByRole('region', { name: '结构化计算结果' })).toHaveLength(2)
     expect(screen.getByText('有功损耗')).toBeTruthy()
     expect(screen.getByText('电压偏差')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: '线路 11' }))
     expect(onFocusElement).toHaveBeenCalledWith(expect.objectContaining({ resultId: 'result_projection_1' }), 'line:11')
+  })
+
+  it('opens failure records even when the task has no admitted calculation evidence', () => {
+    render(<CapstoneAssistantThread events={[
+      event('command_accepted', 1, { kind: 'send_auto', payload: { text: '分析网络' } }, 'attempt_failure_records'),
+      event('tool_started', 2, { tool_call_id: 'failed_call', tool_name: 'grid_analysis_run' }, 'attempt_failure_records'),
+      event('tool_completed', 3, { tool_call_id: 'failed_call', ok: false, error: { message: '计算未收敛。' } }, 'attempt_failure_records'),
+      event('attempt_completed', 4, { answer: '本次计算未完成，保留失败记录。' }, 'attempt_failure_records'),
+    ]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    const action = screen.getByRole('button', { name: '查看推演证据' })
+    expect((action as HTMLButtonElement).disabled).toBe(false)
+    fireEvent.click(action)
+    expect(screen.getByRole('region', { name: '执行失败记录' })).toBeTruthy()
+    expect(screen.queryByText('计算引用已准入。业务判断的核验范围以计算结果为准。')).toBeNull()
   })
 
   it('shows configuration repair guidance for a runtime configuration failure', () => {
@@ -1080,7 +1094,7 @@ describe('CapstoneAssistantThread', () => {
       modelSummary={{ modelId: 'pypsa39', implementationFamily: 'pypsa', modelRevision: 'new_revision', contextId: 'ctx_new' }} />)
     expect(screen.queryByText(/pypsa39/)).toBeNull()
     expect(screen.queryByText(/ctx_old/)).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: '查看证据' }))
+    fireEvent.click(screen.getByRole('button', { name: '查看推演证据' }))
     expect(screen.getByText(/ctx_old/)).toBeTruthy()
   })
 
@@ -1090,11 +1104,11 @@ describe('CapstoneAssistantThread', () => {
     ]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
 
     expect(screen.queryByRole('status')).toBeNull()
-    expect(screen.queryByRole('group', { name: '当前运行证据' })).toBeNull()
-    const evidence = screen.getByRole('button', { name: '查看证据' })
+    expect(screen.queryByRole('group', { name: '推演证据' })).toBeNull()
+    const evidence = screen.getByRole('button', { name: '查看推演证据' })
     expect((evidence as HTMLButtonElement).disabled).toBe(true)
     fireEvent.click(evidence)
-    expect(screen.queryByLabelText('当前运行证据')).toBeNull()
+    expect(screen.queryByLabelText('推演证据')).toBeNull()
   })
 
   it('carries attempt model context into a terminal result card when the terminal event omits it', () => {

@@ -4,6 +4,7 @@ import ThreadSettingsMenu, { useCloseThreadSettings } from './ThreadSettingsMenu
 import ThreadSystemNotice from './ThreadSystemNotice'
 import { projectSystemNotices, type ThreadSystemNotice as SystemNotice } from './threadSystemNotices'
 import { answerEvidenceState, evidenceStateCopy, type AnswerEvidenceState } from './threadEvidenceState'
+import InferenceEvidencePanel, { type FailureEvidence } from './InferenceEvidencePanel'
 import {
   AssistantRuntimeProvider,
   ComposerPrimitive,
@@ -464,9 +465,10 @@ function MoreAnswerActions() {
   </div>
 }
 
-function ChatActions({ networkSelected, onShowNetwork, role, text, evidenceRefs, evidenceState = 'not_applicable', contextId, selectionRevision, toolCount, resultAvailable, resultOpen, onShowResult, onRegenerate, onShowActivity, activityOpen, showActivity }: { networkSelected?: boolean; onShowNetwork?: () => void; role: string; text: string; evidenceRefs: string[]; evidenceState?: AnswerEvidenceState; contextId?: string; selectionRevision?: string; toolCount: number; resultAvailable?: boolean; resultOpen?: boolean; onShowResult?: () => void; onRegenerate?: () => Promise<void>; onShowActivity?: () => void; activityOpen?: boolean; showActivity?: boolean }) {
+function ChatActions({ networkSelected, onShowNetwork, role, text, evidenceRefs, evidenceState = 'not_applicable', contextId, selectionRevision, toolCount, resultAvailable, resultOpen, onShowResult, onRegenerate, onShowActivity, activityOpen, showActivity, attemptId = '', resultRefs = [], projections = [], failures = [], onSelectResult }: { networkSelected?: boolean; onShowNetwork?: () => void; role: string; text: string; evidenceRefs: string[]; evidenceState?: AnswerEvidenceState; contextId?: string; selectionRevision?: string; toolCount: number; resultAvailable?: boolean; resultOpen?: boolean; onShowResult?: () => void; onRegenerate?: () => Promise<void>; onShowActivity?: () => void; activityOpen?: boolean; showActivity?: boolean; attemptId?: string; resultRefs?: string[]; projections?: readonly ResultProjection[]; failures?: readonly FailureEvidence[]; onSelectResult?: (resultId: string) => void }) {
   const [copied, setCopied] = useState(false)
   const [showEvidence, setShowEvidence] = useState(false)
+  const evidenceAvailable = evidenceState === 'available' || failures.length > 0
   const copy = async () => {
     if (await copyToClipboard(text)) {
       setCopied(true)
@@ -480,13 +482,18 @@ function ChatActions({ networkSelected, onShowNetwork, role, text, evidenceRefs,
   <div className="capstone-chat-actions" aria-label="回答操作">
     <IconAction label={copied ? '已复制' : '复制回答'} onClick={() => void copy()}>{copied ? <Check /> : <Copy />}</IconAction>
     <IconAction label="查看此指令电网图" disabled={!onShowNetwork} pressed={networkSelected} onClick={onShowNetwork}><Network /></IconAction>
-    <IconAction label="查看分析结果" disabled={!resultAvailable || !onShowResult} expanded={resultOpen} onClick={onShowResult}><Activity /></IconAction>
-    <IconAction label="查看证据" description={evidenceStateCopy[evidenceState]} evidenceState={evidenceState} disabled={evidenceState !== 'available'} expanded={evidenceState === 'available' && showEvidence} onClick={() => setShowEvidence((value) => !value)}><FileCheck2 /></IconAction>
+    <IconAction label="查看计算结果" disabled={!resultAvailable || !onShowResult} expanded={resultOpen} onClick={onShowResult}><Activity /></IconAction>
+    <IconAction label="查看推演证据" description={failures.length > 0 && evidenceState !== 'available' ? '查看已保存的执行或核验失败记录' : evidenceStateCopy[evidenceState]} evidenceState={evidenceState} disabled={!evidenceAvailable} expanded={evidenceAvailable && showEvidence} onClick={() => setShowEvidence((value) => !value)}><FileCheck2 /></IconAction>
     <IconAction label="查看运行过程" disabled={showActivity === false || toolCount === 0 || !onShowActivity} expanded={activityOpen} onClick={onShowActivity}><ListTree /></IconAction>
     <IconAction label="重试本次指令" disabled={!onRegenerate} onClick={() => void onRegenerate?.()}><RotateCcw /></IconAction>
     <MoreAnswerActions />
   </div>
-  {evidenceState === 'available' && showEvidence && <div className="capstone-chat-evidence" role="region" aria-label="当前运行证据"><strong><FileCheck2 /> 当前运行证据</strong>{contextId && <small>模型上下文 {contextId}{selectionRevision ? ` · selection ${selectionRevision}` : ''}</small>}<div>{evidenceRefs.map((ref) => <code key={ref}>{ref}</code>)}</div></div>}
+  {evidenceAvailable && showEvidence && <>
+    <InferenceEvidencePanel attemptId={attemptId} admitted={evidenceState === 'available'} resultRefs={resultRefs}
+      evidenceRefs={evidenceRefs} projections={projections} failures={failures} onSelectResult={onSelectResult} />
+    {contextId && <details className="capstone-evidence-trace"><summary>任务身份</summary>
+      <p>模型上下文 {contextId}{selectionRevision ? ` · selection ${selectionRevision}` : ''}</p></details>}
+  </>}
   </>
 }
 
@@ -568,8 +575,8 @@ function resultCell(value: string | number | boolean | null): string {
 
 function ResultProjectionCard({ projection, onFocusElement }: { projection: ResultProjection; onFocusElement?: (projection: ResultProjection, elementId: string) => void }) {
   const statusLabel = projection.status === 'completed' ? '已完成' : projection.status === 'partial' ? '部分结果' : '暂不可用'
-  return <section className={`capstone-result-card is-${projection.status}`} aria-label="结构化分析结果">
-    <div className="capstone-result-heading"><div><Activity aria-hidden="true" /><strong>分析结果</strong><span>{statusLabel}</span></div><small>{projection.source.capabilityId}</small></div>
+  return <section className={`capstone-result-card is-${projection.status}`} aria-label="结构化计算结果" data-result-id={projection.resultId} tabIndex={-1}>
+    <div className="capstone-result-heading"><div><Activity aria-hidden="true" /><strong>计算结果</strong><span>{statusLabel}</span></div><small>{projection.source.capabilityId}</small></div>
     {projection.unavailableReason && <p className="capstone-result-reason">{projection.unavailableReason}</p>}
     {projection.summary.length > 0 && <div className="capstone-result-metrics">{projection.summary.map((metric) => <div key={metric.metricId}><span>{metric.label}</span><strong>{resultCell(metric.value)}{metric.unit ? ` ${metric.unit}` : ''}</strong></div>)}</div>}
     {projection.tables.map((table) => <div className="capstone-result-table-wrap" key={table.tableId}><div className="capstone-result-table-title">{table.title}</div><div className="capstone-result-table-scroll"><table><thead><tr>{table.columns.map((column) => <th key={column.columnId}>{column.label}{column.unit ? ` (${column.unit})` : ''}</th>)}</tr></thead><tbody>{table.rows.map((row) => <tr key={row.rowId}>{table.columns.map((column) => <td key={column.columnId}>{row.elementRef && column === table.columns[0] ? <button type="button" className="capstone-result-element" onClick={() => onFocusElement?.(projection, row.elementRef!.elementId)} title="在左侧拓扑图中定位">{resultCell(row.cells[column.columnId] ?? row.rowId)}</button> : resultCell(row.cells[column.columnId] ?? null)}</td>)}</tr>)}</tbody></table></div></div>)}
@@ -655,6 +662,18 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
   const activities = Array.isArray(custom?.activities) ? custom.activities as ChatActivity[] : []
   const [activityOpen, setActivityOpen] = useState(false)
   const [resultOpen, setResultOpen] = useState(false)
+  const resultGroupRef = useRef<HTMLDivElement>(null)
+  const [pendingResultId, setPendingResultId] = useState<string | null>(null)
+  useEffect(() => {
+    if (!resultOpen || !pendingResultId) return
+    const target = [...(resultGroupRef.current?.querySelectorAll<HTMLElement>('[data-result-id]') || [])]
+      .find((node) => node.dataset.resultId === pendingResultId)
+    if (target) {
+      target.focus({ preventScroll: true })
+      target.scrollIntoView?.({ block: 'nearest' })
+    }
+    setPendingResultId(null)
+  }, [resultOpen, pendingResultId])
   useEffect(() => {
     if (status?.type !== 'running') setActivityOpen(false)
   }, [status?.type])
@@ -693,9 +712,11 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
     </div>
     {role === 'assistant' && <div className="capstone-chat-footer">
       <RunDuration startedAt={startedAt} durationMs={durationMs} running={status?.type === 'running'} />
-      {(hasText || terminalWithoutText) && <ChatActions networkSelected={selectedNetworkAttempt === attemptId} onShowNetwork={networkAttemptIds.includes(attemptId) && onShowNetwork ? () => onShowNetwork(attemptId) : undefined} role={role} text={text} evidenceRefs={evidenceState === 'available' ? evidenceRefs : []} evidenceState={evidenceState} resultAvailable={hasResults} resultOpen={resultOpen} onShowResult={() => setResultOpen((value) => !value)} contextId={contextId} selectionRevision={selectionRevision} toolCount={activities.length || toolCount} activityOpen={activityOpen} showActivity={showActivity} onShowActivity={toggleActivity} onRegenerate={retryable && onRegenerate ? () => onRegenerate(attemptId, instruction) : undefined} />}
+      {(hasText || terminalWithoutText) && <ChatActions networkSelected={selectedNetworkAttempt === attemptId} onShowNetwork={networkAttemptIds.includes(attemptId) && onShowNetwork ? () => onShowNetwork(attemptId) : undefined} role={role} text={text} evidenceRefs={evidenceState === 'available' ? evidenceRefs : []} evidenceState={evidenceState} resultAvailable={hasResults} resultOpen={resultOpen} onShowResult={() => setResultOpen((value) => !value)} contextId={contextId} selectionRevision={selectionRevision} toolCount={activities.length || toolCount} activityOpen={activityOpen} showActivity={showActivity} onShowActivity={toggleActivity} onRegenerate={retryable && onRegenerate ? () => onRegenerate(attemptId, instruction) : undefined}
+        attemptId={attemptId} resultRefs={resultRefs} projections={attemptResultProjections} failures={failureResults}
+        onSelectResult={(resultId) => { setResultOpen(true); setPendingResultId(resultId) }} />}
     </div>}
-    {role === 'assistant' && hasResults && resultOpen && <div className="capstone-result-group">
+    {role === 'assistant' && hasResults && resultOpen && <div className="capstone-result-group" ref={resultGroupRef}>
       {attemptResultProjections.map((projection) => <ResultProjectionCard key={projection.resultId} projection={projection} onFocusElement={onFocusElement} />)}
       {failureResults.map((item) => <section key={item.id} className="capstone-result-card is-failed" aria-label="计算结果失败记录">
         <div className="capstone-result-heading"><strong>{item.kind === 'execution' ? '执行失败' : '核验未通过'}</strong><small>{item.tool || '回答核验'}</small></div>

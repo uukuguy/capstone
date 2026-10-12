@@ -1,7 +1,7 @@
 export type AnswerEvidenceState = 'available' | 'not_applicable' | 'missing' | 'pending' | 'unavailable'
 
 export const evidenceStateCopy: Record<AnswerEvidenceState, string> = {
-  available: '查看证据',
+  available: '查看推演证据',
   not_applicable: '普通信息回答无需运行证据',
   missing: '缺少所需证据',
   pending: '证据同步中',
