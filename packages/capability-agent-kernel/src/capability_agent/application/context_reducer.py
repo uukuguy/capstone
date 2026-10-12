@@ -14,6 +14,7 @@ from capability_agent.application.context_models import (
     DomainStateEnvelope,
     canonical_state_hash,
 )
+from capability_agent.application.research_models import ResearchState, ResearchUpdate
 
 
 class ContextTransitionError(RuntimeError):
@@ -39,6 +40,7 @@ _KNOWN_EVENT_TYPES = frozenset(
         "evidence.registered",
         "fact.verified",
         "decision.recorded",
+        "research.updated",
         "diagnostic.recorded",
         "audit.diagnostic.recorded",
         "limitation.recorded",
@@ -141,6 +143,8 @@ def _apply_event(
         return _append_diagnostic(context.core, event_type, payload), context.domains, context.status
     if event_type in {"decision.recorded"}:
         return _append_core_record(context.core, "decisions", payload), context.domains, context.status
+    if event_type == "research.updated":
+        return _update_research(context.core, draft, payload), context.domains, context.status
     if event_type in {
         "turn.started",
         "turn.completed",
@@ -169,6 +173,43 @@ def _apply_event(
         # a binding-specific state delta.
         return _append_core_record(context.core, "diagnostics", payload), context.domains, context.status
     raise ContextTransitionError("unsupported context event type")
+
+
+def _update_research(core: CoreContext, draft: ContextEventDraft, payload: Mapping[str, Any]) -> CoreContext:
+    if core.active_turn is None or core.active_turn.get("turn_id") != draft.turn_id:
+        raise ContextTransitionError("research update requires the matching active turn")
+    if draft.binding_id is not None:
+        raise ContextTransitionError("research state is not binding-owned")
+    if set(payload) != {"research_id", "request_id", "expected_revision", "changes"}:
+        raise ContextTransitionError("invalid research update")
+    update = ResearchUpdate.model_validate({key: value for key, value in payload.items() if key != "research_id"})
+    current = core.research
+    if current is not None and current.research_id != payload["research_id"]:
+        raise ContextTransitionError("research identity does not match current state")
+    revision = current.revision if current else 0
+    if update.expected_revision != revision:
+        raise ContextTransitionError("research revision conflict")
+    changes = update.changes
+    if current is None and changes.goal is None:
+        raise ContextTransitionError("initial research goal is required")
+    values = current.model_dump(mode="python") if current else {}
+    values.update(research_id=payload["research_id"], revision=revision + 1)
+    for key in ("goal", "condition_refs", "open_questions"):
+        if key in changes.model_fields_set:
+            values[key] = getattr(changes, key)
+    claims = {claim.claim_id: claim for claim in (current.claims if current else ())}
+    if current and changes.condition_refs is not None and changes.condition_refs != current.condition_refs:
+        claims = {key: claim.model_copy(update={"status": "pending"}) for key, claim in claims.items()}
+    claims.update({claim.claim_id: claim for claim in (changes.claims or ())})
+    values["claims"] = tuple(claims.values())
+    notes = {note.note_id: note for note in (current.notes if current else ())}
+    for note in changes.notes or ():
+        if note.note_id in notes and notes[note.note_id] != note:
+            raise ContextTransitionError("research note identity cannot overwrite an existing note")
+        notes[note.note_id] = note
+    values["notes"] = tuple(notes.values())
+    state = ResearchState.model_validate(values)
+    return CoreContext.model_validate({**core.model_dump(mode="python"), "research": state})
 
 
 def _start_context(

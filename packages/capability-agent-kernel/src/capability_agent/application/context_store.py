@@ -122,6 +122,26 @@ class ApplicationContextStore:
 
         return self.append_many((draft,))[0]
 
+    def append_research_update(self, draft: ContextEventDraft) -> ContextEvent:
+        """Commit once under the same lock as revision validation and persistence."""
+        if draft.event_type != "research.updated":
+            raise ContextStoreError("research commit requires a research update")
+        with self._append_lock:
+            if self._unavailable:
+                raise ContextStoreError("context store is unavailable")
+            replayed, events = self.replay_events(self.workspace)
+            if replayed != self.snapshot:
+                raise ContextStoreError("research ledger does not match the current context")
+            for event in events:
+                if (event.event_type == draft.event_type
+                        and event.turn_id == draft.turn_id
+                        and event.payload.get("research_id") == draft.payload.get("research_id")
+                        and event.payload.get("request_id") == draft.payload.get("request_id")):
+                    if event.payload != draft.payload:
+                        raise ContextStoreError("research request identity was reused with different content")
+                    return event
+            return self.append(draft)
+
     def append_many(
         self, drafts: Iterable[ContextEventDraft]
     ) -> tuple[ContextEvent, ...]:
