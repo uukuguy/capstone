@@ -45,6 +45,22 @@ def _submit(service: InMemoryThreadService) -> None:
     })
 
 
+def test_worker_closes_prepared_runtime_if_research_recovery_cannot_be_verified():
+    service = _service()
+    _submit(service)
+    closed = []
+    class RecoveryRuntime(_Runtime):
+        def bind_attempt_guard(self, active, terminal_phase):
+            assert active()
+            raise RuntimeError("old task has no verified terminal state")
+        def stop(self):
+            closed.append(True)
+    result = run_pending_attempt(service, lambda _: RecoveryRuntime(), worker_id="recovery-test")
+    assert closed == [True]
+    assert result.status == "failed"
+    assert result.answer
+
+
 def test_run_pending_attempt_claims_and_executes_without_http_affinity() -> None:
     service = _service()
     _submit(service)

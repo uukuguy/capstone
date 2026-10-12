@@ -51,8 +51,6 @@ class AttemptResearch:
                 raise ValueError("research owner does not match selected model")
             self.research_id = saved["research_id"]
             self.store = ApplicationContextStore(workspace, ApplicationContextStore.replay(workspace))
-            if self.store.snapshot.core.active_turn is not None:
-                raise RuntimeError("research already has an active attempt")
         else:
             self.research_id = f"research-{uuid4().hex}"
             write_bound_text(owner_path, json.dumps({"owner": owner, "research_id": self.research_id}))
@@ -69,21 +67,39 @@ class AttemptResearch:
             target.flush()
             os.fsync(target.fileno())
         self.turn_id = f"turn-{digest}"
-        self.store.append(ContextEventDraft(event_type="turn.started", turn_id=self.turn_id,
+        self._start_event = ContextEventDraft(event_type="turn.started", turn_id=self.turn_id,
             payload={"ordinal": len(self.store.snapshot.core.turns) + 1,
                      "attempt_id": attempt_id, "run_id": run_id,
-                     "model_context": model_context.to_document()}))
+                     "model_context": model_context.to_document()})
+        self._started = self.store.snapshot.core.active_turn is None
+        if self._started:
+            self.store.append(self._start_event)
         self.controller = ResearchController(self.store, research_id=self.research_id,
             turn_id=self.turn_id, admit_reference=admit_reference)
         self._closed = False
         self._is_active = is_active
         self.channel = ResearchRequestChannel(self.controller, attempt_id=attempt_id,
-            is_active=lambda: not self._closed and self._is_active(), channel_root=channel_root)
+            is_active=lambda: self._started and not self._closed and self._is_active(), channel_root=channel_root)
 
-    def bind_active_check(self, check: Callable[[], bool]) -> None:
+    def bind_active_check(self, check: Callable[[], bool],
+                          terminal_phase: Callable[[str], str | None] | None = None) -> None:
         if self._closed:
             raise RuntimeError("research attempt is closed")
         self._is_active = check
+        if not self._started:
+            previous = self.store.snapshot.core.active_turn
+            previous_attempt = previous.get("attempt_id") if previous else None
+            phase = terminal_phase(previous_attempt) if terminal_phase and isinstance(previous_attempt, str) else None
+            if not check() or phase not in {"completed", "failed", "cancelled", "interrupted"}:
+                raise RuntimeError("previous research attempt has no verified terminal state")
+            assert previous is not None
+            self.store.append(ContextEventDraft(
+                event_type="turn.completed" if phase == "completed" else "turn.failed",
+                turn_id=previous["turn_id"], payload={"attempt_id": previous_attempt,
+                    "terminal_phase": phase, "recovered_from_thread": True}))
+            self.store.append(ContextEventDraft(event_type="turn.started", turn_id=self.turn_id,
+                payload={**self._start_event.payload, "ordinal": len(self.store.snapshot.core.turns) + 1}))
+            self._started = True
 
     def current_projection(self) -> dict[str, object] | None:
         state = self.controller.read()
@@ -98,6 +114,8 @@ class AttemptResearch:
             return
         # Disable new writes even if recording the terminal transition fails.
         self._closed = True
+        if not self._started:
+            return
         self.store.append(ContextEventDraft(
             event_type="turn.failed" if failed else "turn.completed",
             turn_id=self.turn_id, payload={}))

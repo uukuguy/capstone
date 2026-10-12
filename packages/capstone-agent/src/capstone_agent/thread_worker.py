@@ -67,6 +67,7 @@ def _run_claimed_attempt(
                      "fallback": plan.fallback},
         )
         claim = replace(claim, turn_plan=plan)
+    runtime = None
     try:
         lease.check()
         runtime = runtime_factory(claim)
@@ -75,12 +76,27 @@ def _run_claimed_attempt(
             def active() -> bool:
                 lease.check()
                 return not service.cancel_requested(claim)
-            bind_guard(active)
+            def terminal_phase(attempt_id: str) -> str | None:
+                cursor = 0
+                while True:
+                    lease.check()
+                    page = service.read_attempt_records(claim.thread_id, attempt_id, after=cursor, limit=128)
+                    for event in page["events"]:
+                        if event["event_type"] in {"attempt_completed", "attempt_failed", "attempt_cancelled", "attempt_interrupted"}:
+                            return event["event_type"].removeprefix("attempt_")
+                    if not page["has_more"]:
+                        return None
+                    if page["next_after"] <= cursor:
+                        raise RuntimeError("attempt record cursor did not advance")
+                    cursor = page["next_after"]
+            bind_guard(active, terminal_phase)
     except HarnessRuntimeConfigurationError:
+        _close_prepared_runtime(runtime)
         error_code = "runtime_configuration_invalid"
         lease.check()
         return _preparation_failure(service, claim, error_code)
     except Exception:
+        _close_prepared_runtime(runtime)
         lease.check()
         error_code = "runtime_unavailable"
         if getattr(runtime_factory, "rollback_selection_on_failure", False):
@@ -101,6 +117,14 @@ def _run_claimed_attempt(
     return HarnessAttemptRunner(
         service, runtime, lease_seconds=lease_seconds, turn_router=router, lease=lease,
     ).run(claim)
+
+
+def _close_prepared_runtime(runtime: HarnessRuntime | None) -> None:
+    if runtime is not None:
+        try:
+            runtime.stop()
+        except Exception:
+            _LOG.warning("Prepared runtime cleanup failed")
 
 
 def _preparation_failure(service: ThreadExecutionService, claim: AttemptClaim, code: str) -> HarnessAttemptResult:

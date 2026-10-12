@@ -337,10 +337,11 @@ class HarnessPiClient:
 
     runtime_name = "pi"
 
-    def bind_attempt_guard(self, check: Callable[[], bool]) -> None:
+    def bind_attempt_guard(self, check: Callable[[], bool],
+                           terminal_phase: Callable[[str], str | None] | None = None) -> None:
         bind = getattr(self._session, "bind_attempt_guard", None)
         if callable(bind):
-            bind(check)
+            bind(check, terminal_phase)
 
     def __init__(
         self,

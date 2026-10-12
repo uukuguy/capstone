@@ -1,12 +1,32 @@
 from __future__ import annotations
 
 import json
+import pytest
 from types import SimpleNamespace
 
 from capstone_agent.attempt_research import AttemptResearch
 from capstone_agent.thread_protocol import ModelContextSnapshot
 
 MODEL = ModelContextSnapshot("ctx_one", "model-one", "revision:current", "pandapower", "sel_0")
+
+
+def test_unfinished_research_requires_thread_terminal_proof_before_recovery(tmp_path):
+    def open_task(attempt):
+        return AttemptResearch(tmp_path, thread_id="thr_one", run_id="run_one",
+            attempt_id=attempt, model_context=MODEL, is_active=lambda: True, admit_reference=lambda _: False)
+    old = open_task("attempt_one")
+    old.controller.update({"request_id": "save-1", "expected_revision": 0,
+                           "changes": {"goal": "Retain completed observations"}})
+    resumed = open_task("attempt_two")
+    assert not resumed.channel.is_active()
+    with pytest.raises(RuntimeError, match="verified terminal"):
+        resumed.bind_active_check(lambda: True, lambda _: None)
+    assert resumed.store.snapshot.core.active_turn["attempt_id"] == "attempt_one"
+    resumed.bind_active_check(lambda: True, lambda attempt: "interrupted" if attempt == "attempt_one" else None)
+    assert resumed.channel.is_active()
+    assert resumed.controller.read().goal == "Retain completed observations"
+    assert resumed.store.snapshot.core.turns[-1]["terminal_phase"] == "interrupted"
+    resumed.close(failed=False)
 
 
 def test_switch_back_restores_default_research_and_keeps_task_history(tmp_path):

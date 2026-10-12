@@ -475,9 +475,10 @@ class _KernelPiPromptSession:
     def start(self) -> None:
         self._client.start()
 
-    def bind_attempt_guard(self, check: Callable[[], bool]) -> None:
+    def bind_attempt_guard(self, check: Callable[[], bool],
+                           terminal_phase: Callable[[str], str | None] | None = None) -> None:
         if self._research is not None:
-            self._research.bind_active_check(check)
+            self._research.bind_active_check(check, terminal_phase)
 
     def prompt_and_wait(
         self,
