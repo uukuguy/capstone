@@ -10,7 +10,7 @@ Use `analysis.operation.list`, `analysis.operation.describe`, and `analysis.run`
 - Optimization: `opf.ac`, `opf.dc`.
 - Short circuit: `short_circuit.iec60909`.
 - State estimation: `state_estimation.estimate`, `state_estimation.chi2`, `state_estimation.remove_bad_data`.
-- Diagnostics: `diagnostic.network`.
+- Diagnostics: `diagnostic.run`.
 - Topology: `topology.path`, `topology.neighbors`, `topology.unsupplied`.
 - Protection: `protection.static`.
 
