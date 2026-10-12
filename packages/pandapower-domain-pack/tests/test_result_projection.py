@@ -153,6 +153,28 @@ def test_failed_opf_preserves_failure_status_without_presenting_old_result_table
     assert payload["result_ref"] == RESULT_REF
 
 
+@pytest.mark.parametrize("converged", [True, False])
+def test_generic_ac_projection_uses_native_convergence_and_keeps_null_voltages(converged):
+    data = {"result_ref": RESULT_REF, "evidence_refs": [EVIDENCE_REF],
+            "context_ref": context()["context_ref"], "revision_ref": REVISION_REF,
+            "result_type": "analysis.operation", "operation": "powerflow.ac",
+            "status": "succeeded" if converged else "non_converged",
+            "metadata": {"converged": converged},
+            "datasets": {"result.res_bus": {"rows": [{"index": 11, "vm_pu": None}]},
+                         "result.res_line": {"rows": [{"index": 11, "loading_percent": 60.25}]}}}
+    payload = PandapowerResultProjector().project(context(), data, thread_id="thread_1",
+        run_id="run_1", turn_id="turn_1", attempt_id="attempt_1",
+        admitted_refs={RESULT_REF, EVIDENCE_REF}, diagram=diagram())
+    assert payload["status"] == ("completed" if converged else "partial")
+    if converged:
+        tables = {table["table_id"]: table for table in payload["tables"]}
+        assert tables["res_bus"]["rows"][0]["cells"]["vm_pu"] is None
+        assert tables["res_line"]["rows"][0]["cells"]["loading_percent"] == 60.25
+        assert payload["summary"] == [{"metric_id": "converged", "label": "计算收敛", "value": True}]
+    else:
+        assert payload["tables"] == []
+
+
 def test_projector_rejects_missing_admitted_evidence_or_unknown_element() -> None:
     with pytest.raises(ValueError, match="evidence"):
         PandapowerResultProjector().project(

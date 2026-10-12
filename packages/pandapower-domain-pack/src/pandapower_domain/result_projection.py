@@ -222,7 +222,14 @@ class PandapowerResultProjector:
         admitted = set(admitted_refs)
         if result_ref not in admitted or any(item not in admitted for item in evidence_refs):
             raise ValueError("calculation result or evidence is not admitted")
-        if not supported:
+        if supported and not evidence_refs:
+            raise ValueError("calculation evidence is required")
+        native_powerflow = (
+            calculation_document.get("result_type") == "analysis.operation"
+            and calculation_document.get("operation") == "powerflow.ac"
+            and "branch_results" not in calculation_document
+        )
+        if not supported or native_powerflow:
             base = {
                 "schema": "capstone-result-projection/1.0",
                 "result_id": f"result_projection_{attempt_id}_{result_ref[-16:]}",
@@ -237,8 +244,6 @@ class PandapowerResultProjector:
             analysis_base = {key: value for key, value in base.items() if key != "unavailable_reason"}
             projected = project_analysis_result(calculation_document, analysis_base)
             return base if projected is None else projected
-        if not evidence_refs:
-            raise ValueError("calculation evidence is required")
         capability = capability_hint if capability_hint != "powerflow.ac" else "analysis.powerflow.ac.run"
         base: dict[str, object] = {
             "schema": "capstone-result-projection/1.0", "result_id": f"result_projection_{attempt_id}_{result_ref[-16:]}",

@@ -17,6 +17,7 @@ _LABELS = {
     "max_loading_percent": "最大负载率", "min_vm_pu": "最低电压", "max_vm_pu": "最高电压",
 }
 _OPERATIONS = {
+    "powerflow.ac": ("converged",),
     "opf.ac": ("converged", "objective"), "opf.dc": ("converged", "objective"),
     "constraints.violations": ("violation_count", "constraint_source"),
     "topology.unsupplied": ("unsupplied_bus_count",),
@@ -24,6 +25,12 @@ _OPERATIONS = {
 _OPF_TABLES = (
     ("result.res_line", "线路负载率", ("index", "loading_percent")),
     ("result.res_bus", "母线电压与边际价格", ("index", "vm_pu", "lam_p", "lam_q")),
+    ("result.res_gen", "发电机出力", ("index", "p_mw", "q_mvar", "vm_pu")),
+    ("result.res_ext_grid", "外部电网出力", ("index", "p_mw", "q_mvar")),
+)
+_POWERFLOW_TABLES = (
+    ("result.res_line", "线路负载率", ("index", "loading_percent")),
+    ("result.res_bus", "母线电压", ("index", "vm_pu")),
     ("result.res_gen", "发电机出力", ("index", "p_mw", "q_mvar", "vm_pu")),
     ("result.res_ext_grid", "外部电网出力", ("index", "p_mw", "q_mvar")),
 )
@@ -108,6 +115,8 @@ def project_analysis_result(calculation: Mapping[str, Any], base: dict[str, obje
         table_specs = _OPF_TABLES if operation in {"opf.ac", "opf.dc"} else (
             (("result.res_violation", "约束越限记录", ("index", "kind", "severity", "value", "limit", "unit")),)
             if operation == "constraints.violations" else ())
+        if operation == "powerflow.ac":
+            table_specs = _POWERFLOW_TABLES
         for name, title, fields in table_specs:
             dataset = datasets.get(name)
             if not isinstance(dataset, Mapping) or not isinstance(dataset.get("rows"), list):
