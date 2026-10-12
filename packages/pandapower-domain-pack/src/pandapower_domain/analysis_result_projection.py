@@ -9,6 +9,7 @@ from typing import Any
 _LABELS = {
     "converged": "计算收敛", "objective": "优化目标值", "violation_count": "越限记录数",
     "constraint_source": "约束来源", "unsupplied_bus_count": "失电母线数",
+    "checked_value_count": "已核验数值数", "unavailable_value_count": "未核验数值数",
     "scenario_count": "校核场景数", "constraint_evaluation": "约束评估",
     "index": "模型索引", "vm_pu": "电压", "lam_p": "有功边际价格", "lam_q": "无功边际价格",
     "loading_percent": "负载率", "p_mw": "有功出力", "q_mvar": "无功出力",
@@ -19,7 +20,7 @@ _LABELS = {
 _OPERATIONS = {
     "powerflow.ac": ("converged",),
     "opf.ac": ("converged", "objective"), "opf.dc": ("converged", "objective"),
-    "constraints.violations": ("violation_count", "constraint_source"),
+    "constraints.violations": ("violation_count", "constraint_source", "checked_value_count", "unavailable_value_count"),
     "topology.unsupplied": ("unsupplied_bus_count",),
 }
 _OPF_TABLES = (
@@ -103,10 +104,13 @@ def project_analysis_result(calculation: Mapping[str, Any], base: dict[str, obje
         if len(scenarios) > 128:
             reasons.append("场景超过展示上限，显示前128条；完整记录保留在原结果中")
     else:
-        if calculation.get("status") != "succeeded" or metadata.get("converged") is False:
+        partial_evaluation = operation == "constraints.violations" and calculation.get("status") == "partial"
+        if (calculation.get("status") != "succeeded" and not partial_evaluation) or metadata.get("converged") is False:
             metric("status", calculation.get("status"))
             return {**output, "status": "partial", "summary": summary,
                     "unavailable_reason": "计算未成功，失败状态和原始记录已保留"}
+        if partial_evaluation:
+            reasons.append("部分指标缺少限值或计算值；已核验结果保留，零项越限不表示全部合格")
         for key in _OPERATIONS[operation]:
             if key in metadata:
                 metric(key, metadata[key])

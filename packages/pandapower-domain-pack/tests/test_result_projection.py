@@ -124,6 +124,22 @@ def test_opf_projects_every_supplied_line_and_price_with_declared_units():
     assert "unit" not in price
 
 
+def test_partial_constraint_evaluation_keeps_verified_results_and_coverage():
+    data = {**calculation(), "producer_capability": "analysis.result.violations.evaluate",
+            "operation": "constraints.violations", "status": "partial",
+            "metadata": {"violation_count": 1, "constraint_source": "model",
+                         "checked_value_count": 8, "unavailable_value_count": 1},
+            "datasets": {"result.res_violation": {"rows": [
+                {"index": 0, "kind": "bus_voltage_high", "value": 1.02, "limit": 0.5}]}}}
+    payload = PandapowerResultProjector().project(context(), data, thread_id="thread_1",
+        run_id="run_1", turn_id="turn_1", attempt_id="attempt_1",
+        admitted_refs={RESULT_REF, EVIDENCE_REF}, diagram=diagram())
+    assert payload["status"] == "partial"
+    assert payload["tables"][0]["rows"][0]["cells"]["value"] == 1.02
+    assert {m["metric_id"]: m["value"] for m in payload["summary"]}["unavailable_value_count"] == 1
+    assert "零项越限不表示全部合格" in payload["unavailable_reason"]
+
+
 def test_contingency_projects_failed_scenarios_and_undefined_constraints():
     data = {**calculation(), "producer_capability": "analysis.contingency.n_minus_one.run",
             "status": "succeeded", "scenario_count": 2,

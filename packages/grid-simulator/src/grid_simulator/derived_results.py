@@ -28,15 +28,29 @@ def evaluate_result_violations(
     rows: list[dict[str, Any]] = []
     evaluated: list[str] = []
     unavailable: list[str] = []
+    coverage = {quantity: {"available_values": 0, "checked_values": 0,
+                          "missing_limits": 0, "missing_values": 0}
+                for quantity in ("bus.vm_pu", "branch.loading_percent")}
+
+    def can_check(quantity: str, value: Any, has_limit: bool) -> bool:
+        counts = coverage[quantity]
+        counts["available_values" if value is not None else "missing_values"] += 1
+        if not has_limit:
+            counts["missing_limits"] += 1
+        if value is None or not has_limit:
+            return False
+        counts["checked_values"] += 1
+        return True
 
     bus = source["datasets"].get("result.res_bus")
     if isinstance(bus, dict) and "vm_pu" in _fields(bus):
-        evaluated.append("bus.vm_pu")
         for row in bus["rows"]:
             bound = constraints.bus_voltage.get(int(row["index"]))
             value = row.get("vm_pu")
-            if bound is None or value is None:
+            has_limit = bound is not None and (bound.lower is not None or bound.upper is not None)
+            if not can_check("bus.vm_pu", value, has_limit):
                 continue
+            assert bound is not None
             if bound.lower is not None and float(value) < bound.lower:
                 rows.append(_violation(row, "bus_voltage_low", float(value), bound.lower, bound.constraint_ref, "warning"))
             if bound.upper is not None and float(value) > bound.upper:
@@ -53,7 +67,10 @@ def evaluate_result_violations(
         for row in dataset["rows"]:
             bound = constraints.branch_loading.get((kind, int(row["index"])))
             value = row.get("loading_percent")
-            if bound is None or bound.upper is None or value is None or float(value) <= bound.upper:
+            if not can_check("branch.loading_percent", value, bound is not None and bound.upper is not None):
+                continue
+            assert bound is not None and bound.upper is not None
+            if float(value) <= bound.upper:
                 continue
             rows.append(
                 _violation(
@@ -65,7 +82,13 @@ def evaluate_result_violations(
                     "critical",
                 )
             )
-    (evaluated if branch_evaluated else unavailable).append("branch.loading_percent")
+    if not branch_evaluated:
+        unavailable.append("branch.loading_percent")
+    for quantity, counts in coverage.items():
+        if counts["checked_values"]:
+            evaluated.append(quantity)
+        if (counts["missing_limits"] or counts["missing_values"]) and quantity not in unavailable:
+            unavailable.append(quantity)
     net["res_violation"] = pd.DataFrame(rows).reindex(
         columns=(
             "kind",
@@ -85,6 +108,10 @@ def evaluate_result_violations(
         "evaluated_quantities": evaluated,
         "unavailable_quantities": unavailable,
         "constraint_source": "model",
+        "evaluation_coverage": coverage,
+        "checked_value_count": sum(item["checked_values"] for item in coverage.values()),
+        "unavailable_value_count": sum(item["available_values"] + item["missing_values"] - item["checked_values"]
+                                       for item in coverage.values()),
     }
     persisted = store.persist(
         context=context,
