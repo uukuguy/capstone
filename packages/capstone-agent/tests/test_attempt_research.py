@@ -9,6 +9,28 @@ from capstone_agent.thread_protocol import ModelContextSnapshot
 MODEL = ModelContextSnapshot("ctx_one", "model-one", "revision:current", "pandapower", "sel_0")
 
 
+def test_switch_back_restores_default_research_and_keeps_task_history(tmp_path):
+    def open_task(attempt, model):
+        return AttemptResearch(tmp_path, thread_id="thr_one", run_id="run_one",
+            attempt_id=attempt, model_context=model, is_active=lambda: True, admit_reference=lambda _: False)
+    first = open_task("attempt_one", MODEL)
+    first.controller.update({"request_id": "save-1", "expected_revision": 0,
+                             "changes": {"goal": "Compare candidate actions"}})
+    first.close(failed=False)
+    other_model = ModelContextSnapshot("ctx_two", "model-two", "revision:other", "pandapower", "sel_1")
+    other = open_task("attempt_two", other_model)
+    assert other.controller.read() is None
+    assert other.research_id != first.research_id
+    other.close(failed=False)
+    restored = open_task("attempt_three", MODEL)
+    assert restored.research_id == first.research_id
+    assert restored.controller.read().goal == "Compare candidate actions"
+    assert len(restored.store.snapshot.core.turns) == 1
+    assert first.identity_path.exists()
+    assert restored.identity_path != first.identity_path
+    restored.close(failed=False)
+
+
 def test_worker_guard_prevents_research_write_after_cancellation(tmp_path):
     from capstone_agent.harness import HarnessPiClient
     from capstone_agent.kernel_pi_session import _KernelPiPromptSession
@@ -32,6 +54,7 @@ def test_worker_guard_prevents_research_write_after_cancellation(tmp_path):
 def test_research_isolated_by_attempt_and_preserves_thread_identity(tmp_path):
     first = AttemptResearch(tmp_path, thread_id="thr_one", run_id="run_one",
         attempt_id="attempt_one", model_context=MODEL, is_active=lambda: True, admit_reference=lambda _: False)
+    first.close(failed=False)
     second = AttemptResearch(tmp_path, thread_id="thr_one", run_id="run_one",
         attempt_id="attempt_two", model_context=MODEL, is_active=lambda: True, admit_reference=lambda _: False)
     assert first.channel.root != second.channel.root
@@ -41,7 +64,7 @@ def test_research_isolated_by_attempt_and_preserves_thread_identity(tmp_path):
     assert identity["attempt_id"] == "attempt_one"
     assert identity["baseline_model_context"] == MODEL.to_document()
     assert identity["research_id"] == first.controller.research_id
-    assert first.research_id != second.research_id
+    assert first.research_id == second.research_id
     assert first.research_id.removeprefix("research-") != first.turn_id.removeprefix("turn-")
     assert first.controller.read() is None
     assert first.current_projection() is None

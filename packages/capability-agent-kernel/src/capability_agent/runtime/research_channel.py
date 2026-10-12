@@ -22,13 +22,14 @@ class ResearchRequestChannel:
     """Serve a bounded batch during RPC waits and publish views before receipts."""
 
     def __init__(self, controller: ResearchController, *, attempt_id: str,
-                 is_active: Callable[[], bool]) -> None:
+                 is_active: Callable[[], bool], channel_root: Path | None = None) -> None:
         if not _IDENTITY.fullmatch(attempt_id):
             raise ValueError("invalid research attempt identity")
         self.controller = controller
         self.attempt_id = attempt_id
         self.is_active = is_active
-        self.root = ensure_bound_directory(controller.store.workspace.core_path / "research" / attempt_id)
+        self.root = ensure_bound_directory(channel_root if channel_root is not None
+            else controller.store.workspace.core_path / "research" / attempt_id)
         self.requests_path = ensure_bound_directory(self.root / "requests")
         self.receipts_path = ensure_bound_directory(self.root / "receipts")
         self.view_path = self.root / "view.json"

@@ -134,9 +134,10 @@ class PreparedKernelPiRpcSessionBuilder:
         research = None
         if self._research_enabled:
             active = self._research_is_active
-            research = AttemptResearch(workspace.core_path / "research-attempts", thread_id=claim.thread_id,
+            research = AttemptResearch(workspace.root.parent / "thread-research", thread_id=claim.thread_id,
                 run_id=claim.run_id, attempt_id=claim.attempt.attempt_id,
                 model_context=claim.model_context,
+                channel_root=workspace.core_path / "research-channels" / claim.attempt.attempt_id,
                 is_active=lambda: active(claim) if active is not None else False,
                 admit_reference=references.admit)
         descriptors = []
@@ -464,7 +465,8 @@ class _KernelPiPromptSession:
         self._research = research
         self._research_reference_observer = research_reference_observer
         self._answer_admitted = False
-        self._published_research_revision = 0
+        existing_research = research.controller.read() if research is not None else None
+        self._published_research_revision = existing_research.revision if existing_research is not None else 0
 
     @property
     def command(self) -> object:

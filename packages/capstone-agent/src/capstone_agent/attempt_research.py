@@ -11,6 +11,7 @@ from uuid import uuid4
 from capability_agent.application import ApplicationContextStore, ContextEventDraft, ResearchController
 from capability_agent.application.workspace import ApplicationWorkspace
 from capability_agent.runtime.research_channel import ResearchRequestChannel
+from capability_agent._safe_files import read_bound_regular_path, write_bound_text
 from .thread_protocol import ModelContextSnapshot
 
 
@@ -19,11 +20,13 @@ class AttemptResearch:
 
     Thread identifiers and Kernel portable identifiers have different contracts.
     The immutable binding records both; neither namespace impersonates the other.
-    Existing workspaces are never overwritten or silently resumed.
+    Research is restored by Thread and model identity; attempts have separate
+    channels and immutable bindings. An unfinished turn requires recovery.
     """
 
     def __init__(self, root: Path, *, thread_id: str, run_id: str, attempt_id: str,
                  model_context: ModelContextSnapshot,
+                 channel_root: Path | None = None,
                  is_active: Callable[[], bool], admit_reference: Callable[[str], bool]) -> None:
         if not isinstance(model_context, ModelContextSnapshot):
             raise TypeError("research requires the selected model snapshot")
@@ -33,12 +36,29 @@ class AttemptResearch:
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", attempt_id):
             raise ValueError("invalid research attempt identity")
         digest = sha256(json.dumps(identities).encode()).hexdigest()[:48]
-        workspace = ApplicationWorkspace.create(root, run_id=f"task-{digest}")
+        owner = {"thread_id": thread_id, "model_id": model_context.model_id,
+                 "implementation_family": model_context.implementation_family}
+        storage_id = "study-" + sha256(json.dumps(owner, sort_keys=True).encode()).hexdigest()[:48]
+        existing = (root / storage_id).exists()
+        workspace = (ApplicationWorkspace.open_existing(root, run_id=storage_id) if existing
+                     else ApplicationWorkspace.create(root, run_id=storage_id))
         # Reserve a host identity for the channel, not a visible research.
         # Only a committed initial goal creates research state.
-        self.research_id = f"research-{uuid4().hex}"
+        owner_path = workspace.core_path / "research-binding.json"
+        if existing:
+            saved = json.loads(read_bound_regular_path(owner_path))
+            if saved.get("owner") != owner:
+                raise ValueError("research owner does not match selected model")
+            self.research_id = saved["research_id"]
+            self.store = ApplicationContextStore(workspace, ApplicationContextStore.replay(workspace))
+            if self.store.snapshot.core.active_turn is not None:
+                raise RuntimeError("research already has an active attempt")
+        else:
+            self.research_id = f"research-{uuid4().hex}"
+            write_bound_text(owner_path, json.dumps({"owner": owner, "research_id": self.research_id}))
+            self.store = ApplicationContextStore.initialize(workspace)
         self.model_context = model_context
-        self.identity_path = workspace.core_path / "task-binding.json"
+        self.identity_path = workspace.turns_path / f"{attempt_id}.json"
         binding = {"schema": "capstone-task-research-binding/1", "thread_id": thread_id,
                    "run_id": run_id, "attempt_id": attempt_id, "kernel_run_id": workspace.run_id,
                    "research_id": self.research_id,
@@ -48,16 +68,17 @@ class AttemptResearch:
             json.dump(binding, target)
             target.flush()
             os.fsync(target.fileno())
-        self.store = ApplicationContextStore.initialize(workspace)
         self.turn_id = f"turn-{digest}"
         self.store.append(ContextEventDraft(event_type="turn.started", turn_id=self.turn_id,
-                                           payload={"ordinal": 1}))
+            payload={"ordinal": len(self.store.snapshot.core.turns) + 1,
+                     "attempt_id": attempt_id, "run_id": run_id,
+                     "model_context": model_context.to_document()}))
         self.controller = ResearchController(self.store, research_id=self.research_id,
             turn_id=self.turn_id, admit_reference=admit_reference)
         self._closed = False
         self._is_active = is_active
         self.channel = ResearchRequestChannel(self.controller, attempt_id=attempt_id,
-            is_active=lambda: not self._closed and self._is_active())
+            is_active=lambda: not self._closed and self._is_active(), channel_root=channel_root)
 
     def bind_active_check(self, check: Callable[[], bool]) -> None:
         if self._closed:
