@@ -339,9 +339,14 @@ export class ThreadProjectionStore {
     }
     let trimmed = false
     while (this.eventLog.length > 1 && (this.eventLog.length > 1024 || bytes > 8 * 1024 * 1024)) {
-      const event = keepLatest ? this.eventLog.shift()! : this.eventLog.pop()!
+      // Diagnostic token deltas are retained by the server. They must not
+      // evict the public instruction, tool actions or completed outcome.
+      const diagnostic = this.eventLog.findIndex(event => event.visibility === 'diagnostic')
+      const event = diagnostic >= 0 ? this.eventLog.splice(diagnostic, 1)[0]
+        : keepLatest ? this.eventLog.shift()! : this.eventLog.pop()!
       bytes -= this.eventSizes.get(event.eventSeq) || 0
-      this.eventSizes.delete(event.eventSeq); trimmed = true
+      this.eventSizes.delete(event.eventSeq)
+      trimmed ||= event.visibility === 'public'
     }
     if (trimmed) {
       if (keepLatest) this.olderHistoryCursor = this.eventLog[0]?.eventSeq ?? null

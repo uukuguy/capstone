@@ -336,6 +336,30 @@ it('recovers a lost model-control receipt with its original identity and one act
   expect(store.state.snapshot?.currentAttempt).toBeNull()
 })
 
+it('keeps public task actions when diagnostic deltas exceed the local event budget', async () => {
+  const store = new ThreadProjectionStore(new CapstoneThreadClient({
+    ...createFixtureTransport(idleFixture),
+    streamEvents: async function* () {
+      for (let seq = 1; seq <= 1104; seq++) {
+        const eventType = seq === 1 ? 'command_accepted' : seq === 2 ? 'tool_started'
+          : seq === 3 ? 'tool_completed' : seq === 1104 ? 'attempt_completed' : 'assistant_process_delta'
+        yield parseEventEnvelope({ ...conversationalEvent(seq, eventType, 1,
+          seq === 1 ? { kind: 'send_auto', payload: { text: 'Analyze this model' } }
+            : seq === 1104 ? { answer: 'Completed' }
+              : { tool_name: 'domain_read', tool_call_id: 'call_1', ok: true }),
+          visibility: eventType === 'assistant_process_delta' ? 'diagnostic' : 'public' })
+      }
+    },
+  }))
+  await store.load('thr_demo_39')
+  await expect(store.consumeEvents(new AbortController().signal)).rejects.toThrow('实时连接已关闭')
+  expect(store.publicEvents.map(event => event.eventType)).toEqual([
+    'command_accepted', 'tool_started', 'tool_completed', 'attempt_completed',
+  ])
+  expect(store.state.eventSeq).toBe(1104)
+  expect(store.state.hasOlderHistory).toBe(false)
+})
+
 it('bounds a continuing stream and treats clean EOF as a reconnect without changing the live cursor', async () => {
   const store = new ThreadProjectionStore(new CapstoneThreadClient({
     ...createFixtureTransport(idleFixture),
