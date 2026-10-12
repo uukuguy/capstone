@@ -350,12 +350,18 @@ def _field_descriptions(
     descriptions = []
     for name in names:
         values = [row.get(name) for row in rows]
+        meaning = f"pandapower {source_table}.{name}"
+        if name == "asset_ref":
+            meaning = "stable source element reference"
+        elif source_table == "res_bus" and name in {"vm_pu", "va_degree"}:
+            meaning += "; null means no computed value. A missing value does not establish "
+            meaning += "zero voltage, physical loss of supply, instability or mathematical unsolvability."
         descriptions.append(
             {
                 "name": name,
                 "type": _field_type(values, name),
                 "unit": _unit(name),
-                "meaning": "stable source element reference" if name == "asset_ref" else f"pandapower {source_table}.{name}",
+                "meaning": meaning,
                 "nullable": any(value is None for value in values),
                 "provenance": f"pandapower.{source_table}.{name}",
             }

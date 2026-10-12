@@ -934,6 +934,7 @@ def _topology_components_get(
         "revision_ref": context.revision_ref,
         "component_count": len(components),
         "components": components,
+        "physical_supply_state": "not_evaluated",
     }
 
 

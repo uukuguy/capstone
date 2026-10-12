@@ -15,7 +15,19 @@ def test_components_distinguish_generation_from_supply_references(grid, context_
     assert component["generation_counts"]["gen"] > 0
     assert component["generation_counts"]["ext_grid"] == 0
     assert component["supply_reference_bus_indices"] == []
+    assert response["physical_supply_state"] == "not_evaluated"
     assert len(component["bus_indices"]) == component["bus_count"]
+
+
+def test_reference_connectivity_result_does_not_claim_physical_loss_of_supply(grid, context_ref):
+    derived = grid.call("model.revision.derive", {"context_ref": context_ref,
+        "patches": [{"operation": "in_service", "kind": "ext_grid",
+            "selector": {"where": {}}, "value": False}]})
+    response = grid.call("analysis.run", {"context_ref": derived["context_ref"],
+        "operation": "topology.unsupplied", "options": {}})
+    assert response["status"] == "succeeded"
+    assert response["summary"]["unsupplied_bus_count"] > 0
+    assert response["summary"]["physical_supply_state"] == "not_evaluated"
 
 
 def test_line_11_returns_endpoints_without_powerflow(grid, context_ref: str) -> None:

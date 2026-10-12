@@ -28,6 +28,11 @@
       "context_ref": {"type": "string", "pattern": "^context:sha256:[0-9a-f]{64}$"},
       "revision_ref": {"type": "string", "pattern": "^revision:sha256:[0-9a-f]{64}$"},
       "component_count": {"type": "integer", "minimum": 0},
+      "physical_supply_state": {
+        "type": "string",
+        "const": "not_evaluated",
+        "description": "Static connectivity and reference-node presence do not establish physical energization, inverter control, protection actions or voltage stability."
+      },
       "components": {
         "type": "array",
         "maxItems": 50,

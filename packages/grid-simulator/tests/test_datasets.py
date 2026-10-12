@@ -225,6 +225,19 @@ def test_element_resolution_rejects_unavailable_tables_with_recovery(grid, conte
     assert error.allowed_recovery_actions == ("list_datasets",)
 
 
+def test_missing_bus_voltage_is_described_as_uncomputed_not_a_physical_state(grid, context_ref):
+    derived = grid.call("model.revision.derive", {"context_ref": context_ref,
+        "patches": [{"operation": "in_service", "kind": "bus",
+                     "selector": {"indices": [0]}, "value": False}]})
+    result = grid.call("analysis.powerflow.ac.run", {"context_ref": derived["context_ref"]})
+    description = grid.call("result.dataset.describe", {"result_ref": result["result_ref"],
+                                                         "dataset": "result.res_bus"})
+    voltage = next(field for field in description["fields"] if field["name"] == "vm_pu")
+    assert voltage["nullable"] is True
+    assert "no computed value" in voltage["meaning"]
+    assert "not establish" in voltage["meaning"]
+
+
 def test_branch_dataset_schema_enumerates_every_queryable_field(grid, context_ref: str) -> None:
     description = grid.call("model.dataset.describe", {"context_ref": context_ref, "dataset": "network.branches"})
     fields = {item["name"] for item in description["fields"]}
