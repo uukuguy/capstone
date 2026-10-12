@@ -134,6 +134,7 @@ const maxResultProjections = 64
 const maxResultColumns = 32
 const maxResultRows = 128
 const maxResultElements = 128
+const maxAttemptReferences = 1024
 const maxResultOverlayValues = 256
 const maxResultText = 256
 
@@ -258,7 +259,7 @@ function parseResultProjection(value: unknown): ResultProjection {
   const source = object(document.source, 'result projection.source')
   fields(source, new Set(['capability_id', 'domain_pack_id', 'implementation_family']), 'result projection.source')
   required(source, ['capability_id', 'domain_pack_id', 'implementation_family'], 'result projection.source')
-  if (!Array.isArray(document.evidence_refs) || document.evidence_refs.length > maxResultElements) throw new ThreadProtocolError('result projection.evidence_refs is invalid')
+  if (!Array.isArray(document.evidence_refs) || document.evidence_refs.length > maxAttemptReferences) throw new ThreadProtocolError('result projection.evidence_refs is invalid')
   const evidenceRefs = document.evidence_refs.map((item, index) => resultRef(item, `result projection.evidence_refs[${index}]`, 'evidence'))
   const resultReference = document.result_ref == null ? undefined : resultRef(document.result_ref, 'result projection.result_ref', 'result')
   if ((status === 'completed' || status === 'partial') && (!resultReference || evidenceRefs.length === 0)) throw new ThreadProtocolError('available result projection requires result and evidence references')

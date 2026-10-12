@@ -14,6 +14,7 @@ import json
 from typing import Protocol, cast
 
 from .attempt_lease import AttemptLeaseRenewal
+from .reference_limits import MAX_ATTEMPT_REFERENCES, ReferenceCapacityExceeded
 from .result_projection import MAX_RESULT_PROJECTIONS, MAX_RESULT_PROJECTION_BYTES
 from .progress import project_tool_failure
 from .thread_service import AttemptClaim, ThreadExecutionService
@@ -58,7 +59,9 @@ class AdmittedAttemptAnswer:
             raise ValueError("answer admission assurance is invalid")
         for name in ("result_refs", "evidence_refs"):
             refs = getattr(self, name)
-            if not isinstance(refs, tuple) or len(refs) > 128 or any(
+            if isinstance(refs, tuple) and len(refs) > MAX_ATTEMPT_REFERENCES:
+                raise ReferenceCapacityExceeded("admitted reference capacity exceeded")
+            if not isinstance(refs, tuple) or any(
                 not isinstance(ref, str) or not ref or len(ref) > 512 for ref in refs
             ) or len(set(refs)) != len(refs):
                 raise ValueError("admitted references are invalid")
@@ -263,14 +266,14 @@ def _tool_payload(event: Mapping[str, object]) -> dict[str, object]:
                 payload[target] = value[:256]
     refs = event.get("evidence_refs", details.get("evidence_refs"))
     if isinstance(refs, (list, tuple)):
-        bounded = [ref[:512] for ref in refs if isinstance(ref, str) and ref][:128]
+        bounded = [ref[:512] for ref in refs if isinstance(ref, str) and ref]
         if bounded:
             payload["evidence_refs"] = bounded
     result_refs = event.get("result_refs", details.get("result_refs"))
     if isinstance(result_refs, (list, tuple)):
         bounded_results = [
             ref[:512] for ref in result_refs if isinstance(ref, str) and ref
-        ][:128]
+        ]
         if bounded_results:
             payload["result_refs"] = bounded_results
     result_ref = event.get("result_ref", details.get("result_ref"))
@@ -288,7 +291,7 @@ def _tool_payload(event: Mapping[str, object]) -> dict[str, object]:
         if isinstance(result.get("result_ref"), str):
             references.append(result["result_ref"])
         if references:
-            payload["result_refs"] = list(dict.fromkeys(ref[:512] for ref in references))[:128]
+            payload["result_refs"] = list(dict.fromkeys(ref[:512] for ref in references))
         for identity in (event, details, result):
             for source, target in (
                 ("context_ref", "context_ref"), ("model_ref", "model_ref"),
@@ -547,8 +550,7 @@ class HarnessAttemptRunner:
                     plan = self._turn_router.plan(routing_input_for_claim(claim))
                 except DecisionUnavailable as error:
                     error_code = "llm_route_unavailable" if str(error) == "llm_route_unavailable" else "ordinary_conversation_disabled"
-                    self._finish_failed(claim, error_code)
-                    return HarnessAttemptResult("failed", None, error_code)
+                    return self._deliver_failure(claim, error_code, "routing", False, lease.check)
                 self._persist_plan(claim, plan)
             self._runtime.start()
             lease.check()
@@ -571,6 +573,10 @@ class HarnessAttemptRunner:
                     break
                 except _AttemptAdmissionError as error:
                     self._record_validation_failure(claim, answer, lease.check, error.code)
+                    if error.code == "answer_reference_capacity_exceeded":
+                        # Rewriting prose cannot change a host capacity limit.
+                        # Deliver the independently verified products instead.
+                        raise
                     recover = getattr(self._runtime, "recover_after_failure", None)
                     if correction or not callable(recover) or not getattr(self._runtime, "recovery_available", True):
                         raise
@@ -670,8 +676,9 @@ class HarnessAttemptRunner:
             lease.check()
             return self._deliver_failure(claim, error.code, "answer_check", recovery_attempted, lease.check)
         except _AttemptCancelled:
-            self._finish_cancelled(claim)
-            return HarnessAttemptResult("cancelled", None, "attempt_cancelled")
+            answer = "已按你的要求停止本次任务。已记录的执行过程仍保留，未完成的分析不作为结论。"
+            self._finish_cancelled(claim, answer)
+            return HarnessAttemptResult("cancelled", answer, "attempt_cancelled")
         except Exception:
             if terminal_commit_started:
                 # The write may have committed. Never replace an uncertain
@@ -694,6 +701,8 @@ class HarnessAttemptRunner:
             try:
                 candidate = admit(claim, answer, tuple(self._result_refs),
                                   tuple(self._evidence_refs), tuple(self._tool_events))
+            except ReferenceCapacityExceeded:
+                raise _AttemptAdmissionError("answer_reference_capacity_exceeded") from None
             except Exception:
                 raise _AttemptAdmissionError("answer_admission_failed") from None
         if candidate is not None and not isinstance(candidate, AdmittedAttemptAnswer):
@@ -770,22 +779,12 @@ class HarnessAttemptRunner:
         if self._service.cancel_requested(claim):
             raise _AttemptCancelled
 
-    def _finish_cancelled(self, claim: AttemptClaim) -> None:
+    def _finish_cancelled(self, claim: AttemptClaim, answer: str) -> None:
         try:
             self._service.finish_attempt(
-                claim, phase="cancelled", payload={"error_code": "attempt_cancelled"},
+                claim, phase="cancelled", payload={"error_code": "attempt_cancelled", "answer": answer},
             )
         except Exception as exc:
-            raise RuntimeError("attempt terminal persistence failed") from exc
-
-    def _finish_failed(self, claim: AttemptClaim, error_code: str) -> None:
-        try:
-            self._service.finish_attempt(
-                claim, phase="failed", payload={"error_code": error_code},
-            )
-        except Exception as exc:
-            # The durable service remains the source of truth. If its terminal
-            # write failed, do not claim that the Attempt was safely finished.
             raise RuntimeError("attempt terminal persistence failed") from exc
 
     def _deliver_failure(
@@ -799,6 +798,10 @@ class HarnessAttemptRunner:
             if stage == "answer_check" else
             "本次任务未能完成。执行中断，尚不能给出完整结论。"
         )
+        if stage == "routing":
+            answer = "本次未能启动任务处理，尚未执行计算。请求处理服务暂时不可用，请稍后重试。"
+        if code == "answer_reference_capacity_exceeded":
+            answer = "本次任务产生的结果与证据数量超过单次回答的处理容量，未能汇总全部结论。计算记录仍保留，数量限制不表示这些计算失败。"
         if recovery_attempted:
             answer += "已尝试纠正回答，但未能形成通过核验的最终结论。"
         answer += "已记录的执行过程仍保留。"
@@ -873,9 +876,10 @@ class HarnessAttemptRunner:
         candidate = checked_group(tuple(self._result_refs), tuple(self._evidence_refs))
         if candidate is not None:
             return candidate
-        # Tool receipts define candidate groups, never their validity. Bound
-        # recovery work and retain full history for groups not admitted here.
+        # Check every observed group. A late invalid group must not hide
+        # earlier verified products behind an arbitrary recovery count.
         seen: set[tuple[tuple[str, ...], tuple[str, ...]]] = set()
+        valid_groups: list[AdmittedAttemptAnswer] = []
         retained_results: list[str] = []
         retained_evidence: list[str] = []
         for event in reversed(self._tool_events):
@@ -891,15 +895,27 @@ class HarnessAttemptRunner:
             seen.add(group)
             candidate = checked_group(*group)
             if candidate is not None:
+                valid_groups.append(candidate)
                 _extend_refs(retained_results, candidate.result_refs)
                 _extend_refs(retained_evidence, candidate.evidence_refs)
-            if len(seen) >= 16:
-                break
         if not retained_results or not retained_evidence:
             return None
         # Re-admit the combined references: separately valid groups need not
         # share a compatible model revision or answer policy.
-        return checked_group(tuple(retained_results), tuple(retained_evidence))
+        combined = checked_group(tuple(retained_results), tuple(retained_evidence))
+        if combined is not None:
+            return combined
+        # A capacity or compatibility failure in the union must not discard
+        # every valid group. Retain a jointly verified subset; all original
+        # receipts remain in the attempt record, including excluded groups.
+        selected: AdmittedAttemptAnswer | None = None
+        for group in valid_groups:
+            next_results = tuple(dict.fromkeys((() if selected is None else selected.result_refs) + group.result_refs))
+            next_evidence = tuple(dict.fromkeys((() if selected is None else selected.evidence_refs) + group.evidence_refs))
+            candidate = checked_group(next_results, next_evidence)
+            if candidate is not None:
+                selected = candidate
+        return selected
 
 
 class _AttemptAdmissionError(RuntimeError):
@@ -918,8 +934,6 @@ def _extend_refs(target: list[str], value: object) -> None:
     for reference in value:
         if isinstance(reference, str) and reference and reference not in target:
             target.append(reference[:512])
-            if len(target) >= 128:
-                return
 
 
 __all__ = [

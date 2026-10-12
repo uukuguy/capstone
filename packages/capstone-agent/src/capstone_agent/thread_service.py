@@ -46,6 +46,7 @@ from .thread_application_transition import (
     application_transition_hash,
 )
 from .model_identity import page_id_for_model, validate_model_id
+from .reference_limits import MAX_ATTEMPT_REFERENCES, MAX_REFERENCE_EVENT_BYTES
 from .network_diagram import MAX_DIAGRAM_BYTES, MAX_EVENT_PAGE_BYTES, normalize_network_diagram
 from .result_projection import MAX_RESULT_PROJECTIONS, MAX_RESULT_PROJECTION_BYTES, ResultProjection, normalize_result_projection, validate_artifact_reference
 from .thread_management import history_cursor, history_page, network_context_page, thread_descriptor, thread_list_page, validate_limit
@@ -246,7 +247,7 @@ def _terminal_result_delivery(
                      for index, fragment in enumerate(fragments))
     if manifest:
         document["result_projection_manifest"] = manifest
-    _validate_bounded_json(document, name="attempt.payload", maximum=_MAX_EVENT_BYTES)
+    _validate_bounded_json(document, name="attempt.payload", maximum=MAX_REFERENCE_EVENT_BYTES)
     for part in parts:
         _validate_bounded_json(part, name="projection.part", maximum=_MAX_EVENT_BYTES)
     return document, tuple(parts)
@@ -422,7 +423,7 @@ class PriorResultReference:
                 validate_artifact_reference(ref, kind="evidence")
         except (TypeError, ValueError) as exc:
             raise ThreadExecutionError("prior result retrieval candidate is invalid") from exc
-        if (not isinstance(self.evidence_refs, tuple) or len(self.evidence_refs) > 128
+        if (not isinstance(self.evidence_refs, tuple) or len(self.evidence_refs) > MAX_ATTEMPT_REFERENCES
                 or not isinstance(self.capability_id, str) or not 0 < len(self.capability_id) <= 256
                 or not isinstance(self.attempt_id, str) or not re.fullmatch(r"[a-z][a-z0-9_.:-]{0,127}", self.attempt_id)):
             raise ThreadExecutionError("prior result retrieval candidate is invalid")
@@ -674,7 +675,8 @@ def _validate_bounded_json(value: Any, *, name: str, maximum: int) -> None:
 
 def _validate_runtime_payload(event_type: str, payload: Mapping[str, Any], claim: AttemptClaim) -> None:
     if event_type != "network_diagram":
-        _validate_bounded_json(payload, name="event.payload", maximum=_MAX_EVENT_BYTES)
+        maximum = MAX_REFERENCE_EVENT_BYTES if event_type in {"tool_completed", "validation_observation"} else _MAX_EVENT_BYTES
+        _validate_bounded_json(payload, name="event.payload", maximum=maximum)
         return
     _validate_bounded_json(payload, name="event.payload", maximum=MAX_DIAGRAM_BYTES + 1024)
     if set(payload) != {"diagram"}:
@@ -1654,7 +1656,7 @@ class InMemoryThreadService:
     ) -> ThreadSnapshot:
         if phase not in {"completed", "failed", "cancelled", "interrupted"}:
             raise ValueError("attempt terminal phase is invalid")
-        _validate_bounded_json(payload, name="attempt.payload", maximum=MAX_RESULT_PROJECTION_BYTES + _MAX_EVENT_BYTES)
+        _validate_bounded_json(payload, name="attempt.payload", maximum=MAX_RESULT_PROJECTION_BYTES + MAX_REFERENCE_EVENT_BYTES)
         with self._lock:
             record = self._require_claim(claim)
             if record["attempt"].phase != "running":
@@ -3399,7 +3401,7 @@ class PostgresThreadService:
     ) -> ThreadSnapshot:
         if phase not in {"completed", "failed", "cancelled", "interrupted"}:
             raise ValueError("attempt terminal phase is invalid")
-        _validate_bounded_json(payload, name="attempt.payload", maximum=MAX_RESULT_PROJECTION_BYTES + _MAX_EVENT_BYTES)
+        _validate_bounded_json(payload, name="attempt.payload", maximum=MAX_RESULT_PROJECTION_BYTES + MAX_REFERENCE_EVENT_BYTES)
         with self._connect() as connection:
             attempt = connection.execute(
                 """SELECT * FROM capstone_thread_attempts

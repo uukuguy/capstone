@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .model_identity import validate_model_id
+from .reference_limits import MAX_ATTEMPT_REFERENCES
 
 RESULT_PROJECTION_SCHEMA = "capstone-result-projection/1.0"
 MAX_RESULT_PROJECTIONS = 64
@@ -344,7 +345,7 @@ class ResultProjection:
             raise ValueError("result projection element_refs contain duplicates")
         result_ref = None if document["result_ref"] is None else _ref(document["result_ref"], "result projection.result_ref", kind="result")
         raw_evidence_refs = document["evidence_refs"]
-        if not isinstance(raw_evidence_refs, list) or len(raw_evidence_refs) > _MAX_ELEMENTS:
+        if not isinstance(raw_evidence_refs, list) or len(raw_evidence_refs) > MAX_ATTEMPT_REFERENCES:
             raise ValueError("result projection.evidence_refs is invalid")
         evidence_refs = tuple(_ref(item, "result projection.evidence_refs", kind="evidence") for item in raw_evidence_refs)
         if status in {"completed", "partial"} and (result_ref is None or not evidence_refs):

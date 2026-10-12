@@ -18,6 +18,34 @@ def claim_attempt(service):
     return claim
 
 
+def test_routing_failure_still_persists_a_formal_reply():
+    from capstone_agent.turn_router import DefaultTurnRouter, DecisionUnavailable
+
+    class UnavailableRouter(DefaultTurnRouter):
+        def plan(self, routing_input):
+            raise DecisionUnavailable("llm_route_unavailable")
+
+    service = _thread_service()
+    outcome = HarnessAttemptRunner(service, HarnessPiClient(Session()), turn_router=UnavailableRouter()).run(claim_attempt(service))
+    assert outcome.status == "failed"
+    assert "尚未执行计算" in outcome.answer
+    terminal = service.read_events("thr_harness", 0).events[-1]
+    assert terminal.payload["answer"] == outcome.answer
+    assert terminal.payload["outcome"]["stage"] == "routing"
+
+
+def test_cancellation_still_persists_a_formal_reply(monkeypatch):
+    from capstone_agent.harness import _AttemptCancelled
+
+    service = _thread_service()
+    runner = HarnessAttemptRunner(service, HarnessPiClient(Session()))
+    monkeypatch.setattr(runner, "_renew_lease", lambda claim: (_ for _ in ()).throw(_AttemptCancelled()))
+    outcome = runner.run(claim_attempt(service))
+    assert outcome.status == "cancelled"
+    assert outcome.answer
+    assert service.read_events("thr_harness", 0).events[-1].payload["answer"] == outcome.answer
+
+
 def test_tool_failure_keeps_bounded_reason_without_raw_error_details():
     event = normalize_runtime_event({
         "type": "tool_result", "event": "tool_result", "capability": "analysis.run",
@@ -67,6 +95,37 @@ class Session:
 
     def prompt_and_wait(self, question, **kwargs):
         raise RuntimeError("private provider details must not reach the answer")
+
+
+@pytest.mark.parametrize("count", [131, 1024])
+def test_reference_capacity_survives_tool_collection_admission_and_terminal_storage(count):
+    from capstone_agent.thread_service import PriorResultReference
+
+    service = _thread_service()
+    results = tuple(f"result:sha256:{index:064x}" for index in range(count))
+    evidence = tuple(f"evidence:sha256:{index:064x}" for index in range(count))
+
+    class ManyReferences(Session):
+        def prompt_and_wait(self, question, **kwargs):
+            kwargs["on_semantic_event"]({
+                "type": "tool_result", "tool_name": "analysis", "ok": True,
+                "result_refs": results, "evidence_refs": evidence,
+            })
+            return "计算已完成，计算记录和证据可供查阅。"
+
+    def admit(claim, answer, observed_results, observed_evidence, events):
+        assert observed_results == results
+        assert observed_evidence == evidence
+        return AdmittedAttemptAnswer(answer, "authority_backed", "lineage_verified", results, evidence)
+
+    outcome = HarnessAttemptRunner(service, HarnessPiClient(ManyReferences(), admission=admit)).run(claim_attempt(service))
+    assert outcome.status == "completed"
+    terminal = service.read_events("thr_harness", 0).events[-1]
+    assert terminal.payload["answer"] == outcome.answer
+    assert tuple(terminal.payload["evidence_refs"]) == evidence
+    assert tuple(terminal.payload["result_refs"]) == results
+    prior = PriorResultReference(results[0], evidence, "analysis", "attempt_previous")
+    assert prior.evidence_refs == evidence
 
 
 def test_runtime_failure_delivers_a_persisted_reader_outcome_without_raw_errors():
@@ -280,3 +339,57 @@ def test_one_invalid_reference_group_does_not_erase_other_verified_results(all_i
     if not all_invalid:
         assert checks[-1] == (("result:good",), ("evidence:good",))
     assert len([e for e in service.read_events("thr_harness", 0).events if e.event_type == "tool_completed"]) == 2
+
+
+def test_incompatible_valid_groups_do_not_discard_all_results():
+    service = _thread_service()
+
+    class MixedRevisions(Session):
+        def prompt_and_wait(self, question, **kwargs):
+            for index in range(20):
+                kwargs["on_semantic_event"]({
+                    "type": "tool_result", "ok": True,
+                    "result_refs": [f"result:{index}"], "evidence_refs": [f"evidence:{index}"],
+                })
+            raise RuntimeError("session interrupted")
+
+    checked = set()
+
+    def admit(claim, answer, results, evidence, events):
+        checked.update(results)
+        if len(results) > 1:
+            raise ValueError("incompatible model revisions")
+        return AdmittedAttemptAnswer(answer, "authority_backed", "lineage_verified", results, evidence)
+
+    outcome = HarnessAttemptRunner(service, HarnessPiClient(MixedRevisions(), admission=admit)).run(claim_attempt(service))
+    assert outcome.answer
+    assert outcome.result_refs == ("result:19",)
+    assert len(checked) == 20
+    events = service.read_events("thr_harness", 0).events
+    assert len([event for event in events if event.event_type == "tool_completed"]) == 20
+
+
+def test_exceeding_answer_capacity_delivers_verified_subset_and_keeps_all_receipts():
+    service = _thread_service()
+
+    class OverCapacity(Session):
+        def prompt_and_wait(self, question, **kwargs):
+            for group, count in (("batch", 1024), ("extra", 1)):
+                kwargs["on_semantic_event"]({
+                    "type": "tool_result", "ok": True, "result_refs": ["result:" + group],
+                    "evidence_refs": [f"evidence:{group}:{index}" for index in range(count)],
+                })
+            return "Initial calculation summary"
+
+        def recover_after_failure(self, *args, **kwargs):
+            pytest.fail("A prose retry cannot fix the host reference capacity")
+
+    def admit(claim, answer, results, evidence, events):
+        return AdmittedAttemptAnswer(answer, "authority_backed", "lineage_verified", results, evidence)
+
+    outcome = HarnessAttemptRunner(service, HarnessPiClient(OverCapacity(), admission=admit)).run(claim_attempt(service))
+    assert outcome.result_refs
+    assert "数量限制不表示这些计算失败" in outcome.answer
+    events = service.read_events("thr_harness", 0).events
+    assert sum(len(event.payload.get("evidence_refs", [])) for event in events if event.event_type == "tool_completed") == 1025
+    assert events[-1].payload["outcome"]["status"] == "partial"
