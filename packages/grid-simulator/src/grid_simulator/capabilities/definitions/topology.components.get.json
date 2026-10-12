@@ -39,6 +39,58 @@
             "component_id": {"type": "string", "pattern": "^component:[0-9]+$"},
             "bus_count": {"type": "integer", "minimum": 0},
             "branch_count": {"type": "integer", "minimum": 0},
+            "bus_indices": {
+              "type": "array",
+              "maxItems": 200,
+              "items": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "bus_list_complete": {
+              "type": "boolean"
+            },
+            "generation_counts": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "ext_grid",
+                "gen",
+                "sgen",
+                "storage",
+                "vsc"
+              ],
+              "properties": {
+                "ext_grid": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "gen": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "sgen": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "storage": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "vsc": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            },
+            "supply_reference_bus_indices": {
+              "type": "array",
+              "description": "In-service ext_grid, slack gen or AC-slack VSC buses used as topology supply references. Absence of these references does not imply absence of generation or short-circuit contribution.",
+              "items": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
             "bus_refs": {
               "type": "array",
               "maxItems": 200,

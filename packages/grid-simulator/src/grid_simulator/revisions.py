@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import copy
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 import pandas as pd
 import pandapower as pp
@@ -34,6 +34,7 @@ class PatchSelectorError(ValueError):
 class RevisionResult:
     context: OpenedContext
     counts: dict[str, int]
+    parameter_warnings: tuple[dict[str, Any], ...] = ()
 
 
 class RevisionStore:
@@ -64,13 +65,15 @@ class RevisionStore:
         local_references: dict[str, Any] = {}
         for patch in patches:
             self._apply_patch(net, patch, creator_registry, local_references)
-        return self._persist(
+        warnings = _parameter_warnings(net)
+        persisted = self._persist(
             net=net,
             model_id=parent_context.model_id,
             origin="derived",
             parent_context=parent_context,
-            operation={"patches": patches},
+            operation={"patches": patches, "parameter_warnings": list(warnings)},
         )
+        return RevisionResult(persisted.context, persisted.counts, warnings)
 
     def persist_derived_network(
         self,
@@ -166,6 +169,30 @@ class RevisionStore:
         write_json(self.workspace.context_document(context_ref), document)
         context = OpenedContext(context_ref=context_ref, **document)
         return RevisionResult(context=context, counts=_counts(net))
+
+
+def _parameter_warnings(net: Any) -> tuple[dict[str, Any], ...]:
+    """Report stored setpoints outside stored bounds; do not reject experiments."""
+    warnings = []
+    for kind in ("gen", "sgen", "ext_grid", "storage", "load", "vsc"):
+        table = net.get(kind)
+        if not isinstance(table, pd.DataFrame):
+            continue
+        for index, row in table.iterrows():
+            if "in_service" in row and not bool(row["in_service"]):
+                continue
+            for field in ("p_mw", "q_mvar", "vm_pu"):
+                value = row.get(field)
+                if value is None or bool(pd.isna(value)):
+                    continue
+                lower, upper = row.get("min_" + field), row.get("max_" + field)
+                lower = None if lower is None or bool(pd.isna(lower)) else float(lower)
+                upper = None if upper is None or bool(pd.isna(upper)) else float(upper)
+                if (lower is not None and float(value) < lower) or (upper is not None and float(value) > upper):
+                    warnings.append({"kind": kind, "index": int(cast(Any, index)), "field": field,
+                        "value": float(value), "lower": lower, "upper": upper,
+                        "source_fields": ["min_" + field, "max_" + field]})
+    return tuple(warnings)
 
 
 def _select_indices(table: pd.DataFrame, selector: dict[str, Any]) -> list[Any]:

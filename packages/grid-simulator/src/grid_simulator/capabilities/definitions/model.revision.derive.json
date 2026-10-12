@@ -103,6 +103,55 @@
       "model": {"type": "string"}, "origin": {"const": "derived"},
       "parent_context_ref": {"type": "string", "pattern": "^context:sha256:[0-9a-f]{64}$"},
       "parent_revision_ref": {"type": "string", "pattern": "^revision:sha256:[0-9a-f]{64}$"},
+      "parameter_warnings": {
+        "type": "array",
+        "description": "Stored setpoints outside this revision’s stored bounds. The experiment is preserved; these warnings do not certify other constraints.",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "index",
+            "field",
+            "value",
+            "lower",
+            "upper",
+            "source_fields"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string"
+            },
+            "index": {
+              "type": "integer"
+            },
+            "field": {
+              "type": "string"
+            },
+            "value": {
+              "type": "number"
+            },
+            "lower": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "upper": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "source_fields": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
       "counts": {"type": "object", "additionalProperties": false, "required": ["buses", "lines", "transformers"], "properties": {"buses": {"type": "integer"}, "lines": {"type": "integer"}, "transformers": {"type": "integer"}}}
     }
   },

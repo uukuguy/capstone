@@ -592,6 +592,7 @@ def _model_revision_derive(
     result = _revision_result(derived)
     result["parent_context_ref"] = parent.context_ref
     result["parent_revision_ref"] = parent.revision_ref
+    result["parameter_warnings"] = list(derived.parameter_warnings)
     return result
 
 
@@ -901,12 +902,28 @@ def _topology_components_get(
     for component_id, nodes in enumerate(sorted(nx.connected_components(graph), key=lambda item: min(int(node) for node in item))):
         bus_indices = sorted(int(node) for node in nodes)
         subgraph = graph.subgraph(bus_indices)
+        generation_counts = {}
+        supply_references: set[int] = set()
+        for kind in ("ext_grid", "gen", "sgen", "storage", "vsc"):
+            table = net[kind]
+            active = table.loc[table.in_service & table.bus.isin(bus_indices)]
+            generation_counts[kind] = len(active)
+            if kind == "ext_grid":
+                supply_references.update(int(bus) for bus in active.bus)
+            elif kind == "gen":
+                supply_references.update(int(bus) for bus in active.loc[active.slack].bus)
+            elif kind == "vsc":
+                supply_references.update(int(bus) for bus in active.loc[active.control_mode_ac == "slack"].bus)
         components.append(
             {
                 "component_id": f"component:{component_id}",
                 "bus_count": len(bus_indices),
                 "branch_count": int(subgraph.number_of_edges()),
                 "bus_refs": [asset_ref(context.revision_ref, "bus", index) for index in bus_indices[:200]],
+                "bus_indices": bus_indices[:200],
+                "bus_list_complete": len(bus_indices) <= 200,
+                "generation_counts": generation_counts,
+                "supply_reference_bus_indices": sorted(supply_references),
             }
         )
     return {
