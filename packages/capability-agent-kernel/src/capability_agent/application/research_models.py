@@ -83,6 +83,12 @@ class ResearchRead(ResearchRecord):
         return self
 
 
+def research_depth_tool_schema() -> dict[str, Any]:
+    """Bound reasoning resource control without provider or model selection."""
+    return {"type": "object", "additionalProperties": False, "required": ["level"],
+            "properties": {"level": {"type": "string", "enum": ["off", "high"]}}}
+
+
 def research_tool_schemas() -> tuple[dict[str, Any], dict[str, Any]]:
     """Publish one contract source while keeping request identity host-owned."""
     update = ResearchUpdate.model_json_schema()

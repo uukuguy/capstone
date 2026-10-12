@@ -18,20 +18,24 @@ async function fixture(t, { state = { research_id: "research-1", revision: 1, go
       expected_revision: { type: "integer", minimum: 0 },
       changes: { type: "object", additionalProperties: false, properties: { goal: { type: "string", minLength: 1, maxLength: 4000 } }, minProperties: 1 },
     },
-  } };
+  }, depth_tool_schema: { type: "object", additionalProperties: false, required: ["level"],
+    properties: { level: { type: "string", enum: ["off", "high"] } } } };
   const view = { ...binding, schema_version: "capability-research-view/1.0", research_revision: state?.revision ?? 0, state };
   delete view.update_tool_schema;
   delete view.read_tool_schema;
+  delete view.depth_tool_schema;
   await mkdir(join(root, "requests"));
   await mkdir(join(root, "receipts"));
   await writeFile(join(root, "binding.json"), JSON.stringify(binding));
   await writeFile(join(root, "view.json"), JSON.stringify(view));
   const tools = new Map(), handlers = new Map(), failures = [];
+  let thinking = "off";
   const { configureResearchTools } = await import("../src/research-tools.mjs");
-  configureResearchTools({ registerTool: tool => tools.set(tool.name, tool), on: (name, handler) => handlers.set(name, handler) }, root, {
+  configureResearchTools({ registerTool: tool => tools.set(tool.name, tool), on: (name, handler) => handlers.set(name, handler),
+    getThinkingLevel: () => thinking, setThinkingLevel: level => { thinking = level; } }, root, {
     timeoutMs: 1000, fatal: message => { failures.push(message); throw new Error("research request blocked"); },
   });
-  return { root, binding, view, tools, handlers, failures };
+  return { root, binding, view, tools, handlers, failures, thinking: () => thinking };
 }
 
 function modelRequest(messages) {
@@ -67,11 +71,29 @@ async function acknowledge(f, input, { status = "committed", digest, updateView 
 
 test("registers bounded research read and update tools without identity or path arguments", async t => {
   const f = await fixture(t);
-  assert.deepEqual([...f.tools.keys()], ["agent_research_read", "agent_research_update"]);
+  assert.deepEqual([...f.tools.keys()], ["agent_research_read", "agent_research_update", "agent_research_depth"]);
   assert.deepEqual(Object.keys(f.tools.get("agent_research_update").parameters.properties), ["expected_revision", "changes"]);
   const result = await f.tools.get("agent_research_update").execute("tool-1", { expected_revision: 1, changes: { goal: "New" }, research_id: "other" });
   assert.equal(result.isError, true);
   assert.deepEqual(await readdir(join(f.root, "requests")), []);
+});
+
+test("reasoning depth is adaptive, recorded as a core result, and cannot change providers", async t => {
+  const f = await fixture(t);
+  const tool = f.tools.get("agent_research_depth");
+  const result = await tool.execute("depth-1", { level: "high" });
+  assert.equal(result.details.ok, true);
+  assert.deepEqual(result.details.result, { previous_level: "off", requested_level: "high", applied_level: "high" });
+  assert.equal(f.thinking(), "high");
+  assert.equal((await tool.execute("depth-2", { level: "off" })).details.ok, true);
+  assert.equal(f.thinking(), "off");
+  assert.equal((await tool.execute("depth-3", { level: "high", provider: "other" })).isError, true);
+  assert.equal(f.thinking(), "off");
+  assert.deepEqual(await readdir(join(f.root, "requests")), []);
+  const cancelled = new AbortController();
+  cancelled.abort();
+  assert.equal((await tool.execute("depth-4", { level: "high" }, cancelled.signal)).details.error.code, "cancelled");
+  assert.equal(f.thinking(), "off");
 });
 
 test("returns paged research records with explicit coverage and no Authority evidence", async t => {

@@ -231,6 +231,8 @@ class PreparedKernelPiRpcSessionBuilder:
         launch = build_pi_launch(
             self._resolved_llm, paths, base_environment=self._base_environment,
         )
+        if self._research_enabled:
+            launch = PiLaunch((*launch.argv, "--thinking", "off"), launch.environment)
         trace = JsonlTraceWriter(
             attempt_directory / "pi-events.jsonl",
             secret_values={self._resolved_llm.secret.value}

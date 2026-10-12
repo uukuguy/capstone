@@ -471,7 +471,7 @@ def _decision_tool(tool_name_prefix: str) -> ToolDocument:
 
 
 def _research_tools(namespace: str) -> tuple[ToolDocument, ...]:
-    from capability_agent.application.research_models import research_tool_schemas
+    from capability_agent.application.research_models import research_depth_tool_schema, research_tool_schemas
     read_schema, update_schema = research_tool_schemas()
     return (
         ToolDocument(name=namespace + "research_read", capability=namespace + "research_read",
@@ -480,6 +480,9 @@ def _research_tools(namespace: str) -> tuple[ToolDocument, ...]:
         ToolDocument(name=namespace + "research_update", capability=namespace + "research_update",
                      description="Commit meaningful research changes and wait for the host receipt. Use the current research revision. This records judgments, not Authority facts.",
                      input_schema=update_schema),
+        ToolDocument(name=namespace + "research_depth", capability=namespace + "research_depth",
+                     description="Adjust reasoning depth for subsequent model steps: off for direct work, high for difficult reasoning. This changes no provider or Authority state and creates no evidence.",
+                     input_schema=research_depth_tool_schema()),
     )
 
 

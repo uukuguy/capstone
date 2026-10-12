@@ -7,7 +7,7 @@ import { isAbsolute, join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { captureFatal } from "./model-request-capture.mjs";
 
-export const RESEARCH_TOOL_NAMES = Object.freeze(["agent_research_read", "agent_research_update"]);
+export const RESEARCH_TOOL_NAMES = Object.freeze(["agent_research_read", "agent_research_update", "agent_research_depth"]);
 const CUSTOM_TYPE = "capstone-research-state";
 const PREFIX = "Committed research state (agent judgments, not Authority facts):\n";
 const MAX_FILE_BYTES = 2_097_152;
@@ -190,6 +190,31 @@ export function configureResearchTools(pi, channelPath, { timeoutMs = 5000, fata
         await delay(20);
       }
       return failure(RESEARCH_TOOL_NAMES[1], "research_outcome_not_confirmed", { status: "not_confirmed", request_id: requestId });
+    },
+  }));
+  const depthParameters = Type.Unsafe(binding.depth_tool_schema ?? {
+    type: "object", additionalProperties: false, properties: {},
+  });
+  pi.registerTool(defineTool({
+    name: RESEARCH_TOOL_NAMES[2], label: "Adjust reasoning depth",
+    description: "Adjust reasoning depth for subsequent model steps. Use off for direct work and high for difficult reasoning. This changes no provider, model or Authority state and creates no evidence.",
+    parameters: depthParameters,
+    async execute(id, params, signal) {
+      try {
+        const input = validate(depthParameters, RESEARCH_TOOL_NAMES[2], id, params);
+        if (!binding.depth_tool_schema || !["off", "high"].includes(input.level)) {
+          return failure(RESEARCH_TOOL_NAMES[2], "invalid_arguments");
+        }
+        if (signal?.aborted) return failure(RESEARCH_TOOL_NAMES[2], "cancelled");
+        loadView();
+        if (typeof pi.getThinkingLevel !== "function" || typeof pi.setThinkingLevel !== "function") {
+          return failure(RESEARCH_TOOL_NAMES[2], "reasoning_control_unavailable");
+        }
+        const previous = pi.getThinkingLevel();
+        pi.setThinkingLevel(input.level);
+        return success(RESEARCH_TOOL_NAMES[2], { previous_level: previous,
+          requested_level: input.level, applied_level: pi.getThinkingLevel() });
+      } catch { return failure(RESEARCH_TOOL_NAMES[2], "reasoning_control_failed"); }
     },
   }));
   pi.on("context", async event => {

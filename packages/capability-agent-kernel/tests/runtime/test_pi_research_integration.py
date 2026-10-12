@@ -95,6 +95,12 @@ def test_pinned_pi_updates_research_and_reads_it_after_compaction_and_disk_resto
     assert any(item["phase"] == "compaction" for item in requests)
     assert store.verify_materialized_snapshot() == store.snapshot
     assert any(event.get("type") == "tool_result" and event.get("capability") == "agent_research_update" for event in events)
+    depth = [event for event in events if event.get("type") == "tool_result"
+             and event.get("capability") == "agent_research_depth"]
+    assert len(depth) == 1
+    assert depth[0]["ok"] is True
+    assert depth[0]["result"]["requested_level"] == depth[0]["result"]["applied_level"] == "high"
+    assert depth[0]["evidence_refs"] == []
     assert store.snapshot.domains["fixture"].revision == 0
     assert store.snapshot.core.result_refs == store.snapshot.core.evidence_refs == ()
 

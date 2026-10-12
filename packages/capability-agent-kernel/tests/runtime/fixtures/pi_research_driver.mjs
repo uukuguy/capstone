@@ -24,7 +24,7 @@ const modelRuntime = await ModelRuntime.create({ authPath: join(agentDir, "auth.
 modelRuntime.getAuth = async () => ({ auth: { apiKey: "offline-test-only" } });
 modelRuntime.hasConfiguredAuth = () => true;
 const model = { id: "research-fixture", name: "Research fixture", api: "anthropic-messages", provider: "offline-fixture",
-  baseUrl: "https://not-used.invalid", reasoning: false, input: ["text"],
+  baseUrl: "https://not-used.invalid", reasoning: true, input: ["text"],
   cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 131072, maxTokens: 4096 };
 let phase = "agent", modelCalls = 0, agentCalls = 0, promptCount = 0, sessionFile, session;
 modelRuntime.streamSimple = (selected, context) => {
@@ -38,7 +38,7 @@ modelRuntime.streamSimple = (selected, context) => {
     const message = { role: "assistant", api: selected.api, provider: selected.provider, model: selected.id,
       content: toolUse ? [{ type: "toolCall", id: "research-call-1", name: "agent_research_update", arguments: {
         expected_revision: 0, changes: { goal: "Verify persistent research state", open_questions: ["Does recovery retain the current goal?"] },
-      } }] : [{ type: "text", text: phase === "compaction" ? "History was compacted. Research is stored separately." : "Research saved." }],
+      } }, { type: "toolCall", id: "depth-call-1", name: "agent_research_depth", arguments: { level: "high" } }] : [{ type: "text", text: phase === "compaction" ? "History was compacted. Research is stored separately." : "Research saved." }],
       stopReason: toolUse ? "toolUse" : "stop", timestamp: Date.now(),
       usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 2, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
     };
@@ -68,6 +68,7 @@ for await (const line of readline.createInterface({ input: process.stdin })) {
     await start(SessionManager.open(sessionFile));
   }
   await session.prompt(request.message);
+  if (promptCount === 1 && session.thinkingLevel !== "high") throw new Error("native reasoning depth did not change");
   if (promptCount === 2) {
     phase = "compaction";
     await session.compact();
