@@ -12,6 +12,7 @@ from pydantic import ValidationError
 
 from capability_agent._safe_files import ensure_bound_directory, read_bound_regular_path, write_bound_text
 from capability_agent.application import ContextStoreError, ResearchController, ResearchUpdate
+from capability_agent.application.research_models import research_tool_schemas
 
 _IDENTITY = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
 _MAX_REQUEST_BYTES = 1_048_576
@@ -31,6 +32,16 @@ class ResearchRequestChannel:
         self.requests_path = ensure_bound_directory(self.root / "requests")
         self.receipts_path = ensure_bound_directory(self.root / "receipts")
         self.view_path = self.root / "view.json"
+        read_schema, update_schema = research_tool_schemas()
+        self._write(self.root / "binding.json", {
+            "schema_version": "capability-research-channel/1.0",
+            "run_id": controller.store.snapshot.run_id,
+            "turn_id": controller.turn_id,
+            "attempt_id": attempt_id,
+            "research_id": controller.research_id,
+            "read_tool_schema": read_schema,
+            "update_tool_schema": update_schema,
+        })
         self.publish_view()
 
     def publish_view(self) -> None:
@@ -66,6 +77,9 @@ class ResearchRequestChannel:
                     continue
             ack = self._process(raw, request_id)
             ack["schema_version"] = "capability-research-receipt/1.0"
+            ack["run_id"] = self.controller.store.snapshot.run_id
+            ack["turn_id"] = self.controller.turn_id
+            ack["attempt_id"] = self.attempt_id
             ack["request_id"] = request_id
             ack["request_sha256"] = digest
             self._write(ack_path, ack)

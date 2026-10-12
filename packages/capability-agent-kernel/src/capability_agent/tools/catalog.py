@@ -194,13 +194,14 @@ class CoreToolCatalog:
     tools: tuple[ToolDocument, ...]
 
     @classmethod
-    def default(cls, *, namespace: str = "agent_") -> "CoreToolCatalog":
+    def default(cls, *, namespace: str = "agent_", include_research: bool = False) -> "CoreToolCatalog":
         if namespace != "agent_":
             raise ToolCatalogError("generic core tool namespace must be agent_")
         _validate_tool_name_prefix(namespace)
         return cls(
             namespace=namespace,
-            tools=(_decision_tool(namespace), _context_tool(namespace)),
+            tools=(_decision_tool(namespace), _context_tool(namespace),
+                   *(_research_tools(namespace) if include_research else ())),
         )
 
 
@@ -466,6 +467,19 @@ def _decision_tool(tool_name_prefix: str) -> ToolDocument:
                 },
             },
         },
+    )
+
+
+def _research_tools(namespace: str) -> tuple[ToolDocument, ...]:
+    from capability_agent.application.research_models import research_tool_schemas
+    read_schema, update_schema = research_tool_schemas()
+    return (
+        ToolDocument(name=namespace + "research_read", capability=namespace + "research_read",
+                     description="Read bounded committed research state. Page records when needed. This creates no Authority results or evidence.",
+                     input_schema=read_schema),
+        ToolDocument(name=namespace + "research_update", capability=namespace + "research_update",
+                     description="Commit meaningful research changes and wait for the host receipt. Use the current research revision. This records judgments, not Authority facts.",
+                     input_schema=update_schema),
     )
 
 

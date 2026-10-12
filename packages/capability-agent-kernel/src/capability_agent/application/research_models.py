@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -68,6 +68,27 @@ class ResearchUpdate(ResearchRecord):
     request_id: RecordId
     expected_revision: int = Field(ge=0)
     changes: ResearchChanges
+
+
+class ResearchRead(ResearchRecord):
+    section: Literal["overview", "claims", "notes", "questions", "receipt"] = "overview"
+    request_id: RecordId | None = None
+    offset: int = Field(default=0, ge=0)
+    limit: int = Field(default=8, ge=1, le=8)
+
+    @model_validator(mode="after")
+    def require_receipt_identity(self):
+        if (self.section == "receipt") != (self.request_id is not None):
+            raise ValueError("request_id is required only for receipt lookup")
+        return self
+
+
+def research_tool_schemas() -> tuple[dict[str, Any], dict[str, Any]]:
+    """Publish one contract source while keeping request identity host-owned."""
+    update = ResearchUpdate.model_json_schema()
+    update["properties"].pop("request_id")
+    update["required"].remove("request_id")
+    return ResearchRead.model_json_schema(), update
 
 
 class ResearchState(ResearchRecord):

@@ -14,6 +14,7 @@ import {
 import { lstat, open, readFile } from "node:fs/promises";
 
 import { configureModelRequestCapture } from "./model-request-capture.mjs";
+import { configureResearchTools, RESEARCH_TOOL_NAMES } from "./research-tools.mjs";
 import { isCorrelatedResponse, runProcessCapability } from "./process-transport.mjs";
 
 const { O_DIRECTORY, O_NOFOLLOW, O_RDONLY } = constants;
@@ -45,6 +46,7 @@ const LEGACY_DESCRIPTOR_KEYS = new Set([
 const RUNTIME_V1_KEYS = new Set(["schema", "application", "core", "domains"]);
 const APPLICATION_KEYS = new Set(["applicationId", "runId", "workspacePath", "referenceHandoffsPath", "piRuntime"]);
 const CORE_KEYS = new Set([
+  "researchChannelPath",
   "decisionToolName",
   "contextToolName",
   "activeTurnPath",
@@ -329,6 +331,7 @@ function validateRuntimeV1(value, options = {}) {
     throw new TypeError("runtime descriptor core tool names must be distinct agent_* names");
   }
   for (const key of [
+    "researchChannelPath",
     "activeTurnPath",
     "analysisContextViewPath",
     "trajectoryRequestsPath",
@@ -360,6 +363,7 @@ function validateRuntimeV1(value, options = {}) {
   const routingToolNames = [
     core.decisionToolName,
     core.contextToolName,
+    ...(core.researchChannelPath === undefined ? [] : RESEARCH_TOOL_NAMES),
     ...domains.map((domain) => domain.guideToolName),
   ];
   if (new Set(routingToolNames).size !== routingToolNames.length ||
@@ -620,6 +624,7 @@ export function createDomainToolsExtension(descriptor, options = {}) {
     const reservedNames = new Set([
       validated.core.decisionToolName,
       validated.core.contextToolName,
+      ...(validated.core.researchChannelPath === undefined ? [] : RESEARCH_TOOL_NAMES),
       ...runtimes.map((runtime) => runtime.guideToolName),
     ]);
     const groups = runtimes.map((runtime) => {
@@ -639,6 +644,9 @@ export function createDomainToolsExtension(descriptor, options = {}) {
       return { runtime, paths, catalog, guide };
     });
     const corePaths = groups[0].paths;
+    if (corePaths.researchChannelPath !== undefined) {
+      configureResearchTools(pi, corePaths.researchChannelPath);
+    }
     if (
       corePaths.trajectoryRequestsPath !== undefined &&
       corePaths.trajectoryCaptureStatePath !== undefined &&
@@ -1313,6 +1321,7 @@ function runtimePaths(descriptor) {
     "trajectoryAllowedRefsPath",
   );
   const trajectoryAcksPath = optionalExistingRealPath(descriptor.trajectoryAcksPath, "trajectoryAcksPath");
+  const researchChannelPath = optionalExistingRealPath(descriptor.researchChannelPath, "researchChannelPath");
   const trajectoryPaths = [
     trajectoryRequestsPath,
     trajectoryCaptureStatePath,
@@ -1339,6 +1348,7 @@ function runtimePaths(descriptor) {
     }
   }
   const corePathBindings = [
+    ["researchChannelPath", researchChannelPath],
     ["activeTurnPath", activeTurnPath],
     ["analysisContextViewPath", analysisContextViewPath],
     ["trajectoryRequestsPath", trajectoryRequestsPath],
@@ -1364,6 +1374,7 @@ function runtimePaths(descriptor) {
   return {
     workspacePath,
     applicationWorkspacePath,
+    researchChannelPath,
     toolCatalogPath,
     guideIndexPath,
     guideWorkspacePath,
@@ -1435,6 +1446,7 @@ function selectedBindingRuntimeForDomain(runtime, domain) {
     decisionToolName: runtime.core.decisionToolName,
     activeTurnPath: runtime.core.activeTurnPath,
     analysisContextViewPath: runtime.core.analysisContextViewPath,
+    researchChannelPath: runtime.core.researchChannelPath,
     trajectoryRequestsPath: runtime.core.trajectoryRequestsPath,
     trajectoryCaptureStatePath: runtime.core.trajectoryCaptureStatePath,
     trajectoryAllowedRefsPath: runtime.core.trajectoryAllowedRefsPath,

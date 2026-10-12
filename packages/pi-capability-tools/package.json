@@ -8,10 +8,11 @@
   ],
   "exports": {
     ".": "./src/domain-tools.mjs",
-    "./model-request-capture": "./src/model-request-capture.mjs"
+    "./model-request-capture": "./src/model-request-capture.mjs",
+    "./research-tools": "./src/research-tools.mjs"
   },
   "scripts": {
-    "check": "node --check src/domain-tools.mjs && node --check src/process-transport.mjs && node --check src/model-request-capture.mjs",
+    "check": "node --check src/domain-tools.mjs && node --check src/process-transport.mjs && node --check src/model-request-capture.mjs && node --check src/research-tools.mjs",
     "test": "node --test"
   },
   "dependencies": {

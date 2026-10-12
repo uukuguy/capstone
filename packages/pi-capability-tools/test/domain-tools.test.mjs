@@ -1230,6 +1230,38 @@ async function runtimeV1Fixture({ withTrajectory = false } = {}) {
   };
 }
 
+test("runtime selects the optional research channel only inside the application workspace", async () => {
+  const fixture = await runtimeV1Fixture();
+  try {
+    const path = join(fixture.root, "run/core/research/attempt-1");
+    fixture.descriptor.application = { ...fixture.descriptor.application, workspacePath: join(fixture.root, "run") };
+    fixture.descriptor.core.researchChannelPath = path;
+    assert.equal(validateRuntimeDescriptor(fixture.descriptor).core.researchChannelPath, path);
+    fixture.descriptor.core.researchChannelPath = join(fixture.root, "outside");
+    assert.throws(() => validateRuntimeDescriptor(fixture.descriptor), /outside/);
+  } finally { await rm(fixture.root, { recursive: true, force: true }); }
+});
+
+test("selected runtime registers both research tools when the host channel is configured", async () => {
+  const fixture = await runtimeV1Fixture();
+  try {
+    fixture.descriptor.application = { ...fixture.descriptor.application, workspacePath: join(fixture.root, "run") };
+    const channel = join(fixture.root, "run/core/research/attempt-1");
+    await mkdir(join(channel, "requests"), { recursive: true });
+    await mkdir(join(channel, "receipts"));
+    await writeFile(join(channel, "binding.json"), JSON.stringify({
+      schema_version: "capability-research-channel/1.0", run_id: "run-1", turn_id: "turn-1", attempt_id: "attempt-1", research_id: "research-1",
+      read_tool_schema: { type: "object", additionalProperties: false, properties: {} },
+      update_tool_schema: { type: "object", additionalProperties: false, properties: { expected_revision: { type: "integer" }, changes: { type: "object" } } },
+    }));
+    fixture.descriptor.core.researchChannelPath = channel;
+    const tools = new Map();
+    createDomainToolsExtension(fixture.descriptor)({ registerTool: tool => tools.set(tool.name, tool), on() {} });
+    assert.ok(tools.has("agent_research_read"));
+    assert.ok(tools.has("agent_research_update"));
+  } finally { await rm(fixture.root, { recursive: true, force: true }); }
+});
+
 async function runtimeV11Fixture() {
   const fixture = await runtimeV1Fixture({ withTrajectory: true });
   const contextPath = join(fixture.root, "run/core/context.json");

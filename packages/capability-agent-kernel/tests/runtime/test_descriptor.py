@@ -53,6 +53,15 @@ def _binding_descriptor(
     return descriptor_from_endpoint(**values)
 
 
+def test_research_channel_is_optional_and_bound_to_application_workspace(tmp_path):
+    path = tmp_path / "run" / "core" / "research" / "attempt-1"
+    descriptor = _binding_descriptor(tmp_path, "grid", research_channel_path=path)
+    assert descriptor.as_json()["core"]["researchChannelPath"] == str(path)
+    assert "researchChannelPath" not in _binding_descriptor(tmp_path, "inventory").as_json()["core"]
+    with pytest.raises(RuntimeDescriptorError, match="outside"):
+        _binding_descriptor(tmp_path, "grid", research_channel_path=tmp_path / "outside")
+
+
 def test_composite_descriptor_serializes_two_bindings_and_preserves_v1(
     tmp_path: Path,
 ) -> None:

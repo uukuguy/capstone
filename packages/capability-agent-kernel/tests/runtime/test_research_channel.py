@@ -47,6 +47,18 @@ def test_channel_publishes_view_before_success_receipt(channel):
     assert view["attempt_id"] == "attempt-1"
 
 
+def test_channel_publishes_host_bound_tool_contract_without_caller_identity(channel):
+    pump, _ = channel
+    binding = json.loads((pump.root / "binding.json").read_text())
+    assert binding["schema_version"] == "capability-research-channel/1.0"
+    assert binding["attempt_id"] == "attempt-1"
+    schema = binding["update_tool_schema"]
+    assert set(schema["properties"]) == {"expected_revision", "changes"}
+    assert schema["additionalProperties"] is False
+    assert "ResearchChanges" in schema["$defs"]
+    assert binding["read_tool_schema"]["properties"]["limit"]["maximum"] == 8
+
+
 def test_lost_receipt_is_regenerated_without_second_update(channel):
     pump, _ = channel
     publish(pump)
