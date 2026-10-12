@@ -85,7 +85,9 @@ For `model_not_found`, call `model.list`. For `unknown_creator` or `creator_argu
 
 ## Evidence Requirements
 
-`context.open`, `topology.branch.endpoints.get`, `analysis.powerflow.ac.run`, `result.branches.rank`, and `analysis.contingency.n_minus_one.run` produce or require evidence-backed refs. Current-run evidence is required for final network facts and numerical claims.
+Follow the producing capability's evidence contract. `context.get` returns source-backed model metadata, and `analysis.operation.list` returns the published operation catalog; neither requires an analysis result or calculation evidence. Use those observations only for the selected model revision or registered capabilities, not for solved electrical states.
+
+`context.open`, `topology.branch.endpoints.get`, `analysis.powerflow.ac.run`, `result.branches.rank`, and `analysis.contingency.n_minus_one.run` produce or require evidence-backed refs. Ground computed electrical quantities and assessed operating conditions in admitted current-run results and evidence. Do not run a calculation only to attach analysis evidence to input metadata or capability facts.
 
 ## Common Mistakes
 
