@@ -217,6 +217,9 @@ def test_new_research_findings_receive_one_final_scope_review(tmp_path):
     def prompt(question, **kwargs):
         calls.append(question)
         if len(calls) == 1:
+            kwargs["on_semantic_event"]({"type": "tool_result", "tool_name": "domain_run",
+                "capability": "analysis.run", "ok": True,
+                "result_refs": ["result:checked"], "evidence_refs": ["evidence:checked"]}, 1)
             research.controller.update({"request_id": "save-review", "expected_revision": 0,
                 "changes": {"goal": "Compare scenarios", "open_questions": ["Global feasibility remains open"]}})
             return "Draft conclusion"
@@ -248,3 +251,24 @@ def test_read_only_turn_does_not_add_a_final_review(previous_research, tmp_path)
     assert session.prompt_and_wait("Describe model", on_semantic_event=lambda _: None,
         correlation_id="attempt_read", on_heartbeat=lambda: None) == "Model facts"
     assert calls == ["Describe model"]
+
+
+def test_factual_research_notes_do_not_trigger_an_experiment_review(tmp_path):
+    from capstone_agent.kernel_pi_session import _KernelPiPromptSession
+    research = AttemptResearch(tmp_path, thread_id="thr_facts", run_id="run_facts",
+        attempt_id="attempt_facts", model_context=MODEL, is_active=lambda: True,
+        admit_reference=lambda _: False)
+    calls = []
+    def prompt(question, **kwargs):
+        calls.append(question)
+        if len(calls) == 1:
+            kwargs["on_semantic_event"]({"type": "tool_result", "tool_name": "domain_context",
+                "capability": "context.get", "ok": True, "context_ref": "context:current"}, 1)
+            research.controller.update({"request_id": "facts-note", "expected_revision": 0,
+                "changes": {"goal": "Describe selected model"}})
+        return "Model facts"
+    session = _KernelPiPromptSession(SimpleNamespace(timeout_seconds=600, prompt_and_wait=prompt),
+        SimpleNamespace(append=lambda *_: 1), admission=None, research=research)
+    assert session.prompt_and_wait("Describe selected model", on_semantic_event=lambda _: None,
+        correlation_id="attempt_facts", on_heartbeat=lambda: None) == "Model facts"
+    assert calls == ["Describe selected model"]

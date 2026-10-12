@@ -509,6 +509,7 @@ class _KernelPiPromptSession:
         self._published_research_revision = existing_research.revision if existing_research is not None else 0
         self._initial_research_revision = self._published_research_revision
         self._final_reviewed = False
+        self._has_result_observations = False
 
     @property
     def command(self) -> object:
@@ -540,6 +541,14 @@ class _KernelPiPromptSession:
             "correlation_id": correlation_id, "question": question,
         })
         def observed(event, _sequence):
+            normalized = normalize_runtime_event(event, runtime_mode="capstone")
+            if normalized is not None and normalized["event_type"] == "tool_completed":
+                payload = normalized["payload"]
+                if isinstance(payload, Mapping) and any(
+                    isinstance(payload.get(field), (list, tuple)) and payload[field]
+                    for field in ("result_refs", "evidence_refs")
+                ):
+                    self._has_result_observations = True
             if self._reference_observer is not None:
                 self._reference_observer(event)
             on_semantic_event({**event, "trace_sequence": _sequence,
@@ -576,7 +585,7 @@ class _KernelPiPromptSession:
             )
             if not getattr(self._client, "last_prompt_interrupted", False):
                 state = self._research.controller.read() if self._research is not None else None
-                if (not self._final_reviewed and state is not None
+                if (not self._final_reviewed and self._has_result_observations and state is not None
                         and state.revision > self._initial_research_revision
                         and self._deadline - time.monotonic() >= 30):
                     self._final_reviewed = True
