@@ -6,6 +6,84 @@ from capstone_agent.kernel_pi_session import _build_kernel_admission
 from capstone_agent.kernel_capability_preparation import AuthorityModelBinding
 from capstone_agent.thread_protocol import ModelContextSnapshot
 from types import SimpleNamespace
+import pytest
+
+
+def _research_admission_fixture():
+    from capability_agent.domain.answer_admission import AnswerAdmissionDecision
+    requests = []
+
+    def admit(request):
+        requests.append(request)
+        return AnswerAdmissionDecision("limited", "limited", request.answer_output, ())
+
+    domain = SimpleNamespace(
+        create_answer_admission_policy=lambda _: SimpleNamespace(admit=admit),
+        answer_admission_capabilities=frozenset({"limited"}),
+    )
+    binding = SimpleNamespace(runtime=SimpleNamespace(profile=domain, authority=object()))
+    profile = SimpleNamespace(
+        prepared_application=SimpleNamespace(bindings={"grid": binding}),
+        model_binding=SimpleNamespace(model_id="selected-model", model_revision="revision-1", context_ref="context:current"),
+    )
+    claim = SimpleNamespace(instruction="Study the selected model", turn_plan=None)
+    return profile, claim, requests
+
+
+def test_registered_research_tools_do_not_count_as_authority_calculations():
+    from capability_agent.tools.catalog import CoreToolCatalog
+    profile, claim, requests = _research_admission_fixture()
+    admit = _build_kernel_admission((profile,), core_catalog=CoreToolCatalog.default(include_research=True))
+    events = ({"tool_name": "agent_research_update", "capability": "agent_research_update", "ok": True},)
+    answer = admit(claim, "The research remains open.", (), (), events)
+    assert answer.result_refs == answer.evidence_refs == ()
+    assert requests[0].authority_attempted is False
+    assert requests[0].observed_capabilities == ()
+
+
+@pytest.mark.parametrize("extra", [
+    {"result_refs": ["result:untrusted"]},
+    {"evidence_refs": ["evidence:untrusted"]},
+    {"binding_id": "grid"},
+    {"capability": "analysis.run"},
+])
+def test_research_tools_cannot_claim_domain_ownership_or_physical_references(extra):
+    from capability_agent.tools.catalog import CoreToolCatalog
+    profile, claim, _ = _research_admission_fixture()
+    admit = _build_kernel_admission((profile,), core_catalog=CoreToolCatalog.default(include_research=True))
+    event = {"tool_name": "agent_research_update", "capability": "agent_research_update", "ok": True, **extra}
+    with pytest.raises(ValueError, match="core tool provenance"):
+        admit(claim, "Study remains open.", (), (), (event,))
+
+
+def test_unselected_research_tool_is_not_silently_assigned_to_the_domain():
+    profile, claim, _ = _research_admission_fixture()
+    with pytest.raises(ValueError, match="core tool provenance"):
+        _build_kernel_admission((profile,))(
+            claim, "Study remains open.", (), (),
+            ({"tool_name": "agent_research_update", "capability": "agent_research_update", "ok": True},),
+        )
+
+
+def test_core_observations_do_not_hide_domain_execution_from_admission():
+    profile, claim, requests = _research_admission_fixture()
+    events = (
+        {"tool_name": "agent_context_get", "capability": "agent_context_get", "ok": True},
+        {"tool_name": "grid_model_describe", "capability": "model.describe", "ok": True},
+    )
+    _build_kernel_admission((profile,))(claim, "Model inspection complete.", (), (), events)
+    assert requests[0].authority_attempted is True
+    assert requests[0].observed_capabilities == ("model.describe",)
+
+
+def test_core_record_cannot_admit_a_top_level_result_reference():
+    from capability_agent.tools.catalog import CoreToolCatalog
+    profile, claim, _ = _research_admission_fixture()
+    event = {"tool_name": "agent_research_update", "capability": "agent_research_update", "ok": True}
+    with pytest.raises(ValueError, match="no tool provenance owner"):
+        _build_kernel_admission((profile,), core_catalog=CoreToolCatalog.default(include_research=True))(
+            claim, "Study remains open.", ("result:untrusted",), (), (event,),
+        )
 
 
 def test_ordinary_session_has_no_business_tools_or_authority_handles(monkeypatch, tmp_path):

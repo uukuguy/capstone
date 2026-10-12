@@ -22,6 +22,7 @@ from capability_agent.runtime.environment import PiLaunch, RuntimeHost, RuntimeP
 from capability_agent.runtime.models import ResolvedLLM
 from capability_agent.runtime.rpc import PiRpcClient
 from capability_agent.runtime.trace import JsonlTraceWriter
+from capability_agent.tools.catalog import CoreToolCatalog
 
 from .harness import AdmittedAttemptAnswer, PiPromptSession
 from .kernel_capability_preparation import PreparedKernelApplicationProfile
@@ -417,7 +418,13 @@ class _KernelPiPromptSession:
             self._trace.close()
 
 
-def _build_kernel_admission(profiles: tuple[PreparedKernelApplicationProfile, ...]):
+def _build_kernel_admission(
+    profiles: tuple[PreparedKernelApplicationProfile, ...],
+    *, core_catalog: CoreToolCatalog | None = None,
+):
+    selected_core = core_catalog if core_catalog is not None else CoreToolCatalog.default()
+    core_tools = {tool.name: tool.capability for tool in selected_core.tools}
+
     def admit(claim, answer, result_refs, evidence_refs, tool_events):
         if (claim.turn_plan is not None and claim.turn_plan.route == "ordinary"
             and not result_refs and not evidence_refs and not tool_events):
@@ -445,6 +452,16 @@ def _build_kernel_admission(profiles: tuple[PreparedKernelApplicationProfile, ..
         authority_events = []
         owners: dict[str, str] = {}
         for event in tool_events:
+            name = event.get("tool_name")
+            capability = event.get("capability")
+            if ((isinstance(name, str) and name.startswith(selected_core.namespace))
+                or (isinstance(capability, str) and capability.startswith(selected_core.namespace))):
+                if (not isinstance(name, str) or name not in core_tools
+                    or capability != core_tools[name] or event.get("binding_id") is not None
+                    or event.get("result_refs") or event.get("evidence_refs")):
+                    raise ValueError("core tool provenance is invalid")
+                # Core observations remain in the trace, without becoming domain facts.
+                continue
             # Published guide reads have no authority result or evidence. Their
             # names come from the selected binding, not from a model assertion.
             if (event.get("tool_name") in guide_names
