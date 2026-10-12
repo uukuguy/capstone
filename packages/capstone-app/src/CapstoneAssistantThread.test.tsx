@@ -11,6 +11,20 @@ const event = (eventType: string, eventSeq: number, payload: Record<string, unkn
 })
 
 describe('CapstoneAssistantThread', () => {
+  it('opens saved records for the original answer without submitting an instruction', async () => {
+    const onSend = vi.fn()
+    const read = vi.fn().mockResolvedValue({ threadId: 'thr_demo', attemptId: 'attempt_old',
+      instruction: '原任务', modelContext: null, events: [], nextAfter: 0, hasMore: false })
+    render(<CapstoneAssistantThread events={[event('attempt_completed', 1, { answer: '已完成。' }, 'attempt_old')]}
+      disabled={false} isRunning={false} activity={[]} onSend={onSend} onCancel={async () => {}}
+      onReadAttemptRecords={read} />)
+    fireEvent.click(screen.getByRole('button', { name: '查看推演证据' }))
+    expect(read).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: '读取原任务记录' }))
+    await screen.findByText('原任务')
+    expect(read).toHaveBeenCalledWith('attempt_old', 0)
+    expect(onSend).not.toHaveBeenCalled()
+  })
   it('binds semantic invocation receipts to their original task without copying native args', () => {
     const messages = projectAssistantMessages([
       event('attempt_started', 1, {}, 'calculation'),

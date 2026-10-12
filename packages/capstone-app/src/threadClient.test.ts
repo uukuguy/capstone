@@ -40,6 +40,25 @@ function command(): ThreadCommand {
 }
 
 describe('CapstoneThreadClient', () => {
+  it('reads original task records without sending a command or loading the active model', async () => {
+    const records = { threadId: 'thr_demo_39', attemptId: 'attempt_old', instruction: 'Original task',
+      modelContext: null, events: [], nextAfter: 7, hasMore: false }
+    const transport = { readAttemptRecords: vi.fn().mockResolvedValue(records),
+      getSnapshot: vi.fn(), readEvents: vi.fn(), sendCommand: vi.fn() }
+    const client = new CapstoneThreadClient(transport)
+    expect(client.supportsAttemptRecords).toBe(true)
+    await expect(client.attemptRecords('thr_demo_39', 'attempt_old', 7)).resolves.toEqual(records)
+    expect(transport.readAttemptRecords).toHaveBeenCalledWith('thr_demo_39', 'attempt_old', 7, undefined)
+    expect(transport.sendCommand).not.toHaveBeenCalled()
+    expect(transport.getSnapshot).not.toHaveBeenCalled()
+  })
+
+  it('rejects records from another task', async () => {
+    const transport = { readAttemptRecords: vi.fn().mockResolvedValue({ threadId: 'thr_demo_39', attemptId: 'attempt_other' }),
+      getSnapshot: vi.fn(), readEvents: vi.fn(), sendCommand: vi.fn() }
+    await expect(new CapstoneThreadClient(transport).attemptRecords('thr_demo_39', 'attempt_old')).rejects.toThrow('任务记录身份不一致')
+  })
+
   it('builds a model switch command with the verified cursor and caller identity', () => {
     expect(buildThreadCommand({
       threadId: 'thr_demo_39', runId: 'run_001', kind: 'switch_model',

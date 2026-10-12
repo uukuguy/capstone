@@ -6,6 +6,7 @@ import { projectSystemNotices, type ThreadSystemNotice as SystemNotice } from '.
 import { answerEvidenceState, evidenceStateCopy, type AnswerEvidenceState } from './threadEvidenceState'
 import InferenceEvidencePanel, { type FailureEvidence, type ToolExecutionRecord } from './InferenceEvidencePanel'
 import ResearchEvidence, { parseResearchSnapshot, type ResearchSnapshot } from './ResearchEvidence'
+import AttemptRecordPanel, { type AttemptRecordReader } from './AttemptRecordPanel'
 import {
   AssistantRuntimeProvider,
   ComposerPrimitive,
@@ -35,6 +36,7 @@ const AnswerReadingContext = createContext<{
 }>({ collapsed: new Set(), toggle: () => {}, restoreAnchor: () => {} })
 
 const ChatMessageContext = createContext<Parameters<typeof ChatMessage>[0] | null>(null)
+const AttemptRecordsContext = createContext<AttemptRecordReader | undefined>(undefined)
 
 function ThreadChatMessage() {
   const props = useContext(ChatMessageContext)
@@ -481,7 +483,8 @@ function MoreAnswerActions() {
 function ChatActions({ networkSelected, onShowNetwork, role, text, evidenceRefs, evidenceState = 'not_applicable', contextId, selectionRevision, toolCount, resultAvailable, resultOpen, onShowResult, onRegenerate, onShowActivity, activityOpen, showActivity, attemptId = '', resultRefs = [], projections = [], failures = [], executions = [], researchSnapshot, onSelectResult }: { networkSelected?: boolean; onShowNetwork?: () => void; role: string; text: string; evidenceRefs: string[]; evidenceState?: AnswerEvidenceState; contextId?: string; selectionRevision?: string; toolCount: number; resultAvailable?: boolean; resultOpen?: boolean; onShowResult?: () => void; onRegenerate?: () => Promise<void>; onShowActivity?: () => void; activityOpen?: boolean; showActivity?: boolean; attemptId?: string; resultRefs?: string[]; projections?: readonly ResultProjection[]; failures?: readonly FailureEvidence[]; executions?: readonly ToolExecutionRecord[]; researchSnapshot?: ResearchSnapshot; onSelectResult?: (resultId: string) => void }) {
   const [copied, setCopied] = useState(false)
   const [showEvidence, setShowEvidence] = useState(false)
-  const evidenceAvailable = evidenceState === 'available' || failures.length > 0 || Boolean(researchSnapshot) || executions.length > 0
+  const readRecords = useContext(AttemptRecordsContext)
+  const evidenceAvailable = evidenceState === 'available' || failures.length > 0 || Boolean(researchSnapshot) || executions.length > 0 || Boolean(readRecords && attemptId)
   const copy = async () => {
     if (await copyToClipboard(text)) {
       setCopied(true)
@@ -502,6 +505,7 @@ function ChatActions({ networkSelected, onShowNetwork, role, text, evidenceRefs,
     <MoreAnswerActions />
   </div>
   {evidenceAvailable && showEvidence && <>
+    {readRecords && attemptId && <AttemptRecordPanel key={attemptId} attemptId={attemptId} read={readRecords} />}
     <ResearchEvidence snapshot={researchSnapshot} />
     <InferenceEvidencePanel attemptId={attemptId} admitted={evidenceState === 'available'} resultRefs={resultRefs}
       evidenceRefs={evidenceRefs} projections={projections} failures={failures} executions={executions} onSelectResult={onSelectResult} />
@@ -800,6 +804,7 @@ function EmptyThreadState({ disabled }: { disabled: boolean }) {
 }
 
 export type CapstoneAssistantThreadProps = {
+  onReadAttemptRecords?: AttemptRecordReader
   systemNotices?: readonly SystemNotice[]
   onSystemAction?: (action: 'reconnect' | 'resync') => void
   storageKey?: string
@@ -837,7 +842,7 @@ export type CapstoneAssistantThreadProps = {
 /** Assistant-ui is the presentation runtime; Capstone projection remains authoritative. */
 const SystemActionContext = createContext<CapstoneAssistantThreadProps['onSystemAction']>(undefined)
 
-export default function CapstoneAssistantThread({ events, systemNotices = [], onSystemAction, disabled, isRunning, acceptedDraft, activity, onSend, onCancel, onRegenerate, canRerunCompleted = !disabled, modelSummary, instructionModels, composerControls, showActivity = true, caseExecution, caseCatalog = [], caseConnection = 'live', onCaseAction, onCaseStart, resultProjections = [], onFocusElement, selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork, storageKey, hasOlderHistory = false, historyLoading = false, onLoadOlder, historyAtLatest = true, onReturnLatest, instructionLocation }: CapstoneAssistantThreadProps) {
+export default function CapstoneAssistantThread({ onReadAttemptRecords, events, systemNotices = [], onSystemAction, disabled, isRunning, acceptedDraft, activity, onSend, onCancel, onRegenerate, canRerunCompleted = !disabled, modelSummary, instructionModels, composerControls, showActivity = true, caseExecution, caseCatalog = [], caseConnection = 'live', onCaseAction, onCaseStart, resultProjections = [], onFocusElement, selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork, storageKey, hasOlderHistory = false, historyLoading = false, onLoadOlder, historyAtLatest = true, onReturnLatest, instructionLocation }: CapstoneAssistantThreadProps) {
   const allMessages = useMemo(() => projectSystemNotices(projectAssistantMessages(events, instructionModels), events, systemNotices, historyAtLatest), [events, instructionModels, systemNotices, historyAtLatest])
   const firstPublicEventSeq = useMemo(() => events.reduce((first, event) => event.visibility === 'public' ? Math.min(first, event.eventSeq) : first, Number.POSITIVE_INFINITY), [events])
   const [foldState, setFoldState] = useState<{ thread: string | undefined; ids: ReadonlySet<string> }>({ thread: storageKey, ids: new Set() })
@@ -1136,6 +1141,7 @@ export default function CapstoneAssistantThread({ events, systemNotices = [], on
 
   return <AssistantRuntimeProvider runtime={runtime}>
     <SystemActionContext.Provider value={onSystemAction}>
+    <AttemptRecordsContext.Provider value={onReadAttemptRecords}>
     <AnswerReadingContext.Provider value={{ collapsed: collapsedAnswers, toggle: toggleAnswer, restoreAnchor: restoreReadingAnchor }}>
     <ChatMessageContext.Provider value={{ selectedNetworkAttempt, networkAttemptIds, onShowNetwork, onRegenerate: isRunning ? undefined : onRegenerate, canRerunCompleted, modelSummary, showActivity, resultProjections, onFocusElement }}>
     <div className="capstone-assistant-thread" data-testid="assistant-ui-chat">
@@ -1165,6 +1171,7 @@ export default function CapstoneAssistantThread({ events, systemNotices = [], on
     </div>
     </ChatMessageContext.Provider>
     </AnswerReadingContext.Provider>
+    </AttemptRecordsContext.Provider>
     </SystemActionContext.Provider>
   </AssistantRuntimeProvider>
 }
