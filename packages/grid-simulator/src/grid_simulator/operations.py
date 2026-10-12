@@ -276,6 +276,7 @@ def _analysis_operation_list(engine: Pandapower340Engine) -> dict[str, Any]:
         "operations": [
             {
                 "id": operation.identifier,
+                "execution_capability": "analysis.run",
                 "title": operation.title,
                 "pandapower_operation": operation.pandapower_operation,
             }
