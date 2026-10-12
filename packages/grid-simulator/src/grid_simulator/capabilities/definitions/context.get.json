@@ -5,7 +5,7 @@
   "tool_name": "grid_context_get",
   "availability": "published",
   "title": "Get opened grid context metadata",
-  "purpose": "Return deterministic metadata for an already opened network context without running calculations.",
+  "purpose": "Return deterministic metadata for an opened network without calculations. Request include_overview for sourced table counts, in-service input power totals and voltage/rating ranges. Input totals are unscaled table values, not solved injections or a power-balance claim.",
   "applies_to": ["context lookup", "model size checks", "reference validation"],
   "not_for": ["opening a new model", "power-flow calculation", "N-1 analysis"],
   "terms": {
@@ -17,7 +17,8 @@
     "additionalProperties": false,
     "required": ["context_ref"],
     "properties": {
-      "context_ref": {"type": "string", "pattern": "^context:sha256:[0-9a-f]{64}$"}
+      "context_ref": {"type": "string", "pattern": "^context:sha256:[0-9a-f]{64}$"},
+      "include_overview": {"type": "boolean", "default": false}
     }
   },
   "output_schema": {
@@ -28,6 +29,27 @@
       "context_ref": {"type": "string", "pattern": "^context:sha256:[0-9a-f]{64}$"},
       "revision_ref": {"type": "string", "pattern": "^revision:sha256:[0-9a-f]{64}$"},
       "model": {"type": "string", "minLength": 1},
+      "overview": {
+        "type": "array", "items": {
+          "type": "object", "additionalProperties": false,
+          "required": ["dataset", "dataset_ref", "row_count", "in_service_count", "aggregation_scope", "aggregates"],
+          "properties": {
+            "dataset": {"type": "string"}, "dataset_ref": {"type": "string"},
+            "row_count": {"type": "integer", "minimum": 0},
+            "in_service_count": {"type": ["integer", "null"], "minimum": 0},
+            "aggregation_scope": {"type": "string", "enum": ["all_rows", "in_service"]},
+            "aggregates": {"type": "array", "maxItems": 12, "items": {
+              "type": "object", "additionalProperties": false,
+              "required": ["field", "operator", "unit", "value", "valid_count", "null_count"],
+              "properties": {
+                "field": {"type": "string"}, "operator": {"type": "string", "enum": ["sum", "min", "max"]},
+                "unit": {"type": ["string", "null"]}, "value": {"type": ["number", "null"]},
+                "valid_count": {"type": "integer", "minimum": 0}, "null_count": {"type": "integer", "minimum": 0}
+              }
+            }}
+          }
+        }
+      },
       "counts": {
         "type": "object",
         "additionalProperties": false,

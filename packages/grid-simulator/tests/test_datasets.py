@@ -24,6 +24,24 @@ def test_dataset_list_covers_all_nonempty_static_element_tables(grid, context_re
     assert all(not name.startswith("network.res_") for name in by_name)
 
 
+def test_context_overview_returns_sourced_input_totals_without_calculation(grid, context_ref: str) -> None:
+    response = grid.call("context.get", {"context_ref": context_ref, "include_overview": True})
+    overview = {item["dataset"]: item for item in response["overview"]}
+    assert grid.engine.ac_run_count == 0
+    assert "network.res_bus" not in overview
+    for dataset in ["network.load", "network.gen"]:
+        source = grid.call("model.dataset.query", {"context_ref": context_ref,
+            "dataset": dataset, "select": ["p_mw"], "where": {"in_service": True},
+            "aggregations": [{"field": "p_mw", "operator": "sum"}]})
+        item = overview[dataset]
+        assert item["dataset_ref"] == source["dataset_ref"]
+        assert item["in_service_count"] == source["row_count"]
+        actual = next(aggregate for aggregate in item["aggregates"]
+                      if aggregate["field"] == "p_mw" and aggregate["operator"] == "sum")
+        assert actual == source["aggregates"][0]
+    assert "overview" not in grid.call("context.get", {"context_ref": context_ref})
+
+
 def test_generic_dataset_describe_reports_typed_fields_and_units(grid, context_ref: str) -> None:
     response = grid.call(
         "model.dataset.describe",
@@ -35,6 +53,27 @@ def test_generic_dataset_describe_reports_typed_fields_and_units(grid, context_r
     assert fields["index"]["type"] == "integer"
     assert fields["vm_pu"]["unit"] == "p.u."
     assert isinstance(fields["vm_pu"]["nullable"], bool)
+
+
+def test_overview_ignores_unrelated_objects_and_keeps_input_scaling_explicit():
+    import pandas as pd
+    import pandapower as pp
+    from grid_simulator.operations import _model_input_overview
+    net = pp.create_empty_network()
+    bus = pp.create_bus(net, vn_kv=20)
+    pp.create_load(net, bus, p_mw=4, scaling=0.5)
+    pp.create_load(net, bus, p_mw=9, in_service=False)
+    net.load["private_object"] = [object(), object()]
+    net.load["q_mvar"] = pd.Series([pd.NA, 2.0], dtype="Float64")
+    overview = {item["dataset"]: item for item in _model_input_overview(net, "revision:sha256:" + "a" * 64)}
+    load = overview["network.load"]
+    assert load["row_count"] == 2 and load["in_service_count"] == 1
+    assert load["aggregation_scope"] == "in_service"
+    totals = {item["field"]: item for item in load["aggregates"] if item["operator"] == "sum"}
+    assert totals["p_mw"]["value"] == 4  # input field, not scaled injection
+    assert totals["q_mvar"]["value"] is None
+    assert totals["q_mvar"]["null_count"] == 1
+    json.dumps(list(overview.values()), allow_nan=False)
 
 
 def test_generic_dataset_query_is_bounded_schema_driven_and_pageable(grid, context_ref: str) -> None:

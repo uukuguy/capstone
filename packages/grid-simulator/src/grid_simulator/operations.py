@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Literal, NoReturn
 
 import networkx as nx
+import pandas as pd
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError as JsonSchemaSchemaError
 from jsonschema.exceptions import ValidationError as JsonSchemaValidationError
@@ -636,12 +637,41 @@ def _context_open(workspace: SimulatorWorkspace, engine: Pandapower340Engine, ar
 
 def _context_get(workspace: SimulatorWorkspace, engine: Pandapower340Engine, arguments: dict[str, Any]) -> dict[str, Any]:
     context, net = _load_context_and_network(workspace, engine, str(arguments["context_ref"]))
-    return {
+    result = {
         "context_ref": context.context_ref,
         "revision_ref": context.revision_ref,
         "model": context.model_id,
         "counts": {"buses": int(len(net.bus)), "lines": int(len(net.line)), "transformers": int(len(net.trafo))},
     }
+    if arguments.get("include_overview"):
+        result["overview"] = _model_input_overview(net, context.revision_ref)
+    return result
+
+
+def _model_input_overview(net: Any, revision_ref: str) -> list[dict[str, Any]]:
+    """Summarize declared input fields; do not infer a solved operating point."""
+    overview = []
+    for dataset in dataset_names(net):
+        if dataset in {"network.buses", "network.branches"}:
+            continue  # canonical views would duplicate the underlying tables
+        metadata = field_metadata(dataset, net)
+        fields = {item["name"]: item for item in metadata}
+        table = net[dataset.removeprefix("network.")]
+        has_service = "in_service" in fields
+        active_table = table.loc[table["in_service"].eq(True)] if has_service else table
+        specifications = [{"field": field, "operator": operator}
+            for field in ["p_mw", "q_mvar", "sn_mva", "vn_kv"]
+            if field in fields and fields[field]["type"] in {"number", "integer"}
+            for operator in (["min", "max"] if field == "vn_kv" else ["sum", "min", "max"])]
+        selected = list(dict.fromkeys(spec["field"] for spec in specifications))
+        active = [{field: float(value) if not pd.isna(value) and math.isfinite(float(value)) else None
+                   for field, value in zip(selected, values, strict=True)}
+                  for values in active_table[selected].itertuples(index=False, name=None)] if selected else []
+        overview.append({"dataset": dataset, "dataset_ref": dataset_ref(revision_ref, dataset),
+            "row_count": len(table), "in_service_count": len(active_table) if has_service else None,
+            "aggregation_scope": "in_service" if has_service else "all_rows",
+            "aggregates": _aggregate_model_rows(active, metadata, specifications)})
+    return overview
 
 
 def _model_constraints_describe(
