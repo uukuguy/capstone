@@ -11,6 +11,11 @@ const event = (eventType: string, eventSeq: number, payload: Record<string, unkn
 })
 
 describe('CapstoneAssistantThread', () => {
+  it('shows a research continuation as an action without presenting a calculation', () => {
+    const actions = projectAssistantActivity([event('research_step_resumed', 1,
+      { reason: 'model_step_budget', budget_seconds: 90 }, 'attempt_research')])
+    expect(actions).toMatchObject([{ label: '调整推演方式，沿用已有结果', source: 'capstone · research', status: 'completed' }])
+  })
   it('opens saved records for the original answer without submitting an instruction', async () => {
     const onSend = vi.fn()
     const read = vi.fn().mockResolvedValue({ threadId: 'thr_demo', attemptId: 'attempt_old',

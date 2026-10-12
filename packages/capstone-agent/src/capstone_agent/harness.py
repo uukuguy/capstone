@@ -171,6 +171,7 @@ class HarnessRuntimeRegistry:
 
 
 _EVENT_TYPES = {
+    "research_step_resumed": ("research_step_resumed", "public"),
     "research_state": ("research_state_updated", "public"),
     "text_delta": ("assistant_process_delta", "diagnostic"),
     "assistant_process_delta": ("assistant_process_delta", "diagnostic"),
@@ -198,7 +199,12 @@ def normalize_runtime_event(
         native_type = "unknown"
     event_type, visibility = _EVENT_TYPES.get(native_type, ("runtime_event", "diagnostic"))
     payload: dict[str, object]
-    if event_type == "research_state_updated":
+    if event_type == "research_step_resumed":
+        budget = event.get("budget_seconds")
+        if event.get("reason") != "model_step_budget" or isinstance(budget, bool) or not isinstance(budget, (int, float)) or not 0 < budget <= 3600:
+            raise ValueError("invalid research step budget event")
+        payload = {"reason": "model_step_budget", "budget_seconds": budget}
+    elif event_type == "research_state_updated":
         from .thread_protocol import ModelContextSnapshot
         context = ModelContextSnapshot.from_document(event.get("baseline_model_context"))
         identity, goal, revision = event.get("research_id"), event.get("goal"), event.get("research_revision")

@@ -174,3 +174,35 @@ def test_pi_services_research_requests_and_closes_state_on_stop(tmp_path):
     session.admit_attempt(None, "Outcome", (), (), ())
     session.stop()
     assert not research.channel.is_active()
+
+
+def test_long_model_step_resumes_same_research_without_resetting_budget(tmp_path, monkeypatch):
+    from capstone_agent.kernel_pi_session import _KernelPiPromptSession
+    from capstone_agent.harness import normalize_runtime_event
+    research = AttemptResearch(tmp_path, thread_id="thr_budget", run_id="run_budget",
+        attempt_id="attempt_budget", model_context=MODEL, is_active=lambda: True, admit_reference=lambda _: False)
+    now = [100.0]
+    monkeypatch.setattr("capstone_agent.kernel_pi_session.time.monotonic", lambda: now[0])
+    calls, levels, events = [], [], []
+    client = SimpleNamespace(timeout_seconds=600, last_prompt_interrupted=False,
+                             set_thinking_level=levels.append)
+    def prompt(question, **kwargs):
+        calls.append((question, kwargs["timeout_seconds"], kwargs.get("model_idle_seconds")))
+        client.last_prompt_interrupted = len(calls) == 1
+        if client.last_prompt_interrupted:
+            now[0] = 191.0
+            return ""
+        return "已有结果与未完成部分。"
+    client.prompt_and_wait = prompt
+    session = _KernelPiPromptSession(client, SimpleNamespace(append=lambda *_: 1),
+                                     admission=None, research=research)
+    answer = session.prompt_and_wait("Original goal", on_semantic_event=events.append,
+        correlation_id="attempt_budget", on_heartbeat=lambda: None)
+    assert answer == "已有结果与未完成部分。"
+    assert [call[1] for call in calls] == [600, 509]
+    assert [call[2] for call in calls] == [90, 90]
+    assert levels == ["off"]
+    assert "saved" in calls[1][0] and "Original goal" not in calls[1][0]
+    normalized = normalize_runtime_event(events[0], runtime_mode="capstone")
+    assert normalized["event_type"] == "research_step_resumed"
+    assert normalized["visibility"] == "public"

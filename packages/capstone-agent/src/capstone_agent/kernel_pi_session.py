@@ -558,14 +558,40 @@ class _KernelPiPromptSession:
                                "trace_sequence": sequence, "trace_correlation_id": correlation_id})
             self._published_research_revision = revision
 
-        answer = self._client.prompt_and_wait(
-            question,
-            on_semantic_event=observed,
-            correlation_id=correlation_id,
-            on_heartbeat=on_heartbeat,
-            timeout_seconds=remaining,
-            on_control_requests=research_updates if self._research is not None else None,
-        )
+        while True:
+            remaining = self._deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError("attempt time budget exhausted")
+            step_budget = min(90.0, remaining - 15.0) if self._research is not None and remaining > 15 else None
+            answer = self._client.prompt_and_wait(
+                question,
+                on_semantic_event=observed,
+                correlation_id=correlation_id,
+                on_heartbeat=on_heartbeat,
+                timeout_seconds=remaining,
+                on_control_requests=research_updates if self._research is not None else None,
+                model_idle_seconds=step_budget,
+            )
+            if not getattr(self._client, "last_prompt_interrupted", False):
+                break
+            on_heartbeat()
+            self._client.set_thinking_level("off")
+            sequence = self._trace.append("research_step_resumed", {
+                "reason": "model_step_budget", "budget_seconds": step_budget,
+            })
+            on_semantic_event({"type": "research_step_resumed", "reason": "model_step_budget",
+                "budget_seconds": step_budget, "trace_sequence": sequence,
+                "trace_correlation_id": correlation_id})
+            question = (
+                "Continue the original goal from saved observations, tool receipts and research records. "
+                "The previous reasoning step exceeded its time budget. The session and completed work "
+                "are retained. Use direct reasoning and tools to resolve remaining uncertainties; do not "
+                "restart completed calculations without a stated need. Check numerical comparisons "
+                "against actual results and distinguish verified outcomes from hypotheses. If the goal "
+                "cannot be completed within the remaining budget, deliver the supported partial outcome "
+                "and state what remains unresolved."
+            )
+            self._trace.append("application_prompt", {"correlation_id": correlation_id, "question": question})
         self._ready_for_correction = True
         return answer
 

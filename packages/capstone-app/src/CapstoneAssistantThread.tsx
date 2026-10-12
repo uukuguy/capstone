@@ -92,6 +92,11 @@ function activitySource(event: EventEnvelope): string {
 export function projectAssistantActivity(events: readonly EventEnvelope[]): ChatActivity[] {
   const grouped = new Map<string, ChatActivity>()
   for (const event of events) {
+    if (event.eventType === 'research_step_resumed') {
+      grouped.set(event.eventId, { id: event.eventId, label: '调整推演方式，沿用已有结果',
+        source: 'capstone · research', status: 'completed', finishedAt: event.occurredAt })
+      continue
+    }
     if (!['tool_started', 'tool_completed', 'tool_failed', 'tool_cancelled'].includes(event.eventType)) continue
     const id = activityId(event)
     const previous = grouped.get(id)

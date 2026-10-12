@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 import subprocess
 import time
@@ -96,6 +97,22 @@ class PiRpcClient:
         self.process: subprocess.Popen[bytes] | None = None
         self._stdout_lines: Queue[bytes | None] | None = None
         self._stderr_capture: _BoundedStderrCapture | None = None
+        self.last_prompt_interrupted = False
+
+    def _send_control(self, command: str, **payload: object) -> None:
+        if self.process is None or self.process.stdin is None:
+            raise PiProtocolError("Pi RPC process is not started")
+        try:
+            self.process.stdin.write((json.dumps({"type": command, **payload}) + "\n").encode())
+            self.process.stdin.flush()
+        except (BrokenPipeError, OSError) as exc:
+            raise PiProtocolError("Pi RPC control could not be sent") from exc
+        self.trace.append("rpc_control", {"command": command, **payload})
+
+    def set_thinking_level(self, level: str) -> None:
+        if level not in {"off", "minimal", "low", "medium", "high", "xhigh"}:
+            raise ValueError("unsupported reasoning level")
+        self._send_control("set_thinking_level", level=level)
 
     def start(self) -> None:
         launch_environment = (
@@ -142,11 +159,16 @@ class PiRpcClient:
         capture: CaptureAdapter | None = None,
         timeout_seconds: float | None = None,
         correlation_id: str | None = None,
+        model_idle_seconds: float | None = None,
     ) -> str:
         if self.process is None or self.process.stdin is None:
             raise PiProtocolError("Pi RPC process is not started")
         if heartbeat_seconds <= 0:
             raise ValueError("RPC heartbeat interval must be positive")
+        if model_idle_seconds is not None and (type(model_idle_seconds) not in {int, float}
+            or not math.isfinite(model_idle_seconds) or model_idle_seconds <= 0):
+            raise ValueError("model step budget must be positive")
+        self.last_prompt_interrupted = False
         timeout = self.timeout_seconds if timeout_seconds is None else timeout_seconds
         if timeout is not None and timeout <= 0:
             raise ValueError("RPC timeout must be positive")
@@ -182,10 +204,20 @@ class PiRpcClient:
         answer_state = _AssistantAnswerState()
         acknowledged = False
         pending_tool_calls: dict[str, dict[str, str]] = {}
+        running_tools: set[str] = set()
+        last_model_action = time.monotonic()
         next_heartbeat_at = time.monotonic() + heartbeat_seconds
         deadline = None if timeout is None else time.monotonic() + timeout
         while True:
             wait_timeout = heartbeat_seconds
+            if model_idle_seconds is not None and acknowledged and not running_tools and not self.last_prompt_interrupted:
+                idle_remaining = model_idle_seconds - (time.monotonic() - last_model_action)
+                if idle_remaining <= 0:
+                    self._send_control("abort")
+                    self.last_prompt_interrupted = True
+                    self.trace.append("model_step_interrupted", {"reason": "model_step_budget", "budget_seconds": model_idle_seconds})
+                else:
+                    wait_timeout = min(wait_timeout, idle_remaining)
             if deadline is not None:
                 wait_timeout = min(wait_timeout, max(0.0, deadline - time.monotonic()))
                 if wait_timeout <= 0:
@@ -226,6 +258,18 @@ class PiRpcClient:
                 raise PiProtocolError("Pi RPC returned invalid JSONL") from exc
             if not isinstance(event, dict):
                 raise PiProtocolError("Pi RPC event must be an object")
+            if event.get("type") == "tool_execution_start":
+                running_tools.add(_event_tool_call_id(event) or "unidentified")
+                last_model_action = time.monotonic()
+            elif event.get("type") in {"tool_execution_end", "tool_result"}:
+                running_tools.discard(_event_tool_call_id(event) or "unidentified")
+                last_model_action = time.monotonic()
+            elif event.get("type") == "text_delta" and isinstance(event.get("text"), str) and event["text"]:
+                last_model_action = time.monotonic()
+            elif event.get("type") == "message_update":
+                delta = event.get("assistantMessageEvent")
+                if isinstance(delta, dict) and delta.get("type") == "text_delta" and delta.get("delta"):
+                    last_model_action = time.monotonic()
             event_correlation = _event_correlation(event)
             if (
                 expected_correlation is not None
@@ -250,9 +294,11 @@ class PiRpcClient:
                     on_semantic_event(payload, sequence)
             if event.get("type") == "prompt_ack" and event.get("ok") is True:
                 acknowledged = True
+                last_model_action = time.monotonic()
             if event.get("type") == "response" and event.get("command") == "prompt":
                 if event.get("success") is True:
                     acknowledged = True
+                    last_model_action = time.monotonic()
                 else:
                     if capture is not None:
                         capture.drain_model_requests()
@@ -265,6 +311,10 @@ class PiRpcClient:
                     if capture is not None:
                         capture.drain_model_requests()
                     raise PiProtocolError("Pi agent ended before prompt acknowledgement")
+                if self.last_prompt_interrupted:
+                    if capture is not None:
+                        capture.drain_model_requests()
+                    return ""
                 provider_error = _provider_error(event)
                 if provider_error:
                     if event.get("willRetry") is True:

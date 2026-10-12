@@ -17,6 +17,90 @@ class _Workspace:
     root_path: Path
 
 
+def test_model_step_budget_keeps_session_and_completed_tools_for_resume(tmp_path):
+    script = tmp_path / "bounded-step.py"
+    script.write_text('''import json, sys
+completed = False
+for line in sys.stdin:
+ request = json.loads(line)
+ if request['type'] == 'prompt':
+  print(json.dumps({'type':'prompt_ack','ok':True}), flush=True)
+  if not completed:
+   completed = True
+   print(json.dumps({'type':'tool_execution_start','toolCallId':'saved','toolName':'lookup'}), flush=True)
+   print(json.dumps({'type':'tool_execution_end','toolCallId':'saved','toolName':'lookup','result':{'details':{'capability':'lookup','ok':True,'result':{'value':7}}}}), flush=True)
+  else:
+   print(json.dumps({'type':'text_delta','text':'used saved observations'}), flush=True)
+   print(json.dumps({'type':'agent_end','messages':[]}), flush=True)
+ elif request['type'] == 'abort':
+  print(json.dumps({'type':'response','command':'abort','success':True}), flush=True)
+  print(json.dumps({'type':'agent_end','messages':[]}), flush=True)
+ elif request['type'] == 'set_thinking_level':
+  assert request['level'] == 'off'
+  print(json.dumps({'type':'response','command':'set_thinking_level','success':True}), flush=True)
+''')
+    trace = JsonlTraceWriter(tmp_path / "trace.jsonl")
+    client = PiRpcClient(PiLaunch(argv=(sys.executable, str(script)), environment={}), _Workspace(tmp_path), trace)
+    events = []
+    client.start()
+    try:
+        pid = client.process.pid
+        assert client.prompt_and_wait("work", model_idle_seconds=.05, timeout_seconds=1,
+            on_semantic_event=lambda event, _: events.append(event)) == ""
+        assert client.last_prompt_interrupted
+        client.set_thinking_level("off")
+        assert client.prompt_and_wait("continue", model_idle_seconds=.05, timeout_seconds=1) == "used saved observations"
+        assert not client.last_prompt_interrupted
+        assert client.process.pid == pid
+    finally:
+        client.stop()
+        trace.close()
+    assert any(event['type'] == 'tool_result' for event in events)
+
+
+def test_model_step_budget_does_not_interrupt_a_running_tool(tmp_path):
+    script = tmp_path / "long-tool.py"
+    script.write_text('''import json, time
+input()
+print(json.dumps({'type':'prompt_ack','ok':True}), flush=True)
+print(json.dumps({'type':'tool_execution_start','toolCallId':'long','toolName':'solver'}), flush=True)
+time.sleep(.15)
+print(json.dumps({'type':'tool_execution_end','toolCallId':'long','toolName':'solver','result':{}}), flush=True)
+print(json.dumps({'type':'text_delta','text':'solver finished'}), flush=True)
+print(json.dumps({'type':'agent_end','messages':[]}), flush=True)
+''')
+    trace = JsonlTraceWriter(tmp_path / "trace.jsonl")
+    client = PiRpcClient(PiLaunch(argv=(sys.executable, str(script)), environment={}), _Workspace(tmp_path), trace)
+    client.start()
+    try:
+        assert client.prompt_and_wait("work", model_idle_seconds=.05, timeout_seconds=1) == "solver finished"
+        assert not client.last_prompt_interrupted
+    finally:
+        client.stop()
+        trace.close()
+
+
+def test_model_step_budget_keeps_a_streaming_public_report(tmp_path):
+    script = tmp_path / "stream-report.py"
+    script.write_text('''import json, time
+input()
+print(json.dumps({'type':'prompt_ack','ok':True}), flush=True)
+for text in ['report ', 'from ', 'saved ', 'results']:
+ print(json.dumps({'type':'text_delta','text':text}), flush=True)
+ time.sleep(.03)
+print(json.dumps({'type':'agent_end','messages':[]}), flush=True)
+''')
+    trace = JsonlTraceWriter(tmp_path / "trace.jsonl")
+    client = PiRpcClient(PiLaunch(argv=(sys.executable, str(script)), environment={}), _Workspace(tmp_path), trace)
+    client.start()
+    try:
+        assert client.prompt_and_wait("report", model_idle_seconds=.05, timeout_seconds=1) == "report from saved results"
+        assert not client.last_prompt_interrupted
+    finally:
+        client.stop()
+        trace.close()
+
+
 @pytest.mark.parametrize("terminal_snapshot", [False, True])
 def test_rpc_keeps_only_last_assistant_message_after_tool_cycle(tmp_path, terminal_snapshot):
     before = {"role": "assistant", "content": [{"type": "text", "text": "I'll check runtime capabilities."},

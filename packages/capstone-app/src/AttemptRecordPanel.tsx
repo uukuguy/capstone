@@ -5,6 +5,7 @@ import type { EventEnvelope } from './threadProtocol'
 export type AttemptRecordReader = (attemptId: string, after?: number) => Promise<AttemptRecords>
 
 const LABELS: Record<string, string> = {
+  research_step_resumed: '调整推演方式，沿用已有结果',
   tool_started: '开始调用', tool_completed: '调用结束', tool_failed: '调用失败', tool_cancelled: '调用取消',
   validation_failed: '核验未通过', research_state_updated: '研究记录已保存',
   attempt_started: '任务开始', attempt_completed: '任务结束', attempt_failed: '任务失败',
