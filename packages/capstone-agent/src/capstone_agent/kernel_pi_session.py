@@ -96,8 +96,6 @@ class PreparedKernelPiRpcSessionBuilder:
         ):
             raise TypeError("base_environment must contain text keys and values")
         self._runtime_host = runtime_host
-        if research_enabled and research_is_active is None:
-            raise ValueError("research requires an active-attempt check")
         self._research_enabled = research_enabled
         self._research_is_active = research_is_active
         self._resolved_llm = resolved_llm
@@ -136,10 +134,10 @@ class PreparedKernelPiRpcSessionBuilder:
         research = None
         if self._research_enabled:
             active = self._research_is_active
-            assert active is not None
             research = AttemptResearch(workspace.core_path / "research-attempts", thread_id=claim.thread_id,
                 run_id=claim.run_id, attempt_id=claim.attempt.attempt_id,
-                is_active=lambda: active(claim), admit_reference=references.admit)
+                is_active=lambda: active(claim) if active is not None else False,
+                admit_reference=references.admit)
         descriptors = []
         binding_runtimes: list[tuple[str, object, object]] = []
         for profile in profiles:
@@ -472,6 +470,10 @@ class _KernelPiPromptSession:
 
     def start(self) -> None:
         self._client.start()
+
+    def bind_attempt_guard(self, check: Callable[[], bool]) -> None:
+        if self._research is not None:
+            self._research.bind_active_check(check)
 
     def prompt_and_wait(
         self,

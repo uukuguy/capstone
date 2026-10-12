@@ -326,6 +326,11 @@ class HarnessPiClient:
 
     runtime_name = "pi"
 
+    def bind_attempt_guard(self, check: Callable[[], bool]) -> None:
+        bind = getattr(self._session, "bind_attempt_guard", None)
+        if callable(bind):
+            bind(check)
+
     def __init__(
         self,
         session: PiPromptSession,

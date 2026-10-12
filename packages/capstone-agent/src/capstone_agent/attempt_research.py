@@ -6,6 +6,7 @@ import json
 import os
 import re
 from pathlib import Path
+from uuid import uuid4
 
 from capability_agent.application import ApplicationContextStore, ContextEventDraft, ResearchController
 from capability_agent.application.workspace import ApplicationWorkspace
@@ -29,9 +30,13 @@ class AttemptResearch:
             raise ValueError("invalid research attempt identity")
         digest = sha256(json.dumps(identities).encode()).hexdigest()[:48]
         workspace = ApplicationWorkspace.create(root, run_id=f"task-{digest}")
+        # The first instruction starts a research identity. It is not derived
+        # from the execution identity; future turns must explicitly bind it.
+        self.research_id = f"research-{uuid4().hex}"
         self.identity_path = workspace.core_path / "task-binding.json"
         binding = {"schema": "capstone-task-research-binding/1", "thread_id": thread_id,
-                   "run_id": run_id, "attempt_id": attempt_id, "kernel_run_id": workspace.run_id}
+                   "run_id": run_id, "attempt_id": attempt_id, "kernel_run_id": workspace.run_id,
+                   "research_id": self.research_id}
         with self.identity_path.open("x", encoding="utf-8") as target:
             self.identity_path.chmod(0o600)
             json.dump(binding, target)
@@ -41,11 +46,17 @@ class AttemptResearch:
         self.turn_id = f"turn-{digest}"
         self.store.append(ContextEventDraft(event_type="turn.started", turn_id=self.turn_id,
                                            payload={"ordinal": 1}))
-        self.controller = ResearchController(self.store, research_id=f"research-{digest}",
+        self.controller = ResearchController(self.store, research_id=self.research_id,
             turn_id=self.turn_id, admit_reference=admit_reference)
         self._closed = False
+        self._is_active = is_active
         self.channel = ResearchRequestChannel(self.controller, attempt_id=attempt_id,
-            is_active=lambda: not self._closed and is_active())
+            is_active=lambda: not self._closed and self._is_active())
+
+    def bind_active_check(self, check: Callable[[], bool]) -> None:
+        if self._closed:
+            raise RuntimeError("research attempt is closed")
+        self._is_active = check
 
     def close(self, *, failed: bool) -> None:
         if self._closed:

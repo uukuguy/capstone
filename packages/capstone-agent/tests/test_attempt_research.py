@@ -6,6 +6,26 @@ from types import SimpleNamespace
 from capstone_agent.attempt_research import AttemptResearch
 
 
+def test_worker_guard_prevents_research_write_after_cancellation(tmp_path):
+    from capstone_agent.harness import HarnessPiClient
+    from capstone_agent.kernel_pi_session import _KernelPiPromptSession
+    research = AttemptResearch(tmp_path, thread_id="thr_one", run_id="run_one",
+        attempt_id="attempt_one", is_active=lambda: False, admit_reference=lambda _: False)
+    session = _KernelPiPromptSession(SimpleNamespace(), SimpleNamespace(), admission=None, research=research)
+    runtime = HarnessPiClient(session)
+    cancelled = [False]
+    runtime.bind_attempt_guard(lambda: not cancelled[0])
+    assert research.channel.is_active()
+    cancelled[0] = True
+    request = {"request_id": "update-1", "expected_revision": 0,
+               "changes": {"goal": "Do not commit after cancellation"}}
+    (research.channel.requests_path / "update-1.json").write_text(json.dumps(request))
+    research.channel.drain()
+    receipt = json.loads((research.channel.receipts_path / "update-1.json").read_text())
+    assert receipt["code"] == "attempt_closed"
+    assert research.controller.read() is None
+
+
 def test_research_isolated_by_attempt_and_preserves_thread_identity(tmp_path):
     first = AttemptResearch(tmp_path, thread_id="thr_one", run_id="run_one",
         attempt_id="attempt_one", is_active=lambda: True, admit_reference=lambda _: False)
@@ -16,6 +36,9 @@ def test_research_isolated_by_attempt_and_preserves_thread_identity(tmp_path):
     assert identity["thread_id"] == "thr_one"
     assert identity["run_id"] == "run_one"
     assert identity["attempt_id"] == "attempt_one"
+    assert identity["research_id"] == first.controller.research_id
+    assert first.research_id != second.research_id
+    assert first.research_id.removeprefix("research-") != first.turn_id.removeprefix("turn-")
     assert first.controller.read() is None
 
 

@@ -70,6 +70,12 @@ def _run_claimed_attempt(
     try:
         lease.check()
         runtime = runtime_factory(claim)
+        bind_guard = getattr(runtime, "bind_attempt_guard", None)
+        if callable(bind_guard):
+            def active() -> bool:
+                lease.check()
+                return not service.cancel_requested(claim)
+            bind_guard(active)
     except HarnessRuntimeConfigurationError:
         error_code = "runtime_configuration_invalid"
         lease.check()
