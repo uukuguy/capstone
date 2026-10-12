@@ -14,6 +14,7 @@ import json
 from typing import Protocol, cast
 
 from .attempt_lease import AttemptLeaseRenewal
+from .result_projection import MAX_RESULT_PROJECTIONS, MAX_RESULT_PROJECTION_BYTES
 from .progress import project_tool_failure
 from .thread_service import AttemptClaim, ThreadExecutionService
 from .thread_network import (
@@ -68,7 +69,7 @@ class AdmittedAttemptAnswer:
             raise ValueError("admission diagnostic codes are invalid")
         if (
             not isinstance(self.result_projections, tuple)
-            or len(self.result_projections) > 12
+            or len(self.result_projections) > MAX_RESULT_PROJECTIONS
             or any(not isinstance(item, Mapping) for item in self.result_projections)
         ):
             raise ValueError("admitted result projections are invalid")
@@ -79,7 +80,7 @@ class AdmittedAttemptAnswer:
             ).encode("utf-8")
         except (TypeError, ValueError):
             raise ValueError("admitted result projections are not JSON") from None
-        if len(encoded_projections) > 64 * 1024:
+        if len(encoded_projections) > MAX_RESULT_PROJECTION_BYTES:
             raise ValueError("admitted result projections are too large")
         if self.mode == "authority_backed" and not self.evidence_refs:
             raise ValueError("authority-backed admission requires evidence")

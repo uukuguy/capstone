@@ -330,6 +330,68 @@ def test_postgres_thread_store_leases_and_completes_one_attempt(
     ]
 
 
+@pytest.mark.parametrize("rollback", [False, True])
+def test_large_result_delivery_is_atomic_and_survives_restart(postgres_thread_service, monkeypatch, rollback):
+    service, thread_id = postgres_thread_service
+    revision = "revision:sha256:" + "a" * 64
+    snapshot = _snapshot(thread_id).to_document()
+    snapshot["active_model_context"]["model_revision"] = revision
+    service.create_thread(ThreadSnapshot.from_document(snapshot))
+    service.submit_command(_command(thread_id))
+    claim = service.claim_attempt("projection-test", 30)
+    assert claim is not None
+    result_ref, evidence_ref = "result:sha256:" + "b" * 64, "evidence:sha256:" + "c" * 64
+    projection = {
+        "schema": "capstone-result-projection/1.0", "result_id": "projection_large",
+        "result_ref": result_ref, "evidence_refs": [evidence_ref], "thread_id": thread_id,
+        "run_id": claim.run_id, "turn_id": claim.attempt.turn_id, "attempt_id": claim.attempt.attempt_id,
+        "model_context_id": claim.model_context.id, "model_id": "ieee39", "model_revision": revision,
+        "source": {"capability_id": "analysis.run", "domain_pack_id": "pandapower-static-analysis",
+                   "implementation_family": "pandapower"},
+        "status": "partial", "summary": [], "element_refs": [], "overlay": None,
+        "tables": [{"table_id": "details", "title": "Details",
+                    "columns": [{"column_id": "value", "label": "Value"}],
+                    "rows": [{"row_id": f"row:{index}", "cells": {"value": "测量" * 120}}
+                             for index in range(128)]}],
+    }
+    payload = {"answer": "Verified partial results and failed computation are retained.",
+               "result_refs": [result_ref], "evidence_refs": [evidence_ref],
+               "result_projections": [projection],
+               "admission": {"mode": "authority_backed", "assurance": "lineage_verified"}}
+    if rollback:
+        insert = service._insert_event
+        def fail_after_part(connection, event):
+            insert(connection, event)
+            if event.event_type == "result_projection_part":
+                raise RuntimeError("injected persistence failure")
+        monkeypatch.setattr(service, "_insert_event", fail_after_part)
+        with pytest.raises(RuntimeError, match="injected"):
+            service.finish_attempt(claim, phase="failed", payload=payload)
+        restored = PostgresThreadService(service.dsn).snapshot(thread_id)
+        assert restored.current_attempt.phase == "running"
+        assert restored.last_event_seq == 2 and not restored.result_projections
+        assert len(service.read_events(thread_id, 0).events) == 2
+        return
+    service.finish_attempt(claim, phase="failed", payload=payload)
+    restarted = PostgresThreadService(service.dsn)
+    stored = restarted.snapshot(thread_id)
+    assert stored.result_projections[0].to_document() == projection
+    assert stored.current_attempt is None
+    events = []
+    after = 0
+    while True:
+        page = restarted.read_attempt_records(thread_id, claim.attempt.attempt_id, after=after, limit=1)
+        events.extend(page["events"])
+        if not page["has_more"]:
+            break
+        after = page["next_after"]
+    parts = [e["payload"]["data"] for e in events if e["event_type"] == "result_projection_part"]
+    assert json.loads("".join(parts)) == projection
+    assert "result_projections" not in events[-1]["payload"]
+    assert events[-1]["event_type"] == "attempt_failed"
+    assert all(len(json.dumps(e, ensure_ascii=False).encode()) < 64 * 1024 for e in events)
+
+
 def test_postgres_family_filter_claims_only_matching_threads(
     postgres_thread_service: tuple[PostgresThreadService, str],
 ) -> None:

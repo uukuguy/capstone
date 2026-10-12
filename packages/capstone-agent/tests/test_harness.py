@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+import json
 
 from capstone_agent.harness import (
     AdmittedAttemptAnswer,
@@ -45,6 +46,7 @@ def test_incomplete_catalog_stream_commits_the_complete_application_answer():
     )
     assert result is not None and result.status == "completed" and session.stopped
     events = service.read_events("thr_harness", 0).events
+    assert [event.event_seq for event in events] == list(range(1, len(events) + 1))
     terminal = events[-1]
     assert terminal.event_type == "attempt_completed"
     assert "model-first" in terminal.payload["answer"] and "model-second" in terminal.payload["answer"]
@@ -622,7 +624,8 @@ def test_professional_model_observation_admission_is_accepted_without_evidence()
     assert result.error_code is None
 
 
-def test_application_admission_persists_bounded_result_projection() -> None:
+@pytest.mark.parametrize("large", [False, True])
+def test_application_admission_persists_bounded_result_projection(large) -> None:
     service = _thread_service()
     service.submit_command({
         "schema": "capstone-command/1", "command_id": "cmd_harness_projection",
@@ -645,6 +648,13 @@ def test_application_admission_persists_bounded_result_projection() -> None:
         "status": "completed", "summary": [], "tables": [], "element_refs": [],
         "overlay": None,
     }
+    if large:
+        projection["tables"] = [{
+            "table_id": "details", "title": "Details",
+            "columns": [{"column_id": f"c{index}", "label": f"Column {index}"} for index in range(4)],
+            "rows": [{"row_id": f"row:{index}", "cells": {f"c{column}": "测量" * 64
+                     for column in range(4)}} for index in range(128)],
+        }]
 
     class _ProjectionSession(_PiSession):
         def prompt_and_wait(self, question: str, **kwargs: object) -> str:
@@ -679,8 +689,19 @@ def test_application_admission_persists_bounded_result_projection() -> None:
     ).run(claim)
 
     assert result.status == "completed"
-    terminal = service.read_events("thr_harness", 0).events[-1]
-    assert terminal.payload["result_projections"][0]["result_id"] == projection["result_id"]
+    events = service.read_events("thr_harness", 0).events
+    terminal = events[-1]
+    if large:
+        assert "result_projections" not in terminal.payload
+        manifest = terminal.payload["result_projection_manifest"]
+        pieces = [e.payload for e in events if e.event_type == "result_projection_part"]
+        assert manifest == [{"result_id": projection["result_id"], "parts": len(pieces)}]
+        restored = json.loads("".join(p["data"] for p in pieces))
+        assert restored["tables"] == projection["tables"]
+        assert all(len(json.dumps(e.to_document(), ensure_ascii=False).encode()) < 64 * 1024 for e in events)
+    else:
+        assert terminal.payload["result_projections"][0]["result_id"] == projection["result_id"]
+    assert service.snapshot("thr_harness").result_projections[-1].to_document()["tables"] == projection["tables"]
 
 
 def test_harness_pi_heartbeat_renews_attempt_lease() -> None:

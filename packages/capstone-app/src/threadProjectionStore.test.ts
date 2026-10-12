@@ -893,7 +893,7 @@ describe('ThreadProjectionStore', () => {
     expect(store.state.snapshot?.currentAttempt).toMatchObject({ attemptId: 'attempt_1', phase: 'running' })
   })
 
-  it('adopts admitted result projections from a completed Attempt event', async () => {
+  it.each([false, true])('adopts admitted result projections from a completed Attempt event (parts=%s)', async (parts) => {
     const projection = {
       schema: 'capstone-result-projection/1.0', result_id: 'result_projection_1',
       result_ref: `result:sha256:${'a'.repeat(64)}`, evidence_refs: [`evidence:sha256:${'b'.repeat(64)}`],
@@ -905,12 +905,27 @@ describe('ThreadProjectionStore', () => {
     const streamTransport: ThreadTransport = {
       ...createFixtureTransport(idleFixture),
       streamEvents: async function* () {
+        const data = JSON.stringify(projection)
+        const identity = {
+          eventVersion: 1, threadId: 'thr_demo_39', runId: 'run_001', turnId: 'turn_1', attemptId: 'attempt_1',
+          modelContextId: 'ctx_ieee39_7', selectionRevision: 'sel_2',
+          occurredAt: '2026-09-30T00:00:01Z', visibility: 'public' as const,
+        }
+        if (parts) {
+          for (let index = 0; index < 2; index++) yield {
+            ...identity, eventId: `evt_part_${index}`, eventSeq: index + 1, eventType: 'result_projection_part',
+            payload: { result_id: projection.result_id, part_index: index, parts: 2,
+              data: index === 0 ? data.slice(0, 100) : data.slice(100) },
+          }
+        }
         yield {
-          eventId: 'evt_1', eventSeq: 1, eventType: 'attempt_completed', eventVersion: 1,
+          eventId: 'evt_1', eventSeq: parts ? 3 : 1, eventType: 'attempt_completed', eventVersion: 1,
           threadId: 'thr_demo_39', runId: 'run_001', turnId: 'turn_1', attemptId: 'attempt_1',
           modelContextId: 'ctx_ieee39_7', selectionRevision: 'sel_2',
           occurredAt: '2026-09-30T00:00:01Z', visibility: 'public' as const,
-          payload: { result_projections: [projection] },
+          payload: parts ? { result_projection_manifest: [{ result_id: projection.result_id, parts: 2 }],
+            result_refs: [projection.result_ref], evidence_refs: projection.evidence_refs,
+            admission: { mode: 'authority_backed', assurance: 'lineage_verified' } } : { result_projections: [projection] },
         }
       },
     }

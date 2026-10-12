@@ -47,7 +47,7 @@ from .thread_application_transition import (
 )
 from .model_identity import page_id_for_model, validate_model_id
 from .network_diagram import MAX_DIAGRAM_BYTES, MAX_EVENT_PAGE_BYTES, normalize_network_diagram
-from .result_projection import MAX_RESULT_PROJECTIONS, ResultProjection, normalize_result_projection, validate_artifact_reference
+from .result_projection import MAX_RESULT_PROJECTIONS, MAX_RESULT_PROJECTION_BYTES, ResultProjection, normalize_result_projection, validate_artifact_reference
 from .thread_management import history_cursor, history_page, network_context_page, thread_descriptor, thread_list_page, validate_limit
 from .thread_model_workspace import MAX_OPEN_MODELS, MODEL_COMMANDS, migrate_workspace, restore_work_contexts, prepare_workspace_change, synchronize_workspace, workspace_projection, workspace_outcome, workspace_has_capacity
 
@@ -215,6 +215,41 @@ def _terminal_result_projections(
     if len({item.result_id for item in projections}) != len(projections):
         raise ThreadProtocolError("attempt.result_projections contain duplicates")
     return tuple(projections)
+
+
+def _terminal_result_delivery(
+    payload: Mapping[str, Any], projections: tuple[ResultProjection, ...],
+) -> tuple[dict[str, Any], tuple[dict[str, Any], ...]]:
+    """Keep each ledger event bounded without discarding admitted result data.
+
+    Parts and the terminal manifest are committed in one service transaction.
+    Existing small terminal events retain their public contract. Snapshot data
+    remains complete; historical clients can retrieve the parts through the
+    paged event or Attempt-record APIs.
+    """
+    document = dict(payload)
+    document.pop("result_projection_manifest", None)
+    if projections:
+        document["result_projections"] = [item.to_document() for item in projections]
+    if len(_canonical(document).encode("utf-8")) <= _MAX_EVENT_BYTES:
+        return document, ()
+    document.pop("result_projections", None)
+    parts: list[dict[str, Any]] = []
+    manifest = []
+    for projection in projections:
+        encoded = _canonical(projection.to_document())
+        # At most 24KiB after JSON escaping, even for control characters.
+        fragments = [encoded[index:index + 4000] for index in range(0, len(encoded), 4000)]
+        manifest.append({"result_id": projection.result_id, "parts": len(fragments)})
+        parts.extend({"result_id": projection.result_id, "part_index": index,
+                      "parts": len(fragments), "data": fragment}
+                     for index, fragment in enumerate(fragments))
+    if manifest:
+        document["result_projection_manifest"] = manifest
+    _validate_bounded_json(document, name="attempt.payload", maximum=_MAX_EVENT_BYTES)
+    for part in parts:
+        _validate_bounded_json(part, name="projection.part", maximum=_MAX_EVENT_BYTES)
+    return document, tuple(parts)
 
 
 def _application_context_lock(snapshot: ThreadSnapshot) -> str | None:
@@ -1619,7 +1654,7 @@ class InMemoryThreadService:
     ) -> ThreadSnapshot:
         if phase not in {"completed", "failed", "cancelled", "interrupted"}:
             raise ValueError("attempt terminal phase is invalid")
-        _validate_bounded_json(payload, name="attempt.payload", maximum=_MAX_EVENT_BYTES)
+        _validate_bounded_json(payload, name="attempt.payload", maximum=MAX_RESULT_PROJECTION_BYTES + _MAX_EVENT_BYTES)
         with self._lock:
             record = self._require_claim(claim)
             if record["attempt"].phase != "running":
@@ -1630,13 +1665,15 @@ class InMemoryThreadService:
             existing_result_ids = {item.result_id for item in self._snapshot.result_projections}
             if any(item.result_id in existing_result_ids for item in result_projections):
                 raise ThreadProtocolError("result projection already exists")
+            event_payload, projection_parts = _terminal_result_delivery(payload, result_projections)
             terminal = replace(record["attempt"], phase=phase)
             record["attempt"] = terminal
             record["lease_token"] = None
             self._cancel_requests.discard(claim.attempt.attempt_id)
-            event_payload = dict(payload)
-            if result_projections:
-                event_payload["result_projections"] = [item.to_document() for item in result_projections]
+            for part in projection_parts:
+                part_event = self._append_event(event_type="result_projection_part", attempt=terminal,
+                                                payload=part, context=record["model_context"])
+                self._snapshot = replace(self._snapshot, last_event_seq=part_event.event_seq)
             event = self._append_event(
                 event_type="attempt_" + phase,
                 attempt=terminal, payload=event_payload,
@@ -3362,7 +3399,7 @@ class PostgresThreadService:
     ) -> ThreadSnapshot:
         if phase not in {"completed", "failed", "cancelled", "interrupted"}:
             raise ValueError("attempt terminal phase is invalid")
-        _validate_bounded_json(payload, name="attempt.payload", maximum=_MAX_EVENT_BYTES)
+        _validate_bounded_json(payload, name="attempt.payload", maximum=MAX_RESULT_PROJECTION_BYTES + _MAX_EVENT_BYTES)
         with self._connect() as connection:
             attempt = connection.execute(
                 """SELECT * FROM capstone_thread_attempts
@@ -3393,11 +3430,17 @@ class PostgresThreadService:
             existing_result_ids = {item.result_id for item in existing_projections}
             if any(item.result_id in existing_result_ids for item in result_projections):
                 raise ThreadProtocolError("result projection already exists")
-            event_payload = dict(payload)
-            if result_projections:
-                event_payload["result_projections"] = [item.to_document() for item in result_projections]
+            event_payload, projection_parts = _terminal_result_delivery(payload, result_projections)
+            event_seq = thread["last_event_seq"]
+            for part in projection_parts:
+                event_seq += 1
+                part_event = self._make_attempt_event(
+                    thread, terminal, event_seq=event_seq, event_type="result_projection_part",
+                    payload=part, context=claim.model_context,
+                )
+                self._insert_event(connection, part_event)
             event = self._make_attempt_event(
-                thread, terminal, event_seq=thread["last_event_seq"] + 1,
+                thread, terminal, event_seq=event_seq + 1,
                 event_type="attempt_" + phase,
                 payload=event_payload, context=claim.model_context,
             )

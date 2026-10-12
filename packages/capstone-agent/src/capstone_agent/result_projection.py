@@ -12,6 +12,7 @@ from .model_identity import validate_model_id
 
 RESULT_PROJECTION_SCHEMA = "capstone-result-projection/1.0"
 MAX_RESULT_PROJECTIONS = 64
+MAX_RESULT_PROJECTION_BYTES = 8 * 1024 * 1024
 # Authorities may namespace their immutable references (for example
 # ``pypsa-result:sha256:…``) while keeping the public kind explicit.
 _REF = re.compile(r"^(?:[a-z][a-z0-9_-]{0,31}-)?(result|evidence|revision):sha256:[0-9a-f]{64}$")

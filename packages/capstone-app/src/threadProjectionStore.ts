@@ -4,6 +4,7 @@ import type { DiagramNetworkView, NetworkDiagram } from './types'
 import type { ThreadCatalog } from './threadCatalog'
 import type { ModelWorkspace, OpenedModel } from './threadModelWorkspace'
 import { readPendingCommands, writePendingCommands } from './threadSessionState'
+import { ResultProjectionDelivery } from './resultProjectionDelivery'
 import {
   CapstoneThreadClient, type ThreadCommand, type ThreadTransport, type ThreadTransportState,
 } from './threadClient'
@@ -289,6 +290,7 @@ export class ThreadProjectionStore {
   private readonly eventSizes = new Map<number, number>()
   private loadGeneration = 0
   private readonly eventLog: EventEnvelope[] = []
+  private readonly resultDelivery = new ResultProjectionDelivery()
   private readonly networkDiagrams = new Map<string, NetworkDiagram>()
   private readonly sharedDiagrams = new Map<string, NetworkDiagram>()
   private readonly networkViews = new Map<string, DiagramNetworkView>()
@@ -398,6 +400,7 @@ export class ThreadProjectionStore {
     try {
       const snapshot = await this.client.load(threadId)
       if (generation !== this.loadGeneration) return
+      this.resultDelivery.clear()
       let catalog: ThreadCatalog | null = null
       try {
         catalog = await this.client.catalog(threadId)
@@ -744,6 +747,8 @@ export class ThreadProjectionStore {
     let viewedGridPageId = this.current.viewedGridPageId
     const document = snapshot.toDocument()
     const payload = record(event.payload)
+    this.resultDelivery.accept(event)
+    const deliveredProjections = this.resultDelivery.complete(event)
     if (event.eventType === 'model_context_change_pending') {
       document.pending_model_switch = {
         command_id: payload.command_id,
@@ -779,9 +784,10 @@ export class ThreadProjectionStore {
       document.active_model_context = activeContext
       delete document.pending_selection
     }
-    if (['attempt_completed', 'attempt_failed'].includes(event.eventType) && Array.isArray(payload.result_projections)) {
+    const resultProjections = deliveredProjections ?? payload.result_projections
+    if (['attempt_completed', 'attempt_failed'].includes(event.eventType) && Array.isArray(resultProjections)) {
       const existing = Array.isArray(document.result_projections) ? document.result_projections : []
-      document.result_projections = [...existing, ...payload.result_projections].slice(-64)
+      document.result_projections = [...existing, ...resultProjections].slice(-64)
     }
     const identity = event.turnId && event.attemptId && event.modelContextId
       ? { turnId: event.turnId, attemptId: event.attemptId, targetModelContextId: event.modelContextId }
