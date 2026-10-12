@@ -779,6 +779,9 @@ def _model_dataset_query(
         "next_offset": next_offset,
         "rows": returned_rows,
     }
+    if "aggregations" in arguments:
+        result["aggregates"] = _aggregate_model_rows(
+            filtered_rows, field_metadata(dataset, net), arguments["aggregations"])
     if len(selected_rows) > MODEL_VIEW_LIMIT:
         artifact = {
             "artifact_type": "dataset_query",
@@ -793,6 +796,40 @@ def _model_dataset_query(
         write_json(path, artifact)
         result["artifact_ref"] = f"artifact:sha256:{digest}"
     return result
+
+
+def _aggregate_model_rows(rows: list[dict[str, Any]], metadata: list[dict[str, Any]],
+                          specifications: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    fields = {item["name"]: item for item in metadata}
+    aggregates = []
+    for spec in specifications:
+        field, operator = spec["field"], spec["operator"]
+        description = fields.get(field)
+        if description is None or (operator != "count" and description["type"] not in {"number", "integer"}):
+            raise _failure("dataset_query_invalid", "Aggregation requires a declared field and numeric arithmetic",
+                           phase="validate", allowed_recovery_actions=("describe_dataset", "correct_query"))
+        values = [row[field] for row in rows if row[field] is not None]
+        if operator == "count":
+            value = len(values)
+        elif not values:
+            value = None
+        elif operator == "sum":
+            try:
+                value = math.fsum(values)
+            except OverflowError as exc:
+                raise _failure("dataset_query_invalid", "Aggregation exceeds the numeric range", phase="execute",
+                               allowed_recovery_actions=("correct_query",)) from exc
+        elif operator == "min":
+            value = min(values)
+        else:
+            value = max(values)
+        if value is not None and not math.isfinite(value):
+            raise _failure("dataset_query_invalid", "Aggregation produced a non-finite value", phase="execute",
+                           allowed_recovery_actions=("correct_query",))
+        aggregates.append({"field": field, "operator": operator,
+                           "unit": None if operator == "count" else description["unit"],
+                           "value": value, "valid_count": len(values), "null_count": len(rows) - len(values)})
+    return aggregates
 
 
 def _topology_branch_endpoints_get(

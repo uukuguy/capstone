@@ -59,6 +59,46 @@ def test_generic_dataset_query_is_bounded_schema_driven_and_pageable(grid, conte
     json.dumps(response["rows"])
 
 
+def test_dataset_aggregation_uses_all_filtered_rows_before_pagination(grid, context_ref: str) -> None:
+    rows = grid.call("model.dataset.query", {"context_ref": context_ref,
+        "dataset": "network.load", "select": ["p_mw"], "where": {"in_service": True}})
+    response = grid.call("model.dataset.query", {"context_ref": context_ref,
+        "dataset": "network.load", "select": ["p_mw"], "where": {"in_service": True},
+        "limit": 1, "aggregations": [{"field": "p_mw", "operator": "sum"}]})
+    assert response["returned_row_count"] == 1
+    aggregate = response["aggregates"][0]
+    assert aggregate == {"field": "p_mw", "operator": "sum", "unit": "MW",
+        "value": pytest.approx(sum(row["p_mw"] for row in rows["rows"])),
+        "valid_count": rows["row_count"], "null_count": 0}
+
+
+def test_dataset_aggregation_rejects_text_arithmetic(grid, context_ref: str) -> None:
+    error = grid.call_error("model.dataset.query", {"context_ref": context_ref,
+        "dataset": "network.bus", "select": ["name"],
+        "aggregations": [{"field": "name", "operator": "sum"}]})
+    assert error.code == "dataset_query_invalid"
+
+
+def test_dataset_aggregation_empty_selection_does_not_claim_zero_power(grid, context_ref: str) -> None:
+    response = grid.call("model.dataset.query", {"context_ref": context_ref,
+        "dataset": "network.load", "select": ["p_mw"],
+        "filters": [{"field": "p_mw", "operator": "lt", "value": -1e20}],
+        "aggregations": [{"field": "p_mw", "operator": "sum"},
+                         {"field": "p_mw", "operator": "count"}]})
+    assert response["aggregates"][0]["value"] is None
+    assert response["aggregates"][1]["value"] == 0
+    assert response["aggregates"][1]["unit"] is None
+
+
+def test_aggregation_reports_nulls_and_numeric_range_without_coercion():
+    from grid_simulator.operations import _aggregate_model_rows
+    metadata = [{"name": "value", "type": "number", "unit": "MW"}]
+    result = _aggregate_model_rows([{"value": 3.0}, {"value": None}, {"value": -2.0}], metadata,
+        [{"field": "value", "operator": operator} for operator in ["sum", "min", "max", "count"]])
+    assert [item["value"] for item in result] == [1.0, -2.0, 3.0, 2]
+    assert all(item["valid_count"] == 2 and item["null_count"] == 1 for item in result)
+
+
 def test_generic_dataset_query_rejects_undescribed_fields(grid, context_ref: str) -> None:
     error = grid.call_error(
         "model.dataset.query",
