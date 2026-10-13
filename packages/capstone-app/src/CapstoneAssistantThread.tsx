@@ -623,32 +623,6 @@ function LegacyActivity({ activities, running }: { activities: ChatActivity[]; r
   return <AttemptActivity activities={activities} running={running} open={open} onOpenChange={setOpen} detailsRef={detailsRef} />
 }
 
-function admissionAccepted(admission: unknown): boolean {
-  return Boolean(admission && typeof admission === 'object' && (
-    (typeof (admission as { status?: unknown }).status === 'string'
-      && (admission as { status?: unknown }).status === 'admitted')
-    || (typeof (admission as { mode?: unknown }).mode === 'string'
-      && typeof (admission as { assurance?: unknown }).assurance === 'string')
-  ))
-}
-
-function RunArtifacts({ resultRefs, evidenceRefs, admission }: { resultRefs: string[]; evidenceRefs: string[]; admission: unknown }) {
-  // Structured results are opened from the compact action bar.  Keep this
-  // surface for admission state only; raw result hashes are deliberately not
-  // repeated below every assistant answer.
-  if (resultRefs.length === 0 && evidenceRefs.length === 0) return null
-  const admitted = admissionAccepted(admission)
-  if (!admitted) return null
-  const admissionRef = admission && typeof admission === 'object' && 'admission_ref' in admission && typeof (admission as { admission_ref?: unknown }).admission_ref === 'string'
-    ? (admission as { admission_ref: string }).admission_ref : undefined
-  return <div className="capstone-chat-artifacts" aria-label="当前运行结果引用">
-    {resultRefs.length > 0 && <div className="capstone-chat-reference-status" role="status"><Activity aria-hidden="true" /><span>{resultRefs.length} 项结构化结果{admitted ? '已准入' : '已记录'}</span>{admissionRef && <small>准入已记录</small>}</div>}
-    {/* Evidence is intentionally opened from the answer action bar. Keeping the
-        long evidence identifier out of the default answer preserves the compact
-        assistant-ui reading flow while retaining the current-run admission gate. */}
-  </div>
-}
-
 function resultCell(value: string | number | boolean | null): string {
   if (value === null) return '—'
   if (typeof value === 'number') return Number.isInteger(value) ? String(value) : value.toFixed(3)
@@ -797,7 +771,6 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
     {role === 'assistant' && hasResults && resultOpen && <ResultExplorer projections={attemptResultProjections} failures={failureResults}
       initialResultId={pendingResultId} onClose={() => { if (footerRef.current) preserveControl(id, footerRef.current); setResultOpen(false) }} renderResult={(projection, tableId) =>
         <ResultProjectionCard projection={projection} tableId={tableId} onFocusElement={(value, elementId) => { onFocusElement?.(value, elementId) }} />} />}
-    {role === 'assistant' && <RunArtifacts resultRefs={resultRefs} evidenceRefs={evidenceRefs} admission={admission} />}
     {role === 'user' && hasText && <div className="capstone-instruction-meta">
       <ChatActions role={role} text={text} evidenceRefs={[]} toolCount={0} />
       {typeof custom?.modelId === 'string' && <span className="capstone-instruction-model">{instructionModelName(custom.modelId)}</span>}
