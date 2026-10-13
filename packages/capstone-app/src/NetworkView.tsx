@@ -83,7 +83,7 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
   const layer = view?.schema === 'capstone-network-view/2.0' ? view.layer : view
   const annotations = view?.schema === 'capstone-network-view/2.0' ? view.layer.annotations : undefined
   const regions = useMemo(() => annotations && annotations.regions.length > 1 &&
-    annotations.states.some((state) => state.style === 'disconnected') ? annotations.regions : [], [annotations])
+    annotations.states.some((state) => state.style === 'disconnected') ? annotations.regions.filter((region) => region.emphasis === true) : [], [annotations])
   const stateById = useMemo(() => new Map(annotations?.states.flatMap((state) =>
     state.ids.map((id) => [id, state] as const)) || []), [annotations])
   const regionById = useMemo(() => new Map(regions.flatMap((region, index) =>
@@ -236,6 +236,9 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
             const color = state?.style === 'disconnected' ? '#b75c43' : state?.style === 'warning' ? '#bb7025' : value === undefined ? highlighted ? '#245fc4' :
               historical ? '#91aaa6' : branch.kind === 'link' ? '#718ca0' : '#829c98'
               : valueColor(layer!.overlay!.metric, value, loadingRange)
+            const lineWidth = state?.style === 'warning' ? dense ? 3 : 5
+              : state?.style === 'disconnected' ? dense ? 1.8 : 3
+                : highlighted ? dense ? 3 : 6 : historical ? dense ? 2 : 3.5 : dense ? 1.5 : value === undefined ? 2.5 : 4
             const transformer = ['transformer', 'trafo', 'trafo3w'].includes(branch.kind)
             const centerX = (from.x + to.x) / 2, centerY = (from.y + to.y) / 2
             return <g key={branch.id} onMouseEnter={() => setHovered(branch.id)}
@@ -244,7 +247,7 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
                 stroke="transparent" strokeWidth={Math.max(4, (dense ? 7 : 20) * visualScale)} />
               <line x1={from.x} y1={from.y} x2={to.x} y2={to.y}
                 className={state ? `network-state-${state.style}` : undefined}
-                stroke={color} strokeWidth={(highlighted ? dense ? 3 : 6 : historical ? dense ? 2 : 3.5 : dense ? 1.5 : value === undefined ? 2.5 : 4) * visualScale}
+                stroke={color} strokeWidth={lineWidth * visualScale}
                 strokeDasharray={state?.style === 'disconnected' ? `${7 * visualScale} ${5 * visualScale}` : branch.kind === 'link' ? '9 6' : undefined}
                 strokeLinecap="round" />
               {state?.style === 'disconnected' && <g aria-label={`${label}：${state.label}`}>
@@ -279,21 +282,18 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
             const historical = !highlighted && historyIds.has(bus.id)
             return <g key={bus.id} onMouseEnter={() => setHovered(bus.id)}
               onMouseLeave={() => setHovered(null)}>
-              {region && <circle className="network-region-marker" cx={bus.x} cy={bus.y}
-                r={(dense ? 6 : 12) * symbolScale} fill="none"
-                stroke={regionColors[region.index % regionColors.length]} strokeWidth={1.5 * visualScale} opacity={0.65} />}
-              {state?.style === 'unresolved' && <circle cx={bus.x} cy={bus.y}
+              {!region && state?.style === 'unresolved' && <circle cx={bus.x} cy={bus.y}
                 r={(dense ? 7 : 13) * symbolScale} fill="none" stroke="#7e858c"
                 strokeDasharray={`${3 * visualScale} ${2 * visualScale}`} strokeWidth={1.5 * visualScale} />}
-              {schematic ? <line className="network-busbar"
+              {schematic ? <line className={`network-busbar${region ? ' network-region-marker' : ''}`}
                 x1={bus.x - (highlighted ? 11 : 8) * symbolScale} x2={bus.x + (highlighted ? 11 : 8) * symbolScale}
                 y1={bus.y} y2={bus.y}
-                stroke={value === undefined ? highlighted ? '#245fc4' : historical ? '#91aaa6' : '#344c53'
+                stroke={region ? regionColors[region.index % regionColors.length] : value === undefined ? highlighted ? '#245fc4' : historical ? '#91aaa6' : '#344c53'
                   : valueColor(layer!.overlay!.metric, value, loadingRange)}
                 strokeWidth={(highlighted ? 5 : 3.5) * visualScale} strokeLinecap="square" />
-                : <circle className="network-bus-point" cx={bus.x} cy={bus.y}
+                : <circle className={`network-bus-point${region ? ' network-region-marker' : ''}`} cx={bus.x} cy={bus.y}
                   r={(highlighted ? dense ? 5 : 9 : dense ? 2.9 : 5.5) * symbolScale}
-                  fill={value === undefined ? '#ffffff' : valueColor(layer!.overlay!.metric, value, loadingRange)}
+                  fill={region ? regionColors[region.index % regionColors.length] : value === undefined ? '#ffffff' : valueColor(layer!.overlay!.metric, value, loadingRange)}
                   stroke={highlighted ? '#245fc4' : historical ? '#91aaa6' : '#344c53'}
                   strokeWidth={(highlighted ? dense ? 1.8 : 2.5 : dense ? .8 : 1.5) * visualScale} />}
               {(nodes.length <= 25 || highlighted || historical || focusBuses.has(bus.id) || hovered === bus.id) &&

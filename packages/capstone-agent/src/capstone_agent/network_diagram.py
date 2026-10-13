@@ -209,7 +209,8 @@ def _normalize_annotations(
             raise ValueError("network annotation count is invalid")
         normalized_entries = []
         for raw in entries:
-            entry = _record(raw, {"label", "ids", "source_ref"} | ({"style"} if kind == "states" else set()))
+            optional = {"emphasis"} if kind == "regions" and isinstance(raw, Mapping) and "emphasis" in raw else set()
+            entry = _record(raw, {"label", "ids", "source_ref"} | ({"style"} if kind == "states" else optional))
             members = entry["ids"]
             allowed = buses if kind == "regions" else ids
             if (not isinstance(members, list) or not 1 <= len(members) <= MAX_BRANCHES
@@ -223,6 +224,10 @@ def _normalize_annotations(
                 if style not in {"disconnected", "warning", "unresolved"}:
                     raise ValueError("network annotation presentation style is invalid")
                 item["style"] = style
+            elif "emphasis" in entry:
+                if type(entry["emphasis"]) is not bool:
+                    raise ValueError("network region emphasis is invalid")
+                item["emphasis"] = entry["emphasis"]
             normalized_entries.append(item)
         collections[kind] = normalized_entries
     return {"scene": normalized_scene, **collections}

@@ -51,7 +51,8 @@ def project_scene_annotations(
                     or len(members) != component.get("bus_count") or not set(members) <= buses):
                 continue
             reference = "有供电参考" if component.get("supply_reference_bus_indices") else "无供电参考"
-            regions.append({"label": f"分区 {index}：{reference}", "ids": members, "source_ref": source_ref})
+            regions.append({"label": f"分区 {index}：{reference}", "ids": members, "source_ref": source_ref,
+                            "emphasis": not bool(component.get("supply_reference_bus_indices"))})
     label = f"停运场景：{outage.get('kind')} {outage.get('index')}" if isinstance(outage, Mapping) else "分析场景"
     return {"scene": {"label": label,
                       "context_ref": context, "model_revision": revision, "source_ref": source_ref},

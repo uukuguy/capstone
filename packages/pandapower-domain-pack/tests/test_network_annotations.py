@@ -25,6 +25,8 @@ def test_scene_distinguishes_disconnection_no_reference_and_unsolved_values():
         {"label": "电压未求解", "style": "unresolved", "ids": ["1"], "source_ref": "result:current"},
     ]
     assert value["regions"][1]["label"] == "分区 2：无供电参考"
+    assert value["regions"][1]["emphasis"] is True
+    assert value["regions"][0]["emphasis"] is False
     assert "失电" not in str(value)
 
 

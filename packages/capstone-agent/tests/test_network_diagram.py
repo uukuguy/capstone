@@ -97,7 +97,7 @@ def annotated_projection() -> dict[str, object]:
         "states": [{"label": "已断开", "style": "disconnected", "ids": ["line:11"],
                     "source_ref": "result:current"}],
         "regions": [{"label": "分区 1：无供电参考", "ids": ["1"],
-                     "source_ref": "result:current"}],
+                     "source_ref": "result:current", "emphasis": True}],
     }
     return raw
 
@@ -120,6 +120,7 @@ def test_scene_annotations_preserve_source_and_do_not_change_geometry_identity()
     lambda value: value["regions"][0].update(ids=["line:11"]),
     lambda value: value["regions"][0].update(source_ref="result:foreign"),
     lambda value: value["states"][0].update(style="invented"),
+    lambda value: value["regions"][0].update(emphasis="true"),
 ])
 def test_annotations_reject_foreign_sources_or_components(mutate) -> None:
     raw = annotated_projection()

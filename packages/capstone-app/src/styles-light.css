@@ -969,8 +969,8 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .network-scene-legend strong { color: #455d70; font-weight: 600; }
 .network-scene-legend span { display: inline-flex; align-items: center; gap: 5px; }
 .network-scene-legend i { display: inline-block; width: 9px; height: 9px; border: 1.5px solid #7e858c; border-radius: 50%; }
-.network-scene-legend .legend-state-disconnected { border-color: #b75c43; border-style: dashed; border-radius: 0; }
-.network-scene-legend .legend-state-warning { border-color: #bb7025; border-radius: 2px; }
+.network-scene-legend .legend-state-disconnected { width: 14px; height: 0; border-width: 1.5px 0 0; border-color: #b75c43; border-style: dashed; border-radius: 0; }
+.network-scene-legend .legend-state-warning { width: 14px; height: 0; border-width: 3px 0 0; border-color: #bb7025; border-radius: 0; }
 .network-scene-legend .legend-state-unresolved { border-style: dashed; }
 .capstone-tool-call-heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 5px; }
 .capstone-tool-failure-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }

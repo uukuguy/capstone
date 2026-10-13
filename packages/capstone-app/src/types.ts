@@ -102,7 +102,7 @@ export type NetworkLayer = {
 export type NetworkAnnotations = {
   scene: { label: string; context_ref: string; model_revision: string; source_ref: string }
   states: { label: string; style: 'disconnected' | 'warning' | 'unresolved'; ids: string[]; source_ref: string }[]
-  regions: { label: string; ids: string[]; source_ref: string }[]
+  regions: { label: string; ids: string[]; source_ref: string; emphasis?: boolean }[]
 }
 
 export type DiagramNetworkView = {

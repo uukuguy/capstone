@@ -65,7 +65,8 @@ function parseDiagramView(raw: Record<string, unknown>, ordinal: number,
             !entry.ids.length || entry.ids.length > MAX_NETWORK_BRANCHES ||
             new Set(entry.ids).size !== entry.ids.length ||
             entry.ids.some((id) => typeof id !== 'string' || !allowed.has(id)) ||
-            kind === 'states' && !['disconnected', 'warning', 'unresolved'].includes(String(entry.style))) return null
+            kind === 'states' && !['disconnected', 'warning', 'unresolved'].includes(String(entry.style)) ||
+            kind === 'regions' && entry.emphasis !== undefined && typeof entry.emphasis !== 'boolean') return null
       }
     }
   }
