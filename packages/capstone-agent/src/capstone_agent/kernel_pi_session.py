@@ -242,6 +242,7 @@ class PreparedKernelPiRpcSessionBuilder:
         )
         launch = _with_selected_task_tool(launch, claim.selected_task_reader, attempt_directory,
                                          self._runtime_host.extension_path)
+        launch = _with_model_input_metrics(launch, attempt_directory, self._runtime_host.extension_path)
         if self._research_enabled:
             launch = PiLaunch((*launch.argv, "--thinking", "off"), launch.environment)
         trace = JsonlTraceWriter(
@@ -265,6 +266,17 @@ class PreparedKernelPiRpcSessionBuilder:
             reference_observer=handoffs.observe,
             research=research, research_reference_observer=references.observe,
         )
+
+
+def _with_model_input_metrics(launch: PiLaunch, directory: Path, domain_extension: Path) -> PiLaunch:
+    extension = domain_extension.with_name('model-input-metrics.mjs')
+    if extension.is_symlink() or not extension.is_file():
+        raise RuntimeError('model input metrics extension is not installed')
+    root = directory / 'model-input-metrics'
+    root.mkdir(mode=0o700, parents=True, exist_ok=True)
+    environment = dict(launch.environment)
+    environment['CAPSTONE_MODEL_INPUT_METRICS'] = str(root.resolve())
+    return PiLaunch((*launch.argv, '--extension', str(extension)), environment)
 
 
 def _with_selected_task_tool(launch: PiLaunch, reader: SelectedTaskRecordReader | None,

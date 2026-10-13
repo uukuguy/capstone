@@ -9,6 +9,19 @@ from types import SimpleNamespace
 import pytest
 
 
+def test_model_input_metrics_are_scoped_without_changing_the_model_or_prompt(tmp_path):
+    from capability_agent.runtime.environment import PiLaunch
+    from capstone_agent.kernel_pi_session import _with_model_input_metrics
+    extension = tmp_path / 'domain-tools.mjs'
+    extension.with_name('model-input-metrics.mjs').write_text('export default () => {}')
+    launch = PiLaunch(('pi', '--model', 'selected', '--system-prompt', 'original'), {'SAFE': 'value'})
+    measured = _with_model_input_metrics(launch, tmp_path / 'attempt', extension)
+    assert measured.argv[:len(launch.argv)] == launch.argv
+    assert measured.environment['SAFE'] == 'value'
+    assert 'CAPSTONE_MODEL_INPUT_METRICS' not in launch.environment
+    assert measured.environment['CAPSTONE_MODEL_INPUT_METRICS'] == str((tmp_path / 'attempt/model-input-metrics').resolve())
+
+
 def test_selected_task_tool_launch_binds_private_input_and_preserves_original_launch(tmp_path):
     from capability_agent.runtime.environment import PiLaunch
     from capstone_agent.kernel_pi_session import _with_selected_task_tool

@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
+import { createContext, memo, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import { readDraft, writeDraft } from './threadSessionState'
 import ThreadSettingsMenu, { useCloseThreadSettings } from './ThreadSettingsMenu'
 import ThreadSystemNotice from './ThreadSystemNotice'
@@ -441,9 +441,9 @@ function messageText(message: { content: unknown }): string {
   }).join('')
 }
 
-function MarkdownMessage({ children }: { children?: ReactNode }) {
+const MarkdownMessage = memo(function MarkdownMessage({ children }: { children?: ReactNode }) {
   return <div className="capstone-chat-markdown"><ReactMarkdown remarkPlugins={[remarkGfm]} components={{ table: ({ children }) => <div className="capstone-chat-table-scroll"><table>{children}</table></div> }}>{typeof children === 'string' ? children : String(children ?? '')}</ReactMarkdown></div>
-}
+})
 
 async function copyToClipboard(value: string): Promise<boolean> {
   if (!value) return false
@@ -505,9 +505,8 @@ function MoreAnswerActions() {
   </div>
 }
 
-function ChatActions({ onShowNetwork, role, text, evidenceRefs, evidenceState = 'not_applicable', contextId, selectionRevision, toolCount, processAvailable, resultAvailable, resultOpen, onShowResult, onRegenerate, onShowActivity, activityOpen, showActivity, attemptId = '', resultRefs = [], projections = [], failures = [], executions = [], researchSnapshot, onSelectResult }: { networkSelected?: boolean; onShowNetwork?: () => void; role: string; text: string; evidenceRefs: string[]; evidenceState?: AnswerEvidenceState; contextId?: string; selectionRevision?: string; toolCount: number; processAvailable?: boolean; resultAvailable?: boolean; resultOpen?: boolean; onShowResult?: () => void; onRegenerate?: () => Promise<void>; onShowActivity?: () => void; activityOpen?: boolean; showActivity?: boolean; attemptId?: string; resultRefs?: string[]; projections?: readonly ResultProjection[]; failures?: readonly FailureEvidence[]; executions?: readonly ToolExecutionRecord[]; researchSnapshot?: ResearchSnapshot; onSelectResult?: (resultId: string) => void }) {
+function ChatActions({ evidenceOpen = false, onShowEvidence, onShowNetwork, role, text, evidenceRefs, evidenceState = 'not_applicable', contextId, selectionRevision, toolCount, processAvailable, resultAvailable, resultOpen, onShowResult, onRegenerate, onShowActivity, activityOpen, showActivity, attemptId = '', resultRefs = [], projections = [], failures = [], executions = [], researchSnapshot, onSelectResult }: { evidenceOpen?: boolean; onShowEvidence?: () => void; networkSelected?: boolean; onShowNetwork?: () => void; role: string; text: string; evidenceRefs: string[]; evidenceState?: AnswerEvidenceState; contextId?: string; selectionRevision?: string; toolCount: number; processAvailable?: boolean; resultAvailable?: boolean; resultOpen?: boolean; onShowResult?: () => void; onRegenerate?: () => Promise<void>; onShowActivity?: () => void; activityOpen?: boolean; showActivity?: boolean; attemptId?: string; resultRefs?: string[]; projections?: readonly ResultProjection[]; failures?: readonly FailureEvidence[]; executions?: readonly ToolExecutionRecord[]; researchSnapshot?: ResearchSnapshot; onSelectResult?: (resultId: string) => void }) {
   const [copied, setCopied] = useState(false)
-  const [showEvidence, setShowEvidence] = useState(false)
   const readRecords = useContext(AttemptRecordsContext)
   const evidenceAvailable = evidenceState === 'available' || failures.length > 0 || Boolean(researchSnapshot) || executions.length > 0 || Boolean(readRecords && attemptId)
   const copy = async () => {
@@ -524,12 +523,12 @@ function ChatActions({ onShowNetwork, role, text, evidenceRefs, evidenceState = 
     <IconAction label={copied ? '已复制' : '复制回答'} onClick={() => void copy()}>{copied ? <Check /> : <Copy />}</IconAction>
     <IconAction label="查看此指令电网图" disabled={!onShowNetwork} onClick={onShowNetwork}><Network /></IconAction>
     <IconAction label="查看计算结果" disabled={!resultAvailable || !onShowResult} expanded={resultOpen} onClick={onShowResult}><Activity /></IconAction>
-    <IconAction label="查看推演证据" description={researchSnapshot && evidenceState !== 'available' ? '查看已保存的研究判断与工作记录' : failures.length > 0 && evidenceState !== 'available' ? '查看已保存的执行或核验失败记录' : evidenceStateCopy[evidenceState]} evidenceState={evidenceState} disabled={!evidenceAvailable} expanded={evidenceAvailable && showEvidence} onClick={() => setShowEvidence((value) => !value)}><FileCheck2 /></IconAction>
+    <IconAction label="查看推演证据" description={researchSnapshot && evidenceState !== 'available' ? '查看已保存的研究判断与工作记录' : failures.length > 0 && evidenceState !== 'available' ? '查看已保存的执行或核验失败记录' : evidenceStateCopy[evidenceState]} evidenceState={evidenceState} disabled={!evidenceAvailable} expanded={evidenceAvailable && evidenceOpen} onClick={onShowEvidence}><FileCheck2 /></IconAction>
     <IconAction label="查看执行过程" disabled={showActivity === false || (toolCount === 0 && !processAvailable) || !onShowActivity} expanded={activityOpen} onClick={onShowActivity}><ListTree /></IconAction>
     <IconAction label="重试本次指令" disabled={!onRegenerate} onClick={() => void onRegenerate?.()}><RotateCcw /></IconAction>
     <MoreAnswerActions />
   </div>
-  {evidenceAvailable && showEvidence && <>
+  {evidenceAvailable && evidenceOpen && <>
     {readRecords && attemptId && <AttemptRecordPanel key={attemptId} attemptId={attemptId} read={readRecords} />}
     <ResearchEvidence snapshot={researchSnapshot} />
     <InferenceEvidencePanel attemptId={attemptId} admitted={evidenceState === 'available'} resultRefs={resultRefs}
@@ -623,7 +622,7 @@ function AttemptActivity({ activities, progress = [], steps = [], stepStorageKey
       <div key={entry.id} title="未归属任务步骤"><ActivityItems activities={entry.activity ? [entry.activity] : []} /></div>)}</>
   }
   return <div className={`capstone-chat-activity-frame${running ? ' is-running' : ' is-settled'}`} aria-busy={running}><details ref={detailsRef} className={`capstone-chat-activity capstone-chat-activity-attached${terminalClass}`} open={open} onToggle={(event) => onOpenChange(event.currentTarget.open)}>
-    <summary><Activity aria-hidden="true" /><span>{running ? '正在执行' : terminalLabel} {steps.length > 0 ? `${steps.length} 个任务步骤 · ` : ''}{toolCount} 次工具调用{elapsed === undefined ? '' : ` · 总耗时 ${formatDuration(elapsed)}`}</span>{!open && <small>查看执行过程</small>}{open && steps.length > 0 && <span className="capstone-process-controls" role="group" aria-label="步骤显示"><button type="button" disabled={steps.every(step => isStepOpen(step.id))} onClick={event => { event.preventDefault(); event.stopPropagation(); foldAll(true) }}>展开全部</button><button type="button" disabled={steps.every(step => !isStepOpen(step.id))} onClick={event => { event.preventDefault(); event.stopPropagation(); foldAll(false) }}>收起全部</button></span>}</summary>
+    <summary><Activity aria-hidden="true" /><span>{running ? '正在执行' : terminalLabel} {steps.length > 0 ? `${steps.length} 个任务步骤 · ` : ''}{toolCount} 次工具调用{elapsed === undefined ? '' : ` · 总耗时 ${formatDuration(elapsed)}`}</span>{!open && <small>查看执行过程</small>}{open && steps.length > 0 && <span className="capstone-process-controls" role="group" aria-label="步骤显示"><button type="button" disabled={steps.every(step => isStepOpen(step.id))} onClick={event => { event.preventDefault(); event.stopPropagation(); foldAll(true) }}>展开步骤</button><button type="button" disabled={steps.every(step => !isStepOpen(step.id))} onClick={event => { event.preventDefault(); event.stopPropagation(); foldAll(false) }}>折叠步骤</button></span>}</summary>
     {(!running || open) && <div ref={processViewport} onScroll={observeProcessScroll} className="capstone-complete-process">{goalText && <p className="capstone-task-goal">{goalText}</p>}<TaskProgressItems items={progress.filter(item => !item.stepId && item.kind !== 'goal')} />{process()}</div>}
   </details>{running && !open && <div ref={processViewport} onScroll={observeProcessScroll} className="capstone-chat-activity-preview" aria-label="执行过程预览">{goalText && <p className="capstone-task-goal">{goalText}</p>}<TaskProgressItems items={progress.filter(item => !item.stepId && item.kind !== 'goal')} />{process()}</div>}</div>
 }
@@ -740,16 +739,17 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
   useEffect(() => {
     try { localStorage.setItem(processStorageKey, String(activityOpen)) } catch { /* Retain state in this page. */ }
   }, [activityOpen, processStorageKey])
-  const [resultOpen, setResultOpen] = useState(false)
+  const [activePanel, setActivePanel] = useState<'process' | 'result' | 'evidence' | null>(() => activityOpen ? 'process' : null)
+  const resultOpen = activePanel === 'result'
+  const selectPanel = (panel: 'process' | 'result' | 'evidence' | null) => {
+    if (activityRef.current) activityRef.current.open = panel === 'process'
+    setActivityOpen(panel === 'process')
+    setActivePanel(panel)
+  }
+  const togglePanel = (panel: 'process' | 'result' | 'evidence') => selectPanel(activePanel === panel ? null : panel)
   const [pendingResultId, setPendingResultId] = useState<string | null>(null)
   const terminalWithoutText = role === 'assistant' && !hasText && status?.type !== 'running'
-  const toggleActivity = () => {
-    setActivityOpen((value) => {
-      const next = !value
-      if (activityRef.current) activityRef.current.open = next
-      return next
-    })
-  }
+  const toggleActivity = () => togglePanel('process')
   const messageState = status?.type === 'running' ? 'running' : typeof custom?.terminalPhase === 'string' ? custom.terminalPhase : status?.type
   const retryable = ['failed', 'cancelled', 'interrupted'].includes(String(custom?.terminalPhase)) ||
     (custom?.terminalPhase === 'completed' && canRerunCompleted && instruction?.trim() &&
@@ -777,20 +777,20 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
     </div>
     {role === 'assistant' && <div ref={footerRef} className="capstone-chat-footer" onClickCapture={() => { if (footerRef.current) preserveControl(id, footerRef.current) }}>
       <RunDuration startedAt={startedAt} durationMs={durationMs} running={status?.type === 'running'} />
-      {(hasText || terminalWithoutText) && <ChatActions networkSelected={selectedNetworkAttempt === attemptId} onShowNetwork={networkAttemptIds.includes(attemptId) && onShowNetwork ? () => onShowNetwork(attemptId) : undefined} role={role} text={text} evidenceRefs={evidenceState === 'available' ? evidenceRefs : []} evidenceState={evidenceState} resultAvailable={hasResults} resultOpen={resultOpen} onShowResult={() => setResultOpen((value) => !value)} contextId={contextId} selectionRevision={selectionRevision} toolCount={activities.length || toolCount} activityOpen={activityOpen} showActivity={showActivity} onShowActivity={toggleActivity} onRegenerate={retryable && onRegenerate ? () => onRegenerate(attemptId, instruction) : undefined}
+      {(hasText || terminalWithoutText) && <ChatActions networkSelected={selectedNetworkAttempt === attemptId} onShowNetwork={networkAttemptIds.includes(attemptId) && onShowNetwork ? () => onShowNetwork(attemptId) : undefined} role={role} text={text} evidenceRefs={evidenceState === 'available' ? evidenceRefs : []} evidenceState={evidenceState} resultAvailable={hasResults} resultOpen={resultOpen} onShowResult={() => togglePanel('result')} evidenceOpen={activePanel === 'evidence'} onShowEvidence={() => togglePanel('evidence')} contextId={contextId} selectionRevision={selectionRevision} toolCount={activities.length || toolCount} activityOpen={activityOpen} showActivity={showActivity} onShowActivity={toggleActivity} onRegenerate={retryable && onRegenerate ? () => onRegenerate(attemptId, instruction) : undefined}
         attemptId={attemptId} resultRefs={resultRefs} projections={attemptResultProjections} failures={failureResults} researchSnapshot={parseResearchSnapshot(custom?.researchSnapshot)} executions={(Array.isArray(custom?.toolExecutions) ? custom.toolExecutions : []) as ToolExecutionRecord[]}
         processAvailable={Array.isArray(custom?.taskSteps) && custom.taskSteps.length > 0}
-        onSelectResult={(resultId) => { setResultOpen(true); setPendingResultId(resultId) }} />}
+        onSelectResult={(resultId) => { selectPanel('result'); setPendingResultId(resultId) }} />}
     </div>}
     {role === 'assistant' && hasResults && resultOpen && <ResultExplorer projections={attemptResultProjections} failures={failureResults}
-      initialResultId={pendingResultId} onClose={() => { if (footerRef.current) preserveControl(id, footerRef.current); setResultOpen(false) }} renderResult={(projection, tableId) =>
+      initialResultId={pendingResultId} onClose={() => { if (footerRef.current) preserveControl(id, footerRef.current); selectPanel(null) }} renderResult={(projection, tableId) =>
         <ResultProjectionCard projection={projection} tableId={tableId} onFocusElement={(value, elementId) => { onFocusElement?.(value, elementId) }} />} />}
     {role === 'user' && hasText && <div className="capstone-instruction-meta">
       <ChatActions role={role} text={text} evidenceRefs={[]} toolCount={0} />
       {typeof custom?.modelId === 'string' && <span className="capstone-instruction-model">{instructionModelName(custom.modelId)}</span>}
       {typeof custom?.sentAt === 'string' && Number.isFinite(Date.parse(custom.sentAt)) && <InstructionTime value={custom.sentAt} />}
     </div>}
-    {role === 'assistant' && (showActivity || status?.type === 'running') && <AttemptActivity activities={activities} steps={Array.isArray(custom?.taskSteps) ? custom.taskSteps as TaskStep[] : []} stepStorageKey={typeof custom?.stepStorageKey === 'string' ? custom.stepStorageKey : attemptId} progress={Array.isArray(custom?.taskProgress) ? custom.taskProgress as TaskProgress[] : []} goal={typeof custom?.researchGoal === 'string' ? custom.researchGoal : undefined} phase={typeof custom?.terminalPhase === 'string' ? custom.terminalPhase : undefined} running={status?.type === 'running'} open={activityOpen} onOpenChange={setActivityOpen} startedAt={startedAt} durationMs={durationMs} detailsRef={activityRef} />}
+    {role === 'assistant' && (showActivity || status?.type === 'running') && <AttemptActivity activities={activities} steps={Array.isArray(custom?.taskSteps) ? custom.taskSteps as TaskStep[] : []} stepStorageKey={typeof custom?.stepStorageKey === 'string' ? custom.stepStorageKey : attemptId} progress={Array.isArray(custom?.taskProgress) ? custom.taskProgress as TaskProgress[] : []} goal={typeof custom?.researchGoal === 'string' ? custom.researchGoal : undefined} phase={typeof custom?.terminalPhase === 'string' ? custom.terminalPhase : undefined} running={status?.type === 'running'} open={activityOpen} onOpenChange={(open) => { if (open) selectPanel('process'); else if (activePanel === 'process') selectPanel(null) }} startedAt={startedAt} durationMs={durationMs} detailsRef={activityRef} />}
   </MessagePrimitive.Root>
 }
 

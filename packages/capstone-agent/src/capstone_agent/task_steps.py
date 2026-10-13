@@ -75,7 +75,7 @@ class TaskStepTracker:
 
     def _public(self, identity: str) -> dict[str, object]:
         return {key: value for key, value in self.steps[identity].items()
-            if key in {"id", "number", "title", "status", "duration_ms", "response_ms", "finish_reason", "after_failed_steps"}}
+            if key in {"id", "number", "title", "status", "duration_ms", "response_ms", "first_text_ms", "usage", "finish_reason", "after_failed_steps"}}
 
 
 class RuntimeStepTracker(TaskStepTracker):
@@ -89,7 +89,7 @@ class RuntimeStepTracker(TaskStepTracker):
             if phase == "started" and self.active is None:
                 number = len(self.steps) + 1
                 identity = f"runtime-{number}"
-                self.steps[identity] = {"id": identity, "number": number, "title": "组织执行",
+                self.steps[identity] = {"id": identity, "number": number, "title": "模型响应",
                     "status": "running", "start": self.clock(), "tools": 0}
                 if self.pending_failed_steps:
                     self.steps[identity]["after_failed_steps"] = sorted(self.pending_failed_steps)
@@ -102,6 +102,12 @@ class RuntimeStepTracker(TaskStepTracker):
                     if not state.get("purpose"):
                         state["title"] = "组织工具调用" if event.get("response_kind") == "tools" else "生成回复"
                     state["response_ms"] = max(0, round((self.clock() - cast(float, state["start"])) * 1000))
+                    if isinstance(event.get('usage'), Mapping):
+                        usage = cast(Mapping[str, object], event['usage'])
+                        counts = {key: usage[key] for key in ('input', 'output', 'cacheRead', 'cacheWrite', 'totalTokens')
+                                  if type(usage.get(key)) is int and 0 <= cast(int, usage[key]) <= 100_000_000}
+                        if counts:
+                            state['usage'] = counts
                 elif phase in {"completed", "interrupted"}:
                     state["status"] = "completed"
                     state["finish_reason"] = phase
@@ -109,6 +115,10 @@ class RuntimeStepTracker(TaskStepTracker):
                     self.active = None
                 output["task_step"] = self._public(identity)
             return output
+        if event.get('type') == 'assistant_process_delta' and event.get('text') and self.active is not None:
+            state = self.steps[self.active]
+            if 'first_text_ms' not in state:
+                state['first_text_ms'] = max(0, round((self.clock() - cast(float, state['start'])) * 1000))
         normalized = normalize_runtime_event(output, runtime_mode="capstone")
         payload = normalized["payload"]
         assert isinstance(payload, dict)

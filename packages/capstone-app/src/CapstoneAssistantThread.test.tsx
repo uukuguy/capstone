@@ -46,8 +46,8 @@ describe('CapstoneAssistantThread', () => {
       event('attempt_completed', 4, { answer: '检查完成。' }, 'fold')]
     const { container } = render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={projectAssistantActivity(events)} onSend={async () => {}} onCancel={async () => {}} />)
     fireEvent.click(screen.getByRole('button', { name: '查看执行过程' }))
-    const expand = screen.getByRole('button', { name: '展开全部' }) as HTMLButtonElement
-    const collapse = screen.getByRole('button', { name: '收起全部' }) as HTMLButtonElement
+    const expand = screen.getByRole('button', { name: '展开步骤' }) as HTMLButtonElement
+    const collapse = screen.getByRole('button', { name: '折叠步骤' }) as HTMLButtonElement
     const frame = container.querySelector<HTMLDetailsElement>('.capstone-chat-activity-attached')!
     expect(expand.closest('summary')).toBe(frame.querySelector(':scope > summary'))
     expect(frame.querySelector(':scope > summary')!.textContent).not.toContain('查看执行过程')
@@ -1009,6 +1009,25 @@ describe('CapstoneAssistantThread', () => {
     expect(screen.queryByRole('button', { name: '编辑指令' })).toBeNull()
     expect(screen.getByRole('button', { name: '复制指令' })).toBeTruthy()
     expect((screen.getByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement).value).toBe('继续分析')
+  })
+
+  it('switches evidence and execution panels without leaving both open', () => {
+    render(<CapstoneAssistantThread events={[
+      event('tool_completed', 1, { tool_name: 'grid_context_open', capability: 'context.open', binding_id: 'grid' }, 'panels'),
+      event('attempt_completed', 2, { answer: '已完成。', evidence_refs: ['evidence:current'], admission: { status: 'admitted' } }, 'panels'),
+    ]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    const process = screen.getByRole('button', { name: '查看执行过程' })
+    const evidence = screen.getByRole('button', { name: '查看推演证据' })
+    fireEvent.click(process)
+    expect(process.getAttribute('aria-expanded')).toBe('true')
+    fireEvent.click(evidence)
+    expect(process.getAttribute('aria-expanded')).toBe('false')
+    expect(screen.getByLabelText('推演证据')).toBeTruthy()
+    fireEvent.click(process)
+    expect(screen.queryByLabelText('推演证据')).toBeNull()
+    expect(process.getAttribute('aria-expanded')).toBe('true')
+    fireEvent.click(process)
+    expect(process.getAttribute('aria-expanded')).toBe('false')
   })
 
   it('shows evidence actions only for admitted current-run references', () => {
