@@ -12,7 +12,7 @@ import numpy as np
 import pandapower as pp
 from pandapower.auxiliary import LoadflowNotConverged
 
-from grid_simulator.analysis_registry import AnalysisOutcome
+from grid_simulator.analysis_registry import AnalysisOutcome, AnalysisRegistry, UnknownAnalysisOperationError
 from grid_simulator.constraints import ModelConstraints, evaluate_constraints, extract_model_constraints
 from grid_simulator.evidence import canonical_json, fingerprint, write_json
 from grid_simulator.models import OpenedContext
@@ -267,6 +267,10 @@ class UnknownResultError(Exception):
 
 
 class ResultIntegrityError(Exception):
+    pass
+
+
+class ResultNotRankableError(Exception):
     pass
 
 
@@ -694,14 +698,15 @@ def _verify_powerflow_result_document(document: object, result_ref: str) -> dict
         raise ResultIntegrityError("powerflow result document is not canonical JSON") from exc
     if result_ref != f"result:sha256:{digest}":
         raise ResultIntegrityError("powerflow result document content does not match result reference")
-    if not (
-        document.get("result_type") == "analysis.powerflow.ac"
-        or (
-            document.get("result_type") == "analysis.operation"
-            and document.get("operation") == "powerflow.ac"
-        )
-    ):
-        raise ResultIntegrityError("powerflow result document has an unsupported result type")
+    if document.get("result_type") == "analysis.operation":
+        try:
+            operation = AnalysisRegistry().require(str(document.get("operation")))
+        except UnknownAnalysisOperationError as exc:
+            raise ResultNotRankableError("Result operation does not publish branch operating data") from exc
+        if not operation.branch_operating_point or document.get("status") != "succeeded":
+            raise ResultNotRankableError("Result does not contain a successful branch operating point")
+    elif document.get("result_type") != "analysis.powerflow.ac":
+        raise ResultNotRankableError("Result type does not publish branch operating data")
     if not isinstance(document.get("context_ref"), str) or not isinstance(document.get("revision_ref"), str):
         raise ResultIntegrityError("powerflow result document is missing context references")
     branch_results = document.get("branch_results")

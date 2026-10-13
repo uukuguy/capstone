@@ -29,7 +29,7 @@ import type { EventEnvelope, ResultProjection } from './threadProtocol'
 import type { CaseActionSnapshot, CaseExecutionSnapshot } from './threadProtocol'
 import type { ThreadTransportState } from './threadClient'
 import type { ThreadCatalogCase } from './threadCatalog'
-import { attemptFailureCopy } from './threadFeedback'
+import { attemptFailureCopy, toolFailureCopy } from './threadFeedback'
 
 type SendMode = 'automatic' | 'ordinary' | 'professional'
 
@@ -67,6 +67,7 @@ export type ChatActivity = {
   taskStepId?: string
   taskStepNumber?: number
   stepToolNumber?: number
+  failure?: { code?: string; message?: string }
 }
 
 const TOOL_LABELS: Record<string, string> = {
@@ -116,11 +117,13 @@ export function projectAssistantActivity(events: readonly EventEnvelope[]): Chat
       ? 'running'
       : event.eventType === 'tool_failed' || event.payload.ok === false ? 'failed' : event.eventType === 'tool_cancelled' ? 'cancelled' : 'completed'
     const startedAt = previous?.startedAt || (event.eventType === 'tool_started' ? event.occurredAt : undefined)
+    const failure = event.payload.failure && typeof event.payload.failure === 'object' && !Array.isArray(event.payload.failure) ? event.payload.failure as Record<string, unknown> : undefined
     grouped.set(id, {
       id,
       label: typeof event.payload.tool_name === 'string' || typeof event.payload.capability === 'string' ? TOOL_LABELS[toolName(event)] || toolName(event).replaceAll('_', ' ') : previous?.label || toolName(event),
       source: typeof event.payload.binding_id === 'string' || typeof event.payload.capability === 'string' ? activitySource(event) : previous?.source || activitySource(event),
       status,
+      ...(failure ? { failure: { code: typeof failure.code === 'string' ? failure.code : undefined, message: typeof failure.message === 'string' ? failure.message : undefined } } : previous?.failure ? { failure: previous.failure } : {}),
       taskStepId: typeof event.payload.task_step_id === 'string' ? event.payload.task_step_id : previous?.taskStepId,
       taskStepNumber: typeof event.payload.task_step_number === 'number' ? event.payload.task_step_number : previous?.taskStepNumber,
       stepToolNumber: typeof event.payload.step_tool_number === 'number' ? event.payload.step_tool_number : previous?.stepToolNumber,
@@ -553,7 +556,7 @@ function RunDuration({ startedAt, durationMs, running }: { startedAt?: string; d
 function ActivityItems({ activities }: { activities: ChatActivity[] }) {
   return <div className="capstone-chat-activity-list">{activities.map((item) => {
     const [owner, ...detail] = item.source.split(' · ')
-    return <div key={item.id} className={`capstone-chat-activity-item is-${item.status}`}><span className="capstone-chat-activity-icon" aria-hidden="true" /> <span><strong>{item.taskStepNumber !== undefined && item.stepToolNumber !== undefined ? `${String(item.taskStepNumber).padStart(2, '0')}.${item.stepToolNumber} ` : ''}{item.label}</strong><small><span className="capstone-chat-activity-source" data-owner={owner}>{owner.toUpperCase()}</span> {detail.join(' · ')}{item.durationMs === undefined ? '' : ` · ${formatDuration(item.durationMs)}`}</small></span></div>
+    return <div key={item.id} className={`capstone-chat-activity-item is-${item.status}`}><span className="capstone-chat-activity-icon" aria-hidden="true" /> <span><strong>{item.taskStepNumber !== undefined && item.stepToolNumber !== undefined ? `${String(item.taskStepNumber).padStart(2, '0')}.${item.stepToolNumber} ` : ''}{item.label}</strong>{item.status === 'failed' && <span className="capstone-tool-failure" title={[item.failure?.code, item.failure?.message].filter(Boolean).join(' · ')}>{toolFailureCopy(item.failure?.code)}</span>}<small><span className="capstone-chat-activity-source" data-owner={owner}>{owner.toUpperCase()}</span> {detail.join(' · ')}{item.durationMs === undefined ? '' : ` · ${formatDuration(item.durationMs)}`}</small></span></div>
   })}</div>
 }
 
@@ -602,6 +605,7 @@ function AttemptActivity({ activities, progress = [], steps = [], stepStorageKey
     ].sort((left, right) => (left.at ? Date.parse(left.at) : Infinity) - (right.at ? Date.parse(right.at) : Infinity))
     return <>{(preview ? entries.slice(-10) : entries).map(entry => entry.step ?
       <TaskStepProcess key={entry.id} steps={[entry.step]} storageKey={stepStorageKey} running={running}
+        stepNumbers={Object.fromEntries(steps.map(step => [step.id, step.number]))}
         foldCommand={foldCommand} onFoldChange={reportFold}
         toolCount={stepId => toolActivities.filter(item => item.taskStepId === stepId).length}
         toolMs={stepId => toolExecutionMs(toolActivities.filter(item => item.taskStepId === stepId))}

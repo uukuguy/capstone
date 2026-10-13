@@ -11,6 +11,22 @@ const event = (eventType: string, eventSeq: number, payload: Record<string, unkn
 })
 
 describe('CapstoneAssistantThread', () => {
+  it('connects real failed calls to the next step and shows the recorded method adjustment', () => {
+    const first = { id: 'read', number: 1, title: '读取已有结果', status: 'completed' }
+    const next = { id: 'query', number: 2, title: '查询结果数据集', status: 'completed', after_failed_steps: ['read'] }
+    render(<CapstoneAssistantThread events={[
+      event('tool_started', 1, { tool_name: 'grid_result_branches_rank', tool_call_id: 'rank', task_step_id: 'read', task_step: first }, 'recover'),
+      event('tool_completed', 2, { tool_name: 'grid_result_branches_rank', tool_call_id: 'rank', task_step_id: 'read', ok: false, failure: { code: 'result_not_rankable', message: 'Result does not publish branch data' } }, 'recover'),
+      event('runtime_action', 3, { task_step: next }, 'recover'),
+      event('tool_completed', 4, { tool_name: 'agent_task_progress', capability: 'agent_task_progress', ok: true, task_step_id: 'query', task_progress: { kind: 'adjustment', text: '排名不可用，改从数据集取数。', refs: [] } }, 'recover'),
+      event('attempt_completed', 5, { answer: '已读取可用数据。', task_steps: [first, next] }, 'recover'),
+    ]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: '查看执行过程' }))
+    expect(screen.getByText('该结果不支持支路排名')).toBeTruthy()
+    expect(screen.getByText('接续 01')).toBeTruthy()
+    expect(screen.getByText(/排名不可用，改从数据集取数/)).toBeTruthy()
+    expect(screen.queryByText('已重新规划')).toBeNull()
+  })
   it('shows host preparation and terminal timing even before any tool call', () => {
     const preparation = { id: 'task-preparation', number: 1, title: '任务准备', status: 'running' }
     const events = [event('attempt_started', 1, { task_step: preparation }, 'stages'),

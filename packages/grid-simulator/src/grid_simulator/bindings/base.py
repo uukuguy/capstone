@@ -33,6 +33,7 @@ class AnalysisOperation:
     pandapower_operation: str
     options_schema: dict[str, Any]
     execute: Callable[[Any, Any, dict[str, Any]], AnalysisOutcome]
+    branch_operating_point: bool = False
 
 
 def closed_schema(properties: dict[str, Any]) -> dict[str, Any]:

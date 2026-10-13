@@ -19,6 +19,7 @@ from grid_simulator.analyses import (
     RECOVERY_ACTIONS_NON_CONVERGENCE,
     PowerflowExecutionError,
     ResultIntegrityError,
+    ResultNotRankableError,
     UnknownBranchError,
     UnknownResultError,
     evidence_path,
@@ -1007,6 +1008,13 @@ def _analysis_powerflow_ac_run(
 def _result_branches_rank(workspace: SimulatorWorkspace, arguments: dict[str, Any]) -> dict[str, Any]:
     try:
         return rank_branches(workspace=workspace, arguments=arguments)
+    except ResultNotRankableError as exc:
+        raise _failure(
+            "result_not_rankable",
+            "This result does not publish a successful branch operating point; use its available result datasets",
+            phase="resolve",
+            allowed_recovery_actions=("query_result_dataset", "report_failure"),
+        ) from exc
     except ResultIntegrityError as exc:
         raise _failure(
             "result_integrity_failed",

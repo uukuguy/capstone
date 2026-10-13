@@ -118,6 +118,33 @@ def test_branch_ranking_reuses_generic_ac_result(grid, context_ref: str, kind: s
     assert grid.engine.ac_run_count == before
 
 
+@pytest.mark.parametrize("operation", ["powerflow.dc", "opf.ac", "opf.dc"])
+def test_branch_ranking_reuses_static_solution_and_preserves_hash_verification(grid, monkeypatch, operation: str) -> None:
+    context = grid.call("context.open", {"model_id": "case14"})
+    solved = grid.call("analysis.run", {"context_ref": context["context_ref"],
+        "operation": operation, "options": {"suppress_warnings": True} if operation.startswith("opf.") else {}})
+    path = _result_document_path(str(solved["result_ref"]), grid.workspace.root)
+    saved_text = path.read_text()
+    document = json.loads(saved_text)
+    source_rows = document["datasets"]["result.res_line"]["rows"]
+    expected = sorted(source_rows, key=lambda row: row["loading_percent"], reverse=True)[:3]
+
+    def reject_solver(*args, **kwargs):
+        pytest.fail("Ranking an existing result must not run a solver")
+
+    for name in ("runpp", "rundcpp", "runopp", "rundcopp"):
+        monkeypatch.setattr(f"pandapower.{name}", reject_solver)
+    arguments = {"result_ref": solved["result_ref"], "metric": "loading_percent",
+        "direction": "descending", "limit": 3, "element_kind": "line"}
+    ranked = grid.call("result.branches.rank", arguments)
+    assert [row["pandapower_index"] for row in ranked["branches"]] == [row["index"] for row in expected]
+    assert [row["metric_value"] for row in ranked["branches"]] == [row["loading_percent"] for row in expected]
+    assert path.read_text() == saved_text
+    document["datasets"]["result.res_line"]["rows"][0]["loading_percent"] = 9999
+    path.write_text(json.dumps(document))
+    assert grid.call_error("result.branches.rank", arguments).code == "result_integrity_failed"
+
+
 def test_generic_ranking_rejects_tampered_dataset(grid, context_ref: str) -> None:
     result = grid.call("analysis.run", {"context_ref": context_ref, "operation": "powerflow.ac", "options": {}})
     path = _result_document_path(str(result["result_ref"]), grid.workspace.root)
@@ -127,6 +154,16 @@ def test_generic_ranking_rejects_tampered_dataset(grid, context_ref: str) -> Non
     error = grid.call_error("result.branches.rank", {"result_ref": result["result_ref"],
         "metric": "loading_percent", "direction": "descending", "limit": 5})
     assert error.code == "result_integrity_failed"
+
+
+def test_non_operating_result_has_a_compatibility_failure_not_an_integrity_failure(grid) -> None:
+    context = grid.call("context.open", {"model_id": "case14"})
+    result = grid.call("analysis.run", {"context_ref": context["context_ref"],
+        "operation": "topology.neighbors", "options": {"source_bus": 0}})
+    error = grid.call_error("result.branches.rank", {"result_ref": result["result_ref"],
+        "metric": "loading_percent", "direction": "descending", "limit": 3})
+    assert error.code == "result_not_rankable"
+    assert error.allowed_recovery_actions == ("query_result_dataset", "report_failure")
 
 
 def test_branch_ranking_rejects_invalid_json_result_document(grid, context_ref: str) -> None:

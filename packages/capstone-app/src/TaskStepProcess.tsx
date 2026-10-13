@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import type { EventEnvelope } from './threadProtocol'
 
-export type TaskStep = { id: string; number: number; title: string; status: 'running' | 'completed'; durationMs?: number; startedAt?: string; responseMs?: number; finishReason?: string }
+export type TaskStep = { id: string; number: number; title: string; status: 'running' | 'completed'; durationMs?: number; startedAt?: string; responseMs?: number; finishReason?: string; afterFailedSteps?: readonly string[] }
 
 export type StepFoldCommand = { open: boolean; revision: number }
 export function toolExecutionMs(calls: readonly { startedAt?: string; durationMs?: number }[]): number | undefined {
@@ -35,13 +35,14 @@ export function projectTaskSteps(events: readonly EventEnvelope[], attemptId: st
         startedAt: steps.get(record.id)?.startedAt ?? event.occurredAt,
         ...(typeof record.response_ms === 'number' && record.response_ms >= 0 ? { responseMs: record.response_ms } : {}),
         ...(typeof record.finish_reason === 'string' ? { finishReason: record.finish_reason } : {}),
+        ...(Array.isArray(record.after_failed_steps) ? { afterFailedSteps: record.after_failed_steps.filter((id): id is string => typeof id === 'string') } : {}),
         status: record.status as TaskStep['status'], ...(typeof duration === 'number' && Number.isSafeInteger(duration) && duration >= 0 ? { durationMs: duration } : {}) })
     }
   }
   return [...steps.values()].sort((left, right) => left.number - right.number)
 }
 
-function Step({ step, storageKey, running, foldCommand, onFoldChange, toolCount, toolMs, children }: { step: TaskStep; storageKey: string; running: boolean; foldCommand?: StepFoldCommand; onFoldChange?: (id: string, open: boolean) => void; toolCount?: number; toolMs?: number; children: ReactNode }) {
+function Step({ step, storageKey, running, foldCommand, onFoldChange, toolCount, toolMs, stepNumbers, children }: { step: TaskStep; storageKey: string; running: boolean; foldCommand?: StepFoldCommand; onFoldChange?: (id: string, open: boolean) => void; toolCount?: number; toolMs?: number; stepNumbers?: Readonly<Record<string, number>>; children: ReactNode }) {
   const [open, setOpen] = useState(() => readStepOpen(storageKey, step.id))
   useEffect(() => {
     if (foldCommand) setOpen(foldCommand.open)
@@ -64,7 +65,7 @@ function Step({ step, storageKey, running, foldCommand, onFoldChange, toolCount,
       onFoldChange?.(step.id, next)
     }}><span className="capstone-step-number">{String(step.number).padStart(2, '0')}</span>
       <span className="capstone-chat-activity-source" data-owner="capstone">CAPSTONE</span>
-      <span className="capstone-step-title">{step.title}</span>
+      <span className="capstone-step-title">{step.title}{Boolean(step.afterFailedSteps?.length) && <small className="capstone-step-continuation" title="此前步骤有工具调用失败，本步继续处理；方法调整以智能体公开记录为准">接续 {step.afterFailedSteps!.map(id => stepNumbers?.[id]).filter(number => number !== undefined).map(number => String(number).padStart(2, '0')).join('、') || '失败'}</small>}</span>
       <span className="capstone-step-metrics">
       <small title="步骤总耗时">{elapsed === undefined ? '' : `${(elapsed / 1000).toFixed(1)}s`}{step.finishReason === 'interrupted' ? ' · 已中断' : step.status === 'completed' ? '' : running ? ' · 执行中' : '任务已结束 · 步骤未报告结束'}</small>
       {toolCount !== undefined && toolCount > 0 && <small title="工具调用数量及执行时间；并行区间只计一次">· 工具 {toolCount}次{toolMs === undefined ? '' : `/${(toolMs / 1000).toFixed(1)}s`}</small>}
@@ -75,7 +76,7 @@ function Step({ step, storageKey, running, foldCommand, onFoldChange, toolCount,
   </details>
 }
 
-export default function TaskStepProcess({ steps, storageKey, running, renderTools, toolCount, toolMs, foldCommand, onFoldChange }: { steps: readonly TaskStep[]; storageKey: string; running: boolean; renderTools: (id: string) => ReactNode; toolCount?: (id: string) => number; toolMs?: (id: string) => number | undefined; foldCommand?: StepFoldCommand; onFoldChange?: (id: string, open: boolean) => void }) {
+export default function TaskStepProcess({ steps, storageKey, running, renderTools, toolCount, toolMs, stepNumbers, foldCommand, onFoldChange }: { steps: readonly TaskStep[]; storageKey: string; running: boolean; renderTools: (id: string) => ReactNode; toolCount?: (id: string) => number; toolMs?: (id: string) => number | undefined; stepNumbers?: Readonly<Record<string, number>>; foldCommand?: StepFoldCommand; onFoldChange?: (id: string, open: boolean) => void }) {
   return <div className="capstone-business-steps" aria-label="任务步骤">{steps.map(step =>
-    <Step key={`${storageKey}:${step.id}`} step={step} storageKey={storageKey} running={running} foldCommand={foldCommand} onFoldChange={onFoldChange} toolCount={toolCount?.(step.id)} toolMs={toolMs?.(step.id)}>{renderTools(step.id)}</Step>)}</div>
+    <Step key={`${storageKey}:${step.id}`} step={step} storageKey={storageKey} running={running} foldCommand={foldCommand} onFoldChange={onFoldChange} toolCount={toolCount?.(step.id)} toolMs={toolMs?.(step.id)} stepNumbers={stepNumbers}>{renderTools(step.id)}</Step>)}</div>
 }

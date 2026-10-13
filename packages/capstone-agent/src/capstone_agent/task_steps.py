@@ -14,6 +14,7 @@ class TaskStepTracker:
         self.calls: dict[str, tuple[str, int]] = {}
         self.pending: set[str] = set()
         self.active: str | None = None
+        self.pending_failed_steps: set[str] = set()
 
     def annotate(self, event: Mapping[str, object]) -> dict[str, object]:
         host_fields = {"task_step", "task_step_id", "task_step_number", "step_tool_number", "task_step_error"}
@@ -74,7 +75,7 @@ class TaskStepTracker:
 
     def _public(self, identity: str) -> dict[str, object]:
         return {key: value for key, value in self.steps[identity].items()
-            if key in {"id", "number", "title", "status", "duration_ms", "response_ms", "finish_reason"}}
+            if key in {"id", "number", "title", "status", "duration_ms", "response_ms", "finish_reason", "after_failed_steps"}}
 
 
 class RuntimeStepTracker(TaskStepTracker):
@@ -90,6 +91,9 @@ class RuntimeStepTracker(TaskStepTracker):
                 identity = f"runtime-{number}"
                 self.steps[identity] = {"id": identity, "number": number, "title": "组织执行",
                     "status": "running", "start": self.clock(), "tools": 0}
+                if self.pending_failed_steps:
+                    self.steps[identity]["after_failed_steps"] = sorted(self.pending_failed_steps)
+                    self.pending_failed_steps.clear()
                 self.active = identity
             identity = self.active
             if identity is not None:
@@ -108,6 +112,8 @@ class RuntimeStepTracker(TaskStepTracker):
         normalized = normalize_runtime_event(output, runtime_mode="capstone")
         payload = normalized["payload"]
         assert isinstance(payload, dict)
+        if normalized["event_type"] == "tool_completed" and payload.get("ok") is False and self.active is not None:
+            self.pending_failed_steps.add(self.active)
         if normalized["event_type"] == "tool_started" and self.active is not None:
             arguments = event.get("args")
             purpose = arguments.get("execution_purpose") if isinstance(arguments, dict) else None

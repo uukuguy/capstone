@@ -133,8 +133,8 @@ def run_three_phase(engine: Any, net: Any, options: dict[str, Any]) -> AnalysisO
 
 
 OPERATIONS = (
-    AnalysisOperation("powerflow.ac", "AC power flow", "runpp", AC_SCHEMA, run_ac),
-    AnalysisOperation("powerflow.dc", "DC power flow", "rundcpp", DC_SCHEMA, run_dc),
+    AnalysisOperation("powerflow.ac", "AC power flow", "runpp", AC_SCHEMA, run_ac, branch_operating_point=True),
+    AnalysisOperation("powerflow.dc", "DC power flow", "rundcpp", DC_SCHEMA, run_dc, branch_operating_point=True),
     AnalysisOperation(
         "powerflow.three_phase",
         "Unbalanced three-phase power flow",

@@ -1,4 +1,16 @@
 /** Reader-facing recovery text for bounded service codes; never expose raw exceptions. */
+export function toolFailureCopy(code?: string): string {
+  const messages: Record<string, string> = {
+    result_not_rankable: '该结果不支持支路排名',
+    result_integrity_failed: '结果完整性校验未通过',
+    unknown_result: '此工作区中找不到该结果',
+    invalid_arguments: '参数不符合工具契约',
+    powerflow_failed: '潮流计算未完成',
+    solver_failed: '求解器未完成计算',
+  }
+  return messages[code || ''] || '调用失败；原因见推演证据'
+}
+
 export function commandRejectionCopy(code?: string): string {
   const messages: Record<string, string> = {
     stale_event_seq: '页面状态已变化，本次指令未发送。请等待同步完成后重试，输入内容已保留。',

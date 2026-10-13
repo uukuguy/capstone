@@ -1,6 +1,21 @@
 from capstone_agent.task_steps import TaskStepTracker
 
 
+def test_next_native_step_records_actual_failed_step_without_claiming_replanning():
+    from capstone_agent.task_steps import RuntimeStepTracker
+    tracker = RuntimeStepTracker()
+    tracker.annotate({'type': 'runtime_action', 'phase': 'started'})
+    tracker.annotate({'type': 'tool_execution_start', 'toolName': 'grid_query', 'toolCallId': 'one'})
+    tracker.annotate({'type': 'tool_execution_end', 'toolName': 'grid_query', 'toolCallId': 'one', 'ok': False})
+    tracker.annotate({'type': 'runtime_action', 'phase': 'completed'})
+    continuation = tracker.annotate({'type': 'runtime_action', 'phase': 'started'})
+    assert continuation['task_step']['after_failed_steps'] == ['runtime-1']
+    assert 'replanned' not in continuation['task_step']
+    tracker.annotate({'type': 'runtime_action', 'phase': 'completed'})
+    following = tracker.annotate({'type': 'runtime_action', 'phase': 'started'})
+    assert not following['task_step'].get('after_failed_steps')
+
+
 def test_purpose_on_business_call_is_saved_without_a_progress_tool():
     from capstone_agent.task_steps import RuntimeStepTracker
     tracker = RuntimeStepTracker()
