@@ -66,6 +66,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   const [modelTarget, setModelTarget] = useState('ieee39')
   const [focusedElement, setFocusedElement] = useState<{ resultId: string; modelId: string; modelRevision: string; elementId: string }>()
   const [selectedNetworkAttempt, setSelectedNetworkAttempt] = useState<string>()
+  const networkFollowCursor = useRef<{ threadId: string; eventSeq: number } | null>(null)
   const [instructionLocation, setInstructionLocation] = useState<{ attemptId: string; nonce: number }>()
   const [taskReturn, setTaskReturn] = useState<{ contextId: string; attemptId?: string; nonce: number }>()
   const taskReturnGeneration = useRef(0)
@@ -231,6 +232,21 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
     return [active, ...fromCatalog]
   }, [projection.catalog?.models, snapshot])
   const events = store.publicEvents
+  useEffect(() => {
+    if (loading || !snapshot) return
+    const previous = networkFollowCursor.current
+    networkFollowCursor.current = {threadId: snapshot.threadId, eventSeq: projection.eventSeq}
+    if (!previous || previous.threadId !== snapshot.threadId) return
+    const terminal = [...events].reverse().find((event) => event.eventSeq > previous.eventSeq &&
+      event.modelContextId === snapshot.activeModelContext.id &&
+      ['attempt_completed', 'attempt_failed'].includes(event.eventType))
+    if (!terminal) return
+    taskReturnGeneration.current++
+    setTaskReturn(undefined)
+    setSelectedNetworkAttempt(undefined)
+    setFocusedElement(undefined)
+    store.viewGridPage(snapshot.activeGridPageId)
+  }, [loading, projection.eventSeq, snapshot?.threadId])
   const networkTask = store.latestNetworkEvent
   const currentModelTaskId = [...events].reverse().find(event => event.modelContextId === snapshot?.activeModelContext.id
     && event.attemptId && event.eventType === 'command_accepted' && ['send_auto', 'send_ordinary', 'send_professional'].includes(String(event.payload.kind)))?.attemptId

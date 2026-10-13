@@ -112,7 +112,7 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
   const stateById = useMemo(() => {
     const selected = new Map(annotations?.states.flatMap((state) => state.ids.map((id) => [id, state] as const)) || [])
     for (const item of annotations ? [] : baseDisconnections || []) if (!selected.has(item.id)) {
-      selected.set(item.id, { label: '断开', style: 'disconnected', ids: [item.id], source_ref: '',
+      selected.set(item.id, { label: item.label || '断开', style: item.style || 'disconnected', ids: [item.id], source_ref: '',
         markers: item.markers.map((marker) => ({ ...marker, id: item.id })) })
     }
     return selected
@@ -296,7 +296,7 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
               <line x1={from.x} y1={from.y} x2={to.x} y2={to.y}
                 className={state ? `network-state-${state.style}` : islandRegion ? 'network-island-branch' : undefined}
                 stroke={color} strokeWidth={lineWidth * visualScale}
-                strokeDasharray={state?.style === 'disconnected' ? `${7 * visualScale} ${5 * visualScale}` : branch.kind === 'link' ? '9 6' : undefined}
+                strokeDasharray={state?.style === 'disconnected' ? `${7 * visualScale} ${5 * visualScale}` : state?.style === 'unresolved' ? `${3 * visualScale} ${3 * visualScale}` : branch.kind === 'link' ? '9 6' : undefined}
                 strokeLinecap="round" />
               {state?.style === 'disconnected' && markers.map((marker, index) => <g key={index} aria-label={`${label}：${marker.label}`}>
                 <title>{label} · {marker.label}</title>
@@ -366,7 +366,8 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
             <i style={{ borderColor: regionColors[index % regionColors.length] }} aria-hidden="true" />{region.label} · {region.ids.length} 母线</span>)}
         </div>}
         {!annotations && baseDisconnections && baseDisconnections.length > 0 && <div className="network-scene-legend">
-          <span><i className="legend-state-disconnected" aria-hidden="true" />断开连接 · {baseDisconnections.length}</span>
+          {baseDisconnections.some((item) => item.style !== 'unresolved') && <span><i className="legend-state-disconnected" aria-hidden="true" />断开连接 · {baseDisconnections.filter((item) => item.style !== 'unresolved').length}</span>}
+          {baseDisconnections.some((item) => item.style === 'unresolved') && <span><i className="legend-state-unresolved" aria-hidden="true" />连接不可用 · {baseDisconnections.filter((item) => item.style === 'unresolved').length}</span>}
         </div>}
         <div className="network-legend"><span className={schematic ? 'legend-busbar' : 'legend-bus-point'} /> 母线
           {branchKinds.has('line') && <><span className="legend-line" /> 线路</>}

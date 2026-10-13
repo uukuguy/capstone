@@ -10,7 +10,10 @@ def project_base_disconnections(diagram: Mapping[str, Any]) -> list[dict[str, An
     rows = diagram.get("branch_states")
     if not isinstance(rows, list):
         return []
-    return [{"id": row["id"], "markers": [
+    return [{"id": row["id"],
+        "style": "disconnected" if row.get("open_switches") or row.get("in_service") is False else "unresolved",
+        "label": "断开" if row.get("open_switches") or row.get("in_service") is False else "连接不可用",
+        "markers": [
         {"bus_id": switch["bus_id"], "label": f"开关 {switch['index']}：断开"}
         for switch in row.get("open_switches", [])]}
         for row in rows if row.get("connected") is False]
@@ -47,16 +50,16 @@ def project_scene_annotations(
     branches = {item["id"] for item in diagram["branches"]}
     states: list[dict[str, Any]] = []
     outage = result.get("outage")
+    branch_states = lines.get("branch_states")
+    disconnected = ([row["id"] for row in branch_states if row.get("in_service") is False and row["id"] in branches]
+                    if isinstance(branch_states, list) else
+                    [f"line:{row['index']}" for row in lines.get("rows", [])
+                     if row.get("in_service") is False and f"line:{row['index']}" in branches])
     if isinstance(outage, Mapping):
         identifier = f"{outage.get('kind')}:{outage.get('index')}"
-        disconnected = [identifier] if identifier in branches else [
+        outage_ids = [identifier] if identifier in branches else [
             item for item in branches if item in {identifier + ":mv", identifier + ":lv"}]
-    else:
-        branch_states = lines.get("branch_states")
-        disconnected = ([row["id"] for row in branch_states if row.get("in_service") is False and row["id"] in branches]
-                        if isinstance(branch_states, list) else
-                        [f"line:{row['index']}" for row in lines.get("rows", [])
-                         if row.get("in_service") is False and f"line:{row['index']}" in branches])
+        disconnected = list(dict.fromkeys([*outage_ids, *disconnected]))
     if disconnected:
         states.append({"label": "已断开", "style": "disconnected", "ids": disconnected, "source_ref": source_ref})
     switched = []
@@ -64,9 +67,14 @@ def project_scene_annotations(
     unavailable = []
     for row in lines.get("branch_states", []):
         identifier = row["id"]
-        if identifier not in branches or identifier in disconnected:
+        if identifier not in branches:
             continue
         opened = [item for item in row.get("open_switches", []) if item.get("bus_id") in buses]
+        if identifier in disconnected:
+            if opened:
+                states[0].setdefault('markers', []).extend(
+                    {"id": identifier, "bus_id": item["bus_id"], "label": f"开关 {item['index']}"} for item in opened)
+            continue
         if opened:
             switched.append(identifier)
             markers.extend({"id": identifier, "bus_id": item["bus_id"], "label": f"开关 {item['index']}"} for item in opened)

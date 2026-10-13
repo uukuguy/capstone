@@ -24,6 +24,10 @@ def test_bus_bus_switch_geometry_preserves_open_and_closed_connections():
     states = operator_branch_states(net, geometry["branches"])
     assert states == [{"id": f"switch:{opened}", "in_service": True, "connected": False,
                        "open_switches": [{"index": opened, "bus_id": str(first)}]}]
+    net.bus.loc[third, 'in_service'] = False
+    states = operator_branch_states(net, geometry['branches'])
+    unavailable = next(state for state in states if state['id'] == f'switch:{closed}')
+    assert unavailable['connected'] is False and unavailable['open_switches'] == []
 
 
 def test_catalog_checks_operator_capacity_before_offering_a_model() -> None:

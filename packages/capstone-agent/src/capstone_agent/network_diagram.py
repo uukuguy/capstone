@@ -120,7 +120,8 @@ def normalize_network_diagram(value: object) -> dict[str, Any]:
         seen: set[str] = set()
         ends = {branch["id"]: {branch["from_bus"], branch["to_bus"]} for branch in branches}
         for raw in entries:
-            entry = _record(raw, {"id", "markers"})
+            optional = {key for key in ("style", "label") if isinstance(raw, Mapping) and key in raw}
+            entry = _record(raw, {"id", "markers"} | optional)
             identifier = _text(entry["id"])
             markers = entry["markers"]
             if identifier not in branch_ids or identifier in seen or not isinstance(markers, list) or len(markers) > 2:
@@ -133,7 +134,14 @@ def normalize_network_diagram(value: object) -> dict[str, Any]:
                 if bus not in ends[identifier]:
                     raise ValueError("network switch terminal is invalid")
                 normalized_markers.append({"bus_id": bus, "label": _text(marker["label"])})
-            selected.append({"id": identifier, "markers": normalized_markers})
+            normalized_entry = {"id": identifier, "markers": normalized_markers}
+            if "style" in entry:
+                if entry["style"] not in {"disconnected", "unresolved"}:
+                    raise ValueError("network disconnection style is invalid")
+                normalized_entry["style"] = entry["style"]
+            if "label" in entry:
+                normalized_entry["label"] = _text(entry["label"])
+            selected.append(normalized_entry)
         normalized["disconnections"] = selected
     if published and (source["fingerprint"] != fingerprint or source["ref"] != reference):
         raise ValueError("network diagram identity is invalid")

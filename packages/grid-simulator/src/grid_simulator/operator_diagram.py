@@ -30,9 +30,9 @@ def operator_branch_states(net: Any, branches: list[dict[str, Any]]) -> list[dic
         kind, index = branch["kind"], int(branch["id"].split(":")[1])
         if kind == "link":
             row = net.switch.loc[index]
-            if not bool(row.closed):
+            if not bool(row.closed) or not active_buses[branch["from_bus"]] or not active_buses[branch["to_bus"]]:
                 states.append({"id": branch["id"], "in_service": True, "connected": False,
-                               "open_switches": [{"index": index, "bus_id": str(row.bus)}]})
+                               "open_switches": [{"index": index, "bus_id": str(row.bus)}] if not bool(row.closed) else []})
             continue
         in_service = bool(net[kind].loc[index, "in_service"])
         switches = [item for item in opened.get((kind, index), [])

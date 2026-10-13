@@ -56,6 +56,8 @@ function parseDiagramView(raw: Record<string, unknown>, ordinal: number,
       if (!record(entry) || !text(entry.id) || !branchIds.has(entry.id) || seen.has(entry.id) ||
           !Array.isArray(entry.markers) || entry.markers.length > 2) return null
       seen.add(entry.id)
+      if ((entry.style !== undefined && !['disconnected','unresolved'].includes(String(entry.style))) ||
+          (entry.label !== undefined && !text(entry.label))) return null
       const branch = diagram.branches.find((item) => item.id === entry.id)
       for (const marker of entry.markers) {
         if (!record(marker) || !text(marker.label) || !text(marker.bus_id) ||

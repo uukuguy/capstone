@@ -50,6 +50,18 @@ def test_contingency_outage_uses_recorded_scenario_not_base_operating_state():
     assert value["regions"] == []
 
 
+def test_contingency_keeps_existing_outaged_branches_disconnected():
+    diagram, result, topology, lines = sources()
+    diagram['branches'].append({'id':'line:5'})
+    result['outage'] = {'kind':'line','index':5}
+    value = project_scene_annotations(diagram,result,topology,lines,source_ref='result:scenario')
+    assert value['states'][0]['ids'] == ['line:5','line:4']
+    lines['branch_states'] = [{'id':'line:4','in_service':False,'connected':False,
+                              'open_switches':[{'index':9,'bus_id':'1'}]}]
+    value = project_scene_annotations(diagram,result,topology,lines,source_ref='result:scenario')
+    assert value['states'][0]['markers'] == [{'id':'line:4','bus_id':'1','label':'开关 9'}]
+
+
 def test_overload_marker_uses_solved_loading_not_null_or_outaged_rows():
     diagram, result, topology, lines = sources()
     lines["rows"][0]["in_service"] = True
