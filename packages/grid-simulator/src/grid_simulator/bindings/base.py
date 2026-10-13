@@ -10,6 +10,14 @@ class AnalysisPrerequisiteError(ValueError):
         self.details = details
 
 
+class AnalysisImplementationError(RuntimeError):
+    """A diagnosed implementation failure, distinct from a network conclusion."""
+
+    def __init__(self, message: str, **details: Any) -> None:
+        super().__init__(message)
+        self.details = details
+
+
 @dataclass(frozen=True)
 class AnalysisOutcome:
     operation: str

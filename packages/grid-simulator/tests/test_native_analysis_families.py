@@ -121,8 +121,9 @@ def test_infeasible_opf_is_persisted_as_a_typed_non_converged_outcome(grid) -> N
 
 
 @pytest.mark.parametrize(("fault", "case"), [("3ph", "max"), ("2ph", "min"), ("1ph", "max")])
+@pytest.mark.parametrize("check_connectivity", [True, False])
 def test_iec60909_supports_fault_cases_selected_buses_and_branch_results(
-    grid, fault: str, case: str
+    grid, fault: str, case: str, check_connectivity: bool
 ) -> None:
     created = grid.call(
         "model.create",
@@ -148,11 +149,24 @@ def test_iec60909_supports_fault_cases_selected_buses_and_branch_results(
             ],
         },
     )
+    if not check_connectivity:
+        error = grid.call_error("analysis.run", {
+            "context_ref": str(created["context_ref"]),
+            "operation": "short_circuit.iec60909",
+            "options": {"bus": [0], "fault": fault, "case": case,
+                        "branch_results": True, "check_connectivity": False},
+        })
+        assert error.code == "analysis_failed"
+        assert error.details["cause_status"] == "implementation_failure"
+        assert error.details["requested_value"] is False
+        assert "_is_elements_final" in error.details["exception_message"]
+        assert "not a physical network conclusion" in error.message
     analysis = _run(
         grid,
         str(created["context_ref"]),
         "short_circuit.iec60909",
-        {"bus": [0], "fault": fault, "case": case, "branch_results": True},
+        {"bus": [0], "fault": fault, "case": case, "branch_results": True,
+         "check_connectivity": True},
     )
 
     assert analysis["status"] == "succeeded"
@@ -230,7 +244,26 @@ def test_diagnostic_normalizes_findings_as_a_queryable_result_dataset(grid) -> N
     assert all(row["check"] for row in queried["rows"])
 
 
-def test_analysis_failure_preserves_safe_pandapower_diagnostics(grid) -> None:
+def test_short_circuit_missing_inputs_are_reported_before_solver_and_do_not_block_ac(grid):
+    context = _open(grid, "mv_oberrhein")
+    error = grid.call_error("analysis.run", {"context_ref": context,
+        "operation": "short_circuit.iec60909", "options": {"case": "max"}})
+    assert error.code == "analysis_prerequisite_missing"
+    assert error.phase == "resolve"
+    gaps = error.details["parameter_gaps"]
+    assert {gap["field"] for gap in gaps} == {"s_sc_max_mva", "rx_max"}
+    assert len(gaps) == 4
+    assert _run(grid, context, "powerflow.ac")["status"] == "succeeded"
+
+
+def test_analysis_failure_preserves_safe_pandapower_diagnostics(grid, monkeypatch) -> None:
+    from grid_simulator.analysis_registry import AnalysisRegistry
+    original = AnalysisRegistry.execute
+    def fail_sc(self, operation, engine, net, options):
+        if operation == "short_circuit.iec60909":
+            raise ValueError("Solver exception without a diagnosed cause")
+        return original(self, operation, engine, net, options)
+    monkeypatch.setattr(AnalysisRegistry, "execute", fail_sc)
     context = _open(grid, "case9")
     error = grid.call_error(
         "analysis.run",
@@ -245,7 +278,7 @@ def test_analysis_failure_preserves_safe_pandapower_diagnostics(grid) -> None:
     assert error.phase == "execute"
     assert error.details["operation"] == "short_circuit.iec60909"
     assert error.details["exception_type"] == "ValueError"
-    assert "s_sc_max_mva" in error.details["exception_message"]
+    assert "without a diagnosed cause" in error.details["exception_message"]
     assert error.details["cause_status"] == "not_diagnosed"
     assert "does not establish a physical cause" in error.message
     subsequent = _run(grid, context, "powerflow.ac")

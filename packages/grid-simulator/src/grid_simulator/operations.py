@@ -32,7 +32,7 @@ from grid_simulator.analysis_registry import (
     AnalysisRegistry,
     UnknownAnalysisOperationError,
 )
-from grid_simulator.bindings.base import AnalysisPrerequisiteError
+from grid_simulator.bindings.base import AnalysisImplementationError, AnalysisPrerequisiteError
 from grid_simulator.capabilities import CapabilityRegistry
 from grid_simulator.capabilities.families import CAPABILITY_FAMILIES
 from grid_simulator.capabilities.schema import CapabilityContract
@@ -331,6 +331,14 @@ def _analysis_run(
             phase="resolve",
             allowed_recovery_actions=("inspect_operation_prerequisites", "derive_compatible_model"),
             details={"operation": operation, **exc.details},
+        ) from exc
+    except AnalysisImplementationError as exc:
+        raise _failure(
+            "analysis_failed",
+            str(exc),
+            phase="execute",
+            allowed_recovery_actions=("describe_analysis_operation", "review_analysis_options"),
+            details={"operation": operation, "cause_status": "implementation_failure", **exc.details},
         ) from exc
     except LoadflowNotConverged as exc:
         diagnostic = persist_non_convergence_diagnostics(
