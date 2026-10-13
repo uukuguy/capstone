@@ -123,6 +123,7 @@ class ResearchRequestChannel:
                 for index, ref in enumerate(request.changes.references(), start=1):
                     if not self.controller.admit_reference(ref):
                         return {"status": "rejected", "code": "research_reference_not_admitted",
+                                "rejected_reference": ref,
                                 "message": f"Source reference {index} was not admitted for this attempt. "
                                 "No update was committed. Use references from successful tool receipts; "
                                 "keep unsupported claims as hypotheses."}
