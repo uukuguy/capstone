@@ -238,7 +238,7 @@ def main(
             from capstone_agent.hosting import build_artifacts, load_host_settings
             from capstone_agent.ledger import Ledger
             from capstone_agent.thread_service import PostgresThreadService
-            from capstone_agent.worker_wake import configured_worker_wake, configured_worker_preparation, create_wake_app
+            from capstone_agent.worker_wake import configured_worker_wake, configured_worker_preparation, configured_model_preparation, create_wake_app
             from capstone_agent.hosted_validation import build_validation_status, validation_mode
 
             settings = load_host_settings(os.environ)
@@ -269,6 +269,8 @@ def main(
                     public_model=settings.public_model,
                     artifacts=artifacts,
                     wake_worker=wake_worker,
+                    prepare_model=configured_model_preparation(settings.worker_wake_url,
+                        os.environ.get('CAPSTONE_FAMILY_HEALTH_URLS', ''), settings.operator_token),
                     prepare_workers=configured_worker_preparation(settings.worker_wake_url,
                         os.environ.get('CAPSTONE_FAMILY_HEALTH_URLS', ''), settings.operator_token),
                     validation_status=build_validation_status(os.environ),
@@ -324,6 +326,16 @@ def main(
                         name="capstone-worker-scheduler", daemon=True,
                     )
                     scheduler.start()
+                    def prepare_thread_model(thread_id: str) -> None:
+                        snapshot = thread_service.snapshot(thread_id)
+                        if snapshot.run.state != 'open' or thread_service.is_archived(thread_id):
+                            raise RuntimeError('thread is not open')
+                        if settings.thread_family is not None and snapshot.active_model_context.implementation_family != settings.thread_family:
+                            raise RuntimeError('model family does not match worker')
+                        prepare = getattr(thread_runtime_factory, 'prepare_model', None)
+                        if not callable(prepare):
+                            raise RuntimeError('model preparation is not registered')
+                        prepare(snapshot)
                     try:
                         uvicorn.run(
                             create_wake_app(
@@ -331,6 +343,7 @@ def main(
                                 additional_wake_events=(thread_wake,) if thread_wake is not None else (),
                                 runtime_mode=runtime_mode,
                                 implementation_family=settings.thread_family,
+                                prepare_model=prepare_thread_model,
                                 resource_status=(thread_application.capability_context_owner.resource_counts
                                     if thread_application is not None and thread_application.capability_context_owner is not None else None),
                                 health_check=lambda: scheduler.is_alive()

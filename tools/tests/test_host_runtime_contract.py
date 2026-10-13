@@ -36,6 +36,12 @@ def test_model_context_retention_uses_memory_pressure_instead_of_short_idle_expi
     assert int(selected['CAPSTONE_THREAD_CONTEXT_LIMIT']) > 4
 
 
+def test_compose_does_not_duplicate_model_context_contract_defaults():
+    compose = (ROOT / 'compose.yaml').read_text()
+    assert 'CAPSTONE_THREAD_CONTEXT_LIMIT:' not in compose
+    assert 'CAPSTONE_THREAD_CONTEXT_IDLE_SECONDS:' not in compose
+
+
 @pytest.mark.parametrize("key,value", [
     ("CAPSTONE_PUBLIC_MODEL", "different-model"),
     ("CAPSTONE_FEDERATED_CATALOG_CONTEXT", "false"),

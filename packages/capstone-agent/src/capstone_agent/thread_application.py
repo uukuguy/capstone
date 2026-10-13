@@ -32,6 +32,7 @@ from .thread_worker import RuntimeFactory
 from .runtime_capabilities import RuntimeCapabilityRegistry
 from .thread_network import ThreadNetworkProjectionProvider
 from .turn_router import DefaultTurnRouter, TurnRouter
+from .thread_protocol import ThreadSnapshot
 
 
 def _unconfigured_runtime_factory(_claim: AttemptClaim) -> HarnessRuntime:
@@ -63,6 +64,13 @@ class FamilyRuntimeFactory:
     def sweep_idle(self) -> int:
         return sum(cast(Callable[[], int], sweep)() for factory in self._factories.values()
                    if callable(sweep := getattr(factory, 'sweep_idle', None)))
+
+    def prepare_model(self, snapshot: ThreadSnapshot) -> None:
+        factory = self._factories.get(snapshot.active_model_context.implementation_family)
+        prepare = getattr(factory, 'prepare_model', None)
+        if not callable(prepare):
+            raise RuntimeError('model preparation is not registered')
+        prepare(snapshot)
 
     def close(self) -> None:
         for factory in self._factories.values():
@@ -174,6 +182,10 @@ class PreparedApplicationPiRuntimeFactory:
             finally:
                 self._context_owner.release(context)
             raise
+
+    def prepare_model(self, snapshot: ThreadSnapshot) -> None:
+        self._context_owner.prepare_model(snapshot.thread_id, snapshot.run.run_id,
+                                          snapshot.active_model_context)
 
     def sweep_idle(self) -> int:
         return self._context_owner.sweep_idle()

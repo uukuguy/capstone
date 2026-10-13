@@ -6,6 +6,7 @@ import asyncio
 import hashlib
 import hmac
 import json
+import logging
 import os
 import secrets
 import threading
@@ -17,6 +18,7 @@ from collections.abc import Callable, Iterator, Mapping
 
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
+from starlette.concurrency import run_in_threadpool
 
 from capstone_agent.artifacts import ArtifactService
 from capstone_agent.catalog import build_catalog
@@ -59,6 +61,7 @@ def create_host_app(
     preview_loader: Callable[[WorkerSpec, str], dict[str, object]] | None = None,
     wake_worker: Callable[[], object] | None = None,
     prepare_workers: Callable[[], Iterator[Mapping[str, str]]] | None = None,
+    prepare_model: Callable[[str, str], bool] | None = None,
     thread_service: ThreadService | None = None,
     thread_creator: ThreadCreator | None = None,
     thread_application: ThreadApplicationAssembly | None = None,
@@ -93,6 +96,19 @@ def create_host_app(
     diagrams = CaseDiagramCache(diagram_cases, preview_loader or load_case_diagram)
     last_wake = float('-inf')
     wake_lock = threading.Lock()
+
+    def request_model_preparation(thread_id: str, family: str | None = None) -> None:
+        if prepare_model is None:
+            return
+        try:
+            if family is None:
+                if thread_service is None:
+                    return
+                family = thread_service.snapshot(thread_id).active_model_context.implementation_family
+            if not prepare_model(thread_id, family):
+                logging.getLogger(__name__).warning('Model preparation incomplete for thread %s', thread_id)
+        except Exception:
+            logging.getLogger(__name__).warning('Model preparation unavailable for thread %s', thread_id)
 
     def request_worker(session_id: str, *, force: bool = False) -> None:
         nonlocal last_wake
@@ -331,7 +347,10 @@ def create_host_app(
                         not isinstance(model_id, str) or not model_id
                     ):
                         raise ThreadProtocolError("thread creation model_id is invalid")
-                    return thread_creator.create(model_id).to_document()
+                    snapshot = thread_creator.create(model_id)
+                    await run_in_threadpool(request_model_preparation, snapshot.thread_id,
+                                            snapshot.active_model_context.implementation_family)
+                    return snapshot.to_document()
                 except ThreadProtocolError as error:
                     raise HTTPException(422, str(error)) from None
                 except (LookupError, ValueError) as error:
@@ -421,6 +440,8 @@ def create_host_app(
                 )
                 receipt = service.submit_command(command)
                 if receipt.status == 'accepted':
+                    if kind in {'open_model', 'activate_model', 'switch_model', 'reopen_model_context'}:
+                        await run_in_threadpool(request_model_preparation, thread_id)
                     background_tasks.add_task(request_worker, thread_id, force=True)
                 return receipt.to_document()
             except ThreadNotFound:

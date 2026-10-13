@@ -136,6 +136,16 @@ def test_prepares_exact_snapshot_and_reuses_run_context_across_attempts():
     assert len(log) == 2
 
 
+def test_open_model_preparation_is_reused_by_first_attempt_without_an_attempt_claim():
+    owner, adapters = _owner([])
+    claim = _claim()
+    context = owner.prepare_model(claim.thread_id, claim.run_id, claim.model_context)
+    assert owner.acquire(claim) is context
+    assert len(adapters['static'].inputs) == 1
+    owner.release(context)
+    owner.close()
+
+
 def test_idle_contexts_expire_and_can_be_prepared_again():
     clock = [0.0]
     owner, _ = _owner([], idle_seconds=10, clock=lambda: clock[0])

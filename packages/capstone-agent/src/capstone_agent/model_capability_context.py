@@ -257,9 +257,17 @@ class ModelCapabilityContextOwner:
     def prepare(self, claim: AttemptClaim) -> PreparedModelCapabilityContext:
         if not isinstance(claim, AttemptClaim):
             raise TypeError("claim must be an AttemptClaim")
-        model_context = claim.model_context
+        return self.prepare_model(claim.thread_id, claim.run_id, claim.model_context)
+
+    def prepare_model(self, thread_id: str, run_id: str,
+                      model_context: ModelContextSnapshot) -> PreparedModelCapabilityContext:
+        """Prepare a persisted model selection without creating a task or LLM session."""
+        if not isinstance(model_context, ModelContextSnapshot):
+            raise TypeError('model context must be a ModelContextSnapshot')
+        if not isinstance(thread_id, str) or not thread_id or not isinstance(run_id, str) or not run_id:
+            raise ValueError('model context owner identity is invalid')
         key = (
-            claim.thread_id, claim.run_id, model_context.id,
+            thread_id, run_id, model_context.id,
             model_context.selection_revision,
         )
         references = tuple(model_context.enabled_profiles)
@@ -302,7 +310,7 @@ class ModelCapabilityContextOwner:
                     self._validate_contribution(contribution, reference, model_context)
                     contributions.append(contribution)
                 context = PreparedModelCapabilityContext(
-                    claim.thread_id, claim.run_id, model_context,
+                    thread_id, run_id, model_context,
                     tuple(handles), tuple(contributions),
                 )
                 self._contexts[key] = context
