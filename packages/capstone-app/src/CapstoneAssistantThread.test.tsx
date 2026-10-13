@@ -11,6 +11,19 @@ const event = (eventType: string, eventSeq: number, payload: Record<string, unkn
 })
 
 describe('CapstoneAssistantThread', () => {
+  it('shows actual reply completion time and distinct tool sources', () => {
+    const finished = '2026-10-13T05:12:34Z'
+    const events = [event('attempt_started', 1, {}, 'study'),
+      event('tool_completed', 2, { tool_name: 'agent_research_read', tool_call_id: 'one', ok: true }, 'study'),
+      event('tool_completed', 3, { tool_name: 'grid_context_get', tool_call_id: 'two', binding_id: 'grid', capability: 'context.get', ok: true }, 'study'),
+      event('attempt_completed', 4, { answer: '检查结束。' }, 'study', finished)]
+    render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={projectAssistantActivity(events)} onSend={async () => {}} onCancel={async () => {}} />)
+    const time = screen.getByLabelText(/^回答完成时间：/)
+    expect(time.getAttribute('datetime')).toBe(finished)
+    fireEvent.click(screen.getByRole('button', { name: '查看运行过程' }))
+    expect(screen.getByText('CAPSTONE', { selector: '.capstone-chat-activity-source' })).toBeTruthy()
+    expect(screen.getByText('GRID', { selector: '.capstone-chat-activity-source' })).toBeTruthy()
+  })
   it('selects the original answer for followup without sending an instruction', () => {
     const followup = vi.fn(), send = vi.fn()
     render(<CapstoneAssistantThread events={[event('attempt_completed', 1, { answer: '旧回答。' }, 'attempt_old')]}
@@ -94,7 +107,7 @@ describe('CapstoneAssistantThread', () => {
     fireEvent.click(screen.getByRole('button', { name: '查看计算结果' }))
     expect(screen.getByText('执行失败')).toBeTruthy()
     expect(screen.getByText('核验未通过')).toBeTruthy()
-    expect(screen.getByText('grid_analysis_run')).toBeTruthy()
+    expect(within(screen.getByText('执行失败').closest('section')!).getByText('grid_analysis_run')).toBeTruthy()
     expect(screen.getByText('缺少所需输入。')).toBeTruthy()
     expect(screen.getByText('未作为已验证结论使用。')).toBeTruthy()
   })

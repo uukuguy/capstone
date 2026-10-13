@@ -85,7 +85,9 @@ function activityId(event: EventEnvelope): string {
 }
 
 function activitySource(event: EventEnvelope): string {
-  const binding = typeof event.payload.binding_id === 'string' ? event.payload.binding_id : 'capstone'
+  const name = toolName(event)
+  const binding = typeof event.payload.binding_id === 'string' ? event.payload.binding_id
+    : name.startsWith('grid_') ? 'grid' : name.startsWith('pypsa_') ? 'pypsa' : 'capstone'
   const capability = typeof event.payload.capability === 'string' ? event.payload.capability : toolName(event)
   return `${binding} · ${capability}`
 }
@@ -537,7 +539,10 @@ function RunDuration({ startedAt, durationMs, running }: { startedAt?: string; d
 }
 
 function ActivityItems({ activities }: { activities: ChatActivity[] }) {
-  return <div className="capstone-chat-activity-list">{activities.map((item) => <div key={item.id} className={`capstone-chat-activity-item is-${item.status}`}><span className="capstone-chat-activity-icon" aria-hidden="true" /> <span><strong>{item.label}</strong><small>{item.source}{item.durationMs === undefined ? '' : ` · ${formatDuration(item.durationMs)}`}</small></span></div>)}</div>
+  return <div className="capstone-chat-activity-list">{activities.map((item) => {
+    const [owner, ...detail] = item.source.split(' · ')
+    return <div key={item.id} className={`capstone-chat-activity-item is-${item.status}`}><span className="capstone-chat-activity-icon" aria-hidden="true" /> <span><strong>{item.label}</strong><small><span className="capstone-chat-activity-source" data-owner={owner}>{owner.toUpperCase()}</span> {detail.join(' · ')}{item.durationMs === undefined ? '' : ` · ${formatDuration(item.durationMs)}`}</small></span></div>
+  })}</div>
 }
 
 function AttemptActivity({ activities, running, phase, open, onOpenChange, startedAt, durationMs, detailsRef }: { activities: ChatActivity[]; running: boolean; phase?: string; open: boolean; onOpenChange: (open: boolean) => void; startedAt?: string; durationMs?: number; detailsRef: React.RefObject<HTMLDetailsElement | null> }) {
@@ -609,7 +614,7 @@ function ResultProjectionCard({ projection, onFocusElement }: { projection: Resu
   </section>
 }
 
-function FoldableAnswer({ id, text }: { id: string; text: string }) {
+function FoldableAnswer({ id, text, finishedAt }: { id: string; text: string; finishedAt?: string }) {
   const body = useRef<HTMLDivElement>(null)
   const { collapsed, toggle } = useContext(AnswerReadingContext)
   // The zero-layout fallback is used by server/test rendering. Browsers use the
@@ -635,6 +640,7 @@ function FoldableAnswer({ id, text }: { id: string; text: string }) {
   const folded = foldable && collapsed.has(id)
   return <div className={`capstone-answer${folded ? ' is-collapsed' : ''}`} data-answer-state={folded ? 'collapsed' : 'expanded'}>
     <div className="capstone-answer-header"><span className="capstone-chat-role">CAPSTONE</span>
+      {finishedAt && <InstructionTime value={finishedAt} completion />}
       {foldable && <button type="button" className={`capstone-answer-toggle${folded ? ' is-collapsed' : ''}`} aria-label={folded ? '展开完整回答' : '折叠回答'} title={folded ? '展开完整回答' : '收起回答'} aria-expanded={!folded} aria-controls={`${id}-content`} onClick={(event) => toggle(id, event.currentTarget)}>{folded ? <ChevronDown aria-hidden="true" /> : <ChevronUp aria-hidden="true" />}</button>}
     </div>
     <div className="capstone-answer-body">
@@ -681,6 +687,7 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
   const instruction = typeof custom?.instruction === 'string' ? custom.instruction : undefined
   const startedAt = typeof custom?.startedAt === 'string' ? custom.startedAt : undefined
   const durationMs = typeof custom?.durationMs === 'number' ? custom.durationMs : undefined
+  const finishedAt = typeof custom?.finishedAt === 'string' ? custom.finishedAt : undefined
   const toolCount = typeof custom?.toolCount === 'number' ? custom.toolCount : 0
   const contextId = typeof custom?.modelContextId === 'string' ? custom.modelContextId : undefined
   const selectionRevision = typeof custom?.selectionRevision === 'string' ? custom.selectionRevision : undefined
@@ -732,7 +739,7 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
       {terminalNotice ? <>
         {typeof custom?.partialText === 'string' && custom.partialText && <MarkdownMessage>{custom.partialText}</MarkdownMessage>}
         <ThreadSystemNotice tone={custom?.terminalPhase === 'failed' ? 'error' : 'info'}><MarkdownMessage>{terminalNotice}</MarkdownMessage></ThreadSystemNotice>
-      </> : completedAnswer ? <FoldableAnswer id={id} text={text} /> : hasText
+      </> : completedAnswer ? <FoldableAnswer id={id} text={text} finishedAt={finishedAt} /> : hasText
         ? <MessagePrimitive.Parts components={{ Text: role === 'assistant' ? () => <MessagePartPrimitive.Text smooth={false} render={<MarkdownMessage />} /> : () => <MessagePartPrimitive.Text smooth={false} component="p" /> }} />
         : role === 'assistant' && <span className={`capstone-chat-placeholder${terminalWithoutText ? ' is-terminal' : ''}`}>{terminalWithoutText ? 'Attempt 已结束，暂无可显示的回答。' : '正在生成回答…'}</span>}
     </div>
@@ -766,13 +773,13 @@ function instructionModelName(modelId: string): string {
   return known[modelId] || modelId.split('/').at(-1) || modelId
 }
 
-function InstructionTime({ value }: { value: string }) {
+function InstructionTime({ value, completion = false }: { value: string; completion?: boolean }) {
   const date = new Date(value)
   const now = new Date()
   const clock = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
   const day = date.toLocaleDateString('zh-CN', { ...(date.getFullYear() !== now.getFullYear() ? { year: 'numeric' as const } : {}), month: '2-digit', day: '2-digit' })
   const full = date.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23', timeZoneName: 'short' })
-  return <time className="capstone-instruction-time" dateTime={value} title={full} aria-label={`指令发出时间：${full}`}>
+  return <time className={completion ? 'capstone-answer-time' : 'capstone-instruction-time'} dateTime={value} title={full} aria-label={`${completion ? '回答完成时间' : '指令发出时间'}：${full}`}>
     {date.toDateString() === now.toDateString() ? clock : `${day} ${clock}`}
   </time>
 }
