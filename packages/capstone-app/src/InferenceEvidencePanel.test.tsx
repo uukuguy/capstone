@@ -73,6 +73,8 @@ describe('InferenceEvidencePanel', () => {
     render(<InferenceEvidencePanel {...props} admitted={false} resultRefs={[]} evidenceRefs={[]} projections={[]}
       failures={[{ id: 'failure_1', kind: 'execution', tool: 'analysis.run', message: '', code: 'solver_failed', phase: 'execute', sequence: 7 }]} />)
     const record = screen.getByRole('region', { name: '执行失败记录' })
+    expect(within(record).getByText('失败原因未提供')).not.toBeVisible()
+    fireEvent.click(within(record).getByText('执行失败 · analysis.run'))
     expect(within(record).getByText('失败原因未提供')).toBeTruthy()
     expect(screen.queryByText('计算引用已准入')).toBeNull()
     expect(screen.queryByText(/短路电流为零/)).toBeNull()

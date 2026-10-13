@@ -39,6 +39,9 @@ export default function InferenceEvidencePanel({ attemptId, admitted, resultRefs
   const otherReferences = [...references].filter((ref) => !linkedReferences.has(ref))
   return <section className="capstone-chat-evidence capstone-inference-evidence" aria-label="推演证据">
     <strong>推演证据</strong>
+    <p className="capstone-evidence-scope" aria-label="任务证据概况">
+      {selected.length} 项计算结果 · {failures.length} 项失败记录 · {executions.length} 次工具调用
+    </p>
     {admitted && references.size > 0 && <p className="capstone-evidence-scope">计算引用已准入。业务判断的核验范围以计算结果为准。</p>}
     {selected.length === 0 && <p>尚未提供引用与计算结果的对应关系。</p>}
     <div className="capstone-evidence-items">
@@ -61,15 +64,16 @@ export default function InferenceEvidencePanel({ attemptId, admitted, resultRefs
           </details>
         </div>
       </details>)}
-      {failures.map((item) => <section className="capstone-evidence-failure" aria-label="执行失败记录" key={item.id}>
-        <strong>{item.kind === 'validation' ? '核验未通过' : '执行失败'}</strong>
-        <span>{item.tool}</span><p>{item.message || '失败原因未提供'}</p>
+      {failures.map((item) => <section className="capstone-evidence-failure" aria-label="执行失败记录" key={item.id}><details>
+        <summary>{item.kind === 'validation' ? '核验未通过' : '执行失败'} · {item.tool}</summary>
+        <p>{item.message || '失败原因未提供'}</p>
+        <p>这是一次调用或核验的记录。后续处理结果见正式回答和计算结果。</p>
         <details className="capstone-evidence-trace"><summary>技术追溯</summary>
           <dl><div><dt>事件序号</dt><dd>{item.sequence}</dd></div>
             {item.phase && <div><dt>阶段</dt><dd>{item.phase}</dd></div>}
             {item.code && <div><dt>诊断码</dt><dd>{item.code}</dd></div>}</dl>
         </details>
-      </section>)}
+      </details></section>)}
     </div>
     {executions.length > 0 && <details className="capstone-evidence-trace capstone-call-records">
       <summary>调用参数与返回状态 · {executions.length} 项</summary>

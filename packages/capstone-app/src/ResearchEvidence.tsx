@@ -26,6 +26,8 @@ function Sources({ refs }: { refs: string[] }) {
 export default function ResearchEvidence({ snapshot }: { snapshot?: ResearchSnapshot }) {
   if (!snapshot) return null
   return <details className="capstone-research-records"><summary>研究判断与工作记录 · 修订 {snapshot.revision}</summary>
+    <p><strong>研究目标</strong>：{snapshot.goal}</p>
+    <p>{snapshot.claims.length} 项判断 · {snapshot.notes.length} 条工作记录 · {snapshot.open_questions.length} 个待解决问题</p>
     <p>以下为智能体已保存的研究记录。判断状态不等于独立计算核验通过。</p>
     {snapshot.claims.map(item => <section className="capstone-evidence-item" key={item.claim_id}>
       <strong>{item.status === 'pending' ? '待核验' : item.status === 'supported' ? '记录为有依据' : '记录为已否定'}</strong>
