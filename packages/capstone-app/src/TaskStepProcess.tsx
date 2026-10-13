@@ -3,6 +3,14 @@ import type { EventEnvelope } from './threadProtocol'
 
 export type TaskStep = { id: string; number: number; title: string; status: 'running' | 'completed'; durationMs?: number; startedAt?: string; responseMs?: number; finishReason?: string }
 
+export type StepFoldCommand = { open: boolean; revision: number }
+export function readStepOpen(storageKey: string, id: string): boolean {
+  try { return localStorage.getItem(`capstone-step-open:${storageKey}:${id}`) !== 'false' } catch { return true }
+}
+export function saveStepOpen(storageKey: string, id: string, open: boolean): void {
+  try { localStorage.setItem(`capstone-step-open:${storageKey}:${id}`, String(open)) } catch { /* Page state still retains the choice. */ }
+}
+
 export function projectTaskSteps(events: readonly EventEnvelope[], attemptId: string): TaskStep[] {
   const steps = new Map<string, TaskStep>()
   for (const event of events) {
@@ -23,12 +31,12 @@ export function projectTaskSteps(events: readonly EventEnvelope[], attemptId: st
   return [...steps.values()].sort((left, right) => left.number - right.number)
 }
 
-function Step({ step, storageKey, running, last, toolCount, children }: { step: TaskStep; storageKey: string; running: boolean; last: boolean; toolCount?: number; children: ReactNode }) {
-  const key = `capstone-step-open:${storageKey}:${step.id}`
-  const [manualOpen, setManualOpen] = useState<boolean | undefined>(() => {
-    try { const saved = localStorage.getItem(key); return saved === 'true' ? true : saved === 'false' ? false : undefined } catch { return undefined }
-  })
-  const open = manualOpen ?? (last || (running && step.status === 'running'))
+function Step({ step, storageKey, running, foldCommand, onFoldChange, toolCount, children }: { step: TaskStep; storageKey: string; running: boolean; foldCommand?: StepFoldCommand; onFoldChange?: (id: string, open: boolean) => void; toolCount?: number; children: ReactNode }) {
+  const [open, setOpen] = useState(() => readStepOpen(storageKey, step.id))
+  useEffect(() => {
+    if (foldCommand) setOpen(foldCommand.open)
+  }, [foldCommand])
+  useEffect(() => { onFoldChange?.(step.id, open) }, [onFoldChange, step.id, open])
   const [now, setNow] = useState(Date.now)
   useEffect(() => {
     if (!running || step.status !== 'running') return
@@ -41,8 +49,9 @@ function Step({ step, storageKey, running, last, toolCount, children }: { step: 
     <summary onClick={event => {
       event.preventDefault()
       const next = !open
-      setManualOpen(next)
-      try { localStorage.setItem(key, String(next)) } catch { /* Retain the choice in this page. */ }
+      setOpen(next)
+      saveStepOpen(storageKey, step.id, next)
+      onFoldChange?.(step.id, next)
     }}><span className="capstone-step-number">{String(step.number).padStart(2, '0')}</span>
       <span className="capstone-chat-activity-source" data-owner="capstone">CAPSTONE</span>
       <span className="capstone-step-title">{step.title}</span>
@@ -53,7 +62,7 @@ function Step({ step, storageKey, running, last, toolCount, children }: { step: 
   </details>
 }
 
-export default function TaskStepProcess({ steps, storageKey, running, renderTools, toolCount, lastStepId = steps.at(-1)?.id }: { steps: readonly TaskStep[]; storageKey: string; running: boolean; renderTools: (id: string) => ReactNode; toolCount?: (id: string) => number; lastStepId?: string }) {
+export default function TaskStepProcess({ steps, storageKey, running, renderTools, toolCount, foldCommand, onFoldChange }: { steps: readonly TaskStep[]; storageKey: string; running: boolean; renderTools: (id: string) => ReactNode; toolCount?: (id: string) => number; foldCommand?: StepFoldCommand; onFoldChange?: (id: string, open: boolean) => void }) {
   return <div className="capstone-business-steps" aria-label="任务步骤">{steps.map(step =>
-    <Step key={`${storageKey}:${step.id}`} step={step} storageKey={storageKey} running={running} last={step.id === lastStepId} toolCount={toolCount?.(step.id)}>{renderTools(step.id)}</Step>)}</div>
+    <Step key={`${storageKey}:${step.id}`} step={step} storageKey={storageKey} running={running} foldCommand={foldCommand} onFoldChange={onFoldChange} toolCount={toolCount?.(step.id)}>{renderTools(step.id)}</Step>)}</div>
 }

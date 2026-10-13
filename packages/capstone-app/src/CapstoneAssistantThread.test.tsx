@@ -11,6 +11,33 @@ const event = (eventType: string, eventSeq: number, payload: Record<string, unkn
 })
 
 describe('CapstoneAssistantThread', () => {
+  it('keeps fold controls in the summary and disables them from actual step state', () => {
+    const events = [event('attempt_started', 1, {}, 'fold'),
+      event('tool_completed', 2, { tool_name: 'grid_context_get', tool_call_id: 'one', ok: true, task_step: { id: 'first', number: 1, title: '检查', status: 'completed', duration_ms: 1000 } }, 'fold'),
+      event('runtime_action', 3, { task_step: { id: 'last', number: 2, title: '生成回复', status: 'completed', duration_ms: 2000 } }, 'fold'),
+      event('attempt_completed', 4, { answer: '检查完成。' }, 'fold')]
+    const { container } = render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={projectAssistantActivity(events)} onSend={async () => {}} onCancel={async () => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: '查看执行过程' }))
+    const expand = screen.getByRole('button', { name: '展开全部' }) as HTMLButtonElement
+    const collapse = screen.getByRole('button', { name: '收起全部' }) as HTMLButtonElement
+    const frame = container.querySelector<HTMLDetailsElement>('.capstone-chat-activity-attached')!
+    expect(expand.closest('summary')).toBe(frame.querySelector(':scope > summary'))
+    expect(frame.querySelector(':scope > summary')!.textContent).not.toContain('查看执行过程')
+    expect(expand.disabled).toBe(true)
+    expect(collapse.disabled).toBe(false)
+    fireEvent.click(collapse)
+    const steps = [...container.querySelectorAll<HTMLDetailsElement>('.capstone-business-step')]
+    expect(steps.every(step => !step.open)).toBe(true)
+    expect(frame.open).toBe(true)
+    expect(collapse.disabled).toBe(true)
+    expect(expand.disabled).toBe(false)
+    fireEvent.click(steps[0].querySelector('summary')!)
+    expect(expand.disabled).toBe(false)
+    expect(collapse.disabled).toBe(false)
+    fireEvent.click(expand)
+    expect(steps.every(step => step.open)).toBe(true)
+    expect(expand.disabled).toBe(true)
+  })
   it('keeps exactly ten recent actions and a separate committed work explanation in the running preview', () => {
     const snapshot = { research_id: 'research-1', revision: 1, goal: '核验故障影响', condition_refs: [], claims: [],
       notes: [{ note_id: 'finding', text: '已取得拓扑结果，继续检查失供范围。', refs: ['result:topology'] }], open_questions: [] }

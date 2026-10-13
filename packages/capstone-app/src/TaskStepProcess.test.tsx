@@ -21,20 +21,20 @@ describe('task step folding', () => {
     expect(screen.getByText('5 次调用')).toBeTruthy()
     expect(screen.getByText('任务已结束 · 步骤未报告结束')).toBeTruthy()
   })
-  it('starts open, collapses completed steps and retains a manual choice through reload', () => {
+  it('defaults all steps open and retains a manual choice through reload', () => {
     const step = { id: 'inspect', number: 1, title: '检查拓扑', status: 'running' as const }
     const { container, rerender, unmount } = render(<TaskStepProcess steps={[step]} storageKey="thread:attempt" running renderTools={() => <span>01.1 GRID</span>} />)
     const details = container.querySelector('details')!
     expect(details.open).toBe(true)
     rerender(<TaskStepProcess steps={[{ ...step, status: 'completed', durationMs: 2500 }, { id: 'solve', number: 2, title: '计算', status: 'completed', durationMs: 1000 }]} storageKey="thread:attempt" running={false} renderTools={() => <span>GRID</span>} />)
-    expect(details.open).toBe(false)
+    expect(details.open).toBe(true)
     expect(container.querySelectorAll('details')[1].open).toBe(true)
     expect(screen.getByText(/2.5s/)).toBeTruthy()
     fireEvent.click(details.querySelector('summary')!)
-    expect(localStorage.getItem('capstone-step-open:thread:attempt:inspect')).toBe('true')
+    expect(localStorage.getItem('capstone-step-open:thread:attempt:inspect')).toBe('false')
     unmount()
     const remounted = render(<TaskStepProcess steps={[{ ...step, status: 'completed', durationMs: 2500 }]} storageKey="thread:attempt" running={false} renderTools={() => <span>01.1 GRID</span>} />)
-    expect(remounted.container.querySelector('details')!.open).toBe(true)
+    expect(remounted.container.querySelector('details')!.open).toBe(false)
   })
   it('retains a manually closed last step after completion and reload', () => {
     const step = { id: 'solve', number: 1, title: '求解', status: 'running' as const }
@@ -48,8 +48,8 @@ describe('task step folding', () => {
     const reloaded = render(<TaskStepProcess steps={[{ ...step, status: 'completed' }]} storageKey="manual" running={false} renderTools={() => null} />)
     expect(reloaded.container.querySelector('details')!.open).toBe(false)
   })
-  it('uses the final step of the whole process when steps render separately', () => {
-    const { container } = render(<TaskStepProcess steps={[{ id: 'first', number: 1, title: '检查', status: 'completed' }]} lastStepId="last" storageKey="separate" running={false} renderTools={() => null} />)
-    expect(container.querySelector('details')!.open).toBe(false)
+  it('defaults completed steps open when steps render separately', () => {
+    const { container } = render(<TaskStepProcess steps={[{ id: 'first', number: 1, title: '检查', status: 'completed' }]} storageKey="separate" running={false} renderTools={() => null} />)
+    expect(container.querySelector('details')!.open).toBe(true)
   })
 })
