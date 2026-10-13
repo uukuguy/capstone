@@ -9,6 +9,7 @@ import ResearchEvidence, { parseResearchSnapshot, type ResearchSnapshot } from '
 import { projectTaskProgress, type TaskProgress } from './taskProgress'
 import TaskStepProcess, { projectTaskSteps, type TaskStep } from './TaskStepProcess'
 import ResultExplorer from './ResultExplorer'
+import InstructionMarkers from './InstructionMarkers'
 import AttemptRecordPanel, { type AttemptRecordReader } from './AttemptRecordPanel'
 import {
   AssistantRuntimeProvider,
@@ -1191,6 +1192,7 @@ export default function CapstoneAssistantThread({ onReadAttemptRecords, events, 
           <ThreadPrimitive.Messages components={{ Message: ThreadChatMessage }} />
           {readingTailSpace > 0 && <div aria-hidden="true" style={{ height: readingTailSpace, flexShrink: 0 }} />}
         </ThreadPrimitive.Viewport>}
+        <InstructionMarkers viewportRef={viewportRef} />
         {legacyActivity && normalizedActivity.length > 0 && <LegacyActivity activities={normalizedActivity} running={isRunning} />}
         <div className="capstone-chat-composer">
           <ComposerSurface disabled={disabled} isRunning={isRunning} acceptedDraft={acceptedDraft} controls={composerControls ? composerControls(<HistoryAnswerActions disabled={completedAnswers.length === 0} onFold={() => organizeHistory(true)} onUnfold={() => organizeHistory(false)} />) : <ThreadSettingsMenu><HistoryAnswerActions disabled={completedAnswers.length === 0} onFold={() => organizeHistory(true)} onUnfold={() => organizeHistory(false)} /></ThreadSettingsMenu>} storageKey={storageKey} />

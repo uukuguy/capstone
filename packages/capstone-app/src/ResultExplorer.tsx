@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
+import { useState, type ReactNode } from 'react'
 import type { ResultProjection } from './threadProtocol'
 import type { FailureEvidence } from './InferenceEvidencePanel'
 
@@ -11,23 +10,13 @@ export default function ResultExplorer({ projections, failures, initialResultId,
   projections: readonly ResultProjection[]; failures: readonly FailureEvidence[]; initialResultId?: string | null;
   onClose: () => void; renderResult: (projection: ResultProjection, tableId?: string) => ReactNode
 }) {
-  const dialog = useRef<HTMLDialogElement>(null)
   const [selection, setSelection] = useState(initialResultId && projections.some(item => item.resultId === initialResultId)
     ? initialResultId : projections[0]?.resultId || `failure:${failures[0]?.id}`)
   const [tables, setTables] = useState<Record<string, string>>({})
-  useEffect(() => {
-    const origin = document.activeElement instanceof HTMLElement ? document.activeElement : undefined
-    const node = dialog.current
-    if (!node) return undefined
-    if (typeof node.showModal === 'function') node.showModal()
-    else node.setAttribute('open', '')
-    return () => { if (node.open && typeof node.close === 'function') node.close(); if (origin?.isConnected) origin.focus({ preventScroll: true }) }
-  }, [])
   const result = projections.find(item => item.resultId === selection)
   const failure = failures.find(item => `failure:${item.id}` === selection)
   const tableId = result?.tables.find(table => table.tableId === tables[result.resultId])?.tableId || result?.tables[0]?.tableId
-  return createPortal(<dialog ref={dialog} className="capstone-result-explorer" aria-label="计算结果"
-    onCancel={event => { event.preventDefault(); onClose() }}>
+  return <section className="capstone-result-explorer" aria-label="计算结果">
     <header><div><strong>计算结果</strong><small>{projections.length} 项结果 · {failures.length} 项失败记录{result ? ` · ${result.modelId}` : ''}</small></div>
       <button type="button" aria-label="关闭计算结果" onClick={onClose}>关闭 ×</button></header>
     <div className="capstone-result-explorer-layout">
@@ -52,5 +41,5 @@ export default function ResultExplorer({ projections, failures, initialResultId,
         </section>}
       </div>
     </div>
-  </dialog>, document.body)
+  </section>
 }
