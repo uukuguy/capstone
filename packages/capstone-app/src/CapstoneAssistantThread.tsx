@@ -587,6 +587,7 @@ function AttemptActivity({ activities, progress = [], steps = [], stepStorageKey
     ].sort((left, right) => (left.at ? Date.parse(left.at) : Infinity) - (right.at ? Date.parse(right.at) : Infinity))
     return <>{(preview ? entries.slice(-10) : entries).map(entry => entry.step ?
       <TaskStepProcess key={entry.id} steps={[entry.step]} storageKey={stepStorageKey} running={running}
+        lastStepId={steps.at(-1)?.id}
         toolCount={stepId => toolActivities.filter(item => item.taskStepId === stepId).length}
         renderTools={stepId => <><TaskProgressItems items={progress.filter(item => item.stepId === stepId && item.phase !== 'started')} /><ActivityItems activities={toolActivities.filter(item => item.taskStepId === stepId)} /></>} /> :
       <div key={entry.id} title="未归属任务步骤"><ActivityItems activities={entry.activity ? [entry.activity] : []} /></div>)}</>

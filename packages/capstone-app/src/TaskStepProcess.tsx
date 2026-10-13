@@ -21,12 +21,12 @@ export function projectTaskSteps(events: readonly EventEnvelope[], attemptId: st
   return [...steps.values()].sort((left, right) => left.number - right.number)
 }
 
-function Step({ step, storageKey, running, toolCount, children }: { step: TaskStep; storageKey: string; running: boolean; toolCount?: number; children: ReactNode }) {
+function Step({ step, storageKey, running, last, toolCount, children }: { step: TaskStep; storageKey: string; running: boolean; last: boolean; toolCount?: number; children: ReactNode }) {
   const key = `capstone-step-open:${storageKey}:${step.id}`
   const [manualOpen, setManualOpen] = useState<boolean | undefined>(() => {
     try { const saved = localStorage.getItem(key); return saved === 'true' ? true : saved === 'false' ? false : undefined } catch { return undefined }
   })
-  const open = manualOpen ?? (running && step.status === 'running')
+  const open = manualOpen ?? (last || (running && step.status === 'running'))
   return <details className="capstone-business-step" open={open} onToggle={event => {
     const next = event.currentTarget.open
     if (next === open) return
@@ -43,7 +43,7 @@ function Step({ step, storageKey, running, toolCount, children }: { step: TaskSt
   </details>
 }
 
-export default function TaskStepProcess({ steps, storageKey, running, renderTools, toolCount }: { steps: readonly TaskStep[]; storageKey: string; running: boolean; renderTools: (id: string) => ReactNode; toolCount?: (id: string) => number }) {
+export default function TaskStepProcess({ steps, storageKey, running, renderTools, toolCount, lastStepId = steps.at(-1)?.id }: { steps: readonly TaskStep[]; storageKey: string; running: boolean; renderTools: (id: string) => ReactNode; toolCount?: (id: string) => number; lastStepId?: string }) {
   return <div className="capstone-business-steps" aria-label="任务步骤">{steps.map(step =>
-    <Step key={`${storageKey}:${step.id}`} step={step} storageKey={storageKey} running={running} toolCount={toolCount?.(step.id)}>{renderTools(step.id)}</Step>)}</div>
+    <Step key={`${storageKey}:${step.id}`} step={step} storageKey={storageKey} running={running} last={step.id === lastStepId} toolCount={toolCount?.(step.id)}>{renderTools(step.id)}</Step>)}</div>
 }
