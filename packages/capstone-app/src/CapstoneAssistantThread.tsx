@@ -8,6 +8,7 @@ import InferenceEvidencePanel, { type FailureEvidence, type ToolExecutionRecord 
 import ResearchEvidence, { parseResearchSnapshot, type ResearchSnapshot } from './ResearchEvidence'
 import { projectTaskProgress, type TaskProgress } from './taskProgress'
 import TaskStepProcess, { projectTaskSteps, type TaskStep } from './TaskStepProcess'
+import ResultExplorer from './ResultExplorer'
 import AttemptRecordPanel, { type AttemptRecordReader } from './AttemptRecordPanel'
 import {
   AssistantRuntimeProvider,
@@ -629,13 +630,13 @@ function resultCell(value: string | number | boolean | null): string {
   return String(value)
 }
 
-function ResultProjectionCard({ projection, onFocusElement }: { projection: ResultProjection; onFocusElement?: (projection: ResultProjection, elementId: string) => void }) {
+function ResultProjectionCard({ projection, tableId, onFocusElement }: { projection: ResultProjection; tableId?: string; onFocusElement?: (projection: ResultProjection, elementId: string) => void }) {
   const statusLabel = projection.status === 'completed' ? '已完成' : projection.status === 'partial' ? '部分结果' : '暂不可用'
   return <section className={`capstone-result-card is-${projection.status}`} aria-label="结构化计算结果" data-result-id={projection.resultId} tabIndex={-1}>
     <div className="capstone-result-heading"><div><Activity aria-hidden="true" /><strong>计算结果</strong><span>{statusLabel}</span></div><small>{projection.source.capabilityId}</small></div>
     {projection.unavailableReason && <p className="capstone-result-reason">{projection.unavailableReason}</p>}
     {projection.summary.length > 0 && <div className="capstone-result-metrics">{projection.summary.map((metric) => <div key={metric.metricId}><span>{metric.label}</span><strong>{resultCell(metric.value)}{metric.unit ? ` ${metric.unit}` : ''}</strong></div>)}</div>}
-    {projection.tables.map((table) => <div className="capstone-result-table-wrap" key={table.tableId}><div className="capstone-result-table-title">{table.title}</div><div className="capstone-result-table-scroll"><table><thead><tr>{table.columns.map((column) => <th key={column.columnId}>{column.label}{column.unit ? ` (${column.unit})` : ''}</th>)}</tr></thead><tbody>{table.rows.map((row) => <tr key={row.rowId}>{table.columns.map((column) => <td key={column.columnId}>{row.elementRef && column === table.columns[0] ? <button type="button" className="capstone-result-element" onClick={() => onFocusElement?.(projection, row.elementRef!.elementId)} title="在左侧拓扑图中定位">{resultCell(row.cells[column.columnId] ?? row.rowId)}</button> : resultCell(row.cells[column.columnId] ?? null)}</td>)}</tr>)}</tbody></table></div></div>)}
+    {projection.tables.filter(table => !tableId || table.tableId === tableId).map((table) => <div className="capstone-result-table-wrap" key={table.tableId}><div className="capstone-result-table-title">{table.title}</div><div className="capstone-result-table-scroll"><table><thead><tr>{table.columns.map((column) => <th key={column.columnId}>{column.label}{column.unit ? ` (${column.unit})` : ''}</th>)}</tr></thead><tbody>{table.rows.map((row) => <tr key={row.rowId}>{table.columns.map((column) => <td key={column.columnId}>{row.elementRef && column === table.columns[0] ? <button type="button" className="capstone-result-element" onClick={() => onFocusElement?.(projection, row.elementRef!.elementId)} title="在左侧拓扑图中定位">{resultCell(row.cells[column.columnId] ?? row.rowId)}</button> : resultCell(row.cells[column.columnId] ?? null)}</td>)}</tr>)}</tbody></table></div></div>)}
   </section>
 }
 
@@ -726,18 +727,7 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
     try { localStorage.setItem(processStorageKey, String(activityOpen)) } catch { /* Retain state in this page. */ }
   }, [activityOpen, processStorageKey])
   const [resultOpen, setResultOpen] = useState(false)
-  const resultGroupRef = useRef<HTMLDivElement>(null)
   const [pendingResultId, setPendingResultId] = useState<string | null>(null)
-  useEffect(() => {
-    if (!resultOpen || !pendingResultId) return
-    const target = [...(resultGroupRef.current?.querySelectorAll<HTMLElement>('[data-result-id]') || [])]
-      .find((node) => node.dataset.resultId === pendingResultId)
-    if (target) {
-      target.focus({ preventScroll: true })
-      target.scrollIntoView?.({ block: 'nearest' })
-    }
-    setPendingResultId(null)
-  }, [resultOpen, pendingResultId])
   const terminalWithoutText = role === 'assistant' && !hasText && status?.type !== 'running'
   const toggleActivity = () => {
     setActivityOpen((value) => {
@@ -777,15 +767,9 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
         attemptId={attemptId} resultRefs={resultRefs} projections={attemptResultProjections} failures={failureResults} researchSnapshot={parseResearchSnapshot(custom?.researchSnapshot)} executions={(Array.isArray(custom?.toolExecutions) ? custom.toolExecutions : []) as ToolExecutionRecord[]}
         onSelectResult={(resultId) => { setResultOpen(true); setPendingResultId(resultId) }} />}
     </div>}
-    {role === 'assistant' && hasResults && resultOpen && <div className="capstone-result-group" ref={resultGroupRef}>
-      {attemptResultProjections.map((projection) => <ResultProjectionCard key={projection.resultId} projection={projection} onFocusElement={onFocusElement} />)}
-      {failureResults.map((item) => <section key={item.id} className="capstone-result-card is-failed" aria-label="计算结果失败记录">
-        <div className="capstone-result-heading"><strong>{item.kind === 'execution' ? '执行失败' : '核验未通过'}</strong><small>{item.tool || '回答核验'}</small></div>
-        <p>{item.message || '该步骤未成功完成。具体原因尚未提供，执行记录已保留。'}</p>
-        {item.kind === 'validation' && <p>未作为已验证结论使用。</p>}
-        <details><summary>技术追溯</summary><p>事件序号：{item.sequence}</p>{item.phase && <p>失败阶段：{item.phase}</p>}{item.code && <p>诊断码：{item.code}</p>}</details>
-      </section>)}
-    </div>}
+    {role === 'assistant' && hasResults && resultOpen && <ResultExplorer projections={attemptResultProjections} failures={failureResults}
+      initialResultId={pendingResultId} onClose={() => setResultOpen(false)} renderResult={(projection, tableId) =>
+        <ResultProjectionCard projection={projection} tableId={tableId} onFocusElement={(value, elementId) => { setResultOpen(false); onFocusElement?.(value, elementId) }} />} />}
     {role === 'assistant' && <RunArtifacts resultRefs={resultRefs} evidenceRefs={evidenceRefs} admission={admission} />}
     {role === 'user' && hasText && <div className="capstone-instruction-meta">
       <ChatActions role={role} text={text} evidenceRefs={[]} toolCount={0} />

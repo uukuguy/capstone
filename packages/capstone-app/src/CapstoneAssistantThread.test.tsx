@@ -122,9 +122,10 @@ describe('CapstoneAssistantThread', () => {
     render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
     fireEvent.click(screen.getByRole('button', { name: '查看计算结果' }))
     expect(screen.getByText('执行失败')).toBeTruthy()
-    expect(screen.getByText('核验未通过')).toBeTruthy()
     expect(within(screen.getByText('执行失败').closest('section')!).getByText('grid_analysis_run')).toBeTruthy()
     expect(screen.getByText('缺少所需输入。')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /失败 02.*核验未通过/ }))
+    expect(screen.getByText('核验未通过')).toBeTruthy()
     expect(screen.getByText('未作为已验证结论使用。')).toBeTruthy()
   })
   it('shows the delivered partial outcome instead of replacing it with an error code', () => {
@@ -1056,11 +1057,13 @@ describe('CapstoneAssistantThread', () => {
     }]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} onFocusElement={onFocusElement} />)
 
     fireEvent.click(screen.getByRole('button', { name: '查看计算结果' }))
-    expect(screen.getAllByRole('region', { name: '结构化计算结果' })).toHaveLength(2)
+    expect(screen.getAllByRole('region', { name: '结构化计算结果' })).toHaveLength(1)
     expect(screen.getByText('有功损耗')).toBeTruthy()
-    expect(screen.getByText('电压偏差')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: '线路 11' }))
     expect(onFocusElement).toHaveBeenCalledWith(expect.objectContaining({ resultId: 'result_projection_1' }), 'line:11')
+    fireEvent.click(screen.getByRole('button', { name: '查看计算结果' }))
+    fireEvent.click(screen.getByRole('button', { name: /结果 02.*电压偏差/ }))
+    expect(screen.getByText('电压偏差')).toBeTruthy()
   })
 
   it('opens failure records even when the task has no admitted calculation evidence', () => {
