@@ -7,9 +7,19 @@ def _run(grid, context_ref: str) -> dict[str, object]:
     return grid.call("analysis.run", {"context_ref": context_ref, "operation": "powerflow.ac", "options": {}})
 
 
-@pytest.mark.parametrize("operation", ["powerflow.ac", "opf.ac"])
-def test_result_receipts_publish_actual_query_fields_without_another_solve(grid, context_ref, operation):
-    analysis = grid.call("analysis.run", {"context_ref": context_ref, "operation": operation, "options": {}})
+@pytest.mark.parametrize("capability,operation,model", [
+    ("analysis.run", "powerflow.ac", "ieee39"),
+    ("analysis.run", "opf.ac", "ieee39"),
+    ("analysis.powerflow.ac.run", None, "ieee39"),
+    ("analysis.powerflow.ac.run", None, "mv_oberrhein"),
+])
+def test_result_receipts_publish_actual_query_fields_without_another_solve(grid, context_ref, capability, operation, model):
+    if model != "ieee39":
+        context_ref = grid.call("context.open", {"model_id": model})["context_ref"]
+    arguments = {"context_ref": context_ref}
+    if operation is not None:
+        arguments.update(operation=operation, options={})
+    analysis = grid.call(capability, arguments)
     runs = grid.engine.ac_run_count
     listed = grid.call("result.dataset.list", {"result_ref": analysis["result_ref"]})
     listed_by_name = {item["dataset"]: item for item in listed["datasets"]}
@@ -21,11 +31,14 @@ def test_result_receipts_publish_actual_query_fields_without_another_solve(grid,
         assert listed_by_name[item["dataset"]]["available_fields"] == actual
     bus = listed_by_name["result.res_bus"]
     assert "name" not in bus["available_fields"]
+    assert "bus" not in bus["available_fields"]
+    assert "index" in bus["available_fields"]
     assert ("lam_p" in bus["available_fields"]) is (operation == "opf.ac")
     queried = grid.call("result.dataset.query", {
         "result_ref": analysis["result_ref"], "dataset": bus["dataset"],
         "select": bus["available_fields"], "limit": 100})
-    assert queried["returned_row_count"] == bus["row_count"]
+    assert queried["returned_row_count"] == min(100, bus["row_count"])
+    assert queried["row_count"] == bus["row_count"]
     assert grid.engine.ac_run_count == runs
 
 

@@ -386,11 +386,7 @@ def _analysis_run(
         "operation": outcome.operation,
         "status": outcome.status,
         "summary": outcome.metadata,
-        "datasets": [
-            {"dataset": name, "row_count": data["row_count"],
-             "available_fields": [field["name"] for field in data["fields"]]}
-            for name, data in persisted.document["datasets"].items()
-        ],
+        "datasets": persisted.dataset_receipts,
         "evidence_refs": [persisted.evidence_ref],
     }
 

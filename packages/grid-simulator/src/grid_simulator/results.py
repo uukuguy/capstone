@@ -56,6 +56,15 @@ class PersistedAnalysis:
     evidence_ref: str
     document: dict[str, Any]
 
+    @property
+    def dataset_receipts(self) -> list[dict[str, Any]]:
+        """Expose exact query fields without loading rows or changing the result."""
+        return [
+            {"dataset": name, "row_count": data["row_count"],
+             "available_fields": [field["name"] for field in data["fields"]]}
+            for name, data in self.document["datasets"].items()
+        ]
+
 
 class ResultStore:
     def __init__(self, workspace: SimulatorWorkspace) -> None:

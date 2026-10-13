@@ -113,6 +113,7 @@ def run_ac_powerflow(
         "converged": True,
         "solver": _solver_summary(solver),
         "total_active_loss": persisted.document["losses"]["total_active_loss"],
+        "datasets": persisted.dataset_receipts,
         "evidence_refs": [persisted.evidence_ref],
     }
 
