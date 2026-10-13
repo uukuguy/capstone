@@ -934,9 +934,11 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .capstone-chat-activity-preview { max-height: min(320px, 42vh); overflow-y: auto; }
 .capstone-chat-activity-preview .capstone-chat-activity-list { max-height: none; overflow-y: visible; padding: 0 7px 6px 22px; }
 .capstone-task-goal { margin: 4px 9px; font-size: 11px; line-height: 1.4; }
-.capstone-task-progress { padding: 0 9px; font-size: 11px; line-height: 1.4; }
-.capstone-task-progress section { margin: 5px 0; }
-.capstone-task-progress p { margin: 2px 0; overflow-wrap: anywhere; }
+.capstone-task-progress { padding: 0 9px; font-size: 9px; line-height: 1.4; }
+.capstone-task-progress section { margin: 3px 0; }
+.capstone-chat-activity-frame .capstone-task-progress p { margin: 2px 0; font-size: 9px; line-height: 1.4; overflow-wrap: anywhere; }
+.capstone-task-progress details { margin: 2px 0; padding: 0; border: 0; }
+.capstone-task-progress details > summary { min-height: 16px; padding: 0; font-size: 8px; }
 .capstone-task-progress small { color: #647d76; font-size: 9px; }
 .capstone-task-progress code { display: block; overflow-wrap: anywhere; font-size: 9px; }
 .capstone-chat-activity-attached .capstone-task-progress { max-height: 180px; overflow-y: auto; }

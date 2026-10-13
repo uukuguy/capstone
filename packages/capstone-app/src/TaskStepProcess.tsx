@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import type { EventEnvelope } from './threadProtocol'
 
-export type TaskStep = { id: string; number: number; title: string; status: 'running' | 'completed'; durationMs?: number }
+export type TaskStep = { id: string; number: number; title: string; status: 'running' | 'completed'; durationMs?: number; startedAt?: string }
 
 export function projectTaskSteps(events: readonly EventEnvelope[], attemptId: string): TaskStep[] {
   const steps = new Map<string, TaskStep>()
@@ -15,12 +15,13 @@ export function projectTaskSteps(events: readonly EventEnvelope[], attemptId: st
       record.title.length === 0 || record.title.length > 1000 || !['running', 'completed'].includes(String(record.status))) continue
     const duration = record.duration_ms
     steps.set(record.id, { id: record.id, number: record.number as number, title: record.title,
+      startedAt: steps.get(record.id)?.startedAt ?? event.occurredAt,
       status: record.status as TaskStep['status'], ...(typeof duration === 'number' && Number.isSafeInteger(duration) && duration >= 0 ? { durationMs: duration } : {}) })
   }
   return [...steps.values()].sort((left, right) => left.number - right.number)
 }
 
-function Step({ step, storageKey, running, children }: { step: TaskStep; storageKey: string; running: boolean; children: ReactNode }) {
+function Step({ step, storageKey, running, toolCount, children }: { step: TaskStep; storageKey: string; running: boolean; toolCount?: number; children: ReactNode }) {
   const key = `capstone-step-open:${storageKey}:${step.id}`
   const [manualOpen, setManualOpen] = useState<boolean | undefined>(() => {
     try { const saved = localStorage.getItem(key); return saved === 'true' ? true : saved === 'false' ? false : undefined } catch { return undefined }
@@ -35,13 +36,14 @@ function Step({ step, storageKey, running, children }: { step: TaskStep; storage
     <summary><span className="capstone-step-number">{String(step.number).padStart(2, '0')}</span>
       <span className="capstone-chat-activity-source" data-owner="capstone">CAPSTONE</span>
       <span className="capstone-step-title">{step.title}</span>
-      <small>{step.status === 'completed' ? '已结束' : running ? '执行中' : '未记录完成'}{step.durationMs === undefined ? '' : ` · ${(step.durationMs / 1000).toFixed(1)}s`}</small>
+      {toolCount !== undefined && <small>{toolCount} 次工具调用</small>}
+      <small>{step.status === 'completed' ? '已结束' : running ? '执行中' : '任务已结束 · 步骤未报告结束'}{step.durationMs === undefined ? '' : ` · ${(step.durationMs / 1000).toFixed(1)}s`}</small>
     </summary>
     <div className="capstone-step-tools">{children}</div>
   </details>
 }
 
-export default function TaskStepProcess({ steps, storageKey, running, renderTools }: { steps: readonly TaskStep[]; storageKey: string; running: boolean; renderTools: (id: string) => ReactNode }) {
+export default function TaskStepProcess({ steps, storageKey, running, renderTools, toolCount }: { steps: readonly TaskStep[]; storageKey: string; running: boolean; renderTools: (id: string) => ReactNode; toolCount?: (id: string) => number }) {
   return <div className="capstone-business-steps" aria-label="任务步骤">{steps.map(step =>
-    <Step key={`${storageKey}:${step.id}`} step={step} storageKey={storageKey} running={running}>{renderTools(step.id)}</Step>)}</div>
+    <Step key={`${storageKey}:${step.id}`} step={step} storageKey={storageKey} running={running} toolCount={toolCount?.(step.id)}>{renderTools(step.id)}</Step>)}</div>
 }

@@ -557,9 +557,9 @@ function ActivityItems({ activities }: { activities: ChatActivity[] }) {
 }
 
 function TaskProgressItems({ items }: { items: readonly TaskProgress[] }) {
-  const labels = { goal: '局部目标', observation: '观察记录', adjustment: '方法调整', limitation: '限制记录' }
+  const labels = { goal: '目标', observation: '观察', adjustment: '调整', limitation: '限制' }
   return <div className="capstone-task-progress" aria-label="任务进展">{items.map(item => <section key={item.id} data-sequence={item.sequence}>
-    <small>{item.kind ? labels[item.kind] : '工作记录'} · 智能体记录{item.revision === undefined ? '' : ` · 研究修订 ${item.revision}`}</small>
+    <small>{item.kind ? labels[item.kind] : '记录'}{item.revision === undefined ? '' : ` · 修订 ${item.revision}`}</small>
     <p>{item.text}</p>
     {item.refs.length > 0 && <details><summary>关联引用 · {item.refs.length} 条</summary><small>记录中的引用不等于结论核验通过。</small>{item.refs.map(ref => <code key={ref}>{ref}</code>)}</details>}
   </section>)}</div>
@@ -579,11 +579,18 @@ function AttemptActivity({ activities, progress = [], steps = [], stepStorageKey
   if (activities.length === 0 && progress.length === 0) return null
   const terminalLabel = phase === 'failed' ? '执行失败 ·' : phase === 'cancelled' ? '已取消 ·' : phase === 'interrupted' ? '已中断 ·' : '已完成'
   const terminalClass = phase === 'failed' || phase === 'interrupted' ? ` is-${phase}` : phase === 'cancelled' ? ' is-cancelled' : ''
-  const process = (preview: boolean) => steps.length > 0 ? <>
-    <TaskStepProcess steps={preview ? steps.slice(-10) : steps} storageKey={stepStorageKey} running={running}
-      renderTools={stepId => <><TaskProgressItems items={progress.filter(item => item.stepId === stepId && item.phase !== 'started')} /><ActivityItems activities={toolActivities.filter(item => item.taskStepId === stepId)} /></>} />
-    <ActivityItems activities={toolActivities.filter(item => !item.taskStepId).slice(preview ? -10 : 0)} />
-  </> : <ActivityItems activities={preview ? toolActivities.slice(-10) : toolActivities} />
+  const process = (preview: boolean) => {
+    if (steps.length === 0) return <ActivityItems activities={preview ? toolActivities.slice(-10) : toolActivities} />
+    const entries = [
+      ...steps.map(step => ({ id: `step:${step.id}`, at: step.startedAt, step, activity: undefined as ChatActivity | undefined })),
+      ...toolActivities.filter(item => !item.taskStepId).map(activity => ({ id: `tool:${activity.id}`, at: activity.startedAt, step: undefined as TaskStep | undefined, activity })),
+    ].sort((left, right) => (left.at ? Date.parse(left.at) : Infinity) - (right.at ? Date.parse(right.at) : Infinity))
+    return <>{(preview ? entries.slice(-10) : entries).map(entry => entry.step ?
+      <TaskStepProcess key={entry.id} steps={[entry.step]} storageKey={stepStorageKey} running={running}
+        toolCount={stepId => toolActivities.filter(item => item.taskStepId === stepId).length}
+        renderTools={stepId => <><TaskProgressItems items={progress.filter(item => item.stepId === stepId && item.phase !== 'started')} /><ActivityItems activities={toolActivities.filter(item => item.taskStepId === stepId)} /></>} /> :
+      <div key={entry.id} title="未归属任务步骤"><ActivityItems activities={entry.activity ? [entry.activity] : []} /></div>)}</>
+  }
   return <div className={`capstone-chat-activity-frame${running ? ' is-running' : ' is-settled'}`} aria-busy={running}><details ref={detailsRef} className={`capstone-chat-activity capstone-chat-activity-attached${terminalClass}`} open={open} onToggle={(event) => onOpenChange(event.currentTarget.open)}>
     <summary><Activity aria-hidden="true" /><span>{running ? '正在执行' : terminalLabel} {steps.length > 0 ? `${steps.length} 个任务步骤 · ` : ''}{toolCount} 次工具调用{elapsed === undefined ? '' : ` · 总耗时 ${formatDuration(elapsed)}`}</span><small>查看执行过程</small></summary>
     {(!running || open) && <div className="capstone-complete-process">{goal && <p className="capstone-task-goal">研究目标：{goal}</p>}<TaskProgressItems items={progress.filter(item => !item.stepId)} />{process(false)}</div>}
