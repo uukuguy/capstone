@@ -335,43 +335,16 @@ def _compose_attempt_policy(
         domain_text = domain_policy.read_text(encoding="utf-8")
     catalog_text = _render_application_catalog_context(application_catalog)
     model_text = _render_attempt_model_context(model_context, profiles, prior_results=prior_results, previous_instruction=previous_instruction) if model_context is not None else ""
-    result_delivery_text = _render_result_delivery_context(profiles)
-    if sum(map(len, (generic_text, domain_text, catalog_text, model_text, research_text, result_delivery_text, delivery_text))) > 128_000:
+    if sum(map(len, (generic_text, domain_text, catalog_text, model_text, research_text, delivery_text))) > 128_000:
         raise RuntimeError("combined runtime policy is too large")
     directory.mkdir(mode=0o700, parents=True, exist_ok=True)
     path = directory / "system-policy.md"
     path.write_text(
-        "\n\n".join(item for item in (generic_text, domain_text, catalog_text, model_text, research_text, result_delivery_text, delivery_text) if item),
+        "\n\n".join(item for item in (generic_text, domain_text, catalog_text, model_text, research_text, delivery_text) if item),
         encoding="utf-8",
     )
     path.chmod(0o600)
     return path
-
-
-def _render_result_delivery_context(profiles: tuple[PreparedKernelApplicationProfile, ...]) -> str:
-    """Declare existing selected table delivery, without claiming a result exists."""
-    bindings = []
-    for profile in profiles:
-        selected = getattr(profile.prepared_application, 'bindings', None)
-        if not isinstance(selected, Mapping):
-            continue
-        for binding_id, binding in selected.items():
-            domain = getattr(getattr(binding, 'runtime', None), 'profile', None)
-            projector = getattr(getattr(domain, 'projector_registry', None), 'result_projector', None)
-            if callable(getattr(projector, 'project_admitted', None)):
-                bindings.append(str(binding_id))
-    if not bindings:
-        return ''
-    return '\n'.join([
-        '## Application result delivery contract',
-        'The delivered answer has a formal explanation and verified result-table views in 计算结果.',
-        'Selected bindings with table delivery: ' + json.dumps(sorted(set(bindings))),
-        'For supported results, complete tables are presented through those views after Authority admission.',
-        'Do not retype every table row in the formal explanation unless the user explicitly requests inline tables or an export.',
-        'Explain the outcome, method, important values, coverage and limits. Name the relevant tables and their sourced row counts.',
-        'Still retrieve the source fields needed to answer and check the request. Table delivery does not replace computation or verification.',
-        'Do not claim completeness for missing, partial or unavailable tables. Retain failed work and explain missing requested information.',
-    ])
 
 
 def _render_attempt_model_context(
