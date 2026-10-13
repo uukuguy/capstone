@@ -209,7 +209,7 @@ def test_long_model_step_resumes_same_research_without_resetting_budget(tmp_path
 
 
 @pytest.mark.parametrize("calculation_failed", [False, True])
-def test_new_research_findings_receive_one_final_scope_review(tmp_path, calculation_failed):
+def test_research_findings_do_not_force_a_second_answer_generation(tmp_path, calculation_failed):
     from capstone_agent.kernel_pi_session import _KernelPiPromptSession
     research = AttemptResearch(tmp_path, thread_id="thr_review", run_id="run_review",
         attempt_id="attempt_review", model_context=MODEL, is_active=lambda: True,
@@ -233,10 +233,10 @@ def test_new_research_findings_receive_one_final_scope_review(tmp_path, calculat
         SimpleNamespace(append=lambda *_: 1), admission=None, research=research)
     answer = session.prompt_and_wait("Compare scenarios", on_semantic_event=lambda _: None,
         correlation_id="attempt_review", on_heartbeat=lambda: None)
-    assert answer == "Reviewed conclusion with limits"
-    assert len(calls) == 2
-    assert "model revisions" in calls[1] and "Do not repeat" in calls[1]
-    assert levels == (["high"] if calculation_failed else [])
+    assert answer == "Draft conclusion"
+    assert calls == ["Compare scenarios"]
+    assert levels == []
+    assert research.controller.read().open_questions == ("Global feasibility remains open",)
 
 
 @pytest.mark.parametrize("previous_research", [False, True])

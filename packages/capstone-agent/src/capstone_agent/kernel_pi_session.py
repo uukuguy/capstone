@@ -508,10 +508,6 @@ class _KernelPiPromptSession:
         self._answer_admitted = False
         existing_research = research.controller.read() if research is not None else None
         self._published_research_revision = existing_research.revision if existing_research is not None else 0
-        self._initial_research_revision = self._published_research_revision
-        self._final_reviewed = False
-        self._has_result_observations = False
-        self._has_execution_failure = False
 
     @property
     def command(self) -> object:
@@ -547,18 +543,6 @@ class _KernelPiPromptSession:
             "correlation_id": correlation_id, "question": question,
         })
         def observed(event, _sequence):
-            normalized = normalize_runtime_event(event, runtime_mode="capstone")
-            if normalized is not None and normalized["event_type"] == "tool_completed":
-                payload = normalized["payload"]
-                if isinstance(payload, Mapping):
-                    result_refs = payload.get("result_refs")
-                    failure = payload.get("failure")
-                    if (isinstance(result_refs, (list, tuple)) and result_refs) or (
-                        isinstance(failure, Mapping) and failure.get("phase") == "execute"
-                    ):
-                        self._has_result_observations = True
-                    if isinstance(failure, Mapping) and failure.get("phase") == "execute":
-                        self._has_execution_failure = True
             if self._reference_observer is not None:
                 self._reference_observer(event)
             on_semantic_event({**event, "trace_sequence": _sequence,
@@ -583,7 +567,7 @@ class _KernelPiPromptSession:
             remaining = self._deadline - time.monotonic()
             if remaining <= 0:
                 raise TimeoutError("attempt time budget exhausted")
-            idle_budget = 30.0 if self._final_reviewed else 90.0
+            idle_budget = 90.0
             step_budget = min(idle_budget, remaining - 15.0) if self._research is not None and remaining > 15 else None
             answer = self._client.prompt_and_wait(
                 question,
@@ -595,31 +579,6 @@ class _KernelPiPromptSession:
                 model_idle_seconds=step_budget,
             )
             if not getattr(self._client, "last_prompt_interrupted", False):
-                state = self._research.controller.read() if self._research is not None else None
-                if (not self._final_reviewed and self._has_result_observations and state is not None
-                        and state.revision > self._initial_research_revision
-                        and self._deadline - time.monotonic() >= 30):
-                    self._final_reviewed = True
-                    if self._has_execution_failure:
-                        self._client.set_thinking_level("high")
-                    question = (
-                        "Review the draft answer against the original request and existing tool receipts. "
-                        "Check model revisions, scenario identities, actual constraints, numerical comparisons, "
-                        "coverage and failed or missing checks. Limit conclusions to what these receipts establish; "
-                        "Treat explicit not-evaluated and missing-value markers as limits, not as negative state measurements. "
-                        "distinguish observations from hypotheses and untested causal explanations. "
-                        "Do not repeat completed calculations or start a new investigation. Return the complete "
-                        "user-facing answer in the original user's language, without process prefaces. "
-                        "This review is an agent judgment, not an independent Authority verification."
-                    )
-                    self._trace.append("application_answer_review", {
-                        "correlation_id": correlation_id, "research_revision": state.revision,
-                    })
-                    self._trace.append("application_prompt", {
-                        "correlation_id": correlation_id, "question": question,
-                    })
-                    on_heartbeat()
-                    continue
                 break
             on_heartbeat()
             self._client.set_thinking_level("off")
