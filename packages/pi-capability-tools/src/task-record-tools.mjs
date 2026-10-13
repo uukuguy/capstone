@@ -41,10 +41,14 @@ export function configureTaskRecordTool(pi, directory) {
         const page = JSON.parse(bytes);
         if (page.schema !== "capstone-selected-task-records/1" || page.historical_only !== true
             || page.thread_id !== manifest.thread_id || page.attempt_id !== manifest.attempt_id) throw new Error("task identity mismatch");
-        return { content: [{ type: "text", text: JSON.stringify(page) }], details: page };
+        return { content: [{ type: "text", text: JSON.stringify(page) }],
+          details: { event: "tool_result", capability: "agent_task_records_read", ok: true,
+            request_parameters: { after }, result: page, evidence_refs: [] } };
       } catch {
         return { isError: true, content: [{ type: "text", text: "Original task records could not be read. The saved history remains available." }],
-          details: { code: "selected_task_records_unavailable", historical_only: true } };
+          details: { event: "tool_result", capability: "agent_task_records_read", ok: false,
+            error: { code: "selected_task_records_unavailable", message: "Original task records could not be read.", phase: "read" },
+            evidence_refs: [], historical_only: true } };
       }
     },
   }));

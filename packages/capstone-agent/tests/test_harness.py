@@ -1,5 +1,19 @@
 from __future__ import annotations
 
+
+def test_historical_record_receipt_is_visible_without_admitting_nested_evidence():
+    from capstone_agent.harness import normalize_runtime_event
+    event = normalize_runtime_event({
+        "type": "tool_execution_end", "toolName": "agent_task_records_read", "toolCallId": "call_records",
+        "result": {"details": {"event": "tool_result", "capability": "agent_task_records_read", "ok": True,
+            "request_parameters": {"after": 0}, "evidence_refs": [],
+            "result": {"historical_only": True, "events": [{"payload": {"evidence_refs": ["evidence:old"]}}]}}},
+    }, runtime_mode="capstone")
+    assert event["event_type"] == "tool_completed"
+    assert event["payload"]["ok"] is True
+    assert event["payload"]["request_parameters"] == {"after": 0}
+    assert not event["payload"].get("evidence_refs")
+
 import pytest
 import json
 

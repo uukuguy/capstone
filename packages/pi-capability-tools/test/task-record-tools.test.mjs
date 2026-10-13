@@ -22,8 +22,12 @@ test("selected task tool reads bound records and rejects another source or chang
   const tool = tools.get("agent_task_records_read");
   assert.ok(tool);
   const result = await tool.execute("call-one", { after: 0 });
-  assert.equal(result.details.events[0].payload.ok, false);
-  assert.equal(result.details.historical_only, true);
+  assert.equal(result.details.result.events[0].payload.ok, false);
+  assert.equal(result.details.result.historical_only, true);
+  assert.equal(result.details.event, "tool_result");
+  assert.equal(result.details.capability, "agent_task_records_read");
+  assert.equal(result.details.ok, true);
+  assert.deepEqual(result.details.evidence_refs, []);
   assert.equal((await tool.execute("call-two", { after: 0, attempt_id: "attempt_other" })).isError, true);
   await writeFile(join(root, "0.json"), bytes + " ");
   assert.equal((await tool.execute("call-three", { after: 0 })).isError, true);
