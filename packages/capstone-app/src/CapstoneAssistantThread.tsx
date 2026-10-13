@@ -62,6 +62,7 @@ export type ChatActivity = {
 }
 
 const TOOL_LABELS: Record<string, string> = {
+  agent_task_records_read: '读取原任务记录',
   grid_model_list: '读取模型目录',
   grid_context_get: '读取模型上下文',
   grid_context_open: '打开模型上下文',
