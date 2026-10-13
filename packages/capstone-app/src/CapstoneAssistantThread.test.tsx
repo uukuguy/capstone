@@ -835,7 +835,7 @@ describe('CapstoneAssistantThread', () => {
       event('attempt_completed', 2, { answer: '前三条线路' }, 'attempt_rank'),
       event('attempt_completed', 3, { answer: '目录信息' }, 'attempt_catalog'),
     ]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}}
-      networkAttemptIds={['attempt_flow', 'attempt_rank']} onShowNetwork={selected} />)
+      selectedNetworkAttempt="attempt_flow" networkAttemptIds={['attempt_flow', 'attempt_rank']} onShowNetwork={selected} />)
     const actions = await screen.findAllByRole('button', { name: '查看此指令电网图' })
     expect(actions).toHaveLength(3)
     expect((actions[0] as HTMLButtonElement).disabled).toBe(false)
@@ -847,6 +847,10 @@ describe('CapstoneAssistantThread', () => {
     expect(selected).toHaveBeenLastCalledWith('attempt_flow')
     fireEvent.click(actions[1])
     expect(selected).toHaveBeenLastCalledWith('attempt_rank')
+    for (const action of actions) expect(action.hasAttribute('aria-pressed')).toBe(false)
+    fireEvent.click(actions[0])
+    expect(selected).toHaveBeenLastCalledWith('attempt_flow')
+    expect(actions[0].classList.contains('is-active')).toBe(false)
   })
   it('projects public command and harness deltas into assistant-ui messages', () => {
     const messages = projectAssistantMessages([
