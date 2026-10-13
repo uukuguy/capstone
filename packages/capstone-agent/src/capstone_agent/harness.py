@@ -203,8 +203,9 @@ def normalize_runtime_event(
     payload: dict[str, object]
     if event_type == "runtime_action":
         payload = {key: event[key] for key in ("phase", "response_kind") if isinstance(event.get(key), str)}
-        if isinstance(event.get("task_step"), Mapping):
-            payload["task_step"] = dict(event["task_step"])
+        step = event.get("task_step")
+        if isinstance(step, Mapping):
+            payload["task_step"] = dict(step)
     elif event_type == "research_step_resumed":
         budget = event.get("budget_seconds")
         if event.get("reason") != "model_step_budget" or isinstance(budget, bool) or not isinstance(budget, (int, float)) or not 0 < budget <= 3600:
