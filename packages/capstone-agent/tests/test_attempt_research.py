@@ -215,6 +215,7 @@ def test_new_research_findings_receive_one_final_scope_review(tmp_path, calculat
         attempt_id="attempt_review", model_context=MODEL, is_active=lambda: True,
         admit_reference=lambda _: False)
     calls = []
+    levels = []
     def prompt(question, **kwargs):
         calls.append(question)
         if len(calls) == 1:
@@ -227,13 +228,15 @@ def test_new_research_findings_receive_one_final_scope_review(tmp_path, calculat
                 "changes": {"goal": "Compare scenarios", "open_questions": ["Global feasibility remains open"]}})
             return "Draft conclusion"
         return "Reviewed conclusion with limits"
-    session = _KernelPiPromptSession(SimpleNamespace(timeout_seconds=600, prompt_and_wait=prompt),
+    session = _KernelPiPromptSession(SimpleNamespace(timeout_seconds=600, prompt_and_wait=prompt,
+        set_thinking_level=levels.append),
         SimpleNamespace(append=lambda *_: 1), admission=None, research=research)
     answer = session.prompt_and_wait("Compare scenarios", on_semantic_event=lambda _: None,
         correlation_id="attempt_review", on_heartbeat=lambda: None)
     assert answer == "Reviewed conclusion with limits"
     assert len(calls) == 2
     assert "model revisions" in calls[1] and "Do not repeat" in calls[1]
+    assert levels == (["high"] if calculation_failed else [])
 
 
 @pytest.mark.parametrize("previous_research", [False, True])

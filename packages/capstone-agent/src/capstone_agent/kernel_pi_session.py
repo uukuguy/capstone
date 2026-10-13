@@ -511,6 +511,7 @@ class _KernelPiPromptSession:
         self._initial_research_revision = self._published_research_revision
         self._final_reviewed = False
         self._has_result_observations = False
+        self._has_execution_failure = False
 
     @property
     def command(self) -> object:
@@ -556,6 +557,8 @@ class _KernelPiPromptSession:
                         isinstance(failure, Mapping) and failure.get("phase") == "execute"
                     ):
                         self._has_result_observations = True
+                    if isinstance(failure, Mapping) and failure.get("phase") == "execute":
+                        self._has_execution_failure = True
             if self._reference_observer is not None:
                 self._reference_observer(event)
             on_semantic_event({**event, "trace_sequence": _sequence,
@@ -580,7 +583,8 @@ class _KernelPiPromptSession:
             remaining = self._deadline - time.monotonic()
             if remaining <= 0:
                 raise TimeoutError("attempt time budget exhausted")
-            step_budget = min(90.0, remaining - 15.0) if self._research is not None and remaining > 15 else None
+            idle_budget = 30.0 if self._final_reviewed else 90.0
+            step_budget = min(idle_budget, remaining - 15.0) if self._research is not None and remaining > 15 else None
             answer = self._client.prompt_and_wait(
                 question,
                 on_semantic_event=observed,
@@ -596,10 +600,13 @@ class _KernelPiPromptSession:
                         and state.revision > self._initial_research_revision
                         and self._deadline - time.monotonic() >= 30):
                     self._final_reviewed = True
+                    if self._has_execution_failure:
+                        self._client.set_thinking_level("high")
                     question = (
                         "Review the draft answer against the original request and existing tool receipts. "
                         "Check model revisions, scenario identities, actual constraints, numerical comparisons, "
                         "coverage and failed or missing checks. Limit conclusions to what these receipts establish; "
+                        "Treat explicit not-evaluated and missing-value markers as limits, not as negative state measurements. "
                         "distinguish observations from hypotheses and untested causal explanations. "
                         "Do not repeat completed calculations or start a new investigation. Return the complete "
                         "user-facing answer in the original user's language, without process prefaces. "
