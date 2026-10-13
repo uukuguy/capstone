@@ -54,6 +54,23 @@ def test_runtime_steps_follow_native_boundaries_without_model_completion():
     assert 'verified' not in finished['task_step']
 
 
+def test_response_timing_records_first_public_text_and_usage_without_inventing_purpose():
+    from capstone_agent.task_steps import RuntimeStepTracker
+    now = [0.0]
+    tracker = RuntimeStepTracker(clock=lambda: now[0])
+    start = tracker.annotate({'type': 'runtime_action', 'phase': 'started'})
+    assert start['task_step']['title'] == '模型响应'
+    now[0] = 1
+    tracker.annotate({'type': 'assistant_process_delta', 'text': 'public'})
+    now[0] = 2
+    tracker.annotate({'type': 'assistant_process_delta', 'text': 'more public'})
+    now[0] = 3
+    end = tracker.annotate({'type': 'runtime_action', 'phase': 'response_completed', 'response_kind': 'text', 'usage': {'input': 9000, 'output': 200}})
+    assert end['task_step']['first_text_ms'] == 1000
+    assert end['task_step']['response_ms'] == 3000
+    assert end['task_step']['usage'] == {'input': 9000, 'output': 200}
+
+
 def test_runtime_step_does_not_turn_goal_into_an_action():
     from capstone_agent.task_steps import RuntimeStepTracker
     tracker = RuntimeStepTracker()
