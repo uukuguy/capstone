@@ -274,6 +274,7 @@ def test_kernel_pi_rpc_builder_materializes_descriptor_before_process_start(tmp_
         project_pi_dir=tmp_path / "project-pi",
         extension_path=tmp_path / "extension.mjs",
     )
+    host.extension_path.with_name("model-input-metrics.mjs").write_text("export default () => {}")
     assembly = build_pandapower_thread_application(
         default_model_id="ieee39",
         model_resolver=lambda model_id: {

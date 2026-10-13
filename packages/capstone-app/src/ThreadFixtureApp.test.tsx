@@ -751,7 +751,7 @@ describe('ThreadFixtureApp', () => {
     expect(commands[1].payload.reason).toBe('user_requested_fresh_context')
   })
 
-  it.each([false, true])('keeps a longer open-and-analyze request as agent work with workspace %s', async (workspaceEnabled) => {
+  it.each([false, true])('preserves the analysis after an explicit model control with workspace %s', async (workspaceEnabled) => {
     const fixture = threadUiFixture('idle-ieee39')
     const snapshot = fixture.snapshot as { run: { run_id: string }; active_model_context: { model_revision: string }; last_event_seq: number }
     const transport = createFixtureTransport(fixture)
@@ -767,7 +767,7 @@ describe('ThreadFixtureApp', () => {
     fireEvent.change(screen.getByRole('textbox', { name: 'Thread 指令' }), { target: { value: request } })
     fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
 
-    expect(await screen.findByText(`Fixture 已接收自动指令：${request}`)).toBeTruthy()
+    expect(await screen.findByText(`Fixture 已接收自动指令：${workspaceEnabled ? '解析线路 11 的端点' : request}`)).toBeTruthy()
   })
 
   it.each(['打开 不存在模型', '打开 case24_ieee_rts 电网模型'])('sends an unresolved model request through the conversation: %s', async (request) => {
