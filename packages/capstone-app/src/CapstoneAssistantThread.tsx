@@ -7,6 +7,7 @@ import { answerEvidenceState, evidenceStateCopy, type AnswerEvidenceState } from
 import InferenceEvidencePanel, { type FailureEvidence, type ToolExecutionRecord } from './InferenceEvidencePanel'
 import ResearchEvidence, { parseResearchSnapshot, type ResearchSnapshot } from './ResearchEvidence'
 import { projectTaskProgress, type TaskProgress } from './taskProgress'
+import TaskStepProcess, { projectTaskSteps, type TaskStep } from './TaskStepProcess'
 import AttemptRecordPanel, { type AttemptRecordReader } from './AttemptRecordPanel'
 import {
   AssistantRuntimeProvider,
@@ -60,6 +61,9 @@ export type ChatActivity = {
   startedAt?: string
   finishedAt?: string
   durationMs?: number
+  taskStepId?: string
+  taskStepNumber?: number
+  stepToolNumber?: number
 }
 
 const TOOL_LABELS: Record<string, string> = {
@@ -114,6 +118,9 @@ export function projectAssistantActivity(events: readonly EventEnvelope[]): Chat
       label: typeof event.payload.tool_name === 'string' || typeof event.payload.capability === 'string' ? TOOL_LABELS[toolName(event)] || toolName(event).replaceAll('_', ' ') : previous?.label || toolName(event),
       source: typeof event.payload.binding_id === 'string' || typeof event.payload.capability === 'string' ? activitySource(event) : previous?.source || activitySource(event),
       status,
+      taskStepId: typeof event.payload.task_step_id === 'string' ? event.payload.task_step_id : previous?.taskStepId,
+      taskStepNumber: typeof event.payload.task_step_number === 'number' ? event.payload.task_step_number : previous?.taskStepNumber,
+      stepToolNumber: typeof event.payload.step_tool_number === 'number' ? event.payload.step_tool_number : previous?.stepToolNumber,
       ...(startedAt ? { startedAt } : {}),
       ...((event.eventType === 'tool_started' ? previous?.finishedAt : event.occurredAt) ? { finishedAt: event.eventType === 'tool_started' ? previous?.finishedAt : event.occurredAt } : {}),
       ...((event.eventType === 'tool_started' ? previous?.durationMs : durationBetween(startedAt, event.occurredAt)) !== undefined ? { durationMs: event.eventType === 'tool_started' ? previous?.durationMs : durationBetween(startedAt, event.occurredAt) } : {}),
@@ -411,7 +418,8 @@ export function projectAssistantMessages(events: readonly EventEnvelope[], instr
     const researchSnapshot = parsedResearch && parsedResearch.research_id === research?.payload.research_id &&
       parsedResearch.revision === research.payload.research_revision && parsedResearch.goal === research.payload.goal ? parsedResearch : undefined
     const taskProgress = attemptId ? projectTaskProgress(events, attemptId) : []
-    const withMetadata = { ...message, metadata: { custom: { ...custom, activities, failureResults, researchGoal, researchSnapshot, toolExecutions, taskProgress } } }
+    const taskSteps = attemptId ? projectTaskSteps(events, attemptId) : []
+    const withMetadata = { ...message, metadata: { custom: { ...custom, activities, failureResults, researchGoal, researchSnapshot, toolExecutions, taskProgress, taskSteps, stepStorageKey: `${events[0]?.threadId ?? ''}:${attemptId ?? ''}` } } }
     return typeof message.content === 'string'
       ? { ...withMetadata, content: [{ type: 'text' as const, text: message.content }] }
       : withMetadata
@@ -544,7 +552,7 @@ function RunDuration({ startedAt, durationMs, running }: { startedAt?: string; d
 function ActivityItems({ activities }: { activities: ChatActivity[] }) {
   return <div className="capstone-chat-activity-list">{activities.map((item) => {
     const [owner, ...detail] = item.source.split(' · ')
-    return <div key={item.id} className={`capstone-chat-activity-item is-${item.status}`}><span className="capstone-chat-activity-icon" aria-hidden="true" /> <span><strong>{item.label}</strong><small><span className="capstone-chat-activity-source" data-owner={owner}>{owner.toUpperCase()}</span> {detail.join(' · ')}{item.durationMs === undefined ? '' : ` · ${formatDuration(item.durationMs)}`}</small></span></div>
+    return <div key={item.id} className={`capstone-chat-activity-item is-${item.status}`}><span className="capstone-chat-activity-icon" aria-hidden="true" /> <span><strong>{item.taskStepNumber !== undefined && item.stepToolNumber !== undefined ? `${String(item.taskStepNumber).padStart(2, '0')}.${item.stepToolNumber} ` : ''}{item.label}</strong><small><span className="capstone-chat-activity-source" data-owner={owner}>{owner.toUpperCase()}</span> {detail.join(' · ')}{item.durationMs === undefined ? '' : ` · ${formatDuration(item.durationMs)}`}</small></span></div>
   })}</div>
 }
 
@@ -557,7 +565,7 @@ function TaskProgressItems({ items }: { items: readonly TaskProgress[] }) {
   </section>)}</div>
 }
 
-function AttemptActivity({ activities, progress = [], goal, running, phase, open, onOpenChange, startedAt, durationMs, detailsRef }: { activities: ChatActivity[]; progress?: readonly TaskProgress[]; goal?: string; running: boolean; phase?: string; open: boolean; onOpenChange: (open: boolean) => void; startedAt?: string; durationMs?: number; detailsRef: React.RefObject<HTMLDetailsElement | null> }) {
+function AttemptActivity({ activities, progress = [], steps = [], stepStorageKey = '', goal, running, phase, open, onOpenChange, startedAt, durationMs, detailsRef }: { activities: ChatActivity[]; progress?: readonly TaskProgress[]; steps?: readonly TaskStep[]; stepStorageKey?: string; goal?: string; running: boolean; phase?: string; open: boolean; onOpenChange: (open: boolean) => void; startedAt?: string; durationMs?: number; detailsRef: React.RefObject<HTMLDetailsElement | null> }) {
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     if (!running) return undefined
@@ -569,10 +577,15 @@ function AttemptActivity({ activities, progress = [], goal, running, phase, open
   if (activities.length === 0 && progress.length === 0) return null
   const terminalLabel = phase === 'failed' ? '执行失败 ·' : phase === 'cancelled' ? '已取消 ·' : phase === 'interrupted' ? '已中断 ·' : '已完成'
   const terminalClass = phase === 'failed' || phase === 'interrupted' ? ` is-${phase}` : phase === 'cancelled' ? ' is-cancelled' : ''
+  const process = (preview: boolean) => steps.length > 0 ? <>
+    <TaskStepProcess steps={preview ? steps.slice(-10) : steps} storageKey={stepStorageKey} running={running}
+      renderTools={stepId => <><TaskProgressItems items={progress.filter(item => item.stepId === stepId && item.phase !== 'started')} /><ActivityItems activities={activities.filter(item => item.taskStepId === stepId)} /></>} />
+    <ActivityItems activities={activities.filter(item => !item.taskStepId && (!item.source.includes('agent_task_progress') || item.status === 'failed')).slice(preview ? -10 : 0)} />
+  </> : <ActivityItems activities={preview ? activities.slice(-10) : activities} />
   return <div className={`capstone-chat-activity-frame${running ? ' is-running' : ' is-settled'}`} aria-busy={running}><details ref={detailsRef} className={`capstone-chat-activity capstone-chat-activity-attached${terminalClass}`} open={open} onToggle={(event) => onOpenChange(event.currentTarget.open)}>
     <summary><Activity aria-hidden="true" /><span>{running ? '正在执行' : terminalLabel} {activities.length} 个步骤{elapsed === undefined ? '' : ` · ${running ? '运行中' : '运行'} ${formatDuration(elapsed)}`}</span><small>查看运行过程</small></summary>
-    {(!running || open) && <>{goal && <p className="capstone-task-goal">研究目标：{goal}</p>}<TaskProgressItems items={progress} /><ActivityItems activities={activities} /></>}
-  </details>{running && !open && <div className="capstone-chat-activity-preview" aria-label="运行过程预览">{goal && <p className="capstone-task-goal">研究目标：{goal}</p>}<TaskProgressItems items={progress.slice(-1)} /><ActivityItems activities={activities.slice(-10)} /></div>}</div>
+    {(!running || open) && <div className="capstone-complete-process">{goal && <p className="capstone-task-goal">研究目标：{goal}</p>}<TaskProgressItems items={progress.filter(item => !item.stepId)} />{process(false)}</div>}
+  </details>{running && !open && <div className="capstone-chat-activity-preview" aria-label="运行过程预览">{goal && <p className="capstone-task-goal">研究目标：{goal}</p>}<TaskProgressItems items={progress.filter(item => !item.stepId).slice(-1)} />{process(true)}</div>}</div>
 }
 
 function LegacyActivity({ activities, running }: { activities: ChatActivity[]; running: boolean }) {
@@ -705,7 +718,13 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
   const selectionRevision = typeof custom?.selectionRevision === 'string' ? custom.selectionRevision : undefined
   const answerModel = contextId === modelSummary?.contextId ? modelSummary : undefined
   const activities = Array.isArray(custom?.activities) ? custom.activities as ChatActivity[] : []
-  const [activityOpen, setActivityOpen] = useState(false)
+  const processStorageKey = `capstone-process-open:${typeof custom?.stepStorageKey === 'string' ? custom.stepStorageKey : attemptId}`
+  const [activityOpen, setActivityOpen] = useState(() => {
+    try { return localStorage.getItem(processStorageKey) === 'true' } catch { return false }
+  })
+  useEffect(() => {
+    try { localStorage.setItem(processStorageKey, String(activityOpen)) } catch { /* Retain state in this page. */ }
+  }, [activityOpen, processStorageKey])
   const [resultOpen, setResultOpen] = useState(false)
   const resultGroupRef = useRef<HTMLDivElement>(null)
   const [pendingResultId, setPendingResultId] = useState<string | null>(null)
@@ -719,9 +738,6 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
     }
     setPendingResultId(null)
   }, [resultOpen, pendingResultId])
-  useEffect(() => {
-    if (status?.type !== 'running') setActivityOpen(false)
-  }, [status?.type])
   const terminalWithoutText = role === 'assistant' && !hasText && status?.type !== 'running'
   const toggleActivity = () => {
     setActivityOpen((value) => {
@@ -776,7 +792,7 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
       {typeof custom?.modelId === 'string' && <span className="capstone-instruction-model">{instructionModelName(custom.modelId)}</span>}
       {typeof custom?.sentAt === 'string' && Number.isFinite(Date.parse(custom.sentAt)) && <InstructionTime value={custom.sentAt} />}
     </div>}
-    {role === 'assistant' && (showActivity || status?.type === 'running') && <AttemptActivity activities={activities} progress={Array.isArray(custom?.taskProgress) ? custom.taskProgress as TaskProgress[] : []} goal={typeof custom?.researchGoal === 'string' ? custom.researchGoal : undefined} phase={typeof custom?.terminalPhase === 'string' ? custom.terminalPhase : undefined} running={status?.type === 'running'} open={activityOpen} onOpenChange={setActivityOpen} startedAt={startedAt} durationMs={durationMs} detailsRef={activityRef} />}
+    {role === 'assistant' && (showActivity || status?.type === 'running') && <AttemptActivity activities={activities} steps={Array.isArray(custom?.taskSteps) ? custom.taskSteps as TaskStep[] : []} stepStorageKey={typeof custom?.stepStorageKey === 'string' ? custom.stepStorageKey : attemptId} progress={Array.isArray(custom?.taskProgress) ? custom.taskProgress as TaskProgress[] : []} goal={typeof custom?.researchGoal === 'string' ? custom.researchGoal : undefined} phase={typeof custom?.terminalPhase === 'string' ? custom.terminalPhase : undefined} running={status?.type === 'running'} open={activityOpen} onOpenChange={setActivityOpen} startedAt={startedAt} durationMs={durationMs} detailsRef={activityRef} />}
   </MessagePrimitive.Root>
 }
 

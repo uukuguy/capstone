@@ -1,0 +1,67 @@
+"""Host-owned step numbering and tool ownership, scoped to one Attempt."""
+from collections.abc import Callable, Mapping
+import time
+from typing import cast
+
+from .harness import normalize_runtime_event
+
+
+class TaskStepTracker:
+    def __init__(self, *, clock: Callable[[], float] = time.monotonic) -> None:
+        self.clock = clock
+        self.steps: dict[str, dict[str, object]] = {}
+        self.calls: dict[str, tuple[str, int]] = {}
+        self.pending: set[str] = set()
+        self.active: str | None = None
+
+    def annotate(self, event: Mapping[str, object]) -> dict[str, object]:
+        host_fields = {"task_step", "task_step_id", "task_step_number", "step_tool_number", "task_step_error"}
+        output = {key: value for key, value in event.items() if key not in host_fields}
+        normalized = normalize_runtime_event(output, runtime_mode="capstone")
+        payload = normalized["payload"]
+        assert isinstance(payload, dict)
+        progress = payload.get("task_progress")
+        if isinstance(progress, dict) and isinstance(progress.get("step_id"), str):
+            identity, phase = progress["step_id"], progress.get("phase")
+            if phase == "started" and identity not in self.steps and self.active is None:
+                self.steps[identity] = {"id": identity, "number": len(self.steps) + 1,
+                    "title": progress["text"], "status": "running", "start": self.clock(), "tools": 0}
+                self.active = identity
+            elif identity == self.active and phase == "completed":
+                self.steps[identity]["completion_requested"] = True
+                self._finish_if_ready(identity)
+            elif identity != self.active or phase not in {"updated", "started"}:
+                output["task_step_error"] = "Step transition was not applied; the existing step was retained."
+            if identity in self.steps:
+                output["task_step"] = self._public(identity)
+            return output
+        call = payload.get("tool_call_id")
+        if not isinstance(call, str) or payload.get("capability") == "agent_task_progress":
+            return output
+        if normalized["event_type"] == "tool_started" and self.active is not None and call not in self.calls:
+            state = self.steps[self.active]
+            number = cast(int, state["tools"]) + 1
+            state["tools"] = number
+            self.calls[call] = self.active, number
+            self.pending.add(call)
+        if call in self.calls:
+            identity, number = self.calls[call]
+            output.update(task_step_id=identity, task_step_number=self.steps[identity]["number"], step_tool_number=number)
+            if normalized["event_type"] == "tool_completed":
+                self.pending.discard(call)
+                self._finish_if_ready(identity)
+                output["task_step"] = self._public(identity)
+        return output
+
+    def _finish_if_ready(self, identity: str) -> None:
+        state = self.steps[identity]
+        if (state.get("completion_requested") and state["status"] == "running"
+            and not any(self.calls[call][0] == identity for call in self.pending)):
+            state["status"] = "completed"
+            state["duration_ms"] = max(0, round((self.clock() - cast(float, state["start"])) * 1000))
+            if self.active == identity:
+                self.active = None
+
+    def _public(self, identity: str) -> dict[str, object]:
+        return {key: value for key, value in self.steps[identity].items()
+            if key in {"id", "number", "title", "status", "duration_ms"}}

@@ -30,7 +30,8 @@ async function fixture(t, { progress = false, state = { research_id: "research-1
   if (progress) {
     binding.progress_tool_schema = { type: "object", additionalProperties: false, required: ["kind", "text"],
       properties: { kind: { type: "string", enum: ["goal", "observation", "adjustment", "limitation"] },
-        text: { type: "string", minLength: 1, maxLength: 1000 }, refs: { type: "array", maxItems: 32, items: { type: "string", minLength: 1, maxLength: 256 } } } };
+        text: { type: "string", minLength: 1, maxLength: 1000 }, refs: { type: "array", maxItems: 32, items: { type: "string", minLength: 1, maxLength: 256 } },
+        step_id: { type: "string", pattern: "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$" }, phase: { type: "string", enum: ["started", "updated", "completed"] } } };
     await writeFile(join(root, "binding.json"), JSON.stringify(binding));
   }
   await writeFile(join(root, "view.json"), JSON.stringify(view));
@@ -59,6 +60,8 @@ test("task progress records explicit public work without research creation or ev
   assert.deepEqual(await readdir(join(f.root, "requests")), []);
   assert.equal((await tool.execute("progress-2", { kind: "verified", text: "结论" })).isError, true);
   assert.equal((await tool.execute("progress-3", { kind: "goal", text: "目标", thread_id: "other" })).isError, true);
+  assert.equal((await tool.execute("progress-4", { kind: "goal", text: "目标", step_id: "inspect" })).isError, true);
+  assert.equal((await tool.execute("progress-5", { kind: "goal", text: "目标", step_id: "inspect", phase: "started" })).details.ok, true);
 });
 
 async function pending(root) {

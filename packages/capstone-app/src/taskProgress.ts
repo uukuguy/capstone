@@ -1,7 +1,7 @@
 import { parseResearchSnapshot } from './ResearchEvidence'
 import type { EventEnvelope } from './threadProtocol'
 
-export type TaskProgress = { id: string; text: string; refs: string[]; revision?: number; sequence: number; kind?: 'goal' | 'observation' | 'adjustment' | 'limitation' }
+export type TaskProgress = { id: string; text: string; refs: string[]; revision?: number; sequence: number; kind?: 'goal' | 'observation' | 'adjustment' | 'limitation'; stepId?: string; phase?: string }
 
 // Project committed public work records. Do not invent a stage from tool names.
 export function projectTaskProgress(events: readonly EventEnvelope[], attemptId: string): TaskProgress[] {
@@ -19,7 +19,9 @@ export function projectTaskProgress(events: readonly EventEnvelope[], attemptId:
           Array.isArray(record.refs) && record.refs.length <= 32 &&
           record.refs.every(ref => typeof ref === 'string' && ref.length > 0 && ref.length <= 256)) {
           output.push({ id: event.eventId, text: record.text, refs: record.refs as string[],
-            kind: record.kind as TaskProgress['kind'], sequence: event.eventSeq })
+            kind: record.kind as TaskProgress['kind'], sequence: event.eventSeq,
+            ...(typeof record.step_id === 'string' ? { stepId: record.step_id } : {}),
+            ...(typeof record.phase === 'string' ? { phase: record.phase } : {}) })
         }
       }
       continue

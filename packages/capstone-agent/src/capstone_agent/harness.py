@@ -253,6 +253,10 @@ def normalize_runtime_event(
 
 def _tool_payload(event: Mapping[str, object]) -> dict[str, object]:
     payload: dict[str, object] = {}
+    # These annotations are added by the application's Attempt-scoped tracker.
+    for key in ("task_step", "task_step_id", "task_step_number", "step_tool_number", "task_step_error"):
+        if key in event:
+            payload[key] = event[key]
     for source, target in (
         ("toolCallId", "tool_call_id"), ("tool_call_id", "tool_call_id"),
         ("toolName", "tool_name"), ("tool_name", "tool_name"),
@@ -317,7 +321,11 @@ def _tool_payload(event: Mapping[str, object]) -> dict[str, object]:
             payload["failure"] = {"code": "invalid_task_progress", "phase": "validate",
                 "message": "Task progress could not be read. The tool record is retained."}
         else:
-            payload["task_progress"] = progress.model_dump(mode="json")
+            payload["task_progress"] = progress.model_dump(mode="json", exclude_none=True)
+        if isinstance(event.get("task_step_error"), str):
+            payload["ok"] = False
+            payload["failure"] = {"code": "task_step_transition_not_applied", "phase": "validate",
+                "message": "步骤状态未更新，已有步骤和执行记录已保留。"}
         return payload
     if ok is True and isinstance(result, Mapping):
         # Dataset identities are observation sources, not calculation evidence.

@@ -594,7 +594,11 @@ class _KernelPiPromptSession:
         self._trace.append("application_prompt", {
             "correlation_id": correlation_id, "question": question,
         })
+        from .task_steps import TaskStepTracker
+        if not hasattr(self, "_task_step_tracker"):
+            self._task_step_tracker = TaskStepTracker()
         def observed(event, _sequence):
+            event = self._task_step_tracker.annotate(event)
             if self._reference_observer is not None:
                 self._reference_observer(event)
             on_semantic_event({**event, "trace_sequence": _sequence,

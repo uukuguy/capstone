@@ -10,6 +10,10 @@ Keep the record short and in the user's language. It may accompany the next doma
 Do not narrate every tool, expose private reasoning, or present a planned check as completed.
 These public work records are not independent verification and do not require creating
 a full Research Model. Keep the formal answer separate.
+For a business step, provide a stable local step_id and phase started before its tool calls.
+Use the same step_id for updates and phase completed when that work ends. The host assigns
+step numbers, tool ownership and elapsed time. Close the current step before starting another.
+Do not claim a step complete while required work remains; record its limitation instead.
 
 - Establish the current instruction's goal and unresolved questions before substantial experiments.
 - Keep the working goal limited to the user's requested output. Do not add an investigation merely

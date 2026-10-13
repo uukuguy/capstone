@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import CapstoneAssistantThread, { projectAssistantActivity, projectAssistantMessages } from './CapstoneAssistantThread'
 import type { EventEnvelope } from './threadProtocol'
 
-afterEach(cleanup)
+afterEach(() => { cleanup(); localStorage.clear() })
 
 const event = (eventType: string, eventSeq: number, payload: Record<string, unknown>, attemptId?: string, occurredAt = '2026-09-30T00:00:00Z'): EventEnvelope => ({
   eventId: `evt_${eventSeq}`, eventSeq, eventType, eventVersion: 1, threadId: 'thr_demo', runId: 'run_demo', attemptId,
@@ -1010,10 +1010,8 @@ describe('CapstoneAssistantThread', () => {
     fireEvent(details, new Event('toggle'))
     const completed = [...next, event('attempt_completed', 10, { answer: '执行完成。' }, 'running_activity')]
     rerender(<CapstoneAssistantThread {...props} isRunning={false} events={completed} activity={projectAssistantActivity(completed)} />)
-    expect(details.open).toBe(false)
-    expect(screen.queryByLabelText('运行过程预览')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: '查看运行过程' }))
     expect(details.open).toBe(true)
+    expect(screen.queryByLabelText('运行过程预览')).toBeNull()
     expect(details.querySelectorAll('.capstone-chat-activity-item')).toHaveLength(4)
   })
 

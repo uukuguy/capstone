@@ -44,6 +44,14 @@ class TaskProgress(ResearchRecord):
     kind: Literal["goal", "observation", "adjustment", "limitation"]
     text: Annotated[str, Field(min_length=1, max_length=1000)]
     refs: tuple[Reference, ...] = Field(default=(), max_length=32)
+    step_id: RecordId | None = None
+    phase: Literal["started", "updated", "completed"] | None = None
+
+    @model_validator(mode="after")
+    def require_step_phase(self):
+        if (self.step_id is None) != (self.phase is None):
+            raise ValueError("step_id and phase must be provided together")
+        return self
 
 
 def task_progress_tool_schema() -> dict[str, Any]:

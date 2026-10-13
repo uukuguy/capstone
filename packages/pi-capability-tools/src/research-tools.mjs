@@ -123,6 +123,7 @@ export function configureResearchTools(pi, channelPath, { timeoutMs = 5000, fata
       async execute(id, params, signal) {
         try {
           const record = validate(progressParameters, "agent_task_progress", id, params);
+          if ((record.step_id == null) !== (record.phase == null)) return failure("agent_task_progress", "invalid_arguments");
           if (signal?.aborted) return failure("agent_task_progress", "cancelled");
           return success("agent_task_progress", { ...record, refs: record.refs ?? [] });
         } catch { return failure("agent_task_progress", "invalid_arguments"); }
