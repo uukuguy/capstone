@@ -2,10 +2,27 @@ import { StrictMode } from 'react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { NetworkView } from './NetworkView'
+import type { DiagramNetworkView } from './types'
 import ThreadModelPane, { projectActiveNetworkView } from './ThreadModelPane'
 import { parseThreadSnapshot } from './threadProtocol'
 import { threadUiFixture } from './threadUiFixtures'
 import { sampleDiagramView, sampleView } from './networkFixture'
+
+it('shows sourced disconnection and region legends without declaring physical supply state', () => {
+  const view: DiagramNetworkView = structuredClone(sampleDiagramView)
+  view.layer.annotations = {
+    scene: { label: '派生故障场景', context_ref: 'context:derived', model_revision: 'revision:derived', source_ref: 'result:current' },
+    states: [{ label: '已断开', style: 'disconnected', ids: [view.diagram.branches[0].id], source_ref: 'result:current' }],
+    regions: [{ label: '分区 1：无供电参考', ids: [view.diagram.buses[0].id], source_ref: 'result:current' }],
+  }
+  const { container } = render(<NetworkView view={view} modelName="测试电网" focusKey="scene" />)
+  expect(screen.getByText('派生故障场景')).toBeTruthy()
+  expect(screen.getByText('已断开 · 1')).toBeTruthy()
+  expect(screen.getByText('分区 1：无供电参考 · 1 母线')).toBeTruthy()
+  expect(container.querySelector('.network-state-disconnected')).toBeTruthy()
+  expect(container.querySelector('.network-region-marker')).toBeTruthy()
+  expect(screen.queryByText('物理失电')).toBeNull()
+})
 import { threadPreviewDiagram } from './threadModelDiagram'
 
 afterEach(() => { cleanup(); sessionStorage.clear() })

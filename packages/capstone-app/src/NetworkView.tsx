@@ -81,6 +81,12 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
   const drag = useRef<{ x: number; y: number; camera: Camera } | null>(null)
   const geometry = view?.schema === 'capstone-network-view/2.0' ? view.diagram : view || previewDiagram
   const layer = view?.schema === 'capstone-network-view/2.0' ? view.layer : view
+  const annotations = view?.schema === 'capstone-network-view/2.0' ? view.layer.annotations : undefined
+  const stateById = useMemo(() => new Map(annotations?.states.flatMap((state) =>
+    state.ids.map((id) => [id, state] as const)) || []), [annotations])
+  const regionById = useMemo(() => new Map(annotations?.regions.flatMap((region, index) =>
+    region.ids.map((id) => [id, { ...region, index }] as const)) || []), [annotations])
+  const regionColors = ['#436fba', '#8e619c', '#9c7235', '#45877b', '#af6470', '#687dad']
   const viewIdentity = view?.schema === 'capstone-network-view/2.0'
     ? `${view.diagram.ref}:${view.ordinal}:${view.layer.focus_ids.join(',')}:${view.layer.next_focus_ids.join(',')}`
     : view ? `${view.model.revision}:${view.ordinal}:${view.focus_ids.join(',')}:${view.next_focus_ids.join(',')}`
@@ -222,9 +228,10 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
             if (!from || !to) return null
             const label = elementLabel(branch.kind, branch.label)
             const value = values.get(branch.id)
+            const state = stateById.get(branch.id)
             const highlighted = focusIds.includes(branch.id)
             const historical = !highlighted && historyIds.has(branch.id)
-            const color = value === undefined ? highlighted ? '#245fc4' :
+            const color = state?.style === 'disconnected' ? '#b75c43' : state?.style === 'warning' ? '#bb7025' : value === undefined ? highlighted ? '#245fc4' :
               historical ? '#91aaa6' : branch.kind === 'link' ? '#718ca0' : '#829c98'
               : valueColor(layer!.overlay!.metric, value, loadingRange)
             const transformer = ['transformer', 'trafo', 'trafo3w'].includes(branch.kind)
@@ -234,9 +241,15 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
               <line x1={from.x} y1={from.y} x2={to.x} y2={to.y}
                 stroke="transparent" strokeWidth={Math.max(4, (dense ? 7 : 20) * visualScale)} />
               <line x1={from.x} y1={from.y} x2={to.x} y2={to.y}
+                className={state ? `network-state-${state.style}` : undefined}
                 stroke={color} strokeWidth={(highlighted ? dense ? 3 : 6 : historical ? dense ? 2 : 3.5 : dense ? 1.5 : value === undefined ? 2.5 : 4) * visualScale}
-                strokeDasharray={branch.kind === 'link' ? '9 6' : undefined}
+                strokeDasharray={state?.style === 'disconnected' ? `${7 * visualScale} ${5 * visualScale}` : branch.kind === 'link' ? '9 6' : undefined}
                 strokeLinecap="round" />
+              {state?.style === 'disconnected' && <g aria-label={`${label}：${state.label}`}>
+                <circle cx={centerX} cy={centerY} r={5 * visualScale} fill="white" />
+                <path d={`M ${centerX - 4 * visualScale} ${centerY - 4 * visualScale} l ${8 * visualScale} ${8 * visualScale} m 0 ${-8 * visualScale} l ${-8 * visualScale} ${8 * visualScale}`}
+                  stroke="#b75c43" strokeWidth={1.5 * visualScale} />
+              </g>}
               {highlighted && value !== undefined && <circle className="network-analysis-marker"
                 cx={centerX} cy={centerY} r={(dense ? 3 : 5) * visualScale}
                 fill="white" stroke="#245fc4" strokeWidth={2 * visualScale} />}
@@ -252,16 +265,24 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
                 className="network-branch-label"
                 style={{ fontSize: `${12 * visualScale}px`, strokeWidth: `${4 * visualScale}px`,
                   ...(value === undefined ? {} : { fill: color }) }}>{label}</text>}
-              <title>{label}{value === undefined ? '' : ` · ${value.toFixed(1)} ${layer!.overlay!.unit}`}</title>
+              <title>{label}{state ? ` · ${state.label}` : ''}{value === undefined ? '' : ` · ${value.toFixed(1)} ${layer!.overlay!.unit}`}</title>
             </g>
           })}
           {nodes.map((bus) => {
             const label = elementLabel('bus', bus.label)
             const value = values.get(bus.id)
+            const region = regionById.get(bus.id)
+            const state = stateById.get(bus.id)
             const highlighted = focusIds.includes(bus.id)
             const historical = !highlighted && historyIds.has(bus.id)
             return <g key={bus.id} onMouseEnter={() => setHovered(bus.id)}
               onMouseLeave={() => setHovered(null)}>
+              {region && <circle className="network-region-marker" cx={bus.x} cy={bus.y}
+                r={(dense ? 6 : 12) * symbolScale} fill="none"
+                stroke={regionColors[region.index % regionColors.length]} strokeWidth={1.5 * visualScale} opacity={0.65} />}
+              {state?.style === 'unresolved' && <circle cx={bus.x} cy={bus.y}
+                r={(dense ? 7 : 13) * symbolScale} fill="none" stroke="#7e858c"
+                strokeDasharray={`${3 * visualScale} ${2 * visualScale}`} strokeWidth={1.5 * visualScale} />}
               {schematic ? <line className="network-busbar"
                 x1={bus.x - (highlighted ? 11 : 8) * symbolScale} x2={bus.x + (highlighted ? 11 : 8) * symbolScale}
                 y1={bus.y} y2={bus.y}
@@ -286,6 +307,13 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
         <span className="network-canvas-hint">拖动平移 · Shift + 滚轮缩放{nodes.length > 12 ? ' · 悬停识别元件' : ''}</span>
       </div>
       <div className="network-footer">
+        {annotations && <div className="network-scene-legend">
+          <strong title={`${annotations.scene.context_ref}\n${annotations.scene.model_revision}`}>{annotations.scene.label}</strong>
+          {annotations.states.map((state, index) => <span key={`state-${index}`} title={state.source_ref}>
+            <i className={`legend-state-${state.style}`} aria-hidden="true" />{state.label} · {state.ids.length}</span>)}
+          {annotations.regions.map((region, index) => <span key={`region-${index}`} title={region.source_ref}>
+            <i style={{ borderColor: regionColors[index % regionColors.length] }} aria-hidden="true" />{region.label} · {region.ids.length} 母线</span>)}
+        </div>}
         <div className="network-legend"><span className={schematic ? 'legend-busbar' : 'legend-bus-point'} /> 母线
           {branchKinds.has('line') && <><span className="legend-line" /> 线路</>}
           {branchKinds.has('link') && <><span className="legend-link" /> 直流连接</>}

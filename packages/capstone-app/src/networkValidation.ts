@@ -49,6 +49,26 @@ function parseDiagramView(raw: Record<string, unknown>, ordinal: number,
     if (branch.kind === 'line') lineIds.add(branch.id)
   }
   const allIds = new Set([...busIds, ...branchIds])
+  if (layer.annotations !== undefined) {
+    const annotations = layer.annotations
+    if (!record(annotations) || !record(annotations.scene) ||
+        !text(annotations.scene.label) || !text(annotations.scene.context_ref) ||
+        !text(annotations.scene.model_revision) || !text(annotations.scene.source_ref) ||
+        !admittedRefs.includes(annotations.scene.source_ref)) return null
+    for (const kind of ['states', 'regions']) {
+      const entries = annotations[kind]
+      if (!Array.isArray(entries) || entries.length > MAX_NETWORK_BUSES) return null
+      const allowed = kind === 'regions' ? busIds : allIds
+      for (const entry of entries) {
+        if (!record(entry) || !text(entry.label) || !text(entry.source_ref) ||
+            !admittedRefs.includes(entry.source_ref) || !Array.isArray(entry.ids) ||
+            !entry.ids.length || entry.ids.length > MAX_NETWORK_BRANCHES ||
+            new Set(entry.ids).size !== entry.ids.length ||
+            entry.ids.some((id) => typeof id !== 'string' || !allowed.has(id)) ||
+            kind === 'states' && !['disconnected', 'warning', 'unresolved'].includes(String(entry.style))) return null
+      }
+    }
+  }
   for (const key of ['focus_ids', 'next_focus_ids']) {
     const focus = layer[key]
     if (!Array.isArray(focus) || focus.length > 20 || new Set(focus).size !== focus.length ||

@@ -127,7 +127,8 @@ def normalize_network_layer(
         raise ValueError("network layer is invalid")
     published = "schema" in value
     required = {"focus_ids", "next_focus_ids", "overlay"}
-    source = _record(value, required | (
+    optional = {"annotations"} if "annotations" in value else set()
+    source = _record(value, required | optional | (
         {"schema", "ordinal", "diagram_ref", "model_revision"} if published else set()
     ))
     if published and (
@@ -173,12 +174,58 @@ def normalize_network_layer(
             selected.append({"id": identifier, "value": number})
         overlay = {"metric": metric, "unit": _METRICS[metric],
                    "source_ref": reference, "values": selected}
-    return {
+    normalized = {
         "schema": "capstone-network-layer/1.0", "ordinal": ordinal,
         "diagram_ref": diagram["ref"], "model_revision": diagram["model"]["revision"],
         "focus_ids": focus("focus_ids"), "next_focus_ids": focus("next_focus_ids"),
         "overlay": overlay,
     }
+    if "annotations" in source:
+        normalized["annotations"] = _normalize_annotations(source["annotations"], buses, ids, admitted_refs)
+    return normalized
+
+
+def _normalize_annotations(
+    value: object, buses: set[str], ids: set[str], admitted_refs: Sequence[str] | None,
+) -> dict[str, Any]:
+    """Validate presentation membership and admitted sources, without domain inference."""
+    source = _record(value, {"scene", "states", "regions"})
+
+    def reference(raw: object) -> str:
+        selected = _text(raw, 2048)
+        if admitted_refs is not None and selected not in admitted_refs:
+            raise ValueError("network annotation source is not admitted")
+        return selected
+
+    scene = _record(source["scene"], {"label", "context_ref", "model_revision", "source_ref"})
+    normalized_scene = {"label": _text(scene["label"]),
+                        "context_ref": _text(scene["context_ref"], 2048),
+                        "model_revision": _text(scene["model_revision"], 2048),
+                        "source_ref": reference(scene["source_ref"])}
+    collections: dict[str, list[dict[str, Any]]] = {}
+    for kind in ("states", "regions"):
+        entries = source[kind]
+        if not isinstance(entries, list) or len(entries) > MAX_BUSES:
+            raise ValueError("network annotation count is invalid")
+        normalized_entries = []
+        for raw in entries:
+            entry = _record(raw, {"label", "ids", "source_ref"} | ({"style"} if kind == "states" else set()))
+            members = entry["ids"]
+            allowed = buses if kind == "regions" else ids
+            if (not isinstance(members, list) or not 1 <= len(members) <= MAX_BRANCHES
+                    or any(not isinstance(item, str) or item not in allowed for item in members)
+                    or len(members) != len(set(members))):
+                raise ValueError("network annotation component membership is invalid")
+            item = {"label": _text(entry["label"]), "ids": list(members),
+                    "source_ref": reference(entry["source_ref"])}
+            if kind == "states":
+                style = entry["style"]
+                if style not in {"disconnected", "warning", "unresolved"}:
+                    raise ValueError("network annotation presentation style is invalid")
+                item["style"] = style
+            normalized_entries.append(item)
+        collections[kind] = normalized_entries
+    return {"scene": normalized_scene, **collections}
 
 
 def normalize_network_projection(value: object, *, admitted_refs: Sequence[str]) -> dict[str, Any]:

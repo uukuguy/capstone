@@ -87,3 +87,42 @@ def test_projection_accepts_only_current_step_line_result() -> None:
     selected = normalize_network_projection(raw, admitted_refs=("result:current",))
     assert selected["layer"]["overlay"]["values"] == [{"id": "line:11", "value": 72.0}]
     assert selected["layer"]["ordinal"] == 3
+
+
+def annotated_projection() -> dict[str, object]:
+    raw = projection()
+    raw["layer"]["annotations"] = {
+        "scene": {"label": "派生场景", "context_ref": "context:derived",
+                  "model_revision": "revision:derived", "source_ref": "result:current"},
+        "states": [{"label": "已断开", "style": "disconnected", "ids": ["line:11"],
+                    "source_ref": "result:current"}],
+        "regions": [{"label": "分区 1：无供电参考", "ids": ["1"],
+                     "source_ref": "result:current"}],
+    }
+    return raw
+
+
+def test_scene_annotations_preserve_source_and_do_not_change_geometry_identity() -> None:
+    plain = normalize_network_projection(projection(), admitted_refs=())
+    selected = normalize_network_projection(annotated_projection(), admitted_refs=("result:current",))
+    assert selected["diagram"] == plain["diagram"]
+    assert selected["layer"]["annotations"]["scene"]["model_revision"] == "revision:derived"
+    assert selected["layer"]["annotations"]["states"][0]["ids"] == ["line:11"]
+    assert Frame.from_line(Frame("session-1", 3, "network_layer", {
+        "ordinal": 1, "layer": selected["layer"],
+    }).to_line()).payload["layer"] == selected["layer"]
+
+
+@pytest.mark.parametrize("mutate", [
+    lambda value: value["scene"].update(source_ref="result:foreign"),
+    lambda value: value["states"][0].update(ids=["foreign"]),
+    lambda value: value["states"][0].update(ids=["line:11", "line:11"]),
+    lambda value: value["regions"][0].update(ids=["line:11"]),
+    lambda value: value["regions"][0].update(source_ref="result:foreign"),
+    lambda value: value["states"][0].update(style="invented"),
+])
+def test_annotations_reject_foreign_sources_or_components(mutate) -> None:
+    raw = annotated_projection()
+    mutate(raw["layer"]["annotations"])
+    with pytest.raises(ValueError):
+        normalize_network_projection(raw, admitted_refs=("result:current",))

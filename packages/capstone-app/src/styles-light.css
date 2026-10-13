@@ -965,6 +965,13 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .capstone-business-step .capstone-step-continuation { margin-left: 6px; color: #88632d; font-size: 8px; white-space: nowrap; }
 .capstone-chat-activity-item .capstone-tool-failure { display: inline; margin-left: 6px; color: #a65341; font-size: 8.5px; }
 .capstone-tool-call-content { flex: 1; min-width: 0; display: block; }
+.network-scene-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; width: 100%; font-size: 10px; line-height: 1.5; }
+.network-scene-legend strong { color: #455d70; font-weight: 600; }
+.network-scene-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.network-scene-legend i { display: inline-block; width: 9px; height: 9px; border: 1.5px solid #7e858c; border-radius: 50%; }
+.network-scene-legend .legend-state-disconnected { border-color: #b75c43; border-style: dashed; border-radius: 0; }
+.network-scene-legend .legend-state-warning { border-color: #bb7025; border-radius: 2px; }
+.network-scene-legend .legend-state-unresolved { border-style: dashed; }
 .capstone-tool-call-heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 5px; }
 .capstone-tool-failure-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
 .capstone-tool-diagnostic { position: relative; display: inline-block; }

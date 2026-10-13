@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -8,6 +9,7 @@ import pytest
 from capstone_agent.thread_protocol import AttemptSnapshot, ModelContextSnapshot
 from capstone_agent.thread_service import AttemptClaim
 from capstone_agent.thread_network import NetworkProjectionUnavailable
+from capstone_agent.thread_network import normalize_thread_network_projection
 from capstone_model_capability_spi import ModelCapabilitySelection
 from grid_agent.application.thread_capabilities import (
     PANDAPOWER_PROFILE_DESCRIPTOR, build_pandapower_thread_application,
@@ -27,7 +29,7 @@ class _Grid:
         return iter(self.values)
 
     def invoke(self, capability, arguments):
-        key = (capability, tuple(sorted(arguments.items())))
+        key = (capability, json.dumps(arguments, sort_keys=True))
         if key not in self.responses:
             self.responses[key] = self.values[2].executor.invoke(capability, arguments)
         return self.responses[key]
@@ -119,6 +121,35 @@ def test_thread_topology_uses_exact_real_registered_model(grid):
     assert projection["diagram"]["branches"] == source["branches"]
     assert len(source["buses"]) == (39 if claim.model_context.model_id == "ieee39" else 24)
     assert projection["layer"] == {"focus_ids": [], "next_focus_ids": [], "overlay": None}
+
+
+def test_derived_scene_marks_real_outage_and_preserves_bound_geometry(grid):
+    claim, context, runtime, binding = grid
+    derived = runtime.executor.invoke("model.revision.derive", {
+        "context_ref": binding.context_ref,
+        "patches": [{"kind": "line", "selector": {"indices": [0]},
+                     "operation": "in_service", "value": False}],
+    })
+    flow = runtime.executor.invoke("analysis.powerflow.ac.run", {"context_ref": derived["context_ref"]})
+    provider = build_pandapower_thread_network_provider(context)
+    view = provider.project(claim, (flow["result_ref"],), tuple(flow["evidence_refs"]), ())
+    assert view["diagram"]["model"]["revision"] == binding.model_revision
+    annotations = view["layer"]["annotations"]
+    assert annotations["scene"]["model_revision"] == derived["revision_ref"]
+    assert annotations["states"][0]["ids"] == ["line:0"]
+    assert annotations["states"][0]["label"] == "已断开"
+    assert annotations["regions"]
+    assert normalize_thread_network_projection(view, claim, (flow["result_ref"],)) is not None
+    original = runtime.executor.invoke
+    def changed_geometry(capability, arguments):
+        response = original(capability, arguments)
+        if capability == "operator.diagram.get" and arguments["context_ref"] == derived["context_ref"]:
+            response = {**response, "branches": response["branches"][1:]}
+        return response
+    provider = build_pandapower_thread_network_provider(context)
+    provider._executor = SimpleNamespace(invoke=changed_geometry)
+    with pytest.raises(NetworkProjectionUnavailable, match="projection_model_mismatch"):
+        provider.project(claim, (flow["result_ref"],), tuple(flow["evidence_refs"]), ())
 
 
 def test_thread_ranking_focus_uses_the_exact_authority_subset(grid):
