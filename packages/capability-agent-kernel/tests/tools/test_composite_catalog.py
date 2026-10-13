@@ -90,7 +90,7 @@ def test_research_tools_are_opt_in_core_contracts_without_domain_ownership():
     research = CoreToolCatalog.default(include_research=True)
     assert len(ordinary.tools) == 2
     tools = {tool.name: tool for tool in research.tools}
-    assert set(tools) == {"agent_context_get", "agent_record_decision", "agent_research_read", "agent_research_update", "agent_research_depth"}
+    assert set(tools) == {"agent_context_get", "agent_record_decision", "agent_research_read", "agent_research_update", "agent_research_depth", "agent_task_progress"}
     depth = tools["agent_research_depth"].input_schema
     assert depth["additionalProperties"] is False
     assert depth["properties"]["level"]["enum"] == ["off", "high"]

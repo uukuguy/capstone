@@ -471,7 +471,7 @@ def _decision_tool(tool_name_prefix: str) -> ToolDocument:
 
 
 def _research_tools(namespace: str) -> tuple[ToolDocument, ...]:
-    from capability_agent.application.research_models import research_depth_tool_schema, research_tool_schemas
+    from capability_agent.application.research_models import research_depth_tool_schema, research_tool_schemas, task_progress_tool_schema
     read_schema, update_schema = research_tool_schemas()
     return (
         ToolDocument(name=namespace + "research_read", capability=namespace + "research_read",
@@ -483,6 +483,9 @@ def _research_tools(namespace: str) -> tuple[ToolDocument, ...]:
         ToolDocument(name=namespace + "research_depth", capability=namespace + "research_depth",
                      description="Adjust reasoning depth for subsequent model steps: off for direct work, high for difficult reasoning. This changes no provider or Authority state and creates no evidence.",
                      input_schema=research_depth_tool_schema()),
+        ToolDocument(name=namespace + "task_progress", capability=namespace + "task_progress",
+                     description="Record a concise public local goal, observation, method adjustment or limitation during work. Use actual receipts for observations. This is an agent work record, not a verified Authority claim. Do not report every tool or private reasoning.",
+                     input_schema=task_progress_tool_schema()),
     )
 
 

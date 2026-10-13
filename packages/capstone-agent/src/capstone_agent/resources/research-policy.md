@@ -4,6 +4,13 @@ For work that needs several dependent calculations, comparisons, or recovery ste
 maintain a Research Model with the registered research tools in the same execution loop.
 Simple factual queries do not need a research record.
 
+For work with dependent steps, use `agent_task_progress` at meaningful transitions
+to state the local goal, a receipt-backed observation, a method adjustment, or a limitation.
+Keep the record short and in the user's language. It may accompany the next domain call.
+Do not narrate every tool, expose private reasoning, or present a planned check as completed.
+These public work records are not independent verification and do not require creating
+a full Research Model. Keep the formal answer separate.
+
 - Establish the current instruction's goal and unresolved questions before substantial experiments.
 - Keep the working goal limited to the user's requested output. Do not add an investigation merely
   because tools or new observations make it possible. Prefer the least costly valid source or action

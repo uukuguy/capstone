@@ -1,7 +1,7 @@
 import { parseResearchSnapshot } from './ResearchEvidence'
 import type { EventEnvelope } from './threadProtocol'
 
-export type TaskProgress = { id: string; text: string; refs: string[]; revision: number; sequence: number }
+export type TaskProgress = { id: string; text: string; refs: string[]; revision?: number; sequence: number; kind?: 'goal' | 'observation' | 'adjustment' | 'limitation' }
 
 // Project committed public work records. Do not invent a stage from tool names.
 export function projectTaskProgress(events: readonly EventEnvelope[], attemptId: string): TaskProgress[] {
@@ -9,6 +9,21 @@ export function projectTaskProgress(events: readonly EventEnvelope[], attemptId:
   const revisions = new Map<string, number>()
   const output: TaskProgress[] = []
   for (const event of events) {
+    if (event.eventType === 'tool_completed' && event.attemptId === attemptId &&
+      event.payload.capability === 'agent_task_progress' && event.payload.ok === true) {
+      const value = event.payload.task_progress
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        const record = value as Record<string, unknown>
+        if (typeof record.kind === 'string' && ['goal', 'observation', 'adjustment', 'limitation'].includes(record.kind) &&
+          typeof record.text === 'string' && record.text.length > 0 && record.text.length <= 1000 &&
+          Array.isArray(record.refs) && record.refs.length <= 32 &&
+          record.refs.every(ref => typeof ref === 'string' && ref.length > 0 && ref.length <= 256)) {
+          output.push({ id: event.eventId, text: record.text, refs: record.refs as string[],
+            kind: record.kind as TaskProgress['kind'], sequence: event.eventSeq })
+        }
+      }
+      continue
+    }
     if (event.eventType !== 'research_state_updated') continue
     const snapshot = parseResearchSnapshot(event.payload.research_snapshot)
     if (!snapshot || snapshot.research_id !== event.payload.research_id ||

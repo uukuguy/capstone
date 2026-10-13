@@ -63,6 +63,7 @@ export type ChatActivity = {
 }
 
 const TOOL_LABELS: Record<string, string> = {
+  agent_task_progress: '记录任务进展',
   agent_task_records_read: '读取原任务记录',
   grid_model_list: '读取模型目录',
   grid_context_get: '读取模型上下文',
@@ -548,10 +549,11 @@ function ActivityItems({ activities }: { activities: ChatActivity[] }) {
 }
 
 function TaskProgressItems({ items }: { items: readonly TaskProgress[] }) {
+  const labels = { goal: '局部目标', observation: '观察记录', adjustment: '方法调整', limitation: '限制记录' }
   return <div className="capstone-task-progress" aria-label="任务进展">{items.map(item => <section key={item.id} data-sequence={item.sequence}>
-    <small>工作记录 · 研究修订 {item.revision}</small>
+    <small>{item.kind ? labels[item.kind] : '工作记录'} · 智能体记录{item.revision === undefined ? '' : ` · 研究修订 ${item.revision}`}</small>
     <p>{item.text}</p>
-    {item.refs.length > 0 && <details><summary>来源 · {item.refs.length} 条</summary>{item.refs.map(ref => <code key={ref}>{ref}</code>)}</details>}
+    {item.refs.length > 0 && <details><summary>关联引用 · {item.refs.length} 条</summary><small>记录中的引用不等于结论核验通过。</small>{item.refs.map(ref => <code key={ref}>{ref}</code>)}</details>}
   </section>)}</div>
 }
 

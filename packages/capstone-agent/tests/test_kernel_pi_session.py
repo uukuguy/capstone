@@ -238,11 +238,12 @@ def _research_admission_fixture():
     return profile, claim, requests
 
 
-def test_registered_research_tools_do_not_count_as_authority_calculations():
+@pytest.mark.parametrize("name", ["agent_research_update", "agent_task_progress"])
+def test_registered_research_tools_do_not_count_as_authority_calculations(name):
     from capability_agent.tools.catalog import CoreToolCatalog
     profile, claim, requests = _research_admission_fixture()
     admit = _build_kernel_admission((profile,), core_catalog=CoreToolCatalog.default(include_research=True))
-    events = ({"tool_name": "agent_research_update", "capability": "agent_research_update", "ok": True},)
+    events = ({"tool_name": name, "capability": name, "ok": True},)
     answer = admit(claim, "The research remains open.", (), (), events)
     assert answer.result_refs == answer.evidence_refs == ()
     assert requests[0].authority_attempted is False
@@ -279,11 +280,12 @@ def test_historical_record_tool_cannot_admit_old_references(extra):
     {"binding_id": "grid"},
     {"capability": "analysis.run"},
 ])
-def test_research_tools_cannot_claim_domain_ownership_or_physical_references(extra):
+@pytest.mark.parametrize("name", ["agent_research_update", "agent_task_progress"])
+def test_research_tools_cannot_claim_domain_ownership_or_physical_references(extra, name):
     from capability_agent.tools.catalog import CoreToolCatalog
     profile, claim, _ = _research_admission_fixture()
     admit = _build_kernel_admission((profile,), core_catalog=CoreToolCatalog.default(include_research=True))
-    event = {"tool_name": "agent_research_update", "capability": "agent_research_update", "ok": True, **extra}
+    event = {"tool_name": name, "capability": name, "ok": True, **extra}
     with pytest.raises(ValueError, match="core tool provenance"):
         admit(claim, "Study remains open.", (), (), (event,))
 

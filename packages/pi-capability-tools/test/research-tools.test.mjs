@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
-async function fixture(t, { state = { research_id: "research-1", revision: 1, goal: "Check the selected model", condition_refs: [], claims: [], notes: [], open_questions: [] } } = {}) {
+async function fixture(t, { progress = false, state = { research_id: "research-1", revision: 1, goal: "Check the selected model", condition_refs: [], claims: [], notes: [], open_questions: [] } } = {}) {
   const root = await realpath(await mkdtemp(join(tmpdir(), "capability-research-")));
   t.after(() => rm(root, { recursive: true, force: true }));
   const binding = { schema_version: "capability-research-channel/1.0", run_id: "run-1", turn_id: "turn-1", attempt_id: "attempt-1", research_id: "research-1", read_tool_schema: {
@@ -27,6 +27,12 @@ async function fixture(t, { state = { research_id: "research-1", revision: 1, go
   await mkdir(join(root, "requests"));
   await mkdir(join(root, "receipts"));
   await writeFile(join(root, "binding.json"), JSON.stringify(binding));
+  if (progress) {
+    binding.progress_tool_schema = { type: "object", additionalProperties: false, required: ["kind", "text"],
+      properties: { kind: { type: "string", enum: ["goal", "observation", "adjustment", "limitation"] },
+        text: { type: "string", minLength: 1, maxLength: 1000 }, refs: { type: "array", maxItems: 32, items: { type: "string", minLength: 1, maxLength: 256 } } } };
+    await writeFile(join(root, "binding.json"), JSON.stringify(binding));
+  }
   await writeFile(join(root, "view.json"), JSON.stringify(view));
   const tools = new Map(), handlers = new Map(), failures = [];
   let thinking = "off";
@@ -42,6 +48,18 @@ function modelRequest(messages) {
   return { context: { messages: messages.map(message => message.role === "custom"
     ? { role: "user", content: [{ type: "text", text: message.content }] } : message) } };
 }
+
+test("task progress records explicit public work without research creation or evidence", async t => {
+  const f = await fixture(t, { progress: true, state: null });
+  const tool = f.tools.get("agent_task_progress");
+  const result = await tool.execute("progress-1", { kind: "goal", text: "检查故障区域。" });
+  assert.equal(result.details.ok, true);
+  assert.deepEqual(result.details.result, { kind: "goal", text: "检查故障区域。", refs: [] });
+  assert.deepEqual(result.details.evidence_refs, []);
+  assert.deepEqual(await readdir(join(f.root, "requests")), []);
+  assert.equal((await tool.execute("progress-2", { kind: "verified", text: "结论" })).isError, true);
+  assert.equal((await tool.execute("progress-3", { kind: "goal", text: "目标", thread_id: "other" })).isError, true);
+});
 
 async function pending(root) {
   for (let i = 0; i < 100; i++) {

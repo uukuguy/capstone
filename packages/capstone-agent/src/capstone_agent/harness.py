@@ -308,6 +308,17 @@ def _tool_payload(event: Mapping[str, object]) -> dict[str, object]:
     # Native Pi tools retain authority output in details.result. Preserve only
     # bounded references and identity, never the raw authority document.
     result = details.get("result")
+    if ok is True and payload.get("capability") == "agent_task_progress":
+        from capability_agent.application.research_models import TaskProgress
+        try:
+            progress = TaskProgress.model_validate(result)
+        except ValueError:
+            payload["ok"] = False
+            payload["failure"] = {"code": "invalid_task_progress", "phase": "validate",
+                "message": "Task progress could not be read. The tool record is retained."}
+        else:
+            payload["task_progress"] = progress.model_dump(mode="json")
+        return payload
     if ok is True and isinstance(result, Mapping):
         # Dataset identities are observation sources, not calculation evidence.
         # Read only declared descriptor fields, never references inside rows.

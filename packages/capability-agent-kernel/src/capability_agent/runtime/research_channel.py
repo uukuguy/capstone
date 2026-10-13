@@ -13,7 +13,7 @@ from pydantic import ValidationError
 from capability_agent._safe_files import ensure_bound_directory, read_bound_regular_path, write_bound_text
 from capability_agent.application import ContextStoreError, ResearchController, ResearchUpdate
 from capability_agent.application.context_store import ContextUpdateRejected
-from capability_agent.application.research_models import research_depth_tool_schema, research_tool_schemas
+from capability_agent.application.research_models import research_depth_tool_schema, research_tool_schemas, task_progress_tool_schema
 
 _IDENTITY = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
 _MAX_REQUEST_BYTES = 1_048_576
@@ -44,6 +44,7 @@ class ResearchRequestChannel:
             "read_tool_schema": read_schema,
             "update_tool_schema": update_schema,
             "depth_tool_schema": research_depth_tool_schema(),
+            "progress_tool_schema": task_progress_tool_schema(),
         })
         self.publish_view()
 

@@ -39,6 +39,17 @@ class ResearchNote(ResearchRecord):
     refs: tuple[Reference, ...] = Field(default=(), max_length=32)
 
 
+class TaskProgress(ResearchRecord):
+    """Explicit reader-facing work record, never an Authority claim."""
+    kind: Literal["goal", "observation", "adjustment", "limitation"]
+    text: Annotated[str, Field(min_length=1, max_length=1000)]
+    refs: tuple[Reference, ...] = Field(default=(), max_length=32)
+
+
+def task_progress_tool_schema() -> dict[str, Any]:
+    return TaskProgress.model_json_schema()
+
+
 class ResearchChanges(ResearchRecord):
     goal: Annotated[str, Field(min_length=1, max_length=4000)] | None = None
     condition_refs: tuple[Reference, ...] | None = Field(default=None, max_length=32)

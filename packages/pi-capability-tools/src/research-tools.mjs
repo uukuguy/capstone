@@ -7,7 +7,7 @@ import { isAbsolute, join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { captureFatal } from "./model-request-capture.mjs";
 
-export const RESEARCH_TOOL_NAMES = Object.freeze(["agent_research_read", "agent_research_update", "agent_research_depth"]);
+export const RESEARCH_TOOL_NAMES = Object.freeze(["agent_research_read", "agent_research_update", "agent_research_depth", "agent_task_progress"]);
 const CUSTOM_TYPE = "capstone-research-state";
 const PREFIX = "Committed research state (agent judgments, not Authority facts):\n";
 const MAX_FILE_BYTES = 2_097_152;
@@ -114,6 +114,21 @@ export function configureResearchTools(pi, channelPath, { timeoutMs = 5000, fata
   }
   const readParameters = Type.Unsafe(binding.read_tool_schema);
   const updateParameters = Type.Unsafe(binding.update_tool_schema);
+  if (binding.progress_tool_schema?.additionalProperties === false) {
+    const progressParameters = Type.Unsafe(binding.progress_tool_schema);
+    pi.registerTool(defineTool({
+      name: "agent_task_progress", label: "Record task progress",
+      description: "Record concise public progress at meaningful transitions: local goal before dependent work, actual observations, changed method or limitation. Use the user's language and receipt references. This is an agent work record, not independent verification. Do not publish private reasoning, narrate every tool, or repeat the final report. It can accompany domain tool calls.",
+      parameters: progressParameters,
+      async execute(id, params, signal) {
+        try {
+          const record = validate(progressParameters, "agent_task_progress", id, params);
+          if (signal?.aborted) return failure("agent_task_progress", "cancelled");
+          return success("agent_task_progress", { ...record, refs: record.refs ?? [] });
+        } catch { return failure("agent_task_progress", "invalid_arguments"); }
+      },
+    }));
+  }
   function verifyReceipt(ack, requestId, hash, expectedRevision) {
     if (ack.schema_version !== "capability-research-receipt/1.0" || ack.request_id !== requestId
         || ack.request_sha256 !== hash

@@ -1,6 +1,17 @@
 from __future__ import annotations
 
 
+def test_task_progress_receipt_is_public_text_not_calculation_evidence():
+    from capstone_agent.harness import normalize_runtime_event
+    record = {"kind": "observation", "text": "已取得计算结果，准备核对约束。", "refs": ["result:one"]}
+    event = normalize_runtime_event({"type": "tool_result", "event": "tool_result",
+        "tool_name": "agent_task_progress", "capability": "agent_task_progress", "ok": True,
+        "result": record, "evidence_refs": []}, runtime_mode="capstone")
+    assert event["payload"]["task_progress"] == record
+    assert not event["payload"].get("result_refs")
+    assert not event["payload"].get("evidence_refs")
+
+
 def test_historical_record_receipt_is_visible_without_admitting_nested_evidence():
     from capstone_agent.harness import normalize_runtime_event
     event = normalize_runtime_event({
