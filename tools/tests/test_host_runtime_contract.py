@@ -30,6 +30,12 @@ def test_local_and_cloud_select_same_runtime(application, command):
     assert local[2]["module"]
 
 
+def test_model_context_retention_uses_memory_pressure_instead_of_short_idle_expiry():
+    selected = RUNTIME.select_runtime(ROOT, environment('pandapower'), 'worker')[3]
+    assert selected['CAPSTONE_THREAD_CONTEXT_IDLE_SECONDS'] == '0'
+    assert int(selected['CAPSTONE_THREAD_CONTEXT_LIMIT']) > 4
+
+
 @pytest.mark.parametrize("key,value", [
     ("CAPSTONE_PUBLIC_MODEL", "different-model"),
     ("CAPSTONE_FEDERATED_CATALOG_CONTEXT", "false"),
