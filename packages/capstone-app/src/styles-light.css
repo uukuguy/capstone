@@ -427,7 +427,7 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .capstone-instruction-markers.is-scrolling, .capstone-instruction-markers:focus-within, .capstone-instruction-markers:has(button:hover) { opacity: 1; }
 .capstone-instruction-markers button { position: absolute; left: 0; width: 12px; height: 16px; padding: 4px 2px; border: 0; background: transparent; cursor: pointer; pointer-events: auto; transform: translateY(-4px); }
 .capstone-instruction-markers button > span:first-child { display: block; width: 5px; height: 3px; border-radius: 2px; background: #9badbc; }
-.capstone-instruction-markers button[aria-current] > span:first-child { background: #167d75; }
+.capstone-instruction-markers button[aria-current] > span:first-child { width: 7px; height: 4px; background: #126f68; }
 .capstone-instruction-markers:not(.is-scrolling):not(:hover):not(:focus-within) button { pointer-events: none; }
 .capstone-instruction-marker-tip { display: none; position: absolute; right: 16px; top: -5px; width: max-content; max-width: min(240px, 65vw); padding: 6px 9px; border: 1px solid #cbd5df; border-radius: 5px; background: #f5f7fa; color: #41576a; box-shadow: 0 2px 8px #23354818; font: 11px/1.5 Inter, "PingFang SC", sans-serif; text-align: left; pointer-events: none; }
 .capstone-instruction-markers button:hover .capstone-instruction-marker-tip, .capstone-instruction-markers button:focus-visible .capstone-instruction-marker-tip { display: block; }
