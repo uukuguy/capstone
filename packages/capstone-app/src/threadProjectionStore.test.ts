@@ -148,6 +148,21 @@ it('restores a short conversation that spans several bounded history pages', asy
   expect(store.state.hasOlderHistory).toBe(false)
 })
 
+it('restores legacy diagrams when new records add an empty disconnection list', async () => {
+  const diagram = { ...sampleDiagramView.diagram, model: { id: context.model_id, revision: context.model_revision, source: 'gridctl' } }
+  const events = [
+    conversationalEvent(1, 'network_diagram', 1, { diagram }),
+    conversationalEvent(2, 'network_diagram', 1, { diagram: { ...diagram, disconnections: [] } }),
+  ]
+  const store = new ThreadProjectionStore(new CapstoneThreadClient({
+    ...createFixtureTransport(idleFixture),
+    getSnapshot: async () => ({ ...idleFixture.snapshot, last_event_seq: 2 }),
+    readHistory: pagedHistory(events, 128),
+  }))
+  await expect(store.load('thr_demo_39')).resolves.toBeUndefined()
+  expect(store.publicEvents.map(event => event.eventSeq)).toEqual([1, 2])
+})
+
 it('keeps current history when an older page diagram conflicts during merge', async () => {
   let calls = 0
   const diagram = { ...sampleDiagramView.diagram, model: { id: context.model_id, revision: context.model_revision, source: 'gridctl' } }

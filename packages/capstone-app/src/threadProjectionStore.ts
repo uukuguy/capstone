@@ -832,8 +832,10 @@ export class ThreadProjectionStore {
 
   private internDiagramEvent(event: EventEnvelope, diagrams = this.sharedDiagrams): EventEnvelope {
     if (event.eventType !== 'network_diagram') return event
-    const diagram = parseNetworkDiagram(event.payload.diagram)
-    if (!diagram) return event
+    const parsed = parseNetworkDiagram(event.payload.diagram)
+    if (!parsed) return event
+    // Older records omit this optional list. An empty list has the same state.
+    const diagram = { ...parsed, disconnections: parsed.disconnections ?? [] }
     const key = `${diagram.model.id}:${diagram.model.revision}:${diagram.ref}`
     const existing = diagrams.get(key)
     if (existing && JSON.stringify(existing) !== JSON.stringify(diagram)) {
