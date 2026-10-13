@@ -44,7 +44,7 @@ describe('thread catalog protocol', () => {
 
     expect(resolveThreadModelReference(catalog, 'pypsa-example/model_energy')).toMatchObject({ kind: 'resolved', model: { modelId: 'pypsa-example/model_energy' }, matchedBy: 'exact' })
     expect(resolveThreadModelReference(catalog, 'model_energy')).toMatchObject({ kind: 'resolved', model: { modelId: 'pypsa-example/model_energy' }, matchedBy: 'suffix' })
-    expect(resolveThreadModelReference(catalog, 'IEEE-39')).toMatchObject({ kind: 'resolved', model: { modelId: 'ieee39' }, matchedBy: 'display_name' })
+    expect(resolveThreadModelReference(catalog, 'IEEE-39')).toMatchObject({ kind: 'resolved', model: { modelId: 'ieee39' }, matchedBy: 'exact' })
     expect(resolveThreadModelReference(catalog, 'Two Bus')).toMatchObject({ kind: 'ambiguous', candidates: [{ modelId: 'pypsa-example/other-two-bus' }, { modelId: 'pypsa-example/two-bus' }] })
     expect(resolveThreadModelReference(catalog, 'missing-model')).toEqual({ kind: 'unknown', reference: 'missing-model' })
   })
@@ -53,6 +53,15 @@ describe('thread catalog protocol', () => {
     expect(isLikelyNaturalLanguageModelRequest('不存在模型')).toBe(false)
     expect(isLikelyNaturalLanguageModelRequest('IEEE-39 network and analyze line 11')).toBe(true)
     expect(isLikelyNaturalLanguageModelRequest('IEEE-39 网络并解析线路 11')).toBe(true)
+  })
+
+  it('normalizes separators against registered IDs and refuses normalization collisions', () => {
+    const base = {authorityModelRef:'fixture',displayName:'Registered system',diagramProviderId:'grid',implementationFamily:'pandapower'}
+    const catalog = {models:[{...base,modelId:'sample_network'}],profiles:[]}
+    expect(resolveThreadModelReference(catalog,'SAMPLE-NETWORK 网络')).toMatchObject({kind:'resolved',model:{modelId:'sample_network'}})
+    catalog.models.push({...base,modelId:'samplenetwork'})
+    expect(resolveThreadModelReference(catalog,'Sample Network')).toMatchObject({kind:'ambiguous'})
+    expect(resolveThreadModelReference(catalog,'sample_network')).toMatchObject({kind:'resolved',model:{modelId:'sample_network'}})
   })
 
   it('resolves a registered model with a Chinese suffix without accepting an arbitrary compound', () => {

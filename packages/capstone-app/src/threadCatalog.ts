@@ -151,7 +151,7 @@ export function parseThreadCatalog(value: unknown): ThreadCatalog {
 }
 
 function normalizedReference(value: string): string {
-  return value.trim().replace(/\s+/gu, ' ').toLocaleLowerCase()
+  return value.normalize('NFKC').trim().toLocaleLowerCase().replace(/[\s_-]+/gu, '')
 }
 
 /** Resolve a user-facing model reference without crossing the Authority boundary.
@@ -178,14 +178,13 @@ function resolveExactThreadModelReference(catalog: ThreadCatalog, reference: str
   const normalized = normalizedReference(trimmed)
   const caseInsensitiveExact = catalog.models.filter((model) => normalizedReference(model.modelId) === normalized)
   if (caseInsensitiveExact.length === 1) return { kind: 'resolved', model: caseInsensitiveExact[0], matchedBy: 'exact' }
+  if (caseInsensitiveExact.length > 1) return { kind: 'ambiguous', reference: trimmed, candidates: [...caseInsensitiveExact].sort((left, right) => left.modelId.localeCompare(right.modelId)) }
 
   const suffixMatches = catalog.models.filter((model) => normalizedReference(model.modelId.split('/').at(-1) || model.modelId) === normalized)
-  if (suffixMatches.length === 1) return { kind: 'resolved', model: suffixMatches[0], matchedBy: 'suffix' }
-  if (suffixMatches.length > 1) return { kind: 'ambiguous', reference: trimmed, candidates: [...suffixMatches].sort((left, right) => left.modelId.localeCompare(right.modelId)) }
-
   const displayMatches = catalog.models.filter((model) => normalizedReference(model.displayName) === normalized)
-  if (displayMatches.length === 1) return { kind: 'resolved', model: displayMatches[0], matchedBy: 'display_name' }
-  if (displayMatches.length > 1) return { kind: 'ambiguous', reference: trimmed, candidates: [...displayMatches].sort((left, right) => left.modelId.localeCompare(right.modelId)) }
+  const matches = [...new Set([...suffixMatches, ...displayMatches])]
+  if (matches.length === 1) return { kind: 'resolved', model: matches[0], matchedBy: suffixMatches.includes(matches[0]) ? 'suffix' : 'display_name' }
+  if (matches.length > 1) return { kind: 'ambiguous', reference: trimmed, candidates: matches.sort((left, right) => left.modelId.localeCompare(right.modelId)) }
   return { kind: 'unknown', reference: trimmed }
 }
 
