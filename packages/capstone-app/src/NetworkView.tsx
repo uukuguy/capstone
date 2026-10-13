@@ -82,10 +82,11 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
   const geometry = view?.schema === 'capstone-network-view/2.0' ? view.diagram : view || previewDiagram
   const layer = view?.schema === 'capstone-network-view/2.0' ? view.layer : view
   const annotations = view?.schema === 'capstone-network-view/2.0' ? view.layer.annotations : undefined
+  const regions = annotations && annotations.regions.length > 1 ? annotations.regions : []
   const stateById = useMemo(() => new Map(annotations?.states.flatMap((state) =>
     state.ids.map((id) => [id, state] as const)) || []), [annotations])
-  const regionById = useMemo(() => new Map(annotations?.regions.flatMap((region, index) =>
-    region.ids.map((id) => [id, { ...region, index }] as const)) || []), [annotations])
+  const regionById = useMemo(() => new Map((annotations && annotations.regions.length > 1 ? annotations.regions : []).flatMap((region, index) =>
+    region.ids.map((id) => [id, { ...region, index }] as const))), [annotations])
   const regionColors = ['#436fba', '#8e619c', '#9c7235', '#45877b', '#af6470', '#687dad']
   const viewIdentity = view?.schema === 'capstone-network-view/2.0'
     ? `${view.diagram.ref}:${view.ordinal}:${view.layer.focus_ids.join(',')}:${view.layer.next_focus_ids.join(',')}`
@@ -311,7 +312,7 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
           <strong title={`${annotations.scene.context_ref}\n${annotations.scene.model_revision}`}>{annotations.scene.label}</strong>
           {annotations.states.map((state, index) => <span key={`state-${index}`} title={state.source_ref}>
             <i className={`legend-state-${state.style}`} aria-hidden="true" />{state.label} · {state.ids.length}</span>)}
-          {annotations.regions.map((region, index) => <span key={`region-${index}`} title={region.source_ref}>
+          {regions.map((region, index) => <span key={`region-${index}`} title={region.source_ref}>
             <i style={{ borderColor: regionColors[index % regionColors.length] }} aria-hidden="true" />{region.label} · {region.ids.length} 母线</span>)}
         </div>}
         <div className="network-legend"><span className={schematic ? 'legend-busbar' : 'legend-bus-point'} /> 母线
