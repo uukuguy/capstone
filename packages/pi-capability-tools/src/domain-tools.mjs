@@ -515,10 +515,10 @@ export function withExecutionPurpose(tool) {
   const schema = tool.parameters;
   if (schema.properties?.execution_purpose) throw new TypeError("execution_purpose is reserved for agent records");
   return defineTool({ ...tool,
-    description: `${tool.description} Include execution_purpose: a short statement of this batch's intended work in the user's language. Use the same purpose for calls in the same batch. This is a public agent record, not a verified result.`,
+    description: `${tool.description} Include execution_purpose: one short objective for the current batch, in the user's language. Repeat that exact objective across calls in the batch. Do not restate the whole task, describe only this tool, list parameters, or report observations here. This is a public agent record, not a verified result.`,
     parameters: Type.Unsafe({ ...schema, properties: { ...schema.properties,
       execution_purpose: { type: "string", minLength: 1, maxLength: 120,
-        description: "Purpose of this execution batch. State the intended work, not the whole task or an outcome." } } }),
+        description: "Short objective for this batch. Repeat the same text across this batch's calls. Use a short action phrase; omit whole-task goals, parameters and observations." } } }),
     async execute(id, params, ...rest) {
       const { execution_purpose: _purpose, ...argumentsOnly } = params;
       return tool.execute(id, argumentsOnly, ...rest);

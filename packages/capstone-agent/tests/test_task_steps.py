@@ -5,11 +5,15 @@ def test_purpose_on_business_call_is_saved_without_a_progress_tool():
     from capstone_agent.task_steps import RuntimeStepTracker
     tracker = RuntimeStepTracker()
     tracker.annotate({'type': 'runtime_action', 'phase': 'started'})
+    tracker.annotate({'type': 'tool_execution_start', 'toolName': 'agent_task_progress', 'toolCallId': 'goal',
+        'args': {'kind': 'goal', 'text': '完整任务目标', 'purpose': '完整任务目标', 'refs': []}})
     tracker.annotate({'type': 'runtime_action', 'phase': 'response_completed', 'response_kind': 'tools'})
     call = tracker.annotate({'type': 'tool_execution_start', 'toolName': 'grid_query', 'toolCallId': 'one',
         'args': {'execution_purpose': '读取结果并核验约束', 'dataset': 'lines'}})
     assert call['task_step']['title'] == '读取结果并核验约束'
     assert call['task_step_id'] == 'runtime-1'
+    tracker.annotate({'type': 'tool_execution_start', 'toolName': 'agent_task_progress', 'toolCallId': 'note',
+        'args': {'kind': 'observation', 'text': '阶段观察', 'purpose': '冗长观察描述', 'refs': []}})
     tracker.annotate({'type': 'tool_execution_start', 'toolName': 'grid_query', 'toolCallId': 'two'})
     end = tracker.annotate({'type': 'runtime_action', 'phase': 'completed'})
     assert end['task_step']['title'] == '读取结果并核验约束'

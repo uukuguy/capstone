@@ -933,10 +933,10 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .capstone-chat-activity-preview { border: 1px solid #e3eee8; border-top: 0; border-radius: 0 0 7px 7px; background: #fbfdfc; }
 .capstone-chat-activity-preview { max-height: min(320px, 42vh); overflow-y: auto; }
 .capstone-chat-activity-preview .capstone-chat-activity-list { max-height: none; overflow-y: visible; padding: 0 7px 6px 22px; }
-.capstone-task-goal { margin: 4px 9px; font-size: 11px; line-height: 1.4; }
+.capstone-chat-activity-frame .capstone-task-goal { margin: 2px 9px 6px; padding-bottom: 5px; border-bottom: 1px solid #dce3e9; font-size: 9px; line-height: 1.4; font-weight: 400; color: #536874; }
 .capstone-task-progress { padding: 0 9px; font-size: 9px; line-height: 1.4; }
 .capstone-task-progress section { margin: 3px 0; }
-.capstone-chat-activity-frame .capstone-task-progress p { margin: 2px 0; font-size: 9px; line-height: 1.4; overflow-wrap: anywhere; }
+.capstone-chat-activity-frame .capstone-task-progress p { margin: 1px 0; font-size: 8.5px; line-height: 1.35; overflow-wrap: anywhere; }
 .capstone-task-progress details { margin: 2px 0; padding: 0; border: 0; }
 .capstone-task-progress details > summary { min-height: 16px; padding: 0; font-size: 8px; }
 .capstone-task-progress small { color: #647d76; font-size: 9px; }
@@ -944,9 +944,13 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .capstone-chat-activity-attached .capstone-task-progress { max-height: 180px; overflow-y: auto; }
 .capstone-chat-activity-item .capstone-chat-activity-source { display: inline-block; padding: 0 3px; border-radius: 3px; background: #eee7f7; color: #665184; font-size: 8px; font-weight: 650; }
 .capstone-chat-activity-source[data-owner="grid"], .capstone-chat-activity-source[data-owner="pypsa"] { background: #e5f3ed; color: #226a59; }
-.capstone-business-steps { padding: 0 7px 5px; }
+.capstone-business-steps { padding: 0 7px 5px; container-type: inline-size; }
 .capstone-business-step { border-left: 1px solid #d9e6df; margin: 4px 0; }
-.capstone-business-step > summary { display: flex; align-items: baseline; flex-wrap: wrap; gap: 5px; font-size: 10px; line-height: 1.4; cursor: pointer; }
+.capstone-business-step > summary { display: grid; grid-template-columns: auto auto auto minmax(0, 1fr) auto; align-items: baseline; gap: 5px; font-size: 10px; line-height: 1.4; cursor: pointer; }
+.capstone-step-metrics { display: inline-flex; justify-content: flex-end; gap: 3px; padding-left: 10px; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.capstone-business-step > summary .capstone-step-metrics small { font-size: 8px; color: #536874; }
+@container (max-width: 420px) { .capstone-business-step > summary { grid-template-columns: auto auto auto minmax(0, 1fr); } .capstone-step-metrics { grid-column: 4; justify-self: end; padding-left: 0; } }
+.capstone-business-step > summary:focus-visible { outline: 1px solid #497c78; outline-offset: 2px; border-radius: 2px; }
 .capstone-business-step > summary::before { content: '›'; display: inline-block; }
 .capstone-business-step[open] > summary::before { transform: rotate(90deg); }
 .capstone-business-step > summary .capstone-chat-activity-source { padding: 0 3px; border-radius: 3px; background: #e8eef1; color: #536874; font-size: 8px; font-weight: 650; }
@@ -956,7 +960,6 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .capstone-process-controls button:disabled { color: #a0afb7; cursor: default; }
 .capstone-business-step .capstone-step-title { flex: 1; min-width: 100px; overflow-wrap: anywhere; font-size: 9px; line-height: 1.35; font-weight: 400; color: #566c7a; }
 .capstone-business-step > summary small { color: #647d76; font-size: 9px; }
-.capstone-step-response { color: #647d76; font-size: 9px; white-space: nowrap; }
 .capstone-step-tools { margin-left: 14px; }
 .capstone-complete-process { max-height: min(480px, 60vh); overflow-y: auto; }
 .capstone-chat-activity-attached, .capstone-chat-activity-preview { background: #f1f4f8; border-color: #cbd5df; }

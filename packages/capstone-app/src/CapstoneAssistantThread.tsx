@@ -7,7 +7,7 @@ import { answerEvidenceState, evidenceStateCopy, type AnswerEvidenceState } from
 import InferenceEvidencePanel, { type FailureEvidence, type ToolExecutionRecord } from './InferenceEvidencePanel'
 import ResearchEvidence, { parseResearchSnapshot, type ResearchSnapshot } from './ResearchEvidence'
 import { projectTaskProgress, type TaskProgress } from './taskProgress'
-import TaskStepProcess, { projectTaskSteps, readStepOpen, saveStepOpen, type StepFoldCommand, type TaskStep } from './TaskStepProcess'
+import TaskStepProcess, { projectTaskSteps, readStepOpen, saveStepOpen, toolExecutionMs, type StepFoldCommand, type TaskStep } from './TaskStepProcess'
 import ResultExplorer from './ResultExplorer'
 import InstructionMarkers from './InstructionMarkers'
 import AttemptRecordPanel, { type AttemptRecordReader } from './AttemptRecordPanel'
@@ -37,7 +37,8 @@ const AnswerReadingContext = createContext<{
   collapsed: ReadonlySet<string>
   toggle: (id: string, control: HTMLButtonElement) => void
   restoreAnchor: (id: string) => void
-}>({ collapsed: new Set(), toggle: () => {}, restoreAnchor: () => {} })
+  preserveControl: (id: string, element: HTMLElement) => void
+}>({ collapsed: new Set(), toggle: () => {}, restoreAnchor: () => {}, preserveControl: () => {} })
 
 const ChatMessageContext = createContext<Parameters<typeof ChatMessage>[0] | null>(null)
 const AttemptRecordsContext = createContext<AttemptRecordReader | undefined>(undefined)
@@ -556,16 +557,18 @@ function ActivityItems({ activities }: { activities: ChatActivity[] }) {
   })}</div>
 }
 
-function TaskProgressItems({ items, responseMs }: { items: readonly TaskProgress[]; responseMs?: number }) {
+function TaskProgressItems({ items }: { items: readonly TaskProgress[] }) {
   const labels = { goal: '目标', observation: '观察', adjustment: '调整', limitation: '限制' }
-  return <div className="capstone-task-progress" aria-label="任务进展">{items.map((item, index) => <section key={item.id} data-sequence={item.sequence}>
-    <p>{item.kind && item.kind !== 'observation' && <small>{labels[item.kind]}： </small>}{item.text}{index === items.length - 1 && responseMs !== undefined && <small className="capstone-step-response"> · 模型响应 {(responseMs / 1000).toFixed(1)}s</small>}</p>
+  return <div className="capstone-task-progress" aria-label="任务进展">{items.map(item => <section key={item.id} data-sequence={item.sequence}>
+    <p>{item.kind && item.kind !== 'observation' && <small>{labels[item.kind]}： </small>}{item.text}</p>
     {item.refs.length > 0 && <details><summary>关联引用 · {item.refs.length} 条</summary><small>记录中的引用不等于结论核验通过。</small>{item.refs.map(ref => <code key={ref}>{ref}</code>)}</details>}
   </section>)}</div>
 }
 
 function AttemptActivity({ activities, progress = [], steps = [], stepStorageKey = '', goal, running, phase, open, onOpenChange, startedAt, durationMs, detailsRef }: { activities: ChatActivity[]; progress?: readonly TaskProgress[]; steps?: readonly TaskStep[]; stepStorageKey?: string; goal?: string; running: boolean; phase?: string; open: boolean; onOpenChange: (open: boolean) => void; startedAt?: string; durationMs?: number; detailsRef: React.RefObject<HTMLDetailsElement | null> }) {
   const toolActivities = activities.filter(item => !item.source.includes('agent_task_progress') || item.status === 'failed')
+  const taskGoal = progress.find(item => item.kind === 'goal')?.text ?? goal
+  const goalText = taskGoal?.replace(/^(?:任务目标|研究目标|目标)\s*[:：]\s*/u, '')
   const toolCount = toolActivities.length
   const [foldCommand, setFoldCommand] = useState<StepFoldCommand>()
   const [stepOpenStates, setStepOpenStates] = useState<Record<string, boolean>>({})
@@ -601,13 +604,14 @@ function AttemptActivity({ activities, progress = [], steps = [], stepStorageKey
       <TaskStepProcess key={entry.id} steps={[entry.step]} storageKey={stepStorageKey} running={running}
         foldCommand={foldCommand} onFoldChange={reportFold}
         toolCount={stepId => toolActivities.filter(item => item.taskStepId === stepId).length}
-        renderTools={stepId => <><TaskProgressItems responseMs={entry.step?.responseMs} items={progress.filter(item => item.stepId === stepId && item.phase !== 'started')} /><ActivityItems activities={toolActivities.filter(item => item.taskStepId === stepId)} /></>} /> :
+        toolMs={stepId => toolExecutionMs(toolActivities.filter(item => item.taskStepId === stepId))}
+        renderTools={stepId => <><TaskProgressItems items={progress.filter(item => item.stepId === stepId && item.phase !== 'started' && !(item.kind === 'goal' && item.text === taskGoal))} /><ActivityItems activities={toolActivities.filter(item => item.taskStepId === stepId)} /></>} /> :
       <div key={entry.id} title="未归属任务步骤"><ActivityItems activities={entry.activity ? [entry.activity] : []} /></div>)}</>
   }
   return <div className={`capstone-chat-activity-frame${running ? ' is-running' : ' is-settled'}`} aria-busy={running}><details ref={detailsRef} className={`capstone-chat-activity capstone-chat-activity-attached${terminalClass}`} open={open} onToggle={(event) => onOpenChange(event.currentTarget.open)}>
     <summary><Activity aria-hidden="true" /><span>{running ? '正在执行' : terminalLabel} {steps.length > 0 ? `${steps.length} 个任务步骤 · ` : ''}{toolCount} 次工具调用{elapsed === undefined ? '' : ` · 总耗时 ${formatDuration(elapsed)}`}</span>{!open && <small>查看执行过程</small>}{open && steps.length > 0 && <span className="capstone-process-controls" role="group" aria-label="步骤显示"><button type="button" disabled={steps.every(step => isStepOpen(step.id))} onClick={event => { event.preventDefault(); event.stopPropagation(); foldAll(true) }}>展开全部</button><button type="button" disabled={steps.every(step => !isStepOpen(step.id))} onClick={event => { event.preventDefault(); event.stopPropagation(); foldAll(false) }}>收起全部</button></span>}</summary>
-    {(!running || open) && <div className="capstone-complete-process">{goal && <p className="capstone-task-goal">研究目标：{goal}</p>}<TaskProgressItems items={progress.filter(item => !item.stepId)} />{process(false)}</div>}
-  </details>{running && !open && <div className="capstone-chat-activity-preview" aria-label="执行过程预览">{goal && <p className="capstone-task-goal">研究目标：{goal}</p>}<TaskProgressItems items={progress.filter(item => !item.stepId).slice(-1)} />{process(true)}</div>}</div>
+    {(!running || open) && <div className="capstone-complete-process">{goalText && <p className="capstone-task-goal">{goalText}</p>}<TaskProgressItems items={progress.filter(item => !item.stepId && item.kind !== 'goal')} />{process(false)}</div>}
+  </details>{running && !open && <div className="capstone-chat-activity-preview" aria-label="执行过程预览">{goalText && <p className="capstone-task-goal">{goalText}</p>}<TaskProgressItems items={progress.filter(item => !item.stepId && item.kind !== 'goal').slice(-1)} />{process(true)}</div>}</div>
 }
 
 function LegacyActivity({ activities, running }: { activities: ChatActivity[]; running: boolean }) {
@@ -712,7 +716,8 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
   const role = useAuiState((state) => state.message.role)
   const content = useAuiState((state) => state.message.content)
   const id = useAuiState((state) => state.message.id)
-  const { restoreAnchor } = useContext(AnswerReadingContext)
+  const { restoreAnchor, preserveControl } = useContext(AnswerReadingContext)
+  const footerRef = useRef<HTMLDivElement>(null)
   useLayoutEffect(() => restoreAnchor(id), [id, restoreAnchor])
   const status = useAuiState((state) => state.message.status)
   const custom = useAuiState((state) => state.message.metadata?.custom) as Record<string, unknown> | undefined
@@ -782,7 +787,7 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
         ? <MessagePrimitive.Parts components={{ Text: role === 'assistant' ? () => <MessagePartPrimitive.Text smooth={false} render={<MarkdownMessage />} /> : () => <MessagePartPrimitive.Text smooth={false} component="p" /> }} />
         : role === 'assistant' && <span className={`capstone-chat-placeholder${terminalWithoutText ? ' is-terminal' : ''}`}>{terminalWithoutText ? 'Attempt 已结束，暂无可显示的回答。' : '正在生成回答…'}</span>}
     </div>
-    {role === 'assistant' && <div className="capstone-chat-footer">
+    {role === 'assistant' && <div ref={footerRef} className="capstone-chat-footer" onClickCapture={() => { if (footerRef.current) preserveControl(id, footerRef.current) }}>
       <RunDuration startedAt={startedAt} durationMs={durationMs} running={status?.type === 'running'} />
       {(hasText || terminalWithoutText) && <ChatActions networkSelected={selectedNetworkAttempt === attemptId} onShowNetwork={networkAttemptIds.includes(attemptId) && onShowNetwork ? () => onShowNetwork(attemptId) : undefined} role={role} text={text} evidenceRefs={evidenceState === 'available' ? evidenceRefs : []} evidenceState={evidenceState} resultAvailable={hasResults} resultOpen={resultOpen} onShowResult={() => setResultOpen((value) => !value)} contextId={contextId} selectionRevision={selectionRevision} toolCount={activities.length || toolCount} activityOpen={activityOpen} showActivity={showActivity} onShowActivity={toggleActivity} onRegenerate={retryable && onRegenerate ? () => onRegenerate(attemptId, instruction) : undefined}
         attemptId={attemptId} resultRefs={resultRefs} projections={attemptResultProjections} failures={failureResults} researchSnapshot={parseResearchSnapshot(custom?.researchSnapshot)} executions={(Array.isArray(custom?.toolExecutions) ? custom.toolExecutions : []) as ToolExecutionRecord[]}
@@ -790,7 +795,7 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
         onSelectResult={(resultId) => { setResultOpen(true); setPendingResultId(resultId) }} />}
     </div>}
     {role === 'assistant' && hasResults && resultOpen && <ResultExplorer projections={attemptResultProjections} failures={failureResults}
-      initialResultId={pendingResultId} onClose={() => setResultOpen(false)} renderResult={(projection, tableId) =>
+      initialResultId={pendingResultId} onClose={() => { if (footerRef.current) preserveControl(id, footerRef.current); setResultOpen(false) }} renderResult={(projection, tableId) =>
         <ResultProjectionCard projection={projection} tableId={tableId} onFocusElement={(value, elementId) => { onFocusElement?.(value, elementId) }} />} />}
     {role === 'assistant' && <RunArtifacts resultRefs={resultRefs} evidenceRefs={evidenceRefs} admission={admission} />}
     {role === 'user' && hasText && <div className="capstone-instruction-meta">
@@ -936,6 +941,12 @@ export default function CapstoneAssistantThread({ onReadAttemptRecords, events, 
     const instructionIndex = typeof instructionId === 'string' ? allMessages.findIndex((message) => message.id === instructionId) : -1
     scrollAnchor.current = { id, top: control.getBoundingClientRect().top, control,
       instructionId: instructionIndex >= 0 ? instructionId as string : undefined }
+  }
+  function preserveControl(id: string, element: HTMLElement) {
+    if (!viewportRef.current) return
+    scrollAnchor.current = { id, top: element.getBoundingClientRect().top, element }
+    historyAnchor.current = null
+    setReadingLayoutChanging(true)
   }
   function captureHistoryAnchor(options: { revealInstructionForAnswer?: boolean; preferAnswerToggle?: boolean; reusePrevious?: boolean } = {}) {
     const viewport = viewportRef.current
@@ -1192,7 +1203,7 @@ export default function CapstoneAssistantThread({ onReadAttemptRecords, events, 
   return <AssistantRuntimeProvider runtime={runtime}>
     <SystemActionContext.Provider value={onSystemAction}>
     <AttemptRecordsContext.Provider value={onReadAttemptRecords}>
-    <AnswerReadingContext.Provider value={{ collapsed: collapsedAnswers, toggle: toggleAnswer, restoreAnchor: restoreReadingAnchor }}>
+    <AnswerReadingContext.Provider value={{ collapsed: collapsedAnswers, toggle: toggleAnswer, restoreAnchor: restoreReadingAnchor, preserveControl }}>
     <ChatMessageContext.Provider value={{ selectedNetworkAttempt, networkAttemptIds, onShowNetwork, onRegenerate: isRunning ? undefined : onRegenerate, onFollowup: isRunning ? undefined : onFollowup, canRerunCompleted, modelSummary, showActivity, resultProjections, onFocusElement }}>
     <div className="capstone-assistant-thread" data-testid="assistant-ui-chat">
       <div className="capstone-assistant-runtime-label"><span className="assistant-live-dot" />CAPSTONE <span>· HARNESS</span><small>实时响应</small></div>

@@ -113,9 +113,10 @@ class RuntimeStepTracker(TaskStepTracker):
             purpose = arguments.get("execution_purpose") if isinstance(arguments, dict) else None
             if isinstance(purpose, str) and 0 < len(purpose.strip()) <= 120:
                 state = self.steps[self.active]
-                if not state.get("purpose"):
+                if not state.get("call_purpose"):
                     state["title"] = purpose.strip()
                     state["purpose"] = True
+                    state["call_purpose"] = True
                     output["task_step"] = self._public(self.active)
         if payload.get("tool_name") == "agent_task_progress" or payload.get("capability") == "agent_task_progress":
             output["runtime_step_tracking"] = True
@@ -127,7 +128,8 @@ class RuntimeStepTracker(TaskStepTracker):
                         record = TaskProgress.model_validate(event.get("args")).model_dump(mode="json", exclude_none=True)
                     except ValueError:
                         record = None
-                if isinstance(record, dict) and isinstance(record.get("purpose"), str):
+                if (isinstance(record, dict) and isinstance(record.get("purpose"), str)
+                    and not self.steps[self.active].get("call_purpose")):
                     self.steps[self.active]["title"] = record["purpose"]
                     self.steps[self.active]["purpose"] = True
                     output["task_step"] = self._public(self.active)

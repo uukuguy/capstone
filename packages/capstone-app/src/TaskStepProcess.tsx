@@ -4,6 +4,14 @@ import type { EventEnvelope } from './threadProtocol'
 export type TaskStep = { id: string; number: number; title: string; status: 'running' | 'completed'; durationMs?: number; startedAt?: string; responseMs?: number; finishReason?: string }
 
 export type StepFoldCommand = { open: boolean; revision: number }
+export function toolExecutionMs(calls: readonly { startedAt?: string; durationMs?: number }[]): number | undefined {
+  if (!calls.length || calls.some(call => !call.startedAt || call.durationMs === undefined)) return undefined
+  const spans = calls.map(call => { const start = Date.parse(call.startedAt!); return [start, start + call.durationMs!] }).sort((a, b) => a[0] - b[0])
+  if (spans.some(([start, end]) => !Number.isFinite(start) || end < start)) return undefined
+  let total = 0, end = -Infinity
+  for (const [start, finish] of spans) { total += Math.max(0, finish - Math.max(start, end)); end = Math.max(end, finish) }
+  return total
+}
 export function readStepOpen(storageKey: string, id: string): boolean {
   try { return localStorage.getItem(`capstone-step-open:${storageKey}:${id}`) !== 'false' } catch { return true }
 }
@@ -33,7 +41,7 @@ export function projectTaskSteps(events: readonly EventEnvelope[], attemptId: st
   return [...steps.values()].sort((left, right) => left.number - right.number)
 }
 
-function Step({ step, storageKey, running, foldCommand, onFoldChange, toolCount, children }: { step: TaskStep; storageKey: string; running: boolean; foldCommand?: StepFoldCommand; onFoldChange?: (id: string, open: boolean) => void; toolCount?: number; children: ReactNode }) {
+function Step({ step, storageKey, running, foldCommand, onFoldChange, toolCount, toolMs, children }: { step: TaskStep; storageKey: string; running: boolean; foldCommand?: StepFoldCommand; onFoldChange?: (id: string, open: boolean) => void; toolCount?: number; toolMs?: number; children: ReactNode }) {
   const [open, setOpen] = useState(() => readStepOpen(storageKey, step.id))
   useEffect(() => {
     if (foldCommand) setOpen(foldCommand.open)
@@ -57,14 +65,17 @@ function Step({ step, storageKey, running, foldCommand, onFoldChange, toolCount,
     }}><span className="capstone-step-number">{String(step.number).padStart(2, '0')}</span>
       <span className="capstone-chat-activity-source" data-owner="capstone">CAPSTONE</span>
       <span className="capstone-step-title">{step.title}</span>
-      {toolCount !== undefined && <small>{toolCount} 次调用</small>}
-      <small>{elapsed === undefined ? '' : `${toolCount === undefined ? '' : '· '}${(elapsed / 1000).toFixed(1)}s`}{step.finishReason === 'interrupted' ? ' · 已中断' : step.status === 'completed' ? '' : running ? ' · 执行中' : '任务已结束 · 步骤未报告结束'}</small>
+      <span className="capstone-step-metrics">
+      <small title="步骤总耗时">{elapsed === undefined ? '' : `${(elapsed / 1000).toFixed(1)}s`}{step.finishReason === 'interrupted' ? ' · 已中断' : step.status === 'completed' ? '' : running ? ' · 执行中' : '任务已结束 · 步骤未报告结束'}</small>
+      {toolCount !== undefined && toolCount > 0 && <small title="工具调用数量及执行时间；并行区间只计一次">· 工具 {toolCount}次{toolMs === undefined ? '' : `/${(toolMs / 1000).toFixed(1)}s`}</small>}
+      {step.responseMs !== undefined && <small title="模型响应耗时">· LLM {(step.responseMs / 1000).toFixed(1)}s</small>}
+      </span>
     </summary>
     <div className="capstone-step-tools">{children}</div>
   </details>
 }
 
-export default function TaskStepProcess({ steps, storageKey, running, renderTools, toolCount, foldCommand, onFoldChange }: { steps: readonly TaskStep[]; storageKey: string; running: boolean; renderTools: (id: string) => ReactNode; toolCount?: (id: string) => number; foldCommand?: StepFoldCommand; onFoldChange?: (id: string, open: boolean) => void }) {
+export default function TaskStepProcess({ steps, storageKey, running, renderTools, toolCount, toolMs, foldCommand, onFoldChange }: { steps: readonly TaskStep[]; storageKey: string; running: boolean; renderTools: (id: string) => ReactNode; toolCount?: (id: string) => number; toolMs?: (id: string) => number | undefined; foldCommand?: StepFoldCommand; onFoldChange?: (id: string, open: boolean) => void }) {
   return <div className="capstone-business-steps" aria-label="任务步骤">{steps.map(step =>
-    <Step key={`${storageKey}:${step.id}`} step={step} storageKey={storageKey} running={running} foldCommand={foldCommand} onFoldChange={onFoldChange} toolCount={toolCount?.(step.id)}>{renderTools(step.id)}</Step>)}</div>
+    <Step key={`${storageKey}:${step.id}`} step={step} storageKey={storageKey} running={running} foldCommand={foldCommand} onFoldChange={onFoldChange} toolCount={toolCount?.(step.id)} toolMs={toolMs?.(step.id)}>{renderTools(step.id)}</Step>)}</div>
 }

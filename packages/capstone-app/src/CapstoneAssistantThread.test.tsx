@@ -21,7 +21,7 @@ describe('CapstoneAssistantThread', () => {
     fireEvent.click(button)
     expect(screen.getByText('任务准备')).toBeTruthy()
     expect(screen.getByText('核验与结果整理')).toBeTruthy()
-    expect(screen.getByText('· 7.0s')).toBeTruthy()
+    expect(screen.getByText('7.0s')).toBeTruthy()
   })
   it('keeps fold controls in the summary and disables them from actual step state', () => {
     const events = [event('attempt_started', 1, {}, 'fold'),
