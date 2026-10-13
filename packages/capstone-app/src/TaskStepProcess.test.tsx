@@ -1,8 +1,20 @@
-import { afterEach, describe, expect, it } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import TaskStepProcess from './TaskStepProcess'
-afterEach(() => { cleanup(); localStorage.clear() })
+afterEach(() => { cleanup(); localStorage.clear(); vi.useRealTimers() })
 describe('task step folding', () => {
+  it('counts live time and keeps the recorded duration after completion', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-10-13T10:00:02Z'))
+    const step = { id: 'runtime-1', number: 1, title: '组织执行', status: 'running' as const, startedAt: '2026-10-13T10:00:00Z' }
+    const { rerender } = render(<TaskStepProcess steps={[step]} storageKey="timer" running renderTools={() => null} />)
+    expect(screen.getByText('执行中 · 2.0s')).toBeTruthy()
+    act(() => vi.advanceTimersByTime(1000))
+    expect(screen.getByText('执行中 · 3.0s')).toBeTruthy()
+    rerender(<TaskStepProcess steps={[{ ...step, status: 'completed', durationMs: 2800, responseMs: 1700 }]} storageKey="timer" running={false} renderTools={() => null} />)
+    act(() => vi.advanceTimersByTime(2000))
+    expect(screen.getByText('已结束 · 2.8s · 模型响应 1.7s')).toBeTruthy()
+  })
   it('shows the number of tools inside a collapsed step', () => {
     render(<TaskStepProcess steps={[{ id: 'solve', number: 1, title: '求解', status: 'running' }]} storageKey="count" running={false} toolCount={() => 5} renderTools={() => <span>GRID</span>} />)
     expect(screen.getByText('5 次工具调用')).toBeTruthy()

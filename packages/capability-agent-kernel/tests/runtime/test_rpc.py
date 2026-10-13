@@ -12,6 +12,17 @@ from capability_agent.runtime.trace import JsonlTraceWriter
 from capability_agent.runtime.environment import PiLaunch
 
 
+def test_native_action_boundaries_expose_metadata_without_message_content():
+    from capability_agent.runtime.rpc import _semantic_trace_payloads
+    assert _semantic_trace_payloads({'type': 'turn_start'}, '', {}) == ({'type': 'runtime_action', 'phase': 'started'},)
+    event = {'type': 'message_end', 'message': {'role': 'assistant', 'content': [{'type': 'thinking', 'thinking': 'private'}, {'type': 'toolCall', 'name': 'grid_check', 'arguments': {'secret': 'private'}}]}}
+    result = _semantic_trace_payloads(event, '', {})
+    assert result == ({'type': 'runtime_action', 'phase': 'response_completed', 'response_kind': 'tools'},)
+    assert 'private' not in json.dumps(result)
+    assert _semantic_trace_payloads({'type': 'turn_end'}, '', {}) == ({'type': 'runtime_action', 'phase': 'completed'},)
+    assert _semantic_trace_payloads({'type': 'message_end', 'message': {'role': 'tool', 'content': []}}, '', {}) == ()
+
+
 @dataclass(frozen=True)
 class _Workspace:
     root_path: Path

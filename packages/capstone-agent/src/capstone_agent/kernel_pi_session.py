@@ -596,9 +596,9 @@ class _KernelPiPromptSession:
         self._trace.append("application_prompt", {
             "correlation_id": correlation_id, "question": question,
         })
-        from .task_steps import TaskStepTracker
+        from .task_steps import RuntimeStepTracker
         if not hasattr(self, "_task_step_tracker"):
-            self._task_step_tracker = TaskStepTracker()
+            self._task_step_tracker = RuntimeStepTracker()
         def observed(event, _sequence):
             event = self._task_step_tracker.annotate(event)
             if self._reference_observer is not None:
@@ -643,6 +643,10 @@ class _KernelPiPromptSession:
                     model_idle_seconds=step_budget,
                 )
             except Exception:
+                if self._task_step_tracker.active is not None:
+                    interrupted = {"type": "runtime_action", "phase": "interrupted"}
+                    sequence = self._trace.append("runtime_action", interrupted)
+                    observed(interrupted, sequence)
                 if delivery_candidate is None:
                     raise
                 self._trace.append("answer_delivery_check", {"status": "unresolved", "reason": "correction_unavailable"})

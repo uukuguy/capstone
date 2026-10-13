@@ -172,6 +172,7 @@ class HarnessRuntimeRegistry:
 
 
 _EVENT_TYPES = {
+    "runtime_action": ("runtime_action", "public"),
     "research_step_resumed": ("research_step_resumed", "public"),
     "research_state": ("research_state_updated", "public"),
     "text_delta": ("assistant_process_delta", "diagnostic"),
@@ -200,7 +201,9 @@ def normalize_runtime_event(
         native_type = "unknown"
     event_type, visibility = _EVENT_TYPES.get(native_type, ("runtime_event", "diagnostic"))
     payload: dict[str, object]
-    if event_type == "research_step_resumed":
+    if event_type == "runtime_action":
+        payload = {key: event[key] for key in ("phase", "response_kind") if isinstance(event.get(key), str)}
+    elif event_type == "research_step_resumed":
         budget = event.get("budget_seconds")
         if event.get("reason") != "model_step_budget" or isinstance(budget, bool) or not isinstance(budget, (int, float)) or not 0 < budget <= 3600:
             raise ValueError("invalid research step budget event")
@@ -254,7 +257,7 @@ def normalize_runtime_event(
 def _tool_payload(event: Mapping[str, object]) -> dict[str, object]:
     payload: dict[str, object] = {}
     # These annotations are added by the application's Attempt-scoped tracker.
-    for key in ("task_step", "task_step_id", "task_step_number", "step_tool_number", "task_step_error"):
+    for key in ("task_step", "task_step_id", "task_step_number", "step_tool_number", "task_step_error", "runtime_step_tracking"):
         if key in event:
             payload[key] = event[key]
     for source, target in (

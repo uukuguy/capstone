@@ -20,7 +20,9 @@ export function projectTaskProgress(events: readonly EventEnvelope[], attemptId:
           record.refs.every(ref => typeof ref === 'string' && ref.length > 0 && ref.length <= 256)) {
           output.push({ id: event.eventId, text: record.text, refs: record.refs as string[],
             kind: record.kind as TaskProgress['kind'], sequence: event.eventSeq,
-            ...(typeof record.step_id === 'string' ? { stepId: record.step_id } : {}),
+            ...(event.payload.runtime_step_tracking === true
+              ? typeof event.payload.task_step_id === 'string' ? { stepId: event.payload.task_step_id } : {}
+              : typeof record.step_id === 'string' ? { stepId: record.step_id } : {}),
             ...(typeof record.phase === 'string' ? { phase: record.phase } : {}) })
         }
       }

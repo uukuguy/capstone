@@ -1,7 +1,7 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import type { EventEnvelope } from './threadProtocol'
 
-export type TaskStep = { id: string; number: number; title: string; status: 'running' | 'completed'; durationMs?: number; startedAt?: string }
+export type TaskStep = { id: string; number: number; title: string; status: 'running' | 'completed'; durationMs?: number; startedAt?: string; responseMs?: number; finishReason?: string }
 
 export function projectTaskSteps(events: readonly EventEnvelope[], attemptId: string): TaskStep[] {
   const steps = new Map<string, TaskStep>()
@@ -16,6 +16,8 @@ export function projectTaskSteps(events: readonly EventEnvelope[], attemptId: st
     const duration = record.duration_ms
     steps.set(record.id, { id: record.id, number: record.number as number, title: record.title,
       startedAt: steps.get(record.id)?.startedAt ?? event.occurredAt,
+      ...(typeof record.response_ms === 'number' && record.response_ms >= 0 ? { responseMs: record.response_ms } : {}),
+      ...(typeof record.finish_reason === 'string' ? { finishReason: record.finish_reason } : {}),
       status: record.status as TaskStep['status'], ...(typeof duration === 'number' && Number.isSafeInteger(duration) && duration >= 0 ? { durationMs: duration } : {}) })
   }
   return [...steps.values()].sort((left, right) => left.number - right.number)
@@ -27,6 +29,14 @@ function Step({ step, storageKey, running, last, toolCount, children }: { step: 
     try { const saved = localStorage.getItem(key); return saved === 'true' ? true : saved === 'false' ? false : undefined } catch { return undefined }
   })
   const open = manualOpen ?? (last || (running && step.status === 'running'))
+  const [now, setNow] = useState(Date.now)
+  useEffect(() => {
+    if (!running || step.status !== 'running') return
+    const timer = window.setInterval(() => setNow(Date.now()), 250)
+    return () => window.clearInterval(timer)
+  }, [running, step.status])
+  const start = step.startedAt ? Date.parse(step.startedAt) : NaN
+  const elapsed = step.durationMs ?? (running && step.status === 'running' && Number.isFinite(start) ? Math.max(0, now - start) : undefined)
   return <details className="capstone-business-step" open={open} onToggle={event => {
     const next = event.currentTarget.open
     if (next === open) return
@@ -37,7 +47,7 @@ function Step({ step, storageKey, running, last, toolCount, children }: { step: 
       <span className="capstone-chat-activity-source" data-owner="capstone">CAPSTONE</span>
       <span className="capstone-step-title">{step.title}</span>
       {toolCount !== undefined && <small>{toolCount} 次工具调用</small>}
-      <small>{step.status === 'completed' ? '已结束' : running ? '执行中' : '任务已结束 · 步骤未报告结束'}{step.durationMs === undefined ? '' : ` · ${(step.durationMs / 1000).toFixed(1)}s`}</small>
+      <small>{step.finishReason === 'interrupted' ? '已中断' : step.status === 'completed' ? '已结束' : running ? '执行中' : '任务已结束 · 步骤未报告结束'}{elapsed === undefined ? '' : ` · ${(elapsed / 1000).toFixed(1)}s`}{step.responseMs === undefined ? '' : ` · 模型响应 ${(step.responseMs / 1000).toFixed(1)}s`}</small>
     </summary>
     <div className="capstone-step-tools">{children}</div>
   </details>

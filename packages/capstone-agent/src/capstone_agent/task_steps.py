@@ -74,4 +74,42 @@ class TaskStepTracker:
 
     def _public(self, identity: str) -> dict[str, object]:
         return {key: value for key, value in self.steps[identity].items()
-            if key in {"id", "number", "title", "status", "duration_ms"}}
+            if key in {"id", "number", "title", "status", "duration_ms", "response_ms", "finish_reason"}}
+
+
+class RuntimeStepTracker(TaskStepTracker):
+    """Use native execution turns, never model-declared goal completion."""
+
+    def annotate(self, event: Mapping[str, object]) -> dict[str, object]:
+        fields = {"task_step", "task_step_id", "task_step_number", "step_tool_number", "task_step_error"}
+        output = {key: value for key, value in event.items() if key not in fields}
+        if event.get("type") == "runtime_action":
+            phase = event.get("phase")
+            if phase == "started" and self.active is None:
+                number = len(self.steps) + 1
+                identity = f"runtime-{number}"
+                self.steps[identity] = {"id": identity, "number": number, "title": "组织执行",
+                    "status": "running", "start": self.clock(), "tools": 0}
+                self.active = identity
+            identity = self.active
+            if identity is not None:
+                state = self.steps[identity]
+                if phase == "response_completed":
+                    state["title"] = "组织工具调用" if event.get("response_kind") == "tools" else "生成回复"
+                    state["response_ms"] = max(0, round((self.clock() - cast(float, state["start"])) * 1000))
+                elif phase in {"completed", "interrupted"}:
+                    state["status"] = "completed"
+                    state["finish_reason"] = phase
+                    state["duration_ms"] = max(0, round((self.clock() - cast(float, state["start"])) * 1000))
+                    self.active = None
+                output["task_step"] = self._public(identity)
+            return output
+        normalized = normalize_runtime_event(output, runtime_mode="capstone")
+        payload = normalized["payload"]
+        assert isinstance(payload, dict)
+        if payload.get("tool_name") == "agent_task_progress" or payload.get("capability") == "agent_task_progress":
+            output["runtime_step_tracking"] = True
+            if self.active is not None:
+                output["task_step_id"] = self.active
+            return output
+        return super().annotate(output)

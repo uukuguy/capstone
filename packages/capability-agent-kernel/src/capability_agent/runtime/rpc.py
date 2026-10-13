@@ -636,6 +636,14 @@ def _semantic_trace_payloads(
 ) -> tuple[dict[str, Any], ...]:
     # Deltas are provisional process output until the final message and answer
     # admission complete. They must never be treated as the formal answer stream.
+    if event.get("type") in {"turn_start", "turn_end"}:
+        return ({"type": "runtime_action", "phase": "started" if event["type"] == "turn_start" else "completed"},)
+    if event.get("type") == "message_end":
+        message = event.get("message")
+        if isinstance(message, dict) and message.get("role") == "assistant":
+            content = message.get("content")
+            tools = isinstance(content, list) and any(isinstance(item, dict) and item.get("type") == "toolCall" for item in content)
+            return ({"type": "runtime_action", "phase": "response_completed", "response_kind": "tools" if tools else "text"},)
     delta = event.get("text") if event.get("type") == "text_delta" else None
     update = event.get("assistantMessageEvent") if event.get("type") == "message_update" else None
     if isinstance(update, dict) and update.get("type") == "text_delta":

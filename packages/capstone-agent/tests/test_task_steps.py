@@ -1,6 +1,33 @@
 from capstone_agent.task_steps import TaskStepTracker
 
 
+def test_runtime_steps_follow_native_boundaries_without_model_completion():
+    from capstone_agent.task_steps import RuntimeStepTracker
+    now = [0.0]
+    tracker = RuntimeStepTracker(clock=lambda: now[0])
+    started = tracker.annotate({'type': 'runtime_action', 'phase': 'started'})
+    assert started['task_step']['number'] == 1
+    now[0] = 2.0
+    tracker.annotate({'type': 'runtime_action', 'phase': 'response_completed', 'response_kind': 'tools'})
+    child = tracker.annotate({'type': 'tool_execution_start', 'toolName': 'grid_check', 'toolCallId': 'one'})
+    assert child['task_step_id'] == started['task_step']['id']
+    now[0] = 3.0
+    tracker.annotate({'type': 'tool_execution_end', 'toolName': 'grid_check', 'toolCallId': 'one', 'ok': False})
+    finished = tracker.annotate({'type': 'runtime_action', 'phase': 'completed'})
+    assert finished['task_step']['duration_ms'] == 3000
+    assert finished['task_step']['response_ms'] == 2000
+    assert finished['task_step']['status'] == 'completed'
+    assert finished['task_step']['title'] == '组织工具调用'
+    assert 'verified' not in finished['task_step']
+
+
+def test_runtime_step_does_not_turn_goal_into_an_action():
+    from capstone_agent.task_steps import RuntimeStepTracker
+    tracker = RuntimeStepTracker()
+    assert 'task_step' not in tracker.annotate(progress('goal', 'started', '本轮目标'))
+    assert 'task_step' not in tracker.annotate({'type': 'tool_execution_start', 'toolName': 'grid_check', 'toolCallId': 'one'})
+
+
 def progress(step, phase, text):
     return {"type": "tool_result", "event": "tool_result", "tool_name": "agent_task_progress",
         "capability": "agent_task_progress", "ok": True,
