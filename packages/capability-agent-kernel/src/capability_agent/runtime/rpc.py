@@ -10,6 +10,7 @@ import subprocess
 import time
 from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
+from dataclasses import dataclass, field
 from queue import Empty, Queue
 from threading import Event, Lock, Thread
 from typing import Any, Protocol
@@ -63,6 +64,46 @@ class PiProtocolError(RuntimeError):
 
 class PiCaptureIntegrityError(PiProtocolError):
     """Raised when an optional request-capture boundary fails closed."""
+
+
+class _ReceivedLine(bytes):
+    received_at: float
+
+    def __new__(cls, raw: bytes):
+        value = super().__new__(cls, raw)
+        value.received_at = time.perf_counter()
+        return value
+
+
+@dataclass
+class _PromptTiming:
+    started: float = field(default_factory=time.perf_counter)
+    queue_wait_seconds: float = 0.0
+    max_queue_delay_seconds: float = 0.0
+    trace_seconds: float = 0.0
+    observer_seconds: float = 0.0
+    control_seconds: float = 0.0
+    raw_events: int = 0
+    semantic_events: int = 0
+    first_received: float | None = None
+    last_received: float | None = None
+
+    def receive(self, raw: bytes) -> None:
+        self.raw_events += 1
+        received = getattr(raw, "received_at", None)
+        if isinstance(received, float):
+            if self.first_received is None:
+                self.first_received = received
+            self.last_received = received
+            self.max_queue_delay_seconds = max(self.max_queue_delay_seconds, time.perf_counter() - received)
+
+    def document(self, status: str) -> dict[str, object]:
+        return {"status": status, "elapsed_seconds": round(time.perf_counter() - self.started, 6),
+            "raw_events": self.raw_events, "semantic_events": self.semantic_events,
+            **{key: round(getattr(self, key), 6) for key in ("queue_wait_seconds", "max_queue_delay_seconds",
+                "trace_seconds", "observer_seconds", "control_seconds")},
+            "first_native_event_seconds": None if self.first_received is None else round(self.first_received - self.started, 6),
+            "native_receive_span_seconds": None if self.first_received is None or self.last_received is None else round(self.last_received - self.first_received, 6)}
 
 
 class PiRpcClient:
@@ -147,9 +188,37 @@ class PiRpcClient:
             ).start()
 
     def prompt_and_wait(
+        self, question: str, *,
+        on_event: Callable[[dict[str, Any]], None] | None = None,
+        on_semantic_event: SemanticEventCallback | None = None,
+        on_heartbeat: Callable[[], None] | None = None,
+        on_control_requests: Callable[[], None] | None = None,
+        heartbeat_seconds: float = 10.0, require_answer_text: bool = True,
+        capture: CaptureAdapter | None = None, timeout_seconds: float | None = None,
+        correlation_id: str | None = None, model_idle_seconds: float | None = None,
+    ) -> str:
+        timing = _PromptTiming()
+        status = "failed"
+        try:
+            answer = self._prompt_and_wait(question, timing=timing, on_event=on_event,
+                on_semantic_event=on_semantic_event, on_heartbeat=on_heartbeat,
+                on_control_requests=on_control_requests, heartbeat_seconds=heartbeat_seconds,
+                require_answer_text=require_answer_text, capture=capture, timeout_seconds=timeout_seconds,
+                correlation_id=correlation_id, model_idle_seconds=model_idle_seconds)
+            status = "interrupted" if self.last_prompt_interrupted else "returned"
+            return answer
+        finally:
+            document = timing.document(status)
+            identity = correlation_id if correlation_id is not None else self.correlation_id
+            if identity is not None:
+                document["correlation_id"] = identity
+            self.trace.append("rpc_prompt_timing", document)
+
+    def _prompt_and_wait(
         self,
         question: str,
         *,
+        timing: _PromptTiming,
         on_event: Callable[[dict[str, Any]], None] | None = None,
         on_semantic_event: SemanticEventCallback | None = None,
         on_heartbeat: Callable[[], None] | None = None,
@@ -226,16 +295,20 @@ class PiRpcClient:
                     raise PiProtocolError("Pi RPC timed out")
             if on_control_requests is not None:
                 # Run while tools await host commits, even without trajectory capture.
+                control_started = time.perf_counter()
                 on_control_requests()
+                timing.control_seconds += time.perf_counter() - control_started
                 wait_timeout = min(wait_timeout, _CONTROL_POLL_SECONDS)
             if capture is not None:
                 wait_timeout = min(
                     _CAPTURE_POLL_SECONDS,
                     max(0.0, next_heartbeat_at - time.monotonic()),
                 )
+            wait_started = time.perf_counter()
             try:
                 raw = lines.get(timeout=wait_timeout)
             except Empty:
+                timing.queue_wait_seconds += time.perf_counter() - wait_started
                 if capture is not None:
                     capture.drain_model_requests()
                 now = time.monotonic()
@@ -244,8 +317,10 @@ class PiRpcClient:
                         on_heartbeat()
                     next_heartbeat_at = now + heartbeat_seconds
                 continue
+            timing.queue_wait_seconds += time.perf_counter() - wait_started
             if raw is None:
                 raise self._eof_error()
+            timing.receive(raw)
             try:
                 line = raw.decode("utf-8").rstrip("\r\n")
             except UnicodeDecodeError as exc:
@@ -287,11 +362,16 @@ class PiRpcClient:
                 trace_correlation = event_correlation or expected_correlation
                 if trace_correlation is not None:
                     payload = {**payload, "correlation_id": trace_correlation}
+                trace_started = time.perf_counter()
                 sequence = self.trace.append("pi_event", payload)
+                timing.trace_seconds += time.perf_counter() - trace_started
+                timing.semantic_events += 1
                 if capture is not None:
                     capture.on_semantic_event(payload, sequence)
                 if on_semantic_event is not None:
+                    observer_started = time.perf_counter()
                     on_semantic_event(payload, sequence)
+                    timing.observer_seconds += time.perf_counter() - observer_started
             if event.get("type") == "prompt_ack" and event.get("ok") is True:
                 acknowledged = True
                 last_model_action = time.monotonic()
@@ -423,7 +503,7 @@ class _BoundedStderrCapture:
 def _read_lines(stream: Any, lines: Queue[bytes | None]) -> None:
     try:
         for raw in stream:
-            lines.put(raw)
+            lines.put(_ReceivedLine(raw))
     finally:
         lines.put(None)
 

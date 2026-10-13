@@ -17,6 +17,53 @@ class _Workspace:
     root_path: Path
 
 
+def test_rpc_timing_distinguishes_slow_observer_from_native_receive(tmp_path):
+    import time
+    script = tmp_path / "stream.py"
+    script.write_text("import json\ninput()\n"
+        "print(json.dumps({'type':'prompt_ack','ok':True}), flush=True)\n"
+        "for _ in range(40): print(json.dumps({'type':'text_delta','text':'private-text'}), flush=True)\n"
+        "print(json.dumps({'type':'agent_end','messages':[]}), flush=True)\n")
+    trace = JsonlTraceWriter(tmp_path / "trace.jsonl")
+    client = PiRpcClient(PiLaunch(argv=(sys.executable, str(script)), environment={}), _Workspace(tmp_path), trace)
+    def observe(event, _sequence):
+        if event['type'] == 'assistant_process_delta':
+            time.sleep(.005)
+    client.start()
+    try:
+        assert client.prompt_and_wait("question", on_semantic_event=observe) == "private-text" * 40
+    finally:
+        client.stop()
+        trace.close()
+    rows = [json.loads(line) for line in trace.path.read_text().splitlines()]
+    timing = next(row['payload'] for row in rows if row['event'] == 'rpc_prompt_timing')
+    assert timing['observer_seconds'] >= .15
+    assert timing['max_queue_delay_seconds'] >= .1
+    assert timing['native_receive_span_seconds'] < timing['observer_seconds']
+    assert timing['semantic_events'] == 43
+    assert timing['status'] == 'returned'
+    assert 'private-text' not in json.dumps(timing)
+    assert len([row for row in rows if row['payload'].get('type') == 'assistant_process_delta']) == 40
+
+
+def test_rpc_timing_is_retained_on_protocol_failure(tmp_path):
+    script = tmp_path / "fail.py"
+    script.write_text("input()\nprint('invalid-json', flush=True)\n")
+    trace = JsonlTraceWriter(tmp_path / "trace.jsonl")
+    client = PiRpcClient(PiLaunch(argv=(sys.executable, str(script)), environment={}), _Workspace(tmp_path), trace)
+    client.start()
+    try:
+        with pytest.raises(PiProtocolError, match='invalid JSONL'):
+            client.prompt_and_wait("question")
+    finally:
+        client.stop()
+        trace.close()
+    timing = next(json.loads(line)['payload'] for line in trace.path.read_text().splitlines()
+        if json.loads(line)['event'] == 'rpc_prompt_timing')
+    assert timing['status'] == 'failed'
+    assert timing['raw_events'] == 1
+
+
 def test_model_step_budget_keeps_session_and_completed_tools_for_resume(tmp_path):
     script = tmp_path / "bounded-step.py"
     script.write_text('''import json, sys
