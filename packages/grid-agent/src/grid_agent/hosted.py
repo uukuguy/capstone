@@ -8,11 +8,14 @@ without making capstone-agent import a domain implementation.
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import replace
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Any, Mapping
 
 from capstone_agent.hosted import run_hosted_api
+from capstone_agent.application import EmptyCredentialBroker
 from capstone_agent.hosted_validation import select_validation_builder
 from capstone_agent.kernel_capability_preparation import AuthorityModelBinding
 from capstone_agent.kernel_pi_session import PreparedKernelPiRpcSessionBuilder
@@ -69,11 +72,30 @@ def _read_model_metadata(executor: Any, *, model_id: str, revision_ref: str,
     return metadata
 
 
+def _warm_runtime_catalog() -> None:
+    """Verify and retain immutable capabilities before accepting model requests."""
+    profile = build_pandapower_application_profile()
+    with TemporaryDirectory(prefix='capstone-capability-check-') as directory:
+        for binding in profile.domains:
+            provisioner = binding.profile.provisioner
+            if provisioner is None:
+                raise RuntimeError('registered capability provisioner is unavailable')
+            endpoint = provisioner.prepare(binding=binding, workspace=Path(directory) / binding.binding_id,
+                credentials=EmptyCredentialBroker().issue(binding_id=binding.binding_id, scope=binding.credential_scope))
+            try:
+                description = endpoint.executor.invoke('environment.describe', {})
+                binding.profile.manifest.assert_environment_compatible(description)
+            finally:
+                endpoint.close()
+
+
 def build_registered_pandapower_thread_application():
     """Build the hosted pandapower Thread catalog and Pi Harness seam."""
 
     root = Path(__file__).resolve().parents[4]
     models = ModelRegistry(Pandapower340Engine())
+    if re.fullmatch(r'[0-9a-f]{64}', os.environ.get('CAPSTONE_RUNTIME_ARTIFACT_SHA256', '')):
+        _warm_runtime_catalog()
     validation_builder = select_validation_builder(os.environ, "pandapower")
 
     def resolve_model(model_id: str) -> Mapping[str, object]:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import threading
 
 import pytest
 
@@ -65,6 +66,29 @@ def _service() -> InMemoryThreadService:
 class _Ledger:
     def ping(self) -> bool:
         return True
+
+
+def test_thread_creation_does_not_block_the_api_event_loop():
+    service = _service()
+    loop_threads = []
+    creation_threads = []
+    class Creator:
+        def create(self, model_id):
+            creation_threads.append(threading.get_ident())
+            return service.snapshot('thr_demo_39')
+    app = create_host_app(_Ledger(), WorkerRegistry(()), operator_token='hosted-secret',
+        allowed_hosts={'localhost'}, allowed_origins={'http://localhost:5173'},
+        thread_service=service, thread_creator=Creator())
+    @app.middleware('http')
+    async def capture_thread(request, call_next):
+        loop_threads.append(threading.get_ident())
+        return await call_next(request)
+    with TestClient(app, base_url='http://localhost') as client:
+        response = client.post('/api/v1/threads', json={'model_id': 'ieee39'},
+            headers={'Authorization': 'Bearer hosted-secret', 'Origin': 'http://localhost:5173'})
+    assert response.status_code == 201
+    assert len(creation_threads) == 1
+    assert creation_threads[0] not in loop_threads
 
 
 def _app(service: InMemoryThreadService, wake_worker=None, prepare_workers=None):

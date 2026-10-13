@@ -8,7 +8,9 @@ run the corresponding adapter and lease only their own implementation family.
 from __future__ import annotations
 
 import json
+import logging
 import os
+import re
 from pathlib import Path
 import subprocess
 import tempfile
@@ -111,6 +113,19 @@ def load_federated_catalog_documents(root: Path | None = None) -> tuple[dict[str
     )
 
 
+def _prewarm_default_diagram(model_catalog, cached_diagram) -> None:
+    default = model_catalog.resolve(model_catalog.default_model_id)
+    if not default.available:
+        return
+    try:
+        cached_diagram(default.model_id, default.model_revision)
+    except Exception as error:
+        logging.getLogger(__name__).warning(
+            'Default diagram prewarm failed: model=%s failure=%s',
+            default.model_id, type(error).__name__,
+        )
+
+
 def build_federated_thread_catalog(
     root: Path | None = None, *, default_model_id: str | None = None,
 ) -> FederatedThreadCatalog:
@@ -127,7 +142,11 @@ def build_federated_thread_catalog(
         command = next(command for family, command in _EXPORTERS if family == descriptor.implementation_family)
         return normalize_network_diagram(_run_exporter((root or _root()).resolve(), descriptor.implementation_family,
             (*command, "--diagram", model_id, revision), max_bytes=MAX_DIAGRAM_BYTES + 64 * 1024))
-    catalog.model_catalog.set_diagram_provider(diagram)
+    from .registered_diagram_cache import RegisteredDiagramCache
+    cached_diagram = RegisteredDiagramCache(diagram)
+    catalog.model_catalog.set_diagram_provider(cached_diagram)
+    if re.fullmatch(r'[0-9a-f]{64}', os.environ.get('CAPSTONE_RUNTIME_ARTIFACT_SHA256', '')):
+        _prewarm_default_diagram(catalog.model_catalog, cached_diagram)
     return catalog
 
 

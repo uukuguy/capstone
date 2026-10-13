@@ -347,7 +347,7 @@ def create_host_app(
                         not isinstance(model_id, str) or not model_id
                     ):
                         raise ThreadProtocolError("thread creation model_id is invalid")
-                    snapshot = thread_creator.create(model_id)
+                    snapshot = await run_in_threadpool(thread_creator.create, model_id)
                     await run_in_threadpool(request_model_preparation, snapshot.thread_id,
                                             snapshot.active_model_context.implementation_family)
                     return snapshot.to_document()
