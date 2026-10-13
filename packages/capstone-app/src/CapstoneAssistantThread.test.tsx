@@ -11,6 +11,18 @@ const event = (eventType: string, eventSeq: number, payload: Record<string, unkn
 })
 
 describe('CapstoneAssistantThread', () => {
+  it('shows host preparation and terminal timing even before any tool call', () => {
+    const preparation = { id: 'task-preparation', number: 1, title: '任务准备', status: 'running' }
+    const events = [event('attempt_started', 1, { task_step: preparation }, 'stages'),
+      event('attempt_completed', 2, { answer: '任务已结束。', task_steps: [{ ...preparation, status: 'completed', duration_ms: 7000 }, { id: 'closing', number: 2, title: '核验与结果整理', status: 'completed', duration_ms: 2000 }] }, 'stages')]
+    render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    const button = screen.getByRole('button', { name: '查看执行过程' }) as HTMLButtonElement
+    expect(button.disabled).toBe(false)
+    fireEvent.click(button)
+    expect(screen.getByText('任务准备')).toBeTruthy()
+    expect(screen.getByText('核验与结果整理')).toBeTruthy()
+    expect(screen.getByText('· 7.0s')).toBeTruthy()
+  })
   it('keeps fold controls in the summary and disables them from actual step state', () => {
     const events = [event('attempt_started', 1, {}, 'fold'),
       event('tool_completed', 2, { tool_name: 'grid_context_get', tool_call_id: 'one', ok: true, task_step: { id: 'first', number: 1, title: '检查', status: 'completed', duration_ms: 1000 } }, 'fold'),

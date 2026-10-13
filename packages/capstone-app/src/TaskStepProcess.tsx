@@ -15,18 +15,20 @@ export function projectTaskSteps(events: readonly EventEnvelope[], attemptId: st
   const steps = new Map<string, TaskStep>()
   for (const event of events) {
     if (event.attemptId !== attemptId) continue
-    const value = event.payload.task_step
-    if (!value || typeof value !== 'object' || Array.isArray(value)) continue
-    const record = value as Record<string, unknown>
-    if (typeof record.id !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/.test(record.id) ||
-      !Number.isSafeInteger(record.number) || Number(record.number) < 1 || typeof record.title !== 'string' ||
-      record.title.length === 0 || record.title.length > 1000 || !['running', 'completed'].includes(String(record.status))) continue
-    const duration = record.duration_ms
-    steps.set(record.id, { id: record.id, number: record.number as number, title: record.title,
-      startedAt: steps.get(record.id)?.startedAt ?? event.occurredAt,
-      ...(typeof record.response_ms === 'number' && record.response_ms >= 0 ? { responseMs: record.response_ms } : {}),
-      ...(typeof record.finish_reason === 'string' ? { finishReason: record.finish_reason } : {}),
-      status: record.status as TaskStep['status'], ...(typeof duration === 'number' && Number.isSafeInteger(duration) && duration >= 0 ? { durationMs: duration } : {}) })
+    const values = [...(Array.isArray(event.payload.task_steps) ? event.payload.task_steps : []), event.payload.task_step]
+    for (const value of values) {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) continue
+      const record = value as Record<string, unknown>
+      if (typeof record.id !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/.test(record.id) ||
+        !Number.isSafeInteger(record.number) || Number(record.number) < 1 || typeof record.title !== 'string' ||
+        record.title.length === 0 || record.title.length > 1000 || !['running', 'completed'].includes(String(record.status))) continue
+      const duration = record.duration_ms
+      steps.set(record.id, { id: record.id, number: record.number as number, title: record.title,
+        startedAt: steps.get(record.id)?.startedAt ?? event.occurredAt,
+        ...(typeof record.response_ms === 'number' && record.response_ms >= 0 ? { responseMs: record.response_ms } : {}),
+        ...(typeof record.finish_reason === 'string' ? { finishReason: record.finish_reason } : {}),
+        status: record.status as TaskStep['status'], ...(typeof duration === 'number' && Number.isSafeInteger(duration) && duration >= 0 ? { durationMs: duration } : {}) })
+    }
   }
   return [...steps.values()].sort((left, right) => left.number - right.number)
 }

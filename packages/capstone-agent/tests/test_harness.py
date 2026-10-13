@@ -462,7 +462,14 @@ def test_harness_attempt_runner_persists_runtime_events_and_terminal_answer() ->
     assert result.status == "completed"
     assert result.answer == "answer"
     assert service.snapshot("thr_harness").current_attempt is None
-    assert service.read_events("thr_harness", 0).events[-1].event_type == "attempt_completed"
+    records = service.read_events("thr_harness", 0).events
+    assert records[-1].event_type == "attempt_completed"
+    started = next(item for item in records if item.event_type == 'attempt_started')
+    assert claim.started_at == started.occurred_at
+    assert started.payload['task_step']['title'] == '任务准备'
+    assert records[-1].payload['task_steps'][0]['title'] == '核验与结果整理'
+    assert records[-1].payload['task_steps'][0]['status'] == 'completed'
+    assert records[-1].payload['task_steps'][0]['duration_ms'] >= 0
 
 
 def test_harness_attempt_runner_persists_network_events_before_terminal_answer() -> None:

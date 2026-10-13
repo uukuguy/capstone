@@ -19,6 +19,7 @@ from .result_projection import MAX_RESULT_PROJECTIONS, MAX_RESULT_PROJECTION_BYT
 from .progress import project_tool_failure
 from .thread_service import AttemptClaim, ThreadExecutionService, _terminal_result_projections
 from .failure_delivery import recorded_failure_summary, retained_result_summary
+from .execution_stages import ExecutionStages, preparation_seconds
 from .thread_network import (
     ThreadNetworkProjectionProvider,
     ThreadNetworkRuntimeObserver,
@@ -578,6 +579,7 @@ class HarnessAttemptRunner:
         self._result_refs: list[str] = []
         self._evidence_refs: list[str] = []
         self._tool_events: list[Mapping[str, object]] = []
+        self._stages = ExecutionStages()
 
     def run(self, claim: AttemptClaim) -> HarnessAttemptResult:
         if self._lease is not None:
@@ -586,6 +588,7 @@ class HarnessAttemptRunner:
             return self._run(claim, lease)
 
     def _run(self, claim: AttemptClaim, lease: AttemptLeaseRenewal) -> HarnessAttemptResult:
+        self._stages = ExecutionStages(preparation_seconds=preparation_seconds(claim.started_at))
         self._tools_observed = False
         self._result_refs.clear()
         self._evidence_refs.clear()
@@ -616,6 +619,7 @@ class HarnessAttemptRunner:
             self._runtime.start()
             lease.check()
             self._renew_lease(claim)
+            self._stages.mark_execution_entry()
             answer = self._runtime.prompt(
                 claim.instruction,
                 correlation_id=claim.attempt.attempt_id,
@@ -630,6 +634,7 @@ class HarnessAttemptRunner:
             candidate = None
             for correction in range(2):
                 try:
+                    self._begin_finalization(claim)
                     candidate = self._admit_answer(claim, plan, answer)
                     break
                 except _AttemptAdmissionError as error:
@@ -727,6 +732,7 @@ class HarnessAttemptRunner:
                     )
             lease.check()
             terminal_commit_started = True
+            terminal_payload['task_steps'] = self._stages.finish()
             self._service.finish_attempt(
                 claim, phase="completed", payload=terminal_payload,
             )
@@ -813,6 +819,7 @@ class HarnessAttemptRunner:
         )
 
     def _persist_event(self, claim: AttemptClaim, event: Mapping[str, object]) -> None:
+        event = self._stages.annotate(event)
         event_type = event.get("event_type")
         runtime_mode = event.get("runtime_mode")
         visibility = event.get("visibility", "diagnostic")
@@ -834,6 +841,11 @@ class HarnessAttemptRunner:
         if event_type == "tool_completed":
             self._tool_events.append(dict(payload))
 
+    def _begin_finalization(self, claim: AttemptClaim) -> None:
+        event = self._stages.begin_finalization()
+        if event is not None:
+            self._persist_event(claim, event)
+
     def _renew_lease(self, claim: AttemptClaim) -> None:
         if not self._service.renew_attempt(claim, self._lease_seconds):
             raise RuntimeError("attempt lease is unavailable")
@@ -842,8 +854,9 @@ class HarnessAttemptRunner:
 
     def _finish_cancelled(self, claim: AttemptClaim, answer: str) -> None:
         try:
+            self._begin_finalization(claim)
             self._service.finish_attempt(
-                claim, phase="cancelled", payload={"error_code": "attempt_cancelled", "answer": answer},
+                claim, phase="cancelled", payload={"error_code": "attempt_cancelled", "answer": answer, "task_steps": self._stages.finish()},
             )
         except Exception as exc:
             raise RuntimeError("attempt terminal persistence failed") from exc
@@ -854,6 +867,7 @@ class HarnessAttemptRunner:
     ) -> HarnessAttemptResult:
         # This text describes execution state only. Numerical findings still
         # require the application's normal authority and evidence admission.
+        self._begin_finalization(claim)
         answer = (
             "本次任务未能完成。正式回答未通过核验，尚不能据此作出结论。"
             if stage == "answer_check" else
@@ -893,6 +907,7 @@ class HarnessAttemptRunner:
         answer += recorded_failure_summary(self._tool_events)
         payload["answer"] = answer
         check_lease()
+        payload['task_steps'] = self._stages.finish()
         self._service.finish_attempt(claim, phase="failed", payload=payload)
         return HarnessAttemptResult("failed", answer, code, results, evidence, admission)
 

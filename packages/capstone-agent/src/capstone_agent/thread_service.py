@@ -16,6 +16,7 @@ import time
 from itertools import islice
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
+from .execution_stages import preparation_step
 from threading import RLock
 from typing import TYPE_CHECKING, Any, Mapping, Protocol, cast
 
@@ -534,6 +535,7 @@ class AttemptClaim:
     previous_instruction: PreviousInstruction | None = None
     research_generation: str | None = None
     selected_task_reader: SelectedTaskRecordReader | None = None
+    started_at: str | None = None
 
     def __post_init__(self) -> None:
         if self.previous_instruction is not None and not isinstance(self.previous_instruction, PreviousInstruction):
@@ -1534,7 +1536,7 @@ class InMemoryThreadService:
                 record["lease_deadline"] = time.monotonic() + lease_seconds
                 event = self._append_event(
                     event_type="attempt_started", attempt=running,
-                    payload={"attempt_id": running.attempt_id},
+                    payload={"attempt_id": running.attempt_id, "task_step": preparation_step()},
                 )
                 self._snapshot = replace(self._snapshot, current_attempt=running, last_event_seq=event.event_seq)
                 return AttemptClaim(
@@ -1544,6 +1546,7 @@ class InMemoryThreadService:
                     selection_revision=self._snapshot.active_model_context.selection_revision,
                     lease_token=token,
                     model_context=context,
+                    started_at=event.occurred_at,
                     prior_results=_prior_results_for_context(self._snapshot),
                     previous_instruction=_previous_instruction_from_events(self._events, self._attempts, context, record.get("source_attempt_id")),
                     application_catalog=application_catalog,
@@ -3213,7 +3216,7 @@ class PostgresThreadService:
                 return None
             event = self._make_attempt_event(
                 thread, running, event_seq=thread["last_event_seq"] + 1,
-                event_type="attempt_started", payload={"attempt_id": running.attempt_id},
+                event_type="attempt_started", payload={"attempt_id": running.attempt_id, "task_step": preparation_step()},
             )
             self._insert_event(connection, event)
             connection.execute(
@@ -3232,6 +3235,7 @@ class PostgresThreadService:
                 model_context_id=thread["model_context_id"],
                 selection_revision=thread["selection_revision"], lease_token=token,
                 model_context=context,
+                started_at=event.occurred_at,
                 prior_results=_prior_results_for_context(self._snapshot_from_row(thread)),
                 previous_instruction=_previous_instruction_from_postgres(connection, thread["thread_id"], context,
                     source),

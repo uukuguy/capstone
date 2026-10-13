@@ -134,10 +134,13 @@ def _close_prepared_runtime(runtime: HarnessRuntime | None) -> None:
 
 
 def _preparation_failure(service: ThreadExecutionService, claim: AttemptClaim, code: str) -> HarnessAttemptResult:
+    from .execution_stages import ExecutionStages, preparation_seconds
+    stages = ExecutionStages(preparation_seconds=preparation_seconds(claim.started_at))
     answer = "本次任务未能开始执行。运行准备未完成，因此没有生成新的计算结论。此前已完成的回答和记录仍保留。"
     service.finish_attempt(claim, phase="failed", payload={
         "answer": answer, "error_code": code, "result_refs": [], "evidence_refs": [],
         "outcome": {"status": "blocked", "stage": "preparation", "recovery": "unavailable"},
+        "task_steps": stages.finish(),
     })
     return HarnessAttemptResult("failed", answer, code)
 
