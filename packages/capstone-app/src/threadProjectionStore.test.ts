@@ -152,7 +152,7 @@ it('restores legacy diagrams when new records add an empty disconnection list', 
   const diagram = { ...sampleDiagramView.diagram, model: { id: context.model_id, revision: context.model_revision, source: 'gridctl' } }
   const events = [
     conversationalEvent(1, 'network_diagram', 1, { diagram }),
-    conversationalEvent(2, 'network_diagram', 1, { diagram: { ...diagram, disconnections: [] } }),
+    conversationalEvent(2, 'network_diagram', 1, { diagram: { disconnections: [], ...diagram } }),
   ]
   const store = new ThreadProjectionStore(new CapstoneThreadClient({
     ...createFixtureTransport(idleFixture),

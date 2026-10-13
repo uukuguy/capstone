@@ -838,7 +838,10 @@ export class ThreadProjectionStore {
     const diagram = { ...parsed, disconnections: parsed.disconnections ?? [] }
     const key = `${diagram.model.id}:${diagram.model.revision}:${diagram.ref}`
     const existing = diagrams.get(key)
-    if (existing && JSON.stringify(existing) !== JSON.stringify(diagram)) {
+    const identity = (value: NetworkDiagram) => JSON.stringify(value, (_key, item) =>
+      item && typeof item === 'object' && !Array.isArray(item)
+        ? Object.fromEntries(Object.keys(item).sort().map(key => [key, item[key]])) : item)
+    if (existing && identity(existing) !== identity(diagram)) {
       throw new Error('diagram identity does not match admitted history; 请重新同步电网图。')
     }
     if (!existing) diagrams.set(key, diagram)
