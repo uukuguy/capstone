@@ -236,6 +236,9 @@ def test_missing_bus_voltage_is_described_as_uncomputed_not_a_physical_state(gri
     assert voltage["nullable"] is True
     assert "no computed value" in voltage["meaning"]
     assert "not establish" in voltage["meaning"]
+    assert voltage["non_null_count"] == 38
+    assert voltage["null_count"] == 1
+    assert voltage["non_null_count"] + voltage["null_count"] == description["row_count"]
 
 
 def test_branch_dataset_schema_enumerates_every_queryable_field(grid, context_ref: str) -> None:

@@ -170,6 +170,11 @@ class ResultStore:
 
     def describe(self, result_ref: str, dataset: str) -> dict[str, Any]:
         document, data = self._dataset(result_ref, dataset)
+        fields = []
+        for field in data["fields"]:
+            missing = sum(row.get(field["name"]) is None for row in data["rows"])
+            fields.append({**field, "non_null_count": len(data["rows"]) - missing,
+                           "null_count": missing})
         return {
             "result_ref": result_ref,
             "context_ref": document["context_ref"],
@@ -178,7 +183,7 @@ class ResultStore:
             "dataset_ref": _dataset_ref(result_ref, dataset),
             "source_table": data["source_table"],
             "row_count": data["row_count"],
-            "fields": data["fields"],
+            "fields": fields,
         }
 
     def query(self, result_ref: str, request: dict[str, Any]) -> dict[str, Any]:
