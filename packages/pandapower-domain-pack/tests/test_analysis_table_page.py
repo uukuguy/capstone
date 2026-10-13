@@ -74,3 +74,21 @@ def test_projector_page_checks_saved_result_revision(wrong_revision):
         assert page["result_ref"] == result_ref and page["revision_ref"] == revision
         assert len(page["table"]["rows"]) == 5
     assert calls == [result_ref]
+
+
+def test_existing_powerflow_table_reads_all_original_line_rows():
+    from types import SimpleNamespace
+    from pandapower_domain.result_projection import PandapowerResultProjector
+    result = "result:sha256:" + "a" * 64
+    revision = "revision:sha256:" + "b" * 64
+    source = {"result_ref": result, "revision_ref": revision, "context_ref": "context:sha256:" + "c" * 64,
+        "producer_capability": "analysis.powerflow.ac.run", "branch_results": [
+            {"element_kind": "line", "pandapower_index": i, "loading_percent": None if i == 132 else i,
+             "pl_mw": 0.0} for i in range(133)]}
+    page = PandapowerResultProjector().project_table_page(authority=SimpleNamespace(
+        verify_result=lambda _: SimpleNamespace(document=source)), result_ref=result,
+        expected_revision=revision, table_id="line_loading", offset=128, limit=32)
+    assert page["total_rows"] == 133 and page["next_offset"] is None
+    assert page["table"]["rows"][0]["row_id"] == "line:128"
+    assert page["table"]["rows"][-1]["cells"]["loading_percent"] is None
+    assert page["table"]["rows"][-1]["cells"]["active_loss_mw"] == 0.0

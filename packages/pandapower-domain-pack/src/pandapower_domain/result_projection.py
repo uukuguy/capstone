@@ -79,6 +79,46 @@ def _validate_diagram_identity(
         raise ValueError("diagram model does not match calculation")
 
 
+def _powerflow_summary(calculation: Mapping[str, Any]) -> Mapping[str, Any]:
+    summary = calculation.get("summary")
+    if isinstance(summary, Mapping):
+        return summary
+    losses = calculation.get("losses")
+    lines = []
+    for record in calculation.get("branch_results", []):
+        if not isinstance(record, Mapping) or record.get("element_kind") != "line":
+            continue
+        index = record.get("pandapower_index")
+        if type(index) is not int:
+            continue
+        row = {"element_id": f"line:{index}",
+               "label": record.get("name") if isinstance(record.get("name"), str) and record.get("name") else f"线路 {index}",
+               "loading_percent": record.get("loading_percent")}
+        if "pl_mw" in record:
+            row["active_loss_mw"] = record["pl_mw"]
+        lines.append(row)
+    return {"total_active_loss": losses.get("total_active_loss") if isinstance(losses, Mapping) else None,
+            "line_results": lines}
+
+
+def _line_loading_columns() -> list[dict[str, str]]:
+    return [{"column_id": "line", "label": "线路"},
+            {"column_id": "loading_percent", "label": "负载率", "unit": "%"},
+            {"column_id": "active_loss_mw", "label": "有功损耗", "unit": "MW"}]
+
+
+def _line_table_row(item: object) -> dict[str, object]:
+    record = _mapping(item)
+    element_id = _string(record.get("element_id"), "line_results.element_id")
+    raw = record.get("loading_percent")
+    cells = {"line": _string(record.get("label", element_id), "line_results.label"),
+             "loading_percent": None if raw is None else _finite(raw, "line_results.loading_percent")}
+    if record.get("active_loss_mw") is not None:
+        cells["active_loss_mw"] = _finite(record["active_loss_mw"], "line_results.active_loss_mw")
+    return {"row_id": element_id, "cells": cells,
+            "element_ref": {"element_kind": "line", "element_id": element_id}}
+
+
 class PandapowerResultProjector:
     """Build a bounded business result payload from a verified calculation."""
 
@@ -98,6 +138,20 @@ class PandapowerResultProjector:
             raise ValueError("result table identity does not match its grant")
         if calculation.get("revision_ref") != expected_revision:
             raise ValueError("result table revision does not match its grant")
+        if table_id == "line_loading":
+            if calculation.get("producer_capability", calculation.get("capability_id")) != "analysis.powerflow.ac.run":
+                raise ValueError("result table is not published")
+            rows = _powerflow_summary(calculation).get("line_results")
+            if not isinstance(rows, list) or type(offset) is not int or not 0 <= offset <= len(rows):
+                raise ValueError("result table rows or cursor are invalid")
+            if type(limit) is not int or not 1 <= limit <= 128:
+                raise ValueError("result table page size is invalid")
+            end = min(offset + limit, len(rows))
+            return {"result_ref": result_ref, "context_ref": calculation.get("context_ref"),
+                    "revision_ref": expected_revision, "total_rows": len(rows), "offset": offset,
+                    "next_offset": end if end < len(rows) else None,
+                    "table": {"table_id": table_id, "title": "线路负载率", "columns": _line_loading_columns(),
+                              "rows": [_line_table_row(item) for item in rows[offset:end]]}}
         return {**project_analysis_table_page(calculation, table_id, offset=offset, limit=limit),
                 "result_ref": result_ref}
 
