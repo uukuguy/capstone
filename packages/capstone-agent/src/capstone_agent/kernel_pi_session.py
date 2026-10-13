@@ -118,8 +118,11 @@ class PreparedKernelPiRpcSessionBuilder:
         workspace = profiles[0].workspace
         if claim.turn_plan is not None and claim.turn_plan.route == "ordinary":
             directory = workspace.core_path / "pi" / "attempts" / claim.attempt.attempt_id / "general-task"
+            selected_task = claim.previous_instruction if claim.previous_instruction is not None and claim.previous_instruction.model_context is not None else None
             policy = _compose_attempt_policy(directory, None, include_generic=True,
-                application_catalog=claim.application_catalog)
+                application_catalog=claim.application_catalog,
+                model_context=claim.model_context if selected_task is not None else None,
+                previous_instruction=selected_task)
             paths = RuntimePaths(command=self._runtime_host.command,
                 project_pi_dir=self._runtime_host.project_pi_dir, session_dir=directory / "session",
                 workspace=directory, extension_path=None, domain_search_paths=(), system_policy_path=policy)

@@ -272,7 +272,8 @@ def test_core_record_cannot_admit_a_top_level_result_reference():
         )
 
 
-def test_ordinary_session_has_no_business_tools_or_authority_handles(monkeypatch, tmp_path):
+@pytest.mark.parametrize("selected_task", [False, True])
+def test_ordinary_session_has_no_business_tools_or_authority_handles(monkeypatch, tmp_path, selected_task):
     import capstone_agent.kernel_pi_session as module
     captured = []
     class Client:
@@ -291,7 +292,10 @@ def test_ordinary_session_has_no_business_tools_or_authority_handles(monkeypatch
     builder._base_environment = {}
     builder._timeout_seconds = 60
     claim = SimpleNamespace(turn_plan=SimpleNamespace(route="ordinary"), application_catalog=None,
-        attempt=SimpleNamespace(attempt_id="attempt_general"))
+        attempt=SimpleNamespace(attempt_id="attempt_general"),
+        model_context=ModelContextSnapshot("ctx_current", "current-model", "revision-1", "pandapower", "sel_0"),
+        previous_instruction=module.PreviousInstruction("attempt_saved", "Explain saved task", "Saved outcome", "completed",
+            ModelContextSnapshot("ctx_old", "old-model", "revision-old", "pandapower", "sel_0")) if selected_task else None)
     business = tmp_path / "business-workspace"
     profile = SimpleNamespace(workspace=SimpleNamespace(root=business, core_path=business / "core"))
     session = builder(claim, object(), (profile,))
@@ -300,6 +304,11 @@ def test_ordinary_session_has_no_business_tools_or_authority_handles(monkeypatch
     assert paths.extension_path is paths.runtime_descriptor_path is paths.tool_catalog_path is None
     assert paths.domain_search_paths == ()
     assert not (business / "core/pi/runtime-descriptor.json").exists()
+    policy = paths.system_policy_path.read_text()
+    assert ("Selected historical task" in policy) is selected_task
+    if selected_task:
+        assert '"instruction": "Explain saved task"' in policy
+        assert '"model_id": "old-model"' in policy
     session.stop()
 
 
