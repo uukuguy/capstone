@@ -556,7 +556,19 @@ function ActivityItems({ activities }: { activities: ChatActivity[] }) {
   return <div className="capstone-chat-activity-list">{activities.map((item) => {
     const [owner, ...detail] = item.source.split(' · ')
     const reason = toolFailureReason(item.failure)
-    return <div key={item.id} className={`capstone-chat-activity-item is-${item.status}`}><span className="capstone-chat-activity-icon" aria-hidden="true" /> <span><strong>{item.taskStepNumber !== undefined && item.stepToolNumber !== undefined ? `${String(item.taskStepNumber).padStart(2, '0')}.${item.stepToolNumber} ` : ''}{item.label}</strong>{item.status === 'failed' && <span className="capstone-tool-failure" title={[reason, item.failure?.code ? `诊断：${item.failure.code}` : '', item.failure?.message ? `原文：${item.failure.message}` : ''].filter(Boolean).join('\n')}>{toolFailureCopy(item.failure?.code)}</span>}<small><span className="capstone-chat-activity-source" data-owner={owner}>{owner.toUpperCase()}</span> {detail.join(' · ')}{item.durationMs === undefined ? '' : ` · ${formatDuration(item.durationMs)}`}</small>{item.status === 'failed' && reason && <span className="capstone-tool-failure-reason" title={reason}>{reason.length > 180 ? reason.slice(0, 180) + '…' : reason}</span>}</span></div>
+    const diagnostic = [reason, item.failure?.code ? `诊断：${item.failure.code}` : '',
+      item.failure?.message ? `原文：${item.failure.message}` : ''].filter(Boolean).join('\n')
+    return <div key={item.id} className={`capstone-chat-activity-item is-${item.status}`}>
+      <span className="capstone-chat-activity-icon" aria-hidden="true" />
+      <div className="capstone-tool-call-content">
+        <div className="capstone-tool-call-heading">
+          <strong>{item.taskStepNumber !== undefined && item.stepToolNumber !== undefined ? `${String(item.taskStepNumber).padStart(2, '0')}.${item.stepToolNumber} ` : ''}{item.label}</strong>
+          {item.status === 'failed' && <span className="capstone-tool-failure" title={diagnostic}>{toolFailureCopy(item.failure?.code)}</span>}
+        </div>
+        <small><span className="capstone-chat-activity-source" data-owner={owner}>{owner.toUpperCase()}</span> {detail.join(' · ')}{item.durationMs === undefined ? '' : ` · ${formatDuration(item.durationMs)}`}</small>
+        {item.status === 'failed' && reason && <div className="capstone-tool-failure-reason" title={diagnostic}>{reason.length > 180 ? reason.slice(0, 180) + '…' : reason}</div>}
+      </div>
+    </div>
   })}</div>
 }
 

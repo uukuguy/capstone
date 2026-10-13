@@ -11,6 +11,18 @@ const event = (eventType: string, eventSeq: number, payload: Record<string, unkn
 })
 
 describe('CapstoneAssistantThread', () => {
+  it('keeps the original diagnostic available from the compact failure reason', () => {
+    render(<CapstoneAssistantThread events={[
+      event('tool_completed', 1, { tool_name: 'grid_result_dataset_query', tool_call_id: 'bad-field', ok: false,
+        failure: { code: 'result_field_unavailable', message: 'Result query references fields not present in the described dataset',
+          summary: '字段不可用：bus；可用字段：index、vm_pu' } }, 'failure'),
+      event('attempt_completed', 2, { answer: '已改用正确字段查询。' }, 'failure'),
+    ]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: '查看执行过程' }))
+    const reason = screen.getByText('字段不可用：bus；可用字段：index、vm_pu')
+    expect(reason.title).toContain('Result query references fields not present in the described dataset')
+    expect(reason.closest('.capstone-tool-call-content')).toBeTruthy()
+  })
   it('connects real failed calls to the next step and shows the recorded method adjustment', () => {
     const first = { id: 'read', number: 1, title: '读取已有结果', status: 'completed' }
     const next = { id: 'query', number: 2, title: '查询结果数据集', status: 'completed', after_failed_steps: ['read'] }

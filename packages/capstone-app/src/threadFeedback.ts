@@ -3,8 +3,8 @@ export function toolFailureReason(failure?: { code?: string; message?: string; s
   if (failure?.summary) return failure.summary
   if (failure?.message && /[\u3400-\u9fff]/.test(failure.message)) return failure.message
   const reasons: Record<string, string> = {
-    result_field_unavailable: '请求的字段未在该结果表中发布。',
-    analysis_prerequisite_missing: '计算所需参数缺失或无效，未产生计算结果。',
+    result_field_unavailable: '查询字段不存在；此记录未保存具体字段。',
+    analysis_prerequisite_missing: '缺少必要参数，未产生结果；此记录未保存缺失项。',
     invalid_arguments: '输入参数不符合工具契约。',
     result_not_rankable: '该结果没有可用于支路排名的数据。',
     result_integrity_failed: '保存结果与其引用的完整性校验未通过。',
