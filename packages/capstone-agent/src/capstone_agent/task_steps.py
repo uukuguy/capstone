@@ -108,6 +108,15 @@ class RuntimeStepTracker(TaskStepTracker):
         normalized = normalize_runtime_event(output, runtime_mode="capstone")
         payload = normalized["payload"]
         assert isinstance(payload, dict)
+        if normalized["event_type"] == "tool_started" and self.active is not None:
+            arguments = event.get("args")
+            purpose = arguments.get("execution_purpose") if isinstance(arguments, dict) else None
+            if isinstance(purpose, str) and 0 < len(purpose.strip()) <= 120:
+                state = self.steps[self.active]
+                if not state.get("purpose"):
+                    state["title"] = purpose.strip()
+                    state["purpose"] = True
+                    output["task_step"] = self._public(self.active)
         if payload.get("tool_name") == "agent_task_progress" or payload.get("capability") == "agent_task_progress":
             output["runtime_step_tracking"] = True
             if self.active is not None:
@@ -123,4 +132,7 @@ class RuntimeStepTracker(TaskStepTracker):
                     self.steps[self.active]["purpose"] = True
                     output["task_step"] = self._public(self.active)
             return output
-        return super().annotate(output)
+        annotated = super().annotate(output)
+        if "task_step" in output:
+            annotated["task_step"] = output["task_step"]
+        return annotated

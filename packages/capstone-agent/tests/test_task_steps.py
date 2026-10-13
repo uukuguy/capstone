@@ -1,6 +1,20 @@
 from capstone_agent.task_steps import TaskStepTracker
 
 
+def test_purpose_on_business_call_is_saved_without_a_progress_tool():
+    from capstone_agent.task_steps import RuntimeStepTracker
+    tracker = RuntimeStepTracker()
+    tracker.annotate({'type': 'runtime_action', 'phase': 'started'})
+    tracker.annotate({'type': 'runtime_action', 'phase': 'response_completed', 'response_kind': 'tools'})
+    call = tracker.annotate({'type': 'tool_execution_start', 'toolName': 'grid_query', 'toolCallId': 'one',
+        'args': {'execution_purpose': '读取结果并核验约束', 'dataset': 'lines'}})
+    assert call['task_step']['title'] == '读取结果并核验约束'
+    assert call['task_step_id'] == 'runtime-1'
+    tracker.annotate({'type': 'tool_execution_start', 'toolName': 'grid_query', 'toolCallId': 'two'})
+    end = tracker.annotate({'type': 'runtime_action', 'phase': 'completed'})
+    assert end['task_step']['title'] == '读取结果并核验约束'
+
+
 def test_runtime_steps_follow_native_boundaries_without_model_completion():
     from capstone_agent.task_steps import RuntimeStepTracker
     now = [0.0]

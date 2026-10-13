@@ -60,7 +60,7 @@ function Step({ step, storageKey, running, foldCommand, onFoldChange, toolCount,
       {toolCount !== undefined && <small>{toolCount} 次调用</small>}
       <small>{elapsed === undefined ? '' : `${toolCount === undefined ? '' : '· '}${(elapsed / 1000).toFixed(1)}s`}{step.finishReason === 'interrupted' ? ' · 已中断' : step.status === 'completed' ? '' : running ? ' · 执行中' : '任务已结束 · 步骤未报告结束'}</small>
     </summary>
-    <div className="capstone-step-tools">{step.responseMs !== undefined && <small className="capstone-step-timing">模型响应 {(step.responseMs / 1000).toFixed(1)}s</small>}{children}</div>
+    <div className="capstone-step-tools">{children}</div>
   </details>
 }
 

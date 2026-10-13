@@ -556,11 +556,10 @@ function ActivityItems({ activities }: { activities: ChatActivity[] }) {
   })}</div>
 }
 
-function TaskProgressItems({ items }: { items: readonly TaskProgress[] }) {
+function TaskProgressItems({ items, responseMs }: { items: readonly TaskProgress[]; responseMs?: number }) {
   const labels = { goal: '目标', observation: '观察', adjustment: '调整', limitation: '限制' }
-  return <div className="capstone-task-progress" aria-label="任务进展">{items.map(item => <section key={item.id} data-sequence={item.sequence}>
-    <small>{item.kind ? labels[item.kind] : '记录'}{item.revision === undefined ? '' : ` · 修订 ${item.revision}`}</small>
-    <p>{item.text}</p>
+  return <div className="capstone-task-progress" aria-label="任务进展">{items.map((item, index) => <section key={item.id} data-sequence={item.sequence}>
+    <p>{item.kind && item.kind !== 'observation' && <small>{labels[item.kind]}： </small>}{item.text}{index === items.length - 1 && responseMs !== undefined && <small className="capstone-step-response"> · 模型响应 {(responseMs / 1000).toFixed(1)}s</small>}</p>
     {item.refs.length > 0 && <details><summary>关联引用 · {item.refs.length} 条</summary><small>记录中的引用不等于结论核验通过。</small>{item.refs.map(ref => <code key={ref}>{ref}</code>)}</details>}
   </section>)}</div>
 }
@@ -602,7 +601,7 @@ function AttemptActivity({ activities, progress = [], steps = [], stepStorageKey
       <TaskStepProcess key={entry.id} steps={[entry.step]} storageKey={stepStorageKey} running={running}
         foldCommand={foldCommand} onFoldChange={reportFold}
         toolCount={stepId => toolActivities.filter(item => item.taskStepId === stepId).length}
-        renderTools={stepId => <><TaskProgressItems items={progress.filter(item => item.stepId === stepId && item.phase !== 'started')} /><ActivityItems activities={toolActivities.filter(item => item.taskStepId === stepId)} /></>} /> :
+        renderTools={stepId => <><TaskProgressItems responseMs={entry.step?.responseMs} items={progress.filter(item => item.stepId === stepId && item.phase !== 'started')} /><ActivityItems activities={toolActivities.filter(item => item.taskStepId === stepId)} /></>} /> :
       <div key={entry.id} title="未归属任务步骤"><ActivityItems activities={entry.activity ? [entry.activity] : []} /></div>)}</>
   }
   return <div className={`capstone-chat-activity-frame${running ? ' is-running' : ' is-settled'}`} aria-busy={running}><details ref={detailsRef} className={`capstone-chat-activity capstone-chat-activity-attached${terminalClass}`} open={open} onToggle={(event) => onOpenChange(event.currentTarget.open)}>

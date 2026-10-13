@@ -14,7 +14,20 @@ import {
   runCapability,
   sanitizeEnvironment,
   validateRuntimeDescriptor,
+  withExecutionPurpose,
 } from "../src/domain-tools.mjs";
+
+test("execution purpose stays outside the domain contract and missing records do not block execution", async () => {
+  const calls = [];
+  const original = { name: "sample", description: "Query data", parameters: { type: "object", additionalProperties: false, properties: { value: { type: "number" } } },
+    execute: async (_id, args) => { calls.push(args); return { content: [] }; } };
+  const wrapped = withExecutionPurpose(original);
+  assert.ok(wrapped.parameters.properties.execution_purpose);
+  assert.equal(original.parameters.properties.execution_purpose, undefined);
+  await wrapped.execute("one", { value: 1, execution_purpose: "检查约束" });
+  await wrapped.execute("two", { value: 2 });
+  assert.deepEqual(calls, [{ value: 1 }, { value: 2 }]);
+});
 
 const inventory = Object.freeze({
   protocol: "inventory-capability",

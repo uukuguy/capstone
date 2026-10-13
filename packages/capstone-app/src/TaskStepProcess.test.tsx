@@ -14,7 +14,7 @@ describe('task step folding', () => {
     rerender(<TaskStepProcess steps={[{ ...step, status: 'completed', durationMs: 2800, responseMs: 1700 }]} storageKey="timer" running={false} renderTools={() => null} />)
     act(() => vi.advanceTimersByTime(2000))
     expect(screen.getByText('2.8s')).toBeTruthy()
-    expect(screen.getByText('模型响应 1.7s')).toBeTruthy()
+    expect(screen.queryByText('模型响应 1.7s')).toBeNull()
   })
   it('shows the number of tools inside a collapsed step', () => {
     render(<TaskStepProcess steps={[{ id: 'solve', number: 1, title: '求解', status: 'running' }]} storageKey="count" running={false} toolCount={() => 5} renderTools={() => <span>GRID</span>} />)

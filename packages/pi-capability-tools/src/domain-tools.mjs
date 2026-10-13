@@ -511,6 +511,21 @@ function isModelRoutingField(key) {
   );
 }
 
+export function withExecutionPurpose(tool) {
+  const schema = tool.parameters;
+  if (schema.properties?.execution_purpose) throw new TypeError("execution_purpose is reserved for agent records");
+  return defineTool({ ...tool,
+    description: `${tool.description} Include execution_purpose: a short statement of this batch's intended work in the user's language. Use the same purpose for calls in the same batch. This is a public agent record, not a verified result.`,
+    parameters: Type.Unsafe({ ...schema, properties: { ...schema.properties,
+      execution_purpose: { type: "string", minLength: 1, maxLength: 120,
+        description: "Purpose of this execution batch. State the intended work, not the whole task or an outcome." } } }),
+    async execute(id, params, ...rest) {
+      const { execution_purpose: _purpose, ...argumentsOnly } = params;
+      return tool.execute(id, argumentsOnly, ...rest);
+    },
+  });
+}
+
 export function createCapabilityTool(descriptor, contract, runner) {
   const runtime = selectedBindingRuntime(descriptor);
   validateContract(contract, runtime);
@@ -669,9 +684,8 @@ export function createDomainToolsExtension(descriptor, options = {}) {
         if (contract.name === runtime.decisionToolName) {
           continue;
         }
-        pi.registerTool(
-          buildTool(runtime, contract, (payload) => runCapability(payload, runtime, selectedNames)),
-        );
+        const tool = buildTool(runtime, contract, (payload) => runCapability(payload, runtime, selectedNames));
+        pi.registerTool(corePaths.researchChannelPath !== undefined ? withExecutionPurpose(tool) : tool);
       }
       pi.registerTool(guide);
     }
