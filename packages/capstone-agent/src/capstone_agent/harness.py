@@ -221,6 +221,14 @@ def normalize_runtime_event(
             if state.research_id != identity or state.revision != revision or state.goal != goal:
                 raise ValueError("research snapshot identity does not match projection")
             payload["research_snapshot"] = state.model_dump(mode="json")
+            if "current_note_ids" in event:
+                note_ids = event["current_note_ids"]
+                if (not isinstance(note_ids, list) or len(note_ids) > 64
+                    or any(not isinstance(note_id, str) for note_id in note_ids)
+                    or len(set(note_ids)) != len(note_ids)
+                    or not set(note_ids).issubset({note.note_id for note in state.notes})):
+                    raise ValueError("invalid current research note identities")
+                payload["current_note_ids"] = note_ids
     elif event_type == "assistant_process_delta":
         text = event.get("text")
         payload = {"text": text[:16_384]} if isinstance(text, str) else {}

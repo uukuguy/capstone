@@ -10,6 +10,29 @@ from capstone_agent.thread_protocol import ModelContextSnapshot
 MODEL = ModelContextSnapshot("ctx_one", "model-one", "revision:current", "pandapower", "sel_0")
 
 
+def test_progress_note_ownership_does_not_relabel_inherited_notes(tmp_path):
+    from capstone_agent.harness import normalize_runtime_event
+    def open_task(attempt):
+        return AttemptResearch(tmp_path, thread_id="thr_one", run_id="run_one", attempt_id=attempt,
+            model_context=MODEL, is_active=lambda: True, admit_reference=lambda _: False)
+    old = open_task("attempt_old")
+    note = {"note_id": "note-one", "text": "Prior observation", "refs": []}
+    old.controller.update({"request_id": "save-old", "expected_revision": 0,
+        "changes": {"goal": "Old goal", "notes": [note]}})
+    old.close(failed=False)
+    current = open_task("attempt_current")
+    assert current.current_projection()["current_note_ids"] == []
+    current.controller.update({"request_id": "save-current", "expected_revision": 1,
+        "changes": {"goal": "New goal", "notes": [note]}})
+    assert current.current_projection()["current_note_ids"] == []
+    current.controller.update({"request_id": "change-current", "expected_revision": 2,
+        "changes": {"notes": [{"note_id": "note-two", "text": "New observation", "refs": []}]}})
+    projection = current.current_projection()
+    assert projection["current_note_ids"] == ["note-two"]
+    event = normalize_runtime_event({"type": "research_state", **projection}, runtime_mode="capstone")
+    assert event["payload"]["current_note_ids"] == ["note-two"]
+
+
 def test_reset_generation_starts_fresh_research_and_retains_history(tmp_path):
     def open_task(attempt, generation=None):
         return AttemptResearch(tmp_path, thread_id="thr_one", run_id="run_one",

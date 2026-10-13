@@ -82,6 +82,8 @@ class AttemptResearch:
             self.store.append(self._start_event)
         self.controller = ResearchController(self.store, research_id=self.research_id,
             turn_id=self.turn_id, admit_reference=admit_reference)
+        initial_state = self.controller.read()
+        self._initial_notes = {note.note_id: note for note in initial_state.notes} if initial_state else {}
         self._closed = False
         self._is_active = is_active
         self.channel = ResearchRequestChannel(self.controller, attempt_id=attempt_id,
@@ -114,6 +116,8 @@ class AttemptResearch:
         return {"research_id": state.research_id, "research_revision": state.revision,
                 "goal": state.goal, "baseline_model_context": self.model_context.to_document(),
                 "claim_count": len(state.claims), "open_question_count": len(state.open_questions),
+                "current_note_ids": [note.note_id for note in state.notes
+                    if self._initial_notes.get(note.note_id) != note],
                 "research_snapshot": state.model_dump(mode="json")}
 
     def close(self, *, failed: bool) -> None:

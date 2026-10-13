@@ -548,9 +548,8 @@ function ActivityItems({ activities }: { activities: ChatActivity[] }) {
 }
 
 function TaskProgressItems({ items }: { items: readonly TaskProgress[] }) {
-  const revised = new Set(items.flatMap(item => item.replaces ? [item.replaces] : []))
   return <div className="capstone-task-progress" aria-label="任务进展">{items.map(item => <section key={item.id} data-sequence={item.sequence}>
-    <small>工作记录 · 修订 {item.revision}{revised.has(item.id) ? ' · 后续已修订' : item.replaces ? ' · 修订记录' : ''}</small>
+    <small>工作记录 · 研究修订 {item.revision}</small>
     <p>{item.text}</p>
     {item.refs.length > 0 && <details><summary>来源 · {item.refs.length} 条</summary>{item.refs.map(ref => <code key={ref}>{ref}</code>)}</details>}
   </section>)}</div>

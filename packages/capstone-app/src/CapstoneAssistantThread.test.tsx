@@ -16,7 +16,7 @@ describe('CapstoneAssistantThread', () => {
       notes: [{ note_id: 'finding', text: '已取得拓扑结果，继续检查失供范围。', refs: ['result:topology'] }], open_questions: [] }
     const events = [event('attempt_started', 1, {}, 'study'),
       event('research_state_updated', 2, { research_id: snapshot.research_id, research_revision: 1,
-        goal: snapshot.goal, research_snapshot: snapshot }, 'study'),
+        goal: snapshot.goal, current_note_ids: ['finding'], research_snapshot: snapshot }, 'study'),
       ...Array.from({ length: 12 }, (_, index) => event('tool_completed', index + 3,
         { tool_name: `grid_check_${index}`, tool_call_id: `call_${index}`, ok: true }, 'study'))]
     render(<CapstoneAssistantThread events={events} disabled={false} isRunning={true} activity={projectAssistantActivity(events)} onSend={async () => {}} onCancel={async () => {}} />)
