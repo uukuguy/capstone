@@ -1,4 +1,5 @@
 import { createContext, memo, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { readDraft, writeDraft } from './threadSessionState'
 import ThreadSettingsMenu, { useCloseThreadSettings } from './ThreadSettingsMenu'
 import ThreadSystemNotice from './ThreadSystemNotice'
@@ -552,6 +553,43 @@ function RunDuration({ startedAt, durationMs, running }: { startedAt?: string; d
   return <span className={`capstone-chat-duration${running ? ' is-running' : ''}`} aria-live="polite">{running ? '运行中' : '运行'} {formatDuration(elapsed)}</span>
 }
 
+function ToolDiagnostic({ diagnostic }: { diagnostic: string }) {
+  const [hovered, setHovered] = useState(false)
+  const [pinned, setPinned] = useState(false)
+  const open = hovered || pinned
+  const trigger = useRef<HTMLButtonElement>(null)
+  const tooltip = useRef<HTMLDivElement>(null)
+  const [position, setPosition] = useState({ left: 12, top: 12 })
+  useLayoutEffect(() => {
+    if (!open || !trigger.current || !tooltip.current) return
+    const anchor = trigger.current.getBoundingClientRect()
+    const box = tooltip.current.getBoundingClientRect()
+    const left = Math.max(12, Math.min(anchor.left, window.innerWidth - box.width - 12))
+    const below = anchor.bottom + 6
+    const top = below + box.height <= window.innerHeight - 12 ? below
+      : Math.max(12, anchor.top - box.height - 6)
+    setPosition({ left, top })
+  }, [open, diagnostic])
+  useEffect(() => {
+    if (!open) return
+    const close = (event: Event) => {
+      if (event.target instanceof Node && tooltip.current?.contains(event.target)) return
+      setHovered(false); setPinned(false)
+    }
+    window.addEventListener('scroll', close, true)
+    window.addEventListener('resize', close)
+    return () => { window.removeEventListener('scroll', close, true); window.removeEventListener('resize', close) }
+  }, [open])
+  return <span className="capstone-tool-diagnostic" onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
+    <button ref={trigger} type="button" aria-label="查看原始诊断" aria-expanded={open}
+      onFocus={() => setHovered(true)} onBlur={() => setHovered(false)}
+      onClick={() => setPinned((current) => !current)}
+      onKeyDown={(event) => { if (event.key === 'Escape') { setPinned(false); setHovered(false) } }}>原始诊断</button>
+    {open && createPortal(<div ref={tooltip} role="tooltip" className="capstone-tool-diagnostic-popover"
+      style={position}>{diagnostic}</div>, document.body)}
+  </span>
+}
+
 function ActivityItems({ activities }: { activities: ChatActivity[] }) {
   return <div className="capstone-chat-activity-list">{activities.map((item) => {
     const [owner, ...detail] = item.source.split(' · ')
@@ -563,10 +601,12 @@ function ActivityItems({ activities }: { activities: ChatActivity[] }) {
       <div className="capstone-tool-call-content">
         <div className="capstone-tool-call-heading">
           <strong>{item.taskStepNumber !== undefined && item.stepToolNumber !== undefined ? `${String(item.taskStepNumber).padStart(2, '0')}.${item.stepToolNumber} ` : ''}{item.label}</strong>
-          {item.status === 'failed' && <span className="capstone-tool-failure" title={diagnostic}>{toolFailureCopy(item.failure?.code)}</span>}
         </div>
         <small><span className="capstone-chat-activity-source" data-owner={owner}>{owner.toUpperCase()}</span> {detail.join(' · ')}{item.durationMs === undefined ? '' : ` · ${formatDuration(item.durationMs)}`}</small>
-        {item.status === 'failed' && reason && <div className="capstone-tool-failure-reason" title={diagnostic}>{reason.length > 180 ? reason.slice(0, 180) + '…' : reason}</div>}
+        {item.status === 'failed' && <div className="capstone-tool-failure-line">
+          <span className="capstone-tool-failure-reason" title={diagnostic}>{reason ? reason.length > 180 ? reason.slice(0, 180) + '…' : reason : toolFailureCopy(item.failure?.code)}</span>
+          {item.failure?.message && <ToolDiagnostic diagnostic={diagnostic} />}
+        </div>}
       </div>
     </div>
   })}</div>

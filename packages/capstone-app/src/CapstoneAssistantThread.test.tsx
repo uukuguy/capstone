@@ -22,6 +22,10 @@ describe('CapstoneAssistantThread', () => {
     const reason = screen.getByText('字段不可用：bus；可用字段：index、vm_pu')
     expect(reason.title).toContain('Result query references fields not present in the described dataset')
     expect(reason.closest('.capstone-tool-call-content')).toBeTruthy()
+    expect(screen.queryByText('查询字段不存在')).toBeNull()
+    const trigger = screen.getByRole('button', { name: '查看原始诊断' })
+    fireEvent.click(trigger)
+    expect(screen.getByRole('tooltip').textContent).toContain('Result query references fields not present in the described dataset')
   })
   it('connects real failed calls to the next step and shows the recorded method adjustment', () => {
     const first = { id: 'read', number: 1, title: '读取已有结果', status: 'completed' }
@@ -34,7 +38,7 @@ describe('CapstoneAssistantThread', () => {
       event('attempt_completed', 5, { answer: '已读取可用数据。', task_steps: [first, next] }, 'recover'),
     ]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
     fireEvent.click(screen.getByRole('button', { name: '查看执行过程' }))
-    expect(screen.getByText('该结果不支持支路排名')).toBeTruthy()
+    expect(screen.getByText('该结果没有可用于支路排名的数据。')).toBeTruthy()
     expect(screen.getByText('接续 01')).toBeTruthy()
     expect(screen.getByText(/排名不可用，改从数据集取数/)).toBeTruthy()
     expect(screen.queryByText('已重新规划')).toBeNull()
