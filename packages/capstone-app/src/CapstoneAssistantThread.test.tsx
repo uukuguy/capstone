@@ -11,6 +11,21 @@ const event = (eventType: string, eventSeq: number, payload: Record<string, unkn
 })
 
 describe('CapstoneAssistantThread', () => {
+  it('keeps exactly ten recent actions and a separate committed work explanation in the running preview', () => {
+    const snapshot = { research_id: 'research-1', revision: 1, goal: '核验故障影响', condition_refs: [], claims: [],
+      notes: [{ note_id: 'finding', text: '已取得拓扑结果，继续检查失供范围。', refs: ['result:topology'] }], open_questions: [] }
+    const events = [event('attempt_started', 1, {}, 'study'),
+      event('research_state_updated', 2, { research_id: snapshot.research_id, research_revision: 1,
+        goal: snapshot.goal, research_snapshot: snapshot }, 'study'),
+      ...Array.from({ length: 12 }, (_, index) => event('tool_completed', index + 3,
+        { tool_name: `grid_check_${index}`, tool_call_id: `call_${index}`, ok: true }, 'study'))]
+    render(<CapstoneAssistantThread events={events} disabled={false} isRunning={true} activity={projectAssistantActivity(events)} onSend={async () => {}} onCancel={async () => {}} />)
+    const preview = screen.getByLabelText('运行过程预览')
+    expect(preview.querySelectorAll('.capstone-chat-activity-item')).toHaveLength(10)
+    expect(within(preview).getByText(snapshot.notes[0].text)).toBeTruthy()
+    expect(preview.textContent).not.toContain('grid_check_0')
+    expect(preview.textContent).toContain('grid_check_11')
+  })
   it('shows actual reply completion time and distinct tool sources', () => {
     const finished = '2026-10-13T05:12:34Z'
     const events = [event('attempt_started', 1, {}, 'study'),
@@ -20,6 +35,7 @@ describe('CapstoneAssistantThread', () => {
     render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={projectAssistantActivity(events)} onSend={async () => {}} onCancel={async () => {}} />)
     const time = screen.getByLabelText(/^回答完成时间：/)
     expect(time.getAttribute('datetime')).toBe(finished)
+    expect(time.textContent).toMatch(/\d{2}:\d{2}:34/)
     fireEvent.click(screen.getByRole('button', { name: '查看运行过程' }))
     expect(screen.getByText('CAPSTONE', { selector: '.capstone-chat-activity-source' })).toBeTruthy()
     expect(screen.getByText('GRID', { selector: '.capstone-chat-activity-source' })).toBeTruthy()
@@ -959,7 +975,7 @@ describe('CapstoneAssistantThread', () => {
     expect(second.querySelector('details')?.open).toBe(false)
   })
 
-  it('shows up to three latest running actions until opened and respects closing it as steps arrive', () => {
+  it('shows up to ten latest running actions until opened and respects closing it as steps arrive', () => {
     const events = [
       event('command_accepted', 1, { kind: 'send_auto', payload: { text: '运行潮流' } }, 'running_activity'),
       event('attempt_started', 2, {}, 'running_activity'),
@@ -987,9 +1003,9 @@ describe('CapstoneAssistantThread', () => {
     rerender(<CapstoneAssistantThread {...props} events={next} activity={projectAssistantActivity(next)} />)
     expect(details.open).toBe(false)
     const preview = screen.getByLabelText('运行过程预览')
-    expect(preview.querySelectorAll('.capstone-chat-activity-item')).toHaveLength(3)
+    expect(preview.querySelectorAll('.capstone-chat-activity-item')).toHaveLength(4)
     expect(preview.textContent).toContain('grid_model_list')
-    expect(preview.textContent).not.toContain('grid_context_get')
+    expect(preview.textContent).toContain('grid_context_get')
     details.open = true
     fireEvent(details, new Event('toggle'))
     const completed = [...next, event('attempt_completed', 10, { answer: '执行完成。' }, 'running_activity')]

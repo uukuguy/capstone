@@ -6,6 +6,7 @@ import { projectSystemNotices, type ThreadSystemNotice as SystemNotice } from '.
 import { answerEvidenceState, evidenceStateCopy, type AnswerEvidenceState } from './threadEvidenceState'
 import InferenceEvidencePanel, { type FailureEvidence, type ToolExecutionRecord } from './InferenceEvidencePanel'
 import ResearchEvidence, { parseResearchSnapshot, type ResearchSnapshot } from './ResearchEvidence'
+import { projectTaskProgress, type TaskProgress } from './taskProgress'
 import AttemptRecordPanel, { type AttemptRecordReader } from './AttemptRecordPanel'
 import {
   AssistantRuntimeProvider,
@@ -408,7 +409,8 @@ export function projectAssistantMessages(events: readonly EventEnvelope[], instr
     const parsedResearch = parseResearchSnapshot(research?.payload.research_snapshot)
     const researchSnapshot = parsedResearch && parsedResearch.research_id === research?.payload.research_id &&
       parsedResearch.revision === research.payload.research_revision && parsedResearch.goal === research.payload.goal ? parsedResearch : undefined
-    const withMetadata = { ...message, metadata: { custom: { ...custom, activities, failureResults, researchGoal, researchSnapshot, toolExecutions } } }
+    const taskProgress = attemptId ? projectTaskProgress(events, attemptId) : []
+    const withMetadata = { ...message, metadata: { custom: { ...custom, activities, failureResults, researchGoal, researchSnapshot, toolExecutions, taskProgress } } }
     return typeof message.content === 'string'
       ? { ...withMetadata, content: [{ type: 'text' as const, text: message.content }] }
       : withMetadata
@@ -545,7 +547,16 @@ function ActivityItems({ activities }: { activities: ChatActivity[] }) {
   })}</div>
 }
 
-function AttemptActivity({ activities, running, phase, open, onOpenChange, startedAt, durationMs, detailsRef }: { activities: ChatActivity[]; running: boolean; phase?: string; open: boolean; onOpenChange: (open: boolean) => void; startedAt?: string; durationMs?: number; detailsRef: React.RefObject<HTMLDetailsElement | null> }) {
+function TaskProgressItems({ items }: { items: readonly TaskProgress[] }) {
+  const revised = new Set(items.flatMap(item => item.replaces ? [item.replaces] : []))
+  return <div className="capstone-task-progress" aria-label="任务进展">{items.map(item => <section key={item.id} data-sequence={item.sequence}>
+    <small>工作记录 · 修订 {item.revision}{revised.has(item.id) ? ' · 后续已修订' : item.replaces ? ' · 修订记录' : ''}</small>
+    <p>{item.text}</p>
+    {item.refs.length > 0 && <details><summary>来源 · {item.refs.length} 条</summary>{item.refs.map(ref => <code key={ref}>{ref}</code>)}</details>}
+  </section>)}</div>
+}
+
+function AttemptActivity({ activities, progress = [], goal, running, phase, open, onOpenChange, startedAt, durationMs, detailsRef }: { activities: ChatActivity[]; progress?: readonly TaskProgress[]; goal?: string; running: boolean; phase?: string; open: boolean; onOpenChange: (open: boolean) => void; startedAt?: string; durationMs?: number; detailsRef: React.RefObject<HTMLDetailsElement | null> }) {
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     if (!running) return undefined
@@ -554,13 +565,13 @@ function AttemptActivity({ activities, running, phase, open, onOpenChange, start
   }, [running])
   const liveDuration = startedAt ? durationBetween(startedAt, new Date(now).toISOString()) : undefined
   const elapsed = running ? liveDuration : durationMs
-  if (activities.length === 0) return null
+  if (activities.length === 0 && progress.length === 0) return null
   const terminalLabel = phase === 'failed' ? '执行失败 ·' : phase === 'cancelled' ? '已取消 ·' : phase === 'interrupted' ? '已中断 ·' : '已完成'
   const terminalClass = phase === 'failed' || phase === 'interrupted' ? ` is-${phase}` : phase === 'cancelled' ? ' is-cancelled' : ''
   return <div className={`capstone-chat-activity-frame${running ? ' is-running' : ' is-settled'}`} aria-busy={running}><details ref={detailsRef} className={`capstone-chat-activity capstone-chat-activity-attached${terminalClass}`} open={open} onToggle={(event) => onOpenChange(event.currentTarget.open)}>
     <summary><Activity aria-hidden="true" /><span>{running ? '正在执行' : terminalLabel} {activities.length} 个步骤{elapsed === undefined ? '' : ` · ${running ? '运行中' : '运行'} ${formatDuration(elapsed)}`}</span><small>查看运行过程</small></summary>
-    {(!running || open) && <ActivityItems activities={activities} />}
-  </details>{running && !open && <div className="capstone-chat-activity-preview" aria-label="运行过程预览"><ActivityItems activities={activities.slice(-3)} /></div>}</div>
+    {(!running || open) && <>{goal && <p className="capstone-task-goal">研究目标：{goal}</p>}<TaskProgressItems items={progress} /><ActivityItems activities={activities} /></>}
+  </details>{running && !open && <div className="capstone-chat-activity-preview" aria-label="运行过程预览">{goal && <p className="capstone-task-goal">研究目标：{goal}</p>}<TaskProgressItems items={progress.slice(-1)} /><ActivityItems activities={activities.slice(-10)} /></div>}</div>
 }
 
 function LegacyActivity({ activities, running }: { activities: ChatActivity[]; running: boolean }) {
@@ -764,7 +775,7 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
       {typeof custom?.modelId === 'string' && <span className="capstone-instruction-model">{instructionModelName(custom.modelId)}</span>}
       {typeof custom?.sentAt === 'string' && Number.isFinite(Date.parse(custom.sentAt)) && <InstructionTime value={custom.sentAt} />}
     </div>}
-    {role === 'assistant' && (showActivity || status?.type === 'running') && <AttemptActivity activities={activities} phase={typeof custom?.terminalPhase === 'string' ? custom.terminalPhase : undefined} running={status?.type === 'running'} open={activityOpen} onOpenChange={setActivityOpen} startedAt={startedAt} durationMs={durationMs} detailsRef={activityRef} />}
+    {role === 'assistant' && (showActivity || status?.type === 'running') && <AttemptActivity activities={activities} progress={Array.isArray(custom?.taskProgress) ? custom.taskProgress as TaskProgress[] : []} goal={typeof custom?.researchGoal === 'string' ? custom.researchGoal : undefined} phase={typeof custom?.terminalPhase === 'string' ? custom.terminalPhase : undefined} running={status?.type === 'running'} open={activityOpen} onOpenChange={setActivityOpen} startedAt={startedAt} durationMs={durationMs} detailsRef={activityRef} />}
   </MessagePrimitive.Root>
 }
 
@@ -776,7 +787,7 @@ function instructionModelName(modelId: string): string {
 function InstructionTime({ value, completion = false }: { value: string; completion?: boolean }) {
   const date = new Date(value)
   const now = new Date()
-  const clock = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+  const clock = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' })
   const day = date.toLocaleDateString('zh-CN', { ...(date.getFullYear() !== now.getFullYear() ? { year: 'numeric' as const } : {}), month: '2-digit', day: '2-digit' })
   const full = date.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23', timeZoneName: 'short' })
   return <time className={completion ? 'capstone-answer-time' : 'capstone-instruction-time'} dateTime={value} title={full} aria-label={`${completion ? '回答完成时间' : '指令发出时间'}：${full}`}>
