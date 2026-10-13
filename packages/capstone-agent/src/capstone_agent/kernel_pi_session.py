@@ -36,7 +36,6 @@ from .task_record_reader import SelectedTaskRecordReader
 from .result_projection import normalize_result_projection
 from .catalog_answer import complete_catalog_answer
 from .attempt_research import AttemptResearch
-from .result_delivery import ResultDeliveryChannel
 
 
 PreparedKernelSessionBuilder = Callable[
@@ -201,27 +200,6 @@ class PreparedKernelPiRpcSessionBuilder:
         if len(binding_ids) != len(set(binding_ids)):
             raise ValueError("prepared Kernel profiles contain duplicate binding IDs")
         attempt_directory = workspace.core_path / "pi" / "attempts" / claim.attempt.attempt_id
-        delivery_bindings: dict[str, object] = {}
-        for profile in profiles:
-            selected_bindings = getattr(profile.prepared_application, 'bindings', None)
-            if not isinstance(selected_bindings, Mapping):
-                raise ValueError('result delivery bindings are unavailable')
-            delivery_bindings.update(selected_bindings)
-        def verify_delivery(results, evidence, events):
-            owners = {}
-            for event in events:
-                for field in ('result_refs', 'evidence_refs'):
-                    for ref in event.get(field, ()):
-                        owner = owners.setdefault(ref, event['binding_id'])
-                        if owner != event['binding_id']:
-                            raise ValueError('delivery reference has conflicting owners')
-            _verify_bound_attempt_references(profiles, delivery_bindings, owners, results, evidence, events)
-        delivery = ResultDeliveryChannel(attempt_directory / 'result-delivery',
-            thread_id=claim.thread_id, attempt_id=claim.attempt.attempt_id,
-            binding_ids=set(delivery_bindings), verify=verify_delivery,
-            project=lambda results, evidence, events: _build_result_projections(
-                claim, profiles, delivery_bindings, results, evidence, events),
-            is_active=lambda: self._research_is_active(claim) if self._research_is_active is not None else False)
         descriptor_path = attempt_directory / "runtime-descriptor.json"
         descriptor_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         descriptor = descriptors[0] if len(descriptors) == 1 else CompositeRuntimeDescriptor(tuple(descriptors))
@@ -264,7 +242,6 @@ class PreparedKernelPiRpcSessionBuilder:
         )
         launch = _with_selected_task_tool(launch, claim.selected_task_reader, attempt_directory,
                                          self._runtime_host.extension_path)
-        launch = _with_result_delivery_tool(launch, delivery, self._runtime_host.extension_path)
         if self._research_enabled:
             launch = PiLaunch((*launch.argv, "--thinking", "off"), launch.environment)
         trace = JsonlTraceWriter(
@@ -284,22 +261,10 @@ class PreparedKernelPiRpcSessionBuilder:
         )
         return _KernelPiPromptSession(
             client, trace, admission=_build_kernel_admission(profiles,
-                core_catalog=CoreToolCatalog.default(include_research=research is not None),
-                result_delivery=delivery),
+                core_catalog=CoreToolCatalog.default(include_research=research is not None)),
             reference_observer=handoffs.observe,
             research=research, research_reference_observer=references.observe,
-            result_delivery=delivery,
         )
-
-
-def _with_result_delivery_tool(launch: PiLaunch, delivery: ResultDeliveryChannel,
-                               domain_extension: Path) -> PiLaunch:
-    extension = domain_extension.with_name('result-delivery-tools.mjs')
-    if extension.is_symlink() or not extension.is_file():
-        raise RuntimeError('result delivery extension is not installed')
-    environment = dict(launch.environment)
-    environment['CAPSTONE_RESULT_DELIVERY'] = str(delivery.root)
-    return PiLaunch((*launch.argv, '--extension', str(extension)), environment)
 
 
 def _with_selected_task_tool(launch: PiLaunch, reader: SelectedTaskRecordReader | None,
@@ -402,7 +367,6 @@ def _render_result_delivery_context(profiles: tuple[PreparedKernelApplicationPro
         'The delivered answer has a formal explanation and verified result-table views in 计算结果.',
         'Selected bindings with table delivery: ' + json.dumps(sorted(set(bindings))),
         'For supported results, complete tables are presented through those views after Authority admission.',
-        'Use capstone_result_delivery_read with an observed result_ref to confirm table fields, row counts and coverage before relying on this delivery.',
         'Do not retype every table row in the formal explanation unless the user explicitly requests inline tables or an export.',
         'Explain the outcome, method, important values, coverage and limits. Name the relevant tables and their sourced row counts.',
         'Still retrieve the source fields needed to answer and check the request. Table delivery does not replace computation or verification.',
@@ -613,13 +577,11 @@ class _KernelPiPromptSession:
     def __init__(self, client: PiRpcClient, trace: JsonlTraceWriter, *, admission,
                  reference_observer: Callable[[Mapping[str, object]], None] | None = None,
                  research: AttemptResearch | None = None,
-                 research_reference_observer: Callable[[Mapping[str, object]], None] | None = None,
-                 result_delivery: ResultDeliveryChannel | None = None) -> None:
+                 research_reference_observer: Callable[[Mapping[str, object]], None] | None = None) -> None:
         self._client = client
         self._trace = trace
         self._admission = admission
         self._reference_observer = reference_observer
-        self._result_delivery = result_delivery
         self._deadline: float | None = None
         self._ready_for_correction = False
         self._research = research
@@ -641,8 +603,6 @@ class _KernelPiPromptSession:
 
     def bind_attempt_guard(self, check: Callable[[], bool],
                            terminal_phase: Callable[[str], str | None] | None = None) -> None:
-        if self._result_delivery is not None:
-            self._result_delivery.bind_active_check(check)
         if self._research is not None:
             self._research.bind_active_check(check, terminal_phase)
 
@@ -668,8 +628,6 @@ class _KernelPiPromptSession:
             self._task_step_tracker = RuntimeStepTracker()
         def observed(event, _sequence):
             event = self._task_step_tracker.annotate(event)
-            if self._result_delivery is not None:
-                self._result_delivery.observe(event)
             if self._reference_observer is not None:
                 self._reference_observer(event)
             on_semantic_event({**event, "trace_sequence": _sequence,
@@ -678,8 +636,6 @@ class _KernelPiPromptSession:
                 self._research_reference_observer(event)
 
         def research_updates() -> None:
-            if self._result_delivery is not None:
-                self._result_delivery.drain()
             self._drain_research()
             projection = self._research.current_projection() if self._research is not None else None
             if projection is None:
@@ -710,7 +666,7 @@ class _KernelPiPromptSession:
                     correlation_id=correlation_id,
                     on_heartbeat=on_heartbeat,
                     timeout_seconds=remaining,
-                    on_control_requests=research_updates if self._research is not None or self._result_delivery is not None else None,
+                    on_control_requests=research_updates if self._research is not None else None,
                     model_idle_seconds=step_budget,
                 )
             except Exception:
@@ -802,7 +758,6 @@ class _KernelPiPromptSession:
 def _build_kernel_admission(
     profiles: tuple[PreparedKernelApplicationProfile, ...],
     *, core_catalog: CoreToolCatalog | None = None,
-    result_delivery: ResultDeliveryChannel | None = None,
 ):
     selected_core = core_catalog if core_catalog is not None else CoreToolCatalog.default()
     core_tools = {tool.name: tool.capability for tool in selected_core.tools}
@@ -837,12 +792,6 @@ def _build_kernel_admission(
         for event in tool_events:
             name = event.get("tool_name")
             capability = event.get("capability")
-            if name == 'capstone_result_delivery_read' or capability == 'capstone_result_delivery_read':
-                if (result_delivery is None or name != capability
-                    or event.get('binding_id') is not None
-                    or event.get('result_refs') or event.get('evidence_refs')):
-                    raise ValueError('application result delivery provenance is invalid')
-                continue
             if name == "agent_task_records_read" or capability == "agent_task_records_read":
                 if (name != "agent_task_records_read" or capability != name
                     or getattr(claim, "selected_task_reader", None) is None
@@ -936,9 +885,9 @@ def _build_kernel_admission(
         if not decisions:
             raise ValueError("no prepared Domain Pack admission policy")
         decision = aggregate_answer_admission(tuple(decisions), answer)
-        result_projections = (result_delivery.projections(tuple(result_refs), tuple(evidence_refs), tool_events)
-            if result_delivery is not None else _build_result_projections(
-                claim, profiles, binding_map, result_refs, evidence_refs, tool_events))
+        result_projections = _build_result_projections(
+            claim, profiles, binding_map, result_refs, evidence_refs, tool_events,
+        )
         return AdmittedAttemptAnswer(
             decision.answer_output, decision.mode, decision.assurance,
             tuple(result_refs), tuple(evidence_refs), tuple(decision.diagnostic_codes),
