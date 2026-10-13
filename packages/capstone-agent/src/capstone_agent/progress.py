@@ -39,6 +39,31 @@ def project_tool_failure(value: object) -> dict[str, str]:
         text = value.get(field)
         if isinstance(text, str) and text.strip():
             projected[field] = _summary(text, limit)
+    details = value.get("details")
+    if isinstance(details, Mapping):
+        def names(raw: object) -> list[str]:
+            return list(dict.fromkeys(item for item in raw if isinstance(item, str)
+                and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.]{0,95}", item)))[:32] if isinstance(raw, (list, tuple)) else []
+        unavailable = names(details.get("fields"))
+        allowed = names(details.get("allowed_fields"))
+        if unavailable:
+            projected["summary"] = _summary("字段不可用：" + "、".join(unavailable)
+                + ("；可用字段：" + "、".join(allowed) if allowed else ""), 400)
+        gaps = details.get("parameter_gaps")
+        if isinstance(gaps, (list, tuple)):
+            labels = []
+            for gap in gaps[:32]:
+                if not isinstance(gap, Mapping):
+                    continue
+                field = names([gap.get("field")])
+                if not field:
+                    continue
+                kind = names([gap.get("element_kind")])
+                index = gap.get("index")
+                prefix = f"{kind[0]}[{index}]." if kind and type(index) is int and 0 <= index <= 100_000_000 else ""
+                labels.append(prefix + field[0])
+            if labels:
+                projected["summary"] = _summary("参数缺失或无效：" + "、".join(dict.fromkeys(labels)), 400)
     return projected
 
 

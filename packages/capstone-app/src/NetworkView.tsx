@@ -224,7 +224,7 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
             const value = values.get(branch.id)
             const highlighted = focusIds.includes(branch.id)
             const historical = !highlighted && historyIds.has(branch.id)
-            const color = value === undefined ? highlighted ? '#187b78' :
+            const color = value === undefined ? highlighted ? '#245fc4' :
               historical ? '#91aaa6' : branch.kind === 'link' ? '#718ca0' : '#829c98'
               : valueColor(layer!.overlay!.metric, value, loadingRange)
             const transformer = ['transformer', 'trafo', 'trafo3w'].includes(branch.kind)
@@ -237,6 +237,9 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
                 stroke={color} strokeWidth={(highlighted ? dense ? 3 : 6 : historical ? dense ? 2 : 3.5 : dense ? 1.5 : value === undefined ? 2.5 : 4) * visualScale}
                 strokeDasharray={branch.kind === 'link' ? '9 6' : undefined}
                 strokeLinecap="round" />
+              {highlighted && value !== undefined && <circle className="network-analysis-marker"
+                cx={centerX} cy={centerY} r={(dense ? 3 : 5) * visualScale}
+                fill="white" stroke="#245fc4" strokeWidth={2 * visualScale} />}
               {transformer && <g className="network-transformer-symbol" aria-hidden="true">
                 <circle cx={centerX - (dense ? 2.3 : 4) * symbolScale} cy={centerY}
                   r={(dense ? 2.7 : 4.5) * symbolScale}
@@ -262,13 +265,13 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
               {schematic ? <line className="network-busbar"
                 x1={bus.x - (highlighted ? 11 : 8) * symbolScale} x2={bus.x + (highlighted ? 11 : 8) * symbolScale}
                 y1={bus.y} y2={bus.y}
-                stroke={value === undefined ? highlighted ? '#0d7771' : historical ? '#91aaa6' : '#344c53'
+                stroke={value === undefined ? highlighted ? '#245fc4' : historical ? '#91aaa6' : '#344c53'
                   : valueColor(layer!.overlay!.metric, value, loadingRange)}
                 strokeWidth={(highlighted ? 5 : 3.5) * visualScale} strokeLinecap="square" />
                 : <circle className="network-bus-point" cx={bus.x} cy={bus.y}
                   r={(highlighted ? dense ? 5 : 9 : dense ? 2.9 : 5.5) * symbolScale}
                   fill={value === undefined ? '#ffffff' : valueColor(layer!.overlay!.metric, value, loadingRange)}
-                  stroke={highlighted ? '#0d7771' : historical ? '#91aaa6' : '#344c53'}
+                  stroke={highlighted ? '#245fc4' : historical ? '#91aaa6' : '#344c53'}
                   strokeWidth={(highlighted ? dense ? 1.8 : 2.5 : dense ? .8 : 1.5) * visualScale} />}
               {(nodes.length <= 25 || highlighted || historical || focusBuses.has(bus.id) || hovered === bus.id) &&
                 <text x={bus.x + 13 * visualScale} y={bus.y - 11 * visualScale}
@@ -288,7 +291,7 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
           {branchKinds.has('link') && <><span className="legend-link" /> 直流连接</>}
           {[...branchKinds].some((kind) => ['transformer', 'trafo', 'trafo3w'].includes(kind)) &&
             <><span className="legend-transformer">◯◯</span> 变压器</>}
-          <span className="legend-focus" /> 任务定位</div>
+          <span className="legend-focus" /> 分析对象</div>
         {layer?.overlay ? <div className="network-overlay-note">
           <span className="overlay-gradient" /><strong>{layer!.overlay.metric === 'loading_percent' ? '线路负载率' : '母线电压'} · {layer!.overlay.unit}</strong>
           <span>{layer!.overlay.metric === 'loading_percent' && loadingRange

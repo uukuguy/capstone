@@ -29,7 +29,7 @@ import type { EventEnvelope, ResultProjection } from './threadProtocol'
 import type { CaseActionSnapshot, CaseExecutionSnapshot } from './threadProtocol'
 import type { ThreadTransportState } from './threadClient'
 import type { ThreadCatalogCase } from './threadCatalog'
-import { attemptFailureCopy, toolFailureCopy } from './threadFeedback'
+import { attemptFailureCopy, toolFailureCopy, toolFailureReason } from './threadFeedback'
 
 type SendMode = 'automatic' | 'ordinary' | 'professional'
 
@@ -67,7 +67,7 @@ export type ChatActivity = {
   taskStepId?: string
   taskStepNumber?: number
   stepToolNumber?: number
-  failure?: { code?: string; message?: string }
+  failure?: { code?: string; message?: string; summary?: string }
 }
 
 const TOOL_LABELS: Record<string, string> = {
@@ -123,7 +123,7 @@ export function projectAssistantActivity(events: readonly EventEnvelope[]): Chat
       label: typeof event.payload.tool_name === 'string' || typeof event.payload.capability === 'string' ? TOOL_LABELS[toolName(event)] || toolName(event).replaceAll('_', ' ') : previous?.label || toolName(event),
       source: typeof event.payload.binding_id === 'string' || typeof event.payload.capability === 'string' ? activitySource(event) : previous?.source || activitySource(event),
       status,
-      ...(failure ? { failure: { code: typeof failure.code === 'string' ? failure.code : undefined, message: typeof failure.message === 'string' ? failure.message : undefined } } : previous?.failure ? { failure: previous.failure } : {}),
+      ...(failure ? { failure: { code: typeof failure.code === 'string' ? failure.code : undefined, message: typeof failure.message === 'string' ? failure.message : undefined, summary: typeof failure.summary === 'string' ? failure.summary : undefined } } : previous?.failure ? { failure: previous.failure } : {}),
       taskStepId: typeof event.payload.task_step_id === 'string' ? event.payload.task_step_id : previous?.taskStepId,
       taskStepNumber: typeof event.payload.task_step_number === 'number' ? event.payload.task_step_number : previous?.taskStepNumber,
       stepToolNumber: typeof event.payload.step_tool_number === 'number' ? event.payload.step_tool_number : previous?.stepToolNumber,
@@ -555,7 +555,8 @@ function RunDuration({ startedAt, durationMs, running }: { startedAt?: string; d
 function ActivityItems({ activities }: { activities: ChatActivity[] }) {
   return <div className="capstone-chat-activity-list">{activities.map((item) => {
     const [owner, ...detail] = item.source.split(' · ')
-    return <div key={item.id} className={`capstone-chat-activity-item is-${item.status}`}><span className="capstone-chat-activity-icon" aria-hidden="true" /> <span><strong>{item.taskStepNumber !== undefined && item.stepToolNumber !== undefined ? `${String(item.taskStepNumber).padStart(2, '0')}.${item.stepToolNumber} ` : ''}{item.label}</strong>{item.status === 'failed' && <span className="capstone-tool-failure" title={[item.failure?.code, item.failure?.message].filter(Boolean).join(' · ')}>{toolFailureCopy(item.failure?.code)}</span>}<small><span className="capstone-chat-activity-source" data-owner={owner}>{owner.toUpperCase()}</span> {detail.join(' · ')}{item.durationMs === undefined ? '' : ` · ${formatDuration(item.durationMs)}`}</small></span></div>
+    const reason = toolFailureReason(item.failure)
+    return <div key={item.id} className={`capstone-chat-activity-item is-${item.status}`}><span className="capstone-chat-activity-icon" aria-hidden="true" /> <span><strong>{item.taskStepNumber !== undefined && item.stepToolNumber !== undefined ? `${String(item.taskStepNumber).padStart(2, '0')}.${item.stepToolNumber} ` : ''}{item.label}</strong>{item.status === 'failed' && <span className="capstone-tool-failure" title={[reason, item.failure?.code ? `诊断：${item.failure.code}` : '', item.failure?.message ? `原文：${item.failure.message}` : ''].filter(Boolean).join('\n')}>{toolFailureCopy(item.failure?.code)}</span>}<small><span className="capstone-chat-activity-source" data-owner={owner}>{owner.toUpperCase()}</span> {detail.join(' · ')}{item.durationMs === undefined ? '' : ` · ${formatDuration(item.durationMs)}`}</small>{item.status === 'failed' && reason && <span className="capstone-tool-failure-reason" title={reason}>{reason.length > 180 ? reason.slice(0, 180) + '…' : reason}</span>}</span></div>
   })}</div>
 }
 

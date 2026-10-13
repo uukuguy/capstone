@@ -195,7 +195,7 @@ describe('CapstoneAssistantThread', () => {
     fireEvent.click(screen.getByRole('button', { name: '查看计算结果' }))
     expect(screen.getByText('执行失败')).toBeTruthy()
     expect(within(screen.getByText('执行失败').closest('section')!).getByText('grid_analysis_run')).toBeTruthy()
-    expect(screen.getByText('缺少所需输入。')).toBeTruthy()
+    expect(within(screen.getByText('执行失败').closest('section')!).getByText('缺少所需输入。')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: /失败 02.*核验未通过/ }))
     expect(screen.getByText('核验未通过')).toBeTruthy()
     expect(screen.getByText('未作为已验证结论使用。')).toBeTruthy()

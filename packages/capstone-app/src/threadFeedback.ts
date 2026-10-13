@@ -1,10 +1,27 @@
 /** Reader-facing recovery text for bounded service codes; never expose raw exceptions. */
+export function toolFailureReason(failure?: { code?: string; message?: string; summary?: string }): string | undefined {
+  if (failure?.summary) return failure.summary
+  if (failure?.message && /[\u3400-\u9fff]/.test(failure.message)) return failure.message
+  const reasons: Record<string, string> = {
+    result_field_unavailable: '请求的字段未在该结果表中发布。',
+    analysis_prerequisite_missing: '计算所需参数缺失或无效，未产生计算结果。',
+    invalid_arguments: '输入参数不符合工具契约。',
+    result_not_rankable: '该结果没有可用于支路排名的数据。',
+    result_integrity_failed: '保存结果与其引用的完整性校验未通过。',
+    unknown_result: '该工作区中没有请求的结果。',
+    powerflow_failed: '潮流求解未完成；已保存的其它结果保留。',
+  }
+  return reasons[failure?.code || ''] || failure?.message
+}
+
 export function toolFailureCopy(code?: string): string {
   const messages: Record<string, string> = {
     result_not_rankable: '该结果不支持支路排名',
     result_integrity_failed: '结果完整性校验未通过',
     unknown_result: '此工作区中找不到该结果',
     invalid_arguments: '参数不符合工具契约',
+    result_field_unavailable: '查询字段不存在',
+    analysis_prerequisite_missing: '缺少必要计算条件',
     powerflow_failed: '潮流计算未完成',
     solver_failed: '求解器未完成计算',
   }

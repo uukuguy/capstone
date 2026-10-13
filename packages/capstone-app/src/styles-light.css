@@ -287,7 +287,7 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .network-canvas-frame svg:focus-visible { outline: 2px solid #138575; outline-offset: -3px; }
 .network-node-label { font: 12px Inter, "PingFang SC", sans-serif; fill: #42565b;
   paint-order: stroke; stroke: #fff; stroke-width: 3px; stroke-linejoin: round; }
-.network-branch-label { font: 700 12px Inter, "PingFang SC", sans-serif; fill: #116d66;
+.network-branch-label { font: 700 12px Inter, "PingFang SC", sans-serif; fill: #245fc4;
   paint-order: stroke; stroke: #fff; stroke-width: 4px; stroke-linejoin: round; }
 .network-canvas-hint { position: absolute; left: 15px; bottom: 12px; background: #ffffffd9;
   color: #65817a; border: 1px solid #e1eae5; border-radius: 3px;
@@ -301,7 +301,7 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .legend-busbar { width: 19px; border-top: 3px solid #344c53; margin-left: 7px; }
 .legend-line, .legend-link, .legend-focus { width: 20px; border-top: 3px solid #aab9b9; margin-left: 7px; }
 .legend-link { border-top-style: dashed; border-color: #718ca0; }
-.legend-focus { border-color: #187b78; border-top-width: 5px; }
+.legend-focus { border-color: #245fc4; border-top-width: 5px; }
 .legend-transformer { margin-left: 7px; color: #5f7c79; font: 700 15px Georgia, serif; letter-spacing: -5px;
   padding-right: 5px; }
 .network-transformer-symbol circle { fill: #fff; stroke: #607e7a; stroke-width: 1.2px; }
@@ -964,6 +964,7 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .capstone-step-tools { margin-left: 14px; }
 .capstone-business-step .capstone-step-continuation { margin-left: 6px; color: #88632d; font-size: 8px; white-space: nowrap; }
 .capstone-chat-activity-item .capstone-tool-failure { display: inline; margin-left: 6px; color: #a65341; font-size: 8.5px; }
+.capstone-chat-activity-item .capstone-tool-failure-reason { display: block; margin-top: 2px; color: #8b4e24; font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
 .capstone-complete-process { max-height: min(480px, 60vh); overflow-y: auto; overflow-anchor: none; }
 .capstone-chat-activity-attached, .capstone-chat-activity-preview { background: #fff; border-color: #d9e2e8; }
 .capstone-chat-activity-attached > summary { color: #465e70; background: #f7f9fb; border-radius: 7px; }
