@@ -36,6 +36,10 @@ class ContextStoreError(RuntimeError):
     """Raised when durable context state or replay integrity is invalid."""
 
 
+class ContextUpdateRejected(ContextStoreError):
+    """A transition was rejected before any durable file was changed."""
+
+
 class ApplicationContextStore:
     """Append context transitions and atomically materialize their snapshot."""
 
@@ -182,7 +186,7 @@ class ApplicationContextStore:
                     try:
                         candidate = reduce_context(next_state, draft)
                     except ContextTransitionError as error:
-                        raise ContextStoreError(str(error)) from None
+                        raise ContextUpdateRejected(str(error)) from None
                     try:
                         event = ContextEvent(
                             run_id=previous.run_id,
@@ -200,7 +204,7 @@ class ApplicationContextStore:
                             next_state_hash=candidate.state_hash,
                         )
                     except (TypeError, ValueError, ValidationError):
-                        raise ContextStoreError("context event is invalid") from None
+                        raise ContextUpdateRejected("context event is invalid") from None
                     events.append(event)
                     next_state = candidate
             except ContextStoreError:

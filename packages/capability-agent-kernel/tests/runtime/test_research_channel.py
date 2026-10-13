@@ -63,6 +63,45 @@ def test_channel_publishes_view_before_success_receipt(channel):
     assert view["attempt_id"] == "attempt-1"
 
 
+def test_note_overwrite_is_a_definite_rejection_and_later_update_can_commit(channel):
+    pump, _ = channel
+    initial = {"request_id": "initial", "expected_revision": 0,
+        "changes": {"goal": "Study", "notes": [{"note_id": "note-one", "text": "First observation"}]}}
+    (pump.requests_path / "initial.json").write_text(json.dumps(initial))
+    pump.drain()
+    rejected = {"request_id": "overwrite", "expected_revision": 1,
+        "changes": {"notes": [{"note_id": "note-one", "text": "Replacement"}]}}
+    (pump.requests_path / "overwrite.json").write_text(json.dumps(rejected))
+    pump.drain()
+    ack = receipt(pump, "overwrite")
+    assert ack["status"] == "rejected"
+    assert ack["code"] == "research_state_update_rejected"
+    assert "note identity" in ack["message"]
+    assert pump.controller.read().revision == 1
+    publish(pump, request_id="later", revision=1, goal="Continue study")
+    pump.drain()
+    assert receipt(pump, "later")["status"] == "committed"
+
+
+def test_cumulative_research_capacity_rejects_without_losing_existing_records(channel):
+    pump, _ = channel
+    initial = {"request_id": "full", "expected_revision": 0,
+        "changes": {"goal": "Study", "notes": [
+            {"note_id": f"note-{i}", "text": f"Observation {i}"} for i in range(64)]}}
+    (pump.requests_path / "full.json").write_text(json.dumps(initial))
+    pump.drain()
+    extra = {"request_id": "extra", "expected_revision": 1,
+        "changes": {"notes": [{"note_id": "extra-note", "text": "Next observation"}]}}
+    (pump.requests_path / "extra.json").write_text(json.dumps(extra))
+    pump.drain()
+    assert receipt(pump, "extra")["status"] == "rejected"
+    assert receipt(pump, "extra")["code"] == "research_state_update_rejected"
+    assert len(pump.controller.read().notes) == 64
+    publish(pump, request_id="continue", revision=1, goal="Continue study")
+    pump.drain()
+    assert receipt(pump, "continue")["status"] == "committed"
+
+
 def test_channel_publishes_host_bound_tool_contract_without_caller_identity(channel):
     pump, _ = channel
     binding = json.loads((pump.root / "binding.json").read_text())

@@ -12,6 +12,7 @@ from pydantic import ValidationError
 
 from capability_agent._safe_files import ensure_bound_directory, read_bound_regular_path, write_bound_text
 from capability_agent.application import ContextStoreError, ResearchController, ResearchUpdate
+from capability_agent.application.context_store import ContextUpdateRejected
 from capability_agent.application.research_models import research_depth_tool_schema, research_tool_schemas
 
 _IDENTITY = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
@@ -126,6 +127,9 @@ class ResearchRequestChannel:
                                 "No update was committed. Use references from successful tool receipts; "
                                 "keep unsupported claims as hypotheses."}
                 committed = self.controller.update(document)
+        except ContextUpdateRejected as exc:
+            return {"status": "rejected", "code": "research_state_update_rejected",
+                    "message": str(exc)[:256] + ". No update was committed; existing research records are retained."}
         except ContextStoreError:
             # A storage failure can have an uncertain outcome. Never label it a rollback.
             return {"status": "not_confirmed", "code": "research_update_not_confirmed"}
