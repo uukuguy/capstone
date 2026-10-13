@@ -52,3 +52,16 @@ def test_native_receipt_cannot_invent_host_step_ownership():
         "task_step_id": "invented", "task_step_number": 99}
     result = tracker.annotate(event)
     assert "task_step_id" not in result
+
+
+def test_progress_start_binds_parallel_tools_without_waiting_for_its_receipt():
+    tracker = TaskStepTracker()
+    start = {"type": "tool_execution_start", "toolName": "agent_task_progress", "toolCallId": "progress-start",
+        "args": {"kind": "goal", "text": "检查拓扑", "step_id": "inspect", "phase": "started", "refs": []}}
+    assert tracker.annotate(start)["task_step"]["number"] == 1
+    child = tracker.annotate({"type": "tool_execution_start", "toolName": "grid_check", "toolCallId": "call-one"})
+    assert child["task_step_id"] == "inspect"
+    tracker.annotate({"type": "tool_execution_end", "toolName": "grid_check", "toolCallId": "call-one", "ok": True})
+    tracker.annotate({"type": "tool_execution_start", "toolName": "agent_task_progress", "toolCallId": "progress-end"})
+    end = tracker.annotate(progress("inspect", "completed", "检查结束"))
+    assert end["task_step"]["status"] == "completed"

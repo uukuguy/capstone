@@ -2,6 +2,7 @@
 from collections.abc import Callable, Mapping
 import time
 from typing import cast
+from capability_agent.application.research_models import TaskProgress
 
 from .harness import normalize_runtime_event
 
@@ -21,6 +22,15 @@ class TaskStepTracker:
         payload = normalized["payload"]
         assert isinstance(payload, dict)
         progress = payload.get("task_progress")
+        is_progress = payload.get("tool_name") == "agent_task_progress" or payload.get("capability") == "agent_task_progress"
+        if is_progress and normalized["event_type"] == "tool_started":
+            try:
+                requested = TaskProgress.model_validate(event.get("args"))
+            except ValueError:
+                return output
+            if requested.phase != "started":
+                return output
+            progress = requested.model_dump(mode="json", exclude_none=True)
         if isinstance(progress, dict) and isinstance(progress.get("step_id"), str):
             identity, phase = progress["step_id"], progress.get("phase")
             if phase == "started" and identity not in self.steps and self.active is None:
@@ -36,7 +46,7 @@ class TaskStepTracker:
                 output["task_step"] = self._public(identity)
             return output
         call = payload.get("tool_call_id")
-        if not isinstance(call, str) or payload.get("capability") == "agent_task_progress":
+        if not isinstance(call, str) or is_progress:
             return output
         if normalized["event_type"] == "tool_started" and self.active is not None and call not in self.calls:
             state = self.steps[self.active]
