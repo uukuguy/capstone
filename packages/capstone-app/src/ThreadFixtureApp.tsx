@@ -456,7 +456,13 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   }
 
   async function selectModelAndSend(mode: 'automatic' | 'ordinary' | 'professional', text: string): Promise<void> {
-    const control = store.state.modelWorkspace ? parseModelControl(text) : null
+    const parsedControl = store.state.modelWorkspace ? parseModelControl(text) : null
+    // A conversational request is not a model-directory lookup. Only consume
+    // a control when its reference resolves; otherwise preserve the whole text.
+    const control = parsedControl && projection.catalog && (
+      parsedControl.openedOnly || parsedControl.kind === 'close_model' ||
+      resolveThreadModelReference(projection.catalog, parsedControl.reference).kind !== 'unknown'
+    ) ? parsedControl : null
     if (control && projection.catalog) {
       const workspace = store.state.modelWorkspace!
       const openedCatalog = { ...projection.catalog, models: workspace.models.map((model) => ({ ...model,

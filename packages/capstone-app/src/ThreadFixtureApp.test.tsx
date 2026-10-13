@@ -719,8 +719,16 @@ describe('ThreadFixtureApp', () => {
     expect(commands[1].payload.reason).toBe('user_requested_fresh_context')
   })
 
-  it('keeps a longer open-and-analyze request as ordinary agent work', async () => {
-    render(<ThreadFixtureApp fixtureId="idle-ieee39" />)
+  it.each([false, true])('keeps a longer open-and-analyze request as agent work with workspace %s', async (workspaceEnabled) => {
+    const fixture = threadUiFixture('idle-ieee39')
+    const snapshot = fixture.snapshot as { run: { run_id: string }; active_model_context: { model_revision: string }; last_event_seq: number }
+    const transport = createFixtureTransport(fixture)
+    const client = new CapstoneThreadClient({ ...transport, ...(workspaceEnabled ? {
+      getModels: async () => ({ schema: 'capstone-thread-model-workspace/1', thread_id: 'thr_demo_39', run_id: snapshot.run.run_id, event_seq: snapshot.last_event_seq,
+        current_entry_id: 'entry39', blocked_reason: null, models: [{ entry_id: 'entry39', model_id: 'ieee39', model_revision: snapshot.active_model_context.model_revision,
+          implementation_family: 'pandapower', authority_model_ref: 'ieee39', display_name: 'IEEE 39-bus system', diagram_provider_id: 'grid', last_active_seq: 0 }] }),
+    } : {}) })
+    render(<ThreadFixtureApp client={client} threadId="thr_demo_39" />)
 
     await screen.findByRole('region', { name: '电网模型区' })
     const request = '打开 IEEE-39 网络并解析线路 11 的端点。'
