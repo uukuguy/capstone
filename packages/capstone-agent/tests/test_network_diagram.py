@@ -113,6 +113,28 @@ def test_scene_annotations_preserve_source_and_do_not_change_geometry_identity()
     }).to_line()).payload["layer"] == selected["layer"]
 
 
+def test_switch_markers_retain_terminal_location_and_reject_foreign_members():
+    raw = annotated_projection()
+    state = raw["layer"]["annotations"]["states"][0]
+    state["markers"] = [{"id": "line:11", "bus_id": "1", "label": "开关 2"}]
+    value = normalize_network_projection(raw, admitted_refs=("result:current",))
+    assert value["layer"]["annotations"]["states"][0]["markers"] == state["markers"]
+    state["markers"][0]["bus_id"] = "foreign"
+    with pytest.raises(ValueError):
+        normalize_network_projection(raw, admitted_refs=("result:current",))
+
+
+def test_base_switch_state_needs_no_analysis_result_and_rejects_wrong_terminal():
+    raw = annotated_projection()
+    raw["layer"].pop("annotations")
+    raw["diagram"]["disconnections"] = [{"id": "line:11", "markers": [{"bus_id": "1", "label": "开关 2：断开"}]}]
+    value = normalize_network_projection(raw, admitted_refs=())
+    assert value["diagram"]["disconnections"] == raw["diagram"]["disconnections"]
+    raw["diagram"]["disconnections"][0]["markers"][0]["bus_id"] = "foreign"
+    with pytest.raises(ValueError):
+        normalize_network_projection(raw, admitted_refs=())
+
+
 @pytest.mark.parametrize("mutate", [
     lambda value: value["scene"].update(source_ref="result:foreign"),
     lambda value: value["states"][0].update(ids=["foreign"]),

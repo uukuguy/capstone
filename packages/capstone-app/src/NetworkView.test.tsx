@@ -43,6 +43,34 @@ import { threadPreviewDiagram } from './threadModelDiagram'
 afterEach(() => { cleanup(); sessionStorage.clear() })
 
 describe('operator network canvas', () => {
+  it('shows every base open switch before any analysis and keeps its terminal marker', () => {
+    const view = structuredClone(sampleDiagramView)
+    const branch = view.diagram.branches[0]
+    view.diagram.disconnections = [{ id: branch.id,
+      markers: [{ bus_id: branch.from_bus, label: '开关 31：断开' }] }]
+    delete view.layer.annotations
+    const { container } = render(<NetworkView view={view} modelName="测试电网" focusKey="base-switch" />)
+    expect(container.querySelectorAll('.network-state-disconnected')).toHaveLength(1)
+    expect(screen.getByLabelText(/开关 31：断开/)).toBeTruthy()
+  })
+  it('starts at the fault area and preserves a later manual zoom for that scene', () => {
+    const view: DiagramNetworkView = structuredClone(sampleDiagramView)
+    view.layer.focus_ids = []
+    view.layer.annotations = {
+      scene: { label: '故障场景', context_ref: 'context:derived', model_revision: 'revision:derived', source_ref: 'result:current' },
+      states: [{ label: '已断开', style: 'disconnected', ids: [view.diagram.branches[0].id], source_ref: 'result:current' }],
+      regions: [],
+    }
+    const canvas = () => <NetworkView view={view} modelName="测试电网" focusKey="fault"
+      cameraStorageKey="fault-camera" cameraViewKey="fault" />
+    const mounted = render(canvas())
+    expect(screen.getByRole('img', { name: '电网拓扑' }).getAttribute('viewBox')).not.toBe('0 0 1000 600')
+    fireEvent.click(screen.getByRole('button', { name: '放大' }))
+    const manual = screen.getByRole('img', { name: '电网拓扑' }).getAttribute('viewBox')
+    mounted.unmount()
+    render(canvas())
+    expect(screen.getByRole('img', { name: '电网拓扑' }).getAttribute('viewBox')).toBe(manual)
+  })
   it('separates important branches from the baseline with a thicker cased stroke', () => {
     render(<NetworkView view={sampleDiagramView} modelName="测试电网" focusKey="emphasis" />)
     const casing = document.querySelector('.network-focus-casing')

@@ -49,12 +49,27 @@ function parseDiagramView(raw: Record<string, unknown>, ordinal: number,
     if (branch.kind === 'line') lineIds.add(branch.id)
   }
   const allIds = new Set([...busIds, ...branchIds])
+  if (diagram.disconnections !== undefined) {
+    if (!Array.isArray(diagram.disconnections) || diagram.disconnections.length > MAX_NETWORK_BRANCHES) return null
+    const seen = new Set<string>()
+    for (const entry of diagram.disconnections) {
+      if (!record(entry) || !text(entry.id) || !branchIds.has(entry.id) || seen.has(entry.id) ||
+          !Array.isArray(entry.markers) || entry.markers.length > 2) return null
+      seen.add(entry.id)
+      const branch = diagram.branches.find((item) => item.id === entry.id)
+      for (const marker of entry.markers) {
+        if (!record(marker) || !text(marker.label) || !text(marker.bus_id) ||
+            ![branch?.from_bus, branch?.to_bus].includes(marker.bus_id)) return null
+      }
+    }
+  }
   if (layer.annotations !== undefined) {
     const annotations = layer.annotations
     if (!record(annotations) || !record(annotations.scene) ||
         !text(annotations.scene.label) || !text(annotations.scene.context_ref) ||
         !text(annotations.scene.model_revision) || !text(annotations.scene.source_ref) ||
-        !admittedRefs.includes(annotations.scene.source_ref)) return null
+        !admittedRefs.includes(annotations.scene.source_ref) ||
+        (annotations.scene.case_ref !== undefined && !text(annotations.scene.case_ref))) return null
     for (const kind of ['states', 'regions']) {
       const entries = annotations[kind]
       if (!Array.isArray(entries) || entries.length > MAX_NETWORK_BUSES) return null
@@ -67,6 +82,17 @@ function parseDiagramView(raw: Record<string, unknown>, ordinal: number,
             entry.ids.some((id) => typeof id !== 'string' || !allowed.has(id)) ||
             kind === 'states' && !['disconnected', 'warning', 'unresolved'].includes(String(entry.style)) ||
             kind === 'regions' && entry.emphasis !== undefined && typeof entry.emphasis !== 'boolean') return null
+        if (kind === 'states' && entry.markers !== undefined) {
+          if (!Array.isArray(entry.markers) || entry.markers.length > Math.min(MAX_NETWORK_BRANCHES, 2 * entry.ids.length)) return null
+          const seen = new Set<string>()
+          for (const marker of entry.markers) {
+            if (!record(marker) || !text(marker.id) || !text(marker.bus_id) || !text(marker.label) ||
+                !entry.ids.includes(marker.id) || !busIds.has(marker.bus_id)) return null
+            const key = `${marker.id}:${marker.bus_id}`
+            if (seen.has(key)) return null
+            seen.add(key)
+          }
+        }
       }
     }
   }

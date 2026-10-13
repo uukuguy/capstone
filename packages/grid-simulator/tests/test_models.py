@@ -12,6 +12,20 @@ from grid_simulator.models import ContextStore, ModelNotFoundError, ModelRegistr
 from grid_simulator.workspace import SimulatorWorkspace
 
 
+def test_bus_bus_switch_geometry_preserves_open_and_closed_connections():
+    import pandapower as pp
+    from grid_simulator.operator_diagram import operator_geometry, operator_branch_states
+    net = pp.create_empty_network()
+    first, second, third = [pp.create_bus(net, vn_kv=20) for _ in range(3)]
+    opened = pp.create_switch(net, first, second, et="b", closed=False)
+    closed = pp.create_switch(net, second, third, et="b", closed=True)
+    geometry = operator_geometry(net)
+    assert {branch["id"] for branch in geometry["branches"]} == {f"switch:{opened}", f"switch:{closed}"}
+    states = operator_branch_states(net, geometry["branches"])
+    assert states == [{"id": f"switch:{opened}", "in_service": True, "connected": False,
+                       "open_switches": [{"index": opened, "bus_id": str(first)}]}]
+
+
 def test_catalog_checks_operator_capacity_before_offering_a_model() -> None:
     class Engine:
         def open_registered(self, _factory):
@@ -156,6 +170,21 @@ def test_operator_diagram_uses_complete_ieee39_schematic_from_gridctl(grid, cont
     }
 
 
+def test_operator_diagram_reports_open_switches_without_drawing_false_connections(grid):
+    opened = grid.call("context.open", {"model_id": "mv_oberrhein"})
+    diagram = grid.call("operator.diagram.get", {"context_ref": opened["context_ref"]})
+    switches = grid.call("model.dataset.query", {
+        "context_ref": opened["context_ref"], "dataset": "network.switch",
+        "select": ["index", "element", "et", "bus", "closed"],
+        "filters": [{"field": "closed", "operator": "eq", "value": False}], "limit": 50,
+    })
+    expected = {f"line:{row['element']}" for row in switches["rows"] if row["et"] == "l"}
+    actual = {state["id"] for state in diagram["branch_states"] if state["open_switches"]}
+    assert actual == expected and actual
+    assert all(state["connected"] is False for state in diagram["branch_states"] if state["id"] in expected)
+    assert any(state["id"] == "line:31" for state in diagram["branch_states"])
+
+
 @pytest.mark.parametrize("model_id", ["ieee39", "case14", "case9"])
 def test_operator_labels_match_model_tool_names(grid, model_id) -> None:
     from grid_simulator.queries import list_branch_records, list_bus_records
@@ -210,6 +239,7 @@ def test_three_winding_transformer_legs_share_the_model_tool_name() -> None:
     net = SimpleNamespace(
         bus=pd.DataFrame({"name": [11, 13, 30], "vn_kv": [110, 20, 10]}, index=[2, 7, 9]),
         line=pd.DataFrame(), trafo=pd.DataFrame(),
+        switch=pd.DataFrame(),
         trafo3w=pd.DataFrame({"name": [15], "hv_bus": [2], "mv_bus": [7], "lv_bus": [9]}, index=[4]),
     )
     diagram = operator_geometry(net)

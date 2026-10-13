@@ -5,6 +5,7 @@ from tempfile import TemporaryDirectory
 from capstone_agent.application import EmptyCredentialBroker
 
 from capstone_agent.model_identity import validate_model_id
+from pandapower_domain.network_annotations import project_base_disconnections
 from .application.profile import build_pandapower_application_profile
 
 
@@ -26,6 +27,7 @@ def model_diagram(model_id: str, revision: str) -> dict[str, object]:
                 raise ValueError("model diagram identity mismatch")
             return {"schema": "capstone-network-diagram/1.0",
                 "model": {"id": model_id, "revision": revision, "source": "gridctl"},
-                "coordinate_system": topology["coordinate_system"], "buses": topology["buses"], "branches": topology["branches"]}
+                "coordinate_system": topology["coordinate_system"], "buses": topology["buses"], "branches": topology["branches"],
+                "disconnections": project_base_disconnections(topology)}
         finally:
             endpoint.close()

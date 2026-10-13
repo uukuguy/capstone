@@ -507,6 +507,15 @@ class PandapowerArtifactAuthority:
     def verify_result(self, reference: str) -> VerifiedArtifact:
         return self._verifier.verify_result(reference)
 
+    def verify_linked_result(self, reference: str, parent_ref: str) -> VerifiedArtifact:
+        """Verify a scenario explicitly linked by the caller's admitted aggregate."""
+        parent = self.verify_result(parent_ref)
+        if reference not in _scenario_result_refs(parent.document):
+            raise SimulatorIntegrityError("scenario result is not linked by its admitted parent")
+        child = self.verify_result(reference)
+        self._verifier._verify_matching_context(reference, child.document, parent.document)
+        return child
+
     def verify_context(self, reference: str) -> VerifiedArtifact:
         return self._verifier.verify_context(reference)
 

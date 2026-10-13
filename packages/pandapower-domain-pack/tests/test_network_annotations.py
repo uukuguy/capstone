@@ -1,6 +1,6 @@
 import pytest
 
-from pandapower_domain.network_annotations import project_scene_annotations
+from pandapower_domain.network_annotations import project_scene_annotations, select_contingency_scene
 
 
 def sources():
@@ -59,3 +59,25 @@ def test_overload_marker_uses_solved_loading_not_null_or_outaged_rows():
     result["datasets"]["result.res_line"]["rows"][0]["loading_percent"] = None
     value = project_scene_annotations(diagram, result, topology, lines, source_ref="result:current")
     assert all(item["style"] != "warning" for item in value["states"])
+
+
+def test_open_terminal_switch_is_explicit_and_not_a_normal_connection():
+    diagram, result, topology, lines = sources()
+    lines["rows"] = []
+    lines["branch_states"] = [{"id": "line:4", "in_service": True, "connected": False,
+                              "open_switches": [{"index": 9, "bus_id": "1"}]}]
+    value = project_scene_annotations(diagram, result, topology, lines, source_ref="result:current")
+    state = value["states"][0]
+    assert state["label"] == "开关断开"
+    assert state["ids"] == ["line:4"]
+    assert state["markers"] == [{"id": "line:4", "bus_id": "1", "label": "开关 9"}]
+
+
+def test_contingency_selection_uses_actual_reported_loading_and_preserves_parent_source():
+    roots = [("result:parent", {"scenarios": [
+        {"scenario_result_ref": "result:low", "status": "succeeded", "max_loading_percent": 97.0},
+        {"scenario_result_ref": "result:high", "status": "succeeded", "max_loading_percent": 143.0},
+        {"scenario_result_ref": "result:failed", "status": "failed", "max_loading_percent": None},
+    ]})]
+    assert select_contingency_scene(roots) == ("result:parent", "result:high")
+    assert select_contingency_scene([("result:ordinary", {"datasets": {}})]) is None

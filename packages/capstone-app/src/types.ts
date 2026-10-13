@@ -78,6 +78,7 @@ export type LegacyNetworkView = {
 }
 
 export type NetworkDiagram = {
+  disconnections?: { id: string; markers: { bus_id: string; label: string }[] }[]
   schema: 'capstone-network-diagram/1.0'
   model: { id: string; revision: string; source: string }
   coordinate_system: 'geographic' | 'schematic'
@@ -100,8 +101,9 @@ export type NetworkLayer = {
 }
 
 export type NetworkAnnotations = {
-  scene: { label: string; context_ref: string; model_revision: string; source_ref: string }
-  states: { label: string; style: 'disconnected' | 'warning' | 'unresolved'; ids: string[]; source_ref: string }[]
+  scene: { label: string; context_ref: string; model_revision: string; source_ref: string; case_ref?: string }
+  states: { label: string; style: 'disconnected' | 'warning' | 'unresolved'; ids: string[]; source_ref: string;
+    markers?: { id: string; bus_id: string; label: string }[] }[]
   regions: { label: string; ids: string[]; source_ref: string; emphasis?: boolean }[]
 }
 

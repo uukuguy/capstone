@@ -60,7 +60,7 @@ from grid_simulator.models import (
     ModelNotFoundError,
     ModelRegistry,
 )
-from grid_simulator.operator_diagram import OperatorDiagramError, operator_geometry, operator_diagram_contract as _operator_diagram_contract
+from grid_simulator.operator_diagram import OperatorDiagramError, operator_geometry, operator_branch_states, operator_diagram_contract as _operator_diagram_contract
 from grid_simulator.protocol import CapabilityError, GridCapabilityRequest, GridCapabilityResponse
 from grid_simulator.query_predicates import (
     InvalidDatasetPredicate,
@@ -269,7 +269,8 @@ def _operator_diagram_get(
     except OperatorDiagramError as error:
         code = "diagram_too_large" if error.code == "diagram_limit" else "diagram_invalid"
         raise _failure(code, "operator diagram cannot satisfy its projection contract", phase="validate") from error
-    return {"context_ref": context.context_ref, "revision_ref": context.revision_ref, **geometry}
+    return {"context_ref": context.context_ref, "revision_ref": context.revision_ref, **geometry,
+            "branch_states": operator_branch_states(net, geometry["branches"])}
 
 def _analysis_operation_list(engine: Pandapower340Engine) -> dict[str, Any]:
     return {

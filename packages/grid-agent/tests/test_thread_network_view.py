@@ -17,6 +17,7 @@ from grid_agent.application.thread_capabilities import (
 from grid_agent.thread_network_view import build_pandapower_thread_network_provider
 from grid_simulator.engine import Pandapower340Engine
 from grid_simulator.models import ModelRegistry
+from pandapower_domain.authority import SimulatorIntegrityError
 
 
 class _Grid:
@@ -121,6 +122,42 @@ def test_thread_topology_uses_exact_real_registered_model(grid):
     assert projection["diagram"]["branches"] == source["branches"]
     assert len(source["buses"]) == (39 if claim.model_context.model_id == "ieee39" else 24)
     assert projection["layer"] == {"focus_ids": [], "next_focus_ids": [], "overlay": None}
+
+
+def test_scene_reuses_observed_authority_topology_without_querying_it_again(grid):
+    claim, context, runtime, binding = grid
+    flow = grid.invoke("analysis.powerflow.ac.run", {"context_ref": binding.context_ref})
+    topology = grid.invoke("topology.components.get", {"context_ref": binding.context_ref})
+    provider = build_pandapower_thread_network_provider(context)
+    provider.observe_runtime_event({"type": "tool_execution_end", "result": {"details": {
+        "ok": True, "capability": "topology.components.get",
+        "capability_key": {"binding_id": "grid", "capability_id": "topology.components.get"},
+        "result": topology,
+    }}})
+    original = runtime.executor.invoke
+    def no_duplicate_topology(capability, arguments):
+        assert capability != "topology.components.get", "already observed authority facts should be reused"
+        return original(capability, arguments)
+    provider._executor = SimpleNamespace(invoke=no_duplicate_topology)
+    view = provider.project(claim, (flow["result_ref"],), (), ())
+    assert view["layer"]["annotations"]["scene"]["source_ref"] == flow["result_ref"]
+
+
+def test_contingency_view_uses_the_linked_peak_scene_instead_of_a_later_base_flow(grid):
+    claim, context, runtime, binding = grid
+    scan = runtime.executor.invoke("analysis.contingency.n_minus_one.run", {
+        "context_ref": binding.context_ref, "branch_selections": [{"kind": "line", "indices": [0, 1]}],
+    })
+    flow = runtime.executor.invoke("analysis.powerflow.ac.run", {"context_ref": binding.context_ref})
+    provider = build_pandapower_thread_network_provider(context)
+    view = provider.project(claim, (scan["result_ref"], flow["result_ref"]), tuple(scan["evidence_refs"]), ())
+    expected = max(scan["scenarios"], key=lambda row: row["max_loading_percent"])
+    scene = view["layer"]["annotations"]["scene"]
+    assert scene["source_ref"] == scan["result_ref"]
+    assert scene["case_ref"] == expected["scenario_result_ref"]
+    assert view["layer"]["annotations"]["states"][0]["ids"] == [f"line:{expected['pandapower_index']}"]
+    with pytest.raises(SimulatorIntegrityError, match="not linked"):
+        runtime.authority.verify_linked_result(flow["result_ref"], scan["result_ref"])
 
 
 def test_derived_scene_marks_real_outage_and_preserves_bound_geometry(grid):
