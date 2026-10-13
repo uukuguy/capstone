@@ -6,6 +6,7 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 import json
 import os
+import re
 import time
 from typing import cast
 
@@ -492,6 +493,15 @@ class _ResearchReferences:
         return False
 
 
+def _mixed_language_opening(answer: str) -> bool:
+    opening, separator, body = answer.strip().partition("\n\n")
+    if not separator or opening.startswith((">", "```", "#")):
+        return False
+    return (not re.search(r"[\u3400-\u9fff]", opening)
+            and len(re.findall(r"[A-Za-z]+", opening)) >= 6
+            and len(re.findall(r"[\u3400-\u9fff]", body)) >= 16)
+
+
 class _KernelPiPromptSession:
     def __init__(self, client: PiRpcClient, trace: JsonlTraceWriter, *, admission,
                  reference_observer: Callable[[Mapping[str, object]], None] | None = None,
@@ -563,22 +573,54 @@ class _KernelPiPromptSession:
                                "trace_sequence": sequence, "trace_correlation_id": correlation_id})
             self._published_research_revision = revision
 
+        delivery_candidate = None
         while True:
             remaining = self._deadline - time.monotonic()
             if remaining <= 0:
+                if delivery_candidate is not None:
+                    self._trace.append("answer_delivery_check", {"status": "unresolved", "reason": "correction_budget_exhausted"})
+                    answer = delivery_candidate
+                    break
                 raise TimeoutError("attempt time budget exhausted")
             idle_budget = 90.0
             step_budget = min(idle_budget, remaining - 15.0) if self._research is not None and remaining > 15 else None
-            answer = self._client.prompt_and_wait(
-                question,
-                on_semantic_event=observed,
-                correlation_id=correlation_id,
-                on_heartbeat=on_heartbeat,
-                timeout_seconds=remaining,
-                on_control_requests=research_updates if self._research is not None else None,
-                model_idle_seconds=step_budget,
-            )
+            try:
+                answer = self._client.prompt_and_wait(
+                    question,
+                    on_semantic_event=observed,
+                    correlation_id=correlation_id,
+                    on_heartbeat=on_heartbeat,
+                    timeout_seconds=remaining,
+                    on_control_requests=research_updates if self._research is not None else None,
+                    model_idle_seconds=step_budget,
+                )
+            except Exception:
+                if delivery_candidate is None:
+                    raise
+                self._trace.append("answer_delivery_check", {"status": "unresolved", "reason": "correction_unavailable"})
+                answer = delivery_candidate
+                break
             if not getattr(self._client, "last_prompt_interrupted", False):
+                if isinstance(answer, str) and _mixed_language_opening(answer):
+                    self._trace.append("answer_delivery_check", {
+                        "status": "unresolved" if delivery_candidate is not None else "correction_requested",
+                        "reason": "mixed_language_opening",
+                    })
+                    if delivery_candidate is None and self._deadline - time.monotonic() > 15:
+                        delivery_candidate = answer
+                        question = (
+                            "Correct only the delivery of your previous answer. Its opening paragraph is in English "
+                            "while the main report is in Chinese. Return the complete report in the same reader language "
+                            "as its main body. Begin with the requested information, not a progress or readiness message. "
+                            "Preserve all supported values, limitations and failed work. Keep identifiers and source "
+                            "quotations unchanged. Do not run tools or repeat calculations."
+                        )
+                        continue
+                elif delivery_candidate is not None:
+                    valid_delivery = isinstance(answer, str) and bool(answer.strip())
+                    if not valid_delivery:
+                        answer = delivery_candidate
+                    self._trace.append("answer_delivery_check", {"status": "completed" if valid_delivery else "unresolved"})
                 break
             on_heartbeat()
             self._client.set_thinking_level("off")
