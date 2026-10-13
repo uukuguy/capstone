@@ -46,10 +46,10 @@ function Step({ step, storageKey, running, last, toolCount, children }: { step: 
     }}><span className="capstone-step-number">{String(step.number).padStart(2, '0')}</span>
       <span className="capstone-chat-activity-source" data-owner="capstone">CAPSTONE</span>
       <span className="capstone-step-title">{step.title}</span>
-      {toolCount !== undefined && <small>{toolCount} 次工具调用</small>}
-      <small>{step.finishReason === 'interrupted' ? '已中断' : step.status === 'completed' ? '已结束' : running ? '执行中' : '任务已结束 · 步骤未报告结束'}{elapsed === undefined ? '' : ` · ${(elapsed / 1000).toFixed(1)}s`}{step.responseMs === undefined ? '' : ` · 模型响应 ${(step.responseMs / 1000).toFixed(1)}s`}</small>
+      {toolCount !== undefined && <small>{toolCount} 次调用</small>}
+      <small>{elapsed === undefined ? '' : `${toolCount === undefined ? '' : '· '}${(elapsed / 1000).toFixed(1)}s`}{step.finishReason === 'interrupted' ? ' · 已中断' : step.status === 'completed' ? '' : running ? ' · 执行中' : '任务已结束 · 步骤未报告结束'}</small>
     </summary>
-    <div className="capstone-step-tools">{children}</div>
+    <div className="capstone-step-tools">{step.responseMs !== undefined && <small className="capstone-step-timing">模型响应 {(step.responseMs / 1000).toFixed(1)}s</small>}{children}</div>
   </details>
 }
 

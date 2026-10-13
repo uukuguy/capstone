@@ -8,16 +8,17 @@ describe('task step folding', () => {
     vi.setSystemTime(new Date('2026-10-13T10:00:02Z'))
     const step = { id: 'runtime-1', number: 1, title: '组织执行', status: 'running' as const, startedAt: '2026-10-13T10:00:00Z' }
     const { rerender } = render(<TaskStepProcess steps={[step]} storageKey="timer" running renderTools={() => null} />)
-    expect(screen.getByText('执行中 · 2.0s')).toBeTruthy()
+    expect(screen.getByText('2.0s · 执行中')).toBeTruthy()
     act(() => vi.advanceTimersByTime(1000))
-    expect(screen.getByText('执行中 · 3.0s')).toBeTruthy()
+    expect(screen.getByText('3.0s · 执行中')).toBeTruthy()
     rerender(<TaskStepProcess steps={[{ ...step, status: 'completed', durationMs: 2800, responseMs: 1700 }]} storageKey="timer" running={false} renderTools={() => null} />)
     act(() => vi.advanceTimersByTime(2000))
-    expect(screen.getByText('已结束 · 2.8s · 模型响应 1.7s')).toBeTruthy()
+    expect(screen.getByText('2.8s')).toBeTruthy()
+    expect(screen.getByText('模型响应 1.7s')).toBeTruthy()
   })
   it('shows the number of tools inside a collapsed step', () => {
     render(<TaskStepProcess steps={[{ id: 'solve', number: 1, title: '求解', status: 'running' }]} storageKey="count" running={false} toolCount={() => 5} renderTools={() => <span>GRID</span>} />)
-    expect(screen.getByText('5 次工具调用')).toBeTruthy()
+    expect(screen.getByText('5 次调用')).toBeTruthy()
     expect(screen.getByText('任务已结束 · 步骤未报告结束')).toBeTruthy()
   })
   it('starts open, collapses completed steps and retains a manual choice through reload', () => {
