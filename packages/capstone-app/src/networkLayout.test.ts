@@ -4,6 +4,17 @@ import type { LegacyNetworkView } from './types'
 import { sampleDiagramView, sampleView } from './networkFixture'
 
 describe('network layout', () => {
+  it('fits model coordinates independently of their units', () => {
+    const original = sampleDiagramView.diagram
+    const reduced = { ...original, buses: original.buses.map(bus => ({ ...bus,
+      x: bus.x! * 0.00001 + 7, y: bus.y! * 0.00001 + 48 })) }
+    const expected = layoutNetwork(original)
+    const actual = layoutNetwork(reduced)
+    actual.forEach((bus, index) => {
+      expect(bus.x).toBeCloseTo(expected[index].x, 4)
+      expect(bus.y).toBeCloseTo(expected[index].y, 4)
+    })
+  })
   it('lays out complete large disconnected graphs without all-pairs work', () => {
     const buses = Array.from({ length: 9241 }, (_, i) => ({
       id: String(i), label: `Bus ${i}`, x: null, y: null, vn_kv: 220,

@@ -119,7 +119,7 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
 
   function zoom(factor: number, clientX?: number, clientY?: number, target?: SVGSVGElement) {
     setCamera((before) => {
-      const width = Math.max(120, Math.min(1500, before.width * factor))
+      const width = Math.max(12, Math.min(1500, before.width * factor))
       const height = width * 0.6
       const rect = target?.getBoundingClientRect()
       const relativeX = rect && rect.width > 0 && clientX !== undefined
@@ -180,10 +180,8 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
   const schematic = Boolean(nativeSchematic || geometry?.schema === 'capstone-network-diagram/1.0')
   // Keep strokes, symbols, and labels readable in screen pixels while the SVG
   // viewBox zooms into a dense network.
-  const visualScale = Math.max(0.12, Math.min(1.25, camera.width / FULL.width))
-  // Electrical symbols need a slightly larger floor than connecting lines so
-  // buses and transformers remain identifiable in a focused network region.
-  const symbolScale = Math.max(visualScale, Math.min(0.6, Math.max(0.3, camera.width / 650)))
+  const visualScale = camera.width / FULL.width
+  const symbolScale = visualScale
   const branchKinds = new Set(geometry?.branches.map((branch) => branch.kind) || [])
   const toolbar = <div className="network-toolbar" aria-label="电网图操作">
     <button type="button" onClick={() => zoom(0.8)} aria-label="放大" title="放大">{compact ? <Plus aria-hidden="true" /> : '＋'}</button>

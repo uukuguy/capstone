@@ -231,6 +231,20 @@ describe('operator network canvas', () => {
     expect(screen.queryByRole('button', { name: '电气示意' })).toBeNull()
   })
 
+  it('zooms into dense regions without enlarging busbars on screen', () => {
+    render(<NetworkView view={sampleDiagramView} modelName="Grid" focusKey="zoom" />)
+    const canvas = screen.getByRole('img', { name: '电网拓扑' })
+    const relativeBusWidth = () => {
+      const bar = document.querySelector('.network-busbar')!
+      const width = Number(canvas.getAttribute('viewBox')!.split(' ')[2])
+      return (Number(bar.getAttribute('x2')) - Number(bar.getAttribute('x1'))) / width
+    }
+    const initial = relativeBusWidth()
+    for (let i = 0; i < 18; i += 1) fireEvent.click(screen.getByRole('button', { name: '放大' }))
+    expect(Number(canvas.getAttribute('viewBox')!.split(' ')[2])).toBeLessThan(120)
+    expect(relativeBusWidth()).toBeCloseTo(initial, 8)
+  })
+
   it('preserves manual camera movement while the same diagram receives a neutral layer', () => {
     const { rerender } = render(<NetworkView view={sampleDiagramView} modelName="SciGRID" focusKey="turn-1" />)
     const canvas = screen.getByRole('img', { name: '电网拓扑' })
