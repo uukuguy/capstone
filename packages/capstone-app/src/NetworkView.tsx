@@ -119,7 +119,7 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
   }, [annotations, baseDisconnections])
   const stateMarkers = useMemo(() => {
     const selected = new Map<string, StateMarker[]>()
-    for (const state of stateById.values()) for (const marker of state.markers || []) {
+    for (const state of new Set(stateById.values())) for (const marker of state.markers || []) {
       selected.set(marker.id, [...selected.get(marker.id) || [], marker])
     }
     return selected

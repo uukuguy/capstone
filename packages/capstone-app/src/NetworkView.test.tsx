@@ -43,6 +43,17 @@ import { threadPreviewDiagram } from './threadModelDiagram'
 afterEach(() => { cleanup(); sessionStorage.clear() })
 
 describe('operator network canvas', () => {
+  it('renders each switch once when several branches share one state group', () => {
+    const view = structuredClone(sampleDiagramView)
+    const branches = view.diagram.branches.slice(0, 2)
+    view.layer.annotations = {
+      scene: {label:'开断场景', context_ref:'context:scene', model_revision:'revision:scene', source_ref:'result:scene'},
+      states: [{label:'开关断开', style:'disconnected', ids:branches.map((branch) => branch.id), source_ref:'result:scene',
+        markers:branches.map((branch, index) => ({id:branch.id, bus_id:branch.from_bus, label:`开关 ${index}`}))}], regions:[],
+    }
+    render(<NetworkView view={view} modelName="测试电网" focusKey="multi-switch" />)
+    expect(screen.getAllByLabelText(/：开关 [01]$/)).toHaveLength(2)
+  })
   it('shows every base open switch before any analysis and keeps its terminal marker', () => {
     const view = structuredClone(sampleDiagramView)
     const branch = view.diagram.branches[0]
