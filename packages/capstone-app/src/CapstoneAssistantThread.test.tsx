@@ -984,7 +984,7 @@ describe('CapstoneAssistantThread', () => {
 
     expect(screen.getByRole('button', { name: '查看推演证据' })).toBeTruthy()
     expect(screen.getByRole('button', { name: '查看执行过程' })).toBeTruthy()
-    expect(screen.getByRole('status').textContent).toContain('1 项结构化结果')
+    expect(screen.queryByLabelText('当前运行结果引用')).toBeNull()
     expect(screen.queryByLabelText('推演证据')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: '查看推演证据' }))
     expect(screen.getByLabelText('推演证据').textContent).toContain('evidence:run_1:powerflow')
@@ -1068,11 +1068,11 @@ describe('CapstoneAssistantThread', () => {
     expect((projectAssistantMessages(events)[1].metadata as { custom?: { admission?: unknown } }).custom?.admission).toEqual(expect.objectContaining({ mode: 'authority_backed' }))
     render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
 
-    expect(screen.getByRole('status').textContent).toContain('1 项结构化结果')
+    expect(screen.queryByLabelText('当前运行结果引用')).toBeNull()
     expect(screen.queryByLabelText('推演证据')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: '查看推演证据' }))
     expect(screen.getByLabelText('推演证据')).toBeTruthy()
-    expect(screen.getByRole('status').textContent).toContain('已准入')
+    expect(screen.getByRole('button', { name: '查看推演证据' })).toBeTruthy()
     expect(screen.queryByText(/admission:run_1/)).toBeNull()
   })
 
@@ -1246,7 +1246,7 @@ describe('CapstoneAssistantThread', () => {
     ]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}}
       modelSummary={{ modelId: 'ieee39', implementationFamily: 'pandapower', modelRevision: 'revision:current', contextId: 'ctx_current' }} />)
 
-    expect(screen.getByRole('status').textContent).toContain('1 项结构化结果')
+    expect(screen.getByRole('button', { name: '查看推演证据' })).toBeTruthy()
   })
 
   it('allows drafting during a running attempt while keeping send unavailable', () => {
