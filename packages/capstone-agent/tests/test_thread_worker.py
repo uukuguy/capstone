@@ -84,6 +84,33 @@ def test_run_pending_attempt_claims_and_executes_without_http_affinity() -> None
     ]
 
 
+def test_selected_followup_runtime_receives_only_original_task_reader():
+    service = _service()
+    _submit(service)
+    first = run_pending_attempt(service, lambda claim: _Runtime(), worker_id="source-test")
+    source = next(e.attempt_id for e in service.read_events("thr_worker", 0).events
+                  if e.event_type == "attempt_completed")
+    assert first.status == "completed" and source is not None
+    snapshot = service.snapshot("thr_worker")
+    receipt = service.submit_command({
+        "schema": "capstone-command/1", "command_id": "cmd_followup", "idempotency_key": "idem_followup",
+        "thread_id": "thr_worker", "run_id": "run_worker", "kind": "send_ordinary",
+        "expected_event_seq": snapshot.last_event_seq,
+        "payload": {"text": "inspect", "source_attempt_id": source},
+    })
+    assert receipt.status == "accepted"
+    def factory(claim):
+        assert claim.selected_task_reader is not None
+        page = claim.selected_task_reader.read()
+        assert page["attempt_id"] == source
+        assert page["attempt_id"] != claim.attempt.attempt_id
+        assert page["historical_only"] is True
+        assert any(e["event_type"] == "attempt_completed" for e in page["events"])
+        return _Runtime()
+    result = run_pending_attempt(service, factory, worker_id="followup-test")
+    assert result.status == "completed"
+
+
 def test_claim_preparation_does_not_consume_the_worker_lease(monkeypatch) -> None:
     from capstone_agent import thread_service
 

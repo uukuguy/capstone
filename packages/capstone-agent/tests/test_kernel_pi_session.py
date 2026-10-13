@@ -9,6 +9,28 @@ from types import SimpleNamespace
 import pytest
 
 
+def test_selected_task_tool_launch_binds_private_input_and_preserves_original_launch(tmp_path):
+    from capability_agent.runtime.environment import PiLaunch
+    from capstone_agent.kernel_pi_session import _with_selected_task_tool
+    extension = tmp_path / "extension" / "domain-tools.mjs"
+    extension.parent.mkdir()
+    tool_extension = extension.with_name("task-record-tools.mjs")
+    tool_extension.write_text("export default () => {}")
+    calls = []
+    class Reader:
+        def publish(self, directory):
+            calls.append(directory)
+            directory.mkdir()
+            return directory
+    launch = PiLaunch(("pi", "--mode", "rpc"), {"SAFE": "value"})
+    directory = tmp_path / "attempt"
+    directory.mkdir()
+    bound = _with_selected_task_tool(launch, Reader(), directory, extension)
+    assert bound.argv[-2:] == ("--extension", str(tool_extension))
+    assert bound.environment["CAPSTONE_SELECTED_TASK_RECORDS"] == str(calls[0])
+    assert "CAPSTONE_SELECTED_TASK_RECORDS" not in launch.environment
+
+
 def test_research_work_protocol_is_candidate_only(tmp_path):
     from capstone_agent.kernel_pi_session import _compose_attempt_policy
     for enabled in (False, True):
@@ -287,11 +309,13 @@ def test_ordinary_session_has_no_business_tools_or_authority_handles(monkeypatch
     monkeypatch.setattr(module, "build_pi_launch", launch)
     monkeypatch.setattr(module, "PiRpcClient", Client)
     builder = object.__new__(module.PreparedKernelPiRpcSessionBuilder)
-    builder._runtime_host = SimpleNamespace(command=object(), project_pi_dir=tmp_path / "auth")
+    builder._runtime_host = SimpleNamespace(command=object(), project_pi_dir=tmp_path / "auth",
+                                           extension_path=tmp_path / "domain-tools.mjs")
     builder._resolved_llm = SimpleNamespace(secret=None)
     builder._base_environment = {}
     builder._timeout_seconds = 60
     claim = SimpleNamespace(turn_plan=SimpleNamespace(route="ordinary"), application_catalog=None,
+        selected_task_reader=None,
         attempt=SimpleNamespace(attempt_id="attempt_general"),
         model_context=ModelContextSnapshot("ctx_current", "current-model", "revision-1", "pandapower", "sel_0"),
         previous_instruction=module.PreviousInstruction("attempt_saved", "Explain saved task", "Saved outcome", "completed",

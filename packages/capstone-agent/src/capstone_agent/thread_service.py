@@ -46,7 +46,7 @@ from .thread_application_transition import (
     application_transition_hash,
 )
 from .model_identity import page_id_for_model, validate_model_id
-from .task_record_reader import PUBLIC_TASK_OBSERVATION_TYPES
+from .task_record_reader import PUBLIC_TASK_OBSERVATION_TYPES, SelectedTaskRecordReader
 from .reference_limits import MAX_ATTEMPT_REFERENCES, MAX_REFERENCE_EVENT_BYTES
 from .network_diagram import MAX_DIAGRAM_BYTES, MAX_EVENT_PAGE_BYTES, normalize_network_diagram
 from .result_projection import MAX_RESULT_PROJECTIONS, MAX_RESULT_PROJECTION_BYTES, ResultProjection, normalize_result_projection, validate_artifact_reference
@@ -533,6 +533,7 @@ class AttemptClaim:
     prior_results: tuple[PriorResultReference, ...] = ()
     previous_instruction: PreviousInstruction | None = None
     research_generation: str | None = None
+    selected_task_reader: SelectedTaskRecordReader | None = None
 
     def __post_init__(self) -> None:
         if self.previous_instruction is not None and not isinstance(self.previous_instruction, PreviousInstruction):

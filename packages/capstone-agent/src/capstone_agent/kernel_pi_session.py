@@ -32,6 +32,7 @@ from .kernel_reference_handoff import PreparedKernelReferenceHandoffs
 from .model_capability_context import PreparedModelCapabilityContext
 from .thread_protocol import ModelContextSnapshot
 from .thread_service import AttemptClaim, PriorResultReference, PreviousInstruction
+from .task_record_reader import SelectedTaskRecordReader
 from .result_projection import normalize_result_projection
 from .catalog_answer import complete_catalog_answer
 from .attempt_research import AttemptResearch
@@ -127,6 +128,8 @@ class PreparedKernelPiRpcSessionBuilder:
                 project_pi_dir=self._runtime_host.project_pi_dir, session_dir=directory / "session",
                 workspace=directory, extension_path=None, domain_search_paths=(), system_policy_path=policy)
             launch = build_pi_launch(self._resolved_llm, paths, base_environment=self._base_environment)
+            launch = _with_selected_task_tool(launch, claim.selected_task_reader, directory,
+                                             self._runtime_host.extension_path)
             launch = PiLaunch((*launch.argv, "--thinking", "off"), launch.environment)
             secrets = {self._resolved_llm.secret.value} if self._resolved_llm.secret is not None else set()
             trace = JsonlTraceWriter(directory / "pi-events.jsonl", secret_values=secrets)
@@ -236,6 +239,8 @@ class PreparedKernelPiRpcSessionBuilder:
         launch = build_pi_launch(
             self._resolved_llm, paths, base_environment=self._base_environment,
         )
+        launch = _with_selected_task_tool(launch, claim.selected_task_reader, attempt_directory,
+                                         self._runtime_host.extension_path)
         if self._research_enabled:
             launch = PiLaunch((*launch.argv, "--thinking", "off"), launch.environment)
         trace = JsonlTraceWriter(
@@ -258,6 +263,19 @@ class PreparedKernelPiRpcSessionBuilder:
             reference_observer=handoffs.observe,
             research=research, research_reference_observer=references.observe,
         )
+
+
+def _with_selected_task_tool(launch: PiLaunch, reader: SelectedTaskRecordReader | None,
+                             directory: Path, domain_extension: Path) -> PiLaunch:
+    if reader is None:
+        return launch
+    extension = domain_extension.with_name("task-record-tools.mjs")
+    if extension.is_symlink() or not extension.is_file():
+        raise RuntimeError("selected task record extension is not installed")
+    root = reader.publish(directory / "selected-task-records")
+    environment = dict(launch.environment)
+    environment["CAPSTONE_SELECTED_TASK_RECORDS"] = str(root)
+    return PiLaunch((*launch.argv, "--extension", str(extension)), environment)
 
 
 def _require_prepared_kernel_profile(

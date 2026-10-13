@@ -51,3 +51,21 @@ def test_source_identity_mismatch_is_rejected():
             return page
     with pytest.raises(ValueError, match="identity"):
         SelectedTaskRecordReader(WrongSource(), "thr_one", "attempt_old").read()
+
+
+def test_publish_keeps_identity_and_content_hashes(tmp_path):
+    import hashlib
+    import json
+    class Terminal(Records):
+        def read_attempt_records(self, *args, **kwargs):
+            page = super().read_attempt_records(*args, **kwargs)
+            page["has_more"] = False
+            return page
+    root = tmp_path / "selected-task"
+    SelectedTaskRecordReader(Terminal(), "thr_one", "attempt_old").publish(root)
+    manifest = json.loads((root / "manifest.json").read_text())
+    assert manifest["attempt_id"] == "attempt_old"
+    assert manifest["pages"][0]["after"] == 0
+    data = (root / "0.json").read_bytes()
+    assert manifest["pages"][0]["sha256"] == hashlib.sha256(data).hexdigest()
+    assert json.loads(data)["historical_only"] is True

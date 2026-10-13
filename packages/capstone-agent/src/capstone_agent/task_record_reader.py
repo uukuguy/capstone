@@ -7,6 +7,11 @@ evidence for the current calculation. The caller cannot select another source.
 from __future__ import annotations
 
 from typing import Any, Protocol
+import hashlib
+import json
+from pathlib import Path
+
+from capability_agent._safe_files import ensure_bound_directory, write_bound_text
 
 
 class AttemptRecordStore(Protocol):
@@ -29,6 +34,28 @@ class SelectedTaskRecordReader:
         self._store = store
         self._thread_id = thread_id
         self._attempt_id = attempt_id
+
+    def publish(self, directory: Path) -> Path:
+        """Copy terminal public pages into this attempt's private tool input."""
+        root = ensure_bound_directory(directory)
+        pages = []
+        cursor = 0
+        while True:
+            page = self.read(after=cursor)
+            text = json.dumps(page, ensure_ascii=False, sort_keys=True) + "\n"
+            write_bound_text(root / f"{cursor}.json", text)
+            pages.append({"after": cursor, "sha256": hashlib.sha256(text.encode()).hexdigest()})
+            if not page["has_more"]:
+                break
+            next_cursor = page["next_after"]
+            if type(next_cursor) is not int or next_cursor <= cursor:
+                raise ValueError("historical task cursor did not advance")
+            cursor = next_cursor
+        write_bound_text(root / "manifest.json", json.dumps({
+            "schema": "capstone-selected-task-input/1",
+            "thread_id": self._thread_id, "attempt_id": self._attempt_id, "pages": pages,
+        }, sort_keys=True) + "\n")
+        return root
 
     def read(self, *, after: int = 0, limit: int = 32) -> dict[str, Any]:
         if type(after) is not int or after < 0 or type(limit) is not int or not 1 <= limit <= 128:

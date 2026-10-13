@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 from .attempt_lease import AttemptLeaseRenewal
 from .harness import HarnessAttemptResult, HarnessAttemptRunner, HarnessRuntime, HarnessRuntimeConfigurationError
 from .thread_service import AttemptClaim, ThreadExecutionService
+from .task_record_reader import SelectedTaskRecordReader
 from .turn_router import DecisionUnavailable, DefaultTurnRouter, TurnRouter, routing_input_for_claim
 
 if TYPE_CHECKING:
@@ -70,6 +71,11 @@ def _run_claimed_attempt(
     runtime = None
     try:
         lease.check()
+        previous = claim.previous_instruction
+        if previous is not None and previous.model_context is not None:
+            claim = replace(claim, selected_task_reader=SelectedTaskRecordReader(
+                service, claim.thread_id, previous.attempt_id,
+            ))
         runtime = runtime_factory(claim)
         bind_guard = getattr(runtime, "bind_attempt_guard", None)
         if callable(bind_guard):
