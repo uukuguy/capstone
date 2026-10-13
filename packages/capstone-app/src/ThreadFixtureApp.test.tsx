@@ -10,7 +10,7 @@ import { parseContext } from './threadProtocol'
 
 afterEach(cleanup)
 
-it('sends a selected historical task reference with the unmodified followup question', async () => {
+it('keeps the unfinished task followup entry hidden and sends ordinary questions unchanged', async () => {
   const fixture = structuredClone(threadUiFixture('idle-ieee39'))
   const snapshot = fixture.snapshot as { last_event_seq: number; active_model_context: unknown }
   snapshot.last_event_seq = 1
@@ -26,12 +26,13 @@ it('sends a selected historical task reference with the unmodified followup ques
       modelContext: parseContext(snapshot.active_model_context), events: [], nextAfter: 0, hasMore: false }),
     sendCommand: async command => { commands.push(command); return transport.sendCommand(command) } })
   render(<ThreadFixtureApp client={client} threadId="thr_demo_39" />)
-  fireEvent.click(await screen.findByRole('button', { name: '追问此任务' }))
-  await screen.findByText('追问 ieee39：原问题')
+  await screen.findByText('原任务已经结束。')
+  expect(screen.queryByRole('button', { name: '追问此任务' })).toBeNull()
   fireEvent.change(screen.getByRole('textbox', { name: 'Thread 指令' }), { target: { value: '为什么没有收敛？' } })
   fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
   await waitFor(() => expect(commands).toHaveLength(1))
-  expect(commands[0].payload).toMatchObject({ text: '为什么没有收敛？', source_attempt_id: 'attempt_old' })
+  expect(commands[0].payload).toMatchObject({ text: '为什么没有收敛？' })
+  expect(commands[0].payload).not.toHaveProperty('source_attempt_id')
   await waitFor(() => expect(screen.queryByRole('button', { name: '取消任务追问' })).toBeNull())
 })
 
@@ -829,8 +830,8 @@ describe('ThreadFixtureApp', () => {
     fireEvent.click(screen.getByRole('button', { name: '对话设置' }))
     expect(screen.getByRole('button', { name: '折叠历史回答' })).toBeTruthy()
     expect(screen.getByRole('button', { name: '展开历史回答' })).toBeTruthy()
-    expect(screen.queryByRole('button', { name: '隐藏运行过程' })).toBeNull()
-    expect(screen.queryByRole('button', { name: '显示运行过程' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '隐藏执行过程' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '显示执行过程' })).toBeNull()
     expect(screen.queryByText('历史回答', { exact: true })).toBeNull()
     expect(screen.queryByText('仅已加载回答 · 新回答完整显示')).toBeNull()
   })

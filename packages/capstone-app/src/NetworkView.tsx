@@ -316,9 +316,9 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
 function networkFailureCopy(code?: string): string {
   switch (code) {
     case 'diagram_limit': return '此模型的完整拓扑超过当前视图容量，无法显示。请从模型目录选择可显示的模型；已完成的回答仍可查看。'
-    case 'projection_model_mismatch': return '返回的拓扑与本次指令的模型或版本不一致，已停止显示。请重试本次指令；若仍失败，可查看运行过程。'
-    case 'projection_invalid': return '返回的拓扑未通过数据校验，已停止显示。请重试本次指令；若仍失败，可查看运行过程。'
-    case 'projection_source_unavailable': return '电网服务未能返回本次模型的拓扑。请重试本次指令；若仍失败，可查看运行过程。'
+    case 'projection_model_mismatch': return '返回的拓扑与本次指令的模型或版本不一致，已停止显示。请重试本次指令；若仍失败，可查看执行过程。'
+    case 'projection_invalid': return '返回的拓扑未通过数据校验，已停止显示。请重试本次指令；若仍失败，可查看执行过程。'
+    case 'projection_source_unavailable': return '电网服务未能返回本次模型的拓扑。请重试本次指令；若仍失败，可查看执行过程。'
     default: return '本次运行未取得可验证的电网拓扑。请重试本次指令或重新打开模型；已完成的回答仍可查看。'
   }
 }

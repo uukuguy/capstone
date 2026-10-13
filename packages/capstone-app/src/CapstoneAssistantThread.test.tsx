@@ -20,7 +20,7 @@ describe('CapstoneAssistantThread', () => {
       ...Array.from({ length: 12 }, (_, index) => event('tool_completed', index + 3,
         { tool_name: `grid_check_${index}`, tool_call_id: `call_${index}`, ok: true }, 'study'))]
     render(<CapstoneAssistantThread events={events} disabled={false} isRunning={true} activity={projectAssistantActivity(events)} onSend={async () => {}} onCancel={async () => {}} />)
-    const preview = screen.getByLabelText('运行过程预览')
+    const preview = screen.getByLabelText('执行过程预览')
     expect(preview.querySelectorAll('.capstone-chat-activity-item')).toHaveLength(10)
     expect(within(preview).getByText(snapshot.notes[0].text)).toBeTruthy()
     expect(preview.textContent).not.toContain('grid_check_0')
@@ -36,7 +36,7 @@ describe('CapstoneAssistantThread', () => {
     const time = screen.getByLabelText(/^回答完成时间：/)
     expect(time.getAttribute('datetime')).toBe(finished)
     expect(time.textContent).toMatch(/\d{2}:\d{2}:34/)
-    fireEvent.click(screen.getByRole('button', { name: '查看运行过程' }))
+    fireEvent.click(screen.getByRole('button', { name: '查看执行过程' }))
     expect(screen.getByText('CAPSTONE', { selector: '.capstone-chat-activity-source' })).toBeTruthy()
     expect(screen.getByText('GRID', { selector: '.capstone-chat-activity-source' })).toBeTruthy()
   })
@@ -761,14 +761,14 @@ describe('CapstoneAssistantThread', () => {
     const toolbar = screen.getByLabelText('回答操作')
     const buttons = within(toolbar).getAllByRole('button')
     expect(buttons.map((button) => button.getAttribute('aria-label'))).toEqual([
-      '复制回答', '查看此指令电网图', '查看计算结果', '查看推演证据', '查看运行过程', '重试本次指令', '更多回答操作',
+      '复制回答', '查看此指令电网图', '查看计算结果', '查看推演证据', '查看执行过程', '重试本次指令', '更多回答操作',
     ])
     expect(buttons.map((button) => (button as HTMLButtonElement).disabled)).toEqual([
       false, true, true, true, true, true, false,
     ])
     buttons.slice(1, 6).forEach((button) => fireEvent.click(button))
     expect(screen.queryByLabelText('推演证据')).toBeNull()
-    expect(screen.queryByLabelText('本次运行过程')).toBeNull()
+    expect(screen.queryByLabelText('本次执行过程')).toBeNull()
   })
   it('keeps unfinished feedback actions disabled inside More', async () => {
     render(<CapstoneAssistantThread events={[
@@ -875,7 +875,7 @@ describe('CapstoneAssistantThread', () => {
       expect.objectContaining({ id: 'grid_model_list', label: '读取模型目录', source: 'grid · model.list', status: 'running', startedAt: expect.any(String) }),
     ])
     render(<CapstoneAssistantThread events={events} disabled={true} isRunning={true} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
-    expect(screen.getByText((_, element) => element?.tagName === 'SPAN' && element.textContent?.includes('正在执行 1 个步骤') === true)).toBeTruthy()
+    expect(screen.getByText((_, element) => element?.tagName === 'SPAN' && element.textContent?.includes('正在执行 1 次工具调用') === true)).toBeTruthy()
     expect(screen.getAllByText(/运行中/).length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText('读取模型目录')).toBeTruthy()
   })
@@ -944,7 +944,7 @@ describe('CapstoneAssistantThread', () => {
     ]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} onRegenerate={async () => {}} />)
 
     expect(screen.getByRole('button', { name: '查看推演证据' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: '查看运行过程' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '查看执行过程' })).toBeTruthy()
     expect(screen.getByRole('status').textContent).toContain('1 项结构化结果')
     expect(screen.queryByLabelText('推演证据')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: '查看推演证据' }))
@@ -967,11 +967,11 @@ describe('CapstoneAssistantThread', () => {
     render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={projectAssistantActivity(events)} onSend={async () => {}} onCancel={async () => {}} />)
     const first = screen.getByText('已打开模型。').closest('.capstone-chat-message')!
     const second = screen.getByRole('table').closest('.capstone-chat-message')!
-    expect(within(first as HTMLElement).getByText('已完成 1 个步骤')).toBeTruthy()
-    expect(within(second as HTMLElement).getByText('已完成 2 个步骤')).toBeTruthy()
+    expect(within(first as HTMLElement).getByText('已完成 1 次工具调用')).toBeTruthy()
+    expect(within(second as HTMLElement).getByText('已完成 2 次工具调用')).toBeTruthy()
     expect(first.querySelectorAll('details')).toHaveLength(1)
     expect(second.querySelectorAll('details')).toHaveLength(1)
-    fireEvent.click(within(first as HTMLElement).getByRole('button', { name: '查看运行过程' }))
+    fireEvent.click(within(first as HTMLElement).getByRole('button', { name: '查看执行过程' }))
     expect(first.querySelector('details')?.open).toBe(true)
     expect(second.querySelector('details')?.open).toBe(false)
   })
@@ -986,11 +986,11 @@ describe('CapstoneAssistantThread', () => {
     const { container, rerender } = render(<CapstoneAssistantThread {...props} events={events} activity={projectAssistantActivity(events)} />)
     const details = container.querySelector<HTMLDetailsElement>('.capstone-chat-activity-attached')!
     expect(details.open).toBe(false)
-    expect(screen.getByLabelText('运行过程预览').querySelectorAll('.capstone-chat-activity-item')).toHaveLength(1)
+    expect(screen.getByLabelText('执行过程预览').querySelectorAll('.capstone-chat-activity-item')).toHaveLength(1)
     details.open = true
     fireEvent(details, new Event('toggle'))
     expect(details.open).toBe(true)
-    expect(screen.queryByLabelText('运行过程预览')).toBeNull()
+    expect(screen.queryByLabelText('执行过程预览')).toBeNull()
     details.open = false
     fireEvent(details, new Event('toggle'))
     const next = [...events,
@@ -1003,7 +1003,7 @@ describe('CapstoneAssistantThread', () => {
     ]
     rerender(<CapstoneAssistantThread {...props} events={next} activity={projectAssistantActivity(next)} />)
     expect(details.open).toBe(false)
-    const preview = screen.getByLabelText('运行过程预览')
+    const preview = screen.getByLabelText('执行过程预览')
     expect(preview.querySelectorAll('.capstone-chat-activity-item')).toHaveLength(4)
     expect(preview.textContent).toContain('grid_model_list')
     expect(preview.textContent).toContain('grid_context_get')
@@ -1012,7 +1012,7 @@ describe('CapstoneAssistantThread', () => {
     const completed = [...next, event('attempt_completed', 10, { answer: '执行完成。' }, 'running_activity')]
     rerender(<CapstoneAssistantThread {...props} isRunning={false} events={completed} activity={projectAssistantActivity(completed)} />)
     expect(details.open).toBe(true)
-    expect(screen.queryByLabelText('运行过程预览')).toBeNull()
+    expect(screen.queryByLabelText('执行过程预览')).toBeNull()
     expect(details.querySelectorAll('.capstone-chat-activity-item')).toHaveLength(4)
   })
 
@@ -1061,7 +1061,6 @@ describe('CapstoneAssistantThread', () => {
     expect(screen.getByText('有功损耗')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: '线路 11' }))
     expect(onFocusElement).toHaveBeenCalledWith(expect.objectContaining({ resultId: 'result_projection_1' }), 'line:11')
-    fireEvent.click(screen.getByRole('button', { name: '查看计算结果' }))
     fireEvent.click(screen.getByRole('button', { name: /结果 02.*电压偏差/ }))
     expect(screen.getByText('电压偏差')).toBeTruthy()
   })
@@ -1129,7 +1128,7 @@ describe('CapstoneAssistantThread', () => {
     ]
     render(<CapstoneAssistantThread events={events} disabled={true} isRunning={false} activity={[]} showActivity={false} onSend={async () => {}} onCancel={async () => {}} onRegenerate={onRegenerate} />)
     expect(screen.getByRole('button', { name: '重试本次指令' })).toBeTruthy()
-    expect((screen.getByRole('button', { name: '查看运行过程' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: '查看执行过程' }) as HTMLButtonElement).disabled).toBe(true)
     fireEvent.click(screen.getByRole('button', { name: '重试本次指令' }))
     await waitFor(() => expect(onRegenerate).toHaveBeenCalledWith('attempt_interrupted', '继续分析'))
   })
@@ -1144,8 +1143,8 @@ describe('CapstoneAssistantThread', () => {
     render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
     expect(screen.getByText('已读取部分模型。')).toBeTruthy()
     expect(screen.getByText('本次 Attempt 已取消')).toBeTruthy()
-    expect(screen.getByText(/已取消 · 1 个步骤/)).toBeTruthy()
-    expect(screen.queryByText(/已完成 1 个步骤/)).toBeNull()
+    expect(screen.getByText(/已取消 · 1 次工具调用/)).toBeTruthy()
+    expect(screen.queryByText(/已完成 1 次工具调用/)).toBeNull()
   })
 
   it('marks an interrupted run summary with the danger state', () => {
@@ -1155,7 +1154,7 @@ describe('CapstoneAssistantThread', () => {
       event('attempt_interrupted', 3, {}, 'attempt_interrupted'),
     ]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
 
-    const summary = screen.getByText(/已中断 · 1 个步骤/)
+    const summary = screen.getByText(/已中断 · 1 次工具调用/)
     expect(summary.closest('details')?.classList.contains('is-interrupted')).toBe(true)
   })
 
@@ -1165,7 +1164,7 @@ describe('CapstoneAssistantThread', () => {
       event('attempt_interrupted', 2, {}, 'attempt_terminal_only'),
     ]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
 
-    const summary = screen.getByText(/已中断 · 1 个步骤/)
+    const summary = screen.getByText(/已中断 · 1 次工具调用/)
     expect(summary.closest('details')?.classList.contains('is-interrupted')).toBe(true)
   })
 

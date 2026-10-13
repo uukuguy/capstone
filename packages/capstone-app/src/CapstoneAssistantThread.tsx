@@ -261,7 +261,7 @@ function terminalContent(event: EventEnvelope): string {
     return `**执行失败**\n\n${detail || attemptFailureCopy(code)}${detail && code ? `\n\n诊断代码：${code}` : ''}`
   }
   if (event.eventType === 'attempt_cancelled') return '**本次 Attempt 已取消**\n\n可以修改指令后重新发送。'
-  return '**本次 Attempt 已中断**\n\n可以查看运行过程，并在确认模型上下文后重新运行。'
+  return '**本次 Attempt 已中断**\n\n可以查看执行过程，并在确认模型上下文后重新运行。'
 }
 
 export function projectAssistantMessages(events: readonly EventEnvelope[], instructionModels: readonly { contextId: string; modelId: string }[] = []): ThreadMessageLike[] {
@@ -380,7 +380,7 @@ export function projectAssistantMessages(events: readonly EventEnvelope[], instr
     const message = {
       id: `assistant-${key}`,
       role: 'assistant' as const,
-      content: `本次 Attempt ${label}。可以查看运行过程，并在确认模型上下文后重新运行。`,
+      content: `本次 Attempt ${label}。可以查看执行过程，并在确认模型上下文后重新运行。`,
       status: { type: 'incomplete' as const, reason: event.eventType === 'attempt_failed' ? 'error' as const : event.eventType === 'attempt_cancelled' ? 'cancelled' as const : 'other' as const },
       metadata: { custom: { attemptId: key, source: 'capstone-harness', toolCount: events.filter((candidate) => candidate.attemptId === key && candidate.eventType.startsWith('tool_')).length, instruction: instructionByAttempt.get(key)?.text, modelContextId: event.modelContextId || contextByAttempt.get(key)?.modelContextId, selectionRevision: event.selectionRevision || contextByAttempt.get(key)?.selectionRevision, terminalPhase: event.eventType.replace(/^attempt_/, ''), startedAt: startedAtByAttempt.get(key), finishedAt: event.occurredAt, durationMs: durationBetween(startedAtByAttempt.get(key), event.occurredAt) } },
     }
@@ -521,7 +521,7 @@ function ChatActions({ networkSelected, onShowNetwork, role, text, evidenceRefs,
     <IconAction label="查看此指令电网图" disabled={!onShowNetwork} pressed={networkSelected} onClick={onShowNetwork}><Network /></IconAction>
     <IconAction label="查看计算结果" disabled={!resultAvailable || !onShowResult} expanded={resultOpen} onClick={onShowResult}><Activity /></IconAction>
     <IconAction label="查看推演证据" description={researchSnapshot && evidenceState !== 'available' ? '查看已保存的研究判断与工作记录' : failures.length > 0 && evidenceState !== 'available' ? '查看已保存的执行或核验失败记录' : evidenceStateCopy[evidenceState]} evidenceState={evidenceState} disabled={!evidenceAvailable} expanded={evidenceAvailable && showEvidence} onClick={() => setShowEvidence((value) => !value)}><FileCheck2 /></IconAction>
-    <IconAction label="查看运行过程" disabled={showActivity === false || toolCount === 0 || !onShowActivity} expanded={activityOpen} onClick={onShowActivity}><ListTree /></IconAction>
+    <IconAction label="查看执行过程" disabled={showActivity === false || toolCount === 0 || !onShowActivity} expanded={activityOpen} onClick={onShowActivity}><ListTree /></IconAction>
     <IconAction label="重试本次指令" disabled={!onRegenerate} onClick={() => void onRegenerate?.()}><RotateCcw /></IconAction>
     <MoreAnswerActions />
   </div>
@@ -566,6 +566,8 @@ function TaskProgressItems({ items }: { items: readonly TaskProgress[] }) {
 }
 
 function AttemptActivity({ activities, progress = [], steps = [], stepStorageKey = '', goal, running, phase, open, onOpenChange, startedAt, durationMs, detailsRef }: { activities: ChatActivity[]; progress?: readonly TaskProgress[]; steps?: readonly TaskStep[]; stepStorageKey?: string; goal?: string; running: boolean; phase?: string; open: boolean; onOpenChange: (open: boolean) => void; startedAt?: string; durationMs?: number; detailsRef: React.RefObject<HTMLDetailsElement | null> }) {
+  const toolActivities = activities.filter(item => !item.source.includes('agent_task_progress') || item.status === 'failed')
+  const toolCount = toolActivities.length
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     if (!running) return undefined
@@ -579,13 +581,13 @@ function AttemptActivity({ activities, progress = [], steps = [], stepStorageKey
   const terminalClass = phase === 'failed' || phase === 'interrupted' ? ` is-${phase}` : phase === 'cancelled' ? ' is-cancelled' : ''
   const process = (preview: boolean) => steps.length > 0 ? <>
     <TaskStepProcess steps={preview ? steps.slice(-10) : steps} storageKey={stepStorageKey} running={running}
-      renderTools={stepId => <><TaskProgressItems items={progress.filter(item => item.stepId === stepId && item.phase !== 'started')} /><ActivityItems activities={activities.filter(item => item.taskStepId === stepId)} /></>} />
-    <ActivityItems activities={activities.filter(item => !item.taskStepId && (!item.source.includes('agent_task_progress') || item.status === 'failed')).slice(preview ? -10 : 0)} />
-  </> : <ActivityItems activities={preview ? activities.slice(-10) : activities} />
+      renderTools={stepId => <><TaskProgressItems items={progress.filter(item => item.stepId === stepId && item.phase !== 'started')} /><ActivityItems activities={toolActivities.filter(item => item.taskStepId === stepId)} /></>} />
+    <ActivityItems activities={toolActivities.filter(item => !item.taskStepId).slice(preview ? -10 : 0)} />
+  </> : <ActivityItems activities={preview ? toolActivities.slice(-10) : toolActivities} />
   return <div className={`capstone-chat-activity-frame${running ? ' is-running' : ' is-settled'}`} aria-busy={running}><details ref={detailsRef} className={`capstone-chat-activity capstone-chat-activity-attached${terminalClass}`} open={open} onToggle={(event) => onOpenChange(event.currentTarget.open)}>
-    <summary><Activity aria-hidden="true" /><span>{running ? '正在执行' : terminalLabel} {activities.length} 个步骤{elapsed === undefined ? '' : ` · ${running ? '运行中' : '运行'} ${formatDuration(elapsed)}`}</span><small>查看运行过程</small></summary>
+    <summary><Activity aria-hidden="true" /><span>{running ? '正在执行' : terminalLabel} {steps.length > 0 ? `${steps.length} 个任务步骤 · ` : ''}{toolCount} 次工具调用{elapsed === undefined ? '' : ` · 总耗时 ${formatDuration(elapsed)}`}</span><small>查看执行过程</small></summary>
     {(!running || open) && <div className="capstone-complete-process">{goal && <p className="capstone-task-goal">研究目标：{goal}</p>}<TaskProgressItems items={progress.filter(item => !item.stepId)} />{process(false)}</div>}
-  </details>{running && !open && <div className="capstone-chat-activity-preview" aria-label="运行过程预览">{goal && <p className="capstone-task-goal">研究目标：{goal}</p>}<TaskProgressItems items={progress.filter(item => !item.stepId).slice(-1)} />{process(true)}</div>}</div>
+  </details>{running && !open && <div className="capstone-chat-activity-preview" aria-label="执行过程预览">{goal && <p className="capstone-task-goal">研究目标：{goal}</p>}<TaskProgressItems items={progress.filter(item => !item.stepId).slice(-1)} />{process(true)}</div>}</div>
 }
 
 function LegacyActivity({ activities, running }: { activities: ChatActivity[]; running: boolean }) {
@@ -768,7 +770,7 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
     </div>}
     {role === 'assistant' && hasResults && resultOpen && <ResultExplorer projections={attemptResultProjections} failures={failureResults}
       initialResultId={pendingResultId} onClose={() => setResultOpen(false)} renderResult={(projection, tableId) =>
-        <ResultProjectionCard projection={projection} tableId={tableId} onFocusElement={(value, elementId) => { setResultOpen(false); onFocusElement?.(value, elementId) }} />} />}
+        <ResultProjectionCard projection={projection} tableId={tableId} onFocusElement={(value, elementId) => { onFocusElement?.(value, elementId) }} />} />}
     {role === 'assistant' && <RunArtifacts resultRefs={resultRefs} evidenceRefs={evidenceRefs} admission={admission} />}
     {role === 'user' && hasText && <div className="capstone-instruction-meta">
       <ChatActions role={role} text={text} evidenceRefs={[]} toolCount={0} />

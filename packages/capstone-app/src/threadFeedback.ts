@@ -24,11 +24,11 @@ export function commandRejectionCopy(code?: string): string {
 export function attemptFailureCopy(code?: string): string {
   const messages: Record<string, string> = {
     runtime_configuration_invalid: '服务的 AI 配置未就绪。请联系管理员检查配置，修复后再重试；已完成的历史回答仍保留。',
-    capability_required: '本次回答缺少所需的权威系统校验，未能提交。请查看运行过程后重试本次指令。',
-    solver_failed: '计算未能完成。请查看运行过程中的求解器信息，调整计算条件后重试。',
-    harness_failed: '执行服务未能完成本次指令。请查看运行过程后重试。',
+    capability_required: '本次回答缺少所需的权威系统校验，未能提交。请查看执行过程后重试本次指令。',
+    solver_failed: '计算未能完成。请查看执行过程中的求解器信息，调整计算条件后重试。',
+    harness_failed: '执行服务未能完成本次指令。请查看执行过程后重试。',
     answer_required: '本次执行没有生成可提交的回答，请重试本次指令。',
     attempt_lease_unavailable: '执行连接已失效，请重新同步后重试本次指令。',
   }
-  return `${messages[code || ''] || '本次指令未完成。请查看运行过程后重试；已完成的历史回答仍保留。'}${code ? `（诊断代码：${code}）` : ''}`
+  return `${messages[code || ''] || '本次指令未完成。请查看执行过程后重试；已完成的历史回答仍保留。'}${code ? `（诊断代码：${code}）` : ''}`
 }
