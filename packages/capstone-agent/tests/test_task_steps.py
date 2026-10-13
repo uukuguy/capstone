@@ -28,6 +28,19 @@ def test_runtime_step_does_not_turn_goal_into_an_action():
     assert 'task_step' not in tracker.annotate({'type': 'tool_execution_start', 'toolName': 'grid_check', 'toolCallId': 'one'})
 
 
+def test_native_step_annotations_survive_public_normalization():
+    from capstone_agent.task_steps import RuntimeStepTracker
+    from capstone_agent.harness import normalize_runtime_event
+    now = [0.0]
+    tracker = RuntimeStepTracker(clock=lambda: now[0])
+    start = normalize_runtime_event(tracker.annotate({'type': 'runtime_action', 'phase': 'started'}), runtime_mode='capstone')
+    assert start['payload']['task_step']['status'] == 'running'
+    now[0] = 2.0
+    end = normalize_runtime_event(tracker.annotate({'type': 'runtime_action', 'phase': 'completed'}), runtime_mode='capstone')
+    assert end['payload']['task_step']['duration_ms'] == 2000
+    assert end['payload']['task_step']['status'] == 'completed'
+
+
 def progress(step, phase, text):
     return {"type": "tool_result", "event": "tool_result", "tool_name": "agent_task_progress",
         "capability": "agent_task_progress", "ok": True,
