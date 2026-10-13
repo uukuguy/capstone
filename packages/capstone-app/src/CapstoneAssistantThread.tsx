@@ -573,6 +573,16 @@ function AttemptActivity({ activities, progress = [], steps = [], stepStorageKey
   const taskGoal = progress.find(item => item.kind === 'goal')?.text ?? goal
   const goalText = taskGoal?.replace(/^(?:任务目标|研究目标|目标)\s*[:：]\s*/u, '')
   const toolCount = toolActivities.length
+  const processViewport = useRef<HTMLDivElement>(null)
+  const followProcess = useRef(true)
+  const observeProcessScroll = (event: React.UIEvent<HTMLDivElement>) => {
+    const node = event.currentTarget
+    followProcess.current = node.scrollHeight - node.clientHeight - node.scrollTop < 20
+  }
+  useLayoutEffect(() => {
+    const node = processViewport.current
+    if (running && node && followProcess.current) node.scrollTop = Math.max(0, node.scrollHeight - node.clientHeight)
+  }, [running, activities, progress, steps, open])
   const [foldCommand, setFoldCommand] = useState<StepFoldCommand>()
   const [stepOpenStates, setStepOpenStates] = useState<Record<string, boolean>>({})
   const reportFold = useCallback((id: string, value: boolean) => {
@@ -597,13 +607,13 @@ function AttemptActivity({ activities, progress = [], steps = [], stepStorageKey
   if (activities.length === 0 && progress.length === 0 && steps.length === 0) return null
   const terminalLabel = phase === 'failed' ? '执行失败 ·' : phase === 'cancelled' ? '已取消 ·' : phase === 'interrupted' ? '已中断 ·' : '已完成'
   const terminalClass = phase === 'failed' || phase === 'interrupted' ? ` is-${phase}` : phase === 'cancelled' ? ' is-cancelled' : ''
-  const process = (preview: boolean) => {
-    if (steps.length === 0) return <ActivityItems activities={preview ? toolActivities.slice(-10) : toolActivities} />
+  const process = () => {
+    if (steps.length === 0) return <ActivityItems activities={toolActivities} />
     const entries = [
       ...steps.map(step => ({ id: `step:${step.id}`, at: step.startedAt, step, activity: undefined as ChatActivity | undefined })),
       ...toolActivities.filter(item => !item.taskStepId).map(activity => ({ id: `tool:${activity.id}`, at: activity.startedAt, step: undefined as TaskStep | undefined, activity })),
     ].sort((left, right) => (left.at ? Date.parse(left.at) : Infinity) - (right.at ? Date.parse(right.at) : Infinity))
-    return <>{(preview ? entries.slice(-10) : entries).map(entry => entry.step ?
+    return <>{entries.map(entry => entry.step ?
       <TaskStepProcess key={entry.id} steps={[entry.step]} storageKey={stepStorageKey} running={running}
         stepNumbers={Object.fromEntries(steps.map(step => [step.id, step.number]))}
         foldCommand={foldCommand} onFoldChange={reportFold}
@@ -614,8 +624,8 @@ function AttemptActivity({ activities, progress = [], steps = [], stepStorageKey
   }
   return <div className={`capstone-chat-activity-frame${running ? ' is-running' : ' is-settled'}`} aria-busy={running}><details ref={detailsRef} className={`capstone-chat-activity capstone-chat-activity-attached${terminalClass}`} open={open} onToggle={(event) => onOpenChange(event.currentTarget.open)}>
     <summary><Activity aria-hidden="true" /><span>{running ? '正在执行' : terminalLabel} {steps.length > 0 ? `${steps.length} 个任务步骤 · ` : ''}{toolCount} 次工具调用{elapsed === undefined ? '' : ` · 总耗时 ${formatDuration(elapsed)}`}</span>{!open && <small>查看执行过程</small>}{open && steps.length > 0 && <span className="capstone-process-controls" role="group" aria-label="步骤显示"><button type="button" disabled={steps.every(step => isStepOpen(step.id))} onClick={event => { event.preventDefault(); event.stopPropagation(); foldAll(true) }}>展开全部</button><button type="button" disabled={steps.every(step => !isStepOpen(step.id))} onClick={event => { event.preventDefault(); event.stopPropagation(); foldAll(false) }}>收起全部</button></span>}</summary>
-    {(!running || open) && <div className="capstone-complete-process">{goalText && <p className="capstone-task-goal">{goalText}</p>}<TaskProgressItems items={progress.filter(item => !item.stepId && item.kind !== 'goal')} />{process(false)}</div>}
-  </details>{running && !open && <div className="capstone-chat-activity-preview" aria-label="执行过程预览">{goalText && <p className="capstone-task-goal">{goalText}</p>}<TaskProgressItems items={progress.filter(item => !item.stepId && item.kind !== 'goal').slice(-1)} />{process(true)}</div>}</div>
+    {(!running || open) && <div ref={processViewport} onScroll={observeProcessScroll} className="capstone-complete-process">{goalText && <p className="capstone-task-goal">{goalText}</p>}<TaskProgressItems items={progress.filter(item => !item.stepId && item.kind !== 'goal')} />{process()}</div>}
+  </details>{running && !open && <div ref={processViewport} onScroll={observeProcessScroll} className="capstone-chat-activity-preview" aria-label="执行过程预览">{goalText && <p className="capstone-task-goal">{goalText}</p>}<TaskProgressItems items={progress.filter(item => !item.stepId && item.kind !== 'goal')} />{process()}</div>}</div>
 }
 
 function LegacyActivity({ activities, running }: { activities: ChatActivity[]; running: boolean }) {

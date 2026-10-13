@@ -66,7 +66,7 @@ describe('CapstoneAssistantThread', () => {
     expect(steps.every(step => step.open)).toBe(true)
     expect(expand.disabled).toBe(true)
   })
-  it('keeps exactly ten recent actions and a separate committed work explanation in the running preview', () => {
+  it('keeps all actions and a separate committed work explanation in the height-limited running window', () => {
     const snapshot = { research_id: 'research-1', revision: 1, goal: '核验故障影响', condition_refs: [], claims: [],
       notes: [{ note_id: 'finding', text: '已取得拓扑结果，继续检查失供范围。', refs: ['result:topology'] }], open_questions: [] }
     const events = [event('attempt_started', 1, {}, 'study'),
@@ -74,12 +74,29 @@ describe('CapstoneAssistantThread', () => {
         goal: snapshot.goal, current_note_ids: ['finding'], research_snapshot: snapshot }, 'study'),
       ...Array.from({ length: 12 }, (_, index) => event('tool_completed', index + 3,
         { tool_name: `grid_check_${index}`, tool_call_id: `call_${index}`, ok: true }, 'study'))]
-    render(<CapstoneAssistantThread events={events} disabled={false} isRunning={true} activity={projectAssistantActivity(events)} onSend={async () => {}} onCancel={async () => {}} />)
+    const props = { disabled: false, isRunning: true, onSend: async () => {}, onCancel: async () => {} }
+    const { rerender } = render(<CapstoneAssistantThread {...props} events={events} activity={projectAssistantActivity(events)} />)
     const preview = screen.getByLabelText('执行过程预览')
-    expect(preview.querySelectorAll('.capstone-chat-activity-item')).toHaveLength(10)
+    expect(preview.querySelectorAll('.capstone-chat-activity-item')).toHaveLength(12)
     expect(within(preview).getByText(snapshot.notes[0].text)).toBeTruthy()
-    expect(preview.textContent).not.toContain('grid_check_0')
+    expect(preview.textContent).toContain('grid_check_0')
     expect(preview.textContent).toContain('grid_check_11')
+    Object.defineProperties(preview, { scrollHeight: { configurable: true, value: 600 }, clientHeight: { configurable: true, value: 320 } })
+    const append = (sequence: number) => {
+      events.push(event('tool_completed', sequence, { tool_name: 'grid_query', tool_call_id: `extra_${sequence}`, ok: true }, 'study'))
+      rerender(<CapstoneAssistantThread {...props} events={[...events]} activity={projectAssistantActivity(events)} />)
+    }
+    append(50)
+    expect(preview.scrollTop).toBe(280)
+    preview.scrollTop = 40
+    fireEvent.scroll(preview)
+    append(51)
+    expect(preview.scrollTop).toBe(40)
+    preview.scrollTop = 280
+    fireEvent.scroll(preview)
+    Object.defineProperty(preview, 'scrollHeight', { configurable: true, value: 700 })
+    append(52)
+    expect(preview.scrollTop).toBe(380)
   })
   it('shows actual reply completion time and distinct tool sources', () => {
     const finished = '2026-10-13T05:12:34Z'
