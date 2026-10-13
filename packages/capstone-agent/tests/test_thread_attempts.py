@@ -741,6 +741,24 @@ def test_same_model_switch_is_rejected_and_context_identity_is_reused() -> None:
     assert service.snapshot("thr_attempts").active_model_context.id == before
 
 
+def test_work_reset_activates_without_starting_a_task_and_rejects_active_execution():
+    service = _model_service()
+    original = service.snapshot("thr_attempts")
+    receipt = service.submit_command({**_command("cmd_reset"), "kind": "reopen_model_context",
+        "payload": {"model_id": "ieee39", "reason": "user_requested_work_reset"}})
+    assert receipt.status == "accepted"
+    reset = service.snapshot("thr_attempts")
+    assert reset.active_model_context.id != original.active_model_context.id
+    assert reset.pending_model_switch is None and reset.current_attempt is None
+    service.submit_command({**_command("cmd_after_reset"), "expected_event_seq": reset.last_event_seq})
+    busy = service.snapshot("thr_attempts")
+    rejected = service.submit_command({**_command("cmd_reset_busy"), "kind": "reopen_model_context",
+        "expected_event_seq": busy.last_event_seq,
+        "payload": {"model_id": "ieee39", "reason": "user_requested_work_reset"}})
+    assert rejected.status == "rejected"
+    assert service.snapshot("thr_attempts") == busy
+
+
 def test_model_switch_rejects_a_family_without_a_ready_worker() -> None:
     service = _model_service()
     service.set_available_families(frozenset({"pandapower"}))

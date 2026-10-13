@@ -14,6 +14,18 @@ const selected = [{ profileId: 'pandapower-static-analysis', profileVersion: '1.
 const props = { catalog, selectedProfiles: selected,
   pendingModel: undefined, disabled: false, historyActions: <span>历史回答</span> }
 
+it('explains retained history before an explicit work reset and disables it during execution', () => {
+  const reset = vi.fn()
+  const { rerender } = render(<ThreadControls {...props} onProfileSelection={vi.fn()} onResetWork={reset} />)
+  fireEvent.click(screen.getByRole('button', { name: '对话设置' }))
+  fireEvent.click(screen.getByText('重置工作上下文'))
+  expect(screen.getByText(/历史回答、计算结果和证据保留/)).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: '确认重置' }))
+  expect(reset).toHaveBeenCalledOnce()
+  rerender(<ThreadControls {...props} onProfileSelection={vi.fn()} onResetWork={reset} resetDisabled />)
+  expect((screen.getByRole('button', { name: '确认重置' }) as HTMLButtonElement).disabled).toBe(true)
+})
+
 it('saves global tool-group changes regardless of the open model family', () => {
   const onProfileSelection = vi.fn()
   render(<ThreadControls {...props} onProfileSelection={onProfileSelection} />)

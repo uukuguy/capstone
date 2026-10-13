@@ -75,6 +75,27 @@ def test_postgres_claim_restores_persisted_research_generation(postgres_thread_s
     assert claim.research_generation == reset_id
 
 
+def test_postgres_work_reset_commits_atomically_without_a_task(postgres_thread_service):
+    from types import SimpleNamespace
+    service, thread_id = postgres_thread_service
+    snapshot = _snapshot(thread_id)
+    service.create_thread(snapshot)
+    catalog = SimpleNamespace(resolve=lambda _: ThreadModelDescriptor("ieee39", "7", "pandapower"))
+    service = PostgresThreadService(service.dsn, model_catalog=catalog)
+    command = {**_command(thread_id), "kind": "reopen_model_context",
+               "payload": {"model_id": "ieee39", "reason": "user_requested_work_reset"}}
+    receipt = service.submit_command(command)
+    assert receipt.status == "accepted"
+    assert service.submit_command(command) == receipt
+    reset = service.snapshot(thread_id)
+    assert reset.active_model_context.id != snapshot.active_model_context.id
+    assert reset.pending_model_switch is None and reset.current_attempt is None
+    assert reset.active_model_context.model_revision == "7"
+    events = service.read_events(thread_id, 0).events
+    assert sum(event.event_type == "model_context_reopened" for event in events) == 1
+    assert not any(event.event_type == "attempt_started" for event in events)
+
+
 def test_attempt_records_keep_failed_and_diagnostic_events_in_original_context(postgres_thread_service):
     service, thread_id = postgres_thread_service
     snapshot = _snapshot(thread_id)

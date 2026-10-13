@@ -656,6 +656,7 @@ def _thread_catalog_document(
 
     return {
         "schema": "capstone-thread-catalog/1",
+        "work_context_reset": True,
         "models": models,
         "profiles": [profiles[key] for key in sorted(profiles)],
     }
@@ -1201,6 +1202,8 @@ class InMemoryThreadService:
                         },
                     )
                     self._snapshot = replace(self._snapshot, last_event_seq=requested.event_seq)
+                    if pending.fresh_context_reason == "user_requested_work_reset":
+                        self._activate_pending_model_switch(None)
                     receipt = self._receipt(
                         parsed, status="accepted", accepted_event_seq=accepted.event_seq,
                         target={
@@ -1751,6 +1754,10 @@ class InMemoryThreadService:
     def _model_switch_for_command(
         self, command: Mapping[str, Any], *, allow_same: bool = False,
     ) -> tuple[PendingModelSwitchSnapshot | None, str | None]:
+        if (command["payload"].get("reason") == "user_requested_work_reset"
+                and self._snapshot.current_attempt is not None
+                and self._snapshot.current_attempt.phase in {"accepted", "running", "waiting", "committing"}):
+            return None, "attempt_in_progress"
         if self._snapshot.pending_model_switch is not None or self._snapshot.pending_selection is not None:
             return None, "context_change_pending"
         catalog = self._model_catalog
@@ -1790,7 +1797,7 @@ class InMemoryThreadService:
             ),
         ), None
 
-    def _activate_pending_model_switch(self, turn_id: str) -> None:
+    def _activate_pending_model_switch(self, turn_id: str | None) -> None:
         pending = self._snapshot.pending_model_switch
         if pending is None:
             return
@@ -1811,7 +1818,7 @@ class InMemoryThreadService:
             ),
             payload={
                 "command_id": pending.command_id,
-                "activation_turn_id": turn_id,
+                **({"activation_turn_id": turn_id} if turn_id is not None else {}),
                 "reason": pending.reason,
                 **({"fresh_context_reason": pending.fresh_context_reason}
                    if pending.fresh_context_reason is not None else {}),
@@ -2665,6 +2672,10 @@ class PostgresThreadService:
                            WHERE thread_id = %s""",
                         (Jsonb(pending.to_document()), requested.event_seq, snapshot.thread_id),
                     )
+                    if pending.fresh_context_reason == "user_requested_work_reset":
+                        self._activate_pending_model_switch(connection, thread,
+                            replace(snapshot, pending_model_switch=pending, pending_selection=None,
+                                    last_event_seq=requested.event_seq), None)
                     receipt = self._receipt(
                         parsed, status="accepted", accepted_event_seq=accepted.event_seq,
                         target={
@@ -3523,6 +3534,10 @@ class PostgresThreadService:
     def _model_switch_for_command(
         self, snapshot: ThreadSnapshot, command: Mapping[str, Any], *, allow_same: bool = False,
     ) -> tuple[PendingModelSwitchSnapshot | None, str | None]:
+        if (command["payload"].get("reason") == "user_requested_work_reset"
+                and snapshot.current_attempt is not None
+                and snapshot.current_attempt.phase in {"accepted", "running", "waiting", "committing"}):
+            return None, "attempt_in_progress"
         if snapshot.pending_model_switch is not None or snapshot.pending_selection is not None:
             return None, "context_change_pending"
         catalog = self._model_catalog
@@ -3567,7 +3582,7 @@ class PostgresThreadService:
         connection: psycopg.Connection[dict[str, Any]],
         thread: Mapping[str, Any],
         snapshot: ThreadSnapshot,
-        turn_id: str,
+        turn_id: str | None,
     ) -> ThreadSnapshot:
         pending = snapshot.pending_model_switch
         assert pending is not None
@@ -3589,7 +3604,7 @@ class PostgresThreadService:
             ),
             payload={
                 "command_id": pending.command_id,
-                "activation_turn_id": turn_id,
+                **({"activation_turn_id": turn_id} if turn_id is not None else {}),
                 "reason": pending.reason,
                 **({"fresh_context_reason": pending.fresh_context_reason}
                    if pending.fresh_context_reason is not None else {}),

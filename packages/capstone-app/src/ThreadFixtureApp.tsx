@@ -537,7 +537,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
     if (receipt?.status !== 'accepted') throw new MessageNotSentError('指令未发送，请检查页面提示后重试。')
   }
 
-  async function changeModel(kind: 'open_model' | 'activate_model' | 'close_model', payload: Record<string, unknown>): Promise<boolean> {
+  async function changeModel(kind: 'open_model' | 'activate_model' | 'close_model' | 'reopen_model_context', payload: Record<string, unknown>): Promise<boolean> {
     taskReturnGeneration.current++
     setInstructionLocation(undefined)
     setTaskReturn(undefined)
@@ -551,9 +551,11 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
       selectPage(store.state.snapshot!.activeGridPageId)
       return true
     }
-    const receipt = await dispatch(kind, payload, kind === 'close_model' ? `已关闭${entry ? ` ${entry.displayName}` : '模型'}。` : '当前电网模型已切换。')
+    const receipt = await dispatch(kind, payload, kind === 'close_model' ? `已关闭${entry ? ` ${entry.displayName}` : '模型'}。`
+      : kind === 'reopen_model_context' ? '当前工作上下文已重置，历史记录保留。' : '当前电网模型已切换。')
     if (receipt?.status !== 'accepted') return false
     if (receipt.acceptedEventSeq !== undefined) await store.catchUpThrough(receipt.acceptedEventSeq)
+    if (kind === 'reopen_model_context') await store.catchUp()
     await store.refreshModels()
     if (kind !== 'close_model') selectPage(store.state.snapshot!.activeGridPageId)
     else if (!isHistorical) setSelectedNetworkAttempt(undefined)
@@ -650,6 +652,10 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
             onCaseStart={startCase} onCaseAction={caseAction}
             composerControls={(historyActions) => <><ThreadControls catalog={projection.catalog} selectedProfiles={selectedTools}
               pendingModel={snapshot.pendingModelSwitch?.modelId} disabled={loading || caseActive || sending} historyActions={historyActions}
+              resetDisabled={readOnly || isHistorical || modelBusy || isActive || isInterrupted || contextChangePending || unresolvedCommand || projection.connection !== 'live'}
+              onResetWork={projection.catalog?.workContextReset ? () => { void changeModel('reopen_model_context', {
+                model_id: snapshot.activeModelContext.modelId, reason: 'user_requested_work_reset',
+              }).catch(() => addSystemNotice('重置尚未确认，请重新连接后检查当前模型。', 'error')) } : undefined}
               onProfileSelection={(profiles) => setDisabledToolIds(updateToolPreferences(projection.catalog?.profiles || [], disabledToolIds, profiles))} />
               <ThreadModelDirectory models={modelOptions} currentModelId={snapshot.activeModelContext.modelId} target={modelTarget}
                 disabled={activity.paused || readOnly || loading || unresolvedCommand || contextChangePending || isActive || isInterrupted || caseActive || sending || modelBusy || isHistorical && !projection.modelWorkspace || projection.connection !== 'live'} pending={contextChangePending}
