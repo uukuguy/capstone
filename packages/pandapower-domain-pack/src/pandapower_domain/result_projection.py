@@ -11,7 +11,7 @@ import re
 from collections.abc import Callable, Collection, Mapping
 from typing import Any
 
-from .analysis_result_projection import project_analysis_result
+from .analysis_result_projection import project_analysis_result, project_analysis_table_page
 
 
 _REF = re.compile(r"^(context|result|evidence|revision):sha256:[0-9a-f]{64}$")
@@ -84,6 +84,22 @@ class PandapowerResultProjector:
 
     domain_pack_id = "pandapower-static-analysis"
     implementation_family = "pandapower"
+
+    def project_table_page(self, *, authority: object, result_ref: str, expected_revision: str,
+                           table_id: str, offset: int = 0, limit: int = 32) -> dict[str, object]:
+        """Read a saved table after the application grants its exact result."""
+        _ref(result_ref, "result_ref", "result")
+        _ref(expected_revision, "expected_revision", "revision")
+        verify_result = getattr(authority, "verify_result", None)
+        if not callable(verify_result):
+            raise ValueError("result table authority verification is unavailable")
+        calculation = getattr(verify_result(result_ref), "document", None)
+        if not isinstance(calculation, Mapping) or calculation.get("result_ref") != result_ref:
+            raise ValueError("result table identity does not match its grant")
+        if calculation.get("revision_ref") != expected_revision:
+            raise ValueError("result table revision does not match its grant")
+        return {**project_analysis_table_page(calculation, table_id, offset=offset, limit=limit),
+                "result_ref": result_ref}
 
     def project_admitted(
         self,

@@ -35,6 +35,10 @@ _POWERFLOW_TABLES = (
     ("result.res_gen", "发电机出力", ("index", "p_mw", "q_mvar", "vm_pu")),
     ("result.res_ext_grid", "外部电网出力", ("index", "p_mw", "q_mvar")),
 )
+_CONTINGENCY_FIELDS = ("element_kind", "pandapower_index", "status", "converged",
+                       "max_loading_percent", "min_vm_pu", "max_vm_pu")
+_CONTINGENCY_SCHEMA = [{"name": "max_loading_percent", "unit": "%"},
+                       {"name": "min_vm_pu", "unit": "p.u."}, {"name": "max_vm_pu", "unit": "p.u."}]
 
 
 def _scalar(value: object) -> object:
@@ -48,7 +52,7 @@ def _scalar(value: object) -> object:
 
 
 def _table(table_id: str, title: str, fields: tuple[str, ...], rows: list,
-           schema: object = None) -> dict[str, object]:
+           schema: object = None, *, offset: int = 0, limit: int = 128) -> dict[str, object]:
     if any(not isinstance(row, Mapping) for row in rows):
         raise ValueError("analysis projection rows are invalid")
     selected = tuple(field for field in fields if any(isinstance(row, Mapping) and field in row for row in rows))
@@ -66,7 +70,50 @@ def _table(table_id: str, title: str, fields: tuple[str, ...], rows: list,
     return {"table_id": table_id, "title": title, "columns": columns,
             "rows": [{"row_id": f"{table_id}:{index}",
                       "cells": {field: _scalar(row[field]) for field in selected if field in row}}
-                     for index, row in enumerate(rows[:128]) if isinstance(row, Mapping)]}
+                     for index, row in enumerate(rows[offset:offset + limit], start=offset) if isinstance(row, Mapping)]}
+
+
+def project_analysis_table_page(calculation: Mapping[str, Any], table_id: str, *,
+                                offset: int = 0, limit: int = 32) -> dict[str, object]:
+    """Project a published table from stored calculation data, without a solver.
+
+    The application must bind the result to the requesting task before calling
+    this projector. A page is a view of the same rows, not a new result.
+    """
+    if type(offset) is not int or offset < 0 or type(limit) is not int or not 1 <= limit <= 128:
+        raise ValueError("analysis table cursor is invalid")
+    if (calculation.get("capability_id", calculation.get("producer_capability"))
+        == "analysis.contingency.n_minus_one.run"):
+        if table_id != "contingency_scenarios":
+            raise ValueError("analysis table is not published")
+        return _table_page(calculation, table_id, "逐场景校核结果", _CONTINGENCY_FIELDS,
+                           calculation.get("scenarios"), _CONTINGENCY_SCHEMA, offset, limit)
+    operation = calculation.get("operation")
+    specs = _OPF_TABLES if operation in {"opf.ac", "opf.dc"} else (
+        _POWERFLOW_TABLES if operation == "powerflow.ac" else (
+            (("result.res_violation", "约束越限记录", ("index", "kind", "severity", "value", "limit", "unit")),)
+            if operation == "constraints.violations" else ()))
+    spec = next((item for item in specs if item[0].removeprefix("result.") == table_id), None)
+    if spec is None:
+        raise ValueError("analysis table is not published")
+    datasets = calculation.get("datasets")
+    dataset = datasets.get(spec[0]) if isinstance(datasets, Mapping) else None
+    rows = dataset.get("rows") if isinstance(dataset, Mapping) else None
+    return _table_page(calculation, table_id, spec[1], spec[2], rows,
+                       dataset.get("fields") if isinstance(dataset, Mapping) else None, offset, limit)
+
+
+def _table_page(calculation: Mapping[str, Any], table_id: str, title: str, fields: tuple[str, ...],
+                rows: object, schema: object, offset: int, limit: int) -> dict[str, object]:
+    if not isinstance(rows, list):
+        raise ValueError("analysis table rows are unavailable")
+    if offset > len(rows):
+        raise ValueError("analysis table cursor exceeds stored rows")
+    table = _table(table_id, title, fields, rows, schema, offset=offset, limit=limit)
+    next_offset = min(offset + limit, len(rows))
+    return {"table": table, "total_rows": len(rows), "offset": offset,
+            "next_offset": next_offset if next_offset < len(rows) else None,
+            "context_ref": calculation.get("context_ref"), "revision_ref": calculation.get("revision_ref")}
 
 
 def project_analysis_result(calculation: Mapping[str, Any], base: dict[str, object]) -> dict[str, object] | None:
@@ -96,9 +143,7 @@ def project_analysis_result(calculation: Mapping[str, Any], base: dict[str, obje
         if isinstance(evaluation, Mapping) and "status" in evaluation:
             metric("constraint_evaluation", evaluation["status"])
         tables.append(_table("contingency_scenarios", "逐场景校核结果",
-            ("element_kind", "pandapower_index", "status", "converged", "max_loading_percent", "min_vm_pu", "max_vm_pu"), scenarios,
-            [{"name": "max_loading_percent", "unit": "%"}, {"name": "min_vm_pu", "unit": "p.u."},
-             {"name": "max_vm_pu", "unit": "p.u."}]))
+            _CONTINGENCY_FIELDS, scenarios, _CONTINGENCY_SCHEMA))
         if any(isinstance(row, Mapping) and row.get("status") != "succeeded" for row in scenarios):
             reasons.append("部分场景计算未成功，失败状态已保留")
         if len(scenarios) > 128:
