@@ -89,7 +89,8 @@ class RuntimeStepTracker(TaskStepTracker):
             if phase == "started" and self.active is None:
                 number = len(self.steps) + 1
                 identity = f"runtime-{number}"
-                self.steps[identity] = {"id": identity, "number": number, "title": "模型响应",
+                self.steps[identity] = {"id": identity, "number": number,
+                    "title": "生成回复" if event.get('response_kind') == 'reply' else "模型响应",
                     "status": "running", "start": self.clock(), "tools": 0}
                 if self.pending_failed_steps:
                     self.steps[identity]["after_failed_steps"] = sorted(self.pending_failed_steps)

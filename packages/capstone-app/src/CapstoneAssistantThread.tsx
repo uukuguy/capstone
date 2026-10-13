@@ -76,6 +76,7 @@ const TOOL_LABELS: Record<string, string> = {
   grid_model_list: '读取模型目录',
   grid_context_get: '读取模型上下文',
   grid_context_open: '打开模型上下文',
+  capstone_begin_reply: '进入正式回复',
   grid_model_element_get: '读取模型元件',
   grid_topology_branch_endpoints: '解析线路端点',
   grid_model_constraints_describe: '获取模型约束',

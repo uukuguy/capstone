@@ -71,6 +71,14 @@ def test_response_timing_records_first_public_text_and_usage_without_inventing_p
     assert end['task_step']['usage'] == {'input': 9000, 'output': 200}
 
 
+def test_explicit_reply_phase_is_named_before_model_generation():
+    from capstone_agent.task_steps import RuntimeStepTracker
+    tracker = RuntimeStepTracker()
+    event = tracker.annotate({'type': 'runtime_action', 'phase': 'started', 'response_kind': 'reply'})
+    assert event['task_step']['title'] == '生成回复'
+    assert event['task_step']['status'] == 'running'
+
+
 def test_runtime_step_does_not_turn_goal_into_an_action():
     from capstone_agent.task_steps import RuntimeStepTracker
     tracker = RuntimeStepTracker()
