@@ -82,11 +82,12 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
   const geometry = view?.schema === 'capstone-network-view/2.0' ? view.diagram : view || previewDiagram
   const layer = view?.schema === 'capstone-network-view/2.0' ? view.layer : view
   const annotations = view?.schema === 'capstone-network-view/2.0' ? view.layer.annotations : undefined
-  const regions = annotations && annotations.regions.length > 1 ? annotations.regions : []
+  const regions = useMemo(() => annotations && annotations.regions.length > 1 &&
+    annotations.states.some((state) => state.style === 'disconnected') ? annotations.regions : [], [annotations])
   const stateById = useMemo(() => new Map(annotations?.states.flatMap((state) =>
     state.ids.map((id) => [id, state] as const)) || []), [annotations])
-  const regionById = useMemo(() => new Map((annotations && annotations.regions.length > 1 ? annotations.regions : []).flatMap((region, index) =>
-    region.ids.map((id) => [id, { ...region, index }] as const))), [annotations])
+  const regionById = useMemo(() => new Map(regions.flatMap((region, index) =>
+    region.ids.map((id) => [id, { ...region, index }] as const))), [regions])
   const regionColors = ['#436fba', '#8e619c', '#9c7235', '#45877b', '#af6470', '#687dad']
   const viewIdentity = view?.schema === 'capstone-network-view/2.0'
     ? `${view.diagram.ref}:${view.ordinal}:${view.layer.focus_ids.join(',')}:${view.layer.next_focus_ids.join(',')}`

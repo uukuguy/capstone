@@ -23,6 +23,13 @@ it('shows sourced disconnection and region legends without declaring physical su
   expect(container.querySelector('.network-state-disconnected')).toBeTruthy()
   expect(container.querySelector('.network-region-marker')).toBeTruthy()
   expect(screen.queryByText('物理失电')).toBeNull()
+  const divided = view.layer.annotations.regions
+  view.layer.annotations.states = []
+  cleanup()
+  const ordinary = render(<NetworkView view={view} modelName="测试电网" focusKey="ordinary" />)
+  expect(ordinary.container.querySelector('.network-region-marker')).toBeNull()
+  view.layer.annotations.states = [{ label: '已断开', style: 'disconnected', ids: [view.diagram.branches[0].id], source_ref: 'result:current' }]
+  view.layer.annotations.regions = divided
   view.layer.annotations.regions = [view.layer.annotations.regions[0]]
   cleanup()
   const single = render(<NetworkView view={view} modelName="测试电网" focusKey="single" />)
