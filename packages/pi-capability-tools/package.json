@@ -12,7 +12,7 @@
     "./research-tools": "./src/research-tools.mjs"
   },
   "scripts": {
-    "check": "node --check src/domain-tools.mjs && node --check src/process-transport.mjs && node --check src/model-request-capture.mjs && node --check src/research-tools.mjs && node --check src/task-record-tools.mjs",
+    "check": "node --check src/domain-tools.mjs && node --check src/process-transport.mjs && node --check src/model-request-capture.mjs && node --check src/research-tools.mjs && node --check src/task-record-tools.mjs && node --check src/result-delivery-tools.mjs",
     "test": "node --test"
   },
   "dependencies": {

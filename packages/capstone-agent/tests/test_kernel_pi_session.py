@@ -326,6 +326,20 @@ def test_core_observations_do_not_hide_domain_execution_from_admission():
     assert requests[0].observed_capabilities == ("model.describe",)
 
 
+def test_delivery_receipt_is_application_presentation_not_authority_evidence():
+    profile, claim, requests = _research_admission_fixture()
+    delivery = SimpleNamespace(projections=lambda *_: ())
+    event = {'tool_name': 'capstone_result_delivery_read', 'capability': 'capstone_result_delivery_read', 'ok': True}
+    admitted = _build_kernel_admission((profile,), result_delivery=delivery)(claim, 'Tables prepared.', (), (), (event,))
+    assert admitted.result_refs == admitted.evidence_refs == ()
+    assert requests[0].authority_attempted is False
+    with pytest.raises(ValueError, match='delivery provenance'):
+        _build_kernel_admission((profile,))(claim, 'Tables prepared.', (), (), (event,))
+    with pytest.raises(ValueError, match='delivery provenance'):
+        _build_kernel_admission((profile,), result_delivery=delivery)(claim, 'Tables prepared.', (), (),
+            ({**event, 'result_refs': ['result:untrusted']},))
+
+
 def test_core_record_cannot_admit_a_top_level_result_reference():
     from capability_agent.tools.catalog import CoreToolCatalog
     profile, claim, _ = _research_admission_fixture()
