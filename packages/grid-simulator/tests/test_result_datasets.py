@@ -7,6 +7,28 @@ def _run(grid, context_ref: str) -> dict[str, object]:
     return grid.call("analysis.run", {"context_ref": context_ref, "operation": "powerflow.ac", "options": {}})
 
 
+@pytest.mark.parametrize("operation", ["powerflow.ac", "opf.ac"])
+def test_result_receipts_publish_actual_query_fields_without_another_solve(grid, context_ref, operation):
+    analysis = grid.call("analysis.run", {"context_ref": context_ref, "operation": operation, "options": {}})
+    runs = grid.engine.ac_run_count
+    listed = grid.call("result.dataset.list", {"result_ref": analysis["result_ref"]})
+    listed_by_name = {item["dataset"]: item for item in listed["datasets"]}
+    for item in analysis["datasets"]:
+        described = grid.call("result.dataset.describe", {
+            "result_ref": analysis["result_ref"], "dataset": item["dataset"]})
+        actual = [field["name"] for field in described["fields"]]
+        assert item["available_fields"] == actual
+        assert listed_by_name[item["dataset"]]["available_fields"] == actual
+    bus = listed_by_name["result.res_bus"]
+    assert "name" not in bus["available_fields"]
+    assert ("lam_p" in bus["available_fields"]) is (operation == "opf.ac")
+    queried = grid.call("result.dataset.query", {
+        "result_ref": analysis["result_ref"], "dataset": bus["dataset"],
+        "select": bus["available_fields"], "limit": 100})
+    assert queried["returned_row_count"] == bus["row_count"]
+    assert grid.engine.ac_run_count == runs
+
+
 def test_result_dataset_list_publishes_every_generated_result_table(grid, context_ref: str) -> None:
     analysis = _run(grid, context_ref)
     listed = grid.call("result.dataset.list", {"result_ref": analysis["result_ref"]})

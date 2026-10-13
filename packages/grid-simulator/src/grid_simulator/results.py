@@ -163,6 +163,7 @@ class ResultStore:
                     "dataset_ref": _dataset_ref(result_ref, name),
                     "source_table": data["source_table"],
                     "row_count": data["row_count"],
+                    "available_fields": [field["name"] for field in data["fields"]],
                 }
                 for name, data in document["datasets"].items()
             ],
