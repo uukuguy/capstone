@@ -505,7 +505,6 @@ function ChatActions({ networkSelected, onShowNetwork, role, text, evidenceRefs,
   const [copied, setCopied] = useState(false)
   const [showEvidence, setShowEvidence] = useState(false)
   const readRecords = useContext(AttemptRecordsContext)
-  const followup = useContext(ChatMessageContext)?.onFollowup
   const evidenceAvailable = evidenceState === 'available' || failures.length > 0 || Boolean(researchSnapshot) || executions.length > 0 || Boolean(readRecords && attemptId)
   const copy = async () => {
     if (await copyToClipboard(text)) {
@@ -519,7 +518,6 @@ function ChatActions({ networkSelected, onShowNetwork, role, text, evidenceRefs,
   return <>
   <div className="capstone-chat-actions" aria-label="回答操作">
     <IconAction label={copied ? '已复制' : '复制回答'} onClick={() => void copy()}>{copied ? <Check /> : <Copy />}</IconAction>
-    {followup && attemptId && <IconAction label="追问此任务" onClick={() => followup(attemptId)}><MessageCircle /></IconAction>}
     <IconAction label="查看此指令电网图" disabled={!onShowNetwork} pressed={networkSelected} onClick={onShowNetwork}><Network /></IconAction>
     <IconAction label="查看计算结果" disabled={!resultAvailable || !onShowResult} expanded={resultOpen} onClick={onShowResult}><Activity /></IconAction>
     <IconAction label="查看推演证据" description={researchSnapshot && evidenceState !== 'available' ? '查看已保存的研究判断与工作记录' : failures.length > 0 && evidenceState !== 'available' ? '查看已保存的执行或核验失败记录' : evidenceStateCopy[evidenceState]} evidenceState={evidenceState} disabled={!evidenceAvailable} expanded={evidenceAvailable && showEvidence} onClick={() => setShowEvidence((value) => !value)}><FileCheck2 /></IconAction>

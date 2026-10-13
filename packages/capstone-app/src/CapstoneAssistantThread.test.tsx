@@ -40,12 +40,12 @@ describe('CapstoneAssistantThread', () => {
     expect(screen.getByText('CAPSTONE', { selector: '.capstone-chat-activity-source' })).toBeTruthy()
     expect(screen.getByText('GRID', { selector: '.capstone-chat-activity-source' })).toBeTruthy()
   })
-  it('selects the original answer for followup without sending an instruction', () => {
+  it('keeps the unfinished followup entry hidden without sending an instruction', () => {
     const followup = vi.fn(), send = vi.fn()
     render(<CapstoneAssistantThread events={[event('attempt_completed', 1, { answer: '旧回答。' }, 'attempt_old')]}
       disabled={false} isRunning={false} activity={[]} onSend={send} onCancel={async () => {}} onFollowup={followup} />)
-    fireEvent.click(screen.getByRole('button', { name: '追问此任务' }))
-    expect(followup).toHaveBeenCalledWith('attempt_old')
+    expect(screen.queryByRole('button', { name: '追问此任务' })).toBeNull()
+    expect(followup).not.toHaveBeenCalled()
     expect(send).not.toHaveBeenCalled()
   })
   it('shows a research continuation as an action without presenting a calculation', () => {

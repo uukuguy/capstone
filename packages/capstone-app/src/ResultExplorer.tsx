@@ -18,16 +18,16 @@ export default function ResultExplorer({ projections, failures, initialResultId,
   const tableId = result?.tables.find(table => table.tableId === tables[result.resultId])?.tableId || result?.tables[0]?.tableId
   return <section className="capstone-result-explorer" aria-label="计算结果">
     <header><div><strong>计算结果</strong><small>{projections.length} 项结果 · {failures.length} 项失败记录{result ? ` · ${result.modelId}` : ''}</small></div>
-      <button type="button" aria-label="关闭计算结果" onClick={onClose}>关闭 ×</button></header>
+      <button type="button" aria-label="关闭计算结果" onClick={onClose}>收起</button></header>
     <div className="capstone-result-explorer-layout">
-      <nav aria-label="本次任务结果">
+      {(projections.length + failures.length > 1) && <nav aria-label="本次任务结果">
         {projections.map((item, index) => <button type="button" key={item.resultId} aria-pressed={selection === item.resultId} onClick={() => setSelection(item.resultId)}>
           <span>结果 {String(index + 1).padStart(2, '0')} · {label(item)}</span><small>{item.status === 'completed' ? '已返回' : item.status === 'partial' ? '部分结果' : '暂不可用'}</small>
         </button>)}
         {failures.map((item, index) => <button type="button" key={item.id} className="is-failed" aria-pressed={selection === `failure:${item.id}`} onClick={() => setSelection(`failure:${item.id}`)}>
           <span>失败 {String(index + 1).padStart(2, '0')} · {item.kind === 'execution' ? '执行失败' : '核验未通过'}</span><small>{item.tool || '回答核验'}</small>
         </button>)}
-      </nav>
+      </nav>}
       <div className="capstone-result-explorer-body">
         {result && <>{result.tables.length > 1 && <div className="capstone-result-table-switch" role="group" aria-label="结果表格">
           {result.tables.map(table => <button type="button" key={table.tableId} aria-pressed={tableId === table.tableId}
