@@ -7,10 +7,13 @@ import { threadUiFixture } from './threadUiFixtures'
 import { historyContexts, historyFixture, historyWorkspace } from './threadHistory.test-support'
 import { sampleDiagramView } from './networkFixture'
 import { parseContext } from './threadProtocol'
+import { writeDraft, writeFollowup } from './threadSessionState'
 
 afterEach(cleanup)
 
 it('keeps the unfinished task followup entry hidden and sends ordinary questions unchanged', async () => {
+  writeFollowup('stale-followup', { threadId: 'thr_demo_39', attemptId: 'attempt_old', modelId: 'ieee39', label: '原问题' })
+  writeDraft('stale-followup', '保留的输入草稿')
   const fixture = structuredClone(threadUiFixture('idle-ieee39'))
   const snapshot = fixture.snapshot as { last_event_seq: number; active_model_context: unknown }
   snapshot.last_event_seq = 1
@@ -25,9 +28,11 @@ it('keeps the unfinished task followup entry hidden and sends ordinary questions
     readAttemptRecords: async (threadId, attemptId) => ({ threadId, attemptId, instruction: '原问题',
       modelContext: parseContext(snapshot.active_model_context), events: [], nextAfter: 0, hasMore: false }),
     sendCommand: async command => { commands.push(command); return transport.sendCommand(command) } })
-  render(<ThreadFixtureApp client={client} threadId="thr_demo_39" />)
+  render(<ThreadFixtureApp client={client} threadId="thr_demo_39" storageKey="stale-followup" />)
   await screen.findByText('原任务已经结束。')
   expect(screen.queryByRole('button', { name: '追问此任务' })).toBeNull()
+  expect(screen.queryByRole('button', { name: '取消任务追问' })).toBeNull()
+  await waitFor(() => expect((screen.getByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement).value).toBe('保留的输入草稿'))
   fireEvent.change(screen.getByRole('textbox', { name: 'Thread 指令' }), { target: { value: '为什么没有收敛？' } })
   fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
   await waitFor(() => expect(commands).toHaveLength(1))
@@ -362,7 +367,7 @@ describe('ThreadFixtureApp', () => {
     const actions = await screen.findAllByRole('button', { name: '查看此指令电网图' })
     expect(document.querySelector('svg title')?.textContent).toContain('42.0')
     fireEvent.click(actions[0])
-    expect(screen.getAllByRole('button', { name: '查看此指令电网图' })[0].getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getAllByRole('button', { name: '查看此指令电网图' })[0].getAttribute('aria-pressed')).toBeNull()
     expect(await screen.findByText('正在查看此回答对应的电网图')).toBeTruthy()
     expect(document.querySelector('svg title')?.textContent).toContain('25.0')
     expect(document.querySelectorAll('.network-branch-label')).toHaveLength(0)

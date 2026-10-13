@@ -16,7 +16,7 @@ import ThreadControls from './ThreadControls'
 import { parseThreadModelCommand, resolveThreadModelCommandReference, resolveThreadModelReference } from './threadCatalog'
 import { parseModelControl } from './threadModelWorkspace'
 import { commandKey } from './commandKey'
-import { canReconnect, reconnectDelay, readFollowup, writeFollowup, type FollowupTarget } from './threadSessionState'
+import { canReconnect, reconnectDelay } from './threadSessionState'
 import type { ReactNode } from 'react'
 import { enabledTools, effectiveTools, updateToolPreferences } from './threadToolPreferences'
 import { useWorkbenchActivity, type PrepareConnection } from './useWorkbenchActivity'
@@ -76,16 +76,6 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   const [modelBusy, setModelBusy] = useState(false)
   const modelInFlight = useRef(false)
   const [acceptedDraft, setAcceptedDraft] = useState<{ text: string; commandId: string }>()
-  const [followup, setFollowup] = useState<FollowupTarget | undefined>(() => readFollowup(storageKey, threadId))
-  const [followupLoading, setFollowupLoading] = useState(false)
-  const followupRequest = useRef(0)
-  const selectedFollowup = followup?.threadId === threadId ? followup : undefined
-  useEffect(() => {
-    followupRequest.current++
-    setFollowup(readFollowup(storageKey, threadId))
-    setFollowupLoading(false)
-    return () => { followupRequest.current++ }
-  }, [storageKey, threadId])
   const reconnectFailures = useRef(0)
   const [pageVisible, setPageVisible] = useState(() => document.visibilityState !== 'hidden')
   const activity = useWorkbenchActivity(prepareConnection,
@@ -453,9 +443,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
     composerSend.current = fromComposer
     setSending(true)
     try {
-      if (fromComposer && selectedFollowup && !projection.catalog?.taskFollowupBinding) throw new MessageNotSentError('当前服务不支持此任务追问，请取消任务选择后重试。')
-      await selectModelAndSend(mode, text, fromComposer ? selectedFollowup?.attemptId : undefined)
-      if (fromComposer) clearFollowup()
+      await selectModelAndSend(mode, text)
     } catch (cause) {
       if (cause instanceof MessageNotSentError) throw cause
       setError(cause instanceof Error ? cause.message : '指令未发送')
@@ -467,37 +455,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
     }
   }
 
-  function clearFollowup() {
-    followupRequest.current++
-    setFollowup(undefined)
-    setFollowupLoading(false)
-    writeFollowup(storageKey)
-  }
-
-  async function chooseFollowup(attemptId: string) {
-    if (!client?.supportsAttemptRecords) return
-    const request = ++followupRequest.current
-    setFollowupLoading(true)
-    try {
-      const records = await client.attemptRecords(threadId, attemptId)
-      if (request !== followupRequest.current) return
-      const target = { threadId, attemptId, modelId: records.modelContext?.modelId || '历史模型', label: records.instruction.slice(0, 160) }
-      setFollowup(target)
-      writeFollowup(storageKey, target)
-      const current = store.state.snapshot
-      if (current) selectPage(current.activeGridPageId)
-      setSelectedNetworkAttempt(undefined)
-      const input = document.querySelector<HTMLTextAreaElement>('.thread-chat-pane textarea[aria-label="Thread 指令"]')
-      input?.focus()
-      input?.scrollIntoView?.({ block: 'nearest' })
-    } catch {
-      if (request === followupRequest.current) addSystemNotice('原任务记录暂不可读，请重试选择。', 'error')
-    } finally {
-      if (request === followupRequest.current) setFollowupLoading(false)
-    }
-  }
-
-  async function selectModelAndSend(mode: 'automatic' | 'ordinary' | 'professional', text: string, sourceAttemptId?: string): Promise<void> {
+  async function selectModelAndSend(mode: 'automatic' | 'ordinary' | 'professional', text: string): Promise<void> {
     const parsedControl = store.state.modelWorkspace ? parseModelControl(text) : null
     // A conversational request is not a model-directory lookup. Only consume
     // a control when its reference resolves; otherwise preserve the whole text.
@@ -574,7 +532,6 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
     }
     const tools = requireEnabledTools(family, text)
     const receipt = await dispatch(mode === 'professional' ? 'send_professional' : 'send_auto', { text,
-      ...(sourceAttemptId ? { source_attempt_id: sourceAttemptId } : {}),
       ...(projection.catalog?.profiles.length ? { enabled_profiles: tools.map((profile) => ({ profile_id: profile.profileId, profile_version: profile.profileVersion })) } : {}),
     })
     if (receipt?.status !== 'accepted') throw new MessageNotSentError('指令未发送，请检查页面提示后重试。')
@@ -599,7 +556,6 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
     if (receipt?.status !== 'accepted') return false
     if (receipt.acceptedEventSeq !== undefined) await store.catchUpThrough(receipt.acceptedEventSeq)
     if (kind === 'reopen_model_context') await store.catchUp()
-    if (kind === 'reopen_model_context') clearFollowup()
     await store.refreshModels()
     if (kind !== 'close_model') selectPage(store.state.snapshot!.activeGridPageId)
     else if (!isHistorical) setSelectedNetworkAttempt(undefined)
@@ -661,8 +617,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
             systemNotices={systemState.thread === threadId ? systemState.items : []} onSystemAction={() => setReload((value) => value + 1)}
             historyAtLatest={projection.historyAtLatest} onReturnLatest={() => setReload((value) => value + 1)}
             instructionLocation={instructionLocation}
-            onLoadOlder={() => store.loadOlderHistory()} events={events} disabled={!canSendText || followupLoading} isRunning={isActive} acceptedDraft={acceptedDraft} activity={projectAssistantActivity(events)} canRerunCompleted={canSendText && !contextChangePending}
-            onFollowup={projection.catalog?.taskFollowupBinding && client?.supportsAttemptRecords && !readOnly && !isActive && !followupLoading ? (attemptId) => { void chooseFollowup(attemptId) } : undefined}
+            onLoadOlder={() => store.loadOlderHistory()} events={events} disabled={!canSendText} isRunning={isActive} acceptedDraft={acceptedDraft} activity={projectAssistantActivity(events)} canRerunCompleted={canSendText && !contextChangePending}
             networkAttemptIds={[...new Set([...store.networkTasks.map((task) => task.attemptId), ...events.filter((event) => event.attemptId && (event.eventType === 'network_diagram' || projection.modelWorkspace && event.eventType === 'attempt_completed' && event.modelContextId)).map((event) => event.attemptId!)])]} onShowNetwork={(attemptId) => {
               taskReturnGeneration.current++
               setInstructionLocation(undefined)
@@ -695,7 +650,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
             }}
             caseExecution={displayedCaseExecution} caseCatalog={projection.catalog?.cases || []} caseConnection={projection.connection}
             onCaseStart={startCase} onCaseAction={caseAction}
-            composerControls={(historyActions) => <>{followupLoading && <span role="status">正在读取原任务…</span>}{selectedFollowup && <span className="thread-followup-target" role="status"><span title={selectedFollowup.label}>追问 {selectedFollowup.modelId}：{selectedFollowup.label}</span><button type="button" aria-label="取消任务追问" disabled={sending} onClick={clearFollowup}>取消</button></span>}<ThreadControls catalog={projection.catalog} selectedProfiles={selectedTools}
+composerControls={(historyActions) => <><ThreadControls catalog={projection.catalog} selectedProfiles={selectedTools}
               pendingModel={snapshot.pendingModelSwitch?.modelId} disabled={loading || caseActive || sending} historyActions={historyActions}
               resetDisabled={readOnly || isHistorical || modelBusy || isActive || isInterrupted || contextChangePending || unresolvedCommand || projection.connection !== 'live'}
               onResetWork={projection.catalog?.workContextReset ? () => { void changeModel('reopen_model_context', {
