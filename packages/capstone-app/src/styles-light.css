@@ -933,7 +933,7 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .capstone-chat-activity-preview { border: 1px solid #e3eee8; border-top: 0; border-radius: 0 0 7px 7px; background: #fbfdfc; }
 .capstone-chat-activity-preview { max-height: min(320px, 42vh); overflow-y: auto; }
 .capstone-chat-activity-preview .capstone-chat-activity-list { max-height: none; overflow-y: visible; padding: 0 7px 6px 22px; }
-.capstone-chat-activity-frame .capstone-task-goal { margin: 2px 9px 6px; padding-bottom: 5px; border-bottom: 1px solid #dce3e9; font-size: 9px; line-height: 1.4; font-weight: 400; color: #536874; }
+.capstone-chat-activity-frame .capstone-task-goal { margin: 2px 9px 6px; font-size: 9px; line-height: 1.4; font-weight: 400; color: #536874; }
 .capstone-task-progress { padding: 0 9px; font-size: 9px; line-height: 1.4; }
 .capstone-task-progress section { margin: 3px 0; }
 .capstone-chat-activity-frame .capstone-task-progress p { margin: 1px 0; font-size: 8.5px; line-height: 1.35; overflow-wrap: anywhere; }
