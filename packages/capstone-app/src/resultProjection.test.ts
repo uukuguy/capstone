@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseResultProjection, ThreadProtocolError } from './threadProtocol'
+import { parseResultProjection, parseThreadSnapshot, ThreadProtocolError } from './threadProtocol'
 
 const projection = {
   schema: 'capstone-result-projection/1.0',
@@ -17,6 +17,25 @@ const projection = {
 }
 
 describe('parseResultProjection', () => {
+  it('parses optional immutable table pagination', () => {
+    const pagination = { manifest_ref: `table-manifest:sha256:${'a'.repeat(64)}`, total_rows: 133, page_size: 32 }
+    const parsed = parseResultProjection({ ...projection, tables: [{ ...projection.tables[0], pagination }] })
+    expect(parsed.tables[0].pagination).toEqual({ manifestRef: pagination.manifest_ref, totalRows: 133, pageSize: 32 })
+    const snapshot = parseThreadSnapshot({
+      schema: 'capstone-thread-snapshot/1', thread_id: projection.thread_id,
+      run: { run_id: projection.run_id, state: 'open' },
+      active_model_context: { id: projection.model_context_id, model_id: projection.model_id,
+        model_revision: projection.model_revision, implementation_family: 'pandapower', selection_revision: 'sel_one' },
+      active_grid_page_id: 'page_one', current_attempt: null, last_event_seq: 1, base_event_seq: 0,
+      result_projections: [{ ...projection, tables: [{ ...projection.tables[0], pagination }] }],
+    })
+    expect(parseThreadSnapshot(snapshot.toDocument()).resultProjections?.[0].tables[0].pagination).toEqual(parsed.tables[0].pagination)
+  })
+
+  it.each([{ total_rows: false }, { page_size: 129 }, { manifest_ref: 'https://untrusted.example/data' }, { endpoint: 'private' }])('rejects invalid table pagination %j', (change) => {
+    const pagination = { manifest_ref: `table-manifest:sha256:${'a'.repeat(64)}`, total_rows: 133, page_size: 32, ...change }
+    expect(() => parseResultProjection({ ...projection, tables: [{ ...projection.tables[0], pagination }] })).toThrow(ThreadProtocolError)
+  })
   it('parses the bounded public shape', () => {
     const parsed = parseResultProjection(projection)
     expect(parsed.resultRef).toBe(projection.result_ref)

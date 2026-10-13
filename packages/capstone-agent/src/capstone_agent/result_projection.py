@@ -201,16 +201,43 @@ class ResultRow:
 
 
 @dataclass(frozen=True, slots=True)
+class ResultTablePagination:
+    manifest_ref: str
+    total_rows: int
+    page_size: int
+
+    @classmethod
+    def from_document(cls, value: Any) -> "ResultTablePagination":
+        document = _document(value, "result table pagination")
+        if set(document) != {"manifest_ref", "total_rows", "page_size"}:
+            raise ValueError("result table pagination fields are invalid")
+        reference = document["manifest_ref"]
+        total, size = document["total_rows"], document["page_size"]
+        if not isinstance(reference, str) or not re.fullmatch(r"table-manifest:sha256:[a-f0-9]{64}", reference):
+            raise ValueError("result table manifest reference is invalid")
+        if type(total) is not int or not 0 <= total <= 2**53 - 1:
+            raise ValueError("result table total rows is invalid")
+        if type(size) is not int or not 1 <= size <= _MAX_ROWS:
+            raise ValueError("result table page size is invalid")
+        return cls(reference, total, size)
+
+    def to_document(self) -> dict[str, Any]:
+        return {"manifest_ref": self.manifest_ref, "total_rows": self.total_rows, "page_size": self.page_size}
+
+
+@dataclass(frozen=True, slots=True)
 class ResultTable:
     table_id: str
     title: str
     columns: tuple[ResultColumn, ...]
     rows: tuple[ResultRow, ...]
+    pagination: ResultTablePagination | None = None
 
     @classmethod
     def from_document(cls, value: Any) -> "ResultTable":
         document = _document(value, "result table")
-        if set(document) != {"table_id", "title", "columns", "rows"}:
+        required = {"table_id", "title", "columns", "rows"}
+        if not required <= set(document) or set(document) - (required | {"pagination"}):
             raise ValueError("result table fields are invalid")
         raw_columns = document["columns"]
         raw_rows = document["rows"]
@@ -225,13 +252,17 @@ class ResultTable:
         rows = tuple(ResultRow.from_document(item, column_ids=column_ids) for item in raw_rows)
         if len({row.row_id for row in rows}) != len(rows):
             raise ValueError("result table rows contain duplicates")
-        return cls(_identifier(document["table_id"], "result table.table_id"), _text(document["title"], "result table.title"), columns, rows)
+        pagination = ResultTablePagination.from_document(document["pagination"]) if "pagination" in document else None
+        if pagination is not None and pagination.total_rows < len(rows):
+            raise ValueError("result table total rows is less than its preview")
+        return cls(_identifier(document["table_id"], "result table.table_id"), _text(document["title"], "result table.title"), columns, rows, pagination)
 
     def to_document(self) -> dict[str, Any]:
         return {
             "table_id": self.table_id, "title": self.title,
             "columns": [column.to_document() for column in self.columns],
             "rows": [row.to_document() for row in self.rows],
+            **({"pagination": self.pagination.to_document()} if self.pagination is not None else {}),
         }
 
 
