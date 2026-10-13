@@ -51,7 +51,13 @@ class RegisteredPandapowerThreadCatalog:
 
 
 def _read_model_metadata(executor: Any, *, model_id: str, revision_ref: str,
-                         context_ref: str) -> Mapping[str, object]:
+                         context_ref: str,
+                         opened_metadata: Mapping[str, object] | None = None) -> Mapping[str, object]:
+    if (opened_metadata is not None and opened_metadata.get('model') == model_id
+        and opened_metadata.get('revision_ref') == revision_ref
+        and opened_metadata.get('context_ref') == context_ref
+        and isinstance(opened_metadata.get('overview'), list)):
+        return opened_metadata
     try:
         metadata = executor.invoke("context.get", {"context_ref": context_ref, "include_overview": True})
     except Exception:
@@ -90,13 +96,14 @@ def build_registered_pandapower_thread_application():
             raise TypeError("prepared application has no grid binding")
         binding = bindings["grid"]
         opened = binding.runtime.executor.invoke(
-            "context.open", {"model_id": context.model_id},
+            "context.open", {"model_id": context.model_id, "include_overview": True},
         )
         model_binding = AuthorityModelBinding(
             "grid", context.model_id, opened["revision_ref"],
             context.implementation_family, opened["context_ref"],
             model_metadata=_read_model_metadata(binding.runtime.executor,
-                model_id=context.model_id, revision_ref=opened["revision_ref"], context_ref=opened["context_ref"]),
+                model_id=context.model_id, revision_ref=opened["revision_ref"], context_ref=opened["context_ref"],
+                opened_metadata=opened),
         )
         bind_thread_tool_catalog(binding.runtime.tool_catalog_path, model_binding,
                                 authority_workspace=binding.runtime.authority.workspace_root)

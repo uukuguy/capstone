@@ -60,6 +60,69 @@ def _binding() -> DomainBinding:
     )
 
 
+def test_verified_runtime_reuses_only_environment_description(tmp_path: Path, monkeypatch) -> None:
+    executable = tmp_path / 'gridctl-source'
+    executable.write_text('#!/bin/sh\nexit 0\n')
+    executable.chmod(0o755)
+    calls = []
+
+    def invoke(self, capability, arguments):
+        calls.append((capability, str(self.workspace)))
+        return {'protocol': 'grid-capability', 'items': []} if capability == 'environment.describe' else {'workspace': str(self.workspace)}
+
+    monkeypatch.setattr(GridctlExecutor, 'invoke', invoke)
+    provisioner = PandapowerRuntimeProvisioner(executable=executable,
+        environ={'CAPSTONE_RUNTIME_ARTIFACT_SHA256': 'a' * 64})
+    first = provisioner.prepare(binding=_binding(), workspace=tmp_path / 'one', credentials=_Lease()).executor
+    second = provisioner.prepare(binding=_binding(), workspace=tmp_path / 'two', credentials=_Lease()).executor
+    metadata = first.invoke('environment.describe', {})
+    metadata['items'].append('caller mutation')
+    assert second.invoke('environment.describe', {})['items'] == []
+    assert first.invoke('context.open', {}) != second.invoke('context.open', {})
+    assert [name for name, _ in calls] == ['environment.describe', 'context.open', 'context.open']
+
+
+@pytest.mark.parametrize('identity', ['', 'unverified'])
+def test_unverified_runtime_does_not_reuse_environment(tmp_path: Path, monkeypatch, identity) -> None:
+    executable = tmp_path / 'gridctl-source'
+    executable.write_text('#!/bin/sh\nexit 0\n')
+    executable.chmod(0o755)
+    calls = []
+    monkeypatch.setattr(GridctlExecutor, 'invoke', lambda self, capability, arguments: calls.append(capability) or {})
+    provisioner = PandapowerRuntimeProvisioner(executable=executable,
+        environ={'CAPSTONE_RUNTIME_ARTIFACT_SHA256': identity})
+    endpoint = provisioner.prepare(binding=_binding(), workspace=tmp_path / 'one', credentials=_Lease())
+    endpoint.executor.invoke('environment.describe', {})
+    endpoint.executor.invoke('environment.describe', {})
+    assert calls == ['environment.describe', 'environment.describe']
+
+
+def test_runtime_catalog_failure_is_retried_and_identity_change_reloads(tmp_path: Path, monkeypatch) -> None:
+    executable = tmp_path / 'gridctl-source'
+    executable.write_text('#!/bin/sh\nexit 0\n')
+    executable.chmod(0o755)
+    calls = []
+
+    def invoke(self, capability, arguments):
+        calls.append(capability)
+        if len(calls) == 1:
+            raise RuntimeError('authority unavailable')
+        return {'protocol': 'grid-capability'}
+
+    monkeypatch.setattr(GridctlExecutor, 'invoke', invoke)
+    def prepare(identity, workspace):
+        return PandapowerRuntimeProvisioner(executable=executable,
+            environ={'CAPSTONE_RUNTIME_ARTIFACT_SHA256': identity}).prepare(
+                binding=_binding(), workspace=workspace, credentials=_Lease()).executor
+    first = prepare('a' * 64, tmp_path / 'one')
+    with pytest.raises(RuntimeError, match='authority unavailable'):
+        first.invoke('environment.describe', {})
+    first.invoke('environment.describe', {})
+    first.invoke('environment.describe', {})
+    prepare('b' * 64, tmp_path / 'two').invoke('environment.describe', {})
+    assert calls == ['environment.describe'] * 3
+
+
 def test_provisioner_resolves_gridctl_with_fixed_arguments_and_sanitized_environment(
     tmp_path: Path,
 ) -> None:

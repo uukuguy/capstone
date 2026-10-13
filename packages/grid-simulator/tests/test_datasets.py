@@ -24,6 +24,14 @@ def test_dataset_list_covers_all_nonempty_static_element_tables(grid, context_re
     assert all(not name.startswith("network.res_") for name in by_name)
 
 
+def test_context_open_can_return_the_same_sourced_overview_in_one_call(grid) -> None:
+    opened = grid.call('context.open', {'model_id': 'ieee39', 'include_overview': True})
+    fetched = grid.call('context.get', {'context_ref': opened['context_ref'], 'include_overview': True})
+    assert opened['overview'] == fetched['overview']
+    assert opened['revision_ref'] == fetched['revision_ref']
+    assert grid.engine.ac_run_count == 0
+
+
 def test_context_overview_returns_sourced_input_totals_without_calculation(grid, context_ref: str) -> None:
     response = grid.call("context.get", {"context_ref": context_ref, "include_overview": True})
     overview = {item["dataset"]: item for item in response["overview"]}

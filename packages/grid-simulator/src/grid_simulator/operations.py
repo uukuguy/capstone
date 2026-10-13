@@ -643,6 +643,8 @@ def _context_open(workspace: SimulatorWorkspace, engine: Pandapower340Engine, ar
         "source": model.source,
         "semantic_sha256": context.revision_ref.removeprefix("revision:sha256:"),
         "counts": {"buses": int(len(net.bus)), "lines": int(len(net.line)), "transformers": int(len(net.trafo))},
+        **({"overview": _model_input_overview(net, context.revision_ref)}
+           if arguments.get("include_overview") else {}),
     }
 
 
