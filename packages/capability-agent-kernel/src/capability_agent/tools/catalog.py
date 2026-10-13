@@ -484,7 +484,7 @@ def _research_tools(namespace: str) -> tuple[ToolDocument, ...]:
                      description="Adjust reasoning depth for subsequent model steps: off for direct work, high for difficult reasoning. This changes no provider or Authority state and creates no evidence.",
                      input_schema=research_depth_tool_schema()),
         ToolDocument(name=namespace + "task_progress", capability=namespace + "task_progress",
-                     description="Record a concise public local goal, observation, method adjustment or limitation during work. Use actual receipts for observations. This is an agent work record, not a verified Authority claim. Do not report every tool or private reasoning.",
+                     description="Record one concise purpose for each batch of domain tool calls in that same batch, without a separate progress-only round. Describe the batch's work, not the whole task or every tool. Record meaningful observations, adjustments or limitations using actual receipts. This is an agent work record, not a verified Authority claim. Do not publish private reasoning.",
                      input_schema=task_progress_tool_schema()),
     )
 

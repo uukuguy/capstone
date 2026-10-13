@@ -118,7 +118,7 @@ export function configureResearchTools(pi, channelPath, { timeoutMs = 5000, fata
     const progressParameters = Type.Unsafe(binding.progress_tool_schema);
     pi.registerTool(defineTool({
       name: "agent_task_progress", label: "Record task progress",
-      description: "Record concise public progress at meaningful transitions: local goal before dependent work, actual observations, changed method or limitation. When stating an execution action, include its concise purpose alongside the dependent domain calls in the same tool batch; avoid a separate progress-only round. Use the user's language and receipt references. This is an agent work record, not independent verification. Do not publish private reasoning, narrate every tool, or repeat the final report.",
+      description: "For each batch of domain tool calls, record one concise purpose using this tool in that same batch. Describe the work this batch will do, not the whole task or each individual tool. Do not create a separate progress-only round. Also record meaningful observations, changed methods or limitations when needed. Use the user's language and actual receipt references. This is an agent work record, not independent verification. Do not publish private reasoning or repeat the final report.",
       parameters: progressParameters,
       async execute(id, params, signal) {
         try {
