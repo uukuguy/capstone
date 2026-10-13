@@ -97,7 +97,7 @@ export function projectAssistantActivity(events: readonly EventEnvelope[]): Chat
   const grouped = new Map<string, ChatActivity>()
   for (const event of events) {
     if (event.eventType === 'research_step_resumed') {
-      grouped.set(event.eventId, { id: event.eventId, label: '调整推演方式，沿用已有结果',
+      grouped.set(event.eventId, { id: event.eventId, label: '推理等待达到时限，继续当前会话',
         source: 'capstone · research', status: 'completed', finishedAt: event.occurredAt })
       continue
     }
