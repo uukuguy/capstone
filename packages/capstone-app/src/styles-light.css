@@ -948,7 +948,7 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .capstone-business-step > summary::before { content: '›'; display: inline-block; }
 .capstone-business-step[open] > summary::before { transform: rotate(90deg); }
 .capstone-business-step > summary .capstone-chat-activity-source { padding: 0 3px; border-radius: 3px; background: #eee7f7; color: #665184; font-size: 8px; font-weight: 650; }
-.capstone-business-step .capstone-step-title { flex: 1; min-width: 100px; overflow-wrap: anywhere; }
+.capstone-business-step .capstone-step-title { flex: 1; min-width: 100px; overflow-wrap: anywhere; font-size: 9px; line-height: 1.35; font-weight: 400; color: #566c7a; }
 .capstone-business-step > summary small { color: #647d76; font-size: 9px; }
 .capstone-step-tools { margin-left: 14px; }
 .capstone-complete-process { max-height: min(480px, 60vh); overflow-y: auto; }
