@@ -18,7 +18,7 @@ import {
   useAuiState,
   useExternalStoreRuntime,
 } from '@assistant-ui/react'
-import { Activity, ArrowUp, Check, ChevronDown, ChevronUp, Copy, FileCheck2, ListTree, Network, MoreHorizontal, RotateCcw, Square, ThumbsDown, ThumbsUp } from 'lucide-react'
+import { Activity, ArrowUp, Check, ChevronDown, ChevronUp, Copy, FileCheck2, ListTree, Network, MoreHorizontal, RotateCcw, Square, ThumbsDown, ThumbsUp, MessageCircle } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { EventEnvelope, ResultProjection } from './threadProtocol'
@@ -489,6 +489,7 @@ function ChatActions({ networkSelected, onShowNetwork, role, text, evidenceRefs,
   const [copied, setCopied] = useState(false)
   const [showEvidence, setShowEvidence] = useState(false)
   const readRecords = useContext(AttemptRecordsContext)
+  const followup = useContext(ChatMessageContext)?.onFollowup
   const evidenceAvailable = evidenceState === 'available' || failures.length > 0 || Boolean(researchSnapshot) || executions.length > 0 || Boolean(readRecords && attemptId)
   const copy = async () => {
     if (await copyToClipboard(text)) {
@@ -502,6 +503,7 @@ function ChatActions({ networkSelected, onShowNetwork, role, text, evidenceRefs,
   return <>
   <div className="capstone-chat-actions" aria-label="回答操作">
     <IconAction label={copied ? '已复制' : '复制回答'} onClick={() => void copy()}>{copied ? <Check /> : <Copy />}</IconAction>
+    {followup && attemptId && <IconAction label="追问此任务" onClick={() => followup(attemptId)}><MessageCircle /></IconAction>}
     <IconAction label="查看此指令电网图" disabled={!onShowNetwork} pressed={networkSelected} onClick={onShowNetwork}><Network /></IconAction>
     <IconAction label="查看计算结果" disabled={!resultAvailable || !onShowResult} expanded={resultOpen} onClick={onShowResult}><Activity /></IconAction>
     <IconAction label="查看推演证据" description={researchSnapshot && evidenceState !== 'available' ? '查看已保存的研究判断与工作记录' : failures.length > 0 && evidenceState !== 'available' ? '查看已保存的执行或核验失败记录' : evidenceStateCopy[evidenceState]} evidenceState={evidenceState} disabled={!evidenceAvailable} expanded={evidenceAvailable && showEvidence} onClick={() => setShowEvidence((value) => !value)}><FileCheck2 /></IconAction>
@@ -651,7 +653,7 @@ function HistoryAnswerActions({ disabled, onFold, onUnfold }: { disabled: boolea
   </div>
 }
 
-function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork, onRegenerate, canRerunCompleted, modelSummary, showActivity = true, resultProjections, onFocusElement }: { selectedNetworkAttempt?: string; networkAttemptIds?: readonly string[]; onShowNetwork?: (attemptId: string) => void; onRegenerate?: (attemptId: string, instruction?: string) => Promise<void>; canRerunCompleted: boolean; modelSummary?: { modelId: string; implementationFamily: string; modelRevision: string; contextId: string }; showActivity?: boolean; resultProjections?: readonly ResultProjection[]; onFocusElement?: (projection: ResultProjection, elementId: string) => void }) {
+function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork, onRegenerate, canRerunCompleted, modelSummary, showActivity = true, resultProjections, onFocusElement }: { selectedNetworkAttempt?: string; networkAttemptIds?: readonly string[]; onShowNetwork?: (attemptId: string) => void; onRegenerate?: (attemptId: string, instruction?: string) => Promise<void>; onFollowup?: (attemptId: string) => void; canRerunCompleted: boolean; modelSummary?: { modelId: string; implementationFamily: string; modelRevision: string; contextId: string }; showActivity?: boolean; resultProjections?: readonly ResultProjection[]; onFocusElement?: (projection: ResultProjection, elementId: string) => void }) {
   const activityRef = useRef<HTMLDetailsElement>(null)
   const role = useAuiState((state) => state.message.role)
   const content = useAuiState((state) => state.message.content)
@@ -827,6 +829,7 @@ export type CapstoneAssistantThreadProps = {
   onSend: (mode: SendMode, text: string) => Promise<void>
   onCancel: () => Promise<void>
   onRegenerate?: (attemptId: string, instruction?: string) => Promise<void>
+  onFollowup?: (attemptId: string) => void
   canRerunCompleted?: boolean
   modelSummary?: { modelId: string; implementationFamily: string; modelRevision: string; contextId: string }
   instructionModels?: readonly { contextId: string; modelId: string }[]
@@ -847,7 +850,7 @@ export type CapstoneAssistantThreadProps = {
 /** Assistant-ui is the presentation runtime; Capstone projection remains authoritative. */
 const SystemActionContext = createContext<CapstoneAssistantThreadProps['onSystemAction']>(undefined)
 
-export default function CapstoneAssistantThread({ onReadAttemptRecords, events, systemNotices = [], onSystemAction, disabled, isRunning, acceptedDraft, activity, onSend, onCancel, onRegenerate, canRerunCompleted = !disabled, modelSummary, instructionModels, composerControls, showActivity = true, caseExecution, caseCatalog = [], caseConnection = 'live', onCaseAction, onCaseStart, resultProjections = [], onFocusElement, selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork, storageKey, hasOlderHistory = false, historyLoading = false, onLoadOlder, historyAtLatest = true, onReturnLatest, instructionLocation }: CapstoneAssistantThreadProps) {
+export default function CapstoneAssistantThread({ onReadAttemptRecords, events, systemNotices = [], onSystemAction, disabled, isRunning, acceptedDraft, activity, onSend, onCancel, onRegenerate, onFollowup, canRerunCompleted = !disabled, modelSummary, instructionModels, composerControls, showActivity = true, caseExecution, caseCatalog = [], caseConnection = 'live', onCaseAction, onCaseStart, resultProjections = [], onFocusElement, selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork, storageKey, hasOlderHistory = false, historyLoading = false, onLoadOlder, historyAtLatest = true, onReturnLatest, instructionLocation }: CapstoneAssistantThreadProps) {
   const allMessages = useMemo(() => projectSystemNotices(projectAssistantMessages(events, instructionModels), events, systemNotices, historyAtLatest), [events, instructionModels, systemNotices, historyAtLatest])
   const firstPublicEventSeq = useMemo(() => events.reduce((first, event) => event.visibility === 'public' ? Math.min(first, event.eventSeq) : first, Number.POSITIVE_INFINITY), [events])
   const [foldState, setFoldState] = useState<{ thread: string | undefined; ids: ReadonlySet<string> }>({ thread: storageKey, ids: new Set() })
@@ -1148,7 +1151,7 @@ export default function CapstoneAssistantThread({ onReadAttemptRecords, events, 
     <SystemActionContext.Provider value={onSystemAction}>
     <AttemptRecordsContext.Provider value={onReadAttemptRecords}>
     <AnswerReadingContext.Provider value={{ collapsed: collapsedAnswers, toggle: toggleAnswer, restoreAnchor: restoreReadingAnchor }}>
-    <ChatMessageContext.Provider value={{ selectedNetworkAttempt, networkAttemptIds, onShowNetwork, onRegenerate: isRunning ? undefined : onRegenerate, canRerunCompleted, modelSummary, showActivity, resultProjections, onFocusElement }}>
+    <ChatMessageContext.Provider value={{ selectedNetworkAttempt, networkAttemptIds, onShowNetwork, onRegenerate: isRunning ? undefined : onRegenerate, onFollowup: isRunning ? undefined : onFollowup, canRerunCompleted, modelSummary, showActivity, resultProjections, onFocusElement }}>
     <div className="capstone-assistant-thread" data-testid="assistant-ui-chat">
       <div className="capstone-assistant-runtime-label"><span className="assistant-live-dot" />CAPSTONE <span>· HARNESS</span><small>实时响应</small></div>
       <ThreadPrimitive.Root className="capstone-chat-runtime">

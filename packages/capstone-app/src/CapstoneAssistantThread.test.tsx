@@ -11,6 +11,14 @@ const event = (eventType: string, eventSeq: number, payload: Record<string, unkn
 })
 
 describe('CapstoneAssistantThread', () => {
+  it('selects the original answer for followup without sending an instruction', () => {
+    const followup = vi.fn(), send = vi.fn()
+    render(<CapstoneAssistantThread events={[event('attempt_completed', 1, { answer: '旧回答。' }, 'attempt_old')]}
+      disabled={false} isRunning={false} activity={[]} onSend={send} onCancel={async () => {}} onFollowup={followup} />)
+    fireEvent.click(screen.getByRole('button', { name: '追问此任务' }))
+    expect(followup).toHaveBeenCalledWith('attempt_old')
+    expect(send).not.toHaveBeenCalled()
+  })
   it('shows a research continuation as an action without presenting a calculation', () => {
     const actions = projectAssistantActivity([event('research_step_resumed', 1,
       { reason: 'model_step_budget', budget_seconds: 90 }, 'attempt_research')])

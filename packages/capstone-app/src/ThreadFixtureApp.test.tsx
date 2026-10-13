@@ -6,8 +6,34 @@ import { createFixtureTransport } from './threadProjectionStore'
 import { threadUiFixture } from './threadUiFixtures'
 import { historyContexts, historyFixture, historyWorkspace } from './threadHistory.test-support'
 import { sampleDiagramView } from './networkFixture'
+import { parseContext } from './threadProtocol'
 
 afterEach(cleanup)
+
+it('sends a selected historical task reference with the unmodified followup question', async () => {
+  const fixture = structuredClone(threadUiFixture('idle-ieee39'))
+  const snapshot = fixture.snapshot as { last_event_seq: number; active_model_context: unknown }
+  snapshot.last_event_seq = 1
+  fixture.events = { schema: 'capstone-thread-events/1', thread_id: 'thr_demo_39', after_event_seq: 0, next_event_seq: 1, has_more: false,
+    events: [{ event_id: 'evt_old', event_seq: 1, event_type: 'attempt_completed', event_version: 1,
+      thread_id: 'thr_demo_39', run_id: 'run_001', attempt_id: 'attempt_old', model_context_id: 'ctx_ieee39_7',
+      occurred_at: '2026-10-13T01:00:00Z', visibility: 'public', payload: { answer: '原任务已经结束。' } }] }
+  fixture.catalog = { ...(fixture.catalog as object), task_followup_binding: true }
+  const transport = createFixtureTransport(fixture)
+  const commands: ThreadCommand[] = []
+  const client = new CapstoneThreadClient({ ...transport,
+    readAttemptRecords: async (threadId, attemptId) => ({ threadId, attemptId, instruction: '原问题',
+      modelContext: parseContext(snapshot.active_model_context), events: [], nextAfter: 0, hasMore: false }),
+    sendCommand: async command => { commands.push(command); return transport.sendCommand(command) } })
+  render(<ThreadFixtureApp client={client} threadId="thr_demo_39" />)
+  fireEvent.click(await screen.findByRole('button', { name: '追问此任务' }))
+  await screen.findByText('追问 ieee39：原问题')
+  fireEvent.change(screen.getByRole('textbox', { name: 'Thread 指令' }), { target: { value: '为什么没有收敛？' } })
+  fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
+  await waitFor(() => expect(commands).toHaveLength(1))
+  expect(commands[0].payload).toMatchObject({ text: '为什么没有收敛？', source_attempt_id: 'attempt_old' })
+  await waitFor(() => expect(screen.queryByRole('button', { name: '取消任务追问' })).toBeNull())
+})
 
 function instructionViewsFixture(otherModel = false) {
   const fixture = structuredClone(threadUiFixture('idle-ieee39'))
