@@ -10,6 +10,29 @@ from capstone_agent.thread_protocol import ModelContextSnapshot
 MODEL = ModelContextSnapshot("ctx_one", "model-one", "revision:current", "pandapower", "sel_0")
 
 
+def test_reset_generation_starts_fresh_research_and_retains_history(tmp_path):
+    def open_task(attempt, generation=None):
+        return AttemptResearch(tmp_path, thread_id="thr_one", run_id="run_one",
+            attempt_id=attempt, model_context=MODEL, research_generation=generation,
+            is_active=lambda: True, admit_reference=lambda _: False)
+    old = open_task("attempt_one")
+    old.controller.update({"request_id": "save-one", "expected_revision": 0,
+                           "changes": {"goal": "Original study"}})
+    old.close(failed=False)
+    reset = open_task("attempt_two", "evt_reset")
+    assert reset.controller.read() is None
+    assert reset.research_id != old.research_id
+    reset.controller.update({"request_id": "save-two", "expected_revision": 0,
+                             "changes": {"goal": "New study"}})
+    reset.close(failed=False)
+    resumed = open_task("attempt_three", "evt_reset")
+    assert resumed.research_id == reset.research_id
+    assert resumed.controller.read().goal == "New study"
+    assert old.controller.read().goal == "Original study"
+    assert old.identity_path.exists()
+    resumed.close(failed=False)
+
+
 def test_unfinished_research_requires_thread_terminal_proof_before_recovery(tmp_path):
     def open_task(attempt):
         return AttemptResearch(tmp_path, thread_id="thr_one", run_id="run_one",

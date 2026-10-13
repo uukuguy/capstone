@@ -726,6 +726,7 @@ def test_reopen_same_model_context_creates_fresh_context_at_turn_boundary() -> N
     events = service.read_events("thr_attempts", 0).events
     activation = [e for e in events if e.event_type == "model_context_reopened"][-1]
     assert activation.payload["reason"] == "explicit_reopen"
+    assert claim.research_generation == activation.event_id
 
 
 def test_same_model_switch_is_rejected_and_context_identity_is_reused() -> None:

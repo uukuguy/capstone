@@ -26,6 +26,7 @@ class AttemptResearch:
 
     def __init__(self, root: Path, *, thread_id: str, run_id: str, attempt_id: str,
                  model_context: ModelContextSnapshot,
+                 research_generation: str | None = None,
                  channel_root: Path | None = None,
                  is_active: Callable[[], bool], admit_reference: Callable[[str], bool]) -> None:
         if not isinstance(model_context, ModelContextSnapshot):
@@ -38,6 +39,10 @@ class AttemptResearch:
         digest = sha256(json.dumps(identities).encode()).hexdigest()[:48]
         owner = {"thread_id": thread_id, "model_id": model_context.model_id,
                  "implementation_family": model_context.implementation_family}
+        if research_generation is not None:
+            if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", research_generation):
+                raise ValueError("invalid research generation")
+            owner["research_generation"] = research_generation
         storage_id = "study-" + sha256(json.dumps(owner, sort_keys=True).encode()).hexdigest()[:48]
         existing = (root / storage_id).exists()
         workspace = (ApplicationWorkspace.open_existing(root, run_id=storage_id) if existing
@@ -60,6 +65,7 @@ class AttemptResearch:
         binding = {"schema": "capstone-task-research-binding/1", "thread_id": thread_id,
                    "run_id": run_id, "attempt_id": attempt_id, "kernel_run_id": workspace.run_id,
                    "research_id": self.research_id,
+                   "research_generation": research_generation,
                    "baseline_model_context": model_context.to_document()}
         with self.identity_path.open("x", encoding="utf-8") as target:
             self.identity_path.chmod(0o600)

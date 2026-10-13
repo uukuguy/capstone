@@ -517,6 +517,7 @@ class AttemptClaim:
     application_catalog: Mapping[str, object] | None = None
     prior_results: tuple[PriorResultReference, ...] = ()
     previous_instruction: PreviousInstruction | None = None
+    research_generation: str | None = None
 
     def __post_init__(self) -> None:
         if self.previous_instruction is not None and not isinstance(self.previous_instruction, PreviousInstruction):
@@ -1511,6 +1512,9 @@ class InMemoryThreadService:
                     prior_results=_prior_results_for_context(self._snapshot),
                     previous_instruction=_previous_instruction_from_events(self._events, self._attempts, context),
                     application_catalog=application_catalog,
+                    research_generation=next((item.event_id for item in reversed(self._events)
+                        if item.event_type == "model_context_reopened"
+                        and item.payload.get("model_context", {}).get("model_id") == context.model_id), None),
                 )
             return None
 
@@ -3162,6 +3166,11 @@ class PostgresThreadService:
                 "UPDATE capstone_threads SET current_attempt = %s, last_event_seq = %s WHERE thread_id = %s",
                 (Jsonb(running.to_document()), event.event_seq, thread["thread_id"]),
             )
+            research_reset = connection.execute(
+                """SELECT event_id FROM capstone_thread_events
+                   WHERE thread_id = %s AND event_type = 'model_context_reopened'
+                   AND payload->'model_context'->>'model_id' = %s
+                   ORDER BY event_seq DESC LIMIT 1""", (thread["thread_id"], context.model_id)).fetchone()
             return AttemptClaim(
                 thread_id=thread["thread_id"], run_id=thread["run_id"], attempt=running,
                 kind=updated["kind"], instruction=updated["instruction"],
@@ -3171,6 +3180,7 @@ class PostgresThreadService:
                 prior_results=_prior_results_for_context(self._snapshot_from_row(thread)),
                 previous_instruction=_previous_instruction_from_postgres(connection, thread["thread_id"], context),
                 application_catalog=application_catalog,
+                research_generation=research_reset["event_id"] if research_reset else None,
             )
 
     def renew_attempt(self, claim: AttemptClaim, lease_seconds: int) -> bool:

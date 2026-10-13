@@ -55,6 +55,26 @@ def _command(thread_id: str) -> dict[str, object]:
     }
 
 
+def test_postgres_claim_restores_persisted_research_generation(postgres_thread_service):
+    service, thread_id = postgres_thread_service
+    snapshot = _snapshot(thread_id)
+    service.create_thread(snapshot)
+    reset_id = "evt_reset_" + uuid.uuid4().hex[:16]
+    with psycopg.connect(service.dsn) as connection:
+        connection.execute("""INSERT INTO capstone_thread_events
+            (thread_id,event_seq,event_id,event_type,event_version,run_id,occurred_at,visibility,payload)
+            VALUES (%s,1,%s,'model_context_reopened',1,%s,now(),'public',%s)""",
+            (thread_id, reset_id, snapshot.run.run_id,
+             psycopg.types.json.Jsonb({"model_context": snapshot.active_model_context.to_document()})))
+        connection.execute("UPDATE capstone_threads SET last_event_seq=1 WHERE thread_id=%s", (thread_id,))
+    reopened = PostgresThreadService(service.dsn)
+    receipt = reopened.submit_command({**_command(thread_id), "expected_event_seq": 1})
+    assert receipt.status == "accepted"
+    claim = reopened.claim_attempt("generation-test", 30)
+    assert claim is not None
+    assert claim.research_generation == reset_id
+
+
 def test_attempt_records_keep_failed_and_diagnostic_events_in_original_context(postgres_thread_service):
     service, thread_id = postgres_thread_service
     snapshot = _snapshot(thread_id)
