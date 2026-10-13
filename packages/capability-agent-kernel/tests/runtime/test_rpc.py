@@ -23,16 +23,6 @@ def test_native_action_boundaries_expose_metadata_without_message_content():
     assert _semantic_trace_payloads({'type': 'message_end', 'message': {'role': 'tool', 'content': []}}, '', {}) == ()
 
 
-def test_native_response_usage_keeps_only_bounded_token_counts():
-    from capability_agent.runtime.rpc import _semantic_trace_payloads
-    event = {'type': 'message_end', 'message': {'role': 'assistant', 'content': [],
-        'usage': {'input': 9000, 'output': 200, 'cacheRead': 8000, 'cacheWrite': 0,
-                  'totalTokens': 9200, 'cost': {'secret': 'private'}, 'credential': 'private'}}}
-    result = _semantic_trace_payloads(event, '', {})[0]
-    assert result['usage'] == {'input': 9000, 'output': 200, 'cacheRead': 8000, 'cacheWrite': 0, 'totalTokens': 9200}
-    assert 'private' not in json.dumps(result)
-
-
 @dataclass(frozen=True)
 class _Workspace:
     root_path: Path

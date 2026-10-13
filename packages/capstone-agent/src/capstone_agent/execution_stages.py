@@ -70,7 +70,7 @@ class ExecutionStages:
                 self.active = identity
                 payload['task_steps'] = [previous]
             state = self.steps[identity]
-            for key in ('title', 'response_ms', 'first_text_ms', 'usage', 'finish_reason', 'after_failed_steps'):
+            for key in ('title', 'response_ms', 'finish_reason', 'after_failed_steps'):
                 if key in step:
                     state[key] = step[key]
             if step.get('status') == 'completed' and identity == self.active:

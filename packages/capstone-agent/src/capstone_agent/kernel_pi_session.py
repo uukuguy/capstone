@@ -25,7 +25,6 @@ from capability_agent.runtime.models import ResolvedLLM
 from capability_agent.runtime.rpc import PiRpcClient
 from capability_agent.runtime.trace import JsonlTraceWriter
 from capability_agent.tools.catalog import CoreToolCatalog
-from capability_agent._safe_files import ensure_bound_directory, read_bound_regular_path, write_bound_text
 
 from .harness import AdmittedAttemptAnswer, PiPromptSession, normalize_runtime_event
 from .kernel_capability_preparation import PreparedKernelApplicationProfile
@@ -223,7 +222,6 @@ class PreparedKernelPiRpcSessionBuilder:
                 profiles=profiles,
                 prior_results=claim.prior_results,
                 previous_instruction=claim.previous_instruction,
-                include_reply_phase=True,
             )
         paths = RuntimePaths(
             command=self._runtime_host.command,
@@ -244,9 +242,6 @@ class PreparedKernelPiRpcSessionBuilder:
         )
         launch = _with_selected_task_tool(launch, claim.selected_task_reader, attempt_directory,
                                          self._runtime_host.extension_path)
-        launch = _with_model_input_metrics(launch, attempt_directory, self._runtime_host.extension_path)
-        launch, reply_phase_path = _with_reply_phase(launch, attempt_directory,
-            claim.attempt.attempt_id, self._runtime_host.extension_path)
         if self._research_enabled:
             launch = PiLaunch((*launch.argv, "--thinking", "off"), launch.environment)
         trace = JsonlTraceWriter(
@@ -266,37 +261,10 @@ class PreparedKernelPiRpcSessionBuilder:
         )
         return _KernelPiPromptSession(
             client, trace, admission=_build_kernel_admission(profiles,
-                core_catalog=CoreToolCatalog.default(include_research=research is not None),
-                include_reply_control=True),
+                core_catalog=CoreToolCatalog.default(include_research=research is not None)),
             reference_observer=handoffs.observe,
             research=research, research_reference_observer=references.observe,
-            reply_phase_path=reply_phase_path,
         )
-
-
-def _with_reply_phase(launch: PiLaunch, directory: Path, attempt_id: str,
-                      domain_extension: Path) -> tuple[PiLaunch, Path]:
-    extension = domain_extension.with_name('reply-phase.mjs')
-    if extension.is_symlink() or not extension.is_file():
-        raise RuntimeError('reply phase extension is not installed')
-    root = ensure_bound_directory(directory / 'reply-phase')
-    path = root / 'phase.json'
-    write_bound_text(path, json.dumps({'schema': 'capstone-reply-phase/1',
-        'attempt_id': attempt_id, 'phase': 'research'}) + '\n')
-    environment = dict(launch.environment)
-    environment['CAPSTONE_REPLY_PHASE'] = str(root)
-    return PiLaunch((*launch.argv, '--extension', str(extension)), environment), path
-
-
-def _with_model_input_metrics(launch: PiLaunch, directory: Path, domain_extension: Path) -> PiLaunch:
-    extension = domain_extension.with_name('model-input-metrics.mjs')
-    if extension.is_symlink() or not extension.is_file():
-        raise RuntimeError('model input metrics extension is not installed')
-    root = directory / 'model-input-metrics'
-    root.mkdir(mode=0o700, parents=True, exist_ok=True)
-    environment = dict(launch.environment)
-    environment['CAPSTONE_MODEL_INPUT_METRICS'] = str(root.resolve())
-    return PiLaunch((*launch.argv, '--extension', str(extension)), environment)
 
 
 def _with_selected_task_tool(launch: PiLaunch, reader: SelectedTaskRecordReader | None,
@@ -354,7 +322,6 @@ def _compose_attempt_policy(
     profiles: tuple[PreparedKernelApplicationProfile, ...] = (),
     prior_results: tuple[PriorResultReference, ...] = (),
     previous_instruction: PreviousInstruction | None = None,
-    include_reply_phase: bool = False,
 ) -> Path:
     """Compose generic, domain, and application catalog guidance for one Attempt."""
 
@@ -363,19 +330,17 @@ def _compose_attempt_policy(
     research = Path(__file__).parent / "resources" / "research-policy.md"
     research_text = research.read_text(encoding="utf-8") if include_research else ""
     delivery_text = (Path(__file__).parent / "resources" / "answer-delivery-policy.md").read_text(encoding="utf-8")
-    reply_phase_text = ((Path(__file__).parent / 'resources' / 'reply-phase-policy.md').read_text(encoding='utf-8')
-        if include_reply_phase else '')
     domain_text = ""
     if domain_policy is not None:
         domain_text = domain_policy.read_text(encoding="utf-8")
     catalog_text = _render_application_catalog_context(application_catalog)
     model_text = _render_attempt_model_context(model_context, profiles, prior_results=prior_results, previous_instruction=previous_instruction) if model_context is not None else ""
-    if sum(map(len, (generic_text, domain_text, catalog_text, model_text, research_text, delivery_text, reply_phase_text))) > 128_000:
+    if sum(map(len, (generic_text, domain_text, catalog_text, model_text, research_text, delivery_text))) > 128_000:
         raise RuntimeError("combined runtime policy is too large")
     directory.mkdir(mode=0o700, parents=True, exist_ok=True)
     path = directory / "system-policy.md"
     path.write_text(
-        "\n\n".join(item for item in (generic_text, domain_text, catalog_text, model_text, research_text, delivery_text, reply_phase_text) if item),
+        "\n\n".join(item for item in (generic_text, domain_text, catalog_text, model_text, research_text, delivery_text) if item),
         encoding="utf-8",
     )
     path.chmod(0o600)
@@ -585,14 +550,11 @@ class _KernelPiPromptSession:
     def __init__(self, client: PiRpcClient, trace: JsonlTraceWriter, *, admission,
                  reference_observer: Callable[[Mapping[str, object]], None] | None = None,
                  research: AttemptResearch | None = None,
-                 research_reference_observer: Callable[[Mapping[str, object]], None] | None = None,
-                 reply_phase_path: Path | None = None) -> None:
+                 research_reference_observer: Callable[[Mapping[str, object]], None] | None = None) -> None:
         self._client = client
         self._trace = trace
         self._admission = admission
         self._reference_observer = reference_observer
-        self._reply_phase_path = reply_phase_path
-        self._reply_ready = False
         self._deadline: float | None = None
         self._ready_for_correction = False
         self._research = research
@@ -638,14 +600,6 @@ class _KernelPiPromptSession:
         if not hasattr(self, "_task_step_tracker"):
             self._task_step_tracker = RuntimeStepTracker()
         def observed(event, _sequence):
-            if self._reply_phase_path is not None:
-                normalized = normalize_runtime_event(event, runtime_mode='capstone')
-                payload = normalized['payload'] if normalized is not None else None
-                if (isinstance(payload, Mapping) and payload.get('tool_name') == 'capstone_begin_reply'
-                    and payload.get('ok') is True and payload.get('requested_phase') == 'reply'):
-                    self._reply_ready = True
-                if self._reply_ready and event.get('type') == 'runtime_action' and event.get('phase') == 'started':
-                    event = {**event, 'response_kind': 'reply'}
             event = self._task_step_tracker.annotate(event)
             if self._reference_observer is not None:
                 self._reference_observer(event)
@@ -744,12 +698,6 @@ class _KernelPiPromptSession:
     def recover_after_failure(self, feedback: Mapping[str, object], **kwargs) -> str:
         if not self._ready_for_correction:
             raise RuntimeError("session is not ready for correction")
-        if self._reply_phase_path is not None:
-            state = json.loads(read_bound_regular_path(self._reply_phase_path))
-            if state.get('schema') != 'capstone-reply-phase/1':
-                raise RuntimeError('reply recovery state is invalid')
-            write_bound_text(self._reply_phase_path, json.dumps({**state, 'phase': 'research'}) + '\n')
-            self._reply_ready = False
         # Continue the existing session; do not replay the original instruction
         # or reset the attempt's deadline.
         return self.prompt_and_wait(
@@ -783,7 +731,6 @@ class _KernelPiPromptSession:
 def _build_kernel_admission(
     profiles: tuple[PreparedKernelApplicationProfile, ...],
     *, core_catalog: CoreToolCatalog | None = None,
-    include_reply_control: bool = False,
 ):
     selected_core = core_catalog if core_catalog is not None else CoreToolCatalog.default()
     core_tools = {tool.name: tool.capability for tool in selected_core.tools}
@@ -818,11 +765,6 @@ def _build_kernel_admission(
         for event in tool_events:
             name = event.get("tool_name")
             capability = event.get("capability")
-            if name == 'capstone_begin_reply' or capability == 'capstone_begin_reply':
-                if (not include_reply_control or name != capability or event.get('binding_id') is not None
-                    or event.get('result_refs') or event.get('evidence_refs')):
-                    raise ValueError('application reply phase provenance is invalid')
-                continue
             if name == "agent_task_records_read" or capability == "agent_task_records_read":
                 if (name != "agent_task_records_read" or capability != name
                     or getattr(claim, "selected_task_reader", None) is None

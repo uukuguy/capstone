@@ -319,10 +319,6 @@ def _tool_payload(event: Mapping[str, object]) -> dict[str, object]:
     # Native Pi tools retain authority output in details.result. Preserve only
     # bounded references and identity, never the raw authority document.
     result = details.get("result")
-    if ok is True and payload.get('capability') == 'capstone_begin_reply':
-        if details.get('requested_phase') == 'reply' and details.get('agent_outcome') in {'completed', 'partial', 'blocked'}:
-            payload['requested_phase'] = 'reply'
-            payload['agent_outcome'] = details['agent_outcome']
     if ok is True and payload.get("capability") == "agent_task_progress":
         from capability_agent.application.research_models import TaskProgress
         try:

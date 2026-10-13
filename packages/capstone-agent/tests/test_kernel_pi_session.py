@@ -9,40 +9,6 @@ from types import SimpleNamespace
 import pytest
 
 
-def test_model_input_metrics_are_scoped_without_changing_the_model_or_prompt(tmp_path):
-    from capability_agent.runtime.environment import PiLaunch
-    from capstone_agent.kernel_pi_session import _with_model_input_metrics
-    extension = tmp_path / 'domain-tools.mjs'
-    extension.with_name('model-input-metrics.mjs').write_text('export default () => {}')
-    launch = PiLaunch(('pi', '--model', 'selected', '--system-prompt', 'original'), {'SAFE': 'value'})
-    measured = _with_model_input_metrics(launch, tmp_path / 'attempt', extension)
-    assert measured.argv[:len(launch.argv)] == launch.argv
-    assert measured.environment['SAFE'] == 'value'
-    assert 'CAPSTONE_MODEL_INPUT_METRICS' not in launch.environment
-    assert measured.environment['CAPSTONE_MODEL_INPUT_METRICS'] == str((tmp_path / 'attempt/model-input-metrics').resolve())
-
-
-def test_reply_phase_control_is_scoped_and_recovery_preserves_the_session(tmp_path):
-    import json
-    from capability_agent.runtime.environment import PiLaunch
-    from capstone_agent.kernel_pi_session import _with_reply_phase, _KernelPiPromptSession
-    extension = tmp_path / 'domain-tools.mjs'
-    extension.with_name('reply-phase.mjs').write_text('export default () => {}')
-    original = PiLaunch(('pi', '--model', 'selected'), {'SAFE': 'value'})
-    launch, state_path = _with_reply_phase(original, tmp_path / 'attempt', 'attempt_one', extension)
-    assert launch.argv[:len(original.argv)] == original.argv
-    assert 'CAPSTONE_REPLY_PHASE' not in original.environment
-    assert json.loads(state_path.read_text())['attempt_id'] == 'attempt_one'
-    state_path.write_text(json.dumps({'schema': 'capstone-reply-phase/1', 'attempt_id': 'attempt_one', 'phase': 'reply'}))
-    session = _KernelPiPromptSession(object(), SimpleNamespace(), admission=lambda *_: None, reply_phase_path=state_path)
-    session._ready_for_correction = True
-    prompts = []
-    session.prompt_and_wait = lambda question, **_: prompts.append(question) or 'Retained partial outcome.'
-    assert session.recover_after_failure({'code': 'check_failed'}) == 'Retained partial outcome.'
-    assert json.loads(state_path.read_text())['phase'] == 'research'
-    assert len(prompts) == 1
-
-
 def test_selected_task_tool_launch_binds_private_input_and_preserves_original_launch(tmp_path):
     from capability_agent.runtime.environment import PiLaunch
     from capstone_agent.kernel_pi_session import _with_selected_task_tool
@@ -342,16 +308,6 @@ def test_core_observations_do_not_hide_domain_execution_from_admission():
     _build_kernel_admission((profile,))(claim, "Model inspection complete.", (), (), events)
     assert requests[0].authority_attempted is True
     assert requests[0].observed_capabilities == ("model.describe",)
-
-
-def test_reply_transition_does_not_create_authority_evidence():
-    profile, claim, requests = _research_admission_fixture()
-    event = {'tool_name': 'capstone_begin_reply', 'capability': 'capstone_begin_reply', 'ok': True}
-    answer = _build_kernel_admission((profile,), include_reply_control=True)(claim, 'Partial outcome.', (), (), (event,))
-    assert answer.result_refs == answer.evidence_refs == ()
-    assert requests[0].authority_attempted is False
-    with pytest.raises(ValueError, match='reply phase provenance'):
-        _build_kernel_admission((profile,))(claim, 'Partial outcome.', (), (), (event,))
 
 
 def test_core_record_cannot_admit_a_top_level_result_reference():

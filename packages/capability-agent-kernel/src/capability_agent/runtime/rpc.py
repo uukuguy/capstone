@@ -643,14 +643,7 @@ def _semantic_trace_payloads(
         if isinstance(message, dict) and message.get("role") == "assistant":
             content = message.get("content")
             tools = isinstance(content, list) and any(isinstance(item, dict) and item.get("type") == "toolCall" for item in content)
-            response: dict[str, Any] = {"type": "runtime_action", "phase": "response_completed", "response_kind": "tools" if tools else "text"}
-            usage = message.get('usage')
-            if isinstance(usage, dict):
-                counts = {key: usage[key] for key in ('input', 'output', 'cacheRead', 'cacheWrite', 'totalTokens')
-                          if type(usage.get(key)) is int and 0 <= usage[key] <= 100_000_000}
-                if counts:
-                    response['usage'] = counts
-            return (response,)
+            return ({"type": "runtime_action", "phase": "response_completed", "response_kind": "tools" if tools else "text"},)
     delta = event.get("text") if event.get("type") == "text_delta" else None
     update = event.get("assistantMessageEvent") if event.get("type") == "message_update" else None
     if isinstance(update, dict) and update.get("type") == "text_delta":
