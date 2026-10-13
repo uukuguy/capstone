@@ -750,10 +750,19 @@ def _build_kernel_admission(
             if isinstance(namespace := getattr(getattr(binding, "binding", None), "tool_namespace", None), str)
         }
         authority_events = []
+        historical_record_read = False
         owners: dict[str, str] = {}
         for event in tool_events:
             name = event.get("tool_name")
             capability = event.get("capability")
+            if name == "agent_task_records_read" or capability == "agent_task_records_read":
+                if (name != "agent_task_records_read" or capability != name
+                    or getattr(claim, "selected_task_reader", None) is None
+                    or event.get("binding_id") is not None
+                    or event.get("result_refs") or event.get("evidence_refs")):
+                    raise ValueError("selected task record provenance is invalid")
+                historical_record_read = historical_record_read or event.get("ok") is True
+                continue
             if ((isinstance(name, str) and name.startswith(selected_core.namespace))
                 or (isinstance(capability, str) and capability.startswith(selected_core.namespace))):
                 if (not isinstance(name, str) or name not in core_tools
@@ -785,6 +794,9 @@ def _build_kernel_admission(
                         raise ValueError("runtime reference has conflicting binding owners")
         if set(result_refs) - set(owners) or set(evidence_refs) - set(owners):
             raise ValueError("admitted reference has no tool provenance owner")
+        if not profiles and historical_record_read and not result_refs and not evidence_refs:
+            return AdmittedAttemptAnswer(answer, "limited", "limited",
+                diagnostic_codes=("historical_record_access_verified", "answer_semantics_not_verified"))
         tool_events = tuple(authority_events)
         _verify_bound_attempt_references(profiles, binding_map, owners, result_refs, evidence_refs, tool_events)
         participating = {event["binding_id"] for event in tool_events}

@@ -249,6 +249,30 @@ def test_registered_research_tools_do_not_count_as_authority_calculations():
     assert requests[0].observed_capabilities == ()
 
 
+@pytest.mark.parametrize("ordinary", [False, True])
+def test_selected_record_tool_is_application_observation_not_authority(ordinary):
+    profile, claim, requests = _research_admission_fixture()
+    claim.selected_task_reader = object()
+    claim.turn_plan = SimpleNamespace(route="ordinary") if ordinary else None
+    events = ({"tool_name": "agent_task_records_read", "capability": "agent_task_records_read", "ok": True},)
+    admitted = _build_kernel_admission(() if ordinary else (profile,))(
+        claim, "The original task has recorded failures.", (), (), events)
+    assert admitted.result_refs == admitted.evidence_refs == ()
+    assert admitted.mode == "limited"
+    if not ordinary:
+        assert requests[0].authority_attempted is False
+
+
+@pytest.mark.parametrize("extra", [{"binding_id": "grid"}, {"result_refs": ["result:old"]},
+                                   {"evidence_refs": ["evidence:old"]}])
+def test_historical_record_tool_cannot_admit_old_references(extra):
+    profile, claim, _ = _research_admission_fixture()
+    claim.selected_task_reader = object()
+    event = {"tool_name": "agent_task_records_read", "capability": "agent_task_records_read", "ok": True, **extra}
+    with pytest.raises(ValueError):
+        _build_kernel_admission((profile,))(claim, "Explanation", (), (), (event,))
+
+
 @pytest.mark.parametrize("extra", [
     {"result_refs": ["result:untrusted"]},
     {"evidence_refs": ["evidence:untrusted"]},
