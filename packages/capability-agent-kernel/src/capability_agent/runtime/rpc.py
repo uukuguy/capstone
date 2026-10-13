@@ -18,6 +18,7 @@ from typing import Any, Protocol
 from capability_agent.runtime.environment import PiLaunch
 from capability_agent.runtime.lock import PiCommand
 from capability_agent.runtime.trace import JsonlTraceWriter
+from capability_agent.runtime.process_stream import ProcessStream
 
 
 SemanticEventCallback = Callable[[dict[str, Any], int], None]
@@ -118,6 +119,7 @@ class PiRpcClient:
         capture_error_type: type[RuntimeError] = PiCaptureIntegrityError,
         timeout_seconds: float | None = None,
         correlation_id: str | None = None,
+        process_delta_batch_seconds: float = 0,
     ) -> None:
         self.command = command
         self.workspace = workspace
@@ -135,6 +137,10 @@ class PiRpcClient:
             raise ValueError("RPC correlation ID must be non-empty text")
         self.timeout_seconds = timeout_seconds
         self.correlation_id = correlation_id
+        if (type(process_delta_batch_seconds) not in {int, float} or not math.isfinite(process_delta_batch_seconds)
+            or not 0 <= process_delta_batch_seconds <= 1):
+            raise ValueError("process delta interval must be between zero and one second")
+        self.process_delta_batch_seconds = process_delta_batch_seconds
         self.process: subprocess.Popen[bytes] | None = None
         self._stdout_lines: Queue[bytes | None] | None = None
         self._stderr_capture: _BoundedStderrCapture | None = None
@@ -199,8 +205,22 @@ class PiRpcClient:
     ) -> str:
         timing = _PromptTiming()
         status = "failed"
+        def publish(payload: dict[str, Any]) -> None:
+            trace_started = time.perf_counter()
+            sequence = self.trace.append("pi_event", payload)
+            timing.trace_seconds += time.perf_counter() - trace_started
+            timing.semantic_events += 1
+            if capture is not None:
+                capture.on_semantic_event(payload, sequence)
+            if on_semantic_event is not None:
+                observer_started = time.perf_counter()
+                try:
+                    on_semantic_event(payload, sequence)
+                finally:
+                    timing.observer_seconds += time.perf_counter() - observer_started
+        stream = ProcessStream(publish, self.process_delta_batch_seconds)
         try:
-            answer = self._prompt_and_wait(question, timing=timing, on_event=on_event,
+            answer = self._prompt_and_wait(question, timing=timing, stream=stream, on_event=on_event,
                 on_semantic_event=on_semantic_event, on_heartbeat=on_heartbeat,
                 on_control_requests=on_control_requests, heartbeat_seconds=heartbeat_seconds,
                 require_answer_text=require_answer_text, capture=capture, timeout_seconds=timeout_seconds,
@@ -208,6 +228,7 @@ class PiRpcClient:
             status = "interrupted" if self.last_prompt_interrupted else "returned"
             return answer
         finally:
+            stream.flush()
             document = timing.document(status)
             identity = correlation_id if correlation_id is not None else self.correlation_id
             if identity is not None:
@@ -219,6 +240,7 @@ class PiRpcClient:
         question: str,
         *,
         timing: _PromptTiming,
+        stream: ProcessStream,
         on_event: Callable[[dict[str, Any]], None] | None = None,
         on_semantic_event: SemanticEventCallback | None = None,
         on_heartbeat: Callable[[], None] | None = None,
@@ -278,7 +300,11 @@ class PiRpcClient:
         next_heartbeat_at = time.monotonic() + heartbeat_seconds
         deadline = None if timeout is None else time.monotonic() + timeout
         while True:
+            stream.flush_due()
             wait_timeout = heartbeat_seconds
+            stream_remaining = stream.remaining()
+            if stream_remaining is not None:
+                wait_timeout = min(wait_timeout, max(.001, stream_remaining))
             if model_idle_seconds is not None and acknowledged and not running_tools and not self.last_prompt_interrupted:
                 idle_remaining = model_idle_seconds - (time.monotonic() - last_model_action)
                 if idle_remaining <= 0:
@@ -362,16 +388,9 @@ class PiRpcClient:
                 trace_correlation = event_correlation or expected_correlation
                 if trace_correlation is not None:
                     payload = {**payload, "correlation_id": trace_correlation}
-                trace_started = time.perf_counter()
-                sequence = self.trace.append("pi_event", payload)
-                timing.trace_seconds += time.perf_counter() - trace_started
-                timing.semantic_events += 1
-                if capture is not None:
-                    capture.on_semantic_event(payload, sequence)
-                if on_semantic_event is not None:
-                    observer_started = time.perf_counter()
-                    on_semantic_event(payload, sequence)
-                    timing.observer_seconds += time.perf_counter() - observer_started
+                received = getattr(raw, "received_at", None)
+                stream.emit(payload, ordinal=timing.raw_events,
+                    received=None if not isinstance(received, float) else round(received - timing.started, 6))
             if event.get("type") == "prompt_ack" and event.get("ok") is True:
                 acknowledged = True
                 last_model_action = time.monotonic()

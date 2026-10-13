@@ -64,6 +64,58 @@ def test_rpc_timing_is_retained_on_protocol_failure(tmp_path):
     assert timing['raw_events'] == 1
 
 
+def test_rpc_batches_process_fragments_without_crossing_tool_boundaries(tmp_path):
+    script = tmp_path / 'batch.py'
+    script.write_text("import json\ninput()\n"
+        "print(json.dumps({'type':'prompt_ack','ok':True}), flush=True)\n"
+        "for _ in range(20): print(json.dumps({'type':'text_delta','text':'前'}), flush=True)\n"
+        "print(json.dumps({'type':'tool_execution_start','toolCallId':'one','toolName':'lookup'}), flush=True)\n"
+        "print(json.dumps({'type':'tool_execution_end','toolCallId':'one','toolName':'lookup','result':{'details':{'capability':'lookup','ok':True,'result':{'value':7}}}}), flush=True)\n"
+        "for _ in range(20): print(json.dumps({'type':'text_delta','text':'后'}), flush=True)\n"
+        "print(json.dumps({'type':'agent_end','messages':[]}), flush=True)\n")
+    trace = JsonlTraceWriter(tmp_path / 'trace.jsonl')
+    client = PiRpcClient(PiLaunch(argv=(sys.executable, str(script)), environment={}), _Workspace(tmp_path), trace,
+        process_delta_batch_seconds=.1)
+    observed = []
+    client.start()
+    try:
+        assert client.prompt_and_wait('question', on_semantic_event=lambda event, _: observed.append(event)) == '后' * 20
+    finally:
+        client.stop()
+        trace.close()
+    deltas = [event for event in observed if event['type'] == 'assistant_process_delta']
+    assert len(deltas) < 5
+    assert ''.join(event['text'] for event in deltas) == '前' * 20 + '后' * 20
+    fragments = [fragment for event in deltas for fragment in event['delta_records']]
+    assert len(fragments) == 40
+    assert ''.join(fragment['text'] for fragment in fragments) == '前' * 20 + '后' * 20
+    assert all('received_seconds' in fragment and 'native_ordinal' in fragment for fragment in fragments)
+    start = next(index for index, event in enumerate(observed) if event['type'] == 'tool_execution_start')
+    assert ''.join(event.get('text', '') for event in observed[:start]) == '前' * 20
+    assert [event for event in observed if event['type'] == 'tool_result'][0]['result'] == {'value': 7}
+    assert observed[-1]['type'] == 'assistant_message'
+
+
+def test_rpc_flushes_batched_fragments_before_protocol_failure(tmp_path):
+    script = tmp_path / 'batch-fail.py'
+    script.write_text("import json\ninput()\n"
+        "print(json.dumps({'type':'prompt_ack','ok':True}), flush=True)\n"
+        "print(json.dumps({'type':'text_delta','text':'preserved'}), flush=True)\n"
+        "print('invalid-json', flush=True)\n")
+    trace = JsonlTraceWriter(tmp_path / 'trace.jsonl')
+    client = PiRpcClient(PiLaunch(argv=(sys.executable, str(script)), environment={}), _Workspace(tmp_path), trace,
+        process_delta_batch_seconds=.1)
+    observed = []
+    client.start()
+    try:
+        with pytest.raises(PiProtocolError, match='invalid JSONL'):
+            client.prompt_and_wait('question', on_semantic_event=lambda event, _: observed.append(event))
+    finally:
+        client.stop()
+        trace.close()
+    assert [event['text'] for event in observed if event['type'] == 'assistant_process_delta'] == ['preserved']
+
+
 def test_model_step_budget_keeps_session_and_completed_tools_for_resume(tmp_path):
     script = tmp_path / "bounded-step.py"
     script.write_text('''import json, sys

@@ -324,9 +324,11 @@ def test_core_record_cannot_admit_a_top_level_result_reference():
 def test_ordinary_session_has_no_business_tools_or_authority_handles(monkeypatch, tmp_path, selected_task):
     import capstone_agent.kernel_pi_session as module
     captured = []
+    stream_settings = []
     class Client:
         def __init__(self, launch, workspace, trace, **kwargs):
             self.workspace = workspace
+            stream_settings.append(kwargs)
         def stop(self):
             pass
     def launch(llm, paths, **kwargs):
@@ -350,6 +352,7 @@ def test_ordinary_session_has_no_business_tools_or_authority_handles(monkeypatch
     profile = SimpleNamespace(workspace=SimpleNamespace(root=business, core_path=business / "core"))
     session = builder(claim, object(), (profile,))
     paths = captured[0]
+    assert stream_settings[0]['process_delta_batch_seconds'] == .1
     assert paths.workspace != business
     assert paths.extension_path is paths.runtime_descriptor_path is paths.tool_catalog_path is None
     assert paths.domain_search_paths == ()

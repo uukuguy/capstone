@@ -134,7 +134,8 @@ class PreparedKernelPiRpcSessionBuilder:
             secrets = {self._resolved_llm.secret.value} if self._resolved_llm.secret is not None else set()
             trace = JsonlTraceWriter(directory / "pi-events.jsonl", secret_values=secrets)
             client = PiRpcClient(launch, _RpcWorkspace(directory), trace, secret_values=secrets,
-                correlation_id=claim.attempt.attempt_id, timeout_seconds=self._timeout_seconds)
+                correlation_id=claim.attempt.attempt_id, timeout_seconds=self._timeout_seconds,
+                process_delta_batch_seconds=.1)
             return _KernelPiPromptSession(client, trace, admission=_build_kernel_admission(()))
         handoffs = PreparedKernelReferenceHandoffs(profiles)
         references = _ResearchReferences(profiles)
@@ -256,6 +257,7 @@ class PreparedKernelPiRpcSessionBuilder:
             if self._resolved_llm.secret is not None else set(),
             correlation_id=claim.attempt.attempt_id,
             timeout_seconds=self._timeout_seconds,
+            process_delta_batch_seconds=.1,
         )
         return _KernelPiPromptSession(
             client, trace, admission=_build_kernel_admission(profiles,
