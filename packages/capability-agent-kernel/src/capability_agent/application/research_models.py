@@ -44,6 +44,7 @@ class TaskProgress(ResearchRecord):
     kind: Literal["goal", "observation", "adjustment", "limitation"]
     text: Annotated[str, Field(min_length=1, max_length=1000)]
     refs: tuple[Reference, ...] = Field(default=(), max_length=32)
+    purpose: Annotated[str, Field(min_length=1, max_length=120, description="Concise purpose of the current execution action, in the user's language. State the intended work, not the whole task or an unverified outcome. Record it alongside dependent tool calls.")] | None = None
     step_id: RecordId | None = None
     phase: Literal["started", "updated", "completed"] | None = None
 

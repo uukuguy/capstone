@@ -95,7 +95,8 @@ class RuntimeStepTracker(TaskStepTracker):
             if identity is not None:
                 state = self.steps[identity]
                 if phase == "response_completed":
-                    state["title"] = "组织工具调用" if event.get("response_kind") == "tools" else "生成回复"
+                    if not state.get("purpose"):
+                        state["title"] = "组织工具调用" if event.get("response_kind") == "tools" else "生成回复"
                     state["response_ms"] = max(0, round((self.clock() - cast(float, state["start"])) * 1000))
                 elif phase in {"completed", "interrupted"}:
                     state["status"] = "completed"
@@ -111,5 +112,15 @@ class RuntimeStepTracker(TaskStepTracker):
             output["runtime_step_tracking"] = True
             if self.active is not None:
                 output["task_step_id"] = self.active
+                record = payload.get("task_progress")
+                if normalized["event_type"] == "tool_started":
+                    try:
+                        record = TaskProgress.model_validate(event.get("args")).model_dump(mode="json", exclude_none=True)
+                    except ValueError:
+                        record = None
+                if isinstance(record, dict) and isinstance(record.get("purpose"), str):
+                    self.steps[self.active]["title"] = record["purpose"]
+                    self.steps[self.active]["purpose"] = True
+                    output["task_step"] = self._public(self.active)
             return output
         return super().annotate(output)

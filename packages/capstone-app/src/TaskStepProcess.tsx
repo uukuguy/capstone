@@ -37,13 +37,13 @@ function Step({ step, storageKey, running, last, toolCount, children }: { step: 
   }, [running, step.status])
   const start = step.startedAt ? Date.parse(step.startedAt) : NaN
   const elapsed = step.durationMs ?? (running && step.status === 'running' && Number.isFinite(start) ? Math.max(0, now - start) : undefined)
-  return <details className="capstone-business-step" open={open} onToggle={event => {
-    const next = event.currentTarget.open
-    if (next === open) return
-    setManualOpen(next)
-    try { localStorage.setItem(key, String(next)) } catch { /* The current page still retains the choice. */ }
-  }}>
-    <summary><span className="capstone-step-number">{String(step.number).padStart(2, '0')}</span>
+  return <details className="capstone-business-step" open={open}>
+    <summary onClick={event => {
+      event.preventDefault()
+      const next = !open
+      setManualOpen(next)
+      try { localStorage.setItem(key, String(next)) } catch { /* Retain the choice in this page. */ }
+    }}><span className="capstone-step-number">{String(step.number).padStart(2, '0')}</span>
       <span className="capstone-chat-activity-source" data-owner="capstone">CAPSTONE</span>
       <span className="capstone-step-title">{step.title}</span>
       {toolCount !== undefined && <small>{toolCount} 次工具调用</small>}

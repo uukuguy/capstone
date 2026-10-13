@@ -41,6 +41,20 @@ def test_native_step_annotations_survive_public_normalization():
     assert end['payload']['task_step']['status'] == 'completed'
 
 
+def test_action_purpose_is_model_recorded_and_not_inferred_from_tools():
+    from capstone_agent.task_steps import RuntimeStepTracker
+    tracker = RuntimeStepTracker()
+    tracker.annotate({'type': 'runtime_action', 'phase': 'started'})
+    event = {'type': 'tool_execution_start', 'toolName': 'agent_task_progress', 'toolCallId': 'progress',
+        'args': {'kind': 'goal', 'text': '检查求解条件', 'purpose': '检查约束与求解条件', 'refs': []}}
+    described = tracker.annotate(event)
+    assert described['task_step']['title'] == '检查约束与求解条件'
+    child = tracker.annotate({'type': 'tool_execution_start', 'toolName': 'grid_check', 'toolCallId': 'one'})
+    assert child['task_step_id'] == described['task_step']['id']
+    ended = tracker.annotate({'type': 'runtime_action', 'phase': 'completed'})
+    assert ended['task_step']['title'] == '检查约束与求解条件'
+
+
 def progress(step, phase, text):
     return {"type": "tool_result", "event": "tool_result", "tool_name": "agent_task_progress",
         "capability": "agent_task_progress", "ok": True,

@@ -29,8 +29,8 @@ describe('task step folding', () => {
     expect(details.open).toBe(false)
     expect(container.querySelectorAll('details')[1].open).toBe(true)
     expect(screen.getByText(/2.5s/)).toBeTruthy()
-    details.open = true
-    fireEvent(details, new Event('toggle'))
+    fireEvent.click(details.querySelector('summary')!)
+    expect(localStorage.getItem('capstone-step-open:thread:attempt:inspect')).toBe('true')
     unmount()
     const remounted = render(<TaskStepProcess steps={[{ ...step, status: 'completed', durationMs: 2500 }]} storageKey="thread:attempt" running={false} renderTools={() => <span>01.1 GRID</span>} />)
     expect(remounted.container.querySelector('details')!.open).toBe(true)
@@ -39,8 +39,8 @@ describe('task step folding', () => {
     const step = { id: 'solve', number: 1, title: '求解', status: 'running' as const }
     const { container, rerender, unmount } = render(<TaskStepProcess steps={[step]} storageKey="manual" running renderTools={() => null} />)
     const details = container.querySelector('details')!
-    details.open = false
-    fireEvent(details, new Event('toggle'))
+    fireEvent.click(details.querySelector('summary')!)
+    expect(localStorage.getItem('capstone-step-open:manual:solve')).toBe('false')
     rerender(<TaskStepProcess steps={[{ ...step, status: 'completed' }]} storageKey="manual" running={false} renderTools={() => null} />)
     expect(details.open).toBe(false)
     unmount()
