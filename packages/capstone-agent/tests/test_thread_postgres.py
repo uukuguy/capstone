@@ -96,6 +96,37 @@ def test_postgres_work_reset_commits_atomically_without_a_task(postgres_thread_s
     assert not any(event.event_type == "attempt_started" for event in events)
 
 
+def test_postgres_explicit_followup_binds_selected_persisted_task(postgres_thread_service):
+    service, thread_id = postgres_thread_service
+    service.create_thread(_snapshot(thread_id))
+    ids = []
+    for index in range(2):
+        receipt = service.submit_command({**_command(thread_id), "command_id": f"cmd_source_{index}",
+            "idempotency_key": f"idem_source_{index}", "expected_event_seq": service.snapshot(thread_id).last_event_seq,
+            "payload": {"text": f"Question {index}"}})
+        assert receipt.status == "accepted"
+        claim = service.claim_attempt("source-test", 30)
+        ids.append(claim.attempt.attempt_id)
+        service.finish_attempt(claim, phase="completed", payload={"answer": f"Answer {index}"})
+    restarted = PostgresThreadService(service.dsn)
+    receipt = restarted.submit_command({**_command(thread_id), "command_id": "cmd_followup",
+        "idempotency_key": "idem_followup", "expected_event_seq": restarted.snapshot(thread_id).last_event_seq,
+        "payload": {"text": "Explain", "source_attempt_id": ids[0]}})
+    assert receipt.status == "accepted"
+    claim = restarted.claim_attempt("source-test", 30)
+    assert claim.previous_instruction.attempt_id == ids[0]
+    assert claim.previous_instruction.answer == "Answer 0"
+    assert claim.previous_instruction.model_context == _snapshot(thread_id).active_model_context
+    restarted.finish_attempt(claim, phase="failed", payload={"answer": "Recorded failure"})
+    receipt = restarted.submit_command({**_command(thread_id), "command_id": "cmd_retry_followup",
+        "idempotency_key": "idem_retry_followup", "kind": "retry_new_attempt",
+        "expected_event_seq": restarted.snapshot(thread_id).last_event_seq,
+        "payload": {"attempt_id": claim.attempt.attempt_id}})
+    assert receipt.status == "accepted"
+    retry = restarted.claim_attempt("source-test", 30)
+    assert retry.previous_instruction.attempt_id == ids[0]
+
+
 def test_attempt_records_keep_failed_and_diagnostic_events_in_original_context(postgres_thread_service):
     service, thread_id = postgres_thread_service
     snapshot = _snapshot(thread_id)

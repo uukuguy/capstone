@@ -759,6 +759,42 @@ def test_work_reset_activates_without_starting_a_task_and_rejects_active_executi
     assert service.snapshot("thr_attempts") == busy
 
 
+def test_explicit_followup_uses_selected_task_instead_of_latest_reply():
+    service = _service()
+    ids = []
+    for index in range(2):
+        receipt = service.submit_command({**_command(f"cmd_source_{index}"),
+            "expected_event_seq": service.snapshot("thr_attempts").last_event_seq,
+            "payload": {"text": f"Question {index}"}})
+        assert receipt.status == "accepted"
+        claim = service.claim_attempt("followup-test", 30)
+        ids.append(claim.attempt.attempt_id)
+        service.finish_attempt(claim, phase="completed", payload={"answer": f"Answer {index}"})
+    receipt = service.submit_command({**_command("cmd_followup"),
+        "expected_event_seq": service.snapshot("thr_attempts").last_event_seq,
+        "payload": {"text": "Explain this task", "source_attempt_id": ids[0]}})
+    assert receipt.status == "accepted"
+    followup = service.claim_attempt("followup-test", 30)
+    assert followup.previous_instruction.attempt_id == ids[0]
+    assert followup.previous_instruction.answer == "Answer 0"
+    service.finish_attempt(followup, phase="failed", payload={"answer": "Recorded failure"})
+    receipt = service.submit_command({**_command("cmd_retry_followup"), "kind": "retry_new_attempt",
+        "expected_event_seq": service.snapshot("thr_attempts").last_event_seq,
+        "payload": {"attempt_id": followup.attempt.attempt_id}})
+    assert receipt.status == "accepted"
+    retry = service.claim_attempt("followup-test", 30)
+    assert retry.previous_instruction.attempt_id == ids[0]
+
+
+def test_followup_unknown_source_is_rejected_without_creating_task():
+    service = _service()
+    before = service.snapshot("thr_attempts")
+    receipt = service.submit_command({**_command("cmd_unknown_source"),
+        "payload": {"text": "Explain", "source_attempt_id": "attempt_unknown"}})
+    assert receipt.status == "rejected" and receipt.rejection == "source_attempt_unavailable"
+    assert service.snapshot("thr_attempts") == before
+
+
 def test_model_switch_rejects_a_family_without_a_ready_worker() -> None:
     service = _model_service()
     service.set_available_families(frozenset({"pandapower"}))

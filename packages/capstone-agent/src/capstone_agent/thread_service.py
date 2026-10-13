@@ -455,9 +455,12 @@ class PreviousInstruction:
     instruction: str
     answer: str
     phase: str
+    model_context: ModelContextSnapshot | None = None
 
     def __post_init__(self) -> None:
         _identifier(self.attempt_id, name="previous_instruction.attempt_id")
+        if self.model_context is not None and not isinstance(self.model_context, ModelContextSnapshot):
+            raise ThreadExecutionError("previous instruction model context is invalid")
         if (not isinstance(self.instruction, str) or not self.instruction or len(self.instruction) > 4096
                 or not isinstance(self.answer, str) or len(self.answer) > 4096
                 or self.phase not in {"completed", "failed", "cancelled", "interrupted"}):
@@ -465,8 +468,9 @@ class PreviousInstruction:
 
 
 def _previous_instruction_from_events(events: list[EventEnvelope], attempts: Mapping[str, Any],
-                                      context: ModelContextSnapshot) -> PreviousInstruction | None:
-    terminal = next((event for event in reversed(events) if event.model_context_id == context.id
+                                      context: ModelContextSnapshot, source_attempt_id: str | None = None) -> PreviousInstruction | None:
+    terminal = next((event for event in reversed(events) if
+        (event.attempt_id == source_attempt_id if source_attempt_id is not None else event.model_context_id == context.id)
         and event.event_type in {"attempt_completed", "attempt_failed", "attempt_cancelled", "attempt_interrupted"}), None)
     if terminal is None or terminal.attempt_id is None:
         return None
@@ -477,27 +481,37 @@ def _previous_instruction_from_events(events: list[EventEnvelope], attempts: Map
     if not isinstance(answer, str):
         answer = "".join(str(event.payload.get("text", ""))[:4096] for event in
             [item for item in events if item.attempt_id == terminal.attempt_id and item.event_type == "assistant_text_delta"][:16])
-    return PreviousInstruction(terminal.attempt_id, record["instruction"][:4096], answer[:4096], record["attempt"].phase)
+    return PreviousInstruction(terminal.attempt_id, record["instruction"][:4096], answer[:4096], record["attempt"].phase,
+                               record.get("model_context") if source_attempt_id else None)
 
 
 def _previous_instruction_from_postgres(connection: psycopg.Connection[dict[str, Any]], thread_id: str,
-                                        context: ModelContextSnapshot) -> PreviousInstruction | None:
+                                        context: ModelContextSnapshot, source_attempt_id: str | None = None) -> PreviousInstruction | None:
     row = connection.execute("""SELECT a.attempt_id, a.phase, substring(a.instruction FOR 4096) AS instruction,
-        substring(e.payload->>'answer' FOR 4096) AS answer FROM capstone_thread_events e
+        substring(e.payload->>'answer' FOR 4096) AS answer, a.model_context_snapshot FROM capstone_thread_events e
         JOIN capstone_thread_attempts a ON a.thread_id = e.thread_id AND a.attempt_id = e.attempt_id
-        WHERE e.thread_id = %s AND e.model_context_id = %s AND e.visibility = 'public'
+        WHERE e.thread_id = %s AND ((%s::text IS NULL AND e.model_context_id = %s) OR e.attempt_id = %s) AND e.visibility = 'public'
         AND e.event_type IN ('attempt_completed', 'attempt_failed', 'attempt_cancelled', 'attempt_interrupted')
-        ORDER BY e.event_seq DESC LIMIT 1""", (thread_id, context.id)).fetchone()
+        ORDER BY e.event_seq DESC LIMIT 1""", (thread_id, source_attempt_id, context.id, source_attempt_id)).fetchone()
     if row is None:
         return None
     answer = row["answer"]
     if answer is None:
         deltas = connection.execute("""SELECT substring(payload->>'text' FOR 4096) AS text FROM capstone_thread_events
-            WHERE thread_id = %s AND model_context_id = %s AND attempt_id = %s
+            WHERE thread_id = %s AND attempt_id = %s
             AND event_type = 'assistant_text_delta' AND visibility = 'public' ORDER BY event_seq LIMIT 16""",
-            (thread_id, context.id, row["attempt_id"])).fetchall()
+            (thread_id, row["attempt_id"])).fetchall()
         answer = "".join(item["text"] or "" for item in deltas)[:4096]
-    return PreviousInstruction(row["attempt_id"], row["instruction"], answer, row["phase"])
+    source_context = ModelContextSnapshot.from_document(row["model_context_snapshot"]) if source_attempt_id and row["model_context_snapshot"] else None
+    return PreviousInstruction(row["attempt_id"], row["instruction"], answer, row["phase"], source_context)
+
+
+def _selected_task_from_postgres(connection: psycopg.Connection[dict[str, Any]], thread_id: str,
+                                 attempt_id: str) -> str | None:
+    row = connection.execute("""SELECT payload->'payload'->>'source_attempt_id' AS source
+        FROM capstone_thread_events WHERE thread_id = %s AND attempt_id = %s
+        AND event_type = 'command_accepted' ORDER BY event_seq LIMIT 1""", (thread_id, attempt_id)).fetchone()
+    return row["source"] if row else None
 
 
 @dataclass(frozen=True, slots=True)
@@ -657,6 +671,7 @@ def _thread_catalog_document(
     return {
         "schema": "capstone-thread-catalog/1",
         "work_context_reset": True,
+        "task_followup_binding": True,
         "models": models,
         "profiles": [profiles[key] for key in sorted(profiles)],
     }
@@ -800,6 +815,9 @@ def _admission_rejection(command: Mapping[str, Any]) -> str | None:
     text = command["payload"].get("text")
     if not isinstance(text, str) or not text.strip():
         return "message_text_required"
+    source = command["payload"].get("source_attempt_id")
+    if "source_attempt_id" in command["payload"] and (not isinstance(source, str) or not _IDENTIFIER.fullmatch(source)):
+        return "source_attempt_invalid"
     if "enabled_profiles" in command["payload"]:
         try:
             _message_payload_selection(command)
@@ -1086,6 +1104,10 @@ class InMemoryThreadService:
                 self._commands[parsed["idempotency_key"]] = _StoredCommand(request_hash, receipt)
                 return receipt
             semantic_rejection = _admission_rejection(parsed)
+            source = parsed["payload"].get("source_attempt_id") if parsed["kind"] in _MESSAGE_COMMAND_KINDS else None
+            if semantic_rejection is None and source is not None and _previous_instruction_from_events(
+                    self._events, self._attempts, self._snapshot.active_model_context, source) is None:
+                semantic_rejection = "source_attempt_unavailable"
             if semantic_rejection is not None:
                 receipt = self._receipt(parsed, status="rejected", rejection=semantic_rejection)
                 self._commands[parsed["idempotency_key"]] = _StoredCommand(request_hash, receipt)
@@ -1291,6 +1313,8 @@ class InMemoryThreadService:
                             "turn_id": prior["attempt"].turn_id,
                             "retry_of": prior["attempt"].attempt_id,
                         }
+                        if prior.get("source_attempt_id") is not None:
+                            retry_payload["source_attempt_id"] = prior["source_attempt_id"]
                         event = self._append_event(
                             event_type="command_accepted", attempt=attempt,
                             payload={"command_id": parsed["command_id"], "kind": parsed["kind"],
@@ -1305,6 +1329,7 @@ class InMemoryThreadService:
                             "lease_deadline": None,
                             "model_context": self._snapshot.active_model_context,
                             "command_id": parsed["command_id"],
+                            "source_attempt_id": prior.get("source_attempt_id"),
                         }
                         receipt = self._receipt(
                             parsed, status="accepted", accepted_event_seq=event.event_seq,
@@ -1357,6 +1382,7 @@ class InMemoryThreadService:
                 "lease_deadline": None,
                 "model_context": self._snapshot.active_model_context,
                 "command_id": parsed["command_id"],
+                "source_attempt_id": parsed["payload"].get("source_attempt_id"),
             }
             receipt = self._receipt(
                 parsed, status="accepted", accepted_event_seq=event_seq,
@@ -1513,7 +1539,7 @@ class InMemoryThreadService:
                     lease_token=token,
                     model_context=context,
                     prior_results=_prior_results_for_context(self._snapshot),
-                    previous_instruction=_previous_instruction_from_events(self._events, self._attempts, context),
+                    previous_instruction=_previous_instruction_from_events(self._events, self._attempts, context, record.get("source_attempt_id")),
                     application_catalog=application_catalog,
                     research_generation=next((item.event_id for item in reversed(self._events)
                         if item.event_type == "model_context_reopened"
@@ -2552,6 +2578,10 @@ class PostgresThreadService:
                 receipt = self._receipt(parsed, status="rejected", rejection="stale_event_seq")
             elif (semantic_rejection := _admission_rejection(parsed)) is not None:
                 receipt = self._receipt(parsed, status="rejected", rejection=semantic_rejection)
+            elif (parsed["kind"] in _MESSAGE_COMMAND_KINDS and parsed["payload"].get("source_attempt_id") is not None
+                  and _previous_instruction_from_postgres(connection, snapshot.thread_id, snapshot.active_model_context,
+                      parsed["payload"]["source_attempt_id"]) is None):
+                receipt = self._receipt(parsed, status="rejected", rejection="source_attempt_unavailable")
             elif (
                 (context_lock := _application_context_lock(snapshot)) is not None
                 and parsed["kind"] in _CONTEXT_LOCK_COMMAND_KINDS
@@ -2783,6 +2813,9 @@ class PostgresThreadService:
                                 "turn_id": prior["turn_id"],
                                 "retry_of": prior["attempt_id"],
                             }
+                            source = _selected_task_from_postgres(connection, snapshot.thread_id, prior["attempt_id"])
+                            if source is not None:
+                                retry_payload["source_attempt_id"] = source
                             accepted = self._make_attempt_event(
                                 thread, attempt, event_seq=snapshot.last_event_seq + 1,
                                 event_type="command_accepted",
@@ -3182,6 +3215,7 @@ class PostgresThreadService:
                    WHERE thread_id = %s AND event_type = 'model_context_reopened'
                    AND payload->'model_context'->>'model_id' = %s
                    ORDER BY event_seq DESC LIMIT 1""", (thread["thread_id"], context.model_id)).fetchone()
+            source = _selected_task_from_postgres(connection, thread["thread_id"], running.attempt_id)
             return AttemptClaim(
                 thread_id=thread["thread_id"], run_id=thread["run_id"], attempt=running,
                 kind=updated["kind"], instruction=updated["instruction"],
@@ -3189,7 +3223,8 @@ class PostgresThreadService:
                 selection_revision=thread["selection_revision"], lease_token=token,
                 model_context=context,
                 prior_results=_prior_results_for_context(self._snapshot_from_row(thread)),
-                previous_instruction=_previous_instruction_from_postgres(connection, thread["thread_id"], context),
+                previous_instruction=_previous_instruction_from_postgres(connection, thread["thread_id"], context,
+                    source),
                 application_catalog=application_catalog,
                 research_generation=research_reset["event_id"] if research_reset else None,
             )

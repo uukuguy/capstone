@@ -29,6 +29,7 @@ export type ThreadCatalog = {
   profiles: ThreadCatalogProfile[]
   cases?: ThreadCatalogCase[]
   workContextReset?: boolean
+  taskFollowupBinding?: boolean
 }
 
 export type ThreadModelReferenceResolution =
@@ -130,8 +131,9 @@ function parseCase(value: unknown, index: number): ThreadCatalogCase {
 
 export function parseThreadCatalog(value: unknown): ThreadCatalog {
   const document = record(value, 'catalog')
-  fields(document, ['schema', 'models', 'profiles', 'cases', 'work_context_reset'], 'catalog')
+  fields(document, ['schema', 'models', 'profiles', 'cases', 'work_context_reset', 'task_followup_binding'], 'catalog')
   if (document.work_context_reset !== undefined && typeof document.work_context_reset !== 'boolean') throw new ThreadCatalogProtocolError('catalog.work_context_reset is invalid')
+  if (document.task_followup_binding !== undefined && typeof document.task_followup_binding !== 'boolean') throw new ThreadCatalogProtocolError('catalog.task_followup_binding is invalid')
   required(document, ['schema', 'models', 'profiles'], 'catalog')
   if (document.schema !== 'capstone-thread-catalog/1' || !Array.isArray(document.models) || !Array.isArray(document.profiles)) throw new ThreadCatalogProtocolError('catalog schema is invalid')
   if (document.models.length > 128 || document.profiles.length > 128) throw new ThreadCatalogProtocolError('catalog is too large')
@@ -144,6 +146,7 @@ export function parseThreadCatalog(value: unknown): ThreadCatalog {
     profiles: document.profiles.map(parseProfile),
     ...(cases === undefined ? {} : { cases }),
     ...(document.work_context_reset === undefined ? {} : { workContextReset: document.work_context_reset as boolean }),
+    ...(document.task_followup_binding === undefined ? {} : { taskFollowupBinding: document.task_followup_binding as boolean }),
   }
 }
 
