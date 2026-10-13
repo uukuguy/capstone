@@ -69,6 +69,41 @@ def test_research_conditions_accept_observed_bound_context_but_not_foreign_or_fa
     assert not wrong.admit("context:current")
 
 
+@pytest.mark.parametrize("ok,context,revision,expected", [
+    (True, "context:current", "revision-1", True),
+    (False, "context:current", "revision-1", False),
+    (True, "context:foreign", "revision-1", False),
+    (True, "context:current", "revision-wrong", False),
+])
+def test_research_input_dataset_sources_require_observed_bound_reads(ok, context, revision, expected):
+    from capstone_agent import kernel_pi_session as module
+    profile, _, _ = _research_admission_fixture()
+    refs = module._ResearchReferences((profile,))
+    source = "dataset:input.sources:sha256:" + "a" * 64
+    assert not refs.admit(source)
+    refs.observe({"type": "tool_result", "tool_name": "domain_dataset_query", "capability": "model.dataset.query", "ok": ok,
+        "result": {"dataset_ref": source, "context_ref": context, "revision_ref": revision,
+                   "rows": [{"private_data": "not a reference"}]}})
+    assert refs.admit(source) is expected
+
+
+def test_research_result_dataset_source_requires_its_verified_parent(monkeypatch):
+    from capstone_agent import kernel_pi_session as module
+    profile, _, _ = _research_admission_fixture()
+    def verify(profiles, bindings, owners, results, evidence, events):
+        if results and not evidence:
+            raise ValueError("result has no verified evidence")
+    monkeypatch.setattr(module, "_verify_bound_attempt_references", verify)
+    refs = module._ResearchReferences((profile,))
+    dataset = "dataset:result.values:sha256:" + "b" * 64
+    refs.observe({"type": "tool_result", "tool_name": "domain_result_query", "capability": "result.dataset.query", "ok": True,
+        "result": {"dataset_ref": dataset, "result_ref": "result:parent", "context_ref": "context:current", "revision_ref": "revision-1"}})
+    assert not refs.admit(dataset)
+    refs.observe({"type": "tool_result", "tool_name": "domain_calculate", "ok": True,
+        "result_refs": ["result:parent"], "evidence_refs": ["evidence:parent"]})
+    assert refs.admit(dataset)
+
+
 def test_research_references_require_observed_success_and_bound_authority(monkeypatch):
     from capstone_agent import kernel_pi_session as module
     profile, _, _ = _research_admission_fixture()

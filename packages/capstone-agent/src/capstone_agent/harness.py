@@ -301,6 +301,16 @@ def _tool_payload(event: Mapping[str, object]) -> dict[str, object]:
     # bounded references and identity, never the raw authority document.
     result = details.get("result")
     if ok is True and isinstance(result, Mapping):
+        # Dataset identities are observation sources, not calculation evidence.
+        # Read only declared descriptor fields, never references inside rows.
+        dataset_sources = [result.get("dataset_ref")]
+        descriptors = result.get("datasets")
+        if isinstance(descriptors, (list, tuple)):
+            dataset_sources.extend(item.get("dataset_ref") for item in descriptors if isinstance(item, Mapping))
+        dataset_refs = list(dict.fromkeys(ref for ref in dataset_sources
+            if isinstance(ref, str) and ref.startswith("dataset:") and len(ref) <= 256))
+        if dataset_refs:
+            payload["dataset_refs"] = dataset_refs
         nested_refs = result.get("result_refs", ())
         raw_references = payload.get("result_refs")
         references = [ref for ref in raw_references if isinstance(ref, str)] if isinstance(raw_references, list) else []

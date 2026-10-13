@@ -439,7 +439,7 @@ class _ResearchReferences:
         if str(payload.get("tool_name", "")).startswith("agent_"):
             return
         record = {**payload, "binding_id": binding}
-        for field in ("result_refs", "evidence_refs"):
+        for field in ("result_refs", "evidence_refs", "dataset_refs"):
             for ref in self._refs(payload, field):
                 self.events.setdefault(ref, []).append(record)
         for field in ("context_ref", "model_ref"):
@@ -472,6 +472,12 @@ class _ResearchReferences:
         return tuple(ref for ref in refs if isinstance(ref, str)) if isinstance(refs, (list, tuple)) else ()
 
     def admit(self, reference: str) -> bool:
+        return self._admit(reference, frozenset())
+
+    def _admit(self, reference: str, visited: frozenset[str]) -> bool:
+        if reference in visited:
+            return False
+        visited = visited | {reference}
         events = self.events.get(reference, [])
         if not events or len({event["binding_id"] for event in events}) != 1:
             return False
@@ -484,6 +490,18 @@ class _ResearchReferences:
             if not isinstance(binding, str):
                 continue
             owners = {ref: binding for ref in (*results, *evidence)}
+            if reference in self._refs(event, "dataset_refs"):
+                if not isinstance(event.get("context_ref"), str) or not isinstance(event.get("model_revision"), str):
+                    continue
+                # Result datasets inherit their verified parent; input datasets
+                # need an observed read in the selected context and revision.
+                if any(not self._admit(parent, visited) for parent in results):
+                    continue
+                try:
+                    _verify_bound_attempt_references(self.profiles, self.bindings, {}, (), (), (event,))
+                except (ValueError, LookupError, RuntimeError):
+                    continue
+                return True
             try:
                 _verify_bound_attempt_references(self.profiles, self.bindings, owners,
                                                  results, evidence, (event,))

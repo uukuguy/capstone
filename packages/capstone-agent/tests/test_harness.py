@@ -198,6 +198,20 @@ def test_normalizer_does_not_publish_native_executor_arguments() -> None:
     assert "request_parameters" not in event["payload"]
 
 
+def test_normalizer_preserves_dataset_sources_without_promoting_rows_to_evidence():
+    dataset = "dataset:input.sources:sha256:" + "a" * 64
+    row_reference = "dataset:row.value:sha256:" + "b" * 64
+    event = normalize_runtime_event({"type": "tool_result", "event": "tool_result",
+        "tool_name": "domain_dataset_query", "capability": "model.dataset.query", "ok": True,
+        "result": {"dataset_ref": dataset, "context_ref": "context:selected", "revision_ref": "revision:selected",
+                   "rows": [{"dataset_ref": row_reference, "private_value": 42}]}}, runtime_mode="capstone")
+    assert event["payload"]["dataset_refs"] == [dataset]
+    assert "result_refs" not in event["payload"]
+    assert "evidence_refs" not in event["payload"]
+    assert "rows" not in event["payload"]
+    assert row_reference not in str(event)
+
+
 def test_normalizer_preserves_nested_authority_refs_and_model_identity() -> None:
     result_ref = "result:sha256:" + "a" * 64
     context_ref = "context:sha256:" + "b" * 64
