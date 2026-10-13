@@ -301,7 +301,7 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .legend-busbar { width: 19px; border-top: 3px solid #344c53; margin-left: 7px; }
 .legend-line, .legend-link, .legend-focus { width: 20px; border-top: 3px solid #aab9b9; margin-left: 7px; }
 .legend-link { border-top-style: dashed; border-color: #718ca0; }
-.legend-focus { border-color: #245fc4; border-top-width: 5px; }
+.legend-focus { border-color: #1b4e9b; border-top-width: 6px; }
 .legend-transformer { margin-left: 7px; color: #5f7c79; font: 700 15px Georgia, serif; letter-spacing: -5px;
   padding-right: 5px; }
 .network-transformer-symbol circle { fill: #fff; stroke: #607e7a; stroke-width: 1.2px; }

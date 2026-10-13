@@ -43,6 +43,14 @@ import { threadPreviewDiagram } from './threadModelDiagram'
 afterEach(() => { cleanup(); sessionStorage.clear() })
 
 describe('operator network canvas', () => {
+  it('separates important branches from the baseline with a thicker cased stroke', () => {
+    render(<NetworkView view={sampleDiagramView} modelName="测试电网" focusKey="emphasis" />)
+    const casing = document.querySelector('.network-focus-casing')
+    expect(casing).toBeTruthy()
+    const highlighted = casing!.nextElementSibling!
+    expect(Number(casing!.getAttribute('stroke-width'))).toBeGreaterThan(Number(highlighted.getAttribute('stroke-width')))
+    expect(highlighted.getAttribute('stroke')).toBe('#1b4e9b')
+  })
   it('restores the exact camera after switching model views and remounting', () => {
     const canvas = (key: string) => <NetworkView key={key} view={sampleDiagramView} modelName={key}
       focusKey={key} cameraStorageKey="camera-test" cameraViewKey={key} />

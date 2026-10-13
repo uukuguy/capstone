@@ -88,7 +88,7 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
     state.ids.map((id) => [id, state] as const)) || []), [annotations])
   const regionById = useMemo(() => new Map(regions.flatMap((region, index) =>
     region.ids.map((id) => [id, { ...region, index }] as const))), [regions])
-  const regionColors = ['#436fba', '#8e619c', '#9c7235', '#45877b', '#af6470', '#687dad']
+  const regionColors = ['#765aa6', '#9c7235', '#45877b', '#af6470', '#687dad', '#8e619c']
   const viewIdentity = view?.schema === 'capstone-network-view/2.0'
     ? `${view.diagram.ref}:${view.ordinal}:${view.layer.focus_ids.join(',')}:${view.layer.next_focus_ids.join(',')}`
     : view ? `${view.model.revision}:${view.ordinal}:${view.focus_ids.join(',')}:${view.next_focus_ids.join(',')}`
@@ -233,18 +233,20 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
             const state = stateById.get(branch.id)
             const highlighted = focusIds.includes(branch.id)
             const historical = !highlighted && historyIds.has(branch.id)
-            const color = state?.style === 'disconnected' ? '#b75c43' : state?.style === 'warning' ? '#bb7025' : value === undefined ? highlighted ? '#245fc4' :
+            const color = state?.style === 'disconnected' ? '#b75c43' : state?.style === 'warning' ? '#bb7025' : value === undefined ? highlighted ? '#1b4e9b' :
               historical ? '#91aaa6' : branch.kind === 'link' ? '#718ca0' : '#829c98'
               : valueColor(layer!.overlay!.metric, value, loadingRange)
             const lineWidth = state?.style === 'warning' ? dense ? 3 : 5
               : state?.style === 'disconnected' ? dense ? 1.8 : 3
-                : highlighted ? dense ? 3 : 6 : historical ? dense ? 2 : 3.5 : dense ? 1.5 : value === undefined ? 2.5 : 4
+                : highlighted ? dense ? 4 : 7 : historical ? dense ? 2 : 3.5 : dense ? 1.5 : value === undefined ? 2.5 : 4
             const transformer = ['transformer', 'trafo', 'trafo3w'].includes(branch.kind)
             const centerX = (from.x + to.x) / 2, centerY = (from.y + to.y) / 2
             return <g key={branch.id} onMouseEnter={() => setHovered(branch.id)}
               onMouseLeave={() => setHovered(null)}>
               <line x1={from.x} y1={from.y} x2={to.x} y2={to.y}
                 stroke="transparent" strokeWidth={Math.max(4, (dense ? 7 : 20) * visualScale)} />
+              {highlighted && <line className="network-focus-casing" x1={from.x} y1={from.y} x2={to.x} y2={to.y}
+                stroke="white" strokeWidth={(lineWidth + 3) * visualScale} strokeLinecap="round" />}
               <line x1={from.x} y1={from.y} x2={to.x} y2={to.y}
                 className={state ? `network-state-${state.style}` : undefined}
                 stroke={color} strokeWidth={lineWidth * visualScale}
@@ -257,7 +259,7 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
               </g>}
               {highlighted && value !== undefined && <circle className="network-analysis-marker"
                 cx={centerX} cy={centerY} r={(dense ? 3 : 5) * visualScale}
-                fill="white" stroke="#245fc4" strokeWidth={2 * visualScale} />}
+                fill="white" stroke="#1b4e9b" strokeWidth={2 * visualScale} />}
               {transformer && <g className="network-transformer-symbol" aria-hidden="true">
                 <circle cx={centerX - (dense ? 2.3 : 4) * symbolScale} cy={centerY}
                   r={(dense ? 2.7 : 4.5) * symbolScale}
@@ -288,19 +290,19 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
               {schematic ? <line className={`network-busbar${region ? ' network-region-marker' : ''}`}
                 x1={bus.x - (highlighted ? 11 : 8) * symbolScale} x2={bus.x + (highlighted ? 11 : 8) * symbolScale}
                 y1={bus.y} y2={bus.y}
-                stroke={region ? regionColors[region.index % regionColors.length] : value === undefined ? highlighted ? '#245fc4' : historical ? '#91aaa6' : '#344c53'
+                stroke={region ? regionColors[region.index % regionColors.length] : value === undefined ? highlighted ? '#1b4e9b' : historical ? '#91aaa6' : '#344c53'
                   : valueColor(layer!.overlay!.metric, value, loadingRange)}
-                strokeWidth={(highlighted ? 5 : 3.5) * visualScale} strokeLinecap="square" />
+                strokeWidth={(highlighted ? 7 : 3.5) * visualScale} strokeLinecap="square" />
                 : <circle className={`network-bus-point${region ? ' network-region-marker' : ''}`} cx={bus.x} cy={bus.y}
                   r={(highlighted ? dense ? 5 : 9 : dense ? 2.9 : 5.5) * symbolScale}
                   fill={region ? regionColors[region.index % regionColors.length] : value === undefined ? '#ffffff' : valueColor(layer!.overlay!.metric, value, loadingRange)}
-                  stroke={highlighted ? '#245fc4' : historical ? '#91aaa6' : '#344c53'}
+                  stroke={highlighted ? '#1b4e9b' : historical ? '#91aaa6' : '#344c53'}
                   strokeWidth={(highlighted ? dense ? 1.8 : 2.5 : dense ? .8 : 1.5) * visualScale} />}
               {(nodes.length <= 25 || highlighted || historical || focusBuses.has(bus.id) || hovered === bus.id) &&
                 <text x={bus.x + 13 * visualScale} y={bus.y - 11 * visualScale}
                   className="network-node-label"
                   style={{ fontSize: `${12 * visualScale}px`, strokeWidth: `${3 * visualScale}px` }}>{label}</text>}
-              <title>{label}{'vn_kv' in bus && bus.vn_kv !== null ? ` · ${bus.vn_kv} kV` : ''}{value === undefined ? '' : ` · ${value.toFixed(3)} ${layer!.overlay!.unit}`}</title>
+              <title>{label}{region ? ` · ${region.label}` : ''}{state ? ` · ${state.label}` : ''}{'vn_kv' in bus && bus.vn_kv !== null ? ` · ${bus.vn_kv} kV` : ''}{value === undefined ? '' : ` · ${value.toFixed(3)} ${layer!.overlay!.unit}`}</title>
             </g>
           })}
         </svg>
