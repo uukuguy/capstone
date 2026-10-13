@@ -9,6 +9,22 @@ from types import SimpleNamespace
 import pytest
 
 
+def test_result_delivery_context_comes_only_from_selected_table_projectors():
+    from capstone_agent.kernel_pi_session import _render_result_delivery_context
+    def profile(binding_id, projector):
+        domain = SimpleNamespace(projector_registry=SimpleNamespace(result_projector=projector))
+        binding = SimpleNamespace(runtime=SimpleNamespace(profile=domain))
+        return SimpleNamespace(prepared_application=SimpleNamespace(bindings={binding_id: binding}))
+    assert _render_result_delivery_context((profile('unsupported', None),)) == ''
+    capable = profile('business', SimpleNamespace(project_admitted=lambda **_: ()))
+    rendered = _render_result_delivery_context((capable, profile('unsupported', None)))
+    assert 'business' in rendered
+    assert 'unsupported' not in rendered
+    assert 'complete tables' in rendered
+    assert 'unless the user explicitly requests inline' in rendered
+    assert 'source fields' in rendered
+
+
 def test_selected_task_tool_launch_binds_private_input_and_preserves_original_launch(tmp_path):
     from capability_agent.runtime.environment import PiLaunch
     from capstone_agent.kernel_pi_session import _with_selected_task_tool
