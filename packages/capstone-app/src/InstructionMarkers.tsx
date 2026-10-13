@@ -27,7 +27,7 @@ export default function InstructionMarkers({ viewportRef }: { viewportRef: RefOb
       if (viewport.scrollHeight <= viewport.clientHeight) return
       setScrolling(true)
       clearTimeout(hideTimer)
-      hideTimer = setTimeout(() => setScrolling(false), 3000)
+      hideTimer = setTimeout(() => setScrolling(false), 1000)
       schedule()
     }
     const resize = new ResizeObserver(schedule)
