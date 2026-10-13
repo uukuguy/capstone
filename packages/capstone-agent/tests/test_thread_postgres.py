@@ -145,6 +145,14 @@ def test_attempt_records_keep_failed_and_diagnostic_events_in_original_context(p
     from capstone_agent.thread_service import ThreadNotFound
     with pytest.raises(ThreadNotFound):
         service.read_attempt_records(thread_id, "attempt-not-owned")
+    observations = service.read_attempt_records(thread_id, claim.attempt.attempt_id,
+                                               observations_only=True, limit=1)
+    assert observations["events"][0]["event_type"] == "validation_observation"
+    assert observations["has_more"] is True
+    terminal = service.read_attempt_records(thread_id, claim.attempt.attempt_id,
+        observations_only=True, after=observations["next_after"], limit=1)
+    assert terminal["events"][0]["event_type"] == "attempt_failed"
+    assert terminal["has_more"] is False
 
 
 class _ToolsCatalog:

@@ -282,6 +282,24 @@ def test_claim_runtime_events_and_terminal_attempt_are_replayable() -> None:
     ]
 
 
+def test_observation_pages_skip_process_events_without_deleting_history() -> None:
+    service = _service()
+    service.submit_command(_command())
+    claim = service.claim_attempt("records-test", lease_seconds=30)
+    assert claim is not None
+    for index in range(90):
+        service.append_runtime_event(claim, event_type="assistant_process_delta",
+                                     payload={"text": str(index)}, visibility="diagnostic")
+    service.append_runtime_event(claim, event_type="validation_observation", payload={"status": "failed"})
+    service.finish_attempt(claim, phase="failed", payload={"answer": "Recorded outcome"})
+    page = service.read_attempt_records("thr_attempts", claim.attempt.attempt_id,
+                                       limit=32, observations_only=True)
+    assert [e["event_type"] for e in page["events"]] == ["validation_observation", "attempt_failed"]
+    assert page["has_more"] is False
+    original = service.read_attempt_records("thr_attempts", claim.attempt.attempt_id, limit=128)
+    assert sum(e["event_type"] == "assistant_process_delta" for e in original["events"]) == 90
+
+
 def test_large_research_snapshot_survives_task_completion_and_record_paging() -> None:
     service = _service()
     service.submit_command(_command())

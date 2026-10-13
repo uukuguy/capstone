@@ -46,6 +46,7 @@ from .thread_application_transition import (
     application_transition_hash,
 )
 from .model_identity import page_id_for_model, validate_model_id
+from .task_record_reader import PUBLIC_TASK_OBSERVATION_TYPES
 from .reference_limits import MAX_ATTEMPT_REFERENCES, MAX_REFERENCE_EVENT_BYTES
 from .network_diagram import MAX_DIAGRAM_BYTES, MAX_EVENT_PAGE_BYTES, normalize_network_diagram
 from .result_projection import MAX_RESULT_PROJECTIONS, MAX_RESULT_PROJECTION_BYTES, ResultProjection, normalize_result_projection, validate_artifact_reference
@@ -388,7 +389,7 @@ class ThreadService(Protocol):
     def read_events(self, thread_id: str, after_event_seq: int) -> EventPage: ...
 
     def read_attempt_records(self, thread_id: str, attempt_id: str, *, after: int = 0,
-                             limit: int = 32) -> dict[str, Any]: ...
+                             limit: int = 32, observations_only: bool = False) -> dict[str, Any]: ...
 
     def submit_command(self, command: Mapping[str, Any]) -> CommandReceipt: ...
 
@@ -1053,8 +1054,10 @@ class InMemoryThreadService:
             return network_context_page(self._snapshot, events)
 
     def read_attempt_records(self, thread_id: str, attempt_id: str, *, after: int = 0,
-                             limit: int = 32) -> dict[str, Any]:
+                             limit: int = 32, observations_only: bool = False) -> dict[str, Any]:
         _validate_attempt_cursor(attempt_id, after, limit)
+        if type(observations_only) is not bool:
+            raise ThreadProtocolError("observation filter is invalid")
         with self._lock:
             self._check_thread(thread_id)
             record = self._attempts.get(attempt_id)
@@ -1062,7 +1065,9 @@ class InMemoryThreadService:
                 raise ThreadNotFound(attempt_id)
             context = record.get("model_context")
             events = tuple(islice((event for event in self._events
-                if event.attempt_id == attempt_id and event.event_seq > after), limit + 1))
+                if event.attempt_id == attempt_id and event.event_seq > after
+                and (not observations_only or (event.visibility == "public"
+                    and event.event_type in PUBLIC_TASK_OBSERVATION_TYPES))), limit + 1))
             return _attempt_records_page(thread_id, attempt_id, record["instruction"],
                 context.to_document() if context is not None else None, events, after, limit)
 
@@ -2442,8 +2447,10 @@ class PostgresThreadService:
         return page
 
     def read_attempt_records(self, thread_id: str, attempt_id: str, *, after: int = 0,
-                             limit: int = 32) -> dict[str, Any]:
+                             limit: int = 32, observations_only: bool = False) -> dict[str, Any]:
         _validate_attempt_cursor(attempt_id, after, limit)
+        if type(observations_only) is not bool:
+            raise ThreadProtocolError("observation filter is invalid")
         self.snapshot(thread_id)
         with self._connect() as connection:
             attempt = connection.execute(
@@ -2454,8 +2461,10 @@ class PostgresThreadService:
                 raise ThreadNotFound(attempt_id)
             rows = connection.execute(
                 "SELECT * FROM capstone_thread_events WHERE thread_id = %s AND attempt_id = %s "
-                "AND event_seq > %s ORDER BY event_seq LIMIT %s",
-                (thread_id, attempt_id, after, limit + 1),
+                "AND event_seq > %s AND (NOT %s OR (visibility = 'public' "
+                "AND event_type = ANY(%s))) ORDER BY event_seq LIMIT %s",
+                (thread_id, attempt_id, after, observations_only,
+                 sorted(PUBLIC_TASK_OBSERVATION_TYPES), limit + 1),
             ).fetchall()
         events = tuple(self._event_from_row(row) for row in rows)
         context = attempt["model_context_snapshot"]

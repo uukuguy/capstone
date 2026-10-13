@@ -7,7 +7,8 @@ class Records:
     def __init__(self):
         self.calls = []
 
-    def read_attempt_records(self, thread_id, attempt_id, *, after, limit):
+    def read_attempt_records(self, thread_id, attempt_id, *, after, limit, observations_only=False):
+        assert observations_only is True
         self.calls.append((thread_id, attempt_id, after, limit))
         return {
             "schema": "capstone-attempt-records/1", "thread_id": thread_id,
