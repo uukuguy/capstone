@@ -17,7 +17,8 @@ from .attempt_lease import AttemptLeaseRenewal
 from .reference_limits import MAX_ATTEMPT_REFERENCES, ReferenceCapacityExceeded
 from .result_projection import MAX_RESULT_PROJECTIONS, MAX_RESULT_PROJECTION_BYTES
 from .progress import project_tool_failure
-from .thread_service import AttemptClaim, ThreadExecutionService
+from .thread_service import AttemptClaim, ThreadExecutionService, _terminal_result_projections
+from .failure_delivery import recorded_failure_summary, retained_result_summary
 from .thread_network import (
     ThreadNetworkProjectionProvider,
     ThreadNetworkRuntimeObserver,
@@ -841,6 +842,13 @@ class HarnessAttemptRunner:
             payload["admission"] = admission
         if candidate is not None and candidate.result_projections:
             payload["result_projections"] = [dict(item) for item in candidate.result_projections]
+            # Use the same identity, lineage and reference checks as terminal
+            # persistence before any result value enters the formal reply.
+            projections = _terminal_result_projections(payload, claim=claim, phase="failed")
+            answer += retained_result_summary(projections)
+            payload["answer"] = answer
+        answer += recorded_failure_summary(self._tool_events)
+        payload["answer"] = answer
         check_lease()
         self._service.finish_attempt(claim, phase="failed", payload=payload)
         return HarnessAttemptResult("failed", answer, code, results, evidence, admission)

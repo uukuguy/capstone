@@ -141,6 +141,59 @@ def test_runtime_failure_delivers_a_persisted_reader_outcome_without_raw_errors(
     assert "runtime_failed" not in result.answer
 
 
+def test_runtime_failure_describes_admitted_results_without_claiming_task_success():
+    from test_result_projection import valid_projection
+
+    service = _thread_service()
+    claim = claim_attempt(service)
+    projection = valid_projection()
+    projection.update(thread_id=claim.thread_id, run_id=claim.run_id,
+        turn_id=claim.attempt.turn_id, attempt_id=claim.attempt.attempt_id,
+        model_context_id=claim.model_context.id, model_id=claim.model_context.model_id,
+        model_revision=claim.model_context.model_revision)
+    projection["_diagram_element_ids"] = ["line_11"]
+    result_ref = projection["result_ref"]
+    evidence = tuple(projection["evidence_refs"])
+
+    class PartialSession(Session):
+        def prompt_and_wait(self, question, **kwargs):
+            kwargs["on_semantic_event"]({"type": "tool_result", "tool_name": "analysis",
+                "ok": True, "result_refs": [result_ref], "evidence_refs": evidence})
+            kwargs["on_semantic_event"]({"type": "tool_result", "tool_name": "followup",
+                "ok": False, "error": {"code": "missing_inputs", "phase": "resolve",
+                    "message": "Required source parameters are missing"}})
+            raise RuntimeError("private provider exception")
+
+    def admit(claim, answer, results, refs, events):
+        return AdmittedAttemptAnswer(answer, "authority_backed", "lineage_verified",
+            tuple(results), tuple(refs), result_projections=(projection,))
+
+    outcome = HarnessAttemptRunner(service, HarnessPiClient(PartialSession(), admission=admit)).run(claim)
+    assert outcome.status == "failed"
+    assert "有功损耗" in outcome.answer and "43.64 MW" in outcome.answer
+    assert "线路负载率" in outcome.answer
+    assert "Required source parameters are missing" in outcome.answer
+    assert "未完成" in outcome.answer
+    assert "private provider" not in outcome.answer
+    terminal = service.read_events(claim.thread_id, 0).events[-1]
+    assert terminal.payload["answer"] == outcome.answer
+    assert terminal.payload["result_projections"][0]["result_ref"] == result_ref
+
+
+@pytest.mark.parametrize(("value", "expected"), [(None, "未提供"), (False, "否"), (0, "0")])
+def test_partial_summary_preserves_missing_false_and_zero_observations(value, expected):
+    from capstone_agent.failure_delivery import retained_result_summary
+    from capstone_agent.result_projection import ResultProjection
+    from test_result_projection import valid_projection
+    projection = valid_projection()
+    projection["status"] = "partial"
+    projection["summary"] = [{"metric_id": "observation", "label": "观测值", "value": value}]
+    summary = retained_result_summary((ResultProjection.from_document(projection),))
+    assert "部分结果" in summary
+    assert f"观测值：{expected}" in summary
+    assert "不能替代尚未完成的检查" in summary
+
+
 def test_admission_failure_returns_feedback_to_the_same_session_once():
     service = _thread_service()
 
