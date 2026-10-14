@@ -11,6 +11,9 @@ RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
     && pip install --no-cache-dir uv==0.10.7
 
 WORKDIR /app
+ARG CAPSTONE_SOURCE_REVISION=development
+LABEL org.opencontainers.image.revision=$CAPSTONE_SOURCE_REVISION
+RUN printf '%s\n' "$CAPSTONE_SOURCE_REVISION" > /tmp/capstone-image-source.txt
 COPY packages/ packages/
 COPY configs/ configs/
 COPY validation/ validation/
@@ -20,11 +23,13 @@ COPY schemas/ schemas/
 COPY third-party-notices/ third-party-notices/
 COPY deploy/entrypoint.sh deploy/entrypoint.sh
 COPY deploy/launch_host_runtime.py deploy/launch_host_runtime.py
+COPY deploy/dev_trial_runtime.py deploy/dev_trial_runtime.py
 COPY deploy/bake_catalog_snapshot.py deploy/bake_catalog_snapshot.py
 COPY Dockerfile Dockerfile
 COPY deploy/ensure_bucket.py deploy/ensure_bucket.py
 COPY deploy/preserve_local_runtime.py deploy/preserve_local_runtime.py
 COPY deploy/local-model-assets/ /opt/capstone-models/
+RUN cp /tmp/capstone-image-source.txt deploy/image-source.txt
 
 ENV UV_NO_SYNC=1 \
     UV_NO_DEV=1 \

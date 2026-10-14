@@ -3097,3 +3097,5 @@ The following original entries were retained during document synchronization.
 - 31af4db记录无源码dev试用交付边界；用户补充.env默认deepseek-flash、注释OpenAI和启动环境Key优先，现有固定启动合同的配置能力待实现。
 - PR #20已合入6d650ba；用户要求先讨论镜像，未启动实施。已有阿里北京ACR登录验证通过，用户确定其uukuguy命名空间为默认公开拉取源，未上传镜像。
 - 2d91850将阿里北京ACR缺省地址及公开拉取决定写入CLI设计，PR #21接入dev；不保存个人凭据，不构建或上传镜像。
+- 用户批准四类镜像和AMD64/ARM64实施；2e299a8增加受限试用运行合同及同源静态App，保留原云端合同。
+- 无源码Compose、私有实例初始化和源码校验通过66项Python检查；尚未构建、启动或公开发布试用镜像。

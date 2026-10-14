@@ -130,6 +130,9 @@ def artifact_identity(root: Path, model_dir: Path, *, include_catalog: bool = Tr
                  *(root / "packages").glob("*/uv.lock"), *(root / "packages").glob("*/pyproject.toml"),
                  *(root / "packages").glob("*/package-lock.json")]:
         entries[str(path.relative_to(root))] = digest(path)
+    trial_helper = root / 'deploy/dev_trial_runtime.py'
+    if trial_helper.is_file():
+        entries['deploy/dev_trial_runtime.py'] = digest(trial_helper)
     versions = {}
     for metadata in (root / "packages").glob("*/.venv/lib/python*/site-packages/*.dist-info/METADATA"):
         fields = {}
