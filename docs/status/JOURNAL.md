@@ -3100,3 +3100,4 @@ The following original entries were retained during document synchronization.
 - 用户批准四类镜像和AMD64/ARM64实施；2e299a8增加受限试用运行合同及同源静态App，保留原云端合同。
 - 无源码Compose、私有实例初始化和源码校验通过66项Python检查；尚未构建、启动或公开发布试用镜像。
 - bfcc910提交无源码Compose及独立实例生命周期，阻止镜像源码不符和既有实例误用；候选验证不等于双架构验收。
+- 805ccbc提交精确Git构建上下文与无源码试用包生成器；实际构建准备发现合法策略链接，安全放行内部链接，仍拒绝越界。

@@ -5,6 +5,7 @@ import argparse
 import importlib.util
 import io
 import json
+import posixpath
 from pathlib import Path
 import re
 import shutil
@@ -45,7 +46,11 @@ def prepare_context(root: Path, revision: str, output: Path) -> dict:
     with tarfile.open(fileobj=io.BytesIO(archive)) as source:
         for member in source.getmembers():
             path = Path(member.name)
-            if path.is_absolute() or '..' in path.parts or not (member.isfile() or member.isdir()):
+            if member.issym():
+                target = posixpath.normpath(posixpath.join(str(path.parent), member.linkname))
+                if member.linkname.startswith('/') or target.startswith('../') or target == '..':
+                    raise ValueError('Source archive contains an unsafe symlink')
+            if path.is_absolute() or '..' in path.parts or not (member.isfile() or member.isdir() or member.issym()):
                 raise ValueError('Source archive contains an unsafe entry')
         output.mkdir(parents=True, mode=0o700)
         source.extractall(output, filter='data')

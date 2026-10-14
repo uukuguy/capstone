@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -37,3 +38,17 @@ def test_context_rejects_a_branch_name_and_existing_output(tmp_path):
     module = builder()
     with pytest.raises(ValueError):
         module.prepare_context(ROOT, 'dev', tmp_path)
+
+
+def test_exact_context_keeps_the_registered_internal_policy_link():
+    import tempfile
+    module = builder()
+    revision = subprocess.check_output(['git', '-C', str(ROOT), 'rev-parse', 'HEAD'], text=True).strip()
+    (ROOT / '.capstone-agent').mkdir(exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=ROOT / '.capstone-agent') as temporary:
+        output = Path(temporary) / 'context'
+        module.prepare_context(ROOT, revision, output)
+        policy = output / 'configs/agent/system-policy.md'
+        assert policy.is_symlink() and policy.is_file()
+        assert (output / 'trial-app/build-revision.txt').read_text().strip() == revision
+        assert json.loads((output / 'trial-app/build-environment.json').read_text())['api_origin'] == ''
