@@ -175,6 +175,10 @@ counts, prices, limits, versions, or deployment state here.
   copies before reporting alignment complete. Every graph update uses
   `ui-ux-pro-max`, re-layout and browser checks, including source edges and crossings.
   Close verified merged branches; preserve unmerged work and recovery references.
+  The graph centres on active nodes, exact sources for the four deployments and
+  actual research branches. The dev spine retains important cloud deployments
+  and major branch merges. Move ordinary edits and interim candidates into
+  history details; do not label paused plans or archived references as active.
 
 - Use [the project control overview](docs/status/PROJECT-OVERVIEW.html) as the
   shared development and release alignment view. Maintain its canonical
@@ -182,6 +186,19 @@ counts, prices, limits, versions, or deployment state here.
   HTML after material package, branch, PR, validation or deployment changes,
   before reporting progress. Keep implemented, verified, merged and deployed
   states distinct. Do not turn planned edges into actual Git merge claims.
+  Keep an overview of the current development focus, important historical
+  deployment commits and important release versions. Show only necessary and
+  important Git nodes, connected through verified Git ancestry. All Git nodes
+  use one content schema: change title, branch and revision, feature changes,
+  verification state and detail links. Deployment cards connect to their exact
+  source nodes and use a background distinct from main.
+  Mainline, branch and deployment-reference edges use distinct visible styles
+  and boundary-aligned arrowheads. Local and cloud cards use distinct backgrounds.
+  Node summaries and feature/acceptance records come from the canonical register.
+  Keep them aligned with actual project state and affected working-branch copies.
+  Prefer a wide layout that shows the full overview without internal scrolling
+  on desktop. Preserve readable node content and accurate edge attachment when
+  re-layout or scaling changes the graph.
 
 - Keep secondary architecture research in the
   [Capstone core capability evolution notebook](docs/superpowers/specs/2026-10-07-capstone-core-evolution-discussion.md)
