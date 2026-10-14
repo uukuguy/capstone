@@ -4,6 +4,12 @@
 
 ## Current discussion: user-local dev trial
 
+### Active implementation checkpoint
+
+- User approved four image classes and linux/amd64 plus linux/arm64. Implement inline in `.worktrees/dev-trial-deployment`, branch `feat/dev-trial-deployment`, fromdev3adaf5a. Commits2e299a8/bfcc910 implement bounded runtime, same-origin staticApp, source-freeCompose and installation/source guards.66 Python checks and15 App tests pass. No trial images published or startup verified yet.
+- Next: exact-source builder and isolated candidate stacks21573/22573, registered cases/report/replay with zeroProvider calls, independent review and normalPR integration todev. Final public artifacts use actual dev mergeSHA and immutable digests with anonymous access verification. Plan: `docs/superpowers/plans/2026-10-14-capstone-dev-trial-deployment.md`.
+- Six verified models remain in root `.grid-agent/runtime/pypsa-models`; stage from explicit path without copyingauth. Feature worktree setup/install-pi/doctor pass. Buildx ab-multi supports both targets. Existing fourdeployments remain asbelow; cloud-dev/local-demo protected. Older discussion statements below describe the pre-approval boundary and are superseded by this activecheckpoint.
+
 - PR #20 merged as6d650ba; user then stopped implementation planning because image delivery had not been discussed. Continue that discussion before building or publishing a trial package.
 - Accepted registry decision: public anonymous pulls, default `registry.cn-beijing.aliyuncs.com/uukuguy`; backend/App repository names are capstone-backend/capstone-app. Existing Docker login was verified, but new repositories/images were not created or published. GHCR is an optional backup. Preserve credentials in managed local/CI authentication, never in delivered files. Image composition/size/platform support remains unconfirmed.
 
