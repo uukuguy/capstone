@@ -2,19 +2,29 @@
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Capstone · 项目推进控制</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23117c6e'/%3E%3C/svg%3E"><style>__TAILWIND_CSS__</style><style>
 *{box-sizing:border-box}body{margin:0;background:#f3f5f3;color:#213c38;font:12px/1.45 system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}h1,h2,h3,p{margin:0}h1{font-size:16px}h2{font-size:13px}h3{font-size:13px}a{color:#117c6e}button,input,summary{cursor:pointer}button{font:inherit;border:1px solid #d4dfd8;background:white;border-radius:4px;padding:4px 8px}button:focus-visible,a:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid #117c6e;outline-offset:3px}.wrap{max-width:1460px;margin:auto;padding:14px 20px}.top,.toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px}.top{margin-bottom:10px}.muted{color:#60716e}.mono{font:10px/1.4 ui-monospace,SFMono-Regular,monospace;overflow-wrap:anywhere}.panel{background:white;border:1px solid #dbe4df;border-radius:6px;padding:12px}.toolbar{margin-bottom:10px}.legend{font-size:10px;color:#60716e;margin-top:4px}.density{display:flex;align-items:center;gap:8px;font-size:11px}.density input{width:85px;accent-color:#117c6e}.scroll{overflow:auto}.lanes{min-width:960px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:65px;margin-bottom:10px;font-size:11px;color:#60716e}.lanes b{color:#117c6e}.tree{position:relative;min-width:960px}.edges{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}.commit,.work,.hotfix{position:absolute;width:calc((100% - 160px)/3);background:#fff;border:1px solid #d7e3dc;border-left:3px solid #117c6e;border-radius:5px;padding:10px 12px;z-index:1}.feature,.work{border-left-color:#8b6bae;background:#fbf9fd}.repair{border-left-color:#c88929;background:#fffaf3}.current{background:#f3faf6}.head{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:5px}.badge{font-size:10px;border-radius:3px;padding:2px 5px;background:#edf2ef;white-space:nowrap}.repair .badge{background:#fff0d6;color:#946018}.feature .badge,.work .badge{background:#eee7f7;color:#78579a}.source{color:#60716e;margin:5px 0}.points{list-style:none;margin:8px 0;padding:0;font-size:12px}.points li{padding-left:11px;margin:4px 0;position:relative}.points li:before{content:"·";position:absolute;left:0;color:#117c6e;font-weight:700}.next{border-top:1px solid #dbe4df;margin-top:7px;padding-top:6px;font-size:11px;color:#60716e}.deployments{display:flex;gap:5px;flex-wrap:wrap;margin-top:9px}.deployment{font-size:11px;padding:4px 7px;border:1px solid #b6d6c7;background:#e8f5ed;border-radius:4px;text-decoration:none;color:#31594b}.deployment b{font-weight:650}.deployment small{display:block;font-size:10px}.pr{display:inline-block;font-size:11px;font-weight:600;border:1px solid #dbc38e;border-radius:4px;background:#fff2d7;padding:3px 7px;text-decoration:none;margin-top:7px}.tag{font-size:9px;color:#60716e;margin-top:4px;overflow-wrap:anywhere}.detail-button{font-size:10px;margin-top:5px;padding:2px 6px}.hotfix{border-left-color:#be7952;background:#fffaf7;min-height:75px}.edge-label{font-size:10px;fill:#8a7050;paint-order:stroke;stroke:white;stroke-width:5px}.gate{padding-top:9px;border-top:1px solid #e0e7e2;color:#8b6441;font-size:11px}.records{margin-top:12px}.record-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px 20px;margin-top:8px;font-size:11px}.record{padding:7px 0;border-top:1px solid #e0e7e2}.record b{display:block;margin-bottom:3px}.details{margin-top:12px}.details details{border-top:1px solid #dbe4df}.details summary{padding:9px 0;font-size:12px;font-weight:600}.details-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}.detail-body{padding-bottom:12px;font-size:11px;color:#60716e;display:grid;grid-template-columns:1fr 1fr;gap:15px}.detail-body p{margin:4px 0}.archive-item{margin-bottom:9px}.scope-table{width:100%;font-size:11px;border-collapse:collapse}.scope-table td{border-top:1px solid #e0e7e2;padding:6px;vertical-align:top}.scope-table td:first-child{width:130px;font-weight:600}footer{font-size:10px;color:#60716e;margin-top:8px}@media(max-width:720px){.wrap{padding:10px}.top,.toolbar{flex-direction:column;align-items:flex-start}.record-grid,.detail-body{grid-template-columns:1fr}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
 .commit{padding:7px 9px}.commit h3{font-size:12px}.commit .points{font-size:11px;margin:5px 0}.commit .points li{margin:2px 0}.commit .next{display:none}.commit .source{font-size:9px;margin:3px 0}.commit .badge{font-size:9px}.commit .pr{margin-top:4px;padding:2px 5px}.hotfix{min-height:45px;padding:8px}.hotfix h3{font-size:11px}.environment-deployment .deployment{border:0;background:transparent;padding:0}.environment-deployment .deployment small{font-size:9px}.environment-deployment{font-size:10px}.scroll{position:relative}.graph-canvas{transform-origin:top left}.view-controls{display:flex;align-items:center;gap:10px}
-.commit-revision{color:#117c6e;font-weight:650}.deployment-revision{color:#7c3aed;font-weight:650}.reference .points li:not(:first-child){display:none}.reference .head h3{font-size:12px}.commit .points{font-size:12px}.commit .source{font-size:10px}.commit .badge{font-size:10px}.environment-deployment .deployment small{font-size:10px}.graph-canvas{transition:transform 120ms ease-out}.type-icon{display:inline-block;width:14px;height:14px;flex:none;vertical-align:-2px;margin-right:6px}.environment-deployment{background:#edf2fa!important;border-color:#bccbdf!important}.environment-deployment .deployment{color:#30465e}.environment-deployment .deployment b{display:flex;align-items:center}.environment-deployment .type-icon{color:#456180}@media(prefers-reduced-motion:reduce){.graph-canvas{transition:none}}
+.commit-revision{color:#117c6e;font-weight:650}.deployment-revision{color:#7c3aed;font-weight:650}.reference .points li:not(:first-child){display:none}.reference .head h3{font-size:12px}.commit .points{font-size:12px}.commit .source{font-size:10px}.commit .badge{font-size:10px}.environment-deployment .deployment small{font-size:10px}.graph-canvas{transition:transform 120ms ease-out}.type-icon{display:inline-block;width:14px;height:14px;flex:none;vertical-align:-2px;margin-right:6px}.environment-deployment{background:#f5f2ec!important;border-color:#cfc6b8!important}.environment-deployment .deployment{color:#534c42}.environment-deployment .deployment b{display:flex;align-items:center}.environment-deployment .type-icon{color:#756958}@media(prefers-reduced-motion:reduce){.graph-canvas{transition:none}}
 .commit h3,.hotfix h3{display:flex;align-items:center;gap:6px}.commit h3 .type-icon,.hotfix h3 .type-icon{margin-right:0}
 .commit.release-point{background:#eef2fb;border-left-color:#517eaa}.release-point .badge{background:#e1e9f5;color:#365575}
 .discussion{margin-top:16px;padding:20px;scroll-margin-top:16px;font-size:13px;line-height:1.65}.discussion h2{font-size:18px}.discussion h3{font-size:14px}.discussion-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.discussion-intro{color:#526661;max-width:90ch;margin:10px 0 18px}.discussion .badge{font-size:11px;white-space:normal}.discussion-nav{display:inline-flex;align-items:center;min-height:36px;padding:4px 8px}.discussion-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.discussion-card{min-width:0;border:1px solid #d4e2da;border-radius:6px;padding:14px;background:#f8fbf9;overflow-wrap:anywhere}.discussion-card p{margin-top:8px}.discussion-card .head{align-items:flex-start;flex-wrap:wrap}.discussion-id{font-size:10px;color:#60716e;margin-right:6px}.discussion-loop{list-style:none;padding:0;margin:16px 0 6px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:22px}.discussion-loop li{position:relative;border:1px solid #b8d5cb;border-top:3px solid #117c6e;padding:12px;background:#f3faf6;border-radius:5px;min-width:0}.discussion-loop li+li:before{content:'→';position:absolute;left:-19px;top:40%;color:#52776b;font-size:17px}.discussion-loop p{margin-top:6px}.discussion-loop-note{text-align:center;color:#526661;background:#f3f6f4;border-radius:4px;padding:8px;margin-bottom:18px}.discussion .lead-role{grid-column:1/-1;background:#eaf5f0;border-color:#8eb9ab}.discussion-section-title{margin:24px 0 10px!important}.discussion-organization{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.discussion-organization .discussion-card{border-style:dashed;background:#faf8fd;border-color:#c9bada}.discussion details{margin-top:18px;border-top:1px solid #dbe4df}.discussion summary{padding:12px 0;font-weight:600;min-height:44px}.discussion-records{margin:0;padding-left:20px}.discussion-records li{margin:10px 0}.discussion-source{margin-top:16px;color:#526661;font-size:12px}.discussion-subtitle{color:#526661;margin:6px 0}.discussion .pending .badge{background:#fff0d6;color:#805411}@media(max-width:850px){.discussion-loop{grid-template-columns:1fr;gap:24px}.discussion-loop li+li:before{content:'↓';left:50%;top:-25px}.discussion-organization{grid-template-columns:1fr}}@media(max-width:600px){.discussion{padding:14px}.discussion-grid{grid-template-columns:1fr}.discussion h2{font-size:16px}}
+
+.tree{min-width:0}.commit{padding:14px;border-left-color:#4d786e;background:#fbfdfc}.commit h3{font-size:14px}.commit .source{font-size:11px}.commit .badge{white-space:normal}.commit .points{font-size:12px}.commit#commit-pi{border-left-color:#567392;background:#f8fafc}.feature .badge{color:#375a55;background:#edf3f0}.commit#commit-pi .badge{color:#365575;background:#eaf0f7}.source-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:14px;padding-top:9px;border-top:1px solid #dbe4df}.source-origin{font-size:10px;color:#60716e;min-width:0}.source-origin span{display:block}.branch-link{display:inline-block;margin-top:8px;min-height:24px}.graph-history{margin:12px 0}.graph-history>summary{min-height:28px;padding:5px 0;color:#526661}.history-entry{padding:7px 0;border-top:1px solid #e0e7e2;font-size:11px}.history-entry summary{min-height:24px}.history-entry p{margin:5px 0;color:#60716e}.environment-deployment{padding:12px!important}.environment-deployment .deployment small{font-size:11px}.environment-deployment .muted{font-size:11px!important}.hotfix{display:none}@media(max-width:720px){.source-strip{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.wrap{max-width:840px}.tree,.lanes{min-width:760px}.lanes{grid-template-columns:1fr 1fr 1.8fr;gap:24px}.commit{padding:9px}.commit h3{font-size:12px}.commit .head{flex-wrap:wrap}.commit .points{font-size:11px}.commit .source{font-size:10px}.environment-deployment{padding:8px!important;font-size:10px}.environment-deployment .muted,.environment-deployment .deployment small{font-size:10px!important}.environment-deployment summary{font-size:10px}.deployment-source h3{font-size:11px}.deployment-source{position:absolute;z-index:1;border:1px solid #dbe4df;border-left:3px solid #4d786e;border-radius:4px;background:#f8faf9;padding:8px;font-size:10px}
+.environment-deployment{box-shadow:0 1px 4px #213c3814}.environment-deployment.local-deployment{background:#e5f3ea!important;border-color:#a1bfac!important}.environment-deployment.cloud-deployment{background:#fff0d8!important;border-color:#d4ad76!important}.environment-deployment .deployment b{font-size:12px;font-weight:700}.local-deployment .deployment,.local-deployment .type-icon{color:#345e46}.cloud-deployment .deployment,.cloud-deployment .type-icon{color:#785322}.node-kind{font-size:10px;color:#60716e;margin-bottom:5px}.node-record{font-size:10px;margin-top:7px}.node-record p{margin:7px 0;color:#526661}.commit[data-focus="true"]{border-left-color:#ae7432;background:#fffaf2}
+.commit .points{font-size:10px;line-height:1.45}.environment-deployment .muted{font-size:9.5px!important}
+.wrap{max-width:1800px}.tree{min-width:0}.lanes{display:none}
+.commit .head{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-bottom:3px}.commit .node-classification{display:contents}.commit .head .node-kind{order:0}.commit .head h3{order:1;flex:1 1 auto;min-width:0}.commit .head .badge{order:2}
+.commit .node-kind{margin:0}.commit .source{margin:3px 0}.commit .points{margin:4px 0}.commit .node-record{display:inline-block;vertical-align:middle;margin-top:4px}.commit .node-record[open]{display:block}.commit .detail-button{display:inline-block;vertical-align:middle;min-height:0;margin:4px 0 0 6px;padding:2px 4px}
 </style></head><body><main class="wrap">
 <header class="top"><h1>CAPSTONE · 项目推进控制</h1><span class="muted text-xs" id="timestamp"></span></header>
 <nav aria-label="项目控制章节"><a class="discussion-nav" href="#overview-panel">版本与部署</a><a class="discussion-nav" href="#autonomous-discussion">自主智能体演进讨论 ↓</a></nav>
-<section class="panel" id="overview-panel"><div class="toolbar"><div><h2>功能推进与发布位置</h2><p class="legend">dev 演进居中 · 浅蓝：main 发布基线 · <span class="commit-revision">树上提交</span> / <span class="deployment-revision">部署提交</span> · 实线：来源 · 虚线：待整理或紧急修复</p></div><div class="view-controls"><label class="density">间距 <input id="density" type="range" min="8" max="35" value="15" aria-label="调整功能树间距"></label><button id="fit-view" aria-pressed="false">全图预览</button></div></div>
-<div class="scroll" id="graph-frame"><div class="graph-canvas" id="graph-canvas"><div class="lanes"><span>Pi 在研 / 开发验证 / 云端部署</span><b>dev · 开发集成演进</b><span>回答增强 / 参考复用 / demo 验证</span></div><div class="tree" id="tree"><svg class="edges" id="edges" aria-hidden="true"></svg><div id="commits"></div><div id="local-deployments"></div><article class="hotfix" id="hotfix"><h3>local-demo 紧急修复</h3><div id="hotfix-content"></div></article></div></div></div>
-<p class="gate">dev / main 均已保护：PR＋两平台 CI，0 人工审批；dev 按影响范围检查，main 发布集成完整验收。恢复开发基线6ff7094；B2为撤回增强的历史记录，整体业务与云发布未验收。</p></section>
+<section class="panel" id="overview-panel"><div class="toolbar"><div><h2>功能推进与发布位置</h2><p class="legend">dev / main 中轴 · <span style="color:#426c60">━━ 主线</span> · <span style="color:#83639b">━━ 分支曲线</span> · <span style="color:#9a794f">┄┄ 部署来源引用</span> · <span class="commit-revision">Git提交</span> / <span class="deployment-revision">部署提交</span></p></div><div class="view-controls"><label class="density">间距 <input id="density" type="range" min="8" max="35" value="8" aria-label="调整功能树间距"></label><button id="fit-view" aria-pressed="false">全图预览</button></div></div>
+<div class="scroll" id="graph-frame"><div class="graph-canvas" id="graph-canvas"><div class="lanes"><span>纯 Pi / skills</span><b>dev / main 主轴</b><span>自主智能体 · Git 来源 → 四部署</span></div><div class="tree" id="tree"><svg class="edges" id="edges" aria-hidden="true"></svg><div id="commits"></div><div id="local-deployments"></div><article class="hotfix" id="hotfix"><h3>local-demo 紧急修复</h3><div id="hotfix-content"></div></article></div></div></div>
+<details class="graph-history"><summary>历史演进与来源记录</summary><div id="graph-history"></div></details><p class="gate">dev / main 均已保护：PR＋两平台 CI，0 人工审批；dev 按影响范围检查，main 发布集成完整验收。恢复开发基线6ff7094；B2为撤回增强的历史记录，整体业务与云发布未验收。</p></section>
 <section class="panel discussion" id="autonomous-discussion" aria-labelledby="discussion-title">
-<div class="discussion-heading"><h2 id="discussion-title">自主智能体演进讨论</h2><span class="badge">2026-10-12 · 方向已确认，详细设计讨论中</span></div>
+<div class="discussion-heading"><h2 id="discussion-title">自主智能体演进讨论</h2><span class="badge">2026-10-12 · 首期实施，持续记录设计与验证</span></div>
 <p class="discussion-intro">持续记录我们如何组织 Capstone 的下一阶段。下图表示目标职责与可选择的工作关系；运行实现、Git 来源及部署状态仍见上方版本图。</p>
+<p class="discussion-source"><a href="../superpowers/specs/2026-10-12-autonomous-agent-design.md">当前统一设计草案 →</a> 五概念、执行与对话、四类展示、证据及验收。已进入统一实施；当前交付范围与验证状态见版本控制图。</p>
+<p class="discussion-source"><a href="../superpowers/plans/2026-10-12-autonomous-agent-first-delivery.md">首期实施计划 →</a> 研究状态、Pi接线、统一循环、领域核验与四类展示已有实现；当前功能及验收范围见上方自主智能体详情。<a href="../reviews/2026-10-12-autonomous-agent-capability-baseline.md">能力盘点 →</a></p>
 <h3>一个主智能体，按当前工作选择下一步</h3><p class="discussion-subtitle">信息已充分时可直接回答；以下是按需展开的反馈循环，各项不必每次全部经过。</p>
 <div class="discussion-grid" id="discussion-concepts"></div>
 <h3 class="discussion-section-title">研究模型 · 当前讨论摘要</h3><p class="discussion-subtitle">设计提案，尚未定稿。<a href="../superpowers/specs/2026-10-07-capstone-core-evolution-discussion.md#2026-10-12研究模型核心展开设计提案未实现">详细讨论：认识结构、line7示例、多轮延续与证据边界 →</a></p>
@@ -25,8 +35,9 @@
 <div class="discussion-grid" id="discussion-roles"></div>
 <h3 class="discussion-section-title">用户持续看到任务进展</h3><p class="discussion-subtitle">研究节点 → 阶段发现与实验结果 → 用户可读的进展流 → 最终结论。暂定发现可以被后续证据修订；工具详情仍可查看。</p>
 <div class="discussion-organization" id="discussion-presentation"></div>
-<h3 class="discussion-section-title">实施组织方向</h3><p class="discussion-subtitle">虚线框表示建议安排，统一演进分支尚未创建；此处没有新增 Git 合并关系。</p>
+<h3 class="discussion-section-title">实施组织方向</h3><p class="discussion-subtitle">统一实施分支已建立，PR #18 为草稿；虚线框保留设计安排，实际来源、功能和部署以版本图及本包详情为准。</p>
 <div class="discussion-organization" id="discussion-organization"></div>
+<h3 class="discussion-section-title">首版聚焦 · 三条单次请求</h3><p class="discussion-subtitle">S01用户确认现有实现满足，作为回归基线；S02/S03待实现验收。<a href="../superpowers/specs/2026-10-12-autonomous-agent-design-discussion.md#d03三条单次请求的业务交付契约">原始指令、交付契约与验收细节 →</a></p><div class="discussion-organization" id="discussion-scenarios"></div>
 <details open><summary>已确认的讨论原则</summary><ul class="discussion-records" id="discussion-principles"></ul></details>
 <details open><summary>继续讨论后再确定的细节</summary><div class="discussion-grid pending" id="discussion-pending"></div></details>
 <p class="discussion-source">内容来源：<a href="VERSION-CONTROL.md#自主智能体演进讨论">版本台账 · 讨论章节</a>。<a href="../superpowers/specs/2026-10-07-capstone-core-evolution-discussion.md">完整讨论笔记</a>保存依据与演进记录。讨论方向不等于已实现或已验收。</p>
@@ -47,19 +58,35 @@ const discussionCard=row=>`<article class="discussion-card${row.id==='R01'?' lea
 el('discussion-loop').innerHTML=discussionRows('循环').map(row=>`<li><strong>${esc(row.title)}</strong><p>${esc(row.description)}</p></li>`).join('');
 el('discussion-roles').innerHTML=discussionRows('职责').map(discussionCard).join('');
 el('discussion-concepts').innerHTML=discussionRows('概念').map(discussionCard).join('');
-el('discussion-core').innerHTML=discussionRows('核心').filter(row=>['M01','M02','M04'].includes(row.id)).map(discussionCard).join('');
+el('discussion-core').innerHTML=discussionRows('核心').filter(row=>['M01','M02','M04','M07','M08','M09','M10'].includes(row.id)).map(discussionCard).join('');
 el('discussion-presentation').innerHTML=discussionRows('呈现').map(discussionCard).join('');
 el('discussion-organization').innerHTML=discussionRows('组织').map(discussionCard).join('');
+el('discussion-scenarios').innerHTML=discussionRows('首版样例').map(discussionCard).join('');
 el('discussion-principles').innerHTML=discussionRows('原则').map(row=>`<li><strong>${esc(row.id)} · ${esc(row.title)}</strong>：${esc(row.description)}</li>`).join('');
 el('discussion-pending').innerHTML=discussionRows('待讨论').map(discussionCard).join('');
-const levels={};function depth(id,seen=new Set()){if(levels[id]!==undefined)return levels[id];if(seen.has(id))throw Error('Cycle');const ins=data.edges.filter(e=>e[1]===id);return levels[id]=ins.length?1+Math.max(...ins.map(e=>depth(e[0],new Set([...seen,id])))):0;}data.nodes.forEach(n=>depth(n.id));const highest=Math.max(...Object.values(levels));
-function deployment(e){const tag=e.origin?'a':'span',line=e.name.endsWith('-dev')?'dev':'main',pair=data.environment_pairs.find(p=>p.local===e.name||p.cloud===e.name);const note=e.name==='local-demo'?(pair.aligned?'与线上基线一致':'待对齐 cloud-demo '+short(data.environments.find(s=>s.name==='cloud-demo').revision)):e.name==='local-dev'?'开发候选 / cloud-dev 发布前验证':'';return '<'+tag+' class="deployment" id="deploy-'+e.name+'" data-environment="'+e.name+'" style="display:block"'+(e.origin?' href="'+esc(e.origin)+'" target="_blank" rel="noopener noreferrer"':'')+'><b>'+esc(e.name)+'</b><small>'+line+' · '+revision(e.revision,'deployment')+' · '+(e.observed?'App已核对':'部署记录')+'</small>'+(note?'<small style="color:'+(e.name==='local-demo'&&!pair.aligned?'#a55a2b':'#60716e')+'">'+esc(note)+'</small>':'')+'</'+tag+'>';}
-el('commits').innerHTML=data.nodes.map(n=>{const branch=data.branches.find(b=>b.package===n.package&&!b.name.startsWith('archive/'));const prs=n.id.endsWith("-old")?[]:data.prs.filter(p=>p.package===n.package);return '<article id="commit-'+n.id+'" class="commit '+n.lane+(n.release_point?' release-point':n.id==='dev'?' current':'')+'" data-sha="'+n.sha+'"><div class="head"><h3>'+esc(n.title)+'</h3><span class="badge">'+esc(n.status)+'</span></div><p class="source mono">'+(n.id==='foundation-local'?'feat/issue-operational-readiness · 运行 '+revision(n.sha)+' / 分支 '+revision(branch?.sha):n.id==='pi'?'feat/pi-skills-integration · '+revision(n.sha):n.id==='answer-old'?'archive/answer-chain-unaccepted-20261010 · '+revision(n.sha):revision(n.sha)+(n.id==='main'?' · main HEAD':''))+'</p><ul class="points">'+n.changes.split('；').map(s=>'<li>'+esc(s)+'</li>').join('')+'</ul>'+prs.map(p=>'<a class="pr" data-pr="'+p.number+'" href="https://github.com/uukuguy/capstone/pull/'+p.number+'" target="_blank" rel="noopener noreferrer">PR #'+p.number+' · '+(p.state==='OPEN'?'待合入 '+esc(p.target):esc(p.state))+'</a>').join('')+'<p class="next">'+(n.id==='foundation-local'?'下一步：收尾 Python 3.12 / 验收规范，完成统一 PR；按发布计划再验证用户问题。':n.id==='pi'?'下一步：按依赖分组与验收，不整体进入 demo。':n.id==='answer-old'?'已复用有效防护到PR #9；旧实现保留来源，不原样合入或部署。':n.id==='main'?'发布快照：'+revision(n.sha)+'；开发集成与当前全局记录在dev。':n.id==='baseline'?'ed2524f → a076b04 · 重整区间，已做工作保留到对应分支。':'用户试用的已验收来源，四台环境按实际提交分别挂载。')+'</p><button class="detail-button" data-package="'+n.package+'">功能范围 ↓</button></article>';}).join('');
-const environmentRoles={'local-dev':'开发测试 / 发布验证','local-demo':'线上复现 / 紧急修复 / 发布验证','cloud-dev':'云端集成 / 发布前验证','cloud-demo':'用户试用 / 已验收发布'};
+const graphStages=['local-dev','cloud-demo','local-demo','cloud-dev'].map(name=>data.environments.find(e=>e.name===name));
+const sourceNode=e=>data.nodes.find(n=>n.sha.startsWith(e.revision)||e.revision.startsWith(n.sha));
+const graphNodes=data.nodes.filter(n=>n.presentation);
+const levels={};
+function depth(id,seen=new Set()){
+ if(levels[id]!==undefined)return levels[id];
+ if(seen.has(id))throw Error('Cycle in Git ancestry');
+ const parents=data.edges.filter(e=>e[1]===id);
+ return levels[id]=parents.length?1+Math.max(...parents.map(e=>depth(e[0],new Set([...seen,id])))):0;
+}
+data.nodes.forEach(n=>depth(n.id));
+
+function deployment(e){const tag=e.origin?'a':'span',line=graphNodes.find(n=>n.sha===e.revision)?.presentation.branch||'来源',pair=data.environment_pairs.find(p=>p.local===e.name||p.cloud===e.name);const note=e.name==='local-demo'?(pair.aligned?'与线上基线一致':'待对齐 cloud-demo '+short(data.environments.find(s=>s.name==='cloud-demo').revision)):e.name==='local-dev'?'开发测试 / cloud-dev 发布验证':'';return '<'+tag+' class="deployment" id="deploy-'+e.name+'" data-environment="'+e.name+'" style="display:block"'+(e.origin?' href="'+esc(e.origin)+'" target="_blank" rel="noopener noreferrer"':'')+'><b>'+esc(e.name)+'</b><small>'+line+' · '+revision(e.revision,'deployment')+' · '+(!e.coherent?'角色升级中':e.observed?'App已核对':'部署记录')+'</small>'+(!e.coherent&&e.app_revision?'<small>App · '+revision(e.app_revision,'deployment')+'</small>':'')+(note?'<small style="color:'+(e.name==='local-demo'&&!pair.aligned?'#a55a2b':'#60716e')+'">'+esc(note)+'</small>':'')+'</'+tag+'>';}
+el('commits').innerHTML=graphNodes.map(n=>{
+ const p=n.presentation,tags=n.tags.filter(t=>/^(demo|cloud-dev)-/.test(t));
+ return '<article id="commit-'+n.id+'" class="commit '+n.lane+(n.release_point?' release-point':'')+'" data-sha="'+n.sha+'" data-focus="'+(p.role==='当前开发焦点')+'"><div class="head"><div class="node-classification"><p class="node-kind">'+esc(p.role)+'</p><span class="badge">'+esc(p.status)+'</span></div><h3>'+esc(n.title)+'</h3></div><p class="source mono">'+esc(p.branch)+' · '+revision(n.sha)+'</p><ul class="points">'+p.changes.map(s=>'<li>'+esc(s)+'</li>').join('')+'</ul><details class="node-record"><summary>变更与验证记录</summary><p>'+esc(n.changes)+'</p>'+(tags.length?'<p>关联发布/部署标签：'+tags.map(t=>'<a href="https://github.com/uukuguy/capstone/tree/'+encodeURIComponent(t)+'" target="_blank" rel="noopener noreferrer">'+esc(t)+'</a>').join('、')+'</p>':'')+'</details><button class="detail-button branch-link" data-package="'+n.package+'">功能与验收记录 ↓</button></article>';
+}).join('');
+el('graph-history').innerHTML=data.nodes.filter(n=>!graphNodes.includes(n)).map(n=>'<details class="history-entry"><summary>'+esc(n.title)+' · '+revision(n.sha)+' · '+esc(n.status)+'</summary><p>'+esc(n.changes)+'</p></details>').join('');
+
+const environmentRoles={'local-dev':'开发测试 / 发布验证','local-demo':'线上复现 / 紧急修复 / 发布验证','cloud-dev':'云端集成 / 发布前验证','cloud-demo':'用户试用 / 发布验收'};
 el('local-deployments').innerHTML=data.environments.map(e=>'<article class="environment-deployment '+(e.name.startsWith('local-')?'local-deployment':'cloud-deployment')+'" id="environment-node-'+e.name+'" style="position:absolute;z-index:1;background:#f4faf7;border:1px solid #b6d6c7;border-top:3px solid '+(e.name.endsWith('-dev')?'#517eaa':'#a77951')+';border-radius:5px;padding:8px">'+deployment(e)+'<p class="muted" style="font-size:10px;margin-top:6px">'+environmentRoles[e.name]+'</p></article>').join('');
 const researchNode=el('commit-research');if(researchNode){researchNode.querySelector('.source').innerHTML='feat/research-model · '+revision(data.nodes.find(n=>n.id==='research').sha);researchNode.querySelector('.next').textContent='新dev基线、依赖和恢复记录已适配；按R1–R5推进，R1尚无代码。R0仅保留历史参考。';}
-const devNode=el('commit-dev');if(devNode){const next=devNode.querySelector('.next');next.textContent='开发集成基线；已知业务问题保留，发布验收单列。';data.prs.filter(p=>p.target==='dev'&&p.state==='MERGED'&&!devNode.querySelector('[data-pr="'+p.number+'"]')).forEach(p=>next.insertAdjacentHTML('beforebegin','<a class="pr" data-pr="'+p.number+'" href="https://github.com/uukuguy/capstone/pull/'+p.number+'" target="_blank" rel="noopener noreferrer">PR #'+p.number+' · MERGED</a>'));}
-data.nodes.forEach(n=>el('commit-'+n.id).querySelector('h3').insertAdjacentHTML('afterbegin',icon(n.lane==='main'?'main':'branch')));
+graphNodes.forEach(n=>el('commit-'+n.id).querySelector('h3').insertAdjacentHTML('afterbegin',icon(n.lane==='main'?'main':'branch')));
 data.environments.forEach(e=>el('deploy-'+e.name).querySelector('b').insertAdjacentHTML('afterbegin',icon(e.name.startsWith('local-')?'server':'cloud')));
 el('hotfix').querySelector('h3').insertAdjacentHTML('afterbegin',icon('branch'));
 const oldAnswerNode=el('commit-answer-old');if(oldAnswerNode){oldAnswerNode.classList.add('reference');oldAnswerNode.querySelector('.source').innerHTML='旧实现 · '+revision(data.nodes.find(n=>n.id==='answer-old').sha);oldAnswerNode.querySelector('.next').textContent='复用到新增强分支；旧实现未过产品验收，不直接合入或部署。';}
@@ -79,67 +106,57 @@ el('detail-list').innerHTML=data.packages.filter(p=>!['live','main'].includes(p.
 let fitView=false;
 function fitGraph(){
  const frame=el('graph-frame'),canvas=el('graph-canvas');
- if(!fitView){canvas.style.transform='none';frame.style.height=Math.min(canvas.offsetHeight,Math.max(320,window.innerHeight-230))+'px';frame.style.overflow='auto';return;}
+ if(!fitView){const available=Math.max(320,window.innerHeight-frame.getBoundingClientRect().top-80),scale=Math.min(1,frame.clientWidth/canvas.offsetWidth,available/canvas.offsetHeight);canvas.style.transform=scale===1?'none':'scale('+scale+')';canvas.style.marginLeft=Math.max(0,(frame.clientWidth-canvas.offsetWidth*scale)/2)+'px';frame.style.height=Math.ceil(canvas.offsetHeight*scale)+'px';frame.style.overflow='hidden';return;}
  const top=frame.getBoundingClientRect().top+window.scrollY,available=Math.max(180,window.innerHeight-top-55);
  const scale=Math.min(1,frame.clientWidth/canvas.offsetWidth,available/canvas.offsetHeight);
- canvas.style.transform='scale('+scale+')';frame.style.height=Math.ceil(canvas.offsetHeight*scale)+'px';frame.style.overflow='hidden';
+ canvas.style.transform='scale('+scale+')';canvas.style.marginLeft=Math.max(0,(frame.clientWidth-canvas.offsetWidth*scale)/2)+'px';frame.style.height=Math.ceil(canvas.offsetHeight*scale)+'px';frame.style.overflow='hidden';
 }
 function draw(){
- el('graph-canvas').style.width=Math.max(960,el('graph-frame').clientWidth)+'px';
- const tree=el('tree'),width=tree.clientWidth,gap=Number(el('density').value),card=(width-160)/3;
- const left={feature:6,main:(width-card)/2,repair:width-card-6},environmentWidth=Math.min(220,card*.64),environmentLeft=left.feature+card-environmentWidth;
- const stages=data.environments;
- const sourceNode=e=>data.nodes.find(n=>n.sha.startsWith(e.revision)||e.revision.startsWith(n.sha));
- stages.forEach(e=>{el('environment-node-'+e.name).style.width=environmentWidth+'px';});
- el('hotfix').style.width=card+'px';
- const ordered=lane=>data.nodes.filter(n=>n.lane===lane).sort((a,b)=>levels[b.id]-levels[a.id]);
- const place=(node,x,y)=>{node.style.left=x+'px';node.style.top=y+'px';};
- let mainBottom=8;ordered('main').forEach(n=>{const node=el('commit-'+n.id);place(node,left.main,mainBottom);mainBottom+=node.offsetHeight+gap+16;});
- const dev=el('environment-node-local-dev'),demo=el('environment-node-local-demo');
- const devSource=sourceNode(stages.find(e=>e.name==='local-dev'));
- const devOnRepair=devSource.lane==='repair';
- place(dev,devOnRepair?left.repair+(card-environmentWidth)/2:environmentLeft,8);
- let featureBottom=devOnRepair?8:dev.offsetTop+dev.offsetHeight+gap;
- ordered('feature').forEach(n=>{const node=el('commit-'+n.id);place(node,left.feature,featureBottom);featureBottom+=node.offsetHeight+gap;});
- let repairBottom=devOnRepair?dev.offsetTop+dev.offsetHeight+gap:8;
- const repairs=ordered('repair');
- repairs.filter(n=>!n.id.endsWith('-old')).forEach(n=>{const node=el('commit-'+n.id);place(node,left.repair,repairBottom);repairBottom+=node.offsetHeight+gap;});
- repairs.filter(n=>n.id.endsWith('-old')).forEach(n=>{const node=el('commit-'+n.id);place(node,left.repair,repairBottom);repairBottom+=node.offsetHeight+gap;});
- const demoSource=el('commit-'+sourceNode(stages.find(e=>e.name==='local-demo')).id);
- const demoTop=Math.max(repairBottom,demoSource.offsetTop);
- place(demo,left.repair,demoTop);place(el('hotfix'),left.repair,demoTop+demo.offsetHeight+gap);
- const clouds=stages.filter(e=>e.name.startsWith('cloud-'));
- const cloudHeight=clouds.reduce((height,e)=>height+el('environment-node-'+e.name).offsetHeight+gap,0)-gap;
- let cloudTop=Math.max(featureBottom+gap,demoSource.offsetTop+demoSource.offsetHeight/2-cloudHeight/2);
- clouds.forEach(e=>{const node=el('environment-node-'+e.name);place(node,environmentLeft,cloudTop);cloudTop+=node.offsetHeight+gap;});
- tree.style.height=Math.max(...data.nodes.map(n=>{const node=el('commit-'+n.id);return node.offsetTop+node.offsetHeight;}),...stages.map(e=>{const node=el('environment-node-'+e.name);return node.offsetTop+node.offsetHeight;}),el('hotfix').offsetTop+el('hotfix').offsetHeight)+12+'px';
- const svg=el('edges');svg.setAttribute('viewBox','0 0 '+width+' '+tree.clientHeight);
- const r=id=>{const node=el(id);let x=0,y=0,current=node;while(current&&current!==tree){x+=current.offsetLeft;y+=current.offsetTop;current=current.offsetParent;}return {x,y,w:node.offsetWidth,h:node.offsetHeight};};
- function path(from,to,dashed=false){
-  const a=r(from),b=r(to);let x1=a.x+a.w/2,y1=a.y,x2=b.x+b.w/2,y2=b.y+b.h;
-  if(dashed){y1=a.y+a.h;y2=b.y;if(from==='commit-answer-old'&&to==='commit-main'){x1=a.x;y1=a.y+a.h/2;x2=b.x+b.w;y2=b.y+b.h-20;}}
-  let d='M '+x1+' '+y1+' L '+x2+' '+y2;
-  if(!dashed&&a.x!==b.x){const right=b.x>a.x;x1=a.x+(right?a.w:0);y1=a.y+a.h/2;x2=b.x+(right?0:b.w);y2=b.y+b.h/2;const mid=(x1+x2)/2;d='M '+x1+' '+y1+' C '+mid+' '+y1+' '+mid+' '+y2+' '+x2+' '+y2;}
-  if(dashed&&from==='commit-answer-old'&&to==='commit-answers'){const side=Math.max(a.x+a.w,b.x+b.w)+12;d='M '+(a.x+a.w)+' '+(a.y+a.h/2)+' C '+side+' '+(a.y+a.h/2)+' '+side+' '+(b.y+b.h/2)+' '+(b.x+b.w)+' '+(b.y+b.h/2);}
-  if(to==='hotfix'){const start=a.x+a.w,end=b.x,mid=(start+end)/2;d='M '+start+' '+(a.y+a.h/2)+' C '+mid+' '+(a.y+a.h/2)+' '+mid+' '+(b.y+b.h/2)+' '+end+' '+(b.y+b.h/2);}
-  return '<path data-from="'+from+'" data-to="'+to+'" d="'+d+'" fill="none" stroke="'+(dashed?'#b39874':'#92afa1')+'" stroke-width="1.6" '+(dashed?'stroke-dasharray="4 4"':'marker-end="url(#arrow)"')+'/>';
+ const frame=el('graph-frame'),tree=el('tree'),width=Math.max(1000,frame.clientWidth),gap=Number(el('density').value)+12;
+ el('graph-canvas').style.width=width+'px';
+ const place=(node,x,y,w)=>{node.style.width=w+'px';node.style.left=x+'px';node.style.top=y+'px';};
+ const mains=graphNodes.filter(n=>n.lane==='main').sort((a,b)=>levels[b.id]-levels[a.id]);
+ const branches=graphNodes.filter(n=>n.lane!=='main'&&n.id!=='pi').sort((a,b)=>levels[b.id]-levels[a.id]);
+ // Keep the release spine at the canvas centre; use the right half for source-bound deployments.
+ const mainWidth=branches.length?250:520,mainX=(width-mainWidth)/2,branchX=mainX+mainWidth+24,stageWidth=190,stageX=width-stageWidth,branchWidth=stageX-branchX-24;
+ let mainBottom=8,branchBottom=8;
+ mains.forEach(n=>{const node=el('commit-'+n.id);node.style.height='auto';place(node,mainX,mainBottom,mainWidth);mainBottom+=node.offsetHeight+gap;});
+ const pi=el('commit-pi'),piWidth=Math.min(280,mainX-48);pi.style.height='auto';place(pi,Math.max(12,mainX-piWidth-50),8,piWidth);
+ graphStages.forEach(e=>{const stage=el('environment-node-'+e.name);stage.style.height='auto';if(!stage.dataset.ready){stage.innerHTML=deployment(e)+'<p class="muted">'+esc(environmentRoles[e.name])+'</p><details><summary>状态与验证记录</summary><p>'+esc(e.state)+'</p></details>';stage.querySelector('b').insertAdjacentHTML('afterbegin',icon(e.name.startsWith('local-')?'server':'cloud'));stage.dataset.ready='true';}});
+ branches.forEach(n=>{const node=el('commit-'+n.id);node.style.height='auto';place(node,branchX,branchBottom,branchWidth);branchBottom+=node.offsetHeight+gap;});
+ let stageBottom=8;
+ [...graphStages].sort((a,b)=>el('commit-'+sourceNode(a).id).offsetTop-el('commit-'+sourceNode(b).id).offsetTop).forEach(e=>{const stage=el('environment-node-'+e.name),source=el('commit-'+sourceNode(e).id);stageBottom=Math.max(stageBottom,source.offsetTop);place(stage,stageX,stageBottom,stageWidth);stageBottom+=stage.offsetHeight+12;});
+ tree.style.height=Math.max(mainBottom,branchBottom,stageBottom,pi.offsetHeight+8)+'px';
+ const svg=el('edges');svg.setAttribute('viewBox','0 0 '+width+' '+tree.clientHeight);svg.innerHTML='';
+ const edgeStyles={main:{color:'#426c60',width:1.8},branch:{color:'#83639b',width:1.4},reference:{color:'#9a794f',width:1.1}};
+ svg.innerHTML='<defs>'+Object.entries(edgeStyles).map(([kind,style])=>'<marker id="arrow-'+kind+'" markerUnits="userSpaceOnUse" markerWidth="7" markerHeight="8" refX="5" refY="4" orient="auto"><path d="M1 1 L5 4 L1 7" fill="none" stroke="'+style.color+'" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></marker>').join('')+'</defs>';
+ const bounds=tree.getBoundingClientRect(),scale=el('graph-canvas').getBoundingClientRect().width/el('graph-canvas').offsetWidth;
+ const rect=node=>{const r=node.getBoundingClientRect();return {x:(r.left-bounds.left)/scale,y:(r.top-bounds.top)/scale,w:r.width/scale,h:r.height/scale};};
+ const visible=new Set(graphNodes.map(n=>n.id));
+ function successors(id,seen=new Set()){
+  if(seen.has(id))return [];seen.add(id);
+  return data.edges.filter(e=>e[0]===id).flatMap(e=>visible.has(e[1])?[e[1]]:successors(e[1],new Set(seen)));
  }
- const hotfixSource=sourceNode(stages.find(e=>e.name==='cloud-demo'));
- svg.innerHTML='<defs><marker id="arrow" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto"><path d="M0 0L6 3L0 6" fill="#92afa1"/></marker></defs>'+data.edges.map(([a,b])=>path('commit-'+a,'commit-'+b)).join('')+path('commit-'+hotfixSource.id,'hotfix',true);
- stages.forEach(e=>{
-  const source=sourceNode(e),a=r('commit-'+source.id),b=r('environment-node-'+e.name);
-  let d;
-  if(e.name==='local-dev'&&devOnRepair){
-   d='M '+(a.x+a.w/2)+' '+a.y+' L '+(b.x+b.w/2)+' '+(b.y+b.h);
-  }else{
-   const onLeft=b.x<a.x,x1=onLeft?a.x:a.x+a.w,y1=a.y+a.h/2,x2=onLeft?b.x+b.w:b.x,y2=b.y+b.h/2,mid=(x1+x2)/2;
-   d='M '+x1+' '+y1+' C '+mid+' '+y1+' '+mid+' '+y2+' '+x2+' '+y2;
-  }
-  svg.insertAdjacentHTML('beforeend','<path data-source="'+source.id+'" data-deployment="'+e.name+'" d="'+d+'" fill="none" stroke="#92afa1" stroke-width="1.5"/>');
+ graphNodes.forEach(n=>[...new Set(successors(n.id))].forEach(id=>{
+  const a=rect(el('commit-'+n.id)),b=rect(el('commit-'+id)),same=Math.abs(a.x-b.x)<1,right=b.x>a.x;
+  const x1=same?a.x+a.w/2:a.x+(right?a.w+4:-4),y1=same?a.y-4:a.y+a.h/2;
+  const x2=same?b.x+b.w/2:b.x+(right?-4:b.w+4),y2=same?b.y+b.h+4:b.y+b.h/2,mid=(x1+x2)/2;
+  const kind=n.lane==='main'&&data.nodes.find(node=>node.id===id).lane==='main'?'main':'branch',style=edgeStyles[kind];
+  const d=same?'M '+x1+' '+y1+' L '+x2+' '+y2:'M '+x1+' '+y1+' C '+mid+' '+y1+' '+mid+' '+y2+' '+x2+' '+y2;
+  svg.insertAdjacentHTML('beforeend','<path data-kind="'+kind+'" data-from="commit-'+n.id+'" data-to="commit-'+id+'" d="'+d+'" fill="none" stroke="'+style.color+'" stroke-width="'+style.width+'" marker-end="url(#arrow-'+kind+')"/>');
+ }));
+ graphStages.forEach(e=>{
+  const source=sourceNode(e),target=el('environment-node-'+e.name),anchor=el('commit-'+source.id),a=rect(anchor),b=rect(target),x1=a.x+a.w+4,y1=a.y+a.h/2,x2=b.x-4,y2=b.y+b.h/2,mid=(x1+x2)/2;
+  const d='M '+x1+' '+y1+' C '+mid+' '+y1+' '+mid+' '+y2+' '+x2+' '+y2,style=edgeStyles.reference;
+  svg.insertAdjacentHTML('beforeend','<path data-kind="reference" data-from="'+anchor.id+'" data-to="'+target.id+'" data-source="'+source.id+'" data-source-sha="'+source.sha+'" data-deployment="'+e.name+'" d="'+d+'" fill="none" stroke="'+style.color+'" stroke-width="'+style.width+'" stroke-dasharray="4 3" marker-end="url(#arrow-reference)"/>');
  });
  fitGraph();
 }
+
 el('density').addEventListener('input',draw);new ResizeObserver(draw).observe(el('tree'));requestAnimationFrame(draw);
+el('local-deployments').addEventListener('toggle',draw,true);
+el('commits').addEventListener('toggle',draw,true);
+document.fonts.ready.then(draw);
 window.addEventListener('resize',draw);el('fit-view').addEventListener('click',e=>{fitView=!fitView;e.currentTarget.textContent=fitView?'可读尺寸':'全图预览';e.currentTarget.setAttribute('aria-pressed',String(fitView));draw();});
 document.querySelectorAll('[data-package]').forEach(b=>b.addEventListener('click',()=>{const d=el('detail-'+b.dataset.package)||el('scope-detail');d.open=true;d.scrollIntoView({block:'nearest'});}));
 el('expand-all').addEventListener('click',e=>{const open=e.currentTarget.getAttribute('aria-expanded')!=='true';document.querySelectorAll('#details details').forEach(d=>d.open=open);e.currentTarget.setAttribute('aria-expanded',String(open));e.currentTarget.textContent=open?'收起全部':'展开全部';});

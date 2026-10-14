@@ -1,5 +1,15 @@
 # Capstone Conversation Contract Completion
 
+2026-10-14 当前后继实施包为 `autonomous`，执行入口见
+[自主智能体首期计划](2026-10-12-autonomous-agent-first-delivery.md#2026-10-14-实现与验收记录对齐)。
+实际研究状态、Pi接线、复杂指令、结果证据、场景图层和模型资源已有实现；
+不得把独立 `feat/research-model` 的“R1未实现”显示为该包现状。
+PR #18已正常合入dev faa6af9；双平台PR、完整发布及合并后检查通过。
+local-dev与两个demo均使用同一运行来源，两个demo的注册回归和原Thread入口验证通过，正式标签demo-20261014-2028-faa6af9已推送。
+cloud-dev24d9a32保持不变，完整科学与交互缺口仍开放。
+用户最新基线原则：候选验证与门禁后先合入dev；两个demo以同一dev合并提交正式发布，再从dev推进后续业务与交互验收。
+2b6ae7b只保留候选验证记录，不作为正式demo标签来源。后续从dev推进N−1输入、引用与收尾及整体交互验收。
+
 2026-10-12当前开发基线dev6ff7094已通过PR #14双平台检查并集成。
 Pi38e19db与Research Model2b0b0a5已适配并推送，起点均为6ff7094。
 首次新源专项普通误路由失败保留，独立重试通过不能覆盖失败；整体验收

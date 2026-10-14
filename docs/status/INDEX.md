@@ -1,10 +1,97 @@
 # docs/status INDEX
 
+当前：PR #18已合入dev faa6af9；候选、完整发布和合并后双平台检查通过。local-dev、local-demo与cloud-demo均运行该合并来源；两个demo完成三用例九轮、报告证据回放和旧Thread入口检查，原数据保留。正式标签demo-20261014-2028-faa6af9已推送并核对。cloud-dev24d9a32保持不变。
+
+推进图显示8个关键Git节点，突出当前活跃节点、四部署来源与实际在研Pi分支；dev主线保留重要云部署和大分支合并，中间候选进入历史详情。统一卡片内容、居中纵向主线、来源连线与两端间距浏览器检查通过。
+
+
 ## Active
+
+当前精确状态见 RESUME / VERSION-CONTROL：产品PR #18已合入，两个demo均为faa6af9并完成注册回归；本轮文档收尾通过独立PR入dev。主图保留中轴、四部署及在研节点。
+
+### 历史实施记录
+
+以下按原验证时点保留，不覆盖上方当前基线；源码已合入不代表科学与交互缺口已全部通过。
+
+
+594e0b4：local-dev完整阶段计时已实测，准备、推演、核验整理均保存；同排批量展开/收起与状态保留已验证。阶段合计与任务总耗时差17毫秒；准备资源耗时与未记录目的仍待优化。见执行节点审计及版本台账，不代表整体科学验收。
+
+[执行节点审计](../reviews/2026-10-13-execution-node-audit.md)：五连续指令准备复用与结果复用已核对；过程任务说明缺口及默认10动作修正见368ec58，实时业务推进待观察。
+
+84bc0db：表页公共契约22项后端/30项App及类型通过；共享存储与领域分页已实现，交付/API/翻页交互未接。控制图默认可读尺寸和图内滚动，桌面/手机验证通过。
+
+508395f：完整分析表分页的领域投影25项及类型通过，API/App及共享持久化待接入；历史追问c886已实证。现行身份见版本台账。
+
+[三样本任务链验证](../reviews/2026-10-13-three-task-chain-validation.md)：092acb6三项真实API执行收尾完成，回复、过程和结果可打开；包含业务未达成及未证实解释，保留历史失败。仅隔离人工候选，未合入或稳定发布。
+
+人工候选092acb6运行于隔离API8889/App5199。三专项执行闭环完成并可交人工观察，耗时40／379／73秒；概况原句21秒，约10秒目标未达到。研究记录a3895a5及参数追溯388fa89已提交；新隔离API8890/App5201参数与快照展示通过；概况73244c0复测127秒失败；d1767ff复测37秒、无AC仍超时；b49b7a0概况25秒/5只读调用、无失败无AC，10秒目标未达；连续回归中，整体未验收。业务目标和部分解释仍有局限，详见验证记录；不将终态完成写成全部结论正确。
+
+旧回答修复3e3bbfb已归档并移出当前推进图；恢复引用与未验收状态见[版本台账](VERSION-CONTROL.md#全部分支进展)。
+
+[自主研究首期实施计划](../superpowers/plans/2026-10-12-autonomous-agent-first-delivery.md)：人工候选092acb6与隔离部署同源，三专项及概况API验证已结束，结果页面可打开。研究记录a3895a5及参数追溯388fa89已提交；新隔离API8890/App5201参数与快照展示通过；概况73244c0复测127秒失败；d1767ff复测37秒、无AC仍超时；b49b7a0概况25秒/5只读调用、无失败无AC，10秒目标未达；连续回归中，整体未验收。稳定local-dev和demo不变，完整证据、重置与整体回归等尚未完成。
+
+[自主研究能力基线](../reviews/2026-10-12-autonomous-agent-capability-baseline.md)：静态契约事实、未实证能力、历史整体回归与耗时记录要求。
+
+[首期接口落点](../superpowers/specs/2026-10-12-autonomous-agent-design.md#首期接口落点源码核对后的提案)：研究持久回执、Pi实际上下文、既有结果投影及证据关联；标明可复用基础与待核对接法。
+
+[自主研究统一设计](../superpowers/specs/2026-10-12-autonomous-agent-design.md)：五概念、单指令与必要追问、四类展示、证据与授权；含已验证基础实现和未完成范围。
+
+[Pi研究链路验证](../reviews/2026-10-12-autonomous-agent-pi-research-verification.md)：7df7180的实际Pi离线传输、压缩/恢复、回执与上下文检查；不代表业务验收。
+
+故障结果交付已列为优先契约：见[统一设计](../superpowers/specs/2026-10-12-autonomous-agent-design.md)和控制图M10。3f2f111保留受限回答，完整恢复与部分证据交付尚未完成。
+
+[当前展示契约](../superpowers/specs/2026-10-12-autonomous-agent-design-discussion.md#当前前后端展示契约收敛草案)：正式回答／执行过程／计算结果／推演证据为现行名称，覆盖早期命名提案。
+
+[展示关联D20](../superpowers/specs/2026-10-12-autonomous-agent-design-discussion.md#d20正式回答与推演证据的展示关联命名已确认机制提案)：正式回答／执行过程／结果明细／推演证据；结论到证据、结果和调用的结构化关联。
+
+[证据命名D19](../superpowers/specs/2026-10-12-autonomous-agent-design-discussion.md#d19证据命名与避免流水账用户纠正)：采用“证据”；按结论/检查项组织，与按时间排列的执行过程分工，避免重复流水账。
+
+[结构化表达D18](../superpowers/specs/2026-10-12-autonomous-agent-design-discussion.md#d18结构化依据与客观简明表达用户明确要求)：技术追溯保留，三类依据以字段和事实为主，中文借鉴ASD-STE100简明原则。
+
+[四类展示D17](../superpowers/specs/2026-10-12-autonomous-agent-design-discussion.md#d17回答执行过程结果明细与验证依据展示提案)：回答、执行过程、结果明细、验证依据；长ID退入技术详情，业务验证必须有真实数据。
+
+[执行展示融合D16](../superpowers/specs/2026-10-12-autonomous-agent-design-discussion.md#d16任务展示与已有工具调用展示融合设计提案)：保留用户认可的工具链交互，在同一过程补任务含义和结果关联，不新建重复展示。
+
+[单条主线与追问D15](../superpowers/specs/2026-10-12-autonomous-agent-design-discussion.md#d15单条指令主线与最小多轮连续性用户明确优先级)：完整完成一条指令为首要交付，兼顾澄清、结果追问和条件补充；不扩展多研究管理。
+
+[前端对话设计D14](../superpowers/specs/2026-10-12-autonomous-agent-design-discussion.md#d14前端智能体对话操作设计提案)：复用现有展示，明确提交、停止、模型绑定、断线恢复和结果语义；需与实际协议核对。
+
+[首期整体设计D13](../superpowers/specs/2026-10-12-autonomous-agent-design-discussion.md#d13首期整体设计收敛与实施前验证工作提案)：五概念的复用/增量、最小闭环和实证要求；仍在设计阶段。
+
+[可解释性与人在回路D12](../superpowers/specs/2026-10-12-autonomous-agent-design-discussion.md#d12可解释性与人在回路用户建议纳入核心设计)：证据审计贯穿五概念，自动仿真与方案生成、人工采纳、真实执行隔离；不要求本轮全部实现。
+
+[行动策略与进展评估D11](../superpowers/specs/2026-10-12-autonomous-agent-design-discussion.md#d11行动策略与进展评估器设计提案)：选择依据、三类检查、结束与停滞，同一主循环完成；五概念工作提案已齐备，接口与实证仍待收口。
+
+[实验工作台D10](../superpowers/specs/2026-10-12-autonomous-agent-design-discussion.md#d10实验工作台的最小职责设计提案)：可组合授权能力和真实结果记录；复用dev，无固定工作流引擎。
+
+[研究上下文D09](../superpowers/specs/2026-10-12-autonomous-agent-design-discussion.md#d09研究模型与笔记的保存和上下文接入设计提案)：现有存储可复用，研究视图及受控更新待设计实现；验证真实读回和恢复。
+
+[五概念最小协作D08](../superpowers/specs/2026-10-12-autonomous-agent-design-discussion.md#d08五概念的最小完整协作收敛提案)：统一此前设计，单一主循环、可用研究记录、既有执行能力；未实现。
+
+设计约束：统一五概念、保持简洁；整体能力接受三样例验证，不按样例倒推专用实现。详见[设计讨论开篇约束](../superpowers/specs/2026-10-12-autonomous-agent-design-discussion.md#设计缺口与讨论顺序)。
+
+[dev接入设计D07](../superpowers/specs/2026-10-12-autonomous-agent-design-discussion.md#d07dev接入结构与领域方法供给设计提案)：单一Pi主循环、研究状态与领域方法供给；仅设计，四项实现前缺口待确认。
+
+[架构边界D06](../superpowers/specs/2026-10-12-autonomous-agent-design-discussion.md#d06长期通用架构与首期验证范围用户已明确)：当前dev起步，demo仅作体验参考；长期通用框架，三个问题只作首批验证集。
+
+[本轮边界D05](../superpowers/specs/2026-10-12-autonomous-agent-design-discussion.md#d05本轮展示与执行时间边界用户已明确)：复用demo调用链，S01为用户确认的现有基线；重点是S02/S03业务逻辑与合理耗时，不扩展展示工程。
+
+[工作节点与观察反馈D04](../superpowers/specs/2026-10-12-autonomous-agent-design-discussion.md#d04自主工作节点与观察反馈契约)：局部目标、真实动作、观察、策略与评估、停止及进展；契约提案。
+
+首版聚焦[三条原始业务指令](../superpowers/specs/2026-10-12-autonomous-agent-design-discussion.md#d03三条单次请求的业务交付契约)：IEEE39 OPF、N-1缓解与mv_oberrhein双停运综合研究；详细口径与性能待验证。
+
+用户明确首个自主研究交付为一次复杂指令闭环，详见[设计讨论D02](../superpowers/specs/2026-10-12-autonomous-agent-design-discussion.md#d02一次复杂指令的优先交付目标)；完整跨轮管理后续展开。
 
 [PR #16](https://github.com/uukuguy/capstone/pull/16)交付自主智能体讨论文档；[详细设计讨论](../superpowers/specs/2026-10-12-autonomous-agent-design-discussion.md)保留实现级提案，运行版本不变。
 
 [自主智能体演进讨论](VERSION-CONTROL.md#自主智能体演进讨论)：已确认方向、职责图、统一分支建议和待定细节；讨论完成前不改运行实现。
+
+统一分支已获实施授权；b73c4f4记录失败观察并在结果面板展示失败项。当前实施及待验收范围见
+[实施计划](../superpowers/plans/2026-10-12-autonomous-agent-first-delivery.md)，包含用户指定的五条整体回归和耗时目标。
+ec913ac补齐准入失败续行、请求留存及轨迹关联；整链追溯入口与业务验收仍在实施。
+展示新增已确认约束：全局覆盖与原任务细节追问，详细契约见统一设计和任务5，U09仅表示设计状态。
+54f6f13完成原任务记录分页验证；U09更新为记录接口已通过，App追问仍未完成。
+a77e180接入前端原任务身份与分页校验；概览/追问交互尚未完成。
 
 2026-10-12用户撤回未稳定回答增强；当前[稳态恢复记录](KNOWN-ISSUES.md)与
 [活跃检查点](RESUME-NEXT-SESSION.md)记录新dev基线收口与两分支适配；实际七轮业务整体未通过。
@@ -151,3 +238,17 @@ dev默认开发集成主线和main发布主线均启用轻量保护：PR与两�
 | `climb/_archive/2026-08-18-full-capability/` | Completed 2026-08-18 full-capability climb session snapshot. |
 
 - [Domain Pack diff and content audit](../reviews/2026-10-11-domain-pack-sample-contamination.md): scope/completion/evidence repairs, generic instruction cleanup and continuous-overview repair; 8-case/10-turn overall and separate repair criteria under deployed verification.
+
+- 2026-10-13 c9387ee: 短路参数与实现失败诊断已验证，未部署；恢复入口见 RESUME-NEXT-SESSION.md。
+
+- 2026-10-13 8bf9ada: 同版本三链已审计、内容未通过；取消附加回答生成已提交，未部署。
+# Verification update: 3ea9cd8 App421 tests pass; backend a439210 isolated; task interpretation remains unaccepted.
+- 2026-10-13: VERSION-CONTROL tracks fixed5173 candidate24d9a32 and authorized cloud-dev deployment; prior cloud acceptance remainsed2524f.
+- 2026-10-13 cloud-dev trial: [deployment receipt](../reviews/2026-10-13-cloud-dev-autonomous-trial.md); fixed local5173/API8767 and restored original Thread.
+
+- 43f1e73：执行目的随工具参数进入步骤记录，领域参数隔离；真实部署验证进行中，未合并或发布。
+
+- ef6ae84：执行UI紧凑右侧耗时、目标/步骤分离、工具条锚定；ui-ux-pro-max实页检查通过；准入横幅移除，证据门禁保留。
+
+- 57a7b2a：白底辅助面板、结果/证据字号收紧、电网图一次性命令；85App/类型与浏览器通过，local-dev规范重建ready。
+2026-10-14 当前：bf7a309首批有来源场景图层已实现，契约/前端/真实派生检查通过，local-dev重建中，尚未完成三个样例图例实测。a3d3be3专用潮流字段及中文错误原因已部署；29daa7d单条原因与原始诊断入口在Vite生效。模型打开/关闭生命周期待修。详见[图层设计](../superpowers/specs/2026-10-14-network-result-annotations.md)及RESUME。
