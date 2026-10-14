@@ -66,9 +66,19 @@ target=$packages/$source
 safe "$target"
 if [ -e "$target" ]; then
   [ -d "$target" ] || fail 'The stored version is invalid.'
-  for file in compose.yaml start.sh .env.example release.env manifest.json README.txt data-contract.env capstone.sh install.sh; do
+  for file in compose.yaml start.sh .env.example release.env manifest.json README.txt data-contract.env; do
     safe "$target/$file"
     cmp -s "$target/$file" "$temporary/package/$file" || fail 'An existing frozen version differs. Its files and data were preserved.'
+  done
+  # Legacy adoption preserves its original runner; these two management files
+  # were absent from the original seven-file deployment package.
+  for file in capstone.sh install.sh; do
+    safe "$target/$file"
+    if [ -e "$target/$file" ]; then
+      cmp -s "$target/$file" "$temporary/package/$file" || fail 'An existing management file differs.'
+    else
+      cp "$temporary/package/$file" "$target/$file"
+    fi
   done
 else
   mv "$temporary/package" "$target"

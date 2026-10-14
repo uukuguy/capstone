@@ -112,6 +112,18 @@ class FixedInstallerTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(target.read_text(), 'changed')
 
+    def test_imported_legacy_version_can_install_management_files(self):
+        self.assertEqual(self.run_install().returncode, 0)
+        version = self.home / 'capstone' / 'versions' / SOURCE
+        for name in ['capstone.sh', 'install.sh']:
+            (version / name).unlink()
+        runner = (version / 'start.sh').read_bytes()
+        result = self.run_install()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((version / 'start.sh').read_bytes(), runner)
+        self.assertTrue((version / 'capstone.sh').is_file())
+        self.assertTrue((version / 'install.sh').is_file())
+
 
 if __name__ == '__main__':
     unittest.main()
