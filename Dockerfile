@@ -11,9 +11,6 @@ RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
     && pip install --no-cache-dir uv==0.10.7
 
 WORKDIR /app
-ARG CAPSTONE_SOURCE_REVISION=development
-LABEL org.opencontainers.image.revision=$CAPSTONE_SOURCE_REVISION
-RUN printf '%s\n' "$CAPSTONE_SOURCE_REVISION" > /tmp/capstone-image-source.txt
 COPY packages/ packages/
 COPY configs/ configs/
 COPY validation/ validation/
@@ -29,7 +26,6 @@ COPY Dockerfile Dockerfile
 COPY deploy/ensure_bucket.py deploy/ensure_bucket.py
 COPY deploy/preserve_local_runtime.py deploy/preserve_local_runtime.py
 COPY deploy/local-model-assets/ /opt/capstone-models/
-RUN cp /tmp/capstone-image-source.txt deploy/image-source.txt
 
 ENV UV_NO_SYNC=1 \
     UV_NO_DEV=1 \
@@ -56,6 +52,9 @@ RUN UV_NO_SYNC=0 uv sync --locked --no-dev --project packages/grid-agent \
     && chown -R capstone:capstone /app /opt/capstone-models /tmp/uv-cache
 
 ENV UV_CACHE_DIR=/tmp/uv-cache
+ARG CAPSTONE_SOURCE_REVISION=development
+LABEL org.opencontainers.image.revision=$CAPSTONE_SOURCE_REVISION
+RUN printf '%s\n' "$CAPSTONE_SOURCE_REVISION" > deploy/image-source.txt
 USER capstone
 EXPOSE 8766
 ENTRYPOINT ["/app/deploy/entrypoint.sh"]

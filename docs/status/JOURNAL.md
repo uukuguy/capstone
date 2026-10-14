@@ -3103,3 +3103,5 @@ The following original entries were retained during document synchronization.
 - 805ccbc提交精确Git构建上下文与无源码试用包生成器；实际构建准备发现合法策略链接，安全放行内部链接，仍拒绝越界。
 - 6f29b29修复构建上下文合法内部链接；69项Python通过；ARM64候选backend/App构建启动，六份模型资产验证后暂存。
 - 根推进图同步当前dev试用分支及真实祖先边；九节点两端间距无重叠/穿卡/箭头错位，独立边无交叉；四部署来源保留。
+- 2608013推送实施及控制记录；独立Codex只读审查发现四项隔离/来源问题，已修正且69项检查通过，实际新镜像验收待做。
+- 阿里候选App上传成功：dev-trial-candidate-6f29b29-arm64，sha256:252e4f63d9b33988857b9bdcccb470ca9916ae5196c38cdb2f94c6e6ee8b6d22；非正式双架构交付，匿名拉取未验。

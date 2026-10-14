@@ -76,6 +76,9 @@ def test_installation_guard_preserves_another_source_receipt(tmp_path):
     with pytest.raises(ValueError, match='source'):
         runtime.record_installation(tmp_path, manifest() | {'source_revision': 'c' * 40})
     assert (tmp_path / 'installation.json').read_bytes() == original
+    with pytest.raises(ValueError, match='source'):
+        runtime.record_installation(tmp_path, manifest(), 'capstone-user-other')
+    assert (tmp_path / 'installation.json').read_bytes() == original
 
 
 def test_check_rejects_an_image_built_from_another_commit(tmp_path):
@@ -106,11 +109,11 @@ def test_real_compose_interpolation_honors_startup_environment_and_worker_only_k
     keys = {'backend': 'BACKEND', 'app': 'APP', 'postgres': 'POSTGRES', 'objects': 'OBJECTS'}
     release.write_text(''.join('CAPSTONE_' + keys[k] + '_IMAGE=' + v + '\n' for k, v in manifest()['images'].items()))
     settings = tmp_path / '.env'
-    settings.write_text('CAPSTONE_PUBLIC_PROVIDER=deepseek\nCAPSTONE_PUBLIC_MODEL=deepseek-flash\n')
+    settings.write_text('CAPSTONE_PUBLIC_PROVIDER=deepseek\nCAPSTONE_PUBLIC_MODEL=deepseek-flash\nPOSTGRES_PASSWORD=unsafe-override\nCAPSTONE_OPERATOR_TOKEN=unsafe-override\n')
     environment = os.environ | {'CAPSTONE_PUBLIC_PROVIDER': 'openai', 'CAPSTONE_PUBLIC_MODEL': 'gpt-5.5',
                                'OPENAI_API_KEY': 'sentinel-openai-secret', 'DEEPSEEK_API_KEY': 'sentinel-deepseek-secret'}
-    result = subprocess.run(['docker', 'compose', '--env-file', str(release), '--env-file', str(private),
-                             '--env-file', str(settings), '-f', str(ROOT / 'deploy/dev-trial/compose.yaml'),
+    result = subprocess.run(['docker', 'compose', '--env-file', str(release), '--env-file', str(settings),
+                             '--env-file', str(private), '-f', str(ROOT / 'deploy/dev-trial/compose.yaml'),
                              'config', '--format', 'json'], env=environment, capture_output=True, text=True, check=True)
     services = json.loads(result.stdout)['services']
     assert all('build' not in spec for spec in services.values())
@@ -122,6 +125,8 @@ def test_real_compose_interpolation_honors_startup_environment_and_worker_only_k
     assert not {'OPENAI_API_KEY', 'DEEPSEEK_API_KEY'} & services['api']['environment'].keys()
     assert not {'OPENAI_API_KEY', 'DEEPSEEK_API_KEY'} & services['app']['environment'].keys()
     assert not any('ports' in services[name] for name in ['api', 'worker', 'worker-pypsa', 'postgres', 'objects'])
+    assert services['postgres']['environment']['POSTGRES_PASSWORD'] != 'unsafe-override'
+    assert services['api']['environment']['CAPSTONE_OPERATOR_TOKEN'] != 'unsafe-override'
 
 
 def test_start_entry_rejects_reserved_project_before_running_docker(tmp_path):

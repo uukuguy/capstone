@@ -63,7 +63,7 @@ def validate_manifest(document: dict) -> dict:
             or not re.fullmatch(r'[a-f0-9]{40}', str(document.get('source_revision', '')))):
         raise TrialConfigurationError('trial source manifest is invalid')
     if document.get('platforms') not in ([['linux/amd64'], ['linux/arm64']] if candidate else [['linux/amd64', 'linux/arm64']]):
-        raise TrialConfigurationError('trial requires both verified Linux platforms')
+        raise TrialConfigurationError('candidate requires one Linux platform' if candidate else 'trial manifest requires both Linux platforms')
     images = document.get('images')
     if not isinstance(images, dict) or set(images) != {'backend', 'app', 'postgres', 'objects'}:
         raise TrialConfigurationError('trial requires four image classes')
@@ -108,18 +108,21 @@ def validate_configuration(root: Path, environment: dict[str, str], manifest: di
             'profile': selected['CAPSTONE_RUNTIME_PROFILE'], 'status': 'configuration-valid'}
 
 
-def record_installation(directory: Path, manifest: dict) -> Path:
+def record_installation(directory: Path, manifest: dict, instance: str = 'capstone-user-local-dev') -> Path:
     document = validate_manifest(manifest)
+    if not re.fullmatch(r'capstone-user-[a-z0-9_-]+', instance):
+        raise TrialConfigurationError('CAPSTONE_INSTANCE')
     directory = _directory(directory)
     path = directory / 'installation.json'
     if path.is_symlink():
         raise TrialConfigurationError('installation receipt must not be a symlink')
     if path.exists():
         existing = json.loads(path.read_text())
-        if existing.get('source_revision') != document['source_revision'] or existing.get('images') != document['images']:
+        if (existing.get('source_revision') != document['source_revision'] or existing.get('images') != document['images']
+                or existing.get('instance') != instance):
             raise TrialConfigurationError('installed source differs; preserve data and use an explicit upgrade plan')
         return path
-    _private_write(path, json.dumps({'source_revision': document['source_revision'],
+    _private_write(path, json.dumps({'source_revision': document['source_revision'], 'instance': instance,
                                     'images': document['images']}, sort_keys=True) + '\n')
     return path
 
@@ -142,7 +145,8 @@ def main() -> int:
             verify_image_source(root, manifest)
             print(json.dumps(result, sort_keys=True))
         else:
-            record_installation(args.state, json.loads(args.manifest.read_text()))
+            record_installation(args.state, json.loads(args.manifest.read_text()),
+                                os.environ.get('CAPSTONE_INSTANCE', 'capstone-user-local-dev'))
             print('Trial source installation receipt is ready.')
         return 0
     except (TrialConfigurationError, runtime.RuntimeContractError) as error:
