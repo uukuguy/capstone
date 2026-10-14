@@ -15,7 +15,7 @@
 
 1. Both demos passed regression and old Thread diagram/Composer browser checks. Annotated demo-20261014-2028-faa6af9 was pushed and remote source verified. Continue product gaps from dev; never formally tag candidate2b6ae7b.
 2. Control graph and owning records are aligned locally; eight important nodes, centred vertical dev/main axis, four exact deployment references and actual in-research Pi branch. Both spacing limits passed reachability, overlap, crossing and arrow checks. Ordinary intermediate commits remain in history.
-3. Finish docs/dev-integration-closeout PR checks and merge, then fast-forward root dev and verify a clean Git status. The user explicitly authorized preserving all remaining root documentation/audit records in this closeout. Close superseded PR #17 only after replacement integration; retain recovery references and data. Subsequent source/deployment changes still need their own records.
+3. PR #19 carries all remaining root control/design/audit records into dev; its authoritative merge/check state is linked in VERSION-CONTROL. Closeout execution requires both platform checks, normal PR merge, root dev fast-forward and an empty Git status. PR #17 is superseded by this updated record. After closeout, continue the N−1 input/reference/closing investigation from dev. Preserve recovery references and data.
 4. Merged autonomous branch was renamed recovery/autonomous-agent-merged-faa6af9 locally; remote feature branch was closed. The dirty worktree and all data remain. Pi38e19db is in research on old6ff7094; new-dev adaptation remains. Research Model R1 is a separate paused plan without implementation.
 
 ## Limits and rejected paths
@@ -24,3 +24,4 @@
 - Diagram action once hit footer pointer interception; do not claim its click path passed. Original cloud Thread diagram restores correctly.
 - No Provider calls, auth copying or data/volume deletion. Temporary Railway SSH key/files were removed. Use secret-free startup receipt logs.
 - Local-demo setup uses Python3.12 with setup/install-pi/doctor before canonical rebuild. Verified official model assets are shared read-only for builds; data/environment stores remain isolated.
+- local-dev App now runs the exact faa6af9 clean source archive at `.capstone-agent/releases/faa6af9/backend/packages/capstone-app`, with a source receipt and local-dev environment. Its files match the accepted App source. This keeps runtime identity stable while control-only commits advance dev; the next product iteration uses the canonical local rebuild entrypoint. App PID/log stay under the root ignored `.capstone-agent/` directory.

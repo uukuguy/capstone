@@ -10,7 +10,7 @@ PR #18已正常合入dev，精确来源`faa6af9b4a6fe567c559d0b68ab1c4e5aa1bd4fe
 - pandapower：aed302e7-6cf2-4e81-b4dc-661f082f60a1；PyPSA：f30c96c7-7e15-4ada-ad59-9dd280737900；四角色SUCCESS。
 - 三后端源码工件：275d02003c100f876ffb2dd9fb7551587efb569a9d67b7c6c85ba98e76619780；云安装工件：621d77adddca25889fb55aefc0131875720afde4e8f034b162a840d08c7e9060，角色间一致。
 - local-demo三角色镜像：sha256:3a2d87862325fecc1880f2abe9334cbcb60d4ad8148bd7dc343b5564b1c54d36；运行身份与已验证529文件的local-dev一致，App dirty=false。
-- 运行收据保存在忽略的`runs/demo-n1-debug/`：demo-faa6af9-acceptance.json、local-demo-faa6af9-checks.json、faa6af9-runtime-alignment.json、faa6af9-local-demo-alignment.json和faa6af9-validation-equivalence.json。报告当前尚未提交，标签注释明确记录此状态。
+- 运行收据保存在忽略的`runs/demo-n1-debug/`：demo-faa6af9-acceptance.json、local-demo-faa6af9-checks.json、faa6af9-runtime-alignment.json、faa6af9-local-demo-alignment.json和faa6af9-validation-equivalence.json。标签创建时报告尚未提交，其注释保留该历史状态；本报告现已由687ba80首次入库，并随PR #19收尾。
 
 此为框架交付及注册回归验收；N−1输入增长、结果引用、收尾延迟、岛屿解释、恢复/驱逐和整体科学验收仍开放。图按钮曾受footer指针拦截，其点击路径不计为通过；旧Thread图恢复检查通过。Pi未部署。上一回滚参考为demo-20261014-0744-bd2a200。
 

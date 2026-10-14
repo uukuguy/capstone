@@ -179,7 +179,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | autonomous | 自主智能体 · 统一实施 | 4 | 已合入dev；两个demo已发布，整体业务未验收 | 单Pi研究循环、持久研究状态、Authority计算与来源、执行过程、结果证据、电网场景图层和模型资源管理 | origin/dev | 两个demo已验收faa6af9，从dev推进N−1与交互缺口 | dev4f15cfc及6ff7094业务基线；旧Research Model分支仅作参考 | 研究读写及Pi真实上下文；受控失败交付；任务与工具两级过程；完整结果字段；场景与孤岛图层；模型打开准备与内存回收；对话创建后台预热 | PR #18双平台PR门禁通过，合并dev faa6af9；2b6ae7b候选59项及本地完整PR门禁、云三角色身份、三用例九轮、报告证据回放与旧Thread恢复通过；完整发布及合并后双平台通过，两个demo已同源验收并推送正式标签，不冒充科学业务验收；详见本包明细及首期计划 |
 | live | 线上共同基线 | 0 | 线上在用 | 电网静态分析、证据结果、智能体对话与工作台 | 线上部署 | 保持线上稳定；后续版本按发布计划推进 | 当前线上部署 | 本页起点；更早沿革仅在详情中保留 | 以 cloud-demo 部署台账为准；本次未重新探测云端 |
-| main | 开发集成 dev / 发布基线 main | 0 | 已验证并分流 | dev保存当前全局记录与开发集成；main保存发布基线快照 | dev | 从已接受dev开展Research Model R1；发布另按范围冻结 | 线上共同基线 | 全局文档、分支治理与Issue工具已集成dev | main723b8e8；dev组织验收50d8ebc，PR #11 CI Linux60秒/macOS131秒；本地B2技术标签已推送；demo与云端ed2524f |
+| main | 开发集成 dev / 发布基线 main | 0 | 已验证并分流 | dev保存当前全局记录与开发集成；main保存发布基线快照 | dev | 从dev推进自主智能体N−1与交互专项；Research Model R1保留待启动 | 线上共同基线 | 全局文档、分支治理与Issue工具已集成dev | main723b8e8发布快照；PR #18合并faa6af9及双平台门禁通过；两个demo已同源验收并推送正式标签；PR #19补齐控制文档 |
 | foundation | 基础体验与开发治理 | 1 | 已集成，本地开发验收通过 | 连续浏览历史、环境与版本识别、反馈处理和修订流程 | main | 后续随正式用户发布验证；不单独定义功能增强基线 | 线上共同基线 | 历史对话连续浏览；明确环境与来源版本；规范反馈与修订流程 | PR #6 合并 c3b78bc；精确候选两平台检查与审查通过；local-dev 实际入口验收通过；云端未发布 |
 | answers | 回退与选择性补回 | 2 | 已合入dev，业务缺陷保留 | c3业务链；独立LLM路由；三动作小窗；普通轻量无工具回答；正式消息与过程隔离 | dev | 路由可靠性与现存业务缺陷单列；研究按已适配计划推进 | main c3b78bc | 用户批准收口；不恢复任务编译；无凭据装配修正bc08169 | PR #14双平台通过并合入6ff7094；506项同源及两次完整集成通过；新真实复验一轮普通误分，保留失败，未称整体通过 |
 | pi | Pi 与 skills 能力扩展 | 3 | 实验分支 | 通用任务执行、完整业务上下文与数据共享、skills/MCP 与角色资源扩展 | feat/pi-skills-integration | 分支内设计实现当前模型数据投影和授权共享；验证真实业务输入与配置间效果 | 当前稳定能力（未排入发布） | 通用 Pi 与委派执行；skills/MCP 与专业结构检查；已有有限上下文；完整业务上下文和数据共享尚待实现；输入命令原型 /skills、/skill:<name>、/context | 完整业务上下文与数据共享归入本分支，不另列待推进包；输入原型不等于统一前端命令功能完成；尚无稳定发布验收 |
@@ -310,8 +310,9 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | 14 | answers | fix/stable-route-recovery | dev | MERGED | 精确bc08169双平台CI38181053709通过；合并6ff7094；恢复分支已关闭；新基线及两实施分支适配，业务缺陷及Issues2/3保持开放 |
 | 15 | main | docs/dev-recovery-baseline-control | dev | 状态见GitHub | 全局基线台账、两实施分支适配报告及控制图；仅文档与图模板，产品来源仍为6ff7094；临时远端分支接受后关闭 |
 | 16 | main | docs/autonomous-agent-discussion | dev | MERGED | 自主智能体讨论全览、五个概念、任务级进展流及研究模型详细提案；仅文档与生成器，产品与部署来源不变 |
-| 17 | research | docs/autonomous-delivery-records | dev | OPEN，待本轮替代 | 2411210的统一设计、首期计划和真实试用报告已保留并更新到本轮文档收尾；替代PR合入后关闭，不将旧版状态覆盖当前验收 |
+| 17 | research | docs/autonomous-delivery-records | dev | [由PR #19替代，状态见GitHub](https://github.com/uukuguy/capstone/pull/17) | 2411210的统一设计、首期计划和真实试用报告已保留并更新到PR #19文档收尾；不将旧版状态覆盖当前验收 |
 | 18 | autonomous | feat/autonomous-agent | dev | MERGED | 双平台PR38554449840、完整发布38554987581和合并后38558756435通过；合并faa6af9；统一研究循环、执行与结果证据、场景图层、模型资源和对话性能；两个demo同源注册回归及正式标签通过，整体科学业务验收仍开放 |
+| 19 | main | docs/dev-integration-closeout | dev | [检查与合并状态](https://github.com/uukuguy/capstone/pull/19) | 687ba80保存23项控制图、设计和审计记录；对齐已合入dev及两个demo验收，保留科学与交互缺口；双平台文档门禁通过是合入条件，替代旧PR #17；不更改运行来源 |
 
 ## 全部分支进展
 
@@ -325,6 +326,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | feat/research-model | 起点与依赖已适配 | 2b0b0a5；精确祖先dev6ff7094；设计及推进计划排除撤回的编译/覆盖/预热依赖；本工作区运行时准备与doctor通过 | R1尚无代码；按R1–R5及真实依赖路径验收，不将旧R0实验当作本分支成果 | research |
 | recovery/autonomous-agent-merged-faa6af9 | 已合并分支的本地恢复引用 | 原feat/autonomous-agent已通过PR #18合入dev faa6af9；保留2b6ae7b与原工作树全部未提交文档和运行数据；远端已合并分支关闭 | 非在研分支；后续从dev推进，科学与交互验收仍开放 | autonomous |
 | recovery/dev-control-pre-faa6af9 | 旧dev控制文档恢复引用 | 9472edf及2411210两项未推送文档提交保留；改动快照与stash另存 | 不作为运行来源；保留至文档整合完成 | main |
+| docs/dev-integration-closeout | 文档入dev收尾 | PR #19对齐控制图、部署/验收及设计审计记录，保存所有剩余根工作区文档 | 门禁通过后合入并关闭；运行来源不变 | main |
 | fix/deployment-answer-acceptance | 已撤回的回答增强候选 | 42a647b保留，archive/answer-recovery-before-rollback-20261012固定恢复点；未提交补丁已备份 | 人工回归失败；用户取消本轮增强；不得继续作为可靠基线或验收通过版本 | answers |
 | fix/stable-route-recovery | 已合入并关闭 | PR14源bc08169合入dev6ff7094；本地及远端引用关闭，refs/archive/20261012/fix-stable-route-recovery保存精确源 | 代码继续在dev维护；原七轮业务失败及新普通误路由保留，不重启撤回的任务闭环实现 | answers |
 | fix/deployment-answer-acceptance | 已撤回，来源保留 | PR13关闭；42a647b保留原分支及已推送archive/answer-recovery-before-rollback-20261012 | 不继续此候选；仅保留恢复和核对依据 | answers |

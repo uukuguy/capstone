@@ -3087,3 +3087,5 @@ The following original entries were retained during document synchronization.
 - 主图8关键节点按当前活跃/四部署/实际在研与重要云部署和大合并筛选，两端间距的可达性、来源挂接、卡片交叉与箭头检查通过。已合并自主分支改本地recovery引用，原工作树数据/未提交文档保留，关闭远端分支。
 - 文档链接检查发现根dev缺少三个未提交的历史验收报告；从原工作树补齐同名报告后链接及CLAUDE相对符号链接检查通过。make doctor与diff检查通过，科学缺口继续开放。
 - 用户要求完成文档入dev收尾并清理Git状态；建立docs/dev-integration-closeout，保留并核对所有剩余根工作区文档/审计记录，通过独立文档PR接入dev；不删除数据，运行来源仍faa6af9。
+- 687ba80保存23项文档与控制图，补齐dev合并及两个demo验收记录；PR #19接入dev并替代旧PR #17。
+- local-dev App切到已核对的faa6af9干净源码副本，身份与本地后端及demo保持原验收来源；控制文档提交不冒充产品更新，未重建数据库或改云端。
