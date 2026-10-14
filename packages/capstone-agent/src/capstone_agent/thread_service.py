@@ -17,6 +17,7 @@ from itertools import islice
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from .execution_stages import preparation_step
+from .thread_startup_timing import record_thread_startup
 from threading import RLock
 from typing import TYPE_CHECKING, Any, Mapping, Protocol, cast
 
@@ -2069,20 +2070,25 @@ class ThreadCreator:
         model_id: str | None = None,
         selection: ModelCapabilitySelection | None = None,
     ) -> ThreadSnapshot:
+        started = time.perf_counter()
         descriptor = self._catalog.resolve(
             self._catalog.default_model_id if model_id is None else model_id
         )
         if not descriptor.available:
             raise ValueError(descriptor.unavailable_reason or "model_unavailable")
+        token = secrets.token_hex(10)
+        thread_id = 'thr_' + token
+        record_thread_startup(thread_id, 'model_select', started)
+        started = time.perf_counter()
         available = getattr(self._service, "is_family_available", None)
         if callable(available) and not available(descriptor.implementation_family):
             raise ValueError("worker_unavailable")
+        record_thread_startup(thread_id, 'family_check', started)
         enabled_profiles = (
             self._capability_catalog.resolve(descriptor, selection).enabled_profiles
             if self._capability_catalog is not None
             else (() if selection is None else selection.enabled_profiles)
         )
-        token = secrets.token_hex(10)
         context = ModelContextSnapshot(
             id="ctx_" + token, model_id=descriptor.model_id,
             model_revision=descriptor.model_revision,
@@ -2237,13 +2243,18 @@ class PostgresThreadService:
 
     def create_thread(self, snapshot: ThreadSnapshot) -> ThreadSnapshot:
         context = snapshot.active_model_context
+        started = time.perf_counter()
         initial_diagram = None
         diagram = getattr(self._model_catalog, "diagram", None)
         if callable(diagram):
             initial_diagram = normalize_network_diagram(diagram(context.model_id, context.model_revision))
             if initial_diagram["model"]["id"] != context.model_id or initial_diagram["model"]["revision"] != context.model_revision:
                 raise ThreadProtocolError("initial model diagram identity mismatch")
+        record_thread_startup(snapshot.thread_id, 'base_diagram', started)
+        started = time.perf_counter()
         with self._connect() as connection:
+            record_thread_startup(snapshot.thread_id, 'database_connect', started)
+            started = time.perf_counter()
             try:
                 connection.execute(
                     """INSERT INTO capstone_threads
@@ -2274,6 +2285,7 @@ class PostgresThreadService:
                 self._insert_event(connection, event)
                 snapshot = replace(snapshot, last_event_seq=event.event_seq)
                 connection.execute("UPDATE capstone_threads SET last_event_seq = %s WHERE thread_id = %s", (event.event_seq, snapshot.thread_id))
+        record_thread_startup(snapshot.thread_id, 'database_write', started)
         return snapshot
 
     def snapshot(self, thread_id: str) -> ThreadSnapshot:

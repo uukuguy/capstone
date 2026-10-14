@@ -19,6 +19,7 @@ from collections.abc import Callable, Iterator, Mapping
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from starlette.concurrency import run_in_threadpool
+from capstone_agent.thread_startup_timing import record_thread_startup
 
 from capstone_agent.artifacts import ArtifactService
 from capstone_agent.catalog import build_catalog
@@ -100,6 +101,7 @@ def create_host_app(
     def request_model_preparation(thread_id: str, family: str | None = None) -> None:
         if prepare_model is None:
             return
+        started = time.perf_counter()
         try:
             if family is None:
                 if thread_service is None:
@@ -109,6 +111,8 @@ def create_host_app(
                 logging.getLogger(__name__).warning('Model preparation incomplete for thread %s', thread_id)
         except Exception:
             logging.getLogger(__name__).warning('Model preparation unavailable for thread %s', thread_id)
+        finally:
+            record_thread_startup(thread_id, 'model_prepare_request', started)
 
     def request_worker(session_id: str, *, force: bool = False) -> None:
         nonlocal last_wake
@@ -331,7 +335,7 @@ def create_host_app(
 
         if thread_creator is not None:
             @app.post("/api/v1/threads", status_code=201)
-            async def create_thread(request: Request):
+            async def create_thread(request: Request, background_tasks: BackgroundTasks, response: Response):
                 require_private_thread(request)
                 try:
                     body = await request.json()
@@ -347,9 +351,14 @@ def create_host_app(
                         not isinstance(model_id, str) or not model_id
                     ):
                         raise ThreadProtocolError("thread creation model_id is invalid")
+                    started = time.perf_counter()
                     snapshot = await run_in_threadpool(thread_creator.create, model_id)
-                    await run_in_threadpool(request_model_preparation, snapshot.thread_id,
-                                            snapshot.active_model_context.implementation_family)
+                    duration = record_thread_startup(snapshot.thread_id, 'thread_create', started)
+                    response.headers['Server-Timing'] = f'thread_create;dur={duration:.3f}'
+                    # Start the existing preparation as the response is sent. Task
+                    # acquisition still prepares or reuses the same locked context.
+                    background_tasks.add_task(request_model_preparation, snapshot.thread_id,
+                                              snapshot.active_model_context.implementation_family)
                     return snapshot.to_document()
                 except ThreadProtocolError as error:
                     raise HTTPException(422, str(error)) from None

@@ -146,6 +146,34 @@ def test_open_model_preparation_is_reused_by_first_attempt_without_an_attempt_cl
     owner.close()
 
 
+def test_first_attempt_joins_in_flight_open_model_preparation():
+    entered, release, acquiring = Event(), Event(), Event()
+    class SlowAdapter(_Adapter):
+        def prepare(self, handle, *, model_context):
+            entered.set()
+            assert release.wait(5)
+            return super().prepare(handle, model_context=model_context)
+    owner, adapters = _owner([], first=SlowAdapter([]))
+    claim = _claim()
+    def first_attempt():
+        acquiring.set()
+        return owner.acquire(claim)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        warming = pool.submit(owner.prepare_model, claim.thread_id, claim.run_id, claim.model_context)
+        assert entered.wait(1)
+        attempt = pool.submit(first_attempt)
+        try:
+            assert acquiring.wait(1)
+            assert not attempt.done()
+        finally:
+            release.set()
+        context = warming.result(timeout=2)
+        assert attempt.result(timeout=2) is context
+    assert len(adapters['static'].inputs) == 1
+    owner.release(context)
+    owner.close()
+
+
 def test_idle_contexts_expire_and_can_be_prepared_again():
     clock = [0.0]
     owner, _ = _owner([], idle_seconds=10, clock=lambda: clock[0])

@@ -18,6 +18,7 @@ from capstone_agent.case_service import CaseExecutionService
 from capstone_agent.session import WorkerRegistry, WorkerSession
 from capstone_agent.thread_application import ThreadApplicationAssembly
 from capstone_agent.thread_service import ThreadCreator, ThreadModelCatalog
+from capstone_agent.thread_startup_timing import record_thread_startup
 from capstone_agent.thread_worker import RuntimeFactory, serve_thread_attempts
 
 
@@ -327,15 +328,21 @@ def main(
                     )
                     scheduler.start()
                     def prepare_thread_model(thread_id: str) -> None:
+                        started = time.perf_counter()
                         snapshot = thread_service.snapshot(thread_id)
                         if snapshot.run.state != 'open' or thread_service.is_archived(thread_id):
                             raise RuntimeError('thread is not open')
                         if settings.thread_family is not None and snapshot.active_model_context.implementation_family != settings.thread_family:
                             raise RuntimeError('model family does not match worker')
+                        record_thread_startup(thread_id, 'model_snapshot', started)
                         prepare = getattr(thread_runtime_factory, 'prepare_model', None)
                         if not callable(prepare):
                             raise RuntimeError('model preparation is not registered')
-                        prepare(snapshot)
+                        started = time.perf_counter()
+                        try:
+                            prepare(snapshot)
+                        finally:
+                            record_thread_startup(thread_id, 'model_capabilities', started)
                     try:
                         uvicorn.run(
                             create_wake_app(
