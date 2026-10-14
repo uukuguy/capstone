@@ -1,5 +1,7 @@
 # docs/status INDEX
 
+2026-10-14：用户已同意四类镜像和linux/amd64、linux/arm64目标，执行[dev试用部署计划](../superpowers/plans/2026-10-14-capstone-dev-trial-deployment.md)。独立本地Provider配置与App镜像身份已通过针对性检查；部署包及双架构验收仍在实施，不改现有四环境。
+
 2026-10-14镜像分发决定：阿里云 `registry.cn-beijing.aliyuncs.com/uukuguy` 为用户试用的默认公开拉取源，GHCR可选备用；本地已有登录验证通过，两个新仓库及试用镜像尚未创建/发布验收。镜像构成、体积和架构继续讨论，见[CLI设计](../superpowers/specs/2026-09-29-agent-interaction-discussion.md#默认镜像仓库与公开分发)。
 
 2026-10-14：用户本地部署入口已记录到[CAPSTONE CLI开发设计](../superpowers/specs/2026-09-29-agent-interaction-discussion.md#2026-10-14capstone-cli-安装与用户本地-dev-试用)。本次固定dev临时试用，用户不接触源码；我们构建镜像，用户通过Compose/配置/薄脚本启动。Linux/macOS优先、Windows目标兼容，pip/npm为以后统一CLI分发方向。当前仅设计记录，未打包或安装，现有四环境不变。

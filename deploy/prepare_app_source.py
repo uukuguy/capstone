@@ -31,9 +31,14 @@ def _origin(value: str) -> str:
 
 def prepare_app_source(root: Path, revision: str, environment: str, api_origin: str, output: Path) -> dict:
     root = Path(root).resolve()
-    if not re.fullmatch(r'[a-f0-9]{40}', revision) or environment not in {'cloud-dev', 'cloud-demo'}:
-        raise ValueError('An exact source commit and explicit cloud environment are required')
-    origin = _origin(api_origin)
+    if not re.fullmatch(r'[a-f0-9]{40}', revision) or environment not in {'cloud-dev', 'cloud-demo', 'local-dev'}:
+        raise ValueError('An exact source commit and explicit supported environment are required')
+    if environment == 'local-dev':
+        if api_origin != '':
+            raise ValueError('Local trial App requires a same-origin API')
+        origin = ''
+    else:
+        origin = _origin(api_origin)
     if _git(root, 'rev-parse', '--verify', revision + '^{commit}').decode().strip() != revision:
         raise ValueError('Selected App source does not match the commit')
     output = Path(os.path.abspath(root / output))
@@ -86,7 +91,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', type=Path, default=Path.cwd())
     parser.add_argument('--source-ref', required=True)
-    parser.add_argument('--environment', choices=('cloud-dev', 'cloud-demo'), required=True)
+    parser.add_argument('--environment', choices=('cloud-dev', 'cloud-demo', 'local-dev'), required=True)
     parser.add_argument('--api-origin', required=True)
     parser.add_argument('--output', type=Path, required=True)
     arguments = parser.parse_args()
