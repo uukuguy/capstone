@@ -23,8 +23,8 @@ it('labels the frozen static local trial distinctly from the developer runtime',
   vi.stubEnv('PROD', true)
   render(<AppVersion build={{ version: '0.1.0', revision: 'a'.repeat(40), dirty: false, environment: 'local-dev' }} />)
   const version = screen.getByLabelText('App 版本')
-  expect(version.textContent).toBe('本地试用 · v0.1.0 · aaaaaaa')
-  expect(version.title).toContain('环境：本地试用')
+  expect(version.textContent).toBe('user-local · v0.1.0 · aaaaaaa')
+  expect(version.title).toContain('环境：user-local')
   expect(version.textContent).not.toContain('local-dev')
 })
 

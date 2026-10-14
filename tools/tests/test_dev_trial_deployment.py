@@ -13,6 +13,13 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def test_user_local_default_port_is_separate_from_developer_services():
+    assert 'CAPSTONE_APP_PORT=19173' in (ROOT / 'deploy/dev-trial/env.example').read_text()
+    compose = (ROOT / 'deploy/dev-trial/compose.yaml').read_text()
+    assert '${CAPSTONE_APP_PORT:-5173}' not in compose
+    assert '${CAPSTONE_APP_PORT:-19173}:3000' in compose
+
+
 def helper():
     spec = importlib.util.spec_from_file_location('trial_runtime', ROOT / 'deploy/dev_trial_runtime.py')
     assert spec and spec.loader

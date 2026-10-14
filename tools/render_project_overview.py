@@ -35,6 +35,41 @@ def plain(value: str) -> str:
     return value.replace("`", "")
 
 
+def bind_user_local_trials(document: str, nodes: list[dict]) -> None:
+    """Bind optional self-install records to exact registered Git sources."""
+    heading = "用户自安装试用版本"
+    for node in nodes:
+        node["trial"] = None
+    if not re.search(r"^## " + re.escape(heading) + r"\s*$", document, re.M):
+        return
+    section = re.split(r"^## " + re.escape(heading) + r"\s*$", document, maxsplit=1,
+                       flags=re.M)[1].split("\n## ", 1)[0]
+    header = next((line for line in section.splitlines() if line.startswith("|")), "")
+    if [cell.strip() for cell in header.strip().strip("|").split("|")] != [
+        "ID", "精确Git提交", "版本", "发布地址", "安装命令", "验收状态"
+    ]:
+        raise ValueError("Invalid user-local trial table columns")
+    by_id = {node["id"]: node for node in nodes}
+    seen = set()
+    for row in table(document, heading):
+        if len(row) != 6:
+            raise ValueError("Invalid user-local trial row")
+        identity, sha, version, release_url, command, status = map(plain, row)
+        if identity not in by_id or identity in seen:
+            raise ValueError("Unknown or duplicate user-local Git node: " + identity)
+        seen.add(identity)
+        if not re.fullmatch(r"[a-f0-9]{40}", sha) or sha != by_id[identity]["sha"]:
+            raise ValueError("User-local source does not match Git node: " + identity)
+        match = re.fullmatch(r"user-local-([a-f0-9]{7,40})", version)
+        if match is None or not sha.startswith(match[1]):
+            raise ValueError("User-local version does not match source: " + identity)
+        if release_url != "https://github.com/uukuguy/capstone/releases/tag/" + version:
+            raise ValueError("Unsafe or mismatched user-local release URL: " + identity)
+        by_id[identity]["trial"] = dict(sha=sha, version=version, release_url=release_url,
+                                       command=command, status=status,
+                                       installable=status == "已验证可安装")
+
+
 def snapshot(probe_local: bool, probe_cloud: bool = False) -> dict:
     register = (ROOT / "docs/status/VERSION-CONTROL.md").read_text()
     packages = []
@@ -114,6 +149,7 @@ def snapshot(probe_local: bool, probe_cloud: bool = False) -> dict:
                           release_point=lane == "release", title=title,
                           status=status, changes=changes, package=package,
                           tags=git("tag", "--points-at", sha).splitlines()))
+    bind_user_local_trials(register, nodes)
     for stage in environments:
         if not any(node["sha"].startswith(stage["revision"]) for node in nodes):
             raise ValueError("Deployment source missing from key commits: " + stage["name"])

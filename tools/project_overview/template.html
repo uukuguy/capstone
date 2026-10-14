@@ -14,6 +14,7 @@
 .wrap{max-width:1800px}.tree{min-width:0}.lanes{display:none}
 .commit .head{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-bottom:3px}.commit .node-classification{display:contents}.commit .head .node-kind{order:0}.commit .head h3{order:1;flex:1 1 auto;min-width:0}.commit .head .badge{order:2}
 .commit .node-kind{margin:0}.commit .source{margin:3px 0}.commit .points{margin:4px 0}.commit .node-record{display:inline-block;vertical-align:middle;margin-top:4px}.commit .node-record[open]{display:block}.commit .detail-button{display:inline-block;vertical-align:middle;min-height:0;margin:4px 0 0 6px;padding:2px 4px}
+.trial-install{display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;width:20px;height:20px;margin-left:4px;color:inherit;border-radius:3px}.trial-install svg{width:14px;height:14px}
 </style></head><body><main class="wrap">
 <header class="top"><h1>CAPSTONE · 项目推进控制</h1><span class="muted text-xs" id="timestamp"></span></header>
 <nav aria-label="项目控制章节"><a class="discussion-nav" href="#overview-panel">版本与部署</a><a class="discussion-nav" href="#autonomous-discussion">自主智能体演进讨论 ↓</a></nav>
@@ -50,6 +51,14 @@
 const data=JSON.parse(document.getElementById('project-data').textContent),el=id=>document.getElementById(id),short=s=>s?s.slice(0,7):'未定版';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const revision=(value,kind='commit')=>'<span class="'+kind+'-revision mono">'+esc(short(value))+'</span>';
+function trialLink(n){
+ const t=n.trial;
+ if(!t||t.installable!==true||t.status!=='已验证可安装'||t.sha!==n.sha||!/^[a-f0-9]{40}$/.test(n.sha))return '';
+ const version=/^user-local-([a-f0-9]{7,40})$/.exec(t.version);
+ if(!version||!n.sha.startsWith(version[1])||t.release_url!=='https://github.com/uukuguy/capstone/releases/tag/'+t.version)return '';
+ const label='用户自安装试用已验证可安装 · '+t.version+' · Git '+t.sha;
+ return '<a class="trial-install" href="'+esc(t.release_url)+'" target="_blank" rel="noopener noreferrer" aria-label="'+esc(label)+'" title="'+esc(label+' · 安装命令：'+t.command)+'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 3v12m-4-4 4 4 4-4M5 17v4h14v-4"/></svg></a>';
+}
 const symbols={server:'<rect x="4" y="3" width="16" height="7" rx="2"/><rect x="4" y="14" width="16" height="7" rx="2"/><path d="M8 6.5h.01M8 17.5h.01M12 6.5h5M12 17.5h5"/>',cloud:'<path d="M7 18h11a4 4 0 0 0 .5-8 6 6 0 0 0-11.6-1.6A4.8 4.8 0 0 0 7 18Z"/>',branch:'<circle cx="6" cy="4" r="2"/><circle cx="6" cy="20" r="2"/><circle cx="18" cy="6" r="2"/><path d="M6 6v12M6 15c0-6 12-2 12-7"/>',main:'<circle cx="12" cy="4" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="20" r="2"/><path d="M12 6v4m0 4v4"/>'};
 const icon=name=>'<svg class="type-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+symbols[name]+'</svg>';
 el('timestamp').textContent='功能与部署快照 '+data.updated;
@@ -79,7 +88,7 @@ data.nodes.forEach(n=>depth(n.id));
 function deployment(e){const tag=e.origin?'a':'span',line=graphNodes.find(n=>n.sha===e.revision)?.presentation.branch||'来源',pair=data.environment_pairs.find(p=>p.local===e.name||p.cloud===e.name);const note=e.name==='local-demo'?(pair.aligned?'与线上基线一致':'待对齐 cloud-demo '+short(data.environments.find(s=>s.name==='cloud-demo').revision)):e.name==='local-dev'?'开发测试 / cloud-dev 发布验证':'';return '<'+tag+' class="deployment" id="deploy-'+e.name+'" data-environment="'+e.name+'" style="display:block"'+(e.origin?' href="'+esc(e.origin)+'" target="_blank" rel="noopener noreferrer"':'')+'><b>'+esc(e.name)+'</b><small>'+line+' · '+revision(e.revision,'deployment')+' · '+(!e.coherent?'角色升级中':e.observed?'App已核对':'部署记录')+'</small>'+(!e.coherent&&e.app_revision?'<small>App · '+revision(e.app_revision,'deployment')+'</small>':'')+(note?'<small style="color:'+(e.name==='local-demo'&&!pair.aligned?'#a55a2b':'#60716e')+'">'+esc(note)+'</small>':'')+'</'+tag+'>';}
 el('commits').innerHTML=graphNodes.map(n=>{
  const p=n.presentation,tags=n.tags.filter(t=>/^(demo|cloud-dev)-/.test(t));
- return '<article id="commit-'+n.id+'" class="commit '+n.lane+(n.release_point?' release-point':'')+'" data-sha="'+n.sha+'" data-focus="'+(p.role==='当前开发焦点')+'"><div class="head"><div class="node-classification"><p class="node-kind">'+esc(p.role)+'</p><span class="badge">'+esc(p.status)+'</span></div><h3>'+esc(n.title)+'</h3></div><p class="source mono">'+esc(p.branch)+' · '+revision(n.sha)+'</p><ul class="points">'+p.changes.map(s=>'<li>'+esc(s)+'</li>').join('')+'</ul><details class="node-record"><summary>变更与验证记录</summary><p>'+esc(n.changes)+'</p>'+(tags.length?'<p>关联发布/部署标签：'+tags.map(t=>'<a href="https://github.com/uukuguy/capstone/tree/'+encodeURIComponent(t)+'" target="_blank" rel="noopener noreferrer">'+esc(t)+'</a>').join('、')+'</p>':'')+'</details><button class="detail-button branch-link" data-package="'+n.package+'">功能与验收记录 ↓</button></article>';
+return '<article id="commit-'+n.id+'" class="commit '+n.lane+(n.release_point?' release-point':'')+'" data-sha="'+n.sha+'" data-focus="'+(p.role==='当前开发焦点')+'"><div class="head"><div class="node-classification"><p class="node-kind">'+esc(p.role)+'</p><span class="badge">'+esc(p.status)+'</span></div><h3>'+esc(n.title)+'</h3></div><p class="source mono">'+esc(p.branch)+' · '+revision(n.sha)+trialLink(n)+'</p><ul class="points">'+p.changes.map(s=>'<li>'+esc(s)+'</li>').join('')+'</ul><details class="node-record"><summary>变更与验证记录</summary><p>'+esc(n.changes)+'</p>'+(tags.length?'<p>关联发布/部署标签：'+tags.map(t=>'<a href="https://github.com/uukuguy/capstone/tree/'+encodeURIComponent(t)+'" target="_blank" rel="noopener noreferrer">'+esc(t)+'</a>').join('、')+'</p>':'')+'</details><button class="detail-button branch-link" data-package="'+n.package+'">功能与验收记录 ↓</button></article>';
 }).join('');
 el('graph-history').innerHTML=data.nodes.filter(n=>!graphNodes.includes(n)).map(n=>'<details class="history-entry"><summary>'+esc(n.title)+' · '+revision(n.sha)+' · '+esc(n.status)+'</summary><p>'+esc(n.changes)+'</p></details>').join('');
 
