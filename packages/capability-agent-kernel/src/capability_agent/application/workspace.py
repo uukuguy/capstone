@@ -122,6 +122,49 @@ class ApplicationWorkspace:
 
         return self.root
 
+    @classmethod
+    def open_existing(cls, root: Path, *, run_id: str,
+                      binding_ids: Iterable[str] = ()) -> "ApplicationWorkspace":
+        """Validate an existing layout without creating or replacing records.
+
+        Callers must replay and validate the context ledger before using state.
+        This method checks paths and declarations, not event integrity.
+        """
+        _require_portable_id(run_id, label="run identifier")
+        declared = tuple(binding_ids)
+        for binding in declared:
+            _require_portable_id(binding, label="binding identifier")
+        if len(set(declared)) != len(declared):
+            raise WorkspaceError("binding identifiers must be unique")
+        base = _absolute_path(root) / run_id
+        _reject_symlink_ancestors(base, label="workspace root")
+        directories = (base, base / "core", base / "domains", base / "turns", base / "output")
+        for path in directories:
+            _reject_symlink(path, label="workspace directory")
+            if not path.is_dir():
+                raise WorkspaceError("workspace directory is missing")
+        domains = base / "domains"
+        if {path.name for path in domains.iterdir()} != set(declared):
+            raise WorkspaceError("workspace bindings do not match declarations")
+        domain_roots = {}
+        for binding in sorted(declared):
+            path = domains / binding
+            for directory in (path, *(path / name for name in ("runtime", "artifacts", "tool-results"))):
+                _reject_symlink(directory, label="domain directory")
+                if not directory.is_dir():
+                    raise WorkspaceError("domain directory is missing")
+            domain_roots[binding] = path
+        core = base / "core"
+        files = tuple(core / name for name in ("context.json", "context-events.jsonl", "events.jsonl", "artifacts.jsonl"))
+        for path in files:
+            if path.is_symlink() or not path.is_file():
+                raise WorkspaceError("workspace record is missing or invalid")
+        return cls(run_id=run_id, root=base, core_path=core,
+            context_snapshot_path=files[0], context_events_path=files[1],
+            events_path=files[2], artifacts_path=files[3], domains_path=domains,
+            turns_path=base / "turns", output_path=base / "output",
+            domain_roots=MappingProxyType(domain_roots))
+
     @property
     def core_dir(self) -> Path:
         return self.core_path

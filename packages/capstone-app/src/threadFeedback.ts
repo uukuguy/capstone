@@ -1,4 +1,33 @@
 /** Reader-facing recovery text for bounded service codes; never expose raw exceptions. */
+export function toolFailureReason(failure?: { code?: string; message?: string; summary?: string }): string | undefined {
+  if (failure?.summary) return failure.summary
+  if (failure?.message && /[\u3400-\u9fff]/.test(failure.message)) return failure.message
+  const reasons: Record<string, string> = {
+    result_field_unavailable: '查询字段不存在；此记录未保存具体字段。',
+    analysis_prerequisite_missing: '缺少必要参数，未产生结果；此记录未保存缺失项。',
+    invalid_arguments: '输入参数不符合工具契约。',
+    result_not_rankable: '该结果没有可用于支路排名的数据。',
+    result_integrity_failed: '保存结果与其引用的完整性校验未通过。',
+    unknown_result: '该工作区中没有请求的结果。',
+    powerflow_failed: '潮流求解未完成；已保存的其它结果保留。',
+  }
+  return reasons[failure?.code || ''] || failure?.message
+}
+
+export function toolFailureCopy(code?: string): string {
+  const messages: Record<string, string> = {
+    result_not_rankable: '该结果不支持支路排名',
+    result_integrity_failed: '结果完整性校验未通过',
+    unknown_result: '此工作区中找不到该结果',
+    invalid_arguments: '参数不符合工具契约',
+    result_field_unavailable: '查询字段不存在',
+    analysis_prerequisite_missing: '缺少必要计算条件',
+    powerflow_failed: '潮流计算未完成',
+    solver_failed: '求解器未完成计算',
+  }
+  return messages[code || ''] || '调用失败；原因见推演证据'
+}
+
 export function commandRejectionCopy(code?: string): string {
   const messages: Record<string, string> = {
     stale_event_seq: '页面状态已变化，本次指令未发送。请等待同步完成后重试，输入内容已保留。',
@@ -24,11 +53,11 @@ export function commandRejectionCopy(code?: string): string {
 export function attemptFailureCopy(code?: string): string {
   const messages: Record<string, string> = {
     runtime_configuration_invalid: '服务的 AI 配置未就绪。请联系管理员检查配置，修复后再重试；已完成的历史回答仍保留。',
-    capability_required: '本次回答缺少所需的权威系统校验，未能提交。请查看运行过程后重试本次指令。',
-    solver_failed: '计算未能完成。请查看运行过程中的求解器信息，调整计算条件后重试。',
-    harness_failed: '执行服务未能完成本次指令。请查看运行过程后重试。',
+    capability_required: '本次回答缺少所需的权威系统校验，未能提交。请查看执行过程后重试本次指令。',
+    solver_failed: '计算未能完成。请查看执行过程中的求解器信息，调整计算条件后重试。',
+    harness_failed: '执行服务未能完成本次指令。请查看执行过程后重试。',
     answer_required: '本次执行没有生成可提交的回答，请重试本次指令。',
     attempt_lease_unavailable: '执行连接已失效，请重新同步后重试本次指令。',
   }
-  return `${messages[code || ''] || '本次指令未完成。请查看运行过程后重试；已完成的历史回答仍保留。'}${code ? `（诊断代码：${code}）` : ''}`
+  return `${messages[code || ''] || '本次指令未完成。请查看执行过程后重试；已完成的历史回答仍保留。'}${code ? `（诊断代码：${code}）` : ''}`
 }

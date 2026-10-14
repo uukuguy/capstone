@@ -113,6 +113,7 @@ def build_registered_pypsa_thread_application() -> ThreadApplicationAssembly:
         return PreparedKernelPiRpcSessionBuilder(
             runtime_host=runtime_host, resolved_llm=resolved,
             base_environment=environment,
+            research_enabled=os.environ.get("CAPSTONE_AUTONOMOUS_RESEARCH") == "1",
         )(claim, context, profiles)
 
     workspace_root = Path(
@@ -122,6 +123,7 @@ def build_registered_pypsa_thread_application() -> ThreadApplicationAssembly:
         default_model_id=catalog.default_model_id,
         model_resolver=resolve_model,
         workspace_root=workspace_root,
+        retain_context_workspace=os.environ.get("CAPSTONE_AUTONOMOUS_RESEARCH") == "1",
         model_binder=bind_model,
         session_builder=build_session,
         default_selection=ModelCapabilitySelection(
@@ -135,6 +137,9 @@ def build_registered_pypsa_thread_application() -> ThreadApplicationAssembly:
     set_diagram_provider(model_diagram)
     if validation_builder is not None:
         return replace(assembly, ordinary_conversation_enabled=False, turn_router=None)
+    if os.environ.get("CAPSTONE_AUTONOMOUS_RESEARCH") == "1":
+        from capstone_agent.turn_router import ResearchTurnRouter
+        return replace(assembly, turn_router=ResearchTurnRouter())
     from capstone_agent.lightweight_turn_router import build_lightweight_router
     from capstone_agent.runtime import resolve_recognition_llm
     environment = load_runtime_environment(ROOT)

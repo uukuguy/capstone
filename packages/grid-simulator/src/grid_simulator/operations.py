@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Literal, NoReturn
 
 import networkx as nx
+import pandas as pd
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError as JsonSchemaSchemaError
 from jsonschema.exceptions import ValidationError as JsonSchemaValidationError
@@ -18,6 +19,7 @@ from grid_simulator.analyses import (
     RECOVERY_ACTIONS_NON_CONVERGENCE,
     PowerflowExecutionError,
     ResultIntegrityError,
+    ResultNotRankableError,
     UnknownBranchError,
     UnknownResultError,
     evidence_path,
@@ -31,7 +33,7 @@ from grid_simulator.analysis_registry import (
     AnalysisRegistry,
     UnknownAnalysisOperationError,
 )
-from grid_simulator.bindings.base import AnalysisPrerequisiteError
+from grid_simulator.bindings.base import AnalysisImplementationError, AnalysisPrerequisiteError
 from grid_simulator.capabilities import CapabilityRegistry
 from grid_simulator.capabilities.families import CAPABILITY_FAMILIES
 from grid_simulator.capabilities.schema import CapabilityContract
@@ -58,7 +60,7 @@ from grid_simulator.models import (
     ModelNotFoundError,
     ModelRegistry,
 )
-from grid_simulator.operator_diagram import OperatorDiagramError, operator_geometry, operator_diagram_contract as _operator_diagram_contract
+from grid_simulator.operator_diagram import OperatorDiagramError, operator_geometry, operator_branch_states, operator_diagram_contract as _operator_diagram_contract
 from grid_simulator.protocol import CapabilityError, GridCapabilityRequest, GridCapabilityResponse
 from grid_simulator.query_predicates import (
     InvalidDatasetPredicate,
@@ -153,7 +155,15 @@ def dispatch(
             else _require_contract(active_services.capability_registry, request.capability)
         )
         _validate_arguments(contract, request.arguments)
-        result = _dispatch(request, SimulatorWorkspace(workspace_path), active_services)
+        from grid_simulator.context_scope import require_context_scope
+        workspace = SimulatorWorkspace(workspace_path)
+        try:
+            require_context_scope(workspace_path, ContextStore(workspace, ModelRegistry(active_services.engine)),
+                                  request.capability, request.arguments)
+        except (ValueError, TypeError, OSError, InvalidContextRef, ContextNotFoundError, ContextIntegrityError):
+            raise _failure("context_scope_rejected", "Context is outside the application scope or cannot be verified",
+                           phase="validate", allowed_recovery_actions=("use_selected_context",)) from None
+        result = _dispatch(request, workspace, active_services)
         _validate_result(contract, result)
     except _OperationFailure as exc:
         return GridCapabilityResponse(request_id=request.request_id, ok=False, error=exc.error)
@@ -259,7 +269,8 @@ def _operator_diagram_get(
     except OperatorDiagramError as error:
         code = "diagram_too_large" if error.code == "diagram_limit" else "diagram_invalid"
         raise _failure(code, "operator diagram cannot satisfy its projection contract", phase="validate") from error
-    return {"context_ref": context.context_ref, "revision_ref": context.revision_ref, **geometry}
+    return {"context_ref": context.context_ref, "revision_ref": context.revision_ref, **geometry,
+            "branch_states": operator_branch_states(net, geometry["branches"])}
 
 def _analysis_operation_list(engine: Pandapower340Engine) -> dict[str, Any]:
     return {
@@ -267,6 +278,7 @@ def _analysis_operation_list(engine: Pandapower340Engine) -> dict[str, Any]:
         "operations": [
             {
                 "id": operation.identifier,
+                "execution_capability": "analysis.run",
                 "title": operation.title,
                 "pandapower_operation": operation.pandapower_operation,
             }
@@ -322,6 +334,14 @@ def _analysis_run(
             allowed_recovery_actions=("inspect_operation_prerequisites", "derive_compatible_model"),
             details={"operation": operation, **exc.details},
         ) from exc
+    except AnalysisImplementationError as exc:
+        raise _failure(
+            "analysis_failed",
+            str(exc),
+            phase="execute",
+            allowed_recovery_actions=("describe_analysis_operation", "review_analysis_options"),
+            details={"operation": operation, "cause_status": "implementation_failure", **exc.details},
+        ) from exc
     except LoadflowNotConverged as exc:
         diagnostic = persist_non_convergence_diagnostics(
             workspace=workspace,
@@ -340,13 +360,15 @@ def _analysis_run(
     except Exception as exc:
         raise _failure(
             "analysis_failed",
-            f"Analysis operation {operation!r} failed inside pandapower: {exc}",
+            f"Analysis operation {operation!r} failed inside pandapower: {exc}. "
+            "This exception does not establish a physical cause; inspect model inputs and diagnostics.",
             phase="execute",
             allowed_recovery_actions=("inspect_network_diagnostics", "report_failure"),
             details={
                 "operation": operation,
                 "exception_type": type(exc).__name__,
                 "exception_message": str(exc),
+                "cause_status": "not_diagnosed",
             },
         ) from exc
     try:
@@ -365,10 +387,7 @@ def _analysis_run(
         "operation": outcome.operation,
         "status": outcome.status,
         "summary": outcome.metadata,
-        "datasets": [
-            {"dataset": name, "row_count": data["row_count"]}
-            for name, data in persisted.document["datasets"].items()
-        ],
+        "datasets": persisted.dataset_receipts,
         "evidence_refs": [persisted.evidence_ref],
     }
 
@@ -583,6 +602,7 @@ def _model_revision_derive(
     result = _revision_result(derived)
     result["parent_context_ref"] = parent.context_ref
     result["parent_revision_ref"] = parent.revision_ref
+    result["parameter_warnings"] = list(derived.parameter_warnings)
     return result
 
 
@@ -623,17 +643,48 @@ def _context_open(workspace: SimulatorWorkspace, engine: Pandapower340Engine, ar
         "source": model.source,
         "semantic_sha256": context.revision_ref.removeprefix("revision:sha256:"),
         "counts": {"buses": int(len(net.bus)), "lines": int(len(net.line)), "transformers": int(len(net.trafo))},
+        **({"overview": _model_input_overview(net, context.revision_ref)}
+           if arguments.get("include_overview") else {}),
     }
 
 
 def _context_get(workspace: SimulatorWorkspace, engine: Pandapower340Engine, arguments: dict[str, Any]) -> dict[str, Any]:
     context, net = _load_context_and_network(workspace, engine, str(arguments["context_ref"]))
-    return {
+    result = {
         "context_ref": context.context_ref,
         "revision_ref": context.revision_ref,
         "model": context.model_id,
         "counts": {"buses": int(len(net.bus)), "lines": int(len(net.line)), "transformers": int(len(net.trafo))},
     }
+    if arguments.get("include_overview"):
+        result["overview"] = _model_input_overview(net, context.revision_ref)
+    return result
+
+
+def _model_input_overview(net: Any, revision_ref: str) -> list[dict[str, Any]]:
+    """Summarize declared input fields; do not infer a solved operating point."""
+    overview = []
+    for dataset in dataset_names(net):
+        if dataset in {"network.buses", "network.branches"}:
+            continue  # canonical views would duplicate the underlying tables
+        metadata = field_metadata(dataset, net)
+        fields = {item["name"]: item for item in metadata}
+        table = net[dataset.removeprefix("network.")]
+        has_service = "in_service" in fields
+        active_table = table.loc[table["in_service"].eq(True)] if has_service else table
+        specifications = [{"field": field, "operator": operator}
+            for field in ["p_mw", "q_mvar", "sn_mva", "vn_kv"]
+            if field in fields and fields[field]["type"] in {"number", "integer"}
+            for operator in (["min", "max"] if field == "vn_kv" else ["sum", "min", "max"])]
+        selected = list(dict.fromkeys(spec["field"] for spec in specifications))
+        active = [{field: float(value) if not pd.isna(value) and math.isfinite(float(value)) else None
+                   for field, value in zip(selected, values, strict=True)}
+                  for values in active_table[selected].itertuples(index=False, name=None)] if selected else []
+        overview.append({"dataset": dataset, "dataset_ref": dataset_ref(revision_ref, dataset),
+            "row_count": len(table), "in_service_count": len(active_table) if has_service else None,
+            "aggregation_scope": "in_service" if has_service else "all_rows",
+            "aggregates": _aggregate_model_rows(active, metadata, specifications)})
+    return overview
 
 
 def _model_constraints_describe(
@@ -771,6 +822,9 @@ def _model_dataset_query(
         "next_offset": next_offset,
         "rows": returned_rows,
     }
+    if "aggregations" in arguments:
+        result["aggregates"] = _aggregate_model_rows(
+            filtered_rows, field_metadata(dataset, net), arguments["aggregations"])
     if len(selected_rows) > MODEL_VIEW_LIMIT:
         artifact = {
             "artifact_type": "dataset_query",
@@ -785,6 +839,40 @@ def _model_dataset_query(
         write_json(path, artifact)
         result["artifact_ref"] = f"artifact:sha256:{digest}"
     return result
+
+
+def _aggregate_model_rows(rows: list[dict[str, Any]], metadata: list[dict[str, Any]],
+                          specifications: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    fields = {item["name"]: item for item in metadata}
+    aggregates = []
+    for spec in specifications:
+        field, operator = spec["field"], spec["operator"]
+        description = fields.get(field)
+        if description is None or (operator != "count" and description["type"] not in {"number", "integer"}):
+            raise _failure("dataset_query_invalid", "Aggregation requires a declared field and numeric arithmetic",
+                           phase="validate", allowed_recovery_actions=("describe_dataset", "correct_query"))
+        values = [row[field] for row in rows if row[field] is not None]
+        if operator == "count":
+            value = len(values)
+        elif not values:
+            value = None
+        elif operator == "sum":
+            try:
+                value = math.fsum(values)
+            except OverflowError as exc:
+                raise _failure("dataset_query_invalid", "Aggregation exceeds the numeric range", phase="execute",
+                               allowed_recovery_actions=("correct_query",)) from exc
+        elif operator == "min":
+            value = min(values)
+        else:
+            value = max(values)
+        if value is not None and not math.isfinite(value):
+            raise _failure("dataset_query_invalid", "Aggregation produced a non-finite value", phase="execute",
+                           allowed_recovery_actions=("correct_query",))
+        aggregates.append({"field": field, "operator": operator,
+                           "unit": None if operator == "count" else description["unit"],
+                           "value": value, "valid_count": len(values), "null_count": len(rows) - len(values)})
+    return aggregates
 
 
 def _topology_branch_endpoints_get(
@@ -826,12 +914,28 @@ def _topology_components_get(
     for component_id, nodes in enumerate(sorted(nx.connected_components(graph), key=lambda item: min(int(node) for node in item))):
         bus_indices = sorted(int(node) for node in nodes)
         subgraph = graph.subgraph(bus_indices)
+        generation_counts = {}
+        supply_references: set[int] = set()
+        for kind in ("ext_grid", "gen", "sgen", "storage", "vsc"):
+            table = net[kind]
+            active = table.loc[table.in_service & table.bus.isin(bus_indices)]
+            generation_counts[kind] = len(active)
+            if kind == "ext_grid":
+                supply_references.update(int(bus) for bus in active.bus)
+            elif kind == "gen":
+                supply_references.update(int(bus) for bus in active.loc[active.slack].bus)
+            elif kind == "vsc":
+                supply_references.update(int(bus) for bus in active.loc[active.control_mode_ac == "slack"].bus)
         components.append(
             {
                 "component_id": f"component:{component_id}",
                 "bus_count": len(bus_indices),
                 "branch_count": int(subgraph.number_of_edges()),
                 "bus_refs": [asset_ref(context.revision_ref, "bus", index) for index in bus_indices[:200]],
+                "bus_indices": bus_indices[:200],
+                "bus_list_complete": len(bus_indices) <= 200,
+                "generation_counts": generation_counts,
+                "supply_reference_bus_indices": sorted(supply_references),
             }
         )
     return {
@@ -839,6 +943,7 @@ def _topology_components_get(
         "revision_ref": context.revision_ref,
         "component_count": len(components),
         "components": components,
+        "physical_supply_state": "not_evaluated",
     }
 
 
@@ -903,6 +1008,13 @@ def _analysis_powerflow_ac_run(
 def _result_branches_rank(workspace: SimulatorWorkspace, arguments: dict[str, Any]) -> dict[str, Any]:
     try:
         return rank_branches(workspace=workspace, arguments=arguments)
+    except ResultNotRankableError as exc:
+        raise _failure(
+            "result_not_rankable",
+            "This result does not publish a successful branch operating point; use its available result datasets",
+            phase="resolve",
+            allowed_recovery_actions=("query_result_dataset", "report_failure"),
+        ) from exc
     except ResultIntegrityError as exc:
         raise _failure(
             "result_integrity_failed",
@@ -999,12 +1111,31 @@ def _analysis_contingency_n_minus_one_run(
     workspace: SimulatorWorkspace, engine: Pandapower340Engine, arguments: dict[str, Any]
 ) -> dict[str, Any]:
     context, net = _load_context_and_network(workspace, engine, str(arguments["context_ref"]))
+    if "branch_selections" in arguments:
+        refs = []
+        for selection in arguments["branch_selections"]:
+            for index in selection["indices"]:
+                branch = find_branch(net, context.revision_ref, selection["kind"], "pandapower_index", str(int(index)))
+                if branch is None:
+                    raise _failure("unknown_branch", "Selected branch is not present in the requested context",
+                        phase="resolve", allowed_recovery_actions=("resolve_element",),
+                        details={"context_ref": context.context_ref, "kind": selection["kind"], "index": index})
+                refs.append(branch.asset_ref)
+        canonical = {key: value for key, value in arguments.items() if key != "branch_selections"}
+        canonical["branch_refs"] = refs
+        schema = CapabilityRegistry.load_packaged().require("analysis.contingency.n_minus_one.run").input_schema
+        try:
+            Draft202012Validator(schema).validate(canonical)
+        except JsonSchemaValidationError as exc:
+            raise _failure("invalid_branch_selection", "Selected branches must be distinct and within the published batch limit",
+                phase="validate", allowed_recovery_actions=("correct_request",)) from exc
+        arguments = canonical
     try:
         return run_n_minus_one(workspace=workspace, engine=engine, context=context, net=net, arguments=arguments)
     except UnknownBranchError as exc:
         raise _failure(
             "unknown_branch",
-            "Branch reference does not resolve to a model branch in this context revision",
+            "Branch reference does not resolve in the requested revision. Keep the target context and use branch_selections or resolve current refs.",
             phase="resolve",
             allowed_recovery_actions=("resolve_element",),
         ) from exc

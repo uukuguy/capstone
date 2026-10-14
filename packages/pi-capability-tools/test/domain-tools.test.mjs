@@ -14,7 +14,20 @@ import {
   runCapability,
   sanitizeEnvironment,
   validateRuntimeDescriptor,
+  withExecutionPurpose,
 } from "../src/domain-tools.mjs";
+
+test("execution purpose stays outside the domain contract and missing records do not block execution", async () => {
+  const calls = [];
+  const original = { name: "sample", description: "Query data", parameters: { type: "object", additionalProperties: false, properties: { value: { type: "number" } } },
+    execute: async (_id, args) => { calls.push(args); return { content: [] }; } };
+  const wrapped = withExecutionPurpose(original);
+  assert.ok(wrapped.parameters.properties.execution_purpose);
+  assert.equal(original.parameters.properties.execution_purpose, undefined);
+  await wrapped.execute("one", { value: 1, execution_purpose: "检查约束" });
+  await wrapped.execute("two", { value: 2 });
+  assert.deepEqual(calls, [{ value: 1 }, { value: 2 }]);
+});
 
 const inventory = Object.freeze({
   protocol: "inventory-capability",
@@ -53,6 +66,21 @@ test("enforces application const and enum constraints before invoking the author
   const outcome = await tool.execute("call", { model_id: "selected-model", context_ref: "context:selected" });
   assert.equal(outcome.isError, undefined);
   assert.equal(calls, 1);
+  assert.deepEqual(outcome.details.request_parameters, { model_id: "selected-model", context_ref: "context:selected" });
+});
+
+test("retains actual validated parameters when the authority calculation fails", async () => {
+  const tool = createCapabilityTool(inventory, {
+    name: "inventory_check", capability: "model.check", description: "Check model",
+    input_schema: { type: "object", required: ["limit"], properties: { limit: { type: "number" } }, additionalProperties: false },
+  }, async (payload) => {
+    payload.arguments.limit = 99;
+    return { protocol: "inventory-capability", protocol_version: "1.0", request_id: payload.request_id,
+      ok: false, error: { code: "check_failed", message: "Check failed" } };
+  });
+  const outcome = await tool.execute("check", { limit: 5 });
+  assert.equal(outcome.isError, true);
+  assert.deepEqual(outcome.details.request_parameters, { limit: 5 });
 });
 
 test("validates required authority handoffs after injecting the trusted application receipt", async () => {
@@ -1229,6 +1257,38 @@ async function runtimeV1Fixture({ withTrajectory = false } = {}) {
     },
   };
 }
+
+test("runtime selects the optional research channel only inside the application workspace", async () => {
+  const fixture = await runtimeV1Fixture();
+  try {
+    const path = join(fixture.root, "run/core/research/attempt-1");
+    fixture.descriptor.application = { ...fixture.descriptor.application, workspacePath: join(fixture.root, "run") };
+    fixture.descriptor.core.researchChannelPath = path;
+    assert.equal(validateRuntimeDescriptor(fixture.descriptor).core.researchChannelPath, path);
+    fixture.descriptor.core.researchChannelPath = join(fixture.root, "outside");
+    assert.throws(() => validateRuntimeDescriptor(fixture.descriptor), /outside/);
+  } finally { await rm(fixture.root, { recursive: true, force: true }); }
+});
+
+test("selected runtime registers both research tools when the host channel is configured", async () => {
+  const fixture = await runtimeV1Fixture();
+  try {
+    fixture.descriptor.application = { ...fixture.descriptor.application, workspacePath: join(fixture.root, "run") };
+    const channel = join(fixture.root, "run/core/research/attempt-1");
+    await mkdir(join(channel, "requests"), { recursive: true });
+    await mkdir(join(channel, "receipts"));
+    await writeFile(join(channel, "binding.json"), JSON.stringify({
+      schema_version: "capability-research-channel/1.0", run_id: "run-1", turn_id: "turn-1", attempt_id: "attempt-1", research_id: "research-1",
+      read_tool_schema: { type: "object", additionalProperties: false, properties: {} },
+      update_tool_schema: { type: "object", additionalProperties: false, properties: { expected_revision: { type: "integer" }, changes: { type: "object" } } },
+    }));
+    fixture.descriptor.core.researchChannelPath = channel;
+    const tools = new Map();
+    createDomainToolsExtension(fixture.descriptor)({ registerTool: tool => tools.set(tool.name, tool), on() {} });
+    assert.ok(tools.has("agent_research_read"));
+    assert.ok(tools.has("agent_research_update"));
+  } finally { await rm(fixture.root, { recursive: true, force: true }); }
+});
 
 async function runtimeV11Fixture() {
   const fixture = await runtimeV1Fixture({ withTrajectory: true });

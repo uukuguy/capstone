@@ -6,7 +6,7 @@ Use this guide for runtime discovery, supported model selection, declarative cre
 
 ## Do Not Use This For
 
-Do not use these capabilities for power-flow values, endpoint claims, branch ranking, contingencies, arbitrary model import, or model edits.
+Do not use these capabilities as calculation results, for arbitrary model import, or for direct edits to an existing revision. Typed changes create a new immutable revision through the published contract.
 
 ## Concepts and Terminology
 

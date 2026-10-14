@@ -49,7 +49,12 @@ def test_provider_configuration_failure_keeps_prepared_context_and_safe_code(mon
         assert service.snapshot(snapshot.thread_id).current_attempt is None
         events = service.read_events(snapshot.thread_id, 0).events
         assert events[-1].event_type == "attempt_failed"
-        assert events[-1].payload == {"error_code": "runtime_configuration_invalid"}
+        assert events[-1].payload["error_code"] == "runtime_configuration_invalid"
+        assert events[-1].payload["answer"] == result.answer
+        assert result.answer and "运行准备未完成" in result.answer
+        assert events[-1].payload["outcome"]["stage"] == "preparation"
+        assert events[-1].payload["result_refs"] == []
+        assert events[-1].payload["evidence_refs"] == []
         assert "private-credential-sentinel" not in json.dumps([dict(e.payload) for e in events])
     finally:
         assembly.capability_context_owner.close()

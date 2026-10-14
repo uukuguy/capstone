@@ -15,7 +15,9 @@ from collections.abc import Mapping
 from hashlib import sha256
 from typing import Any, Literal, TypeAlias
 
-from pydantic import ConfigDict, Field, field_validator, model_validator
+from pydantic import ConfigDict, Field, field_validator, model_serializer, model_validator
+
+from capability_agent.application.research_models import ResearchState
 
 from capability_agent.trajectory.canonical import canonical_json_bytes
 from capability_agent.trajectory.events import StrictFrozenModel
@@ -156,6 +158,15 @@ class CoreContext(_ContextModel):
     result_refs: tuple[str, ...] = ()
     evidence_refs: tuple[str, ...] = ()
     answer_lifecycle: Mapping[str, Any] = Field(default_factory=dict)
+    research: ResearchState | None = None
+
+    @model_serializer(mode="wrap")
+    def omit_absent_research(self, handler):
+        """Keep the canonical bytes of pre-research contexts unchanged."""
+        document = handler(self)
+        if self.research is None:
+            document.pop("research", None)
+        return document
 
     @field_validator(
         "input",
@@ -238,6 +249,7 @@ EventType: TypeAlias = Literal[
     "evidence.registered",
     "fact.verified",
     "decision.recorded",
+    "research.updated",
     "diagnostic.recorded",
     "audit.diagnostic.recorded",
     "limitation.recorded",

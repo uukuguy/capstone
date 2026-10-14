@@ -3,6 +3,29 @@ import { buildThreadCommand, type ThreadCommand } from './threadClient'
 const MAX_STORED_BYTES = 64 * 1024
 const MAX_DRAFT_CHARACTERS = 16_000
 
+export type FollowupTarget = { threadId: string; attemptId: string; modelId: string; label: string }
+
+export function readFollowup(key: string | undefined, threadId: string): FollowupTarget | undefined {
+  if (!key) return undefined
+  try {
+    const text = sessionStorage.getItem(`${key}.followup`)
+    if (!text || text.length > 2048) return undefined
+    const value = JSON.parse(text)
+    if (value?.threadId !== threadId || typeof value.attemptId !== 'string' || !/^[a-z][a-z0-9_-]{0,63}$/.test(value.attemptId) ||
+        typeof value.modelId !== 'string' || value.modelId.length > 256 ||
+        typeof value.label !== 'string' || value.label.length > 160) return undefined
+    return { threadId, attemptId: value.attemptId, modelId: value.modelId, label: value.label }
+  } catch { return undefined }
+}
+
+export function writeFollowup(key: string | undefined, target?: FollowupTarget): void {
+  if (!key) return
+  try {
+    if (target) sessionStorage.setItem(`${key}.followup`, JSON.stringify(target))
+    else sessionStorage.removeItem(`${key}.followup`)
+  } catch { /* The live selection remains available without browser storage. */ }
+}
+
 export function readDraft(key?: string): string {
   if (!key) return ''
   try {

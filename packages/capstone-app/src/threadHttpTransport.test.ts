@@ -10,6 +10,18 @@ const command = {
 }
 
 describe('HttpThreadTransport', () => {
+  it('reads only the selected task record page without submitting a command', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      schema: 'capstone-attempt-records/1', thread_id: 'thr_1', attempt_id: 'attempt_1',
+      instruction: 'Original task', model_context: null, events: [], next_after: 7, has_more: false,
+    })))
+    const transport = new HttpThreadTransport('', 'token-1', fetcher)
+    const page = await transport.readAttemptRecords('thr_1', 'attempt_1', 7)
+    expect(page.instruction).toBe('Original task')
+    expect(fetcher).toHaveBeenCalledOnce()
+    expect(fetcher.mock.calls[0][0]).toBe('/api/v1/threads/thr_1/attempts/attempt_1/records?after=7&limit=32')
+    expect(fetcher.mock.calls[0][1]?.body).toBeUndefined()
+  })
   it('bounds each SSE frame rather than a chunk containing multiple complete diagrams', async () => {
     const buses = Array.from({ length: 10000 }, (_, i) => ({
       id: String(i), label: 'x'.repeat(200), x: null, y: null, vn_kv: 220,

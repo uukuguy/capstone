@@ -5,7 +5,7 @@
   "tool_name": "grid_context_open",
   "availability": "published",
   "title": "Open a supported grid model",
-  "purpose": "Create a deterministic context reference for a supported pandapower network model. model_id must be the exact model field returned by model.list; source strings such as pandapower.networks.case39 are provenance metadata and must not be passed as model_id.",
+  "purpose": "Create a deterministic context reference for a supported pandapower network model. Request include_overview to also return sourced input-table counts and aggregates, without calculations. model_id must be the exact model field returned by model.list; source strings are provenance metadata and must not be passed as model_id.",
   "applies_to": ["loading IEEE-39", "creating a context reference", "starting simulator-backed analysis"],
   "not_for": ["loading arbitrary user files", "editing network topology", "performing calculations"],
   "terms": {
@@ -17,6 +17,7 @@
     "additionalProperties": false,
     "required": ["model_id"],
     "properties": {
+      "include_overview": {"type": "boolean", "default": false},
       "model_id": {
         "type": "string",
         "minLength": 1,
@@ -32,6 +33,27 @@
       "context_ref": {"type": "string", "pattern": "^context:sha256:[0-9a-f]{64}$"},
       "revision_ref": {"type": "string", "pattern": "^revision:sha256:[0-9a-f]{64}$"},
       "model": {"type": "string", "minLength": 1},
+      "overview": {
+        "type": "array", "items": {
+          "type": "object", "additionalProperties": false,
+          "required": ["dataset", "dataset_ref", "row_count", "in_service_count", "aggregation_scope", "aggregates"],
+          "properties": {
+            "dataset": {"type": "string"}, "dataset_ref": {"type": "string"},
+            "row_count": {"type": "integer", "minimum": 0},
+            "in_service_count": {"type": ["integer", "null"], "minimum": 0},
+            "aggregation_scope": {"type": "string", "enum": ["all_rows", "in_service"]},
+            "aggregates": {"type": "array", "maxItems": 12, "items": {
+              "type": "object", "additionalProperties": false,
+              "required": ["field", "operator", "unit", "value", "valid_count", "null_count"],
+              "properties": {
+                "field": {"type": "string"}, "operator": {"type": "string", "enum": ["sum", "min", "max"]},
+                "unit": {"type": ["string", "null"]}, "value": {"type": ["number", "null"]},
+                "valid_count": {"type": "integer", "minimum": 0}, "null_count": {"type": "integer", "minimum": 0}
+              }
+            }}
+          }
+        }
+      },
       "engine": {"type": "string", "enum": ["pandapower"]},
       "pandapower_version": {"type": "string", "enum": ["3.4.0"]},
       "source": {"type": "string", "pattern": "^pandapower\\.networks\\.[A-Za-z0-9_]+$"},

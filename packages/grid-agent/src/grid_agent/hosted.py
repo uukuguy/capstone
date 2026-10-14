@@ -8,11 +8,14 @@ without making capstone-agent import a domain implementation.
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import replace
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Any, Mapping
 
 from capstone_agent.hosted import run_hosted_api
+from capstone_agent.application import EmptyCredentialBroker
 from capstone_agent.hosted_validation import select_validation_builder
 from capstone_agent.kernel_capability_preparation import AuthorityModelBinding
 from capstone_agent.kernel_pi_session import PreparedKernelPiRpcSessionBuilder
@@ -50,11 +53,49 @@ class RegisteredPandapowerThreadCatalog:
         )
 
 
+def _read_model_metadata(executor: Any, *, model_id: str, revision_ref: str,
+                         context_ref: str,
+                         opened_metadata: Mapping[str, object] | None = None) -> Mapping[str, object]:
+    if (opened_metadata is not None and opened_metadata.get('model') == model_id
+        and opened_metadata.get('revision_ref') == revision_ref
+        and opened_metadata.get('context_ref') == context_ref
+        and isinstance(opened_metadata.get('overview'), list)):
+        return opened_metadata
+    try:
+        metadata = executor.invoke("context.get", {"context_ref": context_ref, "include_overview": True})
+    except Exception:
+        # Optional preparation data must not prevent later task execution.
+        return {"status": "unavailable", "reason": "model_metadata_lookup_failed"}
+    if (not isinstance(metadata, Mapping) or metadata.get("model") != model_id
+        or metadata.get("revision_ref") != revision_ref or metadata.get("context_ref") != context_ref):
+        return {"status": "unavailable", "reason": "model_metadata_identity_mismatch"}
+    return metadata
+
+
+def _warm_runtime_catalog() -> None:
+    """Verify and retain immutable capabilities before accepting model requests."""
+    profile = build_pandapower_application_profile()
+    with TemporaryDirectory(prefix='capstone-capability-check-') as directory:
+        for binding in profile.domains:
+            provisioner = binding.profile.provisioner
+            if provisioner is None:
+                raise RuntimeError('registered capability provisioner is unavailable')
+            endpoint = provisioner.prepare(binding=binding, workspace=Path(directory) / binding.binding_id,
+                credentials=EmptyCredentialBroker().issue(binding_id=binding.binding_id, scope=binding.credential_scope))
+            try:
+                description = endpoint.executor.invoke('environment.describe', {})
+                binding.profile.manifest.assert_environment_compatible(description)
+            finally:
+                endpoint.close()
+
+
 def build_registered_pandapower_thread_application():
     """Build the hosted pandapower Thread catalog and Pi Harness seam."""
 
     root = Path(__file__).resolve().parents[4]
     models = ModelRegistry(Pandapower340Engine())
+    if re.fullmatch(r'[0-9a-f]{64}', os.environ.get('CAPSTONE_RUNTIME_ARTIFACT_SHA256', '')):
+        _warm_runtime_catalog()
     validation_builder = select_validation_builder(os.environ, "pandapower")
 
     def resolve_model(model_id: str) -> Mapping[str, object]:
@@ -77,13 +118,17 @@ def build_registered_pandapower_thread_application():
             raise TypeError("prepared application has no grid binding")
         binding = bindings["grid"]
         opened = binding.runtime.executor.invoke(
-            "context.open", {"model_id": context.model_id},
+            "context.open", {"model_id": context.model_id, "include_overview": True},
         )
         model_binding = AuthorityModelBinding(
             "grid", context.model_id, opened["revision_ref"],
             context.implementation_family, opened["context_ref"],
+            model_metadata=_read_model_metadata(binding.runtime.executor,
+                model_id=context.model_id, revision_ref=opened["revision_ref"], context_ref=opened["context_ref"],
+                opened_metadata=opened),
         )
-        bind_thread_tool_catalog(binding.runtime.tool_catalog_path, model_binding)
+        bind_thread_tool_catalog(binding.runtime.tool_catalog_path, model_binding,
+                                authority_workspace=binding.runtime.authority.workspace_root)
         return model_binding
 
     def build_session(claim, context, profiles):
@@ -99,6 +144,7 @@ def build_registered_pandapower_thread_application():
         return PreparedKernelPiRpcSessionBuilder(
             runtime_host=runtime_host, resolved_llm=resolved,
             base_environment=environment,
+            research_enabled=os.environ.get("CAPSTONE_AUTONOMOUS_RESEARCH") == "1",
         )(claim, context, profiles)
 
     workspace_root = Path(
@@ -108,6 +154,7 @@ def build_registered_pandapower_thread_application():
         default_model_id="ieee39",
         model_resolver=resolve_model,
         workspace_root=workspace_root,
+        retain_context_workspace=os.environ.get("CAPSTONE_AUTONOMOUS_RESEARCH") == "1",
         model_binder=bind_model,
         session_builder=build_session,
         model_catalog=AuthorityThreadModelCatalog(
@@ -125,6 +172,9 @@ def build_registered_pandapower_thread_application():
     set_diagram_provider(model_diagram)
     if validation_builder is not None:
         return replace(assembly, ordinary_conversation_enabled=False, turn_router=None)
+    if os.environ.get("CAPSTONE_AUTONOMOUS_RESEARCH") == "1":
+        from capstone_agent.turn_router import ResearchTurnRouter
+        return replace(assembly, turn_router=ResearchTurnRouter())
     from capstone_agent.lightweight_turn_router import build_lightweight_router
     from capstone_agent.runtime import resolve_recognition_llm
     environment = load_runtime_environment(root)

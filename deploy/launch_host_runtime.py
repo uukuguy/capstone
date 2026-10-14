@@ -31,6 +31,10 @@ def select_runtime(root: Path, environment: dict[str, str], command: str):
         raise RuntimeContractError("CAPSTONE_HOSTED_APPLICATION/command")
     spec = contract["roles"][role]
     selected = dict(environment)
+    research_mode = selected.get("CAPSTONE_AUTONOMOUS_RESEARCH", "0")
+    if research_mode not in {"0", "1"}:
+        raise RuntimeContractError("CAPSTONE_AUTONOMOUS_RESEARCH")
+    selected["CAPSTONE_AUTONOMOUS_RESEARCH"] = research_mode
     for key, expected in {**contract["shared_environment"], **spec["environment"]}.items():
         if key in selected and selected[key] != expected:
             raise RuntimeContractError(key)
@@ -155,6 +159,7 @@ def main() -> int:
         path.write_text(json.dumps(receipt, sort_keys=True))
         path.chmod(0o600)
         print("Host runtime contract accepted: " + role + " " + receipt["contract_sha256"], file=sys.stderr, flush=True)
+        print("Host runtime receipt: " + json.dumps(receipt, sort_keys=True), file=sys.stderr, flush=True)
         executable = str(root / "packages" / spec["project"] / ".venv/bin/python")
         os.execve(executable, [executable, "-m", spec["module"]], environment)
     except (OSError, ValueError, KeyError) as error:

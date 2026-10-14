@@ -2,15 +2,94 @@ import { StrictMode } from 'react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { NetworkView } from './NetworkView'
+import type { DiagramNetworkView } from './types'
 import ThreadModelPane, { projectActiveNetworkView } from './ThreadModelPane'
 import { parseThreadSnapshot } from './threadProtocol'
 import { threadUiFixture } from './threadUiFixtures'
 import { sampleDiagramView, sampleView } from './networkFixture'
+
+it('shows sourced disconnection and region legends without declaring physical supply state', () => {
+  const view: DiagramNetworkView = structuredClone(sampleDiagramView)
+  view.layer.annotations = {
+    scene: { label: '派生故障场景', context_ref: 'context:derived', model_revision: 'revision:derived', source_ref: 'result:current' },
+    states: [{ label: '已断开', style: 'disconnected', ids: [view.diagram.branches[0].id], source_ref: 'result:current' }],
+    regions: [{ label: '分区 1：无供电参考', ids: [view.diagram.buses[0].id], source_ref: 'result:current', emphasis: true },
+      { label: '分区 2：有供电参考', ids: [view.diagram.buses[1].id], source_ref: 'result:current', emphasis: false }],
+  }
+  const { container } = render(<NetworkView view={view} modelName="测试电网" focusKey="scene" />)
+  expect(screen.getByText('派生故障场景')).toBeTruthy()
+  expect(screen.getByText('已断开 · 1')).toBeTruthy()
+  expect(screen.getByText('分区 1：无供电参考 · 1 母线')).toBeTruthy()
+  expect(container.querySelector('.network-state-disconnected')).toBeTruthy()
+  expect(container.querySelector('.network-region-marker')).toBeTruthy()
+  expect(container.querySelectorAll('.network-region-marker')).toHaveLength(1)
+  expect(container.querySelector('circle.network-region-marker')).toBeNull()
+  expect(screen.queryByText('物理失电')).toBeNull()
+  const divided = view.layer.annotations.regions
+  view.layer.annotations.states = []
+  cleanup()
+  const ordinary = render(<NetworkView view={view} modelName="测试电网" focusKey="ordinary" />)
+  expect(ordinary.container.querySelector('.network-region-marker')).toBeNull()
+  view.layer.annotations.states = [{ label: '已断开', style: 'disconnected', ids: [view.diagram.branches[0].id], source_ref: 'result:current' }]
+  view.layer.annotations.regions = divided
+  view.layer.annotations.regions = [view.layer.annotations.regions[0]]
+  cleanup()
+  const single = render(<NetworkView view={view} modelName="测试电网" focusKey="single" />)
+  expect(single.container.querySelector('.network-region-marker')).toBeNull()
+  expect(screen.queryByText('分区 1：无供电参考 · 1 母线')).toBeNull()
+})
 import { threadPreviewDiagram } from './threadModelDiagram'
 
 afterEach(() => { cleanup(); sessionStorage.clear() })
 
 describe('operator network canvas', () => {
+  it('renders each switch once when several branches share one state group', () => {
+    const view = structuredClone(sampleDiagramView)
+    const branches = view.diagram.branches.slice(0, 2)
+    view.layer.annotations = {
+      scene: {label:'开断场景', context_ref:'context:scene', model_revision:'revision:scene', source_ref:'result:scene'},
+      states: [{label:'开关断开', style:'disconnected', ids:branches.map((branch) => branch.id), source_ref:'result:scene',
+        markers:branches.map((branch, index) => ({id:branch.id, bus_id:branch.from_bus, label:`开关 ${index}`}))}], regions:[],
+    }
+    render(<NetworkView view={view} modelName="测试电网" focusKey="multi-switch" />)
+    expect(screen.getAllByLabelText(/：开关 [01]$/)).toHaveLength(2)
+  })
+  it('shows every base open switch before any analysis and keeps its terminal marker', () => {
+    const view = structuredClone(sampleDiagramView)
+    const branch = view.diagram.branches[0]
+    view.diagram.disconnections = [{ id: branch.id,
+      markers: [{ bus_id: branch.from_bus, label: '开关 31：断开' }] }]
+    delete view.layer.annotations
+    const { container } = render(<NetworkView view={view} modelName="测试电网" focusKey="base-switch" />)
+    expect(container.querySelectorAll('.network-state-disconnected')).toHaveLength(1)
+    expect(screen.getByLabelText(/开关 31：断开/)).toBeTruthy()
+  })
+  it('starts at the fault area and preserves a later manual zoom for that scene', () => {
+    const view: DiagramNetworkView = structuredClone(sampleDiagramView)
+    view.layer.focus_ids = []
+    view.layer.annotations = {
+      scene: { label: '故障场景', context_ref: 'context:derived', model_revision: 'revision:derived', source_ref: 'result:current' },
+      states: [{ label: '已断开', style: 'disconnected', ids: [view.diagram.branches[0].id], source_ref: 'result:current' }],
+      regions: [],
+    }
+    const canvas = () => <NetworkView view={view} modelName="测试电网" focusKey="fault"
+      cameraStorageKey="fault-camera" cameraViewKey="fault" />
+    const mounted = render(canvas())
+    expect(screen.getByRole('img', { name: '电网拓扑' }).getAttribute('viewBox')).not.toBe('0 0 1000 600')
+    fireEvent.click(screen.getByRole('button', { name: '放大' }))
+    const manual = screen.getByRole('img', { name: '电网拓扑' }).getAttribute('viewBox')
+    mounted.unmount()
+    render(canvas())
+    expect(screen.getByRole('img', { name: '电网拓扑' }).getAttribute('viewBox')).toBe(manual)
+  })
+  it('separates important branches from the baseline with a thicker cased stroke', () => {
+    render(<NetworkView view={sampleDiagramView} modelName="测试电网" focusKey="emphasis" />)
+    const casing = document.querySelector('.network-focus-casing')
+    expect(casing).toBeTruthy()
+    const highlighted = casing!.nextElementSibling!
+    expect(Number(casing!.getAttribute('stroke-width'))).toBeGreaterThan(Number(highlighted.getAttribute('stroke-width')))
+    expect(highlighted.getAttribute('stroke')).toBe('#1b4e9b')
+  })
   it('restores the exact camera after switching model views and remounting', () => {
     const canvas = (key: string) => <NetworkView key={key} view={sampleDiagramView} modelName={key}
       focusKey={key} cameraStorageKey="camera-test" cameraViewKey={key} />
@@ -229,6 +308,20 @@ describe('operator network canvas', () => {
     expect(document.querySelector('.legend-busbar')).toBeTruthy()
     expect(document.querySelector('.network-north')).toBeTruthy()
     expect(screen.queryByRole('button', { name: '电气示意' })).toBeNull()
+  })
+
+  it('zooms into dense regions without enlarging busbars on screen', () => {
+    render(<NetworkView view={sampleDiagramView} modelName="Grid" focusKey="zoom" />)
+    const canvas = screen.getByRole('img', { name: '电网拓扑' })
+    const relativeBusWidth = () => {
+      const bar = document.querySelector('.network-busbar')!
+      const width = Number(canvas.getAttribute('viewBox')!.split(' ')[2])
+      return (Number(bar.getAttribute('x2')) - Number(bar.getAttribute('x1'))) / width
+    }
+    const initial = relativeBusWidth()
+    for (let i = 0; i < 18; i += 1) fireEvent.click(screen.getByRole('button', { name: '放大' }))
+    expect(Number(canvas.getAttribute('viewBox')!.split(' ')[2])).toBeLessThan(120)
+    expect(relativeBusWidth()).toBeCloseTo(initial, 8)
   })
 
   it('preserves manual camera movement while the same diagram receives a neutral layer', () => {

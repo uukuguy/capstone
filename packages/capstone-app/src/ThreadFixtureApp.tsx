@@ -66,6 +66,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   const [modelTarget, setModelTarget] = useState('ieee39')
   const [focusedElement, setFocusedElement] = useState<{ resultId: string; modelId: string; modelRevision: string; elementId: string }>()
   const [selectedNetworkAttempt, setSelectedNetworkAttempt] = useState<string>()
+  const networkFollowCursor = useRef<{ threadId: string; eventSeq: number } | null>(null)
   const [instructionLocation, setInstructionLocation] = useState<{ attemptId: string; nonce: number }>()
   const [taskReturn, setTaskReturn] = useState<{ contextId: string; attemptId?: string; nonce: number }>()
   const taskReturnGeneration = useRef(0)
@@ -231,6 +232,21 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
     return [active, ...fromCatalog]
   }, [projection.catalog?.models, snapshot])
   const events = store.publicEvents
+  useEffect(() => {
+    if (loading || !snapshot) return
+    const previous = networkFollowCursor.current
+    networkFollowCursor.current = {threadId: snapshot.threadId, eventSeq: projection.eventSeq}
+    if (!previous || previous.threadId !== snapshot.threadId) return
+    const terminal = [...events].reverse().find((event) => event.eventSeq > previous.eventSeq &&
+      event.modelContextId === snapshot.activeModelContext.id &&
+      ['attempt_completed', 'attempt_failed'].includes(event.eventType))
+    if (!terminal) return
+    taskReturnGeneration.current++
+    setTaskReturn(undefined)
+    setSelectedNetworkAttempt(undefined)
+    setFocusedElement(undefined)
+    store.viewGridPage(snapshot.activeGridPageId)
+  }, [loading, projection.eventSeq, snapshot?.threadId])
   const networkTask = store.latestNetworkEvent
   const currentModelTaskId = [...events].reverse().find(event => event.modelContextId === snapshot?.activeModelContext.id
     && event.attemptId && event.eventType === 'command_accepted' && ['send_auto', 'send_ordinary', 'send_professional'].includes(String(event.payload.kind)))?.attemptId
@@ -456,7 +472,13 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   }
 
   async function selectModelAndSend(mode: 'automatic' | 'ordinary' | 'professional', text: string): Promise<void> {
-    const control = store.state.modelWorkspace ? parseModelControl(text) : null
+    const parsedControl = store.state.modelWorkspace ? parseModelControl(text) : null
+    // A conversational request is not a model-directory lookup. Only consume
+    // a control when its reference resolves; otherwise preserve the whole text.
+    const control = parsedControl && projection.catalog && (
+      parsedControl.openedOnly || parsedControl.kind === 'close_model' ||
+      resolveThreadModelReference(projection.catalog, parsedControl.reference).kind !== 'unknown'
+    ) ? parsedControl : null
     if (control && projection.catalog) {
       const workspace = store.state.modelWorkspace!
       const openedCatalog = { ...projection.catalog, models: workspace.models.map((model) => ({ ...model,
@@ -531,7 +553,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
     if (receipt?.status !== 'accepted') throw new MessageNotSentError('指令未发送，请检查页面提示后重试。')
   }
 
-  async function changeModel(kind: 'open_model' | 'activate_model' | 'close_model', payload: Record<string, unknown>): Promise<boolean> {
+  async function changeModel(kind: 'open_model' | 'activate_model' | 'close_model' | 'reopen_model_context', payload: Record<string, unknown>): Promise<boolean> {
     taskReturnGeneration.current++
     setInstructionLocation(undefined)
     setTaskReturn(undefined)
@@ -545,9 +567,11 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
       selectPage(store.state.snapshot!.activeGridPageId)
       return true
     }
-    const receipt = await dispatch(kind, payload, kind === 'close_model' ? `已关闭${entry ? ` ${entry.displayName}` : '模型'}。` : '当前电网模型已切换。')
+    const receipt = await dispatch(kind, payload, kind === 'close_model' ? `已关闭${entry ? ` ${entry.displayName}` : '模型'}。`
+      : kind === 'reopen_model_context' ? '当前工作上下文已重置，历史记录保留。' : '当前电网模型已切换。')
     if (receipt?.status !== 'accepted') return false
     if (receipt.acceptedEventSeq !== undefined) await store.catchUpThrough(receipt.acceptedEventSeq)
+    if (kind === 'reopen_model_context') await store.catchUp()
     await store.refreshModels()
     if (kind !== 'close_model') selectPage(store.state.snapshot!.activeGridPageId)
     else if (!isHistorical) setSelectedNetworkAttempt(undefined)
@@ -605,6 +629,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
         <section className="thread-chat-pane" aria-label="Thread 对话区">
           <div className="thread-chat-heading"><div className="thread-chat-heading-title"><h2>智能体对话</h2><span className="thread-model-short">{snapshot.activeModelContext.modelId} · {snapshot.activeModelContext.implementationFamily}</span></div><div className="thread-chat-heading-meta">{projection.connection !== 'live' && <span className={`thread-connection-state is-${projection.connection}`}>{connectionLabel(projection.connection)}</span>}{activity.mode === 'idle' && <span className="thread-idle-state" title="页面暂未操作，继续使用时自动恢复连接。">按需连接</span>}<span inert={activity.paused}>{headerActions}</span></div></div>
           <CapstoneAssistantThread storageKey={storageKey} hasOlderHistory={projection.hasOlderHistory} historyLoading={projection.historyLoading}
+            onReadAttemptRecords={client?.supportsAttemptRecords ? (attemptId, after) => client.attemptRecords(threadId, attemptId, after) : undefined}
             systemNotices={systemState.thread === threadId ? systemState.items : []} onSystemAction={() => setReload((value) => value + 1)}
             historyAtLatest={projection.historyAtLatest} onReturnLatest={() => setReload((value) => value + 1)}
             instructionLocation={instructionLocation}
@@ -641,8 +666,12 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
             }}
             caseExecution={displayedCaseExecution} caseCatalog={projection.catalog?.cases || []} caseConnection={projection.connection}
             onCaseStart={startCase} onCaseAction={caseAction}
-            composerControls={(historyActions) => <><ThreadControls catalog={projection.catalog} selectedProfiles={selectedTools}
+composerControls={(historyActions) => <><ThreadControls catalog={projection.catalog} selectedProfiles={selectedTools}
               pendingModel={snapshot.pendingModelSwitch?.modelId} disabled={loading || caseActive || sending} historyActions={historyActions}
+              resetDisabled={readOnly || isHistorical || modelBusy || isActive || isInterrupted || contextChangePending || unresolvedCommand || projection.connection !== 'live'}
+              onResetWork={projection.catalog?.workContextReset ? () => { void changeModel('reopen_model_context', {
+                model_id: snapshot.activeModelContext.modelId, reason: 'user_requested_work_reset',
+              }).catch(() => addSystemNotice('重置尚未确认，请重新连接后检查当前模型。', 'error')) } : undefined}
               onProfileSelection={(profiles) => setDisabledToolIds(updateToolPreferences(projection.catalog?.profiles || [], disabledToolIds, profiles))} />
               <ThreadModelDirectory models={modelOptions} currentModelId={snapshot.activeModelContext.modelId} target={modelTarget}
                 disabled={activity.paused || readOnly || loading || unresolvedCommand || contextChangePending || isActive || isInterrupted || caseActive || sending || modelBusy || isHistorical && !projection.modelWorkspace || projection.connection !== 'live'} pending={contextChangePending}

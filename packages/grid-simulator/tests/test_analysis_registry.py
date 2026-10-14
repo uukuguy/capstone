@@ -14,6 +14,16 @@ def test_analysis_operation_catalog_describes_closed_powerflow_schema(grid) -> N
     ]
 
 
+def test_every_published_operation_identifies_its_semantic_execution_entry(grid) -> None:
+    listed = grid.call("analysis.operation.list", {})
+    assert listed["operations"]
+    for item in listed["operations"]:
+        assert item["execution_capability"] == "analysis.run"
+        described = grid.call("analysis.operation.describe", {"operation": item["id"]})
+        assert described["execution_capability"] == item["execution_capability"]
+        assert described["operation"] == item["id"]
+
+
 def test_analysis_run_rejects_unknown_operation_options_before_execution(grid, context_ref: str) -> None:
     error = grid.call_error(
         "analysis.run",

@@ -73,6 +73,60 @@ def test_result_violations_and_risk_use_matching_model_constraints(grid) -> None
     assert [row["rank"] for row in risk["rankings"]] == list(range(1, len(risk["rankings"]) + 1))
 
 
+def test_missing_limits_are_not_reported_as_successful_checks(grid) -> None:
+    base = _open(grid, "case9")
+    derived = grid.call("model.revision.derive", {
+        "context_ref": base,
+        "patches": [
+            {"operation": "set", "kind": "bus", "selector": {"where": {}},
+             "values": {"min_vm_pu": None, "max_vm_pu": None}},
+            {"operation": "set", "kind": "line", "selector": {"where": {}},
+             "values": {"max_loading_percent": None}},
+        ],
+    })
+    source = _run(grid, str(derived["context_ref"]), "powerflow.ac", {})
+    outcome = grid.call("analysis.result.violations.evaluate", {"result_ref": source["result_ref"]})
+    assert outcome["status"] == "partial"
+    assert outcome["summary"]["violation_count"] == 0
+    assert outcome["summary"]["evaluated_quantities"] == []
+    coverage = outcome["summary"]["evaluation_coverage"]
+    assert coverage["bus.vm_pu"] == {"available_values": 9, "checked_values": 0, "missing_limits": 9, "missing_values": 0}
+    assert coverage["branch.loading_percent"]["checked_values"] == 0
+
+
+def test_partial_limit_coverage_retains_verified_violations(grid) -> None:
+    base = _open(grid, "case9")
+    derived = grid.call("model.revision.derive", {
+        "context_ref": base,
+        "patches": [
+            {"operation": "set", "kind": "bus", "selector": {"indices": [0]},
+             "values": {"min_vm_pu": None, "max_vm_pu": None}},
+            {"operation": "set", "kind": "bus", "selector": {"indices": [1]},
+             "values": {"max_vm_pu": 0.5}},
+        ],
+    })
+    source = _run(grid, str(derived["context_ref"]), "powerflow.ac", {})
+    outcome = grid.call("analysis.result.violations.evaluate", {"result_ref": source["result_ref"]})
+    assert outcome["status"] == "partial"
+    assert outcome["summary"]["violation_count"] >= 1
+    assert outcome["summary"]["evaluation_coverage"]["bus.vm_pu"]["checked_values"] == 8
+    assert outcome["summary"]["evaluation_coverage"]["bus.vm_pu"]["missing_limits"] == 1
+
+
+def test_missing_result_values_are_not_counted_as_checked(grid) -> None:
+    base = _open(grid, "case9")
+    derived = grid.call("model.revision.derive", {
+        "context_ref": base,
+        "patches": [{"operation": "set", "kind": "bus", "selector": {"indices": [8]},
+                     "values": {"in_service": False}}],
+    })
+    source = _run(grid, str(derived["context_ref"]), "powerflow.ac", {})
+    outcome = grid.call("analysis.result.violations.evaluate", {"result_ref": source["result_ref"]})
+    assert outcome["status"] == "partial"
+    coverage = outcome["summary"]["evaluation_coverage"]["bus.vm_pu"]
+    assert coverage == {"available_values": 8, "checked_values": 8, "missing_limits": 0, "missing_values": 1}
+
+
 def test_grid_equivalent_is_an_immutable_revision_with_parent_lineage(grid) -> None:
     context_ref = _open(grid, "case9")
     buses = grid.call(

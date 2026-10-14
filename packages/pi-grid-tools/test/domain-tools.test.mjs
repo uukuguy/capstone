@@ -454,7 +454,7 @@ test("returns canonical typed tool-result details for successful gridctl calls",
       name: "grid_topology_branch_endpoints",
       capability: "topology.branch.endpoints.get",
       description: "Endpoints",
-      input_schema: { type: "object", additionalProperties: false, properties: {} },
+      input_schema: { type: "object", additionalProperties: false, properties: { identifier: { type: "string" } }, required: ["identifier"] },
     },
     async (payload) => ({
       protocol: "grid-capability",
@@ -468,12 +468,13 @@ test("returns canonical typed tool-result details for successful gridctl calls",
     }),
   );
 
-  const result = await tool.execute("call-1", {});
+  const result = await tool.execute("call-1", { identifier: "11" });
 
   assert.equal(result.isError, undefined);
   assert.deepEqual(result.details, {
     event: "tool_result",
     capability: "topology.branch.endpoints.get",
+    request_parameters: { identifier: "11" },
     ok: true,
     result: {
       branch: { identifier: "11" },

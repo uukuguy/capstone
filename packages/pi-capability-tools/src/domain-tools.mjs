@@ -14,6 +14,7 @@ import {
 import { lstat, open, readFile } from "node:fs/promises";
 
 import { configureModelRequestCapture } from "./model-request-capture.mjs";
+import { configureResearchTools, RESEARCH_TOOL_NAMES } from "./research-tools.mjs";
 import { isCorrelatedResponse, runProcessCapability } from "./process-transport.mjs";
 
 const { O_DIRECTORY, O_NOFOLLOW, O_RDONLY } = constants;
@@ -45,6 +46,7 @@ const LEGACY_DESCRIPTOR_KEYS = new Set([
 const RUNTIME_V1_KEYS = new Set(["schema", "application", "core", "domains"]);
 const APPLICATION_KEYS = new Set(["applicationId", "runId", "workspacePath", "referenceHandoffsPath", "piRuntime"]);
 const CORE_KEYS = new Set([
+  "researchChannelPath",
   "decisionToolName",
   "contextToolName",
   "activeTurnPath",
@@ -329,6 +331,7 @@ function validateRuntimeV1(value, options = {}) {
     throw new TypeError("runtime descriptor core tool names must be distinct agent_* names");
   }
   for (const key of [
+    "researchChannelPath",
     "activeTurnPath",
     "analysisContextViewPath",
     "trajectoryRequestsPath",
@@ -360,6 +363,7 @@ function validateRuntimeV1(value, options = {}) {
   const routingToolNames = [
     core.decisionToolName,
     core.contextToolName,
+    ...(core.researchChannelPath === undefined ? [] : RESEARCH_TOOL_NAMES),
     ...domains.map((domain) => domain.guideToolName),
   ];
   if (new Set(routingToolNames).size !== routingToolNames.length ||
@@ -507,6 +511,21 @@ function isModelRoutingField(key) {
   );
 }
 
+export function withExecutionPurpose(tool) {
+  const schema = tool.parameters;
+  if (schema.properties?.execution_purpose) throw new TypeError("execution_purpose is reserved for agent records");
+  return defineTool({ ...tool,
+    description: `${tool.description} Include execution_purpose: one short objective for the current batch, in the user's language. Repeat that exact objective across calls in the batch. Do not restate the whole task, describe only this tool, list parameters, or report observations here. This is a public agent record, not a verified result.`,
+    parameters: Type.Unsafe({ ...schema, properties: { ...schema.properties,
+      execution_purpose: { type: "string", minLength: 1, maxLength: 120,
+        description: "Short objective for this batch. Repeat the same text across this batch's calls. Use a short action phrase; omit whole-task goals, parameters and observations." } } }),
+    async execute(id, params, ...rest) {
+      const { execution_purpose: _purpose, ...argumentsOnly } = params;
+      return tool.execute(id, argumentsOnly, ...rest);
+    },
+  });
+}
+
 export function createCapabilityTool(descriptor, contract, runner) {
   const runtime = selectedBindingRuntime(descriptor);
   validateContract(contract, runtime);
@@ -532,6 +551,7 @@ export function createCapabilityTool(descriptor, contract, runner) {
           message: "Arguments do not match the selected capability contract" }, contract.capability, runtime, contract);
       }
       const payload = buildCapabilityRequest(runtime, contract.capability, validated);
+      const requestParameters = structuredClone(payload.arguments);
       const response = await executeRunner(payload);
       if (!isCorrelatedResponse(response, payload.request_id, runtime)) {
         return toolError(
@@ -547,7 +567,7 @@ export function createCapabilityTool(descriptor, contract, runner) {
         );
       }
       if (response.ok !== true) {
-        const details = canonicalToolResult(runtime, contract, response);
+        const details = canonicalToolResult(runtime, contract, response, requestParameters);
         return {
           content: [{ type: "text", text: JSON.stringify(response) }],
           details,
@@ -556,7 +576,7 @@ export function createCapabilityTool(descriptor, contract, runner) {
       }
       return {
         content: [{ type: "text", text: JSON.stringify(response) }],
-        details: canonicalToolResult(runtime, contract, response),
+        details: canonicalToolResult(runtime, contract, response, requestParameters),
       };
     },
   });
@@ -620,6 +640,7 @@ export function createDomainToolsExtension(descriptor, options = {}) {
     const reservedNames = new Set([
       validated.core.decisionToolName,
       validated.core.contextToolName,
+      ...(validated.core.researchChannelPath === undefined ? [] : RESEARCH_TOOL_NAMES),
       ...runtimes.map((runtime) => runtime.guideToolName),
     ]);
     const groups = runtimes.map((runtime) => {
@@ -639,6 +660,9 @@ export function createDomainToolsExtension(descriptor, options = {}) {
       return { runtime, paths, catalog, guide };
     });
     const corePaths = groups[0].paths;
+    if (corePaths.researchChannelPath !== undefined) {
+      configureResearchTools(pi, corePaths.researchChannelPath);
+    }
     if (
       corePaths.trajectoryRequestsPath !== undefined &&
       corePaths.trajectoryCaptureStatePath !== undefined &&
@@ -660,9 +684,8 @@ export function createDomainToolsExtension(descriptor, options = {}) {
         if (contract.name === runtime.decisionToolName) {
           continue;
         }
-        pi.registerTool(
-          buildTool(runtime, contract, (payload) => runCapability(payload, runtime, selectedNames)),
-        );
+        const tool = buildTool(runtime, contract, (payload) => runCapability(payload, runtime, selectedNames));
+        pi.registerTool(corePaths.researchChannelPath !== undefined ? withExecutionPurpose(tool) : tool);
       }
       pi.registerTool(guide);
     }
@@ -1313,6 +1336,7 @@ function runtimePaths(descriptor) {
     "trajectoryAllowedRefsPath",
   );
   const trajectoryAcksPath = optionalExistingRealPath(descriptor.trajectoryAcksPath, "trajectoryAcksPath");
+  const researchChannelPath = optionalExistingRealPath(descriptor.researchChannelPath, "researchChannelPath");
   const trajectoryPaths = [
     trajectoryRequestsPath,
     trajectoryCaptureStatePath,
@@ -1339,6 +1363,7 @@ function runtimePaths(descriptor) {
     }
   }
   const corePathBindings = [
+    ["researchChannelPath", researchChannelPath],
     ["activeTurnPath", activeTurnPath],
     ["analysisContextViewPath", analysisContextViewPath],
     ["trajectoryRequestsPath", trajectoryRequestsPath],
@@ -1364,6 +1389,7 @@ function runtimePaths(descriptor) {
   return {
     workspacePath,
     applicationWorkspacePath,
+    researchChannelPath,
     toolCatalogPath,
     guideIndexPath,
     guideWorkspacePath,
@@ -1435,6 +1461,7 @@ function selectedBindingRuntimeForDomain(runtime, domain) {
     decisionToolName: runtime.core.decisionToolName,
     activeTurnPath: runtime.core.activeTurnPath,
     analysisContextViewPath: runtime.core.analysisContextViewPath,
+    researchChannelPath: runtime.core.researchChannelPath,
     trajectoryRequestsPath: runtime.core.trajectoryRequestsPath,
     trajectoryCaptureStatePath: runtime.core.trajectoryCaptureStatePath,
     trajectoryAllowedRefsPath: runtime.core.trajectoryAllowedRefsPath,
@@ -1630,7 +1657,7 @@ function isCredentialName(name) {
   return /(API_KEY|TOKEN|SECRET|AUTHORIZATION|CREDENTIAL|PASSWORD|PRIVATE_KEY|SECRET_ENV_NAMES)$/i.test(name);
 }
 
-function canonicalToolResult(descriptor, contract, response) {
+function canonicalToolResult(descriptor, contract, response, requestParameters) {
   const routing = LEGACY_SELECTED_BINDING_RUNTIMES.has(descriptor)
     ? {}
     : {
@@ -1641,6 +1668,7 @@ function canonicalToolResult(descriptor, contract, response) {
         projector_id: contract.projector_id,
         result_kind: contract.result_kind ?? null,
       };
+  if (requestParameters !== undefined) routing.request_parameters = requestParameters;
   if (response.ok === true) {
     const result = response.result ?? {};
     return {

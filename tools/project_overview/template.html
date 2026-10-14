@@ -9,7 +9,7 @@
 </style></head><body><main class="wrap">
 <header class="top"><h1>CAPSTONE · 项目推进控制</h1><span class="muted text-xs" id="timestamp"></span></header>
 <nav aria-label="项目控制章节"><a class="discussion-nav" href="#overview-panel">版本与部署</a><a class="discussion-nav" href="#autonomous-discussion">自主智能体演进讨论 ↓</a></nav>
-<section class="panel" id="overview-panel"><div class="toolbar"><div><h2>功能推进与发布位置</h2><p class="legend">dev 演进居中 · 浅蓝：main 发布基线 · <span class="commit-revision">树上提交</span> / <span class="deployment-revision">部署提交</span> · 实线：来源 · 虚线：待整理或紧急修复</p></div><div class="view-controls"><label class="density">间距 <input id="density" type="range" min="8" max="35" value="15" aria-label="调整功能树间距"></label><button id="fit-view" aria-pressed="true">原尺寸</button></div></div>
+<section class="panel" id="overview-panel"><div class="toolbar"><div><h2>功能推进与发布位置</h2><p class="legend">dev 演进居中 · 浅蓝：main 发布基线 · <span class="commit-revision">树上提交</span> / <span class="deployment-revision">部署提交</span> · 实线：来源 · 虚线：待整理或紧急修复</p></div><div class="view-controls"><label class="density">间距 <input id="density" type="range" min="8" max="35" value="15" aria-label="调整功能树间距"></label><button id="fit-view" aria-pressed="false">全图预览</button></div></div>
 <div class="scroll" id="graph-frame"><div class="graph-canvas" id="graph-canvas"><div class="lanes"><span>Pi 在研 / 开发验证 / 云端部署</span><b>dev · 开发集成演进</b><span>回答增强 / 参考复用 / demo 验证</span></div><div class="tree" id="tree"><svg class="edges" id="edges" aria-hidden="true"></svg><div id="commits"></div><div id="local-deployments"></div><article class="hotfix" id="hotfix"><h3>local-demo 紧急修复</h3><div id="hotfix-content"></div></article></div></div></div>
 <p class="gate">dev / main 均已保护：PR＋两平台 CI，0 人工审批；dev 按影响范围检查，main 发布集成完整验收。恢复开发基线6ff7094；B2为撤回增强的历史记录，整体业务与云发布未验收。</p></section>
 <section class="panel discussion" id="autonomous-discussion" aria-labelledby="discussion-title">
@@ -76,10 +76,10 @@ el('scope').innerHTML='<table class="scope-table">'+[
  ].map(([a,b])=>'<tr><td>'+esc(a)+'</td><td>'+esc(b)+'</td></tr>').join('')+'</table>';
 function packageDetailTable(id){const rows=data.package_details.filter(r=>r.package===id);if(!rows.length)return '';return '<div class="package-detail-scroll" style="overflow-x:auto;margin-bottom:12px"><table class="scope-table package-detail-table" style="min-width:900px;table-layout:fixed"><thead><tr>'+['开发项 / 当前状态','已有实现或依据','剩余工作与依赖','验收要求（非通过声明）'].map(h=>'<th scope="col" style="text-align:left;padding:7px 6px;background:#f3f7f5;border-top:1px solid #dbe4df">'+h+'</th>').join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr><td><b>'+esc(r.item)+'</b><p class="muted" style="font-weight:400;margin:4px 0">'+esc(r.status)+'</p></td><td>'+esc(r.existing)+'</td><td>'+esc(r.remaining)+'</td><td>'+esc(r.acceptance)+'</td></tr>').join('')+'</tbody></table></div>';}
 el('detail-list').innerHTML=data.packages.filter(p=>!['live','main'].includes(p.id)&&!p.status.includes('已归档')).map(p=>'<details id="detail-'+p.id+'"><summary>'+esc(p.name)+' · '+esc(p.status)+'</summary><div class="detail-body"><div><p>范围：'+esc(p.scope)+'</p><p>下一步：'+esc(p.next)+'</p></div><div><p>'+esc(p.record)+'</p><p class="mono">'+esc(p.branch)+' · '+short(p.source)+'</p>'+data.prs.filter(pr=>pr.package===p.id).map(pr=>'<p><a href="https://github.com/uukuguy/capstone/pull/'+pr.number+'" target="_blank" rel="noopener noreferrer">PR #'+pr.number+'</a>：'+esc(pr.scope)+'</p>').join('')+'</div></div>'+packageDetailTable(p.id)+'</details>').join('');
-let fitView=true;
+let fitView=false;
 function fitGraph(){
  const frame=el('graph-frame'),canvas=el('graph-canvas');
- if(!fitView){canvas.style.transform='none';frame.style.height='auto';frame.style.overflow='auto';return;}
+ if(!fitView){canvas.style.transform='none';frame.style.height=Math.min(canvas.offsetHeight,Math.max(320,window.innerHeight-230))+'px';frame.style.overflow='auto';return;}
  const top=frame.getBoundingClientRect().top+window.scrollY,available=Math.max(180,window.innerHeight-top-55);
  const scale=Math.min(1,frame.clientWidth/canvas.offsetWidth,available/canvas.offsetHeight);
  canvas.style.transform='scale('+scale+')';frame.style.height=Math.ceil(canvas.offsetHeight*scale)+'px';frame.style.overflow='hidden';
@@ -140,7 +140,7 @@ function draw(){
  fitGraph();
 }
 el('density').addEventListener('input',draw);new ResizeObserver(draw).observe(el('tree'));requestAnimationFrame(draw);
-window.addEventListener('resize',draw);el('fit-view').addEventListener('click',e=>{fitView=!fitView;e.currentTarget.textContent=fitView?'原尺寸':'适合一屏';e.currentTarget.setAttribute('aria-pressed',String(fitView));draw();});
+window.addEventListener('resize',draw);el('fit-view').addEventListener('click',e=>{fitView=!fitView;e.currentTarget.textContent=fitView?'可读尺寸':'全图预览';e.currentTarget.setAttribute('aria-pressed',String(fitView));draw();});
 document.querySelectorAll('[data-package]').forEach(b=>b.addEventListener('click',()=>{const d=el('detail-'+b.dataset.package)||el('scope-detail');d.open=true;d.scrollIntoView({block:'nearest'});}));
 el('expand-all').addEventListener('click',e=>{const open=e.currentTarget.getAttribute('aria-expanded')!=='true';document.querySelectorAll('#details details').forEach(d=>d.open=open);e.currentTarget.setAttribute('aria-expanded',String(open));e.currentTarget.textContent=open?'收起全部':'展开全部';});
 </script></body></html>

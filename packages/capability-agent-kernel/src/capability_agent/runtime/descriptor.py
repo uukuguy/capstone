@@ -95,6 +95,7 @@ class RuntimeDescriptor:
     trajectory_capture_state_path: Path | None = None
     trajectory_allowed_refs_path: Path | None = None
     trajectory_acks_path: Path | None = None
+    research_channel_path: Path | None = None
     extra: Mapping[str, object] = field(default_factory=dict, repr=False)
 
     schema: str = RUNTIME_DESCRIPTOR_SCHEMA
@@ -187,6 +188,7 @@ class RuntimeDescriptor:
             "trajectory_capture_state_path",
             "trajectory_allowed_refs_path",
             "trajectory_acks_path",
+            "research_channel_path",
         ):
             value = getattr(self, name)
             if value is not None:
@@ -266,6 +268,7 @@ class RuntimeDescriptor:
             (self.trajectory_capture_state_path, "trajectoryCaptureStatePath"),
             (self.trajectory_allowed_refs_path, "trajectoryAllowedRefsPath"),
             (self.trajectory_acks_path, "trajectoryAcksPath"),
+            (self.research_channel_path, "researchChannelPath"),
         ):
             if source is not None:
                 core[target] = str(source)
@@ -446,6 +449,7 @@ def descriptor_from_endpoint(
     trajectory_capture_state_path: Path | None = None,
     trajectory_allowed_refs_path: Path | None = None,
     trajectory_acks_path: Path | None = None,
+    research_channel_path: Path | None = None,
     reference_handoffs_path: Path | None = None,
 ) -> RuntimeDescriptor:
     """Convert only controller-owned endpoint metadata into a descriptor."""
@@ -508,6 +512,7 @@ def descriptor_from_endpoint(
         trajectory_capture_state_path=trajectory_capture_state_path,
         trajectory_allowed_refs_path=trajectory_allowed_refs_path,
         trajectory_acks_path=trajectory_acks_path,
+        research_channel_path=research_channel_path,
     )
 
 

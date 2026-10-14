@@ -55,6 +55,106 @@ def _command(thread_id: str) -> dict[str, object]:
     }
 
 
+def test_postgres_claim_restores_persisted_research_generation(postgres_thread_service):
+    service, thread_id = postgres_thread_service
+    snapshot = _snapshot(thread_id)
+    service.create_thread(snapshot)
+    reset_id = "evt_reset_" + uuid.uuid4().hex[:16]
+    with psycopg.connect(service.dsn) as connection:
+        connection.execute("""INSERT INTO capstone_thread_events
+            (thread_id,event_seq,event_id,event_type,event_version,run_id,occurred_at,visibility,payload)
+            VALUES (%s,1,%s,'model_context_reopened',1,%s,now(),'public',%s)""",
+            (thread_id, reset_id, snapshot.run.run_id,
+             psycopg.types.json.Jsonb({"model_context": snapshot.active_model_context.to_document()})))
+        connection.execute("UPDATE capstone_threads SET last_event_seq=1 WHERE thread_id=%s", (thread_id,))
+    reopened = PostgresThreadService(service.dsn)
+    receipt = reopened.submit_command({**_command(thread_id), "expected_event_seq": 1})
+    assert receipt.status == "accepted"
+    claim = reopened.claim_attempt("generation-test", 30)
+    assert claim is not None
+    assert claim.research_generation == reset_id
+
+
+def test_postgres_work_reset_commits_atomically_without_a_task(postgres_thread_service):
+    from types import SimpleNamespace
+    service, thread_id = postgres_thread_service
+    snapshot = _snapshot(thread_id)
+    service.create_thread(snapshot)
+    catalog = SimpleNamespace(resolve=lambda _: ThreadModelDescriptor("ieee39", "7", "pandapower"))
+    service = PostgresThreadService(service.dsn, model_catalog=catalog)
+    command = {**_command(thread_id), "kind": "reopen_model_context",
+               "payload": {"model_id": "ieee39", "reason": "user_requested_work_reset"}}
+    receipt = service.submit_command(command)
+    assert receipt.status == "accepted"
+    assert service.submit_command(command) == receipt
+    reset = service.snapshot(thread_id)
+    assert reset.active_model_context.id != snapshot.active_model_context.id
+    assert reset.pending_model_switch is None and reset.current_attempt is None
+    assert reset.active_model_context.model_revision == "7"
+    events = service.read_events(thread_id, 0).events
+    assert sum(event.event_type == "model_context_reopened" for event in events) == 1
+    assert not any(event.event_type == "attempt_started" for event in events)
+
+
+def test_postgres_explicit_followup_binds_selected_persisted_task(postgres_thread_service):
+    service, thread_id = postgres_thread_service
+    service.create_thread(_snapshot(thread_id))
+    ids = []
+    for index in range(2):
+        receipt = service.submit_command({**_command(thread_id), "command_id": f"cmd_source_{index}",
+            "idempotency_key": f"idem_source_{index}", "expected_event_seq": service.snapshot(thread_id).last_event_seq,
+            "payload": {"text": f"Question {index}"}})
+        assert receipt.status == "accepted"
+        claim = service.claim_attempt("source-test", 30)
+        ids.append(claim.attempt.attempt_id)
+        service.finish_attempt(claim, phase="completed", payload={"answer": f"Answer {index}"})
+    restarted = PostgresThreadService(service.dsn)
+    receipt = restarted.submit_command({**_command(thread_id), "command_id": "cmd_followup",
+        "idempotency_key": "idem_followup", "expected_event_seq": restarted.snapshot(thread_id).last_event_seq,
+        "payload": {"text": "Explain", "source_attempt_id": ids[0]}})
+    assert receipt.status == "accepted"
+    claim = restarted.claim_attempt("source-test", 30)
+    assert claim.previous_instruction.attempt_id == ids[0]
+    assert claim.previous_instruction.answer == "Answer 0"
+    assert claim.previous_instruction.model_context == _snapshot(thread_id).active_model_context
+    restarted.finish_attempt(claim, phase="failed", payload={"answer": "Recorded failure"})
+    receipt = restarted.submit_command({**_command(thread_id), "command_id": "cmd_retry_followup",
+        "idempotency_key": "idem_retry_followup", "kind": "retry_new_attempt",
+        "expected_event_seq": restarted.snapshot(thread_id).last_event_seq,
+        "payload": {"attempt_id": claim.attempt.attempt_id}})
+    assert receipt.status == "accepted"
+    retry = restarted.claim_attempt("source-test", 30)
+    assert retry.previous_instruction.attempt_id == ids[0]
+
+
+def test_attempt_records_keep_failed_and_diagnostic_events_in_original_context(postgres_thread_service):
+    service, thread_id = postgres_thread_service
+    snapshot = _snapshot(thread_id)
+    service.create_thread(snapshot)
+    service.submit_command(_command(thread_id))
+    claim = service.claim_attempt("records-test", 30)
+    assert claim is not None
+    service.append_runtime_event(claim, event_type="validation_observation", payload={"status": "failed"})
+    service.append_runtime_event(claim, event_type="unverified_answer_recorded", payload={"text": "original"}, visibility="diagnostic")
+    service.finish_attempt(claim, phase="failed", payload={"answer": "Recorded outcome"})
+    first = service.read_attempt_records(thread_id, claim.attempt.attempt_id, limit=1)
+    assert first["has_more"] and len(first["events"]) == 1
+    remaining = service.read_attempt_records(thread_id, claim.attempt.attempt_id, after=first["next_after"])
+    assert remaining["model_context"] == snapshot.active_model_context.to_document()
+    assert any(item["event_type"] == "unverified_answer_recorded" for item in remaining["events"])
+    from capstone_agent.thread_service import ThreadNotFound
+    with pytest.raises(ThreadNotFound):
+        service.read_attempt_records(thread_id, "attempt-not-owned")
+    observations = service.read_attempt_records(thread_id, claim.attempt.attempt_id,
+                                               observations_only=True, limit=1)
+    assert observations["events"][0]["event_type"] == "validation_observation"
+    assert observations["has_more"] is True
+    terminal = service.read_attempt_records(thread_id, claim.attempt.attempt_id,
+        observations_only=True, after=observations["next_after"], limit=1)
+    assert terminal["events"][0]["event_type"] == "attempt_failed"
+    assert terminal["has_more"] is False
+
+
 class _ToolsCatalog:
     def resolve(self, model, selection=None):
         if selection is None:
@@ -308,6 +408,68 @@ def test_postgres_thread_store_leases_and_completes_one_attempt(
     assert [item.event_type for item in service.read_events(thread_id, 0).events] == [
         "command_accepted", "attempt_started", "assistant_text_delta", "attempt_completed",
     ]
+
+
+@pytest.mark.parametrize("rollback", [False, True])
+def test_large_result_delivery_is_atomic_and_survives_restart(postgres_thread_service, monkeypatch, rollback):
+    service, thread_id = postgres_thread_service
+    revision = "revision:sha256:" + "a" * 64
+    snapshot = _snapshot(thread_id).to_document()
+    snapshot["active_model_context"]["model_revision"] = revision
+    service.create_thread(ThreadSnapshot.from_document(snapshot))
+    service.submit_command(_command(thread_id))
+    claim = service.claim_attempt("projection-test", 30)
+    assert claim is not None
+    result_ref, evidence_ref = "result:sha256:" + "b" * 64, "evidence:sha256:" + "c" * 64
+    projection = {
+        "schema": "capstone-result-projection/1.0", "result_id": "projection_large",
+        "result_ref": result_ref, "evidence_refs": [evidence_ref], "thread_id": thread_id,
+        "run_id": claim.run_id, "turn_id": claim.attempt.turn_id, "attempt_id": claim.attempt.attempt_id,
+        "model_context_id": claim.model_context.id, "model_id": "ieee39", "model_revision": revision,
+        "source": {"capability_id": "analysis.run", "domain_pack_id": "pandapower-static-analysis",
+                   "implementation_family": "pandapower"},
+        "status": "partial", "summary": [], "element_refs": [], "overlay": None,
+        "tables": [{"table_id": "details", "title": "Details",
+                    "columns": [{"column_id": "value", "label": "Value"}],
+                    "rows": [{"row_id": f"row:{index}", "cells": {"value": "测量" * 120}}
+                             for index in range(128)]}],
+    }
+    payload = {"answer": "Verified partial results and failed computation are retained.",
+               "result_refs": [result_ref], "evidence_refs": [evidence_ref],
+               "result_projections": [projection],
+               "admission": {"mode": "authority_backed", "assurance": "lineage_verified"}}
+    if rollback:
+        insert = service._insert_event
+        def fail_after_part(connection, event):
+            insert(connection, event)
+            if event.event_type == "result_projection_part":
+                raise RuntimeError("injected persistence failure")
+        monkeypatch.setattr(service, "_insert_event", fail_after_part)
+        with pytest.raises(RuntimeError, match="injected"):
+            service.finish_attempt(claim, phase="failed", payload=payload)
+        restored = PostgresThreadService(service.dsn).snapshot(thread_id)
+        assert restored.current_attempt.phase == "running"
+        assert restored.last_event_seq == 2 and not restored.result_projections
+        assert len(service.read_events(thread_id, 0).events) == 2
+        return
+    service.finish_attempt(claim, phase="failed", payload=payload)
+    restarted = PostgresThreadService(service.dsn)
+    stored = restarted.snapshot(thread_id)
+    assert stored.result_projections[0].to_document() == projection
+    assert stored.current_attempt is None
+    events = []
+    after = 0
+    while True:
+        page = restarted.read_attempt_records(thread_id, claim.attempt.attempt_id, after=after, limit=1)
+        events.extend(page["events"])
+        if not page["has_more"]:
+            break
+        after = page["next_after"]
+    parts = [e["payload"]["data"] for e in events if e["event_type"] == "result_projection_part"]
+    assert json.loads("".join(parts)) == projection
+    assert "result_projections" not in events[-1]["payload"]
+    assert events[-1]["event_type"] == "attempt_failed"
+    assert all(len(json.dumps(e, ensure_ascii=False).encode()) < 64 * 1024 for e in events)
 
 
 def test_postgres_family_filter_claims_only_matching_threads(

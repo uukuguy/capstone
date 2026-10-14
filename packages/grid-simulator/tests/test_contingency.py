@@ -26,6 +26,38 @@ def _line_ref(grid, context_ref: str, index: int) -> str:
     return str(result["element"]["asset_ref"])
 
 
+def test_context_local_branch_selection_matches_reference_execution(grid, context_ref: str) -> None:
+    ref = _line_ref(grid, context_ref, 11)
+    by_ref = grid.call("analysis.contingency.n_minus_one.run", {"context_ref": context_ref, "branch_refs": [ref]})
+    by_index = grid.call("analysis.contingency.n_minus_one.run", {"context_ref": context_ref,
+        "branch_selections": [{"kind": "line", "indices": [11]}]})
+    assert by_index["result_ref"] == by_ref["result_ref"]
+
+
+def test_branch_selection_keeps_requested_sibling_scenario_and_strict_refs(grid, context_ref: str) -> None:
+    def derive(value):
+        return grid.call("model.revision.derive", {"context_ref": context_ref,
+            "patches": [{"operation": "set", "kind": "gen", "selector": {"indices": [0]}, "values": {"p_mw": value}}]})
+    first, second = derive(500), derive(900)
+    stale_ref = _line_ref(grid, first["context_ref"], 11)
+    error = grid.call_error("analysis.contingency.n_minus_one.run", {
+        "context_ref": second["context_ref"], "branch_refs": [stale_ref]})
+    assert error.code == "unknown_branch"
+    result = grid.call("analysis.contingency.n_minus_one.run", {
+        "context_ref": second["context_ref"], "branch_selections": [{"kind": "line", "indices": [11]}]})
+    assert result["context_ref"] == second["context_ref"]
+    assert result["revision_ref"] == second["revision_ref"]
+    assert result["scenarios"][0]["branch_ref"] == _line_ref(grid, second["context_ref"], 11)
+    assert result["scenarios"][0]["branch_ref"] != stale_ref
+
+
+def test_overlapping_branch_selections_fail_before_calculation(grid, context_ref: str) -> None:
+    error = grid.call_error("analysis.contingency.n_minus_one.run", {"context_ref": context_ref,
+        "branch_selections": [{"kind": "line", "indices": [7, 8]}, {"kind": "line", "indices": [8, 9]}]})
+    assert error.code == "invalid_branch_selection"
+    assert grid.engine.ac_run_count == 0
+
+
 def test_n_minus_one_preserves_partial_scenario_failure(grid, context_ref: str, line_refs: list[str]) -> None:
     grid.engine.non_convergent_outages.add(1)
 

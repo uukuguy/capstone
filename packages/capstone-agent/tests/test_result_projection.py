@@ -42,6 +42,12 @@ def valid_projection() -> dict[str, object]:
     }
 
 
+def test_result_projection_accepts_complete_batch_evidence() -> None:
+    document = valid_projection()
+    document["evidence_refs"] = [f"evidence:sha256:{index:064x}" for index in range(1024)]
+    assert len(ResultProjection.from_document(document).evidence_refs) == 1024
+
+
 def test_result_projection_accepts_bounded_admitted_projection() -> None:
     projection = ResultProjection.from_document(
         normalize_result_projection(

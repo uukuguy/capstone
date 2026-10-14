@@ -56,6 +56,15 @@ class PersistedAnalysis:
     evidence_ref: str
     document: dict[str, Any]
 
+    @property
+    def dataset_receipts(self) -> list[dict[str, Any]]:
+        """Expose exact query fields without loading rows or changing the result."""
+        return [
+            {"dataset": name, "row_count": data["row_count"],
+             "available_fields": [field["name"] for field in data["fields"]]}
+            for name, data in self.document["datasets"].items()
+        ]
+
 
 class ResultStore:
     def __init__(self, workspace: SimulatorWorkspace) -> None:
@@ -163,6 +172,7 @@ class ResultStore:
                     "dataset_ref": _dataset_ref(result_ref, name),
                     "source_table": data["source_table"],
                     "row_count": data["row_count"],
+                    "available_fields": [field["name"] for field in data["fields"]],
                 }
                 for name, data in document["datasets"].items()
             ],
@@ -170,6 +180,11 @@ class ResultStore:
 
     def describe(self, result_ref: str, dataset: str) -> dict[str, Any]:
         document, data = self._dataset(result_ref, dataset)
+        fields = []
+        for field in data["fields"]:
+            missing = sum(row.get(field["name"]) is None for row in data["rows"])
+            fields.append({**field, "non_null_count": len(data["rows"]) - missing,
+                           "null_count": missing})
         return {
             "result_ref": result_ref,
             "context_ref": document["context_ref"],
@@ -178,7 +193,7 @@ class ResultStore:
             "dataset_ref": _dataset_ref(result_ref, dataset),
             "source_table": data["source_table"],
             "row_count": data["row_count"],
-            "fields": data["fields"],
+            "fields": fields,
         }
 
     def query(self, result_ref: str, request: dict[str, Any]) -> dict[str, Any]:
@@ -350,12 +365,18 @@ def _field_descriptions(
     descriptions = []
     for name in names:
         values = [row.get(name) for row in rows]
+        meaning = f"pandapower {source_table}.{name}"
+        if name == "asset_ref":
+            meaning = "stable source element reference"
+        elif source_table == "res_bus" and name in {"vm_pu", "va_degree"}:
+            meaning += "; null means no computed value. A missing value does not establish "
+            meaning += "zero voltage, physical loss of supply, instability or mathematical unsolvability."
         descriptions.append(
             {
                 "name": name,
                 "type": _field_type(values, name),
                 "unit": _unit(name),
-                "meaning": "stable source element reference" if name == "asset_ref" else f"pandapower {source_table}.{name}",
+                "meaning": meaning,
                 "nullable": any(value is None for value in values),
                 "provenance": f"pandapower.{source_table}.{name}",
             }

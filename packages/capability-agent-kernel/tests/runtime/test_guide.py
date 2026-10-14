@@ -128,6 +128,24 @@ def test_materialize_guide_provider_rejects_unportable_id_and_path_escape(
         )
 
 
+def test_existing_guide_is_reused_only_after_exact_provider_verification(tmp_path: Path) -> None:
+    workspace = tmp_path / "binding"
+    root = workspace / "guides"
+    index = workspace / "guide-index.json"
+    provider = _Provider(text="# Original\n")
+    materialize_guide_provider(provider, workspace=workspace, guide_root_path=root, guide_index_path=index)
+    original = index.read_bytes()
+    materialize_guide_provider(provider, workspace=workspace, guide_root_path=root,
+                              guide_index_path=index, reuse_existing=True)
+    assert index.read_bytes() == original
+    (root / "SKILL.md").write_text("changed")
+    with pytest.raises(GuideMaterializationError, match="does not match"):
+        materialize_guide_provider(provider, workspace=workspace, guide_root_path=root,
+                                  guide_index_path=index, reuse_existing=True)
+    assert (root / "SKILL.md").read_text() == "changed"
+    assert index.read_bytes() == original
+
+
 def test_materialize_guide_provider_never_replaces_existing_snapshot_or_symlink(
     tmp_path: Path,
 ) -> None:

@@ -18,6 +18,14 @@ from capstone_agent.kernel_capability_preparation import (
 from capstone_agent.thread_protocol import ModelContextSnapshot
 
 
+def test_authority_binding_keeps_a_copy_of_prepared_metadata():
+    metadata = {"counts": {"buses": 2}}
+    bound = AuthorityModelBinding("grid", "model_one", "revision:sha256:" + "a" * 64,
+        "pandapower", "context:sha256:" + "b" * 64, model_metadata=metadata)
+    metadata["counts"]["buses"] = 99
+    assert bound.model_metadata == {"counts": {"buses": 2}}
+
+
 def _context():
     return ModelContextSnapshot(
         "ctx_1", "model_1", "revision:sha256:" + "a" * 64, "family", "sel_1",
@@ -84,6 +92,26 @@ def test_preparer_binds_pinned_model_and_creates_exclusive_workspace(tmp_path, m
     assert first.closed
     assert first.workspace.root.is_dir()
     second.close()
+
+
+def test_retained_context_workspace_survives_resource_close_and_new_preparer(tmp_path, monkeypatch):
+    _install_preparation(monkeypatch, [])
+    profile = _profile()
+    context = _context()
+    first = KernelApplicationProfilePreparer(workspace_root=tmp_path,
+        model_binder=lambda _, context: _binding(context), retain_context_workspace=True)(profile, context)
+    marker = first.workspace.domain_path("model") / "saved-result.json"
+    marker.write_text('{"calculation":"retained"}')
+    first.close()
+    second = KernelApplicationProfilePreparer(workspace_root=tmp_path,
+        model_binder=lambda _, context: _binding(context), retain_context_workspace=True)(profile, context)
+    assert second.workspace.root == first.workspace.root
+    assert marker.read_text() == '{"calculation":"retained"}'
+    other = KernelApplicationProfilePreparer(workspace_root=tmp_path,
+        model_binder=lambda _, context: _binding(context), retain_context_workspace=True)(
+            profile, replace(context, id="ctx_other"))
+    assert other.workspace.root != first.workspace.root
+    assert not (other.workspace.domain_path("model") / marker.name).exists()
 
 
 @pytest.mark.parametrize("field,value", [

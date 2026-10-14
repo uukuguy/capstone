@@ -32,6 +32,9 @@ SH
 cat > "$scratch/bin/uv" <<'SH'
 #!/usr/bin/env bash
 printf 'uv %s\n' "$*" >> "$CAPSTONE_TEST_CALLS"
+case "$*" in
+  *preserve_local_runtime.py*) exit "${CAPSTONE_TEST_PRESERVE_EXIT:-0}" ;;
+esac
 cat > "$CAPSTONE_TEST_STAGE_SCRIPT"
 exit "${CAPSTONE_TEST_STAGE_EXIT:-0}"
 SH
@@ -50,6 +53,18 @@ grep -Eq 'App:.*http://.*:5173/' "$scratch/output"
 grep -Eq 'uv run --project .*packages/pypsa-agent python - ' "$CAPSTONE_TEST_CALLS"
 grep -Eq 'verified_asset_path\(entry.catalog_id, root=source\)' "$CAPSTONE_TEST_STAGE_SCRIPT"
 grep -Eq '/__capstone-build' "$CAPSTONE_TEST_CALLS"
+grep -Eq 'preserve_local_runtime.py' "$CAPSTONE_TEST_CALLS"
+
+# A failed preservation must retain the old containers.
+: > "$CAPSTONE_TEST_CALLS"
+if CAPSTONE_TEST_PRESERVE_EXIT=1 PATH="$scratch/bin:$PATH" "$repo_root/deploy/rebuild_local.sh" > "$scratch/output" 2>&1; then
+  echo 'local rebuild replaced containers after preservation failed' >&2
+  exit 1
+fi
+if grep -Eq 'up --no-build' "$CAPSTONE_TEST_CALLS"; then
+  echo 'local rebuild continued after preservation failed' >&2
+  exit 1
+fi
 
 # Skipping the App does not require or probe its metadata.
 : > "$CAPSTONE_TEST_CALLS"

@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
 
-from capability_agent._safe_files import write_bound_text
+from capability_agent._safe_files import read_bound_regular_path, write_bound_text
 
 
 _RESOURCE_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]+$")
@@ -123,13 +123,15 @@ def materialize_guide_provider(
     guide_root_path: Path,
     guide_index_path: Path,
     protocol: str | None = None,
+    reuse_existing: bool = False,
 ) -> Path:
     """Publish a provider's allowlisted documents into a binding snapshot.
 
     A Domain Pack owns the source resources and exposes only ``load`` and
     ``open``.  The Kernel copies the verified text into a fresh, binding-owned
     tree; the model receives paths in that tree and never receives the
-    provider's source paths.  Every leaf is published without replacement.
+    provider's source paths. Every leaf is published without replacement.
+    Explicit reuse validates the complete snapshot against the provider first.
     """
 
     workspace_path = _absolute_path(workspace, "guide workspace")
@@ -140,8 +142,9 @@ def materialize_guide_provider(
     _assert_inside(index_path, workspace_path, "guide index")
     _reject_symlink_ancestors(root, "guide root")
     _reject_symlink_ancestors(index_path.parent, "guide index directory")
-    _assert_absent(root, "guide snapshot root")
-    _assert_absent(index_path, "guide index")
+    if not reuse_existing or not root.exists():
+        _assert_absent(root, "guide snapshot root")
+        _assert_absent(index_path, "guide index")
 
     documents = _load_provider_documents(provider)
     schema_id = _resolve_schema_id(protocol)
@@ -154,6 +157,24 @@ def materialize_guide_provider(
         target = root / relative
         payload_resources[resource_id] = str(target)
         materialized.append((target, text.encode("utf-8")))
+
+    if reuse_existing and root.exists():
+        _directory_identity(root)
+        expected = {"protocol": schema_id, "version": "1.0", "root": str(root),
+                    "resources": dict(sorted(payload_resources.items()))}
+        try:
+            if json.loads(read_bound_regular_path(index_path)) != expected:
+                raise GuideMaterializationError("existing guide index does not match the provider")
+            for target, content in materialized:
+                if read_bound_regular_path(target) != content:
+                    raise GuideMaterializationError("existing guide content does not match the provider")
+            allowed = {path for path, _ in materialized}
+            allowed.update(path.parent for path, _ in materialized if path.parent != root)
+            if set(root.rglob("*")) != allowed:
+                raise GuideMaterializationError("existing guide snapshot has undeclared entries")
+        except (OSError, ValueError) as exc:
+            raise GuideMaterializationError("existing guide snapshot could not be verified") from exc
+        return index_path
 
     created_root = False
     root_identity: tuple[int, int] | None = None

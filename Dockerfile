@@ -23,6 +23,7 @@ COPY deploy/launch_host_runtime.py deploy/launch_host_runtime.py
 COPY deploy/bake_catalog_snapshot.py deploy/bake_catalog_snapshot.py
 COPY Dockerfile Dockerfile
 COPY deploy/ensure_bucket.py deploy/ensure_bucket.py
+COPY deploy/preserve_local_runtime.py deploy/preserve_local_runtime.py
 COPY deploy/local-model-assets/ /opt/capstone-models/
 
 ENV UV_NO_SYNC=1 \

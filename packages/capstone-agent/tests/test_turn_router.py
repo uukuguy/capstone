@@ -39,6 +39,20 @@ def _claim(kind: str = "send_auto", text: str = "hello"):
     return service, claim
 
 
+@pytest.mark.parametrize("text", ["hello", "Explain the active model", "Study an unfamiliar scenario"])
+def test_research_entry_does_not_classify_instruction_or_choose_business_steps(monkeypatch, text):
+    from capstone_agent import turn_router as module
+    def forbidden(*args):
+        raise AssertionError("Research entry must not classify the instruction")
+    monkeypatch.setattr(module, "_heuristic_route", forbidden)
+    _, claim = _claim(text=text)
+    plan = module.ResearchTurnRouter().plan(claim)
+    assert plan.route == "professional"  # Existing authorized-tool session transport.
+    assert plan.source == "agent_loop"
+    assert plan.capability_hint is None
+    assert not plan.fallback
+
+
 def test_auto_router_uses_fixture_and_keeps_context_bounded() -> None:
     service, claim = _claim()
     plan = DefaultTurnRouter(

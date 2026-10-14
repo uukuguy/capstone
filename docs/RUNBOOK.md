@@ -118,6 +118,15 @@ claim zero initialization. The activity UI shows latest3 actions while running,
 uses a bounded160px full list and collapses after completion.
 
 `local-dev` is the local development and release-verification target for
+`cloud-dev`. Local API and family workers keep `/app/runs` in three separate,
+Compose-project-scoped volumes. The canonical rebuild migrates records from an
+older container before replacing it: stop writers, retain an ignored backup,
+copy into an empty role volume, and restore service ownership. It refuses to
+overwrite a nonempty volume from a different migration. On failure, the original
+containers and backups remain; the rebuild does not replace them. Do not use
+`docker compose down --volumes` on an environment whose history must be kept.
+
+`local-dev` is the local development and release-verification target for
 `cloud-dev`. `local-demo` is the local reproduction, emergency-repair and
 release-verification target for `cloud-demo`. At rest, select the accepted
 cloud-demo source and feature scope for local-demo. A frozen release candidate

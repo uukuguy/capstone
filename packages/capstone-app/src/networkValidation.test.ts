@@ -3,6 +3,21 @@ import { parseNetworkDiagram, parseNetworkView } from './networkValidation'
 import { sampleDiagramView, sampleView } from './networkFixture'
 
 describe('network projection at the browser boundary', () => {
+  it('checks scene annotation sources and exact component membership', () => {
+    const busId = sampleDiagramView.diagram.buses[0].id
+    const branchId = sampleDiagramView.diagram.branches[0].id
+    const annotations = {
+      scene: { label: '派生场景', context_ref: 'context:derived', model_revision: 'revision:derived', source_ref: 'result:current' },
+      states: [{ label: '已断开', style: 'disconnected', ids: [branchId], source_ref: 'result:current' }],
+      regions: [{ label: '分区 1', ids: [busId], source_ref: 'result:current' }],
+    }
+    const view = { ...sampleDiagramView, layer: { ...sampleDiagramView.layer, annotations } }
+    expect(parseNetworkView(view, 1, ['result:current'])).toEqual(view)
+    expect(parseNetworkView(view, 1, [])).toBeNull()
+    expect(parseNetworkView({ ...view, layer: { ...view.layer, annotations: {
+      ...annotations, regions: [{ ...annotations.regions[0], ids: [branchId] }],
+    } } }, 1, ['result:current'])).toBeNull()
+  })
   it('accepts a complete large model and still rejects over-limit or foreign endpoints', () => {
     const buses = Array.from({ length: 9241 }, (_, i) => ({
       id: String(i), label: `Bus ${i}`, x: null, y: null, vn_kv: 220,

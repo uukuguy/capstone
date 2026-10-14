@@ -99,11 +99,16 @@ model in memory. New Threads allocate execution resources only when work is
 claimed. Each Attempt starts its runtime on demand and stops it on success,
 failure or cancellation. RPC work has a finite deadline.
 
-Model preparation is a bounded process cache. An Attempt pins its resources
-during execution. Idle resources expire; capacity pressure evicts the least
-recently used idle context. Active work must never be evicted. The worker also
-sweeps when no new command arrives and closes its cache on shutdown. A later
-Attempt prepares the registered model again after cache eviction.
+Model preparation is a process cache shared across Threads. An Attempt pins its
+resources during execution. Idle resources remain available while memory has
+headroom; container and host memory pressure reclaim the least recently used
+idle contexts first. Active work must never be evicted. The count ceiling is a
+separate defensive bound, not a limit on opened models or a normal eviction
+target. An explicit idle timeout remains available, but the shared runtime
+contract disables it. The worker also checks pressure while idle and closes its
+cache on shutdown. Durable Thread history and model workspaces survive resource
+eviction. Currently, a subsequent Attempt still prepares the registered model
+again; prepare-on-open and verified fast restoration are pending lifecycle work.
 
 The API limits concurrent Thread event subscriptions, including a limit for
 each Thread. Disconnects and cancellation release subscription capacity. Worker

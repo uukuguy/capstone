@@ -1,5 +1,17 @@
 from __future__ import annotations
 
+
+def test_tool_failure_summary_uses_only_structured_field_and_parameter_names():
+    from capstone_agent.progress import project_tool_failure
+    field = project_tool_failure({'code': 'result_field_unavailable', 'message': 'Query rejected',
+        'details': {'fields': ['bus'], 'allowed_fields': ['index', 'vm_pu']}})
+    assert field['summary'] == '字段不可用：bus；可用字段：index、vm_pu'
+    gap = project_tool_failure({'code': 'analysis_prerequisite_missing', 'message': 'No result produced',
+        'details': {'parameter_gaps': [{'element_kind': 'source', 'index': 2, 'field': 'capacity'},
+            {'field': 'api_key=private-value'}], 'provider': {'secret': 'private-value'}}})
+    assert gap['summary'] == '参数缺失或无效：source[2].capacity'
+    assert 'private-value' not in str(gap)
+
 from capstone_agent.progress import render_progress, summarize_answer
 
 

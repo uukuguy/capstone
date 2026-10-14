@@ -16,6 +16,34 @@ class OperatorDiagramError(ValueError):
         super().__init__(code)
 
 
+def operator_branch_states(net: Any, branches: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Project circuit disconnections from service flags and actual terminal switches."""
+    opened: dict[tuple[str, int], list[dict[str, Any]]] = {}
+    switch_kinds = {"l": "line", "t": "trafo", "t3": "trafo3w"}
+    for index, row in net.switch.iterrows():
+        kind = switch_kinds.get(str(row.et))
+        if kind is not None and not bool(row.closed):
+            opened.setdefault((kind, int(row.element)), []).append({"index": int(index), "bus_id": str(row.bus)})
+    active_buses = {str(index): bool(row.in_service) for index, row in net.bus.iterrows()}
+    states = []
+    for branch in branches:
+        kind, index = branch["kind"], int(branch["id"].split(":")[1])
+        if kind == "link":
+            row = net.switch.loc[index]
+            if not bool(row.closed) or not active_buses[branch["from_bus"]] or not active_buses[branch["to_bus"]]:
+                states.append({"id": branch["id"], "in_service": True, "connected": False,
+                               "open_switches": [{"index": index, "bus_id": str(row.bus)}] if not bool(row.closed) else []})
+            continue
+        in_service = bool(net[kind].loc[index, "in_service"])
+        switches = [item for item in opened.get((kind, index), [])
+                    if item["bus_id"] in {branch["from_bus"], branch["to_bus"]}]
+        connected = in_service and active_buses[branch["from_bus"]] and active_buses[branch["to_bus"]] and not switches
+        if not connected:
+            states.append({"id": branch["id"], "in_service": in_service,
+                           "connected": False, "open_switches": switches})
+    return states
+
+
 @lru_cache(maxsize=1)
 def operator_diagram_contract() -> CapabilityContract:
     return CapabilityContract.model_validate_json(
@@ -82,6 +110,12 @@ def operator_geometry(net: Any) -> dict[str, Any]:
             branches.append({"id": f"trafo3w:{index}:{terminal}", "kind": "trafo3w",
                              "label": name,
                              "from_bus": str(row["hv_bus"]), "to_bus": str(row[f"{terminal}_bus"])})
+    for index, row in net.switch.sort_index().iterrows():
+        if str(row.et) == "b":
+            branches.append({"id": f"switch:{index}", "kind": "link", "label": f"开关 {index}",
+                             "from_bus": str(row.bus), "to_bus": str(row.element)})
+    if len(branches) > array_limit("branches"):
+        raise OperatorDiagramError("diagram_limit")
     ids = {bus["id"] for bus in buses}
     if not buses or any(branch["from_bus"] not in ids or branch["to_bus"] not in ids for branch in branches):
         raise OperatorDiagramError("diagram_invalid")

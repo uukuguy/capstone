@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -8,6 +9,7 @@ import pytest
 from capstone_agent.thread_protocol import AttemptSnapshot, ModelContextSnapshot
 from capstone_agent.thread_service import AttemptClaim
 from capstone_agent.thread_network import NetworkProjectionUnavailable
+from capstone_agent.thread_network import normalize_thread_network_projection
 from capstone_model_capability_spi import ModelCapabilitySelection
 from grid_agent.application.thread_capabilities import (
     PANDAPOWER_PROFILE_DESCRIPTOR, build_pandapower_thread_application,
@@ -15,6 +17,7 @@ from grid_agent.application.thread_capabilities import (
 from grid_agent.thread_network_view import build_pandapower_thread_network_provider
 from grid_simulator.engine import Pandapower340Engine
 from grid_simulator.models import ModelRegistry
+from pandapower_domain.authority import SimulatorIntegrityError
 
 
 class _Grid:
@@ -27,7 +30,7 @@ class _Grid:
         return iter(self.values)
 
     def invoke(self, capability, arguments):
-        key = (capability, tuple(sorted(arguments.items())))
+        key = (capability, json.dumps(arguments, sort_keys=True))
         if key not in self.responses:
             self.responses[key] = self.values[2].executor.invoke(capability, arguments)
         return self.responses[key]
@@ -119,6 +122,71 @@ def test_thread_topology_uses_exact_real_registered_model(grid):
     assert projection["diagram"]["branches"] == source["branches"]
     assert len(source["buses"]) == (39 if claim.model_context.model_id == "ieee39" else 24)
     assert projection["layer"] == {"focus_ids": [], "next_focus_ids": [], "overlay": None}
+
+
+def test_scene_reuses_observed_authority_topology_without_querying_it_again(grid):
+    claim, context, runtime, binding = grid
+    flow = grid.invoke("analysis.powerflow.ac.run", {"context_ref": binding.context_ref})
+    topology = grid.invoke("topology.components.get", {"context_ref": binding.context_ref})
+    provider = build_pandapower_thread_network_provider(context)
+    provider.observe_runtime_event({"type": "tool_execution_end", "result": {"details": {
+        "ok": True, "capability": "topology.components.get",
+        "capability_key": {"binding_id": "grid", "capability_id": "topology.components.get"},
+        "result": topology,
+    }}})
+    original = runtime.executor.invoke
+    def no_duplicate_topology(capability, arguments):
+        assert capability != "topology.components.get", "already observed authority facts should be reused"
+        return original(capability, arguments)
+    provider._executor = SimpleNamespace(invoke=no_duplicate_topology)
+    view = provider.project(claim, (flow["result_ref"],), (), ())
+    assert view["layer"]["annotations"]["scene"]["source_ref"] == flow["result_ref"]
+
+
+def test_contingency_view_uses_the_linked_peak_scene_instead_of_a_later_base_flow(grid):
+    claim, context, runtime, binding = grid
+    scan = runtime.executor.invoke("analysis.contingency.n_minus_one.run", {
+        "context_ref": binding.context_ref, "branch_selections": [{"kind": "line", "indices": [0, 1]}],
+    })
+    flow = runtime.executor.invoke("analysis.powerflow.ac.run", {"context_ref": binding.context_ref})
+    provider = build_pandapower_thread_network_provider(context)
+    view = provider.project(claim, (scan["result_ref"], flow["result_ref"]), tuple(scan["evidence_refs"]), ())
+    expected = max(scan["scenarios"], key=lambda row: row["max_loading_percent"])
+    scene = view["layer"]["annotations"]["scene"]
+    assert scene["source_ref"] == scan["result_ref"]
+    assert scene["case_ref"] == expected["scenario_result_ref"]
+    assert view["layer"]["annotations"]["states"][0]["ids"] == [f"line:{expected['pandapower_index']}"]
+    with pytest.raises(SimulatorIntegrityError, match="not linked"):
+        runtime.authority.verify_linked_result(flow["result_ref"], scan["result_ref"])
+
+
+def test_derived_scene_marks_real_outage_and_preserves_bound_geometry(grid):
+    claim, context, runtime, binding = grid
+    derived = runtime.executor.invoke("model.revision.derive", {
+        "context_ref": binding.context_ref,
+        "patches": [{"kind": "line", "selector": {"indices": [0]},
+                     "operation": "in_service", "value": False}],
+    })
+    flow = runtime.executor.invoke("analysis.powerflow.ac.run", {"context_ref": derived["context_ref"]})
+    provider = build_pandapower_thread_network_provider(context)
+    view = provider.project(claim, (flow["result_ref"],), tuple(flow["evidence_refs"]), ())
+    assert view["diagram"]["model"]["revision"] == binding.model_revision
+    annotations = view["layer"]["annotations"]
+    assert annotations["scene"]["model_revision"] == derived["revision_ref"]
+    assert annotations["states"][0]["ids"] == ["line:0"]
+    assert annotations["states"][0]["label"] == "已断开"
+    assert annotations["regions"]
+    assert normalize_thread_network_projection(view, claim, (flow["result_ref"],)) is not None
+    original = runtime.executor.invoke
+    def changed_geometry(capability, arguments):
+        response = original(capability, arguments)
+        if capability == "operator.diagram.get" and arguments["context_ref"] == derived["context_ref"]:
+            response = {**response, "branches": response["branches"][1:]}
+        return response
+    provider = build_pandapower_thread_network_provider(context)
+    provider._executor = SimpleNamespace(invoke=changed_geometry)
+    with pytest.raises(NetworkProjectionUnavailable, match="projection_model_mismatch"):
+        provider.project(claim, (flow["result_ref"],), tuple(flow["evidence_refs"]), ())
 
 
 def test_thread_ranking_focus_uses_the_exact_authority_subset(grid):
