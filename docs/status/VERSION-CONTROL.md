@@ -313,7 +313,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | 17 | research | docs/autonomous-delivery-records | dev | [由PR #19替代，状态见GitHub](https://github.com/uukuguy/capstone/pull/17) | 2411210的统一设计、首期计划和真实试用报告已保留并更新到PR #19文档收尾；不将旧版状态覆盖当前验收 |
 | 18 | autonomous | feat/autonomous-agent | dev | MERGED | 双平台PR38554449840、完整发布38554987581和合并后38558756435通过；合并faa6af9；统一研究循环、执行与结果证据、场景图层、模型资源和对话性能；两个demo同源注册回归及正式标签通过，整体科学业务验收仍开放 |
 | 19 | main | docs/dev-integration-closeout | dev | [检查与合并状态](https://github.com/uukuguy/capstone/pull/19) | 687ba80保存23项控制图、设计和审计记录；对齐已合入dev及两个demo验收，保留科学与交互缺口；双平台文档门禁通过是合入条件，替代旧PR #17；不更改运行来源 |
-| 20 | main | docs/capstone-cli-dev-trial-design | dev | [检查与合并状态](https://github.com/uukuguy/capstone/pull/20) | 统一CLI安装及本地固定dev临时试用的设计记录；Linux/macOS优先、Windows目标兼容；pip/npm或薄脚本建议，工件未实现；明确本地Compose＋Vite与云端Railway逐服务构建的现状 |
+| 20 | main | docs/capstone-cli-dev-trial-design | dev | [检查与合并状态](https://github.com/uukuguy/capstone/pull/20) | 用户不接触源码的固定dev镜像/Compose临时试用；Linux/macOS优先、Windows目标兼容；默认deepseek-flash、注释OpenAI及启动环境Key要求；部署包和可配置LLM未实现，现有四环境不变 |
 
 ## 全部分支进展
 

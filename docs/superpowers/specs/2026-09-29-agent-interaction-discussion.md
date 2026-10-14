@@ -424,6 +424,30 @@ Python 命令行工具可用 console entry point 暴露可执行命令，独立�
 
 仓库现有 `capstone-agent` 包仍通过 `capstone-agent` 命令进入应用，并依赖仓库内多个包。不能把它直接描述成已发布、独立可安装的 `capstone` 部署工具。统一 CLI 必须继续支持既有 `tui/chat/run` 客户端方向；本地部署属于 Application 管理功能，不成为模型可调用的 shell 工具，也不把领域计算依赖搬入 Kernel。
 
+### `.env` 默认LLM与用户凭据
+
+用户已确认：部署包的 `.env` 默认选择 `deepseek` / `deepseek-flash`，用户在启动环境中设置 `DEEPSEEK_API_KEY` 即可使用默认LLM；也可修改 `.env` 选择其他受支持的LLM。模板另外提供注释掉的OpenAI配置，并说明其所需的 `OPENAI_API_KEY`。
+
+以下是拟议模板的说明形式；OpenAI模型值在生成部署包时读取[Provider注册表](../../../configs/llm-providers.json)的 `openai.default_model`，不在设计文档重复维护变化中的型号：
+
+```dotenv
+# 默认LLM；在启动环境设置 DEEPSEEK_API_KEY，模板不填写凭据。
+CAPSTONE_PUBLIC_PROVIDER=deepseek
+CAPSTONE_PUBLIC_MODEL=deepseek-flash
+
+# 使用OpenAI：注释掉上方两行，启用下方两行，并设置 OPENAI_API_KEY。
+# CAPSTONE_PUBLIC_PROVIDER=openai
+# CAPSTONE_PUBLIC_MODEL=<生成时填入注册表中的OpenAI默认模型>
+```
+
+Key不作为CLI参数，也不填入发布的默认 `.env`。启动环境中的变量优先于 `.env` 默认值；模板不得用空Key或占位Key覆盖用户已设置的凭据。所选Provider所需凭据只传入必要的后端角色，不进入App构建、镜像、安装回执或日志。缺Key、Provider未知或模型不受支持时，给出变量名与修正方式，不输出值。
+
+修改 `.env` 中Provider/模型后，重新执行同一部署入口会明确应用LLM配置并重建必要的服务实例，保留数据库与用户数据；这不同于无提示地升级来源版本。默认Key已配置时，不额外要求用户经过浏览器Provider初始化向导。
+
+当前实现边界：现有 `configs/runtime/host-runtime-v1.json` 的共享启动合同固定DeepSeek及模型，`deploy/launch_host_runtime.py` 拒绝偏离共享配置；现有Compose主要映射DeepSeek凭据。因此“注释切换OpenAI即可运行”是本次试用包待实现的要求，并非现有入口已支持。需在Application部署配置中允许受支持的Provider/模型选择，按注册表映射凭据，并验证启动环境/文件的优先级；保留API/worker同来源、其余运行合同及Authority边界，不通过删除启动验证来达成可配置性。
+
+验收分别覆盖默认DeepSeek、注释切换OpenAI、启动环境覆盖默认值、缺Key和错误模型。静态配置及启动诊断可无Provider调用验证；真实LLM调用必须另获授权并单独记录，不在本轮讨论自动执行。
+
 ### 拟议的命令契约
 
 下列是设计示意，不是当前可运行的命令；参数拼写在 CLI 实施设计中收口。
