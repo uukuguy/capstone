@@ -32,7 +32,15 @@ def test_bundle_has_no_source_or_keys_and_uses_provider_registry(tmp_path, monke
     import hashlib
     (context / 'trial-context.json').write_text(json.dumps({'source_revision': source,
         'inputs': {name: hashlib.sha256((context / name).read_bytes()).hexdigest() for name in inputs}}))
-    module.write_bundle(context, tmp_path / 'bundle', source, images, ['linux/amd64', 'linux/arm64'])
+    platforms = ['linux/amd64', 'linux/arm64']
+    acceptance = {'schema': 'capstone-dev-trial-acceptance/1', 'source_revision': source,
+        'images': images, 'platforms': {platform: {key: 'passed' for key in ['readiness', 'cases', 'replay', 'restart', 'browser', 'anonymous_pull']} for platform in platforms},
+        'image_metadata': {key: {'reference': value, 'platforms': platforms,
+                                'source_revision': source if key in {'backend', 'app'} else None}
+                           for key, value in images.items()}}
+    with pytest.raises(ValueError, match='acceptance'):
+        module.write_bundle(context, tmp_path / 'unverified', source, images, platforms)
+    module.write_bundle(context, tmp_path / 'bundle', source, images, platforms, acceptance=acceptance)
     bundle = tmp_path / 'bundle'
     assert {p.name for p in bundle.iterdir()} == {'.env', '.env.example', 'release.env', 'manifest.json', 'compose.yaml', 'start.sh', 'README.txt'}
     text = (bundle / '.env').read_text()
@@ -41,9 +49,9 @@ def test_bundle_has_no_source_or_keys_and_uses_provider_registry(tmp_path, monke
     assert 'API_KEY=' not in text and '@OPENAI' not in text
     assert json.loads((bundle / 'manifest.json').read_text())['source_revision'] == source
     with pytest.raises(ValueError):
-        module.write_bundle(context, bundle, source, images, ['linux/amd64', 'linux/arm64'])
+        module.write_bundle(context, bundle, source, images, platforms, acceptance=acceptance)
     with pytest.raises(ValueError, match='source'):
-        module.write_bundle(context, tmp_path / 'wrong-source', 'c' * 40, images, ['linux/amd64', 'linux/arm64'])
+        module.write_bundle(context, tmp_path / 'wrong-source', 'c' * 40, images, platforms, acceptance=acceptance)
     (context / 'deploy/dev-trial/start.sh').write_text('tampered')
     with pytest.raises(ValueError, match='input'):
         module.write_bundle(context, tmp_path / 'changed-input', source, images, ['linux/amd64', 'linux/arm64'])

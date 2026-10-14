@@ -6,11 +6,13 @@ from functools import lru_cache
 import importlib.util
 import json
 import os
+import platform
 from pathlib import Path
 import re
 import secrets
 import stat
 import sys
+from urllib.request import urlopen
 
 
 class TrialConfigurationError(ValueError):
@@ -77,9 +79,36 @@ def validate_manifest(document: dict) -> dict:
 
 
 def verify_image_source(root: Path, manifest: dict) -> None:
+    manifest = validate_manifest(manifest)
     path = root / 'deploy/image-source.txt'
     if not path.is_file() or path.read_text().strip() != manifest['source_revision']:
         raise TrialConfigurationError('backend image source differs from the trial manifest')
+    architecture = {'x86_64': 'amd64', 'aarch64': 'arm64', 'arm64': 'arm64'}.get(platform.machine())
+    if 'linux/' + str(architecture) not in manifest['platforms']:
+        raise TrialConfigurationError('backend image platform differs from the trial manifest')
+
+
+def read_public_json(address: str) -> dict:
+    with urlopen(address, timeout=10) as response:
+        payload = response.read(8193)
+    if len(payload) > 8192:
+        raise TrialConfigurationError('public identity response is invalid')
+    document = json.loads(payload)
+    if not isinstance(document, dict):
+        raise TrialConfigurationError('public identity response is invalid')
+    return document
+
+
+def check_readiness(manifest: dict) -> dict:
+    manifest = validate_manifest(manifest)
+    app = read_public_json('http://app:3000/__capstone-build')
+    if (app.get('revision') != manifest['source_revision'] or app.get('environment') != 'local-dev'
+            or app.get('dirty') is not False):
+        raise TrialConfigurationError('App source differs from the trial manifest')
+    if read_public_json('http://api:8766/health/ready').get('status') != 'ready':
+        raise TrialConfigurationError('API is not ready')
+    return {'schema': 'capstone-dev-trial-ready/1', 'source_revision': manifest['source_revision'],
+            'status': 'deployment-ready'}
 
 
 @lru_cache(maxsize=4)
@@ -129,7 +158,7 @@ def record_installation(directory: Path, manifest: dict, instance: str = 'capsto
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=('init', 'check', 'record'))
+    parser.add_argument('command', choices=('init', 'check', 'record', 'ready'))
     parser.add_argument('--state', type=Path, default=Path('/state'))
     parser.add_argument('--manifest', type=Path, default=Path('/bundle/manifest.json'))
     args = parser.parse_args()
@@ -144,6 +173,10 @@ def main() -> int:
             result = validate_configuration(root, dict(os.environ), manifest)
             verify_image_source(root, manifest)
             print(json.dumps(result, sort_keys=True))
+        elif args.command == 'ready':
+            manifest = json.loads(args.manifest.read_text())
+            verify_image_source(root, manifest)
+            print(json.dumps(check_readiness(manifest), sort_keys=True))
         else:
             record_installation(args.state, json.loads(args.manifest.read_text()),
                                 os.environ.get('CAPSTONE_INSTANCE', 'capstone-user-local-dev'))

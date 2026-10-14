@@ -103,8 +103,27 @@ def prepare_context(root: Path, revision: str, output: Path, model_library: Path
     return {'source_revision': revision, 'backend_context': str(output), 'app_context': str(app)}
 
 
+def verify_acceptance(revision: str, images: dict, platforms: list[str], acceptance: dict | None) -> None:
+    if (not isinstance(acceptance, dict) or acceptance.get('schema') != 'capstone-dev-trial-acceptance/1'
+            or acceptance.get('source_revision') != revision or acceptance.get('images') != images
+            or set(acceptance.get('platforms', {})) != set(platforms)):
+        raise ValueError('Final bundle requires matching two-platform acceptance receipts')
+    for receipt in acceptance['platforms'].values():
+        if not isinstance(receipt, dict) or any(receipt.get(key) != 'passed'
+                for key in ['readiness', 'cases', 'replay', 'restart', 'browser', 'anonymous_pull']):
+            raise ValueError('Final platform acceptance is incomplete')
+    metadata = acceptance.get('image_metadata', {})
+    if set(metadata) != set(images):
+        raise ValueError('Final acceptance requires all image metadata')
+    for key, reference in images.items():
+        item = metadata[key]
+        if (not isinstance(item, dict) or item.get('reference') != reference or item.get('platforms') != platforms
+                or (key in {'backend', 'app'} and item.get('source_revision') != revision)):
+            raise ValueError('Final image acceptance differs from the source or platform manifests')
+
+
 def write_bundle(source: Path, output: Path, revision: str, images: dict,
-                 platforms: list[str], *, candidate: bool = False) -> dict:
+                 platforms: list[str], *, candidate: bool = False, acceptance: dict | None = None) -> dict:
     if output.exists() or output.is_symlink():
         raise ValueError('Bundle output already exists')
     if not re.fullmatch(r'[a-f0-9]{40}', revision) or set(images) != {'backend', 'app', 'postgres', 'objects'}:
@@ -124,6 +143,8 @@ def write_bundle(source: Path, output: Path, revision: str, images: dict,
     elif platforms != ['linux/amd64', 'linux/arm64'] or not all(
             re.fullmatch(r'[a-z0-9][a-z0-9._:/-]*@sha256:[a-f0-9]{64}', value) for value in images.values()):
         raise ValueError('Published bundle requires both platforms and exact image digests')
+    if not candidate:
+        verify_acceptance(revision, images, platforms, acceptance)
     output.mkdir(parents=True, mode=0o700)
     for name in ['compose.yaml', 'start.sh']:
         shutil.copyfile(source / 'deploy/dev-trial' / name, output / name)
@@ -138,7 +159,8 @@ def write_bundle(source: Path, output: Path, revision: str, images: dict,
     (output / 'manifest.json').write_text(json.dumps(document, indent=2, sort_keys=True) + '\n')
     names = {'backend': 'BACKEND', 'app': 'APP', 'postgres': 'POSTGRES', 'objects': 'OBJECTS'}
     (output / 'release.env').write_text(''.join('CAPSTONE_' + names[key] + '_IMAGE=' + value + '\n'
-                                              for key, value in images.items()))
+                                              for key, value in images.items())
+                                      + 'CAPSTONE_TRIAL_PLATFORM=' + (platforms[0] if candidate else '') + '\n')
     (output / 'README.txt').write_text(
         'Capstone temporary dev trial\nSource: ' + revision + '\n'
         'Requires Docker Engine or Docker Desktop with Docker Compose v2.\n'
@@ -158,10 +180,27 @@ def main() -> int:
     parser.add_argument('--source-revision', required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--model-library', type=Path)
+    parser.add_argument('--image-manifest', type=Path)
+    parser.add_argument('--bundle-output', type=Path)
+    parser.add_argument('--candidate-platform', choices=('linux/amd64', 'linux/arm64'))
+    parser.add_argument('--acceptance', type=Path)
     arguments = parser.parse_args()
     try:
-        print(json.dumps(prepare_context(arguments.root, arguments.source_revision, arguments.output,
-                                         arguments.model_library)))
+        context = prepare_context(arguments.root, arguments.source_revision, arguments.output,
+                                  arguments.model_library)
+        if arguments.image_manifest or arguments.bundle_output:
+            if not arguments.image_manifest or not arguments.bundle_output:
+                raise ValueError('Image manifest and bundle output must be supplied together')
+            identity = json.loads(arguments.image_manifest.read_text())
+            if identity.get('source_revision') != arguments.source_revision:
+                raise ValueError('Image manifest source differs')
+            output = _new_output(arguments.root, arguments.bundle_output)
+            acceptance = json.loads(arguments.acceptance.read_text()) if arguments.acceptance else None
+            write_bundle(Path(context['backend_context']), output, arguments.source_revision, identity['images'],
+                         [arguments.candidate_platform] if arguments.candidate_platform else ['linux/amd64', 'linux/arm64'],
+                         candidate=bool(arguments.candidate_platform), acceptance=acceptance)
+            context['bundle_output'] = str(output)
+        print(json.dumps(context))
     except (OSError, ValueError, subprocess.SubprocessError):
         parser.exit(1, 'Trial preparation failed: select an exact source and new ignored output.\n')
     return 0

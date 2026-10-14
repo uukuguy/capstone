@@ -24,6 +24,8 @@ for file in internal.env installation.json last-operation.log config-check.log; 
 done
 if [ ! -f "$base/.env" ]; then cp "$base/.env.example" "$base/.env"; fi
 image=$(sed -n 's/^CAPSTONE_BACKEND_IMAGE=//p' "$base/release.env")
+platform=$(sed -n 's/^CAPSTONE_TRIAL_PLATFORM=//p' "$base/release.env")
+case "$platform" in ''|linux/amd64|linux/arm64) ;; *) printf '%s\n' 'Unsupported trial platform.' >&2; exit 1 ;; esac
 case "$image" in
   registry.cn-beijing.aliyuncs.com/uukuguy/*@sha256:*|ghcr.io/uukuguy/*@sha256:*) ;;
   capstone-trial-backend*:*)
@@ -34,6 +36,7 @@ operation=${1:-up}
 case "$operation" in up|status|logs|stop) ;; *) printf '%s\n' 'Use up, status, logs or stop.' >&2; exit 1 ;; esac
 # Internal service credentials belong to this instance, not another shell session.
 unset POSTGRES_PASSWORD S3_ACCESS_KEY S3_SECRET_KEY CAPSTONE_OPERATOR_TOKEN
+unset CAPSTONE_BACKEND_IMAGE CAPSTONE_APP_IMAGE CAPSTONE_POSTGRES_IMAGE CAPSTONE_OBJECTS_IMAGE CAPSTONE_TRIAL_PLATFORM
 
 run_private() {
   if ! "$@" >"$state/last-operation.log" 2>&1; then
@@ -41,8 +44,11 @@ run_private() {
     return 1
   fi
 }
+docker_run() {
+  if [ -n "$platform" ]; then docker run --platform "$platform" "$@"; else docker run "$@"; fi
+}
 helper() {
-  docker run --rm --user "$(id -u):$(id -g)" \
+  docker_run --rm --user "$(id -u):$(id -g)" \
     -e CAPSTONE_CANDIDATE_VALIDATION="${CAPSTONE_CANDIDATE_VALIDATION:-0}" \
     -e CAPSTONE_INSTANCE="$instance" \
     -v "$state:/state" -v "$base/manifest.json:/bundle/manifest.json:ro" \
@@ -76,6 +82,21 @@ if [ "$operation" = up ]; then
   fi
   run_private helper record
   run_private compose up --wait --wait-timeout 240 -d
+  backend_id=''
+  for service in api worker worker-pypsa; do
+    container=$(compose ps -q "$service")
+    current=$(docker inspect --format '{{.Image}}' "$container")
+    if [ -z "$backend_id" ]; then backend_id=$current; fi
+    [ "$current" = "$backend_id" ] || { printf '%s\n' 'API and workers must use the same exact image.' >&2; exit 1; }
+  done
+  for service in api worker worker-pypsa app postgres objects; do
+    container=$(compose ps -q "$service")
+    current=$(docker inspect --format '{{.Image}}' "$container")
+    architecture=$(docker image inspect --format '{{.Architecture}}' "$current")
+    [ -z "$platform" ] || [ "$platform" = "linux/$architecture" ] || { printf '%s\n' 'Running image platform differs from the candidate manifest.' >&2; exit 1; }
+  done
+  run_private compose run --rm --no-deps --entrypoint /app/packages/capstone-agent/.venv/bin/python \
+    config-check /app/deploy/dev_trial_runtime.py ready
   printf '%s\n' 'Local-dev trial is ready. Inspect the App port in .env, then open http://127.0.0.1:<port>/.'
   compose ps
 elif [ -f "$state/internal.env" ]; then

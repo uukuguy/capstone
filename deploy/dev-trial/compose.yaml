@@ -28,12 +28,14 @@ x-worker-environment: &worker-environment
 
 x-backend: &backend
   image: ${CAPSTONE_BACKEND_IMAGE:?Release image manifest required}
+  platform: ${CAPSTONE_TRIAL_PLATFORM:-}
   restart: unless-stopped
   environment: *runtime-environment
 
 services:
   postgres:
     image: ${CAPSTONE_POSTGRES_IMAGE:?Release image manifest required}
+    platform: ${CAPSTONE_TRIAL_PLATFORM:-}
     restart: unless-stopped
     environment:
       POSTGRES_USER: capstone
@@ -48,6 +50,7 @@ services:
 
   objects:
     image: ${CAPSTONE_OBJECTS_IMAGE:?Release image manifest required}
+    platform: ${CAPSTONE_TRIAL_PLATFORM:-}
     restart: unless-stopped
     environment:
       RUSTFS_ACCESS_KEY: ${S3_ACCESS_KEY:?Local initialization required}
@@ -113,6 +116,7 @@ services:
 
   app:
     image: ${CAPSTONE_APP_IMAGE:?Release image manifest required}
+    platform: ${CAPSTONE_TRIAL_PLATFORM:-}
     restart: unless-stopped
     ports: ["127.0.0.1:${CAPSTONE_APP_PORT:-5173}:3000"]
     environment:
@@ -127,6 +131,7 @@ services:
 
   config-check:
     image: ${CAPSTONE_BACKEND_IMAGE:?Release image manifest required}
+    platform: ${CAPSTONE_TRIAL_PLATFORM:-}
     profiles: [tools]
     entrypoint: [/app/packages/capstone-agent/.venv/bin/python, /app/deploy/dev_trial_runtime.py, check]
     environment:

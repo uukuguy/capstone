@@ -69,7 +69,7 @@ assert selected['CAPSTONE_PUBLIC_MODEL'] == registry['providers']['openai']['def
 
 **Files:** deploy/build_dev_trial.py; tools/tests/test_build_dev_trial.py; deploy/dev-trial/README.md.
 
-- [ ] Test exact commit validation, new ignored output paths, symlink rejection, safe git archive extraction and exclusion of auth/var/runs/.env files.
+- [ ] Test exact commit validation, new ignored output paths, symlink rejection, safe git archive extraction and exclusion of authentication state, user data, run storage and environment files.
 - [ ] Prepare backend from exact git archive and stage the six verified official model assets; prepare App using Task2 helper. Require a clean accepted source, not a dirty tree.
 - [ ] Build images for linux/amd64 and linux/arm64 with Buildx, recording source labels. Default registry and repository names come from the accepted design. Tag each candidate with its full source identity; never overwrite an existing differing tag.
 - [ ] A publish operation must be explicitly selected; only verified source/platforms can become user bundle references. Inspect registry manifests and record both Linux platforms and exact digest per image class, copying the existing PG/RustFS dependency identity without rebuild.

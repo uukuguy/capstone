@@ -91,6 +91,17 @@ def test_check_rejects_an_image_built_from_another_commit(tmp_path):
     runtime.verify_image_source(tmp_path, manifest())
 
 
+def test_ready_check_requires_same_origin_app_source_and_ready_api(monkeypatch):
+    runtime = helper()
+    replies = {'http://app:3000/__capstone-build': {'revision': 'a' * 40, 'environment': 'local-dev', 'dirty': False},
+               'http://api:8766/health/ready': {'status': 'ready'}}
+    monkeypatch.setattr(runtime, 'read_public_json', lambda address: replies[address])
+    assert runtime.check_readiness(manifest())['status'] == 'deployment-ready'
+    replies['http://app:3000/__capstone-build']['revision'] = 'c' * 40
+    with pytest.raises(ValueError, match='App'):
+        runtime.check_readiness(manifest())
+
+
 def test_candidate_manifest_requires_explicit_operator_opt_in(monkeypatch):
     runtime = helper()
     candidate = manifest() | {'channel': 'dev-trial-candidate', 'platforms': ['linux/arm64'],
@@ -100,6 +111,17 @@ def test_candidate_manifest_requires_explicit_operator_opt_in(monkeypatch):
         runtime.validate_manifest(candidate)
     monkeypatch.setenv('CAPSTONE_CANDIDATE_VALIDATION', '1')
     assert runtime.validate_manifest(candidate)['channel'] == 'dev-trial-candidate'
+
+
+def test_candidate_image_architecture_must_match_its_manifest(tmp_path, monkeypatch):
+    runtime = helper()
+    (tmp_path / 'deploy').mkdir()
+    (tmp_path / 'deploy/image-source.txt').write_text('a' * 40)
+    monkeypatch.setenv('CAPSTONE_CANDIDATE_VALIDATION', '1')
+    candidate = manifest() | {'channel': 'dev-trial-candidate', 'platforms': ['linux/amd64']}
+    monkeypatch.setattr(runtime.platform, 'machine', lambda: 'aarch64')
+    with pytest.raises(ValueError, match='platform'):
+        runtime.verify_image_source(tmp_path, candidate)
 
 
 @pytest.mark.skipif(not shutil.which('docker'), reason='Docker CLI is required for real Compose interpolation')
@@ -149,3 +171,65 @@ def test_container_cli_missing_key_reports_only_the_required_variable(tmp_path):
     assert result.returncode == 1
     assert 'OPENAI_API_KEY' in result.stderr
     assert 'Traceback' not in result.stderr
+
+
+def test_shell_lifecycle_keeps_instances_private_and_handles_failed_start(tmp_path):
+    bundle = tmp_path / 'bundle'
+    bundle.mkdir()
+    for name in ['start.sh', 'compose.yaml']:
+        shutil.copyfile(ROOT / 'deploy/dev-trial' / name, bundle / name)
+    (bundle / '.env.example').write_text('CAPSTONE_PUBLIC_PROVIDER=deepseek\nCAPSTONE_PUBLIC_MODEL=deepseek-flash\n')
+    (bundle / 'manifest.json').write_text(json.dumps(manifest()))
+    (bundle / 'release.env').write_text('CAPSTONE_BACKEND_IMAGE=' + manifest()['images']['backend'] + '\nCAPSTONE_TRIAL_PLATFORM=linux/arm64\n')
+    binary = tmp_path / 'bin'
+    binary.mkdir()
+    fake = binary / 'docker'
+    fake.write_text('#!' + os.sys.executable + '\n' + r'''
+import json, os, sys
+from pathlib import Path
+args = sys.argv[1:]
+with open(os.environ['DOCKER_RECORD'], 'a') as output:
+    output.write(json.dumps({'args': args, 'provider': os.environ.get('CAPSTONE_PUBLIC_PROVIDER'),
+                            'image_override': 'CAPSTONE_BACKEND_IMAGE' in os.environ}) + '\n')
+if args[0] == 'run':
+    state = Path(next(value[:-7] for value in args if value.endswith(':/state')))
+    if args[-1] == 'init':
+        (state / 'internal.env').touch(exist_ok=True)
+    elif args[-1] == 'record':
+        (state / 'installation.json').write_text('{}')
+elif args[0] == 'compose' and '-f' in args:
+    command = args[args.index('-f') + 2:]
+    if command[0] == 'up' and os.environ.get('FAIL_START') == '1':
+        sys.exit(1)
+    if command[:2] == ['ps', '-q']:
+        print('owned-' + command[2])
+elif args[0] == 'inspect':
+    print('sha256:' + 'b' * 64)
+elif args[:2] == ['image', 'inspect']:
+    print('arm64')
+''')
+    fake.chmod(0o755)
+    record = tmp_path / 'docker.jsonl'
+    environment = os.environ | {'PATH': str(binary) + os.pathsep + os.environ['PATH'],
+        'DOCKER_RECORD': str(record), 'CAPSTONE_INSTANCE': 'capstone-user-first',
+        'CAPSTONE_PUBLIC_PROVIDER': 'openai', 'CAPSTONE_BACKEND_IMAGE': 'unsafe-override'}
+    result = subprocess.run(['sh', str(bundle / 'start.sh')], env=environment, capture_output=True, text=True)
+    assert result.returncode == 0 and 'trial is ready' in result.stdout
+    first = bundle / '.capstone-trial/capstone-user-first/internal.env'
+    assert first.exists()
+    calls = [json.loads(line) for line in record.read_text().splitlines()]
+    helpers = [call for call in calls if call['args'][0] == 'run']
+    assert all(call['args'][1:3] == ['--platform', 'linux/arm64'] for call in helpers)
+    assert all(not call['image_override'] and call['provider'] == 'openai' for call in helpers)
+    compose = next(call['args'] for call in calls if 'config' in call['args'])
+    files = [compose[index + 1] for index, value in enumerate(compose) if value == '--env-file']
+    assert files[-1] == str(first)
+    result = subprocess.run(['sh', str(bundle / 'start.sh')],
+        env=environment | {'CAPSTONE_INSTANCE': 'capstone-user-second', 'FAIL_START': '1'},
+        capture_output=True, text=True)
+    assert result.returncode != 0 and 'trial is ready' not in result.stdout
+    assert first.exists() and (bundle / '.capstone-trial/capstone-user-second/internal.env').exists()
+    result = subprocess.run(['sh', str(bundle / 'start.sh'), 'stop'], env=environment,
+                            capture_output=True, text=True)
+    assert result.returncode == 0 and first.exists()
+    assert not any('down' in json.loads(line)['args'] for line in record.read_text().splitlines())
