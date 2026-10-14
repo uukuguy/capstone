@@ -314,6 +314,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | 18 | autonomous | feat/autonomous-agent | dev | MERGED | 双平台PR38554449840、完整发布38554987581和合并后38558756435通过；合并faa6af9；统一研究循环、执行与结果证据、场景图层、模型资源和对话性能；两个demo同源注册回归及正式标签通过，整体科学业务验收仍开放 |
 | 19 | main | docs/dev-integration-closeout | dev | [检查与合并状态](https://github.com/uukuguy/capstone/pull/19) | 687ba80保存23项控制图、设计和审计记录；对齐已合入dev及两个demo验收，保留科学与交互缺口；双平台文档门禁通过是合入条件，替代旧PR #17；不更改运行来源 |
 | 20 | main | docs/capstone-cli-dev-trial-design | dev | [检查与合并状态](https://github.com/uukuguy/capstone/pull/20) | 用户不接触源码的固定dev镜像/Compose临时试用；Linux/macOS优先、Windows目标兼容；默认deepseek-flash、注释OpenAI及启动环境Key要求；部署包和可配置LLM未实现，现有四环境不变 |
+| 21 | main | docs/aliyun-default-trial-registry | dev | [检查与合并状态](https://github.com/uukuguy/capstone/pull/21) | 阿里北京ACR/uukuguy为默认公开拉取源，GHCR可选备用；只落实设计决定，不创建仓库、构建或上传镜像；镜像构成/体积/架构继续讨论 |
 
 ## 全部分支进展
 
@@ -329,6 +330,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | recovery/dev-control-pre-faa6af9 | 旧dev控制文档恢复引用 | 9472edf及2411210两项未推送文档提交保留；改动快照与stash另存 | 不作为运行来源；保留至文档整合完成 | main |
 | docs/dev-integration-closeout | 文档入dev收尾 | PR #19对齐控制图、部署/验收及设计审计记录，保存所有剩余根工作区文档 | 门禁通过后合入并关闭；运行来源不变 | main |
 | docs/capstone-cli-dev-trial-design | CLI部署讨论记录 | 用户本地临时dev试用；Linux/macOS优先、Windows目标兼容；pip/npm及脚本入口写入统一CLI设计 | 仅文档，安装包、脚本及部署工件未实现；按文档门禁接入dev | main |
+| docs/aliyun-default-trial-registry | 默认镜像仓库决定 | 用户已确认阿里北京ACR/uukuguy公开拉取为缺省，GHCR可选备用；只记录设计，不构建/发布镜像 | 文档门禁后接入dev；镜像构成、体积和架构仍在讨论 | main |
 | fix/deployment-answer-acceptance | 已撤回的回答增强候选 | 42a647b保留，archive/answer-recovery-before-rollback-20261012固定恢复点；未提交补丁已备份 | 人工回归失败；用户取消本轮增强；不得继续作为可靠基线或验收通过版本 | answers |
 | fix/stable-route-recovery | 已合入并关闭 | PR14源bc08169合入dev6ff7094；本地及远端引用关闭，refs/archive/20261012/fix-stable-route-recovery保存精确源 | 代码继续在dev维护；原七轮业务失败及新普通误路由保留，不重启撤回的任务闭环实现 | answers |
 | fix/deployment-answer-acceptance | 已撤回，来源保留 | PR13关闭；42a647b保留原分支及已推送archive/answer-recovery-before-rollback-20261012 | 不继续此候选；仅保留恢复和核对依据 | answers |
@@ -350,7 +352,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 项目 | 当前缺口 | 记录 |
 | --- | --- | --- |
-| CAPSTONE CLI 安装与本地 dev 试用 | 用户无需接触源码；我们固定dev并构建镜像，用户取Compose/配置/薄脚本启动；复用现有服务，Linux/macOS优先、Windows目标兼容；pip/npm为后续CLI分发方向，交付工件未实现，不更新demo | [CLI开发设计](../superpowers/specs/2026-09-29-agent-interaction-discussion.md#2026-10-14capstone-cli-安装与用户本地-dev-试用) |
+| CAPSTONE CLI 安装与本地 dev 试用 | 用户无需源码，固定dev镜像/Compose/配置/薄脚本；阿里北京ACR/uukuguy为默认公开拉取源，GHCR可选备用；默认DeepSeek、注释OpenAI；Linux/macOS优先，镜像方案仍在讨论，工件未实现，不更新demo | [CLI开发设计](../superpowers/specs/2026-09-29-agent-interaction-discussion.md#2026-10-14capstone-cli-安装与用户本地-dev-试用) |
 | 统一输入命令与快捷操作 | 独立前端增强包，覆盖 Capstone 各模式的必要快捷操作；先设计统一目录和交互，Pi 三个命令仅为局部原型 | 2026-10-11 用户范围确认；10-09 业务工作区资源设计 |
 | 独立 Case 模块产品接入 | 已有执行基础；当前对话入口未接入完整独立模块，范围需确认 | 核心演进讨论；10-09 资源验收 |
 | 启动与中途恢复体验 | 需测量复现，休眠策略和恢复方案未确定 | Issue #4 |
