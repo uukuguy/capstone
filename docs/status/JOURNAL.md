@@ -3089,3 +3089,4 @@ The following original entries were retained during document synchronization.
 - 用户要求完成文档入dev收尾并清理Git状态；建立docs/dev-integration-closeout，保留并核对所有剩余根工作区文档/审计记录，通过独立文档PR接入dev；不删除数据，运行来源仍faa6af9。
 - 687ba80保存23项文档与控制图，补齐dev合并及两个demo验收记录；PR #19接入dev并替代旧PR #17。
 - local-dev App切到已核对的faa6af9干净源码副本，身份与本地后端及demo保持原验收来源；控制文档提交不冒充产品更新，未重建数据库或改云端。
+- 4eb809c登记PR #19收尾入口，保留原门禁证据并固定已验收App身份，避免文档提交误报部署来源。
