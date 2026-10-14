@@ -19,6 +19,21 @@ it.each<AppEnvironment | null>(['local-dev', 'local-demo', 'cloud-dev', 'cloud-d
   expect(version.title).toContain('含未提交修改')
 })
 
+it('labels the frozen static local trial distinctly from the developer runtime', () => {
+  vi.stubEnv('PROD', true)
+  render(<AppVersion build={{ version: '0.1.0', revision: 'a'.repeat(40), dirty: false, environment: 'local-dev' }} />)
+  const version = screen.getByLabelText('App 版本')
+  expect(version.textContent).toBe('本地试用 · v0.1.0 · aaaaaaa')
+  expect(version.title).toContain('环境：本地试用')
+  expect(version.textContent).not.toContain('local-dev')
+})
+
+it('keeps the developer local-dev label in development', () => {
+  vi.stubEnv('PROD', false)
+  render(<AppVersion build={{ version: '0.1.0', revision: 'a'.repeat(40), dirty: false, environment: 'local-dev' }} />)
+  expect(screen.getByLabelText('App 版本').textContent).toBe('local-dev · v0.1.0 · aaaaaaa')
+})
+
 it('refreshes development environment and retains the label on focus', async () => {
   vi.stubEnv('MODE', 'development')
   vi.stubEnv('DEV', true)
