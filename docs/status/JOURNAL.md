@@ -3090,3 +3090,4 @@ The following original entries were retained during document synchronization.
 - 687ba80保存23项文档与控制图，补齐dev合并及两个demo验收记录；PR #19接入dev并替代旧PR #17。
 - local-dev App切到已核对的faa6af9干净源码副本，身份与本地后端及demo保持原验收来源；控制文档提交不冒充产品更新，未重建数据库或改云端。
 - 4eb809c登记PR #19收尾入口，保留原门禁证据并固定已验收App身份，避免文档提交误报部署来源。
+- 用户确认本次固定dev交付临时本地试用，Linux/macOS优先、Windows目标兼容；pip/npm及薄脚本入口归入CAPSTONE CLI设计，未实施或更改部署。

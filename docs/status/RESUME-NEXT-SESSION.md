@@ -2,6 +2,13 @@
 
 > Updated: 2026-10-14. Session remains active; recovery checkpoint.
 
+## Current discussion: user-local dev trial
+
+- PR #19 merged as c03277d; root dev and remote were aligned and clean, PR #17 and its superseded branch were closed. Recovery references and user data remain.
+- The user requests installation/deployment commands in the CAPSTONE CLI design. Users have development/deployment skills; Linux/macOS first, Windows desirable. pip/npm or a deployment script are preferred entry forms.
+- This delivery is a temporary trial of a frozen dev revision on the user's machine, not a stable release or a demo update. The CLI discussion records these requirements and proposed thin-script/Compose delivery; no installer, images or package publication has been implemented in this discussion.
+- The owner is `docs/superpowers/specs/2026-09-29-agent-interaction-discussion.md`, section “2026-10-14：CAPSTONE CLI 安装与用户本地 dev 试用”. Packaging, registry name, precise command spelling and Windows verification remain proposals. Do not silently turn the proposal into an approved implementation plan or replace the existing autonomous business worklist.
+
 ## Current source
 
 - PR #18 merged normally into dev `faa6af9b4a6fe567c559d0b68ab1c4e5aa1bd4fe`. Candidate2b6ae7b passed Linux/macOS PR and full-release checks; complete Git trees match. Post-merge dev CI38558756435 passed.

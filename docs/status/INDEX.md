@@ -1,5 +1,7 @@
 # docs/status INDEX
 
+2026-10-14：用户本地部署入口已记录到[CAPSTONE CLI开发设计](../superpowers/specs/2026-09-29-agent-interaction-discussion.md#2026-10-14capstone-cli-安装与用户本地-dev-试用)。本次是固定dev提交的临时试用；Linux/macOS优先、Windows目标兼容，pip/npm或部署脚本入口。当前仅设计记录，未打包或安装，现有四环境不变。
+
 当前：PR #18已合入dev faa6af9；候选、完整发布和合并后双平台检查通过。local-dev、local-demo与cloud-demo均运行该合并来源；两个demo完成三用例九轮、报告证据回放和旧Thread入口检查，原数据保留。正式标签demo-20261014-2028-faa6af9已推送并核对。cloud-dev24d9a32保持不变。
 
 文档入库通过PR #19，包含剩余23项控制/设计/审计记录；旧PR #17由此替代。控制文档提交推进dev HEAD，运行来源与demo标签仍为faa6af9。

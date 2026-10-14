@@ -382,6 +382,64 @@ This order will be refined into smaller independently reviewable specs and plans
 7. How should the single `capstone` executable expose headless, line-interactive, and TUI modes while keeping `capstone-agent` as the internal application package? `capstone-tui` remains a mode term rather than a package decision.
 8. What exact public Model Capability Profile SPI and trust/dependency model should be approved before moving the historical PyPSA and pandapower assemblies?
 
+## 2026-10-14：CAPSTONE CLI 安装与用户本地 dev 试用
+
+### 用户已确认的范围
+
+- 用户具备程序开发与部署能力；Linux/macOS 优先，尽量兼容 Windows。
+- 希望通过 `pip install`、`npm install` 一类常见入口，或一条部署脚本命令完成本地服务准备。安装及部署操作归入统一 CAPSTONE CLI 的开发设计。
+- 本次交付是临时将 dev 提供给用户试用。用户本地实例称为 `local-dev`；这不是稳定发布或现有 local-demo/cloud-demo 的升级，不要求先合入 main，也不以 demo 标签替代开发来源。
+- 当前只记录设计方向。以下命令、安装包和试用部署包尚未实现或发布，不作为可执行安装指南。
+
+### 建议的本次交付方式（尚未实施）
+
+优先提供版本化的薄部署脚本，复用 Compose 和经过检查的预构建镜像。脚本可下载固定的 dev 试用部署包、生成本机配置并启动服务；用户不必为试用构建整套多包工程。正式 CLI 安装分发后，该脚本调用同一部署实现，不长期维护第二套安装逻辑。
+
+在制作试用包时解析并冻结具体 dev 提交。不能让每位用户安装时重新解析移动中的 dev HEAD，也不能以 `latest` 镜像标签作为复现依据。记录精确来源、平台镜像摘要、模型资产校验和、启用功能、启动验证收据及已知缺口。用户反馈能对应到同一试用包；后续新试用包使用新身份，原收据保留。
+
+下载包或镜像的位置在实际交付时确定；没有发布工件前，不提供看似可用的远端安装命令。试用只操作用户机器的独立实例和数据，不能连接项目已有云端数据库、工件存储或 operator 凭据。无须因此重新部署现有四环境。
+
+### CLI 的安装分发方向
+
+| 入口 | 设计位置 | 状态 |
+| --- | --- | --- |
+| Python 包，支持 pip/独立工具环境 | 建议作为长期主入口，发布统一 `capstone` 可执行命令；CLI 安装不在宿主机安装全部 Authority/计算依赖 | 包布局与注册名称待核对，未发布 |
+| npm 包或一次性执行入口 | 备选分发形式；复用同一部署实现，若采用包装器必须明确它所需的 Python/二进制运行环境，不能暗中要求两套工具链 | 用户认可入口形式，具体实现待选择 |
+| 版本化部署脚本 | 建议用于本次临时 dev 试用；检测前置条件并调用相同部署流程 | 待实现与平台验证 |
+
+Python 命令行工具可用 console entry point 暴露可执行命令，独立工具环境可减少宿主依赖冲突，参见[PyPA 工具打包指南](https://packaging.python.org/en/latest/guides/creating-command-line-tools/)和[uv 工具安装](https://docs.astral.sh/uv/guides/tools/)。npm 提供[bin 命令入口](https://docs.npmjs.com/cli/v11/configuring-npm/package-json/#bin)，但入口机制本身不证明 Capstone 已具备跨平台分发。
+
+仓库现有 `capstone-agent` 包仍通过 `capstone-agent` 命令进入应用，并依赖仓库内多个包。不能把它直接描述成已发布、独立可安装的 `capstone` 部署工具。统一 CLI 必须继续支持既有 `tui/chat/run` 客户端方向；本地部署属于 Application 管理功能，不成为模型可调用的 shell 工具，也不把领域计算依赖搬入 Kernel。
+
+### 拟议的命令契约
+
+下列是设计示意，不是当前可运行的命令；参数拼写在 CLI 实施设计中收口。
+
+```text
+capstone deploy local-dev --channel dev-trial --revision <完整提交>
+capstone status local-dev
+capstone logs local-dev
+capstone stop local-dev
+```
+
+`deploy` 负责前置检查、取固定部署工件、初始化本机配置、启动、健康检查及输出访问地址。首次运行创建实例，重复运行同一版本复用配置和数据；发现现有版本不同，明确报告差异，进入单独的升级流程，不悄悄覆盖。`status` 显示精确来源、角色就绪、端口及已知缺口；停止服务保留数据。更新、备份、回滚和卸载沿用同一实例记录；卸载默认保留用户数据，删除数据必须是明确的独立操作。
+
+### 服务组成与平台边界
+
+用户试用包包含 App 静态服务、API、pandapower/PyPSA workers、PostgreSQL 与私有工件存储。优先采用 Compose，App 不依赖额外 Vite 开发进程。API/worker 固定同一精确来源或镜像，App 来源和模型资产一同登记。保留单一 `/api/v1` 客户端合同及现有四层所有权，不为试用另写执行链。
+
+Linux/macOS 的脚本入口应使用一致的参数和退出状态；预构建镜像按实际支持的 amd64/arm64 发布并验证，不能仅凭宿主操作系统宣称兼容。Windows 首先考虑 WSL2/Linux 容器路径，PowerShell 入口可随后包装相同安装流程；未完成真实验证前，只记录为目标支持。
+
+一条命令的前提是容器引擎与 Compose 可用。CLI 安装不等于数据库、worker 等服务已启动。缺前置条件时给出可操作的诊断，保留现场；不默默安装系统级组件、更改权限或要求重启。Provider 配置保存在本机后端保护配置，不能进入命令参数、输出、镜像或前端构建；用户自行选择并配置，包不携带开发者凭据。
+
+### 临时 dev 试用的验收
+
+- 在干净的目标系统验证安装、端口冲突提示、启动、状态查询、停止和再次启动。分别记录操作系统、CPU 架构及容器运行环境。
+- 检查 App、API 和两个 worker 的来源身份与就绪状态；保留同一实例的原数据，重复安装不创建重复服务或擦除配置。
+- 注册脚本用例、报告和证据回放用于基础服务验收；不默认调用 Provider。用户配置 Provider 后的真实问题试用另行记录，不把服务启动通过算作整体科学验收。
+- 部署失败不得登记为通过，不能获得正式 demo/cloud-dev 验收标签。本次可使用明确的 dev-trial 包身份和安装收据；它不推进稳定发布状态。
+- 打包与用户试用是后续工作项；本次设计记录不声明已有镜像、脚本、pip/npm 包或 Windows 验收。
+
 ## Design guardrails
 
 - Keep `Application -> Domain Pack -> Kernel -> registered Authority` ownership intact. Domain Packs admit semantic results; Authorities own numerical truth.
