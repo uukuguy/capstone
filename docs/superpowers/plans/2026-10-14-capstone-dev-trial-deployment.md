@@ -1,5 +1,36 @@
 # Capstone Dev Trial Deployment Implementation Plan
 
+## Current checkpoint — 2026-10-15
+
+Tasks 1–6 shipped through PR #22 at dev7832134. Both image platforms passed
+anonymous pull, source/readiness, three cases/nine turns, reports/evidence replay,
+restart and browser checks. The public dev-trial-20261015-7832134 release was
+installed by the user in ~/capstone. Older unchecked steps below describe the
+original implementation sequence, not pending delivery.
+
+Task 7 is active on fix/dev-trial-user-feedback. Existing user data is preserved.
+The original trial stays usable while the revised artifacts await verification.
+
+## Task 7: user-local management and shared-data compatibility
+
+- [x] Record user-local naming, Git selection, default latest, shared user data,
+  capstone.sh commands and compatibility as development/release responsibility.
+- [x] Verify production/developer App label separation: 24 tests and type check.
+- [x] Implement fixed installer that preserves existing config/receipts, stores
+  frozen versions, pulls four images with progress and calls the manager; six
+  isolated installer tests pass.
+- [ ] Complete manager with one stable data project, exact cached-version
+  selection, pre-stop compatibility/config checks and compatible restoration.
+- [ ] Generate source-bound data declarations; require old-data upgrade, reads,
+  replay and separately verified rollback receipts before publishing.
+- [ ] Review and run focused checks, full required integration gates and PR CI;
+  merge normally into dev before freezing revised runtime images.
+- [ ] Verify revised images and actual shared-data upgrade/revert in isolated
+  installations on both supported image platforms; keep real ~/capstone intact.
+- [ ] Publish immutable user-local-SHA assets, checksum catalog and latest entry;
+  update installable Git icons and browser-check the canonical control graph.
+- [ ] Integrate control records, verify real dev entry and clean task Git state.
+
 > Execute inline, task by task, with test-driven development and an independent code review before integration. Preserve other worktrees and all existing service data.
 
 **Goal:** Ship a fixed dev revision as four public image classes plus a source-free Compose bundle, defaulting to Aliyun Beijing, for linux/amd64 and linux/arm64.

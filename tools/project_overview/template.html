@@ -134,6 +134,7 @@ function draw(){
  graphStages.forEach(e=>{const stage=el('environment-node-'+e.name);stage.style.height='auto';if(!stage.dataset.ready){stage.innerHTML=deployment(e)+'<p class="muted">'+esc(environmentRoles[e.name])+'</p><details><summary>状态与验证记录</summary><p>'+esc(e.state)+'</p></details>';stage.querySelector('b').insertAdjacentHTML('afterbegin',icon(e.name.startsWith('local-')?'server':'cloud'));stage.dataset.ready='true';}});
  branches.forEach(n=>{const node=el('commit-'+n.id);node.style.height='auto';place(node,branchX,branchBottom,branchWidth);branchBottom+=node.offsetHeight+gap;});
  if(branches.length)place(pi,Math.max(12,mainX-piWidth-50),branchBottom,piWidth);
+ if(branches.length)place(pi,Math.max(12,mainX-piWidth-50),branchBottom,piWidth);
  let stageBottom=8;
  [...graphStages].sort((a,b)=>el('commit-'+sourceNode(a).id).offsetTop-el('commit-'+sourceNode(b).id).offsetTop).forEach(e=>{const stage=el('environment-node-'+e.name),source=el('commit-'+sourceNode(e).id);stageBottom=Math.max(stageBottom,source.offsetTop);place(stage,stageX,stageBottom,stageWidth);stageBottom+=stage.offsetHeight+12;});
  tree.style.height=Math.max(mainBottom,branchBottom,stageBottom,pi.offsetTop+pi.offsetHeight+8)+'px';

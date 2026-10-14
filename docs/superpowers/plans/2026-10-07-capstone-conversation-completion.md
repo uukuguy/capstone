@@ -1,6 +1,6 @@
 # Capstone Conversation Contract Completion
 
-2026-10-14用户指定当前交付先推进`dev-trial`无源码本地试用，执行[临时dev部署计划](2026-10-14-capstone-dev-trial-deployment.md)。四类镜像、AMD64/ARM64和默认阿里公开拉取已批准；运行合同/Compose/App/精确构建已在分支实现，实际镜像验收及dev合入待完成。原`autonomous`业务缺口保留，不因此记为通过；本次不推进main或更新既有cloud-dev/demo。
+2026-10-15当前交付为`dev-trial`用户反馈收尾，执行[临时dev部署计划Task 7](2026-10-14-capstone-dev-trial-deployment.md#task-7-user-local-management-and-shared-data-compatibility)。原试用经PR #22合入dev7832134，双架构镜像/无源码安装已公开验收并由用户安装。新增user-local标识、Git选择、capstone.sh管理、共享用户数据及升级/回退兼容门禁在fix/dev-trial-user-feedback实现中，未发布。原`autonomous`业务缺口保留；本次不推进main或更新既有cloud-dev/demo。
 
 2026-10-14 当前后继实施包为 `autonomous`，执行入口见
 [自主智能体首期计划](2026-10-12-autonomous-agent-first-delivery.md#2026-10-14-实现与验收记录对齐)。
