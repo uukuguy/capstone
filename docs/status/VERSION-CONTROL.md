@@ -314,6 +314,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | 18 | autonomous | feat/autonomous-agent | dev | MERGED | 双平台PR38554449840、完整发布38554987581和合并后38558756435通过；合并faa6af9；统一研究循环、执行与结果证据、场景图层、模型资源和对话性能；两个demo同源注册回归及正式标签通过，整体科学业务验收仍开放 |
 | 19 | main | docs/dev-integration-closeout | dev | [检查与合并状态](https://github.com/uukuguy/capstone/pull/19) | 687ba80保存23项控制图、设计和审计记录；对齐已合入dev及两个demo验收，保留科学与交互缺口；双平台文档门禁通过是合入条件，替代旧PR #17；不更改运行来源 |
 | 20 | main | docs/capstone-cli-dev-trial-design | dev | [检查与合并状态](https://github.com/uukuguy/capstone/pull/20) | 用户不接触源码的固定dev镜像/Compose临时试用；Linux/macOS优先、Windows目标兼容；默认deepseek-flash、注释OpenAI及启动环境Key要求；部署包和可配置LLM未实现，现有四环境不变 |
+| 21 | main | docs/aliyun-default-trial-registry | dev | [检查与合并状态](https://github.com/uukuguy/capstone/pull/21) | 阿里北京ACR/uukuguy为默认公开拉取源，GHCR可选备用；只落实设计决定，不创建仓库、构建或上传镜像；镜像构成/体积/架构继续讨论 |
 
 ## 全部分支进展
 

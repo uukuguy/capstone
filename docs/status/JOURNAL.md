@@ -3096,3 +3096,4 @@ The following original entries were retained during document synchronization.
 - 用户补充不接触源码，修正交付边界：我们固定dev构建镜像，用户拿Compose/配置/薄脚本启动；研发Compose＋Vite保留，试用包未实现。
 - 31af4db记录无源码dev试用交付边界；用户补充.env默认deepseek-flash、注释OpenAI和启动环境Key优先，现有固定启动合同的配置能力待实现。
 - PR #20已合入6d650ba；用户要求先讨论镜像，未启动实施。已有阿里北京ACR登录验证通过，用户确定其uukuguy命名空间为默认公开拉取源，未上传镜像。
+- 2d91850将阿里北京ACR缺省地址及公开拉取决定写入CLI设计，PR #21接入dev；不保存个人凭据，不构建或上传镜像。
