@@ -1,5 +1,7 @@
 # Capstone Conversation Contract Completion
 
+2026-10-14用户指定当前交付先推进`dev-trial`无源码本地试用，执行[临时dev部署计划](2026-10-14-capstone-dev-trial-deployment.md)。四类镜像、AMD64/ARM64和默认阿里公开拉取已批准；运行合同/Compose/App/精确构建已在分支实现，实际镜像验收及dev合入待完成。原`autonomous`业务缺口保留，不因此记为通过；本次不推进main或更新既有cloud-dev/demo。
+
 2026-10-14 当前后继实施包为 `autonomous`，执行入口见
 [自主智能体首期计划](2026-10-12-autonomous-agent-first-delivery.md#2026-10-14-实现与验收记录对齐)。
 实际研究状态、Pi接线、复杂指令、结果证据、场景图层和模型资源已有实现；

@@ -5,6 +5,7 @@ import json
 import stat
 import os
 import subprocess
+import shutil
 from pathlib import Path
 
 import pytest
@@ -98,6 +99,7 @@ def test_candidate_manifest_requires_explicit_operator_opt_in(monkeypatch):
     assert runtime.validate_manifest(candidate)['channel'] == 'dev-trial-candidate'
 
 
+@pytest.mark.skipif(not shutil.which('docker'), reason='Docker CLI is required for real Compose interpolation')
 def test_real_compose_interpolation_honors_startup_environment_and_worker_only_keys(tmp_path):
     private = helper().initialize_private_environment(tmp_path / 'state')
     release = tmp_path / 'release.env'

@@ -118,15 +118,16 @@ function draw(){
  const mains=graphNodes.filter(n=>n.lane==='main').sort((a,b)=>levels[b.id]-levels[a.id]);
  const branches=graphNodes.filter(n=>n.lane!=='main'&&n.id!=='pi').sort((a,b)=>levels[b.id]-levels[a.id]);
  // Keep the release spine at the canvas centre; use the right half for source-bound deployments.
- const mainWidth=branches.length?250:520,mainX=(width-mainWidth)/2,branchX=mainX+mainWidth+24,stageWidth=190,stageX=width-stageWidth,branchWidth=stageX-branchX-24;
+ const mainWidth=branches.length?400:520,mainX=(width-mainWidth)/2,stageWidth=190,stageX=width-stageWidth,branchWidth=Math.min(280,mainX-48),branchX=Math.max(12,mainX-branchWidth-50);
  let mainBottom=8,branchBottom=8;
  mains.forEach(n=>{const node=el('commit-'+n.id);node.style.height='auto';place(node,mainX,mainBottom,mainWidth);mainBottom+=node.offsetHeight+gap;});
  const pi=el('commit-pi'),piWidth=Math.min(280,mainX-48);pi.style.height='auto';place(pi,Math.max(12,mainX-piWidth-50),8,piWidth);
  graphStages.forEach(e=>{const stage=el('environment-node-'+e.name);stage.style.height='auto';if(!stage.dataset.ready){stage.innerHTML=deployment(e)+'<p class="muted">'+esc(environmentRoles[e.name])+'</p><details><summary>状态与验证记录</summary><p>'+esc(e.state)+'</p></details>';stage.querySelector('b').insertAdjacentHTML('afterbegin',icon(e.name.startsWith('local-')?'server':'cloud'));stage.dataset.ready='true';}});
  branches.forEach(n=>{const node=el('commit-'+n.id);node.style.height='auto';place(node,branchX,branchBottom,branchWidth);branchBottom+=node.offsetHeight+gap;});
+ if(branches.length)place(pi,Math.max(12,mainX-piWidth-50),branchBottom,piWidth);
  let stageBottom=8;
  [...graphStages].sort((a,b)=>el('commit-'+sourceNode(a).id).offsetTop-el('commit-'+sourceNode(b).id).offsetTop).forEach(e=>{const stage=el('environment-node-'+e.name),source=el('commit-'+sourceNode(e).id);stageBottom=Math.max(stageBottom,source.offsetTop);place(stage,stageX,stageBottom,stageWidth);stageBottom+=stage.offsetHeight+12;});
- tree.style.height=Math.max(mainBottom,branchBottom,stageBottom,pi.offsetHeight+8)+'px';
+ tree.style.height=Math.max(mainBottom,branchBottom,stageBottom,pi.offsetTop+pi.offsetHeight+8)+'px';
  const svg=el('edges');svg.setAttribute('viewBox','0 0 '+width+' '+tree.clientHeight);svg.innerHTML='';
  const edgeStyles={main:{color:'#426c60',width:1.8},branch:{color:'#83639b',width:1.4},reference:{color:'#9a794f',width:1.1}};
  svg.innerHTML='<defs>'+Object.entries(edgeStyles).map(([kind,style])=>'<marker id="arrow-'+kind+'" markerUnits="userSpaceOnUse" markerWidth="7" markerHeight="8" refX="5" refY="4" orient="auto"><path d="M1 1 L5 4 L1 7" fill="none" stroke="'+style.color+'" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></marker>').join('')+'</defs>';

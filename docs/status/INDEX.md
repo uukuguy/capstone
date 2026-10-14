@@ -1,6 +1,6 @@
 # docs/status INDEX
 
-2026-10-14：用户已同意四类镜像和linux/amd64、linux/arm64目标，执行[dev试用部署计划](../superpowers/plans/2026-10-14-capstone-dev-trial-deployment.md)。独立本地Provider配置与App镜像身份已通过针对性检查；部署包及双架构验收仍在实施，不改现有四环境。
+2026-10-14：用户已同意四类镜像和linux/amd64、linux/arm64目标，执行[dev试用部署计划](../superpowers/plans/2026-10-14-capstone-dev-trial-deployment.md)。6f29b29实现无源码Compose、受限Provider及精确Git构建；69项Python和15项App检查通过，候选镜像构建中。控制图新增当前焦点及真实dev祖先边；未合入、未发布，不改现有四环境。
 
 2026-10-14镜像分发决定：阿里云 `registry.cn-beijing.aliyuncs.com/uukuguy` 为用户试用的默认公开拉取源，GHCR可选备用；本地已有登录验证通过，两个新仓库及试用镜像尚未创建/发布验收。镜像构成、体积和架构继续讨论，见[CLI设计](../superpowers/specs/2026-09-29-agent-interaction-discussion.md#默认镜像仓库与公开分发)。
 

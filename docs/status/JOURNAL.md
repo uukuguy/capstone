@@ -3101,3 +3101,5 @@ The following original entries were retained during document synchronization.
 - 无源码Compose、私有实例初始化和源码校验通过66项Python检查；尚未构建、启动或公开发布试用镜像。
 - bfcc910提交无源码Compose及独立实例生命周期，阻止镜像源码不符和既有实例误用；候选验证不等于双架构验收。
 - 805ccbc提交精确Git构建上下文与无源码试用包生成器；实际构建准备发现合法策略链接，安全放行内部链接，仍拒绝越界。
+- 6f29b29修复构建上下文合法内部链接；69项Python通过；ARM64候选backend/App构建启动，六份模型资产验证后暂存。
+- 根推进图同步当前dev试用分支及真实祖先边；九节点两端间距无重叠/穿卡/箭头错位，独立边无交叉；四部署来源保留。
