@@ -154,6 +154,12 @@ App 默认也监听局域网接口，同一网络中的手机可打开 `http://<
 
 ## CLI 与兼容入口
 
+### 无源码本地dev试用
+
+临时dev试用包通过Docker Compose v2运行。包内只有部署文件，使用阿里云北京仓库的四类镜像；用户无需Git、Python、Node、源码工作区或Vite。在启动环境设置`DEEPSEEK_API_KEY`，然后在收到的部署包目录运行`./start.sh`。App默认监听本机loopback的5173端口。
+
+包内`.env`默认DeepSeek/deepseek-flash，并提供注释掉的OpenAI示例。切换时同时更改Provider和模型；OpenAI使用`OPENAI_API_KEY`。启动LLM环境变量优先于文件默认值。`./start.sh status`、`logs`和`stop`操作同一实例，停止保留数据。保留部署目录及私有`.capstone-trial/`状态。已验证来源、分发入口与平台状态见[试用运行说明](docs/RUNBOOK.md#source-free-local-dev-trial)和[版本台账](docs/status/VERSION-CONTROL.md)。
+
 CLI 可用于自动化和定向检查。完成安装后，可执行不调用 Provider 的 pandapower 查询：
 
 ```sh

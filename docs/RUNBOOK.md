@@ -94,6 +94,25 @@ HTTP 服务只监听 loopback，首次启动在忽略的 `.capstone-agent/` 状�
 
 ## Hosted App and deployment
 
+### Source-free local dev trial
+
+用户使用版本化的无源码部署包；开发者使用的Compose＋Vite路径保留。用户主机只需Docker及Compose v2。包默认从`registry.cn-beijing.aliyuncs.com/uukuguy`拉取固定摘要的backend、App、PostgreSQL和RustFS镜像。API与pandapower/PyPSA workers共用backend，静态App代理同源`/api/v1`。
+
+先在启动环境配置`DEEPSEEK_API_KEY`，再在包目录运行：
+
+```sh
+./start.sh
+./start.sh status
+./start.sh logs
+./start.sh stop
+```
+
+默认App入口`http://127.0.0.1:5173/`；端口已使用时，在`.env`修改`CAPSTONE_APP_PORT`。DeepSeek/deepseek-flash为默认；OpenAI示例在注释中，模型在生成包时从Provider注册表读取。切换Provider时同时修改Provider和模型，配置对应启动Key。启动LLM变量优先；发布镜像及内部数据库/存储/操作者凭据保持包或实例固定，不能由普通`.env`覆盖。Key只进入worker及配置检查容器，API/App不接收Key。
+
+实例默认名`capstone-user-local-dev`；额外实例设置以`capstone-user-`开头的`CAPSTONE_INSTANCE`并选择不同App端口。每实例私有配置位于`.capstone-trial/<instance>/`，权限0600；保留整个目录以重新连接原数据。停止不会删卷；再次启动相同来源保留数据。更换镜像/源码不属于LLM配置切换，来源保护会要求独立升级计划。运行失败的诊断保留在该私有目录，脚本不展开配置输出。
+
+本包是固定dev的临时试用，不更新既有cloud-dev/demo或local-demo，不属于main稳定发布。镜像实际平台、Windows/WSL2目标验证和发布入口以[版本台账](status/VERSION-CONTROL.md)为准。基础注册案例及服务就绪不代表整体科学验收；正常使用LLM由用户配置的Provider处理。操作员构建与发布步骤见[试用打包说明](../deploy/dev-trial/README.md)。
+
 ### Isolated local demo
 
 Recognition has separate backend settings: `CAPSTONE_RECOGNITION_PROVIDER`,

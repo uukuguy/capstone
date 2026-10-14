@@ -57,7 +57,7 @@ helper() {
 }
 compose() {
   docker compose --project-name "$instance" \
-    --env-file "$base/release.env" --env-file "$base/.env" --env-file "$state/internal.env" \
+    --env-file "$base/.env" --env-file "$base/release.env" --env-file "$state/internal.env" \
     -f "$base/compose.yaml" "$@"
 }
 

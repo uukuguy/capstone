@@ -160,6 +160,12 @@ The App also listens on the LAN by default: a phone on the same network can open
 
 ## CLI and compatibility entry points
 
+### Source-free local dev trial
+
+The temporary dev trial package runs with Docker Compose v2. It contains deployment files and uses four image classes from Aliyun Beijing; users do not need Git, Python, Node, a source checkout, or Vite. Set `DEEPSEEK_API_KEY` in the startup environment, then run `./start.sh` in the supplied package directory. The App opens on loopback port5173 by default.
+
+The supplied `.env` selects DeepSeek/deepseek-flash and includes a commented OpenAI alternative. Change both Provider and model together; use `OPENAI_API_KEY` for OpenAI. Startup LLM values override file defaults. `./start.sh status`, `logs`, and `stop` manage the same instance; stop keeps its data. Keep the deployment directory and private `.capstone-trial/` state. See [trial operations](docs/RUNBOOK.md#source-free-local-dev-trial) and the [version register](docs/status/VERSION-CONTROL.md) for verified source, distribution and platform status.
+
 The CLI remains useful for automation and focused checks. After setup, run an offline pandapower query:
 
 ```sh

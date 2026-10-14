@@ -234,6 +234,7 @@ elif args[:2] == ['image', 'inspect']:
     compose = next(call['args'] for call in calls if 'config' in call['args'])
     files = [compose[index + 1] for index, value in enumerate(compose) if value == '--env-file']
     assert files[-1] == str(first)
+    assert files[:-1] == [str(bundle / '.env'), str(bundle / 'release.env')]
     result = subprocess.run(['sh', str(bundle / 'start.sh')],
         env=environment | {'CAPSTONE_INSTANCE': 'capstone-user-second', 'FAIL_START': '1'},
         capture_output=True, text=True)
