@@ -4,6 +4,9 @@
 
 ## Current discussion: user-local dev trial
 
+- PR #20 merged as6d650ba; user then stopped implementation planning because image delivery had not been discussed. Continue that discussion before building or publishing a trial package.
+- Accepted registry decision: public anonymous pulls, default `registry.cn-beijing.aliyuncs.com/uukuguy`; backend/App repository names are capstone-backend/capstone-app. Existing Docker login was verified, but new repositories/images were not created or published. GHCR is an optional backup. Preserve credentials in managed local/CI authentication, never in delivered files. Image composition/size/platform support remains unconfirmed.
+
 - PR #19 merged as c03277d; root dev and remote were aligned and clean, PR #17 and its superseded branch were closed. Recovery references and user data remain.
 - The user requests installation/deployment commands in the CAPSTONE CLI design. Users have development/deployment skills; Linux/macOS first, Windows desirable. pip/npm or a deployment script are preferred entry forms.
 - This delivery is a temporary trial of a frozen dev revision on the user's machine, not a stable release or a demo update. The CLI discussion records these requirements and proposed thin-script/Compose delivery; no installer, images or package publication has been implemented in this discussion.
