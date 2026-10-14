@@ -231,6 +231,15 @@ print('runner '+op)
         p=Path(str(self.db)+'.ops')
         return p.read_text() if p.exists() else ''
 
+    def test_explicit_operator_candidate_mode_reaches_preflight_helper(self):
+        self.package(A)
+        result=self.run_manager(CAPSTONE_CANDIDATE_VALIDATION='1')
+        self.assertEqual(result.returncode,0,result.stderr)
+        calls=[json.loads(line) for line in Path(str(self.db)+'.args').read_text().splitlines()]
+        helpers=[args for args in calls if args[0]=='run']
+        self.assertTrue(helpers)
+        self.assertTrue(all('CAPSTONE_CANDIDATE_VALIDATION=1' in args for args in helpers))
+
     def test_url_uses_default_or_startup_override_port(self):
         self.package(A)
         (self.root/'.env').write_text('')

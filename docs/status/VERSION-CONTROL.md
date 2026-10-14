@@ -253,7 +253,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
-| user-local | c58f10c | feature | user-local · 版本管理与共享数据兼容 | 已实现，完整集成与发布待验收 | Git选择和capstone.sh共享数据管理；停止前兼容/配置检查；115项专项、24项App/类型与doctor通过，复审重要问题已修正；新包未发布 | dev-trial |
+| user-local | 4110a44 | feature | user-local · 版本管理与共享数据兼容 | 已实现，PR #23集成检查中 | Git选择和capstone.sh共享数据管理；停止前兼容/配置检查；摘要镜像发现及实际端口回归通过；隔离旧版数据接管保留，跨版本升级/回退待验收；新包未发布 | dev-trial |
 | dev-trial | 7832134 | main | dev · 用户试用交付合并基线 | 已合入，公开试用包已验证 | 无源码Compose、受限Provider、同源App、私有实例及精确源码/镜像检查；最终双架构各三案例九轮/回放/重启/浏览器、匿名拉取与公开安装入口通过；标签dev-trial-20261015-7832134 | dev-trial |
 | cloud | ed2524f | main | 线上运行能力 | 已发布 | 电网静态分析、智能体对话、工作台与结果证据；当前用户试用起点 | live |
 | baseline | a076b04 | main | 运行基线重整与本地隔离 | 已验收 | ed2524f → a076b04：实验 Pi/skills 与未验收回答实现移出运行代码；修正模型拓扑/历史接口；建立隔离 local-demo | main |
@@ -313,6 +313,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | 编号 | 工作包 | 来源 | 目标 | 状态 | 交付范围 |
 | --- | --- | --- | --- | --- | --- |
 | 22 | dev-trial | feat/dev-trial-deployment | dev | MERGED | 双平台38596540476通过，正常合并7832134；最终双架构镜像、匿名拉取、三案例九轮/回放/重启/浏览器及公开安装包通过；本地/远端实施分支已关闭，恢复引用和数据保留 |
+| 23 | dev-trial | fix/dev-trial-user-feedback | dev | DRAFT | user-local标识、Git选择、capstone.sh共享数据管理及兼容发布门禁；完整本地与Linux/macOS检查运行，真实旧数据升级/回退与新包待发布 |
 | 6 | foundation | feat/issue-operational-readiness | main | MERGED | 对话连续阅读、执行租约修复、环境身份、反馈接入与检查加固；cfd6ad6 两平台检查与审查通过，合并 c3b78bc；云端未发布 |
 | 9 | answers | feat/task-answer-closure | main | MERGED | 精确2473e48两平台CI通过；合并f7baef3，树与验收源码一致；人工验收和云发布单列 |
 | 10 | foundation | chore/iteration-gates | main | MERGED | 精确513a35e两平台CI通过，约32/26分钟；合并723b8e8；本地迭代/PR/发布门禁分层 |

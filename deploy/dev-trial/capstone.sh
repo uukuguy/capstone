@@ -427,6 +427,7 @@ platform=$(sed -n 's/^CAPSTONE_TRIAL_PLATFORM=//p' "$packages/$selected/release.
 case "$platform" in ''|linux/amd64|linux/arm64) ;; *) fail 'Unsupported trial platform.';; esac
 helper() {
     set -- --rm --user "$(id -u):$(id -g)" -e "CAPSTONE_INSTANCE=$stable_project" \
+        -e "CAPSTONE_CANDIDATE_VALIDATION=${CAPSTONE_CANDIDATE_VALIDATION:-0}" \
         -v "$target_state:/state" -v "$packages/$selected/manifest.json:/bundle/manifest.json:ro" \
         --entrypoint /app/packages/capstone-agent/.venv/bin/python "$backend" /app/deploy/dev_trial_runtime.py "$1"
     if [ -n "$platform" ]; then docker run --platform "$platform" "$@"; else docker run "$@"; fi
@@ -483,4 +484,6 @@ mv "$work/active" "$meta/active"
 cp "$packages/$selected/data-contract.env" "$work/data-contract.env"
 mv "$work/data-contract.env" "$meta/data-contract.env"
 printf 'User-local ready: http://127.0.0.1:%s/\nInstallation: %s\nRunning Git: %.7s\n' "$port" "$root" "$selected"
-printf '%s\n' 'Services: capstone.sh status | logs | stop | versions | use Git | install Git' 'Change CAPSTONE_APP_PORT in the shared .env to select the App port.'
+printf 'Manage: sh "%s/capstone.sh" <command>\n' "$root"
+printf '%s\n' 'Commands: start | status | logs | stop | versions | use <Git> | install [Git]'
+printf 'Port: CAPSTONE_APP_PORT in "%s/.env". Keep the LLM Key in the startup environment. Stop preserves data.\n' "$root"
