@@ -2,6 +2,15 @@
 
 > Updated: 2026-10-14. Session remains active; recovery checkpoint.
 
+## Current discussion: user-local dev trial
+
+- PR #19 merged as c03277d; root dev and remote were aligned and clean, PR #17 and its superseded branch were closed. Recovery references and user data remain.
+- The user requests installation/deployment commands in the CAPSTONE CLI design. Users have development/deployment skills; Linux/macOS first, Windows desirable. pip/npm or a deployment script are preferred entry forms.
+- This delivery is a temporary trial of a frozen dev revision on the user's machine, not a stable release or a demo update. The CLI discussion records these requirements and proposed thin-script/Compose delivery; no installer, images or package publication has been implemented in this discussion.
+- The owner is `docs/superpowers/specs/2026-09-29-agent-interaction-discussion.md`, section “2026-10-14：CAPSTONE CLI 安装与用户本地 dev 试用”. Packaging, registry name, precise command spelling and Windows verification remain proposals. Do not silently turn the proposal into an approved implementation plan or replace the existing autonomous business worklist.
+- Latest correction: users must not touch source. We freeze dev and build the backend/App images; users receive Compose/configuration/a thin script and start containers, without Git, Python/Node setup, source build or Vite. Reuse existing services and contracts. The developer Compose+Vite lane remains. Local App environment/API configuration, artifact distribution and platform verification are still proposals; no trial package has been built in this discussion. pip/npm publication is not a prerequisite.
+- Accepted `.env` direction: deepseek/deepseek-flash by default; comment an OpenAI alternative whose model comes from the Provider registry. Users supply DEEPSEEK_API_KEY or OPENAI_API_KEY through startup environment, which wins over file defaults. No key placeholders or browser Provider setup are required. Current hosted runtime still pins DeepSeek; other-provider selection, credential mapping and precedence need implementation and verification before claiming the trial package supports them.
+
 ## Current source
 
 - PR #18 merged normally into dev `faa6af9b4a6fe567c559d0b68ab1c4e5aa1bd4fe`. Candidate2b6ae7b passed Linux/macOS PR and full-release checks; complete Git trees match. Post-merge dev CI38558756435 passed.
