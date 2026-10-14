@@ -273,7 +273,7 @@ if [ -f "$marker_path" ]; then
 elif [ -n "$active" ]; then fail 'Existing data requires its data contract.'
 fi
 # Discover actual immutable image IDs, then require all four exact package refs.
-docker image ls --no-trunc --quiet > "$work/images" || fail 'Cannot list cached Docker images.'
+docker image ls --all --no-trunc --quiet > "$work/images" || fail 'Cannot list cached Docker images.'
 : > "$work/discovered"
 sort -u "$work/images" > "$work/ids"
 while IFS= read -r image; do
@@ -393,8 +393,8 @@ else
 fi
 safe "$root/.env"
 [ -f "$root/.env" ] || fail 'The shared .env is missing.'
-port=$(sed -n 's/^CAPSTONE_APP_PORT=//p' "$root/.env")
-[ -n "$port" ] || port=5173
+port=${CAPSTONE_APP_PORT:-$(sed -n 's/^CAPSTONE_APP_PORT=//p' "$root/.env")}
+[ -n "$port" ] || port=19173
 case "$port" in *[!0-9]*) fail 'CAPSTONE_APP_PORT must be a port number.';; esac
 [ "${#port}" -le 5 ] && [ "$port" -ge 1 ] && [ "$port" -le 65535 ] || fail 'CAPSTONE_APP_PORT is outside 1 to 65535.'
 cp "$root/.env" "$work/env"

@@ -32,7 +32,7 @@ import json, os, sys
 p=os.environ['FAKE_DB']; d=json.load(open(p)); a=sys.argv[1:]
 with open(p+'.args','a') as f: f.write(json.dumps(a)+'\\n')
 if a[:2]==['compose','version']: print('fake compose')
-elif a[:2]==['image','ls']: print('\\n'.join(sorted(set(i['id'] for i in d['images'].values()))))
+elif a[:2]==['image','ls']: print('\\n'.join(sorted(set(i['id'] for i in d['images'].values() if '--all' in a or not i.get('digest_only')))))
 elif a[:2]==['image','inspect']:
  i=d['images'].get(a[-1]) or next((i for i in d['images'].values() if i['id']==a[-1]),None)
  if not i: sys.exit(1)
@@ -230,6 +230,25 @@ print('runner '+op)
     def ops(self):
         p=Path(str(self.db)+'.ops')
         return p.read_text() if p.exists() else ''
+
+    def test_url_uses_default_or_startup_override_port(self):
+        self.package(A)
+        (self.root/'.env').write_text('')
+        result=self.run_manager()
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertIn('http://127.0.0.1:19173/',result.stdout)
+        result=self.run_manager(CAPSTONE_APP_PORT='30173')
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertIn('http://127.0.0.1:30173/',result.stdout)
+
+    def test_digest_only_pulled_images_are_discovered(self):
+        self.package(A)
+        data=json.loads(self.db.read_text())
+        for image in data['images'].values(): image['digest_only']=True
+        self.db.write_text(json.dumps(data))
+        result=self.run_manager()
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertIn(A[:7],result.stdout)
 
     def test_default_starts_newest_cached_not_catalog_first(self):
         self.package(A); self.package(C, '2026-10-12T00:00:00Z'); self.package(B,cached=False)
