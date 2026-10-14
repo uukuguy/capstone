@@ -69,9 +69,9 @@ def validate_manifest(document: dict) -> dict:
     images = document.get('images')
     if not isinstance(images, dict) or set(images) != {'backend', 'app', 'postgres', 'objects'}:
         raise TrialConfigurationError('trial requires four image classes')
-    for reference in images.values():
+    for name, reference in images.items():
         if candidate and isinstance(reference, str) and re.fullmatch(
-                r'capstone-trial-[a-z-]+:' + document['source_revision'], reference):
+                r'capstone-trial-' + name + r'(?:-amd64|-arm64)?:' + document['source_revision'], reference):
             continue
         if not isinstance(reference, str) or not re.fullmatch(r'[a-z0-9][a-z0-9._:/-]*@sha256:[a-f0-9]{64}', reference):
             raise TrialConfigurationError('trial image references must use exact digests')

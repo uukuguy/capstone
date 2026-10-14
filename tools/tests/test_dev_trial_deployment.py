@@ -124,6 +124,16 @@ def test_candidate_image_architecture_must_match_its_manifest(tmp_path, monkeypa
         runtime.verify_image_source(tmp_path, candidate)
 
 
+def test_candidate_accepts_distinct_amd64_image_tags(monkeypatch):
+    runtime = helper()
+    monkeypatch.setenv('CAPSTONE_CANDIDATE_VALIDATION', '1')
+    candidate = manifest() | {'channel': 'dev-trial-candidate', 'platforms': ['linux/amd64'],
+        'images': {key: 'capstone-trial-' + key + '-amd64:' + 'a' * 40 for key in manifest()['images']}}
+    assert runtime.validate_manifest(candidate)['platforms'] == ['linux/amd64']
+    with pytest.raises(ValueError):
+        runtime.validate_manifest(candidate | {'images': candidate['images'] | {'backend': 'capstone-trial-backend-amd65:' + 'a' * 40}})
+
+
 @pytest.mark.skipif(not shutil.which('docker'), reason='Docker CLI is required for real Compose interpolation')
 def test_real_compose_interpolation_honors_startup_environment_and_worker_only_keys(tmp_path):
     private = helper().initialize_private_environment(tmp_path / 'state')
