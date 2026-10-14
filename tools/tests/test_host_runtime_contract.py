@@ -20,6 +20,36 @@ def environment(application="capstone", stage="local"):
             "DEEPSEEK_API_KEY": "test-value-never-log"}
 
 
+def test_startup_logs_the_same_secret_free_receipt_saved_for_acceptance(tmp_path, monkeypatch, capsys):
+    import json
+    import os
+    contract, role, spec, settings = RUNTIME.select_runtime(ROOT, environment("pandapower"), "worker")
+    contract_path = tmp_path / "configs/runtime/host-runtime-v1.json"
+    contract_path.parent.mkdir(parents=True)
+    contract_path.write_bytes((ROOT / "configs/runtime/host-runtime-v1.json").read_bytes())
+    monkeypatch.setattr(RUNTIME, "__file__", str(tmp_path / "deploy/launch_host_runtime.py"))
+    monkeypatch.setattr(RUNTIME.sys, "argv", ["launch_host_runtime.py", "worker"])
+    monkeypatch.setattr(RUNTIME, "select_runtime", lambda *args: (contract, role, spec, settings))
+    monkeypatch.setattr(RUNTIME, "artifact_identity", lambda *args, **kwargs: "verified-artifact")
+
+    class RuntimeStarted(Exception):
+        pass
+
+    def start(*args):
+        raise RuntimeStarted
+
+    monkeypatch.setattr(os, "execve", start)
+    with pytest.raises(RuntimeStarted):
+        RUNTIME.main()
+    output = capsys.readouterr()
+    line = next(line for line in output.err.splitlines() if line.startswith("Host runtime receipt: "))
+    receipt = json.loads(line.removeprefix("Host runtime receipt: "))
+    assert receipt == json.loads((tmp_path / ".capstone-agent/host-runtime.json").read_text())
+    assert receipt["source_artifact_sha256"] == "verified-artifact"
+    assert "test-value-never-log" not in output.err + output.out
+    assert "DEEPSEEK_API_KEY" not in output.err + output.out
+
+
 @pytest.mark.parametrize("application,command", [("capstone", "api"), ("pandapower", "worker"), ("pypsa", "worker")])
 def test_local_and_cloud_select_same_runtime(application, command):
     local = RUNTIME.select_runtime(ROOT, environment(application), command)

@@ -159,6 +159,7 @@ def main() -> int:
         path.write_text(json.dumps(receipt, sort_keys=True))
         path.chmod(0o600)
         print("Host runtime contract accepted: " + role + " " + receipt["contract_sha256"], file=sys.stderr, flush=True)
+        print("Host runtime receipt: " + json.dumps(receipt, sort_keys=True), file=sys.stderr, flush=True)
         executable = str(root / "packages" / spec["project"] / ".venv/bin/python")
         os.execve(executable, [executable, "-m", spec["module"]], environment)
     except (OSError, ValueError, KeyError) as error:

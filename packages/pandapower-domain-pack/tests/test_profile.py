@@ -68,7 +68,8 @@ def test_model_catalog_and_context_open_descriptions_separate_ids_from_sources()
     assert "source is provenance metadata only" in model_list
     assert "must not be passed as model_id" in model_list
     assert "exact model field returned by model.list" in context_open
-    assert "source strings such as pandapower.networks.case39" in context_open
+    assert "source strings are provenance metadata" in context_open
+    assert "must not be passed as model_id" in context_open
     model_id_schema = context_document.input_schema["properties"]["model_id"]
     model_id_description = model_id_schema["description"].lower()
     assert "exact model field returned by model.list" in model_id_description

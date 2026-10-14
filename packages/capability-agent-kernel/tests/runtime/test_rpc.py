@@ -200,24 +200,34 @@ print(json.dumps({'type':'agent_end','messages':[]}), flush=True)
         trace.close()
 
 
-def test_model_step_budget_keeps_a_streaming_public_report(tmp_path):
-    script = tmp_path / "stream-report.py"
-    script.write_text('''import json, time
-input()
-print(json.dumps({'type':'prompt_ack','ok':True}), flush=True)
-for text in ['report ', 'from ', 'saved ', 'results']:
- print(json.dumps({'type':'text_delta','text':text}), flush=True)
- time.sleep(.03)
-print(json.dumps({'type':'agent_end','messages':[]}), flush=True)
-''')
+def test_model_step_budget_keeps_a_streaming_public_report(tmp_path, monkeypatch):
+    from io import BytesIO
+    from types import SimpleNamespace
+    from capability_agent.runtime import rpc
+
+    clock = [0.0]
+    events = iter([
+        {'type': 'prompt_ack', 'ok': True},
+        *({'type': 'text_delta', 'text': text} for text in ['report ', 'from ', 'saved ', 'results']),
+        {'type': 'agent_end', 'messages': []},
+    ])
+
+    class Stream:
+        def get(self, timeout):
+            assert timeout >= .03
+            clock[0] += .03
+            return json.dumps(next(events)).encode()
+
+    monkeypatch.setattr(rpc.time, "monotonic", lambda: clock[0])
     trace = JsonlTraceWriter(tmp_path / "trace.jsonl")
-    client = PiRpcClient(PiLaunch(argv=(sys.executable, str(script)), environment={}), _Workspace(tmp_path), trace)
-    client.start()
+    client = PiRpcClient(PiLaunch(argv=(sys.executable,), environment={}), _Workspace(tmp_path), trace)
+    client.process = SimpleNamespace(stdin=BytesIO())
+    client._stdout_lines = Stream()
     try:
         assert client.prompt_and_wait("report", model_idle_seconds=.05, timeout_seconds=1) == "report from saved results"
         assert not client.last_prompt_interrupted
+        assert clock[0] > .05
     finally:
-        client.stop()
         trace.close()
 
 
