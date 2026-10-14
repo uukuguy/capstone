@@ -8,6 +8,7 @@
 - The user requests installation/deployment commands in the CAPSTONE CLI design. Users have development/deployment skills; Linux/macOS first, Windows desirable. pip/npm or a deployment script are preferred entry forms.
 - This delivery is a temporary trial of a frozen dev revision on the user's machine, not a stable release or a demo update. The CLI discussion records these requirements and proposed thin-script/Compose delivery; no installer, images or package publication has been implemented in this discussion.
 - The owner is `docs/superpowers/specs/2026-09-29-agent-interaction-discussion.md`, section “2026-10-14：CAPSTONE CLI 安装与用户本地 dev 试用”. Packaging, registry name, precise command spelling and Windows verification remain proposals. Do not silently turn the proposal into an approved implementation plan or replace the existing autonomous business worklist.
+- Latest correction: users must not touch source. We freeze dev and build the backend/App images; users receive Compose/configuration/a thin script and start containers, without Git, Python/Node setup, source build or Vite. Reuse existing services and contracts. The developer Compose+Vite lane remains. Local App environment/API configuration, artifact distribution and platform verification are still proposals; no trial package has been built in this discussion. pip/npm publication is not a prerequisite.
 
 ## Current source
 

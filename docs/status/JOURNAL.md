@@ -3091,3 +3091,6 @@ The following original entries were retained during document synchronization.
 - local-dev App切到已核对的faa6af9干净源码副本，身份与本地后端及demo保持原验收来源；控制文档提交不冒充产品更新，未重建数据库或改云端。
 - 4eb809c登记PR #19收尾入口，保留原门禁证据并固定已验收App身份，避免文档提交误报部署来源。
 - 用户确认本次固定dev交付临时本地试用，Linux/macOS优先、Windows目标兼容；pip/npm及薄脚本入口归入CAPSTONE CLI设计，未实施或更改部署。
+- 97fbe91将用户本地dev试用安装约束写入统一CLI设计；PR #20保存当前Compose/Vite与Railway分服务部署事实，避免承诺未实现的一键入口。
+- 用户确认临时dev试用直接复用本地源码部署，薄脚本封装环境/模型资产准备和规范重建，保持Compose＋Vite；全容器化和pip/npm发布不作前置。
+- 用户补充不接触源码，修正交付边界：我们固定dev构建镜像，用户拿Compose/配置/薄脚本启动；研发Compose＋Vite保留，试用包未实现。

@@ -313,6 +313,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | 17 | research | docs/autonomous-delivery-records | dev | [由PR #19替代，状态见GitHub](https://github.com/uukuguy/capstone/pull/17) | 2411210的统一设计、首期计划和真实试用报告已保留并更新到PR #19文档收尾；不将旧版状态覆盖当前验收 |
 | 18 | autonomous | feat/autonomous-agent | dev | MERGED | 双平台PR38554449840、完整发布38554987581和合并后38558756435通过；合并faa6af9；统一研究循环、执行与结果证据、场景图层、模型资源和对话性能；两个demo同源注册回归及正式标签通过，整体科学业务验收仍开放 |
 | 19 | main | docs/dev-integration-closeout | dev | [检查与合并状态](https://github.com/uukuguy/capstone/pull/19) | 687ba80保存23项控制图、设计和审计记录；对齐已合入dev及两个demo验收，保留科学与交互缺口；双平台文档门禁通过是合入条件，替代旧PR #17；不更改运行来源 |
+| 20 | main | docs/capstone-cli-dev-trial-design | dev | [检查与合并状态](https://github.com/uukuguy/capstone/pull/20) | 统一CLI安装及本地固定dev临时试用的设计记录；Linux/macOS优先、Windows目标兼容；pip/npm或薄脚本建议，工件未实现；明确本地Compose＋Vite与云端Railway逐服务构建的现状 |
 
 ## 全部分支进展
 
@@ -349,7 +350,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 项目 | 当前缺口 | 记录 |
 | --- | --- | --- |
-| CAPSTONE CLI 安装与本地 dev 试用 | 用户具备开发部署能力；Linux/macOS优先、Windows目标兼容；本次固定dev提交临时试用，建议薄部署脚本，pip/npm作为统一CLI分发方向；工件与命令尚未实现，不更新demo | [CLI开发设计](../superpowers/specs/2026-09-29-agent-interaction-discussion.md#2026-10-14capstone-cli-安装与用户本地-dev-试用) |
+| CAPSTONE CLI 安装与本地 dev 试用 | 用户无需接触源码；我们固定dev并构建镜像，用户取Compose/配置/薄脚本启动；复用现有服务，Linux/macOS优先、Windows目标兼容；pip/npm为后续CLI分发方向，交付工件未实现，不更新demo | [CLI开发设计](../superpowers/specs/2026-09-29-agent-interaction-discussion.md#2026-10-14capstone-cli-安装与用户本地-dev-试用) |
 | 统一输入命令与快捷操作 | 独立前端增强包，覆盖 Capstone 各模式的必要快捷操作；先设计统一目录和交互，Pi 三个命令仅为局部原型 | 2026-10-11 用户范围确认；10-09 业务工作区资源设计 |
 | 独立 Case 模块产品接入 | 已有执行基础；当前对话入口未接入完整独立模块，范围需确认 | 核心演进讨论；10-09 资源验收 |
 | 启动与中途恢复体验 | 需测量复现，休眠策略和恢复方案未确定 | Issue #4 |
