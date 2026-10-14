@@ -83,6 +83,26 @@ def test_helper_requires_exact_revision_cloud_stage_and_ignored_output(source):
         assert not output.exists()
 
 
+def test_local_trial_source_uses_same_origin_and_explicit_local_label(source):
+    root, sha = source
+    output = root / '.capstone-agent/app-builds/local-trial'
+    result = prepare(root, sha, 'local-dev', '', output)
+    assert result['environment'] == 'local-dev'
+    assert result['api_origin'] == ''
+    assert result['source_revision'] == sha
+    assert result['deployed'] is False
+    assert json.loads((output / 'build-environment.json').read_text())['api_origin'] == ''
+
+
+@pytest.mark.parametrize('origin', ['http://localhost:5173', 'https://api.example.com'])
+def test_local_trial_source_cannot_embed_external_or_fixed_host_origins(source, origin):
+    root, sha = source
+    output = root / '.capstone-agent/app-builds/local-rejected'
+    with pytest.raises(ValueError):
+        prepare(root, sha, 'local-dev', origin, output)
+    assert not output.exists()
+
+
 def test_helper_rejects_symlink_output_ancestors(source, tmp_path_factory):
     root, sha = source
     outside = tmp_path_factory.mktemp('outside-app')

@@ -384,6 +384,10 @@ This order will be refined into smaller independently reviewable specs and plans
 
 ## 2026-10-14：CAPSTONE CLI 安装与用户本地 dev 试用
 
+### 实施检查点
+
+用户已批准四类镜像及linux/amd64、linux/arm64目标。实施分支`feat/dev-trial-deployment`从dev3adaf5a建立，6f29b29已包含受限本地Provider合同、同源静态App、无源码Compose、独立私有配置、来源一致性检查和精确Git构建上下文。69项Python及15项App检查通过，ARM64候选构建进行中；实际启动、双架构验收、dev合入和阿里匿名拉取仍未完成。后文“待实现”描述设计阶段，不替代本检查点的实际进展。交付以[dev试用实施计划](../plans/2026-10-14-capstone-dev-trial-deployment.md)为准，长期pip/npm CLI安装仍为独立设计。
+
 ### 用户已确认的范围
 
 - 用户具备程序开发与部署能力；Linux/macOS 优先，尽量兼容 Windows。

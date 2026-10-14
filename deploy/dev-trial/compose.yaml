@@ -1,0 +1,154 @@
+x-runtime-environment: &runtime-environment
+  CAPSTONE_RUNTIME_PROFILE: capstone-dev-trial-v1
+  CAPSTONE_DEPLOYMENT_STAGE: local
+  CAPSTONE_PUBLIC_PROVIDER: ${CAPSTONE_PUBLIC_PROVIDER:-deepseek}
+  CAPSTONE_PUBLIC_MODEL: ${CAPSTONE_PUBLIC_MODEL:-deepseek-flash}
+  CAPSTONE_AUTONOMOUS_RESEARCH: "1"
+  CAPSTONE_HOSTED_APPLICATION: capstone
+  CAPSTONE_PUBLIC_DEMO: "true"
+  CAPSTONE_THREAD_OPEN_ACCESS: "true"
+  DATABASE_URL: postgresql://capstone:${POSTGRES_PASSWORD:?Local initialization required}@postgres:5432/capstone
+  CAPSTONE_OPERATOR_TOKEN: ${CAPSTONE_OPERATOR_TOKEN:?Local initialization required}
+  CAPSTONE_ARTIFACT_BACKEND: s3
+  CAPSTONE_ARTIFACT_BUCKET: capstone-private
+  CAPSTONE_S3_ENDPOINT: http://objects:9000
+  AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY:?Local initialization required}
+  AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY:?Local initialization required}
+  AWS_DEFAULT_REGION: us-east-1
+  CAPSTONE_ALLOWED_HOSTS: localhost,127.0.0.1,api
+  CAPSTONE_ALLOWED_ORIGINS: http://127.0.0.1:${CAPSTONE_APP_PORT:-5173},http://localhost:${CAPSTONE_APP_PORT:-5173}
+  CAPSTONE_FAMILY_HEALTH_URLS: pandapower=http://worker:8766,pypsa=http://worker-pypsa:8766
+  CAPSTONE_WORKER_WAKE_URL: http://worker:8766
+  PORT: "8766"
+
+x-worker-environment: &worker-environment
+  <<: *runtime-environment
+  DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+
+x-backend: &backend
+  image: ${CAPSTONE_BACKEND_IMAGE:?Release image manifest required}
+  platform: ${CAPSTONE_TRIAL_PLATFORM:-}
+  restart: unless-stopped
+  environment: *runtime-environment
+
+services:
+  postgres:
+    image: ${CAPSTONE_POSTGRES_IMAGE:?Release image manifest required}
+    platform: ${CAPSTONE_TRIAL_PLATFORM:-}
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: capstone
+      POSTGRES_DB: capstone
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Local initialization required}
+    volumes: [postgres-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U capstone -d capstone"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  objects:
+    image: ${CAPSTONE_OBJECTS_IMAGE:?Release image manifest required}
+    platform: ${CAPSTONE_TRIAL_PLATFORM:-}
+    restart: unless-stopped
+    environment:
+      RUSTFS_ACCESS_KEY: ${S3_ACCESS_KEY:?Local initialization required}
+      RUSTFS_SECRET_KEY: ${S3_SECRET_KEY:?Local initialization required}
+    volumes: [object-data:/data]
+
+  objects-init:
+    <<: *backend
+    restart: "no"
+    entrypoint: [/app/packages/capstone-agent/.venv/bin/python, /app/deploy/ensure_bucket.py]
+    depends_on:
+      objects: {condition: service_started}
+
+  worker:
+    <<: *backend
+    environment:
+      <<: *worker-environment
+      CAPSTONE_HOSTED_APPLICATION: pandapower
+      CAPSTONE_THREAD_FAMILY: pandapower
+    command: [worker]
+    volumes: [worker-runs:/app/runs]
+    depends_on:
+      postgres: {condition: service_healthy}
+      objects-init: {condition: service_completed_successfully}
+    healthcheck:
+      test: [CMD, python, -c, "from urllib.request import urlopen; urlopen('http://127.0.0.1:8766/health', timeout=3).close()"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+
+  worker-pypsa:
+    <<: *backend
+    environment:
+      <<: *worker-environment
+      CAPSTONE_HOSTED_APPLICATION: pypsa
+      CAPSTONE_THREAD_FAMILY: pypsa
+      CAPSTONE_WORKER_WAKE_URL: http://worker-pypsa:8766
+    command: [worker]
+    volumes: [pypsa-runs:/app/runs]
+    depends_on:
+      postgres: {condition: service_healthy}
+      objects-init: {condition: service_completed_successfully}
+    healthcheck:
+      test: [CMD, python, -c, "from urllib.request import urlopen; urlopen('http://127.0.0.1:8766/health', timeout=3).close()"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+
+  api:
+    <<: *backend
+    command: [api]
+    volumes: [api-runs:/app/runs]
+    depends_on:
+      postgres: {condition: service_healthy}
+      objects-init: {condition: service_completed_successfully}
+      worker: {condition: service_healthy}
+      worker-pypsa: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, python, -c, "from urllib.request import urlopen; urlopen('http://127.0.0.1:8766/health/ready', timeout=3).close()"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+
+  app:
+    image: ${CAPSTONE_APP_IMAGE:?Release image manifest required}
+    platform: ${CAPSTONE_TRIAL_PLATFORM:-}
+    restart: unless-stopped
+    ports: ["127.0.0.1:${CAPSTONE_APP_PORT:-5173}:3000"]
+    environment:
+      CAPSTONE_APP_ORIGIN: http://127.0.0.1:${CAPSTONE_APP_PORT:-5173}
+    depends_on:
+      api: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:3000/health]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  config-check:
+    image: ${CAPSTONE_BACKEND_IMAGE:?Release image manifest required}
+    platform: ${CAPSTONE_TRIAL_PLATFORM:-}
+    profiles: [tools]
+    entrypoint: [/app/packages/capstone-agent/.venv/bin/python, /app/deploy/dev_trial_runtime.py, check]
+    environment:
+      CAPSTONE_CANDIDATE_VALIDATION: ${CAPSTONE_CANDIDATE_VALIDATION:-0}
+      CAPSTONE_PUBLIC_PROVIDER: ${CAPSTONE_PUBLIC_PROVIDER:-deepseek}
+      CAPSTONE_PUBLIC_MODEL: ${CAPSTONE_PUBLIC_MODEL:-deepseek-flash}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      CAPSTONE_BACKEND_IMAGE: ${CAPSTONE_BACKEND_IMAGE}
+      CAPSTONE_APP_IMAGE: ${CAPSTONE_APP_IMAGE}
+      CAPSTONE_POSTGRES_IMAGE: ${CAPSTONE_POSTGRES_IMAGE}
+      CAPSTONE_OBJECTS_IMAGE: ${CAPSTONE_OBJECTS_IMAGE}
+    volumes: [./manifest.json:/bundle/manifest.json:ro]
+
+volumes:
+  postgres-data:
+  object-data:
+  api-runs:
+  worker-runs:
+  pypsa-runs:

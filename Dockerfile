@@ -20,6 +20,7 @@ COPY schemas/ schemas/
 COPY third-party-notices/ third-party-notices/
 COPY deploy/entrypoint.sh deploy/entrypoint.sh
 COPY deploy/launch_host_runtime.py deploy/launch_host_runtime.py
+COPY deploy/dev_trial_runtime.py deploy/dev_trial_runtime.py
 COPY deploy/bake_catalog_snapshot.py deploy/bake_catalog_snapshot.py
 COPY Dockerfile Dockerfile
 COPY deploy/ensure_bucket.py deploy/ensure_bucket.py
@@ -51,6 +52,9 @@ RUN UV_NO_SYNC=0 uv sync --locked --no-dev --project packages/grid-agent \
     && chown -R capstone:capstone /app /opt/capstone-models /tmp/uv-cache
 
 ENV UV_CACHE_DIR=/tmp/uv-cache
+ARG CAPSTONE_SOURCE_REVISION=development
+LABEL org.opencontainers.image.revision=$CAPSTONE_SOURCE_REVISION
+RUN printf '%s\n' "$CAPSTONE_SOURCE_REVISION" > deploy/image-source.txt
 USER capstone
 EXPOSE 8766
 ENTRYPOINT ["/app/deploy/entrypoint.sh"]

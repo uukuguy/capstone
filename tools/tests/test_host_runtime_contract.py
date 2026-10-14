@@ -20,6 +20,57 @@ def environment(application="capstone", stage="local"):
             "DEEPSEEK_API_KEY": "test-value-never-log"}
 
 
+def trial_environment(application="capstone", **overrides):
+    return environment(application) | {"CAPSTONE_RUNTIME_PROFILE": "capstone-dev-trial-v1"} | overrides
+
+
+@pytest.mark.parametrize("application,command", [("capstone", "api"), ("pandapower", "worker"), ("pypsa", "worker")])
+def test_local_trial_defaults_to_registry_deepseek(application, command):
+    contract, _, _, selected = RUNTIME.select_runtime(ROOT, trial_environment(application), command)
+    assert contract["profile"] == "capstone-dev-trial-v1"
+    assert selected["CAPSTONE_PUBLIC_PROVIDER"] == "deepseek"
+    assert selected["CAPSTONE_PUBLIC_MODEL"] == "deepseek-flash"
+
+
+@pytest.mark.parametrize("application,command", [("capstone", "api"), ("pandapower", "worker"), ("pypsa", "worker")])
+def test_local_trial_selects_openai_with_its_registered_default_model(application, command):
+    import json
+    registry = json.loads((ROOT / "configs/llm-providers.json").read_text())
+    settings = trial_environment(application, CAPSTONE_PUBLIC_PROVIDER="openai", OPENAI_API_KEY="test-openai-never-log")
+    selected = RUNTIME.select_runtime(ROOT, settings, command)[3]
+    assert selected["CAPSTONE_PUBLIC_PROVIDER"] == "openai"
+    assert selected["CAPSTONE_PUBLIC_MODEL"] == registry["providers"]["openai"]["default_model"]
+
+
+def test_local_trial_requires_the_selected_key_not_another_provider_key():
+    settings = trial_environment("pandapower", CAPSTONE_PUBLIC_PROVIDER="openai")
+    with pytest.raises(ValueError, match="^OPENAI_API_KEY$"):
+        RUNTIME.select_runtime(ROOT, settings, "worker")
+    settings["CAPSTONE_HOSTED_APPLICATION"] = "capstone"
+    RUNTIME.select_runtime(ROOT, settings, "api")
+
+
+@pytest.mark.parametrize("key,value", [
+    ("CAPSTONE_PUBLIC_PROVIDER", "unregistered-private-value"),
+    ("CAPSTONE_PUBLIC_MODEL", "bad model private-value"),
+    ("CAPSTONE_PUBLIC_MODEL", ""),
+    ("CAPSTONE_DEPLOYMENT_STAGE", "cloud-development"),
+    ("CAPSTONE_DEPLOYMENT_STAGE", "user-trial"),
+    ("CAPSTONE_THREAD_CONTEXT_LIMIT", "4"),
+])
+def test_local_trial_keeps_other_contract_fields_and_selection_bounded(key, value):
+    with pytest.raises(ValueError) as error:
+        RUNTIME.select_runtime(ROOT, trial_environment(**{key: value}), "api")
+    assert str(error.value) == key
+    assert value not in str(error.value) or value == ""
+
+
+def test_local_trial_can_choose_a_bounded_model_identifier_without_an_api_probe():
+    settings = trial_environment("pandapower", CAPSTONE_PUBLIC_PROVIDER="openai",
+                                 CAPSTONE_PUBLIC_MODEL="gpt-5-mini", OPENAI_API_KEY="test-never-log")
+    assert RUNTIME.select_runtime(ROOT, settings, "worker")[3]["CAPSTONE_PUBLIC_MODEL"] == "gpt-5-mini"
+
+
 def test_startup_logs_the_same_secret_free_receipt_saved_for_acceptance(tmp_path, monkeypatch, capsys):
     import json
     import os
