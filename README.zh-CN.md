@@ -159,12 +159,14 @@ App 默认也监听局域网接口，同一网络中的手机可打开 `http://<
 临时dev试用包通过Docker Compose v2运行。包内只有部署文件，使用阿里云北京仓库的四类镜像；用户无需Git、Python、Node、源码工作区或Vite。先安装Docker/Compose v2并在启动环境设置`DEEPSEEK_API_KEY`，然后一条命令完成安装和启动：
 
 ```sh
-curl -fsSL https://github.com/uukuguy/capstone/releases/download/dev-trial-20261015-7832134/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/uukuguy/capstone/dev/deploy/dev-trial/install.sh | sh
 ```
+
+不传参数安装最新已发布版本；将命令末尾`sh`改为`sh -s -- b7e68dd`可指定Git版本，参数错误或不唯一时列出可安装版本。Docker自动选择arm64/amd64。不同版本共享数据，停止当前服务前先检查兼容性和启动配置。
 
 默认目录`~/capstone`，可用`CAPSTONE_TRIAL_DIRECTORY`覆盖。App入口`http://127.0.0.1:19173/`；端口冲突时，在`~/capstone/.env`修改`CAPSTONE_APP_PORT`。安装成功显示实际目录、地址、端口配置和运维命令。
 
-包内`.env`默认DeepSeek/deepseek-flash，并提供注释掉的OpenAI示例。切换时同时更改Provider和模型；OpenAI使用`OPENAI_API_KEY`。启动LLM环境变量优先于文件默认值。`sh ~/capstone/start.sh`及其`status`、`logs`、`stop`操作同一实例，停止保留数据。保留部署目录及私有`.capstone-trial/`状态。已验证来源、分发入口与平台状态见[试用运行说明](docs/RUNBOOK.md#source-free-local-dev-trial)和[版本台账](docs/status/VERSION-CONTROL.md)。
+包内`.env`默认DeepSeek/deepseek-flash，并提供注释掉的OpenAI示例。切换时同时更改Provider和模型；OpenAI使用`OPENAI_API_KEY`。启动LLM环境变量优先于文件默认值。`sh ~/capstone/capstone.sh`启动本地最新可用版本；`versions`查看版本、`use <Git>`切换，`status`、`logs`、`stop`管理同一实例，停止保留数据。保留部署目录及私有`.capstone-trial/`状态。已验证来源、分发入口与平台状态见[试用运行说明](docs/RUNBOOK.md#source-free-local-dev-trial)和[版本台账](docs/status/VERSION-CONTROL.md)。
 
 CLI 可用于自动化和定向检查。完成安装后，可执行不调用 Provider 的 pandapower 查询：
 

@@ -1,30 +1,28 @@
 # Live Session Checkpoint
 
-> Updated: 2026-10-15. Work remains active; this is a recovery checkpoint.
+> Updated: 2026-10-15 10:58 CST. User-local delivery closeout.
 
-## Current delivery
+## Verified delivery
 
-- Original source-free trial shipped through PR #22 at dev783213489abd383bbf79225b29d9d718451dc597. Both Linux image platforms passed source, anonymous pull, readiness, three cases/nine turns, reports/replay, restart and browser checks. Public releases dev-trial-20261015-7832134 and installer-progress r2 remain immutable.
-- User installed the original release in ~/capstone, App19173. Preserve this live installation and its data. Root local-dev runs exact7832134 at5173/8767; local-demo/cloud-demo remainfaa6af9, cloud-dev24d9a32. No Provider calls authorized for verification.
-- Active worktree .worktrees/dev-trial-deployment, branch fix/dev-trial-user-feedback, implementation commitc58f10c979e0813f2e99be7614f8892fb6067ecf. No revised public artifact yet. Canonical plan Task7 owns this delivery before returning to autonomous business gaps.
+- PR #23 merged normally at dev b7e68dd83a580a713b09fa6d0c4aac0186252a84. PR checks38628243417 and merged-source checks38670347925 passed on Linux/macOS. Full local checks, validate, doctor, App24/type and installer7 checks passed.
+- Public immutable releases: user-local-b7e68dd and managed recovery user-local-7832134. The latter preserves original runtime files/images and records deployment tools from b7e68dd; its frozen App retains the original label. USER-LOCAL-VERSIONS.tsv owns installer URLs/checksums; newest verified runtime first.
+- Exact final images passed ARM64 native Linux containers and AMD64 Linux containers through emulation on ARM Mac: anonymous pull, source/image identity, three cases/nine turns, report/evidence replay, restart, browser, existing-data upgrade and separately verified rollback. Private configuration, original receipt and volumes were preserved. Zero Provider calls; user LLM/business and Windows/WSL2 remain unverified.
+- Public fixed installer was downloaded, checksum checked and used for real startup/status/retained-data stop in an isolated directory on30573. The latest public selector is enabled by the catalog in this same documentation change. Installation selects latest published or a7–40-character Git revision; bad/ambiguous arguments list available versions.
+- Root local-dev API/two workers/App run exact b7e68dd, clean App source, canonical rebuild passed (image6069a80647ae). Local-demo/cloud-demo remainfaa6af9; cloud-dev24d9a32. Real ~/capstone on19173 remains untouched at the original7832134 until the user selects upgrade.
 
-## Accepted corrections
+## User entry
 
-- user-local page label; Git7–40 selector, no argument latest published; invalid/ambiguous parameter lists versions. Source-free host: Docker/Compose and base shell only.
-- capstone.sh manages install/versions/start/use/stop/status/logs, eligible exact cached images, one running version per installation. Default~/capstone and App19173, .env editable; startup Keys only protected worker/config-check environment.
-- Different versions share the same user data. Compatibility is a development/release responsibility. Same-format conservative source/storage fingerprint gate currently blocks unverified format changes; verified migrations are future supported paths, not a user repair task.
-- Pre-stop compatibility and config preflight, original receipt/private credentials/volumes preserved. Separate old-data upgrade/read/replay and rollback receipts required for final publication. Existing legacy783 requires trusted source-bound data declaration included in protected archive.
+Set DEEPSEEK_API_KEY in the startup environment, then:
 
-## Verification and remaining work
+```sh
+curl -fsSL https://raw.githubusercontent.com/uukuguy/capstone/dev/deploy/dev-trial/install.sh | sh
+```
 
-- 115 combined focused checks passed before final review fixes; added catalog-retirement lifecycle regression passes. App24/type checks and doctor pass. Independent read-only review found two important issues, fixed with regressions: retired legacy can stop; target cannot certify itself as older upgrade source. Complete rerun and review confirmation.
-- Full make check-pr runs under private user-local-check-pr.log, exec session23673. External manager/data workers finished; their changes are integrated. All tests use synthetic data/fake Docker; real upgrade/replay remains unverified.
-- Fixed installer template deploy/dev-trial/install-version.sh has6 tests. It stores immutable versions and starts selected source via root manager; bootstrap catalog URL is not yet populated. Do not advertise latest bootstrap as published until release and catalog exist.
-- Next: update actual fix Git node/control graph and browser checks, commit control records, open normal dev PR and complete required Linux/macOS checks. Freeze accepted merge source, build exact revised images, validate source-free shared-data upgrade and rollback in isolated installation roots/platforms, publish immutable user-local-SHA artifacts then checksum catalog, update README/runbook/icons to real URLs.
+Default~/capstone and App19173. Use .env CAPSTONE_APP_PORT to avoid conflicts. capstone.sh provides versions/start/use/install/status/logs/stop. Versions in one installation share data and a stable project; compatibility/configuration checks precede service changes. Preserve the full directory, private state and volumes.
 
-## Recovery boundaries
+## Recovery and remaining acceptance
 
-- Never operate on real ~/capstone in validation, delete volumes, copy authentication across worktrees, change cloud/demo stages or use administrator merge bypass.
-- Root dev has four task-owned copied control/design document changes. Preserve snapshot, restore only task-owned tracked paths before ff-only integration; leave unrelated files/var intact. Root App is a frozen783 archive, so a docs HEAD is not runtime identity.
-- Old feat/dev-trial-deployment is closed. Recovery ref refs/archive/20261015/feat-dev-trial-deployment points380ede4; private validation directories and volumes remain.
-- Private files .capstone-agent/final-acceptance.json, public-release-receipt.json and legacy-783-data-contract.env hold original receipts/descriptor. Do not rerun old publisher scripts: tags/assets are immutable.
+- User LLM and business trial is next. Existing autonomous scientific/interaction gaps remain in the canonical worklist; no cloud/demo/main promotion follows from this delivery.
+- Operational receipts remain in the task worktree .capstone-agent/: user-local-final-acceptance.json, user-local-publication-receipt.json, public-managed-final-receipt.json, user-local-root-rebuild-receipt.json and final platform case/runtime/browser logs. Public acceptance.json is attached to each release. Do not rerun publisher scripts or move tags.
+- Preserve real ~/capstone, root var, unrelated worktrees, authentication state and all data volumes. Root control copies are task-owned and backed up under .capstone-agent/user-local-doc-control-{precopy,live}; restore only those three tracked copies before ff-only final documentation integration.
+- The source-equivalent docs/catalog/control change uses a normal dev PR with Linux/macOS checks. Verify the public latest selector after integration, then close only verified merged task branches and keep Git clean. Do not rebuild runtime from an ordinary documentation commit or relabel its exact source.

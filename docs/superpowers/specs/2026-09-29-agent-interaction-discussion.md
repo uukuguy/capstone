@@ -397,7 +397,7 @@ This order will be refined into smaller independently reviewable specs and plans
 - 默认目录`~/capstone`、App端口19173；共享用户`.env`配置Provider/模型/端口，Key只从启动环境进入worker。完成提示突出地址、目录、运行Git号、管理命令和端口配置；容器表进入私有诊断日志，镜像下载在前台显示四项进度。
 - 推进图通过已验证Git节点上的小型安装图标链接到该版本发布和安装命令。可安装、已安装、已启动、用户LLM/业务已验证保持分离。
 
-本节是本轮增量合同；管理器、选择入口和页面标识修正在`fix/dev-trial-user-feedback`实现中。原7832134试用已经公开并由用户安装启动；不把后续修正登记为已在该冻结版本生效。
+本节是本轮增量合同；管理器、选择入口和页面标识经PR #23正常合入dev `b7e68dd`，最终双架构旧数据升级/读取/回放/回退、重启及浏览器和公开安装验收通过；发布`user-local-b7e68dd`，受管旧版`user-local-7832134`保留原冻结运行源码。原7832134试用已经公开并由用户安装启动；不把后续修正登记为已在该冻结版本生效。
 
 2026-10-15入口确认：用户预先安装Docker/Compose v2并在环境中设置LLM Key，执行版本化`install.sh`即可下载、校验、安装和启动，无需再执行启动命令。默认目录`~/capstone`，可用`CAPSTONE_TRIAL_DIRECTORY`覆盖。安装成功显示实际目录、访问地址及`start.sh`的启动、status、logs、stop命令；停止保留数据，重新启动仍需环境Key。仅App端口发布到主机，默认19173，与local-dev5173/local-demo15173隔离；提示在安装目录`.env`修改`CAPSTONE_APP_PORT`避免冲突。端口属于交付包的可编辑部署配置，产品镜像来源仍为7832134。固定版本已正常合入dev7832134，公开工件仍需最终来源验收，长期pip/npm CLI不在本次发布范围。
 
