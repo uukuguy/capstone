@@ -68,6 +68,10 @@ def test_bundle_has_no_source_or_keys_and_uses_provider_registry(tmp_path, monke
     bundle = tmp_path / 'bundle'
     assert {p.name for p in bundle.iterdir()} == {'.env', '.env.example', 'release.env', 'manifest.json', 'compose.yaml', 'start.sh', 'capstone.sh', 'install.sh', 'data-contract.env', 'README.txt', 'README.md'}
     guide = (bundle / 'README.md').read_text()
+    assert guide.index('默认使用 pandapower 的 IEEE39 电网') < guide.index('## 安装前提')
+    assert guide.index('## 可选电网示例') > guide.index('## 可复制的测试案例')
+    assert all(name in guide.split('## 可选电网示例')[1] for name in [
+        'AC-DC Meshed', 'Storage-HVDC', 'SciGrid-DE', 'Model-Energy', 'Stochastic-Network', 'Carbon Management'])
     samples_path = context / 'deploy/dev-trial/offline-validation-samples.txt'
     samples = samples_path.read_text()
     assert samples in guide

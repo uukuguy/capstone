@@ -220,6 +220,10 @@ def export_bundle(context: Path, output: Path, revision: str, images: dict) -> d
     settings = ('# Keep OPENAI_API_KEY in the startup environment.\n'
                 'PROVIDER=openai\nOPENAI_MODEL=deepseek-flash\nOPENAI_BASE_URL=\n'
                 'CAPSTONE_APP_PORT=19173\n')
+    optional_grids = ('\n可选说明：其他预装电网\n'
+                      '需要其他电网时，可在模型目录中切换。PyPSA示例包括AC-DC Meshed、Storage-HVDC、\n'
+                      'SciGrid-DE、Model-Energy、Stochastic-Network及Carbon Management。\n'
+                      '区域六母线等内置电网也随程序提供。\n')
     for name in ['.env', '.env.example']:
         (deployment / name).write_text(settings)
     # Config IDs intentionally give storage a conservative new data identity.
@@ -228,11 +232,12 @@ def export_bundle(context: Path, output: Path, revision: str, images: dict) -> d
     (deployment / 'README.txt').write_text(
         'Capstone 离线安装管理\n源码：' + revision + '\n'
         'Linux AMD64；须预装Docker Engine及Compose v2。模型已在镜像中。\n'
+        '已预装示例电网，默认使用 pandapower 的 IEEE39 电网。\n'
         '默认PROVIDER=openai、OPENAI_MODEL=deepseek-flash。\n'
         '在.env设置OPENAI_BASE_URL/API前缀及模型；启动环境提供OPENAI_API_KEY。\n'
         '自定义地址使用Chat Completions；地址必须能从容器访问。\n'
         '用sh capstone.sh start/status/logs/stop/versions管理；stop保留数据。\n'
-        '保留安装目录、私有配置及数据卷；兼容检查拒绝未验证的数据切换。\n\n' + samples)
+        '保留安装目录、私有配置及数据卷；兼容检查拒绝未验证的数据切换。\n\n' + samples + optional_grids)
     (deployment / 'README.md').write_text(markdown_readme((deployment / 'README.txt').read_text()))
     archive = output / 'deployment.tar.gz'
     with tarfile.open(archive, 'w:gz') as target:
@@ -254,12 +259,12 @@ def export_bundle(context: Path, output: Path, revision: str, images: dict) -> d
     (output / 'manifest.json').write_text(json.dumps(document, indent=2, sort_keys=True) + '\n')
     (output / 'README.txt').write_text(
         'Capstone 用户离线安装（Linux AMD64）\n源码：' + revision + '\n\n'
+        '已预装示例电网，默认使用 pandapower 的 IEEE39 电网。\n'
+        '建议先按下方案例体验，再按需切换其他电网。\n\n'
         '1. 前提与校验\n'
         '预装Docker Engine、Docker Compose v2，并确认当前用户能运行docker。\n'
         '完整包包含运行镜像和预装电网示例数据，安装时无需联网下载；\n'
-        '运行时须能访问内网LLM。PyPSA示例包括AC-DC Meshed、Storage-HVDC、\n'
-        'SciGrid-DE、Model-Energy、Stochastic-Network及Carbon Management。\n'
-        'IEEE39、区域六母线等内置电网也随程序提供。\n'
+        '运行时须能访问内网LLM。\n'
         '在交付文件目录执行 sha256sum -c <交付归档名>.sha256，再解压.tar.gz。\n'
         '保留全部解压文件；安装器自动按SHA256SUMS逐项校验。\n\n'
         '2. 配置并安装（在Bash中执行）\n'
@@ -292,7 +297,7 @@ def export_bundle(context: Path, output: Path, revision: str, images: dict) -> d
         'stop及重复安装保留数据和私有配置；请保留安装目录及Docker数据卷。\n'
         '缺地址/Key、校验失败或数据不兼容时会拒绝切换并保留原服务。\n'
         '不要删除数据卷绕过兼容检查；新独立试用可另选目录及端口。\n'
-        '401先核对Key，模型错误核对OPENAI_MODEL，连接失败检查容器到接口的网络。\n')
+        '401先核对Key，模型错误核对OPENAI_MODEL，连接失败检查容器到接口的网络。\n' + optional_grids)
     (output / 'README.md').write_text(markdown_readme((output / 'README.txt').read_text()))
     names = ['deployment.tar.gz', 'images.tsv', 'versions.tsv', 'manifest.json', 'install-version.sh', 'install-offline.sh', 'README.txt', 'README.md'] + [kind + '.tar' for kind in KINDS]
     (output / 'SHA256SUMS').write_text(''.join(checksum(output / name) + '  ' + name + '\n' for name in names))

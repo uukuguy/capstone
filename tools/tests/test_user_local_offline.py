@@ -218,6 +218,11 @@ def test_export_checks_platform_source_and_streamed_archive_hashes(tmp_path, mon
     assert json.loads((out / 'manifest.json').read_text()) == result
     samples = (source / 'deploy/dev-trial/offline-validation-samples.txt').read_text()
     assert samples in (out / 'README.txt').read_text()
+    for name in ['README.txt', 'README.md']:
+        guide = (out / name).read_text()
+        assert guide.index('默认使用 pandapower 的 IEEE39 电网') < guide.index('1. 前提与校验')
+        assert guide.index('可选说明：其他预装电网') > guide.index('5. 数据与排错')
+        assert 'PyPSA示例包括' not in guide.split('可选说明：其他预装电网')[0]
     with tarfile.open(out / 'deployment.tar.gz') as bundle:
         assert bundle.getmember('manifest.json').mode == 0o644
         assert json.load(bundle.extractfile('manifest.json')) == result
@@ -226,6 +231,12 @@ def test_export_checks_platform_source_and_streamed_archive_hashes(tmp_path, mon
         assert 'CAPSTONE_PUBLIC_' not in settings
         assert bundle.extractfile('.env.example').read().decode() == settings
         assert samples in bundle.extractfile('README.txt').read().decode()
+        for name in ['README.txt', 'README.md']:
+            guide = bundle.extractfile(name).read().decode()
+            assert guide.index('默认使用 pandapower 的 IEEE39 电网') < guide.index('默认PROVIDER=')
+            assert guide.index('可选说明：其他预装电网') > guide.index(samples.splitlines()[0])
+            assert all(model in guide.split('可选说明：其他预装电网')[1] for model in [
+                'AC-DC Meshed', 'Storage-HVDC', 'SciGrid-DE', 'Model-Energy', 'Stochastic-Network', 'Carbon Management'])
     for line in (out / 'SHA256SUMS').read_text().splitlines():
         checksum, name = line.split('  ')
         assert hashlib.sha256((out / name).read_bytes()).hexdigest() == checksum
