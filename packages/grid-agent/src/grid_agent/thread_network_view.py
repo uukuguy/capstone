@@ -123,9 +123,11 @@ class PandapowerThreadNetworkProjectionProvider:
         ):
             raise NetworkProjectionUnavailable("projection_model_mismatch")
         focus = self._endpoint_focus(topology, evidence_refs, tool_events)
-        ranking = self._ranking_layer(topology, result_refs, tool_events)
+        annotations = self._scene_annotations(topology, result_refs, tool_events)
+        scene = annotations.get("scene") if annotations is not None else None
+        scene_ref = scene.get("source_ref") if isinstance(scene, Mapping) else None
+        ranking = self._ranking_layer(topology, result_refs, tool_events, scene_ref)
         layer = ranking or {"focus_ids": focus, "next_focus_ids": [], "overlay": None}
-        annotations = self._scene_annotations(topology, result_refs)
         if annotations is not None:
             layer["annotations"] = annotations
         return {
@@ -145,7 +147,10 @@ class PandapowerThreadNetworkProjectionProvider:
             "layer": layer,
         }
 
-    def _scene_annotations(self, diagram: Mapping[str, object], admitted: tuple[str, ...]) -> dict[str, object] | None:
+    def _scene_annotations(
+        self, diagram: Mapping[str, object], admitted: tuple[str, ...],
+        events: tuple[Mapping[str, object], ...],
+    ) -> dict[str, object] | None:
         roots: list[tuple[str, Mapping[str, object]]] = []
         for reference in admitted:
             try:
@@ -159,12 +164,38 @@ class PandapowerThreadNetworkProjectionProvider:
             except (SimulatorIntegrityError, ValueError):
                 continue
         selected = select_contingency_scene(roots)
-        candidates = ([selected[0]] if selected else []) + list(reversed(admitted))
-        for reference in candidates:
+        linked_cases = {
+            reference: selection[1] for reference, document in roots
+            if (selection := select_contingency_scene([(reference, document)])) is not None
+        }
+        # Admission order records first appearance. Completed calculations and
+        # later reads both select a scene in this attempt's actual event order.
+        interacted: list[str] = []
+        for event in reversed(events):
+            if event.get("binding_id") != self._binding.binding_id or event.get("ok") is not True:
+                continue
+            capability = event.get("capability")
+            event_refs = event.get("result_refs")
+            if not isinstance(event_refs, (list, tuple)):
+                continue
+            if isinstance(capability, str) and capability.startswith("analysis."):
+                interacted.extend(ref for ref in reversed(event_refs) if isinstance(ref, str) and ref in admitted)
+                continue
+            if capability not in {"result.aggregate", "result.dataset.query", "result.branches.rank"}:
+                continue
+            arguments = event.get("request_parameters")
+            if not isinstance(arguments, Mapping) and capability == "result.branches.rank":
+                query = self._rank_queries.get(str(event.get("tool_call_id")))
+                arguments = query.get("arguments") if query is not None else None
+            reference = arguments.get("result_ref") if isinstance(arguments, Mapping) else None
+            if isinstance(reference, str) and reference in admitted and reference in event_refs:
+                interacted.append(reference)
+        candidates = interacted + ([selected[0]] if selected else []) + list(reversed(admitted))
+        for reference in dict.fromkeys(candidates):
             if reference in self._scene_cache:
                 return self._scene_cache[reference]
             try:
-                case_ref = selected[1] if selected and reference == selected[0] else None
+                case_ref = linked_cases.get(reference)
                 result = (self._authority.verify_linked_result(case_ref, reference).document
                           if case_ref else self._authority.verify_result(reference).document)
                 datasets = result.get("datasets")
@@ -229,7 +260,10 @@ class PandapowerThreadNetworkProjectionProvider:
                 continue
         return None
 
-    def _ranking_layer(self, topology: Mapping[str, object], admitted: tuple[str, ...], events: tuple[Mapping[str, object], ...]) -> dict[str, object] | None:
+    def _ranking_layer(
+        self, topology: Mapping[str, object], admitted: tuple[str, ...],
+        events: tuple[Mapping[str, object], ...], scene_ref: object = None,
+    ) -> dict[str, object] | None:
         branches = topology.get("branches")
         known = {row["id"] for row in branches if isinstance(row, Mapping) and isinstance(row.get("id"), str)} if isinstance(branches, list) else set()
         for event in reversed(events):
@@ -240,6 +274,8 @@ class PandapowerThreadNetworkProjectionProvider:
                 continue
             arguments = cast(dict[str, object], query["arguments"])
             reference = arguments["result_ref"]
+            if scene_ref is not None and reference != scene_ref:
+                continue
             event_refs = event.get("result_refs")
             if reference not in admitted or not isinstance(event_refs, (list, tuple)) or reference not in event_refs:
                 continue

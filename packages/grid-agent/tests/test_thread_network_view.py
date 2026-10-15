@@ -189,6 +189,149 @@ def test_derived_scene_marks_real_outage_and_preserves_bound_geometry(grid):
         provider.project(claim, (flow["result_ref"],), tuple(flow["evidence_refs"]), ())
 
 
+def _comparison_flows(grid):
+    _claim, _context, _runtime, binding = grid
+    derived = grid.invoke("model.revision.derive", {
+        "context_ref": binding.context_ref,
+        "patches": [{"kind": "line", "selector": {"indices": [0]},
+                     "operation": "in_service", "value": False}],
+    })
+    scenario = grid.invoke("analysis.powerflow.ac.run", {"context_ref": derived["context_ref"]})
+    base = grid.invoke("analysis.powerflow.ac.run", {"context_ref": binding.context_ref})
+    return scenario, base
+
+
+def _result_consumption(grid, result):
+    arguments = {"result_ref": result["result_ref"], "dataset": "result.res_bus",
+                 "metrics": [{"field": "vm_pu", "operation": "min", "alias": "vm_min"}]}
+    grid.invoke("result.aggregate", arguments)
+    return {"binding_id": "grid", "capability": "result.aggregate", "ok": True,
+            "request_parameters": arguments, "result_refs": [result["result_ref"]]}
+
+
+@pytest.mark.parametrize("selected", ["scenario", "base"])
+def test_scene_follows_last_successful_result_consumption_not_first_admission(grid, selected):
+    claim, _context, _runtime, _binding = grid
+    scenario, base = _comparison_flows(grid)
+    first, last = (base, scenario) if selected == "scenario" else (scenario, base)
+    # Both directions oppose admission order, so neither "always derived" nor
+    # "last newly admitted result" can satisfy the selection contract.
+    admitted = (last["result_ref"], first["result_ref"])
+    events = (_result_consumption(grid, first), _result_consumption(grid, last))
+    view = _provider(grid).project(claim, admitted, (), events)
+    scene = view["layer"]["annotations"]["scene"]
+    assert scene["source_ref"] == last["result_ref"]
+    assert scene["model_revision"] == last["revision_ref"]
+
+
+def test_new_attempt_does_not_inherit_previous_result_consumption(grid):
+    claim, _context, _runtime, _binding = grid
+    scenario, base = _comparison_flows(grid)
+    provider = _provider(grid)
+    provider.project(claim, (scenario["result_ref"], base["result_ref"]), (),
+                     (_result_consumption(grid, scenario),))
+    next_claim = replace(claim, attempt=replace(claim.attempt, turn_id="turn_2", attempt_id="attempt_2"))
+    view = provider.project(next_claim, (base["result_ref"],), (), ())
+    assert view["layer"]["annotations"]["scene"]["source_ref"] == base["result_ref"]
+
+
+@pytest.mark.parametrize("analysis", ["analysis.powerflow.ac.run", "analysis.contingency.n_minus_one.run"])
+def test_later_analysis_replaces_an_earlier_consumed_base_scene(grid, analysis):
+    claim, _context, _runtime, binding = grid
+    scenario, base = _comparison_flows(grid)
+    read_base = _result_consumption(grid, base)
+    result = scenario if analysis == "analysis.powerflow.ac.run" else grid.invoke(analysis, {
+        "context_ref": binding.context_ref, "branch_selections": [{"kind": "line", "indices": [0, 1]}],
+    })
+    produced = {"binding_id": "grid", "capability": analysis, "ok": True,
+                "result_refs": [result["result_ref"]]}
+    view = _provider(grid).project(
+        claim, (base["result_ref"], result["result_ref"]), (), (read_base, produced),
+    )
+    scene = view["layer"]["annotations"]["scene"]
+    assert scene["source_ref"] == result["result_ref"]
+    if analysis == "analysis.contingency.n_minus_one.run":
+        expected = max(result["scenarios"], key=lambda row: row["max_loading_percent"])
+        assert scene["case_ref"] == expected["scenario_result_ref"]
+    else:
+        assert scene["model_revision"] == scenario["revision_ref"]
+
+
+@pytest.mark.parametrize("defect", ["failed", "foreign_binding", "unadmitted"])
+def test_analysis_scene_selection_requires_successful_current_admitted_result(grid, defect):
+    claim, _context, _runtime, _binding = grid
+    scenario, base = _comparison_flows(grid)
+    produced = {"binding_id": "grid", "capability": "analysis.powerflow.ac.run", "ok": True,
+                "result_refs": [scenario["result_ref"]]}
+    if defect == "failed":
+        produced["ok"] = False
+    if defect == "foreign_binding":
+        produced["binding_id"] = "foreign"
+    if defect == "unadmitted":
+        produced["result_refs"] = ["result:sha256:" + "f" * 64]
+    view = _provider(grid).project(
+        claim, (scenario["result_ref"], base["result_ref"]), (),
+        (_result_consumption(grid, base), produced),
+    )
+    assert view["layer"]["annotations"]["scene"]["source_ref"] == base["result_ref"]
+
+
+def test_old_ranking_does_not_mix_with_a_later_consumed_scene(grid):
+    claim, _context, _runtime, _binding = grid
+    scenario, base = _comparison_flows(grid)
+    ranked = grid.invoke("result.branches.rank", {
+        "result_ref": base["result_ref"], "metric": "loading_percent",
+        "direction": "descending", "limit": 3, "element_kind": "line",
+    })
+    provider = _provider(grid)
+    provider.observe_runtime_event({"type": "tool_result", "event": "tool_result",
+        "tool_call_id": "rank_base", "capability": "result.branches.rank", "ok": True,
+        "capability_key": {"binding_id": "grid"}, "result": ranked})
+    events = ({"tool_call_id": "rank_base", "binding_id": "grid", "capability": "result.branches.rank",
+               "ok": True, "result_refs": [base["result_ref"]]}, _result_consumption(grid, scenario))
+    view = provider.project(claim, (scenario["result_ref"], base["result_ref"]), (), events)
+    assert view["layer"]["annotations"]["scene"]["source_ref"] == scenario["result_ref"]
+    assert view["layer"]["focus_ids"] == []
+    assert view["layer"]["overlay"] is None
+
+
+@pytest.mark.parametrize("defect", ["failed", "foreign_binding", "unadmitted", "uncorrelated"])
+def test_scene_ignores_unverified_result_consumption(grid, defect):
+    claim, _context, _runtime, _binding = grid
+    scenario, base = _comparison_flows(grid)
+    event = _result_consumption(grid, scenario)
+    if defect == "failed":
+        event["ok"] = False
+    if defect == "foreign_binding":
+        event["binding_id"] = "foreign"
+    if defect == "unadmitted":
+        event["request_parameters"] = {"result_ref": "result:sha256:" + "f" * 64}
+        event["result_refs"] = ["result:sha256:" + "f" * 64]
+    if defect == "uncorrelated":
+        event["result_refs"] = [base["result_ref"]]
+    view = _provider(grid).project(claim, (scenario["result_ref"], base["result_ref"]), (), (event,))
+    assert view["layer"]["annotations"]["scene"]["source_ref"] == base["result_ref"]
+
+
+@pytest.mark.parametrize("interaction", ["read", "analysis"])
+def test_consumption_cannot_select_another_model_in_the_same_authority(grid, interaction):
+    claim, _context, _runtime, binding = grid
+    base = grid.invoke("analysis.powerflow.ac.run", {"context_ref": binding.context_ref})
+    other_model = "case24_ieee_rts" if binding.model_id == "ieee39" else "ieee39"
+    other_context = grid.invoke("context.open", {"model_id": other_model})
+    foreign = grid.invoke("analysis.powerflow.ac.run", {"context_ref": other_context["context_ref"]})
+    event = (_result_consumption(grid, foreign) if interaction == "read" else {
+        "binding_id": "grid", "capability": "analysis.powerflow.ac.run", "ok": True,
+        "result_refs": [foreign["result_ref"]],
+    })
+    view = _provider(grid).project(
+        claim, (base["result_ref"], foreign["result_ref"]), (), (event,),
+    )
+    scene = view["layer"]["annotations"]["scene"]
+    assert scene["source_ref"] == base["result_ref"]
+    assert scene["context_ref"] == binding.context_ref
+
+
 def test_thread_ranking_focus_uses_the_exact_authority_subset(grid):
     claim, context, runtime, binding = grid
     flow = grid.invoke("analysis.powerflow.ac.run", {"context_ref": binding.context_ref})
