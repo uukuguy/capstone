@@ -119,13 +119,23 @@ package_check() {
     source=$(scalar "$pc/manifest.json" source_revision) || return 1
     [ "$source" = "$1" ] || return 1
     contract "$pc/data-contract.env" "$1" >/dev/null || return 1
+    channel=$(scalar "$pc/manifest.json" channel) || channel=''
+    offline=0
+    if [ "$channel" = dev-trial-offline ]; then
+        offline=1
+        [ "$(sed -n 's/^CAPSTONE_TRIAL_PLATFORM=//p' "$pc/release.env")" = linux/amd64 ] || return 1
+    fi
     : > "$work/binding"
     printf '%s\n' "$1" >> "$work/binding"
     for key in BACKEND APP POSTGRES OBJECTS; do
         ref=$(sed -n "s/^CAPSTONE_${key}_IMAGE=//p" "$pc/release.env")
-        case "$ref" in ghcr.io/uukuguy/*@sha256:*|registry.cn-beijing.aliyuncs.com/uukuguy/*@sha256:*) ;; *) return 1;; esac
+        if [ "$offline" -eq 1 ]; then
+            case "$ref" in sha256:*) ;; *) return 1;; esac
+        else
+            case "$ref" in ghcr.io/uukuguy/*@sha256:*|registry.cn-beijing.aliyuncs.com/uukuguy/*@sha256:*) ;; *) return 1;; esac
+        fi
         case "$ref" in *[!a-z0-9._:/@-]*) return 1;; esac
-        tail=${ref##*@sha256:}
+        tail=${ref##*sha256:}
         [ "${#tail}" -eq 64 ] || return 1
         case "$tail" in *[!0-9a-f]*) return 1;; esac
         lower=$(printf '%s' "$key" | tr 'A-Z' 'a-z')
@@ -288,9 +298,15 @@ while IFS="$(printf '\t')" read -r revision project; do
     image=$(docker image inspect --format '{{.Id}}' "$backend" 2>/dev/null) || continue
     awk -F '\t' -v s="$revision" -v i="$image" '$1==s && $2==i { found=1 } END { exit !found }' "$work/discovered" || continue
     complete=1
-    for key in APP POSTGRES OBJECTS; do
+    offline=$(scalar "$packages/$revision/manifest.json" channel) || offline=''
+    for key in BACKEND APP POSTGRES OBJECTS; do
         ref=$(sed -n "s/^CAPSTONE_${key}_IMAGE=//p" "$packages/$revision/release.env")
-        docker image inspect --format '{{.Id}}' "$ref" >/dev/null 2>&1 || complete=0
+        cached_id=$(docker image inspect --format '{{.Id}}' "$ref" 2>/dev/null) || complete=0
+        if [ "$offline" = dev-trial-offline ]; then
+            [ "$cached_id" = "$ref" ] || complete=0
+            cached_platform=$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$ref" 2>/dev/null) || complete=0
+            [ "$cached_platform" = linux/amd64 ] || complete=0
+        fi
     done
     [ "$complete" -eq 1 ] || continue
     created=$(docker image inspect --format '{{.Created}}' "$image" 2>/dev/null) || continue
@@ -430,7 +446,7 @@ helper() {
         -e "CAPSTONE_CANDIDATE_VALIDATION=${CAPSTONE_CANDIDATE_VALIDATION:-0}" \
         -v "$target_state:/state" -v "$packages/$selected/manifest.json:/bundle/manifest.json:ro" \
         --entrypoint /app/packages/capstone-agent/.venv/bin/python "$backend" /app/deploy/dev_trial_runtime.py "$1"
-    if [ -n "$platform" ]; then docker run --platform "$platform" "$@"; else docker run "$@"; fi
+    if [ -n "$platform" ]; then docker run --platform "$platform" --pull never "$@"; else docker run --pull never "$@"; fi
 }
 preflight() {
     unset POSTGRES_PASSWORD S3_ACCESS_KEY S3_SECRET_KEY CAPSTONE_OPERATOR_TOKEN
@@ -440,7 +456,7 @@ preflight() {
       -f "$packages/$selected/compose.yaml" config --quiet && \
     docker compose --project-name "$stable_project" \
       --env-file "$packages/$selected/.env" --env-file "$packages/$selected/release.env" --env-file "$target_state/internal.env" \
-      -f "$packages/$selected/compose.yaml" run --rm --no-deps config-check && helper record
+      -f "$packages/$selected/compose.yaml" run --pull never --rm --no-deps config-check && helper record
 }
 if [ -f "$target_state/internal.env" ]; then cat "$target_state/internal.env" >> "$work/redact-env"; fi
 (

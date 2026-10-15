@@ -58,18 +58,24 @@ def initialize_private_environment(directory: Path) -> Path:
 
 
 def validate_manifest(document: dict) -> dict:
+    offline = isinstance(document, dict) and document.get('channel') == 'dev-trial-offline'
     candidate = (isinstance(document, dict) and document.get('channel') == 'dev-trial-candidate'
                  and os.environ.get('CAPSTONE_CANDIDATE_VALIDATION') == '1')
     if (not isinstance(document, dict) or document.get('schema') != 'capstone-dev-trial/1'
-            or document.get('channel') != ('dev-trial-candidate' if candidate else 'dev-trial')
+            or document.get('channel') != ('dev-trial-offline' if offline else 'dev-trial-candidate' if candidate else 'dev-trial')
             or not re.fullmatch(r'[a-f0-9]{40}', str(document.get('source_revision', '')))):
         raise TrialConfigurationError('trial source manifest is invalid')
-    if document.get('platforms') not in ([['linux/amd64'], ['linux/arm64']] if candidate else [['linux/amd64', 'linux/arm64']]):
+    allowed = [['linux/amd64']] if offline else ([['linux/amd64'], ['linux/arm64']] if candidate else [['linux/amd64', 'linux/arm64']])
+    if document.get('platforms') not in allowed:
         raise TrialConfigurationError('candidate requires one Linux platform' if candidate else 'trial manifest requires both Linux platforms')
     images = document.get('images')
     if not isinstance(images, dict) or set(images) != {'backend', 'app', 'postgres', 'objects'}:
         raise TrialConfigurationError('trial requires four image classes')
     for name, reference in images.items():
+        if offline:
+            if not isinstance(reference, str) or not re.fullmatch(r'sha256:[a-f0-9]{64}', reference):
+                raise TrialConfigurationError('offline images require exact local image IDs')
+            continue
         if candidate and isinstance(reference, str) and re.fullmatch(
                 r'capstone-trial-' + name + r'(?:-amd64|-arm64)?:' + document['source_revision'], reference):
             continue
@@ -126,6 +132,9 @@ def validate_configuration(root: Path, environment: dict[str, str], manifest: di
     settings.update(CAPSTONE_RUNTIME_PROFILE='capstone-dev-trial-v1',
                     CAPSTONE_DEPLOYMENT_STAGE='local', CAPSTONE_HOSTED_APPLICATION='pandapower')
     _, _, _, selected = _runtime(root).select_runtime(root, settings, 'worker')
+    if (manifest['channel'] == 'dev-trial-offline' and selected['CAPSTONE_PUBLIC_PROVIDER'] == 'openai'
+            and not environment.get('OPENAI_BASE_URL', '').strip()):
+        raise TrialConfigurationError('OPENAI_BASE_URL is required for the offline OpenAI-compatible Provider')
     if selected['CAPSTONE_PUBLIC_MODEL'] in {environment.get('DEEPSEEK_API_KEY'), environment.get('OPENAI_API_KEY')}:
         raise TrialConfigurationError('CAPSTONE_PUBLIC_MODEL')
     for key, name in [('CAPSTONE_BACKEND_IMAGE', 'backend'), ('CAPSTONE_APP_IMAGE', 'app'),

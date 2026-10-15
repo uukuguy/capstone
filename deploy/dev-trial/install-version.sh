@@ -11,7 +11,9 @@ fail() { printf '%s\n' "$1" >&2; exit 1; }
 safe() { [ ! -L "$1" ] || fail 'An installation path is a symbolic link.'; }
 command -v docker >/dev/null 2>&1 || fail 'Install Docker with Compose v2 first.'
 docker compose version >/dev/null 2>&1 || fail 'Docker Compose v2 is required.'
-command -v curl >/dev/null 2>&1 || fail 'curl is required.'
+if [ -z "${CAPSTONE_OFFLINE_DIRECTORY:-}" ]; then
+  command -v curl >/dev/null 2>&1 || fail 'curl is required.'
+fi
 safe "$destination"
 [ ! -e "$destination" ] || [ -d "$destination" ] || fail 'The installation directory is invalid.'
 temporary=$(mktemp -d)
@@ -29,8 +31,15 @@ cleanup() {
 }
 trap cleanup 0
 trap 'exit 1' HUP INT TERM
-printf 'Downloading user-local %s deployment package...\n' "$version"
-curl --fail --location --progress-bar --connect-timeout 15 --max-time 180 "$url" -o "$temporary/package.tar.gz"
+if [ -n "${CAPSTONE_OFFLINE_DIRECTORY:-}" ]; then
+  safe "$CAPSTONE_OFFLINE_DIRECTORY/deployment.tar.gz"
+  [ "$url" = offline ] || fail 'The installer does not support offline input.'
+  [ -n "${CAPSTONE_INSTALL_CATALOG:-}" ] || fail 'The offline catalog is required.'
+  cp "$CAPSTONE_OFFLINE_DIRECTORY/deployment.tar.gz" "$temporary/package.tar.gz"
+else
+  printf 'Downloading user-local %s deployment package...\n' "$version"
+  curl --fail --location --progress-bar --connect-timeout 15 --max-time 180 "$url" -o "$temporary/package.tar.gz"
+fi
 if command -v sha256sum >/dev/null 2>&1; then
   actual=$(sha256sum "$temporary/package.tar.gz")
 elif command -v shasum >/dev/null 2>&1; then
@@ -108,6 +117,17 @@ index=0
 for kind in BACKEND APP POSTGRES OBJECTS; do
   index=$((index + 1))
   image=$(sed -n "s/^CAPSTONE_${kind}_IMAGE=//p" "$target/release.env")
+  if [ -n "${CAPSTONE_OFFLINE_DIRECTORY:-}" ]; then
+    case "$image" in sha256:*) ;; *) fail 'Offline image identity is invalid.';; esac
+    tail=${image#sha256:}
+    case "$tail" in *[!0-9a-f]*|'') fail 'Offline image identity is invalid.';; esac
+    [ "${#tail}" -eq 64 ] || fail 'Offline image identity is invalid.'
+    actual=$(docker image inspect --format '{{.Id}}' "$image") || fail 'An offline image is missing.'
+    [ "$actual" = "$image" ] || fail 'Offline image identity differs.'
+    actual=$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$image")
+    [ "$actual" = linux/amd64 ] || fail 'Offline image platform differs.'
+    continue
+  fi
   case "$image" in
     registry.cn-beijing.aliyuncs.com/uukuguy/capstone-*@sha256:*|ghcr.io/uukuguy/capstone-*@sha256:*) ;;
     *) fail 'Release image identity is invalid.';;
