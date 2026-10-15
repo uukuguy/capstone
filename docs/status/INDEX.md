@@ -1,6 +1,6 @@
 # docs/status INDEX
 
-2026-10-15离线交付：698e2a9修复元数据读权限，README按耗时排序并说明存储备份；清除继承LLM覆盖项后187+61项及shell检查通过。916271f宿主Docker安装、九轮scripted、重启、重复安装、回放和数据保留通过；宿主Apple ARM以模拟方式运行Linux AMD64。698e2a9归档校验、四镜像导入和六角色健康检查通过，九轮scripted及报告/证据回放、缺Key/URL拒绝且保留服务通过，重启/重复安装待完成，修正后真实OPENAI_*业务样例、PR #27最新head双平台及合并来源检查待完成，未合入或交付。用户已取消本地Ubuntu VM及cloud-dev验证；916271f VM权限失败保留，不再复测VM。四部署与原用户安装未改变。README预览见根runs/user-local-offline/README-preview.txt。见[验证记录](../reviews/2026-10-15-user-local-offline-verification.md)、[设计](../superpowers/specs/2026-10-15-user-local-offline-design.md)和[计划](../superpowers/plans/2026-10-15-user-local-offline.md)。
+2026-10-15：Linux AMD64离线包精确7c已交付于根runs/user-local-offline/capstone-delivery-7c19766，原SHA不变；PR #27在来源双平台CI38700786813全过后正常合入37529ef。安装、数据保留及九请求/回放通过不等于业务全过：7c区域没有dispatch执行；README原文1–9已用OPENAI运行，10–12未跑，完整发电N1排序仍待验证。Apple ARM上的AMD64模拟是已验环境，VM/cloud已取消。root dev仍1d0b280、未快进重建；四部署和19173原来源未变。独立分支ce47532包含已推送61a图修复、28020交接schema及ce475用户指南修订，现均已推送；29375后端28020/App7c原三轮真实handoff/dispatch通过，1300/1900均optimal，AC均converged；第3轮4个公开投影不可用、AC第3时段一致性待查。候选已停且数据保留，未PR或正式部署。见[限定验证报告](../reviews/2026-10-15-pypsa-handoff-verification.md)、[台账](VERSION-CONTROL.md)和[离线计划](../superpowers/plans/2026-10-15-user-local-offline.md)。
 
 2026-10-15当前：PR #23经Linux/macOS检查正常合入dev b7e68dd。capstone.sh、Git版本选择、user-local标识和共享数据兼容门禁已集成；候选双架构旧数据升级/回放/回退和旧安装接管通过。最终合并源码双架构数据升级/回放/回退及公开安装通过，版本目录已公开，原7832134安装与用户数据保留。执行[Task 7](../superpowers/plans/2026-10-14-capstone-dev-trial-deployment.md#task-7-user-local-management-and-shared-data-compatibility)。
 
@@ -14,12 +14,12 @@
 
 文档入库通过PR #19，包含剩余23项控制/设计/审计记录；旧PR #17由此替代。控制文档提交推进dev HEAD，运行来源与demo标签仍为faa6af9。
 
-推进图显示8个关键Git节点，突出当前活跃节点、四部署来源与实际在研Pi分支；dev主线保留重要云部署和大分支合并，中间候选进入历史详情。统一卡片内容、居中纵向主线、来源连线与两端间距浏览器检查通过。
+推进图显示13个关键Git节点，区分已交付离线来源、最新合并与独立修复焦点、四部署来源与实际在研Pi分支；dev主线保留重要云部署和大分支合并，中间候选进入历史详情。统一卡片内容、居中纵向主线、来源连线与两档间距浏览器检查通过。
 
 
 ## Active
 
-当前精确状态见 RESUME / VERSION-CONTROL：离线包698e2a9归档校验、四镜像导入和六角色健康检查通过，九轮scripted/回放通过，重启/重复安装及真实Provider复验中，仅验证宿主Docker的AMD64模拟路径，VM/云验证已取消。在线user-local的PR #23合入b7e68dd且双架构公开安装通过；两个demo仍为faa6af9，cloud-dev为24d9a32。主图保留中轴、准确四部署、在研分支及可安装版本图标。
+当前精确状态见 RESUME / VERSION-CONTROL：7c离线包已交付且源码合入37529ef；业务未全过，区域调度及README未跑项继续验证。独立修复分支ce47532已推送，28020候选handoff/dispatch实测通过；公开投影与AC一致性两项开放；root dev尚未快进重建，四部署与原用户安装不变。
 
 ### 历史实施记录
 

@@ -1,8 +1,8 @@
 # 多线版本控制
 
-2026-10-15离线交付：最新源码698e2a9修复离线元数据读权限，README按任务耗时排序并说明存储与备份。清除继承LLM覆盖项后，test-local-rebuild两组187项与61项通过，shell检查通过。916271f候选已在宿主Docker完成安装、九轮scripted样例、重启、重复安装、回放及数据保留；宿主为Apple ARM，Linux AMD64容器使用模拟执行。698e2a9归档校验、四镜像导入和六角色健康检查通过，九轮scripted及报告/证据回放、缺Key/URL拒绝且保留服务通过，重启/重复安装待完成，真实OPENAI_*业务样例修正后需重跑；PR #27最新head双平台门禁待完成，未合入或交付。
+2026-10-15离线包已交付：精确来源7c1976659a46fdf3f19abd565a0198bb60a0b8cd，目录为根runs/user-local-offline/capstone-delivery-7c19766，原归档、README及SHA256保持不变。完整安装、重启、重复安装、数据保留和九请求/独立回放检查通过；这些链路检查不等于所有业务样例通过。7c的区域样例没有实际调用operations.dispatch，调度业务失败保留。README原文1–9已用OPENAI方式完成运行记录，10–12未运行；12的完整发电N1研究及排序仍待验证，不宣称全样例通过。
 
-授权DeepSeek的OPENAI_*文本/工具往返及旧源码部分真实样例记录保留，不能作为698e2a9业务通过声明。用户已取消本地Ubuntu VM及cloud-dev验证，本次仅验证宿主Docker的AMD64模拟运行；916271f在VM上的元数据权限失败保留，不再复测VM。未创建、停止或部署云服务，四部署与原用户安装保持原来源。见[验证记录](../reviews/2026-10-15-user-local-offline-verification.md)、[设计](../superpowers/specs/2026-10-15-user-local-offline-design.md)和[计划](../superpowers/plans/2026-10-15-user-local-offline.md)。历史失败保留于JOURNAL及原收据。
+PR #27在来源7c的Linux/macOS CI run38700786813全部通过后，正常合入dev37529efa2f0b0e10f641a65706b330b1d94255af。root dev仍1d0b280，尚未快进或规范重建；四部署与19173用户安装b7e68dd保持原来源。验证环境是Apple ARM宿主Docker中的Linux AMD64模拟运行；用户取消VM/cloud验证，原失败记录保留。独立fix/user-local-network-view分支当前ce47532：61a418d图场景/相机修复已推送，未建PR或部署；28020aa公共Pi handoff schema修复16项合同/82项检查及审查通过；ce47532默认IEEE39/可选PyPSA文案54+5项及审查通过，分支ce47532已推送，未PR或部署，均不在已交付7c包内。独立29375候选使用AMD64后端28020aa与App7c，原三轮OPENAI实测handoff/dispatch通过：基准与增长目标1300/1900，均optimal，两次AC校验均converged。第3轮4个operations公开投影不可用，AC第3时段与调度增量一致性待查，不宣称PyPSA整体通过。候选已停止，0运行容器，数据保留；四部署不变。见[限定验证报告](../reviews/2026-10-15-pypsa-handoff-verification.md)。见[验证记录](../reviews/2026-10-15-user-local-offline-verification.md)、[设计](../superpowers/specs/2026-10-15-user-local-offline-design.md)及[计划](../superpowers/plans/2026-10-15-user-local-offline.md)。
 
 2026-10-15当前增量：PR #23经Linux/macOS检查正常合入dev b7e68dd，local-dev已规范重建同源。user-local标识、Git版本选择、capstone.sh共享数据管理及兼容发布门禁已交付；精确合并源码双架构镜像完成匿名拉取、旧数据升级/读取/报告证据回放、重启、浏览器和兼容回退验收，公开安装包下载/校验/启动/管理实测通过。新版本user-local-b7e68dd与受管旧版user-local-7832134已公开；原用户安装和数据保留，cloud-dev/demo未改变。
 
@@ -185,7 +185,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 功能包 | 阶段 | 状态 | 交付内容 | 来源 | 下一步 | 对比起点 | 新增或更新 | 交付记录 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev-trial | user-local无源码试用与版本管理 | 8 | 在线版已发布；离线宿主检查通过，最新候选待复验 | 固定镜像安装、Git版本选择、共享数据兼容及内网离线安装 | feat/user-local-offline | 完成698e2a9宿主Docker模拟安装与真实OPENAI_*业务复验、最新head双平台及合并来源检查 | devb7e68dd；两个demo保留faa6af9 | 默认openai；跨Docker双digest、层完整性、元数据权限、存储备份及简单样例前置；保留兼容检查 | 916271f宿主安装/九轮scripted/重启/重复安装/回放/数据保留通过；698e2a9归档/导入/健康检查通过，九轮scripted/回放通过，重启/重复安装待完成；VM与云验证已取消，原失败保留 |
+| dev-trial | user-local无源码试用与版本管理 | 8 | 离线包已交付，PR #27已合入；业务缺口单列 | 固定镜像安装、版本管理、数据兼容及内网离线安装 | dev37529ef；fix/user-local-network-view | root dev快进与规范重建；跟进独立候选的公开投影与AC一致性，不覆盖已交付7c包 | 四部署及19173保留原来源 | 默认openai；双digest/层校验、元数据权限、共享指南；7c安装和数据保留通过 | 九请求/回放不等于业务全过；7c无dispatch；README1–9已运行，10–12未跑，完整N1排序仍待验证 |
 | autonomous | 自主智能体 · 统一实施 | 4 | 已合入dev；两个demo已发布，整体业务未验收 | 单Pi研究循环、持久研究状态、Authority计算与来源、执行过程、结果证据、电网场景图层和模型资源管理 | origin/dev | 两个demo已验收faa6af9，从dev推进N−1与交互缺口 | dev4f15cfc及6ff7094业务基线；旧Research Model分支仅作参考 | 研究读写及Pi真实上下文；受控失败交付；任务与工具两级过程；完整结果字段；场景与孤岛图层；模型打开准备与内存回收；对话创建后台预热 | PR #18双平台PR门禁通过，合并dev faa6af9；2b6ae7b候选59项及本地完整PR门禁、云三角色身份、三用例九轮、报告证据回放与旧Thread恢复通过；完整发布及合并后双平台通过，两个demo已同源验收并推送正式标签，不冒充科学业务验收；详见本包明细及首期计划 |
 | live | 线上共同基线 | 0 | 线上在用 | 电网静态分析、证据结果、智能体对话与工作台 | 线上部署 | 保持线上稳定；后续版本按发布计划推进 | 当前线上部署 | 本页起点；更早沿革仅在详情中保留 | 以 cloud-demo 部署台账为准；本次未重新探测云端 |
 | main | 开发集成 dev / 发布基线 main | 0 | 已验证并分流 | dev保存当前全局记录与开发集成；main保存发布基线快照 | dev | 从dev推进自主智能体N−1与交互专项；Research Model R1保留待启动 | 线上共同基线 | 全局文档、分支治理与Issue工具已集成dev | main723b8e8发布快照；PR #18合并faa6af9及双平台门禁通过；两个demo已同源验收并推送正式标签；PR #19补齐控制文档 |
@@ -207,7 +207,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | 功能包 | 开发项 | 当前状态 | 已有实现或依据 | 剩余工作与依赖 | 验收要求 |
 | --- | --- | --- | --- | --- | --- |
 | dev-trial | 无源码Compose与镜像交付 | PR #22合入7832134，公开包安装验收通过 | 受限Provider；同源静态App；四类镜像；每实例0600私有状态；精确Git和资产；实际平台/同镜像/App源码/就绪检查；安装结束运维提示 | 用户自己的LLM Key、业务样例及Windows/WSL2仍待实际验证；停止保留数据 | 一条命令安装并启动至~/capstone；App默认19173，可改.env；API/App无Provider Key；三backend同镜像；停止保留数据；全部镜像来源一致 |
-| dev-trial | AMD64离线安装与OpenAI兼容内网配置 | 916271f宿主Docker模拟检查通过，698e2a9归档/导入/健康检查通过，九轮scripted/回放通过，重启/重复安装待完成 | 双digest身份、完整层校验、元数据权限、独立实例与数据兼容检查；187+61项及shell检查通过 | 最新候选实际安装、真实OPENAI_*业务复验、PR #27最新head双平台及合并来源检查 | 只声明宿主Apple ARM的AMD64模拟验证；VM/云验证已取消，原权限失败保留；未合并或交付，不重写原用户数据 |
+| dev-trial | AMD64离线安装与OpenAI兼容内网配置 | 7c包已交付，PR #27合入37529ef | 完整安装/重启/重复安装/数据保留及九请求/独立回放通过；来源7c双平台CI通过 | root dev尚未快进重建；区域调度及README10–12业务验证单列 | Apple ARM上的AMD64模拟验证；交付目录与原SHA不可重写；7c未执行dispatch，不称业务全过；VM/cloud已取消 |
 | dev-trial | user-local版本管理与共享数据升级 | PR #23合入b7e68dd，最终双架构验收和公开安装通过 | Git选择、版本管理、单活跃项目、共享数据及停止前检查；原7832134项目/卷/私有配置/安装记录保留；旧新报告证据可读可回放，兼容回退独立验证 | 用户自有LLM与业务样例；格式变化须开发提供已验证迁移 | 不兼容或缺少声明不能停止旧服务；不创建空卷绕过；原用户数据保留；用户不用处理数据库迁移 |
 | autonomous | 研究状态、笔记与持久回执 | 已实现，离线重放与接线已验证 | 8d636a4最小研究记录；7df7180实际受管Pi请求、压缩恢复与持久回执验证；a3895a5研究记录及388fa89参数追溯；版本冲突、重复更新及来源准入保留 | 完整多轮研究、反例依赖修订与共享存储恢复尚未整体验收 | 后续实际请求读到最新有界研究视图；研究判断不冒充Authority事实；迟到或冲突更新被拒绝；恢复不丢历史 |
 | autonomous | 单Pi主循环与复杂指令执行 | 已实现，真实三链执行完成；业务解释未通过 | 复用公开工具、指南、Thread/Attempt与结果准入；OPF、N−1、双停运原句均已有真实调用和正式回复；8bf9ada撤除附加回答生成 | N−1电压判定、方案约束与引用错误；孤岛短路/电源/稳定性解释缺口仍开放 | 单条原始指令可独立完成；失败、能力不足和部分成功按真实回执表达；不得使用样例专用路由或固定答案 |
@@ -258,7 +258,9 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
-| user-local-offline | feat/user-local-offline | feature | user-local · AMD64离线安装 | 宿主模拟检查通过；698e2a9待复验 | 916271f宿主安装/九轮scripted/重启/回放/数据保留通过；698e2a9修元数据权限，真实OPENAI_*业务及最新head CI待完成；VM/云验证已取消 | dev-trial |
+| user-local-offline | 7c19766 | feature | user-local · 已交付AMD64离线包 | 已交付；源码经PR #27合入37529ef | clean交付目录capstone-delivery-7c19766保留原SHA；安装/重启/重复安装/数据与九请求/回放通过；业务未全过：7c区域无dispatch，README10–12未跑；Linux/macOS CI通过 | dev-trial |
+| network-view-fix | fix/user-local-network-view | feature | 用户试用 · 图视角与Pi交接修复 | 已推送，handoff/dispatch真实验证通过，两个缺口开放 | 当前ce47532；61a图/相机106后端+109App及浏览器通过且已推送，未PR/部署；28020aa交接schema16合同/82检查通过，ce47532用户指南54+5项通过，分支已推送；29375后端28020/App7c真实三轮handoff/dispatch通过，1300/1900均optimal、AC均converged；公开投影与AC时段一致性待查，已停候选保留数据，不进入已交付包 | autonomous |
+| offline-merge | 37529ef | main | dev · 离线交付源码合并基线 | PR #27已合入，未更新运行环境 | 来源7c经Linux/macOS CI通过后正常合并；root dev1d0b280尚未快进重建；已交付归档仍精确7c，不冒充合并源码新包 | dev-trial |
 | user-local | b7e68dd | main | dev · user-local版本管理合并基线 | 已合入，双架构验收及公开安装通过 | Git选择与capstone.sh共享数据管理；停止前兼容/配置检查；最终源码匿名拉取、旧数据升级/回放/回退、重启和浏览器通过；user-local-b7e68dd已公开 | dev-trial |
 | dev-trial | 7832134 | main | dev · 用户试用交付合并基线 | 已合入，公开试用包已验证 | 无源码Compose、受限Provider、同源App、私有实例及精确源码/镜像检查；最终双架构各三案例九轮/回放/重启/浏览器、匿名拉取与公开安装入口通过；标签dev-trial-20261015-7832134 | dev-trial |
 | cloud | ed2524f | main | 线上运行能力 | 已发布 | 电网静态分析、智能体对话、工作台与结果证据；当前用户试用起点 | live |
@@ -310,7 +312,9 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
-| user-local-offline | 当前开发焦点 | feat/user-local-offline | AMD64离线安装与双digest/层校验；元数据权限修复及数据保护 | 916271f宿主模拟检查通过；698e2a9归档/导入/健康检查通过，九轮scripted/回放通过，重启/重复安装及真实Provider复验中，未合并或交付 |
+| user-local-offline | 已交付离线包来源 | feat/user-local-offline | AMD64离线安装与数据保护；原交付归档和校验值保留 | 7c已交付，九请求/回放通过；区域调度未执行，业务未全过 |
+| network-view-fix | 当前开发焦点 | fix/user-local-network-view | 图视角与Pi公开交接修复；默认IEEE39及可选电网说明 | ce47532已推送；真实handoff/dispatch通过，投影/AC一致性待查，未PR/部署 |
+| offline-merge | 最新开发合并基线 | dev | 离线交付源码正常合入；运行来源及交付归档分别保持 | 37529ef已合入；root dev尚未快进或重建 |
 | user-local | 重要试用发布与开发基线 | dev | Git选择、管理命令与共享用户数据；双架构旧数据升级回放及回退、公开安装通过 | 已合入并发布，用户业务待验证 |
 | dev-trial | 重要试用发布与开发基线 | dev | 无源码安装启动、同源App及受限Provider；双架构公开包已验证，用户正在试用 | 已发布试用包，用户业务待验证 |
 | cloud | 历史重要发布 | main | 电网静态分析、智能体对话与工作台；计算结果与证据随运行保留 | 历史发布起点 |
@@ -328,7 +332,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 编号 | 工作包 | 来源 | 目标 | 状态 | 交付范围 |
 | --- | --- | --- | --- | --- | --- |
-| 27 | dev-trial | feat/user-local-offline | dev | OPEN | 698e2a9元数据权限修复，187+61项及shell检查通过；916271f宿主模拟安装和九轮scripted通过；最新CI run38692022505检查698e2a9，真实Provider复验待完成；VM/云验证已取消 |
+| 27 | dev-trial | feat/user-local-offline | dev | MERGED | 来源7c双平台CI38700786813全部通过，正常合并37529efa2f0b0e10f641a65706b330b1d94255af；7c包已交付且原SHA保留；root dev尚未快进/重建；业务边界单列，图/Pi修复不在7c包内 |
 | 22 | dev-trial | feat/dev-trial-deployment | dev | MERGED | 双平台38596540476通过，正常合并7832134；最终双架构镜像、匿名拉取、三案例九轮/回放/重启/浏览器及公开安装包通过；本地/远端实施分支已关闭，恢复引用和数据保留 |
 | 23 | dev-trial | fix/dev-trial-user-feedback | dev | MERGED | Linux/macOS run38628243417通过，正常合并b7e68dd；完整本地及最终双架构升级/读取/回放/回退、重启、浏览器、匿名拉取和公开安装通过；未作用户LLM/整体业务验收 |
 | 6 | foundation | feat/issue-operational-readiness | main | MERGED | 对话连续阅读、执行租约修复、环境身份、反馈接入与检查加固；cfd6ad6 两平台检查与审查通过，合并 c3b78bc；云端未发布 |
@@ -352,10 +356,11 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 类型 | 关键进展 | 下一步 | 功能包 |
 | --- | --- | --- | --- | --- |
-| feat/user-local-offline | 内网离线交付 | 698e2a9修元数据权限及说明；916271f跨Docker身份/层校验；187+61项通过；PR #27开放 | 完成698e2a9宿主AMD64模拟安装、修正后真实OPENAI_*样例及最新head双平台检查，再正常合入dev并检查最终来源；VM/云验证已取消 | dev-trial |
+| feat/user-local-offline | 已合入交付来源 | 精确7c包已交付；PR #27正常合入37529ef，来源双CI通过 | 保留归档与原SHA，root dev快进/规范重建单列；业务失败和未跑样例继续验证，不覆盖已交付包 | dev-trial |
+| fix/user-local-network-view | 独立用户试用修复 | ce47532已推送；聚焦检查/审查及28020原三轮真实handoff/dispatch通过；候选已停且数据保留 | 跟进4个公开投影不可用与AC第3时段一致性；正常PR/CI；不声称19173已修复，不覆盖7c包 | autonomous |
 | refs/archive/20261015/feat-dev-trial-deployment | 已合并实施恢复引用 | 380ede4受检，PR #22合入7832134；本地/远端实施分支已关闭；最终公开镜像/包及安装入口验收通过 | 保存原验收目录、私有状态与卷；用户业务试用待反馈 | dev-trial |
 | main | 发布基线主线 | PR #9/#10已合入723b8e8；产品完整验收源码2473e48 | 发布PR接收dev已验证候选；云端按独立发布计划推进 | main |
-| dev | 默认开发集成主线 | PR #23合并b7e68dd，双平台检查通过；local-dev同源重建，user-local最终双架构及公开安装通过 | 用户试用反馈后继续N−1及交互专项；main保持发布快照；两个demo继续faa6af9 | main |
+| dev | 默认开发集成主线 | origin/dev37529ef已合入PR #27；root dev仍1d0b280，未快进/规范重建；四部署不变 | 保护原数据后快进并规范重建；业务缺口在独立分支验证，再走正常PR | main |
 | docs/dev-baseline-control | 收口状态同步 | 从接受的dev50d8ebc建立；登记B2标签、分支关闭与研究实施起点 | 仅文档和控制图，轻量检查后集成dev | main |
 | feat/research-model | 起点与依赖已适配 | 2b0b0a5；精确祖先dev6ff7094；设计及推进计划排除撤回的编译/覆盖/预热依赖；本工作区运行时准备与doctor通过 | R1尚无代码；按R1–R5及真实依赖路径验收，不将旧R0实验当作本分支成果 | research |
 | recovery/autonomous-agent-merged-faa6af9 | 已合并分支的本地恢复引用 | 原feat/autonomous-agent已通过PR #18合入dev faa6af9；保留2b6ae7b与原工作树全部未提交文档和运行数据；远端已合并分支关闭 | 非在研分支；后续从dev推进，科学与交互验收仍开放 | autonomous |

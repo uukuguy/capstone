@@ -3199,3 +3199,27 @@ The following original entries were retained during document synchronization.
 - 2026-10-15：保留离线元数据读取权限，修复非root预检；完善README耗时排序和本地数据备份说明。[698e2a9]
 
 - 2026-10-15：698e2a9安装AMD64 API/双worker同镜像；真实OPENAI九轮及准入/独立回放全过，区域调度恢复；用户增mv_oberrhein样例与在线README.md，另报19173模型选择/指令打开图层差异，已只读定位base/fault结果选择。
+
+- 2026-10-15：在线离线共用README.md及孤岛样例，保留旧包兼容；公开manifest固定可读以适配严格umask。[05581c8]
+
+- 2026-10-15：按用户要求优先Linux离线包交付；05581c8冻结打包并推送PR27，CI38698817921并行；图修复隔离fix/user-local-network-view，不阻塞归档。
+
+- 2026-10-15：05581实际归档因README.md新增而旧checksum清单仍11项被安全拒绝；未启动服务，不可交付；新旧清单兼容先红2项后47+3通过，失败归档保留。
+
+- 2026-10-15：严格校验含README.md的新旧离线清单，修复归档安全拒绝及文件名通配漏洞；先红后绿并独立审查。[7c19766]
+
+- 2026-10-15：隔离修复图层结果时序和相机请求重复执行，避免场景混图及覆盖手动视角；106后端/109App测试通过。[61a418d]
+
+- 2026-10-15：7c19766实际归档离线安装/重启/重复安装/数据保留与真实OPENAI九轮及独立回放全通过；已向用户交付clean目录3文件，CI及图修复独立继续。
+
+- 2026-10-15：按用户要求重命名交付目录capstone-delivery-7c19766；7c双CI已过。纠正业务验收：九轮链路/回放通过不代表区域调度通过，本轮无dispatch实际执行，已告知并单独调查。
+
+- 2026-10-15：用户要求先用交付7c的OPENAI方式逐条实测README原文；暂停业务修复。只读证据确认区域operations与handoff均已加载，公开必填handoff_ref与系统自动注入存在不一致，原因待回归确认。此前未逐条验收用户样例，已纠正说明；不得称全部通过。
+
+- 2026-10-15：[28020aa] removes model-supplied handoff receipts so application grants reach shared tools safely;82 checks passed, real regional retest pending.
+
+- 2026-10-15：[ce47532] leads generated installation guides with default IEEE39 and moves optional PyPSA grids after the main instructions.
+
+- 2026-10-15：PR #27在7c来源双平台CI38700786813通过后正常合入37529ef；交付目录capstone-delivery-7c19766与原SHA保持不变。纠正验收表述：九请求/回放通过不等于业务全过，7c区域无dispatch执行，README1–9已运行、10–12未跑，完整N1排序仍待验证。独立图/Pi/指南分支ce47532与29375候选复验另行记录；root dev未快进重建，四部署未变。
+
+- 2026-10-15：[28020aa] regional original three-turn AMD64 OpenAI retest verifies optimal dispatch1300/1900; projection/AC consistency remain separate findings.

@@ -56,25 +56,56 @@ nine scripted turns, restart, repeat installation, replay and data preservation 
 That host is Apple ARM running Linux AMD64 containers with emulation; it is not native
 AMD64 acceptance. The916271f Ubuntu VM metadata-permission failure remains recorded.
 
-698e2a9 preserves readable public metadata, retains private file modes and ownership,
-and adds the task-duration ordering and storage/backup instructions. After inherited
-LLM overrides were cleared, the two test-local-rebuild groups passed187 and61 checks;
-shell checks passed. The698e2a9 archive passed checksum validation and imported all
-four images; all six roles are healthy. Nine scripted turns and report/evidence replay
-passed. Missing Key/URL checks reject configuration and preserve services. Restart,
-repeat installation and corrected real OPENAI_* business
-samples and PR #27 checks for the latest head remain pending. Local Ubuntu VM and
-cloud-dev verification were cancelled by the user; no cloud service was changed.
+698e2a9 preserves readable public metadata and private modes/ownership. The187+61
+rebuild checks, shell checks, host install/restart/repeat/data retention and source
+identity checks passed. Nine real requests and independent replay completed, but
+request completion is not proof that every business objective succeeded.
+
+05581c8 added shared Markdown guides and safely failed installation at the checksum
+list gate; retain that failed archive. 7c19766 fixed optional Markdown entries and
+exact11/12-file checksum validation;47+3+8 checks and review passed. Its complete
+host installation, restart/repeat/data retention, nine-request and replay checks
+passed. The clean package was delivered at root
+runs/user-local-offline/capstone-delivery-7c19766. Preserve the original archive,
+README and SHA; do not overwrite this delivered package with later guide or code changes.
+
+Source7c passed Linux/macOS CI38700786813, then PR #27 merged normally as
+37529efa2f0b0e10f641a65706b330b1d94255af. Root dev remains1d0b280, without fast-forward
+or canonical rebuild. Four deployments and the original19173 installation are unchanged.
+Only Apple ARM host Docker AMD64 emulation was verified; VM/cloud checks were cancelled.
+
+Business scope correction:7c regional runs never called operations.dispatch. README
+instructions1–9 completed through OPENAI send_auto;10–12 were not run. Instruction12
+still marks full generator N1 study/ranking as pending. Keep business failures and
+unverified instructions explicit; do not call all samples passed.
+
+The separate fix/user-local-network-view branch is atce47532. Graph/camera fix61a418d
+is pushed with106 backend/109 App/type/browser checks passed, without PR or deployment.
+Public Pi handoff schema fix28020aa passed16 contract and82 checks plus review; guide
+revisionce47532 leads with IEEE39 and moves optional PyPSA grids to the end, with54+5
+checks and review passed. The branch throughce47532 is now pushed, without PR or deployment; these changes
+are not in the delivered package. The separate29375 AMD64 backend28020aa/App7c
+candidate passed the original three-turn real OPENAI handoff/dispatch path: baseline
+and growth objectives1300/1900, both optimal, and both AC validations converged.
+Third-turn4 operations public projections were unavailable, and third-period AC flow
+did not reflect the dispatch generation increment; consistency remains open. This
+is not full PyPSA acceptance. The candidate is stopped with0 running containers and
+data preserved. See [bounded verification](../../reviews/2026-10-15-pypsa-handoff-verification.md).
 
 ## Task 3: Acceptance and delivery
 
 - [x] Run focused regression, doctor and diff checks; review changes.
-- [ ] Build the latest exact-source AMD64 images and verify fresh host Docker
-  installation, registered scripted cases, replay, restart and repeat installation
-  without public downloads; record the Apple ARM emulation boundary.
-- [ ] Rerun the authorized real OPENAI_* business samples after their corrections;
-  keep Provider-backed and scripted evidence separate.
-- [ ] Record receipts, usage instructions and source identity; align project
-  control and recovery files. Integrate through the normal dev PR gates.
-- [ ] Deliver the offline artifact and its checksum with tested scope and limits.
-  Do not claim cancelled native VM or cloud-dev verification.
+- [x] Verify the exact7c archive installation, scripted checks, replay, restart,
+  repeat installation and data retention; record AMD64 emulation explicitly.
+- [x] Complete nine authorized real requests and independent replay; record that
+  this does not imply regional dispatch or all business samples passed.
+- [x] Deliver exact7c artifact/checksum/README and preserve their original hashes.
+- [x] Merge PR #27 normally as37529ef after source7c Linux/macOS CI passed.
+- [ ] Fast-forward root dev and rebuild its real local entry point with data preserved.
+- [x] Verify the original three-turn handoff/dispatch path on the separate28020aa
+  candidate; preserve receipts and data after stopping it.
+- [ ] Resolve public projection availability and third-period AC/dispatch consistency
+  as separate open findings; do not broaden this handoff acceptance.
+- [ ] Complete remaining README business checks;10–12 were not run and full N1
+  study/ranking is still pending. Keep delivered7c unchanged.
+- [ ] Submit independent fixes through normal PR/CI and verify their actual runtime.
