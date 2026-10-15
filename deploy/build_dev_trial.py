@@ -14,6 +14,15 @@ import shutil
 import subprocess
 import tarfile
 
+_contract_spec = importlib.util.spec_from_file_location('user_data_compatibility',
+                                                     Path(__file__).with_name('user_data_compatibility.py'))
+data_contract = importlib.util.module_from_spec(_contract_spec)
+_contract_spec.loader.exec_module(data_contract)
+
+BUNDLE_INPUTS = {'deploy/dev-trial/compose.yaml', 'deploy/dev-trial/start.sh',
+                'deploy/dev-trial/capstone.sh', 'deploy/dev-trial/install.sh',
+                'deploy/dev-trial/env.example', 'configs/llm-providers.json'}
+
 
 def _git(root: Path, *arguments: str) -> bytes:
     return subprocess.run(['git', '-C', str(root), *arguments], check=True,
@@ -74,7 +83,9 @@ def prepare_context(root: Path, revision: str, output: Path, model_library: Path
         raise ValueError('Source revision differs')
     output = _new_output(root, output)
     selected = ['Dockerfile', '.dockerignore', 'packages', 'configs', 'validation', 'tools',
-                'scripts', 'schemas', 'third-party-notices', 'deploy']
+                'scripts', 'schemas', 'third-party-notices', 'deploy', 'pyproject.toml', 'uv.lock']
+    selected.extend(name for name in _git(root, 'ls-tree', '--name-only', revision).decode().splitlines()
+                    if '/' not in name and data_contract.selected(name) and name not in selected)
     archive = _git(root, 'archive', '--format=tar', revision, '--', *selected)
     with tarfile.open(fileobj=io.BytesIO(archive)) as source:
         for member in source.getmembers():
@@ -95,15 +106,19 @@ def prepare_context(root: Path, revision: str, output: Path, model_library: Path
     for original, destination in [('App.Dockerfile', 'Dockerfile'), ('Caddyfile', 'Caddyfile')]:
         shutil.copyfile(output / 'deploy/dev-trial' / original, app / destination)
     assets = stage_models(root, output, model_library or root / '.grid-agent/runtime/pypsa-models')
-    inputs = ['deploy/dev-trial/compose.yaml', 'deploy/dev-trial/start.sh',
-              'deploy/dev-trial/env.example', 'configs/llm-providers.json', 'deploy/prepare_app_source.py']
+    inputs = BUNDLE_INPUTS | {'deploy/prepare_app_source.py'}
+    if (output / 'deploy/dev-trial/install-version.sh').exists():
+        inputs = inputs | {'deploy/dev-trial/install-version.sh'}
     (output / 'trial-context.json').write_text(json.dumps({'source_revision': revision,
+        'data_inputs': {name: hashlib.sha256(content).hexdigest()
+                        for name, content in data_contract.context_files(output).items()},
         'model_assets': assets, 'inputs': {name: hashlib.sha256((output / name).read_bytes()).hexdigest()
                                          for name in inputs}}, indent=2, sort_keys=True) + '\n')
     return {'source_revision': revision, 'backend_context': str(output), 'app_context': str(app)}
 
 
-def verify_acceptance(revision: str, images: dict, platforms: list[str], acceptance: dict | None) -> None:
+def verify_acceptance(revision: str, images: dict, platforms: list[str], acceptance: dict | None,
+                      format_sha256: str) -> None:
     if (not isinstance(acceptance, dict) or acceptance.get('schema') != 'capstone-dev-trial-acceptance/1'
             or acceptance.get('source_revision') != revision or acceptance.get('images') != images
             or set(acceptance.get('platforms', {})) != set(platforms)):
@@ -120,6 +135,15 @@ def verify_acceptance(revision: str, images: dict, platforms: list[str], accepta
         if (not isinstance(item, dict) or item.get('reference') != reference or item.get('platforms') != platforms
                 or (key in {'backend', 'app'} and item.get('source_revision') != revision)):
             raise ValueError('Final image acceptance differs from the source or platform manifests')
+    data = acceptance.get('data_compatibility')
+    if (not isinstance(data, dict) or data.get('source_revision') != revision
+            or data.get('format_sha256') != format_sha256
+            or not isinstance(data.get('previous_source_revisions'), list)
+            or not data['previous_source_revisions']
+            or any(not isinstance(item, str) or item == revision or not re.fullmatch(r'[a-f0-9]{40}', item)
+                   for item in data['previous_source_revisions'])
+            or any(data.get(key) != 'passed' for key in ['upgrade', 'read', 'replay', 'rollback'])):
+        raise ValueError('Final data compatibility acceptance is incomplete or differs from the descriptor')
 
 
 def write_bundle(source: Path, output: Path, revision: str, images: dict,
@@ -131,11 +155,14 @@ def write_bundle(source: Path, output: Path, revision: str, images: dict,
     receipt = json.loads((source / 'trial-context.json').read_text())
     if receipt.get('source_revision') != revision:
         raise ValueError('Bundle source differs from its prepared context')
-    required = {'deploy/dev-trial/compose.yaml', 'deploy/dev-trial/start.sh',
-                'deploy/dev-trial/env.example', 'configs/llm-providers.json'}
     inputs = receipt.get('inputs', {})
+    required = BUNDLE_INPUTS.copy()
+    if ('deploy/dev-trial/install-version.sh' in inputs
+            or (source / 'deploy/dev-trial/install-version.sh').exists()):
+        required.add('deploy/dev-trial/install-version.sh')
     if not required <= inputs.keys() or any(
-            hashlib.sha256((source / name).read_bytes()).hexdigest() != inputs[name] for name in required):
+            not (source / name).is_file() or (source / name).is_symlink()
+            or hashlib.sha256((source / name).read_bytes()).hexdigest() != inputs[name] for name in required):
         raise ValueError('Bundle inputs differ from the exact source context')
     if candidate:
         if platforms not in [['linux/amd64'], ['linux/arm64']]:
@@ -143,12 +170,20 @@ def write_bundle(source: Path, output: Path, revision: str, images: dict,
     elif platforms != ['linux/amd64', 'linux/arm64'] or not all(
             re.fullmatch(r'[a-z0-9][a-z0-9._:/-]*@sha256:[a-f0-9]{64}', value) for value in images.values()):
         raise ValueError('Published bundle requires both platforms and exact image digests')
+    descriptor = data_contract.generate_descriptor(source, revision, images)
+    data_inputs = {name: hashlib.sha256(content).hexdigest()
+                   for name, content in data_contract.context_files(source).items()}
+    if receipt.get('data_inputs') != data_inputs:
+        raise ValueError('Frozen persistence inputs differ from the source context receipt')
     if not candidate:
-        verify_acceptance(revision, images, platforms, acceptance)
+        verify_acceptance(revision, images, platforms, acceptance,
+                          descriptor['CAPSTONE_DATA_FORMAT_SHA256'])
     output.mkdir(parents=True, mode=0o700)
-    for name in ['compose.yaml', 'start.sh']:
+    for name in ['compose.yaml', 'start.sh', 'capstone.sh', 'install.sh']:
         shutil.copyfile(source / 'deploy/dev-trial' / name, output / name)
-    (output / 'start.sh').chmod(0o755)
+    for name in ['start.sh', 'capstone.sh', 'install.sh']:
+        (output / name).chmod(0o755)
+    (output / 'data-contract.env').write_text(data_contract.render_descriptor(descriptor))
     registry = json.loads((source / 'configs/llm-providers.json').read_text())
     settings = (source / 'deploy/dev-trial/env.example').read_text().replace(
         '@OPENAI_DEFAULT_MODEL@', registry['providers']['openai']['default_model'])
@@ -171,6 +206,11 @@ def write_bundle(source: Path, output: Path, revision: str, images: dict,
         'Keep the original directory and .capstone-trial private configuration.\n'
         'Use a separate CAPSTONE_INSTANCE starting with capstone-user- for another instance.\n'
         'Windows WSL2 is a target; it has not been verified. This is not a stable release.\n')
+    with (output / 'README.txt').open('a') as notes:
+        notes.write('Manage versions with ./capstone.sh. The frozen ./start.sh runs this version.\n'
+                    'The data contract blocks unverified backend and dependency changes.\n'
+                    'It does not replace migration tests or tests with old data.\n'
+                    + ('Candidate: full data compatibility has not been accepted.\n' if candidate else ''))
     return document
 
 

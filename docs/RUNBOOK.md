@@ -96,18 +96,26 @@ HTTP 服务只监听 loopback，首次启动在忽略的 `.capstone-agent/` 状�
 
 ### Source-free local dev trial
 
+下一版入口统一为`user-local`，管理命令改为`capstone.sh`。该修正正在验收，尚未替换下方已发布的7832134入口。新安装将支持缺省最新或指定Git提交号，错误参数列出可安装版本；安装和启动仍是一条命令。多个版本共享同一份用户数据，切换前检查兼容性和启动配置，只同时运行一个版本。使用`capstone.sh versions`查看、`capstone.sh use <Git>`切换；升级与回退兼容性由开发发布流程验证。保留原安装目录和数据，不需要用户处理数据库迁移。
+
 用户使用版本化的无源码部署包；开发者使用的Compose＋Vite路径保留。用户主机只需Docker及Compose v2。包默认从`registry.cn-beijing.aliyuncs.com/uukuguy`拉取固定摘要的backend、App、PostgreSQL和RustFS镜像。API与pandapower/PyPSA workers共用backend，静态App代理同源`/api/v1`。
 
-先在启动环境配置`DEEPSEEK_API_KEY`，再在包目录运行：
+先安装Docker/Compose v2，在启动环境配置`DEEPSEEK_API_KEY`，然后一条命令安装和启动：
 
 ```sh
-./start.sh
-./start.sh status
-./start.sh logs
-./start.sh stop
+curl -fsSL https://github.com/uukuguy/capstone/releases/download/dev-trial-20261015-7832134/install.sh | sh
 ```
 
-默认App入口`http://127.0.0.1:5173/`；端口已使用时，在`.env`修改`CAPSTONE_APP_PORT`。DeepSeek/deepseek-flash为默认；OpenAI示例在注释中，模型在生成包时从Provider注册表读取。切换Provider时同时修改Provider和模型，配置对应启动Key。启动LLM变量优先；发布镜像及内部数据库/存储/操作者凭据保持包或实例固定，不能由普通`.env`覆盖。Key只进入worker及配置检查容器，API/App不接收Key。
+后续服务管理：
+
+```sh
+sh ~/capstone/start.sh
+sh ~/capstone/start.sh status
+sh ~/capstone/start.sh logs
+sh ~/capstone/start.sh stop
+```
+
+版本化`install.sh`一次完成下载、校验、安装和启动，默认目录`~/capstone`，用`CAPSTONE_TRIAL_DIRECTORY`覆盖。成功时显示安装目录、访问地址、运维命令与端口配置。正式包默认App入口`http://127.0.0.1:19173/`，与开发5173/demo15173隔离；端口已使用时，在安装目录`.env`修改`CAPSTONE_APP_PORT`。DeepSeek/deepseek-flash为默认；OpenAI示例在注释中，模型在生成包时从Provider注册表读取。切换Provider时同时修改Provider和模型，配置对应启动Key。启动LLM变量优先；发布镜像及内部数据库/存储/操作者凭据保持包或实例固定，不能由普通`.env`覆盖。Key只进入worker及配置检查容器，API/App不接收Key。
 
 实例默认名`capstone-user-local-dev`；额外实例设置以`capstone-user-`开头的`CAPSTONE_INSTANCE`并选择不同App端口。每实例私有配置位于`.capstone-trial/<instance>/`，权限0600；保留整个目录以重新连接原数据。停止不会删卷；再次启动相同来源保留数据。更换镜像/源码不属于LLM配置切换，来源保护会要求独立升级计划。运行失败的诊断保留在该私有目录，脚本不展开配置输出。
 

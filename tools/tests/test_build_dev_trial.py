@@ -27,10 +27,19 @@ def test_bundle_has_no_source_or_keys_and_uses_provider_registry(tmp_path, monke
     for name in ['deploy/dev-trial', 'configs']:
         import shutil
         shutil.copytree(ROOT / name, context / name)
-    inputs = ['deploy/dev-trial/compose.yaml', 'deploy/dev-trial/start.sh',
+    for name in ['pyproject.toml', 'uv.lock', 'packages/backend/pyproject.toml',
+                 'packages/backend/src/store.py', 'schemas/store.json', 'deploy/dev_trial_runtime.py']:
+        path = context / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(name)
+    inputs = ['deploy/dev-trial/capstone.sh', 'deploy/dev-trial/install.sh', 'deploy/dev-trial/compose.yaml', 'deploy/dev-trial/start.sh',
               'deploy/dev-trial/env.example', 'configs/llm-providers.json']
+    if (context / 'deploy/dev-trial/install-version.sh').exists():
+        inputs.append('deploy/dev-trial/install-version.sh')
     import hashlib
     (context / 'trial-context.json').write_text(json.dumps({'source_revision': source,
+        'data_inputs': {p.relative_to(context).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+                        for p in context.rglob('*') if p.is_file() and module.data_contract.selected(p.relative_to(context).as_posix())},
         'inputs': {name: hashlib.sha256((context / name).read_bytes()).hexdigest() for name in inputs}}))
     platforms = ['linux/amd64', 'linux/arm64']
     acceptance = {'schema': 'capstone-dev-trial-acceptance/1', 'source_revision': source,
@@ -40,18 +49,37 @@ def test_bundle_has_no_source_or_keys_and_uses_provider_registry(tmp_path, monke
                            for key, value in images.items()}}
     with pytest.raises(ValueError, match='acceptance'):
         module.write_bundle(context, tmp_path / 'unverified', source, images, platforms)
+    with pytest.raises(ValueError, match='compatibility'):
+        module.write_bundle(context, tmp_path / 'no-data-receipt', source, images, platforms, acceptance=acceptance)
+    acceptance['data_compatibility'] = {
+        'source_revision': source, 'previous_source_revisions': ['783213489abd383bbf79225b29d9d718451dc597'],
+        'format_sha256': module.data_contract.generate_descriptor(context, source, images)['CAPSTONE_DATA_FORMAT_SHA256'],
+        **{key: 'passed' for key in ['upgrade', 'read', 'replay', 'rollback']}}
+    for field, invalid in [('format_sha256', '0' * 64), ('source_revision', '0' * 40),
+                           ('previous_source_revisions', []),
+                           ('previous_source_revisions', [source]), ('rollback', 'failed')]:
+        bad = dict(acceptance, data_compatibility=dict(acceptance['data_compatibility'], **{field: invalid}))
+        with pytest.raises(ValueError, match='compatibility'):
+            module.write_bundle(context, tmp_path / ('bad-' + field), source, images, platforms, acceptance=bad)
+    module.write_bundle(context, tmp_path / 'candidate', source, images, ['linux/amd64'], candidate=True)
+    assert 'full data compatibility has not been accepted' in (tmp_path / 'candidate/README.txt').read_text()
     module.write_bundle(context, tmp_path / 'bundle', source, images, platforms, acceptance=acceptance)
     bundle = tmp_path / 'bundle'
-    assert {p.name for p in bundle.iterdir()} == {'.env', '.env.example', 'release.env', 'manifest.json', 'compose.yaml', 'start.sh', 'README.txt'}
+    assert {p.name for p in bundle.iterdir()} == {'.env', '.env.example', 'release.env', 'manifest.json', 'compose.yaml', 'start.sh', 'capstone.sh', 'install.sh', 'data-contract.env', 'README.txt'}
     text = (bundle / '.env').read_text()
     registry = json.loads((ROOT / 'configs/llm-providers.json').read_text())
     assert registry['providers']['openai']['default_model'] in text
     assert 'API_KEY=' not in text and '@OPENAI' not in text
+    assert (bundle / 'capstone.sh').stat().st_mode & 0o111
+    assert len((bundle / 'data-contract.env').read_text().splitlines()) == 3
     assert json.loads((bundle / 'manifest.json').read_text())['source_revision'] == source
     with pytest.raises(ValueError):
         module.write_bundle(context, bundle, source, images, platforms, acceptance=acceptance)
     with pytest.raises(ValueError, match='source'):
         module.write_bundle(context, tmp_path / 'wrong-source', 'c' * 40, images, platforms, acceptance=acceptance)
+    (context / 'packages/backend/src/store.py').write_text('tampered backend')
+    with pytest.raises(ValueError, match='persistence'):
+        module.write_bundle(context, tmp_path / 'changed-backend', source, images, ['linux/amd64'], candidate=True)
     (context / 'deploy/dev-trial/start.sh').write_text('tampered')
     with pytest.raises(ValueError, match='input'):
         module.write_bundle(context, tmp_path / 'changed-input', source, images, ['linux/amd64', 'linux/arm64'])
@@ -68,6 +96,22 @@ def test_exact_context_keeps_the_registered_internal_policy_link(monkeypatch):
     module = builder()
     calls = []
     monkeypatch.setattr(module, 'stage_models', lambda *args: calls.append(args) or {'test.nc': 'a' * 64})
+    original_git = module._git
+    def archive_with_manager(root, *args):
+        result = original_git(root, *args)
+        if args[0] == 'archive':
+            import io, tarfile
+            out = io.BytesIO()
+            with tarfile.open(fileobj=io.BytesIO(result)) as old, tarfile.open(fileobj=out, mode='w') as new:
+                for item in old.getmembers():
+                    new.addfile(item, old.extractfile(item) if item.isfile() else None)
+                for name in ['capstone.sh', 'install.sh']:
+                    item = tarfile.TarInfo('deploy/dev-trial/' + name)
+                    item.size = 4
+                    new.addfile(item, io.BytesIO(b'test'))
+            return out.getvalue()
+        return result
+    monkeypatch.setattr(module, '_git', archive_with_manager)
     revision = subprocess.check_output(['git', '-C', str(ROOT), 'rev-parse', 'HEAD'], text=True).strip()
     (ROOT / '.capstone-agent').mkdir(exist_ok=True)
     with tempfile.TemporaryDirectory(dir=ROOT / '.capstone-agent') as temporary:

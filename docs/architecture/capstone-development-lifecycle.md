@@ -6,6 +6,27 @@ and deployment revisions are operational details owned by the [Railway
 runbook](../../deploy/railway/README.md); this document defines the boundaries
 that those details must preserve.
 
+## User data compatibility
+
+User data compatibility is a development and release requirement. Versions of
+one user-local installation share its PostgreSQL ledger and artifact storage.
+Preserve existing conversations, models, reports, evidence, private configuration,
+and volume identities when registering an existing installation with the manager.
+
+Changes to persistent formats require an explicit format version, supported
+upgrade paths, and tested migration and recovery procedures. Release verification
+must use data written by supported older versions and check reads, reports and
+evidence replay after upgrade. Container health alone does not prove compatibility.
+Declare and test rollback support separately; an upgrade result does not prove
+that an older version can read the resulting data.
+
+Before stopping the active service, the version manager checks the target
+release's compatibility declaration against the installation's data format.
+Missing or unsupported compatibility blocks switching and preserves the current
+service and data. Do not bypass this gate by creating empty replacement volumes,
+deleting data, or asking the user to repair the database. Implementation and
+verification receipts must support a release's compatibility claims.
+
 ## Three execution lanes
 
 ### Development integration and release branches

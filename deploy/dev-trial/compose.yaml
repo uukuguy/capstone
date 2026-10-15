@@ -16,7 +16,7 @@ x-runtime-environment: &runtime-environment
   AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY:?Local initialization required}
   AWS_DEFAULT_REGION: us-east-1
   CAPSTONE_ALLOWED_HOSTS: localhost,127.0.0.1,api
-  CAPSTONE_ALLOWED_ORIGINS: http://127.0.0.1:${CAPSTONE_APP_PORT:-5173},http://localhost:${CAPSTONE_APP_PORT:-5173}
+  CAPSTONE_ALLOWED_ORIGINS: http://127.0.0.1:${CAPSTONE_APP_PORT:-19173},http://localhost:${CAPSTONE_APP_PORT:-19173}
   CAPSTONE_FAMILY_HEALTH_URLS: pandapower=http://worker:8766,pypsa=http://worker-pypsa:8766
   CAPSTONE_WORKER_WAKE_URL: http://worker:8766
   PORT: "8766"
@@ -118,9 +118,9 @@ services:
     image: ${CAPSTONE_APP_IMAGE:?Release image manifest required}
     platform: ${CAPSTONE_TRIAL_PLATFORM:-}
     restart: unless-stopped
-    ports: ["127.0.0.1:${CAPSTONE_APP_PORT:-5173}:3000"]
+    ports: ["127.0.0.1:${CAPSTONE_APP_PORT:-19173}:3000"]
     environment:
-      CAPSTONE_APP_ORIGIN: http://127.0.0.1:${CAPSTONE_APP_PORT:-5173}
+      CAPSTONE_APP_ORIGIN: http://127.0.0.1:${CAPSTONE_APP_PORT:-19173}
     depends_on:
       api: {condition: service_healthy}
     healthcheck:

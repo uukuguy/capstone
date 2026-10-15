@@ -1,5 +1,7 @@
 # docs/status INDEX
 
+2026-10-15当前：PR #22已合入dev7832134，原无源码试用双架构验收、公开发布及用户安装完成。当前fix/dev-trial-user-feedback修正user-local标识、Git版本选择、capstone.sh管理和共享用户数据兼容门禁；新管理功能未发布，现有用户数据保留。精确检查点见[RESUME](RESUME-NEXT-SESSION.md)，执行[Task 7](../superpowers/plans/2026-10-14-capstone-dev-trial-deployment.md#task-7-user-local-management-and-shared-data-compatibility)。下方较早摘要按当时状态保留。
+
 2026-10-14：用户已同意四类镜像和linux/amd64、linux/arm64目标，执行[dev试用部署计划](../superpowers/plans/2026-10-14-capstone-dev-trial-deployment.md)。6f29b29实现无源码Compose、受限Provider及精确Git构建；69项Python和15项App检查通过，候选镜像构建中。控制图新增当前焦点及真实dev祖先边；未合入、未发布，不改现有四环境。
 
 2026-10-14镜像分发决定：阿里云 `registry.cn-beijing.aliyuncs.com/uukuguy` 为用户试用的默认公开拉取源，GHCR可选备用；本地已有登录验证通过，两个新仓库及试用镜像尚未创建/发布验收。镜像构成、体积和架构继续讨论，见[CLI设计](../superpowers/specs/2026-09-29-agent-interaction-discussion.md#默认镜像仓库与公开分发)。

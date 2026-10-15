@@ -162,9 +162,15 @@ The App also listens on the LAN by default: a phone on the same network can open
 
 ### Source-free local dev trial
 
-The temporary dev trial package runs with Docker Compose v2. It contains deployment files and uses four image classes from Aliyun Beijing; users do not need Git, Python, Node, a source checkout, or Vite. Set `DEEPSEEK_API_KEY` in the startup environment, then run `./start.sh` in the supplied package directory. The App opens on loopback port5173 by default.
+The temporary dev trial package runs with Docker Compose v2. It contains deployment files and uses four image classes from Aliyun Beijing; users do not need Git, Python, Node, a source checkout, or Vite. Install Docker with Compose v2 and set `DEEPSEEK_API_KEY` in the startup environment, then install and start with one command:
 
-The supplied `.env` selects DeepSeek/deepseek-flash and includes a commented OpenAI alternative. Change both Provider and model together; use `OPENAI_API_KEY` for OpenAI. Startup LLM values override file defaults. `./start.sh status`, `logs`, and `stop` manage the same instance; stop keeps its data. Keep the deployment directory and private `.capstone-trial/` state. See [trial operations](docs/RUNBOOK.md#source-free-local-dev-trial) and the [version register](docs/status/VERSION-CONTROL.md) for verified source, distribution and platform status.
+```sh
+curl -fsSL https://github.com/uukuguy/capstone/releases/download/dev-trial-20261015-7832134/install.sh | sh
+```
+
+The default directory is `~/capstone`; set `CAPSTONE_TRIAL_DIRECTORY` to change it. The App opens at `http://127.0.0.1:19173/`. If the port is busy, edit `CAPSTONE_APP_PORT` in `~/capstone/.env`. Installation prints the actual directory, URL, port configuration and service commands.
+
+The supplied `.env` selects DeepSeek/deepseek-flash and includes a commented OpenAI alternative. Change both Provider and model together; use `OPENAI_API_KEY` for OpenAI. Startup LLM values override file defaults. `sh ~/capstone/start.sh`, `status`, `logs`, and `stop` manage the same instance; stop keeps its data. Keep the deployment directory and private `.capstone-trial/` state. See [trial operations](docs/RUNBOOK.md#source-free-local-dev-trial) and the [version register](docs/status/VERSION-CONTROL.md) for verified source, distribution and platform status.
 
 The CLI remains useful for automation and focused checks. After setup, run an offline pandapower query:
 
