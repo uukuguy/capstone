@@ -1,5 +1,7 @@
 # 多线版本控制
 
+2026-10-15离线实施：Provider40b338d与离线传输6b74397已提交，172项配置/Kernel及67项离线/管理回归通过；原生Pi选中内网自定义模型和地址，零Provider请求。7930c07保留旧版本目录，19项及追加独立审查通过。PR #27为dev目标草稿，Linux/macOS及本地完整PR门禁运行中；AMD64精确源码镜像已构建，实际安装验收进行中。未合入或发布，不改变四部署与用户安装。
+
 2026-10-15离线增量：用户内网无法下载公网资源，确认交付linux/amd64完整离线包，默认PROVIDER=openai，优先OPENAI_BASE_URL/OPENAI_MODEL/OPENAI_API_KEY。openai兼容接口已由用户确认可用；本轮不调用真实Provider。feat/user-local-offline从dev1d0b280实施，设计effd148；安装与镜像导入待验证，未合入、未发布，现有四部署及用户安装保持原状。见[离线设计](../superpowers/specs/2026-10-15-user-local-offline-design.md)及[实施计划](../superpowers/plans/2026-10-15-user-local-offline.md)。
 
 2026-10-15当前增量：PR #23经Linux/macOS检查正常合入dev b7e68dd，local-dev已规范重建同源。user-local标识、Git版本选择、capstone.sh共享数据管理及兼容发布门禁已交付；精确合并源码双架构镜像完成匿名拉取、旧数据升级/读取/报告证据回放、重启、浏览器和兼容回退验收，公开安装包下载/校验/启动/管理实测通过。新版本user-local-b7e68dd与受管旧版user-local-7832134已公开；原用户安装和数据保留，cloud-dev/demo未改变。
@@ -325,6 +327,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 编号 | 工作包 | 来源 | 目标 | 状态 | 交付范围 |
 | --- | --- | --- | --- | --- | --- |
+| 27 | dev-trial | feat/user-local-offline | dev | DRAFT | AMD64完整离线包及OpenAI兼容内网配置；专项通过，实际安装及完整双平台门禁待完成 |
 | 22 | dev-trial | feat/dev-trial-deployment | dev | MERGED | 双平台38596540476通过，正常合并7832134；最终双架构镜像、匿名拉取、三案例九轮/回放/重启/浏览器及公开安装包通过；本地/远端实施分支已关闭，恢复引用和数据保留 |
 | 23 | dev-trial | fix/dev-trial-user-feedback | dev | MERGED | Linux/macOS run38628243417通过，正常合并b7e68dd；完整本地及最终双架构升级/读取/回放/回退、重启、浏览器、匿名拉取和公开安装通过；未作用户LLM/整体业务验收 |
 | 6 | foundation | feat/issue-operational-readiness | main | MERGED | 对话连续阅读、执行租约修复、环境身份、反馈接入与检查加固；cfd6ad6 两平台检查与审查通过，合并 c3b78bc；云端未发布 |
@@ -348,6 +351,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 类型 | 关键进展 | 下一步 | 功能包 |
 | --- | --- | --- | --- | --- |
+| feat/user-local-offline | 内网离线交付 | Provider40b338d与传输6b74397，172项及67项专项通过；PR #27草稿 | AMD64安装/回放/重启与版本目录保留验证，再按dev门禁合入 | dev-trial |
 | refs/archive/20261015/feat-dev-trial-deployment | 已合并实施恢复引用 | 380ede4受检，PR #22合入7832134；本地/远端实施分支已关闭；最终公开镜像/包及安装入口验收通过 | 保存原验收目录、私有状态与卷；用户业务试用待反馈 | dev-trial |
 | main | 发布基线主线 | PR #9/#10已合入723b8e8；产品完整验收源码2473e48 | 发布PR接收dev已验证候选；云端按独立发布计划推进 | main |
 | dev | 默认开发集成主线 | PR #23合并b7e68dd，双平台检查通过；local-dev同源重建，user-local最终双架构及公开安装通过 | 用户试用反馈后继续N−1及交互专项；main保持发布快照；两个demo继续faa6af9 | main |

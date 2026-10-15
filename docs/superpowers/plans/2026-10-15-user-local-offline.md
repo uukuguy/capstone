@@ -18,20 +18,25 @@ Keep OpenAI-compatible endpoint configuration in the existing backend path.
 
 ## Task 1: OpenAI-compatible configuration
 
-- [ ] Add failing configuration/Compose tests for Provider aliases, model and URL.
-- [ ] Wire aliases and endpoint through the local trial profile to both workers.
-- [ ] Verify existing explicit CAPSTONE settings and cloud profiles remain valid.
+- [x] Add failing configuration/Compose tests for Provider aliases, model and URL.
+- [x] Wire aliases and endpoint through the local trial profile to both workers.
+- [x] Verify existing explicit CAPSTONE settings and cloud profiles remain valid.
 
 Files: `deploy/dev-trial/compose.yaml`, `deploy/launch_host_runtime.py`,
 `configs/runtime/host-runtime-dev-trial-v1.json`, relevant tools tests.
 
 ## Task 2: Offline transport
 
-- [ ] Add failing export/import tests: checksums, exact IDs/platforms, no network,
+- [x] Add failing export/import tests: checksums, exact IDs/platforms, no network,
   incomplete inputs, existing data and repeat installation.
-- [ ] Add operator bundle exporter and user offline installer.
-- [ ] Adapt the manager only where needed to validate imported image identities.
-- [ ] Retain compatibility and configuration preflight before stopping services.
+- [x] Add operator bundle exporter and user offline installer.
+- [x] Adapt the manager only where needed to validate imported image identities.
+- [x] Retain compatibility and configuration preflight before stopping services.
+
+Task 1: 172 focused/adjacent checks and native Pi selection passed at40b338d.
+Task 2: 67 focused checks passed at6b74397. The catalog preservation correction
+7930c07 passed19 checks and independent review. No real Provider requests.
+Actual AMD64 acceptance remains separate from these code checks.
 
 Files: new offline exporter/installer under `deploy/`, lifecycle templates and
 `tools/tests/test_user_local_offline.py`.
