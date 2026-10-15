@@ -3195,3 +3195,7 @@ The following original entries were retained during document synchronization.
 - 2026-10-15：portable验收范围与恢复状态对齐并推送；新双平台检查38690376839，916候选归档已完整生成。[0165012]
 
 - 2026-10-15：916 host Docker安装/9轮脚本/重启重复安装/证据回放及数据保留通过；VM元数据权限失败已修复，187+61测试及独立审查通过。用户取消本地Ubuntu VM与cloud-dev验证；继续修正后AMD64真实OPENAI_*样例，README增加数据存储备份及耗时排序。
+
+- 2026-10-15：保留离线元数据读取权限，修复非root预检；完善README耗时排序和本地数据备份说明。[698e2a9]
+
+- 2026-10-15：698e2a9安装AMD64 API/双worker同镜像；真实OPENAI九轮及准入/独立回放全过，区域调度恢复；用户增mv_oberrhein样例与在线README.md，另报19173模型选择/指令打开图层差异，已只读定位base/fault结果选择。

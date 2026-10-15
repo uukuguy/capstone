@@ -383,6 +383,16 @@ print('runner '+op)
         (p/'manifest.json').write_text('{}')
         self.assertNotEqual(self.run_manager().returncode,0)
 
+    def test_optional_markdown_guide_is_part_of_immutable_version(self):
+        package = self.package(A)
+        (package / 'README.md').write_text('# Version guide\n')
+        result = self.run_manager('start', A)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        (package / 'README.md').write_text('# Changed guide\n')
+        before = self.ops()
+        self.assertNotEqual(self.run_manager('start', A).returncode, 0)
+        self.assertEqual(self.ops(), before)
+
     def test_unsafe_project_mapping_cannot_stop_other_project(self):
         self.package(A)
         self.assertEqual(self.run_manager().returncode,0)

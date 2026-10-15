@@ -100,6 +100,14 @@ and independent review passed. User cancelled further VM validation.
 Host Docker source916 passed fresh install, nine scripted turns, report/evidence
 replay, restart, repeat installation and private configuration/data retention.
 
+Source698e2a9 passed the same complete host installation acceptance. API and both
+workers used one verified Linux AMD64 image. Real OPENAI_* DeepSeek requests
+completed all nine registered IEEE39, regional-six-bus and AC/DC turns. Independent
+read-only replay verified current-run tool provenance, authority admission,
+history and bounded projections for all three groups. Regional dispatch returned
+optimal base and growth solutions; the earlier CPU-runtime failure is retained.
+Both required Linux/macOS checks passed for698e2a9 (run38692022505).
+
 ## User instructions
 
 Both package and installed-directory README include the frozen user sample
@@ -108,14 +116,19 @@ ordered from short information queries to calculations, scenario changes and
 advanced exploration. It replaces the earlier three representative demos.
 The complete preview is `runs/user-local-offline/README-preview.txt` in the main
 checkout.
+Online and offline packages now provide README.md in both the version package
+and installation root, while retaining README.txt compatibility. Shared examples
+include the original mv_oberrhein island request before the long generation
+research example. Online first-install commands follow the credential setup.
+Builder, installer, manager and offline checks passed97 tests with independent
+review; the final first-install wording passed three focused checks.
 
 ## Cloud installation scope
 
 The user cancelled cloud-dev validation and further local Ubuntu VM validation.
 No cloud service was stopped, created or deployed. Remaining acceptance uses
 the existing local Docker environment with Linux AMD64 containers emulated on
-Apple ARM. This is not native AMD64 hardware or cloud acceptance. Real OPENAI_*
-samples must be rerun on the corrected AMD64 package.
+Apple ARM. This is not native AMD64 hardware or cloud acceptance.
 
 ## Final delivery
 

@@ -148,6 +148,28 @@ def read_archive_identity(path: Path, kind: str, tag: str, revision: str) -> dic
                 'manifest_digest': entry['digest'], 'platform': 'linux/amd64'}
 
 
+def markdown_readme(text: str) -> str:
+    lines = text.splitlines()
+    rendered = ['# ' + lines[0], '']
+    command_block = False
+    for line in lines[1:]:
+        command = line.startswith('  ')
+        if command != command_block:
+            rendered.append('```sh' if command else '```')
+            command_block = command
+        if command:
+            rendered.append(line[2:])
+        elif re.match(r'^[1-5]\. (前提与校验|配置并安装.*|访问与管理|安装后试用|数据与排错)$', line):
+            rendered.extend(['', '## ' + line, ''])
+        elif re.match(r'^[一二三四]、', line):
+            rendered.extend(['', '### ' + line, ''])
+        else:
+            rendered.append(line + ('  ' if line else ''))
+    if command_block:
+        rendered.append('```')
+    return '\n'.join(rendered) + '\n'
+
+
 def export_bundle(context: Path, output: Path, revision: str, images: dict) -> dict:
     if (not re.fullmatch(r'[a-f0-9]{40}', revision) or set(images) != set(KINDS)
             or output.exists() or any(p.is_symlink() for p in [output, *output.parents])):
@@ -194,6 +216,7 @@ def export_bundle(context: Path, output: Path, revision: str, images: dict) -> d
     document['channel'] = 'dev-trial-offline'
     document['offline_image_identities'] = records
     (deployment / 'manifest.json').write_text(json.dumps(document, indent=2, sort_keys=True) + '\n')
+    (deployment / 'manifest.json').chmod(0o644)
     settings = ('# Keep OPENAI_API_KEY in the startup environment.\n'
                 'PROVIDER=openai\nOPENAI_MODEL=deepseek-flash\nOPENAI_BASE_URL=\n'
                 'CAPSTONE_APP_PORT=19173\n')
@@ -210,6 +233,7 @@ def export_bundle(context: Path, output: Path, revision: str, images: dict) -> d
         '自定义地址使用Chat Completions；地址必须能从容器访问。\n'
         '用sh capstone.sh start/status/logs/stop/versions管理；stop保留数据。\n'
         '保留安装目录、私有配置及数据卷；兼容检查拒绝未验证的数据切换。\n\n' + samples)
+    (deployment / 'README.md').write_text(markdown_readme((deployment / 'README.txt').read_text()))
     archive = output / 'deployment.tar.gz'
     with tarfile.open(archive, 'w:gz') as target:
         for path in sorted(deployment.iterdir()):
@@ -232,7 +256,10 @@ def export_bundle(context: Path, output: Path, revision: str, images: dict) -> d
         'Capstone 用户离线安装（Linux AMD64）\n源码：' + revision + '\n\n'
         '1. 前提与校验\n'
         '预装Docker Engine、Docker Compose v2，并确认当前用户能运行docker。\n'
-        '完整包包含四类镜像及六个模型文件，安装不访问公网；运行时须能访问内网LLM。\n'
+        '完整包包含运行镜像和预装电网示例数据，安装时无需联网下载；\n'
+        '运行时须能访问内网LLM。PyPSA示例包括AC-DC Meshed、Storage-HVDC、\n'
+        'SciGrid-DE、Model-Energy、Stochastic-Network及Carbon Management。\n'
+        'IEEE39、区域六母线等内置电网也随程序提供。\n'
         '在交付文件目录执行 sha256sum -c <交付归档名>.sha256，再解压.tar.gz。\n'
         '保留全部解压文件；安装器自动按SHA256SUMS逐项校验。\n\n'
         '2. 配置并安装（在Bash中执行）\n'
@@ -266,7 +293,8 @@ def export_bundle(context: Path, output: Path, revision: str, images: dict) -> d
         '缺地址/Key、校验失败或数据不兼容时会拒绝切换并保留原服务。\n'
         '不要删除数据卷绕过兼容检查；新独立试用可另选目录及端口。\n'
         '401先核对Key，模型错误核对OPENAI_MODEL，连接失败检查容器到接口的网络。\n')
-    names = ['deployment.tar.gz', 'images.tsv', 'versions.tsv', 'manifest.json', 'install-version.sh', 'install-offline.sh', 'README.txt'] + [kind + '.tar' for kind in KINDS]
+    (output / 'README.md').write_text(markdown_readme((output / 'README.txt').read_text()))
+    names = ['deployment.tar.gz', 'images.tsv', 'versions.tsv', 'manifest.json', 'install-version.sh', 'install-offline.sh', 'README.txt', 'README.md'] + [kind + '.tar' for kind in KINDS]
     (output / 'SHA256SUMS').write_text(''.join(checksum(output / name) + '  ' + name + '\n' for name in names))
     return document
 

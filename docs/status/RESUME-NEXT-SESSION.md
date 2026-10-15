@@ -39,6 +39,10 @@ cloud-dev24d9a32. Existing user installation/data and cloud services are unchang
 - Source916 host Docker acceptance passed install,9 scripted turns, replay,
   restart/repeat and data/config retention. VM failed public metadata permissions;
   fix preserves original mode/owner and passed independent review.
+- Corrected698e2a9 build is running (offline-corrected-build.log); chained
+  accept_and_openai_corrected.py waits for its exact receipt, then runs the
+  corrected host installation and authorized real OPENAI_* samples. Driver
+  corrected-full-driver.log; do not start a duplicate Provider run.
 - User cancelled local Ubuntu VM and cloud-dev verification. Neither is a
   remaining delivery gate. Existing VM/cloud data and failed evidence are retained.
 - Corrected-source local gate passed187 deployment/offline/Provider checks plus

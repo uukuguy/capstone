@@ -147,6 +147,12 @@ package_check() {
         checksum=$(hash "$pc/$f") || return 1
         printf '%s %s\n' "$checksum" "$f" >> "$work/binding"
     done
+    safe "$pc/README.md"
+    if [ -e "$pc/README.md" ]; then
+        [ -f "$pc/README.md" ] || return 1
+        checksum=$(hash "$pc/README.md") || return 1
+        printf '%s %s\n' "$checksum" README.md >> "$work/binding"
+    fi
 }
 # Copy legacy files inside this installation only. Never rewrite the original receipt.
 safe "$root/.capstone-trial"

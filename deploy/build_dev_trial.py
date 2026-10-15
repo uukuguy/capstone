@@ -21,7 +21,8 @@ _contract_spec.loader.exec_module(data_contract)
 
 BUNDLE_INPUTS = {'deploy/dev-trial/compose.yaml', 'deploy/dev-trial/start.sh',
                 'deploy/dev-trial/capstone.sh', 'deploy/dev-trial/install.sh',
-                'deploy/dev-trial/env.example', 'configs/llm-providers.json'}
+                'deploy/dev-trial/env.example', 'configs/llm-providers.json',
+                'deploy/dev-trial/offline-validation-samples.txt'}
 
 
 def _git(root: Path, *arguments: str) -> bytes:
@@ -215,6 +216,55 @@ def write_bundle(source: Path, output: Path, revision: str, images: dict,
                     'The data contract blocks unverified backend and dependency changes.\n'
                     'It does not replace migration tests or tests with old data.\n'
                     + ('Candidate: full data compatibility has not been accepted.\n' if candidate else ''))
+    samples = (source / 'deploy/dev-trial/offline-validation-samples.txt').read_text()
+    (output / 'README.md').write_text(
+        '# Capstone 在线安装使用说明\n\n'
+        '源提交：`' + revision + '`。这是开发试用包。\n\n'
+        '## 安装前提\n\n'
+        '需要 Docker Engine 或 Docker Desktop，以及 Docker Compose v2。'
+        '在线安装器需要联网下载部署包、版本目录和四类固定摘要镜像；'
+        'Docker 必须能够访问交付包指定的镜像仓库。安装过程不需要本地源码。\n\n'
+        '按下方步骤配置模型接口并运行在线安装器。默认安装目录为 `$HOME/capstone`，'
+        '可通过 `CAPSTONE_TRIAL_DIRECTORY` 选择其他目录。'
+        '默认 App 地址为 <http://127.0.0.1:19173/>。\n\n'
+        '## 配置模型接口\n\n'
+        '在线包的默认配置仍为 `CAPSTONE_PUBLIC_PROVIDER=deepseek`、'
+        '`CAPSTONE_PUBLIC_MODEL=deepseek-flash`，使用启动环境中的 `DEEPSEEK_API_KEY`。\n\n'
+        '使用内网 OpenAI 兼容接口时，将以下配置写入安装目录的 `.env`，'
+        '替换示例地址和模型名。`PROVIDER` 和 `OPENAI_MODEL` 优先于原有 CAPSTONE 配置：\n\n'
+        '```dotenv\nPROVIDER=openai\nOPENAI_BASE_URL=http://your-internal-llm:8000/v1\n'
+        'OPENAI_MODEL=deepseek-flash\nCAPSTONE_APP_PORT=19173\n```\n\n'
+        '首次安装前还没有 `.env` 时，可在运行安装器的同一终端设置这些非密钥变量：\n\n'
+        '```sh\nexport PROVIDER=openai\nexport OPENAI_BASE_URL=http://your-internal-llm:8000/v1\n'
+        'export OPENAI_MODEL=deepseek-flash\n```\n\n'
+        '在启动环境中设置 `OPENAI_API_KEY`。例如在 Bash 中交互输入，'
+        '避免将密钥写入命令历史或参数：\n\n'
+        '```bash\nread -r -s -p "OPENAI_API_KEY: " OPENAI_API_KEY\nprintf "\\n"\n'
+        'export OPENAI_API_KEY\n```\n\n'
+        '首次安装时，在同一终端执行：\n\n'
+        '```sh\ncurl -fsSL https://raw.githubusercontent.com/uukuguy/capstone/dev/deploy/dev-trial/install.sh | sh\n```\n\n'
+        '已安装时，使用下方管理命令启动服务。\n\n'
+        '自定义 OpenAI 地址使用 Chat Completions 协议；'
+        '官方 `https://api.openai.com/v1` 保持 Responses 协议。'
+        '启动环境优先于 `.env`。密钥只供后端使用，不放入 App 配置、截图或报告。'
+        '更换安装目录时，将示例命令中的 `$HOME/capstone` 改为实际目录。\n\n'
+        '## 启动、停止和版本管理\n\n'
+        '```sh\nsh "$HOME/capstone/capstone.sh" start\n'
+        'sh "$HOME/capstone/capstone.sh" status\nsh "$HOME/capstone/capstone.sh" logs\n'
+        'sh "$HOME/capstone/capstone.sh" stop\nsh "$HOME/capstone/capstone.sh" versions\n```\n\n'
+        '用 `use <Git提交>` 切换已安装版本；用 `install <Git提交>` 在线安装版本。'
+        '版本切换受数据兼容检查保护。停止保留数据；重新启动仍需提供所选接口的密钥。'
+        '原始 `README.txt` 和各版本目录中的说明保留供兼容入口使用。\n\n'
+        '## 数据和备份\n\n'
+        '保留完整安装目录，包括 `.env`、`.capstone-management`、`versions` 下的私有状态和安装凭据。'
+        '数据库及对象存储数据位于 Docker volumes，单独复制安装目录不构成完整备份。'
+        '备份前先停止服务，再按 Docker 运维流程备份本安装的数据库、对象存储 volumes 和安装目录；'
+        '恢复时保持它们来自同一备份。不要删除 volumes、修改数据兼容标记或覆盖其他安装的数据。\n\n'
+        '## 可复制的测试案例\n\n'
+        '以下案例与离线包共用同一份源文件。需要模型接口可用，可能产生 Provider 费用。'
+        '按案例说明选择模型、建立新对话并逐轮发送。\n\n```text\n'
+        + samples.rstrip() + '\n```\n')
+    (output / 'README.md').chmod(0o644)
     return document
 
 

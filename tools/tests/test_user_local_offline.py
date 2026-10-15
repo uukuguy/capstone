@@ -179,7 +179,8 @@ def context(tmp_path):
 
 
 @pytest.mark.parametrize('source_id_kind', ['config', 'manifest'])
-def test_export_checks_platform_source_and_streamed_archive_hashes(tmp_path, monkeypatch, source_id_kind):
+@pytest.mark.parametrize('build_umask', [0o022, 0o077])
+def test_export_checks_platform_source_and_streamed_archive_hashes(tmp_path, monkeypatch, source_id_kind, build_umask):
     exporter = load('build_user_local_offline')
     source = context(tmp_path)
     monkeypatch.setenv('OPENAI_API_KEY', 'export-secret-canary')
@@ -200,7 +201,11 @@ def test_export_checks_platform_source_and_streamed_archive_hashes(tmp_path, mon
         raise AssertionError(args)
     monkeypatch.setattr(exporter.subprocess, 'run', run)
     out = tmp_path / 'offline'
-    result = exporter.export_bundle(source, out, REVISION, refs)
+    previous_umask = os.umask(build_umask)
+    try:
+        result = exporter.export_bundle(source, out, REVISION, refs)
+    finally:
+        os.umask(previous_umask)
     assert result['channel'] == 'dev-trial-offline'
     assert result['images'] == {key: canonical for key in KINDS}
     assert [row['kind'] for row in result['offline_image_identities']] == list(KINDS)
@@ -214,6 +219,7 @@ def test_export_checks_platform_source_and_streamed_archive_hashes(tmp_path, mon
     samples = (source / 'deploy/dev-trial/offline-validation-samples.txt').read_text()
     assert samples in (out / 'README.txt').read_text()
     with tarfile.open(out / 'deployment.tar.gz') as bundle:
+        assert bundle.getmember('manifest.json').mode == 0o644
         assert json.load(bundle.extractfile('manifest.json')) == result
         settings = bundle.extractfile('.env').read().decode()
         assert 'PROVIDER=openai\nOPENAI_MODEL=deepseek-flash\nOPENAI_BASE_URL=\n' in settings

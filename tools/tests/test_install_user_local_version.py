@@ -117,6 +117,29 @@ elif args[0] == 'run':
         self.assertEqual((self.base / 'calls').read_text().count('pull '), 4)
         self.assertIn('4/4', result.stdout)
 
+    def test_optional_markdown_guide_is_installed_at_root_and_repeats(self):
+        self.files['README.md'] = b'# User guide\nShared validation cases.\n'
+        self.make_archive()
+        for _ in range(2):
+            result = self.run_install()
+            self.assertEqual(result.returncode, 0, result.stderr)
+            root = self.home / 'capstone'
+            self.assertEqual((root / 'README.md').read_bytes(), self.files['README.md'])
+            self.assertEqual((root / 'versions' / SOURCE / 'README.md').read_bytes(), self.files['README.md'])
+        (root / 'versions' / SOURCE / 'README.md').write_text('tampered')
+        self.assertNotEqual(self.run_install().returncode, 0)
+
+    def test_optional_markdown_guide_does_not_follow_root_symlink(self):
+        self.files['README.md'] = b'# User guide\n'
+        self.make_archive()
+        root = self.home / 'capstone'
+        root.mkdir()
+        target = self.base / 'user-document'
+        target.write_text('preserve')
+        (root / 'README.md').symlink_to(target)
+        self.assertNotEqual(self.run_install().returncode, 0)
+        self.assertEqual(target.read_text(), 'preserve')
+
     def test_install_keeps_existing_user_config_and_legacy_receipt(self):
         root = self.home / 'capstone'
         state = root / '.capstone-trial' / 'capstone-user-local-dev'

@@ -33,7 +33,8 @@ def test_bundle_has_no_source_or_keys_and_uses_provider_registry(tmp_path, monke
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(name)
     inputs = ['deploy/dev-trial/capstone.sh', 'deploy/dev-trial/install.sh', 'deploy/dev-trial/compose.yaml', 'deploy/dev-trial/start.sh',
-              'deploy/dev-trial/env.example', 'configs/llm-providers.json']
+              'deploy/dev-trial/env.example', 'configs/llm-providers.json',
+              'deploy/dev-trial/offline-validation-samples.txt']
     if (context / 'deploy/dev-trial/install-version.sh').exists():
         inputs.append('deploy/dev-trial/install-version.sh')
     import hashlib
@@ -65,7 +66,20 @@ def test_bundle_has_no_source_or_keys_and_uses_provider_registry(tmp_path, monke
     assert 'full data compatibility has not been accepted' in (tmp_path / 'candidate/README.txt').read_text()
     module.write_bundle(context, tmp_path / 'bundle', source, images, platforms, acceptance=acceptance)
     bundle = tmp_path / 'bundle'
-    assert {p.name for p in bundle.iterdir()} == {'.env', '.env.example', 'release.env', 'manifest.json', 'compose.yaml', 'start.sh', 'capstone.sh', 'install.sh', 'data-contract.env', 'README.txt'}
+    assert {p.name for p in bundle.iterdir()} == {'.env', '.env.example', 'release.env', 'manifest.json', 'compose.yaml', 'start.sh', 'capstone.sh', 'install.sh', 'data-contract.env', 'README.txt', 'README.md'}
+    guide = (bundle / 'README.md').read_text()
+    samples_path = context / 'deploy/dev-trial/offline-validation-samples.txt'
+    samples = samples_path.read_text()
+    assert samples in guide
+    assert all(term in guide for term in ['OPENAI_BASE_URL', 'OPENAI_MODEL', 'OPENAI_API_KEY',
+                                         'PROVIDER=openai', 'DEEPSEEK_API_KEY', 'capstone.sh', '19173'])
+    installer = 'curl -fsSL https://raw.githubusercontent.com/uukuguy/capstone/dev/deploy/dev-trial/install.sh | sh'
+    assert installer in guide
+    assert guide.index('export OPENAI_API_KEY') < guide.index(installer) < guide.index('sh "$HOME/capstone/capstone.sh" start')
+    samples_path.write_text('changed samples')
+    with pytest.raises(ValueError, match='input'):
+        module.write_bundle(context, tmp_path / 'changed-samples', source, images, ['linux/amd64'], candidate=True)
+    samples_path.write_text(samples)
     text = (bundle / '.env').read_text()
     registry = json.loads((ROOT / 'configs/llm-providers.json').read_text())
     assert registry['providers']['openai']['default_model'] in text

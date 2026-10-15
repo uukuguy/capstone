@@ -21,7 +21,7 @@ locked=''
 cleanup() {
   rm -f "$temporary/package.tar.gz" "$temporary/list" "$temporary/catalog" "$temporary/catalog.new" "$temporary/catalog.old" "$temporary/catalog.merged"
   if [ -d "$temporary/package" ]; then
-    for file in compose.yaml start.sh .env .env.example release.env manifest.json README.txt data-contract.env capstone.sh install.sh legacy-data-contract.env; do
+    for file in compose.yaml start.sh .env .env.example release.env manifest.json README.txt README.md data-contract.env capstone.sh install.sh legacy-data-contract.env; do
       rm -f "$temporary/package/$file"
     done
     rmdir "$temporary/package"
@@ -48,7 +48,7 @@ else fail 'A SHA256 checksum tool is required.'; fi
 [ "${actual%% *}" = "$expected" ] || fail 'Package checksum failed; installation stopped.'
 tar -tzf "$temporary/package.tar.gz" > "$temporary/list"
 awk '
-  !/^(compose.yaml|start.sh|\.env|\.env.example|release.env|manifest.json|README.txt|data-contract.env|capstone.sh|install.sh|legacy-data-contract.env)$/ { exit 1 }
+  !/^(compose.yaml|start.sh|\.env|\.env.example|release.env|manifest.json|README.txt|README\.md|data-contract.env|capstone.sh|install.sh|legacy-data-contract.env)$/ { exit 1 }
   seen[$0]++ { exit 1 }
   END { if (!seen["compose.yaml"] || !seen["start.sh"] || !seen[".env"] || !seen[".env.example"] || !seen["release.env"] || !seen["manifest.json"] || !seen["README.txt"] || !seen["data-contract.env"] || !seen["capstone.sh"] || !seen["install.sh"]) exit 1 }
 ' "$temporary/list" || fail 'Deployment archive contents are invalid.'
@@ -139,6 +139,10 @@ if [ -e "$target" ]; then
     safe "$target/$file"
     cmp -s "$target/$file" "$temporary/package/$file" || fail 'An existing frozen version differs. Its files and data were preserved.'
   done
+  safe "$target/README.md"
+  if [ -e "$target/README.md" ] || [ -e "$temporary/package/README.md" ]; then
+    cmp -s "$target/README.md" "$temporary/package/README.md" || fail 'An existing version guide differs. Its files were preserved.'
+  fi
   # Legacy adoption preserves its original runner; these two management files
   # were absent from the original seven-file deployment package.
   for file in capstone.sh install.sh; do
@@ -152,8 +156,13 @@ if [ -e "$target" ]; then
 else
   mv "$temporary/package" "$target"
 fi
-for file in .env capstone.sh; do safe "$destination/$file"; done
+for file in .env capstone.sh README.md README.md.new; do safe "$destination/$file"; done
 if [ ! -f "$destination/.env" ]; then cp "$target/.env.example" "$destination/.env"; fi
+if [ -f "$target/README.md" ]; then
+  cp "$target/README.md" "$destination/README.md.new"
+  chmod 644 "$destination/README.md.new"
+  mv "$destination/README.md.new" "$destination/README.md"
+fi
 for file in install.sh versions.tsv legacy-data-contract.env; do safe "$meta/$file"; safe "$meta/$file.new"; done
 safe "$destination/capstone.sh.new"
 cp "$target/capstone.sh" "$destination/capstone.sh.new"

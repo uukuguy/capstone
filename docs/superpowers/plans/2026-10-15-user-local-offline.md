@@ -11,7 +11,8 @@ Keep OpenAI-compatible endpoint configuration in the existing backend path.
 ## Global constraints
 
 - Default `PROVIDER=openai`; prefer `OPENAI_BASE_URL`, `OPENAI_MODEL`, `OPENAI_API_KEY`.
-- User delivery is `linux/amd64`; ARM64 is optional local validation.
+- User delivery is `linux/amd64`; current verification uses host Docker on Apple ARM with AMD64 emulation.
+- The user cancelled local Ubuntu VM and cloud-dev validation. Preserve the VM failure receipt; do not resume those lanes.
 - No secrets in packages, command arguments, logs or browser variables.
 - Preserve data and compatibility gates; do not modify cloud/demo deployments.
 - No actual Provider call without separate user authorization.
@@ -50,13 +51,30 @@ Files: new offline exporter/installer under `deploy/`, lifecycle templates and
 916271f adds cross-daemon config/manifest identity binding and private runtime
 projection, complete layer checks, and the frozen user-facing sample guide.
 The combined gate passed160 checks and independent review. Source39 VM install
-safely rejected the old single-ID assumption; new VM installation is pending.
+safely rejected the old single-ID assumption. At916271f, host Docker installation,
+nine scripted turns, restart, repeat installation, replay and data preservation passed.
+That host is Apple ARM running Linux AMD64 containers with emulation; it is not native
+AMD64 acceptance. The916271f Ubuntu VM metadata-permission failure remains recorded.
+
+698e2a9 preserves readable public metadata, retains private file modes and ownership,
+and adds the task-duration ordering and storage/backup instructions. After inherited
+LLM overrides were cleared, the two test-local-rebuild groups passed187 and61 checks;
+shell checks passed. The698e2a9 archive passed checksum validation and imported all
+four images; all six roles are healthy. Nine scripted turns and report/evidence replay
+passed. Missing Key/URL checks reject configuration and preserve services. Restart,
+repeat installation and corrected real OPENAI_* business
+samples and PR #27 checks for the latest head remain pending. Local Ubuntu VM and
+cloud-dev verification were cancelled by the user; no cloud service was changed.
 
 ## Task 3: Acceptance and delivery
 
 - [x] Run focused regression, doctor and diff checks; review changes.
-- [ ] Build exact-source AMD64 images and validate a fresh offline installation,
-  registered cases, replay and restart without public downloads.
+- [ ] Build the latest exact-source AMD64 images and verify fresh host Docker
+  installation, registered scripted cases, replay, restart and repeat installation
+  without public downloads; record the Apple ARM emulation boundary.
+- [ ] Rerun the authorized real OPENAI_* business samples after their corrections;
+  keep Provider-backed and scripted evidence separate.
 - [ ] Record receipts, usage instructions and source identity; align project
   control and recovery files. Integrate through the normal dev PR gates.
 - [ ] Deliver the offline artifact and its checksum with tested scope and limits.
+  Do not claim cancelled native VM or cloud-dev verification.

@@ -1,6 +1,6 @@
 # docs/status INDEX
 
-2026-10-15离线交付：916271f补跨Docker身份与完整层校验，160项/doctor/审查通过；OpenAI配置及授权真实协议已验证。新包/VM/最终来源验收和PR #27双平台门禁待完成，未合入或交付。README按用户语言和耗时排序，预览见根runs/user-local-offline/README-preview.txt。云按README安装需Linux AMD64云SSH主机；Railway不支持此执行方式，尚无云变更。见[验证记录](../reviews/2026-10-15-user-local-offline-verification.md)、[设计](../superpowers/specs/2026-10-15-user-local-offline-design.md)和[计划](../superpowers/plans/2026-10-15-user-local-offline.md)。
+2026-10-15离线交付：698e2a9修复元数据读权限，README按耗时排序并说明存储备份；清除继承LLM覆盖项后187+61项及shell检查通过。916271f宿主Docker安装、九轮scripted、重启、重复安装、回放和数据保留通过；宿主Apple ARM以模拟方式运行Linux AMD64。698e2a9归档校验、四镜像导入和六角色健康检查通过，九轮scripted及报告/证据回放、缺Key/URL拒绝且保留服务通过，重启/重复安装待完成，修正后真实OPENAI_*业务样例、PR #27最新head双平台及合并来源检查待完成，未合入或交付。用户已取消本地Ubuntu VM及cloud-dev验证；916271f VM权限失败保留，不再复测VM。四部署与原用户安装未改变。README预览见根runs/user-local-offline/README-preview.txt。见[验证记录](../reviews/2026-10-15-user-local-offline-verification.md)、[设计](../superpowers/specs/2026-10-15-user-local-offline-design.md)和[计划](../superpowers/plans/2026-10-15-user-local-offline.md)。
 
 2026-10-15当前：PR #23经Linux/macOS检查正常合入dev b7e68dd。capstone.sh、Git版本选择、user-local标识和共享数据兼容门禁已集成；候选双架构旧数据升级/回放/回退和旧安装接管通过。最终合并源码双架构数据升级/回放/回退及公开安装通过，版本目录已公开，原7832134安装与用户数据保留。执行[Task 7](../superpowers/plans/2026-10-14-capstone-dev-trial-deployment.md#task-7-user-local-management-and-shared-data-compatibility)。
 
@@ -19,7 +19,7 @@
 
 ## Active
 
-当前精确状态见 RESUME / VERSION-CONTROL：PR #23合入b7e68dd，user-local双架构及公开安装通过；两个demo仍为faa6af9，cloud-dev为24d9a32。主图保留中轴、准确四部署、在研分支及可安装版本图标。
+当前精确状态见 RESUME / VERSION-CONTROL：离线包698e2a9归档校验、四镜像导入和六角色健康检查通过，九轮scripted/回放通过，重启/重复安装及真实Provider复验中，仅验证宿主Docker的AMD64模拟路径，VM/云验证已取消。在线user-local的PR #23合入b7e68dd且双架构公开安装通过；两个demo仍为faa6af9，cloud-dev为24d9a32。主图保留中轴、准确四部署、在研分支及可安装版本图标。
 
 ### 历史实施记录
 
