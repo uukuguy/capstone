@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-> Updated: 2026-10-15 12:10. **Session remains active — not a final handoff.**
+> Updated: 2026-10-15 12:45. **Session remains active — not a final handoff.**
 
 ## TL;DR
 
@@ -8,7 +8,9 @@
 - 推进图、功能验收记录和版本目录已对齐。
 - 用户内网无法下载公网文件；当前实施AMD64离线包，默认PROVIDER=openai，优先OPENAI_BASE_URL/OPENAI_MODEL/OPENAI_API_KEY。
 - 工作区为.worktrees/dev-trial-deployment，分支feat/user-local-offline；Provider40b338d及离线导入6b74397已实现，172项及67项专项通过，零Provider调用。
-- 精确源码6b74397639e4c10b75bb90855c9dab863024da04上下文位于.capstone-agent/offline-context-6b74397-r3；AMD64 backend/App构建、check-pr及两项代码审查进行中。
+- 最新产品修订75af46a；7930c07目录保留修订及独立审查通过。PR #27已转正式；CI38680987676的macOS缺Docker导致新增Compose测试失败，75af46a补依赖声明，有Docker8项通过，无Docker路径5通过1跳过。等待推送后双平台重检。本地check-pr、E2E39+3及make validate全部通过。
+- 候选源码6b74397639e4c10b75bb90855c9dab863024da04镜像及离线包已生成；.capstone-agent/accept_offline.py在29373/项目capstone-user-nkfgc84h验收，安装、三案例九轮/回放、浏览器、重启/重复安装、缺Key/地址保留服务与配置/卷保留全部通过，报告证据哈希一致。候选已停止且保留数据。该候选不含7930c07目录保留修订。
+- 最终包须在PR正常合入后按实际dev合并SHA重建及完整验收。不可将6b74397候选标作最终包；不调用真实Provider。7930c07精确上下文已准备，尚未构建。
 
 ## 当前状态
 
@@ -30,7 +32,7 @@
 
 ## 下一步
 
-1. 完成离线实现与专项测试，再构建精确源码AMD64镜像，实测不访问公网的安装/案例/回放/重启。
+1. 等待PR双平台门禁；正常合入dev后用.capstone-agent/build_offline_final.py <merge-SHA>构建AMD64最终归档，运行accept_offline.py及浏览器检查。交付归档预定存放根工作区runs/user-local-offline/。按仓库规范重建local-dev，demo/cloud不变。
 2. 用户已确认PROVIDER=openai可用；本轮仅合成Key和脚本验证，不调用真实Provider。交付不含用户Key。
 3. 先处理试用反馈，再按规范工作清单推进自主智能体剩余缺口。
    Research R1 不自动作为下一任务。

@@ -1,5 +1,7 @@
 # 多线版本控制
 
+2026-10-15 CI修订：38680987676的macOS在新增Compose测试失败，原因是runner没有Docker CLI；新增测试遗漏前置条件。已按现有真实Compose测试方式声明Docker依赖，本机8项及无Docker路径5项通过/1项跳过；不改产品或其他门禁。候选完整安装/三案例九轮/回放/浏览器/重启/重复安装/数据保护、本地check-pr/E2E39+3/validate已通过。PR #27已转正式，等待修订来源的Linux/macOS完整检查及最终合并源码包验收。
+
 2026-10-15离线实施：Provider40b338d与离线传输6b74397已提交，172项配置/Kernel及67项离线/管理回归通过；原生Pi选中内网自定义模型和地址，零Provider请求。7930c07保留旧版本目录，19项及追加独立审查通过。PR #27为dev目标草稿，Linux/macOS及本地完整PR门禁运行中；AMD64精确源码镜像已构建，实际安装验收进行中。未合入或发布，不改变四部署与用户安装。
 
 2026-10-15离线增量：用户内网无法下载公网资源，确认交付linux/amd64完整离线包，默认PROVIDER=openai，优先OPENAI_BASE_URL/OPENAI_MODEL/OPENAI_API_KEY。openai兼容接口已由用户确认可用；本轮不调用真实Provider。feat/user-local-offline从dev1d0b280实施，设计effd148；安装与镜像导入待验证，未合入、未发布，现有四部署及用户安装保持原状。见[离线设计](../superpowers/specs/2026-10-15-user-local-offline-design.md)及[实施计划](../superpowers/plans/2026-10-15-user-local-offline.md)。
@@ -185,7 +187,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 功能包 | 阶段 | 状态 | 交付内容 | 来源 | 下一步 | 对比起点 | 新增或更新 | 交付记录 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev-trial | user-local无源码试用与版本管理 | 8 | 在线版已发布；AMD64离线版实施中 | 固定镜像安装、Git版本选择、共享数据兼容及内网离线安装 | feat/user-local-offline | 验证AMD64离线导入安装及OpenAI兼容内网配置；Windows/WSL2待验证 | devb7e68dd；两个demo保留faa6af9 | 离线包默认PROVIDER=openai，优先OPENAI_BASE_URL/OPENAI_MODEL/OPENAI_API_KEY；保留兼容及配置检查 | 在线版原验收保留；离线设计effd148，实施及安装验收待完成，零Provider调用 |
+| dev-trial | user-local无源码试用与版本管理 | 8 | 在线版已发布；离线候选已验收，最终包待合并 | 固定镜像安装、Git版本选择、共享数据兼容及内网离线安装 | feat/user-local-offline | 验证AMD64离线导入安装及OpenAI兼容内网配置；Windows/WSL2待验证 | devb7e68dd；两个demo保留faa6af9 | 离线包默认PROVIDER=openai，优先OPENAI_BASE_URL/OPENAI_MODEL/OPENAI_API_KEY；保留兼容及配置检查 | 在线版原验收保留；离线设计effd148，实施及安装验收待完成，零Provider调用 |
 | autonomous | 自主智能体 · 统一实施 | 4 | 已合入dev；两个demo已发布，整体业务未验收 | 单Pi研究循环、持久研究状态、Authority计算与来源、执行过程、结果证据、电网场景图层和模型资源管理 | origin/dev | 两个demo已验收faa6af9，从dev推进N−1与交互缺口 | dev4f15cfc及6ff7094业务基线；旧Research Model分支仅作参考 | 研究读写及Pi真实上下文；受控失败交付；任务与工具两级过程；完整结果字段；场景与孤岛图层；模型打开准备与内存回收；对话创建后台预热 | PR #18双平台PR门禁通过，合并dev faa6af9；2b6ae7b候选59项及本地完整PR门禁、云三角色身份、三用例九轮、报告证据回放与旧Thread恢复通过；完整发布及合并后双平台通过，两个demo已同源验收并推送正式标签，不冒充科学业务验收；详见本包明细及首期计划 |
 | live | 线上共同基线 | 0 | 线上在用 | 电网静态分析、证据结果、智能体对话与工作台 | 线上部署 | 保持线上稳定；后续版本按发布计划推进 | 当前线上部署 | 本页起点；更早沿革仅在详情中保留 | 以 cloud-demo 部署台账为准；本次未重新探测云端 |
 | main | 开发集成 dev / 发布基线 main | 0 | 已验证并分流 | dev保存当前全局记录与开发集成；main保存发布基线快照 | dev | 从dev推进自主智能体N−1与交互专项；Research Model R1保留待启动 | 线上共同基线 | 全局文档、分支治理与Issue工具已集成dev | main723b8e8发布快照；PR #18合并faa6af9及双平台门禁通过；两个demo已同源验收并推送正式标签；PR #19补齐控制文档 |
@@ -257,7 +259,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
-| user-local-offline | feat/user-local-offline | feature | user-local · AMD64离线安装 | 设计已确认，实施中 | 完整四类镜像及安装文件；OpenAI兼容内网配置；不依赖公网下载；安装验收待完成 | dev-trial |
+| user-local-offline | feat/user-local-offline | feature | user-local · AMD64离线安装 | 候选已验收，最终来源待合并 | 完整四类镜像及安装文件；OpenAI兼容内网配置；候选安装/回放/重启通过，最终包待验收 | dev-trial |
 | user-local | b7e68dd | main | dev · user-local版本管理合并基线 | 已合入，双架构验收及公开安装通过 | Git选择与capstone.sh共享数据管理；停止前兼容/配置检查；最终源码匿名拉取、旧数据升级/回放/回退、重启和浏览器通过；user-local-b7e68dd已公开 | dev-trial |
 | dev-trial | 7832134 | main | dev · 用户试用交付合并基线 | 已合入，公开试用包已验证 | 无源码Compose、受限Provider、同源App、私有实例及精确源码/镜像检查；最终双架构各三案例九轮/回放/重启/浏览器、匿名拉取与公开安装入口通过；标签dev-trial-20261015-7832134 | dev-trial |
 | cloud | ed2524f | main | 线上运行能力 | 已发布 | 电网静态分析、智能体对话、工作台与结果证据；当前用户试用起点 | live |
@@ -309,7 +311,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
-| user-local-offline | 当前开发焦点 | feat/user-local-offline | AMD64完整离线安装与镜像校验；OpenAI兼容内网配置及数据保护 | 实施中，离线验收待完成 |
+| user-local-offline | 当前开发焦点 | feat/user-local-offline | AMD64完整离线安装与镜像校验；OpenAI兼容内网配置及数据保护 | 候选验收通过，最终包待合并检查 |
 | user-local | 重要试用发布与开发基线 | dev | Git选择、管理命令与共享用户数据；双架构旧数据升级回放及回退、公开安装通过 | 已合入并发布，用户业务待验证 |
 | dev-trial | 重要试用发布与开发基线 | dev | 无源码安装启动、同源App及受限Provider；双架构公开包已验证，用户正在试用 | 已发布试用包，用户业务待验证 |
 | cloud | 历史重要发布 | main | 电网静态分析、智能体对话与工作台；计算结果与证据随运行保留 | 历史发布起点 |
@@ -327,7 +329,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 编号 | 工作包 | 来源 | 目标 | 状态 | 交付范围 |
 | --- | --- | --- | --- | --- | --- |
-| 27 | dev-trial | feat/user-local-offline | dev | DRAFT | AMD64完整离线包及OpenAI兼容内网配置；专项通过，实际安装及完整双平台门禁待完成 |
+| 27 | dev-trial | feat/user-local-offline | dev | OPEN | AMD64候选完整验收及本地完整门禁通过；75af46a修订macOS测试Docker前置条件，等待双平台重检 |
 | 22 | dev-trial | feat/dev-trial-deployment | dev | MERGED | 双平台38596540476通过，正常合并7832134；最终双架构镜像、匿名拉取、三案例九轮/回放/重启/浏览器及公开安装包通过；本地/远端实施分支已关闭，恢复引用和数据保留 |
 | 23 | dev-trial | fix/dev-trial-user-feedback | dev | MERGED | Linux/macOS run38628243417通过，正常合并b7e68dd；完整本地及最终双架构升级/读取/回放/回退、重启、浏览器、匿名拉取和公开安装通过；未作用户LLM/整体业务验收 |
 | 6 | foundation | feat/issue-operational-readiness | main | MERGED | 对话连续阅读、执行租约修复、环境身份、反馈接入与检查加固；cfd6ad6 两平台检查与审查通过，合并 c3b78bc；云端未发布 |
@@ -351,7 +353,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 类型 | 关键进展 | 下一步 | 功能包 |
 | --- | --- | --- | --- | --- |
-| feat/user-local-offline | 内网离线交付 | Provider40b338d与传输6b74397，172项及67项专项通过；PR #27草稿 | AMD64安装/回放/重启与版本目录保留验证，再按dev门禁合入 | dev-trial |
+| feat/user-local-offline | 内网离线交付 | Provider40b338d与传输6b74397；目录修订7930c07；测试前置条件75af46a；PR #27正式 | 候选安装/回放/重启及本地完整门禁通过；双平台重检后合入并验收最终包 | dev-trial |
 | refs/archive/20261015/feat-dev-trial-deployment | 已合并实施恢复引用 | 380ede4受检，PR #22合入7832134；本地/远端实施分支已关闭；最终公开镜像/包及安装入口验收通过 | 保存原验收目录、私有状态与卷；用户业务试用待反馈 | dev-trial |
 | main | 发布基线主线 | PR #9/#10已合入723b8e8；产品完整验收源码2473e48 | 发布PR接收dev已验证候选；云端按独立发布计划推进 | main |
 | dev | 默认开发集成主线 | PR #23合并b7e68dd，双平台检查通过；local-dev同源重建，user-local最终双架构及公开安装通过 | 用户试用反馈后继续N−1及交互专项；main保持发布快照；两个demo继续faa6af9 | main |
