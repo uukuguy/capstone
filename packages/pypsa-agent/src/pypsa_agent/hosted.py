@@ -25,7 +25,7 @@ from pypsa_model_authority.store import canonical_bytes
 
 from .profile import build_profile
 from .thread_capabilities import PYPSA_PROFILE_DESCRIPTOR, build_pypsa_thread_application
-from .thread_binding import bind_thread_tool_catalog, verify_bound_model_reference
+from .thread_binding import bind_thread_tool_catalog, verify_bound_model_reference, resolve_bound_model_revision
 
 
 ROOT = Path(__file__).resolve().parents[4]
@@ -99,6 +99,10 @@ def build_registered_pypsa_thread_application() -> ThreadApplicationAssembly:
             model_reference_verifier=lambda reference: verify_bound_model_reference(
                 binding.runtime.authority, reference,
                 model_id=context.model_id, base_ref=model_ref,
+            ),
+            model_revision_resolver=lambda reference: resolve_bound_model_revision(
+                binding.runtime.authority, reference,
+                model_id=context.model_id, base_ref=model_ref, base_revision=context.model_revision,
             ),
         )
 

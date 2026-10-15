@@ -43,6 +43,54 @@ import { threadPreviewDiagram } from './threadModelDiagram'
 afterEach(() => { cleanup(); sessionStorage.clear() })
 
 describe('operator network canvas', () => {
+  it('consumes a return request once and preserves full view across later layers and resize', () => {
+    const props = { modelName: 'SciGRID', focusKey: 'context:attempt', cameraStorageKey: 'return-camera', cameraViewKey: 'context:attempt' }
+    const { rerender } = render(<NetworkView {...props} view={sampleDiagramView} returnTaskRequest={1} />)
+    const camera = () => screen.getByRole('img', { name: '电网拓扑' }).getAttribute('viewBox')
+    fireEvent.click(screen.getByRole('button', { name: '适配全图' }))
+    expect(camera()).toBe('0 0 1000 600')
+    const later = { ...sampleDiagramView, ordinal: 2, layer: { ...sampleDiagramView.layer, ordinal: 2 } }
+    rerender(<NetworkView {...props} view={later} returnTaskRequest={1} />)
+    fireEvent(window, new Event('resize'))
+    expect(camera()).toBe('0 0 1000 600')
+    rerender(<NetworkView {...props} view={later} returnTaskRequest={2} />)
+    expect(camera()).not.toBe('0 0 1000 600')
+  })
+
+  it.each([false, true])('waits for the task layer before consuming a return request, preview: %s', (hasPreview) => {
+    const props = { modelName: 'SciGRID', focusKey: 'pending-task', cameraStorageKey: 'pending-camera', cameraViewKey: 'pending-task' }
+    const ready = render(<NetworkView {...props} view={sampleDiagramView} returnTaskRequest={1} />)
+    const expected = screen.getByRole('img', { name: '电网拓扑' }).getAttribute('viewBox')
+    ready.unmount()
+    sessionStorage.clear()
+    const { rerender } = render(<NetworkView {...props} view={null} previewDiagram={hasPreview ? sampleDiagramView.diagram : null} returnTaskRequest={1} />)
+    if (hasPreview) fireEvent.click(screen.getByRole('button', { name: '放大' }))
+    rerender(<NetworkView {...props} view={sampleDiagramView} returnTaskRequest={1} />)
+    expect(screen.getByRole('img', { name: '电网拓扑' }).getAttribute('viewBox')).toBe(expected)
+    fireEvent.click(screen.getByRole('button', { name: '适配全图' }))
+    rerender(<NetworkView {...props} view={{ ...sampleDiagramView, ordinal: 2 }} returnTaskRequest={1} />)
+    expect(screen.getByRole('img', { name: '电网拓扑' }).getAttribute('viewBox')).toBe('0 0 1000 600')
+  })
+
+  it('does not replay a consumed request when only the camera view key changes', () => {
+    sessionStorage.setItem('key-change-camera', JSON.stringify({ initial: { x: 10, y: 10, width: 600, height: 360 } }))
+    const props = { modelName: 'SciGRID', focusKey: 'task', cameraStorageKey: 'key-change-camera', view: sampleDiagramView, returnTaskRequest: 1 }
+    const { rerender } = render(<NetworkView {...props} cameraViewKey="initial" />)
+    fireEvent.click(screen.getByRole('button', { name: '适配全图' }))
+    rerender(<NetworkView {...props} view={{ ...sampleDiagramView, ordinal: 2 }} cameraViewKey="later-scene" />)
+    expect(screen.getByRole('img', { name: '电网拓扑' }).getAttribute('viewBox')).toBe('0 0 1000 600')
+  })
+
+  it('restores a model camera without replaying a return request cleared on model switch', () => {
+    const canvas = (model: string, request?: number) => <NetworkView key={model} view={sampleDiagramView} modelName={model}
+      focusKey={model} cameraStorageKey="switch-return-camera" cameraViewKey={model} returnTaskRequest={request} />
+    const mounted = render(canvas('model-a', 1))
+    fireEvent.click(screen.getByRole('button', { name: '适配全图' }))
+    mounted.rerender(canvas('model-b'))
+    mounted.rerender(canvas('model-a'))
+    expect(screen.getByRole('img', { name: '电网拓扑' }).getAttribute('viewBox')).toBe('0 0 1000 600')
+  })
+
   it('renders each switch once when several branches share one state group', () => {
     const view = structuredClone(sampleDiagramView)
     const branches = view.diagram.branches.slice(0, 2)

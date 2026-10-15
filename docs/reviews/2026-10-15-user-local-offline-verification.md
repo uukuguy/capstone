@@ -1,5 +1,12 @@
 # User-local offline verification
 
+> Current delivery status: **7c19766 is withdrawn and must not be delivered.** It
+> was handed over before its business defects were recognized. Evidence is retained
+> under root `runs/user-local-offline/capstone-withdrawn-7c19766/`, with `WITHDRAWN.txt`;
+> original archive and checksum bytes are unchanged. The records below remain
+> historical test evidence, not a current delivery approval. The current delivered
+> package is exact source `e2eaee2403cb6d780b3f7564da86e0d083890673`.
+
 ## Scope
 
 The user selected Linux AMD64 delivery and an internal OpenAI-compatible

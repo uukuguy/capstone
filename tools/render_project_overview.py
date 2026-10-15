@@ -15,6 +15,23 @@ ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ROOT / "tools/project_overview"
 
 
+def relative_node_links(text: str) -> list[dict[str, str]]:
+    links = []
+    for label, href in re.findall(r"\[([^\]]+)\]\(([^)]+)\)", text):
+        if not href.startswith(("../", "./")) or not re.fullmatch(r"[A-Za-z0-9._/-]+", href):
+            continue
+        target = (ROOT / "docs/status" / href).resolve()
+        if not target.is_relative_to(ROOT):
+            continue
+        parts = target.relative_to(ROOT).parts
+        if (not parts or parts[0] not in {"docs", "runs"}
+                or any(part.startswith(".") for part in parts)
+                or not href.endswith((".md", ".tar.gz", ".sha256"))):
+            continue
+        links.append(dict(label=label, href=href))
+    return links
+
+
 def git(*args: str) -> str:
     return subprocess.check_output(["git", "-C", str(ROOT), *args], text=True,
                                    stderr=subprocess.DEVNULL, timeout=10).strip()
@@ -145,9 +162,10 @@ def snapshot(probe_local: bool, probe_cloud: bool = False) -> dict:
             raise ValueError("Invalid key commit row")
         identity, revision, lane, title, status, changes, package = map(plain, row)
         sha = git("rev-parse", revision + "^{commit}")
+        links = relative_node_links(row[5])
         nodes.append(dict(id=identity, sha=sha, lane="main" if lane == "release" else lane,
                           release_point=lane == "release", title=title,
-                          status=status, changes=changes, package=package,
+                          status=status, changes=changes, package=package, links=links,
                           tags=git("tag", "--points-at", sha).splitlines()))
     bind_user_local_trials(register, nodes)
     for stage in environments:

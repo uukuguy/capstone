@@ -1,13 +1,21 @@
 # Capstone Conversation Contract Completion
 
-2026-10-15内网交付增量：用户选择`dev-trial`的AMD64完整离线包，默认
-`PROVIDER=openai`，优先`OPENAI_BASE_URL`、`OPENAI_MODEL`、`OPENAI_API_KEY`。
-执行[离线计划](2026-10-15-user-local-offline.md)。698e2a9修元数据读权限，README按耗时
-排序并说明存储备份；清除继承LLM覆盖项后187+61项及shell检查通过。916271f宿主Docker
-完整安装、九轮scripted、重启、重复安装、回放和数据保留通过；这是Apple ARM宿主上的
-Linux AMD64模拟运行。698e2a9归档/导入/健康检查通过，九轮scripted/回放通过，重启/重复安装待完成，修正后真实OPENAI_*业务、PR #27最新head双平台
-及最终dev合并来源检查待完成，未合入或交付。用户已取消本地Ubuntu VM及cloud-dev验证，
-916271f的VM权限失败记录保留，不再复测VM。四部署和原用户安装未改变。
+2026-10-15当前工作：用户要求解决`fix/user-local-network-view`遗留的派生结果投影和AC调度一致性问题，然后通过正常PR合入dev。执行[PyPSA修复与合并计划](2026-10-15-pypsa-runtime-followup.md)。保留已交付e2节点及原归档，7c撤回不可交付；不重复离线全量验收，不更新云端/demo/19173。
+
+2026-10-15更新离线包已构建：精确源码e2eaee2403cb6d780b3f7564da86e0d083890673，根runs/user-local-offline/capstone-delivery-e2eaee2含归档、同名.sha256及README.md三文件；归档1368607944字节，SHA256为9d7c3b215b9c45631bf3142aaad8f8066ba43831380b43b2ccf8146ee1eebfe7。新README默认pandapower IEEE39，PyPSA清单在末尾可选说明；旧7c已撤回、不可交付，证据目录及原校验值保留。新包12项内部SHA与源码检查通过，runtime packages相对28020aa无差异，可复用已记录的handoff/dispatch限定实测证据；29377单次新安装及ready检查通过，六角色均linux/amd64，API与双worker同e2源码镜像；检查后正常停止并保留数据。本轮按用户要求不重跑全量测试或Provider；公开投影与AC第3时段一致性两项仍开放，不声称完整业务验收。
+
+2026-10-15内网交付增量：精确7c旧包曾交付后撤回、不可交付，证据保留于根
+`runs/user-local-offline/capstone-withdrawn-7c19766`，原归档及SHA不变；PR #27在来源
+Linux/macOS CI38700786813全过后正常合入37529ef。执行[离线计划](2026-10-15-user-local-offline.md)。
+安装、数据保留、九请求/独立回放通过只证明这些检查，不能推定业务全过：7c区域没有
+operations.dispatch执行；README原文1–9已用OPENAI运行，10–12未跑，完整发电N1排序仍待验证。
+验收环境为Apple ARM宿主Docker中的Linux AMD64模拟运行；VM/cloud已取消，旧失败保留。
+root dev仍1d0b280，尚未快进或规范重建；四部署及19173原用户安装保持原来源。
+独立fix/user-local-network-view当前ce47532：61a图修复已推送；28020公共Pi交接schema
+16合同/82检查及ce475默认IEEE39用户指南54+5检查通过，现均已推送，仍未PR或正式部署，均不在7c包内。
+独立29375候选后端28020/App7c原三轮真实OPENAI的handoff/dispatch通过，目标1300/1900均optimal，
+两次AC校验均converged；第3轮4个公开投影不可用及AC第3时段一致性待查，不宣称PyPSA整体通过。
+候选已停，0运行容器且数据保留；见[限定验证报告](../../reviews/2026-10-15-pypsa-handoff-verification.md)。
 
 2026-10-15当前交付为`dev-trial`用户反馈收尾，执行[临时dev部署计划Task 7](2026-10-14-capstone-dev-trial-deployment.md#task-7-user-local-management-and-shared-data-compatibility)。原试用经PR #22合入dev7832134，双架构镜像/无源码安装已公开验收并由用户安装。新增user-local标识、Git选择、capstone.sh管理、共享用户数据及升级/回退兼容门禁经PR #23合入dev b7e68dd；最终双架构旧数据升级/读取/回放/回退、重启、浏览器、匿名拉取及公开安装通过；版本目录和管理包已公开，用户LLM/业务试用待验证。原`autonomous`业务缺口保留；本次不推进main或更新既有cloud-dev/demo。
 

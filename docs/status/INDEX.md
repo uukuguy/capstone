@@ -1,6 +1,10 @@
 # docs/status INDEX
 
-2026-10-15离线交付：698e2a9修复元数据读权限，README按耗时排序并说明存储备份；清除继承LLM覆盖项后187+61项及shell检查通过。916271f宿主Docker安装、九轮scripted、重启、重复安装、回放和数据保留通过；宿主Apple ARM以模拟方式运行Linux AMD64。698e2a9归档校验、四镜像导入和六角色健康检查通过，九轮scripted及报告/证据回放、缺Key/URL拒绝且保留服务通过，重启/重复安装待完成，修正后真实OPENAI_*业务样例、PR #27最新head双平台及合并来源检查待完成，未合入或交付。用户已取消本地Ubuntu VM及cloud-dev验证；916271f VM权限失败保留，不再复测VM。四部署与原用户安装未改变。README预览见根runs/user-local-offline/README-preview.txt。见[验证记录](../reviews/2026-10-15-user-local-offline-verification.md)、[设计](../superpowers/specs/2026-10-15-user-local-offline-design.md)和[计划](../superpowers/plans/2026-10-15-user-local-offline.md)。
+当前推进：[PyPSA遗留修复与dev合并](../superpowers/plans/2026-10-15-pypsa-runtime-followup.md)。用户指定先修派生模型结果投影和AC实际输入，针对性回归后走正常PR/Linux与macOS检查；离线交付e2保持冻结，不重复安装全量测试。
+
+2026-10-15更新离线包已交付：精确源码e2eaee2403cb6d780b3f7564da86e0d083890673，根runs/user-local-offline/capstone-delivery-e2eaee2含归档、同名.sha256及README.md三文件；归档1368607944字节，SHA256为9d7c3b215b9c45631bf3142aaad8f8066ba43831380b43b2ccf8146ee1eebfe7。新README默认pandapower IEEE39，PyPSA清单在末尾可选说明；旧7c已撤回、不可交付，证据目录及原校验值保留。新包12项内部SHA与源码检查通过，runtime packages相对28020aa无差异，可复用已记录的handoff/dispatch限定实测证据；29377单次新安装及ready检查通过，六角色均linux/amd64，API与双worker同e2源码镜像；检查后正常停止并保留数据。本轮按用户要求不重跑全量测试或Provider；公开投影与AC第3时段一致性两项仍开放，不声称完整业务验收。
+
+2026-10-15：Linux AMD64旧包精确7c曾交付后撤回、不可交付；证据保留于根runs/user-local-offline/capstone-withdrawn-7c19766，原SHA不变；PR #27在来源双平台CI38700786813全过后正常合入37529ef。安装、数据保留及九请求/回放通过不等于业务全过：7c区域没有dispatch执行；README原文1–9已用OPENAI运行，10–12未跑，完整发电N1排序仍待验证。Apple ARM上的AMD64模拟是已验环境，VM/cloud已取消。root dev仍1d0b280、未快进重建；四部署和19173原来源未变。独立分支e2eaee2包含已推送61a图修复、28020交接schema及ce475用户指南修订，现均已推送；29375后端28020/App7c原三轮真实handoff/dispatch通过，1300/1900均optimal，AC均converged；第3轮4个公开投影不可用、AC第3时段一致性待查。候选已停且数据保留，未PR或正式部署。见[限定验证报告](../reviews/2026-10-15-pypsa-handoff-verification.md)、[台账](VERSION-CONTROL.md)和[离线计划](../superpowers/plans/2026-10-15-user-local-offline.md)。
 
 2026-10-15当前：PR #23经Linux/macOS检查正常合入dev b7e68dd。capstone.sh、Git版本选择、user-local标识和共享数据兼容门禁已集成；候选双架构旧数据升级/回放/回退和旧安装接管通过。最终合并源码双架构数据升级/回放/回退及公开安装通过，版本目录已公开，原7832134安装与用户数据保留。执行[Task 7](../superpowers/plans/2026-10-14-capstone-dev-trial-deployment.md#task-7-user-local-management-and-shared-data-compatibility)。
 
@@ -14,12 +18,12 @@
 
 文档入库通过PR #19，包含剩余23项控制/设计/审计记录；旧PR #17由此替代。控制文档提交推进dev HEAD，运行来源与demo标签仍为faa6af9。
 
-推进图显示8个关键Git节点，突出当前活跃节点、四部署来源与实际在研Pi分支；dev主线保留重要云部署和大分支合并，中间候选进入历史详情。统一卡片内容、居中纵向主线、来源连线与两端间距浏览器检查通过。
+推进图显示12个关键Git节点，突出独立e2交付重点、最新dev合并、四部署来源与在研Pi分支；撤回7c和606文档收据进入e2历史详情；dev主线保留重要云部署和大分支合并，中间候选进入历史详情。统一卡片内容、居中纵向主线、来源连线与两档间距浏览器检查通过。
 
 
 ## Active
 
-当前精确状态见 RESUME / VERSION-CONTROL：离线包698e2a9归档校验、四镜像导入和六角色健康检查通过，九轮scripted/回放通过，重启/重复安装及真实Provider复验中，仅验证宿主Docker的AMD64模拟路径，VM/云验证已取消。在线user-local的PR #23合入b7e68dd且双架构公开安装通过；两个demo仍为faa6af9，cloud-dev为24d9a32。主图保留中轴、准确四部署、在研分支及可安装版本图标。
+当前精确状态见 RESUME / VERSION-CONTROL：e2eaee2作为独立“当前交付重点”节点，撤回7c及606文档收据在历史详情保留；e2eaee2更新离线包已构建，12内部SHA/runtime源码等价检查通过，29377单次安装/ready通过并正常停止；复用28020限定handoff实测，不重跑全量测试或Provider。原7c撤回证据及四部署保留，公开投影/AC一致性两项继续开放。
 
 ### 历史实施记录
 

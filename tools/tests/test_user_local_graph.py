@@ -19,6 +19,18 @@ def renderer():
     return module
 
 
+def test_node_links_accept_local_delivery_and_report_paths_only():
+    links = renderer().relative_node_links(
+        '[README](../../runs/user-local-offline/capstone-delivery-e2eaee2/README.md) '
+        '[report](../reviews/verification.md) [script](javascript:alert) '
+        '[absolute](/Users/private/secret.md) [remote](https://example.com/secret.md) '
+        '[escape](../../../../secret.md) [state](../../.grid-agent/secret.md)')
+    assert links == [
+        {'label': 'README', 'href': '../../runs/user-local-offline/capstone-delivery-e2eaee2/README.md'},
+        {'label': 'report', 'href': '../reviews/verification.md'},
+    ]
+
+
 def document(identity='trial', sha=SHA, version=VERSION, url=URL, status='已验证可安装'):
     return ('## 用户自安装试用版本\n'
             '| ID | 精确Git提交 | 版本 | 发布地址 | 安装命令 | 验收状态 |\n'

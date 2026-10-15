@@ -42,6 +42,7 @@ class AuthorityModelBinding:
     context_ref: str
     model_reference_verifier: Callable[[str], bool] | None = field(default=None, repr=False, compare=False)
     model_metadata: Mapping[str, object] | None = field(default=None, repr=False, compare=False)
+    model_revision_resolver: Callable[[str], str] | None = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         for name, value in (
@@ -59,6 +60,8 @@ class AuthorityModelBinding:
             raise ValueError("Authority model reference is invalid")
         if self.model_reference_verifier is not None and not callable(self.model_reference_verifier):
             raise TypeError("Authority model reference verifier must be callable")
+        if self.model_revision_resolver is not None and not callable(self.model_revision_resolver):
+            raise TypeError("Authority model revision resolver must be callable")
         if self.model_metadata is not None:
             if not isinstance(self.model_metadata, Mapping):
                 raise TypeError("Authority model metadata must be a JSON mapping")
@@ -79,6 +82,19 @@ class AuthorityModelBinding:
             return verifier(reference) is True
         except Exception:
             return False
+
+    def revision_for_model_reference(self, reference: str) -> str:
+        """Resolve a presentation revision only after application lineage checks."""
+        if not self.accepts_model_reference(reference):
+            raise ValueError("Authority model reference is outside the bound context")
+        if reference == self.context_ref:
+            return self.model_revision
+        if self.model_revision_resolver is None:
+            raise ValueError("Authority model revision resolver is unavailable")
+        revision = self.model_revision_resolver(reference)
+        if not isinstance(revision, str) or not _REVISION.fullmatch(revision):
+            raise ValueError("Authority model resolved revision is invalid")
+        return revision
 
 
 @dataclass(slots=True)

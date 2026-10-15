@@ -101,6 +101,7 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
   const [camera, setCamera] = useState<Camera>(() => readNetworkCamera(cameraStorageKey, effectiveCameraViewKey) || FULL)
   const restoredCamera = useRef(Boolean(readNetworkCamera(cameraStorageKey, effectiveCameraViewKey)))
   const restoredFocus = useRef(focusKey)
+  const consumedReturnRequest = useRef<number | undefined>(undefined)
   const [hovered, setHovered] = useState<string | null>(null)
   const drag = useRef<{ x: number; y: number; camera: Camera } | null>(null)
   const geometry = view?.schema === 'capstone-network-view/2.0' ? view.diagram : view || previewDiagram
@@ -161,8 +162,12 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
     if (geometry) writeNetworkCamera(cameraStorageKey, effectiveCameraViewKey, camera)
   }, [cameraStorageKey, effectiveCameraViewKey, camera, geometry])
   useEffect(() => {
-    if (returnTaskRequest !== undefined && geometry) setCamera(taskCamera(geometry, nodes, attentionIds, includeAttentionTerminals, stateMarkers))
-  }, [returnTaskRequest, viewIdentity, Boolean(geometry)])
+    // A pending request needs the task layer, not only its preview geometry.
+    // Later layers must not replay a request over a user's manual camera.
+    if (returnTaskRequest === undefined || returnTaskRequest === consumedReturnRequest.current || !view || !geometry) return
+    setCamera(taskCamera(geometry, nodes, attentionIds, includeAttentionTerminals, stateMarkers))
+    consumedReturnRequest.current = returnTaskRequest
+  }, [returnTaskRequest, viewIdentity, Boolean(view), Boolean(geometry)])
 
   function zoom(factor: number, clientX?: number, clientY?: number, target?: SVGSVGElement) {
     setCamera((before) => {

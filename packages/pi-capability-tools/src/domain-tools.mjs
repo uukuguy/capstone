@@ -530,12 +530,26 @@ export function createCapabilityTool(descriptor, contract, runner) {
   const runtime = selectedBindingRuntime(descriptor);
   validateContract(contract, runtime);
   const executeRunner = runner ?? ((payload) => runCapability(payload, runtime));
-  const parameters = Type.Unsafe(contract.input_schema);
-  const validationTool = { name: contract.name, parameters };
+  const schema = contract.input_schema;
+  const applicationHandoff = typeof runtime.referenceHandoffsPath === "string"
+    && isPlainObject(schema.properties)
+    && Object.hasOwn(schema.properties, "reference")
+    && Object.hasOwn(schema.properties, "handoff_ref");
+  // The application owns this receipt. Pi validates model arguments before
+  // execute, so its public schema must omit the field injected at that boundary.
+  const publicSchema = applicationHandoff ? {
+    ...schema,
+    properties: Object.fromEntries(Object.entries(schema.properties).filter(([key]) => key !== "handoff_ref")),
+    ...(Array.isArray(schema.required) ? { required: schema.required.filter((key) => key !== "handoff_ref") } : {}),
+  } : schema;
+  const parameters = Type.Unsafe(publicSchema);
+  const validationTool = { name: contract.name, parameters: Type.Unsafe(schema) };
   return defineTool({
     name: contract.name,
     label: contract.name,
-    description: contract.description,
+    description: applicationHandoff
+      ? `${contract.description}\nThe runtime supplies handoff_ref for application-authorized references. Do not supply or construct a private handoff receipt.`
+      : contract.description,
     parameters,
     async execute(_id, params) {
       // Reject caller-selected transport routing before schema diagnostics.

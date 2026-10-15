@@ -1142,12 +1142,13 @@ def _build_result_projections(
                         reason="当前 Domain Pack 尚未提供结果展示投影",
                     ))
                 continue
+            result_contexts: dict[str, tuple[str, str]] = {}
             if not callable(invoke):
                 raw_projections: object = ()
                 projection_error = True
             else:
                 try:
-                    raw_projections = project_admitted(
+                    projection_arguments = dict(
                         authority=authority,
                         invoke=invoke,
                         context_ref=context_ref,
@@ -1161,6 +1162,32 @@ def _build_result_projections(
                         result_refs=owned_results,
                         result_evidence=owned_evidence,
                     )
+                    if profile.model_binding.model_revision_resolver is None:
+                        raw_projections = project_admitted(**projection_arguments)
+                    else:
+                        # Application-owned lineage resolution supplies the exact
+                        # context for each scenario; the Pack still checks equality.
+                        raw_projections = []
+                        verify_result = getattr(authority, "verify_result", None)
+                        if not callable(verify_result):
+                            raise ValueError("projection result authority verification is unavailable")
+                        for result_ref in owned_results:
+                            document = getattr(verify_result(result_ref), "document", None)
+                            if not isinstance(document, Mapping):
+                                raise ValueError("projection result artifact is invalid")
+                            result_context = document.get("model_ref")
+                            if not isinstance(result_context, str):
+                                raise ValueError("projection result model reference is invalid")
+                            result_revision = profile.model_binding.revision_for_model_reference(result_context)
+                            result_contexts[result_ref] = (result_context, result_revision)
+                            projected = project_admitted(**{
+                                **projection_arguments, "context_ref": result_context,
+                                "model_revision": result_revision, "result_refs": (result_ref,),
+                                "result_evidence": {result_ref: owned_evidence[result_ref]},
+                            })
+                            if not isinstance(projected, (list, tuple)):
+                                raise ValueError("projection result collection is invalid")
+                            raw_projections.extend(projected)
                     projection_error = False
                 except Exception:
                     raw_projections = ()
@@ -1208,7 +1235,9 @@ def _build_result_projections(
                 try:
                     expected_revision = claim.model_context.model_revision
                     verify_result = getattr(authority, "verify_result", None)
-                    if callable(verify_result):
+                    if raw_result_ref in result_contexts:
+                        expected_revision = result_contexts[raw_result_ref][1]
+                    elif callable(verify_result):
                         document = getattr(verify_result(raw_result_ref), "document", None)
                         result_context = document.get("context_ref") if isinstance(document, Mapping) else None
                         if isinstance(document, Mapping) and isinstance(result_context, str) and result_context != context_ref:

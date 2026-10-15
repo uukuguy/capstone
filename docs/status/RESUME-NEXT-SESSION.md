@@ -1,73 +1,85 @@
 # Live Session Checkpoint
 
-> Updated: 2026-10-15. Session remains active — not a final handoff.
+> Updated: 2026-10-15. Active work; not a final handoff.
 
-## Current task
+## Current instruction and scope
 
-Deliver a Linux AMD64 offline user-local package. Default PROVIDER=openai;
-users supply OPENAI_BASE_URL, OPENAI_MODEL and OPENAI_API_KEY. User authorized
-existing DeepSeek credentials for real OpenAI-compatible tests and business samples.
+User requests fixing the remaining problems on `fix/user-local-network-view`,
+then merging normally into `dev`. Active worktree is
+`.worktrees/dev-trial-deployment`; pre-follow-up source anchor is5e3627a.
+The two defects are later-turn PyPSA result projections and AC validation of a
+saved dispatch. Plan: [PyPSA follow-up](../superpowers/plans/2026-10-15-pypsa-runtime-followup.md).
 
-Worktree: .worktrees/dev-trial-deployment, branch feat/user-local-offline.
-Latest code: 916271fe639eaf04ce87dc5fdeed817c53640602. PR #27 targets dev.
-Root dev remains1d0b280; local-dev b7e68dd, local-demo/cloud-demo faa6af9,
-cloud-dev24d9a32. Existing user installation/data and cloud services are unchanged.
+Do not repeat offline release suites. Run focused regressions and one targeted
+original regional conversation with the already authorized DeepSeek OPENAI_*
+configuration. Required dev PR Linux/macOS checks still apply. No bypass.
 
-## Verified and pending
+## Implementation owners and design
 
-- 927f08b fixed Pi custom-endpoint protocol and environment-key interpolation.
-  129 focused checks, four real-Pi loopback SSE text/tool tests, and authorized
-  DeepSeek OPENAI_* text/tool requests passed. Old-source IEEE39 and AC/DC real
-  samples passed admission/tool-source replay. Regional dispatch failed before
-  the solver because emulated AMD64 lacks AVX/AVX2. Failed receipts are retained.
-- 39b1658 pins same-version Polars rtcompat on Linux x86_64. Six locks only add
-  that runtime; five dispatch checks, six lock checks and independent review pass.
-  Isolated AMD64 registered dispatch also passed with the network disconnected.
-- 39 package then failed real VM installation safely: Docker29 containerd uses
-  manifest digest as .Id, while the source daemon uses config digest.
-- 916271f fixes tagged archives with exact dual identities, complete layer checks,
-  private runtime-ID projection before version registration, immutable matching,
-  static data-contract preservation and no-pull startup. Combined160 checks,
-  doctor, independent review and19 extra layer checks pass. New VM install pending.
-- README now uses formal project instructions in user groups: simple/short first,
-  calculations next, scenario changes and advanced exploration last. Frozen
-  guide is deploy/dev-trial/offline-validation-samples.txt. Both package and
-  installed-directory README include it. User preview is root runs/user-local-offline/README-preview.txt.
+- offline_review_supported owns application preparation/session projection,
+  PyPSA model binding and related tests. A neutral optional revision resolver
+  validates every result's own authorized model lineage/revision. Each result
+  is projected against its actual verified context, preserving Pack equality
+  and existing host-only verified-context admission. No PyPSA imports enter
+  the framework Kernel. Baseline catalog revision must remain unchanged.
+- offline_provider owns Authority power_operations, its tests and the AC
+  contract/guide scope. PyPSA1.3.0 reads generators_t.p_set; writing computed
+  generators_t.p was overwritten. Apply saved schedules to input p_set.
+  Verify actual non-slack outputs, third-snapshot backup increment and slack
+  loss balance. Fail explicitly for unsupported scheduled Store/StorageUnit/
+  Link/Process components instead of claiming to verify unsaved schedules.
+- Root owns planning, control documents, candidate runtime, review, PR/merge
+  and canonical dev checkout integration. Workers do not commit concurrently.
 
-## Active operations
+## Immutable delivery and graph
 
-- Source916 host Docker acceptance passed install,9 scripted turns, replay,
-  restart/repeat and data/config retention. VM failed public metadata permissions;
-  fix preserves original mode/owner and passed independent review.
-- Corrected698e2a9 build is running (offline-corrected-build.log); chained
-  accept_and_openai_corrected.py waits for its exact receipt, then runs the
-  corrected host installation and authorized real OPENAI_* samples. Driver
-  corrected-full-driver.log; do not start a duplicate Provider run.
-- User cancelled local Ubuntu VM and cloud-dev verification. Neither is a
-  remaining delivery gate. Existing VM/cloud data and failed evidence are retained.
-- Corrected-source local gate passed187 deployment/offline/Provider checks plus
- 61 entrypoint checks and shell rebuild checks. Inherited LLM overrides must be
-  removed before running tests; original unsanitized failure is retained.
-- README preview is generated from actual exporter; data storage/backup guidance
-  and explicit short-to-long sample ordering are included.
+Current user package is sourcee2eaee2403cb6d780b3f7564da86e0d083890673,
+root `runs/user-local-offline/capstone-delivery-e2eaee2`, three files.
+Archive bytes1368607944; SHA256
+9d7c3b215b9c45631bf3142aaad8f8066ba43831380b43b2ccf8146ee1eebfe7.
+Single install/readiness and six AMD64 roles passed; instance29377 is stopped.
+Runtime packages matched tested28020aa. Preserve the delivered artifact unchanged.
+No new package was requested by the current fix-and-merge instruction.
 
-## Next actions
+7c19766 is withdrawn and not deliverable. Evidence is retained at root
+`runs/user-local-offline/capstone-withdrawn-7c19766`; original files/hash remain.
+Do not restore or distribute the old delivery directory.
 
-1. Commit/push mode fix and README, rebuild corrected AMD64 candidate.
-2. Rerun authorized real OPENAI_* samples on corrected installed AMD64 backend,
-   including previously failed regional dispatch. Preserve original failures.
-3. Wait required Linux/macOS checks, normal PR merge, root dev fast-forward,
-   canonical make capstone-local-rebuild. No bypass.
-4. Build delivery from exact accepted dev merge; verify extracted package,
-   readiness, scripted cases, replay, restart/repeat, data retention and browser.
-5. Update verification/plan/worklist/control graph with actual scope and receipts;
-   normal docs PR. Show final README. Do not update demo/main/cloud.
+The graph has12 important nodes. e2 is an independent visible delivery focus,
+with README/archive/SHA/report links. Withdrawn7c and documentation606 belong
+in history, not separate nodes. Update graph and canonical register at phase
+boundaries; check both worktree and root entry points. Source/verification/
+merge/deployment states must remain distinct.
 
-## Operator evidence
+## Prior verified evidence
 
-All operator scripts/logs live in this worktree's ignored .capstone-agent/.
-Root runs/user-local-offline/ holds candidate archives and user-readable preview;
-source927 and39 packages are not accepted final deliveries.
-Final artifact names include the source SHA. Credentials never enter archives,
-arguments, logs, public projections or committed state. No real Provider calls
-are needed for packaging or deterministic acceptance.
+- Graph scene/camera fixes61a418d:106 backend and109 App tests plus browser checks.
+- Shared handoff fix28020aa:16 contracts/82 checks, independent review.
+- Original three-turn AMD64 OPENAI candidate28020aa: baseline/growth dispatch
+  optimal1300/1900 and both AC calls converged. Actual projection failure and
+  AC schedule inconsistency remain evidence for the present regressions.
+- Raw ignored evidence: `.capstone-agent/regional-handoff-candidate-live.json`
+  and its sibling directory of records/snapshots/verified Authority documents.
+  Candidate29375 is stopped with data retained. Operator checker interpreter
+  error was separated from the successful first dispatch; never resend it.
+- README1–9 actually ran on7c;10–12 were not run. Full generator N1 study/ranking
+  remains unverified. Do not turn request completion into full business acceptance.
+
+## Integration and data preservation
+
+PR27 merged normally as37529efa2f0b0e10f641a65706b330b1d94255af after required CI.
+origin/dev points there. Root dev HEAD remains1d0b280. Root has task-owned pending
+control/tooling copies synchronized from the fix worktree; preserve them before
+fast-forwarding. Preserve untracked reports/plans and append-only journal data.
+Never overwrite unrelated work or delete/migrate root var data.
+
+After focused fixes and review: freeze source, test one isolated regional candidate,
+record actual results, create dev PR, pass required checks, merge, preserve pending
+root copies, fast-forward dev, and use make capstone-local-rebuild for its real
+entry point. API and both workers must share the tested source/image.
+
+Existing19173 installation is user data and remains untouched. local-dev previously
+runsb7e68dd; local-demo/cloud-demo remainfaa6af9, cloud-dev24d9a32. No cloud/demo
+or Ubuntu VM validation/deployment is authorized by this task. Do not change them.
+Keep credentials in environment/private ignored state; never log values or copy
+ignored authentication state into a fresh worktree.

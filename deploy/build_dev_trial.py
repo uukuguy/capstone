@@ -203,6 +203,7 @@ def write_bundle(source: Path, output: Path, revision: str, images: dict,
                                       + 'CAPSTONE_TRIAL_PLATFORM=' + (platforms[0] if candidate else '') + '\n')
     (output / 'README.txt').write_text(
         'Capstone temporary dev trial\nSource: ' + revision + '\n'
+        'Preinstalled example grids are included. Start with pandapower IEEE39.\n'
         'Requires Docker Engine or Docker Desktop with Docker Compose v2.\n'
         'Linux and macOS: set DEEPSEEK_API_KEY in the startup environment, then run ./start.sh.\n'
         'Edit .env to change Provider/model or the App port. OpenAI example is in comments.\n'
@@ -215,11 +216,16 @@ def write_bundle(source: Path, output: Path, revision: str, images: dict,
         notes.write('Manage versions with ./capstone.sh. The frozen ./start.sh runs this version.\n'
                     'The data contract blocks unverified backend and dependency changes.\n'
                     'It does not replace migration tests or tests with old data.\n'
-                    + ('Candidate: full data compatibility has not been accepted.\n' if candidate else ''))
+                    + ('Candidate: full data compatibility has not been accepted.\n' if candidate else '')
+                    + '\nOptional PyPSA examples: AC-DC Meshed, Storage-HVDC, SciGrid-DE, '
+                    'Model-Energy, Stochastic-Network and Carbon Management.\n'
+                    'Regional Six Bus is also included; select another grid when needed.\n')
     samples = (source / 'deploy/dev-trial/offline-validation-samples.txt').read_text()
     (output / 'README.md').write_text(
         '# Capstone 在线安装使用说明\n\n'
         '源提交：`' + revision + '`。这是开发试用包。\n\n'
+        '已预装示例电网，默认使用 pandapower 的 IEEE39 电网。'
+        '建议先按下方案例体验，再按需切换其他电网。\n\n'
         '## 安装前提\n\n'
         '需要 Docker Engine 或 Docker Desktop，以及 Docker Compose v2。'
         '在线安装器需要联网下载部署包、版本目录和四类固定摘要镜像；'
@@ -263,7 +269,11 @@ def write_bundle(source: Path, output: Path, revision: str, images: dict,
         '## 可复制的测试案例\n\n'
         '以下案例与离线包共用同一份源文件。需要模型接口可用，可能产生 Provider 费用。'
         '按案例说明选择模型、建立新对话并逐轮发送。\n\n```text\n'
-        + samples.rstrip() + '\n```\n')
+        + samples.rstrip() + '\n```\n\n'
+        '## 可选电网示例\n\n'
+        '需要其他电网时，可在模型目录中切换。PyPSA示例包括AC-DC Meshed、Storage-HVDC、'
+        'SciGrid-DE、Model-Energy、Stochastic-Network及Carbon Management；'
+        '区域六母线等内置电网也随程序提供。\n')
     (output / 'README.md').chmod(0o644)
     return document
 
