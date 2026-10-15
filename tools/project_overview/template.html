@@ -115,7 +115,7 @@ el('detail-list').innerHTML=data.packages.filter(p=>!['live','main'].includes(p.
 let fitView=false;
 function fitGraph(){
  const frame=el('graph-frame'),canvas=el('graph-canvas');
- if(!fitView){const available=Math.max(320,window.innerHeight-frame.getBoundingClientRect().top-80),scale=Math.min(1,frame.clientWidth/canvas.offsetWidth,available/canvas.offsetHeight);canvas.style.transform=scale===1?'none':'scale('+scale+')';canvas.style.marginLeft=Math.max(0,(frame.clientWidth-canvas.offsetWidth*scale)/2)+'px';frame.style.height=Math.ceil(canvas.offsetHeight*scale)+'px';frame.style.overflow='hidden';return;}
+ if(!fitView){const scale=Math.min(1,frame.clientWidth/canvas.offsetWidth);canvas.style.transform=scale===1?'none':'scale('+scale+')';canvas.style.marginLeft=Math.max(0,(frame.clientWidth-canvas.offsetWidth*scale)/2)+'px';frame.style.height=Math.ceil(canvas.offsetHeight*scale)+'px';frame.style.overflow='hidden';return;}
  const top=frame.getBoundingClientRect().top+window.scrollY,available=Math.max(180,window.innerHeight-top-55);
  const scale=Math.min(1,frame.clientWidth/canvas.offsetWidth,available/canvas.offsetHeight);
  canvas.style.transform='scale('+scale+')';canvas.style.marginLeft=Math.max(0,(frame.clientWidth-canvas.offsetWidth*scale)/2)+'px';frame.style.height=Math.ceil(canvas.offsetHeight*scale)+'px';frame.style.overflow='hidden';

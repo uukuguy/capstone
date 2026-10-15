@@ -3144,3 +3144,5 @@ The following original entries were retained during document synchronization.
 - 2026-10-15：最终dev b7e68dd双架构镜像完成匿名拉取、旧数据升级/读取/报告证据回放、重启、浏览器及兼容回退；user-local-b7e68dd和受管旧版7832134已公开，固定安装器公开下载/校验/实际启动/状态/停止通过。零Provider调用，原~/capstone未改动，cloud-dev/demo保持原来源。
 
 - 2026-10-15：110f843 发布已验收user-local目录和控制记录，统一最新安装入口并标注可安装Git节点；文档链接、doctor、两端间距连线及两个安装图标检查通过。
+
+- 2026-10-15：030bac8保存公开试用安装验收记录；控制图默认缩放回归已修正，红绿浏览器检查验证可读尺寸与全图预览分离，主轴/部署来源/两端间距连线检查继续通过。
