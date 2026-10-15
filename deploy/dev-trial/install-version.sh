@@ -19,7 +19,7 @@ safe "$destination"
 temporary=$(mktemp -d)
 locked=''
 cleanup() {
-  rm -f "$temporary/package.tar.gz" "$temporary/list" "$temporary/catalog"
+  rm -f "$temporary/package.tar.gz" "$temporary/list" "$temporary/catalog" "$temporary/catalog.new" "$temporary/catalog.old" "$temporary/catalog.merged"
   if [ -d "$temporary/package" ]; then
     for file in compose.yaml start.sh .env .env.example release.env manifest.json README.txt data-contract.env capstone.sh install.sh legacy-data-contract.env; do
       rm -f "$temporary/package/$file"
@@ -71,6 +71,46 @@ mkdir -p "$meta" "$packages"
 safe "$meta/lock"
 mkdir "$meta/lock" 2>/dev/null || fail 'Another installation or management operation is running.'
 locked=$meta/lock
+if [ -n "${CAPSTONE_OFFLINE_DIRECTORY:-}" ]; then
+  # A single offline delivery must not remove the previous active source from
+  # the manager catalog, including when the shared-data guard rejects startup.
+  validate_catalog() {
+    [ -f "$1" ] && [ "$(wc -c < "$1")" -le 1048576 ] || return 1
+    awk -F '\t' '
+    function hex(s,n) { return length(s)==n && s !~ /[^0-9a-f]/ }
+    function date(s,a,y,m,d,days) {
+      if (s !~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/) return 0
+      split(s,a,"-"); y=a[1]+0; m=a[2]+0; d=a[3]+0
+      if (y<1 || m<1 || m>12) return 0
+      days=31
+      if (m==4 || m==6 || m==9 || m==11) days=30
+      if (m==2) days=28+(y%4==0 && (y%100!=0 || y%400==0))
+      return d>=1 && d<=days
+    }
+    /^#/ || /^$/ { next }
+    { p=substr($2,12)
+      if (NF!=5 || !hex($1,40) || substr($2,1,11)!="user-local-" || length(p)<7 || length(p)>40 || p ~ /[^0-9a-f]/ || index($1,p)!=1 ||
+          $3!="https://github.com/uukuguy/capstone/releases/download/" $2 "/install.sh" || !hex($4,64) ||
+          !date($5) || seen[$1]++ || tags[$2]++) { bad=1; exit 1 }
+      count++; print
+    }
+    END { if (bad || !count) exit 1 }
+    ' "$1"
+  }
+  validate_catalog "$temporary/catalog" > "$temporary/catalog.new" || fail 'The offline version catalog is invalid.'
+  safe "$meta/versions.tsv"
+  : > "$temporary/catalog.old"
+  if [ -e "$meta/versions.tsv" ]; then
+    validate_catalog "$meta/versions.tsv" > "$temporary/catalog.old" || fail 'The existing version catalog is invalid. Its records were preserved.'
+  fi
+  awk -F '\t' '
+    seen[$1] { if (seen[$1]!=$0) exit 1; next }
+    tags[$2] { exit 1 }
+    { seen[$1]=$0; tags[$2]=1; print }
+  ' "$temporary/catalog.new" "$temporary/catalog.old" > "$temporary/catalog.merged" || fail 'Version catalog records conflict. Existing records were preserved.'
+  [ "$(wc -c < "$temporary/catalog.merged")" -le 1048576 ] || fail 'The merged version catalog is too large. Existing records were preserved.'
+  mv "$temporary/catalog.merged" "$temporary/catalog"
+fi
 target=$packages/$source
 safe "$target"
 if [ -e "$target" ]; then

@@ -112,7 +112,7 @@ def delivery(tmp_path):
         'README.txt', 'data-contract.env', 'install.sh']}
     files['manifest.json'] = json.dumps({'channel': 'dev-trial-offline'}).encode()
     files['release.env'] = ''.join(f'CAPSTONE_{kind.upper()}_IMAGE=sha256:{i * 64}\n' for i, kind in zip('0123', KINDS)).encode()
-    files['capstone.sh'] = b'#!/bin/sh\nprintf "manager %s %s\\n" "$1" "$2"\n'
+    files['capstone.sh'] = b'#!/bin/sh\n[ "${TEST_REJECT_START:-0}" != 1 ] || exit 1\nprintf "manager %s %s\\n" "$1" "$2"\n'
     with tarfile.open(out / 'deployment.tar.gz', 'w:gz') as target:
         for name, data in files.items():
             info = tarfile.TarInfo(name)
@@ -127,7 +127,7 @@ def delivery(tmp_path):
     shutil.copyfile(ROOT / 'deploy/dev-trial/install-offline.sh', out / 'install-offline.sh')
     (out / 'manifest.json').write_text('{}')
     (out / 'README.txt').write_text('offline fixture')
-    (out / 'versions.tsv').write_text('fixture catalog\n')
+    (out / 'versions.tsv').write_text(catalog_row(REVISION))
     (out / 'images.tsv').write_text(''.join(f'{kind}\tsha256:{i * 64}\tlinux/amd64\t{kind}.tar\n' for i, kind in zip('0123', KINDS)))
     for kind in KINDS:
         (out / (kind + '.tar')).write_bytes(b'image fixture')
@@ -155,6 +155,43 @@ esac
 def install(delivery):
     out, env = delivery
     return subprocess.run(['sh', str(out / 'install-offline.sh')], env=env, capture_output=True, text=True)
+
+
+def catalog_row(revision, checksum='0' * 64):
+    tag = 'user-local-' + revision[:12]
+    return f'{revision}\t{tag}\thttps://github.com/uukuguy/capstone/releases/download/{tag}/install.sh\t{checksum}\t2026-10-15\n'
+
+
+def test_failed_offline_start_retains_previous_catalog_and_repeat_deduplicates(delivery):
+    _, env = delivery
+    root = Path(env['CAPSTONE_TRIAL_DIRECTORY'])
+    meta = root / '.capstone-management'
+    meta.mkdir(parents=True)
+    previous = 'b' * 40
+    old_row = catalog_row(previous)
+    (meta / 'versions.tsv').write_text(old_row)
+    env['TEST_REJECT_START'] = '1'
+    for _ in range(2):
+        result = install(delivery)
+        assert result.returncode != 0
+        rows = (meta / 'versions.tsv').read_text()
+        assert rows == catalog_row(REVISION) + old_row
+        assert previous in rows
+        assert 'stop' not in Path(env['CALLS']).read_text()
+
+
+@pytest.mark.parametrize('existing', ['conflict', 'invalid', 'oversize'])
+def test_offline_catalog_merge_rejects_invalid_or_conflicting_existing_rows(delivery, existing):
+    _, env = delivery
+    root = Path(env['CAPSTONE_TRIAL_DIRECTORY'])
+    meta = root / '.capstone-management'
+    meta.mkdir(parents=True)
+    original = catalog_row(REVISION, '1' * 64) if existing == 'conflict' else 'invalid\n' if existing == 'invalid' else '#' * 1048577
+    (meta / 'versions.tsv').write_text(original)
+    result = install(delivery)
+    assert result.returncode != 0
+    assert (meta / 'versions.tsv').read_text() == original
+    assert not (root / 'capstone.sh').exists()
 
 
 def test_offline_install_has_no_downloads_and_repeat_keeps_private_files(delivery):
