@@ -39,6 +39,7 @@ class AnalysisRegistry:
         found = self.require(operation)
         description = {
             "operation": found.identifier,
+            "execution_capability": "analysis.run",
             "title": found.title,
             "pandapower_operation": found.pandapower_operation,
             "options_schema": found.options_schema,

@@ -2579,3 +2579,682 @@ The following original entries were retained during document synchronization.
 - 2026-10-12: Pi merged lazy credential routing while retaining experimental intent ownership [e9825df].
 - 2026-10-12: Pi adaptation checks recorded to preserve recovery and distinguish candidate integration from acceptance [41fabee].
 - 2026-10-12: Pi accepted dev6ff7094 ancestry without runtime changes; approved e9825df source and deferred Provider/Docker acceptance remain distinct.
+- 2026-10-12: Pi synchronized accepted dev ancestry without source changes to preserve reviewed experimental scope [38e19db].
+- 2026-10-15: Pi incorporates dev f209fb1; backend1300/App512/Postgres23 pass; role-switch regression fixed and independently reviewed; no deployment.
+- 2026-10-12 · 17debfb：提交选择性补回专项报告、控制图和运行说明；部署源码82b243c，整体缺陷继续保留。
+- 2026-10-12：17debfb以项目bot推送并回读；PR14及Issues2/3同步选择性补回，两轮专项通过，整体缺陷保持开放。
+- 2026-10-12：用户批准PR14合入dev形成新开发基线，并对齐Pi/Research Model分支起点及适配接口；远端检查等待中。
+- 2026-10-12 · bc08169：延迟识别Provider配置解析，恢复无凭据装配与安全失败；相关测试及类型检查通过。
+- 2026-10-12 · 39ffe2b：保存dev收口授权和研究依赖适配，控制图待合并状态及浏览器来源检查通过。
+- 2026-10-12 · 6ff7094：精确bc08169双平台CI通过，PR14按授权合入dev；保留业务缺陷并对齐两实验分支。
+- 2026-10-12 · 2b0b0a5：Research Model起点对齐6ff7094，设计/计划适配既有接口；文档审查及来源等价通过。
+- 2026-10-12 · 38e19db：Pi接入6ff7094并适配消息、上下文和界面；417项App及独立审查通过，未部署Pi。
+
+### 2026-10-12 — 新基线与分支适配核对
+
+- PR14精确双平台通过，dev产品基线6ff7094；关闭恢复分支，保留精确归档。
+- Pi38e19db、Research2b0b0a5推送；真实合并基点均为6ff7094。
+- local-dev同源506项、image90d9dd6d、App6ff7094；新鲜集成通过。
+- 首次普通误路由9.043s失败保留；单项重试6.440s通过，不称已修复。
+- 线路轮仅消息隔离通过；整体业务、R1与云端发布未认证。
+- 控制图7节点、四来源及桌面/手机交叉检查通过。
+- e5fe23a登记新基线、两分支适配及首次失败，避免验收状态混淆。
+- 20c6e46登记PR15，文档经受保护dev门禁交付；产品基线不变。
+- 39bab1a纠正图内旧闭环验收文字，避免历史记录冒充当前能力。
+- PR15两平台文档检查通过，合并5fbbe9d；根工作区回dev，临时远端分支关闭。
+- Issues2/3已同步适配与失败保留；R1、整体业务及云发布未认证。
+- 用户改为讨论自主组织，意图识别不再强制关键节点；Pi与Research合议，暂不改代码。
+- 控制文档新增自主智能体演进讨论章节：19条记录由版本台账生成，覆盖工作循环、职责、组织建议及待定细节；同步讨论笔记与恢复入口。
+- 2026-10-12：2304d97保存自主智能体设计提案与图示，供后续讨论和实现追溯；PR #16面向dev。
+- 文档验证：1440/390宽度浏览器检查通过，无横向溢出；原图四来源、节点布局与连线交叉检查通过；链接、相对符号链接、diff检查与doctor通过。统一分支尚未创建，运行代码与部署未改。
+- 2026-10-12：debfd18登记交付；PR16双平台通过，合入dev4f15cfc，讨论文档已同步远端；临时分支关闭。
+- 2026-10-12：保存后续讨论至统一设计与详细讨论记录，刷新活动恢复入口；五概念、单指令重点及正式回答/执行过程/计算结果/推演证据命名保持一致。PR16之后的文档仍为本地未提交状态，无运行代码或部署变更。
+- 2026-10-12：静态契约确认Authority已有持久结果分页；待核对Application/App传递、Pi上下文生命周期及研究更新持久确认，不把设计提案记成已实现行为。
+- 2026-10-12：核对锁定Pi的context到请求捕获顺序及异常继续行为；确认轨迹回执不等于研究提交回执。统一设计补充上下文版本检查、幂等提交和无需LLM的结果分页提案及最小验收，尚未实现。
+- 2026-10-12：补充首期接口方案：RPC等待循环处理独立研究更新请求，事件持久化后生成可恢复回执；Thread只读分页保留Domain Pack投影和结果准入，不创建智能体轮次。仅设计，无运行变更。
+- 2026-10-12：保存主循环细化提案：复用授权工具与按需指南，同一主智能体选择行动并解释观察，仅关键变化提交研究更新；按用户所求及真实核验收束，不新增分类器、任务编译器或逐步评审模型。源码核对与设计提案分开记录。
+- 2026-10-12：保存首期实施计划与能力基线，控制图同步；13次隔离gridctl调用确认IEEE39 OPF成功及35线路/39节点全量查询，lam_p单位为空；确认mv_oberrhein线路59/149在运。未跑智能体端到端、N-1或短路，无部署变更。
+- 2026-10-12：盘点增至17次公开Authority调用；同一修订停运59/149后连通分量2→4，尚未证明可持续带电孤岛；两个ext_grid短路容量及R/X输入均为空。结果与缺口已保存，不能虚构参数补齐。
+- 8d636a4：持久研究状态与幂等回执，支持中断恢复；Kernel590项及类型检查通过，未接Pi。
+- 用户明确：后续以Python3.12验证，不增加Python3.14检查。
+- 1cd2860：Pi等待期间处理宿主控制请求，防止回执互锁；无捕获及静默/持续事件测试通过。
+- 0151e62：研究请求通道与只读回执恢复，防止重复提交；Python3.12下Kernel604项及类型检查通过。
+- 7df7180：接入Pi研究工具与上下文恢复，防止旧状态续推；Kernel609项、Pi工具60项通过。
+- 3e471d0：隔离内核记录与领域准入，避免研究工具被当作计算；120项相关回归通过。
+- 用户明确：局部校验失败必须进入恢复或结果交付，保留已完成回答、过程和证据；禁止仅报错码结束。
+- 3f2f111：保留已准入的受限专业回答，避免被错误码替换；后端98项、前端65项及类型检查通过。
+- 88206b4：增加有界纠正和失败结果交付，保留核验证据；后端166项、前端116项通过，未部署。
+- 用户指定整体回归：两条基础回答约10秒，三条连续组合回答约30秒；专项仅验对应改动，逐条保存耗时与证据。
+- 用户纠偏：核验失败本身是结果，须保存产物与核验状态并反馈主循环；不能以筛除证据代替继续任务。
+- b73c4f4：保存核验失败观察与原文，结果面板显示失败项；后端168项、前端117项及类型检查通过。
+- d9f1879：补全工具失败阶段与脱敏原因，避免界面丢失已有诊断；后端40项、前端67项及类型检查通过。
+- 用户明确：整条指令执行链数据必须留存和可追溯；有界展示不可替代完整记录。
+- ec913ac：统一准入失败观察与继续处理，保存应用请求并关联轨迹序号；后端173项及类型检查通过。
+- 用户确认：结果先覆盖全局要点，细节通过绑定原任务的追问展开；已保存展示、版本绑定和回归契约。
+- 54f6f13：新增原任务记录分页，支持追问读取失败与诊断记录；真实PG19项、HTTP及管理36项通过。
+- a77e180：前端分页读取校验原任务身份与游标，防止追问混用记录；13项及类型检查通过。
+
+- 2026-10-12: Prioritized single-instruction loop; isolated research lifecycle and Pi request pump pass 37 focused tests; builder wiring remains.
+
+- 2026-10-12: 13d5030 binds task research lifecycle and verified references into Pi assembly; 43 tests pass; hosted enablement remains.
+
+- 2026-10-12: 4f4efe1 separates research identity and binds Worker guards to prevent cancelled-task writes; focused tests and types pass.
+
+- 2026-10-12: Accepted independent current-research and grid selectors with immutable per-instruction bindings; UI implementation remains pending.
+
+- 2026-10-12: 520de44 adds opt-in autonomous entry and committed research events; binds model snapshot without mandatory research creation.
+
+- 2026-10-12: 5320f4e verifies research updates through real pinned Pi and prepared application; two offline integration cases pass.
+
+- 2026-10-12: Adopted one default research per Thread model context; per-Attempt storage realignment remains required.
+
+- 2026-10-12: e0fcf51 restores model-bound default research with separate attempt channels; switch-back and pinned Pi tests pass.
+
+- 2026-10-12: Recorded research reset boundaries; retain history and grid state, defer arbitrary-version rollback.
+
+- 2026-10-12: Revised default reset to restore grid baseline and clear current research while retaining all history; implementation pending.
+
+- 2026-10-12: 9480ba2 recovers research using verified Thread terminals and closes failed preparation; focused tests and types pass.
+
+- 2026-10-12: Task-goal UI passed68 checks, types and browser expansion at1440/390px; controlled fixture only, uncommitted.
+
+- 2026-10-12: Real Authority child-context probe confirmed Application rejects valid derived scenarios; ancestry admission repair required.
+
+- 2026-10-12: Uncommitted ancestry admission accepts real child context;27 focused checks pass; projection revision boundary remains under review.
+
+- 2026-10-12: Derived result projection uses verified child diagram/revision; correct and wrong revision regressions pass; uncommitted, E2E pending.
+
+- 2026-10-12: Thread derived projection admission requires host verification receipt;47 focused checks pass, live chain verification pending.
+
+- 2026-10-12: Real derived IEEE39 flow passed admission, projection and Thread validator in9.59s; derived network-view access pending.
+
+- 2026-10-12: f8fcb47 admits Authority-verified derived scenarios through Thread results;54 checks prevent valid scenario rejection.
+
+- 2026-10-12: Isolated live OPF started with configured DeepSeek; ambient alternative credentials failed401; actual calculation and query calls observed.
+
+- 2026-10-12: Live DeepSeek OPF completed58.821s with35 lines/39 prices; exporter pagination corrected; Authority value audit pending.
+
+- 2026-10-12: OPF35 line/39 price values match Authority rows;2 query failures recovered; live N-1 session29812 running.
+
+- 2026-10-12: Live island run exposes root-only context enum blocking derived tools before Authority; actual Pi entry regression needed.
+
+- 2026-10-12: Live N-1 completed255.428s with2244 events; scan delivered, optimized verified relief failed due derived-context tool restriction.
+
+- 2026-10-12: Candidate Authority context scope replaces root-only tool enum; scoped execution tests running; old island run completed240.57s.
+
+- 2026-10-12: Real Pi rerun accepts child topology/AC flow; short-circuit fails at calculation;5 scope checks pass, final pending.
+
+- 2026-10-12: Candidate research work protocol added after live runs showed no research updates;25 session checks pass; adoption unverified.
+
+- 2026-10-12: N-1 live run completed217s; worst-case OPF/AC verification present, full relief pending. Island247s answer admission failed.
+- 2026-10-12: Saved P7 trace-reference method; distinguish successful-version mechanisms from later NOTES experiments.
+
+- 2026-10-12: Offline island replay proves projection64KiB overflow, not Authority reference failure; saved reproducible receipt.
+
+- 2026-10-12: 95ddebf preserves large admitted results in bounded atomic ledger parts, preventing display overflow from rejecting answers.
+
+- 2026-10-12: 4c06018 enables scoped derived experiments and verified research references, restoring working-note updates from real N-1 receipts.
+
+- 2026-10-12: Archived answer-repair3e3bbfb from active control graph at user request; preserved recovery branch and unaccepted history.
+
+- 2026-10-12: 4c06018 real island170s/N1317s delivered; research updates persisted. N1 second-plan AC-verification claim contradicts tool trace.
+
+- 2026-10-12: 75e485d projects sourced N1/OPF/topology/constraint results, replacing unavailable cards without inventing units or displaying stale failed outputs.
+
+- 2026-10-12: Adaptive reasoning-depth control passes106 focused checks/types; real baseline running92512. Intro39s still fails latency and contains English preface.
+
+- 2026-10-12: 6196ac3 records native adaptive reasoning control; pinned Pi recovery passes. Five basic cases completed, latency/English-preface acceptance remains open.
+
+- 2026-10-12: Actual load rows total6254.23MW contradict final8.1GW; added bounded Authority aggregation to prevent model arithmetic. Validation ongoing.
+
+- 2026-10-12: ec10790 adds bounded Authority aggregation for accurate complete-set totals;68 focused checks and types pass.
+
+- 2026-10-12: ec10790 real baseline49/24/18/34/13s; load aggregation correct, generator total5620MW misreported6220MW. Business acceptance fails.
+
+- 2026-10-12: Control register/ec10790 aligned; graph desktop/mobile layouts, four bindings and zero crossings checked; doctor passed.
+
+- 2026-10-12: 245874f exposes sourced input overview in context.get, reducing repeated table reads and model arithmetic; focused checks/types pass.
+
+- 2026-10-12: 34ec456 adds bounded validation field diagnostics so research errors can be corrected without losing completed results.
+
+- 2026-10-12: 245874f real OPF completed47.83s;265 projected cells match Authority,35lines/39bus prices delivered; research refs missing and English preface persist.
+
+- 2026-10-12: 55fb4ce passes explicit research candidate mode to API/family workers;30 runtime/deployment checks pass.
+
+- 2026-10-12: Isolated canonical Compose rebuild93920 started for55fb4ce; separate volumes/port8889, existing local-dev/demo preserved.
+
+- 2026-10-12: Isolated55fb4ce API/App OPF completed45.8s;1943 PostgreSQL events saved, two cards84rows displayed; semantic explanation errors remain.
+
+- 2026-10-12: 169fda1 prioritizes public task history over diagnostic deltas;116 App checks/types and actual desktop/mobile process access pass.
+
+- 2026-10-12: 95d7929 retains exact model-context data across idle resource eviction, verifying guide reuse and real prior-result access.
+
+- 2026-10-12: Canonical isolated95d7929 rebuild44508 started; worker runtime directories lack Compose volumes, container replacement persistence remains unproved.
+
+- 2026-10-12: Isolated95d7929 rebuild44508 ready; API/family workers sharec8f5593 image/research1, actualidle60s. Source graph checked.
+
+- 2026-10-12: 95d7929 real API AC16s→idle65s→rank25s passed;same result/evidence retained, four reads succeed, no recalculation.
+
+- 2026-10-12: N1 audit confirms goal bounds retained but lineage-only admission; no fixed evaluator permitted. Isolated95 island API started88407.
+
+- 2026-10-12: Isolated95 island API completed80s; semantic audit rejects unsupported failure cause, null-voltage interpretation and island/source scope claims.
+
+- 2026-10-12: Generic AC ranking fix passes11 tests/types and replays actual island result without recalculation; uncommitted, not deployed.
+
+- 2026-10-12: f7c400e ranks verified generic AC datasets without recalculation; fixes false integrity failures during composed analysis.
+
+- 2026-10-12: f7c400e control graph aligned; desktop/mobile layout, four source bindings and zero independent crossings verified.
+
+- 2026-10-12: Started isolated N1 high-thinking control90810 at f7c400e; unchanged question/tools, experiment override recorded separately.
+
+- 2026-10-12: High-thinking N1 experiment90810 remains live;61 trace events show scanning and generator scenario derivation, no acceptance yet.
+
+- 2026-10-12: Actual island App exposed false generic-AC nonconvergence card; fix passes15 tests/types and258-row source replay, uncommitted.
+
+- 2026-10-12: 2e05a3f projects native AC status and tables correctly; prevents false nonconvergence cards, preserves null values.
+
+- 2026-10-12: User prioritizes all three task-chain samples before frontend interaction; owning plan updated, existing UI fixes retained.
+
+- 2026-10-12: N1 high-thinking experiment90810 failed617s; no operation discovery, false OPF absence, admission failed twice; products retained.
+
+- 2026-10-12: User prioritizes complete task closure and truthful capability reporting over perfect sample answers; delivery plan clarified.
+
+- 2026-10-12: Offline N1 admission replay reproduces128-reference limit rejection:19 results/131 evidence; fix complete reference delivery, not numerical policy.
+
+- 2026-10-13: 565874e raises reference capacity, preserves verified partial outcomes and formal replies;131-evidence replay,107 backend and14 protocol checks pass.
+
+- 2026-10-13: 565874e real three-task runs finish;OPF numbers verified,N1 voltage claim and island source inference fail semantic acceptance.
+
+- 2026-10-13: c2c3350 distinguishes missing constraints/values from passed checks; partial results retained.8 Authority/16 projection checks and real replay pass.
+
+- 2026-10-13: 175d903 corrects stale Domain Pack scope and composition methods;23 policy checks,14 registry names,doctor pass.
+
+- 2026-10-13: Isolated175d903 rebuilt; API/workers share d05df427 image, source hashes match. Three real API tasks running94711 before manual handoff.
+
+- 2026-10-13: 2b7ecdc adds nonfatal setpoint warnings and component source facts;78 checks and types pass, preventing unsupported feasibility/source claims.
+
+- 2026-10-13: 092acb6 bounds generic research conclusions to actual checks;29 composition tests pass, failed experiments remain valid task outcomes.
+
+- 2026-10-13: 092acb6 API tasks close40/379/73s with retained replies/products; browser checked. Intro21s exceeds10s target; content caveats preserved.
+
+- 2026-10-13: Evidence UI draft passes408 App tests and TypeScript. Manual5199 frozen092acb6; draft5200 awaits browser checks.
+
+- 2026-10-13: dab1dbe groups admitted evidence and retained failures for readable audit; real N1/island UI and result navigation checked.
+
+- 2026-10-13: Research snapshot draft preserves committed judgments/notes;69 backend and412 App tests pass; real-record browser replay pending.
+
+- 2026-10-13: a3895a5 preserves committed research snapshots for task audit; large-record completion/paging and saved N1/island browser replay pass.
+
+- 2026-10-13: 388fa89 retains validated semantic parameters and failed-call status for technical audit;414 App tests and Python types pass.
+
+- 2026-10-13: Isolated388fa89 API8890/App5201 ready with matching source/image; targeted OPF/island/introduction driver56345 running, acceptance pending.
+
+- 2026-10-13: 388fa89 real parameter/snapshot UI passes OPF/island; introduction47s/29calls with extraAC fails lightweight regression. Driver56345 terminal.
+
+- 2026-10-13: 73244c0 supplies revision-bound Authority metadata during model preparation to reduce redundant exploration;46 checks pass, live latency pending.
+
+- 2026-10-13: 73244c0 introduction127s fails; initial-goal rejection mislabeled uncertain. d1767ff repairs receipt classification/messages and generic goal scope.
+
+- 2026-10-13: d1767ff introduction37s/no AC; context refs wrongly rejected. b49b7a0 admits observed bound contexts;85 checks and types pass.
+
+- 2026-10-13: b49b7a0 introduction25s/5read-only calls/no failures or AC;10s target missed. Four-case continuous regression84580 running.
+- 记录：Authority bus.type语义补齐，防止物理分类误判为PQ；61项测试通过 [310fddc]。
+- 连续回归完成：35/14/31/12秒；排名复用AC，概况25秒仍超目标。
+- 04:21 原任务记录接入推演证据，保留原模型和失败记录；420项App及真实只读分页通过 [8eb81aa]。
+- 04:28 本地角色运行持久卷与旧容器保留迁移，防止重建丢研究记录；9项及两编排检查通过 [264a1b1]。
+- 04:30 镜像补齐迁移助手，防止构建遗漏；10项部署检查通过 [e234ce1]。
+- 04:32 两次容器替换保留276文件原摘要，历史Thread可读；同源三专项52431启动，冻结产品代码。
+- 04:34 e234ce1真实OPF完成56秒，74请求数值一致；N1驱动52431仍运行，孤岛待顺序执行。
+- 04:42 操作发现返回执行能力，减少已发布入口误判；45项Authority及22项Pack检查通过 [09b338f]。
+- e234ce1三链均收尾，N1与孤岛内容未通过；错误判断和全部结果保留，未认定整体验收成功。
+- 05:18 单步推理超时在同一会话续接，保留工具与报告；17项RPC、93项应用、421项App通过 [0e8c001]。
+- 05:20 续接保持原用户语言，防止操作反馈改变正式回复语言；9项研究检查通过 [3c7c8ed]。
+- 锁定Pi控制API无Provider调用验证off/get_state/abort；预算续接真实业务效果尚未验证。
+- 05:29 支路按目标版本索引选择，避免跨场景旧引用；57项Authority、22项Pack和类型通过 [ab1fa17]。
+- 3c7c8ed三链收尾133/70/47秒；预算未触发，不归因提速；N1方案B错用A上下文，内容未通过。
+# 2026-10-13 实测补记
+- ab1fa17：N−1 104秒完成，候选场景引用分离；报告仍误述初始约束，未通过内容核验。
+- ab1fa17：概况原句49.674秒，17次工具完成；研究记录调用扩大轻量问答范围，10秒目标未通过。
+- 研究拒绝反馈标出引用序号及修复方式，避免盲目重试；34项核验通过 [12e2e38]。
+- 同一主循环交付前核对研究结论范围，避免场景约束误述；44项通过，真实效果待验 [42e047d]。
+- 42e047d：N1 144秒、孤岛94秒均收尾；核对触发，因果与方法范围仍有错误；浏览器证据入口通过。
+- 42e047d：OPF74.577秒，35线路与39节点电价全部匹配；三专项链路完成，概况同源复验中。
+- 42e047d概况47.077秒，查询仍触发研究及复核，10秒目标失败。
+- 事实查询无结果证据时不再追加实验复核，保留复杂研究核对；45项通过 [9bea696]。
+- 来源证据不代表计算结果；只在结果引用或执行失败后核对，46项通过 [e218731]。
+- e218731同源概况25.145秒，6次只读，零失败/研究更新/追加核对；10秒目标仍未通过。
+- Pi基准0.6–0.8秒，编译缓存仅省约0.2秒；排除为5.9秒主要来源。
+- 分别保存上下文、会话及结果展示准备耗时，定位首次和连续指令差异；61项与类型通过 [4c1eceb]。
+- 4c1eceb五样本收尾62/27/14/12/20秒；后四次上下文复用，C03沿用C02且未重算；概况额外仿真仍不稳定。
+- 对齐指南与已发布元数据证据契约，避免为输入事实补做仿真；30项、doctor及链接通过 [47168d0]。
+- 47168d0概况25.108秒，5次查询无仿真；英文过程前缀仍存在，耗时与展示未验收。
+- 异常反馈标明原因尚未诊断，失败后同模型AC仍可执行；53项Authority通过 [bfe88d7]。
+- 应用层统一正式回答语言与开头规则，不改领域定义或删除文字；61项及类型通过 [2040139]。
+- 2040139概况22.916秒中文无前缀；孤岛78.449秒收尾，物理断电与数学无解仍有过度推断。
+- 标明拓扑未评估物理供电、空电压不是零或无解；67项及类型通过 [b5a41c8]。
+- b5a41c8孤岛82.72秒收尾；供电状态未评估字段确实进入模型，物理失电断言仍错误。
+- 执行失败后核对用高推理深度，30秒空闲预算保留恢复路径；61项及类型通过 [391a9d6]。
+- 391a9d6孤岛123.413秒收尾，高深度实际触发；无预算续接，数学无解与稳定性表述仍未通过。
+
+2026-10-13: SC prerequisites verified; valid-input connectivity=false upstream defect reproduced.13 passed/3 expected failures; not deployed.
+
+2026-10-13 c9387ee: Diagnose short-circuit input gaps and implementation failures; preserve options and enable informed recovery.
+
+2026-10-13 c9387ee: Isolated next rebuild passed; three roles image6297fcec8a1d. Three original API tasks observer3904 started.
+
+2026-10-13 8bf9ada: Remove ineffective forced answer regeneration; preserve primary-loop evaluation, research and objective admission recovery.
+2026-10-13 7f64086: Distinguish pre-write research rejection from uncertain persistence; retain records and allow subsequent valid updates.
+2026-10-13: 8bf9ada three tasks35/53/71s audited; OPF74 values match. Intro26.5s fails latency;7f64086 rebuild80025 live.
+2026-10-13:7f64086 next rebuild verified image139a36da351e; isolated high-depth N1 comparison12723 and offline tests61417 started.
+2026-10-13 1abfe3e: Update stale sequence-test context assertion; verify malformed references without excluding admitted descendant contexts.
+2026-10-13 6a921c2: Include admitted partial observations and public failure reasons in interrupted-task replies; preserve original results and evidence.
+2026-10-13 a439210: Expose non-null and missing result-field counts; distinguish stored coverage from table size without changing calculations.
+2026-10-13 · 3ea9cd8: Summarize task evidence and fold failure details to preserve complete records without dense initial display.82 tests pass.
+2026-10-13 · Front-end421 checks pass; actual island96-second task closes with saved results; interpretation remains unaccepted.
+2026-10-13 · fd46de7: Identify rejected research references so the agent can repair updates without loosening admission.36 tests pass.
+2026-10-13 · Actual requests identify unsupported dataset research provenance; same-backend OPF/N1 verification58514 started without changing user session.
+2026-10-13 · 6a84ef4: Preserve unresolved conversational model requests instead of blocking combined instructions.422 App tests and types pass.
+2026-10-13 · 6a84ef4 real browser sends original combined request; accepted task completes with correct line11 endpoints. No backend restart.
+2026-10-13 · c606cea: Verify nonempty semantic request parameters in tool receipts;43 checks pass, restoring obsolete contract test.
+2026-10-13 · 24d9a32: Check mixed-language openings with one same-session correction; preserve completed work if correction fails.75 checks/types pass.
+2026-10-13 · Local-dev fixed5173 now serves24d9a32; authorized cloud-dev uploads acknowledged for four services. Demo unchanged.
+2026-10-13 · Cloud-dev24d9a32 basic trial verified; fixed local5173→8767 restores original Thread and retains its PostgreSQL volume.
+2026-10-13 · cloud-dev-20261013-1045-24d9a32 annotated tag pushed for user-authorized basic trial; source24d9a32, demo unchanged.
+2026-10-13 · Recovered empty Thread thr_98b1c23a7ce472de5dc1 from isolated database to fixed8767; original ID/events retained. Browser5173 verified.
+2026-10-13 · c773993 binds observed datasets to research records;71 focused checks pass. User deployments remain24d9a32; isolated validation started.
+2026-10-13 · c773993 island completed53.906s; original records readable. Incorrect capability/supply claims retained as failed audit; dataset repair not exercised.
+2026-10-13 · 2411210 preserves accepted design, delivery plan and trial audits on dev; doctor and diff checks pass. Product integration pending.
+2026-10-13 · df69cda fixes coordinate-unit scaling and zoom glyphs;41 checks/types pass. Real179-bus browser verified; fixed local ports retained.
+2026-10-13 · 053fa4e aligns reviewed simulator protection digest;39 grid E2E and3 workers pass. Offline validation10277 continues; deployments unchanged.
+2026-10-13 · validate10277 passed:7 offline,10 core,8 full cases; capability matrix24/24. Real answer interpretation defects remain.
+2026-10-13 · db94ffa binds fresh research generation to persisted model reopen; history retained.85 focused/20 actual PostgreSQL checks and types pass.
+2026-10-13 · 780fd70 adds confirmed atomic work reset and backend-advertised UI;41 backend/71 App/21 real PostgreSQL checks and types pass.
+2026-10-13 · Real780fd70 browser reset/reconnect/history pass; following AC completes19.941s with new persisted study identity. User deployments unchanged.
+2026-10-13 · 37d57a2 binds explicit followups to saved tasks and preserves binding on retries;73 checks/22 actual PG checks/types pass.
+2026-10-13 · 28e9a62 adds saved-task followup selection, draft recovery and cancellation;141 App checks/types pass. Actual browser validation pending.
+2026-10-13 · e5369e2 restores selected-task context to ordinary explanations without business tools;74 checks/types pass. Browser selection/reload/cancel/mobile verified.
+2026-10-13 · Real selected-task followup completes13.594s without simulation; source binding correct, prior incorrect interpretations repeated. Runtime record reader remains needed.
+
+- 2026-10-13 7978ccb：绑定历史任务只读记录，保留失败与终态；42项通过，实测78页，运行时接入待完成。
+
+- 2026-10-13 4380431：存储层筛选公开执行记录，避免诊断分页；43项、真实PG及类型检查通过，历史保留。
+
+- 2026-10-13 4621cf9：追问工具接入双路径，绑定公开历史记录；69项及补充绑定、64项JS、类型通过，隔离重建启动。
+
+- 2026-10-13 4621cf9：真实追问29.444秒读原任务、无新仿真；完成回执缺失且解释仍有未证实断言，未验收。
+- 2026-10-13 d65ca23：记录工具改用标准完成回执，保证展示与留存；35项Harness、64项JS通过，隔离重建启动。
+
+- 2026-10-13 d65ca23：真实追问29.913秒，读取完成回执保存；答复因历史工具被误归核心工具而拒绝，保留失败。
+- 2026-10-13 c886953：应用历史读取与核心工具核验分离，旧引用不准入新计算；86项与类型通过，隔离重建启动。
+
+- 2026-10-13 c886953：真实历史追问20.477秒完成，原任务读取回执保存，无新仿真；重置后原版本仍可读，手机展示通过。
+- 2026-10-13 889b076：原任务读取显示中文动作名称；类型及浏览器通过，后端部署仍为c886953。
+
+- 2026-10-13 508395f：已存分析表支持稳定分页，保留空值与失败场景；25项及类型通过，API/App尚未接入。
+
+- 2026-10-13 9472edf/dev、d96de65/feature：控制图默认可读尺寸和图内滚动，消除整图高度缩放；桌面/手机和预览切换通过。
+
+- 2026-10-13 6e738d9：共享私有表页按任务/结果/修订和哈希保存，拒绝跨源与不连续页；15项及类型通过，尚未接入。
+
+- 2026-10-13 84bc0db：表页元数据跨Python/TS与Thread快照保存，拒绝任意地址；22项后端、30项App与类型通过。
+
+- 2026-10-13 用户纠偏：整链执行与整体交互优先；暂停分页扩展，三原始样本重跑收尾，内容缺陷与耗时单独记录。
+- 2026-10-13 d1e418f：完整过程360px与来源标识，完成时间放CAPSTONE旁；75项、类型及真实三页面通过。
+- 2026-10-13 64a0d9c：保存原潮流完整行分页基础，26项及类型通过；保持延期，不影响当前执行链。
+- 2026-10-13 执行节点审计：连续五指令实测26.303/14.940/9.341/9.482/11.680秒；后四次上下文取得不足0.1ms、会话构建约40ms；排名精确复用前轮结果，无重算。概况三次研究提交两次拒绝，业务读取第7秒结束。详见execution-node-audit；不能把工具时长之和当总耗时。
+- 2026-10-13 用户纠偏与设计复核：D16要求同一过程区保留工具链并补局部目标、重要发现及方法修订；当前仅取最新研究快照供证据面板，任务级过程展示未落实。不得另建时间线或强制分组。发出/完成时间显示秒的UI修改通过75项与类型检查，未提交。
+
+- 2026-10-13 368ec58：过程显示已提交研究记录及修订，默认10动作；时间精确到秒。78项及类型通过，历史页面重载通过。
+
+- 2026-10-13 cfbc618：续跑显示实际等待时限与会话继续，不暗示方法调整或结果复用；针对检查及类型通过。
+
+- 2026-10-13 0ab6f27：后台标注本轮新增笔记，前端不误归属继承记录、不推测覆盖修订；51后端/79前端及类型通过。
+
+- 2026-10-13 0ab6f27隔离重建29109完成，同镜像7e1fbc6a9f12；OPF95902终态50.588秒，13调用、无研究更新。真实页面10动作/限高/秒时间通过；任务级进展输出仍缺，不以展示编造补齐。
+
+- 2026-10-13 7b38c23：主循环记录公开任务进展，与正式回答/Authority证据隔离；101后端、39Kernel、65Node、80App及类型通过，真实使用待验。
+
+- 2026-10-13 8806e78：后台编号业务步骤与所属调用，计时等待实际结束；前端两级小字号、10步预览、折叠状态保存。105后端/81App/16Node及类型通过，真实待验。
+- 2026-10-13 6f60dd7：计算结果独立紧凑面板，保留失败记录，避免工具条跳位；82项App检查及类型通过，部署待验。
+- 2026-10-13 优先级：本批界面收口后分析各链路节点耗时，定位等待与重复工作；不靠样本反复试跑替代链路分析。
+- 2026-10-13 3d9ca60：结果改内嵌有界面板，指令标记滚动或靠近出现；77项及类型、真实悬浮跳转通过。
+- 2026-10-13 812a755：当前指令标记略加宽加深，便于定位而不遮挡正文。
+- 2026-10-13 6c52f00：靠右可唤出位置标记，离开后一秒淡出；悬浮摘要及定位实页通过。
+- 2026-10-13 83f2897：业务步骤标题缩小减弱，避免辅助过程抢占正文。
+- 2026-10-13 local-dev812a755规范重建完成，同镜像a26d04e；指定历史Thread OPF64.108秒终态，复用结果无求解，未发步骤完成。
+- 2026-10-13 687afbf：移除单结果空侧栏、收紧顶部切换和摘要，隐藏未完整追问入口；77项及类型、真实页面通过。
+- 2026-10-13 local-dev687afbf规范重建通过，同镜像5f4409aeb0d9，5173/8767与原数据保持；cloud-dev24不变。
+- 2026-10-13 a3345ea：记录Pi原生接收、队列积压及同步写入耗时，定位工具外等待；68项及Python类型通过，实测待验。
+- 2026-10-13 a3345ea实测：Pi接收跨度21.782秒，RPC53.849秒；应用处理36.206秒、fsync5.417秒，队列积压31.226秒。
+- 2026-10-13 de543f2：短窗口批存连续文本，保留原片段/顺序/接收时间，工具边界立即提交；114项及类型通过，实测待验。
+- 2026-10-13 de543f2 实测复用OPF 25.759秒，记录处理1.191秒、最大积压0.069秒；概况仍32.725秒，工具组织待优化。
+- 2026-10-13 42828fe：改称执行过程，区分任务步骤与工具调用，定位保留内联结果；138项及类型通过。
+- 2026-10-13 新求解OPF实测32.592秒：analysis.run 1.456秒，工具墙钟5.009秒；准备3.803秒，生成与编排仍占主要等待。
+- 2026-10-13 2e48593：收缩步骤显示子工具数量，恢复未归属调用的时间顺序，过程记录9px；140项及类型、实页检查通过。
+- 2026-10-13 用户纠正：目标不是原子步骤；CAPSTONE动作需宿主真实起止、持续计时，不能依赖模型主动关账。
+- 2026-10-13 2ca2509：已完成步骤默认收起、最后一步打开；手动状态优先并跨刷新保留，142项及类型通过。
+- 2026-10-13 0a1559d：宿主记录原生执行轮次及模型响应边界、工具归属和持续计时；目标不再创建步骤，108/22/147项及类型通过。
+- 2026-10-13 0a1559d真实OPF32.760秒终态；原生轮次存在，但公开runtime_action丢失task_step，页面不能关闭步骤。
+- 2026-10-13 ea5a37f：公开动作保留步骤时长，补投影链路回归；109项通过，类型收窄失败待修。
+- 2026-10-13 980b854：修正投影类型收窄；44项及Python类型通过，重建后复验真实结束与耗时。
+- 2026-10-13 980b854真实新OPF31.620秒终态：7轮全部结束并保存时长，9项GRID有归属；页面持续计时实证，整体仍有准备/收尾空白。
+- 2026-10-13 e771770：记录模型动作目的并绑定当前轮次，点击同步保存折叠状态；110后端/16JS/147App及类型通过，实页刷新保留选择。
+- 2026-10-13 e771770真实OPF32.930秒终态：模型填写两个动作目的，三轮仍缺目的，末轮生成回复；可选契约不足。
+- 2026-10-13 4d9c48b：统一工具协议要求同批记录动作目的，避免进展单独成轮；16JS/23目录检查通过，实测待验。
+- 2026-10-13 1bcb5b1：步骤摘要只留调用数与耗时，模型响应移入展开明细；143项及类型通过。
+- 2026-10-13 4d9c48b实测30.766秒终态，4轮中2轮有模型目的，首轮仍缺；阶段准备和收尾未纳入步骤，缺口保留。
+- 2026-10-13 b9c0194：摘要同行批量展开/收起，按实际状态禁用；默认全展开、手动持久保存、CAPSTONE去紫色；144项及类型通过。
+- 2026-10-13 b9c0194实页：批量收起后刷新全部保留；按钮同排、禁用和混合状态通过，灰蓝标签已核对；规范重建ready。
+- 2026-10-13 594e0b4：宿主保存准备/推演/核验整理边界，阶段切换耗时连续，恢复与失败保留；101后端/145App及类型通过，实测待验。
+- 2026-10-13 594e0b4实测OPF：任务34.030秒、7阶段34.013秒，差17毫秒；准备7.819秒、整理2.915秒；全部结束及工具归属通过，仍1步缺目的。
+
+- 43f1e73：目的随业务调用记录，调用前剥离，避免独立进展工具漏记；紧凑观察展示。10后端、47JS、83App及类型通过，部署验证中。
+
+- 43f1e73 local-dev规范重建ready，三后端镜像490297083ba4一致；5173/8767与原数据保留，原Thread真实OPF已提交验证。
+
+- 43f1e73 原Thread OPF完成32.971秒，4工具批次全部保存模型目的；结果表定位与数据读取无独立进展工具，随调用目的有效。收据 api-call-purpose-43f1e73-1791894374。历史缺失不补造；未保证所有未来批次必填，科学整体验收未完成。
+
+- 3d1ac91：任务目标与步骤目的分离，摘要耗时右对齐，工具区间去重，观察缩小，工具条位置保持；85App/14阶段/47JS通过。
+
+- 3d1ac91 local-dev ready，同镜像d409b21c1893；ui-ux-pro-max实页800/1440宽无溢出；底部工具条展开关闭位移0px，规范重建通过，真实目的归属验证中。
+
+- 3d1ac91 原Thread请求33.056秒完整回复，4工具批次均有具体目的；但branch ranking两次result_integrity_failed（含新OPF），退到数据集查询完成，发生重算。目的修复通过，结果复用未通过。收据 api-step-purpose-3d1ac91-1791896002。
+
+- 14a7563：去除任务目标下方分隔线，按用户要求用紧凑间距区分步骤。App HMR已显示；本次规范重建待执行。
+
+- 2ba9377：移除面向用户的内部准入横幅，保留后台校验与证据按钮；旧横幅断言需更新，尚不声明验证完成。
+
+- ef6ae84：横幅移除后仍保留证据准入入口，85App/类型通过；浏览器横幅0、结果入口1、证据入口1。
+
+- ef6ae84 local-dev规范重建ready，同镜像75f7c072c401，端口5173/8767及原数据保留；前端检查85通过；控制图21连接未穿卡片。
+
+- 57a7b2a：展示内容白底、标题淡底，结果/证据9px正文10px标题；电网图为一次性动作。85App/类型及浏览器通过，重建中。
+
+- 57a7b2a local-dev规范重建ready，同镜像75f7c072c401，5173/8767及原数据保留；纯App改动无新Provider验证必要。
+
+- bf58565：按注册支路运行语义复用AC/DC/OPF结果，保留哈希核验；失败原因及后续步骤关联可见，不伪称重新规划。73契约/计算、16原生、51阶段、90App及类型通过；未部署。
+
+- 0494ef7：运行过程按内容增高至高度上限，保留全部步骤，支持跟随/暂停/恢复；90App/类型通过，规范重建待验。
+
+- 界面遗留追问状态恢复已删除，普通发送不携带旧任务绑定；62App/类型通过，已保存草稿恢复测试通过。
+
+- 03b8d96：上下文按容器和主机内存压力回收，避免新对话和空闲超时触发反复准备；92项检查通过，未部署。
+
+- 73b6c07：新对话和模型打开通知所属worker准备能力；消除Compose重复默认值，防止运行配置漂移。77项及类型通过，待重建。
+
+- 03b8d96重建失败：Compose仍传4/60，与新契约冲突；已恢复0494ef7同镜像ready，原数据和5173/8767保留。
+
+- 73b6c07同源重建ready，镜像cffcc357bd57；新对话打开8.487秒，首指令上下文获取0.000017秒，概况仍25.462秒。
+
+- f09a0c8：首次打开模型采用Application默认能力选择，切回保留已有选择；25项真实PG检查通过，待重建。
+
+- f09a0c8同源重建ready，镜像a1eb9faf0552；真实切换默认绑定保留，首次切回4.041秒，再次切回已准备模型0.038秒。
+
+- f09a0c8原Thread新OPF实际28.801秒，回复10.445秒；4523字符中3416为表格，明确重复生成开销。
+
+- e96bb08：记录回复用量及首段文本延迟，将未知动作标题改为模型响应；23Kernel和52Agent检查通过，未部署。
+
+- e2d7067：按注册投影声明结果表格交付，减少数值重复转述；50项及类型通过，待同一OPF复验。
+
+- 3acbbaa：应用核验并准备结果表格，返回覆盖回执，减少回复重复生成；73项Python、68项工具检查通过。
+- fe67bdc：展示区互斥切换并复用Markdown，减少点击重绘；95项界面检查及浏览器位置检查通过。
+
+- e63b93e：按用户要求撤回结果交付查询，恢复原回复链路，改查输入侧。
+- 00f2739：撤回表格交付提示，保留耗时用量记录与界面修正，避免继续干预输出。
+
+- 1ec23a1：记录实际模型输入构成及原生流式耗时，不改提示、消息或工具契约；66项Python、67项工具检查通过。
+
+- 3f5207d：调用前明确正式回复阶段，移除工具定义并注入回复指令；105项Python、69项工具测试通过，待实测。
+
+- c9c56ee：按用户要求恢复f09a0c8全部运行源码，重新校准OPF；100项检查通过，优化实验与未提交补丁已保留。
+
+- c9c56ee原Thread新OPF30.2655秒，回复6.712秒；35线路/39母线完整，两次查询失败后恢复；基准收据已保存。
+- f3d830c：按用户要求恢复最新运行源码但排除回复阶段，等价1ec23a1；102项检查通过，准备对比基准。
+
+- f3d830c新OPF26.9021秒，回复6.158秒，无工具失败；完整35线路/39母线，版本对照按用户要求结束。
+- 73bef5b：计算回执及历史目录附带实际可查询字段，减少猜字段；18项Authority测试和类型通过，待本地部署。
+
+- 回复受控试验：相同上下文、35工具对零工具；输入减少39%，近等输出6.120/6.234秒，无明确提速收益。
+
+- 73bef5b本地同源ready；新OPF26.052秒，无字段错误/重试/describe，35线路/39母线及证据完整；受控回复试验未证实提速。
+
+- a4c0ca5：补齐专用潮流入口的真实字段回执；IEEE39/mv及OPF四组检查通过，短路缺参仍如实保留。
+- a3d3be3：结构化失败原因中文展示，保留原始诊断；分析对象改蓝色，116项前端检查通过。
+- a3d3be3本地重建ready，API及两worker同镜像，固定5173/8767；专用潮流字段回执已部署。
+- f90d2d5：失败原因小字号独立行，悬浮保留原文；旧记录说明缺项未保存，84项检查通过。
+- 29daa7d：单条中文原因加原始诊断入口，页面浮层避免裁切；84项前端检查及类型通过。
+- bf7a309：图层绑定核验场景，显示断开、过载、分区及未求解；31项契约、170项前端及真实派生检查通过。
+- bf7a309本地同源ready；mv双断开69.789秒、IEEE39 OPF39.331秒/N−1 82.739秒均完整结束，结果及失败记录保留。
+- 52c0ed8：单连通分区不画母线套圈；34项前端检查及类型通过。
+- f67c58a：仅实际断开且多分区场景显示分区标记，普通计算不套圈；34项检查及类型通过。
+- 78de4c6：孤岛分区改元件特殊色，供电分区保持原样；停运虚线/标记、过载粗线，30项契约/41项前端通过。
+- 9dca4ab：分析对象深蓝加粗及白衬边，孤岛配色独立；42项前端检查及类型通过。
+- aff8319：补齐真实开关断开、孤岛线路着色、关注区域相机及可追溯N−1场景；128项模型/契约检查通过。
+- aff8319 local-dev规范重建ready；API/双worker镜像e60a3b251f3c一致，固定5173/8767，原Thread显示核验开始。
+- f18dc4c：修正分组开关标记重复绘制；38项App检查及类型通过，原Thread实测有6断开开关、21孤岛母线、19内部支路。
+- f18dc4c新N−1原Thread31.077秒完整结束，App实查线路26断开及23/27/28过载；历史重算表述缺陷仍未修复。
+- 6c9f9c1：加强通用计算来源和物理状态规则，防止旧证据称新计算、空电压推断失电；发布前复验待完成。
+- f907023：补齐模型组合指令、更新已授权Authority锁定及测试夹具；74前端、48回归、228模拟器检查通过。
+- 3fb8695：通用模型名称分隔符规范化并拒绝歧义；75项前端检查通过，原Thread已从mv正确切至IEEE39解析线路11。
+- 94349e6：任务结束自动返回当前图，保留原停运支路和不可用母联；115前端、53模型/契约检查通过。
+- 用户仅授权cloud-demo；误上传cloud-dev两构建40950171/caa4727f已取消，原24d9a32运行部署、API/App均保留。
+
+- cloud-demo旧缓存4/60启动拒绝；按已测配置统一1024/0，保留8766及数据，重新部署两个worker。
+
+- cloud-demo94349e6四角色SUCCESS，3注册用例9轮及回放通过；标签demo-20261014-0552-94349e6已推送；cloud-dev保留。
+
+- 20f8a0e：兼容旧图缺省断开列表，56项检查通过；真实历史复验发现字段顺序差异，继续修正。
+
+- bfb2e83：图身份比较忽略JSON字段顺序；56项回归、类型及用户真实Thread历史恢复通过，待demo前端更新。
+
+- demo补丁bfb2e83原Thread在线恢复，验收标签已推送；local-demo同源ready且保留数据；cloud-dev未改动。
+
+- 云端N−1核对182秒/54GRID/23LLM；旧本地对照状态不同；修正本地研究开关0→1，同源ready，云端未改。
+
+- 6d229e0：复用已验证能力目录并合并模型概况读取；28领域、51Authority及7应用检查通过，待实测。
+
+- bd2a200：缓存注册基础图、线程池创建并启动预热；本地新建1.57/2.12秒，demo发布中。
+
+- bd2a200四角色demo验收通过；新建22→7.4/8.1秒，local-demo同源ready；标签demo-20261014-0744-bd2a200已推送。
+
+- 07d618a：201后预热并记录真实阶段耗时；本地POST0.145/0.025秒，demo构建中。
+
+- 16:10 07d618a云端POST0.698/0.447秒；点击新建2.085/2.718秒；云端阶段日志未取到，验收未完成。
+- 16:10 推进图两分支四部署布局被否决；必须恢复原中心开发轴，仅收缩左侧自主智能体历史节点。
+
+- 16:17 用户确认交接稿；已重写RESUME，下一步恢复推进图主轴，demo验收仍未完成。
+- 16:50 07d618a云demo三注册用例九轮及报告证据回放通过；原Thread恢复；SSH无注册密钥，工件核对未完成。
+- 16:55 用户要求自主智能体功能详情独立对齐、推进图宽度减半、四部署移右并挂精确Git来源。
+- 17:02 自主智能体十二项功能明细与PR18已对齐；图宽774px、四部署精确来源、无重叠穿卡；发布身份仍待核对。
+- 17:06 dev与实施工作树十项控制文件一致；来源边无独立交叉；390px、链接、symlink、diff与doctor通过。
+- 17:14 修正部署来源Git孤立；八节点连续且统一内容字段；local-dev后端07d618a核对通过，恢复5173同源App。
+# 2026-10-14 17:58 控制图宽幅中轴校正
+
+- 按用户反馈恢复居中的纵向dev/main中轴，Pi在左，自主智能体连续Git链和四部署在右；宽幅画布按可用宽高适配。
+- 保留十个重要Git节点及统一字段，当前焦点与历史重要发布全览；开放箭头、主线/分支/引用差异及本地绿/云端橙配色保留。
+- 浏览器两档间距核验：十节点连通，来源SHA一致，无重叠、穿卡片、独立边交叉或箭头错位。未变更云部署；07d618a正式demo身份验收仍待完成。
+- 用户指定两个demo完成后先合入dev再推进；PR18双平台失败，Linux断言复现、macOS流式测试独立通过。
+- 临时SSH密钥验证后删除；运行回执未读到，服务文件下载及SFTP失败，未修改部署或数据。
+- 2b6ae7b安全启动回执补齐发布身份读取；来源断言及确定时钟修正CI，59项通过；已推送，完整门禁与规范重建中。
+- local-dev2b6ae7b规范重建ready，同镜像2d50788075d7、529文件三角色一致、App同源；demo两worker升级中。
+- 2b6ae7b双平台PR38554449840及完整发布38554987581运行中；推进图11节点及四来源边浏览器核验通过。
+- demo两worker运行身份与local-dev匹配，App2b6ae7b成功；API0ef56503构建中，过渡状态未验收。
+- cloud-demo2b6ae7b四角色成功，三后端契约/源码/安装身份通过；本地完整make check-pr通过，云注册回归收尾。
+- 用户纠正最新基线定义：候选通过后先合入dev，再以同一dev合并提交发布两个demo；2b6ae7b不建正式标签。
+- 回读远端dev4f15cfc；根dev9472edf含两个未推送文档提交，保留。图分开已合入基线、共同业务起点与未合入候选。
+- 2b6ae7b云候选三用例九轮、报告证据回放通过，零Provider；旧Thread答案、39图及Composer恢复，控制台零错；待CI后合dev发布。
+- PR18已就绪并更新当前验证/缺口与dev先合后发布原则；不绕过CI。合入后立即更新推进图实际dev提交与合并边。
+- PR18双平台PR门禁通过，正常合入dev，实际合并faa6af9；完整发布CI继续，未绕过保护；立即更新推进图。
+- 根dev已对齐faa6af9，原9472edf/2411210及20项改动保存恢复引用与副本；规范重建、529文件三角色和App同源通过。
+- 双平台完整发布38554987581通过；faa6af9与受检2b6ae7b整棵Git树相同，等价收据已保存，正式demo升级中。
+- cloud-demo faa6af9四角色成功，运行身份及三用例九轮回放通过；local-demo六Thread已记录，缺主机模型缓存按Python3.12准备，未替换容器。
+- local-demo faa6af9规范重建完成，三角色同镜像且运行身份与local-dev一致；六个旧Thread/事件序号保留，三用例九轮、报告证据回放及旧图/Composer实际入口通过，零Provider。
+- 合并后dev双平台38558756435通过；正式demo-20261014-2028-faa6af9 annotated标签已推送并核对精确来源。cloud-dev24d9a32不动；科学与交互缺口保留。
+- 主图8关键节点按当前活跃/四部署/实际在研与重要云部署和大合并筛选，两端间距的可达性、来源挂接、卡片交叉与箭头检查通过。已合并自主分支改本地recovery引用，原工作树数据/未提交文档保留，关闭远端分支。
+- 文档链接检查发现根dev缺少三个未提交的历史验收报告；从原工作树补齐同名报告后链接及CLAUDE相对符号链接检查通过。make doctor与diff检查通过，科学缺口继续开放。
+- 用户要求完成文档入dev收尾并清理Git状态；建立docs/dev-integration-closeout，保留并核对所有剩余根工作区文档/审计记录，通过独立文档PR接入dev；不删除数据，运行来源仍faa6af9。
+- 687ba80保存23项文档与控制图，补齐dev合并及两个demo验收记录；PR #19接入dev并替代旧PR #17。
+- local-dev App切到已核对的faa6af9干净源码副本，身份与本地后端及demo保持原验收来源；控制文档提交不冒充产品更新，未重建数据库或改云端。
+- 4eb809c登记PR #19收尾入口，保留原门禁证据并固定已验收App身份，避免文档提交误报部署来源。
+- 用户确认本次固定dev交付临时本地试用，Linux/macOS优先、Windows目标兼容；pip/npm及薄脚本入口归入CAPSTONE CLI设计，未实施或更改部署。
+- 97fbe91将用户本地dev试用安装约束写入统一CLI设计；PR #20保存当前Compose/Vite与Railway分服务部署事实，避免承诺未实现的一键入口。
+- 用户确认临时dev试用直接复用本地源码部署，薄脚本封装环境/模型资产准备和规范重建，保持Compose＋Vite；全容器化和pip/npm发布不作前置。
+- 用户补充不接触源码，修正交付边界：我们固定dev构建镜像，用户拿Compose/配置/薄脚本启动；研发Compose＋Vite保留，试用包未实现。
+- 31af4db记录无源码dev试用交付边界；用户补充.env默认deepseek-flash、注释OpenAI和启动环境Key优先，现有固定启动合同的配置能力待实现。
+- PR #20已合入6d650ba；用户要求先讨论镜像，未启动实施。已有阿里北京ACR登录验证通过，用户确定其uukuguy命名空间为默认公开拉取源，未上传镜像。
+- 2d91850将阿里北京ACR缺省地址及公开拉取决定写入CLI设计，PR #21接入dev；不保存个人凭据，不构建或上传镜像。
+- 用户批准四类镜像和AMD64/ARM64实施；2e299a8增加受限试用运行合同及同源静态App，保留原云端合同。
+- 无源码Compose、私有实例初始化和源码校验通过66项Python检查；尚未构建、启动或公开发布试用镜像。
+- bfcc910提交无源码Compose及独立实例生命周期，阻止镜像源码不符和既有实例误用；候选验证不等于双架构验收。
+- 805ccbc提交精确Git构建上下文与无源码试用包生成器；实际构建准备发现合法策略链接，安全放行内部链接，仍拒绝越界。
+- 6f29b29修复构建上下文合法内部链接；69项Python通过；ARM64候选backend/App构建启动，六份模型资产验证后暂存。
+- 根推进图同步当前dev试用分支及真实祖先边；九节点两端间距无重叠/穿卡/箭头错位，独立边无交叉；四部署来源保留。
+- 2608013推送实施及控制记录；独立Codex只读审查发现四项隔离/来源问题，已修正且69项检查通过，实际新镜像验收待做。
+- 阿里候选App上传成功：dev-trial-candidate-6f29b29-arm64，sha256:252e4f63d9b33988857b9bdcccb470ca9916ae5196c38cdb2f94c6e6ee8b6d22；非正式双架构交付，匿名拉取未验。
+- 079d9eb提交独立审查四项修正及固定App基础摘要；模型暂存入口实际验证六资产；首次ARM64候选三案例九轮/报告/证据回放通过，零Provider。
+- PR门禁首段906项通过、一项文档边界失败；原因是计划列表误写成旧运行路径，已改为独立术语，产品断言未失败。
+- 阿里候选App匿名拉取401；已请用户将四仓库改为公开，继续本地验证。ACR拒绝RustFS空配置证明附件，副本改保留两架构实际镜像。
+- 1c0c60e提交候选平台强制、运行架构核对、App身份与API就绪检查、双架构验收收据门禁；72项针对性检查通过。
+- 用户设置四仓库公开；空Docker认证配置实际拉取四类初始镜像通过。最新1c0c60e ARM64三案例九轮报告回放通过；完整PR门禁重跑通过。
+- AMD64启动被候选标签校验拒绝，尚无服务写入；已定位并补架构后缀回归，限制为四类镜像与amd64/arm64名称，不放宽正式摘要要求。
+- e42d0b2修正架构标签；两平台实际启动、三案例九轮/报告/回放、OpenAI环境覆盖与停止重启后报告哈希保留通过，未调用Provider。
+- e42d0b2双平台PR检查通过；浏览器Source/拓扑/输入框及390px无横溢出通过，独立小范围复审无重要缺陷。
+- 380ede4补双语入口与运行说明，并将固定release配置置于用户.env之后；91项针对性/仓库边界通过，优先级独立复审通过，最后PR门禁进行中。
+- 2026-10-15：PR #22 Linux/macOS检查通过，正常合入dev783213489abd383bbf79225b29d9d718451dc597；root已保存任务文档快照并ff-only同步，Git干净；最终App双架构已公开上传，backend上传与最终源码验收进行中。
+- 用户确认install.sh一条命令安装并启动，默认目录~/capstone；成功提示实际目录/地址、四条start.sh运维命令、启动Key要求及.env的CAPSTONE_APP_PORT配置；停止保留数据。长期pip/npm入口未发布。
+- 用户指出5173及18080的冲突风险，正式包的可编辑.env/.env.example默认App端口改为19173，开发5173和demo15173保留；未修改冻结产品镜像来源。
+- 7832134最终四类镜像两平台匿名拉取、实际源码/平台/就绪、各三用例九轮、报告证据回放、浏览器和OpenAI合成配置切换及重启保留通过；无Provider调用。Docker本地跨架构索引别名冲突通过保留AMD64镜像恢复标签并只清理任务索引别名解决，数据未删除。
+- root local-dev规范重建，API/两worker同镜像2e0fc9d077c5及运行摘要；App使用7832134精确源码归档、dirty=false，真实拓扑/指令框/无横溢出通过。两个demo和cloud-dev不变。
+- 注释标签dev-trial-20261015-7832134及GitHub公开prerelease已发布，七文件部署包、install.sh、SHA256SUMS和双平台acceptance.json可下载；已合并实施分支本地/远端关闭，380ede4保存于refs/archive/20261015/feat-dev-trial-deployment，验收目录与卷保留。
+- 用户实际安装7832134到~/capstone，六服务ready、App19173；安装提示缺少重点、静态页面显示local-dev混淆。要求对外user-local、默认最新/指定Git号/错误列版本、Git节点安装图标、capstone.sh管理多版本且只同时启动一个。增量合同已写CLI设计，独立fix/dev-trial-user-feedback实施；不改动正在试用的数据。
+- App标识2573d68先提交本地试用文字，用户随后要求user-local；生产/开发区分回归已先失败再通过24项及类型，最新文字待提交；bootstrap32项及图源绑定19项独立执行通过，主流程增加管理用目录导出。管理器单独执行，旧部署和来源保护保留。
+- 用户确认各版本共享数据，并明确兼容性属于开发责任；撤销每版本独立数据假设。CLI设计与规范生命周期加入发布前旧数据升级/回放、独立回退验收及停止当前服务前兼容检查要求；管理器原型仍需按此合同修正，未登记为已实现。
+- c58f10c：实现user-local共享数据管理及兼容发布门禁，保留原试用数据；复审两项重要问题已修正。
+- 本轮115项部署/管理/选择/图绑定检查、24项App与类型、doctor通过；新增下架旧版停止回归通过，完整check-pr开始；真实数据升级与发布仍待验收。
+- user-local修正分支c58f10c已接入控制图，10个重要节点与四部署来源保留；两端间距无重叠、孤立、穿卡、错箭头或独立连线交叉，单焦点/统一内容/来源绑定通过。保守数据声明与7832134同格式；不替代真实旧数据验收。
+- 258bc3e：同步真实修正分支与共享数据实施记录，保持控制图和开发合同一致；PR #23双平台检查运行中。
+- 4110a44：修正摘要镜像发现及实际端口提示，防止已安装误判；新增回归先失败后通过。
+- 隔离ARM64旧版7832134三案例九轮/报告证据回放通过；新管理器接管旧项目后三个报告哈希不变、数据保留；精确新版本升级与独立回退仍待验证。
+- 2a47b8f：保留显式候选验证开关并对齐PR #23，支持隔离升级验收；默认公开入口仍关闭候选模式。
+- 最新119项专项及完整make check-pr、make validate通过；PR #23最新双平台运行38625121095进行中。4110a44候选双架构后端/App已上传；共享数据跨版本验收开始，无Provider调用。
+- ARM64跨版本升级/旧数据回放/新数据写入/回退后新旧数据回放通过；缺Key不停止旧容器，原私有配置/安装收据/卷不变；AMD64继续。正常合并与精确最终构建自动化等待全部门禁，未发布新包。
+- 5d05656：补齐旧版管理文件时保留冻结运行文件，避免纳管后重复安装误拒绝；7项安装回归通过。
+- ARM64与AMD64跨版本共享数据验收均通过：升级读旧、回退读新旧、报告/证据哈希、同卷及原私有配置/收据保留、缺Key先拒绝且旧服务不停；4110a44候选，无Provider调用。最新5d05656双平台CI运行38628243417，最终源码及公开管理包待验收。
+- 5d05656 macOS CI通过；Linux已有research-tools测试读到模拟回执未写完JSON，返回research_receipt_unreadable而非view_not_ready，失败保留。实际research_channel使用write_bound_text/os.replace；本地专项通过，已重跑同提交失败任务，未改生产读取规则或绕过门禁。
+- 候选真实浏览器user-local标识、4110a44/dirty=false、拓扑、Thread输入框及无横溢出通过；真实~/capstone与四部署未变。
+
+- 2026-10-15：PR #23正常合入dev b7e68dd；Linux/macOS run38628243417通过（Linux首轮非原子测试夹具偶发失败已记录，重跑通过）；候选双架构旧数据升级、读取、回放、回退及旧安装接管通过，零Provider调用。最终构建曾因Docker Hub DNS错误失败，构建器与客户端使用现有本地代理后恢复；精确合并源码镜像验收尚在进行。
+
+- 2026-10-15：最终浏览器验收脚本的选择器引号错误已修正，JavaScript解析及两架构浏览器实测通过；不涉及产品源码变化。ARM64最终升级/回放/重启/回退及配置/卷保留通过；AMD64最终案例/回放/浏览器通过，重启与回退进行中。
+
+- 2026-10-15：最终dev b7e68dd双架构镜像完成匿名拉取、旧数据升级/读取/报告证据回放、重启、浏览器及兼容回退；user-local-b7e68dd和受管旧版7832134已公开，固定安装器公开下载/校验/实际启动/状态/停止通过。零Provider调用，原~/capstone未改动，cloud-dev/demo保持原来源。
+
+- 2026-10-15：110f843 发布已验收user-local目录和控制记录，统一最新安装入口并标注可安装Git节点；文档链接、doctor、两端间距连线及两个安装图标检查通过。
+
+- 2026-10-15：030bac8保存公开试用安装验收记录；控制图默认缩放回归已修正，红绿浏览器检查验证可读尺寸与全图预览分离，主轴/部署来源/两端间距连线检查继续通过。
+
+- 2026-10-15：d4e2a27 修正控制图默认可读缩放；浏览器验证默认1倍、全图预览约0.41倍，无内部滚动，焦点/来源/连线检查通过。
+
+- 2026-10-15：87beeed 正常合入PR #24，Linux/macOS最终检查通过；公开最新版入口实际安装/启动、错误参数列版本及停止保卷通过，原目录/数据未改动；fix与交付记录分支已关闭，根dev和任务工作区Git干净。首次目录下载网络瞬断已保留诊断，原入口重试通过。
+
+- 2026-10-15：b47ce1e 合入交付收尾；用户已确认最终交接稿，下一步验证自有LLM及业务流程。
+
+- 2026-10-15：离线交付范围已确认：AMD64、OpenAI兼容内网配置、完整镜像包；设计与计划保存。[effd148]
+- 2026-10-15：离线控制记录与构建输入绑定已提交；25项原安装回归、doctor及控制图来源/连线/交叉检查通过。[f395375]
+- 2026-10-15：OpenAI别名与内网地址接入双worker，172项及原生Pi模型/地址选择通过；无Provider请求。[40b338d]
+- 2026-10-15：AMD64离线导出/导入与数据保护实现，67项回归通过；精确源码镜像构建中。[6b74397]
+- 2026-10-15：内网安装说明与新门禁入库；PR #27已建，AMD64构建恢复，离线版本目录保留问题修订中。[82fe716]
+- 2026-10-15：离线安装保留原版本目录，避免拒绝升级后失去旧版重启入口；19项及独立审查通过。[7930c07]
+- 2026-10-15：实施审查及PR #27记录已对齐；候选AMD64三案例九轮与回放、浏览器及make validate通过。[d3c56b8]
+- 2026-10-15：AMD64候选安装/重启/重复安装和数据保护通过；本地check-pr、E2E39+3及validate全部通过，等待双平台CI。
+- 2026-10-15：macOS CI38680987676缺Docker导致新增Compose测试失败；补单项依赖声明，有Docker8通过、无Docker5通过1跳过。
+
+- 2026-10-15：Compose测试Docker前置条件已提交，产品行为不变；有/无Docker路径及独立审查通过，准备双平台重检。[75af46a]
+
+- 2026-10-15：候选验收与CI重检控制记录已对齐，图来源和连线通过；新检查38683463175。[13bee16]
+
+- 2026-10-15：用户授权现有DeepSeek以OPENAI_*真实验证；发现Pi协议继承与Key变量引用错误，暂停API兼容通过声明。
+
+- 2026-10-15：明确Pi兼容协议和Key环境插值，129项及真实DeepSeek文本/工具往返通过，补协议门禁。[927f08b]
+
+- 2026-10-15：协议真实验收及样例待验收范围入库，控制图来源与连线通过；修订已推送重检。[cb5604a]
+
+- 2026-10-15：包内中文README补校验、OpenAI参数、安装管理及数据保护；12项导出回归通过。[f58660a]
+
+- 2026-10-15：包内README新增整体验证及三个专用三轮样例，说明结果证据检查；12项导出回归通过。[11f4a7e]
+
+- 2026-10-15：927f08b AMD64归档解压安装、三案例九轮、回放/重启/重复安装及配置数据保护通过；真实OpenAI业务样例启动。
+
+- 2026-10-15：真实OPENAI三个样例九轮结束；IEEE39及AC/DC执行成功，regional调度因模拟CPU缺AVX/AVX2触发Polars段错误，未判通过。
+- 2026-10-15：验证器把全部证据强求计算投影是假阴性；依据Pack准入和工具来源作独立只读重放，不覆盖原失败收据。
+
+- 2026-10-15：LinuxAMD64锁定同版Polars兼容运行时，断网注册调度及5项回归通过，修复无AVX2崩溃。[39b1658]
+
+- 2026-10-15：用户要求README采用正式项目样例、用户语言分组、简单短任务前置；样例预览已替换，非三demo。
+- 2026-10-15：用户要求cloud-dev按README实际安装；Railway官方不支持Compose/DinD，原生job方案暂停，等待可SSH的LinuxAMD64云主机信息；云未变更。
+- 2026-10-15：VM真实导入发现Docker29用manifestID而源daemon用configID；39包安装安全拒绝，未启服务；已证实带tag双digest映像可运行，合同修订中。
+
+- 2026-10-15：portable双身份/临时投影/生命周期及OpenAI组合106项通过；独立审查发现缺层归档可通过metadata验证，追加stream层校验中。
+
+- 2026-10-15：portable双digest、层完整性和安装投影修复提交；160项及独立审查通过，冻结用户分组样例。[916271f]
+
+- 2026-10-15：portable验收范围与恢复状态对齐并推送；新双平台检查38690376839，916候选归档已完整生成。[0165012]
+
+- 2026-10-15：916 host Docker安装/9轮脚本/重启重复安装/证据回放及数据保留通过；VM元数据权限失败已修复，187+61测试及独立审查通过。用户取消本地Ubuntu VM与cloud-dev验证；继续修正后AMD64真实OPENAI_*样例，README增加数据存储备份及耗时排序。
+
+- 2026-10-15：保留离线元数据读取权限，修复非root预检；完善README耗时排序和本地数据备份说明。[698e2a9]
+
+- 2026-10-15：698e2a9安装AMD64 API/双worker同镜像；真实OPENAI九轮及准入/独立回放全过，区域调度恢复；用户增mv_oberrhein样例与在线README.md，另报19173模型选择/指令打开图层差异，已只读定位base/fault结果选择。
+
+- 2026-10-15：在线离线共用README.md及孤岛样例，保留旧包兼容；公开manifest固定可读以适配严格umask。[05581c8]
+
+- 2026-10-15：按用户要求优先Linux离线包交付；05581c8冻结打包并推送PR27，CI38698817921并行；图修复隔离fix/user-local-network-view，不阻塞归档。
+
+- 2026-10-15：05581实际归档因README.md新增而旧checksum清单仍11项被安全拒绝；未启动服务，不可交付；新旧清单兼容先红2项后47+3通过，失败归档保留。
+
+- 2026-10-15：严格校验含README.md的新旧离线清单，修复归档安全拒绝及文件名通配漏洞；先红后绿并独立审查。[7c19766]
+
+- 2026-10-15：隔离修复图层结果时序和相机请求重复执行，避免场景混图及覆盖手动视角；106后端/109App测试通过。[61a418d]
+
+- 2026-10-15：7c19766实际归档离线安装/重启/重复安装/数据保留与真实OPENAI九轮及独立回放全通过；已向用户交付clean目录3文件，CI及图修复独立继续。
+
+- 2026-10-15：按用户要求重命名交付目录capstone-delivery-7c19766；7c双CI已过。纠正业务验收：九轮链路/回放通过不代表区域调度通过，本轮无dispatch实际执行，已告知并单独调查。
+
+- 2026-10-15：用户要求先用交付7c的OPENAI方式逐条实测README原文；暂停业务修复。只读证据确认区域operations与handoff均已加载，公开必填handoff_ref与系统自动注入存在不一致，原因待回归确认。此前未逐条验收用户样例，已纠正说明；不得称全部通过。
+
+- 2026-10-15：[28020aa] removes model-supplied handoff receipts so application grants reach shared tools safely;82 checks passed, real regional retest pending.
+
+- 2026-10-15：[ce47532] leads generated installation guides with default IEEE39 and moves optional PyPSA grids after the main instructions.
+
+- 2026-10-15：PR #27在7c来源双平台CI38700786813通过后正常合入37529ef；交付目录capstone-delivery-7c19766与原SHA保持不变。纠正验收表述：九请求/回放通过不等于业务全过，7c区域无dispatch执行，README1–9已运行、10–12未跑，完整N1排序仍待验证。独立图/Pi/指南分支ce47532与29375候选复验另行记录；root dev未快进重建，四部署未变。
+
+- 2026-10-15：[28020aa] regional original three-turn AMD64 OpenAI retest verifies optimal dispatch1300/1900; projection/AC consistency remain separate findings.
+
+- 2026-10-15：[e2eaee2] records verified handoff dispatch and open findings so delivery claims match actual evidence.
+
+- 2026-10-15：按用户要求交付e2eaee2更新包，SHA9d7c3b21；仅归档/单次安装启动检查通过，未重跑全量或Provider。旧7c保留。
+
+- 2026-10-15：[6064103] records updated offline artifact and minimal install checks without repeating full tests.
+
+- 2026-10-15：用户指出推进图缺少独立e2eaee2节点；将交付源码节点与分支文档收据分开，并同步主目录入口。
+
+- 2026-10-15：用户明确7c19766不可交付，标记撤回并将旧目录改为capstone-withdrawn-7c19766；原归档/hash保留，e2为替代交付版。
+
+- 2026-10-15：推进图收敛12关键节点，e2独立交付重点并直达四份交付/验证文件；7c撤回与606中间记录移历史，主目录同步及浏览器核对通过。
+
+- 2026-10-15：[5e3627a] highlights the delivered package and archives withdrawn or interim nodes to keep the graph concise.
+
+- 2026-10-15：用户要求修复当前分支两项PyPSA遗留后正常合入dev；定位混合模型投影批次校验及AC写输出而非p_set，启动针对性回归。
+
+- 2026-10-15：[9ccdfa8] records focused residual fixes and normal dev merge requirements while preserving immutable delivery and deployment boundaries.
+
+- 2026-10-15：[b580f93] restores saved generator setpoints for AC validation and rejects unsupported component schedules; focused tests and review pass.
+
+- 2026-10-15：[c638e09] projects each admitted result using its verified model revision; focused regressions, type checks and independent review pass.
+
+- 2026-10-15：c638e09两项修复已推送PR #28 draft；双平台PR门禁38723131332运行，独立AMD64候选构建完成，真实工作流待验证。
+
+- 2026-10-15：c638e09真实原三轮加AC专用第四轮通过，5操作投影completed，非slack出力一致；保留模型差值笔误，候选已停止、数据保留。
+
+- 19:24 PR28双平台检查通过，正常合入dev f300d1f；root快进，保留控制副本stash，开始规范重建。
+- 19:35 rootdev f300规范重建通过；API/双worker同6c616058镜像，1060文件逐角色匹配，就绪/App身份通过，数据保留。

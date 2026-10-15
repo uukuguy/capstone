@@ -84,6 +84,6 @@ def run_dc(engine: Any, net: Any, options: dict[str, Any]) -> AnalysisOutcome:
 
 
 OPERATIONS = (
-    AnalysisOperation("opf.ac", "AC optimal power flow", "runopp", AC_SCHEMA, run_ac),
-    AnalysisOperation("opf.dc", "DC optimal power flow", "rundcopp", DC_SCHEMA, run_dc),
+    AnalysisOperation("opf.ac", "AC optimal power flow", "runopp", AC_SCHEMA, run_ac, branch_operating_point=True),
+    AnalysisOperation("opf.dc", "DC optimal power flow", "rundcopp", DC_SCHEMA, run_dc, branch_operating_point=True),
 )

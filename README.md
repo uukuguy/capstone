@@ -184,6 +184,22 @@ The App also listens on the LAN by default: a phone on the same network can open
 
 ## CLI and compatibility entry points
 
+### Source-free local dev trial
+
+The temporary dev trial package runs with Docker Compose v2. It contains deployment files and uses four image classes from Aliyun Beijing; users do not need Git, Python, Node, a source checkout, or Vite. Install Docker with Compose v2 and set `DEEPSEEK_API_KEY` in the startup environment, then install and start with one command:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/uukuguy/capstone/dev/deploy/dev-trial/install.sh | sh
+```
+
+No argument selects the newest published version. Append `sh -s -- b7e68dd` instead of `sh` to select that Git revision; invalid or ambiguous revisions list available versions. Docker selects linux/arm64 or linux/amd64 automatically. Versions share data; compatibility and configuration checks run before stopping the current version.
+
+The default directory is `~/capstone`; set `CAPSTONE_TRIAL_DIRECTORY` to change it. The App opens at `http://127.0.0.1:19173/`. If the port is busy, edit `CAPSTONE_APP_PORT` in `~/capstone/.env`. Installation prints the actual directory, URL, port configuration and service commands.
+
+The supplied `.env` selects DeepSeek/deepseek-flash and includes a commented OpenAI alternative. Change both Provider and model together; use `OPENAI_API_KEY` for OpenAI. Startup LLM values override file defaults. `sh ~/capstone/capstone.sh` starts the newest eligible installed version; `versions`, `use <Git>`, `status`, `logs`, and `stop` manage the same instance; stop keeps its data. Keep the deployment directory and private `.capstone-trial/` state. See [trial operations](docs/RUNBOOK.md#source-free-local-dev-trial) and the [version register](docs/status/VERSION-CONTROL.md) for verified source, distribution and platform status.
+
+For an internal network, the Linux AMD64 offline package includes the deployment files, four images and model assets. It defaults to `PROVIDER=openai` and uses `OPENAI_BASE_URL`, `OPENAI_MODEL` and `OPENAI_API_KEY` for an internal compatible service. Custom local-trial endpoints use Pi's Chat Completions API; the official OpenAI endpoint keeps Responses. Docker and Compose v2 are prerequisites. See [offline installation](docs/RUNBOOK.md#offline-user-local-installation) for setup and data compatibility limits; acceptance belongs to the version register.
+
 The CLI remains useful for automation and focused checks. After setup, run an offline pandapower query:
 
 ```sh

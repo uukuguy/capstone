@@ -64,3 +64,19 @@ it('rejects cloud labels supplied as local runtime settings', () => {
   vi.stubEnv('CAPSTONE_APP_ENVIRONMENT', 'cloud-demo')
   expect(() => identity('development')).toThrow()
 })
+
+it('binds a static local-dev image to its exact source and same-origin API', () => {
+  writeFileSync('build-environment.json', JSON.stringify({ ...receipt, environment: 'local-dev', api_origin: '' }))
+  expect(identity()).toEqual({ version: '0.1.0', revision, dirty: false, environment: 'local-dev' })
+})
+
+it.each(['https://api.example.com', 'http://localhost:5173'])('rejects local image origin %s', api_origin => {
+  vi.stubEnv('VITE_API_ORIGIN', api_origin)
+  writeFileSync('build-environment.json', JSON.stringify({ ...receipt, environment: 'local-dev', api_origin }))
+  expect(() => identity()).toThrow()
+})
+
+it('rejects a local image receipt in a development server', () => {
+  writeFileSync('build-environment.json', JSON.stringify({ ...receipt, environment: 'local-dev', api_origin: '' }))
+  expect(() => identity('development')).toThrow()
+})

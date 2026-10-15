@@ -44,6 +44,39 @@ class Recognizer:
         }, request)
 
 
+def test_intent_wrapper_keeps_model_open_preparation_without_a_model_request():
+    calls = []
+    snapshot = object()
+    business = SimpleNamespace(prepare_model=lambda value: calls.append(value))
+    factory = IntentRuntimeFactory(business, lambda: pytest.fail('unexpected recognition'),
+                                   lambda *args: pytest.fail('unexpected execution'))
+    factory.prepare_model(snapshot)
+    assert calls == [snapshot]
+
+
+@pytest.mark.parametrize('kind', ['send_auto', 'send_ordinary', 'send_professional'])
+def test_research_wrapper_keeps_agent_loop_and_does_not_override_direct_pi(kind):
+    from capstone_agent.turn_router import ResearchTurnRouter
+    service, current = claim()
+    current = replace(current, kind=kind)
+    runtime = object()
+    factory = IntentRuntimeFactory(lambda value: runtime,
+        lambda: pytest.fail('research must not classify goals'),
+        lambda *args: pytest.fail('research must not enter ordinary execution'),
+        general_executor=None, research_router=ResearchTurnRouter())
+    control = NodeControl(lambda: None, time.monotonic() + 5)
+    plan = factory.plan_intent(current, control, service.freeze_attempt_input)
+    assert plan.source in {'agent_loop', 'explicit'} and plan.intent_decision is None
+    assert factory(replace(current, turn_plan=plan)) is runtime
+    excluded = replace(current, submission={'context_selection': {
+        'include_refs': [], 'exclude_refs': [current.model_context.id]}})
+    with pytest.raises(HarnessRuntimeConfigurationError, match='excluded'):
+        factory.plan_intent(excluded, control, service.freeze_attempt_input)
+    direct = replace(current, attempt=replace(current.attempt, runtime_mode='pi_reference'))
+    with pytest.raises(HarnessRuntimeConfigurationError, match='general Pi executor'):
+        factory.plan_intent(direct, control, service.freeze_attempt_input)
+
+
 def test_hosted_intent_input_identifies_current_message_without_history():
     _, current = claim()
     assert current is not None

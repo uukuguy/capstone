@@ -11,7 +11,7 @@ from typing import cast
 from .harness import HarnessPiClient, HarnessRuntime, PiPromptSession, HarnessRuntimeConfigurationError
 from .request_intent import IntentDecision, IntentRecognizer, IntentRequest, NodeControl
 from .thread_service import AttemptClaim, PriorResultReference
-from .turn_router import RouterConfig, TurnPlan, routing_input_for_claim
+from .turn_router import ResearchTurnRouter, RouterConfig, TurnPlan, routing_input_for_claim
 from .pi_delegation import GeneralPiExecutor
 from .business_context import BusinessContext, business_context_for
 from .context_selection import (ContextSelectionRequest, ContextSelectionDecision,
@@ -124,12 +124,14 @@ class IntentRuntimeFactory:
                  ordinary_session_factory: Callable[[AttemptClaim, IntentDecision], PiPromptSession],
                  *, general_executor: GeneralPiExecutor | None | object = _LEGACY,
                  general_timeout_seconds: float = 600,
-                 context_selector_factory: Callable[[], ContextSelector] | None = None):
+                 context_selector_factory: Callable[[], ContextSelector] | None = None,
+                 research_router: ResearchTurnRouter | None = None):
         self._business = business_factory
         self._recognizer = recognizer_factory
         self._ordinary = ordinary_session_factory
         self._general = general_executor
         self._context_selector = context_selector_factory
+        self._research_router = research_router
         if not 1 <= general_timeout_seconds <= 3600:
             raise ValueError('general task timeout is invalid')
         self._general_timeout = general_timeout_seconds
@@ -157,6 +159,11 @@ class IntentRuntimeFactory:
                     freeze: Callable[[AttemptClaim, dict], dict], *,
                     freeze_decision: Callable[[AttemptClaim, dict | None], dict | None] | None = None) -> TurnPlan:
         control.checkpoint()
+        if claim.attempt.runtime_mode != 'pi_reference' and self._research_router is not None:
+            selection = (claim.submission or {}).get('context_selection', {})
+            if claim.model_context.id in selection.get('exclude_refs', ()):
+                raise HarnessRuntimeConfigurationError('research model is explicitly excluded')
+            return self._research_router.plan(routing_input_for_claim(claim))
         general = self._general_resources(claim)
         if claim.attempt.runtime_mode == 'pi_reference':
             if (general is None or general['capability'].get('enabled') is not True
@@ -320,6 +327,10 @@ class IntentRuntimeFactory:
 
     def __call__(self, claim: AttemptClaim) -> HarnessRuntime:
         plan = claim.turn_plan
+        if (claim.attempt.runtime_mode != 'pi_reference' and self._research_router is not None
+                and plan is not None and plan.intent_decision is None
+                and plan.source in {'agent_loop', 'explicit'}):
+            return self._business(claim)
         if plan is not None and plan.source == 'direct_pi':
             from .delegated_runtime import DelegatedRuntime
             resources = plan.intent_resources
@@ -352,6 +363,12 @@ class IntentRuntimeFactory:
             return self._business(claim)
         session = self._ordinary(claim, plan.intent_decision)
         return HarnessPiClient(session, admission=getattr(session, 'admit_attempt', None))
+
+    def prepare_model(self, snapshot) -> None:
+        """Keep the wrapped runtime's model preparation independent of intent."""
+        prepare = getattr(self._business, 'prepare_model', None)
+        if callable(prepare):
+            prepare(snapshot)
 
     def sweep_idle(self) -> int:
         sweep = getattr(self._business, 'sweep_idle', None)
@@ -388,7 +405,8 @@ def with_intent_runtime(assembly: ThreadApplicationAssembly,
 
     factory = IntentRuntimeFactory(assembly.runtime_factory, recognizer, ordinary,
         general_executor=general_executor, general_timeout_seconds=general_timeout_seconds,
-        context_selector_factory=context_selector)
+        context_selector_factory=context_selector,
+        research_router=assembly.turn_router if isinstance(assembly.turn_router, ResearchTurnRouter) else None)
     registry = HarnessRuntimeRegistry()
     registry.register('pi', factory)
     from .thread_input_catalog import PreparedResourceCatalog

@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { answerEvidenceState } from './threadEvidenceState'
 
 describe('answer evidence action states', () => {
+  it('retains verified evidence after a partial failure without trusting raw references', () => {
+    expect(answerEvidenceState('failed', { mode: 'authority_backed', assurance: 'lineage_verified' }, ['evidence:1'])).toBe('available')
+    expect(answerEvidenceState('failed', undefined, ['evidence:1'])).toBe('unavailable')
+  })
   it('uses admitted references, not answer text, to enable evidence', () => {
     expect(answerEvidenceState('completed', { mode: 'authority_backed', assurance: 'lineage_verified' }, ['evidence:1'])).toBe('available')
     expect(answerEvidenceState('completed', { mode: 'authority_backed', assurance: 'invented' }, ['evidence:1'])).toBe('unavailable')

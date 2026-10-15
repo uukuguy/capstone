@@ -126,6 +126,21 @@ describe('browser Thread protocol parser', () => {
     expect(() => parseThreadSnapshot(document)).toThrowError(/identity/)
   })
 
+  it('accepts complete evidence for a large calculation batch', () => {
+    const document = validSnapshot()
+    document.result_projections = [{
+      schema: 'capstone-result-projection/1.0', result_id: 'projection_1',
+      result_ref: 'result:sha256:' + 'a'.repeat(64),
+      evidence_refs: Array.from({ length: 1024 }, (_, index) => 'evidence:sha256:' + index.toString(16).padStart(64, '0')),
+      thread_id: 'thr_demo_39', run_id: 'run_001',
+      turn_id: 'turn_1', attempt_id: 'attempt_1', model_context_id: 'ctx_ieee39_7',
+      model_id: 'ieee39', model_revision: 'revision:sha256:' + 'a'.repeat(64),
+      source: { capability_id: 'analysis.powerflow.ac.run', domain_pack_id: 'pandapower-static-analysis', implementation_family: 'pandapower' },
+      status: 'completed', summary: [], tables: [], element_refs: [], overlay: null,
+    }]
+    expect(() => parseThreadSnapshot(document)).not.toThrow()
+  })
+
   it('preserves command identity and status from a receipt', () => {
     const receipt = parseCommandReceipt({
       schema: 'capstone-command-receipt/1', command_id: 'cmd_switch_005',

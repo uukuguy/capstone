@@ -11,7 +11,7 @@ The work stays on `feat/pi-skills-integration` in its own worktree. Original hea
 - Accepted dev `6ff7094e79f654abb24e626b2cdd1e593337efcb` comes from PR #14, merged by the bot after exact-source `bc08169` Linux/macOS CI success in run `38181053709`. Its tree matches `bc08169`. The final ancestry merge has no runtime-source change from Pi `41fabee`; only this report and branch recovery records change.
 - The independent source adaptation review approved `e9825df`. No additional source review is required for the source-equal ancestry merge.
 
-The primary agent owns dev integration, canonical control records and the graph. No other worktree was edited. No push, deployment, live Provider call or authentication copy occurred. Existing local-dev and local-demo data were not changed.
+The primary agent owns dev integration, canonical control records and the graph. The adaptation worker made no push, deployment, live Provider call or authentication copy. The primary agent subsequently pushed the accepted branch head38e19db and its recovery reference. Existing local-dev and local-demo data were not changed by this branch.
 
 ## Preserved experiment and adapted boundaries
 

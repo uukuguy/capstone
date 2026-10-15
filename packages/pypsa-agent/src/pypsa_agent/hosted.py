@@ -27,7 +27,7 @@ from pypsa_model_authority.store import canonical_bytes
 
 from .profile import build_profile
 from .thread_capabilities import PYPSA_PROFILE_DESCRIPTOR, build_pypsa_thread_application
-from .thread_binding import bind_thread_tool_catalog, verify_bound_model_reference
+from .thread_binding import bind_thread_tool_catalog, verify_bound_model_reference, resolve_bound_model_revision
 
 
 ROOT = Path(__file__).resolve().parents[4]
@@ -102,6 +102,10 @@ def build_registered_pypsa_thread_application() -> ThreadApplicationAssembly:
                 binding.runtime.authority, reference,
                 model_id=context.model_id, base_ref=model_ref,
             ),
+            model_revision_resolver=lambda reference: resolve_bound_model_revision(
+                binding.runtime.authority, reference,
+                model_id=context.model_id, base_ref=model_ref, base_revision=context.model_revision,
+            ),
         )
 
     def build_session(claim, context, profiles):
@@ -116,6 +120,7 @@ def build_registered_pypsa_thread_application() -> ThreadApplicationAssembly:
             runtime_host=runtime_host, resolved_llm=resolved,
             base_environment=environment,
             workspace_root=workspace_root,
+            research_enabled=os.environ.get("CAPSTONE_AUTONOMOUS_RESEARCH") == "1",
         )(claim, context, profiles)
 
     workspace_root = Path(
@@ -125,6 +130,7 @@ def build_registered_pypsa_thread_application() -> ThreadApplicationAssembly:
         default_model_id=catalog.default_model_id,
         model_resolver=resolve_model,
         workspace_root=workspace_root,
+        retain_context_workspace=os.environ.get("CAPSTONE_AUTONOMOUS_RESEARCH") == "1",
         model_binder=bind_model,
         session_builder=build_session,
         default_selection=ModelCapabilitySelection(
@@ -136,6 +142,11 @@ def build_registered_pypsa_thread_application() -> ThreadApplicationAssembly:
     if not callable(set_diagram_provider):
         raise TypeError("Thread catalog has no diagram provider registration")
     set_diagram_provider(model_diagram)
+    if validation_builder is not None:
+        return replace(assembly, ordinary_conversation_enabled=False, turn_router=None)
+    if os.environ.get("CAPSTONE_AUTONOMOUS_RESEARCH") == "1":
+        from capstone_agent.turn_router import ResearchTurnRouter
+        assembly = replace(assembly, turn_router=ResearchTurnRouter())
     if validation_builder is None:
         def conversation_builder():
             environment = load_runtime_environment(ROOT)

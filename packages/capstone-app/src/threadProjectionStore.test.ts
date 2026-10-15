@@ -148,6 +148,21 @@ it('restores a short conversation that spans several bounded history pages', asy
   expect(store.state.hasOlderHistory).toBe(false)
 })
 
+it('restores legacy diagrams when new records add an empty disconnection list', async () => {
+  const diagram = { ...sampleDiagramView.diagram, model: { id: context.model_id, revision: context.model_revision, source: 'gridctl' } }
+  const events = [
+    conversationalEvent(1, 'network_diagram', 1, { diagram }),
+    conversationalEvent(2, 'network_diagram', 1, { diagram: { disconnections: [], ...diagram } }),
+  ]
+  const store = new ThreadProjectionStore(new CapstoneThreadClient({
+    ...createFixtureTransport(idleFixture),
+    getSnapshot: async () => ({ ...idleFixture.snapshot, last_event_seq: 2 }),
+    readHistory: pagedHistory(events, 128),
+  }))
+  await expect(store.load('thr_demo_39')).resolves.toBeUndefined()
+  expect(store.publicEvents.map(event => event.eventSeq)).toEqual([1, 2])
+})
+
 it('keeps current history when an older page diagram conflicts during merge', async () => {
   let calls = 0
   const diagram = { ...sampleDiagramView.diagram, model: { id: context.model_id, revision: context.model_revision, source: 'gridctl' } }
@@ -334,6 +349,30 @@ it('recovers a lost model-control receipt with its original identity and one act
   expect(sendCommand).toHaveBeenCalledTimes(2)
   expect(store.publicEvents.filter((item) => item.eventType === 'model_context_activated')).toHaveLength(1)
   expect(store.state.snapshot?.currentAttempt).toBeNull()
+})
+
+it('keeps public task actions when diagnostic deltas exceed the local event budget', async () => {
+  const store = new ThreadProjectionStore(new CapstoneThreadClient({
+    ...createFixtureTransport(idleFixture),
+    streamEvents: async function* () {
+      for (let seq = 1; seq <= 1104; seq++) {
+        const eventType = seq === 1 ? 'command_accepted' : seq === 2 ? 'tool_started'
+          : seq === 3 ? 'tool_completed' : seq === 1104 ? 'attempt_completed' : 'assistant_process_delta'
+        yield parseEventEnvelope({ ...conversationalEvent(seq, eventType, 1,
+          seq === 1 ? { kind: 'send_auto', payload: { text: 'Analyze this model' } }
+            : seq === 1104 ? { answer: 'Completed' }
+              : { tool_name: 'domain_read', tool_call_id: 'call_1', ok: true }),
+          visibility: eventType === 'assistant_process_delta' ? 'diagnostic' : 'public' })
+      }
+    },
+  }))
+  await store.load('thr_demo_39')
+  await expect(store.consumeEvents(new AbortController().signal)).rejects.toThrow('实时连接已关闭')
+  expect(store.publicEvents.map(event => event.eventType)).toEqual([
+    'command_accepted', 'tool_started', 'tool_completed', 'attempt_completed',
+  ])
+  expect(store.state.eventSeq).toBe(1104)
+  expect(store.state.hasOlderHistory).toBe(false)
 })
 
 it('bounds a continuing stream and treats clean EOF as a reconnect without changing the live cursor', async () => {
@@ -893,7 +932,7 @@ describe('ThreadProjectionStore', () => {
     expect(store.state.snapshot?.currentAttempt).toMatchObject({ attemptId: 'attempt_1', phase: 'running' })
   })
 
-  it('adopts admitted result projections from a completed Attempt event', async () => {
+  it.each([false, true])('adopts admitted result projections from a completed Attempt event (parts=%s)', async (parts) => {
     const projection = {
       schema: 'capstone-result-projection/1.0', result_id: 'result_projection_1',
       result_ref: `result:sha256:${'a'.repeat(64)}`, evidence_refs: [`evidence:sha256:${'b'.repeat(64)}`],
@@ -905,12 +944,27 @@ describe('ThreadProjectionStore', () => {
     const streamTransport: ThreadTransport = {
       ...createFixtureTransport(idleFixture),
       streamEvents: async function* () {
+        const data = JSON.stringify(projection)
+        const identity = {
+          eventVersion: 1, threadId: 'thr_demo_39', runId: 'run_001', turnId: 'turn_1', attemptId: 'attempt_1',
+          modelContextId: 'ctx_ieee39_7', selectionRevision: 'sel_2',
+          occurredAt: '2026-09-30T00:00:01Z', visibility: 'public' as const,
+        }
+        if (parts) {
+          for (let index = 0; index < 2; index++) yield {
+            ...identity, eventId: `evt_part_${index}`, eventSeq: index + 1, eventType: 'result_projection_part',
+            payload: { result_id: projection.result_id, part_index: index, parts: 2,
+              data: index === 0 ? data.slice(0, 100) : data.slice(100) },
+          }
+        }
         yield {
-          eventId: 'evt_1', eventSeq: 1, eventType: 'attempt_completed', eventVersion: 1,
+          eventId: 'evt_1', eventSeq: parts ? 3 : 1, eventType: 'attempt_completed', eventVersion: 1,
           threadId: 'thr_demo_39', runId: 'run_001', turnId: 'turn_1', attemptId: 'attempt_1',
           modelContextId: 'ctx_ieee39_7', selectionRevision: 'sel_2',
           occurredAt: '2026-09-30T00:00:01Z', visibility: 'public' as const,
-          payload: { result_projections: [projection] },
+          payload: parts ? { result_projection_manifest: [{ result_id: projection.result_id, parts: 2 }],
+            result_refs: [projection.result_ref], evidence_refs: projection.evidence_refs,
+            admission: { mode: 'authority_backed', assurance: 'lineage_verified' } } : { result_projections: [projection] },
         }
       },
     }

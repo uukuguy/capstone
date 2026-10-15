@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from threading import Event, Thread
 from types import SimpleNamespace
+from time import perf_counter
 from typing import Any
 
 import pytest
@@ -278,7 +279,7 @@ def test_rpc_reports_events_and_idle_heartbeats(
         # Delay only this consumer's first clock read until the real stdout
         # reader has queued the acknowledgement. The child still needs a real
         # idle heartbeat before it can send its answer and completion events.
-        monkeypatch.setattr(kernel_rpc, "time", SimpleNamespace(monotonic=delayed_clock))
+        monkeypatch.setattr(kernel_rpc, "time", SimpleNamespace(monotonic=delayed_clock, perf_counter=perf_counter))
 
     client.start()
     try:

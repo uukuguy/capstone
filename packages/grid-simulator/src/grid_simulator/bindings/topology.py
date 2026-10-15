@@ -103,7 +103,7 @@ def run_unsupplied(engine: Any, net: Any, options: dict[str, Any]) -> AnalysisOu
         "topology.unsupplied",
         "succeeded",
         options,
-        {"unsupplied_bus_count": len(buses)},
+        {"unsupplied_bus_count": len(buses), "physical_supply_state": "not_evaluated"},
     )
 
 

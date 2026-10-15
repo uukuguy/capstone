@@ -6,6 +6,7 @@ import asyncio
 import hashlib
 import hmac
 import json
+import logging
 import os
 import secrets
 import threading
@@ -17,6 +18,8 @@ from collections.abc import Callable, Iterator, Mapping
 
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
+from starlette.concurrency import run_in_threadpool
+from capstone_agent.thread_startup_timing import record_thread_startup
 
 from capstone_agent.artifacts import ArtifactService
 from capstone_agent.catalog import build_catalog
@@ -59,6 +62,7 @@ def create_host_app(
     preview_loader: Callable[[WorkerSpec, str], dict[str, object]] | None = None,
     wake_worker: Callable[[], object] | None = None,
     prepare_workers: Callable[[], Iterator[Mapping[str, str]]] | None = None,
+    prepare_model: Callable[[str, str], bool] | None = None,
     thread_service: ThreadService | None = None,
     thread_creator: ThreadCreator | None = None,
     thread_application: ThreadApplicationAssembly | None = None,
@@ -93,6 +97,22 @@ def create_host_app(
     diagrams = CaseDiagramCache(diagram_cases, preview_loader or load_case_diagram)
     last_wake = float('-inf')
     wake_lock = threading.Lock()
+
+    def request_model_preparation(thread_id: str, family: str | None = None) -> None:
+        if prepare_model is None:
+            return
+        started = time.perf_counter()
+        try:
+            if family is None:
+                if thread_service is None:
+                    return
+                family = thread_service.snapshot(thread_id).active_model_context.implementation_family
+            if not prepare_model(thread_id, family):
+                logging.getLogger(__name__).warning('Model preparation incomplete for thread %s', thread_id)
+        except Exception:
+            logging.getLogger(__name__).warning('Model preparation unavailable for thread %s', thread_id)
+        finally:
+            record_thread_startup(thread_id, 'model_prepare_request', started)
 
     def request_worker(session_id: str, *, force: bool = False) -> None:
         nonlocal last_wake
@@ -315,7 +335,7 @@ def create_host_app(
 
         if thread_creator is not None:
             @app.post("/api/v1/threads", status_code=201)
-            async def create_thread(request: Request):
+            async def create_thread(request: Request, background_tasks: BackgroundTasks, response: Response):
                 require_private_thread(request)
                 try:
                     body = await request.json()
@@ -331,7 +351,15 @@ def create_host_app(
                         not isinstance(model_id, str) or not model_id
                     ):
                         raise ThreadProtocolError("thread creation model_id is invalid")
-                    return thread_creator.create(model_id).to_document()
+                    started = time.perf_counter()
+                    snapshot = await run_in_threadpool(thread_creator.create, model_id)
+                    duration = record_thread_startup(snapshot.thread_id, 'thread_create', started)
+                    response.headers['Server-Timing'] = f'thread_create;dur={duration:.3f}'
+                    # Start the existing preparation as the response is sent. Task
+                    # acquisition still prepares or reuses the same locked context.
+                    background_tasks.add_task(request_model_preparation, snapshot.thread_id,
+                                              snapshot.active_model_context.implementation_family)
+                    return snapshot.to_document()
                 except ThreadProtocolError as error:
                     raise HTTPException(422, str(error)) from None
                 except (LookupError, ValueError) as error:
@@ -374,6 +402,17 @@ def create_host_app(
                 raise HTTPException(404, 'thread not found') from None
             except RuntimeError:
                 raise HTTPException(503, 'input catalog unavailable') from None
+        @app.get("/api/v1/threads/{thread_id}/attempts/{attempt_id}/records")
+        def get_attempt_records(thread_id: str, attempt_id: str, request: Request,
+                                after: Annotated[int, Query(ge=0)] = 0,
+                                limit: Annotated[int, Query(ge=1, le=128)] = 32):
+            require_private_thread(request)
+            try:
+                return thread_service.read_attempt_records(thread_id, attempt_id, after=after, limit=limit)
+            except ThreadNotFound:
+                raise HTTPException(404, "task records not found") from None
+            except ThreadProtocolError:
+                raise HTTPException(422, "task record cursor is invalid") from None
 
         @app.get("/api/v1/threads/{thread_id}/events")
         def get_thread_events(thread_id: str, request: Request,
@@ -421,6 +460,8 @@ def create_host_app(
                 )
                 receipt = service.submit_command(command)
                 if receipt.status == 'accepted':
+                    if kind in {'open_model', 'activate_model', 'switch_model', 'reopen_model_context'}:
+                        await run_in_threadpool(request_model_preparation, thread_id)
                     background_tasks.add_task(request_worker, thread_id, force=True)
                 return receipt.to_document()
             except ThreadNotFound:

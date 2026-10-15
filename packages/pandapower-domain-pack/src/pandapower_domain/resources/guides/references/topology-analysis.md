@@ -15,7 +15,7 @@ Topology endpoints are the source model's branch table endpoints. `from_bus` and
 ## Available Capabilities
 
 - `topology.branch.endpoints.get`: returns a branch object, `from_bus`, `to_bus`, `context_ref`, `revision_ref`, and `evidence_ref`.
-- `topology.components.get`: returns `component_count` and up to 50 component summaries with `component_id`, `bus_count`, `branch_count`, and `bus_refs`.
+- `topology.components.get`: returns `component_count` and up to 50 component summaries with `component_id`, `bus_count`, `branch_count`, `bus_refs`, bus indices, in-service generation counts, and supply-reference bus indices. `bus_list_complete` identifies a bounded bus list.
 - `analysis.run` with `topology.path`: returns a queryable ordered bus path in `result.res_topology_path`.
 - `analysis.run` with `topology.neighbors`: returns buses and hop depths in `result.res_topology_neighbor`.
 - `analysis.run` with `topology.unsupplied`: returns unsupplied buses in `result.res_unsupplied_bus`.
@@ -29,6 +29,11 @@ Topology endpoints are the source model's branch table endpoints. `from_bus` and
 ## Result Fields and Units
 
 Endpoint outputs contain branch `asset_ref`, `kind`, `index`, `name`, and `alias`; each endpoint bus contains `asset_ref`, `index`, `name`, and `alias`. Components report counts and bus refs; no electrical units or flow values are produced.
+
+Supply-reference buses are in-service external grids, slack generators, or AC-slack VSCs.
+They are the reference sources used by pandapower topology supply checks. Static generators
+can exist in a component without one of these references. Counts do not verify grid-forming
+operation, an energized island, or short-circuit contributions; those need separate checks.
 
 ## Single-step Examples
 

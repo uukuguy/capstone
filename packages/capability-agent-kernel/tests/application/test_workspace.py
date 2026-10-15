@@ -10,6 +10,29 @@ from capability_agent.application.workspace import (
 )
 
 
+def test_reopen_preserves_existing_records_and_declared_bindings(tmp_path):
+    original = ApplicationWorkspace.create(tmp_path, run_id="research-one", binding_ids=("grid",))
+    original.context_events_path.write_text("existing-record\n")
+    reopened = ApplicationWorkspace.open_existing(tmp_path, run_id="research-one", binding_ids=("grid",))
+    assert reopened == original
+    assert reopened.context_events_path.read_text() == "existing-record\n"
+    with pytest.raises(WorkspaceError):
+        ApplicationWorkspace.open_existing(tmp_path, run_id="research-one", binding_ids=())
+
+
+def test_reopen_rejects_missing_or_redirected_ledger(tmp_path):
+    with pytest.raises(WorkspaceError):
+        ApplicationWorkspace.open_existing(tmp_path, run_id="missing")
+    original = ApplicationWorkspace.create(tmp_path, run_id="research-one")
+    original.context_events_path.unlink()
+    outside = tmp_path / "outside.jsonl"
+    outside.write_text("private")
+    original.context_events_path.symlink_to(outside)
+    with pytest.raises(WorkspaceError):
+        ApplicationWorkspace.open_existing(tmp_path, run_id="research-one")
+    assert outside.read_text() == "private"
+
+
 def test_workspace_creates_only_declared_portable_domain_layout(
     tmp_path: Path,
 ) -> None:

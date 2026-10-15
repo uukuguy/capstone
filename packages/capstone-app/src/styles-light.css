@@ -287,7 +287,7 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .network-canvas-frame svg:focus-visible { outline: 2px solid #138575; outline-offset: -3px; }
 .network-node-label { font: 12px Inter, "PingFang SC", sans-serif; fill: #42565b;
   paint-order: stroke; stroke: #fff; stroke-width: 3px; stroke-linejoin: round; }
-.network-branch-label { font: 700 12px Inter, "PingFang SC", sans-serif; fill: #116d66;
+.network-branch-label { font: 700 12px Inter, "PingFang SC", sans-serif; fill: #245fc4;
   paint-order: stroke; stroke: #fff; stroke-width: 4px; stroke-linejoin: round; }
 .network-canvas-hint { position: absolute; left: 15px; bottom: 12px; background: #ffffffd9;
   color: #65817a; border: 1px solid #e1eae5; border-radius: 3px;
@@ -301,7 +301,7 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .legend-busbar { width: 19px; border-top: 3px solid #344c53; margin-left: 7px; }
 .legend-line, .legend-link, .legend-focus { width: 20px; border-top: 3px solid #aab9b9; margin-left: 7px; }
 .legend-link { border-top-style: dashed; border-color: #718ca0; }
-.legend-focus { border-color: #187b78; border-top-width: 5px; }
+.legend-focus { border-color: #1b4e9b; border-top-width: 6px; }
 .legend-transformer { margin-left: 7px; color: #5f7c79; font: 700 15px Georgia, serif; letter-spacing: -5px;
   padding-right: 5px; }
 .network-transformer-symbol circle { fill: #fff; stroke: #607e7a; stroke-width: 1.2px; }
@@ -422,7 +422,16 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .capstone-assistant-runtime-label span:not(.assistant-live-dot) { color: #829490; font-weight: 500; letter-spacing: .02em; }
 .capstone-assistant-runtime-label small { margin-left: auto; color: #6e8c84; font: 9px/1.2 Inter, "PingFang SC", sans-serif; letter-spacing: 0; }
 .assistant-live-dot { width: 6px; height: 6px; border-radius: 50%; background: #1c9b86; box-shadow: 0 0 0 3px #1c9b8628; }
-.capstone-chat-runtime { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+.capstone-chat-runtime { position: relative; display: flex; flex-direction: column; min-height: 0; flex: 1; }
+.capstone-instruction-markers { position: absolute; top: 0; right: 10px; width: 12px; pointer-events: none; z-index: 3; opacity: 0; transition: opacity .18s ease; }
+.capstone-instruction-markers.is-scrolling, .capstone-instruction-markers:focus-within, .capstone-instruction-markers:has(button:hover) { opacity: 1; }
+.capstone-instruction-markers button { position: absolute; left: 0; width: 12px; height: 16px; padding: 4px 2px; border: 0; background: transparent; cursor: pointer; pointer-events: auto; transform: translateY(-4px); }
+.capstone-instruction-markers button > span:first-child { display: block; width: 5px; height: 3px; border-radius: 2px; background: #9badbc; }
+.capstone-instruction-markers button[aria-current] > span:first-child { width: 7px; height: 4px; background: #126f68; }
+.capstone-instruction-markers:not(.is-scrolling):not(:hover):not(:focus-within) button { pointer-events: none; }
+.capstone-instruction-marker-tip { display: none; position: absolute; right: 16px; top: -5px; width: max-content; max-width: min(240px, 65vw); padding: 6px 9px; border: 1px solid #cbd5df; border-radius: 5px; background: #f5f7fa; color: #41576a; box-shadow: 0 2px 8px #23354818; font: 11px/1.5 Inter, "PingFang SC", sans-serif; text-align: left; pointer-events: none; }
+.capstone-instruction-markers button:hover .capstone-instruction-marker-tip, .capstone-instruction-markers button:focus-visible .capstone-instruction-marker-tip { display: block; }
+.capstone-instruction-markers button:focus-visible { outline: 2px solid #167d75; border-radius: 3px; }
 .capstone-chat-viewport { display: flex; flex: 1; flex-direction: column; gap: 14px; min-height: 250px; overflow-y: auto; padding: 18px 16px 20px; }
 .capstone-chat-empty { display: grid; place-items: center; gap: 7px; min-height: 220px; padding: 28px; text-align: center; color: #5e7772; }
 .capstone-chat-empty strong { color: #2a504d; font-size: 15px; }
@@ -436,6 +445,10 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .capstone-chat-role { display: block; margin-bottom: 6px; color: #66827c; font: 700 8px/1 "SFMono-Regular", Consolas, monospace; letter-spacing: .08em; }
 .capstone-chat-body p { margin: 0; color: #294948; font-size: 12px; line-height: 1.65; white-space: pre-line; }
 .capstone-chat-placeholder { display: inline-flex; align-items: center; gap: 8px; color: #71908b; font-size: 12px; line-height: 1.65; }
+.capstone-task-research { margin: 4px 0 8px; color: #66827c; font-size: 11px; line-height: 1.5; }
+.capstone-task-research summary { cursor: pointer; }
+.capstone-task-research summary:focus-visible { outline: 2px solid #20766a; outline-offset: 3px; }
+.capstone-chat-body .capstone-task-research p { margin-top: 4px; font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
 .capstone-chat-placeholder::before { width: 7px; height: 7px; border: 1px solid #4da28f; border-top-color: transparent; border-radius: 50%; content: ""; animation: capstone-chat-spin .8s linear infinite; }
 @keyframes capstone-chat-spin { to { transform: rotate(360deg); } }
 .capstone-chat-activity { display: grid; gap: 4px; padding: 8px 14px; border-top: 1px solid #e1ebe6; border-bottom: 1px solid #e1ebe6; background: #f4f9f6; color: #6c817d; font: 9px/1.4 "SFMono-Regular", Consolas, monospace; }
@@ -635,7 +648,7 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .capstone-chat-message.is-failed .capstone-chat-role { color: #a55545; }
 .capstone-chat-message.is-cancelled .capstone-chat-role, .capstone-chat-message.is-interrupted .capstone-chat-role { color: #97703b; }
 .capstone-chat-artifacts { display: grid; gap: 6px; margin-top: 9px; }
-.capstone-chat-reference-card { display: grid; gap: 5px; padding: 8px 10px; border: 1px solid #dce9e3; border-radius: 8px; background: #fbfdfc; color: #5f7d75; font-size: 10px; line-height: 1.4; }
+.capstone-chat-reference-card { display: grid; gap: 5px; padding: 8px 10px; border: 1px solid #ccd7e2; border-radius: 8px; background: #f1f4f8; color: #4d6275; font-size: 10px; line-height: 1.4; }
 .capstone-chat-reference-card.is-result { border-left: 2px solid #70b39d; }
 .capstone-chat-reference-card.is-evidence { border-left: 2px solid #9bb9d4; }
 .capstone-chat-reference-heading { display: flex; align-items: center; gap: 6px; color: #39766b; }
@@ -745,12 +758,37 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .capstone-chat-placeholder.is-terminal { color: #986d59; }
 .capstone-chat-duration { display: inline-flex; align-items: center; margin-top: 6px; color: #829b94; font-size: 10px; line-height: 1.35; }
 .capstone-chat-duration.is-running { color: #238a79; }
-.capstone-chat-evidence { display: grid; gap: 7px; max-width: 100%; margin-top: 4px; padding: 8px 10px; border-left: 2px solid #8bbcac; border-radius: 0 7px 7px 0; background: #f6faf8; color: #5f7d75; font-size: 11px; }
-.capstone-chat-evidence strong { display: inline-flex; align-items: center; gap: 6px; color: #39766b; font-size: 11px; }
+.capstone-chat-evidence { display: grid; gap: 5px; max-width: 100%; margin-top: 4px; padding: 6px 8px; border: 1px solid #dce6e1; border-left: 2px solid #91b7aa; border-radius: 0 7px 7px 0; background: #fff; color: #4d6275; font-size: 9px; }
+.capstone-chat-evidence > strong { padding: 3px 5px; border-radius: 3px; background: #f7faf8; }
+.capstone-chat-evidence strong { display: inline-flex; align-items: center; gap: 6px; color: #39766b; font-size: 10px; }
 .capstone-chat-evidence strong svg { width: 14px; height: 14px; }
-.capstone-chat-evidence small { color: #78938b; font: 10px/1.4 "SFMono-Regular", Consolas, monospace; }
+.capstone-chat-evidence small { color: #78938b; font: 9px/1.4 "SFMono-Regular", Consolas, monospace; }
 .capstone-chat-evidence div { display: flex; flex-wrap: wrap; gap: 5px; }
-.capstone-chat-evidence code { padding: 3px 5px; border: 1px solid #d7e6df; border-radius: 4px; background: #fff; color: #65837b; font: 10px/1.3 "SFMono-Regular", Consolas, monospace; }
+.capstone-chat-evidence code { padding: 3px 5px; border: 1px solid #d7e6df; border-radius: 4px; background: #fff; color: #65837b; font: 9px/1.3 "SFMono-Regular", Consolas, monospace; }
+.capstone-inference-evidence { line-height: 1.35; }
+.capstone-inference-evidence p { margin: 3px 0; }
+.capstone-inference-evidence .capstone-evidence-items { display: grid; gap: 6px; }
+.capstone-evidence-item { min-width: 0; border: 1px solid #d7e6df; border-radius: 5px; background: #fff; }
+.capstone-evidence-item > summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 7px; padding: 5px 7px; cursor: pointer; }
+.capstone-evidence-item > summary > span:first-child { flex: 1; min-width: 0; color: #355f56; font-weight: 600; }
+.capstone-evidence-item > summary small { flex-basis: 100%; font-family: inherit; overflow-wrap: anywhere; }
+.capstone-inference-evidence .capstone-evidence-item-body { display: block; padding: 0 8px 8px; }
+.capstone-inference-evidence .capstone-evidence-model { display: flex; gap: 8px; }
+.capstone-inference-evidence dl { display: grid; gap: 3px; margin: 7px 0; }
+.capstone-inference-evidence dl > div { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, auto); gap: 8px; }
+.capstone-inference-evidence dd { margin: 0; color: #355f56; overflow-wrap: anywhere; }
+.capstone-evidence-item-body > button { padding: 5px 7px; border: 1px solid #c6ded3; border-radius: 4px; background: #f4faf7; color: #286b5d; font: inherit; cursor: pointer; }
+.capstone-evidence-trace { min-width: 0; margin-top: 6px; color: #647e76; font-size: 9px; line-height: 1.35; }
+.capstone-evidence-trace > summary { cursor: pointer; }
+.capstone-evidence-trace code { display: block; margin-top: 3px; max-width: 100%; overflow-wrap: anywhere; white-space: normal; }
+.capstone-evidence-failure { padding: 7px 8px; border: 1px solid #eadbc3; border-radius: 5px; background: #fffcf7; }
+.capstone-evidence-failure > span { margin-left: 8px; overflow-wrap: anywhere; }
+.capstone-research-records { margin: 5px 0; padding: 5px 7px; border-left: 2px solid #91a9be; background: #fff; color: #4d6275; font-size: 9px; line-height: 1.35; overflow-wrap: anywhere; }
+.capstone-research-records > summary { cursor: pointer; color: #39766b; }
+.capstone-research-records > summary:focus-visible { outline: 2px solid #20766a; outline-offset: 3px; }
+.capstone-research-records p { margin: 5px 0; }
+.capstone-research-records > section { padding: 6px 8px; margin: 6px 0; }
+.capstone-call-records pre { max-width: 100%; white-space: pre-wrap; overflow-wrap: anywhere; font: 9px/1.5 "SFMono-Regular", Consolas, monospace; }
 .capstone-chat-artifacts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; color: #76908a; font-size: 10px; line-height: 1.35; }
 .capstone-chat-artifacts > span { padding: 3px 7px; border: 1px solid #dce9e3; border-radius: 999px; background: #fbfdfc; }
 .capstone-chat-artifacts .capstone-chat-artifacts-label { display: inline-flex; align-items: center; gap: 4px; border-color: transparent; background: transparent; color: #4c7970; font-weight: 600; }
@@ -762,7 +800,7 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .capstone-chat-activity summary::-webkit-details-marker { display: none; }
 .capstone-chat-activity summary svg { width: 14px; height: 14px; color: #299581; }
 .capstone-chat-activity summary small { margin-left: auto; flex-shrink: 0; white-space: nowrap; color: #9aafaa; font-size: 9px; }
-.capstone-chat-activity-list { display: grid; gap: .5em; max-height: 160px; overflow-y: auto; font-size: 10px; padding: 0 13px 9px 34px; }
+.capstone-chat-activity-list { display: grid; gap: .5em; max-height: min(360px, 50vh); overflow-y: auto; font-size: 10px; padding: 0 13px 9px 34px; }
 .capstone-chat-activity-item { display: flex; align-items: flex-start; gap: 7px; color: #4f716b; font-size: 10px; line-height: 1.5; }
 .capstone-chat-activity-icon { width: 6px; height: 6px; flex: 0 0 6px; margin-top: 5px; border-radius: 50%; background: #39a28d; }
 .capstone-chat-activity-item.is-running .capstone-chat-activity-icon { box-shadow: 0 0 0 3px #39a28d28; }
@@ -919,7 +957,60 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 @media (prefers-reduced-motion: reduce) { .capstone-chat-activity-frame.is-running summary > svg { animation: none; } }
 .capstone-chat-activity-frame:has(.capstone-chat-activity-preview) > details { border-bottom: 0; border-radius: 7px 7px 0 0; }
 .capstone-chat-activity-preview { border: 1px solid #e3eee8; border-top: 0; border-radius: 0 0 7px 7px; background: #fbfdfc; }
-.capstone-chat-activity-preview .capstone-chat-activity-list { max-height: 96px; padding: 0 7px 3px 22px; }
+.capstone-chat-activity-preview { max-height: min(480px, 60vh); overflow-y: auto; overflow-anchor: none; }
+.capstone-chat-activity-preview .capstone-chat-activity-list { max-height: none; overflow-y: visible; padding: 0 7px 6px 22px; }
+.capstone-chat-activity-frame .capstone-task-goal { margin: 2px 9px 6px; font-size: 9px; line-height: 1.4; font-weight: 400; color: #536874; }
+.capstone-task-progress { padding: 0 9px; font-size: 9px; line-height: 1.4; }
+.capstone-task-progress section { margin: 3px 0; }
+.capstone-chat-activity-frame .capstone-task-progress p { margin: 1px 0; font-size: 8.5px; line-height: 1.35; overflow-wrap: anywhere; }
+.capstone-task-progress details { margin: 2px 0; padding: 0; border: 0; }
+.capstone-task-progress details > summary { min-height: 16px; padding: 0; font-size: 8px; }
+.capstone-task-progress small { color: #647d76; font-size: 9px; }
+.capstone-task-progress code { display: block; overflow-wrap: anywhere; font-size: 9px; }
+.capstone-chat-activity-attached .capstone-task-progress { max-height: none; overflow-y: visible; }
+.capstone-chat-activity-item .capstone-chat-activity-source { display: inline-block; padding: 0 3px; border-radius: 3px; background: #eee7f7; color: #665184; font-size: 8px; font-weight: 650; }
+.capstone-chat-activity-source[data-owner="grid"], .capstone-chat-activity-source[data-owner="pypsa"] { background: #e5f3ed; color: #226a59; }
+.capstone-business-steps { padding: 0 7px 5px; container-type: inline-size; }
+.capstone-business-step { border-left: 1px solid #d9e6df; margin: 4px 0; }
+.capstone-business-step > summary { display: grid; grid-template-columns: auto auto auto minmax(0, 1fr) auto; align-items: baseline; gap: 5px; font-size: 10px; line-height: 1.4; cursor: pointer; }
+.capstone-step-metrics { display: inline-flex; justify-content: flex-end; gap: 3px; padding-left: 10px; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.capstone-business-step > summary .capstone-step-metrics small { font-size: 8px; color: #536874; }
+@container (max-width: 420px) { .capstone-business-step > summary { grid-template-columns: auto auto auto minmax(0, 1fr); } .capstone-step-metrics { grid-column: 4; justify-self: end; padding-left: 0; } }
+.capstone-business-step > summary:focus-visible { outline: 1px solid #497c78; outline-offset: 2px; border-radius: 2px; }
+.capstone-business-step > summary::before { content: '›'; display: inline-block; }
+.capstone-business-step[open] > summary::before { transform: rotate(90deg); }
+.capstone-business-step > summary .capstone-chat-activity-source { padding: 0 3px; border-radius: 3px; background: #e8eef1; color: #536874; font-size: 8px; font-weight: 650; }
+.capstone-process-controls { display: inline-flex; flex-shrink: 0; margin-left: auto; gap: 3px; padding: 0; }
+.capstone-process-controls button { padding: 3px 6px; border: 0; border-radius: 3px; background: transparent; color: #536874; font-size: 9px; line-height: 1.4; }
+.capstone-process-controls button:hover:not(:disabled) { background: #e4ebef; }
+.capstone-process-controls button:disabled { color: #a0afb7; cursor: default; }
+.capstone-business-step .capstone-step-title { flex: 1; min-width: 100px; overflow-wrap: anywhere; font-size: 9px; line-height: 1.35; font-weight: 400; color: #566c7a; }
+.capstone-business-step > summary small { color: #647d76; font-size: 9px; }
+.capstone-step-tools { margin-left: 14px; }
+.capstone-business-step .capstone-step-continuation { margin-left: 6px; color: #88632d; font-size: 8px; white-space: nowrap; }
+.capstone-chat-activity-item .capstone-tool-failure { display: inline; margin-left: 6px; color: #a65341; font-size: 8.5px; }
+.capstone-tool-call-content { flex: 1; min-width: 0; display: block; }
+.network-scene-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; width: 100%; font-size: 10px; line-height: 1.5; }
+.network-scene-legend strong { color: #455d70; font-weight: 600; }
+.network-scene-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.network-scene-legend i { display: inline-block; width: 9px; height: 9px; border: 1.5px solid #7e858c; border-radius: 50%; }
+.network-scene-legend .legend-state-disconnected { width: 14px; height: 0; border-width: 1.5px 0 0; border-color: #b75c43; border-style: dashed; border-radius: 0; }
+.network-scene-legend .legend-state-warning { width: 14px; height: 0; border-width: 3px 0 0; border-color: #bb7025; border-radius: 0; }
+.network-scene-legend .legend-state-unresolved { border-style: dashed; }
+.capstone-tool-call-heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 5px; }
+.capstone-tool-failure-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
+.capstone-tool-diagnostic { position: relative; display: inline-block; }
+.capstone-tool-diagnostic button { border: 0; padding: 0 2px; background: transparent; color: #687982; font: inherit; font-size: 8px; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.capstone-tool-diagnostic button:focus-visible { outline: 1px solid #687982; outline-offset: 2px; }
+.capstone-tool-diagnostic-popover { position: fixed; z-index: 1000; box-sizing: border-box; width: min(320px, calc(100vw - 24px)); max-height: min(260px, calc(100vh - 24px)); overflow-y: auto; padding: 8px 10px; border: 1px solid #d0d9df; border-radius: 5px; background: #fff; color: #45545e; box-shadow: 0 4px 14px #263e5020; white-space: pre-wrap; overflow-wrap: anywhere; font: 9px/1.5 system-ui, sans-serif; }
+.capstone-chat-activity-item .capstone-tool-call-heading strong { display: inline; }
+.capstone-chat-activity-item .capstone-tool-failure-reason { display: block; margin-top: 2px; color: #92543f; font-size: 8.5px; line-height: 1.4; overflow-wrap: anywhere; }
+.capstone-complete-process { max-height: min(480px, 60vh); overflow-y: auto; overflow-anchor: none; }
+.capstone-chat-activity-attached, .capstone-chat-activity-preview { background: #fff; border-color: #d9e2e8; }
+.capstone-chat-activity-attached > summary { color: #465e70; background: #f7f9fb; border-radius: 7px; }
+.capstone-chat-activity-attached[open] > summary { border-radius: 7px 7px 0 0; }
+.capstone-step-tools .capstone-chat-activity-list, .capstone-complete-process .capstone-chat-activity-list { max-height: none; overflow-y: visible; }
+.capstone-answer-time { color: #82968f; font-size: 10px; font-weight: 400; white-space: nowrap; }
 .capstone-chat-activity-attached.is-failed, .capstone-chat-activity-attached.is-interrupted { border-color: #e7c9c2; }
 .capstone-chat-activity-attached.is-failed > summary svg, .capstone-chat-activity-attached.is-interrupted > summary svg { color: #c5574f; }
 .capstone-chat-activity-attached.is-cancelled > summary svg { color: #b78342; }
@@ -944,6 +1035,40 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .capstone-result-table-scroll table { width: 100%; min-width: 360px; border-collapse: collapse; font-size: 10px; }
 .capstone-result-table-scroll th, .capstone-result-table-scroll td { padding: 5px 6px; border: 1px solid #dfeae5; text-align: left; white-space: nowrap; }
 .capstone-result-table-scroll th { background: #f3f9f6; color: #52766e; font-weight: 700; }
+.capstone-result-explorer { width: 100%; height: min(520px, 65vh); min-height: 260px; margin-top: 10px; padding: 0; border: 1px solid #d9e2e8; border-radius: 9px; background: #fff; color: #30475b; font-size: 9px; line-height: 1.35; overflow: hidden; overflow-anchor: none; }
+.capstone-result-explorer > header { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 36px; padding: 4px 10px; border-bottom: 1px solid #e2e8ed; background: #f7f9fb; }
+.capstone-result-explorer > header > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+.capstone-result-explorer > header strong { font-size: 10px; }
+.capstone-result-explorer > header small { font-size: 9px; color: #586d80; }
+.capstone-result-explorer button { font: inherit; color: inherit; cursor: pointer; }
+.capstone-result-explorer > header button { min-height: 28px; padding: 3px 6px; border: 0; border-radius: 4px; background: transparent; font-size: 9px; }
+.capstone-result-explorer-layout { display: flex; flex-direction: column; height: calc(100% - 44px); min-height: 0; }
+.capstone-result-explorer nav { display: flex; flex-shrink: 0; gap: 5px; overflow-x: auto; padding: 5px 8px; border-bottom: 1px solid #e2e8ed; background: #fff; }
+.capstone-result-explorer nav button { display: flex; align-items: baseline; flex: 0 0 auto; gap: 5px; margin: 0; padding: 4px 7px; text-align: left; border: 1px solid transparent; border-radius: 4px; background: transparent; font-size: 9px; line-height: 1.4; }
+.capstone-result-explorer nav button[aria-pressed="true"] { border-color: #9db6cb; background: #fff; box-shadow: 0 1px 3px #1e3a5110; }
+.capstone-result-explorer nav small { color: #61758a; font-size: 9px; }
+.capstone-result-explorer nav .is-failed small { color: #a44e3e; }
+.capstone-result-explorer-body { min-width: 0; min-height: 0; flex: 1; overflow-y: auto; padding: 8px; }
+.capstone-result-explorer .capstone-result-card { margin-top: 0; padding: 0; border: 0; background: transparent; color: #314a5c; font-size: 9px; }
+.capstone-result-table-switch { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 7px; }
+.capstone-result-table-switch button { min-height: 24px; padding: 3px 6px; border: 1px solid #c7d3df; border-radius: 4px; background: #fff; font-size: 9px; }
+.capstone-result-explorer .capstone-result-heading { font-size: 9px; }
+.capstone-result-explorer .capstone-result-metrics { gap: 5px 12px; padding: 5px 0; border-bottom: 1px solid #dce4ec; }
+.capstone-result-explorer .capstone-result-metrics > div { display: flex; align-items: baseline; gap: 6px; min-width: 0; padding: 0; border: 0; border-radius: 0; background: transparent; }
+.capstone-result-explorer .capstone-result-metrics strong { font-size: 9px; font-weight: 600; }
+.capstone-result-table-switch button[aria-pressed="true"] { border-color: #718fa9; background: #e4edf5; }
+.capstone-result-explorer .capstone-result-table-scroll { max-height: min(430px, 54vh); overflow: auto; }
+.capstone-result-explorer .capstone-result-table-scroll table { font-size: 9px; line-height: 1.35; font-variant-numeric: tabular-nums; }
+.capstone-result-explorer .capstone-result-table-scroll :is(th, td) { padding: 2px 5px; border-color: #dce4ec; }
+.capstone-result-explorer .capstone-result-table-scroll th { position: sticky; top: 0; z-index: 1; background: #f7f9fb; color: #415d74; }
+.capstone-result-explorer .capstone-result-element { min-height: 24px; }
+.capstone-chat-markdown table { font-size: 11px; line-height: 1.4; }
+.capstone-chat-markdown :is(th, td) { padding: 4px 6px; }
+@media (max-width: 600px) {
+  .capstone-result-explorer { width: 100%; height: min(520px, 65vh); border-radius: 9px; }
+  .capstone-result-explorer nav { max-height: 70px; }
+  .capstone-result-explorer-body { padding: 8px; }
+}
 .capstone-result-element { padding: 0; border: 0; border-bottom: 1px dashed #4c9d8c; background: transparent; color: #237d70; font: inherit; cursor: pointer; }
 .capstone-result-element:hover, .capstone-result-element:focus-visible { color: #145b52; border-bottom-style: solid; outline: none; }
 

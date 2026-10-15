@@ -5,6 +5,7 @@ import {
 import { parseThreadCatalog, type ThreadCatalog } from './threadCatalog'
 import { parseNetworkContextEvents, parseThreadHistoryPage } from './threadHistory'
 import { parseModelWorkspace } from './threadModelWorkspace'
+import type { AttemptRecords } from './attemptRecords'
 
 export type ThreadCommand = {
   schema: 'capstone-command/1'
@@ -20,6 +21,7 @@ export type ThreadCommand = {
 export type ThreadTransportState = 'live' | 'reconnecting' | 'resync_required' | 'offline'
 
 export interface ThreadTransport {
+  readAttemptRecords?(threadId: string, attemptId: string, after?: number, signal?: AbortSignal): Promise<AttemptRecords>
   createThread?(modelId?: string, signal?: AbortSignal): Promise<unknown>
   getSnapshot(threadId: string, signal?: AbortSignal): Promise<unknown>
   getCatalog?(threadId: string, signal?: AbortSignal): Promise<unknown>
@@ -72,6 +74,16 @@ export class CapstoneThreadClient {
   }
 
   get supportsHistory(): boolean { return this.transport.readHistory !== undefined }
+
+  get supportsAttemptRecords(): boolean { return this.transport.readAttemptRecords !== undefined }
+
+  async attemptRecords(threadId: string, attemptId: string, after = 0, signal?: AbortSignal): Promise<AttemptRecords> {
+    if (!this.transport.readAttemptRecords) throw new Error('任务记录读取不可用')
+    if (!Number.isSafeInteger(after) || after < 0) throw new Error('任务记录游标无效')
+    const page = await this.transport.readAttemptRecords(threadId, attemptId, after, signal)
+    if (page.threadId !== threadId || page.attemptId !== attemptId) throw new Error('任务记录身份不一致')
+    return page
+  }
 
   async history(threadId: string, beforeEventSeq?: number, signal?: AbortSignal) {
     if (!this.transport.readHistory) throw new Error('History paging unavailable')

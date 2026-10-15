@@ -65,3 +65,75 @@ def test_document_links_check_targets_and_allow_deleted_documents(tmp_path):
         check_document_links(tmp_path, ["guide.md"])
     (tmp_path / "target.md").write_text("# Topic")
     check_document_links(tmp_path, ["guide.md", "deleted.md"])
+
+
+@pytest.fixture
+def delivery_repo(tmp_path):
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    (tmp_path / ".gitignore").write_text("/runs/\n")
+    (tmp_path / "docs/status").mkdir(parents=True)
+    return tmp_path
+
+
+@pytest.mark.parametrize("name", ["README.md", "bundle.tar.gz", "bundle.tar.gz.sha256"])
+def test_missing_ignored_delivery_links_pass_in_fresh_checkout(delivery_repo, name):
+    guide = delivery_repo / "docs/status/guide.md"
+    guide.write_text(f"[delivery](../../runs/user-local-offline/release/{name})")
+    check_document_links(delivery_repo, ["docs/status/guide.md"])
+
+
+@pytest.mark.parametrize("target", [
+    "../missing.md", "../../runs/other/README.md",
+    "../../runs/user-local-offline/release/other.md",
+    "../../runs/user-local-offline/release/file.json",
+    "../../runs/user-local-offline/.private/README.md",
+    "../../runs/user-local-offline/release/../README.md",
+    "../../runs/user-local-offline/%72elease/README.md",
+    "../../../outside/runs/user-local-offline/README.md",
+])
+def test_missing_non_delivery_links_still_fail(delivery_repo, target):
+    (delivery_repo / "docs/status/guide.md").write_text(f"[bad]({target})")
+    with pytest.raises(ValueError, match="Missing relative"):
+        check_document_links(delivery_repo, ["docs/status/guide.md"])
+
+
+def test_missing_delivery_requires_git_ignore(delivery_repo):
+    (delivery_repo / ".gitignore").write_text("")
+    (delivery_repo / "docs/status/guide.md").write_text(
+        "[delivery](../../runs/user-local-offline/release/README.md)")
+    with pytest.raises(ValueError, match="Missing relative"):
+        check_document_links(delivery_repo, ["docs/status/guide.md"])
+
+
+def test_delivery_symlink_is_not_an_existence_exception(delivery_repo):
+    delivery = delivery_repo / "runs/user-local-offline"
+    delivery.mkdir(parents=True)
+    (delivery / "release").symlink_to(delivery_repo / "missing", target_is_directory=True)
+    (delivery_repo / "docs/status/guide.md").write_text(
+        "[delivery](../../runs/user-local-offline/release/README.md)")
+    with pytest.raises(ValueError, match="Missing relative"):
+        check_document_links(delivery_repo, ["docs/status/guide.md"])
+
+
+@pytest.mark.parametrize("target", ["javascript:alert", "/runs/user-local-offline/README.md",
+                                   "https://example.com/README.md", "//example.com/README.md"])
+def test_external_and_absolute_links_never_receive_delivery_exception(delivery_repo, target):
+    from tools.ci_scope import is_ignored_delivery_link
+    assert not is_ignored_delivery_link(delivery_repo, delivery_repo / "docs/status/guide.md", target)
+
+
+def test_git_ignore_failure_cannot_exempt_delivery(delivery_repo, monkeypatch):
+    import tools.ci_scope as scope
+    calls = []
+
+    def failed_git(args, **kwargs):
+        calls.append(args)
+        return subprocess.CompletedProcess(args, 128)
+
+    monkeypatch.setattr(scope.subprocess, "run", failed_git)
+    guide = delivery_repo / "docs/status/guide.md"
+    guide.write_text("[delivery](../../runs/user-local-offline/release/README.md)")
+    with pytest.raises(ValueError, match="Missing relative"):
+        scope.check_document_links(delivery_repo, ["docs/status/guide.md"])
+    assert calls == [["git", "-C", str(delivery_repo.resolve()), "check-ignore", "-q", "--",
+                      "runs/user-local-offline/release/README.md"]]

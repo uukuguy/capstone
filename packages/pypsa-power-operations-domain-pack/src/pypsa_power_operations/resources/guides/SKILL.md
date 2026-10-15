@@ -1,3 +1,5 @@
 # PyPSA Power Operations
 
 The application hands an immutable model revision to this Pack. Use `operations.dispatch` for fixed dispatch, `operations.commitment` for a registered committable model, `operations.security_dispatch` for the registered outage set, `operations.rolling_dispatch` for the registered storage horizon, and `operations.congested_opf` for registered branch flows and nodal prices. Use `operations.ac_validate` only after a dispatch result. Cite the returned result and evidence references for numerical claims.
+
+AC validation currently restores only the saved Generator active-power schedule. The slack generator may adjust its output to balance AC losses. Models containing Store, StorageUnit, Link or Process components return `unsupported_dispatch_components` because their schedules are not restored. Keep the successful optimization result and explain that no AC validation result was produced; do not describe this limitation as a failed dispatch or claim that all dispatch models have been AC-validated.

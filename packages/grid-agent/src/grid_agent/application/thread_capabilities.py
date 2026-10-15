@@ -54,6 +54,7 @@ def build_pandapower_thread_application(
     model_catalog: ThreadModelCatalog | None = None,
     default_selection: ModelCapabilitySelection | None = None,
     runtime_mode: str = "capstone",
+    retain_context_workspace: bool = False,
 ) -> ThreadApplicationAssembly:
     """Build an opt-in Thread assembly for the existing pandapower profile.
 
@@ -75,6 +76,7 @@ def build_pandapower_thread_application(
     owner = ModelCapabilityContextOwner(catalog)
     preparer = KernelApplicationProfilePreparer(
         workspace_root=workspace_root, model_binder=model_binder,
+        retain_context_workspace=retain_context_workspace,
     )
     register_pandapower_capability(
         catalog,

@@ -282,6 +282,41 @@ def test_claim_runtime_events_and_terminal_attempt_are_replayable() -> None:
     ]
 
 
+def test_observation_pages_skip_process_events_without_deleting_history() -> None:
+    service = _service()
+    service.submit_command(_command())
+    claim = service.claim_attempt("records-test", lease_seconds=30)
+    assert claim is not None
+    for index in range(90):
+        service.append_runtime_event(claim, event_type="assistant_process_delta",
+                                     payload={"text": str(index)}, visibility="diagnostic")
+    service.append_runtime_event(claim, event_type="validation_observation", payload={"status": "failed"})
+    service.finish_attempt(claim, phase="failed", payload={"answer": "Recorded outcome"})
+    page = service.read_attempt_records("thr_attempts", claim.attempt.attempt_id,
+                                       limit=32, observations_only=True)
+    assert [e["event_type"] for e in page["events"]] == ["validation_observation", "attempt_failed"]
+    assert page["has_more"] is False
+    original = service.read_attempt_records("thr_attempts", claim.attempt.attempt_id, limit=128)
+    assert sum(e["event_type"] == "assistant_process_delta" for e in original["events"]) == 90
+
+
+def test_large_research_snapshot_survives_task_completion_and_record_paging() -> None:
+    service = _service()
+    service.submit_command(_command())
+    claim = service.claim_attempt("thread-worker", lease_seconds=30)
+    assert claim is not None
+    notes = [{"note_id": f"note-{index}", "text": "研究记录" * 400, "refs": []} for index in range(64)]
+    payload = {"research_id": "research-one", "research_revision": 1, "goal": "Check model",
+        "research_snapshot": {"research_id": "research-one", "revision": 1, "goal": "Check model",
+            "claims": [], "notes": notes, "condition_refs": [], "open_questions": []}}
+    service.append_runtime_event(claim, event_type="research_state_updated", payload=payload)
+    service.finish_attempt(claim, phase="completed", payload={"answer": "本次检查结束，记录可追溯。"})
+    records = service.read_attempt_records("thr_attempts", claim.attempt.attempt_id, limit=32)
+    saved = next(item for item in records["events"] if item["event_type"] == "research_state_updated")
+    assert saved["payload"]["research_snapshot"]["notes"] == notes
+    assert service.snapshot("thr_attempts").current_attempt is None
+
+
 def test_completed_attempt_admits_result_projection_into_thread_snapshot() -> None:
     service = _service()
     receipt = service.submit_command(_command())
@@ -709,6 +744,7 @@ def test_reopen_same_model_context_creates_fresh_context_at_turn_boundary() -> N
     events = service.read_events("thr_attempts", 0).events
     activation = [e for e in events if e.event_type == "model_context_reopened"][-1]
     assert activation.payload["reason"] == "explicit_reopen"
+    assert claim.research_generation == activation.event_id
 
 
 def test_same_model_switch_is_rejected_and_context_identity_is_reused() -> None:
@@ -721,6 +757,60 @@ def test_same_model_switch_is_rejected_and_context_identity_is_reused() -> None:
     assert receipt.status == "rejected"
     assert receipt.rejection == "model_already_active"
     assert service.snapshot("thr_attempts").active_model_context.id == before
+
+
+def test_work_reset_activates_without_starting_a_task_and_rejects_active_execution():
+    service = _model_service()
+    original = service.snapshot("thr_attempts")
+    receipt = service.submit_command({**_command("cmd_reset"), "kind": "reopen_model_context",
+        "payload": {"model_id": "ieee39", "reason": "user_requested_work_reset"}})
+    assert receipt.status == "accepted"
+    reset = service.snapshot("thr_attempts")
+    assert reset.active_model_context.id != original.active_model_context.id
+    assert reset.pending_model_switch is None and reset.current_attempt is None
+    service.submit_command({**_command("cmd_after_reset"), "expected_event_seq": reset.last_event_seq})
+    busy = service.snapshot("thr_attempts")
+    rejected = service.submit_command({**_command("cmd_reset_busy"), "kind": "reopen_model_context",
+        "expected_event_seq": busy.last_event_seq,
+        "payload": {"model_id": "ieee39", "reason": "user_requested_work_reset"}})
+    assert rejected.status == "rejected"
+    assert service.snapshot("thr_attempts") == busy
+
+
+def test_explicit_followup_uses_selected_task_instead_of_latest_reply():
+    service = _service()
+    ids = []
+    for index in range(2):
+        receipt = service.submit_command({**_command(f"cmd_source_{index}"),
+            "expected_event_seq": service.snapshot("thr_attempts").last_event_seq,
+            "payload": {"text": f"Question {index}"}})
+        assert receipt.status == "accepted"
+        claim = service.claim_attempt("followup-test", 30)
+        ids.append(claim.attempt.attempt_id)
+        service.finish_attempt(claim, phase="completed", payload={"answer": f"Answer {index}"})
+    receipt = service.submit_command({**_command("cmd_followup"),
+        "expected_event_seq": service.snapshot("thr_attempts").last_event_seq,
+        "payload": {"text": "Explain this task", "source_attempt_id": ids[0]}})
+    assert receipt.status == "accepted"
+    followup = service.claim_attempt("followup-test", 30)
+    assert followup.previous_instruction.attempt_id == ids[0]
+    assert followup.previous_instruction.answer == "Answer 0"
+    service.finish_attempt(followup, phase="failed", payload={"answer": "Recorded failure"})
+    receipt = service.submit_command({**_command("cmd_retry_followup"), "kind": "retry_new_attempt",
+        "expected_event_seq": service.snapshot("thr_attempts").last_event_seq,
+        "payload": {"attempt_id": followup.attempt.attempt_id}})
+    assert receipt.status == "accepted"
+    retry = service.claim_attempt("followup-test", 30)
+    assert retry.previous_instruction.attempt_id == ids[0]
+
+
+def test_followup_unknown_source_is_rejected_without_creating_task():
+    service = _service()
+    before = service.snapshot("thr_attempts")
+    receipt = service.submit_command({**_command("cmd_unknown_source"),
+        "payload": {"text": "Explain", "source_attempt_id": "attempt_unknown"}})
+    assert receipt.status == "rejected" and receipt.rejection == "source_attempt_unavailable"
+    assert service.snapshot("thr_attempts") == before
 
 
 def test_model_switch_rejects_a_family_without_a_ready_worker() -> None:

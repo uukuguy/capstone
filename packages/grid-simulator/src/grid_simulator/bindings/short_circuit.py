@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+from math import isfinite
 from typing import Any
 
 from pandapower.shortcircuit import calc_sc
 
-from grid_simulator.bindings.base import AnalysisOperation, AnalysisOutcome, closed_schema, effective, enum, number
+from grid_simulator.bindings.base import AnalysisImplementationError, AnalysisOperation, AnalysisOutcome, AnalysisPrerequisiteError, closed_schema, effective, enum, number
 
 
 DEFAULTS = {
@@ -55,7 +56,39 @@ SCHEMA = closed_schema(
 
 def run(engine: Any, net: Any, options: dict[str, Any]) -> AnalysisOutcome:
     selected = effective(DEFAULTS, options)
-    calc_sc(net, **selected)
+    gaps = []
+    case = selected["case"]
+    for index, source in net.ext_grid.loc[net.ext_grid.in_service].iterrows():
+        for field in (f"s_sc_{case}_mva", f"rx_{case}"):
+            value = source.get(field)
+            try:
+                numeric = float(value)
+                valid = isfinite(numeric) and (numeric > 0 if field.startswith("s_sc_") else numeric >= 0)
+            except (TypeError, ValueError):
+                valid = False
+            if not valid:
+                gaps.append({"element_kind": "ext_grid", "index": int(index), "field": field})
+    if gaps:
+        raise AnalysisPrerequisiteError(
+            "Short-circuit analysis requires finite external-grid short-circuit capacity and R/X data "
+            "for the selected case. Missing or invalid inputs are listed in parameter_gaps; "
+            "no solver result was produced.", parameter_gaps=gaps,
+        )
+    try:
+        calc_sc(net, **selected)
+    except AttributeError as exc:
+        if selected["check_connectivity"] is False and "_is_elements_final" in str(exc):
+            raise AnalysisImplementationError(
+                "pandapower 3.4.0 short-circuit conversion failed to initialize internal element selection "
+                "with check_connectivity=false. This is an implementation failure, not a physical network conclusion. "
+                "A separate attempt with connectivity checking enabled may be considered; the requested option was not changed.",
+                implementation="pandapower-3.4.0",
+                option="check_connectivity",
+                requested_value=False,
+                exception_type=type(exc).__name__,
+                exception_message=str(exc),
+            ) from exc
+        raise
     return AnalysisOutcome(
         "short_circuit.iec60909",
         "succeeded",

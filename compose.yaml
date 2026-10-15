@@ -2,6 +2,7 @@ name: capstone
 
 x-host-environment: &host-environment
   CAPSTONE_RUNTIME_PROFILE: ${CAPSTONE_RUNTIME_PROFILE-capstone-workbench-v1}
+  CAPSTONE_AUTONOMOUS_RESEARCH: ${CAPSTONE_AUTONOMOUS_RESEARCH:-0}
   DATABASE_URL: postgresql://capstone:${POSTGRES_PASSWORD:?Set deploy/local.env}@postgres:5432/capstone
   CAPSTONE_OPERATOR_TOKEN: ${CAPSTONE_OPERATOR_TOKEN:?Set deploy/local.env}
   CAPSTONE_PUBLIC_DEMO: ${CAPSTONE_PUBLIC_DEMO:-true}
@@ -16,8 +17,8 @@ x-host-environment: &host-environment
   CAPSTONE_ENABLE_NETWORK_STEP_LINK: ${CAPSTONE_ENABLE_NETWORK_STEP_LINK:-false}
   DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
   CAPSTONE_SESSION_IDLE_SECONDS: ${CAPSTONE_SESSION_IDLE_SECONDS:-60}
-  CAPSTONE_THREAD_CONTEXT_LIMIT: ${CAPSTONE_THREAD_CONTEXT_LIMIT:-4}
-  CAPSTONE_THREAD_CONTEXT_IDLE_SECONDS: ${CAPSTONE_THREAD_CONTEXT_IDLE_SECONDS:-60}
+  # Model context retention comes from configs/runtime/host-runtime-v1.json.
+  # The launcher rejects conflicting environment values.
   CAPSTONE_THREAD_ATTEMPT_TIMEOUT_SECONDS: ${CAPSTONE_THREAD_ATTEMPT_TIMEOUT_SECONDS:-600}
   CAPSTONE_RECOGNITION_PROVIDER: ${CAPSTONE_RECOGNITION_PROVIDER:-}
   CAPSTONE_RECOGNITION_MODEL: ${CAPSTONE_RECOGNITION_MODEL:-}
@@ -96,6 +97,8 @@ services:
 
   api:
     <<: *host-service
+    volumes:
+      - api-runs:/app/runs
     command: [api]
     depends_on:
       postgres:
@@ -116,6 +119,8 @@ services:
 
   worker:
     <<: *host-service
+    volumes:
+      - worker-runs:/app/runs
     environment:
       <<: *host-environment
       CAPSTONE_HOSTED_APPLICATION: pandapower
@@ -130,6 +135,8 @@ services:
 
   worker-pypsa:
     <<: *host-service
+    volumes:
+      - worker-pypsa-runs:/app/runs
     environment:
       <<: *host-environment
       CAPSTONE_HOSTED_APPLICATION: pypsa
@@ -192,3 +199,6 @@ volumes:
   general-pi-receipts:
   general-pi-profiles:
   general-pi-resources:
+  api-runs:
+  worker-runs:
+  worker-pypsa-runs:

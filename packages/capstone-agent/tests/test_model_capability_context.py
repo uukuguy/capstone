@@ -284,6 +284,44 @@ def test_prepares_exact_snapshot_and_reuses_run_context_across_attempts():
     assert len(log) == 2
 
 
+def test_open_model_preparation_is_reused_by_first_attempt_without_an_attempt_claim():
+    owner, adapters = _owner([])
+    claim = _claim()
+    context = owner.prepare_model(claim.thread_id, claim.run_id, claim.model_context)
+    assert owner.acquire(claim) is context
+    assert len(adapters['static'].inputs) == 1
+    owner.release(context)
+    owner.close()
+
+
+def test_first_attempt_joins_in_flight_open_model_preparation():
+    entered, release, acquiring = Event(), Event(), Event()
+    class SlowAdapter(_Adapter):
+        def prepare(self, handle, *, model_context):
+            entered.set()
+            assert release.wait(5)
+            return super().prepare(handle, model_context=model_context)
+    owner, adapters = _owner([], first=SlowAdapter([]))
+    claim = _claim()
+    def first_attempt():
+        acquiring.set()
+        return owner.acquire(claim)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        warming = pool.submit(owner.prepare_model, claim.thread_id, claim.run_id, claim.model_context)
+        assert entered.wait(1)
+        attempt = pool.submit(first_attempt)
+        try:
+            assert acquiring.wait(1)
+            assert not attempt.done()
+        finally:
+            release.set()
+        context = warming.result(timeout=2)
+        assert attempt.result(timeout=2) is context
+    assert len(adapters['static'].inputs) == 1
+    owner.release(context)
+    owner.close()
+
+
 def test_idle_contexts_expire_and_can_be_prepared_again():
     clock = [0.0]
     owner, _ = _owner([], idle_seconds=10, clock=lambda: clock[0])
@@ -302,6 +340,32 @@ def test_idle_contexts_expire_and_can_be_prepared_again():
     owner.close()
 
 
+def test_default_context_retention_preserves_resources_with_an_explicit_timeout_override(monkeypatch):
+    monkeypatch.delenv('CAPSTONE_THREAD_CONTEXT_IDLE_SECONDS', raising=False)
+    monkeypatch.setenv('CAPSTONE_SESSION_IDLE_SECONDS', '600')
+    clock = [0.0]
+    owner, adapters = _owner([], clock=lambda: clock[0])
+    claim = _claim()
+    prepared = owner.acquire(claim)
+    owner.release(prepared)
+    clock[0] = 120
+    reused = owner.acquire(claim)
+    assert reused is prepared
+    assert len(adapters['static'].inputs) == 1
+    owner.release(reused)
+    owner.close()
+
+    monkeypatch.setenv('CAPSTONE_THREAD_CONTEXT_IDLE_SECONDS', '7')
+    owner, _ = _owner([], clock=lambda: clock[0])
+    prepared = owner.acquire(claim)
+    owner.release(prepared)
+    clock[0] += 8
+    replacement = owner.acquire(claim)
+    assert replacement is not prepared and prepared.closed
+    owner.release(replacement)
+    owner.close()
+
+
 def test_context_capacity_evicts_idle_lru_and_never_active_work():
     owner, _ = _owner([], max_contexts=2)
     active = owner.acquire(_claim())
@@ -313,6 +377,39 @@ def test_context_capacity_evicts_idle_lru_and_never_active_work():
     assert owner.resource_counts() == {'retained': 2, 'active': 2}
     owner.release(active)
     owner.release(third)
+    owner.close()
+
+
+def test_memory_pressure_reclaims_idle_threads_without_expiring_healthy_contexts(monkeypatch):
+    monkeypatch.delenv('CAPSTONE_THREAD_CONTEXT_LIMIT', raising=False)
+    monkeypatch.delenv('CAPSTONE_THREAD_CONTEXT_IDLE_SECONDS', raising=False)
+    clock = [0.0]
+    pressure = [False]
+    owner, _ = _owner([], clock=lambda: clock[0], memory_pressure=lambda: pressure[0])
+    contexts = [owner.prepare(_claim(thread_id=f'thr_{i}', run_id=f'run_{i}')) for i in range(6)]
+    active = owner.acquire(_claim(thread_id='thr_active', run_id='run_active'))
+    clock[0] = 86401
+    assert owner.sweep_idle() == 0
+    assert all(not context.closed for context in contexts)
+    pressure[0] = True
+    assert owner.sweep_idle() == 6
+    assert all(context.closed for context in contexts)
+    assert not active.closed
+    owner.release(active)
+    owner.close()
+
+
+def test_reuse_under_pressure_protects_requested_context_before_reclaiming_others():
+    pressure = [False]
+    owner, adapters = _owner([], memory_pressure=lambda: pressure[0])
+    requested = owner.prepare(_claim())
+    other = owner.prepare(_claim(thread_id='thr_other', run_id='run_other'))
+    pressure[0] = True
+    reused = owner.acquire(_claim())
+    assert reused is requested and not requested.closed
+    assert other.closed
+    assert len(adapters['static'].inputs) == 2
+    owner.release(reused)
     owner.close()
 
 

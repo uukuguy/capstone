@@ -1,11 +1,19 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { canReconnect, readDraft, readPendingCommands, reconnectDelay, rotateStorageNamespace, storageNamespace, writeDraft, writePendingCommands } from './threadSessionState'
+import { canReconnect, readDraft, readFollowup, writeFollowup, readPendingCommands, reconnectDelay, rotateStorageNamespace, storageNamespace, writeDraft, writePendingCommands } from './threadSessionState'
 import { ThreadTransportError } from './threadHttpTransport'
 import { buildThreadCommand } from './threadClient'
 
 afterEach(() => { sessionStorage.clear(); vi.restoreAllMocks() })
 
 describe('Thread browser-session recovery', () => {
+  it('restores followup selection only for its own Thread and clears it explicitly', () => {
+    const target = { threadId: 'thr_one', attemptId: 'attempt_one', modelId: 'model', label: '原任务' }
+    writeFollowup('session', target)
+    expect(readFollowup('session', 'thr_one')).toEqual(target)
+    expect(readFollowup('session', 'thr_other')).toBeUndefined()
+    writeFollowup('session')
+    expect(readFollowup('session', 'thr_one')).toBeUndefined()
+  })
   const command = buildThreadCommand({ threadId: 'thr_one', runId: 'run_one', kind: 'send_auto',
     commandId: 'cmd_one', idempotencyKey: 'idem_one', expectedEventSeq: 17, payload: { text: 'original instruction' } })
 

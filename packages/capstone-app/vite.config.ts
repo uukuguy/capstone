@@ -34,9 +34,19 @@ function buildEnvironment(env: Record<string, string>, revision: string, develop
   if (existsSync('build-environment.json')) {
     const receipt = JSON.parse(readFileSync('build-environment.json', 'utf8'))
     if (!receipt || typeof receipt !== 'object' || Object.keys(receipt).sort().join(',') !== 'api_origin,environment,schema,source_revision' ||
-        receipt.schema !== 'capstone-app-environment/1' || !['cloud-dev', 'cloud-demo'].includes(receipt.environment) ||
+        receipt.schema !== 'capstone-app-environment/1' ||
         !/^[a-f0-9]{40}$/.test(receipt.source_revision) || receipt.source_revision !== revision ||
-        publicOrigin(receipt.api_origin) !== publicOrigin(env.VITE_API_ORIGIN) || development) {
+        development) {
+      throw new Error('App environment receipt does not match its selected deployment')
+    }
+    if (receipt.environment === 'local-dev') {
+      if (receipt.api_origin !== '' || (env.VITE_API_ORIGIN || '') !== '') {
+        throw new Error('Local trial App requires a same-origin API')
+      }
+      return 'local-dev'
+    }
+    if (!['cloud-dev', 'cloud-demo'].includes(receipt.environment) ||
+        publicOrigin(receipt.api_origin) !== publicOrigin(env.VITE_API_ORIGIN)) {
       throw new Error('App environment receipt does not match its selected deployment')
     }
     return receipt.environment

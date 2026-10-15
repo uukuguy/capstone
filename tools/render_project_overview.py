@@ -15,6 +15,23 @@ ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ROOT / "tools/project_overview"
 
 
+def relative_node_links(text: str) -> list[dict[str, str]]:
+    links = []
+    for label, href in re.findall(r"\[([^\]]+)\]\(([^)]+)\)", text):
+        if not href.startswith(("../", "./")) or not re.fullmatch(r"[A-Za-z0-9._/-]+", href):
+            continue
+        target = (ROOT / "docs/status" / href).resolve()
+        if not target.is_relative_to(ROOT):
+            continue
+        parts = target.relative_to(ROOT).parts
+        if (not parts or parts[0] not in {"docs", "runs"}
+                or any(part.startswith(".") for part in parts)
+                or not href.endswith((".md", ".tar.gz", ".sha256"))):
+            continue
+        links.append(dict(label=label, href=href))
+    return links
+
+
 def git(*args: str) -> str:
     return subprocess.check_output(["git", "-C", str(ROOT), *args], text=True,
                                    stderr=subprocess.DEVNULL, timeout=10).strip()
@@ -35,6 +52,41 @@ def plain(value: str) -> str:
     return value.replace("`", "")
 
 
+def bind_user_local_trials(document: str, nodes: list[dict]) -> None:
+    """Bind optional self-install records to exact registered Git sources."""
+    heading = "用户自安装试用版本"
+    for node in nodes:
+        node["trial"] = None
+    if not re.search(r"^## " + re.escape(heading) + r"\s*$", document, re.M):
+        return
+    section = re.split(r"^## " + re.escape(heading) + r"\s*$", document, maxsplit=1,
+                       flags=re.M)[1].split("\n## ", 1)[0]
+    header = next((line for line in section.splitlines() if line.startswith("|")), "")
+    if [cell.strip() for cell in header.strip().strip("|").split("|")] != [
+        "ID", "精确Git提交", "版本", "发布地址", "安装命令", "验收状态"
+    ]:
+        raise ValueError("Invalid user-local trial table columns")
+    by_id = {node["id"]: node for node in nodes}
+    seen = set()
+    for row in table(document, heading):
+        if len(row) != 6:
+            raise ValueError("Invalid user-local trial row")
+        identity, sha, version, release_url, command, status = map(plain, row)
+        if identity not in by_id or identity in seen:
+            raise ValueError("Unknown or duplicate user-local Git node: " + identity)
+        seen.add(identity)
+        if not re.fullmatch(r"[a-f0-9]{40}", sha) or sha != by_id[identity]["sha"]:
+            raise ValueError("User-local source does not match Git node: " + identity)
+        match = re.fullmatch(r"user-local-([a-f0-9]{7,40})", version)
+        if match is None or not sha.startswith(match[1]):
+            raise ValueError("User-local version does not match source: " + identity)
+        if release_url != "https://github.com/uukuguy/capstone/releases/tag/" + version:
+            raise ValueError("Unsafe or mismatched user-local release URL: " + identity)
+        by_id[identity]["trial"] = dict(sha=sha, version=version, release_url=release_url,
+                                       command=command, status=status,
+                                       installable=status == "已验证可安装")
+
+
 def snapshot(probe_local: bool, probe_cloud: bool = False) -> dict:
     register = (ROOT / "docs/status/VERSION-CONTROL.md").read_text()
     packages = []
@@ -45,7 +97,7 @@ def snapshot(probe_local: bool, probe_cloud: bool = False) -> dict:
         source = None
         if branch not in {"—", "线上部署"}:
             try:
-                source = git("rev-parse", "refs/heads/" + branch)
+                source = git("rev-parse", branch + "^{commit}")
             except subprocess.CalledProcessError:
                 pass
         packages.append(dict(id=identity, name=name, phase=int(phase), status=status,
@@ -55,11 +107,13 @@ def snapshot(probe_local: bool, probe_cloud: bool = False) -> dict:
     for row in table(register, "环境台账"):
         if len(row) != 4:
             raise ValueError("Invalid environment row")
+        role_revisions = re.findall(r"`([a-f0-9]{7,40})`", row[1])
+        coherent = len({git("rev-parse", value + "^{commit}") for value in role_revisions}) <= 1
         name, source_text, state, detail = map(plain, row)
         revision = re.search(r"\b[a-f0-9]{7,40}\b", source_text)
         stage = dict(name=name, revision=revision.group() if revision else "未记录",
                      source=source_text, state=state, detail=detail,
-                     observed=False, origin=None)
+                     observed=False, origin=None, coherent=coherent, app_revision=None)
         public_url = re.search(r"https://[a-z0-9.-]+/", detail)
         if public_url:
             stage["origin"] = public_url.group()
@@ -76,7 +130,10 @@ def snapshot(probe_local: bool, probe_cloud: bool = False) -> dict:
                         script = response.read(4000000).decode()
                     revisions.update(re.findall(r"revision\s*:\s*[\"'\x60]([a-f0-9]{40})[\"'\x60]", script))
                 if len(revisions) == 1:
-                    stage.update(revision=revisions.pop(), observed=True)
+                    app_revision = revisions.pop()
+                    stage.update(app_revision=app_revision, observed=True)
+                    if coherent:
+                        stage["revision"] = app_revision
             except (OSError, ValueError):
                 pass
         if name in {"local-dev", "local-demo"}:
@@ -87,8 +144,10 @@ def snapshot(probe_local: bool, probe_cloud: bool = False) -> dict:
                         build = json.loads(response.read(8192))
                     if (re.fullmatch(r"[a-f0-9]{40}", build.get("revision", ""))
                             and build.get("environment") == name):
-                        stage.update(revision=build["revision"], version=build.get("version"),
+                        stage.update(app_revision=build["revision"], version=build.get("version"),
                                      observed=True, dirty=build.get("dirty"))
+                        if coherent:
+                            stage["revision"] = build["revision"]
                 except (OSError, ValueError):
                     pass  # A stopped local service leaves a clearly labelled recorded version.
         environments.append(stage)
@@ -103,13 +162,32 @@ def snapshot(probe_local: bool, probe_cloud: bool = False) -> dict:
             raise ValueError("Invalid key commit row")
         identity, revision, lane, title, status, changes, package = map(plain, row)
         sha = git("rev-parse", revision + "^{commit}")
+        links = relative_node_links(row[5])
         nodes.append(dict(id=identity, sha=sha, lane="main" if lane == "release" else lane,
                           release_point=lane == "release", title=title,
-                          status=status, changes=changes, package=package,
+                          status=status, changes=changes, package=package, links=links,
                           tags=git("tag", "--points-at", sha).splitlines()))
+    bind_user_local_trials(register, nodes)
     for stage in environments:
         if not any(node["sha"].startswith(stage["revision"]) for node in nodes):
             raise ValueError("Deployment source missing from key commits: " + stage["name"])
+    presentations = {}
+    for row in table(register, "Git节点展示规范"):
+        if len(row) != 5:
+            raise ValueError("Invalid Git node presentation row")
+        identity, role, branch, summary, status = map(plain, row)
+        if identity in presentations or identity not in {node["id"] for node in nodes}:
+            raise ValueError("Unknown or duplicate Git node presentation: " + identity)
+        changes = summary.split("；")
+        if len(changes) != 2 or not all(changes):
+            raise ValueError("Expected two Git node change summaries: " + identity)
+        presentations[identity] = dict(role=role, branch=branch, changes=changes, status=status)
+    for node in nodes:
+        node["presentation"] = presentations.get(node["id"])
+    for stage in environments:
+        source = next(node for node in nodes if node["sha"].startswith(stage["revision"]))
+        if source["presentation"] is None:
+            raise ValueError("Deployment source presentation missing: " + stage["name"])
     environment_pairs = []
     for local, cloud, purpose in [
         ("local-dev", "cloud-dev", "开发测试 / 集成 / 开发版发布验证"),
@@ -117,16 +195,21 @@ def snapshot(probe_local: bool, probe_cloud: bool = False) -> dict:
     ]:
         local_stage = next(s for s in environments if s["name"] == local)
         cloud_stage = next(s for s in environments if s["name"] == cloud)
-        aligned = (local_stage["revision"].startswith(cloud_stage["revision"])
-                   or cloud_stage["revision"].startswith(local_stage["revision"]))
+        coherent = local_stage["coherent"] and cloud_stage["coherent"]
+        aligned = coherent and (local_stage["revision"].startswith(cloud_stage["revision"])
+                                or cloud_stage["revision"].startswith(local_stage["revision"]))
         environment_pairs.append(dict(local=local, cloud=cloud, purpose=purpose,
                                       aligned=aligned,
-                                      state="来源一致" if aligned else
-                                      "开发候选领先云端" if local == "local-dev" else
-                                      "偏离线上基线，待恢复"))
+                                      state="角色升级中，来源未对齐" if not coherent else "来源一致" if aligned else
+                                      "来源不同，按发布计划对齐"))
     def ancestor(a, b):
         return subprocess.run(["git", "-C", str(ROOT), "merge-base", "--is-ancestor",
                                a, b], check=False).returncode == 0
+    dev = git("rev-parse", "refs/remotes/origin/dev")
+    for node in nodes:
+        if (node["lane"] == "feature" and node["package"] == "autonomous"
+                and ancestor(node["sha"], dev)):
+            node["lane"] = "main"
     relations = {(a["id"], b["id"]) for a in nodes for b in nodes
                  if a["sha"] != b["sha"] and ancestor(a["sha"], b["sha"])}
     edges = sorted((a, b) for a, b in relations
@@ -174,6 +257,8 @@ def snapshot(probe_local: bool, probe_cloud: bool = False) -> dict:
                 main=main, packages=packages, environments=environments,
                 nodes=nodes, edges=edges, proposals=proposals, uncommitted=work,
                 package_details=package_details,
+                discussion=[dict(zip(("id", "kind", "status", "title", "description"), map(plain, row)))
+                            for row in table(register, "自主智能体演进讨论")],
                 environment_pairs=environment_pairs,
                 branches=branches,
                 prs=prs,

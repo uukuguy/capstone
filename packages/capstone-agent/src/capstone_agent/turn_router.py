@@ -280,6 +280,27 @@ class DefaultTurnRouter:
         )
 
 
+class ResearchTurnRouter(DefaultTurnRouter):
+    """Select the authorized agent loop without interpreting an auto request.
+
+    ``professional`` remains the existing transport's tool-enabled lane, not
+    a semantic classification. The agent chooses whether any tool is needed.
+    Explicit ordinary commands keep their tool-free authorization boundary.
+    """
+
+    def plan(self, routing_input: RoutingInput | AttemptClaim) -> TurnPlan:
+        if isinstance(routing_input, AttemptClaim):
+            routing_input = routing_input_for_claim(routing_input)
+        if routing_input.command_kind != "send_auto":
+            return super().plan(routing_input)
+        return TurnPlan(
+            turn_id=routing_input.turn_id, attempt_id=routing_input.attempt_id,
+            route="professional", source="agent_loop", plan_revision="agent-loop-v1",
+            capability_hint=None, context_snapshot=routing_input.context_snapshot,
+            router_config=RouterConfig(mode="off"),
+        )
+
+
 class FakeDecisionRouter:
     """Deterministic fixture router used by tests and local demonstrations."""
 

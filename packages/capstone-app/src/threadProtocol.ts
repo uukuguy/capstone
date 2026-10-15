@@ -43,7 +43,8 @@ export type ResultMetric = { metricId: string; label: string; value: string | nu
 export type ResultElementRef = { elementKind: string; elementId: string }
 export type ResultColumn = { columnId: string; label: string; unit?: string }
 export type ResultRow = { rowId: string; cells: Record<string, string | number | boolean | null>; elementRef?: ResultElementRef }
-export type ResultTable = { tableId: string; title: string; columns: ResultColumn[]; rows: ResultRow[] }
+export type ResultTablePagination = { manifestRef: string; totalRows: number; pageSize: number }
+export type ResultTable = { tableId: string; title: string; columns: ResultColumn[]; rows: ResultRow[]; pagination?: ResultTablePagination }
 export type ResultOverlay = { metric: string; unit: string; sourceRef: string; values: Array<{ elementId: string; value: number }> }
 export type ResultProjection = {
   resultId: string; resultRef?: string; evidenceRefs: string[]
@@ -143,6 +144,7 @@ const maxResultProjections = 64
 const maxResultColumns = 32
 const maxResultRows = 128
 const maxResultElements = 128
+const maxAttemptReferences = 1024
 const maxResultOverlayValues = 256
 const maxResultText = 256
 
@@ -267,7 +269,7 @@ function parseResultProjection(value: unknown): ResultProjection {
   const source = object(document.source, 'result projection.source')
   fields(source, new Set(['capability_id', 'domain_pack_id', 'implementation_family']), 'result projection.source')
   required(source, ['capability_id', 'domain_pack_id', 'implementation_family'], 'result projection.source')
-  if (!Array.isArray(document.evidence_refs) || document.evidence_refs.length > maxResultElements) throw new ThreadProtocolError('result projection.evidence_refs is invalid')
+  if (!Array.isArray(document.evidence_refs) || document.evidence_refs.length > maxAttemptReferences) throw new ThreadProtocolError('result projection.evidence_refs is invalid')
   const evidenceRefs = document.evidence_refs.map((item, index) => resultRef(item, `result projection.evidence_refs[${index}]`, 'evidence'))
   const resultReference = document.result_ref == null ? undefined : resultRef(document.result_ref, 'result projection.result_ref', 'result')
   if ((status === 'completed' || status === 'partial') && (!resultReference || evidenceRefs.length === 0)) throw new ThreadProtocolError('available result projection requires result and evidence references')
@@ -284,7 +286,7 @@ function parseResultProjection(value: unknown): ResultProjection {
   if (!Array.isArray(document.tables) || document.tables.length > maxResultTables) throw new ThreadProtocolError('result projection.tables is invalid')
   const tables = document.tables.map((entry, tableIndex) => {
     const item = object(entry, `result projection.tables[${tableIndex}]`)
-    fields(item, new Set(['table_id', 'title', 'columns', 'rows']), `result projection.tables[${tableIndex}]`)
+    fields(item, new Set(['table_id', 'title', 'columns', 'rows', 'pagination']), `result projection.tables[${tableIndex}]`)
     required(item, ['table_id', 'title', 'columns', 'rows'], `result projection.tables[${tableIndex}]`)
     if (!Array.isArray(item.columns) || !item.columns.length || item.columns.length > maxResultColumns || !Array.isArray(item.rows) || item.rows.length > maxResultRows) throw new ThreadProtocolError('result projection table arrays are invalid')
     const columns = item.columns.map((entry, columnIndex) => {
@@ -305,7 +307,19 @@ function parseResultProjection(value: unknown): ResultProjection {
       return { rowId: resultElementIdentifier(row.row_id, 'result row.row_id'), cells: normalizedCells, ...(row.element_ref == null ? {} : { elementRef: parseResultElementRef(row.element_ref, 'result row.element_ref') }) }
     })
     if (new Set(rows.map((row) => row.rowId)).size !== rows.length) throw new ThreadProtocolError('result projection table rows contain duplicates')
-    return { tableId: resultIdentifier(item.table_id, 'result table.table_id'), title: resultText(item.title, 'result table.title'), columns, rows }
+    let pagination: ResultTablePagination | undefined
+    if (item.pagination !== undefined) {
+      const value = object(item.pagination, 'result table.pagination')
+      fields(value, new Set(['manifest_ref', 'total_rows', 'page_size']), 'result table.pagination')
+      required(value, ['manifest_ref', 'total_rows', 'page_size'], 'result table.pagination')
+      if (typeof value.manifest_ref !== 'string' || !/^table-manifest:sha256:[a-f0-9]{64}$/.test(value.manifest_ref)
+          || typeof value.total_rows !== 'number' || !Number.isSafeInteger(value.total_rows) || value.total_rows < rows.length
+          || typeof value.page_size !== 'number' || !Number.isSafeInteger(value.page_size) || value.page_size < 1 || value.page_size > maxResultRows) {
+        throw new ThreadProtocolError('result table.pagination is invalid')
+      }
+      pagination = { manifestRef: value.manifest_ref, totalRows: value.total_rows, pageSize: value.page_size }
+    }
+    return { tableId: resultIdentifier(item.table_id, 'result table.table_id'), title: resultText(item.title, 'result table.title'), columns, rows, ...(pagination ? { pagination } : {}) }
   })
   if (new Set(tables.map((table) => table.tableId)).size !== tables.length) throw new ThreadProtocolError('result projection tables contain duplicates')
   if (!Array.isArray(document.element_refs) || document.element_refs.length > maxResultElements) throw new ThreadProtocolError('result projection.element_refs is invalid')
@@ -601,6 +615,7 @@ function resultProjectionDocument(projection: ResultProjection): Record<string, 
       table_id: table.tableId, title: table.title,
       columns: table.columns.map((column) => ({ column_id: column.columnId, label: column.label, ...(column.unit ? { unit: column.unit } : {}) })),
       rows: table.rows.map((row) => ({ row_id: row.rowId, cells: row.cells, ...(row.elementRef ? { element_ref: { element_kind: row.elementRef.elementKind, element_id: row.elementRef.elementId } } : {}) })),
+      ...(table.pagination ? { pagination: { manifest_ref: table.pagination.manifestRef, total_rows: table.pagination.totalRows, page_size: table.pagination.pageSize } } : {}),
     })),
     element_refs: projection.elementRefs.map((entry) => ({ element_kind: entry.elementKind, element_id: entry.elementId })),
     overlay: projection.overlay ? { metric: projection.overlay.metric, unit: projection.overlay.unit, source_ref: projection.overlay.sourceRef, values: projection.overlay.values.map((entry) => ({ element_id: entry.elementId, value: entry.value })) } : null,

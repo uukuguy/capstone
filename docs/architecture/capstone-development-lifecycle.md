@@ -6,6 +6,27 @@ and deployment revisions are operational details owned by the [Railway
 runbook](../../deploy/railway/README.md); this document defines the boundaries
 that those details must preserve.
 
+## User data compatibility
+
+User data compatibility is a development and release requirement. Versions of
+one user-local installation share its PostgreSQL ledger and artifact storage.
+Preserve existing conversations, models, reports, evidence, private configuration,
+and volume identities when registering an existing installation with the manager.
+
+Changes to persistent formats require an explicit format version, supported
+upgrade paths, and tested migration and recovery procedures. Release verification
+must use data written by supported older versions and check reads, reports and
+evidence replay after upgrade. Container health alone does not prove compatibility.
+Declare and test rollback support separately; an upgrade result does not prove
+that an older version can read the resulting data.
+
+Before stopping the active service, the version manager checks the target
+release's compatibility declaration against the installation's data format.
+Missing or unsupported compatibility blocks switching and preserves the current
+service and data. Do not bypass this gate by creating empty replacement volumes,
+deleting data, or asking the user to repair the database. Implementation and
+verification receipts must support a release's compatibility claims.
+
 ## Three execution lanes
 
 ### Development integration and release branches
@@ -99,11 +120,16 @@ model in memory. New Threads allocate execution resources only when work is
 claimed. Each Attempt starts its runtime on demand and stops it on success,
 failure or cancellation. RPC work has a finite deadline.
 
-Model preparation is a bounded process cache. An Attempt pins its resources
-during execution. Idle resources expire; capacity pressure evicts the least
-recently used idle context. Active work must never be evicted. The worker also
-sweeps when no new command arrives and closes its cache on shutdown. A later
-Attempt prepares the registered model again after cache eviction.
+Model preparation is a process cache shared across Threads. An Attempt pins its
+resources during execution. Idle resources remain available while memory has
+headroom; container and host memory pressure reclaim the least recently used
+idle contexts first. Active work must never be evicted. The count ceiling is a
+separate defensive bound, not a limit on opened models or a normal eviction
+target. An explicit idle timeout remains available, but the shared runtime
+contract disables it. The worker also checks pressure while idle and closes its
+cache on shutdown. Durable Thread history and model workspaces survive resource
+eviction. Currently, a subsequent Attempt still prepares the registered model
+again; prepare-on-open and verified fast restoration are pending lifecycle work.
 
 The API limits concurrent Thread event subscriptions, including a limit for
 each Thread. Disconnects and cancellation release subscription capacity. Worker

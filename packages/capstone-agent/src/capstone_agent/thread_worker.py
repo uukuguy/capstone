@@ -19,6 +19,7 @@ from .harness import HarnessAttemptResult, HarnessAttemptRunner, HarnessRuntime,
 from .thread_service import AttemptClaim, ThreadExecutionService
 from .turn_router import DecisionUnavailable, DefaultTurnRouter, TurnPlan, TurnRouter, routing_input_for_claim
 from .request_intent import NodeControl
+from .task_record_reader import SelectedTaskRecordReader
 
 if TYPE_CHECKING:
     from .case_service import CaseExecutionService
@@ -92,8 +93,8 @@ def _run_claimed_attempt(
             payload = {'error_code': error_code}
             if error_code == 'intent_recognition_failed':
                 payload['message'] = '本次请求暂时未能处理，请重试。会话和模型选择已保留。'
-            service.finish_attempt(claim, phase="failed", payload=payload)
-            return HarnessAttemptResult("failed", None, error_code)
+            lease.check()
+            return _preparation_failure(service, claim, error_code)
         service.append_runtime_event(claim, event_type="turn_plan_created", payload=plan.to_payload())
         service.append_runtime_event(
             claim, event_type="turn_route_fallback" if plan.fallback else "turn_route_selected",
@@ -108,14 +109,42 @@ def _run_claimed_attempt(
                 "message": "未启用适用于当前模型的计算分析工具。请在设置中启用后重新发送计算指令；仍可继续普通对话。",
             })
             return HarnessAttemptResult("failed", None, error_code)
+    runtime = None
     try:
         lease.check()
+        previous = claim.previous_instruction
+        if previous is not None and previous.model_context is not None:
+            claim = replace(claim, selected_task_reader=SelectedTaskRecordReader(
+                service, claim.thread_id, previous.attempt_id,
+            ))
         runtime = runtime_factory(claim)
+        bind_guard = getattr(runtime, "bind_attempt_guard", None)
+        if callable(bind_guard):
+            def active() -> bool:
+                lease.check()
+                return not service.cancel_requested(claim)
+            def terminal_phase(attempt_id: str) -> str | None:
+                cursor = 0
+                while True:
+                    lease.check()
+                    page = service.read_attempt_records(claim.thread_id, attempt_id, after=cursor, limit=128)
+                    for event in page["events"]:
+                        if event["event_type"] in {"attempt_completed", "attempt_failed", "attempt_cancelled", "attempt_interrupted"}:
+                            return event["event_type"].removeprefix("attempt_")
+                    if not page["has_more"]:
+                        return None
+                    if page["next_after"] <= cursor:
+                        raise RuntimeError("attempt record cursor did not advance")
+                    cursor = page["next_after"]
+            bind_guard(active, terminal_phase)
     except HarnessRuntimeConfigurationError:
+        _close_prepared_runtime(runtime)
         error_code = "runtime_configuration_invalid"
-        service.finish_attempt(claim, phase="failed", payload={"error_code": error_code})
-        return HarnessAttemptResult("failed", None, error_code)
+        lease.check()
+        return _preparation_failure(service, claim, error_code)
     except Exception:
+        _close_prepared_runtime(runtime)
+        lease.check()
         error_code = "runtime_unavailable"
         if getattr(runtime_factory, "rollback_selection_on_failure", False):
             error_code = "capability_context_preparation_failed"
@@ -131,13 +160,30 @@ def _run_claimed_attempt(
                     )
             except Exception:
                 pass
-        service.finish_attempt(
-            claim, phase="failed", payload={"error_code": error_code},
-        )
-        return HarnessAttemptResult("failed", None, error_code)
+        return _preparation_failure(service, claim, error_code)
     return HarnessAttemptRunner(
         service, runtime, lease_seconds=lease_seconds, turn_router=router, lease=lease,
     ).run(claim)
+
+
+def _close_prepared_runtime(runtime: HarnessRuntime | None) -> None:
+    if runtime is not None:
+        try:
+            runtime.stop()
+        except Exception:
+            _LOG.warning("Prepared runtime cleanup failed")
+
+
+def _preparation_failure(service: ThreadExecutionService, claim: AttemptClaim, code: str) -> HarnessAttemptResult:
+    from .execution_stages import ExecutionStages, preparation_seconds
+    stages = ExecutionStages(preparation_seconds=preparation_seconds(claim.started_at))
+    answer = "本次任务未能开始执行。运行准备未完成，因此没有生成新的计算结论。此前已完成的回答和记录仍保留。"
+    service.finish_attempt(claim, phase="failed", payload={
+        "answer": answer, "error_code": code, "result_refs": [], "evidence_refs": [],
+        "outcome": {"status": "blocked", "stage": "preparation", "recovery": "unavailable"},
+        "task_steps": stages.finish(),
+    })
+    return HarnessAttemptResult("failed", answer, code)
 
 
 def serve_thread_attempts(

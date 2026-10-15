@@ -3,6 +3,7 @@ import type { ThreadCommand, ThreadTransport, ThreadTransportState } from './thr
 import { MAX_THREAD_JSON_BYTES } from './networkLimits'
 import { parseThreadDescriptor, parseThreadListPage } from './threadManagement'
 import { fetchWithReadRetry } from './httpRetry'
+import { parseAttemptRecords } from './attemptRecords'
 
 const MAX_JSON_BYTES = MAX_THREAD_JSON_BYTES
 
@@ -80,6 +81,13 @@ export class HttpThreadTransport implements ThreadTransport {
     const query = new URLSearchParams({ limit: '128' })
     if (beforeEventSeq !== undefined) query.set('before', String(beforeEventSeq))
     return this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/history?${query}`, { signal })
+  }
+
+  async readAttemptRecords(threadId: string, attemptId: string, after = 0, signal?: AbortSignal) {
+    if (!Number.isSafeInteger(after) || after < 0) throw new Error('任务记录游标无效')
+    const query = new URLSearchParams({ after: String(after), limit: '32' })
+    const body = await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/attempts/${encodeURIComponent(attemptId)}/records?${query}`, { signal })
+    return parseAttemptRecords(body, threadId, attemptId, after)
   }
 
   readNetworkEvents(threadId: string, signal?: AbortSignal, contextId?: string, attemptId?: string): Promise<unknown> {

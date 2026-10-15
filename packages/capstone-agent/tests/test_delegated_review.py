@@ -240,7 +240,7 @@ def test_dependency_projection_reuse_is_deduplicated_only_when_identical(conflic
         goal('compare', 'business_read', refs=['grid@1'], depends=['baseline'], excerpt='翻译成英文')]), business))
     if conflicting:
         assert result.status == 'failed'
-        assert result.answer is None
+        assert result.answer and '尚不能给出完整结论' in result.answer
     else:
         assert result.status == 'completed'
         assert len(service.snapshot(current.thread_id).result_projections) == 1
@@ -287,7 +287,7 @@ def test_metadata_only_overflow_fails_without_discarding_authority_receipt():
     result = run(service, current, factory(Executor(), Recognizer([
         goal('calc', 'business_execute', refs=['grid@1'])]), lambda _: Runtime()))
     assert result.status == 'failed' and result.error_code == 'runtime_failed'
-    assert result.answer is None
+    assert result.answer and '已核验的计算结果和证据已保留' in result.answer
     events = service.read_events(current.thread_id, 0).events
     chunks = [event.payload for event in events if event.payload.get('business_answer_receipt')]
     document = json.loads(''.join(item['content'] for item in sorted(chunks, key=lambda item: item['chunk_index'])))

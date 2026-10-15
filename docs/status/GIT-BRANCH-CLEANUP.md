@@ -64,3 +64,13 @@ dev从main723b8e8建立，文档治理PR #11合入50d8ebc；main保持发布快�
 feat/research-model从接受的dev50d8ebc建立，隔离工作区为.worktrees/research-model。
 旧R0、Pi和未合入参考分支均保留，不批量重写历史或合并实验。
 收据位于runs/task-answer-closure/{dev-organization-merge,research-model-branch,baseline-b2-publication}.json。
+
+## 恢复基线收口 — 2026-10-12
+
+PR #14精确bc08169两平台通过并合入dev6ff7094；关闭fix/stable-route-recovery，
+候选保存在refs/archive/20261012/fix-stable-route-recovery。
+Pi38e19db与Research Model2b0b0a5已推送，实际合并基点均为6ff7094。
+原749e0b8、50d8ebc分别保存为已推送archive/pi-before-dev-baseline-20261012、
+archive/research-before-dev-baseline-20261012。旧未验收分支和R0记录保留；
+不删除工作区、认证状态或var数据。临时全局文档39ffe2b保存在
+archive/dev-recovery-control-staging-20261012，不作为产品来源。

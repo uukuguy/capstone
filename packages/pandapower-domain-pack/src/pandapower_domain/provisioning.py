@@ -8,8 +8,12 @@ the run-local executable search path used by the first domain.
 from __future__ import annotations
 
 import os
+import json
+import re
+from hashlib import sha256
 import shutil
 import stat
+from threading import Lock
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -29,6 +33,35 @@ from pandapower_domain.execution import (
 GRIDCTL_ENVIRONMENT_NAME = "GRID_AGENT_GRIDCTL_EXECUTABLE"
 GRIDCTL_NAME = "gridctl.exe" if os.name == "nt" else "gridctl"
 DEFAULT_TIMEOUT_SECONDS = 60.0
+
+# One immutable runtime catalog, shared across isolated binding workspaces.
+# Replacement bounds memory without limiting contexts or rejecting any request.
+_environment_lock = Lock()
+_environment_key: tuple[object, ...] | None = None
+_environment_document: str | None = None
+
+
+class _RuntimeCatalogExecutor(GridctlExecutor):
+    def __init__(self, *, runtime_identity: str, source_executable: Path, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self._catalog_key = None
+        if re.fullmatch(r'[0-9a-f]{64}', runtime_identity):
+            self._catalog_key = (runtime_identity, str(source_executable.resolve()),
+                sha256(source_executable.read_bytes()).hexdigest(),
+                tuple(sorted(self._environment.items())), self.max_output_bytes)
+
+    def invoke(self, capability: str, arguments: dict[str, object]) -> dict[str, object]:
+        if capability != 'environment.describe' or arguments or self._catalog_key is None:
+            return super().invoke(capability, arguments)
+        global _environment_key, _environment_document
+        with _environment_lock:
+            if _environment_key == self._catalog_key and _environment_document is not None:
+                self.last_diagnostics = ''
+                return json.loads(_environment_document)
+            result = super().invoke(capability, arguments)
+            document = json.dumps(result, allow_nan=False)
+            _environment_key, _environment_document = self._catalog_key, document
+            return result
 
 
 class PandapowerProvisioningError(RuntimeError):
@@ -121,7 +154,9 @@ class PandapowerRuntimeProvisioner:
             "max_output_bytes": self.max_output_bytes,
             "environment": dict(safe_environment),
         }
-        executor = GridctlExecutor(
+        executor = _RuntimeCatalogExecutor(
+            runtime_identity=self.environ.get('CAPSTONE_RUNTIME_ARTIFACT_SHA256', ''),
+            source_executable=executable,
             executable=target,
             workspace=binding_root,
             timeout_seconds=self.timeout_seconds,

@@ -15,16 +15,24 @@
   "input_schema": {
     "type": "object",
     "additionalProperties": false,
-    "required": ["context_ref", "branch_refs"],
+    "required": ["context_ref"],
+    "oneOf": [{"required": ["branch_refs"]}, {"required": ["branch_selections"]}],
     "properties": {
-      "context_ref": {"type": "string", "pattern": "^context:sha256:[0-9a-f]{64}$", "description": "Current-run context_ref returned by context.open."},
+      "context_ref": {"type": "string", "pattern": "^context:sha256:[0-9a-f]{64}$", "description": "Requested immutable context_ref from context.open or model.revision.derive. Keep the context for the scenario being tested."},
       "branch_refs": {
         "type": "array",
         "minItems": 1,
         "maxItems": 32,
         "uniqueItems": true,
-        "description": "Stable branch asset_refs returned by model.element.get or topology.branch.endpoints.get; one scenario is run for each ref.",
+        "description": "Revision-scoped branch asset_refs from the requested context. For derived scenarios, obtain refs in that same context or use branch_selections; do not change the target context to match old refs.",
         "items": {"type": "string", "pattern": "^asset:(line|trafo|trafo3w):sha256:[0-9a-f]{64}$"}
+      },
+      "branch_selections": {
+        "type": "array", "minItems": 1, "maxItems": 3,
+        "description": "Select branches by their pandapower table indices in the requested immutable context. Use this for comparisons across derived scenarios without copying revision-scoped refs. The combined selection must contain at most 32 distinct branches.",
+        "items": {"type": "object", "additionalProperties": false, "required": ["kind", "indices"],
+          "properties": {"kind": {"type": "string", "enum": ["line", "trafo", "trafo3w"]},
+            "indices": {"type": "array", "minItems": 1, "maxItems": 32, "uniqueItems": true, "items": {"type": "integer"}}}}
       },
       "analysis_method": {"type": "string", "enum": ["ac", "dc"]},
       "solver_profile": {"type": "string", "enum": ["ac-default-v1"]},
@@ -172,10 +180,11 @@
   "consumes": ["network.context", "network.branch", "model.constraint"],
   "produces": ["analysis.contingency.receipt", "analysis.raw_metric", "analysis.constraint_evaluation", "evidence.record"],
   "common_next": ["result.branches.rank", "evidence.get"],
-  "errors": ["unknown_context", "unknown_branch", "powerflow_non_converged", "powerflow_failed", "persist_failed"],
+  "errors": ["unknown_context", "unknown_branch", "invalid_branch_selection", "powerflow_non_converged", "powerflow_failed", "persist_failed"],
   "recovery": {
     "unknown_context": ["call context.open for a supported model"],
-    "unknown_branch": ["resolve branch identity with model.element.get or topology.branch.endpoints.get"],
+    "unknown_branch": ["Keep the requested target context. Use branch_selections or resolve branch identities in that same context with model.element.get."],
+    "invalid_branch_selection": ["Select distinct branch indices and split requests within the published batch limit."],
     "powerflow_non_converged": ["inspect_network_diagnostics", "change_solver_profile", "report_non_convergence"],
     "powerflow_failed": ["report failure instead of estimating numeric values"],
     "persist_failed": ["retry after checking run workspace permissions"]

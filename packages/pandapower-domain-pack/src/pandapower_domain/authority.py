@@ -507,8 +507,37 @@ class PandapowerArtifactAuthority:
     def verify_result(self, reference: str) -> VerifiedArtifact:
         return self._verifier.verify_result(reference)
 
+    def verify_linked_result(self, reference: str, parent_ref: str) -> VerifiedArtifact:
+        """Verify a scenario explicitly linked by the caller's admitted aggregate."""
+        parent = self.verify_result(parent_ref)
+        if reference not in _scenario_result_refs(parent.document):
+            raise SimulatorIntegrityError("scenario result is not linked by its admitted parent")
+        child = self.verify_result(reference)
+        self._verifier._verify_matching_context(reference, child.document, parent.document)
+        return child
+
     def verify_context(self, reference: str) -> VerifiedArtifact:
         return self._verifier.verify_context(reference)
+
+    def verify_context_descendant(self, reference: str, ancestor_ref: str) -> VerifiedArtifact:
+        """Verify each stored context and revision on a bounded ancestry path."""
+        ancestor = self.verify_context(ancestor_ref)
+        descendant = self.verify_context(reference)
+        current = descendant
+        visited: set[str] = set()
+        for _ in range(256):
+            if current.reference in visited:
+                raise SimulatorIntegrityError("context ancestry contains a cycle")
+            visited.add(current.reference)
+            if current.document.get("model_id") != ancestor.document.get("model_id"):
+                raise SimulatorIntegrityError("context ancestry crosses model identity")
+            if current.reference == ancestor_ref:
+                return descendant
+            parent = current.document.get("parent_context_ref")
+            if not isinstance(parent, str):
+                raise SimulatorIntegrityError("context is not derived from the bound ancestor")
+            current = self.verify_context(parent)
+        raise SimulatorIntegrityError("context ancestry exceeds verification limit")
 
     def verify_evidence(self, reference: str) -> VerifiedArtifact:
         return self._verifier.verify_evidence(reference)

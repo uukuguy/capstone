@@ -2,9 +2,21 @@
 
 from collections.abc import Mapping
 import json
+import re
 from pathlib import Path
 
 from capability_agent._safe_files import write_bound_text
+
+
+def resolve_bound_model_revision(
+    authority: object, reference: str, *, model_id: str, base_ref: str, base_revision: str,
+) -> str:
+    """Keep catalog identity for the base and verified content identity for descendants."""
+    if not isinstance(reference, str) or not re.fullmatch(r"pypsa-model:sha256:[a-f0-9]{64}", reference):
+        raise ValueError("PyPSA model reference is invalid")
+    if not verify_bound_model_reference(authority, reference, model_id=model_id, base_ref=base_ref):
+        raise ValueError("PyPSA model is outside the bound lineage")
+    return base_revision if reference == base_ref else reference.replace("pypsa-model:", "revision:", 1)
 
 
 def verify_bound_model_reference(authority: object, reference: str, *, model_id: str, base_ref: str) -> bool:
