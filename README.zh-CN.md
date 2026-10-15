@@ -168,7 +168,7 @@ curl -fsSL https://raw.githubusercontent.com/uukuguy/capstone/dev/deploy/dev-tri
 
 包内`.env`默认DeepSeek/deepseek-flash，并提供注释掉的OpenAI示例。切换时同时更改Provider和模型；OpenAI使用`OPENAI_API_KEY`。启动LLM环境变量优先于文件默认值。`sh ~/capstone/capstone.sh`启动本地最新可用版本；`versions`查看版本、`use <Git>`切换，`status`、`logs`、`stop`管理同一实例，停止保留数据。保留部署目录及私有`.capstone-trial/`状态。已验证来源、分发入口与平台状态见[试用运行说明](docs/RUNBOOK.md#source-free-local-dev-trial)和[版本台账](docs/status/VERSION-CONTROL.md)。
 
-内网可使用Linux AMD64离线包，内含部署文件、四类镜像和模型资源。默认`PROVIDER=openai`，通过`OPENAI_BASE_URL`、`OPENAI_MODEL`和`OPENAI_API_KEY`配置内网兼容服务。目标机器须先安装Docker及Compose v2。配置步骤和数据兼容限制见[离线安装](docs/RUNBOOK.md#offline-user-local-installation)，实际验收以版本台账为准。
+内网可使用Linux AMD64离线包，内含部署文件、四类镜像和模型资源。默认`PROVIDER=openai`，通过`OPENAI_BASE_URL`、`OPENAI_MODEL`和`OPENAI_API_KEY`配置内网兼容服务。本地试用自定义地址使用Pi的Chat Completions接口；官方OpenAI地址保留Responses接口。目标机器须先安装Docker及Compose v2。配置步骤和数据兼容限制见[离线安装](docs/RUNBOOK.md#offline-user-local-installation)，实际验收以版本台账为准。
 
 CLI 可用于自动化和定向检查。完成安装后，可执行不调用 Provider 的 pandapower 查询：
 

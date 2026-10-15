@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from dataclasses import replace
 from pathlib import Path
 from typing import Mapping
 
@@ -59,12 +60,18 @@ def resolve_harness_llm(repo_root: Path, environment: dict[str, str]) -> Resolve
         environment.get("CAPSTONE_PUBLIC_MODEL", "deepseek-flash"),
     )
     try:
-        return resolve_llm(
+        resolved = resolve_llm(
             catalog=ProviderCatalog.load(repo_root / "configs/llm-providers.json"),
             cli=CliLLMOptions(),
             environ=environment,
             env_file=repo_root / ".env",
         )
+        if (environment.get("CAPSTONE_RUNTIME_PROFILE") == "capstone-dev-trial-v1"
+                and resolved.config.provider == "openai"
+                and resolved.config.base_url.rstrip("/") != "https://api.openai.com/v1"):
+            resolved = replace(resolved, config=replace(
+                resolved.config, compatibility_profile="openai-completions"))
+        return resolved
     except ConfigurationError:
         raise HarnessRuntimeConfigurationError("Thread runtime configuration is invalid") from None
 

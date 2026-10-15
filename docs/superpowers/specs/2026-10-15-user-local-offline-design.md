@@ -5,8 +5,14 @@
 The user selected an offline package for `linux/amd64`. The internal LLM uses
 the tested OpenAI-compatible Provider, including models such as deepseek-flash.
 Default `PROVIDER=openai`; prefer `OPENAI_BASE_URL`, `OPENAI_MODEL` and
-`OPENAI_API_KEY`. Keep secrets in the backend environment. Do not call a real
-Provider for packaging validation. ARM64 is optional local test support.
+`OPENAI_API_KEY`. Keep secrets in the backend environment. Packaging validation
+uses scripted cases. The user separately authorized a minimal real check with
+the existing DeepSeek API mapped to `OPENAI_*`. ARM64 is optional local test support.
+
+For the local-trial profile, custom OpenAI endpoints use Pi's
+`openai-completions` API. The official OpenAI endpoint retains Responses.
+The application selects the protocol; the Kernel passes the explicit protocol
+to Pi. Do not retry automatically with a different protocol.
 
 ## Delivery
 
@@ -25,6 +31,9 @@ Preserve installation data, volumes and private configuration.
 ## Verification
 
 Test Provider selection and custom endpoint propagation to both worker families.
+Use real pinned Pi with a loopback SSE service to check HTTP path, model,
+Bearer authentication, streamed text and a harmless tool round trip. Record
+the separately authorized real DeepSeek text/tool check without credentials.
 Test offline installation with network commands rejected, checksum failure,
 architecture mismatch, repeat installation and preservation of existing data.
 Run an actual AMD64 container installation and registered scripted cases,

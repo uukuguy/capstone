@@ -38,6 +38,20 @@ def test_aliases_reach_actual_worker_resolution(application):
     assert resolved.config.provider == 'openai'
     assert resolved.config.model == 'deepseek-flash'
     assert resolved.config.base_url == 'https://llm.example.internal/v1'
+    assert resolved.config.compatibility_profile == 'openai-completions'
+
+
+@pytest.mark.parametrize('profile,endpoint,expected', [
+    ('capstone-dev-trial-v1', 'https://api.openai.com/v1', 'openai-responses'),
+    ('capstone-dev-trial-v1', 'https://api.openai.com/v1/', 'openai-responses'),
+    ('capstone-workbench-v1', 'https://llm.example.internal/v1', 'openai-responses'),
+])
+def test_openai_protocol_selection_stays_within_local_custom_endpoints(profile, endpoint, expected):
+    settings = {'CAPSTONE_RUNTIME_PROFILE': profile, 'CAPSTONE_PUBLIC_PROVIDER': 'openai',
+                'CAPSTONE_PUBLIC_MODEL': 'deepseek-flash', 'OPENAI_API_KEY': 'test-only-key',
+                'CAPABILITY_AGENT_LLM_BASE_URL': endpoint}
+    resolved = resolve_harness_llm(ROOT, settings)
+    assert resolved.config.compatibility_profile == expected
 
 
 def test_aliases_do_not_change_fixed_cloud_profile():
@@ -88,10 +102,15 @@ def test_compose_aliases_and_worker_only_endpoint():
 
 
 @pytest.mark.parametrize('application', ['pandapower', 'pypsa'])
-def test_real_pi_selects_custom_model_and_endpoint_without_a_model_request(tmp_path, application):
+@pytest.mark.parametrize('endpoint,api', [
+    ('https://llm.example.internal/v1', 'openai-completions'),
+    ('https://api.openai.com/v1', 'openai-responses'),
+])
+def test_real_pi_selects_custom_model_and_endpoint_without_a_model_request(tmp_path, application, endpoint, api):
     import selectors
 
-    selected = RUNTIME.select_runtime(ROOT, environment(application), 'worker')[3]
+    settings = environment(application) | {'OPENAI_BASE_URL': endpoint}
+    selected = RUNTIME.select_runtime(ROOT, settings, 'worker')[3]
     resolved = resolve_harness_llm(ROOT, selected)
     command = PiRuntimeLocator(ROOT / '.grid-agent/runtime/pi', {},
                                runtime_lock=PiRuntimeLock.load(ROOT / 'configs/runtime/pi-runtime.lock.json')).resolve()
@@ -114,7 +133,8 @@ def test_real_pi_selects_custom_model_and_endpoint_without_a_model_request(tmp_p
         model = response['data']['model']
         assert model['provider'] == 'openai'
         assert model['id'] == 'deepseek-flash'
-        assert model['baseUrl'] == 'https://llm.example.internal/v1'
+        assert model['baseUrl'] == endpoint
+        assert model['api'] == api
     finally:
         process.terminate()
         process.wait(timeout=10)

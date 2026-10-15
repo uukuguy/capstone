@@ -141,13 +141,19 @@ def build_pi_launch(
         directory = paths.session_dir / "provider-config"
         directory.mkdir(parents=True, exist_ok=True, mode=0o700)
         directory.chmod(0o700)
+        model = {"id": resolved.config.model}
+        if resolved.config.compatibility_profile in {
+            "openai-completions", "openai-responses", "anthropic-messages",
+            "openai-codex-responses",
+        }:
+            model["api"] = resolved.config.compatibility_profile
         config = {"providers": {resolved.config.pi_provider: {
             "baseUrl": resolved.config.base_url,
-            "apiKey": resolved.config.credential_reference,
+            "apiKey": "${" + resolved.config.credential_reference + "}",
             "headers": dict(resolved.config.public_headers),
-            # Pi inherits protocol and model defaults from the built-in
-            # Provider. Admit the exact selected ID, including private models.
-            "models": [{"id": resolved.config.model}],
+            # Explicit protocol profiles override built-in Provider defaults;
+            # profiles such as pi-built-in continue to inherit Pi's protocol.
+            "models": [model],
         }}}
         model_path = directory / "models.json"
         model_path.write_text(json.dumps(config), encoding="utf-8")

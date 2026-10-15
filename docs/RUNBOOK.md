@@ -142,6 +142,9 @@ sh install-offline.sh
 地址须替换为容器可以访问的内网接口；容器中的`localhost`指向该容器自身。
 缺省Provider为openai，模型为deepseek-flash，内网地址必须配置。
 `OPENAI_MODEL`和`OPENAI_BASE_URL`用于已选openai Provider；Key只进入后端worker。
+本地试用的自定义OpenAI地址使用Pi的Chat Completions兼容接口
+（`/chat/completions`，包含流式输出和工具调用）；官方OpenAI地址保留Responses接口。
+`OPENAI_BASE_URL`填写API前缀，例如以`/v1`结尾，不填写完整的`/chat/completions`路径。
 安装完成后可将非敏感地址与模型写入安装目录`.env`，后续启动仍须提供Key。
 
 默认安装到`~/capstone`，可用`CAPSTONE_TRIAL_DIRECTORY`选择目录。

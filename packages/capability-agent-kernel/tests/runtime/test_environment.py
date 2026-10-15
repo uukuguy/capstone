@@ -32,8 +32,8 @@ def test_launch_materializes_explicit_endpoint_in_private_pi_config(tmp_path):
     assert directory != shared
     payload = json.loads((directory / 'models.json').read_text())
     assert payload == {'providers': {'openai': {
-        'baseUrl': 'https://internal.example/v1', 'apiKey': 'OPENAI_API_KEY', 'headers': {},
-        'models': [{'id': 'internal-model'}]}}}
+        'baseUrl': 'https://internal.example/v1', 'apiKey': '${OPENAI_API_KEY}', 'headers': {},
+        'models': [{'id': 'internal-model', 'api': 'openai-responses'}]}}}
     assert 'test-key' not in (directory / 'models.json').read_text()
     assert (directory / 'models.json').stat().st_mode & 0o777 == 0o600
     assert not shared.exists()
