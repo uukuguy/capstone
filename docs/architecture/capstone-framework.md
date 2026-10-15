@@ -1,5 +1,19 @@
 # Capstone Agent Framework
 
+## Enterprise execution design track
+
+The accepted conceptual direction uses ApplicationProfile as the application-owned,
+versioned business capability group and enablement unit. A profile composes Domain
+Bindings; each binding selects a Domain Pack. One Capstone task can organize
+capabilities from multiple enabled profiles under explicit application grants.
+ApplicationProfile remains within the Application ownership layer.
+
+The [enterprise execution design](../superpowers/specs/2026-10-15-pi-enterprise-execution-design.md)
+defines the proposed workspace configuration, task snapshots, Pi-native execution,
+cross-profile cooperation and frontend contract. These are target contracts, not
+implemented guarantees. The runtime descriptions below retain their current scope,
+including model-bound profile selection and isolated general Pi execution.
+
 ## Standalone intent routing after rollback
 
 The current local recovery candidate restores pre-closure business execution.
