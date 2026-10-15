@@ -3142,3 +3142,5 @@ The following original entries were retained during document synchronization.
 - 2026-10-15：最终浏览器验收脚本的选择器引号错误已修正，JavaScript解析及两架构浏览器实测通过；不涉及产品源码变化。ARM64最终升级/回放/重启/回退及配置/卷保留通过；AMD64最终案例/回放/浏览器通过，重启与回退进行中。
 
 - 2026-10-15：最终dev b7e68dd双架构镜像完成匿名拉取、旧数据升级/读取/报告证据回放、重启、浏览器及兼容回退；user-local-b7e68dd和受管旧版7832134已公开，固定安装器公开下载/校验/实际启动/状态/停止通过。零Provider调用，原~/capstone未改动，cloud-dev/demo保持原来源。
+
+- 2026-10-15：110f843 发布已验收user-local目录和控制记录，统一最新安装入口并标注可安装Git节点；文档链接、doctor、两端间距连线及两个安装图标检查通过。
