@@ -214,6 +214,12 @@ DomainRuntimeProfile目前强制authority_factory及authority_backed准入能力
 
 ## 前端与 API 的共同契约
 
+完整交互契约见[企业任务界面设计](2026-10-15-enterprise-task-ui-design.md)，
+可交互视觉提案见[工作台原型](../../design/enterprise-workspace-prototype.html)。
+采用全页面宽度、对话主界面、多会话及动态artifacts。Demo1报告视图与Demo2模型/决策
+视图共用任务协议和自主执行框架；视图由应用登记及公共投影选择，不按题目关键词路由。
+任务相关约束可通过明确的资源、成果类型与操作体现，不提供无目的的无限自由编排。
+
 前端主对象是工作空间、任务和成果。聊天承载请求与追问，模型面板是业务资源的一种视图。
 不以电网模型选择作为创建任务的先决条件，不要求用户选择纯 Pi 或委托 Pi 才能开展工作。
 
