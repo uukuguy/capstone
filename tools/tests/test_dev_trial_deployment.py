@@ -46,23 +46,36 @@ def portable_manifest():
 
 
 @pytest.mark.parametrize('identity_field', ['config_digest', 'manifest_digest'])
-def test_offline_materialization_keeps_static_contract_and_repeats(tmp_path, identity_field):
+@pytest.mark.parametrize('metadata_modes', [(0o644, 0o644), (0o640, 0o604)])
+def test_offline_materialization_keeps_static_contract_and_repeats(tmp_path, identity_field, metadata_modes):
     runtime = helper()
     document = portable_manifest()
     (tmp_path / 'manifest.json').write_text(json.dumps(document))
     (tmp_path / 'release.env').write_text('original')
+    expected_metadata = {}
+    for name, mode in zip(('manifest.json', 'release.env'), metadata_modes):
+        path = tmp_path / name
+        path.chmod(mode)
+        metadata = path.stat()
+        expected_metadata[name] = (mode, metadata.st_uid, metadata.st_gid)
     (tmp_path / 'data-contract.env').write_text('static-data-contract')
     selection = tmp_path / 'selection.tsv'
     selection.write_text(''.join(i['kind'] + '\t' + i[identity_field] + '\n'
                                 for i in document['offline_image_identities']))
     for _ in range(2):
         runtime.materialize_offline(tmp_path, selection)
+        for name, expected in expected_metadata.items():
+            metadata = (tmp_path / name).stat()
+            assert (stat.S_IMODE(metadata.st_mode), metadata.st_uid, metadata.st_gid) == expected
         actual = json.loads((tmp_path / 'manifest.json').read_text())
         assert actual['offline_image_identities'] == document['offline_image_identities']
         assert actual['images'] == {i['kind']: i[identity_field] for i in document['offline_image_identities']}
         assert (tmp_path / 'data-contract.env').read_text() == 'static-data-contract'
         runtime.validate_manifest(actual)
         runtime.record_installation(tmp_path / 'state', actual)
+        assert stat.S_IMODE((tmp_path / 'state/installation.json').stat().st_mode) == 0o600
+        private = runtime.initialize_private_environment(tmp_path / 'state')
+        assert stat.S_IMODE(private.stat().st_mode) == 0o600
         for kind, identity in actual['images'].items():
             assert f'CAPSTONE_{kind.upper()}_IMAGE={identity}\n' in (tmp_path / 'release.env').read_text()
 

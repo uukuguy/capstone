@@ -93,8 +93,12 @@ use exact IDs and forbid image pulls.
 
 The combined archive/installer/manager/runtime/Provider gate passed160 checks;
 independent review and19 extra layer-focused checks passed. `make doctor`,
-script syntax, links/symlink and diff checks passed. Fresh cross-daemon VM
-installation remains pending.
+script syntax, links/symlink and diff checks passed. Source916 VM installation
+then found public metadata mode0600 blocked the runtime UID. The correction
+preserves original mode and ownership; credentials remain0600. Focused20 tests
+and independent review passed. User cancelled further VM validation.
+Host Docker source916 passed fresh install, nine scripted turns, report/evidence
+replay, restart, repeat installation and private configuration/data retention.
 
 ## User instructions
 
@@ -107,13 +111,11 @@ checkout.
 
 ## Cloud installation scope
 
-The user requires cloud validation to follow the exact README installation.
-Railway has sufficient observed resources but does not run Compose directly or
-support Docker-in-Docker. No cloud service was stopped, created or deployed.
-The proposed image-only native check is paused and cannot substitute for this
-installation requirement. A question for an existing SSH-accessible Linux AMD64
-cloud host is pending. The existing Ubuntu x86_64 VM is emulated on Apple ARM
-and is used only for the Linux installation path.
+The user cancelled cloud-dev validation and further local Ubuntu VM validation.
+No cloud service was stopped, created or deployed. Remaining acceptance uses
+the existing local Docker environment with Linux AMD64 containers emulated on
+Apple ARM. This is not native AMD64 hardware or cloud acceptance. Real OPENAI_*
+samples must be rerun on the corrected AMD64 package.
 
 ## Final delivery
 

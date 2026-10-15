@@ -36,36 +36,28 @@ cloud-dev24d9a32. Existing user installation/data and cloud services are unchang
 
 ## Active operations
 
-- Host .capstone-agent/build_offline_final.py 916271f... is building the candidate;
-  log offline-portable-candidate-build.log. Completion writes offline-final-build.json
-  with source916, archive/checksum and extracted path. Earlier source39 metadata
-  is stale until that write. Final delivery must still use the accepted dev merge SHA.
-- Agent offline_provider prepares/runs the916 VM installer checks in existing
-  ubuntu-fusion-control. It is x86_64 emulated on Apple ARM, Docker29.1.3/Compose2.40.3,
-  separate daemon. New owned /var/tmp directory; /tmp is tmpfs. Port29374, synthetic
-  Key only. Preserve39 blocked evidence under root runs/user-local-offline/vm-39b1658/.
-- Source39 CI38687130563: macOS passed, Ubuntu running at last check. Push source916
-  plus pending owned control docs once, then require both fresh platform gates.
-- User requires cloud validation to follow README installation. Railway does not
-  support Compose/DinD. Resource queries succeeded via proxy127.0.0.1:7897; each
-  cloud-dev service limit8vCPU/8GiB and current use is low. No cloud writes occurred.
-  Temporary native-image-job proposal is paused. Async request for an existing
-  SSH-accessible Linux AMD64 cloud host remains unanswered. User permits temporary
-  shutdown of old cloud-dev services if necessary; preserve all data and restore.
+- Source916 host Docker acceptance passed install,9 scripted turns, replay,
+  restart/repeat and data/config retention. VM failed public metadata permissions;
+  fix preserves original mode/owner and passed independent review.
+- User cancelled local Ubuntu VM and cloud-dev verification. Neither is a
+  remaining delivery gate. Existing VM/cloud data and failed evidence are retained.
+- Corrected-source local gate passed187 deployment/offline/Provider checks plus
+ 61 entrypoint checks and shell rebuild checks. Inherited LLM overrides must be
+  removed before running tests; original unsanitized failure is retained.
+- README preview is generated from actual exporter; data storage/backup guidance
+  and explicit short-to-long sample ordering are included.
 
 ## Next actions
 
-1. Finish control-doc commit/push; wait fresh Linux/macOS gates. No bypass.
-2. Run candidate VM and host installation checks; no more real Provider use in
-   local emulation just to duplicate cloud samples. Report actual failures.
-3. Normal PR merge, root dev fast-forward, canonical make capstone-local-rebuild.
-4. Rebuild final images/archive from exact accepted dev merge; verify the actual
-   extracted archive, readiness, registered cases, replay, restart and data retention.
-5. Cloud README installation requires the missing cloud Linux host. Do not replace
-   it with an image-only Railway test or claim it passed.
-6. Update verification report, plans, canonical worklist, VERSION-CONTROL/INDEX and
-   regenerated browser-checked graph; normal docs PR. Preserve all ignored receipts,
-   worktree recovery data, original installs and volumes. Do not update demo/main.
+1. Commit/push mode fix and README, rebuild corrected AMD64 candidate.
+2. Rerun authorized real OPENAI_* samples on corrected installed AMD64 backend,
+   including previously failed regional dispatch. Preserve original failures.
+3. Wait required Linux/macOS checks, normal PR merge, root dev fast-forward,
+   canonical make capstone-local-rebuild. No bypass.
+4. Build delivery from exact accepted dev merge; verify extracted package,
+   readiness, scripted cases, replay, restart/repeat, data retention and browser.
+5. Update verification/plan/worklist/control graph with actual scope and receipts;
+   normal docs PR. Show final README. Do not update demo/main/cloud.
 
 ## Operator evidence
 

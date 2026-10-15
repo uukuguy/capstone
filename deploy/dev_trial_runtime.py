@@ -139,9 +139,11 @@ def materialize_offline(bundle: Path, selection: Path) -> None:
             temporary = path.with_name(path.name + '.new')
             _private_write(temporary, value)
             staged.append((temporary, path))
-            # The root container helper must retain the installer user's ownership.
+            # Public bundle metadata must remain readable by the runtime UID;
+            # retain its original ownership and mode, unlike private state files.
             if os.geteuid() == 0:
                 os.chown(temporary, metadata.st_uid, metadata.st_gid)
+            temporary.chmod(stat.S_IMODE(metadata.st_mode))
         for temporary, path in staged:
             os.replace(temporary, path)
     finally:
