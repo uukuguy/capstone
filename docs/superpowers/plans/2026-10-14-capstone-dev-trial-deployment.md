@@ -132,3 +132,11 @@ assert selected['CAPSTONE_PUBLIC_MODEL'] == registry['providers']['openai']['def
 ## Progress
 
 Tasks1/2 implemented in2e299a8:56 Python profile/source-helper checks and15 App identity checks pass, including legacy cloud guards; App type checks pass. Task3 lifecycle implementation and source-manifest guard pass66 Python checks with existing runtime/helper suites. Task4 exact-source contexts and source-free bundles implemented through6f29b29; combined69 Python checks pass. Candidate validation requires explicit operator opt-in and does not claim both platforms verified. ARM64/AMD64 App images built; backend builds and full PR gate run in background. Root control graph now displays nine connected important nodes, current trial focus and four unchanged deployment sources; both spacing limits pass uniformity, overlap, source, arrow and independent-crossing checks. No public trial artifacts or actual Docker acceptance yet. Existing local backend baseline is ARM64 and approximately2.93GiB expanded; official model cache approximately39MiB. These observations are not new multi-platform image or registry acceptance.
+## Offline successor — 2026-10-15
+
+The user selected an AMD64 offline package for internal networks. Default to
+`PROVIDER=openai` and prefer `OPENAI_BASE_URL`, `OPENAI_MODEL`, `OPENAI_API_KEY`.
+The user confirmed this Provider works with the internal compatible service.
+See [offline design](../specs/2026-10-15-user-local-offline-design.md) and
+[offline plan](2026-10-15-user-local-offline.md). Existing online acceptance
+does not establish offline acceptance. Existing deployments remain unchanged.

@@ -233,7 +233,7 @@ test-local-rebuild:
 	bash tools/test_local_rebuild.sh
 	bash tools/test_demo_local_rebuild.sh
 	uv run --project packages/capstone-agent pytest tools/tests/test_deploy_entrypoint.py tools/tests/test_host_runtime_contract.py tools/tests/test_prepare_app_source.py -q
-	uv run --project packages/grid-agent pytest tools/tests/test_dev_trial_deployment.py tools/tests/test_build_dev_trial.py tools/tests/test_user_data_compatibility.py tools/tests/test_capstone_manager.py tools/tests/test_install_user_local_version.py tools/tests/test_user_local_installer.py tools/tests/test_user_local_graph.py -q
+	uv run --project packages/grid-agent pytest tools/tests/test_dev_trial_deployment.py tools/tests/test_build_dev_trial.py tools/tests/test_user_data_compatibility.py tools/tests/test_capstone_manager.py tools/tests/test_install_user_local_version.py tools/tests/test_user_local_installer.py tools/tests/test_user_local_graph.py tools/tests/test_offline_provider_config.py tools/tests/test_openai_compatible_protocol.py tools/tests/test_user_local_offline.py -q
 
 test-verification-targets:
 	uv run --project packages/grid-agent pytest tools/tests/test_verification_targets.py tools/tests/test_runtime_risk_exception.py tools/tests/test_projection_benchmark.py tools/tests/test_benchmark_optimization.py -q

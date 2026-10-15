@@ -4,7 +4,11 @@
   "stages": ["local"],
   "provider_selection": {
     "default": "deepseek",
-    "allowed": ["deepseek", "openai"]
+    "allowed": ["deepseek", "openai"],
+    "provider_alias": "PROVIDER",
+    "provider_environment": {
+      "openai": {"model": "OPENAI_MODEL", "base_url": "OPENAI_BASE_URL"}
+    }
   },
   "shared_environment": {
     "CAPSTONE_FEDERATED_CATALOG_CONTEXT": "true",
@@ -49,6 +53,7 @@
     "DATABASE_URL", "CAPSTONE_OPERATOR_TOKEN", "CAPSTONE_ARTIFACT_BUCKET",
     "CAPSTONE_S3_ENDPOINT", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY",
     "AWS_DEFAULT_REGION", "DEEPSEEK_API_KEY", "OPENAI_API_KEY",
+    "PROVIDER", "OPENAI_MODEL", "OPENAI_BASE_URL",
     "CAPSTONE_ALLOWED_HOSTS", "CAPSTONE_ALLOWED_ORIGINS",
     "CAPSTONE_FAMILY_HEALTH_URLS", "CAPSTONE_WORKER_WAKE_URL", "CAPSTONE_DEPLOYMENT_STAGE"
   ],

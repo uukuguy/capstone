@@ -27,6 +27,19 @@ image=$(sed -n 's/^CAPSTONE_BACKEND_IMAGE=//p' "$base/release.env")
 platform=$(sed -n 's/^CAPSTONE_TRIAL_PLATFORM=//p' "$base/release.env")
 case "$platform" in ''|linux/amd64|linux/arm64) ;; *) printf '%s\n' 'Unsupported trial platform.' >&2; exit 1 ;; esac
 case "$image" in
+  sha256:*)
+    channel=$(sed -n 's/.*"channel"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$base/manifest.json")
+    [ "$channel" = dev-trial-offline ] && [ "$platform" = linux/amd64 ] || { printf '%s\n' 'Local image IDs require an offline AMD64 manifest.' >&2; exit 1; }
+    for kind in BACKEND APP POSTGRES OBJECTS; do
+      ref=$(sed -n "s/^CAPSTONE_${kind}_IMAGE=//p" "$base/release.env")
+      tail=${ref#sha256:}
+      case "$tail" in *[!0-9a-f]*|'') printf '%s\n' 'Offline image ID is invalid.' >&2; exit 1;; esac
+      [ "$ref" = "sha256:$tail" ] && [ "${#tail}" -eq 64 ] || exit 1
+      actual=$(docker image inspect --format '{{.Id}}' "$ref")
+      [ "$actual" = "$ref" ] || { printf '%s\n' 'Offline image ID differs.' >&2; exit 1; }
+      actual=$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$ref")
+      [ "$actual" = linux/amd64 ] || { printf '%s\n' 'Offline image platform differs.' >&2; exit 1; }
+    done ;;
   registry.cn-beijing.aliyuncs.com/uukuguy/*@sha256:*|ghcr.io/uukuguy/*@sha256:*) ;;
   capstone-trial-backend*:*)
     [ "${CAPSTONE_CANDIDATE_VALIDATION:-0}" = 1 ] || { printf '%s\n' 'Candidate images require operator validation mode.' >&2; exit 1; } ;;
@@ -45,10 +58,10 @@ run_private() {
   fi
 }
 docker_run() {
-  if [ -n "$platform" ]; then docker run --platform "$platform" "$@"; else docker run "$@"; fi
+  if [ -n "$platform" ]; then docker run --platform "$platform" --pull never "$@"; else docker run --pull never "$@"; fi
 }
 helper() {
-  docker_run --rm --user "$(id -u):$(id -g)" \
+  docker_run --network none --rm --user "$(id -u):$(id -g)" \
     -e CAPSTONE_CANDIDATE_VALIDATION="${CAPSTONE_CANDIDATE_VALIDATION:-0}" \
     -e CAPSTONE_INSTANCE="$instance" \
     -v "$state:/state" -v "$base/manifest.json:/bundle/manifest.json:ro" \
@@ -62,6 +75,9 @@ compose() {
 }
 
 if [ "$operation" = up ]; then
+  if grep -q '"offline_image_identities"' "$base/manifest.json"; then
+    run_private helper verify
+  fi
   if [ -f "$state/installation.json" ] && [ ! -f "$state/internal.env" ]; then
     printf '%s\n' 'Restore this instance private configuration before restarting existing data.' >&2
     exit 1
@@ -76,12 +92,12 @@ if [ "$operation" = up ]; then
   fi
   run_private helper init
   run_private compose config --quiet
-  if ! compose run --rm --no-deps config-check >"$state/config-check.log" 2>&1; then
+  if ! compose run --pull never --rm --no-deps config-check >"$state/config-check.log" 2>&1; then
     printf '%s\n' 'LLM or image configuration is invalid. Check the selected Provider/model and its startup Key.' >&2
     exit 1
   fi
   run_private helper record
-  run_private compose up --wait --wait-timeout 240 -d
+  run_private compose up --pull never --wait --wait-timeout 240 -d
   backend_id=''
   for service in api worker worker-pypsa; do
     container=$(compose ps -q "$service")
@@ -95,7 +111,7 @@ if [ "$operation" = up ]; then
     architecture=$(docker image inspect --format '{{.Architecture}}' "$current")
     [ -z "$platform" ] || [ "$platform" = "linux/$architecture" ] || { printf '%s\n' 'Running image platform differs from the candidate manifest.' >&2; exit 1; }
   done
-  run_private compose run --rm --no-deps --entrypoint /app/packages/capstone-agent/.venv/bin/python \
+  run_private compose run --pull never --rm --no-deps --entrypoint /app/packages/capstone-agent/.venv/bin/python \
     config-check /app/deploy/dev_trial_runtime.py ready
   printf '%s\n' 'Local-dev trial is ready. Inspect the App port in .env, then open http://127.0.0.1:<port>/.'
   compose ps

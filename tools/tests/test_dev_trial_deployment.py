@@ -35,6 +35,69 @@ def manifest():
                        for key in ['backend', 'app', 'postgres', 'objects']}}
 
 
+def portable_manifest():
+    identities = [{'kind': kind, 'tag': 'capstone-offline-' + kind + ':' + 'a' * 40,
+                   'config_digest': 'sha256:' + str(i) * 64,
+                   'manifest_digest': 'sha256:' + str(i + 4) * 64, 'platform': 'linux/amd64'}
+                  for i, kind in enumerate(['backend', 'app', 'postgres', 'objects'])]
+    return manifest() | {'channel': 'dev-trial-offline', 'platforms': ['linux/amd64'],
+                         'images': {i['kind']: i['config_digest'] for i in identities},
+                         'offline_image_identities': identities}
+
+
+@pytest.mark.parametrize('identity_field', ['config_digest', 'manifest_digest'])
+@pytest.mark.parametrize('metadata_modes', [(0o644, 0o644), (0o640, 0o604)])
+def test_offline_materialization_keeps_static_contract_and_repeats(tmp_path, identity_field, metadata_modes):
+    runtime = helper()
+    document = portable_manifest()
+    (tmp_path / 'manifest.json').write_text(json.dumps(document))
+    (tmp_path / 'release.env').write_text('original')
+    expected_metadata = {}
+    for name, mode in zip(('manifest.json', 'release.env'), metadata_modes):
+        path = tmp_path / name
+        path.chmod(mode)
+        metadata = path.stat()
+        expected_metadata[name] = (mode, metadata.st_uid, metadata.st_gid)
+    (tmp_path / 'data-contract.env').write_text('static-data-contract')
+    selection = tmp_path / 'selection.tsv'
+    selection.write_text(''.join(i['kind'] + '\t' + i[identity_field] + '\n'
+                                for i in document['offline_image_identities']))
+    for _ in range(2):
+        runtime.materialize_offline(tmp_path, selection)
+        for name, expected in expected_metadata.items():
+            metadata = (tmp_path / name).stat()
+            assert (stat.S_IMODE(metadata.st_mode), metadata.st_uid, metadata.st_gid) == expected
+        actual = json.loads((tmp_path / 'manifest.json').read_text())
+        assert actual['offline_image_identities'] == document['offline_image_identities']
+        assert actual['images'] == {i['kind']: i[identity_field] for i in document['offline_image_identities']}
+        assert (tmp_path / 'data-contract.env').read_text() == 'static-data-contract'
+        runtime.validate_manifest(actual)
+        runtime.record_installation(tmp_path / 'state', actual)
+        assert stat.S_IMODE((tmp_path / 'state/installation.json').stat().st_mode) == 0o600
+        private = runtime.initialize_private_environment(tmp_path / 'state')
+        assert stat.S_IMODE(private.stat().st_mode) == 0o600
+        for kind, identity in actual['images'].items():
+            assert f'CAPSTONE_{kind.upper()}_IMAGE={identity}\n' in (tmp_path / 'release.env').read_text()
+
+
+def test_offline_materialization_rejects_unbound_id_before_changes(tmp_path):
+    runtime = helper()
+    document = portable_manifest()
+    original = json.dumps(document)
+    (tmp_path / 'manifest.json').write_text(original)
+    (tmp_path / 'release.env').write_text('original')
+    selection = tmp_path / 'selection.tsv'
+    selection.write_text(''.join(i['kind'] + '\tsha256:' + 'f' * 64 + '\n'
+                                for i in document['offline_image_identities']))
+    with pytest.raises(ValueError):
+        runtime.materialize_offline(tmp_path, selection)
+    assert (tmp_path / 'manifest.json').read_text() == original
+    assert (tmp_path / 'release.env').read_text() == 'original'
+    document['images']['backend'] = 'sha256:' + 'f' * 64
+    with pytest.raises(ValueError):
+        runtime.validate_manifest(document)
+
+
 def test_private_config_is_stable_protected_and_contains_no_provider_keys(tmp_path):
     path = helper().initialize_private_environment(tmp_path / 'state')
     original = path.read_bytes()

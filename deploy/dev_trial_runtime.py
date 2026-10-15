@@ -58,24 +58,97 @@ def initialize_private_environment(directory: Path) -> Path:
 
 
 def validate_manifest(document: dict) -> dict:
+    offline = isinstance(document, dict) and document.get('channel') == 'dev-trial-offline'
     candidate = (isinstance(document, dict) and document.get('channel') == 'dev-trial-candidate'
                  and os.environ.get('CAPSTONE_CANDIDATE_VALIDATION') == '1')
     if (not isinstance(document, dict) or document.get('schema') != 'capstone-dev-trial/1'
-            or document.get('channel') != ('dev-trial-candidate' if candidate else 'dev-trial')
+            or document.get('channel') != ('dev-trial-offline' if offline else 'dev-trial-candidate' if candidate else 'dev-trial')
             or not re.fullmatch(r'[a-f0-9]{40}', str(document.get('source_revision', '')))):
         raise TrialConfigurationError('trial source manifest is invalid')
-    if document.get('platforms') not in ([['linux/amd64'], ['linux/arm64']] if candidate else [['linux/amd64', 'linux/arm64']]):
+    allowed = [['linux/amd64']] if offline else ([['linux/amd64'], ['linux/arm64']] if candidate else [['linux/amd64', 'linux/arm64']])
+    if document.get('platforms') not in allowed:
         raise TrialConfigurationError('candidate requires one Linux platform' if candidate else 'trial manifest requires both Linux platforms')
     images = document.get('images')
     if not isinstance(images, dict) or set(images) != {'backend', 'app', 'postgres', 'objects'}:
         raise TrialConfigurationError('trial requires four image classes')
     for name, reference in images.items():
+        if offline:
+            if not isinstance(reference, str) or not re.fullmatch(r'sha256:[a-f0-9]{64}', reference):
+                raise TrialConfigurationError('offline images require exact local image IDs')
+            continue
         if candidate and isinstance(reference, str) and re.fullmatch(
                 r'capstone-trial-' + name + r'(?:-amd64|-arm64)?:' + document['source_revision'], reference):
             continue
         if not isinstance(reference, str) or not re.fullmatch(r'[a-z0-9][a-z0-9._:/-]*@sha256:[a-f0-9]{64}', reference):
             raise TrialConfigurationError('trial image references must use exact digests')
+    if 'offline_image_identities' in document:
+        identities = document['offline_image_identities']
+        if not offline or not isinstance(identities, list) or len(identities) != 4:
+            raise TrialConfigurationError('offline image identities are invalid')
+        seen = set()
+        tags = set()
+        for identity in identities:
+            if (not isinstance(identity, dict)
+                    or set(identity) != {'kind', 'tag', 'config_digest', 'manifest_digest', 'platform'}):
+                raise TrialConfigurationError('offline image identity fields are invalid')
+            kind = identity['kind']
+            if not isinstance(kind, str) or kind not in images or kind in seen:
+                raise TrialConfigurationError('offline image kinds are invalid')
+            seen.add(kind)
+            tag = identity['tag']
+            if (not isinstance(tag, str) or not re.fullmatch(r'[a-z0-9][a-z0-9._/-]*:[a-zA-Z0-9_.-]+', tag)
+                    or tag in tags or identity['platform'] != 'linux/amd64'):
+                raise TrialConfigurationError('offline image locator or platform is invalid')
+            tags.add(tag)
+            for field in ('config_digest', 'manifest_digest'):
+                if not isinstance(identity[field], str) or not re.fullmatch(r'sha256:[a-f0-9]{64}', identity[field]):
+                    raise TrialConfigurationError('offline image digest is invalid')
+            if images[kind] not in {identity['config_digest'], identity['manifest_digest']}:
+                raise TrialConfigurationError('offline runtime image is not bound to its archive')
     return document
+
+
+def materialize_offline(bundle: Path, selection: Path) -> None:
+    """Project verified daemon IDs without changing the static data contract."""
+    bundle = _directory(bundle)
+    manifest_path = bundle / 'manifest.json'
+    release_path = bundle / 'release.env'
+    for path in (manifest_path, release_path, selection):
+        if path.is_symlink() or not path.is_file() or path.stat().st_size > 1048576:
+            raise TrialConfigurationError('offline projection input is invalid')
+    document = validate_manifest(json.loads(manifest_path.read_text()))
+    if document['channel'] != 'dev-trial-offline' or 'offline_image_identities' not in document:
+        raise TrialConfigurationError('portable offline identities are required')
+    chosen = {}
+    for line in selection.read_text().splitlines():
+        fields = line.split('\t')
+        if len(fields) != 2 or fields[0] in chosen:
+            raise TrialConfigurationError('offline runtime selection is invalid')
+        chosen[fields[0]] = fields[1]
+    document = validate_manifest(document | {'images': chosen})
+    content = {
+        manifest_path: json.dumps(document, indent=2, sort_keys=True) + '\n',
+        release_path: ''.join(f'CAPSTONE_{kind.upper()}_IMAGE={chosen[kind]}\n'
+                              for kind in ('backend', 'app', 'postgres', 'objects'))
+                      + 'CAPSTONE_TRIAL_PLATFORM=linux/amd64\n',
+    }
+    staged = []
+    try:
+        for path, value in content.items():
+            metadata = path.stat()
+            temporary = path.with_name(path.name + '.new')
+            _private_write(temporary, value)
+            staged.append((temporary, path))
+            # Public bundle metadata must remain readable by the runtime UID;
+            # retain its original ownership and mode, unlike private state files.
+            if os.geteuid() == 0:
+                os.chown(temporary, metadata.st_uid, metadata.st_gid)
+            temporary.chmod(stat.S_IMODE(metadata.st_mode))
+        for temporary, path in staged:
+            os.replace(temporary, path)
+    finally:
+        for temporary, _ in staged:
+            temporary.unlink(missing_ok=True)
 
 
 def verify_image_source(root: Path, manifest: dict) -> None:
@@ -126,6 +199,9 @@ def validate_configuration(root: Path, environment: dict[str, str], manifest: di
     settings.update(CAPSTONE_RUNTIME_PROFILE='capstone-dev-trial-v1',
                     CAPSTONE_DEPLOYMENT_STAGE='local', CAPSTONE_HOSTED_APPLICATION='pandapower')
     _, _, _, selected = _runtime(root).select_runtime(root, settings, 'worker')
+    if (manifest['channel'] == 'dev-trial-offline' and selected['CAPSTONE_PUBLIC_PROVIDER'] == 'openai'
+            and not environment.get('OPENAI_BASE_URL', '').strip()):
+        raise TrialConfigurationError('OPENAI_BASE_URL is required for the offline OpenAI-compatible Provider')
     if selected['CAPSTONE_PUBLIC_MODEL'] in {environment.get('DEEPSEEK_API_KEY'), environment.get('OPENAI_API_KEY')}:
         raise TrialConfigurationError('CAPSTONE_PUBLIC_MODEL')
     for key, name in [('CAPSTONE_BACKEND_IMAGE', 'backend'), ('CAPSTONE_APP_IMAGE', 'app'),
@@ -158,14 +234,23 @@ def record_installation(directory: Path, manifest: dict, instance: str = 'capsto
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=('init', 'check', 'record', 'ready'))
+    parser.add_argument('command', choices=('init', 'check', 'record', 'ready', 'materialize-offline', 'verify'))
     parser.add_argument('--state', type=Path, default=Path('/state'))
     parser.add_argument('--manifest', type=Path, default=Path('/bundle/manifest.json'))
+    parser.add_argument('--bundle', type=Path, default=Path('/bundle'))
+    parser.add_argument('--selection', type=Path, default=Path('/selection.tsv'))
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     runtime = _runtime(root)
     try:
-        if args.command == 'init':
+        if args.command == 'verify':
+            verify_image_source(root, json.loads(args.manifest.read_text()))
+            print('Trial image identity is valid.')
+        elif args.command == 'materialize-offline':
+            verify_image_source(root, json.loads((args.bundle / 'manifest.json').read_text()))
+            materialize_offline(args.bundle, args.selection)
+            print('Offline runtime image selection is ready.')
+        elif args.command == 'init':
             initialize_private_environment(args.state)
             print('Local internal configuration is ready.')
         elif args.command == 'check':

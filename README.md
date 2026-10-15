@@ -174,6 +174,8 @@ The default directory is `~/capstone`; set `CAPSTONE_TRIAL_DIRECTORY` to change 
 
 The supplied `.env` selects DeepSeek/deepseek-flash and includes a commented OpenAI alternative. Change both Provider and model together; use `OPENAI_API_KEY` for OpenAI. Startup LLM values override file defaults. `sh ~/capstone/capstone.sh` starts the newest eligible installed version; `versions`, `use <Git>`, `status`, `logs`, and `stop` manage the same instance; stop keeps its data. Keep the deployment directory and private `.capstone-trial/` state. See [trial operations](docs/RUNBOOK.md#source-free-local-dev-trial) and the [version register](docs/status/VERSION-CONTROL.md) for verified source, distribution and platform status.
 
+For an internal network, the Linux AMD64 offline package includes the deployment files, four images and model assets. It defaults to `PROVIDER=openai` and uses `OPENAI_BASE_URL`, `OPENAI_MODEL` and `OPENAI_API_KEY` for an internal compatible service. Custom local-trial endpoints use Pi's Chat Completions API; the official OpenAI endpoint keeps Responses. Docker and Compose v2 are prerequisites. See [offline installation](docs/RUNBOOK.md#offline-user-local-installation) for setup and data compatibility limits; acceptance belongs to the version register.
+
 The CLI remains useful for automation and focused checks. After setup, run an offline pandapower query:
 
 ```sh
