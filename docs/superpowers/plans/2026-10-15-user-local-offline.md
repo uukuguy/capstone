@@ -47,9 +47,14 @@ and the final accepted-source archive remain pending.
 Files: new offline exporter/installer under `deploy/`, lifecycle templates and
 `tools/tests/test_user_local_offline.py`.
 
+916271f adds cross-daemon config/manifest identity binding and private runtime
+projection, complete layer checks, and the frozen user-facing sample guide.
+The combined gate passed160 checks and independent review. Source39 VM install
+safely rejected the old single-ID assumption; new VM installation is pending.
+
 ## Task 3: Acceptance and delivery
 
-- [ ] Run focused regression, doctor and diff checks; review changes.
+- [x] Run focused regression, doctor and diff checks; review changes.
 - [ ] Build exact-source AMD64 images and validate a fresh offline installation,
   registered cases, replay and restart without public downloads.
 - [ ] Record receipts, usage instructions and source identity; align project

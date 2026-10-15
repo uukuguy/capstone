@@ -42,7 +42,20 @@ the explicit API and `${OPENAI_API_KEY}` reference, never the secret value.
 - The user-authorized real DeepSeek endpoint passed a text request and a
   harmless tool round trip with `PROVIDER=openai`, `OPENAI_MODEL=deepseek-flash`
   and `OPENAI_BASE_URL`/`OPENAI_API_KEY`. Credentials were absent from artifacts.
-- Business samples through the OpenAI path: pending.
+- Three real OpenAI-configured business samples completed nine turns. IEEE-39
+  and AC/DC structure passed current-run admission, successful tool-source and
+  exact read-only replay checks. Regional modeling/derivation worked, but dispatch
+  remained limited: Polars crashed before the solver in AMD64 emulation without
+  AVX/AVX2. The original failed receipt is preserved.
+- The initial validator incorrectly required every evidence reference to appear
+  in a calculation result projection. The contract only requires projection
+  references to be admitted. An independent read-only validator checks actual
+  tool sources and terminal admissions, preserving the real regional failure.
+- Commit `39b1658` adds same-version Polars `rtcompat` only for Linux x86_64.
+  Six lock files add only that runtime; existing versions remain unchanged.
+  A fresh isolated AMD64 container completed registered dispatch without network
+  access. Five dispatch regressions, six lock checks and independent review pass.
+  New-image, Ubuntu VM and regional revalidation remain pending.
 
 ## Candidate installation
 
@@ -60,6 +73,47 @@ local ARM64 host using Linux AMD64 containers:
 
 This candidate does not include the later catalog correction. It is retained
 as test evidence and is not the final delivery.
+
+## Cross-daemon installation correction
+
+The real Ubuntu VM installation at `39b1658` passed archive checksums but
+safely rejected image lookup before starting services. Docker 29 containerd
+exposes an image manifest digest as `.Id`, while the source daemon uses the
+config digest. Removing the OCI index did not restore config-ID lookup.
+The failed receipt is retained; this package is not accepted for delivery.
+
+Commit `916271f` exports fixed-tag archives and binds both config and AMD64 leaf
+manifest digests from the final archive. It verifies metadata and complete layer
+chains, including raw/gzip DiffIDs, before freezing delivery. The loader checks
+the actual imported ID against those two identities, then verifies platform and
+source. A private temporary deployment projection selects that ID consistently
+for manifest, release settings and installation receipt. The static data contract
+is unchanged. Repeat installation compares the projected package. All starts
+use exact IDs and forbid image pulls.
+
+The combined archive/installer/manager/runtime/Provider gate passed160 checks;
+independent review and19 extra layer-focused checks passed. `make doctor`,
+script syntax, links/symlink and diff checks passed. Fresh cross-daemon VM
+installation remains pending.
+
+## User instructions
+
+Both package and installed-directory README include the frozen user sample
+guide. It uses the formal project instructions, grouped in user language and
+ordered from short information queries to calculations, scenario changes and
+advanced exploration. It replaces the earlier three representative demos.
+The complete preview is `runs/user-local-offline/README-preview.txt` in the main
+checkout.
+
+## Cloud installation scope
+
+The user requires cloud validation to follow the exact README installation.
+Railway has sufficient observed resources but does not run Compose directly or
+support Docker-in-Docker. No cloud service was stopped, created or deployed.
+The proposed image-only native check is paused and cannot substitute for this
+installation requirement. A question for an existing SSH-accessible Linux AMD64
+cloud host is pending. The existing Ubuntu x86_64 VM is emulated on Apple ARM
+and is used only for the Linux installation path.
 
 ## Final delivery
 

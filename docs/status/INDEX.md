@@ -1,12 +1,6 @@
 # docs/status INDEX
 
-927f08b修复OpenAI兼容协议与Key环境插值；129项、四组真实Pi loopback及授权DeepSeek文本/工具往返通过。实际业务样例待验收，见[验证记录](../reviews/2026-10-15-user-local-offline-verification.md)。
-
-2026-10-15离线增量：dev-trial在feat/user-local-offline推进AMD64离线包，默认OpenAI兼容内网配置；在线版及四部署保持原来源。见[设计](../superpowers/specs/2026-10-15-user-local-offline-design.md)和[计划](../superpowers/plans/2026-10-15-user-local-offline.md)，当前实施与验收未完成。
-
-离线实现已提交40b338d/6b74397，专项172/67通过；旧目录保留7930c07经19项及独立审查通过。PR #27草稿，AMD64镜像已构建，实际验收进行中，未合入或公开交付。
-
-PR #27已转正式；候选完整安装验收及本地完整门禁通过。macOS CI38680987676暴露新增Compose测试缺Docker依赖声明，75af46a已修订并验证有/无Docker路径；等待新来源双平台检查与最终包验收。
+2026-10-15离线交付：916271f补跨Docker身份与完整层校验，160项/doctor/审查通过；OpenAI配置及授权真实协议已验证。新包/VM/最终来源验收和PR #27双平台门禁待完成，未合入或交付。README按用户语言和耗时排序，预览见根runs/user-local-offline/README-preview.txt。云按README安装需Linux AMD64云SSH主机；Railway不支持此执行方式，尚无云变更。见[验证记录](../reviews/2026-10-15-user-local-offline-verification.md)、[设计](../superpowers/specs/2026-10-15-user-local-offline-design.md)和[计划](../superpowers/plans/2026-10-15-user-local-offline.md)。
 
 2026-10-15当前：PR #23经Linux/macOS检查正常合入dev b7e68dd。capstone.sh、Git版本选择、user-local标识和共享数据兼容门禁已集成；候选双架构旧数据升级/回放/回退和旧安装接管通过。最终合并源码双架构数据升级/回放/回退及公开安装通过，版本目录已公开，原7832134安装与用户数据保留。执行[Task 7](../superpowers/plans/2026-10-14-capstone-dev-trial-deployment.md#task-7-user-local-management-and-shared-data-compatibility)。
 

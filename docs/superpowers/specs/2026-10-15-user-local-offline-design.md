@@ -24,7 +24,12 @@ The runtime may access the configured internal LLM endpoint.
 
 Keep existing online installation available. Reuse the lifecycle manager and
 its shared-data compatibility check. Verify imported images by platform and
-image ID; do not assume docker save/load preserves registry RepoDigests.
+the config and AMD64 leaf-manifest digests read from each final tagged archive.
+Docker storage backends expose different runtime IDs. Validate the imported ID
+against that bound pair and materialize the private installation projection
+before registering a version. Keep the static data contract unchanged. Verify
+all layer blobs, ordered legacy/OCI mappings and uncompressed DiffIDs. Do not
+assume docker save/load preserves registry RepoDigests.
 Missing or corrupt inputs fail before stopping an active installation.
 Preserve installation data, volumes and private configuration.
 

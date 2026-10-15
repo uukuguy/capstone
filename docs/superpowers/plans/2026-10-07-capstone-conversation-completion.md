@@ -2,10 +2,11 @@
 
 2026-10-15内网交付增量：用户选择`dev-trial`的AMD64完整离线包，默认
 `PROVIDER=openai`，优先`OPENAI_BASE_URL`、`OPENAI_MODEL`、`OPENAI_API_KEY`。
-执行[离线计划](2026-10-15-user-local-offline.md)；Provider40b338d、传输6b74397
-与目录保留7930c07已实现并审查，本地完整PR/E2E/validate及候选安装、
-三案例九轮、回放、重启、重复安装与数据保护通过。PR #27双平台门禁进行中；
-最终包须使用实际dev合并来源重新构建并验收。云端及demo不在本次范围。
+执行[离线计划](2026-10-15-user-local-offline.md)。916271f补跨Docker双digest身份及
+层完整性检查，160项/doctor/独立审查通过；OpenAI兼容协议和授权真实文本/工具调用通过。
+新包/VM/业务复验、PR #27最新源码双平台门禁及最终dev合并来源验收仍待完成。
+README按用户操作语言分组，短简单样例前置。用户要求云按README安装；Railway
+不支持Compose/DinD，待Linux AMD64云SSH主机。四部署和原用户安装未改变。
 
 2026-10-15当前交付为`dev-trial`用户反馈收尾，执行[临时dev部署计划Task 7](2026-10-14-capstone-dev-trial-deployment.md#task-7-user-local-management-and-shared-data-compatibility)。原试用经PR #22合入dev7832134，双架构镜像/无源码安装已公开验收并由用户安装。新增user-local标识、Git选择、capstone.sh管理、共享用户数据及升级/回退兼容门禁经PR #23合入dev b7e68dd；最终双架构旧数据升级/读取/回放/回退、重启、浏览器、匿名拉取及公开安装通过；版本目录和管理包已公开，用户LLM/业务试用待验证。原`autonomous`业务缺口保留；本次不推进main或更新既有cloud-dev/demo。
 
