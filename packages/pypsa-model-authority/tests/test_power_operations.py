@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
+
 import pytest
 
 from pypsa_model_authority.operations import execute
@@ -141,3 +144,144 @@ def test_registered_regional_network_dispatches_across_three_snapshots(tmp_path)
     assert result["omitted_line_count"] == 0
     assert result["objective"] > 0
     assert ModelStore(target, run_id="regional-run").load(result["evidence_refs"][0], "evidence")["result_ref"] == result["result_ref"]
+
+
+def test_regional_ac_validation_uses_saved_dispatch_in_each_snapshot(tmp_path, monkeypatch) -> None:
+    import pypsa
+
+    source = tmp_path / "runs" / "regional-ac-run" / "domains" / "model"
+    target = source.parent / "operations"
+    run_id = "regional-ac-run"
+    base = execute("model.open", {"catalog_id": "regional-six-bus"}, source, run_id=run_id)
+    growth = execute("model.derive_series", {
+        "model_ref": base["model_ref"], "load_id": "central-demand",
+        "p_set_mw": [30.0, 35.0, 40.0],
+    }, source, run_id=run_id)
+    solved = []
+    original_pf = pypsa.Network.pf
+
+    def observe_actual_ac(network, *args, **kwargs):
+        report = original_pf(network, *args, **kwargs)
+        solved.append({
+            "generation": network.generators_t.p.copy(),
+            "slack": network.generators.index[network.generators.control == "Slack"].tolist(),
+            "losses": (network.lines_t.p0 + network.lines_t.p1).sum(axis=1).tolist(),
+        })
+        return report
+
+    monkeypatch.setattr(pypsa.Network, "pf", observe_actual_ac)
+    dispatches = []
+    for model in (base, growth):
+        dispatch = execute_operation("operations.dispatch", {"model_ref": model["model_ref"]},
+                                     target, source, run_id=run_id)
+        dispatches.append(dispatch)
+        ac = execute_operation("operations.ac_validate", {
+            "model_ref": model["model_ref"], "dispatch_result_ref": dispatch["result_ref"],
+        }, target, source, run_id=run_id)
+        assert ac["condition"] == "converged"
+        assert ac["dispatch_result_ref"] == dispatch["result_ref"]
+
+    for dispatch, actual in zip(dispatches, solved, strict=True):
+        # Verify real PF output, not the adapter's assignment. Only slack may
+        # change active generation to balance nonlinear transmission losses.
+        schedule = dispatch["generator_dispatch_mw"]
+        assert actual["slack"] == ["northwest-supply"]
+        for name, values in schedule.items():
+            expected = ([value + loss for value, loss in zip(values, actual["losses"], strict=True)]
+                        if name in actual["slack"] else values)
+            assert actual["generation"][name].tolist() == pytest.approx(expected, abs=1e-6)
+    south_delta = solved[1]["generation"]["southern-backup"] - solved[0]["generation"]["southern-backup"]
+    assert south_delta.tolist() == pytest.approx([0.0, 0.0, 10.0])
+    store = ModelStore(source, run_id=run_id)
+    assert store.load_model(growth["model_ref"])["parent_ref"] == base["model_ref"]
+    assert store.load_network(base["model_ref"]).loads_t.p_set["central-demand"].tolist() == [20.0, 25.0, 30.0]
+
+
+@pytest.mark.parametrize("defect", ["other_revision", "tampered_result"])
+def test_ac_validation_rejects_unbound_or_changed_dispatch(tmp_path, monkeypatch, defect) -> None:
+    import pypsa
+
+    source = tmp_path / "runs" / "ac-invalid-run" / "domains" / "model"
+    target = source.parent / "operations"
+    run_id = "ac-invalid-run"
+    opened = execute("model.open", {"catalog_id": "two-bus"}, source, run_id=run_id)
+    dispatch = execute_operation("operations.dispatch", {"model_ref": opened["model_ref"]},
+                                 target, source, run_id=run_id)
+    model_ref = opened["model_ref"]
+    if defect == "other_revision":
+        model_ref = execute("model.derive", {
+            "model_ref": model_ref, "load_id": "demand", "p_set_mw": 41.0,
+        }, source, run_id=run_id)["model_ref"]
+    else:
+        path = ModelStore(target, run_id=run_id).artifact_path(dispatch["result_ref"], "result")
+        document = json.loads(path.read_text())
+        document["details"]["generator_dispatch_mw"]["supply"] = [41.0]
+        path.write_text(json.dumps(document))
+
+    def no_unverified_solve(*_args, **_kwargs):
+        pytest.fail("Unbound or modified dispatch must be rejected before AC power flow")
+
+    monkeypatch.setattr(pypsa.Network, "pf", no_unverified_solve)
+    with pytest.raises(OperationError, match="dispatch result"):
+        execute_operation("operations.ac_validate", {
+            "model_ref": model_ref, "dispatch_result_ref": dispatch["result_ref"],
+        }, target, source, run_id=run_id)
+
+
+@pytest.mark.parametrize("component", ["Store", "StorageUnit", "Link", "Process"])
+def test_ac_validation_rejects_unrestored_dispatch_components(tmp_path, monkeypatch, component) -> None:
+    import pandas as pd
+    import pypsa
+    from pypsa_model_authority import model_library
+
+    source = tmp_path / "runs" / "ac-scope-run" / "domains" / "model"
+    target = source.parent / "operations"
+    run_id = "ac-scope-run"
+    if component in {"Store", "Link"}:
+        catalog_id = "rolling-storage" if component == "Store" else "electricity-hydrogen"
+    else:
+        # A local hash-bound NetCDF fixture exercises the installed PyPSA
+        # components through the same registered-asset Authority path.
+        library = tmp_path / "library"
+        library.mkdir()
+        network = pypsa.Network()
+        network.set_snapshots(pd.date_range("2026-01-01", periods=3, freq="h"))
+        network.add("Bus", "north", v_nom=110.0)
+        network.add("Generator", "supply", bus="north", p_nom=100.0, marginal_cost=20.0)
+        if component == "StorageUnit":
+            network.add("Load", "demand", bus="north", p_set=[20.0, 40.0, 30.0])
+            network.add("StorageUnit", "storage", bus="north", p_nom=10.0,
+                        max_hours=2.0, state_of_charge_initial=20.0, marginal_cost=1.0)
+        else:
+            network.add("Bus", "south", v_nom=110.0)
+            network.add("Load", "demand", bus="south", p_set=[20.0, 40.0, 30.0])
+            network.add("Process", "transfer", bus0="north", bus1="south",
+                        rate0=-1.0, rate1=1.0, p_nom=100.0)
+        asset = library / "ac-component.nc"
+        network.export_to_netcdf(asset)
+        payload = asset.read_bytes()
+        entry = model_library.OfficialModel(
+            "pypsa-example/ac-component", "AC component", "ac-component",
+            "https://data.pypsa.org/networks/examples/v1.3.0/ac-component.nc",
+            len(payload), hashlib.sha256(payload).hexdigest(), "dispatch",
+        )
+        monkeypatch.setattr(model_library, "get_official_example", lambda _: entry)
+        monkeypatch.setenv("CAPSTONE_PYPSA_MODEL_LIBRARY_DIR", str(library))
+        catalog_id = entry.catalog_id
+    opened = execute("model.open", {"catalog_id": catalog_id}, source, run_id=run_id)
+    dispatch = execute_operation("operations.dispatch", {"model_ref": opened["model_ref"]},
+                                 target, source, run_id=run_id)
+    assert dispatch["condition"] == "optimal", "Optimization remains available for these models"
+    existing_artifacts = {path for path in target.rglob("*") if path.is_file()}
+
+    def no_incomplete_ac(*_args, **_kwargs):
+        pytest.fail("AC must reject component schedules it has not restored")
+
+    monkeypatch.setattr(pypsa.Network, "pf", no_incomplete_ac)
+    with pytest.raises(OperationError) as failure:
+        execute_operation("operations.ac_validate", {
+            "model_ref": opened["model_ref"], "dispatch_result_ref": dispatch["result_ref"],
+        }, target, source, run_id=run_id)
+    assert failure.value.code == "unsupported_dispatch_components"
+    assert component in str(failure.value)
+    assert {path for path in target.rglob("*") if path.is_file()} == existing_artifacts

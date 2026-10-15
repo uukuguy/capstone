@@ -220,10 +220,21 @@ def _validate_ac(
     schedule = raw["generator_dispatch_mw"]
     if set(schedule) != set(network.generators.index):
         raise OperationError("invalid_dispatch_ref", "dispatch schedule does not match generators")
+    unsupported = [
+        component for component, attribute in (
+            ("Store", "stores"), ("StorageUnit", "storage_units"),
+            ("Link", "links"), ("Process", "processes"),
+        ) if len(getattr(network, attribute, ()))
+    ]
+    if unsupported:
+        raise OperationError(
+            "unsupported_dispatch_components",
+            "AC validation restores only Generator schedules; unsupported components: " + ", ".join(unsupported),
+        )
     for name, values in schedule.items():
         if not isinstance(values, list) or len(values) != len(network.snapshots):
             raise OperationError("invalid_dispatch_ref", "dispatch schedule is invalid")
-        network.generators_t.p[name] = [_finite(value) for value in values]
+        network.generators_t.p_set[name] = [_finite(value) for value in values]
     report = network.pf(use_seed=True)
     if not bool(report["converged"].to_numpy().all()):
         raise OperationError("ac_not_converged", "AC validation did not converge")
