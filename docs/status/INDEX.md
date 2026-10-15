@@ -1,5 +1,7 @@
 # docs/status INDEX
 
+当前推进：[PyPSA遗留修复与dev合并](../superpowers/plans/2026-10-15-pypsa-runtime-followup.md)。用户指定先修派生模型结果投影和AC实际输入，针对性回归后走正常PR/Linux与macOS检查；离线交付e2保持冻结，不重复安装全量测试。
+
 2026-10-15更新离线包已交付：精确源码e2eaee2403cb6d780b3f7564da86e0d083890673，根runs/user-local-offline/capstone-delivery-e2eaee2含归档、同名.sha256及README.md三文件；归档1368607944字节，SHA256为9d7c3b215b9c45631bf3142aaad8f8066ba43831380b43b2ccf8146ee1eebfe7。新README默认pandapower IEEE39，PyPSA清单在末尾可选说明；旧7c已撤回、不可交付，证据目录及原校验值保留。新包12项内部SHA与源码检查通过，runtime packages相对28020aa无差异，可复用已记录的handoff/dispatch限定实测证据；29377单次新安装及ready检查通过，六角色均linux/amd64，API与双worker同e2源码镜像；检查后正常停止并保留数据。本轮按用户要求不重跑全量测试或Provider；公开投影与AC第3时段一致性两项仍开放，不声称完整业务验收。
 
 2026-10-15：Linux AMD64旧包精确7c曾交付后撤回、不可交付；证据保留于根runs/user-local-offline/capstone-withdrawn-7c19766，原SHA不变；PR #27在来源双平台CI38700786813全过后正常合入37529ef。安装、数据保留及九请求/回放通过不等于业务全过：7c区域没有dispatch执行；README原文1–9已用OPENAI运行，10–12未跑，完整发电N1排序仍待验证。Apple ARM上的AMD64模拟是已验环境，VM/cloud已取消。root dev仍1d0b280、未快进重建；四部署和19173原来源未变。独立分支e2eaee2包含已推送61a图修复、28020交接schema及ce475用户指南修订，现均已推送；29375后端28020/App7c原三轮真实handoff/dispatch通过，1300/1900均optimal，AC均converged；第3轮4个公开投影不可用、AC第3时段一致性待查。候选已停且数据保留，未PR或正式部署。见[限定验证报告](../reviews/2026-10-15-pypsa-handoff-verification.md)、[台账](VERSION-CONTROL.md)和[离线计划](../superpowers/plans/2026-10-15-user-local-offline.md)。

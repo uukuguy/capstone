@@ -3235,3 +3235,7 @@ The following original entries were retained during document synchronization.
 - 2026-10-15：用户明确7c19766不可交付，标记撤回并将旧目录改为capstone-withdrawn-7c19766；原归档/hash保留，e2为替代交付版。
 
 - 2026-10-15：推进图收敛12关键节点，e2独立交付重点并直达四份交付/验证文件；7c撤回与606中间记录移历史，主目录同步及浏览器核对通过。
+
+- 2026-10-15：[5e3627a] highlights the delivered package and archives withdrawn or interim nodes to keep the graph concise.
+
+- 2026-10-15：用户要求修复当前分支两项PyPSA遗留后正常合入dev；定位混合模型投影批次校验及AC写输出而非p_set，启动针对性回归。
