@@ -332,8 +332,11 @@ def refresh_checksums(out):
 
 
 @pytest.mark.parametrize('daemon', ['config', 'manifest'])
-def test_loader_selects_only_verified_daemon_ids_in_private_file(delivery, daemon):
+@pytest.mark.parametrize('markdown', [False, True])
+def test_loader_selects_only_verified_daemon_ids_in_private_file(delivery, daemon, markdown):
     out, env = delivery
+    if markdown:
+        (out / 'README.md').write_text('# Offline user guide\n')
     original_manifest = (out / 'manifest.json').read_bytes()
     capture = out.parent / 'selected.tsv'
     env.update(TEST_DAEMON=daemon, CAPTURE=str(capture), OPENAI_API_KEY='secret-canary')
@@ -374,6 +377,34 @@ def test_loader_rejects_unverified_identity_before_install(delivery, failure):
 def install(delivery):
     out, env = delivery
     return subprocess.run(['sh', str(out / 'install-offline.sh')], env=env, capture_output=True, text=True)
+
+
+@pytest.mark.parametrize('defect', ['unlisted', 'changed', 'symlink'])
+def test_loader_rejects_unverified_markdown_before_docker(delivery, defect):
+    out, env = delivery
+    guide = out / 'README.md'
+    guide.write_text('# Offline user guide\n')
+    if defect != 'unlisted':
+        refresh_checksums(out)
+    if defect == 'changed':
+        guide.write_text('changed guide')
+    elif defect == 'symlink':
+        guide.unlink()
+        guide.symlink_to(out / 'README.txt')
+    result = install(delivery)
+    assert result.returncode != 0
+    assert not Path(env['CALLS']).exists()
+    assert not Path(env['CAPSTONE_TRIAL_DIRECTORY']).exists()
+
+
+def test_loader_rejects_lookalike_archive_name_before_docker(delivery):
+    out, env = delivery
+    (out / 'backendXtar').write_bytes((out / 'backend.tar').read_bytes())
+    checksums = out / 'SHA256SUMS'
+    checksums.write_text(checksums.read_text().replace('  backend.tar\n', '  backendXtar\n'))
+    result = install(delivery)
+    assert result.returncode != 0
+    assert not Path(env['CALLS']).exists()
 
 
 def catalog_row(revision, checksum='0' * 64):

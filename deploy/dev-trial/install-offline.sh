@@ -15,12 +15,17 @@ hash() {
 for name in SHA256SUMS images.tsv deployment.tar.gz versions.tsv manifest.json install-version.sh install-offline.sh README.txt backend.tar app.tar postgres.tar objects.tar; do
   [ ! -L "$base/$name" ] && [ -f "$base/$name" ] || fail 'The offline package is incomplete or contains a symbolic link.'
 done
+markdown=0
+if [ -e "$base/README.md" ] || [ -L "$base/README.md" ]; then
+  [ ! -L "$base/README.md" ] && [ -f "$base/README.md" ] || fail 'The offline guide must be a regular file.'
+  markdown=1
+fi
 [ "$(wc -c < "$base/SHA256SUMS")" -le 4096 ] || fail 'The checksum list is invalid.'
-awk '
+awk -v markdown="$markdown" '
   NF!=2 || length($1)!=64 || $1~/[^0-9a-f]/ { exit 1 }
-  $2!~/^(images.tsv|deployment.tar.gz|versions.tsv|manifest.json|install-version.sh|install-offline.sh|README.txt|backend.tar|app.tar|postgres.tar|objects.tar)$/ { exit 1 }
+  $2!~/^(images\.tsv|deployment\.tar\.gz|versions\.tsv|manifest\.json|install-version\.sh|install-offline\.sh|README\.txt|README\.md|backend\.tar|app\.tar|postgres\.tar|objects\.tar)$/ { exit 1 }
   seen[$2]++ { exit 1 }
-  END { if (NR!=11) exit 1 }
+  END { if (NR!=11+markdown || (markdown && !seen["README.md"])) exit 1 }
 ' "$base/SHA256SUMS" || fail 'The checksum list is invalid.'
 while read -r expected name; do
   [ "$(hash "$base/$name")" = "$expected" ] || fail 'Offline package checksum failed. Existing services and data were preserved.'
