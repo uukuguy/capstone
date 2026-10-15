@@ -1,5 +1,7 @@
 # 多线版本控制
 
+2026-10-15离线增量：用户内网无法下载公网资源，确认交付linux/amd64完整离线包，默认PROVIDER=openai，优先OPENAI_BASE_URL/OPENAI_MODEL/OPENAI_API_KEY。openai兼容接口已由用户确认可用；本轮不调用真实Provider。feat/user-local-offline从dev1d0b280实施，设计effd148；安装与镜像导入待验证，未合入、未发布，现有四部署及用户安装保持原状。见[离线设计](../superpowers/specs/2026-10-15-user-local-offline-design.md)及[实施计划](../superpowers/plans/2026-10-15-user-local-offline.md)。
+
 2026-10-15当前增量：PR #23经Linux/macOS检查正常合入dev b7e68dd，local-dev已规范重建同源。user-local标识、Git版本选择、capstone.sh共享数据管理及兼容发布门禁已交付；精确合并源码双架构镜像完成匿名拉取、旧数据升级/读取/报告证据回放、重启、浏览器和兼容回退验收，公开安装包下载/校验/启动/管理实测通过。新版本user-local-b7e68dd与受管旧版user-local-7832134已公开；原用户安装和数据保留，cloud-dev/demo未改变。
 
 2026-10-15 原版交付记录（历史）：无源码试用实现经PR #22双平台检查正常合入dev7832134，local-dev已规范重建；四类精确摘要镜像及最终七文件包完成双架构验收并公开发布。注释标签dev-trial-20261015-7832134指向实际冻结来源，公开install.sh已实测下载、校验、安装及自动启动。默认目录~/capstone、端口19173，与开发5173/demo15173隔离；成功提示地址、配置及四条运维命令。实施分支已关闭、数据与恢复引用保留；用户LLM/业务试用待验证，cloud-dev及两个demo不变。
@@ -181,7 +183,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 功能包 | 阶段 | 状态 | 交付内容 | 来源 | 下一步 | 对比起点 | 新增或更新 | 交付记录 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev-trial | user-local无源码试用与版本管理 | 7 | 已合入、验收并公开发布 | 固定镜像安装、Git版本选择与共享数据兼容 | dev | 用户LLM与业务试用；Windows/WSL2待验证 | devb7e68dd；两个demo保留faa6af9 | user-local、capstone.sh、最新版/指定Git选择、前台下载、共享数据及停止前兼容/配置检查 | 完整本地及Linux/macOS通过；最终双架构旧数据升级/读取/回放/回退、重启、浏览器、匿名拉取和公开安装通过，零Provider调用 |
+| dev-trial | user-local无源码试用与版本管理 | 8 | 在线版已发布；AMD64离线版实施中 | 固定镜像安装、Git版本选择、共享数据兼容及内网离线安装 | feat/user-local-offline | 验证AMD64离线导入安装及OpenAI兼容内网配置；Windows/WSL2待验证 | devb7e68dd；两个demo保留faa6af9 | 离线包默认PROVIDER=openai，优先OPENAI_BASE_URL/OPENAI_MODEL/OPENAI_API_KEY；保留兼容及配置检查 | 在线版原验收保留；离线设计effd148，实施及安装验收待完成，零Provider调用 |
 | autonomous | 自主智能体 · 统一实施 | 4 | 已合入dev；两个demo已发布，整体业务未验收 | 单Pi研究循环、持久研究状态、Authority计算与来源、执行过程、结果证据、电网场景图层和模型资源管理 | origin/dev | 两个demo已验收faa6af9，从dev推进N−1与交互缺口 | dev4f15cfc及6ff7094业务基线；旧Research Model分支仅作参考 | 研究读写及Pi真实上下文；受控失败交付；任务与工具两级过程；完整结果字段；场景与孤岛图层；模型打开准备与内存回收；对话创建后台预热 | PR #18双平台PR门禁通过，合并dev faa6af9；2b6ae7b候选59项及本地完整PR门禁、云三角色身份、三用例九轮、报告证据回放与旧Thread恢复通过；完整发布及合并后双平台通过，两个demo已同源验收并推送正式标签，不冒充科学业务验收；详见本包明细及首期计划 |
 | live | 线上共同基线 | 0 | 线上在用 | 电网静态分析、证据结果、智能体对话与工作台 | 线上部署 | 保持线上稳定；后续版本按发布计划推进 | 当前线上部署 | 本页起点；更早沿革仅在详情中保留 | 以 cloud-demo 部署台账为准；本次未重新探测云端 |
 | main | 开发集成 dev / 发布基线 main | 0 | 已验证并分流 | dev保存当前全局记录与开发集成；main保存发布基线快照 | dev | 从dev推进自主智能体N−1与交互专项；Research Model R1保留待启动 | 线上共同基线 | 全局文档、分支治理与Issue工具已集成dev | main723b8e8发布快照；PR #18合并faa6af9及双平台门禁通过；两个demo已同源验收并推送正式标签；PR #19补齐控制文档 |
@@ -253,6 +255,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
+| user-local-offline | feat/user-local-offline | feature | user-local · AMD64离线安装 | 设计已确认，实施中 | 完整四类镜像及安装文件；OpenAI兼容内网配置；不依赖公网下载；安装验收待完成 | dev-trial |
 | user-local | b7e68dd | main | dev · user-local版本管理合并基线 | 已合入，双架构验收及公开安装通过 | Git选择与capstone.sh共享数据管理；停止前兼容/配置检查；最终源码匿名拉取、旧数据升级/回放/回退、重启和浏览器通过；user-local-b7e68dd已公开 | dev-trial |
 | dev-trial | 7832134 | main | dev · 用户试用交付合并基线 | 已合入，公开试用包已验证 | 无源码Compose、受限Provider、同源App、私有实例及精确源码/镜像检查；最终双架构各三案例九轮/回放/重启/浏览器、匿名拉取与公开安装入口通过；标签dev-trial-20261015-7832134 | dev-trial |
 | cloud | ed2524f | main | 线上运行能力 | 已发布 | 电网静态分析、智能体对话、工作台与结果证据；当前用户试用起点 | live |
@@ -304,7 +307,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
-| user-local | 当前开发焦点 | dev | Git选择、管理命令与共享用户数据；双架构旧数据升级回放及回退、公开安装通过 | 已合入并发布，用户业务待验证 |
+| user-local-offline | 当前开发焦点 | feat/user-local-offline | AMD64完整离线安装与镜像校验；OpenAI兼容内网配置及数据保护 | 实施中，离线验收待完成 |
+| user-local | 重要试用发布与开发基线 | dev | Git选择、管理命令与共享用户数据；双架构旧数据升级回放及回退、公开安装通过 | 已合入并发布，用户业务待验证 |
 | dev-trial | 重要试用发布与开发基线 | dev | 无源码安装启动、同源App及受限Provider；双架构公开包已验证，用户正在试用 | 已发布试用包，用户业务待验证 |
 | cloud | 历史重要发布 | main | 电网静态分析、智能体对话与工作台；计算结果与证据随运行保留 | 历史发布起点 |
 | main | 当前发布主轴 | main | PR #9/#10合入的发布快照；后续开发与实际部署分别记录 | 发布快照 |

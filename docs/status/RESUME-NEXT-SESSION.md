@@ -1,18 +1,19 @@
-# Next-Session Handoff
+# Live Session Checkpoint
 
-> 2026-10-15，本次会话结束。
+> Updated: 2026-10-15 12:03. **Session remains active — not a final handoff.**
 
 ## TL;DR
 
 - user-local 已发布，运行来源 b7e68dd；双架构和公开安装入口验收通过。
 - 推进图、功能验收记录和版本目录已对齐。
-- 下一步先验证用户自己的 LLM 和业务流程，再处理反馈。
+- 用户内网无法下载公网文件；当前实施AMD64离线包，默认PROVIDER=openai，优先OPENAI_BASE_URL/OPENAI_MODEL/OPENAI_API_KEY。
+- 工作区为.worktrees/dev-trial-deployment，分支feat/user-local-offline；设计effd148，Provider配置与离线导入实现进行中。
 
 ## 当前状态
 
 - PR #23、#24、#25 已正常合入 dev，Linux/macOS 检查通过。
 - 交接核对时 dev 为 b47ce1e；运行版本仍为 b7e68dd，后续文档提交不改变运行来源。
-- 根 dev 和保留的任务工作区 Git 干净；已合并任务分支均已关闭。
+- 根dev为1d0b280；离线任务工作区有进行中的实现与控制记录，未合入或发布。
 - local-dev：b7e68dd；local-demo/cloud-demo：faa6af9；cloud-dev：24d9a32。
 - 未操作用户现有 ~/capstone 安装；其实际版本需在用户升级后重新核对。
 
@@ -28,8 +29,8 @@
 
 ## 下一步
 
-1. 用户使用自己的 Key 验证安装、历史数据和实际业务流程。
-2. 记录问题对应的 Git、架构、操作和日志；不得暴露 Key。
+1. 完成离线实现与专项测试，再构建精确源码AMD64镜像，实测不访问公网的安装/案例/回放/重启。
+2. 用户已确认PROVIDER=openai可用；本轮仅合成Key和脚本验证，不调用真实Provider。交付不含用户Key。
 3. 先处理试用反馈，再按规范工作清单推进自主智能体剩余缺口。
    Research R1 不自动作为下一任务。
 

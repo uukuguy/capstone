@@ -3152,3 +3152,5 @@ The following original entries were retained during document synchronization.
 - 2026-10-15：87beeed 正常合入PR #24，Linux/macOS最终检查通过；公开最新版入口实际安装/启动、错误参数列版本及停止保卷通过，原目录/数据未改动；fix与交付记录分支已关闭，根dev和任务工作区Git干净。首次目录下载网络瞬断已保留诊断，原入口重试通过。
 
 - 2026-10-15：b47ce1e 合入交付收尾；用户已确认最终交接稿，下一步验证自有LLM及业务流程。
+
+- 2026-10-15：离线交付范围已确认：AMD64、OpenAI兼容内网配置、完整镜像包；设计与计划保存。[effd148]

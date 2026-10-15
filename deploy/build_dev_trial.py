@@ -109,6 +109,8 @@ def prepare_context(root: Path, revision: str, output: Path, model_library: Path
     inputs = BUNDLE_INPUTS | {'deploy/prepare_app_source.py'}
     if (output / 'deploy/dev-trial/install-version.sh').exists():
         inputs = inputs | {'deploy/dev-trial/install-version.sh'}
+    if (output / 'deploy/dev-trial/install-offline.sh').exists():
+        inputs = inputs | {'deploy/dev-trial/install-offline.sh'}
     (output / 'trial-context.json').write_text(json.dumps({'source_revision': revision,
         'data_inputs': {name: hashlib.sha256(content).hexdigest()
                         for name, content in data_contract.context_files(output).items()},
