@@ -5,6 +5,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 
 import pytest
@@ -62,6 +63,7 @@ def test_existing_explicit_settings_work_with_empty_aliases(provider, model):
     assert 'CAPABILITY_AGENT_LLM_BASE_URL' not in selected
 
 
+@pytest.mark.skipif(not shutil.which('docker'), reason='Docker CLI is required for real Compose interpolation')
 def test_compose_aliases_and_worker_only_endpoint():
     settings = {key: value for key, value in os.environ.items()
                 if not key.startswith(('CAPSTONE_', 'OPENAI_', 'DEEPSEEK_')) and key != 'PROVIDER'}
