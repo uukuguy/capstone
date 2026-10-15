@@ -84,13 +84,35 @@ is pushed with106 backend/109 App/type/browser checks passed, without PR or depl
 Public Pi handoff schema fix28020aa passed16 contract and82 checks plus review; guide
 revisionce47532 leads with IEEE39 and moves optional PyPSA grids to the end, with54+5
 checks and review passed. The branch throughce47532 is now pushed, without PR or deployment; these changes
-are not in the delivered package. The separate29375 AMD64 backend28020aa/App7c
+are absent from the original7c package and included in the updated e2 package.
+The separate29375 AMD64 backend28020aa/App7c
 candidate passed the original three-turn real OPENAI handoff/dispatch path: baseline
 and growth objectives1300/1900, both optimal, and both AC validations converged.
 Third-turn4 operations public projections were unavailable, and third-period AC flow
 did not reflect the dispatch generation increment; consistency remains open. This
 is not full PyPSA acceptance. The candidate is stopped with0 running containers and
 data preserved. See [bounded verification](../../reviews/2026-10-15-pypsa-handoff-verification.md).
+
+
+## Updated package: e2eaee2
+
+The user requested an updated package with the fixes and no full retest. Frozen
+source e2eaee2403cb6d780b3f7564da86e0d083890673 is built. Its runtime packages have
+no diff from28020aa, so reuse the bounded real handoff/dispatch verification and
+keep public projections and third-period AC consistency open. No new Provider calls.
+
+Clean root directory: runs/user-local-offline/capstone-delivery-e2eaee2.
+It contains the .tar.gz archive, matching .sha256 and the generated README.md.
+Archive bytes:1368607944. SHA256:
+9d7c3b215b9c45631bf3142aaad8f8066ba43831380b43b2ccf8146ee1eebfe7.
+The12 internal SHA checks and source identity passed. The single fresh29377
+installation and readiness passed; six roles are linux/amd64 and the API/dual-worker
+image identity matches source e2. The instance stopped with return code0 and data
+was preserved. This does not repeat or
+expand the previous business acceptance. Preserve the original7c delivery.
+
+Minimal-check receipt: `.capstone-agent/offline-e2eaee2-minimal-check.json`.
+No full test suite, Provider request or business sample was rerun for this package.
 
 ## Task 3: Acceptance and delivery
 

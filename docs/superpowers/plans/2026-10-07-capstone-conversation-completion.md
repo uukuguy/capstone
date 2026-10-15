@@ -1,5 +1,7 @@
 # Capstone Conversation Contract Completion
 
+2026-10-15更新离线包已构建：精确源码e2eaee2403cb6d780b3f7564da86e0d083890673，根runs/user-local-offline/capstone-delivery-e2eaee2含归档、同名.sha256及README.md三文件；归档1368607944字节，SHA256为9d7c3b215b9c45631bf3142aaad8f8066ba43831380b43b2ccf8146ee1eebfe7。新README默认pandapower IEEE39，PyPSA清单在末尾可选说明；旧7c交付目录及校验值保留。新包12项内部SHA与源码检查通过，runtime packages相对28020aa无差异，可复用已记录的handoff/dispatch限定实测证据；29377单次新安装及ready检查通过，六角色均linux/amd64，API与双worker同e2源码镜像；检查后正常停止并保留数据。本轮按用户要求不重跑全量测试或Provider；公开投影与AC第3时段一致性两项仍开放，不声称完整业务验收。
+
 2026-10-15内网交付增量：精确7c离线包已交付于根
 `runs/user-local-offline/capstone-delivery-7c19766`，原归档及SHA不变；PR #27在来源
 Linux/macOS CI38700786813全过后正常合入37529ef。执行[离线计划](2026-10-15-user-local-offline.md)。

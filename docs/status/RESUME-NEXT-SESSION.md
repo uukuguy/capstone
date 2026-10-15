@@ -4,6 +4,20 @@
 
 ## Current state
 
+Updated package source e2eaee2403cb6d780b3f7564da86e0d083890673 is built in root
+runs/user-local-offline/capstone-delivery-e2eaee2: archive, matching .sha256 and
+README.md. Archive bytes1368607944; SHA256
+9d7c3b215b9c45631bf3142aaad8f8066ba43831380b43b2ccf8146ee1eebfe7.
+The12 internal checksums and source/runtime-package equivalence to28020aa passed.
+Root's single new29377 installation and readiness passed. All six roles are
+linux/amd64; API and both workers use the same source-e2 backend image. The
+validation instance stopped successfully afterward; data is preserved.
+Do not run full tests or Provider again. Reuse bounded28020 handoff evidence,
+preserve its two open findings, and preserve the original7c delivery unchanged.
+The new README leads with pandapower IEEE39 and moves optional PyPSA models last.
+Receipt: .capstone-agent/offline-e2eaee2-minimal-check.json. No full suites or
+Provider/business runs were repeated for this updated archive.
+
 Exact Linux AMD64 offline source7c1976659a46fdf3f19abd565a0198bb60a0b8cd was delivered
 at root runs/user-local-offline/capstone-delivery-7c19766. Do not change its archive,
 README or SHA. Default PROVIDER=openai; users supply OPENAI_BASE_URL, OPENAI_MODEL
@@ -16,8 +30,9 @@ Local-dev and19173 user installation remainb7e68dd; local-demo/cloud-demo remain
 cloud-dev remains24d9a32. No existing user data, service or cloud deployment was changed.
 
 Worktree .worktrees/dev-trial-deployment is now fix/user-local-network-view,
-headce47532. Graph fix61a418d was pushed, without PR or deployment. The branch through
-ce47532 is now pushed, without PR or deployment. They are not part of the delivered7c package.
+head e2eaee2 (later documentation/receipt commit; runtime packages match28020aa). Graph fix61a418d was pushed, without PR or deployment. The branch through
+e2eaee2 is now pushed, without PR or deployment. The original7c package is unchanged;
+the updated e2 package includes these fixes.
 
 ## Verified scope and business gaps
 
@@ -61,15 +76,17 @@ ce47532 is now pushed, without PR or deployment. They are not part of the delive
 
 ## Next actions
 
-1. Track the public projection and third-period AC/dispatch consistency findings
+1. Hand over the updated e2 package and its original checksum/README, citing
+   the passed single-install/readiness check and the bounded reused evidence.
+2. Track the public projection and third-period AC/dispatch consistency findings
    separately from the verified handoff fix. Preserve the completed real-check
    receipts and the stopped candidate data; do not infer full business acceptance.
-2. Preserve delivered7c files and failed receipts; keep remaining README checks and
+3. Preserve delivered7c files and failed receipts; keep remaining README checks and
    full N1 boundary explicit. Later guide/code changes belong to a new package.
-3. The independent fixes are pushed; use a normal dev PR and required CI.
-4. Advance root dev from1d0b280 through the accepted merge and use the canonical
+4. The independent fixes are pushed; use a normal dev PR and required CI.
+5. Advance root dev from1d0b280 through the accepted merge and use the canonical
    local rebuild with all existing data preserved. Merged source is not deployed source.
-5. Update the register, plans and graph with actual candidate results before claiming
+6. Update the register, plans and graph with actual candidate results before claiming
    closure; do not claim the independent graph/Pi fix is deployed to19173 or demo.
 
 ## Operator evidence

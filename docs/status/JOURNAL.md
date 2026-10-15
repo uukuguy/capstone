@@ -3223,3 +3223,7 @@ The following original entries were retained during document synchronization.
 - 2026-10-15：PR #27在7c来源双平台CI38700786813通过后正常合入37529ef；交付目录capstone-delivery-7c19766与原SHA保持不变。纠正验收表述：九请求/回放通过不等于业务全过，7c区域无dispatch执行，README1–9已运行、10–12未跑，完整N1排序仍待验证。独立图/Pi/指南分支ce47532与29375候选复验另行记录；root dev未快进重建，四部署未变。
 
 - 2026-10-15：[28020aa] regional original three-turn AMD64 OpenAI retest verifies optimal dispatch1300/1900; projection/AC consistency remain separate findings.
+
+- 2026-10-15：[e2eaee2] records verified handoff dispatch and open findings so delivery claims match actual evidence.
+
+- 2026-10-15：按用户要求交付e2eaee2更新包，SHA9d7c3b21；仅归档/单次安装启动检查通过，未重跑全量或Provider。旧7c保留。
