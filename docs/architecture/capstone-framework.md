@@ -2,6 +2,13 @@
 
 ## Enterprise execution design track
 
+The [v1 design baseline](../superpowers/specs/2026-10-15-enterprise-design-final.md)
+preserves the working Thread service, worker, research controller, evidence storage,
+professional runtimes and views. It generalizes their model-bound seams into one
+autonomous organization mechanism. It does not create a parallel command/event ledger
+or keep separate general and professional orchestration as the final architecture.
+Runtime integration and acceptance remain implementation gates.
+
 The accepted conceptual direction uses ApplicationProfile as the application-owned,
 versioned business capability group and enablement unit. A profile composes Domain
 Bindings; each binding selects a Domain Pack. One Capstone task can organize

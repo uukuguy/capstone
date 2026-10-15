@@ -1,5 +1,29 @@
 # Capstone Conversation Contract Completion
 
+2026-10-16当前计划：[统一执行实施计划](2026-10-16-enterprise-unified-execution.md)。
+[定稿v1](../specs/2026-10-15-enterprise-design-final.md)保留已验证业务资产、统一自主组织并拆开领域耦合。
+以下“待补/待形成”是之前的设计推进记录；现在设计资产齐备，下一步Task 1基线与完整接缝验证，不重复从头设计。
+
+完整性评审后当前工作：按[解决设计D1–D7](../specs/2026-10-15-enterprise-design-closure.md)
+补可执行协议、缺失前端状态、SDK边界验证与外部验收资产，再形成文件级实施计划。
+[评审](../../reviews/2026-10-15-enterprise-design-readiness-review.md)未批准设计冻结；不得把方案补齐标成真实能力已验证。
+
+设计进展：Demo1专业图表契约和Demo2候选/图表/验证联动原型已补齐；合成场景演示约束变更失效。
+下一步将两种视图映射到统一执行与成果契约，并编排纵向实现与真实结果验收；原型通过不代表专业计算或恢复服务已实现。
+
+当前设计约束：前后端统一设计，全页面宽度、对话主界面、多会话与动态artifacts；Demo1分析报告和Demo2模型/决策使用不同工作视图，共用任务与执行协议。[前端契约](../specs/2026-10-15-enterprise-task-ui-design.md)。文件级实施计划尚未完成，先收敛统一交互设计；现有旧任务不自动成为新计划。
+
+
+当前工作选择（2026-10-15）：此前PyPSA两项修复及验收记录已通过PR #28/#29
+合入dev。用户转向Pi使用场景：Pi98e7d0e接入dev f209fb1，保留原生生态与当前自主组织
+机制；已确认统一Pack治理，直接复用Pi的skills/MCP，与Capstone长程组织结合。
+下一设计切片为ApplicationProfile使能、无电网模型任务、原生执行与成果前端的纵向闭环；
+随后推进证据驱动修订、恢复及跨Profile/Pack协作。Demo1用于通用能力验收，不建立专用接口或固定流程；简单问答、实时检索与复杂分析共用主链路。
+详见[运行设计草案](../specs/2026-10-15-pi-enterprise-execution-design.md)。
+设计依据为[核心演进讨论](../specs/2026-10-07-capstone-core-evolution-discussion.md)，
+范围及旧任务位置见[Pi工作计划](2026-10-09-business-workspace-agent-resources.md)。
+以下较早记录保留历史验收边界，不覆盖本次工作选择。
+
 当前工作：PyPSA派生结果投影和AC调度输入两项修复已实现、独立审查及针对性检查通过。精确候选c638e0992e49d300e760e89d07aff63ef6eca1c5在Apple ARM宿主的Linux AMD64模拟环境完成原区域三轮及补充AC-only第4轮；没有重新dispatch，5个operations投影completed且模型修订/证据正确。南部机组第3时段增量9.999984503 MW，最大AC残差约0.00004649 MW，小于0.01 MW。PR #28的Linux/macOS required CI run38723131332全部通过，已正常合入f300d1f375ef20af005840a60af47b5e33ea62e8；root dev已快进，packages与受检c638完全一致，local-dev规范重建exit0、ready通过；API与双worker同镜像6c616058e643，各1060个受管后端文件SHA256等同f300；镜像源码标签仍development，未将该标签冒称精确提交；App5173为f300、dirty=false；候选已停止，数据保留。回答文字仍有“+5应为+7.5”的算术问题；source-modeling投影仍未实现，不称所有回答或所有Pack通过。e2交付包不含这两项新runtime修复，原包和校验值不变。见[后续计划](2026-10-15-pypsa-runtime-followup.md)及[限定报告](../../reviews/2026-10-15-pypsa-runtime-followup-verification.md)。
 
 2026-10-15当前工作：用户要求解决`fix/user-local-network-view`遗留的派生结果投影和AC调度一致性问题，然后通过正常PR合入dev。执行[PyPSA修复与合并计划](2026-10-15-pypsa-runtime-followup.md)。保留已交付e2节点及原归档，7c撤回不可交付；不重复离线全量验收，不更新云端/demo/19173。

@@ -1,0 +1,182 @@
+{
+  "schema": "capstone-design-transitions/1",
+  "default": "reject_invalid_state",
+  "transitions": [
+    {
+      "from": "queued",
+      "trigger": "start",
+      "to": "running"
+    },
+    {
+      "from": "queued",
+      "trigger": "missing_input",
+      "to": "waiting_input"
+    },
+    {
+      "from": "queued",
+      "trigger": "invalid_configuration",
+      "to": "failed"
+    },
+    {
+      "from": "running",
+      "trigger": "message",
+      "to": "running"
+    },
+    {
+      "from": "running",
+      "trigger": "revise_goal",
+      "to": "running"
+    },
+    {
+      "from": "running",
+      "trigger": "need_input",
+      "to": "waiting_input"
+    },
+    {
+      "from": "running",
+      "trigger": "pause_requested",
+      "to": "running"
+    },
+    {
+      "from": "running",
+      "trigger": "pause_settled",
+      "to": "paused"
+    },
+    {
+      "from": "running",
+      "trigger": "delivery_complete",
+      "to": "completed"
+    },
+    {
+      "from": "running",
+      "trigger": "delivery_partial",
+      "to": "partial"
+    },
+    {
+      "from": "running",
+      "trigger": "fatal_error",
+      "to": "failed"
+    },
+    {
+      "from": "running",
+      "trigger": "budget_exhausted",
+      "to": "paused"
+    },
+    {
+      "from": "queued",
+      "trigger": "cancel_settled",
+      "to": "cancelled"
+    },
+    {
+      "from": "running",
+      "trigger": "cancel_settled",
+      "to": "cancelled"
+    },
+    {
+      "from": "waiting_input",
+      "trigger": "cancel_settled",
+      "to": "cancelled"
+    },
+    {
+      "from": "paused",
+      "trigger": "cancel_settled",
+      "to": "cancelled"
+    },
+    {
+      "from": "waiting_input",
+      "trigger": "resume",
+      "to": "queued"
+    },
+    {
+      "from": "paused",
+      "trigger": "resume",
+      "to": "queued"
+    },
+    {
+      "from": "partial",
+      "trigger": "resume",
+      "to": "queued"
+    },
+    {
+      "from": "completed",
+      "trigger": "resume",
+      "to": "queued"
+    },
+    {
+      "from": "failed",
+      "trigger": "resume",
+      "to": "queued"
+    },
+    {
+      "from": "cancelled",
+      "trigger": "resume",
+      "to": "queued"
+    },
+    {
+      "from": "completed",
+      "trigger": "revise_goal",
+      "to": "queued"
+    },
+    {
+      "from": "partial",
+      "trigger": "revise_goal",
+      "to": "queued"
+    },
+    {
+      "from": "failed",
+      "trigger": "revise_goal",
+      "to": "queued"
+    },
+    {
+      "from": "cancelled",
+      "trigger": "revise_goal",
+      "to": "queued"
+    }
+  ],
+  "guards": {
+    "start": [
+      "valid_lease",
+      "authorized",
+      "inputs_ready",
+      "budget_available"
+    ],
+    "message": [
+      "valid_lease",
+      "command_recorded",
+      "safe_boundary"
+    ],
+    "revise_goal": [
+      "authorized",
+      "revision_cas",
+      "invalidate_dependents"
+    ],
+    "pause_settled": [
+      "no_new_dispatch",
+      "checkpoint_confirmed"
+    ],
+    "cancel_settled": [
+      "no_new_dispatch",
+      "unresolved_actions_preserved"
+    ],
+    "resume": [
+      "authorized",
+      "revision_cas",
+      "new_attempt",
+      "reconcile_unknown_actions"
+    ],
+    "delivery_complete": [
+      "current_goal",
+      "all_required_satisfied",
+      "artifacts_finalized",
+      "no_stale_dependencies"
+    ],
+    "delivery_partial": [
+      "usable_artifacts",
+      "unmet_requirements_recorded"
+    ],
+    "budget_exhausted": [
+      "dispatch_blocked",
+      "checkpoint_confirmed"
+    ]
+  }
+}
