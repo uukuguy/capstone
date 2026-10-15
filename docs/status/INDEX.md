@@ -1,5 +1,7 @@
 # docs/status INDEX
 
+927f08b修复OpenAI兼容协议与Key环境插值；129项、四组真实Pi loopback及授权DeepSeek文本/工具往返通过。实际业务样例待验收，见[验证记录](../reviews/2026-10-15-user-local-offline-verification.md)。
+
 2026-10-15离线增量：dev-trial在feat/user-local-offline推进AMD64离线包，默认OpenAI兼容内网配置；在线版及四部署保持原来源。见[设计](../superpowers/specs/2026-10-15-user-local-offline-design.md)和[计划](../superpowers/plans/2026-10-15-user-local-offline.md)，当前实施与验收未完成。
 
 离线实现已提交40b338d/6b74397，专项172/67通过；旧目录保留7930c07经19项及独立审查通过。PR #27草稿，AMD64镜像已构建，实际验收进行中，未合入或公开交付。

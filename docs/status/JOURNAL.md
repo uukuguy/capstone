@@ -3164,3 +3164,9 @@ The following original entries were retained during document synchronization.
 - 2026-10-15：macOS CI38680987676缺Docker导致新增Compose测试失败；补单项依赖声明，有Docker8通过、无Docker5通过1跳过。
 
 - 2026-10-15：Compose测试Docker前置条件已提交，产品行为不变；有/无Docker路径及独立审查通过，准备双平台重检。[75af46a]
+
+- 2026-10-15：候选验收与CI重检控制记录已对齐，图来源和连线通过；新检查38683463175。[13bee16]
+
+- 2026-10-15：用户授权现有DeepSeek以OPENAI_*真实验证；发现Pi协议继承与Key变量引用错误，暂停API兼容通过声明。
+
+- 2026-10-15：明确Pi兼容协议和Key环境插值，129项及真实DeepSeek文本/工具往返通过，补协议门禁。[927f08b]

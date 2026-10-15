@@ -1,14 +1,16 @@
 # Live Session Checkpoint
 
-> Updated: 2026-10-15 12:45. **Session remains active — not a final handoff.**
+> Updated: 2026-10-15 12:58. **Session remains active — not a final handoff.**
 
 ## TL;DR
+
+- 当前新增阻断：用户追问并授权DeepSeek的OPENAI_*真实API验证。927f08b修复原Pi协议继承及Key环境插值，129项及四组真实Pi loopback SSE通过，授权DeepSeek文本/工具往返通过。用户又要求几个实际样例；927f08b的AMD64候选构建中，待独立Thread真实样例。最终包需包括该修订。
 
 - user-local 已发布，运行来源 b7e68dd；双架构和公开安装入口验收通过。
 - 推进图、功能验收记录和版本目录已对齐。
 - 用户内网无法下载公网文件；当前实施AMD64离线包，默认PROVIDER=openai，优先OPENAI_BASE_URL/OPENAI_MODEL/OPENAI_API_KEY。
 - 工作区为.worktrees/dev-trial-deployment，分支feat/user-local-offline；Provider40b338d及离线导入6b74397已实现，172项及67项专项通过，零Provider调用。
-- 最新产品修订75af46a；7930c07目录保留修订及独立审查通过。PR #27已转正式；CI38680987676的macOS缺Docker导致新增Compose测试失败，75af46a补依赖声明，有Docker8项通过，无Docker路径5通过1跳过。等待推送后双平台重检。本地check-pr、E2E39+3及make validate全部通过。
+- 最新产品修订75af46a；7930c07目录保留修订及独立审查通过。PR #27已转正式；CI38680987676的macOS缺Docker导致新增Compose测试失败，75af46a补依赖声明，有Docker8项通过，无Docker路径5通过1跳过。控制记录13bee16已推送，双平台重检38683463175运行中。本地check-pr、E2E39+3及make validate全部通过。
 - 候选源码6b74397639e4c10b75bb90855c9dab863024da04镜像及离线包已生成；.capstone-agent/accept_offline.py在29373/项目capstone-user-nkfgc84h验收，安装、三案例九轮/回放、浏览器、重启/重复安装、缺Key/地址保留服务与配置/卷保留全部通过，报告证据哈希一致。候选已停止且保留数据。该候选不含7930c07目录保留修订。
 - 最终包须在PR正常合入后按实际dev合并SHA重建及完整验收。不可将6b74397候选标作最终包；不调用真实Provider。7930c07精确上下文已准备，尚未构建。
 

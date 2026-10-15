@@ -1,5 +1,6 @@
 # 多线版本控制
 
+2026-10-15协议验收：927f08b修复Pi自定义OpenAI地址协议及Key环境插值；129项和双family四组真实Pi loopback HTTP/SSE文本/工具往返通过，独立审查通过。用户授权现有DeepSeek映射OPENAI_*真实文本/工具调用已通过；实际业务样例与最终源码包待验收。此前零Provider记录只适用于打包及脚本验收。
 2026-10-15 CI修订：38680987676的macOS在新增Compose测试失败，原因是runner没有Docker CLI；新增测试遗漏前置条件。已按现有真实Compose测试方式声明Docker依赖，本机8项及无Docker路径5项通过/1项跳过；不改产品或其他门禁。候选完整安装/三案例九轮/回放/浏览器/重启/重复安装/数据保护、本地check-pr/E2E39+3/validate已通过。PR #27已转正式，等待修订来源的Linux/macOS完整检查及最终合并源码包验收。
 
 2026-10-15离线实施：Provider40b338d与离线传输6b74397已提交，172项配置/Kernel及67项离线/管理回归通过；原生Pi选中内网自定义模型和地址，零Provider请求。7930c07保留旧版本目录，19项及追加独立审查通过。PR #27为dev目标草稿，Linux/macOS及本地完整PR门禁运行中；AMD64精确源码镜像已构建，实际安装验收进行中。未合入或发布，不改变四部署与用户安装。
@@ -329,7 +330,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 编号 | 工作包 | 来源 | 目标 | 状态 | 交付范围 |
 | --- | --- | --- | --- | --- | --- |
-| 27 | dev-trial | feat/user-local-offline | dev | OPEN | AMD64候选完整验收及本地完整门禁通过；75af46a修订macOS测试Docker前置条件，等待双平台重检 |
+| 27 | dev-trial | feat/user-local-offline | dev | OPEN | AMD64候选完整验收及本地完整门禁通过；927f08b补真实OpenAI兼容协议验收，等待双平台重检及真实业务样例 |
 | 22 | dev-trial | feat/dev-trial-deployment | dev | MERGED | 双平台38596540476通过，正常合并7832134；最终双架构镜像、匿名拉取、三案例九轮/回放/重启/浏览器及公开安装包通过；本地/远端实施分支已关闭，恢复引用和数据保留 |
 | 23 | dev-trial | fix/dev-trial-user-feedback | dev | MERGED | Linux/macOS run38628243417通过，正常合并b7e68dd；完整本地及最终双架构升级/读取/回放/回退、重启、浏览器、匿名拉取和公开安装通过；未作用户LLM/整体业务验收 |
 | 6 | foundation | feat/issue-operational-readiness | main | MERGED | 对话连续阅读、执行租约修复、环境身份、反馈接入与检查加固；cfd6ad6 两平台检查与审查通过，合并 c3b78bc；云端未发布 |
@@ -353,7 +354,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 类型 | 关键进展 | 下一步 | 功能包 |
 | --- | --- | --- | --- | --- |
-| feat/user-local-offline | 内网离线交付 | Provider40b338d与传输6b74397；目录修订7930c07；测试前置条件75af46a；PR #27正式 | 候选安装/回放/重启及本地完整门禁通过；双平台重检后合入并验收最终包 | dev-trial |
+| feat/user-local-offline | 内网离线交付 | Provider40b338d与传输6b74397；目录修订7930c07；测试前置条件75af46a与协议修订927f08b；PR #27正式 | 候选安装/回放/重启及本地完整门禁通过；双平台重检后合入并验收最终包 | dev-trial |
 | refs/archive/20261015/feat-dev-trial-deployment | 已合并实施恢复引用 | 380ede4受检，PR #22合入7832134；本地/远端实施分支已关闭；最终公开镜像/包及安装入口验收通过 | 保存原验收目录、私有状态与卷；用户业务试用待反馈 | dev-trial |
 | main | 发布基线主线 | PR #9/#10已合入723b8e8；产品完整验收源码2473e48 | 发布PR接收dev已验证候选；云端按独立发布计划推进 | main |
 | dev | 默认开发集成主线 | PR #23合并b7e68dd，双平台检查通过；local-dev同源重建，user-local最终双架构及公开安装通过 | 用户试用反馈后继续N−1及交互专项；main保持发布快照；两个demo继续faa6af9 | main |

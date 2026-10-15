@@ -38,6 +38,12 @@ Task 2: 67 focused checks passed at6b74397. The catalog preservation correction
 7930c07 passed19 checks and independent review. No real Provider requests.
 Actual AMD64 acceptance remains separate from these code checks.
 
+927f08b adds explicit Chat Completions for local-trial custom OpenAI addresses
+and fixes Pi environment-key interpolation. The expanded focused regression
+passed129 checks, including four real-Pi loopback protocol tests. The separately
+authorized DeepSeek `OPENAI_*` text/tool probe passed; real business samples
+and the final accepted-source archive remain pending.
+
 Files: new offline exporter/installer under `deploy/`, lifecycle templates and
 `tools/tests/test_user_local_offline.py`.
 
