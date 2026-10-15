@@ -1,12 +1,12 @@
 # 多线版本控制
 
-当前工作：按用户要求修复`fix/user-local-network-view`的派生结果投影及AC调度一致性遗留问题，完成针对性验证后正常PR合入dev。执行[修复与合并计划](../superpowers/plans/2026-10-15-pypsa-runtime-followup.md)。尚未合入或部署，e2交付归档保持冻结，7c仍为撤回不可交付证据。
+当前工作：PyPSA派生结果投影和AC调度输入两项修复已实现、独立审查及针对性检查通过。精确候选c638e0992e49d300e760e89d07aff63ef6eca1c5在Apple ARM宿主的Linux AMD64模拟环境完成原区域三轮及补充AC-only第4轮；没有重新dispatch，5个operations投影completed且模型修订/证据正确。南部机组第3时段增量9.999984503 MW，最大AC残差约0.00004649 MW，小于0.01 MW。PR #28的Linux/macOS required CI run38723131332全部通过，已正常合入f300d1f375ef20af005840a60af47b5e33ea62e8；root dev已快进，packages与受检c638完全一致，local-dev规范重建exit0、ready通过；API与双worker同镜像6c616058e643，各1060个受管后端文件SHA256等同f300；镜像源码标签仍development，未将该标签冒称精确提交；App5173为f300、dirty=false；候选已停止，数据保留。回答文字仍有“+5应为+7.5”的算术问题；source-modeling投影仍未实现，不称所有回答或所有Pack通过。e2交付包不含这两项新runtime修复，原包和校验值不变。执行[后续计划](../superpowers/plans/2026-10-15-pypsa-runtime-followup.md)，见[限定实测报告](../reviews/2026-10-15-pypsa-runtime-followup-verification.md)。
 
 2026-10-15更新离线包已交付：精确源码e2eaee2403cb6d780b3f7564da86e0d083890673，根runs/user-local-offline/capstone-delivery-e2eaee2含归档、同名.sha256及README.md三文件；归档1368607944字节，SHA256为9d7c3b215b9c45631bf3142aaad8f8066ba43831380b43b2ccf8146ee1eebfe7。新README默认pandapower IEEE39，PyPSA清单在末尾可选说明；旧7c已撤回、不可交付，证据目录及原校验值保留。新包12项内部SHA与源码检查通过，runtime packages相对28020aa无差异，可复用已记录的handoff/dispatch限定实测证据；29377单次新安装及ready检查通过，六角色均linux/amd64，API与双worker同e2源码镜像；检查后正常停止并保留数据。本轮按用户要求不重跑全量测试或Provider；公开投影与AC第3时段一致性两项仍开放，不声称完整业务验收。
 
 2026-10-15旧7c包曾交付后撤回，现不可交付：精确来源7c1976659a46fdf3f19abd565a0198bb60a0b8cd，目录为根runs/user-local-offline/capstone-withdrawn-7c19766，原归档、README及SHA256保持不变。完整安装、重启、重复安装、数据保留和九请求/独立回放检查通过；这些链路检查不等于所有业务样例通过。7c的区域样例没有实际调用operations.dispatch，调度业务失败保留。README原文1–9已用OPENAI方式完成运行记录，10–12未运行；12的完整发电N1研究及排序仍待验证，不宣称全样例通过。
 
-PR #27在来源7c的Linux/macOS CI run38700786813全部通过后，正常合入dev37529efa2f0b0e10f641a65706b330b1d94255af。root dev仍1d0b280，尚未快进或规范重建；四部署与19173用户安装b7e68dd保持原来源。验证环境是Apple ARM宿主Docker中的Linux AMD64模拟运行；用户取消VM/cloud验证，原失败记录保留。独立fix/user-local-network-view分支文档收据6064103；交付冻结源码e2eaee2（runtime packages同28020aa）：61a418d图场景/相机修复已推送，未建PR或部署；28020aa公共Pi handoff schema修复16项合同/82项检查及审查通过；ce47532默认IEEE39/可选PyPSA文案54+5项及审查通过，分支e2eaee2已推送，未PR或部署，均不在已撤回7c包内。独立29375候选使用AMD64后端28020aa与App7c，原三轮OPENAI实测handoff/dispatch通过：基准与增长目标1300/1900，均optimal，两次AC校验均converged。第3轮4个operations公开投影不可用，AC第3时段与调度增量一致性待查，不宣称PyPSA整体通过。候选已停止，0运行容器，数据保留；四部署不变。见[限定验证报告](../reviews/2026-10-15-pypsa-handoff-verification.md)。见[验证记录](../reviews/2026-10-15-user-local-offline-verification.md)、[设计](../superpowers/specs/2026-10-15-user-local-offline-design.md)及[计划](../superpowers/plans/2026-10-15-user-local-offline.md)。
+PR #27在来源7c的Linux/macOS CI run38700786813全部通过后，正常合入dev37529efa2f0b0e10f641a65706b330b1d94255af。root dev已快进f300d1f，local-dev规范重建及真实源码核验通过，运行来源f300；local-dev现为f300，其余三个部署及19173用户安装保持原来源。验证环境是Apple ARM宿主Docker中的Linux AMD64模拟运行；用户取消VM/cloud验证，原失败记录保留。独立fix/user-local-network-view分支文档收据6064103；交付冻结源码e2eaee2（runtime packages同28020aa）：61a418d图场景/相机修复已推送，未建PR或部署；28020aa公共Pi handoff schema修复16项合同/82项检查及审查通过；ce47532默认IEEE39/可选PyPSA文案54+5项及审查通过，分支e2eaee2已推送，未PR或部署，均不在已撤回7c包内。独立29375候选使用AMD64后端28020aa与App7c，原三轮OPENAI实测handoff/dispatch通过：基准与增长目标1300/1900，均optimal，两次AC校验均converged。第3轮4个operations公开投影不可用，AC第3时段与调度增量一致性待查，不宣称PyPSA整体通过。候选已停止，0运行容器，数据保留；四部署不变。见[限定验证报告](../reviews/2026-10-15-pypsa-handoff-verification.md)。见[验证记录](../reviews/2026-10-15-user-local-offline-verification.md)、[设计](../superpowers/specs/2026-10-15-user-local-offline-design.md)及[计划](../superpowers/plans/2026-10-15-user-local-offline.md)。
 
 2026-10-15当前增量：PR #23经Linux/macOS检查正常合入dev b7e68dd，local-dev已规范重建同源。user-local标识、Git版本选择、capstone.sh共享数据管理及兼容发布门禁已交付；精确合并源码双架构镜像完成匿名拉取、旧数据升级/读取/报告证据回放、重启、浏览器和兼容回退验收，公开安装包下载/校验/启动/管理实测通过。新版本user-local-b7e68dd与受管旧版user-local-7832134已公开；原用户安装和数据保留，cloud-dev/demo未改变。
 
@@ -190,7 +190,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 功能包 | 阶段 | 状态 | 交付内容 | 来源 | 下一步 | 对比起点 | 新增或更新 | 交付记录 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev-trial | user-local无源码试用与版本管理 | 8 | 离线包已交付，PR #27已合入；业务缺口单列 | 固定镜像安装、版本管理、数据兼容及内网离线安装 | dev37529ef；fix/user-local-network-view | root dev快进与规范重建；跟进独立候选的公开投影与AC一致性，不覆盖已撤回7c包 | 四部署及19173保留原来源 | 默认openai；双digest/层校验、元数据权限、共享指南；7c安装和数据保留通过 | 九请求/回放不等于业务全过；7c无dispatch；README1–9已运行，10–12未跑，完整N1排序仍待验证 |
+| dev-trial | user-local无源码试用与版本管理 | 8 | 离线包已交付，PR #27已合入；业务缺口单列 | 固定镜像安装、版本管理、数据兼容及内网离线安装 | dev37529ef；fix/user-local-network-view | root dev已快进f300，local-dev规范重建与真实源码核验通过；跟进独立候选的公开投影与AC一致性，不覆盖已撤回7c包 | 四部署及19173保留原来源 | 默认openai；双digest/层校验、元数据权限、共享指南；7c安装和数据保留通过 | 九请求/回放不等于业务全过；7c无dispatch；README1–9已运行，10–12未跑，完整N1排序仍待验证 |
 | autonomous | 自主智能体 · 统一实施 | 4 | 已合入dev；两个demo已发布，整体业务未验收 | 单Pi研究循环、持久研究状态、Authority计算与来源、执行过程、结果证据、电网场景图层和模型资源管理 | origin/dev | 两个demo已验收faa6af9，从dev推进N−1与交互缺口 | dev4f15cfc及6ff7094业务基线；旧Research Model分支仅作参考 | 研究读写及Pi真实上下文；受控失败交付；任务与工具两级过程；完整结果字段；场景与孤岛图层；模型打开准备与内存回收；对话创建后台预热 | PR #18双平台PR门禁通过，合并dev faa6af9；2b6ae7b候选59项及本地完整PR门禁、云三角色身份、三用例九轮、报告证据回放与旧Thread恢复通过；完整发布及合并后双平台通过，两个demo已同源验收并推送正式标签，不冒充科学业务验收；详见本包明细及首期计划 |
 | live | 线上共同基线 | 0 | 线上在用 | 电网静态分析、证据结果、智能体对话与工作台 | 线上部署 | 保持线上稳定；后续版本按发布计划推进 | 当前线上部署 | 本页起点；更早沿革仅在详情中保留 | 以 cloud-demo 部署台账为准；本次未重新探测云端 |
 | main | 开发集成 dev / 发布基线 main | 0 | 已验证并分流 | dev保存当前全局记录与开发集成；main保存发布基线快照 | dev | 从dev推进自主智能体N−1与交互专项；Research Model R1保留待启动 | 线上共同基线 | 全局文档、分支治理与Issue工具已集成dev | main723b8e8发布快照；PR #18合并faa6af9及双平台门禁通过；两个demo已同源验收并推送正式标签；PR #19补齐控制文档 |
@@ -212,7 +212,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | 功能包 | 开发项 | 当前状态 | 已有实现或依据 | 剩余工作与依赖 | 验收要求 |
 | --- | --- | --- | --- | --- | --- |
 | dev-trial | 无源码Compose与镜像交付 | PR #22合入7832134，公开包安装验收通过 | 受限Provider；同源静态App；四类镜像；每实例0600私有状态；精确Git和资产；实际平台/同镜像/App源码/就绪检查；安装结束运维提示 | 用户自己的LLM Key、业务样例及Windows/WSL2仍待实际验证；停止保留数据 | 一条命令安装并启动至~/capstone；App默认19173，可改.env；API/App无Provider Key；三backend同镜像；停止保留数据；全部镜像来源一致 |
-| dev-trial | AMD64离线安装与OpenAI兼容内网配置 | e2更新包已交付；旧7c已撤回、不可交付 | e2归档检查、单次新安装及ready通过；runtime同28020复用限定handoff/dispatch实测，不重跑全量测试或Provider | 公开投影及AC第3时段一致性两项开放；后续正常PR/CI，root dev尚未快进重建 | Apple ARM宿主AMD64模拟；原7c只保留撤回证据，唯一当前交付为e2；四部署及19173未变 |
+| dev-trial | AMD64离线安装与OpenAI兼容内网配置 | e2更新包已交付；旧7c已撤回、不可交付 | e2归档检查、单次新安装及ready通过；runtime同28020复用限定handoff/dispatch实测，不重跑全量测试或Provider | 公开投影及AC第3时段一致性两项开放；PR #28已正常合入f300且双CI通过；local-dev规范重建与真实身份核验通过 | Apple ARM宿主AMD64模拟；原7c只保留撤回证据，唯一当前交付为e2；四部署及19173未变 |
+| autonomous | PyPSA派生结果投影及saved-dispatch AC输入 | c638候选限定实测通过，PR #28 ready、CI待完成 | 可选中性revision resolver保留应用lineage与Pack exact equality；PF用p_set恢复Generator调度，不支持的组件显式拒绝；5个operations投影完成并绑定正确修订/证据；三轮+AC-only第4轮验证通过 | PR #28已正常合入f300且双CI通过，local-dev规范重建/真实身份核验通过；回答+5应+7.5仍待跟进，source-modeling投影未实现 | 验证只覆盖所述operations及AC路径；不重建e2包，不称所有PyPSA/回答通过，不更新四部署或19173 |
 | dev-trial | user-local版本管理与共享数据升级 | PR #23合入b7e68dd，最终双架构验收和公开安装通过 | Git选择、版本管理、单活跃项目、共享数据及停止前检查；原7832134项目/卷/私有配置/安装记录保留；旧新报告证据可读可回放，兼容回退独立验证 | 用户自有LLM与业务样例；格式变化须开发提供已验证迁移 | 不兼容或缺少声明不能停止旧服务；不创建空卷绕过；原用户数据保留；用户不用处理数据库迁移 |
 | autonomous | 研究状态、笔记与持久回执 | 已实现，离线重放与接线已验证 | 8d636a4最小研究记录；7df7180实际受管Pi请求、压缩恢复与持久回执验证；a3895a5研究记录及388fa89参数追溯；版本冲突、重复更新及来源准入保留 | 完整多轮研究、反例依赖修订与共享存储恢复尚未整体验收 | 后续实际请求读到最新有界研究视图；研究判断不冒充Authority事实；迟到或冲突更新被拒绝；恢复不丢历史 |
 | autonomous | 单Pi主循环与复杂指令执行 | 已实现，真实三链执行完成；业务解释未通过 | 复用公开工具、指南、Thread/Attempt与结果准入；OPF、N−1、双停运原句均已有真实调用和正式回复；8bf9ada撤除附加回答生成 | N−1电压判定、方案约束与引用错误；孤岛短路/电源/稳定性解释缺口仍开放 | 单条原始指令可独立完成；失败、能力不足和部分成功按真实回执表达；不得使用样例专用路由或固定答案 |
@@ -263,8 +264,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
-| offline-e2-delivery | e2eaee2403cb6d780b3f7564da86e0d083890673 | feature | 已交付离线包 · e2eaee2 | 已交付；最小安装ready通过，未合入dev/部署四环境 | 已交付linux/amd64归档1368607944字节；单次新安装/ready及同源身份通过，API与双worker同e2镜像，六角色AMD64，正常停止保留数据；runtime packages同28020，复用限定handoff/dispatch实测；公开投影与AC第3时段一致性两项开放，本包未重跑全量测试或Provider。历史：7c曾交付后撤回、不可交付，证据位于capstone-withdrawn-7c19766且原SHA保留；6064103仅为分支文档收据，不是交付源码。[包README](../../runs/user-local-offline/capstone-delivery-e2eaee2/README.md) [下载归档](../../runs/user-local-offline/capstone-delivery-e2eaee2/capstone-user-local-offline-e2eaee2-linux-amd64.tar.gz) [SHA256](../../runs/user-local-offline/capstone-delivery-e2eaee2/capstone-user-local-offline-e2eaee2-linux-amd64.tar.gz.sha256) [限定验证报告](../reviews/2026-10-15-pypsa-handoff-verification.md) | dev-trial |
-| offline-merge | 37529ef | main | dev · 离线交付源码合并基线 | PR #27已合入，未更新运行环境 | 来源7c经Linux/macOS CI通过后正常合并；root dev1d0b280尚未快进重建；已交付归档仍精确7c，不冒充合并源码新包 | dev-trial |
+| offline-e2-delivery | e2eaee2403cb6d780b3f7564da86e0d083890673 | feature | 已交付离线包 · e2eaee2 | 已交付；最小安装ready通过，原归档未升级为f300 | 已交付linux/amd64归档1368607944字节；单次新安装/ready及同源身份通过，API与双worker同e2镜像，六角色AMD64，正常停止保留数据；runtime packages同28020，复用限定handoff/dispatch实测；公开投影与AC第3时段一致性两项开放，本包未重跑全量测试或Provider。历史：7c曾交付后撤回、不可交付，证据位于capstone-withdrawn-7c19766且原SHA保留；6064103仅为分支文档收据，不是交付源码。[包README](../../runs/user-local-offline/capstone-delivery-e2eaee2/README.md) [下载归档](../../runs/user-local-offline/capstone-delivery-e2eaee2/capstone-user-local-offline-e2eaee2-linux-amd64.tar.gz) [SHA256](../../runs/user-local-offline/capstone-delivery-e2eaee2/capstone-user-local-offline-e2eaee2-linux-amd64.tar.gz.sha256) [限定验证报告](../reviews/2026-10-15-pypsa-handoff-verification.md) | dev-trial |
+| offline-merge | f300d1f375ef20af005840a60af47b5e33ea62e8 | main | dev · PyPSA运行修复合并基线 | PR #28合入，双平台与local-dev重建核验通过 | c638真实区域3轮+AC-only第4轮通过，5operations投影正确；CI38723131332全过，root dev已快进且packages一致；local-dev ready/API双worker同镜像，各1060文件SHA256同f300，App f300无dirty；源码label仍development；e2归档未升级，算术及source建模投影边界保留 | autonomous |
 | user-local | b7e68dd | main | dev · user-local版本管理合并基线 | 已合入，双架构验收及公开安装通过 | Git选择与capstone.sh共享数据管理；停止前兼容/配置检查；最终源码匿名拉取、旧数据升级/回放/回退、重启和浏览器通过；user-local-b7e68dd已公开 | dev-trial |
 | dev-trial | 7832134 | main | dev · 用户试用交付合并基线 | 已合入，公开试用包已验证 | 无源码Compose、受限Provider、同源App、私有实例及精确源码/镜像检查；最终双架构各三案例九轮/回放/重启/浏览器、匿名拉取与公开安装入口通过；标签dev-trial-20261015-7832134 | dev-trial |
 | cloud | ed2524f | main | 线上运行能力 | 已发布 | 电网静态分析、智能体对话、工作台与结果证据；当前用户试用起点 | live |
@@ -316,8 +317,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
-| offline-e2-delivery | 当前交付重点 | fix/user-local-network-view | 已交付Linux AMD64更新包、单次安装ready通过；复用28020交接实测，投影与AC一致性两项开放 | 已交付e2，单次安装ready通过；未合入dev/部署四环境，两项业务缺口保留 |
-| offline-merge | 最新开发合并基线 | dev | 离线交付源码正常合入；运行来源及交付归档分别保持 | 37529ef已合入；root dev尚未快进或重建 |
+| offline-e2-delivery | 当前交付重点 | fix/user-local-network-view | 已交付Linux AMD64更新包、单次安装ready通过；f300源码已修后续runtime问题，e2原归档未升级 | 已交付e2，保留原包及原校验值；包内仍是旧runtime，不冒充f300验证 |
+| offline-merge | 最新开发合并基线 | dev | 派生模型结果投影按验证修订展示；AC使用保存的Generator调度输入 | f300d1f已合入，双平台通过；local-dev ready、三后端文件SHA与App身份核验通过 |
 | user-local | 重要试用发布与开发基线 | dev | Git选择、管理命令与共享用户数据；双架构旧数据升级回放及回退、公开安装通过 | 已合入并发布，用户业务待验证 |
 | dev-trial | 重要试用发布与开发基线 | dev | 无源码安装启动、同源App及受限Provider；双架构公开包已验证，用户正在试用 | 已发布试用包，用户业务待验证 |
 | cloud | 历史重要发布 | main | 电网静态分析、智能体对话与工作台；计算结果与证据随运行保留 | 历史发布起点 |
@@ -335,7 +336,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 编号 | 工作包 | 来源 | 目标 | 状态 | 交付范围 |
 | --- | --- | --- | --- | --- | --- |
-| 27 | dev-trial | feat/user-local-offline | dev | MERGED | 来源7c双平台CI38700786813全部通过，正常合并37529efa2f0b0e10f641a65706b330b1d94255af；7c包曾交付后撤回、不可交付，原SHA保留；root dev尚未快进/重建；业务边界单列，图/Pi修复不在7c包内 |
+| 28 | autonomous | fix/user-local-network-view | dev | MERGED | required CI38723131332的Linux/macOS全部通过，正常合入f300d1f375ef20af005840a60af47b5e33ea62e8；受检c638及合并packages一致；root dev已快进，local-dev规范重建exit0/ready，同后端镜像与每角色1060文件SHA256及App f300身份通过（源码标签仍development）；e2归档未升级，回答算术与source建模投影限制保留 |
+| 27 | dev-trial | feat/user-local-offline | dev | MERGED | 来源7c双平台CI38700786813全部通过，正常合并37529efa2f0b0e10f641a65706b330b1d94255af；7c包曾交付后撤回、不可交付，原SHA保留；root dev已快进f300且local-dev规范重建/源码核验通过；业务边界单列，图/Pi修复不在7c包内 |
 | 22 | dev-trial | feat/dev-trial-deployment | dev | MERGED | 双平台38596540476通过，正常合并7832134；最终双架构镜像、匿名拉取、三案例九轮/回放/重启/浏览器及公开安装包通过；本地/远端实施分支已关闭，恢复引用和数据保留 |
 | 23 | dev-trial | fix/dev-trial-user-feedback | dev | MERGED | Linux/macOS run38628243417通过，正常合并b7e68dd；完整本地及最终双架构升级/读取/回放/回退、重启、浏览器、匿名拉取和公开安装通过；未作用户LLM/整体业务验收 |
 | 6 | foundation | feat/issue-operational-readiness | main | MERGED | 对话连续阅读、执行租约修复、环境身份、反馈接入与检查加固；cfd6ad6 两平台检查与审查通过，合并 c3b78bc；云端未发布 |
@@ -360,10 +362,10 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | 分支 | 类型 | 关键进展 | 下一步 | 功能包 |
 | --- | --- | --- | --- | --- |
 | feat/user-local-offline | 已合入交付来源 | 精确7c包曾交付后撤回，现不可交付；PR #27正常合入37529ef，来源双CI通过 | 保留归档与原SHA，root dev快进/规范重建单列；业务失败和未跑样例继续验证，不覆盖已交付包 | dev-trial |
-| fix/user-local-network-view | 独立用户试用修复与更新包 | e2eaee2已构建新包，12内部SHA及runtime源码等价、单次安装/ready检查通过，已正常停止；e2eaee2已推送；聚焦检查/审查及28020原三轮真实handoff/dispatch通过；候选已停且数据保留 | 跟进4个公开投影不可用与AC第3时段一致性；正常PR/CI；不声称19173已修复，不覆盖7c包 | autonomous |
+| fix/user-local-network-view | 已合入运行修复来源 | c638受检，PR #28双平台CI通过后正常合入f300d1f；root dev已快进，packages一致 | local-dev规范重建及真实身份核验已通过；e2归档未升级，19173/demo/cloud不变；回答算术和source建模投影边界保留 | autonomous |
 | refs/archive/20261015/feat-dev-trial-deployment | 已合并实施恢复引用 | 380ede4受检，PR #22合入7832134；本地/远端实施分支已关闭；最终公开镜像/包及安装入口验收通过 | 保存原验收目录、私有状态与卷；用户业务试用待反馈 | dev-trial |
 | main | 发布基线主线 | PR #9/#10已合入723b8e8；产品完整验收源码2473e48 | 发布PR接收dev已验证候选；云端按独立发布计划推进 | main |
-| dev | 默认开发集成主线 | origin/dev37529ef已合入PR #27；root dev仍1d0b280，未快进/规范重建；四部署不变 | 保护原数据后快进并规范重建；业务缺口在独立分支验证，再走正常PR | main |
+| dev | 默认开发集成主线 | PR #28正常合入f300d1f，双平台CI通过；root dev已快进且packages等同c638 | local-dev规范重建与f300文件源码/同镜像/就绪/App身份核验通过；e2归档和19173/demo/cloud保持原来源 | main |
 | docs/dev-baseline-control | 收口状态同步 | 从接受的dev50d8ebc建立；登记B2标签、分支关闭与研究实施起点 | 仅文档和控制图，轻量检查后集成dev | main |
 | feat/research-model | 起点与依赖已适配 | 2b0b0a5；精确祖先dev6ff7094；设计及推进计划排除撤回的编译/覆盖/预热依赖；本工作区运行时准备与doctor通过 | R1尚无代码；按R1–R5及真实依赖路径验收，不将旧R0实验当作本分支成果 | research |
 | recovery/autonomous-agent-merged-faa6af9 | 已合并分支的本地恢复引用 | 原feat/autonomous-agent已通过PR #18合入dev faa6af9；保留2b6ae7b与原工作树全部未提交文档和运行数据；远端已合并分支关闭 | 非在研分支；后续从dev推进，科学与交互验收仍开放 | autonomous |
@@ -476,7 +478,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | dev 后端/App `b7e68dd`，PR #23已合入 | 根dev规范重建ready，API/双worker同镜像6069a80647ae；App来源b7e68dd、dirty=false；原数据保留 | 固定App http://127.0.0.1:5173/，API8767；独立用户试用使用19173，不更新demo/cloud-dev |
+| local-dev | dev 后端/App `f300d1f375ef20af005840a60af47b5e33ea62e8`，PR #28已合入 | 规范重建exit0、ready=true；API与双worker同镜像sha256:6c616058e6432cedcb1cd628a6292921c962e4d1bb87872724119036167d2a0a，均healthy；每角色1060个受管后端文件SHA256与clean f300完全一致；Docker源码标签仍development；App f300、dirty=false | 固定App http://127.0.0.1:5173/，API8767；核验依据为文件SHA256及App身份，不冒称精确镜像标签；收据root .capstone-agent/pr28-local-dev-identity.json；其余三部署、19173及原数据保持不变 |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |
 | cloud-dev | `24d9a32`，开发试用候选；已推送标签cloud-dev-20261013-1045-24d9a32 | 用户授权的基本功能检查通过：四角色SUCCESS、API就绪、前端来源与真实中文对话；非正式发布或科学解释验收 | App https://capstone-app-production-83ef.up.railway.app/；[部署记录](../reviews/2026-10-13-cloud-dev-autonomous-trial.md)；demo不变 |
 | cloud-demo | App/API/两worker `faa6af9` | 四角色SUCCESS；三后端身份与dev本地529文件验收一致，安装工件与受检候选一致；三用例九轮、报告证据回放通过；local-demo已同源验收；正式标签demo-20261014-2028-faa6af9已推送 | App https://capstone-app-production-975e.up.railway.app/；上一正式标签demo-20261014-0744-bd2a200；双平台完整发布38554987581通过；cloud-dev不动 |

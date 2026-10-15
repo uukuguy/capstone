@@ -71,8 +71,9 @@ runs/user-local-offline/capstone-withdrawn-7c19766. Preserve the original archiv
 README and SHA; do not overwrite this delivered package with later guide or code changes.
 
 Source7c passed Linux/macOS CI38700786813, then PR #27 merged normally as
-37529efa2f0b0e10f641a65706b330b1d94255af. Root dev remains1d0b280, without fast-forward
-or canonical rebuild. Four deployments and the original19173 installation are unchanged.
+37529efa2f0b0e10f641a65706b330b1d94255af. PR #28 later merged as f300d1f; root dev
+has fast-forwarded and its canonical rebuild passed. Local-dev source f300 is
+verified; the other three stages and19173 retain their original sources.
 Only Apple ARM host Docker AMD64 emulation was verified; VM/cloud checks were cancelled.
 
 Business scope correction:7c regional runs never called operations.dispatch. README
@@ -80,11 +81,13 @@ instructions1–9 completed through OPENAI send_auto;10–12 were not run. Instr
 still marks full generator N1 study/ranking as pending. Keep business failures and
 unverified instructions explicit; do not call all samples passed.
 
-The separate fix/user-local-network-view branch is atce47532. Graph/camera fix61a418d
+Historical pre-PR #28 checkpoint: the separate fix/user-local-network-view branch
+was atce47532. Graph/camera fix61a418d
 is pushed with106 backend/109 App/type/browser checks passed, without PR or deployment.
 Public Pi handoff schema fix28020aa passed16 contract and82 checks plus review; guide
 revisionce47532 leads with IEEE39 and moves optional PyPSA grids to the end, with54+5
-checks and review passed. The branch throughce47532 is now pushed, without PR or deployment; these changes
+checks and review passed. At that checkpoint the branch throughce47532 was pushed,
+without PR or deployment; these changes
 are absent from the original7c package and included in the updated e2 package.
 The separate29375 AMD64 backend28020aa/App7c
 candidate passed the original three-turn real OPENAI handoff/dispatch path: baseline
@@ -115,6 +118,27 @@ expand the previous business acceptance. Preserve the withdrawn7c evidence; do n
 Minimal-check receipt: `.capstone-agent/offline-e2eaee2-minimal-check.json`.
 No full test suite, Provider request or business sample was rerun for this package.
 
+## Later runtime candidate; delivered package remains frozen
+
+Candidate c638e0992e49d300e760e89d07aff63ef6eca1c5 repairs the two runtime defects
+and passed the original regional three turns plus a saved-schedule AC-only fourth
+turn on AMD64 emulation. Five operations projections completed with exact model
+revision and evidence. Southern-backup third-period delta was9.999984503 MW;
+maximum independent AC residual was approximately 0.00004649 MW (<0.01 MW). No redispatch was
+performed in the AC-only turn. The separate candidate is stopped; data is retained.
+
+PR #28 passed both required Linux/macOS jobs in CI38723131332 and merged normally
+as f300d1f375ef20af005840a60af47b5e33ea62e8. Root dev fast-forwarded; packages match
+tested c638. The canonical local-dev rebuild passed with readiness true. Each of the three
+backend roles matches1060 tracked-file SHA256 hashes from f300 and uses the same
+image6c616058e643; its source label remains development. App5173 reports f300,
+dirty=false. This is file-based source verification, not an exact image-label claim. The delivered e2 archive and19173/demo/cloud remain unchanged.
+The model's comparison text still has+5 where+7.5 is correct; source-modeling
+projections remain unimplemented. This is not acceptance of every answer or Pack.
+See [bounded report](../../reviews/2026-10-15-pypsa-runtime-followup-verification.md)
+and [follow-up plan](2026-10-15-pypsa-runtime-followup.md). Governance/control receipts
+will use a separate docs PR after product integration, avoiding a product-gate rerun.
+
 ## Task 3: Acceptance and delivery
 
 - [x] Run focused regression, doctor and diff checks; review changes.
@@ -125,11 +149,14 @@ No full test suite, Provider request or business sample was rerun for this packa
 - [x] Preserve exact7c artifact/checksum/README as withdrawn evidence with original
   hashes. The package was handed over and then withdrawn; do not deliver it.
 - [x] Merge PR #27 normally as37529ef after source7c Linux/macOS CI passed.
-- [ ] Fast-forward root dev and rebuild its real local entry point with data preserved.
+- [x] Fast-forward root dev to the normal PR #28 merge f300d1f.
+- [x] Complete the canonical local-dev rebuild and verify f300 through1060 tracked
+  backend SHA256 files in each role, same image, readiness and App identity; data retained.
 - [x] Verify the original three-turn handoff/dispatch path on the separate28020aa
   candidate; preserve receipts and data after stopping it.
-- [ ] Resolve public projection availability and third-period AC/dispatch consistency
-  as separate open findings; do not broaden this handoff acceptance.
+- [x] Resolve the tested operations projections and Generator third-period AC/dispatch
+  consistency on c638/f300; the original delivered e2 package remains unchanged.
 - [ ] Complete remaining README business checks;10–12 were not run and full N1
   study/ranking is still pending. Keep withdrawn7c evidence unchanged; do not deliver it.
-- [ ] Submit independent fixes through normal PR/CI and verify their actual runtime.
+- [x] Submit independent fixes through normal PR/CI and merge as f300d1f.
+- [x] Verify the actual local-dev source, same backend image, readiness and App after rebuild.

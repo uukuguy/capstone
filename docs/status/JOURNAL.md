@@ -3239,3 +3239,16 @@ The following original entries were retained during document synchronization.
 - 2026-10-15：[5e3627a] highlights the delivered package and archives withdrawn or interim nodes to keep the graph concise.
 
 - 2026-10-15：用户要求修复当前分支两项PyPSA遗留后正常合入dev；定位混合模型投影批次校验及AC写输出而非p_set，启动针对性回归。
+
+- 2026-10-15：[9ccdfa8] records focused residual fixes and normal dev merge requirements while preserving immutable delivery and deployment boundaries.
+
+- 2026-10-15：[b580f93] restores saved generator setpoints for AC validation and rejects unsupported component schedules; focused tests and review pass.
+
+- 2026-10-15：[c638e09] projects each admitted result using its verified model revision; focused regressions, type checks and independent review pass.
+
+- 2026-10-15：c638e09两项修复已推送PR #28 draft；双平台PR门禁38723131332运行，独立AMD64候选构建完成，真实工作流待验证。
+
+- 2026-10-15：c638e09真实原三轮加AC专用第四轮通过，5操作投影completed，非slack出力一致；保留模型差值笔误，候选已停止、数据保留。
+
+- 19:24 PR28双平台检查通过，正常合入dev f300d1f；root快进，保留控制副本stash，开始规范重建。
+- 19:35 rootdev f300规范重建通过；API/双worker同6c616058镜像，1060文件逐角色匹配，就绪/App身份通过，数据保留。
