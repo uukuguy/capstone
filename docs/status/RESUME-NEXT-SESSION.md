@@ -1,13 +1,14 @@
 # Live Session Checkpoint
 
-> Updated: 2026-10-15 12:03. **Session remains active — not a final handoff.**
+> Updated: 2026-10-15 12:10. **Session remains active — not a final handoff.**
 
 ## TL;DR
 
 - user-local 已发布，运行来源 b7e68dd；双架构和公开安装入口验收通过。
 - 推进图、功能验收记录和版本目录已对齐。
 - 用户内网无法下载公网文件；当前实施AMD64离线包，默认PROVIDER=openai，优先OPENAI_BASE_URL/OPENAI_MODEL/OPENAI_API_KEY。
-- 工作区为.worktrees/dev-trial-deployment，分支feat/user-local-offline；设计effd148，Provider配置与离线导入实现进行中。
+- 工作区为.worktrees/dev-trial-deployment，分支feat/user-local-offline；Provider40b338d及离线导入6b74397已实现，172项及67项专项通过，零Provider调用。
+- 精确源码6b74397639e4c10b75bb90855c9dab863024da04上下文位于.capstone-agent/offline-context-6b74397-r3；AMD64 backend/App构建、check-pr及两项代码审查进行中。
 
 ## 当前状态
 

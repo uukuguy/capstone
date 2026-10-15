@@ -123,6 +123,38 @@ sh ~/capstone/capstone.sh stop
 
 本包是固定dev的临时试用，不更新既有cloud-dev/demo或local-demo，不属于main稳定发布。镜像实际平台、Windows/WSL2目标验证和发布入口以[版本台账](status/VERSION-CONTROL.md)为准。基础注册案例及服务就绪不代表整体科学验收；正常使用LLM由用户配置的Provider处理。操作员构建与发布步骤见[试用打包说明](../deploy/dev-trial/README.md)。
 
+### Offline user-local installation
+
+内网安装包面向`linux/amd64`。目标机器须先安装Docker与Compose v2；
+安装包包含四类镜像、模型资源、部署文件和SHA256清单，不需要Git、Python、
+Node或公网下载。离线包的精确来源与实际验收范围以版本台账和交付收据为准。
+
+解压交付归档后，在其目录运行`sh install-offline.sh`。先在启动环境中设置：
+
+```sh
+export PROVIDER=openai
+export OPENAI_BASE_URL='http://your-internal-llm/v1'
+export OPENAI_MODEL=deepseek-flash
+# Set OPENAI_API_KEY in the startup environment. Do not put a real Key in arguments.
+sh install-offline.sh
+```
+
+地址须替换为容器可以访问的内网接口；容器中的`localhost`指向该容器自身。
+缺省Provider为openai，模型为deepseek-flash，内网地址必须配置。
+`OPENAI_MODEL`和`OPENAI_BASE_URL`用于已选openai Provider；Key只进入后端worker。
+安装完成后可将非敏感地址与模型写入安装目录`.env`，后续启动仍须提供Key。
+
+默认安装到`~/capstone`，可用`CAPSTONE_TRIAL_DIRECTORY`选择目录。
+镜像导入校验完成后，安装器调用原版本管理与数据兼容检查。
+若已有目录的数据格式缺少已验证兼容路径，拒绝切换并保留旧服务和数据；
+不要删除数据卷绕过检查。新独立试用可选择另一个目录和App端口。
+使用`sh ~/capstone/capstone.sh status`、`logs`、`stop`和`start`管理实例。
+离线版追加版本须再次使用完整离线包；在线安装命令不是离线升级入口。
+
+操作员打包入口为`deploy/build_user_local_offline.py`；详见
+[离线设计](superpowers/specs/2026-10-15-user-local-offline-design.md)及
+[实施计划](superpowers/plans/2026-10-15-user-local-offline.md)。
+
 ### Isolated local demo
 
 Recognition has separate backend settings: `CAPSTONE_RECOGNITION_PROVIDER`,
