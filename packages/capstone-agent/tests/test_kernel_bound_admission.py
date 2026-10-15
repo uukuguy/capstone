@@ -208,6 +208,29 @@ def test_model_binding_requires_callable_reference_verifier():
                               model_reference_verifier="invalid")
 
 
+def test_model_revision_resolution_requires_verified_reference_and_keeps_base_revision():
+    derived = "model:sha256:" + "d" * 64
+    calls = []
+    binding = AuthorityModelBinding(
+        "source", "ieee39", REVISION, "family", CONTEXT,
+        model_reference_verifier=lambda ref: ref == derived,
+        model_revision_resolver=lambda ref: calls.append(ref) or "revision:sha256:" + "d" * 64,
+    )
+    assert binding.revision_for_model_reference(CONTEXT) == REVISION
+    assert calls == []
+    with pytest.raises(ValueError, match="outside"):
+        binding.revision_for_model_reference("model:sha256:" + "e" * 64)
+    assert calls == []
+    assert binding.revision_for_model_reference(derived) == "revision:sha256:" + "d" * 64
+    assert calls == [derived]
+
+
+def test_model_revision_resolver_must_be_callable():
+    with pytest.raises(TypeError, match="resolver"):
+        AuthorityModelBinding("source", "ieee39", REVISION, "family", CONTEXT,
+                              model_revision_resolver="invalid")
+
+
 def test_authorized_model_descendant_is_admitted_from_event_and_artifact():
     model_ref = "model:sha256:" + "b" * 64
     descendant = "model:sha256:" + "d" * 64
