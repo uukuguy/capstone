@@ -1,5 +1,7 @@
 # Capstone Conversation Contract Completion
 
+当前工作：PyPSA派生结果投影和AC调度输入两项修复已实现、独立审查及针对性检查通过。精确候选c638e0992e49d300e760e89d07aff63ef6eca1c5在Apple ARM宿主的Linux AMD64模拟环境完成原区域三轮及补充AC-only第4轮；没有重新dispatch，5个operations投影completed且模型修订/证据正确。南部机组第3时段增量9.999984503 MW，最大AC残差约0.00004649 MW，小于0.01 MW。PR #28的Linux/macOS required CI run38723131332全部通过，已正常合入f300d1f375ef20af005840a60af47b5e33ea62e8；root dev已快进，packages与受检c638完全一致，local-dev规范重建exit0、ready通过；API与双worker同镜像6c616058e643，各1060个受管后端文件SHA256等同f300；镜像源码标签仍development，未将该标签冒称精确提交；App5173为f300、dirty=false；候选已停止，数据保留。回答文字仍有“+5应为+7.5”的算术问题；source-modeling投影仍未实现，不称所有回答或所有Pack通过。e2交付包不含这两项新runtime修复，原包和校验值不变。见[后续计划](2026-10-15-pypsa-runtime-followup.md)及[限定报告](../../reviews/2026-10-15-pypsa-runtime-followup-verification.md)。
+
 2026-10-15当前工作：用户要求解决`fix/user-local-network-view`遗留的派生结果投影和AC调度一致性问题，然后通过正常PR合入dev。执行[PyPSA修复与合并计划](2026-10-15-pypsa-runtime-followup.md)。保留已交付e2节点及原归档，7c撤回不可交付；不重复离线全量验收，不更新云端/demo/19173。
 
 2026-10-15更新离线包已构建：精确源码e2eaee2403cb6d780b3f7564da86e0d083890673，根runs/user-local-offline/capstone-delivery-e2eaee2含归档、同名.sha256及README.md三文件；归档1368607944字节，SHA256为9d7c3b215b9c45631bf3142aaad8f8066ba43831380b43b2ccf8146ee1eebfe7。新README默认pandapower IEEE39，PyPSA清单在末尾可选说明；旧7c已撤回、不可交付，证据目录及原校验值保留。新包12项内部SHA与源码检查通过，runtime packages相对28020aa无差异，可复用已记录的handoff/dispatch限定实测证据；29377单次新安装及ready检查通过，六角色均linux/amd64，API与双worker同e2源码镜像；检查后正常停止并保留数据。本轮按用户要求不重跑全量测试或Provider；公开投影与AC第3时段一致性两项仍开放，不声称完整业务验收。
@@ -10,7 +12,7 @@ Linux/macOS CI38700786813全过后正常合入37529ef。执行[离线计划](202
 安装、数据保留、九请求/独立回放通过只证明这些检查，不能推定业务全过：7c区域没有
 operations.dispatch执行；README原文1–9已用OPENAI运行，10–12未跑，完整发电N1排序仍待验证。
 验收环境为Apple ARM宿主Docker中的Linux AMD64模拟运行；VM/cloud已取消，旧失败保留。
-root dev仍1d0b280，尚未快进或规范重建；四部署及19173原用户安装保持原来源。
+root dev已快进f300d1f，local-dev规范重建及真实源码核验通过，运行来源f300；local-dev现为f300，其余三个部署及19173原用户安装保持原来源。
 独立fix/user-local-network-view当前ce47532：61a图修复已推送；28020公共Pi交接schema
 16合同/82检查及ce475默认IEEE39用户指南54+5检查通过，现均已推送，仍未PR或正式部署，均不在7c包内。
 独立29375候选后端28020/App7c原三轮真实OPENAI的handoff/dispatch通过，目标1300/1900均optimal，

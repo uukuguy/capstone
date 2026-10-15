@@ -50,7 +50,39 @@ def main() -> None:
         print(classify(paths, target=args.target, release=args.release))
 
 
+def is_ignored_delivery_link(root: Path, document: Path, target: str) -> bool:
+    """Allow absent operator delivery artifacts, never absent repository docs."""
+    if target.startswith("/") or not re.fullmatch(r"[A-Za-z0-9._/-]+", target):
+        return False
+    parts = target.split("/")
+    while parts and parts[0] in {".", ".."}:
+        parts.pop(0)
+    if not parts or any(not part or part.startswith(".") for part in parts):
+        return False
+    candidate = document.parent / target
+    if any(path.is_symlink() for path in (candidate, *candidate.parents)):
+        return False
+    root = root.resolve()
+    resolved = candidate.resolve()
+    if not resolved.is_relative_to(root / "runs/user-local-offline"):
+        return False
+    relative = resolved.relative_to(root)
+    if any(part.startswith(".") for part in relative.parts):
+        return False
+    if resolved.name != "README.md" and not resolved.name.endswith((".tar.gz", ".tar.gz.sha256")):
+        return False
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), "check-ignore", "-q", "--", relative.as_posix()],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return result.returncode == 0
+
+
 def check_document_links(root: Path, paths: list[str]) -> None:
+    root = root.resolve()
     missing = []
     for path in paths:
         file = root / path
@@ -61,7 +93,7 @@ def check_document_links(root: Path, paths: list[str]) -> None:
             target = target.strip().strip("<>").split("#", 1)[0]
             if not target or re.match(r"[a-zA-Z][a-zA-Z0-9+.-]*:", target) or target.startswith("/"):
                 continue
-            if not (file.parent / unquote(target)).exists():
+            if not (file.parent / unquote(target)).exists() and not is_ignored_delivery_link(root, file, target):
                 missing.append(f"{path}: {target}")
     if missing:
         raise ValueError("Missing relative document links: " + "; ".join(missing))
