@@ -442,7 +442,7 @@ backend=$(sed -n 's/^CAPSTONE_BACKEND_IMAGE=//p' "$packages/$selected/release.en
 platform=$(sed -n 's/^CAPSTONE_TRIAL_PLATFORM=//p' "$packages/$selected/release.env")
 case "$platform" in ''|linux/amd64|linux/arm64) ;; *) fail 'Unsupported trial platform.';; esac
 helper() {
-    set -- --rm --user "$(id -u):$(id -g)" -e "CAPSTONE_INSTANCE=$stable_project" \
+    set -- --network none --rm --user "$(id -u):$(id -g)" -e "CAPSTONE_INSTANCE=$stable_project" \
         -e "CAPSTONE_CANDIDATE_VALIDATION=${CAPSTONE_CANDIDATE_VALIDATION:-0}" \
         -v "$target_state:/state" -v "$packages/$selected/manifest.json:/bundle/manifest.json:ro" \
         --entrypoint /app/packages/capstone-agent/.venv/bin/python "$backend" /app/deploy/dev_trial_runtime.py "$1"
@@ -451,6 +451,9 @@ helper() {
 preflight() {
     unset POSTGRES_PASSWORD S3_ACCESS_KEY S3_SECRET_KEY CAPSTONE_OPERATOR_TOKEN
     unset CAPSTONE_BACKEND_IMAGE CAPSTONE_APP_IMAGE CAPSTONE_POSTGRES_IMAGE CAPSTONE_OBJECTS_IMAGE CAPSTONE_TRIAL_PLATFORM
+    if grep -q '"offline_image_identities"' "$packages/$selected/manifest.json"; then
+        helper verify || return 1
+    fi
     helper init && docker compose --project-name "$stable_project" \
       --env-file "$packages/$selected/.env" --env-file "$packages/$selected/release.env" --env-file "$target_state/internal.env" \
       -f "$packages/$selected/compose.yaml" config --quiet && \

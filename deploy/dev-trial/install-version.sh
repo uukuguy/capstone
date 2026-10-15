@@ -56,6 +56,26 @@ awk '
 tar -tvzf "$temporary/package.tar.gz" | awk 'substr($0,1,1)!="-" { exit 1 }' || fail 'Deployment archive contains non-regular files.'
 mkdir -m 700 "$temporary/package"
 tar -xzf "$temporary/package.tar.gz" -C "$temporary/package"
+if [ -n "${CAPSTONE_OFFLINE_DIRECTORY:-}" ] && grep -q '"offline_image_identities"' "$temporary/package/manifest.json"; then
+  selection=${CAPSTONE_OFFLINE_IMAGE_SELECTION:-}
+  [ -n "$selection" ] || fail 'The verified offline image selection is required.'
+  safe "$selection"
+  [ -f "$selection" ] && [ "$(wc -c < "$selection")" -le 1024 ] || fail 'The offline image selection is invalid.'
+  awk -F '\t' '
+    BEGIN { split("backend app postgres objects",names," ") }
+    NF!=2 || $1!=names[NR] || $2!~/^sha256:/ || length($2)!=71 || substr($2,8)~/[^0-9a-f]/ { exit 1 }
+    END { if (NR!=4) exit 1 }
+  ' "$selection" || fail 'The offline image selection is invalid.'
+  backend=$(awk -F '\t' '$1=="backend" {print $2}' "$selection")
+  [ "$(docker image inspect --format '{{.Id}}' "$backend")" = "$backend" ] || fail 'The offline backend ID differs.'
+  [ "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$backend")" = linux/amd64 ] || fail 'The offline backend platform differs.'
+  [ "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$backend")" = "$source" ] || fail 'The offline backend source differs.'
+  docker run --platform linux/amd64 --pull never --network none --rm --user 0 \
+    -v "$temporary/package:/bundle" -v "$selection:/selection.tsv:ro" \
+    --entrypoint /app/packages/capstone-agent/.venv/bin/python "$backend" \
+    /app/deploy/dev_trial_runtime.py materialize-offline --bundle /bundle --selection /selection.tsv \
+    || fail 'Offline image selection failed. Existing services and data were preserved.'
+fi
 if [ -n "${CAPSTONE_INSTALL_CATALOG:-}" ]; then
   safe "$CAPSTONE_INSTALL_CATALOG"
   cp "$CAPSTONE_INSTALL_CATALOG" "$temporary/catalog"

@@ -26,7 +26,7 @@ class ManagerTests(unittest.TestCase):
         self.bin.mkdir()
         self.db = Path(self.tmp.name) / 'docker.json'
         self.db.write_text(json.dumps({'images': {}, 'running': ['capstone', 'local-demo', 'capstone-user-other-install']}))
-        self.env = dict(os.environ, PATH=f'{self.bin}:{os.environ["PATH"]}', HOME=str(Path(self.tmp.name)), FAKE_DB=str(self.db), SECRET_KEY='credential-canary')
+        self.env = dict(os.environ, PATH=f'{self.bin}:{os.environ["PATH"]}', HOME=str(Path(self.tmp.name)), FAKE_DB=str(self.db), SECRET_KEY='credential-canary', RUNTIME_HELPER=str(Path(__file__).resolve().parents[2] / 'deploy/dev_trial_runtime.py'))
         (self.bin / 'docker').write_text('''#!/usr/bin/env python3
 import json, os, sys
 p=os.environ['FAKE_DB']; d=json.load(open(p)); a=sys.argv[1:]
@@ -37,12 +37,17 @@ elif a[:2]==['image','inspect']:
  i=d['images'].get(a[-1]) or next((i for i in d['images'].values() if i['id']==a[-1]),None)
  if not i: sys.exit(1)
  fmt=a[a.index('--format')+1]
- print(i['source'] if 'revision' in fmt else i['date'] if 'Created' in fmt else 'amd64' if 'Architecture' in fmt else i['id'])
+ print(i['source'] if 'revision' in fmt else i['date'] if 'Created' in fmt else 'linux/amd64' if '.Os' in fmt else 'amd64' if 'Architecture' in fmt else i['id'])
 elif a[0]=='run':
  from pathlib import Path
  state=Path(next(v[:-7] for v in a if v.endswith(':/state')))
  manifest=Path(next(v[:-25] for v in a if v.endswith(':/bundle/manifest.json:ro')))
  state.mkdir(parents=True,exist_ok=True)
+ if a[-1]=='verify':
+  import importlib.util
+  spec=importlib.util.spec_from_file_location('runtime',os.environ['RUNTIME_HELPER'])
+  module=importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+  module.validate_manifest(json.loads(manifest.read_text()))
  if a[-1]=='init' and not (state/'internal.env').exists():
   (state/'internal.env').write_text(''.join(k+'='+'a'*64+'\\n' for k in ('POSTGRES_PASSWORD','S3_ACCESS_KEY','S3_SECRET_KEY','CAPSTONE_OPERATOR_TOKEN')))
  if a[-1]=='record':
@@ -150,6 +155,29 @@ print('runner '+op)
         self.assertNotEqual(refused.returncode,0)
         self.assertIn('data format differs',refused.stderr)
         self.assertEqual(self.ops(),before)
+
+    def test_unbound_portable_id_fails_before_stopping_active(self):
+        self.package(A)
+        self.assertEqual(self.run_manager('start', A).returncode, 0)
+        package = self.package(C)
+        identities = [{'kind': kind, 'tag': 'capstone-offline-' + kind + ':' + C,
+                       'config_digest': 'sha256:' + str(i) * 64,
+                       'manifest_digest': 'sha256:' + str(i + 4) * 64, 'platform': 'linux/amd64'}
+                      for i, kind in enumerate(['backend', 'app', 'postgres', 'objects'])]
+        images = {i['kind']: i['manifest_digest'] for i in identities}
+        images['backend'] = 'sha256:' + 'f' * 64
+        (package / 'manifest.json').write_text(json.dumps({'schema': 'capstone-dev-trial/1',
+            'channel': 'dev-trial-offline', 'source_revision': C, 'platforms': ['linux/amd64'],
+            'images': images, 'offline_image_identities': identities}))
+        (package / 'release.env').write_text(''.join(f'CAPSTONE_{k.upper()}_IMAGE={v}\n' for k,v in images.items()) + 'CAPSTONE_TRIAL_PLATFORM=linux/amd64\n')
+        database = json.loads(self.db.read_text())
+        for identity in images.values():
+            database['images'][identity] = {'id': identity, 'source': C, 'date': '2026-10-15T00:00:00Z'}
+        self.db.write_text(json.dumps(database))
+        before = self.ops()
+        self.assertNotEqual(self.run_manager('use', C).returncode, 0)
+        self.assertEqual(self.ops(), before)
+        self.assertEqual((self.state / 'active').read_text().strip(), A)
 
     def test_preflight_failure_keeps_active_and_receipt(self):
         self.package(A); self.package(C)

@@ -1,6 +1,7 @@
 """Run the fixed source-free installer in private temporary installations."""
 import hashlib
 import io
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -52,11 +53,59 @@ class FixedInstallerTests(unittest.TestCase):
         template = ROOT / 'deploy/dev-trial/install-version.sh'
         self.assertTrue(template.exists(), 'fixed installer template is missing')
         script = template.read_text().replace('@VERSION@', 'user-local-aaaaaaa').replace(
-            '@SOURCE_REVISION@', SOURCE).replace('@ARCHIVE_URL@', 'https://github.com/uukuguy/capstone/releases/download/user-local-aaaaaaa/package.tar.gz').replace(
+            '@SOURCE_REVISION@', SOURCE).replace('@ARCHIVE_URL@', 'offline' if self.env.get('CAPSTONE_OFFLINE_DIRECTORY') else 'https://github.com/uukuguy/capstone/releases/download/user-local-aaaaaaa/package.tar.gz').replace(
             '@ARCHIVE_SHA256@', checksum or hashlib.sha256(self.archive.read_bytes()).hexdigest())
         installer = self.base / 'install.sh'
         installer.write_text(script)
         return subprocess.run(['sh', str(installer)], env=self.env, text=True, capture_output=True)
+
+    def test_portable_offline_projects_before_repeat_comparison(self):
+        kinds = ['backend', 'app', 'postgres', 'objects']
+        identities = [{'kind': kind, 'tag': 'capstone-offline-' + kind + ':' + SOURCE,
+                       'config_digest': 'sha256:' + str(i) * 64,
+                       'manifest_digest': 'sha256:' + str(i + 4) * 64,
+                       'platform': 'linux/amd64'} for i, kind in enumerate(kinds)]
+        document = {'schema': 'capstone-dev-trial/1', 'channel': 'dev-trial-offline',
+                    'source_revision': SOURCE, 'platforms': ['linux/amd64'],
+                    'images': {i['kind']: i['config_digest'] for i in identities},
+                    'offline_image_identities': identities}
+        self.files['manifest.json'] = json.dumps(document).encode()
+        self.files['release.env'] = ''.join(f'CAPSTONE_{i["kind"].upper()}_IMAGE={i["config_digest"]}\n'
+                                           for i in identities).encode()
+        self.make_archive()
+        import shutil
+        shutil.copyfile(self.archive, self.base / 'deployment.tar.gz')
+        selection = self.base / 'selection.tsv'
+        selection.write_text(''.join(i['kind'] + '\t' + i['manifest_digest'] + '\n' for i in identities))
+        selection.chmod(0o600)
+        tag = 'user-local-' + SOURCE[:12]
+        self.catalog.write_text(f'{SOURCE}\t{tag}\thttps://github.com/uukuguy/capstone/releases/download/{tag}/install.sh\t' + '0' * 64 + '\t2026-10-15\n')
+        self.env.update(CAPSTONE_OFFLINE_DIRECTORY=str(self.base), CAPSTONE_OFFLINE_IMAGE_SELECTION=str(selection),
+                        RUNTIME_HELPER=str(ROOT / 'deploy/dev_trial_runtime.py'), TEST_SOURCE=SOURCE)
+        (self.bin / 'docker').write_text('#!' + os.sys.executable + '\n' + '''
+import importlib.util, os, sys
+from pathlib import Path
+args = sys.argv[1:]
+with open(os.environ['DOCKER_CALLS'], 'a') as handle: handle.write(' '.join(args) + '\\n')
+if args[:2] == ['image', 'inspect']:
+    fmt = args[args.index('--format') + 1]
+    print(args[-1] if fmt == '{{.Id}}' else 'linux/amd64' if '.Os' in fmt else os.environ['TEST_SOURCE'])
+elif args[0] == 'run':
+    assert '--pull' in args and args[args.index('--pull') + 1] == 'never'
+    assert args[args.index('--network') + 1] == 'none'
+    bundle = Path(next(a[:-8] for a in args if a.endswith(':/bundle')))
+    selection = Path(next(a[:-18] for a in args if a.endswith(':/selection.tsv:ro')))
+    spec = importlib.util.spec_from_file_location('projection', os.environ['RUNTIME_HELPER'])
+    module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+    module.materialize_offline(bundle.resolve(), selection.resolve())
+''')
+        for _ in range(2):
+            result = self.run_install()
+            self.assertEqual(result.returncode, 0, result.stderr)
+            installed = self.home / 'capstone' / 'versions' / SOURCE
+            self.assertEqual(json.loads((installed / 'manifest.json').read_text())['images'],
+                             {i['kind']: i['manifest_digest'] for i in identities})
+            self.assertEqual((installed / 'data-contract.env').read_bytes(), self.files['data-contract.env'])
 
     def test_default_downloads_four_images_and_starts_requested_version(self):
         result = self.run_install()

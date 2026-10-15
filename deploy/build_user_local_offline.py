@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import gzip
 from datetime import date
 import hashlib
 import importlib.util
@@ -11,6 +12,7 @@ import re
 import shutil
 import subprocess
 import tarfile
+import zlib
 
 KINDS = ('backend', 'app', 'postgres', 'objects')
 
@@ -30,6 +32,122 @@ def checksum(path: Path) -> str:
     return digest.hexdigest()
 
 
+def read_archive_identity(path: Path, kind: str, tag: str, revision: str) -> dict:
+    """Verify the tagged save's manifest, config and complete layer chain."""
+    with tarfile.open(path) as archive:
+        names = [member.name for member in archive.getmembers()]
+        if len(names) != len(set(names)):
+            raise ValueError('Offline image archive contains duplicate members')
+
+        def regular_member(name):
+            try:
+                member = archive.getmember(name)
+            except KeyError:
+                raise ValueError('Offline image archive member is missing') from None
+            if not member.isfile():
+                raise ValueError('Offline image archive member is not regular')
+            return member
+
+        def document(name):
+            member = regular_member(name)
+            if member.size > 1024 * 1024:
+                raise ValueError('Offline image metadata is invalid')
+            return archive.extractfile(member).read()
+
+        def descriptor(value):
+            digest = value.get('digest', '')
+            if not re.fullmatch(r'sha256:[a-f0-9]{64}', digest):
+                raise ValueError('Offline image descriptor is invalid')
+            raw = document('blobs/sha256/' + digest[7:])
+            if hashlib.sha256(raw).hexdigest() != digest[7:] or len(raw) != value.get('size'):
+                raise ValueError('Offline image descriptor checksum differs')
+            return json.loads(raw)
+
+        legacy = json.loads(document('manifest.json'))
+        if len(legacy) != 1 or legacy[0].get('RepoTags') != [tag]:
+            raise ValueError('Offline image archive tag differs')
+        node = json.loads(document('index.json'))
+        tag_bound = False
+        for _ in range(5):
+            entries = node.get('manifests', [])
+            if len(entries) != 1:
+                raise ValueError('Offline archive must contain one image platform')
+            entry = entries[0]
+            annotations = entry.get('annotations', {})
+            tag_bound |= annotations.get('io.containerd.image.name') in {tag, 'docker.io/' + tag}
+            node = descriptor(entry)
+            if entry.get('mediaType') in {
+                'application/vnd.oci.image.manifest.v1+json',
+                'application/vnd.docker.distribution.manifest.v2+json',
+            }:
+                break
+            if entry.get('mediaType') not in {
+                'application/vnd.oci.image.index.v1+json',
+                'application/vnd.docker.distribution.manifest.list.v2+json',
+            }:
+                raise ValueError('Offline image manifest type is invalid')
+        else:
+            raise ValueError('Offline image index is too deep')
+        if not tag_bound:
+            raise ValueError('Offline OCI archive tag differs')
+        config_descriptor = node.get('config', {})
+        config = descriptor(config_descriptor)
+        config_digest = config_descriptor['digest']
+        if legacy[0].get('Config') != 'blobs/sha256/' + config_digest[7:]:
+            raise ValueError('Offline manifest and config relationship differs')
+        if config.get('os') != 'linux' or config.get('architecture') != 'amd64':
+            raise ValueError('Offline image archive platform must be linux/amd64')
+        if kind in {'backend', 'app'} and config.get('config', {}).get('Labels', {}).get(
+                'org.opencontainers.image.revision') != revision:
+            raise ValueError('Offline image archive source differs')
+        layers = node.get('layers')
+        legacy_layers = legacy[0].get('Layers')
+        rootfs = config.get('rootfs')
+        if not isinstance(rootfs, dict) or rootfs.get('type') != 'layers':
+            raise ValueError('Offline image root filesystem is invalid')
+        diff_ids = rootfs.get('diff_ids')
+        if (not all(isinstance(value, list) for value in [layers, legacy_layers, diff_ids])
+                or len(layers) != len(legacy_layers) or len(layers) != len(diff_ids)):
+            raise ValueError('Offline image layer chain differs')
+        raw_types = {'application/vnd.oci.image.layer.v1.tar', 'application/vnd.docker.image.rootfs.diff.tar'}
+        gzip_types = {'application/vnd.oci.image.layer.v1.tar+gzip', 'application/vnd.docker.image.rootfs.diff.tar.gzip'}
+        for layer, legacy_path, diff_id in zip(layers, legacy_layers, diff_ids):
+            if not isinstance(layer, dict):
+                raise ValueError('Offline image layer descriptor is invalid')
+            digest = layer.get('digest', '')
+            if (not isinstance(digest, str) or not re.fullmatch(r'sha256:[a-f0-9]{64}', digest)
+                    or not isinstance(diff_id, str) or not re.fullmatch(r'sha256:[a-f0-9]{64}', diff_id)):
+                raise ValueError('Offline image layer digest is invalid')
+            name = 'blobs/sha256/' + digest[7:]
+            if legacy_path != name:
+                raise ValueError('Offline OCI and Docker layer order differs')
+            member = regular_member(name)
+            if member.size != layer.get('size'):
+                raise ValueError('Offline image layer size differs')
+            media_type = layer.get('mediaType')
+            if media_type not in raw_types | gzip_types:
+                raise ValueError('Offline image layer codec is unsupported')
+            encoded_hash = hashlib.sha256()
+            with archive.extractfile(member) as source:
+                for block in iter(lambda: source.read(1024 * 1024), b''):
+                    encoded_hash.update(block)
+            if 'sha256:' + encoded_hash.hexdigest() != digest:
+                raise ValueError('Offline image layer checksum differs')
+            decoded_hash = encoded_hash
+            if media_type in gzip_types:
+                decoded_hash = hashlib.sha256()
+                try:
+                    with archive.extractfile(member) as source, gzip.GzipFile(fileobj=source) as decoded:
+                        for block in iter(lambda: decoded.read(1024 * 1024), b''):
+                            decoded_hash.update(block)
+                except (OSError, EOFError, zlib.error):
+                    raise ValueError('Offline image gzip layer is invalid') from None
+            if 'sha256:' + decoded_hash.hexdigest() != diff_id:
+                raise ValueError('Offline image layer does not match rootfs diff_ids')
+        return {'kind': kind, 'tag': tag, 'config_digest': config_digest,
+                'manifest_digest': entry['digest'], 'platform': 'linux/amd64'}
+
+
 def export_bundle(context: Path, output: Path, revision: str, images: dict) -> dict:
     if (not re.fullmatch(r'[a-f0-9]{40}', revision) or set(images) != set(KINDS)
             or output.exists() or any(p.is_symlink() for p in [output, *output.parents])):
@@ -42,7 +160,11 @@ def export_bundle(context: Path, output: Path, revision: str, images: dict) -> d
         path = 'deploy/dev-trial/' + name
         if checksum(context / path) != receipt.get('inputs', {}).get(path):
             raise ValueError('Offline installer differs from the frozen context')
-    identities = {}
+    sample_path = 'deploy/dev-trial/offline-validation-samples.txt'
+    if checksum(context / sample_path) != receipt.get('inputs', {}).get(sample_path):
+        raise ValueError('Offline usage samples differ from the frozen context')
+    samples = (context / sample_path).read_text()
+    source_ids = {}
     for kind in KINDS:
         result = subprocess.run(['docker', 'image', 'inspect', images[kind]], check=True,
                                 capture_output=True, text=True)
@@ -55,12 +177,22 @@ def export_bundle(context: Path, output: Path, revision: str, images: dict) -> d
         identity = metadata.get('Id', '')
         if not re.fullmatch(r'sha256:[a-f0-9]{64}', identity):
             raise ValueError('Offline image ID is invalid')
-        identities[kind] = identity
+        source_ids[kind] = identity
+    output.mkdir(parents=True, mode=0o700)
+    records = []
+    for kind in KINDS:
+        tag = 'capstone-offline/' + kind + ':' + revision
+        subprocess.run(['docker', 'image', 'tag', source_ids[kind], tag], check=True)
+        path = output / (kind + '.tar')
+        subprocess.run(['docker', 'image', 'save', '--output', str(path), tag], check=True)
+        records.append(read_archive_identity(path, kind, tag, revision))
+    identities = {row['kind']: row['config_digest'] for row in records}
     builder = _builder()
     # A separate offline channel keeps online dual-platform acceptance unchanged.
     deployment = output / 'deployment'
     document = builder.write_bundle(context, deployment, revision, identities, ['linux/amd64'], candidate=True)
     document['channel'] = 'dev-trial-offline'
+    document['offline_image_identities'] = records
     (deployment / 'manifest.json').write_text(json.dumps(document, indent=2, sort_keys=True) + '\n')
     settings = ('# Keep OPENAI_API_KEY in the startup environment.\n'
                 'PROVIDER=openai\nOPENAI_MODEL=deepseek-flash\nOPENAI_BASE_URL=\n'
@@ -77,7 +209,7 @@ def export_bundle(context: Path, output: Path, revision: str, images: dict) -> d
         '在.env设置OPENAI_BASE_URL/API前缀及模型；启动环境提供OPENAI_API_KEY。\n'
         '自定义地址使用Chat Completions；地址必须能从容器访问。\n'
         '用sh capstone.sh start/status/logs/stop/versions管理；stop保留数据。\n'
-        '保留安装目录、私有配置及数据卷；兼容检查拒绝未验证的数据切换。\n')
+        '保留安装目录、私有配置及数据卷；兼容检查拒绝未验证的数据切换。\n\n' + samples)
     archive = output / 'deployment.tar.gz'
     with tarfile.open(archive, 'w:gz') as target:
         for path in sorted(deployment.iterdir()):
@@ -85,9 +217,9 @@ def export_bundle(context: Path, output: Path, revision: str, images: dict) -> d
     for path in deployment.iterdir():
         path.unlink()
     deployment.rmdir()
-    (output / 'images.tsv').write_text(''.join(f'{kind}\t{identities[kind]}\tlinux/amd64\t{kind}.tar\n' for kind in KINDS))
-    for kind in KINDS:
-        subprocess.run(['docker', 'image', 'save', '--output', str(output / (kind + '.tar')), identities[kind]], check=True)
+    (output / 'images.tsv').write_text(''.join(
+        '\t'.join([row['kind'], row['tag'], row['config_digest'], row['manifest_digest'],
+                   row['platform'], row['kind'] + '.tar']) + '\n' for row in records))
     version = 'user-local-' + revision[:12]
     script = (context / 'deploy/dev-trial/install-version.sh').read_text()
     for key, value in {'@VERSION@': version, '@ARCHIVE_URL@': 'offline', '@ARCHIVE_SHA256@': checksum(archive), '@SOURCE_REVISION@': revision}.items():
@@ -124,30 +256,8 @@ def export_bundle(context: Path, output: Path, revision: str, images: dict) -> d
         '新终端启动前须重新提供OPENAI_API_KEY。地址/模型/端口可写入安装目录.env；\n'
         '进程环境变量优先。安装前可export CAPSTONE_TRIAL_DIRECTORY选择其他目录，\n'
         'export CAPSTONE_APP_PORT选择其他端口。离线升级仍使用新的完整离线包。\n\n'
-        '4. 整体验证\n'
-        '运行status确认服务就绪；打开网页，新建对话，发送“仅回复：连接正常”。\n'
-        '收到模型实际回复后，再做下面的专业验证；仅网页可打开不代表LLM已连通。\n'
-        '完成样例后stop再start，刷新原对话，确认答案及分析过程仍可查看。\n\n'
-        '5. 专用验证样例\n'
-        '每个样例新建独立对话并选择对应模型；逐条发送，等待上一轮完成。\n'
-        'A. pandapower / ieee39（IEEE-39）\n'
-        '  ① 打开 IEEE-39 网络并解析线路 11 的端点。\n'
-        '  ② 沿用已打开的网络执行一次交流潮流。\n'
-        '  ③ 沿用当前潮流结果列出负载率最高的三条线路。\n'
-        '检查：专业工具确实运行；潮流结果和排序来自本轮计算，带结果/证据引用。\n'
-        'B. PyPSA / regional-six-bus（区域负荷增长）\n'
-        '  ① 打开区域六母线模型，检查网络结构，并求解基准情景的固定容量调度。\n'
-        '  ② 沿用刚才的模型，把 central-demand 在三个时段的负荷各增加 10 MW；保留基准情景，建立增长情景模型修订。\n'
-        '  ③ 求解增长情景，比较两次求解状态、模型运行成本目标和发电安排，说明结论的适用边界，并给出本轮证据。\n'
-        '检查：基准与增长情景分开，实际求解且有当前运行的结果和证据。\n'
-        'C. PyPSA / pypsa-example/ac_dc_meshed（AC/DC结构）\n'
-        '  ① 打开已登记的 AC/DC 示例网络，核对来源、AC/DC 母线以及 Line 和 Link 组件数量。\n'
-        '  ② 沿用这个模型，按端点母线的 AC/DC 类型说明 Line 与 Link 组件的连接，并标明拓扑预览的范围。\n'
-        '  ③ 基于已核查的结构，说明后续潮流研究还需要哪些工况与约束；不要把连接关系说成功率流或输电能力结论。\n'
-        '检查：结构核查有来源引用；不将拓扑连接误说成已求解的潮流或输电能力。\n'
-        '样例通过需同时有正常回答、实际专业工具和可回看的当前运行证据；\n'
-        '示例用于安装与功能验证，不代替工程决策或用户业务验收。\n\n'
-        '6. 数据与排错\n'
+        '4. 安装后试用\n' + samples + '\n'
+        '5. 数据与排错\n'
         'stop及重复安装保留数据和私有配置；请保留安装目录及Docker数据卷。\n'
         '缺地址/Key、校验失败或数据不兼容时会拒绝切换并保留原服务。\n'
         '不要删除数据卷绕过兼容检查；新独立试用可另选目录及端口。\n'
@@ -172,7 +282,7 @@ def main() -> None:
         output = _builder()._new_output(args.root, args.output)
         document = export_bundle(args.context, output, args.source_revision, identity['images'])
         print(json.dumps({'output': str(output), 'manifest': document, 'checksums_sha256': checksum(output / 'SHA256SUMS')}))
-    except (OSError, ValueError, KeyError, subprocess.SubprocessError):
+    except (OSError, ValueError, KeyError, tarfile.TarError, subprocess.SubprocessError):
         parser.exit(1, 'Offline export failed. Check the frozen source and four local AMD64 images.\n')
 
 

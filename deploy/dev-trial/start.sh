@@ -61,7 +61,7 @@ docker_run() {
   if [ -n "$platform" ]; then docker run --platform "$platform" --pull never "$@"; else docker run --pull never "$@"; fi
 }
 helper() {
-  docker_run --rm --user "$(id -u):$(id -g)" \
+  docker_run --network none --rm --user "$(id -u):$(id -g)" \
     -e CAPSTONE_CANDIDATE_VALIDATION="${CAPSTONE_CANDIDATE_VALIDATION:-0}" \
     -e CAPSTONE_INSTANCE="$instance" \
     -v "$state:/state" -v "$base/manifest.json:/bundle/manifest.json:ro" \
@@ -75,6 +75,9 @@ compose() {
 }
 
 if [ "$operation" = up ]; then
+  if grep -q '"offline_image_identities"' "$base/manifest.json"; then
+    run_private helper verify
+  fi
   if [ -f "$state/installation.json" ] && [ ! -f "$state/internal.env" ]; then
     printf '%s\n' 'Restore this instance private configuration before restarting existing data.' >&2
     exit 1

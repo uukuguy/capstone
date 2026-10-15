@@ -111,6 +111,8 @@ def prepare_context(root: Path, revision: str, output: Path, model_library: Path
         inputs = inputs | {'deploy/dev-trial/install-version.sh'}
     if (output / 'deploy/dev-trial/install-offline.sh').exists():
         inputs = inputs | {'deploy/dev-trial/install-offline.sh'}
+    if (output / 'deploy/dev-trial/offline-validation-samples.txt').exists():
+        inputs = inputs | {'deploy/dev-trial/offline-validation-samples.txt'}
     (output / 'trial-context.json').write_text(json.dumps({'source_revision': revision,
         'data_inputs': {name: hashlib.sha256(content).hexdigest()
                         for name, content in data_contract.context_files(output).items()},
