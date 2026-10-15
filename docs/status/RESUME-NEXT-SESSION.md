@@ -4,7 +4,7 @@
 
 ## Current state
 
-Updated package source e2eaee2403cb6d780b3f7564da86e0d083890673 is built in root
+Updated package source e2eaee2403cb6d780b3f7564da86e0d083890673 was delivered from root
 runs/user-local-offline/capstone-delivery-e2eaee2: archive, matching .sha256 and
 README.md. Archive bytes1368607944; SHA256
 9d7c3b215b9c45631bf3142aaad8f8066ba43831380b43b2ccf8146ee1eebfe7.
@@ -13,13 +13,14 @@ Root's single new29377 installation and readiness passed. All six roles are
 linux/amd64; API and both workers use the same source-e2 backend image. The
 validation instance stopped successfully afterward; data is preserved.
 Do not run full tests or Provider again. Reuse bounded28020 handoff evidence,
-preserve its two open findings, and preserve the original7c delivery unchanged.
+preserve its two open findings, and preserve the withdrawn7c evidence unchanged; do not distribute it.
 The new README leads with pandapower IEEE39 and moves optional PyPSA models last.
 Receipt: .capstone-agent/offline-e2eaee2-minimal-check.json. No full suites or
 Provider/business runs were repeated for this updated archive.
 
-Exact Linux AMD64 offline source7c1976659a46fdf3f19abd565a0198bb60a0b8cd was delivered
-at root runs/user-local-offline/capstone-delivery-7c19766. Do not change its archive,
+Old Linux AMD64 source7c1976659a46fdf3f19abd565a0198bb60a0b8cd was handed over,
+then withdrawn as defective and not deliverable. Its evidence is retained
+at root runs/user-local-offline/capstone-withdrawn-7c19766. Do not change its archive,
 README or SHA. Default PROVIDER=openai; users supply OPENAI_BASE_URL, OPENAI_MODEL
 and OPENAI_API_KEY. Existing DeepSeek credentials are authorized for the current
 real OpenAI-compatible tests; the root agent owns these calls. Do not duplicate them.
@@ -30,8 +31,8 @@ Local-dev and19173 user installation remainb7e68dd; local-demo/cloud-demo remain
 cloud-dev remains24d9a32. No existing user data, service or cloud deployment was changed.
 
 Worktree .worktrees/dev-trial-deployment is now fix/user-local-network-view,
-head e2eaee2 (later documentation/receipt commit; runtime packages match28020aa). Graph fix61a418d was pushed, without PR or deployment. The branch through
-e2eaee2 is now pushed, without PR or deployment. The original7c package is unchanged;
+documentation receipt HEAD6064103; frozen delivery source e2eaee2 (runtime packages match28020aa). Graph fix61a418d was pushed, without PR or deployment. The branch through
+e2eaee2 is now pushed, without PR or deployment. The original7c package is withdrawn and must not be distributed;
 the updated e2 package includes these fixes.
 
 ## Verified scope and business gaps
@@ -81,7 +82,7 @@ the updated e2 package includes these fixes.
 2. Track the public projection and third-period AC/dispatch consistency findings
    separately from the verified handoff fix. Preserve the completed real-check
    receipts and the stopped candidate data; do not infer full business acceptance.
-3. Preserve delivered7c files and failed receipts; keep remaining README checks and
+3. Preserve withdrawn7c evidence files and failed receipts; keep remaining README checks and
    full N1 boundary explicit. Later guide/code changes belong to a new package.
 4. The independent fixes are pushed; use a normal dev PR and required CI.
 5. Advance root dev from1d0b280 through the accepted merge and use the canonical

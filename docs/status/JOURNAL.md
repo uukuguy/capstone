@@ -3227,3 +3227,11 @@ The following original entries were retained during document synchronization.
 - 2026-10-15：[e2eaee2] records verified handoff dispatch and open findings so delivery claims match actual evidence.
 
 - 2026-10-15：按用户要求交付e2eaee2更新包，SHA9d7c3b21；仅归档/单次安装启动检查通过，未重跑全量或Provider。旧7c保留。
+
+- 2026-10-15：[6064103] records updated offline artifact and minimal install checks without repeating full tests.
+
+- 2026-10-15：用户指出推进图缺少独立e2eaee2节点；将交付源码节点与分支文档收据分开，并同步主目录入口。
+
+- 2026-10-15：用户明确7c19766不可交付，标记撤回并将旧目录改为capstone-withdrawn-7c19766；原归档/hash保留，e2为替代交付版。
+
+- 2026-10-15：推进图收敛12关键节点，e2独立交付重点并直达四份交付/验证文件；7c撤回与606中间记录移历史，主目录同步及浏览器核对通过。

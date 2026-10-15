@@ -65,8 +65,9 @@ request completion is not proof that every business objective succeeded.
 list gate; retain that failed archive. 7c19766 fixed optional Markdown entries and
 exact11/12-file checksum validation;47+3+8 checks and review passed. Its complete
 host installation, restart/repeat/data retention, nine-request and replay checks
-passed. The clean package was delivered at root
-runs/user-local-offline/capstone-delivery-7c19766. Preserve the original archive,
+passed. The old package was handed over and then withdrawn as defective. Do not deliver
+it. Evidence is retained at root
+runs/user-local-offline/capstone-withdrawn-7c19766. Preserve the original archive,
 README and SHA; do not overwrite this delivered package with later guide or code changes.
 
 Source7c passed Linux/macOS CI38700786813, then PR #27 merged normally as
@@ -109,7 +110,7 @@ The12 internal SHA checks and source identity passed. The single fresh29377
 installation and readiness passed; six roles are linux/amd64 and the API/dual-worker
 image identity matches source e2. The instance stopped with return code0 and data
 was preserved. This does not repeat or
-expand the previous business acceptance. Preserve the original7c delivery.
+expand the previous business acceptance. Preserve the withdrawn7c evidence; do not distribute it.
 
 Minimal-check receipt: `.capstone-agent/offline-e2eaee2-minimal-check.json`.
 No full test suite, Provider request or business sample was rerun for this package.
@@ -121,7 +122,8 @@ No full test suite, Provider request or business sample was rerun for this packa
   repeat installation and data retention; record AMD64 emulation explicitly.
 - [x] Complete nine authorized real requests and independent replay; record that
   this does not imply regional dispatch or all business samples passed.
-- [x] Deliver exact7c artifact/checksum/README and preserve their original hashes.
+- [x] Preserve exact7c artifact/checksum/README as withdrawn evidence with original
+  hashes. The package was handed over and then withdrawn; do not deliver it.
 - [x] Merge PR #27 normally as37529ef after source7c Linux/macOS CI passed.
 - [ ] Fast-forward root dev and rebuild its real local entry point with data preserved.
 - [x] Verify the original three-turn handoff/dispatch path on the separate28020aa
@@ -129,5 +131,5 @@ No full test suite, Provider request or business sample was rerun for this packa
 - [ ] Resolve public projection availability and third-period AC/dispatch consistency
   as separate open findings; do not broaden this handoff acceptance.
 - [ ] Complete remaining README business checks;10–12 were not run and full N1
-  study/ranking is still pending. Keep delivered7c unchanged.
+  study/ranking is still pending. Keep withdrawn7c evidence unchanged; do not deliver it.
 - [ ] Submit independent fixes through normal PR/CI and verify their actual runtime.
