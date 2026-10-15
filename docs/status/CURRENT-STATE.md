@@ -167,6 +167,8 @@ exact accepted revisions belong to [VERSION-CONTROL.md](VERSION-CONTROL.md).
 - `packages/capstone-agent/src/capstone_agent/prompt_hints.py` — bounded registered-case Provider context decorator
 - `packages/capstone-app/` — independent operator App, typed API client, and Vercel build
 - `Dockerfile`, `compose.yaml`, `deploy/` — shared API/worker image and local/Cloud Run/Railway bindings
+- `deploy/dev-trial/install.sh`, `deploy/dev-trial/capstone.sh` — source-free user-local installation, Git selection and one active version per installation directory
+- `deploy/user_data_compatibility.py` — source-bound data declarations and release compatibility checks; user-local versions share data, with checks before service changes
 - `packages/capstone-agent/src/capstone_agent/progress.py` — bounded semantic-event presentation shared by CLI and SSE
 - `packages/grid-agent/src/grid_agent/compat/v1_0_1_report.py` — pandapower report projection for generic Capstone runs
 - `packages/pypsa-agent/src/pypsa_agent/` — registered two-binding PyPSA application and worker

@@ -1,6 +1,6 @@
 # docs/status INDEX
 
-2026-10-15当前：PR #22已合入dev7832134，原无源码试用双架构验收、公开发布及用户安装完成。当前fix/dev-trial-user-feedback修正user-local标识、Git版本选择、capstone.sh管理和共享用户数据兼容门禁；新管理功能未发布，现有用户数据保留。精确检查点见[RESUME](RESUME-NEXT-SESSION.md)，执行[Task 7](../superpowers/plans/2026-10-14-capstone-dev-trial-deployment.md#task-7-user-local-management-and-shared-data-compatibility)。下方较早摘要按当时状态保留。
+2026-10-15当前：PR #23经Linux/macOS检查正常合入dev b7e68dd。capstone.sh、Git版本选择、user-local标识和共享数据兼容门禁已集成；候选双架构旧数据升级/回放/回退和旧安装接管通过。最终合并源码双架构数据升级/回放/回退及公开安装通过，版本目录已公开，原7832134安装与用户数据保留。执行[Task 7](../superpowers/plans/2026-10-14-capstone-dev-trial-deployment.md#task-7-user-local-management-and-shared-data-compatibility)。
 
 2026-10-14：用户已同意四类镜像和linux/amd64、linux/arm64目标，执行[dev试用部署计划](../superpowers/plans/2026-10-14-capstone-dev-trial-deployment.md)。6f29b29实现无源码Compose、受限Provider及精确Git构建；69项Python和15项App检查通过，候选镜像构建中。控制图新增当前焦点及真实dev祖先边；未合入、未发布，不改现有四环境。
 
@@ -8,7 +8,7 @@
 
 2026-10-14：用户本地部署入口已记录到[CAPSTONE CLI开发设计](../superpowers/specs/2026-09-29-agent-interaction-discussion.md#2026-10-14capstone-cli-安装与用户本地-dev-试用)。本次固定dev临时试用，用户不接触源码；我们构建镜像，用户通过Compose/配置/薄脚本启动。Linux/macOS优先、Windows目标兼容，pip/npm为以后统一CLI分发方向。当前仅设计记录，未打包或安装，现有四环境不变。
 
-当前：PR #18已合入dev faa6af9；候选、完整发布和合并后双平台检查通过。local-dev、local-demo与cloud-demo均运行该合并来源；两个demo完成三用例九轮、报告证据回放和旧Thread入口检查，原数据保留。正式标签demo-20261014-2028-faa6af9已推送并核对。cloud-dev24d9a32保持不变。
+历史记录（2026-10-14）：PR #18已合入dev faa6af9；候选、完整发布和合并后双平台检查通过。local-dev、local-demo与cloud-demo均运行该合并来源；两个demo完成三用例九轮、报告证据回放和旧Thread入口检查，原数据保留。正式标签demo-20261014-2028-faa6af9已推送并核对。cloud-dev24d9a32保持不变。
 
 文档入库通过PR #19，包含剩余23项控制/设计/审计记录；旧PR #17由此替代。控制文档提交推进dev HEAD，运行来源与demo标签仍为faa6af9。
 
@@ -17,7 +17,7 @@
 
 ## Active
 
-当前精确状态见 RESUME / VERSION-CONTROL：产品PR #18已合入，两个demo均为faa6af9并完成注册回归；本轮文档收尾通过独立PR入dev。主图保留中轴、四部署及在研节点。
+当前精确状态见 RESUME / VERSION-CONTROL：PR #23合入b7e68dd，user-local双架构及公开安装通过；两个demo仍为faa6af9，cloud-dev为24d9a32。主图保留中轴、准确四部署、在研分支及可安装版本图标。
 
 ### 历史实施记录
 
@@ -262,3 +262,9 @@ dev默认开发集成主线和main发布主线均启用轻量保护：PR与两�
 
 - 57a7b2a：白底辅助面板、结果/证据字号收紧、电网图一次性命令；85App/类型与浏览器通过，local-dev规范重建ready。
 2026-10-14 当前：bf7a309首批有来源场景图层已实现，契约/前端/真实派生检查通过，local-dev重建中，尚未完成三个样例图例实测。a3d3be3专用潮流字段及中文错误原因已部署；29daa7d单条原因与原始诊断入口在Vite生效。模型打开/关闭生命周期待修。详见[图层设计](../superpowers/specs/2026-10-14-network-result-annotations.md)及RESUME。
+
+## User-local release catalog
+
+| File | State | Purpose |
+| --- | --- | --- |
+| [USER-LOCAL-VERSIONS.tsv](USER-LOCAL-VERSIONS.tsv) | 🟢 active | 已验证公开安装版本；完整Git、固定安装地址及SHA256，最新在前 |

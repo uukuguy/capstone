@@ -96,28 +96,30 @@ HTTP 服务只监听 loopback，首次启动在忽略的 `.capstone-agent/` 状�
 
 ### Source-free local dev trial
 
-下一版入口统一为`user-local`，管理命令改为`capstone.sh`。该修正正在验收，尚未替换下方已发布的7832134入口。新安装将支持缺省最新或指定Git提交号，错误参数列出可安装版本；安装和启动仍是一条命令。多个版本共享同一份用户数据，切换前检查兼容性和启动配置，只同时运行一个版本。使用`capstone.sh versions`查看、`capstone.sh use <Git>`切换；升级与回退兼容性由开发发布流程验证。保留原安装目录和数据，不需要用户处理数据库迁移。
+入口统一为`user-local`，管理命令为`capstone.sh`。不传参数安装最新已发布版本；命令末尾使用`sh -s -- b7e68dd`可指定Git提交号，错误或不唯一参数列出可安装版本。Docker按主机选择arm64/amd64。安装和启动仍是一条命令。不同版本共享用户数据；兼容性与启动配置检查先于停止当前服务，一个安装目录同时只运行一个版本。升级与回退兼容性由开发发布流程验证，格式变化缺少已验证迁移时拒绝切换并保留原服务。
 
 用户使用版本化的无源码部署包；开发者使用的Compose＋Vite路径保留。用户主机只需Docker及Compose v2。包默认从`registry.cn-beijing.aliyuncs.com/uukuguy`拉取固定摘要的backend、App、PostgreSQL和RustFS镜像。API与pandapower/PyPSA workers共用backend，静态App代理同源`/api/v1`。
 
 先安装Docker/Compose v2，在启动环境配置`DEEPSEEK_API_KEY`，然后一条命令安装和启动：
 
 ```sh
-curl -fsSL https://github.com/uukuguy/capstone/releases/download/dev-trial-20261015-7832134/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/uukuguy/capstone/dev/deploy/dev-trial/install.sh | sh
 ```
 
 后续服务管理：
 
 ```sh
-sh ~/capstone/start.sh
-sh ~/capstone/start.sh status
-sh ~/capstone/start.sh logs
-sh ~/capstone/start.sh stop
+sh ~/capstone/capstone.sh
+sh ~/capstone/capstone.sh versions
+sh ~/capstone/capstone.sh use b7e68dd
+sh ~/capstone/capstone.sh status
+sh ~/capstone/capstone.sh logs
+sh ~/capstone/capstone.sh stop
 ```
 
 版本化`install.sh`一次完成下载、校验、安装和启动，默认目录`~/capstone`，用`CAPSTONE_TRIAL_DIRECTORY`覆盖。成功时显示安装目录、访问地址、运维命令与端口配置。正式包默认App入口`http://127.0.0.1:19173/`，与开发5173/demo15173隔离；端口已使用时，在安装目录`.env`修改`CAPSTONE_APP_PORT`。DeepSeek/deepseek-flash为默认；OpenAI示例在注释中，模型在生成包时从Provider注册表读取。切换Provider时同时修改Provider和模型，配置对应启动Key。启动LLM变量优先；发布镜像及内部数据库/存储/操作者凭据保持包或实例固定，不能由普通`.env`覆盖。Key只进入worker及配置检查容器，API/App不接收Key。
 
-实例默认名`capstone-user-local-dev`；额外实例设置以`capstone-user-`开头的`CAPSTONE_INSTANCE`并选择不同App端口。每实例私有配置位于`.capstone-trial/<instance>/`，权限0600；保留整个目录以重新连接原数据。停止不会删卷；再次启动相同来源保留数据。更换镜像/源码不属于LLM配置切换，来源保护会要求独立升级计划。运行失败的诊断保留在该私有目录，脚本不展开配置输出。
+新安装使用与安装目录身份绑定的稳定项目名`capstone-user-<identity>`；接管原版安装时保留其`capstone-user-local-dev`或原项目名。不同安装目录使用独立项目并选择不同App端口；版本切换复用同一目录的项目和数据卷。每实例私有配置位于`.capstone-trial/<instance>/`，权限0600；保留整个目录以重新连接原数据。停止不会删卷；再次启动相同来源保留数据。使用`capstone.sh install <Git>`安装已发布版本，`use <Git>`切换已安装版本；缺省启动按本地精确镜像和版本记录选择最新可用版本。原7832134安装可原地接管，保留其项目、数据卷、私有配置及原安装记录。保留整个目录，包括`versions/`和`.capstone-management/`；不要手动改写冻结包或镜像绑定。运行失败的诊断保留在该私有目录，脚本不展开配置输出。
 
 本包是固定dev的临时试用，不更新既有cloud-dev/demo或local-demo，不属于main稳定发布。镜像实际平台、Windows/WSL2目标验证和发布入口以[版本台账](status/VERSION-CONTROL.md)为准。基础注册案例及服务就绪不代表整体科学验收；正常使用LLM由用户配置的Provider处理。操作员构建与发布步骤见[试用打包说明](../deploy/dev-trial/README.md)。
 
