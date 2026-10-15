@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
 
 import pytest
 
@@ -11,6 +12,31 @@ from capability_agent.runtime.environment import (
 )
 from capability_agent.runtime.models import ResolvedLLM, ResolvedLLMConfig, SecretValue
 from capability_agent.runtime.lock import PiCommand, PiRuntimeIdentity
+
+
+def test_launch_materializes_explicit_endpoint_in_private_pi_config(tmp_path):
+    command = PiCommand(argv=('pi',), identity=PiRuntimeIdentity(
+        path=Path('pi'), source='fixture', package_version='1', lock_sha256='lock'))
+    resolved = ResolvedLLM(config=ResolvedLLMConfig(
+        provider='openai', model='internal-model', base_url='https://internal.example/v1',
+        auth_kind='api_key_env', credential_reference='OPENAI_API_KEY',
+        timeout_seconds=10, max_retries=0, pi_provider='openai',
+        compatibility_profile='openai-responses', descriptor_version='test',
+        public_headers={}, field_sources={'base_url': 'process'}, supports_tools=True),
+        secret=SecretValue('test-key'))
+    shared = tmp_path / 'shared-auth'
+    paths = RuntimePaths(command=command, project_pi_dir=shared,
+                         session_dir=tmp_path / 'attempt/session', workspace=tmp_path)
+    launch = build_pi_launch(resolved, paths, base_environment={})
+    directory = Path(launch.environment['PI_CODING_AGENT_DIR'])
+    assert directory != shared
+    payload = json.loads((directory / 'models.json').read_text())
+    assert payload == {'providers': {'openai': {
+        'baseUrl': 'https://internal.example/v1', 'apiKey': 'OPENAI_API_KEY', 'headers': {},
+        'models': [{'id': 'internal-model'}]}}}
+    assert 'test-key' not in (directory / 'models.json').read_text()
+    assert (directory / 'models.json').stat().st_mode & 0o777 == 0o600
+    assert not shared.exists()
 
 
 def test_launch_environment_binds_endpoint_path_and_scrubs_controller_values(

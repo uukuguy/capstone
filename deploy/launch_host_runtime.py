@@ -56,16 +56,23 @@ def select_runtime(root: Path, environment: dict[str, str], command: str):
     providers = json.loads((root / "configs/llm-providers.json").read_text())["providers"]
     selection = contract.get("provider_selection")
     if selection:
-        name = selected.get("CAPSTONE_PUBLIC_PROVIDER", selection["default"])
+        name = (selected.get(selection.get("provider_alias", ""))
+                or selected.get("CAPSTONE_PUBLIC_PROVIDER", selection["default"]))
         if name not in selection["allowed"] or name not in providers:
             raise RuntimeContractError("CAPSTONE_PUBLIC_PROVIDER")
         provider = providers[name]
         if provider["auth"]["kind"] != "api_key_env":
             raise RuntimeContractError("CAPSTONE_PUBLIC_PROVIDER")
-        model = selected.get("CAPSTONE_PUBLIC_MODEL", provider["default_model"])
+        aliases = selection.get("provider_environment", {}).get(name, {})
+        model = (selected.get(aliases.get("model", ""))
+                 or selected.get("CAPSTONE_PUBLIC_MODEL", provider["default_model"]))
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}", model):
             raise RuntimeContractError("CAPSTONE_PUBLIC_MODEL")
         selected.update(CAPSTONE_PUBLIC_PROVIDER=name, CAPSTONE_PUBLIC_MODEL=model)
+        # Both family workers use the shared Harness resolver. Admit the local
+        # alias only after the guard rejects caller-supplied runtime overrides.
+        if role != "api" and selected.get(aliases.get("base_url", "")):
+            selected["CAPABILITY_AGENT_LLM_BASE_URL"] = selected[aliases["base_url"]]
     else:
         provider = providers[selected["CAPSTONE_PUBLIC_PROVIDER"]]
     credential_name = provider["auth"]["default_env"]

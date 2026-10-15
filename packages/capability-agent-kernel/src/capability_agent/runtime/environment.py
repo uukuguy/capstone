@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ipaddress
+import json
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -133,6 +134,25 @@ def build_pi_launch(
     environment = build_pi_environment(
         resolved, paths, base_environment=base_environment
     )
+    if (resolved.config.auth_kind == "api_key_env"
+            and resolved.config.field_sources.get("base_url") in {"cli", "process", "dotenv"}):
+        # Pi reads endpoint overrides from its agent directory. Keep this
+        # per-session so concurrent Providers cannot rewrite shared auth state.
+        directory = paths.session_dir / "provider-config"
+        directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+        directory.chmod(0o700)
+        config = {"providers": {resolved.config.pi_provider: {
+            "baseUrl": resolved.config.base_url,
+            "apiKey": resolved.config.credential_reference,
+            "headers": dict(resolved.config.public_headers),
+            # Pi inherits protocol and model defaults from the built-in
+            # Provider. Admit the exact selected ID, including private models.
+            "models": [{"id": resolved.config.model}],
+        }}}
+        model_path = directory / "models.json"
+        model_path.write_text(json.dumps(config), encoding="utf-8")
+        model_path.chmod(0o600)
+        environment["PI_CODING_AGENT_DIR"] = str(directory)
     argv: list[str] = [
         *paths.command.argv,
         "--mode",

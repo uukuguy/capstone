@@ -1,8 +1,10 @@
 x-runtime-environment: &runtime-environment
   CAPSTONE_RUNTIME_PROFILE: capstone-dev-trial-v1
   CAPSTONE_DEPLOYMENT_STAGE: local
+  PROVIDER: ${PROVIDER:-}
   CAPSTONE_PUBLIC_PROVIDER: ${CAPSTONE_PUBLIC_PROVIDER:-deepseek}
   CAPSTONE_PUBLIC_MODEL: ${CAPSTONE_PUBLIC_MODEL:-deepseek-flash}
+  OPENAI_MODEL: ${OPENAI_MODEL:-}
   CAPSTONE_AUTONOMOUS_RESEARCH: "1"
   CAPSTONE_HOSTED_APPLICATION: capstone
   CAPSTONE_PUBLIC_DEMO: "true"
@@ -25,6 +27,7 @@ x-worker-environment: &worker-environment
   <<: *runtime-environment
   DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
   OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
 
 x-backend: &backend
   image: ${CAPSTONE_BACKEND_IMAGE:?Release image manifest required}
@@ -136,10 +139,13 @@ services:
     entrypoint: [/app/packages/capstone-agent/.venv/bin/python, /app/deploy/dev_trial_runtime.py, check]
     environment:
       CAPSTONE_CANDIDATE_VALIDATION: ${CAPSTONE_CANDIDATE_VALIDATION:-0}
+      PROVIDER: ${PROVIDER:-}
       CAPSTONE_PUBLIC_PROVIDER: ${CAPSTONE_PUBLIC_PROVIDER:-deepseek}
       CAPSTONE_PUBLIC_MODEL: ${CAPSTONE_PUBLIC_MODEL:-deepseek-flash}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
       CAPSTONE_BACKEND_IMAGE: ${CAPSTONE_BACKEND_IMAGE}
       CAPSTONE_APP_IMAGE: ${CAPSTONE_APP_IMAGE}
       CAPSTONE_POSTGRES_IMAGE: ${CAPSTONE_POSTGRES_IMAGE}
