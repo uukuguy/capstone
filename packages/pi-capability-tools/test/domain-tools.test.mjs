@@ -1,10 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { chmod, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import { readFileSync, readdirSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join, resolve } from "node:path";
+import { validateToolArguments } from "@earendil-works/pi-ai";
 
 import {
   buildCapabilityRequest,
@@ -83,18 +85,23 @@ test("retains actual validated parameters when the authority calculation fails",
   assert.deepEqual(outcome.details.request_parameters, { limit: 5 });
 });
 
-test("validates required authority handoffs after injecting the trusted application receipt", async () => {
+for (const [pack, module, prefix] of [
+  ["pypsa-power-operations-domain-pack", "pypsa_power_operations", "pypsa_ops_"],
+  ["pypsa-capacity-planning-domain-pack", "pypsa_capacity_planning", "pypsa_plan_"],
+  ["pypsa-sector-coupling-domain-pack", "pypsa_sector_coupling", "pypsa_sector_"],
+]) {
+const resources = new URL(`../../${pack}/src/${module}/resources/capabilities/`, import.meta.url);
+for (const filename of readdirSync(resources).filter((name) => name.endsWith(".json"))) {
+const capability = JSON.parse(readFileSync(new URL(filename, resources), "utf8"));
+if (!capability.input_schema.required?.includes("handoff_ref")) continue;
+test(`${capability.id} separates public parameters from required application handoffs`, async () => {
   const fixture = await runtimeV1Fixture();
   const applicationWorkspace = join(fixture.root, "run");
   const handoffPath = join(applicationWorkspace, "reference-handoffs.json");
-  const capability = JSON.parse(await readFile(new URL(
-    "../../pypsa-power-operations-domain-pack/src/pypsa_power_operations/resources/capabilities/operations.dispatch.json",
-    import.meta.url,
-  ), "utf8"));
   const reference = "pypsa-model:sha256:" + "a".repeat(64);
   const handoffRef = "handoff:sha256:" + "b".repeat(64);
   const domain = { ...fixture.descriptor.domains[0], bindingId: "operations",
-    guideToolName: "pypsa_ops_guide_open" };
+    guideToolName: prefix + "guide_open" };
   const descriptor = { ...fixture.descriptor,
     application: { ...fixture.descriptor.application, workspacePath: applicationWorkspace,
       referenceHandoffsPath: handoffPath }, domains: [domain] };
@@ -109,21 +116,39 @@ test("validates required authority handoffs after injecting the trusted applicat
       request_id: payload.request_id, ok: true, result: {} };
   });
   const receipt = { target_binding_id: "operations", reference,
-    handoff_ref: handoffRef, capability_family: "operations" };
+    handoff_ref: handoffRef, capability_family: capability.id.split(".")[0] };
+  const modelArguments = { reference,
+    ...(capability.id === "operations.security_dispatch" ? { outage_set_id: "triangle-l3" } : {}),
+    ...(capability.id === "operations.ac_validate" ? { dispatch_result_ref: "pypsa-result:sha256:" + "d".repeat(64) } : {}),
+  };
   const writeReceipt = (handoffs) => writeFile(handoffPath, JSON.stringify({
     schema: "capability-agent-reference-handoffs/1.0", handoffs,
   }));
   try {
     await writeReceipt([receipt]);
-    const output = await tool.execute("valid", { reference });
+    const publicArguments = validateToolArguments(tool, {
+      type: "toolCall", id: "valid", name: tool.name, arguments: modelArguments,
+    });
+    assert.equal(tool.parameters.properties.handoff_ref, undefined);
+    assert.deepEqual(tool.parameters.required, capability.input_schema.required.filter((key) => key !== "handoff_ref"));
+    assert.match(tool.description, /runtime supplies.*handoff_ref/i);
+    assert.throws(() => validateToolArguments(tool, {
+      type: "toolCall", id: "model-receipt", name: tool.name,
+      arguments: { ...modelArguments, handoff_ref: handoffRef },
+    }), /handoff_ref|additional properties/);
+    assert.ok(contract.input_schema.required.includes("handoff_ref"));
+    assert.ok(contract.input_schema.properties.handoff_ref);
+    const output = await tool.execute("valid", publicArguments);
     assert.equal(output.isError, undefined);
-    assert.deepEqual(calls[0].arguments, { reference, handoff_ref: handoffRef });
+    assert.deepEqual(calls[0].arguments, { ...modelArguments, handoff_ref: handoffRef });
     assert.equal(calls.length, 1);
 
     for (const handoffs of [[], [{ ...receipt, handoff_ref: "invalid" }],
-      [{ ...receipt, target_binding_id: "foreign" }]]) {
+      [{ ...receipt, target_binding_id: "foreign" }],
+      [{ ...receipt, capability_family: "foreign" }],
+      [{ ...receipt, reference: "pypsa-model:sha256:" + "c".repeat(64) }]]) {
       await writeReceipt(handoffs);
-      const rejected = await tool.execute("invalid", { reference });
+      const rejected = await tool.execute("invalid", modelArguments);
       assert.equal(rejected.isError, true);
       assert.equal(rejected.details.error.code, "invalid_arguments");
       assert.deepEqual(rejected.details.capability_key, {
@@ -133,12 +158,21 @@ test("validates required authority handoffs after injecting the trusted applicat
       assert.equal(calls.length, 1);
     }
     await writeReceipt([receipt]);
-    await assert.rejects(tool.execute("routing", { reference, binding_id: "foreign" }), /routing field/);
+    await assert.rejects(tool.execute("routing", { ...modelArguments, binding_id: "foreign" }), /routing field/);
     assert.equal(calls.length, 1);
+    const unmanaged = createCapabilityTool({ ...descriptor,
+      application: { applicationId: "fixture-app", runId: "run-1", workspacePath: applicationWorkspace },
+    }, contract, async () => { throw new Error("Unmanaged tool must not run"); });
+    assert.deepEqual(unmanaged.parameters, contract.input_schema);
+    assert.throws(() => validateToolArguments(unmanaged, {
+      type: "toolCall", id: "unmanaged", name: unmanaged.name, arguments: modelArguments,
+    }), /handoff_ref/);
   } finally {
     await rm(fixture.root, { recursive: true, force: true });
   }
 });
+}
+}
 
 const runtimeV1 = Object.freeze({
   schema: "capability-agent-runtime/1.0",
