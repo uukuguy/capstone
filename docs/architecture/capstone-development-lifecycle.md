@@ -100,8 +100,17 @@ the relevant Python tests and its application entry smoke check. Do not repeat
 all offline, E2E, packaging and release checks after each edit. Local API, worker
 or App changes still use the canonical local rebuild before deployment claims.
 
-Dev PRs and pushes select documentation, bounded governance contracts or
-`make check-pr` on Linux and macOS. Unknown paths require product regression;
+Dev PRs and pushes select documentation, bounded governance contracts, shared-agent
+dependency regression or `make check-pr` on Linux and macOS. Python source/tests
+under capstone-agent and TypeScript/TSX/CSS under capstone-app/src use the shared-agent
+gate: package boundaries, global type checks, complete agent and Kernel suites,
+App tests/build and client tests. This includes registered worker regression.
+The selected test step has a15-minute limit; timeout fails the check. Its duration
+must be measured in CI, not assumed from local timing. Changes to native bridges,
+Domain Packs, Authorities, Kernel, dependencies, build/deployment configuration or
+unknown paths still require the broader product gate. Mixed changes select the
+broader gate. Documentation/governance changes cannot hide product changes.
+Unknown paths require product regression;
 main PRs and pushes run `make check-release`. Feature
 branch pushes do not run a second copy of the PR workflow. New revisions cancel
 obsolete automatic runs for the same event and ref. The PR gate checks formal

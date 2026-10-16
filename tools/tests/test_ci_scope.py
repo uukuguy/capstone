@@ -32,6 +32,46 @@ def test_main_and_explicit_release_always_use_complete_gate():
     assert classify(["README.md"], release=True) == "release"
 
 
+def test_shared_agent_python_changes_select_dependency_regression():
+    paths = ["packages/capstone-agent/src/capstone_agent/harness.py",
+             "packages/capstone-agent/tests/test_enterprise_context.py",
+             "docs/status/CURRENT-STATE.md"]
+    assert classify(paths) == "shared-agent"
+    assert classify(paths, target="main") == "release"
+    assert classify(paths, release=True) == "release"
+
+
+@pytest.mark.parametrize("extra", [
+    "packages/capstone-agent/pyproject.toml",
+    "packages/capstone-agent/uv.lock",
+    "packages/capstone-agent/src/capstone_agent/resources/general-sdk.mjs",
+    "packages/capstone-agent/src/capstone_agent/general_pi_executor.py",
+    "packages/capstone-agent/src/capstone_agent/general_pi_server.py",
+    "packages/capstone-agent/src/capstone_agent/kernel_pi_session.py",
+    "packages/capstone-agent/src/capstone_agent/pi_delegation.py",
+    "packages/capability-agent-kernel/src/capability_agent/core.py",
+    "packages/pypsa-domain-pack/src/solver.py",
+    "deploy/Dockerfile",
+    "Makefile",
+    "packages/capstone-agent/src/../pyproject.toml",
+])
+def test_shared_agent_mixed_runtime_or_unknown_change_expands_gate(extra):
+    assert classify(["packages/capstone-agent/src/capstone_agent/harness.py", extra]) == "product"
+
+
+def test_shared_agent_and_governance_keep_product_regression():
+    assert classify(["packages/capstone-agent/src/capstone_agent/harness.py",
+                     "tools/ci_scope.py"]) == "shared-agent"
+
+
+def test_app_source_and_shared_agent_use_the_same_contract_gate():
+    app = "packages/capstone-app/src/threadProtocol.ts"
+    assert classify([app]) == "shared-agent"
+    assert classify([app, "packages/capstone-agent/src/capstone_agent/thread_protocol.py"]) == "shared-agent"
+    assert classify([app, "packages/capstone-app/package-lock.json"]) == "product"
+    assert classify([app, "packages/capstone-app/vite.config.ts"]) == "product"
+
+
 def workflow_scope_script():
     workflow = (ROOT / ".github/workflows/verify.yml").read_text()
     script = workflow.split("        run: |\n", 1)[1].split("      - name: Install uv", 1)[0]
