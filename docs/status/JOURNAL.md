@@ -3286,3 +3286,7 @@ The following original entries were retained during document synchronization.
 - 2026-10-16: Classify HTTP timeouts consistently while preserving parent cancellation and unknown remote state. [abf2f797]
 - 2026-10-16: Merge PR30 into main after both release gates passed; preserve user installation and package. [cf72393b]
 - 2026-10-16: Merge PR31 into dev after both gates passed; retain enterprise assets and close the long-lived Pi line. [db167184]
+
+- 2026-10-16: 918d73a8 aligned accepted main/dev merges, runtime sources and control graph; enterprise design remains pending.
+
+- 2026-10-16: fc3bdada merged control PR #32 after both platform checks; root dev restored and merged branches closed.

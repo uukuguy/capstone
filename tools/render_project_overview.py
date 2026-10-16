@@ -215,6 +215,25 @@ def snapshot(probe_local: bool, probe_cloud: bool = False) -> dict:
     edges = sorted((a, b) for a, b in relations
                    if not any((a, c) in relations and (c, b) in relations
                               for c in (n["id"] for n in nodes)))
+    # A merge's first-parent spine must remain visible even when its feature
+    # parent also descends from the previous mainline node.
+    by_sha = {node["sha"]: node for node in nodes if node.get("presentation")}
+    for node in nodes:
+        if node["lane"] != "main" or node["release_point"] or not node.get("presentation"):
+            continue
+        for sha in git("rev-list", "--first-parent", node["sha"]).splitlines()[1:]:
+            parent = by_sha.get(sha)
+            if parent and parent["lane"] == "main" and not parent["release_point"]:
+                intermediate = any(
+                    other["lane"] == "main" and not other["release_point"]
+                    and (parent["id"], other["id"]) in relations
+                    and (other["id"], node["id"]) in relations
+                    for other in by_sha.values()
+                )
+                if not intermediate:
+                    edges.append((parent["id"], node["id"]))
+                break
+    edges = sorted(set(edges))
     proposals = [dict(title=plain(row[0]), gap=plain(row[1]), record=plain(row[2]))
                  for row in table(register, "提出但未实施")]
     package_details = []
