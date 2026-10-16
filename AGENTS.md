@@ -189,6 +189,11 @@ counts, prices, limits, versions, or deployment state here.
   that page. Show current branch HEADs explicitly, even when ordinary control
   commits are omitted from the milestone graph. Keep those HEADs distinct from
   product milestones and exact deployed source revisions. The generated snapshot
+  must include a real graph node and verified ancestry edges when the user requests
+  a specific commit as a node; a HEAD badge or explanatory text is not a substitute.
+  For an authorized correction, implement and verify the fix before closing the
+  task; analysis or an apology alone does not complete the request.
+  The generated snapshot
   records its generation time; do not create an endless commit cycle merely to
   embed the snapshot's own commit hash.
   Apply these controls as standing instructions without asking the user to repeat
