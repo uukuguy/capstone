@@ -310,3 +310,5 @@ dev默认开发集成主线和main发布主线均启用轻量保护：PR与两�
 - 2026-10-16: 推进图修复发布/合入来源交叉，恢复有Git依据的dev主线；清理研发候选旧措辞。
 
 - 2026-10-16: 已接受共同基座同时支持对话与企业执行；[定稿](../superpowers/specs/2026-10-15-enterprise-design-final.md)和[计划](../superpowers/plans/2026-10-16-enterprise-unified-execution.md)新增三工作包及双入口适用验收，台账与图同步。
+
+- 2026-10-16: [三线阶段计划](../superpowers/plans/2026-10-16-three-line-delivery.md)：两条应用分支已创建，基座尚不足，dev先形成可人工观察的前端闭环；应用线准备后按依赖启动。
