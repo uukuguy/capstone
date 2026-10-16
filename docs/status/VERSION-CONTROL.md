@@ -337,6 +337,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | main | cf72393bd6377d1de11d02a93728cdaa746a75d4 | release | main · 对话应用阶段发布 | PR #30已合入，完整release通过 | 用户确认f209fb1范围，含已验证PyPSA小修复；合并树与f209完全一致；CI38861900687双平台成功。实际e2交付包与用户安装保持原版，未进行新部署。[收口验证](../reviews/2026-10-16-main-dev-convergence-verification.md) | main |
 | dev-business-base | 6ff7094 | main | dev · 恢复后开发基线 | 已集成，双平台通过 | PR #14候选bc08169两平台通过；恢复c3业务执行并保留独立轻量路由；三动作9px短窗与160px滚动；普通轻量路径与最终消息隔离；local-dev506项三角色同源；两实施分支接入此基线；已知业务缺陷及一次普通误路由保留，未作整体验收 | main |
 | dev | faa6af9 | main | dev · 自主智能体合并基线 | PR #18已合入faa6af9 | 双平台PR门禁通过；统一研究/执行/结果证据、模型资源、场景图层和对话性能合入；正式两个demo按同一合并提交收口；旧控制文档已保留恢复来源 | autonomous |
+| dev-control | d4600ddc2e593ea3e0020b1b4685913c189ecd6a | main | dev · 研发控制基线 | PR #39双平台通过，已合入 | 三线HEAD显式展示，历史控制与产品里程碑区分；研发控制规则已固化到AGENTS.md；无运行代码或部署变更。 | shared-agent |
 | shared-foundation-dev | d8fe6e2738639161525a66bce7a8f0a9588e2872 | main | dev · 共同基座执行接缝集成 | PR #36双平台通过，已合入 | 合并树与受检711f06a8一致；共同执行接缝及已有基线验收完成；Task 2身份/Profile及前端最小入口待实施。[基线报告](../reviews/2026-10-16-shared-execution-baseline.md) | shared-agent |
 | execution-seam | 62f443661a207c9a4222630bba1384e13dabdc3d | feature | 共同基座 · 执行检查接缝 | 已验证并通过PR #36合入dev | 最终参数快照、工具执行绑定与单行动拒绝；14项真实SDK检查通过，101项Python回归通过；local-dev规范重建同源。生产装配及前端新闭环未交付。[基线报告](../reviews/2026-10-16-shared-execution-baseline.md) | shared-agent |
 | pi | abf2f797c98f953a402aa25597018d6d5dfea0af | feature | 企业执行 · 已合入来源 | PR #31双平台通过并合入dev | 原生资源和专业资产保留；资源摘要及超时分类已修复；local-dev同源核验通过。统一循环和新工作台仍待实现。[收口验证](../reviews/2026-10-16-main-dev-convergence-verification.md) | pi |
@@ -393,6 +394,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | main | 已发布应用基线 | main | 阶段完整对话应用及已验证小修复；短期维护，保留未来对话场景发展 | PR #30合入cf72393b；双平台完整release通过 |
 | dev-business-base | 开发分支起点 | dev | 恢复业务执行并保留独立轻量路由；Pi与自主智能体的共同业务基线 | 已合入，业务缺陷保留 |
 | dev | 重要demo发布与大分支合并 | dev | 统一研究、执行、结果与证据合入主线；两个demo固定该基线，保留发布验收与回退来源 | 两个demo已验收 |
+| dev-control | 研发控制基线节点 | dev | 三线推进位置与历史里程碑区分；控制规则固化，Task 2待实施 | PR #39双平台通过；不表示运行或部署更新 |
 | shared-foundation-dev | 最近产品集成节点 | dev | 共同执行接缝及既有专业基线合入；继续身份/Profile与前端最小入口 | PR #36双平台通过，合并树与受检来源一致 |
 | execution-seam | 已合入基座实现来源 | 共同基座（分支已关闭） | 最终参数与执行身份检查接缝；会话重开、steer和abort离线验证通过 | local-dev已验证；生产持续执行及前端新闭环待实现 |
 | pi | 已合入研发来源 | 原Pi分支（已关闭） | 原生执行与专业资产已合入dev；统一循环和新工作台仍待实施 | 双平台通过，保留原生执行基础来源 |
