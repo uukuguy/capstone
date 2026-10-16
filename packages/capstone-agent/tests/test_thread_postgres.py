@@ -214,6 +214,44 @@ def test_postgres_claim_preparation_preserves_a_full_lease(postgres_thread_servi
     assert service.renew_attempt(claim, lease_seconds=1)
 
 
+@pytest.mark.parametrize("reader", ["_selected_task_from_postgres", "_previous_instruction_from_postgres"])
+def test_postgres_claim_finishes_slow_history_reads_before_minting_lease(
+    postgres_thread_service, monkeypatch, reader,
+) -> None:
+    import time
+    import capstone_agent.thread_service as thread_service
+
+    service, thread_id = postgres_thread_service
+    service.create_thread(_snapshot(thread_id))
+    service.submit_command(_command(thread_id))
+    original = getattr(thread_service, reader)
+    reads = []
+
+    def slow_read(connection, *args, **kwargs):
+        lease = connection.execute(
+            "SELECT phase, lease_deadline FROM capstone_thread_attempts WHERE thread_id=%s",
+            (thread_id,),
+        ).fetchone()
+        assert lease == {"phase": "accepted", "lease_deadline": None}
+        time.sleep(1.2)
+        reads.append(reader)
+        return original(connection, *args, **kwargs)
+
+    monkeypatch.setattr(thread_service, reader, slow_read)
+    claim = service.claim_attempt("slow-history-worker", lease_seconds=1)
+    assert claim is not None
+    assert reads == [reader]
+    assert service.renew_attempt(claim, lease_seconds=1)
+
+    # Preparation must not change the strict rejection of an expired lease.
+    with psycopg.connect(service.dsn) as connection:
+        connection.execute(
+            "UPDATE capstone_thread_attempts SET lease_deadline=clock_timestamp()-interval '1 second' WHERE attempt_id=%s",
+            (claim.attempt.attempt_id,),
+        )
+    assert not service.renew_attempt(claim, lease_seconds=1)
+
+
 @pytest.mark.parametrize("switch", [False, True])
 def test_postgres_message_tools_activate_atomically_for_current_or_pending_model(postgres_thread_service, switch) -> None:
     service, thread_id = postgres_thread_service

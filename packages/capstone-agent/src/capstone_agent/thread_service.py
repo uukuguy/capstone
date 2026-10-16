@@ -3669,25 +3669,6 @@ class PostgresThreadService:
             conversation = _attempt_conversation_document(connection, attempt_row)
             if attempt_row["conversation_context_snapshot"] is None:
                 connection.execute("UPDATE capstone_thread_attempts SET conversation_context_snapshot = %s WHERE attempt_id = %s", (Jsonb(conversation), attempt_row["attempt_id"]))
-            updated = connection.execute(
-                """UPDATE capstone_thread_attempts
-                   SET phase = 'running', lease_token = %s,
-                       lease_deadline = clock_timestamp() + (%s * interval '1 second')
-                   WHERE attempt_id = %s AND phase = 'accepted' AND lease_token IS NULL
-                   RETURNING *""",
-                (token, lease_seconds, attempt_row["attempt_id"]),
-            ).fetchone()
-            if updated is None:
-                return None
-            event = self._make_attempt_event(
-                thread, running, event_seq=thread["last_event_seq"] + 1,
-                event_type="attempt_started", payload={"attempt_id": running.attempt_id, "task_step": preparation_step(), **work_payload},
-            )
-            self._insert_event(connection, event)
-            connection.execute(
-                "UPDATE capstone_threads SET current_attempt = %s, last_event_seq = %s, works = %s WHERE thread_id = %s",
-                (Jsonb(running.to_document()), event.event_seq, Jsonb(list(work_snapshot.works)), thread["thread_id"]),
-            )
             research_reset = connection.execute(
                 """SELECT event_id FROM capstone_thread_events
                    WHERE thread_id = %s AND event_type = 'model_context_reopened'
@@ -3702,9 +3683,13 @@ class PostgresThreadService:
                 allowed_attempt_ids = {item['attempt_id'] for item in same_work}
             previous = (None if task_context is not None and source is None
                         else _previous_instruction_from_postgres(connection, thread['thread_id'], context, source))
-            return AttemptClaim(
+            event = self._make_attempt_event(
+                thread, running, event_seq=thread["last_event_seq"] + 1,
+                event_type="attempt_started", payload={"attempt_id": running.attempt_id, "task_step": preparation_step(), **work_payload},
+            )
+            claim = AttemptClaim(
                 thread_id=thread["thread_id"], run_id=thread["run_id"], attempt=running,
-                kind=updated["kind"], instruction=updated["instruction"],
+                kind=attempt_row["kind"], instruction=attempt_row["instruction"],
                 model_context_id=thread["model_context_id"],
                 selection_revision=thread["selection_revision"], lease_token=token,
                 model_context=context,
@@ -3713,10 +3698,28 @@ class PostgresThreadService:
                 prior_results=_prior_results_for_context(self._snapshot_from_row(thread), allowed_attempt_ids=allowed_attempt_ids),
                 previous_instruction=previous,
                 conversation_context=ConversationContext.from_document(conversation),
-                submission=updated.get("submission_snapshot"),
+                submission=attempt_row.get("submission_snapshot"),
                 application_catalog=application_catalog,
                 research_generation=research_reset["event_id"] if research_reset else None,
             )
+            self._insert_event(connection, event)
+            connection.execute(
+                "UPDATE capstone_threads SET current_attempt = %s, last_event_seq = %s, works = %s WHERE thread_id = %s",
+                (Jsonb(running.to_document()), event.event_seq, Jsonb(list(work_snapshot.works)), thread["thread_id"]),
+            )
+            # Start the lease only after all Claim preparation and ledger writes.
+            # The row locks keep acceptance, Work state, and this lease atomic.
+            updated = connection.execute(
+                """UPDATE capstone_thread_attempts
+                   SET phase = 'running', lease_token = %s,
+                       lease_deadline = clock_timestamp() + (%s * interval '1 second')
+                   WHERE attempt_id = %s AND phase = 'accepted' AND lease_token IS NULL
+                   RETURNING attempt_id""",
+                (token, lease_seconds, attempt_row["attempt_id"]),
+            ).fetchone()
+            if updated is None:
+                raise ThreadExecutionError("attempt acceptance changed during claim preparation")
+            return claim
 
     def freeze_attempt_input(self, claim: AttemptClaim, document: Mapping[str, Any]) -> dict[str, Any]:
         """Save input/config once; callers rebind the current retry Attempt identity."""
