@@ -148,6 +148,19 @@ def test_shared_agent_ci_checks_dependencies_with_a_time_budget() -> None:
     assert "make check-pr" not in block
 
 
+def test_foundation_ci_keeps_professional_adapters_and_time_budget() -> None:
+    workflow = (ROOT / '.github/workflows/verify.yml').read_text()
+    block = workflow.split('      - name: Verify shared foundation assembly\n', 1)[1].split('      - name:', 1)[0]
+    assert "if: steps.scope.outputs.gate == 'foundation'" in block
+    assert 'timeout-minutes: 15' in block
+    for expected in ('test-kernel', 'test-capstone-agent', 'test-registered-workers',
+                     'test-domain-package', 'packages/pypsa-agent/tests', 'test-capstone-app', 'check-types',
+                     'test_thread_model_diagram.py', 'test_hosted_runtime_warmup.py',
+                     'test_generic_entrypoint.py', 'test_composition.py', 'test_hosted_thread.py',
+                     'test_application_conformance.py', 'test_multi_binding_application.py'):
+        assert expected in block
+
+
 def test_iteration_requires_explicit_scope_and_propagates_failure(tmp_path: Path) -> None:
     empty = subprocess.run(["make", "check-iteration"], cwd=ROOT, capture_output=True)
     assert empty.returncode != 0

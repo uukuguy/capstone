@@ -101,13 +101,18 @@ all offline, E2E, packaging and release checks after each edit. Local API, worke
 or App changes still use the canonical local rebuild before deployment claims.
 
 Dev PRs and pushes select documentation, bounded governance contracts, shared-agent
-dependency regression or `make check-pr` on Linux and macOS. Python source/tests
+or foundation dependency regression, or `make check-pr` on Linux and macOS. Python source/tests
 under capstone-agent and TypeScript/TSX/CSS under capstone-app/src use the shared-agent
 gate: package boundaries, global type checks, complete agent and Kernel suites,
 App tests/build and client tests. This includes registered worker regression.
 The selected test step has a15-minute limit; timeout fails the check. Its duration
-must be measured in CI, not assumed from local timing. Changes to native bridges,
-Domain Packs, Authorities, Kernel, dependencies, build/deployment configuration or
+must be measured in CI, not assumed from local timing. An explicit file allowlist
+in `tools/ci_scope.py` selects foundation checks for Kernel profile/composition
+and their professional application adapters. This gate retains the shared-agent
+checks, the pandapower Pack, the complete PyPSA application suite, inventory
+conformance/multi-binding tests and the hosted/Thread/diagram adapter tests.
+It also has a 15-minute step limit. It does not cover arbitrary Kernel changes.
+Changes to native bridges, Domain Packs, Authorities, other Kernel code, dependencies, build/deployment configuration or
 unknown paths still require the broader product gate. Mixed changes select the
 broader gate. Documentation/governance changes cannot hide product changes.
 Unknown paths require product regression;

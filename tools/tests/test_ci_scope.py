@@ -64,6 +64,21 @@ def test_shared_agent_and_governance_keep_product_regression():
                      "tools/ci_scope.py"]) == "shared-agent"
 
 
+def test_foundation_assembly_has_an_explicit_dependency_gate():
+    from tools.ci_scope import FOUNDATION_FILES
+    for path in FOUNDATION_FILES:
+        assert classify([path, 'tools/ci_scope.py']) == 'foundation'
+    paths = ['packages/capability-agent-kernel/tests/application/test_pack_selection.py',
+             'packages/capstone-agent/src/capstone_agent/application.py']
+    assert classify(paths) == 'foundation'
+    assert classify(paths, target='main') == 'release'
+    for extra in ['packages/capability-agent-kernel/src/capability_agent/runtime/environment.py',
+                  'packages/capability-agent-kernel/src/capability_agent/domain/authority.py',
+                  'packages/grid-agent/src/grid_agent/new_executor.py',
+                  'packages/pypsa-domain-pack/src/solver.py', 'Makefile']:
+        assert classify(paths + [extra]) == 'product'
+
+
 def test_app_source_and_shared_agent_use_the_same_contract_gate():
     app = "packages/capstone-app/src/threadProtocol.ts"
     assert classify([app]) == "shared-agent"

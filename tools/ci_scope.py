@@ -13,6 +13,21 @@ DOC_FILES = {"README.md", "README.zh-CN.md", "AGENTS.md", "CLAUDE.md",
 GOVERNANCE_FILES = {".github/workflows/verify.yml", "tools/ci_scope.py",
                     "tools/tests/test_ci_scope.py", "tools/tests/test_verification_targets.py"}
 
+# Assembly contracts have a bounded cross-package gate. Runtime transports,
+# authority protocols, solvers, dependencies and unknown paths remain product.
+FOUNDATION_FILES = {
+    'packages/capability-agent-kernel/src/capability_agent/' + path
+    for path in ('application/composition.py', 'application/profile.py',
+                 'application/registry.py', 'application/native.py', 'application/runner.py',
+                 'domain/__init__.py', 'domain/manifest.py', 'domain/profile.py', 'tools/catalog.py')
+} | {
+    'packages/grid-agent/src/grid_agent/application/composition.py',
+    'packages/grid-agent/src/grid_agent/hosted.py',
+    'packages/grid-agent/src/grid_agent/thread_model_diagram.py',
+    'packages/pypsa-agent/src/pypsa_agent/thread_model_diagram.py',
+    'packages/pypsa-agent/src/pypsa_agent/worker.py',
+}
+
 
 def classify(paths: list[str], *, target: str = "dev", release: bool = False) -> str:
     if target == "main" or release:
@@ -21,6 +36,7 @@ def classify(paths: list[str], *, target: str = "dev", release: bool = False) ->
         return "product"
     governance = False
     shared_agent = False
+    foundation = False
     for path in paths:
         if ".." in PurePosixPath(path).parts:
             return "product"
@@ -28,7 +44,10 @@ def classify(paths: list[str], *, target: str = "dev", release: bool = False) ->
                 PurePosixPath(path).name.startswith("general_pi_")
                 or PurePosixPath(path).name in {"kernel_pi_session.py", "pi_delegation.py"}):
             return "product"
-        if path in GOVERNANCE_FILES or path.startswith("tools/issue_automation/") or (
+        if path in FOUNDATION_FILES or (
+                path.startswith('packages/capability-agent-kernel/tests/') and path.endswith('.py')):
+            foundation = True
+        elif path in GOVERNANCE_FILES or path.startswith("tools/issue_automation/") or (
                 path.startswith("tools/tests/test_issue_automation") and path.endswith(".py")):
             governance = True
         elif path.endswith(".py") and path.startswith((
@@ -40,6 +59,8 @@ def classify(paths: list[str], *, target: str = "dev", release: bool = False) ->
             shared_agent = True
         elif path not in DOC_FILES and not path.startswith(("docs/", "tools/project_overview/")):
             return "product"
+    if foundation:
+        return 'foundation'
     if shared_agent:
         return "shared-agent"
     return "governance" if governance else "docs"
