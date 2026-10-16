@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, realpath, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -87,7 +87,10 @@ async function acknowledge(f, input, { status = "committed", digest, updateView 
     f.view.state.goal = input.request.changes.goal;
     await writeFile(join(f.root, "view.json"), JSON.stringify(f.view));
   }
-  await writeFile(join(f.root, "receipts", input.name), JSON.stringify(ack));
+  // Match the host's atomic publication: readers must never see partial JSON.
+  const receiptPath = join(f.root, "receipts", input.name);
+  await writeFile(receiptPath + ".tmp", JSON.stringify(ack));
+  await rename(receiptPath + ".tmp", receiptPath);
 }
 
 test("registers bounded research read and update tools without identity or path arguments", async t => {

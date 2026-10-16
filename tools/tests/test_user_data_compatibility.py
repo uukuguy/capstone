@@ -24,6 +24,85 @@ def context(root):
 IMAGES = {"postgres": "postgres@sha256:" + "b" * 64,
           "objects": "objects@sha256:" + "c" * 64}
 
+POLICY_LINK = "packages/capstone-agent/src/capstone_agent/resources/capstone-pi"
+POLICY_TARGET = "../../../../../configs/runtime/capstone-pi"
+
+
+def policy_context(root):
+    root = context(root)
+    (root / "packages/capstone-agent").mkdir()
+    (root / "packages/capstone-agent/pyproject.toml").write_text("policy package")
+    policy = root / "configs/runtime/capstone-pi/SYSTEM.md"
+    policy.parent.mkdir(parents=True)
+    policy.write_text("policy version one")
+    link = root / POLICY_LINK
+    link.parent.mkdir(parents=True)
+    link.symlink_to(POLICY_TARGET, target_is_directory=True)
+    return root
+
+
+def commit_context(root):
+    import subprocess
+    subprocess.run(["git", "init", str(root)], check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(root), "add", "."], check=True)
+    subprocess.run(["git", "-C", str(root), "-c", "user.name=Test", "-c", "user.email=test@example.invalid",
+                    "commit", "-m", "fixture"], check=True, capture_output=True)
+    return subprocess.check_output(["git", "-C", str(root), "rev-parse", "HEAD"], text=True).strip()
+
+
+def test_registered_policy_link_matches_git_and_tracks_target_content(tmp_path):
+    m = module()
+    root = policy_context(tmp_path / "repo")
+    revision = commit_context(root)
+    first = m.generate_descriptor(root, revision, IMAGES)
+    assert m.descriptor_from_git(root, revision, IMAGES) == first
+    (root / "configs/runtime/capstone-pi/SYSTEM.md").write_text("policy version two")
+    second = m.generate_descriptor(root, revision, IMAGES)
+    assert second["CAPSTONE_DATA_FORMAT_SHA256"] != first["CAPSTONE_DATA_FORMAT_SHA256"]
+    updated_revision = commit_context(root)
+    assert m.descriptor_from_git(root, updated_revision, IMAGES) == m.generate_descriptor(root, updated_revision, IMAGES)
+
+
+@pytest.mark.parametrize("unsafe", ["/tmp/external-policy", "../../../../../schemas", "missing"])
+def test_registered_policy_link_rejects_other_targets_in_context_and_git(tmp_path, unsafe):
+    m = module()
+    root = policy_context(tmp_path / "repo")
+    link = root / POLICY_LINK
+    link.unlink()
+    link.symlink_to(unsafe, target_is_directory=True)
+    revision = commit_context(root)
+    for generate in (m.generate_descriptor, m.descriptor_from_git):
+        with pytest.raises(ValueError, match="symlink"):
+            generate(root, revision, IMAGES)
+
+
+def test_registered_policy_target_rejects_nested_symlink_in_context_and_git(tmp_path):
+    m = module()
+    root = policy_context(tmp_path / "repo")
+    (root / "configs/runtime/capstone-pi/other.md").symlink_to("SYSTEM.md")
+    revision = commit_context(root)
+    for generate in (m.generate_descriptor, m.descriptor_from_git):
+        with pytest.raises(ValueError, match="symlink"):
+            generate(root, revision, IMAGES)
+
+
+@pytest.mark.parametrize("replacement", ["missing", "directory_symlink", "parent_symlink"])
+def test_registered_policy_link_requires_a_regular_target_tree(tmp_path, replacement):
+    m = module()
+    root = policy_context(tmp_path / "repo")
+    target = root / "configs/runtime/capstone-pi"
+    external = tmp_path / "external-policy"
+    target.rename(external)
+    if replacement == "directory_symlink":
+        target.symlink_to(external, target_is_directory=True)
+    elif replacement == "parent_symlink":
+        target.parent.rmdir()
+        target.parent.symlink_to(tmp_path, target_is_directory=True)
+    revision = commit_context(root)
+    for generate in (m.generate_descriptor, m.descriptor_from_git):
+        with pytest.raises(ValueError, match="symlink"):
+            generate(root, revision, IMAGES)
+
 def test_descriptor_is_exact_and_excludes_source_and_ui(tmp_path):
     m = module()
     root = context(tmp_path)
