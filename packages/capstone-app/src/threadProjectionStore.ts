@@ -4,6 +4,9 @@ import type { DiagramNetworkView, NetworkDiagram } from './types'
 import type { ThreadCatalog } from './threadCatalog'
 import type { ModelWorkspace, OpenedModel } from './threadModelWorkspace'
 import { readPendingCommands, writePendingCommands } from './threadSessionState'
+import { parseWorkSnapshot, type WorkSnapshot } from './threadWorkProtocol'
+import type { AnyThreadCommand } from './threadClient'
+import { ThreadTransportError } from './threadHttpTransport'
 import { ResultProjectionDelivery } from './resultProjectionDelivery'
 import {
   CapstoneThreadClient, type ThreadCommand, type ThreadTransport, type ThreadTransportState,
@@ -13,11 +16,14 @@ const HISTORY_EVENT_LIMIT = 1024
 const HISTORY_BYTE_LIMIT = 8 * 1024 * 1024
 const INITIAL_HISTORY_MESSAGE_TARGET = 50
 const INITIAL_HISTORY_PAGE_LIMIT = 8
+const WORK_REFRESH_EVENTS = new Set(['command.applied', 'attempt_started', 'attempt_cancel_requested', 'attempt_completed',
+  'attempt_failed', 'attempt_cancelled', 'attempt_interrupted', 'model_workspace_changed', 'model_context_activated',
+  'model_context_reopened', 'model_context_reverted', 'selection_activated', 'selection_reverted', 'runtime_mode_changed'])
 
 export type ThreadConnection = ThreadTransportState | 'connecting'
 
 export type PendingThreadCommand = {
-  command: ThreadCommand
+  command: AnyThreadCommand
   receipt?: CommandReceipt
 }
 
@@ -45,6 +51,7 @@ export type ThreadNetworkTask = {
 export type ThreadProjectionState = {
   connection: ThreadConnection
   snapshot: ThreadSnapshot | null
+  workSnapshot?: WorkSnapshot | null
   eventSeq: number
   resyncRequired: boolean
   pendingCommands: readonly PendingThreadCommand[]
@@ -154,6 +161,7 @@ function resyncSnapshot(error: unknown): ThreadSnapshot | null {
 }
 
 function requiresResync(error: unknown): boolean {
+  if (record(record(error).body).error === 'resync_required') return true
   if (resyncSnapshot(error)) return true
   return error instanceof Error && (
     error.message.includes('contiguous') || error.message.includes('does not match')
@@ -162,7 +170,7 @@ function requiresResync(error: unknown): boolean {
 
 async function readSnapshotEvents(
   client: CapstoneThreadClient,
-  snapshot: ThreadSnapshot,
+  snapshot: Pick<ThreadSnapshot, 'threadId' | 'baseEventSeq' | 'lastEventSeq'>,
   intern: (event: EventEnvelope) => EventEnvelope = (event) => event,
 ): Promise<EventEnvelope[]> {
   const events: EventEnvelope[] = []
@@ -301,6 +309,7 @@ export class ThreadProjectionStore {
   private networkContextEvents: EventEnvelope[] = []
   private readonly eventSizes = new Map<number, number>()
   private loadGeneration = 0
+  private refreshingWorkSnapshot: number | null = null
   private readonly eventLog: EventEnvelope[] = []
   private readonly resultDelivery = new ResultProjectionDelivery()
   private readonly networkDiagrams = new Map<string, NetworkDiagram>()
@@ -311,7 +320,12 @@ export class ThreadProjectionStore {
   private readonly diagramAttempts = new Map<string, string | undefined>()
   private readonly listeners = new Set<() => void>()
 
-  constructor(private readonly client: CapstoneThreadClient, private readonly storageKey?: string) {}
+  constructor(private readonly client: CapstoneThreadClient, private readonly storageKey?: string,
+    private readonly options: { protocolVersion?: '1' | '2' } = {}) {}
+
+  private get ledger() { return this.current.workSnapshot ?? this.current.snapshot }
+
+  dispose(): void { this.loadGeneration += 1; this.listeners.clear() }
 
   get state(): ThreadProjectionState {
     return this.current
@@ -398,7 +412,7 @@ export class ThreadProjectionStore {
   }
 
   private notify(): void {
-    if (this.current.snapshot) writePendingCommands(this.storageKey,
+    if (this.ledger) writePendingCommands(this.storageKey,
       this.current.pendingCommands.filter((entry) => !entry.receipt).map((entry) => entry.command))
     for (const listener of this.listeners) listener()
   }
@@ -409,13 +423,16 @@ export class ThreadProjectionStore {
     const previousView = this.loadedThreadId === threadId ? this.current.viewedGridPageId : null
     this.current = {
       ...this.current,
-      connection: 'connecting', snapshot: sameThread ? this.current.snapshot : null,
+      connection: 'connecting', snapshot: sameThread ? this.current.snapshot : null, workSnapshot: sameThread ? this.current.workSnapshot : null,
       eventSeq: sameThread ? this.current.eventSeq : 0, resyncRequired: false,
       pendingCommands: sameThread ? this.current.pendingCommands : readPendingCommands(this.storageKey, threadId).map((command) => ({ command })),
     }
     this.notify()
     try {
-      const snapshot = await this.client.load(threadId)
+      const representation = this.options.protocolVersion === '2' ? await this.client.loadWork(threadId) : await this.client.load(threadId)
+      const workSnapshot = 'works' in representation ? representation : null
+      const snapshot = workSnapshot ? workSnapshot.professionalSnapshot ?? null : representation as ThreadSnapshot
+      const ledger = workSnapshot ?? snapshot!
       if (generation !== this.loadGeneration) return
       this.resultDelivery.clear()
       let catalog: ThreadCatalog | null = null
@@ -434,7 +451,7 @@ export class ThreadProjectionStore {
       let restoredEvents: EventEnvelope[] | null = null
       if (this.client.supportsHistory) {
         try {
-          history = await this.client.history(threadId, snapshot.lastEventSeq + 1)
+          history = await this.client.history(threadId, ledger.lastEventSeq + 1)
           if (generation !== this.loadGeneration) return
           restoredEvents = history.events.map((event) => this.internDiagramEvent(event, restoredDiagrams))
           let pages = 1
@@ -457,9 +474,9 @@ export class ThreadProjectionStore {
           if (!(cause && typeof cause === 'object' && 'status' in cause && cause.status === 404)) throw cause
         }
       }
-      restoredEvents = restoredEvents ?? await readSnapshotEvents(this.client, snapshot, (event) => this.internDiagramEvent(event, restoredDiagrams))
+      restoredEvents = restoredEvents ?? await readSnapshotEvents(this.client, ledger, (event) => this.internDiagramEvent(event, restoredDiagrams))
       let networkSeeds: EventEnvelope[] = []
-      if (history) {
+      if (history && snapshot) {
         try { networkSeeds = await this.client.networkContextEvents(threadId, snapshot.activeModelContext.id) }
         catch { /* A missing network projection cannot substitute a different Context. */ }
       }
@@ -473,10 +490,10 @@ export class ThreadProjectionStore {
       this.current = {
         ...this.current,
         connection,
-        snapshot,
-        eventSeq: snapshot.lastEventSeq,
+        snapshot, workSnapshot,
+        eventSeq: ledger.lastEventSeq,
         resyncRequired: connection === 'resync_required',
-        viewedGridPageId: previousView ?? snapshot.activeGridPageId,
+        viewedGridPageId: previousView ?? snapshot?.activeGridPageId ?? null,
         catalog,
         hasOlderHistory: Boolean(history?.hasMore), historyLoading: false,
         historyAtLatest: true,
@@ -493,14 +510,14 @@ export class ThreadProjectionStore {
       this.current = { ...this.current, networkView: null, gridPages: [] }
       // Discover the latest Context for each model page before replaying
       // topology. A reopened Context must never inherit an older diagram.
-      for (const event of restoredEvents) this.applyGridPageHistory(event, snapshot)
-      this.rememberGridPage(snapshot.activeGridPageId, snapshot.activeModelContext)
+      if (snapshot) for (const event of restoredEvents) this.applyGridPageHistory(event, snapshot)
+      if (snapshot) this.rememberGridPage(snapshot.activeGridPageId, snapshot.activeModelContext)
       const networkEvents = [...new Map([...networkSeeds, ...restoredEvents].map((event) => [event.eventSeq, event])).values()].sort((a, b) => a.eventSeq - b.eventSeq)
-      for (const event of networkEvents) this.applyNetworkProjection(event, snapshot, this.admittedNetworkRefs(networkEvents, event))
+      if (snapshot) for (const event of networkEvents) this.applyNetworkProjection(event, snapshot, this.admittedNetworkRefs(networkEvents, event))
       this.trimProjectionCaches()
       this.notify()
       this.loadedThreadId = threadId
-      await this.refreshModels()
+      if (this.options.protocolVersion !== '2') await this.refreshModels()
     } catch (error) {
       if (generation !== this.loadGeneration) return
       const snapshot = resyncSnapshot(error)
@@ -520,7 +537,7 @@ export class ThreadProjectionStore {
     if (this.current.resyncRequired || this.current.connection === 'resync_required') {
       throw new Error('thread is resync_required')
     }
-    const snapshot = this.current.snapshot
+    const snapshot = this.ledger
     if (!snapshot) throw new Error('thread snapshot is not loaded')
     try {
       const page = await this.client.readAfter(snapshot.threadId, this.current.eventSeq)
@@ -528,6 +545,7 @@ export class ThreadProjectionStore {
       if (page.threadId !== snapshot.threadId) throw new Error('event page thread does not match snapshot')
       this.applyPage(page)
       this.notify()
+      if (this.options.protocolVersion === '2' && page.events.some(event => WORK_REFRESH_EVENTS.has(event.eventType))) await this.refreshWorkSnapshot()
       return page
     } catch (error) {
       if (generation !== this.loadGeneration) throw error
@@ -582,6 +600,30 @@ export class ThreadProjectionStore {
     this.notify()
   }
 
+  /** Event-driven authority refresh, also used after the first v2 write to a v1 Thread. */
+  async refreshWorkSnapshot(): Promise<void> {
+    if (this.options.protocolVersion !== '2' || !this.ledger || this.refreshingWorkSnapshot === this.loadGeneration) return
+    const generation = this.loadGeneration
+    const threadId = this.ledger.threadId
+    this.refreshingWorkSnapshot = generation
+    try {
+      for (let read = 0; read < 3; read++) {
+        const representation = await this.client.loadWork(threadId)
+        if (generation !== this.loadGeneration || !('works' in representation)) return
+        if (representation.lastEventSeq > this.current.eventSeq) await this.catchUpThrough(representation.lastEventSeq)
+        if (generation !== this.loadGeneration) return
+        if (representation.lastEventSeq !== this.current.eventSeq) continue
+        this.current = { ...this.current, workSnapshot: representation,
+          snapshot: representation.professionalSnapshot ?? null }
+        this.notify()
+        return
+      }
+      // A moving cursor cannot authorize an action from an older availability projection.
+      this.current = { ...this.current, connection: 'reconnecting' }; this.notify()
+      throw new Error('任务状态正在更新，请重新连接后核对。')
+    } finally { if (this.refreshingWorkSnapshot === generation) this.refreshingWorkSnapshot = null }
+  }
+
   async restoreHistoricalNetwork(contextId: string, attemptId?: string): Promise<string> {
     const snapshot = this.current.snapshot
     const generation = this.loadGeneration
@@ -605,13 +647,15 @@ export class ThreadProjectionStore {
     if (this.current.resyncRequired || this.current.connection === 'resync_required') {
       throw new Error('thread is resync_required')
     }
-    const snapshot = this.current.snapshot
+    const snapshot = this.ledger
     if (!snapshot) throw new Error('thread snapshot is not loaded')
     try {
       for await (const event of this.client.events(snapshot.threadId, this.current.eventSeq, signal)) {
         if (generation !== this.loadGeneration) return
+        const previousSeq = this.current.eventSeq
         this.applyEvent(event)
-        if (['model_workspace_changed', 'model_context_activated', 'model_context_reopened', 'model_context_reverted', 'attempt_completed', 'attempt_failed', 'attempt_cancelled', 'attempt_interrupted'].includes(event.eventType)) await this.refreshModels()
+        if (this.options.protocolVersion === '2' && event.eventSeq > previousSeq && WORK_REFRESH_EVENTS.has(event.eventType)) await this.refreshWorkSnapshot()
+        if (this.options.protocolVersion !== '2' && ['model_workspace_changed', 'model_context_activated', 'model_context_reopened', 'model_context_reverted', 'attempt_completed', 'attempt_failed', 'attempt_cancelled', 'attempt_interrupted'].includes(event.eventType)) await this.refreshModels()
       }
       if (signal && !signal.aborted && generation === this.loadGeneration) throw new Error('实时连接已关闭，正在恢复。')
     } catch (error) {
@@ -634,7 +678,7 @@ export class ThreadProjectionStore {
   }
 
   async loadOlderHistory(): Promise<void> {
-    const snapshot = this.current.snapshot
+    const snapshot = this.ledger
     const cursor = this.olderHistoryCursor
     const generation = this.loadGeneration
     if (!snapshot || cursor === null || this.current.historyLoading) return
@@ -653,6 +697,7 @@ export class ThreadProjectionStore {
       this.olderHistoryCursor = page.hasMore ? page.nextBeforeEventSeq : null
       this.current = { ...this.current, hasOlderHistory: page.hasMore }
       this.trimHistory(false)
+      if (this.current.snapshot) {
       const liveSnapshot = this.current.snapshot!
       try {
         const seeds = await this.client.networkContextEvents(liveSnapshot.threadId, liveSnapshot.activeModelContext.id)
@@ -663,6 +708,7 @@ export class ThreadProjectionStore {
       for (const event of this.eventLog) this.applyGridPageHistory(event, currentSnapshot)
       const networkEvents = [...new Map([...this.networkContextEvents, ...this.eventLog].map((event) => [event.eventSeq, event])).values()].sort((a, b) => a.eventSeq - b.eventSeq)
       for (const event of networkEvents) this.applyNetworkProjection(event, currentSnapshot, this.admittedNetworkRefs(networkEvents, event))
+      }
       this.trimProjectionCaches()
     } finally {
       if (generation === this.loadGeneration) { this.current = { ...this.current, historyLoading: false }; this.notify() }
@@ -690,8 +736,9 @@ export class ThreadProjectionStore {
     this.notify()
   }
 
-  async dispatch(command: ThreadCommand): Promise<CommandReceipt> {
-    const snapshot = this.current.snapshot
+  async dispatch(command: AnyThreadCommand): Promise<CommandReceipt> {
+    const generation = this.loadGeneration
+    const snapshot = this.ledger
     if (!snapshot) throw new Error('thread snapshot is not loaded')
     if (this.current.resyncRequired || this.current.connection !== 'live') {
       throw new Error(`thread is ${this.current.connection}`)
@@ -706,7 +753,10 @@ export class ThreadProjectionStore {
         && existing.command.thread_id === command.thread_id
         && existing.command.run_id === command.run_id
         && existing.command.kind === command.kind
-        && existing.command.expected_event_seq === command.expected_event_seq
+        && existing.command.schema === command.schema
+        && (existing.command.schema === 'capstone-command/1' && command.schema === 'capstone-command/1'
+          ? existing.command.expected_event_seq === command.expected_event_seq
+          : existing.command.schema === 'capstone-command/2' && command.schema === 'capstone-command/2' && JSON.stringify(existing.command.target) === JSON.stringify(command.target))
         && JSON.stringify(existing.command.payload) === JSON.stringify(command.payload)
       if (!sameCommand) throw new Error('idempotency key is already bound to another command')
     }
@@ -719,6 +769,7 @@ export class ThreadProjectionStore {
     }
     try {
       const receipt = await this.client.send(command)
+      if (generation !== this.loadGeneration) return receipt
       if (receipt.threadId !== snapshot.threadId) throw new Error('receipt thread does not match snapshot')
       if (receipt.commandId !== command.command_id) throw new Error('receipt command does not match command')
       if (receipt.idempotencyKey !== command.idempotency_key) throw new Error('receipt idempotency key does not match command')
@@ -736,6 +787,12 @@ export class ThreadProjectionStore {
       }
       return receipt
     } catch (error) {
+      if (generation !== this.loadGeneration) throw error
+      if (error instanceof ThreadTransportError && [400, 401, 403, 422].includes(error.status)) {
+        this.current = { ...this.current, pendingCommands: this.current.pendingCommands.filter(entry => entry.command.idempotency_key !== command.idempotency_key) }
+        this.notify()
+        throw error
+      }
       this.current = { ...this.current, connection: 'reconnecting' }
       this.notify()
       throw error
@@ -748,17 +805,38 @@ export class ThreadProjectionStore {
 
   private applyEvent(event: EventEnvelope): void {
     const snapshot = this.current.snapshot
+    const ledger = this.ledger
     // Catch-up and SSE can deliver the same admitted event. Keep one copy
     // without moving the cursor backwards or hiding a conflicting event.
-    if (snapshot && event.threadId === snapshot.threadId && event.eventSeq <= this.current.eventSeq) {
+    if (ledger && event.threadId === ledger.threadId && event.eventSeq <= this.current.eventSeq) {
       const previous = this.eventLog.find((item) => item.eventSeq === event.eventSeq)
       if (previous?.eventId === event.eventId && JSON.stringify(previous) === JSON.stringify(event)) return
       throw new Error('duplicate event does not match admitted history')
     }
-    if (!snapshot || event.threadId !== snapshot.threadId || event.eventSeq !== this.current.eventSeq + 1) {
+    if (!ledger || event.threadId !== ledger.threadId || event.eventSeq !== this.current.eventSeq + 1) {
       throw new Error('event stream is not contiguous')
     }
     event = this.internDiagramEvent(event)
+    const workSnapshot = this.current.workSnapshot
+    if (workSnapshot) {
+      const document = workSnapshot.toDocument()
+      const payload = record(event.payload)
+      if (payload.work !== undefined) {
+        const work = record(payload.work)
+        if (work.work_id !== payload.work_id) throw new Error('Work event identity does not match its projection')
+        const previous = workSnapshot.works.find(item => item.workId === work.work_id)
+        if (previous && Number(work.revision) < previous.revision) throw new Error('Work revision went backwards')
+        const works = (document.works as Record<string, unknown>[]).filter(item => item.work_id !== work.work_id)
+        // Preserve the server's Work order when replacing an existing record.
+        document.works = previous ? (document.works as Record<string, unknown>[]).map(item => item.work_id === work.work_id ? work : item) : [...works, work]
+      }
+      this.current = { ...this.current, workSnapshot: parseWorkSnapshot({ ...document, last_event_seq: event.eventSeq }) }
+    }
+    if (!snapshot) {
+      this.current = { ...this.current, eventSeq: event.eventSeq }
+      this.eventLog.push(event); this.trimHistory(this.current.historyAtLatest); this.notify()
+      return
+    }
     let currentAttempt = snapshot.currentAttempt
     const previousActivePage = snapshot.activeGridPageId
     let viewedGridPageId = this.current.viewedGridPageId
@@ -829,6 +907,10 @@ export class ThreadProjectionStore {
       last_event_seq: event.eventSeq,
     })
     this.current = { ...this.current, snapshot: projected, eventSeq: event.eventSeq, viewedGridPageId }
+    if (this.current.workSnapshot) {
+      this.current = { ...this.current, workSnapshot: parseWorkSnapshot({ ...this.current.workSnapshot.toDocument(),
+        ...projected.toDocument(), schema: 'capstone-thread-snapshot/2', selected_model_context_id: projected.activeModelContext.id }) }
+    }
     this.applyGridPageHistory(event, projected)
     this.rememberGridPage(projected.activeGridPageId, projected.activeModelContext)
     const activeView = this.current.gridPages.find((page) => page.pageId === projected.activeGridPageId)?.networkView ?? null

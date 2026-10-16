@@ -1,4 +1,6 @@
 import { buildThreadCommand, type ThreadCommand } from './threadClient'
+import type { AnyThreadCommand } from './threadClient'
+import { parseStoredWorkCommand } from './threadWorkProtocol'
 import { isThreadVersionError } from './threadHttpTransport'
 
 const MAX_STORED_BYTES = 64 * 1024
@@ -64,7 +66,7 @@ export function rotateStorageNamespace(): void {
   try { sessionStorage.setItem('capstone.thread.storageSession', crypto.randomUUID()) } catch { /* memory fallback */ }
 }
 
-export function readPendingCommands(key: string | undefined, threadId: string): ThreadCommand[] {
+export function readPendingCommands(key: string | undefined, threadId: string): AnyThreadCommand[] {
   if (!key) return []
   try {
     const text = sessionStorage.getItem(`${key}.commands`)
@@ -72,6 +74,7 @@ export function readPendingCommands(key: string | undefined, threadId: string): 
     const documents: unknown = JSON.parse(text)
     if (!Array.isArray(documents) || documents.length > 1) return []
     return documents.map((item) => {
+      if (item?.schema === 'capstone-command/2') return parseStoredWorkCommand(item, threadId)
       if (!item || typeof item !== 'object' || item.schema !== 'capstone-command/1'
           || item.thread_id !== threadId || typeof item.expected_event_seq !== 'number'
           || !Number.isSafeInteger(item.expected_event_seq) || item.expected_event_seq < 0
@@ -83,7 +86,7 @@ export function readPendingCommands(key: string | undefined, threadId: string): 
   } catch { return [] }
 }
 
-export function writePendingCommands(key: string | undefined, commands: readonly ThreadCommand[]): void {
+export function writePendingCommands(key: string | undefined, commands: readonly AnyThreadCommand[]): void {
   if (!key) return
   try {
     if (!commands.length) sessionStorage.removeItem(`${key}.commands`)

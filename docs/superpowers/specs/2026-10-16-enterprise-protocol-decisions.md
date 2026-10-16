@@ -1,6 +1,6 @@
 # 企业执行协议：迁移、命令生效与检查来源
 
-状态：实现契约补充。35e014df候选接入v2无模型Thread、Work保存/目标修订、对象CAS及最小前端；本地回归通过，集成验收中。生产Claim/Profile固定、其余控制命令和持续执行仍待实现。延续现有Thread服务、事件账本和自主组织机制。
+状态：实现契约补充。Work账本及复用前端已通过PR #48合入dev d86cc4ef；生产Claim/Profile固定正在后续切片实施，其余控制命令和持续执行仍待实现。延续现有Thread服务、事件账本和自主组织机制。
 本文件解决上一轮协议缺口，不新增业务指标、固定流程或通用执行前的任务编译。
 
 ## 1. 同一服务的新旧表示
@@ -45,6 +45,7 @@ workspace配置继续是资源控制入口，复用已有身份/幂等存储，�
 | 语义操作 | wire操作/归属 | 生效语义 |
 | --- | --- | --- |
 | message | work_message，Thread commands | 目标须明确为现有Work或new；新建Work由宿主分配身份，不猜文本相似度 |
+| start | start_work，Thread commands | payload为空；对已有Work修订做CAS，固定本次目标和资源选择，原事务入队真实Attempt |
 | goal.revise | revise_goal，Thread commands | CAS后保存新目标修订，边界应用并标记受影响依赖 |
 | input.respond | respond_input，Thread commands | 保存答复、核对问题身份和目标版本，再按第3节继续 |
 | pause/resume/cancel | pause_work/resume_work/cancel_work，Thread commands | 复用Attempt控制；pause/cancel接收不等于停稳 |
@@ -56,6 +57,36 @@ workspace配置继续是资源控制入口，复用已有身份/幂等存储，�
 命令幂等以现有主体/Thread/Idempotency-Key范围保存；同键同请求返回原回执，先于CAS。
 不同载荷复用键被拒绝。Work/goal、Thread元数据、workspace配置各自使用对应修订，不能互用。
 v1原命令保留旧语义；v2不靠send_ordinary/send_professional选择两个总组织循环。
+
+### Work执行绑定切片
+
+`work_message`保存目标或补充内容；`start_work`显式请求执行，刷新和读取不自动提交。
+本片先连接已注册专业能力，内部适配既有自动路由和Attempt队列，不增加业务流程分支。
+Work公开`latest_attempt_id`、`start_available`和`start_unavailable_reason`；可启动表示
+当前资源及队列允许接收，不承诺Provider健康或任务结果。运行时失败沿既有事件及终结事务呈现。
+无可用执行能力只保留任务与原因，不制造必然失败的占位Attempt。
+
+接受启动后，回执target保留Work身份与本次turn_id/attempt_id。同一事务写入
+`command.applied`的完整Work投影和既有Attempt接受事件；开始及终结事件携带对应Work身份和投影。
+本片状态为ready/queued/running/completed/failed/cancelled/interrupted/blocked；
+状态变更递增Work修订，只有目标变更才递增goal_revision。完成表示本次Attempt完成，
+不能据此宣称全部业务结论已得到独立验证。完整暂停、输入等待和持续组织仍由Task 3实现。
+
+启动接受时复制真实ModelContext中的enabled_profiles/selection_revision并持久化TaskContext。
+Claim核对并消费同一快照；不增加另一份能力选择源。下一次显式启动可使用前次结果形成的
+合法新模型修订，Work及研究身份不变。本片不声称已固定全部外部资源内容版本。
+
+同片提供`cancel_work`（Work对象CAS，空payload），复用既有`attempt_cancel_requested`
+及worker取消检查，不创建新的控制循环。宿主核对Work的latest_attempt_id就是当前Attempt；
+取消其他Work不影响在运行的任务。接收后`cancel_requested=true`，状态仍为queued/running，
+只有真实终结事务才清除请求并写入终态。界面沿用原停止组件，区分停止请求与停止完成。
+重复请求使用原幂等身份；已排队但尚未领取时也不提前宣称停止完成。
+
+Work输入完整性：宿主记录`consumed_message_count`，仅成功终结推进；启动接受、失败、取消
+或失租不把尚未处理的补充标记为已消费。本次执行输入包含当前目标和全部未消费补充，
+已完成轮次沿既有Work限定历史及研究状态恢复。超出既有单次输入边界时返回
+`work_input_too_large`并保留原文，不抛服务器异常，不静默删除中间补充，也不把全部历史
+永久拼入每次启动的输入。该计数是宿主恢复元数据，不是业务流程阶段。
 
 ## 3. 答复生效与继续执行
 

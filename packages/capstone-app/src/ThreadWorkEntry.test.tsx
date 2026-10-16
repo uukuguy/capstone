@@ -4,6 +4,24 @@ import ThreadLiveEntry from './ThreadLiveEntry'
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); sessionStorage.clear(); window.history.replaceState({}, '', '/') })
 
+function readFallback(url: string | URL, snapshot: { last_event_seq: number }) {
+  const parsed = new URL(String(url), 'http://localhost')
+  const threadId = parsed.pathname.split('/')[4]
+  const headers = { 'Capstone-Thread-Version': '2' }
+  if (parsed.pathname.endsWith('/events/stream')) return new Response(new ReadableStream(), { headers })
+  if (parsed.pathname.endsWith('/events')) {
+    const after = Number(parsed.searchParams.get('after') || 0)
+    return new Response(JSON.stringify({ schema: 'capstone-thread-events/1', thread_id: threadId,
+      after_event_seq: after, next_event_seq: after, has_more: false, events: [] }), { headers })
+  }
+  if (parsed.pathname.endsWith('/history')) {
+    const before = Number(parsed.searchParams.get('before') || snapshot.last_event_seq + 1)
+    return new Response(JSON.stringify({ schema: 'capstone-thread-history/1', thread_id: threadId,
+      before_event_seq: before, next_before_event_seq: before, has_more: false, events: [] }), { headers })
+  }
+  return null
+}
+
 it('keeps an uncertain save with its original Thread when navigation occurs before its response', async () => {
   const snapshot = (id: string) => ({ schema: 'capstone-thread-snapshot/2', thread_id: id,
     run: { run_id: `run_${id}`, state: 'open' }, active_model_context: null, active_grid_page_id: null,
@@ -20,7 +38,7 @@ it('keeps an uncertain save with its original Thread when navigation occurs befo
       submitted = JSON.parse(String(init?.body)); commands.push(submitted)
       return new Promise<Response>(resolve => { complete = resolve })
     }
-    return response(snapshot(String(url).endsWith('thr_b') ? 'thr_b' : 'thr_a'))
+    return readFallback(url, { last_event_seq: 0 }) || response(snapshot(String(url).endsWith('thr_b') ? 'thr_b' : 'thr_a'))
   }))
   window.history.replaceState({}, '', '/?workspace=enterprise&thread=thr_a')
   render(<ThreadLiveEntry threadId="thr_a" mode="work" />)
@@ -55,7 +73,7 @@ it('keeps professional history readable after the same Thread upgrades to Work',
     if (String(url).includes('/threads?')) return response({ schema: 'capstone-thread-list/1', threads: [], has_more: false, next_before_thread_id: null })
     if (String(url).includes('/history?')) return response({ schema: 'capstone-thread-history/1', thread_id: 'thr_work',
       before_event_seq: 3, next_before_event_seq: 1, has_more: false, events })
-    return response(snapshot)
+    return readFallback(url, snapshot) || response(snapshot)
   }))
   render(<ThreadLiveEntry threadId="thr_work" mode="work" />)
   expect(await screen.findByText('旧专业结论仍可读取')).toBeTruthy()
@@ -82,7 +100,7 @@ it('selects the server-assigned Work after saving and sends supplements to that 
       return response({ schema: 'capstone-command-receipt/1', thread_id: 'thr_work', command_id: command.command_id,
         idempotency_key: command.idempotency_key, status: 'accepted', target: { kind: 'work', id: 'work_created', expected_revision: 1 } })
     }
-    return response(snapshot)
+    return readFallback(url, snapshot) || response(snapshot)
   }))
   render(<ThreadLiveEntry threadId="thr_work" mode="work" />)
   fireEvent.change(await screen.findByRole('textbox', { name: '任务目标' }), { target: { value: '新目标' } })
@@ -106,7 +124,8 @@ it('does not insert a late professional history response into a different Thread
   vi.stubGlobal('fetch', vi.fn(async (url: string | URL) => {
     if (String(url).endsWith('/thread-access')) return response({ schema: 'capstone-thread-access/1', mode: 'open' })
     if (String(url).includes('/threads?')) return response({ schema: 'capstone-thread-list/1', threads: [], has_more: false, next_before_thread_id: null })
-    if (String(url).includes('/history?')) return new Promise<Response>(resolve => { complete = resolve })
+    if (String(url).includes('/thr_a/history?')) return new Promise<Response>(resolve => { complete = resolve })
+    const read = readFallback(url, { last_event_seq: 0 }); if (read) return read
     if (String(url).endsWith('/thr_b')) return response({ ...base, thread_id: 'thr_b', active_model_context: null })
     return response({ ...base, thread_id: 'thr_a', selected_model_context_id: 'ctx_one', active_grid_page_id: 'page_one',
       active_model_context: { id: 'ctx_one', model_id: 'ieee39', model_revision: '1', implementation_family: 'pandapower', selection_revision: 'sel_one' } })
@@ -124,6 +143,7 @@ it('does not insert a late professional history response into a different Thread
 })
 
 it('opens and restores a model-free work without preparing grid workers or submitting on refresh', async () => {
+  document.title = 'Capstone · 电网分析工作台'
   const snapshot = { schema: 'capstone-thread-snapshot/2', thread_id: 'thr_work',
     run: { run_id: 'run_work', state: 'open' }, active_model_context: null,
     active_grid_page_id: null, current_attempt: null, last_event_seq: 0, base_event_seq: 0,
@@ -132,10 +152,11 @@ it('opens and restores a model-free work without preparing grid workers or submi
     if (String(url).endsWith('/thread-access')) return new Response(JSON.stringify({ schema: 'capstone-thread-access/1', mode: 'open' }))
     if (String(url).includes('/threads?')) return new Response(JSON.stringify({ schema: 'capstone-thread-list/1', threads: [], has_more: false, next_before_thread_id: null }), { headers: { 'Capstone-Thread-Version': '2' } })
     if (init?.method === 'POST') expect(JSON.parse(String(init.body))).toEqual({})
-    return new Response(JSON.stringify(snapshot), { headers: { 'Capstone-Thread-Version': '2' } })
+    return readFallback(url, snapshot) || new Response(JSON.stringify(snapshot), { headers: { 'Capstone-Thread-Version': '2' } })
   })
   vi.stubGlobal('fetch', fetcher)
   const first = render(<ThreadLiveEntry threadId="new" mode="work" />)
+  expect(document.title).toBe('Capstone · 企业任务工作台')
   fireEvent.click(await screen.findByRole('button', { name: '新建任务会话' }))
   await waitFor(() => expect((screen.getByRole('button', { name: '保存任务' }) as HTMLButtonElement).disabled).toBe(true))
   await screen.findByRole('button', { name: '刷新任务' })
@@ -146,10 +167,11 @@ it('opens and restores a model-free work without preparing grid workers or submi
   expect(fetcher.mock.calls.some(([url]) => String(url).includes('workbench-preparation'))).toBe(false)
   expect(fetcher.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1)
   first.unmount()
+  expect(document.title).toBe('Capstone · 电网分析工作台')
   render(<ThreadLiveEntry threadId="thr_work" mode="work" />)
   await waitFor(() => expect(screen.getByRole('textbox', { name: '任务目标' })).toBeTruthy())
   expect(fetcher.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1)
-  expect(screen.getByText(/持续执行尚未接通/)).toBeTruthy()
+  expect(screen.getByText(/保存不会自动启动执行/)).toBeTruthy()
 })
 
 it('keeps a lost-response command across refresh and retries its exact identity', async () => {
@@ -168,7 +190,7 @@ it('keeps a lost-response command across refresh and retries its exact identity'
       return response({ schema: 'capstone-command-receipt/1', thread_id: 'thr_work', run_id: 'run_work',
         command_id: command.command_id, idempotency_key: command.idempotency_key, status: 'accepted', accepted_event_seq: 1 })
     }
-    return response(snapshot)
+    return readFallback(url, snapshot) || response(snapshot)
   }))
   const first = render(<ThreadLiveEntry threadId="thr_work" mode="work" />)
   fireEvent.change(await screen.findByRole('textbox', { name: '任务目标' }), { target: { value: '汇总资料中的结论' } })
@@ -181,7 +203,7 @@ it('keeps a lost-response command across refresh and retries its exact identity'
   expect((screen.getByRole('textbox', { name: '任务目标' }) as HTMLTextAreaElement).disabled).toBe(true)
   await waitFor(() => expect((screen.getByRole('button', { name: '重试保存' }) as HTMLButtonElement).disabled).toBe(false))
   fireEvent.click(screen.getByRole('button', { name: '重试保存' }))
-  await screen.findByText('任务已保存。持续执行尚未接通，本次未启动分析。')
+  await screen.findByText('任务已保存。保存资料不会自动启动分析。')
   expect(commands).toHaveLength(2)
   expect(commands[1]).toEqual(commands[0])
 })
@@ -201,7 +223,7 @@ it('restores supplementary drafts under their original Work and releases a rejec
     if (String(url).endsWith('/thread-access')) return response({ schema: 'capstone-thread-access/1', mode: 'open' })
     if (String(url).includes('/threads?')) return response({ schema: 'capstone-thread-list/1', threads: [], has_more: false, next_before_thread_id: null })
     if (String(url).endsWith('/commands')) { commands.push(JSON.parse(String(init?.body))); return response({ error: 'invalid_command' }, 422) }
-    return response(snapshot)
+    return readFallback(url, snapshot) || response(snapshot)
   }))
   const first = render(<ThreadLiveEntry threadId="thr_work" mode="work" />)
   fireEvent.click(await screen.findByRole('button', { name: '01 · 原目标' }))

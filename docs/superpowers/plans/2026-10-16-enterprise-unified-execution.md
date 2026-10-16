@@ -140,7 +140,20 @@ local-dev运行源码a2efb791已规范重建并完成同源/浏览器检查。�
 **Produces:** WorkBinding/TaskContext；`bind_task_context(claim) -> TaskContext`；
 专业配置与native配置的严格判别装配，二者共享任务组织接口。
 
-### 当前实施切片：生产Work账本与无模型入口
+### 当前实施切片：Work绑定真实Attempt与研究状态
+
+从dev885b2c14继续。v2 Work先复用已注册专业执行链，验证真实生产接缝；不是新建专业执行器，也不宣称无模型持续执行已完成。
+
+- [x] 沿同一Thread commands增加中性的Work执行请求，使用Work对象修订及原幂等回执；复用现有Attempt入队、单主Attempt约束、租约和终结事务。
+- [x] 保留可停止性：cancel_work适配现有取消请求和worker安全停止；只允许取消该Work当前Attempt，接收请求不冒充终结。复用既有前端停止组件，不扩大为完整暂停/恢复设计。
+- [x] 固定当前目标、WorkBinding和实际应用能力选择到Attempt，Claim必须消费此快照；复用既有Profile描述与准备校验，不存无效配置标签，不伪造模型。无对应运行能力时保留任务和可读状态，不创建失败占位Attempt。
+- [x] 生产研究以Work身份保存、恢复并投影；原历史路径与证据保持不动，关联必须显式，不按相同模型或相似文本合并不同目标。
+- [x] 现有共享对话组件展示真实执行状态、历史和结果；执行动作由真实可用性决定，保留同键重试、跨会话草稿和晚到响应隔离。不得另建任务页或聊天组件。
+- [ ] 覆盖内存与真实Postgres队列/重启/旧租约拒绝、同Work重试与不同Work隔离、固定选择不漂移、旧专业路径回归；本地重建、实际入口观察及双平台适用CI后合入dev并同步推进图。
+
+`enterprise-research`和`grid-analysis`应用组合注册继续按Task 2设计实施；本片不能用现有专业Profile的别名冒充已完成两个新Profile。持续Pi组织仍属Task 3。
+
+### 已完成切片：生产Work账本与无模型入口
 
 前端必须对照[定稿](../specs/2026-10-15-enterprise-design-final.md)、[交互设计](../specs/2026-10-15-enterprise-task-ui-design.md)和[原型](../../design/enterprise-workspace-prototype.html)。企业工作台复用现有对话区及交互，不另建简化任务应用；最小切片不是偏离整体设计的许可。35e014df/da3ddfb1独立任务页已否决，前端验收重新打开。
 

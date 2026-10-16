@@ -32,6 +32,8 @@ _ContextKey = tuple[str, str, str, str, tuple[tuple[str, str], ...], str]
 
 def _selected_references(claim: AttemptClaim) -> tuple[tuple[str, str], ...]:
     """Limit prepared resources to validated needs within the frozen selection."""
+    if claim.task_context is not None and claim.task_context.model_contexts != (claim.model_context,):
+        raise ValueError('Work Profile selection does not match the accepted model snapshot')
     enabled = tuple(claim.model_context.enabled_profiles)
     decision = getattr(claim.turn_plan, "intent_decision", None)
     if decision is None:
