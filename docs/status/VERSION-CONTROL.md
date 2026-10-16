@@ -1,6 +1,6 @@
 # 多线版本控制
 
-2026-10-16主线收口进行中：对话应用进入main发布维护，企业自主执行沿dev推进。
+2026-10-16主线收口已合并：对话应用进入main发布维护，企业自主执行沿dev推进。
 原Pi分支正在验证并准备PR，尚未合并。见[收口设计](../superpowers/specs/2026-10-16-main-dev-convergence.md)。
 
 2026-10-16协议细化：[迁移/命令/检查来源](../superpowers/specs/2026-10-16-enterprise-protocol-decisions.md)
@@ -30,9 +30,9 @@ Demo2设计补充（未提交）：场景/候选切换联动网络、负载率�
 
 当前设计提交：Pi本地f4369eca8cecc4d73aef7ef89676021e892c75cb（未推送）保存统一组织、局部失败推进与v2协议决定：Demo1报告、Demo2模型/决策、普通对话共用框架；运行源码仍等同98e7d0e。设计文档检查通过，不代表运行实现。[设计契约](../superpowers/specs/2026-10-15-pi-enterprise-execution-design.md)。
 
-当前Pi方向（2026-10-15）：Pi分支已通过保留历史的合并98e7d0e5959a810b7ee3b16f862e4f2f3131f8ac接入dev f209fb1。旧38e19db保留为archive/pi-before-dev-baseline-20261015；本地代码与独立审查通过，尚未合入dev或部署。用户要求从最佳架构讨论独立通用的长程组织能力；已确认统一Pack治理、Pi生态与长程自主组织结合，Demo1作为通用能力验收案例，不开发专用业务接口。[适配验证](../reviews/2026-10-15-pi-dev-baseline-adaptation.md)；[核心讨论](../superpowers/specs/2026-10-07-capstone-core-evolution-discussion.md)。
+历史Pi方向（2026-10-15）：Pi分支已通过保留历史的合并98e7d0e5959a810b7ee3b16f862e4f2f3131f8ac接入dev f209fb1。旧38e19db保留为archive/pi-before-dev-baseline-20261015；本地代码与独立审查通过，尚未合入dev或部署。用户要求从最佳架构讨论独立通用的长程组织能力；已确认统一Pack治理、Pi生态与长程自主组织结合，Demo1作为通用能力验收案例，不开发专用业务接口。[适配验证](../reviews/2026-10-15-pi-dev-baseline-adaptation.md)；[核心讨论](../superpowers/specs/2026-10-07-capstone-core-evolution-discussion.md)。
 
-当前控制核对（2026-10-15）：dev已通过PR #29正常合入f209fb18d7abb122b689e1b1a52c54fa13bf5371；Linux/macOS CI38728722421均SUCCESS。相对f300d1f，packages无差异，仅验收文档及控制工具变化。App5173实读f209fb1、dirty=false；后端仍为已验证f300源码及6c616058镜像。修复和验收文档分支已关闭。e2原包、19173、cloud-dev和两个demo不变。下方f300 App记录为重建时的历史验收身份。
+历史控制核对（2026-10-15）：dev已通过PR #29正常合入f209fb18d7abb122b689e1b1a52c54fa13bf5371；Linux/macOS CI38728722421均SUCCESS。相对f300d1f，packages无差异，仅验收文档及控制工具变化。App5173实读f209fb1、dirty=false；后端仍为已验证f300源码及6c616058镜像。修复和验收文档分支已关闭。e2原包、19173、cloud-dev和两个demo不变。下方f300 App记录为重建时的历史验收身份。
 
 当前工作：PyPSA派生结果投影和AC调度输入两项修复已实现、独立审查及针对性检查通过。精确候选c638e0992e49d300e760e89d07aff63ef6eca1c5在Apple ARM宿主的Linux AMD64模拟环境完成原区域三轮及补充AC-only第4轮；没有重新dispatch，5个operations投影completed且模型修订/证据正确。南部机组第3时段增量9.999984503 MW，最大AC残差约0.00004649 MW，小于0.01 MW。PR #28的Linux/macOS required CI run38723131332全部通过，已正常合入f300d1f375ef20af005840a60af47b5e33ea62e8；root dev已快进，packages与受检c638完全一致，local-dev规范重建exit0、ready通过；API与双worker同镜像6c616058e643，各1060个受管后端文件SHA256等同f300；镜像源码标签仍development，未将该标签冒称精确提交；App5173为f300、dirty=false；候选已停止，数据保留。回答文字仍有“+5应为+7.5”的算术问题；source-modeling投影仍未实现，不称所有回答或所有Pack通过。e2交付包不含这两项新runtime修复，原包和校验值不变。执行[后续计划](../superpowers/plans/2026-10-15-pypsa-runtime-followup.md)，见[限定实测报告](../reviews/2026-10-15-pypsa-runtime-followup-verification.md)。
 
@@ -228,10 +228,10 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | dev-trial | user-local无源码试用与版本管理 | 8 | 离线包已交付，PR #27已合入；业务缺口单列 | 固定镜像安装、版本管理、数据兼容及内网离线安装 | dev37529ef；fix/user-local-network-view | root dev已快进f300，local-dev规范重建与真实源码核验通过；跟进独立候选的公开投影与AC一致性，不覆盖已撤回7c包 | 四部署及19173保留原来源 | 默认openai；双digest/层校验、元数据权限、共享指南；7c安装和数据保留通过 | 九请求/回放不等于业务全过；7c无dispatch；README1–9已运行，10–12未跑，完整N1排序仍待验证 |
 | autonomous | 自主智能体 · 统一实施 | 4 | 已合入dev；两个demo已发布，整体业务未验收 | 单Pi研究循环、持久研究状态、Authority计算与来源、执行过程、结果证据、电网场景图层和模型资源管理 | origin/dev | 两个demo已验收faa6af9，从dev推进N−1与交互缺口 | dev4f15cfc及6ff7094业务基线；旧Research Model分支仅作参考 | 研究读写及Pi真实上下文；受控失败交付；任务与工具两级过程；完整结果字段；场景与孤岛图层；模型打开准备与内存回收；对话创建后台预热 | PR #18双平台PR门禁通过，合并dev faa6af9；2b6ae7b候选59项及本地完整PR门禁、云三角色身份、三用例九轮、报告证据回放与旧Thread恢复通过；完整发布及合并后双平台通过，两个demo已同源验收并推送正式标签，不冒充科学业务验收；详见本包明细及首期计划 |
 | live | 线上共同基线 | 0 | 线上在用 | 电网静态分析、证据结果、智能体对话与工作台 | 线上部署 | 保持线上稳定；后续版本按发布计划推进 | 当前线上部署 | 本页起点；更早沿革仅在详情中保留 | 以 cloud-demo 部署台账为准；本次未重新探测云端 |
-| main | 开发集成 dev / 发布基线 main | 0 | 已验证并分流 | dev保存当前全局记录与开发集成；main保存发布基线快照 | dev | 从dev推进自主智能体N−1与交互专项；Research Model R1保留待启动 | 线上共同基线 | 全局文档、分支治理与Issue工具已集成dev | main723b8e8发布快照；PR #18合并faa6af9及双平台门禁通过；两个demo已同源验收并推送正式标签；PR #19补齐控制文档 |
+| main | dev研发 / main发布 | 0 | 发布基线已收口 | main维护阶段完整对话应用；dev承接企业自主执行研发 | dev | Pi已合dev；后续按具体问题开研究分支 | 既有业务与交付资产 | PR #30发布范围为f209fb1；用户安装与交付包保留 | cf72393b已正常合入main，CI38861900687双平台完整release通过；main不安排近期大升级 |
 | foundation | 基础体验与开发治理 | 1 | 已集成，本地开发验收通过 | 连续浏览历史、环境与版本识别、反馈处理和修订流程 | main | 后续随正式用户发布验证；不单独定义功能增强基线 | 线上共同基线 | 历史对话连续浏览；明确环境与来源版本；规范反馈与修订流程 | PR #6 合并 c3b78bc；精确候选两平台检查与审查通过；local-dev 实际入口验收通过；云端未发布 |
 | answers | 回退与选择性补回 | 2 | 已合入dev，业务缺陷保留 | c3业务链；独立LLM路由；三动作小窗；普通轻量无工具回答；正式消息与过程隔离 | dev | 路由可靠性与现存业务缺陷单列；研究按已适配计划推进 | main c3b78bc | 用户批准收口；不恢复任务编译；无凭据装配修正bc08169 | PR #14双平台通过并合入6ff7094；506项同源及两次完整集成通过；新真实复验一轮普通误分，保留失败，未称整体通过 |
-| pi | 企业自主执行 | 3 | 正在收口dev | Capstone独立通用的长程组织能力，配合Pi原生生态；不指定具体应用 | feat/pi-skills-integration | 验证合入dev并关闭长期Pi线，后续按问题开研究分支 | 当前稳定能力（未排入发布） | 98e7d0e接入dev f209fb1；保留Pi原生资源与dev研究机制；两路径尚未形成统一通用研究循环 | backend1300/App512/Postgres23及独立复查通过；整体能力仍待设计和验证，未部署 |
+| pi | 企业自主执行 | 3 | 基础能力已合入dev | Capstone长程组织配合Pi原生生态，统一机制待实施 | dev | 按统一执行计划推进Task 1，按具体问题开研究分支 | 已保留专业链路与原生资源 | PR #31合入db167184；统一循环、无模型v2协议和新工作台仍待实现 | CI38865540607双平台通过；local-dev规范重建与同源检查通过，不代表新设计完成 |
 | commands | 统一输入命令与快捷操作 | 3 | 待设计，已有局部原型 | Capstone 前端统一操作入口：会话、模型、执行、结果及技能操作 | — | 盘点现有前端操作；设计共享命令目录、参数、可用状态和键盘交互，再建立增强分支 | 当前前端按钮与 Pi 分支命令原型 | 跨运行模式的快捷入口；中文检索与命令发现；上下文和权限检查；草稿保持与明确反馈 | 独立开发包；Pi 分支三个命令只是复用来源；新分支未建立，未部署 |
 | case | 独立 Case 模块产品接入 | 3 | 待范围设计 | 独立案例执行、状态查看与恢复入口 | — | 核对已有 Case 服务与当前对话入口，确定独立模块范围 | 已有独立 Case 执行基础 | 将 Case 作为完整模块接入产品；明确与普通对话的关系 | 底层已有能力，当前对话入口尚未组装完整模块；不视为从零开发 |
 | context | 长任务存储优化（历史归档） | 3 | 已归档，适用性未确认 | 9 月 5 日 OP-13 分段写入/恢复实验；保留未提交代码 | archive/context-segment-storage-20261011 | 当前不开发；真实场景证明需要后，基于最新 main 重新设计 | 历史性能实验 | 文件式 Kernel 日志仍有全量重写开销；当前 Thread 历史采用 PostgreSQL，不能直接套用旧问题 | 原计划 DEFERRED；已归档并移出活动与待推进区；未合入或部署 |
@@ -283,8 +283,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | commands | 共享命令目录 | 建议方向，未实现 | 10-09 资源设计有可用状态及操作目录思路 | 为操作定义标识、参数、适用模式、可用条件及反馈；按钮/斜杠/快捷键复用 | 相同操作不因入口不同而行为不同；不可用时说明具体原因；服务端再次校验权限及输入 |
 | commands | 输入交互 | 待设计 | /skills、/skill:<name>、/context 可作为交互原型 | 设计中文检索、参数提示、键盘选择、退出与移动端；确定斜杠与普通文本歧义处理 | 不误执行普通文字；取消后草稿完整；参数错误可修正；键盘和触摸均能完成必要操作 |
 | commands | 执行与业务边界 | 待设计 | 界面动作和注册业务操作已有各自服务入口 | 分清纯界面动作、真实任务与需确认的状态改变；接入现有运行/取消合同 | 界面操作不调用模型或伪造对话；业务执行不新增任意 shell/Authority 访问；失败反馈能定位到操作 |
-| pi | 完整业务上下文与当前模型数据 | 分支内待设计实现 | 现有公开上下文只有身份、版本及有限历史；没有完整网络数据投影 | 在 Pi 分支确定任务所需表、字段及大小限制，由 Domain Pack/Authority 提供显式投影；补齐真实业务输入 | 数据属于当前选中对象和确定版本；示例数据不得替代当前模型；不传原始 DataFrame 或网络对象；记录实际使用的数据 |
-| pi | 数据共享、资料与授权交接 | 分支内待设计 | 有受控材料契约验证；不表示所有业务资料已可读取 | 在 Pi 分支明确可用资料、应用授权、跨领域类型交接和资源有效期 | 无授权不可读；对象版本变化可识别；资料不足能准确说明缺口；通用 Pi 观察不冒充 Authority 证据 |
+| pi | 完整业务上下文与当前模型数据 | 后续研发待实现实现 | 现有公开上下文只有身份、版本及有限历史；没有完整网络数据投影 | 在 Pi 分支确定任务所需表、字段及大小限制，由 Domain Pack/Authority 提供显式投影；补齐真实业务输入 | 数据属于当前选中对象和确定版本；示例数据不得替代当前模型；不传原始 DataFrame 或网络对象；记录实际使用的数据 |
+| pi | 数据共享、资料与授权交接 | 后续研发待实现 | 有受控材料契约验证；不表示所有业务资料已可读取 | 在 Pi 分支明确可用资料、应用授权、跨领域类型交接和资源有效期 | 无授权不可读；对象版本变化可识别；资料不足能准确说明缺口；通用 Pi 观察不冒充 Authority 证据 |
 | case | 独立模块范围 | 已有执行基础，产品接入待设计 | 独立 Case 执行能力已有；当前默认对话入口未组装完整模块 | 确定创建、执行、状态、结果和恢复入口，与普通 Thread 明确分工 | 模块可独立操作；不靠重复发送对话模拟 Case；旧 Case 与普通对话保持兼容 |
 | case | 执行与恢复接入 | 待范围确认 | 现有 Case/Harness 设计包含顺序执行及恢复合同 | 核对现用服务状态、取消/重试、结果及证据展示，列出实际缺口后实施 | 单项失败有准确状态；重试不重复提交；恢复保持步骤、来源与证据，不把未执行项标为完成 |
 | wake | 启动与中途恢复诊断 | 初步诊断，ai:needs-info | 隐藏页面恢复路径符合已接受设计；截图来源版本未知，本地热态准备检查约8–24ms不能说明云端冷启动 | 等待切后台/锁屏触发信息，关联实际尝试与组件时序；不修改线上睡眠配置 | 有可复现的分阶段时序；明确等待在哪里；不凭总耗时断言网络、休眠或模型错误 |
@@ -306,10 +306,11 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | dev-trial | 7832134 | main | dev · 用户试用交付合并基线 | 已合入，公开试用包已验证 | 无源码Compose、受限Provider、同源App、私有实例及精确源码/镜像检查；最终双架构各三案例九轮/回放/重启/浏览器、匿名拉取与公开安装入口通过；标签dev-trial-20261015-7832134 | dev-trial |
 | cloud | ed2524f | main | 线上运行能力 | 已发布 | 电网静态分析、智能体对话、工作台与结果证据；当前用户试用起点 | live |
 | baseline | a076b04 | main | 运行基线重整与本地隔离 | 已验收 | ed2524f → a076b04：实验 Pi/skills 与未验收回答实现移出运行代码；修正模型拓扑/历史接口；建立隔离 local-demo | main |
-| main | main | release | main · 发布基线主线 | 发布快照 | PR #9/#10已合入723b8e8；技术基线来源2473e48，真实业务样本失败；后续发布PR由dev冻结；云端未发布 | foundation |
+| main | cf72393bd6377d1de11d02a93728cdaa746a75d4 | release | main · 对话应用阶段发布 | PR #30已合入，完整release通过 | 用户确认f209fb1范围，含已验证PyPSA小修复；合并树与f209完全一致；CI38861900687双平台成功。实际e2交付包与用户安装保持原版，未进行新部署。[收口验证](../reviews/2026-10-16-main-dev-convergence-verification.md) | main |
 | dev-business-base | 6ff7094 | main | dev · 恢复后开发基线 | 已集成，双平台通过 | PR #14候选bc08169两平台通过；恢复c3业务执行并保留独立轻量路由；三动作9px短窗与160px滚动；普通轻量路径与最终消息隔离；local-dev506项三角色同源；两实施分支接入此基线；已知业务缺陷及一次普通误路由保留，未作整体验收 | main |
 | dev | faa6af9 | main | dev · 自主智能体合并基线 | PR #18已合入faa6af9 | 双平台PR门禁通过；统一研究/执行/结果证据、模型资源、场景图层和对话性能合入；正式两个demo按同一合并提交收口；旧控制文档已保留恢复来源 | autonomous |
-| pi | f4369eca8cecc4d73aef7ef89676021e892c75cb | feature | Pi · 协议细化与持续推进 | 本地设计提交未推送；运行源码沿用98e7d0e | 既有98e7d0e验证：1300后端、512App、23Postgres通过；研究模式下Pi角色串线已修复，后续95项通过；原生资源与自主研究机制均保留，统一通用循环仍未实现。[交互原型](../design/enterprise-workspace-prototype.html)；[Demo1评审](../reviews/2026-10-15-demo1-general-execution-review.md)。[验证报告](../reviews/2026-10-15-pi-dev-baseline-adaptation.md) | pi |
+| pi | abf2f797c98f953a402aa25597018d6d5dfea0af | feature | 企业执行 · 已合入来源 | PR #31双平台通过并合入dev | 原生资源和专业资产保留；资源摘要及超时分类已修复；local-dev同源核验通过。统一循环和新工作台仍待实现。[收口验证](../reviews/2026-10-16-main-dev-convergence-verification.md) | pi |
+| enterprise-dev | db16718445fb33ea242310076dd068b90b1996a6 | main | dev · 企业自主执行研发主线 | PR #31已合入，双平台通过 | 合并树与受检abf2f797一致；长期Pi分支已关闭，工作树与数据保留；后续按统一执行计划推进。[收口验证](../reviews/2026-10-16-main-dev-convergence-verification.md) | pi |
 | research | feat/research-model | feature | Research Model · 实施分支 | 起点与依赖已适配，R1未实现 | 开发起点6ff7094；2b0b0a5适配现有对话/模型身份与证据接纳；独立审查、源码等价与doctor通过；不依赖撤回的编译/覆盖/预热；R0bf678f2保留历史参考；R1尚无代码，未部署 | research |
 | autonomous-trial | 24d9a32 | feature | 自主智能体 · 试用部署点 | local-dev与cloud-dev基本试用通过 | 固定部署来源24d9a32；三任务链路终态已保存；业务结论尚有缺陷；后续源码变化未部署 | autonomous |
 | topology-display | df69cda | feature | 拓扑显示修复 | local-dev前端已验证 | 小跨度坐标全图适配；放大上限与符号尺寸修正；41项检查及类型通过；真实179母线浏览器验证；后端与cloud-dev仍24d9a32 | autonomous |
@@ -354,15 +355,16 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
 | offline-e2-delivery | 当前交付重点 | fix/user-local-network-view | 已交付Linux AMD64更新包、单次安装ready通过；f300源码已修后续runtime问题，e2原归档未升级 | 已交付e2，保留原包及原校验值；包内仍是旧runtime，不冒充f300验证 |
-| dev-current | 当前dev与App来源 | dev | 两项修复验收记录与控制工具合入；产品packages与f300一致 | f209fb1已合入，PR #29双平台通过；App f209fb1，后端保留f300验证来源 |
+| dev-current | 已验证发布范围 | dev历史来源 | 两项修复验收记录与控制工具合入；产品packages与f300一致 | f209fb1作为PR #30发布范围；local-dev已切换研发候选 |
 | offline-merge | 最新产品修复合并基线 | dev | 派生模型结果投影按验证修订展示；AC使用保存的Generator调度输入 | f300d1f已合入，双平台通过；local-dev ready、三后端文件SHA与重建时App身份核验通过 |
 | user-local | 重要试用发布与开发基线 | dev | Git选择、管理命令与共享用户数据；双架构旧数据升级回放及回退、公开安装通过 | 已合入并发布，用户业务待验证 |
 | dev-trial | 重要试用发布与开发基线 | dev | 无源码安装启动、同源App及受限Provider；双架构公开包已验证，用户正在试用 | 已发布试用包，用户业务待验证 |
 | cloud | 历史重要发布 | main | 电网静态分析、智能体对话与工作台；计算结果与证据随运行保留 | 历史发布起点 |
-| main | 当前发布主轴 | main | PR #9/#10合入的发布快照；后续开发与实际部署分别记录 | 发布快照 |
+| main | 已发布应用基线 | main | 阶段完整对话应用及已验证小修复；短期维护，保留未来对话场景发展 | PR #30合入cf72393b；双平台完整release通过 |
 | dev-business-base | 开发分支起点 | dev | 恢复业务执行并保留独立轻量路由；Pi与自主智能体的共同业务基线 | 已合入，业务缺陷保留 |
 | dev | 重要demo发布与大分支合并 | dev | 统一研究、执行、结果与证据合入主线；两个demo固定该基线，保留发布验收与回退来源 | 两个demo已验收 |
-| pi | 当前研发收口 | feat/pi-skills-integration → dev | 企业自主执行作为dev研发方向；保留原生资源与专业资产，统一机制仍待实现 | 正在集成验证，尚未合入；不更新用户环境 |
+| pi | 已合入研发来源 | 原Pi分支（已关闭） | 原生执行与专业资产已合入dev；统一循环和新工作台仍待实施 | 双平台通过，local-dev精确构建来源abf2f797 |
+| enterprise-dev | 当前开发焦点 | dev | 企业自主执行基础能力合入；统一设计沿dev继续实施 | PR #31双平台通过，合并树与受检来源一致 |
 | autonomous-trial | 重要cloud-dev部署 | feat/autonomous-agent | 统一研究、任务执行与结果证据首批试用；cloud-dev运行该版，业务解释仍有缺陷 | 试用已验证，业务未验收 |
 | autonomous-demo-first | 历史重要demo发布 | feat/autonomous-agent | 统一研究循环与执行、结果、证据链路上线；注册用例及报告、证据回放通过 | 基本发布检查通过 |
 | dialog-demo-baseline | 历史重要demo发布 | feat/autonomous-agent | 基础图缓存、线程池创建与启动预热；新建对话提速，保留上一已验收回退基线 | 历史demo已验收 |
@@ -373,8 +375,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 编号 | 工作包 | 来源 | 目标 | 状态 | 交付范围 |
 | --- | --- | --- | --- | --- | --- |
-| 30 | main | release/conversation-phase1 | main | OPEN | 用户选择f209fb1发布基线，包含已验证PyPSA小修复；双平台完整release门禁运行中，不更新e2交付包或部署 |
-| 31 | pi | feat/pi-skills-integration | dev | OPEN | 收口企业自主执行研发；本地check-pr后端初次5项被系统代理干扰，回环直连23项复验通过，正在继续完整门禁；双平台CI运行中 |
+| 30 | main | release/conversation-phase1 | main | MERGED | cf72393b；用户选择f209fb1，双平台CI38861900687完整release成功；合并树一致，分支已关闭，e2包及部署不变 |
+| 31 | pi | feat/pi-skills-integration | dev | MERGED | db167184；精确abf2f797的CI38865540607双平台通过；合并树一致，原分支关闭，工作树及数据保留 |
 | 29 | autonomous | docs/pypsa-runtime-acceptance | dev | MERGED | 双平台CI38728722421全部通过，正常合入f209fb18d7abb122b689e1b1a52c54fa13bf5371；packages与f300无差异；root dev与App5173为f209fb1；修复和文档分支已关闭；后端、e2原包和其他环境不变 |
 | 28 | autonomous | fix/user-local-network-view | dev | MERGED | required CI38723131332的Linux/macOS全部通过，正常合入f300d1f375ef20af005840a60af47b5e33ea62e8；受检c638及合并packages一致；root dev已快进，local-dev规范重建exit0/ready，同后端镜像与每角色1060文件SHA256及App f300身份通过（源码标签仍development）；e2归档未升级，回答算术与source建模投影限制保留 |
 | 27 | dev-trial | feat/user-local-offline | dev | MERGED | 来源7c双平台CI38700786813全部通过，正常合并37529efa2f0b0e10f641a65706b330b1d94255af；7c包曾交付后撤回、不可交付，原SHA保留；root dev已快进f300且local-dev规范重建/源码核验通过；业务边界单列，图/Pi修复不在7c包内 |
@@ -404,8 +406,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | feat/user-local-offline | 已合入交付来源 | 精确7c包曾交付后撤回，现不可交付；PR #27正常合入37529ef，来源双CI通过 | 保留归档与原SHA，root dev快进/规范重建单列；业务失败和未跑样例继续验证，不覆盖已交付包 | dev-trial |
 | fix/user-local-network-view | 已合入运行修复来源 | c638受检，PR #28双平台CI通过后正常合入f300d1f；root dev已快进，packages一致 | local-dev规范重建及真实身份核验已通过；e2归档未升级，19173/demo/cloud不变；回答算术和source建模投影边界保留 | autonomous |
 | refs/archive/20261015/feat-dev-trial-deployment | 已合并实施恢复引用 | 380ede4受检，PR #22合入7832134；本地/远端实施分支已关闭；最终公开镜像/包及安装入口验收通过 | 保存原验收目录、私有状态与卷；用户业务试用待反馈 | dev-trial |
-| main | 发布基线主线 | PR #9/#10已合入723b8e8；产品完整验收源码2473e48 | 发布PR接收dev已验证候选；云端按独立发布计划推进 | main |
-| dev | 默认开发集成主线 | PR #28修复合入f300，PR #29验收记录合入f209fb1；两轮双平台通过，packages等同c638 | App5173实读f209fb1；后端保持f300源码核验与6c616058镜像；e2归档和19173/demo/cloud不变 | main |
+| main | 已发布应用维护主线 | PR #30合入cf72393b，范围f209fb1；双平台完整release通过，合并树一致 | 短期零星修复，未来按对话适用场景发展；用户交付包不自动更新 | main |
+| dev | 默认开发集成主线 | PR #31合入db167184；双平台CI38865540607通过，合并树等同abf2f797 | local-dev后端及App构建来源abf2f797；e2归档、19173/demo/cloud不变，统一执行设计继续实施 | main |
 | docs/dev-baseline-control | 收口状态同步 | 从接受的dev50d8ebc建立；登记B2标签、分支关闭与研究实施起点 | 仅文档和控制图，轻量检查后集成dev | main |
 | feat/research-model | 起点与依赖已适配 | 2b0b0a5；精确祖先dev6ff7094；设计及推进计划排除撤回的编译/覆盖/预热依赖；本工作区运行时准备与doctor通过 | R1尚无代码；按R1–R5及真实依赖路径验收，不将旧R0实验当作本分支成果 | research |
 | recovery/autonomous-agent-merged-faa6af9 | 已合并分支的本地恢复引用 | 原feat/autonomous-agent已通过PR #18合入dev faa6af9；保留2b6ae7b与原工作树全部未提交文档和运行数据；远端已合并分支关闭 | 非在研分支；后续从dev推进，科学与交互验收仍开放 | autonomous |
@@ -418,8 +420,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | fix/deployment-answer-acceptance | 已撤回，来源保留 | PR13关闭；42a647b保留原分支及已推送archive/answer-recovery-before-rollback-20261012 | 不继续此候选；仅保留恢复和核对依据 | answers |
 | improve/run-process-window | 已被完整候选取代 | 22acf1b为早期界面验收来源；后续2473e48及当前d7ac7d9包含更紧凑窗口 | 保留来源参考，不继续作为当前部署候选；随PR #9收口 | answers |
 | improve/issue-4-active-recovery | 诊断工作区，产品源码未变 | 来源c3b78bc；4项生命周期检查确认隐藏页面恢复路径符合既有设计；Issue#4为ai:needs-info | 核对切后台/锁屏触发和实际时序；不猜测云端冷启动原因，不修改在线睡眠策略 | wake |
-| feat/pi-skills-integration | 收口dev进行中 | 本地f4369eca及控制文档修订，check-pr运行中 | PR合入后关闭长期分支，保留工作树和数据；统一执行设计不冒称实现 | pi |
-| archive/pi-before-dev-baseline-20261012 | Pi适配前恢复引用 | 精确749e0b8；本地及远端保留 | 仅恢复/对照，活动实施在feat/pi-skills-integration | pi |
+| feat/pi-skills-integration | 已合入并关闭 | PR #31合入dev db167184，双平台通过 | detached工作树与数据保留；refs/archive/20261016/feat-pi-skills-integration保存abf2f797 | pi |
+| archive/pi-before-dev-baseline-20261012 | Pi适配前恢复引用 | 精确749e0b8；本地及远端保留 | 仅恢复/对照，活动实施在dev | pi |
 | archive/research-before-dev-baseline-20261012 | Research旧起点恢复引用 | 精确50d8ebc；本地及远端保留 | 仅恢复/对照，活动实施在feat/research-model | research |
 | archive/dev-recovery-control-staging-20261012 | 台账准备检查点 | 39ffe2b；保存收口期间的全局记录，当前根工作区detached继续整理 | 当前全局台账通过临时文档PR集成dev；不作为产品部署或活动功能分支 | main |
 | experiment/autonomous-research | R0参考实验 | 来源c3b78bc；代码bf678f2；基础实际实验与独立审查通过；未提交记录保留 | feat/research-model承接R1实施，R0保持参考；不直接合入或部署 | research |
@@ -518,7 +520,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | 后端 `f300d1f375ef20af005840a60af47b5e33ea62e8`；App `f209fb18d7abb122b689e1b1a52c54fa13bf5371`，PR #28/#29已合入 | 规范重建exit0、ready=true；API与双worker同镜像sha256:6c616058e6432cedcb1cd628a6292921c962e4d1bb87872724119036167d2a0a，均healthy；每角色1060个受管后端文件SHA256与clean f300完全一致；Docker源码标签仍development；App实读f209fb1、dirty=false，packages与f300无差异 | 固定App http://127.0.0.1:5173/，API8767；核验依据为文件SHA256及App身份，不冒称精确镜像标签；收据root .capstone-agent/pr28-local-dev-identity.json；其余三部署、19173及原数据保持不变 |
+| local-dev | 后端及App `abf2f797c98f953a402aa25597018d6d5dfea0af`，PR #31已合入来源，dev db167184合并树一致 | 规范重建exit0、ready=true；API与双worker同镜像sha256:d6acc8c04b04f9153d59bffa41c8a223119bfe24d2edadb1a117fe30136e2fd1，general-pi健康；每角色1139个实际打包文件SHA256同候选；App abf2f797、dirty=false；五个原卷及数据数量不变 | 固定App http://127.0.0.1:5173/，API8767；源码标签仍development，收据root .capstone-agent/convergence-local-identity.json；其余三部署、19173及原交付包不变 |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |
 | cloud-dev | `24d9a32`，开发试用候选；已推送标签cloud-dev-20261013-1045-24d9a32 | 用户授权的基本功能检查通过：四角色SUCCESS、API就绪、前端来源与真实中文对话；非正式发布或科学解释验收 | App https://capstone-app-production-83ef.up.railway.app/；[部署记录](../reviews/2026-10-13-cloud-dev-autonomous-trial.md)；demo不变 |
 | cloud-demo | App/API/两worker `faa6af9` | 四角色SUCCESS；三后端身份与dev本地529文件验收一致，安装工件与受检候选一致；三用例九轮、报告证据回放通过；local-demo已同源验收；正式标签demo-20261014-2028-faa6af9已推送 | App https://capstone-app-production-975e.up.railway.app/；上一正式标签demo-20261014-0744-bd2a200；双平台完整发布38554987581通过；cloud-dev不动 |

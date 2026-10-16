@@ -108,7 +108,7 @@ el('scope').innerHTML='<table class="scope-table">'+[
  ['电网数值核心','线上到本地没有新增 simulator、Kernel 或 pandapower Domain Pack 数值分析能力；没有新增机组 N−1。'],
  ['开发主线新增','完整问答阅读、位置保持、执行租约修复、环境与来源标识、独立小石反馈/修复工具；PR #6 已合入并部署 local-dev。'],
  ['主线重整','实验曾进入旧 dev，后从运行代码剥离并保留。当前 Git 祖先中有提交，不等于对应功能还在当前代码。'],
- ['Pi/skills','普通/专业路由、原生 Pi、委派执行、skills/角色和业务输入在实验分支；需要分包验收。'],
+ ['企业自主执行','原生 Pi、委派执行、skills与资源已合入dev；统一持续执行机制和新工作台仍待实现。'],
  ['回答与运行窗口','local-dev6ff7094恢复原业务链，保留独立LLM路由、三动作小字号短窗、普通轻量回答与正式消息隔离；旧任务编译、覆盖核验及预热已撤回。整体业务缺陷及一次普通误路由继续开放。'],
  ['本次整理','已有代码已分为候选 PR、实验功能和归档参考；旧存储实验已归档，不把盘点当作发布验收。']
  ].map(([a,b])=>'<tr><td>'+esc(a)+'</td><td>'+esc(b)+'</td></tr>').join('')+'</table>';
@@ -126,19 +126,17 @@ function draw(){
  const frame=el('graph-frame'),tree=el('tree'),width=Math.max(1000,frame.clientWidth),gap=Number(el('density').value)+12;
  el('graph-canvas').style.width=width+'px';
  const place=(node,x,y,w)=>{node.style.width=w+'px';node.style.left=x+'px';node.style.top=y+'px';};
- const mains=graphNodes.filter(n=>n.lane==='main').sort((a,b)=>levels[b.id]-levels[a.id]);
- const branches=graphNodes.filter(n=>n.lane!=='main'&&n.id!=='pi').sort((a,b)=>levels[b.id]-levels[a.id]);
- // Keep the release spine at the canvas centre; use the right half for source-bound deployments.
+ const mains=graphNodes.filter(n=>n.lane==='main'&&!n.release_point).sort((a,b)=>levels[b.id]-levels[a.id]);
+ const branches=graphNodes.filter(n=>n.lane!=='main'||n.release_point).sort((a,b)=>Number(b.release_point)-Number(a.release_point)||levels[b.id]-levels[a.id]);
+ // Keep dev at the centre and the main release separate; deployments bind to their exact sources.
  const mainWidth=branches.length?400:520,mainX=(width-mainWidth)/2,stageWidth=190,stageX=width-stageWidth,branchWidth=Math.min(280,mainX-48),branchX=Math.max(12,mainX-branchWidth-50);
  let mainBottom=8,branchBottom=8;
  mains.forEach(n=>{const node=el('commit-'+n.id);node.style.height='auto';place(node,mainX,mainBottom,mainWidth);mainBottom+=node.offsetHeight+gap;});
- const pi=el('commit-pi'),piWidth=Math.min(280,mainX-48);pi.style.height='auto';place(pi,Math.max(12,mainX-piWidth-50),8,piWidth);
  graphStages.forEach(e=>{const stage=el('environment-node-'+e.name);stage.style.height='auto';if(!stage.dataset.ready){stage.innerHTML=deployment(e)+'<p class="muted">'+esc(environmentRoles[e.name])+'</p><details><summary>状态与验证记录</summary><p>'+esc(e.state)+'</p></details>';stage.querySelector('b').insertAdjacentHTML('afterbegin',icon(e.name.startsWith('local-')?'server':'cloud'));stage.dataset.ready='true';}});
- if(branches.length)branchBottom=pi.offsetTop+pi.offsetHeight+gap;
  branches.forEach(n=>{const node=el('commit-'+n.id);node.style.height='auto';place(node,branchX,branchBottom,branchWidth);branchBottom+=node.offsetHeight+gap;});
  let stageBottom=8;
  [...graphStages].sort((a,b)=>el('commit-'+sourceNode(a).id).offsetTop-el('commit-'+sourceNode(b).id).offsetTop).forEach(e=>{const stage=el('environment-node-'+e.name),source=el('commit-'+sourceNode(e).id);stageBottom=Math.max(stageBottom,source.offsetTop);place(stage,stageX,stageBottom,stageWidth);stageBottom+=stage.offsetHeight+12;});
- tree.style.height=Math.max(mainBottom,branchBottom,stageBottom,pi.offsetTop+pi.offsetHeight+8)+'px';
+ tree.style.height=Math.max(mainBottom,branchBottom,stageBottom)+'px';
  const svg=el('edges');svg.setAttribute('viewBox','0 0 '+width+' '+tree.clientHeight);svg.innerHTML='';
  const edgeStyles={main:{color:'#426c60',width:1.8},branch:{color:'#83639b',width:1.4},reference:{color:'#9a794f',width:1.1}};
  svg.innerHTML='<defs>'+Object.entries(edgeStyles).map(([kind,style])=>'<marker id="arrow-'+kind+'" markerUnits="userSpaceOnUse" markerWidth="7" markerHeight="8" refX="5" refY="4" orient="auto"><path d="M1 1 L5 4 L1 7" fill="none" stroke="'+style.color+'" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></marker>').join('')+'</defs>';
@@ -159,7 +157,10 @@ function draw(){
  }));
  graphStages.forEach(e=>{
   const source=sourceNode(e),target=el('environment-node-'+e.name),anchor=el('commit-'+source.id),a=rect(anchor),b=rect(target),x1=a.x+a.w+4,y1=a.y+a.h/2,x2=b.x-4,y2=b.y+b.h/2,mid=(x1+x2)/2;
-  const d='M '+x1+' '+y1+' C '+mid+' '+y1+' '+mid+' '+y2+' '+x2+' '+y2,style=edgeStyles.reference;
+  // A branch deployment must cross above the main spine, not through its cards.
+  const d=a.x+a.w<mainX
+   ? 'M '+x1+' '+y1+' H '+(mainX-20)+' V 4 H '+(stageX-14)+' V '+y2+' H '+x2
+   : 'M '+x1+' '+y1+' C '+mid+' '+y1+' '+mid+' '+y2+' '+x2+' '+y2,style=edgeStyles.reference;
   svg.insertAdjacentHTML('beforeend','<path data-kind="reference" data-from="'+anchor.id+'" data-to="'+target.id+'" data-source="'+source.id+'" data-source-sha="'+source.sha+'" data-deployment="'+e.name+'" d="'+d+'" fill="none" stroke="'+style.color+'" stroke-width="'+style.width+'" stroke-dasharray="4 3" marker-end="url(#arrow-reference)"/>');
  });
  fitGraph();
