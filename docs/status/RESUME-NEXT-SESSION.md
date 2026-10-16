@@ -1,113 +1,83 @@
 # Live Session Checkpoint
 
-> Updated: 2026-10-15. Active work; not a final handoff.
+> Updated: 2026-10-16。Session remains active — not a final handoff.
 
-## Live operations
+## 当前恢复点
 
-- Both fixes passed focused regressions and independent review. Commits:
-  b580f93 AC setpoints/supported scope; c638e0992e49d300e760e89d07aff63ef6eca1c5
-  per-result model revision. Both are pushed.
-- PR28 merged normally as f300d1f375ef20af005840a60af47b5e33ea62e8.
-  Required Linux/macOS run38723131332 passed. Root dev fast-forwarded; canonical
-  local rebuild passed (log .capstone-agent/pr28-dev-local-rebuild-proxy.log).
-  API and both workers share image6c616058e643; 1060 tracked backend files per
-  role match clean f300 source. App5173 reports f300, dirty=false; readiness passed.
-- Owned fresh candidate `capstone-regional-residual-check`, origin29375, is
-  tested backendc638e09 and Appe2. All backend roles shared one AMD64 image.
-  Root controls it with `.capstone-agent/regional_residual_candidate.py`.
-  Preserve the older stopped28020 candidate/project/data separately.
-- Completed `.capstone-agent/verify_regional_integration_candidate.py`;
-  fresh Threadthr_552d053d489c612a9389, receipt
-  `.capstone-agent/regional-residual-integration-c638e09.json` and sibling raw directory.
-  Original three turns plus one AC-only turn passed runtime checks: objectives
-  1300/1900, five completed operations projections, actual AC schedule consistency.
-  Candidate stopped; zero running containers, data retained. Do not resend.
-  Answer text has one arithmetic error (+5 instead of +7.5 MW); raw results are
-  correct. Source-modeling UI projections remain outside this fix.
-- Product source is frozen. Keep pending acceptance/control documents off PR28
-  while its product gate runs; on docs/pypsa-runtime-acceptance, publish these records
-  with a separate docs-only PR so full product CI is not restarted for receipts.
+- 最新任务：用户要求阶段完整对话应用收口main，Pi有效成果收口dev并关闭长期Pi线；后续具体研究才开分支。
+- 发布范围已确认：main采用f209fb1，包含已验证的PyPSA小修复；实际交付包仍e2eaee2，不含Pi新增研发能力。
+- PR #30发布候选已快进f209fb1，PR #31集成Pi；均OPEN，等待双平台必需检查。Pi提交46a1bf74修复资源digest与回执测试，已推送。
+- 本地check-pr拆分续跑：初轮代理环境影响已隔离；后端1300、App512、Kernel628通过。打包复验与专业包尾项仍运行，日志/tmp/capstone-pi-packaging-recheck.log与/tmp/capstone-pi-integration-last.log。check-integration已exit0。
+- 收口设计docs/superpowers/specs/2026-10-16-main-dev-convergence.md。合并走PR及双平台，local-dev合入后规范重建，四部署/用户安装不自动发布。
 
-## Current instruction and scope
+- 最新用户约束：避免过严门禁使任务停摆。已提交设计修订：启动最低依赖、unknown隔离范围、附件分开提交、检查建议非硬要求及局部成果交付；见docs/reviews/2026-10-16-enterprise-progress-constraints-review.md。状态矩阵和计划同步，生产实现未变。
 
-User requests fixing the remaining problems on `fix/user-local-network-view`,
-then merging normally into `dev`. Active worktree is
-`.worktrees/dev-trial-deployment`; pre-follow-up source anchor is5e3627a.
-The two defects are later-turn PyPSA result projections and AC validation of a
-saved dispatch. Plan: [PyPSA follow-up](../superpowers/plans/2026-10-15-pypsa-runtime-followup.md).
+- 边界、持续推进及协议修订已保存并推送Pi提交f4369eca与167d5f89，运行基线98e7d0e，集成修复46a1bf74，dev仍f209fb1；没有部署或Provider调用。
+- 最高约束：保留已跑通前后端的业务资产，提取统一长程自主组织机制服务各类应用；不能固化专用链路或永久并行两套主循环。
+- 定稿docs/superpowers/specs/2026-10-15-enterprise-design-final.md覆盖早期冲突：复用Thread事件/命令/租约与ResearchController；Work是目标关联，不另建控制面；专业工具/证据/视图保留，领域耦合拆开。
+- 已保存边界修订：Demo1/Demo2只是示例，禁止转成专用指标、固定业务流程、封闭视图枚举或新增专业求解任务。
+- 新增docs/superpowers/specs/2026-10-16-enterprise-protocol-decisions.md明确wire迁移、命令状态和检查来源；状态矩阵补答复生效分支。下一步Task 1完整宿主guard与持续Pi桥测试，不能以设计检查代替运行验证。
+- 前置基线已实跑Pi工作树doctor、43项既有协议/命令/转换/研究测试及SDK离线探针；均通过。见docs/reviews/2026-10-16-enterprise-protocol-baseline.md。未调用Provider或部署。
+- 设计检查通过：SDK离线block与session重开、11类命令及33负例、状态不变量、11712条合成验收数据核对，七类交互状态桌面/手机检查。
+- 原型含Demo1图表、Demo2已有IEEE39拓扑和独立合成方案、状态验收页；不代表真实业务结果。此前独立代理启动失败；本轮复用了已有代理完成只读交叉评审，发现及修订见docs/reviews/2026-10-16-enterprise-scenario-boundary-review.md。
+- 用户明确的专业图表、跨Pack协作、ApplicationProfile使能和一般问题同链路要求均保留。生产质量/恢复/专业联动仍须实施验收。
+- 根dev设计副本及两工作区控制记录未提交；保留其他未提交工作、旧分支引用和用户数据，不阶段性更新部署。
 
-Do not repeat offline release suites. Run focused regressions and one targeted
-original regional conversation with the already authorized DeepSeek OPENAI_*
-configuration. Required dev PR Linux/macOS checks still apply. No bypass.
+## 前一恢复点（历史）
 
-## Implementation owners and design
+- 用户要求实际同步推进图。已补齐PR #29/f209fb1当前dev与App节点，f300产品修复和后端来源保留，e2交付包与其他环境不变。
+- GitHub回读PR #29 MERGED、双平台CI38728722421 SUCCESS；App5173实读f209fb1、dirty=false；packages相对f300无差异。修复和文档分支已关闭。
+- VERSION-CONTROL、INDEX及生成HTML已更新；模板将不同来源显示为“角色来源不同”，不推断正在升级。
+- 浏览器检查通过：13关键节点、四环境来源可查，无横向溢出、卡片重叠、连线穿卡或控制台错误；链接、符号链接、doctor与diff检查通过。截图output/playwright/project-alignment-20261015.png。
+- 等待用户指定下一项任务；本次控制改动尚未提交。
+- 下方为此前用户已确认的交接内容，保留其验证边界。
 
-- offline_review_supported owns application preparation/session projection,
-  PyPSA model binding and related tests. A neutral optional revision resolver
-  validates every result's own authorized model lineage/revision. Each result
-  is projected against its actual verified context, preserving Pack equality
-  and existing host-only verified-context admission. No PyPSA imports enter
-  the framework Kernel. Baseline catalog revision must remain unchanged.
-- offline_provider owns Authority power_operations, its tests and the AC
-  contract/guide scope. PyPSA1.3.0 reads generators_t.p_set; writing computed
-  generators_t.p was overwritten. Apply saved schedules to input p_set.
-  Verify actual non-slack outputs, third-snapshot backup increment and slack
-  loss balance. Fail explicitly for unsupported scheduled Store/StorageUnit/
-  Link/Process components instead of claiming to verify unsaved schedules.
-- Root owns planning, control documents, candidate runtime, review, PR/merge
-  and canonical dev checkout integration. Workers do not commit concurrently.
+## 当前状态
 
-## Immutable delivery and graph
+- 本轮“修复遗留问题并合入dev”已完成。
+- PR28正常合入f300d1f，PR29验收文档正常合入f209fb1；两个PR的Linux/macOS必需检查均通过。
+- 根目录dev为f209fb1；修复和验收文档分支已关闭。
+- 工作区仅JOURNAL和RESUME有未提交的收尾记录。
+- .worktrees/dev-trial-deployment已停在f209fb1 detached HEAD；忽略的验证数据与脚本保留。
 
-Current user package is sourcee2eaee2403cb6d780b3f7564da86e0d083890673,
-root `runs/user-local-offline/capstone-delivery-e2eaee2`, three files.
-Archive bytes1368607944; SHA256
-9d7c3b215b9c45631bf3142aaad8f8066ba43831380b43b2ccf8146ee1eebfe7.
-Single install/readiness and six AMD64 roles passed; instance29377 is stopped.
-Runtime packages matched tested28020aa. Preserve the delivered artifact unchanged.
-No new package was requested by the current fix-and-merge instruction.
+## 已修复和验证
 
-7c19766 is withdrawn and not deliverable. Evidence is retained at root
-`runs/user-local-offline/capstone-withdrawn-7c19766`; original files/hash remain.
-Do not restore or distribute the old delivery directory.
+- 多模型修订结果按各自已验证的模型身份投影。
+- PyPSA AC校验通过p_set恢复保存的发电调度；不支持的其他组件调度明确拒绝。
+- AMD64模拟环境实际完成区域三轮及补充AC专用第四轮：基准/增长目标1300/1900，5个operations投影完成，调度与AC实际出力一致性通过。
+- 本地规范重建通过，已有数据保留。API和双worker共用镜像6c616058e643；每个角色1060个后端文件与f300源码SHA256一致。镜像标签仍为development，不冒称精确提交标签。
+- 本地API8767就绪；App5173当前显示f209fb1、dirty=false。f209相对f300仅文档及控制工具变化，产品代码未变。
+- 推进图保留12个重要节点，e2交付重点独立展示。
 
-The graph has12 important nodes. e2 is an independent visible delivery focus,
-with README/archive/SHA/report links. Withdrawn7c and documentation606 belong
-in history, not separate nodes. Update graph and canonical register at phase
-boundaries; check both worktree and root entry points. Source/verification/
-merge/deployment states must remain distinct.
+## 交付与环境边界
 
-## Prior verified evidence
+- 用户离线包仍为runs/user-local-offline/capstone-delivery-e2eaee2。原归档、README和SHA256不变；不含本轮新增的两项运行修复。当前未要求重新制作离线包。
+- 7c19766已撤回，不可交付；capstone-withdrawn-7c19766仅保留历史证据。
+- 用户19173安装和数据未改动。
+- local-demo/cloud-demo仍为faa6af9，cloud-dev仍为24d9a32。
+- 候选29375及安装验证29377均已停止，数据保留。
+- 两份root控制文件恢复stash保留；不要把旧副本覆盖到新记录。
 
-- Graph scene/camera fixes61a418d:106 backend and109 App tests plus browser checks.
-- Shared handoff fix28020aa:16 contracts/82 checks, independent review.
-- Original three-turn AMD64 OPENAI candidate28020aa: baseline/growth dispatch
-  optimal1300/1900 and both AC calls converged. Actual projection failure and
-  AC schedule inconsistency remain evidence for the present regressions.
-- Raw ignored evidence: `.capstone-agent/regional-handoff-candidate-live.json`
-  and its sibling directory of records/snapshots/verified Authority documents.
-  Candidate29375 is stopped with data retained. Operator checker interpreter
-  error was separated from the successful first dispatch; never resend it.
-- README1–9 actually ran on7c;10–12 were not run. Full generator N1 study/ranking
-  remains unverified. Do not turn request completion into full business acceptance.
+## 尚未解决或未验证
 
-## Integration and data preservation
+- 一处模型回答把应为7.5 MW的差值写成5 MW；原始计算和投影正确，不宣称文字全部正确。
+- source-modeling公开结果投影尚未实现。
+- README样例1–9有原7c运行记录，10–12未全部验证；完整发电N-1研究及排序仍未通过完整业务验收。
+- 本轮AMD64为Apple ARM宿主模拟运行，不是原生AMD64验收。
 
-PR27 merged as37529ef. PR28 passed both required jobs and merged as
-f300d1f375ef20af005840a60af47b5e33ea62e8. Root dev fast-forwarded and completed
-canonical rebuild with data retained. The original pending root controls are
-preserved in stash `recovery: root control copies before PR28 integration`;
-newer receipts are on docs/pypsa-runtime-acceptance. Do not apply stale copies
-onto newer accepted control records. Keep this recovery reference.
+## 下一步与执行约束
 
-Next: finish the separate documentation/governance PR, wait its required checks,
-merge normally, fast-forward root dev without rebuilding unchanged product code,
-and close the merged fix/docs branches while preserving worktree operator data.
-Runtime local-dev source stays f300; a later documentation merge is a separate
-Git state. Do not claim runtime follows that later docs-only revision.
+- 等用户指定下一项工作，不自动打包、部署或扩展研究范围。
+- 下一次修复应提前收齐代码、必要文档与针对性验证，再进入一轮必需CI；避免为补收据重复启动产品检查。
+- 不重复整包、全量业务或Provider测试，除非变更需要或用户要求。
+- 不重新发送已完成的区域验证指令。
+- 不改动用户数据、认证状态及其他环境。
 
-Existing19173 installation is user data and remains untouched. local-dev previously
-runsb7e68dd; local-demo/cloud-demo remainfaa6af9, cloud-dev24d9a32. No cloud/demo
-or Ubuntu VM validation/deployment is authorized by this task. Do not change them.
-Keep credentials in environment/private ignored state; never log values or copy
-ignored authentication state into a fresh worktree.
+## 主要入口
+
+- [版本台账](VERSION-CONTROL.md)
+- [推进图](PROJECT-OVERVIEW.html)
+- [限定验证报告](../reviews/2026-10-15-pypsa-runtime-followup-verification.md)
+- [后续计划](../superpowers/plans/2026-10-15-pypsa-runtime-followup.md)
+- root .capstone-agent/pr28-local-dev-identity.json
+- 验证工作树 .capstone-agent/regional-residual-integration-c638e09.json

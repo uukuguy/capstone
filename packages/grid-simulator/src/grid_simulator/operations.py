@@ -360,7 +360,7 @@ def _analysis_run(
     except Exception as exc:
         raise _failure(
             "analysis_failed",
-            f"Analysis operation {operation!r} failed inside pandapower: {exc}. "
+            f"Analysis operation {operation!r} failed in the registered backend: {exc}. "
             "This exception does not establish a physical cause; inspect model inputs and diagnostics.",
             phase="execute",
             allowed_recovery_actions=("inspect_network_diagnostics", "report_failure"),

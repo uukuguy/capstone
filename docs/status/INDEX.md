@@ -1,5 +1,32 @@
 # docs/status INDEX
 
+- [main/dev收口](../superpowers/specs/2026-10-16-main-dev-convergence.md)：对话应用进入发布维护，企业自主执行收口dev；Pi分支待验证合入，未发生部署。
+
+- [协议决定](../superpowers/specs/2026-10-16-enterprise-protocol-decisions.md)与[前置基线](../reviews/2026-10-16-enterprise-protocol-baseline.md)：v2迁移、答复生效及检查来源已细化；既有43项测试及离线探针通过，完整执行桥仍待实现验证。
+
+- [持续推进约束审查](../reviews/2026-10-16-enterprise-progress-constraints-review.md)：缺资料可启动发现、unknown按依赖隔离、附件局部提交；明确权限/专业证据/必要持久化边界仍保留。
+
+- [场景边界审查](../reviews/2026-10-16-enterprise-scenario-boundary-review.md)：示例不转成框架业务职责；已修订设计与计划，协议迁移、状态及检查来源已有设计决定，运行验证仍开放。
+- [架构基线v1](../superpowers/specs/2026-10-15-enterprise-design-final.md)与[实施计划](../superpowers/plans/2026-10-16-enterprise-unified-execution.md)：统一自主组织、复用既有业务资产；实施契约修订中，生产验证开放。
+
+- [企业设计完整性评审](../reviews/2026-10-15-enterprise-design-readiness-review.md)：保留首次R1–R7发现，并记录定稿补充及设计检查；生产验证仍开放。
+
+- [Demo2已有拓扑来源](../design/ieee39-recorded-topology.md)：IEEE-39已记录电气拓扑，复用现有组件布局/符号；不与合成方案数据绑定。
+
+- Demo2原型补充：候选切换、影响图表、验证依据与旧结果失效交互已检查；合成数据和真实专业证据明确分离，详见[界面契约](../superpowers/specs/2026-10-15-enterprise-task-ui-design.md)。
+
+- [执行与成果契约](../superpowers/specs/2026-10-15-enterprise-execution-contracts.md)：通用任务协议、恢复和版本关系；Demo1专业图表的数据、复现、报告级导出与独立检查要求。设计未实现。
+
+- [企业任务界面契约](../superpowers/specs/2026-10-15-enterprise-task-ui-design.md)与[交互原型](../design/enterprise-workspace-prototype.html)：统一全宽多会话框架，Demo1报告与Demo2模型/决策视图；桌面及手机交互检查，未接运行服务。
+
+- [Demo1通用执行评审](../reviews/2026-10-15-demo1-general-execution-review.md)：通用链路与外部专业资源，已列SPI、数据处理、产物和恢复缺口及验收矩阵；未实测。
+
+- [Pi企业自主执行设计](../superpowers/specs/2026-10-15-pi-enterprise-execution-design.md)：方向已确认；ApplicationProfile使能、多Pack协作、自主推演、前端与恢复契约草案，未实现。
+
+- [Pi新dev基线适配](../reviews/2026-10-15-pi-dev-baseline-adaptation.md)：98e7d0e接入f209fb1，保留原生资源与自主研究；本地检查与复查通过，未合入dev或部署。已确认统一Pack治理与Pi生态结合长程组织，尚未实施。
+
+2026-10-15控制核对：dev及App5173已为f209fb1，PR #29双平台通过；packages与f300无差异，后端保留f300已验证来源。版本台账及生成图同步当前来源、PR与已关闭分支；e2原交付包和其他环境不变。
+
 当前工作：PyPSA派生结果投影和AC调度输入两项修复已实现、独立审查及针对性检查通过。精确候选c638e0992e49d300e760e89d07aff63ef6eca1c5在Apple ARM宿主的Linux AMD64模拟环境完成原区域三轮及补充AC-only第4轮；没有重新dispatch，5个operations投影completed且模型修订/证据正确。南部机组第3时段增量9.999984503 MW，最大AC残差约0.00004649 MW，小于0.01 MW。PR #28的Linux/macOS required CI run38723131332全部通过，已正常合入f300d1f375ef20af005840a60af47b5e33ea62e8；root dev已快进，packages与受检c638完全一致，local-dev规范重建exit0、ready通过；API与双worker同镜像6c616058e643，各1060个受管后端文件SHA256等同f300；镜像源码标签仍development，未将该标签冒称精确提交；App5173为f300、dirty=false；候选已停止，数据保留。回答文字仍有“+5应为+7.5”的算术问题；source-modeling投影仍未实现，不称所有回答或所有Pack通过。e2交付包不含这两项新runtime修复，原包和校验值不变。见[报告](../reviews/2026-10-15-pypsa-runtime-followup-verification.md)和[计划](../superpowers/plans/2026-10-15-pypsa-runtime-followup.md)。
 
 2026-10-15更新离线包已交付：精确源码e2eaee2403cb6d780b3f7564da86e0d083890673，根runs/user-local-offline/capstone-delivery-e2eaee2含归档、同名.sha256及README.md三文件；归档1368607944字节，SHA256为9d7c3b215b9c45631bf3142aaad8f8066ba43831380b43b2ccf8146ee1eebfe7。新README默认pandapower IEEE39，PyPSA清单在末尾可选说明；旧7c已撤回、不可交付，证据目录及原校验值保留。新包12项内部SHA与源码检查通过，runtime packages相对28020aa无差异，可复用已记录的handoff/dispatch限定实测证据；29377单次新安装及ready检查通过，六角色均linux/amd64，API与双worker同e2源码镜像；检查后正常停止并保留数据。本轮按用户要求不重跑全量测试或Provider；公开投影与AC第3时段一致性两项仍开放，不声称完整业务验收。
@@ -274,3 +301,5 @@ dev默认开发集成主线和main发布主线均启用轻量保护：PR与两�
 | File | State | Purpose |
 | --- | --- | --- |
 | [USER-LOCAL-VERSIONS.tsv](USER-LOCAL-VERSIONS.tsv) | 🟢 active | 已验证公开安装版本；完整Git、固定安装地址及SHA256，最新在前 |
+
+- 2026-10-16: main候选确认f209fb1；PR #30/#31分别收口发布与dev研发，检查中，环境来源未变。

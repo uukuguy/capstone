@@ -43,6 +43,13 @@ release verification. Hotfixes start from the actual accepted deployment tag;
 accepted fixes flow to main and back to dev. A successful merge is not a
 deployment receipt. Branch pushes do not automatically promote user trial.
 
+The phase-complete conversation application is maintained as a main release baseline.
+Enterprise autonomous execution advances on dev after the Pi experiment is integrated.
+Pi names the underlying executor ecosystem, not a permanent application delivery branch.
+Open focused research branches when needed and return accepted changes to dev. Future
+conversation-oriented development remains possible without maintaining a second permanent
+development branch. Release scope and exact delivered artifacts remain distinct from dev progress.
+
 Both dev and main require the existing Linux/macOS Actions checks, PRs and zero
 mandatory approvals; force push and deletion are blocked. Administrator emergency
 bypass remains available and must be recorded if used. Local-dev normally follows

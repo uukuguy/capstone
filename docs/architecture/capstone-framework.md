@@ -1,5 +1,31 @@
 # Capstone Agent Framework
 
+## Enterprise execution design track
+
+The [v1 design baseline](../superpowers/specs/2026-10-15-enterprise-design-final.md)
+preserves the working Thread service, worker, research controller, evidence storage,
+professional runtimes and views. It generalizes their model-bound seams into one
+autonomous organization mechanism. It does not create a parallel command/event ledger
+or keep separate general and professional orchestration as the final architecture.
+Runtime integration and acceptance remain implementation gates.
+Demo1 and Demo2 are examples, not applications required by this track. The agent
+accepts versioned, authorized resources with their native contracts. Business
+metrics stay in external resources or the owning professional Pack. View types
+are extensible, and new example-specific solver capabilities are separate work.
+See the [boundary review](../reviews/2026-10-16-enterprise-scenario-boundary-review.md).
+
+The accepted conceptual direction uses ApplicationProfile as the application-owned,
+versioned business capability group and enablement unit. A profile composes Domain
+Bindings; each binding selects a Domain Pack. One Capstone task can organize
+capabilities from multiple enabled profiles under explicit application grants.
+ApplicationProfile remains within the Application ownership layer.
+
+The [enterprise execution design](../superpowers/specs/2026-10-15-pi-enterprise-execution-design.md)
+defines the proposed workspace configuration, task snapshots, Pi-native execution,
+cross-profile cooperation and frontend contract. These are target contracts, not
+implemented guarantees. The runtime descriptions below retain their current scope,
+including model-bound profile selection and isolated general Pi execution.
+
 ## Standalone intent routing after rollback
 
 The current local recovery candidate restores pre-closure business execution.

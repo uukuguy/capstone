@@ -1,5 +1,21 @@
 # Current State
 
+Branch policy: the phase-complete conversation application is a release baseline for main,
+with small maintenance fixes in the near term. Enterprise autonomous execution is the dev
+research and delivery focus. Pi is an executor ecosystem, not a permanent product branch.
+Pi-to-dev and release-to-main integration are in progress; deployment identities remain unchanged.
+
+Enterprise architecture v1 is the baseline; implementation contracts remain under revision. It retains the working Thread, worker, research,
+evidence and professional UI assets while generalizing one autonomous organization mechanism.
+Semantic contracts, state examples, acceptance fixtures and the file-level plan are present.
+Design checks passed; runtime integration and business acceptance remain open. No runtime change.
+Demo1/Demo2 are external examples. Native input contracts, extensible views and task-specific delivery
+requirements must not become built-in business metrics, fixed workflows or mandatory new solver capabilities.
+Execution constraints apply to affected actions and claims. Missing inputs, unresolved external actions
+and optional checks do not block unrelated authorized work; persistence and authority boundaries remain intact.
+
+2026-10-15 design update: Demo1 requires professional charts. General execution contracts specify reproducible data, methods, versioned exports and separate numerical/visual checks. The prototype uses synthetic data only. Runtime implementation remains pending.
+
 The user withdrew the unstable task/answer closure implementation and retained
 independent lightweight LLM routing plus selected UI, ordinary-answer and final-message
 fixes. Overall business defects remain explicit. Development-baseline integration
@@ -14,10 +30,11 @@ exact accepted revisions belong to [VERSION-CONTROL.md](VERSION-CONTROL.md).
 - Baseline ownership: Development baselines record an exact source, verified scope and known defects; they do not establish full business acceptance or cloud promotion. B2 remains a historical technical reference whose answer closure was withdrawn after user regression. The initial cloud-demo foundation is retained for recovery. Exact current identities belong to VERSION-CONTROL.md; Pi/skills and Research Model stay separately scoped.
 - Local environment ownership: local-dev (Compose `capstone`, App5173/API8767) serves cloud-dev development tests and release verification. local-demo (`capstone-demo-local`, App15173/API18767) serves cloud-demo reproduction, emergency repairs and release verification; at rest it tracks the accepted cloud-demo source and feature scope. A candidate may temporarily differ with a recorded purpose. Data and credentials remain separate; equal local revisions are not the default objective. Actual sources and any pending realignment belong to VERSION-CONTROL.md.
 - Hosted release: Exact deployment sources and acceptance tags belong to [VERSION-CONTROL.md](VERSION-CONTROL.md). Cloud-dev is protected from this delivery. Candidate checks remain distinct from final demo acceptance. Both demos publish the same accepted dev merge source; secret-free startup receipts bind each backend role to its contract and source/installed artifacts. Branch heads alone do not prove deployment.
-- Theme-level focus: Preserve usable authority-backed conversation execution while evolving independent Pi and Research Model capabilities.
+- General execution scope: Direct knowledge answers, live retrieval and Demo1 share one adaptive task loop. Demo1 uses external business resources without a dedicated Pack or Capstone business API; this is target behavior, not implemented acceptance.
+- Theme-level focus: ApplicationProfile capability groups compose Domain Packs; one Capstone task organizes native Pi resources and professional capabilities. Workspace enablement, evidence-driven reasoning and frontend task/artifact views are the accepted design direction, not verified runtime behavior.
 - Project route: managed
 - Canonical worklist: `docs/superpowers/plans/2026-10-07-capstone-conversation-completion.md`
-- Active work package: `dev-trial`, source-free user-local deployment under [the trial deployment plan](../superpowers/plans/2026-10-14-capstone-dev-trial-deployment.md) and [AMD64 offline plan](../superpowers/plans/2026-10-15-user-local-offline.md). The offline delivery includes four image classes and model assets, defaults to `PROVIDER=openai`, and prefers `OPENAI_BASE_URL`, `OPENAI_MODEL`, `OPENAI_API_KEY` for internal compatible endpoints. Docker/Compose remain prerequisites. `autonomous` retains open scientific/interaction acceptance; its business work resumes after this user-selected delivery. Existing cloud-dev/demo and local-demo remain separate.
+- Active work package: `pi`, baseline alignment to dev f209fb1 and design discussion of Capstone general enterprise usage. Generic resources provide execution; Capstone retains long-horizon reasoning, state, recovery and delivery. A monthly analysis report is an example, not a selected application. The unified general research loop remains a design gap; no new application implementation is authorized. Existing dev-trial delivery artifacts and all deployed environments retain their recorded sources.
 - Experimental work package (`feat/pi-skills-integration`): Shared business workspace and role resources, under the [approved plan](../superpowers/plans/2026-10-09-business-workspace-agent-resources.md). Three Pi roles share bounded public context and project-managed skills/MCP configuration. Professional tools retain Domain Pack/Authority admission; native observations do not create simulator evidence. Accepted tasks bind immutable resources. Current public model context contains identity, version and bounded history, not complete model tables. Real Provider answer quality remains unaccepted; hosted stages still use the previous release. Case is a separate module outside this package.
 - Evolution discussion: `docs/superpowers/specs/2026-10-07-capstone-core-evolution-discussion.md` is secondary research. The user initiates it; remind only at an important boundary. Its open questions do not set the delivery order.
 - Milestone status: delivery reached M11 under the recorded bounded scopes. M6 Tasks1–9 closed for lightweight demo scope, with independent Task1–8 review/fix evidence; later M10/M11 passed full release gates. Portable whole-stage M6/M10 review records need consolidation. Generic runtime materialization was expressly deferred by the approved M2 review. See `docs/reviews/2026-10-07-capstone-m1-m11-status-audit.md`; do not reopen stages from stale checkboxes.

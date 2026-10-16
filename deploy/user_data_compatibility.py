@@ -21,13 +21,17 @@ REQUIRED = {'pyproject.toml', 'uv.lock', 'deploy/dev_trial_runtime.py'}
 MANIFESTS = {'pyproject.toml', 'uv.lock', 'package.json', 'package-lock.json',
              'pnpm-lock.yaml', 'yarn.lock', 'poetry.lock', 'Pipfile', 'Pipfile.lock',
              'setup.py', 'setup.cfg'}
+POLICY_LINK = 'packages/capstone-agent/src/capstone_agent/resources/capstone-pi'
+POLICY_TARGET = 'configs/runtime/capstone-pi'
+POLICY_LINK_TEXT = '../../../../../' + POLICY_TARGET
 
 
 def selected(name: str) -> bool:
     parts = PurePosixPath(name).parts
     if any(part in {'__pycache__', 'tests', 'capstone-app'} for part in parts):
         return False
-    return (name in REQUIRED or name.startswith(('schemas/', 'configs/capabilities/'))
+    return (name in REQUIRED or name == POLICY_TARGET
+            or name.startswith(('schemas/', 'configs/capabilities/', POLICY_TARGET + '/'))
             or (len(parts) > 3 and parts[0] == 'packages' and parts[2] == 'src')
             or (parts and (parts[-1] in MANIFESTS or parts[-1].startswith('requirements'))
                 and (len(parts) == 1 or (len(parts) == 3 and parts[0] == 'packages'))))
@@ -81,12 +85,20 @@ def context_files(context: Path) -> dict[str, bytes]:
             raise ValueError('Backend directory contains a symlink')
         candidates.extend(package.glob('*'))
         candidates.extend((package / 'src').rglob('*'))
-    for directory in ['schemas', 'configs/capabilities']:
+    for directory in ['schemas', 'configs/capabilities', POLICY_TARGET]:
+        candidates.append(context / directory)
         candidates.extend((context / directory).rglob('*'))
     candidates.append(context / 'deploy/dev_trial_runtime.py')
     for path in candidates:
         name = path.relative_to(context).as_posix()
         if selected(name):
+            if name == POLICY_LINK and path.is_symlink():
+                target = context / POLICY_TARGET
+                if (path.readlink().as_posix() != POLICY_LINK_TEXT or not target.is_dir()
+                        or any(parent.is_symlink() for parent in [*path.parents, target, *target.parents])):
+                    raise ValueError('Persistence policy symlink is invalid')
+                files[name] = b'symlink\0' + POLICY_LINK_TEXT.encode('utf-8')
+                continue
             if any(parent.is_symlink() for parent in [path, *path.parents]):
                 raise ValueError('Persistence input contains a symlink')
             if path.is_file():
@@ -108,13 +120,23 @@ def descriptor_from_git(root: Path, revision: str, images: dict) -> dict[str, st
                              check=True, capture_output=True, timeout=60).stdout
     files = {}
     total = 0
+    policy_link = False
+    policy_directory = False
     with tarfile.open(fileobj=io.BytesIO(archive)) as source:
         for item in source:
             path = PurePosixPath(item.name)
             if path.is_absolute() or '..' in path.parts:
                 raise ValueError('Unsafe archive path')
+            if item.name == POLICY_TARGET and item.isdir():
+                policy_directory = True
+            if item.name == POLICY_LINK and item.issym():
+                if item.linkname != POLICY_LINK_TEXT or item.name in files:
+                    raise ValueError('Persistence policy symlink is invalid')
+                files[item.name] = b'symlink\0' + POLICY_LINK_TEXT.encode('utf-8')
+                policy_link = True
+                continue
             if (item.issym() or item.islnk()) and (item.name in {'packages', 'schemas', 'configs',
-                    'configs/capabilities', 'deploy'} or (path.parts and path.parts[0] == 'packages'
+                    'configs/capabilities', 'configs/runtime', 'deploy'} or (path.parts and path.parts[0] == 'packages'
                     and 'capstone-app' not in path.parts and len(path.parts) <= 3)):
                 raise ValueError('Persistence archive directory contains a symlink')
             if selected(item.name):
@@ -125,6 +147,8 @@ def descriptor_from_git(root: Path, revision: str, images: dict) -> dict[str, st
                     if total > MAX_BYTES or len(files) >= MAX_FILES or item.name in files:
                         raise ValueError('Persistence input exceeds bounds')
                     files[item.name] = source.extractfile(item).read()
+    if policy_link and not policy_directory:
+        raise ValueError('Persistence policy symlink target is unavailable')
     return _descriptor(files, revision, images)
 
 

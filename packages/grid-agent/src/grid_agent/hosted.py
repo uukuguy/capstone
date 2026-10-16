@@ -19,7 +19,9 @@ from capstone_agent.application import EmptyCredentialBroker
 from capstone_agent.hosted_validation import select_validation_builder
 from capstone_agent.kernel_capability_preparation import AuthorityModelBinding
 from capstone_agent.kernel_pi_session import PreparedKernelPiRpcSessionBuilder
-from capstone_agent.runtime import build_runtime_host, load_runtime_environment, resolve_harness_llm
+from capstone_agent.intent_runtime import with_intent_runtime
+from capstone_agent.pi_intent import NativeConversationPiSessionBuilder
+from capstone_agent.runtime import build_runtime_host, load_runtime_environment, resolve_harness_llm, resolve_recognition_llm
 from capstone_agent.thread_service import ThreadModelDescriptor
 from capstone_agent.thread_catalog import AuthorityThreadModelCatalog
 from capstone_model_capability_spi import ModelCapabilitySelection
@@ -144,6 +146,7 @@ def build_registered_pandapower_thread_application():
         return PreparedKernelPiRpcSessionBuilder(
             runtime_host=runtime_host, resolved_llm=resolved,
             base_environment=environment,
+            workspace_root=workspace_root,
             research_enabled=os.environ.get("CAPSTONE_AUTONOMOUS_RESEARCH") == "1",
         )(claim, context, profiles)
 
@@ -174,16 +177,23 @@ def build_registered_pandapower_thread_application():
         return replace(assembly, ordinary_conversation_enabled=False, turn_router=None)
     if os.environ.get("CAPSTONE_AUTONOMOUS_RESEARCH") == "1":
         from capstone_agent.turn_router import ResearchTurnRouter
-        return replace(assembly, turn_router=ResearchTurnRouter())
-    from capstone_agent.lightweight_turn_router import build_lightweight_router
-    from capstone_agent.runtime import resolve_recognition_llm
-    environment = load_runtime_environment(root)
-    def recognition_llm():
-        return resolve_recognition_llm(root, environment, resolve_harness_llm(root, environment))
-    router = build_lightweight_router(
-        runtime_host=build_runtime_host(root, build_pandapower_application_profile(), environment),
-        resolved_llm_factory=recognition_llm, environment=environment)
-    return replace(assembly, turn_router=router)
+        assembly = replace(assembly, turn_router=ResearchTurnRouter())
+    if validation_builder is None:
+        def conversation_builder():
+            environment = load_runtime_environment(root)
+            resolved = resolve_harness_llm(root, environment)
+            return NativeConversationPiSessionBuilder(
+                runtime_host=build_runtime_host(root, build_pandapower_application_profile(), environment),
+                resolved_llm=resolved, workspace_root=workspace_root,
+                base_environment=environment,
+            )
+        from capstone_agent.general_executor_composition import configured_general_executor
+        environment = load_runtime_environment(root)
+        assembly = with_intent_runtime(assembly, conversation_builder,
+            general_executor=configured_general_executor(environment),
+            general_timeout_seconds=float(environment.get('CAPSTONE_THREAD_ATTEMPT_TIMEOUT_SECONDS', '600')))
+    return (replace(assembly, ordinary_conversation_enabled=False, turn_router=None)
+            if validation_builder is not None else assembly)
 
 
 def main() -> int:

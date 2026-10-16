@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
+from dataclasses import replace
 from pathlib import Path
 import json
 import os
@@ -24,9 +25,11 @@ from capability_agent.runtime.environment import PiLaunch, RuntimeHost, RuntimeP
 from capability_agent.runtime.models import ResolvedLLM
 from capability_agent.runtime.rpc import PiRpcClient
 from capability_agent.runtime.trace import JsonlTraceWriter
+from capability_agent.application.workspace import ApplicationWorkspace
+from capability_agent.application.composition import PreparedApplication
 from capability_agent.tools.catalog import CoreToolCatalog
 
-from .harness import AdmittedAttemptAnswer, PiPromptSession, normalize_runtime_event
+from .harness import AdmittedAttemptAnswer, PiPromptSession, HarnessRuntimeConfigurationError, normalize_runtime_event
 from .kernel_capability_preparation import PreparedKernelApplicationProfile
 from .kernel_reference_handoff import PreparedKernelReferenceHandoffs
 from .model_capability_context import PreparedModelCapabilityContext
@@ -36,6 +39,21 @@ from .task_record_reader import SelectedTaskRecordReader
 from .result_projection import normalize_result_projection
 from .catalog_answer import complete_catalog_answer
 from .attempt_research import AttemptResearch
+from .pi_delegation import PiTaskResult
+from .business_goal_dependency import business_dependencies_for_claim
+
+
+def external_observations_for_claim(claim: AttemptClaim) -> list[dict]:
+    """Validate trusted supplemental input without creating Authority claims."""
+    resources = {} if claim.turn_plan is None else getattr(claim.turn_plan, 'intent_resources', None) or {}
+    values = resources.get('external_observations', ())
+    if not isinstance(values, tuple) or len(values) > 16:
+        raise ValueError('typed external observations are invalid')
+    parent = resources.get('delegation_parent_attempt_id', claim.attempt.attempt_id)
+    if any(not isinstance(value, PiTaskResult) or value.status != 'completed'
+           or value.parent_attempt_id != parent for value in values):
+        raise ValueError('typed external observation is invalid')
+    return [value.to_document() for value in values]
 
 
 PreparedKernelSessionBuilder = Callable[
@@ -68,6 +86,25 @@ class PreparedKernelPiSessionFactory:
             _require_prepared_kernel_profile(contribution, claim.model_context)
             for contribution in context.contributions
         )
+        plan = claim.turn_plan
+        selected = (plan.intent_request.to_document().get('selected_skill')
+                    if plan is not None and plan.intent_request is not None else None)
+        if selected is None and claim.submission is not None and claim.submission.get('professional_resource') is not None:
+            selected = {**claim.submission['resource_profile'],
+                        'skill_id': claim.submission['input']['skill_id'],
+                        'skill_version': claim.submission['input']['skill_version']}
+        if selected is not None and plan is not None:
+            if selected['profile_id'] != 'harness_engine':
+                raise ValueError('native skill cannot enter a professional session')
+            from .professional_resources import restore_harness_selection
+            from .pi_intent import default_config_root
+            skill = restore_harness_selection(default_config_root().parent,
+                (claim.submission or {}).get('professional_resource'))
+            if (skill.profile_revision != selected['revision'] or skill.skill_id != selected['skill_id']
+                    or skill.skill_version != selected['skill_version']):
+                raise ValueError('accepted Harness selection does not match the task')
+            claim = replace(claim, turn_plan=replace(plan,
+                intent_resources={**(plan.intent_resources or {}), 'harness_skill_selection': skill}))
         session = self._builder(claim, context, prepared)
         if not callable(getattr(session, "start", None)) or not callable(
             getattr(session, "prompt_and_wait", None)
@@ -85,6 +122,7 @@ class PreparedKernelPiRpcSessionBuilder:
         runtime_host: RuntimeHost,
         resolved_llm: ResolvedLLM,
         base_environment: Mapping[str, str] | None = None,
+        workspace_root: Path | None = None,
         research_enabled: bool = False,
         research_is_active: Callable[[AttemptClaim], bool] | None = None,
     ) -> None:
@@ -102,6 +140,7 @@ class PreparedKernelPiRpcSessionBuilder:
         self._research_is_active = research_is_active
         self._resolved_llm = resolved_llm
         self._base_environment = None if base_environment is None else dict(base_environment)
+        self._workspace_root = workspace_root
         environment = os.environ if base_environment is None else base_environment
         self._timeout_seconds = float(environment.get('CAPSTONE_THREAD_ATTEMPT_TIMEOUT_SECONDS', '600'))
         if not 1 <= self._timeout_seconds <= 3600:
@@ -115,7 +154,7 @@ class PreparedKernelPiRpcSessionBuilder:
     ) -> PiPromptSession:
         del context
         if not profiles:
-            raise RuntimeError("Pi RPC session requires a prepared Domain Pack")
+            return self._build_empty_session(claim)
         workspace = profiles[0].workspace
         if claim.turn_plan is not None and claim.turn_plan.route == "ordinary":
             directory = workspace.core_path / "pi" / "attempts" / claim.attempt.attempt_id / "general-task"
@@ -210,8 +249,9 @@ class PreparedKernelPiRpcSessionBuilder:
         single = len(binding_runtimes) == 1
         single_runtime = binding_runtimes[0][1] if single else None
         ordinary = claim.turn_plan is not None and claim.turn_plan.route == "ordinary"
+        intent_request = getattr(claim.turn_plan, 'intent_request', None)
         system_policy_path = self._runtime_host.system_policy_path
-        if profiles:
+        if profiles and intent_request is None:
             system_policy_path = _compose_attempt_policy(
                 workspace.core_path / "pi" / "attempts" / claim.attempt.attempt_id,
                 self._runtime_host.system_policy_path,
@@ -223,6 +263,9 @@ class PreparedKernelPiRpcSessionBuilder:
                 prior_results=claim.prior_results,
                 previous_instruction=claim.previous_instruction,
             )
+        from .professional_resources import prepared_authority_environment
+        extra_environment = {**self._runtime_host.extra_environment,
+            **prepared_authority_environment(endpoint for _, _, endpoint in binding_runtimes)}
         paths = RuntimePaths(
             command=self._runtime_host.command,
             project_pi_dir=self._runtime_host.project_pi_dir,
@@ -235,11 +278,65 @@ class PreparedKernelPiRpcSessionBuilder:
             system_policy_path=system_policy_path,
             runtime_descriptor_path=descriptor_path,
             binding_id=binding_ids[0] if single else None,
-            extra_environment=self._runtime_host.extra_environment,
+            extra_environment=extra_environment,
         )
         launch = build_pi_launch(
             self._resolved_llm, paths, base_environment=self._base_environment,
         )
+        if intent_request is not None:
+            if claim.turn_plan is None or claim.turn_plan.intent_decision is None:
+                raise ValueError('semantic execution requires a validated intent decision')
+            from .pi_intent import NativeConversationPiSessionBuilder, prepare_context_launch
+            from .execution_context import execution_plan_for
+            native = NativeConversationPiSessionBuilder(
+                runtime_host=self._runtime_host, resolved_llm=self._resolved_llm,
+                workspace_root=workspace.root.parent, base_environment=self._base_environment,
+            )
+            if native.identity.to_document() != dict(claim.turn_plan.intent_engine or {}):
+                raise HarnessRuntimeConfigurationError('intent configuration changed before business execution')
+            launch = native.apply_configuration(launch, workspace, claim.attempt.attempt_id,
+                                                 domain_policy=self._runtime_host.system_policy_path)
+            request_document = intent_request.to_document()
+            decision_document = claim.turn_plan.intent_decision.to_document()
+            supplemental = {
+                'phase': 'execution', 'history_cutoff': request_document['history_cutoff'],
+                'history_truncated': request_document.get('history_truncated', False),
+                'execution_plan': execution_plan_for(intent_request, claim.turn_plan.intent_decision),
+                'model_context': claim.model_context.to_document(),
+                'bindings': [{'binding_id': profile.model_binding.binding_id,
+                              'context_ref': profile.model_binding.context_ref} for profile in profiles],
+                'prior_results': [{'result_ref': ref.result_ref, 'evidence_refs': list(ref.evidence_refs),
+                                   'capability_id': ref.capability_id, 'attempt_id': ref.attempt_id}
+                                  for ref in claim.prior_results],
+            }
+            external = external_observations_for_claim(claim)
+            if external:
+                supplemental['external_observations'] = external
+                supplemental['external_observation_policy'] = (
+                    'These are external observations, not Authority facts or model changes. '
+                    'Do not change a business model from this input. A model input needs explicit '
+                    'application authorization and Domain Pack validation for its units, time, '
+                    'location, target object, and mapping assumptions.')
+            dependencies = business_dependencies_for_claim(claim)
+            if dependencies:
+                supplemental['business_goal_dependencies'] = dependencies
+                supplemental['business_dependency_policy'] = (
+                    'These are application-admitted business goal outputs from this Attempt. '
+                    'They are resolved dependencies, not historical conversation or external observations. '
+                    'Their references remain subject to the selected Domain Packs and current-run '
+                    'Authority validation; they do not grant access to another profile or model.')
+            if any(goal['operation'] == 'catalog_lookup' for goal in decision_document['goals']):
+                supplemental['application_catalog'] = claim.application_catalog
+            launch = prepare_context_launch(launch, workspace, claim.attempt.attempt_id,
+                                             request_document['messages'], supplemental)
+        resources = {} if claim.turn_plan is None else getattr(claim.turn_plan, 'intent_resources', None) or {}
+        selected_skill = resources.get('harness_skill_selection')
+        if selected_skill is not None:
+            from .professional_resources import apply_harness_skill
+            prepared_bindings = {key: value for profile in profiles
+                                 for key, value in cast(Mapping, getattr(profile.prepared_application, "bindings")).items()}
+            launch = apply_harness_skill(launch, selected_skill, prepared_bindings,
+                workspace.core_path / "pi" / "attempts" / claim.attempt.attempt_id)
         launch = _with_selected_task_tool(launch, claim.selected_task_reader, attempt_directory,
                                          self._runtime_host.extension_path)
         launch = _with_model_input_metrics(launch, attempt_directory, self._runtime_host.extension_path)
@@ -265,6 +362,35 @@ class PreparedKernelPiRpcSessionBuilder:
                 core_catalog=CoreToolCatalog.default(include_research=research is not None)),
             reference_observer=handoffs.observe,
             research=research, research_reference_observer=references.observe,
+        )
+
+    def _build_empty_session(self, claim: AttemptClaim) -> PiPromptSession:
+        if self._workspace_root is None:
+            raise RuntimeError("Empty selection requires an application workspace root")
+        workspace = ApplicationWorkspace.create(self._workspace_root)
+        attempt_path = workspace.core_path / "pi" / "attempts" / claim.attempt.attempt_id
+        policy = _compose_attempt_policy(
+            attempt_path, None, include_generic=True,
+            application_catalog=claim.application_catalog,
+            model_context=claim.model_context,
+            previous_instruction=claim.previous_instruction,
+        )
+        paths = RuntimePaths(
+            command=self._runtime_host.command,
+            project_pi_dir=self._runtime_host.project_pi_dir,
+            session_dir=attempt_path / "session", workspace=workspace.root,
+            system_policy_path=policy,
+        )
+        launch = build_pi_launch(self._resolved_llm, paths, base_environment=self._base_environment)
+        secrets = {self._resolved_llm.secret.value} if self._resolved_llm.secret is not None else set()
+        trace = JsonlTraceWriter(workspace.core_path / "pi-events.jsonl", secret_values=secrets)
+        client = PiRpcClient(
+            launch, _RpcWorkspace(workspace.root), trace, secret_values=secrets,
+            correlation_id=claim.attempt.attempt_id, timeout_seconds=self._timeout_seconds,
+        )
+        return _KernelPiPromptSession(
+            client, trace, admission=_build_kernel_admission(()),
+            reference_observer=lambda event: None,
         )
 
 
@@ -383,6 +509,8 @@ def _render_attempt_model_context(
                 lines.append(serialized)
             else:
                 lines.append("Model metadata exceeds the initial context budget; retrieve needed fields through published tools.")
+    if not context.enabled_profiles:
+        lines.append("No calculation tools are enabled. Explain the capability boundary for model-specific facts or calculations; do not invent results or evidence.")
     if previous_instruction is not None:
         lines.extend([
             "## Selected historical task" if previous_instruction.model_context is not None else "## Latest previous instruction for this saved model Context",
@@ -439,6 +567,18 @@ def _render_application_catalog_context(
         if item.get("available") is False:
             availability = "worker unavailable"
         lines.append(f"- {display_name} ({model_id}) · family={family} · {availability}")
+    profiles = catalog.get("profiles")
+    if isinstance(profiles, list):
+        lines.extend([
+            "Registered calculation tool groups (catalog metadata, not enabled tools or calculation evidence):",
+            "Use Settings to enable compatible groups. The immutable Attempt selection determines which tools are actually enabled.",
+        ])
+        for profile in profiles[:128]:
+            if not isinstance(profile, Mapping):
+                continue
+            name, families = profile.get("display_name"), profile.get("implementation_families")
+            if isinstance(name, str) and isinstance(families, list) and all(isinstance(item, str) for item in families):
+                lines.append(f"- {name}: compatible families {', '.join(families)}")
     return "\n".join(lines)
 
 

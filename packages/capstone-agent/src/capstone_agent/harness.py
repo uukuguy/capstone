@@ -93,12 +93,41 @@ class AdmittedAttemptAnswer:
             raise ValueError("offline admission must not create run evidence")
 
 
+@dataclass(frozen=True, slots=True)
+class AdmittedPartialGoalAnswer(AdmittedAttemptAnswer):
+    """Trusted scheduler receipt: general work finished; business never started."""
+
+    completed_general_goal_ids: tuple[str, ...] = ()
+    unexecuted_business_goal_ids: tuple[str, ...] = ()
+
+    def __post_init__(self):
+        super(AdmittedPartialGoalAnswer, self).__post_init__()
+        if (self.mode != 'limited' or self.result_refs or self.evidence_refs
+            or not self.completed_general_goal_ids or not self.unexecuted_business_goal_ids
+            or any(not isinstance(identity, str) or not identity for identity in
+                   (*self.completed_general_goal_ids, *self.unexecuted_business_goal_ids))):
+            raise ValueError('partial goal admission is invalid')
+
+
 class HarnessRuntimeUnavailable(RuntimeError):
     """The requested replaceable runtime is not installed or enabled."""
 
 
 class HarnessRuntimeConfigurationError(RuntimeError):
     """Application runtime settings are invalid; prepared model resources remain valid."""
+
+
+def terminal_payload_for_admission(admission: AdmittedAttemptAnswer, *, answer: str | None = None) -> dict[str, object]:
+    """One payload projection shared by answer rendering and Thread persistence."""
+    assurance: dict[str, object] = {'mode': admission.mode, 'assurance': admission.assurance}
+    if admission.diagnostic_codes:
+        assurance['diagnostic_codes'] = list(admission.diagnostic_codes)
+    payload: dict[str, object] = {'answer': admission.answer if answer is None else answer,
+        'result_refs': list(admission.result_refs), 'evidence_refs': list(admission.evidence_refs),
+        'admission': assurance}
+    if admission.result_projections:
+        payload['result_projections'] = [dict(item) for item in admission.result_projections]
+    return payload
 
 
 @dataclass(frozen=True, slots=True)
@@ -681,6 +710,8 @@ class HarnessAttemptRunner:
             }
             if result_projections:
                 terminal_payload["result_projections"] = [dict(item) for item in result_projections]
+            if candidate is not None:
+                terminal_payload = terminal_payload_for_admission(candidate)
             if plan is not None and plan.shadow_decision is not None:
                 shadow_payload: dict[str, object] = {"status": "pending"}
                 if plan.shadow_decision.done():
@@ -742,6 +773,9 @@ class HarnessAttemptRunner:
         except _AttemptAdmissionError as error:
             lease.check()
             return self._deliver_failure(claim, error.code, "answer_check", recovery_attempted, lease.check)
+        except HarnessRuntimeConfigurationError:
+            lease.check()
+            return self._deliver_failure(claim, 'runtime_configuration_invalid', 'preparation', recovery_attempted, lease.check)
         except _AttemptCancelled:
             answer = "已按你的要求停止本次任务。已记录的执行过程仍保留，未完成的分析不作为结论。"
             self._finish_cancelled(claim, answer)
