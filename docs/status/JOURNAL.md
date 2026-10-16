@@ -3304,3 +3304,7 @@ The following original entries were retained during document synchronization.
 - 2026-10-16: 5f3fd741 merged PR #35; both preparation branches fast-forwarded to accepted controls, without business implementation or deployment.
 
 - 2026-10-16: 62f44366 adds final-argument host admission seam; real SDK tests cover refusal, recovery, steering and abort.
+
+- 2026-10-16: 711f06a8 records verified SDK seam and remaining production integration; application lines remain preparation-only.
+
+- 2026-10-16: PR #36 passed Linux/macOS CI38881419651 and merged into dev d8fe6e27; merge tree equals tested 711f06a8. Local-dev remains verified source62f44366, build711f06a8; new enterprise loop is pending.

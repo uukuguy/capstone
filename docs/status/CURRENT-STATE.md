@@ -11,6 +11,10 @@ Enterprise architecture v1 is the baseline; implementation contracts remain unde
 evidence and professional UI assets while generalizing one autonomous organization mechanism.
 Semantic contracts, state examples, acceptance fixtures and the file-level plan are present.
 Design checks passed; the new unified runtime integration and business acceptance remain open.
+The shared execution provider seam and real SDK baseline are integrated into dev.
+Task 2 owns model-independent work identity, Profile assembly and the minimum frontend
+adaptation; Task 3 still owns production inventory admission and continuous execution.
+Both application lines remain in preparation until their required shared capabilities run.
 Demo1/Demo2 are external examples. Native input contracts, extensible views and task-specific delivery
 requirements must not become built-in business metrics, fixed workflows or mandatory new solver capabilities.
 Execution constraints apply to affected actions and claims. Missing inputs, unresolved external actions

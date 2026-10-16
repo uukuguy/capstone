@@ -126,20 +126,31 @@ function fitGraph(){
  canvas.style.transform='scale('+scale+')';canvas.style.marginLeft=Math.max(0,(frame.clientWidth-canvas.offsetWidth*scale)/2)+'px';frame.style.height=Math.ceil(canvas.offsetHeight*scale)+'px';frame.style.overflow='hidden';
 }
 function draw(){
- const frame=el('graph-frame'),tree=el('tree'),width=Math.max(1000,frame.clientWidth),gap=Number(el('density').value)+12;
+ const rightPackages=new Set(['shared-agent','business-analysis','model-decision']);
+ const rightNode=n=>n.lane!=='main'&&!n.release_point&&rightPackages.has(n.package);
+ const hasRight=graphNodes.some(rightNode);
+ const frame=el('graph-frame'),tree=el('tree'),width=Math.max(hasRight?1320:1000,frame.clientWidth),gap=Number(el('density').value)+12;
  el('graph-canvas').style.width=width+'px';
  const place=(node,x,y,w)=>{node.style.width=w+'px';node.style.left=x+'px';node.style.top=y+'px';};
  const mains=graphNodes.filter(n=>n.lane==='main'&&!n.release_point).sort((a,b)=>levels[b.id]-levels[a.id]);
  const branches=graphNodes.filter(n=>n.lane!=='main'||n.release_point).sort((a,b)=>levels[b.id]-levels[a.id]||Number(a.release_point)-Number(b.release_point));
- // Keep dev at the centre and the main release separate; deployments bind to their exact sources.
- const mainWidth=branches.length?400:520,mainX=(width-mainWidth)/2,stageWidth=190,stageX=width-stageWidth,branchWidth=Math.min(280,mainX-48),branchX=Math.max(12,mainX-branchWidth-50);
- let mainBottom=8,branchBottom=8;
+ // Release/history stays left of dev; current foundation/application work sits
+ // right of dev, with exact-source deployment references in the outer lane.
+ const mainWidth=hasRight?360:branches.length?400:520,stageWidth=190;
+ // Centre the occupied four-lane group, rather than leaving a large blank
+ // margin left of a mathematically centred spine and crowded right-hand cards.
+ const groupX=(width-1240)/2;
+ const mainX=hasRight?groupX+330:(width-mainWidth)/2;
+ const stageX=hasRight?groupX+1050:width-stageWidth;
+ const branchWidth=hasRight?280:Math.min(280,mainX-48),branchX=hasRight?groupX:Math.max(12,mainX-branchWidth-50);
+ const rightX=mainX+mainWidth+50,rightWidth=280;
+ let mainBottom=8,branchBottom=8,rightBottom=8;
  mains.forEach(n=>{const node=el('commit-'+n.id);node.style.height='auto';place(node,mainX,mainBottom,mainWidth);mainBottom+=node.offsetHeight+gap;});
  graphStages.forEach(e=>{const stage=el('environment-node-'+e.name);stage.style.height='auto';if(!stage.dataset.ready){stage.innerHTML=deployment(e)+'<p class="muted">'+esc(environmentRoles[e.name])+'</p><details><summary>状态与验证记录</summary><p>'+esc(e.state)+'</p></details>';stage.querySelector('b').insertAdjacentHTML('afterbegin',icon(e.name.startsWith('local-')?'server':'cloud'));stage.dataset.ready='true';}});
- branches.forEach(n=>{const node=el('commit-'+n.id);node.style.height='auto';place(node,branchX,branchBottom,branchWidth);branchBottom+=node.offsetHeight+gap;});
+ branches.forEach(n=>{const node=el('commit-'+n.id);node.style.height='auto';if(rightNode(n)){place(node,rightX,rightBottom,rightWidth);rightBottom+=node.offsetHeight+gap;}else{place(node,branchX,branchBottom,branchWidth);branchBottom+=node.offsetHeight+gap;}});
  let stageBottom=8;
  [...graphStages].sort((a,b)=>el('commit-'+sourceNode(a).id).offsetTop-el('commit-'+sourceNode(b).id).offsetTop).forEach(e=>{const stage=el('environment-node-'+e.name),source=el('commit-'+sourceNode(e).id);stageBottom=Math.max(stageBottom,source.offsetTop);place(stage,stageX,stageBottom,stageWidth);stageBottom+=stage.offsetHeight+12;});
- tree.style.height=Math.max(mainBottom,branchBottom,stageBottom)+'px';
+ tree.style.height=Math.max(mainBottom,branchBottom,rightBottom,stageBottom)+'px';
  const svg=el('edges');svg.setAttribute('viewBox','0 0 '+width+' '+tree.clientHeight);svg.innerHTML='';
  const edgeStyles={main:{color:'#426c60',width:1.8},branch:{color:'#83639b',width:1.4},reference:{color:'#9a794f',width:1.1}};
  svg.innerHTML='<defs>'+Object.entries(edgeStyles).map(([kind,style])=>'<marker id="arrow-'+kind+'" markerUnits="userSpaceOnUse" markerWidth="7" markerHeight="8" refX="5" refY="4" orient="auto"><path d="M1 1 L5 4 L1 7" fill="none" stroke="'+style.color+'" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></marker>').join('')+'</defs>';
