@@ -16,6 +16,64 @@ from capstone_agent.thread_service import InMemoryThreadService, PostgresThreadS
 from capstone_agent.thread_catalog import CompositeThreadModelCatalog, ThreadModelCatalogEntry
 
 
+@pytest.mark.parametrize('version', ['2', '0', '99', '1, 2', ''])
+def test_unsupported_thread_version_does_not_mutate_commands(version):
+    service = _service()
+    before = service.snapshot('thr_demo_39').to_document()
+    with TestClient(_app(service), base_url='http://localhost') as client:
+        command = ThreadCommandFactory('thr_demo_39').switch_runtime(
+            'pi_reference', expected_event_seq=0, command_id='cmd_version', idempotency_key='idem_version')
+        response = client.post('/api/v1/threads/thr_demo_39/commands',
+            json=command, headers={**_auth(), 'Capstone-Thread-Version': version})
+    assert response.status_code == 406
+    assert response.json() == {'error': 'unsupported_thread_version', 'supported_versions': [1]}
+    assert service.snapshot('thr_demo_39').to_document() == before
+
+
+@pytest.mark.parametrize('headers', [{}, {'Capstone-Thread-Version': '1'}])
+def test_thread_version_echo_and_cors_cover_snapshot_and_events(headers):
+    with TestClient(_app(_service()), base_url='http://localhost') as client:
+        for path in ['/api/v1/threads/thr_demo_39',
+                     '/api/v1/threads/thr_demo_39/events?after=0',
+                     '/api/v1/threads/thr_demo_39/events/stream?after=0']:
+            response = client.get(path, headers={**_auth(), **headers})
+            assert response.status_code == 200
+            assert response.headers['Capstone-Thread-Version'] == '1'
+            assert {'origin', 'capstone-thread-version'} <= {
+                part.strip().lower() for part in response.headers['Vary'].split(',')}
+            assert 'capstone-thread-version' in response.headers['Access-Control-Expose-Headers'].lower()
+
+
+def test_version_preflight_and_auth_order():
+    with TestClient(_app(_service()), base_url='http://localhost') as client:
+        response = client.options('/api/v1/threads', headers={
+            'Origin': 'http://localhost:5173',
+            'Access-Control-Request-Method': 'POST',
+            'Access-Control-Request-Headers': 'capstone-thread-version'})
+        assert response.status_code == 204
+        assert 'capstone-thread-version' in response.headers['Access-Control-Allow-Headers'].lower()
+        unauthorized = client.get('/api/v1/threads/thr_demo_39',
+            headers={'Capstone-Thread-Version': '2'})
+        assert unauthorized.status_code == 401
+        assert client.get('/health/ready', headers={'Capstone-Thread-Version': '2'}).status_code == 200
+
+
+def test_unsupported_version_does_not_create_or_prepare_a_thread():
+    calls = []
+    class Creator:
+        def create(self, model_id):
+            calls.append('create')
+            return _service().snapshot('thr_demo_39')
+    app = create_host_app(_Ledger(), WorkerRegistry(()), operator_token='hosted-secret',
+        allowed_hosts={'localhost'}, allowed_origins={'http://localhost:5173'},
+        thread_service=_service(), thread_creator=Creator(),
+        prepare_model=lambda *args: calls.append('prepare'))
+    with TestClient(app, base_url='http://localhost') as client:
+        assert client.post('/api/v1/threads', json={},
+            headers={**_auth(), 'Capstone-Thread-Version': '2'}).status_code == 406
+    assert calls == []
+
+
 class _ModelCatalog:
     default_model_id = "ieee39"
 

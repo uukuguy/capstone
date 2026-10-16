@@ -54,4 +54,10 @@ describe('Thread browser-session recovery', () => {
     expect(canReconnect(new ThreadTransportError(403, 'forbidden'))).toBe(false)
     expect(canReconnect(new DOMException('cancelled', 'AbortError'))).toBe(false)
   })
+  it('stops automatic reconnection on version incompatibility while preserving cursor resync', () => {
+    for (const error of ['protocol_upgrade_required', 'unsupported_thread_version', 'thread_version_mismatch']) {
+      expect(canReconnect(new ThreadTransportError(409, 'version', { error }))).toBe(false)
+    }
+    expect(canReconnect(new ThreadTransportError(409, 'cursor', { error: 'resync_required' }))).toBe(true)
+  })
 })

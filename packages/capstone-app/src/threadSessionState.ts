@@ -1,4 +1,5 @@
 import { buildThreadCommand, type ThreadCommand } from './threadClient'
+import { isThreadVersionError } from './threadHttpTransport'
 
 const MAX_STORED_BYTES = 64 * 1024
 const MAX_DRAFT_CHARACTERS = 16_000
@@ -99,6 +100,7 @@ export function reconnectDelay(failures: number): number {
 
 export function canReconnect(error: unknown): boolean {
   if (error instanceof DOMException && error.name === 'AbortError') return false
+  if (isThreadVersionError(error)) return false
   const status = error && typeof error === 'object' && 'status' in error ? error.status : undefined
   return status === undefined || status === 409 || status === 429 || (typeof status === 'number' && status >= 500)
 }

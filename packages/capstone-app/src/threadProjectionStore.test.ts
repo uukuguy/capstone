@@ -4,6 +4,7 @@ import { createFixtureTransport, instructionOrdinal, ThreadProjectionStore } fro
 import { sampleDiagramView } from './networkFixture'
 import { historyContexts, historyFixture, historyWorkspace } from './threadHistory.test-support'
 import { parseEventEnvelope } from './threadProtocol'
+import { ThreadTransportError } from './threadHttpTransport'
 
 const context = {
   id: 'ctx_ieee39_7', model_id: 'ieee39', model_revision: '7',
@@ -466,6 +467,24 @@ function command(): ThreadCommand {
 }
 
 describe('ThreadProjectionStore', () => {
+  it('preserves the loaded snapshot and cursor when a newer server requires an upgrade', async () => {
+    let reads = 0
+    const sendCommand = vi.fn()
+    const store = new ThreadProjectionStore(new CapstoneThreadClient({
+      ...createFixtureTransport(idleFixture), sendCommand,
+      getSnapshot: async () => {
+        if (++reads === 1) return idleFixture.snapshot
+        throw new ThreadTransportError(409, '版本不兼容', { error: 'protocol_upgrade_required' })
+      },
+    }))
+    await store.load('thr_demo_39')
+    const snapshot = store.state.snapshot
+    const cursor = store.state.eventSeq
+    await expect(store.load('thr_demo_39')).rejects.toThrow('版本')
+    expect(store.state.snapshot).toBe(snapshot)
+    expect(store.state.eventSeq).toBe(cursor)
+    expect(sendCommand).not.toHaveBeenCalled()
+  })
   it('keeps the same Thread snapshot visible while reconnecting', async () => {
     let finish!: (value: unknown) => void
     let loads = 0

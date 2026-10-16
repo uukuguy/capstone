@@ -10,6 +10,54 @@ const command = {
 }
 
 describe('HttpThreadTransport', () => {
+  it('declares the supported version for JSON commands and SSE', async () => {
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response('{}', { headers: { 'Capstone-Thread-Version': '1' } }))
+      .mockResolvedValueOnce(new Response('{}', { headers: { 'Capstone-Thread-Version': '1' } }))
+      .mockResolvedValueOnce(new Response(''))
+    const transport = new HttpThreadTransport('', '', fetcher)
+    await transport.getSnapshot('thr_demo_39')
+    await transport.sendCommand(command)
+    for await (const _event of transport.streamEvents('thr_demo_39', 0)) { /* empty stream */ }
+    expect(new Headers(fetcher.mock.calls[0][1]?.headers).has('Capstone-Thread-Version')).toBe(false)
+    for (const [, init] of fetcher.mock.calls.slice(1)) {
+      expect(new Headers(init?.headers).get('Capstone-Thread-Version')).toBe('1')
+    }
+  })
+
+  it('keeps legacy CORS requests free of unadvertised headers and never resends a write', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async (_url, init) => {
+      if (new Headers(init?.headers).has('Capstone-Thread-Version')) throw new TypeError('Legacy CORS preflight denied')
+      return new Response('{}')
+    })
+    const transport = new HttpThreadTransport('https://legacy.example', '', fetcher)
+    await transport.getSnapshot('thr_demo_39')
+    await transport.sendCommand(command)
+    expect(fetcher).toHaveBeenCalledTimes(2)
+  })
+
+  it.each(['json', 'stream'])('rejects a mismatched %s response before reading its body', async (kind) => {
+    const cancel = vi.fn()
+    const body = new ReadableStream({ cancel })
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(body, {
+      headers: { 'Capstone-Thread-Version': '2' },
+    }))
+    const transport = new HttpThreadTransport('', '', fetcher)
+    const result = kind === 'json' ? transport.getSnapshot('thr_demo_39')
+      : transport.streamEvents('thr_demo_39', 0).next()
+    await expect(result).rejects.toMatchObject({
+      status: 409, body: { error: 'thread_version_mismatch' },
+    })
+    expect(cancel).toHaveBeenCalledOnce()
+    expect(fetcher).toHaveBeenCalledOnce()
+  })
+
+  it.each(['unsupported_thread_version', 'protocol_upgrade_required'])('explains %s without a generic service failure', async (error) => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ error }), { status: 409 }))
+    const transport = new HttpThreadTransport('', '', fetcher)
+    await expect(transport.getSnapshot('thr_demo_39')).rejects.toThrow(/版本/)
+  })
+
   it('reads only the selected task record page without submitting a command', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
       schema: 'capstone-attempt-records/1', thread_id: 'thr_1', attempt_id: 'attempt_1',

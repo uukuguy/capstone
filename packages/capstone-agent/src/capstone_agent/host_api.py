@@ -146,6 +146,9 @@ def create_host_app(
     @app.middleware("http")
     async def access(request: Request, call_next):
         request.state.public_demo = False
+        thread_resource = (request.url.path == '/api/v1/threads'
+                           or request.url.path.startswith('/api/v1/threads/'))
+        thread_version = request.headers.get('Capstone-Thread-Version', '1')
         if request.url.path != "/health/ready" and request.url.hostname not in allowed_hosts:
             return JSONResponse({"error": "invalid_host"}, status_code=400)
         origin = request.headers.get("origin")
@@ -168,16 +171,26 @@ def create_host_app(
                 response = JSONResponse({"error": "unauthorized"}, status_code=401)
             else:
                 request.state.public_demo = demo_authorized
-                response = await call_next(request)
+                if thread_resource and not demo_authorized and thread_version != '1':
+                    response = JSONResponse({'error': 'unsupported_thread_version',
+                                             'supported_versions': [1]}, status_code=406)
+                else:
+                    response = await call_next(request)
         response.headers["Cache-Control"] = "no-store"
         response.headers["X-Content-Type-Options"] = "nosniff"
+        if thread_resource:
+            response.headers.append('Vary', 'Capstone-Thread-Version')
+            if thread_version == '1':
+                response.headers['Capstone-Thread-Version'] = '1'
         if origin is not None:
             response.headers["Access-Control-Allow-Origin"] = origin
-            response.headers["Vary"] = "Origin"
+            response.headers.append("Vary", "Origin")
             response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
             response.headers["Access-Control-Allow-Headers"] = (
-                "Authorization, Content-Type, Idempotency-Key"
+                "Authorization, Content-Type, Idempotency-Key, Capstone-Thread-Version"
             )
+            if thread_resource:
+                response.headers['Access-Control-Expose-Headers'] = 'Capstone-Thread-Version'
         return response
 
     def get_session(session_id: str, request: Request) -> SessionRecord:

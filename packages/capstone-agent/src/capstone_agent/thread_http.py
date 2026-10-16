@@ -48,6 +48,10 @@ def _decode(status_code: int, is_success: bool, content: bytes) -> Any:
     except (json.JSONDecodeError, ValueError) as error:
         raise ThreadHttpError(status_code, "Thread response is not JSON") from error
     if not is_success:
+        if isinstance(body, dict) and isinstance(body.get('error'), str) and body['error'] in {
+            'unsupported_thread_version', 'protocol_upgrade_required',
+        }:
+            raise ThreadHttpError(status_code, 'Thread protocol version is incompatible; update the client', body)
         raise ThreadHttpError(status_code, f"Thread request failed ({status_code})", body)
     return body
 
@@ -88,6 +92,7 @@ class HttpThreadSession:
         extra_headers = kwargs.pop("headers", None)
         if extra_headers:
             headers.update(extra_headers)
+        headers['Capstone-Thread-Version'] = '1'
         if json_body is not None:
             try:
                 request_size = len(json.dumps(json_body, ensure_ascii=False, allow_nan=False).encode())
@@ -96,6 +101,9 @@ class HttpThreadSession:
             if request_size > MAX_JSON_BYTES:
                 raise ThreadHttpError(413, "Thread request exceeds the bounded JSON limit")
         with self.client.stream(method, f"{self.api_origin}{path}", headers=headers, json=json_body, **kwargs) as response:
+            if response.is_success and response.headers.get('Capstone-Thread-Version') not in {None, '1'}:
+                raise ThreadHttpError(409, 'Thread protocol version is incompatible; update the client',
+                                      {'error': 'thread_version_mismatch'})
             content = bytearray()
             for chunk in response.iter_bytes():
                 content.extend(chunk)
