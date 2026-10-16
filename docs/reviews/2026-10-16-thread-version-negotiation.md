@@ -40,7 +40,9 @@ receipt cannot hide the upgrade message. Existing network recovery remains.
   a direct request with that header fails preflight, proving the compatibility case.
 - Graph: 21 nodes/27 edges, checked at 1280 and 1920 widths; no overlap,
   crossing, through-card path or horizontal overflow. Final merge graph is regenerated.
-- Hosted PR acceptance remains pending.
+- PR #44 accepted exact `1a695af4` in CI38907004425: Linux4m58s, macOS8m35s.
+  Normal merge `32f18d24` has the exact tested Git tree. Root dev fast-forwarded;
+  implementation branch closed. No full release claim or remote deployment.
 
 ## Scope
 
