@@ -3407,3 +3407,5 @@ The following original entries were retained during document synchronization.
 - 2026-10-17: 4abdb711 records conversation-first delivery and full mature UI reuse; rejected save/start acceptance remains withdrawn.
 
 - 2026-10-17: PR51 mergeda8caeff2 with identical tested tree; macOS governance CI38945827751 passed1m46s; application preparation branches fast-forwarded.
+
+- 2026-10-17: Five original scripted professional cases passed fifteen turns; UI adaptation retains mature typography at 1440px. No Provider validation.

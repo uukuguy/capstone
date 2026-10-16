@@ -2,30 +2,43 @@
 
 Updated: 2026-10-17. Active work; no final handoff.
 
-## Current action
+## Accepted direction
 
-- LATEST USER CORRECTION supersedes remaining checkpoint: new task = new conversation; enterprise-research/grid-analysis only preconfigure ApplicationProfile; unified shared execution between messages. No save/start flow or extra start button. Full existing dialogue area/features must be adapted, not simplified by props/text-only composer. Saved Work is internal progress, not delivery. Design corrections committed4abdb711 locally, not pushed; later control updates remain dirty.
-- PR50 is now DRAFT; CI38941770837 cancelled, never count as accepted. Backend assets retained. Frontend acceptance withdrawn in review report. Root branch feat/work-attempt-binding at4abdb711, local-dev stilla8b4e578 old candidate. Do not merge PR50 until full normal dialogue/feature parity corrected.
-- CI policy PR51 merged a8caeff2, tree equalsa14169aa. macOS governance CI38945827751 passed1m46s; earlier38945218238 cancelled. 120tests/2skipped,doctor,independent review passed. Remote dev requiresmacOS; main stillboth. dev and both preparation branches fast-forwardeda8caeff2. Policy source branch closed. Worktree .worktrees/dev-macos-ci now docs/conversation-delivery-control, root prepares control-only PR fromnewdev; do not switch root while backend WIP.
-- Backend worker work_protocol_backend IMPLEMENTING normal dialogue in ROOT worktree, owns Python/backend tests plus needed runtime/deploy configs. Does not own App/docs/CI. Canonical plan docs/superpowers/plans/2026-10-17-enterprise-normal-conversation.md committed in4abdb711. Shared send_message must atomically input+Attempt; no fake model; same queue/worker/Harness/general Pi. Native current_attempt neutral with nullable model and work_id. Must preserve original InputSubmission/skills/context contract; text-only would repeat rejected simplification. No Provider authorization.
-- UI audit /tmp/enterprise-normal-chat-ui-scope.md lists full component feature parity and conflicting old design. UI worker currently completed read-only; start implementation after backend wire/foundation freeze (skill sequential implementation), using mature single render tree/controller, no independent enterprise chat.
-- Next: align control on dev; finish backend and independent review, complete shared full UI, tests/rebuild/browser; actual Provider dialogue acceptance needs explicit authorization only after concrete ready implementation. Do not claim full application delivery based on offline fixtures or save/restore.
+- Latest UI: standard width1440px; preserve mature dialogue font sizes/line heights, no global enlargement. Resizable conversation/result split remembers ratio. Default-hidden result pane opens on first new persisted displayable result; history restoration does not steal focus. User label is 引用资料, not 来源侧窗; execution remains inline. Generic document artifact contracts remain pending.
 
-## Earlier checkpoint (superseded by latest corrections)
+- LATEST: ordinary/native, enterprise research and grid analysis are NOT hard-switch runtime modes. One conversation and Harness choose native/professional/composed actions within Profile grants. Grid-first is only implementation/validation priority. Reply actions follow real per-answer artifacts/sources/operations, never application-name switches. Do not create separate grid/research chat routes or require users to choose an execution mode.
 
-- PR50 targets dev from feat/work-attempt-binding, head5e7fccc1. Product implementation1af3c52a, fixture correctioneb51d354, lease fixa8b4e578. Linux/macOS product CI38941770837 running. No further product changes planned before merge.
-- Independent backend/UI/lease reviews approve. Full backend1465 passed/2 skipped, App552 passed, professional938 passed/3 skipped, simulator244 passed/2 skipped. All other make check-pr targets passed in segmented runs. Logs /tmp/work-attempt-backend-final.log, /tmp/work-attempt-remaining-clean-env.log. Tests require loopback NO_PROXY/no_proxy and no inherited GRID_AGENT_LLM_MODEL/PROVIDER.
-- Final canonical rebuild ready. API and both workers1153 files matcha8b4e578, image6aa4d1901cdc; App build identitya8b4e578. Receipt runs/work-attempt-binding/local-identity.json.
-- Actual browser acceptance passed: professional v1 read unchanged, first Work save upgradesv2; supplement/reload retains two messages, Work revision2/goal_revision1; start enabled with real model but not clicked. Thread thr_ff5128f155a022d6e65a, Work work_9e5baab14671da22c2c3. Model-free thr_c32d0f45308b7340e885 stays readable and cannot start. No Provider or task execution. Desktop/390px no overflow, console clean. Report output/playwright/work-attempt-browser-acceptance.md and screenshots work-attempt-work-ready-desktop.png/work-attempt-work-restored-mobile.png.
-- Next: await CI, verify merge tree equals tested head, merge normally, fast-forward dev and both application preparation branches, close merged source branch, update report/register/plan and regenerate graph on dev. Preserve977601f9/d4600ddc and exact deployment sources. No cloud/demo/main release.
+- New task means new conversation. enterprise-research/grid-analysis preconfigure ApplicationProfile; one shared execution chain handles all sends. No save/start workflow or extra start button. Work/Attempt remain internal identities.
+- Reuse mature public dialogue functions: structured input, streaming, records, stop/retry, drafts, history and mobile interaction. Adapt original grid-specific controls by Profile/resources; do not blindly copy the old application. Enterprise layout/navigation/artifacts follow accepted design. No second chat/store/SSE implementation.
+- Ordinary chat needs no model, complete skills/MCP catalog or completed research graph. Enterprise web access defaults off. No Provider authorization; no cloud/demo/main promotion.
+- macOS is the development gate; Linux/macOS remain required for main and user release. Saved Work/offline fixtures do not establish application delivery.
 
-## Scope and baseline
+## Git and current work
 
-- Accepted dev885b2c14 includes PR48d86cc4ef and PR49 control. Both preparation branches feat/business-analysis and feat/model-decision remain885b2c14 until integration.
-- Enterprise workspace uses existing ThreadWorkspace, CapstoneAssistantThread and ComposerSurface under the accepted graphite/warm-white design. Do not restore the rejected standalone frontend.
-- enterprise-research is 企业研究与分析, intranet default with public web off unless explicitly enabled; grid-analysis is 电网分析与决策, retaining existing pandapower/PyPSA assets. New Profile assemblies remain pending.
-- Current slice binds Work to existing professional Attempt execution/cancel/recovery. Task3 model-free continuous Pi organization and Task5 full artifacts workspace remain. No Demo1/Demo2 or business-quality completion claim.
-- maincf72393b, cloud-dev24d9a325, local/cloud-demo faa6af9 and user e2eaee2 remain unchanged.
+- Root branch feat/work-attempt-binding HEAD4abdb711; backend implementation is dirty and PAUSED. Do not switch/stash or stage agent-owned files. PR50 remains DRAFT, remote5e7fccc1; old CI38941770837 cancelled. Rejected frontend acceptance remains withdrawn.
+- PR51 merged a8caeff2: macOS development policy, main/release dual-platform. PR52 merged45913f1c: conversation delivery/control alignment, tree identical to af05f6e4, macOS docs CI38947256986 passed1m28s. dev and both application preparation branches now45913f1c. Remote source branches closed.
+- .worktrees/dev-macos-ci now checks out dev. Its latest register/graph and user adaptation clarification are dirty control updates. Root has matching control/design updates. Root product branch still needs dev integration after backend changes are committed safely.
+- Backend agent work_protocol_backend owns Python/backend tests and needed runtime/deploy wiring; no App/docs/CI or commits. Frozen send_message preserves original InputSubmission, current_attempt is neutral with work_id/null model, conversation_mode permits empty pending messages after success; ledger retains complete history. Failure/cancel/lease loss preserve pending inputs.
+- Native source review APPROVE after history/policy/duplicate-Work fixes. 45focused +16Node passed; real RPC child completed but parent Harness runtime_failed, unresolved. No final fullsuite/type rerun. Recovery /tmp/native-chat-backend-checkpoint.md, 41path manifest /tmp/native-chat-backend-manifest.txt. Preserve all WIP; not application delivery.
+- UI agent review_work_ui IMPLEMENTING in .worktrees/model-decision (feat/model-decision), owns App only, no commits. Setup/install-pi/doctor done; baseline ThreadFixtureApp+ThreadCaseInteraction86passed. Root owns docs there. Same complete mature ThreadFixtureApp/automatic send_auto; neutral workspace presentation, capability/artifact-driven reply actions. No new grid/research route or runtime mode. Existing v2 history remains readable/recoverable, cannot downgrade or fake model/native execution.
+- Backend reviewer review_work_backend completed /tmp/native-chat-backend-review.md, spec/quality APPROVE for source slice; no actual E2E claim. v2diff /tmp/native-chat-backend-review-v2.diff. Thread Profile/registration, actual SDK/Provider acceptance remain explicit gaps.
+
+## Next actions
+
+LATEST USER STEERING: prioritize adapting the original mature grid dialogue to grid-analysis and rerun its existing validation cases. Complete the current native backend fixes, but do not make the entire enterprise-research path a prerequisite. Shared reply actions must be capability/artifact-driven: preserve grid actions for grid; enterprise uses public actions and real artifacts/sources, not disabled grid icons. Update the UI implementation assignment accordingly.
+
+1. Finish shared mature UI adaptation on feat/model-decision, existing grid/case/input/history tests and full App checks; independent review.
+   Preserve and integrate committed a8b4e578 backend assets before rebuilding: dev45913f1c cannot read newer local-dev Work records. Do not include root native WIP or rebuild older dev onto current data.
+2. Rebuild exact verified candidate via canonical entry point, verify source/image and actual desktop/mobile browser. Preserve local-demo and existing data; do not accidentally retain root-worktree Vite process.
+3. Run original registered validation examples within actual available authorization; report deterministic/offline vs Provider evidence separately. Ask only for genuinely missing required Provider approval after concrete implementation is ready.
+4. Integrate accepted UI through PR to dev, align graph/source nodes and both preparation branches as appropriate. Native WIP remains recoverable separately; do not merge its failing slice.
+
+## Verification and runtime references
+
+- local-dev still a8b4e578 old internal candidate; image6aa4d1901cdc, API8767/App5173. No normal-chat deployment yet. Receipt runs/work-attempt-binding/local-identity.json. Maincf72393b, cloud-dev24d9a325, local/cloud-demo faa6af9, user e2eaee2 unchanged.
+- Earlier retained backend assets:1465passed2skip, App552passed, professional938passed3skip, simulator244passed2skip. Logs /tmp/work-attempt-backend-final.log and /tmp/work-attempt-remaining-clean-env.log. Do not relabel these as new normal-chat tests.
+- Temporary PG capstone-work-protocol-test port55439; separate database per test run. Set NO_PROXY/no_proxy for loopback and unset inherited GRID_AGENT_LLM_MODEL/PROVIDER for tests. No Provider calls.
+- dev graph latest browser check:27nodes36edges, zero overlap/crossing/through/overflow; output/playwright/conversation-control-dev-45913f1c.png. Use cache-busted URL when reading regenerated HTML. Older enterprise screenshots show rejected save/start UI and are not acceptance.
 
 ## Control and recovery
 

@@ -1,5 +1,9 @@
 # docs/status INDEX
 
+- 2026-10-17: 研发先复用成熟电网对话并回归原样例；不是普通/研究/电网模式硬切换。Harness统一自主组织，回复动作按真实产物呈现。`feat/model-decision`已启动共享界面适配，native后端改动保留待续、RPC父链未验收。
+
+- 2026-10-17: PR #52已将正常对话交付标准合入dev `45913f1c`；公共对话能力完整复用，原应用专用控件按Profile适配。[推进图](PROJECT-OVERVIEW.html)已对齐三线HEAD与实际部署，应用实现仍在研发。
+
 - 2026-10-17: 用户撤回简化对话区验收；[正常对话实施计划](../superpowers/plans/2026-10-17-enterprise-normal-conversation.md)要求新任务即会话、Profile预配置、统一发送执行及完整成熟对话功能。PR #50草稿，内部后端资产保留；macOS研发规则已由PR #51合入dev a8caeff2。
 
 - 2026-10-17: [统一实施计划](../superpowers/plans/2026-10-16-enterprise-unified-execution.md)当前切片为[Work绑定真实Attempt与研究状态](../reviews/2026-10-17-work-attempt-binding.md)；feat/work-attempt-binding开发中，运行与集成状态仍以已验收来源为准。
