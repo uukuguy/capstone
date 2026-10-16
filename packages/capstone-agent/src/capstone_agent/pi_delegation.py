@@ -349,7 +349,7 @@ class HttpGeneralPiExecutor:
         try:
             from .bounded_http_loop import run_http
             return run_http(bounded_fetch())
-        except TimeoutError:
+        except (TimeoutError, httpx.TimeoutException):
             checkpoint()
             raise TimeoutError("Pi transport deadline expired; task state is unknown") from None
         except (httpx.HTTPError, json.JSONDecodeError, UnicodeDecodeError):

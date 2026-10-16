@@ -403,6 +403,21 @@ def test_cancel_has_total_budget_for_continuous_slow_body(service):
     assert time.monotonic() - start < 0.85
 
 
+@pytest.mark.parametrize("timeout_kind", ["ConnectTimeout", "ReadTimeout", "WriteTimeout", "PoolTimeout"])
+def test_cancel_preserves_transport_timeout_classification(monkeypatch, timeout_kind):
+    import httpx
+
+    original_client = httpx.AsyncClient
+
+    def fail(request):
+        raise getattr(httpx, timeout_kind)("transport timeout", request=request)
+
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **kwargs: original_client(
+        transport=httpx.MockTransport(fail), **kwargs))
+    with pytest.raises(TimeoutError, match="task state is unknown"):
+        executor("http://127.0.0.1:8790").cancel("task-1")
+
+
 @pytest.mark.parametrize("reason", ["cancel", "deadline"])
 def test_event_callback_parent_stop_prevents_completed_return(service, reason):
     origin, state = service
