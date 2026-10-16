@@ -10,7 +10,7 @@
 - 根目录已返回dev并快进。Pi工作树detached abf2f797，全部数据保留；本地/远端长期Pi分支已关闭，refs/archive/20261016/feat-pi-skills-integration保留来源。发布分支也已关闭。
 - local-dev按规范从abf2f797重建；API与双worker同d6acc8c镜像，各1139个实际打包文件同源，general-pi健康，旧Thread页面可读。原五个数据卷及会话/事件/工件计数不变。App源码身份abf2f797，repositoryRevision跟随根dev；后端构建来源不能仅因合并而改写。
 - 用户e2交付包、19173、local-demo及两云端环境不变。本轮零Provider调用。
-- 收口完成：控制PR #32经双平台CI38870266248通过后合入fc3bdada；根目录dev与origin/dev一致，控制分支已关闭。图形14节点无重叠、连线穿卡及横向溢出；链接、symlink、diff和doctor通过。下一任务为下述统一执行Task 1，不重复已完成合并。
+- 收口完成：控制PR #32经双平台CI38870266248通过后合入fc3bdada；图示修复PR #33随后合入fccdefca（双平台CI38871600375通过），根目录dev与origin/dev一致，控制分支已关闭。图形14节点/19边在1280和1920宽度无重叠、连线交叉、穿卡及横向溢出，保留dev第一父节点主线；链接、symlink、diff和doctor通过。下一任务为下述统一执行Task 1，不重复已完成合并。
 
 ## 验证与恢复依据
 
@@ -23,6 +23,8 @@
 - Pi工作树仅可能保留本次journal追加；不要删除工作树、忽略的运行资源或var数据。
 
 ## 后续研发入口
+
+- 最新已接受决定：共同基座同时服务对话和企业执行，通用修复增强在两个入口验证受影响行为。三工作包为共同基座、对话维护、企业执行；后者含业务分析与报告、模型分析与决策。简单对话不强制研究或文件成果；dev集成不等于对话发布。设计与计划已更新，尚未实施。
 
 - 活动计划：docs/superpowers/plans/2026-10-16-enterprise-unified-execution.md。
 - 对话应用旧计划改为交付和维护记录，不是新一轮大升级清单。

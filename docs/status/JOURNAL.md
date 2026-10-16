@@ -3290,3 +3290,7 @@ The following original entries were retained during document synchronization.
 - 2026-10-16: 918d73a8 aligned accepted main/dev merges, runtime sources and control graph; enterprise design remains pending.
 
 - 2026-10-16: fc3bdada merged control PR #32 after both platform checks; root dev restored and merged branches closed.
+
+- 2026-10-16: 28860025 separated graph routes and restored verified dev first-parent continuity; browser crossing checks passed.
+
+- 2026-10-16: fccdefca merged graph routing PR #33 after dual-platform checks; dev restored, feature branch closed.
