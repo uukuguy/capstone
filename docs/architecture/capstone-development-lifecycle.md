@@ -50,8 +50,11 @@ Open focused research branches when needed and return accepted changes to dev. F
 conversation-oriented development remains possible without maintaining a second permanent
 development branch. Release scope and exact delivered artifacts remain distinct from dev progress.
 
-Both dev and main require the existing Linux/macOS Actions checks, PRs and zero
-mandatory approvals; force push and deletion are blocked. Administrator emergency
+Both dev and main require PRs and zero mandatory approvals; force push and deletion
+are blocked. During development, dev requires `verify (macos-latest)`; ordinary
+feature PRs also run on macOS. Main requires both `verify (macos-latest)` and
+`verify (ubuntu-latest)`. Linux remains a supported user-trial platform and must
+pass full release verification before delivery. Administrator emergency
 bypass remains available and must be recorded if used. Local-dev normally follows
 a recorded dev source, with explicit temporary feature candidates allowed.
 Cloud-dev validates selected development sources. Local-demo and cloud-demo
@@ -101,7 +104,7 @@ all offline, E2E, packaging and release checks after each edit. Local API, worke
 or App changes still use the canonical local rebuild before deployment claims.
 
 Dev PRs and pushes select documentation, bounded governance contracts, shared-agent
-or foundation dependency regression, or `make check-pr` on Linux and macOS. Python source/tests
+or foundation dependency regression, or `make check-pr` on macOS. Python source/tests
 under capstone-agent and TypeScript/TSX/CSS under capstone-app/src use the shared-agent
 gate: package boundaries, global type checks, complete agent and Kernel suites,
 App tests/build and client tests. This includes registered worker regression.
@@ -121,12 +124,19 @@ branch pushes do not run a second copy of the PR workflow. New revisions cancel
 obsolete automatic runs for the same event and ref. The PR gate checks formal
 applications, Authorities, Domain Packs, Kernel, App and registered workers.
 It excludes the old grid CLI suite, full validation suites and distribution
-installation checks. The required CI job names remain unchanged.
+installation checks. Daily development runs only `verify (macos-latest)` to keep
+iteration short. The job names remain stable when Linux is included for release.
 
 Baseline and release acceptance explicitly run `make check-release` on both
 platforms through the `verify` workflow with `release=true`. A successful PR gate
 does not prove baseline or release acceptance. Existing deployment verification
 and exact source/image promotion requirements still apply.
+
+Issue automation uses the trusted development policy's macOS CI requirement only
+when the actual PR target is dev. Main, explicit release checks and missing or
+unknown target context require both macOS and Linux; a macOS-only result cannot
+pass those checks. The PR target comes from GitHub's PR response, not the local
+policy reference or a caller's deployment label.
 
 The application no longer requires compatibility with the `grid-agent` CLI.
 Its package still holds runtime modules used by the formal pandapower worker.

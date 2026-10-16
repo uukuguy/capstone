@@ -279,7 +279,7 @@ class GitHub:
         result = self.api("GET", self.base + f"/compare/{merge_sha}...{release_sha}")
         return result.get("status") in {"ahead", "identical"} and result.get("merge_base_commit", {}).get("sha") == merge_sha
 
-    def checks(self, sha):
+    def checks(self, sha, *, target_branch=None, release=False):
         import re
         if not re.fullmatch(r"[a-f0-9]{40,64}", sha):
             raise ValueError("Checks require an exact commit SHA")
@@ -294,7 +294,7 @@ class GitHub:
         output = {}
         trusted = [r for r in rows if r.get("head_sha") == sha and r.get("app", {}).get("slug") == "github-actions" and r.get("app", {}).get("owner", {}).get("login") == "github"]
         latest_suite = max((r.get("check_suite", {}).get("id", -1) for r in trusted), default=-1)
-        for name in self.policy.required_ci:
+        for name in self.policy.ci_requirements(target_branch=target_branch, release=release):
             matching = [r for r in trusted if r["name"] == name and r.get("check_suite", {}).get("id") == latest_suite]
             output[name] = bool(matching) and all(r.get("head_sha") == sha and r["status"] == "completed" and r["conclusion"] == "success" for r in matching)
         return output
