@@ -9,6 +9,36 @@ function canonical(value) {
   return value;
 }
 
+function freezeArguments(value) {
+  if (value && typeof value === "object") {
+    for (const child of Object.values(value)) freezeArguments(child);
+    Object.freeze(value);
+  }
+  return value;
+}
+
+// Host-owned tool-provider seam. Admission runs after SDK extension hooks and
+// immediately before this tool's execute boundary. The caller owns policy and
+// receipt persistence; this wrapper does not grant resources or certify results.
+export function guardToolExecution(tool, admit) {
+  if (typeof admit !== "function") throw new TypeError("Execution admission is required");
+  const toolName = tool.name;
+  const execute = tool.execute.bind(tool);
+  return { ...tool, async execute(toolCallId, params, signal, onUpdate, ...context) {
+    signal?.throwIfAborted();
+    const args = freezeArguments(structuredClone(params));
+    const decision = await admit({ toolName, toolCallId, args }, signal);
+    signal?.throwIfAborted();
+    if (decision?.accepted !== true) {
+      // Admission supplies a reader-safe explanation so the agent can repair
+      // this action or select independent work. Do not expose raw policy state.
+      throw new Error(typeof decision?.reason === "string" && decision.reason.trim()
+        ? decision.reason : "Host did not admit this tool action");
+    }
+    return execute(toolCallId, structuredClone(args), signal, onUpdate, ...context);
+  } };
+}
+
 export function verifyMcpPublication(session, config) {
   if (!config.mcp) return {};
   for (const [name, schema] of Object.entries(config.mcp.descriptor.tool_schemas)) {

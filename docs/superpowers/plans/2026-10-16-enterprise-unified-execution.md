@@ -78,6 +78,10 @@ ModelContextSnapshot导入现有thread_protocol，空tuple合法；专业执行�
 
 ## Task 1：固化已跑通基线与接缝约束
 
+2026-10-16：执行provider接缝与真实SDK离线测试已实现（62f44366）；14项通过，既有Python基线101通过/1跳过。
+[基线报告](../../reviews/2026-10-16-shared-execution-baseline.md)区分已验证接缝和未接入生产的许可/租约/完整工具装配。
+复用既有Python基线，不新增重复fixture；Task 1尚不代表前端闭环已交付。
+
 **Files:** 新建`packages/capstone-agent/tests/test_enterprise_baseline.py`及
 `packages/pi-grid-tools/test/enterprise-bridge.test.mjs`；读取现有`thread_worker.py`、`thread_service.py`、
 `thread_application.py`、`resources/general-sdk.mjs`。本任务不替换专业运行器。
@@ -86,7 +90,7 @@ ModelContextSnapshot导入现有thread_protocol，空tuple合法；专业执行�
 **Produces:** `enterprise-baseline`验证回执和桥前置拦截契约；不用新Agent服务。
 
 - [ ] 记录真实入口、既有案例、结果/证据身份、报告和网络投影；从现有fixture复用输入，不复制业务逻辑。
-- [ ] 增加参数被扩展修改后的执行边界测试：最终参数须重新验证；拒绝调用时执行计数保持0。
+- [x] 增加参数被扩展修改后的执行边界测试：最终参数须重新验证；拒绝调用时执行计数保持0。
 
 ```javascript
 // Test the real SDK runner path and the host execution guard, without a Provider.
@@ -96,8 +100,8 @@ assert.notEqual(proposedDigest, mutatedDigest);
 assert.equal(finalGuard.accepted, false);
 ```
 
-- [ ] 验证持久session重开、消息追加、abort后的实际操作回执；持久对象放临时私有目录，测试结束清理。
-- [ ] Run `node docs/design/probe-pi-design.mjs`；再运行新增`node --test packages/pi-grid-tools/test/enterprise-bridge.test.mjs`。
+- [x] 验证持久session重开、消息追加、abort后的实际操作回执；持久对象放临时私有目录，测试结束清理。
+- [x] Run `node docs/design/probe-pi-design.mjs`；再运行新增`node --test packages/pi-grid-tools/test/enterprise-bridge.test.mjs`。
   前者验证SDK接缝存在，后者必须覆盖完整宿主guard；二者不可互相替代。
 - [ ] 若guard不可在副作用前控制所有获准工具，停止后续生产接入，修tool provider；不降为日志后审计。
 - [ ] 按仓库现有专业测试路径运行并保存基线，提交测试和回执。
