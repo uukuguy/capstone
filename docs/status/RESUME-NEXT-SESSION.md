@@ -5,13 +5,14 @@
 ## 当前恢复点
 
 - 最新任务：用户要求阶段完整对话应用收口main，Pi有效成果收口dev并关闭长期Pi线；后续具体研究才开分支。
-- 发布范围已问清：实际交付e2eaee2与含后续小修复的dev f209fb1需确定。两者都不含Pi新增研发能力。
-- Pi工作树正运行make check-pr，日志/tmp/capstone-pi-integration-check-pr.log；不要把此前43项检查当作本次集成门禁。
+- 发布范围已确认：main采用f209fb1，包含已验证的PyPSA小修复；实际交付包仍e2eaee2，不含Pi新增研发能力。
+- PR #30发布候选已快进f209fb1，PR #31集成Pi；均OPEN，等待双平台必需检查。Pi提交46a1bf74修复资源digest与回执测试，已推送。
+- 本地check-pr拆分续跑：初轮代理环境影响已隔离；后端1300、App512、Kernel628通过。打包复验与专业包尾项仍运行，日志/tmp/capstone-pi-packaging-recheck.log与/tmp/capstone-pi-integration-last.log。check-integration已exit0。
 - 收口设计docs/superpowers/specs/2026-10-16-main-dev-convergence.md。合并走PR及双平台，local-dev合入后规范重建，四部署/用户安装不自动发布。
 
 - 最新用户约束：避免过严门禁使任务停摆。已提交设计修订：启动最低依赖、unknown隔离范围、附件分开提交、检查建议非硬要求及局部成果交付；见docs/reviews/2026-10-16-enterprise-progress-constraints-review.md。状态矩阵和计划同步，生产实现未变。
 
-- 边界、持续推进及协议修订已保存Pi本地提交f4369eca（未推送），运行仍98e7d0e，dev仍f209fb1；没有部署或Provider调用。
+- 边界、持续推进及协议修订已保存并推送Pi提交f4369eca与167d5f89，运行基线98e7d0e，集成修复46a1bf74，dev仍f209fb1；没有部署或Provider调用。
 - 最高约束：保留已跑通前后端的业务资产，提取统一长程自主组织机制服务各类应用；不能固化专用链路或永久并行两套主循环。
 - 定稿docs/superpowers/specs/2026-10-15-enterprise-design-final.md覆盖早期冲突：复用Thread事件/命令/租约与ResearchController；Work是目标关联，不另建控制面；专业工具/证据/视图保留，领域耦合拆开。
 - 已保存边界修订：Demo1/Demo2只是示例，禁止转成专用指标、固定业务流程、封闭视图枚举或新增专业求解任务。

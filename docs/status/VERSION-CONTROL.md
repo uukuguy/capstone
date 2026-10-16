@@ -373,6 +373,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 编号 | 工作包 | 来源 | 目标 | 状态 | 交付范围 |
 | --- | --- | --- | --- | --- | --- |
+| 30 | main | release/conversation-phase1 | main | OPEN | 用户选择f209fb1发布基线，包含已验证PyPSA小修复；双平台完整release门禁运行中，不更新e2交付包或部署 |
+| 31 | pi | feat/pi-skills-integration | dev | OPEN | 收口企业自主执行研发；本地check-pr后端初次5项被系统代理干扰，回环直连23项复验通过，正在继续完整门禁；双平台CI运行中 |
 | 29 | autonomous | docs/pypsa-runtime-acceptance | dev | MERGED | 双平台CI38728722421全部通过，正常合入f209fb18d7abb122b689e1b1a52c54fa13bf5371；packages与f300无差异；root dev与App5173为f209fb1；修复和文档分支已关闭；后端、e2原包和其他环境不变 |
 | 28 | autonomous | fix/user-local-network-view | dev | MERGED | required CI38723131332的Linux/macOS全部通过，正常合入f300d1f375ef20af005840a60af47b5e33ea62e8；受检c638及合并packages一致；root dev已快进，local-dev规范重建exit0/ready，同后端镜像与每角色1060文件SHA256及App f300身份通过（源码标签仍development）；e2归档未升级，回答算术与source建模投影限制保留 |
 | 27 | dev-trial | feat/user-local-offline | dev | MERGED | 来源7c双平台CI38700786813全部通过，正常合并37529efa2f0b0e10f641a65706b330b1d94255af；7c包曾交付后撤回、不可交付，原SHA保留；root dev已快进f300且local-dev规范重建/源码核验通过；业务边界单列，图/Pi修复不在7c包内 |

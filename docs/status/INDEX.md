@@ -301,3 +301,5 @@ dev默认开发集成主线和main发布主线均启用轻量保护：PR与两�
 | File | State | Purpose |
 | --- | --- | --- |
 | [USER-LOCAL-VERSIONS.tsv](USER-LOCAL-VERSIONS.tsv) | 🟢 active | 已验证公开安装版本；完整Git、固定安装地址及SHA256，最新在前 |
+
+- 2026-10-16: main候选确认f209fb1；PR #30/#31分别收口发布与dev研发，检查中，环境来源未变。

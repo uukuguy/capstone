@@ -2575,12 +2575,6 @@ The following original entries were retained during document synchronization.
 - 2026-10-12 · 244e298：保存主工作区恢复检查点；本地入口26项复查通过，产品部署仍固定30a3ecb。
 - 2026-10-12 · 82b243c：按用户要求补回三动作小窗、普通无工具轻量问答和最终消息收集，避免恢复任务编译。
 - 2026-10-12：82b243c同源506项、588框架/380App及真实两轮专项通过；3动作9px/160px滚动浏览器通过，整体缺陷保留。
-- 2026-10-12: Pi merged recovery baseline to preserve experiments and adapt final-only streaming [fb2bcf0].
-- 2026-10-12: Pi merged lazy credential routing while retaining experimental intent ownership [e9825df].
-- 2026-10-12: Pi adaptation checks recorded to preserve recovery and distinguish candidate integration from acceptance [41fabee].
-- 2026-10-12: Pi accepted dev6ff7094 ancestry without runtime changes; approved e9825df source and deferred Provider/Docker acceptance remain distinct.
-- 2026-10-12: Pi synchronized accepted dev ancestry without source changes to preserve reviewed experimental scope [38e19db].
-- 2026-10-15: Pi incorporates dev f209fb1; backend1300/App512/Postgres23 pass; role-switch regression fixed and independently reviewed; no deployment.
 - 2026-10-12 · 17debfb：提交选择性补回专项报告、控制图和运行说明；部署源码82b243c，整体缺陷继续保留。
 - 2026-10-12：17debfb以项目bot推送并回读；PR14及Issues2/3同步选择性补回，两轮专项通过，整体缺陷保持开放。
 - 2026-10-12：用户批准PR14合入dev形成新开发基线，并对齐Pi/Research Model分支起点及适配接口；远端检查等待中。
@@ -3258,6 +3252,14 @@ The following original entries were retained during document synchronization.
 
 - 19:24 PR28双平台检查通过，正常合入dev f300d1f；root快进，保留控制副本stash，开始规范重建。
 - 19:35 rootdev f300规范重建通过；API/双worker同6c616058镜像，1060文件逐角色匹配，就绪/App身份通过，数据保留。
+- 19:40 cea1f28 保存PyPSA验收、真实localdev来源与受限交付链接检查，另走轻量PR。
+- 19:44 PR29双平台轻量检查通过，正常合入dev f209fb1；root快进，产品代码保持f300。
+- 20:08 用户重申：重大开发节点须先同步版本台账与推进图，再报告进展；区分实现、验证、合并和部署。
+- 20:20 补齐PR29/f209当前dev与App图节点，保留f300后端及e2交付来源；双平台收据和分支关闭核对通过。
+- 20:36 用户明确Pi为Capstone通用企业使用场景；复用长程推理与通用资源，月报仅举例，不启动具体应用。
+- 20:47 Pi合并dev f209以复用新基座，保留原生角色与研究机制，局部回归和独立复查通过。[98e7d0e]
+
+- 2026-10-15: 用户确认Pi生态与Capstone长程自主组织结合、Domain Pack统一治理；否定可选Pack路线，明确数据及专业系统职责。新增企业自主执行设计草案，未实施。
 
 - 2026-10-15: Define Profile composition, autonomous cooperation and frontend contracts for enterprise execution. [6bcc48b]
 
@@ -3266,6 +3268,7 @@ The following original entries were retained during document synchronization.
 - 2026-10-15: Prototype unified sessions and task-specific report/decision views to ground frontend design. [4fd8aea]
 
 - 2026-10-15: Specify professional chart acceptance; verify synthetic preview, data table and SVG export. Design only, uncommitted.
+
 - 2026-10-15: Verify Demo2 candidate views, chart export, stale constraints and browser restoration using synthetic fixtures. Runtime unchanged.
 
 - 2026-10-15: Replace Demo2 sketch with recorded IEEE-39 topology; verify all elements, zoom and pan. Keep synthetic analysis separate.
@@ -3276,3 +3279,6 @@ The following original entries were retained during document synchronization.
 - 2026-10-16: Correct scenario boundaries in design and plan; verify links, doctor and graph. Runtime unchanged; protocol closure remains open.
 - 2026-10-16: Scope constraints to affected actions; update recovery, input and delivery designs. Static checks pass; runtime validation remains open.
 - 2026-10-16: Refine protocols and recovery boundaries to keep enterprise work progressing without scenario-specific gates. [f4369eca]
+- 2026-10-16: Record main release and dev convergence so enterprise work no longer depends on a permanent Pi branch. [167d5f89]
+- 2026-10-16: Preserve registered Pi resource digests and atomic test receipts to unblock reliable integration checks. [46a1bf74]
+- 2026-10-16: User selected f209fb1 for main; release candidate advanced without changing the delivered package.
