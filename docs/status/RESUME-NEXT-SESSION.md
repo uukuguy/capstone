@@ -1,43 +1,42 @@
 # Live Session Checkpoint
 
-> Updated: 2026-10-16. Active-session recovery record.
+Updated: 2026-10-16. Active-session recovery record.
 
-## Accepted state
+## Current action
 
-- Work identity slice055a335f local rebuild and integration now passed. API/dual workers share4a4c6fb7 image,1145 Git files/link targets match; ready/App055a335f and browser entry verified. Receipt runs/work-research-identity/local-identity.json. No Provider call. Commit report/control and open PR; verify both CI platforms before integration. Do not rerun old62f verification script (it compares stale source and dereferences links).
-- ACTIVE IMPLEMENTATION: root branch feat/work-research-identity from dev d8e96652; code055a335f committed. Task 2 first slice adds WorkBinding/TaskContext, Work-owned AttemptResearch storage and Harness projection; not production Claim/Profile/v2/frontend. Report2026-10-16-work-research-identity.md and plan/register/control changes are uncommitted. Existing recovery JOURNAL/checkpoint edits must be preserved.
-- Validation:44 identity/research tests;118 related suites before additional review tests; pyright3 source files zero errors. Full backend1332 passed/65 skipped with NO_PROXY/no_proxy=127.0.0.1,localhost. Initial5 HTTP test failures came from macOS system proxies (urllib detects them despite no proxy env vars);23 relay/server tests pass with bypass. Logs /tmp/capstone-work-identity-tests-clean.log and /tmp/capstone-work-identity-tests.log.
-- Independent reviewer /root/review_pi_alignment found no blockers; requested negative and modelA→modelB/cross-run tests added. Canonical local rebuild running:session82555, log/tmp/capstone-work-identity-rebuild.log. Source055a335f. After rebuild verify actual file/image identity, ready and existing App; no Provider call or new UI acceptance. Then commit report/control, PR todev with dual-platform gates, integrate and sync app branches. Keep graph focused on new Work slice; retire old62f source card into history once no deployment references it. Do not claim allTask2 done.
+- PR #41 merged normally into dev85b6706f. Exact08556cc2 passed CI38898130414:Linux6m4s/macOS6m3s; merge tree equality verified. Old38894817486 was superseded/cancelled, not accepted.
+- Root dev was fast-forwarded; implementation feature and local CI branches closed. Current docs/work-identity-integration-control only closes control records. Merge this control PR after documentation checks, then root dev fast-forward, close the branch, fast-forward both preparation branches, regenerate and inspect the actual dev graph.
+- Graph must show the actual85b6706f product merge, requested d4600ddc and exact local-dev source055a335f. Ordinary CI/control commits stay in history details. No runtime rebuild for this control-only closeout.
 
-- Latest dev:d8e96652, PR #40 accepted after CI38891823780 on both platforms. d4600ddc is now an actual dev-control graph node linked fromd8fe6e27, not merely a HEAD badge. Both application branches synchronized; Task 2 remains next. Prior control heads below are historical.
-- Latest dev head:d4600ddc (PR #39, CI38890686246 Linux/macOS passed). Both preparation branches follow it. Historical control34cf695e and product integrated8fe6e27 now have explicit historical/milestone labels. The regenerated dev graph shows current HEADs separately. Task 2 remains next; no runtime change.
-- Latest control update: PR #38 merged as261bbb07 after Linux/macOS CI38889782634 passed. Root and both application preparation branches now follow this dev head. AGENTS.md owns standing control requirements; the dev overview is regenerated after synchronization. Older34cf695e below is the preceding accepted control point.
-- Root dev is34cf695e, including control PR #37 (Linux/macOS CI38886499201 passed). Product PR #36 merged asd8fe6e27 after CI38881419651 passed both platforms at711f06a8. Both merge trees match their tested heads.
-- Task 1 execution seam and existing baseline are accepted. Implementation62f44366 provides final-argument provider admission;14 real SDK checks,57 tool checks,101 Python checks/1 skipped, and local check-integration passed. Independent review found a provider-method race; fixed and verified.
-- local-dev canonical build711f06a8 ships source62f44366. API and both workers share imageae5adedf, each1142 shipped files verified. At verification App reported62f44366/dirty=false; readiness and an existing Thread browser entry passed. Receipts: runs/shared-execution-baseline/. No external Provider calls or cloud deployment.
-- The new wrapper is opt-in. Production inventory/permissions/leases and continuous execution remain Task 3 work. The current native launcher remains one-prompt/in-memory. Task 1 is not new enterprise frontend acceptance.
-- Main remainscf72393b (PR #30, accepted f209fb1 scope). Pi merged viaPR #31 intodb167184 and closed; detached worktreeabf2f797 and data remain. User e2eaee2 package,19173 installation, local-demo/cloud-demo and cloud-dev retain recorded sources.
+## Accepted state and scope
 
-## Branch and control state
+- Accepted product dev:85b6706f (PR41); Task1 product merge:d8fe6e27 (PR36). Main cf72393b unchanged. Application preparation branches still need fast-forward fromd8e96652 after control closeout; no independent implementation.
+- Task2 slice055a335f adds WorkBinding/TaskContext, Work-owned research persistence and Harness normalization. No-model and model-change research restores by Work. Legacy model-owned files remain unchanged. Context grants no permissions.
+- Production Claim, legacy association migration, Profile, Thread v2, Postgres and frontend are not connected. Task2 remains in progress; Task3 owns production continuous Pi/action receipts.
+- Independent review found no blockers; requested malformed-context and cross-run/model-change tests were added.
 
-- Both application preparation branches have no independent implementation and are fast-forwarded todev34cf695e. Confirm remote push completion if interrupted. Their owning plans/control copies are identical todev.
-- feat/shared-execution-baseline and docs/shared-foundation-control are closed. Preserve archive refs, the detached Pi worktree and all existing data.
-- The graph has16 nodes/22 edges;1280/1920 checks found no overlap, crossings, through-card paths or horizontal overflow. Shared foundation source sits right ofdev; centre occupied lanes and keep both sides visually balanced. Source edges remain exact.
-- Ordinary control merges remain in history; the graph highlights product merged8fe6e27 and actual runtime source62f44366. Do not rebuild runtime or relabel it for control-only changes.
-- Local JOURNAL/checkpoint edits are recovery records; stage only task-owned paths.
+## Verification and runtime
 
-## Next implementation
+-44 identity/research tests;1332 backend passed/65 skipped; three source modules pyright clean. make check-integration passed, including39 E2E cases and24/24 capability coverage. Do not repeat broad checks without new code/failure.
+- User requires short early-development CI.08556cc2 adds shared-agent/App dependency regression on both platforms,15-minute test-step limit. Registered workers are a separate target because the backend aggregate excludes them. Native bridges/professional/dependency/build changes remain broader; release remains complete.49 policy tests and independent review passed; local selected checks106.40s plus workers48.77s; hosted jobs about6 minutes including setup. Rule is in AGENTS.md/lifecycle.
+- Initial five local HTTP failures came from macOS system proxies. NO_PROXY/no_proxy=127.0.0.1,localhost fixed23 relay/server tests and the full suite. Logs:/tmp/capstone-work-identity-tests-clean.log and /tmp/capstone-work-identity-tests.log. No product fix needed.
+- Canonical local-dev rebuild at055a335f passed. API/dual workers image sha256:4a4c6fb7199d3df92516dcbaa1a02024504e10b3e9f2ea69ffdd5c4da0647d7f; each role matches1145 Git file/link objects. Receipt:runs/work-research-identity/local-identity.json. Compare symlink targets separately.
+- Ready8767/App5173 source055a335f dirty=false/existing Thread browser checks passed. No Provider call or new-task submission; no enterprise UI acceptance claim.
+- Graph18 nodes/24 edges passes1920/1280 geometry: no overlap/crossing/through-card path/overflow. Screenshot:output/playwright/work-identity-integrated.png. Browser sessionproject-alignment:http://127.0.0.1:29483/docs/status/PROJECT-OVERVIEW.html; geometry:/tmp/check-control-graph.js.
+- User e2eaee2 package,19173,main,local-demo/cloud-demo and cloud-dev unchanged. Do not rebuild runtime for control-only edits.
 
-- Active package: shared-agent. Canonical plan: docs/superpowers/plans/2026-10-16-enterprise-unified-execution.md, Task 2. Three-line sequencing: docs/superpowers/plans/2026-10-16-three-line-delivery.md.
-- Deliver model-independent WorkBinding/TaskContext and Profile assembly through the existing Thread ledger. Task 2 includes v2 negotiation, object CAS, storage and minimum frontend adaptation. No fake default model for model-free tasks.
-- Current AttemptResearch restores by thread/model. Work ownership requires explicit links without deleting/moving historical records. Existing ApplicationProfile/DomainRuntimeProfile assume professional components; professional checks stay in professional assembly.
-- Actual integration points: thread_protocol.py; thread_service.py (memory and Postgres); thread_http.py; thread_application.py; attempt_research.py; kernel_pi_session.py; Kernel application/domain profiles; App threadProtocol.ts and existing transport/store/entry components. Read owning contracts before edits.
-- Task 3 owns complete production tool inventory wrapping, authorization/lease/goal admission, persistent action receipts and continuous Pi integration.
-- First visible milestone must provide URL, exact source, Profile/input prerequisites, expected result/source display and refresh/reconnect checks. Preserve conversation and professional entry behavior. Both application lines remain A1/B1 preparation until their specific dependencies run.
-- Demo1/Demo2 are external examples, not built-in metrics, fixed workflows, special data APIs or required new solvers. Missing optional inputs/checks only block dependent work. Preserve Authority evidence and required persistence boundaries.
+## Next shared-foundation slice
 
-## Recovery references
+- Plan:docs/superpowers/plans/2026-10-16-enterprise-unified-execution.md Task2; contract:docs/superpowers/specs/2026-10-16-enterprise-protocol-decisions.md.
+- host_api.py is the server; thread_http.py is a client. ThreadCreator currently defaults a model and schedules professional preparation; no-model entry must skip those unrelated actions.
+- thread_service.py owns memory/Postgres/DDL. Required model columns need additive migration and Work associations; preserve historical data and exact-key retry before protocol-upgrade checks.
+- Domain manifest/profile and composition need explicit native/authority assembly; do not silently downgrade incomplete professional configuration.
+- Frontend:ThreadLiveEntry.tsx, threadHttpTransport.ts, threadProjectionStore.ts, threadProtocol.ts. Version requests and event streams, reuse existing conversation/results.
+- Next visible acceptance: old professional Thread readable; no-model Thread/Work creation; object CAS and exact-key retry; refresh/reconnect; explicit old-client upgrade prompt. Provide actual URL/source and observable results.
+- Application branches stay preparation-only until their required foundation runs. Demo1/2 are external examples, not production metrics, special APIs or fixed flows.
 
-- Reports: docs/reviews/2026-10-16-shared-execution-baseline.md and docs/reviews/2026-10-16-main-dev-convergence-verification.md.
-- Original work backup: /tmp/capstone-pre-convergence-root-work.tar.gz. Recovery stash:a91a148494f520e973f5d63158916b42a5df6773. Preserve both and all var/data volumes.
-- Git HTTP proxy may be needed:http://127.0.0.1:7897, HTTP/1.1, gh credential helper. Normal gh API works. Never force-push or bypass checks.
+## Recovery
+
+- Slice report:docs/reviews/2026-10-16-work-research-identity.md.
+- Preserve stash a91a148494f520e973f5d63158916b42a5df6773, /tmp/capstone-pre-convergence-root-work.tar.gz, detached Pi worktreeabf2f797 and all var/data.
+- Git network may require http.proxy=http://127.0.0.1:7897, HTTP/1.1 and gh auth git-credential. No force push or protection bypass.

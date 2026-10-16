@@ -1,6 +1,7 @@
 # Task 2 — Work-owned research identity slice
 
-Source:055a335f. Implemented and locally checked; integration acceptance pending.
+Source:055a335f. Integrated through PR #41 into dev85b6706f.
+The merge tree equals candidate08556cc2, including scoped development CI.
 This is the first Task 2 slice, not the complete protocol/Profile/frontend milestone.
 
 ## Change
@@ -70,3 +71,20 @@ offline/scripted validation, application instantiation and24/24 capability cover
 The first identity-check script compared symlink contents to dereferenced file
 bytes; after checking link targets explicitly, all objects matched. This was a
 verification-script issue, not a source or runtime change.
+
+## Development CI scope
+
+Candidate08556cc2 also narrows agent Python/App source changes to dependency
+regression on both required platforms. It runs package boundaries, global types,
+agent/Kernel/App/client suites, App build and the separate registered worker suite.
+Native execution bridges, professional packages, dependencies/build configuration
+and unknown paths retain the broader product checks. Main and explicit release
+checks remain complete. The scoped test step has a15-minute timeout.
+
+The policy has49 passing tests and an independent review. Selected checks passed
+locally in106.40 seconds plus48.77 seconds for three registered worker tests.
+These are local measurements; hosted CI duration is recorded separately.
+Earlier full CI38894817486 is superseded, not an acceptance receipt.
+Exact candidate08556cc2 passed CI38898130414 on Linux in6m4s and macOS in6m3s,
+including setup. Both required jobs passed before the normal PR merge. Receipts:
+`runs/work-research-identity/ci-38898130414.json` and `pr-41.json`.
