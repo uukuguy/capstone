@@ -3342,3 +3342,5 @@ The following original entries were retained during document synchronization.
 - 2026-10-16: 2d3f86c6 adds Thread version negotiation and upgrade feedback, preserving legacy clients before the enterprise protocol transition.
 - 2026-10-16: a2efb791 labels protocol failure as upgrade required; browser inspection found a misleading reconnecting indicator.
 - 2026-10-16: a2efb791 local rebuild and 1146-object role identity passed; browser verified v1, nonmutating rejection, draft retention and legacy CORS.
+- 2026-10-16: 1a695af4 records negotiation scope, runtime evidence and graph source before shared-agent CI acceptance.
+- 2026-10-16: PR44 merged32f18d24 after Linux4m58s/macOS8m35s CI; merge tree matches1a695af4 and dev checkout fast-forwarded.

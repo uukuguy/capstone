@@ -1,6 +1,6 @@
 # 多线版本控制
 
-2026-10-16共同基座协议准备切片2d3f86c6/a2efb791：现有HTTP服务、Python客户端和App接入v1协商、明确升级提示及恢复保护；本地依赖检查、独立复审、local-dev规范重建和浏览器检查通过，PR验收待完成。仅v1已实现，Profile/v2/无模型前端入口仍待实施。[切片报告](../reviews/2026-10-16-thread-version-negotiation.md)。
+2026-10-16共同基座PR #44已合入dev32f18d24，合并树与受检1a695af4一致。CI38907004425双平台通过（Linux4分58秒/macOS8分35秒）；协议协商、升级提示及恢复保护已集成，实施分支关闭。local-dev源码a2efb791同源及浏览器检查通过；仅v1已实现，Profile/v2/无模型前端入口仍待实施。[切片报告](../reviews/2026-10-16-thread-version-negotiation.md)。
 
 2026-10-16共同基座PR #41已合入dev85b6706f，合并树与受检08556cc2一致。模型无关Work研究身份及开发CI分层已集成；Linux/macOS CI38898130414分别6分4秒/6分3秒通过。旧38894817486已被替代取消，不计验收。生产Profile/Thread v2/前端仍待接入，两应用线保持准备阶段。local-dev精确源码055a335f，其他部署不变。
 
@@ -245,7 +245,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 职责 | 当前状态 | 下一步 |
 | --- | --- | --- | --- |
-| dev | 共同基座与集成；同时服务对话应用 | Task 2研究归属切片已集成85b6706f | 接生产身份/存储、Profile与v2前端最小入口；持续执行由Task 3接入 |
+| dev | 共同基座与集成；同时服务对话应用 | Task 2研究归属及协议协商已集成32f18d24 | 接生产身份/存储、Profile与v2前端最小入口；持续执行由Task 3接入 |
 | feat/business-analysis | 业务分析与报告 | 已创建，准备中；等待所需基座能力 | A1资源与验收准备；依赖就绪后开展图表/报告纵向切片 |
 | feat/model-decision | 模型分析与决策 | 已创建，准备中；等待所需基座能力 | B1既有专业资产与前端基线；依赖就绪后接共同链路 |
 
@@ -263,7 +263,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | answers | 回退与选择性补回 | 2 | 已合入dev，业务缺陷保留 | c3业务链；独立LLM路由；三动作小窗；普通轻量无工具回答；正式消息与过程隔离 | dev | 路由可靠性与现存业务缺陷单列；研究按已适配计划推进 | main c3b78bc | 用户批准收口；不恢复任务编译；无凭据装配修正bc08169 | PR #14双平台通过并合入6ff7094；506项同源及两次完整集成通过；新真实复验一轮普通误分，保留失败，未称整体通过 |
 | business-analysis | 业务分析与报告 | 1 | 分支已创建，准备中 | 企业资源、分析成果、图表与报告视图 | feat/business-analysis | A1准备；等待相应基座闭环后实施 | dev6c0b0ae7创建来源 | 无独立业务代码；沿共同协议推进 | 未实施、未验收、未部署；阶段需可运行前端供人工观察 |
 | model-decision | 模型分析与决策 | 1 | 分支已创建，准备中 | 既有专业能力、场景、候选、拓扑与验证视图 | feat/model-decision | B1盘点与回归；等待相应基座接口后实施 | dev6c0b0ae7创建来源 | 复用现有业务资产，不新增示例求解器 | 未实施、未验收、未部署；阶段需可运行前端供人工观察 |
-| shared-agent | 共同智能体基座 | 1 | Task 2研究归属切片已合入85b6706f | 同时服务对话与企业执行的组织、资源、恢复、证据及共享前端组件 | dev | 继续生产身份/存储、Profile及v2前端最小入口 | 已有Harness、Thread、专业执行及Pi资源 | Work研究身份不随模型变化；旧模型研究历史原位保留 | PR #41双平台约6分钟通过；44项身份/研究、1332项后端及评审通过；生产接入和前端未完成 |
+| shared-agent | 共同智能体基座 | 1 | Task 2研究归属及协议协商已合入32f18d24 | 同时服务对话与企业执行的组织、资源、恢复、证据及共享前端组件 | dev | 继续生产身份/存储、Profile及v2前端最小入口 | 已有Harness、Thread、专业执行及Pi资源 | Work研究独立于模型；旧会话、跨域服务及草稿保留；版本不兼容明确提示 | PR #44双平台短CI通过；1345项后端、522项App及独立评审；local-dev同源和浏览器通过；v2/无模型入口未完成 |
 | conversation-maintenance | 智能体对话应用维护 | 1 | 阶段已发布，维护范围已明确 | 接收适用的共同修复和增强，保留现有对话体验 | main | 按实际修复形成小版本，不强制采用企业新工作台 | main cf72393b；原用户包未替换 | 与企业入口共同验证受影响共享行为；保留将来对话场景演进空间 | 发布基线已验收；新增共享增强尚未实现或发布 |
 | pi | 企业自主执行 | 3 | 基础能力已合入dev | Capstone长程组织配合Pi原生生态，统一机制待实施 | dev | 先推进共同基座Task 1；分别验收业务分析与报告、模型分析与决策，再验证组合任务 | 已保留专业链路与原生资源 | PR #31合入db167184；统一循环、无模型v2协议和新工作台仍待实现 | CI38865540607双平台通过；local-dev规范重建与同源检查通过，不代表新设计完成 |
 | commands | 统一输入命令与快捷操作 | 3 | 待设计，已有局部原型 | Capstone 前端统一操作入口：会话、模型、执行、结果及技能操作 | — | 盘点现有前端操作；设计共享命令目录、参数、可用状态和键盘交互，再建立增强分支 | 当前前端按钮与 Pi 分支命令原型 | 跨运行模式的快捷入口；中文检索与命令发现；上下文和权限检查；草稿保持与明确反馈 | 独立开发包；Pi 分支三个命令只是复用来源；新分支未建立，未部署 |
@@ -334,7 +334,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
 | dev-head | dev | main | dev · 当前研发位置 | 当前Git HEAD，验收范围见对应里程碑 | 动态绑定本地dev实际提交并连接真实祖先；不将分支HEAD当作部署或业务验收。[当前状态](CURRENT-STATE.md) | shared-agent |
-| thread-version | a2efb791ff80ce8306ab6cc36393e88af5c8bcc5 | feature | 共同基座 · 协议协商与恢复 | 本地检查通过，PR验收待完成 | 2d3f86c6实现v1 JSON/SSE协商，a2efb791补正升级状态；旧服务兼容、历史与草稿保留；v2及无模型入口待实施。[切片报告](../reviews/2026-10-16-thread-version-negotiation.md) | shared-agent |
+| thread-version-dev | 32f18d2444fee2d1ab0cb9bd8d3157c8854f7526 | main | dev · 协议协商与恢复集成 | PR #44双平台通过，已合入 | v1服务/客户端协商及恢复提示合入；合并树与受检1a695af4一致；继续Profile/v2及无模型入口。[切片报告](../reviews/2026-10-16-thread-version-negotiation.md) | shared-agent |
+| thread-version | a2efb791ff80ce8306ab6cc36393e88af5c8bcc5 | feature | 共同基座 · 协议协商与恢复 | PR #44已合入，local-dev同源通过 | 2d3f86c6实现v1 JSON/SSE协商，a2efb791补正升级状态；旧服务兼容、历史与草稿保留；v2及无模型入口待实施。[切片报告](../reviews/2026-10-16-thread-version-negotiation.md) | shared-agent |
 | work-identity-control | 977601f9f4c3d316174e9d632fcc72a638b0f8fa | main | dev · Work基座三线同步 | PR #42双平台文档检查通过，已合入 | Work研究身份里程碑与CI验收记录对齐；三条研发分支快进同源，生产Profile/v2前端继续实施。[切片报告](../reviews/2026-10-16-work-research-identity.md) | shared-agent |
 | offline-e2-delivery | e2eaee2403cb6d780b3f7564da86e0d083890673 | feature | 已交付离线包 · e2eaee2 | 已交付；最小安装ready通过，原归档未升级为f300 | 已交付linux/amd64归档1368607944字节；单次新安装/ready及同源身份通过，API与双worker同e2镜像，六角色AMD64，正常停止保留数据；runtime packages同28020，复用限定handoff/dispatch实测；公开投影与AC第3时段一致性两项开放，本包未重跑全量测试或Provider。历史：7c曾交付后撤回、不可交付，证据位于capstone-withdrawn-7c19766且原SHA保留；6064103仅为分支文档收据，不是交付源码。[包README](../../runs/user-local-offline/capstone-delivery-e2eaee2/README.md) [下载归档](../../runs/user-local-offline/capstone-delivery-e2eaee2/capstone-user-local-offline-e2eaee2-linux-amd64.tar.gz) [SHA256](../../runs/user-local-offline/capstone-delivery-e2eaee2/capstone-user-local-offline-e2eaee2-linux-amd64.tar.gz.sha256) [限定验证报告](../reviews/2026-10-15-pypsa-handoff-verification.md) | dev-trial |
 | dev-current | f209fb18d7abb122b689e1b1a52c54fa13bf5371 | main | dev · 修复验收记录合并 | PR #29合入，双平台文档检查通过 | 验收文档与控制工具合入，packages与f300无差异；App5173实读f209fb1、dirty=false；后端保持f300验证来源与6c616058镜像；e2原包和其他环境不变。[限定验证报告](../reviews/2026-10-15-pypsa-runtime-followup-verification.md) | autonomous |
@@ -405,7 +406,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | dev-business-base | 开发分支起点 | dev | 恢复业务执行并保留独立轻量路由；Pi与自主智能体的共同业务基线 | 已合入，业务缺陷保留 |
 | dev | 重要demo发布与大分支合并 | dev | 统一研究、执行、结果与证据合入主线；两个demo固定该基线，保留发布验收与回退来源 | 两个demo已验收 |
 | dev-head | 当前研发位置 | dev | 实际dev分支头及真实祖先连线；产品验收与部署来源独立标记 | Git位置随生成更新，验收范围见对应里程碑 |
-| thread-version | 当前基座实现切片 | 共同基座 · 协议协商 | 服务与客户端协商v1；升级提示保留会话及草稿 | 本地依赖检查通过；v2、Profile及无模型入口待实施 |
+| thread-version-dev | 当前开发焦点 | dev | 协议协商与恢复保护已集成；继续Profile/v2及无模型入口 | PR #44双平台通过，合并树与受检来源一致 |
+| thread-version | 已合入基座实现来源 | 共同基座（分支已关闭） | 服务与客户端协商v1；升级提示保留会话及草稿 | local-dev同源及浏览器通过；v2、Profile及无模型入口待实施 |
 | work-identity-control | 研发控制与三线同步节点 | dev | Work基座验收与后续接入计划对齐；三条研发分支快进同源 | PR #42双平台文档检查通过，运行来源保持055a335f |
 | work-identity-dev | 已集成研究归属里程碑 | dev | Work研究身份及开发CI分层已集成；继续Profile/v2与前端最小入口 | PR #41双平台约6分钟通过，合并树与受检来源一致 |
 | work-identity | 已合入基座实现来源 | 共同基座（分支已关闭） | 模型无关Work研究保存与恢复；旧历史保留，生产协议及前端待接入 | local-dev同源验证通过；44项身份/研究与1332项后端测试通过 |
@@ -458,11 +460,11 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | refs/archive/20261015/feat-dev-trial-deployment | 已合并实施恢复引用 | 380ede4受检，PR #22合入7832134；本地/远端实施分支已关闭；最终公开镜像/包及安装入口验收通过 | 保存原验收目录、私有状态与卷；用户业务试用待反馈 | dev-trial |
 | main | 已发布应用维护主线 | PR #30合入cf72393b，范围f209fb1；双平台完整release通过，合并树一致 | 短期零星修复，未来按对话适用场景发展；用户交付包不自动更新 | main |
 | feat/work-research-identity（已关闭） | 共同基座Task 2已合入来源 | 055a335f组件实现及08556cc2 CI分层通过双平台检查；PR #41合入85b6706f | dev继续生产Profile/v2前端接入 | shared-agent |
-| feat/thread-version-negotiation | 共同基座协议准备 | 2d3f86c6本地检查通过，PR验收待完成 | v1协商及升级恢复；v2/无模型入口未实现 | shared-agent |
+| feat/thread-version-negotiation（已关闭） | 共同基座协议准备已合入来源 | 2d3f86c6/a2efb791通过本地与双平台CI；PR #44合入32f18d24 | v1协商及升级恢复；v2/无模型入口未实现 | shared-agent |
 | feat/shared-execution-baseline（已关闭） | 共同基座Task 1已合入来源 | 62f44366执行接缝与711f06a8回执通过双平台CI，PR #36合入d8fe6e27 | dev继续Task 2；来源提交保留在合并历史 | shared-agent |
 | feat/business-analysis | 阶段应用研发，准备中 | 已从dev6c0b0ae7创建并推送，尚无独立业务实现 | A1资源与验收准备；等待基座能力后分批PR回dev | business-analysis |
 | feat/model-decision | 阶段应用研发，准备中 | 已从dev6c0b0ae7创建并推送，尚无独立业务实现 | B1现有专业基线；等待基座能力后分批PR回dev | model-decision |
-| dev | 默认开发集成主线 | PR #41合入85b6706f；Work研究身份与研发CI分层已集成；实际HEAD见三线卡片 | local-dev源码055a335f；Task 2生产Profile/v2前端待接入；e2归档、19173/demo/cloud不变 | main |
+| dev | 默认开发集成主线 | PR #44合入32f18d24；Work研究身份、协议协商及恢复保护已集成；实际HEAD见三线卡片 | local-dev源码a2efb791；Task 2生产Profile/v2前端待接入；e2归档、19173/demo/cloud不变 | main |
 | docs/dev-baseline-control | 收口状态同步 | 从接受的dev50d8ebc建立；登记B2标签、分支关闭与研究实施起点 | 仅文档和控制图，轻量检查后集成dev | main |
 | feat/research-model | 起点与依赖已适配 | 2b0b0a5；精确祖先dev6ff7094；设计及推进计划排除撤回的编译/覆盖/预热依赖；本工作区运行时准备与doctor通过 | R1尚无代码；按R1–R5及真实依赖路径验收，不将旧R0实验当作本分支成果 | research |
 | recovery/autonomous-agent-merged-faa6af9 | 已合并分支的本地恢复引用 | 原feat/autonomous-agent已通过PR #18合入dev faa6af9；保留2b6ae7b与原工作树全部未提交文档和运行数据；远端已合并分支关闭 | 非在研分支；后续从dev推进，科学与交互验收仍开放 | autonomous |
