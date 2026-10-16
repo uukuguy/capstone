@@ -4,13 +4,14 @@ Updated: 2026-10-16. Active-session recovery record.
 
 ## Current action
 
+- User correction:977601f9 was only a HEAD badge, not a node. fix/dev-current-graph-node adds its fixed node plus a dynamic dev-head node, deduplicated at the same SHA. Merge this documentation/renderer fix, fast-forward dev/application branches, regenerate on actual dev and verify both the fixed977601f9 card and the new current HEAD card with ancestry edges. Source runtime remains055a335f.
 - PR #41 merged normally into dev85b6706f. Exact08556cc2 passed CI38898130414:Linux6m4s/macOS6m3s; merge tree equality verified. Old38894817486 was superseded/cancelled, not accepted.
-- Root dev was fast-forwarded; implementation feature and local CI branches closed. Current docs/work-identity-integration-control only closes control records. Merge this control PR after documentation checks, then root dev fast-forward, close the branch, fast-forward both preparation branches, regenerate and inspect the actual dev graph.
+- Control PR #42 merged977601f9 after both documentation jobs passed (1m8s/1m37s). Root is on dev; local/remote dev and both application preparation branches are977601f9. Implementation, CI and control branches are closed. Continue Task2 production Profile/v2/frontend wiring from this base.
 - Graph must show the actual85b6706f product merge, requested d4600ddc and exact local-dev source055a335f. Ordinary CI/control commits stay in history details. No runtime rebuild for this control-only closeout.
 
 ## Accepted state and scope
 
-- Accepted product dev:85b6706f (PR41); Task1 product merge:d8fe6e27 (PR36). Main cf72393b unchanged. Application preparation branches still need fast-forward fromd8e96652 after control closeout; no independent implementation.
+- Accepted product dev:85b6706f (PR41); control HEAD977601f9 (PR42); Task1 product merge:d8fe6e27 (PR36). Main cf72393b unchanged. Application preparation branches are synchronized without independent implementation.
 - Task2 slice055a335f adds WorkBinding/TaskContext, Work-owned research persistence and Harness normalization. No-model and model-change research restores by Work. Legacy model-owned files remain unchanged. Context grants no permissions.
 - Production Claim, legacy association migration, Profile, Thread v2, Postgres and frontend are not connected. Task2 remains in progress; Task3 owns production continuous Pi/action receipts.
 - Independent review found no blockers; requested malformed-context and cross-run/model-change tests were added.

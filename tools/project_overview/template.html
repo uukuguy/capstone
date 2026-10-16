@@ -52,7 +52,7 @@
 <footer>单文件 · 内嵌 Tailwind CSS / JavaScript · 离线打开 · 未发布能力与实际部署分别标记</footer>
 </main><script id="project-data" type="application/json">__PROJECT_DATA__</script><script>
 'use strict';
-const data=JSON.parse(document.getElementById('project-data').textContent),el=id=>document.getElementById(id),short=s=>s?s.slice(0,7):'未定版';
+const data=JSON.parse(document.getElementById('project-data').textContent),el=id=>document.getElementById(id),short=s=>s?s.slice(0,8):'未定版';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const revision=(value,kind='commit')=>'<span class="'+kind+'-revision mono">'+esc(short(value))+'</span>';
 function trialLink(n){
