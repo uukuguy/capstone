@@ -104,7 +104,11 @@ data.environments.forEach(e=>el('deploy-'+e.name).querySelector('b').insertAdjac
 el('hotfix').querySelector('h3').insertAdjacentHTML('afterbegin',icon('branch'));
 const oldAnswerNode=el('commit-answer-old');if(oldAnswerNode){oldAnswerNode.classList.add('reference');oldAnswerNode.querySelector('.source').innerHTML='旧实现 · '+revision(data.nodes.find(n=>n.id==='answer-old').sha);oldAnswerNode.querySelector('.next').textContent='复用到新增强分支；旧实现未过产品验收，不直接合入或部署。';}
 el('hotfix-content').innerHTML=data.hotfix_branches.map(b=>'<p class="mono">'+esc(b)+'</p>').join('');
-el('development-lines').innerHTML=data.development_lines.map(line=>'<article class="development-line"><h3>'+esc(line.role)+'</h3><p><a href="https://github.com/uukuguy/capstone/tree/'+encodeURIComponent(line.branch)+'" target="_blank" rel="noopener noreferrer">'+esc(line.branch)+'</a></p><p>'+esc(line.status)+'</p><p class="muted">'+esc(line.next)+'</p></article>').join('');
+el('development-lines').innerHTML=data.development_lines.map(line=>{
+ const head=data.branches.find(branch=>branch.name===line.branch)?.sha;
+ const revision=head?'<a class="mono commit-revision" href="https://github.com/uukuguy/capstone/commit/'+encodeURIComponent(head)+'" target="_blank" rel="noopener noreferrer">'+esc(head.slice(0,8))+'</a>':'未读取';
+ return '<article class="development-line"><h3>'+esc(line.role)+'</h3><p><a href="https://github.com/uukuguy/capstone/tree/'+encodeURIComponent(line.branch)+'" target="_blank" rel="noopener noreferrer">'+esc(line.branch)+'</a> · 当前 HEAD '+revision+'</p><p>'+esc(line.status)+'</p><p class="muted">'+esc(line.next)+'</p></article>';
+}).join('');
 el('records').innerHTML=data.proposals.map(p=>'<article class="record"><b>'+esc(p.title)+'</b><span class="muted">'+esc(p.gap)+'</span></article>').join('');
 const archives=data.branches.filter(b=>b.name.startsWith('archive/'));el('archives').innerHTML=archives.map(b=>'<article class="archive-item"><h3>'+esc(b.status)+'</h3><p class="mono">'+esc(b.name)+' · '+short(b.sha)+'</p><p>'+esc(b.progress)+'</p><p>后续：'+esc(b.next)+'</p></article>').join('');
 el('scope').innerHTML='<table class="scope-table">'+[
