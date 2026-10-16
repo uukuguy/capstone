@@ -161,7 +161,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
             const receipt = await store.dispatch(entry.command)
             if (!active) return
             if (receipt.status === 'accepted') {
-              if (composerCommands.current.has(entry.command.command_id)
+              if (entry.command.schema === 'capstone-command/1' && composerCommands.current.has(entry.command.command_id)
                   && ['send_auto', 'send_ordinary', 'send_professional'].includes(entry.command.kind)
                   && typeof entry.command.payload.text === 'string') {
                 const payload = entry.command.payload

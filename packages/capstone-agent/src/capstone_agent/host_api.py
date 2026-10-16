@@ -508,7 +508,7 @@ def create_host_app(
                 if receipt.status == 'accepted':
                     if kind in {'open_model', 'activate_model', 'switch_model', 'reopen_model_context'}:
                         await run_in_threadpool(request_model_preparation, thread_id)
-                    if command.get('schema') != 'capstone-command/2':
+                    if command.get('schema') != 'capstone-command/2' or kind == 'start_work':
                         background_tasks.add_task(request_worker, thread_id, force=True)
                 return receipt.to_document()
             except ThreadNotFound:

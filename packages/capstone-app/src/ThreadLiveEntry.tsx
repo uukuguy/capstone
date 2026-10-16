@@ -93,6 +93,12 @@ function WorkspaceLiveEntry({ threadId }: { threadId: string }) {
 }
 
 function WorkLiveEntry({ threadId, recoveryOnly = false }: { threadId: string; recoveryOnly?: boolean }) {
+  useEffect(() => {
+    if (recoveryOnly) return
+    const previousTitle = document.title
+    document.title = 'Capstone · 企业任务工作台'
+    return () => { document.title = previousTitle }
+  }, [recoveryOnly])
   const [token, setToken] = useState(readToken)
   const [access, setAccess] = useState<ThreadAccessMode | null>(null)
   const [error, setError] = useState<string | null>(null)

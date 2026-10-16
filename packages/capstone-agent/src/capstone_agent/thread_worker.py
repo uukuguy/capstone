@@ -56,6 +56,9 @@ def _run_claimed_attempt(
     claim: AttemptClaim, lease: AttemptLeaseRenewal, lease_seconds: int,
     turn_router: TurnRouter | None,
 ) -> HarnessAttemptResult:
+    if service.cancel_requested(claim):
+        service.finish_attempt(claim, phase='cancelled', payload={})
+        return HarnessAttemptResult('cancelled', None, None)
     router = turn_router if isinstance(turn_router, DefaultTurnRouter) else DefaultTurnRouter(decision_router=turn_router)
     if claim.kind in {"send_auto", "send_ordinary", "send_professional"}:
         def check_intent() -> None:
