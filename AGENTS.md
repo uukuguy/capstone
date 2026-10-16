@@ -218,6 +218,10 @@ counts, prices, limits, versions, or deployment state here.
   Prefer a wide layout that shows the full overview without internal scrolling
   on desktop. Preserve readable node content and accurate edge attachment when
   re-layout or scaling changes the graph.
+  The actual dev HEAD must also have a visible Git node, not only a top-card
+  badge. Keep explicitly requested commit nodes as fixed milestones. Resolve the
+  current-head node at generation time and deduplicate it when a fixed node has
+  the same commit, so control-only merges do not repeatedly disappear from the graph.
   Prefer shared-foundation and application research nodes to the right of dev,
   while balancing card height, deployment cards and whitespace across both sides.
   Overall visual balance takes priority over a rigid left/right category rule.

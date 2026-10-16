@@ -331,6 +331,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
+| dev-head | dev | main | dev · 当前研发位置 | 当前Git HEAD，验收范围见对应里程碑 | 动态绑定本地dev实际提交并连接真实祖先；不将分支HEAD当作部署或业务验收。[当前状态](CURRENT-STATE.md) | shared-agent |
+| work-identity-control | 977601f9f4c3d316174e9d632fcc72a638b0f8fa | main | dev · Work基座三线同步 | PR #42双平台文档检查通过，已合入 | Work研究身份里程碑与CI验收记录对齐；三条研发分支快进同源，生产Profile/v2前端继续实施。[切片报告](../reviews/2026-10-16-work-research-identity.md) | shared-agent |
 | offline-e2-delivery | e2eaee2403cb6d780b3f7564da86e0d083890673 | feature | 已交付离线包 · e2eaee2 | 已交付；最小安装ready通过，原归档未升级为f300 | 已交付linux/amd64归档1368607944字节；单次新安装/ready及同源身份通过，API与双worker同e2镜像，六角色AMD64，正常停止保留数据；runtime packages同28020，复用限定handoff/dispatch实测；公开投影与AC第3时段一致性两项开放，本包未重跑全量测试或Provider。历史：7c曾交付后撤回、不可交付，证据位于capstone-withdrawn-7c19766且原SHA保留；6064103仅为分支文档收据，不是交付源码。[包README](../../runs/user-local-offline/capstone-delivery-e2eaee2/README.md) [下载归档](../../runs/user-local-offline/capstone-delivery-e2eaee2/capstone-user-local-offline-e2eaee2-linux-amd64.tar.gz) [SHA256](../../runs/user-local-offline/capstone-delivery-e2eaee2/capstone-user-local-offline-e2eaee2-linux-amd64.tar.gz.sha256) [限定验证报告](../reviews/2026-10-15-pypsa-handoff-verification.md) | dev-trial |
 | dev-current | f209fb18d7abb122b689e1b1a52c54fa13bf5371 | main | dev · 修复验收记录合并 | PR #29合入，双平台文档检查通过 | 验收文档与控制工具合入，packages与f300无差异；App5173实读f209fb1、dirty=false；后端保持f300验证来源与6c616058镜像；e2原包和其他环境不变。[限定验证报告](../reviews/2026-10-15-pypsa-runtime-followup-verification.md) | autonomous |
 | offline-merge | f300d1f375ef20af005840a60af47b5e33ea62e8 | main | dev · PyPSA运行修复合并基线 | PR #28合入，双平台与local-dev重建核验通过 | c638真实区域3轮+AC-only第4轮通过，5operations投影正确；CI38723131332全过，root dev已快进且packages一致；local-dev ready/API双worker同镜像，各1060文件SHA256同f300，App f300无dirty；源码label仍development；e2归档未升级，算术及source建模投影边界保留 | autonomous |
@@ -399,6 +401,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | main | 已发布应用基线 | main | 阶段完整对话应用及已验证小修复；短期维护，保留未来对话场景发展 | PR #30合入cf72393b；双平台完整release通过 |
 | dev-business-base | 开发分支起点 | dev | 恢复业务执行并保留独立轻量路由；Pi与自主智能体的共同业务基线 | 已合入，业务缺陷保留 |
 | dev | 重要demo发布与大分支合并 | dev | 统一研究、执行、结果与证据合入主线；两个demo固定该基线，保留发布验收与回退来源 | 两个demo已验收 |
+| dev-head | 当前研发位置 | dev | 实际dev分支头及真实祖先连线；产品验收与部署来源独立标记 | Git位置随生成更新，验收范围见对应里程碑 |
+| work-identity-control | 研发控制与三线同步节点 | dev | Work基座验收与后续接入计划对齐；三条研发分支快进同源 | PR #42双平台文档检查通过，运行来源保持055a335f |
 | work-identity-dev | 当前开发焦点 | dev | Work研究身份及开发CI分层已集成；继续Profile/v2与前端最小入口 | PR #41双平台约6分钟通过，合并树与受检来源一致 |
 | work-identity | 已合入基座实现来源 | 共同基座（分支已关闭） | 模型无关Work研究保存与恢复；旧历史保留，生产协议及前端待接入 | local-dev同源验证通过；44项身份/研究与1332项后端测试通过 |
 | dev-control | 研发控制基线节点 | dev | 三线推进位置与历史里程碑区分；控制规则固化 | PR #39双平台通过；不表示运行或部署更新 |

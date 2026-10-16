@@ -3335,3 +3335,5 @@ The following original entries were retained during document synchronization.
 - 2026-10-16: 08556cc2 scopes shared-agent/App CI to dependency regression; both platforms and release checks remain required.
 - 2026-10-16: Scoped checks passed locally in106.40s plus48.77s registered workers;49 gate tests and independent review passed.
 - 2026-10-16: PR41 merged85b6706f after exact08556cc2 passed both CI platforms in about six minutes; merge tree matches.
+- 2026-10-16: f90a1b77 aligns the actual Work integration node, runtime source and CI records; production frontend work remains open.
+- 2026-10-16: PR42 merged977601f9 after dual-platform documentation checks; dev and both preparation branches fast-forwarded together.

@@ -184,6 +184,11 @@ def snapshot(probe_local: bool, probe_cloud: bool = False) -> dict:
         presentations[identity] = dict(role=role, branch=branch, changes=changes, status=status)
     for node in nodes:
         node["presentation"] = presentations.get(node["id"])
+    # Show dev HEAD as a graph node, not only a badge. A fixed milestone at
+    # that exact commit takes its place to avoid duplicate cards.
+    fixed_shas = {node["sha"] for node in nodes if node["id"] != "dev-head"}
+    nodes = [node for node in nodes
+             if node["id"] != "dev-head" or node["sha"] not in fixed_shas]
     for stage in environments:
         source = next(node for node in nodes if node["sha"].startswith(stage["revision"]))
         if source["presentation"] is None:
