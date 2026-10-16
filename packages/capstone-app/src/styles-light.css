@@ -1137,22 +1137,18 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .thread-conversation-workspace .thread-chat-pane { position: static; min-height: 0; height: 100%; padding: 26px clamp(24px, 5vw, 80px) 24px; background: #f8f8f4; }
 .thread-conversation-workspace .thread-chat-heading { flex-shrink: 0; padding-bottom: 22px; border-bottom: 1px solid #dde1d9; }
 .thread-conversation-workspace .thread-chat-heading-title { min-width: 0; }
-.thread-conversation-workspace .thread-chat-heading h2 { max-width: 60ch; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 22px; line-height: 1.4; }
-.thread-conversation-workspace .thread-model-short { font-size: 13px; line-height: 1.6; color: #66716b; }
+.thread-conversation-workspace .thread-chat-heading h2 { max-width: 60ch; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.thread-conversation-workspace .thread-model-short { color: #66716b; }
 .thread-conversation-workspace .capstone-assistant-thread { min-height: 0; flex: 1; border: 0; border-radius: 0; background: transparent; }
 .thread-conversation-workspace .capstone-chat-runtime { min-height: 0; }
 .thread-conversation-workspace .capstone-chat-viewport { min-height: 0; padding: 24px max(0px, calc((100% - 920px) / 2)); }
-.thread-conversation-workspace .capstone-assistant-runtime-label { flex-shrink: 0; font-size: 13px; line-height: 1.6; color: #66716b; padding: 12px 0; border: 0; }
-.thread-conversation-workspace .capstone-chat-body, .thread-conversation-workspace .capstone-chat-body p, .thread-conversation-workspace .capstone-chat-markdown { font-size: 15px; line-height: 1.8; color: #22352e; }
-.thread-conversation-workspace .capstone-chat-message.is-user .capstone-chat-body { font-size: 15px; padding: 14px 18px; border-color: #dde1d9; border-radius: 10px; background: #eaf0e8; }
+.thread-conversation-workspace .capstone-assistant-runtime-label { flex-shrink: 0; color: #66716b; padding: 12px 0; border: 0; }
+.thread-conversation-workspace .capstone-chat-body, .thread-conversation-workspace .capstone-chat-body p, .thread-conversation-workspace .capstone-chat-markdown { color: #22352e; }
+.thread-conversation-workspace .capstone-chat-message.is-user .capstone-chat-body { border-color: #dde1d9; background: #eaf0e8; }
 .thread-conversation-workspace .capstone-chat-composer { width: min(920px, 100%); margin: 0 auto; padding: 16px 0 0; flex-shrink: 0; background: transparent; border-color: #dde1d9; }
 .thread-conversation-workspace .capstone-composer-root { background: #fff; border-color: #dde1d9; border-radius: 10px; }
-.thread-conversation-workspace .capstone-composer-root textarea { min-height: 88px; padding: 16px 18px 8px; font-size: 15px; line-height: 1.7; color: #22352e; }
-.thread-conversation-workspace .capstone-composer-footer { min-height: 52px; padding: 0 12px 10px; }
-.thread-conversation-workspace .capstone-composer-toolbar { font-size: 13px; }
-.thread-conversation-workspace .capstone-chat-send { min-width: 44px; min-height: 44px; background: #245b47; border-radius: 8px; }
-.thread-conversation-workspace .capstone-chat-send svg { width: 20px; height: 20px; }
-.thread-conversation-workspace .thread-compact-trigger { min-height: 44px; font-size: 13px; }
+.thread-conversation-workspace .capstone-composer-root textarea { color: #22352e; }
+.thread-conversation-workspace .capstone-chat-send { background: #245b47; }
 .thread-conversation-workspace .capstone-chat-empty { color: #66716b; }
 .thread-conversation-workspace .capstone-chat-empty strong { color: #22352e; }
 .thread-session-navigation { display: flex; flex-direction: column; gap: 10px; min-height: 0; overflow: auto; padding: 30px 18px 18px; background: #202e29; color: #d5ded6; }
@@ -1166,8 +1162,60 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .thread-session-navigation button:disabled { opacity: .55; cursor: default; }
 .thread-session-navigation button:focus-visible, .thread-session-navigation a:focus-visible { outline: 2px solid #ceb580; outline-offset: 2px; }
 .thread-session-navigation p { font-size: 12px; line-height: 1.6; }
-.thread-navigation-toggle { display: none; }
+.thread-navigation-toggle { display: none; min-height: 44px; align-items: center; border: 1px solid #dde1d9; border-radius: 6px; background: #fff; padding: 0 12px; color: #245b47; font: inherit; cursor: pointer; }
+.thread-navigation-toggle:focus-visible { outline: 2px solid #245b47; outline-offset: 2px; }
+.thread-workspace-heading { flex-shrink: 0; }
+.thread-conversation-workspace .thread-workspace-heading { display: flex; align-items: flex-start; gap: 16px; border-bottom: 1px solid #dde1d9; padding-bottom: 18px; }
+.thread-conversation-workspace .thread-workspace-heading .thread-chat-heading { flex: 1; min-width: 0; border: 0; padding-bottom: 0; }
+.thread-conversation-workspace .thread-resource-toggle { flex-shrink: 0; min-height: 44px; font-size: 13px; }
+.thread-conversation-workspace.has-resource-panel .thread-app-columns { grid-template-columns: clamp(360px, var(--conversation-share, 45%), calc(100% - 368px)) 8px minmax(360px, 1fr); }
+.thread-conversation-workspace.has-resource-panel .thread-session-navigation { display: none; }
+.thread-conversation-workspace.has-resource-panel .thread-navigation-toggle { display: inline-flex; }
+.thread-conversation-workspace.has-resource-panel.is-navigation-open .thread-session-navigation { display: flex; position: fixed; z-index: 110; inset: 61px auto 0 0; width: 224px; box-shadow: 8px 0 24px #202e2926; }
+.thread-conversation-workspace.has-resource-panel .thread-chat-pane { padding-left: 24px; padding-right: 24px; }
+.thread-workspace-separator { cursor: col-resize; touch-action: none; background: #e8ece4; border-inline: 2px solid #f8f8f4; }
+.thread-workspace-separator:hover { background: #94ad9b; }
+.thread-workspace-separator:focus-visible { outline: 2px solid #245b47; outline-offset: -2px; background: #b4c9b8; }
+.thread-conversation-workspace.is-resource-expanded .thread-chat-pane, .thread-conversation-workspace.is-resource-expanded .thread-workspace-separator { display: none; }
+.thread-conversation-workspace.is-resource-expanded .thread-app-columns { display: block; }
+.thread-conversation-workspace.is-resource-expanded .thread-resource-panel { height: 100%; }
+.thread-resource-panel { min-width: 0; min-height: 0; overflow: auto; background: #fff; border-left: 1px solid #dde1d9; }
+.thread-resource-panel[hidden] { display: none; }
+.thread-resource-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-bottom: 1px solid #dde1d9; }
+.thread-resource-heading span { font-size: 15px; font-weight: 600; }
+.thread-resource-heading button { min-height: 44px; font-size: 13px; }
+.thread-resource-panel .thread-model-pane { height: auto; min-height: 0; border: 0; }
+.thread-result-product-view { padding: 24px; font-size: 14px; line-height: 1.5; }
+.thread-result-product-view > p { margin: 0 0 16px; color: #66716b; }
+.thread-result-product-view .capstone-result-card { margin-top: 24px; }
+.thread-resource-panel .capstone-result-table { font-variant-numeric: tabular-nums; }
+.capstone-result-products { display: grid; gap: 8px; margin: 16px 0; }
+.capstone-result-product { display: flex; align-items: center; gap: 16px; width: min(100%, 560px); padding: 16px; border: 1px solid #dde1d9; border-radius: 8px; background: #fff; color: #22352e; text-align: left; cursor: pointer; }
+.capstone-result-product > span:first-of-type { display: grid; flex: 1; gap: 4px; min-width: 0; }
+.capstone-result-product strong { font-size: 15px; font-weight: 600; }
+.capstone-result-product small { font-size: 13px; color: #66716b; }
+.capstone-result-product:hover { border-color: #245b47; background: #f2f6f0; }
+.capstone-result-product:focus-visible { outline: 2px solid #245b47; outline-offset: 2px; }
+.thread-resource-heading > div { display: flex; gap: 8px; }
+.thread-conversation-workspace .capstone-composer-toolbar { flex-wrap: wrap; }
+.thread-conversation-workspace .capstone-chat-stop { min-height: 44px; min-width: 44px; }
+.answer-detail-layer { position: fixed; inset: 0; z-index: 1000; color: #22352e; }
+.answer-detail-backdrop { position: absolute; inset: 0; background: #172d3220; }
+.answer-detail-sheet { position: absolute; top: 12px; right: 12px; bottom: 12px; width: min(600px, calc(100% - 24px)); display: flex; flex-direction: column; background: #fdfdf9; border: 1px solid #dde1d9; border-radius: 14px; box-shadow: 0 12px 48px #202e2926; }
+.answer-detail-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-shrink: 0; padding: 20px 20px 14px; border-bottom: 1px solid #dde1d9; }
+.answer-detail-heading h2 { margin: 0; font-size: 18px; font-weight: 600; line-height: 1.5; }
+.answer-detail-heading p { margin: 6px 0 0; color: #66716b; font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.answer-detail-heading button { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 44px; height: 44px; border: 1px solid #dde1d9; border-radius: 8px; color: #245b47; background: #fff; cursor: pointer; }
+.answer-detail-heading button:focus-visible { outline: 2px solid #245b47; outline-offset: 2px; }
+.answer-detail-content { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 18px 20px 24px; }
+.answer-detail-content .capstone-result-explorer { margin: 0; }
 @media (max-width: 760px) {
+  .answer-detail-sheet { inset: 0; width: 100%; border-radius: 0; border: 0; }
+  .answer-detail-heading { padding: 16px; }
+  .answer-detail-content { padding: 16px; }
+  .thread-conversation-workspace.has-resource-panel .thread-resource-panel { position: fixed; z-index: 100; inset: 61px 0 0; }
+  .thread-workspace-separator, .thread-resource-expand { display: none; }
+  .thread-conversation-workspace .thread-workspace-heading { flex-wrap: wrap; gap: 10px; }
   .thread-navigation-toggle { display: inline-flex; min-height: 44px; align-items: center; border: 1px solid #dde1d9; border-radius: 6px; background: #fff; padding: 0 12px; color: #245b47; }
   .thread-conversation-workspace .app-version { display: none; }
   .thread-conversation-workspace .thread-navigation-toggle { white-space: nowrap; }

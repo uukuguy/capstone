@@ -24,6 +24,29 @@ const snapshot = {
 }
 
 describe('ThreadLiveEntry', () => {
+  it('opens a version-one host without version echo in the shared workspace with complete input tools', async () => {
+    const fetcher = vi.fn(async (url: string | URL, init?: RequestInit) => {
+      const path = String(url)
+      if (path.endsWith('/workbench-preparation')) return new Response('', {status:404})
+      if (path.endsWith('/thread-access')) return new Response(JSON.stringify({schema:'capstone-thread-access/1', mode:'open'}))
+      if (path.includes('/threads?')) return new Response(JSON.stringify({schema:'capstone-thread-list/1',threads:[],has_more:false,next_before_thread_id:null}))
+      if (path.endsWith('/catalog')) return new Response(JSON.stringify(threadUiFixture('idle-ieee39').catalog))
+      if (path.endsWith('/models') || path.endsWith('/input-catalog')) return new Response('', {status:404})
+      if (path.endsWith('/metadata')) return new Response(JSON.stringify({archived:false}))
+      if (path.includes('/events/stream')) return new Response(new ReadableStream({start(){}}))
+      if (path.includes('/history?')) return new Response(JSON.stringify({schema:'capstone-thread-history/1',thread_id:'thr_demo_39',before_event_seq:1,next_before_event_seq:1,has_more:false,events:[]}))
+      if (path.includes('/events?')) return new Response(JSON.stringify({schema:'capstone-thread-events/1',thread_id:'thr_demo_39',after_event_seq:0,next_event_seq:0,has_more:false,events:[]}))
+      return new Response(JSON.stringify(snapshot))
+    })
+    vi.stubGlobal('fetch', fetcher)
+    render(<ThreadLiveEntry threadId="thr_demo_39" presentation="workspace" />)
+    expect(await screen.findByRole('navigation', {name:'任务会话'})).toBeTruthy()
+    expect(screen.getByRole('button', {name:'选择技能'})).toBeTruthy()
+    expect(screen.getByRole('button', {name:'本轮上下文'})).toBeTruthy()
+    expect(screen.queryByRole('button', {name:'开始任务'})).toBeNull()
+    expect(screen.queryByRole('button', {name:'保存任务'})).toBeNull()
+    expect(fetcher.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false)
+  })
   it('shows actual startup progress and hides all input until preparation completes', async () => {
     let stream: ReadableStreamDefaultController<Uint8Array>
     const encoder = new TextEncoder()
@@ -122,7 +145,7 @@ describe('ThreadLiveEntry', () => {
     render(<ThreadLiveEntry threadId="thr_demo_39" />)
 
     expect(await screen.findByRole('region', { name: '电网模型区' })).toBeTruthy()
-    expect(screen.getAllByText('pandapower').length).toBeGreaterThan(0)
+    expect(screen.getByText('ieee39 · pandapower')).toBeTruthy()
   })
 
   it('creates a default IEEE-39 Thread only once under StrictMode', async () => {

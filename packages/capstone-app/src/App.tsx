@@ -101,28 +101,6 @@ function AnswerCard({ turn, onEvidence }: {
   </div>
 }
 
-function CapstoneIntro() {
-  return <section className="capstone-intro" aria-label="CAPSTONE 框架介绍">
-      <div className="capstone-intro-art notranslate" translate="no">
-        <img src="/capstone-science-hero.png" alt="工业专业框架与 AI 智能体应用的连接示意" />
-        <div className="capstone-intro-overlay">
-          <div className="capstone-intro-main">
-            <span className="capstone-intro-kicker">电网科学AI <span> / SCIENTIFIC AI FOR THE GRID</span></span>
-            <strong>从专业仿真<br />到智能推演</strong>
-            <div className="capstone-intro-frameworks"><span>pandapower</span><span>PyPSA</span></div>
-            <div className="capstone-intro-disciplines" aria-label="电网科学AI模型方向">
-              <span><b>神经算子</b>DeepONet · FNO</span>
-              <span><b>动力学模型</b>Neural-DAE · Koopman</span>
-              <span><b>物理图网络</b>GraphGPS · PI-GNN</span>
-            </div>
-          </div>
-          <span className="capstone-intro-principles">CAPABILITY / EVIDENCE / CONTROL</span>
-        </div>
-      </div>
-      <p>CAPSTONE 为电网科学AI提供应用底座：把 pandapower、PyPSA 等科学计算工具封装为统一的领域能力，由智能体组织任务、权威系统完成计算。每一步的结果与证据随运行留存，形成可复用、可核查的分析过程。</p>
-    </section>
-}
-
 function RunPanel({ caseCard, status, turns, progress, actionPending, automatic, autoPaused, onStart,
                     onSubmit, onClose, onAuto, onRestart, onStopAuto, onEvidence,
                     networkView, previewDiagram, previewUnavailable,
@@ -757,7 +735,6 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
   return <div style={{ display: visible ? 'contents' : 'none' }}>
     <div className="workspace-center">
       {error && <div className="workspace-alert" role="alert">{error}</div>}
-      <CapstoneIntro />
       <RunPanel caseCard={caseCard} status={status}
         turns={turns} progress={progress} actionPending={pending || restoring}
         automatic={automatic} autoPaused={autoPaused}
@@ -781,13 +758,17 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
 
 export default function App({ clientFactory = defaultClientFactory }: Props) {
   const params = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search)
+  const enterpriseWorkspace=params?.get('workspace')==='enterprise'
+  useEffect(()=>{document.title=enterpriseWorkspace ? 'Capstone · 企业工作台' : 'Capstone · 电网分析工作台'},[enterpriseWorkspace])
   const fixtureRoute = params?.get('thread-fixture')
   const liveThreadRoute = params?.get('thread')
   const fixtureIds = new Set<ThreadUiFixtureId>(['idle-ieee39', 'historical-live-attempt', 'resync-required', 'interrupted-attempt'])
   if (fixtureRoute && fixtureIds.has(fixtureRoute as ThreadUiFixtureId)) {
-    return <ThreadFixtureApp fixtureId={fixtureRoute as ThreadUiFixtureId} />
+    const workspace=params?.get('workspace')==='enterprise'
+    return <ThreadFixtureApp fixtureId={fixtureRoute as ThreadUiFixtureId} presentation={workspace ? 'workspace' : undefined}
+      navigation={workspace && <nav id="thread-session-navigation" className="thread-session-navigation" aria-label="任务会话"><span className="eyebrow">WORKSPACE</span><h1>企业工作空间</h1><p role="status">离线会话预览</p><a aria-current="page" href={`/?workspace=enterprise&thread-fixture=${fixtureRoute}`}>当前记录会话</a></nav>} />
   }
-  if (params?.get('workspace') === 'enterprise') return <ThreadLiveEntry threadId={liveThreadRoute || 'new'} mode="work" />
+  if (params?.get('workspace') === 'enterprise') return <ThreadLiveEntry threadId={liveThreadRoute || 'new'} presentation="workspace" />
   if (liveThreadRoute) return <ThreadLiveEntry threadId={liveThreadRoute} />
   const path = typeof window === 'undefined' ? '/' : window.location.pathname
   if (path !== '/old' && path !== '/old/') return <ThreadLiveEntry threadId="new" />

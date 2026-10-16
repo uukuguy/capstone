@@ -233,7 +233,7 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
   // Keep strokes, symbols, and labels readable in screen pixels while the SVG
   // viewBox zooms into a dense network.
   const visualScale = camera.width / FULL.width
-  const symbolScale = visualScale
+  const symbolScale = visualScale * .82
   const branchKinds = new Set(geometry?.branches.map((branch) => branch.kind) || [])
   const toolbar = <div className="network-toolbar" aria-label="电网图操作">
     <button type="button" onClick={() => zoom(0.8)} aria-label="放大" title="放大">{compact ? <Plus aria-hidden="true" /> : '＋'}</button>
@@ -315,14 +315,14 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
               {transformer && <g className="network-transformer-symbol" aria-hidden="true">
                 <circle cx={centerX - (dense ? 2.3 : 4) * symbolScale} cy={centerY}
                   r={(dense ? 2.7 : 4.5) * symbolScale}
-                  style={{ strokeWidth: `${1.2 * visualScale}px` }} />
+                  style={{ strokeWidth: `${1.2 * symbolScale}px` }} />
                 <circle cx={centerX + (dense ? 2.3 : 4) * symbolScale} cy={centerY}
                   r={(dense ? 2.7 : 4.5) * symbolScale}
-                  style={{ strokeWidth: `${1.2 * visualScale}px` }} />
+                  style={{ strokeWidth: `${1.2 * symbolScale}px` }} />
               </g>}
               {(highlighted || state) && <text x={(state?.markers ? markers[0].x : centerX) + 7 * visualScale} y={(state?.markers ? markers[0].y : centerY) - 9 * visualScale}
                 className="network-branch-label"
-                style={{ fontSize: `${12 * visualScale}px`, strokeWidth: `${4 * visualScale}px`,
+                style={{ fontSize: `${12 * symbolScale}px`, strokeWidth: `${4 * symbolScale}px`,
                   fill: color }}>{label}</text>}
               <title>{label}{state ? ` · ${state.label}` : ''}{value === undefined ? '' : ` · ${value.toFixed(1)} ${layer!.overlay!.unit}`}</title>
             </g>
@@ -336,6 +336,7 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
             const historical = !highlighted && historyIds.has(bus.id)
             return <g key={bus.id} onMouseEnter={() => setHovered(bus.id)}
               onMouseLeave={() => setHovered(null)}>
+              <circle className="network-bus-hit-area" cx={bus.x} cy={bus.y} r={(dense ? 7 : 13) * visualScale} fill="transparent" />
               {!region && state?.style === 'unresolved' && <circle cx={bus.x} cy={bus.y}
                 r={(dense ? 7 : 13) * symbolScale} fill="none" stroke="#7e858c"
                 strokeDasharray={`${3 * visualScale} ${2 * visualScale}`} strokeWidth={1.5 * visualScale} />}
@@ -344,7 +345,7 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
                 y1={bus.y} y2={bus.y}
                 stroke={region ? regionColors[region.index % regionColors.length] : value === undefined ? highlighted ? '#1b4e9b' : historical ? '#91aaa6' : '#344c53'
                   : valueColor(layer!.overlay!.metric, value, loadingRange)}
-                strokeWidth={(highlighted ? 7 : 3.5) * visualScale} strokeLinecap="square" />
+                strokeWidth={(highlighted ? 7 : 3.5) * symbolScale} strokeLinecap="square" />
                 : <circle className={`network-bus-point${region ? ' network-region-marker' : ''}`} cx={bus.x} cy={bus.y}
                   r={(highlighted ? dense ? 5 : 9 : dense ? 2.9 : 5.5) * symbolScale}
                   fill={region ? regionColors[region.index % regionColors.length] : value === undefined ? '#ffffff' : valueColor(layer!.overlay!.metric, value, loadingRange)}
@@ -353,7 +354,7 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
               {(nodes.length <= 25 || highlighted || historical || (state && state.style !== 'unresolved') || focusBuses.has(bus.id) || hovered === bus.id) &&
                 <text x={bus.x + 13 * visualScale} y={bus.y - 11 * visualScale}
                   className="network-node-label"
-                  style={{ fontSize: `${12 * visualScale}px`, strokeWidth: `${3 * visualScale}px` }}>{label}</text>}
+                  style={{ fontSize: `${12 * symbolScale}px`, strokeWidth: `${3 * symbolScale}px` }}>{label}</text>}
               <title>{label}{region ? ` · ${region.label}` : ''}{state ? ` · ${state.label}` : ''}{'vn_kv' in bus && bus.vn_kv !== null ? ` · ${bus.vn_kv} kV` : ''}{value === undefined ? '' : ` · ${value.toFixed(3)} ${layer!.overlay!.unit}`}</title>
             </g>
           })}

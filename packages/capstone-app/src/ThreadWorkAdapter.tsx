@@ -11,8 +11,8 @@ import type { ThreadListPage } from './threadManagement'
 import { parseThreadHistoryPage, type ThreadHistoryPage } from './threadHistory'
 
 /** Data adapter for the existing workspace and assistant-ui presentation. */
-export default function ThreadWorkAdapter({ transport, threadId, namespace }: {
-  transport: HttpThreadTransport; threadId: string; namespace: string
+export default function ThreadWorkAdapter({ transport, threadId, namespace, recoveryOnly = false }: {
+  transport: HttpThreadTransport; threadId: string; namespace: string; recoveryOnly?: boolean
 }) {
   const [currentId, setCurrentId] = useState(threadId)
   useEffect(() => {
@@ -20,11 +20,11 @@ export default function ThreadWorkAdapter({ transport, threadId, namespace }: {
     window.addEventListener('popstate', navigate)
     return () => window.removeEventListener('popstate', navigate)
   }, [])
-  return <WorkThreadSession key={currentId} transport={transport} threadId={currentId} namespace={namespace} onNavigate={setCurrentId} />
+  return <WorkThreadSession key={currentId} transport={transport} threadId={currentId} namespace={namespace} onNavigate={setCurrentId} recoveryOnly={recoveryOnly} />
 }
 
-function WorkThreadSession({ transport, threadId: currentId, namespace, onNavigate }: {
-  transport: HttpThreadTransport; threadId: string; namespace: string; onNavigate: (id: string) => void
+function WorkThreadSession({ transport, threadId: currentId, namespace, onNavigate, recoveryOnly }: {
+  transport: HttpThreadTransport; threadId: string; namespace: string; onNavigate: (id: string) => void; recoveryOnly: boolean
 }) {
   const mounted = useRef(true)
   useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
@@ -183,9 +183,9 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
   return <ThreadWorkspace conversationOnly subtitle="企业任务工作台"
     sidebar={<nav id="thread-session-navigation" className="thread-session-navigation" aria-label="任务与会话">
       <span className="eyebrow">WORKSPACE</span><h1>企业工作空间</h1>
-      <button className="thread-session-new" disabled={busy} onClick={() => void create()}><Plus aria-hidden="true" size={16} />新建任务会话</button>
+      {recoveryOnly ? <a className="thread-session-new" href="/?workspace=enterprise&thread=new">新建会话</a> : <button className="thread-session-new" disabled={busy} onClick={() => void create()}><Plus aria-hidden="true" size={16} />新建任务会话</button>}
       <h2>当前会话</h2>
-      <button aria-pressed={selected === 'new'} disabled={busy || !!pending} onClick={() => selectWork('new')}>新的任务目标</button>
+      {!recoveryOnly && <button aria-pressed={selected === 'new'} disabled={busy || !!pending} onClick={() => selectWork('new')}>新的任务目标</button>}
       {snapshot?.works.map((work, index) => <button key={work.workId} aria-pressed={selected === work.workId}
         disabled={busy || !!pending} onClick={() => selectWork(work.workId)} title={work.goal}>{String(index + 1).padStart(2, '0')} · {work.goal}</button>)}
       <h2>最近会话</h2>
@@ -205,6 +205,7 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
       <span className="thread-model-short">{selectedWork ? `修订 ${selectedWork.goalRevision} · 已保存，未执行` : '对话与任务记录'}</span></div>
       {currentId !== 'new' && <button type="button" className="thread-control-button" aria-label="刷新任务" onClick={() => { setError(null); void load().catch(cause => setError(cause.message)) }}><RefreshCw aria-hidden="true" size={16} /></button>}
     </div>
+      {recoveryOnly && <p role="status">此会话使用旧版任务协议，可查看历史、保留草稿并确认原请求；当前入口尚不能继续发送。可新建会话继续工作。</p>}
       {error && <p role="alert">{error}</p>}
       {historyError && <p role="alert">{historyError} <button onClick={() => setHistoryReload(value => value + 1)}>重试读取历史</button></p>}
       {notice && <p role="status">{notice}</p>}
@@ -213,7 +214,7 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
     {restoredKey === key && (snapshot || currentId === 'new') && <CapstoneAssistantThread key={`${key}.${selected}`} events={history?.events || []}
       projectedMessages={messages} composerMode="text" composerLabel={selected === 'new' ? '任务目标' : '补充任务资料'}
       sendLabel={pending ? '重试保存' : '保存任务'} initialText={initialText} onDraftChange={onDraftChange}
-      storageKey={`${key}.${selected}`} disabled={busy || !snapshot} lockDraft={!!pending} isRunning={false} activity={[]}
+      storageKey={`${key}.${selected}`} disabled={busy || !snapshot || (recoveryOnly && !pending)} lockDraft={!!pending} isRunning={false} activity={[]}
       runtimeStatus={<span>{pending ? '上次保存结果待确认；重试将使用同一请求。' : '任务记录已开放。持续执行尚未接通，保存任务不会启动智能体。'}</span>}
       emptyState={<div className="capstone-chat-empty"><strong>有什么工作需要完成？</strong><p>{currentId === 'new' ? '新建任务会话后，描述目标、已有资料与期望交付。' : '描述目标、已有资料与期望交付。'}</p></div>}
       onSend={(_, text) => send(text)} onCancel={async () => {}} canRerunCompleted={false}

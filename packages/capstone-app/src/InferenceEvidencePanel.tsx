@@ -6,6 +6,7 @@ export type FailureEvidence = {
 export type ToolExecutionRecord = { id: string; tool: string; capability: string; ok: boolean;
   parameters: Record<string, unknown>; resultRefs: string[]; evidenceRefs: string[]; sequence: number }
 export type InferenceEvidenceProps = {
+  title?: string
   attemptId: string; admitted: boolean; resultRefs: readonly string[]; evidenceRefs: readonly string[]
   projections: readonly ResultProjection[]; failures: readonly FailureEvidence[]
   onSelectResult?: (resultId: string) => void
@@ -29,7 +30,7 @@ function metricText(value: string | number | boolean | null): string {
   return value
 }
 
-export default function InferenceEvidencePanel({ attemptId, admitted, resultRefs, evidenceRefs,
+export default function InferenceEvidencePanel({ title = '推演证据', attemptId, admitted, resultRefs, evidenceRefs,
   projections, failures, onSelectResult, executions = [] }: InferenceEvidenceProps) {
   const results = new Set(admitted ? resultRefs : [])
   const references = new Set(admitted ? evidenceRefs : [])
@@ -37,8 +38,8 @@ export default function InferenceEvidencePanel({ attemptId, admitted, resultRefs
     item.resultRef && results.has(item.resultRef) && item.evidenceRefs.every((ref) => references.has(ref)))
   const linkedReferences = new Set(selected.flatMap((item) => item.evidenceRefs))
   const otherReferences = [...references].filter((ref) => !linkedReferences.has(ref))
-  return <section className="capstone-chat-evidence capstone-inference-evidence" aria-label="推演证据">
-    <strong>推演证据</strong>
+  return <section className="capstone-chat-evidence capstone-inference-evidence" aria-label={title}>
+    <strong>{title}</strong>
     <p className="capstone-evidence-scope" aria-label="任务证据概况">
       {selected.length} 项计算结果 · {failures.length} 项失败记录 · {executions.length} 次工具调用
     </p>

@@ -3,7 +3,7 @@ import { MessageNotSentError } from '@assistant-ui/react'
 import { buildThreadCommand, CapstoneThreadClient, type ThreadCommand } from './threadClient'
 import { createFixtureTransport, instructionOrdinal, ThreadProjectionStore, type ThreadProjectionState } from './threadProjectionStore'
 import { threadUiFixture, type ThreadUiFixtureId } from './threadUiFixtures'
-import CapstoneAssistantThread, { projectAssistantActivity } from './CapstoneAssistantThread'
+import CapstoneAssistantThread, { projectAssistantActivity, ResultProjectionCard } from './CapstoneAssistantThread'
 import ThreadModelPane from './ThreadModelPane'
 import ThreadModelDirectory, { modelUnavailableCopy } from './ThreadModelDirectory'
 import { commandRejectionCopy } from './threadFeedback'
@@ -34,6 +34,8 @@ function connectionLabel(connection: ThreadProjectionState['connection']): strin
 }
 
 export type ThreadWorkspaceProps = {
+  presentation?: 'workspace'
+  navigation?: ReactNode
   fixtureId?: ThreadUiFixtureId
   client?: CapstoneThreadClient
   threadId?: string
@@ -47,7 +49,11 @@ export type ThreadWorkspaceProps = {
   prepareConnection?: PrepareConnection
 }
 
-export default function ThreadFixtureApp({ fixtureId, client, threadId: requestedThreadId, previewDiagram, storageKey, readOnly = false, headerActions, sessionNotice, disabledToolIds: sharedDisabledToolIds, onDisabledToolIdsChange, prepareConnection }: ThreadWorkspaceProps) {
+export default function ThreadFixtureApp({ fixtureId, client, threadId: requestedThreadId, previewDiagram, storageKey, readOnly = false, headerActions, sessionNotice, disabledToolIds: sharedDisabledToolIds, onDisabledToolIdsChange, prepareConnection, presentation, navigation }: ThreadWorkspaceProps) {
+  const workspace = presentation === 'workspace'
+  const [resourcePanelOpen, setResourcePanelOpen] = useState(false)
+  const [selectedProduct, setSelectedProduct] = useState<string>()
+  const observedProducts = useRef<{ threadId: string; ids: Set<string>; cursor: number; opened: boolean } | null>(null)
   const [localDisabledToolIds, setLocalDisabledToolIds] = useState<string[]>([])
   const disabledToolIds = sharedDisabledToolIds ?? localDisabledToolIds
   const setDisabledToolIds = onDisabledToolIdsChange ?? setLocalDisabledToolIds
@@ -194,6 +200,24 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   }, [fixture, pageVisible, activity.paused, reload, store, threadId])
 
   const snapshot = projection.snapshot
+  const product = snapshot?.resultProjections?.find(result => result.resultId === selectedProduct)
+  useEffect(() => {
+    if (!workspace || !snapshot) return
+    const products = (snapshot.resultProjections || []).filter(result => result.status !== 'unavailable' && result.resultRef && (result.summary.length > 0 || result.tables.length > 0))
+    const observed = observedProducts.current
+    if (!observed || observed.threadId !== snapshot.threadId) {
+      observedProducts.current = {threadId:snapshot.threadId, ids:new Set(products.map(result=>result.resultId)), cursor:projection.eventSeq, opened:false}
+      return
+    }
+    const latestAttempt = snapshot.currentAttempt?.attemptId || [...store.publicEvents].reverse()
+      .find(event => event.attemptId && ['command_accepted','attempt_started','attempt_completed','attempt_failed','attempt_cancelled','attempt_interrupted'].includes(event.eventType))?.attemptId
+    const generated = products.find(result => !observed.ids.has(result.resultId) && result.attemptId === latestAttempt && projection.eventSeq > observed.cursor)
+    observed.ids = new Set(products.map(result=>result.resultId))
+    if (generated && !observed.opened) {
+      observed.opened = true
+      setSelectedProduct(generated.resultId); setResourcePanelOpen(true)
+    }
+  }, [workspace, snapshot, projection.eventSeq])
   const selectedTools = useMemo(() => enabledTools(projection.catalog?.profiles || [], disabledToolIds), [projection.catalog?.profiles, disabledToolIds])
   useEffect(() => {
     if (!snapshot) return
@@ -705,12 +729,30 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
     return <button type="button" className="thread-control-button" disabled={!enabled} onClick={() => void submitExecution(kind, payload)}>{label}</button>
   }
 
-  return <ThreadWorkspace loading={loading} ready={Boolean(snapshot)}
-    preparation={(activity.mode === 'preparing' || activity.mode === 'failed') && <div className="thread-resume-progress">
-      <WorkbenchPreparation compact updates={activity.updates} error={activity.error}
-        onRetry={() => { void activity.ensureReady().catch(() => {}) }} />
-    </div>}
-    sidebar={snapshot && <>
+  function focusResultElement(result: ResultProjection, elementId: string): boolean {
+    if (!snapshot) return false
+
+              if (isHistorical) {
+                setNotice('历史页为只读视图，请返回当前模型后定位')
+                return false
+              }
+              if (result.modelContextId !== snapshot.activeModelContext.id || result.modelId !== snapshot.activeModelContext.modelId || result.modelRevision !== snapshot.activeModelContext.modelRevision) {
+                setNotice('该结果属于历史模型修订，已保持只读，未改变当前电网图')
+                return false
+              }
+              if (!currentDiagramElementIds.has(elementId)) {
+                setFocusedElement(undefined)
+                setNotice('当前电网图中没有这个元件，无法定位')
+                return false
+              }
+              if (workspace) { setSelectedProduct(undefined); setResourcePanelOpen(true) }
+              setFocusedElement({ resultId: result.resultId, modelId: result.modelId, modelRevision: result.modelRevision, elementId })
+              setNotice(`已定位到 ${elementId}`)
+
+              return true
+  }
+
+  const modelPane = snapshot && <>
           <ThreadModelPane snapshot={snapshot} viewedPage={viewedPage || activePage || 'page_ieee39'} activePage={activePage || 'page_ieee39'} isHistorical={isHistorical}
           workingPages={projection.modelWorkspace ? store.modelWorkingPages : undefined} cameraStorageKey={`${storageKey || snapshot.threadId}.network-cameras`}
           gridPages={displayedGridPages}
@@ -728,17 +770,31 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
           onSelectPage={selectPage} feedback={notice}
           modelBusy={!canConfigure}
           onOpenHistoricalModel={projection.modelWorkspace ? (modelId, revision) => { void changeModel('open_model', { model_id: modelId, model_revision: revision }).catch(() => addSystemNotice('历史模型无法打开，请重新连接。', 'error')) } : undefined} />
-    </>}
-    heading={snapshot && <div className="thread-chat-heading"><div className="thread-chat-heading-title"><h2>智能体对话</h2><span className="thread-model-short">{snapshot.activeModelContext.modelId} · {snapshot.activeModelContext.implementationFamily}</span></div><div className="thread-chat-heading-meta">{projection.connection !== 'live' && <span className={`thread-connection-state is-${projection.connection}`}>{versionFailure ? '需更新应用' : connectionLabel(projection.connection)}</span>}{activity.mode === 'idle' && <span className="thread-idle-state" title="页面暂未操作，继续使用时自动恢复连接。">按需连接</span>}<span inert={activity.paused}>{headerActions}</span></div></div>}
+    </>
+  return <ThreadWorkspace loading={loading} ready={Boolean(snapshot)} conversationOnly={workspace} subtitle={workspace ? '企业工作台' : undefined}
+    resourcePanel={workspace ? product ? <div className="thread-result-product-view">
+      <p>{product.modelContextId === snapshot?.activeModelContext.id ? '当前模型的已保存计算结果' : '历史模型的已保存计算结果'} · {product.modelId}</p>
+      <button type="button" className="thread-control-button" onClick={()=>setSelectedProduct(undefined)}>查看当前模型</button>
+      <ResultProjectionCard projection={product} onFocusElement={focusResultElement} />
+    </div> : modelPane : undefined} resourceLabel={product ? '计算结果' : '模型与结果'} resourcePanelOpen={resourcePanelOpen} onResourcePanelOpenChange={setResourcePanelOpen}
+    preparation={(activity.mode === 'preparing' || activity.mode === 'failed') && <div className="thread-resume-progress">
+      <WorkbenchPreparation compact updates={activity.updates} error={activity.error}
+        onRetry={() => { void activity.ensureReady().catch(() => {}) }} />
+    </div>}
+    sidebar={workspace ? navigation : modelPane}
+    heading={snapshot && <div className="thread-chat-heading"><div className="thread-chat-heading-title"><h2>{workspace ? '工作会话' : '智能体对话'}</h2><span className="thread-model-short">{snapshot.activeModelContext.modelId} · {snapshot.activeModelContext.implementationFamily}</span></div><div className="thread-chat-heading-meta">{projection.connection !== 'live' && <span className={`thread-connection-state is-${projection.connection}`}>{versionFailure ? '需更新应用' : connectionLabel(projection.connection)}</span>}{activity.mode === 'idle' && <span className="thread-idle-state" title="页面暂未操作，继续使用时自动恢复连接。">按需连接</span>}<span inert={activity.paused}>{headerActions}</span></div></div>}
   >
     {snapshot && <>
           <CapstoneAssistantThread storageKey={storageKey} hasOlderHistory={projection.hasOlderHistory} historyLoading={projection.historyLoading}
+            onOpenAnswerDetail={workspace ? ()=>setResourcePanelOpen(false) : undefined}
+            onOpenResultProduct={workspace ? result=>{setSelectedProduct(result.resultId);setResourcePanelOpen(true)} : undefined}
             onReadAttemptRecords={client?.supportsAttemptRecords ? (attemptId, after) => client.attemptRecords(threadId, attemptId, after) : undefined}
             systemNotices={systemState.thread === threadId ? systemState.items : []} onSystemAction={() => setReload((value) => value + 1)}
             historyAtLatest={projection.historyAtLatest} onReturnLatest={() => setReload((value) => value + 1)}
             instructionLocation={instructionLocation}
             onLoadOlder={() => store.loadOlderHistory()} events={events} runtimeMode={(isActive && snapshot.currentAttempt?.runtimeMode) || snapshot.runtimeMode} disabled={!canSendText} isRunning={isActive} acceptedDraft={acceptedDraft} activity={projectAssistantActivity(events)} canRerunCompleted={canSendText && !contextChangePending}
             networkAttemptIds={[...new Set([...store.networkTasks.map((task) => task.attemptId), ...events.filter((event) => event.attemptId && (event.eventType === 'network_diagram' || projection.modelWorkspace && event.eventType === 'attempt_completed' && event.modelContextId)).map((event) => event.attemptId!)])]} onShowNetwork={(attemptId) => {
+              if (workspace) { setSelectedProduct(undefined); setResourcePanelOpen(true) }
               taskReturnGeneration.current++
               setInstructionLocation(undefined)
               setTaskReturn(undefined)
@@ -751,23 +807,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
               }
             }}
             selectedNetworkAttempt={selectedNetworkTask?.attemptId}
-            resultProjections={snapshot.resultProjections} onFocusElement={(result: ResultProjection, elementId) => {
-              if (isHistorical) {
-                setNotice('历史页为只读视图，请返回当前模型后定位')
-                return
-              }
-              if (result.modelContextId !== snapshot.activeModelContext.id || result.modelId !== snapshot.activeModelContext.modelId || result.modelRevision !== snapshot.activeModelContext.modelRevision) {
-                setNotice('该结果属于历史模型修订，已保持只读，未改变当前电网图')
-                return
-              }
-              if (!currentDiagramElementIds.has(elementId)) {
-                setFocusedElement(undefined)
-                setNotice('当前电网图中没有这个元件，无法定位')
-                return
-              }
-              setFocusedElement({ resultId: result.resultId, modelId: result.modelId, modelRevision: result.modelRevision, elementId })
-              setNotice(`已定位到 ${elementId}`)
-            }}
+            resultProjections={snapshot.resultProjections} onFocusElement={focusResultElement}
             caseExecution={displayedCaseExecution} caseCatalog={projection.catalog?.cases || []} caseConnection={projection.connection}
             caseStartDisabledReason={inputCatalog?.operations.find(item => item.operation_id === 'start_case_execution')?.available === false ? '当前执行角色或能力不支持案例' : !inputCatalog && snapshot.runtimeMode === 'pi_reference' ? '请先切换到 Capstone' : undefined}
             onCaseStart={startCase} onCaseAction={caseAction}
