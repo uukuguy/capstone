@@ -1,5 +1,8 @@
 # Capstone Conversation Contract Completion
 
+2026-10-16推进组织：阶段完整对话应用收口main并进入小修维护；企业自主执行沿dev研发。
+原Pi分支验证合入后关闭，不再作为长期产品线。当前集成任务见[收口设计](../specs/2026-10-16-main-dev-convergence.md)。
+
 2026-10-16当前计划：[统一执行实施计划](2026-10-16-enterprise-unified-execution.md)。
 [定稿v1](../specs/2026-10-15-enterprise-design-final.md)保留已验证业务资产、统一自主组织并拆开领域耦合。
 当前[协议决定](../specs/2026-10-16-enterprise-protocol-decisions.md)已细化边界审查问题，前置43项基线通过；

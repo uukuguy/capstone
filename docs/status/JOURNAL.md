@@ -3258,3 +3258,21 @@ The following original entries were retained during document synchronization.
 
 - 19:24 PR28双平台检查通过，正常合入dev f300d1f；root快进，保留控制副本stash，开始规范重建。
 - 19:35 rootdev f300规范重建通过；API/双worker同6c616058镜像，1060文件逐角色匹配，就绪/App身份通过，数据保留。
+
+- 2026-10-15: Define Profile composition, autonomous cooperation and frontend contracts for enterprise execution. [6bcc48b]
+
+- 2026-10-15: Specify adaptive general execution and Demo1 acceptance to avoid bespoke business interfaces. [4e0f243]
+
+- 2026-10-15: Prototype unified sessions and task-specific report/decision views to ground frontend design. [4fd8aea]
+
+- 2026-10-15: Specify professional chart acceptance; verify synthetic preview, data table and SVG export. Design only, uncommitted.
+- 2026-10-15: Verify Demo2 candidate views, chart export, stale constraints and browser restoration using synthetic fixtures. Runtime unchanged.
+
+- 2026-10-15: Replace Demo2 sketch with recorded IEEE-39 topology; verify all elements, zoom and pan. Keep synthetic analysis separate.
+
+- 2026-10-15: Review design readiness; record seven gaps and concrete resolution designs. Design freeze withheld; runtime unchanged.
+
+- 2026-10-16: Finalize unified enterprise design and checks to preserve proven assets while generalizing autonomous organization. [8090581f]
+- 2026-10-16: Correct scenario boundaries in design and plan; verify links, doctor and graph. Runtime unchanged; protocol closure remains open.
+- 2026-10-16: Scope constraints to affected actions; update recovery, input and delivery designs. Static checks pass; runtime validation remains open.
+- 2026-10-16: Refine protocols and recovery boundaries to keep enterprise work progressing without scenario-specific gates. [f4369eca]

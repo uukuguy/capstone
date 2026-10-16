@@ -4,6 +4,9 @@
 
 **Goal:** 在保留已有业务能力和数据的基础上，将专用与通用执行接入同一个长程自主组织机制。
 
+**Delivery line:** 原Pi成果收口后沿dev执行，产品方向为企业自主执行；Pi是底层生态，不是长期产品分支。
+已发布对话应用在main维护，后续研究按具体问题开短期分支。
+
 **Status:** 实施契约修订中。Demo1/Demo2是外部说明与评测实例，不是本计划的应用开发任务。
 所有限制须遵循[持续推进审查](../../reviews/2026-10-16-enterprise-progress-constraints-review.md)：局部失败不默认终止任务。
 执行前须闭合[边界审查](../../reviews/2026-10-16-enterprise-scenario-boundary-review.md)及此前协议评审问题。
