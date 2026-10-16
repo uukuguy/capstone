@@ -13,6 +13,7 @@ from capability_agent.application.workspace import ApplicationWorkspace
 from capability_agent.runtime.research_channel import ResearchRequestChannel
 from capability_agent._safe_files import read_bound_regular_path, write_bound_text
 from .thread_protocol import ModelContextSnapshot
+from .enterprise_context import TaskContext
 
 
 class AttemptResearch:
@@ -20,25 +21,39 @@ class AttemptResearch:
 
     Thread identifiers and Kernel portable identifiers have different contracts.
     The immutable binding records both; neither namespace impersonates the other.
-    Research is restored by Thread and model identity; attempts have separate
-    channels and immutable bindings. An unfinished turn requires recovery.
+    New work is restored by Thread and Work identity. Legacy callers retain
+    their existing model-owned paths. Attempts have separate channels and
+    immutable bindings. An unfinished turn requires recovery.
     """
 
     def __init__(self, root: Path, *, thread_id: str, run_id: str, attempt_id: str,
-                 model_context: ModelContextSnapshot,
+                 model_context: ModelContextSnapshot | None = None,
+                 task_context: TaskContext | None = None,
                  research_generation: str | None = None,
                  channel_root: Path | None = None,
                  is_active: Callable[[], bool], admit_reference: Callable[[str], bool]) -> None:
-        if not isinstance(model_context, ModelContextSnapshot):
-            raise TypeError("research requires the selected model snapshot")
+        if task_context is None:
+            if not isinstance(model_context, ModelContextSnapshot):
+                raise TypeError("legacy research requires the selected model snapshot")
+        else:
+            if not isinstance(task_context, TaskContext):
+                raise TypeError("invalid task context")
+            if task_context.binding.thread_id != thread_id:
+                raise ValueError("task context belongs to another thread")
+            if model_context is not None or research_generation is not None:
+                raise ValueError("work context cannot mix legacy model or research generation")
         identities = (thread_id, run_id, attempt_id)
         if any(not isinstance(value, str) or not value or len(value) > 256 for value in identities):
             raise ValueError("invalid task research identity")
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", attempt_id):
             raise ValueError("invalid research attempt identity")
         digest = sha256(json.dumps(identities).encode()).hexdigest()[:48]
-        owner = {"thread_id": thread_id, "model_id": model_context.model_id,
-                 "implementation_family": model_context.implementation_family}
+        if task_context is not None:
+            owner = {"thread_id": thread_id, "work_id": task_context.binding.work_id}
+        else:
+            assert model_context is not None
+            owner = {"thread_id": thread_id, "model_id": model_context.model_id,
+                     "implementation_family": model_context.implementation_family}
         if research_generation is not None:
             if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", research_generation):
                 raise ValueError("invalid research generation")
@@ -53,30 +68,39 @@ class AttemptResearch:
         if existing:
             saved = json.loads(read_bound_regular_path(owner_path))
             if saved.get("owner") != owner:
-                raise ValueError("research owner does not match selected model")
+                raise ValueError("research owner does not match selected context")
             self.research_id = saved["research_id"]
+            if task_context is not None and self.research_id != task_context.binding.research_id:
+                raise ValueError("stored research identity does not match work binding")
             self.store = ApplicationContextStore(workspace, ApplicationContextStore.replay(workspace))
         else:
-            self.research_id = f"research-{uuid4().hex}"
+            self.research_id = (task_context.binding.research_id if task_context is not None
+                                else f"research-{uuid4().hex}")
             write_bound_text(owner_path, json.dumps({"owner": owner, "research_id": self.research_id}))
             self.store = ApplicationContextStore.initialize(workspace)
         self.model_context = model_context
+        self.task_context = task_context
         self.identity_path = workspace.turns_path / f"{attempt_id}.json"
-        binding = {"schema": "capstone-task-research-binding/1", "thread_id": thread_id,
+        context_fields = self._context_fields()
+        binding = {"schema": "capstone-task-research-binding/2" if task_context else "capstone-task-research-binding/1",
+                   "thread_id": thread_id,
                    "run_id": run_id, "attempt_id": attempt_id, "kernel_run_id": workspace.run_id,
                    "research_id": self.research_id,
                    "research_generation": research_generation,
-                   "baseline_model_context": model_context.to_document()}
+                   **context_fields}
         with self.identity_path.open("x", encoding="utf-8") as target:
             self.identity_path.chmod(0o600)
             json.dump(binding, target)
             target.flush()
             os.fsync(target.fileno())
         self.turn_id = f"turn-{digest}"
+        turn_context = dict(context_fields)
+        if "baseline_model_context" in turn_context:
+            turn_context["model_context"] = turn_context.pop("baseline_model_context")
         self._start_event = ContextEventDraft(event_type="turn.started", turn_id=self.turn_id,
             payload={"ordinal": len(self.store.snapshot.core.turns) + 1,
                      "attempt_id": attempt_id, "run_id": run_id,
-                     "model_context": model_context.to_document()})
+                     **turn_context})
         self._started = self.store.snapshot.core.active_turn is None
         if self._started:
             self.store.append(self._start_event)
@@ -114,11 +138,17 @@ class AttemptResearch:
         if state is None:
             return None
         return {"research_id": state.research_id, "research_revision": state.revision,
-                "goal": state.goal, "baseline_model_context": self.model_context.to_document(),
+                "goal": state.goal, **self._context_fields(),
                 "claim_count": len(state.claims), "open_question_count": len(state.open_questions),
                 "current_note_ids": [note.note_id for note in state.notes
                     if self._initial_notes.get(note.note_id) != note],
                 "research_snapshot": state.model_dump(mode="json")}
+
+    def _context_fields(self) -> dict[str, object]:
+        if self.task_context is not None:
+            return {"task_context": self.task_context.to_document()}
+        assert self.model_context is not None
+        return {"baseline_model_context": self.model_context.to_document()}
 
     def close(self, *, failed: bool) -> None:
         if self._closed:
