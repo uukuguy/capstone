@@ -23,11 +23,14 @@ The full App suite passes537 tests. PR48 integrates this slice into dev with mat
 The production execution candidate binds Work to the existing Attempt queue, cancellation,
 worker lease and research state. It freezes actual active Profile selection, preserves
 unconsumed input after failures and keeps history isolated by Work. Claim preparation
-finishes before lease timing starts. The shared frontend uses the same event ledger,
-conversation components and recovery controls as the professional application.
-This slice is under integration acceptance; see the version register for merge state.
-Model-free Work remains saved but cannot execute until native continuous execution is
-connected. It creates no fake Attempt or completion. New enterprise-research and
+finishes before lease timing starts. These are retained internal implementation assets.
+Frontend application acceptance is withdrawn: reusing component names did not preserve
+the full mature dialogue controls, and save/start is not the accepted interaction.
+New task means new conversation with a preconfigured ApplicationProfile. One send must
+enter shared execution directly. The active slice restores the full existing dialogue
+area and connects model-free normal answers, follow-ups, stop and recovery.
+Simple dialogue must not depend on complete long-running research or tool inventory.
+No fake model, Attempt or completion is permitted. New enterprise-research and
 grid-analysis ApplicationProfile assemblies remain pending.
 The legacy entry retains v1 cross-origin compatibility and upgrade guidance without draft loss.
 Profile preparation supports authority and native Pack declarations with explicit

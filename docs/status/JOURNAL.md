@@ -3389,3 +3389,17 @@ The following original entries were retained during document synchronization.
 - 2026-10-17: eb51d354 repairs the research size fixture with a real Claim; loopback bypass passes23 checks; product gates resumed.
 
 - 2026-10-17: a8b4e578 starts leases after Claim preparation; slow-history tests and independent review preserve strict expiry.
+
+- 2026-10-17: 5e7fccc1 records product checks, exact local source and browser acceptance; control graph includes the execution candidate.
+
+- 2026-10-17: PR50 opened at5e7fccc1; Linux/macOS product CI38941770837 running; accepted local source remainsa8b4e578.
+
+- 2026-10-17: User selected macOS-only development checks; dev protection updated, main retains both platforms; workflow policy update underway.
+
+- 2026-10-17: a5142dc7 scopes development CI to macOS; release checks retain Linux; 119 tests and independent review passed.
+
+- 2026-10-17: User set normal conversation as minimum application delivery; saved Work remains internal progress, not an application delivery.
+
+- 2026-10-17: User rejected simplified enterprise dialogue; PR50 drafted and CI cancellation requested; backend retained, frontend acceptance reopened.
+
+- 2026-10-17: a14169aa classifies only issue automation configuration as governance; 120 tests pass, release and runtime gates unchanged.

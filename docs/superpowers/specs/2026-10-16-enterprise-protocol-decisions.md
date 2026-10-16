@@ -39,6 +39,12 @@ Thread记录minimum_protocol_version。既有Thread保持1，新企业Thread为2
 
 ## 2. 命令到现有控制面的映射
 
+2026-10-17最新决定覆盖下方早期切片交互：新建任务即新会话，入口预选Profile，
+发送通过一个原子命令接纳输入并接受真实执行；首次需要的Work由宿主在同事务建立。
+不能由浏览器串联“保存成功→再启动”构造正常发送，也不向用户暴露第二启动步骤。
+原子命令继续复用Thread账本、幂等键、事件游标和Attempt队列；具体wire随实现固定。
+下方work_message/start_work记录已实现的内部接缝，不构成新应用的交互要求。
+
 语义命令名在v2 wire使用下表snake_case名称，不直接传入v1的_identifier解析器。
 workspace配置继续是资源控制入口，复用已有身份/幂等存储，不另建Work命令账本。
 
@@ -60,7 +66,8 @@ v1原命令保留旧语义；v2不靠send_ordinary/send_professional选择两个
 
 ### Work执行绑定切片
 
-`work_message`保存目标或补充内容；`start_work`显式请求执行，刷新和读取不自动提交。
+早期内部切片以`work_message`保存内容、`start_work`请求执行；新会话交互不使用这一两阶段流程。
+刷新和读取不自动重复发送；正常输入统一改由上述原子输入执行命令接纳。
 本片先连接已注册专业能力，内部适配既有自动路由和Attempt队列，不增加业务流程分支。
 Work公开`latest_attempt_id`、`start_available`和`start_unavailable_reason`；可启动表示
 当前资源及队列允许接收，不承诺Provider健康或任务结果。运行时失败沿既有事件及终结事务呈现。
