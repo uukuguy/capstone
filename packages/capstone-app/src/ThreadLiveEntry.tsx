@@ -10,7 +10,7 @@ import { rotateStorageNamespace, storageNamespace } from './threadSessionState'
 import { readThreadAccess, type ThreadAccessMode } from './threadAccess'
 import WorkbenchPreparation from './WorkbenchPreparationView'
 import { prepareWorkbench, type PreparationUpdate } from './workbenchPreparation'
-import ThreadWorkView from './ThreadWorkView'
+import ThreadWorkAdapter from './ThreadWorkAdapter'
 
 const TOKEN_KEY = 'capstone.thread.operatorToken'
 const initialPreparation: PreparationUpdate[] = [
@@ -69,7 +69,7 @@ function WorkLiveEntry({ threadId }: { threadId: string }) {
   if (error) return <main className="thread-token-shell"><section className="thread-token-card" role="alert"><p>{error}</p><button onClick={() => setRetry(value => value + 1)}>重新连接</button></section></main>
   if (access === 'operator' && !token) return <TokenPrompt onSubmit={setToken} />
   if (!transport) return <main className="thread-loading" role="status">正在连接任务工作台…</main>
-  return <ThreadWorkView transport={transport} threadId={threadId} namespace={storageNamespace(origin)} />
+  return <ThreadWorkAdapter transport={transport} threadId={threadId} namespace={storageNamespace(origin)} />
 }
 
 function LegacyThreadLiveEntry({ threadId }: { threadId: string }) {
