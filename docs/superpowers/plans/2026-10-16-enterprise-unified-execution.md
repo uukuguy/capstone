@@ -149,7 +149,7 @@ local-dev运行源码a2efb791已规范重建并完成同源/浏览器检查。�
 - [x] 后端：`thread_service.py`、`thread_protocol.py`、`host_api.py`及客户端增加无模型Thread、Work关联、对象修订和版本适配；内存/Postgres共用语义。以同键重试、历史读取、无关事件不触发CAS冲突和重启恢复测试验收。
 - [x] 前端（e58ef9a4撤掉独立任务页，复用既有对话组件及定稿布局；537项App通过）：`ThreadLiveEntry.tsx`、`threadProtocol.ts`、`threadHttpTransport.ts`和`threadProjectionStore.ts`接入新契约，沿用会话导航与对话组件，提供明确的任务保存/执行状态，刷新不重发命令。
 - [ ] 后续切片接生产Claim/Profile固定快照及研究路径关联；本片只持久化Work，不添加未被生产执行使用的Claim参数。持续执行仍由Task 3独立验收。
-- [ ] 独立评审、针对性回归、规范本地重建与浏览器验证后，通过双平台适用CI合入dev；同步推进图实际节点及两条准备分支。
+- [x] PR #48已合入dev d86cc4ef；独立评审、1427后端/537前端、本地规范重建与浏览器通过，双平台CI38930597623通过；合并树同受检ed0e2e19。同步推进图实际节点及两条准备分支。
 
 ### 已完成切片：Profile声明、选择与按需准备
 

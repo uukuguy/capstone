@@ -1,21 +1,19 @@
 # Live Session Checkpoint
 
-Updated: 2026-10-16. Active recovery record.
+Updated: 2026-10-17. Active work; no final handoff.
 
 ## Current action
 
-- 2026-10-17 accepted Profile name enterprise-research (企业研究与分析), default intranet resources/public-web retrieval off, optional explicit web enhancement. Design/UI/Task2 plan updated; not runtime implemented. Frontend reuse now code-complete: full App537 tests/build passed, review race fixed, committed e58ef9a4, canonical rebuild and1152-file identity passed; needs integration.
-
-- USER CORRECTION: standalone Work UI rejected. Do not merge current frontend. review_work_ui completed shared presentation reuse; frozen code committed e58ef9a4. Root owns integration. Follow accepted enterprise design/prototype, preserve mature conversation components. AGENTS.md now records this rule. Backend remains valid; frontend tests are not design acceptance.
-
-- feat/thread-work-context from dev12cc9875. Product35e014df implements v2 Work ledger and no-model entry; da3ddfb1 fixes viewport scrolling/mobile header. Both committed, not yet pushed/merged.
-- Final local backend1427 passed/2 skipped with isolated PostgreSQL; App533 passed/build; types, boundaries, doctor and independent backend/UI reviews passed. No Provider calls.
-- Canonical local rebuild35e014df passed; API/worker/worker-pypsa image30ac7e42, each matches1152 source files. New rebuildda3ddfb1 is next. Identity script /tmp/verify-pack-selection.py; receipt runs/thread-work-ledger/local-identity.json.
-- Real saved model-free Thread thr_c32d0f45308b7340e885 / Work work_72ec2e783115bfec6d5e. Model/Attempt null, event1, blocked execution_unavailable. Browser work-entry; mobile390 and desktop1280 inspected.
-- Finish rebuild/refresh/legacy smoke, update report/register and graph, normal shared-agent dual-platform PR to dev, then control closeout and application branch synchronization. Do not claim Task2/continuous execution complete.
-- Production Claim/Profile binding and historical research association remain Task2; continuous Pi execution Task3. Both application branches remain preparation-only at12cc9875.
-- Dirty docs are task-owned plus inherited JOURNAL/RESUME/generated graph. Preserve all. Maincf72393b, cloud-dev24d9a325, demo faa6af9 and user e2eaee2 unchanged.
-- Graph server127.0.0.1:29483; use cache-busting query. Geometry /tmp/check-control-graph.js. Regenerate on final dev HEAD, retain977601f9/d4600ddc as fixed nodes.
+- PR48 merged d86cc4ef into dev after CI38930597623 Linux5m7s/macOS8m4s passed; merge tree equalsed0e2e19. Implementation branch closed; both application preparation branches fast-forwarded d86cc4ef. Current docs/work-ledger-integration branch records closeout.
+- Product35e014df: same Thread ledger v2 model-free Work, object CAS, exact retries, retained professional history. No fake model/Attempt or continuous execution.
+- User rejected standalone Work frontend. e58ef9a4 removes ThreadWorkView/threadWork.css and reuses ThreadWorkspace, CapstoneAssistantThread and ComposerSurface. Enterprise layout follows accepted prototype; original dialogue default layout remains. AGENTS584116bc records design reuse rule.
+- Full backend1427 passed/2 skipped with isolated PG; final App537 passed, build/types passed. Independent backend/UI reviews and late-response navigation regression passed. Logs /tmp/work-reuse-full-tests.log, /tmp/work-reuse-build.log.
+- Canonical rebuild e58ef9a4 passed. API/worker/worker-pypsa same image30ac7e42c151, each1152 files/links match. Receipt runs/thread-work-ledger/local-identity.json. Real saved Thread thr_c32d0f45308b7340e885 has one Work revision2/two messages after supplement/reload. No Provider; old professional Thread thr_819fe26814cf3abffe99 model/conversation readable.
+- Screenshots output/playwright/work-shared-conversation-desktop.png and mobile.png; accepted reference enterprise-accepted-reference.png. Actual browser work-entry currently old professional Thread; project-alignment graph server29483.
+- Accepted design names: enterprise-research (企业研究与分析), grid-analysis (电网分析与决策). Research defaults to intranet resources; public-web retrieval off, explicit optional enhancement only. Profile assembly not yet implemented. Existing branch names stay as references.
+- Next: finish control docs PR, normal dual-platform docs checks/merge; switch dev and fast-forward application branches, regenerate final actual-HEAD graph. Preserve fixed977601f9/d4600ddc and exact runtimee58ef9a4. Then continue Task2 production Claim/Profile binding.
+- Task2 Claim/Profile execution binding and historical research association remain; Task3 continuous Pi execution and Task5 full artifacts workspace remain. No Demo1/Demo2 completion claim.
+- Maincf72393b, cloud-dev24d9a325, demo faa6af9, user e2eaee2 unchanged. No cloud/demo release.
 
 ## Control and recovery
 
