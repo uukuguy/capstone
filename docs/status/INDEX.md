@@ -1,5 +1,7 @@
 # docs/status INDEX
 
+- 2026-10-16: 推进图三线卡片新增实际分支HEAD；合并及同步分支后重新生成，当前控制接受点34cf695e明确可见。
+
 - [main/dev收口](../superpowers/specs/2026-10-16-main-dev-convergence.md)：对话应用进入发布维护，企业自主执行收口dev；Pi分支待验证合入，未发生部署。
 
 - [协议决定](../superpowers/specs/2026-10-16-enterprise-protocol-decisions.md)与[前置基线](../reviews/2026-10-16-enterprise-protocol-baseline.md)：v2迁移、答复生效及检查来源已细化；既有43项测试及离线探针通过，完整执行桥仍待实现验证。

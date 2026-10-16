@@ -180,6 +180,20 @@ counts, prices, limits, versions, or deployment state here.
   and major branch merges. Move ordinary edits and interim candidates into
   history details; do not label paused plans or archived references as active.
 
+- The development control graph and its canonical register are owned by `dev`.
+  Update and integrate them into `dev`; a feature-branch copy or screenshot alone
+  is not a completed control update. Main contains only a release snapshot.
+  At each major development boundary, record implementation, verification, merge
+  and deployment state before reporting completion. After a PR merge and dependent
+  branch synchronization, refresh the graph in the actual dev checkout and inspect
+  that page. Show current branch HEADs explicitly, even when ordinary control
+  commits are omitted from the milestone graph. Keep those HEADs distinct from
+  product milestones and exact deployed source revisions. The generated snapshot
+  records its generation time; do not create an endless commit cycle merely to
+  embed the snapshot's own commit hash.
+  Apply these controls as standing instructions without asking the user to repeat
+  them or repeatedly restating them in progress updates.
+
 - Use [the project control overview](docs/status/PROJECT-OVERVIEW.html) as the
   shared development and release alignment view. Maintain its canonical
   [version register](docs/status/VERSION-CONTROL.md) and regenerate the same
@@ -199,6 +213,9 @@ counts, prices, limits, versions, or deployment state here.
   Prefer a wide layout that shows the full overview without internal scrolling
   on desktop. Preserve readable node content and accurate edge attachment when
   re-layout or scaling changes the graph.
+  Prefer shared-foundation and application research nodes to the right of dev,
+  while balancing card height, deployment cards and whitespace across both sides.
+  Overall visual balance takes priority over a rigid left/right category rule.
 
 - Keep secondary architecture research in the
   [Capstone core capability evolution notebook](docs/superpowers/specs/2026-10-07-capstone-core-evolution-discussion.md)
