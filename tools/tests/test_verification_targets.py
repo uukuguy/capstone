@@ -136,6 +136,18 @@ def test_pr_checks_formal_worker_without_legacy_cli_or_packaging() -> None:
         assert retired_or_release_only not in output
 
 
+def test_shared_agent_ci_checks_dependencies_with_a_time_budget() -> None:
+    workflow = (ROOT / ".github/workflows/verify.yml").read_text()
+    block = workflow.split("      - name: Verify shared agent dependencies\n", 1)[1].split("      - name:", 1)[0]
+    assert "if: steps.scope.outputs.gate == 'shared-agent'" in block
+    assert "timeout-minutes: 15" in block
+    for target in ("check-package-boundaries", "check-types", "test-capstone-agent",
+                   "test-kernel", "test-capstone-app", "build-capstone-app", "test-capstone-client",
+                   "test-registered-workers"):
+        assert target in block
+    assert "make check-pr" not in block
+
+
 def test_iteration_requires_explicit_scope_and_propagates_failure(tmp_path: Path) -> None:
     empty = subprocess.run(["make", "check-iteration"], cwd=ROOT, capture_output=True)
     assert empty.returncode != 0

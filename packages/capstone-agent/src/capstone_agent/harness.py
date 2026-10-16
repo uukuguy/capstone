@@ -243,14 +243,23 @@ def normalize_runtime_event(
         payload = {"reason": "model_step_budget", "budget_seconds": budget}
     elif event_type == "research_state_updated":
         from .thread_protocol import ModelContextSnapshot
-        context = ModelContextSnapshot.from_document(event.get("baseline_model_context"))
+        from .enterprise_context import TaskContext
         identity, goal, revision = event.get("research_id"), event.get("goal"), event.get("research_revision")
         if (not isinstance(identity, str) or not 0 < len(identity) <= 128
             or not isinstance(goal, str) or not 0 < len(goal) <= 4000
             or type(revision) is not int or revision < 1):
             raise ValueError("invalid research projection")
-        payload = {"research_id": identity, "research_revision": revision, "goal": goal,
-                   "baseline_model_context": context.to_document()}
+        payload = {"research_id": identity, "research_revision": revision, "goal": goal}
+        if "task_context" in event:
+            if "baseline_model_context" in event:
+                raise ValueError("research projection mixes work and legacy contexts")
+            task_context = TaskContext.from_document(event["task_context"])
+            if task_context.binding.research_id != identity:
+                raise ValueError("work research identity does not match projection")
+            payload["task_context"] = task_context.to_document()
+        else:
+            context = ModelContextSnapshot.from_document(event.get("baseline_model_context"))
+            payload["baseline_model_context"] = context.to_document()
         if "research_snapshot" in event:
             from capability_agent.application.research_models import ResearchState
             state = ResearchState.model_validate(event["research_snapshot"])

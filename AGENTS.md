@@ -279,6 +279,13 @@ be refreshed or reset before starting a new case.
 
 ## Verification
 
+During early development, keep CI proportional to the changed layer and its
+consumers. Use the scoped development gates in the lifecycle document; do not
+run every professional application suite for an isolated agent/App edit.
+Preserve both required platforms and full release/integration acceptance.
+Record measured gate duration and investigate timeouts instead of treating an
+unfinished check as passed.
+
 Run the smallest focused check for the changed behavior, then the repository
 gates needed for its scope. Supported offline gates are:
 

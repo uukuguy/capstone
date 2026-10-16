@@ -20,14 +20,28 @@ def classify(paths: list[str], *, target: str = "dev", release: bool = False) ->
     if not paths:
         return "product"
     governance = False
+    shared_agent = False
     for path in paths:
         if ".." in PurePosixPath(path).parts:
+            return "product"
+        if path.startswith("packages/capstone-agent/src/capstone_agent/") and (
+                PurePosixPath(path).name.startswith("general_pi_")
+                or PurePosixPath(path).name in {"kernel_pi_session.py", "pi_delegation.py"}):
             return "product"
         if path in GOVERNANCE_FILES or path.startswith("tools/issue_automation/") or (
                 path.startswith("tools/tests/test_issue_automation") and path.endswith(".py")):
             governance = True
+        elif path.endswith(".py") and path.startswith((
+                "packages/capstone-agent/src/capstone_agent/",
+                "packages/capstone-agent/tests/")):
+            shared_agent = True
+        elif path.startswith("packages/capstone-app/src/") and path.endswith((
+                ".ts", ".tsx", ".css")):
+            shared_agent = True
         elif path not in DOC_FILES and not path.startswith(("docs/", "tools/project_overview/")):
             return "product"
+    if shared_agent:
+        return "shared-agent"
     return "governance" if governance else "docs"
 
 

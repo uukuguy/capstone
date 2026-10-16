@@ -43,7 +43,7 @@ jobs:
           else
             gate=$(python3 tools/ci_scope.py --base "$BASE_SHA" --head "$HEAD_SHA" --target "$TARGET_BRANCH")
           fi
-          case "$gate" in docs|governance|product|release) ;; *) exit 1 ;; esac
+          case "$gate" in docs|governance|shared-agent|product|release) ;; *) exit 1 ;; esac
           echo "gate=$gate" >> "$GITHUB_OUTPUT"
       # Pinned per https://github.com/astral-sh/setup-uv (v10.0.1).
       - name: Install uv
@@ -70,6 +70,10 @@ jobs:
       - name: Verify governance contracts
         if: steps.scope.outputs.gate != 'docs'
         run: PYTHONPATH=. uv run --project packages/grid-agent python -m pytest tools/tests/test_ci_scope.py tools/tests/test_verification_targets.py tools/tests/test_issue_automation*.py -q
+      - name: Verify shared agent dependencies
+        if: steps.scope.outputs.gate == 'shared-agent'
+        timeout-minutes: 15
+        run: make check-package-boundaries check-types test-capstone-agent test-kernel test-capstone-app build-capstone-app test-capstone-client test-registered-workers
       - name: Verify formal applications
         if: steps.scope.outputs.gate == 'product'
         run: make check-pr
