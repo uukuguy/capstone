@@ -222,7 +222,8 @@ dev默认开发集成主线和main发布主线均启用轻量保护：PR与两�
 | File | Purpose |
 | --- | --- |
 | [Ordinary conversation local verification](../reviews/2026-10-08-ordinary-conversation-local-verification.md) | Empty-tool Capstone session, exact selection, loopback Pi RPC, real local capability prompt, current-source rebuild and complete offline release gate; external Provider and remote acceptance not tested. |
-| [Capstone conversation completion](../superpowers/plans/2026-10-07-capstone-conversation-completion.md) | Active delivery worklist for gaps in the approved Thread/Harness/Web conversation contracts; CONV-01 covers one-time history folding and individual toggles. |
+| [Conversation delivery and maintenance](../superpowers/plans/2026-10-07-capstone-conversation-completion.md) | Phase-complete application release and maintenance history; no near-term major upgrade is scheduled. |
+| [Enterprise execution worklist](../superpowers/plans/2026-10-16-enterprise-unified-execution.md) | Active dev research and implementation plan; retains working business assets and generalizes one autonomous organization mechanism. |
 | [Opened grid models and current model](../superpowers/specs/2026-10-08-thread-open-models-design.md) | CONV-06 approved design: persistent nonempty model collection, current pointer, compact control and atomic close; locally implemented and verified. |
 | [Opened models local verification](../reviews/2026-10-08-thread-opened-models-local-verification.md) | Durable model controls, closed-model historical replay, zero-tool access and instruction timestamps/grouping; independent review and cloud acceptance pending. |
 | [Model work resume](../superpowers/specs/2026-10-08-thread-model-work-resume-design.md) | Approved continuation rule: stable member identities, saved per-model Context, separate historical views and restored camera; supersedes fresh Context on every switch. |
@@ -302,4 +303,6 @@ dev默认开发集成主线和main发布主线均启用轻量保护：PR与两�
 | --- | --- | --- |
 | [USER-LOCAL-VERSIONS.tsv](USER-LOCAL-VERSIONS.tsv) | 🟢 active | 已验证公开安装版本；完整Git、固定安装地址及SHA256，最新在前 |
 
-- 2026-10-16: main候选确认f209fb1；PR #30/#31分别收口发布与dev研发，检查中，环境来源未变。
+- 2026-10-16: PR #30已合入main cf72393b，发布范围f209fb1；PR #31已合入dev db167184，双平台检查通过，原分支关闭。
+
+- 2026-10-16: local-dev验证来源abf2f797，PR #31已通过并合入dev；[收口验证](../reviews/2026-10-16-main-dev-convergence-verification.md)记录源码、数据保留及边界。

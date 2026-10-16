@@ -1,6 +1,7 @@
 # 发布基线与研发主线收口
 
-状态：用户已确认方向，Git集成及验证进行中；不得把计划边写成已合并。
+状态：PR #30已合入main cf72393b，PR #31已合入dev db167184；两者必需双平台检查通过。
+长期Pi分支及发布分支已关闭，工作树和数据保留。精确验收见[收口验证](../../reviews/2026-10-16-main-dev-convergence-verification.md)。
 
 ## 主线职责
 
@@ -25,7 +26,7 @@ Pi合dev保持历史、不rebase共享分支、不强推。使用现有PR和Linu
 
 ## 运行与回退
 
-main合并仅登记发布基线，不更新交付包或任何环境。dev合并后按规范重建local-dev并验证真实入口；
+main合并仅登记发布基线，不更新交付包或任何环境。local-dev已从受检abf2f797规范重建并验证真实入口，dev合并树与其一致；
 local-demo、cloud-demo、cloud-dev及用户安装继续保持原来源，后续部署单独验收。
 
 Pi的Compose新增general-pi服务及私有控制令牌。local-dev重建前在受保护的本地配置中生成缺少的令牌，

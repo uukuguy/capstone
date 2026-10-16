@@ -1,7 +1,11 @@
-# Capstone Conversation Contract Completion
+# Capstone Conversation Delivery and Maintenance Record
+
+main已通过PR #30收口为cf72393b，发布范围f209fb1；短期只安排必要小修。
+本文件保留交付、维护和历史验收边界，不再作为新一轮企业研发的活动清单。
+当前研发清单为[统一执行实施计划](2026-10-16-enterprise-unified-execution.md)。
 
 2026-10-16推进组织：阶段完整对话应用收口main并进入小修维护；企业自主执行沿dev研发。
-原Pi分支验证合入后关闭，不再作为长期产品线。当前集成任务见[收口设计](../specs/2026-10-16-main-dev-convergence.md)。
+原Pi分支已验证合入dev并关闭，不再作为长期产品线。当前集成任务见[收口设计](../specs/2026-10-16-main-dev-convergence.md)。
 
 2026-10-16当前计划：[统一执行实施计划](2026-10-16-enterprise-unified-execution.md)。
 [定稿v1](../specs/2026-10-15-enterprise-design-final.md)保留已验证业务资产、统一自主组织并拆开领域耦合。

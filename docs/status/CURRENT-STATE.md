@@ -3,12 +3,14 @@
 Branch policy: the phase-complete conversation application is a release baseline for main,
 with small maintenance fixes in the near term. Enterprise autonomous execution is the dev
 research and delivery focus. Pi is an executor ecosystem, not a permanent product branch.
-Pi-to-dev and release-to-main integration are in progress; deployment identities remain unchanged.
+The conversation release is accepted on main; the Pi execution foundation is integrated into dev.
+The long-lived Pi branch is closed. Local-dev uses the verified integration source;
+user installations, demo and cloud environments retain their recorded identities.
 
 Enterprise architecture v1 is the baseline; implementation contracts remain under revision. It retains the working Thread, worker, research,
 evidence and professional UI assets while generalizing one autonomous organization mechanism.
 Semantic contracts, state examples, acceptance fixtures and the file-level plan are present.
-Design checks passed; runtime integration and business acceptance remain open. No runtime change.
+Design checks passed; the new unified runtime integration and business acceptance remain open.
 Demo1/Demo2 are external examples. Native input contracts, extensible views and task-specific delivery
 requirements must not become built-in business metrics, fixed workflows or mandatory new solver capabilities.
 Execution constraints apply to affected actions and claims. Missing inputs, unresolved external actions
@@ -33,9 +35,9 @@ exact accepted revisions belong to [VERSION-CONTROL.md](VERSION-CONTROL.md).
 - General execution scope: Direct knowledge answers, live retrieval and Demo1 share one adaptive task loop. Demo1 uses external business resources without a dedicated Pack or Capstone business API; this is target behavior, not implemented acceptance.
 - Theme-level focus: ApplicationProfile capability groups compose Domain Packs; one Capstone task organizes native Pi resources and professional capabilities. Workspace enablement, evidence-driven reasoning and frontend task/artifact views are the accepted design direction, not verified runtime behavior.
 - Project route: managed
-- Canonical worklist: `docs/superpowers/plans/2026-10-07-capstone-conversation-completion.md`
-- Active work package: `pi`, baseline alignment to dev f209fb1 and design discussion of Capstone general enterprise usage. Generic resources provide execution; Capstone retains long-horizon reasoning, state, recovery and delivery. A monthly analysis report is an example, not a selected application. The unified general research loop remains a design gap; no new application implementation is authorized. Existing dev-trial delivery artifacts and all deployed environments retain their recorded sources.
-- Experimental work package (`feat/pi-skills-integration`): Shared business workspace and role resources, under the [approved plan](../superpowers/plans/2026-10-09-business-workspace-agent-resources.md). Three Pi roles share bounded public context and project-managed skills/MCP configuration. Professional tools retain Domain Pack/Authority admission; native observations do not create simulator evidence. Accepted tasks bind immutable resources. Current public model context contains identity, version and bounded history, not complete model tables. Real Provider answer quality remains unaccepted; hosted stages still use the previous release. Case is a separate module outside this package.
+- Canonical worklist: `docs/superpowers/plans/2026-10-16-enterprise-unified-execution.md`. The conversation completion document retains release and maintenance history.
+- Active work package: enterprise autonomous execution on dev (historical register ID `pi`). Generic resources provide execution; Capstone retains long-horizon organization, state, recovery and delivery. The unified implementation plan owns further work. Monthly analysis is an example, not a selected application; the new unified loop and workbench are not yet implemented.
+- Integrated execution foundation: Shared business workspace, isolated native/delegated Pi and versioned skills/MCP resources are in dev. The [earlier plan](../superpowers/plans/2026-10-09-business-workspace-agent-resources.md) preserves their implementation record. Professional tools retain Domain Pack/Authority admission; native observations do not create simulator evidence. Current public model context contains identity, version and bounded history, not complete model tables. Real Provider answer quality remains unaccepted. The former Pi worktree and recovery reference retain data; new research uses scoped branches when needed.
 - Evolution discussion: `docs/superpowers/specs/2026-10-07-capstone-core-evolution-discussion.md` is secondary research. The user initiates it; remind only at an important boundary. Its open questions do not set the delivery order.
 - Milestone status: delivery reached M11 under the recorded bounded scopes. M6 Tasks1–9 closed for lightweight demo scope, with independent Task1–8 review/fix evidence; later M10/M11 passed full release gates. Portable whole-stage M6/M10 review records need consolidation. Generic runtime materialization was expressly deferred by the approved M2 review. See `docs/reviews/2026-10-07-capstone-m1-m11-status-audit.md`; do not reopen stages from stale checkboxes.
 - Client recovery: same-Thread reconnects preserve the mounted Composer and its draft. Unknown receipts are checked with the original command, Run, payload, cursor and idempotency key before another command is admitted. Receipt acknowledgement survives event-read failures. Only the matching Composer draft is cleared after acceptance; model-menu and completed-answer actions preserve unrelated drafts. Context-bound topology caches restore the prior diagram and layer after a failed switch or reopen. Scope: `docs/superpowers/specs/2026-10-05-thread-client-recovery-design.md`.
