@@ -1,5 +1,7 @@
 # docs/status INDEX
 
+- 2026-10-17: [统一实施计划](../superpowers/plans/2026-10-16-enterprise-unified-execution.md)当前切片为[Work绑定真实Attempt与研究状态](../reviews/2026-10-17-work-attempt-binding.md)；feat/work-attempt-binding开发中，运行与集成状态仍以已验收来源为准。
+
 - 2026-10-17: [设计定稿](../superpowers/specs/2026-10-15-enterprise-design-final.md)记录`enterprise-research`/`grid-analysis`命名、内网缺省与可选联网增强；[三线计划](../superpowers/plans/2026-10-16-three-line-delivery.md)保留现有分支映射。
 
 - 2026-10-16: [Work账本与无模型入口](../reviews/2026-10-16-thread-work-ledger.md)候选35e014df：同一账本、对象CAS、幂等恢复及旧专业历史视图；独立前端已撤掉并按既定设计复用修正；PR48双平台通过，已合入dev d86cc4ef，持续执行未接通。
