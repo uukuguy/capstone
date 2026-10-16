@@ -279,6 +279,8 @@ def snapshot(probe_local: bool, probe_cloud: bool = False) -> dict:
                 discussion=[dict(zip(("id", "kind", "status", "title", "description"), map(plain, row)))
                             for row in table(register, "自主智能体演进讨论")],
                 environment_pairs=environment_pairs,
+                development_lines=[dict(zip(("branch", "role", "status", "next"), map(plain, row)))
+                                   for row in table(register, "三线研发组织")],
                 branches=branches,
                 prs=prs,
                 register="docs/status/VERSION-CONTROL.md",
