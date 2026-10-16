@@ -42,6 +42,7 @@ from capability_agent.application.answer_format import (
     parse_answer_bundle,
 )
 from capability_agent.application.profile import ApplicationProfile
+from capability_agent.application.native import require_authority_execution
 from capability_agent.application.projector import ApplicationInvocationProjector
 from capability_agent.application.reporting import GenericReportShell, ReportPublication
 from capability_agent.application.runtime_protocols import (
@@ -476,6 +477,9 @@ class AgentApplication:
         prompt_decorator: Callable[[str, int], str] | None = None,
         completion_projector: CompletionProjector | None = None,
     ) -> None:
+        require_authority_execution(
+            profile, getattr(prepared_application, "bindings", None),
+        )
         self.profile = profile
         self.prepared_application = (
             _prepare_runtime(prepared_application)

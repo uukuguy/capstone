@@ -15,11 +15,13 @@ from capability_agent.domain.acceptance import DomainAcceptanceProfile
 from capability_agent.domain.contracts import CapabilityContractSource
 from capability_agent.domain.execution import CapabilityExecutor
 from capability_agent.domain.guide import GuideProvider
-from capability_agent.domain.manifest import DomainManifest, DomainManifestError
+from capability_agent.domain.manifest import DomainManifest, DomainManifestError, PackManifest
 from capability_agent.domain.output import CommittedAnswer, DomainOutputContract
 from capability_agent.domain.policy import AnswerEvidencePolicy, DomainPolicyProvider
 from capability_agent.domain.presentation import PresentationProvider
-from capability_agent.domain.profile import DomainRuntimeProfile
+from capability_agent.domain.profile import (
+    DomainRuntimeProfile, DomainPackProfile, NativeDomainRuntimeProfile, NativeExecutionConfig,
+)
 from capability_agent.domain.projection import (
     DomainProjector,
     DomainProjectorRegistry,
@@ -53,6 +55,10 @@ __all__ = [
     "DomainProjector",
     "DomainProjectorRegistry",
     "DomainRuntimeProfile",
+    "DomainPackProfile",
+    "NativeDomainRuntimeProfile",
+    "NativeExecutionConfig",
+    "PackManifest",
     "DomainRuntimeProvisioner",
     "DomainStateAdapter",
     "DomainStateDelta",

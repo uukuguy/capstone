@@ -19,9 +19,12 @@ from capability_agent.application.profile import (
     DomainBinding,
 )
 from capability_agent.application.registry import DomainRegistry
+from capability_agent.application.native import (
+    NativeBindingPreparer, NativePreparationReceipt, PreparedNativeBinding, PreparedNativeEndpoint,
+)
 from capability_agent.domain.authority import ArtifactAuthority
 from capability_agent.domain.execution import CapabilityExecutor
-from capability_agent.domain.profile import DomainRuntimeProfile
+from capability_agent.domain.profile import DomainRuntimeProfile, NativeDomainRuntimeProfile
 from capability_agent.domain.provisioning import CredentialLease, PreparedDomainEndpoint
 from capability_agent.tools.catalog import ToolCatalog
 from capability_agent.tools.guide import GuideIndex, materialize_guide_provider
@@ -163,7 +166,16 @@ class PreparedBinding:
 @dataclass(frozen=True, slots=True)
 class PreparedApplication:
     profile: ApplicationProfile
-    bindings: Mapping[str, PreparedBinding]
+    bindings: Mapping[str, PreparedBinding | PreparedNativeBinding]
+
+    @property
+    def authority_bindings(self) -> Mapping[str, PreparedBinding]:
+        selected: dict[str, PreparedBinding] = {}
+        for key, binding in self.bindings.items():
+            if not isinstance(binding, PreparedBinding):
+                raise ApplicationConfigurationError("native binding requires a native executor")
+            selected[key] = binding
+        return MappingProxyType(selected)
 
 
 def prepare_domain_runtime(
@@ -196,12 +208,29 @@ def prepare_application(
     registry: DomainRegistry,
     workspace: Path,
     credentials: CredentialBroker,
+    required_binding_ids: tuple[str, ...] | None = None,
+    native_preparer: NativeBindingPreparer | None = None,
 ) -> PreparedApplication:
     """Prepare explicitly registered bindings without starting a model provider."""
-    binding_workspaces = _validate_application_profile(profile, workspace=workspace)
+    declared = {binding.binding_id: binding for binding in profile.domains}
+    selected_ids = tuple(declared) if required_binding_ids is None else required_binding_ids
+    if len(set(selected_ids)) != len(selected_ids):
+        raise ApplicationConfigurationError("duplicate required binding identifier")
+    if any(binding_id not in declared for binding_id in selected_ids):
+        raise ApplicationConfigurationError("required binding is not selected by the application")
+    selected = tuple(declared[binding_id] for binding_id in selected_ids)
+    if not selected:
+        return PreparedApplication(profile=profile, bindings=MappingProxyType({}))
+    for binding in selected:
+        if isinstance(binding.profile, NativeDomainRuntimeProfile) and native_preparer is None:
+            raise ApplicationConfigurationError("native binding requires a native application preparer")
+    binding_workspaces = {
+        binding.binding_id: _resolve_binding_workspace(workspace, binding.binding_id)
+        for binding in selected
+    }
     resolved = tuple(
         registry.resolve_binding(binding)
-        for binding in sorted(profile.domains, key=lambda item: item.binding_id)
+        for binding in sorted(selected, key=lambda item: item.binding_id)
     )
     for binding in resolved:
         _validate_complete_binding(binding)
@@ -211,11 +240,34 @@ def prepare_application(
         (binding, _issue_credential_lease(credentials, binding))
         for binding in resolved
     )
-    endpoints: list[PreparedDomainEndpoint] = []
-    prepared: dict[str, PreparedBinding] = {}
+    endpoints: list[PreparedDomainEndpoint | PreparedNativeEndpoint] = []
+    prepared: dict[str, PreparedBinding | PreparedNativeBinding] = {}
     try:
         for binding, lease in leases:
             binding_workspace = binding_workspaces[binding.binding_id]
+            if isinstance(binding.profile, NativeDomainRuntimeProfile):
+                assert native_preparer is not None
+                native_endpoint = native_preparer.prepare(
+                    binding=binding, profile=binding.profile,
+                    workspace=binding_workspace, credentials=lease,
+                )
+                endpoints.append(native_endpoint)
+                receipt = native_endpoint.receipt
+                if type(receipt) is not NativePreparationReceipt:
+                    raise DomainProvisioningError("native preparation receipt type is invalid")
+                execution = binding.profile.execution
+                if (receipt.resource_profile_id != execution.resource_profile_id
+                        or receipt.result_contract != execution.result_contract
+                        or receipt.required_resources != execution.required_resources
+                        or not receipt.resource_revision or not receipt.executor_identity_digest):
+                    raise DomainProvisioningError("native preparation receipt does not match its binding")
+                _reject_credential_leak(
+                    (receipt.resource_profile_id, receipt.resource_revision, receipt.result_contract,
+                     receipt.executor_identity_digest, receipt.required_resources),
+                    lease, location="native preparation receipt",
+                )
+                prepared[binding.binding_id] = PreparedNativeBinding(binding, native_endpoint, receipt)
+                continue
             endpoint = _prepare_endpoint(binding, binding_workspace, lease)
             endpoints.append(endpoint)
             endpoint_metadata = _prepare_endpoint_metadata(endpoint, lease)
@@ -247,7 +299,10 @@ def prepare_application(
         _close_prepared_endpoints(endpoints)
         raise
     return PreparedApplication(
-        profile=replace(profile, domains=resolved),
+        profile=replace(profile, domains=tuple(
+            next((item for item in resolved if item.binding_id == binding.binding_id), binding)
+            for binding in sorted(profile.domains, key=lambda item: item.binding_id)
+        )),
         bindings=MappingProxyType(prepared),
     )
 
@@ -375,7 +430,8 @@ def _resolve_binding_workspace(workspace: Path, binding_id: str) -> Path:
 
 
 def _validate_complete_binding(binding: DomainBinding) -> None:
-    if binding.tool_namespace != binding.profile.manifest.tool_name_prefix:
+    if (isinstance(binding.profile, DomainRuntimeProfile)
+            and binding.tool_namespace != binding.profile.manifest.tool_name_prefix):
         raise ApplicationConfigurationError(
             f"domain binding {binding.binding_id!r} tool namespace does not "
             "match its registered profile"
@@ -391,7 +447,8 @@ def _validate_complete_binding(binding: DomainBinding) -> None:
 def _validate_policy(
     profile: ApplicationProfile, bindings: tuple[DomainBinding, ...]
 ) -> None:
-    fragments = [_KERNEL_POLICY, profile.application_policy.load()]
+    application_policy = profile.application_policy.load()
+    authority_fragments = [_KERNEL_POLICY, application_policy, "deny: cross-domain-sharing"]
     for binding in bindings:
         if binding.sharing_policy.mode != "deny":
             raise PolicyConflictError(
@@ -400,8 +457,15 @@ def _validate_policy(
             )
         provider = binding.profile.policy_provider
         assert provider is not None
-        fragments.append(provider.load())
-    fragments.append("deny: cross-domain-sharing")
+        if isinstance(binding.profile, DomainRuntimeProfile):
+            authority_fragments.append(provider.load())
+        else:
+            _validate_policy_fragments([application_policy, provider.load(), "deny: cross-domain-sharing"])
+    if any(isinstance(binding.profile, DomainRuntimeProfile) for binding in bindings):
+        _validate_policy_fragments(authority_fragments)
+
+
+def _validate_policy_fragments(fragments: list[str]) -> None:
 
     allowed: set[str] = set()
     denied: set[str] = set()
@@ -485,6 +549,7 @@ def _issue_credential_lease(
 def _prepare_endpoint(
     binding: DomainBinding, workspace: Path, lease: CredentialLease
 ) -> PreparedDomainEndpoint:
+    assert isinstance(binding.profile, DomainRuntimeProfile)
     provisioner = binding.profile.provisioner
     assert provisioner is not None
     endpoint: PreparedDomainEndpoint | None = None
@@ -505,7 +570,7 @@ def _prepare_endpoint(
 
 
 def _close_prepared_endpoints(
-    endpoints: list[PreparedDomainEndpoint] | tuple[PreparedDomainEndpoint, ...],
+    endpoints: list[PreparedDomainEndpoint | PreparedNativeEndpoint],
 ) -> None:
     for endpoint in reversed(endpoints):
         try:
