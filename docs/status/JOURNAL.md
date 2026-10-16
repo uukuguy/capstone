@@ -3353,3 +3353,11 @@ The following original entries were retained during document synchronization.
 - 2026-10-16: 20226bf0 rebuild passed; three roles match1150 source objects; worker verified real Pi resource publication without Provider calls.
 - 2026-10-16: cb08ef92 bounds foundation CI to reviewed dependencies; inventory and hosted isolation coverage remain mandatory within15 minutes.
 - 2026-10-16: PR46 merged9eb84a34 after Linux8m49s/macOS10m22s; merge tree equalscb08ef92; dev fast-forwarded with verified runtime unchanged.
+- 2026-10-16: 8d555d20 aligns dev acceptance, exact local source and remaining Task2 scope after Pack preparation integration.
+- 2026-10-16: PR47 merged12cc9875 after dual-platform docs checks; dev and both application preparation branches fast-forwarded; runtime remains20226bf0.
+- 2026-10-16: Final dev graph24nodes/32edges passed1280/1920 geometry; actual HEAD, product/runtime and fixed milestones verified; API remains ready.
+- 2026-10-16: 35e014df adds model-free Work persistence and recoverable UI; shared ledger preserves legacy history and exact retries.
+
+- 2026-10-16: da3ddfb1 bounds Work scrolling and mobile header; keeps the desktop composer visible.
+
+- 2026-10-16: User rejected standalone Work UI; reuse accepted enterprise design and existing conversation components before integration.

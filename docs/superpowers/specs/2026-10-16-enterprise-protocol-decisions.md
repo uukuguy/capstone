@@ -1,6 +1,6 @@
 # 企业执行协议：迁移、命令生效与检查来源
 
-状态：实现契约补充。2d3f86c6接入现有服务的v1版本协商；v2及其迁移仍待实现。延续现有Thread服务、事件账本和自主组织机制。
+状态：实现契约补充。35e014df候选接入v2无模型Thread、Work保存/目标修订、对象CAS及最小前端；本地回归通过，集成验收中。生产Claim/Profile固定、其余控制命令和持续执行仍待实现。延续现有Thread服务、事件账本和自主组织机制。
 本文件解决上一轮协议缺口，不新增业务指标、固定流程或通用执行前的任务编译。
 
 ## 1. 同一服务的新旧表示
@@ -10,9 +10,9 @@
 
 - 保留/api/v1/threads及其commands、events入口。请求头Capstone-Thread-Version选择1或2，
   缺省为1；响应回显版本，并使用Vary避免缓存混用。未知版本返回406，不修改任务。
-  过渡期仅声明已实现的1，2仍返回406。浏览器先用缺省v1，在成功响应可见回显后发送显式头，
-  避免旧服务CORS白名单拒绝新增头；不为探测重发写请求。新服务允许并暴露版本头。
-- v2快照使用capstone-thread-snapshot/2；task_context含work_id、goal_revision、snapshot_id、
+  已有专业入口先用缺省v1，在成功响应可见回显后发送显式头，避免旧服务CORS白名单拒绝新增头。
+  新Work入口显式请求2并要求响应回显2；不为探测重发写请求。新服务允许并暴露版本头。
+- v2快照使用capstone-thread-snapshot/2；task_context含binding（thread_id/work_id/research_id）、goal_revision、snapshot_id、
   resource_refs及model_contexts列表，空列表合法。selected_model_context_id可空，不造默认模型。
   历史Run/Turn/Attempt、Thread游标、已有结果引用继续保留；专业投影由应用适配器解析。
 - v2命令使用capstone-command/2，保留command_id、idempotency_key、thread_id、可选run_id、kind、payload。
@@ -27,6 +27,7 @@ Thread记录minimum_protocol_version。既有Thread保持1，新企业Thread为2
 并在应用适配器中展示旧记录；只有记录了显式Work关联的新任务才使用v2工作状态。
 已有Thread第一次提交v2工作命令时，在事务中迁移最小版本并保存目标关联，不改旧证据。
 若旧Attempt仍在执行，待其安全边界再迁移；迁移期间保留原命令回执，不启动第二个主Attempt。
+35e014df切片对活跃Attempt或Case返回可处理拒绝，不自动安排延后迁移；完成后可显式重试。
 鉴权后，已存命令的精确同键同载荷回查先于minimum_protocol_version门禁，返回原版本回执，
 避免“v1提交成功但丢响应→其他客户端升级→原请求重试”丢失幂等恢复。
 旧客户端的新写入或不兼容快照/事件读取返回409 protocol_upgrade_required，不返回空历史或假模型。

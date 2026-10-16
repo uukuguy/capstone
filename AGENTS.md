@@ -158,6 +158,17 @@ counts, prices, limits, versions, or deployment state here.
 
 ## Working in This Repository
 
+- Enterprise application work follows the accepted
+  [design baseline](docs/superpowers/specs/2026-10-15-enterprise-design-final.md),
+  [UI contract](docs/superpowers/specs/2026-10-15-enterprise-task-ui-design.md),
+  and [workspace prototype](docs/design/enterprise-workspace-prototype.html).
+  Build the enterprise workspace from that design and reuse the existing
+  conversation components and interaction details. Do not replace them with
+  a separate message list, composer, or simplified task-record application.
+  A partial backend milestone does not authorize a new UI design. Keep the
+  released conversation application and enterprise application distinct while
+  sharing presentation and execution mechanisms. Check runtime screenshots
+  against the accepted design before claiming frontend acceptance.
 - `dev` is the default development integration branch. Feature, fix, docs and
   chore PRs target dev. Experiments enter dev only as scoped reviewed work.
   `main` holds accepted release baselines; release PRs target main and run full

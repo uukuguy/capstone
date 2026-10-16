@@ -110,12 +110,12 @@ assert.equal(finalGuard.accepted, false);
 
 2026-10-16首个切片055a335f：WorkBinding/TaskContext、Work归属研究存储及Harness内部投影已实现，
 独立评审通过；44项身份/研究测试及1332项后端测试通过。PR #41经双平台CI38898130414合入dev85b6706f，合并树与受检08556cc2一致。见[切片报告](../../reviews/2026-10-16-work-research-identity.md)。
-尚未接生产Claim、历史关联迁移、Profile、v2存储/协议及前端；Task 2整体仍在实施。
+该切片之后继续接生产Claim、历史关联迁移及Profile；v2存储/协议和最小前端见下方当前切片。Task 2整体仍在实施。
 
 2026-10-16协议准备切片2d3f86c6：现有HTTP服务、Python客户端及App接入v1版本协商；
 未知版本在执行前拒绝，App显示升级原因并保留已加载会话和草稿。旧跨域服务不支持新增头时，
 浏览器沿用缺省v1，收到服务端明确声明后才发送版本头，不为探测重发写操作。
-当前仅实现v1；v2、无模型Thread、Profile装配和对象CAS仍待后续成套接入。
+此历史切片仅实现v1；v2、无模型Thread和对象CAS见下方当前切片。
 PR #44经双平台CI38907004425通过后合入32f18d24，合并树与受检1a695af4一致；
 local-dev运行源码a2efb791已规范重建并完成同源/浏览器检查。见[协议切片报告](../../reviews/2026-10-16-thread-version-negotiation.md)。
 
@@ -136,7 +136,18 @@ local-dev运行源码a2efb791已规范重建并完成同源/浏览器检查。�
 **Produces:** WorkBinding/TaskContext；`bind_task_context(claim) -> TaskContext`；
 专业配置与native配置的严格判别装配，二者共享任务组织接口。
 
-### 当前实施切片：Profile声明、选择与按需准备
+### 当前实施切片：生产Work账本与无模型入口
+
+前端必须对照[定稿](../specs/2026-10-15-enterprise-design-final.md)、[交互设计](../specs/2026-10-15-enterprise-task-ui-design.md)和[原型](../../design/enterprise-workspace-prototype.html)。企业工作台复用现有对话区及交互，不另建简化任务应用；最小切片不是偏离整体设计的许可。35e014df/da3ddfb1独立任务页已否决，前端验收重新打开。
+
+从dev 12cc9875继续。复用Thread服务、命令幂等账本和事件流，按既定v2协议同时接通存储与最小前端。
+
+- [x] 后端：`thread_service.py`、`thread_protocol.py`、`host_api.py`及客户端增加无模型Thread、Work关联、对象修订和版本适配；内存/Postgres共用语义。以同键重试、历史读取、无关事件不触发CAS冲突和重启恢复测试验收。
+- [ ] 前端（独立任务页已否决，按定稿修正）：`ThreadLiveEntry.tsx`、`threadProtocol.ts`、`threadHttpTransport.ts`和`threadProjectionStore.ts`接入新契约，沿用会话导航与对话组件，提供明确的任务保存/执行状态，刷新不重发命令。
+- [ ] 后续切片接生产Claim/Profile固定快照及研究路径关联；本片只持久化Work，不添加未被生产执行使用的Claim参数。持续执行仍由Task 3独立验收。
+- [ ] 独立评审、针对性回归、规范本地重建与浏览器验证后，通过双平台适用CI合入dev；同步推进图实际节点及两条准备分支。
+
+### 已完成切片：Profile声明、选择与按需准备
 
 - [x] 在Kernel公共SPI抽出Pack身份声明，增加独立native配置；专业DomainRuntimeProfile保留现有Authority必需字段，不用空值或伪Authority适配。
 - [x] 同一DomainBinding/ApplicationProfile/Registry接受两类配置。`prepare_application(required_binding_ids=...)`只解析并准备本次选择；空选择不启动资源，未知身份在副作用前失败。保留完整Profile及跨Binding授权，不能用准备子集覆盖使能组合。
