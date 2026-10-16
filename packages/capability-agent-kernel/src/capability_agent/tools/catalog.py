@@ -256,6 +256,9 @@ class BoundDomainCatalog:
     ) -> "BoundDomainCatalog":
         binding = prepared.binding
         runtime = prepared.runtime
+        from capability_agent.domain.profile import NativeDomainRuntimeProfile
+        if isinstance(binding.profile, NativeDomainRuntimeProfile):
+            raise ToolCatalogError("native binding does not have an authority catalog")
         manifest = binding.profile.manifest
         if guide_tool_name is None:
             guide_tool_name = f"{binding.tool_namespace}guide_open"

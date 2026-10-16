@@ -76,17 +76,19 @@ def _read_model_metadata(executor: Any, *, model_id: str, revision_ref: str,
 
 def _warm_runtime_catalog() -> None:
     """Verify and retain immutable capabilities before accepting model requests."""
+    from capability_agent.domain.profile import require_authority_profile
     profile = build_pandapower_application_profile()
     with TemporaryDirectory(prefix='capstone-capability-check-') as directory:
         for binding in profile.domains:
-            provisioner = binding.profile.provisioner
+            domain_profile = require_authority_profile(binding.profile)
+            provisioner = domain_profile.provisioner
             if provisioner is None:
                 raise RuntimeError('registered capability provisioner is unavailable')
             endpoint = provisioner.prepare(binding=binding, workspace=Path(directory) / binding.binding_id,
                 credentials=EmptyCredentialBroker().issue(binding_id=binding.binding_id, scope=binding.credential_scope))
             try:
                 description = endpoint.executor.invoke('environment.describe', {})
-                binding.profile.manifest.assert_environment_compatible(description)
+                domain_profile.manifest.assert_environment_compatible(description)
             finally:
                 endpoint.close()
 

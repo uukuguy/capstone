@@ -7,10 +7,10 @@ from dataclasses import replace
 
 from capability_agent.application.errors import DomainRegistrationError
 from capability_agent.application.profile import DomainBinding
-from capability_agent.domain.profile import DomainRuntimeProfile
+from capability_agent.domain.profile import DomainPackProfile, DomainRuntimeProfile, NativeDomainRuntimeProfile
 
 
-DomainProfileFactory = Callable[[], DomainRuntimeProfile]
+DomainProfileFactory = Callable[[], DomainPackProfile]
 
 
 class DomainRegistry:
@@ -29,7 +29,7 @@ class DomainRegistry:
             )
         self._factories[key] = factory
 
-    def resolve(self, domain_id: str, version: str) -> DomainRuntimeProfile:
+    def resolve(self, domain_id: str, version: str) -> DomainPackProfile:
         key = (domain_id, version)
         factory = self._factories.get(key)
         if factory is None:
@@ -37,6 +37,8 @@ class DomainRegistry:
                 f"domain {domain_id!r} version {version!r} is not registered"
             )
         profile = factory()
+        if not isinstance(profile, (DomainRuntimeProfile, NativeDomainRuntimeProfile)):
+            raise DomainRegistrationError("registered domain execution configuration is invalid")
         manifest = profile.manifest
         if (manifest.domain_id, manifest.version) != key:
             raise DomainRegistrationError(
@@ -48,6 +50,8 @@ class DomainRegistry:
         """Return a binding backed by its explicitly registered profile."""
         manifest = binding.profile.manifest
         profile = self.resolve(manifest.domain_id, manifest.version)
+        if profile.execution_kind != binding.profile.execution_kind:
+            raise DomainRegistrationError("registered domain execution kind does not match its binding")
         return replace(binding, profile=profile)
 
 

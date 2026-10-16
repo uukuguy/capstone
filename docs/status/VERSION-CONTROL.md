@@ -1,6 +1,6 @@
 # 多线版本控制
 
-2026-10-16共同基座PR #44已合入dev32f18d24，合并树与受检1a695af4一致。CI38907004425双平台通过（Linux4分58秒/macOS8分35秒）；协议协商、升级提示及恢复保护已集成，实施分支关闭。local-dev源码a2efb791同源及浏览器检查通过；仅v1已实现，Profile/v2/无模型前端入口仍待实施。[切片报告](../reviews/2026-10-16-thread-version-negotiation.md)。
+2026-10-16共同基座继续Task 2：Profile/Pack按需准备已实现20226bf0，正在验证并准备合入dev。统一声明native/authority，按本次Binding选择准备，保留完整Profile与授权；不要求native具备电网模型。生产Profile持久化、v2及无模型前端入口仍待实施。[切片报告](../reviews/2026-10-16-application-pack-selection.md)。已集成基线仍为PR #44/45；部署身份以环境台账为准。
 
 2026-10-16共同基座PR #41已合入dev85b6706f，合并树与受检08556cc2一致。模型无关Work研究身份及开发CI分层已集成；Linux/macOS CI38898130414分别6分4秒/6分3秒通过。旧38894817486已被替代取消，不计验收。生产Profile/Thread v2/前端仍待接入，两应用线保持准备阶段。local-dev精确源码055a335f，其他部署不变。
 
@@ -334,6 +334,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
 | dev-head | dev | main | dev · 当前研发位置 | 当前Git HEAD，验收范围见对应里程碑 | 动态绑定本地dev实际提交并连接真实祖先；不将分支HEAD当作部署或业务验收。[当前状态](CURRENT-STATE.md) | shared-agent |
+| pack-selection | 20226bf0 | feature | 共同基座 · Pack按需准备 | 已实现，集成验证中 | native/authority统一声明；选择准备保留Profile授权；Pi资源回执与旧专业边界。[切片报告](../reviews/2026-10-16-application-pack-selection.md) | shared-agent |
 | thread-version-dev | 32f18d2444fee2d1ab0cb9bd8d3157c8854f7526 | main | dev · 协议协商与恢复集成 | PR #44双平台通过，已合入 | v1服务/客户端协商及恢复提示合入；合并树与受检1a695af4一致；继续Profile/v2及无模型入口。[切片报告](../reviews/2026-10-16-thread-version-negotiation.md) | shared-agent |
 | thread-version | a2efb791ff80ce8306ab6cc36393e88af5c8bcc5 | feature | 共同基座 · 协议协商与恢复 | PR #44已合入，local-dev同源通过 | 2d3f86c6实现v1 JSON/SSE协商，a2efb791补正升级状态；旧服务兼容、历史与草稿保留；v2及无模型入口待实施。[切片报告](../reviews/2026-10-16-thread-version-negotiation.md) | shared-agent |
 | work-identity-control | 977601f9f4c3d316174e9d632fcc72a638b0f8fa | main | dev · Work基座三线同步 | PR #42双平台文档检查通过，已合入 | Work研究身份里程碑与CI验收记录对齐；三条研发分支快进同源，生产Profile/v2前端继续实施。[切片报告](../reviews/2026-10-16-work-research-identity.md) | shared-agent |
@@ -406,6 +407,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | dev-business-base | 开发分支起点 | dev | 恢复业务执行并保留独立轻量路由；Pi与自主智能体的共同业务基线 | 已合入，业务缺陷保留 |
 | dev | 重要demo发布与大分支合并 | dev | 统一研究、执行、结果与证据合入主线；两个demo固定该基线，保留发布验收与回退来源 | 两个demo已验收 |
 | dev-head | 当前研发位置 | dev | 实际dev分支头及真实祖先连线；产品验收与部署来源独立标记 | Git位置随生成更新，验收范围见对应里程碑 |
+| pack-selection | 当前基座实施 | feat/application-pack-selection | 按需准备已实现；持续执行及无模型Thread待接入 | 专项及独立评审通过；产品检查与本地重建进行中 |
 | thread-version-dev | 当前开发焦点 | dev | 协议协商与恢复保护已集成；继续Profile/v2及无模型入口 | PR #44双平台通过，合并树与受检来源一致 |
 | thread-version | 已合入基座实现来源 | 共同基座（分支已关闭） | 服务与客户端协商v1；升级提示保留会话及草稿 | local-dev同源及浏览器通过；v2、Profile及无模型入口待实施 |
 | work-identity-control | 研发控制与三线同步节点 | dev | Work基座验收与后续接入计划对齐；三条研发分支快进同源 | PR #42双平台文档检查通过，运行来源保持055a335f |

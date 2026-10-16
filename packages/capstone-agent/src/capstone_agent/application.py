@@ -11,6 +11,7 @@ from capability_agent.application import (
     AgentApplication, ApplicationWorkspace, prepare_application,
 )
 from capability_agent.application.composition import CredentialBroker
+from capability_agent.application.native import require_authority_execution
 from capability_agent.application.profile import ApplicationProfile, CredentialScope
 from capability_agent.application.registry import DomainRegistry
 from capability_agent.application.runtime_protocols import (
@@ -86,6 +87,9 @@ def build_application(
             max_retries=cli_options.max_retries if cli_options is not None else None,
         )
     profile = registry.resolve(application_id, version)
+    require_authority_execution(
+        profile, getattr(prepared_application, "bindings", None),
+    )
     selected_workspace = workspace
     if selected_workspace is None and prepared_application is None:
         selected_workspace = ApplicationWorkspace.create(

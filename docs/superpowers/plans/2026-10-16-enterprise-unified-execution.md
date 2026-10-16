@@ -136,6 +136,14 @@ local-dev运行源码a2efb791已规范重建并完成同源/浏览器检查。�
 **Produces:** WorkBinding/TaskContext；`bind_task_context(claim) -> TaskContext`；
 专业配置与native配置的严格判别装配，二者共享任务组织接口。
 
+### 当前实施切片：Profile声明、选择与按需准备
+
+- [ ] 在Kernel公共SPI抽出Pack身份声明，增加独立native配置；专业DomainRuntimeProfile保留现有Authority必需字段，不用空值或伪Authority适配。
+- [ ] 同一DomainBinding/ApplicationProfile/Registry接受两类配置。`prepare_application(required_binding_ids=...)`只解析并准备本次选择；空选择不启动资源，未知身份在副作用前失败。保留完整Profile及跨Binding授权，不能用准备子集覆盖使能组合。
+- [ ] native准备经应用注入SPI返回来源明确的资源回执；capstone-agent适配现有Pi执行器发布的受控资源Profile。Kernel不解释技能/MCP业务内容，不改写原始工具schema。未使用的资源不参与准备门禁。
+- [ ] 准备结果区分authority/native。旧专业runner在资源或Provider启动前拒绝本次选中的native，不静默过滤；只选择专业时保留原路径。部分准备失败按已有清理语义收回已准备资源。
+- [ ] 测试混合选择、无模型native准备、未选Authority不探活、授权声明保留、错误配置不降级、清理和旧runner零副作用拒绝；再跑Kernel及应用依赖检查、独立评审、规范重建、短范围或必要集成CI及dev图同步。此片不声称v2/无模型Thread或持续Pi循环完成。
+
 - [x] 测试无电网资源仍能建立TaskContext；研究归属由work_id固定；两次Attempt同目标复用研究，两个目标不串状态。此项为组件验收，生产Claim接入仍待下述协议/存储切片。
 
 ```python

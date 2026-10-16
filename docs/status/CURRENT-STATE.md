@@ -19,6 +19,10 @@ projection without a model. Production Claim/Profile/v2 and frontend wiring rema
 The existing service and clients negotiate v1 and preserve legacy cross-origin access.
 Protocol failures show upgrade guidance without automatic reconnect or draft loss;
 this does not enable v2 or model-free enterprise Threads.
+Profile preparation supports authority and native Pack declarations with explicit
+binding selection. Native preparation uses registered host resource receipts;
+it does not require a model or turn native observations into Authority evidence.
+The current professional runner still accepts authority execution only.
 Both application lines remain in preparation until their required shared capabilities run.
 Demo1/Demo2 are external examples. Native input contracts, extensible views and task-specific delivery
 requirements must not become built-in business metrics, fixed workflows or mandatory new solver capabilities.
