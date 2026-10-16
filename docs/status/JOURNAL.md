@@ -3337,3 +3337,8 @@ The following original entries were retained during document synchronization.
 - 2026-10-16: PR41 merged85b6706f after exact08556cc2 passed both CI platforms in about six minutes; merge tree matches.
 - 2026-10-16: f90a1b77 aligns the actual Work integration node, runtime source and CI records; production frontend work remains open.
 - 2026-10-16: PR42 merged977601f9 after dual-platform documentation checks; dev and both preparation branches fast-forwarded together.
+- 2026-10-16: 1c2aa44e adds977601f9 and a dynamic dev-head node, preventing HEAD badges from replacing actual graph nodes.
+- 2026-10-16: PR43 mergeda36634e3 after dual-platform document checks; all development branches synchronized and dev graph regenerated.
+- 2026-10-16: 2d3f86c6 adds Thread version negotiation and upgrade feedback, preserving legacy clients before the enterprise protocol transition.
+- 2026-10-16: a2efb791 labels protocol failure as upgrade required; browser inspection found a misleading reconnecting indicator.
+- 2026-10-16: a2efb791 local rebuild and 1146-object role identity passed; browser verified v1, nonmutating rejection, draft retention and legacy CORS.

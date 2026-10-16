@@ -1,5 +1,7 @@
 # 多线版本控制
 
+2026-10-16共同基座协议准备切片2d3f86c6/a2efb791：现有HTTP服务、Python客户端和App接入v1协商、明确升级提示及恢复保护；本地依赖检查、独立复审、local-dev规范重建和浏览器检查通过，PR验收待完成。仅v1已实现，Profile/v2/无模型前端入口仍待实施。[切片报告](../reviews/2026-10-16-thread-version-negotiation.md)。
+
 2026-10-16共同基座PR #41已合入dev85b6706f，合并树与受检08556cc2一致。模型无关Work研究身份及开发CI分层已集成；Linux/macOS CI38898130414分别6分4秒/6分3秒通过。旧38894817486已被替代取消，不计验收。生产Profile/Thread v2/前端仍待接入，两应用线保持准备阶段。local-dev精确源码055a335f，其他部署不变。
 
 2026-10-16共同基座Task 2首个切片已集成：055a335f增加模型无关Work身份、研究保存/恢复及Harness内部投影；44项身份/研究测试、1332项后端测试和独立评审通过。生产Claim、Profile、Thread v2与前端入口未接入；两应用线仍准备中。[切片报告](../reviews/2026-10-16-work-research-identity.md)。
@@ -332,6 +334,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
 | dev-head | dev | main | dev · 当前研发位置 | 当前Git HEAD，验收范围见对应里程碑 | 动态绑定本地dev实际提交并连接真实祖先；不将分支HEAD当作部署或业务验收。[当前状态](CURRENT-STATE.md) | shared-agent |
+| thread-version | a2efb791ff80ce8306ab6cc36393e88af5c8bcc5 | feature | 共同基座 · 协议协商与恢复 | 本地检查通过，PR验收待完成 | 2d3f86c6实现v1 JSON/SSE协商，a2efb791补正升级状态；旧服务兼容、历史与草稿保留；v2及无模型入口待实施。[切片报告](../reviews/2026-10-16-thread-version-negotiation.md) | shared-agent |
 | work-identity-control | 977601f9f4c3d316174e9d632fcc72a638b0f8fa | main | dev · Work基座三线同步 | PR #42双平台文档检查通过，已合入 | Work研究身份里程碑与CI验收记录对齐；三条研发分支快进同源，生产Profile/v2前端继续实施。[切片报告](../reviews/2026-10-16-work-research-identity.md) | shared-agent |
 | offline-e2-delivery | e2eaee2403cb6d780b3f7564da86e0d083890673 | feature | 已交付离线包 · e2eaee2 | 已交付；最小安装ready通过，原归档未升级为f300 | 已交付linux/amd64归档1368607944字节；单次新安装/ready及同源身份通过，API与双worker同e2镜像，六角色AMD64，正常停止保留数据；runtime packages同28020，复用限定handoff/dispatch实测；公开投影与AC第3时段一致性两项开放，本包未重跑全量测试或Provider。历史：7c曾交付后撤回、不可交付，证据位于capstone-withdrawn-7c19766且原SHA保留；6064103仅为分支文档收据，不是交付源码。[包README](../../runs/user-local-offline/capstone-delivery-e2eaee2/README.md) [下载归档](../../runs/user-local-offline/capstone-delivery-e2eaee2/capstone-user-local-offline-e2eaee2-linux-amd64.tar.gz) [SHA256](../../runs/user-local-offline/capstone-delivery-e2eaee2/capstone-user-local-offline-e2eaee2-linux-amd64.tar.gz.sha256) [限定验证报告](../reviews/2026-10-15-pypsa-handoff-verification.md) | dev-trial |
 | dev-current | f209fb18d7abb122b689e1b1a52c54fa13bf5371 | main | dev · 修复验收记录合并 | PR #29合入，双平台文档检查通过 | 验收文档与控制工具合入，packages与f300无差异；App5173实读f209fb1、dirty=false；后端保持f300验证来源与6c616058镜像；e2原包和其他环境不变。[限定验证报告](../reviews/2026-10-15-pypsa-runtime-followup-verification.md) | autonomous |
@@ -402,8 +405,9 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | dev-business-base | 开发分支起点 | dev | 恢复业务执行并保留独立轻量路由；Pi与自主智能体的共同业务基线 | 已合入，业务缺陷保留 |
 | dev | 重要demo发布与大分支合并 | dev | 统一研究、执行、结果与证据合入主线；两个demo固定该基线，保留发布验收与回退来源 | 两个demo已验收 |
 | dev-head | 当前研发位置 | dev | 实际dev分支头及真实祖先连线；产品验收与部署来源独立标记 | Git位置随生成更新，验收范围见对应里程碑 |
+| thread-version | 当前基座实现切片 | 共同基座 · 协议协商 | 服务与客户端协商v1；升级提示保留会话及草稿 | 本地依赖检查通过；v2、Profile及无模型入口待实施 |
 | work-identity-control | 研发控制与三线同步节点 | dev | Work基座验收与后续接入计划对齐；三条研发分支快进同源 | PR #42双平台文档检查通过，运行来源保持055a335f |
-| work-identity-dev | 当前开发焦点 | dev | Work研究身份及开发CI分层已集成；继续Profile/v2与前端最小入口 | PR #41双平台约6分钟通过，合并树与受检来源一致 |
+| work-identity-dev | 已集成研究归属里程碑 | dev | Work研究身份及开发CI分层已集成；继续Profile/v2与前端最小入口 | PR #41双平台约6分钟通过，合并树与受检来源一致 |
 | work-identity | 已合入基座实现来源 | 共同基座（分支已关闭） | 模型无关Work研究保存与恢复；旧历史保留，生产协议及前端待接入 | local-dev同源验证通过；44项身份/研究与1332项后端测试通过 |
 | dev-control | 研发控制基线节点 | dev | 三线推进位置与历史里程碑区分；控制规则固化 | PR #39双平台通过；不表示运行或部署更新 |
 | shared-foundation-dev | 共同基座执行接缝里程碑 | dev | 共同执行接缝及既有专业基线合入；生产持续执行仍待后续接入 | PR #36双平台通过，合并树与受检来源一致 |
@@ -454,6 +458,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | refs/archive/20261015/feat-dev-trial-deployment | 已合并实施恢复引用 | 380ede4受检，PR #22合入7832134；本地/远端实施分支已关闭；最终公开镜像/包及安装入口验收通过 | 保存原验收目录、私有状态与卷；用户业务试用待反馈 | dev-trial |
 | main | 已发布应用维护主线 | PR #30合入cf72393b，范围f209fb1；双平台完整release通过，合并树一致 | 短期零星修复，未来按对话适用场景发展；用户交付包不自动更新 | main |
 | feat/work-research-identity（已关闭） | 共同基座Task 2已合入来源 | 055a335f组件实现及08556cc2 CI分层通过双平台检查；PR #41合入85b6706f | dev继续生产Profile/v2前端接入 | shared-agent |
+| feat/thread-version-negotiation | 共同基座协议准备 | 2d3f86c6本地检查通过，PR验收待完成 | v1协商及升级恢复；v2/无模型入口未实现 | shared-agent |
 | feat/shared-execution-baseline（已关闭） | 共同基座Task 1已合入来源 | 62f44366执行接缝与711f06a8回执通过双平台CI，PR #36合入d8fe6e27 | dev继续Task 2；来源提交保留在合并历史 | shared-agent |
 | feat/business-analysis | 阶段应用研发，准备中 | 已从dev6c0b0ae7创建并推送，尚无独立业务实现 | A1资源与验收准备；等待基座能力后分批PR回dev | business-analysis |
 | feat/model-decision | 阶段应用研发，准备中 | 已从dev6c0b0ae7创建并推送，尚无独立业务实现 | B1现有专业基线；等待基座能力后分批PR回dev | model-decision |
@@ -570,7 +575,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | 后端及App运行源码 `055a335fc8de3e5e55dec3e2f56494490e347ad6`；构建checkout055a335f | 规范重建exit0、ready；API与双worker同镜像sha256:4a4c6fb7199d3df92516dcbaa1a02024504e10b3e9f2ea69ffdd5c4da0647d7f，每角色1145文件/链接同源；App055a335f、dirty=false，既有页面可读 | App http://127.0.0.1:5173/，API8767；收据runs/work-research-identity/local-identity.json；Work研究组件已实现，生产Claim/v2前端未接入；其他部署及用户包未变 |
+| local-dev | 后端及App运行源码 `a2efb791ff80ce8306ab6cc36393e88af5c8bcc5`；构建checkouta2efb791 | 规范重建exit0、ready；API与双worker同镜像sha256:09ce1cb6753cdbc24a1c8fb9a55c8d9cb12fe053a5ddd6505bfc180a55a60488，每角色1146文件/链接同源；旧Thread可读，JSON/SSE回显v1，未知版本拒绝且状态不变 | App http://127.0.0.1:5173/，API8767；收据runs/thread-version-negotiation/local-identity.json；旧CORS与升级提示/草稿保留检查通过；v2未实现；其他部署及用户包未变 |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |
 | cloud-dev | `24d9a32`，开发试用候选；已推送标签cloud-dev-20261013-1045-24d9a32 | 用户授权的基本功能检查通过：四角色SUCCESS、API就绪、前端来源与真实中文对话；非正式发布或科学解释验收 | App https://capstone-app-production-83ef.up.railway.app/；[部署记录](../reviews/2026-10-13-cloud-dev-autonomous-trial.md)；demo不变 |
 | cloud-demo | App/API/两worker `faa6af9` | 四角色SUCCESS；三后端身份与dev本地529文件验收一致，安装工件与受检候选一致；三用例九轮、报告证据回放通过；local-demo已同源验收；正式标签demo-20261014-2028-faa6af9已推送 | App https://capstone-app-production-975e.up.railway.app/；上一正式标签demo-20261014-0744-bd2a200；双平台完整发布38554987581通过；cloud-dev不动 |

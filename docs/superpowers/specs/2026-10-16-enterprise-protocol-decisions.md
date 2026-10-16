@@ -1,6 +1,6 @@
 # 企业执行协议：迁移、命令生效与检查来源
 
-状态：实现契约补充，尚未接入运行。延续现有Thread服务、事件账本和自主组织机制。
+状态：实现契约补充。2d3f86c6接入现有服务的v1版本协商；v2及其迁移仍待实现。延续现有Thread服务、事件账本和自主组织机制。
 本文件解决上一轮协议缺口，不新增业务指标、固定流程或通用执行前的任务编译。
 
 ## 1. 同一服务的新旧表示
@@ -10,6 +10,8 @@
 
 - 保留/api/v1/threads及其commands、events入口。请求头Capstone-Thread-Version选择1或2，
   缺省为1；响应回显版本，并使用Vary避免缓存混用。未知版本返回406，不修改任务。
+  过渡期仅声明已实现的1，2仍返回406。浏览器先用缺省v1，在成功响应可见回显后发送显式头，
+  避免旧服务CORS白名单拒绝新增头；不为探测重发写请求。新服务允许并暴露版本头。
 - v2快照使用capstone-thread-snapshot/2；task_context含work_id、goal_revision、snapshot_id、
   resource_refs及model_contexts列表，空列表合法。selected_model_context_id可空，不造默认模型。
   历史Run/Turn/Attempt、Thread游标、已有结果引用继续保留；专业投影由应用适配器解析。

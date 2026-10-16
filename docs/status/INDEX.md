@@ -1,5 +1,7 @@
 # docs/status INDEX
 
+- 2026-10-16: [Thread版本协商](../reviews/2026-10-16-thread-version-negotiation.md)：现有服务与客户端支持v1协商及升级提示；保留旧跨域服务、会话和草稿，v2及无模型入口仍待实施。
+
 - 2026-10-16: 推进图补充977601f9固定节点；dev实际HEAD动态入图，同提交合并显示，避免只有顶部HEAD而无图节点。
 
 - 2026-10-16: [Task 2研究归属切片](../reviews/2026-10-16-work-research-identity.md)：Work身份独立于模型；组件实现与生产协议/前端接入范围分开记录；开发CI依赖范围及实测耗时单列。
