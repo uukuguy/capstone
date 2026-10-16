@@ -157,6 +157,23 @@ credentials scoped, and denies cross-domain data sharing. Domain Packs
 communicate with an authority through their declared executor/protocol instead
 of importing its implementation into the Kernel.
 
+Profile preparation now distinguishes authority and native configurations.
+`DomainRuntimeProfile` retains the professional authority contracts.
+`NativeDomainRuntimeProfile` declares a `PackManifest`, resource profile,
+result contract, policy and guides without a model or substitute authority.
+The same `ApplicationProfile`, `DomainBinding` and `DomainRegistry` select both.
+`prepare_application(required_binding_ids=...)` prepares only the requested
+bindings while retaining the full profile and its reference grants. An empty
+selection starts no resources. Unknown bindings fail before credential issuance.
+
+Native preparation uses an application-supplied `NativeBindingPreparer` and
+returns an immutable `NativePreparationReceipt`. Capstone's Pi adapter checks
+the registered executor's published resource profile and load receipt. It does
+not interpret business metrics or execute a model during preparation. Native
+observations remain distinct from authority results. The current authority
+runner rejects selected native bindings before starting resources; native
+continuous execution and model-free Thread integration remain planned work.
+
 ### Imports, calls, and evidence are different relationships
 
 The layer ordering above constrains ownership and dependencies; it does not

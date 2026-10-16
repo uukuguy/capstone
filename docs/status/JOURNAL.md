@@ -3344,3 +3344,7 @@ The following original entries were retained during document synchronization.
 - 2026-10-16: a2efb791 local rebuild and 1146-object role identity passed; browser verified v1, nonmutating rejection, draft retention and legacy CORS.
 - 2026-10-16: 1a695af4 records negotiation scope, runtime evidence and graph source before shared-agent CI acceptance.
 - 2026-10-16: PR44 merged32f18d24 after Linux4m58s/macOS8m35s CI; merge tree matches1a695af4 and dev checkout fast-forwarded.
+- 2026-10-16: c185e0aa aligns accepted negotiation milestone, exact deployment source and remaining Task2 scope in dev control records.
+- 2026-10-16: PR45 merged199833bc after dual-platform documentation checks; dev and application preparation branches align; runtime remainsa2efb791.
+- 2026-10-16: 32f08c31 adds selected native/authority Pack preparation, preserving application grants and existing professional execution boundaries.
+- 2026-10-16: 20226bf0 retains structural authority adapters while rejecting native profiles at professional-only entry points.

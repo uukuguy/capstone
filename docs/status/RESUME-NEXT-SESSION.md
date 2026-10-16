@@ -4,7 +4,7 @@ Updated: 2026-10-16. Active-session recovery record.
 
 ## Current action
 
-- PR44 merged32f18d24 normally into dev; merge tree exactly matches tested1a695af4. Root dev fast-forwarded; implementation branch closed. Control closeout is on docs/thread-version-closeout, pending its documentation PR. After acceptance, fast-forward both application preparation branches, regenerate the actual dev graph and check it in the browser.
+- PR44 merged32f18d24 normally into dev; merge tree exactly matches tested1a695af4. PR45 control closeout merged199833bc after both documentation jobs passed; tree equalsc185e0aa. Root dev and both application preparation branches are synchronized; implementation/control branches closed. Final graph is regenerated on dev. Continue Task2 from this baseline.
 - Runtime sourcea2efb791 (protocol implementation2d3f86c6 plus UI status correction). Do not rebuild for subsequent documentation-only commits.
 - Task2 remains in progress. Only v1 negotiation is implemented; v2, model-free Threads, Profile assembly, production Work/Claim binding and object CAS remain open.
 
@@ -17,6 +17,7 @@ Updated: 2026-10-16. Active-session recovery record.
 - Rebuild initially failed on Docker Hub token DNS/timeout. Process-local HTTP_PROXY/HTTPS_PROXY/ALL_PROXY=http://127.0.0.1:7897 fixed it; no system/pin changes. Final log:/tmp/thread-version-rebuild-final.log.
 - App5173/API8767. Maincf72393b, user e2eaee2/19173, local-demo/cloud-demo faa6af9 and cloud-dev24d9a325 remain unchanged.
 - Browser sessions:offapp (real App) and project-alignment (http://127.0.0.1:29483/docs/status/PROJECT-OVERVIEW.html). Geometry script:/tmp/check-control-graph.js. Final upgrade screenshot:output/playwright/thread-version-upgrade-final.png.
+- Final dev graph:22 nodes/29 edges;1280/1920 checks have no overlap, crossing, through-card path or overflow. Actual199833bc, product32f18d24, runtimea2efb791 and fixed977601f9 nodes verified. Screenshot:output/playwright/thread-version-final-dev.png. Local generated snapshot and recovery log stay uncommitted to avoid a self-SHA control loop.
 - Reports:docs/reviews/2026-10-16-thread-version-negotiation.md and 2026-10-16-work-research-identity.md.
 
 ## Next shared-foundation slice
