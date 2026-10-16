@@ -1,20 +1,24 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import ThreadLiveEntry from './ThreadLiveEntry'
+import ThreadWorkAdapter from './ThreadWorkAdapter'
+import { HttpThreadTransport } from './threadHttpTransport'
+import { writePendingCommands } from './threadSessionState'
+import { buildStartWorkCommand } from './threadWorkProtocol'
 import type { WorkCommand } from './threadWorkProtocol'
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); sessionStorage.clear(); window.history.replaceState({}, '', '/') })
 
 /** In-memory HTTP authority fixture. It never invokes a Provider or simulator. */
-function authority({ lostStart = false, lostCancel = false, modelFree = false } = {}) {
+function authority({ lostStart = false, lostCancel = false, modelFree = false, existingWork = false } = {}) {
   const model = { id: 'ctx_one', model_id: 'ieee39', model_revision: `revision:sha256:${'c'.repeat(64)}`, implementation_family: 'pandapower', selection_revision: 'sel_one' }
   const context = { binding: { thread_id: 'thr_work', work_id: 'work_one', research_id: 'research-one' }, goal_revision: 1,
     snapshot_id: 'task_one', model_contexts: modelFree ? [] : [model], resource_refs: [] }
   const work = { work_id: 'work_one', goal: '测试目标', goal_revision: 1, revision: 1, status: modelFree ? 'blocked' : 'ready',
     blocked_reason: modelFree ? 'execution_unavailable' : null, latest_attempt_id: null as string | null,
     cancel_requested: false, messages: ['测试目标'], task_context: context }
-  let upgraded = modelFree
-  let saved = modelFree
+  let upgraded = modelFree || existingWork
+  let saved = modelFree || existingWork
   let attempt: Record<string, unknown> | null = null
   let stream: ReadableStreamDefaultController<Uint8Array> | undefined
   const events: Record<string, unknown>[] = []
@@ -60,7 +64,7 @@ function authority({ lostStart = false, lostCancel = false, modelFree = false } 
       ...(cancelled ? { reason: 'user_requested' } : { answer: '来自真实事件的测试结果', result_projections: [result] }) }, true)
   }
   const response = (body: unknown) => new Response(JSON.stringify(body), { headers: { 'Capstone-Thread-Version': '2' } })
-  const fetcher = vi.fn(async (url: string | URL, init?: RequestInit) => {
+  const fetcher = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
     const parsed = new URL(String(url), 'http://localhost')
     if (parsed.pathname.endsWith('/thread-access')) return response({ schema: 'capstone-thread-access/1', mode: 'open' })
     if (parsed.pathname.endsWith('/threads') && init?.method !== 'POST') return response({ schema: 'capstone-thread-list/1', threads: [], has_more: false, next_before_thread_id: null })
@@ -118,6 +122,47 @@ async function saveGoal(server: ReturnType<typeof authority>) {
   await screen.findByRole('textbox', { name: '补充任务资料' })
   await waitFor(() => expect((screen.getByRole('button', { name: '开始任务' }) as HTMLButtonElement).disabled).toBe(false))
 }
+
+it('keeps an executable legacy Work recovery-only without admitting a new start or cancel', async () => {
+  const server = authority({ existingWork: true })
+  vi.stubGlobal('fetch', server.fetcher)
+  render(<ThreadWorkAdapter transport={new HttpThreadTransport('', '', server.fetcher, '/api/v1/threads', '2')} threadId="thr_work" namespace="recovery" recoveryOnly />)
+  fireEvent.click(await screen.findByRole('button', {name:'01 · 测试目标'}))
+  await screen.findByRole('textbox', {name:'补充任务资料'})
+  expect(screen.queryByRole('button', {name:'开始任务'})).toBeNull()
+  expect(screen.queryByRole('button', {name:'停止任务'})).toBeNull()
+  expect(server.commands).toHaveLength(0)
+})
+
+it('retains stopping the owned active Attempt when reopening through recovery', async () => {
+  const server = authority()
+  await saveGoal(server)
+  fireEvent.click(screen.getByRole('button', {name:'开始任务'}))
+  await screen.findByText('修订 1 · 已排队')
+  cleanup()
+  render(<ThreadWorkAdapter transport={new HttpThreadTransport('', '', server.fetcher, '/api/v1/threads', '2')} threadId="thr_work" namespace="active-recovery" recoveryOnly />)
+  fireEvent.click(await screen.findByRole('button', {name:'01 · 测试目标'}))
+  expect(screen.queryByRole('button', {name:'开始任务'})).toBeNull()
+  const stop=await screen.findByRole('button', {name:'停止任务'})
+  await waitFor(()=>expect((stop as HTMLButtonElement).disabled).toBe(false))
+  fireEvent.click(stop)
+  await waitFor(()=>expect(server.commands.at(-1)?.kind).toBe('cancel_work'))
+  expect(server.attemptsCreated).toBe(1)
+})
+
+it('retries only the exact saved start request in the recovery entry', async () => {
+  const server = authority({ existingWork: true })
+  vi.stubGlobal('fetch', server.fetcher)
+  const original=buildStartWorkCommand('thr_work','run_work','cmd_original','idem_original','work_one',1)
+  writePendingCommands('pending-recovery.thr_work',[original])
+  render(<ThreadWorkAdapter transport={new HttpThreadTransport('', '', server.fetcher, '/api/v1/threads', '2')} threadId="thr_work" namespace="pending-recovery" recoveryOnly />)
+  const retry=await screen.findByRole('button',{name:'重试执行请求'})
+  await waitFor(()=>expect((retry as HTMLButtonElement).disabled).toBe(false))
+  fireEvent.click(retry)
+  await waitFor(()=>expect(server.commands).toEqual([original]))
+  await screen.findByText('修订 1 · 已排队')
+  expect(screen.queryByRole('button',{name:'开始任务'})).toBeNull()
+})
 
 it('reads a real v1 Thread, upgrades only on Work save, and displays streamed execution and results', async () => {
   const server = authority()

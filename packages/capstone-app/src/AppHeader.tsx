@@ -7,6 +7,10 @@ function Mark() {
   return <span className="mark" aria-hidden="true"><i /><i /><i /><i /></span>
 }
 
+export function AppBrand() {
+  return <><Mark /><span className="brand-name">CAPSTONE</span></>
+}
+
 export function AppVersion({ build }: { build: AppBuildIdentity }) {
   const environment = build.environment === 'local-dev' && import.meta.env.PROD
     ? 'user-local'
@@ -17,7 +21,7 @@ export function AppVersion({ build }: { build: AppBuildIdentity }) {
   </span>
 }
 
-export function PageHeader({ className = '', showThreadEntry = true, actions, subtitle = '电网分析工作台' }: { className?: string; showThreadEntry?: boolean; actions?: ReactNode; subtitle?: string }) {
+function useAppBuild() {
   const [build, setBuild] = useState(__CAPSTONE_BUILD__)
   useEffect(() => {
     if (!import.meta.env.DEV || import.meta.env.MODE === 'test') return
@@ -33,6 +37,16 @@ export function PageHeader({ className = '', showThreadEntry = true, actions, su
     window.addEventListener('focus', refresh)
     return () => { active = false; window.clearInterval(timer); window.removeEventListener('focus', refresh) }
   }, [])
+  return build
+}
+
+export function WorkspaceBuildStatus() {
+  const build=useAppBuild()
+  return <AppVersion build={build} />
+}
+
+export function PageHeader({ className = '', showThreadEntry = true, actions, subtitle = '电网分析工作台' }: { className?: string; showThreadEntry?: boolean; actions?: ReactNode; subtitle?: string }) {
+  const build=useAppBuild()
   const projectLink = <a className="project-link" href="https://github.com/uukuguy/capstone"
       target="_blank" rel="noopener noreferrer" aria-label="在 GitHub 查看 CAPSTONE 项目源代码" title="在 GitHub 查看 CAPSTONE 项目源代码">
       <svg className="project-link-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
@@ -40,7 +54,7 @@ export function PageHeader({ className = '', showThreadEntry = true, actions, su
       </svg>
     </a>
   return <header className={`topbar ${className}`.trim()}>
-    <div className="brand"><Mark /><span className="brand-name">CAPSTONE</span>
+    <div className="brand"><AppBrand />
       <AppVersion build={build} /><span className="brand-divider" />
       <span className="brand-subtitle">{subtitle}</span></div>
     {actions ? <div className="topbar-right">{actions}{projectLink}</div> : <>

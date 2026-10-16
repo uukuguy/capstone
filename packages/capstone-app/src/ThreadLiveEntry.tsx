@@ -256,7 +256,6 @@ function LegacyThreadLiveEntry({ threadId, workspace = false }: { threadId: stri
   return <ThreadFixtureApp key={createdThreadId} client={client} threadId={createdThreadId}
     presentation={workspace ? 'workspace' : undefined}
     navigation={workspace && <nav id="thread-session-navigation" className="thread-session-navigation" aria-label="任务会话">
-      <span className="eyebrow">WORKSPACE</span><h1>企业工作空间</h1>
       <button className="thread-session-new" disabled={creating} onClick={() => void newThread()}><Plus size={16} aria-hidden="true" />新建会话</button>
       <h2>工作中的会话</h2>
       {!sessions?.threads.some(item => item.threadId === createdThreadId) && <a aria-current="page" href={`/?workspace=enterprise&thread=${encodeURIComponent(createdThreadId)}`}>当前会话 · {createdThreadId.slice(-6)}</a>}

@@ -136,6 +136,7 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
   const active = selectedWork?.status === 'queued' || selectedWork?.status === 'running'
   const canStop = active && selectedWork.latestAttemptId === professional?.currentAttempt?.attemptId
   async function dispatch(command: WorkCommand) {
+    if (recoveryOnly && !(pending && JSON.stringify(command) === JSON.stringify(pending)) && !(command.kind === 'cancel_work' && canStop && !pending)) throw new Error('此入口只可确认原请求或停止已有执行。')
     if (writing.current) throw new Error('请等待当前操作完成。')
     writing.current = true; setBusy(true); setError(null); setNotice('')
     try {
@@ -164,7 +165,7 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
     } catch (cause) { throw new MessageNotSentError(cause instanceof Error ? cause.message : '保存结果待确认。') }
   }
   async function start() {
-    if (!selectedWork || !snapshot) return
+    if (!selectedWork || !snapshot || (recoveryOnly && pending?.kind !== 'start_work')) return
     try {
       await dispatch(pending?.kind === 'start_work' ? pending : buildStartWorkCommand(currentId, snapshot.runId, `cmd_${commandKey()}`, `idem_${commandKey()}`, selectedWork.workId, selectedWork.revision))
     } catch { /* The shared store retains uncertain requests for explicit retry. */ }
@@ -191,7 +192,6 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
   const startReason = selectedWork?.startUnavailableReason || selectedWork?.blockedReason
   return <ThreadWorkspace conversationOnly subtitle="企业任务工作台"
     sidebar={<nav id="thread-session-navigation" className="thread-session-navigation" aria-label="任务与会话">
-      <span className="eyebrow">WORKSPACE</span><h1>企业工作空间</h1>
       {recoveryOnly ? <a className="thread-session-new" href="/?workspace=enterprise&thread=new">新建会话</a> : <button className="thread-session-new" disabled={busy} onClick={() => void create()}><Plus aria-hidden="true" size={16} />新建任务会话</button>}
       <h2>当前会话</h2>
       {!recoveryOnly && <button aria-pressed={selected === 'new'} disabled={busy || !!pending} onClick={() => selectWork('new')}>新的任务目标</button>}
@@ -215,12 +215,12 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
       <div className="thread-chat-heading-meta">
         {pending?.kind === 'cancel_work' && !canStop && <button type="button" className="thread-control-button" disabled={busy || projection.connection !== 'live'} onClick={() => void cancel()}>重试停止请求</button>}
         {pendingCommand?.schema === 'capstone-command/1' && <button type="button" className="thread-control-button" disabled={busy || projection.connection !== 'live'} onClick={() => void recoverLegacyCommand()}>重试原对话请求</button>}
-        {selectedWork && <button type="button" className="thread-primary-button" disabled={busy || (!!pending && pending.kind !== 'start_work') || (!selectedWork.startAvailable && pending?.kind !== 'start_work') || projection.connection !== 'live'}
+        {selectedWork && (!recoveryOnly || pending?.kind === 'start_work') && <button type="button" className="thread-primary-button" disabled={busy || (!!pending && pending.kind !== 'start_work') || (!selectedWork.startAvailable && pending?.kind !== 'start_work') || projection.connection !== 'live'}
           aria-describedby={!selectedWork.startAvailable ? 'work-start-reason' : undefined} onClick={() => void start()}>{pending?.kind === 'start_work' ? '重试执行请求' : '开始任务'}</button>}
         {currentId !== 'new' && <button type="button" className="thread-control-button" aria-label="刷新任务" onClick={() => setReload(value => value + 1)}><RefreshCw aria-hidden="true" size={16} /></button>}
       </div>
     </div>
-      {recoveryOnly && <p role="status">此会话使用旧版任务协议，可查看历史、保留草稿并确认原请求；当前入口尚不能继续发送。可新建会话继续工作。</p>}
+      {recoveryOnly && <p role="status">此会话使用旧版任务协议，可查看历史、保留草稿、确认原请求及停止已有执行；当前入口尚不能继续发送。可新建会话继续工作。</p>}
       {error && <p role="alert">{error}</p>}
       {selectedWork && !selectedWork.startAvailable && <p id="work-start-reason" role="status">{startReason ? reasonCopy[startReason] || '当前任务暂不可启动，请刷新后查看最新状态。仍可保存目标和资料。' : '当前任务暂不可启动，仍可保存资料。'}</p>}
       {notice && <p role="status">{notice}</p>}

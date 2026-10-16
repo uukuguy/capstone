@@ -41,7 +41,7 @@ describe('ThreadLiveEntry', () => {
     vi.stubGlobal('fetch', fetcher)
     render(<ThreadLiveEntry threadId="thr_demo_39" presentation="workspace" />)
     expect(await screen.findByRole('navigation', {name:'任务会话'})).toBeTruthy()
-    expect(screen.getByRole('button', {name:'选择技能'})).toBeTruthy()
+    expect(await screen.findByRole('button', {name:'选择技能'})).toBeTruthy()
     expect(screen.getByRole('button', {name:'本轮上下文'})).toBeTruthy()
     expect(screen.queryByRole('button', {name:'开始任务'})).toBeNull()
     expect(screen.queryByRole('button', {name:'保存任务'})).toBeNull()

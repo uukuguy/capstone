@@ -766,7 +766,7 @@ export default function App({ clientFactory = defaultClientFactory }: Props) {
   if (fixtureRoute && fixtureIds.has(fixtureRoute as ThreadUiFixtureId)) {
     const workspace=params?.get('workspace')==='enterprise'
     return <ThreadFixtureApp fixtureId={fixtureRoute as ThreadUiFixtureId} presentation={workspace ? 'workspace' : undefined}
-      navigation={workspace && <nav id="thread-session-navigation" className="thread-session-navigation" aria-label="任务会话"><span className="eyebrow">WORKSPACE</span><h1>企业工作空间</h1><p role="status">离线会话预览</p><a aria-current="page" href={`/?workspace=enterprise&thread-fixture=${fixtureRoute}`}>当前记录会话</a></nav>} />
+      navigation={workspace && <nav id="thread-session-navigation" className="thread-session-navigation" aria-label="任务会话"><p role="status">离线会话预览</p><a aria-current="page" href={`/?workspace=enterprise&thread-fixture=${fixtureRoute}`}>当前记录会话</a></nav>} />
   }
   if (params?.get('workspace') === 'enterprise') return <ThreadLiveEntry threadId={liveThreadRoute || 'new'} presentation="workspace" />
   if (liveThreadRoute) return <ThreadLiveEntry threadId={liveThreadRoute} />
