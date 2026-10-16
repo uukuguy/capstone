@@ -90,6 +90,9 @@ command_id的作用域为身份主体与目标对象。相同ID及相同规范�
 
 ## 4. 状态与事件
 
+命令实际wire映射、对象修订与Thread游标区别、答复生效和旧客户端迁移，以
+[协议决定](2026-10-16-enterprise-protocol-decisions.md)为准。下面信封保留为语义示例，不直接作为v1服务输入。
+
 Work状态：queued、running、waiting_input、paused、partial、completed、failed、cancelled。
 暂停/取消请求属于命令状态，不能提前写成任务已停止；超时或断网不自动视为取消。
 Work可在completed/partial/failed后根据新目标修订继续，旧Attempt及结果保持历史状态。
@@ -136,7 +139,8 @@ artifact.validity_changed、command.applied。每种载荷单独校验。
 发布顺序：写临时对象→校验大小/摘要/类型→原子登记内容和依赖→提交发布事件。
 数据库和对象存储非同一事务时使用暂存状态与幂等finalize，只有finalized对象可下载；
 失败留下可回收暂存对象，不能留下已发布但不存在的文件引用。
-配额超限、传输不完整和摘要不符显式失败。不得沿用当前超过4 MiB静默跳过的收集行为。
+配额超限、传输不完整和摘要不符显式标记对应对象失败或未就绪，允许局部重试、分片或其他获准格式。
+其他已保存成果仍可交付；必要答案/证据持久化失败不报告成功。不得静默跳过收集。
 
 产物投影包含artifact_id、revision、work_id、title、media_type、kind、byte_size、
 content_digest、producer_action_id、input_refs、validation_summary、availability及validity。
@@ -145,12 +149,16 @@ kind使用通用document/table/chart/code/model_view类别；业务字段留在�
 availability描述内容能否访问，validity描述与当前任务/输入是否相符，两者独立。
 
 恢复保存文件manifest、环境身份及任务检查点。模型会话历史可压缩，但目标、引用、
-未解决操作和产物依赖不靠摘要保真。缺失输入或环境时暂停恢复并指出缺口。
+未解决操作和产物依赖不靠摘要保真。缺失输入或环境时指出缺口并按依赖范围处理恢复。
+缺失输入/环境只暂停依赖它的恢复分支；可恢复的工作在新租约下继续。unknown动作隔离自身、
+依赖及可能冲突操作，不阻止无关工作；不能盲目重放。必要持久化和专业准入边界保持不变。
 输入更新使相关派生判断和成果待重验；修订事件保留旧版，新版完成前不能标记已替换。
 
 ## 6. 前端视图与动态artifacts
 
-应用登记可信组件：conversation、analysis_report、model_decision。
+应用登记可信组件；conversation、analysis_report、model_decision仅为首批示例，不是协议的封闭枚举。
+视图注册声明view_id、受支持的公开产物schema及版本、所需资源角色与安全回退。
+专业选择字段由对应Pack的公开投影定义，不进入通用任务必填字段；新增视图不改变组织机制。
 Profile可建议视图，运行时按实际公共资源/成果类型与可用性解析。
 模型不得注入任意前端代码，Pack不得通过HTML资源获得应用同源脚本权限。
 未知产物类型使用安全下载/通用元数据回退，缺少专业视图不改变专业结果保证。

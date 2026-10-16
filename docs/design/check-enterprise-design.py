@@ -37,6 +37,21 @@ assert transitions['running', 'pause_settled'] == 'paused'
 assert transitions['cancelled', 'resume'] == 'queued'
 assert ('paused', 'delivery_complete') not in transitions
 assert 'all_required_satisfied' in matrix['guards']['delivery_complete']
+assert 'inputs_ready' not in matrix['guards']['start']
+assert 'no_viable_authorized_next_action' in matrix['guards']['missing_input']
+assert 'no_viable_authorized_next_action' in matrix['guards']['need_input']
+assert 'isolate_unknown_actions_and_conflicting_dependencies' in matrix['guards']['resume']
+assert 'required_deliverables_persisted' in matrix['guards']['delivery_complete']
+assert 'no_stale_delivery_dependencies' in matrix['guards']['delivery_complete']
+assert 'usable_message_or_artifacts' in matrix['guards']['delivery_partial']
+assert transitions['waiting_input', 'input_applied'] == 'queued'
+assert transitions['paused', 'input_applied'] == 'paused'
+assert transitions['running', 'input_applied'] == 'running'
+assert ('cancelled', 'input_applied') not in transitions
+assert transitions['paused', 'revise_goal'] == 'paused'
+assert 'open_request_matches_goal' in matrix['guards']['input_applied']
+assert 'response_persisted' in matrix['guards']['input_applied']
+assert 'viable_authorized_next_action' not in matrix['guards']['input_applied']
 
 # External synthetic business fixture: not a production tool or Kernel schema.
 # Independent expected totals are frozen in enterprise-acceptance.json.

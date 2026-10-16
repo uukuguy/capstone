@@ -1,6 +1,7 @@
 # Pi 生态上的企业自主执行设计
 
-状态：2026-10-16已收敛为[设计定稿v1](2026-10-15-enterprise-design-final.md)，尚未实施或业务验收。
+状态：2026-10-16架构基线已确定，[实施契约仍在修订](2026-10-15-enterprise-design-final.md)，尚未实施或业务验收。
+Demo1/Demo2只用于说明与外部评测，不是两个待开发应用；输入保持外部原生契约，框架不定义具体指标。
 
 完整性评审：[评审报告](../../reviews/2026-10-15-enterprise-design-readiness-review.md)。
 已知限制的具体处理见[缺口解决设计](2026-10-15-enterprise-design-closure.md)；定稿补齐协议语义检查、

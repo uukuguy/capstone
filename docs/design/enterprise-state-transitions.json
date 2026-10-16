@@ -2,6 +2,13 @@
   "schema": "capstone-design-transitions/1",
   "default": "reject_invalid_state",
   "transitions": [
+    {"from": "waiting_input", "trigger": "input_applied", "to": "queued"},
+    {"from": "paused", "trigger": "input_applied", "to": "paused"},
+    {"from": "running", "trigger": "input_applied", "to": "running"},
+    {"from": "queued", "trigger": "input_applied", "to": "queued"},
+    {"from": "waiting_input", "trigger": "revise_goal", "to": "queued"},
+    {"from": "paused", "trigger": "revise_goal", "to": "paused"},
+    {"from": "queued", "trigger": "revise_goal", "to": "queued"},
     {
       "from": "queued",
       "trigger": "start",
@@ -134,10 +141,11 @@
     }
   ],
   "guards": {
+    "input_applied": ["authorized", "open_request_matches_goal", "response_persisted", "safe_boundary_or_no_active_attempt"],
     "start": [
       "valid_lease",
       "authorized",
-      "inputs_ready",
+      "minimum_execution_context_ready",
       "budget_available"
     ],
     "message": [
@@ -162,17 +170,32 @@
       "authorized",
       "revision_cas",
       "new_attempt",
-      "reconcile_unknown_actions"
+      "isolate_unknown_actions_and_conflicting_dependencies"
     ],
     "delivery_complete": [
       "current_goal",
       "all_required_satisfied",
-      "artifacts_finalized",
-      "no_stale_dependencies"
+      "required_deliverables_persisted",
+      "no_stale_delivery_dependencies"
     ],
     "delivery_partial": [
-      "usable_artifacts",
+      "usable_message_or_artifacts",
       "unmet_requirements_recorded"
+    ],
+    "missing_input": [
+      "external_input_needed",
+      "no_viable_authorized_next_action"
+    ],
+    "need_input": [
+      "external_input_needed",
+      "no_viable_authorized_next_action"
+    ],
+    "invalid_configuration": [
+      "execution_foundation_unavailable",
+      "no_recoverable_configuration_path"
+    ],
+    "fatal_error": [
+      "execution_foundation_unrecoverable"
     ],
     "budget_exhausted": [
       "dispatch_blocked",

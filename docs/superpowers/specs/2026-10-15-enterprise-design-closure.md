@@ -4,8 +4,15 @@
 优先于旧文档中的“建议”“按需处理”等模糊描述。本文不把尚未验证的SDK能力或企业资源写成已具备。
 适用范围为统一框架，不为Demo1增加业务接口，不为Demo2伪造专业计算能力。
 
+2026-10-16边界修订：Demo1/Demo2只是说明与外部评测；本次实现中性协议与统一组织机制，
+不承诺新增示例业务应用或专业求解能力。业务字段由外部原生契约和专业Pack拥有。
+
 2026-10-16：本补充已并入[定稿v1](2026-10-15-enterprise-design-final.md)。定稿明确复用现有Thread、
 worker租约、研究控制器和专业前后端资产；本文逻辑对象不代表另建一套表、协议或调度器。
+
+持续推进规则以[限制审查](../../reviews/2026-10-16-enterprise-progress-constraints-review.md)为准。
+下述校验默认作用于对应行动、资源或声明，不自动终止整个Work。
+命令/状态、wire迁移和检查来源细则见[协议决定](2026-10-16-enterprise-protocol-decisions.md)。
 
 ## D1. 单一持续执行循环与宿主检查点
 
@@ -39,6 +46,12 @@ Pi session拥有一次Attempt内的模型上下文与下一行动选择。Capsto
 Application维护资源注册与授权，Pack只声明需求。MCP、skills、文件保持原生内容及schema。
 新增的是通用资源运输与引用契约，不是指标、价格、通道或新能源的业务API。
 
+输入协议分为中性信封与原生内容：信封关联任务、资源身份/版本、来源、授权和内容/schema引用；
+内容保留企业文档、工具schema、数据字典、方法或检查说明的原格式。用途与适用范围可由提供者
+说明，也可由智能体读取后形成带来源的解释；宿主不把解释当作新的正式业务定义。
+缺失或冲突进入研究状态，必要时请求补充。禁止要求数据提供者实现Capstone专用业务字段接口。
+TaskContext引用这些输入，不要求入场前提交完整资料清单或固定分析计划。
+
 ResourceRef字段：resource_id、owner_workspace_id、source_kind、source_locator、
 version或observed_at、content_digest（可空但须说明原因）、media_type、size（可未知）、
 access_scope、allowed_operations、availability、capture_mode、completeness。
@@ -51,7 +64,7 @@ completeness为complete/partial/unknown；无全量证明时不得标complete。
 | --- | --- | --- |
 | 原生MCP返回小结果 | 宿主接纳观察，保留调用与来源；向Pi给有界内容 | 协议失败与业务空结果分开 |
 | MCP返回文件或分页结果 | 受控适配器读取获准返回资源，流式写私有输入区并登记capture | 保存游标/分片；不能续传则重新获取新capture，不拼接不同来源版本 |
-| 用户上传 | 上传会话→流式写入→摘要/大小/类型检查→finalize→ResourceRef | 未完成附件不能提交执行；重试沿用upload_id，不向浏览器暴露bucket凭据 |
+| 用户上传 | 上传会话→流式写入→摘要/大小/类型检查→finalize→ResourceRef | 未完成附件不可作为可用输入；文本及就绪资料可先提交，显示待上传项；重试沿用upload_id |
 | 已批准skill | 固定版本/摘要加载，依赖在镜像或受控环境准备 | 缺依赖明确不可用，不在企业运行中任意安装提权 |
 
 公共通用端点补齐：GET workspace resources（分页、授权过滤）、POST resource-uploads、
@@ -87,23 +100,28 @@ research_revisions、checkpoints、artifacts/revisions/dependencies。领域内�
 
 | 当前状态与命令 | 行动边界处理 | 后继状态 |
 | --- | --- | --- |
-| queued + start | 取得租约、检查配置和资源 | running；缺资源为waiting_input；不可恢复配置错误为failed |
+| queued + start | 取得租约并检查基本执行能力，不要求全部资料就绪 | 可发现或处理已有资料则running；仅确需外部输入且无可继续路径时waiting_input；执行基础无法建立时failed |
 | running + message/revise_goal | 保存命令，下一安全边界应用目标修订并重验依赖 | running或waiting_input；前端收到applied才视为生效 |
 | running + pause | 停止新分发、请求取消、保存可确认检查点 | 未结束操作仍为running且pause pending；安全停稳后paused |
 | 任一非终结态 + cancel | 同上，但取消当前目标执行 | cancelled；外部unknown单独保留，不能假定已撤回 |
-| waiting_input/paused + resume | 核对输入版本、未决动作、预算与授权 | 新Attempt进入running或保持waiting_input |
+| waiting_input/paused + resume | 核对当前行动依赖、预算与授权，隔离unknown及冲突操作 | 新Attempt排队；无关获准工作可继续 |
+| waiting_input + input.respond生效 | 问题/目标版本一致，合法答复持久化 | queued；续接主会话决定继续或重新等待，不先证明下一行动可行 |
+| paused + input.respond生效 | 保存答复并更新上下文 | 保持paused，等待显式resume |
 | completed/partial/failed/cancelled + revise/resume | 显式新目标修订或继续命令，保留旧结果 | 新Attempt排队；不复活旧租约 |
 | delivery.proposed | 执行D5交付准入 | completed/partial，或保留running继续补齐 |
 
 非法转换返回invalid_state；修订冲突返回revision_conflict及当前快照引用；
 授权失败返回not_authorized；缺资源返回resource_unavailable；预算不足返回budget_exhausted。
 这些是机器码，前端使用读者友好的消息。所有错误保留command_id和可重试性。
+业务资源缺失、工具参数错误和正常检查失败返回局部观察，允许修正、替代或处理其他分支。
+配置错误先隔离对应能力；只有整个执行基础不可用且无法恢复时才成为任务级failed。
 
 ## D4. 中断恢复、预算与未决动作
 
 恢复检查点包含Work/goal/research修订、Pi可恢复消息历史引用、资源capture和文件manifest、
 环境镜像摘要、依赖版本、未决Action、工件游标、累计用量。敏感内容按授权保存，不公开到SSE。
-恢复先获取新租约，核对授权和外部未决动作，再重建工作目录与受控环境，最后恢复Pi上下文。
+恢复先获取新租约，核对授权并标识外部未决动作及其依赖，再重建可恢复的工作目录与环境、恢复Pi上下文。
+unknown阻止原副作用重放、依赖其未确认结果的行动及可能冲突的操作，无关获准工作可继续。
 文件恢复由宿主检查摘要；环境不匹配先重建，不把任意最新依赖当成可复现环境。
 生成中的内存状态丢失时，从最近确认边界重新组织；已发副作用不得随消息回放再次执行。
 
@@ -114,7 +132,8 @@ unknown优先使用外部operation_id查询；无查询能力时产生resolution
 
 预算由应用配置并在Work开始时冻结：模型调用/令牌或费用、墙钟时间、并发子任务、
 CPU/内存、工作区和工件大小。子任务从父预算预留，结束后归还未用部分；并发记账须原子化。
-耗尽后阻止新行动并保存状态，已有成果按D5检查后partial，否则paused，reason=budget_exhausted。
+预算耗尽后阻止新增相应用量并使用预留的保存/结算额度记录状态；不换工具绕过总预算。
+有可交付成果时按D5交付，否则paused，reason=budget_exhausted；预算不足不自动变为failed。
 用户显式增加预算产生配置修订；模型不能自行放宽。重复无进展探索可提出停止建议，
 硬预算始终由宿主执行，不能只靠模型自评“已经足够”。
 
@@ -126,14 +145,24 @@ SSE游标过期返回snapshot_required，不删除任务恢复所需的证据关
 
 GoalRevision含可检查的交付要求列表：requirement_id、描述、required、检查方式、
 检查资源引用及适用范围。模型可提出细分，宿主记录来源；不能自行删除用户要求。
-每项结果为satisfied/unsatisfied/unknown/not_applicable，关联固定产物版本和ValidationReceipt。
+required仅来自用户明确要求或应用明确配置的交付保证；模型自提的完善建议默认不是硬门槛。
+未指定独立验证时，缺少检查器不阻止分析或交付，记录实际检查与局限即可。
+要求按需逐步展开，不设置先生成完整要求树的任务编译门禁。简单回答沿用现有消息交付，
+不强制生成文件、图表或独立检查回执；空检查列表不自动证明目标已完成。
+已批准skill可直接执行，再根据实际结果更新研究与交付状态。
+每项结果为satisfied/unsatisfied/unknown/not_applicable，关联实际交付身份及适用的检查回执。
+存在独立检查要求时才强制对应ValidationReceipt；消息成果引用持久消息身份，文件成果引用ArtifactRevision。
 not_applicable须有已接受的目标修订或明确适用性规则，不能作为跳过难题的通道。
 
 ValidationReceipt包含check_id、checker_kind、checker_version、input_refs、scope、
 status、findings、执行身份和时间。checker_kind区分deterministic、authority、model_review、human。
 模型评审不升级为独立数值验证。来源完整性不证明数据本身正确；专业结果也不证明因果解释。
-required项全部satisfied或合法not_applicable、产物已finalized且当前有效时才completed。
-缺项而存在可用产物时partial并逐项说明；无可用产物则继续、等待或失败，依据实际原因选择。
+已声明的required项全部satisfied或合法not_applicable、实际要求的成果已持久化且当前有效时才completed。
+文件成果必须finalized；文字回答不因没有文件而被拒绝。完成提议仍须回应当前用户目标，
+不能通过省略要求、空列表或自动降低业务保证来通过。
+缺项而存在有用消息或文件时可主动partial交付，并保留未完成要求；不强制不断重试至全部满足。
+无可用成果时根据可行下一行动继续或等待；普通检查失败不直接成为任务级failed。
+有效性仅检查本次交付实际依赖，历史过期草稿和无关失败检查不阻止新交付。
 
 图表是artifact bundle：data、code或spec、environment、preview、exports、validation receipts。
 报告固定引用图表revision，不动态嵌入“最新图”。数据修订向后标记依赖失效，不能原地改旧图。
@@ -144,13 +173,17 @@ SVG预览禁脚本/外部资源，HTML交互产物放在无同源权限的隔离
 
 检查规则来自应用交付标准和实际外部业务资料；不增加电力指标schema。
 新业务任务只换资源、方法和获准检查规则，不改Kernel的判断或工具序列。
+检查类型由宿主根据实际执行来源签发，不能采信模型自报的checker_kind。确定性执行只说明
+执行方式，不自动证明独立性或业务正确性。应用的保证策略绑定获准检查资源、版本和覆盖范围；
+模型生成检查标记为自检，只有满足该策略的来源与方法才能承担要求的独立核验。
+Capstone核对授权、执行身份及引用，具体业务检查仍由外部资源或专业能力解释与执行。
 
 ## D6. 前端未覆盖路径与专业视图
 
 | 操作/状态 | 确定的交互与契约 |
 | --- | --- |
 | 同一Thread有多个Work | 头部任务切换器显示当前目标、状态；输入明确“继续此任务”或“新任务”，服务端回执绑定work_id |
-| 附件/资源 | 资料抽屉选择授权资源，显示上传/处理中/可用/失败；发送仅引用finalized资源，失败保留草稿 |
+| 附件/资源 | 资料抽屉显示上传/处理中/可用/失败；发送可用资料及文本，显式列出未就绪附件，保留失败项与重试入口 |
 | 待补充/未决动作 | 卡片含request_id、问题、影响和允许的回答；答复命令引用request_id与目标修订，旧问题不误应用到新目标 |
 | 后台任务 | 会话列表投影显示running/waiting/finished；订阅切换不取消后台执行 |
 | 冲突/撤销 | 显示服务端当前配置与本地草稿差异；保留输入，重试用明确新修订，不覆盖远端状态 |
@@ -180,7 +213,7 @@ Demo2正式视图直接复用已有NetworkView、模型投影与结果定位能�
 | 原生Pi桥 | 实际SDK验证D1前置阻断、skill/MCP发现、检查点、暂停和恢复 | 未支持边界关闭配置并修适配，不启动长程成功宣称 |
 | Demo1完整资料 | 外部MCP/文件给价格、通道、新能源及口径；独立核对基准与字体/导出检查 | 必需指标/报告/图表缺失或错误为失败，不能仅凭有报告文件通过 |
 | Demo1变化/缺口 | 改字段/工具名、分页、口径冲突、反例、缺少消纳依据 | 变化后不改核心代码；正确修订或限定交付，不伪造弃电结论 |
-| Demo2 | 已注册模型/一致快照，故障、候选、独立专业复核 | 检查失败不显示可行；无解、未收敛、部分覆盖、旧结果分别验证 |
+| 专业业务外部示例（如Demo2） | 提供者供给已注册模型、求解与对应专业复核 | 案例不足或失败单独记录；既有专业回归仍是框架门禁，不为示例强制新增专业能力 |
 | 多Pack协作 | 一般资料+专业结果、显式交接、不同历史时刻及撤销授权 | 错时刻/越权交接被拒，来源类型不升级 |
 | 迁移与入口 | 现有专业案例与新无模型任务共存，dev真实入口执行 | 旧专业准入不削弱；仅UI fixture通过不算集成通过 |
 
@@ -191,9 +224,9 @@ Demo2正式视图直接复用已有NetworkView、模型投影与结果定位能�
 
 实施采用五个纵向切片，每片同时交付后端投影与最小前端：
 1. Pi桥能力验证、Profile公共/专业配置拆分、无模型Work及直接问答入口。
-2. 资源/上传capture、持久工件和报告/图表工作区，资料充分Demo1最小闭环。
+2. 资源/上传capture、持久工件和成果工作区，以可替换外部资料验证完整闭环。
 3. 研究修订、租约/预算/检查点、输入与产物失效，故障注入恢复验收。
-4. 专业投影和NetworkView集成、多Pack交接、Demo2验证与失败视图。
+4. 可注册专业投影、复用NetworkView、多Pack交接及通用失败状态；示例业务扩展另列。
 5. 外部验收包、现有专业回归、真实模型质量和部署前端到端验证。
 
 旧Thread/模型数据保持可读，新增Work表和协议版本并行接入；不删旧证据或重写历史运行身份。

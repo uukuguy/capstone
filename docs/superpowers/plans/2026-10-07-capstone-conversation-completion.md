@@ -2,7 +2,10 @@
 
 2026-10-16当前计划：[统一执行实施计划](2026-10-16-enterprise-unified-execution.md)。
 [定稿v1](../specs/2026-10-15-enterprise-design-final.md)保留已验证业务资产、统一自主组织并拆开领域耦合。
-以下“待补/待形成”是之前的设计推进记录；现在设计资产齐备，下一步Task 1基线与完整接缝验证，不重复从头设计。
+当前[协议决定](../specs/2026-10-16-enterprise-protocol-decisions.md)已细化边界审查问题，前置43项基线通过；
+下一步Task 1完整宿主guard与持续Pi桥验证，设计方案不等于运行问题已关闭。
+实施同时遵循[持续推进约束](../../reviews/2026-10-16-enterprise-progress-constraints-review.md)，验收须证明局部失败后仍可推进，而非只证明拒绝路径。
+Demo1/Demo2仅作外部实例；不开发示例专用指标、固定流程或新增求解能力。以下为历史设计推进记录。
 
 完整性评审后当前工作：按[解决设计D1–D7](../specs/2026-10-15-enterprise-design-closure.md)
 补可执行协议、缺失前端状态、SDK边界验证与外部验收资产，再形成文件级实施计划。

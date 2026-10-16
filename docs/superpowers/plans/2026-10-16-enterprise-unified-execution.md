@@ -4,6 +4,13 @@
 
 **Goal:** 在保留已有业务能力和数据的基础上，将专用与通用执行接入同一个长程自主组织机制。
 
+**Status:** 实施契约修订中。Demo1/Demo2是外部说明与评测实例，不是本计划的应用开发任务。
+所有限制须遵循[持续推进审查](../../reviews/2026-10-16-enterprise-progress-constraints-review.md)：局部失败不默认终止任务。
+执行前须闭合[边界审查](../../reviews/2026-10-16-enterprise-scenario-boundary-review.md)及此前协议评审问题。
+wire协商、对象CAS、命令生效与检查来源采用[协议决定](../specs/2026-10-16-enterprise-protocol-decisions.md)。
+2026-10-16前置离线基线：Pi工作树doctor、43项既有协议/研究测试及SDK离线探针通过；
+仅完成基线采集，不代表Task 1完整执行桥已实现。
+
 **Architecture:** 复用Thread服务/事件/worker、HarnessRuntime、ResearchController及专业执行和投影。
 新增Work目标关联、无模型TaskContext、原生资源及通用成果能力；应用选择Profile，Pack/Authority保留业务语义。
 
@@ -21,7 +28,7 @@
 
 ## 接口映射和任务依赖
 
-Task 1→2→3→4；Task 5依赖2、3、4；Task 6整体验收。
+Task 1→2→3→4；Task 2同步交付最小前端协议适配与版本协商，Task 5再完成工作台扩展；Task 6整体验收。
 共享新增类型放在capstone_agent/enterprise_context.py，禁止各任务重复定义Work或资源身份。
 
 ```python
@@ -90,9 +97,13 @@ assert first.binding.research_id != other_work.binding.research_id
 ```
 
 - [ ] 将AttemptResearch的owner由模型归属改为WorkBinding；历史文件保留原路径，新增显式关联记录，不直接重命名旧目录。
-- [ ] 将专业依赖校验保留在authority配置，native只检查自身Pi/资源依赖；缺失Authority的专业配置必须失败。
+- [ ] 将专业依赖校验保留在authority配置，native只检查当前行动所需依赖；缺失Authority仅使对应专业能力不可用，
+  不阻断其余获准能力。测试资料不齐时仍能发现资源和开展独立工作。
 - [ ] 在现有Postgres服务增加必要元数据和索引；沿用lease_token条件更新、event_seq与幂等键。
-  新旧记录读取测试覆盖无Work的历史数据；不能用空模型填充。
+  新旧记录读取测试覆盖无Work的历史数据；不能用空模型填充。同步修改前端threadProtocol解析与最小入口，
+  固定新旧wire映射和回退能力范围；旧客户端不能理解的无模型任务须明确返回不支持，不能伪造模型。
+  使用Capstone-Thread-Version协商，minimum_protocol_version阻止旧解析器误读新记录；
+  v2对象CAS不使用event_seq，持续进展不能使补充答复反复冲突。
 - [ ] Run `uv run --project packages/capstone-agent pytest packages/capstone-agent/tests/test_enterprise_context.py packages/capstone-agent/tests/test_thread_application_transition.py`。
 - [ ] 运行Task 1专业基线，提交身份/装配改造。此时新能力仍受应用配置控制。
 
@@ -118,7 +129,9 @@ assert late_worker.can_dispatch is False
 assert native_observation.source_kind != "authority"
 ```
 
-- [ ] 实现安全边界steer/pause及预算预留；不将abort方法返回当作外部副作用撤回证明。
+- [ ] 实现安全边界steer/pause及预算预留；不将abort返回当作外部副作用撤回证明。
+  测试unknown副作用及冲突分支保持隔离，无关获准读取继续；正常工具拒绝返回可修正观察，不直接failed整个Work。
+  input.respond落库后waiting可排队，paused保持暂停；答复已生效不等于业务问题已解决。
 - [ ] Run `uv run --project packages/capstone-agent pytest packages/capstone-agent/tests/test_enterprise_actions.py packages/capstone-agent/tests/test_worker.py`。
 - [ ] 在共同循环跑Task 1既有专业案例，保存新旧行为对照，提交。
 
@@ -133,7 +146,8 @@ assert native_observation.source_kind != "authority"
 `restore_checkpoint(work_id, checkpoint_ref) -> TaskContext`；字段以定稿/D2–D5及语义schema为准。
 
 - [ ] 先测试分页中断、只读输入、摘要不符、超限文件、跨租户引用、对象写入失败；任何未finalized对象不可下载。
-- [ ] 复用现有存储后端流式交付和授权读取；移除4MiB/64项静默跳过，改为配置配额和明确失败。
+- [ ] 复用现有存储后端流式交付和授权读取；移除4MiB/64项静默跳过，改为配置配额及对象级失败，
+  测试局部导出失败仍保留已保存回答和其他成果；必要答案/证据持久化失败仍不可假成功。
 - [ ] 实现工作文件、Pi消息历史、研究/目标修订和未决动作的检查点；恢复按D4顺序核对。
 
 ```python
@@ -144,8 +158,10 @@ assert external_side_effect_count == 1  # retry after unknown outcome must recon
 ```
 
 - [ ] 将图表bundle、报告引用和逐项交付检查接入现有报告/产物路径，输入变化递归标记依赖失效。
+  检查仅针对实际交付依赖；未指定独立核验时缺检查器可交付并说明局限，指定时保留partial而非自动删要求。
 - [ ] Run `uv run --project packages/capstone-agent pytest packages/capstone-agent/tests/test_enterprise_resources.py packages/capstone-agent/tests/test_enterprise_recovery.py`。
-- [ ] 使用11712条外部合成输入核对通用分析与报告图表；不在核心代码写入价格或新能源字段判断。提交。
+- [ ] 使用可替换的外部资料包验证资源发现、原生schema、定义引用、分析产物及来源关联。
+  示例数据规模和业务字段不成为生产常量；Demo1数值核对仅属于独立外部评测。提交。
 
 ## Task 5：在现有前端重组统一工作台
 
@@ -154,10 +170,12 @@ assert external_side_effect_count == 1  # retry after unknown outcome must recon
 `TaskContextHeader.tsx`及相应`.test.tsx`。复用`NetworkView.tsx`、`ResultExplorer.tsx`、`ResearchEvidence.tsx`。
 
 **Consumes:** 现有Thread快照/事件/回执扩展，TaskContext及通用产物目录。
-**Produces:** 全宽工作台、任务切换/资料/成果交互；analysis_report/model_decision两个可信视图适配器。
+**Produces:** 全宽工作台、任务切换/资料/成果交互、可扩展可信视图注册与解析。
+报告和现有专业模型视图是首批复用示例，不是封闭的两类任务枚举；按产物schema/版本匹配，未知类型安全回退。
 
 - [ ] 从现有ThreadWorkspace抽出布局与成果区，不另建聊天store或复制Thread传输。
 - [ ] 按状态原型补上传、待决答复、冲突、断线、unknown和不可用能力测试；命令accepted不提前显示applied。
+  加入失败附件保留、先发送文本/就绪资料和局部检查失败不显示整会话失败的交互测试。
 - [ ] 无模型任务不加载IEEE-39、不等待无关专业worker；专业任务按真实资源打开既有图表组件。
 
 ```typescript
@@ -169,7 +187,7 @@ expect(selectedResult.attemptId).toBe(selectedCandidate.attemptId)
 
 - [ ] 同Work保存成果版本和面板偏好；新成果不抢焦点，输入失效同步标记图表和报告。
 - [ ] Run `npm --prefix packages/capstone-app run check`、`npm --prefix packages/capstone-app test`、`npm --prefix packages/capstone-app run build`。
-- [ ] 在1440/1600桌面及390手机检查统一入口与两个视图；加入现有专业任务真实入口验收后提交。
+- [ ] 在1440/1600桌面及390手机检查统一入口、已注册视图与未知类型回退；加入现有专业任务真实入口验收后提交。
 
 ## Task 6：统一机制验收与旧分流退出
 
@@ -179,8 +197,11 @@ expect(selectedResult.attemptId).toBe(selectedCandidate.attemptId)
 **Consumes:** Tasks 1–5、enterprise-acceptance.json及真实注册专业资源。
 **Produces:** 统一组织机制验收回执与旧分流移除条件；不将静态原型作为业务通过证据。
 
-- [ ] 覆盖完整Demo1、缺口/变更、另一类企业任务、问答升级、恢复、多Pack交接和已有专业任务。
-- [ ] Demo2用同一真实模型/快照/候选复核拓扑、表格、验证身份；独立AC验证不支持时该项失败，不伪造通过。
+- [ ] 框架门禁覆盖原生输入协议、缺口/变更、问答升级、恢复、多Pack交接和已有专业任务回归。
+- [ ] 外部质量评测至少更换两类业务资料和任务，保持生产代码不变；只按目标、结果和依据判分，不按工具顺序判分。
+  Demo1可作为其中一个实例，oracle不注入执行上下文；完整资料评测与缺口处理评测分别记录。
+- [ ] 专业扩展协议复用实际已注册能力，检查相同资源/结果修订的投影关联。Demo2如被选作外部评测，
+  所需模型、求解和独立验证能力由资源提供者声明。缺少时记录案例不可运行，不把新增该业务能力纳入框架任务。
 - [ ] 真实模型质量评估按已有授权执行，至少三轮记录全部结果；未获授权时保留“质量验证未执行”，不冒称验收。
 - [ ] Run仓库集成门禁`make doctor`、`make test`、`make test-e2e`、`make validate`。
 - [ ] API/worker/App有改动后执行`make capstone-local-rebuild`，在真实入口跑新旧场景并核对源码/镜像身份。
@@ -190,5 +211,6 @@ expect(selectedResult.attemptId).toBe(selectedCandidate.attemptId)
 ## 失败回退与计划完成标准
 
 任一切片破坏已有专业业务时停在该切片修复，不通过保留两套永久组织框架掩盖问题。
-生产切换仅改应用装配选择；加法数据结构和历史引用可被旧装配忽略，不能回滚删除用户数据。
+生产切换使用已验证的应用装配与协议版本组合；加法数据结构不代表旧解析器自动兼容。
+回退须保留新旧任务及证据，未被旧版本支持的任务保持可恢复，不回滚删除用户数据。
 实施完成须覆盖每个切片和所有R1–R7关闭证据；设计资产检查通过仅证明本计划输入一致。

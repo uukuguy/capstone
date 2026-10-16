@@ -8,6 +8,11 @@ professional runtimes and views. It generalizes their model-bound seams into one
 autonomous organization mechanism. It does not create a parallel command/event ledger
 or keep separate general and professional orchestration as the final architecture.
 Runtime integration and acceptance remain implementation gates.
+Demo1 and Demo2 are examples, not applications required by this track. The agent
+accepts versioned, authorized resources with their native contracts. Business
+metrics stay in external resources or the owning professional Pack. View types
+are extensible, and new example-specific solver capabilities are separate work.
+See the [boundary review](../reviews/2026-10-16-enterprise-scenario-boundary-review.md).
 
 The accepted conceptual direction uses ApplicationProfile as the application-owned,
 versioned business capability group and enablement unit. A profile composes Domain
