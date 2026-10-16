@@ -3308,3 +3308,24 @@ The following original entries were retained during document synchronization.
 - 2026-10-16: 711f06a8 records verified SDK seam and remaining production integration; application lines remain preparation-only.
 
 - 2026-10-16: PR #36 passed Linux/macOS CI38881419651 and merged into dev d8fe6e27; merge tree equals tested 711f06a8. Local-dev remains verified source62f44366, build711f06a8; new enterprise loop is pending.
+
+- 2026-10-16: 7b5d02a2 aligns Task 1 acceptance, runtime sources and balanced control graph for the next foundation stage.
+
+- 2026-10-16: PR #37 passed both platforms and merged as34cf695e; dev now contains Task 1 acceptance and balanced control layout.
+
+- 2026-10-16: efc9dda3 exposes branch HEADs so current integration state remains visible beside major product milestones.
+
+- 2026-10-16: 62adb8b8 makes dev-owned control alignment and balanced graph layout standing AGENTS instructions, avoiding repeated user reminders.
+
+- 2026-10-16: PR #38 passed both platforms and merged as261bbb07; dev owns standing controls and visible branch HEADs.
+
+- 2026-10-16: 062e6a4e labels historical control and product milestones clearly, separating them from current branch HEADs.
+
+- 2026-10-16: PR #39 passed both platforms and merged asd4600ddc; dev control labels now distinguish history from current HEADs.
+
+- 2026-10-16: aaabc2aa adds d4600ddc as an actual dev graph node with verified ancestry, correcting the badge-only update.
+
+- 2026-10-16: PR #40 passed both platforms and merged asd8e96652; dev graph now contains actual d4600ddc node and ancestry edge.
+
+- 2026-10-16: 055a335f adds Work-owned research persistence without requiring a model; legacy paths remain intact.
+- 2026-10-16: Work identity review and44 targeted tests passed; full backend1332 passed/65 skipped after localhost system-proxy isolation.

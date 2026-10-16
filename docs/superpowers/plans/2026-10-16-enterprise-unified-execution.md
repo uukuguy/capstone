@@ -108,6 +108,10 @@ assert.equal(finalGuard.accepted, false);
 
 ## Task 2：泛化身份与Profile装配，保持同一执行账本
 
+2026-10-16首个切片055a335f：WorkBinding/TaskContext、Work归属研究存储及Harness内部投影已实现，
+独立评审通过；44项身份/研究测试及1332项后端测试通过。见[切片报告](../../reviews/2026-10-16-work-research-identity.md)。
+尚未接生产Claim、历史关联迁移、Profile、v2存储/协议及前端；Task 2整体仍在实施。
+
 **Files:** 新建`packages/capstone-agent/src/capstone_agent/enterprise_context.py`；修改
 `thread_protocol.py`、`thread_service.py`、`attempt_research.py`、`thread_application.py`及
 `packages/capability-agent-kernel/src/capability_agent/domain/profile.py`、`application/profile.py`、相关composition装配；
@@ -117,7 +121,7 @@ assert.equal(finalGuard.accepted, false);
 **Produces:** WorkBinding/TaskContext；`bind_task_context(claim) -> TaskContext`；
 专业配置与native配置的严格判别装配，二者共享任务组织接口。
 
-- [ ] 测试无电网资源仍能建立TaskContext；研究归属由work_id固定；两次Attempt同目标复用研究，两个目标不串状态。
+- [x] 测试无电网资源仍能建立TaskContext；研究归属由work_id固定；两次Attempt同目标复用研究，两个目标不串状态。此项为组件验收，生产Claim接入仍待下述协议/存储切片。
 
 ```python
 assert first.binding.research_id == resumed.binding.research_id
