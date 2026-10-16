@@ -8,8 +8,36 @@ import { historyContexts, historyFixture, historyWorkspace } from './threadHisto
 import { sampleDiagramView } from './networkFixture'
 import { parseContext } from './threadProtocol'
 import { writeDraft, writeFollowup } from './threadSessionState'
+import { ThreadTransportError } from './threadHttpTransport'
 
 afterEach(cleanup)
+
+it.each([false, true])('shows a protocol upgrade failure with pending receipt=%s while preserving the draft', async (pendingReceipt) => {
+  const transport = createFixtureTransport(threadUiFixture('idle-ieee39'))
+  let fail!: () => void
+  let submissions = 0
+  const client = new CapstoneThreadClient({ ...transport,
+    sendCommand: async () => { submissions += 1; throw new Error('lost receipt') },
+    streamEvents: async function* () {
+    await new Promise<void>((resolve) => { fail = resolve })
+    throw new ThreadTransportError(409, '应用与会话协议版本不兼容，请更新应用后重新打开会话。', { error: 'thread_version_mismatch' })
+  } })
+  render(<ThreadFixtureApp client={client} threadId="thr_demo_39" />)
+  const input = await screen.findByRole('textbox', { name: 'Thread 指令' })
+  fireEvent.change(input, { target: { value: '保留升级前草稿' } })
+  if (pendingReceipt) {
+    fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
+    await screen.findByText(/操作提交结果尚未确认/)
+  }
+  await waitFor(() => expect(fail).toBeTypeOf('function'))
+  fail()
+  await screen.findByText('应用与会话协议版本不兼容，请更新应用后重新打开会话。')
+  expect(screen.getByText('需更新应用')).toBeTruthy()
+  expect(screen.queryByText('重连中')).toBeNull()
+  expect((input as HTMLTextAreaElement).value).toBe('保留升级前草稿')
+  expect(submissions).toBe(pendingReceipt ? 1 : 0)
+  if (!pendingReceipt) expect(screen.queryByRole('button', { name: '重新连接' })).toBeNull()
+})
 
 it('keeps the unfinished task followup entry hidden and sends ordinary questions unchanged', async () => {
   writeFollowup('stale-followup', { threadId: 'thr_demo_39', attemptId: 'attempt_old', modelId: 'ieee39', label: '原问题' })

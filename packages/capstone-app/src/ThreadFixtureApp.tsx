@@ -18,6 +18,7 @@ import { parseThreadModelCommand, resolveThreadModelCommandReference, resolveThr
 import { parseModelControl } from './threadModelWorkspace'
 import { commandKey } from './commandKey'
 import { canReconnect, reconnectDelay } from './threadSessionState'
+import { isThreadVersionError } from './threadHttpTransport'
 import type { ReactNode } from 'react'
 import { enabledTools, effectiveTools, updateToolPreferences } from './threadToolPreferences'
 import { useWorkbenchActivity, type PrepareConnection } from './useWorkbenchActivity'
@@ -59,6 +60,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   const [projection, setProjection] = useState<ThreadProjectionState>(store.state)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [versionFailure, setVersionFailure] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [systemState, setSystemState] = useState<{ thread: string; items: ThreadSystemNotice[] }>({ thread: threadId, items: [] })
   function addSystemNotice(text: string, tone: 'info' | 'error' = 'info', id = commandKey(), instruction?: string, action?: ThreadSystemNotice['action']) {
@@ -130,7 +132,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
       if (active) setProjection({ ...store.state, pendingCommands: [...store.state.pendingCommands] })
     })
     if (!pageVisible || activity.paused) return () => { active = false; abort.abort(); unsubscribe() }
-    setLoading(true); setError(null); setNotice(null)
+    setLoading(true); setError(null); setVersionFailure(false); setNotice(null)
     void (async () => {
       try {
         await store.load(threadId)
@@ -173,13 +175,15 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
           void store.consumeEvents(abort.signal).catch((cause) => {
             if (stableTimer) clearTimeout(stableTimer)
             if (active && !(cause instanceof DOMException && cause.name === 'AbortError')) {
-              setError('实时连接暂不可用。')
+              setError(isThreadVersionError(cause) ? cause.message : '实时连接暂不可用。')
+              setVersionFailure(isThreadVersionError(cause))
               recover(cause)
             }
           })
         }
       } catch (cause) {
-        if (active) setError('工作台状态暂不可用，请重新连接。')
+        if (active) setError(isThreadVersionError(cause) ? cause.message : '工作台状态暂不可用，请重新连接。')
+        if (active) setVersionFailure(isThreadVersionError(cause))
         recover(cause)
       } finally {
         if (active) setLoading(false)
@@ -198,15 +202,15 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
         const items = state.thread === threadId ? state.items : []
         // A lost command receipt already explains this interruption and owns
         // its recovery button. Do not repeat it as a second connection error.
-        if (connection !== 'resync_required' && items.some((item) => item.id.startsWith('receipt-') && item.action === 'reconnect')) return state
+        if (!versionFailure && connection !== 'resync_required' && items.some((item) => item.id.startsWith('receipt-') && item.action === 'reconnect')) return state
         return { thread: threadId, items: upsertSystemNotice(items, { id: 'connection', afterEventSeq: store.state.eventSeq,
-          text: connection === 'resync_required' ? '需要重新同步' : '连接暂时中断，输入和已加载消息仍保留。', tone: 'error', action: connection === 'resync_required' ? 'resync' : 'reconnect' }) }
+          text: versionFailure && error ? error : connection === 'resync_required' ? '需要重新同步' : '连接暂时中断，输入和已加载消息仍保留。', tone: 'error', action: versionFailure ? undefined : connection === 'resync_required' ? 'resync' : 'reconnect' }) }
       })
     } else if (connection === 'live') {
       setSystemState((state) => state.thread === threadId && state.items.some((item) => item.id === 'connection')
         ? { ...state, items: upsertSystemNotice(state.items, { id: 'connection', afterEventSeq: store.state.eventSeq, text: '连接已恢复。', tone: 'info' }) } : state)
     }
-  }, [projection.connection, error, snapshot?.threadId])
+  }, [projection.connection, error, versionFailure, snapshot?.threadId])
   useEffect(() => {
     if (sessionNotice) addSystemNotice(sessionNotice, 'error', 'session')
     if (readOnly) addSystemNotice('这段对话已归档，可新建对话继续。', 'info', 'archive')
@@ -394,6 +398,10 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
       }
       return receipt
     } catch (cause) {
+      if (isThreadVersionError(cause)) {
+        setError(cause.message); setVersionFailure(true); sync()
+        return
+      }
       addSystemNotice('操作提交结果尚未确认。请重新连接核对原操作，输入内容已保留。', 'error', submittedCommand ? `receipt-${submittedCommand.command_id}` : undefined, typeof payload.text === 'string' ? payload.text : undefined, 'reconnect'); sync()
     }
   }
@@ -722,7 +730,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
           modelBusy={!canConfigure}
           onOpenHistoricalModel={projection.modelWorkspace ? (modelId, revision) => { void changeModel('open_model', { model_id: modelId, model_revision: revision }).catch(() => addSystemNotice('历史模型无法打开，请重新连接。', 'error')) } : undefined} />
         <section className="thread-chat-pane" aria-label="Thread 对话区">
-          <div className="thread-chat-heading"><div className="thread-chat-heading-title"><h2>智能体对话</h2><span className="thread-model-short">{snapshot.activeModelContext.modelId} · {snapshot.activeModelContext.implementationFamily}</span></div><div className="thread-chat-heading-meta">{projection.connection !== 'live' && <span className={`thread-connection-state is-${projection.connection}`}>{connectionLabel(projection.connection)}</span>}{activity.mode === 'idle' && <span className="thread-idle-state" title="页面暂未操作，继续使用时自动恢复连接。">按需连接</span>}<span inert={activity.paused}>{headerActions}</span></div></div>
+          <div className="thread-chat-heading"><div className="thread-chat-heading-title"><h2>智能体对话</h2><span className="thread-model-short">{snapshot.activeModelContext.modelId} · {snapshot.activeModelContext.implementationFamily}</span></div><div className="thread-chat-heading-meta">{projection.connection !== 'live' && <span className={`thread-connection-state is-${projection.connection}`}>{versionFailure ? '需更新应用' : connectionLabel(projection.connection)}</span>}{activity.mode === 'idle' && <span className="thread-idle-state" title="页面暂未操作，继续使用时自动恢复连接。">按需连接</span>}<span inert={activity.paused}>{headerActions}</span></div></div>
           <CapstoneAssistantThread storageKey={storageKey} hasOlderHistory={projection.hasOlderHistory} historyLoading={projection.historyLoading}
             onReadAttemptRecords={client?.supportsAttemptRecords ? (attemptId, after) => client.attemptRecords(threadId, attemptId, after) : undefined}
             systemNotices={systemState.thread === threadId ? systemState.items : []} onSystemAction={() => setReload((value) => value + 1)}

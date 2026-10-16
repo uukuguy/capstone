@@ -6,6 +6,14 @@ import { fetchWithReadRetry } from './httpRetry'
 import { parseAttemptRecords } from './attemptRecords'
 
 const MAX_JSON_BYTES = MAX_THREAD_JSON_BYTES
+const THREAD_VERSION_HEADER = 'Capstone-Thread-Version'
+const THREAD_VERSION = '1'
+const VERSION_ERRORS = new Set(['unsupported_thread_version', 'protocol_upgrade_required', 'thread_version_mismatch'])
+
+function versionError(body: unknown): boolean {
+  return !!body && typeof body === 'object' && 'error' in body
+    && typeof body.error === 'string' && VERSION_ERRORS.has(body.error)
+}
 
 export class ThreadTransportError extends Error {
   constructor(public readonly status: number, message: string, public readonly body?: unknown) {
@@ -14,11 +22,34 @@ export class ThreadTransportError extends Error {
   }
 }
 
-/** HTTP adapter for the future capstone-thread/1 API; it does not own protocol parsing. */
+export function isThreadVersionError(error: unknown): error is ThreadTransportError {
+  return error instanceof ThreadTransportError && versionError(error.body)
+}
+
+function responseError(status: number, body?: unknown): ThreadTransportError {
+  return new ThreadTransportError(status, versionError(body)
+    ? '应用与会话协议版本不兼容，请更新应用后重新打开会话。'
+    : `Thread 服务请求失败（${status}）。`, body)
+}
+
+async function checkResponseVersion(response: Response): Promise<void> {
+  const version = response.headers.get(THREAD_VERSION_HEADER)
+  // Older v1 servers do not echo a version. Their strict body parsers still apply.
+  if (response.ok && version !== null && version !== THREAD_VERSION) {
+    await response.body?.cancel().catch(() => undefined)
+    throw responseError(409, { error: 'thread_version_mismatch' })
+  }
+}
+
+/** HTTP adapter for the negotiated Thread API; payload parsing remains in the client. */
 export class HttpThreadTransport implements ThreadTransport {
   readonly connectionState: ThreadTransportState = 'live'
   private readonly base: string
   private readonly resourcePath: string
+  // Missing request headers mean v1. Wait for a visible server advertisement
+  // before adding a custom header that older cross-origin servers cannot allow.
+  // Never retry a write to discover protocol support.
+  private versionAdvertised = false
 
   constructor(
     baseUrl: string,
@@ -40,8 +71,11 @@ export class HttpThreadTransport implements ThreadTransport {
         ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
         ...(init.body ? { 'Content-Type': 'application/json' } : {}),
         ...init.headers,
+        ...(this.versionAdvertised ? { [THREAD_VERSION_HEADER]: THREAD_VERSION } : {}),
       },
     }, this.fetcher)
+    await checkResponseVersion(response)
+    this.versionAdvertised = response.ok && response.headers.get(THREAD_VERSION_HEADER) === THREAD_VERSION
     const text = await response.text()
     if (new TextEncoder().encode(text).byteLength > MAX_JSON_BYTES) throw new Error('Thread 响应超过允许大小')
     let body: unknown = undefined
@@ -51,20 +85,23 @@ export class HttpThreadTransport implements ThreadTransport {
       if (!response.ok) throw new ThreadTransportError(response.status, `Thread 服务请求失败（${response.status}）。`)
       throw new ThreadTransportError(response.status, 'Thread 响应不是有效 JSON。')
     }
-    if (!response.ok) throw new ThreadTransportError(response.status, `Thread 服务请求失败（${response.status}）。`, body)
+    if (!response.ok) throw responseError(response.status, body)
     return body
   }
 
   private async streamRequest(path: string, signal?: AbortSignal): Promise<Response> {
     const response = await fetchWithReadRetry(this.base + path, {
       signal, credentials: 'omit', cache: 'no-store',
-      headers: this.token ? { Authorization: `Bearer ${this.token}` } : undefined,
+      headers: { ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
+        ...(this.versionAdvertised ? { [THREAD_VERSION_HEADER]: THREAD_VERSION } : {}) },
     }, this.fetcher)
+    await checkResponseVersion(response)
+    this.versionAdvertised = response.ok && response.headers.get(THREAD_VERSION_HEADER) === THREAD_VERSION
     if (!response.ok) {
       const text = await response.text()
       let body: unknown
       try { body = JSON.parse(text) as unknown } catch { body = undefined }
-      throw new ThreadTransportError(response.status, `Thread 服务请求失败（${response.status}）。`, body)
+      throw responseError(response.status, body)
     }
     return response
   }
