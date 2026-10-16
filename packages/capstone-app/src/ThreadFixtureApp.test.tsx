@@ -32,6 +32,8 @@ it.each([false, true])('shows a protocol upgrade failure with pending receipt=%s
   await waitFor(() => expect(fail).toBeTypeOf('function'))
   fail()
   await screen.findByText('应用与会话协议版本不兼容，请更新应用后重新打开会话。')
+  expect(screen.getByText('需更新应用')).toBeTruthy()
+  expect(screen.queryByText('重连中')).toBeNull()
   expect((input as HTMLTextAreaElement).value).toBe('保留升级前草稿')
   expect(submissions).toBe(pendingReceipt ? 1 : 0)
   if (!pendingReceipt) expect(screen.queryByRole('button', { name: '重新连接' })).toBeNull()
