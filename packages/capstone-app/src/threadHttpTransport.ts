@@ -185,6 +185,10 @@ export class HttpThreadTransport implements ThreadTransport {
     })
   }
 
+  sendWorkCommand(command: WorkCommand, signal?: AbortSignal): Promise<unknown> {
+    return this.sendCommand(command, signal)
+  }
+
   async *streamEvents(
     threadId: string, afterEventSeq: number, signal?: AbortSignal,
   ): AsyncGenerator<EventEnvelope> {

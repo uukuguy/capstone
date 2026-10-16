@@ -183,8 +183,9 @@ class PreparedKernelPiRpcSessionBuilder:
             active = self._research_is_active
             research = AttemptResearch(workspace.root.parent / "thread-research", thread_id=claim.thread_id,
                 run_id=claim.run_id, attempt_id=claim.attempt.attempt_id,
-                model_context=claim.model_context,
-                research_generation=claim.research_generation,
+                model_context=claim.model_context if claim.task_context is None else None,
+                task_context=claim.task_context,
+                research_generation=claim.research_generation if claim.task_context is None else None,
                 channel_root=workspace.core_path / "research-channels" / claim.attempt.attempt_id,
                 is_active=lambda: active(claim) if active is not None else False,
                 admit_reference=references.admit)

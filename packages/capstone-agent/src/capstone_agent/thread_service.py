@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING, Any, Mapping, Protocol, cast
 
 if TYPE_CHECKING:
     from .turn_router import TurnPlan
+    from .enterprise_context import TaskContext
 
 from capstone_model_capability_spi import ModelCapabilitySelection
 
@@ -447,11 +448,13 @@ class PriorResultReference:
             raise ThreadExecutionError("prior result retrieval candidate is invalid")
 
 
-def _prior_results_for_context(snapshot: ThreadSnapshot) -> tuple[PriorResultReference, ...]:
+def _prior_results_for_context(snapshot: ThreadSnapshot, *, allowed_attempt_ids: set[str] | None = None) -> tuple[PriorResultReference, ...]:
     candidates: list[PriorResultReference] = []
     seen: set[str] = set()
     context = snapshot.professional_context
     for item in reversed(snapshot.result_projections):
+        if allowed_attempt_ids is not None and item.attempt_id not in allowed_attempt_ids:
+            continue
         if (item.result_ref is None or item.result_ref in seen or item.status not in {"completed", "partial"}
                 or item.thread_id != snapshot.thread_id or item.run_id != snapshot.run.run_id
                 or item.model_context_id != context.id or item.model_id != context.model_id
@@ -570,14 +573,15 @@ def _conversation_from_events(events: list[EventEnvelope], attempts: Mapping[str
 
 
 def _conversation_from_postgres(connection: psycopg.Connection[dict[str, Any]], thread_id: str,
-                                cutoff: int) -> ConversationContext:
+                                cutoff: int, *, work_id: str | None = None) -> ConversationContext:
     rows = connection.execute("""SELECT e.turn_id, e.attempt_id, e.model_context_id,
         replace(e.event_type, 'attempt_', '') AS status, a.instruction, e.payload->>'answer' AS answer,
         e.event_seq, a.model_context_snapshot FROM capstone_thread_events e JOIN capstone_thread_attempts a
         ON a.thread_id = e.thread_id AND a.attempt_id = e.attempt_id
         WHERE e.thread_id = %s AND e.event_seq <= %s AND e.visibility = 'public'
+        AND (%s::text IS NULL OR a.task_context_snapshot->'binding'->>'work_id' = %s)
         AND e.event_type IN ('attempt_completed', 'attempt_failed', 'attempt_cancelled', 'attempt_interrupted')
-        ORDER BY e.event_seq DESC LIMIT %s""", (thread_id, cutoff, MAX_HISTORY_TURNS + 1)).fetchall()
+        ORDER BY e.event_seq DESC LIMIT %s""", (thread_id, cutoff, work_id, work_id, MAX_HISTORY_TURNS + 1)).fetchall()
     for row in rows:
         row["object"] = _conversation_model_object(row["model_context_snapshot"], row["model_context_id"])
         if row["status"] == "completed" and row["answer"] is None:
@@ -624,8 +628,15 @@ class AttemptClaim:
     research_generation: str | None = None
     selected_task_reader: SelectedTaskRecordReader | None = None
     started_at: str | None = None
+    task_context: TaskContext | None = None
 
     def __post_init__(self) -> None:
+        if self.task_context is not None:
+            from .enterprise_context import TaskContext
+            if (not isinstance(self.task_context, TaskContext)
+                    or self.task_context.binding.thread_id != self.thread_id
+                    or self.task_context.model_contexts != (self.model_context,)):
+                raise ThreadExecutionError('attempt Work model snapshot is inconsistent')
         if not isinstance(self.conversation_context, ConversationContext):
             raise ThreadExecutionError("attempt conversation context is invalid")
         if self.previous_instruction is not None and not isinstance(self.previous_instruction, PreviousInstruction):
@@ -789,6 +800,12 @@ def _validate_bounded_json(value: Any, *, name: str, maximum: int) -> None:
 
 
 def _validate_runtime_payload(event_type: str, payload: Mapping[str, Any], claim: AttemptClaim) -> None:
+    if event_type == 'research_state_updated' and claim.task_context is not None:
+        if (payload.get('task_context') != claim.task_context.to_document()
+                or payload.get('research_id') != claim.task_context.binding.research_id):
+            raise ThreadProtocolError('research event does not match the accepted Work snapshot')
+    if {'work_id', 'work'} & payload.keys():
+        raise ThreadProtocolError('runtime events cannot set host Work state')
     if event_type != "network_diagram":
         maximum = MAX_REFERENCE_EVENT_BYTES if event_type in {"tool_completed", "validation_observation", "research_state_updated"} else _MAX_EVENT_BYTES
         _validate_bounded_json(payload, name="event.payload", maximum=maximum)
@@ -1194,6 +1211,75 @@ class InMemoryThreadService:
             events = tuple(islice((event for event in self._events if event.event_seq > after_event_seq), 256))
             return _bounded_event_page(thread_id, after_event_seq, self._snapshot.last_event_seq, events)
 
+    def _submit_work_command(self, parsed, request_hash):
+        from .thread_work import apply_work, create_attempt, project_work, execution_model
+        updated, rejection, work = apply_work(self._snapshot, parsed, archived=self._archived)
+        event_seq = None
+        target = None
+        attempt = task_context = None
+        instruction = None
+        previous_id = next((item.get('latest_attempt_id') for item in self._snapshot.works
+                            if item['work_id'] == parsed['target']['id']), None)
+        if rejection is None and parsed['kind'] == 'start_work':
+            assert work is not None
+            selected_model = execution_model(updated)
+            assert selected_model is not None
+            if not self.is_family_available(selected_model.implementation_family):
+                rejection = 'worker_unavailable'
+            else:
+                # Stage the same activation used by legacy message admission.
+                # Rejected starts leave both pending choices and events intact.
+                from copy import copy, deepcopy
+                staged = copy(self)
+                staged._snapshot = updated
+                staged._events = list(self._events)
+                staged._model_workspace = deepcopy(self._model_workspace)
+                turn_id = 'turn_' + secrets.token_hex(8)
+                staged._activate_pending_model_switch(turn_id)
+                staged._activate_pending_selection(turn_id)
+                updated, attempt, task_context, instruction = create_attempt(staged._snapshot, work, turn_id=turn_id)
+                self._events = staged._events
+                self._model_workspace = staged._model_workspace
+        if rejection is None:
+            assert work is not None
+            self._snapshot = updated
+            event = self._append_control_event(event_type='command.applied', event_version=2, payload={
+                'command_id': parsed['command_id'], 'work_id': work['work_id'], 'work': project_work(updated, work)})
+            event_seq = event.event_seq
+            self._snapshot = replace(updated, last_event_seq=event_seq)
+            target = {'kind': 'work', 'id': work['work_id'], 'expected_revision': work['revision']}
+            if attempt is not None:
+                assert instruction is not None
+                work_attempts = {identity: item for identity, item in self._attempts.items()
+                    if item.get('task_context') is not None
+                    and item['task_context'].binding.work_id == work['work_id']}
+                conversation = _conversation_from_events(self._events, work_attempts,
+                    updated.thread_id, event_seq - 1)
+                self._attempts[attempt.attempt_id] = {
+                    'attempt': attempt, 'kind': 'send_auto', 'instruction': instruction,
+                    'lease_token': None, 'lease_deadline': None, 'model_context': updated.professional_context,
+                    'command_id': parsed['command_id'], 'conversation_context': conversation,
+                    'submission': None, 'source_attempt_id': previous_id, 'task_context': task_context}
+                accepted = self._append_event(event_type='command_accepted', attempt=attempt, payload={
+                    'command_id': parsed['command_id'], 'kind': 'send_auto',
+                    'payload': {'text': instruction}, 'work_id': work['work_id'], 'work': project_work(updated, work)})
+                self._snapshot = replace(self._snapshot, last_event_seq=accepted.event_seq)
+                target.update(turn_id=attempt.turn_id, attempt_id=attempt.attempt_id)
+            if parsed['kind'] == 'cancel_work':
+                current = updated.current_attempt
+                assert current is not None
+                self._cancel_requests.add(current.attempt_id)
+                requested = self._append_event(event_type='attempt_cancel_requested', attempt=current,
+                    payload={'command_id': parsed['command_id'], 'attempt_id': current.attempt_id,
+                             'work_id': work['work_id'], 'work': project_work(updated, work)})
+                self._snapshot = replace(self._snapshot, last_event_seq=requested.event_seq)
+                target.update(turn_id=current.turn_id, attempt_id=current.attempt_id)
+        receipt = self._receipt(parsed, status='rejected' if rejection else 'accepted',
+            rejection=rejection, accepted_event_seq=event_seq, target=target)
+        self._commands[parsed['idempotency_key']] = _StoredCommand(request_hash, receipt)
+        self._command_ids.add(parsed['command_id'])
+        return receipt
+
     def submit_command(self, command: Mapping[str, Any]) -> CommandReceipt:
         parsed = self._parse_command(command)
         with self._lock:
@@ -1209,24 +1295,7 @@ class InMemoryThreadService:
             if parsed["command_id"] in self._command_ids:
                 return self._receipt(parsed, status="rejected", rejection="command_id_conflict")
             if command.get('schema') == 'capstone-command/2':
-                from .thread_work import apply_work
-                updated, rejection, work = apply_work(self._snapshot, parsed, archived=self._archived)
-                event_seq = None
-                target = None
-                if rejection is None:
-                    assert work is not None
-                    self._snapshot = updated
-                    event = self._append_control_event(event_type='command.applied', event_version=2, payload={
-                        'command_id': parsed['command_id'], 'work_id': work['work_id'],
-                        'work': json.loads(_canonical(work))})
-                    self._snapshot = replace(updated, last_event_seq=event.event_seq)
-                    event_seq = event.event_seq
-                    target = {'kind': 'work', 'id': work['work_id'], 'expected_revision': work['revision']}
-                receipt = self._receipt(parsed, status='rejected' if rejection else 'accepted',
-                    rejection=rejection, accepted_event_seq=event_seq, target=target)
-                self._commands[parsed['idempotency_key']] = _StoredCommand(request_hash, receipt)
-                self._command_ids.add(parsed['command_id'])
-                return receipt
+                return self._submit_work_command(parsed, request_hash)
             if self._snapshot.minimum_protocol_version > 1:
                 return self._receipt(parsed, status='rejected', rejection='protocol_upgrade_required')
             if self._archived:
@@ -1670,13 +1739,17 @@ class InMemoryThreadService:
                     continue
                 if context != self._snapshot.professional_context:
                     terminal = replace(record["attempt"], phase="interrupted")
+                    from .thread_work import work_event_payload
+                    work_snapshot, work_payload = work_event_payload(
+                        replace(self._snapshot, current_attempt=None), record.get('task_context'),
+                        terminal.attempt_id, 'interrupted')
                     record["attempt"] = terminal
                     event = self._append_event(
                         event_type="attempt_interrupted", attempt=terminal,
-                        payload={"reason": "model_context_snapshot_unavailable"},
+                        payload={"reason": "model_context_snapshot_unavailable", **work_payload},
                     )
                     self._snapshot = replace(
-                        self._snapshot, current_attempt=None, last_event_seq=event.event_seq,
+                        work_snapshot, current_attempt=None, last_event_seq=event.event_seq,
                     )
                     return None
                 assert context is not None
@@ -1690,14 +1763,25 @@ class InMemoryThreadService:
                 token = secrets.token_hex(16)
                 accepted = record["attempt"]
                 running = replace(accepted, phase="running")
+                from .thread_work import work_event_payload
+                work_snapshot, work_payload = work_event_payload(
+                    replace(self._snapshot, current_attempt=running), record.get('task_context'),
+                    running.attempt_id, 'running')
                 record["attempt"] = running
                 record["lease_token"] = token
                 record["lease_deadline"] = time.monotonic() + lease_seconds
                 event = self._append_event(
                     event_type="attempt_started", attempt=running,
-                    payload={"attempt_id": running.attempt_id, "task_step": preparation_step()},
+                    payload={"attempt_id": running.attempt_id, "task_step": preparation_step(), **work_payload},
                 )
-                self._snapshot = replace(self._snapshot, current_attempt=running, last_event_seq=event.event_seq)
+                self._snapshot = replace(work_snapshot, last_event_seq=event.event_seq)
+                allowed_attempt_ids = None
+                if record.get('task_context') is not None:
+                    allowed_attempt_ids = {identity for identity, item in self._attempts.items()
+                        if item.get('task_context') is not None
+                        and item['task_context'].binding == record['task_context'].binding}
+                previous = (None if record.get('task_context') is not None and record.get('source_attempt_id') is None
+                            else _previous_instruction_from_events(self._events, self._attempts, context, record.get('source_attempt_id')))
                 return AttemptClaim(
                     thread_id=self._snapshot.thread_id, run_id=self._snapshot.run.run_id,
                     attempt=running, kind=record["kind"], instruction=record["instruction"],
@@ -1705,9 +1789,10 @@ class InMemoryThreadService:
                     selection_revision=self._snapshot.professional_context.selection_revision,
                     lease_token=token,
                     model_context=context,
+                    task_context=record.get('task_context'),
                     started_at=event.occurred_at,
-                    prior_results=_prior_results_for_context(self._snapshot),
-                    previous_instruction=_previous_instruction_from_events(self._events, self._attempts, context, record.get("source_attempt_id")),
+                    prior_results=_prior_results_for_context(self._snapshot, allowed_attempt_ids=allowed_attempt_ids),
+                    previous_instruction=previous,
                     conversation_context=record["conversation_context"],
                     submission=record.get("submission"),
                     application_catalog=application_catalog,
@@ -1841,15 +1926,19 @@ class InMemoryThreadService:
                 if record["attempt"].phase != "running" or deadline is None or deadline > cutoff:
                     continue
                 terminal = replace(record["attempt"], phase="interrupted")
+                from .thread_work import work_event_payload
+                work_snapshot, work_payload = work_event_payload(
+                    replace(self._snapshot, current_attempt=None), record.get('task_context'),
+                    terminal.attempt_id, 'interrupted')
                 record["attempt"] = terminal
                 record["lease_token"] = None
                 record["lease_deadline"] = None
                 event = self._append_event(
                     event_type="attempt_interrupted", attempt=terminal,
-                    payload={"reason": "lease_expired"},
+                    payload={"reason": "lease_expired", **work_payload},
                 )
                 self._snapshot = replace(
-                    self._snapshot, current_attempt=None, last_event_seq=event.event_seq,
+                    work_snapshot, current_attempt=None, last_event_seq=event.event_seq,
                 )
                 interrupted += 1
         return interrupted
@@ -1891,6 +1980,11 @@ class InMemoryThreadService:
             if any(item.result_id in existing_result_ids for item in result_projections):
                 raise ThreadProtocolError("result projection already exists")
             event_payload, projection_parts = _terminal_result_delivery(payload, result_projections)
+            from .thread_work import work_event_payload
+            work_snapshot, work_payload = work_event_payload(
+                replace(self._snapshot, current_attempt=None), claim.task_context,
+                claim.attempt.attempt_id, phase)
+            event_payload = {**event_payload, **work_payload}
             terminal = replace(record["attempt"], phase=phase)
             record["attempt"] = terminal
             record["lease_token"] = None
@@ -1905,7 +1999,7 @@ class InMemoryThreadService:
                 context=record["model_context"],
             )
             self._snapshot = replace(
-                self._snapshot, current_attempt=None, last_event_seq=event.event_seq,
+                work_snapshot, current_attempt=None, last_event_seq=event.event_seq,
                 result_projections=(self._snapshot.result_projections + result_projections)[-MAX_RESULT_PROJECTIONS:],
             )
             return self._snapshot
@@ -2380,6 +2474,7 @@ CREATE TABLE IF NOT EXISTS capstone_thread_attempts (
     UNIQUE (thread_id, command_id)
 );
 ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS model_context_snapshot jsonb;
+ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS task_context_snapshot jsonb;
 ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS conversation_context_snapshot jsonb;
 ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS intent_input_snapshot jsonb;
 ALTER TABLE capstone_thread_attempts ADD COLUMN IF NOT EXISTS intent_decision_snapshot jsonb;
@@ -2400,7 +2495,7 @@ def _timestamp(value: Any) -> str:
 
 class PostgresThreadService:
     def _submit_work(self, connection, thread, snapshot, parsed, request_hash):
-        from .thread_work import apply_work
+        from .thread_work import apply_work, create_attempt, project_work, execution_model
         duplicate = connection.execute('SELECT 1 FROM capstone_thread_commands WHERE thread_id=%s AND command_id=%s',
                                        (snapshot.thread_id, parsed['command_id'])).fetchone()
         if duplicate:
@@ -2408,20 +2503,73 @@ class PostgresThreadService:
         updated, rejection, work = apply_work(snapshot, parsed, archived=thread['archived'])
         event_seq = None
         target = None
+        attempt = task_context = None
+        instruction = None
+        previous_id = next((item.get('latest_attempt_id') for item in snapshot.works
+                            if item['work_id'] == parsed['target']['id']), None)
+        if rejection is None and parsed['kind'] == 'start_work':
+            assert work is not None
+            selected_model = execution_model(updated)
+            assert selected_model is not None
+            if not self.is_family_available(selected_model.implementation_family):
+                rejection = 'worker_unavailable'
+            else:
+                turn_id = 'turn_' + secrets.token_hex(8)
+                if updated.pending_model_switch is not None:
+                    updated = self._activate_pending_model_switch(connection, thread, updated, turn_id)
+                if updated.pending_selection is not None:
+                    updated = self._activate_pending_selection(connection, thread, updated, turn_id)
+                refreshed = connection.execute('SELECT * FROM capstone_threads WHERE thread_id=%s', (snapshot.thread_id,)).fetchone()
+                assert refreshed is not None
+                thread = refreshed
+                updated, attempt, task_context, instruction = create_attempt(updated, work, turn_id=turn_id)
         if rejection is None:
             assert work is not None
-            event_seq = snapshot.last_event_seq + 1
+            event_seq = updated.last_event_seq + 1
             event = EventEnvelope('evt_' + secrets.token_hex(8), event_seq, 'command.applied', 2,
                 snapshot.thread_id, snapshot.run.run_id, None, None,
                 thread['model_context_id'], thread['selection_revision'], _now(), 'public',
-                {'command_id': parsed['command_id'], 'work_id': work['work_id'], 'work': work})
+                {'command_id': parsed['command_id'], 'work_id': work['work_id'], 'work': project_work(updated, work)})
             self._insert_event(connection, event)
-            connection.execute('UPDATE capstone_threads SET minimum_protocol_version=2, works=%s, last_event_seq=%s WHERE thread_id=%s',
-                (Jsonb(list(updated.works)), event_seq, snapshot.thread_id))
             target = {'kind': 'work', 'id': work['work_id'], 'expected_revision': work['revision']}
+            last_event_seq = event_seq
+            if attempt is not None:
+                assert task_context is not None
+                assert instruction is not None
+                accepted = self._make_attempt_event(thread, attempt, event_seq=event_seq + 1,
+                    event_type='command_accepted', context=updated.professional_context, payload={
+                        'command_id': parsed['command_id'], 'kind': 'send_auto',
+                        'payload': {'text': instruction, **({'source_attempt_id': previous_id} if previous_id else {})},
+                        'work_id': work['work_id'], 'work': project_work(updated, work)})
+                self._insert_event(connection, accepted)
+                context = updated.professional_context
+                connection.execute("""INSERT INTO capstone_thread_attempts
+                    (attempt_id,thread_id,run_id,turn_id,command_id,kind,instruction,model_context_id,
+                     selection_revision,model_context_snapshot,conversation_context_snapshot,
+                     task_context_snapshot,runtime_mode,phase)
+                    VALUES (%s,%s,%s,%s,%s,'send_auto',%s,%s,%s,%s,%s,%s,%s,'accepted')""",
+                    (attempt.attempt_id, snapshot.thread_id, snapshot.run.run_id, attempt.turn_id,
+                     parsed['command_id'], instruction, context.id, context.selection_revision,
+                     Jsonb(context.to_document()), Jsonb(_conversation_from_postgres(connection,
+                         snapshot.thread_id, event_seq - 1, work_id=work['work_id']).to_document()),
+                     Jsonb(task_context.to_document()), attempt.runtime_mode))
+                last_event_seq = accepted.event_seq
+                target.update(turn_id=attempt.turn_id, attempt_id=attempt.attempt_id)
+            if parsed['kind'] == 'cancel_work':
+                current = updated.current_attempt
+                assert current is not None
+                requested = self._make_attempt_event(thread, current, event_seq=last_event_seq + 1,
+                    event_type='attempt_cancel_requested', payload={
+                        'command_id': parsed['command_id'], 'attempt_id': current.attempt_id,
+                        'work_id': work['work_id'], 'work': project_work(updated, work)})
+                self._insert_event(connection, requested)
+                last_event_seq = requested.event_seq
+                target.update(turn_id=current.turn_id, attempt_id=current.attempt_id)
+            connection.execute('UPDATE capstone_threads SET minimum_protocol_version=2, works=%s, last_event_seq=%s, current_attempt=%s WHERE thread_id=%s',
+                (Jsonb(list(updated.works)), last_event_seq,
+                 None if updated.current_attempt is None else Jsonb(updated.current_attempt.to_document()), snapshot.thread_id))
         receipt = self._receipt({**parsed, 'run_id': snapshot.run.run_id}, status='rejected' if rejection else 'accepted', rejection=rejection,
-            accepted_event_seq=event_seq,
-            target=target)
+            accepted_event_seq=event_seq, target=target)
         connection.execute('INSERT INTO capstone_thread_commands (thread_id,idempotency_key,request_hash,command_id,receipt) VALUES (%s,%s,%s,%s,%s)',
             (snapshot.thread_id, parsed['idempotency_key'], request_hash, parsed['command_id'], Jsonb(receipt.to_document())))
         return receipt
@@ -3481,10 +3629,17 @@ class PostgresThreadService:
                 or context.selection_revision != attempt_row["selection_revision"]
             ):
                 terminal = AttemptSnapshot.from_document({**current, "phase": "interrupted"})
+                from .enterprise_context import TaskContext
+                from .thread_work import work_event_payload
+                saved_task = (None if attempt_row.get('task_context_snapshot') is None
+                              else TaskContext.from_document(attempt_row['task_context_snapshot']))
+                work_snapshot, work_payload = work_event_payload(
+                    replace(self._snapshot_from_row(thread), current_attempt=None),
+                    saved_task, terminal.attempt_id, 'interrupted')
                 event = self._make_attempt_event(
                     thread, terminal, event_seq=thread["last_event_seq"] + 1,
                     event_type="attempt_interrupted",
-                    payload={"reason": "model_context_snapshot_unavailable"},
+                    payload={"reason": "model_context_snapshot_unavailable", **work_payload},
                 )
                 self._insert_event(connection, event)
                 connection.execute(
@@ -3492,8 +3647,8 @@ class PostgresThreadService:
                     (attempt_row["attempt_id"],),
                 )
                 connection.execute(
-                    "UPDATE capstone_threads SET current_attempt = NULL, last_event_seq = %s WHERE thread_id = %s",
-                    (event.event_seq, thread["thread_id"]),
+                    "UPDATE capstone_threads SET current_attempt = NULL, last_event_seq = %s, works = %s WHERE thread_id = %s",
+                    (event.event_seq, Jsonb(list(work_snapshot.works)), thread["thread_id"]),
                 )
                 return None
             application_catalog = self._catalog_context
@@ -3502,6 +3657,15 @@ class PostgresThreadService:
                     self._model_catalog, self._capability_catalog,
                 )
             running = AttemptSnapshot.from_document({**current, "phase": "running"})
+            from .enterprise_context import TaskContext
+            from .thread_work import work_event_payload
+            task_context = (None if attempt_row.get('task_context_snapshot') is None
+                            else TaskContext.from_document(attempt_row['task_context_snapshot']))
+            if task_context is not None and task_context.model_contexts != (context,):
+                raise ThreadExecutionError('attempt Work model snapshot is inconsistent')
+            work_snapshot, work_payload = work_event_payload(
+                replace(self._snapshot_from_row(thread), current_attempt=running),
+                task_context, running.attempt_id, 'running')
             conversation = _attempt_conversation_document(connection, attempt_row)
             if attempt_row["conversation_context_snapshot"] is None:
                 connection.execute("UPDATE capstone_thread_attempts SET conversation_context_snapshot = %s WHERE attempt_id = %s", (Jsonb(conversation), attempt_row["attempt_id"]))
@@ -3517,12 +3681,12 @@ class PostgresThreadService:
                 return None
             event = self._make_attempt_event(
                 thread, running, event_seq=thread["last_event_seq"] + 1,
-                event_type="attempt_started", payload={"attempt_id": running.attempt_id, "task_step": preparation_step()},
+                event_type="attempt_started", payload={"attempt_id": running.attempt_id, "task_step": preparation_step(), **work_payload},
             )
             self._insert_event(connection, event)
             connection.execute(
-                "UPDATE capstone_threads SET current_attempt = %s, last_event_seq = %s WHERE thread_id = %s",
-                (Jsonb(running.to_document()), event.event_seq, thread["thread_id"]),
+                "UPDATE capstone_threads SET current_attempt = %s, last_event_seq = %s, works = %s WHERE thread_id = %s",
+                (Jsonb(running.to_document()), event.event_seq, Jsonb(list(work_snapshot.works)), thread["thread_id"]),
             )
             research_reset = connection.execute(
                 """SELECT event_id FROM capstone_thread_events
@@ -3530,16 +3694,24 @@ class PostgresThreadService:
                    AND payload->'model_context'->>'model_id' = %s
                    ORDER BY event_seq DESC LIMIT 1""", (thread["thread_id"], context.model_id)).fetchone()
             source = _selected_task_from_postgres(connection, thread["thread_id"], running.attempt_id)
+            allowed_attempt_ids = None
+            if task_context is not None:
+                same_work = connection.execute('''SELECT attempt_id FROM capstone_thread_attempts
+                    WHERE thread_id=%s AND task_context_snapshot->'binding'->>'work_id'=%s''',
+                    (thread['thread_id'], task_context.binding.work_id)).fetchall()
+                allowed_attempt_ids = {item['attempt_id'] for item in same_work}
+            previous = (None if task_context is not None and source is None
+                        else _previous_instruction_from_postgres(connection, thread['thread_id'], context, source))
             return AttemptClaim(
                 thread_id=thread["thread_id"], run_id=thread["run_id"], attempt=running,
                 kind=updated["kind"], instruction=updated["instruction"],
                 model_context_id=thread["model_context_id"],
                 selection_revision=thread["selection_revision"], lease_token=token,
                 model_context=context,
+                task_context=task_context,
                 started_at=event.occurred_at,
-                prior_results=_prior_results_for_context(self._snapshot_from_row(thread)),
-                previous_instruction=_previous_instruction_from_postgres(connection, thread["thread_id"], context,
-                    source),
+                prior_results=_prior_results_for_context(self._snapshot_from_row(thread), allowed_attempt_ids=allowed_attempt_ids),
+                previous_instruction=previous,
                 conversation_context=ConversationContext.from_document(conversation),
                 submission=updated.get("submission_snapshot"),
                 application_catalog=application_catalog,
@@ -3743,9 +3915,16 @@ class PostgresThreadService:
                 if not isinstance(current, dict) or current.get("attempt_id") != attempt["attempt_id"]:
                     raise ThreadExecutionError("attempt snapshot is inconsistent")
                 terminal = AttemptSnapshot.from_document({**current, "phase": "interrupted"})
+                from .enterprise_context import TaskContext
+                from .thread_work import work_event_payload
+                task_context = (None if attempt.get('task_context_snapshot') is None
+                                else TaskContext.from_document(attempt['task_context_snapshot']))
+                work_snapshot, work_payload = work_event_payload(
+                    replace(self._snapshot_from_row(thread), current_attempt=None),
+                    task_context, terminal.attempt_id, 'interrupted')
                 event = self._make_attempt_event(
                     thread, terminal, event_seq=thread["last_event_seq"] + 1,
-                    event_type="attempt_interrupted", payload={"reason": "lease_expired"},
+                    event_type="attempt_interrupted", payload={"reason": "lease_expired", **work_payload},
                 )
                 self._insert_event(connection, event)
                 connection.execute(
@@ -3755,9 +3934,9 @@ class PostgresThreadService:
                     (attempt["attempt_id"],),
                 )
                 connection.execute(
-                    """UPDATE capstone_threads SET current_attempt = NULL, last_event_seq = %s
+                    """UPDATE capstone_threads SET current_attempt = NULL, last_event_seq = %s, works = %s
                        WHERE thread_id = %s""",
-                    (event.event_seq, thread["thread_id"]),
+                    (event.event_seq, Jsonb(list(work_snapshot.works)), thread["thread_id"]),
                 )
                 interrupted += 1
         return interrupted
@@ -3839,6 +4018,11 @@ class PostgresThreadService:
             if any(item.result_id in existing_result_ids for item in result_projections):
                 raise ThreadProtocolError("result projection already exists")
             event_payload, projection_parts = _terminal_result_delivery(payload, result_projections)
+            from .thread_work import work_event_payload
+            work_snapshot, work_payload = work_event_payload(
+                replace(self._snapshot_from_row(thread), current_attempt=None),
+                claim.task_context, claim.attempt.attempt_id, phase)
+            event_payload = {**event_payload, **work_payload}
             event_seq = thread["last_event_seq"]
             for part in projection_parts:
                 event_seq += 1
@@ -3861,10 +4045,10 @@ class PostgresThreadService:
             )
             updated = connection.execute(
                 """UPDATE capstone_threads
-                   SET current_attempt = NULL, result_projections = %s, last_event_seq = %s
+                   SET current_attempt = NULL, result_projections = %s, last_event_seq = %s, works = %s
                    WHERE thread_id = %s RETURNING *""",
                 (Jsonb([item.to_document() for item in (existing_projections + result_projections)[-MAX_RESULT_PROJECTIONS:]]),
-                 event.event_seq, claim.thread_id),
+                 event.event_seq, Jsonb(list(work_snapshot.works)), claim.thread_id),
             ).fetchone()
             assert updated is not None
             return self._snapshot_from_row(updated)

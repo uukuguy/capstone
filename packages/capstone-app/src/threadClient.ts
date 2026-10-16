@@ -6,6 +6,9 @@ import { parseThreadCatalog, type ThreadCatalog } from './threadCatalog'
 import { parseNetworkContextEvents, parseThreadHistoryPage } from './threadHistory'
 import { parseModelWorkspace } from './threadModelWorkspace'
 import type { AttemptRecords } from './attemptRecords'
+import { parseWorkSnapshot, type WorkCommand } from './threadWorkProtocol'
+
+export type AnyThreadCommand = ThreadCommand | WorkCommand
 
 export type ThreadCommand = {
   schema: 'capstone-command/1'
@@ -31,6 +34,7 @@ export interface ThreadTransport {
   readNetworkEvents?(threadId: string, signal?: AbortSignal, contextId?: string, attemptId?: string): Promise<unknown>
   readEvents(threadId: string, afterEventSeq: number, signal?: AbortSignal): Promise<unknown>
   sendCommand(command: ThreadCommand, signal?: AbortSignal): Promise<unknown>
+  sendWorkCommand?(command: WorkCommand, signal?: AbortSignal): Promise<unknown>
   streamEvents?(threadId: string, afterEventSeq: number, signal?: AbortSignal): AsyncGenerator<EventEnvelope>
   readonly connectionState?: ThreadTransportState
 }
@@ -119,6 +123,12 @@ export class CapstoneThreadClient {
     return parseThreadSnapshot(await this.transport.getSnapshot(threadId, signal))
   }
 
+  async loadWork(threadId: string, signal?: AbortSignal) {
+    const raw = await this.transport.getSnapshot(threadId, signal)
+    return raw && typeof raw === 'object' && 'schema' in raw && raw.schema === 'capstone-thread-snapshot/2'
+      ? parseWorkSnapshot(raw) : parseThreadSnapshot(raw)
+  }
+
   async caseExecution(threadId: string, signal?: AbortSignal) {
     const snapshot = await this.load(threadId, signal)
     return snapshot.applicationState?.caseExecution ?? null
@@ -150,7 +160,11 @@ export class CapstoneThreadClient {
     )
   }
 
-  async send(command: ThreadCommand, signal?: AbortSignal): Promise<CommandReceipt> {
+  async send(command: AnyThreadCommand, signal?: AbortSignal): Promise<CommandReceipt> {
+    if (command.schema === 'capstone-command/2') {
+      if (!this.transport.sendWorkCommand) throw new Error('工作命令传输不可用')
+      return parseCommandReceipt(await this.transport.sendWorkCommand(command, signal))
+    }
     return parseCommandReceipt(await this.transport.sendCommand(command, signal))
   }
 

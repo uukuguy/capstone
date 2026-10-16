@@ -46,6 +46,11 @@ function TokenPrompt({ onSubmit }: { onSubmit: (token: string) => void }) {
 }
 
 export default function ThreadLiveEntry({ threadId, mode }: { threadId: string; mode?: 'work' }) {
+  useEffect(() => {
+    const previousTitle = document.title
+    document.title = mode === 'work' ? 'Capstone · 企业任务工作台' : 'Capstone · 电网分析工作台'
+    return () => { document.title = previousTitle }
+  }, [mode])
   return mode === 'work' ? <WorkLiveEntry threadId={threadId} /> : <LegacyThreadLiveEntry threadId={threadId} />
 }
 
@@ -197,7 +202,7 @@ function LegacyThreadLiveEntry({ threadId }: { threadId: string }) {
     prepareConnection={prepareConnection}
     disabledToolIds={disabledToolIds} onDisabledToolIdsChange={setDisabledToolIds}
     storageKey={`${namespace}.${createdThreadId}`} readOnly={archived} previewDiagram={previewDiagram}
-    sessionNotice={error} headerActions={<><a className="thread-new-dialogue" href="/?workspace=enterprise&thread=new">任务工作台</a><button type="button" className="thread-new-dialogue"
+    sessionNotice={error} headerActions={<><a className="thread-new-dialogue" href={`/?workspace=enterprise&thread=${encodeURIComponent(createdThreadId)}`}>任务工作台</a><button type="button" className="thread-new-dialogue"
       disabled={creating} onClick={() => void newThread()} aria-label={creating ? '正在新建…' : '新建对话'}>
       <Plus size={16} aria-hidden="true" /><span>{creating ? '正在新建…' : '新建对话'}</span>
     </button></>} />
