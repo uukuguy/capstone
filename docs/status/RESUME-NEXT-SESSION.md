@@ -10,7 +10,7 @@
 - 根目录已返回dev并快进。Pi工作树detached abf2f797，全部数据保留；本地/远端长期Pi分支已关闭，refs/archive/20261016/feat-pi-skills-integration保留来源。发布分支也已关闭。
 - local-dev按规范从abf2f797重建；API与双worker同d6acc8c镜像，各1139个实际打包文件同源，general-pi健康，旧Thread页面可读。原五个数据卷及会话/事件/工件计数不变。App源码身份abf2f797，repositoryRevision跟随根dev；后端构建来源不能仅因合并而改写。
 - 用户e2交付包、19173、local-demo及两云端环境不变。本轮零Provider调用。
-- 当前剩余：完成控制文档PR及图形复查；明确实际来源，关闭已合并控制分支，根目录最终保持dev。不要重跑已通过产品门禁；控制修改按文档门禁验证。
+- 收口完成：控制PR #32经双平台CI38870266248通过后合入fc3bdada；根目录dev与origin/dev一致，控制分支已关闭。图形14节点无重叠、连线穿卡及横向溢出；链接、symlink、diff和doctor通过。下一任务为下述统一执行Task 1，不重复已完成合并。
 
 ## 验证与恢复依据
 

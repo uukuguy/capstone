@@ -127,7 +127,7 @@ function draw(){
  el('graph-canvas').style.width=width+'px';
  const place=(node,x,y,w)=>{node.style.width=w+'px';node.style.left=x+'px';node.style.top=y+'px';};
  const mains=graphNodes.filter(n=>n.lane==='main'&&!n.release_point).sort((a,b)=>levels[b.id]-levels[a.id]);
- const branches=graphNodes.filter(n=>n.lane!=='main'||n.release_point).sort((a,b)=>Number(b.release_point)-Number(a.release_point)||levels[b.id]-levels[a.id]);
+ const branches=graphNodes.filter(n=>n.lane!=='main'||n.release_point).sort((a,b)=>levels[b.id]-levels[a.id]||Number(a.release_point)-Number(b.release_point));
  // Keep dev at the centre and the main release separate; deployments bind to their exact sources.
  const mainWidth=branches.length?400:520,mainX=(width-mainWidth)/2,stageWidth=190,stageX=width-stageWidth,branchWidth=Math.min(280,mainX-48),branchX=Math.max(12,mainX-branchWidth-50);
  let mainBottom=8,branchBottom=8;
@@ -149,8 +149,8 @@ function draw(){
  }
  graphNodes.forEach(n=>[...new Set(successors(n.id))].forEach(id=>{
   const a=rect(el('commit-'+n.id)),b=rect(el('commit-'+id)),same=Math.abs(a.x-b.x)<1,right=b.x>a.x;
-  const x1=same?a.x+a.w/2:a.x+(right?a.w+4:-4),y1=same?a.y-4:a.y+a.h/2;
-  const x2=same?b.x+b.w/2:b.x+(right?-4:b.w+4),y2=same?b.y+b.h+4:b.y+b.h/2,mid=(x1+x2)/2;
+  const x1=same?a.x+a.w/2:a.x+(right?a.w+4:-4),y1=same?a.y-4:a.y+a.h*.4;
+  const x2=same?b.x+b.w/2:b.x+(right?-4:b.w+4),y2=same?b.y+b.h+4:b.y+b.h*.65,mid=(x1+x2)/2;
   const kind=n.lane==='main'&&data.nodes.find(node=>node.id===id).lane==='main'?'main':'branch',style=edgeStyles[kind];
   const d=same?'M '+x1+' '+y1+' L '+x2+' '+y2:'M '+x1+' '+y1+' C '+mid+' '+y1+' '+mid+' '+y2+' '+x2+' '+y2;
   svg.insertAdjacentHTML('beforeend','<path data-kind="'+kind+'" data-from="commit-'+n.id+'" data-to="commit-'+id+'" d="'+d+'" fill="none" stroke="'+style.color+'" stroke-width="'+style.width+'" marker-end="url(#arrow-'+kind+')"/>');
@@ -159,7 +159,7 @@ function draw(){
   const source=sourceNode(e),target=el('environment-node-'+e.name),anchor=el('commit-'+source.id),a=rect(anchor),b=rect(target),x1=a.x+a.w+4,y1=a.y+a.h/2,x2=b.x-4,y2=b.y+b.h/2,mid=(x1+x2)/2;
   // A branch deployment must cross above the main spine, not through its cards.
   const d=a.x+a.w<mainX
-   ? 'M '+x1+' '+y1+' H '+(mainX-20)+' V 4 H '+(stageX-14)+' V '+y2+' H '+x2
+   ? 'M '+(a.x+a.w*.75)+' '+(a.y-4)+' V 4 H '+(stageX-14)+' V '+y2+' H '+x2
    : 'M '+x1+' '+y1+' C '+mid+' '+y1+' '+mid+' '+y2+' '+x2+' '+y2,style=edgeStyles.reference;
   svg.insertAdjacentHTML('beforeend','<path data-kind="reference" data-from="'+anchor.id+'" data-to="'+target.id+'" data-source="'+source.id+'" data-source-sha="'+source.sha+'" data-deployment="'+e.name+'" d="'+d+'" fill="none" stroke="'+style.color+'" stroke-width="'+style.width+'" stroke-dasharray="4 3" marker-end="url(#arrow-reference)"/>');
  });
