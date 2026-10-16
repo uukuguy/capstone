@@ -4,7 +4,9 @@ Updated: 2026-10-16. Active recovery record.
 
 ## Current action
 
-- USER CORRECTION: standalone Work UI rejected. Do not merge current frontend. review_work_ui is implementing shared presentation reuse; owns App source only. Root owns docs. Follow accepted enterprise design/prototype, preserve mature conversation components. AGENTS.md now records this rule. Backend remains valid; frontend tests are not design acceptance.
+- 2026-10-17 accepted Profile name enterprise-research (企业研究与分析), default intranet resources/public-web retrieval off, optional explicit web enhancement. Design/UI/Task2 plan updated; not runtime implemented. Frontend reuse now code-complete: full App537 tests/build passed, review race fixed, committed e58ef9a4, canonical rebuild and1152-file identity passed; needs integration.
+
+- USER CORRECTION: standalone Work UI rejected. Do not merge current frontend. review_work_ui completed shared presentation reuse; frozen code committed e58ef9a4. Root owns integration. Follow accepted enterprise design/prototype, preserve mature conversation components. AGENTS.md now records this rule. Backend remains valid; frontend tests are not design acceptance.
 
 - feat/thread-work-context from dev12cc9875. Product35e014df implements v2 Work ledger and no-model entry; da3ddfb1 fixes viewport scrolling/mobile header. Both committed, not yet pushed/merged.
 - Final local backend1427 passed/2 skipped with isolated PostgreSQL; App533 passed/build; types, boundaries, doctor and independent backend/UI reviews passed. No Provider calls.

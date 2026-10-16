@@ -3361,3 +3361,9 @@ The following original entries were retained during document synchronization.
 - 2026-10-16: da3ddfb1 bounds Work scrolling and mobile header; keeps the desktop composer visible.
 
 - 2026-10-16: User rejected standalone Work UI; reuse accepted enterprise design and existing conversation components before integration.
+
+- 2026-10-16: 584116bc records rejected standalone UI and binds enterprise implementation to accepted design and shared conversation components.
+
+- 2026-10-17: Accepted enterprise-research default Profile: intranet resources first; public-web retrieval is an explicitly enabled optional enhancement.
+
+- 2026-10-17: e58ef9a4 replaces standalone Work UI with shared conversation components and accepted enterprise layout; 537 App tests passed.

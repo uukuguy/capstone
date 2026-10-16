@@ -18,8 +18,8 @@ Its first component slice now supports Work-owned research storage and internal
 projection without a model. Candidate35e014df adds production v2 Work persistence and
 a model-free task entry, with object revisions, exact retries and read-only professional history.
 Backend local regression and runtime persistence checks passed. The standalone frontend was rejected;
-frontend acceptance requires the existing conversation components and accepted enterprise workspace design.
-Integration remains pending.
+e58ef9a4 replaces it with existing conversation components and the accepted enterprise workspace layout.
+The full App suite passes537 tests; integration remains pending.
 Production Claim/Profile execution binding remains open. Saved Work is explicitly blocked
 until continuous execution is connected; it creates no fake Attempt or completion.
 The legacy entry retains v1 cross-origin compatibility and upgrade guidance without draft loss.
@@ -242,3 +242,5 @@ exact accepted revisions belong to [VERSION-CONTROL.md](VERSION-CONTROL.md).
 - `packages/trajectory-workbench/` — read-only trajectory investigation UI
 - `validation/questions/task.md.txt` — canonical provider-backed continuous Analysis suite
 - `Makefile` — supported setup, execution, and verification commands
+
+Application naming: enterprise-research (企业研究与分析) defaults to authorized intranet resources, with optional explicit public-web retrieval. grid-analysis (电网分析与决策) composes existing pandapower/PyPSA assets. These Profile assembly targets remain pending implementation.
