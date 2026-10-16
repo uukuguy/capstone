@@ -3348,3 +3348,8 @@ The following original entries were retained during document synchronization.
 - 2026-10-16: PR45 merged199833bc after dual-platform documentation checks; dev and application preparation branches align; runtime remainsa2efb791.
 - 2026-10-16: 32f08c31 adds selected native/authority Pack preparation, preserving application grants and existing professional execution boundaries.
 - 2026-10-16: 20226bf0 retains structural authority adapters while rejecting native profiles at professional-only entry points.
+- 2026-10-16: 9df4809f records Pack preparation boundaries and candidate graph without claiming pending integration or deployment acceptance.
+- 2026-10-16: Pack selection passed 642 Kernel,1349 Capstone and3 registered-worker tests; types passed; PR46 product CI remains pending.
+- 2026-10-16: 20226bf0 rebuild passed; three roles match1150 source objects; worker verified real Pi resource publication without Provider calls.
+- 2026-10-16: cb08ef92 bounds foundation CI to reviewed dependencies; inventory and hosted isolation coverage remain mandatory within15 minutes.
+- 2026-10-16: PR46 merged9eb84a34 after Linux8m49s/macOS10m22s; merge tree equalscb08ef92; dev fast-forwarded with verified runtime unchanged.

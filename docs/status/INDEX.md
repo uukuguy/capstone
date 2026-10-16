@@ -1,6 +1,6 @@
 # docs/status INDEX
 
-- 2026-10-16: [Pack按需准备](../reviews/2026-10-16-application-pack-selection.md)已实现20226bf0，集成验证中；推进图区分已实现、已合入及精确运行来源。
+- 2026-10-16: [Pack按需准备](../reviews/2026-10-16-application-pack-selection.md)经PR #46合入9eb84a34；双平台foundation检查通过，local-dev来源20226bf0同源；推进图区分实现、集成及部署。
 
 - 2026-10-16: [Thread版本协商](../reviews/2026-10-16-thread-version-negotiation.md)经PR #44合入32f18d24：双平台短CI通过，local-dev来源a2efb791同源及浏览器检查通过；保留旧跨域服务、会话和草稿，v2及无模型入口仍待实施。
 

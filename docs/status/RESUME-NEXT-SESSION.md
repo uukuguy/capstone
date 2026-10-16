@@ -1,39 +1,33 @@
 # Live Session Checkpoint
 
-Updated: 2026-10-16. Active-session recovery record.
+Updated: 2026-10-16. Active recovery record.
 
 ## Current action
 
-- PR44 merged32f18d24 normally into dev; merge tree exactly matches tested1a695af4. PR45 control closeout merged199833bc after both documentation jobs passed; tree equalsc185e0aa. Root dev and both application preparation branches are synchronized; implementation/control branches closed. Final graph is regenerated on dev. Continue Task2 from this baseline.
-- Runtime sourcea2efb791 (protocol implementation2d3f86c6 plus UI status correction). Do not rebuild for subsequent documentation-only commits.
-- Task2 remains in progress. Only v1 negotiation is implemented; v2, model-free Threads, Profile assembly, production Work/Claim binding and object CAS remain open.
+- PR46 merged9eb84a34 into dev after CI38916542829 passed Linux8m49s/macOS10m22s. The merge tree equals testedcb08ef92. Implementation branch closed; root dev fast-forwarded, then docs/pack-selection-closeout opened for control alignment.
+- Product source20226bf0 contains native/authority Pack declarations, selected preparation and immutable Pi resource receipts. Complete Profile/grants survive subset preparation. Legacy professional runner rejects selected native execution before resources start.
+- cb08ef92 adds a reviewed foundation CI file allowlist and15-minute test-step limit. Unknown code, authority/solver changes, runtime bridges and dependencies still require product; main requires release. Superseded broad CI38913803039 was cancelled, not accepted.
+- Pending closeout: regenerate graph, browser geometry/screenshot, docs checks/doctor, normal control PR to dev; synchronize both application preparation branches and regenerate on final dev. Preserve merged product node9eb84a34, runtime20226bf0 and fixed977601f9/d4600ddc nodes.
 
-## Verification and runtime
+## Verified runtime and tests
 
-- CI38907004425 passed exact1a695af4: Linux4m58s/macOS8m35s. Shared-agent dependency scope; no full release claim.
-- Local gates:1345 backend passed/65 skipped,628 Kernel,522 App,15 client,3 registered-worker. Boundaries, types and App build passed. Final UI label correction79 component tests and TypeScript passed. Independent review cleared legacy CORS and pending-receipt masking corrections.
-- Browser: real existing Thread JSON/SSE advertisev1; version2 command returns406 without changing snapshot. Synthetic wrong-version SSE shows upgrade state, preserves draft and makes only one stream request. Legacy CORS fixture allows default-v1 reads/writes and rejects the new custom header. Test server stopped; App restored; no business command or Provider call.
-- Canonical local-dev rebuild passeda2efb791. API/worker/worker-pypsa share image sha256:09ce1cb6753cdbc24a1c8fb9a55c8d9cb12fe053a5ddd6505bfc180a55a60488. All1146 Git files/link targets match per role. Receipt:runs/thread-version-negotiation/local-identity.json.
-- Rebuild initially failed on Docker Hub token DNS/timeout. Process-local HTTP_PROXY/HTTPS_PROXY/ALL_PROXY=http://127.0.0.1:7897 fixed it; no system/pin changes. Final log:/tmp/thread-version-rebuild-final.log.
-- App5173/API8767. Maincf72393b, user e2eaee2/19173, local-demo/cloud-demo faa6af9 and cloud-dev24d9a325 remain unchanged.
-- Browser sessions:offapp (real App) and project-alignment (http://127.0.0.1:29483/docs/status/PROJECT-OVERVIEW.html). Geometry script:/tmp/check-control-graph.js. Final upgrade screenshot:output/playwright/thread-version-upgrade-final.png.
-- Final dev graph:22 nodes/29 edges;1280/1920 checks have no overlap, crossing, through-card path or overflow. Actual199833bc, product32f18d24, runtimea2efb791 and fixed977601f9 nodes verified. Screenshot:output/playwright/thread-version-final-dev.png. Local generated snapshot and recovery log stay uncommitted to avoid a self-SHA control loop.
-- Reports:docs/reviews/2026-10-16-thread-version-negotiation.md and 2026-10-16-work-research-identity.md.
+- Canonical rebuild passed20226bf0. API/worker/worker-pypsa share image sha256:d5eb7fb8e69f18a9160028a6350e7fa8edbe16f7578e39fcd2a77e83c595f519. Each role matches1150 Git files/link targets. Receipt:runs/application-pack-selection/local-identity.json.
+- The actual registered worker prepared Pi published resources, including a selected ready resource, without Provider calls. Receipts:native-publication.json and native-required-resource.json in the same directory. API has no direct route to the private Pi network; use the worker for this read-only probe.
+- Local:642 Kernel,1349 Capstone/65 skipped,3 registered-worker,34 adapters,12 inventory,10 hosted,143 pandapower Pack,55 PyPSA application and existing PyPSA suites passed. Types,51 governance tests and independent review passed. Mutable receipt and structural-adapter issues were corrected.
+- App5173/API8767 ready. Existing Thread and electrical topology readable. No cloud/demo/user deployment or Provider run. Maincf72393b, e2eaee2/19173, demo faa6af9, cloud-dev24d9a325 unchanged.
+- Logs:/tmp/pack-focused-final.log,/tmp/foundation-*.log,/tmp/pack-rebuild-final.log. Identity script:/tmp/verify-pack-selection.py. Live resource probe:/tmp/check-native-published.py through worker uv runtime.
+- Browser sessions:offapp and project-alignment. Graph server:http://127.0.0.1:29483/docs/status/PROJECT-OVERVIEW.html. Geometry:/tmp/check-control-graph.js. Candidate23nodes/30edges passed1280/1920 without crossings, overlap or overflow; rerun after final graph changes.
 
-## Next shared-foundation slice
+## Next shared foundation work
 
-- Plan:docs/superpowers/plans/2026-10-16-enterprise-unified-execution.md Task2; contract:docs/superpowers/specs/2026-10-16-enterprise-protocol-decisions.md.
-- WorkBinding/TaskContext and Work-owned research are integrated from055a335f/PR41. No-model component recovery works; legacy model-owned history remains. Context does not grant access.
-- host_api.py is the server; thread_http.py is a client. ThreadCreator currently chooses a default model and prepares it. The no-model entry must skip those unrelated actions.
-- thread_service.py owns memory/Postgres/DDL. Add Work and minimum-protocol associations without fake models or loss of old data; preserve exact-key retries before minimum-protocol checks.
-- DomainManifest/DomainRuntimeProfile currently require Authority fields. Add explicit native/authority assembly; keep professional checks with authority execution, not every task. Do not silently downgrade invalid professional configuration.
-- Frontend:ThreadLiveEntry.tsx, threadHttpTransport.ts, threadProjectionStore.ts, threadProtocol.ts. Reuse conversation/results and extend wire parsing together with storage and command contracts.
-- Next visible acceptance: old professional Thread readable; model-free Thread/Work creation; object CAS and same-key retry; refresh/reconnect; explicit upgrade response. Task3 owns continuous Pi execution/action receipts.
-- Two application branches remain preparation-only until their required foundation runs. Demo1/2 are external examples, not special APIs, metrics or fixed workflows.
+- Canonical plan:docs/superpowers/plans/2026-10-16-enterprise-unified-execution.md Task2. Continue production Work/Profile persistence, v2/storage/command contracts and model-free frontend entry together. Task3 owns continuous Pi execution and action receipts.
+- WorkBinding/TaskContext and Work-owned research were integrated earlier. Only Thread v1 negotiation exists. Do not claim v2, no-model Threads or Demo1/2 acceptance.
+- host_api.py is server; thread_http.py is client. ThreadCreator still defaults and prepares a model. No-model creation must avoid unrelated model/worker preparation. thread_service.py owns memory/Postgres/DDL; retain history, exact-key retries and recovery.
+- Reuse ThreadLiveEntry, transport/store/protocol, conversation and artifact views. Two application branches remain preparation-only. Demo1/2 are external acceptance examples, not dedicated metrics/APIs or fixed workflows.
 
-## Control and recovery rules
+## Control and recovery
 
-- Graph/register live on dev. Show actual dev HEAD as a node and retain requested977601f9/d4600ddc fixed nodes. Keep product merge32f18d24 and exact runtime sourcea2efb791 distinct. Use ui-ux-pro-max, real ancestry, geometry and screenshot checks. Regenerate after final branch synchronization; do not start an infinite self-SHA documentation loop.
-- Short development CI is required: shared-agent/App scoped dependency checks,15-minute step limit. Native bridges, professional tools, dependencies/build and unknown paths remain broader; main releases are full.
-- Preserve stash a91a148494f520e973f5d63158916b42a5df6773, /tmp/capstone-pre-convergence-root-work.tar.gz, detached Pi worktreeabf2f797 and all var/data.
-- Git network may require http.proxy=http://127.0.0.1:7897, HTTP/1.1 and gh auth git-credential. No force push or protection bypass.
+- Current register/graph belong on dev. Important commits need nodes; use ui-ux-pro-max, verified ancestry, source edges, geometry and screenshots. Regenerate after final branch synchronization; avoid an infinite self-SHA control loop.
+- Preserve original stash a91a148494f520e973f5d63158916b42a5df6773 and /tmp/capstone-pre-convergence-root-work.tar.gz; detached Pi worktreeabf2f797 and all var/data remain. Temporary control stash93d02be8e1a2e4e1afc53601bf0ff9d7626102da was applied; drop only that task-owned stash after closeout is durable.
+- Git network: http.proxy=http://127.0.0.1:7897, HTTP/1.1, gh auth git-credential. Rebuild uses process-local HTTP_PROXY/HTTPS_PROXY/ALL_PROXY at that proxy and NO_PROXY=127.0.0.1,localhost; no system proxy change.
+- Final generated snapshot and recovery log may remain dirty on dev to show the actual final HEAD without creating another control loop.
