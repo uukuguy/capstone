@@ -17,7 +17,7 @@ export function AppVersion({ build }: { build: AppBuildIdentity }) {
   </span>
 }
 
-export function PageHeader({ className = '', showThreadEntry = true, actions }: { className?: string; showThreadEntry?: boolean; actions?: ReactNode }) {
+export function PageHeader({ className = '', showThreadEntry = true, actions, subtitle = '电网分析工作台' }: { className?: string; showThreadEntry?: boolean; actions?: ReactNode; subtitle?: string }) {
   const [build, setBuild] = useState(__CAPSTONE_BUILD__)
   useEffect(() => {
     if (!import.meta.env.DEV || import.meta.env.MODE === 'test') return
@@ -42,7 +42,7 @@ export function PageHeader({ className = '', showThreadEntry = true, actions }: 
   return <header className={`topbar ${className}`.trim()}>
     <div className="brand"><Mark /><span className="brand-name">CAPSTONE</span>
       <AppVersion build={build} /><span className="brand-divider" />
-      <span className="brand-subtitle">电网分析工作台</span></div>
+      <span className="brand-subtitle">{subtitle}</span></div>
     {actions ? <div className="topbar-right">{actions}{projectLink}</div> : <>
       {showThreadEntry && <a className="thread-entry-link" href="/?thread=new">打开 Thread</a>}
       {projectLink}

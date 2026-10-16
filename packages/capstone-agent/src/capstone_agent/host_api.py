@@ -35,6 +35,7 @@ from capstone_agent.thread_service import (
     ThreadCreator,
     ThreadExecutionError,
     ThreadNotFound,
+    ThreadProtocolUpgradeRequired,
     ThreadResyncRequired,
     ThreadService,
 )
@@ -106,7 +107,10 @@ def create_host_app(
             if family is None:
                 if thread_service is None:
                     return
-                family = thread_service.snapshot(thread_id).active_model_context.implementation_family
+                context = thread_service.snapshot(thread_id).active_model_context
+                if context is None:
+                    return
+                family = context.implementation_family
             if not prepare_model(thread_id, family):
                 logging.getLogger(__name__).warning('Model preparation incomplete for thread %s', thread_id)
         except Exception:
@@ -171,17 +175,26 @@ def create_host_app(
                 response = JSONResponse({"error": "unauthorized"}, status_code=401)
             else:
                 request.state.public_demo = demo_authorized
-                if thread_resource and not demo_authorized and thread_version != '1':
+                if thread_resource and not demo_authorized and thread_version not in {'1', '2'}:
                     response = JSONResponse({'error': 'unsupported_thread_version',
-                                             'supported_versions': [1]}, status_code=406)
+                                             'supported_versions': [1, 2]}, status_code=406)
                 else:
-                    response = await call_next(request)
+                    upgrade = False
+                    if thread_resource and not demo_authorized and thread_version == '1' and thread_service is not None:
+                        parts = request.url.path.split('/')
+                        if len(parts) >= 5 and parts[4] and not (request.method == 'POST' and parts[-1] == 'commands'):
+                            try:
+                                upgrade = thread_service.snapshot(parts[4]).minimum_protocol_version > 1
+                            except ThreadNotFound:
+                                pass
+                    response = (JSONResponse({'error': 'protocol_upgrade_required', 'minimum_protocol_version': 2}, status_code=409)
+                                if upgrade else await call_next(request))
         response.headers["Cache-Control"] = "no-store"
         response.headers["X-Content-Type-Options"] = "nosniff"
         if thread_resource:
             response.headers.append('Vary', 'Capstone-Thread-Version')
-            if thread_version == '1':
-                response.headers['Capstone-Thread-Version'] = '1'
+            if thread_version in {'1', '2'}:
+                response.headers['Capstone-Thread-Version'] = thread_version
         if origin is not None:
             response.headers["Access-Control-Allow-Origin"] = origin
             response.headers.append("Vary", "Origin")
@@ -290,7 +303,11 @@ def create_host_app(
                          archived: bool = False):
             require_private_thread(request)
             try:
-                return thread_service.list_threads(before=before, limit=limit, archived=archived)
+                page = thread_service.list_threads(before=before, limit=limit, archived=archived)
+                if request.headers.get('Capstone-Thread-Version', '1') == '1' and any(
+                        row.get('minimum_protocol_version', 1) > 1 for row in page['threads']):
+                    return JSONResponse({'error': 'protocol_upgrade_required', 'minimum_protocol_version': 2}, status_code=409)
+                return page
             except ThreadNotFound:
                 raise HTTPException(404, "thread cursor not found") from None
             except ThreadProtocolError as error:
@@ -365,13 +382,16 @@ def create_host_app(
                     ):
                         raise ThreadProtocolError("thread creation model_id is invalid")
                     started = time.perf_counter()
-                    snapshot = await run_in_threadpool(thread_creator.create, model_id)
+                    model_free = request.headers.get('Capstone-Thread-Version', '1') == '2' and model_id is None
+                    snapshot = (await run_in_threadpool(thread_creator.create, model_free=True) if model_free
+                                else await run_in_threadpool(thread_creator.create, model_id))
                     duration = record_thread_startup(snapshot.thread_id, 'thread_create', started)
                     response.headers['Server-Timing'] = f'thread_create;dur={duration:.3f}'
                     # Start the existing preparation as the response is sent. Task
                     # acquisition still prepares or reuses the same locked context.
-                    background_tasks.add_task(request_model_preparation, snapshot.thread_id,
-                                              snapshot.active_model_context.implementation_family)
+                    if snapshot.active_model_context is not None:
+                        background_tasks.add_task(request_model_preparation, snapshot.thread_id,
+                                                  snapshot.active_model_context.implementation_family)
                     return snapshot.to_document()
                 except ThreadProtocolError as error:
                     raise HTTPException(422, str(error)) from None
@@ -382,7 +402,10 @@ def create_host_app(
         def get_thread_snapshot(thread_id: str, request: Request):
             require_private_thread(request)
             try:
-                return thread_service.snapshot(thread_id).to_document()
+                snapshot = thread_service.snapshot(thread_id)
+                if snapshot.minimum_protocol_version > int(request.headers.get('Capstone-Thread-Version', '1')):
+                    return JSONResponse({'error': 'protocol_upgrade_required', 'minimum_protocol_version': 2}, status_code=409)
+                return snapshot.to_document()
             except ThreadNotFound:
                 raise HTTPException(404, "thread not found") from None
 
@@ -390,7 +413,7 @@ def create_host_app(
         def get_thread_catalog(thread_id: str, request: Request):
             require_private_thread(request)
             try:
-                if case_service is not None:
+                if case_service is not None and thread_service.snapshot(thread_id).active_model_context is not None:
                     return case_service.catalog(thread_id)
                 return thread_service.catalog(thread_id)
             except ThreadNotFound:
@@ -400,6 +423,8 @@ def create_host_app(
         def get_thread_models(thread_id: str, request: Request):
             require_private_thread(request)
             try:
+                if thread_service.snapshot(thread_id).active_model_context is None:
+                    return JSONResponse({'error': 'model_context_unavailable'}, status_code=409)
                 return thread_service.read_models(thread_id)
             except ThreadNotFound:
                 raise HTTPException(404, "thread not found") from None
@@ -432,7 +457,10 @@ def create_host_app(
                               after: Annotated[int, Query(ge=0)] = 0):
             require_private_thread(request)
             try:
-                return thread_service.read_events(thread_id, after).to_document()
+                return thread_service.read_events(thread_id, after,
+                    protocol_version=int(request.headers.get('Capstone-Thread-Version', '1'))).to_document()
+            except ThreadProtocolUpgradeRequired:
+                return JSONResponse({'error': 'protocol_upgrade_required', 'minimum_protocol_version': 2}, status_code=409)
             except ThreadNotFound:
                 raise HTTPException(404, "thread not found") from None
             except ThreadResyncRequired as error:
@@ -454,6 +482,9 @@ def create_host_app(
                     raise ThreadProtocolError("command must be an object")
                 if command.get("thread_id") != thread_id:
                     raise ThreadProtocolError("command.thread_id does not match route")
+                version = request.headers.get('Capstone-Thread-Version', '1')
+                if command.get('schema') == 'capstone-command/2' and version != '2':
+                    raise ThreadProtocolError('command version does not match negotiated version')
                 if idempotency_key is not None and command.get("idempotency_key") != idempotency_key:
                     raise HTTPException(400, "Idempotency-Key does not match command")
                 kind = command.get("kind")
@@ -472,10 +503,13 @@ def create_host_app(
                     else thread_service
                 )
                 receipt = service.submit_command(command)
+                if receipt.rejection == 'protocol_upgrade_required':
+                    return JSONResponse({'error': 'protocol_upgrade_required', 'minimum_protocol_version': 2}, status_code=409)
                 if receipt.status == 'accepted':
                     if kind in {'open_model', 'activate_model', 'switch_model', 'reopen_model_context'}:
                         await run_in_threadpool(request_model_preparation, thread_id)
-                    background_tasks.add_task(request_worker, thread_id, force=True)
+                    if command.get('schema') != 'capstone-command/2':
+                        background_tasks.add_task(request_worker, thread_id, force=True)
                 return receipt.to_document()
             except ThreadNotFound:
                 raise HTTPException(404, "thread not found") from None
@@ -488,7 +522,10 @@ def create_host_app(
                                        follow: Annotated[bool, Query()] = False):
             require_private_thread(request)
             try:
-                initial_page = thread_service.read_events(thread_id, after)
+                initial_page = thread_service.read_events(thread_id, after,
+                    protocol_version=int(request.headers.get('Capstone-Thread-Version', '1')))
+            except ThreadProtocolUpgradeRequired:
+                return JSONResponse({'error': 'protocol_upgrade_required', 'minimum_protocol_version': 2}, status_code=409)
             except ThreadNotFound:
                 raise HTTPException(404, "thread not found") from None
             except ThreadResyncRequired as error:
@@ -508,7 +545,11 @@ def create_host_app(
                 while True:
                     if not first_page:
                         try:
-                            page = await asyncio.to_thread(thread_service.read_events, thread_id, cursor)
+                            page = await asyncio.to_thread(thread_service.read_events, thread_id, cursor,
+                                protocol_version=int(request.headers.get('Capstone-Thread-Version', '1')))
+                        except ThreadProtocolUpgradeRequired:
+                            yield 'event: protocol_upgrade_required\ndata: {"error":"protocol_upgrade_required","minimum_protocol_version":2}\n\n'
+                            return
                         except ThreadNotFound:
                             return
                         except ThreadResyncRequired as error:

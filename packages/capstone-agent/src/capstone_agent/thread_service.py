@@ -104,7 +104,7 @@ def _workspace_blocked_reason(snapshot: ThreadSnapshot, archived: bool) -> str |
 
 def _workspace_activation_payload(command: Mapping[str, Any], snapshot: ThreadSnapshot, context: ModelContextSnapshot, *, resumed: bool = False) -> dict[str, Any]:
     return {"command_id": command["command_id"], "reason": "model_resume" if resumed else "model_switch",
-            "previous_context": snapshot.active_model_context.to_document(),
+            "previous_context": snapshot.professional_context.to_document(),
             "previous_grid_page_id": snapshot.active_grid_page_id,
             "active_grid_page_id": page_id_for_model(context.model_id), "model_context": context.to_document()}
 
@@ -114,7 +114,7 @@ def _historical_network_page(snapshot: ThreadSnapshot, events: list[EventEnvelop
     _identifier(context_id, name="context_id")
     if attempt_id is not None:
         _identifier(attempt_id, name="attempt_id")
-    context = snapshot.active_model_context if context_id == snapshot.active_model_context.id else None
+    context = snapshot.professional_context if context_id == snapshot.professional_context.id else None
     for event in reversed(events):
         for key in ("model_context", "previous_context", "restored_context"):
             document = event.payload.get(key)
@@ -314,7 +314,7 @@ def _is_case_step_command(snapshot: ThreadSnapshot, command: Mapping[str, Any]) 
     context = execution.get("context")
     if not isinstance(context, Mapping) or payload.get("case_context") != dict(context):
         return False
-    active_context = snapshot.active_model_context
+    active_context = snapshot.professional_context
     if context != {
         "model_context_id": active_context.id,
         "model_id": active_context.model_id,
@@ -368,6 +368,10 @@ class ThreadExecutionError(RuntimeError):
     """An Attempt cannot be claimed or mutated by the supplied worker lease."""
 
 
+class ThreadProtocolUpgradeRequired(RuntimeError):
+    """The requested representation cannot carry this Thread."""
+
+
 class ThreadService(Protocol):
     """Persistence and admission operations required by the HTTP projection."""
 
@@ -399,7 +403,7 @@ class ThreadService(Protocol):
 
     def context_lock(self, thread_id: str) -> str | None: ...
 
-    def read_events(self, thread_id: str, after_event_seq: int) -> EventPage: ...
+    def read_events(self, thread_id: str, after_event_seq: int, *, protocol_version: int = 2) -> EventPage: ...
 
     def read_attempt_records(self, thread_id: str, attempt_id: str, *, after: int = 0,
                              limit: int = 32, observations_only: bool = False) -> dict[str, Any]: ...
@@ -446,7 +450,7 @@ class PriorResultReference:
 def _prior_results_for_context(snapshot: ThreadSnapshot) -> tuple[PriorResultReference, ...]:
     candidates: list[PriorResultReference] = []
     seen: set[str] = set()
-    context = snapshot.active_model_context
+    context = snapshot.professional_context
     for item in reversed(snapshot.result_projections):
         if (item.result_ref is None or item.result_ref in seen or item.status not in {"completed", "partial"}
                 or item.thread_id != snapshot.thread_id or item.run_id != snapshot.run.run_id
@@ -943,7 +947,7 @@ def _message_selection_for_command(
         return None, "selection_invalid"
     if catalog is None:
         return None, "selection_catalog_unavailable"
-    target = snapshot.pending_model_switch or snapshot.active_model_context
+    target = snapshot.pending_model_switch or snapshot.professional_context
     locked = _application_context_lock(snapshot)
     current = snapshot.pending_selection.enabled_profiles if snapshot.pending_selection is not None else target.enabled_profiles
     if locked is not None and selection.enabled_profiles != current:
@@ -967,7 +971,7 @@ def _with_message_selection(
         return replace(snapshot, pending_model_switch=replace(
             snapshot.pending_model_switch, enabled_profiles=selection.enabled_profiles,
         ))
-    if snapshot.pending_selection is not None or selection.enabled_profiles != snapshot.active_model_context.enabled_profiles:
+    if snapshot.pending_selection is not None or selection.enabled_profiles != snapshot.professional_context.enabled_profiles:
         return replace(snapshot, pending_selection=PendingSelectionSnapshot(
             command_id=command["command_id"], enabled_profiles=selection.enabled_profiles,
         ))
@@ -1017,7 +1021,8 @@ class InMemoryThreadService:
         self._lock = RLock()
         self._created_at = datetime.now(timezone.utc).isoformat()
         self._archived = False
-        self._model_workspace = synchronize_workspace(None, snapshot, model_catalog)
+        self._model_workspace = (synchronize_workspace(None, snapshot, model_catalog)
+                                 if snapshot.active_model_context is not None else None)
 
     @classmethod
     def from_document(
@@ -1063,7 +1068,8 @@ class InMemoryThreadService:
         with self._lock:
             self._check_thread(thread_id)
             self.interrupt_expired_attempts()
-            return self._snapshot
+            from copy import deepcopy
+            return replace(self._snapshot, works=deepcopy(self._snapshot.works))
 
     def catalog(self, thread_id: str) -> dict[str, object]:
         with self._lock:
@@ -1143,10 +1149,10 @@ class InMemoryThreadService:
             if context_id is not None:
                 return _historical_network_page(self._snapshot, self._events, context_id, attempt_id)
             layer = next((event for event in reversed(self._events)
-                if event.model_context_id == self._snapshot.active_model_context.id
+                if event.model_context_id == self._snapshot.professional_context.id
                 and event.visibility == "public"
                 and event.event_type in {"network_layer", "network_layer_unavailable"}), None)
-            baseline = next((event for event in reversed(self._events) if event.model_context_id == self._snapshot.active_model_context.id
+            baseline = next((event for event in reversed(self._events) if event.model_context_id == self._snapshot.professional_context.id
                              and event.event_type == "network_diagram" and event.attempt_id is None), None)
             events = ([] if baseline is None else [baseline]) if layer is None else [layer]
             if layer is not None and layer.event_type == "network_layer":
@@ -1176,11 +1182,13 @@ class InMemoryThreadService:
             return _attempt_records_page(thread_id, attempt_id, record["instruction"],
                 context.to_document() if context is not None else None, events, after, limit)
 
-    def read_events(self, thread_id: str, after_event_seq: int) -> EventPage:
+    def read_events(self, thread_id: str, after_event_seq: int, *, protocol_version: int = 2) -> EventPage:
         if type(after_event_seq) is not int or after_event_seq < 0:
             raise ThreadProtocolError("event cursor is invalid")
         with self._lock:
             self._check_thread(thread_id)
+            if self._snapshot.minimum_protocol_version > protocol_version:
+                raise ThreadProtocolUpgradeRequired()
             if after_event_seq < self._snapshot.base_event_seq:
                 raise ThreadResyncRequired(self._snapshot)
             events = tuple(islice((event for event in self._events if event.event_seq > after_event_seq), 256))
@@ -1200,6 +1208,27 @@ class InMemoryThreadService:
                 return existing.receipt
             if parsed["command_id"] in self._command_ids:
                 return self._receipt(parsed, status="rejected", rejection="command_id_conflict")
+            if command.get('schema') == 'capstone-command/2':
+                from .thread_work import apply_work
+                updated, rejection, work = apply_work(self._snapshot, parsed, archived=self._archived)
+                event_seq = None
+                target = None
+                if rejection is None:
+                    assert work is not None
+                    self._snapshot = updated
+                    event = self._append_control_event(event_type='command.applied', event_version=2, payload={
+                        'command_id': parsed['command_id'], 'work_id': work['work_id'],
+                        'work': json.loads(_canonical(work))})
+                    self._snapshot = replace(updated, last_event_seq=event.event_seq)
+                    event_seq = event.event_seq
+                    target = {'kind': 'work', 'id': work['work_id'], 'expected_revision': work['revision']}
+                receipt = self._receipt(parsed, status='rejected' if rejection else 'accepted',
+                    rejection=rejection, accepted_event_seq=event_seq, target=target)
+                self._commands[parsed['idempotency_key']] = _StoredCommand(request_hash, receipt)
+                self._command_ids.add(parsed['command_id'])
+                return receipt
+            if self._snapshot.minimum_protocol_version > 1:
+                return self._receipt(parsed, status='rejected', rejection='protocol_upgrade_required')
             if self._archived:
                 receipt = self._receipt(parsed, status="rejected", rejection="thread_archived")
                 self._commands[parsed["idempotency_key"]] = _StoredCommand(request_hash, receipt)
@@ -1218,7 +1247,7 @@ class InMemoryThreadService:
             semantic_rejection = semantic_rejection or input_rejection
             source = parsed["payload"].get("source_attempt_id") if parsed["kind"] in _MESSAGE_COMMAND_KINDS else None
             if semantic_rejection is None and source is not None and _previous_instruction_from_events(
-                    self._events, self._attempts, self._snapshot.active_model_context, source) is None:
+                    self._events, self._attempts, self._snapshot.professional_context, source) is None:
                 semantic_rejection = "source_attempt_unavailable"
             if semantic_rejection is not None:
                 receipt = self._receipt(parsed, status="rejected", rejection=semantic_rejection)
@@ -1392,8 +1421,8 @@ class InMemoryThreadService:
                     receipt = self._receipt(
                         parsed, status="accepted", accepted_event_seq=accepted.event_seq,
                         target={
-                            "model_context_id": self._snapshot.active_model_context.id,
-                            "selection_revision": self._snapshot.active_model_context.selection_revision,
+                            "model_context_id": self._snapshot.professional_context.id,
+                            "selection_revision": self._snapshot.professional_context.selection_revision,
                         },
                     )
                 self._commands[parsed["idempotency_key"]] = _StoredCommand(request_hash, receipt)
@@ -1426,7 +1455,7 @@ class InMemoryThreadService:
                         receipt = self._receipt(parsed, status="rejected", rejection="retry_turn_committed")
                     elif prior["attempt"].phase not in {"interrupted", "failed", "cancelled"}:
                         receipt = self._receipt(parsed, status="rejected", rejection="retry_target_not_retryable")
-                    elif prior.get("model_context") != self._snapshot.active_model_context:
+                    elif prior.get("model_context") != self._snapshot.professional_context:
                         receipt = self._receipt(parsed, status="rejected", rejection="model_context_mismatch")
                     else:
                         token = secrets.token_hex(8)
@@ -1434,7 +1463,7 @@ class InMemoryThreadService:
                         attempt_id = "attempt_" + token
                         attempt = AttemptSnapshot(
                             turn_id=turn_id, attempt_id=attempt_id, phase="accepted",
-                            target_model_context_id=self._snapshot.active_model_context.id,
+                            target_model_context_id=self._snapshot.professional_context.id,
                             runtime_mode=prior["attempt"].runtime_mode,
                         )
                         retry_payload = {
@@ -1455,7 +1484,7 @@ class InMemoryThreadService:
                             "attempt": attempt, "kind": prior["kind"],
                             "instruction": prior["instruction"], "lease_token": None,
                             "lease_deadline": None,
-                            "model_context": self._snapshot.active_model_context,
+                            "model_context": self._snapshot.professional_context,
                             "command_id": parsed["command_id"],
                             "conversation_context": prior["conversation_context"],
                             "intent_input_snapshot": prior.get("intent_input_snapshot"),
@@ -1486,13 +1515,13 @@ class InMemoryThreadService:
             turn_id = "turn_" + token
             self._activate_pending_model_switch(turn_id)
             self._activate_pending_selection(turn_id)
-            submission = freeze_activated_submission(submission, self._snapshot.active_model_context)
+            submission = freeze_activated_submission(submission, self._snapshot.professional_context)
 
             event_seq = self._snapshot.last_event_seq + 1
             attempt_id = "attempt_" + token
             attempt = AttemptSnapshot(
                 turn_id=turn_id, attempt_id=attempt_id, phase="accepted",
-                target_model_context_id=self._snapshot.active_model_context.id,
+                target_model_context_id=self._snapshot.professional_context.id,
                 runtime_mode=self._snapshot.runtime_mode,
             )
             event = EventEnvelope(
@@ -1500,8 +1529,8 @@ class InMemoryThreadService:
                 event_type="command_accepted", event_version=1,
                 thread_id=self._snapshot.thread_id, run_id=self._snapshot.run.run_id,
                 turn_id=turn_id, attempt_id=attempt_id,
-                model_context_id=self._snapshot.active_model_context.id,
-                selection_revision=self._snapshot.active_model_context.selection_revision,
+                model_context_id=self._snapshot.professional_context.id,
+                selection_revision=self._snapshot.professional_context.selection_revision,
                 occurred_at=_now(), visibility="public",
                 payload={"command_id": parsed["command_id"], "kind": parsed["kind"],
                          "payload": parsed["payload"], "runtime_mode": attempt.runtime_mode},
@@ -1515,7 +1544,7 @@ class InMemoryThreadService:
                 "instruction": parsed["payload"]["text"], "lease_token": None,
                 "submission": submission,
                 "lease_deadline": None,
-                "model_context": self._snapshot.active_model_context,
+                "model_context": self._snapshot.professional_context,
                 "command_id": parsed["command_id"],
                 "conversation_context": _conversation_from_events(self._events, self._attempts, self._snapshot.thread_id, event_seq - 1),
                 "source_attempt_id": parsed["payload"].get("source_attempt_id"),
@@ -1589,7 +1618,9 @@ class InMemoryThreadService:
                 return existing.receipt
             if parsed["command_id"] in self._command_ids:
                 return self._receipt(parsed, status="rejected", rejection="command_id_conflict")
-            if self._archived:
+            if self._snapshot.minimum_protocol_version > 1:
+                receipt = self._receipt(parsed, status='rejected', rejection='protocol_upgrade_required')
+            elif self._archived:
                 receipt = self._receipt(parsed, status="rejected", rejection="thread_archived")
             elif parsed["run_id"] is not None and parsed["run_id"] != self._snapshot.run.run_id:
                 receipt = self._receipt(parsed, status="rejected", rejection="run_mismatch")
@@ -1606,8 +1637,8 @@ class InMemoryThreadService:
                         event_type=application_event.event_type, event_version=1,
                         thread_id=self._snapshot.thread_id, run_id=self._snapshot.run.run_id,
                         turn_id=None, attempt_id=None,
-                        model_context_id=self._snapshot.active_model_context.id,
-                        selection_revision=self._snapshot.active_model_context.selection_revision,
+                        model_context_id=self._snapshot.professional_context.id,
+                        selection_revision=self._snapshot.professional_context.selection_revision,
                         occurred_at=_now(), visibility=application_event.visibility,
                         payload=dict(application_event.payload),
                     ))
@@ -1637,7 +1668,7 @@ class InMemoryThreadService:
                 context = record.get("model_context")
                 if implementation_family is not None and (context is None or context.implementation_family != implementation_family):
                     continue
-                if context != self._snapshot.active_model_context:
+                if context != self._snapshot.professional_context:
                     terminal = replace(record["attempt"], phase="interrupted")
                     record["attempt"] = terminal
                     event = self._append_event(
@@ -1670,8 +1701,8 @@ class InMemoryThreadService:
                 return AttemptClaim(
                     thread_id=self._snapshot.thread_id, run_id=self._snapshot.run.run_id,
                     attempt=running, kind=record["kind"], instruction=record["instruction"],
-                    model_context_id=self._snapshot.active_model_context.id,
-                    selection_revision=self._snapshot.active_model_context.selection_revision,
+                    model_context_id=self._snapshot.professional_context.id,
+                    selection_revision=self._snapshot.professional_context.selection_revision,
                     lease_token=token,
                     model_context=context,
                     started_at=event.occurred_at,
@@ -1729,7 +1760,7 @@ class InMemoryThreadService:
             record = self._require_claim(claim)
             if record["attempt"].phase != "running":
                 raise ThreadExecutionError("attempt is not running")
-            active = self._snapshot.active_model_context
+            active = self._snapshot.professional_context
             if (
                 active.id != claim.model_context.id
                 or active.selection_revision != claim.model_context.selection_revision
@@ -1897,7 +1928,7 @@ class InMemoryThreadService:
         current = (
             self._snapshot.pending_selection.enabled_profiles
             if self._snapshot.pending_selection is not None
-            else self._snapshot.active_model_context.enabled_profiles
+            else self._snapshot.professional_context.enabled_profiles
         )
         payload = command["payload"]
         try:
@@ -1924,9 +1955,9 @@ class InMemoryThreadService:
         try:
             resolved = catalog.resolve(
                 ThreadModelDescriptor(
-                    self._snapshot.active_model_context.model_id,
-                    self._snapshot.active_model_context.model_revision,
-                    self._snapshot.active_model_context.implementation_family,
+                    self._snapshot.professional_context.model_id,
+                    self._snapshot.professional_context.model_revision,
+                    self._snapshot.professional_context.implementation_family,
                 ),
                 selection,
             )
@@ -1956,7 +1987,7 @@ class InMemoryThreadService:
             return None, "worker_unavailable"
         if not descriptor.available:
             return None, descriptor.unavailable_reason or "model_unavailable"
-        active = self._snapshot.active_model_context
+        active = self._snapshot.professional_context
         if not allow_same and (
             descriptor.model_id == active.model_id
             and descriptor.model_revision == active.model_revision
@@ -1986,7 +2017,7 @@ class InMemoryThreadService:
         pending = self._snapshot.pending_model_switch
         if pending is None:
             return
-        previous = self._snapshot.active_model_context
+        previous = self._snapshot.professional_context
         active = ModelContextSnapshot(
             id="ctx_" + secrets.token_hex(10),
             model_id=pending.model_id,
@@ -2028,7 +2059,7 @@ class InMemoryThreadService:
         pending = self._snapshot.pending_selection
         if pending is None:
             return
-        context = self._snapshot.active_model_context
+        context = self._snapshot.professional_context
         revision = _next_selection_revision(context.selection_revision, self._snapshot.last_event_seq)
         active = replace(
             context,
@@ -2056,16 +2087,17 @@ class InMemoryThreadService:
     def _append_control_event(
         self, *, event_type: str, payload: Mapping[str, Any],
         context: ModelContextSnapshot | None = None,
+        event_version: int = 1,
     ) -> EventEnvelope:
         active = self._snapshot.active_model_context if context is None else context
         event = EventEnvelope(
             event_id="evt_" + secrets.token_hex(8),
             event_seq=self._snapshot.last_event_seq + 1,
-            event_type=event_type, event_version=1,
+            event_type=event_type, event_version=event_version,
             thread_id=self._snapshot.thread_id, run_id=self._snapshot.run.run_id,
             turn_id=None, attempt_id=None,
-            model_context_id=active.id,
-            selection_revision=active.selection_revision,
+            model_context_id=None if active is None else active.id,
+            selection_revision=None if active is None else active.selection_revision,
             occurred_at=_now(), visibility="public", payload=dict(payload),
         )
         self._events.append(event)
@@ -2076,7 +2108,7 @@ class InMemoryThreadService:
         payload: Mapping[str, Any], visibility: str = "public",
         context: ModelContextSnapshot | None = None,
     ) -> EventEnvelope:
-        active = self._snapshot.active_model_context if context is None else context
+        active = self._snapshot.professional_context if context is None else context
         event = EventEnvelope(
             event_id="evt_" + secrets.token_hex(8),
             event_seq=self._snapshot.last_event_seq + 1,
@@ -2106,6 +2138,9 @@ class InMemoryThreadService:
     def _parse_command(command: Mapping[str, Any]) -> dict[str, Any]:
         if not isinstance(command, Mapping):
             raise ThreadProtocolError("command must be an object")
+        if command.get('schema') == 'capstone-command/2':
+            from .thread_work import parse_command
+            return parse_command(command)
         unknown = set(command) - _COMMAND_FIELDS
         if unknown:
             raise ThreadProtocolError("command has unknown field: " + ", ".join(sorted(unknown)))
@@ -2217,7 +2252,15 @@ class ThreadCreator:
         self,
         model_id: str | None = None,
         selection: ModelCapabilitySelection | None = None,
+        *, model_free: bool = False,
     ) -> ThreadSnapshot:
+        if model_free:
+            if model_id is not None or selection is not None:
+                raise ValueError('model-free Thread cannot select a model')
+            token = secrets.token_hex(10)
+            return self._service.create_thread(ThreadSnapshot(
+                'thr_' + token, RunSnapshot('run_' + token, 'open'), None, None,
+                None, 0, 0, minimum_protocol_version=2))
         started = time.perf_counter()
         descriptor = self._catalog.resolve(
             self._catalog.default_model_id if model_id is None else model_id
@@ -2284,6 +2327,14 @@ ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS runtime_mode text NOT NULL
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS archived boolean NOT NULL DEFAULT false;
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS model_workspace jsonb;
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS model_workspace_migrated boolean NOT NULL DEFAULT false;
+ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS minimum_protocol_version integer NOT NULL DEFAULT 1;
+ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS works jsonb NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE capstone_threads ALTER COLUMN model_context_id DROP NOT NULL;
+ALTER TABLE capstone_threads ALTER COLUMN model_id DROP NOT NULL;
+ALTER TABLE capstone_threads ALTER COLUMN model_revision DROP NOT NULL;
+ALTER TABLE capstone_threads ALTER COLUMN implementation_family DROP NOT NULL;
+ALTER TABLE capstone_threads ALTER COLUMN selection_revision DROP NOT NULL;
+ALTER TABLE capstone_threads ALTER COLUMN active_grid_page_id DROP NOT NULL;
 CREATE INDEX IF NOT EXISTS capstone_threads_catalog_idx ON capstone_threads(archived, created_at DESC, thread_id DESC);
 CREATE TABLE IF NOT EXISTS capstone_thread_events (
     thread_id text NOT NULL REFERENCES capstone_threads(thread_id) ON DELETE CASCADE,
@@ -2348,6 +2399,33 @@ def _timestamp(value: Any) -> str:
 
 
 class PostgresThreadService:
+    def _submit_work(self, connection, thread, snapshot, parsed, request_hash):
+        from .thread_work import apply_work
+        duplicate = connection.execute('SELECT 1 FROM capstone_thread_commands WHERE thread_id=%s AND command_id=%s',
+                                       (snapshot.thread_id, parsed['command_id'])).fetchone()
+        if duplicate:
+            return self._receipt(parsed, status='rejected', rejection='command_id_conflict')
+        updated, rejection, work = apply_work(snapshot, parsed, archived=thread['archived'])
+        event_seq = None
+        target = None
+        if rejection is None:
+            assert work is not None
+            event_seq = snapshot.last_event_seq + 1
+            event = EventEnvelope('evt_' + secrets.token_hex(8), event_seq, 'command.applied', 2,
+                snapshot.thread_id, snapshot.run.run_id, None, None,
+                thread['model_context_id'], thread['selection_revision'], _now(), 'public',
+                {'command_id': parsed['command_id'], 'work_id': work['work_id'], 'work': work})
+            self._insert_event(connection, event)
+            connection.execute('UPDATE capstone_threads SET minimum_protocol_version=2, works=%s, last_event_seq=%s WHERE thread_id=%s',
+                (Jsonb(list(updated.works)), event_seq, snapshot.thread_id))
+            target = {'kind': 'work', 'id': work['work_id'], 'expected_revision': work['revision']}
+        receipt = self._receipt({**parsed, 'run_id': snapshot.run.run_id}, status='rejected' if rejection else 'accepted', rejection=rejection,
+            accepted_event_seq=event_seq,
+            target=target)
+        connection.execute('INSERT INTO capstone_thread_commands (thread_id,idempotency_key,request_hash,command_id,receipt) VALUES (%s,%s,%s,%s,%s)',
+            (snapshot.thread_id, parsed['idempotency_key'], request_hash, parsed['command_id'], Jsonb(receipt.to_document())))
+        return receipt
+
     """Durable Thread projection store kept separate from the legacy session ledger."""
 
     def set_input_catalog_provider(self, provider) -> None:
@@ -2406,6 +2484,13 @@ class PostgresThreadService:
 
     def create_thread(self, snapshot: ThreadSnapshot) -> ThreadSnapshot:
         context = snapshot.active_model_context
+        if context is None:
+            with self._connect() as connection:
+                connection.execute('''INSERT INTO capstone_threads
+                    (thread_id, run_id, run_state, minimum_protocol_version, works)
+                    VALUES (%s, %s, %s, 2, %s)''',
+                    (snapshot.thread_id, snapshot.run.run_id, snapshot.run.state, Jsonb(list(snapshot.works))))
+            return snapshot
         started = time.perf_counter()
         initial_diagram = None
         diagram_provider = getattr(self._model_catalog, "diagram", None)
@@ -2562,7 +2647,7 @@ class PostgresThreadService:
                 if cursor is None:
                     raise ThreadNotFound(before)
             rows = connection.execute(
-                """SELECT thread_id, model_id, implementation_family, created_at, archived, last_event_seq
+                """SELECT thread_id, model_id, implementation_family, created_at, archived, last_event_seq, minimum_protocol_version
                    FROM capstone_threads WHERE archived = %s
                    AND (%s::timestamptz IS NULL OR (created_at, thread_id) < (%s, %s))
                    ORDER BY created_at DESC, thread_id DESC LIMIT %s""",
@@ -2570,7 +2655,8 @@ class PostgresThreadService:
                  None if cursor is None else cursor["created_at"],
                  None if cursor is None else cursor["thread_id"], limit + 1),
             ).fetchall()
-        descriptors = [{**row, "created_at": row["created_at"].isoformat()} for row in rows]
+        descriptors = [{**{key: value for key, value in row.items() if key != 'minimum_protocol_version' or value == 2},
+                        "created_at": row["created_at"].isoformat()} for row in rows]
         return thread_list_page(descriptors, limit)
 
     def set_archived(self, thread_id: str, archived: bool) -> dict[str, Any]:
@@ -2651,13 +2737,18 @@ class PostgresThreadService:
         return _attempt_records_page(thread_id, attempt_id, attempt["instruction"],
             context, events, after, limit)
 
-    def read_events(self, thread_id: str, after_event_seq: int) -> EventPage:
+    def read_events(self, thread_id: str, after_event_seq: int, *, protocol_version: int = 2) -> EventPage:
         if type(after_event_seq) is not int or after_event_seq < 0:
             raise ThreadProtocolError("event cursor is invalid")
-        snapshot = self.snapshot(thread_id)
-        if after_event_seq < snapshot.base_event_seq:
-            raise ThreadResyncRequired(snapshot)
         with self._connect() as connection:
+            thread = connection.execute('SELECT * FROM capstone_threads WHERE thread_id=%s FOR SHARE', (thread_id,)).fetchone()
+            if thread is None:
+                raise ThreadNotFound(thread_id)
+            snapshot = self._snapshot_from_row(thread)
+            if snapshot.minimum_protocol_version > protocol_version:
+                raise ThreadProtocolUpgradeRequired()
+            if after_event_seq < snapshot.base_event_seq:
+                raise ThreadResyncRequired(snapshot)
             rows = connection.execute(
                 """WITH sizes AS (
                      SELECT event_seq, octet_length(payload::text) + 1024 AS bytes
@@ -2706,13 +2797,13 @@ class PostgresThreadService:
                    AND model_context_id = %s AND visibility = 'public'
                    AND event_type IN ('network_layer', 'network_layer_unavailable')
                    ORDER BY event_seq DESC LIMIT 1""",
-                (thread_id, snapshot.active_model_context.id),
+                (thread_id, snapshot.professional_context.id),
             ).fetchone()
             rows = [] if layer is None else [layer]
             if layer is None:
                 baseline = connection.execute("""SELECT * FROM capstone_thread_events WHERE thread_id = %s
                     AND model_context_id = %s AND event_type = 'network_diagram' AND attempt_id IS NULL
-                    AND visibility = 'public' ORDER BY event_seq DESC LIMIT 1""", (thread_id, snapshot.active_model_context.id)).fetchone()
+                    AND visibility = 'public' ORDER BY event_seq DESC LIMIT 1""", (thread_id, snapshot.professional_context.id)).fetchone()
                 if baseline is not None:
                     rows.append(baseline)
             if layer is not None and layer["event_type"] == "network_layer":
@@ -2721,7 +2812,7 @@ class PostgresThreadService:
                        WHERE thread_id = %s AND attempt_id = %s AND model_context_id = %s
                        AND visibility = 'public' AND event_type IN ('network_diagram', 'attempt_completed')
                        ORDER BY event_type, event_seq DESC""",
-                    (thread_id, layer["attempt_id"], snapshot.active_model_context.id),
+                    (thread_id, layer["attempt_id"], snapshot.professional_context.id),
                 ).fetchall())
         return network_context_page(snapshot, [self._event_from_row(row) for row in rows])
 
@@ -2752,6 +2843,10 @@ class PostgresThreadService:
                 if existing["request_hash"] != request_hash:
                     return self._receipt(parsed, status="rejected", rejection="idempotency_conflict")
                 return CommandReceipt.from_document(existing["receipt"])
+            if command.get('schema') == 'capstone-command/2':
+                return self._submit_work(connection, thread, snapshot, parsed, request_hash)
+            if snapshot.minimum_protocol_version > 1:
+                return self._receipt(parsed, status='rejected', rejection='protocol_upgrade_required')
             message_selection, message_selection_rejection = _message_selection_for_command(snapshot, parsed, self._capability_catalog)
             submission, input_rejection = admission_submission(snapshot, parsed, self._input_catalog_provider)
             command_row = connection.execute(
@@ -2771,7 +2866,7 @@ class PostgresThreadService:
             elif input_rejection is not None:
                 receipt = self._receipt(parsed, status="rejected", rejection=input_rejection)
             elif (parsed["kind"] in _MESSAGE_COMMAND_KINDS and parsed["payload"].get("source_attempt_id") is not None
-                  and _previous_instruction_from_postgres(connection, snapshot.thread_id, snapshot.active_model_context,
+                  and _previous_instruction_from_postgres(connection, snapshot.thread_id, snapshot.professional_context,
                       parsed["payload"]["source_attempt_id"]) is None):
                 receipt = self._receipt(parsed, status="rejected", rejection="source_attempt_unavailable")
             elif (
@@ -2800,7 +2895,7 @@ class PostgresThreadService:
                     receipt = self._receipt(parsed, status="rejected", rejection="attempt_in_progress")
                 else:
                     mode = parsed["payload"]["runtime_mode"]
-                    event = self._make_control_event(thread, snapshot.active_model_context,
+                    event = self._make_control_event(thread, snapshot.professional_context,
                         event_seq=snapshot.last_event_seq + 1, event_type="runtime_mode_changed",
                         payload={"command_id": parsed["command_id"], "runtime_mode": mode, "previous_runtime_mode": snapshot.runtime_mode})
                     self._insert_event(connection, event)
@@ -2816,7 +2911,7 @@ class PostgresThreadService:
                     receipt = self._receipt(parsed, status="rejected", rejection=rejection)
                 else:
                     assert change is not None
-                    context = change.context or snapshot.active_model_context
+                    context = change.context or snapshot.professional_context
                     seq = snapshot.last_event_seq
                     if change.changed:
                         events = []
@@ -2874,7 +2969,7 @@ class PostgresThreadService:
                 else:
                     assert pending is not None
                     accepted = self._make_control_event(
-                        thread, snapshot.active_model_context,
+                        thread, snapshot.professional_context,
                         event_seq=snapshot.last_event_seq + 1,
                         event_type="command_accepted",
                         payload={"command_id": parsed["command_id"], "kind": parsed["kind"],
@@ -2882,7 +2977,7 @@ class PostgresThreadService:
                     )
                     self._insert_event(connection, accepted)
                     requested = self._make_control_event(
-                        thread, snapshot.active_model_context,
+                        thread, snapshot.professional_context,
                         event_seq=accepted.event_seq + 1,
                         event_type="model_context_change_pending",
                         payload={
@@ -2928,7 +3023,7 @@ class PostgresThreadService:
                         enabled_profiles=selection.enabled_profiles,
                     )
                     accepted = self._make_control_event(
-                        thread, snapshot.active_model_context,
+                        thread, snapshot.professional_context,
                         event_seq=snapshot.last_event_seq + 1,
                         event_type="command_accepted",
                         payload={"command_id": parsed["command_id"], "kind": parsed["kind"],
@@ -2936,7 +3031,7 @@ class PostgresThreadService:
                     )
                     self._insert_event(connection, accepted)
                     requested = self._make_control_event(
-                        thread, snapshot.active_model_context,
+                        thread, snapshot.professional_context,
                         event_seq=accepted.event_seq + 1,
                         event_type="selection_change_pending",
                         payload={"command_id": parsed["command_id"],
@@ -2952,8 +3047,8 @@ class PostgresThreadService:
                     receipt = self._receipt(
                         parsed, status="accepted", accepted_event_seq=accepted.event_seq,
                         target={
-                            "model_context_id": snapshot.active_model_context.id,
-                            "selection_revision": snapshot.active_model_context.selection_revision,
+                            "model_context_id": snapshot.professional_context.id,
+                            "selection_revision": snapshot.professional_context.selection_revision,
                         },
                     )
             elif parsed["kind"] == "retry_new_attempt":
@@ -3000,9 +3095,9 @@ class PostgresThreadService:
                             prior_context = None
                         if (
                             prior_context is None
-                            or prior_context != snapshot.active_model_context
-                            or prior["model_context_id"] != snapshot.active_model_context.id
-                            or prior["selection_revision"] != snapshot.active_model_context.selection_revision
+                            or prior_context != snapshot.professional_context
+                            or prior["model_context_id"] != snapshot.professional_context.id
+                            or prior["selection_revision"] != snapshot.professional_context.selection_revision
                         ):
                             receipt = self._receipt(parsed, status="rejected", rejection="model_context_mismatch")
                         else:
@@ -3011,7 +3106,7 @@ class PostgresThreadService:
                             attempt_id = "attempt_" + token
                             attempt = AttemptSnapshot(
                                 turn_id=turn_id, attempt_id=attempt_id, phase="accepted",
-                                target_model_context_id=snapshot.active_model_context.id,
+                                target_model_context_id=snapshot.professional_context.id,
                                 runtime_mode=prior["runtime_mode"],
                             )
                             retry_payload = {
@@ -3037,9 +3132,9 @@ class PostgresThreadService:
                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'accepted')""",
                                 (attempt_id, snapshot.thread_id, snapshot.run.run_id, turn_id,
                                  parsed["command_id"], prior["kind"], prior["instruction"],
-                                 snapshot.active_model_context.id,
-                                 snapshot.active_model_context.selection_revision,
-                                 Jsonb(snapshot.active_model_context.to_document()),
+                                 snapshot.professional_context.id,
+                                 snapshot.professional_context.selection_revision,
+                                 Jsonb(snapshot.professional_context.to_document()),
                                  Jsonb(_attempt_conversation_document(connection, prior)),
                                  None if prior["intent_input_snapshot"] is None else Jsonb(prior["intent_input_snapshot"]),
                                  None if prior['intent_decision_snapshot'] is None else Jsonb(prior['intent_decision_snapshot']),
@@ -3067,14 +3162,14 @@ class PostgresThreadService:
                     snapshot = self._activate_pending_model_switch(connection, thread, snapshot, turn_id)
                     thread = {
                         **thread,
-                        "model_context_id": snapshot.active_model_context.id,
-                        "model_id": snapshot.active_model_context.model_id,
-                        "model_revision": snapshot.active_model_context.model_revision,
-                        "implementation_family": snapshot.active_model_context.implementation_family,
-                        "selection_revision": snapshot.active_model_context.selection_revision,
+                        "model_context_id": snapshot.professional_context.id,
+                        "model_id": snapshot.professional_context.model_id,
+                        "model_revision": snapshot.professional_context.model_revision,
+                        "implementation_family": snapshot.professional_context.implementation_family,
+                        "selection_revision": snapshot.professional_context.selection_revision,
                         "enabled_profiles": [
                             {"profile_id": profile_id, "profile_version": profile_version}
-                            for profile_id, profile_version in snapshot.active_model_context.enabled_profiles
+                            for profile_id, profile_version in snapshot.professional_context.enabled_profiles
                         ],
                         "active_grid_page_id": snapshot.active_grid_page_id,
                         "pending_model_switch": None,
@@ -3085,24 +3180,24 @@ class PostgresThreadService:
                     snapshot = self._activate_pending_selection(connection, thread, snapshot, turn_id)
                     thread = {
                         **thread,
-                        "model_context_id": snapshot.active_model_context.id,
-                        "model_id": snapshot.active_model_context.model_id,
-                        "model_revision": snapshot.active_model_context.model_revision,
-                        "implementation_family": snapshot.active_model_context.implementation_family,
-                        "selection_revision": snapshot.active_model_context.selection_revision,
+                        "model_context_id": snapshot.professional_context.id,
+                        "model_id": snapshot.professional_context.model_id,
+                        "model_revision": snapshot.professional_context.model_revision,
+                        "implementation_family": snapshot.professional_context.implementation_family,
+                        "selection_revision": snapshot.professional_context.selection_revision,
                         "enabled_profiles": [
                             {"profile_id": profile_id, "profile_version": profile_version}
-                            for profile_id, profile_version in snapshot.active_model_context.enabled_profiles
+                            for profile_id, profile_version in snapshot.professional_context.enabled_profiles
                         ],
                         "pending_selection": None,
                         "last_event_seq": snapshot.last_event_seq,
                     }
-                submission = freeze_activated_submission(submission, snapshot.active_model_context)
+                submission = freeze_activated_submission(submission, snapshot.professional_context)
                 event_seq = snapshot.last_event_seq + 1
                 attempt_id = "attempt_" + token
                 attempt = AttemptSnapshot(
                     turn_id=turn_id, attempt_id=attempt_id, phase="accepted",
-                    target_model_context_id=snapshot.active_model_context.id,
+                    target_model_context_id=snapshot.professional_context.id,
                     runtime_mode=snapshot.runtime_mode,
                 )
                 event = EventEnvelope(
@@ -3110,8 +3205,8 @@ class PostgresThreadService:
                     event_type="command_accepted", event_version=1,
                     thread_id=snapshot.thread_id, run_id=snapshot.run.run_id,
                     turn_id=turn_id, attempt_id=attempt_id,
-                    model_context_id=snapshot.active_model_context.id,
-                    selection_revision=snapshot.active_model_context.selection_revision,
+                    model_context_id=snapshot.professional_context.id,
+                    selection_revision=snapshot.professional_context.selection_revision,
                     occurred_at=_now(), visibility="public",
                     payload={"command_id": parsed["command_id"], "kind": parsed["kind"],
                              "payload": parsed["payload"], "runtime_mode": attempt.runtime_mode},
@@ -3134,9 +3229,9 @@ class PostgresThreadService:
                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'accepted')""",
                     (attempt_id, snapshot.thread_id, snapshot.run.run_id, turn_id,
                      parsed["command_id"], parsed["kind"], parsed["payload"]["text"],
-                     snapshot.active_model_context.id,
-                     snapshot.active_model_context.selection_revision,
-                     Jsonb(snapshot.active_model_context.to_document()),
+                     snapshot.professional_context.id,
+                     snapshot.professional_context.selection_revision,
+                     Jsonb(snapshot.professional_context.to_document()),
                      Jsonb(_conversation_from_postgres(connection, snapshot.thread_id, event_seq - 1).to_document()), attempt.runtime_mode,
                      None if submission is None else Jsonb(submission)),
                 )
@@ -3300,6 +3395,8 @@ class PostgresThreadService:
                 # Do not insert a second receipt with the same command_id; the
                 # rejection is deterministic and can be recomputed on retry.
                 return self._receipt(parsed, status="rejected", rejection="command_id_conflict")
+            elif snapshot.minimum_protocol_version > 1:
+                receipt = self._receipt(parsed, status='rejected', rejection='protocol_upgrade_required')
             elif thread["archived"]:
                 receipt = self._receipt(parsed, status="rejected", rejection="thread_archived")
             elif parsed["run_id"] is not None and parsed["run_id"] != snapshot.run.run_id:
@@ -3317,8 +3414,8 @@ class PostgresThreadService:
                         event_type=application_event.event_type, event_version=1,
                         thread_id=snapshot.thread_id, run_id=snapshot.run.run_id,
                         turn_id=None, attempt_id=None,
-                        model_context_id=snapshot.active_model_context.id,
-                        selection_revision=snapshot.active_model_context.selection_revision,
+                        model_context_id=snapshot.professional_context.id,
+                        selection_revision=snapshot.professional_context.selection_revision,
                         occurred_at=_now(), visibility=application_event.visibility,
                         payload=dict(application_event.payload),
                     )
@@ -3379,7 +3476,7 @@ class PostgresThreadService:
                 pass
             if (
                 context is None
-                or context != self._snapshot_from_row(thread).active_model_context
+                or context != self._snapshot_from_row(thread).professional_context
                 or context.id != attempt_row["model_context_id"]
                 or context.selection_revision != attempt_row["selection_revision"]
             ):
@@ -3534,7 +3631,7 @@ class PostgresThreadService:
             if thread is None:
                 raise ThreadNotFound(claim.thread_id)
             snapshot = self._snapshot_from_row(thread)
-            active = snapshot.active_model_context
+            active = snapshot.professional_context
             if (
                 active.id != claim.model_context.id
                 or active.selection_revision != claim.model_context.selection_revision
@@ -3780,7 +3877,7 @@ class PostgresThreadService:
         current = (
             snapshot.pending_selection.enabled_profiles
             if snapshot.pending_selection is not None
-            else snapshot.active_model_context.enabled_profiles
+            else snapshot.professional_context.enabled_profiles
         )
         payload = command["payload"]
         try:
@@ -3807,9 +3904,9 @@ class PostgresThreadService:
         try:
             resolved = catalog.resolve(
                 ThreadModelDescriptor(
-                    snapshot.active_model_context.model_id,
-                    snapshot.active_model_context.model_revision,
-                    snapshot.active_model_context.implementation_family,
+                    snapshot.professional_context.model_id,
+                    snapshot.professional_context.model_revision,
+                    snapshot.professional_context.implementation_family,
                 ),
                 selection,
             )
@@ -3839,7 +3936,7 @@ class PostgresThreadService:
             return None, "worker_unavailable"
         if not descriptor.available:
             return None, descriptor.unavailable_reason or "model_unavailable"
-        active = snapshot.active_model_context
+        active = snapshot.professional_context
         if not allow_same and (
             descriptor.model_id == active.model_id
             and descriptor.model_revision == active.model_revision
@@ -3874,7 +3971,7 @@ class PostgresThreadService:
     ) -> ThreadSnapshot:
         pending = snapshot.pending_model_switch
         assert pending is not None
-        previous = snapshot.active_model_context
+        previous = snapshot.professional_context
         active = ModelContextSnapshot(
             id="ctx_" + secrets.token_hex(10),
             model_id=pending.model_id,
@@ -3939,7 +4036,7 @@ class PostgresThreadService:
     ) -> ThreadSnapshot:
         pending = snapshot.pending_selection
         assert pending is not None
-        context = snapshot.active_model_context
+        context = snapshot.professional_context
         revision = _next_selection_revision(context.selection_revision, snapshot.last_event_seq)
         active = replace(
             context,
@@ -4063,7 +4160,7 @@ class PostgresThreadService:
         return ThreadSnapshot(
             thread_id=row["thread_id"],
             run=RunSnapshot(row["run_id"], row["run_state"]),
-            active_model_context=ModelContextSnapshot(
+            active_model_context=None if row['model_context_id'] is None else ModelContextSnapshot(
                 row["model_context_id"], row["model_id"], row["model_revision"],
                 row["implementation_family"], row["selection_revision"],
                 selection.enabled_profiles,
@@ -4078,6 +4175,8 @@ class PostgresThreadService:
             ),
             application_state=row.get("application_state"),
             runtime_mode=row.get("runtime_mode", "capstone"),
+            minimum_protocol_version=row.get('minimum_protocol_version', 1),
+            works=tuple(row.get('works') or []),
         )
 
     @staticmethod

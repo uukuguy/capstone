@@ -80,7 +80,7 @@ def validate_workspace(value: Any) -> dict[str, Any]:
 
 def synchronize_workspace(value: Any, snapshot: ThreadSnapshot, catalog: Any = None) -> dict[str, Any]:
     """Migrate an active-only Thread and mirror legacy activation or rollback."""
-    context = snapshot.active_model_context
+    context = snapshot.professional_context
     workspace = validate_workspace(value) if value is not None else None
     entry = model_entry(context, snapshot.last_event_seq)
     existing = next((item for item in workspace["models"] if item["entry_id"] == entry["entry_id"]), None) if workspace is not None else None

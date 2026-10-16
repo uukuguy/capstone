@@ -787,6 +787,7 @@ export default function App({ clientFactory = defaultClientFactory }: Props) {
   if (fixtureRoute && fixtureIds.has(fixtureRoute as ThreadUiFixtureId)) {
     return <ThreadFixtureApp fixtureId={fixtureRoute as ThreadUiFixtureId} />
   }
+  if (params?.get('workspace') === 'enterprise') return <ThreadLiveEntry threadId={liveThreadRoute || 'new'} mode="work" />
   if (liveThreadRoute) return <ThreadLiveEntry threadId={liveThreadRoute} />
   const path = typeof window === 'undefined' ? '/' : window.location.pathname
   if (path !== '/old' && path !== '/old/') return <ThreadLiveEntry threadId="new" />
