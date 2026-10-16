@@ -4,6 +4,13 @@
 
 ## 当前恢复点
 
+- 以本条为准：PR #36已通过Linux/macOS CI38881419651并正常合入dev d8fe6e2738639161525a66bce7a8f0a9588e2872，完整合并树等同受检711f06a8。Task 1接缝与基线已验收；下方等待CI记录已过时。实施分支已关闭。根目录在docs/shared-foundation-control完成控制图、报告、计划收口；该文档PR通过后返回dev，并将两条应用准备分支非强制快进到dev。
+- 下一实施为Task 2：WorkBinding/TaskContext、Profile装配、Thread v2协议/CAS/存储与前端最小入口成套推进。Task 3仍负责生产完整工具装配、许可/租约与持续执行。不可把已验收接缝当作生产闭环；两应用线保持准备状态。旧恢复点仅保留本轮过程参考。
+
+- 最新恢复点：PR #36精确head711f06a8，CI38881419651的Linux/macOS仍在运行。待通过后正常合入dev；不要把工作区控制图改动加入此PR以免重启产品检查。当前dev及两条准备应用分支仍为5f3fd741。
+- local-dev已从711f06a8规范重建，实际运行源码等同62f44366；API与双worker同ae5adedf镜像，各1142打包文件一致，App62f44366/dirty=false，ready及既有Thread浏览器入口通过。下方abf来源为历史记录。make check-integration通过，新企业前端闭环仍未实现。
+- 未提交控制改动包括报告、台账/INDEX、图与tools/project_overview/template.html。共同基座节点优先置于dev右侧，按用户最新要求居中整组并均衡两侧留白；1920/1280检查15节点20边，无重叠、交叉、穿卡和溢出。合并#36后用独立控制PR收口，再快进两条准备应用分支；勿丢失当前改动。
+
 - 当前实施：feat/shared-execution-baseline，代码62f44366。14项真实SDK接缝测试与101项Python基线通过，独立评审问题已修复。等待集成门禁/PR；生产装配、许可与前端闭环未实现。见2026-10-16-shared-execution-baseline.md，勿将测试接缝当作应用交付。
 
 - 用户确认：main保存阶段完整对话应用，短期小修；dev承接企业自主执行研发。Pi不再作为长期产品分支。

@@ -62,3 +62,28 @@ the minimum frontend adaptation. Its first visible milestone must supply a runna
 entry, exact source, sample input, expected result/source display and reconnect check.
 This bridge slice alone is not that milestone and does not enable the application
 branches for dependent implementation. No new user package or cloud release is made.
+
+## Local integration and running entry
+
+`make check-integration` passed: E2E 39, registered workers 3, offline and scripted
+validation, application instantiation and published capability coverage 24/24.
+The capture-runtime checks use local scripted providers; no external billed Provider
+was called. `make doctor` and documentation link/symlink checks passed.
+
+Canonical local-dev rebuild passed at checkout 711f06a8. Its shipped source is
+identical to implementation 62f44366. API and both workers share image
+`sha256:ae5adedf87d2ee9b0898a7386b85f48d5136d973c3871c68d296e0fcb25c053b`.
+All 1142 shipped files per role match; App reports 62f44366, dirty=false.
+Readiness passed and the existing Thread entry loads in a real browser.
+Receipt: `runs/shared-execution-baseline/local-identity.json` (ignored operator evidence).
+App/workbench sources excluded by Docker packaging are not counted as backend files.
+This is local baseline verification, not new enterprise UX acceptance.
+
+## Accepted integration
+
+PR #36 passed both Linux and macOS in CI38881419651 at exact head
+`711f06a8d8351d59602776bc8d8dfaac1603f854`. It merged normally into dev
+`d8fe6e2738639161525a66bce7a8f0a9588e2872`; the full merge tree equals the tested head.
+Task 1 is accepted within the seam and baseline scope above. Task 2 is next;
+Task 3 retains production tool assembly and continuous execution acceptance.
+The merge does not change the recorded runtime source or any release deployment.
