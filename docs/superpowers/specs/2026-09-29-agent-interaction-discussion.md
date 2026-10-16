@@ -382,6 +382,138 @@ This order will be refined into smaller independently reviewable specs and plans
 7. How should the single `capstone` executable expose headless, line-interactive, and TUI modes while keeping `capstone-agent` as the internal application package? `capstone-tui` remains a mode term rather than a package decision.
 8. What exact public Model Capability Profile SPI and trust/dependency model should be approved before moving the historical PyPSA and pandapower assemblies?
 
+## 2026-10-14：CAPSTONE CLI 安装与用户本地 dev 试用
+
+### 2026-10-15：user-local版本管理（本轮新增已接受要求）
+
+- 对外名称统一为`user-local`；生产构建的本地试用页面使用该标识，开发Vite仍为`local-dev`。版本号和精确Git来源继续显示，旧冻结源码不伪装成新修正。
+- 安装入口接受7至40位Git提交号。无参数选择已验收、已发布的最新可安装版本；错误或不唯一参数列出可安装版本，不构建任意Git源码。受控版本索引保存完整Git号、固定版本发布地址、安装脚本校验值和日期。
+- 用户入口改为`capstone.sh`，提供安装、versions、start、stop、status、logs和版本切换；旧`start.sh`仅作兼容入口。用户主机仍只需Docker/Compose及基础shell工具，不需Git、Python、Node或源码。
+- `capstone.sh`无参数从Docker已缓存镜像中选择最新已安装版本，核对完整源码标签、登记版本及固定镜像引用；开发镜像、候选和未登记版本不能冒充可启动版本。
+- 同一安装目录一次只启动一个版本。切换先停止本目录管理的旧版本，不能停止开发、demo或其它目录的实例。生命周期操作互斥，失败不删除卷或私有配置。
+- 不同版本共享同一份用户数据。现有安装纳入管理时保留原项目名、卷及私有配置，不直接改写来源保护收据。此前每版本独立数据的假设已撤销。
+- 用户数据兼容性是CAPSTONE开发和发布的责任。持久化格式发生变化时，开发者须提供格式版本、支持的升级路径、迁移和恢复方案，并验证已有对话、模型、报告及证据仍可读取和回放。仅镜像启动健康不能证明兼容。
+- 发布前使用旧版本产生的数据验证升级；只有已验证支持的数据格式才能发布为可切换版本。回退能力单独验证和声明，不能由升级成功推定。管理器在停止当前服务前检查目标版本与现有数据是否兼容；缺少兼容声明或不支持时拒绝切换，保留当前服务与数据。不得通过新建空卷、删除数据或让用户手动修数据库绕过检查。
+- 默认目录`~/capstone`、App端口19173；共享用户`.env`配置Provider/模型/端口，Key只从启动环境进入worker。完成提示突出地址、目录、运行Git号、管理命令和端口配置；容器表进入私有诊断日志，镜像下载在前台显示四项进度。
+- 推进图通过已验证Git节点上的小型安装图标链接到该版本发布和安装命令。可安装、已安装、已启动、用户LLM/业务已验证保持分离。
+
+本节是本轮增量合同；管理器、选择入口和页面标识经PR #23正常合入dev `b7e68dd`，最终双架构旧数据升级/读取/回放/回退、重启及浏览器和公开安装验收通过；发布`user-local-b7e68dd`，受管旧版`user-local-7832134`保留原冻结运行源码。原7832134试用已经公开并由用户安装启动；不把后续修正登记为已在该冻结版本生效。
+
+2026-10-15入口确认：用户预先安装Docker/Compose v2并在环境中设置LLM Key，执行版本化`install.sh`即可下载、校验、安装和启动，无需再执行启动命令。默认目录`~/capstone`，可用`CAPSTONE_TRIAL_DIRECTORY`覆盖。安装成功显示实际目录、访问地址及`start.sh`的启动、status、logs、stop命令；停止保留数据，重新启动仍需环境Key。仅App端口发布到主机，默认19173，与local-dev5173/local-demo15173隔离；提示在安装目录`.env`修改`CAPSTONE_APP_PORT`避免冲突。端口属于交付包的可编辑部署配置，产品镜像来源仍为7832134。固定版本已正常合入dev7832134，公开工件仍需最终来源验收，长期pip/npm CLI不在本次发布范围。
+
+### 实施检查点
+
+实现经PR #22正常合入dev7832134；91项针对性及边界、15项App/类型、本地完整PR门禁与Linux/macOS CI通过，独立复审无重要缺陷。e42候选两架构已通过三用例九轮、报告证据回放、重启和浏览器检查；7832134精确最终镜像已公开上传，最终包验收进行中。后文“待实现”保留设计阶段背景，不覆盖此检查点。交付以[dev试用实施计划](../plans/2026-10-14-capstone-dev-trial-deployment.md)为准，长期pip/npm CLI安装仍为独立设计。
+
+### 用户已确认的范围
+
+- 用户具备程序开发与部署能力；Linux/macOS 优先，尽量兼容 Windows。
+- 希望通过 `pip install`、`npm install` 一类常见入口，或一条部署脚本命令完成本地服务准备。安装及部署操作归入统一 CAPSTONE CLI 的开发设计。
+- 本次交付是临时将 dev 提供给用户试用。用户本地实例称为 `local-dev`；这不是稳定发布或现有 local-demo/cloud-demo 的升级，不要求先合入 main，也不以 demo 标签替代开发来源。
+- 用户进一步确认复用现有本地部署方式，并补充用户不用接触源码。当前约定是我们冻结dev来源并完成构建，用户取得镜像和部署文件，通过Docker Compose启动；用户不clone仓库、不编辑源码、不运行源码构建工具。pip/npm可作为以后统一CLI的安装形式，不是本次镜像试用交付的前提。
+- 当前只记录设计方向。以下命令、安装包和试用部署包尚未实现或发布，不作为可执行安装指南。
+
+### 当前部署事实
+
+本地 Compose 指 Docker Compose：仓库调用 `docker compose`，不是要求旧版独立 `docker-compose` 工具。现有 Compose 管理 PostgreSQL、工件存储、API及两个worker；当前本地 App 是独立 Vite 进程。不能将现有本地入口描述为全部服务已通过 Compose 容器启动。
+
+cloud-dev 当前使用 Railway：API与两个worker依据后端 Dockerfile 构建，App 依据自己的 Dockerfile 构建静态页面并由 Caddy 提供服务。实际24d9a32试用上传了固定源码的四个服务，各服务由平台构建和运行，沿用阶段独立数据库/工件存储；没有在云端运行 Compose。容器化构建不等于已经发布了用户可拉取的统一镜像包。
+
+`deploy/prepare_app_source.py` 只准备带公开身份回执的 App 源码，不发起部署；`deploy/railway/control_plane.py` 提供控制面连接检查和读写工具。仓库当前没有一条完整的 Railway cloud-dev 部署脚本入口；既有发布是准备源码、逐服务上传、等待状态并执行验证的操作组合。`deploy/cloud-run/deploy.example.sh` 是另一平台的模板，不能当作当前 Railway 发布方式。来源见[Railway说明](../../../deploy/railway/README.md)及[cloud-dev试用记录](../../reviews/2026-10-13-cloud-dev-autonomous-trial.md)。
+
+讨论曾考虑把现有源码部署流程交给用户执行；用户随后明确无需接触源码，因此当前交付约定改为镜像和部署文件。研发环境继续保留Compose＋Vite；用户安装包复用服务与合同，并将App作为镜像交付。不能把需要本地源码和工具链的 `make capstone-local-rebuild` 直接作为用户安装要求。
+
+### 建议的本次交付方式（尚未实施）
+
+建议提供版本化的薄部署脚本和精简部署包，包含Compose文件、配置模板、镜像/模型资产清单与说明。我们从固定dev提交构建并验证后端与App镜像，所有受管运行环境、计算依赖与模型资产在交付侧准备；用户主机只需可用的容器运行环境。脚本检查前置条件，生成本机配置，拉取镜像（或加载离线镜像包），调用Compose启动并做就绪检查；不要求用户安装Python、Node、Git或本地构建工具。正式CLI安装分发后可包装同一入口，不长期维护第二套安装逻辑。
+
+在制作试用包时解析并冻结具体 dev 提交。不能让每位用户安装时重新解析移动中的 dev HEAD，也不能以 `latest` 镜像标签作为复现依据。记录精确来源、平台镜像摘要、模型资产校验和、启用功能、启动验证收据及已知缺口。用户反馈能对应到同一试用包；后续新试用包使用新身份，原收据保留。
+
+用户已确认阿里云北京ACR为缺省镜像仓库，命名空间沿用 `uukuguy`，镜像公开拉取。部署脚本/文件的下载位置与真实发布工件仍需确定；没有交付工件前，不提供看似可用的远端安装命令。我们在构建侧准备受管运行环境和经校验的模型资产，不能假定用户已有开发机器的忽略文件、local.env或模型缓存。Provider配置由用户提供。试用只操作用户机器的独立实例和数据，不能连接项目已有云端数据库、工件存储或operator凭据。无须因此重新部署现有四环境。
+
+现有App Dockerfile可作为镜像构建基础，但目前其环境回执面向cloud-dev/cloud-demo，API地址在构建时选择。本地试用镜像如何使用local-dev身份、连接用户本机API并保持可追溯来源，仍需明确设计与验证；不能把云端App镜像或云端API地址直接当作已可交付的本地试用配置。
+
+### 默认镜像仓库与公开分发
+
+用户已确认默认使用 `registry.cn-beijing.aliyuncs.com/uukuguy`，公开、匿名拉取。后端与App仓库名分别拟为 `capstone-backend` 与 `capstone-app`；本地已有同命名空间的镜像记录，Docker现有登录已验证可用。该检查不证明两个新仓库已创建、已公开或有试用镜像；这些仍须在发布阶段核对。
+
+| 用途 | 默认仓库路径 | 状态 |
+| --- | --- | --- |
+| API与两个worker共用的后端镜像 | `registry.cn-beijing.aliyuncs.com/uukuguy/capstone-backend` | 用户认可路径方向，仓库与镜像尚未验证发布 |
+| App镜像 | `registry.cn-beijing.aliyuncs.com/uukuguy/capstone-app` | 用户认可路径方向，仓库与镜像尚未验证发布 |
+
+GHCR可保留为可选备用分发源，不能在默认安装中暗中优先拉取GHCR。用户只需选择镜像来源，无需获得发布账号或仓库写权限。发布凭据使用现有本地Docker受管登录或CI保护凭据，不能放入用户部署包、镜像、`.env`默认模板或安装输出；不在设计记录保存个人登录信息。
+
+镜像来源选择与LLM Provider选择是独立配置。部署文件固定同一dev试用的来源及镜像摘要；切换仓库必须使用该试用对应的已验证副本，不因网络可达而拉取另一个版本。不同仓库副本通过复制同一构建并核对多架构清单、摘要与实际拉取建立身份对应，不通过重新构建来声称相同。
+
+若要让全部用户运行镜像都从国内拉取，还需将同版本PostgreSQL和工件存储镜像纳入发布清单及同步验证。现有Compose依赖、App镜像形式、镜像体积和支持的CPU架构仍待讨论收口；默认仓库决定不自动授权尚未确定的镜像构建/发布方案，也不表示已经创建国内仓库或完成同步。
+
+### CLI 的安装分发方向
+
+| 入口 | 设计位置 | 状态 |
+| --- | --- | --- |
+| Python 包，支持 pip/独立工具环境 | 建议作为长期主入口，发布统一 `capstone` 可执行命令；CLI 安装不在宿主机安装全部 Authority/计算依赖 | 包布局与注册名称待核对，未发布 |
+| npm 包或一次性执行入口 | 备选分发形式；复用同一部署实现，若采用包装器必须明确它所需的 Python/二进制运行环境，不能暗中要求两套工具链 | 用户认可入口形式，具体实现待选择 |
+| 版本化部署脚本 | 本次临时dev试用入口；取固定镜像/部署文件，初始化用户配置，再调用Compose，不要求用户接触源码 | 交付约束已确认，镜像/部署包与脚本待实现和验证 |
+
+Python 命令行工具可用 console entry point 暴露可执行命令，独立工具环境可减少宿主依赖冲突，参见[PyPA 工具打包指南](https://packaging.python.org/en/latest/guides/creating-command-line-tools/)和[uv 工具安装](https://docs.astral.sh/uv/guides/tools/)。npm 提供[bin 命令入口](https://docs.npmjs.com/cli/v11/configuring-npm/package-json/#bin)，但入口机制本身不证明 Capstone 已具备跨平台分发。
+
+仓库现有 `capstone-agent` 包仍通过 `capstone-agent` 命令进入应用，并依赖仓库内多个包。不能把它直接描述成已发布、独立可安装的 `capstone` 部署工具。统一 CLI 必须继续支持既有 `tui/chat/run` 客户端方向；本地部署属于 Application 管理功能，不成为模型可调用的 shell 工具，也不把领域计算依赖搬入 Kernel。
+
+### `.env` 默认LLM与用户凭据
+
+用户已确认：部署包的 `.env` 默认选择 `deepseek` / `deepseek-flash`，用户在启动环境中设置 `DEEPSEEK_API_KEY` 即可使用默认LLM；也可修改 `.env` 选择其他受支持的LLM。模板另外提供注释掉的OpenAI配置，并说明其所需的 `OPENAI_API_KEY`。
+
+以下是拟议模板的说明形式；OpenAI模型值在生成部署包时读取[Provider注册表](../../../configs/llm-providers.json)的 `openai.default_model`，不在设计文档重复维护变化中的型号：
+
+```dotenv
+# 默认LLM；在启动环境设置 DEEPSEEK_API_KEY，模板不填写凭据。
+CAPSTONE_PUBLIC_PROVIDER=deepseek
+CAPSTONE_PUBLIC_MODEL=deepseek-flash
+
+# 使用OpenAI：注释掉上方两行，启用下方两行，并设置 OPENAI_API_KEY。
+# CAPSTONE_PUBLIC_PROVIDER=openai
+# CAPSTONE_PUBLIC_MODEL=<生成时填入注册表中的OpenAI默认模型>
+```
+
+Key不作为CLI参数，也不填入发布的默认 `.env`。启动环境中的变量优先于 `.env` 默认值；模板不得用空Key或占位Key覆盖用户已设置的凭据。所选Provider所需凭据只传入必要的后端角色，不进入App构建、镜像、安装回执或日志。缺Key、Provider未知或模型不受支持时，给出变量名与修正方式，不输出值。
+
+修改 `.env` 中Provider/模型后，重新执行同一部署入口会明确应用LLM配置并重建必要的服务实例，保留数据库与用户数据；这不同于无提示地升级来源版本。默认Key已配置时，不额外要求用户经过浏览器Provider初始化向导。
+
+当前实现边界：现有 `configs/runtime/host-runtime-v1.json` 的共享启动合同固定DeepSeek及模型，`deploy/launch_host_runtime.py` 拒绝偏离共享配置；现有Compose主要映射DeepSeek凭据。因此“注释切换OpenAI即可运行”是本次试用包待实现的要求，并非现有入口已支持。需在Application部署配置中允许受支持的Provider/模型选择，按注册表映射凭据，并验证启动环境/文件的优先级；保留API/worker同来源、其余运行合同及Authority边界，不通过删除启动验证来达成可配置性。
+
+验收分别覆盖默认DeepSeek、注释切换OpenAI、启动环境覆盖默认值、缺Key和错误模型。静态配置及启动诊断可无Provider调用验证；真实LLM调用必须另获授权并单独记录，不在本轮讨论自动执行。
+
+### 拟议的命令契约
+
+下列是设计示意，不是当前可运行的命令；参数拼写在 CLI 实施设计中收口。
+
+```text
+capstone deploy local-dev --channel dev-trial --revision <完整提交>
+capstone status local-dev
+capstone logs local-dev
+capstone stop local-dev
+```
+
+`deploy`负责前置检查、获取固定镜像/部署文件、初始化本机配置、Compose启动、健康检查及输出访问地址。首次运行创建实例，重复运行同一版本复用配置和数据；发现现有版本不同，明确报告差异，进入单独的升级流程，不悄悄覆盖。`status`显示精确来源、角色就绪、端口及已知缺口；停止服务保留数据。更新、备份、回滚和卸载沿用同一实例记录；卸载默认保留用户数据，删除数据必须是明确的独立操作。
+
+### 服务组成与平台边界
+
+用户试用由Compose管理App、API、pandapower/PyPSA workers、PostgreSQL与私有工件存储；交付Compose不得包含要求用户取源码的build步骤。API/worker固定同一精确来源或镜像，App和模型资产一同登记。我们复用既有服务与构建基础，用户无需启动Vite开发进程。保留单一 `/api/v1` 客户端合同及现有四层所有权，不为试用另写执行链。
+
+Linux/macOS的脚本入口应使用一致的参数和退出状态；交付镜像在实际支持的amd64/arm64上构建并验证，不能仅凭宿主操作系统宣称兼容。Windows首先考虑WSL2/Linux容器路径，PowerShell入口可随后包装相同安装流程；未完成真实验证前，只记录为目标支持。
+
+一条命令的前提是容器引擎与 Compose 可用。CLI 安装不等于数据库、worker 等服务已启动。缺前置条件时给出可操作的诊断，保留现场；不默默安装系统级组件、更改权限或要求重启。Provider 配置保存在本机后端保护配置，不能进入命令参数、输出、镜像或前端构建；用户自行选择并配置，包不携带开发者凭据。
+
+### 临时 dev 试用的验收
+
+- 在干净的目标系统验证安装、端口冲突提示、启动、状态查询、停止和再次启动。分别记录操作系统、CPU 架构及容器运行环境。
+- 以没有项目源码、Git、Python/Node开发环境的用户主机验证薄脚本路径；只安装可用的容器运行环境，也能启动App和全部后端角色。若用户另选pip/npm CLI入口，其对应运行环境前提单独说明。
+- 检查 App、API 和两个 worker 的来源身份与就绪状态；保留同一实例的原数据，重复安装不创建重复服务或擦除配置。
+- 注册脚本用例、报告和证据回放用于基础服务验收；不默认调用 Provider。用户配置 Provider 后的真实问题试用另行记录，不把服务启动通过算作整体科学验收。
+- 部署失败不得登记为通过，不能获得正式 demo/cloud-dev 验收标签。本次可使用明确的 dev-trial 包身份和安装收据；它不推进稳定发布状态。
+- 打包与用户试用是后续工作项；本次设计记录不声明已有镜像、脚本、pip/npm 包或 Windows 验收。
+
 ## Design guardrails
 
 - Keep `Application -> Domain Pack -> Kernel -> registered Authority` ownership intact. Domain Packs admit semantic results; Authorities own numerical truth.

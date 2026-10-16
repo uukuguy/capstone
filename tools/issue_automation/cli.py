@@ -39,7 +39,7 @@ def operator_override(root, policy):
     return replace(policy, **values).validate()
 
 
-def load_policy(root, ref="main", config="configs/development/issue-automation.json"):
+def load_policy(root, ref="dev", config="configs/development/issue-automation.json"):
     if config != "configs/development/issue-automation.json":
         raise ValueError("Use the registered trusted policy path")
     source = Source(root, ref)
@@ -79,7 +79,7 @@ def parser():
     for name in ("doctor", "scan", "show", "context", "create", "prepare-image", "triage", "begin", "record-verification", "complete", "fix", "retry", "pause", "status", "release-status", "daemon", "start", "stop"):
         command_parser = subcommands.add_parser(name)
         command_parser.add_argument("--root", type=Path, default=Path.cwd())
-        command_parser.add_argument("--policy-ref", default="main")
+        command_parser.add_argument("--policy-ref", default="dev")
         command_parser.add_argument("--read-only", action="store_true")
         command_parser.add_argument("--issue", type=int, default=int(os.environ["ISSUE"]) if os.environ.get("ISSUE", "").isdigit() else None)
         command_parser.add_argument("--task", default=os.environ.get("TASK_ID"))
@@ -107,8 +107,8 @@ def execute(args):
         policy = replace(policy, model_enabled=False, write_enabled=False)
     if args.command == "doctor":
         return doctor(policy, source)
-    if args.command not in {"scan", "status", "show", "context", "release-status"} and args.policy_ref != "main":
-        raise ValueError("Development actions must use the trusted current main policy")
+    if args.command not in {"scan", "status", "show", "context", "release-status"} and args.policy_ref != "dev":
+        raise ValueError("Development actions must use the trusted current dev policy")
     if os.environ.get("GITHUB_ACTIONS") == "true" and (not args.read_only or args.command not in {"doctor", "scan", "status", "show", "context"}):
         raise ValueError("GitHub Actions is a read-only intake lane")
     if args.command in {"triage", "begin", "fix", "retry", "pause", "show", "context"} and not args.issue:
@@ -130,7 +130,7 @@ def execute(args):
                 context = source.export(directory)
                 dockerfile = context / "tools/issue_automation/sandbox.Dockerfile"
                 if not dockerfile.is_file():
-                    raise ValueError("The trusted main sandbox recipe is not available")
+                    raise ValueError("The trusted dev sandbox recipe is not available")
                 image_id = state / "prepared-image.id"
                 environment = {name: os.environ[name] for name in ("PATH", "HOME", "DOCKER_HOST", "LANG") if name in os.environ}
                 with open(os.devnull, "wb") as sink:

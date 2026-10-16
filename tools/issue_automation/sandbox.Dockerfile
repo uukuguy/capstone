@@ -1,4 +1,4 @@
-# Dependency preparation uses only exported trusted main source. No candidate,
+# Dependency preparation uses only exported trusted dev source. No candidate,
 # host authentication, user data, Docker socket or model credentials enter this build.
 FROM node:24.20.0-bookworm-slim@sha256:ba849c60be29959425b8734d57b8b4b7d56f98edd9504c9af091d5281095a71e AS node
 FROM python:3.12-slim-bookworm@sha256:54c85f3c47607a77f32adec749d3c81d1348bf25833671f512b26a9b6d778cb3

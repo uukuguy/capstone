@@ -116,7 +116,7 @@ class Frame:
             type(self.payload["ordinal"]) is not int
             or not 1 <= self.payload["ordinal"] <= 3
             or not isinstance(self.payload["layer"], dict)
-            or set(self.payload["layer"]) != {
+            or set(self.payload["layer"]) - {"annotations"} != {
                 "schema", "ordinal", "diagram_ref", "model_revision",
                 "focus_ids", "next_focus_ids", "overlay",
             }

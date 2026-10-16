@@ -33,7 +33,7 @@ class FakeGitHub:
         existing = self.find_pr(branch)
         if existing:
             return existing
-        self.prs.append({"number": 10, "state": "open", "base": {"ref": "main"}, "html_url": "https://github.com/uukuguy/capstone/pull/10", "head": {"ref": branch, "sha": "candidate"}, "body": body})
+        self.prs.append({"number": 10, "state": "open", "base": {"ref": "dev"}, "html_url": "https://github.com/uukuguy/capstone/pull/10", "head": {"ref": branch, "sha": "candidate"}, "body": body})
         return self.prs[-1]
 
 
@@ -196,7 +196,7 @@ def test_candidate_cannot_weaken_tests_or_gate_configuration(tmp_path, path, old
     target.write_text(old)
     subprocess.run(["git", "-C", str(source.root), "add", "."], check=True)
     subprocess.run(["git", "-C", str(source.root), "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-m", "test"], check=True, capture_output=True)
-    repair = Repair(dataclasses.replace(Policy(), checks=(("python", "test.py"),)), Source(source.root), None, FakeSandbox(), tmp_path / "candidate")
+    repair = Repair(dataclasses.replace(Policy(), checks=(("python", "test.py"),)), Source(source.root, "main"), None, FakeSandbox(), tmp_path / "candidate")
     repair.prepare("task", [path])
     with pytest.raises(ValueError, match="protected|unchanged"):
         repair.validate_manual("task", {"summary": "修复行为", "reproduction_check": 0, "files": [{"path": path, "content": new}]})

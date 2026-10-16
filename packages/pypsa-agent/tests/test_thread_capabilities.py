@@ -136,32 +136,6 @@ def test_pypsa_prepared_profile_runs_through_shared_thread_worker(tmp_path):
         opened = binding.endpoint.executor.invoke("model.open", {"catalog_id": "two-bus"})
         return _ToolSession(opened["result_ref"], opened["evidence_refs"][0])
 
-    def recognize_task(claim, *, on_heartbeat, requirement_schemas):
-        from capstone_agent.task_understanding import recognize_decision
-
-        assert claim.instruction == "inspect registered model"
-        selected = [item for item in requirement_schemas
-                    if item["schema"] == "capstone-professional-task/1" and item["binding_id"] == "source"]
-        assert len(selected) == 1 and selected[0]["binding_id"] == "source"
-        on_heartbeat()
-        return recognize_decision(claim.task_request, {
-            "schema": "capstone-task-understanding/2",
-            "goals": [{
-                "id": "inspect", "purpose": claim.instruction, "subject": "selected registered model",
-                "scope": "unspecified", "scenario": "baseline", "change": None,
-                "conclusion": "description", "measure": None,
-                "obligations": ["Inspect the registered model through the selected binding"],
-                "missing_requirements": [], "execution": "professional", "dependencies": [],
-                "domain_request": {
-                    "binding_id": selected[0]["binding_id"], "schema": selected[0]["schema"],
-                    "payload": {"purpose": claim.instruction},
-                },
-            }],
-            "answer_policy": {"language": "en", "scale": "standard"},
-        }, recognizer="controlled-pypsa-profile")
-
-    setattr(build_session, "recognize_task", recognize_task)
-
     revision = "revision:sha256:" + "a" * 64
     assembly = build_pypsa_thread_application(
         default_model_id="regional-six-bus",
@@ -195,12 +169,6 @@ def test_pypsa_prepared_profile_runs_through_shared_thread_worker(tmp_path):
     assert result is not None and result.status == "completed"
     assert result.answer == "answer"
     assert result.result_refs and result.evidence_refs
-    events = service.read_events("thr_pypsa", 0).events
-    understanding = next(event.payload["understanding"] for event in events if event.event_type == "task_understanding_created")
-    assert understanding["goals"][0]["domain_request"]["schema"] == "capstone-professional-task/1"
-    resolution = next(event.payload["goals"] for event in events if event.event_type == "task_requirements_resolved")
-    assert resolution[0]["status"] == "uncertified"
-    assert resolution[0]["execution_required"] is True
     assert len(prepared_profiles) == 1
     assert len(prepared_profiles[0]) == 1
     assert prepared_profiles[0][0].profile.manifest.application_id == "pypsa-business-cases"

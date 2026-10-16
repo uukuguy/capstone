@@ -6,6 +6,8 @@ import hashlib
 import hmac
 import threading
 import time
+import json
+import re
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 from urllib.parse import urlsplit
@@ -75,12 +77,25 @@ def configured_worker_wake(legacy_origin: str | None, family_origins: str, opera
     return wake_all
 
 
+def configured_model_preparation(legacy_origin: str | None, family_origins: str,
+                                 operator_token: str) -> Callable[[str, str], bool]:
+    """Prepare only the worker owning the persisted model's selected family."""
+    clients = dict(_configured_clients(legacy_origin, family_origins, operator_token))
+    def prepare(thread_id: str, family: str) -> bool:
+        client = clients.get('worker:' + family)
+        if client is None:
+            client = clients.get('worker')
+        return client.prepare_model(thread_id) if client is not None else False
+    return prepare
+
+
 def create_wake_app(
     wake_event: threading.Event, operator_token: str,
     *, health_check: Callable[[], bool] | None = None,
     runtime_mode: str = "normal", implementation_family: str | None = None,
     resource_status: Callable[[], dict[str, int]] | None = None,
     additional_wake_events: tuple[threading.Event, ...] = (),
+    prepare_model: Callable[[str], object] | None = None,
 ) -> FastAPI:
     if runtime_mode not in {"normal", "m11-provider-free"} or implementation_family not in {None, "pandapower", "pypsa"}:
         raise ValueError("worker runtime identity is invalid")
@@ -109,6 +124,20 @@ def create_wake_app(
         for event in additional_wake_events:
             event.set()
 
+    @app.post('/prepare-model', status_code=204)
+    def prepare_thread_model(body: dict[str, object], authorization: str = Header(default='')) -> None:
+        if not hmac.compare_digest(authorization, expected):
+            raise HTTPException(401, 'unauthorized')
+        thread_id = body.get('thread_id')
+        if set(body) != {'thread_id'} or not isinstance(thread_id, str) or not re.fullmatch(r'thr_[A-Za-z0-9_-]{1,120}', thread_id):
+            raise HTTPException(422, 'thread preparation identity is invalid')
+        if prepare_model is None or (health_check is not None and not health_check()):
+            raise HTTPException(503, 'model preparation unavailable')
+        try:
+            prepare_model(thread_id)
+        except Exception:
+            raise HTTPException(503, 'model preparation incomplete') from None
+
     return app
 
 
@@ -116,6 +145,16 @@ class WorkerWakeClient:
     def __init__(self, base_url: str, operator_token: str):
         self.url = base_url.rstrip("/") + "/wake"
         self.authorization = "Bearer " + wake_token(operator_token)
+
+    def prepare_model(self, thread_id: str) -> bool:
+        request = Request(self.url.removesuffix('/wake') + '/prepare-model',
+            data=json.dumps({'thread_id': thread_id}).encode(), method='POST',
+            headers={'Authorization': self.authorization, 'Content-Type': 'application/json'})
+        try:
+            with urlopen(request, timeout=30) as response:
+                return response.status == 204
+        except (HTTPError, URLError, TimeoutError):
+            return False
 
     def wake(self, *, attempts: int = 3, backoff_seconds: float = 0.5) -> bool:
         if attempts < 1 or backoff_seconds < 0:

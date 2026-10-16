@@ -39,6 +39,21 @@
       "context_ref": {"type": "string", "pattern": "^context:sha256:[0-9a-f]{64}$"},
       "revision_ref": {"type": "string", "pattern": "^revision:sha256:[0-9a-f]{64}$"},
       "converged": {"type": "boolean"},
+      "datasets": {
+        "type": "array",
+        "items": {
+          "type": "object", "additionalProperties": false,
+          "required": ["dataset", "row_count", "available_fields"],
+          "properties": {
+            "dataset": {"type": "string", "pattern": "^result\\.res_[a-z0-9_]+$"},
+            "row_count": {"type": "integer", "minimum": 0},
+            "available_fields": {
+              "type": "array", "items": {"type": "string"}, "uniqueItems": true,
+              "description": "Exact queryable field names captured in this persisted dataset."
+            }
+          }
+        }
+      },
       "solver": {
         "type": "object",
         "additionalProperties": false,

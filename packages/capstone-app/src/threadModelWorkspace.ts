@@ -15,7 +15,7 @@ export function parseModelControl(text: string): { kind: 'open_model' | 'activat
   let reference = match[2].trim()
   const openedOnly = /^已打开的?\s*/u.test(reference)
   reference = reference.replace(/^已打开的?\s*/u, '')
-  const boundary = reference.match(/[，,；;]\s*(?:然后|并)?\s*|(?:然后|并)(?=运行|执行|计算|分析|检查|查看)/u)
+  const boundary = reference.match(/[，,；;]\s*(?:然后|并且|并)?\s*|(?:然后|并且|并)\s*/u)
   let task: string | undefined
   if (boundary?.index !== undefined) {
     task = reference.slice(boundary.index + boundary[0].length).trim()

@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 from collections.abc import Mapping, Sequence
 from typing import Any, Protocol
+from pandapower_domain.network_annotations import project_base_disconnections
 
 
 class NetworkExecutor(Protocol):
@@ -78,6 +79,7 @@ def build_grid_network_view(
             "model": {"id": "ieee39", "revision": revision, "source": "gridctl"},
             "coordinate_system": topology.get("coordinate_system"),
             "buses": buses, "branches": branches,
+            "disconnections": project_base_disconnections(topology),
         },
         "layer": {"focus_ids": focus, "next_focus_ids": next_focus, "overlay": overlay},
     }

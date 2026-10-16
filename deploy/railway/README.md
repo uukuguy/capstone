@@ -102,6 +102,16 @@ Normal local Compose and cloud development select
 runtime settings and role commands. The same launcher checks Provider presence
 on workers and waits for both family workers before API startup. Settings that
 conflict with the profile fail startup with the configuration key only.
+Model context retention has one source: the selected runtime contract. Do not
+copy its values into Compose, Railway variables, stage examples or local env
+files. Before deploying a changed contract, inspect API and both worker services
+for explicit `CAPSTONE_THREAD_CONTEXT_LIMIT` and
+`CAPSTONE_THREAD_CONTEXT_IDLE_SECONDS` overrides. Remove stale overrides; the
+launcher injects the contract values. The memory count is a defensive ceiling,
+not the number of models users may open. An idle value of zero disables timed
+eviction; container and host memory pressure still reclaim idle resources.
+Verify all three runtime receipts and readiness after deployment. A startup
+rejection is a failed deployment and must not receive an acceptance tag.
 Infrastructure origins, database, storage, credentials and capacity remain
 environment values. Compare `/app/.capstone-agent/host-runtime.json` in all
 three roles against the local receipt: contract and source artifact hashes

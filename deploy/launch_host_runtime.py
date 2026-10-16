@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import platform
+import re
 from pathlib import Path
 import sys
 import time
@@ -16,8 +17,16 @@ class RuntimeContractError(ValueError):
     """A safe configuration key; never contains an environment value."""
 
 
+def runtime_contract_path(root: Path, profile: str) -> Path:
+    names = {"capstone-workbench-v1": "host-runtime-v1.json",
+             "capstone-dev-trial-v1": "host-runtime-dev-trial-v1.json"}
+    if profile not in names:
+        raise RuntimeContractError("CAPSTONE_RUNTIME_PROFILE")
+    return root / "configs/runtime" / names[profile]
+
+
 def select_runtime(root: Path, environment: dict[str, str], command: str):
-    contract = json.loads((root / "configs/runtime/host-runtime-v1.json").read_text())
+    contract = json.loads(runtime_contract_path(root, environment.get("CAPSTONE_RUNTIME_PROFILE", "")).read_text())
     if environment.get("CAPSTONE_RUNTIME_PROFILE") != contract["profile"]:
         raise RuntimeContractError("CAPSTONE_RUNTIME_PROFILE")
     if environment.get("CAPSTONE_DEPLOYMENT_STAGE") not in contract["stages"]:
@@ -31,6 +40,10 @@ def select_runtime(root: Path, environment: dict[str, str], command: str):
         raise RuntimeContractError("CAPSTONE_HOSTED_APPLICATION/command")
     spec = contract["roles"][role]
     selected = dict(environment)
+    research_mode = selected.get("CAPSTONE_AUTONOMOUS_RESEARCH", "0")
+    if research_mode not in {"0", "1"}:
+        raise RuntimeContractError("CAPSTONE_AUTONOMOUS_RESEARCH")
+    selected["CAPSTONE_AUTONOMOUS_RESEARCH"] = research_mode
     for key, expected in {**contract["shared_environment"], **spec["environment"]}.items():
         if key in selected and selected[key] != expected:
             raise RuntimeContractError(key)
@@ -40,7 +53,28 @@ def select_runtime(root: Path, environment: dict[str, str], command: str):
     for key in selected:
         if key.startswith(("GRID_AGENT_LLM_", "CAPABILITY_AGENT_LLM_")) or key == "GRID_AGENT_PI_COMMAND":
             raise RuntimeContractError(key)
-    provider = json.loads((root / "configs/llm-providers.json").read_text())["providers"][selected["CAPSTONE_PUBLIC_PROVIDER"]]
+    providers = json.loads((root / "configs/llm-providers.json").read_text())["providers"]
+    selection = contract.get("provider_selection")
+    if selection:
+        name = (selected.get(selection.get("provider_alias", ""))
+                or selected.get("CAPSTONE_PUBLIC_PROVIDER", selection["default"]))
+        if name not in selection["allowed"] or name not in providers:
+            raise RuntimeContractError("CAPSTONE_PUBLIC_PROVIDER")
+        provider = providers[name]
+        if provider["auth"]["kind"] != "api_key_env":
+            raise RuntimeContractError("CAPSTONE_PUBLIC_PROVIDER")
+        aliases = selection.get("provider_environment", {}).get(name, {})
+        model = (selected.get(aliases.get("model", ""))
+                 or selected.get("CAPSTONE_PUBLIC_MODEL", provider["default_model"]))
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}", model):
+            raise RuntimeContractError("CAPSTONE_PUBLIC_MODEL")
+        selected.update(CAPSTONE_PUBLIC_PROVIDER=name, CAPSTONE_PUBLIC_MODEL=model)
+        # Both family workers use the shared Harness resolver. Admit the local
+        # alias only after the guard rejects caller-supplied runtime overrides.
+        if role != "api" and selected.get(aliases.get("base_url", "")):
+            selected["CAPABILITY_AGENT_LLM_BASE_URL"] = selected[aliases["base_url"]]
+    else:
+        provider = providers[selected["CAPSTONE_PUBLIC_PROVIDER"]]
     credential_name = provider["auth"]["default_env"]
     if role != "api":
         value = selected.get(credential_name, "").strip()
@@ -103,6 +137,9 @@ def artifact_identity(root: Path, model_dir: Path, *, include_catalog: bool = Tr
                  *(root / "packages").glob("*/uv.lock"), *(root / "packages").glob("*/pyproject.toml"),
                  *(root / "packages").glob("*/package-lock.json")]:
         entries[str(path.relative_to(root))] = digest(path)
+    trial_helper = root / 'deploy/dev_trial_runtime.py'
+    if trial_helper.is_file():
+        entries['deploy/dev_trial_runtime.py'] = digest(trial_helper)
     versions = {}
     for metadata in (root / "packages").glob("*/.venv/lib/python*/site-packages/*.dist-info/METADATA"):
         fields = {}
@@ -140,7 +177,7 @@ def main() -> int:
             wait_for_workers(contract, environment)
         receipt = {
             "schema": "capstone-host-runtime-receipt/1", "profile": contract["profile"],
-            "contract_sha256": hashlib.sha256((root / "configs/runtime/host-runtime-v1.json").read_bytes()).hexdigest(),
+            "contract_sha256": hashlib.sha256(runtime_contract_path(root, contract["profile"]).read_bytes()).hexdigest(),
             "artifact_sha256": artifact_identity(root, Path(environment["CAPSTONE_PYPSA_MODEL_LIBRARY_DIR"])),
             "source_artifact_sha256": artifact_identity(root, Path(environment["CAPSTONE_PYPSA_MODEL_LIBRARY_DIR"]), include_catalog=False),
             "architecture": platform.machine(),
@@ -155,6 +192,7 @@ def main() -> int:
         path.write_text(json.dumps(receipt, sort_keys=True))
         path.chmod(0o600)
         print("Host runtime contract accepted: " + role + " " + receipt["contract_sha256"], file=sys.stderr, flush=True)
+        print("Host runtime receipt: " + json.dumps(receipt, sort_keys=True), file=sys.stderr, flush=True)
         executable = str(root / "packages" / spec["project"] / ".venv/bin/python")
         os.execve(executable, [executable, "-m", spec["module"]], environment)
     except (OSError, ValueError, KeyError) as error:

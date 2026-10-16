@@ -25,6 +25,15 @@ from capability_agent.application.context_reducer import (
     reduce_context,
 )
 from capability_agent.application.context_store import ApplicationContextStore, ContextStoreError
+from capability_agent.application.research import ResearchController
+from capability_agent.application.research_models import (
+    ResearchChanges,
+    ResearchClaim,
+    ResearchNote,
+    ResearchReceipt,
+    ResearchState,
+    ResearchUpdate,
+)
 from capability_agent.application.errors import (
     AnswerCommitError,
     ApplicationConfigurationError,
@@ -88,6 +97,13 @@ from capability_agent.application.turns import (
 )
 
 __all__ = [
+    "ResearchChanges",
+    "ResearchClaim",
+    "ResearchController",
+    "ResearchNote",
+    "ResearchReceipt",
+    "ResearchState",
+    "ResearchUpdate",
     "read_bound_regular_path",
     "AcceptanceProfile",
     "APPLICATION_CONTEXT_EVENT_SCHEMA",

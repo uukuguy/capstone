@@ -28,6 +28,8 @@ export type ThreadCatalog = {
   models: ThreadCatalogModel[]
   profiles: ThreadCatalogProfile[]
   cases?: ThreadCatalogCase[]
+  workContextReset?: boolean
+  taskFollowupBinding?: boolean
 }
 
 export type ThreadModelReferenceResolution =
@@ -129,7 +131,9 @@ function parseCase(value: unknown, index: number): ThreadCatalogCase {
 
 export function parseThreadCatalog(value: unknown): ThreadCatalog {
   const document = record(value, 'catalog')
-  fields(document, ['schema', 'models', 'profiles', 'cases'], 'catalog')
+  fields(document, ['schema', 'models', 'profiles', 'cases', 'work_context_reset', 'task_followup_binding'], 'catalog')
+  if (document.work_context_reset !== undefined && typeof document.work_context_reset !== 'boolean') throw new ThreadCatalogProtocolError('catalog.work_context_reset is invalid')
+  if (document.task_followup_binding !== undefined && typeof document.task_followup_binding !== 'boolean') throw new ThreadCatalogProtocolError('catalog.task_followup_binding is invalid')
   required(document, ['schema', 'models', 'profiles'], 'catalog')
   if (document.schema !== 'capstone-thread-catalog/1' || !Array.isArray(document.models) || !Array.isArray(document.profiles)) throw new ThreadCatalogProtocolError('catalog schema is invalid')
   if (document.models.length > 128 || document.profiles.length > 128) throw new ThreadCatalogProtocolError('catalog is too large')
@@ -141,11 +145,13 @@ export function parseThreadCatalog(value: unknown): ThreadCatalog {
     models: document.models.map(parseModel),
     profiles: document.profiles.map(parseProfile),
     ...(cases === undefined ? {} : { cases }),
+    ...(document.work_context_reset === undefined ? {} : { workContextReset: document.work_context_reset as boolean }),
+    ...(document.task_followup_binding === undefined ? {} : { taskFollowupBinding: document.task_followup_binding as boolean }),
   }
 }
 
 function normalizedReference(value: string): string {
-  return value.trim().replace(/\s+/gu, ' ').toLocaleLowerCase()
+  return value.normalize('NFKC').trim().toLocaleLowerCase().replace(/[\s_-]+/gu, '')
 }
 
 /** Resolve a user-facing model reference without crossing the Authority boundary.
@@ -172,14 +178,13 @@ function resolveExactThreadModelReference(catalog: ThreadCatalog, reference: str
   const normalized = normalizedReference(trimmed)
   const caseInsensitiveExact = catalog.models.filter((model) => normalizedReference(model.modelId) === normalized)
   if (caseInsensitiveExact.length === 1) return { kind: 'resolved', model: caseInsensitiveExact[0], matchedBy: 'exact' }
+  if (caseInsensitiveExact.length > 1) return { kind: 'ambiguous', reference: trimmed, candidates: [...caseInsensitiveExact].sort((left, right) => left.modelId.localeCompare(right.modelId)) }
 
   const suffixMatches = catalog.models.filter((model) => normalizedReference(model.modelId.split('/').at(-1) || model.modelId) === normalized)
-  if (suffixMatches.length === 1) return { kind: 'resolved', model: suffixMatches[0], matchedBy: 'suffix' }
-  if (suffixMatches.length > 1) return { kind: 'ambiguous', reference: trimmed, candidates: [...suffixMatches].sort((left, right) => left.modelId.localeCompare(right.modelId)) }
-
   const displayMatches = catalog.models.filter((model) => normalizedReference(model.displayName) === normalized)
-  if (displayMatches.length === 1) return { kind: 'resolved', model: displayMatches[0], matchedBy: 'display_name' }
-  if (displayMatches.length > 1) return { kind: 'ambiguous', reference: trimmed, candidates: [...displayMatches].sort((left, right) => left.modelId.localeCompare(right.modelId)) }
+  const matches = [...new Set([...suffixMatches, ...displayMatches])]
+  if (matches.length === 1) return { kind: 'resolved', model: matches[0], matchedBy: suffixMatches.includes(matches[0]) ? 'suffix' : 'display_name' }
+  if (matches.length > 1) return { kind: 'ambiguous', reference: trimmed, candidates: matches.sort((left, right) => left.modelId.localeCompare(right.modelId)) }
   return { kind: 'unknown', reference: trimmed }
 }
 

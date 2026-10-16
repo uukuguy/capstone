@@ -18,8 +18,8 @@ function providedLayout(view: Geometry): PositionedBus[] | null {
   const minX = Math.min(...xValues), maxX = Math.max(...xValues)
   const minY = Math.min(...yValues), maxY = Math.max(...yValues)
   if (minX === maxX && minY === maxY) return null
-  const scale = Math.min(800 / Math.max(1, maxX - minX),
-    440 / Math.max(1, maxY - minY))
+  const scale = Math.min(800 / Math.max(Number.EPSILON, maxX - minX),
+    440 / Math.max(Number.EPSILON, maxY - minY))
   const positioned = buses.map((bus) => ({ ...bus,
     x: WIDTH / 2 + ((bus.x as number) - (minX + maxX) / 2) * scale,
     y: HEIGHT / 2 - ((bus.y as number) - (minY + maxY) / 2) * scale,

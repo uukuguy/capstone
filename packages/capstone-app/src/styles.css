@@ -403,6 +403,10 @@ button.reference-chip:hover { background: #235043; color: white; }
 .thread-primary-button:disabled, .thread-secondary-button:disabled, .thread-control-button:disabled { opacity: .42; cursor: not-allowed; }
 .thread-control-row { margin-top: 11px; }
 .thread-compact-controls { display: inline-flex; align-items: center; gap: 5px; min-height: 28px; }
+.capstone-composer-toolbar:has(.thread-followup-target) { flex-wrap: wrap; min-width: 0; flex: 1; }
+.thread-followup-target { display: flex; align-items: center; gap: 8px; flex-basis: 100%; min-width: 0; padding: 4px 8px; border-radius: 6px; background: var(--surface-soft); color: var(--text); font-size: 12px; line-height: 1.4; font-family: inherit; }
+.thread-followup-target > span { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.thread-followup-target button { flex-shrink: 0; min-height: 28px; border: 0; background: transparent; color: var(--accent); }
 .thread-compact-menu { position: relative; }
 .thread-compact-trigger, .thread-compact-toggle { display: inline-flex; align-items: center; gap: 5px; min-width: 36px; min-height: 36px; padding: 0 8px; border: 1px solid #31534f; border-radius: 999px; background: #102328; color: #9bbab1; font: 10px/1.2 "SFMono-Regular", Consolas, monospace; cursor: pointer; list-style: none; }
 .thread-compact-trigger::-webkit-details-marker { display: none; }

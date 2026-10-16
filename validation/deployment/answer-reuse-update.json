@@ -1,0 +1,8 @@
+{
+  "schema": "capstone-deployment-samples/2",
+  "suite_kind": "update",
+  "suite_id": "answer-and-prior-result-regression",
+  "corpus": "ieee39.json",
+  "case_ids": ["load-scaling", "flow-to-reused-ranking"],
+  "purpose": "Restore Authority identity lookup, complete computed reports and current-result reuse"
+}

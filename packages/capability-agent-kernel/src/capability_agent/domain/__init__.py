@@ -32,10 +32,8 @@ from capability_agent.domain.provisioning import (
     PreparedDomainEndpoint,
 )
 from capability_agent.domain.state import DomainContextView, DomainStateAdapter
-from capability_agent.domain.task import DomainTaskProvider, ResolvedTaskGoal, TaskConclusion
 
 __all__ = [
-    "DomainTaskProvider", "ResolvedTaskGoal", "TaskConclusion",
     "AnswerEvidencePolicy",
     "AnswerAdmissionDecision",
     "AnswerAdmissionInput",

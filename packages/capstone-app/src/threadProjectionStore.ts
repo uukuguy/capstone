@@ -4,6 +4,7 @@ import type { DiagramNetworkView, NetworkDiagram } from './types'
 import type { ThreadCatalog } from './threadCatalog'
 import type { ModelWorkspace, OpenedModel } from './threadModelWorkspace'
 import { readPendingCommands, writePendingCommands } from './threadSessionState'
+import { ResultProjectionDelivery } from './resultProjectionDelivery'
 import {
   CapstoneThreadClient, type ThreadCommand, type ThreadTransport, type ThreadTransportState,
 } from './threadClient'
@@ -289,6 +290,7 @@ export class ThreadProjectionStore {
   private readonly eventSizes = new Map<number, number>()
   private loadGeneration = 0
   private readonly eventLog: EventEnvelope[] = []
+  private readonly resultDelivery = new ResultProjectionDelivery()
   private readonly networkDiagrams = new Map<string, NetworkDiagram>()
   private readonly sharedDiagrams = new Map<string, NetworkDiagram>()
   private readonly networkViews = new Map<string, DiagramNetworkView>()
@@ -337,9 +339,14 @@ export class ThreadProjectionStore {
     }
     let trimmed = false
     while (this.eventLog.length > 1 && (this.eventLog.length > 1024 || bytes > 8 * 1024 * 1024)) {
-      const event = keepLatest ? this.eventLog.shift()! : this.eventLog.pop()!
+      // Diagnostic token deltas are retained by the server. They must not
+      // evict the public instruction, tool actions or completed outcome.
+      const diagnostic = this.eventLog.findIndex(event => event.visibility === 'diagnostic')
+      const event = diagnostic >= 0 ? this.eventLog.splice(diagnostic, 1)[0]
+        : keepLatest ? this.eventLog.shift()! : this.eventLog.pop()!
       bytes -= this.eventSizes.get(event.eventSeq) || 0
-      this.eventSizes.delete(event.eventSeq); trimmed = true
+      this.eventSizes.delete(event.eventSeq)
+      trimmed ||= event.visibility === 'public'
     }
     if (trimmed) {
       if (keepLatest) this.olderHistoryCursor = this.eventLog[0]?.eventSeq ?? null
@@ -398,6 +405,7 @@ export class ThreadProjectionStore {
     try {
       const snapshot = await this.client.load(threadId)
       if (generation !== this.loadGeneration) return
+      this.resultDelivery.clear()
       let catalog: ThreadCatalog | null = null
       try {
         catalog = await this.client.catalog(threadId)
@@ -744,6 +752,8 @@ export class ThreadProjectionStore {
     let viewedGridPageId = this.current.viewedGridPageId
     const document = snapshot.toDocument()
     const payload = record(event.payload)
+    this.resultDelivery.accept(event)
+    const deliveredProjections = this.resultDelivery.complete(event)
     if (event.eventType === 'model_context_change_pending') {
       document.pending_model_switch = {
         command_id: payload.command_id,
@@ -779,9 +789,10 @@ export class ThreadProjectionStore {
       document.active_model_context = activeContext
       delete document.pending_selection
     }
-    if (event.eventType === 'attempt_completed' && Array.isArray(payload.result_projections)) {
+    const resultProjections = deliveredProjections ?? payload.result_projections
+    if (['attempt_completed', 'attempt_failed'].includes(event.eventType) && Array.isArray(resultProjections)) {
       const existing = Array.isArray(document.result_projections) ? document.result_projections : []
-      document.result_projections = [...existing, ...payload.result_projections].slice(-64)
+      document.result_projections = [...existing, ...resultProjections].slice(-64)
     }
     const identity = event.turnId && event.attemptId && event.modelContextId
       ? { turnId: event.turnId, attemptId: event.attemptId, targetModelContextId: event.modelContextId }
@@ -821,11 +832,16 @@ export class ThreadProjectionStore {
 
   private internDiagramEvent(event: EventEnvelope, diagrams = this.sharedDiagrams): EventEnvelope {
     if (event.eventType !== 'network_diagram') return event
-    const diagram = parseNetworkDiagram(event.payload.diagram)
-    if (!diagram) return event
+    const parsed = parseNetworkDiagram(event.payload.diagram)
+    if (!parsed) return event
+    // Older records omit this optional list. An empty list has the same state.
+    const diagram = { ...parsed, disconnections: parsed.disconnections ?? [] }
     const key = `${diagram.model.id}:${diagram.model.revision}:${diagram.ref}`
     const existing = diagrams.get(key)
-    if (existing && JSON.stringify(existing) !== JSON.stringify(diagram)) {
+    const identity = (value: NetworkDiagram) => JSON.stringify(value, (_key, item) =>
+      item && typeof item === 'object' && !Array.isArray(item)
+        ? Object.fromEntries(Object.keys(item).sort().map(key => [key, item[key]])) : item)
+    if (existing && identity(existing) !== identity(diagram)) {
       throw new Error('diagram identity does not match admitted history; 请重新同步电网图。')
     }
     if (!existing) diagrams.set(key, diagram)

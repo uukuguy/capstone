@@ -6,7 +6,7 @@ Use this guide for WP-A N-1 static security checks with `analysis.contingency.n_
 
 ## Do Not Use This For
 
-Do not use this for dynamic stability, protection simulation, remedial action schemes, multi-element outages, OPF redispatch, or invented outage results.
+This single-branch screening capability does not itself perform dynamic stability, protection simulation, multi-element outages, or corrective optimization. Other published capabilities can be composed with it; discover their contracts rather than treating this tool's scope as the whole application's scope.
 
 ## Concepts and Terminology
 
@@ -33,6 +33,14 @@ Optional `violation_types`: `line_overload`, `bus_voltage_low`, `bus_voltage_hig
 Outputs: `result_ref`, `context_ref`, `revision_ref`, `constraint_evaluation`, `status`, `solver`, `evidence_refs`, and `scenarios`.
 
 Each scenario includes `scenario_result_ref`, `branch_ref`, `element_kind`, `pandapower_index`, `status`, `converged`, raw loading/voltage extrema, `constraint_evaluation`, `violations`, and `evidence_ref`. Violation values use `percent` for loading and `p.u.` for bus voltage; thresholded violations identify their model `constraint_ref`.
+
+## Study Conditions And Candidate Verification
+
+The scan uses limits stored in its input revision. If the study supplies different limits, describe the relevant model fields and create a child revision with `model.revision.derive`. Set only the supplied bounds, retain the parent, and record where those bounds came from. Confirm the child's constraints before using its results to assess the study.
+
+A candidate operating point and its verification must use the same revision and conditions. Inspect model flexibilities and costs, then use published optimization operations when the objective requires optimization. Ordinary OPF solves its declared operating case; it does not prove security across other outage cases. Verify a candidate against the requested cases and report any remaining violations or cases not checked. Trial improvements alone do not establish optimality.
+
+After a revision changes, resolve element references in that revision. `model.dataset.query` can retrieve `asset_ref` and identity fields for a group; individual lookups are not required when the returned dataset identifies the group completely. Batch scans within the tool limit while retaining the full requested case set.
 
 ## Single-step Examples
 

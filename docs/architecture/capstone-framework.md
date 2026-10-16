@@ -1,5 +1,23 @@
 # Capstone Agent Framework
 
+## Standalone intent routing after rollback
+
+The current local recovery candidate restores pre-closure business execution.
+An application-owned, tool-free LLM selects ordinary or professional before the
+existing execution chain. It does not compile business requirements, rewrite the
+request, certify goal coverage or replace the final answer. Recognition can use
+its separately configured Provider/model. A failed classifier stops the attempt
+with a routing diagnostic; hosted applications do not use keyword fallback.
+The experimental closure design remains historical, not current runtime behavior.
+
+After the user-directed rollback, three existing fixes are selectively restored:
+the compact activity window, isolated ordinary knowledge answers and final-message
+collection. Ordinary answers have no business extension/catalog/Authority handle;
+they use the configured lightweight role with thinking off. Process deltas remain
+diagnostic and cannot become the formal answer. Task compilation, coverage and
+model prewarm remain withdrawn. Model information requests still use the professional
+chain; no speed or calculation-free claim is made for that path.
+
 Capstone assembles evidence-backed agent applications over authoritative
 business-domain systems. It is the composition boundary between a reader-facing
 application, a domain's semantic capabilities, and the registered system that
@@ -64,7 +82,7 @@ data access within the task; it does not publish tools.
 Three execution roles have distinct resource profiles: `harness_engine`,
 `delegated_pi` and `direct_pi`. The last two are execution identities under the
 existing Capstone/Pi modes. Checked-in native settings and
-[`agent-resources.json`](../../configs/runtime/agent-resources.json) select fixed
+the separately planned `agent-resources.json` configuration select fixed
 sources and role adapters. Managed installation, actual SDK loading and exact
 tool schema checks must succeed before a resource is ready. Accepted profile
 revisions and protected installations persist for retry; revocation or missing

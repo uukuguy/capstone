@@ -94,7 +94,109 @@ HTTP 服务只监听 loopback，首次启动在忽略的 `.capstone-agent/` 状�
 
 ## Hosted App and deployment
 
+### Source-free local dev trial
+
+入口统一为`user-local`，管理命令为`capstone.sh`。不传参数安装最新已发布版本；命令末尾使用`sh -s -- b7e68dd`可指定Git提交号，错误或不唯一参数列出可安装版本。Docker按主机选择arm64/amd64。安装和启动仍是一条命令。不同版本共享用户数据；兼容性与启动配置检查先于停止当前服务，一个安装目录同时只运行一个版本。升级与回退兼容性由开发发布流程验证，格式变化缺少已验证迁移时拒绝切换并保留原服务。
+
+用户使用版本化的无源码部署包；开发者使用的Compose＋Vite路径保留。用户主机只需Docker及Compose v2。包默认从`registry.cn-beijing.aliyuncs.com/uukuguy`拉取固定摘要的backend、App、PostgreSQL和RustFS镜像。API与pandapower/PyPSA workers共用backend，静态App代理同源`/api/v1`。
+
+先安装Docker/Compose v2，在启动环境配置`DEEPSEEK_API_KEY`，然后一条命令安装和启动：
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/uukuguy/capstone/dev/deploy/dev-trial/install.sh | sh
+```
+
+后续服务管理：
+
+```sh
+sh ~/capstone/capstone.sh
+sh ~/capstone/capstone.sh versions
+sh ~/capstone/capstone.sh use b7e68dd
+sh ~/capstone/capstone.sh status
+sh ~/capstone/capstone.sh logs
+sh ~/capstone/capstone.sh stop
+```
+
+版本化`install.sh`一次完成下载、校验、安装和启动，默认目录`~/capstone`，用`CAPSTONE_TRIAL_DIRECTORY`覆盖。成功时显示安装目录、访问地址、运维命令与端口配置。正式包默认App入口`http://127.0.0.1:19173/`，与开发5173/demo15173隔离；端口已使用时，在安装目录`.env`修改`CAPSTONE_APP_PORT`。DeepSeek/deepseek-flash为默认；OpenAI示例在注释中，模型在生成包时从Provider注册表读取。切换Provider时同时修改Provider和模型，配置对应启动Key。启动LLM变量优先；发布镜像及内部数据库/存储/操作者凭据保持包或实例固定，不能由普通`.env`覆盖。Key只进入worker及配置检查容器，API/App不接收Key。
+
+新安装使用与安装目录身份绑定的稳定项目名`capstone-user-<identity>`；接管原版安装时保留其`capstone-user-local-dev`或原项目名。不同安装目录使用独立项目并选择不同App端口；版本切换复用同一目录的项目和数据卷。每实例私有配置位于`.capstone-trial/<instance>/`，权限0600；保留整个目录以重新连接原数据。停止不会删卷；再次启动相同来源保留数据。使用`capstone.sh install <Git>`安装已发布版本，`use <Git>`切换已安装版本；缺省启动按本地精确镜像和版本记录选择最新可用版本。原7832134安装可原地接管，保留其项目、数据卷、私有配置及原安装记录。保留整个目录，包括`versions/`和`.capstone-management/`；不要手动改写冻结包或镜像绑定。运行失败的诊断保留在该私有目录，脚本不展开配置输出。
+
+本包是固定dev的临时试用，不更新既有cloud-dev/demo或local-demo，不属于main稳定发布。镜像实际平台、Windows/WSL2目标验证和发布入口以[版本台账](status/VERSION-CONTROL.md)为准。基础注册案例及服务就绪不代表整体科学验收；正常使用LLM由用户配置的Provider处理。操作员构建与发布步骤见[试用打包说明](../deploy/dev-trial/README.md)。
+
+### Offline user-local installation
+
+内网安装包面向`linux/amd64`。目标机器须先安装Docker与Compose v2；
+安装包包含四类镜像、模型资源、部署文件和SHA256清单，不需要Git、Python、
+Node或公网下载。离线包的精确来源与实际验收范围以版本台账和交付收据为准。
+
+解压交付归档后，在其目录运行`sh install-offline.sh`。先在启动环境中设置：
+
+```sh
+export PROVIDER=openai
+export OPENAI_BASE_URL='http://your-internal-llm/v1'
+export OPENAI_MODEL=deepseek-flash
+# Set OPENAI_API_KEY in the startup environment. Do not put a real Key in arguments.
+sh install-offline.sh
+```
+
+地址须替换为容器可以访问的内网接口；容器中的`localhost`指向该容器自身。
+缺省Provider为openai，模型为deepseek-flash，内网地址必须配置。
+`OPENAI_MODEL`和`OPENAI_BASE_URL`用于已选openai Provider；Key只进入后端worker。
+本地试用的自定义OpenAI地址使用Pi的Chat Completions兼容接口
+（`/chat/completions`，包含流式输出和工具调用）；官方OpenAI地址保留Responses接口。
+`OPENAI_BASE_URL`填写API前缀，例如以`/v1`结尾，不填写完整的`/chat/completions`路径。
+安装完成后可将非敏感地址与模型写入安装目录`.env`，后续启动仍须提供Key。
+
+默认安装到`~/capstone`，可用`CAPSTONE_TRIAL_DIRECTORY`选择目录。
+镜像导入校验完成后，安装器调用原版本管理与数据兼容检查。
+若已有目录的数据格式缺少已验证兼容路径，拒绝切换并保留旧服务和数据；
+不要删除数据卷绕过检查。新独立试用可选择另一个目录和App端口。
+使用`sh ~/capstone/capstone.sh status`、`logs`、`stop`和`start`管理实例。
+离线版追加版本须再次使用完整离线包；在线安装命令不是离线升级入口。
+
+操作员打包入口为`deploy/build_user_local_offline.py`；详见
+[离线设计](superpowers/specs/2026-10-15-user-local-offline-design.md)及
+[实施计划](superpowers/plans/2026-10-15-user-local-offline.md)。
+
 ### Isolated local demo
+
+Recognition has separate backend settings: `CAPSTONE_RECOGNITION_PROVIDER`,
+`CAPSTONE_RECOGNITION_MODEL`, optional `CAPSTONE_RECOGNITION_BASE_URL` and
+`CAPSTONE_RECOGNITION_API_KEY_ENV`. Without overrides it uses the configured
+execution Provider/model. The restored standalone classifier uses thinking off
+and a15-second routing timeout. It selects ordinary or professional without
+compiling business requirements, checking capabilities or planning tools.
+Ordinary knowledge answers also use this configured lightweight role with thinking
+off, in a separate tool-free workspace. Professional execution retains its own
+Provider/model. Model information remains on the professional chain; this does not
+claim it is calculation-free or as fast as independent ordinary knowledge.
+Provider
+changes use that Provider's registered defaults, not execution endpoint/key
+settings. Supply credentials through protected backend environment variables;
+the key-name setting is not a secret value and creates no credential access.
+Restart workers after configuration changes. This rollback/restoration uses an
+isolated classifier process per route request. Task compilation, pooled recognition
+processes and API-triggered worker prewarm remain withdrawn. Ordinary answers still
+enter the existing model preparation path; record full elapsed time and do not
+claim zero initialization. The activity UI shows latest3 actions while running,
+uses a bounded160px full list and collapses after completion.
+
+`local-dev` is the local development and release-verification target for
+`cloud-dev`. Local API and family workers keep `/app/runs` in three separate,
+Compose-project-scoped volumes. The canonical rebuild migrates records from an
+older container before replacing it: stop writers, retain an ignored backup,
+copy into an empty role volume, and restore service ownership. It refuses to
+overwrite a nonempty volume from a different migration. On failure, the original
+containers and backups remain; the rebuild does not replace them. Do not use
+`docker compose down --volumes` on an environment whose history must be kept.
+
+`local-dev` is the local development and release-verification target for
+`cloud-dev`. `local-demo` is the local reproduction, emergency-repair and
+release-verification target for `cloud-demo`. At rest, select the accepted
+cloud-demo source and feature scope for local-demo. A frozen release candidate
+or demo repair may temporarily differ; record its baseline, purpose and source.
+Do not deploy ordinary local-dev changes into local-demo. Current deployment
+and pending alignment belong to [the version register](status/VERSION-CONTROL.md).
 
 Use a clean checkout of the exact demo candidate, rather than the current main
 checkout. Set up its managed runtimes with `make setup`, `make install-pi`, and
@@ -254,6 +356,8 @@ PID/日志；设置 `CAPSTONE_START_APP=0` 可跳过。需要同时刷新基础�
 在电脑上打开 `http://127.0.0.1:5173/` 直接进入智能体对话，打开 `http://127.0.0.1:5173/old` 进入原案例页。本地 App 默认监听 `0.0.0.0`，同一局域网的手机可打开 `http://<电脑局域网 IP>:5173/`。原案例页会自动获取服务端提供的访问凭证，该凭证只允许已登记案例，案例会话仍固定使用 Provider 模式。智能体对话默认使用开放访问模式，浏览器不需要 operator token。Vite 通过同源代理把浏览器请求转发到电脑的 `127.0.0.1:8767`，API 端口仍只绑定本机 loopback；数据库和 bucket 不发布主机端口。可用 `CAPSTONE_APP_HOST=127.0.0.1` 恢复仅本机访问，或用 `CAPSTONE_APP_PUBLIC_HOST=<电脑局域网 IP>` 指定脚本输出给手机使用的地址。若 8767 已被占用，可设置 `CAPSTONE_API_PORT` 更改 Compose 的发布端口，同时设置 `CAPSTONE_API_PROXY_TARGET` 为该 API 原点。`make build-capstone-app` 生成静态发布产物，`make test-capstone-app` 运行前端定向测试。
 
 本地 Compose 与 cloud-dev 的普通工作台共用 [`host-runtime-v1.json`](../configs/runtime/host-runtime-v1.json) 和同一个启动器。配置契约固定 Provider、模型、应用角色与启动依赖；环境仅提供数据库、存储、域名、凭据与容量。API 等待两个 worker 就绪，运行中的模型目录与指令准入实时更新 worker 健康状态。配置冲突会在启动前失败，日志只显示配置项。部署时比较三角色的 `/app/.capstone-agent/host-runtime.json` 与本地验收记录，契约和制品哈希必须一致，再验收真实 App、Provider 与证据。专项 M11 脚本验证需显式设置 `CAPSTONE_RUNTIME_PROFILE=`，不得作为普通工作台的验收记录。
+
+启动器也以 `Host runtime receipt: ` 前缀将同一份无秘密JSON回执写入stderr。容器文件访问失败时，可按精确的项目、环境、服务和部署ID筛选这条日志；核对角色、阶段、契约、源码与安装工件摘要后，再进行发布验收和标签登记。
 
 镜像从已锁定的 grid/PyPSA/Capstone Python 环境与 npm 依赖构建，并在构建期安装、逐项校验六个官方 PyPSA 模型资产；运行时不会从宿主复制 `.grid-agent/` 或下载模型。API/worker 的差别只在 `/app/deploy/entrypoint.sh` 的角色参数。会话、创建与命令幂等键、事件序号位于 PostgreSQL；报告和受限证据投影位于私有工件存储。worker 中途退出后租约到期会标记运行中断，先前已提交的答案仍可读取。worker 对等待下一条指令的旧式会话计时；空闲期限由[共享运行配置](../configs/runtime/host-runtime-v1.json)中的 `CAPSTONE_SESSION_IDLE_SECONDS` 决定，可在 60–86400 秒间调整。本轮指令或报告仍在执行时不计时。到期后会话标记为「会话已超时」、释放 worker 名额，已提交的答案和证据保留，旧会话不可续交。名额已满且有新会话排队至少 1 秒时，worker 会从所有副本持有的会话中原子选取已空闲至少 30 秒的最久会话；正在计算或整理报告的会话不会被淘汰。访客可重置已中断的案例重新开始。刷新页面会重新取得演示凭证、回到该案例最近的运行状态；已超时或让位的会话可回看，但不会重连计算进程。`CAPSTONE_WORKER_MAX_SESSIONS` 默认每实例 8 个，可按内存实测在 1–64 间调整；云端通过增加 worker 副本扩容，每实例仍有独立上限。API 的 `/health/ready` 检查 PostgreSQL，依赖 bucket 的操作仍以实际读写结果为准。
 

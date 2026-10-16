@@ -14,6 +14,8 @@ export type ThreadControlsProps = {
   disabled: boolean
   historyActions: ReactNode
   onProfileSelection: (profiles: ProfileReference[]) => void
+  onResetWork?: () => void
+  resetDisabled?: boolean
 }
 
 function toolName(profile: ThreadCatalogProfile): string {
@@ -52,13 +54,18 @@ function GridToolSelection({ profiles, selectedProfiles, disabled, onSave }: {
   </div>
 }
 
-export default function ThreadControls({ catalog, selectedProfiles, pendingModel, disabled, historyActions, onProfileSelection }: ThreadControlsProps) {
+export default function ThreadControls({ catalog, selectedProfiles, pendingModel, disabled, historyActions, onProfileSelection, onResetWork, resetDisabled }: ThreadControlsProps) {
   const profiles = catalog?.profiles || []
   return <div className="thread-compact-controls" aria-label="Thread 紧凑控制">
     <ThreadSettingsMenu>
       {historyActions}
       {profiles.length > 0 && <GridToolSelection profiles={profiles} selectedProfiles={selectedProfiles}
         disabled={disabled} onSave={onProfileSelection} />}
+      {onResetWork && <details className="thread-grid-tools">
+        <summary>重置工作上下文</summary>
+        <p>恢复当前电网的打开基准，清空当前研究状态。历史回答、计算结果和证据保留。</p>
+        <button type="button" disabled={disabled || resetDisabled} onClick={onResetWork}>确认重置</button>
+      </details>}
     </ThreadSettingsMenu>
     {pendingModel && <span className="thread-control-pending" role="status">模型切换待生效</span>}
   </div>

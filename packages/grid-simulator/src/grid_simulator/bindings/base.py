@@ -10,6 +10,14 @@ class AnalysisPrerequisiteError(ValueError):
         self.details = details
 
 
+class AnalysisImplementationError(RuntimeError):
+    """A diagnosed implementation failure, distinct from a network conclusion."""
+
+    def __init__(self, message: str, **details: Any) -> None:
+        super().__init__(message)
+        self.details = details
+
+
 @dataclass(frozen=True)
 class AnalysisOutcome:
     operation: str
@@ -25,6 +33,7 @@ class AnalysisOperation:
     pandapower_operation: str
     options_schema: dict[str, Any]
     execute: Callable[[Any, Any, dict[str, Any]], AnalysisOutcome]
+    branch_operating_point: bool = False
 
 
 def closed_schema(properties: dict[str, Any]) -> dict[str, Any]:

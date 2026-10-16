@@ -20,6 +20,87 @@ def environment(application="capstone", stage="local"):
             "DEEPSEEK_API_KEY": "test-value-never-log"}
 
 
+def trial_environment(application="capstone", **overrides):
+    return environment(application) | {"CAPSTONE_RUNTIME_PROFILE": "capstone-dev-trial-v1"} | overrides
+
+
+@pytest.mark.parametrize("application,command", [("capstone", "api"), ("pandapower", "worker"), ("pypsa", "worker")])
+def test_local_trial_defaults_to_registry_deepseek(application, command):
+    contract, _, _, selected = RUNTIME.select_runtime(ROOT, trial_environment(application), command)
+    assert contract["profile"] == "capstone-dev-trial-v1"
+    assert selected["CAPSTONE_PUBLIC_PROVIDER"] == "deepseek"
+    assert selected["CAPSTONE_PUBLIC_MODEL"] == "deepseek-flash"
+
+
+@pytest.mark.parametrize("application,command", [("capstone", "api"), ("pandapower", "worker"), ("pypsa", "worker")])
+def test_local_trial_selects_openai_with_its_registered_default_model(application, command):
+    import json
+    registry = json.loads((ROOT / "configs/llm-providers.json").read_text())
+    settings = trial_environment(application, CAPSTONE_PUBLIC_PROVIDER="openai", OPENAI_API_KEY="test-openai-never-log")
+    selected = RUNTIME.select_runtime(ROOT, settings, command)[3]
+    assert selected["CAPSTONE_PUBLIC_PROVIDER"] == "openai"
+    assert selected["CAPSTONE_PUBLIC_MODEL"] == registry["providers"]["openai"]["default_model"]
+
+
+def test_local_trial_requires_the_selected_key_not_another_provider_key():
+    settings = trial_environment("pandapower", CAPSTONE_PUBLIC_PROVIDER="openai")
+    with pytest.raises(ValueError, match="^OPENAI_API_KEY$"):
+        RUNTIME.select_runtime(ROOT, settings, "worker")
+    settings["CAPSTONE_HOSTED_APPLICATION"] = "capstone"
+    RUNTIME.select_runtime(ROOT, settings, "api")
+
+
+@pytest.mark.parametrize("key,value", [
+    ("CAPSTONE_PUBLIC_PROVIDER", "unregistered-private-value"),
+    ("CAPSTONE_PUBLIC_MODEL", "bad model private-value"),
+    ("CAPSTONE_PUBLIC_MODEL", ""),
+    ("CAPSTONE_DEPLOYMENT_STAGE", "cloud-development"),
+    ("CAPSTONE_DEPLOYMENT_STAGE", "user-trial"),
+    ("CAPSTONE_THREAD_CONTEXT_LIMIT", "4"),
+])
+def test_local_trial_keeps_other_contract_fields_and_selection_bounded(key, value):
+    with pytest.raises(ValueError) as error:
+        RUNTIME.select_runtime(ROOT, trial_environment(**{key: value}), "api")
+    assert str(error.value) == key
+    assert value not in str(error.value) or value == ""
+
+
+def test_local_trial_can_choose_a_bounded_model_identifier_without_an_api_probe():
+    settings = trial_environment("pandapower", CAPSTONE_PUBLIC_PROVIDER="openai",
+                                 CAPSTONE_PUBLIC_MODEL="gpt-5-mini", OPENAI_API_KEY="test-never-log")
+    assert RUNTIME.select_runtime(ROOT, settings, "worker")[3]["CAPSTONE_PUBLIC_MODEL"] == "gpt-5-mini"
+
+
+def test_startup_logs_the_same_secret_free_receipt_saved_for_acceptance(tmp_path, monkeypatch, capsys):
+    import json
+    import os
+    contract, role, spec, settings = RUNTIME.select_runtime(ROOT, environment("pandapower"), "worker")
+    contract_path = tmp_path / "configs/runtime/host-runtime-v1.json"
+    contract_path.parent.mkdir(parents=True)
+    contract_path.write_bytes((ROOT / "configs/runtime/host-runtime-v1.json").read_bytes())
+    monkeypatch.setattr(RUNTIME, "__file__", str(tmp_path / "deploy/launch_host_runtime.py"))
+    monkeypatch.setattr(RUNTIME.sys, "argv", ["launch_host_runtime.py", "worker"])
+    monkeypatch.setattr(RUNTIME, "select_runtime", lambda *args: (contract, role, spec, settings))
+    monkeypatch.setattr(RUNTIME, "artifact_identity", lambda *args, **kwargs: "verified-artifact")
+
+    class RuntimeStarted(Exception):
+        pass
+
+    def start(*args):
+        raise RuntimeStarted
+
+    monkeypatch.setattr(os, "execve", start)
+    with pytest.raises(RuntimeStarted):
+        RUNTIME.main()
+    output = capsys.readouterr()
+    line = next(line for line in output.err.splitlines() if line.startswith("Host runtime receipt: "))
+    receipt = json.loads(line.removeprefix("Host runtime receipt: "))
+    assert receipt == json.loads((tmp_path / ".capstone-agent/host-runtime.json").read_text())
+    assert receipt["source_artifact_sha256"] == "verified-artifact"
+    assert "test-value-never-log" not in output.err + output.out
+    assert "DEEPSEEK_API_KEY" not in output.err + output.out
+
+
 @pytest.mark.parametrize("application,command", [("capstone", "api"), ("pandapower", "worker"), ("pypsa", "worker")])
 def test_local_and_cloud_select_same_runtime(application, command):
     local = RUNTIME.select_runtime(ROOT, environment(application), command)
@@ -28,6 +109,18 @@ def test_local_and_cloud_select_same_runtime(application, command):
     for key in local[0]["shared_environment"]:
         assert local[3][key] == cloud[3][key]
     assert local[2]["module"]
+
+
+def test_model_context_retention_uses_memory_pressure_instead_of_short_idle_expiry():
+    selected = RUNTIME.select_runtime(ROOT, environment('pandapower'), 'worker')[3]
+    assert selected['CAPSTONE_THREAD_CONTEXT_IDLE_SECONDS'] == '0'
+    assert int(selected['CAPSTONE_THREAD_CONTEXT_LIMIT']) > 4
+
+
+def test_compose_does_not_duplicate_model_context_contract_defaults():
+    compose = (ROOT / 'compose.yaml').read_text()
+    assert 'CAPSTONE_THREAD_CONTEXT_LIMIT:' not in compose
+    assert 'CAPSTONE_THREAD_CONTEXT_IDLE_SECONDS:' not in compose
 
 
 @pytest.mark.parametrize("key,value", [
@@ -51,6 +144,15 @@ def test_worker_requires_provider_but_api_does_not():
         RUNTIME.select_runtime(ROOT, selected, "worker")
     selected["CAPSTONE_HOSTED_APPLICATION"] = "capstone"
     RUNTIME.select_runtime(ROOT, selected, "api")
+
+
+@pytest.mark.parametrize("application,command", [("capstone", "api"), ("pandapower", "worker"), ("pypsa", "worker")])
+def test_research_candidate_is_explicit_and_shared_by_host_roles(application, command):
+    settings = environment(application)
+    assert RUNTIME.select_runtime(ROOT, settings, command)[3]["CAPSTONE_AUTONOMOUS_RESEARCH"] == "0"
+    assert RUNTIME.select_runtime(ROOT, settings | {"CAPSTONE_AUTONOMOUS_RESEARCH": "1"}, command)[3]["CAPSTONE_AUTONOMOUS_RESEARCH"] == "1"
+    with pytest.raises(ValueError, match="^CAPSTONE_AUTONOMOUS_RESEARCH$"):
+        RUNTIME.select_runtime(ROOT, settings | {"CAPSTONE_AUTONOMOUS_RESEARCH": "true"}, command)
 
 
 def test_trial_promotion_can_select_the_same_runtime_without_source_changes():

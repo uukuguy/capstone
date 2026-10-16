@@ -1,6 +1,32 @@
 from __future__ import annotations
 
+
+def test_task_progress_receipt_is_public_text_not_calculation_evidence():
+    from capstone_agent.harness import normalize_runtime_event
+    record = {"kind": "observation", "text": "已取得计算结果，准备核对约束。", "refs": ["result:one"]}
+    event = normalize_runtime_event({"type": "tool_result", "event": "tool_result",
+        "tool_name": "agent_task_progress", "capability": "agent_task_progress", "ok": True,
+        "result": record, "evidence_refs": []}, runtime_mode="capstone")
+    assert event["payload"]["task_progress"] == record
+    assert not event["payload"].get("result_refs")
+    assert not event["payload"].get("evidence_refs")
+
+
+def test_historical_record_receipt_is_visible_without_admitting_nested_evidence():
+    from capstone_agent.harness import normalize_runtime_event
+    event = normalize_runtime_event({
+        "type": "tool_execution_end", "toolName": "agent_task_records_read", "toolCallId": "call_records",
+        "result": {"details": {"event": "tool_result", "capability": "agent_task_records_read", "ok": True,
+            "request_parameters": {"after": 0}, "evidence_refs": [],
+            "result": {"historical_only": True, "events": [{"payload": {"evidence_refs": ["evidence:old"]}}]}}},
+    }, runtime_mode="capstone")
+    assert event["event_type"] == "tool_completed"
+    assert event["payload"]["ok"] is True
+    assert event["payload"]["request_parameters"] == {"after": 0}
+    assert not event["payload"].get("evidence_refs")
+
 import pytest
+import json
 
 from capstone_agent.harness import (
     AdmittedAttemptAnswer,
@@ -45,6 +71,7 @@ def test_incomplete_catalog_stream_commits_the_complete_application_answer():
     )
     assert result is not None and result.status == "completed" and session.stopped
     events = service.read_events("thr_harness", 0).events
+    assert [event.event_seq for event in events] == list(range(1, len(events) + 1))
     terminal = events[-1]
     assert terminal.event_type == "attempt_completed"
     assert "model-first" in terminal.payload["answer"] and "model-second" in terminal.payload["answer"]
@@ -189,6 +216,27 @@ def test_application_observer_gets_native_event_without_publishing_raw_details()
     assert public[0]["payload"] == {"native_type": "provider_internal"}
 
 
+def test_normalizer_does_not_publish_native_executor_arguments() -> None:
+    event = normalize_runtime_event({"type": "tool_execution_start", "toolName": "bash",
+        "args": {"command": "private task command"}}, runtime_mode="capstone")
+    assert "args" not in event["payload"]
+    assert "request_parameters" not in event["payload"]
+
+
+def test_normalizer_preserves_dataset_sources_without_promoting_rows_to_evidence():
+    dataset = "dataset:input.sources:sha256:" + "a" * 64
+    row_reference = "dataset:row.value:sha256:" + "b" * 64
+    event = normalize_runtime_event({"type": "tool_result", "event": "tool_result",
+        "tool_name": "domain_dataset_query", "capability": "model.dataset.query", "ok": True,
+        "result": {"dataset_ref": dataset, "context_ref": "context:selected", "revision_ref": "revision:selected",
+                   "rows": [{"dataset_ref": row_reference, "private_value": 42}]}}, runtime_mode="capstone")
+    assert event["payload"]["dataset_refs"] == [dataset]
+    assert "result_refs" not in event["payload"]
+    assert "evidence_refs" not in event["payload"]
+    assert "rows" not in event["payload"]
+    assert row_reference not in str(event)
+
+
 def test_normalizer_preserves_nested_authority_refs_and_model_identity() -> None:
     result_ref = "result:sha256:" + "a" * 64
     context_ref = "context:sha256:" + "b" * 64
@@ -220,6 +268,7 @@ def test_canonical_rpc_result_keeps_authority_references_and_identity() -> None:
         "type": "tool_execution_end", "toolCallId": "call_1",
         "result": {"details": {
             "ok": True, "capability": "analysis.powerflow.ac.run",
+            "request_parameters": {"solver": "nr", "max_iteration": 20},
             "result": {"result_ref": result_ref, "context_ref": context_ref,
                        "revision_ref": revision_ref, "model": "case24_ieee_rts"},
             "evidence_refs": ["evidence:sha256:" + "d" * 64],
@@ -232,6 +281,7 @@ def test_canonical_rpc_result_keeps_authority_references_and_identity() -> None:
     assert payload["model_revision"] == revision_ref
     assert payload["model_id"] == "case24_ieee_rts"
     assert payload["evidence_refs"] == ["evidence:sha256:" + "d" * 64]
+    assert payload["request_parameters"] == {"solver": "nr", "max_iteration": 20}
 
 
 def test_canonical_authority_business_details_do_not_hide_pypsa_identity() -> None:
@@ -412,7 +462,14 @@ def test_harness_attempt_runner_persists_runtime_events_and_terminal_answer() ->
     assert result.status == "completed"
     assert result.answer == "answer"
     assert service.snapshot("thr_harness").current_attempt is None
-    assert service.read_events("thr_harness", 0).events[-1].event_type == "attempt_completed"
+    records = service.read_events("thr_harness", 0).events
+    assert records[-1].event_type == "attempt_completed"
+    started = next(item for item in records if item.event_type == 'attempt_started')
+    assert claim.started_at == started.occurred_at
+    assert started.payload['task_step']['title'] == '任务准备'
+    assert records[-1].payload['task_steps'][0]['title'] == '核验与结果整理'
+    assert records[-1].payload['task_steps'][0]['status'] == 'completed'
+    assert records[-1].payload['task_steps'][0]['duration_ms'] >= 0
 
 
 def test_harness_attempt_runner_persists_network_events_before_terminal_answer() -> None:
@@ -622,7 +679,8 @@ def test_professional_model_observation_admission_is_accepted_without_evidence()
     assert result.error_code is None
 
 
-def test_application_admission_persists_bounded_result_projection() -> None:
+@pytest.mark.parametrize("large", [False, True])
+def test_application_admission_persists_bounded_result_projection(large) -> None:
     service = _thread_service()
     service.submit_command({
         "schema": "capstone-command/1", "command_id": "cmd_harness_projection",
@@ -645,6 +703,13 @@ def test_application_admission_persists_bounded_result_projection() -> None:
         "status": "completed", "summary": [], "tables": [], "element_refs": [],
         "overlay": None,
     }
+    if large:
+        projection["tables"] = [{
+            "table_id": "details", "title": "Details",
+            "columns": [{"column_id": f"c{index}", "label": f"Column {index}"} for index in range(4)],
+            "rows": [{"row_id": f"row:{index}", "cells": {f"c{column}": "测量" * 64
+                     for column in range(4)}} for index in range(128)],
+        }]
 
     class _ProjectionSession(_PiSession):
         def prompt_and_wait(self, question: str, **kwargs: object) -> str:
@@ -679,8 +744,19 @@ def test_application_admission_persists_bounded_result_projection() -> None:
     ).run(claim)
 
     assert result.status == "completed"
-    terminal = service.read_events("thr_harness", 0).events[-1]
-    assert terminal.payload["result_projections"][0]["result_id"] == projection["result_id"]
+    events = service.read_events("thr_harness", 0).events
+    terminal = events[-1]
+    if large:
+        assert "result_projections" not in terminal.payload
+        manifest = terminal.payload["result_projection_manifest"]
+        pieces = [e.payload for e in events if e.event_type == "result_projection_part"]
+        assert manifest == [{"result_id": projection["result_id"], "parts": len(pieces)}]
+        restored = json.loads("".join(p["data"] for p in pieces))
+        assert restored["tables"] == projection["tables"]
+        assert all(len(json.dumps(e.to_document(), ensure_ascii=False).encode()) < 64 * 1024 for e in events)
+    else:
+        assert terminal.payload["result_projections"][0]["result_id"] == projection["result_id"]
+    assert service.snapshot("thr_harness").result_projections[-1].to_document()["tables"] == projection["tables"]
 
 
 def test_harness_pi_heartbeat_renews_attempt_lease() -> None:
@@ -711,7 +787,7 @@ def test_harness_pi_heartbeat_renews_attempt_lease() -> None:
     assert result.status == "completed"
 
 
-def test_professional_route_rejects_limited_admission() -> None:
+def test_professional_route_delivers_admitted_limited_answer() -> None:
     service = _thread_service()
     service.submit_command({
         "schema": "capstone-command/1", "command_id": "cmd_harness_limited",
@@ -731,8 +807,12 @@ def test_professional_route_rejects_limited_admission() -> None:
         ),
         turn_router=DefaultTurnRouter(),
     ).run(claim)
-    assert result.status == "failed"
-    assert result.error_code == "capability_required"
+    assert result.status == "completed"
+    assert result.answer == "answer"
+    terminal = service.read_events("thr_harness", 0).events[-1]
+    assert terminal.payload["answer"] == "answer"
+    assert terminal.payload["admission"] == {"mode": "limited", "assurance": "limited"}
+    assert terminal.payload["result_refs"] == terminal.payload["evidence_refs"] == []
 
 
 def test_explicit_professional_route_cannot_be_downgraded_by_classifier() -> None:
@@ -755,5 +835,8 @@ def test_explicit_professional_route_cannot_be_downgraded_by_classifier() -> Non
         ),
         turn_router=DefaultTurnRouter(decision_router=FakeDecisionRouter("ordinary")),
     ).run(claim)
-    assert result.status == "failed"
-    assert result.error_code == "capability_required"
+    assert result.status == "completed"
+    events = service.read_events("thr_harness", 0).events
+    selected = next(event for event in events if event.event_type == "turn_route_selected")
+    assert selected.payload["route"] == "professional"
+    assert events[-1].payload["admission"]["mode"] == "limited"

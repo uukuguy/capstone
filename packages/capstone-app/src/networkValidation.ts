@@ -49,6 +49,55 @@ function parseDiagramView(raw: Record<string, unknown>, ordinal: number,
     if (branch.kind === 'line') lineIds.add(branch.id)
   }
   const allIds = new Set([...busIds, ...branchIds])
+  if (diagram.disconnections !== undefined) {
+    if (!Array.isArray(diagram.disconnections) || diagram.disconnections.length > MAX_NETWORK_BRANCHES) return null
+    const seen = new Set<string>()
+    for (const entry of diagram.disconnections) {
+      if (!record(entry) || !text(entry.id) || !branchIds.has(entry.id) || seen.has(entry.id) ||
+          !Array.isArray(entry.markers) || entry.markers.length > 2) return null
+      seen.add(entry.id)
+      if ((entry.style !== undefined && !['disconnected','unresolved'].includes(String(entry.style))) ||
+          (entry.label !== undefined && !text(entry.label))) return null
+      const branch = diagram.branches.find((item) => item.id === entry.id)
+      for (const marker of entry.markers) {
+        if (!record(marker) || !text(marker.label) || !text(marker.bus_id) ||
+            ![branch?.from_bus, branch?.to_bus].includes(marker.bus_id)) return null
+      }
+    }
+  }
+  if (layer.annotations !== undefined) {
+    const annotations = layer.annotations
+    if (!record(annotations) || !record(annotations.scene) ||
+        !text(annotations.scene.label) || !text(annotations.scene.context_ref) ||
+        !text(annotations.scene.model_revision) || !text(annotations.scene.source_ref) ||
+        !admittedRefs.includes(annotations.scene.source_ref) ||
+        (annotations.scene.case_ref !== undefined && !text(annotations.scene.case_ref))) return null
+    for (const kind of ['states', 'regions']) {
+      const entries = annotations[kind]
+      if (!Array.isArray(entries) || entries.length > MAX_NETWORK_BUSES) return null
+      const allowed = kind === 'regions' ? busIds : allIds
+      for (const entry of entries) {
+        if (!record(entry) || !text(entry.label) || !text(entry.source_ref) ||
+            !admittedRefs.includes(entry.source_ref) || !Array.isArray(entry.ids) ||
+            !entry.ids.length || entry.ids.length > MAX_NETWORK_BRANCHES ||
+            new Set(entry.ids).size !== entry.ids.length ||
+            entry.ids.some((id) => typeof id !== 'string' || !allowed.has(id)) ||
+            kind === 'states' && !['disconnected', 'warning', 'unresolved'].includes(String(entry.style)) ||
+            kind === 'regions' && entry.emphasis !== undefined && typeof entry.emphasis !== 'boolean') return null
+        if (kind === 'states' && entry.markers !== undefined) {
+          if (!Array.isArray(entry.markers) || entry.markers.length > Math.min(MAX_NETWORK_BRANCHES, 2 * entry.ids.length)) return null
+          const seen = new Set<string>()
+          for (const marker of entry.markers) {
+            if (!record(marker) || !text(marker.id) || !text(marker.bus_id) || !text(marker.label) ||
+                !entry.ids.includes(marker.id) || !busIds.has(marker.bus_id)) return null
+            const key = `${marker.id}:${marker.bus_id}`
+            if (seen.has(key)) return null
+            seen.add(key)
+          }
+        }
+      }
+    }
+  }
   for (const key of ['focus_ids', 'next_focus_ids']) {
     const focus = layer[key]
     if (!Array.isArray(focus) || focus.length > 20 || new Set(focus).size !== focus.length ||

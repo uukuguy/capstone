@@ -1,0 +1,26 @@
+{
+    admin off
+    auto_https off
+}
+
+:3000 {
+    encode zstd gzip
+
+    handle /health {
+        respond "ok" 200
+    }
+
+    @api path /api/* /health/ready
+    handle @api {
+        reverse_proxy api:8766 {
+            header_up Host api
+            header_up Origin {$CAPSTONE_APP_ORIGIN:http://127.0.0.1:5173}
+        }
+    }
+
+    handle {
+        root * /srv
+        try_files {path} /index.html
+        file_server
+    }
+}

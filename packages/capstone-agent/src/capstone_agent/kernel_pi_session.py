@@ -6,6 +6,8 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 import json
 import os
+import re
+import time
 from typing import cast
 
 from capability_agent.domain.answer_admission import (
@@ -18,20 +20,22 @@ from capability_agent.runtime.descriptor import (
     descriptor_from_endpoint,
     write_runtime_descriptor,
 )
-from capability_agent.runtime.environment import RuntimeHost, RuntimePaths, build_pi_launch
+from capability_agent.runtime.environment import PiLaunch, RuntimeHost, RuntimePaths, build_pi_launch
 from capability_agent.runtime.models import ResolvedLLM
 from capability_agent.runtime.rpc import PiRpcClient
 from capability_agent.runtime.trace import JsonlTraceWriter
+from capability_agent.tools.catalog import CoreToolCatalog
 
-from .harness import AdmittedAttemptAnswer, PiPromptSession
+from .harness import AdmittedAttemptAnswer, PiPromptSession, normalize_runtime_event
 from .kernel_capability_preparation import PreparedKernelApplicationProfile
 from .kernel_reference_handoff import PreparedKernelReferenceHandoffs
 from .model_capability_context import PreparedModelCapabilityContext
 from .thread_protocol import ModelContextSnapshot
 from .thread_service import AttemptClaim, PriorResultReference, PreviousInstruction
+from .task_record_reader import SelectedTaskRecordReader
 from .result_projection import normalize_result_projection
 from .catalog_answer import complete_catalog_answer
-from .task_recognition import recognize_with_pi, render_task_policy
+from .attempt_research import AttemptResearch
 
 
 PreparedKernelSessionBuilder = Callable[
@@ -48,12 +52,6 @@ class PreparedKernelPiSessionFactory:
         if not callable(builder):
             raise TypeError("builder must be callable")
         self._builder = builder
-
-    def recognize_task(self, claim, *, on_heartbeat, requirement_schemas=()):
-        recognizer = getattr(self._builder, "recognize_task", None)
-        if not callable(recognizer):
-            raise RuntimeError("task recognizer is unavailable")
-        return recognizer(claim, on_heartbeat=on_heartbeat, requirement_schemas=requirement_schemas)
 
     def __call__(
         self,
@@ -87,6 +85,8 @@ class PreparedKernelPiRpcSessionBuilder:
         runtime_host: RuntimeHost,
         resolved_llm: ResolvedLLM,
         base_environment: Mapping[str, str] | None = None,
+        research_enabled: bool = False,
+        research_is_active: Callable[[AttemptClaim], bool] | None = None,
     ) -> None:
         if not isinstance(runtime_host, RuntimeHost):
             raise TypeError("runtime_host must be a RuntimeHost")
@@ -98,17 +98,14 @@ class PreparedKernelPiRpcSessionBuilder:
         ):
             raise TypeError("base_environment must contain text keys and values")
         self._runtime_host = runtime_host
+        self._research_enabled = research_enabled
+        self._research_is_active = research_is_active
         self._resolved_llm = resolved_llm
         self._base_environment = None if base_environment is None else dict(base_environment)
         environment = os.environ if base_environment is None else base_environment
         self._timeout_seconds = float(environment.get('CAPSTONE_THREAD_ATTEMPT_TIMEOUT_SECONDS', '600'))
         if not 1 <= self._timeout_seconds <= 3600:
             raise ValueError('Thread attempt timeout is invalid')
-
-    def recognize_task(self, claim, *, on_heartbeat, requirement_schemas=()):
-        return recognize_with_pi(claim, runtime_host=self._runtime_host, resolved_llm=self._resolved_llm,
-                                 base_environment=self._base_environment, timeout_seconds=self._timeout_seconds,
-                                 on_heartbeat=on_heartbeat, requirement_schemas=requirement_schemas)
 
     def __call__(
         self,
@@ -119,10 +116,39 @@ class PreparedKernelPiRpcSessionBuilder:
         del context
         if not profiles:
             raise RuntimeError("Pi RPC session requires a prepared Domain Pack")
-        if claim.task_resolutions and all(not goal.execution_required for goal in claim.task_resolutions) and not all(goal.status == "general" for goal in claim.task_resolutions):
-            return _ResolvedTaskSession(claim, profiles)
         workspace = profiles[0].workspace
+        if claim.turn_plan is not None and claim.turn_plan.route == "ordinary":
+            directory = workspace.core_path / "pi" / "attempts" / claim.attempt.attempt_id / "general-task"
+            selected_task = claim.previous_instruction if claim.previous_instruction is not None and claim.previous_instruction.model_context is not None else None
+            policy = _compose_attempt_policy(directory, None, include_generic=True,
+                application_catalog=claim.application_catalog,
+                model_context=claim.model_context if selected_task is not None else None,
+                previous_instruction=selected_task)
+            paths = RuntimePaths(command=self._runtime_host.command,
+                project_pi_dir=self._runtime_host.project_pi_dir, session_dir=directory / "session",
+                workspace=directory, extension_path=None, domain_search_paths=(), system_policy_path=policy)
+            launch = build_pi_launch(self._resolved_llm, paths, base_environment=self._base_environment)
+            launch = _with_selected_task_tool(launch, claim.selected_task_reader, directory,
+                                             self._runtime_host.extension_path)
+            launch = PiLaunch((*launch.argv, "--thinking", "off"), launch.environment)
+            secrets = {self._resolved_llm.secret.value} if self._resolved_llm.secret is not None else set()
+            trace = JsonlTraceWriter(directory / "pi-events.jsonl", secret_values=secrets)
+            client = PiRpcClient(launch, _RpcWorkspace(directory), trace, secret_values=secrets,
+                correlation_id=claim.attempt.attempt_id, timeout_seconds=self._timeout_seconds,
+                process_delta_batch_seconds=.1)
+            return _KernelPiPromptSession(client, trace, admission=_build_kernel_admission(()))
         handoffs = PreparedKernelReferenceHandoffs(profiles)
+        references = _ResearchReferences(profiles)
+        research = None
+        if self._research_enabled:
+            active = self._research_is_active
+            research = AttemptResearch(workspace.root.parent / "thread-research", thread_id=claim.thread_id,
+                run_id=claim.run_id, attempt_id=claim.attempt.attempt_id,
+                model_context=claim.model_context,
+                research_generation=claim.research_generation,
+                channel_root=workspace.core_path / "research-channels" / claim.attempt.attempt_id,
+                is_active=lambda: active(claim) if active is not None else False,
+                admit_reference=references.admit)
         descriptors = []
         binding_runtimes: list[tuple[str, object, object]] = []
         for profile in profiles:
@@ -166,13 +192,15 @@ class PreparedKernelPiRpcSessionBuilder:
                     application_id=profile.profile.manifest.application_id,
                     run_id=claim.run_id,
                     reference_handoffs_path=handoffs.path,
+                    research_channel_path=research.channel.root if research is not None else None,
                 )
                 descriptors.append(descriptor)
                 binding_runtimes.append((binding_id, runtime, getattr(binding, "endpoint", None)))
         binding_ids = [binding_id for binding_id, _, _ in binding_runtimes]
         if len(binding_ids) != len(set(binding_ids)):
             raise ValueError("prepared Kernel profiles contain duplicate binding IDs")
-        descriptor_path = workspace.core_path / "pi" / "runtime-descriptor.json"
+        attempt_directory = workspace.core_path / "pi" / "attempts" / claim.attempt.attempt_id
+        descriptor_path = attempt_directory / "runtime-descriptor.json"
         descriptor_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         descriptor = descriptors[0] if len(descriptors) == 1 else CompositeRuntimeDescriptor(tuple(descriptors))
         write_runtime_descriptor(descriptor_path, descriptor)
@@ -188,20 +216,13 @@ class PreparedKernelPiRpcSessionBuilder:
                 workspace.core_path / "pi" / "attempts" / claim.attempt.attempt_id,
                 self._runtime_host.system_policy_path,
                 include_generic=ordinary,
+                include_research=self._research_enabled,
                 application_catalog=claim.application_catalog,
                 model_context=claim.model_context,
                 profiles=profiles,
                 prior_results=claim.prior_results,
                 previous_instruction=claim.previous_instruction,
-                task_understanding=claim.task_understanding,
             )
-            if claim.task_resolutions:
-                with system_policy_path.open("a", encoding="utf-8") as policy:
-                    policy.write("\nHost-resolved task requirements (fixed scope; no added permissions):\n")
-                    policy.write(json.dumps([goal.to_document() for goal in claim.task_resolutions], ensure_ascii=False))
-                    policy.write("\nExecute only goals marked execution_required=true. Ready goals have fixed objects and ordered patches. Uncertified compatibility goals use only existing published capabilities, with no claim of verified task coverage. Do not substitute baseline results for changed or outage scenarios.\n")
-                    if any(goal.status == "general" for goal in claim.task_resolutions):
-                        policy.write("\nFor this mixed task, your final prose must answer only the independent general goals. The host renders professional conclusions separately from verified results. Never cite Authority references in the general response or answer blocked dependency goals.\n")
         paths = RuntimePaths(
             command=self._runtime_host.command,
             project_pi_dir=self._runtime_host.project_pi_dir,
@@ -219,8 +240,13 @@ class PreparedKernelPiRpcSessionBuilder:
         launch = build_pi_launch(
             self._resolved_llm, paths, base_environment=self._base_environment,
         )
+        launch = _with_selected_task_tool(launch, claim.selected_task_reader, attempt_directory,
+                                         self._runtime_host.extension_path)
+        launch = _with_model_input_metrics(launch, attempt_directory, self._runtime_host.extension_path)
+        if self._research_enabled:
+            launch = PiLaunch((*launch.argv, "--thinking", "off"), launch.environment)
         trace = JsonlTraceWriter(
-            workspace.core_path / "pi-events.jsonl",
+            attempt_directory / "pi-events.jsonl",
             secret_values={self._resolved_llm.secret.value}
             if self._resolved_llm.secret is not None else set(),
         )
@@ -232,11 +258,38 @@ class PreparedKernelPiRpcSessionBuilder:
             if self._resolved_llm.secret is not None else set(),
             correlation_id=claim.attempt.attempt_id,
             timeout_seconds=self._timeout_seconds,
+            process_delta_batch_seconds=.1,
         )
         return _KernelPiPromptSession(
-            client, trace, admission=_build_kernel_admission(profiles),
+            client, trace, admission=_build_kernel_admission(profiles,
+                core_catalog=CoreToolCatalog.default(include_research=research is not None)),
             reference_observer=handoffs.observe,
+            research=research, research_reference_observer=references.observe,
         )
+
+
+def _with_model_input_metrics(launch: PiLaunch, directory: Path, domain_extension: Path) -> PiLaunch:
+    extension = domain_extension.with_name('model-input-metrics.mjs')
+    if extension.is_symlink() or not extension.is_file():
+        raise RuntimeError('model input metrics extension is not installed')
+    root = directory / 'model-input-metrics'
+    root.mkdir(mode=0o700, parents=True, exist_ok=True)
+    environment = dict(launch.environment)
+    environment['CAPSTONE_MODEL_INPUT_METRICS'] = str(root.resolve())
+    return PiLaunch((*launch.argv, '--extension', str(extension)), environment)
+
+
+def _with_selected_task_tool(launch: PiLaunch, reader: SelectedTaskRecordReader | None,
+                             directory: Path, domain_extension: Path) -> PiLaunch:
+    if reader is None:
+        return launch
+    extension = domain_extension.with_name("task-record-tools.mjs")
+    if extension.is_symlink() or not extension.is_file():
+        raise RuntimeError("selected task record extension is not installed")
+    root = reader.publish(directory / "selected-task-records")
+    environment = dict(launch.environment)
+    environment["CAPSTONE_SELECTED_TASK_RECORDS"] = str(root)
+    return PiLaunch((*launch.argv, "--extension", str(extension)), environment)
 
 
 def _require_prepared_kernel_profile(
@@ -276,28 +329,30 @@ def _compose_attempt_policy(
     *,
     include_generic: bool,
     application_catalog: Mapping[str, object] | None,
+    include_research: bool = False,
     model_context: ModelContextSnapshot | None = None,
     profiles: tuple[PreparedKernelApplicationProfile, ...] = (),
     prior_results: tuple[PriorResultReference, ...] = (),
     previous_instruction: PreviousInstruction | None = None,
-    task_understanding=None,
 ) -> Path:
     """Compose generic, domain, and application catalog guidance for one Attempt."""
 
     generic = Path(__file__).parent / "resources" / "conversation-policy.md"
     generic_text = generic.read_text(encoding="utf-8") if include_generic else ""
+    research = Path(__file__).parent / "resources" / "research-policy.md"
+    research_text = research.read_text(encoding="utf-8") if include_research else ""
+    delivery_text = (Path(__file__).parent / "resources" / "answer-delivery-policy.md").read_text(encoding="utf-8")
     domain_text = ""
     if domain_policy is not None:
         domain_text = domain_policy.read_text(encoding="utf-8")
     catalog_text = _render_application_catalog_context(application_catalog)
     model_text = _render_attempt_model_context(model_context, profiles, prior_results=prior_results, previous_instruction=previous_instruction) if model_context is not None else ""
-    task_text = render_task_policy(task_understanding)
-    if len(generic_text) + len(domain_text) + len(catalog_text) + len(model_text) + len(task_text) > 128_000:
+    if sum(map(len, (generic_text, domain_text, catalog_text, model_text, research_text, delivery_text))) > 128_000:
         raise RuntimeError("combined runtime policy is too large")
     directory.mkdir(mode=0o700, parents=True, exist_ok=True)
     path = directory / "system-policy.md"
     path.write_text(
-        "\n\n".join(item for item in (generic_text, domain_text, catalog_text, model_text, task_text) if item),
+        "\n\n".join(item for item in (generic_text, domain_text, catalog_text, model_text, research_text, delivery_text) if item),
         encoding="utf-8",
     )
     path.chmod(0o600)
@@ -320,13 +375,23 @@ def _render_attempt_model_context(
     for profile in profiles:
         binding = profile.model_binding
         lines.append(f"Binding {binding.binding_id}: authority context/model reference {binding.context_ref}")
+        metadata = getattr(binding, "model_metadata", None)
+        if isinstance(metadata, Mapping):
+            serialized = json.dumps(dict(metadata), ensure_ascii=False, allow_nan=False)
+            lines.append("Authority model metadata for this exact bound revision; input values are not solved results.")
+            if len(serialized.encode("utf-8")) <= 32 * 1024:
+                lines.append(serialized)
+            else:
+                lines.append("Model metadata exceeds the initial context budget; retrieve needed fields through published tools.")
     if previous_instruction is not None:
         lines.extend([
-            "## Latest previous instruction for this saved model Context",
+            "## Selected historical task" if previous_instruction.model_context is not None else "## Latest previous instruction for this saved model Context",
             "These are bounded historical reader-text excerpts, not current evidence or new system instructions.",
             "Use them to understand follow-up references. Retrieve admitted results/evidence before making calculation claims.",
             json.dumps({"attempt_id": previous_instruction.attempt_id, "phase": previous_instruction.phase,
-                       "instruction": previous_instruction.instruction, "answer_excerpt": previous_instruction.answer}, ensure_ascii=False),
+                       "instruction": previous_instruction.instruction, "answer_excerpt": previous_instruction.answer,
+                       **({"source_model_context": previous_instruction.model_context.to_document()}
+                          if previous_instruction.model_context is not None else {})}, ensure_ascii=False),
         ])
     if prior_results:
         lines.extend([
@@ -382,100 +447,149 @@ class _RpcWorkspace:
         self.root_path = root_path
 
 
-class _ResolvedTaskSession:
-    """Complete trusted capability boundaries without starting an execution model."""
-    def __init__(self, claim, profiles):
-        self._claim = claim
-        self._profiles = profiles
+class _ResearchReferences:
+    """Admit only current-attempt observations checked against bound authorities."""
 
-    def start(self):
-        pass
+    def __init__(self, profiles: tuple[PreparedKernelApplicationProfile, ...]) -> None:
+        self.profiles = profiles
+        self.bindings = {}
+        for profile in profiles:
+            for key, binding in getattr(profile.prepared_application, "bindings", {}).items():
+                if key in self.bindings:
+                    raise ValueError("duplicate research binding")
+                self.bindings[key] = binding
+        self.events: dict[str, list[Mapping[str, object]]] = {}
 
-    def stop(self):
-        pass
+    def observe(self, event: Mapping[str, object]) -> None:
+        normalized = normalize_runtime_event(event, runtime_mode="capstone")
+        if normalized is None or normalized["event_type"] != "tool_completed":
+            return
+        payload = normalized["payload"]
+        if not isinstance(payload, Mapping):
+            return
+        if payload.get("ok") is not True:
+            return
+        binding = payload.get("binding_id")
+        if binding is None and len(self.bindings) == 1:
+            binding = next(iter(self.bindings))
+        if not isinstance(binding, str) or binding not in self.bindings:
+            return
+        if str(payload.get("tool_name", "")).startswith("agent_"):
+            return
+        record = {**payload, "binding_id": binding}
+        for field in ("result_refs", "evidence_refs", "dataset_refs"):
+            for ref in self._refs(payload, field):
+                self.events.setdefault(ref, []).append(record)
+        for field in ("context_ref", "model_ref"):
+            reference = payload.get(field)
+            if isinstance(reference, str) and reference:
+                self.events.setdefault(reference, []).append(record)
+        authority = getattr(getattr(self.bindings[binding], "runtime", None), "authority", None)
+        verify_evidence = getattr(authority, "verify_evidence", None)
+        if not callable(verify_evidence):
+            return
+        for evidence_ref in self._refs(payload, "evidence_refs"):
+            try:
+                document = getattr(verify_evidence(evidence_ref), "document", None)
+                linked_result = document.get("result_ref") if isinstance(document, Mapping) else None
+                if not isinstance(linked_result, str) or not linked_result:
+                    continue
+                linked_receipt = {**record, "result_refs": [linked_result], "evidence_refs": [evidence_ref]}
+                _verify_bound_attempt_references(self.profiles, self.bindings,
+                    {linked_result: binding, evidence_ref: binding}, (linked_result,), (evidence_ref,),
+                    (linked_receipt,))
+            except (ValueError, LookupError, RuntimeError):
+                continue
+            # This relationship comes from an observed, verified Authority
+            # artifact. It is not a reference asserted by the research model.
+            self.events.setdefault(linked_result, []).append(linked_receipt)
 
-    def prompt_and_wait(self, question, *, on_semantic_event, correlation_id, on_heartbeat):
-        on_heartbeat()
-        return _task_conclusion_answer(self._claim, self._profiles, (), ()).answer
+    @staticmethod
+    def _refs(event: Mapping[str, object], field: str) -> tuple[str, ...]:
+        refs = event.get(field, ())
+        return tuple(ref for ref in refs if isinstance(ref, str)) if isinstance(refs, (list, tuple)) else ()
 
-    def admit_attempt(self, claim, answer, result_refs, evidence_refs, tool_events):
-        if result_refs or evidence_refs or tool_events:
-            raise ValueError("offline task response cannot admit execution references")
-        return _task_conclusion_answer(claim, self._profiles, (), ())
+    def admit(self, reference: str) -> bool:
+        return self._admit(reference, frozenset())
+
+    def _admit(self, reference: str, visited: frozenset[str]) -> bool:
+        if reference in visited:
+            return False
+        visited = visited | {reference}
+        events = self.events.get(reference, [])
+        if not events or len({event["binding_id"] for event in events}) != 1:
+            return False
+        # A later dataset read can return an existing result without producing
+        # evidence. It must not retire the earlier verified calculation receipt.
+        for event in reversed(events):
+            results = self._refs(event, "result_refs")
+            evidence = self._refs(event, "evidence_refs")
+            binding = event["binding_id"]
+            if not isinstance(binding, str):
+                continue
+            owners = {ref: binding for ref in (*results, *evidence)}
+            if reference in self._refs(event, "dataset_refs"):
+                if not isinstance(event.get("context_ref"), str) or not isinstance(event.get("model_revision"), str):
+                    continue
+                # Result datasets inherit their verified parent; input datasets
+                # need an observed read in the selected context and revision.
+                if any(not self._admit(parent, visited) for parent in results):
+                    continue
+                try:
+                    _verify_bound_attempt_references(self.profiles, self.bindings, {}, (), (), (event,))
+                except (ValueError, LookupError, RuntimeError):
+                    continue
+                return True
+            try:
+                _verify_bound_attempt_references(self.profiles, self.bindings, owners,
+                                                 results, evidence, (event,))
+            except (ValueError, LookupError, RuntimeError):
+                continue
+            return True
+        return False
 
 
-def _task_conclusion_answer(claim, profiles, result_refs, evidence_refs, owners=None, general_answer="", compatibility_answer=""):
-    from capability_agent.domain.task import TaskConclusion
-    from .task_resolution import render_conclusions
-    bindings = {binding_id: binding for profile in profiles
-                for binding_id, binding in profile.prepared_application.bindings.items()}
-    conclusions = []
-    for goal in claim.task_resolutions:
-        if goal.status == "uncertified" and goal.execution_required:
-            from .task_resolution import compatibility_prefix
-            text = compatibility_answer if isinstance(compatibility_answer, str) and compatibility_answer.strip() else goal.reason
-            if len(text) > 6000:
-                text = text[:6000] + "…"
-            conclusions.append(TaskConclusion(goal.goal_id, "uncertified",
-                compatibility_prefix(claim.task_understanding.answer_policy.language) + "\n" + text))
-            continue
-        if goal.status == "general":
-            if not isinstance(general_answer, str) or not general_answer.strip() or len(general_answer) > 6000:
-                conclusions.append(TaskConclusion(goal.goal_id, "unresolved", "The general response is missing or exceeds the bounded answer limit."))
-            else:
-                label = ("一般回答（未经 Authority 验证）：" if claim.task_understanding.answer_policy.language.startswith("zh")
-                         else "General response (not Authority-verified):")
-                conclusions.append(TaskConclusion(goal.goal_id, "general", label + "\n" + general_answer))
-            continue
-        binding = bindings.get(goal.binding_id)
-        provider = None if binding is None else getattr(binding.runtime.profile, "task_provider", None)
-        if provider is None or binding is None:
-            conclusions.append(TaskConclusion(goal.goal_id, "clarification", goal.reason or "This goal has no verified Domain Pack conclusion."))
-            continue
-        accepted = next((item.to_document() for item in claim.task_understanding.goals if item.id == goal.goal_id), None)
-        accepted_policy = {"language": claim.task_understanding.answer_policy.language, "scale": claim.task_understanding.answer_policy.scale}
-        if goal.status == "ready":
-            provider.validate_semantic_binding(goal, semantic_goal=accepted, answer_policy=accepted_policy)
-        conclusion = provider.conclude(goal, authority=binding.runtime.authority,
-            result_refs=tuple(ref for ref in result_refs if owners is None or owners.get(ref) == goal.binding_id),
-            evidence_refs=tuple(ref for ref in evidence_refs if owners is None or owners.get(ref) == goal.binding_id))
-        if not set(conclusion.result_refs) <= set(result_refs) or not set(conclusion.evidence_refs) <= set(evidence_refs):
-            raise ValueError("Pack conclusion cites a reference not admitted by this Attempt")
-        render = getattr(provider, "render_conclusion", None)
-        if callable(render):
-            from dataclasses import replace
-            policy = claim.task_understanding.answer_policy
-            conclusion = replace(conclusion, text=render(conclusion, language=policy.language, scale=policy.scale))
-        conclusions.append(conclusion)
-    policy = claim.task_understanding.answer_policy
-    answer = render_conclusions(tuple(conclusions), language=policy.language, scale=policy.scale)
-    results = tuple(dict.fromkeys(ref for item in conclusions for ref in item.result_refs))
-    evidence = tuple(dict.fromkeys(ref for item in conclusions for ref in item.evidence_refs))
-    code = ("task_goal_coverage_verified" if evidence else
-            "task_clarification_verified" if any(item.status in {"unresolved", "clarification"} for item in conclusions) else
-            "task_capability_boundary_verified" if any(item.status == "unsupported" for item in conclusions) else
-            "task_goal_coverage_unverified" if any(item.status == "uncertified" for item in conclusions) else "task_information_verified")
-    has_general = any(item.status == "general" for item in conclusions)
-    return AdmittedAttemptAnswer(answer, "authority_backed" if evidence else "offline_information",
-        "lineage_verified" if evidence else "general_knowledge" if has_general else "deterministic_information", results, evidence,
-        (code,) + (("general_response_unverified",) if has_general else ()),
-        goal_conclusions=tuple(conclusions))
+def _mixed_language_opening(answer: str) -> bool:
+    opening, separator, body = answer.strip().partition("\n\n")
+    if not separator or opening.startswith((">", "```", "#")):
+        return False
+    return (not re.search(r"[\u3400-\u9fff]", opening)
+            and len(re.findall(r"[A-Za-z]+", opening)) >= 6
+            and len(re.findall(r"[\u3400-\u9fff]", body)) >= 16)
 
 
 class _KernelPiPromptSession:
     def __init__(self, client: PiRpcClient, trace: JsonlTraceWriter, *, admission,
-                 reference_observer: Callable[[Mapping[str, object]], None] | None = None) -> None:
+                 reference_observer: Callable[[Mapping[str, object]], None] | None = None,
+                 research: AttemptResearch | None = None,
+                 research_reference_observer: Callable[[Mapping[str, object]], None] | None = None) -> None:
         self._client = client
         self._trace = trace
         self._admission = admission
         self._reference_observer = reference_observer
+        self._deadline: float | None = None
+        self._ready_for_correction = False
+        self._research = research
+        self._research_reference_observer = research_reference_observer
+        self._answer_admitted = False
+        existing_research = research.controller.read() if research is not None else None
+        self._published_research_revision = existing_research.revision if existing_research is not None else 0
 
     @property
     def command(self) -> object:
         return self._client.command
 
+    def record_preparation_timing(self, stages: Mapping[str, float]) -> None:
+        """Persist preparation durations without model text or credentials."""
+        self._trace.append("application_runtime_preparation", dict(stages))
+
     def start(self) -> None:
         self._client.start()
+
+    def bind_attempt_guard(self, check: Callable[[], bool],
+                           terminal_phase: Callable[[str], str | None] | None = None) -> None:
+        if self._research is not None:
+            self._research.bind_active_check(check, terminal_phase)
 
     def prompt_and_wait(
         self,
@@ -485,29 +599,154 @@ class _KernelPiPromptSession:
         correlation_id: str | None,
         on_heartbeat: Callable[[], None],
     ) -> str:
+        if self._deadline is None:
+            self._deadline = time.monotonic() + (self._client.timeout_seconds or 600)
+        remaining = self._deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("attempt time budget exhausted")
+        self._ready_for_correction = False
+        self._trace.append("application_prompt", {
+            "correlation_id": correlation_id, "question": question,
+        })
+        from .task_steps import RuntimeStepTracker
+        if not hasattr(self, "_task_step_tracker"):
+            self._task_step_tracker = RuntimeStepTracker()
         def observed(event, _sequence):
+            event = self._task_step_tracker.annotate(event)
             if self._reference_observer is not None:
                 self._reference_observer(event)
-            on_semantic_event(event)
+            on_semantic_event({**event, "trace_sequence": _sequence,
+                               "trace_correlation_id": correlation_id})
+            if self._research_reference_observer is not None:
+                self._research_reference_observer(event)
 
-        return self._client.prompt_and_wait(
-            question,
-            on_semantic_event=observed,
-            correlation_id=correlation_id,
-            on_heartbeat=on_heartbeat,
+        def research_updates() -> None:
+            self._drain_research()
+            projection = self._research.current_projection() if self._research is not None else None
+            if projection is None:
+                return
+            revision = projection["research_revision"]
+            if not isinstance(revision, int) or revision <= self._published_research_revision:
+                return
+            sequence = self._trace.append("research_state", projection)
+            on_semantic_event({"type": "research_state", **projection,
+                               "trace_sequence": sequence, "trace_correlation_id": correlation_id})
+            self._published_research_revision = revision
+
+        delivery_candidate = None
+        while True:
+            remaining = self._deadline - time.monotonic()
+            if remaining <= 0:
+                if delivery_candidate is not None:
+                    self._trace.append("answer_delivery_check", {"status": "unresolved", "reason": "correction_budget_exhausted"})
+                    answer = delivery_candidate
+                    break
+                raise TimeoutError("attempt time budget exhausted")
+            idle_budget = 90.0
+            step_budget = min(idle_budget, remaining - 15.0) if self._research is not None and remaining > 15 else None
+            try:
+                answer = self._client.prompt_and_wait(
+                    question,
+                    on_semantic_event=observed,
+                    correlation_id=correlation_id,
+                    on_heartbeat=on_heartbeat,
+                    timeout_seconds=remaining,
+                    on_control_requests=research_updates if self._research is not None else None,
+                    model_idle_seconds=step_budget,
+                )
+            except Exception:
+                if self._task_step_tracker.active is not None:
+                    interrupted = {"type": "runtime_action", "phase": "interrupted"}
+                    sequence = self._trace.append("runtime_action", interrupted)
+                    observed(interrupted, sequence)
+                if delivery_candidate is None:
+                    raise
+                self._trace.append("answer_delivery_check", {"status": "unresolved", "reason": "correction_unavailable"})
+                answer = delivery_candidate
+                break
+            if not getattr(self._client, "last_prompt_interrupted", False):
+                if isinstance(answer, str) and _mixed_language_opening(answer):
+                    self._trace.append("answer_delivery_check", {
+                        "status": "unresolved" if delivery_candidate is not None else "correction_requested",
+                        "reason": "mixed_language_opening",
+                    })
+                    if delivery_candidate is None and self._deadline - time.monotonic() > 15:
+                        delivery_candidate = answer
+                        question = (
+                            "Correct only the delivery of your previous answer. Its opening paragraph is in English "
+                            "while the main report is in Chinese. Return the complete report in the same reader language "
+                            "as its main body. Begin with the requested information, not a progress or readiness message. "
+                            "Preserve all supported values, limitations and failed work. Keep identifiers and source "
+                            "quotations unchanged. Do not run tools or repeat calculations."
+                        )
+                        continue
+                elif delivery_candidate is not None:
+                    valid_delivery = isinstance(answer, str) and bool(answer.strip())
+                    if not valid_delivery:
+                        answer = delivery_candidate
+                    self._trace.append("answer_delivery_check", {"status": "completed" if valid_delivery else "unresolved"})
+                break
+            on_heartbeat()
+            self._client.set_thinking_level("off")
+            sequence = self._trace.append("research_step_resumed", {
+                "reason": "model_step_budget", "budget_seconds": step_budget,
+            })
+            on_semantic_event({"type": "research_step_resumed", "reason": "model_step_budget",
+                "budget_seconds": step_budget, "trace_sequence": sequence,
+                "trace_correlation_id": correlation_id})
+            question = (
+                "Continue the original goal from saved observations, tool receipts and research records. "
+                "The previous reasoning step exceeded its time budget. The session and completed work "
+                "are retained. Use direct reasoning and tools to resolve remaining uncertainties; do not "
+                "restart completed calculations without a stated need. Check numerical comparisons "
+                "against actual results and distinguish verified outcomes from hypotheses. If the goal "
+                "cannot be completed within the remaining budget, deliver the supported partial outcome "
+                "and state what remains unresolved. Use the original user's language for the final answer."
+            )
+            self._trace.append("application_prompt", {"correlation_id": correlation_id, "question": question})
+        self._ready_for_correction = True
+        return answer
+
+    def recover_after_failure(self, feedback: Mapping[str, object], **kwargs) -> str:
+        if not self._ready_for_correction:
+            raise RuntimeError("session is not ready for correction")
+        # Continue the existing session; do not replay the original instruction
+        # or reset the attempt's deadline.
+        return self.prompt_and_wait(
+            "The application could not admit the previous answer. Review the existing "
+            "tool receipts and correct the answer. Do not repeat completed calculations "
+            "without a stated need. Use only verified evidence; explain any unresolved "
+            "part in the user's language. Validation feedback: "
+            + json.dumps(dict(feedback), ensure_ascii=False), **kwargs,
         )
 
     def admit_attempt(self, claim, answer, result_refs, evidence_refs, tool_events):
-        return self._admission(claim, answer, result_refs, evidence_refs, tool_events)
+        admitted = self._admission(claim, answer, result_refs, evidence_refs, tool_events)
+        self._answer_admitted = True
+        return admitted
+
+    def _drain_research(self) -> None:
+        if self._research is not None:
+            self._research.channel.drain()
 
     def stop(self) -> None:
         try:
             self._client.stop()
         finally:
-            self._trace.close()
+            try:
+                if self._research is not None:
+                    self._research.close(failed=not self._answer_admitted)
+            finally:
+                self._trace.close()
 
 
-def _build_kernel_admission(profiles: tuple[PreparedKernelApplicationProfile, ...]):
+def _build_kernel_admission(
+    profiles: tuple[PreparedKernelApplicationProfile, ...],
+    *, core_catalog: CoreToolCatalog | None = None,
+):
+    selected_core = core_catalog if core_catalog is not None else CoreToolCatalog.default()
+    core_tools = {tool.name: tool.capability for tool in selected_core.tools}
+
     def admit(claim, answer, result_refs, evidence_refs, tool_events):
         if (claim.turn_plan is not None and claim.turn_plan.route == "ordinary"
             and not result_refs and not evidence_refs and not tool_events):
@@ -533,8 +772,27 @@ def _build_kernel_admission(profiles: tuple[PreparedKernelApplicationProfile, ..
             if isinstance(namespace := getattr(getattr(binding, "binding", None), "tool_namespace", None), str)
         }
         authority_events = []
+        historical_record_read = False
         owners: dict[str, str] = {}
         for event in tool_events:
+            name = event.get("tool_name")
+            capability = event.get("capability")
+            if name == "agent_task_records_read" or capability == "agent_task_records_read":
+                if (name != "agent_task_records_read" or capability != name
+                    or getattr(claim, "selected_task_reader", None) is None
+                    or event.get("binding_id") is not None
+                    or event.get("result_refs") or event.get("evidence_refs")):
+                    raise ValueError("selected task record provenance is invalid")
+                historical_record_read = historical_record_read or event.get("ok") is True
+                continue
+            if ((isinstance(name, str) and name.startswith(selected_core.namespace))
+                or (isinstance(capability, str) and capability.startswith(selected_core.namespace))):
+                if (not isinstance(name, str) or name not in core_tools
+                    or capability != core_tools[name] or event.get("binding_id") is not None
+                    or event.get("result_refs") or event.get("evidence_refs")):
+                    raise ValueError("core tool provenance is invalid")
+                # Core observations remain in the trace, without becoming domain facts.
+                continue
             # Published guide reads have no authority result or evidence. Their
             # names come from the selected binding, not from a model assertion.
             if (event.get("tool_name") in guide_names
@@ -558,18 +816,11 @@ def _build_kernel_admission(profiles: tuple[PreparedKernelApplicationProfile, ..
                         raise ValueError("runtime reference has conflicting binding owners")
         if set(result_refs) - set(owners) or set(evidence_refs) - set(owners):
             raise ValueError("admitted reference has no tool provenance owner")
+        if not profiles and historical_record_read and not result_refs and not evidence_refs:
+            return AdmittedAttemptAnswer(answer, "limited", "limited",
+                diagnostic_codes=("historical_record_access_verified", "answer_semantics_not_verified"))
         tool_events = tuple(authority_events)
-        if any(event.get("ok") is not True and event.get("error_code") in {
-            "persist_failed", "evidence_persist_failed", "answer_persist_failed", "artifact_integrity_failed",
-            "result_integrity_failed", "reference_integrity_failed"} for event in tool_events):
-            raise ValueError("required persistence or reference integrity failed")
-        _verify_bound_attempt_references(profiles, binding_map, owners, result_refs, evidence_refs, tool_events, claim.task_resolutions)
-        compatibility = bool(claim.task_resolutions) and any(goal.status == "uncertified" and goal.execution_required for goal in claim.task_resolutions)
-        if claim.task_resolutions and not compatibility and any(goal.status != "general" for goal in claim.task_resolutions):
-            from dataclasses import replace
-            formal = _task_conclusion_answer(claim, profiles, result_refs, evidence_refs, owners, general_answer=answer)
-            projections = _build_result_projections(claim, profiles, binding_map, formal.result_refs, formal.evidence_refs, tool_events)
-            return replace(formal, result_projections=projections)
+        _verify_bound_attempt_references(profiles, binding_map, owners, result_refs, evidence_refs, tool_events)
         participating = {event["binding_id"] for event in tool_events}
         decisions = []
         for binding_id, binding in binding_map.items():
@@ -622,18 +873,9 @@ def _build_kernel_admission(profiles: tuple[PreparedKernelApplicationProfile, ..
         result_projections = _build_result_projections(
             claim, profiles, binding_map, result_refs, evidence_refs, tool_events,
         )
-        output, codes = decision.answer_output, tuple(decision.diagnostic_codes)
-        if compatibility:
-            formal = _task_conclusion_answer(claim, profiles, result_refs, evidence_refs, owners,
-                general_answer=answer, compatibility_answer=output)
-            certified = bool(formal.evidence_refs)
-            return AdmittedAttemptAnswer(formal.answer, "authority_backed" if certified else decision.mode,
-                "lineage_verified" if certified else "general_knowledge" if formal.assurance == "general_knowledge" and decision.mode == "offline_information" else decision.assurance,
-                tuple(result_refs), tuple(evidence_refs), tuple(dict.fromkeys((*codes, *formal.diagnostic_codes, "task_goal_coverage_unverified"))),
-                result_projections=result_projections, goal_conclusions=formal.goal_conclusions)
         return AdmittedAttemptAnswer(
-            output, decision.mode, decision.assurance,
-            tuple(result_refs), tuple(evidence_refs), codes,
+            decision.answer_output, decision.mode, decision.assurance,
+            tuple(result_refs), tuple(evidence_refs), tuple(decision.diagnostic_codes),
             result_projections=result_projections,
         )
     return admit
@@ -646,7 +888,6 @@ def _verify_bound_attempt_references(
     result_refs: tuple[str, ...],
     evidence_refs: tuple[str, ...],
     tool_events: tuple[Mapping[str, object], ...],
-    task_resolutions: tuple = (),
 ) -> None:
     """Verify authority artifacts against the immutable application binding."""
     for profile in profiles:
@@ -657,14 +898,24 @@ def _verify_bound_attempt_references(
         for binding_id in prepared_bindings:
             runtime = getattr(bindings[binding_id], "runtime", None)
             authority = getattr(runtime, "authority", None)
-            provider = getattr(getattr(runtime, "profile", None), "task_provider", None)
-            def authorized(document):
-                method = getattr(provider, "authorizes_context", None)
-                context_ref = document.get("context_ref")
-                revision_ref = document.get("revision_ref", document.get("model_revision"))
-                return callable(method) and isinstance(context_ref, str) and isinstance(revision_ref, str) and any(
-                    goal.binding_id == binding_id and method(goal, authority, context_ref, revision_ref)
-                    for goal in task_resolutions if goal.status == "ready")
+            context_revisions = {bound.context_ref: bound.model_revision}
+
+            def context_revision(reference: object) -> str:
+                if not isinstance(reference, str):
+                    raise ValueError("bound context reference is invalid")
+                if reference not in context_revisions:
+                    method = getattr(authority, "verify_context_descendant", None)
+                    if not callable(method):
+                        raise ValueError("authority cannot verify derived context against the bound model")
+                    document = getattr(method(reference, bound.context_ref), "document", None)
+                    if not isinstance(document, Mapping) or document.get("model_id") != bound.model_id:
+                        raise ValueError("derived context does not match the bound model")
+                    revision = document.get("revision_ref")
+                    if not isinstance(revision, str):
+                        raise ValueError("derived context has no verified revision")
+                    context_revisions[reference] = revision
+                return context_revisions[reference]
+
             events = [event for event in tool_events if (
                 event.get("binding_id") == binding_id
                 or event.get("binding_id") is None and len(bindings) == 1
@@ -672,9 +923,10 @@ def _verify_bound_attempt_references(
             for event in events:
                 if event.get("ok") is not True:
                     continue
-                for field, expected in (("model_id", bound.model_id), ("model_revision", bound.model_revision),
-                                        ("context_ref", bound.context_ref)):
-                    if field in event and event[field] != expected and not authorized(event):
+                revision = context_revision(event.get("context_ref", bound.context_ref))
+                for field, expected in (("model_id", bound.model_id), ("model_revision", revision),
+                                        ("revision_ref", revision)):
+                    if field in event and event[field] != expected:
                         raise ValueError("tool identity does not match the bound model context")
                 if "model_ref" in event:
                     model_ref = event["model_ref"]
@@ -694,10 +946,10 @@ def _verify_bound_attempt_references(
                 document = getattr(method(reference), "document", None)
                 if not isinstance(document, Mapping):
                     raise ValueError("bound authority artifact is invalid")
-                for field, expected in (("context_ref", bound.context_ref),
-                                        ("revision_ref", bound.model_revision), ("model_revision", bound.model_revision),
+                revision = context_revision(document.get("context_ref", bound.context_ref))
+                for field, expected in (("revision_ref", revision), ("model_revision", revision),
                                         ("model_id", bound.model_id)):
-                    if field in document and document[field] != expected and not authorized(document):
+                    if field in document and document[field] != expected:
                         raise ValueError("authority artifact does not match the bound model context")
                 model_ref = document.get("model_ref")
                 accepted_model_ref = isinstance(model_ref, str) and bound.accepts_model_reference(model_ref)
@@ -705,11 +957,11 @@ def _verify_bound_attempt_references(
                     raise ValueError("authority artifact does not match the bound model context")
                 linked_result = document.get("result_ref")
                 bound_identity = (
-                    document.get("context_ref") == bound.context_ref
-                    and document.get("revision_ref") == bound.model_revision
+                    document.get("context_ref") in context_revisions
+                    and document.get("revision_ref") == revision
                 ) if bound.context_ref.startswith("context:") else accepted_model_ref
                 linked_evidence = kind == "evidence" and isinstance(linked_result, str)
-                if not bound_identity and not linked_evidence and not authorized(document):
+                if not bound_identity and not linked_evidence:
                     raise ValueError("authority artifact has incomplete bound model identity")
                 verified.add(key)
                 if kind == "evidence" and isinstance(linked_result, str):
@@ -890,12 +1142,13 @@ def _build_result_projections(
                         reason="当前 Domain Pack 尚未提供结果展示投影",
                     ))
                 continue
+            result_contexts: dict[str, tuple[str, str]] = {}
             if not callable(invoke):
                 raw_projections: object = ()
                 projection_error = True
             else:
                 try:
-                    raw_projections = project_admitted(
+                    projection_arguments = dict(
                         authority=authority,
                         invoke=invoke,
                         context_ref=context_ref,
@@ -909,6 +1162,32 @@ def _build_result_projections(
                         result_refs=owned_results,
                         result_evidence=owned_evidence,
                     )
+                    if profile.model_binding.model_revision_resolver is None:
+                        raw_projections = project_admitted(**projection_arguments)
+                    else:
+                        # Application-owned lineage resolution supplies the exact
+                        # context for each scenario; the Pack still checks equality.
+                        raw_projections = []
+                        verify_result = getattr(authority, "verify_result", None)
+                        if not callable(verify_result):
+                            raise ValueError("projection result authority verification is unavailable")
+                        for result_ref in owned_results:
+                            document = getattr(verify_result(result_ref), "document", None)
+                            if not isinstance(document, Mapping):
+                                raise ValueError("projection result artifact is invalid")
+                            result_context = document.get("model_ref")
+                            if not isinstance(result_context, str):
+                                raise ValueError("projection result model reference is invalid")
+                            result_revision = profile.model_binding.revision_for_model_reference(result_context)
+                            result_contexts[result_ref] = (result_context, result_revision)
+                            projected = project_admitted(**{
+                                **projection_arguments, "context_ref": result_context,
+                                "model_revision": result_revision, "result_refs": (result_ref,),
+                                "result_evidence": {result_ref: owned_evidence[result_ref]},
+                            })
+                            if not isinstance(projected, (list, tuple)):
+                                raise ValueError("projection result collection is invalid")
+                            raw_projections.extend(projected)
                     projection_error = False
                 except Exception:
                     raw_projections = ()
@@ -954,17 +1233,42 @@ def _build_result_projections(
                         break
                     diagram_ids = list(raw_diagram_ids)
                 try:
+                    expected_revision = claim.model_context.model_revision
+                    verify_result = getattr(authority, "verify_result", None)
+                    if raw_result_ref in result_contexts:
+                        expected_revision = result_contexts[raw_result_ref][1]
+                    elif callable(verify_result):
+                        document = getattr(verify_result(raw_result_ref), "document", None)
+                        result_context = document.get("context_ref") if isinstance(document, Mapping) else None
+                        if isinstance(document, Mapping) and isinstance(result_context, str) and result_context != context_ref:
+                            verify_descendant = getattr(authority, "verify_context_descendant", None)
+                            if not callable(verify_descendant):
+                                raise ValueError("projection ancestry verification is unavailable")
+                            derived_context = getattr(verify_descendant(result_context, context_ref), "document", None)
+                            if not isinstance(derived_context, Mapping) or not isinstance(derived_context.get("revision_ref"), str):
+                                raise ValueError("projection derived context is invalid")
+                            expected_revision = derived_context["revision_ref"]
+                            if document.get("revision_ref") != expected_revision:
+                                raise ValueError("projection result revision does not match its context")
                     normalized = normalize_result_projection(
                         raw_document,
                         admitted_refs=tuple((*owned_results, *owned_evidence.get(raw_result_ref, ()))),
                         diagram_ids=diagram_ids,
-                        expected_model_revision=claim.model_context.model_revision,
+                        expected_model_revision=expected_revision,
                     )
                 except Exception:
                     projection_error = True
                     break
                 if diagram_ids is not None:
                     normalized["_diagram_element_ids"] = diagram_ids
+                if expected_revision != claim.model_context.model_revision:
+                    # Host-only receipt: added after Authority verification and
+                    # projection normalization, never accepted from model text.
+                    normalized["_verified_context_binding"] = {
+                        "base_model_revision": claim.model_context.model_revision,
+                        "result_model_revision": expected_revision,
+                        "result_ref": raw_result_ref,
+                    }
                 projections.append(normalized)
             if projection_error or seen_results != set(owned_results):
                 projections = [item for item in projections if item.get("result_ref") not in owned_results]

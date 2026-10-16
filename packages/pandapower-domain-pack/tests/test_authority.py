@@ -12,6 +12,37 @@ from pandapower_domain import PandapowerArtifactAuthority, build_pandapower_prof
 from pandapower_domain.authority import ContentReferenceVerifier, SimulatorIntegrityError
 
 
+def test_context_descendant_requires_verified_same_model_ancestry(tmp_path: Path) -> None:
+    models = tmp_path / "evidence" / "models"
+    contexts = tmp_path / "evidence" / "contexts"
+    models.mkdir(parents=True)
+    contexts.mkdir()
+
+    def context(model: str, parent: str | None, state: int) -> str:
+        revision = _canonical_json({"state": state}).encode()
+        digest = hashlib.sha256(revision).hexdigest()
+        (models / f"{digest}.json").write_bytes(revision)
+        payload = _canonical_json({"model_id": model, "parent_context_ref": parent,
+                                   "revision_ref": f"revision:sha256:{digest}"}).encode()
+        key = hashlib.sha256(payload).hexdigest()
+        (contexts / f"{key}.json").write_bytes(payload)
+        return f"context:sha256:{key}"
+
+    root = context("grid", None, 0)
+    child = context("grid", root, 1)
+    leaf = context("grid", child, 2)
+    authority = PandapowerArtifactAuthority(tmp_path)
+    assert authority.verify_context_descendant(leaf, root).reference == leaf
+    assert authority.verify_context_descendant(root, root).reference == root
+    with pytest.raises(SimulatorIntegrityError, match="not derived"):
+        authority.verify_context_descendant(context("grid", None, 3), root)
+    with pytest.raises(SimulatorIntegrityError, match="crosses model"):
+        authority.verify_context_descendant(context("other", child, 4), root)
+    (contexts / f"{child.rsplit(':', 1)[1]}.json").write_text('{}')
+    with pytest.raises(SimulatorIntegrityError, match="digest"):
+        authority.verify_context_descendant(leaf, root)
+
+
 def test_pandapower_authority_matches_current_run_verifier(tmp_path: Path) -> None:
     profile = build_pandapower_profile()
     run_root = tmp_path / "run"

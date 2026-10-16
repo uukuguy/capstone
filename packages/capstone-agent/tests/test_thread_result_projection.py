@@ -13,6 +13,31 @@ EVIDENCE_ONE = "evidence:sha256:" + "d" * 64
 EVIDENCE_TWO = "evidence:sha256:" + "e" * 64
 
 
+@pytest.mark.parametrize("verified", [False, True])
+def test_derived_projection_requires_host_verified_context_binding(verified):
+    service = _service()
+    claim, projection = _claim_and_projection(service, 1, RESULT_ONE, EVIDENCE_ONE)
+    child_revision = "revision:sha256:" + "f" * 64
+    projection["model_revision"] = child_revision
+    if verified:
+        projection["_verified_context_binding"] = {
+            "base_model_revision": REVISION, "result_model_revision": child_revision,
+            "result_ref": RESULT_ONE,
+        }
+    payload = {"answer": "Child calculation completed", "result_refs": [RESULT_ONE],
+        "evidence_refs": [EVIDENCE_ONE], "result_projections": [projection],
+        "admission": {"mode": "authority_backed", "assurance": "lineage_verified"}}
+    if not verified:
+        with pytest.raises(ValueError):
+            service.finish_attempt(claim, phase="completed", payload=payload)
+        return
+    service.finish_attempt(claim, phase="completed", payload=payload)
+    stored = service.snapshot(claim.thread_id).result_projections[0]
+    assert stored.model_revision == child_revision
+    assert stored.model_context_id == claim.model_context.id
+    assert "_verified_context_binding" not in stored.to_document()
+
+
 def _service() -> InMemoryThreadService:
     return InMemoryThreadService.from_document({
         "schema": "capstone-thread-snapshot/1", "thread_id": "thr_projection",
@@ -108,6 +133,22 @@ def test_result_projection_survives_public_snapshot_roundtrip_and_keeps_attempt_
     terminal = service.read_events("thr_projection", 0).events[-1]
     assert terminal.event_type == "attempt_completed"
     assert terminal.payload["result_projections"] == [projection]
+
+
+@pytest.mark.parametrize("verified", [False, True])
+def test_failed_attempt_retains_projection_only_with_verified_admission(verified) -> None:
+    service = _service()
+    claim, projection = _claim_and_projection(service, 1, RESULT_ONE, EVIDENCE_ONE)
+    payload = {"answer": "Partial outcome", "result_refs": [RESULT_ONE],
+               "evidence_refs": [EVIDENCE_ONE], "result_projections": [projection]}
+    if verified:
+        payload["admission"] = {"mode": "authority_backed", "assurance": "lineage_verified"}
+        service.finish_attempt(claim, phase="failed", payload=payload)
+        assert service.snapshot("thr_projection").result_projections[0].result_ref == RESULT_ONE
+        assert service.read_events("thr_projection", 0).events[-1].event_type == "attempt_failed"
+    else:
+        with pytest.raises(ThreadProtocolError):
+            service.finish_attempt(claim, phase="failed", payload=payload)
 
 
 def test_multiple_completed_attempts_keep_distinct_result_projection_ids() -> None:

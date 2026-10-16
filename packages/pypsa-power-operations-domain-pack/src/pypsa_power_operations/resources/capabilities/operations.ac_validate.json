@@ -7,9 +7,9 @@
     "produces_state": ["pypsa-operations.result"], "invalidates_state": [],
     "result_kind": "pypsa-operations.result", "projector": "pypsa-operations-result-v1"
   },
-  "purpose": "Validate an admitted dispatch result with PyPSA AC power flow on its source model.",
-  "applies_to": ["current-run dispatch results for a registered model"],
-  "not_for": ["independent AC optimization", "foreign-run schedules"],
+  "purpose": "Validate an admitted generator dispatch schedule with PyPSA AC power flow on its source model; the slack generator may balance AC losses.",
+  "applies_to": ["current-run dispatch results for registered models with generator schedules only"],
+  "not_for": ["independent AC optimization", "foreign-run schedules", "models containing Store, StorageUnit, Link or Process components whose schedules are not restored"],
   "input_schema": {
     "type": "object", "additionalProperties": false,
     "required": ["reference", "handoff_ref", "dispatch_result_ref"],
@@ -22,5 +22,8 @@
   "requires": ["application-granted model handoff", "current-run dispatch result"],
   "produces": ["result_ref", "evidence_refs", "bounded AC validation data"],
   "common_next": [],
-  "recovery": {"ac_not_converged": ["Report that the AC validation did not converge."]}
+  "recovery": {
+    "ac_not_converged": ["Report that the AC validation did not converge."],
+    "unsupported_dispatch_components": ["Keep the admitted dispatch result. Explain that AC validation cannot restore the listed component schedules and produced no AC validation result."]
+  }
 }

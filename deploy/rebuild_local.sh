@@ -60,6 +60,12 @@ fi
 printf '%s\n' "==> Building API and worker from the current checkout"
 "${compose[@]}" "${build_args[@]}"
 
+printf '%s\n' "==> Preserving local runtime records before container replacement"
+uv run --project "$repo_root/packages/capstone-agent" python \
+  "$repo_root/deploy/preserve_local_runtime.py" "$compose_file" "$env_file" \
+  "$repo_root/.capstone-agent/runtime-migration" \
+  || fail "runtime records could not be preserved; containers were not replaced"
+
 printf '%s\n' "==> Starting dependencies and replacing API/worker containers"
 "${compose[@]}" up --no-build --force-recreate --wait -d \
   postgres objects objects-init api worker worker-pypsa

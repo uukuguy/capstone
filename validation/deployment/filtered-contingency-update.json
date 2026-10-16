@@ -1,0 +1,25 @@
+{
+  "schema": "capstone-deployment-samples/2",
+  "suite_id": "filtered-contingency-evidence-retention-20261011",
+  "suite_kind": "update",
+  "corpus": "ieee39.json",
+  "case_ids": ["explicit-index-outage"],
+  "change_scope": ["保留已核验的部分AC故障检查结果"],
+  "repair_criteria": [
+    "已执行的AC故障结果不会因筛选约束类别而被全部丢弃",
+    "部分结果保留真实越限明细和当前结果证据，明确当前证据未覆盖范围",
+    "部分检查不能认证完整校核，DC结果不能认证AC任务"
+  ],
+  "required_non_provider_checks": [
+    "filtered-ac-evidence-and-details-retained",
+    "complete-candidate-preferred-with-selected-evidence",
+    "filtered-scopes-not-combined-into-full-certificate",
+    "dc-not-certified-as-ac"
+  ],
+  "acceptance": {
+    "scope": "repair-specific",
+    "complete_overall_answer_required": false,
+    "unrelated_answer_defects": "record_separately",
+    "skipped_is_pending": true
+  }
+}

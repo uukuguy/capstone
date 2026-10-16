@@ -56,6 +56,8 @@ def normalize_network_diagram(value: object) -> dict[str, Any]:
         raise ValueError("network diagram is invalid")
     published = "fingerprint" in value or "ref" in value
     expected = {"schema", "model", "coordinate_system", "buses", "branches"}
+    if "disconnections" in value:
+        expected.add("disconnections")
     source = _record(value, expected | ({"fingerprint", "ref"} if published else set()))
     if source["schema"] != "capstone-network-diagram/1.0":
         raise ValueError("network diagram schema is invalid")
@@ -110,6 +112,37 @@ def normalize_network_diagram(value: object) -> dict[str, Any]:
         "schema": "capstone-network-diagram/1.0", "model": normalized_model,
         **geometry, "fingerprint": fingerprint, "ref": reference,
     }
+    if "disconnections" in source:
+        entries = source["disconnections"]
+        if not isinstance(entries, list) or len(entries) > MAX_BRANCHES:
+            raise ValueError("network disconnections are invalid")
+        selected = []
+        seen: set[str] = set()
+        ends = {branch["id"]: {branch["from_bus"], branch["to_bus"]} for branch in branches}
+        for raw in entries:
+            optional = {key for key in ("style", "label") if isinstance(raw, Mapping) and key in raw}
+            entry = _record(raw, {"id", "markers"} | optional)
+            identifier = _text(entry["id"])
+            markers = entry["markers"]
+            if identifier not in branch_ids or identifier in seen or not isinstance(markers, list) or len(markers) > 2:
+                raise ValueError("network disconnection is invalid")
+            seen.add(identifier)
+            normalized_markers = []
+            for raw_marker in markers:
+                marker = _record(raw_marker, {"bus_id", "label"})
+                bus = _text(marker["bus_id"])
+                if bus not in ends[identifier]:
+                    raise ValueError("network switch terminal is invalid")
+                normalized_markers.append({"bus_id": bus, "label": _text(marker["label"])})
+            normalized_entry = {"id": identifier, "markers": normalized_markers}
+            if "style" in entry:
+                if entry["style"] not in {"disconnected", "unresolved"}:
+                    raise ValueError("network disconnection style is invalid")
+                normalized_entry["style"] = entry["style"]
+            if "label" in entry:
+                normalized_entry["label"] = _text(entry["label"])
+            selected.append(normalized_entry)
+        normalized["disconnections"] = selected
     if published and (source["fingerprint"] != fingerprint or source["ref"] != reference):
         raise ValueError("network diagram identity is invalid")
     if len(json.dumps(normalized, ensure_ascii=False, allow_nan=False).encode("utf-8")) > MAX_DIAGRAM_BYTES:
@@ -127,7 +160,8 @@ def normalize_network_layer(
         raise ValueError("network layer is invalid")
     published = "schema" in value
     required = {"focus_ids", "next_focus_ids", "overlay"}
-    source = _record(value, required | (
+    optional = {"annotations"} if "annotations" in value else set()
+    source = _record(value, required | optional | (
         {"schema", "ordinal", "diagram_ref", "model_revision"} if published else set()
     ))
     if published and (
@@ -173,12 +207,82 @@ def normalize_network_layer(
             selected.append({"id": identifier, "value": number})
         overlay = {"metric": metric, "unit": _METRICS[metric],
                    "source_ref": reference, "values": selected}
-    return {
+    normalized = {
         "schema": "capstone-network-layer/1.0", "ordinal": ordinal,
         "diagram_ref": diagram["ref"], "model_revision": diagram["model"]["revision"],
         "focus_ids": focus("focus_ids"), "next_focus_ids": focus("next_focus_ids"),
         "overlay": overlay,
     }
+    if "annotations" in source:
+        normalized["annotations"] = _normalize_annotations(source["annotations"], buses, ids, admitted_refs)
+    return normalized
+
+
+def _normalize_annotations(
+    value: object, buses: set[str], ids: set[str], admitted_refs: Sequence[str] | None,
+) -> dict[str, Any]:
+    """Validate presentation membership and admitted sources, without domain inference."""
+    source = _record(value, {"scene", "states", "regions"})
+
+    def reference(raw: object) -> str:
+        selected = _text(raw, 2048)
+        if admitted_refs is not None and selected not in admitted_refs:
+            raise ValueError("network annotation source is not admitted")
+        return selected
+
+    raw_scene = source["scene"]
+    optional_scene = {"case_ref"} if isinstance(raw_scene, Mapping) and "case_ref" in raw_scene else set()
+    scene = _record(raw_scene, {"label", "context_ref", "model_revision", "source_ref"} | optional_scene)
+    normalized_scene = {"label": _text(scene["label"]),
+                        "context_ref": _text(scene["context_ref"], 2048),
+                        "model_revision": _text(scene["model_revision"], 2048),
+                        "source_ref": reference(scene["source_ref"])}
+    if "case_ref" in scene:
+        normalized_scene["case_ref"] = _text(scene["case_ref"], 2048)
+    collections: dict[str, list[dict[str, Any]]] = {}
+    for kind in ("states", "regions"):
+        entries = source[kind]
+        if not isinstance(entries, list) or len(entries) > MAX_BUSES:
+            raise ValueError("network annotation count is invalid")
+        normalized_entries = []
+        for raw in entries:
+            optional_name = "markers" if kind == "states" else "emphasis"
+            optional = {optional_name} if isinstance(raw, Mapping) and optional_name in raw else set()
+            entry = _record(raw, {"label", "ids", "source_ref"} | ({"style"} if kind == "states" else set()) | optional)
+            members = entry["ids"]
+            allowed = buses if kind == "regions" else ids
+            if (not isinstance(members, list) or not 1 <= len(members) <= MAX_BRANCHES
+                    or any(not isinstance(item, str) or item not in allowed for item in members)
+                    or len(members) != len(set(members))):
+                raise ValueError("network annotation component membership is invalid")
+            item = {"label": _text(entry["label"]), "ids": list(members),
+                    "source_ref": reference(entry["source_ref"])}
+            if kind == "states":
+                style = entry["style"]
+                if style not in {"disconnected", "warning", "unresolved"}:
+                    raise ValueError("network annotation presentation style is invalid")
+                item["style"] = style
+                if "markers" in entry:
+                    markers = entry["markers"]
+                    if not isinstance(markers, list) or len(markers) > min(MAX_BRANCHES, 2 * len(members)):
+                        raise ValueError("network state marker count is invalid")
+                    selected_markers = []
+                    seen_markers: set[tuple[str, str]] = set()
+                    for marker in markers:
+                        data = _record(marker, {"id", "bus_id", "label"})
+                        key = (_text(data["id"]), _text(data["bus_id"]))
+                        if key[0] not in members or key[1] not in buses or key in seen_markers:
+                            raise ValueError("network state marker membership is invalid")
+                        seen_markers.add(key)
+                        selected_markers.append({"id": key[0], "bus_id": key[1], "label": _text(data["label"])})
+                    item["markers"] = selected_markers
+            elif "emphasis" in entry:
+                if type(entry["emphasis"]) is not bool:
+                    raise ValueError("network region emphasis is invalid")
+                item["emphasis"] = entry["emphasis"]
+            normalized_entries.append(item)
+        collections[kind] = normalized_entries
+    return {"scene": normalized_scene, **collections}
 
 
 def normalize_network_projection(value: object, *, admitted_refs: Sequence[str]) -> dict[str, Any]:

@@ -1,0 +1,8 @@
+{
+  "schema": "capstone-deployment-samples/2",
+  "suite_kind": "update",
+  "suite_id": "selective-restore",
+  "corpus": "stable-execution-regression.json",
+  "case_ids": ["ordinary-information", "line-outage"],
+  "scope": "Ordinary: general route, configured light model, no business tools/evidence, concise output and recorded elapsed time. Line outage: final text excludes intermediate process messages. Do not certify all business correctness, repaired load scenario or model-overview performance. UI separately verifies latest three actions, compact typography, expansion/scroll and terminal collapse."
+}

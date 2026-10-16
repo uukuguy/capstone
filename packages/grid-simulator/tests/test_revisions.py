@@ -16,6 +16,23 @@ def _request(capability: str, arguments: dict[str, object]) -> GridCapabilityReq
     )
 
 
+def test_derived_out_of_limit_dispatch_is_preserved_with_parameter_warning(grid, context_ref):
+    derived = grid.call("model.revision.derive", {
+        "context_ref": context_ref,
+        "patches": [{"operation": "set", "kind": "gen", "selector": {"indices": [0]},
+                     "values": {"p_mw": 2000.0}}],
+    })
+    warnings = derived["parameter_warnings"]
+    warning = next(item for item in warnings if item["kind"] == "gen" and item["index"] == 0 and item["field"] == "p_mw")
+    assert warning["value"] == 2000.0
+    assert warning["upper"] < warning["value"]
+    assert warning["source_fields"] == ["min_p_mw", "max_p_mw"]
+    rows = grid.call("model.dataset.query", {"context_ref": derived["context_ref"],
+        "dataset": "network.gen", "select": ["index", "p_mw"], "where": {"index": 0}})["rows"]
+    assert rows[0]["p_mw"] == 2000.0
+    assert derived["parent_context_ref"] == context_ref
+
+
 def test_declarative_model_creation_resolves_local_element_references(tmp_path: Path) -> None:
     response = dispatch(
         _request(

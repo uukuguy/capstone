@@ -8,6 +8,27 @@ from fastapi.testclient import TestClient
 from capstone_agent.worker_wake import WorkerWakeClient, create_wake_app, wake_token
 
 
+def test_private_model_preparation_uses_thread_identity_without_provider_or_model_input():
+    prepared = []
+    app = create_wake_app(threading.Event(), 'operator-secret', prepare_model=prepared.append)
+    auth = {'Authorization': f"Bearer {wake_token('operator-secret')}"}
+    with TestClient(app) as client:
+        assert client.post('/prepare-model', json={'thread_id': 'thr_test'}).status_code == 401
+        assert client.post('/prepare-model', headers=auth, json={'thread_id': 'thr_test', 'model_id': 'wrong'}).status_code == 422
+        assert client.post('/prepare-model', headers=auth, json={'thread_id': 'thr_test'}).status_code == 204
+    assert prepared == ['thr_test']
+
+
+def test_model_preparation_selects_only_matching_family_worker(monkeypatch):
+    from capstone_agent.worker_wake import configured_model_preparation
+    calls = []
+    monkeypatch.setattr(WorkerWakeClient, 'prepare_model', lambda self, thread_id: calls.append((self.url, thread_id)) or True)
+    prepare = configured_model_preparation(None, 'pandapower=http://grid:8080,pypsa=http://pypsa:8080', 'operator-secret')
+    assert prepare('thr_test', 'pandapower')
+    assert calls == [('http://grid:8080/wake', 'thr_test')]
+    assert not prepare('thr_test', 'unknown')
+
+
 def test_worker_health_reports_fixed_runtime_identity() -> None:
     with TestClient(create_wake_app(threading.Event(), "operator-secret",
                                    runtime_mode="m11-provider-free",

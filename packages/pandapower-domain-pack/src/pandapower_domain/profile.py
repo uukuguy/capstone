@@ -27,7 +27,6 @@ from pandapower_domain.projection import (
 from pandapower_domain.provisioning import PandapowerRuntimeProvisioner
 from pandapower_domain.resources import PandapowerResourceSet
 from pandapower_domain.state import PandapowerStateAdapter
-from pandapower_domain.task_coverage import PandapowerTaskProvider
 
 
 __all__ = [
@@ -82,7 +81,6 @@ def build_pandapower_profile() -> DomainRuntimeProfile:
         presentation_provider=PandapowerPresentationProvider(),
         output_contract=PandapowerOutputContract(),
         acceptance_profile=PandapowerAcceptanceProfile(),
-        task_provider=PandapowerTaskProvider(),
     )
 
 

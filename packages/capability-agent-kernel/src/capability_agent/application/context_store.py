@@ -36,6 +36,10 @@ class ContextStoreError(RuntimeError):
     """Raised when durable context state or replay integrity is invalid."""
 
 
+class ContextUpdateRejected(ContextStoreError):
+    """A transition was rejected before any durable file was changed."""
+
+
 class ApplicationContextStore:
     """Append context transitions and atomically materialize their snapshot."""
 
@@ -122,6 +126,32 @@ class ApplicationContextStore:
 
         return self.append_many((draft,))[0]
 
+    def append_research_update(self, draft: ContextEventDraft) -> ContextEvent:
+        """Commit once under the same lock as revision validation and persistence."""
+        with self._append_lock:
+            committed = self.find_research_update(draft)
+            return committed if committed is not None else self.append(draft)
+
+    def find_research_update(self, draft: ContextEventDraft) -> ContextEvent | None:
+        """Resolve a committed request without applying a new transition."""
+        if draft.event_type != "research.updated":
+            raise ContextStoreError("research commit requires a research update")
+        with self._append_lock:
+            if self._unavailable:
+                raise ContextStoreError("context store is unavailable")
+            replayed, events = self.replay_events(self.workspace)
+            if replayed != self.snapshot:
+                raise ContextStoreError("research ledger does not match the current context")
+            for event in events:
+                if (event.event_type == draft.event_type
+                        and event.turn_id == draft.turn_id
+                        and event.payload.get("research_id") == draft.payload.get("research_id")
+                        and event.payload.get("request_id") == draft.payload.get("request_id")):
+                    if event.payload != draft.payload:
+                        raise ContextStoreError("research request identity was reused with different content")
+                    return event
+            return None
+
     def append_many(
         self, drafts: Iterable[ContextEventDraft]
     ) -> tuple[ContextEvent, ...]:
@@ -156,7 +186,7 @@ class ApplicationContextStore:
                     try:
                         candidate = reduce_context(next_state, draft)
                     except ContextTransitionError as error:
-                        raise ContextStoreError(str(error)) from None
+                        raise ContextUpdateRejected(str(error)) from None
                     try:
                         event = ContextEvent(
                             run_id=previous.run_id,
@@ -174,7 +204,7 @@ class ApplicationContextStore:
                             next_state_hash=candidate.state_hash,
                         )
                     except (TypeError, ValueError, ValidationError):
-                        raise ContextStoreError("context event is invalid") from None
+                        raise ContextUpdateRejected("context event is invalid") from None
                     events.append(event)
                     next_state = candidate
             except ContextStoreError:

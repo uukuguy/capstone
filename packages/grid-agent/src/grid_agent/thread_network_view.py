@@ -11,6 +11,8 @@ from capstone_agent.kernel_capability_preparation import AuthorityModelBinding
 from capstone_agent.model_capability_context import PreparedModelCapabilityContext
 from capstone_agent.thread_network import ThreadNetworkProjectionProvider, NetworkProjectionUnavailable
 from pandapower_domain.execution import SimulatorCapabilityError
+from pandapower_domain.authority import SimulatorIntegrityError, VerifiedArtifact
+from pandapower_domain.network_annotations import project_scene_annotations, select_contingency_scene, project_base_disconnections
 from capstone_agent.thread_service import AttemptClaim
 
 from .network_view import NetworkExecutor
@@ -22,6 +24,9 @@ _ENDPOINT_CAPABILITY = "topology.branch.endpoints.get"
 
 class EvidenceAuthority(Protocol):
     def verify_evidence(self, reference: str) -> object: ...
+    def verify_result(self, reference: str) -> VerifiedArtifact: ...
+    def verify_linked_result(self, reference: str, parent_ref: str) -> VerifiedArtifact: ...
+    def verify_context_descendant(self, reference: str, ancestor_ref: str) -> VerifiedArtifact: ...
 
 
 class PandapowerThreadNetworkProjectionProvider:
@@ -39,6 +44,8 @@ class PandapowerThreadNetworkProjectionProvider:
         self._executor = executor
         self._authority = authority
         self._rank_queries: dict[str, dict[str, object]] = {}
+        self._scene_cache: dict[str, dict[str, object]] = {}
+        self._observed_topology: dict[str, dict[str, object]] = {}
 
     def observe_runtime_event(self, event: Mapping[str, object]) -> None:
         """Retain only bounded query metadata; the authority rechecks the rows."""
@@ -48,10 +55,23 @@ class PandapowerThreadNetworkProjectionProvider:
         details = event if event.get("event") == "tool_result" else (
             raw.get("details") if isinstance(raw, Mapping) else event.get("details")
         )
-        if not isinstance(details, Mapping) or details.get("ok") is not True or details.get("capability") != "result.branches.rank":
+        if not isinstance(details, Mapping) or details.get("ok") is not True:
             return
         owner = details.get("capability_key")
         result = details.get("result")
+        if (details.get("capability") == "topology.components.get" and isinstance(owner, Mapping)
+                and owner.get("binding_id") == self._binding.binding_id and isinstance(result, Mapping)):
+            reference = result.get("context_ref")
+            components = result.get("components")
+            if (isinstance(reference, str) and re.fullmatch(r"context:sha256:[0-9a-f]{64}", reference)
+                    and isinstance(result.get("revision_ref"), str) and isinstance(components, list)
+                    and len(components) <= 10_000):
+                self._observed_topology[reference] = dict(result)
+                if len(self._observed_topology) > 16:
+                    del self._observed_topology[next(iter(self._observed_topology))]
+            return
+        if details.get("capability") != "result.branches.rank":
+            return
         call_id = event.get("tool_call_id", event.get("toolCallId"))
         if (not isinstance(owner, Mapping) or owner.get("binding_id") != self._binding.binding_id
                 or not isinstance(result, Mapping) or not isinstance(call_id, str) or not 0 < len(call_id) <= 256
@@ -103,7 +123,13 @@ class PandapowerThreadNetworkProjectionProvider:
         ):
             raise NetworkProjectionUnavailable("projection_model_mismatch")
         focus = self._endpoint_focus(topology, evidence_refs, tool_events)
-        ranking = self._ranking_layer(topology, result_refs, tool_events)
+        annotations = self._scene_annotations(topology, result_refs, tool_events)
+        scene = annotations.get("scene") if annotations is not None else None
+        scene_ref = scene.get("source_ref") if isinstance(scene, Mapping) else None
+        ranking = self._ranking_layer(topology, result_refs, tool_events, scene_ref)
+        layer = ranking or {"focus_ids": focus, "next_focus_ids": [], "overlay": None}
+        if annotations is not None:
+            layer["annotations"] = annotations
         return {
             "schema": "capstone-network-view/2.0", "ordinal": 1,
             "diagram": {
@@ -116,11 +142,128 @@ class PandapowerThreadNetworkProjectionProvider:
                 "coordinate_system": topology.get("coordinate_system"),
                 "buses": topology.get("buses"),
                 "branches": topology.get("branches"),
+                "disconnections": project_base_disconnections(topology),
             },
-            "layer": ranking or {"focus_ids": focus, "next_focus_ids": [], "overlay": None},
+            "layer": layer,
         }
 
-    def _ranking_layer(self, topology: Mapping[str, object], admitted: tuple[str, ...], events: tuple[Mapping[str, object], ...]) -> dict[str, object] | None:
+    def _scene_annotations(
+        self, diagram: Mapping[str, object], admitted: tuple[str, ...],
+        events: tuple[Mapping[str, object], ...],
+    ) -> dict[str, object] | None:
+        roots: list[tuple[str, Mapping[str, object]]] = []
+        for reference in admitted:
+            try:
+                document = self._authority.verify_result(reference).document
+                context = document.get("context_ref")
+                if not isinstance(context, str):
+                    continue
+                verified = self._authority.verify_context_descendant(context, self._binding.context_ref)
+                if verified.document.get("revision_ref") == document.get("revision_ref"):
+                    roots.append((reference, document))
+            except (SimulatorIntegrityError, ValueError):
+                continue
+        selected = select_contingency_scene(roots)
+        linked_cases = {
+            reference: selection[1] for reference, document in roots
+            if (selection := select_contingency_scene([(reference, document)])) is not None
+        }
+        # Admission order records first appearance. Completed calculations and
+        # later reads both select a scene in this attempt's actual event order.
+        interacted: list[str] = []
+        for event in reversed(events):
+            if event.get("binding_id") != self._binding.binding_id or event.get("ok") is not True:
+                continue
+            capability = event.get("capability")
+            event_refs = event.get("result_refs")
+            if not isinstance(event_refs, (list, tuple)):
+                continue
+            if isinstance(capability, str) and capability.startswith("analysis."):
+                interacted.extend(ref for ref in reversed(event_refs) if isinstance(ref, str) and ref in admitted)
+                continue
+            if capability not in {"result.aggregate", "result.dataset.query", "result.branches.rank"}:
+                continue
+            arguments = event.get("request_parameters")
+            if not isinstance(arguments, Mapping) and capability == "result.branches.rank":
+                query = self._rank_queries.get(str(event.get("tool_call_id")))
+                arguments = query.get("arguments") if query is not None else None
+            reference = arguments.get("result_ref") if isinstance(arguments, Mapping) else None
+            if isinstance(reference, str) and reference in admitted and reference in event_refs:
+                interacted.append(reference)
+        candidates = interacted + ([selected[0]] if selected else []) + list(reversed(admitted))
+        for reference in dict.fromkeys(candidates):
+            if reference in self._scene_cache:
+                return self._scene_cache[reference]
+            try:
+                case_ref = linked_cases.get(reference)
+                result = (self._authority.verify_linked_result(case_ref, reference).document
+                          if case_ref else self._authority.verify_result(reference).document)
+                datasets = result.get("datasets")
+                if not isinstance(datasets, Mapping) or "result.res_bus" not in datasets:
+                    continue
+                context_ref = result.get("context_ref")
+                revision = result.get("revision_ref")
+                if not isinstance(context_ref, str) or not isinstance(revision, str):
+                    continue
+                verified = self._authority.verify_context_descendant(context_ref, self._binding.context_ref)
+                if verified.document.get("revision_ref") != revision:
+                    continue
+                scene_diagram = diagram
+                if context_ref != self._binding.context_ref:
+                    scene_diagram = self._executor.invoke("operator.diagram.get", {"context_ref": context_ref})
+                    def geometry_identity(value: Mapping[str, object]) -> tuple[set[str], set[tuple[str, ...]]]:
+                        buses = value.get("buses")
+                        branches = value.get("branches")
+                        if not isinstance(buses, list) or not isinstance(branches, list):
+                            raise ValueError("scene geometry is invalid")
+                        return ({str(row["id"]) for row in buses}, {
+                            tuple(str(row[key]) for key in ("id", "kind", "from_bus", "to_bus")) for row in branches})
+                    if (scene_diagram.get("context_ref") != context_ref or scene_diagram.get("revision_ref") != revision
+                            or geometry_identity(scene_diagram) != geometry_identity(diagram)):
+                        raise NetworkProjectionUnavailable("projection_model_mismatch")
+                topology = ({"context_ref": context_ref, "revision_ref": revision, "components": []}
+                            if isinstance(result.get("outage"), Mapping) else self._observed_topology.get(context_ref))
+                if topology is None or topology.get("revision_ref") != revision:
+                    topology = dict(self._executor.invoke("topology.components.get", {"context_ref": context_ref}))
+                state_facts: dict[str, object] = {"context_ref": context_ref, "revision_ref": revision}
+                if isinstance(scene_diagram.get("branch_states"), list):
+                    state_facts["branch_states"] = scene_diagram["branch_states"]
+                else:
+                    rows: list[object] = []
+                    offset = 0
+                    while True:
+                        page = self._executor.invoke("model.dataset.query", {
+                            "context_ref": context_ref, "dataset": "network.line", "select": ["index", "in_service"],
+                            "where": {"in_service": False}, "limit": 50, "offset": offset,
+                        })
+                        page_rows = page.get("rows")
+                        if not isinstance(page_rows, list) or page.get("context_ref") != context_ref or page.get("revision_ref") != revision:
+                            raise ValueError("scene model facts do not match the result")
+                        rows.extend(page_rows)
+                        next_offset = page.get("next_offset")
+                        if next_offset is None:
+                            break
+                        if type(next_offset) is not int or next_offset <= offset or len(rows) > 20_000:
+                            raise ValueError("scene model pagination is invalid")
+                        offset = next_offset
+                    state_facts["rows"] = rows
+                annotations = project_scene_annotations(diagram, result, topology, state_facts, source_ref=reference)
+                if case_ref:
+                    scene = cast(dict[str, object], annotations["scene"])
+                    scene["case_ref"] = case_ref
+                    scene["label"] = f"N−1 最高线路负载率场景 · {scene['label']}"
+                self._scene_cache[reference] = annotations
+                if len(self._scene_cache) > 16:
+                    del self._scene_cache[next(iter(self._scene_cache))]
+                return annotations
+            except (SimulatorIntegrityError, SimulatorCapabilityError, ValueError):
+                continue
+        return None
+
+    def _ranking_layer(
+        self, topology: Mapping[str, object], admitted: tuple[str, ...],
+        events: tuple[Mapping[str, object], ...], scene_ref: object = None,
+    ) -> dict[str, object] | None:
         branches = topology.get("branches")
         known = {row["id"] for row in branches if isinstance(row, Mapping) and isinstance(row.get("id"), str)} if isinstance(branches, list) else set()
         for event in reversed(events):
@@ -131,6 +274,8 @@ class PandapowerThreadNetworkProjectionProvider:
                 continue
             arguments = cast(dict[str, object], query["arguments"])
             reference = arguments["result_ref"]
+            if scene_ref is not None and reference != scene_ref:
+                continue
             event_refs = event.get("result_refs")
             if reference not in admitted or not isinstance(event_refs, (list, tuple)) or reference not in event_refs:
                 continue

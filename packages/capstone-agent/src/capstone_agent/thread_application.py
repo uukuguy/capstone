@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+import time
 from typing import Any, cast
 
 from .harness import (
@@ -31,6 +32,7 @@ from .thread_worker import RuntimeFactory
 from .runtime_capabilities import RuntimeCapabilityRegistry
 from .thread_network import ThreadNetworkProjectionProvider
 from .turn_router import DefaultTurnRouter, TurnRouter
+from .thread_protocol import ThreadSnapshot
 
 
 def _unconfigured_runtime_factory(_claim: AttemptClaim) -> HarnessRuntime:
@@ -59,23 +61,16 @@ class FamilyRuntimeFactory:
             raise RuntimeError(f"implementation family is not registered: {family}")
         return factory(claim)
 
-    def recognize_task(self, claim, *, on_heartbeat):
-        factory = self._factories.get(claim.model_context.implementation_family)
-        recognizer = getattr(factory, "recognize_task", None)
-        if not callable(recognizer):
-            raise RuntimeError("family task recognizer is unavailable")
-        return recognizer(claim, on_heartbeat=on_heartbeat)
-
-    def resolve_task(self, claim):
-        factory = self._factories.get(claim.model_context.implementation_family)
-        resolver = getattr(factory, "resolve_task", None)
-        if not callable(resolver):
-            raise RuntimeError("family task resolver is unavailable")
-        return resolver(claim)
-
     def sweep_idle(self) -> int:
         return sum(cast(Callable[[], int], sweep)() for factory in self._factories.values()
                    if callable(sweep := getattr(factory, 'sweep_idle', None)))
+
+    def prepare_model(self, snapshot: ThreadSnapshot) -> None:
+        factory = self._factories.get(snapshot.active_model_context.implementation_family)
+        prepare = getattr(factory, 'prepare_model', None)
+        if not callable(prepare):
+            raise RuntimeError('model preparation is not registered')
+        prepare(snapshot)
 
     def close(self) -> None:
         for factory in self._factories.values():
@@ -113,12 +108,6 @@ class ApplicationPiRuntimeFactory:
         return HarnessPiClient(
             self._session_factory(claim), runtime_mode=self._runtime_mode,
         )
-
-    def recognize_task(self, claim, *, on_heartbeat):
-        recognizer = getattr(self._session_factory, "recognize_task", None)
-        if not callable(recognizer):
-            raise RuntimeError("application task recognizer is unavailable")
-        return recognizer(claim, on_heartbeat=on_heartbeat)
 
 
 class PreparedApplicationPiRuntimeFactory:
@@ -161,40 +150,24 @@ class PreparedApplicationPiRuntimeFactory:
         self._network_projection_factory = network_projection_factory
         self.rollback_selection_on_failure = True
 
-    def recognize_task(self, claim, *, on_heartbeat):
-        recognizer = getattr(self._session_factory, "recognize_task", None)
-        if not callable(recognizer):
-            raise RuntimeError("prepared application task recognizer is unavailable")
-        from .kernel_pi_session import PreparedKernelPiSessionFactory
-        from .task_resolution import requirement_schemas
-        if isinstance(self._session_factory, PreparedKernelPiSessionFactory) and claim.kind != "send_ordinary" and claim.model_context.enabled_profiles:
-            context = self._context_owner.acquire(claim)
-            try:
-                schemas = requirement_schemas(tuple(getattr(contribution, "prepared") for contribution in context.contributions))
-            finally:
-                self._context_owner.release(context)
-            return recognizer(claim, on_heartbeat=on_heartbeat, requirement_schemas=schemas)
-        return recognizer(claim, on_heartbeat=on_heartbeat)
-
-    def resolve_task(self, claim):
-        from .task_resolution import resolve_profiles
-        if claim.kind == "send_ordinary" or not claim.model_context.enabled_profiles or all(goal.execution == "general" for goal in claim.task_understanding.goals):
-            return resolve_profiles(claim, ())
-        context = self._context_owner.acquire(claim)
-        try:
-            return resolve_profiles(claim, tuple(getattr(contribution, "prepared") for contribution in context.contributions))
-        finally:
-            self._context_owner.release(context)
-
     def __call__(self, claim: AttemptClaim) -> HarnessRuntime:
+        started = time.monotonic()
         context = self._context_owner.acquire(claim)
+        context_ready = time.monotonic()
         session = None
         try:
             session = self._session_factory(claim, context)
+            session_ready = time.monotonic()
             admission = getattr(session, "admit_attempt", None)
             network_projection_provider = None
             if self._network_projection_factory is not None:
                 network_projection_provider = self._network_projection_factory(claim, context)
+            projection_ready = time.monotonic()
+            record_timing = getattr(session, "record_preparation_timing", None)
+            if callable(record_timing):
+                record_timing({"context_acquire_seconds": context_ready - started,
+                    "session_build_seconds": session_ready - context_ready,
+                    "projection_build_seconds": projection_ready - session_ready})
             return HarnessPiClient(
                 session,
                 runtime_mode=self._runtime_mode,
@@ -209,6 +182,10 @@ class PreparedApplicationPiRuntimeFactory:
             finally:
                 self._context_owner.release(context)
             raise
+
+    def prepare_model(self, snapshot: ThreadSnapshot) -> None:
+        self._context_owner.prepare_model(snapshot.thread_id, snapshot.run.run_id,
+                                          snapshot.active_model_context)
 
     def sweep_idle(self) -> int:
         return self._context_owner.sweep_idle()

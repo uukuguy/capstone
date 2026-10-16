@@ -11,6 +11,8 @@ describe('opened model projection', () => {
   it('recognizes opened-model controls without a space and separates explicit follow-up tasks', () => {
     expect(parseModelControl('切换至已打开的 IEEE-39 电网模型')).toEqual({ kind: 'activate_model', reference: 'IEEE-39 电网模型', openedOnly: true })
     expect(parseModelControl('打开case57，然后运行潮流')).toEqual({ kind: 'open_model', reference: 'case57', openedOnly: false, task: '运行潮流' })
+    expect(parseModelControl('打开 IEEE-39 网络并解析线路 11 的端点。')).toEqual({ kind: 'open_model', reference: 'IEEE-39 网络', openedOnly: false, task: '解析线路 11 的端点' })
+    expect(parseModelControl('切换至 case57 并且比较发电机参数')).toEqual({ kind: 'activate_model', reference: 'case57', openedOnly: false, task: '比较发电机参数' })
     expect(parseModelControl('关闭 case57 电网模型')).toMatchObject({ kind: 'close_model', reference: 'case57 电网模型' })
     expect(parseModelControl('为什么不能切换至 IEEE-39')).toBeNull()
   })

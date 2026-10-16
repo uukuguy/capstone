@@ -24,7 +24,7 @@ def validate_edit(path, original, content):
 
 
 class Source:
-    def __init__(self, root, ref="main"):
+    def __init__(self, root, ref="dev"):
         self.root = Path(root).resolve()
         self.ref = ref
         self.sha = self.git("rev-parse", "--verify", ref + "^{commit}").decode().strip()
@@ -105,7 +105,7 @@ class Source:
             target.parent.mkdir(parents=True, exist_ok=True)
             if not target.exists():
                 target.write_bytes(raw)
-                # Executable files have trusted bytes from main, but run only in Docker.
+                # Executable files have trusted bytes from dev, but run only in Docker.
                 if path in self.executable_paths():
                     target.chmod(0o755)
         return directory

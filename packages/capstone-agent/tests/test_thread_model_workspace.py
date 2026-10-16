@@ -46,6 +46,41 @@ def test_open_and_activate_finish_without_an_attempt_and_keep_exact_revision():
     assert [item["model_id"] for item in service.read_models("thr_attempts")["models"]] == ["ieee39", "pypsa39"]
 
 
+def test_first_open_uses_application_defaults_but_switch_back_preserves_existing_selection():
+    from capstone_model_capability_spi import ModelCapabilitySelection
+    service = _model_service()
+    original = service.snapshot('thr_attempts').active_model_context
+    class Defaults:
+        def resolve(self, model, selection=None):
+            return ModelCapabilitySelection(((model.implementation_family + '-analysis', '1.0.0'),))
+    service.set_capability_catalog(Defaults())
+    receipt = service.submit_command(command(service, 'open_model', {'model_id': 'pypsa39'}))
+    assert receipt.status == 'accepted'
+    opened = service.snapshot('thr_attempts').active_model_context
+    assert opened.enabled_profiles == (('pypsa-analysis', '1.0.0'),)
+    ieee = next(item for item in service.read_models('thr_attempts')['models'] if item['model_id'] == 'ieee39')
+    assert service.submit_command(command(service, 'activate_model', {'entry_id': ieee['entry_id']}, 'back')).status == 'accepted'
+    assert service.snapshot('thr_attempts').active_model_context == original
+
+
+def test_postgres_first_open_persists_default_binding_before_worker_preparation(postgres_thread_service):
+    from capstone_model_capability_spi import ModelCapabilitySelection
+    service, thread_id = postgres_thread_service
+    service.set_model_catalog(_model_service()._model_catalog)
+    class Defaults:
+        def resolve(self, model, selection=None):
+            return ModelCapabilitySelection(((model.implementation_family + '-analysis', '1.0.0'),))
+    service.set_capability_catalog(Defaults())
+    original = service.create_thread(_snapshot(thread_id)).active_model_context
+    receipt = service.submit_command(postgres_command(service, thread_id, 'open_model', {'model_id': 'pypsa39'}, 'open_defaults'))
+    assert receipt.status == 'accepted'
+    assert service.snapshot(thread_id).active_model_context.enabled_profiles == (('pypsa-analysis', '1.0.0'),)
+    ieee = next(item for item in service.read_models(thread_id)['models'] if item['model_id'] == 'ieee39')
+    receipt = service.submit_command(postgres_command(service, thread_id, 'activate_model', {'entry_id': ieee['entry_id']}, 'back_defaults'))
+    assert receipt.status == 'accepted'
+    assert service.snapshot(thread_id).active_model_context == original
+
+
 def test_work_context_is_private_and_model_identity_is_unique():
     from capstone_agent.thread_model_workspace import model_entry, synchronize_workspace, validate_workspace
     from capstone_agent.thread_protocol import ThreadProtocolError

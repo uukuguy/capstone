@@ -1684,6 +1684,384 @@ M6 Task 8 完成 Thread-native Web Case 控件，并修复 action identity、完
 - 2026-10-05 Expanded complete operator geometry and catalogue eligibility to prevent unavailable model choices. [7afca7c]
 - 2026-10-05 Validated typed operator capacity limits to preserve contract bounds and pass static checks. [2e59e06]
 - 2026-10-05 Verified complete large-model browser views, real PostgreSQL paging, full offline gates and zero-error types; independent review approved.
+- 2026-10-05 Fixed complete model views, stable message actions and actionable errors to prevent unexplained interaction failures. [db8c3d1]
+- 23:30 Saved user-approved handoff to preserve verified delivery, local services and remaining follow-ups.
+- 23:56 User approved client recovery and cloud-dev verification; demo deployment requires completed verification and manual acceptance.
+- 23:57 Defined Thread recovery and staged acceptance to preserve drafts and prevent premature demo promotion. [6426486]
+
+## 2026-10-06
+
+- 00:08 Reproduced seven reconnect defects; repairs pass 254 App tests and preserve original command identity after lost receipts.
+- 00:08 Extended live/reload rollback regressions pass with failed-Context topology; the latest existing code already restores exact prior views.
+- 00:08 Cloud-dev preflight confirms healthy family workers and zero active work; local rebuild passed, release checks remain running.
+- 00:14 Preserved mounted drafts and reconciled original receipts to prevent lost input and duplicate Turns after reconnect. [6b8eba8]
+- 00:14 Real browser lost-receipt recovery completed one admitted Turn; final local rebuild and focused client checks passed.
+- 00:23 Staged clean cloud-dev source 6b8eba8; corrected stale topology/client state, preserved demo's manual acceptance boundary.
+- 00:32 Full check-release passed, including installed packages and fresh source setup; cloud-dev candidate remains 6b8eba8.
+- 00:36 Cloud-dev App deployment succeeded; served bundle contains the new receipt/draft recovery implementation from candidate 6b8eba8.
+- 00:38 Both cloud-dev family workers deployed successfully; API upload follows their verified start, using the same source revision.
+- 00:44 API deployed successfully in cloud-dev; bounded Thread matrix and concurrent registered-case acceptance started without Provider calls.
+- 00:47 Concurrent pandapower/PyPSA registered cases passed with reports and evidence; the earlier lease-expiry cause remains unestablished.
+- 00:48 Cloud-dev Thread matrix passed five real-Authority attempts; browser lost-receipt recovery cleared the matching draft and completed one Turn.
+- 00:51 Browser refresh and historical model views passed; cloud-dev has zero active work before restoring its normal runtime mode.
+- 00:57 Both cloud-dev workers returned successfully to normal mode from the same candidate; normal API deployment started.
+- 01:03 Normal cloud-dev API deployment succeeded; final public-boundary, retained-result and fresh registered-case checks started.
+- 01:04 Normal readiness, both families, public denials and retained Thread results/geometry passed; fresh scripted cases remain running.
+- 01:05 Normal pandapower passed; fresh PyPSA reproduced worker_interrupted. Cloud-dev acceptance is incomplete; preserve the failed session and diagnose renewal.
+- 01:12 Three startup/evidence renewal regressions failed before repair; focused host/session checks now pass13, with7 optional PostgreSQL skips.
+- 01:17 Isolated PostgreSQL checks passed35; original cold-start code failed the stale-reaper regression, while repaired code completed normally.
+- 01:17 Renewed hosted leases through blocking startup/evidence to prevent cold-start interruptions and fence lost ownership. [a1f028d]
+- 01:28 Local rebuild passed with matching a1f028d API/worker image; fresh registered-case checks started on the real local entrypoint.
+- 01:29 Prepared clean a1f028d cloud-dev source; preserved predecessor identities and confirmed zero active remote work.
+- 01:30 Fresh normal local pandapower/PyPSA cases passed reports and evidence reads without lease interruption on repaired a1f028d.
+- 01:43 Full a1f028d release gate passed, including installation smoke and source setup; cloud-dev reverification can begin.
+- 01:46 Started a1f028d cloud-dev worker builds after zero-active-work preflight; rejected candidate receipts and demo remain unchanged.
+- 01:50 Both a1f028d cloud-dev workers and App deployed successfully; same-source API upload started after worker readiness.
+- 01:56 a1f028d cloud-dev API deployed; fresh Thread matrix, concurrent registered cases and browser recovery checks started.
+- 01:59 a1f028d cloud-dev matrix passed five attempts; concurrent pandapower/PyPSA cases passed reports and evidence without lease interruption.
+- 02:10 Browser recovery, refresh and historical views passed on a1f028d; zero-active-work checks permit normal cloud-dev restoration.
+- 02:13 Both a1f028d cloud-dev workers deployed in normal mode; same-source API deployment started before final fresh-case acceptance.
+- 02:16 Normal a1f028d cloud-dev API deployed successfully; final readiness, retained-history and fresh registered-case checks started.
+- 02:18 Normal cloud-dev cases passed both families, reports and evidence; retained results/public boundaries passed, closing reproduced PyPSA interruption.
+- 02:19 Recorded repaired candidate and cloud-dev acceptance to support required human review before demo promotion. [29f1510]
+- 03:03 User review reached private Thread login; diagnosed session-scoped authentication, while live-browser connection timed out without credential submission.
+- 02:58 Corrected the preceding event time: authentication diagnosis completed at02:57 CST;03:03 was a timestamp entry error.
+- 03:06 Located both user failures; cloud-dev workers lack DeepSeek credentials, and configuration errors are mislabeled as capability preparation failures.
+- 03:10 Added runtime/UI regressions to distinguish missing Provider configuration and preserve prepared Contexts; PyPSA and App fail as expected.
+- 03:12 Three baseline regressions failed; repaired family factories and UI now pass, with48 Thread checks and34 conversation checks.
+- 03:14 Separated runtime configuration errors to preserve prepared Contexts and give safe repair guidance. [5dc0cd4]
+- 03:16 Current-source local rebuild passed with matching API/worker images; isolated missing-configuration checks started while release gates continue.
+- 03:19 Actual local factories passed missing-credential diagnostics without Provider calls; full grid suite passed926, with release checks still running.
+- 03:29 Followed existing Harness ownership: shared Provider resolver passed28 core and10 family checks; duplicate-resolution boundary regressions passed68.
+- 03:30 User requires local App verification before further cloud work; hold deployment and verify the shared Harness source locally.
+- 03:34 Centralized hosted Provider configuration in Capstone and guarded adapter ownership to avoid duplicate migration work. [188abe3]
+- 03:37 Rebuilt188abe3 locally with matching API/worker images; pandapower browser retry preserved an unrelated draft and safe configuration diagnostics.
+- 03:39 Both current local worker images passed missing-configuration checks; fresh registered cases passed reports and evidence for both families.
+- 03:40 PyPSA browser retry and refresh passed with unchanged Context and retained draft; normal Provider requests remain unauthorized.
+- 03:45 Corrected estimated times:188abe3 committed03:30, rebuild finished03:35, image diagnostics03:36 and registered cases03:37; receipts retain exact timestamps.
+- 03:45 Actual5173 App previews and private81-model catalog passed; matching image identity was rechecked and task-only browser services stopped.
+- 03:47 Rebuilt API source hashes match188abe3 across shared runtime and both adapters; actual Vite serves the repaired configuration guidance.
+- 03:50 Final-source E2E passed39 grid and3 registered-worker checks; offline validation and installation gates continue before local acceptance.
+- 03:55 Consistent188abe3 release gate passed all fast, integration, artifact-install and source-setup checks; local verification can be recorded.
+- 03:56 Recorded shared Harness local acceptance and cloud hold to support architecture review before further deployment. [ebc9a76]
+- 04:01 User authorized cloud-dev deployment and verification; select exact locally verified188abe3, keep demo unchanged and Provider calls separate.
+- 04:03 Prepared clean188abe3 cloud-dev source with zero active work; pandapower upload accepted and PyPSA upload started in normal mode.
+- 04:05 Both cloud-dev workers and App accepted188abe3 source uploads; wait for successful worker builds before the same-source API deployment.
+- 04:08 Both188abe3 cloud-dev workers and App deployed successfully; recheck private readiness and active work before API upload.
+- 04:11 Both cloud-dev real factories passed safe missing-configuration checks without Provider requests; API source build remains in progress.
+- 04:16 All4 cloud-dev services deployed188abe3; started source, readiness, retained-history and fresh case/catalog checks in normal mode.
+- 04:18 All3 backend hashes and normal readiness passed;81-model catalogs and retained results passed, while both workers still lack DeepSeek keys.
+- 04:21 Fresh cloud cases passed both families, reports and evidence; all4 identities and zero-active-work health passed, with Provider acceptance pending.
+- 04:25 Recorded cloud-dev deployment and verification limits to preserve the Provider/manual acceptance gate. [14fdc8c]
+- 04:31 User screenshot confirms normal cloud-dev conversation failed; rechecked both workers still lack DEEPSEEK_API_KEY, so manual acceptance fails.
+- 04:33 Inspected redeployment recovery; 85 App checks pass, but stream reconnection requires user action and page-refresh drafts are not persisted.
+- 04:43 Added private catalog, archival and history paging to support visible session management without deleting evidence. [508a44d]
+- 04:43 Backend focused checks passed70 and isolated PostgreSQL passed20; independent agent review unavailable because spawn reports an unsupported model.
+- 05:10 App266 checks, isolated PostgreSQL21 and backend type checks passed; local browser acceptance must precede cloud deployment.
+- 05:11 Added visible session management, bounded history and connection/draft recovery to remove URL-only navigation and manual reconnect. [a2dbb5d]
+- 05:15 Local rebuild passed with one image across API and both workers; actual browser created a QA-owned durable Thread.
+- 05:20 Real local browser preserved drafts across refresh, API restart and Thread switching; 70-turn ledger retained210 events without duplicates.
+- 05:23 Local browser passed archive/restore, all70 history turns, latest navigation and390px layout; full release gates continue before cloud deployment.
+- 05:34 Full a2dbb5d release gates passed, including clean package installation and source setup; local acceptance permits exact-source cloud-dev validation.
+- 05:35 Prepared clean a2dbb5d cloud-dev source with zero active work; pandapower upload accepted and PyPSA upload started.
+- 05:36 Both cloud-dev workers accepted a2dbb5d uploads; App upload started, then verify health before replacing the API.
+- 05:42 Both a2dbb5d cloud-dev workers and App deployed successfully; private readiness and zero active work pass before API upload.
+- 05:44 Real cloud App opened a pre-upgrade QA Thread with draft and stream monitor; API builds while browser stays open.
+- 05:49 All four cloud services deployed a2dbb5d; actual browser automatically reopened its stream and preserved the pre-upgrade Thread draft.
+- 05:54 Cloud53-file identities, both scripted cases/reports/evidence, retained history/network projection and management routes pass; Provider configuration remains unready.
+- 06:00 Recorded local and cloud session acceptance, operations and Provider limits to support review before demo promotion. [241359a]
+- 06:00 Cloud browser/QA authentication cleaned and owned Threads archived; links, symlink, diff check and doctor pass; demo unchanged.
+- 07:33 User's ordinary conversation still fails with runtime_configuration_invalid. Current Railway variables and both running workers confirm empty DEEPSEEK_API_KEY; the remaining Provider/model configuration resolves with an in-memory nonempty test value and no Provider request. All four deployment IDs are unchanged. Dedicated cloud-dev credential request remains pending; demo unchanged.
+- 07:34 Cloud-dev shared variables also contain no Provider key; no existing dedicated stage credential is available to bind. Diff, doctor and relative CLAUDE.md symlink checks pass. No source, protected configuration or deployment changed.
+- 07:40 User requires careful post-deployment acceptance before delivery. Rechecked all four cloud-dev deployments: unchanged and SUCCESS, but both worker Provider keys remain empty. Overall delivery stays unaccepted until the failing ordinary App query, both families, session recovery, reports/evidence and matching backend revision pass; demo still requires human acceptance.
+- 08:10 User rejected the detached session toolbar and reaffirmed local App verification before cloud work to limit cost. The project Provider credential exists but equals demo's; the cloud-dev operator token is present and is separate from Provider authentication. No credential or cloud deployment changed. Recover the header layout locally; do not bind the shared Provider key without resolving the existing stage-isolation rule.
+- 08:14 Integrated session controls into the shared PageHeader. All266 App tests, TypeScript/build and the required local rebuild pass; local API and both workers share image68eaa5d9. Real local browser acceptance is in progress with zero Provider requests.
+- 08:19 User explicitly changed the function-validation priority: remove the front login, use existing Provider credentials and verify locally before cloud cost. Added explicit open Thread access and mode discovery with no browser credentials; red/green API/settings and StrictMode checks pass. Updated the owning lifecycle/AGENTS contract for this current-stage exception; demo data and deployments remain unchanged. Local rebuild and full release gates are running; no new cloud work or Provider request yet.
+- 08:35 Current local rebuild passes with shared image d2026d54. Actual normal App5173 with empty browser authentication opens directly; header/menu bounds at desktop/390px/320px, new/switch/refresh drafts and archive/restore pass. The exact PyPSA catalog query completes in a local real AI Turn; this is a local regression check, not proof of the cloud-dev repair. User reaffirmed that the original failure is cloud-only. Full release gates continue; no new cloud change yet.
+- 08:45 Local acceptance also exposed PyPSA model-opening admission and missing operation handoffs. Shared Thread Application bridge now excludes unused Packs from current-Turn admission and recognizes reference-free published guide reads; unknown provenance still fails. It prepares Kernel-owned typed grants for the bound model and verified descendants, persists/replays receipts and injects the index through the Pi descriptor. Red/green admission45 tests and real PyPSA base/derived dispatch regression pass; final backend489 tests, PyPSA39 and type checks pass. Full release60613 exits0. Final current-source rebuild77965 is running; cloud still unchanged.
+- 08:49 Opened function-trial entry and restored model handoffs to remove login and PyPSA failures. [9846d48]
+- 08:52 Final local9846d48 acceptance passes: current rebuild22599a99,341-file identity, actual PyPSA open/dispatch/AC, both registered cases/reports/evidence and prior no-login/session/mobile checks. Six actual AI Turns include two pre-repair failures. New exact-source local receipt gates cloud-dev preparation; no demo change.
+- 08:53 Cloud-dev local-receipt guard and zero-active-work checks pass. Existing Provider key is set in the primary worker's protected variable, PyPSA references it, and API open access is selected with automatic deployments skipped. One9846d48 upload per role is now running; demo unchanged.
+- 09:02 All four cloud-dev9846d48 deployments are SUCCESS;341-file identities, both resolved worker Providers, normal health, anonymous API/App and old Thread retention pass. Actual hosted root opens with no token; the exact PyPSA catalog question completes successfully with21 registered models and no configuration error. Both-family calculations/session/report checks continue; demo unchanged.
+- 09:09 Actual cloud pandapower AC calculation passes with current-run evidence; both scripted cases/reports/evidence pass. PyPSA open attempt578173f64f4fa98c instead interrupts at30.1s with lease_expired. Runtime preparation/continuous event handling can starve callback-only renewal. Five blocked-phase local tests fail before repair and pass after independent Attempt renewal; lost-lease fencing and direct Harness tests added. Local rebuild and affected gates are running before any further cloud upload. This failure is retained, not accepted; demo unchanged.
+- 09:13 Isolated local PostgreSQL short-lease check passes across factory/startup/prompt/admission/projection:1s lease,1.25s block each, no Provider calls. Owned temporary database removed after the check; main ledger/user data untouched.
+- 09:15 Rebuilt local5f2c2379 source342 files matches API/both workers. Actual local QAthr_7065b1577931c76ae551 PyPSA opening and economic dispatch complete with current-run evidence and a completed dispatch projection. Existing browser survives backend restart. No added cloud upload.
+- 09:18 Final worker polling guard preserves the loop after failed iterations; focused48 and backend498 tests pass,35 optional database skips, types/boundaries/doctor pass. Final rebuild79824 is active before a retained-Thread real App continuation and commit. New cloud helper will reuse unchanged App9846d48 and existing protected configuration, upload only the three backend roles after the local receipt passes, and retain prior failed cloud receipts.
+- 09:19 Maintained Attempt leases and polling through blocked work to prevent cloud Thread interruptions. [9cbdc13]
+- 09:21 Final9cbdc13 local rebuildbe80cb86 matches342 source files in API/both workers. Original open browser reconnects automatically and retained Thread completes economic dispatch plus AC validation with current-run evidence and both completed projections. Exact-source local receipt passes; owned local QA archived with history retained.
+- 09:23 Cloud preflight confirms zero active Attempts/sessions and detects the old PyPSA worker health unavailable after its lost-lease polling thread exits. Guard now records this known degraded health while still requiring zero active work; no credential changes. Exact9cbdc13 archive is staged; one upload per three backend roles is running. Unchanged verified App9846d48 is reused; demo unchanged.
+- 09:24 Three9cbdc13 backend uploads exit0: PPf55e1efa, PyPSAc43ea2bc, APIfabc7c77; unchanged App11927fc8 remains SUCCESS. Builds are pending; identity and actual retained-Thread cloud checks must pass before acceptance. No repeated upload or demo change.
+- 09:28 Cloud9cbdc13 source identities and worker health pass, but readiness rejects frozen PyPSA availability captured before worker startup. No new cloud AI calls. Local recovery callback regressions reproduce and repair the stale gate.
+- 09:44 User requires shared locked configuration/startup. Versioned runtime launcher, profile and pinned multi-platform base manifests added locally; final rebuild and real App acceptance remain required before cloud rollout.
+- 09:53 Local324d1c19 rebuild passes:342-file identity and equal three-role contract/artifact receipts. Open browser reconnects with draft intact; actual PyPSA stop/recovery updates availability without API restart and retains Thread. Cloud unchanged.
+- 09:55 Real local catalog answer completes with21 models but misstates current tool scope as global PyPSA unavailability. Application catalog scope regression fails, guidance repaired; fresh local rebuild/focused gates and exact-query retry required before rollout.
+- 09:58 Locked runtime selectors/startup and refreshed worker health to align local and cloud behavior. [cf4daa1]
+- 10:01 Allowed the verified runtime profile in user-trial so approved promotion needs no source rewrite. [1c8073f]
+- 10:16 Full release gates pass. Final1c8073f local36cebe04 rebuild,342-source identity, shared contract14a00438/artifact7cb83ec6, actual retained-Thread catalog/open/dispatch+AC and worker outage/recovery pass. OwnQA archived with history; local receipt passes before cloud configuration/upload.
+- 10:18 Cloud-dev profile selected with deployments skipped and credentials unchanged. Workersa60b02b3/2eac8f13 each uploaded once; new current-health/artifact gate must pass before API upload. Demo unchanged.
+- 10:27 Cloud1c8073f API and both workers pass source342 and exact local contract/artifact comparison; normal readiness and report/evidence replay pass.
+- 10:31 Retained cloud PyPSA Thread opening and dispatch/AC complete with admitted evidence. User rejects global session list and header controls; fix browser association, LLM titles and compact conversation controls locally first.
+- 10:50 User corrects browser-history scope. Remove browser registry; backend anonymous users own Threads, and active Thread determines list/new-dialogue user scope. Keep title/UI fixes local; cloud remains1c8073f.
+- 11:04 Scoped Threads to anonymous users, added LLM titles and compact controls to make conversations usable. [c21fdca]
+- 11:07 Kept archive/restore updates alive after panel closure to prevent a stale disabled Composer. [5c41b84]
+- 11:18 Final local5c41b84 user grouping, LLM titles, archive/drafts/reconnect and catalog/PP/PyPSA pass; release gates pass before cloud.
+- 11:24 User defers user/history UI; workers rolled back to verified1c8073f. API/App unchanged. Prioritize server resource lifecycle locally.
+- 11:46 Bounded model caches and subscriptions, added idle cleanup and RPC deadlines, deferred user/session UI, and simplified history action. [c68f6e1]
+- 11:58 Final local rebuild, physics, cold Thread reuse, idle-zero counts and stream limits pass. Cloud upload blocked by Railway TLS.
+- 12:03 Recorded local lifecycle acceptance and the cloud network blocker to preserve the verified release boundary. [bab5ce4]
+- 12:08 Railway connectivity recovered; cloud-dev policy aligned with local acceptance. Begin guarded c68f6e1 worker rollout; demo unchanged.
+- 12:14 Both cloud workers pass health and local runtime-hash alignment. Idle contexts zero; API/App rollout follows verified worker gate.
+- 12:26 Cloud c68f6e1 root, physics, cases, replay, stream cleanup and cold reuse pass; both idle caches zero. Demo unchanged.
+- 12:26 Recorded verified cloud lifecycle receipts and promotion boundary to support human acceptance before demo. [c3583da]
+- 12:50 Added Railway network diagnostics and read-only retries to reuse existing credentials and prevent repeated writes. [28f0ab7]
+- 12:50 Proxy read succeeds; direct TLS reset is diagnosed as network failure. Ten tests pass; credentials and cloud deployments unchanged.
+- 12:52 Rechecked cloud-dev: same four verified deployments, API/workers ready, retained/active contexts zero; no billed AI rerun or deployment.
+- 13:03 User accepted cloud-dev; exact c68f6e1 demo source, isolated infrastructure and rollback targets recorded.
+- 13:12 Both demo workers ready;343 source files and runtime/artifact hashes match accepted local/cloud-dev c68f6e1.
+- 13:17 Demo API ready; all three backend source/runtime receipts match local/cloud-dev. App rollout and public-case checks started.
+- 13:34 Demo c68f6e1 deployment acceptance passes: real work, cases, retained reports, reconnect, mobile and idle cleanup.
+- 13:35 Expanded user-use tests cover load, recovery, boundaries and evidence; run locally then cloud-dev. Keep demo unchanged.
+- 13:43 Recorded accepted demo release and complete user-use validation scope to separate deployment acceptance from load testing. [e745c32]
+- 13:50 Ten sequential and three concurrent local tasks pass; two execution lanes return to zero cached contexts after idle.
+- 13:50 Six concurrent local submissions pass; same-family tasks queue. Broader recovery and resource checks remain active.
+- 14:06 Boundary tests reproduce unknown-model HTTP500 and busy-worker false unavailability; both have failing regression tests and local fixes.
+- 14:10 Keep worker health responsive during model preparation; reject unknown models without changing Thread state. [b86a82a]
+- 13:59 Timestamp correction: the preceding two entries used future times; commit b86a82a landed before 13:58 CST.
+- 14:03 Rebuilt b86a82a passes real cancellation, busy-worker Thread creation, model switching, replay rejection, history and browser draft recovery.
+- 14:06 Local API/worker restart recovery passes; interrupted work is fenced, retry succeeds, and existing report/evidence hashes remain unchanged.
+- 14:21 Cloud-dev acceptance needs expanded coverage; user requires completing it first. Demo remains unchanged; local full release gates pass.
+- 14:23 Route registered model availability as information; keep calculation requests evidence-bound. [4dfd792]
+- 14:31 Rebuilt4dfd792 passes repeated catalogs, both actual calculations, App recovery and integration gates; prepare exact cloud-dev source.
+- 14:47 Cloud-dev4dfd792 is ready; three backend sources and runtime receipts match local. Expanded remote validation started.
+- 15:08 Cloud-dev ten sequential and three concurrent work submissions pass; idle worker contexts return to zero.
+- 15:08 Six cloud-dev submissions pass with bounded queues; observed working-memory peak is1304.6MiB. Long-use and recovery checks continue.
+- 15:22 Cloud-dev expanded acceptance passes at4dfd792; idle contexts clear with pages open. Demo unchanged; human acceptance pending.
+- 15:22 Closed all six agent-owned debug Chrome sessions after screenshots and idle verification; user browser windows preserved.
+- 15:23 Record bounded cloud-dev acceptance, resource measurements and browser cleanup to support human review before promotion. [5ea8241]
+- 15:42 User authorizes demo promotion of accepted4dfd792. Existing isolated configuration and retained report pass; no active work before deployment.
+- 15:49 Both demo workers are ready; source, contract and artifact match accepted4dfd792. API promotion starts after worker verification.
+- 15:52 Demo API and both workers match accepted4dfd792 source and runtime. Deployment checks begin; App and configuration remain unchanged.
+- 16:00 Demo4dfd792 passes actual work, App, reports and retained-data checks. Idle contexts clear with App open; debug Chrome closed.
+- 16:01 Record exact-source demo promotion and deployed acceptance to preserve release evidence and rollback identity. [d2c00b9]
+- 16:16 User limits scope to root conversation; withdraw /old edits. Demo unchanged; actual visited URL remains unknown.
+- 16:26 Start isolated demo load acceptance. All three roles match accepted4dfd792; readiness passes, no existing active work.
+- 16:34 Demo catalog answer omits congested-two-bus; registry contains21. Preserve failure; resume numeric load without masking functional issue.
+- 16:41 Demo ten sequential calculations pass; peak1214.2MiB, idle684.6MiB, worker contexts0. No resource probe errors.
+- 16:41 Demo three submissions pass, two executions overlap; peak1338.3MiB, queue34.2s, idle contexts0. Guard permits six submissions.
+- 16:56 Demo load/recovery pass; six submissions finish38–158s. Final working memory692.6MiB, contexts/active work0; catalog defect remains.
+- 16:56 Record direct demo pressure evidence and catalog defect to distinguish capacity results from full functional acceptance. [64bfa72]
+- 17:07 Add snapshot-backed catalog completion to prevent omitted registered entries without changing calculation admission. Local-only candidate. [39007a1]
+- 17:09 Final local gates pass540 backend tests, types and boundaries; three registered worker tests pass. Original omission replay now complete.
+- 17:15 Final39007a1 local App passes three complete catalog queries, reload and real dispatch/AC. Source344/image agree; owned browser closed.
+- 17:15 Record exact-source local repair evidence so later cloud validation uses the verified candidate. [42b78e6]
+- 17:27 User authorizes automatic cloud-dev verification and exact-source demo promotion; manual acceptance waived for this release.
+- 17:27 Submit39007a1 cloud worker deployments; preserve App, configuration and credentials. Deployment receipts remain stage-specific.
+- 17:34 Cloud39007a1 rollout passes344-file identity and local contract/artifact parity; both worker Providers ready. Automated acceptance starts.
+- 17:35 Deployed omission replay and retained reports pass; correct verification-only prior receipt filename. First failure log preserved; no redeploy.
+- 17:39 Retained Thread and live English answer render correctly. Replace750ms UI assertion with bounded per-answer completion wait; failures preserved.
+- 17:42 UI checker counted delayed model-open completion as catalog reply. Match prior backend completions; three stored catalog answers remain complete.
+- 17:53 Cloud390 catalog/App/real calculations, old Thread continuation and retained reports pass; read-only recovery verifies closed scripted cases after transient timeout.
+- 17:54 Cloud acceptance sealed;75s idle contexts/work0. User waives manual gate; promote exact390 archive to isolated demo, App/configuration unchanged.
+- 18:06 Demo workers deploy successfully; SSH direct route closes after31.3s. Same key/service via existing proxy succeeds4.44s; no auth changes.
+- 18:08 Routed reads verify both demo workers344files and local/cloud artifact parity. Submit API74dc2455 once; no repeated worker uploads.
+- 18:22 Demo39007a1 automatic acceptance passes; persisted answer/diagram, reports, evidence and idle-zero checks pass. All owned browsers closed.
+- 18:22 Record verified catalog repair promotion and scope to preserve exact-source release evidence. [b56d7be]
+- 18:22 Tag demo-20261006-catalog-completeness-39007a1 at verified backend39007a1; documentation HEADb56d7be, no push.
+- 18:49 Saved user-approved handoff to preserve verified release state and next-session constraints; no further testing or deployment.
+- 23:41 Confirm topology drops numeric bus names in IEEE39/14/9; unnamed branches use indexes. Agent names and diagram labels differ.
+- 23:48 Eight regression cases reproduce pandapower diagram/tool name differences before repair; PyPSA uses component names directly.
+- 23:52 Shared authority names fix pandapower labels; simulator188, projection73, PyPSA17 and App269 tests pass; types/boundaries pass.
+- 23:52 Five official PyPSA diagrams match tool names; carbon-management exceeds existing diagram bounds. Browser connection times out; local rebuild underway.
+- 23:58 Rebuild passes shared image e7cb279; live API labels buses11/13 correctly and verifies585 PyPSA buses/948 branches. No Provider calls.
+
+## 2026-10-07
+
+- 00:17 Restore App type prefixes with canonical names;276 tests/build pass. Rebuild2a31fe7 passes; live Vite serves prefixed labels.
+
+- 00:28 User selects lowercase bus/line/trafo for both model families;278 App tests/build pass. Rebuild76af6e6 passes; live Vite serves selected prefixes.
+
+- 00:53 User authorizes cloud-dev and demo release. Read-only code review passes; stage configuration and infrastructure isolation checks pass. Full offline gates run before the exact-source rollout.
+
+- 01:02 Align authority names and lowercase display prefixes so topology matches agent answers. [3adca04]
+
+- 01:07 Refresh the simulator protection digest to admit the reviewed naming repair; eight gate tests pass. [69033d2]
+
+- 01:13 Show canonical names in hover status to remove the last visible raw-ID mismatch;278 App tests pass. [c1c900a]
+
+- 01:17 Final local rebuild and actual App checks pass; image8b82404, canonical hover names, PyPSA prefixes, reload and mobile verified.
+
+- 01:26 Cloud-dev App and pandapower worker deploy successfully; PyPSA image export continues. Fixed-source API rollout waits for worker identity.
+
+- 01:32 Cloud-dev four-service rollout passes; API and both workers match 344 source files and local runtime. Public and browser checks start.
+
+- 01:35 Cloud-dev source, browser, registered cases and evidence checks pass without Provider calls. Promote the same c1c900a source to demo.
+
+- 01:42 Demo workers match the accepted source and runtime; API upload submitted once. Local release tag anchors c1c900a; main push avoided.
+
+- 01:47 Demo four-service rollout and source/runtime identity checks pass. Final public API, registered-case and browser checks start.
+
+- 01:49 Demo accepts c1c900a after browser, registered-case, report and evidence checks. Both stages have no active work; Provider calls remain zero.
+
+- 01:51 Record exact-source cloud-dev and demo acceptance so the released topology repair can be verified. [f3da62e]
+
+- 12:48 Center bilingual READMEs and live screenshots on agent-led grid analysis to match the current App. [737ad6b]
+
+- 12:49 Push accepted main revisions to GitHub. README files and screenshots publish; cloud-dev source hooks build the same backend code.
+
+- 12:55 Verify GitHub rendering and cloud-dev runtime parity after README publication; Provider calls remain zero.
+
+- 13:26 Explain Capstone design and pack composition; show conversation-linked topology focus instead of a toy network. [193b7d7]
+
+- 13:26 Verify bilingual links, commands, symlink, diff and doctor. Reject dense legacy-page imagery; use current conversation replay.
+
+- 13:26 Prior GitHub CI 37573232831 failed in CLI formatting and hosted-thread lease tests; README work does not change runtime code.
+
+- 13:21 Timestamp correction: the preceding three 13:26 entries occurred before 13:21; their recorded actions and commit remain valid.
+
+- 13:21 Publish 193b7d7 to main; GitHub README files, interaction image, and rendered framework sections match local content.
+
+- 13:23 Verify cloud-dev automatic rollout, backend source/artifact parity, both App/API health checks, and preserved demo deployments.
+
+- 13:43 Replace README's second image with the user's conversation and three-line topology screenshot to show the intended interaction. [50b3d21]
+
+- 13:45 Verify uploaded image bytes, bilingual GitHub rendering, cloud-dev runtime parity, and preserved demo deployments after 50b3d21 publication.
+
+- 16:11 Latest main CI fails CLI required-instructions and hosted-thread lease tests; preserve failed logs for later repair.
+
+- 16:16 Save user-approved handoff covering topology release, README updates, CI failures, and next-session constraints; no new deployment.
+
+- 16:32 Remove inactive generated dependencies and caches; repository shrinks from 25.16 to 11.08 GiB, preserving all source and user files.
+
+- 16:32 Verify doctor, Pi version, simulator imports, and local App/API readiness after cleanup; old worktree changes and evidence remain intact.
+
+- 18:08 Establish the long-term Capstone evolution notebook; preserve professional conversation, practical grid-work goals, and open Skill/tool integration questions.
+
+- 18:12 Verify evolution notebook links, recovery anchors, AGENTS symlink, diff check, and doctor; existing uncommitted state remains preserved.
+
+- 18:29 Add implementation-grounded evolution discussion guidance to AGENTS; verify links, relative CLAUDE symlink, diff check, and doctor.
+
+- 18:36 Commit the evolution notebook and agent guidance to preserve implementation-grounded architecture discussion across sessions. [1ac9657]
+
+- 18:37 Push 1ac9657 to origin/main and verify the remote hash; preserve pre-existing journal and resume edits locally.
+
+- 19:10 Save user-approved handoff covering five evolution-discussion events, published commit, open integration questions, and preserved local state.
+
+- 19:37 User confirms deployed conversation availability; publish capstone-conversation-20261007 at verified source c1c900a and verify the remote tag.
+
+- 19:39 Record proposed post-release work order; local links, relative symlink, diff check and doctor pass; no new implementation approved.
+
+- 19:42 Require separate cloud-dev/demo acceptance tags after each verified deployment; AGENTS updated; links, symlink, diff and doctor pass.
+
+- 19:49 Verify current cloud-dev 1ac9657 rollout:344 backend files/runtime match accepted c1c900a; both stages healthy; demo deployments unchanged.
+
+- 19:49 Publish cloud-dev-20261007-1949-1ac9657 and demo-20261007-1949-c1c900a; remote annotated objects and source revisions match; no deployment or Provider calls.
+
+- 19:56 User restores conversation-plan completion as the mainline; evolution notebook becomes secondary research, resumed by user or important-boundary reminder.
+
+- 19:56 Source audit finds approved Web answer-display modes missing; start CONV-01 in the canonical conversation-completion worklist.
+
+- 20:12 CONV-01/02 local implementation passes App289 tests/build and backend550 tests (35 skipped); local rebuild verifies shared API/worker image039ddb77e1f1; no remote deployment or Provider request.
+
+- 20:16 User requests major unfinished conversation items and corrects browser work to the existing background flow; stop Chrome recovery and UI scope expansion. Source audit distinguishes missing Pi reference switching/isolation, unconnected generic runtime registrations, frozen formal TUI, and M6 full acceptance gaps.
+
+- 20:20 Headless Playwright isolated Thread fixture passes reading modes, expansion across new events, full-answer copy, draft/reload, five evidence states and390px keyboard/touch targets; desktop/mobile screenshots retained. Browser closed; zero Provider requests and no business-data writes. Links/symlink and diff checks pass; independent review remains unavailable.
+
+- 20:30 Correct the earlier milestone assessment: M6 Task1–8 independent re-reviews exist and Task9 closed in914461b for lightweight demo scope; M10/M11 later passed full release gates. M2 explicitly deferred native generic capability materialization. Record M1–M11 bounded closures and M6/M10 portable review-record limits; do not reopen completed stages from stale checkboxes.
+
+- 21:07 User approves removing global reading modes in favor of one-time history actions and individual bidirectional folding. Implementation removes task-owned summary/backend additions and old preference helpers. App290 tests/build, doctor/package boundaries, link/symlink/diff checks and local rebuild pass; API/worker image e0a4c971874f matches. Headless real-component fixtures pass new/pending full display, fold/unfold, full copy, draft/refresh, scroll anchor (under0.5px), inside-answer header preservation and390px/44px targets. Evidence: output/playwright/history-fold-20261007/ and docs/reviews/2026-10-07-thread-history-folding-local-verification.md. Browser closed; no Provider, deployment or new tag. Independent reviewer dispatch still fails on unavailable default model.
+
+- b309423 folds historical answers independently to keep new replies full; local verification passes, independent review and remote release pending.
+
+- 21:48 User requests subtle folded states, instruction-centered top/bottom navigation and history integration into useful Settings; Profile purpose is explained as registered professional capabilities with model-selected defaults. Shared Settings keeps history actions, hides professional configuration under Advanced and removes fixed routing/global trace duplicates. App293 tests/build, doctor/boundaries, final local rebuild (shared image b65a956a24d0), and real-component headless desktop/375px/landscape/reduced-motion checks pass. Runtime auto-follow and out-of-window focus races were reproduced and fixed. Evidence: output/playwright/settings-focus-20261007/ and docs/reviews/2026-10-07-thread-settings-and-instruction-focus-local-verification.md. No Provider or remote deployment; independent reviewer dispatch remains unavailable.
+
+- 7b6524e unifies Settings and anchors folding to instructions to preserve reading context; local checks pass, review and release pending.
+
+- User rejects removing tool selection and the “application” label; restore 7b6524e UI, record grid-analysis tools and empty-selection runtime gap.
+
+- User defines ApplicationProfile as one grid-analysis tool set; larger sets compose multiple Domain Packs, keeping implementation boundaries out of UI.
+
+- Restored source rebuild passes with shared image e0a4c971874f; doctor, links, symlink and diff checks pass; new tool-selection design remains pending.
+
+- Source audit finds topology needs selected Profile bindings and switching restores defaults; zero-analysis-tool model access still requires implementation.
+
+- Tool enablement is separate from model access but family compatibility is enforced; pandapower-to-PyPSA conversion is not implemented.
+
+- User confirms manual tool-group selection is needed; full unified grid modeling is advanced and deferred, not current implementation work.
+
+- System notices preserve drafts and reading focus; App296/build, headless checks and local rebuild pass; independent review unavailable, no release.
+
+- 4334e44 moves system feedback into conversation rows to preserve reading context and keep recovery beside errors; locally verified, unreleased.
+
+- Screenshot disproves Settings completion; flat tool rows and conditional Save pass App298, browser and rebuild checks; all-off runtime remains unsupported.
+
+- ec403a8 flattens Settings and renames grid tools to reduce clutter; unsupported all-off submission is blocked explicitly, runtime work remains pending.
+
+- Stable answer toggle preserves focus and position; final-reply465px jump becomes0px with minimal reading space; App298 and headless checks pass.
+
+- 1bdde8a keeps one answer toggle and scroll position to prevent lost reading focus; local browser and App298 checks pass, unreleased.
+
+- User screenshot reveals hidden PyPSA and redundant history rows; corrected menu passes App298, headless checks and rebuild; no remote deployment.
+
+- ed80d18 shows registered tools and removes duplicate history text to correct misleading Settings; locally verified, unreleased.
+
+- User defines global tool preferences: default all enabled; model changes preserve choices; persistent configuration and reload belong to future growth.
+
+- 016a6f4 removes folded surface/state text and reveals exact instructions after toggles to preserve reading context; locally verified, unreleased.
+
+- Global preferences pass App305, PostgreSQL15 and headless cross-conversation/model checks; disabled tools remain excluded; zero-tool runtime remains pending.
+
+- 2219280 separates global tool preferences from model-bound execution to preserve choices; defaults all enabled; local gates pass, unreleased.
+
+- 2026-10-08: User requests distinct quiet system notices and stable consecutive global history actions; continue the accepted conversation UI contract.
+- 2026-10-08: Headless reproduction finds preceding-answer anchoring moves the visible instruction up to 2,201px; geometry regression fails before correction.
+- 2026-10-08: No-op global expansion also moved a hidden instruction; regression reproduces it, so unchanged history actions now preserve the view.
+- 2026-10-08: App307/build pass; headless 72 main actions and 30 edge actions retain instructions within 0.44px, Settings focus and drafts.
+- 2026-10-08: Headless 72 frame samples retain the last instruction within 0.40px; eight window-boundary actions restore its loaded instruction without drift.
+- 2026-10-08: Final local rebuild passes readiness and matching API/worker identity; digest 3d27bee8750e; no remote deployment or Provider requests.
+- d5a8cca distinguishes system notices and stabilizes repeated global history actions to preserve reading focus; locally verified, unreleased.
+- 2026-10-08: User requests small system-notice text and a pale background; focused Thread50/build/doctor and desktop/mobile visual checks pass.
+- 7495090 uses small text and pale neutral notice surfaces to match the requested visual weight; locally verified, unreleased.
+- 2026-10-08: User replaces the wide toggle row with a CAPSTONE-adjacent icon; regression fails before the header change, then App307 pass.
+- 2026-10-08: Icon header retains global reading anchors across 72 headless actions, with displacement below 0.40px and preserved Settings focus.
+- 2026-10-08: Header geometry and nine long-instruction cases pass; final spacing checks retain 44px mobile targets and twelve global anchors within 0.38px.
+- 3f7e654 places the answer toggle beside CAPSTONE to remove its separate row while preserving focus and instruction visibility; locally verified.
+- 2026-10-08: User requires durable opened models and one current model; current snapshot has only active Context and historical pages are read-only.
+- 2026-10-08: Offline parser reproduction rejects “切换至已打开的 IEEE-39 电网模型”; no Provider call or user-session mutation.
+- 2026-10-08: CONV-06 draft defines durable membership, current pointer and atomic close; user review and current-close preference remain pending.
+- 64d9444 records opened-model lifecycle and CONV-06 scope to resolve active-only Thread management; design review remains pending.
+- 2026-10-08: Model-close design preserves messages and exact Context-bound topology/layers; history browsing remains read-only and cannot activate models.
+- 329aa98 defines historical topology retention after model close to prevent current-model substitution; design only, implementation pending.
+- 2026-10-08: User approved CONV-06 and exact historical topology retention; implementation proceeds inline without Provider calls.
+- 2026-10-08: Instruction timestamps/grouping pass desktop/mobile/landscape checks; gaps32px/4px, time inset3px, global anchor drift≤0.094px.
+- 2026-10-08: Full doctor/boundary, test, test-e2e and validate gates pass; final workspace-capacity guard passes63focused PostgreSQL/Attempt tests.
+- 2026-10-08: Real local model controls pass without enabled tools or Attempts; closed case57 history, exact reopen, refresh, drafts and44pxmobile menu controls verified.
+- 7f620f2 adds durable model controls and historical replay to preserve multi-model conversations; includes instruction timestamps and grouping.
+- 2026-10-08: Legacy workspace migration reproduces missing models; repair passes561backend and35PostgreSQL tests, preserving closes and exact revisions.
+- 2c373e9 imports retained legacy model identities once to restore missing choices while honoring explicit closes and original revisions.
+- 2026-10-08: Original conversation shows three selectable models on desktop/mobile; snapshot unchanged;6027b22local image ready; no Provider calls.
+- 2026-10-08: Fresh-thread duplicate topology reproduces in regression; user requires model, Context and view identity consistency before UI changes.
+- 12:57 Restored saved model work and exact views to prevent duplicate navigation and lost continuation [a5e0958].
+- 13:09 Added instruction-bound model short names beside times to clarify historical model ownership [4549fc4].
+- 13:13 Removed redundant instruction editing to avoid duplicating Copy and overwriting composer drafts [ab0f71f].
+- 13:18 Muted folded previews and corrected expand arrows to clarify state without extra labels or layout movement [da08cf0].
+- 13:23 Lightened folded body text and separated heading tone to make previews easier to distinguish [596126e].
+- 13:29 Fixed paragraph color overrides so actual folded body text matches the muted preview [9d5c541].
+- 13:52 Linked current task topology return to its instruction to align the graph and conversation [4e9854f].
+- 15:02 Positioned hidden task instructions at the reading start so their answers remain visible [269080b].
+- 15:29 Bound graph reset and message location to the displayed task to prevent cross-model jumps [a29a273].
+- 15:44 Suspended unused cloud-dev compute and push triggers while retaining storage and demo availability [633c42d].
+- 16:25 Accepted a small idle bill; prioritize automatic application sleep, reliable wake and measured database cost over absolute zero.
+- 16:58 Rejected permanent page keepalive; researched commercial idle policies and added task-safe activity limits with preserved workspace recovery.
+
+- 2026-10-08 17:16 — 2ef57c8 Added task-safe idle sleep and truthful readiness; preserved workspaces and reduced passive cloud traffic.
+
+- 2026-10-08 17:23 — Verified both cloud worker artifacts match local; repeated idle recovery preserved historical reading position without writes.
+
+- 2026-10-08 17:32 — Cloud scripted cases, reports and evidence passed; started no-client idle observation before cold-wake acceptance.
+
+- 2026-10-08 17:53 — Rejected 126-second cloud wake; added artifact-bound catalog snapshots and parallel family startup with failing-then-passing tests.
+
+- 2026-10-08 17:56 — 4eaa555 Baked artifact-bound Authority catalogs and parallel worker wake to remove repeated cold-start model loading.
 
 - 2026-10-08 18:09 — dbaec61 Seeded registered Authority factories to keep model revisions consistent across independent builds and opens.
 
@@ -1700,6 +2078,8 @@ M6 Task 8 完成 Thread-native Web Case 控件，并修复 action identity、完
 - 2026-10-08 19:04 — bdd6b65 Recorded both real sleep/wake cycles and preserved workspace state to accept cloud-dev source 8b88af9.
 
 - 2026-10-08 19:05 — Pushed cloud-dev-20261008-1904-8b88af9 and acceptance records; demo unchanged and temporary verification resources removed.
+
+- 2026-10-08 19:08 — d21c2c2 Published task-owned state entries for reliable recovery while preserving earlier uncommitted user work.
 - 2026-10-08 19:24 — 720c5cc Added visible App build identity so users can distinguish local and deployed releases.
 - 2026-10-08 19:26 — ed2524f Refresh local App revision and dirty status so frequent edits remain identifiable.
 - 2026-10-08 19:41 — 90b9a71 Recorded fresh cloud-dev version acceptance; full gates and deployment identities permit exact-source demo promotion.
@@ -1707,14 +2087,1168 @@ M6 Task 8 完成 Thread-native Web Case 控件，并修复 action identity、完
 - 2026-10-08 19:46 — Rejected demo App root upload; corrected to the existing App-directory build entry while old App stayed available.
 - 2026-10-08 20:27 — 6b13498 Accepted demo promotion after cases, history and per-page recovery checks; records live-traffic cold-timing limits.
 - 2026-10-08 20:27 — Pushed demo-20261008-2027-ed2524f; exact-source release verified, owned test resources removed, customer connections preserved.
+- 2026-10-08 20:29 — 4f918af Published release state for safe recovery while preserving unrelated uncommitted work.
+- 2026-10-08 20:50 — b543f90 Stabilized local product identity across documentation commits; separate repository tooltip retains source traceability.
+- 2026-10-08 21:08 — User confirmed final handoff; next session starts ordinary conversation with zero tools, before CONV-04/05.
+- 2026-10-08 21:36 — Synced conversation priority and shipped release status; reproduced zero-tool guards and passed initial backend regression checks.
+- 2026-10-08 21:40 — Fixed existing type errors; App352, backend586 and registered-family checks pass; full offline release gate running.
+- 2026-10-08 21:42 — Real managed Pi RPC passes loopback Provider smoke: zero tools, results and evidence; empty-context projection regression passes.
+- 2026-10-08 21:53 — Final backend600 and types pass; rebuilt current source; real local zero-tool calculation shows clear capability prompt in39ms.
+- 2026-10-08 22:03 — Complete offline release gate passes, including clean wheels/source setup, E2E39 and capability coverage24/24; ordinary-conversation local acceptance complete.
+- 2026-10-08 22:03 — Enabled empty-tool conversation and clear calculation gating to honor the ordinary-dialogue contract [fe5bc22].
+- 2026-10-08 — Specified Pi reference isolation and switching controls for implementation review [509d839].
+- 2026-10-08 — User restored priority: assess Capstone ordinary answers before pure Pi and skills/MCP installation design.
+- 2026-10-08 — News trace reaches Pi as ordinary, but grid context leaks; user requires classification and dedicated preparation before acceptance.
+- 2026-10-08 — User requires shared conversation, native Pi configuration and semantic understanding; keyword routing and fallback are rejected.
+- 2026-10-08 — Designed shared Pi context and semantic preparation to preserve conversation continuity; implementation remains pending [b98d01d].
+- 2026-10-08 — User approved two-stage execution and independent intent node; Pi first, replaceable later by Jev or dedicated small models.
+- 2026-10-08 — Defined interchangeable intent-node contract and implementation steps for the approved conversation design [7fc3fc8].
+- 2026-10-08 — Implemented semantic intent and shared history; isolated PostgreSQL78 and native Pi17 checks pass, including worker tools-on/off loopback.
+- 2026-10-08 — Fixed review findings in rollback, configuration identity, intent persistence, retry resources, historical models and truncation metadata.
+- 2026-10-08 — Local rebuild passed; API and both workers share one image and expose the semantic node. E2E39 and registered-worker3 pass.
+- 2026-10-08 — Release packaging exposed missing Pi configuration in sdists; canonical resource symlink fixes rebuilt wheels, with installed-configuration regression coverage.
+- 2026-10-08 — Added semantic intent and shared Pi context to separate request understanding from business execution [3315d95].
+- 2026-10-08 — All release subgates pass after packaging fix; final local rebuild ready. Real model answer acceptance remains open.
+- 2026-10-08 — User news trial failed: current instruction lacked an explicit message identity; strict reference validation rejected the model decision.
+- 2026-10-08 — Current-message contract and bounded tool references fix the reproduced gap; focused140 and native Pi21 checks pass.
+- 2026-10-08 — Bound current-message identity and tool reference enums to prevent ordinary intent failures [493dd57].
+- 2026-10-08 — Capstone746 and Pi21 checks pass; repaired local image ready. New sends evaluate changed configuration; old retry snapshots remain immutable.
+- 2026-10-08 — User rejects per-question prompt tuning; proposed wording patches were reverted and their rebuild stopped before deployment.
+- 2026-10-08 — Defined common execution projection and general evaluation to separate task structure from intent diagnostics [028cf72].
+- 2026-10-09 — Projection contracts and native Pi190 pass; Capstone761 passes. First rebuild hit npm ECONNRESET; retry underway.
+- 2026-10-09 — Separated source-bound execution needs from intent diagnostics so all conversation types share a stable boundary [c70bc7e].
+- 2026-10-09 — Rebuild retry passed; API and both workers share the verified image. General model-quality acceptance remains open.
+- 2026-10-09 — User proposes general Pi delegation; current restricted ordinary executor does not provide it. Draft design recorded, not implemented.
+- 2026-10-09 — User links pure Pi implementation with delegation; joint design proposes one general executor with delegated and direct entry points.
+- 2026-10-09 — Planned approved shared general Pi executor and two entry points to replace restricted ordinary execution [e31d5cd].
+- 2026-10-09 — Added bounded Pi task contracts and cancellable HTTP transport for shared direct/delegated execution [0a57acc].
+- 2026-10-09 — Bound Pi cancellation confirmation and final parent checks to preserve task lifecycle [d540dc7].
+- 2026-10-09 — Enforced whole Pi HTTP deadlines to stop slow headers from delaying parent cancellation [ba0d6ce].
+- 2026-10-09 — Added isolated native Pi service so both entry points can execute real general tools [1964dc5].
+- 2026-10-09 — Persisted Thread runtime and idle mode controls so direct Pi retries retain their accepted entry [dafcef1].
+- 2026-10-09 — Preserved direct Pi retry mode across domain-tool changes to prevent unrelated profile gating [02972f4].
+- 2026-10-09 — Bounded native Pi cleanup and retained verified products with quotas and replay tombstones [153734a].
+- 2026-10-09 — Added mixed-goal delegation and immutable accepted decisions so retries reuse child execution [1868455].
+- 2026-10-09 — Documented delegation boundaries and verified both hosted worker paths through native Pi [da7c3c2].
+- 2026-10-09 — Bound relay concurrency, cancellation and DNS/write lifetimes to prevent work surviving task deadlines [18b58f7].
+- 2026-10-09 — Verified 70 executor/relay checks and 358 App tests; final mixed-goal fixes and rebuild remain open.
+- 2026-10-09 — Verified 39 end-to-end and three registered worker checks without paid Provider calls.
+- 2026-10-09 — Verified actual native Pi streams public text through both worker routes; shared history and isolation remain intact.
+- 2026-10-09 — Completed remaining functional/integration and packaging/source-setup gates; recheck final dependency contract after its commit.
+- 2026-10-09 — Verified 886 Capstone tests and clean types; one later configuration-error change awaits focused confirmation.
+- 2026-10-09 — Fixed delegated dependencies, projections, streaming and reply bounds to preserve admitted outputs [7f0f174].
+- 2026-10-09 — Task3 and whole-delivery reviews approve 7f0f174; independent review regressions pass 23 tests.
+- 2026-10-09 — Final backend900 tests, types and boundaries pass; current-source local rebuild verifies shared image d8e9344b1314.
+- 2026-10-09 — Both workers discover identical general Pi identity and four native tools; rebuilt native streaming/isolation check passes.
+- 2026-10-09 — Recorded accepted local checks and native streaming regression to support response trials [f4aecfe].
+- 2026-10-09 — Unified runtime menu, switch notices and Pi authors so mode identity remains clear across history [f1cbf4e].
+- 2026-10-09 — Verified361 App tests, types, keyboard/mobile menus and current-source rebuild; fresh browser has no runtime errors.
+- 2026-10-09 — Accepted shared business context, agent-neutral frontend and tiered skills comparison; current Pi projection omits active business objects.
+- 2026-10-09 — Accepted shared business workspace above per-agent execution context so skills and Harness consume the same business background.
+- 2026-10-09 — Accepted task-specific Pi context: ordinary questions omit business data; mixed and direct professional questions receive relevant workspace projections.
+- 2026-10-09 — Defined Pi roles: Harness engine, delegated agent and direct agent; Domain Packs remain visible only within Capstone Agent.
+- 2026-10-09 — Accepted native Pi resource configuration with Capstone adapters; drafted shared workspace, skills/MCP and task-focused slash input design.
+- 2026-10-09 — Designed shared context, native resource adapters and useful slash inputs to guide staged implementation [5f5498d].
+- 2026-10-09 — Verified design links, repository symlink, whitespace and doctor; no runtime changes or third-party installations.
+- 2026-10-09 — User approved implementation and selected PowerSkills pandapower and PowerMCP for actual integration, including direct Harness enhancement.
+- 2026-10-09 — Planned six implementation tasks in isolated workspace to preserve main changes and validate all three roles [a0eedad].
+- 2026-10-09 — Selected Authority-backed structural audit for direct Harness MCP enhancement; split its implementation into a separate seventh-plan task.
+- 2026-10-09 — Verified pinned PowerMCP load, inspect, audit and flow on PowerSkills sample; observed guide/model count mismatch.
+- 2026-10-09 — Expanded implementation plan to seven tasks; direct Harness MCP audit is Task 5.
+- 2026-10-09 — Added public business context and Pi v2 contracts to freeze bounded, isolated task inputs [9a84c16].
+- 2026-10-09 — Scoped Authority-backed PowerMCP audit separately to prove direct Harness enhancement and preserve model evidence [9f42775].
+- 2026-10-09 — Task1 review approved public context and Pi v2 contracts; 951 package tests pass, hosted wiring now underway.
+- 2026-10-09 — Added semantic context selection and frozen public Pi inputs to preserve task scope and retry identity [c5ba926].
+- 2026-10-09 — Kept blocked historical goals from failing context projection while preserving independent mixed-task execution [2615f16].
+- 2026-10-09 — Added pinned native resource installation and immutable role profiles to freeze trusted resources before execution [02c5869].
+- 2026-10-09 — Enforced retained schemas and managed source identities to reject false resource readiness [2b11183].
+- 2026-10-09 — Checked schema integrity first and blocked external references to preserve offline resource inspection [f7a8a3e].
+- 2026-10-09 — Added frozen native skills and bounded MCP execution so accepted Pi tasks retain verified resources across updates [1af505f].
+- 2026-10-09 — Preserved native resource content and relative layouts with atomic snapshots to protect acceptance and restart [ab41122].
+- 2026-10-09 — Added professional skill loading and Authority structural audit so Harness can produce verified current-model evidence [c9f9756].
+- 2026-10-09 — Fixed frozen Authority settings and added real Pi proof so professional skill execution uses the verified backend [f9608b9].
+- 2026-10-09 — Clarified Pi resource execution, Domain Pack adaptation and Authority admission; current professional adapter does not grant upstream tool permissions.
+- 2026-10-09 — Bound typed resources and context across roles with frozen retries and composer controls [1db6584].
+- 2026-10-09 — User requires mutually exclusive configuration and submission, with bounded business-meaningful frontend transitions and preserved drafts.
+- 2026-10-09 — Serialized workspace controls, preserved sequential typed input, and projected registered Case capability [4002817].
+- 2026-10-09 — User retains Case for demos and saved operations; default federated dialogue lacks Case service assembly despite existing components.
+- 2026-10-09 — Task6 review approved 4002817; user deferred Case module work and prioritized current skills, context and frontend delivery.
+- 2026-10-09 — Fresh images passed isolated API/worker/native/Harness execution with real MCP and Authority evidence; model responses remained controlled.
+- 2026-10-09 — Corrected test diagnosis: preserve existing App-wide tool preferences across conversations; fix fixture readiness without changing configuration scope.
+- 2026-10-09 — Verified shared-context role integration and documented limits; synchronized reviewed locks, types and protection [c7df9b3].
+- 2026-10-09 — Removed three confirmed failed-test containers; verified no workspace-test containers, volumes or networks remain. Main resources untouched.
+- 2026-10-09 — Scope Harness retry retention to retained runtimes; document cross-image absence explicitly, without silently substituting new resources.
+- 2026-10-09 — Retain accepted professional selections so new resource versions cannot replace active tasks [a1e086a].
+- 2026-10-09 — Final review approved; fast-forwarded main to a1e086a, preserved existing edits, and started canonical local rebuild.
+- 2026-10-09 — Main rebuild passed; actual mobile browser exposed clipped skill heading, assigned narrow layout repair before completion.
+- 2026-10-09 — Bound input panels to thread space so mobile headings and close controls remain visible [7fda5e9].
+- 2026-10-09 — Recorded reviewed main delivery and actual desktop/mobile verification with explicit acceptance limits [e9aca89].
 
-## 2026-10-11
+## 2026-10-10
+
+- 09:41 Demo N−1 event replay reproduces bound-context rejection of derived revision; no completed contingency results; fix design pending.
+- 09:45 User requires careful outcome design and evidence-based failure causes; missing tool completion must not imply insufficient data.
+- 09:45 Source review finds unstructured tool ends can disappear; Harness tool projections omit error reasons. Actual powerflow cause remains unknown.
+- 09:51 Defined evidence-based outcomes and diagnostic design to scope demo repair; parallel release-lane redesign deferred [8c674ab].
+- 10:06 correction: previous design entry used an estimated time; commit and verification were recorded at 10:06 [8c674ab].
+- 10:29 User approved written demo repair design; implementation runs in main while preserving seven pre-existing modified documents. Release-lane redesign remains deferred.
+- 10:29 Derived-context Authority, model-scope enforcement and real hosted Thread scenario regressions pass; current Thread model remains unchanged. No remote deployment or Provider call.
+- 10:29 RPC/Harness diagnostics pass 41 focused tests; partial-admission and outcome regressions pass 82 focused tests. App restore and integration validation remain in progress.
+- 10:35 Retain independently verified partial work, expose safe diagnostics, and verify derived contexts to repair demo admission [320e7bf].
+- 10:37 Refresh protected simulator baseline after authorized scope fix so release validation checks the new tree [8b73030].
+- 10:37 Port incident changes onto existing demo baseline without unrelated local features; resolve version-specific interfaces [941af59].
+- 10:37 Main doctor, types, App build, 56 App regressions and Authority/Thread regressions pass; offline validation passes. E2E finds neutral-receipt capture incompatibility; correction under verification.
+- 10:37 Independent review agent unavailable: tool rejects configured model. Manual code review and executable integration checks continue.
+- 10:40 Keep neutral receipts separate from Authority capture and capability counts to preserve compatibility reports [fd1a953].
+- 10:49 Record unknown study scope and keep required storage failures fatal to prevent unsupported full rankings [660aa7c].
+- 10:49 Distinguish confirmed transport deadlines from unknown execution outcomes without inventing missing data [5fdb024].
+- 10:49 Demo port pins its own simulator tree and persists outcome receipts [aeda9a9, d994f63, 9f57fc5].
+- 10:49 Demo adapter typing and runtime-mode receipts align with its older contracts; shared coverage/deadline fixes ported [af83311, bde005b, 08e8e98].
+- 10:49 Main E2E passes 39 compatibility and 3 registered-worker tests. Simulator, Kernel, Domain Pack, Capstone, App and other suites pass; remaining test targets running.
+- 10:49 First canonical local rebuild succeeds, same API/worker image and App reachable. Repeat rebuild in session 33303 includes coverage changes; newest deadline fix still needs rebuild.
+- 10:57 User reports slow startup and active-conversation recovery; screenshot shows pandapower tools preparing while workspace/history/PyPSA are ready. Cause unconfirmed. Record deferred UX and sleep-policy investigation in KNOWN-ISSUES; current demo repair remains first.
+- 10:57 Portable E2E passes 39 compatibility and 3 registered-worker tests. Final main local rebuild passes. Portable full gate stops at missing ignored PyPSA assets; this is a setup gap, not a product regression.
+- 11:08 Close pending tools as unknown on cancellation to complete runtime receipts; failure-first regression and 39 focused tests pass [eeb00f1].
+- 11:06 correction: cancellation commit was recorded at 11:06, not the estimated 11:08; demo port passes 39 focused tests [2ea2266].
+- 11:09 Both baselines pass complete check-fast and remaining portable gates; final cancellation change passes focused tests and fresh types.
+- 11:11 Final main rebuild passes with identical API/worker image32215bd4 and ready health; exact demo release archive2ea2266 prepared, remote unchanged.
+- 11:11 Record tested repair, release limits and deferred recovery feedback so publication and follow-up remain traceable [fffd52e].
+- 11:16 User explicitly authorizes direct demo deployment of verified2ea2266 before cloud-dev; user will retry incident question. Provider checks remain user-driven.
+- 11:50 Demo2ea2266 passes health, three registered cases, reports, evidence replay and unchanged incident history; backend runtime identities agree. Cloud-dev unchanged.
+- 11:50 Temporary verification SSH registration and task identity removed after receipt checks; existing user keys preserved.
+- 11:52 Demo acceptance tag demo-20261010-1150-2ea2266 pushed; peeled target equals verified deployed source.
+- 12:03 User retries reveal missing formal answers; successful N−1 batches followed by invalid field and result-reference calls.
+- 12:04 RPC final-message regression reproduced and fixed; 18 focused tests pass. Formal result-summary repair remains active.
+- 12:27 Broad user-trial regression confirmed; four demo roles rolled back to exact previous images. Ready health passes; data untouched.
+- 12:28 GBnetwork introduction tools all succeeded; framework recovery fabricated unknown tool blockers. Projection/admission separation requires repair.
+- 12:24 Timestamp correction: prior rollback and GBnetwork entries labelled12:27/12:28 occurred before12:18. Their facts remain valid.
+- 12:24 Registered GBnetwork replay reproduces97,559-byte projection failure; compacted41,182-byte projection admits results without false blockers.
+- 12:31 Demo rollback ed2524f passes three registered cases, nine turns, reports, evidence replay and App source check; Provider calls zero. Annotated demo-20261010-1231-ed2524f pushed. Rejected 2ea2266 tag retained for audit.
+- 12:33 Combined terminal-message budget now drops optional result cards while preserving admitted answer and evidence; 56 focused admission/finalization tests pass. Main grid suite passes 929 tests; remaining check-fast targets continue.
+- 12:38 User limits the new repair to local demo deployment and verification, then discussion. Existing local deployment corresponds to cloud-dev; new local demo must be separate. No new cloud promotion is authorized in this iteration.
+- 12:41 0287c86 preserves admitted answers across optional display failures and renders verified partial facts; prepares local-only demo validation.
+- 12:39 Correction: the prior entry labelled 12:41 records commit 0287c86 created at 12:38. Portable commit 3e3bbfb passes 103 focused tests and types; isolated local demo rebuild started. New credentials/data remain separate; existing Provider credential reused only under authorized function-validation policy, with no Provider calls.
+- 12:47 Local demo 3e3bbfb passes role source/image identity, nine registered turns, report/evidence replay, desktop/mobile/LAN and all portable gates. Main final gates and rebuild pass. Cloud promotion is excluded; stop for two-lane discussion.
+- 12:47 User requires “开发中” on future hosted cloud version displays; recorded in known issues, with no UI or hosted update now.
+- 12:48 ca062df adds isolated local demo deployment, source checks and verification records; preserves development data and local-only release scope.
+- 12:49 User refines future version labels to local-dev/local-demo/cloud-dev/cloud-demo; retain version and source revision. Record only, no extra deployment.
+- 13:04 Manual local-demo acceptance fails: baseline tables replace requested conclusions; partial diagnostics and verbose overview need goal-based answer design.
+- 13:34 08bc487 records controlled branches and two-step baseline alignment; experimental integration is distinct from demo acceptance.
+- 13:38 94b5d40 prepares demo runtime restoration while preserving experimental branches; integration remains blocked on verification.
+- 13:40 52b71ec merges version governance into baseline preparation; minimal contract corrections remove thirteen inherited type errors.
+- 13:43 2540bdc repairs baseline history and diagram typing; thirteen type errors cleared with focused Authority checks passing.
+- 13:42 341ea94 reapplies pre-incident Pi/skills sources over the baseline so experimental work remains separately mergeable.
+- 13:43 Timestamp correction: 2540bdc preceded 341ea94; the earlier 13:43 entry used an estimated minute.
+- 13:43 73dda88 removes inherited trailing blank lines from preserved experimental tests; runtime code is unchanged.
+- 13:57 e1ffe62 finishes whitespace-only normalization; replaces unpublished c1717f3 and leaves experimental runtime identical to e9aca89.
+- 13:55 Baseline integration, package and source-setup gates pass; local-demo nine turns, reports, evidence and retained history pass.
+- 14:08 Full offline gates pass; main integrates 2540bdc, both local rebuilds and nine-turn registered-case checks pass.
+- 14:08 a076b04 restores protected demo environment exclusion through a repair branch; runtime artifacts remain unchanged.
+- 14:08 fba1f51 returns the shared ignore-rule repair to experimental Pi/skills; all existing storage volumes remain intact.
+- 14:14 94cb5b2 records verified local baseline and return paths; cloud and experimental runtime release remain excluded.
+- 14:14 331f71c synchronizes main governance into experimental Pi/skills; runtime sources and acceptance status remain unchanged.
+- 14:18 92395c4 separates experimental code identity from documentation synchronization; frozen local candidate and cloud state remain explicit.
+
+- 14:31 Annotated baseline-b1-local tag pins a076b04; local acceptance only, cloud unchanged; historical browsing restriction confirmed.
+- 14:31 10907bc defines immutable baseline tags and records history browsing feedback for shared improvement.
+- 14:33 History restoration pages by internal events, not visible messages; user reports truncation far below fifty messages.
+- 14:36 7b50ca1 adds GitHub feedback template and lifecycle mapping to avoid duplicate status ledgers; remote Issues remain uncreated.
+- 14:45 31fab3b drafts Chinese Issue automation with simple intake, controlled repair, shared validation and release separation; awaiting review.
+- 14:52 21c5096 accepts screenshot/short-text feedback and defaults unspecified environment to cloud-demo without guessing historical versions.
+- 14:59 fe2ad2c authorizes Issue automation plan; feature branch isolates implementation, existing local/cloud runtimes remain untouched.
+- 15:03 Registered Chinese feedback Issues1–4 and scoped ai labels; explicit environments preserved, private screenshots excluded.
+- 15:04 User selects command-driven operation; unattended scheduling and independent paid model calls deferred.
+- 15:08 a61d49c centralizes command-driven Issue governance and public feedback links; scheduled/paid autonomous execution explicitly deferred.
+- 15:19 c809a33 publishes authorized original feedback images on dedicated docs branch; no runtime deployment.
+- 15:21 User authorizes 小石 development-origin Issues through unified workflow; independent App identity required for AI writes.
+- 15:24 c5123fc defines 小石 identity and authorized development Issue intake; personal-account AI writes remain prohibited.
+- 15:24 6403d53 adds manual Issue workflow on feature branch; 23 focused tests including isolated Docker pass.
+- 15:31 0f1cde0 documents separate App setup and manual scope; identity registration and feature acceptance remain pending.
+- 15:29 Correction: preceding 15:31 entry timestamp was estimated; 0f1cde0 already committed before this timestamp.
+- 15:29 Read-only GitHub intake and original image access pass; independent review requests PR/CI/test/environment/tag fixes.
+- 15:30 cc195dd tracks Issue workflow review blockers and pending App identity without implying runtime acceptance.
+- 15:37 445c59d binds candidate PR recovery and protects tests/CI/environment; 35 focused checks pass, prepared image pending.
+- 15:45 First expanded tools run: 464 pass, two skip, one transport failure; focused failed-case retry passes.
+- 15:45 Independent re-review closes PR/CI/environment findings; App test setup and real checker entrypoint require fixes.
+- 15:45 Prepared isolated App validation image runs full Vitest; no runtime deployment or App publisher activation.
+- 15:47 Expanded tool suite rerun passes 466 tests, two optional Docker skips; original transport cause remains unconfirmed.
+- 15:50 b1d938a integrates reviewed manual Issue tooling locally; publisher and automatic execution remain disabled.
+- 15:54 25e75b1 narrows candidate paths to selected trusted check profiles; 40 focused tests pass, two Docker skips.
+- 16:03 Full make test passes at b1d938a; b145cda integrates separately reviewed scope/check coupling.
+- 16:05 Final main b145cda focused Issue checks pass all 42, including two exact-image Docker executions.
+- 16:09 End-to-end gates pass 39 cases and 3 worker checks; offline validation reports pass 7/10/8 cases.
+- 16:10 Development-origin Issues use Xiaoshi identity and unified workflow; missing independent App keeps publishing disabled.
+- 16:20 Record reviewed Issue tooling acceptance and remaining App/image/remote gates; preserve unrelated user edits.
+- 16:21 f066049 documents verified manual Issue tools and pending identity gates to prevent premature operational acceptance.
+- 16:57 d70fc27 adds offline interactive development explainer; three flows and responsive browser controls pass validation.
+- 17:21 Main d70fc27 and immutable baseline tag pushed; remote CI finds two failures, acceptance remains pending.
+- 17:21 Trusted d70fc27 sandbox image passes actual App/backend checks; four Issues locally triaged, publisher remains disabled.
+- 17:21 Reviewed loopback App enrollment passes 18 checks; GitHub account confirmation pending; background CLI/API replaces Chrome retries.
+- 17:24 bf41f03 adds reviewed one-time protected App enrollment and recovery instructions on a preparation branch.
+- 17:32 CI failures reproduced: pre-lease catalog timing in memory/PostgreSQL; ANSI-split assertion. Separate branch passes 38+5 focused checks.
+- 17:34 a7220b9 adds six interactive readiness items; offline 24-step and three-width checks pass without page errors.
+- 17:37 CI candidate review approves; Capstone581/46skip and types pass. Original provider-config case now fails later; investigate before acceptance.
+- 17:40 baf3e65 records reviewed lease/ANSI fixes on separate branch; original case recheck passes, cold-start cause still unresolved.
+- App5261517 created; installation169899977 grants all repositories, so publishing remains disabled until capstone-only selection.
+- e76aa47 fixes protected Bearer publisher authentication; reviewed 63 checks pass, two skip; preparation branch pushed.
+- User confirms Xiaoshi is dedicated to Capstone; other projects require separately scoped identities.
+- 18:15 App installation169899977 verifies capstone-only scope; Xiaoshi publishing enabled, model and unattended execution remain disabled.
+- 18:16 Xiaoshi publishes Chinese triage on Issues1–4, development Issue5, and draft PRs6–7; main and deployments unchanged.
+- 18:17 CI candidate push exposes Ubuntu history-test timeout; new PR matrix running, full acceptance remains pending.
+- 18:24 51d36d2 limits long-history regression to ten seconds; unchanged assertions, App348 checks and independent review pass; branch pushed.
+- 18:24 Xiaoshi avatar preview generated; protected App identity unchanged, user design selection pending.
+- 18:30 ab13fd7 preserves shell assertions with system grep; missing-rg failures reproduce, corrected checks and independent review pass.
+- 18:30 User selects Xiaoshi avatar v1; JPEG upload prepared, browser connection times out; GitHub avatar remains unchanged.
+- 8848a90 commits approved Xiaoshi avatar assets; later user screenshot confirms GitHub displays the selected icon.
+- 900305f makes triage internal; only essential information requests publish. Issue suite76 passes, two optional skips.
+- Withdrawn four Xiaoshi comments lacking issue-specific progress; verified deletion on Issues1–4, which remain open and unrepaired.
+- 4fd153c includes public-reply regressions in the registered Issue gate; 53 pass, two optional skips.
+- Remote ab13fd7 matrix fails at missing local PyPSA assets; clean-directory reproduction confirms shell-test installation dependency.
+- e3c0b10 isolates rebuild orchestration from installed assets; failure stops Compose, Authority5 checks and independent review pass.
+- Issue1 actual local-demo read finds four instructions across353 public events; first128-event page omits earlier questions; diagnosis published.
+- Cancelled readiness4fd153c matrices pending CI dependency integration; CI e3c0b10 matrices retained. No acceptance or service changes.
+- Created fix/issue-1-history from d70fc27; managed setup/doctor pass; bounded restoration and continuous reading task delegated under approved workflow.
+- 0cdc7c3 updates standalone explainer with verified App status and silent triage; HTML/JavaScript, symlink, diff and doctor checks pass.
+- a8b391d implements bounded coherent history in Issue1 branch; source repair remains subject to independent review and dual-entry validation.
+- 4975e58 fixes four history review blockers; 354 App tests and build pass; independent review and dual-entry validation pending.
+- CI e3c0b10 Ubuntu312 passes tests but fails offline validation; saved job log; no merge or acceptance claim.
+- f1fea7c adds bounded offline failure diagnostics to CI because existing logs omit failed case details; gates remain unchanged.
+- Linux offline replay fails only exact loss equality by 1.24e-12 MW; six other cases pass; remote cause awaiting diagnostics.
+- 4975e58 review rejects live pagination anchor race, long-answer jump and diagram cache pollution; reachable regressions reproduced independently.
+- Full local check-release passes through package and fresh-source setup; remote acceptance remains pending, with Linux numerical oracle correction underway.
+- Explicit loss oracle passes seven Linux and seven macOS offline cases; focused34 and types pass; review and remote acceptance pending.
+- ffc5e9e adds explicit 1e-9 MW loss tolerance; Linux/Mac seven cases, focused34, types and independent negative-case review pass.
+- 2a80010 fixes request-bound reading anchors and atomic diagram caches, including startup retries; 359 App tests/build pass; review pending.
+- Cancelled superseded e3/f1 matrices after saved failure logs; final ffc5e9e runs38050773946/38050771494 retained for acceptance.
+- Issue1 2a80010 independent review APPROVE; original regressions and bounded trim/latest restore pass; dual local deployment remains pending.
+- Reconciled Issue1 diagnosis receipt into canonical queue; archived task-owned shadow receipt; governed branch work recorded without a public reply.
+- 3ed89f8 merges CI dependency into Issue1; retains continuous-history assertions and 10-second budget; App359/build pass, main unchanged.
+- Xiaoshi draft PR8 publishes reviewed Issue1 source3ed89f8, stacked on PR7; canonical task enters review, local/cloud checks pending.
+- ffc5e9e macOS314 push fails heartbeat timing assertion; 949 other grid tests pass; controlled scheduling diagnosis underway, no acceptance.
+- bbc8811 synchronizes idle-heartbeat regression with actual callback; RPC18 pass and independent review approves; production runtime unchanged.
+- cf8ba3e merges heartbeat dependency into Issue1 candidate; RPC18 and diff checks pass; pushed, actual local deployment pending.
+- ff85423 merges CI dependency into Issue readiness; accepted HTML retained, no conflicts; focused verification pending.
+- Exact candidates bbc8811/cf8ba3e pushed; superseded CI cancellations requested to free capacity; no acceptance or Issue status comment.
+- ff85423 pushed; Issue gate53 pass/two optional skips, docs/doctor/diff pass; PR6 stacked on PR7, no main integration.
+- Issue2 current d70 policy probe admits both truthful-incomplete and false-complete prose with synthetic references; no Provider/Authority execution.
+- Issue2 real Harness seam reproduces completed event despite unrecovered query; synthetic verified-boundary fixture only, no user Thread or Provider.
+- Xiaoshi Issue2 comment6097582606 reports confirmed offline completion gap; canonical queue retains diagnosis scope, no repair or deployment claim.
+- Issue4 source inspection finds visibility suspension independent of busy state; readiness/wake timing unmeasured, no cloud cause or fix claim.
+- Detached local-dev candidate cf8ba3e setup/install-pi/doctor pass; clean checkout, no authentication copied; authorized two-stage verification underway.
+- Both local stages rebuilt cf8ba3e; API/two workers match506 source files; original Thread event hashes unchanged; registered cases/reports/evidence pass.
+- Real demo four-question history loads8 messages continuously; long dev history loads older inline with reading anchor and bounded latest restoration.
+- Actual dev latest-return restores data but leaves viewport top593 instead of bottom9423; Issue1 experience acceptance incomplete, regression repair underway.
+- Implementation-worktree Vite reflected uncommitted scroll edits; stopped demo App and prepared separate frozen deployment checkout, backend source unchanged.
+- eda4b1c adds one-shot latest-scroll after parent restore; actual geometry regression RED then GREEN, App360/build pass; review/real-entry pending.
+- Local-demo resumed from clean detached cf8ba3e checkout; canonical rebuild and506 source checks pass, implementation edits no longer affect trial App.
+- eda4 review reproduces live-event RAF restart overriding user scroll; candidate rejected before push/deploy, bounded one-shot repair continues.
+- d2f6cbc binds latest-scroll to history transition; reviewer regression RED then GREEN, App361/build pass; independent rereview pending.
+- d2f6 review clears live restart but reproduces explicit wheel overridden by final RAF; candidate held for user-navigation cancellation.
+- f0af011 cancels pending latest-scroll on explicit navigation; wheel regression RED/GREEN, App362/build pass; independent review pending.
+- User requires grouped maintenance PRs and local verification before submission; consolidate current foundation package after actual dual-entry acceptance.
+- 227c7ea requires grouped PRs after local acceptance; doctor/symlink/diff pass, source remains local until package verification.
+- f0af011 independent review APPROVE; nine navigation/live/normal-scroll controls pass; grouped dual-local verification still required before PR submission.
+- cbafd97 combines reviewed CI/Issue/history changes as one foundation maintenance package; local only, grouped acceptance before PR update.
+- bbc8811 exact PR CI38052232084 passes all four OS/Python jobs; no main merge, acceptance tag or deployment claim.
+- User requests visible four-environment labels now; add shared explicit environment identity to current grouped package before local acceptance.
+- Approved minimal label implementation uses explicit local identity and public cloud source/origin receipt; no port guessing or extra hosted secret variables.
+- User confirms coherent foundation maintenance package: grouped fixes, dual-local acceptance, then one PR; no separate label PR.
+- User authorizes root to submit and accept PRs after required verification; individual maintainer confirmation no longer required; cloud unchanged.
+- 29b78bb binds four App labels to explicit local settings and exact public cloud receipts; App379/helper11/build/shell/doctor pass.
+- e8a8d92 gates stage-source helper, aligns hosted roots and verifies demo labels; shell/Python38/doc/doctor pass; complete gate restarting.
+- e8a8d92 independent review APPROVE: source receipts, cloud build controls, non-overwrite and formal helper/demo gates pass.
+- e8a8d92 dual-local canonical rebuild, source/image identity, labels, history/latest-scroll, registered cases/replay and original Thread preservation pass.
+- e8a8d92 exact clean make check-release exits0: full tests, integration, validation, wheel/npm and source setup pass.
+- 375b228 makes delegated PR responsibility persistent; doc links, symlink, doctor and diff checks pass; runtime code unchanged.
+- 375b228 pushed; Xiaoshi consolidates ready PR6 against main, closes superseded PR7/8; exact-head remote CI pending.
+- Superseded e8 runs and duplicate375 push CI canceled; exact PR6 run38058269289 retained for acceptance.
+- Completed macOS3.14 job measures check-release35m31s: grid-agent10m26s, E2E3m45s, simulator3m04s. No stuck-run claim; future CI step visibility/timeouts need measured design. Evidence foundation-375b228-macos314-timing.json.
+- Exact375 PR CI38058269289 completes all4 success. User changes CI support toPython3.12 only; follow-up config checks remain local, no new full run or merge claim.
+- User prioritizes complete task/answer repair over maintenance-only baseline. local-dev owns daily development/integration acceptance; local-demo remains accepted until a planned user release freezes tested main. Scope-appropriate checks replace repeated full release tests for unchanged runtime.
+- Project overview first HTML derives global packages/deltas from VERSION register, begins at onlineed2524f, records current sources and planned answer enhancement, and includes local-demo hotfix path. Inline Tailwind/JS offline, keyboard slider/filter/details/hotfix and390px layout pass; focused independent review APPROVE. No deployment or paid calls.
+- Project control overview revised to a centered main version lane, side feature/repair packages, pending merge paths and four actual deployment markers. Compact type, keyboard density slider, node details, desktop1440/mobile390 panning and offline interaction pass in Playwright; doctor, relative symlink and diff checks pass. Status remains a generated snapshot; no product deployment or merge.
+- Project overview direction reversed at user request: deployed baseline at bottom, main in center, next baseline above. Playwright confirms vertical order and both upward arrow endpoints; doctor passes. No deployment or source-version change.
+- Git audit confirms old answer candidate3e3 has partial implementation but failed human acceptance; current locals do not include it. Finds uncommitted segmented writer/recovery work on old optimization worktree. Consolidates16 ended/duplicate local branch refs into refs/archive/20261010, preserves all commits/worktrees/data, renames3 retained branches with unchanged dirty path lists, removes3 ended remote branches after PR/ancestor checks. Active code branches now main/readiness/Pi/segmented-storage; no merge or deploy.
+- Overview now uses10 actual key commits with9 Git-derived compressed ancestor edges, four deployment bindings (local e8 / cloud ed), retained old answer candidate, uncommitted work note and broad pending-record area; inactive hotfix is empty. Public cloud App bundles both confirm ed; no backend execution or Provider calls. Browser desktop1440/mobile390, no-overlap slider extremes, detail/offline checks pass; archive refs and renamed dirty paths independently verified, doctor/diff/symlink checks pass.
+- 2026-10-11 progress-view correction: exposes all7 actual branches with implemented scope and continuation,13 key commits including94b runtime realignment,640 issue implementation,cbafd history integration and29b stage identity. Four Git-derived diff summaries distinguish retained experiment/old-answer code from current local net delta (113 files,33 implementation/configuration,21 tests,59 docs/images). Old answer candidate stays a reuse source for a new main-based repair package, not abandoned or accepted. Exact branch/ancestor checks, desktop/mobile/offline/spacing controls and doctor/diff pass; no merge/deployment.
+- 2026-10-11 functional inventory and overview: endpoint audit ed→e8 finds no additional numerical core capability; retained changes are dialogue/history, lease, topology contracts, identity and repair tooling. Replaces isolated statistics/branch strips with5 functional Git interval nodes, PR6/four exact deployment bindings, connected empty local-demo hotfix and in-graph storage work; archives folded. Source/ancestor/App identity, desktop/mobile/offline/spacing/detail checks, doctor/diff/symlink pass. No merge, branch movement, cloud deployment or Provider call; complete answer enhancement remains unaccepted.
+- 2026-10-11 overview omission corrected: old answer candidate3e3 now appears as the retained implementation source of unified task-understanding/formal-answer enhancement, with real cloud-base ancestry and dashed planned reuse relation. Semantic intent and formal-answer closure use one new main-based branch; branch not yet created. Six-node source/ancestry, desktop/mobile/offline/spacing and empty-hotfix checks pass; no code merge or deployment.
+- 2026-10-11 user adopts the global control HTML as the shared project alignment view. Records mandatory timely regeneration in AGENTS and VERSION-CONTROL; recommends foundation closure followed by unified task-understanding/answer enhancement, staged local-dev acceptance and planned release. Live PR6 remains OPEN/MERGEABLE at375 with successful original run; 3.12 follow-ups uncommitted. HTML refresh, doctor/diff/symlink checks pass; no merge, deployment or feature implementation.
+- 2026-10-11 correction: OP-13 storage writer is historical DEFERRED work, not active research. Current main/old-base store blobs match, generic Kernel callers remain; hosted Thread event history uses PostgreSQL, with separate Kernel reference-handoff use. Current provider-free synthetic1k/10k measurement confirms write growth but no user-impact conclusion. User authorizes archive/context-segment-storage-20261011; HEAD and10 dirty entries/file hashes preserved. Storage removed from active graph/queue, retained in folded archives; HTML interaction/source/archive checks and doctor pass. No merge/deployment or paid calls.
+- 2026-10-11 file-ledger necessity audit: current Kernel state ledger is still required by generic application writes, CLI committed-answer binding, answer assurance replay and hosted reference handoffs. Thread PostgreSQL events do not implement an equivalent replacement. Only OP-13 experimental rewrite is archived; existing ledgers are retained, no storage migration/deletion planned. Audit/register/folded archive HTML updated; doctor/diff pass.
+- 2026-10-11 development-package audit: heading changed to 待推进的开发包. Unified Capstone frontend commands/quick actions registered separately; Pi branch has wired /skills, /skill:<name>, /context prototypes, absent from main/deployments. Full business-data sharing and independent Case product integration added as pending-design packages. Pi card now exposes skills/MCP, structural checks and prototypes; actual input/quality comparisons remain unaccepted. Scope/options recorded in DEPLOYMENT-FUNCTION-SCOPE and indexed. Refreshed standalone HTML passes desktop/mobile spacing, package visibility, four deployment/PR bindings, folded archives and offline interactions; doctor/diff/symlink checks pass. No command implementation, new branch, merge or deployment.
+- 2026-10-11 control-view placement correction: pending area now excludes packages already represented on tree branches. Removed duplicate unified-answer proposal; complete semantic understanding, reuse and formal-answer work remain in its branch card/detail. Broad frontend commands remains pending design while existing Pi prototypes stay with Pi. Register rule, INDEX and resume updated; regenerated HTML data verifies placement and four deployment bindings, local links/symlink and doctor/diff pass. No runtime change or deployment.
+- 2026-10-11 branch-card completeness correction: answer card now explicitly lists task goal/scenario/answer scale, result-to-goal coverage and direct formal answer with remaining scope/next action. Separates implemented old guards from unimplemented enhancement; new main-based branch still not created. Content-only overview refresh; no runtime or deployment change.
+- 2026-10-11 expanded package detail correction: canonical register gains per-item implementation/status, remaining work/dependencies and acceptance requirements. Generator validates detail package IDs and embeds rows; expanded HTML renders seven package tables, including five answer items and six Pi items. Items distinguish old guards, failed human answers, unimplemented semantics, real tool checks and unaccepted model quality. Desktop1440/mobile390 table panning, six-node/four-environment/PR bindings, slider spacing and offline interactions pass; doctor, documentation links, symlink and diff checks pass. No product runtime change, merge or deployment.
+- 2026-10-11 paired-environment policy: local-dev serves cloud-dev development tests/release verification; local-demo tracks cloud-demo for reproduction, emergency repairs and release verification, with explicit temporary candidates only. Updated lifecycle, Issue workflow, AGENTS, both READMEs, runbook and status register. Graph pairs actual deployment chips via two blue dashed paths and marks local-demo e8 versus cloud-demo ed as pending realignment. Actual runtimes/data unchanged; baseline restoration needs DB/artifact compatibility and canonical rebuild checks first. Browser desktop/mobile/offline, pairing/drift checks and doctor/documentation links/symlink/diff pass; no cloud deployment or Provider calls.
+- 2026-10-11 independent local deployment boxes: removed both local chips from the shared source card; local-dev and local-demo are separate graph boxes with individual source bindings and cloud pair connections. Demo-only repair box follows local-demo. Both actual revisions remain e8 and demo drift remains visible. Browser checks include independent nodes/source edges, no overlap at slider extremes, mobile/offline behavior; visual desktop review and doctor pass. No runtime switch or Git branch change.
+- 2026-10-11 source-versus-role correction: remove local/cloud pairing paths. Reject moving local-demo beside its desired cloud baseline without its actual Git relation. Both independent local deployment boxes bind to actual e8 via labelled deployment-source edges; pending demo ed alignment stays text only, not a source edge. Demo emergency path remains exclusive. Register/INDEX/resume reflect source-driven placement; browser source, no-pair-path, spacing/mobile/offline and doctor/diff checks pass. Actual runtimes unchanged.
+- 2026-10-11 unified deployment and screen layout: all four environments now independent boxes with actual source edges; remove redundant edge revision labels. Main centered in compact balanced lanes, default viewport fit and original-size toggle; full details remain below. Fit passes1366x768/1440x900/1920x1080; four source edges, no overlap, mobile/offline and interaction checks pass. Commit numbers teal; deployment numbers purple #7c3aed after blue rejected as too close, computed colors confirmed. Register/INDEX/resume updated; doctor/diff/links/symlink checks pass. Runtime versions unchanged.
+
+- 2026-10-11 cfd6ad6: 统一 Python 3.12 与开发/发布验收职责，收口基础包；94 项通过、2 项可选跳过。
+- 2026-10-11 PR6 pushed cfd6ad6; exact PR CI38074539207 runs two Python3.12 platforms, duplicate push cancelled. Xiaoshi updated same PR; main/deployments unchanged. User accepts foundation closure, local-demo cloud baseline restoration, unified answer enhancement and gated release order. Demo preflight confirms identical DDL/protocol/ledger/artifact contracts, three threads/485 events and no active attempts; restoration not performed.
+- 2026-10-11 isolated demo-baseline checkout prepared at exact cloud source ed2524f; setup/install-pi/doctor pass. No authentication copied, data removed or running service switched. Setup receipt runs/issue-automation-acceptance/demo-ed-setup.log.
+- 2026-10-11 cfd6ad6 independent review APPROVE, no blockers. Exact ed2524f reader validates all three existing demo Thread snapshots,485 events,13 result projections without writes or Provider calls; receipts foundation-cfd-review.md/demo-ed-stored-data-read.json. Runtime switch remains pending foundation merge and preservation/rebuild checks.
+- 2026-10-11 answer enhancement stable-source audit identifies Harness routing/prompt/admission boundaries and Pack-owned goal-coverage gap; draft updated, no experimental Pi import or implementation begun. Control register/HTML/INDEX updated for cfd followups and pending exact CI; main doctor, diff, embedded JSON and symlink checks pass. No merge, runtime switch or cloud deployment.
+- 2026-10-11 c3b78bc: 基础包 PR6 经精确 cfd 两平台 CI 和独立审查后由小石合入 main；为回答增强建立已验收开发基础。
+- 2026-10-11 main fast-forward integrated c3b78bc; autostash3b8182d preserved all existing tracked edits. Two lifecycle/workflow conflicts resolved by combining accepted paired-stage semantics with Python3.12 and persistent PR authority; no staged user work left. Existing local-dev clean checkout moved to c3 for canonical rebuild; runtime acceptance pending, cloud unchanged.
+- 2026-10-11 402ac39: Added strict legacy demo validation and enhancement integration audit to prepare unified task-answer repair.
+- 2026-10-11 local-dev c3b78bc and local-demo ed2524f pass canonical rebuild/source identity, three registered cases, reports and evidence replay; all original event hashes retained. Cloud unchanged; semantic task-answer closure remains unimplemented. Independent wrapper review APPROVE; live checkpoint and control graph updated.
+- 2026-10-11 closed merged foundation branch locally/remotely after exact tree and clean-worktree checks; retained archive ref and detached directory. Control layout separates source-aligned deployment rows and records automatic re-layout/branch closure rules; running services unchanged.
+- 2026-10-11 user requires ui-ux-pro-max on every control-graph update; applied verified dense-dashboard guidance, rebalanced local-dev left/demo right and compacted old reference. Complete business context/data sharing moved into Pi tree/detail scope without losing remaining-work or acceptance rows. Desktop one-screen, spacing extremes, source bindings, mobile and offline controls pass.
+- 2026-10-11 corrected crossed Pi/deployment lines by ordering local-dev above Pi to match source order; SVG geometry checks find zero independent-path crossings at both spacing extremes, with no card overlaps. Added crossing checks to graph update requirements.
+- 2026-10-11 e74545e: Assigned full business data sharing and acceptance tasks to Pi branch to align actual development ownership.
+- 2026-10-11 749e0b8: Corrected branch-only source links and finalized Pi plan ownership; supersedes unpushed e74545e documentation commit.
+- 2026-10-11 synchronized controlling specs/plans/worklist with actual foundation integration, Pi Tasks8–9 and separate answer branch; normative lifecycle/AGENTS now require bidirectional alignment. Distinct deployment background and server/cloud/branch/main icons added; no runtime deployment or new feature completion claimed.
+- 2026-10-11 enforced icon/title flex rows and connected empty demo hotfix reservation directly to accepted ed2524f mainline source; spacing extremes and one-screen checks pass. No hotfix branch or deployment created.
+- 2026-10-11 narrowed all four environment cards to 76% of branch width, capped at 280px, and aligned left environments toward main; source bindings unchanged. Private browser checks pass for spacing extremes, card separation, hotfix source and mobile overflow; template, generated graph and control rule aligned. No runtime change.
+- 2026-10-11 04:14 further narrowed four environment cards to 64% of branch width, capped at 220px; desktop one-screen, text overflow, overlaps, sampled edge crossings, four source links and mobile overflow checks pass at spacing extremes. User confirmed final handoff; no runtime deployment.
+- 04:31 User approved unified task-understanding and formal-answer design; branch implementation started; bounded contract passes eighteen Python3.12 tests.
+- 04:39 Added immutable bounded task proposals to bind semantic goals before execution; eighteen tests and independent review pass [45946db].
+- 04:37 Control graph checks pass desktop/mobile, four source bindings, spacing extremes and zero crossings; product runtimes unchanged.
+- 04:37 correction: task-contract commit timestamp above should read 04:35; source and verification facts remain unchanged.
+- 04:42 Recognition integration passes 112 focused contract, worker, Harness and application tests on Python3.12; independent slice review is active. Real managed transport, Pack coverage and formal-answer acceptance remain open.
+- 04:44 Source and validation Pyright both report zero errors. Independent review found a new-request persistence/retry bypass and mutable InMemory task-event aliases; fixes and regression checks are required before recognition acceptance.
+- 04:49 User added run-process UI scope: running one-action preview/full-history toggle, completed collapsed/full-history toggle, bounded heights with scroll, smaller disclosure label and compact row gaps. Root owns App edits; semantic repair continues. Managed Pi loopback recognition passes with one request and zero tools; no paid Provider call.
+- 04:51 App adjustment passes 64 component tests and TypeScript checks. Controlled real-browser checks confirm one live preview action, 48px preview cap, 160px full-history cap, actual scrolling (241px content), 5px gap for 10px rows, and completed collapse/expand. Actual local-dev rebuild remains pending for the enhancement package.
+- 04:53 Added tool-free semantic recognition and immutable retries to prevent execution without accepted task identity [491b23b].
+- 04:53 Recognition independent V3 review approves; root verifies 159 focused tests including actual PostgreSQL. Pack coverage/formal-answer implementation started.
+- 2026-10-11 Added one-action live preview and scrollable bounded history to keep run details compact [4223a6d].
+- 2026-10-11 App full suite passes 380 tests, TypeScript and independent UI review pass. Neutral semantic v2 review approves; 58 contract/router tests pass. Control graph checks pass source491b23b, four stage bindings, zero overlaps/crossings and mobile overflow; main doctor, document links and symlink pass. Pack bridge remains active.
+- 2026-10-11 Added typed Pack proposals and resolved semantic routing to prevent keyword execution guesses [8631af0].
+- 2026-10-11 Neutral slice passes 58 tests, scoped Pyright and independent review. App4223a6d graph checks pass four bindings, zero overlaps/crossings and mobile overflow; temporary validation services closed. Pack/finalization bridge remains under implementation.
+- 2026-10-11 Control graph source8631af0 passes source bindings, spacing extremes, overlap/crossing and mobile checks; temporary browser/server closed. PyPSA compatibility must retain published execution while explicitly withholding unsupported goal-coverage certification.
+- 2026-10-11 User requested local-dev update for human checks and GitHub Issue inspection. Cherry-picked reviewed App4223a6d onto local-dev c3b78bc as22acf1b; canonical rebuild passed using existing external protected local.env/model assets. 380App tests and TypeScript pass; API/two workers share image bfcd261a and506backend source files match. Existing data/local-demo ed2524f remain. Actual5173 browser checks one-action48px preview,160px scroll,5px gap/10px font and completed toggle; workbench shows clean22acf1b. Human acceptance pending; backend closure not deployed.
+- 2026-10-11 Read GitHub's5open Issues and PR states. #1history and #5CI are integrated in main/PR6 but demo acceptance remains; #2formal answer/#3scale relate to active closure; #4wake latency remains investigation. No public comments, closures or new task claims. Control graph now binds local-dev to exact22acf1b candidate, four bindings/spacing extremes/zero overlaps and crossings/mobile checks pass; main doctor/diff check pass.
+- 2026-10-11 Retained UI candidate22acf1b as improve/run-process-window. Visual inspection found its deployment connector hidden behind main card; moved local-dev above its exact candidate and strengthened browser checks to detect card obstruction. Source edges, spacing extremes, zero card/edge overlap and independent crossings pass; mobile has no overflow. Backend independent review reports four blockers (hosted schema forwarding, semantic goal/payload consistency, mixed general response, language/scale); one fix wave delegated, backend stays undeployed.
+- 2026-10-11 按用户指令处理5个GitHub Issues：受保护发布器身份capstone-xiaoshi[bot]核验；#1/#5登记release-pending并回复PR6集成及demo未生效事实，#2/#3领取统一回答工作包，#4经4项生命周期检查和本地热态8–24ms测量后询问切后台/锁屏触发并标needs-info。全部保持开放；未调用付费模型或部署云端。
+- 2026-10-11 回答闭环修复版304项实际PG组合检查通过，但独立复审仍发现unspecified范围升级full和PiRPC跨消息聚合执行前言两项P1；继续完整修复并保留ext_grid意图的能力边界。用户截图22acf1b是仅UI候选，后端增强未部署，不声称修复完成。
+- 2026-10-11 按用户截图进一步压紧运行辅助信息：9px描述字体、8px元数据、23px标题行、32px单动作预览上限、4.5px行隙；执行提示轻微脉动且尊重减弱动态设置，完成降低权重。源码浏览器确认完整160px窗口可滚动、终态切换；64组件检查及TypeScript通过，尚未部署。
+- 2026-10-11 Reduced activity typography and spacing; active status remains visible, completed details secondary [c6093de].
+- 2026-10-11 Actual managed Pi v2 recognition passes published Pack-schema loopback: one request, zero tools,870ms; no external Provider call. Control graph c6093de passes four source bindings, spacing extremes, zero overlaps/crossings and mobile overflow; document links, symlink and doctor pass.
+- 2026-10-11 第二轮独立复审Spec/Quality批准，314实际PG和72Kernel检查通过；完整validate通过25脚本场景与24/24矩阵。并行端到端首2项失败单独重跑通过，串行unit仍发现3项hosted链回归；保留日志，不归因全部为资源竞争。
+- 2026-10-11 最终全分支审查拒绝候选：overview/powerflow可忽略明确对象与指标仍认证supported；公共FamilyRuntimeFactory缺resolve转发。完整门禁暂停，第三轮实现修复与既有hosted回归一起处理；不部署或创建PR。
+- 2026-10-11 第三轮源码通过整体独立复审；336实际PG、7PyPSA与61Harness检查通过。既有拓扑fixture补识别契约后5模型通过。
+- 2026-10-11 全量unit旧fixture结果946通过5失败；修复后重启串行make test，尚无完整门禁、部署或PR验收。
+- 2026-10-11 用户接受业务组织策略并明确自主计算研究方向；笔记区分已接受目标、候选研究机制和未批准实施。
+- 2026-10-11 Defined isolated research experiment to test falsification and evidence replay [69706fc].
+- 2026-10-11 用户批准自主研究实验分支，并明确两层贯通：领域知识包、可组合工作流、结论验证与自主研究组织均纳入首轮。
+- 2026-10-11 用户指定IEEE39四条业务验收，并明确研究节点各含工具组；实验控制图8节点与4环境来源、间距及手机检查通过。
+- 2026-10-11 Read Asterion P7 source4c519ff and recorded public25/25 score100; mapped autonomous notes, grouped experiments and evidence distinctions.
+- 2026-10-11 IEEE39真实探查64次Authority调用；发现母线编号歧义、平衡机组限值覆盖缺口及2个不可排名停运场景。
+- 2026-10-11 Bound research scope to user IEEE39 cases and P7 mechanisms [e83de7e].
+- 2026-10-11 Added bounded research nodes and verified replay to test registered grid scenarios; bf678f21.
+
+- 2026-10-11 Verified bf678f2: 15 real research nodes, fresh-process replay and tamper rejection; controlled strategy remains incomplete.
+- 2026-10-11 Accepted task-scoped Research Model and cross-turn lifecycle; aligned R1–R5 plan with separate answer delivery.
+- 2026-10-11 Bound verified task coverage and isolated formal messages to prevent misleading answers; 2473e48.
+- 2026-10-11 Prioritized answer closure and a new baseline before Research Model implementation; preserved experimental reference.
+- 2026-10-11 Rebuilt local-dev2473e48; three-role512-file identity, nine scripted turns, replay and compact browser controls passed.
+- 2026-10-11 Published PR9 with independent App identity; exact Linux/macOS CI running, issues2/3 updated with verified local facts.
+- 2026-10-11 Verified deployed-image RPC separation: English process stayed diagnostic; only final Chinese text became public, zero Provider calls.
+- 2026-10-11 Split iteration, PR and release gates to avoid repeated full-release checks; 513a35e.
+- 2026-10-11 Withdrew grid CLI compatibility; retained formal runtime tests until application-owned modules migrate.
+- 2026-10-11 GitHub rejected independent App workflow push for missing Workflows permission; verified513a35e remains local.
+- 2026-10-11 Confirmed user-granted Workflows permission; independent App pushed513a35e and opened dependent PR10, preserving PR9 acceptance.
+- 2026-10-11 Enabled and verified user-authorized main protection: PR, two Actions checks, zero approvals; retained admin emergency access.
+
+## Recovered branch journal entries — 2026-10-11
+
+The following original entries were retained during document synchronization.
 
 - 04:35 Added bounded immutable semantic task proposals before execution; eighteen tests and independent review pass [45946db].
-- 04:53 Added tool-free semantic recognition and immutable retries to prevent execution without accepted task identity [491b23b].
 - 04:53 Independent V3 review approves; root verifies 159 focused tests including actual PostgreSQL. Pack coverage/formal-answer work started.
-- 2026-10-11 Added one-action live preview and scrollable bounded history to keep run details compact [4223a6d].
 - 2026-10-11 App full suite passes 380 tests and TypeScript; independent App review approves. Neutral semantic v2 review approves after byte-bound correction; 58 tests pass. Pack bridge integration remains active.
-- 2026-10-11 Added typed Pack proposals and resolved semantic routing to prevent keyword execution guesses [8631af0].
 - 2026-10-11 Neutral slice passes 58 tests, scoped Pyright and independent review; Pack/finalization bridge remains active.
-- 2026-10-11 Reduced activity typography and spacing; active status remains visible, completed details secondary [c6093de].
+- 2026-10-11 Verified PR10 exact513a35e CI: Linux32 minutes, macOS26 minutes; local focused App checks remain7.63seconds.
+- 2026-10-11 Reviewed pending project documents, preserved historical records and resolved conflicts; links, doctor and browser control checks passed.
+- 2026-10-11 Synchronized pending documents and control tools to preserve reviewed project state; 69f7825.
+- 2026-10-11 Merged exact reviewed PR9 and PR10 through protected App publishing; main723b8e8, deployed local source2473e48 unchanged.
+- 2026-10-11 Created default dev from accepted main; verified both protections and retargeted document PR11 without administrator bypass.
+- 2026-10-11 Approved dev governance review;68 focused checks, doctor and browser edges passed; optional Docker tests not selected.
+- 2026-10-11 Established dev integration, trusted Issue routing and scoped CI to separate development from release; cfa6c1c.
+- 2026-10-11 Published exact2473e48 local technical baseline B2 with human/cloud limits; archived and closed merged PR9/10 branch names.
+- 2026-10-11 Merged reviewed PR11 into dev50d8ebc after exact CI: Linux60seconds, macOS131seconds; root switched to dev.
+- 2026-10-11 Created feat/research-model from accepted dev; preserved R0; archived and closed merged document branch without deleting worktrees.
+- 2026-10-11 Recorded accepted dev organization and Research Model start to align control documents with verified baseline; 8ae795e.
+- 2026-10-11 User requests dev/main environment prefixes, centered dev evolution and distinct main release-point background; sources remain unchanged.
+
+- 2026-10-11：9eb4689 区分 dev 演进与 main 发布背景，明确四环境工作线。
+
+- 2026-10-11：c857837 合并控制图；真实问答失败转为部署样本回归优先项。
+
+- 2026-10-11：76a7f58 建立部署样本并修复提案与概况，阻止未经验证的人工交接。
+
+- 2026-10-11：8f1c9b3 移除弱关键词验收，保留准确样例断言与独立语义复核。
+
+- 2026-10-11：2633bfb 分离长期错误回归与升级专项，登记同源local-dev候选，防止误报验收。
+
+- 2026-10-11 Verified completed-window9px/4.5px/160px browser behavior; App updated PR13 and Issues2/3 without claiming business acceptance.
+
+- 2026-10-11：7823ceb 更新恢复检查点，明确候选、整体样本与待授权Provider验收。
+
+- c7032d5 Repair live proposal contracts and regression continuity after authorized Provider failures.
+
+- c490c71 Resolve unknown selectors through screened Authority contracts; retain mixed diagnostics and test failed-turn recovery.
+
+- 9dd2492 Validate complete public task schemas before acceptance; block downstream questions when prerequisites fail.
+
+- 2026-10-11：专项验收仅判定修复目标；无关回答缺陷单独记录，整体基线验收独立。
+
+- 838ea02 Allow registered derived-context calculations while retaining exact frozen-scenario evidence admission; separate repair-specific acceptance.
+
+- 2026-10-11：local-dev838ea02规范重建；511文件/角色、同镜像82bb9312和干净App核对通过；派生场景专项运行中。
+
+- 2026-10-11：838ea02真实派生场景专项通过；冻结负荷19×1.3场景证据已接纳，窗口切换/160px滚动通过；整体独立复验。
+
+- 2026-10-11：838ea02整体六轮必要业务路径复核通过；CI失败定位为旧基础context枚举测试断言，修复复验中。
+
+- 2026-10-11：旧目录断言六项失败已复现；修正后模型切换/拓扑六项通过，保留选定模型及注册context契约。
+
+- d886b17 Align scenario test fixtures and publish scoped repair acceptance; retain separate overall evidence and CI gate.
+
+- 2026-10-11：概况无关发电N−1提示来自Pack固定文案；两项失败回归复现，定向删除；本地人工验证不等CI。
+
+- 2026-10-11：选定上下文完整，失败来自全网范围解析；修复并保留逐元件校验，指南仅作配套，12项专项通过。
+- 2026-10-11：dbcd7fd 修复范围与证据覆盖回归；撤回旧整体验收，扩充8案例10轮，98项检查通过。
+- 2026-10-11：0e4deb3 清除案例定制提示与裸标识索引默认；保持通用规则，83项识别及Pack检查通过。
+- 2026-10-11：986fc20 修复连续概况全网范围；49项Pack及16项样本检查通过，旧整体复验仍失败。
+- 2026-10-11：d7ac7d9 修复有效停运结果排序误报完整性错误；12项检查及篡改拒绝、真实工件读取通过。
+- 2026-10-11：760ac0a 增加接纳前缺项一致性复核，避免多余澄清；保留真实歧义，80项检查与审查通过。
+- 2026-10-11：f0d9b41 定义领域整体负荷缩放，冻结明确参数；52项检查及三个Provider复核探针通过，部署待验证。
+- 2026-10-11：5135221 区分待澄清提案和可执行要求，避免未知参数误报结构错误；84项检查与审查通过。
+- 2026-10-11：51f4715 保留有效AC故障子集证据，明确部分覆盖；55项Pack检查及真实工件复核通过。
+- 2026-10-11：local-dev51f4715同源重建通过；provider-1cfbb0ad38fc40ea整体8案例10轮及独立业务复核通过，三类捕获提案探针分别通过；运行/完成窗、控制图桌面手机与来源边检查通过。专项明确复用整体记录，筛选分支使用原失败工件复放及反例，待人工验证；未建立新基线或更新云端。
+- 2026-10-11：b3e4d8d 记录整体与专项真实验收、补充缺项执行屏障，明确部署51f4715和未部署文档提交的区别。
+- 2026-10-11：f348993 复用隔离识别准备、独立推理配置和计时，补齐即时等待及普通概况尺度，降低重复开销。
+- 2026-10-11 · 21c02e1：隔离普通任务业务工具，保留失败计时及样本耗时，修复真实回归发现的权限与性能可观测缺口。
+- 2026-10-11 · 915856f：紧凑意图与领域投影消除重复参数，关闭深度推理；源码审查和 focused tests 通过，部署验收待执行。
+- 2026-10-12：915856f真实整体10轮失败3轮；拒绝以未确认对象覆盖澄清的能力预检，保持输入屏障。模型wire投影契约及兼容缺项复核修复通过86项检查、类型检查、doctor和独立源码审查；准备同源重建复测。
+- 2026-10-12 · ddbb0d4：对齐意图wire契约，统一兼容缺项复核，修复重复字段导致的识别失败。
+- 2026-10-12：ddbb0d4同源重建通过；真实整体10轮失败2轮，概况耗时3.119–5.047秒。保留假排序澄清和负荷对象范围失败，不交人工。
+- 2026-10-12 · a9be99f：独立轻量路由，业务契约移至后续编译；保留冻结路由及分阶段计时，避免识别承担研究规划。
+- 2026-10-12：a9be99f同源重建513项通过；整体9/10范围通过、负荷局部潮流目标错误澄清失败。路由0.635–1.471秒，概况4.194–6.596秒；未交人工。
+- 2026-10-12 · 5edfb51：冻结前验证现有潮流测量契约，避免错误提案变为用户澄清；修正验收任务取消目标。
+- 2026-10-12：5edfb51整体失败2/10；母线标识被改为内部索引、故障提案带入不支持指标。路由0.410–1.210秒；仍未交人工。
+- 2026-10-12 · beef6d4：冻结前复核专业业务选择，补齐故障测量契约；保持路由轻量，避免错误提案被接纳。
+- 2026-10-12：beef6d4同源重建513项、9业务＋1路由及独立事实复核通过；等待与两种运行窗口实测通过。概况4.020–6.744秒，负荷81.747秒执行限制保留；源码已由bot推送，待人工。
+- 2026-10-12 · 9e8c7cd：登记真实本地范围验收与耗时限制，统一控制图和恢复点，区分部署源码与文档提交。
+- 2026-10-12 · 55174b1：模型打开与切换提交持久化预热，冻结待激活身份；首条指令复用，恢复失败与过期租约。
+- 2026-10-12：预热相关99项检查通过，含34项真实PostgreSQL；类型、边界、doctor及独立源码审查通过，开始规范重建。
+- 2026-10-12：55174b1规范重建后实测新开case14缺少默认能力，尚不满足完整切换预热；继续修正，不交人工。
+- 2026-10-12 · 9843b04：新模型显式绑定应用默认能力；已有选择保持原样，避免空预热后首次执行重新初始化。
+- 2026-10-12：9843b04通过58项workspace/真实PostgreSQL、类型及独立审查；继续规范重建与真实对话验收。
+- 2026-10-12：9843b04同源重建与真实预热专项通过；整体115711f64191415d失败2/10，编译路由漂移与负荷语义缺口分开记录。
+- 2026-10-12 · 8ec1e1a：冻结路由不变量进入编译有界纠错；64项检查与独立审查通过，不掩盖负荷身份及结论覆盖风险。
+- 2026-10-12 · a634257：统一首次创建、新模型打开与切换的初始化；只解析一次身份，保留旧版本与恢复选择。
+- 2026-10-12：统一入口通过68项创建/workspace/真实PG检查、类型、边界及独立审查；8ec1e1a整体10轮自动通过，历史语义风险保持打开。
+- 2026-10-12：a634257规范重建和514项三角色同源通过；真实打开/切换/恢复/提前提交专项通过，首答5.869秒与6.903秒。
+- 2026-10-12：8ec1e1a整体原始目标/工具/Authority/证据独立复核通过9业务＋1路由；负荷105.589秒主要为执行，性能及历史语义风险保持打开。
+- 2026-10-12：a634257浏览器恢复回答/输入就绪、控制图桌面/手机/来源边与间距检查通过；doctor及文档检查通过，准备同步PR与Issues。
+- 2026-10-12 · b1f95c3：记录统一模型初始化部署、真实专项及整体来源；控制图与计划同步，保留历史风险。
+- 2026-10-12：b1f95c3以项目bot推送并回读确认；PR13及Issues2/3同步，统一入口local-dev部署源码为a634257。
+- 2026-10-12：人工发现已有潮流完整回答被typed结论摘要覆盖、当前结果前三线路追问被错误澄清；整体业务验收撤回，新增第9案例，样本结构21项通过不代表产品修复。
+- 2026-10-12 · bcddf70：恢复完整专业正文、可选复用/数量契约；同Pack历史引用由Authority验证后冻结，本轮再准入，混合计算不能替换复用来源。124项框架、69项Pack、28项投影/样本、13项Pi运行时、类型/边界及独立复审通过；真实部署验收待执行。
+- 2026-10-12：bcddf70真实专项首轮AC完整报告恢复，复用因Pack身份不一致被拒；失败db3d7745cb6a4dd1保留，未交人工验收。
+- 2026-10-12 · 3e7e250：使用manifest.domain_id筛选历史结果，修正真实复用失败；124项框架、10项Pack、类型/边界及复审通过。
+- 2026-10-12：3e7e250实际专项复用启动失败，restricted catalog跨出Pack工作空间；失败a9f6a621dccf477e保留。
+- 2026-10-12 · a4ea668：限制目录留在Pack工作空间，满足真实RuntimeDescriptor边界；137项框架及类型/边界/复审通过。
+- 2026-10-12：a4ea668规范重建与515项三角色/镜像a2118c2e/App同源通过；实际两轮350a5911c3b64860独立专项PASS，复用仅读取4次、零重算；浏览器完整回答/三行排名通过。
+- 2026-10-12：a4ea668整体9案例12轮c9a70df5226b4cf2独立FAIL（11/12筛查通过）；负荷命名空间被编译提前澄清，无Authority查询。专项PASS保持，整体、性能、新基线未验收。
+- 2026-10-12：b5fcc63恢复未知标号的Authority名称/别名解析，禁止索引回退；五项身份回归及类型/边界检查通过，真实编译待验证。
+- 2026-10-12：b5fcc63规范重建515项/三角色同源通过；dccbeb158aea4086真实三轮专项独立PASS，名称31→负荷19/PQ×1.3，完整正文、三条排名及零重算复用通过；性能未验收。
+- 2026-10-12：b5fcc63整体86e8f00c32d94eab为11/12 FAIL，末轮线路排序被编译成network对象；既有branch-only规则未发布到编译约束，三项新回归先失败后通过。
+- 2026-10-12：fb6a921将既有支路排序约束发布给编译纠正；五项契约及类型/边界检查通过，独立复审批准，真实整体验收待重跑。
+- 2026-10-12：fb6a921实际整体686b7fb69b7f4e3b失败2/12，概况重复拆成多契约或普通目标；原潮流复用通过。通用组合边界修复中，194项相关检查通过。
+- 2026-10-12 · 1013dd2：修复组合任务重复接受和执行选择；历史回放保留，独立普通目标无工具隔离，195项及类型/边界/复审通过。
+- 2026-10-12：1013dd2真实4b19beeaa3d349c6整体11业务＋1路由/专项3轮独立PASS；复杂任务几十秒至分钟不因总时长失败，耗时分阶段记录。
+- 2026-10-12 · ff9d1c3：记录实际整体与专项验收、控制图及耗时标准，供人工验证和PR同步。
+- 2026-10-12：ff9d1c3已以项目bot推送并回读；PR13及Issues2/3已同步真实整体/专项验收，local-dev源码仍1013dd2，待人工。
+- 2026-10-12 · 88f40de：按用户决定恢复c3b78bc业务执行，撤销未稳定任务闭环增强。
+- 2026-10-12 · 42a647b（补录）：保存发布回读和恢复记录；原候选后续人工回归失败，现已撤回。
+- 2026-10-12 · 633ed6b：独立工具禁用LLM仅选普通或专业路由，保留原执行链和Provider分工。
+- 2026-10-12 · 30a3ecb：路由失败保留独立诊断，避免误报普通对话关闭；57项相关检查通过。
+- 2026-10-12：30a3ecb回退部署506项同源与浏览器通过；七轮真实业务仍有负荷失败、旧英文前缀及AC对象误报，不计整体验收。
+- 2026-10-12 · b9ff1f9：保存回退来源、实际失败与验证样本，避免把代码回退误报为业务稳定验收。
+- 2026-10-12 · 6d837a3：同步PR13撤回、PR14草稿及开放Issues；源码回退与实际失败分开登记。
+- 2026-10-12 · cf9ac88：固定local-dev产品30a3ecb并同步控制图；主工作区切回恢复分支，原补丁保留stash。
+- 2026-10-12 · 244e298：保存主工作区恢复检查点；本地入口26项复查通过，产品部署仍固定30a3ecb。
+- 2026-10-12 · 82b243c：按用户要求补回三动作小窗、普通无工具轻量问答和最终消息收集，避免恢复任务编译。
+- 2026-10-12：82b243c同源506项、588框架/380App及真实两轮专项通过；3动作9px/160px滚动浏览器通过，整体缺陷保留。
+- 2026-10-12 · 17debfb：提交选择性补回专项报告、控制图和运行说明；部署源码82b243c，整体缺陷继续保留。
+- 2026-10-12：17debfb以项目bot推送并回读；PR14及Issues2/3同步选择性补回，两轮专项通过，整体缺陷保持开放。
+- 2026-10-12：用户批准PR14合入dev形成新开发基线，并对齐Pi/Research Model分支起点及适配接口；远端检查等待中。
+- 2026-10-12 · bc08169：延迟识别Provider配置解析，恢复无凭据装配与安全失败；相关测试及类型检查通过。
+- 2026-10-12 · 39ffe2b：保存dev收口授权和研究依赖适配，控制图待合并状态及浏览器来源检查通过。
+- 2026-10-12 · 6ff7094：精确bc08169双平台CI通过，PR14按授权合入dev；保留业务缺陷并对齐两实验分支。
+- 2026-10-12 · 2b0b0a5：Research Model起点对齐6ff7094，设计/计划适配既有接口；文档审查及来源等价通过。
+- 2026-10-12 · 38e19db：Pi接入6ff7094并适配消息、上下文和界面；417项App及独立审查通过，未部署Pi。
+
+### 2026-10-12 — 新基线与分支适配核对
+
+- PR14精确双平台通过，dev产品基线6ff7094；关闭恢复分支，保留精确归档。
+- Pi38e19db、Research2b0b0a5推送；真实合并基点均为6ff7094。
+- local-dev同源506项、image90d9dd6d、App6ff7094；新鲜集成通过。
+- 首次普通误路由9.043s失败保留；单项重试6.440s通过，不称已修复。
+- 线路轮仅消息隔离通过；整体业务、R1与云端发布未认证。
+- 控制图7节点、四来源及桌面/手机交叉检查通过。
+- e5fe23a登记新基线、两分支适配及首次失败，避免验收状态混淆。
+- 20c6e46登记PR15，文档经受保护dev门禁交付；产品基线不变。
+- 39bab1a纠正图内旧闭环验收文字，避免历史记录冒充当前能力。
+- PR15两平台文档检查通过，合并5fbbe9d；根工作区回dev，临时远端分支关闭。
+- Issues2/3已同步适配与失败保留；R1、整体业务及云发布未认证。
+- 用户改为讨论自主组织，意图识别不再强制关键节点；Pi与Research合议，暂不改代码。
+- 控制文档新增自主智能体演进讨论章节：19条记录由版本台账生成，覆盖工作循环、职责、组织建议及待定细节；同步讨论笔记与恢复入口。
+- 2026-10-12：2304d97保存自主智能体设计提案与图示，供后续讨论和实现追溯；PR #16面向dev。
+- 文档验证：1440/390宽度浏览器检查通过，无横向溢出；原图四来源、节点布局与连线交叉检查通过；链接、相对符号链接、diff检查与doctor通过。统一分支尚未创建，运行代码与部署未改。
+- 2026-10-12：debfd18登记交付；PR16双平台通过，合入dev4f15cfc，讨论文档已同步远端；临时分支关闭。
+- 2026-10-12：保存后续讨论至统一设计与详细讨论记录，刷新活动恢复入口；五概念、单指令重点及正式回答/执行过程/计算结果/推演证据命名保持一致。PR16之后的文档仍为本地未提交状态，无运行代码或部署变更。
+- 2026-10-12：静态契约确认Authority已有持久结果分页；待核对Application/App传递、Pi上下文生命周期及研究更新持久确认，不把设计提案记成已实现行为。
+- 2026-10-12：核对锁定Pi的context到请求捕获顺序及异常继续行为；确认轨迹回执不等于研究提交回执。统一设计补充上下文版本检查、幂等提交和无需LLM的结果分页提案及最小验收，尚未实现。
+- 2026-10-12：补充首期接口方案：RPC等待循环处理独立研究更新请求，事件持久化后生成可恢复回执；Thread只读分页保留Domain Pack投影和结果准入，不创建智能体轮次。仅设计，无运行变更。
+- 2026-10-12：保存主循环细化提案：复用授权工具与按需指南，同一主智能体选择行动并解释观察，仅关键变化提交研究更新；按用户所求及真实核验收束，不新增分类器、任务编译器或逐步评审模型。源码核对与设计提案分开记录。
+- 2026-10-12：保存首期实施计划与能力基线，控制图同步；13次隔离gridctl调用确认IEEE39 OPF成功及35线路/39节点全量查询，lam_p单位为空；确认mv_oberrhein线路59/149在运。未跑智能体端到端、N-1或短路，无部署变更。
+- 2026-10-12：盘点增至17次公开Authority调用；同一修订停运59/149后连通分量2→4，尚未证明可持续带电孤岛；两个ext_grid短路容量及R/X输入均为空。结果与缺口已保存，不能虚构参数补齐。
+- 8d636a4：持久研究状态与幂等回执，支持中断恢复；Kernel590项及类型检查通过，未接Pi。
+- 用户明确：后续以Python3.12验证，不增加Python3.14检查。
+- 1cd2860：Pi等待期间处理宿主控制请求，防止回执互锁；无捕获及静默/持续事件测试通过。
+- 0151e62：研究请求通道与只读回执恢复，防止重复提交；Python3.12下Kernel604项及类型检查通过。
+- 7df7180：接入Pi研究工具与上下文恢复，防止旧状态续推；Kernel609项、Pi工具60项通过。
+- 3e471d0：隔离内核记录与领域准入，避免研究工具被当作计算；120项相关回归通过。
+- 用户明确：局部校验失败必须进入恢复或结果交付，保留已完成回答、过程和证据；禁止仅报错码结束。
+- 3f2f111：保留已准入的受限专业回答，避免被错误码替换；后端98项、前端65项及类型检查通过。
+- 88206b4：增加有界纠正和失败结果交付，保留核验证据；后端166项、前端116项通过，未部署。
+- 用户指定整体回归：两条基础回答约10秒，三条连续组合回答约30秒；专项仅验对应改动，逐条保存耗时与证据。
+- 用户纠偏：核验失败本身是结果，须保存产物与核验状态并反馈主循环；不能以筛除证据代替继续任务。
+- b73c4f4：保存核验失败观察与原文，结果面板显示失败项；后端168项、前端117项及类型检查通过。
+- d9f1879：补全工具失败阶段与脱敏原因，避免界面丢失已有诊断；后端40项、前端67项及类型检查通过。
+- 用户明确：整条指令执行链数据必须留存和可追溯；有界展示不可替代完整记录。
+- ec913ac：统一准入失败观察与继续处理，保存应用请求并关联轨迹序号；后端173项及类型检查通过。
+- 用户确认：结果先覆盖全局要点，细节通过绑定原任务的追问展开；已保存展示、版本绑定和回归契约。
+- 54f6f13：新增原任务记录分页，支持追问读取失败与诊断记录；真实PG19项、HTTP及管理36项通过。
+- a77e180：前端分页读取校验原任务身份与游标，防止追问混用记录；13项及类型检查通过。
+
+- 2026-10-12: Prioritized single-instruction loop; isolated research lifecycle and Pi request pump pass 37 focused tests; builder wiring remains.
+
+- 2026-10-12: 13d5030 binds task research lifecycle and verified references into Pi assembly; 43 tests pass; hosted enablement remains.
+
+- 2026-10-12: 4f4efe1 separates research identity and binds Worker guards to prevent cancelled-task writes; focused tests and types pass.
+
+- 2026-10-12: Accepted independent current-research and grid selectors with immutable per-instruction bindings; UI implementation remains pending.
+
+- 2026-10-12: 520de44 adds opt-in autonomous entry and committed research events; binds model snapshot without mandatory research creation.
+
+- 2026-10-12: 5320f4e verifies research updates through real pinned Pi and prepared application; two offline integration cases pass.
+
+- 2026-10-12: Adopted one default research per Thread model context; per-Attempt storage realignment remains required.
+
+- 2026-10-12: e0fcf51 restores model-bound default research with separate attempt channels; switch-back and pinned Pi tests pass.
+
+- 2026-10-12: Recorded research reset boundaries; retain history and grid state, defer arbitrary-version rollback.
+
+- 2026-10-12: Revised default reset to restore grid baseline and clear current research while retaining all history; implementation pending.
+
+- 2026-10-12: 9480ba2 recovers research using verified Thread terminals and closes failed preparation; focused tests and types pass.
+
+- 2026-10-12: Task-goal UI passed68 checks, types and browser expansion at1440/390px; controlled fixture only, uncommitted.
+
+- 2026-10-12: Real Authority child-context probe confirmed Application rejects valid derived scenarios; ancestry admission repair required.
+
+- 2026-10-12: Uncommitted ancestry admission accepts real child context;27 focused checks pass; projection revision boundary remains under review.
+
+- 2026-10-12: Derived result projection uses verified child diagram/revision; correct and wrong revision regressions pass; uncommitted, E2E pending.
+
+- 2026-10-12: Thread derived projection admission requires host verification receipt;47 focused checks pass, live chain verification pending.
+
+- 2026-10-12: Real derived IEEE39 flow passed admission, projection and Thread validator in9.59s; derived network-view access pending.
+
+- 2026-10-12: f8fcb47 admits Authority-verified derived scenarios through Thread results;54 checks prevent valid scenario rejection.
+
+- 2026-10-12: Isolated live OPF started with configured DeepSeek; ambient alternative credentials failed401; actual calculation and query calls observed.
+
+- 2026-10-12: Live DeepSeek OPF completed58.821s with35 lines/39 prices; exporter pagination corrected; Authority value audit pending.
+
+- 2026-10-12: OPF35 line/39 price values match Authority rows;2 query failures recovered; live N-1 session29812 running.
+
+- 2026-10-12: Live island run exposes root-only context enum blocking derived tools before Authority; actual Pi entry regression needed.
+
+- 2026-10-12: Live N-1 completed255.428s with2244 events; scan delivered, optimized verified relief failed due derived-context tool restriction.
+
+- 2026-10-12: Candidate Authority context scope replaces root-only tool enum; scoped execution tests running; old island run completed240.57s.
+
+- 2026-10-12: Real Pi rerun accepts child topology/AC flow; short-circuit fails at calculation;5 scope checks pass, final pending.
+
+- 2026-10-12: Candidate research work protocol added after live runs showed no research updates;25 session checks pass; adoption unverified.
+
+- 2026-10-12: N-1 live run completed217s; worst-case OPF/AC verification present, full relief pending. Island247s answer admission failed.
+- 2026-10-12: Saved P7 trace-reference method; distinguish successful-version mechanisms from later NOTES experiments.
+
+- 2026-10-12: Offline island replay proves projection64KiB overflow, not Authority reference failure; saved reproducible receipt.
+
+- 2026-10-12: 95ddebf preserves large admitted results in bounded atomic ledger parts, preventing display overflow from rejecting answers.
+
+- 2026-10-12: 4c06018 enables scoped derived experiments and verified research references, restoring working-note updates from real N-1 receipts.
+
+- 2026-10-12: Archived answer-repair3e3bbfb from active control graph at user request; preserved recovery branch and unaccepted history.
+
+- 2026-10-12: 4c06018 real island170s/N1317s delivered; research updates persisted. N1 second-plan AC-verification claim contradicts tool trace.
+
+- 2026-10-12: 75e485d projects sourced N1/OPF/topology/constraint results, replacing unavailable cards without inventing units or displaying stale failed outputs.
+
+- 2026-10-12: Adaptive reasoning-depth control passes106 focused checks/types; real baseline running92512. Intro39s still fails latency and contains English preface.
+
+- 2026-10-12: 6196ac3 records native adaptive reasoning control; pinned Pi recovery passes. Five basic cases completed, latency/English-preface acceptance remains open.
+
+- 2026-10-12: Actual load rows total6254.23MW contradict final8.1GW; added bounded Authority aggregation to prevent model arithmetic. Validation ongoing.
+
+- 2026-10-12: ec10790 adds bounded Authority aggregation for accurate complete-set totals;68 focused checks and types pass.
+
+- 2026-10-12: ec10790 real baseline49/24/18/34/13s; load aggregation correct, generator total5620MW misreported6220MW. Business acceptance fails.
+
+- 2026-10-12: Control register/ec10790 aligned; graph desktop/mobile layouts, four bindings and zero crossings checked; doctor passed.
+
+- 2026-10-12: 245874f exposes sourced input overview in context.get, reducing repeated table reads and model arithmetic; focused checks/types pass.
+
+- 2026-10-12: 34ec456 adds bounded validation field diagnostics so research errors can be corrected without losing completed results.
+
+- 2026-10-12: 245874f real OPF completed47.83s;265 projected cells match Authority,35lines/39bus prices delivered; research refs missing and English preface persist.
+
+- 2026-10-12: 55fb4ce passes explicit research candidate mode to API/family workers;30 runtime/deployment checks pass.
+
+- 2026-10-12: Isolated canonical Compose rebuild93920 started for55fb4ce; separate volumes/port8889, existing local-dev/demo preserved.
+
+- 2026-10-12: Isolated55fb4ce API/App OPF completed45.8s;1943 PostgreSQL events saved, two cards84rows displayed; semantic explanation errors remain.
+
+- 2026-10-12: 169fda1 prioritizes public task history over diagnostic deltas;116 App checks/types and actual desktop/mobile process access pass.
+
+- 2026-10-12: 95d7929 retains exact model-context data across idle resource eviction, verifying guide reuse and real prior-result access.
+
+- 2026-10-12: Canonical isolated95d7929 rebuild44508 started; worker runtime directories lack Compose volumes, container replacement persistence remains unproved.
+
+- 2026-10-12: Isolated95d7929 rebuild44508 ready; API/family workers sharec8f5593 image/research1, actualidle60s. Source graph checked.
+
+- 2026-10-12: 95d7929 real API AC16s→idle65s→rank25s passed;same result/evidence retained, four reads succeed, no recalculation.
+
+- 2026-10-12: N1 audit confirms goal bounds retained but lineage-only admission; no fixed evaluator permitted. Isolated95 island API started88407.
+
+- 2026-10-12: Isolated95 island API completed80s; semantic audit rejects unsupported failure cause, null-voltage interpretation and island/source scope claims.
+
+- 2026-10-12: Generic AC ranking fix passes11 tests/types and replays actual island result without recalculation; uncommitted, not deployed.
+
+- 2026-10-12: f7c400e ranks verified generic AC datasets without recalculation; fixes false integrity failures during composed analysis.
+
+- 2026-10-12: f7c400e control graph aligned; desktop/mobile layout, four source bindings and zero independent crossings verified.
+
+- 2026-10-12: Started isolated N1 high-thinking control90810 at f7c400e; unchanged question/tools, experiment override recorded separately.
+
+- 2026-10-12: High-thinking N1 experiment90810 remains live;61 trace events show scanning and generator scenario derivation, no acceptance yet.
+
+- 2026-10-12: Actual island App exposed false generic-AC nonconvergence card; fix passes15 tests/types and258-row source replay, uncommitted.
+
+- 2026-10-12: 2e05a3f projects native AC status and tables correctly; prevents false nonconvergence cards, preserves null values.
+
+- 2026-10-12: User prioritizes all three task-chain samples before frontend interaction; owning plan updated, existing UI fixes retained.
+
+- 2026-10-12: N1 high-thinking experiment90810 failed617s; no operation discovery, false OPF absence, admission failed twice; products retained.
+
+- 2026-10-12: User prioritizes complete task closure and truthful capability reporting over perfect sample answers; delivery plan clarified.
+
+- 2026-10-12: Offline N1 admission replay reproduces128-reference limit rejection:19 results/131 evidence; fix complete reference delivery, not numerical policy.
+
+- 2026-10-13: 565874e raises reference capacity, preserves verified partial outcomes and formal replies;131-evidence replay,107 backend and14 protocol checks pass.
+
+- 2026-10-13: 565874e real three-task runs finish;OPF numbers verified,N1 voltage claim and island source inference fail semantic acceptance.
+
+- 2026-10-13: c2c3350 distinguishes missing constraints/values from passed checks; partial results retained.8 Authority/16 projection checks and real replay pass.
+
+- 2026-10-13: 175d903 corrects stale Domain Pack scope and composition methods;23 policy checks,14 registry names,doctor pass.
+
+- 2026-10-13: Isolated175d903 rebuilt; API/workers share d05df427 image, source hashes match. Three real API tasks running94711 before manual handoff.
+
+- 2026-10-13: 2b7ecdc adds nonfatal setpoint warnings and component source facts;78 checks and types pass, preventing unsupported feasibility/source claims.
+
+- 2026-10-13: 092acb6 bounds generic research conclusions to actual checks;29 composition tests pass, failed experiments remain valid task outcomes.
+
+- 2026-10-13: 092acb6 API tasks close40/379/73s with retained replies/products; browser checked. Intro21s exceeds10s target; content caveats preserved.
+
+- 2026-10-13: Evidence UI draft passes408 App tests and TypeScript. Manual5199 frozen092acb6; draft5200 awaits browser checks.
+
+- 2026-10-13: dab1dbe groups admitted evidence and retained failures for readable audit; real N1/island UI and result navigation checked.
+
+- 2026-10-13: Research snapshot draft preserves committed judgments/notes;69 backend and412 App tests pass; real-record browser replay pending.
+
+- 2026-10-13: a3895a5 preserves committed research snapshots for task audit; large-record completion/paging and saved N1/island browser replay pass.
+
+- 2026-10-13: 388fa89 retains validated semantic parameters and failed-call status for technical audit;414 App tests and Python types pass.
+
+- 2026-10-13: Isolated388fa89 API8890/App5201 ready with matching source/image; targeted OPF/island/introduction driver56345 running, acceptance pending.
+
+- 2026-10-13: 388fa89 real parameter/snapshot UI passes OPF/island; introduction47s/29calls with extraAC fails lightweight regression. Driver56345 terminal.
+
+- 2026-10-13: 73244c0 supplies revision-bound Authority metadata during model preparation to reduce redundant exploration;46 checks pass, live latency pending.
+
+- 2026-10-13: 73244c0 introduction127s fails; initial-goal rejection mislabeled uncertain. d1767ff repairs receipt classification/messages and generic goal scope.
+
+- 2026-10-13: d1767ff introduction37s/no AC; context refs wrongly rejected. b49b7a0 admits observed bound contexts;85 checks and types pass.
+
+- 2026-10-13: b49b7a0 introduction25s/5read-only calls/no failures or AC;10s target missed. Four-case continuous regression84580 running.
+- 记录：Authority bus.type语义补齐，防止物理分类误判为PQ；61项测试通过 [310fddc]。
+- 连续回归完成：35/14/31/12秒；排名复用AC，概况25秒仍超目标。
+- 04:21 原任务记录接入推演证据，保留原模型和失败记录；420项App及真实只读分页通过 [8eb81aa]。
+- 04:28 本地角色运行持久卷与旧容器保留迁移，防止重建丢研究记录；9项及两编排检查通过 [264a1b1]。
+- 04:30 镜像补齐迁移助手，防止构建遗漏；10项部署检查通过 [e234ce1]。
+- 04:32 两次容器替换保留276文件原摘要，历史Thread可读；同源三专项52431启动，冻结产品代码。
+- 04:34 e234ce1真实OPF完成56秒，74请求数值一致；N1驱动52431仍运行，孤岛待顺序执行。
+- 04:42 操作发现返回执行能力，减少已发布入口误判；45项Authority及22项Pack检查通过 [09b338f]。
+- e234ce1三链均收尾，N1与孤岛内容未通过；错误判断和全部结果保留，未认定整体验收成功。
+- 05:18 单步推理超时在同一会话续接，保留工具与报告；17项RPC、93项应用、421项App通过 [0e8c001]。
+- 05:20 续接保持原用户语言，防止操作反馈改变正式回复语言；9项研究检查通过 [3c7c8ed]。
+- 锁定Pi控制API无Provider调用验证off/get_state/abort；预算续接真实业务效果尚未验证。
+- 05:29 支路按目标版本索引选择，避免跨场景旧引用；57项Authority、22项Pack和类型通过 [ab1fa17]。
+- 3c7c8ed三链收尾133/70/47秒；预算未触发，不归因提速；N1方案B错用A上下文，内容未通过。
+# 2026-10-13 实测补记
+- ab1fa17：N−1 104秒完成，候选场景引用分离；报告仍误述初始约束，未通过内容核验。
+- ab1fa17：概况原句49.674秒，17次工具完成；研究记录调用扩大轻量问答范围，10秒目标未通过。
+- 研究拒绝反馈标出引用序号及修复方式，避免盲目重试；34项核验通过 [12e2e38]。
+- 同一主循环交付前核对研究结论范围，避免场景约束误述；44项通过，真实效果待验 [42e047d]。
+- 42e047d：N1 144秒、孤岛94秒均收尾；核对触发，因果与方法范围仍有错误；浏览器证据入口通过。
+- 42e047d：OPF74.577秒，35线路与39节点电价全部匹配；三专项链路完成，概况同源复验中。
+- 42e047d概况47.077秒，查询仍触发研究及复核，10秒目标失败。
+- 事实查询无结果证据时不再追加实验复核，保留复杂研究核对；45项通过 [9bea696]。
+- 来源证据不代表计算结果；只在结果引用或执行失败后核对，46项通过 [e218731]。
+- e218731同源概况25.145秒，6次只读，零失败/研究更新/追加核对；10秒目标仍未通过。
+- Pi基准0.6–0.8秒，编译缓存仅省约0.2秒；排除为5.9秒主要来源。
+- 分别保存上下文、会话及结果展示准备耗时，定位首次和连续指令差异；61项与类型通过 [4c1eceb]。
+- 4c1eceb五样本收尾62/27/14/12/20秒；后四次上下文复用，C03沿用C02且未重算；概况额外仿真仍不稳定。
+- 对齐指南与已发布元数据证据契约，避免为输入事实补做仿真；30项、doctor及链接通过 [47168d0]。
+- 47168d0概况25.108秒，5次查询无仿真；英文过程前缀仍存在，耗时与展示未验收。
+- 异常反馈标明原因尚未诊断，失败后同模型AC仍可执行；53项Authority通过 [bfe88d7]。
+- 应用层统一正式回答语言与开头规则，不改领域定义或删除文字；61项及类型通过 [2040139]。
+- 2040139概况22.916秒中文无前缀；孤岛78.449秒收尾，物理断电与数学无解仍有过度推断。
+- 标明拓扑未评估物理供电、空电压不是零或无解；67项及类型通过 [b5a41c8]。
+- b5a41c8孤岛82.72秒收尾；供电状态未评估字段确实进入模型，物理失电断言仍错误。
+- 执行失败后核对用高推理深度，30秒空闲预算保留恢复路径；61项及类型通过 [391a9d6]。
+- 391a9d6孤岛123.413秒收尾，高深度实际触发；无预算续接，数学无解与稳定性表述仍未通过。
+
+2026-10-13: SC prerequisites verified; valid-input connectivity=false upstream defect reproduced.13 passed/3 expected failures; not deployed.
+
+2026-10-13 c9387ee: Diagnose short-circuit input gaps and implementation failures; preserve options and enable informed recovery.
+
+2026-10-13 c9387ee: Isolated next rebuild passed; three roles image6297fcec8a1d. Three original API tasks observer3904 started.
+
+2026-10-13 8bf9ada: Remove ineffective forced answer regeneration; preserve primary-loop evaluation, research and objective admission recovery.
+2026-10-13 7f64086: Distinguish pre-write research rejection from uncertain persistence; retain records and allow subsequent valid updates.
+2026-10-13: 8bf9ada three tasks35/53/71s audited; OPF74 values match. Intro26.5s fails latency;7f64086 rebuild80025 live.
+2026-10-13:7f64086 next rebuild verified image139a36da351e; isolated high-depth N1 comparison12723 and offline tests61417 started.
+2026-10-13 1abfe3e: Update stale sequence-test context assertion; verify malformed references without excluding admitted descendant contexts.
+2026-10-13 6a921c2: Include admitted partial observations and public failure reasons in interrupted-task replies; preserve original results and evidence.
+2026-10-13 a439210: Expose non-null and missing result-field counts; distinguish stored coverage from table size without changing calculations.
+2026-10-13 · 3ea9cd8: Summarize task evidence and fold failure details to preserve complete records without dense initial display.82 tests pass.
+2026-10-13 · Front-end421 checks pass; actual island96-second task closes with saved results; interpretation remains unaccepted.
+2026-10-13 · fd46de7: Identify rejected research references so the agent can repair updates without loosening admission.36 tests pass.
+2026-10-13 · Actual requests identify unsupported dataset research provenance; same-backend OPF/N1 verification58514 started without changing user session.
+2026-10-13 · 6a84ef4: Preserve unresolved conversational model requests instead of blocking combined instructions.422 App tests and types pass.
+2026-10-13 · 6a84ef4 real browser sends original combined request; accepted task completes with correct line11 endpoints. No backend restart.
+2026-10-13 · c606cea: Verify nonempty semantic request parameters in tool receipts;43 checks pass, restoring obsolete contract test.
+2026-10-13 · 24d9a32: Check mixed-language openings with one same-session correction; preserve completed work if correction fails.75 checks/types pass.
+2026-10-13 · Local-dev fixed5173 now serves24d9a32; authorized cloud-dev uploads acknowledged for four services. Demo unchanged.
+2026-10-13 · Cloud-dev24d9a32 basic trial verified; fixed local5173→8767 restores original Thread and retains its PostgreSQL volume.
+2026-10-13 · cloud-dev-20261013-1045-24d9a32 annotated tag pushed for user-authorized basic trial; source24d9a32, demo unchanged.
+2026-10-13 · Recovered empty Thread thr_98b1c23a7ce472de5dc1 from isolated database to fixed8767; original ID/events retained. Browser5173 verified.
+2026-10-13 · c773993 binds observed datasets to research records;71 focused checks pass. User deployments remain24d9a32; isolated validation started.
+2026-10-13 · c773993 island completed53.906s; original records readable. Incorrect capability/supply claims retained as failed audit; dataset repair not exercised.
+2026-10-13 · 2411210 preserves accepted design, delivery plan and trial audits on dev; doctor and diff checks pass. Product integration pending.
+2026-10-13 · df69cda fixes coordinate-unit scaling and zoom glyphs;41 checks/types pass. Real179-bus browser verified; fixed local ports retained.
+2026-10-13 · 053fa4e aligns reviewed simulator protection digest;39 grid E2E and3 workers pass. Offline validation10277 continues; deployments unchanged.
+2026-10-13 · validate10277 passed:7 offline,10 core,8 full cases; capability matrix24/24. Real answer interpretation defects remain.
+2026-10-13 · db94ffa binds fresh research generation to persisted model reopen; history retained.85 focused/20 actual PostgreSQL checks and types pass.
+2026-10-13 · 780fd70 adds confirmed atomic work reset and backend-advertised UI;41 backend/71 App/21 real PostgreSQL checks and types pass.
+2026-10-13 · Real780fd70 browser reset/reconnect/history pass; following AC completes19.941s with new persisted study identity. User deployments unchanged.
+2026-10-13 · 37d57a2 binds explicit followups to saved tasks and preserves binding on retries;73 checks/22 actual PG checks/types pass.
+2026-10-13 · 28e9a62 adds saved-task followup selection, draft recovery and cancellation;141 App checks/types pass. Actual browser validation pending.
+2026-10-13 · e5369e2 restores selected-task context to ordinary explanations without business tools;74 checks/types pass. Browser selection/reload/cancel/mobile verified.
+2026-10-13 · Real selected-task followup completes13.594s without simulation; source binding correct, prior incorrect interpretations repeated. Runtime record reader remains needed.
+
+- 2026-10-13 7978ccb：绑定历史任务只读记录，保留失败与终态；42项通过，实测78页，运行时接入待完成。
+
+- 2026-10-13 4380431：存储层筛选公开执行记录，避免诊断分页；43项、真实PG及类型检查通过，历史保留。
+
+- 2026-10-13 4621cf9：追问工具接入双路径，绑定公开历史记录；69项及补充绑定、64项JS、类型通过，隔离重建启动。
+
+- 2026-10-13 4621cf9：真实追问29.444秒读原任务、无新仿真；完成回执缺失且解释仍有未证实断言，未验收。
+- 2026-10-13 d65ca23：记录工具改用标准完成回执，保证展示与留存；35项Harness、64项JS通过，隔离重建启动。
+
+- 2026-10-13 d65ca23：真实追问29.913秒，读取完成回执保存；答复因历史工具被误归核心工具而拒绝，保留失败。
+- 2026-10-13 c886953：应用历史读取与核心工具核验分离，旧引用不准入新计算；86项与类型通过，隔离重建启动。
+
+- 2026-10-13 c886953：真实历史追问20.477秒完成，原任务读取回执保存，无新仿真；重置后原版本仍可读，手机展示通过。
+- 2026-10-13 889b076：原任务读取显示中文动作名称；类型及浏览器通过，后端部署仍为c886953。
+
+- 2026-10-13 508395f：已存分析表支持稳定分页，保留空值与失败场景；25项及类型通过，API/App尚未接入。
+
+- 2026-10-13 9472edf/dev、d96de65/feature：控制图默认可读尺寸和图内滚动，消除整图高度缩放；桌面/手机和预览切换通过。
+
+- 2026-10-13 6e738d9：共享私有表页按任务/结果/修订和哈希保存，拒绝跨源与不连续页；15项及类型通过，尚未接入。
+
+- 2026-10-13 84bc0db：表页元数据跨Python/TS与Thread快照保存，拒绝任意地址；22项后端、30项App与类型通过。
+
+- 2026-10-13 用户纠偏：整链执行与整体交互优先；暂停分页扩展，三原始样本重跑收尾，内容缺陷与耗时单独记录。
+- 2026-10-13 d1e418f：完整过程360px与来源标识，完成时间放CAPSTONE旁；75项、类型及真实三页面通过。
+- 2026-10-13 64a0d9c：保存原潮流完整行分页基础，26项及类型通过；保持延期，不影响当前执行链。
+- 2026-10-13 执行节点审计：连续五指令实测26.303/14.940/9.341/9.482/11.680秒；后四次上下文取得不足0.1ms、会话构建约40ms；排名精确复用前轮结果，无重算。概况三次研究提交两次拒绝，业务读取第7秒结束。详见execution-node-audit；不能把工具时长之和当总耗时。
+- 2026-10-13 用户纠偏与设计复核：D16要求同一过程区保留工具链并补局部目标、重要发现及方法修订；当前仅取最新研究快照供证据面板，任务级过程展示未落实。不得另建时间线或强制分组。发出/完成时间显示秒的UI修改通过75项与类型检查，未提交。
+
+- 2026-10-13 368ec58：过程显示已提交研究记录及修订，默认10动作；时间精确到秒。78项及类型通过，历史页面重载通过。
+
+- 2026-10-13 cfbc618：续跑显示实际等待时限与会话继续，不暗示方法调整或结果复用；针对检查及类型通过。
+
+- 2026-10-13 0ab6f27：后台标注本轮新增笔记，前端不误归属继承记录、不推测覆盖修订；51后端/79前端及类型通过。
+
+- 2026-10-13 0ab6f27隔离重建29109完成，同镜像7e1fbc6a9f12；OPF95902终态50.588秒，13调用、无研究更新。真实页面10动作/限高/秒时间通过；任务级进展输出仍缺，不以展示编造补齐。
+
+- 2026-10-13 7b38c23：主循环记录公开任务进展，与正式回答/Authority证据隔离；101后端、39Kernel、65Node、80App及类型通过，真实使用待验。
+
+- 2026-10-13 8806e78：后台编号业务步骤与所属调用，计时等待实际结束；前端两级小字号、10步预览、折叠状态保存。105后端/81App/16Node及类型通过，真实待验。
+- 2026-10-13 6f60dd7：计算结果独立紧凑面板，保留失败记录，避免工具条跳位；82项App检查及类型通过，部署待验。
+- 2026-10-13 优先级：本批界面收口后分析各链路节点耗时，定位等待与重复工作；不靠样本反复试跑替代链路分析。
+- 2026-10-13 3d9ca60：结果改内嵌有界面板，指令标记滚动或靠近出现；77项及类型、真实悬浮跳转通过。
+- 2026-10-13 812a755：当前指令标记略加宽加深，便于定位而不遮挡正文。
+- 2026-10-13 6c52f00：靠右可唤出位置标记，离开后一秒淡出；悬浮摘要及定位实页通过。
+- 2026-10-13 83f2897：业务步骤标题缩小减弱，避免辅助过程抢占正文。
+- 2026-10-13 local-dev812a755规范重建完成，同镜像a26d04e；指定历史Thread OPF64.108秒终态，复用结果无求解，未发步骤完成。
+- 2026-10-13 687afbf：移除单结果空侧栏、收紧顶部切换和摘要，隐藏未完整追问入口；77项及类型、真实页面通过。
+- 2026-10-13 local-dev687afbf规范重建通过，同镜像5f4409aeb0d9，5173/8767与原数据保持；cloud-dev24不变。
+- 2026-10-13 a3345ea：记录Pi原生接收、队列积压及同步写入耗时，定位工具外等待；68项及Python类型通过，实测待验。
+- 2026-10-13 a3345ea实测：Pi接收跨度21.782秒，RPC53.849秒；应用处理36.206秒、fsync5.417秒，队列积压31.226秒。
+- 2026-10-13 de543f2：短窗口批存连续文本，保留原片段/顺序/接收时间，工具边界立即提交；114项及类型通过，实测待验。
+- 2026-10-13 de543f2 实测复用OPF 25.759秒，记录处理1.191秒、最大积压0.069秒；概况仍32.725秒，工具组织待优化。
+- 2026-10-13 42828fe：改称执行过程，区分任务步骤与工具调用，定位保留内联结果；138项及类型通过。
+- 2026-10-13 新求解OPF实测32.592秒：analysis.run 1.456秒，工具墙钟5.009秒；准备3.803秒，生成与编排仍占主要等待。
+- 2026-10-13 2e48593：收缩步骤显示子工具数量，恢复未归属调用的时间顺序，过程记录9px；140项及类型、实页检查通过。
+- 2026-10-13 用户纠正：目标不是原子步骤；CAPSTONE动作需宿主真实起止、持续计时，不能依赖模型主动关账。
+- 2026-10-13 2ca2509：已完成步骤默认收起、最后一步打开；手动状态优先并跨刷新保留，142项及类型通过。
+- 2026-10-13 0a1559d：宿主记录原生执行轮次及模型响应边界、工具归属和持续计时；目标不再创建步骤，108/22/147项及类型通过。
+- 2026-10-13 0a1559d真实OPF32.760秒终态；原生轮次存在，但公开runtime_action丢失task_step，页面不能关闭步骤。
+- 2026-10-13 ea5a37f：公开动作保留步骤时长，补投影链路回归；109项通过，类型收窄失败待修。
+- 2026-10-13 980b854：修正投影类型收窄；44项及Python类型通过，重建后复验真实结束与耗时。
+- 2026-10-13 980b854真实新OPF31.620秒终态：7轮全部结束并保存时长，9项GRID有归属；页面持续计时实证，整体仍有准备/收尾空白。
+- 2026-10-13 e771770：记录模型动作目的并绑定当前轮次，点击同步保存折叠状态；110后端/16JS/147App及类型通过，实页刷新保留选择。
+- 2026-10-13 e771770真实OPF32.930秒终态：模型填写两个动作目的，三轮仍缺目的，末轮生成回复；可选契约不足。
+- 2026-10-13 4d9c48b：统一工具协议要求同批记录动作目的，避免进展单独成轮；16JS/23目录检查通过，实测待验。
+- 2026-10-13 1bcb5b1：步骤摘要只留调用数与耗时，模型响应移入展开明细；143项及类型通过。
+- 2026-10-13 4d9c48b实测30.766秒终态，4轮中2轮有模型目的，首轮仍缺；阶段准备和收尾未纳入步骤，缺口保留。
+- 2026-10-13 b9c0194：摘要同行批量展开/收起，按实际状态禁用；默认全展开、手动持久保存、CAPSTONE去紫色；144项及类型通过。
+- 2026-10-13 b9c0194实页：批量收起后刷新全部保留；按钮同排、禁用和混合状态通过，灰蓝标签已核对；规范重建ready。
+- 2026-10-13 594e0b4：宿主保存准备/推演/核验整理边界，阶段切换耗时连续，恢复与失败保留；101后端/145App及类型通过，实测待验。
+- 2026-10-13 594e0b4实测OPF：任务34.030秒、7阶段34.013秒，差17毫秒；准备7.819秒、整理2.915秒；全部结束及工具归属通过，仍1步缺目的。
+
+- 43f1e73：目的随业务调用记录，调用前剥离，避免独立进展工具漏记；紧凑观察展示。10后端、47JS、83App及类型通过，部署验证中。
+
+- 43f1e73 local-dev规范重建ready，三后端镜像490297083ba4一致；5173/8767与原数据保留，原Thread真实OPF已提交验证。
+
+- 43f1e73 原Thread OPF完成32.971秒，4工具批次全部保存模型目的；结果表定位与数据读取无独立进展工具，随调用目的有效。收据 api-call-purpose-43f1e73-1791894374。历史缺失不补造；未保证所有未来批次必填，科学整体验收未完成。
+
+- 3d1ac91：任务目标与步骤目的分离，摘要耗时右对齐，工具区间去重，观察缩小，工具条位置保持；85App/14阶段/47JS通过。
+
+- 3d1ac91 local-dev ready，同镜像d409b21c1893；ui-ux-pro-max实页800/1440宽无溢出；底部工具条展开关闭位移0px，规范重建通过，真实目的归属验证中。
+
+- 3d1ac91 原Thread请求33.056秒完整回复，4工具批次均有具体目的；但branch ranking两次result_integrity_failed（含新OPF），退到数据集查询完成，发生重算。目的修复通过，结果复用未通过。收据 api-step-purpose-3d1ac91-1791896002。
+
+- 14a7563：去除任务目标下方分隔线，按用户要求用紧凑间距区分步骤。App HMR已显示；本次规范重建待执行。
+
+- 2ba9377：移除面向用户的内部准入横幅，保留后台校验与证据按钮；旧横幅断言需更新，尚不声明验证完成。
+
+- ef6ae84：横幅移除后仍保留证据准入入口，85App/类型通过；浏览器横幅0、结果入口1、证据入口1。
+
+- ef6ae84 local-dev规范重建ready，同镜像75f7c072c401，端口5173/8767及原数据保留；前端检查85通过；控制图21连接未穿卡片。
+
+- 57a7b2a：展示内容白底、标题淡底，结果/证据9px正文10px标题；电网图为一次性动作。85App/类型及浏览器通过，重建中。
+
+- 57a7b2a local-dev规范重建ready，同镜像75f7c072c401，5173/8767及原数据保留；纯App改动无新Provider验证必要。
+
+- bf58565：按注册支路运行语义复用AC/DC/OPF结果，保留哈希核验；失败原因及后续步骤关联可见，不伪称重新规划。73契约/计算、16原生、51阶段、90App及类型通过；未部署。
+
+- 0494ef7：运行过程按内容增高至高度上限，保留全部步骤，支持跟随/暂停/恢复；90App/类型通过，规范重建待验。
+
+- 界面遗留追问状态恢复已删除，普通发送不携带旧任务绑定；62App/类型通过，已保存草稿恢复测试通过。
+
+- 03b8d96：上下文按容器和主机内存压力回收，避免新对话和空闲超时触发反复准备；92项检查通过，未部署。
+
+- 73b6c07：新对话和模型打开通知所属worker准备能力；消除Compose重复默认值，防止运行配置漂移。77项及类型通过，待重建。
+
+- 03b8d96重建失败：Compose仍传4/60，与新契约冲突；已恢复0494ef7同镜像ready，原数据和5173/8767保留。
+
+- 73b6c07同源重建ready，镜像cffcc357bd57；新对话打开8.487秒，首指令上下文获取0.000017秒，概况仍25.462秒。
+
+- f09a0c8：首次打开模型采用Application默认能力选择，切回保留已有选择；25项真实PG检查通过，待重建。
+
+- f09a0c8同源重建ready，镜像a1eb9faf0552；真实切换默认绑定保留，首次切回4.041秒，再次切回已准备模型0.038秒。
+
+- f09a0c8原Thread新OPF实际28.801秒，回复10.445秒；4523字符中3416为表格，明确重复生成开销。
+
+- e96bb08：记录回复用量及首段文本延迟，将未知动作标题改为模型响应；23Kernel和52Agent检查通过，未部署。
+
+- e2d7067：按注册投影声明结果表格交付，减少数值重复转述；50项及类型通过，待同一OPF复验。
+
+- 3acbbaa：应用核验并准备结果表格，返回覆盖回执，减少回复重复生成；73项Python、68项工具检查通过。
+- fe67bdc：展示区互斥切换并复用Markdown，减少点击重绘；95项界面检查及浏览器位置检查通过。
+
+- e63b93e：按用户要求撤回结果交付查询，恢复原回复链路，改查输入侧。
+- 00f2739：撤回表格交付提示，保留耗时用量记录与界面修正，避免继续干预输出。
+
+- 1ec23a1：记录实际模型输入构成及原生流式耗时，不改提示、消息或工具契约；66项Python、67项工具检查通过。
+
+- 3f5207d：调用前明确正式回复阶段，移除工具定义并注入回复指令；105项Python、69项工具测试通过，待实测。
+
+- c9c56ee：按用户要求恢复f09a0c8全部运行源码，重新校准OPF；100项检查通过，优化实验与未提交补丁已保留。
+
+- c9c56ee原Thread新OPF30.2655秒，回复6.712秒；35线路/39母线完整，两次查询失败后恢复；基准收据已保存。
+- f3d830c：按用户要求恢复最新运行源码但排除回复阶段，等价1ec23a1；102项检查通过，准备对比基准。
+
+- f3d830c新OPF26.9021秒，回复6.158秒，无工具失败；完整35线路/39母线，版本对照按用户要求结束。
+- 73bef5b：计算回执及历史目录附带实际可查询字段，减少猜字段；18项Authority测试和类型通过，待本地部署。
+
+- 回复受控试验：相同上下文、35工具对零工具；输入减少39%，近等输出6.120/6.234秒，无明确提速收益。
+
+- 73bef5b本地同源ready；新OPF26.052秒，无字段错误/重试/describe，35线路/39母线及证据完整；受控回复试验未证实提速。
+
+- a4c0ca5：补齐专用潮流入口的真实字段回执；IEEE39/mv及OPF四组检查通过，短路缺参仍如实保留。
+- a3d3be3：结构化失败原因中文展示，保留原始诊断；分析对象改蓝色，116项前端检查通过。
+- a3d3be3本地重建ready，API及两worker同镜像，固定5173/8767；专用潮流字段回执已部署。
+- f90d2d5：失败原因小字号独立行，悬浮保留原文；旧记录说明缺项未保存，84项检查通过。
+- 29daa7d：单条中文原因加原始诊断入口，页面浮层避免裁切；84项前端检查及类型通过。
+- bf7a309：图层绑定核验场景，显示断开、过载、分区及未求解；31项契约、170项前端及真实派生检查通过。
+- bf7a309本地同源ready；mv双断开69.789秒、IEEE39 OPF39.331秒/N−1 82.739秒均完整结束，结果及失败记录保留。
+- 52c0ed8：单连通分区不画母线套圈；34项前端检查及类型通过。
+- f67c58a：仅实际断开且多分区场景显示分区标记，普通计算不套圈；34项检查及类型通过。
+- 78de4c6：孤岛分区改元件特殊色，供电分区保持原样；停运虚线/标记、过载粗线，30项契约/41项前端通过。
+- 9dca4ab：分析对象深蓝加粗及白衬边，孤岛配色独立；42项前端检查及类型通过。
+- aff8319：补齐真实开关断开、孤岛线路着色、关注区域相机及可追溯N−1场景；128项模型/契约检查通过。
+- aff8319 local-dev规范重建ready；API/双worker镜像e60a3b251f3c一致，固定5173/8767，原Thread显示核验开始。
+- f18dc4c：修正分组开关标记重复绘制；38项App检查及类型通过，原Thread实测有6断开开关、21孤岛母线、19内部支路。
+- f18dc4c新N−1原Thread31.077秒完整结束，App实查线路26断开及23/27/28过载；历史重算表述缺陷仍未修复。
+- 6c9f9c1：加强通用计算来源和物理状态规则，防止旧证据称新计算、空电压推断失电；发布前复验待完成。
+- f907023：补齐模型组合指令、更新已授权Authority锁定及测试夹具；74前端、48回归、228模拟器检查通过。
+- 3fb8695：通用模型名称分隔符规范化并拒绝歧义；75项前端检查通过，原Thread已从mv正确切至IEEE39解析线路11。
+- 94349e6：任务结束自动返回当前图，保留原停运支路和不可用母联；115前端、53模型/契约检查通过。
+- 用户仅授权cloud-demo；误上传cloud-dev两构建40950171/caa4727f已取消，原24d9a32运行部署、API/App均保留。
+
+- cloud-demo旧缓存4/60启动拒绝；按已测配置统一1024/0，保留8766及数据，重新部署两个worker。
+
+- cloud-demo94349e6四角色SUCCESS，3注册用例9轮及回放通过；标签demo-20261014-0552-94349e6已推送；cloud-dev保留。
+
+- 20f8a0e：兼容旧图缺省断开列表，56项检查通过；真实历史复验发现字段顺序差异，继续修正。
+
+- bfb2e83：图身份比较忽略JSON字段顺序；56项回归、类型及用户真实Thread历史恢复通过，待demo前端更新。
+
+- demo补丁bfb2e83原Thread在线恢复，验收标签已推送；local-demo同源ready且保留数据；cloud-dev未改动。
+
+- 云端N−1核对182秒/54GRID/23LLM；旧本地对照状态不同；修正本地研究开关0→1，同源ready，云端未改。
+
+- 6d229e0：复用已验证能力目录并合并模型概况读取；28领域、51Authority及7应用检查通过，待实测。
+
+- bd2a200：缓存注册基础图、线程池创建并启动预热；本地新建1.57/2.12秒，demo发布中。
+
+- bd2a200四角色demo验收通过；新建22→7.4/8.1秒，local-demo同源ready；标签demo-20261014-0744-bd2a200已推送。
+
+- 07d618a：201后预热并记录真实阶段耗时；本地POST0.145/0.025秒，demo构建中。
+
+- 16:10 07d618a云端POST0.698/0.447秒；点击新建2.085/2.718秒；云端阶段日志未取到，验收未完成。
+- 16:10 推进图两分支四部署布局被否决；必须恢复原中心开发轴，仅收缩左侧自主智能体历史节点。
+
+- 16:17 用户确认交接稿；已重写RESUME，下一步恢复推进图主轴，demo验收仍未完成。
+- 16:50 07d618a云demo三注册用例九轮及报告证据回放通过；原Thread恢复；SSH无注册密钥，工件核对未完成。
+- 16:55 用户要求自主智能体功能详情独立对齐、推进图宽度减半、四部署移右并挂精确Git来源。
+- 17:02 自主智能体十二项功能明细与PR18已对齐；图宽774px、四部署精确来源、无重叠穿卡；发布身份仍待核对。
+- 17:06 dev与实施工作树十项控制文件一致；来源边无独立交叉；390px、链接、symlink、diff与doctor通过。
+- 17:14 修正部署来源Git孤立；八节点连续且统一内容字段；local-dev后端07d618a核对通过，恢复5173同源App。
+# 2026-10-14 17:58 控制图宽幅中轴校正
+
+- 按用户反馈恢复居中的纵向dev/main中轴，Pi在左，自主智能体连续Git链和四部署在右；宽幅画布按可用宽高适配。
+- 保留十个重要Git节点及统一字段，当前焦点与历史重要发布全览；开放箭头、主线/分支/引用差异及本地绿/云端橙配色保留。
+- 浏览器两档间距核验：十节点连通，来源SHA一致，无重叠、穿卡片、独立边交叉或箭头错位。未变更云部署；07d618a正式demo身份验收仍待完成。
+- 用户指定两个demo完成后先合入dev再推进；PR18双平台失败，Linux断言复现、macOS流式测试独立通过。
+- 临时SSH密钥验证后删除；运行回执未读到，服务文件下载及SFTP失败，未修改部署或数据。
+- 2b6ae7b安全启动回执补齐发布身份读取；来源断言及确定时钟修正CI，59项通过；已推送，完整门禁与规范重建中。
+- local-dev2b6ae7b规范重建ready，同镜像2d50788075d7、529文件三角色一致、App同源；demo两worker升级中。
+- 2b6ae7b双平台PR38554449840及完整发布38554987581运行中；推进图11节点及四来源边浏览器核验通过。
+- demo两worker运行身份与local-dev匹配，App2b6ae7b成功；API0ef56503构建中，过渡状态未验收。
+- cloud-demo2b6ae7b四角色成功，三后端契约/源码/安装身份通过；本地完整make check-pr通过，云注册回归收尾。
+- 用户纠正最新基线定义：候选通过后先合入dev，再以同一dev合并提交发布两个demo；2b6ae7b不建正式标签。
+- 回读远端dev4f15cfc；根dev9472edf含两个未推送文档提交，保留。图分开已合入基线、共同业务起点与未合入候选。
+- 2b6ae7b云候选三用例九轮、报告证据回放通过，零Provider；旧Thread答案、39图及Composer恢复，控制台零错；待CI后合dev发布。
+- PR18已就绪并更新当前验证/缺口与dev先合后发布原则；不绕过CI。合入后立即更新推进图实际dev提交与合并边。
+- PR18双平台PR门禁通过，正常合入dev，实际合并faa6af9；完整发布CI继续，未绕过保护；立即更新推进图。
+- 根dev已对齐faa6af9，原9472edf/2411210及20项改动保存恢复引用与副本；规范重建、529文件三角色和App同源通过。
+- 双平台完整发布38554987581通过；faa6af9与受检2b6ae7b整棵Git树相同，等价收据已保存，正式demo升级中。
+- cloud-demo faa6af9四角色成功，运行身份及三用例九轮回放通过；local-demo六Thread已记录，缺主机模型缓存按Python3.12准备，未替换容器。
+- local-demo faa6af9规范重建完成，三角色同镜像且运行身份与local-dev一致；六个旧Thread/事件序号保留，三用例九轮、报告证据回放及旧图/Composer实际入口通过，零Provider。
+- 合并后dev双平台38558756435通过；正式demo-20261014-2028-faa6af9 annotated标签已推送并核对精确来源。cloud-dev24d9a32不动；科学与交互缺口保留。
+- 主图8关键节点按当前活跃/四部署/实际在研与重要云部署和大合并筛选，两端间距的可达性、来源挂接、卡片交叉与箭头检查通过。已合并自主分支改本地recovery引用，原工作树数据/未提交文档保留，关闭远端分支。
+- 文档链接检查发现根dev缺少三个未提交的历史验收报告；从原工作树补齐同名报告后链接及CLAUDE相对符号链接检查通过。make doctor与diff检查通过，科学缺口继续开放。
+- 用户要求完成文档入dev收尾并清理Git状态；建立docs/dev-integration-closeout，保留并核对所有剩余根工作区文档/审计记录，通过独立文档PR接入dev；不删除数据，运行来源仍faa6af9。
+- 687ba80保存23项文档与控制图，补齐dev合并及两个demo验收记录；PR #19接入dev并替代旧PR #17。
+- local-dev App切到已核对的faa6af9干净源码副本，身份与本地后端及demo保持原验收来源；控制文档提交不冒充产品更新，未重建数据库或改云端。
+- 4eb809c登记PR #19收尾入口，保留原门禁证据并固定已验收App身份，避免文档提交误报部署来源。
+- 用户确认本次固定dev交付临时本地试用，Linux/macOS优先、Windows目标兼容；pip/npm及薄脚本入口归入CAPSTONE CLI设计，未实施或更改部署。
+- 97fbe91将用户本地dev试用安装约束写入统一CLI设计；PR #20保存当前Compose/Vite与Railway分服务部署事实，避免承诺未实现的一键入口。
+- 用户确认临时dev试用直接复用本地源码部署，薄脚本封装环境/模型资产准备和规范重建，保持Compose＋Vite；全容器化和pip/npm发布不作前置。
+- 用户补充不接触源码，修正交付边界：我们固定dev构建镜像，用户拿Compose/配置/薄脚本启动；研发Compose＋Vite保留，试用包未实现。
+- 31af4db记录无源码dev试用交付边界；用户补充.env默认deepseek-flash、注释OpenAI和启动环境Key优先，现有固定启动合同的配置能力待实现。
+- PR #20已合入6d650ba；用户要求先讨论镜像，未启动实施。已有阿里北京ACR登录验证通过，用户确定其uukuguy命名空间为默认公开拉取源，未上传镜像。
+- 2d91850将阿里北京ACR缺省地址及公开拉取决定写入CLI设计，PR #21接入dev；不保存个人凭据，不构建或上传镜像。
+- 用户批准四类镜像和AMD64/ARM64实施；2e299a8增加受限试用运行合同及同源静态App，保留原云端合同。
+- 无源码Compose、私有实例初始化和源码校验通过66项Python检查；尚未构建、启动或公开发布试用镜像。
+- bfcc910提交无源码Compose及独立实例生命周期，阻止镜像源码不符和既有实例误用；候选验证不等于双架构验收。
+- 805ccbc提交精确Git构建上下文与无源码试用包生成器；实际构建准备发现合法策略链接，安全放行内部链接，仍拒绝越界。
+- 6f29b29修复构建上下文合法内部链接；69项Python通过；ARM64候选backend/App构建启动，六份模型资产验证后暂存。
+- 根推进图同步当前dev试用分支及真实祖先边；九节点两端间距无重叠/穿卡/箭头错位，独立边无交叉；四部署来源保留。
+- 2608013推送实施及控制记录；独立Codex只读审查发现四项隔离/来源问题，已修正且69项检查通过，实际新镜像验收待做。
+- 阿里候选App上传成功：dev-trial-candidate-6f29b29-arm64，sha256:252e4f63d9b33988857b9bdcccb470ca9916ae5196c38cdb2f94c6e6ee8b6d22；非正式双架构交付，匿名拉取未验。
+- 079d9eb提交独立审查四项修正及固定App基础摘要；模型暂存入口实际验证六资产；首次ARM64候选三案例九轮/报告/证据回放通过，零Provider。
+- PR门禁首段906项通过、一项文档边界失败；原因是计划列表误写成旧运行路径，已改为独立术语，产品断言未失败。
+- 阿里候选App匿名拉取401；已请用户将四仓库改为公开，继续本地验证。ACR拒绝RustFS空配置证明附件，副本改保留两架构实际镜像。
+- 1c0c60e提交候选平台强制、运行架构核对、App身份与API就绪检查、双架构验收收据门禁；72项针对性检查通过。
+- 用户设置四仓库公开；空Docker认证配置实际拉取四类初始镜像通过。最新1c0c60e ARM64三案例九轮报告回放通过；完整PR门禁重跑通过。
+- AMD64启动被候选标签校验拒绝，尚无服务写入；已定位并补架构后缀回归，限制为四类镜像与amd64/arm64名称，不放宽正式摘要要求。
+- e42d0b2修正架构标签；两平台实际启动、三案例九轮/报告/回放、OpenAI环境覆盖与停止重启后报告哈希保留通过，未调用Provider。
+- e42d0b2双平台PR检查通过；浏览器Source/拓扑/输入框及390px无横溢出通过，独立小范围复审无重要缺陷。
+- 380ede4补双语入口与运行说明，并将固定release配置置于用户.env之后；91项针对性/仓库边界通过，优先级独立复审通过，最后PR门禁进行中。
+- 2026-10-15：PR #22 Linux/macOS检查通过，正常合入dev783213489abd383bbf79225b29d9d718451dc597；root已保存任务文档快照并ff-only同步，Git干净；最终App双架构已公开上传，backend上传与最终源码验收进行中。
+- 用户确认install.sh一条命令安装并启动，默认目录~/capstone；成功提示实际目录/地址、四条start.sh运维命令、启动Key要求及.env的CAPSTONE_APP_PORT配置；停止保留数据。长期pip/npm入口未发布。
+- 用户指出5173及18080的冲突风险，正式包的可编辑.env/.env.example默认App端口改为19173，开发5173和demo15173保留；未修改冻结产品镜像来源。
+- 7832134最终四类镜像两平台匿名拉取、实际源码/平台/就绪、各三用例九轮、报告证据回放、浏览器和OpenAI合成配置切换及重启保留通过；无Provider调用。Docker本地跨架构索引别名冲突通过保留AMD64镜像恢复标签并只清理任务索引别名解决，数据未删除。
+- root local-dev规范重建，API/两worker同镜像2e0fc9d077c5及运行摘要；App使用7832134精确源码归档、dirty=false，真实拓扑/指令框/无横溢出通过。两个demo和cloud-dev不变。
+- 注释标签dev-trial-20261015-7832134及GitHub公开prerelease已发布，七文件部署包、install.sh、SHA256SUMS和双平台acceptance.json可下载；已合并实施分支本地/远端关闭，380ede4保存于refs/archive/20261015/feat-dev-trial-deployment，验收目录与卷保留。
+- 用户实际安装7832134到~/capstone，六服务ready、App19173；安装提示缺少重点、静态页面显示local-dev混淆。要求对外user-local、默认最新/指定Git号/错误列版本、Git节点安装图标、capstone.sh管理多版本且只同时启动一个。增量合同已写CLI设计，独立fix/dev-trial-user-feedback实施；不改动正在试用的数据。
+- App标识2573d68先提交本地试用文字，用户随后要求user-local；生产/开发区分回归已先失败再通过24项及类型，最新文字待提交；bootstrap32项及图源绑定19项独立执行通过，主流程增加管理用目录导出。管理器单独执行，旧部署和来源保护保留。
+- 用户确认各版本共享数据，并明确兼容性属于开发责任；撤销每版本独立数据假设。CLI设计与规范生命周期加入发布前旧数据升级/回放、独立回退验收及停止当前服务前兼容检查要求；管理器原型仍需按此合同修正，未登记为已实现。
+- c58f10c：实现user-local共享数据管理及兼容发布门禁，保留原试用数据；复审两项重要问题已修正。
+- 本轮115项部署/管理/选择/图绑定检查、24项App与类型、doctor通过；新增下架旧版停止回归通过，完整check-pr开始；真实数据升级与发布仍待验收。
+- user-local修正分支c58f10c已接入控制图，10个重要节点与四部署来源保留；两端间距无重叠、孤立、穿卡、错箭头或独立连线交叉，单焦点/统一内容/来源绑定通过。保守数据声明与7832134同格式；不替代真实旧数据验收。
+- 258bc3e：同步真实修正分支与共享数据实施记录，保持控制图和开发合同一致；PR #23双平台检查运行中。
+- 4110a44：修正摘要镜像发现及实际端口提示，防止已安装误判；新增回归先失败后通过。
+- 隔离ARM64旧版7832134三案例九轮/报告证据回放通过；新管理器接管旧项目后三个报告哈希不变、数据保留；精确新版本升级与独立回退仍待验证。
+- 2a47b8f：保留显式候选验证开关并对齐PR #23，支持隔离升级验收；默认公开入口仍关闭候选模式。
+- 最新119项专项及完整make check-pr、make validate通过；PR #23最新双平台运行38625121095进行中。4110a44候选双架构后端/App已上传；共享数据跨版本验收开始，无Provider调用。
+- ARM64跨版本升级/旧数据回放/新数据写入/回退后新旧数据回放通过；缺Key不停止旧容器，原私有配置/安装收据/卷不变；AMD64继续。正常合并与精确最终构建自动化等待全部门禁，未发布新包。
+- 5d05656：补齐旧版管理文件时保留冻结运行文件，避免纳管后重复安装误拒绝；7项安装回归通过。
+- ARM64与AMD64跨版本共享数据验收均通过：升级读旧、回退读新旧、报告/证据哈希、同卷及原私有配置/收据保留、缺Key先拒绝且旧服务不停；4110a44候选，无Provider调用。最新5d05656双平台CI运行38628243417，最终源码及公开管理包待验收。
+- 5d05656 macOS CI通过；Linux已有research-tools测试读到模拟回执未写完JSON，返回research_receipt_unreadable而非view_not_ready，失败保留。实际research_channel使用write_bound_text/os.replace；本地专项通过，已重跑同提交失败任务，未改生产读取规则或绕过门禁。
+- 候选真实浏览器user-local标识、4110a44/dirty=false、拓扑、Thread输入框及无横溢出通过；真实~/capstone与四部署未变。
+
+- 2026-10-15：PR #23正常合入dev b7e68dd；Linux/macOS run38628243417通过（Linux首轮非原子测试夹具偶发失败已记录，重跑通过）；候选双架构旧数据升级、读取、回放、回退及旧安装接管通过，零Provider调用。最终构建曾因Docker Hub DNS错误失败，构建器与客户端使用现有本地代理后恢复；精确合并源码镜像验收尚在进行。
+
+- 2026-10-15：最终浏览器验收脚本的选择器引号错误已修正，JavaScript解析及两架构浏览器实测通过；不涉及产品源码变化。ARM64最终升级/回放/重启/回退及配置/卷保留通过；AMD64最终案例/回放/浏览器通过，重启与回退进行中。
+
+- 2026-10-15：最终dev b7e68dd双架构镜像完成匿名拉取、旧数据升级/读取/报告证据回放、重启、浏览器及兼容回退；user-local-b7e68dd和受管旧版7832134已公开，固定安装器公开下载/校验/实际启动/状态/停止通过。零Provider调用，原~/capstone未改动，cloud-dev/demo保持原来源。
+
+- 2026-10-15：110f843 发布已验收user-local目录和控制记录，统一最新安装入口并标注可安装Git节点；文档链接、doctor、两端间距连线及两个安装图标检查通过。
+
+- 2026-10-15：030bac8保存公开试用安装验收记录；控制图默认缩放回归已修正，红绿浏览器检查验证可读尺寸与全图预览分离，主轴/部署来源/两端间距连线检查继续通过。
+
+- 2026-10-15：d4e2a27 修正控制图默认可读缩放；浏览器验证默认1倍、全图预览约0.41倍，无内部滚动，焦点/来源/连线检查通过。
+
+- 2026-10-15：87beeed 正常合入PR #24，Linux/macOS最终检查通过；公开最新版入口实际安装/启动、错误参数列版本及停止保卷通过，原目录/数据未改动；fix与交付记录分支已关闭，根dev和任务工作区Git干净。首次目录下载网络瞬断已保留诊断，原入口重试通过。
+
+- 2026-10-15：b47ce1e 合入交付收尾；用户已确认最终交接稿，下一步验证自有LLM及业务流程。
+
+- 2026-10-15：离线交付范围已确认：AMD64、OpenAI兼容内网配置、完整镜像包；设计与计划保存。[effd148]
+- 2026-10-15：离线控制记录与构建输入绑定已提交；25项原安装回归、doctor及控制图来源/连线/交叉检查通过。[f395375]
+- 2026-10-15：OpenAI别名与内网地址接入双worker，172项及原生Pi模型/地址选择通过；无Provider请求。[40b338d]
+- 2026-10-15：AMD64离线导出/导入与数据保护实现，67项回归通过；精确源码镜像构建中。[6b74397]
+- 2026-10-15：内网安装说明与新门禁入库；PR #27已建，AMD64构建恢复，离线版本目录保留问题修订中。[82fe716]
+- 2026-10-15：离线安装保留原版本目录，避免拒绝升级后失去旧版重启入口；19项及独立审查通过。[7930c07]
+- 2026-10-15：实施审查及PR #27记录已对齐；候选AMD64三案例九轮与回放、浏览器及make validate通过。[d3c56b8]
+- 2026-10-15：AMD64候选安装/重启/重复安装和数据保护通过；本地check-pr、E2E39+3及validate全部通过，等待双平台CI。
+- 2026-10-15：macOS CI38680987676缺Docker导致新增Compose测试失败；补单项依赖声明，有Docker8通过、无Docker5通过1跳过。
+
+- 2026-10-15：Compose测试Docker前置条件已提交，产品行为不变；有/无Docker路径及独立审查通过，准备双平台重检。[75af46a]
+
+- 2026-10-15：候选验收与CI重检控制记录已对齐，图来源和连线通过；新检查38683463175。[13bee16]
+
+- 2026-10-15：用户授权现有DeepSeek以OPENAI_*真实验证；发现Pi协议继承与Key变量引用错误，暂停API兼容通过声明。
+
+- 2026-10-15：明确Pi兼容协议和Key环境插值，129项及真实DeepSeek文本/工具往返通过，补协议门禁。[927f08b]
+
+- 2026-10-15：协议真实验收及样例待验收范围入库，控制图来源与连线通过；修订已推送重检。[cb5604a]
+
+- 2026-10-15：包内中文README补校验、OpenAI参数、安装管理及数据保护；12项导出回归通过。[f58660a]
+
+- 2026-10-15：包内README新增整体验证及三个专用三轮样例，说明结果证据检查；12项导出回归通过。[11f4a7e]
+
+- 2026-10-15：927f08b AMD64归档解压安装、三案例九轮、回放/重启/重复安装及配置数据保护通过；真实OpenAI业务样例启动。
+
+- 2026-10-15：真实OPENAI三个样例九轮结束；IEEE39及AC/DC执行成功，regional调度因模拟CPU缺AVX/AVX2触发Polars段错误，未判通过。
+- 2026-10-15：验证器把全部证据强求计算投影是假阴性；依据Pack准入和工具来源作独立只读重放，不覆盖原失败收据。
+
+- 2026-10-15：LinuxAMD64锁定同版Polars兼容运行时，断网注册调度及5项回归通过，修复无AVX2崩溃。[39b1658]
+
+- 2026-10-15：用户要求README采用正式项目样例、用户语言分组、简单短任务前置；样例预览已替换，非三demo。
+- 2026-10-15：用户要求cloud-dev按README实际安装；Railway官方不支持Compose/DinD，原生job方案暂停，等待可SSH的LinuxAMD64云主机信息；云未变更。
+- 2026-10-15：VM真实导入发现Docker29用manifestID而源daemon用configID；39包安装安全拒绝，未启服务；已证实带tag双digest映像可运行，合同修订中。
+
+- 2026-10-15：portable双身份/临时投影/生命周期及OpenAI组合106项通过；独立审查发现缺层归档可通过metadata验证，追加stream层校验中。
+
+- 2026-10-15：portable双digest、层完整性和安装投影修复提交；160项及独立审查通过，冻结用户分组样例。[916271f]
+
+- 2026-10-15：portable验收范围与恢复状态对齐并推送；新双平台检查38690376839，916候选归档已完整生成。[0165012]
+
+- 2026-10-15：916 host Docker安装/9轮脚本/重启重复安装/证据回放及数据保留通过；VM元数据权限失败已修复，187+61测试及独立审查通过。用户取消本地Ubuntu VM与cloud-dev验证；继续修正后AMD64真实OPENAI_*样例，README增加数据存储备份及耗时排序。
+
+- 2026-10-15：保留离线元数据读取权限，修复非root预检；完善README耗时排序和本地数据备份说明。[698e2a9]
+
+- 2026-10-15：698e2a9安装AMD64 API/双worker同镜像；真实OPENAI九轮及准入/独立回放全过，区域调度恢复；用户增mv_oberrhein样例与在线README.md，另报19173模型选择/指令打开图层差异，已只读定位base/fault结果选择。
+
+- 2026-10-15：在线离线共用README.md及孤岛样例，保留旧包兼容；公开manifest固定可读以适配严格umask。[05581c8]
+
+- 2026-10-15：按用户要求优先Linux离线包交付；05581c8冻结打包并推送PR27，CI38698817921并行；图修复隔离fix/user-local-network-view，不阻塞归档。
+
+- 2026-10-15：05581实际归档因README.md新增而旧checksum清单仍11项被安全拒绝；未启动服务，不可交付；新旧清单兼容先红2项后47+3通过，失败归档保留。
+
+- 2026-10-15：严格校验含README.md的新旧离线清单，修复归档安全拒绝及文件名通配漏洞；先红后绿并独立审查。[7c19766]
+
+- 2026-10-15：隔离修复图层结果时序和相机请求重复执行，避免场景混图及覆盖手动视角；106后端/109App测试通过。[61a418d]
+
+- 2026-10-15：7c19766实际归档离线安装/重启/重复安装/数据保留与真实OPENAI九轮及独立回放全通过；已向用户交付clean目录3文件，CI及图修复独立继续。
+
+- 2026-10-15：按用户要求重命名交付目录capstone-delivery-7c19766；7c双CI已过。纠正业务验收：九轮链路/回放通过不代表区域调度通过，本轮无dispatch实际执行，已告知并单独调查。
+
+- 2026-10-15：用户要求先用交付7c的OPENAI方式逐条实测README原文；暂停业务修复。只读证据确认区域operations与handoff均已加载，公开必填handoff_ref与系统自动注入存在不一致，原因待回归确认。此前未逐条验收用户样例，已纠正说明；不得称全部通过。
+
+- 2026-10-15：[28020aa] removes model-supplied handoff receipts so application grants reach shared tools safely;82 checks passed, real regional retest pending.
+
+- 2026-10-15：[ce47532] leads generated installation guides with default IEEE39 and moves optional PyPSA grids after the main instructions.
+
+- 2026-10-15：PR #27在7c来源双平台CI38700786813通过后正常合入37529ef；交付目录capstone-delivery-7c19766与原SHA保持不变。纠正验收表述：九请求/回放通过不等于业务全过，7c区域无dispatch执行，README1–9已运行、10–12未跑，完整N1排序仍待验证。独立图/Pi/指南分支ce47532与29375候选复验另行记录；root dev未快进重建，四部署未变。
+
+- 2026-10-15：[28020aa] regional original three-turn AMD64 OpenAI retest verifies optimal dispatch1300/1900; projection/AC consistency remain separate findings.
+
+- 2026-10-15：[e2eaee2] records verified handoff dispatch and open findings so delivery claims match actual evidence.
+
+- 2026-10-15：按用户要求交付e2eaee2更新包，SHA9d7c3b21；仅归档/单次安装启动检查通过，未重跑全量或Provider。旧7c保留。
+
+- 2026-10-15：[6064103] records updated offline artifact and minimal install checks without repeating full tests.
+
+- 2026-10-15：用户指出推进图缺少独立e2eaee2节点；将交付源码节点与分支文档收据分开，并同步主目录入口。
+
+- 2026-10-15：用户明确7c19766不可交付，标记撤回并将旧目录改为capstone-withdrawn-7c19766；原归档/hash保留，e2为替代交付版。
+
+- 2026-10-15：推进图收敛12关键节点，e2独立交付重点并直达四份交付/验证文件；7c撤回与606中间记录移历史，主目录同步及浏览器核对通过。
+
+- 2026-10-15：[5e3627a] highlights the delivered package and archives withdrawn or interim nodes to keep the graph concise.
+
+- 2026-10-15：用户要求修复当前分支两项PyPSA遗留后正常合入dev；定位混合模型投影批次校验及AC写输出而非p_set，启动针对性回归。
+
+- 2026-10-15：[9ccdfa8] records focused residual fixes and normal dev merge requirements while preserving immutable delivery and deployment boundaries.
+
+- 2026-10-15：[b580f93] restores saved generator setpoints for AC validation and rejects unsupported component schedules; focused tests and review pass.
+
+- 2026-10-15：[c638e09] projects each admitted result using its verified model revision; focused regressions, type checks and independent review pass.
+
+- 2026-10-15：c638e09两项修复已推送PR #28 draft；双平台PR门禁38723131332运行，独立AMD64候选构建完成，真实工作流待验证。
+
+- 2026-10-15：c638e09真实原三轮加AC专用第四轮通过，5操作投影completed，非slack出力一致；保留模型差值笔误，候选已停止、数据保留。
+
+- 19:24 PR28双平台检查通过，正常合入dev f300d1f；root快进，保留控制副本stash，开始规范重建。
+- 19:35 rootdev f300规范重建通过；API/双worker同6c616058镜像，1060文件逐角色匹配，就绪/App身份通过，数据保留。

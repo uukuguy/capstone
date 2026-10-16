@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import threading
 
 import pytest
 
@@ -65,6 +66,54 @@ def _service() -> InMemoryThreadService:
 class _Ledger:
     def ping(self) -> bool:
         return True
+
+
+def test_thread_creation_does_not_block_the_api_event_loop():
+    service = _service()
+    loop_threads = []
+    creation_threads = []
+    class Creator:
+        def create(self, model_id):
+            creation_threads.append(threading.get_ident())
+            return service.snapshot('thr_demo_39')
+    app = create_host_app(_Ledger(), WorkerRegistry(()), operator_token='hosted-secret',
+        allowed_hosts={'localhost'}, allowed_origins={'http://localhost:5173'},
+        thread_service=service, thread_creator=Creator())
+    @app.middleware('http')
+    async def capture_thread(request, call_next):
+        loop_threads.append(threading.get_ident())
+        return await call_next(request)
+    with TestClient(app, base_url='http://localhost') as client:
+        response = client.post('/api/v1/threads', json={'model_id': 'ieee39'},
+            headers={'Authorization': 'Bearer hosted-secret', 'Origin': 'http://localhost:5173'})
+    assert response.status_code == 201
+    assert len(creation_threads) == 1
+    assert creation_threads[0] not in loop_threads
+
+
+def test_thread_creation_sends_response_before_model_preparation():
+    service = _service()
+    response_sent = threading.Event()
+    observed = []
+    class Creator:
+        def create(self, model_id):
+            return service.snapshot('thr_demo_39')
+    def prepare(thread_id, family):
+        observed.append((response_sent.is_set(), thread_id, family))
+        return True
+    app = create_host_app(_Ledger(), WorkerRegistry(()), operator_token='hosted-secret',
+        allowed_hosts={'localhost'}, allowed_origins={'http://localhost:5173'},
+        thread_service=service, thread_creator=Creator(), prepare_model=prepare)
+    async def capture_response(scope, receive, send):
+        async def capture(message):
+            await send(message)
+            if message['type'] == 'http.response.body' and not message.get('more_body', False):
+                response_sent.set()
+        await app(scope, receive, capture)
+    with TestClient(capture_response, base_url='http://localhost') as client:
+        response = client.post('/api/v1/threads', json={'model_id': 'ieee39'}, headers=_auth())
+    assert response.status_code == 201
+    assert observed == [(True, 'thr_demo_39', 'pandapower')]
 
 
 def _app(service: InMemoryThreadService, wake_worker=None, prepare_workers=None):
@@ -476,18 +525,6 @@ def test_thread_rejects_message_without_nonempty_text() -> None:
     assert receipt.status == "rejected"
     assert receipt.rejection == "message_text_required"
     assert service.read_events("thr_demo_39", 0).events == ()
-
-
-def test_oversized_task_instruction_returns_bounded_rejection_receipt():
-    service = _service()
-    before = service.snapshot("thr_demo_39")
-    command = {"schema": "capstone-command/1", "command_id": "cmd_large", "idempotency_key": "idem_large", "thread_id": "thr_demo_39", "run_id": "run_001", "kind": "send_auto", "expected_event_seq": 0, "payload": {"text": "x" * 16385}}
-    with TestClient(_app(service), base_url="http://localhost") as client:
-        response = client.post("/api/v1/threads/thr_demo_39/commands", headers=_auth(), json=command)
-    assert response.status_code == 202
-    assert response.json()["status"] == "rejected"
-    assert response.json()["rejection"] == "message_text_too_large"
-    assert service.snapshot("thr_demo_39") == before
 
 
 def test_thread_accepts_multiline_message_text() -> None:

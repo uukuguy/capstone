@@ -82,6 +82,7 @@ def build_pypsa_thread_application(
     session_builder: PreparedKernelSessionBuilder,
     default_selection: ModelCapabilitySelection | None = None,
     runtime_mode: str = "capstone",
+    retain_context_workspace: bool = False,
 ) -> ThreadApplicationAssembly:
     """Build an opt-in Thread assembly for the existing PyPSA profile.
 
@@ -101,6 +102,7 @@ def build_pypsa_thread_application(
     owner = ModelCapabilityContextOwner(catalog)
     preparer = KernelApplicationProfilePreparer(
         workspace_root=workspace_root, model_binder=model_binder,
+        retain_context_workspace=retain_context_workspace,
     )
     register_pypsa_capability(
         catalog,

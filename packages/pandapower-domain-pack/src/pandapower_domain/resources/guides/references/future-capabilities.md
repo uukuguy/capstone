@@ -6,11 +6,11 @@ Use `environment.describe` as the runtime authority for what is executable now. 
 
 ## Do Not Use This For
 
-Do not use this as permission to simulate unsupported studies, import user models, modify networks, run raw pandapower, or infer unavailable results.
+Do not use this as permission to simulate unsupported studies, import arbitrary model files, mutate existing revisions, run raw pandapower, or infer unavailable results. Published typed revision operations remain available.
 
 ## Concepts and Terminology
 
-Unavailable means there is no advertised executable capability ID for the workflow. The agent may explain the current matrix gap and, when useful, suggest the closest published workflow without changing the user's requested study type.
+An unavailable dedicated workflow can still contain steps supported by published capabilities. Check those capabilities before declaring the study impossible. Their composition proves only the cases, conditions, and objectives actually evaluated; it does not create an unpublished coupled solver.
 
 ## Available Capabilities
 
@@ -21,7 +21,7 @@ Unavailable in the current matrix:
 - Security-constrained OPF as a distinct coupled optimizer (ordinary AC/DC OPF is published).
 - Time series.
 - Arbitrary model file import or in-place mutation; declarative creation and immutable typed revisions are published.
-- User-supplied or named-standard constraint catalogs beyond constraints present in the model.
+- Automatic import or interpretation of user-supplied or named-standard constraint catalogs. Explicit supplied limits on supported model fields can be applied to a child revision and checked; retain their supplied provenance rather than calling them original model limits.
 - Dynamic stability, dynamic protection relay simulation, and remedial action optimization.
 
 ## Parameters and Defaults

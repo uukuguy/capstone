@@ -23,6 +23,7 @@ from capstone_model_capability_spi import (
 from .model_capability import CapstoneModelCapabilityCatalog, ModelCapabilityProfileInfo
 from .thread_protocol import ModelContextSnapshot
 from .thread_service import AttemptClaim, ThreadModelDescriptor
+from .memory_pressure import worker_memory_pressure
 
 
 @runtime_checkable
@@ -201,14 +202,16 @@ class ModelCapabilityContextOwner:
 
     def __init__(self, catalog: CapstoneModelCapabilityCatalog, *,
                  max_contexts: int | None = None, idle_seconds: float | None = None,
-                 clock: Callable[[], float] = time.monotonic) -> None:
+                 clock: Callable[[], float] = time.monotonic,
+                 memory_pressure: Callable[[], bool] = worker_memory_pressure) -> None:
         if not isinstance(catalog, CapstoneModelCapabilityCatalog):
             raise TypeError("catalog must be a CapstoneModelCapabilityCatalog")
         self.catalog = catalog
-        self.max_contexts = int(os.environ.get('CAPSTONE_THREAD_CONTEXT_LIMIT', '4')) if max_contexts is None else max_contexts
-        self.idle_seconds = float(os.environ.get('CAPSTONE_THREAD_CONTEXT_IDLE_SECONDS', '60')) if idle_seconds is None else idle_seconds
-        if not 1 <= self.max_contexts <= 64 or not 1 <= self.idle_seconds <= 86400:
+        self.max_contexts = int(os.environ.get('CAPSTONE_THREAD_CONTEXT_LIMIT', '1024')) if max_contexts is None else max_contexts
+        self.idle_seconds = float(os.environ.get('CAPSTONE_THREAD_CONTEXT_IDLE_SECONDS', '0')) if idle_seconds is None else idle_seconds
+        if not 1 <= self.max_contexts <= 1024 or not 0 <= self.idle_seconds <= 86400:
             raise ValueError('model capability resource limits are invalid')
+        self._memory_pressure = memory_pressure
         self._clock = clock
         self._adapters: dict[tuple[str, str], ModelCapabilityAdapter] = {}
         self._contexts: dict[tuple[str, str, str, str], PreparedModelCapabilityContext] = {}
@@ -254,9 +257,17 @@ class ModelCapabilityContextOwner:
     def prepare(self, claim: AttemptClaim) -> PreparedModelCapabilityContext:
         if not isinstance(claim, AttemptClaim):
             raise TypeError("claim must be an AttemptClaim")
-        model_context = claim.model_context
+        return self.prepare_model(claim.thread_id, claim.run_id, claim.model_context)
+
+    def prepare_model(self, thread_id: str, run_id: str,
+                      model_context: ModelContextSnapshot) -> PreparedModelCapabilityContext:
+        """Prepare a persisted model selection without creating a task or LLM session."""
+        if not isinstance(model_context, ModelContextSnapshot):
+            raise TypeError('model context must be a ModelContextSnapshot')
+        if not isinstance(thread_id, str) or not thread_id or not isinstance(run_id, str) or not run_id:
+            raise ValueError('model context owner identity is invalid')
         key = (
-            claim.thread_id, claim.run_id, model_context.id,
+            thread_id, run_id, model_context.id,
             model_context.selection_revision,
         )
         references = tuple(model_context.enabled_profiles)
@@ -265,7 +276,7 @@ class ModelCapabilityContextOwner:
                 raise RuntimeError("model capability context owner is closed")
             if not self._sealed:
                 raise RuntimeError("model capability context owner is not sealed")
-            self._sweep_idle_locked()
+            self._sweep_idle_locked(protected_key=key)
             existing = self._contexts.get(key)
             if existing is not None:
                 if existing.model_context != model_context:
@@ -299,7 +310,7 @@ class ModelCapabilityContextOwner:
                     self._validate_contribution(contribution, reference, model_context)
                     contributions.append(contribution)
                 context = PreparedModelCapabilityContext(
-                    claim.thread_id, claim.run_id, model_context,
+                    thread_id, run_id, model_context,
                     tuple(handles), tuple(contributions),
                 )
                 self._contexts[key] = context
@@ -350,19 +361,25 @@ class ModelCapabilityContextOwner:
         with self._lock:
             return self._sweep_idle_locked()
 
-    def _sweep_idle_locked(self) -> int:
+    def _sweep_idle_locked(self, *, protected_key: tuple[str, str, str, str] | None = None) -> int:
         now = self._clock()
-        expired = [key for key, (pins, last_used) in self._usage.items()
-                   if pins == 0 and now - last_used >= self.idle_seconds]
+        idle = sorted((last_used, key) for key, (pins, last_used) in self._usage.items() if pins == 0)
         errors: list[BaseException] = []
-        for key in expired:
+        evicted = 0
+        for last_used, key in idle:
+            expired = self.idle_seconds > 0 and now - last_used >= self.idle_seconds
+            if not expired and key == protected_key:
+                continue
+            if not expired and not self._memory_pressure():
+                break
             try:
                 self._evict_locked(key)
+                evicted += 1
             except BaseException as error:
                 errors.extend(_flatten_group(error))
         if errors:
             raise BaseExceptionGroup('idle model capability cleanup failed', errors)
-        return len(expired)
+        return evicted
 
     def _evict_locked(self, key: tuple[str, str, str, str]) -> None:
         context = self._contexts.pop(key)

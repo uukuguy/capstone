@@ -12,7 +12,7 @@ import numpy as np
 import pandapower as pp
 from pandapower.auxiliary import LoadflowNotConverged
 
-from grid_simulator.analysis_registry import AnalysisOutcome
+from grid_simulator.analysis_registry import AnalysisOutcome, AnalysisRegistry, UnknownAnalysisOperationError
 from grid_simulator.constraints import ModelConstraints, evaluate_constraints, extract_model_constraints
 from grid_simulator.evidence import canonical_json, fingerprint, write_json
 from grid_simulator.models import OpenedContext
@@ -113,6 +113,7 @@ def run_ac_powerflow(
         "converged": True,
         "solver": _solver_summary(solver),
         "total_active_loss": persisted.document["losses"]["total_active_loss"],
+        "datasets": persisted.dataset_receipts,
         "evidence_refs": [persisted.evidence_ref],
     }
 
@@ -267,6 +268,10 @@ class UnknownResultError(Exception):
 
 
 class ResultIntegrityError(Exception):
+    pass
+
+
+class ResultNotRankableError(Exception):
     pass
 
 
@@ -679,11 +684,10 @@ def _load_powerflow_result(workspace: SimulatorWorkspace, result_ref: str) -> di
         raise ResultIntegrityError("powerflow result document could not be read") from exc
     except json.JSONDecodeError as exc:
         raise ResultIntegrityError("powerflow result document is not valid JSON") from exc
-    _verify_powerflow_result_document(document, result_ref)
-    return document
+    return _verify_powerflow_result_document(document, result_ref)
 
 
-def _verify_powerflow_result_document(document: object, result_ref: str) -> None:
+def _verify_powerflow_result_document(document: object, result_ref: str) -> dict[str, Any]:
     if not isinstance(document, dict):
         raise ResultIntegrityError("powerflow result document is malformed")
     if document.get("result_ref") != result_ref:
@@ -695,17 +699,22 @@ def _verify_powerflow_result_document(document: object, result_ref: str) -> None
         raise ResultIntegrityError("powerflow result document is not canonical JSON") from exc
     if result_ref != f"result:sha256:{digest}":
         raise ResultIntegrityError("powerflow result document content does not match result reference")
-    if not (
-        document.get("result_type") == "analysis.powerflow.ac"
-        or (
-            document.get("result_type") == "analysis.operation"
-            and document.get("operation") == "powerflow.ac"
-        )
-    ):
-        raise ResultIntegrityError("powerflow result document has an unsupported result type")
+    if document.get("result_type") == "analysis.operation":
+        try:
+            operation = AnalysisRegistry().require(str(document.get("operation")))
+        except UnknownAnalysisOperationError as exc:
+            raise ResultNotRankableError("Result operation does not publish branch operating data") from exc
+        if not operation.branch_operating_point or document.get("status") != "succeeded":
+            raise ResultNotRankableError("Result does not contain a successful branch operating point")
+    elif document.get("result_type") != "analysis.powerflow.ac":
+        raise ResultNotRankableError("Result type does not publish branch operating data")
     if not isinstance(document.get("context_ref"), str) or not isinstance(document.get("revision_ref"), str):
         raise ResultIntegrityError("powerflow result document is missing context references")
     branch_results = document.get("branch_results")
+    if branch_results is None and document.get("result_type") == "analysis.operation":
+        # The hash above verifies the saved document before this read-only
+        # projection. Generic analysis captures native result tables.
+        branch_results = _rankable_dataset_rows(document)
     if not isinstance(branch_results, list):
         raise ResultIntegrityError("powerflow result document is missing branch results")
     required_branch_fields = {
@@ -720,6 +729,32 @@ def _verify_powerflow_result_document(document: object, result_ref: str) -> None
     for row in branch_results:
         if not isinstance(row, dict) or not required_branch_fields <= row.keys():
             raise ResultIntegrityError("powerflow result document has malformed branch results")
+    return {**document, "branch_results": branch_results}
+
+
+def _rankable_dataset_rows(document: dict[str, Any]) -> list[dict[str, Any]]:
+    datasets = document.get("datasets")
+    if not isinstance(datasets, dict):
+        raise ResultIntegrityError("powerflow result document is missing datasets")
+    branches = []
+    for kind, from_field, to_field in (
+        ("line", "p_from_mw", "p_to_mw"),
+        ("trafo", "p_hv_mw", "p_lv_mw"),
+        ("trafo3w", "p_hv_mw", "p_mv_mw"),
+    ):
+        dataset = datasets.get(f"result.res_{kind}")
+        if not isinstance(dataset, dict) or not isinstance(dataset.get("rows"), list):
+            raise ResultIntegrityError("powerflow result document is missing a branch dataset")
+        required = {"asset_ref", "index", "loading_percent", from_field, to_field, "pl_mw"}
+        for row in dataset["rows"]:
+            if not isinstance(row, dict) or not required <= row.keys():
+                raise ResultIntegrityError("powerflow result document has malformed branch dataset rows")
+            branches.append({
+                "branch_ref": row["asset_ref"], "element_kind": kind,
+                "pandapower_index": row["index"], "loading_percent": row["loading_percent"],
+                "p_from_mw": row[from_field], "p_to_mw": row[to_field], "pl_mw": row["pl_mw"],
+            })
+    return branches
 
 
 def _persist_result(directory: Path, prefix: str, document: dict[str, Any]) -> PersistedDocument:

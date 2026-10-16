@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 import subprocess
 import time
 from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
+from dataclasses import dataclass, field
 from queue import Empty, Queue
 from threading import Event, Lock, Thread
 from typing import Any, Protocol
@@ -16,6 +18,7 @@ from typing import Any, Protocol
 from capability_agent.runtime.environment import PiLaunch
 from capability_agent.runtime.lock import PiCommand
 from capability_agent.runtime.trace import JsonlTraceWriter
+from capability_agent.runtime.process_stream import ProcessStream
 
 
 SemanticEventCallback = Callable[[dict[str, Any], int], None]
@@ -34,6 +37,7 @@ TRACEABLE_RPC_TYPES = frozenset(
 CAPTURE_FATAL_EXIT_CODE = 86
 CAPTURE_FATAL_MARKER = "trajectory model request commit failed"
 _CAPTURE_POLL_SECONDS = 0.025
+_CONTROL_POLL_SECONDS = 0.025
 _STDERR_CAPTURE_LIMIT = 64 * 1024
 _SAFE_TOOL_CALL_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$")
 _DIAGNOSTIC_SECRET_ASSIGNMENT = re.compile(
@@ -63,6 +67,46 @@ class PiCaptureIntegrityError(PiProtocolError):
     """Raised when an optional request-capture boundary fails closed."""
 
 
+class _ReceivedLine(bytes):
+    received_at: float
+
+    def __new__(cls, raw: bytes):
+        value = super().__new__(cls, raw)
+        value.received_at = time.perf_counter()
+        return value
+
+
+@dataclass
+class _PromptTiming:
+    started: float = field(default_factory=time.perf_counter)
+    queue_wait_seconds: float = 0.0
+    max_queue_delay_seconds: float = 0.0
+    trace_seconds: float = 0.0
+    observer_seconds: float = 0.0
+    control_seconds: float = 0.0
+    raw_events: int = 0
+    semantic_events: int = 0
+    first_received: float | None = None
+    last_received: float | None = None
+
+    def receive(self, raw: bytes) -> None:
+        self.raw_events += 1
+        received = getattr(raw, "received_at", None)
+        if isinstance(received, float):
+            if self.first_received is None:
+                self.first_received = received
+            self.last_received = received
+            self.max_queue_delay_seconds = max(self.max_queue_delay_seconds, time.perf_counter() - received)
+
+    def document(self, status: str) -> dict[str, object]:
+        return {"status": status, "elapsed_seconds": round(time.perf_counter() - self.started, 6),
+            "raw_events": self.raw_events, "semantic_events": self.semantic_events,
+            **{key: round(getattr(self, key), 6) for key in ("queue_wait_seconds", "max_queue_delay_seconds",
+                "trace_seconds", "observer_seconds", "control_seconds")},
+            "first_native_event_seconds": None if self.first_received is None else round(self.first_received - self.started, 6),
+            "native_receive_span_seconds": None if self.first_received is None or self.last_received is None else round(self.last_received - self.first_received, 6)}
+
+
 class PiRpcClient:
     def __init__(
         self,
@@ -75,6 +119,7 @@ class PiRpcClient:
         capture_error_type: type[RuntimeError] = PiCaptureIntegrityError,
         timeout_seconds: float | None = None,
         correlation_id: str | None = None,
+        process_delta_batch_seconds: float = 0,
     ) -> None:
         self.command = command
         self.workspace = workspace
@@ -92,9 +137,29 @@ class PiRpcClient:
             raise ValueError("RPC correlation ID must be non-empty text")
         self.timeout_seconds = timeout_seconds
         self.correlation_id = correlation_id
+        if (type(process_delta_batch_seconds) not in {int, float} or not math.isfinite(process_delta_batch_seconds)
+            or not 0 <= process_delta_batch_seconds <= 1):
+            raise ValueError("process delta interval must be between zero and one second")
+        self.process_delta_batch_seconds = process_delta_batch_seconds
         self.process: subprocess.Popen[bytes] | None = None
         self._stdout_lines: Queue[bytes | None] | None = None
         self._stderr_capture: _BoundedStderrCapture | None = None
+        self.last_prompt_interrupted = False
+
+    def _send_control(self, command: str, **payload: object) -> None:
+        if self.process is None or self.process.stdin is None:
+            raise PiProtocolError("Pi RPC process is not started")
+        try:
+            self.process.stdin.write((json.dumps({"type": command, **payload}) + "\n").encode())
+            self.process.stdin.flush()
+        except (BrokenPipeError, OSError) as exc:
+            raise PiProtocolError("Pi RPC control could not be sent") from exc
+        self.trace.append("rpc_control", {"command": command, **payload})
+
+    def set_thinking_level(self, level: str) -> None:
+        if level not in {"off", "minimal", "low", "medium", "high", "xhigh"}:
+            raise ValueError("unsupported reasoning level")
+        self._send_control("set_thinking_level", level=level)
 
     def start(self) -> None:
         launch_environment = (
@@ -129,22 +194,72 @@ class PiRpcClient:
             ).start()
 
     def prompt_and_wait(
-        self,
-        question: str,
-        *,
+        self, question: str, *,
         on_event: Callable[[dict[str, Any]], None] | None = None,
         on_semantic_event: SemanticEventCallback | None = None,
         on_heartbeat: Callable[[], None] | None = None,
+        on_control_requests: Callable[[], None] | None = None,
+        heartbeat_seconds: float = 10.0, require_answer_text: bool = True,
+        capture: CaptureAdapter | None = None, timeout_seconds: float | None = None,
+        correlation_id: str | None = None, model_idle_seconds: float | None = None,
+    ) -> str:
+        timing = _PromptTiming()
+        status = "failed"
+        def publish(payload: dict[str, Any]) -> None:
+            trace_started = time.perf_counter()
+            sequence = self.trace.append("pi_event", payload)
+            timing.trace_seconds += time.perf_counter() - trace_started
+            timing.semantic_events += 1
+            if capture is not None:
+                capture.on_semantic_event(payload, sequence)
+            if on_semantic_event is not None:
+                observer_started = time.perf_counter()
+                try:
+                    on_semantic_event(payload, sequence)
+                finally:
+                    timing.observer_seconds += time.perf_counter() - observer_started
+        stream = ProcessStream(publish, self.process_delta_batch_seconds)
+        try:
+            answer = self._prompt_and_wait(question, timing=timing, stream=stream, on_event=on_event,
+                on_semantic_event=on_semantic_event, on_heartbeat=on_heartbeat,
+                on_control_requests=on_control_requests, heartbeat_seconds=heartbeat_seconds,
+                require_answer_text=require_answer_text, capture=capture, timeout_seconds=timeout_seconds,
+                correlation_id=correlation_id, model_idle_seconds=model_idle_seconds)
+            status = "interrupted" if self.last_prompt_interrupted else "returned"
+            return answer
+        finally:
+            stream.flush()
+            document = timing.document(status)
+            identity = correlation_id if correlation_id is not None else self.correlation_id
+            if identity is not None:
+                document["correlation_id"] = identity
+            self.trace.append("rpc_prompt_timing", document)
+
+    def _prompt_and_wait(
+        self,
+        question: str,
+        *,
+        timing: _PromptTiming,
+        stream: ProcessStream,
+        on_event: Callable[[dict[str, Any]], None] | None = None,
+        on_semantic_event: SemanticEventCallback | None = None,
+        on_heartbeat: Callable[[], None] | None = None,
+        on_control_requests: Callable[[], None] | None = None,
         heartbeat_seconds: float = 10.0,
         require_answer_text: bool = True,
         capture: CaptureAdapter | None = None,
         timeout_seconds: float | None = None,
         correlation_id: str | None = None,
+        model_idle_seconds: float | None = None,
     ) -> str:
         if self.process is None or self.process.stdin is None:
             raise PiProtocolError("Pi RPC process is not started")
         if heartbeat_seconds <= 0:
             raise ValueError("RPC heartbeat interval must be positive")
+        if model_idle_seconds is not None and (type(model_idle_seconds) not in {int, float}
+            or not math.isfinite(model_idle_seconds) or model_idle_seconds <= 0):
+            raise ValueError("model step budget must be positive")
+        self.last_prompt_interrupted = False
         timeout = self.timeout_seconds if timeout_seconds is None else timeout_seconds
         if timeout is not None and timeout <= 0:
             raise ValueError("RPC timeout must be positive")
@@ -180,24 +295,46 @@ class PiRpcClient:
         answer_state = _AssistantAnswerState()
         acknowledged = False
         pending_tool_calls: dict[str, dict[str, str]] = {}
+        running_tools: set[str] = set()
+        last_model_action = time.monotonic()
         next_heartbeat_at = time.monotonic() + heartbeat_seconds
         deadline = None if timeout is None else time.monotonic() + timeout
         while True:
+            stream.flush_due()
             wait_timeout = heartbeat_seconds
+            stream_remaining = stream.remaining()
+            if stream_remaining is not None:
+                wait_timeout = min(wait_timeout, max(.001, stream_remaining))
+            if model_idle_seconds is not None and acknowledged and not running_tools and not self.last_prompt_interrupted:
+                idle_remaining = model_idle_seconds - (time.monotonic() - last_model_action)
+                if idle_remaining <= 0:
+                    self._send_control("abort")
+                    self.last_prompt_interrupted = True
+                    self.trace.append("model_step_interrupted", {"reason": "model_step_budget", "budget_seconds": model_idle_seconds})
+                else:
+                    wait_timeout = min(wait_timeout, idle_remaining)
             if deadline is not None:
                 wait_timeout = min(wait_timeout, max(0.0, deadline - time.monotonic()))
                 if wait_timeout <= 0:
                     if capture is not None:
                         capture.drain_model_requests()
                     raise PiProtocolError("Pi RPC timed out")
+            if on_control_requests is not None:
+                # Run while tools await host commits, even without trajectory capture.
+                control_started = time.perf_counter()
+                on_control_requests()
+                timing.control_seconds += time.perf_counter() - control_started
+                wait_timeout = min(wait_timeout, _CONTROL_POLL_SECONDS)
             if capture is not None:
                 wait_timeout = min(
                     _CAPTURE_POLL_SECONDS,
                     max(0.0, next_heartbeat_at - time.monotonic()),
                 )
+            wait_started = time.perf_counter()
             try:
                 raw = lines.get(timeout=wait_timeout)
             except Empty:
+                timing.queue_wait_seconds += time.perf_counter() - wait_started
                 if capture is not None:
                     capture.drain_model_requests()
                 now = time.monotonic()
@@ -206,8 +343,10 @@ class PiRpcClient:
                         on_heartbeat()
                     next_heartbeat_at = now + heartbeat_seconds
                 continue
+            timing.queue_wait_seconds += time.perf_counter() - wait_started
             if raw is None:
                 raise self._eof_error()
+            timing.receive(raw)
             try:
                 line = raw.decode("utf-8").rstrip("\r\n")
             except UnicodeDecodeError as exc:
@@ -220,6 +359,18 @@ class PiRpcClient:
                 raise PiProtocolError("Pi RPC returned invalid JSONL") from exc
             if not isinstance(event, dict):
                 raise PiProtocolError("Pi RPC event must be an object")
+            if event.get("type") == "tool_execution_start":
+                running_tools.add(_event_tool_call_id(event) or "unidentified")
+                last_model_action = time.monotonic()
+            elif event.get("type") in {"tool_execution_end", "tool_result"}:
+                running_tools.discard(_event_tool_call_id(event) or "unidentified")
+                last_model_action = time.monotonic()
+            elif event.get("type") == "text_delta" and isinstance(event.get("text"), str) and event["text"]:
+                last_model_action = time.monotonic()
+            elif event.get("type") == "message_update":
+                delta = event.get("assistantMessageEvent")
+                if isinstance(delta, dict) and delta.get("type") == "text_delta" and delta.get("delta"):
+                    last_model_action = time.monotonic()
             event_correlation = _event_correlation(event)
             if (
                 expected_correlation is not None
@@ -237,16 +388,16 @@ class PiRpcClient:
                 trace_correlation = event_correlation or expected_correlation
                 if trace_correlation is not None:
                     payload = {**payload, "correlation_id": trace_correlation}
-                sequence = self.trace.append("pi_event", payload)
-                if capture is not None:
-                    capture.on_semantic_event(payload, sequence)
-                if on_semantic_event is not None:
-                    on_semantic_event(payload, sequence)
+                received = getattr(raw, "received_at", None)
+                stream.emit(payload, ordinal=timing.raw_events,
+                    received=None if not isinstance(received, float) else round(received - timing.started, 6))
             if event.get("type") == "prompt_ack" and event.get("ok") is True:
                 acknowledged = True
+                last_model_action = time.monotonic()
             if event.get("type") == "response" and event.get("command") == "prompt":
                 if event.get("success") is True:
                     acknowledged = True
+                    last_model_action = time.monotonic()
                 else:
                     if capture is not None:
                         capture.drain_model_requests()
@@ -259,6 +410,10 @@ class PiRpcClient:
                     if capture is not None:
                         capture.drain_model_requests()
                     raise PiProtocolError("Pi agent ended before prompt acknowledgement")
+                if self.last_prompt_interrupted:
+                    if capture is not None:
+                        capture.drain_model_requests()
+                    return ""
                 provider_error = _provider_error(event)
                 if provider_error:
                     if event.get("willRetry") is True:
@@ -367,7 +522,7 @@ class _BoundedStderrCapture:
 def _read_lines(stream: Any, lines: Queue[bytes | None]) -> None:
     try:
         for raw in stream:
-            lines.put(raw)
+            lines.put(_ReceivedLine(raw))
     finally:
         lines.put(None)
 
@@ -481,6 +636,21 @@ def _semantic_trace_payloads(
 ) -> tuple[dict[str, Any], ...]:
     # Deltas are provisional process output until the final message and answer
     # admission complete. They must never be treated as the formal answer stream.
+    if event.get("type") in {"turn_start", "turn_end"}:
+        return ({"type": "runtime_action", "phase": "started" if event["type"] == "turn_start" else "completed"},)
+    if event.get("type") == "message_end":
+        message = event.get("message")
+        if isinstance(message, dict) and message.get("role") == "assistant":
+            content = message.get("content")
+            tools = isinstance(content, list) and any(isinstance(item, dict) and item.get("type") == "toolCall" for item in content)
+            response: dict[str, Any] = {"type": "runtime_action", "phase": "response_completed", "response_kind": "tools" if tools else "text"}
+            usage = message.get('usage')
+            if isinstance(usage, dict):
+                counts = {key: usage[key] for key in ('input', 'output', 'cacheRead', 'cacheWrite', 'totalTokens')
+                          if type(usage.get(key)) is int and 0 <= usage[key] <= 100_000_000}
+                if counts:
+                    response['usage'] = counts
+            return (response,)
     delta = event.get("text") if event.get("type") == "text_delta" else None
     update = event.get("assistantMessageEvent") if event.get("type") == "message_update" else None
     if isinstance(update, dict) and update.get("type") == "text_delta":
@@ -590,7 +760,7 @@ def _canonical_tool_result_event(
         "result": result,
         "evidence_refs": [ref for ref in evidence_refs if isinstance(ref, str)],
     }
-    for field in ("capability_key", "projector_id", "result_kind"):
+    for field in ("capability_key", "projector_id", "result_kind", "request_parameters"):
         if field in details:
             canonical[field] = details[field]
     pair = _consume_tool_pair(event, pending_tool_calls)

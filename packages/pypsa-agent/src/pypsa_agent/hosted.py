@@ -25,7 +25,7 @@ from pypsa_model_authority.store import canonical_bytes
 
 from .profile import build_profile
 from .thread_capabilities import PYPSA_PROFILE_DESCRIPTOR, build_pypsa_thread_application
-from .thread_binding import bind_thread_tool_catalog, verify_bound_model_reference
+from .thread_binding import bind_thread_tool_catalog, verify_bound_model_reference, resolve_bound_model_revision
 
 
 ROOT = Path(__file__).resolve().parents[4]
@@ -100,31 +100,25 @@ def build_registered_pypsa_thread_application() -> ThreadApplicationAssembly:
                 binding.runtime.authority, reference,
                 model_id=context.model_id, base_ref=model_ref,
             ),
-        )
-
-    def rpc_builder():
-        environment = load_runtime_environment(ROOT)
-        resolved = resolve_harness_llm(ROOT, environment)
-        runtime_host = build_runtime_host(ROOT, build_profile(), environment)
-        return PreparedKernelPiRpcSessionBuilder(
-            runtime_host=runtime_host, resolved_llm=resolved,
-            base_environment=environment,
+            model_revision_resolver=lambda reference: resolve_bound_model_revision(
+                binding.runtime.authority, reference,
+                model_id=context.model_id, base_ref=model_ref, base_revision=context.model_revision,
+            ),
         )
 
     def build_session(claim, context, profiles):
         if validation_builder is not None:
             return validation_builder(claim, context, profiles)
-        return rpc_builder()(claim, context, profiles)
-
-    def recognize_task(claim, *, on_heartbeat, requirement_schemas=()):
-        if validation_builder is not None:
-            recognizer = getattr(validation_builder, "recognize_task", None)
-            if not callable(recognizer):
-                raise RuntimeError("scripted task recognizer is unavailable")
-            return recognizer(claim, on_heartbeat=on_heartbeat, requirement_schemas=requirement_schemas)
-        return rpc_builder().recognize_task(claim, on_heartbeat=on_heartbeat, requirement_schemas=requirement_schemas)
-
-    setattr(build_session, "recognize_task", recognize_task)
+        environment = load_runtime_environment(ROOT)
+        resolved = resolve_harness_llm(ROOT, environment)
+        if claim.turn_plan is not None and claim.turn_plan.route == "ordinary":
+            resolved = resolve_recognition_llm(ROOT, environment, resolved)
+        runtime_host = build_runtime_host(ROOT, build_profile(), environment)
+        return PreparedKernelPiRpcSessionBuilder(
+            runtime_host=runtime_host, resolved_llm=resolved,
+            base_environment=environment,
+            research_enabled=os.environ.get("CAPSTONE_AUTONOMOUS_RESEARCH") == "1",
+        )(claim, context, profiles)
 
     workspace_root = Path(
         os.environ.get("CAPSTONE_RUNS_ROOT", str(ROOT / "runs" / "capstone-agent")),
@@ -133,6 +127,7 @@ def build_registered_pypsa_thread_application() -> ThreadApplicationAssembly:
         default_model_id=catalog.default_model_id,
         model_resolver=resolve_model,
         workspace_root=workspace_root,
+        retain_context_workspace=os.environ.get("CAPSTONE_AUTONOMOUS_RESEARCH") == "1",
         model_binder=bind_model,
         session_builder=build_session,
         default_selection=ModelCapabilitySelection(
@@ -144,8 +139,20 @@ def build_registered_pypsa_thread_application() -> ThreadApplicationAssembly:
     if not callable(set_diagram_provider):
         raise TypeError("Thread catalog has no diagram provider registration")
     set_diagram_provider(model_diagram)
-    return (replace(assembly, ordinary_conversation_enabled=False, turn_router=None)
-            if validation_builder is not None else assembly)
+    if validation_builder is not None:
+        return replace(assembly, ordinary_conversation_enabled=False, turn_router=None)
+    if os.environ.get("CAPSTONE_AUTONOMOUS_RESEARCH") == "1":
+        from capstone_agent.turn_router import ResearchTurnRouter
+        return replace(assembly, turn_router=ResearchTurnRouter())
+    from capstone_agent.lightweight_turn_router import build_lightweight_router
+    from capstone_agent.runtime import resolve_recognition_llm
+    environment = load_runtime_environment(ROOT)
+    def recognition_llm():
+        return resolve_recognition_llm(ROOT, environment, resolve_harness_llm(ROOT, environment))
+    router = build_lightweight_router(
+        runtime_host=build_runtime_host(ROOT, build_profile(), environment),
+        resolved_llm_factory=recognition_llm, environment=environment)
+    return replace(assembly, turn_router=router)
 
 
 def main() -> int:

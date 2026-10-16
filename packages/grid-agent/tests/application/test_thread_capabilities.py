@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import json
 import sys
+import shutil
+from pathlib import Path
+import pytest
 
 from capstone_agent.model_capability import CapstoneModelCapabilityCatalog
 from capstone_agent.model_capability_context import ModelCapabilityContextOwner
@@ -38,6 +41,86 @@ class _Session:
 
     def stop(self) -> None:
         return None
+
+
+def test_retained_model_workspace_reuses_real_results_after_resources_close(tmp_path):
+    from grid_agent.application.profile import build_pandapower_application_profile
+    revision = ModelRegistry(Pandapower340Engine()).trusted_revision_ref("ieee39")
+    context = _claim(revision).model_context
+    def bind(prepared, context):
+        opened = prepared.bindings["grid"].runtime.executor.invoke("context.open", {"model_id": context.model_id})
+        return AuthorityModelBinding("grid", context.model_id, opened["revision_ref"],
+                                     context.implementation_family, opened["context_ref"])
+    def prepare():
+        return KernelApplicationProfilePreparer(workspace_root=tmp_path,
+            model_binder=bind, retain_context_workspace=True)(build_pandapower_application_profile(), context)
+    first = prepare()
+    runtime = first.prepared_application.bindings["grid"].runtime
+    calculated = runtime.executor.invoke("analysis.powerflow.ac.run", {"context_ref": first.model_binding.context_ref})
+    original = runtime.authority.verify_result(calculated["result_ref"]).document
+    first.close()
+    second = prepare()
+    try:
+        assert second.workspace.root == first.workspace.root
+        reopened = second.prepared_application.bindings["grid"].runtime
+        assert reopened.authority.verify_result(calculated["result_ref"]).document == original
+        evidence = reopened.executor.invoke("evidence.get", {"evidence_ref": calculated["evidence_refs"][0]})
+        assert evidence["document"]["result_ref"] == calculated["result_ref"]
+        assert reopened.authority.verify_result(calculated["result_ref"]).document == original
+    finally:
+        second.close()
+
+
+def test_real_derived_powerflow_reaches_thread_result_projection(tmp_path):
+    from capstone_agent.kernel_pi_session import _verify_bound_attempt_references, _build_result_projections
+    from capstone_agent.thread_service import _terminal_result_projections
+    revision = ModelRegistry(Pandapower340Engine()).trusted_revision_ref("ieee39")
+    claim = _claim(revision)
+    def bind(prepared, context):
+        opened = prepared.bindings["grid"].runtime.executor.invoke("context.open", {"model_id": context.model_id})
+        return AuthorityModelBinding("grid", context.model_id, opened["revision_ref"],
+                                     context.implementation_family, opened["context_ref"])
+    registry = ModelCapabilityRegistry()
+    catalog = CapstoneModelCapabilityCatalog(registry)
+    owner = ModelCapabilityContextOwner(catalog)
+    register_pandapower_capability(catalog, owner, prepare_profile=KernelApplicationProfilePreparer(
+        workspace_root=tmp_path, model_binder=bind))
+    registry.seal()
+    owner.seal()
+    try:
+        prepared = owner.prepare(claim).contributions[0].prepared
+        bindings = prepared.prepared_application.bindings
+        executor = bindings["grid"].runtime.executor
+        from grid_agent.thread_binding import bind_thread_tool_catalog
+        from capability_agent.application.errors import CapabilityTransportError
+        bind_thread_tool_catalog(bindings["grid"].runtime.tool_catalog_path, prepared.model_binding,
+                                authority_workspace=bindings["grid"].runtime.authority.workspace_root)
+        with pytest.raises(CapabilityTransportError):
+            executor.invoke("context.open", {"model_id": "case9"})
+        child = executor.invoke("model.revision.derive", {
+            "context_ref": prepared.model_binding.context_ref,
+            "patches": [{"operation": "scale", "kind": "load", "selector": {"indices": [0]},
+                         "fields": ["p_mw", "q_mvar"], "factor": 1.1}],
+        })
+        calculation = executor.invoke("analysis.powerflow.ac.run", {"context_ref": child["context_ref"]})
+        results = (calculation["result_ref"],)
+        evidence = tuple(calculation["evidence_refs"])
+        events = ({"binding_id": "grid", "ok": True, "capability": "analysis.powerflow.ac.run",
+                   "context_ref": child["context_ref"], "model_revision": child["revision_ref"],
+                   "result_refs": results, "evidence_refs": evidence},)
+        _verify_bound_attempt_references((prepared,), bindings,
+            {ref: "grid" for ref in (*results, *evidence)}, results, evidence, events)
+        projections = _build_result_projections(claim, (prepared,), bindings, results, evidence, events)
+        assert len(projections) == 1
+        assert projections[0]["status"] != "unavailable"
+        stored = _terminal_result_projections({"result_refs": list(results), "evidence_refs": list(evidence),
+            "result_projections": list(projections),
+            "admission": {"mode": "authority_backed", "assurance": "lineage_verified"}},
+            claim=claim, phase="completed")
+        assert stored[0].model_revision == child["revision_ref"] != revision
+        assert stored[0].result_ref == results[0]
+    finally:
+        owner.close()
 
 
 def _claim(revision: str = "revision:sha256:" + "a" * 64) -> AttemptClaim:
@@ -148,7 +231,16 @@ def test_prepared_kernel_pi_factory_exposes_only_prepared_profile_inputs(tmp_pat
     assembly.capability_context_owner.close()
 
 
-def test_kernel_pi_rpc_builder_materializes_descriptor_before_process_start(tmp_path):
+@pytest.mark.parametrize("execute_pi", [False, True])
+def test_kernel_pi_rpc_builder_materializes_descriptor_before_process_start(tmp_path, execute_pi):
+    repo = Path(__file__).resolve().parents[4]
+    command = ("pi",)
+    if execute_pi:
+        node = shutil.which("node")
+        assert node is not None
+        assert (repo / ".grid-agent/runtime/pi/source/packages/coding-agent/dist/core/sdk.js").is_file()
+        driver = repo / "packages/capability-agent-kernel/tests/runtime/fixtures/pi_research_driver.mjs"
+        command = (node, str(driver), str(repo), str(tmp_path))
     authority_models = ModelRegistry(Pandapower340Engine())
     revision = authority_models.trusted_revision_ref("ieee39")
 
@@ -173,7 +265,7 @@ def test_kernel_pi_rpc_builder_materializes_descriptor_before_process_start(tmp_
     )
     host = RuntimeHost(
         command=PiCommand(
-            argv=("pi",),
+            argv=command,
             identity=PiRuntimeIdentity(
                 path=tmp_path / "pi", source="fixture", package_version="1.0",
                 lock_sha256="fixture",
@@ -182,6 +274,7 @@ def test_kernel_pi_rpc_builder_materializes_descriptor_before_process_start(tmp_
         project_pi_dir=tmp_path / "project-pi",
         extension_path=tmp_path / "extension.mjs",
     )
+    host.extension_path.with_name("model-input-metrics.mjs").write_text("export default () => {}")
     assembly = build_pandapower_thread_application(
         default_model_id="ieee39",
         model_resolver=lambda model_id: {
@@ -193,6 +286,8 @@ def test_kernel_pi_rpc_builder_materializes_descriptor_before_process_start(tmp_
         session_builder=PreparedKernelPiRpcSessionBuilder(
             runtime_host=host, resolved_llm=resolved,
             base_environment={"PATH": "/bin", "HOME": "/tmp"},
+            research_enabled=True,
+            research_is_active=lambda claim: True,
         ),
         default_selection=ModelCapabilitySelection(
             (PANDAPOWER_PROFILE_DESCRIPTOR.reference,)
@@ -200,7 +295,7 @@ def test_kernel_pi_rpc_builder_materializes_descriptor_before_process_start(tmp_
     )
     runtime = assembly.runtime_factory(_claim(revision))
     session = runtime._session  # type: ignore[attr-defined]
-    assert session.command.argv[0] == "pi"
+    assert session.command.argv[0] == command[0]
     assert "test-secret" not in session.command.argv
     assert session.command.environment["OPENAI_API_KEY"] == "test-secret"
     descriptor = next(
@@ -208,7 +303,24 @@ def test_kernel_pi_rpc_builder_materializes_descriptor_before_process_start(tmp_
         None,
     )
     assert descriptor is not None and descriptor.is_file()
+    import json
+    document = json.loads(descriptor.read_text())
+    channel = Path(document["core"]["researchChannelPath"])
+    assert (channel / "binding.json").is_file()
+    assert session._research is not None
+    if execute_pi:
+        events = []
+        try:
+            runtime.start()
+            assert runtime.prompt("Study the selected model", on_event=events.append) == "Research saved."
+            research_events = [event for event in events if event["event_type"] == "research_state_updated"]
+            assert len(research_events) == 1
+            assert research_events[0]["payload"]["baseline_model_context"]["model_id"] == "ieee39"
+            assert session._research.controller.read().revision == 1
+        finally:
+            runtime.stop()
     runtime.stop()
+    assert not session._research.channel.is_active()
     assembly.capability_context_owner.close()
 
 
@@ -216,20 +328,13 @@ def test_thread_worker_uses_prepared_kernel_pi_rpc_transport(tmp_path):
     authority_models = ModelRegistry(Pandapower340Engine())
     revision = authority_models.trusted_revision_ref("ieee39")
     fake_pi = tmp_path / "fake-pi.py"
-    decision = {"schema": "capstone-task-understanding/2", "goals": [{"id": "general", "purpose": "inspect",
-        "subject": "ordinary request", "scope": "unspecified", "scenario": "none", "change": None,
-        "conclusion": "description", "measure": None, "obligations": ["Answer the ordinary request"],
-        "missing_requirements": [], "execution": "general", "dependencies": [], "domain_request": None}],
-        "answer_policy": {"language": "en", "scale": "concise"}}
     fake_pi.write_text(
         "import json,sys\n"
-        f"decision={decision!r}\n"
         "for line in sys.stdin:\n"
         " request=json.loads(line)\n"
         " correlation=request.get('request_id')\n"
         " print(json.dumps({'type':'prompt_ack','ok':True,'request_id':correlation}),flush=True)\n"
-        " answer=json.dumps(decision) if str(correlation).startswith('task-recognition:') else 'prepared answer'\n"
-        " print(json.dumps({'type':'text_delta','text':answer,'request_id':correlation}),flush=True)\n"
+        " print(json.dumps({'type':'text_delta','text':'prepared answer','request_id':correlation}),flush=True)\n"
         " print(json.dumps({'type':'agent_end','request_id':correlation}),flush=True)\n",
         encoding="utf-8",
     )
@@ -296,8 +401,6 @@ def test_thread_worker_uses_prepared_kernel_pi_rpc_transport(tmp_path):
     assert result is not None and result.status == "completed"
     assert result.answer == "prepared answer"
     events = service.read_events("thr_grid", 0).events
-    assert any(event.event_type == "task_understanding_created" for event in events)
-    assert any(event.event_type == "task_requirements_resolved" for event in events)
     assert events[-1].event_type == "attempt_completed"
     assert events[-1].payload["answer"] == "prepared answer"
     assembly.capability_context_owner.close()

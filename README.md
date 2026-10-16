@@ -3,8 +3,10 @@
 Development and release versions follow the fixed [version-control register](docs/status/VERSION-CONTROL.md).
 The initial common runtime baseline follows the current verified demo. Native Pi,
 skills and resource extensions remain on `feat/pi-skills-integration` during development.
-Main may later include isolated experimental features after integration checks;
-demo receives only its verified release scope.
+`dev` is the default development integration branch and holds current project
+control. Feature and documentation PRs target dev. `main` holds accepted release
+baselines and release snapshots; demo receives only its verified release scope.
+See the [branch lifecycle](docs/architecture/capstone-development-lifecycle.md).
 
 Report problems with a screenshot and a short description in
 [GitHub Issues](https://github.com/uukuguy/capstone/issues).
@@ -15,8 +17,15 @@ user command; scheduled and unattended processing are not enabled.
 For separate local demo data, run
 `CAPSTONE_DEMO_SOURCE_DIR=/path/to/clean-checkout make capstone-demo-local-rebuild`.
 The App uses `15173` and API uses `18767`; the existing local-dev ports remain `5173` and `8767`.
+Local-dev serves cloud-dev development tests and release verification. Local-demo
+tracks cloud-demo for reproduction, emergency repairs and release verification;
+only a recorded repair or release candidate may temporarily differ.
 
 English | [简体中文](README.zh-CN.md) | [Try the live demo](https://capstone-app-production-975e.up.railway.app/)
+
+The supported application entry is `capstone-agent`. The `grid-agent` CLI has
+no continuing compatibility commitment. Its package still contains formal
+pandapower runtime modules; see the [retirement plan](docs/superpowers/plans/2026-10-11-retire-grid-cli.md).
 
 **Connect agent reasoning to domain capabilities, authoritative computation, and verifiable evidence.**
 
@@ -150,6 +159,22 @@ The page header shows the selected environment (`local-dev`, `local-demo`, `clou
 The App also listens on the LAN by default: a phone on the same network can open `http://<computer-lan-ip>:5173/`. Set `CAPSTONE_APP_HOST=127.0.0.1` for computer-only access. Use `make capstone-app-dev` when you want the Vite process in the foreground.
 
 ## CLI and compatibility entry points
+
+### Source-free local dev trial
+
+The temporary dev trial package runs with Docker Compose v2. It contains deployment files and uses four image classes from Aliyun Beijing; users do not need Git, Python, Node, a source checkout, or Vite. Install Docker with Compose v2 and set `DEEPSEEK_API_KEY` in the startup environment, then install and start with one command:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/uukuguy/capstone/dev/deploy/dev-trial/install.sh | sh
+```
+
+No argument selects the newest published version. Append `sh -s -- b7e68dd` instead of `sh` to select that Git revision; invalid or ambiguous revisions list available versions. Docker selects linux/arm64 or linux/amd64 automatically. Versions share data; compatibility and configuration checks run before stopping the current version.
+
+The default directory is `~/capstone`; set `CAPSTONE_TRIAL_DIRECTORY` to change it. The App opens at `http://127.0.0.1:19173/`. If the port is busy, edit `CAPSTONE_APP_PORT` in `~/capstone/.env`. Installation prints the actual directory, URL, port configuration and service commands.
+
+The supplied `.env` selects DeepSeek/deepseek-flash and includes a commented OpenAI alternative. Change both Provider and model together; use `OPENAI_API_KEY` for OpenAI. Startup LLM values override file defaults. `sh ~/capstone/capstone.sh` starts the newest eligible installed version; `versions`, `use <Git>`, `status`, `logs`, and `stop` manage the same instance; stop keeps its data. Keep the deployment directory and private `.capstone-trial/` state. See [trial operations](docs/RUNBOOK.md#source-free-local-dev-trial) and the [version register](docs/status/VERSION-CONTROL.md) for verified source, distribution and platform status.
+
+For an internal network, the Linux AMD64 offline package includes the deployment files, four images and model assets. It defaults to `PROVIDER=openai` and uses `OPENAI_BASE_URL`, `OPENAI_MODEL` and `OPENAI_API_KEY` for an internal compatible service. Custom local-trial endpoints use Pi's Chat Completions API; the official OpenAI endpoint keeps Responses. Docker and Compose v2 are prerequisites. See [offline installation](docs/RUNBOOK.md#offline-user-local-installation) for setup and data compatibility limits; acceptance belongs to the version register.
 
 The CLI remains useful for automation and focused checks. After setup, run an offline pandapower query:
 
