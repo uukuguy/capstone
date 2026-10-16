@@ -3367,3 +3367,9 @@ The following original entries were retained during document synchronization.
 - 2026-10-17: Accepted enterprise-research default Profile: intranet resources first; public-web retrieval is an explicitly enabled optional enhancement.
 
 - 2026-10-17: e58ef9a4 replaces standalone Work UI with shared conversation components and accepted enterprise layout; 537 App tests passed.
+
+- 2026-10-17: ed0e2e19 aligns enterprise-research/grid-analysis naming, intranet defaults and shared frontend verification with the delivery plan.
+
+- 2026-10-17: PR48 opened at ed0e2e19; dual-platform shared-agent CI38930597623 running; existing professional UI remains readable.
+
+- 2026-10-17: PR48 merged d86cc4ef with identical tested tree; dual-platform CI passed; both preparation branches fast-forwarded.

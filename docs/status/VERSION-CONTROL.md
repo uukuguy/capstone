@@ -1,6 +1,6 @@
 # 多线版本控制
 
-2026-10-17候选e58ef9a4：v2 Work账本与无模型任务保存；独立任务页已撤掉，改用既有对话组件及定稿布局。后端1427项、App537项与重建同源通过，dev集成待验收。持续执行及完整工作台仍未完成。
+2026-10-17 PR #48已合入dev d86cc4ef，合并树与受检ed0e2e19一致。CI38930597623双平台shared-agent通过（Linux5分7秒/macOS8分4秒）。运行源码e58ef9a4：v2 Work账本与无模型任务保存；独立任务页已撤掉，改用既有对话组件及定稿布局。后端1427项、App537项与重建同源通过，已集成；两条应用准备分支已快进同源。持续执行及完整工作台仍未完成。
 
 2026-10-17命名已接受：`enterprise-research`（企业研究与分析）与`grid-analysis`（电网分析与决策）。前者缺省内网资源、公网检索关闭，可选增强显式启用；后者复用pandapower/PyPSA专业资产。Profile装配待实现，应用分支仍准备中，分支引用保持不变。
 
@@ -250,7 +250,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 职责 | 当前状态 | 下一步 |
 | --- | --- | --- | --- |
-| dev | 共同基座与集成；同时服务对话应用 | Task 2按需Pack装配已集成9eb84a34 | 接生产Work/Profile存储与v2前端最小入口；持续执行由Task 3接入 |
+| dev | 共同基座与集成；同时服务对话应用 | Task 2 Work账本与共享对话前端已集成d86cc4ef | 接生产Claim/Profile固定快照与研究关联；持续执行由Task 3接入 |
 | feat/business-analysis | 企业研究与分析 | 已创建，准备中；等待所需基座能力 | A1资源与验收准备；依赖就绪后开展图表/报告纵向切片 |
 | feat/model-decision | 电网分析与决策 | 已创建，准备中；等待所需基座能力 | B1既有专业资产与前端基线；依赖就绪后接共同链路 |
 
@@ -339,7 +339,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
 | dev-head | dev | main | dev · 当前研发位置 | 当前Git HEAD，验收范围见对应里程碑 | 动态绑定本地dev实际提交并连接真实祖先；不将分支HEAD当作部署或业务验收。[当前状态](CURRENT-STATE.md) | shared-agent |
-| work-ledger | e58ef9a4 | feature | 共同基座 · Work账本与任务入口 | 后端及复用前端本地通过；集成待验收 | v2无模型会话；Work保存、对象CAS及幂等恢复；旧专业历史只读；未启动持续执行。[切片报告](../reviews/2026-10-16-thread-work-ledger.md) | shared-agent |
+| work-ledger-dev | d86cc4efb83780917daa536c66cf3a43fe0a0851 | main | dev · Work账本与共享对话入口集成 | PR #48双平台通过，已合入 | 无模型v2 Work保存、幂等恢复及共享对话前端；合并树同受检ed0e2e19；生产执行绑定与持续推演待实施。[切片报告](../reviews/2026-10-16-thread-work-ledger.md) | shared-agent |
+| work-ledger | e58ef9a4 | feature | 共同基座 · Work账本与任务入口 | PR #48双平台通过，已合入dev | v2无模型会话；Work保存、对象CAS及幂等恢复；旧专业历史只读；未启动持续执行。[切片报告](../reviews/2026-10-16-thread-work-ledger.md) | shared-agent |
 | pack-selection-dev | 9eb84a341a148572cfbfc49db483e8e184dad522 | main | dev · Pack按需装配集成 | PR #46双平台通过，已合入 | native/authority声明与按需准备合入；合并树与受检cb08ef92一致；生产存储、v2及持续执行待接入。[切片报告](../reviews/2026-10-16-application-pack-selection.md) | shared-agent |
 | pack-selection | 20226bf0 | feature | 共同基座 · Pack按需准备 | PR #46已合入，local-dev同源通过 | native/authority统一声明；选择准备保留Profile授权；Pi资源回执与旧专业边界；cb08ef92将共同基座CI限定依赖范围及15分钟步骤。[切片报告](../reviews/2026-10-16-application-pack-selection.md) | shared-agent |
 | thread-version-dev | 32f18d2444fee2d1ab0cb9bd8d3157c8854f7526 | main | dev · 协议协商与恢复集成 | PR #44双平台通过，已合入 | v1服务/客户端协商及恢复提示合入；合并树与受检1a695af4一致；继续Profile/v2及无模型入口。[切片报告](../reviews/2026-10-16-thread-version-negotiation.md) | shared-agent |
@@ -414,8 +415,9 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | dev-business-base | 开发分支起点 | dev | 恢复业务执行并保留独立轻量路由；Pi与自主智能体的共同业务基线 | 已合入，业务缺陷保留 |
 | dev | 重要demo发布与大分支合并 | dev | 统一研究、执行、结果与证据合入主线；两个demo固定该基线，保留发布验收与回退来源 | 两个demo已验收 |
 | dev-head | 当前研发位置 | dev | 实际dev分支头及真实祖先连线；产品验收与部署来源独立标记 | Git位置随生成更新，验收范围见对应里程碑 |
-| pack-selection-dev | 当前开发焦点 | dev | 按需Pack装配已集成；继续生产存储及无模型前端入口 | PR #46双平台通过，合并树与受检来源一致 |
-| work-ledger | 当前研发候选 | feat/thread-work-context | 同一账本承接无模型Work；任务与旧专业记录可观察 | e58ef9a4复用原对话组件；537项App通过，集成待验收 |
+| pack-selection-dev | 已集成按需装配基座 | dev | 按需Pack装配已集成；继续生产存储及无模型前端入口 | PR #46双平台通过，合并树与受检来源一致 |
+| work-ledger-dev | 当前开发焦点 | dev | Work保存与共享对话入口已集成；继续生产Claim/Profile绑定 | PR #48双平台通过，合并树与受检来源一致 |
+| work-ledger | 已合入基座实现来源 | 共同基座（分支已关闭） | 同一账本承接无模型Work；复用成熟对话组件和定稿布局 | local-dev同源、537项App及真实保存恢复通过；持续执行待接入 |
 | pack-selection | 已合入基座实现来源 | 共同基座（分支已关闭） | native/authority按需准备；保留完整Profile授权 | local-dev同源及Pi资源实读通过；持续执行待接入 |
 | thread-version-dev | 已集成协议协商基座 | dev | 协议协商与恢复保护已集成；v2及无模型入口待实施 | PR #44双平台通过，合并树与受检来源一致 |
 | thread-version | 已合入基座实现来源 | 共同基座（分支已关闭） | 服务与客户端协商v1；升级提示保留会话及草稿 | local-dev同源及浏览器通过；v2、Profile及无模型入口待实施 |
@@ -436,6 +438,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 编号 | 工作包 | 来源 | 目标 | 状态 | 交付范围 |
 | --- | --- | --- | --- | --- | --- |
+| 48 | shared-agent | feat/thread-work-context | dev | MERGED | d86cc4ef；受检ed0e2e19与合并树一致；Linux5分7秒/macOS8分4秒；运行源码e58ef9a4，Work保存恢复及原专业入口通过；分支已关闭，两应用准备分支快进同源 |
 | 41 | shared-agent | feat/work-research-identity | dev | MERGED | 85b6706f：受检08556cc2与合并树一致；双平台CI38898130414约6分钟通过；Work研究身份及开发期CI分层集成，生产Profile/v2前端仍待实施 |
 | 30 | main | release/conversation-phase1 | main | MERGED | cf72393b；用户选择f209fb1，双平台CI38861900687完整release成功；合并树一致，分支已关闭，e2包及部署不变 |
 | 36 | shared-agent | feat/shared-execution-baseline | dev | MERGED | d8fe6e27；精确711f06a8的CI38881419651双平台通过，合并树一致；执行接缝与既有基线验收完成，生产持续执行及前端闭环待后续实施 |
@@ -476,8 +479,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | feat/business-analysis | 阶段应用研发，准备中 | 已从dev6c0b0ae7创建并推送，尚无独立业务实现 | A1资源与验收准备；等待基座能力后分批PR回dev | business-analysis |
 | feat/model-decision | 阶段应用研发，准备中 | 已从dev6c0b0ae7创建并推送，尚无独立业务实现 | B1现有专业基线；等待基座能力后分批PR回dev | model-decision |
 | feat/application-pack-selection（已关闭） | 共同基座按需装配已合入来源 | 20226bf0实现、cb08ef92限定CI；PR #46合入9eb84a34 | native/authority准备通过；生产Profile/v2前端及持续执行待实现 | shared-agent |
-| feat/thread-work-context | 共同基座Work账本研发候选 | e58ef9a4复用修正与537项App通过；规范重建通过，集成待验收 | v2/无模型任务保存入口；生产Claim/Profile与持续执行仍待实现 | shared-agent |
-| dev | 默认开发集成主线 | PR #46合入9eb84a34；按需Pack装配及跨Pack回归通过；实际HEAD见三线卡片 | local-dev源码20226bf0；Task 2生产Work/Profile存储与v2前端待接入；e2归档、19173/demo/cloud不变 | main |
+| feat/thread-work-context（已关闭） | 共同基座Work账本已合入来源 | e58ef9a4实现与复用修正；PR #48合入d86cc4ef | v2/无模型任务保存入口；生产Claim/Profile与持续执行仍待实现 | shared-agent |
+| dev | 默认开发集成主线 | PR #48合入d86cc4ef；Work账本及共享对话前端通过；实际HEAD见三线卡片 | local-dev源码e58ef9a4；Task 2生产Claim/Profile绑定待接入；e2归档、19173/demo/cloud不变 | main |
 | docs/dev-baseline-control | 收口状态同步 | 从接受的dev50d8ebc建立；登记B2标签、分支关闭与研究实施起点 | 仅文档和控制图，轻量检查后集成dev | main |
 | feat/research-model | 起点与依赖已适配 | 2b0b0a5；精确祖先dev6ff7094；设计及推进计划排除撤回的编译/覆盖/预热依赖；本工作区运行时准备与doctor通过 | R1尚无代码；按R1–R5及真实依赖路径验收，不将旧R0实验当作本分支成果 | research |
 | recovery/autonomous-agent-merged-faa6af9 | 已合并分支的本地恢复引用 | 原feat/autonomous-agent已通过PR #18合入dev faa6af9；保留2b6ae7b与原工作树全部未提交文档和运行数据；远端已合并分支关闭 | 非在研分支；后续从dev推进，科学与交互验收仍开放 | autonomous |

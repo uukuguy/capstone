@@ -19,7 +19,7 @@ projection without a model. Candidate35e014df adds production v2 Work persistenc
 a model-free task entry, with object revisions, exact retries and read-only professional history.
 Backend local regression and runtime persistence checks passed. The standalone frontend was rejected;
 e58ef9a4 replaces it with existing conversation components and the accepted enterprise workspace layout.
-The full App suite passes537 tests; integration remains pending.
+The full App suite passes537 tests. PR48 integrates this slice into dev with matching tested and merged trees.
 Production Claim/Profile execution binding remains open. Saved Work is explicitly blocked
 until continuous execution is connected; it creates no fake Attempt or completion.
 The legacy entry retains v1 cross-origin compatibility and upgrade guidance without draft loss.
