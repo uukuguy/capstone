@@ -19,6 +19,14 @@ def test_governance_changes_require_gate_tests():
     assert classify(["tools/issue_automation/cli.py", "tools/tests/test_issue_automation_cli.py"]) == "governance"
 
 
+def test_issue_automation_policy_uses_its_governance_gate():
+    paths = ["configs/development/issue-automation.json", "tools/issue_automation/policy.py"]
+    assert classify(paths) == "governance"
+    assert classify(paths, target="main") == "release"
+    assert classify(paths, release=True) == "release"
+    assert classify(paths + ["configs/runtime/agent-resources.json"]) == "product"
+
+
 def test_product_and_unknown_paths_fail_closed():
     for path in ["packages/capstone-agent/src/server.py", "Makefile", "uv.lock",
                  ".github/workflows/deploy.yml", "tools/unregistered_tool.py",

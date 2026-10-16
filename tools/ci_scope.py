@@ -11,6 +11,7 @@ import subprocess
 DOC_FILES = {"README.md", "README.zh-CN.md", "AGENTS.md", "CLAUDE.md",
              "tools/render_project_overview.py"}
 GOVERNANCE_FILES = {".github/workflows/verify.yml", "tools/ci_scope.py",
+                    "configs/development/issue-automation.json",
                     "tools/tests/test_ci_scope.py", "tools/tests/test_verification_targets.py"}
 
 # Assembly contracts have a bounded cross-package gate. Runtime transports,
