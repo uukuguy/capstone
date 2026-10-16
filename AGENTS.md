@@ -175,8 +175,10 @@ counts, prices, limits, versions, or deployment state here.
   verification. Hotfixes start from the actual accepted deployment tag and flow
   back to dev. Do not rewrite shared history.
 - Current project control and canonical worklists live on dev. Main copies are
-  release snapshots. Both permanent branches require PRs and Linux/macOS
-  checks, with zero mandatory approvals and no force push or deletion. Record
+  release snapshots. Both permanent branches require PRs, with zero mandatory
+  approvals and no force push or deletion. Dev and ordinary feature PRs use
+  macOS checks during development; main and explicit release verification
+  require macOS and Linux checks. Record
   any administrator emergency bypass. Branch heads do not imply deployment.
 
 - Keep project control bidirectionally aligned. Changes to implementation, branches,
@@ -297,7 +299,8 @@ be refreshed or reset before starting a new case.
 During early development, keep CI proportional to the changed layer and its
 consumers. Use the scoped development gates in the lifecycle document; do not
 run every professional application suite for an isolated agent/App edit.
-Preserve both required platforms and full release/integration acceptance.
+Use macOS for daily development verification. Preserve macOS and Linux support
+and full dual-platform release acceptance before Linux user trial.
 Record measured gate duration and investigate timeouts instead of treating an
 unfinished check as passed.
 

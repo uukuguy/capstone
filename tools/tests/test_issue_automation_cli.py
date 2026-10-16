@@ -77,6 +77,34 @@ def test_main_profile_scope_is_applied_without_operator_override(tmp_path):
     assert policy.edit_prefixes == ("packages/capstone-agent/src/", "packages/capstone-agent/tests/")
 
 
+@pytest.mark.parametrize("base", ["dev", "main", None])
+def test_release_status_checks_use_actual_pr_target(tmp_path, monkeypatch, capsys, base):
+    import tools.issue_automation.cli as cli
+    from types import SimpleNamespace
+
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    monkeypatch.setattr(cli, "load_policy", lambda *args: (Policy(), SimpleNamespace(sha="b" * 40)))
+    calls = []
+
+    class FakeGitHub:
+        def __init__(self, *args, **kwargs):
+            self.base = "repos/uukuguy/capstone"
+
+        def api(self, method, path):
+            assert (method, path) == ("GET", self.base + "/pulls/51")
+            return {"merged": False, "head": {"sha": "a" * 40},
+                    **({"base": {"ref": base}} if base else {})}
+
+        def checks(self, sha, *, target_branch=None):
+            calls.append((sha, target_branch))
+            return {}
+
+    monkeypatch.setattr(cli, "GitHub", FakeGitHub)
+    assert main(["release-status", "--root", str(tmp_path), "--pr", "51"]) == 0
+    assert calls == [("a" * 40, base)]
+    assert json.loads(capsys.readouterr().out)["ci"] == {}
+
+
 @pytest.mark.skipif(not os.environ.get("ISSUE_AUTOMATION_TEST_IMAGE"), reason="Prepared Docker image not selected")
 def test_real_docker_candidate_is_secret_free_and_offline(tmp_path, monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "host-only-secret")

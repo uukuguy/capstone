@@ -5,6 +5,7 @@ import json
 import os
 import subprocess
 import tomllib
+import pytest
 from pathlib import Path
 from pathlib import PurePosixPath
 
@@ -103,12 +104,12 @@ def test_child_failure_propagates_from_aggregate(tmp_path: Path) -> None:
 def test_verify_workflow_installs_pinned_uv_and_declares_release_matrix() -> None:
     workflow = (ROOT / ".github/workflows/verify.yml").read_text(encoding="utf-8")
 
-    assert 'os: [ubuntu-latest, macos-latest]' in workflow
+    assert 'os: ${{ fromJSON(' in workflow
     assert 'UV_PYTHON: "3.12"' in workflow
     assert 'python-version: "3.12"' in workflow
     assert 'matrix.python' not in workflow
     policy = json.loads((ROOT / "configs/development/issue-automation.json").read_text())
-    expected_jobs = ("verify (ubuntu-latest)", "verify (macos-latest)")
+    expected_jobs = ("verify (macos-latest)",)
     defaults = json.loads(subprocess.check_output([
         "python3", "-c", "import json; from tools.issue_automation.policy import Policy; print(json.dumps(Policy().required_ci))",
     ], cwd=ROOT, text=True))
@@ -122,6 +123,28 @@ def test_verify_workflow_installs_pinned_uv_and_declares_release_matrix() -> Non
     assert 'run: make check-release' in workflow
     assert 'branches: [dev, main]' in workflow
     assert "github.event_name == 'workflow_dispatch' && inputs.release" in workflow
+
+
+@pytest.mark.parametrize("event,base,ref,release,expected", [
+    ("pull_request", "dev", "51/merge", False, ["macos-latest"]),
+    ("pull_request", "main", "51/merge", False, ["ubuntu-latest", "macos-latest"]),
+    ("push", "", "dev", False, ["macos-latest"]),
+    ("push", "", "main", False, ["ubuntu-latest", "macos-latest"]),
+    ("workflow_dispatch", "", "dev", False, ["macos-latest"]),
+    ("workflow_dispatch", "", "feature/example", True, ["ubuntu-latest", "macos-latest"]),
+    ("workflow_dispatch", "", "main", False, ["ubuntu-latest", "macos-latest"]),
+])
+def test_verify_runner_matrix_matches_development_and_release_context(event, base, ref, release, expected):
+    workflow = (ROOT / ".github/workflows/verify.yml").read_text()
+    matrix = next(line.strip() for line in workflow.splitlines() if line.strip().startswith("os:"))
+    expression = matrix.removeprefix("os: ${{ ").removesuffix(" }}")
+    for name, value in {"github.event_name": event, "github.base_ref": base,
+                        "github.ref_name": ref, "inputs.release": release}.items():
+        expression = expression.replace(name, repr(value))
+    expression = expression.replace("&&", " and ").replace("||", " or ")
+    # Evaluate the workflow's boolean/JSON subset with no builtins.
+    assert eval(expression, {"__builtins__": {}, "fromJSON": json.loads}) == expected
+    assert 'if [ "$TARGET_BRANCH" = "main" ] || [ "$RELEASE_CHECK" = "true" ]; then\n            gate=release' in workflow
 
 
 def test_pr_checks_formal_worker_without_legacy_cli_or_packaging() -> None:
