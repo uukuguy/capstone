@@ -3298,3 +3298,9 @@ The following original entries were retained during document synchronization.
 - 2026-10-16: bb2b0ccc aligned shared foundation, dual-application verification and work packages with the accepted product direction.
 
 - 2026-10-16: 6c0b0ae7 merged shared-foundation design PR #34 after dual-platform checks; root dev restored.
+
+- 2026-10-16: 30ffbb2a records application preparation branches, foundation-first sequencing and runnable frontend observation milestones.
+
+- 2026-10-16: 5f3fd741 merged PR #35; both preparation branches fast-forwarded to accepted controls, without business implementation or deployment.
+
+- 2026-10-16: 62f44366 adds final-argument host admission seam; real SDK tests cover refusal, recovery, steering and abort.
