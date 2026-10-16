@@ -3373,3 +3373,37 @@ The following original entries were retained during document synchronization.
 - 2026-10-17: PR48 opened at ed0e2e19; dual-platform shared-agent CI38930597623 running; existing professional UI remains readable.
 
 - 2026-10-17: PR48 merged d86cc4ef with identical tested tree; dual-platform CI passed; both preparation branches fast-forwarded.
+
+- 2026-10-17: 5593dfc8 records PR48 acceptance, exact runtime source and synchronized application preparation branches in the control graph.
+
+- 2026-10-17: PR49 merged885b2c14 with identical tested tree; both preparation branches synchronized; final control graph regenerated on dev.
+
+- 2026-10-17: Started Work-to-Attempt slice on885b2c14; reuse production queue, frozen selection, Work research and shared frontend event recovery.
+
+- 2026-10-17: Early Work execution review found lease-state gaps, cross-Work history and input loss; fixes and recovery tests underway.
+
+- 2026-10-17: 1af3c52a binds Work to existing execution, cancellation and recovery; scoped tests and independent reviews passed.
+
+- 2026-10-17: Product gate passed professional/simulator suites; backend exposed one empty-Claim fixture and five loopback proxy failures; correcting evidence.
+
+- 2026-10-17: eb51d354 repairs the research size fixture with a real Claim; loopback bypass passes23 checks; product gates resumed.
+
+- 2026-10-17: a8b4e578 starts leases after Claim preparation; slow-history tests and independent review preserve strict expiry.
+
+- 2026-10-17: 5e7fccc1 records product checks, exact local source and browser acceptance; control graph includes the execution candidate.
+
+- 2026-10-17: PR50 opened at5e7fccc1; Linux/macOS product CI38941770837 running; accepted local source remainsa8b4e578.
+
+- 2026-10-17: User selected macOS-only development checks; dev protection updated, main retains both platforms; workflow policy update underway.
+
+- 2026-10-17: a5142dc7 scopes development CI to macOS; release checks retain Linux; 119 tests and independent review passed.
+
+- 2026-10-17: User set normal conversation as minimum application delivery; saved Work remains internal progress, not an application delivery.
+
+- 2026-10-17: User rejected simplified enterprise dialogue; PR50 drafted and CI cancellation requested; backend retained, frontend acceptance reopened.
+
+- 2026-10-17: a14169aa classifies only issue automation configuration as governance; 120 tests pass, release and runtime gates unchanged.
+
+- 2026-10-17: 4abdb711 records conversation-first delivery and full mature UI reuse; rejected save/start acceptance remains withdrawn.
+
+- 2026-10-17: PR51 mergeda8caeff2 with identical tested tree; macOS governance CI38945827751 passed1m46s; application preparation branches fast-forwarded.

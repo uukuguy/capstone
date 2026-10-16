@@ -1,5 +1,7 @@
 # 多线版本控制
 
+2026-10-17用户纠正交付标准：新建任务即会话，两个入口仅预配置ApplicationProfile；发送即统一执行，必须完整复用成熟对话功能。a8b4e578仅为内部基座候选，简化界面及保存/开始流程验收已撤回。PR #50转草稿、旧CI已取消；正在接通无模型正常对话，不构成应用交付。研发改为macOS门禁，main/Linux用户发布仍双平台，CI政策PR #51已合入dev a8caeff2，macOS治理CI1分46秒通过；合并树与a14169aa一致。
+
 2026-10-17 PR #48已合入dev d86cc4ef，合并树与受检ed0e2e19一致。CI38930597623双平台shared-agent通过（Linux5分7秒/macOS8分4秒）。运行源码e58ef9a4：v2 Work账本与无模型任务保存；独立任务页已撤掉，改用既有对话组件及定稿布局。后端1427项、App537项与重建同源通过，已集成；两条应用准备分支已快进同源。持续执行及完整工作台仍未完成。
 
 2026-10-17命名已接受：`enterprise-research`（企业研究与分析）与`grid-analysis`（电网分析与决策）。前者缺省内网资源、公网检索关闭，可选增强显式启用；后者复用pandapower/PyPSA专业资产。Profile装配待实现，应用分支仍准备中，分支引用保持不变。
@@ -250,7 +252,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 职责 | 当前状态 | 下一步 |
 | --- | --- | --- | --- |
-| dev | 共同基座与集成；同时服务对话应用 | Task 2 Work账本与共享对话前端已集成d86cc4ef | 接生产Claim/Profile固定快照与研究关联；持续执行由Task 3接入 |
+| dev | 共同基座与集成；同时服务对话应用 | macOS研发规则已集成a8caeff2；Work执行候选仍在研发分支 | 新任务即会话；完整成熟对话区与无模型正常问答闭环优先 |
 | feat/business-analysis | 企业研究与分析 | 已创建，准备中；等待所需基座能力 | A1资源与验收准备；依赖就绪后开展图表/报告纵向切片 |
 | feat/model-decision | 电网分析与决策 | 已创建，准备中；等待所需基座能力 | B1既有专业资产与前端基线；依赖就绪后接共同链路 |
 
@@ -268,7 +270,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | answers | 回退与选择性补回 | 2 | 已合入dev，业务缺陷保留 | c3业务链；独立LLM路由；三动作小窗；普通轻量无工具回答；正式消息与过程隔离 | dev | 路由可靠性与现存业务缺陷单列；研究按已适配计划推进 | main c3b78bc | 用户批准收口；不恢复任务编译；无凭据装配修正bc08169 | PR #14双平台通过并合入6ff7094；506项同源及两次完整集成通过；新真实复验一轮普通误分，保留失败，未称整体通过 |
 | business-analysis | 企业研究与分析 | 1 | 分支已创建，准备中 | 企业资源、分析成果、图表与报告视图 | feat/business-analysis | A1准备；等待相应基座闭环后实施 | dev6c0b0ae7创建来源 | 无独立业务代码；沿共同协议推进 | 未实施、未验收、未部署；阶段需可运行前端供人工观察 |
 | model-decision | 电网分析与决策 | 1 | 分支已创建，准备中 | 既有专业能力、场景、候选、拓扑与验证视图 | feat/model-decision | B1盘点与回归；等待相应基座接口后实施 | dev6c0b0ae7创建来源 | 复用现有业务资产，不新增示例求解器 | 未实施、未验收、未部署；阶段需可运行前端供人工观察 |
-| shared-agent | 共同智能体基座 | 1 | Task 2按需Pack装配已合入9eb84a34 | 同时服务对话与企业执行的组织、资源、恢复、证据及共享前端组件 | dev | 继续生产Work/Profile存储与v2前端最小入口 | 已有Harness、Thread、专业执行及Pi资源 | native/authority统一声明并按需准备；未选资源不启动；完整Profile授权保留；旧专业边界保持 | PR #46双平台foundation通过；642 Kernel/1349后端/3注册worker及跨Pack回归；local-dev同源、Pi资源实读和旧页面通过；v2/持续执行未完成 |
+| shared-agent | 共同智能体基座 | 1 | 正常对话纵向闭环实施中 | 同时服务对话与企业执行的组织、资源、恢复、证据及共享前端组件 | feat/work-attempt-binding | 无模型真实问答、追问、停止与恢复；完整复用成熟对话区 | 已有Harness、Thread、专业执行及Pi资源 | 新任务即会话；Profile预配置；统一发送即执行；撤掉保存/开始交互 | 后端内部检查保留；前端验收撤回；尚未交付正常对话 |
 | conversation-maintenance | 智能体对话应用维护 | 1 | 阶段已发布，维护范围已明确 | 接收适用的共同修复和增强，保留现有对话体验 | main | 按实际修复形成小版本，不强制采用企业新工作台 | main cf72393b；原用户包未替换 | 与企业入口共同验证受影响共享行为；保留将来对话场景演进空间 | 发布基线已验收；新增共享增强尚未实现或发布 |
 | pi | 企业自主执行 | 3 | 基础能力已合入dev | Capstone长程组织配合Pi原生生态，统一机制待实施 | dev | 先推进共同基座Task 1；分别验收企业研究与分析、电网分析与决策，再验证组合任务 | 已保留专业链路与原生资源 | PR #31合入db167184；统一循环、无模型v2协议和新工作台仍待实现 | CI38865540607双平台通过；local-dev规范重建与同源检查通过，不代表新设计完成 |
 | commands | 统一输入命令与快捷操作 | 3 | 待设计，已有局部原型 | Capstone 前端统一操作入口：会话、模型、执行、结果及技能操作 | — | 盘点现有前端操作；设计共享命令目录、参数、可用状态和键盘交互，再建立增强分支 | 当前前端按钮与 Pi 分支命令原型 | 跨运行模式的快捷入口；中文检索与命令发现；上下文和权限检查；草稿保持与明确反馈 | 独立开发包；Pi 分支三个命令只是复用来源；新分支未建立，未部署 |
@@ -339,6 +341,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
 | dev-head | dev | main | dev · 当前研发位置 | 当前Git HEAD，验收范围见对应里程碑 | 动态绑定本地dev实际提交并连接真实祖先；不将分支HEAD当作部署或业务验收。[当前状态](CURRENT-STATE.md) | shared-agent |
+| work-execution | a8b4e578 | feature | 共同基座 · Work执行内部候选 | 前端验收撤回；正常对话改造中 | 后端Attempt及研究接缝保留；保存/开始和简化输入不符合交付；PR #50草稿、旧CI取消。[切片报告](../reviews/2026-10-17-work-attempt-binding.md) | shared-agent |
 | work-ledger-dev | d86cc4efb83780917daa536c66cf3a43fe0a0851 | main | dev · Work账本与共享对话入口集成 | PR #48双平台通过，已合入 | 无模型v2 Work保存、幂等恢复及共享对话前端；合并树同受检ed0e2e19；生产执行绑定与持续推演待实施。[切片报告](../reviews/2026-10-16-thread-work-ledger.md) | shared-agent |
 | work-ledger | e58ef9a4 | feature | 共同基座 · Work账本与任务入口 | PR #48双平台通过，已合入dev | v2无模型会话；Work保存、对象CAS及幂等恢复；旧专业历史只读；未启动持续执行。[切片报告](../reviews/2026-10-16-thread-work-ledger.md) | shared-agent |
 | pack-selection-dev | 9eb84a341a148572cfbfc49db483e8e184dad522 | main | dev · Pack按需装配集成 | PR #46双平台通过，已合入 | native/authority声明与按需准备合入；合并树与受检cb08ef92一致；生产存储、v2及持续执行待接入。[切片报告](../reviews/2026-10-16-application-pack-selection.md) | shared-agent |
@@ -415,6 +418,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | dev-business-base | 开发分支起点 | dev | 恢复业务执行并保留独立轻量路由；Pi与自主智能体的共同业务基线 | 已合入，业务缺陷保留 |
 | dev | 重要demo发布与大分支合并 | dev | 统一研究、执行、结果与证据合入主线；两个demo固定该基线，保留发布验收与回退来源 | 两个demo已验收 |
 | dev-head | 当前研发位置 | dev | 实际dev分支头及真实祖先连线；产品验收与部署来源独立标记 | Git位置随生成更新，验收范围见对应里程碑 |
+| work-execution | 当前基座研发候选 | feat/work-attempt-binding | 保留后端执行及恢复资产；改为单一会话发送和完整成熟对话区 | 界面验收撤回；PR #50草稿，正常对话待完成 |
 | pack-selection-dev | 已集成按需装配基座 | dev | 按需Pack装配已集成；继续生产存储及无模型前端入口 | PR #46双平台通过，合并树与受检来源一致 |
 | work-ledger-dev | 当前开发焦点 | dev | Work保存与共享对话入口已集成；继续生产Claim/Profile绑定 | PR #48双平台通过，合并树与受检来源一致 |
 | work-ledger | 已合入基座实现来源 | 共同基座（分支已关闭） | 同一账本承接无模型Work；复用成熟对话组件和定稿布局 | local-dev同源、537项App及真实保存恢复通过；持续执行待接入 |
@@ -438,6 +442,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 编号 | 工作包 | 来源 | 目标 | 状态 | 交付范围 |
 | --- | --- | --- | --- | --- | --- |
+| 51 | shared-agent | chore/dev-macos-ci | dev | MERGED | a8caeff2；macOS CI38945827751通过1分46秒；合并树同a14169aa；dev只要求macOS，main/显式release保留双平台，治理配置按实际范围检查 |
+| 50 | shared-agent | feat/work-attempt-binding | dev | DRAFT | 旧CI38941770837已取消；后端资产保留，简化对话区与保存/开始验收撤回；正常对话及成熟功能复用实施中，不构成应用交付 |
 | 48 | shared-agent | feat/thread-work-context | dev | MERGED | d86cc4ef；受检ed0e2e19与合并树一致；Linux5分7秒/macOS8分4秒；运行源码e58ef9a4，Work保存恢复及原专业入口通过；分支已关闭，两应用准备分支快进同源 |
 | 41 | shared-agent | feat/work-research-identity | dev | MERGED | 85b6706f：受检08556cc2与合并树一致；双平台CI38898130414约6分钟通过；Work研究身份及开发期CI分层集成，生产Profile/v2前端仍待实施 |
 | 30 | main | release/conversation-phase1 | main | MERGED | cf72393b；用户选择f209fb1，双平台CI38861900687完整release成功；合并树一致，分支已关闭，e2包及部署不变 |
@@ -479,8 +485,9 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | feat/business-analysis | 阶段应用研发，准备中 | 已从dev6c0b0ae7创建并推送，尚无独立业务实现 | A1资源与验收准备；等待基座能力后分批PR回dev | business-analysis |
 | feat/model-decision | 阶段应用研发，准备中 | 已从dev6c0b0ae7创建并推送，尚无独立业务实现 | B1现有专业基线；等待基座能力后分批PR回dev | model-decision |
 | feat/application-pack-selection（已关闭） | 共同基座按需装配已合入来源 | 20226bf0实现、cb08ef92限定CI；PR #46合入9eb84a34 | native/authority准备通过；生产Profile/v2前端及持续执行待实现 | shared-agent |
+| feat/work-attempt-binding | 正常对话共同基座 | PR #50草稿；旧CI取消；a8b4e578内部候选保留 | 接无模型真实对话、原子发送执行及完整成熟对话功能；非应用交付 | 研发macOS；发布保留双平台 |
 | feat/thread-work-context（已关闭） | 共同基座Work账本已合入来源 | e58ef9a4实现与复用修正；PR #48合入d86cc4ef | v2/无模型任务保存入口；生产Claim/Profile与持续执行仍待实现 | shared-agent |
-| dev | 默认开发集成主线 | PR #48合入d86cc4ef；Work账本及共享对话前端通过；实际HEAD见三线卡片 | local-dev源码e58ef9a4；Task 2生产Claim/Profile绑定待接入；e2归档、19173/demo/cloud不变 | main |
+| dev | 默认开发集成主线 | PR #51合入a8caeff2，macOS研发门禁生效；main保留双平台发布 | local-dev保留a8b4e578内部候选，前端验收撤回；正常对话完成后才应用交付 | main |
 | docs/dev-baseline-control | 收口状态同步 | 从接受的dev50d8ebc建立；登记B2标签、分支关闭与研究实施起点 | 仅文档和控制图，轻量检查后集成dev | main |
 | feat/research-model | 起点与依赖已适配 | 2b0b0a5；精确祖先dev6ff7094；设计及推进计划排除撤回的编译/覆盖/预热依赖；本工作区运行时准备与doctor通过 | R1尚无代码；按R1–R5及真实依赖路径验收，不将旧R0实验当作本分支成果 | research |
 | recovery/autonomous-agent-merged-faa6af9 | 已合并分支的本地恢复引用 | 原feat/autonomous-agent已通过PR #18合入dev faa6af9；保留2b6ae7b与原工作树全部未提交文档和运行数据；远端已合并分支关闭 | 非在研分支；后续从dev推进，科学与交互验收仍开放 | autonomous |
@@ -593,7 +600,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | 后端及App候选源码 `e58ef9a4dbebec1f674174deec841ba70a02e6fa` | 规范重建ready；三角色同镜像sha256:30ac7e42c151fcb6d58300b1be24b223b5166cc5102e34ea34e5833a4824431f，各1152文件同源；无模型Work保存及重启恢复通过；独立前端已删除，共用对话组件与原型布局；537项App通过 | App http://127.0.0.1:5173/，API8767；收据runs/thread-work-ledger/local-identity.json、recovered-snapshot.json；零Provider；持续执行未接通；其他部署与用户包未变 |
+| local-dev | 后端及App候选源码 `a8b4e578618f3f9f7bff4702ec549d82d40451b7` | 规范重建ready；API及双worker同镜像sha256:6aa4d1901cdcb4532ffee12af651ca5c5c03cde875f0f8da3d30238083994e8e，各1153文件同源；后端1465项、App552项通过 | App http://127.0.0.1:5173/，API8767；App构建身份同为a8b4e578；收据runs/work-attempt-binding/local-identity.json；零Provider；保存恢复检查保留，但界面验收已撤回；正常对话未接通；其他部署与用户包未变 |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |
 | cloud-dev | `24d9a32`，开发试用候选；已推送标签cloud-dev-20261013-1045-24d9a32 | 用户授权的基本功能检查通过：四角色SUCCESS、API就绪、前端来源与真实中文对话；非正式发布或科学解释验收 | App https://capstone-app-production-83ef.up.railway.app/；[部署记录](../reviews/2026-10-13-cloud-dev-autonomous-trial.md)；demo不变 |
 | cloud-demo | App/API/两worker `faa6af9` | 四角色SUCCESS；三后端身份与dev本地529文件验收一致，安装工件与受检候选一致；三用例九轮、报告证据回放通过；local-demo已同源验收；正式标签demo-20261014-2028-faa6af9已推送 | App https://capstone-app-production-975e.up.railway.app/；上一正式标签demo-20261014-0744-bd2a200；双平台完整发布38554987581通过；cloud-dev不动 |

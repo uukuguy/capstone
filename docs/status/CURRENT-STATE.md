@@ -20,8 +20,18 @@ a model-free task entry, with object revisions, exact retries and read-only prof
 Backend local regression and runtime persistence checks passed. The standalone frontend was rejected;
 e58ef9a4 replaces it with existing conversation components and the accepted enterprise workspace layout.
 The full App suite passes537 tests. PR48 integrates this slice into dev with matching tested and merged trees.
-Production Claim/Profile execution binding remains open. Saved Work is explicitly blocked
-until continuous execution is connected; it creates no fake Attempt or completion.
+The production execution candidate binds Work to the existing Attempt queue, cancellation,
+worker lease and research state. It freezes actual active Profile selection, preserves
+unconsumed input after failures and keeps history isolated by Work. Claim preparation
+finishes before lease timing starts. These are retained internal implementation assets.
+Frontend application acceptance is withdrawn: reusing component names did not preserve
+the full mature dialogue controls, and save/start is not the accepted interaction.
+New task means new conversation with a preconfigured ApplicationProfile. One send must
+enter shared execution directly. The active slice restores the full existing dialogue
+area and connects model-free normal answers, follow-ups, stop and recovery.
+Simple dialogue must not depend on complete long-running research or tool inventory.
+No fake model, Attempt or completion is permitted. New enterprise-research and
+grid-analysis ApplicationProfile assemblies remain pending.
 The legacy entry retains v1 cross-origin compatibility and upgrade guidance without draft loss.
 Profile preparation supports authority and native Pack declarations with explicit
 binding selection. Native preparation uses registered host resource receipts;
