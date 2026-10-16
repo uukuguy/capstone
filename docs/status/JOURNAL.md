@@ -3329,3 +3329,9 @@ The following original entries were retained during document synchronization.
 
 - 2026-10-16: 055a335f adds Work-owned research persistence without requiring a model; legacy paths remain intact.
 - 2026-10-16: Work identity review and44 targeted tests passed; full backend1332 passed/65 skipped after localhost system-proxy isolation.
+
+- 2026-10-16: 481940b9 records Work identity scope, local runtime verification and focused control graph; production integration remains explicit.
+
+- 2026-10-16: 08556cc2 scopes shared-agent/App CI to dependency regression; both platforms and release checks remain required.
+- 2026-10-16: Scoped checks passed locally in106.40s plus48.77s registered workers;49 gate tests and independent review passed.
+- 2026-10-16: PR41 merged85b6706f after exact08556cc2 passed both CI platforms in about six minutes; merge tree matches.

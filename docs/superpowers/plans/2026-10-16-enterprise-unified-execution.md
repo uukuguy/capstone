@@ -109,8 +109,16 @@ assert.equal(finalGuard.accepted, false);
 ## Task 2：泛化身份与Profile装配，保持同一执行账本
 
 2026-10-16首个切片055a335f：WorkBinding/TaskContext、Work归属研究存储及Harness内部投影已实现，
-独立评审通过；44项身份/研究测试及1332项后端测试通过。见[切片报告](../../reviews/2026-10-16-work-research-identity.md)。
+独立评审通过；44项身份/研究测试及1332项后端测试通过。PR #41经双平台CI38898130414合入dev85b6706f，合并树与受检08556cc2一致。见[切片报告](../../reviews/2026-10-16-work-research-identity.md)。
 尚未接生产Claim、历史关联迁移、Profile、v2存储/协议及前端；Task 2整体仍在实施。
+
+后续接入按当前源码定位成套修改，避免只放宽单个解析器：
+
+- `host_api.py`才是服务端Thread路由；`thread_http.py`是Python客户端。创建入口当前会解析默认模型并安排专业模型准备，v2无模型入口必须绕开这两项无关动作。
+- `thread_service.py`同时包含内存实现、PostgreSQL实现、ThreadCreator及DDL。现有模型列为NOT NULL；按协议决定增加Work/最低协议版本关联，迁移应保留旧数据和命令幂等回查。不能仅在Python对象上将模型设为空。
+- `domain/manifest.py`与`domain/profile.py`目前都含Authority专用必填字段；Profile公共声明及native/authority可判别配置需要一起拆分，专业配置缺件不自动降级为native。
+- 前端真实入口为`ThreadLiveEntry.tsx`，传输为`threadHttpTransport.ts`，状态为`threadProjectionStore.ts`，协议为`threadProtocol.ts`；复用现有对话/成果组件。请求与流式事件都必须协商版本，不能只改快照读取。
+- 下一切片验收覆盖旧专业Thread可读、无模型Thread创建/Work提交、对象CAS与同键重试、刷新恢复及明确的旧客户端升级提示；完整持续Pi组织仍归Task 3，不扩大本切片为新报告工作台。
 
 **Files:** 新建`packages/capstone-agent/src/capstone_agent/enterprise_context.py`；修改
 `thread_protocol.py`、`thread_service.py`、`attempt_research.py`、`thread_application.py`及
@@ -206,7 +214,7 @@ assert external_side_effect_count == 1  # retry after unknown outcome must recon
 **Produces:** 全宽工作台、任务切换/资料/成果交互、可扩展可信视图注册与解析。
 报告和现有专业模型视图是首批复用示例，不是封闭的两类任务枚举；按产物schema/版本匹配，未知类型安全回退。
 
-- [ ] 从现有ThreadWorkspace抽出布局与成果区，不另建聊天store或复制Thread传输。
+- [ ] 从现有`ThreadLiveEntry`/`ThreadFixtureApp`及`CapstoneAssistantThread`抽出布局与成果区，不另建聊天store或复制Thread传输。
 - [ ] 按状态原型补上传、待决答复、冲突、断线、unknown和不可用能力测试；命令accepted不提前显示applied。
   加入失败附件保留、先发送文本/就绪资料和局部检查失败不显示整会话失败的交互测试。
 - [ ] 无模型任务不加载IEEE-39、不等待无关专业worker；专业任务按真实资源打开既有图表组件。

@@ -1,6 +1,6 @@
 # docs/status INDEX
 
-- 2026-10-16: [Task 2研究归属切片](../reviews/2026-10-16-work-research-identity.md)：Work身份独立于模型；组件实现与生产协议/前端接入范围分开记录。
+- 2026-10-16: [Task 2研究归属切片](../reviews/2026-10-16-work-research-identity.md)：Work身份独立于模型；组件实现与生产协议/前端接入范围分开记录；开发CI依赖范围及实测耗时单列。
 
 - 2026-10-16: d4600ddc作为实际研发控制节点进入dev主轴，按Git祖先关系连接d8fe6e27；顶部HEAD标识不能替代用户要求的图节点。
 
