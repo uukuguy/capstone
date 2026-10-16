@@ -133,6 +133,6 @@ DomainPackProfile = DomainRuntimeProfile | NativeDomainRuntimeProfile
 
 def require_authority_profile(profile: DomainPackProfile) -> DomainRuntimeProfile:
     """Narrow a registered profile at an authority-only application boundary."""
-    if not isinstance(profile, DomainRuntimeProfile):
+    if isinstance(profile, NativeDomainRuntimeProfile):
         raise ValueError("this application entry point requires an authority profile")
     return profile
