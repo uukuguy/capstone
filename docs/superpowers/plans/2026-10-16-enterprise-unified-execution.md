@@ -31,8 +31,8 @@ wire协商、对象CAS、命令生效与检查来源采用[协议决定](../spec
 
 ## 接口映射和任务依赖
 
-三线组织已接受：dev负责共同基座与集成；`feat/business-analysis`负责业务分析与报告；
-`feat/model-decision`负责模型分析与决策。分支起点、首阶段范围与回流规则见
+三线组织已接受：dev负责共同基座与集成；`feat/business-analysis`负责企业研究与分析；
+`feat/model-decision`负责电网分析与决策。分支起点、首阶段范围与回流规则见
 [三线推进计划](2026-10-16-three-line-delivery.md)。本文件仍是共享接口和Task 1–6的唯一实施清单。
 
 ### 共同基座与应用推进控制（2026-10-16已接受）
@@ -44,7 +44,7 @@ wire协商、对象CAS、命令生效与检查来源采用[协议决定](../spec
 | --- | --- | --- |
 | 共同智能体基座 | Task 1–4及Task 5的共享通信、状态与成果组件；Task 6组合验收 | 保留已有专业链路；验证对话入口及自主执行入口的受影响行为，包含简单回答、工具执行、恢复和依据展示 |
 | 智能体对话应用维护 | 贯穿各任务的回归和适用修复，不另开大改版 | 保留既有对话体验和数据；不强制新工作台、复杂任务计划或文件成果；共享增强按实际影响验证后单独发布 |
-| 企业自主执行应用 | Task 2最小入口、Task 3持续执行装配、Task 5任务工作台及Task 6验收 | 共用组织链路；“业务分析与报告”和“模型分析与决策”分别记录能力与视图验收，最后验证跨类组合 |
+| 企业自主执行应用 | Task 2最小入口、Task 3持续执行装配、Task 5任务工作台及Task 6验收 | 共用组织链路；“企业研究与分析”和“电网分析与决策”分别记录能力与视图验收，最后验证跨类组合 |
 
 先完成共同基座的最小纵向闭环，持续回归专业业务，再逐步扩展两类工作视图；
 不等待大而全基座，也不为两个应用另建组织循环。共享修改只验证受影响范围，
@@ -108,14 +108,18 @@ assert.equal(finalGuard.accepted, false);
 
 ## Task 2：泛化身份与Profile装配，保持同一执行账本
 
+- [ ] 实现应用级`grid-analysis`（电网分析与决策）Profile组合，复用现有pandapower/PyPSA配置与注册能力；保留原专业标识、事实来源和对话应用行为。与`enterprise-research`通过共同组织机制组合，不复制执行器。
+
+- [ ] 按2026-10-17已接受决定注册缺省`enterprise-research`（企业研究与分析）Profile。缺省仅使用获准内网资源，公网检索关闭；联网增强需部署支持、获准服务及显式使能。配置快照保留选择与可用性，通用研究路线不写死。验证缺省不调用公网检索、内网HTTP/MCP可用、可选增强失败只影响相关信息获取；前端沿既定能力组配置展示，不能只做UI开关。
+
 2026-10-16首个切片055a335f：WorkBinding/TaskContext、Work归属研究存储及Harness内部投影已实现，
 独立评审通过；44项身份/研究测试及1332项后端测试通过。PR #41经双平台CI38898130414合入dev85b6706f，合并树与受检08556cc2一致。见[切片报告](../../reviews/2026-10-16-work-research-identity.md)。
-尚未接生产Claim、历史关联迁移、Profile、v2存储/协议及前端；Task 2整体仍在实施。
+该切片之后继续接生产Claim、历史关联迁移及Profile；v2存储/协议和最小前端见下方当前切片。Task 2整体仍在实施。
 
 2026-10-16协议准备切片2d3f86c6：现有HTTP服务、Python客户端及App接入v1版本协商；
 未知版本在执行前拒绝，App显示升级原因并保留已加载会话和草稿。旧跨域服务不支持新增头时，
 浏览器沿用缺省v1，收到服务端明确声明后才发送版本头，不为探测重发写操作。
-当前仅实现v1；v2、无模型Thread、Profile装配和对象CAS仍待后续成套接入。
+此历史切片仅实现v1；v2、无模型Thread和对象CAS见下方当前切片。
 PR #44经双平台CI38907004425通过后合入32f18d24，合并树与受检1a695af4一致；
 local-dev运行源码a2efb791已规范重建并完成同源/浏览器检查。见[协议切片报告](../../reviews/2026-10-16-thread-version-negotiation.md)。
 
@@ -136,7 +140,18 @@ local-dev运行源码a2efb791已规范重建并完成同源/浏览器检查。�
 **Produces:** WorkBinding/TaskContext；`bind_task_context(claim) -> TaskContext`；
 专业配置与native配置的严格判别装配，二者共享任务组织接口。
 
-### 当前实施切片：Profile声明、选择与按需准备
+### 当前实施切片：生产Work账本与无模型入口
+
+前端必须对照[定稿](../specs/2026-10-15-enterprise-design-final.md)、[交互设计](../specs/2026-10-15-enterprise-task-ui-design.md)和[原型](../../design/enterprise-workspace-prototype.html)。企业工作台复用现有对话区及交互，不另建简化任务应用；最小切片不是偏离整体设计的许可。35e014df/da3ddfb1独立任务页已否决，前端验收重新打开。
+
+从dev 12cc9875继续。复用Thread服务、命令幂等账本和事件流，按既定v2协议同时接通存储与最小前端。
+
+- [x] 后端：`thread_service.py`、`thread_protocol.py`、`host_api.py`及客户端增加无模型Thread、Work关联、对象修订和版本适配；内存/Postgres共用语义。以同键重试、历史读取、无关事件不触发CAS冲突和重启恢复测试验收。
+- [x] 前端（e58ef9a4撤掉独立任务页，复用既有对话组件及定稿布局；537项App通过）：`ThreadLiveEntry.tsx`、`threadProtocol.ts`、`threadHttpTransport.ts`和`threadProjectionStore.ts`接入新契约，沿用会话导航与对话组件，提供明确的任务保存/执行状态，刷新不重发命令。
+- [ ] 后续切片接生产Claim/Profile固定快照及研究路径关联；本片只持久化Work，不添加未被生产执行使用的Claim参数。持续执行仍由Task 3独立验收。
+- [ ] 独立评审、针对性回归、规范本地重建与浏览器验证后，通过双平台适用CI合入dev；同步推进图实际节点及两条准备分支。
+
+### 已完成切片：Profile声明、选择与按需准备
 
 - [x] 在Kernel公共SPI抽出Pack身份声明，增加独立native配置；专业DomainRuntimeProfile保留现有Authority必需字段，不用空值或伪Authority适配。
 - [x] 同一DomainBinding/ApplicationProfile/Registry接受两类配置。`prepare_application(required_binding_ids=...)`只解析并准备本次选择；空选择不启动资源，未知身份在副作用前失败。保留完整Profile及跨Binding授权，不能用准备子集覆盖使能组合。

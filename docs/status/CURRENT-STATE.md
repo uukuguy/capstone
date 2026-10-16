@@ -15,10 +15,14 @@ The shared execution provider seam and real SDK baseline are integrated into dev
 Task 2 owns model-independent work identity, Profile assembly and the minimum frontend
 adaptation; Task 3 still owns production inventory admission and continuous execution.
 Its first component slice now supports Work-owned research storage and internal
-projection without a model. Production Claim/Profile/v2 and frontend wiring remain open.
-The existing service and clients negotiate v1 and preserve legacy cross-origin access.
-Protocol failures show upgrade guidance without automatic reconnect or draft loss;
-this does not enable v2 or model-free enterprise Threads.
+projection without a model. Candidate35e014df adds production v2 Work persistence and
+a model-free task entry, with object revisions, exact retries and read-only professional history.
+Backend local regression and runtime persistence checks passed. The standalone frontend was rejected;
+e58ef9a4 replaces it with existing conversation components and the accepted enterprise workspace layout.
+The full App suite passes537 tests; integration remains pending.
+Production Claim/Profile execution binding remains open. Saved Work is explicitly blocked
+until continuous execution is connected; it creates no fake Attempt or completion.
+The legacy entry retains v1 cross-origin compatibility and upgrade guidance without draft loss.
 Profile preparation supports authority and native Pack declarations with explicit
 binding selection. Native preparation uses registered host resource receipts;
 it does not require a model or turn native observations into Authority evidence.
@@ -238,3 +242,5 @@ exact accepted revisions belong to [VERSION-CONTROL.md](VERSION-CONTROL.md).
 - `packages/trajectory-workbench/` — read-only trajectory investigation UI
 - `validation/questions/task.md.txt` — canonical provider-backed continuous Analysis suite
 - `Makefile` — supported setup, execution, and verification commands
+
+Application naming: enterprise-research (企业研究与分析) defaults to authorized intranet resources, with optional explicit public-web retrieval. grid-analysis (电网分析与决策) composes existing pandapower/PyPSA assets. These Profile assembly targets remain pending implementation.

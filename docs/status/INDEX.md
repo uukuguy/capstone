@@ -1,5 +1,9 @@
 # docs/status INDEX
 
+- 2026-10-17: [设计定稿](../superpowers/specs/2026-10-15-enterprise-design-final.md)记录`enterprise-research`/`grid-analysis`命名、内网缺省与可选联网增强；[三线计划](../superpowers/plans/2026-10-16-three-line-delivery.md)保留现有分支映射。
+
+- 2026-10-16: [Work账本与无模型入口](../reviews/2026-10-16-thread-work-ledger.md)候选35e014df：同一账本、对象CAS、幂等恢复及旧专业历史视图；后端回归及本地持久化通过；独立前端被否决，按既定设计复用修正，dev集成待验收，持续执行未接通。
+
 - 2026-10-16: [Pack按需准备](../reviews/2026-10-16-application-pack-selection.md)经PR #46合入9eb84a34；双平台foundation检查通过，local-dev来源20226bf0同源；推进图区分实现、集成及部署。
 
 - 2026-10-16: [Thread版本协商](../reviews/2026-10-16-thread-version-negotiation.md)经PR #44合入32f18d24：双平台短CI通过，local-dev来源a2efb791同源及浏览器检查通过；保留旧跨域服务、会话和草稿，v2及无模型入口仍待实施。

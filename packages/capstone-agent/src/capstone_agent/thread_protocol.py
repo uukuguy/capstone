@@ -510,8 +510,8 @@ class AttemptSnapshot:
 class ThreadSnapshot:
     thread_id: str
     run: RunSnapshot
-    active_model_context: ModelContextSnapshot
-    active_grid_page_id: str
+    active_model_context: ModelContextSnapshot | None
+    active_grid_page_id: str | None
     current_attempt: AttemptSnapshot | None
     last_event_seq: int
     base_event_seq: int
@@ -520,9 +520,23 @@ class ThreadSnapshot:
     result_projections: tuple[ResultProjection, ...] = ()
     application_state: Mapping[str, Any] | None = None
     runtime_mode: str = "capstone"
+    minimum_protocol_version: int = 1
+    works: tuple[Mapping[str, Any], ...] = ()
+
+    @property
+    def professional_context(self) -> ModelContextSnapshot:
+        """Require an actual model before entering a professional-only path."""
+        if self.active_model_context is None:
+            raise ThreadProtocolError('model_context_unavailable')
+        return self.active_model_context
 
     def __post_init__(self) -> None:
         runtime_mode(self.runtime_mode)
+        if type(self.minimum_protocol_version) is not int or self.minimum_protocol_version not in {1, 2}:
+            raise ThreadProtocolError('invalid minimum protocol version')
+        if self.active_model_context is None and (
+                self.minimum_protocol_version != 2 or self.active_grid_page_id is not None or self.current_attempt is not None):
+            raise ThreadProtocolError('model-free Thread requires protocol 2 and no professional execution')
         if self.application_state is None:
             return
         if not isinstance(self.application_state, Mapping):
@@ -540,6 +554,9 @@ class ThreadSnapshot:
     @classmethod
     def from_document(cls, value: Any) -> ThreadSnapshot:
         document = _document(value, name="snapshot")
+        if document.get("schema") == "capstone-thread-snapshot/2":
+            from .thread_work import parse_snapshot
+            return parse_snapshot(document)
         allowed = frozenset({
             "schema", "thread_id", "run", "active_model_context", "active_grid_page_id",
             "current_attempt", "last_event_seq", "base_event_seq", "pending_selection",
@@ -622,7 +639,7 @@ class ThreadSnapshot:
             "runtime_mode": self.runtime_mode,
             "thread_id": self.thread_id,
             "run": self.run.to_document(),
-            "active_model_context": self.active_model_context.to_document(),
+            "active_model_context": None if self.active_model_context is None else self.active_model_context.to_document(),
             "active_grid_page_id": self.active_grid_page_id,
             "current_attempt": None if self.current_attempt is None else self.current_attempt.to_document(),
             "last_event_seq": self.last_event_seq,
@@ -640,6 +657,9 @@ class ThreadSnapshot:
                 document["application_state"] = {"case_execution": projection.to_document()}
             else:
                 document["application_state"] = dict(self.application_state)
+        if self.minimum_protocol_version == 2:
+            from .thread_work import snapshot_document
+            document = snapshot_document(self, document)
         return document
 
     @property

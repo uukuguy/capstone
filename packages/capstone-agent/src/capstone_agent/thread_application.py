@@ -66,7 +66,7 @@ class FamilyRuntimeFactory:
                    if callable(sweep := getattr(factory, 'sweep_idle', None)))
 
     def prepare_model(self, snapshot: ThreadSnapshot) -> None:
-        factory = self._factories.get(snapshot.active_model_context.implementation_family)
+        factory = self._factories.get(snapshot.professional_context.implementation_family)
         prepare = getattr(factory, 'prepare_model', None)
         if not callable(prepare):
             raise RuntimeError('model preparation is not registered')
@@ -185,7 +185,7 @@ class PreparedApplicationPiRuntimeFactory:
 
     def prepare_model(self, snapshot: ThreadSnapshot) -> None:
         self._context_owner.prepare_model(snapshot.thread_id, snapshot.run.run_id,
-                                          snapshot.active_model_context)
+                                          snapshot.professional_context)
 
     def sweep_idle(self) -> int:
         return self._context_owner.sweep_idle()

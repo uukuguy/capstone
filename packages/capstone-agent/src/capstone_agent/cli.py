@@ -215,7 +215,7 @@ def main(
                     (entry.model_id, entry.display_name, entry.available, entry.unavailable_reason)
                     for entry in catalog.models
                 )
-                active_model_id = snapshot.active_model_context.model_id
+                active_model_id = snapshot.professional_context.model_id
                 if not any(model_id == active_model_id for model_id, *_ in model_options):
                     model_options = (*model_options, (active_model_id, active_model_id))
                 run_tui_session(
@@ -337,7 +337,7 @@ def main(
                         snapshot = thread_service.snapshot(thread_id)
                         if snapshot.run.state != 'open' or thread_service.is_archived(thread_id):
                             raise RuntimeError('thread is not open')
-                        if settings.thread_family is not None and snapshot.active_model_context.implementation_family != settings.thread_family:
+                        if settings.thread_family is not None and snapshot.professional_context.implementation_family != settings.thread_family:
                             raise RuntimeError('model family does not match worker')
                         record_thread_startup(thread_id, 'model_snapshot', started)
                         prepare = getattr(thread_runtime_factory, 'prepare_model', None)
@@ -356,7 +356,7 @@ def main(
                                 runtime_mode=runtime_mode,
                                 implementation_family=settings.thread_family,
                                 input_catalog=thread_service.input_catalog,
-                                thread_family=lambda thread_id: thread_service.snapshot(thread_id).active_model_context.implementation_family,
+                                thread_family=lambda thread_id: thread_service.snapshot(thread_id).professional_context.implementation_family,
                                 prepare_model=prepare_thread_model,
                                 resource_status=(thread_application.capability_context_owner.resource_counts
                                     if thread_application is not None and thread_application.capability_context_owner is not None else None),

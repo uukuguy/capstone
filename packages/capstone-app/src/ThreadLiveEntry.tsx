@@ -10,6 +10,7 @@ import { rotateStorageNamespace, storageNamespace } from './threadSessionState'
 import { readThreadAccess, type ThreadAccessMode } from './threadAccess'
 import WorkbenchPreparation from './WorkbenchPreparationView'
 import { prepareWorkbench, type PreparationUpdate } from './workbenchPreparation'
+import ThreadWorkAdapter from './ThreadWorkAdapter'
 
 const TOKEN_KEY = 'capstone.thread.operatorToken'
 const initialPreparation: PreparationUpdate[] = [
@@ -44,7 +45,34 @@ function TokenPrompt({ onSubmit }: { onSubmit: (token: string) => void }) {
   </main>
 }
 
-export default function ThreadLiveEntry({ threadId }: { threadId: string }) {
+export default function ThreadLiveEntry({ threadId, mode }: { threadId: string; mode?: 'work' }) {
+  return mode === 'work' ? <WorkLiveEntry threadId={threadId} /> : <LegacyThreadLiveEntry threadId={threadId} />
+}
+
+function WorkLiveEntry({ threadId }: { threadId: string }) {
+  const [token, setToken] = useState(readToken)
+  const [access, setAccess] = useState<ThreadAccessMode | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [retry, setRetry] = useState(0)
+  const origin = import.meta.env.VITE_API_ORIGIN || ''
+  useEffect(() => {
+    const controller = new AbortController()
+    setError(null)
+    void readThreadAccess(origin, controller.signal).then(setAccess).catch(() => {
+      if (!controller.signal.aborted) setError('暂时无法连接任务工作台。')
+    })
+    return () => controller.abort()
+  }, [origin, retry])
+  const transport = useMemo(() => access === 'open' || (access === 'operator' && token)
+    ? new HttpThreadTransport(origin, access === 'open' ? '' : token, fetch, '/api/v1/threads', '2') : null,
+  [access, origin, token])
+  if (error) return <main className="thread-token-shell"><section className="thread-token-card" role="alert"><p>{error}</p><button onClick={() => setRetry(value => value + 1)}>重新连接</button></section></main>
+  if (access === 'operator' && !token) return <TokenPrompt onSubmit={setToken} />
+  if (!transport) return <main className="thread-loading" role="status">正在连接任务工作台…</main>
+  return <ThreadWorkAdapter transport={transport} threadId={threadId} namespace={storageNamespace(origin)} />
+}
+
+function LegacyThreadLiveEntry({ threadId }: { threadId: string }) {
   const [token, setToken] = useState(readToken)
   const [accessMode, setAccessMode] = useState<ThreadAccessMode | null>(null)
   const [accessError, setAccessError] = useState<string | null>(null)
@@ -169,8 +197,8 @@ export default function ThreadLiveEntry({ threadId }: { threadId: string }) {
     prepareConnection={prepareConnection}
     disabledToolIds={disabledToolIds} onDisabledToolIdsChange={setDisabledToolIds}
     storageKey={`${namespace}.${createdThreadId}`} readOnly={archived} previewDiagram={previewDiagram}
-    sessionNotice={error} headerActions={<button type="button" className="thread-new-dialogue"
+    sessionNotice={error} headerActions={<><a className="thread-new-dialogue" href="/?workspace=enterprise&thread=new">任务工作台</a><button type="button" className="thread-new-dialogue"
       disabled={creating} onClick={() => void newThread()} aria-label={creating ? '正在新建…' : '新建对话'}>
       <Plus size={16} aria-hidden="true" /><span>{creating ? '正在新建…' : '新建对话'}</span>
-    </button>} />
+    </button></>} />
 }

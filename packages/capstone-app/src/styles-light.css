@@ -1130,3 +1130,54 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 /* Final reference-card cascade. */
 .capstone-chat-artifacts { display: grid; align-items: stretch; gap: 6px; margin-top: 9px; }
 .capstone-chat-reference-card { display: grid; }
+/* Application-selected conversation layout. Chat, composer and result components stay shared. */
+.thread-conversation-workspace { color: #22352e; background: #f8f8f4; }
+.thread-conversation-workspace .thread-app-main { width: 100%; max-width: none; margin: 0; padding: 0; height: calc(100dvh - 61px); }
+.thread-conversation-workspace .thread-app-columns { grid-template-columns: 224px minmax(0, 1fr); min-height: 0; border: 0; box-shadow: none; background: #f8f8f4; }
+.thread-conversation-workspace .thread-chat-pane { position: static; min-height: 0; height: 100%; padding: 26px clamp(24px, 5vw, 80px) 24px; background: #f8f8f4; }
+.thread-conversation-workspace .thread-chat-heading { flex-shrink: 0; padding-bottom: 22px; border-bottom: 1px solid #dde1d9; }
+.thread-conversation-workspace .thread-chat-heading-title { min-width: 0; }
+.thread-conversation-workspace .thread-chat-heading h2 { max-width: 60ch; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 22px; line-height: 1.4; }
+.thread-conversation-workspace .thread-model-short { font-size: 13px; line-height: 1.6; color: #66716b; }
+.thread-conversation-workspace .capstone-assistant-thread { min-height: 0; flex: 1; border: 0; border-radius: 0; background: transparent; }
+.thread-conversation-workspace .capstone-chat-runtime { min-height: 0; }
+.thread-conversation-workspace .capstone-chat-viewport { min-height: 0; padding: 24px max(0px, calc((100% - 920px) / 2)); }
+.thread-conversation-workspace .capstone-assistant-runtime-label { flex-shrink: 0; font-size: 13px; line-height: 1.6; color: #66716b; padding: 12px 0; border: 0; }
+.thread-conversation-workspace .capstone-chat-body, .thread-conversation-workspace .capstone-chat-body p, .thread-conversation-workspace .capstone-chat-markdown { font-size: 15px; line-height: 1.8; color: #22352e; }
+.thread-conversation-workspace .capstone-chat-message.is-user .capstone-chat-body { font-size: 15px; padding: 14px 18px; border-color: #dde1d9; border-radius: 10px; background: #eaf0e8; }
+.thread-conversation-workspace .capstone-chat-composer { width: min(920px, 100%); margin: 0 auto; padding: 16px 0 0; flex-shrink: 0; background: transparent; border-color: #dde1d9; }
+.thread-conversation-workspace .capstone-composer-root { background: #fff; border-color: #dde1d9; border-radius: 10px; }
+.thread-conversation-workspace .capstone-composer-root textarea { min-height: 88px; padding: 16px 18px 8px; font-size: 15px; line-height: 1.7; color: #22352e; }
+.thread-conversation-workspace .capstone-composer-footer { min-height: 52px; padding: 0 12px 10px; }
+.thread-conversation-workspace .capstone-composer-toolbar { font-size: 13px; }
+.thread-conversation-workspace .capstone-chat-send { min-width: 44px; min-height: 44px; background: #245b47; border-radius: 8px; }
+.thread-conversation-workspace .capstone-chat-send svg { width: 20px; height: 20px; }
+.thread-conversation-workspace .thread-compact-trigger { min-height: 44px; font-size: 13px; }
+.thread-conversation-workspace .capstone-chat-empty { color: #66716b; }
+.thread-conversation-workspace .capstone-chat-empty strong { color: #22352e; }
+.thread-session-navigation { display: flex; flex-direction: column; gap: 10px; min-height: 0; overflow: auto; padding: 30px 18px 18px; background: #202e29; color: #d5ded6; }
+.thread-session-navigation h1 { color: #f3f4ed; font-size: 17px; font-weight: 500; margin: 0 0 14px; }
+.thread-session-navigation .eyebrow { color: #a7b7ab; font-size: 11px; letter-spacing: 3px; }
+.thread-session-navigation h2 { margin: 20px 8px 4px; font-size: 11px; font-weight: 500; letter-spacing: 2px; color: #a7b7ab; }
+.thread-session-navigation button, .thread-session-navigation a { display: flex; align-items: center; gap: 10px; flex-shrink: 0; min-height: 44px; padding: 10px 12px; border: 1px solid transparent; border-radius: 6px; background: transparent; font: inherit; font-size: 13px; color: #d5ded6; text-decoration: none; text-align: left; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; cursor: pointer; }
+.thread-session-navigation .thread-session-new { border-color: #617365; color: #edf0e8; }
+.thread-session-navigation button:hover, .thread-session-navigation a:hover { background: #304338; }
+.thread-session-navigation [aria-pressed="true"], .thread-session-navigation [aria-current="page"] { background: #34493c; color: #fff; }
+.thread-session-navigation button:disabled { opacity: .55; cursor: default; }
+.thread-session-navigation button:focus-visible, .thread-session-navigation a:focus-visible { outline: 2px solid #ceb580; outline-offset: 2px; }
+.thread-session-navigation p { font-size: 12px; line-height: 1.6; }
+.thread-navigation-toggle { display: none; }
+@media (max-width: 760px) {
+  .thread-navigation-toggle { display: inline-flex; min-height: 44px; align-items: center; border: 1px solid #dde1d9; border-radius: 6px; background: #fff; padding: 0 12px; color: #245b47; }
+  .thread-conversation-workspace .app-version { display: none; }
+  .thread-conversation-workspace .thread-navigation-toggle { white-space: nowrap; }
+  .thread-conversation-workspace .thread-app-main, .thread-conversation-workspace .thread-app-columns { height: calc(100dvh - 61px); min-height: 0; }
+  .thread-conversation-workspace .thread-app-columns { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .thread-conversation-workspace .thread-chat-pane { min-height: 0; height: 100%; padding: 18px 16px 16px; }
+  .thread-conversation-workspace .thread-session-navigation { display: none; }
+  .thread-conversation-workspace.is-navigation-open .thread-app-columns { grid-template-rows: minmax(0, 38%) minmax(0, 1fr); }
+  .thread-conversation-workspace.is-navigation-open .thread-session-navigation { display: flex; }
+  .thread-conversation-workspace .capstone-chat-viewport { min-height: 0; padding: 20px 0; }
+  .thread-conversation-workspace .capstone-assistant-thread { height: 0; min-height: 0; }
+  .thread-conversation-workspace .capstone-chat-composer { margin-top: auto; }
+}

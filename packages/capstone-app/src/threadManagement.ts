@@ -1,5 +1,6 @@
 export type ThreadDescriptor = {
-  threadId: string; modelId: string; implementationFamily: string
+  threadId: string; modelId: string | null; implementationFamily: string | null
+  minimumProtocolVersion?: number
   createdAt: string; archived: boolean; lastEventSeq: number
 }
 export type ThreadListPage = { threads: ThreadDescriptor[]; nextBeforeThreadId: string | null; hasMore: boolean }
@@ -7,14 +8,19 @@ export type ThreadListPage = { threads: ThreadDescriptor[]; nextBeforeThreadId: 
 export function parseThreadDescriptor(value: unknown): ThreadDescriptor {
   if (!value || typeof value !== 'object') throw new Error('会话信息无效')
   const row = value as Record<string, unknown>
+  const version = row.minimum_protocol_version ?? 1
+  if (version !== 1 && version !== 2) throw new Error('会话版本无效')
   for (const key of ['thread_id', 'model_id', 'implementation_family', 'created_at']) {
+    if (version === 2 && (key === 'model_id' || key === 'implementation_family') && row[key] === null) continue
     if (typeof row[key] !== 'string' || !row[key] || row[key].length > 200) throw new Error('会话信息无效')
   }
   if (!/^[a-z][a-z0-9_-]{0,63}$/.test(row.thread_id as string)
       || typeof row.archived !== 'boolean' || !Number.isSafeInteger(row.last_event_seq)
       || (row.last_event_seq as number) < 0) throw new Error('会话信息无效')
-  return { threadId: row.thread_id as string, modelId: row.model_id as string,
-    implementationFamily: row.implementation_family as string, createdAt: row.created_at as string,
+  if ((row.model_id === null) !== (row.implementation_family === null)) throw new Error('会话模型关联无效')
+  return { threadId: row.thread_id as string, modelId: row.model_id as string | null,
+    implementationFamily: row.implementation_family as string | null, createdAt: row.created_at as string,
+    ...(version === 2 ? { minimumProtocolVersion: 2 } : {}),
     archived: row.archived, lastEventSeq: row.last_event_seq as number }
 }
 

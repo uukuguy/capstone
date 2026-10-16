@@ -65,8 +65,11 @@ class HttpThreadSession:
     client: httpx.Client | None = None
     thread_id: str | None = None
     run_id: str | None = None
+    protocol_version: int = 1
 
     def __post_init__(self) -> None:
+        if type(self.protocol_version) is not int or self.protocol_version not in {1, 2}:
+            raise ValueError('unsupported Thread protocol version')
         self.api_origin = _origin(self.api_origin)
         if not isinstance(self.operator_token, str) or not self.operator_token:
             raise ValueError("operator_token is required")
@@ -92,7 +95,7 @@ class HttpThreadSession:
         extra_headers = kwargs.pop("headers", None)
         if extra_headers:
             headers.update(extra_headers)
-        headers['Capstone-Thread-Version'] = '1'
+        headers['Capstone-Thread-Version'] = str(self.protocol_version)
         if json_body is not None:
             try:
                 request_size = len(json.dumps(json_body, ensure_ascii=False, allow_nan=False).encode())
@@ -101,7 +104,8 @@ class HttpThreadSession:
             if request_size > MAX_JSON_BYTES:
                 raise ThreadHttpError(413, "Thread request exceeds the bounded JSON limit")
         with self.client.stream(method, f"{self.api_origin}{path}", headers=headers, json=json_body, **kwargs) as response:
-            if response.is_success and response.headers.get('Capstone-Thread-Version') not in {None, '1'}:
+            compatible_versions = {None, '1'} if self.protocol_version == 1 else {'2'}
+            if response.is_success and response.headers.get('Capstone-Thread-Version') not in compatible_versions:
                 raise ThreadHttpError(409, 'Thread protocol version is incompatible; update the client',
                                       {'error': 'thread_version_mismatch'})
             content = bytearray()
@@ -168,14 +172,24 @@ class HttpThreadSession:
     def command(
         self, kind: str, payload: dict[str, Any], *, expected_event_seq: int | None = None,
         command_id: str | None = None, idempotency_key: str | None = None,
+        target: dict[str, Any] | None = None,
     ) -> CommandReceipt:
         thread_id, run_id = self._require_identity()
-        if expected_event_seq is None:
-            expected_event_seq = self.snapshot().last_event_seq
         command_id = command_id or f"cmd_{uuid.uuid4().hex[:20]}"
         idempotency_key = idempotency_key or f"idem_{uuid.uuid4().hex[:20]}"
-        factory = ThreadCommandFactory(thread_id, run_id)
-        command = factory._command(kind, dict(payload), expected_event_seq=expected_event_seq, command_id=command_id, idempotency_key=idempotency_key)
+        if self.protocol_version == 2:
+            if target is None or expected_event_seq is not None:
+                raise ValueError('protocol 2 commands require an object target and no event CAS')
+            command = {'schema': 'capstone-command/2', 'command_id': command_id,
+                'idempotency_key': idempotency_key, 'thread_id': thread_id, 'run_id': run_id,
+                'kind': kind, 'payload': dict(payload), 'target': dict(target)}
+        else:
+            if target is not None:
+                raise ValueError('protocol 1 commands do not accept an object target')
+            if expected_event_seq is None:
+                expected_event_seq = self.snapshot().last_event_seq
+            factory = ThreadCommandFactory(thread_id, run_id)
+            command = factory._command(kind, dict(payload), expected_event_seq=expected_event_seq, command_id=command_id, idempotency_key=idempotency_key)
         document = self._request("POST", f"/api/v1/threads/{thread_id}/commands", json_body=command, headers={"Idempotency-Key": idempotency_key})
         receipt = CommandReceipt.from_document(document)
         if receipt.command_id != command_id or receipt.idempotency_key != idempotency_key or receipt.thread_id != thread_id or receipt.run_id != run_id:

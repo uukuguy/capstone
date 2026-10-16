@@ -17,11 +17,12 @@ def validate_limit(limit: int, maximum: int) -> None:
 def thread_descriptor(snapshot: ThreadSnapshot, *, created_at: str, archived: bool) -> dict[str, Any]:
     return {
         "thread_id": snapshot.thread_id,
-        "model_id": snapshot.active_model_context.model_id,
-        "implementation_family": snapshot.active_model_context.implementation_family,
+        "model_id": None if snapshot.active_model_context is None else snapshot.active_model_context.model_id,
+        "implementation_family": None if snapshot.active_model_context is None else snapshot.active_model_context.implementation_family,
         "created_at": created_at,
         "archived": archived,
         "last_event_seq": snapshot.last_event_seq,
+        **({'minimum_protocol_version': 2} if snapshot.minimum_protocol_version == 2 else {}),
     }
 
 
@@ -67,7 +68,7 @@ def history_page(thread_id: str, before: int, events: list[EventEnvelope], limit
 def network_context_page(snapshot: ThreadSnapshot, events: list[EventEnvelope]) -> dict[str, Any]:
     page = {
         "schema": "capstone-thread-network-events/1", "thread_id": snapshot.thread_id,
-        "model_context_id": snapshot.active_model_context.id,
+        "model_context_id": None if snapshot.active_model_context is None else snapshot.active_model_context.id,
         "events": [event.to_document() for event in sorted(events, key=lambda event: event.event_seq)],
     }
     if len(events) > 4 or len(json.dumps(page, ensure_ascii=False).encode()) > MAX_EVENT_PAGE_BYTES:

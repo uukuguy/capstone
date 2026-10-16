@@ -208,7 +208,7 @@ class ThreadTuiApp(App[None]):
         if not model_options:
             raise ValueError("model_options must not be empty")
         option_ids = {_option_id(item) for item in model_options}
-        if snapshot.active_model_context.model_id not in option_ids:
+        if snapshot.professional_context.model_id not in option_ids:
             raise ValueError("active model is not present in model_options")
         self.snapshot = snapshot
         self.events = events
@@ -226,7 +226,7 @@ class ThreadTuiApp(App[None]):
         self._recovery_required = False
 
     def compose(self) -> ComposeResult:
-        model = self.snapshot.active_model_context
+        model = self.snapshot.professional_context
         yield Header(show_clock=False)
         with Horizontal(id="workspace"):
             with Vertical(id="grid-pane"):
@@ -449,7 +449,7 @@ class ThreadTuiApp(App[None]):
                         f"{_option_label(matches[0])} 当前不可用 · {reason}",
                     )
                     return
-                if action == "switch_model" and model_id == self.snapshot.active_model_context.model_id:
+                if action == "switch_model" and model_id == self.snapshot.professional_context.model_id:
                     self.query_one("#feedback", Static).update("目标模型已经是当前模型")
                     return
                 factory = self._factory()
@@ -489,7 +489,7 @@ class ThreadTuiApp(App[None]):
                     f"{_option_label(selected)} 当前不可用 · {unavailable_reason or 'worker_unavailable'}",
                 )
                 return
-        if value == self.snapshot.active_model_context.model_id:
+        if value == self.snapshot.professional_context.model_id:
             self.query_one("#feedback", Static).update("目标模型已经是当前模型")
             return
         factory = self._factory()

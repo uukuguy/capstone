@@ -12,6 +12,7 @@ import { threadPreviewDiagram } from './threadModelDiagram'
 import type { DiagramNetworkView, NetworkDiagram } from './types'
 import type { ResultProjection } from './threadProtocol'
 import { PageHeader } from './AppHeader'
+import ThreadWorkspace from './ThreadWorkspace'
 import ThreadControls from './ThreadControls'
 import ThreadRuntimeMenu from './ThreadRuntimeMenu'
 import { parseThreadModelCommand, resolveThreadModelCommandReference, resolveThreadModelReference } from './threadCatalog'
@@ -704,14 +705,12 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
     return <button type="button" className="thread-control-button" disabled={!enabled} onClick={() => void submitExecution(kind, payload)}>{label}</button>
   }
 
-  return <div className="thread-app-shell">
-    {(activity.mode === 'preparing' || activity.mode === 'failed') && <div className="thread-resume-progress">
+  return <ThreadWorkspace loading={loading} ready={Boolean(snapshot)}
+    preparation={(activity.mode === 'preparing' || activity.mode === 'failed') && <div className="thread-resume-progress">
       <WorkbenchPreparation compact updates={activity.updates} error={activity.error}
         onRetry={() => { void activity.ensureReady().catch(() => {}) }} />
     </div>}
-    <PageHeader className="thread-page-header" showThreadEntry={false} />
-    {loading && !snapshot ? <main className="thread-loading" aria-live="polite"><span className="spinner" />正在恢复 Thread 投影…</main> : snapshot ? <main className="thread-app-main">
-      <div className="thread-app-columns">
+    sidebar={snapshot && <>
           <ThreadModelPane snapshot={snapshot} viewedPage={viewedPage || activePage || 'page_ieee39'} activePage={activePage || 'page_ieee39'} isHistorical={isHistorical}
           workingPages={projection.modelWorkspace ? store.modelWorkingPages : undefined} cameraStorageKey={`${storageKey || snapshot.threadId}.network-cameras`}
           gridPages={displayedGridPages}
@@ -729,8 +728,10 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
           onSelectPage={selectPage} feedback={notice}
           modelBusy={!canConfigure}
           onOpenHistoricalModel={projection.modelWorkspace ? (modelId, revision) => { void changeModel('open_model', { model_id: modelId, model_revision: revision }).catch(() => addSystemNotice('历史模型无法打开，请重新连接。', 'error')) } : undefined} />
-        <section className="thread-chat-pane" aria-label="Thread 对话区">
-          <div className="thread-chat-heading"><div className="thread-chat-heading-title"><h2>智能体对话</h2><span className="thread-model-short">{snapshot.activeModelContext.modelId} · {snapshot.activeModelContext.implementationFamily}</span></div><div className="thread-chat-heading-meta">{projection.connection !== 'live' && <span className={`thread-connection-state is-${projection.connection}`}>{versionFailure ? '需更新应用' : connectionLabel(projection.connection)}</span>}{activity.mode === 'idle' && <span className="thread-idle-state" title="页面暂未操作，继续使用时自动恢复连接。">按需连接</span>}<span inert={activity.paused}>{headerActions}</span></div></div>
+    </>}
+    heading={snapshot && <div className="thread-chat-heading"><div className="thread-chat-heading-title"><h2>智能体对话</h2><span className="thread-model-short">{snapshot.activeModelContext.modelId} · {snapshot.activeModelContext.implementationFamily}</span></div><div className="thread-chat-heading-meta">{projection.connection !== 'live' && <span className={`thread-connection-state is-${projection.connection}`}>{versionFailure ? '需更新应用' : connectionLabel(projection.connection)}</span>}{activity.mode === 'idle' && <span className="thread-idle-state" title="页面暂未操作，继续使用时自动恢复连接。">按需连接</span>}<span inert={activity.paused}>{headerActions}</span></div></div>}
+  >
+    {snapshot && <>
           <CapstoneAssistantThread storageKey={storageKey} hasOlderHistory={projection.hasOlderHistory} historyLoading={projection.historyLoading}
             onReadAttemptRecords={client?.supportsAttemptRecords ? (attemptId, after) => client.attemptRecords(threadId, attemptId, after) : undefined}
             systemNotices={systemState.thread === threadId ? systemState.items : []} onSystemAction={() => setReload((value) => value + 1)}
@@ -809,8 +810,6 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
               {isHistorical && <button type="button" className="thread-control-button" onClick={() => selectPage(activePage || 'page_ieee39')}>返回当前模型</button>}
             </>}
           </div>
-        </section>
-      </div>
-    </main> : null}
-  </div>
+    </>}
+  </ThreadWorkspace>
 }

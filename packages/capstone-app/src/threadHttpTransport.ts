@@ -4,6 +4,7 @@ import { MAX_THREAD_JSON_BYTES } from './networkLimits'
 import { parseThreadDescriptor, parseThreadListPage } from './threadManagement'
 import { fetchWithReadRetry } from './httpRetry'
 import { parseAttemptRecords } from './attemptRecords'
+import type { WorkCommand } from './threadWorkProtocol'
 
 const MAX_JSON_BYTES = MAX_THREAD_JSON_BYTES
 const THREAD_VERSION_HEADER = 'Capstone-Thread-Version'
@@ -32,10 +33,10 @@ function responseError(status: number, body?: unknown): ThreadTransportError {
     : `Thread 服务请求失败（${status}）。`, body)
 }
 
-async function checkResponseVersion(response: Response): Promise<void> {
+async function checkResponseVersion(response: Response, requestedVersion = THREAD_VERSION): Promise<void> {
   const version = response.headers.get(THREAD_VERSION_HEADER)
   // Older v1 servers do not echo a version. Their strict body parsers still apply.
-  if (response.ok && version !== null && version !== THREAD_VERSION) {
+  if (response.ok && ((version !== null && version !== requestedVersion) || (requestedVersion === '2' && version === null))) {
     await response.body?.cancel().catch(() => undefined)
     throw responseError(409, { error: 'thread_version_mismatch' })
   }
@@ -56,6 +57,7 @@ export class HttpThreadTransport implements ThreadTransport {
     private readonly token: string,
     private readonly fetcher: typeof fetch = fetch,
     resourcePath = '/api/v1/threads',
+    private readonly protocolVersion: '1' | '2' = '1',
   ) {
     this.base = baseUrl.trim().replace(/\/$/, '')
     if (this.base && !/^https?:\/\/[^/]+$/.test(this.base)) throw new Error('API 地址无效')
@@ -71,11 +73,11 @@ export class HttpThreadTransport implements ThreadTransport {
         ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
         ...(init.body ? { 'Content-Type': 'application/json' } : {}),
         ...init.headers,
-        ...(this.versionAdvertised ? { [THREAD_VERSION_HEADER]: THREAD_VERSION } : {}),
+        ...(this.versionAdvertised || this.protocolVersion === '2' ? { [THREAD_VERSION_HEADER]: this.protocolVersion } : {}),
       },
     }, this.fetcher)
-    await checkResponseVersion(response)
-    this.versionAdvertised = response.ok && response.headers.get(THREAD_VERSION_HEADER) === THREAD_VERSION
+    await checkResponseVersion(response, this.protocolVersion)
+    this.versionAdvertised = response.ok && response.headers.get(THREAD_VERSION_HEADER) === this.protocolVersion
     const text = await response.text()
     if (new TextEncoder().encode(text).byteLength > MAX_JSON_BYTES) throw new Error('Thread 响应超过允许大小')
     let body: unknown = undefined
@@ -93,10 +95,10 @@ export class HttpThreadTransport implements ThreadTransport {
     const response = await fetchWithReadRetry(this.base + path, {
       signal, credentials: 'omit', cache: 'no-store',
       headers: { ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
-        ...(this.versionAdvertised ? { [THREAD_VERSION_HEADER]: THREAD_VERSION } : {}) },
+        ...(this.versionAdvertised || this.protocolVersion === '2' ? { [THREAD_VERSION_HEADER]: this.protocolVersion } : {}) },
     }, this.fetcher)
-    await checkResponseVersion(response)
-    this.versionAdvertised = response.ok && response.headers.get(THREAD_VERSION_HEADER) === THREAD_VERSION
+    await checkResponseVersion(response, this.protocolVersion)
+    this.versionAdvertised = response.ok && response.headers.get(THREAD_VERSION_HEADER) === this.protocolVersion
     if (!response.ok) {
       const text = await response.text()
       let body: unknown
@@ -167,11 +169,16 @@ export class HttpThreadTransport implements ThreadTransport {
     })
   }
 
+  createWorkThread(signal?: AbortSignal): Promise<unknown> {
+    if (this.protocolVersion !== '2') throw new Error('工作会话需要新版协议')
+    return this.request(this.resourcePath, { method: 'POST', signal, body: JSON.stringify({}) })
+  }
+
   readEvents(threadId: string, afterEventSeq: number, signal?: AbortSignal): Promise<unknown> {
     return this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/events?after=${afterEventSeq}`, { signal })
   }
 
-  sendCommand(command: ThreadCommand, signal?: AbortSignal): Promise<unknown> {
+  sendCommand(command: ThreadCommand | WorkCommand, signal?: AbortSignal): Promise<unknown> {
     return this.request(`${this.resourcePath}/${encodeURIComponent(command.thread_id)}/commands`, {
       method: 'POST', signal, body: JSON.stringify(command),
       headers: { 'Idempotency-Key': command.idempotency_key },
@@ -204,6 +211,7 @@ export class HttpThreadTransport implements ThreadTransport {
           if (!data) continue
           const eventName = frame.split('\n').find((line) => line.startsWith('event: '))?.slice(7)
           const payload = JSON.parse(data.slice(6)) as unknown
+          if (eventName === 'protocol_upgrade_required') throw responseError(409, payload)
           if (eventName === 'resync_required') {
             throw new ThreadTransportError(409, 'Thread SSE requires resync.', payload)
           }
@@ -216,6 +224,7 @@ export class HttpThreadTransport implements ThreadTransport {
         if (new TextEncoder().encode(buffer).byteLength > MAX_JSON_BYTES) throw new Error('Thread 事件流超过允许大小')
       }
     } finally {
+      await reader.cancel().catch(() => undefined)
       reader.releaseLock()
     }
   }

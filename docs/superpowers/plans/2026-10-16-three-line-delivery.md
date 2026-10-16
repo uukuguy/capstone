@@ -39,8 +39,8 @@ before implementation; they do not count as application functionality.
 | Line | Owner scope | First stage |
 | --- | --- | --- |
 | dev | Shared agent foundation, protocol, storage/recovery, shared frontend state/components, integration; also serves conversation maintenance | Unified execution Tasks 1–4 and shared parts of Task 5; first deliver Task 1 baseline and bridge checks |
-| feat/business-analysis | Business analysis/report application composition and views; external-resource acceptance | A1 baseline and input contracts; A2 resource-to-chart/report vertical slice; A3 revision/recovery acceptance |
-| feat/model-decision | Model analysis/decision application composition and views; professional integration acceptance | B1 existing professional baseline; B2 shared-loop and existing topology/result slice; B3 candidate/revision/recovery acceptance |
+| feat/business-analysis | Enterprise research (`enterprise-research`) application composition and views; external-resource acceptance | A1 baseline and input contracts; A2 resource-to-chart/report vertical slice; A3 revision/recovery acceptance |
+| feat/model-decision | Grid analysis/decision (`grid-analysis`) application composition and views; professional integration acceptance | B1 existing professional baseline; B2 shared-loop and existing topology/result slice; B3 candidate/revision/recovery acceptance |
 
 The [unified implementation plan](2026-10-16-enterprise-unified-execution.md)
 owns shared APIs and task dependencies. Do not duplicate its Task 1–6 checklists
@@ -118,3 +118,5 @@ Do not add speculative modules just to reserve ownership.
 The repository root stays on dev. Branch creation does not require new worktrees
 or running services. When implementation needs an isolated worktree, initialize
 its managed runtimes with setup/install-pi/doctor before testing.
+
+2026-10-17 naming: `enterprise-research` (企业研究与分析) and `grid-analysis` (电网分析与决策). Existing preparation branch names remain stable. The research Profile defaults to intranet resources; public-web retrieval requires an explicitly enabled, configured enhancement. These are accepted design targets, not registered-runtime claims.

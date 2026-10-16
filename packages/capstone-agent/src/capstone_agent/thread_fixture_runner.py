@@ -2,10 +2,17 @@
 
 from __future__ import annotations
 
+
 from dataclasses import dataclass
 from typing import Any, Mapping
 
 from .thread_protocol import CaseExecutionSnapshot, EventPage, ThreadSnapshot
+
+
+def _professional_page(snapshot: ThreadSnapshot) -> str:
+    if snapshot.active_grid_page_id is None:
+        raise ValueError('model_context_unavailable')
+    return snapshot.active_grid_page_id
 
 
 _SURFACES = frozenset({"web", "tui", "cli"})
@@ -121,8 +128,8 @@ def run_fixture(fixture: Mapping[str, Any]) -> FixtureProjection:
     return FixtureProjection(
         transport_state=transport,
         run_state=snapshot.run.state,
-        active_model_context_id=snapshot.active_model_context.id,
-        active_grid_page_id=snapshot.active_grid_page_id,
+        active_model_context_id=snapshot.professional_context.id,
+        active_grid_page_id=_professional_page(snapshot),
         viewed_grid_page_id=viewed_page,
         current_attempt_id=None if snapshot.current_attempt is None else snapshot.current_attempt.attempt_id,
         authority_labels=labels,

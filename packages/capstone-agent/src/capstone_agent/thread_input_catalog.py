@@ -15,6 +15,8 @@ from .thread_protocol import AttemptSnapshot
 
 def input_catalog_document(snapshot, profiles: dict, historical: list[dict], *, family_available=False) -> dict:
     context = snapshot.active_model_context
+    if context is None:
+        raise RuntimeError('model-free input catalog is unavailable')
     current = {'object_id': context.id, 'model_id': context.model_id,
                'model_revision': context.model_revision, 'implementation_family': context.implementation_family}
     objects = [current, *[item for item in historical if item['object_id'] != context.id]][:16]
@@ -70,6 +72,8 @@ def historical_objects(service, snapshot) -> list[dict]:
 
 def catalog_provider(service, resource_profiles, *, family_available):
     def provide(snapshot):
+        if snapshot.active_model_context is None:
+            raise RuntimeError('model-free input catalog is unavailable')
         return input_catalog_document(snapshot, resource_profiles(snapshot), historical_objects(service, snapshot),
             family_available=family_available(snapshot.active_model_context.implementation_family))
     return provide
@@ -99,7 +103,7 @@ class PreparedResourceCatalog:
         from .delegated_runtime import json_document
         native = {} if self.executor is None else cast(dict[str, object],
             json_document(self.executor.capability.get('resource_profiles', {})))
-        if snapshot.runtime_mode == 'pi_reference' or self.owner is None or not (self.config_root / 'agent-resources.json').is_file():
+        if snapshot.active_model_context is None or snapshot.runtime_mode == 'pi_reference' or self.owner is None or not (self.config_root / 'agent-resources.json').is_file():
             return native
         base = resolve_resource_profile(self.config_root, 'harness_engine')
         key = content_hash({'context': snapshot.active_model_context.to_document(), 'run': snapshot.run.run_id,

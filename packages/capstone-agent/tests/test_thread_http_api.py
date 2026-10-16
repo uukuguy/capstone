@@ -16,7 +16,7 @@ from capstone_agent.thread_service import InMemoryThreadService, PostgresThreadS
 from capstone_agent.thread_catalog import CompositeThreadModelCatalog, ThreadModelCatalogEntry
 
 
-@pytest.mark.parametrize('version', ['2', '0', '99', '1, 2', ''])
+@pytest.mark.parametrize('version', ['0', '99', '1, 2', ''])
 def test_unsupported_thread_version_does_not_mutate_commands(version):
     service = _service()
     before = service.snapshot('thr_demo_39').to_document()
@@ -26,7 +26,7 @@ def test_unsupported_thread_version_does_not_mutate_commands(version):
         response = client.post('/api/v1/threads/thr_demo_39/commands',
             json=command, headers={**_auth(), 'Capstone-Thread-Version': version})
     assert response.status_code == 406
-    assert response.json() == {'error': 'unsupported_thread_version', 'supported_versions': [1]}
+    assert response.json() == {'error': 'unsupported_thread_version', 'supported_versions': [1, 2]}
     assert service.snapshot('thr_demo_39').to_document() == before
 
 
@@ -70,7 +70,7 @@ def test_unsupported_version_does_not_create_or_prepare_a_thread():
         prepare_model=lambda *args: calls.append('prepare'))
     with TestClient(app, base_url='http://localhost') as client:
         assert client.post('/api/v1/threads', json={},
-            headers={**_auth(), 'Capstone-Thread-Version': '2'}).status_code == 406
+            headers={**_auth(), 'Capstone-Thread-Version': '99'}).status_code == 406
     assert calls == []
 
 
