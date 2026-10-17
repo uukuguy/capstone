@@ -1,6 +1,97 @@
 # Shared dialogue adaptation: verification record
 
-Status: implementation in progress. No deployment or delivery acceptance.
+Status: grid-first local trial verified at `00a8cd85`, including authorized
+Provider calls. PR #53 merged into dev at `f5eda4e4` after macOS CI passed;
+its merge tree equals `00a8cd85`. Full enterprise delivery is not accepted.
+
+## Professional trial follow-up (2026-10-17 15:51 CST)
+
+Existing pandapower IEEE39 cases are the primary acceptance scope. PyPSA has
+one user sample; its repair tests do not replace IEEE39 application validation.
+
+The original IEEE39 thread also completed line11 endpoint lookup and a line7
+outage: the derived AC case converged and line11 loading was 103.33%.
+The overview answer contains a transformer-count wording inconsistency.
+The full extended receipt is `ieee39-extended-events.json` in the same runs directory.
+
+The original load-scaling prompt was repeated in fresh thread
+`thr_898080db6ff8aaa06fb6` at `4120e57b`. It changes the correct load from
+9.2/4.6 to 11.96/5.98 MW/Mvar, compares both converged scenarios, and correctly
+identifies the existing high voltage at bus name36/index35 as unchanged.
+The answer still attaches the neighbouring PV generator to bus name31/index30.
+This is an open professional explanation defect, not a fully passed answer.
+Receipt: `ieee39-load-final-events.json`. Earlier failed receipts remain preserved.
+Generic Pack guidance now covers balancing-source interpretation and name/index
+identity. No fixture IDs or expected answers were added to agent or Kernel code.
+
+The single PyPSA task was repeated in its retained thread after fixes: effective
+time-series demand is reported, preparation succeeds, and fixed-capacity linear
+dispatch returns an optimal result. This does not verify a standalone LPF or AC
+voltage calculation. Receipt: `pypsa-final-trial-events.json`, latest attempt
+`attempt_44a5cfea6bd6538d`. Earlier failed attempts remain in that receipt.
+
+PR #54 holds these professional fixes and remains pending CI/integration.
+Demand changes passed 126 PyPSA tests; recovery changes passed 11 focused tests,
+including concurrent launchers, close/failure cleanup and retained evidence.
+Type checks and independent reviews through6415a57d passed.
+The local candidate `4120e57b7f306710d1aaf7d562c032abf0d2bd42` passed canonical
+rebuild/readiness. API and both workers match all1153 managed source files and
+image `sha256:067fb34e1aa580a5ebbad3f73571b9ad8221ebe5820244d7225f605be74dd35f`.
+Current identity: `local-identity.json`; the earlier accepted baseline identity
+is retained in `local-identity-00a8cd85.json`.
+
+## Authorized local conversation trial
+
+The user authorized local Provider validation on 2026-10-17. The real browser
+entry completed three consecutive turns in `thr_49d8b5216e2ab2847739`:
+
+| Turn | Outcome | Displayed duration |
+| --- | --- | --- |
+| Explain a rainbow in three sentences | Formal ordinary answer, no Authority result or evidence references | 4.6 s |
+| Run IEEE39 power flow and rank buses/lines | Converged calculation, admitted result and evidence, result card and automatic right pane | 20.1 s |
+| Recall the highest line loading without recalculation | Same line21 and73.371%, read from saved results and compared with model limits | 17.6 s |
+
+The saved structured projection ranks lines21,11,26 first, matching the answer.
+The third turn calls evidence retrieval, result ranking, model constraints and
+topology endpoints; it does not call a power-flow solver. Refresh restores all
+three answers and the result links without reopening the result pane. Opening
+a saved result restores its table. The 1440px view has no page overflow.
+
+Receipts: `runs/shared-dialogue-adaptation/provider-trial-receipt.json` and
+`provider-trial-events.json` in the implementation worktree. Unique inspected
+image: root `output/playwright/enterprise-trial-result-1440-20261017-1501.png`.
+This verifies the existing grid-first shared conversation path. It does not
+certify every scientific task, native model-free execution or general reports.
+
+## Actual local entry verification
+
+The canonical rebuild completed at `00a8cd85975107a55455cb981152d83d0a69e034`.
+API and both professional workers use image
+`sha256:f102e8ca316d6a4a7299d395c9748d060785c40db2cfc97e7740e48ef7a7c010`.
+All 1153 managed source files match that commit in each role. Vite reports the
+same clean revision. Readiness passed. The identity receipt is
+`runs/shared-dialogue-adaptation/local-identity.json` in the implementation worktree.
+
+The current App suite passed 570 tests, plus TypeScript and build checks.
+The PostgreSQL-backed Work, execution, thread and research checks passed all
+88 tests against a separate test database. No database tests were skipped.
+
+Actual browser checks used existing local-dev records, without HTTP fixtures:
+history restoration, mixed-version session navigation, persisted result tables,
+electrical topology, draft restoration, split resizing and expanded-view return.
+New conversation creation opens the mature composer with no save/start stage.
+The measured 1440px page has no horizontal overflow. These read checks do not
+rerun or certify the historical numerical conclusions.
+
+The mixed-version list initially failed under the v1 reader. Commit `00a8cd85`
+adds a v2 list-only retry after the explicit version error. It keeps the active
+session protocol unchanged and does not replay writes or retry permission errors.
+A regression test and independent review cover this correction.
+
+The initial entry checks made no Provider calls. The later authorized trial is
+recorded above. Long-running research and the separate native conversation
+chain still need their own acceptance.
+Cloud, demo and the delivered user package were not changed.
 
 ## Design alignment checkpoint
 
@@ -94,13 +185,29 @@ contract. Existing session reports must not stand in for current Thread artifact
 
 ## Remaining verification
 
+### Original PyPSA defect and its correction
+
+On source00a8cd85, real thread `thr_2ca59c9ed9e634204467` completed model
+inspection and `operations.dispatch`, including the persisted seven-line result
+table. However, the answer interpreted static `p_set=0` defaults as zero operating
+demand despite time-series overrides. It also conflated fixed-capacity dispatch
+optimization with a power-flow check. This answer does not pass acceptance.
+The original event receipt is `runs/shared-dialogue-adaptation/pypsa-provider-trial-events.json`.
+
+The correction belongs to the PyPSA Authority and Packs: publish bounded effective
+demand ranges with missing-snapshot counts, identify static defaults, and describe
+the calculation actually performed. No scenario-specific agent behavior or new
+solver is introduced. The actual repeat and its remaining scope are recorded above.
+The separate pandapower three-turn acceptance remains valid.
+
 - Repeat affected checks if further source corrections are made. The current
   App suite, independent review and static layout checks passed as recorded above.
 - Preserve the backend changes through `a8b4e578`, already merged locally in
   `b703e37b`. Older dev Work validation cannot read current local-dev records.
-- Rebuild the exact candidate and verify API, worker and Vite source identities.
-- Verify the actual local entry point. Scripted CLI runs alone do not establish
-  end-to-end application acceptance.
+- PR #53 is integrated. Complete PR #54 checks before claiming its integration.
+- Keep the remaining IEEE39 explanation defect open. Model-free enterprise
+  dialogue and general artifacts require their own acceptance.
 
-The separate native conversation backend remains paused with an unresolved
-parent Harness failure in the real RPC test. It is not part of this UI acceptance.
+The separate native backend `c9e57152` fixes the RPC parent failure caused by
+oversized research excerpts. Its offline tests pass; it is not deployed or part
+of this UI trial acceptance.

@@ -3409,9 +3409,25 @@ The following original entries were retained during document synchronization.
 - 2026-10-17: PR51 mergeda8caeff2 with identical tested tree; macOS governance CI38945827751 passed1m46s; application preparation branches fast-forwarded.
 
 - 2026-10-17: Five original scripted professional cases passed fifteen turns; UI adaptation retains mature typography at 1440px. No Provider validation.
+
+- 2026-10-17: PR52 merged45913f1c with tested tree; macOS docs CI passed1m28s; dev and application preparation branches synchronized.
+- 2026-10-17: User clarified shared dialogue reuse; original grid-specific controls remain Profile-dependent, enterprise layout follows accepted design.
 - 2026-10-17: 9bf36652 preserves accepted workspace interactions and original typography, separating verified cases from pending application acceptance.
 - 2026-10-17: 8685d46b reuses mature dialogue with resizable results and smaller topology symbols; 550 App tests pass.
 - 2026-10-17: b703e37b retains compatible backend locally; visual acceptance withdrawn pending full architecture and prototype alignment. No deployment.
 - 2026-10-17: Design review preserves shared execution assets, identifies recovery-only start defect, and records unfinished native/Profile/artifact contracts.
 - 2026-10-17: Dev control graph includes b703e37b; browser confirms 28 nodes, 38 edges, no overlap, crossing or overflow.
 - 2026-10-17: 6f1c3412 aligns workspace structure with accepted prototype and preserves mature dialogue; 569 App tests pass.
+- 2026-10-17: fbbdbc7b records design alignment and verified prototype correction before local entry validation.
+- 2026-10-17: 00a8cd85 fixes mixed-version session listing without changing active protocol; 570 App and 88 PostgreSQL-backed tests pass.
+- 2026-10-17: local-dev00a8cd85 canonical rebuild and1153file identity checks passed in all3roles; real history/results/topology/new conversation verified; PR53ready with macOS CI pending; graph28nodes38edges checked.
+- 2026-10-17: 7d0f32c1 records live workspace verification and exact deployment identity for integration review.
+- 2026-10-17: c09235fd preserves the separate documentation branch and recovery checkpoint while product CI runs.
+- 2026-10-17: CI39009430704 cancelled for duration investigation; logs show passing product suites, not a hang. Full rerun requested.
+- 2026-10-17: c9e57152 connects native conversation to shared execution and fixes bounded research excerpts; offline verification passes, deployment pending.
+- 2026-10-17: effc9ccd reports effective PyPSA demand and distinguishes dispatch from power flow; fixes live-trial misinterpretation.
+- 2026-10-17: PR53 merged as f5eda4e4 after macOS CI passed; merge tree matches verified00a8cd85, dev fast-forwarded.
+- 2026-10-17: e0c8d246 restores retained PyPSA workspace preparation with isolated, cleaned launchers; preserves evidence across endpoint recovery.
+- 2026-10-17: 6415a57d explains balancing-source effects so unchanged flow results do not falsely block load-change analysis.
+- 2026-10-17: 4120e57b preserves resolved component names and indices in answers; fixes load-scenario identity confusion.
+- 2026-10-17 15:55 CST: Verified4120 local identity; IEEE39 numerical comparison passed, generator association explanation remains open; PyPSA retained task recovered.
