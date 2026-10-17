@@ -1,6 +1,36 @@
 # Shared dialogue adaptation: verification record
 
-Status: implementation in progress. No deployment or delivery acceptance.
+Status: shared workspace slice verified in local-dev at `00a8cd85`.
+PR #53 integration is pending. Full application delivery is not accepted.
+
+## Actual local entry verification
+
+The canonical rebuild completed at `00a8cd85975107a55455cb981152d83d0a69e034`.
+API and both professional workers use image
+`sha256:f102e8ca316d6a4a7299d395c9748d060785c40db2cfc97e7740e48ef7a7c010`.
+All 1153 managed source files match that commit in each role. Vite reports the
+same clean revision. Readiness passed. The identity receipt is
+`runs/shared-dialogue-adaptation/local-identity.json` in the implementation worktree.
+
+The current App suite passed 570 tests, plus TypeScript and build checks.
+The PostgreSQL-backed Work, execution, thread and research checks passed all
+88 tests against a separate test database. No database tests were skipped.
+
+Actual browser checks used existing local-dev records, without HTTP fixtures:
+history restoration, mixed-version session navigation, persisted result tables,
+electrical topology, draft restoration, split resizing and expanded-view return.
+New conversation creation opens the mature composer with no save/start stage.
+The measured 1440px page has no horizontal overflow. These read checks do not
+rerun or certify the historical numerical conclusions.
+
+The mixed-version list initially failed under the v1 reader. Commit `00a8cd85`
+adds a v2 list-only retry after the explicit version error. It keeps the active
+session protocol unchanged and does not replay writes or retry permission errors.
+A regression test and independent review cover this correction.
+
+No Provider calls were made. New free-form answers, continuous reasoning and
+the separate native conversation chain still need their own acceptance.
+Cloud, demo and the delivered user package were not changed.
 
 ## Design alignment checkpoint
 
@@ -98,9 +128,9 @@ contract. Existing session reports must not stand in for current Thread artifact
   App suite, independent review and static layout checks passed as recorded above.
 - Preserve the backend changes through `a8b4e578`, already merged locally in
   `b703e37b`. Older dev Work validation cannot read current local-dev records.
-- Rebuild the exact candidate and verify API, worker and Vite source identities.
-- Verify the actual local entry point. Scripted CLI runs alone do not establish
-  end-to-end application acceptance.
+- Complete PR #53 checks and integrate the verified slice into dev.
+- Verify new free-form dialogue separately. Historical browser records and
+  scripted CLI runs alone do not establish end-to-end application acceptance.
 
 The separate native conversation backend remains paused with an unresolved
 parent Harness failure in the real RPC test. It is not part of this UI acceptance.
