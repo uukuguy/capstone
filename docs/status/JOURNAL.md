@@ -3418,3 +3418,4 @@ The following original entries were retained during document synchronization.
 - 2026-10-17: fbbdbc7b records design alignment and verified prototype correction before local entry validation.
 - 2026-10-17: 00a8cd85 fixes mixed-version session listing without changing active protocol; 570 App and 88 PostgreSQL-backed tests pass.
 - 2026-10-17: local-dev00a8cd85 canonical rebuild and1153file identity checks passed in all3roles; real history/results/topology/new conversation verified; PR53ready with macOS CI pending; graph28nodes38edges checked.
+- 2026-10-17: 7d0f32c1 records live workspace verification and exact deployment identity for integration review.
