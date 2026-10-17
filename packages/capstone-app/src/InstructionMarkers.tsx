@@ -6,6 +6,8 @@ export default function InstructionMarkers({ viewportRef }: { viewportRef: RefOb
   const [markers, setMarkers] = useState<Marker[]>([])
   const [height, setHeight] = useState(0)
   const [scrolling, setScrolling] = useState(false)
+  const [nearEdge, setNearEdge] = useState(false)
+  const [hovered, setHovered] = useState<number | null>(null)
   useEffect(() => {
     const viewport = viewportRef.current
     if (!viewport) return undefined
@@ -41,15 +43,28 @@ export default function InstructionMarkers({ viewportRef }: { viewportRef: RefOb
     mutations.observe(viewport, { childList: true, subtree: true, characterData: true })
     viewport.addEventListener('scroll', onScroll, { passive: true })
     viewport.addEventListener('wheel', onScroll, { passive: true })
-    const onPointerMove = (event: PointerEvent) => { if (event.clientX >= viewport.getBoundingClientRect().right - 32) onScroll() }
+    const onPointerMove = (event: PointerEvent) => { setNearEdge(event.clientX >= viewport.getBoundingClientRect().right - 48) }
+    const onPointerLeave = () => setNearEdge(false)
     viewport.addEventListener('pointermove', onPointerMove)
+    viewport.addEventListener('pointerleave', onPointerLeave)
     window.addEventListener('resize', schedule)
     observe()
-    return () => { clearTimeout(hideTimer); cancelAnimationFrame(frame); resize.disconnect(); mutations.disconnect(); viewport.removeEventListener('scroll', onScroll); viewport.removeEventListener('wheel', onScroll); viewport.removeEventListener('pointermove', onPointerMove); window.removeEventListener('resize', schedule) }
+    return () => { clearTimeout(hideTimer); cancelAnimationFrame(frame); resize.disconnect(); mutations.disconnect(); viewport.removeEventListener('scroll', onScroll); viewport.removeEventListener('wheel', onScroll); viewport.removeEventListener('pointermove', onPointerMove); viewport.removeEventListener('pointerleave', onPointerLeave); window.removeEventListener('resize', schedule) }
   }, [viewportRef])
-  return <nav className={`capstone-instruction-markers${scrolling ? ' is-scrolling' : ''}`} aria-label="用户指令位置" style={{ height }}>
-    {markers.map((marker, index) => <button key={marker.node.dataset.messageId || index} type="button"
-      style={{ top: `${marker.top}%` }} aria-label={marker.label} aria-current={marker.current ? 'location' : undefined}
-      onClick={() => { const viewport = viewportRef.current; if (!viewport) return; viewport.scrollTop += marker.node.getBoundingClientRect().top - viewport.getBoundingClientRect().top - 12; marker.node.focus({ preventScroll: true }) }}><span /><span className="capstone-instruction-marker-tip" aria-hidden="true">{marker.label}</span></button>)}
+  const position = (index: number) => Math.max(4, Math.min(height - 44, markers[index].top * height / 100))
+  const chosen: number[] = []
+  const current = markers.findIndex(marker => marker.current)
+  // Current first, then recent instructions. Older crowded markers yield space.
+  for (const index of [current, ...markers.map((_, index) => index).reverse()]) {
+    if (index >= 0 && !chosen.includes(index) && chosen.every(other => Math.abs(position(other) - position(index)) >= 48)) chosen.push(index)
+  }
+  return <nav className={`capstone-instruction-markers${scrolling ? ' is-scrolling' : ''}${nearEdge || hovered !== null ? ' is-near-edge' : ''}`} aria-label="用户指令位置" style={{ height }}
+    onPointerEnter={() => setNearEdge(true)} onPointerLeave={() => { setNearEdge(false); setHovered(null) }}>
+    {chosen.sort((a,b)=>a-b).map(index => { const marker=markers[index]; const preview=scrolling ? marker.current : hovered !== null ? hovered===index : nearEdge
+      return <button key={marker.node.dataset.messageId || index} type="button"
+      style={{ top: position(index) }} aria-label={marker.label} aria-current={marker.current ? 'location' : undefined}
+      onPointerEnter={() => setHovered(index)} onPointerLeave={() => setHovered(null)} onFocus={() => setHovered(index)} onBlur={() => setHovered(null)}
+      onClick={() => { const viewport = viewportRef.current; if (!viewport) return; viewport.scrollTo({top:viewport.scrollTop + marker.node.getBoundingClientRect().top - viewport.getBoundingClientRect().top - 12, behavior:window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'}); marker.node.focus({ preventScroll: true }) }}><span /><span className={`capstone-instruction-marker-tip${preview ? ' is-visible' : ''}`} aria-hidden="true">{marker.label}</span></button>
+    })}
   </nav>
 }

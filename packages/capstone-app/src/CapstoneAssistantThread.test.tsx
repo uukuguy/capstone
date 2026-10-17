@@ -11,16 +11,21 @@ const event = (eventType: string, eventSeq: number, payload: Record<string, unkn
 })
 
 describe('CapstoneAssistantThread', () => {
-  it('offers a persisted result product card only for that answer and opens its registered viewer', () => {
-    const result:ResultProjection={resultId:'res_one',resultRef:'result:one',evidenceRefs:['evidence:one'],threadId:'thr_demo',runId:'run_demo',turnId:'turn_one',attemptId:'one',modelContextId:'ctx_one',modelId:'ieee39',modelRevision:'7',source:{capabilityId:'powerflow.ac',domainPackId:'grid',implementationFamily:'pandapower'},status:'completed',summary:[{metricId:'loss',label:'有功损耗',value:1}],tables:[],elementRefs:[]}
-    const open=vi.fn()
-    render(<CapstoneAssistantThread events={[event('attempt_completed',1,{answer:'已完成计算。'},'one'),event('attempt_completed',2,{answer:'普通说明。'},'two')]}
-      resultProjections={[result]} onOpenResultProduct={open} disabled={false} isRunning={false} activity={[]} onSend={async()=>{}} onCancel={async()=>{}} />)
-    const cards=screen.getAllByRole('button',{name:'打开计算结果：有功损耗'})
-    expect(cards).toHaveLength(1)
-    fireEvent.click(cards[0])
-    expect(open).toHaveBeenCalledWith(result)
-    expect(screen.queryByRole('link',{name:/报告|PDF/})).toBeNull()
+  it('keeps intermediate results available for inspection without final-product links', () => {
+    const result: ResultProjection = {resultId:'r',resultRef:'result:r',evidenceRefs:[],threadId:'thr_demo',runId:'run_demo',turnId:'turn_one',attemptId:'one',modelContextId:'ctx',modelId:'ieee39',modelRevision:'7',source:{capabilityId:'powerflow.ac',domainPackId:'grid',implementationFamily:'pandapower'},status:'completed',summary:[{metricId:'loss',label:'有功损耗',value:1}],tables:[],elementRefs:[]}
+    const open = vi.fn()
+    result.presentation = {collectionId:'analysis',collectionTitle:'电网分析结果',groupId:'state_1',groupTitle:'运行状态 1',purpose:'task_output'}
+    render(<CapstoneAssistantThread events={[event('attempt_completed',1,{answer:'计算说明'},'one'),event('attempt_completed',2,{answer:'普通说明'},'two')]} resultProjections={[result]} onOpenResultProduct={vi.fn()} onOpenTaskResults={open} disabled={false} isRunning={false} activity={[]} onSend={async()=>{}} onCancel={async()=>{}} />)
+    expect(screen.queryByRole('button', {name:'打开计算结果：有功损耗'})).toBeNull()
+    const conclusions = screen.getAllByRole('button', {name:'打开电网分析结果'})
+    expect(conclusions).toHaveLength(1)
+    fireEvent.click(conclusions[0])
+    expect(open).toHaveBeenCalledWith(expect.objectContaining({attemptId:'one',title:'电网分析结果',results:[result]}))
+    const buttons = screen.getAllByRole('button', {name:'查看计算结果'})
+    expect(buttons).toHaveLength(1)
+    fireEvent.click(buttons[0])
+    expect(screen.getByRole('dialog', {name:'结果明细'})).toBeTruthy()
+    expect(screen.getAllByText('有功损耗').length).toBeGreaterThan(0)
   })
   it('opens only real sources in an answer-owned sheet while execution stays in the conversation', () => {
     const events = [
@@ -150,6 +155,21 @@ describe('CapstoneAssistantThread', () => {
     fireEvent.click(expand)
     expect(steps.every(step => step.open)).toBe(true)
     expect(expand.disabled).toBe(true)
+  })
+  it('positions a new running instruction near the top even when it was already visible', async () => {
+    const scroll = vi.spyOn(HTMLElement.prototype, 'scrollTo')
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const viewport = document.querySelector('.capstone-chat-viewport')
+      const top = this.classList.contains('capstone-chat-viewport') ? 100 : 400 - (viewport?.scrollTop || 0)
+      return { top, bottom: top + (this === viewport ? 500 : 40), left: 0, right: 800, width: 800, height: this === viewport ? 500 : 40, x: 0, y: top, toJSON: () => ({}) }
+    })
+    try {
+      const events = [event('command_accepted', 1, {kind:'send_auto',text:'读取线路参数'}, 'anchor'), event('attempt_started', 2, {}, 'anchor')]
+      render(<CapstoneAssistantThread events={events} activity={[]} disabled={false} isRunning onSend={async()=>{}} onCancel={async()=>{}} />)
+      const viewport = document.querySelector('.capstone-chat-viewport') as HTMLElement
+      Object.defineProperties(viewport, {clientHeight:{configurable:true,value:500},scrollHeight:{configurable:true,value:800}})
+      await waitFor(() => expect(scroll).toHaveBeenCalledWith({ top: 292, behavior: 'smooth' }))
+    } finally { rect.mockRestore(); scroll.mockRestore() }
   })
   it('fits both running process views within the remaining conversation viewport', async () => {
     let bottom = 500

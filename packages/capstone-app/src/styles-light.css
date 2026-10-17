@@ -424,13 +424,23 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .assistant-live-dot { width: 6px; height: 6px; border-radius: 50%; background: #1c9b86; box-shadow: 0 0 0 3px #1c9b8628; }
 .capstone-chat-runtime { position: relative; display: flex; flex-direction: column; min-height: 0; flex: 1; }
 .capstone-instruction-markers { position: absolute; top: 0; right: 10px; width: 12px; pointer-events: none; z-index: 3; opacity: 0; transition: opacity .18s ease; }
-.capstone-instruction-markers.is-scrolling, .capstone-instruction-markers:focus-within, .capstone-instruction-markers:has(button:hover) { opacity: 1; }
+.capstone-instruction-markers.is-scrolling, .capstone-instruction-markers.is-near-edge, .capstone-instruction-markers:focus-within { opacity: 1; }
 .capstone-instruction-markers button { position: absolute; left: 0; width: 12px; height: 16px; padding: 4px 2px; border: 0; background: transparent; cursor: pointer; pointer-events: auto; transform: translateY(-4px); }
 .capstone-instruction-markers button > span:first-child { display: block; width: 5px; height: 3px; border-radius: 2px; background: #9badbc; }
 .capstone-instruction-markers button[aria-current] > span:first-child { width: 7px; height: 4px; background: #126f68; }
-.capstone-instruction-markers:not(.is-scrolling):not(:hover):not(:focus-within) button { pointer-events: none; }
-.capstone-instruction-marker-tip { display: none; position: absolute; right: 16px; top: -5px; width: max-content; max-width: min(240px, 65vw); padding: 6px 9px; border: 1px solid #cbd5df; border-radius: 5px; background: #f5f7fa; color: #41576a; box-shadow: 0 2px 8px #23354818; font: 11px/1.5 Inter, "PingFang SC", sans-serif; text-align: left; pointer-events: none; }
-.capstone-instruction-markers button:hover .capstone-instruction-marker-tip, .capstone-instruction-markers button:focus-visible .capstone-instruction-marker-tip { display: block; }
+.capstone-instruction-markers:not(.is-scrolling):not(.is-near-edge):not(:focus-within) button { pointer-events: none; }
+.capstone-instruction-marker-tip { display: none; position: absolute; right: 16px; top: -5px; width: max-content; max-width: min(240px, 65vw); padding: 6px 9px; border: 1px solid rgb(135 154 151 / 8%); border-radius: 5px; background: rgb(248 250 248 / 12%); color: #5d6e68; box-shadow: none; backdrop-filter: none; font: 11px/1.5 Inter, "PingFang SC", sans-serif; text-align: left; pointer-events: none; }
+.capstone-instruction-marker-tip.is-visible { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.capstone-instruction-markers button[aria-current] .capstone-instruction-marker-tip { border-color: rgb(85 156 142 / 12%); background: rgb(237 246 241 / 16%); color: #466b60; font-weight: 500; }
+.capstone-instruction-markers .capstone-instruction-marker-tip { color: rgb(75 98 88 / 28%); transition: color .18s ease, background-color .18s ease; }
+.capstone-instruction-markers button[aria-current] .capstone-instruction-marker-tip { color: rgb(55 100 83 / 35%); }
+.capstone-instruction-markers button:hover .capstone-instruction-marker-tip,
+.capstone-instruction-markers button:focus-visible .capstone-instruction-marker-tip { color: #466b60; }
+.capstone-instruction-markers.is-near-edge:not(.is-scrolling) .capstone-instruction-marker-tip,
+.capstone-instruction-markers:focus-within .capstone-instruction-marker-tip { color: #466057; background: #f8faf8; border-color: #dce4df; box-shadow: 0 2px 6px rgb(35 53 48 / 6%); }
+.capstone-instruction-markers.is-near-edge:not(.is-scrolling) button[aria-current] .capstone-instruction-marker-tip,
+.capstone-instruction-markers:focus-within button[aria-current] .capstone-instruction-marker-tip { color: #285e4e; background: #edf6f1; border-color: #bad7cb; }
+@media (prefers-reduced-motion: reduce) { .capstone-instruction-markers .capstone-instruction-marker-tip { transition: none; } }
 .capstone-instruction-markers button:focus-visible { outline: 2px solid #167d75; border-radius: 3px; }
 .capstone-chat-viewport { display: flex; flex: 1; flex-direction: column; gap: 14px; min-height: 250px; overflow-y: auto; padding: 18px 16px 20px; }
 .capstone-chat-empty { display: grid; place-items: center; gap: 7px; min-height: 220px; padding: 28px; text-align: center; color: #5e7772; }
@@ -1251,11 +1261,28 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .thread-result-product-view > p { margin: 0 0 16px; color: #66716b; }
 .thread-result-product-view .capstone-result-card { margin-top: 24px; }
 .thread-resource-panel .capstone-result-table { font-variant-numeric: tabular-nums; }
-.capstone-result-products { display: grid; gap: 8px; margin: 16px 0; }
-.capstone-result-product { display: flex; align-items: center; gap: 16px; width: min(100%, 560px); padding: 16px; border: 1px solid #dde1d9; border-radius: 8px; background: #fff; color: #22352e; text-align: left; cursor: pointer; }
-.capstone-result-product > span:first-of-type { display: grid; flex: 1; gap: 4px; min-width: 0; }
-.capstone-result-product strong { font-size: 15px; font-weight: 600; }
-.capstone-result-product small { font-size: 13px; color: #66716b; }
+.capstone-result-products { display: grid; gap: 6px; margin: 10px 0; }
+.task-result-workspace { padding: 16px; font-size: 12px; line-height: 1.6; color: #29453b; }
+.task-result-workspace h3 { margin: 0; font-size: 14px; line-height: 1.5; }
+.task-result-workspace > header > span, .task-result-workspace small, .task-result-workspace-actions > span { font-size: 11px; color: #64766e; }
+.task-result-workspace > nav { margin: 12px 0; max-height: 220px; overflow: auto; border-block: 1px solid #dde5df; }
+.task-result-workspace summary { padding: 8px 0; cursor: pointer; font-weight: 500; }
+.task-result-workspace summary small { margin-left: 10px; font-weight: 400; }
+.task-result-workspace details > div { display: flex; flex-wrap: wrap; gap: 6px; padding-bottom: 8px; }
+.task-result-workspace button { border: 1px solid #d9e2db; border-radius: 4px; background: #fff; color: inherit; padding: 5px 8px; font: inherit; cursor: pointer; }
+.task-result-workspace button[aria-pressed="true"] { border-color: #7a9d8c; background: #eaf2ed; }
+.task-result-workspace-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 8px 0; }
+.task-result-workspace .capstone-result-card { margin: 0; }
+.capstone-result-product-group { width: min(100%, 560px); margin: 10px 0; border: 1px solid #dde1d9; border-radius: 6px; background: #fff; }
+.capstone-result-product-group > summary { padding: 12px; color: #22352e; font-size: 12px; line-height: 20px; font-weight: 600; cursor: pointer; }
+.capstone-result-product-group > summary > span { margin-left: 8px; color: #66716b; font-size: 11px; font-weight: 400; }
+.capstone-result-product-group > summary:focus-visible { outline: 2px solid #245b47; outline-offset: 2px; }
+.capstone-result-product-group > .capstone-result-products { max-height: 280px; overflow-y: auto; overscroll-behavior: contain; padding: 0 8px 8px; margin: 0; }
+.capstone-result-product { display: flex; align-items: center; gap: 10px; width: min(100%, 560px); min-height: 44px; padding: 9px 12px; border: 1px solid #dde1d9; border-radius: 6px; background: #fff; color: #22352e; text-align: left; cursor: pointer; }
+.capstone-result-product > span:first-of-type { display: grid; flex: 1; gap: 2px; min-width: 0; }
+.capstone-result-product strong { font-size: 12px; line-height: 1.5; font-weight: 600; }
+.capstone-result-product small { font-size: 11px; line-height: 1.4; color: #66716b; }
+.capstone-result-product > svg { width: 16px; height: 16px; flex-shrink: 0; }
 .capstone-result-product:hover { border-color: #245b47; background: #f2f6f0; }
 .capstone-result-product:focus-visible { outline: 2px solid #245b47; outline-offset: 2px; }
 .thread-resource-heading > div { display: flex; gap: 8px; }

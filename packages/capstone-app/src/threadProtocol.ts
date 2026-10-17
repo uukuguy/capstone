@@ -47,6 +47,7 @@ export type ResultTablePagination = { manifestRef: string; totalRows: number; pa
 export type ResultTable = { tableId: string; title: string; columns: ResultColumn[]; rows: ResultRow[]; pagination?: ResultTablePagination }
 export type ResultOverlay = { metric: string; unit: string; sourceRef: string; values: Array<{ elementId: string; value: number }> }
 export type ResultProjection = {
+  presentation?: { collectionId: string; collectionTitle: string; groupId: string; groupTitle: string; purpose: 'task_output' | 'inspection' }
   resultId: string; resultRef?: string; evidenceRefs: string[]
   threadId: string; runId: string; turnId: string; attemptId: string
   modelContextId: string; modelId: string; modelRevision: string
@@ -260,7 +261,7 @@ function parseResultElementRef(value: unknown, name: string): ResultElementRef {
 
 function parseResultProjection(value: unknown): ResultProjection {
   const document = object(value, 'result projection')
-  const keys = ['schema', 'result_id', 'result_ref', 'evidence_refs', 'thread_id', 'run_id', 'turn_id', 'attempt_id', 'model_context_id', 'model_id', 'model_revision', 'source', 'status', 'summary', 'tables', 'element_refs', 'overlay', 'unavailable_reason']
+  const keys = ['schema', 'result_id', 'result_ref', 'evidence_refs', 'thread_id', 'run_id', 'turn_id', 'attempt_id', 'model_context_id', 'model_id', 'model_revision', 'source', 'status', 'summary', 'tables', 'element_refs', 'overlay', 'unavailable_reason', 'presentation']
   fields(document, new Set(keys), 'result projection')
   required(document, keys.slice(0, 17), 'result projection')
   if (document.schema !== 'capstone-result-projection/1.0') throw new ThreadProtocolError('result projection.schema is invalid')
@@ -344,7 +345,17 @@ function parseResultProjection(value: unknown): ResultProjection {
   const reason = document.unavailable_reason == null ? undefined : resultText(document.unavailable_reason, 'result projection.unavailable_reason')
   if (status === 'unavailable' && (!reason || summary.length || tables.length || elementRefs.length || overlay)) throw new ThreadProtocolError('unavailable result projection is inconsistent')
   if (status === 'completed' && reason) throw new ThreadProtocolError('completed result projection cannot have an unavailable reason')
+  let presentation: ResultProjection['presentation']
+  if (document.presentation != null) {
+    const value = object(document.presentation, 'result presentation')
+    const names = ['collection_id', 'collection_title', 'group_id', 'group_title', 'purpose']
+    fields(value, new Set(names), 'result presentation')
+    required(value, names, 'result presentation')
+    if (value.purpose !== 'task_output' && value.purpose !== 'inspection') throw new ThreadProtocolError('result presentation purpose is invalid')
+    presentation = {collectionId:resultIdentifier(value.collection_id, 'collection id'), collectionTitle:resultText(value.collection_title, 'collection title'), groupId:resultIdentifier(value.group_id, 'group id'), groupTitle:resultText(value.group_title, 'group title'), purpose:value.purpose}
+  }
   return {
+    ...(presentation ? {presentation} : {}),
     resultId: resultIdentifier(document.result_id, 'result projection.result_id'), resultRef: resultReference, evidenceRefs,
     threadId: identifier(document.thread_id, 'result projection.thread_id'), runId: identifier(document.run_id, 'result projection.run_id'),
     turnId: identifier(document.turn_id, 'result projection.turn_id'), attemptId: identifier(document.attempt_id, 'result projection.attempt_id'),
@@ -603,6 +614,7 @@ export function parseThreadSnapshot(value: unknown): ThreadSnapshot {
 
 function resultProjectionDocument(projection: ResultProjection): Record<string, unknown> {
   return {
+    ...(projection.presentation ? {presentation:{collection_id:projection.presentation.collectionId,collection_title:projection.presentation.collectionTitle,group_id:projection.presentation.groupId,group_title:projection.presentation.groupTitle,purpose:projection.presentation.purpose}} : {}),
     schema: 'capstone-result-projection/1.0', result_id: projection.resultId,
     ...(projection.resultRef ? { result_ref: projection.resultRef } : { result_ref: null }),
     evidence_refs: projection.evidenceRefs, thread_id: projection.threadId, run_id: projection.runId,

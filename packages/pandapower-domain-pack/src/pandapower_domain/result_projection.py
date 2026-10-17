@@ -189,17 +189,21 @@ class PandapowerResultProjector:
             if not callable(verify_descendant):
                 raise ValueError("result projection ancestry verification is unavailable")
             derived: list[dict[str, object]] = []
-            for reference, group in groups.items():
+            for group_index, (reference, group) in enumerate(groups.items(), 1):
                 verified_context = getattr(verify_descendant(reference, context_ref), "document", None)
                 if not isinstance(verified_context, Mapping) or not isinstance(verified_context.get("revision_ref"), str):
                     raise ValueError("derived projection context is invalid")
-                derived.extend(self.project_admitted(
+                group_projections = self.project_admitted(
                     authority=authority, invoke=invoke, context_ref=reference,
                     model_revision=verified_context["revision_ref"], model_context_id=model_context_id,
                     model_id=model_id, thread_id=thread_id, run_id=run_id, turn_id=turn_id,
                     attempt_id=attempt_id, result_refs=group,
                     result_evidence={ref: result_evidence.get(ref, ()) for ref in group},
-                ))
+                )
+                for item in group_projections:
+                    if isinstance(item.get("presentation"), dict):
+                        item["presentation"]["group_title"] = f"运行状态 {group_index}"
+                derived.extend(group_projections)
             return tuple(derived)
         context_artifact = verify_context(context_ref)
         context_document = getattr(context_artifact, "document", None)
@@ -247,6 +251,15 @@ class PandapowerResultProjector:
                 admitted_refs=admitted_refs,
                 diagram=diagram,
             ))
+        # These memberships come from verified Authority contexts. They describe
+        # analysis data, not a claim that the task produced a final report.
+        for item in projections:
+            if item["status"] in {"completed", "partial"} and (item["summary"] or item["tables"]):
+                item["presentation"] = {
+                    "collection_id": "grid-analysis-results", "collection_title": "电网分析结果",
+                    "group_id": "context_" + context_ref.rsplit(":", 1)[-1],
+                    "group_title": "运行状态 1", "purpose": "task_output",
+                }
         return tuple(projections)
 
     def project(

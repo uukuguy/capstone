@@ -328,6 +328,33 @@ class ResultSource:
 
 
 @dataclass(frozen=True, slots=True)
+class ResultPresentation:
+    """Pack-owned membership; clients must not infer it from result labels."""
+
+    collection_id: str
+    collection_title: str
+    group_id: str
+    group_title: str
+    purpose: str
+
+    @classmethod
+    def from_document(cls, value: Any) -> "ResultPresentation":
+        document = _document(value, "result presentation")
+        if set(document) != {"collection_id", "collection_title", "group_id", "group_title", "purpose"}:
+            raise ValueError("result presentation fields are invalid")
+        if document["purpose"] not in {"task_output", "inspection"}:
+            raise ValueError("result presentation purpose is invalid")
+        return cls(_identifier(document["collection_id"], "collection_id"),
+                   _text(document["collection_title"], "collection_title"),
+                   _identifier(document["group_id"], "group_id"),
+                   _text(document["group_title"], "group_title"), document["purpose"])
+
+    def to_document(self) -> dict[str, str]:
+        return {"collection_id": self.collection_id, "collection_title": self.collection_title,
+                "group_id": self.group_id, "group_title": self.group_title, "purpose": self.purpose}
+
+
+@dataclass(frozen=True, slots=True)
 class ResultProjection:
     result_id: str
     result_ref: str | None
@@ -346,11 +373,13 @@ class ResultProjection:
     element_refs: tuple[ResultElementRef, ...]
     overlay: ResultOverlay | None
     unavailable_reason: str | None = None
+    presentation: ResultPresentation | None = None
 
     @classmethod
     def from_document(cls, value: Any) -> "ResultProjection":
         document = _document(value, "result projection")
         allowed = {"schema", "result_id", "result_ref", "evidence_refs", "thread_id", "run_id", "turn_id", "attempt_id", "model_context_id", "model_id", "model_revision", "source", "status", "summary", "tables", "element_refs", "overlay", "unavailable_reason"}
+        allowed.add("presentation")
         if set(document) - allowed or not {"schema", "result_id", "result_ref", "evidence_refs", "thread_id", "run_id", "turn_id", "attempt_id", "model_context_id", "model_id", "model_revision", "source", "status", "summary", "tables", "element_refs", "overlay"} <= set(document):
             raise ValueError("result projection fields are invalid")
         if document["schema"] != RESULT_PROJECTION_SCHEMA:
@@ -398,6 +427,7 @@ class ResultProjection:
             _identifier(document["model_context_id"], "result projection.model_context_id"), _model_identifier(document["model_id"], "result projection.model_id"),
             _ref(document["model_revision"], "result projection.model_revision", kind="revision"), ResultSource.from_document(document["source"]), status,
             summary, tables, elements, overlay, reason,
+            None if document.get("presentation") is None else ResultPresentation.from_document(document["presentation"]),
         )
 
     def to_document(self) -> dict[str, Any]:
@@ -412,6 +442,8 @@ class ResultProjection:
         }
         if self.unavailable_reason is not None:
             document["unavailable_reason"] = self.unavailable_reason
+        if self.presentation is not None:
+            document["presentation"] = self.presentation.to_document()
         return document
 
 

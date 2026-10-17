@@ -38,7 +38,33 @@ def test_derived_result_uses_verified_child_diagram_and_revision() -> None:
     )
     assert len(checked) == 1
     assert payloads[0]["model_revision"] == REVISION_REF
+    assert payloads[0]["presentation"] == {
+        "collection_id": "grid-analysis-results", "collection_title": "电网分析结果",
+        "group_id": "context_" + "d" * 64, "group_title": "运行状态 1", "purpose": "task_output",
+    }
     assert payloads[0]["overlay"]["values"][0]["value"] == 67.15
+
+
+def test_projection_groups_only_verified_context_membership() -> None:
+    refs = ["result:sha256:" + digit * 64 for digit in ("1", "2", "3")]
+    contexts = ["context:sha256:" + digit * 64 for digit in ("4", "5")]
+    documents = {ref: {**calculation(), "result_ref": ref, "context_ref": contexts[0 if i < 2 else 1]}
+                 for i, ref in enumerate(refs)}
+    authority = SimpleNamespace(
+        verify_result=lambda ref: SimpleNamespace(document=documents[ref]),
+        verify_context=lambda ref: SimpleNamespace(document={**context(), "context_ref": ref}),
+        verify_context_descendant=lambda ref, parent: SimpleNamespace(document={**context(), "context_ref": ref}),
+    )
+    payloads = PandapowerResultProjector().project_admitted(
+        authority=authority, invoke=lambda name, args: diagram(), context_ref=context()["context_ref"],
+        model_context_id="context_1", model_id="ieee39", thread_id="thread_1", run_id="run_1",
+        turn_id="turn_1", attempt_id="attempt_1", result_refs=refs,
+        result_evidence={ref: [EVIDENCE_REF] for ref in refs},
+    )
+    memberships = [item["presentation"] for item in payloads]
+    assert memberships[0]["group_id"] == memberships[1]["group_id"]
+    assert memberships[1]["group_id"] != memberships[2]["group_id"]
+    assert [item["group_title"] for item in memberships] == ["运行状态 1", "运行状态 1", "运行状态 2"]
 
 
 def context() -> dict[str, object]:

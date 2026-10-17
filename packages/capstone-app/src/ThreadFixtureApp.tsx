@@ -5,6 +5,8 @@ import { createFixtureTransport, instructionOrdinal, ThreadProjectionStore, type
 import { threadUiFixture, type ThreadUiFixtureId } from './threadUiFixtures'
 import CapstoneAssistantThread, { projectAssistantActivity, ResultProjectionCard } from './CapstoneAssistantThread'
 import ThreadModelPane from './ThreadModelPane'
+import TaskResultWorkspace from './TaskResultWorkspace'
+import { taskResultCollections, type TaskResultCollection } from './taskResultCollections'
 import ThreadModelDirectory, { modelUnavailableCopy } from './ThreadModelDirectory'
 import { commandRejectionCopy } from './threadFeedback'
 import { upsertSystemNotice, type ThreadSystemNotice } from './threadSystemNotices'
@@ -53,9 +55,10 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   const workspace = presentation === 'workspace'
   const [resourcePanelOpen, setResourcePanelOpen] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState<string>()
+  const [taskResults, setTaskResults] = useState<(TaskResultCollection & {threadId: string})>()
+  const observedTaskOutputs = useRef<{threadId:string; ids:Set<string>} | null>(null)
   const [resourceView,setResourceView]=useState('model')
   const settingsTrigger=useRef<HTMLButtonElement>(null)
-  const observedProducts = useRef<{ threadId: string; ids: Set<string>; cursor: number; opened: boolean } | null>(null)
   const [localDisabledToolIds, setLocalDisabledToolIds] = useState<string[]>([])
   const disabledToolIds = sharedDisabledToolIds ?? localDisabledToolIds
   const setDisabledToolIds = onDisabledToolIdsChange ?? setLocalDisabledToolIds
@@ -205,21 +208,16 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   const product = snapshot?.resultProjections?.find(result => result.resultId === selectedProduct)
   useEffect(() => {
     if (!workspace || !snapshot) return
-    const products = (snapshot.resultProjections || []).filter(result => result.status !== 'unavailable' && result.resultRef && (result.summary.length > 0 || result.tables.length > 0))
-    const observed = observedProducts.current
-    if (!observed || observed.threadId !== snapshot.threadId) {
-      observedProducts.current = {threadId:snapshot.threadId, ids:new Set(products.map(result=>result.resultId)), cursor:projection.eventSeq, opened:false}
-      return
-    }
-    const latestAttempt = snapshot.currentAttempt?.attemptId || [...store.publicEvents].reverse()
-      .find(event => event.attemptId && ['command_accepted','attempt_started','attempt_completed','attempt_failed','attempt_cancelled','attempt_interrupted'].includes(event.eventType))?.attemptId
-    const generated = products.find(result => !observed.ids.has(result.resultId) && result.attemptId === latestAttempt && projection.eventSeq > observed.cursor)
-    observed.ids = new Set(products.map(result=>result.resultId))
-    if (generated && !observed.opened) {
-      observed.opened = true
-      setSelectedProduct(generated.resultId); setResourceView('result'); setResourcePanelOpen(true)
-    }
-  }, [workspace, snapshot, projection.eventSeq])
+    const results = snapshot.resultProjections || []
+    const attempts = [...new Set(results.map(result => result.attemptId))]
+    const collections = attempts.flatMap(attempt => taskResultCollections(results, attempt))
+    const previous = observedTaskOutputs.current
+    observedTaskOutputs.current = {threadId:snapshot.threadId,ids:new Set(collections.map(item => item.id))}
+    if (!previous || previous.threadId !== snapshot.threadId) return
+    const latest = [...store.publicEvents].reverse().find(event => event.eventType === 'attempt_completed')
+    const generated = collections.find(item => !previous.ids.has(item.id) && item.attemptId === latest?.attemptId)
+    if (generated) { setTaskResults({...generated,threadId:snapshot.threadId}); setResourceView('task-results'); setResourcePanelOpen(true) }
+  }, [workspace, snapshot, store])
   const selectedTools = useMemo(() => enabledTools(projection.catalog?.profiles || [], disabledToolIds), [projection.catalog?.profiles, disabledToolIds])
   useEffect(() => {
     if (!snapshot) return
@@ -778,9 +776,10 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
     </>
   return <ThreadWorkspace loading={loading} ready={Boolean(snapshot)} conversationOnly={workspace} subtitle={workspace ? '企业工作台' : undefined}
     workspaceActions={workspace && <button type="button" className="workspace-resource-menu" aria-label={`业务能力与资源，已选择${selectedTools.length}项`} onClick={()=>{settingsTrigger.current?.click();settingsTrigger.current?.focus({preventScroll:true})}}>业务能力 {selectedTools.length}</button>}
-    resourcePanel={workspace ? modelPane : undefined} resourceLabel={product && resourceView==='result' ? '计算结果' : '模型与结果'} resourcePanelOpen={resourcePanelOpen} onResourcePanelOpenChange={setResourcePanelOpen}
+    resourcePanel={workspace ? modelPane : undefined} resourceLabel={taskResults && resourceView==='task-results' ? taskResults.title : product && resourceView==='result' ? '计算结果' : '模型与结果'} resourcePanelOpen={resourcePanelOpen} onResourcePanelOpenChange={setResourcePanelOpen}
     selectedResourceView={resourceView} onResourceViewChange={setResourceView}
     resourceViews={workspace ? [{id:'model',label:'电气拓扑',content:modelPane,description:isHistorical ? '历史模型资源 · 保持原模型修订与只读边界' : '当前模型资源 · 计算状态以实际运行结果为准'},
+      ...(taskResults && taskResults.threadId === threadId ? [{id:'task-results',label:taskResults.title,description:'本次指令的分析数据 · 分组由主执行链路提供',content:<TaskResultWorkspace key={taskResults.id} collection={taskResults} onFocusElement={focusResultElement} />}] : []),
       ...(product ? [{id:'result',label:'计算结果',description:`${product.modelId} · ${product.status==='partial' ? '部分结果' : '已完成'} · 已保存的计算结果`,content:<div className="thread-result-product-view"><p>{product.modelContextId===snapshot?.activeModelContext.id ? '当前模型的已保存计算结果' : '历史模型的已保存计算结果'} · {product.modelId}</p><ResultProjectionCard projection={product} onFocusElement={focusResultElement} /></div>}] : [])] : undefined}
     preparation={(activity.mode === 'preparing' || activity.mode === 'failed') && <div className="thread-resume-progress">
       <WorkbenchPreparation compact updates={activity.updates} error={activity.error}
@@ -792,6 +791,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
     {snapshot && <>
           <CapstoneAssistantThread emptyState={workspace ? <div className="workspace-conversation-empty"><span className="eyebrow">A SPACE FOR YOUR WORK</span><strong>从一个问题开始，<br />让工作逐步成形。</strong><p>提出目标，补充资料，或继续一项研究。</p></div> : undefined} storageKey={storageKey} hasOlderHistory={projection.hasOlderHistory} historyLoading={projection.historyLoading}
             onOpenAnswerDetail={workspace ? ()=>setResourcePanelOpen(false) : undefined}
+            onOpenTaskResults={workspace ? value=>{setTaskResults({...value,threadId});setResourceView('task-results');setResourcePanelOpen(true)} : undefined}
             onOpenResultProduct={workspace ? result=>{setSelectedProduct(result.resultId);setResourceView('result');setResourcePanelOpen(true)} : undefined}
             onReadAttemptRecords={client?.supportsAttemptRecords ? (attemptId, after) => client.attemptRecords(threadId, attemptId, after) : undefined}
             systemNotices={systemState.thread === threadId ? systemState.items : []} onSystemAction={() => setReload((value) => value + 1)}
