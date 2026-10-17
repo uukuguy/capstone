@@ -1,7 +1,7 @@
 import { parseEventEnvelope, type EventEnvelope } from './threadProtocol'
 import type { ThreadCommand, ThreadTransport, ThreadTransportState } from './threadClient'
 import { MAX_THREAD_JSON_BYTES } from './networkLimits'
-import { parseThreadDescriptor, parseThreadListPage } from './threadManagement'
+import { parseThreadDescriptor, parseThreadListPage, type ThreadListPage } from './threadManagement'
 import { fetchWithReadRetry } from './httpRetry'
 import { parseAttemptRecords } from './attemptRecords'
 import type { WorkCommand } from './threadWorkProtocol'
@@ -141,10 +141,16 @@ export class HttpThreadTransport implements ThreadTransport {
     catch (cause) { if (cause instanceof ThreadTransportError && cause.status === 404) return null; throw cause }
   }
 
-  async listThreads(archived = false, before?: string, signal?: AbortSignal) {
+  async listThreads(archived = false, before?: string, signal?: AbortSignal): Promise<ThreadListPage> {
     const query = new URLSearchParams({ archived: String(archived), limit: '20' })
     if (before) query.set('before', before)
-    return parseThreadListPage(await this.request(`${this.resourcePath}?${query}`, { signal }))
+    try { return parseThreadListPage(await this.request(`${this.resourcePath}?${query}`, { signal })) }
+    catch (cause) {
+      if (this.protocolVersion !== '1' || !isThreadVersionError(cause)) throw cause
+      // A mixed list needs v2, but the selected v1 conversation must keep its own protocol.
+      return new HttpThreadTransport(this.base, this.token, this.fetcher, this.resourcePath, '2')
+        .listThreads(archived, before, signal)
+    }
   }
 
   async archiveThread(threadId: string, archived: boolean, signal?: AbortSignal) {
@@ -183,6 +189,10 @@ export class HttpThreadTransport implements ThreadTransport {
       method: 'POST', signal, body: JSON.stringify(command),
       headers: { 'Idempotency-Key': command.idempotency_key },
     })
+  }
+
+  sendWorkCommand(command: WorkCommand, signal?: AbortSignal): Promise<unknown> {
+    return this.sendCommand(command, signal)
   }
 
   async *streamEvents(

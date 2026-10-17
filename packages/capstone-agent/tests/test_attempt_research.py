@@ -181,7 +181,15 @@ def test_committed_projection_preserves_claims_and_notes_as_of_revision(tmp_path
 
 
 def test_research_snapshot_transport_preserves_large_committed_records(tmp_path):
-    from capstone_agent.thread_service import _validate_runtime_payload
+    from capstone_agent.thread_protocol import AttemptSnapshot
+    from capstone_agent.thread_service import AttemptClaim, _validate_runtime_payload
+    claim = AttemptClaim(
+        thread_id="thr_one", run_id="run_one",
+        attempt=AttemptSnapshot("turn_one", "attempt_one", "running", MODEL.id),
+        kind="send_auto", instruction="Assess selected model",
+        model_context_id=MODEL.id, selection_revision=MODEL.selection_revision,
+        lease_token="lease_one", model_context=MODEL,
+    )
     research = AttemptResearch(tmp_path, thread_id="thr_one", run_id="run_one",
         attempt_id="attempt_one", model_context=MODEL, is_active=lambda: True, admit_reference=lambda _: False)
     research.controller.update({"request_id": "save-1", "expected_revision": 0,
@@ -189,7 +197,7 @@ def test_research_snapshot_transport_preserves_large_committed_records(tmp_path)
             {"note_id": f"note-{index}", "text": "研究记录" * 400, "refs": []} for index in range(64)]}})
     projection = research.current_projection()
     assert len(json.dumps(projection, ensure_ascii=False).encode()) > 64 * 1024
-    _validate_runtime_payload("research_state_updated", projection, None)
+    _validate_runtime_payload("research_state_updated", projection, claim)
 
 
 def test_pi_services_research_requests_and_closes_state_on_stop(tmp_path):

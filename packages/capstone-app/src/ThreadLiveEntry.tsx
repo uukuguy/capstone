@@ -2,7 +2,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 're
 import ThreadFixtureApp from './ThreadFixtureApp'
 import { CapstoneThreadClient } from './threadClient'
 import { CapstoneClient } from './api'
-import { HttpThreadTransport } from './threadHttpTransport'
+import { HttpThreadTransport, isThreadVersionError } from './threadHttpTransport'
 import { parseNetworkDiagram } from './networkValidation'
 import type { NetworkDiagram } from './types'
 import { Plus } from 'lucide-react'
@@ -11,6 +11,7 @@ import { readThreadAccess, type ThreadAccessMode } from './threadAccess'
 import WorkbenchPreparation from './WorkbenchPreparationView'
 import { prepareWorkbench, type PreparationUpdate } from './workbenchPreparation'
 import ThreadWorkAdapter from './ThreadWorkAdapter'
+import type { ThreadListPage } from './threadManagement'
 
 const TOKEN_KEY = 'capstone.thread.operatorToken'
 const initialPreparation: PreparationUpdate[] = [
@@ -45,11 +46,59 @@ function TokenPrompt({ onSubmit }: { onSubmit: (token: string) => void }) {
   </main>
 }
 
-export default function ThreadLiveEntry({ threadId, mode }: { threadId: string; mode?: 'work' }) {
+export default function ThreadLiveEntry({ threadId, mode, presentation }: { threadId: string; mode?: 'work'; presentation?: 'workspace' }) {
+  if (presentation === 'workspace') return <WorkspaceRouteEntry threadId={threadId} />
   return mode === 'work' ? <WorkLiveEntry threadId={threadId} /> : <LegacyThreadLiveEntry threadId={threadId} />
 }
 
-function WorkLiveEntry({ threadId }: { threadId: string }) {
+function WorkspaceRouteEntry({ threadId }: { threadId: string }) {
+  const [currentId, setCurrentId] = useState(threadId)
+  useEffect(() => {
+    const navigate = () => { const id = new URLSearchParams(window.location.search).get('thread'); if (id) setCurrentId(id) }
+    window.addEventListener('popstate', navigate)
+    return () => window.removeEventListener('popstate', navigate)
+  }, [])
+  return currentId === 'new' ? <LegacyThreadLiveEntry key={currentId} threadId={currentId} workspace /> : <WorkspaceLiveEntry key={currentId} threadId={currentId} />
+}
+
+/** Read the host version before choosing a compatible presentation; reads never migrate a Thread. */
+function WorkspaceLiveEntry({ threadId }: { threadId: string }) {
+  const [token, setToken] = useState(readToken)
+  const [version, setVersion] = useState<1 | 2 | null>(null)
+  const [needsToken, setNeedsToken] = useState(false)
+  const [error, setError] = useState('')
+  const [retry, setRetry] = useState(0)
+  useEffect(() => {
+    const controller = new AbortController()
+    setVersion(null); setError('')
+    const origin = import.meta.env.VITE_API_ORIGIN || ''
+    void readThreadAccess(origin, controller.signal).then(async access => {
+      if (access === 'operator' && !token) { if (!controller.signal.aborted) setNeedsToken(true); return }
+      const readVersion = (version: '1' | '2') => new HttpThreadTransport(origin, access === 'open' ? '' : token, fetch, '/api/v1/threads', version).getSnapshot(threadId, controller.signal)
+      let representation: unknown
+      try { representation = await readVersion('1') }
+      catch (cause) { if (!isThreadVersionError(cause)) throw cause; representation = await readVersion('2') }
+      const snapshot = representation as { schema?: unknown; minimum_protocol_version?: unknown }
+      if (controller.signal.aborted) return
+      if (snapshot.schema === 'capstone-thread-snapshot/1' && (snapshot.minimum_protocol_version === undefined || snapshot.minimum_protocol_version === 1)) setVersion(1)
+      else if (snapshot.schema === 'capstone-thread-snapshot/2' && snapshot.minimum_protocol_version === 2) setVersion(2)
+      else throw new Error('会话协议版本暂不支持，请更新应用后重试。')
+    }).catch(cause => { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : '暂时无法读取会话。') })
+    return () => controller.abort()
+  }, [threadId, token, retry])
+  if (needsToken && !token) return <TokenPrompt onSubmit={setToken} />
+  if (error) return <main className="thread-token-shell"><section role="alert"><p>{error}</p><button onClick={() => setRetry(value => value + 1)}>重新读取会话</button></section></main>
+  if (!version) return <main className="thread-loading" role="status">正在恢复会话…</main>
+  return version === 1 ? <LegacyThreadLiveEntry threadId={threadId} workspace /> : <WorkLiveEntry threadId={threadId} recoveryOnly />
+}
+
+function WorkLiveEntry({ threadId, recoveryOnly = false }: { threadId: string; recoveryOnly?: boolean }) {
+  useEffect(() => {
+    if (recoveryOnly) return
+    const previousTitle = document.title
+    document.title = 'Capstone · 企业任务工作台'
+    return () => { document.title = previousTitle }
+  }, [recoveryOnly])
   const [token, setToken] = useState(readToken)
   const [access, setAccess] = useState<ThreadAccessMode | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -69,10 +118,10 @@ function WorkLiveEntry({ threadId }: { threadId: string }) {
   if (error) return <main className="thread-token-shell"><section className="thread-token-card" role="alert"><p>{error}</p><button onClick={() => setRetry(value => value + 1)}>重新连接</button></section></main>
   if (access === 'operator' && !token) return <TokenPrompt onSubmit={setToken} />
   if (!transport) return <main className="thread-loading" role="status">正在连接任务工作台…</main>
-  return <ThreadWorkAdapter transport={transport} threadId={threadId} namespace={storageNamespace(origin)} />
+  return <ThreadWorkAdapter transport={transport} threadId={threadId} namespace={storageNamespace(origin)} recoveryOnly={recoveryOnly} />
 }
 
-function LegacyThreadLiveEntry({ threadId }: { threadId: string }) {
+function LegacyThreadLiveEntry({ threadId, workspace = false }: { threadId: string; workspace?: boolean }) {
   const [token, setToken] = useState(readToken)
   const [accessMode, setAccessMode] = useState<ThreadAccessMode | null>(null)
   const [accessError, setAccessError] = useState<string | null>(null)
@@ -84,6 +133,9 @@ function LegacyThreadLiveEntry({ threadId }: { threadId: string }) {
   const [previewDiagram, setPreviewDiagram] = useState<NetworkDiagram | null>(null)
   const [archived, setArchived] = useState(false)
   const [disabledToolIds, setDisabledToolIds] = useState<string[]>([])
+  const [sessions, setSessions] = useState<ThreadListPage | null>(null)
+  const [sessionError, setSessionError] = useState(false)
+  const [listingMore, setListingMore] = useState(false)
   const newInFlight = useRef(false)
   const apiOrigin = import.meta.env.VITE_API_ORIGIN || ''
   const prepareConnection = useCallback((signal: AbortSignal, update: (value: PreparationUpdate) => void) =>
@@ -98,6 +150,14 @@ function LegacyThreadLiveEntry({ threadId }: { threadId: string }) {
   const creation = useRef<{ client: CapstoneThreadClient; request: ReturnType<CapstoneThreadClient['create']> } | null>(null)
   const authorityClient = useMemo(() => hasAccess ? new CapstoneClient(apiOrigin, effectiveToken) : null, [apiOrigin, effectiveToken, hasAccess])
   const namespace = useMemo(() => hasAccess ? storageNamespace(apiOrigin) : '', [apiOrigin, hasAccess])
+
+  useEffect(() => {
+    if (!workspace || !transport) return
+    const abort = new AbortController()
+    void transport.listThreads(false, undefined, abort.signal).then(page => { if (!abort.signal.aborted) { setSessions(page); setSessionError(false) } })
+      .catch(() => { if (!abort.signal.aborted) setSessionError(true) })
+    return () => abort.abort()
+  }, [transport, createdThreadId, workspace])
 
   useEffect(() => {
     const abort = new AbortController()
@@ -194,10 +254,25 @@ function LegacyThreadLiveEntry({ threadId }: { threadId: string }) {
     : <button type="button" onClick={() => { setError(null); setToken('') }}>更换 token</button>}</div></main>
   if (!client || !createdThreadId) return <main className="thread-loading" aria-live="polite"><span className="spinner" />正在创建对话…</main>
   return <ThreadFixtureApp key={createdThreadId} client={client} threadId={createdThreadId}
+    presentation={workspace ? 'workspace' : undefined}
+    navigation={workspace && <nav id="thread-session-navigation" className="thread-session-navigation" aria-label="任务会话">
+      <button className="thread-session-new" disabled={creating} onClick={() => void newThread()}><Plus size={16} aria-hidden="true" />新建会话</button>
+      <h2>工作中的会话</h2>
+      {!sessions?.threads.some(item => item.threadId === createdThreadId) && <a aria-current="page" href={`/?workspace=enterprise&thread=${encodeURIComponent(createdThreadId)}`}>当前会话 · {createdThreadId.slice(-6)}</a>}
+      {sessions?.threads.map(item => <a key={item.threadId} aria-current={item.threadId === createdThreadId ? 'page' : undefined}
+        href={`/?workspace=enterprise&thread=${encodeURIComponent(item.threadId)}`}>{item.modelId || '工作会话'} · {item.threadId.slice(-6)}</a>)}
+      {sessionError && <p role="status">会话列表暂不可用，当前对话仍可使用。</p>}
+      {sessions?.hasMore && <button disabled={listingMore} onClick={() => {
+        setListingMore(true)
+        void transport!.listThreads(false, sessions.nextBeforeThreadId || undefined).then(page => setSessions(previous => ({...page,
+          threads:[...new Map([...(previous?.threads || []), ...page.threads].map(item => [item.threadId,item])).values()]})))
+          .catch(() => setSessionError(true)).finally(() => setListingMore(false))
+      }}>{listingMore ? '加载中…' : '更多会话'}</button>}
+    </nav>}
     prepareConnection={prepareConnection}
     disabledToolIds={disabledToolIds} onDisabledToolIdsChange={setDisabledToolIds}
     storageKey={`${namespace}.${createdThreadId}`} readOnly={archived} previewDiagram={previewDiagram}
-    sessionNotice={error} headerActions={<><a className="thread-new-dialogue" href="/?workspace=enterprise&thread=new">任务工作台</a><button type="button" className="thread-new-dialogue"
+    sessionNotice={error} headerActions={workspace ? undefined : <><a className="thread-new-dialogue" href={`/?workspace=enterprise&thread=${encodeURIComponent(createdThreadId)}`}>任务工作台</a><button type="button" className="thread-new-dialogue"
       disabled={creating} onClick={() => void newThread()} aria-label={creating ? '正在新建…' : '新建对话'}>
       <Plus size={16} aria-hidden="true" /><span>{creating ? '正在新建…' : '新建对话'}</span>
     </button></>} />

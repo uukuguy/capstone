@@ -3407,3 +3407,11 @@ The following original entries were retained during document synchronization.
 - 2026-10-17: 4abdb711 records conversation-first delivery and full mature UI reuse; rejected save/start acceptance remains withdrawn.
 
 - 2026-10-17: PR51 mergeda8caeff2 with identical tested tree; macOS governance CI38945827751 passed1m46s; application preparation branches fast-forwarded.
+
+- 2026-10-17: Five original scripted professional cases passed fifteen turns; UI adaptation retains mature typography at 1440px. No Provider validation.
+- 2026-10-17: 9bf36652 preserves accepted workspace interactions and original typography, separating verified cases from pending application acceptance.
+- 2026-10-17: 8685d46b reuses mature dialogue with resizable results and smaller topology symbols; 550 App tests pass.
+- 2026-10-17: b703e37b retains compatible backend locally; visual acceptance withdrawn pending full architecture and prototype alignment. No deployment.
+- 2026-10-17: Design review preserves shared execution assets, identifies recovery-only start defect, and records unfinished native/Profile/artifact contracts.
+- 2026-10-17: Dev control graph includes b703e37b; browser confirms 28 nodes, 38 edges, no overlap, crossing or overflow.
+- 2026-10-17: 6f1c3412 aligns workspace structure with accepted prototype and preserves mature dialogue; 569 App tests pass.

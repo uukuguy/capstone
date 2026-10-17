@@ -43,6 +43,17 @@ import { threadPreviewDiagram } from './threadModelDiagram'
 afterEach(() => { cleanup(); sessionStorage.clear() })
 
 describe('operator network canvas', () => {
+  it('reduces electrical glyphs while keeping their hover target and screen size stable during zoom', () => {
+    render(<NetworkView view={null} previewDiagram={sampleDiagramView.diagram} modelName="记录模型" focusKey="smaller-glyphs" />)
+    const bar=()=>document.querySelector('.network-busbar')!
+    const width=()=>Number(bar().getAttribute('x2'))-Number(bar().getAttribute('x1'))
+    const originalWidth=width()
+    expect(originalWidth).toBeCloseTo(16*.82)
+    expect(Number(document.querySelector('.network-bus-hit-area')?.getAttribute('r'))).toBe(13)
+    fireEvent.click(screen.getByRole('button',{name:'放大'}))
+    expect(width()).toBeCloseTo(originalWidth*.8)
+    expect(Number(document.querySelector('.network-bus-hit-area')?.getAttribute('r'))).toBeCloseTo(13*.8)
+  })
   it('consumes a return request once and preserves full view across later layers and resize', () => {
     const props = { modelName: 'SciGRID', focusKey: 'context:attempt', cameraStorageKey: 'return-camera', cameraViewKey: 'context:attempt' }
     const { rerender } = render(<NetworkView {...props} view={sampleDiagramView} returnTaskRequest={1} />)

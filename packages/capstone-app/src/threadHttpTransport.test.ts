@@ -10,6 +10,23 @@ const command = {
 }
 
 describe('HttpThreadTransport', () => {
+  it('reads mixed-version lists without upgrading the current conversation transport', async () => {
+    const page = {schema:'capstone-thread-list/1',threads:[{thread_id:'thr_work',model_id:null,
+      implementation_family:null,minimum_protocol_version:2,created_at:'2026-10-17T00:00:00Z',archived:false,last_event_seq:2}],has_more:false,next_before_thread_id:null}
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify({error:'protocol_upgrade_required'}),{status:409}))
+      .mockResolvedValueOnce(new Response(JSON.stringify(page),{headers:{'Capstone-Thread-Version':'2'}}))
+      .mockResolvedValueOnce(new Response('{}',{headers:{'Capstone-Thread-Version':'1'}}))
+      .mockResolvedValueOnce(new Response('{}',{headers:{'Capstone-Thread-Version':'1'}}))
+    const transport = new HttpThreadTransport('', '', fetcher)
+    expect((await transport.listThreads()).threads[0].minimumProtocolVersion).toBe(2)
+    await transport.getSnapshot('thr_demo_39')
+    await transport.sendCommand(command)
+    expect(new Headers(fetcher.mock.calls[1][1]?.headers).get('Capstone-Thread-Version')).toBe('2')
+    expect(new Headers(fetcher.mock.calls[3][1]?.headers).get('Capstone-Thread-Version')).toBe('1')
+    expect(fetcher.mock.calls.filter(([,init])=>init?.method==='POST')).toHaveLength(1)
+  })
+
   it('declares the supported version for JSON commands and SSE', async () => {
     const fetcher = vi.fn<typeof fetch>()
       .mockResolvedValueOnce(new Response('{}', { headers: { 'Capstone-Thread-Version': '1' } }))

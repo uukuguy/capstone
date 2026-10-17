@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import CapstoneAssistantThread, { projectAssistantActivity, projectAssistantMessages } from './CapstoneAssistantThread'
-import type { EventEnvelope } from './threadProtocol'
+import type { EventEnvelope, ResultProjection } from './threadProtocol'
 
 afterEach(() => { cleanup(); localStorage.clear() })
 
@@ -11,6 +11,58 @@ const event = (eventType: string, eventSeq: number, payload: Record<string, unkn
 })
 
 describe('CapstoneAssistantThread', () => {
+  it('offers a persisted result product card only for that answer and opens its registered viewer', () => {
+    const result:ResultProjection={resultId:'res_one',resultRef:'result:one',evidenceRefs:['evidence:one'],threadId:'thr_demo',runId:'run_demo',turnId:'turn_one',attemptId:'one',modelContextId:'ctx_one',modelId:'ieee39',modelRevision:'7',source:{capabilityId:'powerflow.ac',domainPackId:'grid',implementationFamily:'pandapower'},status:'completed',summary:[{metricId:'loss',label:'有功损耗',value:1}],tables:[],elementRefs:[]}
+    const open=vi.fn()
+    render(<CapstoneAssistantThread events={[event('attempt_completed',1,{answer:'已完成计算。'},'one'),event('attempt_completed',2,{answer:'普通说明。'},'two')]}
+      resultProjections={[result]} onOpenResultProduct={open} disabled={false} isRunning={false} activity={[]} onSend={async()=>{}} onCancel={async()=>{}} />)
+    const cards=screen.getAllByRole('button',{name:'打开计算结果：有功损耗'})
+    expect(cards).toHaveLength(1)
+    fireEvent.click(cards[0])
+    expect(open).toHaveBeenCalledWith(result)
+    expect(screen.queryByRole('link',{name:/报告|PDF/})).toBeNull()
+  })
+  it('opens only real sources in an answer-owned sheet while execution stays in the conversation', () => {
+    const events = [
+      event('command_accepted', 1, {kind:'send_auto',text:'检查第一个对象'}, 'source_one'),
+      event('tool_completed', 2, {tool_name:'grid_context_get',ok:true}, 'source_one'),
+      event('attempt_completed', 3, {answer:'第一份回答',evidence_refs:['evidence:one'],admission:{mode:'authority_backed',assurance:'lineage_verified'}}, 'source_one'),
+      event('command_accepted', 4, {kind:'send_auto',text:'检查第二个对象'}, 'source_two'),
+      event('attempt_completed', 5, {answer:'第二份回答',evidence_refs:['evidence:two'],admission:{mode:'authority_backed',assurance:'lineage_verified'}}, 'source_two'),
+    ]
+    render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={projectAssistantActivity(events)} onSend={async()=>{}} onCancel={async()=>{}} />)
+    const sources=screen.getAllByRole('button',{name:'查看推演证据'})
+    sources[0].focus();fireEvent.click(sources[0])
+    expect(screen.getByRole('dialog',{name:'推演依据'}).textContent).toContain('检查第一个对象')
+    expect(screen.getByRole('dialog').textContent).not.toContain('evidence:two')
+    fireEvent.keyDown(screen.getByRole('dialog'),{key:'Escape'})
+    expect(document.activeElement).toBe(sources[0])
+    fireEvent.click(sources[1])
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
+    expect(screen.getByRole('dialog').textContent).toContain('检查第二个对象')
+    expect(screen.getByRole('dialog').textContent).not.toContain('evidence:one')
+    fireEvent.click(screen.getByRole('button',{name:'关闭推演依据'}))
+    fireEvent.click(screen.getByRole('button',{name:'查看执行过程'}))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(document.querySelector('.capstone-chat-activity-attached[open]')).toBeTruthy()
+  })
+  it('shows only available answer actions for a plain reply without products or records', () => {
+    render(<CapstoneAssistantThread events={[event('attempt_completed', 1, { answer: '彩虹由水滴折射与色散形成。', admission: { mode: 'offline_information', assurance: 'general_knowledge' } }, 'plain')]}
+      disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    expect(within(screen.getByLabelText('回答操作')).getAllByRole('button').map(button => button.getAttribute('aria-label'))).toEqual(['复制回答'])
+  })
+  it('combines real network, result, record, process and retry actions on the same reply', () => {
+    const events = [event('command_accepted', 1, {kind:'send_auto', text:'检查当前模型'}, 'combined'),
+      event('tool_completed', 2, {tool_name:'grid_analysis_run', tool_call_id:'run', ok:false, failure:{code:'invalid_arguments', message:'需要核对参数'}}, 'combined'),
+      event('attempt_completed', 3, {answer:'已记录检查结果。'}, 'combined')]
+    render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={projectAssistantActivity(events)}
+      networkAttemptIds={['combined']}
+      onShowNetwork={vi.fn()} onReadAttemptRecords={vi.fn()} onRegenerate={vi.fn()} onSend={async () => {}} onCancel={async () => {}} />)
+    expect(screen.queryByRole('button', { name: '查看推演证据' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '查看执行过程' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '更多回答操作' })).toBeNull()
+    expect([...screen.getByLabelText('回答操作').querySelectorAll('button')].every(button => !button.disabled)).toBe(true)
+  })
   it('uses accepted runtime authors for streaming and completed answers across mode switches', () => {
     const events = [
       event('command_accepted', 1, { kind: 'send_auto', text: '专业任务', runtime_mode: 'capstone' }, 'business'),
@@ -165,7 +217,7 @@ describe('CapstoneAssistantThread', () => {
     render(<CapstoneAssistantThread events={[event('attempt_completed', 1, { answer: '已完成。' }, 'attempt_old')]}
       disabled={false} isRunning={false} activity={[]} onSend={onSend} onCancel={async () => {}}
       onReadAttemptRecords={read} />)
-    fireEvent.click(screen.getByRole('button', { name: '查看推演证据' }))
+    fireEvent.click(screen.getByRole('button', { name: '查看执行过程' }))
     expect(read).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: '读取原任务记录' }))
     await screen.findByText('原任务')
@@ -197,8 +249,8 @@ describe('CapstoneAssistantThread', () => {
       event('attempt_completed', 3, { answer: '检查尚未完成。' }, 'study'),
       event('attempt_completed', 4, { answer: '另一个任务。' }, 'other'),
     ]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
-    const buttons = screen.getAllByRole('button', { name: '查看推演证据' }) as HTMLButtonElement[]
-    expect(buttons.map(button => button.disabled)).toEqual([false, true])
+    const buttons = screen.getAllByRole('button', { name: '查看执行过程' }) as HTMLButtonElement[]
+    expect(buttons.map(button => button.disabled)).toEqual([false])
     fireEvent.click(buttons[0])
     fireEvent.click(screen.getByText('研究判断与工作记录 · 修订 1'))
     expect(screen.getByText('还需核验边界')).toBeTruthy()
@@ -368,7 +420,7 @@ describe('CapstoneAssistantThread', () => {
     expect(failure).toBeTruthy()
     expect(screen.getAllByText('执行失败')).toHaveLength(1)
   })
-  it('keeps evidence actions visible and distinguishes all five contract states', () => {
+  it('offers admitted evidence without unrelated disabled actions on other replies', () => {
     render(<CapstoneAssistantThread events={[
       event('attempt_completed', 1, { answer: '有已准入证据。', evidence_refs: ['evidence:1'], admission: { mode: 'authority_backed', assurance: 'lineage_verified' } }, 'available'),
       event('attempt_completed', 2, { answer: '普通信息回答。', admission: { mode: 'offline_information', assurance: 'general_knowledge' } }, 'information'),
@@ -377,9 +429,9 @@ describe('CapstoneAssistantThread', () => {
       event('assistant_text_delta', 5, { text: '还在计算。' }, 'pending'),
     ]} disabled={false} isRunning={true} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
     const actions = screen.getAllByRole('button', { name: '查看推演证据' }) as HTMLButtonElement[]
-    expect(actions.map((action) => action.dataset.evidenceState)).toEqual(['available', 'not_applicable', 'missing', 'unavailable', 'pending'])
-    expect(actions.map((action) => action.disabled)).toEqual([false, true, true, true, true])
-    expect(actions.map((action) => action.title)).toEqual(['查看推演证据', '普通信息回答无需运行证据', '缺少所需证据', '证据暂不可用', '证据同步中'])
+    expect(actions.map((action) => action.dataset.evidenceState)).toEqual(['available'])
+    expect(actions.map((action) => action.disabled)).toEqual([false])
+    expect(actions[0].title).toContain('查看推演证据')
     fireEvent.click(actions[0])
     expect(screen.getByRole('region', { name: '推演证据' }).textContent).toContain('evidence:1')
   })
@@ -851,48 +903,36 @@ describe('CapstoneAssistantThread', () => {
     const onRegenerate = vi.fn()
     const props = { events, isRunning: false, activity: [], onSend: async () => {}, onCancel: async () => {}, onRegenerate }
     const { rerender } = render(<CapstoneAssistantThread {...props} disabled={true} />)
-    expect((screen.getByRole('button', { name: '重试本次指令' }) as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.queryByRole('button', { name: '重试本次指令' })).toBeNull()
     rerender(<CapstoneAssistantThread {...props} disabled={false}
       modelSummary={{ modelId: 'case57', implementationFamily: 'pandapower', modelRevision: 'new', contextId: 'ctx_new' }} />)
-    const retry = screen.getByRole('button', { name: '重试本次指令' })
-    expect((retry as HTMLButtonElement).disabled).toBe(true)
-    fireEvent.click(retry)
+    expect(screen.queryByRole('button', { name: '重试本次指令' })).toBeNull()
     expect(onRegenerate).not.toHaveBeenCalled()
   })
-  it('keeps common answer actions in the same order and disables unavailable actions', () => {
+  it('does not expose unavailable product or execution actions on an informational answer', () => {
     render(<CapstoneAssistantThread events={[
       event('attempt_completed', 1, { answer: '目录信息。' }, 'attempt_catalog'),
     ]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
     const toolbar = screen.getByLabelText('回答操作')
     const buttons = within(toolbar).getAllByRole('button')
     expect(buttons.map((button) => button.getAttribute('aria-label'))).toEqual([
-      '复制回答', '查看此指令电网图', '查看计算结果', '查看推演证据', '查看执行过程', '重试本次指令', '更多回答操作',
+      '复制回答',
     ])
     expect(buttons.map((button) => (button as HTMLButtonElement).disabled)).toEqual([
-      false, true, true, true, true, true, false,
+      false,
     ])
     buttons.slice(1, 6).forEach((button) => fireEvent.click(button))
     expect(screen.queryByLabelText('推演证据')).toBeNull()
     expect(screen.queryByLabelText('本次执行过程')).toBeNull()
   })
-  it('keeps unfinished feedback actions disabled inside More', async () => {
+  it('does not advertise unimplemented feedback actions', async () => {
     render(<CapstoneAssistantThread events={[
       event('attempt_completed', 1, { answer: '已读取模型。' }, 'attempt_1'),
     ]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
     expect(screen.getByRole('button', { name: '复制回答' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: '回答有帮助' })).toBeNull()
     expect(screen.queryByRole('button', { name: '回答需改进' })).toBeNull()
-    const more = screen.getByRole('button', { name: '更多回答操作' })
-    fireEvent.click(more)
-    const group = screen.getByRole('group', { name: '更多回答操作' })
-    expect(within(group).getByRole('button', { name: /回答有帮助/ }).hasAttribute('disabled')).toBe(true)
-    expect(within(group).getByRole('button', { name: /回答需改进/ }).hasAttribute('disabled')).toBe(true)
-    fireEvent.keyDown(document, { key: 'Escape' })
-    expect(screen.queryByRole('group', { name: '更多回答操作' })).toBeNull()
-    expect(document.activeElement).toBe(more)
-    fireEvent.click(more)
-    fireEvent.pointerDown(screen.getByRole('textbox', { name: 'Thread 指令' }))
-    expect(screen.queryByRole('group', { name: '更多回答操作' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '更多回答操作' })).toBeNull()
   })
   it('selects only the grid view belonging to that answer', async () => {
     const selected = vi.fn()
@@ -903,12 +943,9 @@ describe('CapstoneAssistantThread', () => {
     ]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}}
       selectedNetworkAttempt="attempt_flow" networkAttemptIds={['attempt_flow', 'attempt_rank']} onShowNetwork={selected} />)
     const actions = await screen.findAllByRole('button', { name: '查看此指令电网图' })
-    expect(actions).toHaveLength(3)
+    expect(actions).toHaveLength(2)
     expect((actions[0] as HTMLButtonElement).disabled).toBe(false)
     expect((actions[1] as HTMLButtonElement).disabled).toBe(false)
-    expect((actions[2] as HTMLButtonElement).disabled).toBe(true)
-    fireEvent.click(actions[2])
-    expect(selected).not.toHaveBeenCalled()
     fireEvent.click(actions[0])
     expect(selected).toHaveBeenLastCalledWith('attempt_flow')
     fireEvent.click(actions[1])
@@ -1200,7 +1237,7 @@ describe('CapstoneAssistantThread', () => {
       event('tool_completed', 3, { tool_call_id: 'failed_call', ok: false, error: { message: '计算未收敛。' } }, 'attempt_failure_records'),
       event('attempt_completed', 4, { answer: '本次计算未完成，保留失败记录。' }, 'attempt_failure_records'),
     ]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
-    const action = screen.getByRole('button', { name: '查看推演证据' })
+    const action = screen.getByRole('button', { name: '查看执行过程' })
     expect((action as HTMLButtonElement).disabled).toBe(false)
     fireEvent.click(action)
     expect(screen.getByRole('region', { name: '执行失败记录' })).toBeTruthy()
@@ -1240,9 +1277,7 @@ describe('CapstoneAssistantThread', () => {
     fireEvent.click(screen.getByRole('button', { name: '重试本次指令' }))
     await waitFor(() => expect(onRegenerate).toHaveBeenCalledWith('attempt_failed', '运行潮流'))
     rerender(<CapstoneAssistantThread events={events} disabled={true} isRunning={true} activity={[]} onSend={async () => {}} onCancel={async () => {}} onRegenerate={onRegenerate} />)
-    const retry = screen.getByRole('button', { name: '重试本次指令' })
-    expect((retry as HTMLButtonElement).disabled).toBe(true)
-    fireEvent.click(retry)
+    expect(screen.queryByRole('button', { name: '重试本次指令' })).toBeNull()
     expect(onRegenerate).toHaveBeenCalledTimes(1)
   })
 
@@ -1256,7 +1291,7 @@ describe('CapstoneAssistantThread', () => {
     ]
     render(<CapstoneAssistantThread events={events} disabled={true} isRunning={false} activity={[]} showActivity={false} onSend={async () => {}} onCancel={async () => {}} onRegenerate={onRegenerate} />)
     expect(screen.getByRole('button', { name: '重试本次指令' })).toBeTruthy()
-    expect((screen.getByRole('button', { name: '查看执行过程' }) as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.queryByRole('button', { name: '查看执行过程' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: '重试本次指令' }))
     await waitFor(() => expect(onRegenerate).toHaveBeenCalledWith('attempt_interrupted', '继续分析'))
   })
@@ -1321,9 +1356,7 @@ describe('CapstoneAssistantThread', () => {
 
     expect(screen.queryByRole('status')).toBeNull()
     expect(screen.queryByRole('group', { name: '推演证据' })).toBeNull()
-    const evidence = screen.getByRole('button', { name: '查看推演证据' })
-    expect((evidence as HTMLButtonElement).disabled).toBe(true)
-    fireEvent.click(evidence)
+    expect(screen.queryByRole('button', { name: '查看推演证据' })).toBeNull()
     expect(screen.queryByLabelText('推演证据')).toBeNull()
   })
 

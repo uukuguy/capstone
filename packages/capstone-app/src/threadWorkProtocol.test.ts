@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseWorkSnapshot, buildWorkCommand } from './threadWorkProtocol'
+import { parseWorkSnapshot, buildWorkCommand, buildStartWorkCommand } from './threadWorkProtocol'
 
 export function workSnapshot() {
   return { schema: 'capstone-thread-snapshot/2', thread_id: 'thr_work',
@@ -9,6 +9,14 @@ export function workSnapshot() {
 }
 
 describe('Work protocol', () => {
+  it('starts an existing Work with object CAS and no fabricated instruction payload', () => {
+    const command = buildStartWorkCommand('thr_work', 'run_work', 'cmd_start', 'idem_start', 'work_one', 3)
+    expect(command.kind).toBe('start_work')
+    expect(command.payload).toEqual({})
+    expect(command.target.expected_revision).toBe(3)
+    expect(command).not.toHaveProperty('expected_event_seq')
+    expect(() => buildStartWorkCommand('thr_work', 'run_work', 'cmd_start', 'idem_start', 'new', 0)).toThrow()
+  })
   it('reads a model-free Thread without inventing a model', () => {
     const snapshot = parseWorkSnapshot(workSnapshot())
     expect(snapshot.threadId).toBe('thr_work')
