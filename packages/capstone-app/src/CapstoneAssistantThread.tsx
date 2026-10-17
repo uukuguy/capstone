@@ -598,6 +598,22 @@ function AttemptActivity({ activities, progress = [], steps = [], stepStorageKey
   const toolCount = toolActivities.length
   const processViewport = useRef<HTMLDivElement>(null)
   const followProcess = useRef(true)
+  useLayoutEffect(() => {
+    const node = processViewport.current
+    const viewport = node?.closest<HTMLElement>('.capstone-chat-viewport')
+    if (!node || !viewport) return
+    const measure = () => {
+      const bottom = Math.min(viewport.getBoundingClientRect().bottom, window.innerHeight)
+      const available = Math.max(0, bottom - node.getBoundingClientRect().top - 12)
+      node.style.maxHeight = `${Math.min(320, available)}px`
+    }
+    measure()
+    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(measure)
+    observer?.observe(viewport)
+    viewport.addEventListener('scroll', measure, { passive: true })
+    window.addEventListener('resize', measure)
+    return () => { observer?.disconnect(); viewport.removeEventListener('scroll', measure); window.removeEventListener('resize', measure) }
+  }, [running, activities, progress, steps, open])
   const observeProcessScroll = (event: React.UIEvent<HTMLDivElement>) => {
     const node = event.currentTarget
     followProcess.current = node.scrollHeight - node.clientHeight - node.scrollTop < 20
@@ -987,6 +1003,30 @@ export default function CapstoneAssistantThread({ projectedMessages, emptyState,
   const [foldState, setFoldState] = useState<{ thread: string | undefined; ids: ReadonlySet<string> }>({ thread: storageKey, ids: new Set() })
   const collapsedAnswers = foldState.thread === storageKey ? foldState.ids : new Set<string>()
   const viewportRef = useRef<HTMLDivElement>(null)
+  const latestInstructionId = allMessages.filter(message => message.role === 'user').at(-1)?.id
+  useLayoutEffect(() => {
+    if (!isRunning) return
+    const viewport = viewportRef.current
+    if (!viewport) return
+    let aligned = false
+    let frame = 0
+    const align = () => {
+      if (aligned) return
+      const instruction = Array.from(viewport.querySelectorAll<HTMLElement>('.is-user[data-message-id]'))
+        .find(node => node.dataset.messageId === latestInstructionId)
+      if (!instruction) return
+      const view = viewport.getBoundingClientRect()
+      const question = instruction.getBoundingClientRect()
+      if (question.top < view.top || question.bottom > view.bottom) viewport.scrollTop += question.top - view.top - 8
+      aligned = true
+      observer.disconnect()
+    }
+    const schedule = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(align) }
+    const observer = new MutationObserver(schedule)
+    observer.observe(viewport, { childList: true, subtree: true })
+    schedule()
+    return () => { observer.disconnect(); cancelAnimationFrame(frame) }
+  }, [isRunning, latestInstructionId])
   const [readingLayoutChanging, setReadingLayoutChanging] = useState(false)
   const [readingTailSpace, setReadingTailSpace] = useState(0)
   type ReadingAnchor = { id: string; top: number; control?: HTMLButtonElement; instructionId?: string; element?: HTMLElement }
@@ -1314,7 +1354,7 @@ export default function CapstoneAssistantThread({ projectedMessages, emptyState,
           {messages.length === 0 && (emptyState ?? <EmptyThreadState disabled={disabled} />)}
           <ThreadPrimitive.Messages components={{ Message: ThreadChatMessage }} />
           {readingTailSpace > 0 && <div aria-hidden="true" style={{ height: readingTailSpace, flexShrink: 0 }} />}
-        </div> : <ThreadPrimitive.Viewport ref={viewportRef} className="capstone-chat-viewport" autoScroll={!readingLayoutChanging && !locatingInstruction} scrollToBottomOnInitialize={false} onWheel={cancelLatestScrollIntent} onTouchStart={cancelLatestScrollIntent} onKeyDown={cancelLatestScrollIntentForKey}>
+        </div> : <ThreadPrimitive.Viewport ref={viewportRef} className="capstone-chat-viewport" autoScroll={!isRunning && !readingLayoutChanging && !locatingInstruction} scrollToBottomOnInitialize={false} scrollToBottomOnRunStart={false} onWheel={cancelLatestScrollIntent} onTouchStart={cancelLatestScrollIntent} onKeyDown={cancelLatestScrollIntentForKey}>
           {messages.length === 0 && (emptyState ?? <EmptyThreadState disabled={disabled} />)}
           <ThreadPrimitive.Messages components={{ Message: ThreadChatMessage }} />
           {readingTailSpace > 0 && <div aria-hidden="true" style={{ height: readingTailSpace, flexShrink: 0 }} />}

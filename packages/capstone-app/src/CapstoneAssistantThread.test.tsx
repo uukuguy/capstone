@@ -151,6 +151,24 @@ describe('CapstoneAssistantThread', () => {
     expect(steps.every(step => step.open)).toBe(true)
     expect(expand.disabled).toBe(true)
   })
+  it('fits both running process views within the remaining conversation viewport', async () => {
+    let bottom = 500
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const top = this.classList.contains('capstone-chat-viewport') ? 100 : 280
+      return { top, bottom, left: 0, right: 800, width: 800, height: bottom - top, x: 0, y: top, toJSON: () => ({}) }
+    })
+    try {
+      const events = [event('attempt_started', 1, {}, 'fit'), event('tool_started', 2, {tool_name: 'grid_context_get'}, 'fit')]
+      render(<CapstoneAssistantThread events={events} activity={projectAssistantActivity(events)} disabled={false} isRunning onSend={async()=>{}} onCancel={async()=>{}} />)
+      const preview = screen.getByLabelText('执行过程预览')
+      expect(preview.style.maxHeight).toBe('208px')
+      bottom = 360
+      fireEvent.resize(window)
+      expect(preview.style.maxHeight).toBe('68px')
+      fireEvent.click(document.querySelector('.capstone-chat-activity-attached > summary')!)
+      await waitFor(() => expect((document.querySelector('.capstone-complete-process') as HTMLElement)?.style.maxHeight).toBe('68px'))
+    } finally { rect.mockRestore() }
+  })
   it('keeps all actions and a separate committed work explanation in the height-limited running window', () => {
     const snapshot = { research_id: 'research-1', revision: 1, goal: '核验故障影响', condition_refs: [], claims: [],
       notes: [{ note_id: 'finding', text: '已取得拓扑结果，继续检查失供范围。', refs: ['result:topology'] }], open_questions: [] }

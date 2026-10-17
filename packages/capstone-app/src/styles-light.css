@@ -1165,13 +1165,18 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .thread-conversation-workspace .capstone-chat-body,
 .thread-conversation-workspace .capstone-chat-body p,
 .thread-conversation-workspace .capstone-chat-markdown,
-.thread-conversation-workspace .capstone-chat-message.is-user .capstone-chat-body { font-size: 16px; line-height: 1.75; }
-.thread-conversation-workspace .capstone-chat-markdown h1 { font-size: 22px; }
-.thread-conversation-workspace .capstone-chat-markdown h2 { font-size: 20px; }
-.thread-conversation-workspace .capstone-chat-markdown h3 { font-size: 18px; }
-.thread-conversation-workspace .capstone-chat-markdown table { font-size: 14px; line-height: 1.6; }
-.thread-conversation-workspace .capstone-chat-markdown :is(th, td) { padding: 7px 9px; }
-.thread-conversation-workspace .capstone-composer-root textarea { font-size: 15px; line-height: 1.6; }
+.thread-conversation-workspace .capstone-chat-message.is-user .capstone-chat-body { font-size: 12px; line-height: 1.6; }
+.thread-conversation-workspace .capstone-chat-markdown :is(h1, h2, h3) { margin: 16px 0 6px; line-height: 1.45; font-weight: 600; letter-spacing: 0; }
+.thread-conversation-workspace .capstone-chat-markdown h1 { font-size: 16px; }
+.thread-conversation-workspace .capstone-chat-markdown h2 { font-size: 14px; }
+.thread-conversation-workspace .capstone-chat-markdown h3 { font-size: 13px; }
+.thread-conversation-workspace .capstone-chat-markdown :is(h4, h5, h6) { font-size: 13px; line-height: 1.45; font-weight: 600; margin: 12px 0 6px; }
+.thread-conversation-workspace .capstone-chat-markdown p { margin-bottom: 8px; }
+.thread-conversation-workspace .capstone-chat-markdown p:last-child { margin-bottom: 0; }
+.thread-conversation-workspace .capstone-chat-markdown strong { font-weight: 600; }
+.thread-conversation-workspace .capstone-chat-markdown table { font-size: 12px; line-height: 1.5; }
+.thread-conversation-workspace .capstone-chat-markdown :is(th, td) { padding: 6px 8px; }
+.thread-conversation-workspace .capstone-composer-root textarea { font-size: 12px; line-height: 1.55; }
 .thread-conversation-workspace .capstone-chat-message.is-user .capstone-chat-body { border-color: #dde1d9; background: #eaf0e8; }
 .thread-conversation-workspace .capstone-chat-composer { width: min(780px, 100%); margin: 0 auto; padding: 16px 0 0; flex-shrink: 0; background: transparent; border-color: #dde1d9; }
 .thread-conversation-workspace .capstone-composer-root { background: #fff; border-color: #dde1d9; border-radius: 10px; }
@@ -1200,7 +1205,7 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .thread-conversation-workspace .thread-workspace-heading { display: flex; align-items: flex-start; gap: 16px; border-bottom: 1px solid #dde1d9; padding-bottom: 18px; }
 .thread-conversation-workspace .thread-workspace-heading .thread-chat-heading { flex: 1; min-width: 0; border: 0; padding-bottom: 0; }
 .thread-conversation-workspace .thread-resource-toggle { flex-shrink: 0; min-height: 44px; font-size: 13px; }
-.thread-conversation-workspace.has-resource-panel .thread-app-columns { grid-template-columns: clamp(360px, var(--conversation-share, 45%), calc(100% - 368px)) 8px minmax(360px, 1fr); }
+.thread-conversation-workspace.has-resource-panel .thread-app-columns { grid-template-columns: clamp(360px, var(--conversation-share, 67%), calc(100% - 368px)) 8px minmax(360px, 1fr); }
 .thread-conversation-workspace.has-resource-panel { grid-template-columns: minmax(0, 1fr); }
 .thread-conversation-workspace.has-resource-panel .workspace-navigation { display: none; }
 .thread-conversation-workspace.has-resource-panel .thread-navigation-toggle { display: inline-flex; }
@@ -1230,6 +1235,18 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .thread-resource-heading span { font-size: 15px; font-weight: 600; }
 .thread-resource-heading button { min-height: 44px; font-size: 13px; }
 .thread-resource-panel .thread-model-pane { height: auto; min-height: 0; border: 0; }
+.thread-resource-panel .workspace-product-tabs button { font-size: 12px; min-height: 44px; padding: 0 8px; }
+.thread-resource-panel .workspace-artifactbar { min-height: 44px; padding: 0 10px; }
+.thread-resource-panel .workspace-product-stage { padding: 12px; }
+.thread-resource-panel .thread-model-pane { padding: 12px; --network-label-size: 10px; }
+.thread-resource-panel .network-card.is-compact .network-head h2 { font-size: 13px; font-weight: 600; }
+.thread-resource-panel .network-card.is-compact .network-model,
+.thread-resource-panel .network-card.is-compact .network-step,
+.thread-resource-panel .network-control-row .network-meta { font-size: 9px; }
+.thread-resource-panel .network-footer,
+.thread-resource-panel .network-canvas-hint { font-size: 10px; }
+.thread-resource-panel .network-legend { flex-wrap: wrap; white-space: normal; }
+.thread-resource-panel .thread-result-product-view { padding: 14px; font-size: 12px; }
 .thread-result-product-view { padding: 24px; font-size: 14px; line-height: 1.5; }
 .thread-result-product-view > p { margin: 0 0 16px; color: #66716b; }
 .thread-result-product-view .capstone-result-card { margin-top: 24px; }

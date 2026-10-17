@@ -18,7 +18,7 @@ export default function ThreadWorkspace({ preparation, sidebar, heading, childre
   useEffect(() => { if (!resourcePanelOpen) setExpanded(false) }, [resourcePanelOpen])
   const [share, setShare] = useState(() => {
     try { const saved=Number(localStorage.getItem('capstone.workspace.conversation-share')); if (saved>=25 && saved<=70) return saved } catch { /* Use the default split. */ }
-    return 45
+    return 67
   })
   const columns = useRef<HTMLDivElement>(null)
   const dragging = useRef(false)
@@ -64,7 +64,7 @@ export default function ThreadWorkspace({ preparation, sidebar, heading, childre
         onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); closeResource() } }}>
         <WorkspaceProducts views={resourceViews || [{id:'resource',label:resourceLabel,content:resourcePanel}]} selectedId={selectedResourceView} onSelect={onResourceViewChange}
           actions={<>
-            <button type="button" className="workspace-product-icon thread-resource-expand" aria-label="恢复默认比例" title="恢复默认比例" onClick={()=>resize(45)}><RotateCcw aria-hidden="true" /></button>
+            <button type="button" className="workspace-product-icon thread-resource-expand" aria-label="恢复默认比例" title="恢复默认比例" onClick={()=>resize(67)}><RotateCcw aria-hidden="true" /></button>
             <button type="button" className="workspace-product-icon thread-resource-expand" aria-label={expanded ? '恢复左右布局' : '扩大成果区'} title={expanded ? '恢复左右布局' : '扩大成果区'} onClick={()=>setExpanded(value=>!value)}>{expanded ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}</button>
             <button type="button" className="workspace-product-icon" aria-label={`关闭${resourceLabel}`} title={`关闭${resourceLabel}`} onClick={closeResource}><X aria-hidden="true" /></button>
           </>} />
