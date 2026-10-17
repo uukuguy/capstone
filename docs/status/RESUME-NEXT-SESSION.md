@@ -2,6 +2,18 @@
 
 Updated: 2026-10-17. Active work; no final handoff.
 
+Current boundary: user rejected the 8685d46b workspace layout. Corrected source6f1c3412 now follows the accepted shell hierarchy and preserves mature dialogue. 569App/build checks and independent review pass; static browser checks cover1440/1280/390/1920. No dev PR or deployment of this candidate; actual local entry still needs verification. Complete architecture/functions/prototype govern implementation.
+
+Model-decision HEAD b703e37b retains verified a8b4e578 backend assets after a resolved local merge. App565tests/build and focused backend49passed/14environment skips; no current backend integration acceptance. Root native WIP remains isolated and paused.
+
+UI source is frozen and committed6f1c3412: full-height224px brand navigation, right74px topbar, cross-pane task heading, shared conversation and artifactbar/stage/footer. Preserve1440/original typography/resizable default-hidden results/no banners/18% smaller topology symbols. No second controller/store/SSE. Recovery entry rejects new starts but keeps exact retries and existing matching execution cancellation. Root fixed expanded-close blank view and hidden settings action; tests red/green and independent review APPROVE. UI/reviewer agents idle. Architecture review:docs/reviews/2026-10-17-enterprise-design-alignment.md.
+
+Fresh inspected layout images:output/playwright/enterprise-prototype-{empty-1440-20261017-0412,topology-1440-20261017-0413,topology-1280-20261017-0414,topology-390-20261017-0415,conversation-result-1440-20261017-0417}.png. Last uses labelled offline HTTP fixture with optional-resource404 and finite-SSE reconnect notice, not real execution. Script:/tmp/enterprise-offline-http-route.js; wait selector needs table title“离线展示数据（非业务计算）”, not metric title. Static5176 serves inspected production build. Root logs:/tmp/prototype-root-final-{tests,build}.log. Source badge wasb703 while product changes were dirty;6f1c3412 commits that inspected source.
+
+Dev canonical graph includes local6f1c3412 corrected candidate; b703e37b merge source is retained in its record. Browser check:28nodes/38edges, zero overlap/crossing/through/overflow; image output/playwright/control-6f1c3412-20261017-0420.png viewed. Register/HTML/INDEX synchronized to root and model-decision. No runtime deployment changed. Control/review docs remain saved but uncommitted in these worktrees.
+
+Delivered mutable screenshot paths were overwritten during merge and are invalid. Root output/playwright/enterprise-{dialogue,topology}-1440-20261017-0349-verified.png were visually checked from a static build, but their layout was rejected. Never overwrite delivered images. Static preview5176/session verified-workspace is separate from local-dev; these are offline fixtures.
+
 ## Accepted direction
 
 - Latest UI: standard width1440px; preserve mature dialogue font sizes/line heights, no global enlargement. Resizable conversation/result split remembers ratio. Default-hidden result pane opens on first new persisted displayable result; history restoration does not steal focus. User label is 引用资料, not 来源侧窗; execution remains inline. Generic document artifact contracts remain pending.
@@ -16,7 +28,7 @@ Updated: 2026-10-17. Active work; no final handoff.
 ## Git and current work
 
 - Root branch feat/work-attempt-binding HEAD4abdb711; backend implementation is dirty and PAUSED. Do not switch/stash or stage agent-owned files. PR50 remains DRAFT, remote5e7fccc1; old CI38941770837 cancelled. Rejected frontend acceptance remains withdrawn.
-- PR51 merged a8caeff2: macOS development policy, main/release dual-platform. PR52 merged45913f1c: conversation delivery/control alignment, tree identical to af05f6e4, macOS docs CI38947256986 passed1m28s. dev and both application preparation branches now45913f1c. Remote source branches closed.
+- PR51 merged a8caeff2: macOS development policy, main/release dual-platform. PR52 merged45913f1c: conversation delivery/control alignment, tree identical to af05f6e4, macOS docs CI38947256986 passed1m28s. dev/business-analysis remain45913f1c; local model-decision nowb703e37b. Remote control source branches closed.
 - .worktrees/dev-macos-ci now checks out dev. Its latest register/graph and user adaptation clarification are dirty control updates. Root has matching control/design updates. Root product branch still needs dev integration after backend changes are committed safely.
 - Backend agent work_protocol_backend owns Python/backend tests and needed runtime/deploy wiring; no App/docs/CI or commits. Frozen send_message preserves original InputSubmission, current_attempt is neutral with work_id/null model, conversation_mode permits empty pending messages after success; ledger retains complete history. Failure/cancel/lease loss preserve pending inputs.
 - Native source review APPROVE after history/policy/duplicate-Work fixes. 45focused +16Node passed; real RPC child completed but parent Harness runtime_failed, unresolved. No final fullsuite/type rerun. Recovery /tmp/native-chat-backend-checkpoint.md, 41path manifest /tmp/native-chat-backend-manifest.txt. Preserve all WIP; not application delivery.
@@ -27,8 +39,7 @@ Updated: 2026-10-17. Active work; no final handoff.
 
 LATEST USER STEERING: prioritize adapting the original mature grid dialogue to grid-analysis and rerun its existing validation cases. Complete the current native backend fixes, but do not make the entire enterprise-research path a prerequisite. Shared reply actions must be capability/artifact-driven: preserve grid actions for grid; enterprise uses public actions and real artifacts/sources, not disabled grid icons. Update the UI implementation assignment accordingly.
 
-1. Finish shared mature UI adaptation on feat/model-decision, existing grid/case/input/history tests and full App checks; independent review.
-   Preserve and integrate committed a8b4e578 backend assets before rebuilding: dev45913f1c cannot read newer local-dev Work records. Do not include root native WIP or rebuild older dev onto current data.
+1. UI adaptation source6f1c3412 is verified and independently reviewed. Preserve a8b4e578 backend assets already locally merged inb703e37b: dev45913f1c cannot read newer local-dev Work records. Do not include root native WIP or rebuild older dev onto current data.
 2. Rebuild exact verified candidate via canonical entry point, verify source/image and actual desktop/mobile browser. Preserve local-demo and existing data; do not accidentally retain root-worktree Vite process.
 3. Run original registered validation examples within actual available authorization; report deterministic/offline vs Provider evidence separately. Ask only for genuinely missing required Provider approval after concrete implementation is ready.
 4. Integrate accepted UI through PR to dev, align graph/source nodes and both preparation branches as appropriate. Native WIP remains recoverable separately; do not merge its failing slice.

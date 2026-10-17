@@ -254,7 +254,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | --- | --- | --- | --- |
 | dev | 共同基座与集成；同时服务对话应用 | 交付与复用标准已集成45913f1c；共享界面适配与native改动分开核验 | 新任务即会话；先复用成熟对话与电网样例，Harness保持自主组织 |
 | feat/business-analysis | 企业研究与分析 | 已创建，准备中；等待所需基座能力 | A1资源与验收准备；依赖就绪后开展图表/报告纵向切片 |
-| feat/model-decision | 电网分析与决策 | 共享界面适配已启动；沿用既有专业执行与自动组织 | 先回归原验证样例；动作按真实产物，不增加应用模式切换 |
+| feat/model-decision | 电网分析与决策 | 本地6f1c3412已修正原型层级；569项App通过 | 核验实际本地入口；保留同一执行基座，通用协议缺口单列 |
 
 ## 功能包前沿
 
@@ -269,7 +269,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | foundation | 基础体验与开发治理 | 1 | 已集成，本地开发验收通过 | 连续浏览历史、环境与版本识别、反馈处理和修订流程 | main | 后续随正式用户发布验证；不单独定义功能增强基线 | 线上共同基线 | 历史对话连续浏览；明确环境与来源版本；规范反馈与修订流程 | PR #6 合并 c3b78bc；精确候选两平台检查与审查通过；local-dev 实际入口验收通过；云端未发布 |
 | answers | 回退与选择性补回 | 2 | 已合入dev，业务缺陷保留 | c3业务链；独立LLM路由；三动作小窗；普通轻量无工具回答；正式消息与过程隔离 | dev | 路由可靠性与现存业务缺陷单列；研究按已适配计划推进 | main c3b78bc | 用户批准收口；不恢复任务编译；无凭据装配修正bc08169 | PR #14双平台通过并合入6ff7094；506项同源及两次完整集成通过；新真实复验一轮普通误分，保留失败，未称整体通过 |
 | business-analysis | 企业研究与分析 | 1 | 分支已创建，准备中 | 企业资源、分析成果、图表与报告视图 | feat/business-analysis | A1准备；等待相应基座闭环后实施 | dev6c0b0ae7创建来源 | 无独立业务代码；沿共同协议推进 | 未实施、未验收、未部署；阶段需可运行前端供人工观察 |
-| model-decision | 电网分析与决策 | 1 | 共享界面适配中 | 既有专业能力、拓扑、结果、案例与公共对话组件 | feat/model-decision | 复用完整对话；按真实产物显示回复动作；回归原样例 | dev45913f1c当前实施基线 | 同一Harness自主选通用或专业能力；不新增硬切换模式 | 86项原对话与案例基线通过；适配未验收、未部署 |
+| model-decision | 电网分析与决策 | 1 | 定稿界面修正已验证，实际入口待验 | 既有专业能力、拓扑、结果、案例与公共对话组件 | feat/model-decision | 核验实际本地入口；后续沿既定协议补齐无模型对话与通用成果 | dev45913f1c及专业Work来源a8b4e578 | b703e37b保留后端；6f1c3412修正原型层级与恢复控制，复用成熟输入 | 569项App与构建、独立复审通过；1440/1280/390/1920静态浏览器检查通过；未部署 |
 | shared-agent | 共同智能体基座 | 1 | native切片保留待续；共享界面优先 | 同时服务对话与企业执行的组织、资源、恢复、证据及共享前端组件 | feat/work-attempt-binding | 保留原生执行改动及评审；后续修复RPC父链验收 | 已有Harness、Thread、专业执行及Pi资源 | 新任务即会话；Profile预配置授权；Harness自主组织；不设模式硬切换 | 源码评审通过，RPC子任务完成但父链仍失败；未交付，不作为电网适配前置 |
 | conversation-maintenance | 智能体对话应用维护 | 1 | 阶段已发布，维护范围已明确 | 接收适用的共同修复和增强，保留现有对话体验 | main | 按实际修复形成小版本，不强制采用企业新工作台 | main cf72393b；原用户包未替换 | 与企业入口共同验证受影响共享行为；保留将来对话场景演进空间 | 发布基线已验收；新增共享增强尚未实现或发布 |
 | pi | 企业自主执行 | 3 | 基础能力已合入dev | Capstone长程组织配合Pi原生生态，统一机制待实施 | dev | 先推进共同基座Task 1；分别验收企业研究与分析、电网分析与决策，再验证组合任务 | 已保留专业链路与原生资源 | PR #31合入db167184；统一循环、无模型v2协议和新工作台仍待实现 | CI38865540607双平台通过；local-dev规范重建与同源检查通过，不代表新设计完成 |
@@ -341,6 +341,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
 | dev-head | dev | main | dev · 当前研发位置 | 当前Git HEAD，验收范围见对应里程碑 | 动态绑定本地dev实际提交并连接真实祖先；不将分支HEAD当作部署或业务验收。[当前状态](CURRENT-STATE.md) | shared-agent |
+| shared-workspace | 6f1c3412 | feature | 电网应用 · 定稿工作台适配 | 原型结构已修正；未合入dev或部署 | b703e37b保留专业Work，6f1c3412恢复原型层级与成熟对话；569项App、构建、独立复审和静态浏览器检查通过，真实入口待验。[验证记录](../reviews/2026-10-17-shared-dialogue-adaptation.md) | model-decision |
 | work-execution | a8b4e578 | feature | 共同基座 · Work执行内部候选 | 前端验收撤回；正常对话改造中 | 后端Attempt及研究接缝保留；保存/开始和简化输入不符合交付；PR #50草稿、旧CI取消。[切片报告](../reviews/2026-10-17-work-attempt-binding.md) | shared-agent |
 | work-ledger-dev | d86cc4efb83780917daa536c66cf3a43fe0a0851 | main | dev · Work账本与共享对话入口集成 | PR #48双平台通过，已合入 | 无模型v2 Work保存、幂等恢复及共享对话前端；合并树同受检ed0e2e19；生产执行绑定与持续推演待实施。[切片报告](../reviews/2026-10-16-thread-work-ledger.md) | shared-agent |
 | work-ledger | e58ef9a4 | feature | 共同基座 · Work账本与任务入口 | PR #48双平台通过，已合入dev | v2无模型会话；Work保存、对象CAS及幂等恢复；旧专业历史只读；未启动持续执行。[切片报告](../reviews/2026-10-16-thread-work-ledger.md) | shared-agent |
@@ -418,6 +419,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | dev-business-base | 开发分支起点 | dev | 恢复业务执行并保留独立轻量路由；Pi与自主智能体的共同业务基线 | 已合入，业务缺陷保留 |
 | dev | 重要demo发布与大分支合并 | dev | 统一研究、执行、结果与证据合入主线；两个demo固定该基线，保留发布验收与回退来源 | 两个demo已验收 |
 | dev-head | 当前研发位置 | dev | 实际dev分支头及真实祖先连线；产品验收与部署来源独立标记 | Git位置随生成更新，验收范围见对应里程碑 |
+| shared-workspace | 当前应用适配候选 | feat/model-decision | 按定稿修正工作台，保留成熟对话及专业Work；无模型与通用成果仍待实施 | 本地6f1c3412；569项App与静态界面检查通过；实际入口待验 |
 | work-execution | 保留的基座内部候选 | feat/work-attempt-binding | 保留后端执行及恢复资产；当前优先复用成熟界面与原电网样例 | 界面验收撤回；PR #50草稿；native改动待续，未交付 |
 | pack-selection-dev | 已集成按需装配基座 | dev | 按需Pack装配已集成；继续生产存储及无模型前端入口 | PR #46双平台通过，合并树与受检来源一致 |
 | work-ledger-dev | 当前开发焦点 | dev | Work保存与共享对话入口已集成；继续生产Claim/Profile绑定 | PR #48双平台通过，合并树与受检来源一致 |
@@ -484,7 +486,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | feat/thread-version-negotiation（已关闭） | 共同基座协议准备已合入来源 | 2d3f86c6/a2efb791通过本地与双平台CI；PR #44合入32f18d24 | v1协商及升级恢复；v2/无模型入口未实现 | shared-agent |
 | feat/shared-execution-baseline（已关闭） | 共同基座Task 1已合入来源 | 62f44366执行接缝与711f06a8回执通过双平台CI，PR #36合入d8fe6e27 | dev继续Task 2；来源提交保留在合并历史 | shared-agent |
 | feat/business-analysis | 阶段应用研发，准备中 | 已从dev6c0b0ae7创建并推送，尚无独立业务实现 | A1资源与验收准备；等待基座能力后分批PR回dev | business-analysis |
-| feat/model-decision | 共享界面适配研发 | dev45913f1c基线；原5个确定性专业案例共15轮通过；UI变更待最终验证 | 1440基准及原字号；可拖动成果区；真实结果与引用资料分型；未合入或部署。[验证记录](../reviews/2026-10-17-shared-dialogue-adaptation.md) | model-decision |
+| feat/model-decision | 定稿架构与原型对齐 | 本地6f1c3412；569项App及构建通过，静态界面已检查 | 1440及原字号；复用原对话、拓扑、执行链；无模型与通用成果未完成；未合入或部署。[验证记录](../reviews/2026-10-17-shared-dialogue-adaptation.md) | model-decision |
 | feat/application-pack-selection（已关闭） | 共同基座按需装配已合入来源 | 20226bf0实现、cb08ef92限定CI；PR #46合入9eb84a34 | native/authority准备通过；生产Profile/v2前端及持续执行待实现 | shared-agent |
 | feat/work-attempt-binding | 保留的正常对话基座研发 | PR #50草稿；旧CI取消；a8b4e578内部候选及未提交native修复保留 | RPC父链验收仍失败；暂缓以优先成熟界面适配；非应用交付 | 研发macOS；发布保留双平台 |
 | feat/thread-work-context（已关闭） | 共同基座Work账本已合入来源 | e58ef9a4实现与复用修正；PR #48合入d86cc4ef | v2/无模型任务保存入口；生产Claim/Profile与持续执行仍待实现 | shared-agent |
