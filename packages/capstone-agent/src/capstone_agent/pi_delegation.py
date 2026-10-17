@@ -24,6 +24,7 @@ from .business_context import BusinessContext
 from .request_intent import NodeControl
 
 MAX_DOCUMENT_BYTES = 256 * 1024
+MAX_TASK_DOCUMENT_BYTES = 3 * 1024 * 1024
 CANCELLATION_TIMEOUT_SECONDS = 0.5
 STATUSES = frozenset({"completed", "needs_clarification", "capability_unavailable", "failed", "cancelled"})
 _FORBIDDEN = {"authority", "authority_refs", "result_refs", "evidence_refs", "model_revision",
@@ -128,6 +129,7 @@ class PiTaskRequest:
     business_context: BusinessContext | Mapping | None = field(default=None, kw_only=True)
     resource_profile: Mapping | None = field(default=None, kw_only=True)
     input: Mapping | None = field(default=None, kw_only=True)
+    native_context: Mapping | None = field(default=None, kw_only=True)
 
     def __post_init__(self):
         document = _json_document({name: getattr(self, name) for name in _TASK_V1_FIELDS})
@@ -173,6 +175,11 @@ class PiTaskRequest:
             object.__setattr__(self, 'business_context', context)
             object.__setattr__(self, 'resource_profile', profile)
             object.__setattr__(self, 'input', task_input)
+        if self.native_context is not None:
+            from .native_task_context import checked_native_context
+            if self.business_context is None:
+                raise ValueError('native context requires typed Pi input')
+            object.__setattr__(self, 'native_context', _freeze(checked_native_context(self.native_context)))
         # Include the schema and every v2 field in the total transport budget.
         self.to_document()
 
@@ -185,9 +192,10 @@ class PiTaskRequest:
             document = _json_document(document)
             _fields(document, _TASK_V1_FIELDS, schema)
         elif schema == 'capstone-pi-task/2':
-            _fields(document, _TASK_V1_FIELDS + _TASK_V2_FIELDS, schema)
+            optional = ('native_context',) if 'native_context' in document else ()
+            _fields(document, _TASK_V1_FIELDS + _TASK_V2_FIELDS + optional, schema)
             base = _json_document({key: document[key] for key in _TASK_V1_FIELDS})
-            document = {'schema': schema, **base, **{key: document[key] for key in _TASK_V2_FIELDS}}
+            document = {'schema': schema, **base, **{key: document[key] for key in _TASK_V2_FIELDS + optional}}
             if any(document[key] is None for key in _TASK_V2_FIELDS):
                 raise ValueError('Pi v2 fields cannot be null')
         else:
@@ -200,7 +208,11 @@ class PiTaskRequest:
         if self.business_context is not None:
             document.update(schema='capstone-pi-task/2', business_context=cast(BusinessContext, self.business_context).to_document(),
                             resource_profile=_json_document(self.resource_profile), input=_json_document(self.input))
-        if len(json.dumps(document, ensure_ascii=False, allow_nan=False).encode('utf-8')) > MAX_DOCUMENT_BYTES:
+        if self.native_context is not None:
+            from .native_task_context import checked_native_context
+            document['native_context'] = checked_native_context(self.native_context)
+        byte_limit = MAX_TASK_DOCUMENT_BYTES if self.native_context is not None else MAX_DOCUMENT_BYTES
+        if len(json.dumps(document, ensure_ascii=False, allow_nan=False).encode('utf-8')) > byte_limit:
             raise ValueError('Pi JSON exceeds byte bounds')
         return document
 

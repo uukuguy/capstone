@@ -471,7 +471,7 @@ class AttemptSnapshot:
     turn_id: str
     attempt_id: str
     phase: str
-    target_model_context_id: str
+    target_model_context_id: str | None
     runtime_mode: str = "capstone"
 
     def __post_init__(self) -> None:
@@ -491,7 +491,7 @@ class AttemptSnapshot:
             attempt_id=_identifier(document["attempt_id"], name="current_attempt.attempt_id"),
             phase=phase,
             runtime_mode=runtime_mode(document.get("runtime_mode", "capstone")),
-            target_model_context_id=_identifier(
+            target_model_context_id=_optional_identifier(
                 document["target_model_context_id"], name="current_attempt.target_model_context_id"
             ),
         )
@@ -522,6 +522,7 @@ class ThreadSnapshot:
     runtime_mode: str = "capstone"
     minimum_protocol_version: int = 1
     works: tuple[Mapping[str, Any], ...] = ()
+    native_execution: Mapping[str, Any] | None = None
 
     @property
     def professional_context(self) -> ModelContextSnapshot:
@@ -535,7 +536,8 @@ class ThreadSnapshot:
         if type(self.minimum_protocol_version) is not int or self.minimum_protocol_version not in {1, 2}:
             raise ThreadProtocolError('invalid minimum protocol version')
         if self.active_model_context is None and (
-                self.minimum_protocol_version != 2 or self.active_grid_page_id is not None or self.current_attempt is not None):
+                self.minimum_protocol_version != 2 or self.active_grid_page_id is not None
+                or (self.current_attempt is not None and self.current_attempt.target_model_context_id is not None)):
             raise ThreadProtocolError('model-free Thread requires protocol 2 and no professional execution')
         if self.application_state is None:
             return

@@ -25,7 +25,9 @@ class ConversationContext:
         copies = []
         for message in self.messages:
             if (not isinstance(message, Mapping) or set(message) != _FIELDS
-                    or any(not isinstance(value, str) for value in message.values())
+                    or any(not isinstance(value, str) for key, value in message.items()
+                           if key != 'model_context_id')
+                    or message['model_context_id'] is not None and not isinstance(message['model_context_id'], str)
                     or message["role"] not in {"user", "assistant"}
                     or message["status"] not in _TERMINAL
                     or (message["role"] == "assistant" and message["status"] != "completed")):

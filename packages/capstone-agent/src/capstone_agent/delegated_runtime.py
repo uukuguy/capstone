@@ -161,7 +161,8 @@ class DelegatedRuntime:
         request = PiTaskRequest(task_id, parent, 'direct' if self._direct else 'delegated',
             instruction, tuple(messages), tuple(self._general_results[identity].to_document()
                 for identity in dependencies if identity in self._general_results),
-            frozen['identity'], frozen['timeout_seconds'], **task_fields)
+            frozen['identity'], frozen['timeout_seconds'],
+            native_context=resources.get('native_context'), **task_fields)
         self._emit(on_event, {'task_id': task_id, 'goal_id': goal['goal_id'],
             'parent_attempt_id': parent, 'child_status': 'started',
             'executor_identity': frozen['identity'], 'entrypoint': request.entrypoint})
@@ -298,7 +299,7 @@ class DelegatedRuntime:
             self._business_admissions.append(admitted)
             self._business_answers[goal['goal_id']] = admitted.answer
             self._business_dependencies[goal['goal_id']] = AdmittedBusinessGoalDependency(
-                self._claim.attempt.attempt_id, goal['goal_id'], self._claim.model_context_id,
+                self._claim.attempt.attempt_id, goal['goal_id'], self._claim.professional_context.id,
                 tuple(goal['capability_refs']), admitted, tuple(events))
             self._capture_network_projection(runtime, scoped, admitted, events)
             return 'completed', admitted.answer
@@ -348,6 +349,8 @@ class DelegatedRuntime:
                     control.checkpoint()  # Parent cancellation and deadline stay fatal.
                     status, answer = 'failed', 'A task failed. Its result is unavailable.'
             self._statuses[identity] = status
+            if self._plan.source == 'native_conversation' and status != 'completed':
+                raise RuntimeError('native conversation did not complete')
             self._emit(on_event, {'goal_id': identity, 'goal_status': status,
                                   'operation': goal['operation']})
             if status == 'failed':

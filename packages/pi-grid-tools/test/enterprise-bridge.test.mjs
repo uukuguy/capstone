@@ -61,6 +61,20 @@ function guarded(tool, admit) {
   return host.guardToolExecution(tool, admit);
 }
 
+test('application tool grant blocks an unpublished lookup before actual execution', async t => {
+  let calls = 0;
+  const config = { applicationPolicy: { allowed_tools: ['read'], external_lookup_enabled: false } };
+  const tool = guarded({ name: 'unpublished_lookup', label: 'Lookup', description: 'Fixture',
+    parameters: { type: 'object', properties: {} },
+    execute: async () => { calls++; return { content: [{ type: 'text', text: 'must not run' }] }; } },
+    async call => host.applicationToolAdmission(config, call.toolName));
+  const { session, outputs } = await fixture(t, { tools: [tool] });
+  outputs.push([{ type: 'toolCall', id: 'lookup-denied', name: 'unpublished_lookup', arguments: {} }]);
+  await session.prompt('Use the fixture lookup', { expandPromptTemplates: false });
+  assert.equal(calls, 0);
+  assert.equal(session.messages.find(message => message.role === 'toolResult').isError, true);
+});
+
 test('host guard checks final extension-mutated arguments before a real native write', async t => {
   const root = await mkdtemp(join(tmpdir(), 'capstone-guard-write-'));
   t.after(() => rm(root, { recursive: true, force: true }));

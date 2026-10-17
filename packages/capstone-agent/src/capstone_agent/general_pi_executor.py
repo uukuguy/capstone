@@ -104,6 +104,21 @@ def native_pi_launch(*, command: tuple[str, ...], workspace: Path, config_root: 
         sdk_values['settings'] = settings
         sdk_values['model'] = model
         sdk_values['extensions'] = [str(context_extension), str(Path(__file__).parent / 'resources/general-mcp.mjs')]
+        records = sdk_values.pop('selectedTaskRecords', [])
+        if records:
+            selected = inputs / 'selected-task'
+            selected.mkdir()
+            pages, cursor = [], 0
+            for page in records:
+                data = json.dumps(page, ensure_ascii=False, sort_keys=True) + '\n'
+                (selected / f'{cursor}.json').write_text(data)
+                pages.append({'after': cursor, 'sha256': sha256(data.encode()).hexdigest()})
+                cursor = page['next_after']
+            (selected / 'manifest.json').write_text(json.dumps({
+                'schema': 'capstone-selected-task-input/1', 'thread_id': records[0]['thread_id'],
+                'attempt_id': records[0]['attempt_id'], 'pages': pages}))
+            environment['CAPSTONE_SELECTED_TASK_RECORDS'] = str(selected)
+            sdk_values['extensions'].append(str(Path(__file__).parent / 'resources/task-record-tools.mjs'))
         path = inputs / 'sdk.json'
         sdk_values['configPath'] = str(path)
         if sdk_values.get('mcp') is not None:

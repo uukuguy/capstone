@@ -87,6 +87,8 @@ def admission_submission(snapshot, command, provider=None) -> tuple[dict | None,
     context = snapshot.active_model_context
     selected = payload.get('resource_profile')
     if isinstance(selected, Mapping) and selected.get('profile_id') == 'harness_engine':
+        if context is None:
+            return None, 'resource_role_incompatible'
         current_profiles = [{'profile_id': profile_id, 'profile_version': version}
                             for profile_id, version in context.enabled_profiles]
         if snapshot.pending_model_switch is not None or snapshot.pending_selection is not None or (
@@ -96,13 +98,13 @@ def admission_submission(snapshot, command, provider=None) -> tuple[dict | None,
             # Apply the workspace change, then select its fresh resource identity.
             return None, 'resource_catalog_stale'
     catalog = provider(snapshot) if provider is not None else {
-        'objects': [{'object_id': context.id, 'model_id': context.model_id,
+        'objects': [] if context is None else [{'object_id': context.id, 'model_id': context.model_id,
                      'model_revision': context.model_revision,
                      'implementation_family': context.implementation_family}], 'resource_profiles': {}}
     try:
         submission = validate_submission(payload, mode=snapshot.runtime_mode,
             objects=catalog['objects'], profiles=catalog['resource_profiles'])
-        submission['model_context'] = context.to_document()
+        submission['model_context'] = None if context is None else context.to_document()
         return submission, None
     except InputRejected as error:
         return None, str(error)

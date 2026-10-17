@@ -39,6 +39,12 @@ export function guardToolExecution(tool, admit) {
   } };
 }
 
+export function applicationToolAdmission(config, toolName) {
+  const policy = config.applicationPolicy;
+  return { accepted: !policy || policy.allowed_tools.includes(toolName),
+    reason: "This application did not authorize the requested tool. Select a registered resource or continue without it." };
+}
+
 export function verifyMcpPublication(session, config) {
   if (!config.mcp) return {};
   for (const [name, schema] of Object.entries(config.mcp.descriptor.tool_schemas)) {
@@ -46,7 +52,7 @@ export function verifyMcpPublication(session, config) {
     const owners = session.resourceLoader.getExtensions().extensions.filter(extension => extension.tools.has(name));
     if (!actual || actual.description !== schema.description ||
         JSON.stringify(canonical(actual.parameters)) !== JSON.stringify(canonical(schema.inputSchema)) ||
-        owners.length !== 1 || owners[0].resolvedPath !== config.extensions.at(-1)) {
+        owners.length !== 1 || owners[0].resolvedPath !== (config.extensions.find(path => path.endsWith("/general-mcp.mjs")) ?? config.extensions.at(-1))) {
       throw new Error("Native MCP tool schema or extension owner changed");
     }
   }
@@ -85,16 +91,21 @@ async function main() {
     modelsPath: `${process.env.PI_CODING_AGENT_DIR}/models.json`, allowModelNetwork: false });
   const model = modelRuntime.getModel("capstone-general", config.model);
   if (!model) throw new Error("Managed native model is unavailable");
+  const nativeTools = config.applicationPolicy ? sdk.createCodingTools(process.cwd()).map(tool =>
+    guardToolExecution(tool, async call => applicationToolAdmission(config, call.toolName))) : undefined;
   const { session } = await sdk.createAgentSession({ cwd: process.cwd(), agentDir: process.env.PI_CODING_AGENT_DIR,
     modelRuntime, model, resourceLoader: loader, settingsManager,
+    ...(nativeTools ? { tools: nativeTools.map(tool => tool.name), customTools: nativeTools } : {}),
     sessionManager: sdk.SessionManager.inMemory() });
   try {
     session.subscribe(event => process.stdout.write(JSON.stringify(event) + "\n"));
     await session.bindExtensions({ onError: () => { throw new Error("Native extension failed"); } });
+    if (config.applicationPolicy) session.setActiveToolsByName(config.applicationPolicy.allowed_tools);
     const skills = loader.getSkills().skills.map(s => ({ name: s.name,
       sha256: createHash("sha256").update(readFileSync(s.filePath)).digest("hex") }));
     const toolHashes = verifyMcpPublication(session, config);
-    process.stdout.write(JSON.stringify({ type: "general_pi_inventory", tools: session.getActiveToolNames(), skills,
+    process.stdout.write(JSON.stringify({ type: "general_pi_inventory", tools: session.getActiveToolNames(),
+      builtin_tools: sdk.createCodingTools(process.cwd()).map(tool => tool.name), skills,
       tool_schema_hashes: toolHashes, adapter_sha256: config.adapter_sha256 }) + "\n");
     if (config.inventoryOnly) return;
     const lines = createInterface({ input: process.stdin });

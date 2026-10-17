@@ -34,9 +34,11 @@ def select_runtime(root: Path, environment: dict[str, str], command: str):
     application = environment.get("CAPSTONE_HOSTED_APPLICATION", "")
     if command == "api" and application == "capstone":
         role = "api"
-    elif command == "worker" and application in {"pandapower", "pypsa"}:
+    elif command == "worker" and application in {"pandapower", "pypsa", "native"}:
         role = application
     else:
+        raise RuntimeContractError("CAPSTONE_HOSTED_APPLICATION/command")
+    if role not in contract['roles']:
         raise RuntimeContractError("CAPSTONE_HOSTED_APPLICATION/command")
     spec = contract["roles"][role]
     selected = dict(environment)
@@ -80,7 +82,7 @@ def select_runtime(root: Path, environment: dict[str, str], command: str):
         value = selected.get(credential_name, "").strip()
         if not value or value.startswith(("replace-", "<")):
             raise RuntimeContractError(credential_name)
-        selected["CAPSTONE_THREAD_FAMILY"] = spec["family"]
+        selected["CAPSTONE_THREAD_FAMILY"] = spec.get("family", "native")
     return contract, role, spec, selected
 
 
@@ -92,7 +94,7 @@ def wait_for_workers(contract, environment, *, probe=None, clock=time.monotonic,
             raise RuntimeContractError("CAPSTONE_FAMILY_HEALTH_URLS")
         endpoints[family] = origin.rstrip("/") + "/health"
     settings = contract["startup"]
-    if set(endpoints) != set(settings["required_families"]):
+    if set(endpoints) != set(settings["required_families"]) | set(settings.get("optional_families", ())):
         raise RuntimeContractError("CAPSTONE_FAMILY_HEALTH_URLS")
 
     def http_probe(url):

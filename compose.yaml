@@ -30,7 +30,7 @@ x-host-environment: &host-environment
   CAPSTONE_THREAD_STREAMS_PER_THREAD: ${CAPSTONE_THREAD_STREAMS_PER_THREAD:-2}
   CAPSTONE_WORKER_MAX_SESSIONS: ${CAPSTONE_WORKER_MAX_SESSIONS:-8}
   CAPSTONE_WORKER_WAKE_URL: http://worker:8766
-  CAPSTONE_FAMILY_HEALTH_URLS: pandapower=http://worker:8766,pypsa=http://worker-pypsa:8766
+  CAPSTONE_FAMILY_HEALTH_URLS: native=http://worker-native:8766,pandapower=http://worker:8766,pypsa=http://worker-pypsa:8766
   CAPSTONE_FEDERATED_CATALOG_CONTEXT: ${CAPSTONE_FEDERATED_CATALOG_CONTEXT:-true}
   CAPSTONE_ALLOWED_HOSTS: localhost,127.0.0.1,api
   CAPSTONE_ALLOWED_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
@@ -105,9 +105,7 @@ services:
         condition: service_healthy
       objects-init:
         condition: service_completed_successfully
-      worker:
-        condition: service_healthy
-      worker-pypsa:
+      worker-native:
         condition: service_healthy
     ports:
       - 127.0.0.1:${CAPSTONE_API_PORT:-8767}:8766
@@ -142,6 +140,23 @@ services:
       CAPSTONE_HOSTED_APPLICATION: pypsa
       CAPSTONE_THREAD_FAMILY: pypsa
       CAPSTONE_WORKER_WAKE_URL: http://worker-pypsa:8766
+    command: [worker]
+    networks: [default, general-pi]
+    healthcheck:
+      test: [CMD, python, -c, "from urllib.request import urlopen; urlopen('http://127.0.0.1:8766/health', timeout=3).close()"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  worker-native:
+    <<: *host-service
+    volumes:
+      - worker-native-runs:/app/runs
+    environment:
+      <<: *host-environment
+      CAPSTONE_HOSTED_APPLICATION: native
+      CAPSTONE_THREAD_FAMILY: native
+      CAPSTONE_WORKER_WAKE_URL: http://worker-native:8766
     command: [worker]
     networks: [default, general-pi]
     healthcheck:
@@ -196,6 +211,7 @@ networks:
 volumes:
   postgres-data:
   object-data:
+  worker-native-runs:
   general-pi-receipts:
   general-pi-profiles:
   general-pi-resources:

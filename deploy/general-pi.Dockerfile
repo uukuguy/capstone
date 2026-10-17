@@ -31,6 +31,8 @@ COPY packages/capstone-agent/src/capstone_agent/general_pi_relay.py capstone_age
 COPY packages/capstone-agent/src/capstone_agent/bounded_http_loop.py capstone_agent/bounded_http_loop.py
 COPY packages/capstone-agent/src/capstone_agent/conversation_context.py capstone_agent/conversation_context.py
 COPY packages/capstone-agent/src/capstone_agent/request_intent.py capstone_agent/request_intent.py
+COPY packages/capstone-agent/src/capstone_agent/native_task_context.py capstone_agent/native_task_context.py
+COPY packages/pi-capability-tools/src/task-record-tools.mjs capstone_agent/resources/task-record-tools.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/general-context.mjs capstone_agent/resources/general-context.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/general-sdk.mjs capstone_agent/resources/general-sdk.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/general-mcp.mjs capstone_agent/resources/general-mcp.mjs

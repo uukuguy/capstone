@@ -249,6 +249,11 @@ def main(
             artifacts = build_artifacts(settings, ledger)
             thread_service = PostgresThreadService(settings.database_url)
             thread_service.initialize()
+            if args.command == 'serve-hosted' and os.environ.get('CAPSTONE_GENERAL_EXECUTOR_ORIGIN'):
+                from .general_executor_composition import configured_general_executor
+                native_executor = configured_general_executor(os.environ)
+                if native_executor is not None:
+                    thread_service.set_native_executor(native_executor)
             if thread_application is not None:
                 # Workers need the same application-owned catalog context as
                 # the API so a family-specific runtime can answer cross-family
@@ -258,8 +263,10 @@ def main(
                 import uvicorn
                 if thread_application is not None and thread_application.resource_profiles is None:
                     from .thread_input_catalog import RemoteResourceCatalog, catalog_provider
+                    remote_resources = RemoteResourceCatalog(os.environ.get('CAPSTONE_FAMILY_HEALTH_URLS', ''), settings.operator_token)
                     thread_service.set_input_catalog_provider(catalog_provider(thread_service,
-                        RemoteResourceCatalog(os.environ.get('CAPSTONE_FAMILY_HEALTH_URLS', ''), settings.operator_token),
+                        lambda snapshot: (thread_service.native_resource_profiles()
+                            if snapshot.active_model_context is None else remote_resources(snapshot)),
                         family_available=thread_service.is_family_available))
 
                 wake_worker = configured_worker_wake(settings.worker_wake_url,

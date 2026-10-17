@@ -53,9 +53,9 @@ fi
 printf '%s\n' "==> Validating local Compose configuration"
 "${compose[@]}" config --quiet
 
-build_args=(build api worker worker-pypsa objects-init)
+build_args=(build api worker worker-pypsa worker-native objects-init)
 if [ "${CAPSTONE_LOCAL_PULL:-0}" = "1" ]; then
-  build_args=(build --pull api worker worker-pypsa objects-init)
+  build_args=(build --pull api worker worker-pypsa worker-native objects-init)
 fi
 printf '%s\n' "==> Building API and worker from the current checkout"
 "${compose[@]}" "${build_args[@]}"
@@ -69,7 +69,7 @@ uv run --project "$repo_root/packages/capstone-agent" python \
 
 printf '%s\n' "==> Starting dependencies and replacing API/worker containers"
 "${compose[@]}" up --no-build --force-recreate --wait -d \
-  postgres objects objects-init general-pi api worker worker-pypsa
+  postgres objects objects-init general-pi api worker worker-pypsa worker-native
 
 api_binding="$("${compose[@]}" port api 8766 | head -n 1)"
 [ -n "$api_binding" ] || fail "Compose did not publish the API port"
@@ -80,12 +80,14 @@ curl -fsS "$api_origin/health/ready" >/dev/null \
 api_container="$("${compose[@]}" ps -q api)"
 worker_container="$("${compose[@]}" ps -q worker)"
 worker_pypsa_container="$("${compose[@]}" ps -q worker-pypsa)"
+worker_native_container="$("${compose[@]}" ps -q worker-native)"
 [ -n "$api_container" ] && [ -n "$worker_container" ] && [ -n "$worker_pypsa_container" ] \
   || fail "API or worker container is not running"
 api_image="$(docker inspect -f '{{.Image}}' "$api_container")"
 worker_image="$(docker inspect -f '{{.Image}}' "$worker_container")"
 worker_pypsa_image="$(docker inspect -f '{{.Image}}' "$worker_pypsa_container")"
-[ "$api_image" = "$worker_image" ] && [ "$api_image" = "$worker_pypsa_image" ] \
+worker_native_image="$(docker inspect -f '{{.Image}}' "$worker_native_container")"
+[ "$api_image" = "$worker_image" ] && [ "$api_image" = "$worker_pypsa_image" ] && [ "$api_image" = "$worker_native_image" ] \
   || fail "API and workers are running different image revisions"
 
 app_host="${CAPSTONE_APP_HOST:-0.0.0.0}"

@@ -55,7 +55,7 @@ class FamilyRuntimeFactory:
         self._factories = normalized
 
     def __call__(self, claim: AttemptClaim) -> HarnessRuntime:
-        family = claim.model_context.implementation_family
+        family = claim.professional_context.implementation_family
         factory = self._factories.get(family)
         if factory is None:
             raise RuntimeError(f"implementation family is not registered: {family}")

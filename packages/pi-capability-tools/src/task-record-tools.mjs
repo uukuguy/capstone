@@ -1,5 +1,3 @@
-import { defineTool } from "@earendil-works/pi-coding-agent";
-import { Type } from "@earendil-works/pi-ai";
 import { createHash } from "node:crypto";
 import { constants, openSync, closeSync, fstatSync, readFileSync, realpathSync, lstatSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
@@ -26,10 +24,10 @@ export function configureTaskRecordTool(pi, directory) {
       || !manifest.pages.every(p => Number.isSafeInteger(p.after) && p.after >= 0 && /^[a-f0-9]{64}$/.test(p.sha256))) {
     throw new Error("task records manifest is invalid");
   }
-  pi.registerTool(defineTool({
+  pi.registerTool({
     name: "agent_task_records_read", label: "读取原任务记录",
     description: "Read execution records of the historical task selected by the user. Includes tool parameters, outcomes and failures. Historical records are not evidence for a new calculation. Use next_after while has_more is true.",
-    parameters: Type.Object({ after: Type.Optional(Type.Integer({ minimum: 0 })) }, { additionalProperties: false }),
+    parameters: { type: "object", properties: { after: { type: "integer", minimum: 0 } }, additionalProperties: false },
     async execute(_callId, args) {
       try {
         const after = args.after ?? 0;
@@ -51,7 +49,7 @@ export function configureTaskRecordTool(pi, directory) {
             evidence_refs: [], historical_only: true } };
       }
     },
-  }));
+  });
 }
 
 export default function taskRecordTools(pi) {

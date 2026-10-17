@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
+import { applicationToolAdmission, guardToolExecution } from "./general-sdk.mjs";
 
 // The host supplies one fixed local server and schemas. Tool arguments cannot
 // select a process, endpoint, credentials or installation.
@@ -69,13 +70,13 @@ export default async function(pi) {
   if (!config.mcp) return;
   const bridge = new BoundedMcp(config);
   for (const [name, schema] of Object.entries(config.mcp.descriptor.tool_schemas)) {
-    pi.registerTool({ name, label: name, description: schema.description ?? name,
+    pi.registerTool(guardToolExecution({ name, label: name, description: schema.description ?? name,
       parameters: schema.inputSchema,
       execute: async (_id, args, signal) => {
         const value = await bridge.call(name, args, signal);
         return { content: [{ type: "text", text: value.result_json }], details: value.observation,
                  isError: value.is_error === true };
-      } });
+      } }, async call => applicationToolAdmission(config, call.toolName)));
   }
   pi.on("session_start", async () => { if (config.inventoryOnly) await bridge.start(); });
   pi.on("session_shutdown", async () => bridge.close());

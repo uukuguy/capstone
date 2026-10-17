@@ -15,16 +15,14 @@ from .thread_protocol import AttemptSnapshot
 
 def input_catalog_document(snapshot, profiles: dict, historical: list[dict], *, family_available=False) -> dict:
     context = snapshot.active_model_context
-    if context is None:
-        raise RuntimeError('model-free input catalog is unavailable')
-    current = {'object_id': context.id, 'model_id': context.model_id,
+    current = None if context is None else {'object_id': context.id, 'model_id': context.model_id,
                'model_revision': context.model_revision, 'implementation_family': context.implementation_family}
-    objects = [current, *[item for item in historical if item['object_id'] != context.id]][:16]
+    objects = historical[:16] if current is None else [current, *[item for item in historical if item['object_id'] != context.id]][:16]
     operations = []
     idle = snapshot.current_attempt is None and snapshot.run.state == 'open'
     for operation, scope, role, available, reason in (
         ('view_context', 'draft', 'application', True, None),
-        ('view_topology', 'workspace', 'application', True, None),
+        ('view_topology', 'workspace', 'application', context is not None, 'model_context_unavailable'),
         ('open_model', 'workspace', 'application', idle and family_available, 'model_control_unavailable'),
         ('activate_model', 'workspace', 'application', idle and family_available, 'model_control_unavailable'),
         ('close_model', 'workspace', 'application', idle and family_available, 'model_control_unavailable'),
@@ -34,9 +32,9 @@ def input_catalog_document(snapshot, profiles: dict, historical: list[dict], *, 
             'input_schema': {'type': 'object'}, 'available': available,
             'reason': None if available else reason, 'revision': '1'})
     public = {'schema': 'capstone-thread-input-catalog/1', 'thread_id': snapshot.thread_id,
-        'runtime_mode': snapshot.runtime_mode, 'context_id': context.id,
-        'implementation_family': context.implementation_family,
-        'selection_revision': context.selection_revision, 'resource_profiles': profiles,
+        'runtime_mode': snapshot.runtime_mode, 'context_id': None if context is None else context.id,
+        'implementation_family': None if context is None else context.implementation_family,
+        'selection_revision': None if context is None else context.selection_revision, 'resource_profiles': profiles,
         'objects': objects, 'materials': [], 'operations': operations,
         'coverage': {'full_model_tables': False, 'history': 'bounded', 'material_status': 'unavailable'}}
     return {**public, 'revision': content_hash(public)}
@@ -72,10 +70,8 @@ def historical_objects(service, snapshot) -> list[dict]:
 
 def catalog_provider(service, resource_profiles, *, family_available):
     def provide(snapshot):
-        if snapshot.active_model_context is None:
-            raise RuntimeError('model-free input catalog is unavailable')
         return input_catalog_document(snapshot, resource_profiles(snapshot), historical_objects(service, snapshot),
-            family_available=family_available(snapshot.active_model_context.implementation_family))
+            family_available=False if snapshot.active_model_context is None else family_available(snapshot.active_model_context.implementation_family))
     return provide
 
 
@@ -141,7 +137,7 @@ class RemoteResourceCatalog:
         for entry in origins.split(','):
             if entry.strip():
                 family, separator, origin = entry.partition('=')
-                if not separator or family not in {'pandapower', 'pypsa'}:
+                if not separator or family not in {'pandapower', 'pypsa', 'native'}:
                     raise ValueError('worker resource family configuration is invalid')
                 self._origins[family] = origin.rstrip('/')
         self._token = wake_token(operator_token)

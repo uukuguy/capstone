@@ -17,7 +17,7 @@ from urllib.parse import urlsplit
 import httpx
 
 from .general_pi_executor import GeneralPiProcess, native_pi_launch, task_workspace, collect_artifacts
-from .pi_delegation import PiTaskRequest, PiTaskResult, MAX_DOCUMENT_BYTES
+from .pi_delegation import PiTaskRequest, PiTaskResult, MAX_DOCUMENT_BYTES, MAX_TASK_DOCUMENT_BYTES
 from .general_pi_storage import GeneralPiStorage, request_hash
 from .general_pi_relay import ProviderRelay, forward_provider
 from .bounded_http_loop import run_http
@@ -32,6 +32,7 @@ class GeneralPiHost:
             'task_schemas': ['capstone-pi-task/1', 'capstone-pi-task/2'],
             'enabled': True, 'available': True, 'operations': ['answer', 'rewrite', 'external_lookup'],
             'executor_identity': self.identity}
+        self.capability['native_context_schemas'] = ['capstone-native-context/1']
         self._max_tasks, self._max_records = max_tasks, max_records
         self._lock = threading.RLock()
         self._tasks: dict[str, dict] = {}
@@ -45,6 +46,21 @@ class GeneralPiHost:
     def submit(self, request: PiTaskRequest) -> None:
         if request.to_document()['executor_identity'] != self.identity:
             raise ValueError('General Pi configuration changed')
+        if request.native_context is not None:
+            from .native_task_context import checked_native_context
+            # PiTaskRequest admits native context only with a typed v2 profile.
+            assert request.resource_profile is not None
+            native = checked_native_context(request.native_context)
+            role = 'direct_pi' if request.entrypoint == 'direct' else 'delegated_pi'
+            store = getattr(self._run, 'resources', None)
+            profile = (store.accepted(role, request.resource_profile['revision']) if store is not None
+                       else self.capability.get('resource_profiles', {}).get(role, {}))
+            published = set(self.capability.get('native_tools', ()))
+            published.update(profile.get('load_receipt', {}).get('published_tool_ids', ()))
+            if native['selected_task_records']:
+                published.add('agent_task_records_read')
+            if not set(native['policy']['allowed_tools']) <= published:
+                raise ValueError('native application requested an unpublished tool')
         with self._lock:
             self.sweep()
             old = self._tasks.get(request.task_id)
@@ -249,6 +265,14 @@ class NativeTaskRunner:
                     sdk_config['interpreter'] = str(Path(sdk_config['mcp']['install']) / 'venv/bin/python')
             elif task_input['kind'] != 'text':
                 raise ValueError('native skills require an accepted resource profile')
+            if request.native_context is not None:
+                from .native_task_context import checked_native_context
+                native = checked_native_context(request.native_context)
+                sdk_config['applicationPolicy'] = native['policy']
+                sdk_config['selectedTaskRecords'] = native['selected_task_records']
+                sdk_config['context']['records_truncated'] = native['records_truncated']
+                sdk_config['context']['selected_task_source'] = native['selected_task_source']
+                sdk_config['appendSystemPrompt'] = [*sdk_config.get('appendSystemPrompt', []), native['policy']['system_policy']]
             argv, environment = native_pi_launch(command=self.command, workspace=workspace,
                 config_root=self.config_root, model=self.model,
                 relay_url=self.relay_origin + '/provider/' + request.task_id, relay_token=grant,
@@ -278,7 +302,9 @@ class NativeTaskRunner:
             'parent_attempt_id': task_id, 'entrypoint': 'direct', 'instruction': 'Readiness',
             'messages': [], 'dependency_results': [], 'executor_identity': identity, 'timeout_seconds': 15})
         try:
-            return self(request, lambda: False, lambda _: None, inventory_only=True)[1]['native_tools']
+            checked = self(request, lambda: False, lambda _: None, inventory_only=True)[1]
+            self.builtin_tools = checked['inventory'].get('builtin_tools', [])
+            return checked['native_tools']
         finally:
             shutil.rmtree(self.root / 'tasks' / task_id, ignore_errors=True)
 
@@ -367,7 +393,7 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 return self.send_json(401, {'error': 'unauthorized'})
             try:
                 length = int(self.headers.get('Content-Length', '0'))
-                if self.path != '/tasks' or not 0 < length <= MAX_DOCUMENT_BYTES:
+                if self.path != '/tasks' or not 0 < length <= MAX_TASK_DOCUMENT_BYTES:
                     raise ValueError()
                 request = PiTaskRequest.from_document(json.loads(self.rfile.read(length)))
                 host.submit(request)
@@ -448,14 +474,15 @@ def main():
                 'pi_commit': lock['source']['commit'], 'config_revision': revision.hexdigest(),
                 'runtime_lock_sha256': sha256(Path('/opt/general/pi-runtime.lock.json').read_bytes()).hexdigest(),
                 'executor_revision': sha256(b''.join((Path(__file__).parent / name).read_bytes()
-                    for name in ('general_pi_server.py', 'general_pi_executor.py', 'general_pi_storage.py', 'general_pi_relay.py', 'bounded_http_loop.py', 'pi_delegation.py', 'business_context.py', 'request_intent.py',
+                    for name in ('general_pi_server.py', 'general_pi_executor.py', 'general_pi_storage.py', 'general_pi_relay.py', 'bounded_http_loop.py', 'pi_delegation.py', 'business_context.py', 'request_intent.py', 'native_task_context.py',
                                  'native_resources.py', 'runtime_resources.py', 'resource_installation.py', 'general_pi_resource_seed.py', 'bounded_mcp.py',
-                                 'resources/general-context.mjs', 'resources/general-sdk.mjs', 'resources/general-mcp.mjs'))).hexdigest()}
+                                 'resources/general-context.mjs', 'resources/general-sdk.mjs', 'resources/general-mcp.mjs', 'resources/task-record-tools.mjs'))).hexdigest()}
     runner = NativeTaskRunner(root=root, config_root=config,
         command=('node', '/opt/pi/packages/coding-agent/dist/cli.js'), model=identity['model'],
         relay_origin=f'http://127.0.0.1:{port}')
     host = GeneralPiHost(root=root, identity=identity, run_task=runner)
     host.capability['native_tools'] = runner.verify_tools(identity)
+    host.capability['native_builtin_tools'] = runner.builtin_tools
     host.capability['resource_profiles'] = runner.verify_resources(identity)
     server = make_server(host, control_token=os.environ['CAPSTONE_GENERAL_CONTROL_TOKEN'],
         address=('0.0.0.0', port), runner=runner, upstream=provider['base_url'], provider_key=key)

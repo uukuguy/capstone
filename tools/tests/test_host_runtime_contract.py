@@ -169,7 +169,7 @@ def test_runtime_rejects_unregistered_role_combinations(application, command):
 
 
 def test_api_waits_for_both_workers_and_bounds_wait():
-    contract = RUNTIME.select_runtime(ROOT, environment(), "api")[0]
+    contract = RUNTIME.select_runtime(ROOT, trial_environment(), "api")[0]
     settings = environment() | {"CAPSTONE_FAMILY_HEALTH_URLS": "pandapower=http://pp,pypsa=http://py"}
     elapsed = [0]
     seen = []
@@ -192,7 +192,7 @@ def test_api_waits_for_both_workers_and_bounds_wait():
 
 def test_api_wakes_both_cold_workers_concurrently():
     import threading
-    contract = RUNTIME.select_runtime(ROOT, environment(), 'api')[0]
+    contract = RUNTIME.select_runtime(ROOT, trial_environment(), 'api')[0]
     barrier = threading.Barrier(2)
     seen = []
     def probe(url):
@@ -202,6 +202,18 @@ def test_api_wakes_both_cold_workers_concurrently():
     RUNTIME.wait_for_workers(contract,
         {'CAPSTONE_FAMILY_HEALTH_URLS': 'pandapower=http://pp,pypsa=http://py'}, probe=probe)
     assert set(seen) == {'http://pp/health', 'http://py/health'}
+
+
+def test_workbench_native_conversation_does_not_wait_for_professional_authorities():
+    contract, role, spec, selected = RUNTIME.select_runtime(ROOT, environment('native'), 'worker')
+    assert role == 'native'
+    assert spec['module'] == 'capstone_agent.native_hosted_worker'
+    assert 'family' not in spec
+    seen = []
+    RUNTIME.wait_for_workers(contract, {'CAPSTONE_FAMILY_HEALTH_URLS':
+        'native=http://native,pandapower=http://pp,pypsa=http://py'},
+        probe=lambda url: seen.append(url) or url == 'http://native/health')
+    assert seen == ['http://native/health']
 
 
 def test_installed_catalog_payload_is_part_of_runtime_identity(tmp_path):
