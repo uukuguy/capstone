@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import cast
+from pathlib import Path
 
 import pytest
 
@@ -33,6 +34,66 @@ class _Session:
 
     def stop(self) -> None:
         return None
+
+
+@pytest.mark.parametrize("binding_id", ["source", "operations"])
+def test_failed_pypsa_prepare_cleans_only_its_launcher(tmp_path, monkeypatch, binding_id):
+    import os
+    from capstone_agent.kernel_capability_preparation import EmptyCredentialBroker
+    from pypsa_agent.profile import build_profile
+    for name in ("source", "operations"):
+        (tmp_path / name).mkdir()
+    binding = next(item for item in build_profile().domains if item.binding_id == binding_id)
+    root = tmp_path / binding_id
+    preserved = root / "existing-evidence.json"
+    preserved.write_text("preserved")
+    original_open = os.open
+    def fail_open(path, *args, **kwargs):
+        if str(path).endswith(("pypsamodelctl", "pypsaopsctl")):
+            raise OSError("injected launcher copy failure")
+        return original_open(path, *args, **kwargs)
+    with monkeypatch.context() as patch:
+        patch.setattr(os, "open", fail_open)
+        with pytest.raises(OSError, match="injected"):
+            binding.profile.provisioner.prepare(binding=binding, workspace=root,
+                credentials=EmptyCredentialBroker().issue(binding_id=binding_id, scope=binding.credential_scope))
+    assert list(root.glob("bin-*")) == []
+    assert preserved.read_text() == "preserved"
+
+
+def test_reprepare_existing_pypsa_workspace_keeps_authority_records(tmp_path):
+    from capstone_agent.kernel_capability_preparation import domain_registry, EmptyCredentialBroker
+    from capability_agent.application.composition import prepare_application
+    from capability_agent.application.workspace import ApplicationWorkspace
+    from pypsa_agent.profile import build_profile
+
+    profile = build_profile()
+    workspace = ApplicationWorkspace.create(tmp_path, binding_ids=("source", "operations"))
+    def prepare():
+        return prepare_application(profile, registry=domain_registry(profile),
+            workspace=workspace.root, credentials=EmptyCredentialBroker())
+    first = prepare()
+    source = first.bindings["source"].endpoint.executor
+    opened = source.invoke("model.open", {"catalog_id": "regional-six-bus"})
+    before = source.invoke("model.inspect", {"model_ref": opened["model_ref"]})
+    second = prepare()
+    first_launchers = [Path(binding.endpoint.metadata["search_path"][0]) for binding in first.bindings.values()]
+    second_launchers = [Path(binding.endpoint.metadata["search_path"][0]) for binding in second.bindings.values()]
+    for binding in first.bindings.values():
+        binding.endpoint.close()
+        binding.endpoint.close()
+    assert all(not path.exists() for path in first_launchers)
+    assert all(path.is_dir() for path in second_launchers)
+    try:
+        after = second.bindings["source"].endpoint.executor.invoke(
+            "model.inspect", {"model_ref": opened["model_ref"]})
+        assert after["component_counts"] == before["component_counts"]
+        assert after["load_demand_summary_mw"] == before["load_demand_summary_mw"]
+        assert second.bindings["source"].runtime.authority.verify_result(before["result_ref"])
+    finally:
+        for binding in second.bindings.values():
+            binding.endpoint.close()
+    assert all(not path.exists() for path in second_launchers)
 
 
 class _ToolSession(_Session):

@@ -3415,3 +3415,7 @@ The following original entries were retained during document synchronization.
 - 2026-10-17: Design review preserves shared execution assets, identifies recovery-only start defect, and records unfinished native/Profile/artifact contracts.
 - 2026-10-17: Dev control graph includes b703e37b; browser confirms 28 nodes, 38 edges, no overlap, crossing or overflow.
 - 2026-10-17: 6f1c3412 aligns workspace structure with accepted prototype and preserves mature dialogue; 569 App tests pass.
+- 2026-10-17: fbbdbc7b records design alignment and verified prototype correction before local entry validation.
+- 2026-10-17: 00a8cd85 fixes mixed-version session listing without changing active protocol; 570 App and 88 PostgreSQL-backed tests pass.
+- 2026-10-17: local-dev00a8cd85 canonical rebuild and1153file identity checks passed in all3roles; real history/results/topology/new conversation verified; PR53ready with macOS CI pending; graph28nodes38edges checked.
+- 2026-10-17: 7d0f32c1 records live workspace verification and exact deployment identity for integration review.

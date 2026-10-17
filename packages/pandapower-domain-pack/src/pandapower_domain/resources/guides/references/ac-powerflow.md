@@ -50,6 +50,18 @@ Outputs: `result_ref`, `context_ref`, `revision_ref`, `converged`, `solver`, `to
 
 ## Common Mistakes
 
+An input change need not change every output. In a load-flow model, a slack bus
+holds its specified voltage and balances power. A load change at that bus can
+change external-grid active/reactive output without changing net bus injection,
+branch flows or losses. This is not, on its own, evidence of a stale result.
+For a suspected unchanged-result issue, use registered model/result queries to
+check the changed input, its bus/control role, load results and balancing-source
+results (such as `res_load` and `res_ext_grid`). Use the actual model's control
+configuration; do not assume every bus or solver uses the same slack treatment.
+Keep the derived scenario identity and assess that scenario's results against
+the relevant limits. A base-case violation is not a substitute for scenario
+assessment, even when some values happen to be equal.
+
 - Ranking lines without using the returned `result_ref`.
 - Omitting convergence status.
 - Treating topology endpoints as power-flow direction.

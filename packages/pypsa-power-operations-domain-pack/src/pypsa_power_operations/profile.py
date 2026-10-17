@@ -9,6 +9,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import tempfile
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -174,9 +175,11 @@ class OperationsExecutor:
 class PreparedOperationsEndpoint:
     executor: OperationsExecutor
     metadata: Mapping[str, object]
+    launcher_directory: tempfile.TemporaryDirectory[str]
     closed: bool = False
 
     def close(self) -> None:
+        self.launcher_directory.cleanup()
         self.closed = True
 
 
@@ -194,47 +197,52 @@ class OperationsProvisioner:
         if root.is_symlink() or root.name == self.source_binding_id or not (root.parent / self.source_binding_id).is_dir():
             raise ValueError("PyPSA operations source binding is unavailable")
         root.mkdir(parents=True, exist_ok=True, mode=0o700)
-        bin_dir = root / "bin"
-        bin_dir.mkdir(mode=0o700)
-        target = bin_dir / _EXECUTABLE
-        source = self.executable or Path(sys.executable).parent / _EXECUTABLE
-        if not source.exists() and self.executable is None:
-            found = shutil.which(_EXECUTABLE)
-            if found is None:
-                raise ValueError("installed pypsaopsctl is unavailable")
-            source = Path(found)
-        if source.is_symlink() or not source.is_file() or not os.access(source, os.X_OK):
-            raise ValueError("installed pypsaopsctl is invalid")
-        source_fd = os.open(source, os.O_RDONLY | os.O_NOFOLLOW)
+        # Keep retained Authority data; each live endpoint owns its launcher.
+        launcher_directory = tempfile.TemporaryDirectory(prefix="bin-", dir=root)
         try:
-            if not stat.S_ISREG(os.fstat(source_fd).st_mode):
+            bin_dir = Path(launcher_directory.name)
+            target = bin_dir / _EXECUTABLE
+            source = self.executable or Path(sys.executable).parent / _EXECUTABLE
+            if not source.exists() and self.executable is None:
+                found = shutil.which(_EXECUTABLE)
+                if found is None:
+                    raise ValueError("installed pypsaopsctl is unavailable")
+                source = Path(found)
+            if source.is_symlink() or not source.is_file() or not os.access(source, os.X_OK):
                 raise ValueError("installed pypsaopsctl is invalid")
-            target_fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o700)
+            source_fd = os.open(source, os.O_RDONLY | os.O_NOFOLLOW)
             try:
-                while chunk := os.read(source_fd, 64 * 1024):
-                    pending = memoryview(chunk)
-                    while pending:
-                        count = os.write(target_fd, pending)
-                        if count <= 0:
-                            raise OSError("pypsaopsctl copy made no progress")
-                        pending = pending[count:]
-                os.fchmod(target_fd, 0o700)
+                if not stat.S_ISREG(os.fstat(source_fd).st_mode):
+                    raise ValueError("installed pypsaopsctl is invalid")
+                target_fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o700)
+                try:
+                    while chunk := os.read(source_fd, 64 * 1024):
+                        pending = memoryview(chunk)
+                        while pending:
+                            count = os.write(target_fd, pending)
+                            if count <= 0:
+                                raise OSError("pypsaopsctl copy made no progress")
+                            pending = pending[count:]
+                    os.fchmod(target_fd, 0o700)
+                finally:
+                    os.close(target_fd)
             finally:
-                os.close(target_fd)
-        finally:
-            os.close(source_fd)
-        executor = OperationsExecutor(
-            executable=target, workspace=root, source_binding_id=self.source_binding_id,
-        )
-        return PreparedOperationsEndpoint(executor, {
-            "binding_id": binding.binding_id, "executable": _EXECUTABLE,
-            "executable_args": (
-                "request", "--workspace", str(root), "--source-workspace",
-                str(executor.source_workspace), "--run-id", executor.run_id,
-            ),
-            "search_path": (str(bin_dir),), "timeout_seconds": executor.timeout_seconds,
-            "environment": executor.environment,
-        })
+                os.close(source_fd)
+            executor = OperationsExecutor(
+                executable=target, workspace=root, source_binding_id=self.source_binding_id,
+            )
+            return PreparedOperationsEndpoint(executor, {
+                "binding_id": binding.binding_id, "executable": _EXECUTABLE,
+                "executable_args": (
+                    "request", "--workspace", str(root), "--source-workspace",
+                    str(executor.source_workspace), "--run-id", executor.run_id,
+                ),
+                "search_path": (str(bin_dir),), "timeout_seconds": executor.timeout_seconds,
+                "environment": executor.environment,
+            }, launcher_directory=launcher_directory)
+        except BaseException:
+            launcher_directory.cleanup()
+            raise
 
 
 @dataclass(frozen=True, slots=True)
