@@ -1,5 +1,21 @@
 # Architectural Decisions
 
+## 2026-10-21 — Model-owned graphs and immutable task-result references
+
+- **Decision:** the model declares and revises steps, branches, dependencies and joins. The orchestrator validates and executes that exact graph, preserving node identities and per-step tool/result ownership. Public process records show the committed graph and actual paths, waits, concurrency, joins, changes and recovery.
+- **Result reuse:** declare output producers/slots and consumer dependencies in the plan. Retain completed reads and calculations as bounded context plus durable result references, with source/method/coverage and producer identity. Downstream binds the actual immutable version it consumed. Recalculation creates a new version and explicit supersession; preserve old refs and replay. No silent overwrite, latest-version rebinding or automatic promotion to Authority evidence.
+- **Rejected direction:** App1.9 host-ready coalescing synthesized replacement objectives and superseded model steps. Withdraw this as the repair direction. The full real three-child run used one model-declared objective and does not validate cross-objective scheduling.
+- **Boundary:** no host-hardcoded planning/source/analysis/report business stages. Initial model waiting is separate telemetry, not environment preparation. Internal checkpoint JSON stays private, including historical UI replay.
+- **Implementation state:** checkpoint projection/replay fix verified and deployed locally. Per-node ready actions, graph projection and declared immutable result consumption remain active work. See [repair record](../reviews/2026-10-20-subtask-orchestration-repair.md).
+
+## 2026-10-20 — Locked image installs precede volatile source
+
+- **Status:** implemented in `.worktrees/model-decision` on `fix/workspace-reading-type`. Uncommitted. Not merged. Not deployed.
+- **Decision:** the backend image installs locked dependencies, Pi, and pinned model assets before `COPY packages/ packages/`. The native image installs the hashed scientific packages before the backend image copy and before volatile source. A source-only change must leave those install layers cached.
+- **Reason:** one install step after a full source copy repeats large downloads on every source edit. The native smoke test needs `capstone-report`, `tsc`, and `tsx`, so it stays after those links. The scientific-package install stays before them.
+- **Boundary:** Pi installs through `deploy/install_pinned_pi.py` and does not import the full kernel package. The native runtime interpreter is installed in place. A copied interpreter whose alias points at `/app` is rejected. Served source identity is the content hash in `deploy/source-identity.txt`, not `CAPSTONE_SOURCE_REVISION`.
+- **Check:** `tools/tests/test_image_layer_order.py`.
+
 ## 2026-10-01 — CLI/TUI is a transport client, not a Python application boundary
 
 - **Decision:** the public `capstone` CLI/TUI is a client of the Capstone HTTP/JSON/SSE Thread contract. It must not be structurally tied to Python, Pi, DSH, Domain Packs, Authorities, or Provider credentials.

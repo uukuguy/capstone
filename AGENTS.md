@@ -70,7 +70,7 @@ before changing deployment, release, or environment behavior.
   update local-demo with ordinary development builds or make the local versions
   equal solely for convenience. Preserve existing data during source realignment.
 - Cloud-development validation covers readiness, App health, registered cases,
-  Provider behavior when separately authorized, reports, evidence replay, and
+  Provider behavior, reports, evidence replay, and
   API/worker identity before promotion. Failed releases roll back to the last
   verified user-trial revision.
 - After every cloud-dev deployment passes its required validation, create and
@@ -116,6 +116,14 @@ before changing deployment, release, or environment behavior.
   or evidence persistence failures remain fatal.
 
 ## Public Contracts and Runtime State
+
+- Enterprise resources must support GB-scale and larger files by design.
+  Keep upload/storage quotas separate from processing and model-context budgets.
+  Use durable versioned resource references and bounded, on-demand access; do not
+  make full-file base64 task payloads or current small-file limits the architecture.
+  Phased delivery must record unimplemented requirements, not weaken them.
+  The owning contract and acceptance gates are in
+  `docs/superpowers/specs/2026-10-15-enterprise-design-final.md`, section 9.
 
 - The pandapower compatibility `run`, `analysis`, and `report` paths write
   exactly one stdout JSON object containing `question_id` and `answer_output`.
@@ -248,6 +256,16 @@ counts, prices, limits, versions, or deployment state here.
   proposed designs, accepted decisions, and verified behavior.
 - Preserve unrelated tracked and untracked user work. Stage only task-owned
   paths. Do not delete or migrate existing main-worktree `var/` data.
+- At each coherent implementation or verification boundary, inspect Git status
+  and diffs. Separate completed task changes, deferred work, unrelated work and
+  runtime scratch. Commit verified task-owned changes promptly with explicit
+  dependencies and a reviewable scope; do not carry large uncommitted batches
+  across work boundaries or defer this sorting until merge time. If work must
+  remain uncommitted, record its exact paths, reason and recovery reference
+  before starting another unit. Update the journal and recovery state at the
+  same boundary. Before integration, check ahead/behind state, dirty and
+  untracked files, and unmerged dependencies. Never use bulk staging to hide
+  unclear ownership.
 - Prefer `rg` and `rg --files` for discovery. Use `apply_patch` for text edits
   and explicit non-destructive commands for filesystem operations.
 - Keep `README.md` and `README.zh-CN.md` aligned when shared product facts,
@@ -262,6 +280,16 @@ counts, prices, limits, versions, or deployment state here.
   regressions. Do not copy ignored authentication state from another worktree.
 
 ### Local rebuild and deployment
+
+- After each local build and its validation/use, clean this project's unused
+  images and build cache with the scoped `deploy/cleanup_local_build_cache.py`
+  helper. This is a standing maintenance step, not a new service or global prune.
+  Preserve every image referenced by any running or stopped container, other
+  projects, persistent volumes and user data. The canonical rebuild performs
+  scoped maintenance after readiness; if `CAPSTONE_LOCAL_CACHE_CLEANUP=0` is used
+  temporarily, the operator must run the helper with `--apply` after validation/use
+  ends and any existing cleanup is stopped. Do not expand cleanup beyond proven
+  project ownership or use forced image removal/implicit parent pruning.
 
 When local API, worker, or App source changes, use the checked-in rebuild
 entrypoint instead of starting Compose with an old image:
@@ -294,6 +322,11 @@ be refreshed or reset before starting a new case.
 
 ## Verification
 
+Ordinary dev branch integration is not release acceptance. Use the affected
+local checks and dev's required PR gate. Do not run `check-release` or dispatch
+`release=true` merely to merge a development branch or obtain extra platform
+checks. Full release verification is for an explicit release or baseline task.
+
 During early development, keep CI proportional to the changed layer and its
 consumers. Use the scoped development gates in the lifecycle document; do not
 run every professional application suite for an isolated agent/App edit.
@@ -315,6 +348,16 @@ Use the full gates for integration or release claims; a focused App or
 documentation change does not itself justify repeating every suite.
 Documentation-only changes require link and symlink checks,
 `git diff --check`, and `make doctor`. `make validate-provider PROVIDER=<id> [MODEL=<id>]`
-is optional, may be billed, and requires explicit authorization.
+is optional and may be billed. The user has authorized model/Provider access for
+development, integration, debugging and verification without repeated permission
+requests (2026-10-17). Run the real model checks needed for the task. Keep the
+existing credential protection and deployment boundaries. Acceptance must use real
+model responses, tool execution and saved products; offline fixtures do not replace
+real verification. Stop and report clearly abnormal calls, runaway retries or
+abnormal consumption rather than requesting approval for routine checks.
+At this early development stage, prioritize a working real task-session path:
+submit, execute tools, view products, continue, and restore after refresh.
+Fix execution blockers first. Track non-blocking polish and completeness gaps
+separately; do not make them new gates for local trial.
 Every change must preserve the supported Capstone output contracts, authority
 boundaries, and current-run evidence rules.
