@@ -153,3 +153,45 @@ def test_actual_sdk_child_calls_protected_http_relay_and_has_host_receipt(tmp_pa
         server.shutdown()
         server.server_close()
         thread.join(2)
+
+
+def test_revocation_cancels_inflight_gateway_and_issues_no_receipt(tmp_path):
+    import concurrent.futures
+    import threading
+    import time
+    import httpx
+    from capstone_agent.general_pi_server import GeneralPiHost, make_server
+    from capstone_agent.general_pi_relay import ProviderRelay
+    resource = access()
+    started, stopped = threading.Event(), threading.Event()
+
+    async def waiting(*_):
+        started.set()
+        try:
+            await asyncio.sleep(20)
+        finally:
+            stopped.set()
+
+    resource.client.call = waiting
+    relay = ProviderRelay()
+    relay.register('task-1', 'task-grant', time.monotonic() + 5)
+    runner = SimpleNamespace(gateway=resource, relay=relay)
+    host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'}, run_task=lambda *_: ('', {}))
+    server = make_server(host, control_token='host-control', address=('127.0.0.1', 0), runner=runner)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(httpx.post, f'http://127.0.0.1:{server.server_port}/data-gateway/task-1',
+                json=request(), headers={'Authorization': 'Bearer task-grant'}, trust_env=False, timeout=3)
+            assert started.wait(2)
+            relay.revoke('task-1')
+            assert stopped.wait(2)
+            with pytest.raises(httpx.HTTPError):
+                future.result(timeout=2)
+        assert not resource.verify('task-1', 'call-1', request()['name'], {}, '{}')
+        assert not relay.active
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(2)

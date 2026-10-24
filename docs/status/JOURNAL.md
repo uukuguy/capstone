@@ -5626,3 +5626,5 @@ separate. No model task is active.
 2026-10-25 — e39fd6c3: Enabled admitted gateway tools in enterprise research and isolated nodes; focused host and SDK checks protect source identity.
 
 2026-10-25 — 45394040: Propagated production-data guidance into isolated nodes and added a resumable real-task verifier for multi-turn acceptance.
+
+2026-10-25 — 726e08a7: Separated authentication failures from connection errors and retained typed capacity failures without exposing gateway credentials.

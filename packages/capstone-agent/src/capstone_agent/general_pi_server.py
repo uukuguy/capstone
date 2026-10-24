@@ -1095,6 +1095,9 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
             except PermissionError:
                 return self.send_json(401, {'error': 'unauthorized'})
             except CapacityExceeded as error:
+                if error.mode == 'debug':
+                    host.interrupt_capacity(task_id, error)
+                    runner.relay.revoke(task_id)
                 return self.send_json(503, {'error': 'capacity_exceeded', 'capacity': error.to_document()})
             try:
                 length = int(self.headers.get('Content-Length', '0'))
@@ -1111,6 +1114,9 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
             except GatewayError as error:
                 self.send_json(400, {'error': str(error)})
             except CapacityExceeded as error:
+                if error.mode == 'debug':
+                    host.interrupt_capacity(task_id, error)
+                    runner.relay.revoke(task_id)
                 self.send_json(503, {'error': 'capacity_exceeded', 'capacity': error.to_document()})
             except (ValueError, OSError, TimeoutError, asyncio.CancelledError, CancelledError):
                 self.close_connection = True
