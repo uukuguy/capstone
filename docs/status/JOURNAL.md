@@ -5604,3 +5604,5 @@ separate. No model task is active.
 2026-10-25 — Seven generated files were archived with hashes and retained in place; only their exact directories are locally excluded.
 
 2026-10-25 — 78e80abf: Synchronized control closeout with accepted dev and reconciled preserved designs without changing runtime source.
+
+2026-10-25 — 032f5024: Removed an unsupported test-query option; frontend type checking and eight sidebar regressions pass.

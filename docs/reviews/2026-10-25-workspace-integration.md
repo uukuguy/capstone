@@ -20,6 +20,12 @@ under ignored outputs/git-recovery-20261025/generated-artifacts with SHA256;
 originals remain in place, covered by two exact local exclude patterns.
 The rejected account/team proposal is archived as superseded documentation.
 
+Directed checkout type checking caught an unsupported `exact` option in the new
+pin regression test. Follow-up032f5024 removes it; App TypeScript and8frame tests
+pass. Runtime source remains unchanged. Closeout uses the existing scoped dev
+gate, never the release workflow. The prior test worktree lacked frontend
+dependencies; its scoped setup was completed before this verification.
+
 User authorized closing fix/workspace-reading-type and integrating it into dev.
 PR56 contains the accumulated application and its runtime dependencies. Browser
 scratch, research-worker scratch and the superseded multi-user proposal are not
