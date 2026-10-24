@@ -5614,3 +5614,5 @@ separate. No model task is active.
 2026-10-25 — d4b55ee9: Added the verified design source node so the control graph shows the current integration focus.
 
 2026-10-25 — f6772561: Defined scale-aware topology projections and measured large-grid rendering requirements to avoid unreadable regional detail.
+
+2026-10-25 — dd49270e: Agreed identical gateway and Capstone SDK pins to avoid unnecessary cross-version compatibility work.
