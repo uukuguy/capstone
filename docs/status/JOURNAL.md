@@ -5606,3 +5606,5 @@ separate. No model task is active.
 2026-10-25 — 78e80abf: Synchronized control closeout with accepted dev and reconciled preserved designs without changing runtime source.
 
 2026-10-25 — 032f5024: Removed an unsupported test-query option; frontend type checking and eight sidebar regressions pass.
+
+2026-10-25 — 0d20a8f2: Defined production-data MCP integration and recorded real topology delivery checks to guide enterprise research implementation.
