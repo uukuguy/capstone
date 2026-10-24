@@ -1,5 +1,231 @@
 # 多线版本控制
 
+2026-10-25 左栏修正：缓存视图恢复时补读置顶偏好，命名空间切换与跨页偏好变更保持同步；收起再展开回归通过。改名输入框13px/30px，Esc取消编辑并保留左栏。941App及最终8项框架测试、构建、doctor、浏览器检查通过。内存策略已改默认10，可选10/20/50，按切换次数与最后打开时间保留。URL命名工作空间及精致空态仍待实现；候选未合dev，cloud/demo不变。
+
+2026-10-24 会话阅读状态与分层缓存：最近5个会话保留内存，可在设置选择1–20范围内的数量；超额按最近访问顺序释放旧视图，浏览器磁盘保留轻量阅读状态，宿主持久化会话和制品。自动释放不执行业务归档、不取消任务。932App/类型/doctor通过；实页主区180px、iframe220px保留，返回完整快照请求0；上限1时释放旧DOM，再开恢复165px及原报告选择。规范重建backendc64fbe52c992/nativeada86461950c，118源码/ready/App通过。未合dev，cloud/demo不变。[验证](../reviews/2026-10-24-session-view-cache.md)
+
+2026-10-24 中断恢复收尾：补齐归档会话“读取更多”，防止关闭后重开时旧请求覆盖新目录；保留返回最近列表的滚动位置。全量 App 927/927（10.77秒）、类型/doctor/diff通过，真实归档接口2→4条不重复分页及1280/375px浏览器检查通过。local-dev规范重建backendc64fbe52c992/nativeada86461950c，118源码/ready/App通过。界面候选仍有跨包未提交依赖，未合dev；cloud/demo不变。[复验](../reviews/2026-10-24-workspace-navigation.md)
+
+2026-10-24：共享工作空间导航/管理本地验收通过：三栏独立显隐、宽度拖动保持、页内切换无空目录/临时当前会话占位、置顶/双击改名/归档恢复/确认删除、电网工具条及紧凑步骤间距。169App/18最终定向/类型、55后端通过，2PG夹具跳过，真实浏览器/本地PG临时会话验收通过并清理。backendcba33ec86225/nativeada86461950c，118源码/ready/App/cleanup通过。未合dev，cloud/demo不变，338秒/59工具基线不变。[记录](../reviews/2026-10-24-workspace-navigation.md)
+
+2026-10-24用户确认当前性能基线：三分支并行338秒/59工具，两分支并行412.4秒/56工具，顺序544.6秒/67工具。后续以当前三路338秒/59工具对照；146秒仅为旧版归档，不再作为当前验收门槛。
+
+2026-10-24：通用独立成果优先并行，原样三路报告336.512660秒/59工具记录/59LLM（顺序544.609189秒，前轮两路412.363329秒）。启动与收尾特殊节点展示主链，空图不再强制续规划；真实直接回答4.182780秒/1LLM/0工具/0图。最终local-dev backendef748ad9dbeb/nativeada86461950c，116源码/ready/App、153SDK/293App/类型/doctor与清理通过。16.6秒主链请求前间隔仍待定位，146秒归档为旧版，未合dev或改cloud/demo。[记录](../reviews/2026-10-24-parallel-outcome-planning.md)
+
+2026-10-23 07:12：返回接纳候选规范重建通过，backend71a06405/nativecfff03d9，112源码/ready/App HTTP和清理通过。真实原样登记71.037秒完成，子节点11.328秒、4LLM/3工具、无错误，宿主已接纳新返回工具。恢复HTML与CSV经显式上传再输出，下载SHA与归档原件一致；没有重写报告。此为接线/保存验收，不是146秒研究性能比较。178JS/148Python通过，99文件冻结；下一步原四文件/原指令顺序后并行对照。
+
+2026-10-23 07:05：062221在结构化返回事件处失败501.792秒，原因是新工具遗漏宿主来源白名单。已补真实宿主子任务限定接纳，并把文件封存移到返回事件之前；178JS/148Python通过。汇总模式不撤销宿主授予的源权限，重复问题/预期输出可派生，调度能力明确提供给引擎。99文件规范重建中；备份恢复出2.3MB报告和CSV，尚未入库，下一步显式上传为新资源并原样登记，不重做报告。无活动模型任务；146秒完整顺序/并行仍待验收。
+
+2026-10-23 06:18：054012顺序测试885.600秒失败，四节点已保存，汇总仍被“有限成果另行接纳”手续阻塞，随后触发无进展保护；不是有效完成基准。现修App可选有限成果消费并保留全链局限，补Python密封句柄校验；新增子任务结构化返回工具，宿主编码元数据，省去模型手写/解析协议JSON。178JS/64Python通过（9跨语言链+1实际固定SDK工具回合，非真实模型替代）。98文件冻结，规范重建中；无模型任务。7份表及6图保留，下一步仅据此汇编报告。146秒基线和顺序/并行对照仍开放。
+
+2026-10-23 05:40：052253三主题历史成果报告已保存，595.066秒仍异常。规划新增了用户未要求的XLSX、图数、章节和自检包，现改结果与输入输出驱动、可省略检查、根来源宿主派生。173JS通过；规范重建7dc8e8d7/native3d178a07，112源码/ready/App HTTP/清理通过。原四文件/原指令顺序测试已启动（thr_a3ad71215eb1751fa8f8），并发1、源码冻结；并行对照及146秒性能仍未验收。
+
+2026-10-23 05:27：增量来源候选规范重建通过，backend c6094093/native edc5e929，112源码/ready/App HTTP及清理通过。172JS通过。three-topic-recovery-052253已在原Work启动，汇编节点选择17份历史成果；尚有两次模型规划格式/来源错误，不宣称性能修复。146秒完整顺序/并行仍待验收。
+
+2026-10-23 05:16：050155已保存4份文件但仅覆盖价格，不能算三主题报告。根因是首批图资料范围被误当永久授权目录，后续任务选其他已授权资料被拒；旧汇总契约又拒历史产物单独输入。现按显式任务选择扩展已用目录，保留宿主授权/每任务版本绑定，允许轻量历史产物汇总；172JS通过，97文件规范重建中。无模型任务，146秒基线及完整顺序/并行验收仍开放。[诊断](../reviews/2026-10-23-lightweight-task-nodes.md)
+
+2026-10-23 04:54：034025最终失败原因是DEBUG原生事件队列满被误判容量超限（257/256），859.119629秒中断，15份入库CSV/Markdown已下载；迟到归档为空，不能算保留通道私有数据。已改有界背压、先保存安全文件后验语义、保守角色归类和增量目标覆盖，140JS/74Python/6Linux通过；当前运行8d791b98/native16d1e8ce，112源码核对通过。043222恢复在约603秒诊断停止，仅保存3份通道成果，报告越入新分析未完成。现显式传任务mode，汇总仅消费保留成果，143JS/29Python通过；97文件新候选规范重建中。没有活动模型任务，146秒基线和完整顺序/并行验收仍开放。[诊断](../reviews/2026-10-23-lightweight-task-nodes.md)
+
+
+2026-10-23 03:40：真实第三轮仅改标题52.119秒交付，4090正文逐字节不变；此前两轮118.529/158.104秒暴露自行字数配额及未选择已有原稿，均已修指导和来源清单。032707顺序诊断因子任务来源遗漏后查目录而停止（165.848秒、23LLM/27工具）。现保留节点source_refs必填，135JS/9跨语言检查通过；规范重建b0bde166/native23a548f5，111源码/ready/App HTTP/cleanup通过。95文件冻结，新并发1原始请求sequential-autonomous-application-20261023-034025中。完整报告与顺序/并行性能仍待验收，145.914727秒基线不变。[记录](../reviews/2026-10-23-lightweight-task-nodes.md)
+
+
+2026-10-23 03:10：按用户确认改为持续多轮研究：保留不完整返回，取消轻量任务自动重写，新增显式有限交付，区分内部检查与用户认可。新App1.18/Pack1.15/shared1.5保留历史版本；135JS/137宿主检查通过（1跳过）。规范重建exit0，API/all workers0e5788c1/native47c43dd5，111源码/ready/App HTTP/cleanup通过。95文件冻结，并发1真实README两轮验证中（thr_2f8cb2bd2f0f1398bb01）。021714已于289.147秒失败、无产物；完整原始请求顺序/并行和146秒性能验收仍开放。[诊断](../reviews/2026-10-23-lightweight-task-nodes.md)
+
+
+2026-10-23 02:18：组织角色/计时投影候选规范重建exit0，API/all workersc8486412、natived1feeef2，103源码/ready/App HTTP/cleanup通过。新顺序对照021714运行中（thr_cd2a50635a1d43f2e872 / attempt_c12a8da4c07b3885）；首任务已改为只读结构观察，无主数据集/全业务计算前置，原生execution_ms已进入实际公开记录。91文件冻结，并发1；不在运行中改源码或开第二轮模型任务。完整交付和顺序/并行性能仍待验收。
+
+2026-10-23 02:13：并发1顺序诊断015900因异常消耗停止，323.523秒取消、无报告；首探查174.317秒、23LLM/161.294秒、23工具/13.513秒，无任务重叠。节点实际承担完整画像/对齐及后续业务计算，说明调用膨胀在并行前已存在。已修轻量主链仍沿用编码助手基础角色、worker漏传execution_ms两处缺陷，125JS/145Python/9真实跨语言链通过；新91文件冻结、并发1规范重建中。待检查新首任务范围及真实计时，再完成顺序和并行对照，未宣称性能修复。[验证](../reviews/2026-10-23-lightweight-task-nodes.md)
+
+2026-10-23 01:59：修正候选规范重建exit0，API/all workers51709301、native47641938；102源码核对、ready/App HTTP及scoped cleanup通过。并发1顺序对照已开始，thr_4af9ff4b803081d84817 / attempt_c02fb5be8242fb37，使用原始4资料及同业务指令，源码冻结期间不修改或启动并行对照。完整交付与性能仍待结果。
+
+2026-10-23：012219原始请求在诊断上限停止，取消终态956.852秒；保存32份CSV/Markdown过程文件，无完整报告。三分析任务实际并行，但各24–37次LLM，未通过146秒基线。已修独立任务丢失可信运行环境说明、补原生工具执行计时并与记录区间分开、轻量空输入数组规范化（保留依赖/授权校验）；125JS/85Python/169App、类型/doctor/diff通过。当前只在model-decision未提交候选，顺序并发1规范重建中，89文件冻结；用户要求先修缺陷，再同代码/模型/资料/指令顺序与并行对照。无新模型试验、Git/cloud/demo变更。[验证](../reviews/2026-10-23-lightweight-task-nodes.md)
+
+2026-10-22 01:54共享过程展示增量：通用ProcessStepRecord已服务执行图和原任务步骤；默认折叠保留真实结果摘要，放大默认展开，手动状态优先并分别保存。顶栏图标、结果/任务/执行同级区块及折叠诊断已实现；290项App与类型/doctor/diff通过，Vivaldi实际页面和放大阅读检查通过。规范本地重建5062a21f/nativeb9124711，55实际源码/ready/App HTTP及scoped cleanup通过。UI验证无新模型请求；005501零子任务的并行验收失败结论不变。未提交、合dev或改云端/demo。
+
+2026-10-22 01:04最终本地复核：并行组标题已加入工具/LLM计量，176App/类型检查及doctor/diff通过；规范重建exit0，API/all workersa83ad0a4/nativeb9124711，55实际源码/ready/App HTTP检查和scoped cleanup完成。最终组标题视觉复核待做，用户正在浏览器输入，未继续切页或操作输入框。真实005501的142.859889秒、0子任务与并行验收失败结论不变。
+
+2026-10-22 当前增量：并行任务按同依赖分组、统一缩进、每项独立细线；组标题显示实际总耗时、工具和LLM计量，176项App/类型通过。子契约增加精确来源文件映射和未完成产物模板，147JS及9项真实SDK跨语言链通过，保留全部准入检查。规范重建72c09568/b9124711及55项实际源码核对通过，最终UI重建复核中。原始请求005501用时142.859889秒、17父/0子响应、761666tokens，报告字节已下载；模型修订合并计划失败后把全部工作放入准备节点，三个并行分支未启动。并行验收失败，不算146秒基线的并行提速；质量未接受。后续先查计划修订恢复和动作范围，不盲目重跑。未提交、合dev或改云端/demo。
+
+2026-10-22：共享规划策略1.0/App1.13/Pack1.11首次适配；旧13发布保留。原始请求235939实际三路并行64.165秒，但218.375秒按failure收口、无报告，19父/43子响应及2120572tokens，不通过146秒（145.914727秒）基线。步骤号、标题行计量和简短状态已修订，282项App检查/类型通过。Python65通过/1可选PG跳过，JS140通过，改动Python类型0错误；全库9处旧错误另列。独立复审不可用，未批准。最终规范重建exit0，55项源码/同源/ready/App HTTP/cleanup通过；API/all workers164f2f2d、native624128c2。未提交/合dev或改云端/demo。
+
+2026-10-21当前实现边界：自主有界执行与确切limited输入已实现，App1.12/Pack1.10尚未部署。初冻206JS/189Python通过、1可选PG夹具跳过，实际跨语言链无跳过；独立审查发现R1异步创建跨截止仍可能发请求、R2仅在评估摘要中的限制未传播，现仅授权这两项窄修并重新冻结。初次阻断与快照保留，不宣称源码通过或整链完成。部署仍为5143/319f；正式实测入口只提交原始业务指令。
+
+2026-10-21：完整应用142026因异常消耗于379.306秒取消，报告尚未执行、无交付。至少111次已完成响应（18父、93子），已知完成用量4,946,619tokens，非完整计费总量。三子任务自动启动跨度0.477秒，但每个承担完整分析与作图，256+8轮预算未收束；limited结果无法供下游消费。当前开展有界子任务与显式受限结果准入设计，源码保持冻结。两次application-path探针附加了并行技术提示，不能证明自主规划；下一次正式验收只用原始业务指令。已部署API/all workers `5143d7c4`、native `319f3de1`及35源码/ready/App HTTP/scoped cleanup通过；185JS/128Python零跳过。整链与性能未验收。
+
+2026-10-21 13:49：上下文稳定位置与面向用户的任务步骤已独立复审并部署，API/all workers `72782e4b`、native `b092d2bc`，33部署源码/ready/App HTTP/scoped cleanup通过；183JS/52Python/277App及类型检查通过。前端隐藏内部图主视图，保留真实步骤、工具及终态。完整应用实测134506于178.509秒因native_receipt_persistence_failed失败，无交付；前置评估后编排器自动启动三分支，首末间隔0.616秒。当前优先修回执持久化阻断，不把失败耗时当提速。按用户新标准验收可用报告、实际并行、步骤工具和完整交付，不增加高质量报告或内部图示门槛。资料/研究主题相同，新增明确并行/可用稿指令，因此不冒称完全同prompt基准。
+
+2026-10-21 13:09：父record完整预检独立spec/quality APPROVE后规范重建完成。API/all workers `52e5a3e3`、native `8a9702dd`，33部署源码检查、ready/App HTTP和scoped cleanup通过；181JS/52Python零跳过，真实模型验收仍待完成。原执行版本拒错后补齐结果的实际Python↔SDK链通过；不把该点解释为整链性能已修复。正在只读核查父输入映射重复注入、版本消费及模型上下文成本，不启动盲目完整重跑。
+
+2026-10-21：原子任务提案反馈已独立复核并规范本地重建，API/all workers ab982c37、native c789e285，31项部署源码/ready/cleanup通过。真实小任务131.632秒交付，P/A/B提案引用登记及精确字节复用通过；显式评估和缓存摘要符合正常契约，严格指定调用路径仍未全发生。相同原始请求完整试验653.573秒取消、48父/0子响应、无交付；模型选择全父执行图，不能解释为三分支调度失效。过程指标84/84独立核对通过，9图报告已保存但未登记交付。发现父record先关闭执行再校验的缺陷，完整机械预检修复中，尚未冻结复审/部署。分析215.170秒和报告195.034秒的额外工作继续审计，不能将全部延迟归因于早期登记错误。263.896秒基线及旧失败均保留；未提交/合并，云端/demo不变，复用Vivaldi已有页。
+
+2026-10-20 摘要修复已部署：backend c7f61994 / native 0cc15445，规范重建ready、源码哈希一致及scoped cleanup通过。27项摘要测试与大结果debug真实SDK用例通过，摘要限额仍65536。完整生成448.99秒失败记录保留，尚未重跑验收；下一焦点为分支范围与收敛。无运行中任务，无dev合入或云端/demo变更。控制图视觉复核因浏览器连接超时未完成。
+
+2026-10-20 后续完整生成未通过：thr_3c61c8a1f8059b2f2535 / attempt_9df5420f36dd4e00 在448.990031秒失败，四分支完成但无完整报告，13次工具错误。自动摘要错误纳入runtime.dispatch内部检查点，触发debug research_summary_chars 96070/65536；已修正笔记投影，不调大限额，不删除原始记录，27项research-tools检查通过。此前118.7秒只证明两项核验，不是完整生成验收。取消请求因任务已经终止被拒，不能称取消成功。新修复正在规范重建，完整生成与分支收敛仍开放。
+
+2026-10-20：确定性子任务调度已本地部署。已接受 subtasks 图自动执行，沿用原线程池、依赖阻断及取消收尾；实际启动不再需要父模型再调用 agent_delegate。同七资料/两问题实测 118.700806 s，两个 auto 分支启动相差 14 ms，13/8 工具，均完成；前次并行对照 140.313103 s，顺序失效候选 182.181694 s。两项结果与独立核对一致，仍有两次错误和父级重复检查，不代表首次完整报告性能验收。75 JS/SDK、58 Python（1 skipped）通过，另补保存回执恢复检查 35 runtime tests 通过。最新 backend c385aac0，同源 ready/scoped cleanup 通过；实测试验 backend 62277db9。dirty HEAD 15980389，无合入、云端或 demo 变更。记录在 ROOT/outputs/research-round-efficiency/parallel-review-deterministic。控制图浏览器复核尚未完成。
+
+2026-10-19：统一 debug 容量候选已本地部署，canonical rebuild exit 0/readiness 通过。API/all workers image 627d9f23aa22713e38d40d508893c104792ac44827035f8578bd9afc07fafda1；native 8ffb64702ea206e9312e02ee45b7d98b2dce7f0a44e3370bc05b666a2001ef77。公开 runtime capacity 与 5 container env 均 mode debug，146 limits；native 实际 memory 2147483648 B / PIDs 512 / tmp 512m，cleanup exit 0。DEBUG 超限 typed fatal 立即中断，不得截断/回退/重试；normal hard/soft 区分保留。外部 OS 限制不保证可被 debug 拦截。仅 scoped source/offline 与本地部署核验，无新 live research/质量/并行/性能验收；350.524 s / 41 参考、旧 limited 报告与失败证据保留。dirty HEAD 15980389，无 commit/tag/cloud/demo。[协议决策](../superpowers/specs/2026-10-16-enterprise-protocol-decisions.md)。
+
+
+2026-10-19：用户确认显式区分 hard limits / soft thresholds；软阈值不得使整轮失败，通信等待不等于任务截止。诊断/局部校核记错继续并允许 limited delivery；可恢复读取/幂等回执同请求恢复；核心阻断停止依赖但保留可用部分，权限/身份/CAS/必要持久化仍严格。显式审阅 attempt_7e5fab75f575b7bc 于 07:04:28 UTC 在模型前 native_transport_timeout，0 responses / 0 child，cancel_confirmed false，60 s native_exchange 与 1800 s task 的具体失败接缝仍在诊断。App 重建 exit 0：backend 785bb2224b1920262c03bbe94eb955b9a56df94169fc6fa19865e2cb6ff002e4 / native 1a2f56190e24518c86194172c2940d87ed78810b18a1f328e89245c02a8aa2b3，cleanup 已完成。前一生成 263.895887 s / 31 parent / 0 child 为 limited，82 项指标核验通过但非全面质量通过；LIVE CSV-first bug 已留证，重载 HTML 不等于 LIVE 修复验证。App 29 tests/types 通过，隔离 browser replay 因 navigation timeout 未通过。350.524 s / 41 参考不变，无 active trial/commit/cloud/tag。[协议决策](../superpowers/specs/2026-10-16-enterprise-protocol-decisions.md)。
+
+2026-10-19 12:20：active性能切片为producer成功结果内主动返回同一host-inspected checkpoint，原机制只拒NEXTtool导致seq176/201额外LLMturn（检查未执行）。两JS源码冻结，保持实际receipt/cancel/concurrent身份，仍由模型record/assess、不自动过质量；next_action明确先commit再native/followup，旧profile不变。94 focused含17actualSDK、独立 5及adapter兼容通过，不累加。现300s模型270.115/tool11.925/其他17.936、0child仅观测；新提速未验收。重建/tmp/producer-proactive-rebuild.log进行，部署仍ab0ec0a0/7ec01dcf；计划用户现有browser全新四文件实测，未有新Attempt，现报告保留。图待image/results收敛，无App/Provider/Docker/build/commit/cloud动作。
+
+2026-10-19 11:23：fresh 四资料原指令 attempt_e14e 已 completed limited，299.976341 s / 34 parent / 0 child。原运行交付UI曾FAIL（54files roleNone、无主卡/自动开报告），其后可信finalscope/currentSHA投影+App复用修复已规范重建exit0。backend ab0ec0a0136fec7d23a36d9154195dac7b64216022081b60a0df67791cb90615；native 7ec01dcf5d5f197835d4aae34b2f5912b9d9e85262fb8b9801481a78ad7a45de。实际只reload、无reportclick/新Provider，主报告iframe完整自动开、report/CSV主卡及15limitations可见；目录“本轮主要成果”两文件同为limited并保持report选中。reportSHA5ca667…不变，已知2024用户请求归因幻觉仍未修，不冒称clean质量。50 App/tsc、helper当前builder17tests及真实postbuildapply exit0，缓存standingrule本次完成。299.976s仅单次有限草稿观测，无parallelism/新质量基线结论，350.524 s / 41参考保留。dirty HEAD 15980389，无commit/tag/cloud/demo。[计划](../superpowers/plans/2026-10-19-delivery-review.md)。
+
+2026-10-19 10:50：producer-checkpoint候选规范重建exit0，API/all workers同image 3f752a66f41cebce6ace72ef6073f5fbfa57c87e7a100018087a86da91446841，native fb7183ccfc90ed4799aa5442fddd854e43586afd712c708ec83501e9921c337c；14 native+4 Pack+3 backend实际SHA匹配，5 profiles加载。92 focused+独立 5检查通过；optional product_paths观察实际候选文件后要求真实record/独立assess，并补await后动作race重检，无field legacy不变。fresh用户可见thr_f4fc四文件原prompt就绪，父准备提交，未有新Attempt/验收；必须看真实模型是否声明paths及checkpoint→record→assess，不能仅凭交付成功宣称机制起效。首次生成仍open，旧119s仅后续handoff，350.524 s / 41基线不变。cachehelper15tests/standingrule已核，本次cleanup0，validation/use后root --apply待做。dirty HEAD 15980389，无tag/commit/cloud/demo。[计划](../superpowers/plans/2026-10-19-delivery-review.md)。
+
+2026-10-19 10:47：Capstone积累构建清理回执已保存：221 exact-project/untagged/无任何container引用镜像以no-force/no-prune删除，30containers/10旧image IDs保留，无volume清理。初始cache2539显式IDs含后继归属推断，经独立指出不足后exit130中断；最终helper仅direct strong-command/reclaimable/nonshared，不推断ancestry。OrbStack448G→303G、hostfree594→739GiB为实际观测。Step5 offline92+独立 5通过，canonical producer-checkpoint重建运行中cleanup0，验证/使用后root再helper--apply；尚无新部署回执，保留1c103072/a3fc1620。fresh thr_f4fc1d7a912a0bdaf5c6四文件及普通prompt仍draft未提交，无新运行。图待部署验证统一更新，firstgen仍open，无新baseline/commit/cloud。
+
+2026-10-19 最新验收边界：主线仍是 FIRST GENERATION 生成问题验证，未关闭。119.669537 s 仅旧字节同会话交付闭环；App 1.5 首次生成未验收，无新性能基线。父正在用户现有浏览器启动新四文件原始指令轨迹，检查首次路径转写、脚本、schema/summary错误与自制checker循环，未收到新Attempt/结果。
+
+2026-10-19 10:19：原可见browser同会话人类反馈后 useful LIMITED handoff 本地验证通过。attempt_1d42df042e409a42 02:15:27.548505→02:17:27.218042 UTC，119.669537 s / 17 responses / 26 tools / 3 recovered failures，record513→assess520→limited523→attempt_completed632。五文件实际可下载，报告1,035,081B SHA0577f6d8…与旧seq368字节一致（新595），未重算/未reviewretry。最终回答明确排名括注错误、8图未目视核对、146/243覆盖空、复现材料未随附及无独立全审，report不是clean；独立saved-evidence audit仍进行。首次fresh attempt取消539.539s，后续119s交付不是新E2E基线，350.524 s / 41保留。部署 1c103072 / a3fc1620不变，dirty HEAD 15980389，无commit/tag/cloud/demo。[计划](../superpowers/plans/2026-10-19-delivery-review.md)。
+
+2026-10-19 10:15：App 1.5 / Pack 1.4 首稿交付候选已规范本地重建 exit 0。API/all workers 同 image 1c1030720f8ed43b666141e381191d9c571a650c60d4a0c7c08f7a3b1b218e93，native a3fc1620406e81e392fb961a896fd808d1188e84a7eb9227f6514e85f5304046，13 native + 4 Pack + 3 backend 实际文件 SHA 匹配，5 exact default profiles 加载。独立 21 checks 含 actual SDK failed-checker→usable limited 正常闭环通过；旧 policy、历史与 exact retry 保留。产品模型为持续交互会话，先呈现usable draft并显式knownerrors/not_checked供人审阅，不要求autonomous perfection/passall/mandatory cleanreview；完整性/授权/持久化仍严格。根正在原可见browser同Thread thr4b55提交人类反馈以交付已有草稿，Attempt/终态/验收待回执，不声称完整链已过。dirty HEAD 15980389，无新commit/cloud/tag，350.524 s / 41旧基线保留。[计划](../superpowers/plans/2026-10-19-delivery-review.md)。
+
+2026-10-19 09:49：可用有限交付主线候选已规范重建 exit 0。API/all workers 同 image 3ae9f5d9ab664d5124ac2c1f2170af3ca93e44a1d2febb171021e1a8f11ded7e，native 2d1775bf384f62e06e20784f62aa7ce0c5b4559790cc80904a4e6af179dfe4e9，13 项实际源码 SHA 匹配、4 frozen profiles 加载。现有 limited 并非被 clean-review gate 直接禁止；已修 repair-first feedback、终态具体限制遗漏及 omitted scope 当前版本检查。86 focused、父 5 closure、独立 6 relevant tests 通过，实际 pinned SDK failed-review→limited 正常 agent_end 与文件已验证，均离线。fresh 用户可见浏览器 thr_4b5531ba739f0c20cb4b 四资料已上传 draft，原普通prompt准备提交，完整实测待验。可用成果+显式错误/限制可limited，不冒称clean；350.524 s为调查checkpoint非硬超时，异常重复/底层阻断即停。dirty HEAD 15980389，无新accepted commit/cloud/tag，旧 350.524 s / 41基线保留。[计划](../superpowers/plans/2026-10-19-delivery-review.md)。
+
+2026-10-19 08:14：选择性 review source 候选规范重建 exit 0，API/App healthy。API/all three workers 同 image ec989494b5f27aef6ac7342e348377abc4aa83ceb3bef9b1a990155a27f6d89c，native 8393263c50a3e9f98c5780f4eb470d71268462aeabda0d804cbf017eb67eabc3，11 项 native 文件 SHA 匹配 source，4 default profiles 加载。backend 67 Node / 72 Python + 1 skip / types 0，独立 40 Node / 15 Python，父 34 Node / 50 Python 与同字节 packet 对比通过，范围不累加。仅本地部署与离线验证，不是质量/性能验收。用户已撤回重建后完整续跑：没有 build 后 Provider 调用，先 exact failed-node 离线 replay，再 ONE isolated real review，禁止 parent read/calc/rewrite；节点通过后才考虑 E2E，按底层bug/同包重复失败/无新证据循环及时停。此前20多分钟故障链是operator策略错误。dirty HEAD 15980389，无新 commit/tag/cloud/demo，旧 350.524 s / 41基线保留。[计划](../superpowers/plans/2026-10-19-delivery-review.md)。
+
+2026-10-19 08:10：选择性 review sources 修复已源码冻结并独立通过，backend 67 Node / 72 Python + 1 skip / types 0；独立 40 Node / 15 Python，父 34 Node / 50 Python 通过，范围不累加；父同最终字节 packet 对比准确匹配。按可信provenance选择 original/explicit prior、历史 refs 不全注入、SHA/size/type去重保alias、sourceExcerptChars默认16384且不降globalcap、真实覆盖/失败stopreason/usage/fingerprint已验证。model settings 审计不支持“继承父live high thinking”的归因，未调参。规范重建 /tmp/review-source-selection-rebuild.log 运行中，无新 image，部署仍 303176df / d71c9f54，Provider/质量/性能未验收；旧 350.524 s / 41保留，无App/字号/commit/cloud/demo变化。[计划](../superpowers/plans/2026-10-19-delivery-review.md)。
+
+2026-10-19 07:50：attempt_61fb96d9e2e9c37f 已真实 UI 停止，attempt_cancelled seq 1571 / 23:48:32 UTC，1318.629 s / 56 parent responses / 19 failed completed tools。首个 review 捕获三项重要错误；第二次 model_turn_incomplete（input 137885 / output 65536），第三次 retry 被取消，无活动 Provider。40 产品 SHA/bytes 全过，最终 HTML/metrics 与 r2 审计 SHA 完全一致；339 数值检查 329 通过、10 小舍入偏差，正式限发定义/覆盖及图4小时格与15分钟观测混淆两项实质质量 FAIL。完成边界计时 model 382.59 s / tool 534.36 s，第三review未匹配，余时与token不归因。已确认 prepareDeliveryReview 重注入全部 94 sources，首包 source/history 占约 82%；正设计选择性 bounded sources/dedup，未修复前不再长测；basename collision/continuation reuse 次要。部署仍 303176df / d71c9f54，dirty base 15980389，旧 350.524 s / 41 基线保留，无新 commit/cloud/demo。[计划](../superpowers/plans/2026-10-19-delivery-review.md)。
+
+2026-10-19 07:25：精确 policy 兼容候选规范重建 exit 0，API/App healthy；API 与全部三个 worker 同 image 303176df5d7a41c16dd01701b928fff83e8d6cee261c59eb8eb49ef232d0938d，native d71c9f54c2ed437c551e728741c4c863b1d4dfe1ea261d98343d162545fc8612。七项实际 native 文件 SHA 匹配 source；四个 default profile catalog，原 5e21 context 在新容器中保留 SHA 6da560c3 原文通过，仍选 App 1.3 / Pack 1.2 / review true。App 1.4 / Pack 1.3 显式 host 指纹协商与旧 variants 保留已验证。独立 90 tests / 1 skip + 3 mutations 拒绝，父 144 Node / 138 Python + 34 skips，范围不累加；容量修复另有 4 实际 PG TEMP 查询通过。新自然修订准备中，Provider/研究质量/性能仍 pending，不因 replay 通过宣称内容已修复。dirty base 15980389，无新 commit/cloud/demo，350.524 s / 41 基线保留。[计划](../superpowers/plans/2026-10-19-delivery-review.md)。
+
+2026-10-19 07:20：全部源码冻结。精确策略目录/回放独立复核 90 tests / 1 skip 及 3 项越权修改拒绝通过，原 5e21 context 不改字节恢复验证。父 144 Node tests、138 Python tests / 34 skips 范围不累加。App 1.3 / Pack 1.2 exact variants 保留，新 App 1.4 / Pack 1.3 明确 host 指纹协商。续接 SQL 容量修复另有 4 项实际 PostgreSQL TEMP 查询通过，非 full HTTP/deployment。规范重建 /tmp/research-policy-compatibility-rebuild.log 运行中，部署仍 5e21a413 / 60a118c7，尚无新 image/Provider 验收；旧质量失败和 350.524 s / 41 基线保留。dirty base 15980389，无 App/字号、新 commit、cloud/demo 变化。[计划](../superpowers/plans/2026-10-19-delivery-review.md)。
+
+2026-10-19 06:38：交付范围/审阅修复已规范本地重建 exit 0，API/all three workers 同 image 5e21a4132a86d87dbce7771161c084b4371e5bf3e3ae7789101b6083bc7c4945，native 60a118c7c5446eb6b8e728b8632467be7ed7f2bc432f137b04567d7a5764a7d9，六项实际容器源码 SHA 与 owning source 一致。JS 138 tests、独立 44 tests、Python fresh 80 tests / 1 skip、此前独立 13 tests 范围重叠不累加。原 Thread thr_15b1895b929e344c935f 已在真实浏览器引用 report.html 并提交无数值暗示的自然反馈，新 attempt_8d808d1027b70bf2 正在运行，要求按原资料核对缺失量、省数图和潮流标题/正文并保留已有工作。部署通过不代表质量/性能通过，待终态与独立产品审计。旧失败证据和 350.524 s / 41 基线保留，源码 dirty base 15980389，无 App/字号改动、无新 commit/cloud/demo。[计划](../superpowers/plans/2026-10-19-delivery-review.md)。
+
+2026-10-19 05:54：恢复候选已完成本地规范重建，API/worker/worker-native/worker-pypsa 同 image 26199f0aadc8c85906cfd07b63448c67f36f6e2296495c6d2c27af3437fe3e8f，native 8ac9b76b3e3f14a9bce64ab798aef97d2c3d69c3b4f8f6a53bf0cb77032f52c0，容器 research-tools SHA 同 owning source 5f29ee7e。恢复/容量联合 117 tests（含 13 actual SDK）及独立 4 targeted 通过，父 37 范围重叠不累加。新四资料真实 UI 试验 thr_15b1895b929e344c935f / attempt_71b524ee54c09fb0 正运行，尚未验收。旧取消试验 audit FAIL：2531 / 2533 数值 cell 通过、2 错及 4 类正文/图形矛盾；42 hashes / 10 PNG 完整，3 delegates 准入失败、0 child started，不代表审阅质量通过。源码仍 dirty base 15980389，无新 commit/merge/cloud，350.524 s / 41 基线不变。[计划](../superpowers/plans/2026-10-19-delivery-review.md)。
+
+2026-10-19 05:20：独立实际文件审阅已完成离线整合并在 local-dev 部署，真实质量试验待进行。规范重建 exit 0，API/all three workers 同 image 0403007002b917c94ee64e5f0d2c895ce7c0762f3bbf361518a582ee96d3eed3，native image a8c31c5bd5d82ecb13aa138f2047489a71ff128fccba2b868e499eef25d0fc04。health 发布 capstone-delivery-review/1，host/container helper SHA 同为 86cda17d。policy 隔离、HTML 可见文本容量、支持脚本 blocking finding 门禁三项修复已整合；94 Node tests、父 9 SDK/helper tests、35 controller tests 通过，范围不累加。packet 独立检查首稿 9955 / 9955、修订 16755 / 16755 可见字符，三个 CSV excerpt 均非零，prompt ≤262144；不代表内容或视觉检查通过。Task 1/2 离线 verified，Task 3 本地 deployed、真实质量/开销 pending。旧首稿和修订质量失败保留，350.524 s / 41 基线不变。无 App/字号改动、未合 dev、云端/demo 不变。[计划](../superpowers/plans/2026-10-19-delivery-review.md)。
+
+2026-10-19 04:51：报告渲染首稿已完成，304.280305 s / 37 parent / 0 child / 39 tools / 11 failures；869 项数值比对通过，但正文、图注和时区解释失败。自然反馈修订 attempt_e50328c5e341f630 用时 553.179527 s / 68 parent responses，36 文件完整性通过，345 项复算中 337 通过、8 失败，仍有分母、覆盖、图聚合、图注和相关性问题。保留有效数据与已修正内容，不接受新质量或性能基线，旧 350.524 s / 41 不变。Application 1.3 / Pack 1.2 独立实际文件审阅正在实施，host SHA/资料 manifest 绑定、无工具 child、纯文本不宣称图片视觉检查；70 Python tests 通过、1 skip，研究 read 诊断 22 JS tests 通过，backend SDK 尚在收尾，未部署。当前部署仍 backend 4553721e / native 8ccd4e9a；未改 App、未合 dev、云端/demo 不变。[设计](../superpowers/specs/2026-10-19-delivery-review-design.md) · [计划](../superpowers/plans/2026-10-19-delivery-review.md)。
+
+2026-10-19 04:27：capstone-report 候选已规范重建 ready，/tmp/native-report-rebuild.log exit 0。API 与三个 worker 同 image 4553721e20ab922d89ba7f77e9c5db554a292a4ae1a1afe9d8cc600f1a103dd3，native image 8ccd4e9af7713610073123bea2520aa4e91cc478c7a3ea5aa04594f7594be9a0。实际非 root UID 65534 经 PATH capstone-report 1.0.0 生成 CSV/SVG HTML，79.37% / 001 原值及 TOC 锚点通过；host/root 专属环境 receipt 正常读入并提供 helper context，不放宽权限。context red→green 10 tests、renderer/env 33 tests、actual-SDK split-only 离线 1 test 通过，各范围不累加。四原文件/普通指令新 UI 任务 thr_19f3d38d9a4a6eacf1cc / attempt_703085d8273eb9e2 正在运行，已有一次计划前 bash 和一次 expected_outputs 类型拒绝，模型纠正后推进，不能称零错误。部署与功能验证已通过，真实研究质量/性能/最终 helper 采用仍待终态与独立审查。旧 thr425 的 status_note 额外字段纠正历史保留，350.524 s / 41 基线不变；未合 dev，云端/demo 不变。 [渲染器设计](../superpowers/specs/2026-10-19-native-report-renderer.md) · [验收计划](../superpowers/plans/2026-10-19-native-report-renderer.md)。
+
+2026-10-19：thr_425aec0650141837cbf6 / attempt_c7b63063f74a71d6 已完成 417.312842 s，52 parent / 0 child responses，53 tools / 15 failures（14 脚本、1 record 额外字段），零 task_step_error。CSV 288 + daily 183 = 471 / 471 通过，但 HTML 百分比、环比、图注事实和因果结论失败，不接受新质量/性能基线。实际 base64 SHA 已核对；问题是图注写了未画的分位带/箱线/面板等，不能只称图放错。下一用户批准候选是通用 stdlib capstone-report，自由 sections/paragraph/bullets/CSV table/figure，复用 CSV 原值及统一编号/TOC/内嵌资产；不保证语义事实，不改冻结 research policy 或 App。正在实现，未验收 helper 源码/镜像/实模收益；现部署仍 03e64818 / native ef50fbc9，350.524 s / 41 基线不变。图待源码/镜像冻结后统一更新，未合 dev，云端/demo 不变。 [设计](../superpowers/specs/2026-10-19-native-report-renderer.md) · [计划](../superpowers/plans/2026-10-19-native-report-renderer.md)。
+
+2026-10-19 03:44：过程阅读 UI / 步骤真实响应计时 / 连接默认值修复已规范重建 ready。API 与三个 worker 同 image 03e64818fe5b88d4df7e83541e55fd563c30d5e2d741c57c1218e83cb7339f90，general-pi image ef50fbc936b4218793423912e100347c428c2c8de0cc8eea5a1133c5e3d51730；readiness 和实际 v2 stream 均 HTTP 200。有效默认 1024 / 8，旧显式覆盖为空；preflight 空默认及两处旧 32 / 2 配置回归修复。App 123 tests / npm check；计时 104 tests；启动配置 90 tests / 3 不适用跳过，各范围不累加。实际 1440 / 390 阅读检查通过，字号仍 12 / 11 / 10 px；03:37 b165eb3c 启动失败保留历史，不再当当前故障。已通知父代理可开始新研究，本片未发 Provider 任务，无新研究质量/性能基线，350.524 s / 41-response 保留。未合 dev，云端/demo 不变。 [过程阅读计划](../superpowers/plans/2026-10-19-process-reading.md)。
+
+2026-10-19 03:37：执行过程阅读 UI 已冻结，123 App tests、npm check 与实际桌面/窄屏检查通过，字号 12 / 11 / 10 px 不变。含真实 parent response timing / stream defaults 修复的最终规范 rebuild 在启动时失败：worker-native image b165eb3c3cf2c1c6caa1502f129100f4c345c5a7d5b9afdedda4fa5226b22885 未 ready，preflight 拒绝空 CAPSTONE_THREAD_MAX_STREAMS。后端正修复，不并行重建。上一 a01edf58 仅为最近成功 readiness 回执，不代表当前服务健康；没有新 Provider 研究任务或质量/性能验收。控制图待最终修复回执统一生成。[过程阅读计划](../superpowers/plans/2026-10-19-process-reading.md)。
+
+2026-10-19：本轮完成基本环境补齐和真实非 root 功能验证。规范 rebuild exit 0，API/worker 同 image 65b4ef71fb3383904254e62933ed8e03165d081d3df963c28b7c16ec663f6591；general-pi image 45cc05d0d3634babcdb697bf97284733c01a3d38fc6573fefcd984752fb68a57。实际 user 10000:10000 / HOME=/tmp 检查通过 20 capabilities、24 Python packages、14 commands。operation、SciPy、产品/依赖诊断、pipefail 与独立 native_context 导入问题已修，94 Node tests、62 Python tests 分别通过，不与历史重叠结果累加。尚未在本候选运行新 Provider 研究任务，不声明质量或性能改善；旧 350.524 s / 41-response 基线不变。字体固定 12 / 11 / 10 px；另按用户要求折叠失败原因，真实 hover/click 已通过，无布局缺陷结论。未合 dev，云端/demo 不变。 [当前计划](../superpowers/plans/2026-10-18-managed-deep-research.md)。
+
+2026-10-19 02:33：当前本地 image 5ebe17eb31801d48c7054aca652a3ac3359963079ba7b3419496ac2a15611a3e 已部署 ready，API/worker 同镜像；仅含此前 adoption 增量。Thread thr_941f851498fdd8791023 首轮完成 458.674602 s，61 parent / 0 child responses，59 tools / 14 failed。450 CSV checks 中 448 通过，HTML 另有错误，质量未接受；旧产品版本拒绝正确，模型 product-rebind 自行修复 done，非 host 阻断。自然反馈第二轮 attempt_b481c31ea09d0505 已 completed，独立 491 数值全通过、旧正确值保留；HTML 摘要因果措辞、图 4 月时段、丙省负价均值等仍未修，质量/性能基线不接受。未部署 ready-batch source 有 86 Node tests 通过 / 7.06 s，含 9 actual SDK 离线场景。Application 1.2.0 / Pack 1.1.0 三个 plan/record/assess 入口共享 controller 正实施，new tasks split-only，Application 1.1 legacy 冻结请求精确恢复保留；最终整合测试待回执。字体回退 12 / 11 / 10 px 已实际浏览器核对，研究变更不得改 CSS。旧 350.524 s / 41-response 基线不变，未合 dev，云端/demo 不变。[当前计划](../superpowers/plans/2026-10-18-managed-deep-research.md)。
+
+2026-10-19 01:54：6347完成任务产物独立检查：56月度数值52按展示精度正确、4个CSV覆盖统计错；另566应为省×时段而非501去重时段、1461应为每省配对小时而非4383省小时总量、触底记录月度5/6放置口径需改。HTML10内嵌图片均加载、8anchors目标存在、1280无溢出，但质量未通过，不将覆盖错误扩大成全部计算错误。证据ROOT/outputs/research-round-efficiency/enterprise-question-cycle/thr_99bdb32734caa89ea50d/independent-content-check.{json,md}。最新未部署SOURCE新增assess.question_adoptions，将finding来源问题追加pending目标，严格状态/来源/容量及审计；focused planning_context和显式operation提示、research-method同步。只补发现→行动衔接，未实现兄弟目标并行，无实模/性能改善结论。组合Node80/80 5.3038秒含pinned SDK离线通过、diff通过，backend只读兼容review通过、9Python专项通过，实际adoption状态通过checkpoint/progress/child admission，伪造未提交derived_from拒绝。当前已部署仍6347，旧350.524秒41响应基线不变；未合dev，云端/demo不变。[增量设计](../superpowers/specs/2026-10-19-enterprise-owned-research-cycle.md)。
+
+2026-10-19 01:47：第二次规范rebuild exit0，API/worker同镜像6347fcac9336a35fb7797af99b33f400322b06d4fbf2e36d734f93a0e6438bb5，App5173 ready。新UI线程thr_99bdb32734caa89ea50d / attempt_5ddba49a149157e1实际上传四原文件、一条普通任务指令，17:38:53.562890Z→17:46:22.383417Z完成，448.820527秒（约7分29秒）；终态响应计数59parent/0child/59total，59tools/10failed，不等同token/费用总量。ordering修复后执行恢复，但5个语义研究目标串行，无新followups/subagents；动态研究与性能未验收，产物质量待查。旧350.524秒/ 41响应基线不变，不把本次完成当研究验收成功；取消历史/未知usage保留。未合dev，云端/demo不变。[复测状态](../superpowers/plans/2026-10-18-managed-deep-research.md)。
+
+2026-10-19 01:31：本地576d580e4550c514dcbb4a8462f97f568cd371c87ddaacb74b413771420ab43f规范重建ready/API-worker身份核验通过；新thr_fa0f88ee3f5d2e37e96d / attempt_3af0d87e200af4b9因seq75步骤排序缺陷及时UI取消，78.897642秒/14observed parent/122events，终态17:28:12.265621Z、无active Attempt，无terminal usage，不能计完整成本或成功基线。seq74已commit旧目标settled，seq75新步因旧cycletool未结束被拒，seq76旧toolend后才close。ordering修复已SOURCE冻结：cycle控制tool不阻挡已确认settlement，真实执行tool仍阻挡；精确replay覆盖met/partial/failed，3重叠suite92通过/1.01秒、pyright0/diffclean。二次规范重建进行中（/tmp/enterprise-cycle-ordering-rebuild.log），尚未验新修复image/live。Node最终73/73 5.61秒含actualSDK7脚本离线，App118/tsc等保留独立scope不累加。旧350.524秒41响应质量基线不变，无新质量/性能/成本接受结论。未合dev，云端/demo不变。[中断与修复计划](../superpowers/plans/2026-10-18-managed-deep-research.md)。
+
+2026-10-19 01:21：本轮SOURCE已冻结待重建实测。Backend185通过/1deselected、6module及pyright0，parent_step_id已按真实tracker含alias投影；App不猜归属。actualSDK新增7场景/5.50秒通过，覆盖发现→reflection/derived followups→替换旧pending→双child实际重叠→综合→报告保存/deliver；模型回答脚本化离线，不能称真实推理接受，勿与既有Node72等重叠选择累加。App最新118通过/5.58秒、tsc通过；实测旧成功答案inner p12px/19.2→16px/26.4（zoom1/无transform），步骤/分支14px、辅助12px，1440/390无溢出，toolbar不变。规范rebuild进行中（/tmp/enterprise-question-cycle-rebuild.log），上次已核验部署仍10ae，新候选身份与实模结果待确认。取消历史/usage未知/350.524秒41响应原基线保留，未合dev，云端/demo不变。
+
+2026-10-19 01:15：发现驱动研究增量已实现SOURCE：pure questions/reflection/derived followups与pending replacement、controller保留产品修复、受grant通用child及真实branch events接实际SDK。Node整合72通过/4.43秒含6actualSDK离线模型，Pack3通过；App118通过/5.67秒及tsc，1440/390离线组件无溢出，工具默认折叠而语义/失败常显，子完成不等于研究验收。stale outputMode/record-assess合并/manual progress冲突已源修复。Backend临近冻结，真实parent step/alias投影整合待确认；前端不猜归属。当前未部署，local仍10ae8afe476d，父待整合/规范重建/真实任务验证。两次取消和未知usage保留；无新质量/速度/成本基线，未合dev、云端/demo不变。[当前计划](../superpowers/plans/2026-10-18-managed-deep-research.md)。
+
+2026-10-19 00:51：首轮自有cycle真实任务thr_e6861bac615d28e000d2 / attempt_b0e423051217709b已UI取消，至取消7m41.59s，观察64parent/87tools/28failed，无最终usage，不能计完整成本或成功提速。52项数值spotcheck按展示精度通过，但图2裁切丙省与约54%写绝大部分，质量也未接受。resolves合同误解、narrative step阻断接管、product record覆盖导致deliver永久失败三缺陷修复中，修复未部署。用户否定固定read/calc/report为deep research；验收要求发现驱动问题演进、独立subagent分支、综合冲突/缺口后追加研究。复读上游确认漏迁移prefilter问题元数据及questioning驱动下一轮执行；当前adapter不调用上游engine，不得声称完整引入研究能力。先短回归修通再长测；已部署本地仍10ae8afe476d，云端/demo不变。[计划与失败证据](../superpowers/plans/2026-10-18-managed-deep-research.md)。
+
+2026-10-19 00:33：自有enterprise cycle已接实际SDK（SOURCE），不再import旧phase engine；generic child继承grant，native/MCP计划前阻断、inflight barrier、CAS确认后推进、source owner及真实产品active/history隔离已实现。49JS通过含6actualSDK离线模型；整合Python169通过/1跳过（/tmp/enterprise-owned-python-integration.log）；delegated public文件56通过，后续步骤/stages/delegated专项77/78通过，均为重叠范围不得相加。App109通过/tsc通过，partial/failed/limited/cancelled不伪completed。本地规范重建日志末尾ready候选10ae8afe476d，父已核验API/worker/native同镜像且general-pi controller aa4d910e... / state803727ab...与源码hash一致，本地候选部署ready已验证；新UI线程thr_e6861bac615d28e000d2四附件待发送、尚未启动。真实模型质量与整体性能尚未验收，无新速度结论；旧154parent/70tools取消事实及未知usage保留。未合dev、云端/demo不变。[实施与验收边界](../superpowers/plans/2026-10-18-managed-deep-research.md)。
+
+2026-10-19 00:07：用户接受选择性复用上游、自有企业研究loop与通用child。旧集成真实任务 thr_bcf52cb2fb396acfee13 / attempt_6d22e8b8bea6a169 已按用户要求取消，观察到154次parent响应/70次工具调用；无终态usage回执，token未知，不写0。旧本地候选镜像40703433d9c896b092a8f4091c78b18b41ef29c957cd9942b1b6a99a75dd3ee7保留失败证据，不重启该任务。当前仅SOURCE：NativeStepTracker保留task_step_error（14测试），Python无进展错误透传（100测试）；JS防空转35测试已过但usage失败保留仍回归中，自有pure cycle仍在实现。整体loop尚未部署/验收，无新速度或质量结论。继续既有CAS/Work/Attempt与真实receipt，禁止第二账本/调度；子工具实时事件尚未接通。详见[接受的loop设计](../superpowers/specs/2026-10-19-enterprise-owned-research-cycle.md)和[实施计划](../superpowers/plans/2026-10-18-managed-deep-research.md)。未合dev，其他环境不变。
+
+2026-10-18 23:21：研究增量已接入实际SDK：pinned阶段引擎、受控child runner与enterprise controller复用既有ResearchChannel CAS/回执及目标步骤，无第二账本。明确仅复用阶段引擎与受控执行子集，不是整套上游扩展。两个HIGH恢复缺陷已复现修复并复审：确定拒绝可纠正、未知回执精确重试、未确认终态不done；JS/Python共用可发布路径策略，prompt/frame/answer采用初始化容量。25项JS与50项Python（general server/executor，NO_PROXY）通过；子工具实时事件尚未接通。本地规范重建及真实同输入比较进行中，尚无新速度/质量结论，保留350.524秒/ 41响应基线。恢复标签不变、未推送；未合dev，云端/demo不变。详见[研究实施计划](../superpowers/plans/2026-10-18-managed-deep-research.md)。
+
+2026-10-18 22:36：按用户要求，在新的研究集成前固定三份本地恢复快照（含当时未提交源码/文档），未移动分支或索引。主恢复标签 `pre-deep-research-20261018-223637` → `83e89e33dbce7b9a36a600b820bc0e4b5991efa5`，实现基底仍为 `15980389`；控制与root快照见下方本地恢复台账。三者均为 annotated 本地恢复引用，未推送，不是发布、验收或部署标签，也未执行回滚。当前优先企业研究质量与整体性能：保留已达标的分析、图表、独立报告、核验及版本能力，以pi-deep-research下层运行、enterprise-research上层策略和通用subagent做增量增强；不得双重调度或把现有实现整套替换。真实基线仍为350.524秒/ 41模型响应，后续同输入质量、人类反馈修订与耗时/轮次/token/失败共同验收；新集成尚未实施或验证，其他环境不变。
+
+2026-10-18 21:57：容量链路已在真实上传首轮走通。local-dev规范重建a8e6c4ca4ded ready，API/worker同镜像、API/原生容量指纹一致。新会话33f695bb实际上传四资料，SHA逐一相符；首轮正常完成350.524秒/ 41模型响应，HTML单文件本地打开9图正常，无外部资源。48原始指标及44公开CSV对应值独立核对全通过；相对488.375秒/77轮基线，此次耗时少28.23%、轮数少46.75%，仅为单次实测。另发简短人类反馈澄清省小时/去重时长与缺数电量，修订不混入首轮提速。最终后端1658通过/138环境跳过；未合dev、云端/demo不变。[容量验收证据](../reviews/2026-10-18-application-capacity-audit.md)。
+
+2026-10-18 21:30：容量修复为研究交付前置。e14a537c模型完成后被隐藏8MiB制品总量阻断（485.115秒/71轮），不能计成功或提速。已实现统一应用初始化配置及前端安全bootstrap、Kernel/工具中立容量参数、保存失败保留与actual/limit错误透传。冻结后端全套1651通过/138环境跳过，App691、Kernel649、Pi88及独立PG验证通过；规范local-dev重建正在执行，真实上传研究交付待验收。未合dev、云端/demo不变。[容量审计](../reviews/2026-10-18-application-capacity-audit.md)。
+
+2026-10-18 研究长链路：真实模型受控请求稳定复现本地转发累计4MiB截断，39.708秒/4,193,456接收字节、无finish/DONE，明确ValueError响应上限；短请求27.19秒正常。已移除SSE累计文档上限，保留截止/取消/非流式保护，并补安全诊断日志。同Work续跑按文件路径选择跨轮最新版本，保留早期图表。103专项含真实PG通过，规范重建进行中；尚未完成新的实际研究交付/性能对照。流量核对：单轮输入1.396万→8.549万token，21正常响应累计106.6万输入token；三次构建明确依赖下载约1.4GB，不把Clash2GB全归于模型。未合dev、云端/demo不变。[完整证据](../reviews/2026-10-18-research-round-efficiency.md)。
+
+2026-10-18 20:08：local-dev最终规范重建b1547560f635 ready，报告目录页内滚动/减少动态效果/下载原SHA实际验收通过，683 App测试通过。研究续跑311bffe1仍失败：437.593秒/27模型响应，明确model_transport，未完成报告；没有提速成功对照，8m08s/77轮基线保留。图片帧超限未复现，最新attempt来源遗漏更早图表及模型连接稳定性待修。剩余分段回归通过，独立测试PG已停止；无活动 Provider任务。未合dev、未改云端/demo。[诊断记录](../reviews/2026-10-18-research-round-efficiency.md)。
+
+2026-10-18 19:50：报告目录跳空白页已在实际基线报告修复验证。srcDoc页内链接绑定预览自身about:srcdoc#，保持空sandbox与CSP，下载原字节不变；s4目标top=-0.203px、App地址不变，平滑滚动成功。8相关测试、683 App全量及类型通过。研究续跑失败的图片事件帧膨胀与同Work保留文件遗漏均已修复，167集成/6阶段资源检查通过；尚无成功优化对照，8m08s/77轮基线不变。658b1c40e187已规范重建ready，含App修复的最终重建仍进行中。make test原997/244 Python和61 issue通过，grid测试fixture补SDK事件接口后59通过，剩余目标继续。未合dev、云端/demo不变。[详细记录](../reviews/2026-10-18-research-round-efficiency.md)。
+
+2026-10-18 19:15：首个优化对照430.943秒/39模型响应后失败，无完整报告，不能计提速成功。末三轮0用量且无工具执行，固定回执model_turn_incomplete，原始模型错误未保存，不能推断具体原因。已补共享失败响应状态与模型未完成/中断流/服务错误/内容拒绝安全分类，122相关测试通过；23Pack/桥接通过（1 PG跳过）、86工具测试通过，doctor/diff通过。含修正的规范重建进行中；既有基线8m08s/77轮及48值质量核对保留，下一步真实自然续跑及新的成功对照。未合dev、云端/demo不变。[完整记录](../reviews/2026-10-18-research-round-efficiency.md)。
+
+2026-10-18 18:58：企业研究真实上传基线确定为8m08s/77轮LLM，下载报告48项核心值独立核对通过。共享Pi执行组织指导与研究Pack适当复核分别实现，隔离镜像补齐固定版本数据分析/中文绘图环境；86工具、36原生、23Pack/桥接通过（1 PG跳过）、doctor及wheel打包通过。local-dev最终规范重建a4939d24ea0b ready，新UI同四附件/同指令attempt_6e231d5068978875正在运行；性能和交付质量尚未验收。用户要求统一工具/环境/skills/MCP能力基线已记入资源设计，完整覆盖仍待实施。未合dev、云端/demo不变。[长任务验证](../reviews/2026-10-18-research-round-efficiency.md)。
+
+2026-10-18 18:14：local-dev ae5797e27d5e完成流式记录/续租开销修复。原两条普通聊天指令经真实页面及文件上传复测为4.255/10.584秒（原7.398/23.740），文字事件23/44且无重复元数据，完整文字与终态回答一致；实际停止223ms及刷新恢复通过。277后端通过（1 PG跳过）、60 App通过，doctor/diff通过。首字等待未改善，单次结果不代表固定提速；未合dev、未部署云端/demo。[诊断与实际验收](../reviews/2026-10-18-general-chat-latency.md)。
+
+2026-10-18 17:56：普通聊天原7.398/23.740秒记录已逐段核对；第二次工具仅0.246秒。真实worker/隔离PG schema无模型重放相同141/484片段，重复事件+逐片段续租/取消查询耗4.140/14.843秒，确认框架串行开销。下一优先修复流式事件与租约检查频率，并验证停止/回放/失败反馈；尚未部署性能优化，local-dev镜像不变。[诊断证据与边界](../reviews/2026-10-18-general-chat-latency.md)。
+
+2026-10-18 17:47：研究提醒顺序修复已在local-dev 18f11b7062e0规范重建。全新UI上传现货CSV，单句业务请求148.4秒交付，自主发现并修正负价时段判断；一句自然反馈约97秒完成精简/口径修订。下载新版六组月度数值独立复算及展开/刷新恢复通过，文件outputs/shared-step-acceptance/spot-brief-revised.html，10157字节。5项提醒与18项桥接/步骤检查通过（1 PG跳过），真实SDK下一请求检查通过。无活动任务；中间标题泛化及重复输出耗时仍待改善。未合dev、未改云端/demo。[实际操作与限制](../reviews/2026-10-18-shared-native-work-steps.md)。
+
+2026-10-18 17:40：修复同批goal回执误清资料观察提醒的顺序问题，5项提醒测试及真实SDK下一请求检查通过，18桥接/步骤通过、1 PG跳过。local-dev规范重建18f11b7062e0 ready，API/worker同镜像。新页面实际上传spot-prices.csv（1.4MB），单句普通业务请求6a46ee42正在thr_de0d0d76457de53c00d9运行；不要重建或重复发送。已显示结构检查、月度计算、图表与HTML生成的具体工作目的；首个进度参数拒绝后自主修正。交付与独立数值核对尚待完成。未合dev、云端/demo未改。
+
+2026-10-18 17:25：第三轮普通反馈76c5811b用24.7秒补回模拟声明，公开目的与逐字核对观察可见；实际下载diff仅声明及样式，9条事项不变。唯一未标用途HTML/PDF直接显示“生成文档”，不提升为已验收交付；112 App及类型、刷新直接入口/无溢出通过。最终local-dev规范重建dbc5abf08dbd ready，API/worker同镜像，无活动测试任务。最终文件保存在root outputs/shared-step-acceptance/memo-short-notice.html。未合dev、云端/demo未改；部分轮次通用标题、公开记录稳定性和聊天延迟仍开放。[完整验收](../reviews/2026-10-18-shared-native-work-steps.md)。
+
+2026-10-18 17:17：研究公开记录改为开始/首个工作结果/工具失败触发，移除8次调用门槛，规则由Domain Pack持有；进度参数拒绝给出安全的修正说明。local-dev规范重建643d6534905d ready。真实新会话上传会议记录77107fa5完成，公开目标/核对观察可见；自然精简3b9b9264用23.9秒交付新版HTML，5个原生调用全成功、首步骤具体标题、刷新恢复通过。3提醒+19工具+86后端+18桥接/步骤检查通过（1 PG用例跳过）。每轮观察完整性、泛化标题与聊天延迟仍待改善；此前遮挡判定经正常悬浮点击证伪，无需CSS修改。未合dev、云端/demo不变。[共享研究过程验收](../reviews/2026-10-18-shared-native-work-steps.md)。
+
+2026-10-18 16:34：共享步骤与失败反馈local-dev规范重建ready，API/worker镜像75cdcaaf916d。真实聊天5247aeae完成，研究d94eae6e沿用上传会议记录、只一句自然续做即43.8秒交付HTML；6个原生轮次、5/5工具归属及刷新恢复通过。缺组件原因能明确回传，失败/取消不再生成虚构核验阶段。151后端+26worker+23RPC、110App/类型检查通过。研究本轮未发公开工作判断，标题仍泛化；底部按钮被输入区遮挡亦待修。未宣称完整过程可读性、延迟改善或整体稳定；未合dev、未改云端/demo。[验收与限制](../reviews/2026-10-18-shared-native-work-steps.md)。
+
+2026-10-18 16:24：通用聊天/企业研究已补齐原生执行轮次与公共工作记录到共享Harness步骤的传输及App分组。首次真实上传复测暴露隔离镜像缺少Kernel包，失败记录保留；改为复制同一无依赖事件投影模块，实际隔离容器导入通过。新增可操作的缺组件错误提示，失败/取消不再虚构核验完成；151项后端、26项worker、23项RPC及110项App/类型检查通过。含错误反馈的最终规范重建与真实操作复测仍进行中，不能计验收。实现仍model-decision未合dev，云端与demo未改。[共享步骤修复](../reviews/2026-10-18-shared-native-work-steps.md)。
+
+2026-10-18 15:18：成果阅读工具栏统一为单行，普通侧栏与展开阅读共用紧凑布局；外层展示区控制仍独立。目录为浮层，388px 侧栏及展开状态浏览器检查通过，19项测试与类型检查通过。local-dev规范重建ready，镜像ba849478，未合dev，其他环境不变。[阅读布局校验](../reviews/2026-10-18-product-reading-layout.md)。
+
+2026-10-18 14:56：真实上传研究两轮验收通过。新会话thr_36dbeb15686568c7a3e6上传4份原始资料，普通请求5480ae54在5m17s交付报告；自然反馈4e460a12在3m50s完成图7及负价时长口径修订。新版101989字节、9内嵌图/11表，无外部依赖；采用同一任务交付v2、刷新恢复及重新下载SHA一致通过。最终事件3238，无活动任务。当前local-dev仍e8897449，外网关闭；195项通过/15项跳过，未合dev，未更新其他环境。运行环境分析库准备、进程丢失恢复及超600秒真实任务仍未验收。[完整记录](../reviews/2026-10-18-research-chain-repair.md)。
+
+2026-10-18 14:37：研究应用预算、进度确认分页及失败原因回传已规范重建至local-dev，API与三个worker同镜像e8897449f5c3083d5e3f4597d019f3907456e33efc5e75b3fc99ad290834058e。195项通过、15项PostgreSQL变体未执行；实际HTTP覆盖300事件无丢失。企业研究预算由应用配置为1800秒，通用600秒。页面实际上传四份原始资料，以单条普通请求启动5480ae54，尚待报告交付验收；外网关闭。未合dev，其他环境不变。[研究链路记录](../reviews/2026-10-18-research-chain-repair.md)。
+
+2026-10-18 本地存储收敛完成：`.worktrees`由24个减至4个（model-decision、dev-macos-ci、demo-baseline、research-model），其余20个经逐文件归档校验后移除，保留Git恢复引用与未提交改动。项目由最初185GiB降至约30GiB，系统可用约182GiB。历史构建包只留当前交付ZIP，另移除124个无容器使用的历史镜像；API ready、App HTTP200。归档位于主工作区私有`.capstone-agent/worktree-archives/20261018/`。研究预算/分页修复仍未部署。[清理与恢复记录](../reviews/2026-10-18-local-disk-recovery.md)。
+
+2026-10-18 磁盘恢复：项目原占185GiB，已校验保留7份正式离线包并移除52.94GiB重复镜像tar；清理8个闲置干净worktree的虚拟环境目录31.57GiB（硬链接不等于实际释放量），保留全部源码、会话和上传/成果数据。项目占用已降至约100GiB，系统可用约77GiB。两份零字节技能快照已隔离保留并重建；API ready、三个worker及原生执行器均healthy。重建前新增可配置20GiB空间预检，低空间拒绝验证通过。研究应用预算/失败提示/事件确认分页已改源码，尚未重建部署。详见[磁盘恢复记录](../reviews/2026-10-18-local-disk-recovery.md)。
+
+2026-10-18 13:31：新研究24d61c76因固定600秒预算失败；28个文件（含105618字节HTML）已保留但未完成交付。发现进度128条累计封顶造成后续工具不可见；任务寿命和持续记录协议仍待修复。可信服务连接mark网络修复再增14项通过，最终规范重建进行中；不能将局部传输修复标为研究链路验收通过。
+
+2026-10-18 13:19：本地最终规范重建ready，镜像6ba8c13658797164299430a774e4b540fbd44d325ca7b3a31b6b656e323dba23；160项检查通过。四文件实际上传研究24d61c76正在执行，交付尚待验收。修复控制回复网络规则、同任务与同成果传输重试，保留取消后过程文件。外网关闭。磁盘满导致OrbStack退出后已恢复，仅清理可再生成缓存；其他环境源码未改。
+
+2026-10-18 13:02：研究2f81194e原生完成但成果传输失败。已确认控制服务大响应被nft规则阻断，精确reply规则修复后实际115018字节报告可读取；外网仍关闭。新增成果传输重试与明确失败分类，135项检查通过。规范重建遇OrbStack服务退出，正在恢复，候选尚未完成本地部署及真实交付验收。其他环境未主动更新。见[研究链路修复](../reviews/2026-10-18-research-chain-repair.md)。
+
+2026-10-18 12:45：短通信超时现进入原任务重连，不取消研究；137后端和19工具检查通过。上一轮7f6fa94f仍因连接超时失败，单纯调大秒数的方案已纠正。当前规范重建镜像0540d241bfcef9719ff40ee0d71806e9c475477a94e53fb00ef3ab89f838c604 ready。新会话thr_4a5f82035f79affd96c6实际重新上传4文件，attempt_2f81194ef82d5ec3正在执行，尚未验收交付。其他环境未改。见[研究链路修复](../reviews/2026-10-18-research-chain-repair.md)。
+
+2026-10-18 12:02：最终规范重建ready，API/worker同镜像c9cf89e58442fc97d124d7506e92890a95d6a78293d3de1bd80f665678c9a4ad；包含成果切换下载绑定修复。报告预览与刷新恢复再次通过，无活动测试任务。外网仍关闭，其他环境未改。
+
+2026-10-18 12:00：附件实测研究两轮完成：首轮52.8秒/11工具生成HTML，自然措辞修订37秒/7工具完成，无再次追问。下载核对四张表与原版完全相同，修订版SHA a139e19cf8613ace742058f264754bed0f39ad30e5debf8aee3dda18b0f501f5，刷新恢复通过。发现并修复切换成果时短暂保留旧下载链接；新增7项通过，App累计55项。先前异常取消根因仍待定位，不计整体稳定性完成。详见附件review；其他环境不变。
+
+2026-10-18 11:54：附件草稿与技能选择本地修订已验证。真实选择文件和拖放、刷新恢复、逐个删除、发送时原子关联通过；发送前上下文为空，接受后仅选定CSV进入上下文。126项后端（含独立PostgreSQL）、48项App及类型检查通过。规范重建API/worker同镜像b453261e19d73984fd5da8a8082d6b38d9a5be8ce9d9141166b7c58afe2c9965。Anthropic explore-data固定版本已真实加载并生成报告；自然修订曾被链路取消，续跑才交付，稳定性未验收。已新增有界失败原因输出，78项相关检查通过。技能保留原名，选择数收入工具栏；用户安装入口未实现。当前真实上传研究验证仍在执行，未合dev、未更新其他环境。见[附件草稿](../reviews/2026-10-18-draft-attachments.md)及[技能实测](../reviews/2026-10-18-research-skill-live.md)。
+
+2026-10-18 07:44：外网开关本地验收通过。最终规范重建API/worker同镜像02bd859bb90716902c4fd66c5520836fad6abce7304072c2c587fb80105fa2c0；页面小灯开启、刷新保留、关闭通过。真实UI自然指令抓取example.com，attempt_9a1f723460d8fb5f完成，持久化工具观察含HTTP 200与HTML标题。现已通过小灯关闭外网，无活动测试任务。35项后端、7项App及类型检查通过。外部研究技能安装/使用、其他宿主检索通道仍待验收；未合并，其他环境不变。 见[外网控制验证](../reviews/2026-10-18-external-network-control.md)。
+
+2026-10-18 06:18：修复SDK中间结束事件过早截断恢复，以及研究查询nullable参数契约不一致；规范重建65b2ff8f ready。真实ZIP研究经普通续跑生成独立报告，再通过引用报告与自然反馈完成修订；下载、9内嵌SVG、原8图几何保留、任务交付v1及刷新恢复已验证。前两次失败保留。77项后端、17项研究工具、97项App及类型检查通过。进度提交仍不稳定，语义失败状态传播待完善。未合并、其他环境未更新。见[真实资源分析记录](../reviews/2026-10-18-resource-analysis-live.md)。
+
+2026-10-18 05:11：文件拖放与多文件顺序上传共用原上传链路，真实浏览器拖放已写入API；25项定向检查通过，本地08ac005a106ad28e085f5265b26276f9033b88ef8aa27fc40b18a0f21462517c ready。GB分析仍被任务输入tmpfs与记录配额耦合阻断，下一步分离存储；见[拖放验证](../reviews/2026-10-18-resource-drop.md)。未更新其他环境。
+
+2026-10-18 05:02：修正运行中预览的工具调用折叠标题继承大字号。改为独立共享选择器，运行/完成两分支浏览器计算值均10px/15px；95项App测试及类型检查通过。本地规范重建9501e9252c4c21dff2560a7cd6f79a9bb1b27736d51a0079342be2be0657bddc ready，未更新其他环境。
+
+2026-10-18 04:39：原生工具操作/返回摘要真实调用及刷新恢复通过；后端73项、App95项通过。最终规范重建08ac005a106ad28e085f5265b26276f9033b88ef8aa27fc40b18a0f21462517c ready，容器内受保护配置隐藏检查通过。未合并、未更新云端；GB资源分析仍未验收。见[工具记录](../reviews/2026-10-18-native-tool-activity.md)。
+
+2026-10-18 04:30：区分研究/聊天开场，引导与过程字号已调整；原生工具新增有界脱敏操作及返回摘要，绑定原调用。后端72项、App94项通过。规范重建发现资源暂存目录位于只读根路径，已移入受保护持久化目录；修复重建与真实调用验收进行中。尚未合并或更新云端。见[工具记录](../reviews/2026-10-18-native-tool-activity.md)及[阅读调整](../reviews/2026-10-18-session-guidance-process-reading.md)。
+
+2026-10-18 03:32：真实浏览器在独立企业研究会话上传1,077,936,128字节文件，56%暂停、刷新后重选原文件续传完成；服务端SHA与本地一致，刷新后上下文目录可见资源v1。上传入口已接分片进度/暂停/续传/取消，25项相关测试和类型检查通过。规范重建91d65912478d ready。当前只完成存储与恢复；按资源引用接入隔离执行器及按需分析仍待实现，不计GB分析验收。未提交、未合dev，其他环境不变。
+
+2026-10-18 03:10：顶部导航与会话标题合并，统一研究会话状态栏；输入工具合为一行，历史整理收入设置。1440/768浏览器检查无横向溢出，工具栏28px；类型检查及110+29项相关测试通过。资源协议已实现分片、恢复、取消与哈希校验，真实HTTP+PostgreSQL+临时磁盘完成1,077,936,128字节上传及重启恢复（19.19秒，峰值RSS441810944字节）；40项后端检查通过。尚未接通GB浏览器上传及智能体按需读取，不能计完整资源验收。增量未提交、未合dev，云端和用户环境不变。
+
+2026-10-18 02:37：自然反馈修订4ea5fe09正常完成约2分45秒，报告125187字节，7张原图逐字节保留；界面采用任务交付v1并刷新恢复通过，会话标题随交付更新。容量与拒绝反馈修复已在local-dev 3f6b5431b57c验收。详情记录字号及折叠锚点实测通过；GB资源接入、跨类型组合和dev集成仍未完成。
+
+2026-10-18 02:33：修复四份原始资料加成果引用被错误容量限制拒绝的问题，拒绝反馈保留草稿；local-dev规范重建3f6b5431b57c ready。自然业务反馈修订已入列，尚未验收结果。成果区内边距、展开锚点及详情记录阅读字号已修正；后端23项、前端拒绝回归通过。未合dev，GB资源链路仍待实施。
+
+2026-10-18 02:01：真实界面上传后，原始请求中断；自然反馈“请继续完成，先给我一版能看的”续跑正常完成4分53秒，生成7图6表独立HTML报告，右侧预览及文件哈希核对通过。尚未验收后续修订、任务级采用及GB资源链路。指令悬浮预览新增真实状态/耗时，18项专项通过；仅主要输出自动展开。见[自主交付记录](../reviews/2026-10-18-research-autonomous-delivery.md)。
+
+2026-10-18 01:47：当前重点为 enterprise-research 自主研究及自然反馈修订。local-dev镜像a9ed9d26b6ae ready，修复Pi制品模块打包遗漏和前端旧512KiB上传限制；已通过界面上传4份原始资料并发送一条普通业务请求，正在验收。初稿允许不完美，后续采用用户可提出的自然反馈，不用外部操作步骤代替自主推进。成果入口与分组已调整；文件存储容量与上下文预算分离待实施。见[自主交付记录](../reviews/2026-10-18-research-autonomous-delivery.md)。未合dev，云端/用户试用不变。
+
+2026-10-18 00:00：修订报告及9图已保留，61天指标独立核对通过；采用为任务交付v1后，规范重建、刷新恢复和真实后续引用通过（26.7秒、9次工具调用）。长分析仍在600秒截止，未计正常完成。当前API/worker同镜像d39d3ac86bb2。见[验证记录](../reviews/2026-10-17-enterprise-research-demo1-live.md)。
+
+2026-10-17 23:40：Demo1相近合成样例已实际生成报告、9张图和指标文件，62项月度数值核对通过；报告修订续跑仍有运行中断，尚不计完整验收。共同链路已修复RPC累计事件膨胀、HTML/SVG预览、跨镜像文件恢复和统一文本类型接入；本地正在更新故障分类并复验。见[真实验证记录](../reviews/2026-10-17-enterprise-research-demo1-live.md)。全部为15980389加未提交增量，未合dev，云端及用户环境不变。
+
+2026-10-17 22:30：企业研究真实连续文件任务已走通：读取任务交付v1、生成修订报告、保存v2、刷新后引用v2生成新摘要；实际研究状态更新至3/4。三处容器启动接线阻断已修复。local-dev规范重建ready，API/worker同镜像bdae9325a9fb，来源15980389加未提交增量，未合dev。当前按真实链路走通优先推进；电网默认研究循环内Pi委托仍待接入，不宣称全部应用完成。见[真实验证记录](../reviews/2026-10-17-enterprise-research-live-continuation.md)。其他环境不变。
+
+2026-10-17 19:46：过程制品纵向切片已接本地：账本目录保留完成/失败/取消/中断，支持历史结果恢复、原指令定位、下一轮显式引用；系统执行记录仍在侧滑窗。侧栏覆盖菜单无法收起已修复，关闭按钮/外部点击/Esc真实浏览器通过。48项后端、38项App及类型检查通过；真实IEEE39历史引用追问16.4秒完成，无重新潮流。规范本地重建完成，API/两worker同镜像6cb847e4cd71f875f6bf37b7e2d59fd631a3e78d3260c43ec7147d855a553c33；来源15980389加未提交改动，不是纯提交构建，未合dev、未变更其他环境。任务级交付请求、版本与跨任务支撑关系仍待完成。 见[持续会话计划](../superpowers/plans/2026-10-17-continuous-work-session.md)。
+
+2026-10-17 17:48：工作台候选15980389已实现Pack发布的任务结果集合、核查侧滑窗与阅读控制修订；31项后端投影检查通过，App旧制品断言已按新契约修正并通过定向回归，构建通过。规范本地重建进行中，未合入dev。会话类型/工作对象及左栏顶部重设计已确认，入口持久化待实现。PR #54 macOS检查已通过，PR仍OPEN。
+
+2026-10-17本轮已获local-dev真实Provider验证授权。00a8cd85普通问答、IEEE39计算及连续追问三轮通过，刷新可恢复；PyPSA附加试验发现静态负荷与时序需求混淆，未计通过。effc9ccd在所属Authority/Pack修正有效负荷摘要及调度语义，126项PyPSA回归、类型检查与独立评审通过，正在规范重建后复验。共同基座c9e57152已修复native父链，1394项后端及23项真实PG通过，未部署；以下较早“RPC尚未通过”是历史记录。
+
 2026-10-17用户纠正交付标准：新建任务即会话，两个入口仅预配置ApplicationProfile；发送即统一执行，必须完整复用成熟对话功能。a8b4e578仅为内部基座候选，简化界面及保存/开始流程验收已撤回。PR #50转草稿、旧CI已取消；native改动保留待续，RPC父链尚未通过；当前先适配成熟电网对话并回归原样例。同一Harness自主选通用/专业/组合能力，不设应用模式硬切换。研发改为macOS门禁，main/Linux用户发布仍双平台，CI政策PR #51已合入dev a8caeff2，macOS治理CI1分46秒通过；合并树与a14169aa一致。
 
 2026-10-17 PR #48已合入dev d86cc4ef，合并树与受检ed0e2e19一致。CI38930597623双平台shared-agent通过（Linux5分7秒/macOS8分4秒）。运行源码e58ef9a4：v2 Work账本与无模型任务保存；独立任务页已撤掉，改用既有对话组件及定稿布局。后端1427项、App537项与重建同源通过，已集成；两条应用准备分支已快进同源。持续执行及完整工作台仍未完成。
@@ -252,9 +478,9 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 职责 | 当前状态 | 下一步 |
 | --- | --- | --- | --- |
-| dev | 共同基座与集成；同时服务对话应用 | 交付与复用标准已集成45913f1c；共享界面适配与native改动分开核验 | 新任务即会话；先复用成熟对话与电网样例，Harness保持自主组织 |
-| feat/business-analysis | 企业研究与分析 | 已创建，准备中；等待所需基座能力 | A1资源与验收准备；依赖就绪后开展图表/报告纵向切片 |
-| feat/model-decision | 电网分析与决策 | 00a8cd85已在local-dev验证；PR #53检查中 | 成熟对话、真实历史与拓扑已接通；无模型与通用成果继续按协议推进 |
+| dev | 共同基座与集成；同时服务对话应用 | 共享工作台已集成f5eda4e4；持续会话候选未集成 | 优先企业研究质量与性能；标准研究下层、企业上层策略与通用subagent增量结合 |
+| feat/business-analysis | 企业研究与分析 | 应用分支仅准备；实际研究增量在现有工作台候选推进 | 保留350.524秒/ 41轮质量基线；不另建研究调度或聊天应用 |
+| feat/model-decision | 电网分析与决策 | 00a8cd85已在local-dev验证；PR #53已合入f5eda4e4 | 成熟对话、真实历史与拓扑已接通；无模型与通用成果继续按协议推进 |
 
 ## 功能包前沿
 
@@ -269,8 +495,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | foundation | 基础体验与开发治理 | 1 | 已集成，本地开发验收通过 | 连续浏览历史、环境与版本识别、反馈处理和修订流程 | main | 后续随正式用户发布验证；不单独定义功能增强基线 | 线上共同基线 | 历史对话连续浏览；明确环境与来源版本；规范反馈与修订流程 | PR #6 合并 c3b78bc；精确候选两平台检查与审查通过；local-dev 实际入口验收通过；云端未发布 |
 | answers | 回退与选择性补回 | 2 | 已合入dev，业务缺陷保留 | c3业务链；独立LLM路由；三动作小窗；普通轻量无工具回答；正式消息与过程隔离 | dev | 路由可靠性与现存业务缺陷单列；研究按已适配计划推进 | main c3b78bc | 用户批准收口；不恢复任务编译；无凭据装配修正bc08169 | PR #14双平台通过并合入6ff7094；506项同源及两次完整集成通过；新真实复验一轮普通误分，保留失败，未称整体通过 |
 | business-analysis | 企业研究与分析 | 1 | 分支已创建，准备中 | 企业资源、分析成果、图表与报告视图 | feat/business-analysis | A1准备；等待相应基座闭环后实施 | dev6c0b0ae7创建来源 | 无独立业务代码；沿共同协议推进 | 未实施、未验收、未部署；阶段需可运行前端供人工观察 |
-| model-decision | 电网分析与决策 | 1 | 共享工作台已在local-dev验证，PR #53检查中 | 既有专业能力、拓扑、结果、案例与公共对话组件 | feat/model-decision | 集成共享切片；继续按既定协议补齐无模型对话与通用成果 | dev45913f1c及专业Work来源a8b4e578 | 6f1c3412恢复原型层级；00a8cd85兼容混合版本列表 | 570项App、88项真实PG、构建及独立复审通过；实际历史/结果/拓扑/新建入口通过；无新Provider验收 |
-| shared-agent | 共同智能体基座 | 1 | native切片保留待续；共享界面优先 | 同时服务对话与企业执行的组织、资源、恢复、证据及共享前端组件 | feat/work-attempt-binding | 保留原生执行改动及评审；后续修复RPC父链验收 | 已有Harness、Thread、专业执行及Pi资源 | 新任务即会话；Profile预配置授权；Harness自主组织；不设模式硬切换 | 源码评审通过，RPC子任务完成但父链仍失败；未交付，不作为电网适配前置 |
+| model-decision | 电网分析与决策 | 1 | 共享工作台已在local-dev验证，PR #53已合入f5eda4e4 | 既有专业能力、拓扑、结果、案例与公共对话组件 | feat/model-decision | 集成共享切片；继续按既定协议补齐无模型对话与通用成果 | devf5eda4e4及专业Work来源a8b4e578 | 6f1c3412恢复原型层级；00a8cd85兼容混合版本列表 | 570项App、88项真实PG、构建及独立复审通过；真实Provider普通问答/IEEE39/追问三轮及刷新恢复通过；PyPSA语义修正另验 |
+| shared-agent | 共同智能体基座 | 1 | native父链离线验证通过；前端及部署待接入 | 同时服务对话与企业执行的组织、资源、恢复、证据及共享前端组件 | feat/work-attempt-binding | 保留c9e57152已验证切片；先收口当前专业工作台试用 | 已有Harness、Thread、专业执行及Pi资源 | 长回答和长指令保存有界摘要，原文保留；旧专业信封预算不变 | 1394项后端、23项真实PG及类型检查通过；RPC两轮原文恢复通过，独立审查通过；未合入或部署 |
 | conversation-maintenance | 智能体对话应用维护 | 1 | 阶段已发布，维护范围已明确 | 接收适用的共同修复和增强，保留现有对话体验 | main | 按实际修复形成小版本，不强制采用企业新工作台 | main cf72393b；原用户包未替换 | 与企业入口共同验证受影响共享行为；保留将来对话场景演进空间 | 发布基线已验收；新增共享增强尚未实现或发布 |
 | pi | 企业自主执行 | 3 | 基础能力已合入dev | Capstone长程组织配合Pi原生生态，统一机制待实施 | dev | 先推进共同基座Task 1；分别验收企业研究与分析、电网分析与决策，再验证组合任务 | 已保留专业链路与原生资源 | PR #31合入db167184；统一循环、无模型v2协议和新工作台仍待实现 | CI38865540607双平台通过；local-dev规范重建与同源检查通过，不代表新设计完成 |
 | commands | 统一输入命令与快捷操作 | 3 | 待设计，已有局部原型 | Capstone 前端统一操作入口：会话、模型、执行、结果及技能操作 | — | 盘点现有前端操作；设计共享命令目录、参数、可用状态和键盘交互，再建立增强分支 | 当前前端按钮与 Pi 分支命令原型 | 跨运行模式的快捷入口；中文检索与命令发现；上下文和权限检查；草稿保持与明确反馈 | 独立开发包；Pi 分支三个命令只是复用来源；新分支未建立，未部署 |
@@ -341,8 +567,10 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
 | dev-head | dev | main | dev · 当前研发位置 | 当前Git HEAD，验收范围见对应里程碑 | 动态绑定本地dev实际提交并连接真实祖先；不将分支HEAD当作部署或业务验收。[当前状态](CURRENT-STATE.md) | shared-agent |
+| workspace-outputs | 15980389 | feature | 共享工作空间 · 稳定导航、阅读状态与分层缓存 | 本地修正已验证；命名工作空间待实现；未集成dev | 内存默认10，可选10/20/50；按切换次数和最后打开时间保留，释放不改变归档状态。补读置顶偏好，收起展开保留列表；改名Esc保留左栏。942App/构建/doctor及实页通过；规范重建e18d8e7d33f2、ready及清理通过。原阅读状态与零完整快照复验保留。[验证](../reviews/2026-10-25-left-navigation.md) | model-decision |
+| pypsa-demand-fix | 4120e57b | feature | 专业试用修复 · 结果解释与会话恢复 | local-dev同源ready；PR #54检查中；IEEE39发电机归属解释缺陷仍开放 | effc9ccd修正有效时序需求；e0c8d246修复旧会话准备；6415a57d补充平衡电源解释；4120e57b区分元件名称与表索引，无具体样例硬编码 | model-decision |
+| native-conversation | c9e57152 | feature | 共同基座 · 无模型对话执行 | 离线验证通过；未合入或部署 | 同一账本、租约和Harness承接原生对话；长文本收尾修复及两轮RPC原文恢复通过，前端接入另行验收 | shared-agent |
 | shared-workspace | 00a8cd85 | feature | 共同工作台 · 成熟对话与专业执行适配 | local-dev已验证；PR #53检查中 | 6f1c3412恢复定稿原型与成熟对话，00a8cd85兼容混合会话列表；570项App、88项真实PG及历史结果拓扑检查通过，无模型和通用成果仍待完成。[验证记录](../reviews/2026-10-17-shared-dialogue-adaptation.md) | model-decision |
-| work-execution | a8b4e578 | feature | 共同基座 · Work执行内部候选 | 前端验收撤回；正常对话改造中 | 后端Attempt及研究接缝保留；保存/开始和简化输入不符合交付；PR #50草稿、旧CI取消。[切片报告](../reviews/2026-10-17-work-attempt-binding.md) | shared-agent |
 | work-ledger-dev | d86cc4efb83780917daa536c66cf3a43fe0a0851 | main | dev · Work账本与共享对话入口集成 | PR #48双平台通过，已合入 | 无模型v2 Work保存、幂等恢复及共享对话前端；合并树同受检ed0e2e19；生产执行绑定与持续推演待实施。[切片报告](../reviews/2026-10-16-thread-work-ledger.md) | shared-agent |
 | work-ledger | e58ef9a4 | feature | 共同基座 · Work账本与任务入口 | PR #48双平台通过，已合入dev | v2无模型会话；Work保存、对象CAS及幂等恢复；旧专业历史只读；未启动持续执行。[切片报告](../reviews/2026-10-16-thread-work-ledger.md) | shared-agent |
 | pack-selection-dev | 9eb84a341a148572cfbfc49db483e8e184dad522 | main | dev · Pack按需装配集成 | PR #46双平台通过，已合入 | native/authority声明与按需准备合入；合并树与受检cb08ef92一致；生产存储、v2及持续执行待接入。[切片报告](../reviews/2026-10-16-application-pack-selection.md) | shared-agent |
@@ -419,8 +647,10 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | dev-business-base | 开发分支起点 | dev | 恢复业务执行并保留独立轻量路由；Pi与自主智能体的共同业务基线 | 已合入，业务缺陷保留 |
 | dev | 重要demo发布与大分支合并 | dev | 统一研究、执行、结果与证据合入主线；两个demo固定该基线，保留发布验收与回退来源 | 两个demo已验收 |
 | dev-head | 当前研发位置 | dev | 实际dev分支头及真实祖先连线；产品验收与部署来源独立标记 | Git位置随生成更新，验收范围见对应里程碑 |
+| workspace-outputs | 当前开发焦点 | fix/workspace-reading-type | 稳定三栏与会话管理；本地真实交互验收通过 | 当前三路338秒/59工具基线不变。会话切换无临时当前会话占位，目录连续显示，恢复电网工具条。宽度/置顶本地保持，名称/归档/删除宿主持久化。运行中会话不能被删除动作取消，文件保留范围明确。[验证](../reviews/2026-10-24-workspace-navigation.md) |
+| pypsa-demand-fix | 当前试用修复候选 | fix/pypsa-inspection-semantics | 区分实际需求与静态默认值，恢复已保存会话；平衡电源解释按通用指南修正 | PR #54检查中；以IEEE39原有样例为主复验 |
+| native-conversation | 无模型对话基座候选 | feat/work-attempt-binding | 复用账本与Harness完成无模型逐轮执行；完整原文保留，研究笔记按协议摘录 | 本地c9e57152；1394项后端及23项真实PG通过，未部署 |
 | shared-workspace | 当前共享工作台候选 | feat/model-decision | 按定稿复用成熟对话、专业Work与拓扑；无模型与通用成果仍待实施 | local-dev 00a8cd85；570项App与88项真实PG通过 |
-| work-execution | 保留的基座内部候选 | feat/work-attempt-binding | 保留后端执行及恢复资产；当前优先复用成熟界面与原电网样例 | 界面验收撤回；PR #50草稿；native改动待续，未交付 |
 | pack-selection-dev | 已集成按需装配基座 | dev | 按需Pack装配已集成；继续生产存储及无模型前端入口 | PR #46双平台通过，合并树与受检来源一致 |
 | work-ledger-dev | 当前开发焦点 | dev | Work保存与共享对话入口已集成；继续生产Claim/Profile绑定 | PR #48双平台通过，合并树与受检来源一致 |
 | work-ledger | 已合入基座实现来源 | 共同基座（分支已关闭） | 同一账本承接无模型Work；复用成熟对话组件和定稿布局 | local-dev同源、537项App及真实保存恢复通过；持续执行待接入 |
@@ -445,7 +675,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | 编号 | 工作包 | 来源 | 目标 | 状态 | 交付范围 |
 | --- | --- | --- | --- | --- | --- |
 | 51 | shared-agent | chore/dev-macos-ci | dev | MERGED | a8caeff2；macOS CI38945827751通过1分46秒；合并树同a14169aa；dev只要求macOS，main/显式release保留双平台，治理配置按实际范围检查 |
-| 53 | shared-agent | feat/model-decision | dev | OPEN | 00a8cd85；macOS CI39009430704运行中；local-dev同源及实际入口检查通过，完整业务验收另列 |
+| 53 | shared-agent | feat/model-decision | dev | MERGED | f5eda4e4；macOS CI39009430704第2次完整通过，合并树与00a8cd85一致；真实Provider普通问答/IEEE39/追问三轮通过；PyPSA附加缺陷单独修正 |
+| 54 | model-decision | fix/pypsa-inspection-semantics | dev | OPEN | effc9ccd修正时序负荷和调度语义；已重建同源，旧会话恢复问题补修中；未计PyPSA验收通过 |
 | 52 | shared-agent | docs/conversation-delivery-control | dev | MERGED | 45913f1c；macOS文档CI38947256986通过1分28秒；合并树同af05f6e4；前端验收撤回，正常对话及成熟公共能力适配为交付标准 |
 | 50 | shared-agent | feat/work-attempt-binding | dev | DRAFT | 旧CI38941770837已取消；后端资产保留，简化对话区与保存/开始验收撤回；正常对话及成熟功能复用实施中，不构成应用交付 |
 | 48 | shared-agent | feat/thread-work-context | dev | MERGED | d86cc4ef；受检ed0e2e19与合并树一致；Linux5分7秒/macOS8分4秒；运行源码e58ef9a4，Work保存恢复及原专业入口通过；分支已关闭，两应用准备分支快进同源 |
@@ -487,11 +718,11 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | feat/thread-version-negotiation（已关闭） | 共同基座协议准备已合入来源 | 2d3f86c6/a2efb791通过本地与双平台CI；PR #44合入32f18d24 | v1协商及升级恢复；v2/无模型入口未实现 | shared-agent |
 | feat/shared-execution-baseline（已关闭） | 共同基座Task 1已合入来源 | 62f44366执行接缝与711f06a8回执通过双平台CI，PR #36合入d8fe6e27 | dev继续Task 2；来源提交保留在合并历史 | shared-agent |
 | feat/business-analysis | 阶段应用研发，准备中 | 已从dev6c0b0ae7创建并推送，尚无独立业务实现 | A1资源与验收准备；等待基座能力后分批PR回dev | business-analysis |
-| feat/model-decision | 定稿架构与原型对齐 | 00a8cd85已推送；PR #53检查中；570项App与88项真实PG通过 | local-dev规范重建同源；历史结果、拓扑及新建会话入口通过；无模型与通用成果未完成。[验证记录](../reviews/2026-10-17-shared-dialogue-adaptation.md) | model-decision |
+| feat/model-decision | 定稿架构与原型对齐 | 00a8cd85已推送；PR #53已合入f5eda4e4；570项App与88项真实PG通过 | local-dev规范重建同源；历史结果、拓扑及新建会话入口通过；无模型与通用成果未完成。[验证记录](../reviews/2026-10-17-shared-dialogue-adaptation.md) | model-decision |
 | feat/application-pack-selection（已关闭） | 共同基座按需装配已合入来源 | 20226bf0实现、cb08ef92限定CI；PR #46合入9eb84a34 | native/authority准备通过；生产Profile/v2前端及持续执行待实现 | shared-agent |
-| feat/work-attempt-binding | 保留的正常对话基座研发 | PR #50草稿；旧CI取消；a8b4e578内部候选及未提交native修复保留 | RPC父链验收仍失败；暂缓以优先成熟界面适配；非应用交付 | 研发macOS；发布保留双平台 |
+| feat/work-attempt-binding | 正常对话基座研发 | 本地c9e57152；PR #50仍为旧来源草稿；native源码已保存 | RPC父链及23项真实PG通过；前端、真实Provider及部署另验；非应用交付 | 研发macOS；发布保留双平台 |
 | feat/thread-work-context（已关闭） | 共同基座Work账本已合入来源 | e58ef9a4实现与复用修正；PR #48合入d86cc4ef | v2/无模型任务保存入口；生产Claim/Profile与持续执行仍待实现 | shared-agent |
-| dev | 默认开发集成主线 | PR #52合入45913f1c，交付标准与设计对齐；macOS研发/main双平台发布 | local-dev已验证00a8cd85共享界面切片；PR #53待集成，完整业务对话验收另列 | main |
+| dev | 默认开发集成主线 | PR #52合入45913f1c，交付标准与设计对齐；macOS研发/main双平台发布 | local-dev已验证00a8cd85共享界面切片；PR #53已集成f5eda4e4，完整业务对话验收另列 | main |
 | docs/dev-baseline-control | 收口状态同步 | 从接受的dev50d8ebc建立；登记B2标签、分支关闭与研究实施起点 | 仅文档和控制图，轻量检查后集成dev | main |
 | feat/research-model | 起点与依赖已适配 | 2b0b0a5；精确祖先dev6ff7094；设计及推进计划排除撤回的编译/覆盖/预热依赖；本工作区运行时准备与doctor通过 | R1尚无代码；按R1–R5及真实依赖路径验收，不将旧R0实验当作本分支成果 | research |
 | recovery/autonomous-agent-merged-faa6af9 | 已合并分支的本地恢复引用 | 原feat/autonomous-agent已通过PR #18合入dev faa6af9；保留2b6ae7b与原工作树全部未提交文档和运行数据；远端已合并分支关闭 | 非在研分支；后续从dev推进，科学与交互验收仍开放 | autonomous |
@@ -530,7 +761,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 2026-10-10 清理了 16 个已合入 main、已归入基础修订包或重复指向同一候选的本地分支名。提交保留在 `refs/archive/20261010/<原分支名>`；已有工作区只转为 detached，未删除目录、数据或文件。已关闭 PR #7/#8 的远端分支和已合入 main 的截图文档远端分支已移除。详细映射见[分支清理记录](GIT-BRANCH-CLEANUP.md)。
 
-当前活动分支以上方完整分支分类表及实际Git heads为准，不沿用早期三分支列表。旧OP-13存储实验归档为 `archive/context-segment-storage-20261011`，未提交代码与工作区完整保留；当前适用性未确认，不列为待开发或回答增强依赖。旧回答候选3e3bbfb已移出当前推进图，保留在 `archive/answer-chain-unaccepted-20261010` 供历史追溯；原multi-binding未提交资料保留在对应归档。历史名称仅用于追溯。
+当前活动分支以上方完整分支分类表及实际Git heads为准，不沿用早期三分支列表。旧OP-13存储实验归档为 `archive/context-segment-storage-20261011`，未提交代码已存入20261018私有校验归档，展开工作区已移除；当前适用性未确认，不列为待开发或回答增强依赖。旧回答候选3e3bbfb已移出当前推进图，保留在 `archive/answer-chain-unaccepted-20261010` 供历史追溯；原multi-binding未提交资料保留在对应归档。历史名称仅用于追溯。
 
 ## 两个基线
 
@@ -590,6 +821,16 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 标签不可移动、覆盖或复用，不使用强制推送。撤回时保留标签，台账注明撤回原因和替代标签；修改后的候选重新验证并建立新标签。回滚以已有精确提交为来源，完成阶段检查后建立新的阶段验收标签。
 
+### 本地恢复快照（非发布或验收标签）
+
+三份快照均为本地annotated标签，保存创建时工作区的未提交源码/文档；它们是固定恢复点，不是活动研发分支，没有移动原分支、索引或部署，也没有推送远端。按用户要求先完成快照，再继续研究增量集成。恢复收据：`ROOT/outputs/recovery-checkpoints/pre-deep-research-20261018-223637.json`；该私有操作收据不进入公开发布工件。
+
+| 本地标签 | 快照提交 | 原工作区与基底 | 状态 |
+| --- | --- | --- | --- |
+| `pre-deep-research-20261018-223637` | `83e89e33dbce7b9a36a600b820bc0e4b5991efa5` | model-decision实现区，`159803897127b33d791ef77298ba9fbe5da13a2b` | 本地恢复快照；未推送；非验收/部署 |
+| `pre-deep-research-20261018-223637-control` | `906f33137bf9899c118045be87aba068f74165ea` | dev控制区，`7b2adbc604f6e92a2103a246fe820593bb96773f` | 本地恢复快照；未推送；非验收/部署 |
+| `pre-deep-research-20261018-223637-root` | `988ce35bba792aba223a52fd56e36c652be635bd` | root工作区，`c9e571521a687f15598c626b0b239e28bf41ad7e` | 本地恢复快照；未推送；非验收/部署 |
+
 ### 基线标签台账
 
 | 标签 | 精确来源 | 范围与状态 |
@@ -604,7 +845,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | 后端及App源码 `00a8cd85975107a55455cb981152d83d0a69e034` | 规范重建ready；API及双worker同镜像sha256:f102e8ca316d6a4a7299d395c9748d060785c40db2cfc97e7740e48ef7a7c010，各1153文件同源；App570项及真实PG88项通过 | App http://127.0.0.1:5173/，API8767；App clean来源00a8cd85；收据runs/shared-dialogue-adaptation/local-identity.json；真实历史、结果、拓扑、草稿及新建会话入口通过；零Provider，新回答与无模型对话尚未验收；其他部署及用户包未变 |
+| local-dev | 基于 `159803897127b33d791ef77298ba9fbe5da13a2b` 加共享导航、会话管理、分层会话缓存与阅读状态恢复；未提交，精确源码见缓存验证回执 | backendc64fbe52c992/nativeada86461950c，118源码/ready/App及cleanup20261025-000145-64738通过 | 932App/类型/构建/doctor通过。真实热切换保留主区/iframe位置，完整快照请求0；上限1释放后恢复165px及原报告选择。自动释放不归档或取消任务。[验证](../reviews/2026-10-24-session-view-cache.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |
 | cloud-dev | `24d9a32`，开发试用候选；已推送标签cloud-dev-20261013-1045-24d9a32 | 用户授权的基本功能检查通过：四角色SUCCESS、API就绪、前端来源与真实中文对话；非正式发布或科学解释验收 | App https://capstone-app-production-83ef.up.railway.app/；[部署记录](../reviews/2026-10-13-cloud-dev-autonomous-trial.md)；demo不变 |
 | cloud-demo | App/API/两worker `faa6af9` | 四角色SUCCESS；三后端身份与dev本地529文件验收一致，安装工件与受检候选一致；三用例九轮、报告证据回放通过；local-demo已同源验收；正式标签demo-20261014-2028-faa6af9已推送 | App https://capstone-app-production-975e.up.railway.app/；上一正式标签demo-20261014-0744-bd2a200；双平台完整发布38554987581通过；cloud-dev不动 |

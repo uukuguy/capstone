@@ -3409,6 +3409,9 @@ The following original entries were retained during document synchronization.
 - 2026-10-17: PR51 mergeda8caeff2 with identical tested tree; macOS governance CI38945827751 passed1m46s; application preparation branches fast-forwarded.
 
 - 2026-10-17: Five original scripted professional cases passed fifteen turns; UI adaptation retains mature typography at 1440px. No Provider validation.
+
+- 2026-10-17: PR52 merged45913f1c with tested tree; macOS docs CI passed1m28s; dev and application preparation branches synchronized.
+- 2026-10-17: User clarified shared dialogue reuse; original grid-specific controls remain Profile-dependent, enterprise layout follows accepted design.
 - 2026-10-17: 9bf36652 preserves accepted workspace interactions and original typography, separating verified cases from pending application acceptance.
 - 2026-10-17: 8685d46b reuses mature dialogue with resizable results and smaller topology symbols; 550 App tests pass.
 - 2026-10-17: b703e37b retains compatible backend locally; visual acceptance withdrawn pending full architecture and prototype alignment. No deployment.
@@ -3419,3 +3422,2166 @@ The following original entries were retained during document synchronization.
 - 2026-10-17: 00a8cd85 fixes mixed-version session listing without changing active protocol; 570 App and 88 PostgreSQL-backed tests pass.
 - 2026-10-17: local-dev00a8cd85 canonical rebuild and1153file identity checks passed in all3roles; real history/results/topology/new conversation verified; PR53ready with macOS CI pending; graph28nodes38edges checked.
 - 2026-10-17: 7d0f32c1 records live workspace verification and exact deployment identity for integration review.
+- 2026-10-17: c09235fd preserves the separate documentation branch and recovery checkpoint while product CI runs.
+- 2026-10-17: CI39009430704 cancelled for duration investigation; logs show passing product suites, not a hang. Full rerun requested.
+- 2026-10-17: c9e57152 connects native conversation to shared execution and fixes bounded research excerpts; offline verification passes, deployment pending.
+- 2026-10-17: effc9ccd reports effective PyPSA demand and distinguishes dispatch from power flow; fixes live-trial misinterpretation.
+- 2026-10-17: PR53 merged as f5eda4e4 after macOS CI passed; merge tree matches verified00a8cd85, dev fast-forwarded.
+- 2026-10-17: e0c8d246 restores retained PyPSA workspace preparation with isolated, cleaned launchers; preserves evidence across endpoint recovery.
+- 2026-10-17: 6415a57d explains balancing-source effects so unchanged flow results do not falsely block load-change analysis.
+- 2026-10-17: 4120e57b preserves resolved component names and indices in answers; fixes load-scenario identity confusion.
+- 2026-10-17 15:55 CST: Verified4120 local identity; IEEE39 numerical comparison passed, generator association explanation remains open; PyPSA retained task recovered.
+- 2026-10-17 15:56 CST: aa5e3955 aligned trial evidence and graph layout to preserve accurate development and deployment control.
+- 2026-10-17 15:58 CST: PR55 merged7b2adbc6 after macOS docs gate; dev control graph now records actual local trial and open defect.
+- 2026-10-17 16:12 CST:21d68713 enlarged workspace typography; user rejected16px. Refined14px preview passes build and1440browser checks; integration pending.
+- 2026-10-17 16:30 CST: c6f0d81f compacts typography and preserves running question position;135tests/build pass,35live samples stable; integration pending.
+
+- 2026-10-17: 15980389 adds Pack-owned output groups and refines reading controls; separates task results from diagnostic records.
+- 2026-10-17: Process collections now have instruction scope;33 backend and18 App tests pass. Task delivery remains pending; graph deployment corrected.
+2026-10-17 19:46：过程制品纵向切片已接本地：账本目录保留完成/失败/取消/中断，支持历史结果恢复、原指令定位、下一轮显式引用；系统执行记录仍在侧滑窗。侧栏覆盖菜单无法收起已修复，关闭按钮/外部点击/Esc真实浏览器通过。48项后端、38项App及类型检查通过；真实IEEE39历史引用追问16.4秒完成，无重新潮流。规范本地重建完成，API/两worker同镜像6cb847e4cd71f875f6bf37b7e2d59fd631a3e78d3260c43ec7147d855a553c33；来源15980389加未提交改动，不是纯提交构建，未合dev、未变更其他环境。任务级交付请求、版本与跨任务支撑关系仍待完成。
+- 2026-10-17 21:10：实际Vivaldi视口scale3恢复1；紧凑顶栏/拓扑入口/新建弹层及时间标题接入，App641测试构建通过。Pi SDK扩展过滤故障修复后普通真实问答与刷新追问通过。上传CSV、真实文件读取与任务交付v1通过；跨轮修订未读到原文件，仍在排查，未声称完整任务验收。正式研究Pack及跨类型统一成果引用为核心后续切片，设计已记录dev。候选未提交未合并，其他环境不变。
+
+- 2026-10-17 21:20：更正21:10文件诊断：第二轮准入含原review.md796字节，工具实际读取，新文件完整保留原字节；错误在来源说明。来源说明与精确持久副本回读修复通过70项及2项RPC测试，真实解释待复验。local-dev镜像79082bf0ce97已ready；普通真实问答/刷新追问及资料文件交付v1通过。正式研究控制器桥接、共享成果目录/版本解析与统一右侧引用进入实施；所有增量仍未提交未合dev。
+- 2026-10-17 21:35：用户明确全面授权研发、联调及验收中的大模型访问，不再逐次许可；验收要求真实模型、工具执行和实际制品，离线样例不能替代。仅明显异常调用、失控重试或异常消耗应中止说明。三工作区AGENTS.md已同步此规则，部署和凭据保护边界不变。
+- 2026-10-17 22:05：用户明确初期以真实链路走通为重点，非阻断完善不作为本地试用门槛，已同步AGENTS.md。规范重建镜像814e431445d3 ready；真实任务交付v1重建后可读，引用及文件正确保存到下一轮。续写在调用Provider前失败，根因是研究临时目录落到只读容器根文件系统，正在移入现有可写任务临时目录。广域后端1493通过/3旧测试失败，修正旧事件顺序及fixture后64项定向通过。dev推进图已更新并检查30节点40边，无重叠/穿越/交叉/溢出。
+- 2026-10-17 22:35：三处真实容器启动阻断已修复（可写目录、固定SDK解析、chmod/chown顺序），最终镜像bdae9325a9fb ready。真实Provider完成报告修订33.0s/8工具，3016字节原文保留；采用任务交付v2，刷新后再引用生成1668字节摘要22.6s/6工具；研究状态更新至3/4。dev推进图及限定验证记录已同步。用户要求组织接近Demo1的模拟资料继续真实走通，新线程thr_05a927730c58ff4f106f已创建，样例生成中。
+- 2026-10-17 23:42：Demo1相近样例首轮保留HTML报告、9图及CSV，62项月度数值核对通过；续跑a07d954d运行39工具后RuntimeError，不能认定超时。RPC投影、HTML/SVG预览、跨镜像文件读取与统一文本类型接入已修复，当前镜像375643fbfb2b规范重建ready，诊断分类20项测试通过。真实续跑0e9b0848正在执行。审核Excel合并1952条原始记录且逐格一致；不含验算答案。dev推进图30节点40边，无重叠/穿卡/交叉/溢出。未合并、未更新云端或用户环境。
+- 2026-10-18 00:00：0e9b0848达到600秒截止，保留89372字节修订报告与9图；61天日度数值独立核对通过。HTML/SVG前端解析遗漏已修复，25项App测试及tsc通过。报告采用为任务交付v1（event670），规范重建d39d3ac86bb2后原字节恢复；真实引用ef850b6e在26.7秒/9工具内完成，保留模拟及来源取消说明。长分析正常收尾仍未通过。dev推进图30节点40边检查通过，未合并或更新云端/用户试用环境。
+
+- 2026-10-18 00:45：15分钟合成样例46,848条输入及审核Excel核对通过；真实分析9分26秒正常完成，后续引用校订与任务交付通过。最终6图13表、359条指标，122项独立复核通过。规范重建8c05e936eec8 ready；dev推进图30节点40边无重叠/穿卡/交叉/溢出。未合并，云端与用户环境不变。
+- 2026-10-18 01:55：用户确认GB级及更大文件是正式设计要求，分期不能降低要求。design-final§9、三工作区AGENTS及执行计划已记录流式分片、断点恢复、版本资源引用、上下文预算分离、有界按需处理和独立大文件验收；当前8MiB/4文件/base64路径明确为缺口。真实界面发现并修复旧512KiB客户端限制，4份资料逐份上传可见。首轮5e24cf03因model_turn_incomplete失败并保留11项过程文件，未生成报告；自然反馈续跑1f495c20进行中。Pi镜像遗漏已修复，实际容器导入通过；规范重建a9ed9d26b6ae ready。后端25项、前端29项、tsc/diffcheck/doctor通过。dev推进图30节点40边，无重叠/穿卡/交叉/溢出，未合并或更新云端/用户环境。
+- 2026-10-18 02:01：自然反馈续跑1f495c20正常完成4分53秒，报告118513字节/7图6表/无外部引用，下载SHA与服务器一致，右侧预览已打开；后续修订/任务交付及GB专项仍待验收。指令定位悬浮预览增加真实成功/失败/取消及耗时，运行中动态更新；18项专项通过。只允许声明的主要输出自动打开，修复过程脚本抢占工作区。所有变更仍为local-dev未提交增量。
+- 2026-10-18 02:23：成果目录增加16px/18px内边距；消息内summary展开复用阅读锚点，暂停高度变化自动跟随。真实浏览器展开前后入口y均为341.640625，位置保持；tsc、18项专项和diff检查通过。local-dev源码已生效，未合并。自然反馈修订尚未确认入列，须核对成果引用读取状态，不能声明修订完成。
+
+- 2026-10-18 03:10：顶部导航与会话标题合并，统一研究会话状态栏；输入工具合为一行，历史整理收入设置。1440/768浏览器检查无横向溢出，工具栏28px；类型检查及110+29项相关测试通过。资源协议已实现分片、恢复、取消与哈希校验，真实HTTP+PostgreSQL+临时磁盘完成1,077,936,128字节上传及重启恢复（19.19秒，峰值RSS441810944字节）；40项后端检查通过。尚未接通GB浏览器上传及智能体按需读取，不能计完整资源验收。增量未提交、未合dev，云端和用户环境不变。
+
+- 2026-10-18 03:32：真实浏览器在独立企业研究会话上传1,077,936,128字节文件，56%暂停、刷新后重选原文件续传完成；服务端SHA与本地一致，刷新后上下文目录可见资源v1。上传入口已接分片进度/暂停/续传/取消，25项相关测试和类型检查通过。规范重建91d65912478d ready。当前只完成存储与恢复；按资源引用接入隔离执行器及按需分析仍待实现，不计GB分析验收。未提交、未合dev，其他环境不变。
+
+- 2026-10-18：补记目录预览修复与研究诊断。真实目录平滑定位、减少动态效果、原下载SHA一致及683 App检查通过，local-dev b1547560f635规范重建。续跑311bffe1仍model_transport失败437.593秒/27轮，不计提速成功，记录保留。随后受控真实Provider请求经原转发层39.708秒触发明确4MiB累计响应限制，短请求与直连正常；修SSE累计截断、保留取消/截止/非流式限制，并补安全元数据诊断。跨轮文件按路径取最新版本，103专项含真实PG通过，新规范重建进行中。用户Clash2GB流量核对发现三次构建明确下载约1.4GB；最后失败研究输入上下文1.4万→8.55万token，累计106.6万。未合dev、云端/demo不变。
+
+- 2026-10-18 21:27：研究续跑e14a537c模型工作完成485.115秒/71轮，最终仍被隐藏8MiB制品总量限制阻断，保留失败事实。用户明确容量中断必须先修通再比耗时。统一应用初始化容量配置、前端安全bootstrap、Kernel/工具中立参数、部分保存回执/失败工作目录保留及结构化actual/limit失败已实现；App691、Kernel649、Pi88、原生141专项及独立PG验证通过。全后端冻结回归与规范本地重建进行中，不计新成功交付或提速；未合dev、云端/demo不变。审计见2026-10-18-application-capacity-audit.md。
+
+- 2026-10-18：用户接受企业研究新基线5分50秒/41轮模型响应，指出43任务步骤/42工具调用暴露真实组织过散。只读审计确认RuntimeStepTracker按Pi turn建立步骤并绕过显式step_id/phase；现有研究账本缺稳定计划、完成条件与评估后补充研究合同。先调研开源研究循环及Pi标准扩展，再确定最小复用方案，不以界面分组代替执行修复。用户要求将pi-mcp-adapter、billion-context、pi-web-access与软件工具、开发框架、skills、MCP统一纳入预装设计。初查来源：https://github.com/nicobailon/pi-mcp-adapter 、https://github.com/ranxianglei/billion-context 、https://github.com/nicobailon/pi-web-access 。预装与启用分开，外网缺省关闭，内网搜索保留；版本兼容、隔离环境、上下文压缩事实保真及安装体积须实测，尚未安装或宣称性能收益。
+
+- 2026-10-18：用户确定通用subagent与标准Deep Research为主路线，优选tintinweb/pi-subagents和timaliev/pi-deep-research；其它任务复用委派能力。已更新执行计划和恢复记录。上游源码确认研究扩展注册研究状态机、会话持久化和skill，同时默认启动更新检查；网页搜索/TUI确认须适配仅上传资料、内网搜索和无TUI宿主。当前Pi0.84.4兼容性待实测，尚未安装；OMP仅作次级比较。能力、质量和性能仍是首要验收目标。
+
+- 2026-10-18：用户强调pi-deep-research的联网能力须结合Capstone联网状态。已补充外网设计与主执行计划：实际出口执行策略，外网开启可研究、关闭保留内网搜索/上传资料；任务来源限制取交集，子任务继承，运行中切换及备用搜索/更新/下载受同一控制。缺口必须如实反馈。属于确认设计，尚未宣称插件联网实测通过。
+
+- 2026-10-18：用户确认当前临时研究链路的成果质量达标，明确不得整套抛弃；利用pi-deep-research长处增强enterprise-research整体性能。主计划与恢复记录已规定增量集成、保留分析/图表/独立报告/核验/来源与版本能力，避免双重调度及重复读取计算；同输入质量和人类反馈修订须不回退，再比较耗时、轮次、token与失败。优选扩展不等于直接替换现有实现。
+
+- 2026-10-18 22:36：按用户要求，在研究增量集成前固定三个annotated本地恢复标签：pre-deep-research-20261018-223637 → 83e89e33dbce7b9a36a600b820bc0e4b5991efa5（实现基底15980389）、-control → 906f33137bf9899c118045be87aba068f74165ea（dev基底7b2adbc6）、-root → 988ce35bba792aba223a52fd56e36c652be635bd（root基底c9e57152）。标签保存当时dirty源码/文档，未移动分支或索引，未推送，不是发布/验收/部署标签，也未执行回滚。收据位于ROOT/outputs/recovery-checkpoints/pre-deep-research-20261018-223637.json。当前优先企业研究质量与性能：保留350.524秒/41模型响应及既有质量基线，按pi-deep-research下层运行、企业上层策略和通用subagent增量增强，尚无新集成或性能验收。恢复引用仅进入现有节点历史详情与本地标签台账，不增加活动分支。dev控制图以--no-probe生成，1440/390浏览器均30节点40边，零重叠、穿卡、交叉或水平溢出，实际dev HEAD仍7b2adbc6；doctor、链接增量及CLAUDE相对symlink/diff检查通过。三个旧离线包链接仅root忽略目录有实际文件，不复制该工件到工作树；其他环境不变。
+
+- 2026-10-18 23:21：研究增量已接入实际SDK：pinned阶段引擎、受控child runner与enterprise controller复用既有ResearchChannel CAS/回执及目标步骤，无第二账本。明确仅复用阶段引擎与受控执行子集，不是整套上游扩展。两个HIGH恢复缺陷已复现修复并复审：确定拒绝可纠正、未知回执精确重试、未确认终态不done；JS/Python共用可发布路径策略，prompt/frame/answer采用初始化容量。25项JS与50项Python（general server/executor，NO_PROXY）通过；子工具实时事件尚未接通。本地规范重建及真实同输入比较进行中，尚无新速度/质量结论，保留350.524秒/41响应基线。恢复标签不变、未推送；未合dev，云端/demo不变。详见[研究实施计划](../superpowers/plans/2026-10-18-managed-deep-research.md)。
+
+- 2026-10-18 23:23：本轮研究集成源码/离线验证状态已写入dev主计划与版本台账，--no-probe再生成控制图；1440/390浏览器均30节点40边，零重叠、穿卡、交叉与水平溢出。make doctor、增量计划链接、CLAUDE相对symlink与owned diff检查通过。仅同步计划/JOURNAL/版本台账/生成图到root和model-decision；未提交、未改实现或部署。待真实重建/Provider结果增量记录。
+
+- 2026-10-19 00:07：用户接受选择性复用上游、自有企业研究loop与通用child。旧集成真实任务 thr_bcf52cb2fb396acfee13 / attempt_6d22e8b8bea6a169 已按用户要求取消，观察到154次parent响应/70次工具调用；无终态usage回执，token未知，不写0。旧本地候选镜像40703433d9c896b092a8f4091c78b18b41ef29c957cd9942b1b6a99a75dd3ee7保留失败证据，不重启该任务。当前仅SOURCE：NativeStepTracker保留task_step_error（14测试），Python无进展错误透传（100测试）；JS防空转35测试已过但usage失败保留仍回归中，自有pure cycle仍在实现。整体loop尚未部署/验收，无新速度或质量结论。继续既有CAS/Work/Attempt与真实receipt，禁止第二账本/调度；子工具实时事件尚未接通。详见[接受的loop设计](../superpowers/specs/2026-10-19-enterprise-owned-research-cycle.md)和[实施计划](../superpowers/plans/2026-10-18-managed-deep-research.md)。未合dev，其他环境不变。
+
+- 2026-10-19 00:07：自有研究循环方向已对齐dev控制台账；按ui-ux-pro-max检查并--no-probe重新生成，1440/390均30节点40边，零重叠/穿卡/交叉/水平溢出，dev HEAD7b2adbc6节点及既有部署源边保留。make doctor、增量设计链接、CLAUDE相对symlink、owned diff检查通过；同步控制3文件及新增设计到root/model副本，计划由父代理维护。未改实现/Provider/重建/提交。
+
+- 2026-10-19 00:33：自有enterprise cycle已接实际SDK（SOURCE），不再import旧phase engine；generic child继承grant，native/MCP计划前阻断、inflight barrier、CAS确认后推进、source owner及真实产品active/history隔离已实现。49JS通过含6actualSDK离线模型；整合Python169通过/1跳过（/tmp/enterprise-owned-python-integration.log）；delegated public文件56通过，后续步骤/stages/delegated专项77/78通过，均为重叠范围不得相加。App109通过/tsc通过，partial/failed/limited/cancelled不伪completed。本地规范重建日志末尾ready候选10ae8afe476d，待父核验身份；新UI线程thr_e6861bac615d28e000d2四附件待发送、尚未启动。真实模型质量与整体性能尚未验收，无新速度结论；旧154parent/70tools取消事实及未知usage保留。未合dev、云端/demo不变。[实施与验收边界](../superpowers/plans/2026-10-18-managed-deep-research.md)。
+
+- 2026-10-19 00:34：父代理确认规范rebuild exit0，API/worker/native同镜像10ae8afe476d，general-pi controller aa4d910e... / state803727ab...与源码hash一致。本地候选已部署且ready身份核验通过；即将提交新UI任务，仍无真实模型质量/性能验收结论，云端/demo不变。
+
+- 2026-10-19 00:35：本轮source/local-ready边界已对齐dev计划与控制图，ui-ux-pro-max检查并--no-probe重新生成；1440/390均30节点40边、零重叠/穿卡/交叉/水平溢出，保留dev当前HEAD和已验证源边。doctor、计划/spec链接、CLAUDE相对symlink及owned diff检查通过；同步4文件到root/IMPL，无源码改动、Provider或提交。
+
+- 2026-10-19 00:51：首轮自有cycle真实任务thr_e6861bac615d28e000d2 / attempt_b0e423051217709b已UI取消，至取消7m41.59s，观察64parent/87tools/28failed，无最终usage，不能计完整成本或成功提速。52项数值spotcheck按展示精度通过，但图2裁切丙省与约54%写绝大部分，质量也未接受。resolves合同误解、narrative step阻断接管、product record覆盖导致deliver永久失败三缺陷修复中，修复未部署。用户否定固定read/calc/report为deep research；验收要求发现驱动问题演进、独立subagent分支、综合冲突/缺口后追加研究。复读上游确认漏迁移prefilter问题元数据及questioning驱动下一轮执行；当前adapter不调用上游engine，不得声称完整引入研究能力。先短回归修通再长测；已部署本地仍10ae8afe476d，云端/demo不变。[计划与失败证据](../superpowers/plans/2026-10-18-managed-deep-research.md)。
+
+- 2026-10-19 00:53：取消实测与发现驱动研究验收方向已写入canonical plan/control；前轮完成勾选按真实失败重新打开，部署仍旧10ae候选，不宣称三修复已上线。ui-ux-pro-max检查并--no-probe再生成；1440/390均30节点40边，零重叠/穿卡/交叉/水平溢出。doctor、增量链接/symlink及owned diff检查通过；4文件同步root/IMPL，未改源码、Provider、重建或提交。
+
+- 2026-10-19：按用户最新要求，当前主线转为理解pi-deep-research固定上游3470ed76411886338b525f32c3d6778e22e2bab4的源码语义，暂停新架构、回退部署与完整测试。原版plan_research先做预研究（introspection＋初搜＋合并questionMetadata）；round并发search/extract后由LLM提取，再questioning产生新问题，pendingQuestions驱动下一轮；停止主要由depth/soft limits控制，不是完整coverage evaluator，原版检索/抓取并发也不等于subagent树。当前实现缺prefilter/questioning语义，不能宣称已移植递归研究。本条仅记录源码审计，无实现变更；不重复重绘控制图。
+
+- 2026-10-19 01:15：发现驱动研究增量已实现SOURCE：pure questions/reflection/derived followups与pending replacement、controller保留产品修复、受grant通用child及真实branch events接实际SDK。Node整合72通过/4.43秒含6actualSDK离线模型，Pack3通过；App118通过/5.67秒及tsc，1440/390离线组件无溢出，工具默认折叠而语义/失败常显，子完成不等于研究验收。stale outputMode/record-assess合并/manual progress冲突已源修复。Backend临近冻结，真实parent step/alias投影整合待确认；前端不猜归属。当前未部署，local仍10ae8afe476d，父待整合/规范重建/真实任务验证。两次取消和未知usage保留；无新质量/速度/成本基线，未合dev、云端/demo不变。[当前计划](../superpowers/plans/2026-10-18-managed-deep-research.md)。
+
+- 2026-10-19 01:21：本轮SOURCE已冻结待重建实测。Backend185通过/1deselected、6module及pyright0，parent_step_id已按真实tracker含alias投影；App不猜归属。actualSDK新增7场景/5.50秒通过，覆盖发现→reflection/derived followups→替换旧pending→双child实际重叠→综合→报告保存/deliver；模型回答脚本化离线，不能称真实推理接受，勿与既有Node72等重叠选择累加。App最新118通过/5.58秒、tsc通过；实测旧成功答案inner p12px/19.2→16px/26.4（zoom1/无transform），步骤/分支14px、辅助12px，1440/390无溢出，toolbar不变。规范rebuild进行中（/tmp/enterprise-question-cycle-rebuild.log），上次已核验部署仍10ae，新候选身份与实模结果待确认。取消历史/usage未知/350.524秒41响应原基线保留，未合dev，云端/demo不变。
+
+- 2026-10-19 01:23：问题驱动SOURCE/offline检查点与恢复主线已对齐dev canonical计划/台账/RESUME。按ui-ux-pro-max生成并检查控制图，1440/390均30节点40边，零重叠、穿卡、交叉或水平溢出，dev HEAD与部署源边保留。doctor、增量plan/spec链接、CLAUDE相对symlink及owned diff检查通过；5文件同步root/IMPL。重建与新实模结果待父确认，无新基线、未提交；旧10ae仍为最后核验部署。
+
+- 2026-10-19 01:31：本地576d580e4550c514dcbb4a8462f97f568cd371c87ddaacb74b413771420ab43f规范重建ready/API-worker身份核验通过；新thr_fa0f88ee3f5d2e37e96d / attempt_3af0d87e200af4b9因seq75步骤排序缺陷及时UI取消，78.897642秒/14observed parent/122events，终态17:28:12.265621Z、无active Attempt，无terminal usage，不能计完整成本或成功基线。seq74已commit旧目标settled，seq75新步因旧cycletool未结束被拒，seq76旧toolend后才close。ordering修复已SOURCE冻结：cycle控制tool不阻挡已确认settlement，真实执行tool仍阻挡；精确replay覆盖met/partial/failed，3重叠suite92通过/1.01秒、pyright0/diffclean。二次规范重建进行中（/tmp/enterprise-cycle-ordering-rebuild.log），尚未验新修复image/live。Node最终73/73 5.61秒含actualSDK7脚本离线，App118/tsc等保留独立scope不累加。旧350.524秒41响应质量基线不变，无新质量/性能/成本接受结论。未合dev，云端/demo不变。[中断与修复计划](../superpowers/plans/2026-10-18-managed-deep-research.md)。
+
+- 2026-10-19 01:34：新实测tracker中断证据与ordering源码修复回执已写入canonical计划/恢复/台账；576d仅ready通过、研究验收失败，第二次重建尚未验新身份。按ui-ux-pro-max重生成并实际查看控制图，1440/390均30节点40边，零重叠/穿卡/交叉/溢出，保留dev HEAD及真实源边；doctor、增量链接/symlink/owned diff检查通过。5文件同步root/IMPL，无实现改动、Provider、重建或提交。
+
+- 2026-10-19 01:47：第二次规范rebuild exit0，API/worker同镜像6347fcac9336a35fb7797af99b33f400322b06d4fbf2e36d734f93a0e6438bb5，App5173 ready。新UI线程thr_99bdb32734caa89ea50d / attempt_5ddba49a149157e1实际上传四原文件、一条普通任务指令，17:38:53.562890Z→17:46:22.383417Z完成，448.820527秒（约7分29秒）；终态响应计数59parent/0child/59total，59tools/10failed，不等同token/费用总量。ordering修复后执行恢复，但5个语义研究目标串行，无新followups/subagents；动态研究与性能未验收，产物质量待查。旧350.524秒/41响应基线不变，不把本次完成当研究验收成功；取消历史/未知usage保留。未合dev，云端/demo不变。[复测状态](../superpowers/plans/2026-10-18-managed-deep-research.md)。
+
+- 2026-10-19 01:49：6347真实复测“执行恢复完成、动态研究/性能未验收、产物质量待查”已对齐canonical计划/恢复/台账；350.524秒41响应原基线及取消历史保留。按ui-ux-pro-max重生成并实际查看控制图，1440/390均30节点40边、零重叠/穿卡/交叉/溢出，保留dev当前HEAD和真实源边。doctor、增量链接/symlink与owned diff通过；5文件同步root/IMPL，无源码改动、Provider、重建或提交。
+
+- 2026-10-19 01:54：6347完成任务产物独立检查：56月度数值52按展示精度正确、4个CSV覆盖统计错；另566应为省×时段而非501去重时段、1461应为每省配对小时而非4383省小时总量、触底记录月度5/6放置口径需改。HTML10内嵌图片均加载、8anchors目标存在、1280无溢出，但质量未通过，不将覆盖错误扩大成全部计算错误。证据ROOT/outputs/research-round-efficiency/enterprise-question-cycle/thr_99bdb32734caa89ea50d/independent-content-check.{json,md}。最新未部署SOURCE新增assess.question_adoptions，将finding来源问题追加pending目标，严格状态/来源/容量及审计；focused planning_context和显式operation提示、research-method同步。只补发现→行动衔接，未实现兄弟目标并行，无实模/性能改善结论。组合Node80/80 5.3038秒含pinned SDK离线通过、diff通过，backend独立兼容review待完成。当前已部署仍6347，旧350.524秒41响应基线不变；未合dev，云端/demo不变。[增量设计](../superpowers/specs/2026-10-19-enterprise-owned-research-cycle.md)。
+
+- 2026-10-19 01:56：question_adoptions后台只读兼容review通过：实际pure状态可进入Python checkpoint/progress/child admission，伪造未提交derived_from被拒绝；9Python专项通过，新增state.question_adoptions/cycleCall.finding_ids兼容。结合80Node离线回归仅确认未部署源码及合同兼容，不代表实模发现采纳行为、并行或性能改善；当前镜像仍6347，质量未通过及旧基线不变。
+
+- 2026-10-19 01:56：本次质量失败结论与question_adoptions未部署增量/80Node+9Python兼容结果已对齐canonical计划、spec、恢复和台账，仍无兄弟目标并行或性能改善声明。按ui-ux-pro-max再生成并实际查看控制图，1440/390均30节点40边、零重叠/穿卡/交叉/水平溢出，保留dev HEAD与真实源边。doctor、增量链接/symlink/owned diff通过；6文件同步root/IMPL。仅文档与图检查，无实现改动、新测试、Provider运行、重建或提交。
+
+- 2026-10-19 02:05：用户明确不要重复改字号；父代理仅撤回taskStepProcess.css最前正式回答16px/1.65覆盖，其余样式不变。本代理只读核验chat-latency实际thr_99bdb32734caa89ea50d，正式答案inner p恢复12px/19.2，table/td12px、table行高18px，htmlzoom/visualScale均1，1200×825无横溢出。未导航、滚动或resize，也未改App源码。截图/tmp/formal-font-rollback-chat-latency-verified.png与computed日志/tmp/formal-font-rollback-readonly.log保存；用户约束写入spec/resume并同步root/IMPL。控制图按父指示暂不反复生成，待真实结果合并记录；当前adoption重建由父负责，不声明新质量/性能验收。
+
+- 2026-10-19 02:23：用户指出过程14px仍混乱；父代理完成遗漏撤回：删高specificity14px title覆盖，description/branch回既有process11px，meta10px，其余不动。这是撤回上一轮错误放大，不是新排版。本代理独立process-font-readonly旧thr_99...实测formal12px/19.2、step title/description11px/17.6、metrics10px/15，zoom/scale1，无横溢出；截图/tmp/process-font-rollback-semantic-body-same-screen.png同屏含正文与过程，日志/tmp/process-font-rollback-computed-final.log。普通点击查看执行过程被footer命中层阻挡，本轮仅用实际按钮handler展开进行字号核验，不声明点击UX通过、未修其它问题。未改App源码、未碰active chat-latency/Provider/重建；只同步spec/resume/journal，控制图等当前run结果统一更新。
+
+- 2026-10-19 02:33：当前本地 image 5ebe17eb31801d48c7054aca652a3ac3359963079ba7b3419496ac2a15611a3e 已部署 ready，API/worker 同镜像；仅含此前 adoption 增量。Thread thr_941f851498fdd8791023 首轮完成 458.674602 s，61 parent / 0 child responses，59 tools / 14 failed。450 CSV checks 中 448 通过，HTML 另有错误，质量未接受；旧产品版本拒绝正确，模型 product-rebind 自行修复 done，非 host 阻断。自然反馈第二轮 attempt_b481c31ea09d0505 已 completed，独立 491 数值全通过、旧正确值保留；HTML 摘要因果措辞、图 4 月时段、丙省负价均值等仍未修，质量/性能基线不接受。未部署 ready-batch source 有 86 Node tests 通过 / 7.06 s，含 9 actual SDK 离线场景。Application 1.2.0 / Pack 1.1.0 三个 plan/record/assess 入口共享 controller 正实施，new tasks split-only，Application 1.1 legacy 冻结请求精确恢复保留；最终整合测试待回执。字体回退 12 / 11 / 10 px 已实际浏览器核对，研究变更不得改 CSS。旧 350.524 s / 41-response 基线不变，未合 dev，云端/demo 不变。[当前计划](../superpowers/plans/2026-10-18-managed-deep-research.md)。
+
+- 2026-10-19 02:35：第二轮修订终态补充：attempt_b481c31ea09d0505 于 2026-10-18T18:24:13.645074Z 至 18:30:30.324930Z 完成，376.679856 s；56 parent / 0 child / 56 total model responses，68 tools / 10 failed。终态回执在同一 run 目录 revision-terminal-observation.json。修订工作范围不同，不直接与首轮性能基线比较。父核对 177 个 App 文件，只有 taskStepProcess.css 存在已知字体回退，研究迭代未改其他 App 文件。新版 source 仍未部署，等待最终组合检查。
+
+- 2026-10-19：用户追加要求已由父实现：失败红字摘要仅保留 label，不显示“查看原因”，点击仍展开原原因。独立浏览器旧 Thread thr_941f851498fdd8791023 实测摘要“agent_research_cycle：调用失败”，summary / reason 都为 10 px，普通点击展开和收起均成功，601 字符原原因保持一致。日志 /tmp/tool-failure-collapse-real-click-final.log，截图 /tmp/tool-failure-collapse-label-final-verified.png。另确认回答操作栏须先真实 hover；默认 pointer-events:none 的 hidden actions 使直接 Playwright click 在鼠标移动前命中自己的回答 footer，并非 composer 遮挡或滚动空间不足。1440 / 1200 均 hover 后普通点击成功，无 force / JS handler。最小修正是浏览器 helper 先 hover owning footer，不改产品布局或字体。报告 /tmp/process-action-hover-diagnosis.md。控制图继续等待新 image 和失败账本审计后统一收尾；未改 App 源码或运行 Provider。
+
+- 2026-10-19 03:01：2026-10-19：本轮完成基本环境补齐和真实非 root 功能验证。规范 rebuild exit 0，API/worker 同 image 65b4ef71fb3383904254e62933ed8e03165d081d3df963c28b7c16ec663f6591；general-pi image 45cc05d0d3634babcdb697bf97284733c01a3d38fc6573fefcd984752fb68a57。实际 user 10000:10000 / HOME=/tmp 检查通过 20 capabilities、24 Python packages、14 commands。operation、SciPy、产品/依赖诊断、pipefail 与独立 native_context 导入问题已修，94 Node tests、62 Python tests 分别通过，不与历史重叠结果累加。尚未在本候选运行新 Provider 研究任务，不声明质量或性能改善；旧 350.524 s / 41-response 基线不变。字体固定 12 / 11 / 10 px；另按用户要求折叠失败原因，真实 hover/click 已通过，无布局缺陷结论。未合 dev，云端/demo 不变。 构建日志 /tmp/enterprise-native-baseline-rebuild.log；非 root receipt ROOT/outputs/research-round-efficiency/native-environment-verification/nonroot-smoke.json。manifest SHA-256 4a939db379a53c1af975620880070b188f56ec1a035574b7103b59fcebc2d044，lock SHA-256 3ee883a7c0d546c2c39d2f3cea9295d938b8a0833ee29f358cd7ff816822f7fc。按 ui-ux-pro-max 生成并实际查看控制图，1440 / 390 几何检查均为 30 nodes / 40 edges，零重叠、穿卡、交叉、水平溢出；dev HEAD 与真实 source edges 保留。doctor exit 0、owned diff / links / symlink 检查通过，6 文件同步 ROOT / IMPL。仅文档与控制图更新，本代理没有修改 App、运行 Provider、重建或提交。
+
+- 2026-10-19 03:37：执行过程阅读源码冻结，123 App tests / 5.66 s、npm check 通过。嵌入式研究细节图标、放大阅读复用、辅助业务对象/惰性原记录、状态/总耗时、未记录 LLM 提示、160–320 px 底部阅读和实际 1440 / 390 验证完成；字号保持 12 / 11 / 10 px。第一 UI rebuild a01edf58 ready 后，含 timing/stream 修复的最终 rebuild /tmp/process-reader-final-rebuild.log 在启动时失败，make exit 2，worker-native candidate b165eb3c3cf2c1c6caa1502f129100f4c345c5a7d5b9afdedda4fa5226b22885 unhealthy，host runtime preflight 拒绝空 CAPSTONE_THREAD_MAX_STREAMS。后端 owner 修复中，本代理已停止重建，不把镜像构建完成当 ready。无新 Provider 任务或研究验收；旧耗时 audit 只作失败诊断。控制图等待修复后的最终身份统一更新。
+
+- 2026-10-19 03:44：过程阅读 UI / 步骤真实响应计时 / 连接默认值修复已规范重建 ready。API 与三个 worker 同 image 03e64818fe5b88d4df7e83541e55fd563c30d5e2d741c57c1218e83cb7339f90，general-pi image ef50fbc936b4218793423912e100347c428c2c8de0cc8eea5a1133c5e3d51730；readiness 和实际 v2 stream 均 HTTP 200。有效默认 1024 / 8，旧显式覆盖为空；preflight 空默认及两处旧 32 / 2 配置回归修复。App 123 tests / npm check；计时 104 tests；启动配置 90 tests / 3 不适用跳过，各范围不累加。实际 1440 / 390 阅读检查通过，字号仍 12 / 11 / 10 px；03:37 b165eb3c 启动失败保留历史，不再当当前故障。已通知父代理可开始新研究，本片未发 Provider 任务，无新研究质量/性能基线，350.524 s / 41-response 保留。未合 dev，云端/demo 不变。 最终恢复日志 /tmp/process-reader-recovery-rebuild.log；持久 receipt ROOT/outputs/research-round-efficiency/native-environment-verification/process-reader-recovery-receipt.json。App 只读浏览器检查了历史 thr_941...，未触碰待发任务 thr_425...。最新截图 /tmp/process-reader-0345-verified-desktop.png 与 mobile 同名变体，未归属工具明细折叠、异常摘要可见，唯一 console error 为正常只读 v1→v2 协商 409。按 ui-ux-pro-max 生成并实际 view 控制图，1440 / 390 检查均 30 nodes / 40 edges，无重叠、穿卡、交叉或横溢出，dev HEAD 与真实 source edges 保留。doctor、owned diff、当前文档链接及相对 CLAUDE symlink 检查通过；六个控制文件与新增过程计划同步 ROOT / IMPL。没有提交、推送或云端/demo 变更；本次图只记录已验证本地候选，不声称新研究结果通过。
+
+- 2026-10-19 04:01：2026-10-19：thr_425aec0650141837cbf6 / attempt_c7b63063f74a71d6 已完成 417.312842 s，52 parent / 0 child responses，53 tools / 15 failures（14 脚本、1 record 额外字段），零 task_step_error。CSV 288 + daily 183 = 471 / 471 通过，但 HTML 百分比、环比、图注事实和因果结论失败，不接受新质量/性能基线。实际 base64 SHA 已核对；问题是图注写了未画的分位带/箱线/面板等，不能只称图放错。下一用户批准候选是通用 stdlib capstone-report，自由 sections/paragraph/bullets/CSV table/figure，复用 CSV 原值及统一编号/TOC/内嵌资产；不保证语义事实，不改冻结 research policy 或 App。正在实现，未验收 helper 源码/镜像/实模收益；现部署仍 03e64818 / native ef50fbc9，350.524 s / 41 基线不变。图待源码/镜像冻结后统一更新，未合 dev，云端/demo 不变。 报告阶段 208.600943 s / 23 responses / 22 tools / 4 failed，模型区间 union 167.437708 s，全程 output 89,129 tokens；阶段 tokens 不可用，不估算。canonical 新建 native-report-renderer spec/plan，验收要求同四文件、同普通指令的新 UI 任务，分别测阶段耗时/响应/失败、代码-spec 字节与终态输出，独立核对 CSV→HTML 百分比/环比、实际图 SHA→图注/面板事实及全文因果限制。backend 源码随后已冻结，85 scoped tests、renderer pyright 与 staged 21 capabilities / 24 packages / 15 commands 通过；staged 临时目录 noexec，因此实际 image PATH launcher 仍需最终 rebuild 验证。parent environment-context 整合待最终回执。若另带 failure-tail 诊断，记为额外观察变量，不把全部变化归因 renderer。未改 UI 源码、未调用 Provider 或重建；图按父指示等源码/镜像冻结后一次更新。
+
+- 2026-10-19 04:27：capstone-report 候选已规范重建 ready，/tmp/native-report-rebuild.log exit 0。API 与三个 worker 同 image 4553721e20ab922d89ba7f77e9c5db554a292a4ae1a1afe9d8cc600f1a103dd3，native image 8ccd4e9af7713610073123bea2520aa4e91cc478c7a3ea5aa04594f7594be9a0。实际非 root UID 65534 经 PATH capstone-report 1.0.0 生成 CSV/SVG HTML，79.37% / 001 原值及 TOC 锚点通过；host/root 专属环境 receipt 正常读入并提供 helper context，不放宽权限。context red→green 10 tests、renderer/env 33 tests、actual-SDK split-only 离线 1 test 通过，各范围不累加。四原文件/普通指令新 UI 任务 thr_19f3d38d9a4a6eacf1cc / attempt_703085d8273eb9e2 正在运行，已有一次计划前 bash 和一次 expected_outputs 类型拒绝，模型纠正后推进，不能称零错误。部署与功能验证已通过，真实研究质量/性能/最终 helper 采用仍待终态与独立审查。旧 thr425 的 status_note 额外字段纠正历史保留，350.524 s / 41 基线不变；未合 dev，云端/demo 不变。 canonical spec/plan/managed plan/resume/register已更新，保留父代理新 context gating、red→green 与旧 status_note 解释；没有改 App 源码、运行 Provider 或重建。按 ui-ux-pro-max 再生成并浏览器检查控制图后同步 ROOT / IMPL；本条只记录收到的运行中 checkpoint，不代替终态验收。
+
+- 2026-10-19 04:30：本轮 canonical renderer spec/plan、managed plan、research spec、resume、register 与 overview 已统一记录“本地部署/非 root 功能通过、实际研究运行中未验收”。父更新的 helper context 双 receipt 门控、10 red→green tests、33 combined checks 及旧 status_note 解释均保留，actual SDK 1 场景明确离线不称实模验收。按 ui-ux-pro-max 生成并实际 view /tmp/native-report-control-0430-verified-desktop.png；1440 / 390 均 30 nodes / 40 edges，零重叠、穿卡、交叉、横溢出，dev HEAD 与 source edges 保留。doctor、owned diff、links/symlink 检查通过并同步 ROOT / IMPL 八文件；本代理未改 UI 源码、访问正在执行的 UI/API、重建或调用 Provider。运行结果收到后再单独更新，不从当前推进推断成功、零错误或速度改善。
+
+
+## 2026-10-19 — Renderer trial quality failures and independent review candidate
+
+Renderer first draft completed in 304.280305 s, with 37 parent / 0 child
+responses, 39 tools and 11 failures. All 869 numeric comparisons passed; prose,
+caption and timezone claims failed. Natural revision attempt_e50328c5e341f630
+took 553.179527 s / 68 parent responses. Its 36 files passed integrity checks,
+but 345 independent recomputations yielded 337 passes and eight failures.
+Denominator, coverage, figure aggregation, caption and correlation errors remain;
+actual corrections and valid original data are retained. Different check scopes
+are not additive. No new quality/performance baseline replaces 350.524 s / 41.
+Evidence: ROOT/outputs/research-round-efficiency/enterprise-question-cycle/
+thr_19f3d38d9a4a6eacf1cc/revisions/attempt_e50328c5e341f630/independent-content-check.md.
+
+The approved independent actual-file review candidate is implementing, not
+deployed: Application 1.3 / Pack 1.2, host SHA/source manifest, fresh tool-free
+child and explicit text-only coverage. No visual-image claim is allowed from
+text review. Parent checks: 70 Python tests passed / one skip; research-read
+diagnostics: 22 JS tests passed. Backend SDK integration is pending. Current
+backend 4553721e / native 8ccd4e9a deployment stays unchanged. No App/source,
+Provider, rebuild or commit action was part of this documentation update.
+
+Control verification: ui-ux-pro-max targeted layout guidance applied; overview
+regenerated with --no-probe. Actual desktop 1440 and mobile 390 checks both
+returned 30 nodes / 40 edges, no card overlaps, edge-through-card intersections,
+edge crossings or page overflow; dev ancestry spine present. Desktop screenshot
+/tmp/delivery-review-control-0451-verified-desktop.png was visually inspected.
+145 available relative document links and the CLAUDE.md → AGENTS.md relative
+symlink passed; historical ignored output references were kept. make doctor and
+task-owned git diff --check passed. Canonical documents were synchronized byte
+for byte to ROOT and model-decision without changing implementation files.
+
+
+## Local delivery-review deployment — 2026-10-19 05:20 CST
+
+Application 1.3 / Pack 1.2 implementation and offline integration are verified.
+Canonical rebuild exited zero. API and all three workers use image
+0403007002b917c94ee64e5f0d2c895ce7c0762f3bbf361518a582ee96d3eed3;
+native uses a8c31c5bd5d82ecb13aa138f2047489a71ff128fccba2b868e499eef25d0fc04.
+Actual health publishes capstone-delivery-review/1. Host and container helper SHA
+both match 86cda17df52a204d0216268567ac213d89e42afc9d1b0dbe33c4d578188f8edc.
+Receipt: ROOT/outputs/research-round-efficiency/native-environment-verification/
+delivery-review-final-rebuild.json; log /tmp/delivery-review-final-rebuild.log.
+
+Three integration repairs are included: exact policy isolation from old frozen
+requests; streaming HTML visible-text projection with fair remaining source
+excerpts; and blocking findings on review-only supporting scripts enforced by
+the delivery gate. The earlier packet exposed only 57.16% of first-draft visible
+text and zero excerpts for two sources. Independent packet verification now
+includes 9955 / 9955 first-draft and 16755 / 16755 revision visible characters,
+nonzero excerpts for all three CSV sources and total prompt at most 262144.
+This is packet coverage, not content correctness or visual image review.
+
+Offline checks passed 94 Node tests, nine parent actual-SDK/helper scenarios and
+35 controller tests. These scopes are not added into one total. Previous scoped
+Python/bridge checks remain historical evidence. The intermediate a684d1db /
+native 37cd272e deployment had no Provider trial and is superseded by this receipt.
+
+Task 1 and Task 2 are offline verified. Task 3 local deployment is verified;
+new real four-file upload quality, child overhead and performance remain pending.
+The parent is preparing the separate actual UI trial. No Provider task was sent
+by this bookkeeping. Keep the failed renderer first draft and natural revision,
+and retain the 350.524 s / 41-response reference. No App or typography change,
+Git integration, cloud or demo update is included.
+
+Control checks passed: ui-ux-pro-max targeted guidance, regenerated --no-probe
+overview, actual 1440 desktop and 390 mobile checks. Both report 30 nodes / 40
+edges, no overlaps, edge crossings, edge-through-card intersections or page
+overflow; dev ancestry spine is present. Screenshot
+/tmp/delivery-review-final-control-0520-desktop.png was visually inspected.
+make doctor, relative document links, CLAUDE.md symlink and owned diff check
+passed. Canonical copies were synchronized to ROOT and IMPL byte for byte.
+
+### Real review trial stopped — 2026-10-19 05:31 CST
+
+Thread thr_f22c63b6f15028346f79 / Attempt attempt_dbc98ced45372674 used the
+actual browser file chooser, four original files and an ordinary instruction.
+The parent stopped it at event sequence 407 after an action-ID mismatch led to
+repeated state-recovery and review-delegation failures. Observed duration was
+387.234 s, with 43 parent responses and 14 failed tools. No review succeeded.
+Do not infer missing child or token totals. The 42 downloaded products passed
+SHA verification; this proves file integrity, not content quality. Independent
+product audit is still pending. This stopped trial is not quality/performance
+acceptance and does not replace the 350.524 s / 41-response reference.
+
+Evidence: ROOT/outputs/research-round-efficiency/enterprise-question-cycle/
+thr_f22c63b6f15028346f79/ (events.json, snapshot.json, timing-audit.json and
+products/). trial-receipt.json is updated to
+cancelled_for_control_recovery_failure, consistent with the actual stop evidence.
+Backend is repairing generic controller recovery reads: the available ledger
+overview did not expose the current action needed for recovery. The fix and
+independent product audit are not yet verified here. Deployed images remain
+04030070 / a8c31c5b. No App change, new rebuild or Provider call was made by this
+recording task. Defer the next graph refresh until repair/audit results converge.
+
+## Recovery fix and cancelled-product audit — 2026-10-19
+
+The generic controller recovery and capacity-boundary source is frozen and
+independently offline verified, but not yet verified in a deployed image or real
+Provider trial. Combined checks passed 117 tests, including 13 actual pinned-SDK
+scenarios with scripted responses. Parent 37 checks overlap and are not added;
+independent rechecks passed four targeted probes. Owning/native research-tools
+SHA is 5f29ee7e158197386aa6d1af5227536c417fa4dcb894f046274f2330a3e422ba.
+Reports: /tmp/research-state-recovery-backend.md and
+/tmp/research-state-recovery-independent-review.md.
+
+The existing controller now exposes a detached current cycle/action in explicit
+overview reads, retaining exact accepted questions, action ID and checkpoint.
+Automatic working summaries stay under their own capacity: remove covered old
+ledger entries first, then use compact cycle identity with explicit omission
+coverage if needed. Explicit overview uses the full serialized response budget;
+insufficient capacity returns a structured refusal rather than a successful
+truncated action. A 70000-character question, purpose and next-action regression
+passes; exact question admission and stale-ID rejection remain enforced. Reads
+and rejected calls do not commit state. There is no new ledger or automatic ID
+rebinding, question coercion, grant or protected-note exposure.
+
+Canonical rebuild /tmp/research-recovery-rebuild.log is in progress. No final
+image receipt has been supplied. Until it is verified, retain deployed backend
+04030070 / native a8c31c5b and keep recovery deployment pending. Wait for final
+identity and the next trial before refreshing the control graph.
+
+Independent inspection of the cancelled thr_f22c63b6f15028346f79 /
+attempt_dbc98ced45372674 is FAIL. Of 2533 numeric cell comparisons, including
+repeated representations, 2531 passed and two failed: a province maximum uses
+the all-province maximum; a two-month spell total is placed in August. Four
+additional prose/figure contradictions remain: hourly accumulated negative
+province-intervals are labeled simultaneous province count; unsupported renewable
+causation; reversed province peak-to-trough ranking; and a caption claiming every
+September hourly bin exceeds August despite a contrary plotted bin. Keep actual
+corrections and valid metrics; do not treat integrity as content acceptance.
+All 42 products passed SHA checks; ten embedded PNGs match saved images and were
+independently inspected. Three delegates failed admission, with zero child-start
+events and zero successful reviews, so there is no reviewer verdict/disposition.
+The receipt now correctly says cancelled_for_control_recovery_failure. Evidence:
+ROOT/outputs/research-round-efficiency/enterprise-question-cycle/
+thr_f22c63b6f15028346f79/independent-content-check.md and .json.
+The stopped 387.234 s / 43-parent run is not an accepted performance result.
+The 350.524 s / 41-response reference remains unchanged. No App change, Provider
+call, rebuild or graph generation was made by this documentation task.
+
+## Local recovery candidate and new trial — 2026-10-19 05:54 CST
+
+Canonical rebuild /tmp/research-recovery-rebuild.log exited zero. API, worker,
+worker-native and worker-pypsa share image
+26199f0aadc8c85906cfd07b63448c67f36f6e2296495c6d2c27af3437fe3e8f.
+Native image is 8ac9b76b3e3f14a9bce64ab798aef97d2c3d69c3b4f8f6a53bf0cb77032f52c0.
+Container research-tools SHA matches the frozen owning/native source:
+5f29ee7e158197386aa6d1af5227536c417fa4dcb894f046274f2330a3e422ba.
+Receipt: ROOT/outputs/research-round-efficiency/native-environment-verification/
+research-recovery-rebuild.json. This verifies local deployment identity, not
+research correctness. Source remains dirty on base 15980389; there is no new
+commit, dev integration or cloud/demo deployment.
+
+The parent has started a fresh actual four-file UI trial with the same ordinary
+prompt: thr_15b1895b929e344c935f / attempt_71b524ee54c09fb0. It is running and
+unaccepted. Do not rebuild or alter the running trial. Wait for actual terminal
+usage, independent review execution, saved products and content checks before
+claiming quality or performance. This documentation task made no Provider call.
+
+The recovery/capacity fix passed 117 combined offline tests including 13 actual
+pinned-SDK scripted scenarios; parent 37 tests overlap, independent four targeted
+checks passed. Exact question/action ownership, rejection without commits and
+explicit capacity/omission reporting remain intact. The prior cancelled trial
+thr_f22 failed independent content review: 2531 / 2533 cell comparisons passed,
+with two incorrect cells and four prose/figure contradiction classes. Its 42
+product hashes and ten PNG bindings prove integrity only; three delegates were
+rejected, with no child-start event or successful review. Preserve all evidence.
+No new quality/performance baseline replaces 350.524 s / 41 parent responses.
+
+Control synchronization checks: ui-ux-pro-max targeted guidance and --no-probe
+graph generation completed. Actual 1440 desktop and 390 mobile geometry checks
+both found 30 nodes / 40 edges, no overlap/crossing/edge-through-card or page
+overflow, and the verified dev ancestry spine. Desktop screenshot
+/tmp/research-recovery-control-0554-desktop.png was visually inspected.
+146 available relative links, the CLAUDE.md relative symlink, make doctor and
+owned diff check passed. Eight owned canonical documents were synchronized
+byte for byte to ROOT and IMPL. No implementation file was changed.
+
+## Real trial failed naturally; repairs pending — 2026-10-19 06:23 CST
+
+Thread thr_15b1895b929e344c935f / Attempt attempt_71b524ee54c09fb0 reached
+attempt_failed at sequence 711 before the attempted stop. It was not cancelled.
+Measured duration: 1262.245 s, 89 parent responses and 18 failed tools. Four
+review children completed, but only two exact saved responses had an admissible
+finding shape. Child completion is not a trusted version-bound review receipt.
+No successful performance baseline or quality acceptance follows from this run.
+
+Independent audit passed all 4815 numeric-cell comparisons, including repeated
+presentations, but found three material content failures: a reviewer incorrectly
+changed available missing rows from 12 to 36 (36 is the union of actual/available
+missingness); Figure 4 still sums quarter-hour province observations while its
+label/color scale claims simultaneous provinces; Figure 6 retains a title whose
+claim was corrected only in prose. Preserve correct data and real earlier fixes.
+All 51 saved products passed SHA/size checks, and eight embedded PNGs match the
+saved images. Integrity and text-only review do not establish visual/factual
+correctness. The updated trial receipt says failed / cancelled_by_operator:false.
+Evidence: ROOT/outputs/research-round-efficiency/enterprise-question-cycle/
+thr_15b1895b929e344c935f/ (independent-content-check.md/.json,
+independent-review-shape-check.json, trial-receipt.json and saved products).
+
+Three integration defects are being repaired, not yet rebuilt or verified here:
+accumulated 25 active products were wrongly treated as the final delivery scope
+with a single-review-packet requirement; JS allowed review in assess mode while
+Python rejected it and hid the diagnostic; strict findings rejected additional
+review explanation fields. Backend owns JS final-scope/gap/optional-explanation
+repairs. Parent reports a narrow Python review-mode authorization and diagnostic
+propagation fix plus Pack guidance to recompute reviewer suggestions from the
+original sources. Do not claim the whole fix is verified or deployed.
+
+Current deployment remains backend 26199f0a / native 8ac9b76b, dirty source base
+15980389. No new deployment, App change, Provider call or graph generation is
+included in this bookkeeping. Keep the 350.524 s / 41-response reference; wait
+for repair validation and a later actual trial before any acceptance claim.
+
+## Delivery-scope repair offline verified; rebuild pending — 2026-10-19 06:31 CST
+
+JS source is frozen with 138 tests passed. Independent review found no blocker
+in the requested scope and reran 44 tests. Parent fresh Python checks passed
+80 tests / one skip; the earlier independent Python check passed 13 tests.
+These scoped selections overlap and are not added into a unique total. Reports:
+/tmp/delivery-scope-backend-implementation.md,
+/tmp/delivery-scope-independent-review.md and
+/tmp/delivery-scope-parent-python.log.
+
+The repaired assessment accepts explicit final delivery_product_refs and saves
+checkpoint delivery_products without deleting active process/history products.
+Current review packets may jointly cover final files, but every packet's support
+file SHA/size must remain current. Known blocking findings survive narrower
+scope, renamed/omitted outputs and clean reviews of unchanged bytes. Full explicit
+overview exposes the missing/stale/blocking details; automatic summary includes
+counts and a recovery hint. A rejected selection is not silently reused as an
+accepted scope. Existing version checks and source-backed finding disposition
+remain enforced; scope/coverage do not prove business correctness.
+
+The four real saved review responses now support only the listed optional string
+explanation fields, preserving required finding checks and packet path membership.
+Host-only review_mode delivery permits an exact current assess action under the
+accepted enabled policy, with no child tools; generic assess delegation stays
+rejected. Python enforces the exact policy grant, immutable mode and concrete
+failure reasons. Pack guidance requires checking reviewer suggestions against
+original-source recomputation and consistency between actual figures and prose.
+Owning/native research-tools source SHA matches
+3b635e1090c24ffcd75458369bc155cab43e3deb4f0eafc8c0b16c887e5683f1.
+
+Canonical rebuild /tmp/delivery-scope-rebuild.log is running; no final image
+receipt is available. Current deployed backend remains 26199f0a / native
+8ac9b76b. These new repairs are offline verified, not deployed or accepted in a
+real task. Next planned validation is a natural-feedback revision in the existing
+failed Thread thr_15b1895b929e344c935f, after rebuild identity is verified.
+Keep its natural failure, three material content errors and all saved products.
+No font/App changes, commit, cloud/demo update, Provider call or graph refresh is
+part of this recording. The 350.524 s / 41-response baseline stays unchanged.
+
+## Delivery-scope deployment and natural revision — 2026-10-19 06:38 CST
+
+Canonical rebuild /tmp/delivery-scope-rebuild.log exited zero. API and all three
+workers share image 5e21a4132a86d87dbce7771161c084b4371e5bf3e3ae7789101b6083bc7c4945;
+native uses 60a118c7c5446eb6b8e728b8632467be7ed7f2bc432f137b04567d7a5764a7d9.
+Six actual container source hashes match owning sources: research tools, delivery
+review, research runtime, Python bridge, Python host and Pack review method.
+Exact hashes/receipt: ROOT/outputs/research-round-efficiency/
+native-environment-verification/delivery-scope-rebuild.json.
+This supersedes deployment 26199f0a / 8ac9b76b, not its saved trial evidence.
+
+The parent referenced report.html in the real browser and submitted natural
+feedback to existing Thread thr_15b1895b929e344c935f. New Attempt
+attempt_8d808d1027b70bf2 is running. The instruction asks to finish the report,
+check missing-data counts, chart province counts and flow title/prose against
+original sources, preserve completed work, and supply downloadable report/key
+metrics. It gives no corrected values or numerical hints. Evidence will be under
+the original Thread's revisions/attempt_8d808d1027b70bf2/ directory.
+Wait for actual terminal results, review admission/disposition and independent
+product checks. Do not call the revision accepted or rebuild while it runs.
+
+Offline scope/policy/diagnostic checks remain 138 JS tests, independent 44 tests,
+parent fresh 80 Python tests / one skip, and earlier independent 13 tests; these
+scopes overlap and are not added. This local deployment is verified; real quality
+and performance are not. Source remains dirty base 15980389, with no new commit,
+dev merge or cloud/demo update. No App/fonts changed. No Provider call or rebuild
+was made by this control task. The 350.524 s / 41-response baseline stays unchanged.
+
+Control verification: ui-ux-pro-max targeted guidance and --no-probe generation
+completed. Actual desktop 1440 and mobile 390 checks both found 30 nodes / 40
+edges, with no overlap, crossing, edge-through-card intersection or overflow;
+the verified dev ancestry spine remains present. Desktop screenshot
+/tmp/delivery-scope-control-0640-verified-desktop.png was visually inspected.
+147 available relative links, CLAUDE.md relative symlink, make doctor and owned
+diff check passed. Eight canonical owned documents were synchronized byte for
+byte to ROOT and IMPL; implementation files were not changed.
+
+## Natural-feedback revision cancelled; source repairs pending — 2026-10-19 06:58 CST
+
+The actual operator stopped revision attempt_8d808d1027b70bf2 in Thread
+thr_15b1895b929e344c935f after a confirmed review-response projection defect.
+Terminal is attempt_cancelled, sequence 1219, at 22:53:12 UTC on 2026-10-18.
+This differs from the previous attempt71b5 natural failure. Measured duration:
+940.498 s, 81 parent responses, 13 failed tools. Two review children completed;
+only one response was admitted before the fix. The second added
+scope:'text_level_only', which strict root-key validation rejected. The user
+requires early stopping on underlying defects; the stop was performed in the UI.
+
+All 56 downloaded products passed SHA/size verification and all 180 independent
+numeric table-cell checks passed. Content quality still FAILS: Figures 2/3 are
+empty because numeric month keys 8/9 were filtered against YYYY-MM strings and
+reindex/fillna concealed empty selections; prose still says A-channel flow did
+not rise despite 589.15 > 585.21; Figure 7 caption conflates positive full-period
+hourly means with individual negative intervals. Preserve repaired original
+missing counts, correct Figure 4/6 data and valid metrics. All eight embedded PNG
+hashes match inspected images; integrity does not certify semantic correctness.
+Evidence is ROOT/outputs/research-round-efficiency/enterprise-question-cycle/
+thr_15b1895b929e344c935f/revisions/attempt_8d808d1027b70bf2/:
+trial-receipt.json, independent-content-check.md/.json, timing-audit.json and
+products/. The final HTML was checked after its bytes changed, not assumed equal.
+
+Backend source now strictly parses the controlling summary/findings/not_checked
+projection while retaining unknown metadata only in the raw answer; unknown
+metadata cannot control the gate. Its 41 tests passed. Legal revise recovery
+guidance after post-record review edits and full SDK regressions are still being
+completed. Parent generic model-capability hints and Pack nonempty-series,
+key-type and aggregation/figure consistency guidance passed two unit checks and
+one actual-SDK offline check. These are scoped source checks, not a deployed or
+fully integrated fix. No new rebuild has verified them.
+
+Deployment remains backend 5e21a413 / native 60a118c7, dirty source base 15980389.
+No App/font change, commit or cloud/demo update. The old 350.524 s / 41-response
+baseline remains; this cancelled revision is not performance/quality acceptance.
+Defer the control graph refresh until the final source fix converges. This
+recording task made no Provider call, rebuild or implementation change.
+
+## Confirmed frozen-policy replay blocker — 2026-10-19 07:06 CST
+
+Before rebuilding, independent review reproduced a deployment/replay blocker:
+the actual deployed App 1.3 policy SHA is
+6da560c3b1f12f7078585f030a1e4ae3fb2e4a12a76bb58183ebe640dd6085a1,
+while current source constructed the same published version with SHA
+8ed2e14b272d09ad8d64f0d99000b5a1c23e697c4511d1efa1a8b364227ca433.
+The unchanged deployed frozen context is rejected by both checked_native_context
+and PiTaskRequest deserialization. Do not restart a long trial or treat the
+previous 144 passing combined Node tests as clearing this compatibility blocker.
+Report: /tmp/research-policy-replay-compatibility.md; machine reproduction:
+/tmp/research-policy-replay-reproduction.json. The narrow JS version-recovery
+patch separately passed three independent probes; that does not fix policy replay.
+
+The authorized existing backend owner is implementing immutable deployed App 1.3 /
+Pack 1.2 bytes and directly exported exact historical variants from 0403/26199;
+new methods move to App 1.4 / Pack 1.3. One exact host-owned resolver must cover
+context validation, review grants and Pack selection, with digest/byte binding.
+New profile selection requires explicit host support; the old review schema
+alone is insufficient. Preserve old accepted text and Pack resources, never
+silently upgrade or rewrite frozen requests. Unknown text and mismatched binding
+remain rejected. This repair is implementing, not verified or deployed.
+
+The cancelled revision timing audit reports approximately 21.54 s union across
+70 bash calls, 510 s parent model time and 343.76 s delegated time including two
+reviews. These categories are not a complete additive wall-time/cost breakdown.
+Arithmetic execution is not the main observed bottleneck. The task still failed
+quality/acceptance; do not replace the 350.524 s / 41-response baseline.
+
+Deployment remains backend 5e21a413 / native 60a118c7, dirty base 15980389. No App,
+font, Provider, rebuild, commit or cloud/demo change is made by this recording.
+Wait for the compatibility repair and independent verification before further
+long real trials. Control graph refresh is deferred until source freeze.
+
+### Confirmed continuation-file capacity repair — 2026-10-19 07:10 CST
+
+Parent-owned thread_materials._process_files used hardcoded SQL LIMIT 65 in both
+automatic/latest and explicit-source paths although configured artifact_count
+was 256. New 80/300-file boundary tests reproduced four 65-file failures. Both
+SQL paths now bind limits.artifact_count, preserving existing file-selection
+semantics. test_continuation_file_capacity.py plus test_thread_materials.py:
+22 passed / 18 skipped, log /tmp/continuation-capacity-tests.log. Skips are not
+passes: PostgreSQL fixtures lack CAPSTONE_TEST_DATABASE_URL. Four new SQL-bound
+simulation cases pass; no live PostgreSQL verification or broader integration
+gate is claimed.
+
+This is a confirmed source-only repair, not deployed. No evidence establishes
+that the hidden limit caused the previous trial. The frozen-policy replay
+blocker remains current; no long Provider run resumes on this result. Deployment
+stays backend 5e21a413 / native 60a118c7. No graph, App, Provider, rebuild or commit
+action was made by this journal/baton update.
+
+Supplemental actual PostgreSQL query verification: captured SQL/parameters from
+_process_files were executed through psql in capstone-postgres-1 against
+session-local TEMP tables with 300 generated rows. The four 80/300 × latest/
+explicit-source cases returned exactly 80/300 rows as configured. Each session
+used BEGIN/ROLLBACK; application tables and saved user data were unchanged.
+Receipt: /tmp/continuation-capacity-postgres-verification.md. This validates the
+actual PostgreSQL queries, not full HTTP submission or a deployed change. The
+separate 22 passed / 18 skipped fixture result remains unchanged.
+
+## Exact policy catalog source frozen; independent review pending — 2026-10-19 07:18 CST
+
+The policy replay repair is implemented and source-frozen, not deployed.
+Application owns an exact publication catalog bound to immutable Pack policy and
+guide bytes. It retains App 1.1 / Pack 1.0, App 1.2 / Pack 1.1, deployed 5e21
+App 1.3 / Pack 1.2 default, and the exact 0403/26199 initial-review variant.
+New guidance uses App 1.4 / Pack 1.3, not rewritten published 1.3 bytes.
+Exact resolver and App/Pack/resource hashes now align validation, frozen request
+round-trip, host review authorization and runner Pack selection. Unknown text,
+extra text or mixed bindings remain rejected; old accepted requests keep their
+version/variant and do not gain new tools or review grants.
+
+Host research_policy_profiles advertises exact profile/Pack versions and all
+policy/guide fingerprints. New admission selects 1.4 only with that exact host
+support plus existing schemas. Schema-only old hosts select frozen 1.3; explicit
+unsupported/mismatched 1.4 fails. Catalog/versioned assets are included in Docker
+source wiring, but that image has not yet been rebuilt or inspected here.
+
+Parent integrated checks: 144 Node tests passed; 138 Python tests passed /
+34 skipped. Logs: /tmp/research-policy-parent-js.log and
+/tmp/research-policy-parent-python.log. Scoped checks overlap and are not added
+to earlier suite totals. Source diff check is clean. Backend report:
+/tmp/research-policy-compatibility-backend.md. Independent policy review remains
+pending; this result does not yet clear the deployment/replay acceptance gate.
+Wait for independent clearance and canonical rebuild identity before a long
+Provider trial. No new Provider task was started.
+
+Deployment still backend 5e21a413 / native 60a118c7, dirty base 15980389. Preserve
+the failed/cancelled trial evidence and 350.524 s / 41-response baseline. Control
+graph/deployment update is deferred until the final receipt. No App/fonts,
+commit, cloud/demo, Provider or rebuild action is made by this recording task.
+
+## Policy replay independently cleared at source; rebuild pending — 2026-10-19 07:20 CST
+
+All source is frozen. Independent policy review found no blocker and passed
+90 tests / one skip plus three denied mutations. The actual context exported
+from deployed 5e21 validates unchanged, including its exact 6da560c3 policy SHA.
+Adding a newline, caller review flag or external-lookup grant is rejected.
+App 1.3 / Pack 1.2 default and exact initial-review variants remain immutable;
+App 1.4 / Pack 1.3 needs the exact advertised host fingerprint tuple. Validator,
+request replay, host review grant and runner Pack selection use one exact catalog.
+Report: /tmp/research-policy-compatibility-independent-review.md. Parent results:
+144 Node tests and 138 Python tests / 34 skips; scopes overlap, do not add them.
+This clears the reviewed source-level compatibility blocker, not image or model
+acceptance. No new image identity is available yet.
+
+Canonical rebuild /tmp/research-policy-compatibility-rebuild.log is still in
+progress. Keep deployed backend 5e21a413 / native 60a118c7 until an exact successful
+receipt is verified. No long Provider run has started. Research content defects,
+child overhead and quality/performance remain unaccepted; 350.524 s / 41 stays.
+
+The separate continuation-capacity repair is also source verified: both actual
+_process_files SQL paths bind initialized artifact_count instead of LIMIT 65.
+Four captured implementation queries run in real PostgreSQL session TEMP tables
+returned exactly 80/300 rows for latest/explicit-source cases, with BEGIN/ROLLBACK
+and no application data change. /tmp/continuation-capacity-postgres-verification.md.
+The fixture suite separately passed 22 tests / 18 skips (no configured PostgreSQL
+fixture URL); actual-query validation is not full HTTP/deployed acceptance.
+No evidence links this limit to a prior failed trial.
+
+No App/font, commit, cloud/demo or Provider change. Source stays dirty 15980389.
+Final deployment/control convergence waits for the exact rebuild receipt.
+
+## Exact-policy local deployment verified; real revision pending — 2026-10-19 07:25 CST
+
+Canonical rebuild exited zero; API and App are healthy. API, worker,
+worker-native and worker-pypsa share image
+303176df5d7a41c16dd01701b928fff83e8d6cee261c59eb8eb49ef232d0938d;
+native uses d71c9f54c2ed437c551e728741c4c863b1d4dfe1ea261d98343d162545fc8612.
+Seven actual native files match owning source SHA values. The host advertises
+four default profile catalog entries, while exact historical variants remain
+recognized for replay. In the actual new container, the original exported 5e21
+context validates without changing its 6da560c3 policy SHA and selects App 1.3 /
+Pack 1.2 with review enabled. New App 1.4 / Pack 1.3 uses explicit exact host
+fingerprint negotiation. This closes the reproduced local image replay blocker,
+not research-quality acceptance.
+
+Receipt: ROOT/outputs/research-round-efficiency/native-environment-verification/
+research-policy-compatibility-rebuild.json. Log:
+/tmp/research-policy-compatibility-rebuild.log. Independent source checks passed
+90 tests / one skip plus three denied mutations; parent integrated 144 Node tests
+and 138 Python tests / 34 skips passed. These selections overlap, not a combined
+unique total. The separately verified continuation SQL capacity fix includes four
+actual PostgreSQL TEMP queries, not full HTTP acceptance.
+
+Parent will next submit an ordinary same-Thread revision; no new Attempt identity
+or result is recorded yet. Provider execution, actual review admission/handling,
+saved report quality and performance are pending. Do not infer research content
+is fixed from policy replay success. Preserve failed/cancelled products and the
+350.524 s / 41-response reference. No App/fonts, new commit, dev integration or
+cloud/demo update. Source remains dirty base 15980389. This bookkeeping made no
+Provider call, rebuild or implementation change.
+
+Final control verification: ui-ux-pro-max targeted guidance, --no-probe graph
+generation and actual desktop 1440/mobile 390 inspection passed. Both geometry
+checks found 30 nodes / 40 edges without overlap, crossings, edge-through-card
+intersections or page overflow; the dev ancestry spine remains present.
+/tmp/policy-final-control-0725-desktop.png was visually inspected. All 149
+available relative links, relative CLAUDE.md symlink, make doctor and owned
+diff check passed. Eight canonical owned documents were synchronized byte for
+byte to ROOT and IMPL. No implementation or running task was changed.
+
+## Latest revision cancelled; review-context growth is next — 2026-10-19 07:50 CST
+
+Attempt attempt_61fb96d9e2e9c37f in thr_15b1895b929e344c935f was stopped in the
+actual UI. Terminal attempt_cancelled, sequence 1571, occurred at
+2026-10-18 23:48:32 UTC. Duration was 1318.629 s, with 56 parent responses and
+19 failed completed tools. No further Provider task is active. This cancelled
+run is not a successful speed, quality or complete-usage baseline.
+
+The first review child completed and caught three important mistakes. The second
+review failed model_turn_incomplete after reported input 137885 / output 65536
+tokens; the third retry was cancelled. These are the second response's observed
+counts, not a complete task token total. Timing audit accounts for completed model
+382.59 s and completed tool 534.36 s only. The unmatched third review prevents
+assigning the remaining wall time or tokens to a cause as fact.
+
+All 40 saved products passed SHA/byte checks. Final HTML SHA is
+5b3fc880be7c90418741fb3687b41c1ccc88be58dc24240389067b0e5ac0bcc4;
+metrics SHA is 2afdf03f0de91c62ef579d27ce309b4890f0bf4c5e265b7eecae5b4bbce09048.
+These are exactly the independently checked r2 bytes, so their scoped content
+findings apply to the final saved products. Of 339 numeric checks, 329 passed and
+ten retained minor rounding deviations. Quality FAILS on two substantive issues:
+formal-curtailment denominator/row coverage contradicts original README; Figure 4
+calls 72 binary hour cells 225 quarter-hour observations. Preserve actual repairs:
+Figures 2/3 now have data, monthly negative fractions and negative-window flow
+gaps are corrected, and Figure 5/6 appendix alignment is repaired. Forty file
+integrity passes and text reviews do not certify the remaining business semantics.
+Evidence: ROOT/outputs/research-round-efficiency/enterprise-question-cycle/
+thr_15b1895b929e344c935f/revisions/attempt_61fb96d9e2e9c37f/:
+trial-receipt.json, timing-audit.json, products/ and independent-audit/.
+
+Confirmed packet-growth cause: child factory clears the parent conversation,
+but prepareDeliveryReview unconditionally re-injects all 94 configured
+deliveryReviewSources. The actual first-review packet has 79 readable documents /
+221220 text characters: current products 39801 versus source/history 181419
+(about 82%), including 14 prior Python scripts / 49664 characters, 50 CSV files /
+105146 characters, and old HTML/text/JSON. Current and historical report/metrics
+also repeat public names. Backend is designing selective bounded sources and
+deduplication, not merely reducing limits. No repair or new image is verified yet.
+
+Next priority is to repair and verify review-packet selection before another
+long trial. The confirmed cause is not yet a verified fix. Basename
+collision and continuation reuse remain separate secondary issues. The actual SDK
+previously confirmed 95 context entries and 14 readable prior scripts; do not
+relabel a model's choice to rebuild as proven lost input.
+
+Deployed backend stays 303176df / native d71c9f54, exact policy replay verified;
+source remains dirty base 15980389. No new image, App/fonts, commit, cloud/demo or
+Provider change. The 350.524 s / 41-response reference remains unchanged.
+
+Control verification passed: ui-ux-pro-max targeted guidance, --no-probe graph
+regeneration, actual 1440 desktop and 390 mobile checks. Both report 30 nodes /
+40 edges with no overlap, crossings, edge-through-card intersections or page
+overflow, and the dev ancestry spine present. Screenshot
+/tmp/review-context-terminal-control-0750-desktop.png was visually inspected.
+150 available relative links, the CLAUDE.md relative symlink, make doctor and
+owned diff check passed. Eight canonical documents were synchronized byte for
+byte to ROOT and IMPL; no implementation or task action was performed.
+
+## Selective review source independently verified; rebuild running — 2026-10-19 08:10 CST
+
+Source is frozen. Backend checks passed 67 Node tests, 72 Python tests / one skip
+and type checks with zero errors. Independent audit found no blocker in packet
+composition/control boundaries and passed 40 Node / 15 Python tests. Parent
+independently passed 34 Node / 50 Python tests. These scopes overlap; do not sum
+them into a unique total. Reports: /tmp/delivery-review-source-selection-independent-review.md,
+/tmp/review-selection-parent-focused.log and /tmp/review-selection-parent-python.log.
+Parent exact same-byte packet reproduction matches:
+/tmp/review-packet-parent-comparison.json. None is real-model quality acceptance.
+
+Trusted provenance selects original/explicit prior inputs, keeps automatic
+history exact-ref accessible without bulk injection, deduplicates SHA/size plus
+projection type with aliases retained, and reports real source coverage. The
+separate initialized sourceExcerptChars target defaults to 16384; global budgets
+are not reduced. Actual stop reason, known usage and packet fingerprint remain
+in safe failed-child diagnostics; missing values are not invented. Severity
+separates material fact/definition/unit defects from editorial warnings. Exact
+frozen policy catalog, review grants and existing blocking/version gates remain.
+
+Model-settings audit /tmp/review-child-model-settings-audit.md finds no evidence
+that the fresh child inherits the parent's live high-thinking state. It shares
+launch model/settings but has a new session; current reasoning:false metadata
+also constrains SDK thinking. This does not prove remote reasoning behavior or
+the earlier request's effective output budget. No configuration tuning was made;
+measure the source-selection change first.
+
+Canonical rebuild /tmp/review-source-selection-rebuild.log is running. No new
+image receipt is available, so deployed backend remains 303176df / native
+d71c9f54. Deployment/Provider/quality/performance are pending. No long trial was
+started by this documentation task. Keep the cancelled 1318.629 s / 56-parent
+run and its two substantive content failures; reference remains 350.524 s / 41.
+Source stays dirty base 15980389; no App/font, commit or cloud/demo change.
+Final graph/deployment convergence waits for the exact image receipt.
+
+## Accepted debugging correction — effective immediately, 2026-10-19
+
+The planned full same-Thread revision after rebuild is withdrawn. No next long
+Provider trial is authorized by the pending build or earlier plan. A completed
+build must not automatically launch a Provider task.
+
+The operator strategy was wrong: allowing the faulty chain to run for over
+20 minutes did not provide a controlled test and wasted execution. Do not
+retrospectively claim those earlier runs were stopped promptly. Preserve the
+actual durations, failures, usage uncertainty and cancellation evidence.
+
+Next verification order is mandatory:
+
+1. Replay the exact failed node offline using retained packet/result bytes;
+   verify state transitions, safe errors, rejected-update preservation and legal
+   recovery. Resolve confirmed low-level defects before a billed chain.
+2. Only after that node passes, run ONE isolated real review child with the saved
+   report and exact source bytes. No parent read/calculate/rewrite loop. Preserve
+   its actual packet fingerprint, coverage, result/error and available usage.
+3. Only after the isolated node passes may an end-to-end task be considered.
+   Passing packet-size/source tests or a rebuild alone is insufficient.
+
+Stop at a confirmed low-level bug, repeated failure of the same packet, or a
+cycle with no new evidence. This is evidence-based intervention, not an arbitrary
+wall-clock timeout. Never hide partial output or invent missing usage. The
+source-selection repair remains offline verified, not real-review accepted.
+Current deployment remains 303176df / d71c9f54 until the final build receipt.
+No App/font, graph, Provider, rebuild or commit action is made by this correction.
+The 350.524 s / 41-response reference remains unchanged.
+
+## Selective-source candidate locally deployed; isolated probe pending — 2026-10-19 08:14 CST
+
+Canonical rebuild /tmp/review-source-selection-rebuild.log exited zero; API and
+App are healthy. API and all three workers share image
+ec989494b5f27aef6ac7342e348377abc4aa83ceb3bef9b1a990155a27f6d89c;
+native image is 8393263c50a3e9f98c5780f4eb470d71268462aeabda0d804cbf017eb67eabc3.
+Eleven actual native files match owning source SHA values and four default policy
+profiles loaded. Exact receipt: ROOT/outputs/research-round-efficiency/
+native-environment-verification/review-source-selection-rebuild.json.
+This is verified local identity/readiness, not real review/content acceptance.
+
+Source-selection checks: backend 67 Node / 72 Python tests with one skip, types
+zero errors; independent 40 Node / 15 Python; parent 34 Node / 50 Python and
+exact same-final-byte packet reproduction. Scopes overlap and are not summed.
+The offline helper comparison is 79 documents / 262144 serialized characters to
+11 / 115910; supplied text 224054 to 93280. It is a controlled counterfactual,
+not the earlier actual first-review 221220 text characters or a measured speedup.
+Trusted original/explicit input provenance, exact-ref historical availability,
+SHA/size/type dedup with aliases, configurable 16384-character source target,
+honest coverage and safe failure diagnostics are included. No thinking/config
+tuning was made from unproven inherited-parent-high reasoning claims.
+
+The latest user debugging correction controls next work: NO full same-Thread
+revision or long Provider trial is planned after this rebuild. No Provider call
+has occurred after build. First complete exact failed-node offline state/error/
+recovery checks; then ONE isolated actual review child with saved report and
+exact sources, no parent read/calculate/rewrite loop. Only node success permits
+considering E2E. Stop on confirmed low-level bugs, same-packet repeated failure
+or no-new-evidence cycles, not an arbitrary wall-clock timeout. The earlier
+20-plus-minute faulty chains were an operator strategy error, not timely stops.
+
+Source remains dirty HEAD/base 159803897127b33d791ef77298ba9fbe5da13a2b; there is
+no new commit or dev merge. Local deployment only: no cloud/demo change, tag or
+release acceptance. No App/font change. Existing cancelled-run evidence and
+350.524 s / 41-response reference remain unchanged. Isolated probe, real quality
+and performance acceptance are pending. This control update made no Provider,
+rebuild or implementation action.
+
+Final control checks passed: ui-ux-pro-max targeted guidance, --no-probe graph
+regeneration and actual desktop 1440/mobile 390 inspection. Both geometry checks
+found 30 nodes / 40 edges without overlap, crossings, edge-through-card
+intersections or page overflow; verified dev ancestry spine remains present.
+/tmp/review-selection-final-control-0814-desktop.png was visually inspected.
+152 available relative links, CLAUDE.md relative symlink, make doctor and owned
+diff check passed. Eight canonical documents were synchronized byte for byte
+to ROOT and IMPL. No App, Provider, rebuild, commit or tag action was performed.
+
+## One isolated real review completed; report still FAIL — 2026-10-19 08:38 CST
+
+The single isolated review reached terminal success: one Provider request,
+one child invocation, one model response and zero retries. No full task or parent
+read/calculate/rewrite loop started. The relay grant was revoked and the executor
+reaped. Evidence: ROOT/outputs/research-round-efficiency/review-source-selection/
+isolated-review-result.json and isolated-review-summary.json, with preflight,
+mount and packet reports. Packet fingerprint:
+659eb98b60cdb9db534a9685a9c7d41932b397f7311d91110a0f189bcbf3925a.
+
+Operator wall time was 162.5325167 s measured from host log creation to final
+write; it includes startup/cleanup and is NOT pure model latency. Observed usage:
+64997 input / 32877 output tokens, including 32146 reported reasoning tokens;
+2954 visible characters, actual stop reason stop. Model output capacity metadata
+is 32768, while effective request output limit is unknown/null; do not conflate
+capacity with a proven request field or invent monetary cost from SDK cost=0.
+
+Two blocking findings correctly identify the formal-curtailment definition/
+coverage inconsistency and Figure 4 text count/granularity contradiction. This
+is node-protocol success, not report-quality success. Independent content audit
+of this review is pending. The original report still FAILS; no new quality or
+350.524 s / 41-response performance baseline is accepted. The text-only child
+does not certify image pixels or all original CSV rows.
+
+Next is offline inspection of the actual Provider wire: SDK reasoning:false/off
+versus the remote 32146 reported reasoning tokens. Actual omission of a wire
+thinking field is NOT yet confirmed; no tuning or new Provider request is planned.
+The owning official reference is
+https://api-docs.deepseek.com/guides/thinking_mode/ (parent notes enabled/high
+default behavior; verify exact wire and current reference before attributing the
+observed run). Our attempted documentation fetch timed out, so it is not an
+independent verification of the default. Preserve the distinction between fresh
+SDK session state, launch settings, sent fields and remote defaults.
+
+Deployment stays backend ec989494 / native 8393263c, dirty base 15980389. The
+accepted debug correction still prohibits an automatic full same-Thread/E2E run;
+only after isolated-node evidence is independently checked may E2E be considered.
+No further Provider run, App/font change, rebuild, commit, cloud/demo or graph
+update was performed by this recording task.
+
+## Latest user priority and visible validation rules — 2026-10-19 09:32 CST
+
+Complete, usable end-to-end delivery is the first priority. Any full live test
+must run visibly in the user's existing browser, not a hidden alternate session.
+There is no new full run active now. Mainline backend read-only investigation
+continues; do not start a task merely because a build or isolated probe passed.
+
+350.524 seconds is an investigation checkpoint, not a hard timeout. Exceeding it
+requires checking real progress, stage latency, failures and available usage; do
+not automatically cancel a healthy progressing task at that number. Repeated
+abnormal failures or a confirmed framework bug require immediate cancellation
+and an underlying fix. Apply evidence-based intervention and preserve actual
+partial products/error/usage. The earlier 20-plus-minute faulty chains remain
+operator strategy mistakes; do not rewrite them as prompt stops.
+
+The isolated real review's two blocking findings have now passed independent
+validation against the exact saved report/metrics bytes. Formal-curtailment row
+coverage/denominator conflicts with the original README; Figure 4 text confuses
+hour cells with quarter-hour observations. Both are real material defects. The
+child's text-only argument does not claim visual inspection. Evidence:
+ROOT/outputs/research-round-efficiency/review-source-selection/
+independent-finding-validation.md and .json. Node protocol success and useful
+finding detection are confirmed; the underlying report still FAILS and no new
+quality/performance baseline replaces 350.524 s / 41 responses.
+
+The Provider reasoning tangent is halted. It produced ZERO product, configuration
+or test edits. Retain its read-only audit as diagnostic evidence only; do not
+make reasoning tuning or another Provider experiment the next mainline task.
+The actual wire/default relationship remains a separate unproven causal question,
+not an execution blocker established by token counts alone.
+
+Deployment remains backend ec989494 / native 8393263c, dirty base 15980389. No App,
+font, new image, commit, tag, cloud/demo or Provider action is made by this
+worklist/baton/journal update. Graph generation is unchanged because no source,
+branch or deployment identity changed in this documentation increment.
+
+## Accepted usable-delivery closure correction — 2026-10-19
+
+Avoid rigid all-or-nothing acceptance. A local validation/review limitation or
+error must not by itself reject the entire usable task or force endless repair.
+Close the complete chain with usable persisted products and explicit unresolved
+errors/limitations through honest limited delivery. Do not claim clean quality,
+full validation or factual correctness for unchecked/known-wrong parts. Preserve
+correct content and original evidence; scope the limitation to its actual impact.
+
+A genuinely blocking framework failure, product-integrity failure or required
+persistence failure still stops execution/delivery and needs an underlying fix.
+Limited delivery is not permission to lose products, hide failure, invent a
+review receipt or bypass identity/version/authorization checks. Distinguish a
+usable product with a disclosed quality gap from a product that cannot be safely
+persisted or retrieved. Do not turn a reviewer's uncertainty into an infinite
+model repair loop.
+
+The current backend priority is the minimal limited-delivery gate investigation
+and repair, ahead of delegation enhancement. No implementation or verification
+is implied by this accepted direction. Preserve the existing visible full-run
+rule: any full live test runs in the user's current browser. 350.524 seconds
+remains a progress/investigation checkpoint, not a hard timeout. Repeated abnormal
+failures or confirmed framework bugs require immediate stop and repair.
+
+No new full run, clean-quality acceptance or baseline is declared. The existing
+isolated review's two verified findings remain genuine defects; the report is
+not clean, while usable parts may be delivered with explicit limitations once
+closure/persistence works. The previous 350.524 s / 41-response reference remains.
+This acceptance worklist/baton/journal update changes no UI, source, deployment,
+Provider task, commit, tag or cloud/demo state.
+
+## Mainline usable-delivery candidate locally deployed — 2026-10-19 09:49 CST
+
+Canonical rebuild /tmp/research-mainline-closure-rebuild.log exited zero. API and
+all workers share image 3ae9f5d9ab664d5124ac2c1f2170af3ca93e44a1d2febb171021e1a8f11ded7e;
+native uses 2d1775bf384f62e06e20784f62aa7ce0c5b4559790cc80904a4e6af179dfe4e9.
+Thirteen actual native files match owning source SHA values and four frozen
+profiles load. Receipt: ROOT/outputs/research-round-efficiency/
+native-environment-verification/mainline-limited-delivery-rebuild.json.
+This verifies local readiness/source identity, not full live delivery acceptance.
+Source remains dirty HEAD 159803897127b33d791ef77298ba9fbe5da13a2b, not a new
+accepted commit; no dev merge, cloud/demo update or tag.
+
+The existing limited path was not directly blocked by the clean-review gate.
+Repair-first rejection feedback and omitted terminal diagnostics were corrected.
+Limited closure now preserves actual unresolved checks, review gaps/findings,
+failed delegation and uninspected scope, and returns concrete limitations. Both
+clean and limited final scopes require current registered file versions even
+when scope is omitted; no automatic rebind or fabricated clean review occurs.
+An actual pinned-SDK offline test reaches normal agent_end with a real saved
+report and limitations after a failed review child. Backend focused checks:
+86 passed; parent five closure checks passed. Independent review reran six
+relevant tests and found no blocker. Scopes overlap and are not added. Reports
+are /tmp/research-mainline-closure-backend.md and
+/tmp/research-mainline-closure-independent-review.md, also retained under
+ROOT/outputs/research-round-efficiency/mainline-limited-delivery/.
+
+Scoped ordinary execution-child role, read-only prior-file reuse guidance and
+optional batches of exact accepted questions are verified offline. These do not
+prove why earlier runs lacked execution children. No Python, Pack-version,
+model/Provider-parameter or App/font change is claimed in this slice.
+
+Fresh visible user-browser Thread thr_4b5531ba739f0c20cb4b has four original files
+uploaded to the draft. Parent is about to submit the original ordinary prompt;
+no accepted Attempt or terminal result is recorded yet. Full live delivery is
+pending. Latest user authorization prioritizes a complete usable chain, allowing
+honest limited delivery with explicit defects; do not label it clean quality.
+The user's existing browser must show a full live run. At 350.524 seconds inspect
+progress, not impose a hard timeout. Repeated abnormal failures or confirmed
+framework/integrity/persistence defects require immediate stop and repair.
+The old unconditional full-trial plan remains withdrawn; this fresh visible test
+is the explicit current user-directed mainline validation, not an automatic build
+side effect. No task was sent by this control update. Preserve the earlier
+350.524 s / 41-response reference until a separately accepted result exists.
+
+Control verification: ui-ux-pro-max targeted guidance and --no-probe generation
+completed. Actual 1440 desktop and 390 mobile checks both found 30 nodes / 40
+edges, no overlap/crossings/edge-through-card or overflow, and dev ancestry spine
+present. /tmp/mainline-closure-control-0949-desktop.png was visually inspected.
+153 available relative links, CLAUDE.md relative symlink, make doctor and owned
+diff check passed. Eight canonical documents were synchronized byte for byte
+to ROOT and IMPL. No implementation, Provider, rebuild, commit or tag action.
+
+## Fresh visible run stopped at upstream self-check loop — 2026-10-19 09:59 CST
+
+Fresh Thread thr_4b5531ba739f0c20cb4b received the four original files and original
+ordinary prompt in the user's visible browser. Attempt attempt_0ddeb56c322bff32
+started at 2026-10-19 01:50:00.294388 UTC. Source-profile, price and flow steps
+completed; report plus CSV existed around 356 seconds. Passing the 350.524-second
+checkpoint was not itself a cancellation reason.
+
+Usable outputs were followed by repeated generated self-check/registration
+problems: a custom verify_report/facts table regex falsely reported zero,
+unknown episode-source references, and text registration issues. The execution
+did not reach review/record. Narrow review/limited rejection feedback was too
+late in the chain to affect this upstream self-check loop. User reiterates:
+check/review should find issues, make a few repairs, then record the usable work.
+Do not describe repeated self-checking as evidence that reports were delivered.
+
+Parent stopped the visible browser run without waiting another twenty minutes.
+Saved events independently show attempt_cancelled at sequence 411,
+2026-10-19 01:58:59.833753 UTC; current_attempt is null in the saved snapshot.
+This is cancelled, not completed; no accepted quality/performance baseline.
+Terminal usage, downloaded product integrity and content audit are not asserted
+by this checkpoint. Evidence: ROOT/outputs/research-round-efficiency/
+mainline-limited-delivery/visible-run/events.json, snapshot.json and products/;
+product download/inspection is still underway.
+
+Backend is implementing the minimal execution-stage completion-policy repair
+so upstream checks do not prevent progress to review/record/limited closure.
+No new fix is verified or deployed here. Current deployment remains backend
+3ae9f5d9 / native 2d1775bf; dirty source base 15980389. Retain correct products,
+underlying failure evidence and 350.524 s / 41-response reference. No App/font,
+Provider, rebuild, commit, tag, cloud/demo or graph action is made by this
+worklist/baton/journal checkpoint.
+
+## Accepted product model: interactive first draft and human revision — 2026-10-19
+
+Enterprise research is an ongoing interactive task session, not a one-shot
+report that must autonomously become perfect before the user sees it. Quickly
+present a usable first artifact for HUMAN review, with EXPLICIT known errors,
+unresolved disagreements and not_checked scope. A first generated artifact need
+not be fully correct. Do not label a flawed or incompletely checked draft fully
+verified, factually clean or quality accepted. The user can review it and request
+targeted changes while existing source, version and result identities are kept.
+
+Autonomous perfection and pass-all-quality are not first-delivery gates. A small
+number of useful checks or repairs may inform the draft; repeated checks or
+self-generated repairs must not withhold usable outputs indefinitely. Independent
+review is advisory evidence. A not_run or failed review may close as limited
+with the actual reason and coverage disclosed; it does not automatically reject
+the whole usable task. A reviewer's claims still require source verification.
+Human review and next instructions decide the subsequent revision scope.
+
+Required persistence, current product/version binding, integrity and authorized
+source boundaries still apply. Do not return broken/nonexistent links, fabricate
+review success, erase historical outputs, or silently attach old versions to new
+bytes. Genuine framework/integrity/required-persistence failures still stop for
+repair. Preserve iterative revisions and their exact source/version associations.
+This uses the existing Thread/Work/Attempt chain, not a new ledger or planner.
+
+Current cancelled visible run: 539.539 s, 64 model responses and 16 failed tools.
+A roughly 1 MB HTML report and 22 KB key-metric file are retained; the actual
+report opens in the user's browser with eight images. These are usable saved
+process outputs, not a completed task or clean quality acceptance. The Attempt
+remains cancelled. First-draft closure semantics are the App 1.5 / Pack 1.4
+implementation direction, not retroactive success for this cancelled execution.
+No UI/source/Provider/model configuration edits were made by this update.
+
+Backend/Pack coordination: App 1.5 / Pack 1.4 is implementing these accepted
+semantics. Implementation, independent verification, exact frozen-policy/version
+compatibility, canonical deployment and visible live acceptance remain separate;
+none is claimed complete by this design update. No UI layout/font change is
+needed. Current deployed backend remains 3ae9f5d9 / native 2d1775bf until an exact
+new receipt. Preserve dirty base 15980389, prior failed/cancelled evidence and
+350.524 s / 41-response reference.
+
+Acceptance now requires a visible, usable first draft in the ongoing task
+session with honest limitations and then a targeted human-feedback revision.
+It does NOT require every reported number/figure to pass before first display.
+Full live testing stays visible in the user's existing browser. At 350.524 s
+inspect actual progress rather than impose a hard timeout. Repeated abnormal
+failures/confirmed framework bugs still require immediate stop and underlying
+repair. No Provider, UI, rebuild, commit or cloud/demo action is made by this
+accepted-product documentation change.
+
+## App 1.5 first-draft candidate locally deployed — 2026-10-19 10:15 CST
+
+Canonical rebuild /tmp/execution-first-draft-rebuild.log exited zero. API and all
+workers share image 1c1030720f8ed43b666141e381191d9c571a650c60d4a0c7c08f7a3b1b218e93;
+native uses a3fc1620406e81e392fb961a896fd808d1188e84a7eb9227f6514e85f5304046.
+Actual hashes match 13 native, four Pack and three backend source files. Five
+exact default profiles load; App 1.5 / Pack 1.4 is now deployed locally. Historical
+policy/profile bytes, accepted attempts and exact retries remain preserved.
+Receipt: ROOT/outputs/research-round-efficiency/native-environment-verification/
+execution-first-draft-rebuild.json. No cloud/demo, tag or new commit; source is
+still dirty HEAD 159803897127b33d791ef77298ba9fbe5da13a2b, not an accepted commit.
+
+Independent source review found no remaining material blocker and passed 21
+checks, including actual pinned-SDK failed-checker → limited closure with usable
+report/CSV and actual unchecked/error disclosure. Global settings cannot enable
+old profiles: host exact publication owns graceful_execution_closure. New messages
+select the latest explicitly supported profile; old accepted request retry is
+unchanged. Report: /tmp/execution-first-draft-independent-review.md, retained in
+ROOT/outputs/research-round-efficiency/mainline-limited-delivery/.
+These checks and local readiness are not a live first-draft acceptance result.
+
+The accepted product is an ongoing task session: present the readable usable
+draft promptly for human review with explicit known errors and not_checked scope;
+then apply targeted human-feedback revisions. No mandatory successful independent
+review, passing every self-check or autonomous perfection before first delivery.
+Current-file integrity, permissions, source/receipt binding and required
+persistence still apply. Limited disclosure is not a clean-quality claim.
+
+Parent is submitting human feedback in the same existing visible browser Thread
+thr_4b5531ba739f0c20cb4b to deliver the existing draft. No new Attempt identity or
+terminal acceptance is supplied yet. Full usable chain validation remains pending.
+At 350.524 seconds inspect progress, not enforce a hard timeout. Repeated abnormal
+failures or confirmed framework/integrity/persistence bugs require immediate stop
+and repair. Keep the prior cancelled-run artifacts and 350.524 s / 41-response
+reference. No App/font, Provider, rebuild, commit or tag action was made by this
+control update.
+
+Control checks passed: ui-ux-pro-max targeted guidance, --no-probe generation
+and actual 1440 desktop/390 mobile geometry inspection. Both found 30 nodes /
+40 edges, no overlaps, crossings, edge-through-card intersections or page
+overflow; verified dev ancestry spine present. Desktop screenshot
+/tmp/first-draft-deployed-control-1015-desktop.png was visually inspected.
+154 available relative links, CLAUDE.md relative symlink, make doctor and owned
+diff check passed. Eight canonical documents synchronized byte for byte to ROOT
+and IMPL. No implementation, Provider, rebuild, commit or tag action performed.
+
+## Same-session useful LIMITED handoff verified locally — 2026-10-19 10:19 CST
+
+Current acceptance boundary: FIRST GENERATION remains the main open task.
+The 119.669537-second success is only a same-session handoff of existing bytes,
+not initial generation acceptance. App 1.5 first generation is still unverified;
+do not close the main worklist. Parent is starting a new visible-browser run with
+four original files and the original prompt. Its actual trace must check initial
+path transcription, scripts, schema/summary mistakes and custom-checker loops.
+No fresh Attempt/result is supplied yet; no new performance baseline exists.
+
+Human feedback in the existing visible browser Thread thr_4b5531ba739f0c20cb4b
+reached normal completion: attempt_1d42df042e409a42 began at
+2026-10-19 02:15:27.548505 UTC and completed at 02:17:27.218042 UTC,
+119.669537 s, 17 model responses, 26 tools and three recovered tool failures.
+Saved event sequence: record 513, assess 520, research limited 523, Thread
+attempt_completed 632. A completed interaction can retain a limited research
+outcome; it is not a clean-quality claim.
+
+Five actual downloadable files are present: report.html, 关键指标速览.csv,
+key_metrics.csv, derived_metrics.csv and 交付说明.md. Report bytes were copied
+unchanged from old artifact sequence 368 to new 595: 1,035,081 bytes, SHA
+0577f6d80ffa182ac8ce666e652c645870da012254be8e644a203acd1f615f84.
+There was no recomputation or review-retry chain. The visible final answer and
+status are saved in /tmp/visible-first-draft-completed.png. Durable API/download/
+timing evidence: ROOT/outputs/research-round-efficiency/mainline-limited-delivery/
+visible-handoff/. Independent saved-evidence audit is still in progress.
+
+The human-facing limitations are explicit: the report card ranks the middle
+province as highest incorrectly; eight figures were not visually checked;
+146 of 243 coverage cells are blank; reproduction scripts/data/images are not
+bundled; no independent full review is claimed. These are disclosed limitations,
+not independently certified business conclusions. Keep the original flawed report
+as a usable draft for human review and targeted revision; do not call it clean,
+fully audited or error-free. Required file identity/persistence stayed intact.
+
+This verifies the local same-session human-feedback → useful LIMITED delivery
+closure. It does not prove a fresh task completes in 119 seconds: the fresh
+attempt was cancelled after 539.539 s. Do not add/combine incomplete stages into
+a successful benchmark or replace the 350.524 s / 41-response reference.
+Product-quality improvements and any future revision acceptance remain separate.
+
+Deployment remains App 1.5 / Pack 1.4, backend 1c103072 / native a3fc1620, dirty
+HEAD 15980389, no new commit/tag/cloud/demo. Full live tests stay visible in the
+user's existing browser; 350.524 s is a progress checkpoint, not a hard timeout.
+No App/font, Provider, rebuild, commit or product change was made by this control
+update. Independent audit results can extend this receipt without rewriting the
+actual limitations or cancelled earlier run.
+
+Control check: the graph centers the still-open first-generation investigation,
+not a full-success claim. ui-ux-pro-max guidance, --no-probe generation and actual
+1440 desktop/390 mobile geometry checks passed: 30 nodes / 40 edges, no overlap,
+crossing, edge-through-card intersection or overflow; dev ancestry spine present.
+/tmp/first-generation-open-control-1021-desktop.png was visually inspected.
+155 available relative links, CLAUDE.md relative symlink, make doctor and owned
+diff check passed. Eight canonical documents synchronized byte for byte to ROOT
+and IMPL. No source, Provider, rebuild, commit or tag action performed.
+
+## No fresh run submitted; known Step 5 lifecycle defect is current — 2026-10-19
+
+The parent STOPPED fresh-test setup before creating a new Thread or submitting a
+prompt; only navigation was opened. There is no new full live run active. Earlier
+language about preparing a fresh test is superseded, not evidence of a submission.
+The user's known Step 5 report-build execution accumulated 45 tool calls without
+moving on; this first-generation lifecycle defect remains the primary blocker.
+App 1.5 policy guidance and the later 119-second handoff do not prove it fixed.
+
+Backend is investigating a minimal real artifact checkpoint → record → separate
+advisory check/repair → handoff lifecycle. Preserve actual product identity,
+versions, permissions, persistence and disclosed errors. No arbitrary tool-count
+or wall-time cap, fake quality success or second ledger. Do not start another full
+trial to rediscover a known loop before its underlying lifecycle is addressed.
+
+Independent saved-evidence audit now accepts ONLY the 119.669537-second LIMITED
+same-session handoff: five actual file hashes/bytes match, original report bytes
+were reused, terminal limited has no pending action, and warnings remain public.
+The report is not clean; this does not verify initial generation or replace
+350.524 s / 41. Audit: ROOT/outputs/research-round-efficiency/
+mainline-limited-delivery/visible-handoff/independent-limited-handoff-audit.md
+and .json. Keep the primary worklist OPEN for first-generation closure.
+No App/font, new task, Provider, rebuild, commit, cloud/demo or graph action is
+made by this checkpoint; deployment remains 1c103072 / a3fc1620.
+
+### Standing local build-cleanup rule — 2026-10-19
+
+After every local build and its validation/use, clean our unused build images
+and cache. Preserve images referenced by ANY running/stopped container and all
+persistent volumes/user data. No global prune or extra maintenance features.
+The helper is frozen with 15 pure/mock tests, direct strong cache ownership only,
+exact current Compose-project image scope, --all inventory, --no-prune image
+removal, no forced image deletion and healthy-deployment warning semantics.
+For this pending build, root uses CAPSTONE_LOCAL_CACHE_CLEANUP=0 because the
+prior operator cleanup ran separately; after validation/use root must execute
+the scoped helper --apply. This recording task does not execute it.
+Root's earlier exact-label cleanup removed 221 unused images; the old broader
+manual cache client was cancelled (exit 130). Host free space observation moved
+from 594 to 633 GiB, not an independently attributed unique-layer reclaim total.
+No volumes/user data or new Provider run. No new deployment identity claimed.
+
+## Owned build cleanup completed; producer-checkpoint rebuild pending — 2026-10-19 10:47 CST
+
+Root removed 221 old images selected by exact Compose project capstone,
+untagged status and absence of ANY running/stopped container reference; explicit
+image removal used --no-prune and no force. All 30 existing containers and their
+ten original image IDs remain. No volumes/user data were cleaned.
+
+The earlier manual cache prune selected 2539 explicit IDs using direct command
+proof plus descendants. Independent review found ancestry insufficient proof of
+ownership on a shared builder; root interrupted that operation (exit 130).
+Do not retroactively label all initial descendant IDs direct-owned. The final
+maintained helper is strictly direct strong-command ownership only, reclaimable,
+nonshared, without ancestor/descendant inference. Its 15 tests and warning/skip
+behavior remain verified. Actual observed OrbStack data moved 448G to 303G;
+host free space moved 594 GiB to 739 GiB. These are observed storage totals, not
+an independently attributed unique-byte sum of every deleted cache record.
+Receipt/reports: ROOT/outputs/research-round-efficiency/owned-build-cleanup/
+cleanup-receipt.json. No global prune, container deletion or volume cleanup.
+
+Standing ownership rule remains: after each local build's validation/use, clean
+only our unused build images/cache and protect in-use image refs and persistent
+data. The producer-checkpoint canonical rebuild is currently active in
+/tmp/producer-checkpoint-rebuild.log with CAPSTONE_LOCAL_CACHE_CLEANUP=0; root
+must run the scoped helper --apply after validation/use. No new deployment
+identity is verified yet; keep backend 1c103072 / native a3fc1620 as current.
+
+Step 5 producer-checkpoint offline checks passed 92 tests and independent five
+checks; this is not live acceptance. Fresh visible browser Thread
+thr_f4fc1d7a912a0bdaf5c6 has four actual files in draft plus the ordinary prompt,
+but has NOT been submitted. There is no running new Attempt. Initial-generation
+closure remains open. No new performance/quality baseline or cloud/commit claim.
+This documentation task makes no Docker query, cleanup, build, Provider or App
+change. Wait for exact deployment receipt before refreshing the graph.
+
+## Producer-checkpoint candidate deployed; fresh evidence pending — 2026-10-19 10:50 CST
+
+Canonical rebuild /tmp/producer-checkpoint-rebuild.log exited zero. API and all
+workers share image 3f752a66f41cebce6ace72ef6073f5fbfa57c87e7a100018087a86da91446841;
+native uses fb7183ccfc90ed4799aa5442fddd854e43586afd712c708ec83501e9921c337c.
+Fourteen native, four Pack and three backend file hashes match owning source;
+five exact profiles load. Receipt: ROOT/outputs/research-round-efficiency/
+native-environment-verification/producer-checkpoint-rebuild.json.
+Source is dirty HEAD 15980389, not a new accepted commit. No tag/cloud/demo update.
+
+The existing objective has optional product_paths for exact requested core paths.
+Only the host-owned closure flag plus declared paths activates the checkpoint.
+Actual newly observed candidate bytes require a real model record before further
+producer work; assessment remains a separate action. Stable-file/SHA/path/source
+admission and CAS stay strict. After awaited inspection, busy/pending/action are
+rechecked to block stale work across a concurrent transition. No field means
+legacy behavior unchanged. Failed/partial prerequisites remain strict: producer→
+advisory and producer→handoff sibling actions allow failure disclosure followed
+by independently ready handoff, not fake passing of failed checks.
+
+Focused checks passed 92 tests, independent review passed five including actual
+pinned-SDK file checkpoint and advisory-failure/repair/handoff. Reports:
+/tmp/producer-checkpoint-backend.md and /tmp/producer-checkpoint-independent-review.md.
+These are offline evidence. Fresh live acceptance MUST inspect the actual model
+plan for product_paths and graph shape, observed candidate rejection, record and
+separate assessment. If the live plan omits the field, this mechanism was not
+exercised even if a report is eventually delivered. Do not claim Step 5 fixed
+from policy language or the earlier 119.669537-second old-byte handoff.
+
+Fresh visible Thread thr_f4fc1d7a912a0bdaf5c6 has four original files and ordinary
+prompt ready; parent is about to submit. No new Attempt identity or success is
+recorded yet. First generation remains OPEN and unaccepted. Deliver usable draft
+with explicit errors/unchecked scope for human review, then targeted revisions.
+350.524 s is a progress checkpoint, not a hard timeout; confirmed low-level bugs
+or abnormal repeated failures require immediate stop and repair. Old cancelled
+runs and 350.524 s / 41-response reference remain unchanged.
+
+Scoped cache helper/local entrypoint is implemented with 15 tests and standing
+cleanup rule. This rebuild explicitly used CAPSTONE_LOCAL_CACHE_CLEANUP=0;
+root must run helper --apply after validation/use, not during active work.
+Its direct-only proof, all-container-image protection, --all/--no-prune/no-force,
+volume/data protection and visible failure warning remain. Earlier 221-image
+cleanup and interrupted ancestry-based cache prune retain their honest receipt.
+No App/font, Provider, rebuild or cleanup action was made by this control update.
+
+Control verification passed: ui-ux-pro-max targeted guidance, --no-probe graph
+generation and actual desktop 1440/mobile 390 checks. Both show 30 nodes / 40
+edges without overlaps, crossings, edge-through-card intersections or overflow;
+verified dev ancestry spine remains. Screenshot
+/tmp/producer-deployed-control-1050-desktop.png was visually inspected.
+156 available relative links, CLAUDE.md relative symlink, make doctor and owned
+diff check passed. Eight canonical documents synchronized byte for byte to ROOT
+and IMPL. No implementation, Provider, Docker cleanup, rebuild, commit or tag
+action was made by this documentation task.
+
+## Fresh limited draft and restored report visibility verified — 2026-10-19 11:23 CST
+
+The actual fresh four-file ordinary-prompt Attempt attempt_e14e3a5ce26fc88a in
+thr_f4fc1d7a912a0bdaf5c6 completed from 2026-10-19 02:50:54.832996 UTC to
+02:55:54.809337 UTC: 299.976341 s, 34 parent responses and zero child responses.
+The producer declared report.html/key-metrics.csv, then reached limited completion.
+This is one measured first-draft execution, not clean report-quality acceptance,
+proof of execution-child parallelism or replacement of 350.524 s / 41 reference.
+Initial delivery UI FAILED because all 54 file descriptors lacked purposes:
+no primary card or automatic report opening. Do not rewrite that as an initially
+successful display. Read-side trusted presentation was then repaired without
+changing report content or making another Provider call.
+
+Canonical /tmp/producer-delivery-rebuild.log exited zero. API and all workers
+share image ab0ec0a0136fec7d23a36d9154195dac7b64216022081b60a0df67791cb90615;
+native uses 7ec01dcf5d5f197835d4aae34b2f5912b9d9e85262fb8b9801481a78ad7a45de.
+Receipt: ROOT/outputs/research-round-efficiency/native-environment-verification/
+producer-delivery-rebuild.json. App source passed 50 focused tests and tsc;
+trusted terminal scope/current SHA now identifies only the two declared core
+primary files, six selected support files, and limited status/15 real limitations.
+Old public events and ProductRefs are unchanged; existing index/artifact readers
+project exact persisted metadata. A model hint cannot promote noncore support
+to primary. No answer-text/path guessing, new ledger/store or new endpoint.
+
+Actual browser acceptance used ONLY reload of the completed user session:
+zero new model calls and no manual report click. The main report opened in its
+existing safe iframe with complete content; report.html and key-metrics.csv cards
+are visible with limited disclosure. Expanding 浏览成果 independently showed the
+same two files under 本轮主要成果, report selected, each marked limited with
+unresolved items. Directory was collapsed again with report left open.
+Exact unchanged report SHA:
+5ca6670dc2d016c4857df5750436ed2d9ee633867ae1ec77310271ac5d24047c.
+Durable evidence: ROOT/outputs/research-round-efficiency/producer-checkpoint-live/
+presentation-repair/browser-acceptance.json, screenshot, directory-verification.yml
+and logs/reports. Screenshot also at
+IMPL/output/playwright/producer-delivery-autoopen.png. It was visually inspected.
+
+This verifies restored local primary-artifact visibility and automatic report
+opening on reload, not a clean-content claim. Fifteen actual limitations remain.
+A known reply hallucination attributes a 2024 March-April request to the user;
+the actual uploaded example is 2026 August-September. Presentation repair did not
+fix that text or certify numbers/images. Keep honest human-review/targeted-revision
+semantics and do not silently rewrite saved content.
+
+Post-rebuild scoped cache helper exited zero; receipt IMPL/.capstone-agent/
+cache-maintenance-20261019-112132-34291.log. Its current-builder discovery repair
+passed 17 tests; no global prune or volume/user-data cleanup. Standing cleanup
+after build validation/use is fulfilled for this receipt. Source remains dirty
+HEAD 15980389, not a new accepted commit; no tag/cloud/demo update. No App/font,
+Provider, Docker action, rebuild or code change was made by this control task.
+
+Control verification: ui-ux-pro-max guidance, --no-probe generation and actual
+1440 desktop/390 mobile graph checks passed: 30 nodes / 40 edges, no overlap,
+crossing, edge-through-card intersection or page overflow; dev ancestry spine
+remains. /tmp/producer-presentation-control-1123-desktop.png was visually inspected.
+157 available relative links, CLAUDE.md relative symlink, make doctor and owned
+diff check passed. Eight canonical documents synchronized byte for byte to ROOT
+and IMPL. Report screenshot and durable browser-acceptance evidence were read;
+no App/source, Provider, build, Docker cleanup, commit or tag operation occurred.
+
+## Active performance slice: proactive producer checkpoint, not yet deployed — 2026-10-19 12:20 CST
+
+The retained 299.976341-second run has 270.115 s observed model intervals,
+11.925 s tool intervals and 17.936 s other/uninstrumented time, with zero child
+responses. These server-observed spans are not direct Provider latency or proof
+of parallelism. The visible existing report, primary cards, limitations and
+saved content remain unchanged.
+
+Diagnosis: the previous producer checkpoint rejected only the NEXT native tool.
+Saved sequences 176/201 therefore consumed extra model turns proposing checks
+that were rejected, not actual executed checks. Do not count those rejections as
+useful checking or infer a measured speed gain from removing the round trip.
+
+Root source is frozen in enterprise-research-runtime.mjs and general-sdk.mjs:
+successful producer completeTool now includes the same exact host-inspected
+checkpoint with the actual result. It preserves the original execution receipt,
+cancellation and concurrent-action identity. The model still must record and
+assess; no automatic record, quality verdict or assessment is created. Assess
+next_action explicitly requires committing before more native work or proposing
+follow-ups. Existing host publication flag only; older profiles remain unchanged.
+
+94 focused tests passed, including 17 actual pinned-SDK offline scenarios;
+independent five checks passed. The adapter compatibility suite also passed
+after replacing its stale mandatory-revise expectation with explicit limited
+closure while retaining the blocking finding. Do not invent its separate count
+or add overlapping suites. Logs: /tmp/producer-proactive-focused.log and
+/tmp/producer-proactive-sdk.log. These are offline integration checks, not live
+efficiency acceptance.
+
+Canonical rebuild /tmp/producer-proactive-rebuild.log is active. No final image
+receipt or live gain is verified. Keep deployed backend ab0ec0a0 / native 7ec01dcf
+until the exact new receipt. Planned validation is a full fresh four-original-file
+ordinary-prompt run visible in the user's existing browser; no new Attempt is
+recorded as active yet. Retain the existing visible report and all historical
+products. At 350.524 s inspect progress, not impose a hard timeout; stop on
+confirmed framework bugs or repeated abnormal/no-new-evidence loops. Keep the
+350.524 s / 41 reference separate from this future finite-quality measurement.
+No App/font, Provider, Docker query, cleanup, build, commit or cloud/demo action
+was made by this documentation update. Final graph waits for images/results.
+
+## Proactive checkpoint deployed; fresh trial failed — 2026-10-19 12:35 CST
+
+Canonical rebuild /tmp/producer-proactive-rebuild.log exited zero. API and all
+workers share image 275cfe12ad5919a670e8403dc111ad4e1f12cd56fb8007de40f64a5be1077bc6;
+native uses 4b29f516e702d2686c7133ea231871d2993232fcb295df92c78c19c25beeaa08.
+Fifteen actual native source hashes and five exact profiles are verified in
+ROOT/outputs/research-round-efficiency/native-environment-verification/
+producer-proactive-rebuild.json. Scoped post-rebuild cache maintenance exited zero;
+receipt IMPL/.capstone-agent/cache-maintenance-20261019-122608-23595.log.
+No unperformed cleanup obligation is implied for this build.
+
+The user's existing visible browser started fresh Thread
+thr_e9c7b647a460ea522b90, Attempt attempt_6098d8cf3b0f184f, Work
+work_ab3357b94e8a4643b7d5 at 2026-10-19 04:29:17 UTC. Four original files were
+uploaded through the actual file chooser and the same ordinary prompt was
+submitted. Evidence: ROOT/outputs/research-round-efficiency/
+proactive-producer-checkpoint/visible-run/. The run FAILED at 2026-10-19 04:30:16 UTC with native_transport_failed,
+after about 59 seconds and 11 observed parent responses, with zero children.
+There is no fresh report or performance acceptance. The native receipt is
+cancelled and has no failure file; root and backend owner are investigating
+the client transport. Saved evidence includes 103 events and the snapshot. Preserve the prior
+visible report, warnings, cancelled trials and all saved evidence.
+
+The deployed change returns the same exact host-inspected producer checkpoint in
+the successful tool result, avoiding reliance solely on rejecting the NEXT tool.
+The actual model still records/assesses under existing receipt/CAS and identity
+checks; no automatic record, assessment or quality verdict. Offline 94 focused
+tests include 17 actual pinned-SDK scripted scenarios; independent five checks
+and adapter 12 tests passed. Scopes overlap and are not a summed unique total.
+A local image check is not real efficiency acceptance.
+
+The user explicitly asks about parallel work: the previous 299.976341-second /
+34-response run had zero children. This failed fresh run also had zero children; available delegation capability alone
+cannot establish child use or overlap. No parallelism or speedup claim yet.
+350.524 s remains an investigation checkpoint, not a hard timeout or automatically
+replaced baseline. Stop repeated abnormal failures/confirmed framework bugs;
+keep usable first drafts and honest error/unchecked disclosure for human review.
+
+Deployment is local only, dirty HEAD 15980389, no new commit/tag/cloud/demo.
+No App/font, Provider, Docker query/cleanup, build or runtime action was performed
+by this control task. Wait for the transport diagnosis before another trial; no trial is active.
+
+Control checks: ui-ux-pro-max guidance, --no-probe generation and actual 1440
+desktop/390 mobile inspection passed. Both report 30 nodes / 40 edges, no overlap,
+crossing, edge-through-card intersection or page overflow; dev ancestry spine
+remains. /tmp/proactive-deployed-control-1230-desktop.png was visually inspected.
+158 available relative links, CLAUDE.md relative symlink, make doctor and owned
+diff check passed. Eight canonical documents synchronized byte for byte to ROOT
+and IMPL. No code, Provider, Docker query/cleanup, build, commit or tag action
+was made by this control task; fresh trial final results remain pending.
+
+
+## 2026-10-19 12:35 CST — Correct fresh trial status to failed
+
+Thread thr_e9c7b647a460ea522b90 / Attempt attempt_6098d8cf3b0f184f failed at
+04:30:16 UTC with native_transport_failed, about 59 s, 11 observed parent
+responses and zero children. No fresh report, quality or performance acceptance.
+Native receipt is cancelled with no failure file. Root and backend owner are
+diagnosing client transport. The 103 events and snapshot remain in
+ROOT/outputs/research-round-efficiency/proactive-producer-checkpoint/visible-run/.
+Deployment 275cfe12 / 4b29f516 is unchanged. No Provider or runtime action was
+performed by this documentation correction. The 350.524 s / 41 reference remains.
+
+Correction checks: regenerated graph and actual desktop/mobile browser geometry
+passed (30 nodes / 40 edges, no overlap, crossing, card intersection or overflow).
+Desktop screenshot /tmp/proactive-failed-control-1235-desktop.png visually checked.
+Relative links (158), CLAUDE.md symlink, make doctor and diff check passed.
+Eight affected canonical files synchronized to ROOT and IMPL.
+
+
+## Parallel planning and publication race fix — source checkpoint, deployment pending
+
+App 1.6 / Pack 1.5 adds versioned parallel batch planning while retaining frozen
+legacy retries. The confirmed generic publication race changed ctime during
+hardlink/unlink; the repair retains a hidden anchor to the same inode through
+task cleanup, with integrity checks unchanged. Safe host HTTP operation, status
+and known error code now reach the saved failure answer; historical records are
+not rewritten.
+
+Offline checks reported: backend 217 passed / 1 skipped and 25 Node tests; policy
+85 passed / 17 skipped; two SDK ready-batch/frozen-retry checks; root combined
+runtime 106 passed. These scopes overlap and are not a unique summed total.
+Cross-reviews are in progress. Canonical rebuild /tmp/parallel-research-race-rebuild.log
+is running. No new image identity or deployment success is claimed. Reports:
+ROOT/outputs/research-round-efficiency/parallel-research/.
+
+Prior Attempt attempt_6098d8cf3b0f184f remains failed: 58.756343 s, 11 parent
+responses, zero children. This is failure evidence, not speed data. Current
+deployment remains backend 275cfe12 / native 4b29f516. The next fresh four-upload
+ordinary-prompt trial must wait for image verification and examine actual child
+use; no new trial is claimed active. Update the graph once the deployment
+receipt arrives. No Provider, build, runtime or source action by this control task.
+
+
+## Parallel research candidate deployed; visible trial active — 2026-10-19 13:55 CST
+
+Canonical rebuild /tmp/parallel-research-race-rebuild.log exited zero. API and all
+workers use backend c78b51c8a1193b7bdf4f52e22e07082ed5d8551253923cd5090680f55ebe12da;
+native uses 1a2f56190e24518c86194172c2940d87ed78810b18a1f328e89245c02a8aa2b3.
+Fifteen unique native, seven Pack and twelve backend source hashes and six exact
+profiles were verified. Receipt: ROOT/outputs/research-round-efficiency/
+native-environment-verification/parallel-research-race-rebuild.json. Scoped cache
+maintenance exited zero: IMPL/.capstone-agent/cache-maintenance-20261019-134949-85870.log.
+Both independent cross-reviews approved; reports are in
+ROOT/outputs/research-round-efficiency/parallel-research/.
+
+App 1.6 / Pack 1.5 versioned parallel batch planning preserves old frozen retries.
+The publication repair retains a hidden anchor to the same inode through task
+cleanup, preserving integrity checks. Safe HTTP operation/status/known-code
+diagnostics reach new saved failure answers without rewriting history. Offline
+checks reported 217 backend passed / 1 skipped, 25 Node tests, 85 policy passed /
+17 skipped, two SDK ready-batch/frozen-retry checks and 106 combined runtime tests.
+These scopes overlap and must not be added as one unique total.
+
+The user's existing visible browser uploaded the four actual original files and
+submitted the same ordinary prompt at 2026-10-19 05:53:14 UTC. Thread
+thr_2742ed90b0d297d7c972, Attempt attempt_d4c5e19802c068ac, Work
+7155340588fb02f27c8f is ACTIVE. Evidence:
+ROOT/outputs/research-round-efficiency/parallel-research/visible-run/. Actual
+parallel adoption, performance and quality remain pending. Capability or offline
+SDK overlap is not evidence that this real run used children.
+
+The previous attempt_6098d8cf3b0f184f remains native_transport_failed after
+58.756343 s, 11 parent responses and zero children; it is not speed data.
+The 350.524 s / 41-response reference remains unchanged. This is local dirty
+source based on HEAD 15980389, not a new accepted commit, cloud release or tag.
+No Provider, build or runtime action was performed by this control update.
+
+Control verification: graph regenerated with --no-probe and inspected in the
+actual desktop/mobile browser (30 nodes / 40 edges, no overlap, crossing, card
+intersection or overflow). Screenshot /tmp/parallel-deployed-control-1355-desktop.png
+was visually checked. Relative links and CLAUDE.md symlink checked; make doctor
+and diff check passed. Eight affected documents synchronized to ROOT and IMPL.
+No source, Provider, runtime or build actions by this control task.
+
+
+## Current checkpoint — review transport failure; hard/soft policy accepted
+
+The explicit review Attempt attempt_7e5fab75f575b7bc failed at 2026-10-19
+07:04:28 UTC before any model response: native_transport_timeout, zero responses
+and zero children, cancel_confirmed false. The default native_exchange wait is
+60 s within a task budget of 1800 s, but the exact failing stage is still under
+backend investigation. Do not claim the cause is resolved or increase seconds
+as a substitute for distinguishing polling from task lifetime. No trial is
+claimed active.
+
+The previous fresh generation attempt_d4c5e19802c068ac completed in 263.895887 s
+with 31 parent responses and zero children. Report and CSV are limited products;
+82 selected metrics passed and ten embedded images were observed, but quality
+is not fully certified. The live CSV-first auto-open failure was captured.
+Reload opens HTML; that is not a live-order pass or evidence of parallel use.
+
+The App ordering fix passed 29 focused tests and typecheck. The isolated saved-
+event browser replay is NOT verified: navigation timed out. Canonical rebuild
+/tmp/live-primary-order-rebuild.log exited zero. Current API/all worker image:
+785bb2224b1920262c03bbe94eb955b9a56df94169fc6fa19865e2cb6ff002e4. Native remains
+1a2f56190e24518c86194172c2940d87ed78810b18a1f328e89245c02a8aa2b3. Receipt:
+ROOT/outputs/research-round-efficiency/native-environment-verification/
+live-primary-order-rebuild.json. Scoped cleanup completed:
+IMPL/.capstone-agent/cache-maintenance-20261019-145540-17492.log.
+
+The accepted policy now distinguishes explicit hard limits from soft thresholds
+and task deadlines from polling/receipt waits. Advisory/local-check errors allow
+record-and-continue limited delivery; transient read/receipt failures use safe
+same-request recovery; core blockers stop affected dependencies and preserve
+usable partial products. Required permission, identity, CAS and persistence
+contracts remain strict and fatal when unmet. See the protocol decisions.
+
+No new performance baseline, clean-quality result, commit, cloud deployment or
+tag is claimed. Dirty source remains based on HEAD 15980389. No Provider,
+browser, product source, runtime or rebuild action by this documentation task.
+
+## 2026-10-19 accepted decision: hard limits, soft thresholds and error recovery
+
+Limits must explicitly declare whether they are hard or soft. A soft threshold
+is an observation, warning or replanning trigger; it must not fail the whole
+Attempt. Preserve explicit effective values and their application initialization
+configuration. Do not fix a lifecycle error merely by inflating fixed seconds.
+A transport request timeout or polling window is distinct from a task deadline.
+A missed polling window does not prove the task stopped or permit duplicate work.
+
+- Advisory diagnostics and local-check failures: record the actual error, impact
+  and unresolved items; continue independent steps and allow honest limited delivery.
+- Recoverable transient reads or idempotent receipt requests: resume the same
+  request safely, preserving task identity, frozen input, prior work and receipts.
+- Core blockers: stop the affected dependency and return usable partial products
+  when their integrity and ownership remain valid. Do not claim blocked work passed.
+- Hard permissions, identity, CAS and required persistence remain strict. Failure
+  is fatal when the required contract cannot be met; do not weaken these checks
+  to obtain a nominal completion.
+
+This is an accepted error-policy requirement, not proof that every existing
+limit or transport path already implements it. The 350.524 s reference is a
+progress/investigation checkpoint, not a hard task timeout.
+
+Documentation checks: relative links and CLAUDE.md symlink checked, make doctor
+and owned diff check passed. The generated graph reflects the new deployment
+identity and failed review status without a new manual layout. Browser visual
+recheck is deferred under this task's explicit no-browser instruction; no new
+browser verification claim. Nine affected files synchronized to ROOT and IMPL.
+
+
+## Unified debug capacity candidate — source verified, rebuild pending
+
+The scoped App/API debug propagation is source-frozen and focused checks passed.
+This is not closure of all repository limits. Root owns common initialization,
+worker/SDK hard interruption and integration. The implementation report and
+remaining rows are in /tmp/unified-limits-app-implementation.md. No more test
+expansion is planned for this slice.
+
+Canonical rebuild /tmp/unified-debug-capacity-rebuild.log is active. Root selected
+CAPSTONE_CAPACITY_MODE=debug in the ignored local operator configuration: the
+candidate must hard-interrupt on an exceeded configured bound, with a typed
+fatal diagnostic, before trimming, fallback, skip, retry or reconnect. Normal
+mode retains distinct hard/soft behavior. Do not expose operator file contents.
+
+The OS memory/PID/tmp defaults are source-configurable separately from JSON
+processing bounds; their actual deployed values need the upcoming receipt.
+No claim that debug can intercept a kernel OOM. Current verified images remain
+backend 785bb2224b1920262c03bbe94eb955b9a56df94169fc6fa19865e2cb6ff002e4 and
+native 1a2f56190e24518c86194172c2940d87ed78810b18a1f328e89245c02a8aa2b3 until
+root supplies the new identity/readiness receipt. No new Provider run, quality
+acceptance or baseline is claimed. No commit, cloud release or demo change.
+
+The generated control graph update is prepared but deferred until that receipt,
+so the same deployment boundary is recorded and checked once using ui-ux-pro-max.
+Preserve the prior limited report, transport failure evidence and the unchanged
+350.524 s / 41-response reference. No product source, build or runtime action
+by this documentation task.
+
+
+## Unified debug capacity deployed locally — 2026-10-19
+
+Canonical rebuild /tmp/unified-debug-capacity-rebuild.log exited zero and
+readiness passed. API and all workers use backend
+627d9f23aa22713e38d40d508893c104792ac44827035f8578bd9afc07fafda1; native uses
+8ffb64702ea206e9312e02ee45b7d98b2dce7f0a44e3370bc05b666a2001ef77. Public
+runtime capacity and the five container environments all report mode debug.
+The effective profile has 146 limits. Receipt:
+ROOT/outputs/research-round-efficiency/unified-capacity-debug/deployment.json.
+Post-rebuild scoped cleanup exited zero, receipt
+IMPL/.capstone-agent/cache-maintenance-20261019-194724-54523.log.
+
+The native container has an actual memory limit of 2147483648 bytes (2 GiB),
+PID limit 512 and /tmp size 512m. These are externally enforced startup limits,
+separate from application JSON processing budgets; debug cannot intercept a
+kernel OOM before it occurs. Do not confuse task-workspace tmpfs with /tmp.
+
+In this local debug deployment, exceeding a configured bound must cause an
+immediate typed fatal interruption before trimming, fallback, skipping, retry
+or reconnect. Diagnostics retain dimension, actual, effective limit, source and
+location. Normal-mode hard/soft grades remain distinct. Scoped source and offline
+checks are verified; this is not closure of every repository limit or proof of
+a new research outcome. Detailed scope: /tmp/unified-limits-app-implementation.md.
+
+No new live research acceptance, clean report, parallelism or performance gain
+is claimed. The prior limited generation (263.895887 s, 31 parent responses,
+zero children), explicit-review transport failure and saved products remain
+historical evidence. The 350.524 s / 41-response reference is unchanged. Root
+will return to the user's existing browser; this control update starts no task.
+Local dirty source remains based on HEAD 15980389; no commit, tag, cloud or demo
+release is implied by image verification.
+
+Deployment control checks: ui-ux-pro-max guidance applied, --no-probe graph
+generated and actual desktop/mobile browser checks passed (30 nodes / 40 edges,
+no overlap, crossing, card intersection or overflow; dev ancestry spine present).
+Screenshot /tmp/debug-deployed-control-1951-desktop.png visually inspected.
+Relative links and CLAUDE.md symlink checked; three pre-existing ignored offline
+artifact links remain unavailable. make doctor and diff check passed. Nine
+canonical documents synchronized byte for byte to ROOT and IMPL. No product
+source, model, Provider, build, commit, cloud or demo action by this control task.
+
+- 23:25 Orchestration repair: 78 checks passed; prior automatic checkpoint rejected an unadmitted observation. Git inventory saved; local rebuild active.
+
+- 23:50 User rejected concurrency-setting claims. App1.7/Pack1.6 aligns host-owned subtasks; 79 policy/bridge checks pass, 2 skip; rebuild active.
+
+## 2026-10-21
+
+- 00:02 App1.7 full trial cancelled: zero children. App1.8/Pack1.7 explicit subtask schema: Node79 and Python109 pass/2skip; rebuild active.
+- 00:27 App1.8 cancelled420s: batches2/1/2. App1.9 coalesces ready declared DAGs; Node128/Python110 pass,2skip; rebuild active.
+- 00:37 App1.9 ready: one real3-child batch,158.162s span,108.129s triple overlap; report stage exceeds264s baseline, no speed claim.
+- 00:51 Full557.789s/40parent70child,32metrics pass/limited. Dispatch checkpoints21k/56k leaked to progress; privacy/replay fix tested. User rejects hardcoded planning steps.
+- 01:05 User confirms model-owned graph, visible paths, declared producer/consumer refs; every recompute creates immutable version. JSON fix deployedf110/0cda; graph repair active.
+- 01:19 Readable result excerpts/details pass127App+tsc; live Markdown confirmed. Graph audit done; pureV2 state/result worker active, no runtime integration yet.
+
+- 01:27 Long actual results now use 180-codepoint excerpts and expandable shared Markdown; 127 App tests pass in 5.28s, tsc/diff pass. Pure graph state21 tests pass, independent review pending; no runtime integration claim. Canonical local rebuild active.
+
+- 01:30 User requires reusing the already-open browser graph page; select its existing tab and refresh, never open duplicate graph tabs. UI rebuild62de2846 passed readiness/identity/scoped cleanup. Independent graph review has2 medium integration findings; no overall orchestration acceptance.
+
+- 03:30 Model-graph integration checkpoint: SDK scoped checks passed; independent review found cancellation and sealed-orphan defects, both OPEN. Root added exact action/call event admission and private immutable-context host wiring; focused66 tests passed. New graph route remains unrebuilt; no real-model/baseline/deployment acceptance. Reuse existing browser graph tab. No Git refs changed.
+
+- 02:46 Clock correction: the new graph-integration entry labelled03:30 used an incorrect manual timezone offset. Tool clock is2026-10-20 18:46UTC /2026-10-21 02:46Asia/Shanghai. Source/test facts and measured durations are unchanged. SDK+host consolidated fixes are passing scoped checks; independent re-reviews and UI fixes remain pending.
+
+- 02:48 SDK/host four review findings plus explicit-inspect retry recovery fixed;52Node/82Python/3legacy checks passed. Original reviewers re-check frozen source. One App fixer owns two remaining UI admission findings. New graph source not rebuilt or model/UID/browser accepted; no commits/ref changes/cloud actions.
+
+- 03:28 Initial graph rebuild/UID checks passed; final F1 re-review found pre-progress argument-error abort. Same fixer corrects it. No real model acceptance or new browser tabs.
+
+- 03:36 Final F1 review approved. Canonical rebuild and UID checks passed. Real smoke failed before model start; diagnosing native startup. Existing graph tabs must be reused; none created.
+
+- 03:50 Entry fix deployed380fed/native6c611. Real smoke completed ~96s with A/B overlap, but C reread original README despite only A binding. Reuse acceptance failed; full baseline withheld.
+
+- 04:01 Source-scope108checks pass, freeze pending. Root App136/tsc and Pythonusage37checks approved independently; real reuse not yet rerun. Control380fed/failed-smoke aligned;20checks pass, visual pending.
+
+- 04:32 Pending/adoption and graph-context races fixed;147runtime/SDK and30hook checks approved. Late cancellation/deadline dispatch blocked. Canonical rebuild running, real acceptance pending. Existing Edge control tab reused; none created.
+
+- 04:39 Recoverycandidate12e3/18f35 rebuilt ready. Fresh smoke cancelled151s after C searched directories for retained inputs; cancellation confirmed. Investigating actual supplied handle paths; full baseline withheld.
+
+- 04:49 Two independent audits confirmed eight valid absolute handles in C's exact committed RPC response; task UID10584 reads the sealed product. C invented the extra path segment. Native adapter guidance/validation and bounded assessment feedback are under focused test. Actual-dev control refreshed in the existing Edge tab, zero new tabs/windows; full baseline remains open.
+
+- 05:10 Operation guidance reviewed/rebuilt00be/86cb; bounded graph050819SUCCESS84.044s with C exactreuse then record/assessment,31actualresponses/1correctedplanerror. No fullreport acceptance from smoke.
+- 05:21 Fullsameinput051028FAILED609.421595s vs263.895886898s(+130.932586%);1child/0overlap,79parent+14child=93actualresponses,20parenterrors. Modelrevision3 switcheddownstreamtoparent/recomputedprice; nativefinaldeliverylimited.
+- 05:26 All76nativefiles size/hashverified; backend64hardcap conflictsconfigured256. Capacityprojection fix TDD3fail1pass→23pass1optionalDBskip, independentAPPROVE; actual76metadata nowpassesoffline. OriginalAttempt remainsfailed, sourcefixnotdeployed, no newmodelrun.
+- 05:30 Confirmedparentexecute inputmap and prerecord/assessment exactrefinspection gaps; soleworkerimplementsboundedapplicationgraphwiring, legacy/Kernelunchanged. Actualdevfailedbaselinegraph synchronized/inspected in existingEdge132tab, no newtabs/windows. No index/ref/cloud/demo changes.
+
+- 05:51 Recovered three exact final-selected files as diagnostic copies. All hashes match and70 monthly checks pass. Viewed the report in the existing Edge tab, then restored the control page. The original failed Attempt and unpublished state remain unchanged.
+- 05:52 Parent reference bridge passed161 runtime/SDK and35 provider/publication checks. Independent review found HIGH R1: post-record inspection uses an assess-only checkpoint for an execute lease. Worker is fixing the retained-checkpoint binding with a real NativeGraphEvents regression. No rebuild or model retry before re-review.
+
+- 09:09 Resumed: R1 independently approved and deployed d0efd08b/50d0b1aa; actual76-artifact deployed replay passes. Bounded parent probe failed first ProviderHTTP400 before graph execution; exact parameter unproven. Root-object wire correction frozen,162JS/44Python/3legacy/30guard/1mirror pass; narrow independent review running, no model retry yet.20 control tests pass0.07s.
+
+- 2026-10-21 09:13 CST Wire-schema delta independently APPROVED; v3 frozen19-file manifest differs from v2 only in general-research.mjs. Canonical local rebuild running with no source drift; doctor and diff checks pass. Git inventory confirms unchanged five HEADs/all indexes0; implementation has338 untracked files, one new regression fixture.
+
+- 09:22 Canonical wire rebuild ready, all19 source hashes and backend/native identities verified, scoped cleanup done. Real parent probe104.953493s SUCCESS: two children overlap11.624875s; A inspected before/after record, D3/3 exact issued product bytes, rawsourcesnone/no discovery.4 tool errors corrected,34 model responses/cost unknown. Full exactgoal/fourSHA comparison092038 running under650s cap; no speed claim. Existing-tab process graph/excerpt/full-result expansion inspected.
+
+- 2026-10-21 10:03 CST User corrected scope: three-branch failure is systemic collapse, not a few calls or reply bytes. Stopped local optimization/model reruns. Full092038 cancelled653.117799s,59parent+60child=119responses/no delivery. Baseline analysis114.670s15responses; current branchwindow275.615s60responses, actualthreewayoverlap67.164s. Root and read-only reviewers reconstruct entire mechanism; no implementation authorized by diagnosis yet.
+
+- Mechanism investigation complete: independent whole-mechanism FAIL and empirical comparison frozen. Dispatch drops exact slots/checks, independent program suites multiply work, parent reconstructs results, definite context rejection misclassified uncertain; no source repair or model rerun. Updated actualdev control regenerated/20tests0.07s/synchronized; latest existing-tab Return blocked by window focus, no visual acceptance claimed.
+
+- User authorized completing wholeexecutionchain. Accepted correction spec/plan recorded; sole sourceworker startsTDD completechildcontract+structuredslot/checkproposal+validatedproposalrefadmission+typedrejection+semanticprogress/newpolicypublication. Oldcontracts/data/refs preserved; no furtherpaidtrial beforefreeze/review/rebuild.
+
+- Whole-chain interface spec/quality review APPROVE forimplementation only. Inner actualSDK tool_result+before_model_request guard required inadditionto outersemanticcontinuation; failedrequestIDs/receipts alone no progress. Newdispatch protocol persisted beforelaunch, oldunmarkedmanual recovery retained, parent explicitverdict remainssemantic. Short chainprobe prepared butNOTexecuted.
+
+- Whole-chain TDD milestone: actualpinnedSDK innerloop repeatedsameconfirmedrejection/newcallID stops beforethirdrequest; realdistinctcorrection succeeds. Completecontract/manifestmapping and proposal_ref expansion intoexistingrecord/assess tests green. Legacy durableokfalse typedrejection green; remainingcrossprocess/restore/negative/publication gates notyetcomplete. No modelrun/build.
+
+- User browser preference: useVivaldi, reuseexistingtabs, stopEdgeoperations. This steers UIverification only; whole-chainimplementation continues.
+
+- Vivaldi63441 existingprojectcontroltab selected/refreshed/visuallyinspected; sourceRootHTML byteidenticalcanonicaldev generatedcontrol. No newtabs/windows, no furtherEdgeactions. AdjacentexistingApp tab reservedforrealentryverification.
+- 12:05 Whole-chain source frozen: 27 file hashes verified by root; offline chain delivery/cancellation tests and doctor rerun; independent frozen-source review in progress. No build/model/Git ref/cloud/demo action. Vivaldi existing tabs only.
+- 11:09 Timestamp correction: the preceding whole-chain freeze/check entry was written at 11:09 CST, not 12:05. Root rerun: actual chain 2 passed in 1.16s; doctor exit 0; frozen manifest 27/27 matches.
+- 11:21 Independent frozen-source spec/quality APPROVE after R1 manifest rejection fix; 27 hashes and 7 unchanged proofs match. Canonical local rebuild started after zero active attempts; real model acceptance pending. No Git ref/index/cloud/demo action.
+- 11:28 Canonical rebuild exit0; API/allworkers98364169/native8c129549,27deployedsourcechecks/ready/App/cleanup pass. Real chain smoke112412 completed199.793805s(22parent14childresponses) and savedsummary; typedproposal path NOT accepted: P/A rejected then manualfallback, onlyB validated. Fulltrial withheld pending exact contract/manifest/admission audit.
+- 11:39 Accepted bounded same-child completion feedback design (independent design APPROVE), synchronized spec/plan/owningdesign/worklist/notebook; sole source owner implementing four runtimefiles+directtests. Valid zero extra prompt, confirmed corrections new immutable freeze round, unknown original request, no automatic check passes. Current112412 typedFAIL unchanged. Vivaldi refresh preserved report and visibleP→A/B→D levels; mini-map caption promises arrows absent from markup, tracked presentation gap while execution fix proceeds.
+- 11:54 Feedback candidate176JS/51Python passed, root actualchain5passed3.06s+doctor. Frozen delta review found terminal host action_unavailable/owner_invalid incorrectly prompting old child; narrow safe-code allowlist correction authorized to sole owner, source re-freeze pending. No new build/model call; currentdeployment9836/8c12 and smoke112412 strictFAIL preserved.
+- 11:59 Feedback refrozen03:57:07Z after terminal-host rejection fix:177JS/51Python/3legacySDK allpass zero skips; root29hashmatches. Separate feedbackreport/delta10/combined29manifest saved; same reviewer checking only final SDK/client fix. No build/model; earlierR1 provenance and112412typedFAIL unchanged.
+- 12:03 Final feedback spec/quality APPROVE after F1; reviewer verified10before/current+29combined+7unchanged hashes and directboundaryprobes. Canonicalrebuild running72545, logfile/tmp/capstone-model-graph-feedback-rebuild.log; zeroactiveattempt beforestart. Newrealtypedprobe notstarted; old112412typedFAIL unchanged.
+- 12:06 Feedback canonicalrebuild exit0:API/allworkersab982c37/nativec789e285,31sourcechecks/ready/App/cleanupPASS. Realtypedprobe120512 startedthr_f0ebeb3c1e0c8da4f0a1/attempt_82ad2118a442d300,240scap; readonlyauditactive. No source/Gitref/cloud/demo changes.
+- 12:11 Real120512 completed131.631765s/17parent14child31responses:allP/A/B validatedproposal_ref acceptedrecord, parentexplicitassess, Dwrite/freeze/finaldelivery;6savedhashPASS. A/B samePbyte reads proven. Narrowprobe byrefassess/Dnative reread did not occur; reviewer/auditor checking actualcachedsummary/explicitassessment contract before full. No blind rerun or source edit.
+- 12:37 Full121539 outerattempt_cancelled/currentNone confirmed653.573s,48parent0child/no delivery. Root downloaded36processcsv/html, selectedaggregate84/84oraclechecksPASS; savedreport948548B closedHTML9embeddedPNG/no remoteassets, notdelivery. Auditor phase/writing/reuseaudit underway. Parentrecordpurepreview design independentlyAPPROVE andauthorized; workerTDD95state/runtimechecks green, no model/sourcebuild whileediting.
+
+## 2026-10-22
+
+- 00:40 Numbered concise UI verified after reload;282App tests/types pass. Local164f2f2d/native624128c2:55hashes/ready/cleanup pass. Parallel report acceptance remains failed.
+
+- 01:06 Parallel task groups now use indent/separate thin lines and group wall/tool/LLM metrics;176focusedApp/types,147JS,9actualSDKchain checks pass. Final canonical rebuilda83ad0a4/nativeb9124711,55runtime hashes/ready/cleanup passed. Real005501:142.859889s,17parent/0child,761666tokens,HTML downloaded;model failed graph collapse and ran all work under profile. Parallel acceptance failed;no new blind full run. Final group summary visual review pending active browser input. No Git/cloud/demo changes.
+
+## 2026-10-23 — lightweight task diagnosis
+
+- Full012219 cancelled956.852s at diagnostic guard;32 CSV/Markdown process files saved, no report. Discovery109.387s/13LLM; three parallel analyses402–577s/24–37LLM. Original baseline145.914727s remains22LLM/16native tools.
+- Enforced task outbound traffic off; libraries/fonts preinstalled. Fresh-font-cache Python probe2.69s, actual SDK bash single2.28s/three concurrent1.61s wall. Historical71.9s was an observed event interval, not proven import time.
+- Fixed trusted environment handoff, lightweight empty-array normalization and native tool timing.125JS/85Python/169App/42resource checks passed; canonical sequential build51709301/native47641938,102source checks/readiness/cleanup passed.
+- Sequential015900 stopped abnormal consumption at323.523s. First discovery174.317s,23LLM/161.294s,23tools/13.513s, no overlap. Assignment and execution did exhaustive profiling/alignment plus downstream metrics.11node files retained; no report. No matched parallel follow-up started.
+- Fixed isolated organizer's Pi coding-role fallback and worker projection dropping execution_ms.125JS/145Python/9cross-language chain checks pass.91files frozen; canonical rebuild51773 active, concurrency1. Real scope adherence and full sequential/parallel acceptance remain open. No Git/ref/cloud/demo change.
+
+### 2026-10-23 — Research turns, retained products and explicit task sources
+
+User judges research adequacy across turns. Preserve imperfect findings/products,
+mark actual limitations, and do not automatically rewrite whole lightweight returns.
+App1.18/Pack1.15/shared1.5 permits explicit limited current-turn delivery while
+preserving every unmet requirement. Prior publications remain exact.
+
+Real README turns completed118.529/158.104s but exposed invented character quotas
+and missing child selection of an already staged prior file. Fix source catalog
+and editorial guidance. Third turn52.119s consumed that previous version and
+changed only its title; independent download confirms4090body bytes unchanged.
+These are narrow protocol/continuation checks, not report performance acceptance.
+
+Original-input032707 was cancelled at165.848397s: omitted node source_refs became
+empty, and its child searched parent inputs then computed downstream metrics.
+23childLLM/27tools before cancellation. Correction keeps node source_refs required
+in schema and runtime; only depends_on/inputs default empty. No implicit grants,
+no claim of per-node OS filesystem isolation.135JS and9cross-language checks pass;
+137host/publication checks passed earlier (1skip). Doctor/diff checks pass.
+
+Canonical rebuild exit0: API/all workersb0bde166, native23a548f5;111source checks,
+ready/App HTTP and scoped cleanup033943-64686 passed.95files frozen in
+ task-explicit-source-hashes.json. Concurrency1 real original-input test ACTIVE:
+sequential-autonomous-application-20261023-034025; thr_dce3bda207921742ee9a / attempt_cc727a2d50af1ada.
+Do not edit production source or rebuild during this test. Inspect explicit
+source selection and first-node tool behavior before treating it as comparison.
+Full sequential/parallel acceptance remains OPEN. Baseline145.914727s unchanged.
+No Git refs, cloud or demo changes.
+
+### 2026-10-23 — Preserve research outputs; backpressure and synthesis role
+
+Latest real recovery043222 was cancelled at its600s diagnostic guard (about603s
+polling) before a report. It saved3corridor CSV/Markdown products. Report synthesis
+had original-input grants, reopened source calculations and added new analyses.
+Do not call this a completed report, matched comparison or146s performance result.
+There is NO active model task now.
+
+Current local deployment: App1.18/Pack1.15/shared1.5, backend8d791b98/native16d1e8ce;
+112source hashes, readiness/App HTTP and cleanup043051-90579 passed.97frozen files:
+task-retained-return-queue-hashes.json. Safe files persist before semantic checks;
+roles normalize conservatively, goal coverage is incremental and explicit limited
+delivery preserves unmet requirements. Native DEBUG queue fullness now applies
+bounded backpressure, not a fatal257/256capacity error.140JS/74Python/6actualLinux
+queue scenarios passed. The prior034025 FAILED859.119629s due to that transport
+capacity error;15admitted CSV/Markdown files are downloaded/hash checked. Its late
+archive was EMPTY, and cancellation was rejected after terminal failure.
+
+NEW uncommitted candidate: task mode is passed to executors; synthesis composes
+retained results/products, cannot select known original_input sources at planning
+or restored dispatch, and reports new substantive gaps for focused execute work.
+It may format aggregates, create charts and save a useful draft with stated gaps.
+Source_ref/origin/path mapping is explicit. This is no per-node filesystem sandbox.
+143JS/29focusedPython checks pass after this correction; prior74Python/6Linux proofs
+still apply to unchanged transport/harness sources.97files frozen in
+ task-cohesive-synthesis-hashes.json. Canonical rebuild56759 is ACTIVE; log
+ /tmp/capstone-cohesive-synthesis-rebuild.log. Do not edit frozen runtime source.
+
+Next: verify new runtime identity/cleanup, then produce a report draft from actual
+saved inputs without reopening source analysis. Full unchanged-request sequential
+and parallel comparison is still OPEN;145.914727s remains the reference baseline.
+No Git refs/index, cloud or demo changes. All changes remain in model-decision.
+
+## Incremental source catalog correction — 2026-10-23 05:16
+
+The saved-draft recovery050155 completed and saved four hash-checked files,
+including a222733-byte HTML report. It covers price only, not all three topics.
+Its build-report node took176.339s:28LLM calls/170.489s and27tools/11.709s
+observed/5.305s native. Repeated parent contract errors added substantial time.
+This is a changed-prompt continuation, not the146s baseline or a paired test.
+
+Root cause: the model-selected initial graph source subset was also used as the
+permanent source catalog. Later incremental tasks could not select other
+App-authorized inputs. Core synthesis also required current graph result inputs,
+rejecting historical product-only composition. The model fell back to execute
+with one price input even though the host staged other retained products.
+
+Candidate correction: lightweight initial graph sources include the union of
+explicit node selections. Subsequent batches may extend used source refs only
+from the protected host catalog. Each action still freezes only its task's
+explicit selections; unknown sources remain rejected. Legacy fixed-scope rules
+remain unchanged. Historical-source-only synthesis is accepted for lightweight
+contexts; the App still rejects known original_input sources for synthesis.
+172 scoped JS tests pass, including core graph regression coverage and the two
+new reproduced failures. Local rebuild75920 is active; source manifest is
+task-incremental-source-hashes.json. Previous deployed backend6dab46e6/native5417a1e2
+remains the last verified identity until the rebuild and hash checks pass.
+No model task is active. Next: compose all three topics from saved products in
+the same Work; then conduct the unchanged-input sequential/parallel comparison.
+
+## Completed retained-product report and scope correction — 2026-10-23 05:35
+
+052253 completed in595.066225s. The downloaded471783-byte HTML includes all three
+requested topics, six embedded images and no HTTP(S) src/href resources. Browser
+opening passed; this is a draft, not user analytical acceptance or a146s benchmark.
+Thirteen selected HTML/CSV/JSON products were downloaded/hash checked; other
+published formats are in the saved events. The node used only17 retained inputs,
+no raw source grant. It ran308.288s,33LLM/290.877s,37tools/34.572s observed/17.307s
+native, four script errors. Parent had two initial planning errors; end-to-end
+595s is abnormal. No active model task remains.
+
+The accepted assignment added mandatory XLSX,4–6charts,eight chapters,sampling
+quotas and a self-check inventory absent the request. Its extra self-check table,
+scripts and expanded return added work. Largest model generations preceded
+make_report.py44.961s/9672tokens,make_tables.py29.491s/6779tokens and
+make_metrics.py23.250s/6927tokens. These are model generation intervals before
+tools, not slow imports/downloads. Existing local capstone-report rendered the
+HTML without network resources. Do not attribute all time to isolated contexts.
+
+Next candidate: lightweight root sources are host-derived from task selections
+(the optional legacy root list has no grant effect); checks may be omitted as[].
+Planner guidance defines outcomes and explicit I/O, not exhaustive execution
+recipes, invented formats, chart/section counts or certification packages.
+Executor publication selects requested products and concrete consumer support;
+intermediates may remain private. Legacy contracts and source permissions stay.
+173JS tests pass.97files frozen in task-outcome-scope-hashes.json; canonical
+rebuild64786 active. Last verified deployment remains c6094093/native edc5e929.
+Next real acceptance uses the unchanged original four sources and instruction,
+sequential first; no repeated saved-draft regeneration. Then parallel on identical
+code/model/request with only concurrency changed. Neither is accepted yet.
+
+## Active unchanged-request sequential trial — 2026-10-23 05:40
+
+Outcome-scope candidate canonical rebuild passed: backend7dc8e8d7/native3d178a07;
+112 runtime source checks, readiness/App HTTP and scoped cleanup053934-63293.
+173JS, doctor, diff and CLAUDE symlink checks pass.97files are frozen in
+task-outcome-scope-hashes.json; no source edits during this real trial.
+Active: sequential-autonomous-application-20261023-054012, thread thr_a3ad71215eb1751fa8f8,
+attempt_f00d6027757d0789, runner81860; log/tmp/capstone-outcome-sequential.log.
+Four original file bytes and original request, concurrency1. Check actual scopes,
+calls and saved products before starting concurrency3 on otherwise same source.
+052253 is completed595.066225s, retained three-topic draft; not a valid original
+request comparison. No accepted paired performance result; baseline145.914727s.
+
+## Limited-result deadlock and structured returns — 2026-10-23 06:18
+
+054012 ended FAILED885.600273s, native_continuation_no_progress. Four nodes had
+finished and retained their work: audit138.309s/15LLM/15tools; price231.137s/
+28LLM/28tools; flow178.191s/18LLM/18tools; renewable167.172s/16LLM/17tools.
+The report node was committed but pending because all producers were assessed
+limited and future-slot selection still required a second limited-acceptance
+protocol. Nothing was running, then the no-progress guard ended the turn. The
+900s observer auto-cancel was removed by replacing only its polling process;
+this failure was not an observer cancellation.7admitted CSV/Markdown products
+were downloaded; image artifacts remain in saved API events. No report from this
+attempt. This is not a completed sequential benchmark or a paired comparison.
+
+Root correction: the App selects a host-only selected_limited_inputs policy for
+lightweight research. Explicitly selected current completed limited returns can
+be consumed without another model-authored acceptance form. Missing selected
+slots still block; stale/cancelled/failed/unknown producers are not admitted.
+Canonical assessment, unmet checks and record limitations pass to the consumer,
+including directly selected producer limits that the compact assignment had
+omitted. Later output manifests retain them. Python sealed-handle admission
+supports this protected checkpoint policy and still checks exact provenance.
+Legacy fixed-quality and professional behavior stays unchanged. No check is
+promoted to passed and no general output becomes Authority evidence.
+
+Known return overhead was structural: model writes protocol JSON, then parses
+and repairs it. A new child-only agent_task_return tool takes concise statements,
+slots and relative file selections. Host-owned metadata is encoded and saved
+atomically; the actual native submission is a producer-statement observation,
+not independent analytical verification. Omitted checks remain not_run. Actual
+file freezing and permission checks remain separate. Legacy returns still work.
+178JS and64Python checks pass, including10actual fixed-SDK/cross-language cases.
+The new fixed-SDK case uses a scripted offline provider with actual tools:3model
+turns,2nativecalls (write + return), quotes/newlines round-trip; it is conformance,
+not real-model acceptance. Doctor/diff checks pass.98files frozen in
+task-selected-limits-return-tool-hashes.json; canonical rebuild50288 is active.
+No model task is active. Last verified backend7dc8e8d7/native3d178a07.
+Next: compose the failed Work's already saved outputs without reanalysis; verify
+real return-tool use and report persistence. Then unchanged-request sequential
+and parallel on the same corrected code. Baseline145.914727s remains unchanged.
+
+## Return host admission repair — 2026-10-23 07:05
+
+062221 failed501.791752s at agent_task_return start/end boundary. Native private
+receipt: ValueError, reason observation_source_invalid. The SDK tool had been
+added without the outer GeneralPiHost observation allowlist. This was an
+implementation omission; SDK-only conformance did not cover that host boundary.
+No artifacts were admitted by this attempt. The450s operator backup retained
+report.html2325735bytes and key_metrics.csv46080bytes. Duplicate archive members
+have identical hashes; exact files were extracted under unadmitted-recovery with
+recovery-extraction.json. They are unadmitted process drafts, not Authority or
+accepted delivery. Never regenerate these contents just to register them.
+
+Host now admits agent_task_return only on an exact tracked child lease; the
+parent and unknown tools remain rejected. New real-host tests reproduce the
+old observation_source_invalid rejection and verify source admission. The return
+tool now freezes selected safe file versions through the protected context port
+BEFORE publishing its return observation. Host tests prove these files survive
+a later observation rejection, without being promoted to accepted delivery.
+Question/expected-output duplicates derive from purpose/declared outputs when
+omitted or empty. Task source_refs remains explicit. The synthesis source-origin
+veto was removed: work mode is scope guidance, host grants are the permission
+boundary. Unknown sources and version/owner checks remain enforced. This
+supersedes earlier candidate notes saying original_input was forbidden for all
+synthesis, which incorrectly rejected needed context as a quality rule.
+The engine now sees protected max_concurrency, independent/read-only contexts,
+incremental/dependency scheduling and explicit return updates. It is guided to a
+useful first pass, not exhaustive metric/check/presentation inventories.
+
+178JS and148Python pass; the first broad Python run had two localhost HTTP tests
+routed to a proxy(502); with NO_PROXY set for localhost the full148pass in12.01s.
+Doctor/diff pass. Independent review was attempted twice but the tool router
+requested unavailable gpt-6.1-luna; no reviewer ran.99files frozen in
+task-return-host-admission-hashes.json; canonical rebuild99430 is active.
+No model task is active. Last verified deployment923c246f/native88eb7ef6.
+Next: register_recovered_report.py explicitly uploads these UNADMITTED recovered
+files as new resources and requests byte-identical output copies in the same Work.
+Do not silently call the backup admitted history. Then verify the real return
+host/persistence path, before unchanged-request sequential/parallel comparison.
+Baseline145.914727s remains unchanged; no valid completed paired comparison.
+
+## Real output registration passed — 2026-10-23 07:12
+
+Canonical rebuild99430 passed: backend71a06405/nativecfff03d9;112runtime source
+checks, readiness/App HTTP and scoped cleanup070823-83486 passed.99files frozen
+in task-return-host-admission-hashes.json.178JS/148Python pass; no source edits
+since this freeze.
+Real return-registration-recovery-20261023-070958 COMPLETED71.037498s in the same
+Work/thread thr_a3ad71215eb1751fa8f8, attempt_b5f6db8525ae8f52. Child
+copy-recovered-artifacts completed11.328s,4LLM/11.095s,3tools/.387s observed/.136s
+native, no errors; actual agent_task_return start/end was admitted successfully.
+Both recovered files were explicitly uploaded as new UNVERIFIED resources, then
+copied into outputs. They were not silently treated as previously admitted
+artifacts. Downloaded HTML2325735bytes and CSV46080bytes have exactly the recovered
+SHA256 values; restoration-check.json confirms both. No contents were rewritten,
+recomputed or replotted. This proves real-model SDK/host/file-persistence wiring,
+not original-task performance or analytical user acceptance. No model task active.
+Next: original four files/original instruction sequential concurrency1, then
+parallel concurrency3 on identical module source. The observer no longer cancels
+progress solely at900s; native host deadlines remain. Monitor abnormal consumption
+and do not submit a second model task while one is active. No valid completed
+paired comparison yet;145.914727s remains the baseline.
+
+## 2026-10-23 — Incremental grain and completed-file persistence
+
+Original trial080526 incrementally planned profile, three analyses, synthesis. Executor completed, but outer artifact publication failed at1800.200472s because it reused the execution deadline. Repaired separate bounded persistence using the same configured timeout and cancellation/lease callback.71runtime/chain and180JS tests pass. Research success with unchecked work now records limited without a rejected retry. Local backend70b32adf/nativef245c2ae;112source checks/readiness/App/cleanup091127-82228 pass. Recovered2.96MB report as unadmitted draft,10embedded images, no external references. Model scripts and repairs remain excessive; no valid sequential/parallel acceptance;145.914727s baseline unchanged. No model job active or Git/cloud change.
+
+## Sequential 300-second diagnostic — 2026-10-23
+
+User requires investigation/interruption after300s, no extended checks or repair
+loops. Same frozen persistence-budget candidate, concurrency1, original inputs and
+request.105011 thread thr_112c2864bdfef4a37953,attempt_afd241132982bdc5:
+watchdog cancel accepted at300s;terminal observed302.4s. No task active or retry.
+First src-profile117.898s:12LLM/115.402s,19950output tokens;11tools/2.490s native.
+It exceeded its assigned structural discovery by calculating monthly negative
+prices, channel utilization and renewable identities, then authored a9535-character
+profile through scripts with syntax failure and rewrite. These are executor
+strategy defects, not slow numerical tools or scheduler waiting.
+Between first child end02:52:30.847Z and second start02:53:32.375Z:61.528s.
+Record tool took.185s;two assessments each<.4s;revise.464s; child started.063s
+after revise ended. Most transition cost is parent model reasoning/text for
+record/assessment/planning; the dispatch mechanism itself was prompt.
+New planning split price and negative-price into separate tasks plus flow and
+renewable. Independent contexts do not justify every analytical subquestion
+becoming a separate executor. No demonstrated need for extra work over baseline.
+146s baseline remains145.914727s. Its source+analysis combined span51.115s,
+not an exactly matching isolated profile node;do not invent a baseline first-node
+time. Its entire output24343tokens vs current first-node19950tokens.
+No new full model run until scope inflation and parent protocol cost addressed.
+
+## Scope and depth, not excessive context compression — 2026-10-23
+
+User correction: retain enough relevant context; control task scope and depth.
+SDK organization guidance now explicitly retains needed definitions, caveats and
+goal context. Select related versioned inputs/return slots, not unrelated sibling
+results. Discovery stops when the next planning decision is supported, and does
+not precompute downstream business analyses or hand-author narrative profiles via
+large scripts. This is model guidance, not a proven hard scope boundary.
+Vendor explore-data was read and remains unchanged. It covers structure, grain,
+keys, coverage and quality, but defaults to comprehensive profiling, correlations
+and follow-up suggestions. Its relevant subset is sufficient for initial discovery;
+not every skill section is an assigned task. Baseline public events show direct
+README/CSV reads and Python analysis, with no explicit explore-data read/invocation
+found; availability does not prove use, and truncated events cannot establish
+complete absence. Do not claim the baseline only called that skill.
+A further baseline difference: actual-work-envelope.json records usable_draft
+with240s soft target/60s integration reserve. Current lightweight execution has
+no equivalent envelope. This is a scope-control difference to address separately
+from cancelling capacity or truncating context, not proof of sole causation.
+180JS tests pass; canonical rebuild72617 and112 runtime hash/readiness/App checks
+pass. Backend ecaabce18317/native1218e1e9b497. Cleanup114259-56680 completed.
+Frozen task-scope-hashes.json,receipt model-task-scope-deployment.json.
+No model task active. Scope behavior and speed remain unverified after this change;
+no repeat full trial or parallel run.300s diagnostic cutoff remains required.
+
+## Non-blocking research turns and reduced parent protocol — 2026-10-23
+
+120343 sequential diagnostic stopped by the user-authorized300s watchdog;terminal
+observed307.3s. Profile108.987s/12LLM104.772s/14852output tokens/13tools4.554s
+native. Parent transition67.301s. Scope-only guidance was insufficient; no speed
+acceptance or parallel trial. Diagnostic cancellation is external testing policy,
+not an application failure rule.
+
+User instruction: ordinary tool, analytical, missing-optional-input or unchecked
+results should preserve the full instruction path and deliver useful work with
+limitations. Unsafe ownership/authorization state or unconfirmed required
+persistence remains fatal. Explicit user cancellation is respected. This does
+not certify unfinished work or invent evidence. Remaining fatal-code paths still
+need review; do not claim all faults are now recoverable.
+
+Implemented optional lightweight record.assessment: one parent model submission
+records and assesses a return, retaining separate checkpoints and original
+issued identities. An invalid assessment preserves an already saved record.
+Replay stays bound to the original execution after rerun; legacy schema unchanged.
+New app-selected turnGuidance restores baseline240s draft target/60s integration
+reserve as ADVICE ONLY. Parent and child see shared elapsed time; child gets
+updated advice after successful tools. No cancellation, closure or scheduler
+gate is derived from this guidance; tests prove post-target tasks still start.
+The advisory origin is persisted across controller restore. Ordinary research
+problem guidance retains related context and favors useful turn delivery.
+
+187JS tests pass;10SDK chain tests passed before the final replay fix (rerun pending).
+First build failed because new task-turn-guidance.mjs was absent from the native
+Docker COPY list; fixed before model tests. Last build source then received a
+replay correction and canonical rebuild47491 is active. Frozen101files in
+nonblocking-turn-hashes.json. No model task active; readiness/hash verification
+required before the next sequential300s diagnostic. Baseline145.914727s unchanged.
+
+
+## 2026-10-23 — Cohesive guidance, process grouping and completed sequential diagnosis
+
+UI grouping now requires observed overlapping intervals; real thread screenshots
+confirm separate sequential records.192JS/185App/10SDK checks, typecheck, doctor,
+canonical rebuild and114 runtime hashes pass. Source manifest cohesive-grouping-hashes.json;
+backendc1af7c114821/nativef00dd8c04bfd; scoped cleanup170538-67829 passed.
+171926 completed in803.736247s attempt time (886.2s observer including queue).
+65 child responses across5 nodes,31 parent responses; products downloaded/hash-checked,
+report visual/content acceptance pending. Performance does not pass146s baseline.
+300s is now a review reminder, not cancellation. No task is running or parallel
+comparison accepted. User proposes global LLM request capacity and single-round
+multi-tool batching. Pi0.84.4 already supports independent sessions and multi-tool
+batches; trace has1 two-tool batch,59 single-tool responses,5 without tools.
+Candidate shared scheduling and batch optimization recorded in core notebook;
+no new pool implemented. Contradictory node-purpose metadata and mixed assessment
+contracts remain follow-up defects. Dev-owned control register/overview updated
+and copied; no Git integration, cloud or demo deployment.
+
+
+## 2026-10-23 — Multi-tool contract repair
+
+Fixed per-field JSON Schema aliasing and advisory mixed assessment fields.
+Shared planner/executor guidance uses existing Pi multi-tool batches. Actual SDK
+retains two independent writes in one response with separate receipts.193JS/11SDK
+tests and114 runtime identity/ready/App checks pass; backend9ffa2aa1f50c/nativea22d576ad183.
+Canonical cleanup231913-15926 passed. Source: batch-contract-final-hashes.json.
+Real225633 smoke completed67.635168s; node15.975s with4responses, first response
+issued2independent reads. One assessment error preceded the last compatibility
+fix; final fix has regression verification, no repeated model test. No active
+task, no report-speed acceptance or parallel comparison. Dev control refreshed;
+source remains uncommitted, no Git integration or cloud/demo promotion.
+
+## Call trace details and sequential result — 2026-10-24
+
+The single full sequential request completed in 487.975483 seconds (thread
+`thr_d8c1ca42f6a8d1c41ccc`, attempt `attempt_134da31447985406`). Its three
+linear nodes took 75.777 / 139.156 / 192.272 seconds and made 10 / 15 / 31
+child model calls. The fixed 145.914727-second baseline remains unmet. This
+run did not create three branches and cannot establish parallel speedup.
+Captured effective SDK flags confirm advisory node review. Earlier long runs
+used a misplaced settings field and must not be treated as equivalent trials.
+Five report images are embedded; report content acceptance remains pending.
+
+Call rows show duration, input/output/cache tokens, requested tool operations,
+and bounded public reply text when saved. No model name or hidden thinking is
+shown. Missing tool records have compact amber notices at process and task
+level. Clicking opens the affected task/call section and focuses its exact
+round. Manual folding remains stable after rerender. Normal in-flight calls
+are not flagged. Historical absent fields remain unknown. SDK failures before
+native wrapper entry now retain actual failure records without invented
+execution starts, durations or evidence. This does not add node rejection.
+
+Checks: 290 App tests plus one new focus test, TypeScript, 95 backend tests,
+50 JS/SDK tests, doctor and diff checks passed. Actual saved-session browser
+check confirms token rows, top/task notices and exact round focus. Local rebuild
+and runtime identity receipt are recorded separately. No new full model task,
+no merge, no cloud or demo deployment. Further performance work is pending.
+
+## Report call granularity research — 2026-10-24
+
+Completed all31 report-node rounds against saved events, not a new model run.
+31responses/188.746s,38declared tools/37records,8double-tool rounds; node192.272s.
+Rendering/debugging rounds15–22 consumed35.278s model time; checks/editing/cleanup
+rounds23–28 consumed21.128s. Input including cache grew7695→78586tokens.
+Input handles lose readable file semantics; charts slot includes scripts and one
+white figure; image read reports no image-model support. Renderer masks specific
+file errors. Offline experiment confirms Chinese paths work and missing files
+produce the same generic error. Historical full scripts/replies are unavailable;
+round29 missing execution remains unknown. No invented internal reasoning.
+
+Recommendation: model judgments at new-information boundaries, program execution
+between them. First fix consumable input metadata and exact tool diagnostics;
+then test cohesive code execution using current Pi/bash. No extra LLM gate, fixed
+round quota, quality rejection, new global writable context or professional shell.
+Research only: no runtime change/deployment/merge/full model rerun. Fixed146s
+baseline remains unmet. Next proposed experiment fixes upstream versions and tests
+only report generation before a full sequential comparison.
+
+Report: docs/reviews/2026-10-24-report-call-granularity.md.
+Evidence/validation: outputs/report-round-study-20261024/audit-validation.json.
+
+## Cohesive execution intent implemented — 2026-10-24
+
+User approved the31-round study and adoption of useful combined measures.
+Implemented descriptive sealed input metadata, exact report-source diagnostics,
+continuous-program guidance, semantic task boundaries instead of internal phases,
+and tolerance of ignored descriptive output annotations. Host identity, scope,
+source grants, slot/file validation and evidence remain authoritative.
+
+R1 real report-only attempt215.132095s:2nodes/19responses/164.823s model time,
+37,722output tokens; unnecessary content draft and repetition remain measurable.
+R2 real one-intent attempt48.997602s:1node/7responses/23.754s model time;
+one bash call generates/runs/verifies/saves HTML. All282CSV rows including header
+and5columns match saved HTML text exactly. It still did2extra checks and incurred
+one annotation-schema rejection. R3 repairs that deterministic rejection and
+strengthens stopping guidance; it has not received another real-model benchmark.
+No new full raw-data analysis run.146s fixed baseline remains unaccepted.
+
+Final227Python and218JS/SDK checks, doctor/diff passed. R3canonical rebuild passed:
+backend19242e93b64b/native91b22929ea56;116runtime source checks/ready/App passed.
+Scoped cache maintenance20261024-055235-5355 completed.107source files frozen in
+outputs/orchestration-repair-20261020/cohesive-execution-r3-hashes.json.
+Receipt:model-cohesive-execution-r3-deployment.json. No commit/merge/cloud/demo.
+Report:docs/reviews/2026-10-24-cohesive-node-execution.md.
+Evidence:outputs/cohesive-report-20261024/ (report run053547, intent smoke054521).
+
+Next: controlled report-only comparison using the same8fixed named inputs and
+currentR3source, inspect whether planner avoids intermediate content drafts and
+whether checks stop after success. Do not start another full raw-data case or
+claim parallel speedup. Review abnormal progress/consumption;300s is not an
+automatic observer cancellation threshold. Full baseline acceptance remains
+separate. No model task is active.
+
+
+2026-10-24 — Parallel planning refinement: original full run336.512660s, three actual branches,59LLM/59tool records, report/indicators retained; sequential544.6s/prior parallel412.4s,146s still unmet. Added special startup/finalization records/live parent timing and comment-before-truncation tool intent. Fixed idle graph forcing a direct response into planning; actual enterprise direct answer4.182780s/oneLLM/no graph/tools.153SDK/293App/type/doctor pass. Final local rebuild+identity receipts retained.16.6s parent pre-request gap and graph-free isolated tool entrypoint remain open. No cloud/demo/Git integration.
+
+2026-10-24 — User reset current comparison baselines: three-branch parallel338s/59tools, two-branch parallel412.4s/56tools, sequential544.6s/67tools. Archive146s as an older version; do not use it as current acceptance target. Raw run elapsed336.512660s remains intact as evidence.
+
+2026-10-24 — Workspace navigation/session management completed locally: independent resizable columns with saved widths, same-page switching and retained catalog/scroll, no generic current-session placeholder, adjacent-session/grid toolbar controls, pinned/recent groups, fixed new-session entry, row context menus/inline rename, archive lookup/restore and separately confirmed inactive-thread deletion.169App+18targeted/type,55backend/2PGfixture skips; real disposable-session browser/API verification passed and fixtures cleaned.118runtime source checks, backendcba33ec86225/nativeada86461950c,ready/App and scoped cleanup pass. No model benchmark/cloud/demo/Git integration.
+
+2026-10-24 22:52 — Recovered interrupted UI work. Fixed archive pagination and stale responses;927App/type/doctor/browser pass. Rebuildc64fbe52c992,118source/ready/App pass. Accumulated cross-package changes remain unmerged.
+
+2026-10-24 23:52 — Added bounded session memory cache and disk reading-state recovery;932App/type/doctor pass. Real warm iframe/main retained;cap1cold report/165px restored. No task cancellation/archive/merge/cloud change.
+
+2026-10-25 00:05 — Final cache source:932App/build/doctor pass;empty-catch-up reconnect fixed. Backendc64fbe52c992/nativeada86461950c,118source/ready/App pass;scoped cleanup complete. Dev control updated;code unmerged.
+
+2026-10-25 01:27 — Reproduced stale pins after Activity reveal and namespace change; both regressions now pass. Collapse/reopen retains pinned rows. Rename uses13px type/30px input; Escape cancels editing without hiding navigation.942App/build/doctor pass; real browser checked. Canonical rebuild pending final readiness. Dev overview regenerated and checked:34cards/80paths/no card overlap. No merge/cloud/demo change; named workspace and refined empty state remain open.
+
+2026-10-25 — b87ac5d2: Retained native execution dependencies so the accepted workspace can integrate as a complete application.
+
+2026-10-25 — c34b4780: Committed workspace navigation and session recovery so dev can retain the verified interface.
