@@ -5618,3 +5618,5 @@ separate. No model task is active.
 2026-10-25 — dd49270e: Agreed identical gateway and Capstone SDK pins to avoid unnecessary cross-version compatibility work.
 
 2026-10-25 — da48a15a: Added protected remote MCP catalog and calls; six checks and actual gateway discovery pass before research integration.
+
+2026-10-25 — 5c2df318: Retained WebGL rendering and measured 100k-node acceptance as later work so production-data research stays first.

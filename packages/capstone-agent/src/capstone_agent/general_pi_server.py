@@ -979,6 +979,8 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 self.send_json(404, {'error': 'task_not_found'})
 
         def do_POST(self):
+            if self.path.startswith('/data-gateway/'):
+                return self.relay_data_gateway()
             if self.path.startswith('/provider/'):
                 return self.relay_provider()
             if not self.authorized():
@@ -1037,6 +1039,37 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 self.send_json(400, {'error': 'invalid_task'})
             except (RuntimeError, OSError):
                 self.send_json(503, {'error': 'executor_capacity'})
+
+        def relay_data_gateway(self):
+            from .data_gateway_mcp import GatewayError
+            gateway = getattr(runner, 'gateway', None)
+            parts = self.path.split('/')
+            if gateway is None or len(parts) != 3 or not parts[2]:
+                return self.send_json(404, {'error': 'gateway_unavailable'})
+            task_id = parts[2]
+            grant = self.headers.get('Authorization', '').removeprefix('Bearer ')
+            try:
+                lease = runner.relay.acquire(task_id, grant, self.connection)
+            except PermissionError:
+                return self.send_json(401, {'error': 'unauthorized'})
+            try:
+                length = int(self.headers.get('Content-Length', '0'))
+                if not 0 < length <= limits.mcp_frame_bytes:
+                    raise GatewayError('gateway_request_invalid')
+                document = json.loads(self.rfile.read(length))
+                async def forward():
+                    lease.loop, lease.task = asyncio.get_running_loop(), asyncio.current_task()
+                    if lease.cancelled.is_set():
+                        raise asyncio.CancelledError()
+                    async with asyncio.timeout(max(.001, lease.deadline - time.monotonic())):
+                        return await gateway.call(task_id, document)
+                self.send_json(200, run_http(forward()))
+            except GatewayError as error:
+                self.send_json(400, {'error': str(error)})
+            except (ValueError, OSError, TimeoutError, asyncio.CancelledError, CancelledError):
+                self.close_connection = True
+            finally:
+                runner.relay.release(lease)
 
         def relay_provider(self):
             # A task gets a revocable relay grant, never the Provider credential.
