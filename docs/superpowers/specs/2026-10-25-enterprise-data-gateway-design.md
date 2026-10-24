@@ -1,8 +1,9 @@
 # Enterprise research with production data through MCP
 
-Status: user-approved contract; adapter and native integration candidate implemented
-through e39fd6c3. Focused checks pass. Real App/model multi-turn acceptance,
-dev integration and deployment acceptance remain pending.
+Status: user-approved contract; local functional acceptance passed on runtime
+source2f9c6b56, including real model execution, follow-up and browser recovery.
+Dev integration and required PR checks remain separate. See the
+[measured acceptance](../../reviews/2026-10-25-enterprise-data-gateway.md).
 
 ## Goal and delivery order
 

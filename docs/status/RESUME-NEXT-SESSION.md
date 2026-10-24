@@ -1,63 +1,57 @@
 # Live Session Checkpoint
 
-Updated 2026-10-25. Active enterprise data gateway design; no deployment change.
+Updated 2026-10-25. Local gateway acceptance passed; dev integration is active.
 
-Accepted dev is 346de403 after PR56/57. Main checkout remains on dev; its two
-post-merge metadata changes (journal and overview) are preserved. Recovery refs
-and ignored user data remain intact. Do not repeat release CI for development.
+## Source and worktrees
 
-Worktree .worktrees/dev-macos-ci uses feat/enterprise-data-gateway. Design0d20a8f2,
-adapterda48a15a, relay4c50c9a1, native integratione39fd6c3 and guidance/verifier
-45394040 are committed. Twelve gateway/actual-child checks pass, plus100 focused
-host checks and62SDK checks. Pi setup/install/doctor completed in this worktree.
-Initial missing-runtime and loopback-proxy failures are environment issues;
-after setup/NO_PROXY, host66 and chat14 checks pass, and existing graph execution
-checks pass. No real model task has been started yet.
+Accepted dev remains346de403. Implementation worktree .worktrees/dev-macos-ci is
+feat/enterprise-data-gateway. Runtime source2f9c6b56 is committed/pushed; later
+commits contain documentation only. ROOT remains actual dev and its original
+post-merge journal/overview changes are preserved. Operator gateway mount paths
+were added to ignored ROOT deploy/local.env; no credentials were copied.
 
-Private-parent fix2f9c6b56 is committed and pushed; no PR yet. Canonical rebuild
-/tmp/capstone-gateway-private-rebuild.log completed. API/3worker imagee69d4f1b6e56,
-nativeb605fa2b1a6c, exact five-role source hashes, ready200, gateway41 and actual
-setuid10000 open denial passed. Receipt: ROOT
-outputs/data-gateway-20261025/local-source-verification.json.14 gateway checks,
-102focused host checks pass. Independent review agent failed to launch due to
-unavailable configured model; do not claim independent review. Manual audit done.
+## Passed local path
 
-IMPORTANT ACTIVE MODEL RUN: thr_1897f293f4778aa394ad / work_933aff1d8c8316ffd4db /
-attempt_a064c1744e3f09b5. Observer exec44788, log/tmp/capstone-gateway-real-series.log,
-ROOT outputs/data-gateway-20261025/real-series-1. Native graph children have
-successfully called actual gateway discovery/query and semantic prepare/execute.
-Wait for the original attempt; do NOT rebuild or edit runtime or submit a duplicate.
-Browser sessiongateway-real shows the Thread. Poll-only resumes the saved receipt.
+API and three workers share imagee69d4f1b6e56; native imageb605fa2b1a6c.
+Five-role source hashes, ready200, gateway41 and actual UID10000 credential-open
+DENIAL passed. Connection path is /run/capstone-private/data-gateway/connection.json
+under image-native root0700. The earlier mode0600 bind-only configuration failed
+that probe and was repaired BEFORE any model task. No credential bytes printed.
+14gateway checks,102focused host checks and62SDK checks pass. Independent review
+agent failed to launch (unavailable configured model); manual audit is recorded.
 
-An earlier real UID probe found that a mode0600 host bind was readable; no
-credential bytes were printed and no model had started at that point. The native
-host was stopped, repaired with image-native root0700 /run/capstone-private and
-fixed-path startup validation, then reverified with a real denied open. Keep
-CAPSTONE_DATA_GATEWAY_CONNECTION_FILE=/run/capstone-private/data-gateway/connection.json.
-Use ROOT deploy/local.env and model assets by explicit paths; the gateway mount
-uses its original directory. App5173 still serves ROOT dev (UI unchanged).
+Real Threadthr_1897f293f4778aa394ad / Workwork_933aff1d8c8316ffd4db:
+- Series attempt_a064c1744e3f09b5 completed216.411s:19 gateway calls, zero gateway
+  errors,33 child tools/one repaired producer-return rejection, six product records.
+- Follow-up attempt_29ca9301923d867a completed58.847s:zero gateway calls, six child
+  tools, one management summary. It reuses the same Work and saved material.
+- The first task also passed semantic prepare/execute. No extra table model case.
+- Five primary CSV strings and statistics match independent gateway data exactly.
+- Browser reload retained the selected summary; browser download hash matches.
 
-User accepted production-data enterprise-research first. Capstone only explores
-and obtains data through MCP; backend selection/switching belongs to data-gateway.
-Later deliveries unify conversations and admit gateway models into calculation.
+NO MODEL TASK IS ACTIVE. Observers44788/46985 finished. Keep their receipts;
+do not resubmit either task. App5173 serves ROOT (App producte8bfb5ae, unchanged).
+Browser sessiongateway-real shows the summary; gateway-integration-control is the
+control view. Temporary graph server18765/session94799 serves this worktree.
 
-Real authenticated MCP discovery passed: server1.30.0, 47 published tools.
-North topology downloads for pandapower JSON and PyPSA NetCDF passed full hashes,
-SDK loads and strict power-flow refusal. No electrical calculation was run.
-Receipts: ROOT outputs/data-gateway-20261025/discovery.json and
-outputs/data-gateway-20261025/network-models/report.json. No process is active.
+## Next action
 
-Written contract: docs/superpowers/specs/2026-10-25-enterprise-data-gateway-design.md.
-Plan: docs/superpowers/plans/2026-10-25-enterprise-data-gateway.md.
-Next: run scripts/verify_data_gateway_research.py for series, followup on the same
-thread/work, and bounded semantic-table exploration; use --poll-only to resume
-without resubmission. Save under ROOT outputs/data-gateway-20261025. Inspect
-actual reports/source/hash, then browser refresh recovery. Finish control update,
-dev PR scoped checks and actual dev integration. No release workflow or cloud/demo.
+Finish the acceptance/control documentation commit and push. Open a PR to dev
+using /tmp/capstone-data-gateway-pr.md after updating it to completed local scope.
+Run only required dev gates, not release=true or cloud/demo. The transport and
+new dependencies select the existing product integration gate. After green,
+merge normally, reconcile ROOT's two preserved metadata files, fast-forward dev,
+verify its real entrypoint and close only merged feature refs. Update canonical
+control in actual dev and preserve unmerged research/recovery branches and data.
 
-Current model files support topology inspection, not valid power-flow or
-optimisation. Our existing diagram needs capstone-network-diagram/1.0 projection,
-source/revision identity and suitable layout/filtering; integration is pending.
-User chose identical SDK versions: pandapower3.4.0/PyPSA1.3.0 in both projects;
-coordinate gateway locks without cross-version tests. Do not remove invalid-parameter
-sentinels or enable disabled equipment to obtain an apparent calculation.
+Evidence: ROOT outputs/data-gateway-20261025/ contains direct-query, real-series-1,
+real-followup-1, local-source-verification.json, numeric-product-verification.json,
+real-task-metrics.json and browser-recovery-verification.json. Source rows stay
+ignored. Acceptance: docs/reviews/2026-10-25-enterprise-data-gateway.md.
+Post-use scoped cleanup ran with /tmp/capstone-gateway-post-use-cleanup.log.
+
+First delivery is enterprise-research data access only. Gateway backend choices
+belong to the gateway. Calculation SDK baseline is pandapower3.4.0/PyPSA1.3.0 in
+both projects, without cross-version work. Models/calculation and100k+ WebGL
+rendering remain deferred. Full gateway result-file materialisation and concise
+reader summaries are later improvements, not new acceptance gates.

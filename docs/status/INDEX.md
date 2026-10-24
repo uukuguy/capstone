@@ -1,9 +1,10 @@
 # docs/status INDEX
 
 Gateway integration focus (2026-10-25): VERSION-CONTROL.md and
-PROJECT-OVERVIEW.html include design0d20a8f2 and runtime candidate797ddf9a.
-Remote tool/child/source checks and direct data query pass; real-model acceptance
-and dev integration remain pending. The model probe proves topology delivery only.
+PROJECT-OVERVIEW.html include design0d20a8f2 and locally accepted runtime2f9c6b56.
+[Real model acceptance](../reviews/2026-10-25-enterprise-data-gateway.md) records
+research/follow-up, source values, protected mounts and browser recovery.
+Required dev checks/integration remain pending. Model delivery is topology only.
 
 2026-10-24：[会话阅读状态与缓存验证](../reviews/2026-10-24-session-view-cache.md)记录内存LRU、磁盘阅读状态、冷/热切换验收；[缓存契约](../superpowers/specs/2026-10-24-session-view-cache.md)说明自动释放与业务归档的区别。
 

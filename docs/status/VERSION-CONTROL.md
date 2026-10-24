@@ -496,7 +496,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 功能包 | 阶段 | 状态 | 交付内容 | 来源 | 下一步 | 对比起点 | 新增或更新 | 交付记录 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| enterprise-data | 生产数据研究接入 | 1 | 运行候选已实现；真实模型多轮验收待完成 | enterprise-research通过data-gateway发现、获取和分析生产数据，保存来源与报告 | feat/enterprise-data-gateway | 最终同源重建后验证真实取数、报告、追问与刷新恢复 | dev346de403 | 41工具准入、任务授权与撤销、研究节点和宿主来源接纳；网关管理后端，大图及模型计算后置 | 797ddf9a源码；13网关、100定向宿主、62SDK检查；真实五点取数与统计已通过，非模型自主验收 |
+| enterprise-data | 生产数据研究接入 | 1 | 本地真实双轮与实页验收通过；dev集成待完成 | enterprise-research通过data-gateway发现、获取和分析生产数据，保存来源与报告 | feat/enterprise-data-gateway | 必需dev门禁、PR合入与实际dev入口核对 | dev346de403 | 受控41工具、宿主私有挂载、任务撤销、研究节点和来源接纳；网关管理后端，大图及模型计算后置 | 2f9c6b56运行源码；102宿主及62SDK检查；真实首轮216.411s/追问58.847s、数值及刷新下载哈希通过 |
 | dev-trial | user-local无源码试用与版本管理 | 8 | 离线包已交付，PR #27已合入；业务缺口单列 | 固定镜像安装、版本管理、数据兼容及内网离线安装 | dev37529ef；fix/user-local-network-view | root dev已快进f300，local-dev规范重建与真实源码核验通过；跟进独立候选的公开投影与AC一致性，不覆盖已撤回7c包 | 四部署及19173保留原来源 | 默认openai；双digest/层校验、元数据权限、共享指南；7c安装和数据保留通过 | 九请求/回放不等于业务全过；7c无dispatch；README1–9已运行，10–12未跑，完整N1排序仍待验证 |
 | autonomous | 自主智能体 · 统一实施 | 4 | 已合入dev；两个demo已发布，整体业务未验收 | 单Pi研究循环、持久研究状态、Authority计算与来源、执行过程、结果证据、电网场景图层和模型资源管理 | origin/dev | 两个demo已验收faa6af9，从dev推进N−1与交互缺口 | dev4f15cfc及6ff7094业务基线；旧Research Model分支仅作参考 | 研究读写及Pi真实上下文；受控失败交付；任务与工具两级过程；完整结果字段；场景与孤岛图层；模型打开准备与内存回收；对话创建后台预热 | PR #18双平台PR门禁通过，合并dev faa6af9；2b6ae7b候选59项及本地完整PR门禁、云三角色身份、三用例九轮、报告证据回放与旧Thread恢复通过；完整发布及合并后双平台通过，两个demo已同源验收并推送正式标签，不冒充科学业务验收；详见本包明细及首期计划 |
 | live | 线上共同基线 | 0 | 线上在用 | 电网静态分析、证据结果、智能体对话与工作台 | 线上部署 | 保持线上稳定；后续版本按发布计划推进 | 当前线上部署 | 本页起点；更早沿革仅在详情中保留 | 以 cloud-demo 部署台账为准；本次未重新探测云端 |
@@ -577,7 +577,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | --- | --- | --- | --- | --- | --- | --- |
 | dev-head | dev | main | dev · 当前研发位置 | 当前Git HEAD，验收范围见对应里程碑 | 动态绑定本地dev实际提交并连接真实祖先；不将分支HEAD当作部署或业务验收。[当前状态](CURRENT-STATE.md) | shared-agent |
 | enterprise-data-design | 0d20a8f2 | feature | 企业研究 · 生产数据MCP接入设计 | 已提交，后续运行切片另列 | 后端受控工具、研究来源与产品契约；真实华北两格式拓扑交付复验通过，计算后置。[设计](../superpowers/specs/2026-10-25-enterprise-data-gateway-design.md) | enterprise-data |
-| enterprise-data-runtime | 797ddf9a | feature | 企业研究 · 受控生产数据工具 | 实现与定向检查通过；实际任务验收中 | 固定网关与41研究工具、任务代理授权、研究节点工具与来源回执、鉴权及撤销；网关管理后端。[计划](../superpowers/plans/2026-10-25-enterprise-data-gateway.md) | enterprise-data |
+| enterprise-data-runtime | 2f9c6b56 | feature | 企业研究 · 受控生产数据工具 | 本地双轮、数值及刷新验收通过；dev待合入 | 41研究工具、任务授权撤销、宿主原生0700私有挂载、研究节点和来源回执；真实任务与追问交付通过。[验收](../reviews/2026-10-25-enterprise-data-gateway.md) | enterprise-data |
 | workspace-integration | e8bfb5ae | feature | 工作空间 · 已集成源码 | PR #56合入dev e72722fc；必需门禁通过 | 已提交运行依赖、会话导航与阅读状态保持；普通分支合并不追加发布套件。[集成](https://github.com/uukuguy/capstone/pull/56) | model-decision |
 | workspace-merge | e72722fc | main | dev · 工作空间集成 | PR #56已合入，dev门禁通过 | 已验收产品e8bfb5ae进入研发主线，合并树一致；本地入口重建与文档收口进行中。[验收](../reviews/2026-10-25-workspace-integration.md) | model-decision |
 | workspace-app-source | c34b4780 | feature | 工作空间 · 已验证App来源 | 942App、构建和实页通过；已随PR #56集成 | 稳定会话导航、缓存及阅读状态恢复；App内容标识与仓库HEAD分开记录。[验证](../reviews/2026-10-25-left-navigation.md) | model-decision |
@@ -652,7 +652,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
 | enterprise-data-design | 接入设计与前置测试 | feat/enterprise-data-gateway | 真实生产数据研究接入契约，网关管理后端；模型拓扑客户端复验 | 设计已提交，运行实现另列；不是计算验收 |
-| enterprise-data-runtime | 当前开发焦点 | feat/enterprise-data-gateway | 受控41项生产数据工具与任务授权撤销；研究节点、宿主来源接纳和原始数据保留 | 定向检查和直接取数通过；模型多轮、dev集成待完成 |
+| enterprise-data-runtime | 当前开发焦点 | feat/enterprise-data-gateway | 受控生产数据工具、任务授权撤销和私有挂载；真实研究报告、同工作追问与刷新恢复 | 本地功能验收通过；必需dev门禁与集成待完成 |
 | offline-e2-delivery | 当前交付重点 | fix/user-local-network-view | 已交付Linux AMD64更新包、单次安装ready通过；f300源码已修后续runtime问题，e2原归档未升级 | 已交付e2，保留原包及原校验值；包内仍是旧runtime，不冒充f300验证 |
 | dev-current | 已验证发布范围 | dev历史来源 | 两项修复验收记录与控制工具合入；产品packages与f300一致 | f209fb1作为PR #30发布范围；local-dev已验证合入来源abf2f797 |
 | offline-merge | 最新产品修复合并基线 | dev | 派生模型结果投影按验证修订展示；AC使用保存的Generator调度输入 | f300d1f已合入，双平台通过；local-dev ready、三后端文件SHA与重建时App身份核验通过 |
@@ -729,7 +729,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 类型 | 关键进展 | 下一步 | 功能包 |
 | --- | --- | --- | --- | --- |
-| feat/enterprise-data-gateway | 当前实施分支 | 797ddf9a已实现受控远程MCP与研究节点；分层大图与同SDK版本约定已记录 | 实际模型研究、报告、追问、刷新恢复及dev集成；不启动发布 | enterprise-data |
+| feat/enterprise-data-gateway | 当前集成候选 | 2f9c6b56运行源码；真实双轮、报告数值、私有挂载UID拒读和刷新下载通过 | 完成必需dev门禁并合入；大图、统一会话及模型计算后置，不启动发布 | enterprise-data |
 | feat/user-local-offline | 已合入交付来源 | 精确7c包曾交付后撤回，现不可交付；PR #27正常合入37529ef，来源双CI通过 | 保留归档与原SHA，root dev快进/规范重建单列；业务失败和未跑样例继续验证，不覆盖已交付包 | dev-trial |
 | fix/user-local-network-view | 已合入运行修复来源 | c638受检，PR #28双平台CI通过后正常合入f300d1f；root dev已快进，packages一致 | local-dev规范重建及真实身份核验已通过；e2归档未升级，19173/demo/cloud不变；回答算术和source建模投影边界保留 | autonomous |
 | refs/archive/20261015/feat-dev-trial-deployment | 已合并实施恢复引用 | 380ede4受检，PR #22合入7832134；本地/远端实施分支已关闭；最终公开镜像/包及安装入口验收通过 | 保存原验收目录、私有状态与卷；用户业务试用待反馈 | dev-trial |
@@ -865,7 +865,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | 主工作树dev检出 `e72722fc`，合并树与受验产品e8bfb5ae完全一致 | 规范重建ready；API及三个worker同镜像b7d91d2822a4；App显示产品e8bfb5ae/仓库e72722fc，dirty=false，实际进程来自主工作树 | 定向实页验证置顶保留、13px/30px改名和Esc保留左栏通过；无新任务或改名提交。清理receipt20261025-030321-13082及post-use helper完成。[记录](../reviews/2026-10-25-workspace-integration.md) |
+| local-dev | 后端及原生候选 `2f9c6b56`；App产品 `e8bfb5ae`，实际进程来自主工作树dev346de403，App源码未改 | 规范重建ready；API及三个worker同镜像e69d4f1b6e56、nativeb605fa2b1a6c；五角色源码哈希及真实任务UID拒读凭据通过，挂载选择已保留于忽略配置 | 真实研究216.411s、追问58.847s，19网关调用零错误；五值及统计一致，刷新后摘要及下载哈希通过；本轮仅local-dev，无cloud/demo更新。[记录](../reviews/2026-10-25-enterprise-data-gateway.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |
 | cloud-dev | `24d9a32`，开发试用候选；已推送标签cloud-dev-20261013-1045-24d9a32 | 用户授权的基本功能检查通过：四角色SUCCESS、API就绪、前端来源与真实中文对话；非正式发布或科学解释验收 | App https://capstone-app-production-83ef.up.railway.app/；[部署记录](../reviews/2026-10-13-cloud-dev-autonomous-trial.md)；demo不变 |
 | cloud-demo | App/API/两worker `faa6af9` | 四角色SUCCESS；三后端身份与dev本地529文件验收一致，安装工件与受检候选一致；三用例九轮、报告证据回放通过；local-demo已同源验收；正式标签demo-20261014-2028-faa6af9已推送 | App https://capstone-app-production-975e.up.railway.app/；上一正式标签demo-20261014-0744-bd2a200；双平台完整发布38554987581通过；cloud-dev不动 |

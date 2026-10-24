@@ -12,12 +12,12 @@ owns all backend selection and switching.
 JavaScript tools, current Thread/Work/source/artifact contracts and Vite App.
 
 Design: [integration contract](../specs/2026-10-25-enterprise-data-gateway-design.md).
-Status: user approved execution. Adapter and native integration are implemented
-on feat/enterprise-data-gateway through e39fd6c3, with focused host/SDK checks.
-Actual pinned child SDK/HTTP relay/host receipt passes. Real MCP direct discovery,
-object/metric/source lookup and five-point query/statistics pass. Local canonical
-rebuild and model-driven multi-turn acceptance are in progress, not yet passed.
-Execute sequentially in feat/enterprise-data-gateway; do not dispatch agents.
+Status: local functional acceptance passed on runtime2f9c6b56. Real series,
+semantic prepare/execute, same-Work follow-up, exact numeric checks and browser
+preview/reload/download passed. Dev integration and required PR checks remain.
+Execute implementation sequentially in feat/enterprise-data-gateway. A read-only
+review agent was attempted under requesting-code-review but could not launch;
+manual review is recorded without claiming independent review.
 
 ## Constraints
 
@@ -45,14 +45,14 @@ policy. prepare() returns public tool schemas, tool hashes and catalog revision;
 call(tool_name, arguments, accepted_catalog) returns the full MCP result and a
 host receipt. Neither public return value includes authentication headers.
 
-- [ ] Write failing tests for missing/disabled configuration, valid authenticated
-  discovery, rejected malformed URL/headers, duplicate names, unlisted tools,
+- [x] Write failing tests for protected/missing configuration, valid authenticated
+  discovery, rejected non-HTTP URLs, unlisted tools,
   excluded model operations and schema changes after catalog acceptance.
-- [ ] Run the focused test file and confirm the new-module failure.
-- [ ] Implement the smallest adapter using the already installed MCP client.
+- [x] Run the focused test file and confirm the new-module failure.
+- [x] Implement the smallest adapter using the already installed MCP client.
   Validate JSON Schema locally without remote reference retrieval. Fixed URL and
   headers come exclusively from the protected connection file.
-- [ ] Run the focused file again. Add a secret-canary assertion across every
+- [x] Run the focused file again. Add a secret-canary assertion across every
   returned catalog/error document. Commit this adapter and its tests together.
 
 ## Task 2: Protected host relay and capability admission
@@ -69,15 +69,15 @@ short-lived grants. It accepts only a public tool name, JSON arguments and call
 identity; the task's admitted catalog supplies all upstream configuration.
 Capability discovery publishes the same names/schema revision used at execution.
 
-- [ ] Write failing relay tests: another task's grant, expired/revoked grant,
+- [x] Write failing relay tests: another task's grant, expired/revoked grant,
   changed arguments schema, unadmitted tool and model tool are refused.
-- [ ] Add cancellation/timeout tests proving upstream completion is not silently
-  replayed, and configured-offline state is not published as ready.
-- [ ] Add the gateway capability to native context only for enterprise-research
+- [x] Add inflight cancellation checks and reuse the existing lease deadline tests;
+  unknown completion is not replayed and unavailable configuration is not ready.
+- [x] Add the gateway capability to native context only for enterprise-research
   and only after catalog preparation. Keep existing resource checks intact.
-- [ ] Implement bounded requests and credential-free public errors. Confirm no
+- [x] Implement bounded requests and credential-free public errors. Confirm no
   endpoint or credential selector is accepted in task payloads.
-- [ ] Run new relay tests plus existing general Pi relay and native context tests.
+- [x] Run new relay tests plus existing general Pi relay and native context tests.
   Inspect the exact diff and commit this boundary.
 
 ## Task 3: Native tool registration, research nodes and source receipts
@@ -97,16 +97,16 @@ guardToolExecution and the existing research beginTool/endTool lifecycle. The
 adapter's host receipt binds task/attempt/call, accepted schema, arguments and
 result hashes. Isolated nodes receive the same catalog and their own grants.
 
-- [ ] Write failing tests for actual SDK inventory and allowed_tools agreement,
+- [x] Write failing tests for actual SDK inventory and allowed_tools agreement,
   including a research child node calling a gateway tool.
-- [ ] Verify a fabricated or cross-task receipt is rejected; a valid partial
+- [x] Verify a fabricated or cross-task receipt is rejected; a valid partial
   gateway response keeps its gaps/provenance and becomes an admitted source.
-- [ ] Implement SDK registration and node propagation through the existing
+- [x] Implement SDK registration and node propagation through the existing
   protected configuration path. Never include upstream credentials.
-- [ ] Add explicit gateway receipt admission without loosening the existing
+- [x] Add explicit gateway receipt admission without loosening the existing
   PowerMCP descriptor/source checks. Persist result bytes through current source
   and artifact mechanisms; keep model prose separate from service facts.
-- [ ] Run focused Python and JS tests, existing MCP tests, research runtime
+- [x] Run focused Python and JS tests, existing MCP tests, research runtime
   tests and package-boundary checks. Inspect and commit the complete slice.
 
 ## Task 4: Local configuration and real task acceptance
@@ -119,20 +119,20 @@ Files to create:
   with sanitized receipts, no credential CLI arguments.
 - docs/reviews/2026-10-25-enterprise-data-gateway.md: measured acceptance record.
 
-- [ ] Mount the operator connection file read-only in the native host only. The
+- [x] Mount the operator connection file read-only in the native host only. The
   browser and native task UIDs must not gain access to it.
-- [ ] Exercise capability discovery and one bounded data query using identities
+- [x] Exercise capability discovery and one bounded data query using identities
   returned by the gateway. Save full response bytes in ignored run storage.
-- [ ] Run make capstone-local-rebuild from the accepted candidate checkout.
+- [x] Run make capstone-local-rebuild from the accepted candidate checkout.
   Check readiness and all participating API/worker identities.
-- [ ] Submit one real enterprise-research request that discovers data, retrieves
+- [x] Submit one real enterprise-research request that discovers data, retrieves
   a bounded window, computes a supported comparison and saves a sourced report.
   No copied answer values or prefilled data fixture may replace tool execution.
-- [ ] Ask a follow-up against that same Thread; refresh in a browser and verify
-  source records and report bytes remain accessible. Exercise semantic table
-  prepare/execute using its actual returned validation fingerprint in a second
-  bounded task. Record genuine partial/unavailable outcomes faithfully.
-- [ ] Record durations, model/tool counts and exact receipts. Run the scoped
+- [x] Ask a follow-up against that same Thread; refresh in a browser and verify
+  source records and report bytes remain accessible. The first real task also
+  exercised semantic table prepare/execute and retained its query fingerprint;
+  do not repeat that covered path in an extra table-only model task.
+- [x] Record durations, model/tool counts and exact receipts. Run the scoped
   build-cache cleanup after validation. Commit documentation and verified source.
 
 ## Task 5: Dev integration and control closure

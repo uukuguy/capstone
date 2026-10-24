@@ -1,8 +1,8 @@
 # Capstone Agent Framework
 
 Development and release versions follow the fixed [version-control register](docs/status/VERSION-CONTROL.md).
-The initial common runtime baseline follows the current verified demo. Native Pi,
-skills and resource extensions remain on `feat/pi-skills-integration` during development.
+The shared development runtime includes native Pi, skills and managed resources.
+Its accepted scope and exact deployment sources are recorded in that register.
 `dev` is the default development integration branch and holds current project
 control. Feature and documentation PRs target dev. `main` holds accepted release
 baselines and release snapshots; demo receives only its verified release scope.
@@ -21,10 +21,8 @@ Local-dev serves cloud-dev development tests and release verification. Local-dem
 tracks cloud-demo for reproduction, emergency repairs and release verification;
 only a recorded repair or release candidate may temporarily differ.
 
-This branch contains experimental native Pi, skills and resource integration.
-Its source was preserved from `e9aca89` and reapplied over the common baseline;
-it is not an accepted demo release. Follow the [version-control register](docs/status/VERSION-CONTROL.md)
-before integration or deployment. Source preservation does not establish new runtime acceptance.
+Use the [version-control register](docs/status/VERSION-CONTROL.md) for implemented,
+verified, merged and deployed scope. Demo releases follow their separate acceptance process.
 
 English | [简体中文](README.zh-CN.md) | [Try the live demo](https://capstone-app-production-975e.up.railway.app/)
 
@@ -37,6 +35,11 @@ pandapower runtime modules; see the [retirement plan](docs/superpowers/plans/202
 Capstone is a domain-neutral agent framework for applications backed by registered business and scientific systems. An application selects its Domain Packs and authorities. The agent composes their published semantic tools; the authorities own model facts and calculations. The framework binds results, evidence, and model revisions to each run, then exposes them through conversation, reports, and interactive views.
 
 Its first formal application is **power-grid static analysis through an agent conversation**. The workspace connects pandapower and PyPSA models to continuous analysis: ask a question, execute domain tools, inspect the answer, and locate the affected components on the electrical topology.
+
+Enterprise research can use a configured production-data MCP gateway to discover
+data, query registered services, save sourced reports and continue from retained
+products. Credentials stay in the protected host. See the
+[connection runbook](docs/RUNBOOK.md#企业生产数据-mcp).
 
 The design follows four principles:
 

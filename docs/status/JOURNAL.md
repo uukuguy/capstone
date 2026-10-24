@@ -5640,3 +5640,15 @@ separate. No model task is active.
 2026-10-25 — Private-parent rebuild passed exact five-role hashes, same backend image, gateway41 readiness and actual setuid10000 open denial.
 
 2026-10-25 — Started real series attempt_a064c1744e3f09b5 in thr_1897f293f4778aa394ad; preserve active work and inspect report before acceptance.
+
+2026-10-25 — 302d6e19: Checkpointed the verified private mount and exact active attempt so interrupted work can resume without duplicate submissions.
+
+2026-10-25 — Real series completed216.411s with19 successful gateway calls; same-Work follow-up completed58.847s without new gateway calls.
+
+2026-10-25 — Five source strings/statistics match; browser summary selection and download hash survive reload; semantic prepare/execute passed in the original task.
+
+Prior closeout receipts preserved verbatim from the root checkout:
+
+2026-10-25 — 64e40f41: Recorded directed dev verification and the exact recovery scope before the final scoped closeout gate.
+
+2026-10-25 — 346de403: Merged PR #57 after the required dev gate passed in 9m55s. Actual dev frontend type checking passes. PR #56 runtime remains unchanged. Original 109 paths and generated artifacts have verified recovery copies; merged temporary branch refs are closed. The final generated overview and this journal receipt are deliberate post-merge metadata, without a self-hash commit cycle. No release or deployment promotion.
