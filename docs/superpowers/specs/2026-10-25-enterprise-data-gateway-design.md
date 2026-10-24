@@ -147,6 +147,13 @@ contact other people or agents without authorization.
 
 ## Later model delivery
 
+User decision, 2026-10-25: sibling projects use identical exact SDK versions;
+do not build or test a cross-version compatibility matrix. The shared baseline
+is Capstone's accepted pandapower 3.4.0 and PyPSA 1.3.0. Coordinate gateway
+dependency locks and model rebuilds to this baseline. Future upgrades change
+both projects together. This records the agreement, not a completed gateway
+dependency update. Ordinary same-version model and calculation acceptance remains.
+
 The new model service is tested separately at the user's request. Its published
 contract currently delivers source-node topology, with explicit electrical data
 gaps. Current formats are pandapower JSON and PyPSA NetCDF, not two JSON formats.

@@ -29,5 +29,6 @@ research acceptance. Preserve current local PowerMCP and Authority contracts.
 Current model files support topology inspection, not valid power-flow or
 optimisation. Our existing diagram needs capstone-network-diagram/1.0 projection,
 source/revision identity and suitable layout/filtering; integration is pending.
-Gateway SDK versions differ from Capstone pins. Do not remove invalid-parameter
+User chose identical SDK versions: pandapower3.4.0/PyPSA1.3.0 in both projects;
+coordinate gateway locks without cross-version tests. Do not remove invalid-parameter
 sentinels or enable disabled equipment to obtain an apparent calculation.

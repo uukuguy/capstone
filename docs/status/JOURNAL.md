@@ -5612,3 +5612,5 @@ separate. No model task is active.
 2026-10-25 — 1a4b2830: Recorded gateway scope and recovery checkpoint to separate verified model delivery from pending runtime integration.
 
 2026-10-25 — d4b55ee9: Added the verified design source node so the control graph shows the current integration focus.
+
+2026-10-25 — f6772561: Defined scale-aware topology projections and measured large-grid rendering requirements to avoid unreadable regional detail.
