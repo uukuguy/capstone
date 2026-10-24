@@ -64,6 +64,26 @@ typed station/group nodes; cosmetic renaming alone is not sufficient.
 
 ## Rendering and acceptance
 
+User decision, 2026-10-25: retain this rendering direction for implementation at
+an appropriate later boundary. Do not start the renderer migration during the
+first production-data research delivery. Target networks include 100,000+ nodes;
+do not treat a readable aggregated overview as proof of detailed-scale capacity.
+
+Preferred architecture: WebGL draws batched network geometry; HTML/SVG supplies
+controls, accessible selected-object details and sparse overlays. Evaluate
+Sigma.js with Graphology first, including custom electrical symbols, parallel
+circuits, transformer terminals and task highlighting. It is a candidate, not
+an accepted dependency or a measured 100k-node performance claim. Keep the
+public diagram/source contract independent of a renderer library.
+
+References checked for the proposal:
+[Sigma rendering](https://www.sigmajs.org/concepts/rendering/) and
+[custom rendering programs](https://v3.sigmajs.org/docs/advanced/renderers/).
+WebGL does not replace worker layout, spatial indexing, level-of-detail loading,
+label budgets or hit testing. Test device/browser, node and edge counts, symbol
+complexity, load time, frame times, memory and selection latency must be recorded.
+Do not promise a fixed frame rate based on node count alone.
+
 - Measure the existing renderer with the actual north projection first. Record
   layout, first interactive render, pan/zoom frame times, hit testing, memory
   and node/edge counts on a named device/browser. Set budgets from measurements.

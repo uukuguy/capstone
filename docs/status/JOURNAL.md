@@ -5616,3 +5616,5 @@ separate. No model task is active.
 2026-10-25 — f6772561: Defined scale-aware topology projections and measured large-grid rendering requirements to avoid unreadable regional detail.
 
 2026-10-25 — dd49270e: Agreed identical gateway and Capstone SDK pins to avoid unnecessary cross-version compatibility work.
+
+2026-10-25 — da48a15a: Added protected remote MCP catalog and calls; six checks and actual gateway discovery pass before research integration.
