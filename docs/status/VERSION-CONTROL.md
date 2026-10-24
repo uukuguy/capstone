@@ -496,7 +496,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 功能包 | 阶段 | 状态 | 交付内容 | 来源 | 下一步 | 对比起点 | 新增或更新 | 交付记录 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| enterprise-data | 生产数据研究接入 | 1 | 设计与小范围MCP测试；运行接入未实现 | enterprise-research通过data-gateway发现、获取和分析生产数据，保存来源与报告 | feat/enterprise-data-gateway | 审阅书面接入契约后实现受控远程MCP适配 | dev346de403 | 网关后端由网关管理；统一会话及电网模型计算接入后置 | 0d20a8f2文档；真实47工具发现；华北两格式下载/哈希/SDK加载通过，非计算验收 |
+| enterprise-data | 生产数据研究接入 | 1 | 运行候选已实现；真实模型多轮验收待完成 | enterprise-research通过data-gateway发现、获取和分析生产数据，保存来源与报告 | feat/enterprise-data-gateway | 最终同源重建后验证真实取数、报告、追问与刷新恢复 | dev346de403 | 41工具准入、任务授权与撤销、研究节点和宿主来源接纳；网关管理后端，大图及模型计算后置 | 797ddf9a源码；13网关、100定向宿主、62SDK检查；真实五点取数与统计已通过，非模型自主验收 |
 | dev-trial | user-local无源码试用与版本管理 | 8 | 离线包已交付，PR #27已合入；业务缺口单列 | 固定镜像安装、版本管理、数据兼容及内网离线安装 | dev37529ef；fix/user-local-network-view | root dev已快进f300，local-dev规范重建与真实源码核验通过；跟进独立候选的公开投影与AC一致性，不覆盖已撤回7c包 | 四部署及19173保留原来源 | 默认openai；双digest/层校验、元数据权限、共享指南；7c安装和数据保留通过 | 九请求/回放不等于业务全过；7c无dispatch；README1–9已运行，10–12未跑，完整N1排序仍待验证 |
 | autonomous | 自主智能体 · 统一实施 | 4 | 已合入dev；两个demo已发布，整体业务未验收 | 单Pi研究循环、持久研究状态、Authority计算与来源、执行过程、结果证据、电网场景图层和模型资源管理 | origin/dev | 两个demo已验收faa6af9，从dev推进N−1与交互缺口 | dev4f15cfc及6ff7094业务基线；旧Research Model分支仅作参考 | 研究读写及Pi真实上下文；受控失败交付；任务与工具两级过程；完整结果字段；场景与孤岛图层；模型打开准备与内存回收；对话创建后台预热 | PR #18双平台PR门禁通过，合并dev faa6af9；2b6ae7b候选59项及本地完整PR门禁、云三角色身份、三用例九轮、报告证据回放与旧Thread恢复通过；完整发布及合并后双平台通过，两个demo已同源验收并推送正式标签，不冒充科学业务验收；详见本包明细及首期计划 |
 | live | 线上共同基线 | 0 | 线上在用 | 电网静态分析、证据结果、智能体对话与工作台 | 线上部署 | 保持线上稳定；后续版本按发布计划推进 | 当前线上部署 | 本页起点；更早沿革仅在详情中保留 | 以 cloud-demo 部署台账为准；本次未重新探测云端 |
@@ -576,7 +576,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
 | dev-head | dev | main | dev · 当前研发位置 | 当前Git HEAD，验收范围见对应里程碑 | 动态绑定本地dev实际提交并连接真实祖先；不将分支HEAD当作部署或业务验收。[当前状态](CURRENT-STATE.md) | shared-agent |
-| enterprise-data-design | 0d20a8f2 | feature | 企业研究 · 生产数据MCP接入设计 | 文档已提交；运行接入未实现 | 后端受控工具、研究来源与产品契约；真实华北两格式拓扑交付复验通过，计算后置。[设计](../superpowers/specs/2026-10-25-enterprise-data-gateway-design.md) | enterprise-data |
+| enterprise-data-design | 0d20a8f2 | feature | 企业研究 · 生产数据MCP接入设计 | 已提交，后续运行切片另列 | 后端受控工具、研究来源与产品契约；真实华北两格式拓扑交付复验通过，计算后置。[设计](../superpowers/specs/2026-10-25-enterprise-data-gateway-design.md) | enterprise-data |
+| enterprise-data-runtime | 797ddf9a | feature | 企业研究 · 受控生产数据工具 | 实现与定向检查通过；实际任务验收中 | 固定网关与41研究工具、任务代理授权、研究节点工具与来源回执、鉴权及撤销；网关管理后端。[计划](../superpowers/plans/2026-10-25-enterprise-data-gateway.md) | enterprise-data |
 | workspace-integration | e8bfb5ae | feature | 工作空间 · 已集成源码 | PR #56合入dev e72722fc；必需门禁通过 | 已提交运行依赖、会话导航与阅读状态保持；普通分支合并不追加发布套件。[集成](https://github.com/uukuguy/capstone/pull/56) | model-decision |
 | workspace-merge | e72722fc | main | dev · 工作空间集成 | PR #56已合入，dev门禁通过 | 已验收产品e8bfb5ae进入研发主线，合并树一致；本地入口重建与文档收口进行中。[验收](../reviews/2026-10-25-workspace-integration.md) | model-decision |
 | workspace-app-source | c34b4780 | feature | 工作空间 · 已验证App来源 | 942App、构建和实页通过；已随PR #56集成 | 稳定会话导航、缓存及阅读状态恢复；App内容标识与仓库HEAD分开记录。[验证](../reviews/2026-10-25-left-navigation.md) | model-decision |
@@ -650,7 +651,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
-| enterprise-data-design | 当前开发焦点 | feat/enterprise-data-gateway | 真实生产数据研究接入契约，网关管理后端；模型拓扑客户端复验 | 设计已提交，远程工具运行接入待实现；不是计算验收 |
+| enterprise-data-design | 接入设计与前置测试 | feat/enterprise-data-gateway | 真实生产数据研究接入契约，网关管理后端；模型拓扑客户端复验 | 设计已提交，运行实现另列；不是计算验收 |
+| enterprise-data-runtime | 当前开发焦点 | feat/enterprise-data-gateway | 受控41项生产数据工具与任务授权撤销；研究节点、宿主来源接纳和原始数据保留 | 定向检查和直接取数通过；模型多轮、dev集成待完成 |
 | offline-e2-delivery | 当前交付重点 | fix/user-local-network-view | 已交付Linux AMD64更新包、单次安装ready通过；f300源码已修后续runtime问题，e2原归档未升级 | 已交付e2，保留原包及原校验值；包内仍是旧runtime，不冒充f300验证 |
 | dev-current | 已验证发布范围 | dev历史来源 | 两项修复验收记录与控制工具合入；产品packages与f300一致 | f209fb1作为PR #30发布范围；local-dev已验证合入来源abf2f797 |
 | offline-merge | 最新产品修复合并基线 | dev | 派生模型结果投影按验证修订展示；AC使用保存的Generator调度输入 | f300d1f已合入，双平台通过；local-dev ready、三后端文件SHA与重建时App身份核验通过 |
@@ -727,6 +729,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 类型 | 关键进展 | 下一步 | 功能包 |
 | --- | --- | --- | --- | --- |
+| feat/enterprise-data-gateway | 当前实施分支 | 797ddf9a已实现受控远程MCP与研究节点；分层大图与同SDK版本约定已记录 | 实际模型研究、报告、追问、刷新恢复及dev集成；不启动发布 | enterprise-data |
 | feat/user-local-offline | 已合入交付来源 | 精确7c包曾交付后撤回，现不可交付；PR #27正常合入37529ef，来源双CI通过 | 保留归档与原SHA，root dev快进/规范重建单列；业务失败和未跑样例继续验证，不覆盖已交付包 | dev-trial |
 | fix/user-local-network-view | 已合入运行修复来源 | c638受检，PR #28双平台CI通过后正常合入f300d1f；root dev已快进，packages一致 | local-dev规范重建及真实身份核验已通过；e2归档未升级，19173/demo/cloud不变；回答算术和source建模投影边界保留 | autonomous |
 | refs/archive/20261015/feat-dev-trial-deployment | 已合并实施恢复引用 | 380ede4受检，PR #22合入7832134；本地/远端实施分支已关闭；最终公开镜像/包及安装入口验收通过 | 保存原验收目录、私有状态与卷；用户业务试用待反馈 | dev-trial |

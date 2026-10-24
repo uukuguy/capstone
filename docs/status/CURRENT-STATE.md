@@ -5,7 +5,11 @@ uses feat/enterprise-data-gateway in .worktrees/dev-macos-ci. The first scope is
 enterprise-research production-data discovery, retrieval, analysis and persistent
 sources/products through MCP. Backend selection belongs to data-gateway.
 Unified conversation and grid model calculation integration remain later work.
-The host adapter and native tool integration are designed, not implemented.
+The host adapter, fixed catalog, task relay and native research node/source
+integration are implemented through797ddf9a. Focused host/SDK and actual pinned
+child checks pass; real gateway object/metric/source discovery and five-point
+query/statistics pass. Canonical container source alignment and real-model
+multi-turn acceptance are in progress; no dev merge or cloud/demo promotion.
 Real MCP discovery and north topology delivery checks passed; see
 [contract](../superpowers/specs/2026-10-25-enterprise-data-gateway-design.md) and
 [model probe](../reviews/2026-10-25-data-gateway-model-probe.md).
