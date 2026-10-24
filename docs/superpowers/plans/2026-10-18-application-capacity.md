@@ -18,13 +18,13 @@ returns capacity name/configured value/actual value/unit and does not erase file
 Drafts and research records are not silently truncated. Real same-source research
 and independent report checks remain required; failed runs are never speed gains.
 
-- [ ] Central profile and strict initialization/override tests; one canonical JSON,
+- [x] Central profile and strict initialization/override tests; one canonical JSON,
   immutable effective snapshot, safe public projection and startup fingerprint.
-- [ ] Persistence: remove redundant task aggregate cap, apply configured file/count/
+- [x] Persistence: remove redundant task aggregate cap, apply configured file/count/
   storage budgets, retain saved descriptors and failed workspace; sweep by retention.
-- [ ] Native transport/context/upload/timeout/model metadata use the initialized
+- [x] Native transport/context/upload/timeout/model metadata use the initialized
   profile. Pass neutral limits into SDK/Kernel/Pack contracts and validators.
-- [ ] Frontend bootstrap consumes same limits across drafts, artifacts, materials,
+- [x] Frontend bootstrap consumes same limits across drafts, artifacts, materials,
   products, history and result parsing; clear capacity errors replace silent loss.
 - [ ] Complete the file:line audit with coverage/status for remaining capacity
   guards, including existing configurable ones and external SDK defaults.

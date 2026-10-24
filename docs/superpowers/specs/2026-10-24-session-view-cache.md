@@ -2,7 +2,7 @@
 
 Accepted user requirement: switching sessions preserves the conversation and
 right-pane content, position and reading state. Recent sessions stay in memory;
-a configurable maximum releases the least recently visited view. The session
+a configurable maximum releases inactive views using switch frequency and last-open time. The session
 itself remains persistent and can be reopened.
 
 ## Ownership and storage
@@ -26,9 +26,11 @@ offsets after asynchronous content loads. Opaque sandboxed document internals
 remain in memory with their iframe; no script or same-origin permission is added
 to extract their private state for disk recovery.
 
-The default memory maximum is five sessions. Settings permits a maximum from
-one to twenty. The current view counts toward this maximum. The least recently
-visited inactive view is released first. The server task is not cancelled.
+The default memory maximum is ten sessions. Settings permits 10, 20 or 50.
+The current view counts toward this maximum and is always retained. Inactive
+views use log2(1 + switch count) with a 24-hour recency half-life; ties use the
+last-open time. Visit statistics and reading preferences stay access-scoped.
+The server task is not cancelled.
 Automatic release neither deletes the Thread nor changes its archived flag.
 Explicit archive/delete releases retained memory. An access-namespace change
 releases all retained views. Preview blob URLs live with the retained session
@@ -38,7 +40,7 @@ and are revoked on actual release, rather than each time Activity pauses.
 
 - A→B→A and A→new→A retain actual conversation and right-pane DOM and state.
 - Memory hits do not issue a new snapshot/version-negotiation read.
-- Lowering the maximum evicts the least recently visited inactive session.
+- Lowering the maximum releases inactive sessions using frequency and last-open time.
 - Eviction/reopen restores lightweight reading state with host-validated content.
 - Hidden views stop event subscriptions; return resumes catch-up, with no new
   command or task submission and no cancellation.

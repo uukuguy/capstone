@@ -1,7 +1,8 @@
 # Stable workspace navigation
 
 Accepted cache refinement: retain at most the configured recent session views
-(default5); evict least recently visited inactive views and restore lightweight
+(default10, options10/20/50); rank inactive views by switch frequency and last-open
+time, then restore lightweight
 disk reading state on reopen. Automatic eviction is not business archival and
 does not cancel execution. Memory DOM/iframe retention, cap1cold recovery and
 932App/type/doctor checks pass. Design and exact evidence are linked from

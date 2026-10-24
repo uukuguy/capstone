@@ -1,3 +1,19 @@
+## Workspace merged into dev — 2026-10-25
+
+PR56 merged as e72722fc after required dev CI40119881315 passed in35m37s.
+The merge tree equals accepted product e8bfb5ae. This is development integration,
+not release acceptance; extra release CI was cancelled at the user's direction.
+Root is the actual clean dev checkout. Its canonical rebuild and directed entry
+verification passed: API plus3workers imageb7d91d2822a4, ready200, App from root,
+pin survives navigation collapse and Escape cancels13px/30px inline rename.
+Scoped cache cleanup passed. Control closeout remains active. User requires
+Git status review and scoped commits at every coherent work boundary.
+Root's109paths are preserved in recovery/root-before-dev-20261025 (bffe1b7c,
+6c8f531e), with109/109 byte checks. Research journal275dc00f is committed.
+Generated files are retained in place and copied to ignored recovery output.
+Named workspace isolation/name display and refined home/empty states remain
+deferred; no cloud/demo or release baseline update.
+
 ## Workspace interaction verified — 2026-10-24
 
 Current work: stable shared workspace navigation and session management. Desktop supports independent left/conversation/right columns; left width and conversation/resource split are draggable and persist. Same-document switching retains the catalog and scroll, removes temporary generic current-session insertion, and uses a distinct selected highlight. Both adapters show adjacent-session controls; grid refresh/resource toggles are restored. Fixed new-session entry, pinned/recent groups, hover close/context menus, inline rename, archived lookup/restore and separately confirmed delete are implemented.

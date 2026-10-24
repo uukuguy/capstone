@@ -10,7 +10,7 @@ it('keeps pinned sessions after collapsing and reopening the sidebar',()=>{
   const items=['a','b'].map(threadId=>({threadId,modelId:null,sessionTitle:{text:`会话${threadId}`,source:'user' as const,revision:1,source_ref:null}}))
   render(<ThreadWorkspace conversationOnly sidebar={<SessionNavigation items={items}/>}/>)
   fireEvent.contextMenu(screen.getByRole('link',{name:'会话b'}))
-  fireEvent.click(screen.getByRole('menuitem',{name:'置顶',exact:true}))
+  fireEvent.click(screen.getByRole('menuitem',{name:'置顶'}))
   const toggle=screen.getByRole('button',{name:'会话导航'})
   for(let i=0;i<3;i++){
     fireEvent.click(toggle);fireEvent.click(toggle)

@@ -55,8 +55,56 @@ workspace tmpfs also has an explicit deployment initialization setting.
 - Actual research bridge update above the old 1/2 MiB thresholds passed under
   non-default initialization values.
 
-The normative local rebuild and the next actual browser upload/research task
-remain required. No dev merge, cloud deployment or demo promotion is claimed.
+## Historical acceptance retained from dev — 2026-10-18
+
+Final source regression after entry-point repairs: 1,658 backend tests passed,
+138 environment skips. Five HTTP paging guards still used static Query maxima;
+real browser entry exposed list128 being rejected by an old50-item guard. All
+five routes now check initialized capacity at request time. Real TestClient
+checks cover128-item lists,512-item history and changed quotas after app creation.
+Native file transfer/status/cancel budgets also accept initialization settings.
+Quota failure during final receipt saving settles the task as failed, retaining
+verified file metadata and workspace; it does not strand the running state.
+The matching34-store tests and110 transport/entry tests passed. Doctor passed.
+
+## Real local entry-point verification
+
+The final normative rebuild is ready. API and worker use image
+`sha256:a8e6c4ca4ded5b03e51be3e12c25448cc1a7063b4ef8f59f88f8ca9ad25db6ec`.
+API and native executor expose the same effective capacity fingerprint
+`f60650a6778f1dd62a16d0625b9966d9ca1352a3d54b1962fe76b24db15dde73`.
+The loaded native server file hash matches the current persistence repair.
+Protocol2 list128 succeeds. Native pandas HTML-table parsing succeeds with the
+pinned lxml installation. No dev merge, cloud/demo deployment is claimed.
+
+New Thread `thr_33f695bb5cf5541602b3`, Work `work_d2e7694243bdfae2a6a5`,
+Attempt `attempt_b010901da4e0be4f` used the original short question and actual
+browser uploads of README plus three CSV files. Before submission the user-facing
+draft held exactly four attachments; stored file bytes and SHA match each source.
+The task completed normally in350.524s with41 recorded model responses,52 total
+tool calls and6 tool-call failures repaired during execution. Files saved and
+downloaded normally:23files/2,705,591bytes, including a1,477,640-byte primary HTML,
+175-row key-metrics CSV and9embedded PNG charts. This output total does not itself
+exercise the old8MiB threshold; the explicit9MiB persistence regression does.
+
+Downloaded HTML SHA256:
+`19a18f4fdff2a5794ff6943b95b62bde459e6f3ea43576e38075fd5177bc1472`.
+It opens directly as a local file, with9/9images loaded, no external resources
+and no page overflow.48core values in the generated raw metrics and44matching
+published CSV values pass independent source-based checks. CSV rounding tolerance
+is0.000051; raw metric tolerance is0.000001. The App iframe also displays9/9images.
+
+Compared with the same-input baseline488.375s/77responses, this first successful
+trial used28.23%less time and46.75%fewer model responses. This is one trial, not a
+guaranteed speedup. Preserve the earlier failed attempts as failures. A separate
+short human-style follow-up asks the report to distinguish cumulative province
+hours from deduplicated clock hours and to clarify missing-data energy coverage;
+that revision is not included in the first-run timing comparison.
+
+Evidence: root `outputs/research-round-efficiency/capacity-first-run.json`,
+`capacity-first-run-events.json`, `capacity-upload-verification.json`,
+`capacity-quality.json`, `capacity-csv-quality.json`, `capacity-report.html`
+and `capacity-report-standalone.png`.
 
 ## Remaining audit items
 

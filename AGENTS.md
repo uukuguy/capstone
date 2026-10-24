@@ -188,6 +188,10 @@ counts, prices, limits, versions, or deployment state here.
   macOS checks during development; main and explicit release verification
   require macOS and Linux checks. Record
   any administrator emergency bypass. Branch heads do not imply deployment.
+- Ordinary dev branch integration is not release acceptance. Use the affected
+  local checks and dev's required PR gate. Do not run `check-release` or dispatch
+  `release=true` merely to merge a development branch or obtain extra platform
+  checks. Full release verification is for an explicit release or baseline task.
 
 - Keep project control bidirectionally aligned. Changes to implementation, branches,
   PRs, validation or deployment update `docs/status/VERSION-CONTROL.md` and its
@@ -258,6 +262,16 @@ counts, prices, limits, versions, or deployment state here.
   proposed designs, accepted decisions, and verified behavior.
 - Preserve unrelated tracked and untracked user work. Stage only task-owned
   paths. Do not delete or migrate existing main-worktree `var/` data.
+- At each coherent implementation or verification boundary, inspect Git status
+  and diffs. Separate completed task changes, deferred work, unrelated work and
+  runtime scratch. Commit verified task-owned changes promptly with explicit
+  dependencies and a reviewable scope; do not carry large uncommitted batches
+  across work boundaries or defer this sorting until merge time. If work must
+  remain uncommitted, record its exact paths, reason and recovery reference
+  before starting another unit. Update the journal and recovery state at the
+  same boundary. Before integration, check ahead/behind state, dirty and
+  untracked files, and unmerged dependencies. Never use bulk staging to hide
+  unclear ownership.
 - Prefer `rg` and `rg --files` for discovery. Use `apply_patch` for text edits
   and explicit non-destructive commands for filesystem operations.
 - Keep `README.md` and `README.zh-CN.md` aligned when shared product facts,

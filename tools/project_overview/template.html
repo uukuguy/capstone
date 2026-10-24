@@ -133,7 +133,8 @@ function draw(){
  const rightPackages=new Set(['shared-agent','business-analysis','model-decision']);
  const deployedSources=new Set(graphStages.map(e=>sourceNode(e)?.id));
  const continuingSources=new Set(data.edges.map(e=>e[0]));
- const rightNode=n=>n.lane!=='main'&&!n.release_point&&rightPackages.has(n.package)&&(deployedSources.has(n.id)||continuingSources.has(n.id));
+ const followsDeployedSource=n=>data.edges.some(e=>e[1]===n.id&&deployedSources.has(e[0])&&data.nodes.find(parent=>parent.id===e[0])?.package===n.package);
+ const rightNode=n=>n.lane!=='main'&&!n.release_point&&rightPackages.has(n.package)&&(deployedSources.has(n.id)||continuingSources.has(n.id)||followsDeployedSource(n));
  const hasRight=graphNodes.some(rightNode);
  const frame=el('graph-frame'),tree=el('tree'),width=Math.max(hasRight?1320:1000,frame.clientWidth),gap=Number(el('density').value)+12;
  el('graph-canvas').style.width=width+'px';
