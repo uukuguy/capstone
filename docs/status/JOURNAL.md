@@ -2576,3 +2576,4 @@ The following original entries were retained during document synchronization.
 - 2026-10-12 · 82b243c：按用户要求补回三动作小窗、普通无工具轻量问答和最终消息收集，避免恢复任务编译。
 - 2026-10-12：82b243c同源506项、588框架/380App及真实两轮专项通过；3动作9px/160px滚动浏览器通过，整体缺陷保留。
 - 2026-10-12：Research Model从50d8ebc快进到已接受dev6ff7094；适配现有执行/证据依赖，R1尚无代码。
+- 2026-10-12 · 2b0b0a5：提交新基线依赖与生命周期适配；链接、运行时准备和来源等价通过，R1未实现。
