@@ -131,15 +131,17 @@ function fitGraph(){
 }
 function draw(){
  const rightPackages=new Set(['shared-agent','business-analysis','model-decision']);
- const rightNode=n=>n.lane!=='main'&&!n.release_point&&rightPackages.has(n.package);
+ const deployedSources=new Set(graphStages.map(e=>sourceNode(e)?.id));
+ const continuingSources=new Set(data.edges.map(e=>e[0]));
+ const rightNode=n=>n.lane!=='main'&&!n.release_point&&rightPackages.has(n.package)&&(deployedSources.has(n.id)||continuingSources.has(n.id));
  const hasRight=graphNodes.some(rightNode);
  const frame=el('graph-frame'),tree=el('tree'),width=Math.max(hasRight?1320:1000,frame.clientWidth),gap=Number(el('density').value)+12;
  el('graph-canvas').style.width=width+'px';
  const place=(node,x,y,w)=>{node.style.width=w+'px';node.style.left=x+'px';node.style.top=y+'px';};
  const mains=graphNodes.filter(n=>n.lane==='main'&&!n.release_point).sort((a,b)=>levels[b.id]-levels[a.id]);
  const branches=graphNodes.filter(n=>n.lane!=='main'||n.release_point).sort((a,b)=>levels[b.id]-levels[a.id]||Number(a.release_point)-Number(b.release_point));
- // Release/history stays left of dev; current foundation/application work sits
- // right of dev, with exact-source deployment references in the outer lane.
+ // Release/history and independent undeployed leaves stay left of dev.
+ // Continuing foundation/application sources sit right, next to deployments.
  const mainWidth=hasRight?360:branches.length?400:520,stageWidth=190;
  // Centre the occupied four-lane group, rather than leaving a large blank
  // margin left of a mathematically centred spine and crowded right-hand cards.

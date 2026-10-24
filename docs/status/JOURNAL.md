@@ -5585,3 +5585,5 @@ separate. No model task is active.
 2026-10-25 — b87ac5d2: Retained native execution dependencies so the accepted workspace can integrate as a complete application.
 
 2026-10-25 — c34b4780: Committed workspace navigation and session recovery so dev can retain the verified interface.
+
+2026-10-25 — db60bc8d: Recorded workspace acceptance and deferred scope to preserve the integration boundary.
