@@ -58,6 +58,7 @@ from .network_diagram import MAX_DIAGRAM_BYTES, MAX_EVENT_PAGE_BYTES, normalize_
 from .result_projection import MAX_RESULT_PROJECTIONS, MAX_RESULT_PROJECTION_BYTES, ResultProjection, normalize_result_projection, validate_artifact_reference
 from .thread_management import history_cursor, history_page, network_context_page, thread_descriptor, thread_list_page, validate_limit
 from .thread_model_workspace import MAX_OPEN_MODELS, MODEL_COMMANDS, migrate_workspace, restore_work_contexts, prepare_workspace_change, synchronize_workspace, workspace_projection, workspace_outcome, workspace_has_capacity
+from .session_title import SessionTitle
 
 
 _IDENTIFIER = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
@@ -1262,6 +1263,21 @@ class InMemoryThreadService(NativeExecutionOwner):
             events = tuple(islice((event for event in self._events if event.event_seq > after_event_seq), 256))
             return _bounded_event_page(thread_id, after_event_seq, self._snapshot.last_event_seq, events)
 
+    def _submit_title_command(self, parsed, request_hash):
+        from .session_title import rename_session
+        title, rejection = rename_session(self._snapshot, parsed, archived=self._archived)
+        event_seq = None
+        if title is not None:
+            event = self._append_control_event(event_type='session_title_changed', payload={
+                'command_id': parsed['command_id'], 'session_title': title.to_document()})
+            event_seq = event.event_seq
+            self._snapshot = replace(self._snapshot, session_title=title, last_event_seq=event_seq)
+        receipt = self._receipt(parsed, status='rejected' if rejection else 'accepted',
+                                rejection=rejection, accepted_event_seq=event_seq)
+        self._commands[parsed['idempotency_key']] = _StoredCommand(request_hash, receipt)
+        self._command_ids.add(parsed['command_id'])
+        return receipt
+
     def _submit_work_command(self, parsed, request_hash):
         from .thread_work import apply_work, create_attempt, project_work, execution_model
         prepared, submission, input_rejection = _work_send_input(
@@ -1360,6 +1376,8 @@ class InMemoryThreadService(NativeExecutionOwner):
             if parsed["command_id"] in self._command_ids:
                 return self._receipt(parsed, status="rejected", rejection="command_id_conflict")
             if command.get('schema') == 'capstone-command/2':
+                if parsed['kind'] == 'rename_session':
+                    return self._submit_title_command(parsed, request_hash)
                 return self._submit_work_command(parsed, request_hash)
             if self._snapshot.minimum_protocol_version > 1:
                 return self._receipt(parsed, status='rejected', rejection='protocol_upgrade_required')
@@ -2484,6 +2502,7 @@ ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS pending_selection jsonb;
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS pending_model_switch jsonb;
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS result_projections jsonb NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS application_state jsonb;
+ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS session_title jsonb;
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS runtime_mode text NOT NULL DEFAULT 'capstone' CHECK (runtime_mode IN ('capstone', 'pi_reference'));
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS archived boolean NOT NULL DEFAULT false;
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS model_workspace jsonb;
@@ -2563,6 +2582,30 @@ def _timestamp(value: Any) -> str:
 
 
 class PostgresThreadService(NativeExecutionOwner):
+    def _submit_title(self, connection, thread, snapshot, parsed, request_hash):
+        from .session_title import rename_session
+        duplicate = connection.execute('SELECT 1 FROM capstone_thread_commands WHERE thread_id=%s AND command_id=%s',
+                                       (snapshot.thread_id, parsed['command_id'])).fetchone()
+        if duplicate:
+            return self._receipt(parsed, status='rejected', rejection='command_id_conflict')
+        title, rejection = rename_session(snapshot, parsed, archived=thread['archived'])
+        event_seq = None
+        if title is not None:
+            event_seq = snapshot.last_event_seq + 1
+            event = EventEnvelope(event_id='evt_' + secrets.token_hex(8), event_seq=event_seq,
+                event_type='session_title_changed', event_version=1, thread_id=snapshot.thread_id,
+                run_id=snapshot.run.run_id, turn_id=None, attempt_id=None, model_context_id=None,
+                selection_revision=None, occurred_at=_now(), visibility='public',
+                payload={'command_id': parsed['command_id'], 'session_title': title.to_document()})
+            self._insert_event(connection, event)
+            connection.execute('UPDATE capstone_threads SET session_title=%s, last_event_seq=%s WHERE thread_id=%s',
+                               (Jsonb(title.to_document()), event_seq, snapshot.thread_id))
+        receipt = self._receipt({**parsed, 'run_id': snapshot.run.run_id},
+            status='rejected' if rejection else 'accepted', rejection=rejection, accepted_event_seq=event_seq)
+        connection.execute('INSERT INTO capstone_thread_commands (thread_id,idempotency_key,request_hash,command_id,receipt) VALUES (%s,%s,%s,%s,%s)',
+            (snapshot.thread_id, parsed['idempotency_key'], request_hash, parsed['command_id'], Jsonb(receipt.to_document())))
+        return receipt
+
     def _submit_work(self, connection, thread, snapshot, parsed, request_hash):
         from .thread_work import apply_work, create_attempt, project_work, execution_model
         duplicate = connection.execute('SELECT 1 FROM capstone_thread_commands WHERE thread_id=%s AND command_id=%s',
@@ -2720,9 +2763,10 @@ class PostgresThreadService(NativeExecutionOwner):
         if context is None:
             with self._connect() as connection:
                 connection.execute('''INSERT INTO capstone_threads
-                    (thread_id, run_id, run_state, minimum_protocol_version, works)
-                    VALUES (%s, %s, %s, 2, %s)''',
-                    (snapshot.thread_id, snapshot.run.run_id, snapshot.run.state, Jsonb(list(snapshot.works))))
+                    (thread_id, run_id, run_state, minimum_protocol_version, works, session_title)
+                    VALUES (%s, %s, %s, 2, %s, %s)''',
+                    (snapshot.thread_id, snapshot.run.run_id, snapshot.run.state, Jsonb(list(snapshot.works)),
+                     None if snapshot.session_title is None else Jsonb(snapshot.session_title.to_document())))
             return snapshot
         started = time.perf_counter()
         initial_diagram = None
@@ -2760,6 +2804,9 @@ class PostgresThreadService(NativeExecutionOwner):
                 )
             except psycopg.errors.UniqueViolation:
                 raise ValueError("thread identity already exists") from None
+            if snapshot.session_title is not None:
+                connection.execute('UPDATE capstone_threads SET session_title=%s WHERE thread_id=%s',
+                                   (Jsonb(snapshot.session_title.to_document()), snapshot.thread_id))
             if initial_diagram is not None:
                 event = self._make_control_event({"thread_id": snapshot.thread_id, "run_id": snapshot.run.run_id}, context,
                     event_seq=snapshot.last_event_seq + 1, event_type="network_diagram", payload={"diagram": initial_diagram})
@@ -2880,7 +2927,7 @@ class PostgresThreadService(NativeExecutionOwner):
                 if cursor is None:
                     raise ThreadNotFound(before)
             rows = connection.execute(
-                """SELECT thread_id, model_id, implementation_family, created_at, archived, last_event_seq, minimum_protocol_version
+                """SELECT thread_id, model_id, implementation_family, created_at, archived, last_event_seq, minimum_protocol_version, session_title
                    FROM capstone_threads WHERE archived = %s
                    AND (%s::timestamptz IS NULL OR (created_at, thread_id) < (%s, %s))
                    ORDER BY created_at DESC, thread_id DESC LIMIT %s""",
@@ -3077,6 +3124,8 @@ class PostgresThreadService(NativeExecutionOwner):
                     return self._receipt(parsed, status="rejected", rejection="idempotency_conflict")
                 return CommandReceipt.from_document(existing["receipt"])
             if command.get('schema') == 'capstone-command/2':
+                if parsed['kind'] == 'rename_session':
+                    return self._submit_title(connection, thread, snapshot, parsed, request_hash)
                 return self._submit_work(connection, thread, snapshot, parsed, request_hash)
             if snapshot.minimum_protocol_version > 1:
                 return self._receipt(parsed, status='rejected', rejection='protocol_upgrade_required')
@@ -4450,6 +4499,7 @@ class PostgresThreadService(NativeExecutionOwner):
             minimum_protocol_version=row.get('minimum_protocol_version', 1),
             works=tuple(row.get('works') or []),
             native_execution=self._native_binding,
+            session_title=None if row.get('session_title') is None else SessionTitle.from_document(row['session_title']),
         )
 
     @staticmethod

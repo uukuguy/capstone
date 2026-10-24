@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from .general_executor_composition import _resource_profiles
 
 
-def executor_binding(executor) -> dict:
+def executor_binding(executor, *, session_type: str | None = None) -> dict:
     from .delegated_runtime import json_document
     capability = cast(dict, json_document(executor.capability))
     identity = cast(dict, json_document(executor.identity))
@@ -19,12 +19,11 @@ def executor_binding(executor) -> dict:
     _resource_profiles(capability.get('resource_profiles', {}))
     if 'delegated_pi' not in capability.get('resource_profiles', {}):
         raise ValueError('native conversation resource profile is unavailable')
-    from .enterprise_application import resolve_enterprise_research_profile
+    from .enterprise_application import resolve_native_profile
     from .native_pack_preparation import PiNativeBindingPreparer
     from capability_agent.domain.profile import NativeDomainRuntimeProfile
     from pathlib import Path
-    from types import SimpleNamespace
-    profile = resolve_enterprise_research_profile()
+    profile = resolve_native_profile(session_type)
     binding = profile.domains[0]
     if not isinstance(binding.profile, NativeDomainRuntimeProfile):
         raise ValueError('native application selected an incompatible binding')
@@ -45,15 +44,25 @@ def executor_binding(executor) -> dict:
             'binding_id': binding.binding_id, 'identity': identity, 'capability': capability}
 
 
+def binding_for_session(binding: Mapping, session_type: str | None) -> dict:
+    """Select a trusted preset from the host's executor, never client config."""
+    from types import SimpleNamespace
+    return executor_binding(SimpleNamespace(identity=binding['identity'], capability=binding['capability']),
+                            session_type=session_type)
+
+
 def validate_binding(value: object) -> dict:
     if (not isinstance(value, Mapping) or set(value) != {
             'schema', 'application_profile', 'binding_id', 'identity', 'capability'}
             or value['schema'] != 'capstone-native-conversation/1'
-            or value['application_profile'] != {'profile_id': 'enterprise-research', 'profile_version': '1.0.0'}
+            or value['application_profile'] not in (
+                {'profile_id': 'enterprise-research', 'profile_version': '1.0.0'},
+                {'profile_id': 'general-chat', 'profile_version': '1.0.0'})
             or value['binding_id'] != 'native-conversation'):
         raise ValueError('native conversation binding is invalid')
     from types import SimpleNamespace
-    checked = executor_binding(SimpleNamespace(identity=value['identity'], capability=value['capability']))
+    checked = executor_binding(SimpleNamespace(identity=value['identity'], capability=value['capability']),
+                               session_type=value['application_profile']['profile_id'])
     if checked != value:
         raise ValueError('native conversation binding is inconsistent')
     return json.loads(json.dumps(checked))

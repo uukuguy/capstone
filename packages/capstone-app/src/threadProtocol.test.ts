@@ -17,6 +17,13 @@ function validSnapshot(): Record<string, unknown> {
   }
 }
 
+it('preserves user-owned titles through snapshot restoration', () => {
+  const title = {text: '运行方式研究', source: 'user', revision: 2, source_ref: null}
+  const snapshot = parseThreadSnapshot({...validSnapshot(), session_title: title})
+  expect(snapshot.sessionTitle).toEqual(title)
+  expect(snapshot.toDocument().session_title).toEqual(title)
+})
+
 function event(sequence: number): Record<string, unknown> {
   return {
     event_id: `evt_${sequence}`, event_seq: sequence, event_type: 'attempt_progress',

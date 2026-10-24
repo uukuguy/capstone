@@ -1,4 +1,5 @@
 import { parseContext, parseThreadSnapshot, ThreadProtocolError, type ModelContextSnapshot, type ThreadSnapshot } from './threadProtocol'
+import { parseSessionTitle, type SessionTitle } from './sessionTitle'
 
 export type WorkRecord = {
   workId: string; goal: string; goalRevision: number; revision: number; status: string
@@ -7,6 +8,7 @@ export type WorkRecord = {
   cancelRequested?: boolean
 }
 export type WorkSnapshot = {
+  sessionTitle?: SessionTitle
   threadId: string; runId: string; selectedModelContextId: string | null
   modelContext: ModelContextSnapshot | null; lastEventSeq: number; baseEventSeq: number
   works: WorkRecord[]
@@ -77,6 +79,7 @@ export function parseWorkSnapshot(value: unknown): WorkSnapshot {
     professionalSnapshot = parseThreadSnapshot({ ...inherited, schema: 'capstone-thread-snapshot/1' })
   }
   return { threadId, runId, modelContext, selectedModelContextId, lastEventSeq, baseEventSeq, works, professionalSnapshot,
+    ...(body.session_title == null ? {} : {sessionTitle: parseSessionTitle(body.session_title)}),
     toDocument: () => structuredClone(body) }
 }
 

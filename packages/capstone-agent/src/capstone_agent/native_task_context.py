@@ -7,6 +7,8 @@ POLICY_TEXT = ('Answer the current user message using its conversation context. 
     'General knowledge is not an Authority result. Do not claim model calculations '
     'or external retrieval without an admitted source. External lookup is disabled. '
     'Do not use shell commands or MCP tools to bypass that application restriction.')
+GENERAL_CHAT_POLICY_TEXT = ('Provide a direct conversational answer to the current user message. '
+    + POLICY_TEXT)
 
 
 def public_document(value):
@@ -29,7 +31,8 @@ def checked_native_context(value):
         raise ValueError('native selected task source is invalid')
     policy = value['policy']
     if (not isinstance(policy, dict) or set(policy) != {'schema', 'system_policy', 'allowed_tools', 'external_lookup_enabled'}
-            or policy['schema'] != 'capstone-conversation-policy/1' or policy['system_policy'] != POLICY_TEXT
+            or policy['schema'] != 'capstone-conversation-policy/1'
+            or policy['system_policy'] not in (POLICY_TEXT, GENERAL_CHAT_POLICY_TEXT)
             or policy['external_lookup_enabled'] is not False
             or not isinstance(policy['allowed_tools'], list) or len(policy['allowed_tools']) > 256
             or any(not isinstance(item, str) or not item or len(item) > 256 for item in policy['allowed_tools'])
@@ -56,8 +59,8 @@ def checked_native_context(value):
 
 
 def native_context_for(claim, binding):
-    from .enterprise_application import resolve_enterprise_research_profile
-    profile = resolve_enterprise_research_profile()
+    from .enterprise_application import resolve_native_profile
+    profile = resolve_native_profile(binding['application_profile']['profile_id'])
     tools = set(binding['capability'].get('native_builtin_tools', ()))
     submission = claim.submission or {}
     if submission.get('input', {}).get('kind') == 'skill_invocation':

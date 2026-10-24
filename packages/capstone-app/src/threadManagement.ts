@@ -1,4 +1,7 @@
+import { parseSessionTitle, type SessionTitle } from './sessionTitle'
+
 export type ThreadDescriptor = {
+  sessionTitle?: SessionTitle
   threadId: string; modelId: string | null; implementationFamily: string | null
   minimumProtocolVersion?: number
   createdAt: string; archived: boolean; lastEventSeq: number
@@ -21,6 +24,7 @@ export function parseThreadDescriptor(value: unknown): ThreadDescriptor {
   return { threadId: row.thread_id as string, modelId: row.model_id as string | null,
     implementationFamily: row.implementation_family as string | null, createdAt: row.created_at as string,
     ...(version === 2 ? { minimumProtocolVersion: 2 } : {}),
+    ...(row.session_title == null ? {} : {sessionTitle: parseSessionTitle(row.session_title)}),
     archived: row.archived, lastEventSeq: row.last_event_seq as number }
 }
 

@@ -12,6 +12,7 @@ from capstone_model_capability_spi import ModelCapabilitySelection
 
 from .model_identity import validate_model_id
 from .result_projection import MAX_RESULT_PROJECTIONS, ResultProjection
+from .session_title import SessionTitle
 
 
 THREAD_PROTOCOL = "capstone-thread/1"
@@ -523,6 +524,7 @@ class ThreadSnapshot:
     minimum_protocol_version: int = 1
     works: tuple[Mapping[str, Any], ...] = ()
     native_execution: Mapping[str, Any] | None = None
+    session_title: SessionTitle | None = None
 
     @property
     def professional_context(self) -> ModelContextSnapshot:
@@ -532,6 +534,8 @@ class ThreadSnapshot:
         return self.active_model_context
 
     def __post_init__(self) -> None:
+        if self.session_title is not None and not isinstance(self.session_title, SessionTitle):
+            raise ThreadProtocolError('invalid session title')
         runtime_mode(self.runtime_mode)
         if type(self.minimum_protocol_version) is not int or self.minimum_protocol_version not in {1, 2}:
             raise ThreadProtocolError('invalid minimum protocol version')
@@ -561,13 +565,13 @@ class ThreadSnapshot:
             return parse_snapshot(document)
         allowed = frozenset({
             "schema", "thread_id", "run", "active_model_context", "active_grid_page_id",
-            "current_attempt", "last_event_seq", "base_event_seq", "pending_selection",
+            "current_attempt", "last_event_seq", "base_event_seq", "pending_selection", "session_title",
             "pending_model_switch", "result_projections", "application_state", "runtime_mode",
         })
         _fields(document, allowed, name="snapshot")
         _required(
             document,
-            allowed - {"pending_selection", "pending_model_switch", "result_projections", "application_state", "runtime_mode"},
+            allowed - {"pending_selection", "pending_model_switch", "result_projections", "application_state", "runtime_mode", "session_title"},
             name="snapshot",
         )
         if document["schema"] != _SNAPSHOT_SCHEMA:
@@ -632,6 +636,7 @@ class ThreadSnapshot:
             pending_model_switch=pending_model_switch,
             result_projections=result_projections,
             application_state=application_state,
+            session_title=None if document.get('session_title') is None else SessionTitle.from_document(document['session_title']),
             runtime_mode=runtime_mode(document.get("runtime_mode", "capstone")),
         )
 
@@ -649,6 +654,8 @@ class ThreadSnapshot:
         }
         if self.pending_selection is not None:
             document["pending_selection"] = self.pending_selection.to_document()
+        if self.session_title is not None:
+            document['session_title'] = self.session_title.to_document()
         if self.pending_model_switch is not None:
             document["pending_model_switch"] = self.pending_model_switch.to_document()
         if self.result_projections:

@@ -1,4 +1,5 @@
 import { parseNetworkDiagram } from './networkValidation'
+import { parseSessionTitle, type SessionTitle } from './sessionTitle'
 
 export type RunState = 'created' | 'open' | 'closing' | 'closed' | 'failed'
 export type RuntimeMode = 'capstone' | 'pi_reference'
@@ -56,6 +57,7 @@ export type ResultProjection = {
   overlay?: ResultOverlay; unavailableReason?: string
 }
 export type ThreadSnapshot = {
+  sessionTitle?: SessionTitle
   threadId: string
   runtimeMode: RuntimeMode
   run: RunSnapshot
@@ -524,6 +526,7 @@ function snapshotDocument(snapshot: Omit<ThreadSnapshot, 'toDocument'>): Record<
     last_event_seq: snapshot.lastEventSeq,
     base_event_seq: snapshot.baseEventSeq,
     ...(snapshot.resultProjections ? { result_projections: snapshot.resultProjections.map(resultProjectionDocument) } : {}),
+    ...(snapshot.sessionTitle ? {session_title: {...snapshot.sessionTitle}} : {}),
     ...(snapshot.applicationState ? { application_state: {
       ...(snapshot.applicationState.caseExecution ? { case_execution: {
         display_name: snapshot.applicationState.caseExecution.displayName,
@@ -554,9 +557,9 @@ function snapshotDocument(snapshot: Omit<ThreadSnapshot, 'toDocument'>): Record<
 
 export function parseThreadSnapshot(value: unknown): ThreadSnapshot {
   const document = object(value, 'snapshot')
-  const keys = ['schema', 'thread_id', 'run', 'active_model_context', 'active_grid_page_id', 'current_attempt', 'last_event_seq', 'base_event_seq', 'pending_selection', 'pending_model_switch', 'result_projections', 'application_state', 'runtime_mode']
+  const keys = ['schema', 'thread_id', 'run', 'active_model_context', 'active_grid_page_id', 'current_attempt', 'last_event_seq', 'base_event_seq', 'pending_selection', 'pending_model_switch', 'result_projections', 'application_state', 'runtime_mode', 'session_title']
   fields(document, new Set(keys), 'snapshot')
-  required(document, keys.filter((key) => !['pending_selection', 'pending_model_switch', 'result_projections', 'application_state', 'runtime_mode'].includes(key)), 'snapshot')
+  required(document, keys.filter((key) => !['pending_selection', 'pending_model_switch', 'result_projections', 'application_state', 'runtime_mode', 'session_title'].includes(key)), 'snapshot')
   if (document.schema !== 'capstone-thread-snapshot/1') throw new ThreadProtocolError('snapshot.schema is invalid')
   const lastEventSeq = sequence(document.last_event_seq, 'snapshot.last_event_seq')
   const baseEventSeq = sequence(document.base_event_seq, 'snapshot.base_event_seq')
@@ -595,6 +598,7 @@ export function parseThreadSnapshot(value: unknown): ThreadSnapshot {
     baseEventSeq,
     ...(resultProjections ? { resultProjections } : {}),
     ...(applicationState ? { applicationState } : {}),
+    ...(document.session_title == null ? {} : {sessionTitle: parseSessionTitle(document.session_title)}),
     ...(document.pending_selection == null ? {} : { pendingSelection: parsePendingSelection(document.pending_selection) }),
     ...(document.pending_model_switch == null ? {} : { pendingModelSwitch: parsePendingModelSwitch(document.pending_model_switch) }),
   }

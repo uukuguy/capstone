@@ -6,6 +6,7 @@ import secrets
 
 from .enterprise_context import TaskContext, WorkBinding
 from .thread_protocol import ThreadProtocolError, ThreadSnapshot
+from .session_title import SessionTitle
 
 
 WORK_STATUSES = {'ready', 'queued', 'running', 'completed', 'failed', 'cancelled', 'interrupted', 'blocked'}
@@ -114,7 +115,7 @@ def parse_command(command):
         _identifier(command['run_id'], name='run_id')
     target = command['target']
     if (not isinstance(target, dict) or set(target) != {'kind', 'id', 'expected_revision'}
-            or target['kind'] != 'work' or type(target['expected_revision']) is not int
+            or target['kind'] != ('session_title' if command['kind'] == 'rename_session' else 'work') or type(target['expected_revision']) is not int
             or target['expected_revision'] < 0):
         raise ThreadProtocolError('invalid Work target')
     _identifier(target['id'], name='target.id')
@@ -267,8 +268,8 @@ def parse_snapshot(document):
     if context is None:
         from .thread_protocol import RunSnapshot, _identifier, _sequence
         allowed = {'schema', 'runtime_mode', 'thread_id', 'run', 'active_model_context', 'active_grid_page_id',
-                   'current_attempt', 'last_event_seq', 'base_event_seq', 'application_state'}
-        required = allowed - {'runtime_mode', 'application_state'}
+                   'current_attempt', 'last_event_seq', 'base_event_seq', 'application_state', 'session_title'}
+        required = allowed - {'runtime_mode', 'application_state', 'session_title'}
         if (set(base) - allowed or not required <= set(base)
                 or base.get('active_grid_page_id') is not None):
             raise ThreadProtocolError('invalid model-free snapshot')
@@ -277,7 +278,8 @@ def parse_snapshot(document):
                                   None, None, None if current is None else AttemptSnapshot.from_document(base['current_attempt']), _sequence(base['last_event_seq'], name='last_event_seq'),
                                   _sequence(base['base_event_seq'], name='base_event_seq'),
                                   application_state=base.get('application_state'), runtime_mode=base.get('runtime_mode', 'capstone'),
-                                  minimum_protocol_version=2)
+                                  minimum_protocol_version=2,
+                                  session_title=None if base.get('session_title') is None else SessionTitle.from_document(base['session_title']))
     else:
         base['schema'] = 'capstone-thread-snapshot/1'
         snapshot = ThreadSnapshot.from_document(base)

@@ -283,7 +283,8 @@ class IntentRuntimeFactory:
         if self._general is _LEGACY or self._general is None:
             raise HarnessRuntimeConfigurationError('native conversation executor is unavailable')
         accepted = validate_binding((claim.submission or {}).get('_native_execution'))
-        current = executor_binding(cast(GeneralPiExecutor, self._general))
+        current = executor_binding(cast(GeneralPiExecutor, self._general),
+                                   session_type=accepted['application_profile']['profile_id'])
         if accepted['identity'] != current['identity']:
             raise HarnessRuntimeConfigurationError('native conversation executor configuration changed')
         history = claim.conversation_context.to_document()

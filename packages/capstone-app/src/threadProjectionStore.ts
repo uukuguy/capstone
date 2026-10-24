@@ -16,7 +16,7 @@ const HISTORY_EVENT_LIMIT = 1024
 const HISTORY_BYTE_LIMIT = 8 * 1024 * 1024
 const INITIAL_HISTORY_MESSAGE_TARGET = 50
 const INITIAL_HISTORY_PAGE_LIMIT = 8
-const WORK_REFRESH_EVENTS = new Set(['command.applied', 'attempt_started', 'attempt_cancel_requested', 'attempt_completed',
+const WORK_REFRESH_EVENTS = new Set(['session_title_changed', 'command.applied', 'attempt_started', 'attempt_cancel_requested', 'attempt_completed',
   'attempt_failed', 'attempt_cancelled', 'attempt_interrupted', 'model_workspace_changed', 'model_context_activated',
   'model_context_reopened', 'model_context_reverted', 'selection_activated', 'selection_reverted', 'runtime_mode_changed'])
 
@@ -844,7 +844,9 @@ export class ThreadProjectionStore {
     const payload = record(event.payload)
     this.resultDelivery.accept(event)
     const deliveredProjections = this.resultDelivery.complete(event)
-    if (event.eventType === 'runtime_mode_changed') {
+    if (event.eventType === 'session_title_changed') {
+      document.session_title = payload.session_title
+    } else if (event.eventType === 'runtime_mode_changed') {
       document.runtime_mode = payload.runtime_mode
     } else if (event.eventType === 'model_context_change_pending') {
       document.pending_model_switch = {

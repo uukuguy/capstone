@@ -22,6 +22,7 @@ def thread_descriptor(snapshot: ThreadSnapshot, *, created_at: str, archived: bo
         "created_at": created_at,
         "archived": archived,
         "last_event_seq": snapshot.last_event_seq,
+        **({'session_title': snapshot.session_title.to_document()} if snapshot.session_title else {}),
         **({'minimum_protocol_version': 2} if snapshot.minimum_protocol_version == 2 else {}),
     }
 
