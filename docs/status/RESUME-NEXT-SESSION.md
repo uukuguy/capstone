@@ -14,13 +14,18 @@ Initial missing-runtime and loopback-proxy failures are environment issues;
 after setup/NO_PROXY, host66 and chat14 checks pass, and existing graph execution
 checks pass. No real model task has been started yet.
 
-Canonical local rebuild is active under /tmp/capstone-gateway-local-rebuild.log
-(exec session21487). Host health already publishes41 gateway tools. Wait for
-readiness and scoped cleanup. Freeze final source and rebuild again if runtime
-hashes differ after the later authentication-code correction. Do not start
-model work against mismatched bytes. Use ROOT deploy/local.env and model assets
-via explicit paths; gateway connection is mounted from its original directory,
-never copied into task storage. App on5173 still serves ROOT dev (UI unchanged).
+Three canonical rebuilds completed, latest /tmp/capstone-gateway-frozen-rebuild.log
+(session11376; cleanup receipt052308-45103). Source hashes match797ddf9a, but the
+real UID probe found a security blocker: mode0600 on the host bind still allowed
+UID10000 to open the connection file. NO credential bytes were printed and no
+real model task was started. General Pi was deliberately stopped before repair.
+The fix mounts under /run/capstone-private/data-gateway, with an image-native
+root0700 parent and a startup guard.14 gateway/actual-child checks now pass.
+Next rebuild must use CAPSTONE_DATA_GATEWAY_CONNECTION_FILE set to
+/run/capstone-private/data-gateway/connection.json. Verify real setuid open is
+denied, gateway41 remains available and all role hashes/images match BEFORE any
+model task. Use ROOT deploy/local.env and model assets by explicit paths; the
+gateway mount uses its original directory. App5173 still serves ROOT dev.
 
 User accepted production-data enterprise-research first. Capstone only explores
 and obtains data through MCP; backend selection/switching belongs to data-gateway.

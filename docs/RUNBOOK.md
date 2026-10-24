@@ -252,8 +252,10 @@ read/write/edit/bash 在独立 UID 和工作区中运行；宿主凭据通过可
 
 enterprise-research 可按应用授权使用 data-gateway 的远程工具。设置
 `CAPSTONE_DATA_GATEWAY_CONFIG_DIR` 为运维连接目录，设置
-`CAPSTONE_DATA_GATEWAY_CONNECTION_FILE=/run/capstone-data-gateway/connection.json`。
+`CAPSTONE_DATA_GATEWAY_CONNECTION_FILE=/run/capstone-private/data-gateway/connection.json`。
 目录只读挂载至 general-pi，连接文件须为0600，包含 Streamable HTTP URL及Bearer头。
+挂载位于镜像原生文件系统的0700宿主专用父目录下；不能仅依赖挂载文件的权限位，
+部分宿主文件共享环境不会按任务UID执行其权限。验收须真实降权并尝试打开，不能只查mode。
 凭据不进入App、模型上下文或原生任务环境；任务仅获得可撤销的本地宿主代理授权。
 不要把连接文件提交到Git或作为研究附件上传。
 

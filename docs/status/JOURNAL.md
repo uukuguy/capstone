@@ -5630,3 +5630,7 @@ separate. No model task is active.
 2026-10-25 — 726e08a7: Separated authentication failures from connection errors and retained typed capacity failures without exposing gateway credentials.
 
 2026-10-25 — 797ddf9a: Preserved debug capacity interruption and verified inflight revocation so cancelled gateway calls issue no source receipt.
+
+2026-10-25 — 98462b60: Recorded implemented gateway source and pending real-task acceptance so the control graph distinguishes code from acceptance.
+
+2026-10-25 — Real task-UID probe could read a mode0600 host bind; native host stopped before model work, pending private-parent isolation.

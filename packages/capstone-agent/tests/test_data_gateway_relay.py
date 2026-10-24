@@ -195,3 +195,32 @@ def test_revocation_cancels_inflight_gateway_and_issues_no_receipt(tmp_path):
         server.shutdown()
         server.server_close()
         thread.join(2)
+
+
+def test_container_gateway_refuses_unprotected_mount_parent(tmp_path, monkeypatch):
+    import os
+    from pathlib import Path
+    from capstone_agent import data_gateway_mcp
+    from capstone_agent.data_gateway_relay import load_container_gateway
+    root = tmp_path / 'private'
+    root.mkdir(mode=0o700)
+    selected = root / 'data-gateway/connection.json'
+    calls = []
+    class Prepared:
+        def __init__(self, *_):
+            calls.append('constructed')
+        async def prepare(self):
+            return access().catalog
+    policy = tmp_path / 'policy.json'
+    policy.write_text('{}')
+    monkeypatch.setattr(data_gateway_mcp, 'DataGatewayMcp', Prepared)
+    resource, publication = load_container_gateway(str(selected), policy, private_root=root, owner_uid=os.getuid())
+    assert resource and publication['available']
+    root.chmod(0o755)
+    resource, publication = load_container_gateway(str(selected), policy, private_root=root, owner_uid=os.getuid())
+    assert resource is None and publication['reason'] == 'gateway_private_mount_invalid'
+    root.chmod(0o700)
+    resource, publication = load_container_gateway(str(tmp_path / 'public/connection.json'), policy,
+        private_root=root, owner_uid=os.getuid())
+    assert resource is None and publication['reason'] == 'gateway_private_mount_invalid'
+    assert len(calls) == 1

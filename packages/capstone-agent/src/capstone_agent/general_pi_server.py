@@ -1217,18 +1217,9 @@ def main():
         internal_endpoints=tuple(InternalEndpoint(**item) for item in endpoints))
     # No task (including resource inventory) may start before enforcement.
     network_policy.start()
-    gateway, gateway_publication = None, {'available': False, 'reason': 'not_configured'}
-    connection_file = os.environ.get('CAPSTONE_DATA_GATEWAY_CONNECTION_FILE')
-    if connection_file:
-        from .data_gateway_mcp import DataGatewayMcp, GatewayError
-        from .data_gateway_relay import DataGatewayAccess
-        try:
-            client = DataGatewayMcp(Path(connection_file),
-                json.loads((config.parent / 'data-gateway.json').read_text()))
-            gateway = DataGatewayAccess(client, asyncio.run(client.prepare()))
-            gateway_publication = gateway.publication()
-        except GatewayError as error:
-            gateway_publication = {'available': False, 'reason': str(error)}
+    from .data_gateway_relay import load_container_gateway
+    gateway, gateway_publication = load_container_gateway(
+        os.environ.get('CAPSTONE_DATA_GATEWAY_CONNECTION_FILE'), config.parent / 'data-gateway.json')
     # Accepted native configuration belongs to its role profile. Engine and
     # fixed dispatch changes remain bound by executor_revision below.
     revision = sha256(b'capstone-general-sdk/2:isolated-uid:fixed-relay:fixed-mcp'

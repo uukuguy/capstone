@@ -1,11 +1,38 @@
 """Task catalog grants and host-issued gateway observation receipts."""
 from copy import deepcopy
 from hashlib import sha256
+import asyncio
+import json
+from pathlib import Path
 import re
+import stat
 from threading import RLock
 
-from .application_capacity import limits, require_capacity
+from .application_capacity import limits, require_capacity, CapacityExceeded
 from .data_gateway_mcp import GatewayError, encode, fingerprint
+
+
+def load_container_gateway(connection_file, policy_path, *, private_root=Path('/run/capstone-private'), owner_uid=0):
+    if not connection_file:
+        return None, {'available': False, 'reason': 'not_configured'}
+    try:
+        # This parent belongs to the image filesystem, outside the host bind.
+        # Bind-file mode bits alone do not protect data on every host filesystem.
+        parent = private_root.lstat()
+        if (not stat.S_ISDIR(parent.st_mode) or parent.st_uid != owner_uid
+                or stat.S_IMODE(parent.st_mode) != 0o700
+                or Path(connection_file) != private_root / 'data-gateway/connection.json'):
+            raise GatewayError('gateway_private_mount_invalid')
+        from .data_gateway_mcp import DataGatewayMcp
+        client = DataGatewayMcp(Path(connection_file), json.loads(Path(policy_path).read_text()))
+        resource = DataGatewayAccess(client, asyncio.run(client.prepare()))
+        return resource, resource.publication()
+    except GatewayError as error:
+        return None, {'available': False, 'reason': str(error)}
+    except CapacityExceeded:
+        raise
+    except (OSError, ValueError):
+        return None, {'available': False, 'reason': 'gateway_private_mount_invalid'}
 
 
 def research_gateway_tools(native_context, publication):

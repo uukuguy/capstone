@@ -127,6 +127,7 @@ COPY configs/runtime/capstone-pi/settings.json configs/runtime/capstone-pi/setti
 COPY configs/runtime/agent-resources.json configs/runtime/agent-resources.json
 COPY configs/llm-providers.json llm-providers.json
 COPY configs/runtime/pi-runtime.lock.json pi-runtime.lock.json
+RUN mkdir -p /run/capstone-private && chmod 0700 /run/capstone-private
 ENV PYTHONUNBUFFERED=1 CAPSTONE_GENERAL_SANDBOX=container PORT=8790
 RUN python -c "from capstone_agent.general_pi_executor import collect_artifacts; from capstone_agent.native_product_roles import read_product_roles" \
     && python -c 'from capstone_agent.native_task_context import checked_native_context, RESEARCH_POLICY_TEXT, SPLIT_RESEARCH_POLICY_TEXT; [checked_native_context({"selected_task_records": [], "selected_task_source": None, "records_truncated": False, "policy": {"schema": "capstone-conversation-policy/1", "system_policy": policy, "allowed_tools": tools, "external_lookup_enabled": False}}) for policy, tools in [(RESEARCH_POLICY_TEXT, ["agent_research_cycle"]), (SPLIT_RESEARCH_POLICY_TEXT, ["agent_research_plan", "agent_research_record", "agent_research_assess"])]]' \

@@ -202,7 +202,7 @@ services:
       - general-pi-profiles:/var/lib/general-pi/profiles
       - type: bind
         source: ${CAPSTONE_DATA_GATEWAY_CONFIG_DIR:-./.capstone-agent/data-gateway}
-        target: /run/capstone-data-gateway
+        target: /run/capstone-private/data-gateway
         read_only: true
       - type: volume
         source: general-pi-resources
