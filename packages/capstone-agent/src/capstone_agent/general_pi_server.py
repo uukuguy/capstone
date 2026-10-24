@@ -682,6 +682,7 @@ class NativeTaskRunner:
         self.environment_context = environment_context()
         self.network_policy = network_policy
         self.gateway = gateway
+        self.gateway_publication = gateway.publication() if gateway else {'available': False, 'reason': 'not_configured'}
         self._lock = threading.Lock()
         self.relay = ProviderRelay()
         self.grants = self.relay.grants
@@ -753,7 +754,7 @@ class NativeTaskRunner:
                 from .data_gateway_relay import research_gateway_tools
                 gateway_tools = research_gateway_tools(native, self.gateway.publication() if self.gateway else {})
                 admitted_gateway = gateway_tools.intersection(native['policy']['allowed_tools'])
-                if admitted_gateway:
+                if admitted_gateway and self.gateway is not None:
                     self.gateway.bind(request.task_id, request.parent_attempt_id)
                     sdk_config['dataGateway'] = {'url': self.relay_origin + '/data-gateway/' + request.task_id,
                         'grant': grant, 'taskId': request.task_id, 'catalog': self.gateway.publication()['catalog']}
@@ -1086,7 +1087,7 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
             from .data_gateway_mcp import GatewayError
             gateway = getattr(runner, 'gateway', None)
             parts = self.path.split('/')
-            if gateway is None or len(parts) != 3 or not parts[2]:
+            if runner is None or gateway is None or len(parts) != 3 or not parts[2]:
                 return self.send_json(404, {'error': 'gateway_unavailable'})
             task_id = parts[2]
             grant = self.headers.get('Authorization', '').removeprefix('Bearer ')

@@ -5649,6 +5649,8 @@ separate. No model task is active.
 
 Prior closeout receipts preserved verbatim from the root checkout:
 
+2026-10-25 — PR #58 opened. Fixed11CI type errors; Pyright and105focused tests pass. Running images remain2f9c6b56. Large-grid WebGL implementation stays deferred.
+
 2026-10-25 — 64e40f41: Recorded directed dev verification and the exact recovery scope before the final scoped closeout gate.
 
 2026-10-25 — 346de403: Merged PR #57 after the required dev gate passed in 9m55s. Actual dev frontend type checking passes. PR #56 runtime remains unchanged. Original 109 paths and generated artifacts have verified recovery copies; merged temporary branch refs are closed. The final generated overview and this journal receipt are deliberate post-merge metadata, without a self-hash commit cycle. No release or deployment promotion.

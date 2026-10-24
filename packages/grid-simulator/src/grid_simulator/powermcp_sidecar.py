@@ -114,7 +114,8 @@ async def audit(install, snapshot, descriptor):
                 "descriptor_sha256": digest(descriptor), "input_sha256": hashlib.sha256(snapshot.read_bytes()).hexdigest(),
                 "runtime_identity": actual["runtime_identity"], "runtime_versions": actual["dependencies"],
                 "tool_schema_hashes": {n: hashes[n] for n in ("load_network", "audit_network")},
-                "mcp_protocol_version": initialized.protocol_version, "calls": calls,
+                "mcp_protocol_version": getattr(initialized, 'protocol_version',
+                    initialized.model_dump(mode='json', by_alias=True).get('protocolVersion')), "calls": calls,
                 "process_cleanup": "stdio context closed"}}
 
 

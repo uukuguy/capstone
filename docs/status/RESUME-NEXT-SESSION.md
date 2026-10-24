@@ -6,7 +6,9 @@ Updated 2026-10-25. Local gateway acceptance passed; dev integration is active.
 
 Accepted dev remains346de403. Implementation worktree .worktrees/dev-macos-ci is
 feat/enterprise-data-gateway. Runtime source2f9c6b56 is committed/pushed; later
-commits contain documentation only. ROOT remains actual dev and its original
+commits through58455077 contain documentation only. A subsequent CI correction
+updates MCP field access and optional gateway narrowing; it is not in the
+accepted running images yet. ROOT remains actual dev and its original
 post-merge journal/overview changes are preserved. Operator gateway mount paths
 were added to ignored ROOT deploy/local.env; no credentials were copied.
 
@@ -36,8 +38,11 @@ control view. Temporary graph server18765/session94799 serves this worktree.
 
 ## Next action
 
-Finish the acceptance/control documentation commit and push. Open a PR to dev
-using /tmp/capstone-data-gateway-pr.md after updating it to completed local scope.
+PR #58 is open: https://github.com/uukuguy/capstone/pull/58.
+Its first required gate failed on11Pyright errors. The correction passes Pyright
+with0errors and105focused gateway/relay/server/resource tests in11.46s. Local
+HTTP tests require NO_PROXY/no_proxy=127.0.0.1,localhost; without it7requests went
+through the machine proxy and failed. Push the correction and inspect its gate.
 Run only required dev gates, not release=true or cloud/demo. The transport and
 new dependencies select the existing product integration gate. After green,
 merge normally, reconcile ROOT's two preserved metadata files, fast-forward dev,
