@@ -4,7 +4,14 @@ import type { ResultProjection } from './threadProtocol'
 
 const result: ResultProjection = {resultId:'r',threadId:'t',runId:'run',turnId:'turn',attemptId:'a',modelContextId:'ctx',modelId:'grid',modelRevision:'revision',evidenceRefs:[],source:{capabilityId:'analysis',domainPackId:'pack',implementationFamily:'test'},status:'completed',summary:[],tables:[],elementRefs:[]}
 const presentation = {collectionId:'analysis',collectionTitle:'分析结果',groupId:'state',groupTitle:'运行状态',purpose:'task_output' as const}
-describe('task-owned output collections', () => {
+describe('instruction process collections', () => {
+  it('keeps current and legacy result groups at instruction scope', () => {
+    for (const purpose of ['process_output', 'task_output'] as const) {
+      const collections = taskResultCollections([{...result,presentation:{...presentation,purpose}}], 'a')
+      expect(collections).toHaveLength(1)
+      expect(collections[0].scope).toBe('instruction')
+    }
+  })
   it('does not infer membership for legacy or inspection results', () => {
     expect(taskResultCollections([result,{...result,presentation:{...presentation,purpose:'inspection'}}], 'a')).toEqual([])
   })

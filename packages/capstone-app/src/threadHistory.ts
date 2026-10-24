@@ -1,3 +1,4 @@
+import {exceedsCapacity} from './applicationCapacity'
 import { parseEventEnvelope, type EventEnvelope } from './threadProtocol'
 
 export type ThreadHistoryPage = {
@@ -13,7 +14,7 @@ export function parseThreadHistoryPage(value: unknown, threadId: string, before?
   if (body.schema !== 'capstone-thread-history/1' || body.thread_id !== threadId
       || !Number.isSafeInteger(start) || start < 1 || (before !== undefined && start !== before)
       || !Number.isSafeInteger(next) || next < 1 || next > start
-      || typeof body.has_more !== 'boolean' || !Array.isArray(body.events) || body.events.length > 256) throw new Error('消息历史游标无效')
+      || typeof body.has_more !== 'boolean' || !Array.isArray(body.events) || exceedsCapacity(body.events.length,'history_page_items')) throw new Error('消息历史游标无效')
   const events = body.events.map(parseEventEnvelope)
   let previous = next - 1
   for (const event of events) {
@@ -28,7 +29,7 @@ export function parseNetworkContextEvents(value: unknown, threadId: string, cont
   if (!value || typeof value !== 'object') throw new Error('电网历史投影无效')
   const body = value as Record<string, unknown>
   if (body.schema !== 'capstone-thread-network-events/1' || body.thread_id !== threadId
-      || body.model_context_id !== contextId || !Array.isArray(body.events) || body.events.length > 4) throw new Error('电网历史投影身份无效')
+      || body.model_context_id !== contextId || !Array.isArray(body.events) || exceedsCapacity(body.events.length,'ui_network_event_items')) throw new Error('电网历史投影身份无效')
   const events = body.events.map(parseEventEnvelope)
   if (events.some((event) => event.threadId !== threadId || event.modelContextId !== contextId || event.visibility !== 'public'
     || !['network_diagram', 'network_layer', 'network_layer_unavailable', 'attempt_completed'].includes(event.eventType))) throw new Error('电网历史投影事件无效')

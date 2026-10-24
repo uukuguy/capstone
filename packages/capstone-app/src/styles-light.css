@@ -430,7 +430,9 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .capstone-instruction-markers button[aria-current] > span:first-child { width: 7px; height: 4px; background: #126f68; }
 .capstone-instruction-markers:not(.is-scrolling):not(.is-near-edge):not(:focus-within) button { pointer-events: none; }
 .capstone-instruction-marker-tip { display: none; position: absolute; right: 16px; top: -5px; width: max-content; max-width: min(240px, 65vw); padding: 6px 9px; border: 1px solid rgb(135 154 151 / 8%); border-radius: 5px; background: rgb(248 250 248 / 12%); color: #5d6e68; box-shadow: none; backdrop-filter: none; font: 11px/1.5 Inter, "PingFang SC", sans-serif; text-align: left; pointer-events: none; }
-.capstone-instruction-marker-tip.is-visible { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.capstone-instruction-marker-tip.is-visible { display: block; }
+.capstone-instruction-marker-execution { display: block; font-size: 10px; line-height: 1.4; margin-bottom: 2px; font-weight: 500; }
+.capstone-instruction-marker-text { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .capstone-instruction-markers button[aria-current] .capstone-instruction-marker-tip { border-color: rgb(85 156 142 / 12%); background: rgb(237 246 241 / 16%); color: #466b60; font-weight: 500; }
 .capstone-instruction-markers .capstone-instruction-marker-tip { color: rgb(75 98 88 / 28%); transition: color .18s ease, background-color .18s ease; }
 .capstone-instruction-markers button[aria-current] .capstone-instruction-marker-tip { color: rgb(55 100 83 / 35%); }
@@ -636,6 +638,7 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .capstone-answer-body { padding: 6px 9px; border-left: 2px solid transparent; border-radius: 0 6px 6px 0; }
 .capstone-answer.is-collapsed .capstone-answer-body { border-left-color: #c5dbd1; }
 .capstone-answer-content .capstone-chat-markdown > :first-child { margin-top: 0; }
+.capstone-answer-content .capstone-chat-markdown > :last-child { margin-bottom: 0; }
 .capstone-answer-toggle { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 24px; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: #41685f; font: inherit; cursor: pointer; }
 .capstone-answer-toggle svg { width: 12px; height: 12px; }
 .capstone-answer-toggle:hover { background: #edf5f0; }
@@ -788,12 +791,12 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .capstone-inference-evidence dl > div { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, auto); gap: 8px; }
 .capstone-inference-evidence dd { margin: 0; color: #355f56; overflow-wrap: anywhere; }
 .capstone-evidence-item-body > button { padding: 5px 7px; border: 1px solid #c6ded3; border-radius: 4px; background: #f4faf7; color: #286b5d; font: inherit; cursor: pointer; }
-.capstone-evidence-trace { min-width: 0; margin-top: 6px; color: #647e76; font-size: 9px; line-height: 1.35; }
+.capstone-evidence-trace { min-width: 0; margin-top: 6px; color: #536b63; font-size: 12px; line-height: 1.6; }
 .capstone-evidence-trace > summary { cursor: pointer; }
 .capstone-evidence-trace code { display: block; margin-top: 3px; max-width: 100%; overflow-wrap: anywhere; white-space: normal; }
 .capstone-evidence-failure { padding: 7px 8px; border: 1px solid #eadbc3; border-radius: 5px; background: #fffcf7; }
 .capstone-evidence-failure > span { margin-left: 8px; overflow-wrap: anywhere; }
-.capstone-research-records { margin: 5px 0; padding: 5px 7px; border-left: 2px solid #91a9be; background: #fff; color: #4d6275; font-size: 9px; line-height: 1.35; overflow-wrap: anywhere; }
+.capstone-research-records { margin: 5px 0; padding: 5px 7px; border-left: 2px solid #91a9be; background: #fff; color: #4d6275; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
 .capstone-research-records > summary { cursor: pointer; color: #39766b; }
 .capstone-research-records > summary:focus-visible { outline: 2px solid #20766a; outline-offset: 3px; }
 .capstone-research-records p { margin: 5px 0; }
@@ -875,20 +878,37 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .thread-settings-popover { position: absolute; z-index: 30; bottom: calc(100% + 8px); left: 0; display: grid; gap: 6px; width: min(268px, 76vw); padding: 8px; border: 1px solid #cbded5; border-radius: 12px; background: #fff; box-shadow: 0 12px 28px #31564818; overflow-y: auto; }
 .thread-input-controls { position: relative; min-width: 0; }
 .thread-input-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 0 6px 6px; }
+.capstone-composer-toolbar > .thread-input-tools { padding: 0; }
 .thread-input-tools svg, .thread-input-chip svg { width: 14px; height: 14px; flex-shrink: 0; }
 .thread-input-chip { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 5px 9px; border: 1px solid #cbded5; border-radius: 12px; background: #edf6f1; color: #315648; font-size: 11px; overflow-wrap: anywhere; }
-.thread-input-panel { width: min(380px, 100%); max-height: min(340px, 55dvh, var(--thread-input-panel-space, 340px)); padding: 12px; color: #294948; }
+.thread-input-panel { width: min(340px, 100%); max-height: min(340px, 55dvh, var(--thread-input-panel-space, 340px)); padding: 8px; color: #294948; font-size: 12px; line-height: 1.5; gap: 4px; }
 .thread-input-panel p { margin: 3px 0 8px; font-size: 12px; line-height: 1.6; }
-.thread-input-panel input { min-width: 0; width: 100%; border: 1px solid #cbded5; border-radius: 8px; background: #fff; padding: 9px; color: inherit; }
-.thread-input-panel button { min-height: 36px; border: 1px solid transparent; border-radius: 8px; background: #f4f8f5; padding: 7px 10px; color: inherit; font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+.thread-input-panel input { min-width: 0; width: 100%; border: 1px solid #cbded5; border-radius: 6px; background: #fff; padding: 5px 8px; color: inherit; font: inherit; }
+.thread-input-panel button { min-height: 28px; border: 1px solid transparent; border-radius: 6px; background: #f4f8f5; padding: 3px 6px; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .thread-input-panel button:disabled { opacity: .6; cursor: not-allowed; }
 .thread-input-panel [aria-selected=true], .thread-context-item [aria-pressed=true] { border-color: #63aa98; background: #e5f2eb; }
 .thread-input-heading { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.thread-input-heading strong { font-size: 12px; line-height: 1.5; }
+.thread-input-panel .thread-skill-selection { padding: 2px 0; font-size: 12px; line-height: 1.5; }
 .thread-input-skill { display: grid; gap: 4px; overflow-wrap: anywhere; }
 .thread-input-skill small { font-size: 10px; color: #627b71; }
+.thread-skill-entry { border-bottom: 1px solid #dce7e1; padding: 4px 0; }
+.thread-input-panel .thread-input-skill { width: 100%; min-height: 0; background: transparent; font-size: 12px; line-height: 1.5; padding: 4px 6px; }
+.thread-input-skill strong { font-weight: 600; }
+.thread-skill-summary { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: #526b62; font-size: 11px; line-height: 1.5; }
+.thread-skill-details { padding: 0 6px 2px; font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+.thread-skill-details summary { cursor: pointer; color: #526b62; font-size: 11px; padding: 2px 0; }
+.thread-skill-details dl { margin: 6px 0; }
+.thread-skill-details dd { margin: 0 0 6px; }
+.thread-input-panel .thread-skill-install-note { margin: 4px 6px 0; font-size: 11px; line-height: 1.5; }
 .thread-input-panel [role=option] { display: flex; justify-content: space-between; gap: 12px; }
 .thread-context-item { display: grid; gap: 8px; padding: 8px 0; border-top: 1px solid #e4ece7; font-size: 12px; overflow-wrap: anywhere; }
 .thread-context-item [role=group] { display: flex; gap: 5px; }
+.thread-input-panel .thread-material-choices { padding: 4px 0 0; margin: 0; border: 0; }
+.thread-input-panel .thread-context-heading { display: block; margin: 0 0 4px; font-size: 12px; line-height: 1.5; }
+.thread-input-panel .thread-context-item { padding: 6px 0; gap: 4px; font-size: 12px; line-height: 1.5; }
+.thread-input-panel .thread-context-item small { font-size: 11px; line-height: 1.5; }
+.thread-input-panel > p { font-size: 11px; line-height: 1.5; margin: 2px 0 4px; }
 .thread-input-warning { margin: 0 8px 6px; color: #9b5b1f; font-size: 12px; }
 .thread-input-controls :is(button, input):focus-visible { outline: 2px solid #388572; outline-offset: 2px; }
 @media (pointer: coarse) { .thread-input-controls button { min-height: 44px; } }
@@ -902,6 +922,10 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 @media (pointer: coarse), (max-width: 820px) { .thread-runtime-menu .thread-settings-trigger, .thread-runtime-option { min-height: 44px; } }
 .thread-history-actions { display: grid; gap: 2px; }
 .thread-settings-section { padding: 3px 7px; color: #4f716b; font-size: 11px; font-weight: 500; }
+.workspace-cache-setting { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; padding: 10px 7px; border-top: 1px solid #dbe6df; color: #355d54; font-size: 12px; }
+.workspace-cache-setting select { min-height: 32px; padding: 4px 8px; border: 1px solid #b6c9bd; border-radius: 5px; background: #fff; color: #243e35; }
+.workspace-cache-setting small { grid-column: 1 / -1; max-width: 250px; line-height: 1.5; font-size: 12px; color: #536c60; }
+@media (pointer: coarse) { .workspace-cache-setting select { min-height: 44px; } }
 .thread-settings-popover .thread-settings-item { min-height: 36px; font-size: 11px; }
 .thread-settings-item:disabled { opacity: .45; cursor: default; }
 .thread-grid-tools { display: grid; gap: 2px; border-top: 1px solid #e4eee8; padding-top: 6px; }
@@ -970,9 +994,9 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .capstone-chat-activity-preview { max-height: min(480px, 60vh); overflow-y: auto; overflow-anchor: none; }
 .capstone-chat-activity-preview .capstone-chat-activity-list { max-height: none; overflow-y: visible; padding: 0 7px 6px 22px; }
 .capstone-chat-activity-frame .capstone-task-goal { margin: 2px 9px 6px; font-size: 9px; line-height: 1.4; font-weight: 400; color: #536874; }
-.capstone-task-progress { padding: 0 9px; font-size: 9px; line-height: 1.4; }
+.capstone-task-progress { padding: 0 9px; font-size: 12px; line-height: 1.6; }
 .capstone-task-progress section { margin: 3px 0; }
-.capstone-chat-activity-frame .capstone-task-progress p { margin: 1px 0; font-size: 8.5px; line-height: 1.35; overflow-wrap: anywhere; }
+.capstone-chat-activity-frame .capstone-task-progress p { margin: 4px 0; font-family: inherit; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
 .capstone-task-progress details { margin: 2px 0; padding: 0; border: 0; }
 .capstone-task-progress details > summary { min-height: 16px; padding: 0; font-size: 8px; }
 .capstone-task-progress small { color: #647d76; font-size: 9px; }
@@ -994,9 +1018,29 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .capstone-process-controls button { padding: 3px 6px; border: 0; border-radius: 3px; background: transparent; color: #536874; font-size: 9px; line-height: 1.4; }
 .capstone-process-controls button:hover:not(:disabled) { background: #e4ebef; }
 .capstone-process-controls button:disabled { color: #a0afb7; cursor: default; }
-.capstone-business-step .capstone-step-title { flex: 1; min-width: 100px; overflow-wrap: anywhere; font-size: 9px; line-height: 1.35; font-weight: 400; color: #566c7a; }
+.capstone-business-step .capstone-step-title { flex: 1; min-width: 100px; overflow-wrap: anywhere; font-size: 12px; line-height: 1.6; font-weight: 400; color: #435c69; }
 .capstone-business-step > summary small { color: #647d76; font-size: 9px; }
 .capstone-step-tools { margin-left: 14px; }
+.capstone-chat-activity-frame .capstone-native-tool-calls > summary { min-height: 0; padding: 4px 9px; font-family: inherit; font-size: 10px; font-weight: 400; line-height: 1.5; color: #536874; cursor: pointer; }
+.capstone-tool-operation { margin: 3px 0; overflow-wrap: anywhere; color: #435c69; }
+.thread-conversation-workspace .capstone-tool-output > summary { padding: 2px 0; min-height: 0; font-size: 10px; line-height: 1.5; }
+.thread-conversation-workspace .capstone-tool-output > p { margin: 4px 0; font-size: 11px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.thread-conversation-workspace .capstone-accepted-context { display: block; padding: 6px 10px; font-family: inherit; font-size: 11px; line-height: 1.6; }
+.thread-conversation-workspace .capstone-accepted-context > summary { min-height: 0; padding: 2px 0; font-size: 11px; line-height: 1.6; }
+.thread-conversation-workspace .capstone-accepted-context > p,
+.thread-conversation-workspace .capstone-accepted-context > ul { margin: 5px 0; font-size: 11px; line-height: 1.6; }
+.thread-conversation-workspace .capstone-accepted-context > summary:focus-visible { outline: 1px solid #497c78; outline-offset: 2px; }
+/* Process prose uses the UI face; only code and identifiers use monospace. */
+.capstone-chat-activity-frame { font-family: inherit; }
+.capstone-chat-activity-frame .capstone-chat-activity { font-family: inherit; }
+.thread-conversation-workspace .capstone-chat-activity-frame :is(.capstone-task-goal, .capstone-task-progress, .capstone-task-progress p, .capstone-step-title, .capstone-chat-activity-item),
+.capstone-evidence-trace, .capstone-research-records { font-size: 11px; line-height: 1.6; }
+.capstone-chat-activity-frame .capstone-chat-activity-attached summary,
+.capstone-chat-activity-frame .capstone-process-controls button,
+.capstone-chat-activity-frame .capstone-task-progress details > summary { font-size: 10px; line-height: 1.5; }
+.capstone-chat-activity-frame .capstone-business-step > summary .capstone-step-metrics small,
+.capstone-chat-activity-frame .capstone-chat-activity-item small,
+.capstone-chat-activity-frame .capstone-task-progress small { font-size: 10px; line-height: 1.5; }
 .capstone-business-step .capstone-step-continuation { margin-left: 6px; color: #88632d; font-size: 8px; white-space: nowrap; }
 .capstone-chat-activity-item .capstone-tool-failure { display: inline; margin-left: 6px; color: #a65341; font-size: 8.5px; }
 .capstone-tool-call-content { flex: 1; min-width: 0; display: block; }
@@ -1141,7 +1185,12 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .capstone-chat-artifacts { display: grid; align-items: stretch; gap: 6px; margin-top: 9px; }
 .capstone-chat-reference-card { display: grid; }
 /* Application-selected conversation layout. Chat, composer and result components stay shared. */
-.thread-conversation-workspace { display: grid; grid-template-columns: 224px minmax(0, 1fr); height: 100dvh; overflow: hidden; color: #22352e; background: #f8f8f4; }
+.thread-conversation-workspace { display: grid; grid-template-columns: minmax(0, 1fr); height: 100dvh; overflow: hidden; color: #22352e; background: #f8f8f4; }
+.thread-conversation-workspace.is-navigation-open { grid-template-columns: var(--navigation-width,224px) 6px minmax(0,1fr); }
+.thread-conversation-workspace.is-navigation-open > .workspace-shell {grid-column:3}
+.workspace-navigation[hidden] {display:none}
+.workspace-navigation-separator {cursor:col-resize;touch-action:none;background:#e8ece4;border-inline:2px solid #f8f8f4}
+.workspace-navigation-separator:hover,.workspace-navigation-separator:focus-visible {background:#94ad9b;outline:none}
 .workspace-navigation { display: flex; flex-direction: column; gap: 20px; min-height: 0; padding: 30px 18px 18px; background: #202e29; color: #d5ded6; }
 .workspace-brand { flex-shrink: 0; padding: 0 8px; }
 .workspace-brand > div { display: flex; align-items: center; gap: 9px; color: #f3f4ed; }
@@ -1151,17 +1200,24 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .workspace-navfoot { display: grid; gap: 8px; padding: 16px 8px 0; border-top: 1px solid #405046; font-size: 10px; color: #a7b7ab; }
 .workspace-navfoot .app-version { margin: 0; max-width: 100%; color: inherit; }
 .workspace-shell { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
-.workspace-topbar { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; gap: 16px; height: 74px; padding: 0 32px; border-bottom: 1px solid #dde1d9; background: #fdfdf9; }
+.workspace-topbar { display: flex; flex-shrink: 0; align-items: center; gap: 12px; min-height: 64px; padding: 8px 32px; border-bottom: 1px solid #dde1d9; background: #fdfdf9; }
 .workspace-breadcrumb, .workspace-top-actions { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .workspace-breadcrumb { color: #66716b; font-size: 12px; }
 .workspace-breadcrumb strong { color: #22352e; font-weight: 500; }
 .workspace-resource-menu { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 12px; border: 1px solid #dde1d9; border-radius: 6px; background: #fff; color: #245b47; font: inherit; cursor: pointer; }
 .workspace-resource-menu:focus-visible { outline: 2px solid #245b47; outline-offset: 2px; }
-.workspace-workhead { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; gap: 16px; padding: 24px 32px 19px; border-bottom: 1px solid #dde1d9; }
+.workspace-workhead { display: flex; flex: 1; min-width: 0; align-items: center; justify-content: space-between; gap: 12px; }
+.workspace-top-actions:empty { display: none; }
+.workspace-session-tools { display: flex; align-items: center; gap: 4px; flex-shrink: 0; margin-left: 8px; }
+.workspace-session-tools:empty { display: none; }
+.thread-conversation-workspace .workspace-session-tools .thread-resource-toggle { width: 36px; height: 36px; padding: 0; justify-content: center; }
 .thread-conversation-workspace .thread-app-main { width: 100%; max-width: none; margin: 0; padding: 0; height: calc(100dvh - 61px); }
 .thread-conversation-workspace .thread-app-columns { flex: 1; grid-template-columns: minmax(0, 1fr); min-height: 0; border: 0; border-radius: 0; box-shadow: none; background: #f8f8f4; }
 .thread-conversation-workspace .thread-chat-pane { position: static; min-height: 0; height: 100%; padding: 0 34px 20px; background: #f8f8f4; }
-.thread-conversation-workspace .thread-chat-heading { flex: 1; min-width: 0; padding: 0; border: 0; }
+.thread-conversation-workspace .thread-chat-heading { flex: 1; min-width: 0; padding: 0; border: 0; margin-bottom: 0; align-items: center; }
+.workspace-workhead .thread-chat-heading-meta { padding-top: 0; }
+.workspace-workhead .thread-session-refresh { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; border: 1px solid transparent; border-radius: 6px; background: transparent; color: #42645a; box-shadow: none; }
+.workspace-workhead .thread-session-refresh:hover:not(:disabled) { background: #edf2ee; border-color: transparent; }
 .thread-conversation-workspace .thread-chat-heading-title { min-width: 0; }
 .thread-conversation-workspace .thread-chat-heading h2 { max-width: 60ch; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .thread-conversation-workspace .thread-model-short { color: #66716b; }
@@ -1209,17 +1265,16 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .thread-session-navigation button:disabled { opacity: .55; cursor: default; }
 .thread-session-navigation button:focus-visible, .thread-session-navigation a:focus-visible { outline: 2px solid #ceb580; outline-offset: 2px; }
 .thread-session-navigation p { font-size: 12px; line-height: 1.6; }
-.thread-navigation-toggle { display: none; min-height: 44px; align-items: center; border: 1px solid #dde1d9; border-radius: 6px; background: #fff; padding: 0 12px; color: #245b47; font: inherit; cursor: pointer; }
+.thread-navigation-toggle { display: inline-flex; min-height: 28px; align-items: center; border: 0; border-radius: 4px; background: transparent; padding: 0 4px; color: #245b47; font: inherit; cursor: pointer; }
 .thread-navigation-toggle:focus-visible { outline: 2px solid #245b47; outline-offset: 2px; }
 .thread-workspace-heading { flex-shrink: 0; }
 .thread-conversation-workspace .thread-workspace-heading { display: flex; align-items: flex-start; gap: 16px; border-bottom: 1px solid #dde1d9; padding-bottom: 18px; }
 .thread-conversation-workspace .thread-workspace-heading .thread-chat-heading { flex: 1; min-width: 0; border: 0; padding-bottom: 0; }
-.thread-conversation-workspace .thread-resource-toggle { flex-shrink: 0; min-height: 44px; font-size: 13px; }
+.thread-conversation-workspace .thread-resource-toggle { display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0; min-height: 36px; padding: 7px 10px; font-size: 13px; font-weight: 500; border: 1px solid transparent; border-radius: 6px; background: transparent; color: #42645a; box-shadow: none; }
+.thread-conversation-workspace .thread-resource-toggle:hover,
+.thread-conversation-workspace .thread-resource-toggle[aria-expanded="true"] { background: #edf2ee; border-color: #dce5df; }
 .thread-conversation-workspace.has-resource-panel .thread-app-columns { grid-template-columns: clamp(360px, var(--conversation-share, 67%), calc(100% - 368px)) 8px minmax(360px, 1fr); }
-.thread-conversation-workspace.has-resource-panel { grid-template-columns: minmax(0, 1fr); }
-.thread-conversation-workspace.has-resource-panel .workspace-navigation { display: none; }
 .thread-conversation-workspace.has-resource-panel .thread-navigation-toggle { display: inline-flex; }
-.thread-conversation-workspace.has-resource-panel.is-navigation-open .workspace-navigation { display: flex; position: fixed; z-index: 110; inset: 0 auto 0 0; width: 224px; box-shadow: 8px 0 24px #202e2926; }
 .thread-conversation-workspace.has-resource-panel .thread-chat-pane { padding-left: 24px; padding-right: 24px; }
 .thread-workspace-separator { cursor: col-resize; touch-action: none; background: #e8ece4; border-inline: 2px solid #f8f8f4; }
 .thread-workspace-separator:hover { background: #94ad9b; }
@@ -1262,6 +1317,16 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .thread-result-product-view .capstone-result-card { margin-top: 24px; }
 .thread-resource-panel .capstone-result-table { font-variant-numeric: tabular-nums; }
 .capstone-result-products { display: grid; gap: 6px; margin: 10px 0; }
+.capstone-result-products:empty { display: none; }
+.capstone-instruction-files > details { margin: 6px 0; }
+.capstone-instruction-files { font-size: 11px; line-height: 1.6; }
+.capstone-instruction-files > p { margin: 6px 0; font-size: 11px; line-height: 1.6; font-weight: 400; color: #627771; }
+.capstone-instruction-files .capstone-result-product { min-height: 36px; padding: 6px 8px; gap: 8px; }
+.capstone-instruction-files .capstone-result-product strong { font-size: 11px; font-weight: 500; overflow-wrap: anywhere; }
+.capstone-instruction-files .capstone-result-product small { font-size: 10px; }
+.capstone-instruction-files .capstone-result-product > svg { width: 14px; height: 14px; }
+.capstone-instruction-files > details > summary { cursor: pointer; color: #627771; font-size: 11px; font-weight: 400; line-height: 18px; padding: 4px 0; }
+.capstone-instruction-files > details > .capstone-result-products { max-height: 260px; overflow-y: auto; overscroll-behavior: contain; }
 .task-result-workspace { padding: 16px; font-size: 12px; line-height: 1.6; color: #29453b; }
 .task-result-workspace h3 { margin: 0; font-size: 14px; line-height: 1.5; }
 .task-result-workspace > header > span, .task-result-workspace small, .task-result-workspace-actions > span { font-size: 11px; color: #64766e; }
@@ -1272,7 +1337,11 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .task-result-workspace button { border: 1px solid #d9e2db; border-radius: 4px; background: #fff; color: inherit; padding: 5px 8px; font: inherit; cursor: pointer; }
 .task-result-workspace button[aria-pressed="true"] { border-color: #7a9d8c; background: #eaf2ed; }
 .task-result-workspace-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 8px 0; }
-.task-result-workspace .capstone-result-card { margin: 0; }
+.task-result-workspace .capstone-result-card { margin: 0; padding: 0; border: 0; background: transparent; font-size: 12px; line-height: 1.6; }
+.task-result-workspace .capstone-result-heading > small { display: none; }
+.task-result-workspace .capstone-result-table-scroll table { font-size: 12px; }
+.task-result-workspace .capstone-result-metrics span { font-size: 11px; }
+.task-result-workspace .capstone-result-metrics strong { font-size: 12px; }
 .capstone-result-product-group { width: min(100%, 560px); margin: 10px 0; border: 1px solid #dde1d9; border-radius: 6px; background: #fff; }
 .capstone-result-product-group > summary { padding: 12px; color: #22352e; font-size: 12px; line-height: 20px; font-weight: 600; cursor: pointer; }
 .capstone-result-product-group > summary > span { margin-left: 8px; color: #66716b; font-size: 11px; font-weight: 400; }
@@ -1294,10 +1363,19 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .answer-detail-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-shrink: 0; padding: 20px 20px 14px; border-bottom: 1px solid #dde1d9; }
 .answer-detail-heading h2 { margin: 0; font-size: 18px; font-weight: 600; line-height: 1.5; }
 .answer-detail-heading p { margin: 6px 0 0; color: #66716b; font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
-.answer-detail-heading button { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 44px; height: 44px; border: 1px solid #dde1d9; border-radius: 8px; color: #245b47; background: #fff; cursor: pointer; }
+.answer-detail-heading button { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 28px; height: 28px; padding: 6px; border: 0; border-radius: 4px; color: #536874; background: transparent; cursor: pointer; }
+.answer-detail-heading button > svg { width: 16px; height: 16px; }
+.answer-detail-heading button:hover { color: #245b47; background: #edf2ed; }
+@media (pointer: coarse) { .answer-detail-heading button { min-width: 44px; min-height: 44px; } }
 .answer-detail-heading button:focus-visible { outline: 2px solid #245b47; outline-offset: 2px; }
 .answer-detail-content { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 18px 20px 24px; }
 .answer-detail-content .capstone-result-explorer { margin: 0; }
+.answer-detail-content { font-size: 13px; line-height: 1.65; color: #294038; }
+.answer-detail-content :is(.capstone-evidence-trace, .capstone-research-records) { font-size: 13px; line-height: 1.65; color: #385547; }
+.answer-detail-content :is(.capstone-evidence-trace, .capstone-research-records) > summary { font-size: 13px; font-weight: 500; padding: 4px 0; }
+.answer-detail-content .capstone-evidence-trace li { margin: 8px 0; }
+.answer-detail-content .capstone-evidence-trace li small { display: block; font-size: 11px; line-height: 1.5; color: #66716b; }
+.answer-detail-content .capstone-call-records pre { font-size: 12px; line-height: 1.6; }
 @media (max-width: 760px) {
   .answer-detail-sheet { inset: 0; width: 100%; border-radius: 0; border: 0; }
   .answer-detail-heading { padding: 16px; }
@@ -1309,11 +1387,11 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
   .thread-conversation-workspace .app-version { display: none; }
   .thread-conversation-workspace .thread-navigation-toggle { white-space: nowrap; }
   .thread-conversation-workspace { grid-template-columns: minmax(0, 1fr); }
-  .workspace-topbar { padding: 0 16px; gap: 8px; }
+  .workspace-topbar { padding: 8px 16px; gap: 8px; }
   .workspace-breadcrumb { gap: 8px; }
   .workspace-breadcrumb > span { display: none; }
   .workspace-resource-menu { padding: 0 8px; font-size: 10px; }
-  .workspace-workhead { padding: 18px 16px; align-items: flex-start; }
+  .workspace-workhead { gap: 8px; }
   .thread-conversation-workspace .workspace-navigation { display: none; }
   .thread-conversation-workspace.is-navigation-open .workspace-navigation { display: flex; position: fixed; z-index: 110; inset: 74px auto 0 0; width: 224px; }
   .workspace-product-stage { padding: 12px; }
@@ -1324,3 +1402,80 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
   .thread-conversation-workspace .capstone-assistant-thread { height: 0; min-height: 0; }
   .thread-conversation-workspace .capstone-chat-composer { margin-top: auto; }
 }
+.process-product-workspace {font-size:12px;line-height:1.6;padding:16px;color:var(--text-primary,#29413d)}
+.process-product-workspace h3 {font-size:14px;margin:0 0 4px}
+.process-product-workspace header p {color:#70847e;margin:0 0 16px}
+.process-product-workspace ol {list-style:none;padding:0;margin:0}
+.process-product-workspace li {padding:12px 0;border-bottom:1px solid #dce5df}
+.process-product-workspace li p {margin:6px 0;overflow-wrap:anywhere}
+.process-product-meta,.process-product-actions {display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.process-product-meta {font-size:11px;color:#6b8078}
+.process-product-meta [data-status=failed],.process-product-meta [data-status=interrupted] {color:#986545}
+.process-product-actions button {font:inherit;color:#356e60;border:0;background:transparent;padding:3px 0;cursor:pointer}
+.process-reference {display:inline-flex;align-items:center;gap:6px;max-width:100%;font-size:11px;color:#356e60;overflow-wrap:anywhere}
+.process-reference button {border:0;background:transparent;font:inherit;cursor:pointer}
+.process-result-choice {display:grid;gap:4px;margin:10px 0}
+.process-result-choice select {width:100%;min-width:0;font:inherit;padding:6px;border:1px solid #dce5df;border-radius:4px;background:white;color:inherit}
+.workspace-navigation-backdrop {position:fixed;inset:0;z-index:109;border:0;background:rgb(15 30 25 / 8%);cursor:default}
+.workspace-navigation-close {position:absolute;top:8px;right:8px;display:grid;place-items:center;width:32px;height:32px;padding:0;border:0;border-radius:5px;background:transparent;color:#d5ded6;cursor:pointer}
+.workspace-navigation-close:hover {background:rgb(255 255 255 / 10%)}
+.workspace-navigation-close:focus-visible {outline:2px solid #d5ded6;outline-offset:2px}
+@media (min-width:1101px) {
+  .thread-conversation-workspace .workspace-navigation-backdrop {display:none}
+  .workspace-navigation {position:relative}
+}
+@media (max-width:1100px) {
+  .thread-conversation-workspace.is-navigation-open {grid-template-columns:minmax(0,1fr)}
+  .thread-conversation-workspace.is-navigation-open > .workspace-shell {grid-column:1}
+  .thread-conversation-workspace .workspace-navigation-separator {display:none}
+  .thread-conversation-workspace.is-navigation-open .workspace-navigation {position:fixed;z-index:110;inset:0 auto 0 0;width:var(--navigation-width,224px);max-width:85vw;box-shadow:8px 0 24px #202e2926}
+}
+.session-navigation-list {display:flex;flex-direction:column;gap:3px;min-width:0}
+.thread-session-navigation .session-navigation-list a[aria-current="page"] {background:#405b4a;color:#fff;border-inline-start:3px solid #a9c7a9;font-weight:600}
+.thread-session-navigation .session-navigation-list a:not([aria-current="page"]):hover {background:#2d3c33}
+.session-adjacent-controls {display:inline-flex;gap:2px;flex-shrink:0}
+.session-adjacent-controls button {display:grid;place-items:center;width:28px;height:28px;padding:0;border:0;background:transparent;border-radius:4px;color:#507369;cursor:pointer}
+.session-adjacent-controls button:hover:not(:disabled){background:#edf2ee}
+.session-adjacent-controls button:disabled{opacity:.3;cursor:default}
+.session-adjacent-controls button:focus-visible{outline:2px solid #507369;outline-offset:1px}
+.workspace-navigation .thread-session-navigation{overflow:hidden;gap:0}
+.thread-session-navigation>.thread-session-new{flex-shrink:0;margin-bottom:14px;background:#202e29}
+.session-navigation{display:flex;flex-direction:column;min-height:0;flex:1}
+.session-navigation-scroll{min-height:0;overflow:auto;overflow-anchor:none;scrollbar-gutter:stable;flex:1;padding-bottom:8px}
+.session-navigation-scroll h2{margin:16px 8px 7px;letter-spacing:1px}
+.session-navigation-scroll h2:first-child{margin-top:3px}
+.thread-session-navigation .session-navigation-scroll h2{font-weight:650;color:#d8e6dc;letter-spacing:1px}
+.workspace-session-transition{position:relative;height:100dvh;overflow:hidden}
+.workspace-session-transition[data-switching] .workspace-shell{pointer-events:none}
+.workspace-preparing{display:flex;align-items:center;justify-content:center;gap:10px;min-height:180px;color:#688077;font-size:13px}
+.workspace-transition-overlay{position:fixed;z-index:105;inset:70px 0 0;display:flex;align-items:center;justify-content:center;pointer-events:none;background:rgba(248,250,247,.38);backdrop-filter:blur(1px);animation:workspace-transition-in .18s ease-out .12s both}
+.workspace-transition-notice{display:flex;align-items:center;gap:10px;flex-wrap:wrap;max-width:380px;padding:12px 18px;border:1px solid #dae4dd;border-radius:9px;background:rgba(253,255,252,.9);box-shadow:0 4px 16px #24433312;color:#426458;font-size:13px;pointer-events:auto}
+.workspace-transition-notice button{border:0;background:transparent;color:#356d57;font:inherit;cursor:pointer;padding:4px}
+@keyframes workspace-transition-in{from{opacity:0}to{opacity:1}}
+@media(prefers-reduced-motion:reduce){.workspace-transition-overlay{animation:none;backdrop-filter:none}}
+.session-navigation-row{display:flex;position:relative;min-width:0;align-items:center;border-radius:5px;margin:2px 0}
+.thread-session-navigation .session-navigation-row>a{min-width:0;flex:1;padding:9px 29px 9px 11px;min-height:38px;border-radius:5px;border-inline-start:3px solid transparent}
+.session-navigation-row>a>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.thread-session-navigation .session-navigation-row[data-selected]>a{background:#405b4a;color:#fff;border-inline-start-color:#accdaf;font-weight:600}
+.thread-session-navigation .session-navigation-row:not([data-selected]):hover>a{background:#2d3c33}
+.session-row-actions{position:absolute;right:4px;display:flex;align-items:center;opacity:0}
+.session-navigation-row:hover .session-row-actions,.session-navigation-row:focus-within .session-row-actions{opacity:1}
+.thread-session-navigation .session-row-actions button{display:grid;place-items:center;min-height:24px;width:24px;padding:0;border:0;background:#34493c;border-radius:4px;color:#d7e2d9}
+.thread-session-navigation .session-row-actions button:hover{background:#526957;color:white}
+.session-row-actions .session-row-menu{display:none!important}
+.thread-session-navigation .session-navigation-row form{display:flex;gap:4px;flex-wrap:wrap;width:100%;padding:4px;font-size:13px;line-height:1.4}
+.thread-session-navigation .session-navigation-row input{min-width:0;flex:1;width:0;height:30px;box-sizing:border-box;padding:4px 7px;color:#fff;border:1px solid #a9c7a9;border-radius:4px;background:#2b3c31;font:inherit}
+.thread-session-navigation .session-navigation-row form button{min-height:26px;padding:3px 8px;font-size:11px}
+.thread-session-navigation .session-archive-entry{flex-shrink:0;border-top:1px solid #405046;border-radius:0;margin-top:6px;font-size:12px;min-height:36px}
+.session-context-menu{position:fixed;z-index:1300;display:grid;gap:2px;min-width:176px;padding:5px;border:1px solid #d7e0da;border-radius:7px;background:#fff;box-shadow:0 5px 18px #20382b20;color:#29443a;font-size:12px}
+.session-context-menu button{display:flex;align-items:center;gap:9px;padding:8px 10px;border:0;border-radius:4px;background:transparent;font:inherit;color:inherit;text-align:left;cursor:pointer}
+.session-context-menu button:hover,.session-context-menu button:focus-visible{background:#edf3ef;outline:none}
+.session-context-menu button:disabled{opacity:.4;cursor:default}
+.session-context-menu .is-destructive,.session-delete-dialog .is-destructive{color:#9a4b3b}
+.session-delete-backdrop{position:fixed;inset:0;z-index:1350;background:#142a2433;display:grid;place-items:center;padding:20px}
+.session-delete-dialog{width:min(380px,100%);padding:22px;border:1px solid #d7e0da;border-radius:10px;background:#fff;color:#29443a;font-size:13px;box-shadow:0 12px 40px #16372b22}
+.session-delete-dialog h3{font-size:16px;margin:0 0 12px}
+.session-delete-dialog p{line-height:1.65;overflow-wrap:anywhere}
+.session-delete-dialog>div{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}
+.session-delete-dialog button{padding:6px 12px;border:1px solid #d7e0da;border-radius:5px;background:white;font:inherit;cursor:pointer}
+@media(pointer:coarse){.session-row-actions{opacity:1}.session-row-actions .session-row-menu{display:grid!important}.session-row-actions button{min-height:32px!important;width:32px!important}.session-navigation-row>a{padding-right:70px!important}}

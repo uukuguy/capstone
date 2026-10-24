@@ -1,0 +1,24 @@
+.session-entry { width: min(560px,100%); margin: 32px auto; padding: 0 8px; color: #22352e; font-size: 12px; line-height: 1.6; }
+.session-entry p { margin: 0 0 20px; }
+.session-entry fieldset { display: grid; gap: 8px; padding: 0; margin: 0 0 24px; border: 0; }
+.session-entry legend { margin-bottom: 10px; font-weight: 600; }
+.session-entry-choice { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border: 1px solid #dde1d9; border-radius: 6px; cursor: pointer; background: #fff; }
+.session-entry-choice:has(input:checked) { border-color: #245b47; background: #edf2eb; }
+.session-entry input { accent-color: #245b47; }
+.session-entry-model { display: grid; gap: 8px; margin: 0 0 24px; }
+.session-entry select { width: 100%; min-height: 38px; padding: 8px; border: 1px solid #dde1d9; border-radius: 6px; background: #fff; color: inherit; font: inherit; }
+.session-entry-note { margin-top: 16px !important; color: #66716b; font-size: 11px; }
+.session-entry :focus-visible { outline: 2px solid #245b47; outline-offset: 3px; }
+@media(max-width:760px) { .session-entry { margin: 20px auto; } }
+.session-new-popover { position: fixed; z-index: 150; box-sizing: border-box; width: min(304px,calc(100vw - 16px)); max-height: calc(100dvh - 16px); overflow: auto; padding: 12px; border: 1px solid #d8ded6; border-radius: 10px; background: #fafbf7; color: #22352e; box-shadow: 0 12px 40px #12291f30; font-size: 12px; line-height: 1.5; }
+.session-new-popover-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.session-new-popover-heading button { display: grid; place-items: center; width: 30px; height: 30px; border: 0; border-radius: 5px; background: transparent; color: inherit; cursor: pointer; }
+.session-new-popover .session-entry { width: auto; margin: 0; padding: 0; }
+.session-new-popover .session-entry-model { margin: 12px 0; }
+.session-entry-options { display: grid; gap: 4px; }
+.session-entry-options button { display: grid; gap: 2px; width: 100%; min-height: 48px; padding: 8px 10px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.session-entry-options button:hover, .session-entry-options button[aria-expanded="true"] { background: #edf2eb; border-color: #d8e1d5; }
+.session-entry-options strong { font-weight: 600; }
+.session-entry-options small { color: #657169; font-size: 11px; }
+.session-new-popover button:disabled { opacity: .6; cursor: wait; }
+.session-new-popover :focus-visible { outline: 2px solid #245b47; outline-offset: 2px; }

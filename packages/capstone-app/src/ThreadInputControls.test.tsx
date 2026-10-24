@@ -15,7 +15,7 @@ it('binds a unique native skill name and keeps same-name collisions in the picke
   const input = screen.getByRole('textbox', { name: 'Thread 指令' })
   fireEvent.change(input, { target: { value: '/skill:pandapower inspect model' } })
   fireEvent.keyDown(input, { key: 'Enter' })
-  expect(screen.getByRole('button', { name: '移除技能 powerskills-pandapower' })).toBeTruthy()
+  expect(screen.getByRole('button', { name: '选择技能' }).title).toContain('pandapower')
   expect(onSend).not.toHaveBeenCalled()
   fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
   await waitFor(() => expect(onSend).toHaveBeenCalledWith('automatic', 'inspect model', expect.objectContaining({
@@ -48,7 +48,7 @@ it('opens UI commands without sending and completion Enter never submits', async
   fireEvent.keyDown(input, { key: 'Enter', isComposing: true })
   expect(screen.queryByRole('dialog')).toBeNull()
   fireEvent.keyDown(input, { key: 'Enter' })
-  fireEvent.click(screen.getByRole('button', { name: /skill-a.*委托/ }))
+  fireEvent.click(screen.getByRole('button', { name: /skill-a/ }))
   fireEvent.change(input, { target: { value: 'use method' } })
   fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
   await waitFor(() => expect(onSend).toHaveBeenCalledWith('automatic', 'use method', expect.objectContaining({ resource_profile: { profile_id: 'delegated_pi', revision: 'exact' } })))
@@ -58,7 +58,7 @@ it('preserves text and incompatible selection on mode change and requires re-sel
   const props = { events: [], disabled: false, isRunning: false, activity: [], onSend: vi.fn(async () => {}), onCancel: async () => {}, inputCatalog: catalog }
   const view = render(<CapstoneAssistantThread {...props} />)
   fireEvent.click(screen.getByRole('button', { name: '选择技能' }))
-  fireEvent.click(screen.getByRole('button', { name: /skill-a.*委托/ }))
+  fireEvent.click(screen.getByRole('button', { name: /skill-a/ }))
   const input = screen.getByRole('textbox', { name: 'Thread 指令' })
   fireEvent.change(input, { target: { value: 'keep draft' } })
   view.rerender(<CapstoneAssistantThread {...props} runtimeMode="pi_reference" />)
@@ -72,7 +72,7 @@ it('restores the exact draft and skill after an uncertain submission and remount
   const props = { events: [], disabled: false, isRunning: false, activity: [], onSend, onCancel: async () => {}, inputCatalog: catalog, storageKey: 'typed-recovery' }
   const view = render(<CapstoneAssistantThread {...props} />)
   fireEvent.click(screen.getByRole('button', { name: '选择技能' }))
-  fireEvent.click(screen.getByRole('button', { name: /skill-a.*委托/ }))
+  fireEvent.click(screen.getByRole('button', { name: /skill-a/ }))
   fireEvent.change(screen.getByRole('textbox', { name: 'Thread 指令' }), { target: { value: 'original draft' } })
   fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
   await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1))
@@ -80,6 +80,7 @@ it('restores the exact draft and skill after an uncertain submission and remount
   view.unmount()
   render(<CapstoneAssistantThread {...props} />)
   expect((screen.getByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement).value).toBe('original draft')
+  fireEvent.click(screen.getByRole('button', { name: '选择技能' }))
   expect(screen.getByRole('button', { name: '移除技能 skill-a' })).toBeTruthy()
 })
 
@@ -99,7 +100,7 @@ it('clears recovered accepted metadata but keeps a changed next draft', async ()
   const props = { events: [], disabled: false, isRunning: false, activity: [], onSend: async () => {}, onCancel: async () => {}, inputCatalog: catalog }
   const view = render(<CapstoneAssistantThread {...props} />)
   fireEvent.click(screen.getByRole('button', { name: '选择技能' }))
-  fireEvent.click(screen.getByRole('button', { name: /skill-a.*委托/ }))
+  fireEvent.click(screen.getByRole('button', { name: /skill-a/ }))
   const input = screen.getByRole('textbox', { name: 'Thread 指令' })
   fireEvent.change(input, { target: { value: 'original draft' } })
   const accepted = { text: 'original draft', commandId: 'cmd_recovered', submission: {

@@ -210,7 +210,7 @@ for(const scenario of ['automatic-work','automatic-ready-work','full-cycle','ini
       if(scenario==='split-only')assert.equal(checkpoints.at(-1).receipts.length,2,'Only actual source read and saved report write produce execution receipts');
       assert.ok(checkpoints.some(saved=>saved.receipts.some(receipt=>receipt.status==='completed')));
       assert.ok(events.some(event=>event.type==='enterprise_cycle_progress'&&event.progress.phase==='settled'));
-      if(scenario==='full-cycle')assert.ok(events.some(event=>event.type==='enterprise_cycle_progress'&&event.progress.outcome==='partial')); 
+      if(scenario==='full-cycle')assert.ok(events.some(event=>event.type==='enterprise_cycle_progress'&&event.progress.outcome==='partial'));
       if(['automatic-work','automatic-ready-work','delegated-work'].includes(scenario)){
         const branches=events.filter(event=>event.type.startsWith('delegation_child_'));
         assert.ok(branches.some(event=>event.type==='delegation_child_started'));

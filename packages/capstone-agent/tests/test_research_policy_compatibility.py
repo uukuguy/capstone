@@ -214,4 +214,3 @@ def test_known_variants_bind_exact_policy_and_pack_resources_and_reject_mixed_ha
         mixed['pack_bindings'][0]['guides_sha256'] = 'b' * 64
         with pytest.raises(ValueError):
             validate_binding(mixed)
-

@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { ChevronDown, Settings2 } from 'lucide-react'
+import {SessionCacheSetting} from './workspaceSessionCache'
 
 const CloseSettingsContext = createContext<() => void>(() => {})
 export const useCloseThreadSettings = () => useContext(CloseSettingsContext)
@@ -40,6 +41,6 @@ export default function ThreadSettingsMenu({ children, triggerRef }: { children:
     if (event.relatedTarget instanceof Node && !event.currentTarget.contains(event.relatedTarget)) setOpen(false)
   }}>
     <button ref={node=>{trigger.current=node;if(triggerRef)triggerRef.current=node}} type="button" className="thread-settings-trigger" aria-label="对话设置" title="对话设置" aria-expanded={open} aria-controls={panelId} onClick={() => setOpen(!open)}><Settings2 aria-hidden="true" /><span>设置</span><ChevronDown aria-hidden="true" /></button>
-    {open && <CloseSettingsContext.Provider value={close}><div id={panelId} className="thread-settings-popover" role="group" aria-label="对话设置" style={{ maxHeight: availableHeight }}>{children}</div></CloseSettingsContext.Provider>}
+    {open && <CloseSettingsContext.Provider value={close}><div id={panelId} className="thread-settings-popover" role="group" aria-label="对话设置" style={{ maxHeight: availableHeight }}>{children}<SessionCacheSetting/></div></CloseSettingsContext.Provider>}
   </div>
 }

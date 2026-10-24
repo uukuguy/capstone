@@ -45,4 +45,3 @@ def test_research_objective_spans_model_turns_and_multiple_tools():
         'text':'来源与口径核对结束','step_id':'source-check','phase':'completed'}})
     assert end['task_step']['status'] == 'completed'
     assert len(tracker.tracker.steps) == 1
-

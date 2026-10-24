@@ -1,3 +1,5 @@
+import {afterEach} from 'vitest'
+import {initializeApplicationCapacity,CapacityError} from './applicationCapacity'
 import { describe, expect, it, vi } from 'vitest'
 import { CapstoneThreadClient, type ThreadCommand, type ThreadTransport } from './threadClient'
 import { createFixtureTransport, instructionOrdinal, ThreadProjectionStore } from './threadProjectionStore'
@@ -377,6 +379,7 @@ it('keeps public task actions when diagnostic deltas exceed the local event budg
 })
 
 it('bounds a continuing stream and treats clean EOF as a reconnect without changing the live cursor', async () => {
+  initializeApplicationCapacity({event_buffer_count:1024})
   const store = new ThreadProjectionStore(new CapstoneThreadClient({
     ...createFixtureTransport(idleFixture),
     streamEvents: async function* () {
@@ -394,6 +397,25 @@ it('bounds a continuing stream and treats clean EOF as a reconnect without chang
   expect(store.publicEvents[0].eventSeq).toBe(77)
   expect(store.state.hasOlderHistory).toBe(true)
   expect(store.state.connection).toBe('reconnecting')
+})
+it('hard-interrupts a debug stream at the buffer bound without trimming or consuming later events',async()=>{
+  initializeApplicationCapacity({schema:'capstone-capacity-profile/1',mode:'debug',limits:{event_buffer_count:2}})
+  let emitted=0
+  const store=new ThreadProjectionStore(new CapstoneThreadClient({
+    ...createFixtureTransport(idleFixture),
+    streamEvents:async function*(){
+      for(let seq=1;seq<=4;seq++){
+        emitted++
+        yield {eventId:`evt_${seq}`,eventSeq:seq,eventType:'assistant_text_delta',eventVersion:1,threadId:'thr_demo_39',runId:'run_001',occurredAt:'2026-10-06T00:00:00Z',visibility:'public' as const,payload:{text:`message ${seq}`}}
+      }
+    },
+  }))
+  await store.load('thr_demo_39')
+  await expect(store.consumeEvents(new AbortController().signal)).rejects.toMatchObject({name:'CapacityError',dimension:'event_buffer_count',actual:3,effective:2,mode:'debug',fatal:true,location:'history.trim'})
+  expect(emitted).toBe(3)
+  expect(store.publicEvents.map(event=>event.eventSeq)).toEqual([1,2,3])
+  expect(store.state.connection).not.toBe('reconnecting')
+  expect(CapacityError.prototype).toBeInstanceOf(Error)
 })
 
 const historicalFixture = {
@@ -465,6 +487,19 @@ function command(): ThreadCommand {
     expected_event_seq: 0, payload: { attempt_id: 'attempt_004a' },
   }
 }
+
+it('preserves the unresolved exact request when the pending receipt budget is full',async()=>{
+  initializeApplicationCapacity({receipt_count:1})
+  const sendCommand=vi.fn().mockRejectedValue(new TypeError('response lost'))
+  const store=new ThreadProjectionStore(new CapstoneThreadClient({...createFixtureTransport(idleFixture),sendCommand}))
+  await store.load('thr_demo_39')
+  const first=command()
+  await expect(store.dispatch(first)).rejects.toThrow('response lost')
+  await store.load('thr_demo_39')
+  await expect(store.dispatch({...first,command_id:'cmd_other',idempotency_key:'idem_other'})).rejects.toThrow('previous command receipt is unresolved')
+  expect(store.state.pendingCommands.map(item=>item.command)).toEqual([first])
+  expect(sendCommand).toHaveBeenCalledTimes(1)
+})
 
 describe('ThreadProjectionStore', () => {
   it('preserves the loaded snapshot and cursor when a newer server requires an upgrade', async () => {
@@ -1099,6 +1134,10 @@ describe('ThreadProjectionStore', () => {
     await expect(store.consumeEvents()).rejects.toThrow('socket closed')
     expect(store.state.connection).toBe('reconnecting')
     expect(store.state.resyncRequired).toBe(false)
+    const snapshot=store.state.snapshot
+    await store.catchUp()
+    expect(store.state.connection).toBe('live')
+    expect(store.state.snapshot).toBe(snapshot)
   })
 
   it('projects a model context switch and clears its staged state', async () => {
@@ -1146,3 +1185,5 @@ describe('ThreadProjectionStore', () => {
       .toBe('explicit_reopen')
   })
 })
+
+afterEach(()=>initializeApplicationCapacity())

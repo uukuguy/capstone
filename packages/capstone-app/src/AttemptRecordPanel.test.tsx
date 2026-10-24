@@ -6,6 +6,14 @@ import type { AttemptRecords } from './attemptRecords'
 afterEach(cleanup)
 
 describe('AttemptRecordPanel', () => {
+  it('gives clear empty feedback only after an explicit read finishes', async () => {
+    const read = vi.fn().mockResolvedValue({ threadId: 'thr_1', attemptId: 'attempt_empty', instruction: '', modelContext: null, events: [], nextAfter: 0, hasMore: false })
+    render(<AttemptRecordPanel attemptId="attempt_empty" read={read} />)
+    expect(read).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: '读取原任务记录' }))
+    expect(await screen.findByText('此任务没有可读的原始指令、模型或执行记录。')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: '读取后续记录' })).toBeNull()
+  })
   it('reads on demand, keeps the original model and omits private model text', async () => {
     const read = vi.fn().mockResolvedValue({ threadId: 'thr_1', attemptId: 'attempt_old',
       instruction: '原始任务', modelContext: { id: 'ctx_old', modelId: 'ieee39', modelRevision: 'rev_old',

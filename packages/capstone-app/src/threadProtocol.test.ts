@@ -16,6 +16,13 @@ function validSnapshot(): Record<string, unknown> {
     last_event_seq: 0, base_event_seq: 0,
   }
 }
+it('preserves the host result-history window through snapshot parsing and serialization',()=>{
+  const history={omitted_count:7,has_more:true,model_context_id:'ctx_ieee39_7'}
+  const snapshot=parseThreadSnapshot({...validSnapshot(),application_state:{result_projection_history:history}})
+  expect(snapshot.applicationState?.result_projection_history).toEqual(history)
+  expect(snapshot.toDocument().application_state).toEqual({result_projection_history:history})
+  expect(()=>parseThreadSnapshot({...validSnapshot(),application_state:{result_projection_history:{...history,omitted_count:-1}}})).toThrow()
+})
 
 function event(sequence: number): Record<string, unknown> {
   return {

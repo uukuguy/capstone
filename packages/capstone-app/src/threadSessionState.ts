@@ -1,10 +1,9 @@
+import {applicationCapacity,assertCapacity,exceedsCapacity,CapacityError,rethrowDebugCapacity} from './applicationCapacity'
 import { buildThreadCommand, type ThreadCommand } from './threadClient'
 import type { AnyThreadCommand } from './threadClient'
 import { parseStoredWorkCommand } from './threadWorkProtocol'
 import { isThreadVersionError } from './threadHttpTransport'
 
-const MAX_STORED_BYTES = 64 * 1024
-const MAX_DRAFT_CHARACTERS = 16_000
 
 export type FollowupTarget = { threadId: string; attemptId: string; modelId: string; label: string }
 
@@ -12,13 +11,13 @@ export function readFollowup(key: string | undefined, threadId: string): Followu
   if (!key) return undefined
   try {
     const text = sessionStorage.getItem(`${key}.followup`)
-    if (!text || text.length > 2048) return undefined
+    if (!text || exceedsCapacity(new TextEncoder().encode(text).byteLength,'ui_followup_bytes')) return undefined
     const value = JSON.parse(text)
     if (value?.threadId !== threadId || typeof value.attemptId !== 'string' || !/^[a-z][a-z0-9_-]{0,63}$/.test(value.attemptId) ||
         typeof value.modelId !== 'string' || value.modelId.length > 256 ||
-        typeof value.label !== 'string' || value.label.length > 160) return undefined
+        typeof value.label !== 'string' || exceedsCapacity(value.label.length,'ui_session_title_chars')) return undefined
     return { threadId, attemptId: value.attemptId, modelId: value.modelId, label: value.label }
-  } catch { return undefined }
+  } catch (error) { rethrowDebugCapacity(error); return undefined }
 }
 
 export function writeFollowup(key: string | undefined, target?: FollowupTarget): void {
@@ -29,24 +28,28 @@ export function writeFollowup(key: string | undefined, target?: FollowupTarget):
   } catch { /* The live selection remains available without browser storage. */ }
 }
 
+function checkedDraft(text:string):string{assertCapacity(text.length,'input_text_chars');return text}
+
 export function readDraft(key?: string): string {
   if (!key) return ''
   try {
     const draft = sessionStorage.getItem(`${key}.draft`)
-    if (draft) return draft.slice(0, MAX_DRAFT_CHARACTERS)
+    if (draft) {assertCapacity(draft.length,'input_text_chars');return draft}
     const text = sessionStorage.getItem(`${key}.commands`)
-    if (!text || new TextEncoder().encode(text).byteLength > MAX_STORED_BYTES) return ''
+    if (!text) return ''
+    assertCapacity(new TextEncoder().encode(text).byteLength,'command_bytes')
     const commands = JSON.parse(text)
     const command = Array.isArray(commands) && commands.length === 1 ? commands[0] : null
     return command && ['send_auto', 'send_ordinary', 'send_professional'].includes(command.kind)
-      && typeof command.payload?.text === 'string' ? command.payload.text.slice(0, MAX_DRAFT_CHARACTERS) : ''
-  } catch { return '' }
+      && typeof command.payload?.text === 'string' ? checkedDraft(command.payload.text) : ''
+  } catch (error) { if(error instanceof CapacityError)throw error; return '' }
 }
 
 export function writeDraft(key: string | undefined, text: string): void {
   if (!key) return
+  assertCapacity(text.length,'input_text_chars')
   try {
-    if (text) sessionStorage.setItem(`${key}.draft`, text.slice(0, MAX_DRAFT_CHARACTERS))
+    if (text) sessionStorage.setItem(`${key}.draft`, text)
     else sessionStorage.removeItem(`${key}.draft`)
   } catch { /* Keep the live Composer when browser storage is unavailable. */ }
 }
@@ -64,13 +67,15 @@ export function storageNamespace(origin: string): string {
 
 export function rotateStorageNamespace(): void {
   try { sessionStorage.setItem('capstone.thread.storageSession', crypto.randomUUID()) } catch { /* memory fallback */ }
+  window.dispatchEvent(new Event('capstone-thread-access-changed'))
 }
 
 export function readPendingCommands(key: string | undefined, threadId: string): AnyThreadCommand[] {
   if (!key) return []
   try {
     const text = sessionStorage.getItem(`${key}.commands`)
-    if (!text || new TextEncoder().encode(text).byteLength > MAX_STORED_BYTES) return []
+    if (!text) return []
+    assertCapacity(new TextEncoder().encode(text).byteLength,'command_bytes')
     const documents: unknown = JSON.parse(text)
     if (!Array.isArray(documents) || documents.length > 1) return []
     return documents.map((item) => {
@@ -83,7 +88,7 @@ export function readPendingCommands(key: string | undefined, threadId: string): 
         commandId: item.command_id, idempotencyKey: item.idempotency_key,
         expectedEventSeq: item.expected_event_seq, payload: item.payload })
     })
-  } catch { return [] }
+  } catch (error) { if(error instanceof CapacityError)throw error; return [] }
 }
 
 export function writePendingCommands(key: string | undefined, commands: readonly AnyThreadCommand[]): void {
@@ -92,18 +97,20 @@ export function writePendingCommands(key: string | undefined, commands: readonly
     if (!commands.length) sessionStorage.removeItem(`${key}.commands`)
     else {
       const text = JSON.stringify(commands)
-      if (commands.length === 1 && new TextEncoder().encode(text).byteLength <= MAX_STORED_BYTES) sessionStorage.setItem(`${key}.commands`, text)
+      assertCapacity(new TextEncoder().encode(text).byteLength,'command_bytes')
+      if(commands.length!==1)throw new Error('只能恢复一个待确认请求')
+      sessionStorage.setItem(`${key}.commands`, text)
     }
-  } catch { /* Exact in-memory command recovery remains available. */ }
+  } catch (error) { if(error instanceof CapacityError)throw error; /* Exact in-memory command recovery remains available. */ }
 }
 
 export function reconnectDelay(failures: number): number {
-  return Math.min(1000 * 2 ** Math.min(failures, 4), 15_000)
+  return Math.min(applicationCapacity('ui_reconnect_base_ms') * 2 ** Math.min(failures, 30), applicationCapacity('ui_reconnect_max_ms'))
 }
 
 export function canReconnect(error: unknown): boolean {
   if (error instanceof DOMException && error.name === 'AbortError') return false
-  if (isThreadVersionError(error)) return false
+  if (error instanceof CapacityError || isThreadVersionError(error)) return false
   const status = error && typeof error === 'object' && 'status' in error ? error.status : undefined
   return status === undefined || status === 409 || status === 429 || (typeof status === 'number' && status >= 500)
 }
