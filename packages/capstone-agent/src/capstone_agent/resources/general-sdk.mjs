@@ -584,8 +584,9 @@ export async function createManagedChildSession(config, sdk, modelRuntime,
     applicationPolicy: {...config.applicationPolicy, allowed_tools: [...new Set(toolNames)]}};
   const settingsManager = sdk.SettingsManager.inMemory(config.settings);
   const childSources=graphBinding?graphSelectedSources(config,graphBinding.action):config.deliveryReviewSources??[];
-  const runtimeContext=typeof config.runtimeEnvironment==='string'&&config.runtimeEnvironment
-    ? [{path:'verified-programming-environment',content:config.runtimeEnvironment}]:[];
+  const runtimeContext=[...(typeof config.runtimeEnvironment==='string'&&config.runtimeEnvironment
+    ? [{path:'verified-programming-environment',content:config.runtimeEnvironment}]:[]),
+    ...(config.contextFiles??[]).filter(item=>item.path==='registered-production-data')];
   const loader = new sdk.DefaultResourceLoader({cwd, agentDir: process.env.PI_CODING_AGENT_DIR,
     settingsManager, noExtensions: true, noSkills: true, noPromptTemplates: true,
     noThemes: true, noContextFiles: true,

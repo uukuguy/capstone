@@ -1,7 +1,8 @@
 # Enterprise research with production data through MCP
 
-Status: proposed integration contract, based on the user-approved delivery order.
-No Capstone runtime integration is implemented by this document.
+Status: user-approved contract; adapter and native integration candidate implemented
+through e39fd6c3. Focused checks pass. Real App/model multi-turn acceptance,
+dev integration and deployment acceptance remain pending.
 
 ## Goal and delivery order
 

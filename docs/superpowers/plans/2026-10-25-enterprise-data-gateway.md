@@ -12,7 +12,11 @@ owns all backend selection and switching.
 JavaScript tools, current Thread/Work/source/artifact contracts and Vite App.
 
 Design: [integration contract](../specs/2026-10-25-enterprise-data-gateway-design.md).
-Status: execution draft for written-contract review; no runtime changes yet.
+Status: user approved execution. Adapter and native integration are implemented
+on feat/enterprise-data-gateway through e39fd6c3, with focused host/SDK checks.
+Actual pinned child SDK/HTTP relay/host receipt passes. Real MCP direct discovery,
+object/metric/source lookup and five-point query/statistics pass. Local canonical
+rebuild and model-driven multi-turn acceptance are in progress, not yet passed.
 Execute sequentially in feat/enterprise-data-gateway; do not dispatch agents.
 
 ## Constraints

@@ -16,7 +16,8 @@ const owner={thread_id:'thread',work_id:'work',research_id:'research',goal_revis
 const action={id:'action-gateway',step_id:'gateway',owner,attempt_id:'attempt-1',definition_ref:'definition',
  execution_revision:1,input_bindings:[],source_refs:[],source_versions:[]};
 const name='data_gateway_discover_data_capabilities',events=[],receipts=[];
-const config={researchTaskId:'task-1',model:'fixture',extensions:[],allowedSkills:[],contextFiles:[],
+const config={researchTaskId:'task-1',model:'fixture',extensions:[],allowedSkills:[],
+ contextFiles:[{path:'registered-production-data',content:'Use application-authorized data_gateway_ tools for production data.'}],
  settings:{compaction:{enabled:false},packages:[],extensions:[],skills:[]},deadlineAt:Date.now()+15000,
  applicationPolicy:{allowed_tools:[name]},researchRuntime:{},dataGateway:setup.gateway};
 const model={id:'fixture',name:'Fixture',provider:'capstone-general',api:'openai-completions',
@@ -36,6 +37,7 @@ const child=await createManagedChildSession(config,sdk,runtime,{cwd:setup.worksp
  graphBinding:{action,checkpoint:{ref:'checkpoint',revision:1},emit:e=>events.push(e),receipts}});
 try{
  assert.deepEqual(child.session.getActiveToolNames(),[name]);
+ assert.match(child.session.systemPrompt,/application-authorized data_gateway_ tools/);
  await child.session.prompt('Discover the authorized data capabilities.');
  const end=events.find(e=>e.type==='enterprise_graph_child_tool'&&e.activity==='end');
  assert.ok(end&&!end.is_error);assert.equal(receipts.length,1);assert.equal(receipts[0].status,'completed');
