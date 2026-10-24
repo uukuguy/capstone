@@ -14,18 +14,28 @@ Initial missing-runtime and loopback-proxy failures are environment issues;
 after setup/NO_PROXY, host66 and chat14 checks pass, and existing graph execution
 checks pass. No real model task has been started yet.
 
-Three canonical rebuilds completed, latest /tmp/capstone-gateway-frozen-rebuild.log
-(session11376; cleanup receipt052308-45103). Source hashes match797ddf9a, but the
-real UID probe found a security blocker: mode0600 on the host bind still allowed
-UID10000 to open the connection file. NO credential bytes were printed and no
-real model task was started. General Pi was deliberately stopped before repair.
-The fix mounts under /run/capstone-private/data-gateway, with an image-native
-root0700 parent and a startup guard.14 gateway/actual-child checks now pass.
-Next rebuild must use CAPSTONE_DATA_GATEWAY_CONNECTION_FILE set to
-/run/capstone-private/data-gateway/connection.json. Verify real setuid open is
-denied, gateway41 remains available and all role hashes/images match BEFORE any
-model task. Use ROOT deploy/local.env and model assets by explicit paths; the
-gateway mount uses its original directory. App5173 still serves ROOT dev.
+Private-parent fix2f9c6b56 is committed and pushed; no PR yet. Canonical rebuild
+/tmp/capstone-gateway-private-rebuild.log completed. API/3worker imagee69d4f1b6e56,
+nativeb605fa2b1a6c, exact five-role source hashes, ready200, gateway41 and actual
+setuid10000 open denial passed. Receipt: ROOT
+outputs/data-gateway-20261025/local-source-verification.json.14 gateway checks,
+102focused host checks pass. Independent review agent failed to launch due to
+unavailable configured model; do not claim independent review. Manual audit done.
+
+IMPORTANT ACTIVE MODEL RUN: thr_1897f293f4778aa394ad / work_933aff1d8c8316ffd4db /
+attempt_a064c1744e3f09b5. Observer exec44788, log/tmp/capstone-gateway-real-series.log,
+ROOT outputs/data-gateway-20261025/real-series-1. Native graph children have
+successfully called actual gateway discovery/query and semantic prepare/execute.
+Wait for the original attempt; do NOT rebuild or edit runtime or submit a duplicate.
+Browser sessiongateway-real shows the Thread. Poll-only resumes the saved receipt.
+
+An earlier real UID probe found that a mode0600 host bind was readable; no
+credential bytes were printed and no model had started at that point. The native
+host was stopped, repaired with image-native root0700 /run/capstone-private and
+fixed-path startup validation, then reverified with a real denied open. Keep
+CAPSTONE_DATA_GATEWAY_CONNECTION_FILE=/run/capstone-private/data-gateway/connection.json.
+Use ROOT deploy/local.env and model assets by explicit paths; the gateway mount
+uses its original directory. App5173 still serves ROOT dev (UI unchanged).
 
 User accepted production-data enterprise-research first. Capstone only explores
 and obtains data through MCP; backend selection/switching belongs to data-gateway.

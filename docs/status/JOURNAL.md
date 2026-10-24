@@ -5634,3 +5634,9 @@ separate. No model task is active.
 2026-10-25 — 98462b60: Recorded implemented gateway source and pending real-task acceptance so the control graph distinguishes code from acceptance.
 
 2026-10-25 — Real task-UID probe could read a mode0600 host bind; native host stopped before model work, pending private-parent isolation.
+
+2026-10-25 — 2f9c6b56: Isolated gateway bind beneath an image-native private parent so task UIDs cannot read host credentials.
+
+2026-10-25 — Private-parent rebuild passed exact five-role hashes, same backend image, gateway41 readiness and actual setuid10000 open denial.
+
+2026-10-25 — Started real series attempt_a064c1744e3f09b5 in thr_1897f293f4778aa394ad; preserve active work and inspect report before acceptance.
