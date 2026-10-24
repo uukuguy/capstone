@@ -88,9 +88,16 @@ def _diagnostic_text(value: Mapping[str, object], *keys: str) -> str | None:
     return None
 
 
-def _bounded_text(value: str, *, limit: int = 240) -> str:
+def _bounded_text(value: str, *, limit: int | None = None) -> str:
+    from capability_agent.runtime.capacity import runtime_limits, observe_capacity
     compact = re.sub(r"\s+", " ", value).strip()
-    return compact if len(compact) <= limit else compact[: limit - 1].rstrip() + "…"
+    limits = runtime_limits()
+    if limit is not None:
+        limits = {**limits, 'answer_summary_chars': limit}
+    maximum = limits['answer_summary_chars']
+    exceeded = observe_capacity('answer_summary_chars', len(compact), limits=limits,
+                                unit='characters', phase='report_diagnostic')
+    return compact if not exceeded else compact[: maximum - 1].rstrip() + "…"
 
 
 class GenericReportShell:

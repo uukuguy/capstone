@@ -108,7 +108,15 @@ def test_v2_rejects_invalid_inputs_and_retains_generic_protected_fields(mutation
         PiTaskRequest.from_document(document)
 
 
-def test_v2_enforces_total_envelope_bounds_and_rejects_forged_result_evidence():
+@pytest.fixture
+def small_control_capacity():
+    from capstone_agent.application_capacity import initialize_capacity
+    initialize_capacity({'control_document_bytes': 262144})
+    yield
+    initialize_capacity()
+
+
+def test_v2_enforces_total_envelope_bounds_and_rejects_forged_result_evidence(small_control_capacity):
     document = v2_document()
     document['executor_identity'].update({f'field{i}': 'x' * 65536 for i in range(4)})
     with pytest.raises(ValueError, match='byte bounds'):
@@ -120,7 +128,7 @@ def test_v2_enforces_total_envelope_bounds_and_rejects_forged_result_evidence():
         PiTaskResult.from_document(result, request)
 
 
-def test_v2_combined_envelope_budget_includes_input_and_context():
+def test_v2_combined_envelope_budget_includes_input_and_context(small_control_capacity):
     document = v2_document()
     document['instruction'] = 'x' * 65536
     document['input']['text'] = document['instruction']
@@ -134,7 +142,7 @@ def test_v2_combined_envelope_budget_includes_input_and_context():
 
 
 @pytest.mark.parametrize("field,value", [("extra", 1), ("timeout_seconds", 0), ("timeout_seconds", float("nan")),
-    ("timeout_seconds", True), ("timeout_seconds", 3601), ("instruction", "x" * 65537),
+    ("timeout_seconds", True), ("timeout_seconds", float("inf")), ("instruction", "x" * 262145),
     ("entrypoint", "shell"), ("executor_identity", {}), ("dependency_results", [{"evidence_refs": []}])])
 def test_request_rejects_invalid_fields(field, value):
     document = request_document()
@@ -193,9 +201,9 @@ def service():
         def log_message(self, *_):
             pass
 
-        def send(self, document):
+        def send(self, document, status=200):
             body = json.dumps(document).encode()
-            self.send_response(200)
+            self.send_response(status)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
@@ -205,10 +213,14 @@ def service():
             state["headers"].append(self.headers.get("Authorization"))
             document = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
             state["requests"].append(document)
+            if state.get("admission_delay"):
+                time.sleep(state["admission_delay"])
             self.send({"task_id": document["task_id"]})
 
         def do_GET(self):
             state["polls"] += 1
+            if state.get('poll_delays'):
+                time.sleep(state['poll_delays'].pop(0))
             if state.get("delay"):
                 time.sleep(state["delay"])
             request = PiTaskRequest.from_document(state["requests"][-1] if state["requests"] else request_document())
@@ -216,6 +228,9 @@ def service():
                 result = result_document(request)
                 result["status"] = "cancelled"
                 self.send(state.get("cancel_response", {"status": "cancelled", "events": [], "result": result}))
+                return
+            if 'http_error' in state:
+                self.send(state['http_error'], status=400)
                 return
             if "response" in state:
                 self.send(state["response"])
@@ -267,10 +282,74 @@ def service():
     server.server_close()
 
 
-def executor(origin):
+def executor(origin, *, exchange_timeout_seconds=None):
     return HttpGeneralPiExecutor(origin, identity=request_document()["executor_identity"],
                                  capability={"capability_id": "general_pi", "available": True},
-                                 poll_interval_seconds=0.001)
+                                 poll_interval_seconds=0.001, cancellation_timeout_seconds=0.5,
+                                 exchange_timeout_seconds=exchange_timeout_seconds)
+
+
+def test_durable_admission_can_exceed_poll_timeout(service):
+    origin, state = service
+    state["admission_delay"] = 0.4
+    result = executor(origin).execute(PiTaskRequest.from_document(request_document()),
+        NodeControl(lambda: None, time.monotonic() + 2), lambda event: None)
+    assert result.status == "completed"
+    assert not state["cancelled"]
+
+
+@pytest.mark.parametrize('code,expected', [('invalid_task', 'invalid_task'), ('SECRET_RAW_BODY', 'unrecognized_response')])
+def test_http_rejection_keeps_safe_status_operation_and_code_without_retry(service, code, expected):
+    from capstone_agent.pi_delegation import PiHTTPFailure
+    origin, state = service
+    state['http_error'] = {'error': code, 'message': 'SECRET_RAW_BODY'}
+    with pytest.raises(PiHTTPFailure) as caught:
+        executor(origin).execute(PiTaskRequest.from_document(request_document()),
+            NodeControl(lambda: None, time.monotonic() + 2), lambda event: None)
+    assert caught.value.diagnostic == {'operation': 'task_status', 'http_status': 400, 'protocol_code': expected}
+    assert 'SECRET_RAW_BODY' not in str(caught.value)
+    assert len(state['requests']) == 1
+    assert state['cancelled']
+
+
+def test_slow_valid_status_does_not_cancel_healthy_task(service):
+    origin, state = service
+    state["delay"] = 0.4
+    result = executor(origin).execute(PiTaskRequest.from_document(request_document()),
+        NodeControl(lambda: None, time.monotonic() + 2), lambda event: None)
+    assert result.status == "completed"
+    assert not state["cancelled"]
+
+
+def test_status_connection_timeout_reconnects_without_cancelling_task(service, monkeypatch):
+    origin, state = service
+    state['poll_delays'] = [.15, .15]
+    events = []
+    result = executor(origin, exchange_timeout_seconds=.05).execute(PiTaskRequest.from_document(request_document()),
+        NodeControl(lambda: None, time.monotonic()+2), events.append)
+    assert result.status == 'completed'
+    assert not state['cancelled']
+    assert len(state['requests']) == 1  # Never repeat the research task.
+    assert [e['type'] for e in events] == ['transport_interrupted', 'transport_restored', 'progress']
+    assert events[0]['operation'] == 'task_status'
+    assert events[0]['transport_phase'] == 'ReadTimeout'
+
+
+def test_user_can_cancel_while_connection_is_unavailable(service, monkeypatch):
+    origin, state = service
+    state['poll_delays'] = [.15] * 5
+    stopped = False
+    def checkpoint():
+        if stopped:
+            raise InterruptedError('user stopped')
+    def event(value):
+        nonlocal stopped
+        if value['type'] == 'transport_interrupted':
+            stopped = True
+    with pytest.raises(InterruptedError, match='user stopped'):
+        executor(origin, exchange_timeout_seconds=.05).execute(PiTaskRequest.from_document(request_document()),
+            NodeControl(checkpoint, time.monotonic()+2), event)
+    assert state['cancelled']
 
 
 def test_direct_and_delegated_share_executor_identity(service):
@@ -286,6 +365,30 @@ def test_direct_and_delegated_share_executor_identity(service):
     assert state["requests"][0]["executor_identity"] == state["requests"][1]["executor_identity"]
     assert len(events) == 2
     assert not state["cancelled"]
+
+
+@pytest.mark.parametrize('cursor,events', [
+    (2, [{'event_id': 'event-2', 'type': 'progress'}]),
+    (10**12, []), (True, []),
+])
+def test_invalid_event_page_is_rejected_before_publication(service, cursor, events):
+    origin, state = service
+    state['response'] = {'status': 'running', 'events': events, 'result': None, 'event_cursor': cursor}
+    published = []
+    with pytest.raises(ValueError, match='Pi event'):
+        executor(origin).execute(PiTaskRequest.from_document(request_document()),
+            NodeControl(lambda: None, time.monotonic()+2), published.append)
+    assert published == []
+
+
+def test_failed_result_preserves_typed_reason_and_rejects_raw_details():
+    request = PiTaskRequest.from_document(request_document())
+    document = result_document(request)
+    document.update(schema='capstone-pi-task-result/2', status='failed', failure={'code': 'native_model_rate_limit', 'phase': 'execution'})
+    assert PiTaskResult.from_document(document, request).to_document() == document
+    document['failure']['raw_error'] = 'private details'
+    with pytest.raises(ValueError, match='Pi failure'):
+        PiTaskResult.from_document(document, request)
 
 
 @pytest.mark.parametrize("reason", ["cancel", "timeout"])
@@ -322,7 +425,9 @@ def test_request_budget_cancels_and_deduplicates_events(service):
 
 @pytest.mark.parametrize("field,value", [("status", []), ("entrypoint", []),
     ("executor_identity", {"credentials": "no"}), ("usage", {"depth": [[[[[[[[[[[[[[1]]]]]]]]]]]]]]})])
-def test_malformed_shapes_fail_with_validation_error(field, value):
+def test_malformed_shapes_fail_with_validation_error(field, value, small_control_capacity):
+    from capstone_agent.application_capacity import initialize_capacity
+    initialize_capacity({'control_document_bytes': 262144, 'json_depth': 12})
     request = PiTaskRequest.from_document(request_document())
     document = result_document(request) if field in {"status", "usage"} else request_document()
     document[field] = value
@@ -333,7 +438,7 @@ def test_malformed_shapes_fail_with_validation_error(field, value):
             PiTaskRequest.from_document(document)
 
 
-def test_response_bounds_cancel_remote_task(service):
+def test_response_bounds_cancel_remote_task(service, small_control_capacity):
     origin, state = service
     state["response"] = {"status": "running", "events": [], "result": None, "extra": "x" * 300000}
     with pytest.raises(ValueError, match="byte bounds"):

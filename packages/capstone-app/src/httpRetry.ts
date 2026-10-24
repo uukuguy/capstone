@@ -1,4 +1,4 @@
-const READ_ATTEMPTS = 12
+import {applicationCapacity} from './applicationCapacity'
 
 function waitForRetry(ms: number, signal?: AbortSignal | null): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -11,7 +11,7 @@ function waitForRetry(ms: number, signal?: AbortSignal | null): Promise<void> {
 
 /** Recover bounded cold starts for reads. Writes retain their own retry contract. */
 export async function fetchWithReadRetry(url: string, init: RequestInit = {}, fetcher: typeof fetch = fetch,
-                                         readAttempts: number = READ_ATTEMPTS): Promise<Response> {
+                                         readAttempts: number = applicationCapacity('ui_read_attempts')): Promise<Response> {
   const read = !init.method || init.method.toUpperCase() === 'GET'
   const attempts = read ? readAttempts : 1
   for (let attempt = 0; attempt < attempts; attempt++) {
@@ -20,12 +20,12 @@ export async function fetchWithReadRetry(url: string, init: RequestInit = {}, fe
     try { response = await fetcher.call(globalThis, url, init) }
     catch (cause) {
       if (!read || attempt + 1 === attempts || !(cause instanceof TypeError)) throw cause
-      await waitForRetry(Math.min(400 * 2 ** attempt, 5000), init.signal)
+      await waitForRetry(Math.min(applicationCapacity('ui_read_retry_base_ms') * 2 ** attempt, applicationCapacity('ui_read_retry_max_ms')), init.signal)
       continue
     }
     if (read && [502, 503, 504].includes(response.status) && attempt + 1 < attempts) {
       await response.body?.cancel()
-      await waitForRetry(Math.min(400 * 2 ** attempt, 5000), init.signal)
+      await waitForRetry(Math.min(applicationCapacity('ui_read_retry_base_ms') * 2 ** attempt, applicationCapacity('ui_read_retry_max_ms')), init.signal)
       continue
     }
     return response

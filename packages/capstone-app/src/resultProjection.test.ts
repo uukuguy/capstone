@@ -1,3 +1,5 @@
+import {afterEach} from 'vitest'
+import {CapacityError,initializeApplicationCapacity} from './applicationCapacity'
 import { describe, expect, it } from 'vitest'
 import { parseResultProjection, parseThreadSnapshot, ThreadProtocolError } from './threadProtocol'
 
@@ -33,8 +35,9 @@ describe('parseResultProjection', () => {
   })
 
   it.each([{ total_rows: false }, { page_size: 129 }, { manifest_ref: 'https://untrusted.example/data' }, { endpoint: 'private' }])('rejects invalid table pagination %j', (change) => {
+    initializeApplicationCapacity({ui_result_row_count:128})
     const pagination = { manifest_ref: `table-manifest:sha256:${'a'.repeat(64)}`, total_rows: 133, page_size: 32, ...change }
-    expect(() => parseResultProjection({ ...projection, tables: [{ ...projection.tables[0], pagination }] })).toThrow(ThreadProtocolError)
+    expect(() => parseResultProjection({ ...projection, tables: [{ ...projection.tables[0], pagination }] })).toThrow('page_size' in change?CapacityError:ThreadProtocolError)
   })
   it('parses the bounded public shape', () => {
     const parsed = parseResultProjection(projection)
@@ -51,3 +54,5 @@ describe('parseResultProjection', () => {
     expect(() => parseResultProjection({ ...projection, evidence_refs: [] })).toThrow(ThreadProtocolError)
   })
 })
+
+afterEach(()=>initializeApplicationCapacity())

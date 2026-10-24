@@ -5,6 +5,17 @@ import AnswerDetailSheet from './AnswerDetailSheet'
 
 afterEach(cleanup)
 
+it('excludes summaries inside a closed ancestor from the focus loop and restores inert state', () => {
+  render(<><main data-testid="background">Conversation</main><AnswerDetailSheet title="过程" answerLabel="当前指令" onClose={() => {}}><button>可见操作</button><details><summary>工具明细</summary><details><summary>隐藏错误</summary><button>隐藏操作</button></details></details></AnswerDetailSheet></>)
+  const dialog = screen.getByRole('dialog')
+  const close = screen.getByRole('button', { name: '关闭过程' })
+  close.focus()
+  fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true })
+  expect(document.activeElement).toBe(screen.getByText('工具明细'))
+  fireEvent.keyDown(dialog, { key: 'Tab' })
+  expect(document.activeElement).toBe(close)
+})
+
 it('opens an answer-scoped detail sheet and restores focus and body scrolling on Escape', () => {
   function Example() {
     const [open,setOpen]=useState(false)

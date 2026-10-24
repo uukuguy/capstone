@@ -1,0 +1,10 @@
+.session-heading {min-width:0;flex:1}
+.session-heading-title,.session-heading form {display:flex;align-items:center;gap:8px;min-width:0}
+.session-heading-title h2 {overflow:hidden;white-space:nowrap;text-overflow:ellipsis;margin:0;font-size:16px;line-height:1.4}
+.session-heading button {display:inline-flex;align-items:center;border:0;background:transparent;color:#527269;padding:6px;font:inherit;cursor:pointer;flex-shrink:0}
+.session-heading button:hover {background:#e8eeea;border-radius:4px}
+.session-heading input {min-width:0;flex:1;max-width:600px;font:inherit;padding:6px 8px;border:1px solid #a6bab0;border-radius:4px}
+.session-heading p {display:flex;align-items:center;gap:10px;margin:6px 0 0;color:#72847c;font-size:11px;line-height:1.4}
+.session-heading p button {padding:0 3px}
+.session-heading .session-object-link {padding:0;color:inherit;text-align:left;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.session-heading [role=alert] {font-size:11px;color:#995942}

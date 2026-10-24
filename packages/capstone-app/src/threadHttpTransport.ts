@@ -1,12 +1,16 @@
+import {applicationCapacity,assertCapacity,exceedsCapacity,CapacityError,type CapacityKey} from './applicationCapacity'
 import { parseEventEnvelope, type EventEnvelope } from './threadProtocol'
 import type { ThreadCommand, ThreadTransport, ThreadTransportState } from './threadClient'
-import { MAX_THREAD_JSON_BYTES } from './networkLimits'
-import { parseThreadDescriptor, parseThreadListPage, type ThreadListPage } from './threadManagement'
+import { parseThreadDescriptor, parseThreadListPage, type ThreadListPage, type ThreadDescriptor } from './threadManagement'
 import { fetchWithReadRetry } from './httpRetry'
 import { parseAttemptRecords } from './attemptRecords'
+import { parseProcessProducts } from './processProducts'
 import type { WorkCommand } from './threadWorkProtocol'
+import {parseNativeArtifact,parseNativeArtifacts,type NativeArtifact} from './nativeArtifacts'
+import {parseProductIndex,parseProductRef,parseProductResolution,type ProductQuery,type ProductRef} from './threadProducts'
+import {transferResource,parseStoredResources} from './resourceUploads'
+import {parseCapacityFailure} from './capacityFailure'
 
-const MAX_JSON_BYTES = MAX_THREAD_JSON_BYTES
 const THREAD_VERSION_HEADER = 'Capstone-Thread-Version'
 const THREAD_VERSION = '1'
 const VERSION_ERRORS = new Set(['unsupported_thread_version', 'protocol_upgrade_required', 'thread_version_mismatch'])
@@ -27,7 +31,9 @@ export function isThreadVersionError(error: unknown): error is ThreadTransportEr
   return error instanceof ThreadTransportError && versionError(error.body)
 }
 
-function responseError(status: number, body?: unknown): ThreadTransportError {
+function responseError(status: number, body?: unknown): ThreadTransportError|CapacityError {
+  const capacity=parseCapacityFailure(body&&typeof body==='object'&&'detail' in body?body.detail:undefined)
+  if(capacity)return new CapacityError('服务端容量限制已触发。',capacity.dimension as CapacityKey,capacity.limit,capacity.actual,capacity.location||capacity.phase||'transport.response',{mode:capacity.mode||'normal',source:capacity.source||'application_capacity'})
   return new ThreadTransportError(status, versionError(body)
     ? '应用与会话协议版本不兼容，请更新应用后重新打开会话。'
     : `Thread 服务请求失败（${status}）。`, body)
@@ -40,6 +46,40 @@ async function checkResponseVersion(response: Response, requestedVersion = THREA
     await response.body?.cancel().catch(() => undefined)
     throw responseError(409, { error: 'thread_version_mismatch' })
   }
+}
+
+async function boundedResponseText(response:Response,key:CapacityKey,maximumBytes=applicationCapacity(key)):Promise<string>{
+  if(!response.body)return ''
+  const reader=response.body.getReader(),decoder=new TextDecoder()
+  let text='',total=0
+  try{
+    while(true){const {value,done}=await reader.read();if(done)break
+      total+=value.byteLength
+      if(total>maximumBytes){await reader.cancel();throw new CapacityError(`超过应用容量 ${key}：当前 ${total}，上限 ${maximumBytes} 字节。`,key,maximumBytes,total)}
+      text+=decoder.decode(value,{stream:true})
+    }
+    return text+decoder.decode()
+  }finally{reader.releaseLock()}
+}
+
+async function verifiedFileBytes(response:Response,size:number,digest:string,key:CapacityKey='artifact_file_bytes'):Promise<Uint8Array> {
+  if(!response.ok)throw new Error('文件暂时无法读取')
+  if(!Number.isSafeInteger(size)||size<0||exceedsCapacity(size,key)||!/^[a-f0-9]{64}$/.test(digest))throw new Error('文件信息无效')
+  const reader=response.body?.getReader()
+  if(!reader)throw new Error('文件内容缺失')
+  const chunks:Uint8Array[]=[];let total=0
+  try {
+    while(true){const {value,done}=await reader.read();if(done)break;total+=value.byteLength
+      if(total>size){await reader.cancel();throw new Error('文件大小不符')}
+      chunks.push(value)
+    }
+  }finally{reader.releaseLock()}
+  if(total!==size)throw new Error('文件不完整')
+  const bytes=new Uint8Array(total);let offset=0
+  for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length}
+  const actual=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),value=>value.toString(16).padStart(2,'0')).join('')
+  if(actual!==digest)throw new Error('文件校验失败')
+  return bytes
 }
 
 /** HTTP adapter for the negotiated Thread API; payload parsing remains in the client. */
@@ -59,13 +99,16 @@ export class HttpThreadTransport implements ThreadTransport {
     resourcePath = '/api/v1/threads',
     private readonly protocolVersion: '1' | '2' = '1',
   ) {
+    // Browser fetch requires its Window receiver, including direct file reads.
+    this.fetcher = fetcher.bind(globalThis)
     this.base = baseUrl.trim().replace(/\/$/, '')
     if (this.base && !/^https?:\/\/[^/]+$/.test(this.base)) throw new Error('API 地址无效')
     if (!/^\/[^?]+$/.test(resourcePath)) throw new Error('Thread 资源路径无效')
     this.resourcePath = resourcePath.replace(/\/$/, '')
   }
 
-  private async request(path: string, init: RequestInit = {}): Promise<unknown> {
+  private async request(path: string, init: RequestInit = {}, maximumBytes=applicationCapacity('event_page_bytes'),capacityKey:CapacityKey='event_page_bytes'): Promise<unknown> {
+    if(typeof init.body==='string')assertCapacity(new TextEncoder().encode(init.body).byteLength,'command_bytes')
     const response = await fetchWithReadRetry(this.base + path, {
       ...init,
       credentials: 'omit', cache: 'no-store',
@@ -77,9 +120,9 @@ export class HttpThreadTransport implements ThreadTransport {
       },
     }, this.fetcher)
     await checkResponseVersion(response, this.protocolVersion)
+    if(response.status===204)return undefined
     this.versionAdvertised = response.ok && response.headers.get(THREAD_VERSION_HEADER) === this.protocolVersion
-    const text = await response.text()
-    if (new TextEncoder().encode(text).byteLength > MAX_JSON_BYTES) throw new Error('Thread 响应超过允许大小')
+    const text = await boundedResponseText(response,capacityKey,maximumBytes)
     let body: unknown = undefined
     try {
       body = JSON.parse(text) as unknown
@@ -117,14 +160,19 @@ export class HttpThreadTransport implements ThreadTransport {
   }
 
   readHistory(threadId: string, beforeEventSeq?: number, signal?: AbortSignal): Promise<unknown> {
-    const query = new URLSearchParams({ limit: '128' })
+    const query = new URLSearchParams({ limit: String(applicationCapacity('history_page_items')) })
     if (beforeEventSeq !== undefined) query.set('before', String(beforeEventSeq))
     return this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/history?${query}`, { signal })
   }
 
+  async readProcessProducts(threadId: string, before?: number, signal?: AbortSignal) {
+    const query = new URLSearchParams({limit:String(applicationCapacity('history_page_items')), ...(before === undefined ? {} : {before:String(before)})})
+    return parseProcessProducts(await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/products?${query}`, {signal}), threadId, before)
+  }
+
   async readAttemptRecords(threadId: string, attemptId: string, after = 0, signal?: AbortSignal) {
     if (!Number.isSafeInteger(after) || after < 0) throw new Error('任务记录游标无效')
-    const query = new URLSearchParams({ after: String(after), limit: '32' })
+    const query = new URLSearchParams({ after: String(after), limit: String(applicationCapacity('native_record_count')) })
     const body = await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/attempts/${encodeURIComponent(attemptId)}/records?${query}`, { signal })
     return parseAttemptRecords(body, threadId, attemptId, after)
   }
@@ -142,7 +190,7 @@ export class HttpThreadTransport implements ThreadTransport {
   }
 
   async listThreads(archived = false, before?: string, signal?: AbortSignal): Promise<ThreadListPage> {
-    const query = new URLSearchParams({ archived: String(archived), limit: '20' })
+    const query = new URLSearchParams({ archived: String(archived), limit: String(applicationCapacity('ui_session_page_items')) })
     if (before) query.set('before', before)
     try { return parseThreadListPage(await this.request(`${this.resourcePath}?${query}`, { signal })) }
     catch (cause) {
@@ -153,10 +201,26 @@ export class HttpThreadTransport implements ThreadTransport {
     }
   }
 
-  async archiveThread(threadId: string, archived: boolean, signal?: AbortSignal) {
-    return parseThreadDescriptor(await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/archive`, {
+  async archiveThread(threadId: string, archived: boolean, signal?: AbortSignal):Promise<ThreadDescriptor> {
+    try{return parseThreadDescriptor(await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/archive`, {
       method: 'POST', signal, body: JSON.stringify({ archived }),
-    }))
+    }))}catch(error){if(this.protocolVersion==='2'||!isThreadVersionError(error))throw error;return new HttpThreadTransport(this.base,this.token,this.fetcher,this.resourcePath,'2').archiveThread(threadId,archived,signal)}
+  }
+
+  async deleteThread(threadId:string,signal?:AbortSignal):Promise<void> {
+    try{await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}`,{method:'DELETE',signal})}
+    catch(error){if(this.protocolVersion==='2'||!isThreadVersionError(error))throw error;await new HttpThreadTransport(this.base,this.token,this.fetcher,this.resourcePath,'2').deleteThread(threadId,signal)}
+  }
+
+  async getSessionManagementSnapshot(threadId:string):Promise<{run:{run_id:string};session_title?:{revision:number}}> {
+    let value:unknown
+    try{value=await this.getSnapshot(threadId)}catch(error){
+      if(!isThreadVersionError(error))throw error
+      value=await new HttpThreadTransport(this.base,this.token,this.fetcher,this.resourcePath,'2').getSnapshot(threadId)
+    }
+    const row=value as {run?:{run_id?:unknown};session_title?:{revision:number}}
+    if(typeof row?.run?.run_id!=='string')throw new Error('会话信息暂不可用')
+    return {run:{run_id:row.run.run_id},session_title:row.session_title}
   }
 
   async getThreadMetadata(threadId: string, signal?: AbortSignal): Promise<{ archived: boolean }> {
@@ -173,6 +237,83 @@ export class HttpThreadTransport implements ThreadTransport {
     return this.request(this.resourcePath, {
       method: 'POST', signal, body: JSON.stringify(modelId ? { model_id: modelId } : {}),
     })
+  }
+
+  getSessionCatalog(signal?: AbortSignal): Promise<unknown> {
+    return this.request('/api/v1/thread-catalog', {signal})
+  }
+
+  async readProductIndex(threadId:string,query:ProductQuery={},signal?:AbortSignal) {
+    const params=new URLSearchParams({limit:String(applicationCapacity('product_page_items'))})
+    if(query.cursor)params.set('cursor',query.cursor)
+    if(query.workId!==undefined)params.set('work_id',query.workId===null?'legacy':query.workId)
+    return parseProductIndex(await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/product-index?${params}`,{signal}),threadId)
+  }
+  async resolveProduct(reference:ProductRef,signal?:AbortSignal) {
+    const ref=parseProductRef(reference)
+    const body=await this.request(`${this.resourcePath}/${encodeURIComponent(ref.thread_id)}/product-index/resolve`,{method:'POST',body:JSON.stringify({ref}),signal},applicationCapacity('ui_product_resolution_bytes'),'ui_product_resolution_bytes')
+    return parseProductResolution(body,ref)
+  }
+
+  async uploadThreadMaterial(threadId:string,file:File,signal?:AbortSignal):Promise<unknown> {
+    const page=await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/materials`,{signal}) as {limits?:{max_file_bytes?:number;supported_extensions?:string[]}}
+    const limit=page.limits?.max_file_bytes,extensions=page.limits?.supported_extensions
+    if(!Number.isSafeInteger(limit)||!limit||limit<1||!Array.isArray(extensions))throw new Error('暂时无法读取资料上传范围，请重试')
+    const extension=file.name.slice(file.name.lastIndexOf('.')).toLowerCase()
+    if(!extensions.includes(extension))throw new Error(`支持的资料格式：${extensions.join('、')}`)
+    if(file.size>limit)throw new Error(`单份资料不能超过 ${Math.ceil(limit/1024)} KiB`)
+    return this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/materials?filename=${encodeURIComponent(file.name)}`,{method:'POST',body:file,signal,headers:{'Content-Type':'application/octet-stream'}})
+  }
+  uploadThreadResource(threadId:string,file:File,options:Parameters<typeof transferResource>[3]) {
+    return transferResource((path,init)=>this.request(path,init),`${this.resourcePath}/${encodeURIComponent(threadId)}/resource-uploads`,file,options)
+  }
+  async readStoredResources(threadId:string,signal?:AbortSignal,draft=false) {
+    return parseStoredResources(await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/resources${draft?'?draft=true':''}`,{signal}),threadId)
+  }
+  cancelResourceUpload(threadId:string,uploadId:string,signal?:AbortSignal) {
+    return this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/resource-uploads/${encodeURIComponent(uploadId)}`,{method:'DELETE',signal})
+  }
+  removeThreadMaterial(threadId:string,materialId:string,signal?:AbortSignal):Promise<unknown> {
+    return this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/materials/${encodeURIComponent(materialId)}`,{method:'DELETE',signal})
+  }
+
+  async readNativeArtifacts(threadId:string,attemptId:string,after=0,signal?:AbortSignal) {
+    if(!Number.isSafeInteger(after)||after<0)throw new Error('文件目录游标无效')
+    return parseNativeArtifacts(await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/attempts/${encodeURIComponent(attemptId)}/artifacts?after=${after}`,{signal}),threadId,attemptId,after)
+  }
+  async readNativeArtifact(artifact:NativeArtifact,signal?:AbortSignal):Promise<Uint8Array> {
+    const item=parseNativeArtifact(artifact,artifact.thread_id,artifact.attempt_id)
+    const response=await this.fetcher(this.base+item.download_url,{signal,credentials:'omit',cache:'no-store',headers:{...(this.token?{Authorization:`Bearer ${this.token}`} : {}),'Capstone-Thread-Version':this.protocolVersion}})
+    return verifiedFileBytes(response,item.size_bytes,item.sha256)
+  }
+
+  async readDeliveryFile(threadId:string,artifactId:string,revision:number,size:number,digest:string,signal?:AbortSignal):Promise<Uint8Array> {
+    if(!/^delivery_[a-f0-9]{32}$/.test(artifactId)||!Number.isSafeInteger(revision)||revision<1)throw new Error('交付版本无效')
+    const response=await this.fetcher(`${this.base}${this.resourcePath}/${encodeURIComponent(threadId)}/deliveries/${artifactId}/revisions/${revision}/content`,{signal,credentials:'omit',cache:'no-store',headers:{...(this.token?{Authorization:`Bearer ${this.token}`} : {}),'Capstone-Thread-Version':this.protocolVersion}})
+    return verifiedFileBytes(response,size,digest,'delivery_file_bytes')
+  }
+
+  readDeliveries(threadId:string,before?:number,signal?:AbortSignal):Promise<unknown> {
+    const query=new URLSearchParams({limit:String(applicationCapacity('product_page_items'))});if(before!==undefined)query.set('before',String(before))
+    return this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/deliveries?${query}`,{signal})
+  }
+  publishDelivery(threadId:string,request:Record<string,unknown>):Promise<unknown> {
+    return this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/deliveries`,{method:'POST',body:JSON.stringify(request),headers:{'Idempotency-Key':String(request.idempotency_key)}})
+  }
+  async readDeliveryContent(threadId:string,artifactId:string,revision:number,signal?:AbortSignal):Promise<string> {
+    const response=await this.fetcher(`${this.base}${this.resourcePath}/${encodeURIComponent(threadId)}/deliveries/${encodeURIComponent(artifactId)}/revisions/${revision}/content`,{signal,credentials:'omit',cache:'no-store',headers:{...(this.token?{Authorization:`Bearer ${this.token}`} : {}),'Capstone-Thread-Version':this.protocolVersion}})
+    if(!response.ok)throw new Error('交付文件暂时无法读取')
+    const content=await boundedResponseText(response,'delivery_file_bytes')
+    return content
+  }
+
+  createSession(selection: {session_type:'grid-analysis'|'enterprise-research'|'general-chat'; model_id?:string}, signal?:AbortSignal):Promise<unknown> {
+    return this.request(this.resourcePath, {method:'POST',signal,body:JSON.stringify(selection)})
+  }
+
+  renameSession(threadId:string,runId:string,revision:number,text:string,commandId:string,idempotencyKey:string):Promise<unknown> {
+    const transport=new HttpThreadTransport(this.base,this.token,this.fetcher,this.resourcePath,'2')
+    return transport.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/commands`,{method:'POST',headers:{'Idempotency-Key':idempotencyKey},body:JSON.stringify({schema:'capstone-command/2',thread_id:threadId,run_id:runId,command_id:commandId,idempotency_key:idempotencyKey,kind:'rename_session',target:{kind:'session_title',id:threadId,expected_revision:revision},payload:{text}})})
   }
 
   createWorkThread(signal?: AbortSignal): Promise<unknown> {
@@ -216,7 +357,7 @@ export class HttpThreadTransport implements ThreadTransport {
         while ((boundary = buffer.indexOf('\n\n')) !== -1) {
           const frame = buffer.slice(0, boundary)
           buffer = buffer.slice(boundary + 2)
-          if (new TextEncoder().encode(frame).byteLength > MAX_JSON_BYTES) throw new Error('Thread 事件流超过允许大小')
+          assertCapacity(new TextEncoder().encode(frame).byteLength,'event_bytes','transport.sse.frame')
           const data = frame.split('\n').find((line) => line.startsWith('data: '))
           if (!data) continue
           const eventName = frame.split('\n').find((line) => line.startsWith('event: '))?.slice(7)
@@ -231,7 +372,7 @@ export class HttpThreadTransport implements ThreadTransport {
           cursor = event.eventSeq
           yield event
         }
-        if (new TextEncoder().encode(buffer).byteLength > MAX_JSON_BYTES) throw new Error('Thread 事件流超过允许大小')
+        assertCapacity(new TextEncoder().encode(buffer).byteLength,'event_bytes','transport.sse.buffer')
       }
     } finally {
       await reader.cancel().catch(() => undefined)

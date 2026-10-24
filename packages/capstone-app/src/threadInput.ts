@@ -1,14 +1,18 @@
+import {assertCapacity,exceedsCapacity,CapacityError,rethrowDebugCapacity} from './applicationCapacity'
 import type { RuntimeMode } from './threadProtocol'
+import {parseContextProductRefs,type ContextProductRef} from './threadProducts'
+import type {StoredResource} from './resourceUploads'
 
 export type SkillRole = 'harness_engine' | 'direct_pi' | 'delegated_pi'
 export type SkillChoice = { id: string; version: string; role: SkillRole; revision: string }
 export type ContextChoice = { include_refs: string[]; exclude_refs: string[] }
-export type InputDraft = { mode: RuntimeMode; skill?: SkillChoice; context: ContextChoice; literal?: boolean }
-export type InputSubmission = { input: { kind: 'text' | 'skill_invocation'; text: string; skill_id?: string; skill_version?: string }; resource_profile?: { profile_id: SkillRole; revision: string }; context_selection: ContextChoice }
+export type InputDraft = { mode: RuntimeMode; skill?: SkillChoice; context: ContextChoice; literal?: boolean; material_refs?: string[];context_product_refs?:ContextProductRef[] }
+export type InputSubmission = { input: { kind: 'text' | 'skill_invocation'; text: string; skill_id?: string; skill_version?: string }; resource_profile?: { profile_id: SkillRole; revision: string }; context_selection: ContextChoice; material_refs?: string[];context_product_refs?:ContextProductRef[];attachment_refs?:string[] }
 export type InputCatalog = {
+  stored_resources?:StoredResource[]
   schema: 'capstone-thread-input-catalog/1'; revision: string; context_id: string; selection_revision: string
   objects: { object_id: string; model_id: string; model_revision: string; implementation_family: string }[]
-  materials: { material_id: string; display_name: string }[]
+  materials: { material_id: string; display_name: string; size_bytes?: number; media_type?: string; sha256?: string }[]
   resource_profiles: Partial<Record<SkillRole, { revision: string; resources: { id: string; native_name?: string | null; description?: string | null; kind: string; version: string; source: string; ready: boolean; reason: string | null }[] }>>
   operations: { operation_id: string; scope: string; role: string; available: boolean; reason: string | null; revision: string }[]
 }
@@ -17,6 +21,8 @@ export function skillCompatible(skill: SkillChoice, mode: RuntimeMode) {
   return mode === 'pi_reference' ? skill.role === 'direct_pi' : skill.role === 'harness_engine' || skill.role === 'delegated_pi'
 }
 export function inputDraftError(draft: InputDraft, catalog?: InputCatalog): string | undefined {
+  try{if(draft.context_product_refs!==undefined)parseContextProductRefs(draft.context_product_refs)}catch(error){rethrowDebugCapacity(error);return error instanceof CapacityError?error.message:'成果引用无效，请移除后重新选择。'}
+  if (draft.material_refs !== undefined && (!validMaterialRefs(draft.material_refs) || catalog && draft.material_refs.some(ref => !catalog.materials.some(item => item.material_id === ref)))) return '所选资料已变化，请重新选择。'
   if (draft.skill && !skillCompatible(draft.skill, draft.mode)) return '所选技能与当前模式不兼容，请重新选择。'
   if (draft.skill && catalog) {
     const profile = catalog.resource_profiles[draft.skill.role]
@@ -33,32 +39,44 @@ export function parseInputCommand(text: string): { kind: 'skills' | 'context'; r
   return { kind: 'unknown', name: match[1], rest: match[2] || '' }
 }
 export function buildInputSubmission(text: string, draft: InputDraft): InputSubmission {
+  assertCapacity(text.length,'input_text_chars')
+  if (draft.material_refs !== undefined && !validMaterialRefs(draft.material_refs)) throw new Error('所选资料无效。')
   if (draft.skill && !skillCompatible(draft.skill, draft.mode)) throw new Error('所选技能与当前模式不兼容，请重新选择。')
   return { input: draft.skill ? { kind: 'skill_invocation', text, skill_id: draft.skill.id, skill_version: draft.skill.version } : { kind: 'text', text },
-    ...(draft.skill ? { resource_profile: { profile_id: draft.skill.role, revision: draft.skill.revision } } : {}), context_selection: draft.context }
+    ...(draft.skill ? { resource_profile: { profile_id: draft.skill.role, revision: draft.skill.revision } } : {}), context_selection: draft.context,
+    ...(draft.material_refs === undefined ? {} : {material_refs: [...draft.material_refs]}),
+    ...(draft.context_product_refs===undefined?{}:{context_product_refs:parseContextProductRefs(draft.context_product_refs)}) }
+}
+function validMaterialRefs(value: unknown): value is string[] {
+  return Array.isArray(value) && !exceedsCapacity(value.length,'inline_material_count') && value.every(ref => typeof ref === 'string' && /^material_[a-f0-9]{32}$/.test(ref)) && new Set(value).size === value.length
 }
 export function readInputDraft(key?: string): InputDraft | undefined {
   if (!key) return
   try {
     const text = sessionStorage.getItem(`${key}.input`)
-    if (!text || text.length > 16384) return
+    if (!text) return
+    assertCapacity(new TextEncoder().encode(text).byteLength,'ui_input_draft_bytes')
     const value = JSON.parse(text)
     if (!['capstone', 'pi_reference'].includes(value.mode) || !Array.isArray(value.context?.include_refs) || !Array.isArray(value.context?.exclude_refs)) return
     if (value.skill && (!['harness_engine', 'direct_pi', 'delegated_pi'].includes(value.skill.role) || ['id', 'version', 'revision'].some(key => typeof value.skill[key] !== 'string'))) return
+    if (value.material_refs !== undefined && !validMaterialRefs(value.material_refs)) return
+    if(value.context_product_refs!==undefined)parseContextProductRefs(value.context_product_refs)
     return value
-  } catch { return }
+  } catch (error) { if(error instanceof CapacityError)throw error; return }
 }
 export function writeInputDraft(key: string | undefined, value: InputDraft): void {
-  if (key) try { sessionStorage.setItem(`${key}.input`, JSON.stringify(value)) } catch { /* Live state remains available. */ }
+  const text=JSON.stringify(value)
+  assertCapacity(new TextEncoder().encode(text).byteLength,'ui_input_draft_bytes')
+  if (key) try { sessionStorage.setItem(`${key}.input`, text) } catch { /* Live state remains available. */ }
 }
 export function parseInputCatalog(value: unknown): InputCatalog {
   const item = value as InputCatalog
   if (!item || item.schema !== 'capstone-thread-input-catalog/1' || typeof item.revision !== 'string'
-      || !Array.isArray(item.objects) || item.objects.length > 16 || !Array.isArray(item.materials) || item.materials.length > 8
+      || !Array.isArray(item.objects) || exceedsCapacity(item.objects.length,'resource_profile_items') || !Array.isArray(item.materials) || exceedsCapacity(item.materials.length,'inline_material_count')
       || !item.resource_profiles || !Array.isArray(item.operations)) throw new Error('输入目录无效')
   for (const [role, profile] of Object.entries(item.resource_profiles)) {
     if (!['harness_engine', 'direct_pi', 'delegated_pi'].includes(role) || !profile || typeof profile.revision !== 'string'
-        || !Array.isArray(profile.resources) || profile.resources.length > 128) throw new Error('资源目录无效')
+        || !Array.isArray(profile.resources) || exceedsCapacity(profile.resources.length,'resource_profile_items')) throw new Error('资源目录无效')
   }
   return item
 }

@@ -1,5 +1,25 @@
 # Workspace branch integration
 
+PR56 merged as e72722fc on2026-10-25 after required dev gate40119881315 passed
+in35m37s. Its tree equals verified product e8bfb5ae. Additional release checking
+was cancelled as the user clarified this is development integration.
+The main checkout is now clean dev. Canonical rebuild and directed verification
+passed: ready200; API and3workers share imageb7d91d2822a48fc9850a407f92f026184658edc95480f986688178d3a825353d.
+App PID21218 serves the main checkout; producte8bfb5ae/repositorye72722fc,
+dirty=false. Real browser retained a pinned row across sidebar collapse/reopen;
+rename input measured13px/30px and Escape cancelled editing with sidebar open.
+No host rename or new task was submitted. Scoped cache cleanup passed, including
+receipt20261025-030321-13082 and post-use cleanup. Directed receipt is under ignored
+outputs/git-recovery-20261025/dev-entry-verification.json.
+The docs closeout branch preserves its separate Git-discipline commits.
+
+Root Git cleanup preserved all109original dirty/untracked paths in recovery
+commits bffe1b7c(source) and6c8f531e(documents), with109/109 original byte checks.
+Research journal entry275dc00f is committed. Seven generated files were archived
+under ignored outputs/git-recovery-20261025/generated-artifacts with SHA256;
+originals remain in place, covered by two exact local exclude patterns.
+The rejected account/team proposal is archived as superseded documentation.
+
 User authorized closing fix/workspace-reading-type and integrating it into dev.
 PR56 contains the accumulated application and its runtime dependencies. Browser
 scratch, research-worker scratch and the superseded multi-user proposal are not

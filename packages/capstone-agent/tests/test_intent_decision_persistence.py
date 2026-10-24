@@ -43,7 +43,11 @@ def test_worker_retry_reuses_accepted_decision_without_recognition_or_new_task()
         service.freeze_attempt_decision(current, None)
 
 
-def test_memory_decision_snapshot_is_immutable_defensive_and_lease_checked():
+def test_memory_decision_snapshot_is_immutable_defensive_and_lease_checked(request):
+    from capstone_agent.application_capacity import current_capacity, initialize_capacity, CapacityExceeded
+    previous = current_capacity()
+    request.addfinalizer(lambda: initialize_capacity(previous))
+    initialize_capacity({'control_document_bytes': 32768})
     service, current = claim()
     assert service.freeze_attempt_decision(current, None) is None
     document = {'schema': 'capstone-intent-decision/1', 'attempt_id': current.attempt.attempt_id,
@@ -51,7 +55,7 @@ def test_memory_decision_snapshot_is_immutable_defensive_and_lease_checked():
     first = service.freeze_attempt_decision(current, document)
     first['goals'].clear()
     assert service.freeze_attempt_decision(current, {**document, 'goals': []}) == document
-    with pytest.raises(Exception):
+    with pytest.raises(CapacityExceeded, match='control_document_bytes'):
         service.freeze_attempt_decision(current, {'oversized': 'a' * 40000})
 
 

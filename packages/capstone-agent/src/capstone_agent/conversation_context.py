@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from types import MappingProxyType
 from collections.abc import Mapping, Sequence
+from .application_capacity import limits
 
 MAX_HISTORY_TURNS = 16
 MAX_HISTORY_BYTES = 32 * 1024
@@ -25,13 +26,15 @@ class ConversationContext:
         copies = []
         for message in self.messages:
             if (not isinstance(message, Mapping) or set(message) != _FIELDS
-                    or any(not isinstance(value, str) for value in message.values())
+                    or any(not isinstance(value, str) for key, value in message.items()
+                           if key != 'model_context_id')
+                    or message['model_context_id'] is not None and not isinstance(message['model_context_id'], str)
                     or message["role"] not in {"user", "assistant"}
                     or message["status"] not in _TERMINAL
                     or (message["role"] == "assistant" and message["status"] != "completed")):
                 raise ValueError("conversation context message is invalid")
             copies.append(MappingProxyType(dict(message)))
-        if len(copies) > MAX_HISTORY_TURNS * 2 or sum(len(m["content"].encode()) for m in copies) > MAX_HISTORY_BYTES:
+        if len(copies) > limits.history_turn_count * 2 or sum(len(m["content"].encode()) for m in copies) > limits.history_context_bytes:
             raise ValueError("conversation context exceeds bounds")
         object.__setattr__(self, "messages", tuple(copies))
         objects = []
@@ -44,7 +47,7 @@ class ConversationContext:
                 raise ValueError("conversation context object is invalid")
             seen.add(item["object_id"])
             objects.append(MappingProxyType(dict(item)))
-        if len(objects) > MAX_HISTORY_TURNS:
+        if len(objects) > limits.history_turn_count:
             raise ValueError("conversation context objects exceed bounds")
         object.__setattr__(self, "objects", tuple(objects))
 
@@ -70,8 +73,8 @@ class ConversationContext:
 def project_conversation(rows: Sequence[Mapping[str, object]], cutoff: int, *, truncated: bool = False) -> ConversationContext:
     """Project ordered terminal records supplied by either ledger adapter."""
     groups = []
-    truncated = truncated or len(rows) > MAX_HISTORY_TURNS
-    for row in rows[-MAX_HISTORY_TURNS:]:
+    truncated = truncated or len(rows) > limits.history_turn_count
+    for row in rows[-limits.history_turn_count:]:
         status = row["status"]
         group = []
         for role, text in (("user", row["instruction"]), ("assistant", row.get("answer"))):
@@ -80,21 +83,21 @@ def project_conversation(rows: Sequence[Mapping[str, object]], cutoff: int, *, t
             if not isinstance(text, str):
                 continue
             encoded = text.encode()
-            if len(encoded) > MAX_MESSAGE_BYTES:
-                text = encoded[:MAX_MESSAGE_BYTES].decode("utf-8", errors="ignore")
+            if len(encoded) > limits.history_message_bytes:
+                text = encoded[:limits.history_message_bytes].decode("utf-8", errors="ignore")
                 truncated = True
             group.append({"message_id": str(row["attempt_id"]) + ":" + role, "role": role, "content": text,
                           "turn_id": row["turn_id"], "attempt_id": row["attempt_id"],
                           "model_context_id": row["model_context_id"], "status": status})
         groups.append(group)
     total = sum(len(m["content"].encode()) for group in groups for m in group)
-    while groups and total > MAX_HISTORY_BYTES:
+    while groups and total > limits.history_context_bytes:
         total -= sum(len(m["content"].encode()) for m in groups.pop(0))
         truncated = True
     messages = tuple(m for group in groups for m in group)
     included = {message["model_context_id"] for message in messages}
     objects = {}
-    for row in rows[-MAX_HISTORY_TURNS:]:
+    for row in rows[-limits.history_turn_count:]:
         item = row.get("object")
         if isinstance(item, Mapping) and item.get("object_id") in included:
             objects[item["object_id"]] = item

@@ -1,5 +1,5 @@
 {
   "compaction": {"enabled": false},
-  "retry": {"enabled": false},
+  "retry": {"enabled": true, "maxRetries": 2, "baseDelayMs": 1000},
   "enableSkillCommands": false
 }

@@ -24,6 +24,36 @@ def trial_environment(application="capstone", **overrides):
     return environment(application) | {"CAPSTONE_RUNTIME_PROFILE": "capstone-dev-trial-v1"} | overrides
 
 
+@pytest.mark.parametrize('profile', ['capstone-workbench-v1', 'capstone-dev-trial-v1'])
+@pytest.mark.parametrize('application,command', [('capstone', 'api'), ('pandapower', 'worker'), ('pypsa', 'worker'), ('native', 'worker')])
+@pytest.mark.parametrize('value', [None, '', '17'])
+def test_runtime_preflight_does_not_override_canonical_stream_capacity(profile, application, command, value):
+    if profile == 'capstone-dev-trial-v1' and application == 'native':
+        pytest.skip('the trial contract does not register a native worker')
+    settings = environment(application) | {'CAPSTONE_RUNTIME_PROFILE': profile}
+    settings['CAPSTONE_CAPACITY_JSON'] = '{"schema":"capstone-capacity-profile/1","limits":{"thread_stream_count":41}}'
+    keys = ('CAPSTONE_THREAD_MAX_STREAMS', 'CAPSTONE_THREAD_STREAMS_PER_THREAD')
+    if value is not None:
+        settings.update({key: value for key in keys})
+    contract, _, _, selected = RUNTIME.select_runtime(ROOT, settings, command)
+    assert selected['CAPSTONE_CAPACITY_JSON'] == settings['CAPSTONE_CAPACITY_JSON']
+    for key in keys:
+        assert key not in contract['shared_environment']
+        assert key in contract['performance_environment']
+        if value:
+            assert selected[key] == value
+        else:
+            assert key not in selected
+
+
+@pytest.mark.parametrize('key', ['CAPSTONE_THREAD_MAX_STREAMS', 'CAPSTONE_THREAD_STREAMS_PER_THREAD'])
+@pytest.mark.parametrize('value', ['0', '-1', '1.5', 'not-an-integer', ' '])
+def test_runtime_preflight_rejects_invalid_explicit_stream_capacity_without_values(key, value):
+    with pytest.raises(RUNTIME.RuntimeContractError) as error:
+        RUNTIME.select_runtime(ROOT, environment() | {key: value}, 'api')
+    assert str(error.value) == key
+
+
 @pytest.mark.parametrize("application,command", [("capstone", "api"), ("pandapower", "worker"), ("pypsa", "worker")])
 def test_local_trial_defaults_to_registry_deepseek(application, command):
     contract, _, _, selected = RUNTIME.select_runtime(ROOT, trial_environment(application), command)
@@ -123,6 +153,14 @@ def test_compose_does_not_duplicate_model_context_contract_defaults():
     assert 'CAPSTONE_THREAD_CONTEXT_IDLE_SECONDS:' not in compose
 
 
+def test_local_api_can_discover_and_read_the_private_native_executor():
+    compose = (ROOT / 'compose.yaml').read_text()
+    api = compose.split('\n  api:\n', 1)[1].split('\n  worker:\n', 1)[0]
+    assert 'networks: [default, general-pi]' in api
+    executor = compose.split('\n  general-pi:\n', 1)[1].split('\nnetworks:', 1)[0]
+    assert '\n    ports:' not in executor
+
+
 @pytest.mark.parametrize("key,value", [
     ("CAPSTONE_PUBLIC_MODEL", "different-model"),
     ("CAPSTONE_FEDERATED_CATALOG_CONTEXT", "false"),
@@ -169,7 +207,7 @@ def test_runtime_rejects_unregistered_role_combinations(application, command):
 
 
 def test_api_waits_for_both_workers_and_bounds_wait():
-    contract = RUNTIME.select_runtime(ROOT, environment(), "api")[0]
+    contract = RUNTIME.select_runtime(ROOT, trial_environment(), "api")[0]
     settings = environment() | {"CAPSTONE_FAMILY_HEALTH_URLS": "pandapower=http://pp,pypsa=http://py"}
     elapsed = [0]
     seen = []
@@ -192,7 +230,7 @@ def test_api_waits_for_both_workers_and_bounds_wait():
 
 def test_api_wakes_both_cold_workers_concurrently():
     import threading
-    contract = RUNTIME.select_runtime(ROOT, environment(), 'api')[0]
+    contract = RUNTIME.select_runtime(ROOT, trial_environment(), 'api')[0]
     barrier = threading.Barrier(2)
     seen = []
     def probe(url):
@@ -202,6 +240,18 @@ def test_api_wakes_both_cold_workers_concurrently():
     RUNTIME.wait_for_workers(contract,
         {'CAPSTONE_FAMILY_HEALTH_URLS': 'pandapower=http://pp,pypsa=http://py'}, probe=probe)
     assert set(seen) == {'http://pp/health', 'http://py/health'}
+
+
+def test_workbench_native_conversation_does_not_wait_for_professional_authorities():
+    contract, role, spec, selected = RUNTIME.select_runtime(ROOT, environment('native'), 'worker')
+    assert role == 'native'
+    assert spec['module'] == 'capstone_agent.native_hosted_worker'
+    assert 'family' not in spec
+    seen = []
+    RUNTIME.wait_for_workers(contract, {'CAPSTONE_FAMILY_HEALTH_URLS':
+        'native=http://native,pandapower=http://pp,pypsa=http://py'},
+        probe=lambda url: seen.append(url) or url == 'http://native/health')
+    assert seen == ['http://native/health']
 
 
 def test_installed_catalog_payload_is_part_of_runtime_identity(tmp_path):

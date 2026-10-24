@@ -250,6 +250,127 @@ def test_worker_external_lookup_uses_actual_general_executor():
     assert not any(e.event_type in {'tool_started', 'tool_completed'} for e in saved)
 
 
+def test_native_worker_persists_shared_steps_without_promoting_tools_to_authority():
+    class SteppedExecutor(Executor):
+        def execute(self, request, control, on_event):
+            on_event({'type': 'runtime_action', 'phase': 'started'})
+            on_event({'type': 'runtime_action', 'phase': 'response_completed', 'response_kind': 'tools'})
+            on_event({'type': 'tool_execution_start', 'tool_name': 'bash', 'tool_call_id': 'read'})
+            on_event({'type': 'tool_execution_end', 'tool_name': 'bash', 'tool_call_id': 'read', 'is_error': True})
+            on_event({'type': 'runtime_action', 'phase': 'completed'})
+            on_event({'type': 'runtime_action', 'phase': 'started'})
+            on_event({'type': 'runtime_action', 'phase': 'response_completed', 'response_kind': 'text'})
+            on_event({'type': 'runtime_action', 'phase': 'completed'})
+            return PiTaskResult(request.task_id, request.parent_attempt_id, self.identity,
+                                'completed', '说明限制', (), (), {})
+    service, current = claim()
+    result = run(service, current, factory(SteppedExecutor(), Recognizer([goal('one')])))
+    assert result.status == 'completed'
+    saved = service.read_events(current.thread_id, 0).events
+    calls = [e.payload for e in saved if e.payload.get('tool_call_id') == 'read']
+    assert len(calls) == 2 and calls[0]['task_step_id'] == calls[1]['task_step_id']
+    steps = [e.payload['task_step'] for e in saved if e.event_type == 'runtime_action' and 'task_step' in e.payload]
+    assert any(s.get('after_failed_steps') == [calls[0]['task_step_id']] for s in steps)
+    assert not result.result_refs and not result.evidence_refs
+
+
+@pytest.mark.parametrize('prior_narrative', [False, True, 'inspect'])
+@pytest.mark.parametrize('profile_version', ['1.2.0'])
+def test_committed_cycle_steps_are_public_and_keep_partial_outcome(prior_narrative, profile_version, tmp_path):
+    from capstone_agent.thread_service import InMemoryThreadService
+    from capstone_agent.thread_worker import run_pending_attempt
+    from test_enterprise_normal_chat import native_executor
+    from test_thread_postgres import _snapshot
+    from test_thread_work_execution import command
+    class CycleExecutor(Executor):
+        def execute_with_research(self, request, control, on_event, bridge):
+            from capstone_agent.native_research_bridge import CYCLE_CONTROL_TOOLS
+            expected = {'agent_research_cycle'} if profile_version == '1.1.0' else {
+                'agent_research_plan', 'agent_research_record', 'agent_research_assess'}
+            assert set(request.native_context['policy']['allowed_tools']).intersection(CYCLE_CONTROL_TOOLS) == expected
+            return self.execute(request, control, on_event)
+        def execute(self, request, control, on_event):
+            if prior_narrative:
+                on_event({'type': 'tool_execution_end', 'tool_name': 'agent_task_progress',
+                    'tool_call_id': 'narrative-progress', 'is_error': False,
+                    'task_progress': {'kind': 'goal', 'step_id': 'inspect' if prior_narrative == 'inspect' else 'narrative',
+                        'phase': 'started', 'text': '准备检查资料'}})
+            for phase in ('started', 'settled'):
+                on_event({'type': 'enterprise_cycle_progress', 'attempt_id': request.parent_attempt_id,
+                    'action_id': 'cycle-observed', 'checkpoint': {'ref': 'committed', 'revision': 1},
+                    'progress': {'step_id': 'inspect', 'phase': phase, 'text': '检查资料',
+                        'questions': ['资料覆盖哪些时段？'], 'expected_outputs': ['覆盖与缺失说明'],
+                        'derived_from': ['coverage-finding'], 'next_action_reason': '先明确资料边界再比较。',
+                        **({'result_summary': '部分时段资料缺失。'} if phase == 'settled' else {}),
+                        **({'outcome': 'partial'} if phase == 'settled' else {})}})
+                if phase == 'started':
+                    on_event({'type': 'runtime_action', 'phase': 'started'})
+                    on_event({'type': 'runtime_action', 'phase': 'response_completed', 'response_kind': 'tools'})
+                    on_event({'type': 'tool_execution_start', 'tool_name': 'agent_delegate', 'tool_call_id': 'delegate-parent'})
+                    branch = {'subordinate': True, 'owner': request.to_document()['research_binding']['cycle_owner'],
+                        'attempt_id': request.parent_attempt_id, 'parent_action_id': 'cycle-observed',
+                        'parent_step_id': 'inspect', 'parent_tool_call_id': 'delegate-parent', 'child_id': 'coverage',
+                        'title': '核对资料覆盖', 'questions': ['资料覆盖哪些时段？'],
+                        'expected_outputs': ['覆盖检查记录'], 'checkpoint': {'ref': 'committed', 'revision': 1}}
+                    on_event({'type': 'delegation_child_started', **branch})
+                    on_event({'type': 'delegation_child_tool', **branch,
+                        'activity': 'end', 'tool_name': 'read', 'tool_call_id': 'child-read', 'is_error': True})
+                    on_event({'type': 'delegation_child_finished', **branch, 'status': 'failed',
+                        'result_summary': '已检查可用资料，部分时段仍有缺失。',
+                        'error': {'code': 'child_failed', 'message': 'Child model response failed (model_transport).'}})
+                    on_event({'type': 'tool_execution_end', 'tool_name': 'agent_delegate',
+                        'tool_call_id': 'delegate-parent', 'is_error': False})
+                    on_event({'type': 'runtime_action', 'phase': 'completed'})
+            return PiTaskResult(request.task_id, request.parent_attempt_id, self.identity,
+                'completed', '资料只支持部分结论。', (), (), {})
+    executor = CycleExecutor()
+    executor.capability = {**native_executor().capability, 'research_bridge_schemas': ['capstone-research-bridge/1']}
+    thread_id = 'thr_cycle_steps'
+    service = InMemoryThreadService(replace(_snapshot(thread_id), active_model_context=None,
+        active_grid_page_id=None, minimum_protocol_version=2))
+    service.set_native_executor(executor)
+    receipt = service.submit_command(command(service, thread_id, 'send_message', 'cycle', payload={'text': 'Check source coverage'}))
+    assert receipt.status == 'accepted'
+    def unavailable(*args):
+        pytest.fail('native cycle must not invoke the professional runtime or planner')
+    selected = IntentRuntimeFactory(unavailable, unavailable, unavailable,
+        general_executor=executor, native_research_root=tmp_path)
+    result = run_pending_attempt(service, selected, worker_id='native-cycle-test', implementation_family='native')
+    assert result.status == 'completed', [event.payload for event in service.read_events(thread_id, 0).events
+        if event.event_type == 'attempt_failed']
+    events = [e for e in service.read_events(thread_id, 0).events
+        if e.payload.get('native_type') == 'enterprise_cycle_progress']
+    assert len(events) == 2 and all(e.visibility == 'public' for e in events)
+    assert events[-1].payload['task_step']['status'] == 'partial'
+    assert events[-1].payload['research_cycle']['progress']['outcome'] == 'partial'
+    for event in events:
+        assert event.payload['task_step']['title'] == '检查资料'
+        for key in ('questions', 'expected_outputs', 'derived_from', 'next_action_reason'):
+            assert event.payload['task_step'][key] == event.payload['research_cycle']['progress'][key]
+    assert events[-1].payload['task_step']['result_summary'] == '部分时段资料缺失。'
+    timings = [event for event in service.read_events(thread_id, 0).events
+        if event.event_type == 'runtime_action' and event.payload.get('phase') == 'response_completed']
+    assert len(timings) == 1 and timings[0].visibility == 'public'
+    measured = timings[0].payload['task_step']['response_ms']
+    assert type(measured) is int and measured >= 0
+    assert timings[0].payload['task_step']['id'] == events[0].payload['task_step']['id']
+    assert events[-1].payload['task_step']['response_ms'] == measured
+    assert len({event.payload['task_step']['id'] for event in events}) == 1
+    branches = [event for event in service.read_events(thread_id, 0).events if 'research_branch' in event.payload]
+    assert len(branches) == 3 and all(event.visibility == 'public' for event in branches)
+    assert all('task_step' not in event.payload for event in branches)
+    assert all(event.payload['research_branch']['parent_step_id'] == events[0].payload['task_step']['id']
+               for event in branches)
+    assert branches[-1].payload['research_branch']['status'] == 'failed'
+    assert branches[-1].payload['research_branch']['result_summary'] == '已检查可用资料，部分时段仍有缺失。'
+    assert all(event.payload['research_branch']['questions'] == ['资料覆盖哪些时段？'] for event in branches)
+    if prior_narrative:
+        previous = events[0].payload['task_steps']
+        old_id = '.inspect' if prior_narrative == 'inspect' else '.narrative'
+        assert any(step['id'].endswith(old_id) and step['status'] == 'limited' for step in previous), previous
+        assert events[0].payload['task_step']['id'].endswith('.inspect') == (prior_narrative != 'inspect')
+
+
 def test_direct_pi_mode_bypasses_semantic_recognizer_and_domain():
     service, current = claim()
     current = replace(current, attempt=replace(current.attempt, runtime_mode='pi_reference'))
@@ -261,6 +382,41 @@ def test_direct_pi_mode_bypasses_semantic_recognizer_and_domain():
     assert executor.requests[0].instruction == current.instruction
     saved = service.read_events(current.thread_id, 0).events
     assert next(e for e in saved if e.event_type == 'turn_plan_created').payload['source'] == 'direct_pi'
+
+
+def test_graph_native_frames_keep_public_projection_and_restore_in_thread_history():
+    kinds = ('enterprise_graph_tool_binding', 'enterprise_graph_child_started',
+             'enterprise_graph_child_response_started', 'enterprise_graph_child_tool', 'enterprise_graph_child_response', 'enterprise_graph_child_finished')
+    class GraphExecutor(Executor):
+        def execute(self, request, control, on_event):
+            for kind in kinds:
+                on_event({'type': kind, 'owner': {'thread_id': 'thr_intent'},
+                    'attempt_id': request.parent_attempt_id, 'task_id': request.task_id,
+                    'action_id': 'action-A', 'step_id': 'A', 'child_id': 'A',
+                    'checkpoint': {'ref': 'committed', 'revision': 1}, 'tool_call_id': 'child-call',
+                    'tool_name': 'read', 'activity': 'end', 'response_number': 1, 'response_ms': 12,
+                    'usage': {'totalTokens': 5}, 'status': 'completed', 'result_summary': 'Native child completed.',
+                    **({'execution_ms': 2710.25} if kind == 'enterprise_graph_child_tool' else {}),
+                    **({'tool_call_ids': ['child-call'], 'stop_reason': 'toolUse'} if kind == 'enterprise_graph_child_response' else {}),
+                    'args': {'path': '/private/child/source'}, 'result': {'raw': 'private observation'}})
+            return PiTaskResult(request.task_id, request.parent_attempt_id, self.identity,
+                'completed', 'General answer', (), (), {})
+    service, current = claim()
+    current = replace(current, attempt=replace(current.attempt, runtime_mode='pi_reference'))
+    assert run(service, current, factory(GraphExecutor(), SimpleNamespace(identity=None))).status == 'completed'
+    events = [event for event in service.read_events(current.thread_id, 0).events
+              if 'research_graph_event' in event.payload]
+    assert len(events) == len(kinds)
+    assert all(event.visibility == 'public' for event in events)
+    history = service.read_history(current.thread_id)['events']
+    frames = [event['payload']['research_graph_event'] for event in history
+              if 'research_graph_event' in event['payload']]
+    assert {frame['type'] for frame in frames} == set(kinds)
+    assert all(frame['action_id'] == 'action-A' and frame['checkpoint']['ref'] == 'committed' for frame in frames)
+    assert all('args' not in frame and 'result' not in frame for frame in frames)
+    assert next(frame for frame in frames if frame['type'] == 'enterprise_graph_child_response')['usage'] == {'totalTokens': 5}
+    assert next(frame for frame in frames if frame['type'] == 'enterprise_graph_child_tool')['execution_ms'] == 2710.25
+    assert next(frame for frame in frames if frame['type'] == 'enterprise_graph_child_response')['tool_call_ids'] == ['child-call']
 
 
 def test_retry_reuses_task_identity_and_frozen_general_configuration():
@@ -390,6 +546,50 @@ def test_child_cancel_and_timeout_propagate_parent_control():
     assert len(executor.cancelled) == 1
 
 
+def test_child_failure_retains_safe_diagnostic_without_exception_text():
+    class BrokenExecutor(Executor):
+        def execute(self, request, control, on_event):
+            raise TimeoutError('Pi transport deadline expired; task state is unknown')
+    service, current = claim()
+    executor = BrokenExecutor()
+    selected = factory(executor, Recognizer([goal('one')]))
+    plan = selected.plan_intent(current, NodeControl(lambda: None, time.monotonic() + 10),
+                                service.freeze_attempt_input)
+    runtime = selected(replace(current, turn_plan=plan))
+    events = []
+    runtime.prompt(current.instruction, on_event=events.append, on_heartbeat=lambda: None)
+    failure = next(e for e in events if e.get('payload', {}).get('child_status') == 'failed')
+    assert failure['payload']['failure_code'] == 'native_transport_timeout'
+    assert len(executor.cancelled) == 1
+
+
+def test_child_failure_diagnostic_never_copies_untrusted_error_text():
+    from capstone_agent.delegated_runtime import child_failure_code
+    assert child_failure_code(ValueError('Bearer PRIVATE_SECRET /private/user/data')) == 'native_contract_rejected'
+    assert child_failure_code(RuntimeError('Bearer PRIVATE_SECRET')) == 'native_execution_error'
+
+
+def test_http_failure_preserves_typed_cause_in_existing_runtime_receipt():
+    from capstone_agent.pi_delegation import PiHTTPFailure
+    class FailedExecutor(Executor):
+        def execute(self, request, control, on_event):
+            error = PiHTTPFailure(400, 'research_transport_file_changed')
+            error.diagnostic['operation'] = 'research_pending'
+            raise error
+    service, current = claim()
+    executor = FailedExecutor()
+    selected = factory(executor, Recognizer([goal('one')]))
+    plan = selected.plan_intent(current, NodeControl(lambda: None, time.monotonic() + 10),
+                                service.freeze_attempt_input)
+    runtime = selected(replace(current, turn_plan=plan))
+    events = []
+    runtime.prompt(current.instruction, on_event=events.append, on_heartbeat=lambda: None)
+    payload = next(e['payload'] for e in events if e.get('payload', {}).get('child_status') == 'failed')
+    assert payload['failure_code'] == 'native_executor_http_rejected'
+    assert payload['transport_failure'] == {'operation': 'research_pending', 'http_status': 400,
+                                            'protocol_code': 'research_transport_file_changed'}
+
+
 def test_business_runtime_receives_source_bound_history_resource_subset():
     from capstone_agent.conversation_context import ConversationContext
     from capstone_agent.thread_service import PriorResultReference
@@ -433,6 +633,45 @@ def test_failed_general_result_is_limited_and_does_not_publish_success_answer():
     assert result.status == 'completed'
     assert result.admission['mode'] == 'limited'
     assert 'General answer' not in result.answer
+
+
+def test_completed_artifact_transfer_has_its_own_budget_and_preserves_cancellation(monkeypatch):
+    import capstone_agent.delegated_runtime as module
+    import capstone_agent.native_artifact_projection as delegation
+    clock = [99.0]
+    cancelled = [False]
+    def check():
+        if cancelled[0]:
+            raise InterruptedError('Cancelled')
+    monkeypatch.setattr(module.time, 'monotonic', lambda: clock[0])
+    monkeypatch.setattr(delegation, 'project_native_artifacts', lambda *args, **kwargs: ['first', 'second'])
+    transferred = []
+    def retain(*args):
+        transferred.append(args[-1])
+        clock[0] += 2
+    monkeypatch.setattr(delegation, 'retain_native_artifact', retain)
+    runtime = object.__new__(module.DelegatedRuntime)
+    runtime._claim = object()
+    runtime._artifact_store = object()
+    runtime._executor = object()
+    runtime.runtime_mode = 'capstone'
+    result = SimpleNamespace(task_id='task')
+    request = SimpleNamespace(parent_attempt_id='attempt', timeout_seconds=60)
+    events = []
+    runtime._publish_artifacts(result, request, events.append, NodeControl(check, 100))
+    assert transferred == ['first', 'second']
+    assert len(events) == 2
+    cancelled[0] = True
+    with pytest.raises(InterruptedError):
+        runtime._publish_artifacts(result, request, events.append, NodeControl(check, 100))
+    assert transferred == ['first', 'second']
+    cancelled[0] = False
+    clock[0] = 99
+    transferred.clear()
+    request.timeout_seconds = 1
+    with pytest.raises(TimeoutError):
+        runtime._publish_artifacts(result, request, events.append, NodeControl(check, 100))
+    assert transferred == ['first']
 
 
 def test_general_receipts_preserve_sources_and_artifacts_without_authority_refs():
@@ -690,10 +929,66 @@ def test_worker_keeps_general_process_text_diagnostic(mode, event_type, child_st
     process = [event for event in events if event.event_type == 'assistant_process_delta']
     assert len(process) == 1 and process[0].visibility == 'diagnostic'
     assert process[0].payload['text'] == 'PROCESS_PREFACE'
+    assert not any(event.event_type == 'runtime_event'
+        and event.payload.get('native_type') in {'assistant_delta', 'message_update'} for event in events)
     assert 'PROCESS_PREFACE' not in (result.answer or '')
     if child_status == 'completed':
         assert result.status == 'completed' and result.answer == 'General answer'
     assert all(event.visibility == 'diagnostic' for event in events if event.event_type == 'runtime_event')
+
+
+def test_native_live_tool_projection_preserves_host_receipt_identity_without_private_content():
+    service, current = claim()
+    class LiveExecutor(Executor):
+        def execute(self, request, control, on_event):
+            for kind in ('tool_execution_start', 'tool_execution_end'):
+                on_event({'type': kind, 'tool_name': 'bash', 'tool_call_id': 'call-live-1',
+                          'is_error': False, 'args': {'command': 'PRIVATE_COMMAND'},
+                          'result': {'content': 'PRIVATE_OUTPUT'}})
+            return PiTaskResult(request.task_id, request.parent_attempt_id, self.identity,
+                                'completed', 'General answer', (), (), {})
+    run(service, current, factory(LiveExecutor(), Recognizer([goal('one')])))
+    events = [event.payload for event in service.read_events(current.thread_id, 0).events
+              if event.event_type == 'runtime_event' and event.payload.get('native_type')]
+    assert [event['native_type'] for event in events] == ['tool_execution_start', 'tool_execution_end']
+    assert all(event['tool_name'] == 'bash' and event['tool_call_id'] == 'call-live-1' for event in events)
+    assert events[-1]['is_error'] is False
+    assert all('args' not in event and 'result' not in event for event in events)
+    projected = [event for event in service.read_events(current.thread_id, 0).events
+                 if event.event_type == 'runtime_event' and event.payload.get('native_type')]
+    assert all(event.visibility == 'public' for event in projected)
+    assert all(event.visibility == 'diagnostic' for event in service.read_events(current.thread_id, 0).events
+               if event.event_type == 'runtime_event' and not event.payload.get('native_type'))
+
+
+@pytest.mark.parametrize('fails', [False, True])
+def test_text_is_complete_and_precedes_tools_and_child_failure(fails):
+    service, current = claim()
+    before_tool = '甲乙丙丁' * 10
+    tail = '尾部未满一批的文字'
+    class Streaming(Executor):
+        def execute(self, request, control, on_event):
+            for text in before_tool:
+                on_event({'type': 'assistant_delta', 'text': text})
+            on_event({'type': 'tool_execution_start', 'tool_name': 'read', 'tool_call_id': 'read-1'})
+            on_event({'type': 'tool_execution_end', 'tool_name': 'read', 'tool_call_id': 'read-1', 'is_error': False})
+            for text in tail:
+                on_event({'type': 'assistant_delta', 'text': text})
+            if fails:
+                raise RuntimeError('runtime stopped')
+            return PiTaskResult(request.task_id, request.parent_attempt_id, self.identity,
+                                'completed', 'General answer', (), (), {})
+    result = run(service, current, factory(Streaming(), Recognizer([goal('one')])))
+    events = service.read_events(current.thread_id, 0).events
+    text_events = [e for e in events if e.event_type == 'assistant_process_delta']
+    assert ''.join(e.payload['text'] for e in text_events) == before_tool + tail
+    tool = next(e for e in events if e.payload.get('native_type') == 'tool_execution_start')
+    assert ''.join(e.payload['text'] for e in text_events if e.event_seq < tool.event_seq) == before_tool
+    if fails:
+        failed = next(e for e in events if e.payload.get('child_status') == 'failed')
+        assert all(e.event_seq < failed.event_seq for e in text_events)
+    else:
+        assert result.status == 'completed'
 
 
 def test_executor_configuration_cannot_change_between_plan_and_runtime_preparation():

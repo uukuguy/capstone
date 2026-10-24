@@ -9,7 +9,8 @@ import threading
 from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Callable
 
-from capstone_agent.network_diagram import MAX_DIAGRAM_BYTES, normalize_network_diagram
+from capstone_agent.network_diagram import normalize_network_diagram
+from capstone_agent.application_capacity import CapacityExceeded, limits, require_capacity
 from capstone_agent.session import WorkerSpec, _worker_environment
 
 
@@ -19,14 +20,16 @@ def load_case_diagram(spec: WorkerSpec, case_id: str) -> dict[str, object]:
     completed = subprocess.run(
         [*spec.preview_command, "--case", case_id], cwd=spec.cwd,
         env=_worker_environment(spec.environment or os.environ, "scripted-demo"),
-        capture_output=True, timeout=240, check=False,
+        capture_output=True, timeout=limits.tool_timeout_seconds, check=False,
     )
-    if (completed.returncode != 0 or not completed.stdout or
-            len(completed.stdout) > MAX_DIAGRAM_BYTES + 65_536):
+    require_capacity('control_document_bytes', len(completed.stdout), phase='case_diagram')
+    if completed.returncode != 0 or not completed.stdout:
         raise ValueError("case diagram authority is unavailable")
     try:
         document = json.loads(completed.stdout)
         return normalize_network_diagram(document)
+    except CapacityExceeded:
+        raise
     except (UnicodeDecodeError, ValueError, TypeError) as exc:
         raise ValueError("case diagram authority returned an invalid projection") from exc
 
@@ -57,7 +60,7 @@ class CaseDiagramCache:
             raise KeyError("case diagram is not registered")
         future = self._future(key)
         try:
-            return normalize_network_diagram(future.result(timeout=240))
+            return normalize_network_diagram(future.result(timeout=limits.tool_timeout_seconds))
         except Exception:
             with self._lock:
                 if self._pending.get(key) is future:

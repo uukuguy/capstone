@@ -1,5 +1,7 @@
 # 多线版本控制
 
+2026-10-25 已合入：PR #56通过dev必需门禁40119881315（35分37秒）并合入e72722fc，合并树与产品e8bfb5ae完全一致。主工作树已切回dev且干净，本地规范重建进行中；收口文档分支随后按docs门禁合入。主工作树109项原变更已分为bffe1b7c源码恢复和6c8f531e文档恢复，65项与候选一致，44项差异单独留档，109/109原文件字节核对通过；不把恢复快照当交付。Research Model日志275dc00f已提交。7份生成记录保留原位并备份至ignored outputs/git-recovery-20261025；仅其确切目录设本地忽略。不是发布，额外发布CI已取消。
+
 2026-10-25 用户明确：本次是dev分支集成，不是发布。额外发布验证40119884971已取消；PR #56已就绪，仅等待dev必需门禁40119881315。已验证本地结果保留，不再以合并为由追加发布套件。Git边界纪律68841d4a、候选检查点fa918f66已独立提交并推送。
 
 2026-10-25 收口候选e8bfb5ae：完整本地产品/发布检查已分段通过，包含938专业应用、1994共享后端、942App、658Kernel、独立wheel/sdist安装、E2E及真实SDK协议检查。PR #56仍为草稿未合入；最终PR验证40119881315与双平台完整验证40119884971正在运行。此前失败/取消的验证不作验收。保留dev恢复stash c306060c和未交付工作，不更新cloud/demo。[集成记录](../reviews/2026-10-25-workspace-integration.md)
@@ -501,8 +503,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | foundation | 基础体验与开发治理 | 1 | 已集成，本地开发验收通过 | 连续浏览历史、环境与版本识别、反馈处理和修订流程 | main | 后续随正式用户发布验证；不单独定义功能增强基线 | 线上共同基线 | 历史对话连续浏览；明确环境与来源版本；规范反馈与修订流程 | PR #6 合并 c3b78bc；精确候选两平台检查与审查通过；local-dev 实际入口验收通过；云端未发布 |
 | answers | 回退与选择性补回 | 2 | 已合入dev，业务缺陷保留 | c3业务链；独立LLM路由；三动作小窗；普通轻量无工具回答；正式消息与过程隔离 | dev | 路由可靠性与现存业务缺陷单列；研究按已适配计划推进 | main c3b78bc | 用户批准收口；不恢复任务编译；无凭据装配修正bc08169 | PR #14双平台通过并合入6ff7094；506项同源及两次完整集成通过；新真实复验一轮普通误分，保留失败，未称整体通过 |
 | business-analysis | 企业研究与分析 | 1 | 分支已创建，准备中 | 企业资源、分析成果、图表与报告视图 | feat/business-analysis | A1准备；等待相应基座闭环后实施 | dev6c0b0ae7创建来源 | 无独立业务代码；沿共同协议推进 | 未实施、未验收、未部署；阶段需可运行前端供人工观察 |
-| model-decision | 电网分析与决策 | 1 | 共享工作台已在local-dev验证，PR #53已合入f5eda4e4 | 既有专业能力、拓扑、结果、案例与公共对话组件 | feat/model-decision | 集成共享切片；继续按既定协议补齐无模型对话与通用成果 | devf5eda4e4及专业Work来源a8b4e578 | 6f1c3412恢复原型层级；00a8cd85兼容混合版本列表 | 570项App、88项真实PG、构建及独立复审通过；真实Provider普通问答/IEEE39/追问三轮及刷新恢复通过；PyPSA语义修正另验 |
-| shared-agent | 共同智能体基座 | 1 | native父链离线验证通过；前端及部署待接入 | 同时服务对话与企业执行的组织、资源、恢复、证据及共享前端组件 | feat/work-attempt-binding | 保留c9e57152已验证切片；先收口当前专业工作台试用 | 已有Harness、Thread、专业执行及Pi资源 | 长回答和长指令保存有界摘要，原文保留；旧专业信封预算不变 | 1394项后端、23项真实PG及类型检查通过；RPC两轮原文恢复通过，独立审查通过；未合入或部署 |
+| model-decision | 电网分析与决策 | 1 | 共享工作台及会话导航由PR #56合入dev e72722fc | 既有专业能力、拓扑、结果、案例及复用对话；缓存和阅读状态保持 | dev | 保留专业边界；命名工作空间与精致空态另行交付 | PR #53、成果集合15980389及已验证App c34b4780 | 942App、938专业应用及dev PR门禁通过；真实会话管理已验，本地dev入口重建中 | [集成记录](../reviews/2026-10-25-workspace-integration.md)；不等同于所有专业解释或新发布验收 |
+| shared-agent | 共同智能体基座 | 1 | 工作台所需运行依赖由PR #56合入dev | 同时服务对话与企业执行的组织、资源、恢复、证据及共享前端组件 | dev | 继续按业务反馈迭代；原c9e57152及PR #50保留恢复对照 | 原Harness/Thread/Pi与已验收的e8bfb5ae | 运行、文件传输、投影和独立包安装已收口；旧分支差异不自动吞入 | 1994后端、658Kernel、942App及dev门禁通过；不是发布或整体业务质量验收 |
 | conversation-maintenance | 智能体对话应用维护 | 1 | 阶段已发布，维护范围已明确 | 接收适用的共同修复和增强，保留现有对话体验 | main | 按实际修复形成小版本，不强制采用企业新工作台 | main cf72393b；原用户包未替换 | 与企业入口共同验证受影响共享行为；保留将来对话场景演进空间 | 发布基线已验收；新增共享增强尚未实现或发布 |
 | pi | 企业自主执行 | 3 | 基础能力已合入dev | Capstone长程组织配合Pi原生生态，统一机制待实施 | dev | 先推进共同基座Task 1；分别验收企业研究与分析、电网分析与决策，再验证组合任务 | 已保留专业链路与原生资源 | PR #31合入db167184；统一循环、无模型v2协议和新工作台仍待实现 | CI38865540607双平台通过；local-dev规范重建与同源检查通过，不代表新设计完成 |
 | commands | 统一输入命令与快捷操作 | 3 | 待设计，已有局部原型 | Capstone 前端统一操作入口：会话、模型、执行、结果及技能操作 | — | 盘点现有前端操作；设计共享命令目录、参数、可用状态和键盘交互，再建立增强分支 | 当前前端按钮与 Pi 分支命令原型 | 跨运行模式的快捷入口；中文检索与命令发现；上下文和权限检查；草稿保持与明确反馈 | 独立开发包；Pi 分支三个命令只是复用来源；新分支未建立，未部署 |
@@ -573,9 +575,10 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
 | dev-head | dev | main | dev · 当前研发位置 | 当前Git HEAD，验收范围见对应里程碑 | 动态绑定本地dev实际提交并连接真实祖先；不将分支HEAD当作部署或业务验收。[当前状态](CURRENT-STATE.md) | shared-agent |
-| workspace-integration | fix/workspace-reading-type | feature | 工作空间 · 集成候选 | PR #56已就绪；等待dev必需门禁 | 本地产品检查已通过；额外发布检查按用户要求取消，保留未交付方案。[集成](https://github.com/uukuguy/capstone/pull/56) | model-decision |
-| workspace-app-source | c34b4780 | feature | 工作空间 · 已验证App来源 | 942App测试、构建及浏览器通过；待集成 | 稳定导航、会话缓存和阅读状态恢复已提交；保留实际App源码身份。[验证](../reviews/2026-10-25-left-navigation.md) | model-decision |
-| workspace-outputs | 15980389 | feature | 共享工作空间 · 稳定导航、阅读状态与分层缓存 | 本地修正已验证；命名工作空间待实现；未集成dev | 内存默认10，可选10/20/50；按切换次数和最后打开时间保留，释放不改变归档状态。补读置顶偏好，收起展开保留列表；改名Esc保留左栏。942App/构建/doctor及实页通过；规范重建e18d8e7d33f2、ready及清理通过。原阅读状态与零完整快照复验保留。[验证](../reviews/2026-10-25-left-navigation.md) | model-decision |
+| workspace-integration | e8bfb5ae | feature | 工作空间 · 已集成源码 | PR #56合入dev e72722fc；必需门禁通过 | 已提交运行依赖、会话导航与阅读状态保持；普通分支合并不追加发布套件。[集成](https://github.com/uukuguy/capstone/pull/56) | model-decision |
+| workspace-merge | e72722fc | main | dev · 工作空间集成 | PR #56已合入，dev门禁通过 | 已验收产品e8bfb5ae进入研发主线，合并树一致；本地入口重建与文档收口进行中。[验收](../reviews/2026-10-25-workspace-integration.md) | model-decision |
+| workspace-app-source | c34b4780 | feature | 工作空间 · 已验证App来源 | 942App、构建和实页通过；已随PR #56集成 | 稳定会话导航、缓存及阅读状态恢复；App内容标识与仓库HEAD分开记录。[验证](../reviews/2026-10-25-left-navigation.md) | model-decision |
+| workspace-outputs | 15980389 | feature | 工作空间 · 成果集合与阅读控制 | 历史已提交切片；后续导航与缓存由c34b4780/e8bfb5ae承接 | Pack发布任务结果集合，复用既有结果表与拓扑；紧凑阅读与问题定位。[实施](../superpowers/plans/2026-10-17-task-output-presentation.md) | model-decision |
 | pypsa-demand-fix | 4120e57b | feature | 专业试用修复 · 结果解释与会话恢复 | local-dev同源ready；PR #54检查中；IEEE39发电机归属解释缺陷仍开放 | effc9ccd修正有效时序需求；e0c8d246修复旧会话准备；6415a57d补充平衡电源解释；4120e57b区分元件名称与表索引，无具体样例硬编码 | model-decision |
 | native-conversation | c9e57152 | feature | 共同基座 · 无模型对话执行 | 离线验证通过；未合入或部署 | 同一账本、租约和Harness承接原生对话；长文本收尾修复及两轮RPC原文恢复通过，前端接入另行验收 | shared-agent |
 | shared-workspace | 00a8cd85 | feature | 共同工作台 · 成熟对话与专业执行适配 | local-dev已验证；PR #53检查中 | 6f1c3412恢复定稿原型与成熟对话，00a8cd85兼容混合会话列表；570项App、88项真实PG及历史结果拓扑检查通过，无模型和通用成果仍待完成。[验证记录](../reviews/2026-10-17-shared-dialogue-adaptation.md) | model-decision |
@@ -655,9 +658,10 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | dev-business-base | 开发分支起点 | dev | 恢复业务执行并保留独立轻量路由；Pi与自主智能体的共同业务基线 | 已合入，业务缺陷保留 |
 | dev | 重要demo发布与大分支合并 | dev | 统一研究、执行、结果与证据合入主线；两个demo固定该基线，保留发布验收与回退来源 | 两个demo已验收 |
 | dev-head | 当前研发位置 | dev | 实际dev分支头及真实祖先连线；产品验收与部署来源独立标记 | Git位置随生成更新，验收范围见对应里程碑 |
-| workspace-integration | 集成候选 | fix/workspace-reading-type | 运行支持及会话阅读状态已提交；本地验证已通过，PR #56已就绪 | 仅等dev必需门禁；不是发布，额外发布检查已取消 |
-| workspace-app-source | 已验证App来源 | fix/workspace-reading-type | 会话导航、缓存与阅读状态恢复；置顶恢复和Esc取消编辑修正 | 942App/构建/浏览器通过；尚未合入dev |
-| workspace-outputs | 当前开发焦点 | fix/workspace-reading-type | 稳定三栏与会话管理；本地真实交互验收通过 | 当前三路338秒/59工具基线不变。会话切换无临时当前会话占位，目录连续显示，恢复电网工具条。宽度/置顶本地保持，名称/归档/删除宿主持久化。运行中会话不能被删除动作取消，文件保留范围明确。[验证](../reviews/2026-10-24-workspace-navigation.md) |
+| workspace-integration | 已集成源码 | dev | 运行支持与会话阅读状态已合入；产品源固定e8bfb5ae | PR #56及dev必需门禁通过；额外发布检查已取消 |
+| workspace-merge | 主要分支合入 | dev | PR #56合入已验收工作空间；合并树等于产品e8bfb5ae | dev必需门禁通过，非发布，不更新cloud/demo |
+| workspace-app-source | 已验证App来源 | fix/workspace-reading-type → dev | 会话导航、缓存与阅读状态；置顶恢复和Esc取消编辑修正 | 942App/构建/实页通过，已随PR #56合入dev |
+| workspace-outputs | 历史切片 | fix/workspace-reading-type（已并入dev） | 15980389发布成果集合与阅读控制；后续导航及缓存由已验证提交承接 | PR #56整合工作空间增量，不把后续未提交候选功能归给旧提交 |
 | pypsa-demand-fix | 当前试用修复候选 | fix/pypsa-inspection-semantics | 区分实际需求与静态默认值，恢复已保存会话；平衡电源解释按通用指南修正 | PR #54检查中；以IEEE39原有样例为主复验 |
 | native-conversation | 无模型对话基座候选 | feat/work-attempt-binding | 复用账本与Harness完成无模型逐轮执行；完整原文保留，研究笔记按协议摘录 | 本地c9e57152；1394项后端及23项真实PG通过，未部署 |
 | shared-workspace | 当前共享工作台候选 | feat/model-decision | 按定稿复用成熟对话、专业Work与拓扑；无模型与通用成果仍待实施 | local-dev 00a8cd85；570项App与88项真实PG通过 |
@@ -855,7 +859,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | 基于 `159803897127b33d791ef77298ba9fbe5da13a2b` 加共享导航、会话管理、分层会话缓存与阅读状态恢复；未提交，精确源码见缓存验证回执 | backendc64fbe52c992/nativeada86461950c，118源码/ready/App及cleanup20261025-000145-64738通过 | 932App/类型/构建/doctor通过。真实热切换保留主区/iframe位置，完整快照请求0；上限1释放后恢复165px及原报告选择。自动释放不归档或取消任务。[验证](../reviews/2026-10-24-session-view-cache.md) |
+| local-dev | 主工作树dev检出 `e72722fc`，合并树与受验产品e8bfb5ae完全一致 | 规范重建ready；API及三个worker同镜像b7d91d2822a4；App显示产品e8bfb5ae/仓库e72722fc，dirty=false，实际进程来自主工作树 | 定向实页验证置顶保留、13px/30px改名和Esc保留左栏通过；无新任务或改名提交。清理receipt20261025-030321-13082及post-use helper完成。[记录](../reviews/2026-10-25-workspace-integration.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |
 | cloud-dev | `24d9a32`，开发试用候选；已推送标签cloud-dev-20261013-1045-24d9a32 | 用户授权的基本功能检查通过：四角色SUCCESS、API就绪、前端来源与真实中文对话；非正式发布或科学解释验收 | App https://capstone-app-production-83ef.up.railway.app/；[部署记录](../reviews/2026-10-13-cloud-dev-autonomous-trial.md)；demo不变 |
 | cloud-demo | App/API/两worker `faa6af9` | 四角色SUCCESS；三后端身份与dev本地529文件验收一致，安装工件与受检候选一致；三用例九轮、报告证据回放通过；local-demo已同源验收；正式标签demo-20261014-2028-faa6af9已推送 | App https://capstone-app-production-975e.up.railway.app/；上一正式标签demo-20261014-0744-bd2a200；双平台完整发布38554987581通过；cloud-dev不动 |

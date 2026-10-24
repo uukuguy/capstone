@@ -59,6 +59,14 @@ def _run_claimed_attempt(
     if service.cancel_requested(claim):
         service.finish_attempt(claim, phase='cancelled', payload={})
         return HarnessAttemptResult('cancelled', None, None)
+    previous = claim.previous_instruction
+    manifests = (claim.submission or {}).get('_resource_manifests', ())
+    if manifests:
+        from .continuation_resources import resource_reader_for
+        claim = replace(claim, resource_reader=resource_reader_for(service, claim))
+    if previous is not None:
+        claim = replace(claim, selected_task_reader=SelectedTaskRecordReader(
+            service, claim.thread_id, previous.attempt_id))
     router = turn_router if isinstance(turn_router, DefaultTurnRouter) else DefaultTurnRouter(decision_router=turn_router)
     if claim.kind in {"send_auto", "send_ordinary", "send_professional"}:
         def check_intent() -> None:
@@ -105,7 +113,7 @@ def _run_claimed_attempt(
                      "fallback": plan.fallback},
         )
         claim = replace(claim, turn_plan=plan)
-        if plan.route == "professional" and not claim.model_context.enabled_profiles:
+        if plan.route == "professional" and (claim.model_context is None or not claim.model_context.enabled_profiles):
             error_code = "capability_required"
             service.finish_attempt(claim, phase="failed", payload={
                 "error_code": error_code,
@@ -115,12 +123,10 @@ def _run_claimed_attempt(
     runtime = None
     try:
         lease.check()
-        previous = claim.previous_instruction
-        if previous is not None and previous.model_context is not None:
-            claim = replace(claim, selected_task_reader=SelectedTaskRecordReader(
-                service, claim.thread_id, previous.attempt_id,
-            ))
         runtime = runtime_factory(claim)
+        bind_artifact_store = getattr(runtime, 'bind_artifact_store', None)
+        if callable(bind_artifact_store):
+            bind_artifact_store(getattr(service, '_material_objects', None))
         bind_guard = getattr(runtime, "bind_attempt_guard", None)
         if callable(bind_guard):
             def active() -> bool:

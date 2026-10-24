@@ -17,7 +17,7 @@ const digest = value => createHash('sha256').update(JSON.stringify(value)).diges
 
 // Only model output is scripted. Session, extension runner, tool execution and
 // persistence use the pinned real SDK. No Provider or host authentication is used.
-async function fixture(t, { tools = [], extensions = [], manager, root } = {}) {
+async function fixture(t, { tools = [], extensions = [], manager, root, applicationConfig } = {}) {
   root ??= await mkdtemp(join(tmpdir(), 'capstone-enterprise-bridge-'));
   if (!manager) t.after(() => rm(root, { recursive: true, force: true }));
   const outputs = [];
@@ -49,17 +49,55 @@ async function fixture(t, { tools = [], extensions = [], manager, root } = {}) {
     ...loader.getExtensions().extensions.flatMap(extension => [...extension.tools.keys()])];
   const { session } = await createAgentSession({ cwd: root, agentDir: root,
     modelRuntime: runtime, model, thinkingLevel: 'off', resourceLoader: loader,
-    settingsManager, tools: activeTools, customTools: tools,
+    settingsManager, ...(applicationConfig ? host.applicationToolOptions(applicationConfig, createCodingTools(root))
+      : {tools: activeTools, customTools: tools}),
     sessionManager: manager ?? SessionManager.create(root, root) });
   t.after(() => session.dispose());
   await session.bindExtensions({ onError: error => { throw error; } });
-  session.setActiveToolsByName(activeTools);
+  session.setActiveToolsByName(applicationConfig?.applicationPolicy.allowed_tools ?? activeTools);
   return { root, session, outputs };
 }
+
+test('native policy preserves extension publication while restricting active execution', async t => {
+  let recordReads = 0;
+  const parameters = { type: 'object', properties: {} };
+  const extension = pi => {
+    pi.registerTool({name: 'audit_network', label: 'Audit', description: 'Published registered audit', parameters,
+      execute: async () => { throw new Error('Unselected MCP must not execute'); }});
+    pi.registerTool({name: 'agent_task_records_read', label: 'Original records', description: 'Read fixed task records', parameters,
+      execute: async () => { recordReads++; return {content: [{type: 'text', text: 'Original task data'}]}; }});
+  };
+  const applicationConfig = {applicationPolicy: {allowed_tools: ['read', 'bash', 'write', 'edit', 'agent_task_records_read']}};
+  const {session, outputs} = await fixture(t, {extensions: [extension], applicationConfig});
+  const owner = session.resourceLoader.getExtensions().extensions[0].resolvedPath;
+  assert.deepEqual(host.verifyMcpPublication(session, {mcp: {descriptor: {
+    tool_schemas: {audit_network: {description: 'Published registered audit', inputSchema: parameters}},
+    tool_schema_hashes: {audit_network: 'fixture-schema-hash'}}}, extensions: [owner]}),
+    {audit_network: 'fixture-schema-hash'});
+  assert.equal(session.getActiveToolNames().includes('audit_network'), false);
+  assert.equal(session.getActiveToolNames().includes('agent_task_records_read'), true);
+  outputs.push([{type: 'toolCall', id: 'records', name: 'agent_task_records_read', arguments: {}}]);
+  await session.prompt('Read the original record');
+  assert.equal(recordReads, 1);
+});
 
 function guarded(tool, admit) {
   return host.guardToolExecution(tool, admit);
 }
+
+test('application tool grant blocks an unpublished lookup before actual execution', async t => {
+  let calls = 0;
+  const config = { applicationPolicy: { allowed_tools: ['read'], external_lookup_enabled: false } };
+  const tool = guarded({ name: 'unpublished_lookup', label: 'Lookup', description: 'Fixture',
+    parameters: { type: 'object', properties: {} },
+    execute: async () => { calls++; return { content: [{ type: 'text', text: 'must not run' }] }; } },
+    async call => host.applicationToolAdmission(config, call.toolName));
+  const { session, outputs } = await fixture(t, { tools: [tool] });
+  outputs.push([{ type: 'toolCall', id: 'lookup-denied', name: 'unpublished_lookup', arguments: {} }]);
+  await session.prompt('Use the fixture lookup', { expandPromptTemplates: false });
+  assert.equal(calls, 0);
+  assert.equal(session.messages.find(message => message.role === 'toolResult').isError, true);
+});
 
 test('host guard checks final extension-mutated arguments before a real native write', async t => {
   const root = await mkdtemp(join(tmpdir(), 'capstone-guard-write-'));

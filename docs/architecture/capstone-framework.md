@@ -1,5 +1,28 @@
 # Capstone Agent Framework
 
+## Incremental task organization candidate
+
+Research-turn clarification (2026-10-23): each instruction advances a continuing
+conversation. The user judges analytical adequacy; internal assessment records
+actual support and limitations. Imperfect analysis can be delivered as explicitly
+limited results and revised in later turns. It must not trigger automatic whole-task
+repetition. Permissions, source/version identity, file safety, required persistence
+and Authority evidence remain enforced. App1.18/Pack1.15/shared policy1.5 is a local
+candidate for this rule; real two-turn and full performance acceptance are pending.
+
+The accepted organization model separates planning/acceptance from execution.
+Every executable task has an independent context and explicit selected inputs and
+returns. The engine submits the next evidence-supported task or batch, accepts
+actual results and decides the next work or whole-goal completion. An empty pool
+is not completion. The existing graph ledger and scheduler own the task pool.
+See the [incremental design](../superpowers/specs/2026-10-22-incremental-task-pool-design.md)
+and [verification](../reviews/2026-10-22-incremental-task-pool.md).
+The local Application1.14/Pack1.12 candidate passed a small real protocol check;
+full report, parallel performance and other application adapters are not accepted.
+Separate model contexts do not establish per-node OS filesystem isolation.
+
+2026-10-22当前校准：规划策略属于共享执行层，应用/Pack仅适配授权能力、来源、领域约束与交付。App1.13/Pack1.11先验证研究入口，电网/复杂聊天未接通。原始请求235939三路并行64.165秒，但218.375秒按failure收口、无报告，不通过146秒（145.914727秒）基线。步骤号和标题行计量已修订，282项App检查/类型通过；独立复审未完成，无Git/cloud/demo变更。以ROOT最新RESUME和编排修复记录为恢复入口，不继续采用旧263.896秒口径。
+
 ## Enterprise execution design track
 
 The [v1 design baseline](../superpowers/specs/2026-10-15-enterprise-design-final.md)

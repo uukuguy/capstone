@@ -473,7 +473,11 @@ def test_postgres_thread_store_leases_and_completes_one_attempt(
 
 
 @pytest.mark.parametrize("rollback", [False, True])
-def test_large_result_delivery_is_atomic_and_survives_restart(postgres_thread_service, monkeypatch, rollback):
+def test_large_result_delivery_is_atomic_and_survives_restart(postgres_thread_service, monkeypatch, rollback, request):
+    from capstone_agent.application_capacity import current_capacity, initialize_capacity
+    previous = current_capacity()
+    request.addfinalizer(lambda: initialize_capacity(previous))
+    initialize_capacity({'event_bytes': 65536})
     service, thread_id = postgres_thread_service
     revision = "revision:sha256:" + "a" * 64
     snapshot = _snapshot(thread_id).to_document()

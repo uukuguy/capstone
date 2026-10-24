@@ -8,6 +8,12 @@ it('accepts absent model identity only for a v2 work descriptor', () => {
   expect(parseThreadDescriptor(row).modelId).toBeNull()
   expect(() => parseThreadDescriptor({ ...row, minimum_protocol_version: 1 })).toThrow()
 })
+it('preserves valid host update timestamps and permits older descriptors without them',()=>{
+  const row={thread_id:'thr_work',model_id:null,implementation_family:null,created_at:'2026-10-16T12:00:00Z',archived:false,last_event_seq:1,minimum_protocol_version:2}
+  expect(parseThreadDescriptor({...row,updated_at:'2026-10-25T01:02:03Z'}).updatedAt).toBe('2026-10-25T01:02:03Z')
+  expect(parseThreadDescriptor(row).updatedAt).toBeUndefined()
+  expect(()=>parseThreadDescriptor({...row,updated_at:'invalid'})).toThrow()
+})
 
 it('explicitly negotiates v2 for model-free creation without retrying a write', async () => {
   const fetcher = vi.fn(async (_url: string | URL | Request, _init?: RequestInit) => new Response('{}', { headers: { 'Capstone-Thread-Version': '2' } }))

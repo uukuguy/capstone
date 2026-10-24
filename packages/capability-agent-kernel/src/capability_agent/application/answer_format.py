@@ -5,9 +5,9 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
+from capability_agent.runtime.capacity import runtime_limits as resolve_limits
 
 
-_MAX_SUMMARY_CODEPOINTS = 220
 ANSWER_BUNDLE_INSTRUCTION = (
     "完成所有必要的工具调用后，只返回一个 JSON 对象，不要使用 Markdown 代码围栏。"
     "对象必须包含 answer 和 summary 两个字符串字段。answer 是完整正式回答；"
@@ -25,7 +25,7 @@ class AnswerBundle:
     diagnostic_codes: tuple[str, ...] = ()
 
 
-def parse_answer_bundle(value: str) -> AnswerBundle:
+def parse_answer_bundle(value: str, *, runtime_limits=None) -> AnswerBundle:
     """Parse the opt-in JSON response while preserving legacy plain text."""
 
     if not isinstance(value, str) or not value.strip():
@@ -45,7 +45,7 @@ def parse_answer_bundle(value: str) -> AnswerBundle:
     if not answer:
         return AnswerBundle(raw, None, ("answer_bundle_invalid",))
     summary = decoded.get("summary")
-    if not isinstance(summary, str) or not summary.strip() or len(summary.strip()) > _MAX_SUMMARY_CODEPOINTS:
+    if not isinstance(summary, str) or not summary.strip() or len(summary.strip()) > resolve_limits(runtime_limits)['answer_summary_chars']:
         return AnswerBundle(answer, None, ("answer_summary_invalid",))
     return AnswerBundle(answer, summary.strip(), ())
 

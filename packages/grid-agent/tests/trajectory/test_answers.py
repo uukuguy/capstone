@@ -193,23 +193,23 @@ def test_submission_rejects_misclassified_answer_level_references() -> None:
         )
 
 
-def test_claim_and_submission_bounds_are_closed() -> None:
-    with pytest.raises(ValidationError, match="at most 1000 characters"):
-        AnswerClaim(
-            statement="x" * 1001,
-            category="offline_information",
-        )
+def test_claim_and_submission_bounds_are_closed(monkeypatch) -> None:
+    from capability_agent.runtime import capacity
+    monkeypatch.setattr(capacity, '_initialized', capacity.runtime_limits({
+        'research_text_chars': 1000, 'context_references': 20, 'research_claim_count': 50,
+    }))
+    with pytest.raises(capacity.CapacityExceeded, match="research_text_chars.*1001.*1000"):
+        validate_submission(submission_draft(claims=[{
+            'statement': 'x' * 1001, 'category': 'offline_information',
+        }]), RecordingVerifier(), set())
 
-    with pytest.raises(ValidationError, match="at most 20 items"):
-        AnswerClaim(
-            statement="bounded refs",
-            category="numerical_result",
-            result_refs=tuple(
-                f"result:sha256:{index:064x}" for index in range(21)
-            ),
-        )
+    with pytest.raises(capacity.CapacityExceeded, match="context_references.*21.*20"):
+        validate_submission(submission_draft(claims=[{
+            'statement': 'bounded refs', 'category': 'numerical_result',
+            'result_refs': [f'result:sha256:{index:064x}' for index in range(21)],
+        }]), RecordingVerifier(), set())
 
-    with pytest.raises(ValidationError, match="at most 50 items"):
+    with pytest.raises(capacity.CapacityExceeded, match="research_claim_count.*51.*50"):
         validate_submission(
             submission_draft(
                 result_refs=[],

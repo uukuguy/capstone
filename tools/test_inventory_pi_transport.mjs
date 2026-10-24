@@ -13,6 +13,7 @@ if (!descriptorPath) {
 const descriptor = JSON.parse(await readFile(descriptorPath, "utf8"));
 const registered = [];
 createDomainToolsExtension(descriptor)({
+  on() {},
   registerTool(tool) {
     registered.push(tool);
   },

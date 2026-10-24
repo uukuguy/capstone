@@ -1,0 +1,26 @@
+.native-artifacts-workspace { min-width: 0; padding: 20px; color: #22352e; font-size: 12px; line-height: 1.6; }
+.native-artifacts-workspace > header h3 { margin: 0 0 8px; font-size: 15px; font-weight: 600; }
+.native-artifacts-workspace > header p { margin: 0 0 16px; color: #66716b; }
+.native-artifact-list { display: flex; flex-wrap: wrap; gap: 8px; padding: 0; margin: 0 0 20px; list-style: none; }
+.native-artifact-list li { min-width: 0; max-width: 100%; }
+.native-artifact-list button { display: grid; gap: 4px; max-width: 100%; padding: 10px 12px; border: 1px solid #dde1d9; border-radius: 6px; background: #fff; color: #22352e; text-align: left; font: inherit; cursor: pointer; }
+.native-artifact-list button[aria-pressed="true"] { border-color: #245b47; background: #edf2eb; }
+.native-artifact-list span { overflow-wrap: anywhere; }
+.native-artifact-list small { color: #66716b; font-size: 10px; }
+.native-artifact-origin { display: block; max-width: 28ch; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.native-artifact-view { min-width: 0; border-top: 1px solid #dde1d9; padding-top: 16px; }
+.native-artifact-view > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.native-artifact-view h4 { margin: 0; overflow-wrap: anywhere; font-size: 13px; font-weight: 600; }
+.native-artifact-view header p { margin: 8px 0 0; color: #66716b; }
+.native-artifact-view a { color: #245b47; flex-shrink: 0; }
+.native-artifact-actions { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.native-artifact-preview { min-width: 0; overflow: auto; background: #fff; }
+.native-artifact-preview pre { margin: 0; padding: 12px; font-size: 11px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.native-artifact-preview > img { display: block; max-width: 100%; height: auto; }
+.native-artifact-preview iframe { width: 100%; height: min(680px,65dvh); border: 0; }
+.native-artifact-view details { margin-top: 20px; color: #66716b; font-size: 10px; }
+.native-artifact-view summary { cursor: pointer; }
+.native-artifact-view dl { display: grid; grid-template-columns: 64px minmax(0,1fr); gap: 8px; }
+.native-artifact-view dd { margin: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.native-artifacts-workspace :focus-visible { outline: 2px solid #245b47; outline-offset: 2px; }
+@media(max-width:760px) { .native-artifacts-workspace { padding: 16px; } .native-artifact-list button { min-height: 44px; } }

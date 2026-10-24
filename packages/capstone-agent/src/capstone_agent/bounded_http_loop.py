@@ -2,15 +2,16 @@
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from threading import BoundedSemaphore, Event, Lock, Thread
+from .application_capacity import limits, current_capacity, CapacityExceeded
 
 
 class HttpLoop(asyncio.SelectorEventLoop):
     def __init__(self):
         super().__init__()
-        self.dns_slots = asyncio.Semaphore(4)
-        self.write_slots = asyncio.Semaphore(4)
-        self.writers = ThreadPoolExecutor(max_workers=4, thread_name_prefix='capstone-http-write')
-        self.set_default_executor(ThreadPoolExecutor(max_workers=4, thread_name_prefix='capstone-http-dns'))
+        self.dns_slots = asyncio.Semaphore(limits.http_dns_workers)
+        self.write_slots = asyncio.Semaphore(limits.http_write_workers)
+        self.writers = ThreadPoolExecutor(max_workers=limits.http_write_workers, thread_name_prefix='capstone-http-write')
+        self.set_default_executor(ThreadPoolExecutor(max_workers=limits.http_dns_workers, thread_name_prefix='capstone-http-dns'))
 
     async def getaddrinfo(self, host, port, *, family=0, type=0, proto=0, flags=0):
         await self.dns_slots.acquire()
@@ -38,10 +39,11 @@ class HttpLoop(asyncio.SelectorEventLoop):
 class HttpRunner:
     def __init__(self):
         self.ready = Event()
-        self.slots = BoundedSemaphore(64)
+        self.maximum = limits.http_exchange_count
+        self.slots = BoundedSemaphore(self.maximum)
         self.loop: HttpLoop | None = None
         Thread(target=self._serve, daemon=True, name='capstone-http-loop').start()
-        if not self.ready.wait(2):
+        if not self.ready.wait(limits.http_loop_start_seconds):
             raise RuntimeError('HTTP loop is unavailable')
 
     def _serve(self):
@@ -53,7 +55,8 @@ class HttpRunner:
     def run(self, coroutine):
         if not self.slots.acquire(blocking=False):
             coroutine.close()
-            raise RuntimeError('HTTP exchange capacity reached')
+            raise CapacityExceeded('http_exchange_count', self.maximum + 1, self.maximum,
+                                   'http_exchange', mode=current_capacity().mode)
         try:
             assert self.loop is not None
             return asyncio.run_coroutine_threadsafe(coroutine, self.loop).result()

@@ -2,31 +2,26 @@
 
 from __future__ import annotations
 
+from .application_capacity import limits, require_capacity
+
 import math
+import json
 import re
 from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 from typing import Any
 
 from .model_identity import validate_model_id
-from .reference_limits import MAX_ATTEMPT_REFERENCES
 
 RESULT_PROJECTION_SCHEMA = "capstone-result-projection/1.0"
-MAX_RESULT_PROJECTIONS = 64
-MAX_RESULT_PROJECTION_BYTES = 8 * 1024 * 1024
+MAX_RESULT_PROJECTIONS = limits.ui_result_projection_count
+MAX_RESULT_PROJECTION_BYTES = limits.product_bytes
 # Authorities may namespace their immutable references (for example
 # ``pypsa-result:sha256:…``) while keeping the public kind explicit.
 _REF = re.compile(r"^(?:[a-z][a-z0-9_-]{0,31}-)?(result|evidence|revision):sha256:[0-9a-f]{64}$")
 _IDENTIFIER = re.compile(r"^[a-z][a-z0-9_.:-]{0,127}$")
 _STATUSES = frozenset({"completed", "partial", "unavailable"})
 _SEVERITIES = frozenset({"info", "warning", "error"})
-_MAX_SUMMARY = 32
-_MAX_TABLES = 12
-_MAX_COLUMNS = 32
-_MAX_ROWS = 128
-_MAX_ELEMENTS = 128
-_MAX_OVERLAY_VALUES = 256
-_MAX_TEXT = 256
 
 
 def _document(value: Any, name: str) -> dict[str, Any]:
@@ -35,14 +30,17 @@ def _document(value: Any, name: str) -> dict[str, Any]:
     return dict(value)
 
 
-def _text(value: Any, name: str, *, max_length: int = _MAX_TEXT) -> str:
+def _text(value: Any, name: str, *, max_length: int | None = None) -> str:
+    if max_length is None and isinstance(value, str):
+        require_capacity('ui_result_text_chars', len(value), phase='result_projection')
+    max_length = limits.ui_result_text_chars if max_length is None else max_length
     if not isinstance(value, str) or not value or len(value) > max_length:
         raise ValueError(f"{name} is invalid")
     return value
 
 
 def _identifier(value: Any, name: str) -> str:
-    text = _text(value, name)
+    text = _text(value, name, max_length=128)
     if _IDENTIFIER.fullmatch(text) is None:
         raise ValueError(f"{name} is invalid")
     return text
@@ -56,7 +54,7 @@ def _element_identifier(value: Any, name: str) -> str:
 
 
 def _model_identifier(value: Any, name: str) -> str:
-    text = _text(value, name)
+    text = _text(value, name, max_length=256)
     try:
         return validate_model_id(text, name=name)
     except ValueError as exc:
@@ -84,7 +82,9 @@ def _finite(value: Any, name: str) -> int | float:
 
 def _scalar(value: Any, name: str) -> str | int | float | bool | None:
     if value is None or isinstance(value, (str, bool)):
-        if isinstance(value, str) and len(value) > _MAX_TEXT:
+        if isinstance(value, str):
+            require_capacity('ui_result_text_chars', len(value), phase='result_projection')
+        if isinstance(value, str) and len(value) > limits.ui_result_text_chars:
             raise ValueError(f"{name} is too long")
         return value
     if isinstance(value, (int, float)):
@@ -217,7 +217,9 @@ class ResultTablePagination:
             raise ValueError("result table manifest reference is invalid")
         if type(total) is not int or not 0 <= total <= 2**53 - 1:
             raise ValueError("result table total rows is invalid")
-        if type(size) is not int or not 1 <= size <= _MAX_ROWS:
+        if type(size) is int:
+            require_capacity('ui_result_row_count', size, phase='result_projection')
+        if type(size) is not int or not 1 <= size <= limits.ui_result_row_count:
             raise ValueError("result table page size is invalid")
         return cls(reference, total, size)
 
@@ -241,9 +243,13 @@ class ResultTable:
             raise ValueError("result table fields are invalid")
         raw_columns = document["columns"]
         raw_rows = document["rows"]
-        if not isinstance(raw_columns, list) or not raw_columns or len(raw_columns) > _MAX_COLUMNS:
+        if isinstance(raw_columns, list):
+            require_capacity('ui_result_column_count', len(raw_columns), phase='result_projection')
+        if isinstance(raw_rows, list):
+            require_capacity('ui_result_row_count', len(raw_rows), phase='result_projection')
+        if not isinstance(raw_columns, list) or not raw_columns:
             raise ValueError("result table.columns is invalid")
-        if not isinstance(raw_rows, list) or len(raw_rows) > _MAX_ROWS:
+        if not isinstance(raw_rows, list):
             raise ValueError("result table.rows is invalid")
         columns = tuple(ResultColumn.from_document(item) for item in raw_columns)
         column_ids = tuple(column.column_id for column in columns)
@@ -295,7 +301,9 @@ class ResultOverlay:
         if set(document) != {"metric", "unit", "source_ref", "values"}:
             raise ValueError("result overlay fields are invalid")
         raw_values = document["values"]
-        if not isinstance(raw_values, list) or len(raw_values) > _MAX_OVERLAY_VALUES:
+        if isinstance(raw_values, list):
+            require_capacity('ui_result_overlay_count', len(raw_values), phase='result_projection')
+        if not isinstance(raw_values, list):
             raise ValueError("result overlay.values is invalid")
         values = tuple(ResultOverlayValue.from_document(item) for item in raw_values)
         if len({item.element_id for item in values}) != len(values):
@@ -328,6 +336,36 @@ class ResultSource:
 
 
 @dataclass(frozen=True, slots=True)
+class ResultPresentation:
+    """Pack-owned process-result membership, not task delivery admission.
+
+    Legacy task_output denotes an instruction collection, never a deliverable.
+    """
+
+    collection_id: str
+    collection_title: str
+    group_id: str
+    group_title: str
+    purpose: str
+
+    @classmethod
+    def from_document(cls, value: Any) -> "ResultPresentation":
+        document = _document(value, "result presentation")
+        if set(document) != {"collection_id", "collection_title", "group_id", "group_title", "purpose"}:
+            raise ValueError("result presentation fields are invalid")
+        if document["purpose"] not in {"process_output", "task_output", "inspection"}:
+            raise ValueError("result presentation purpose is invalid")
+        return cls(_identifier(document["collection_id"], "collection_id"),
+                   _text(document["collection_title"], "collection_title"),
+                   _identifier(document["group_id"], "group_id"),
+                   _text(document["group_title"], "group_title"), document["purpose"])
+
+    def to_document(self) -> dict[str, str]:
+        return {"collection_id": self.collection_id, "collection_title": self.collection_title,
+                "group_id": self.group_id, "group_title": self.group_title, "purpose": self.purpose}
+
+
+@dataclass(frozen=True, slots=True)
 class ResultProjection:
     result_id: str
     result_ref: str | None
@@ -346,11 +384,13 @@ class ResultProjection:
     element_refs: tuple[ResultElementRef, ...]
     overlay: ResultOverlay | None
     unavailable_reason: str | None = None
+    presentation: ResultPresentation | None = None
 
     @classmethod
     def from_document(cls, value: Any) -> "ResultProjection":
         document = _document(value, "result projection")
         allowed = {"schema", "result_id", "result_ref", "evidence_refs", "thread_id", "run_id", "turn_id", "attempt_id", "model_context_id", "model_id", "model_revision", "source", "status", "summary", "tables", "element_refs", "overlay", "unavailable_reason"}
+        allowed.add("presentation")
         if set(document) - allowed or not {"schema", "result_id", "result_ref", "evidence_refs", "thread_id", "run_id", "turn_id", "attempt_id", "model_context_id", "model_id", "model_revision", "source", "status", "summary", "tables", "element_refs", "overlay"} <= set(document):
             raise ValueError("result projection fields are invalid")
         if document["schema"] != RESULT_PROJECTION_SCHEMA:
@@ -359,11 +399,15 @@ class ResultProjection:
         if status not in _STATUSES:
             raise ValueError("result projection.status is invalid")
         raw_summary, raw_tables, raw_elements = document["summary"], document["tables"], document["element_refs"]
-        if not isinstance(raw_summary, list) or len(raw_summary) > _MAX_SUMMARY:
+        for field, items in (('ui_result_summary_count', raw_summary),
+                             ('ui_result_table_count', raw_tables), ('ui_result_element_count', raw_elements)):
+            if isinstance(items, list):
+                require_capacity(field, len(items), phase='result_projection')
+        if not isinstance(raw_summary, list):
             raise ValueError("result projection.summary is invalid")
-        if not isinstance(raw_tables, list) or len(raw_tables) > _MAX_TABLES:
+        if not isinstance(raw_tables, list):
             raise ValueError("result projection.tables is invalid")
-        if not isinstance(raw_elements, list) or len(raw_elements) > _MAX_ELEMENTS:
+        if not isinstance(raw_elements, list):
             raise ValueError("result projection.element_refs is invalid")
         summary = tuple(ResultMetric.from_document(item) for item in raw_summary)
         if len({item.metric_id for item in summary}) != len(summary):
@@ -376,7 +420,9 @@ class ResultProjection:
             raise ValueError("result projection element_refs contain duplicates")
         result_ref = None if document["result_ref"] is None else _ref(document["result_ref"], "result projection.result_ref", kind="result")
         raw_evidence_refs = document["evidence_refs"]
-        if not isinstance(raw_evidence_refs, list) or len(raw_evidence_refs) > MAX_ATTEMPT_REFERENCES:
+        if isinstance(raw_evidence_refs, list):
+            require_capacity('context_references', len(raw_evidence_refs), phase='result_projection')
+        if not isinstance(raw_evidence_refs, list):
             raise ValueError("result projection.evidence_refs is invalid")
         evidence_refs = tuple(_ref(item, "result projection.evidence_refs", kind="evidence") for item in raw_evidence_refs)
         if status in {"completed", "partial"} and (result_ref is None or not evidence_refs):
@@ -391,14 +437,18 @@ class ResultProjection:
         if status == "unavailable" and (summary or tables or elements or document["overlay"] is not None):
             raise ValueError("unavailable result projection cannot contain result data")
         overlay = None if document["overlay"] is None else ResultOverlay.from_document(document["overlay"])
-        return cls(
+        projection = cls(
             _identifier(document["result_id"], "result projection.result_id"), result_ref, evidence_refs,
             _identifier(document["thread_id"], "result projection.thread_id"), _identifier(document["run_id"], "result projection.run_id"),
             _identifier(document["turn_id"], "result projection.turn_id"), _identifier(document["attempt_id"], "result projection.attempt_id"),
             _identifier(document["model_context_id"], "result projection.model_context_id"), _model_identifier(document["model_id"], "result projection.model_id"),
             _ref(document["model_revision"], "result projection.model_revision", kind="revision"), ResultSource.from_document(document["source"]), status,
             summary, tables, elements, overlay, reason,
+            None if document.get("presentation") is None else ResultPresentation.from_document(document["presentation"]),
         )
+        require_capacity('product_bytes', len(json.dumps(projection.to_document(), ensure_ascii=False, allow_nan=False).encode('utf-8')),
+                         phase='result_projection')
+        return projection
 
     def to_document(self) -> dict[str, Any]:
         document: dict[str, Any] = {
@@ -412,6 +462,8 @@ class ResultProjection:
         }
         if self.unavailable_reason is not None:
             document["unavailable_reason"] = self.unavailable_reason
+        if self.presentation is not None:
+            document["presentation"] = self.presentation.to_document()
         return document
 
 

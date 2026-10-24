@@ -48,7 +48,7 @@ def test_empty_selection_builds_application_only_rpc_session(tmp_path, monkeypat
     session = PreparedKernelPiRpcSessionBuilder(
         runtime_host=host, resolved_llm=resolved, base_environment={"PATH": "/usr/bin"},
         workspace_root=tmp_path / "workspaces",
-    )(claim, SimpleNamespace(contributions=()), ())
+    )(_runtime_claim(claim), SimpleNamespace(contributions=()), ())
     launch = launches[0]
     assert "--extension" not in launch.argv
     assert "--no-builtin-tools" in launch.argv
@@ -419,7 +419,7 @@ def test_ordinary_session_has_no_business_tools_or_authority_handles(monkeypatch
             ModelContextSnapshot("ctx_old", "old-model", "revision-old", "pandapower", "sel_0")) if selected_task else None)
     business = tmp_path / "business-workspace"
     profile = SimpleNamespace(workspace=SimpleNamespace(root=business, core_path=business / "core"))
-    session = builder(claim, object(), (profile,))
+    session = builder(_runtime_claim(claim), object(), (profile,))
     paths = captured[0]
     assert stream_settings[0]['process_delta_batch_seconds'] == .1
     assert paths.workspace != business
@@ -444,6 +444,30 @@ def _catalog_claim(instruction="列出 PyPSA 的电网模型"):
             {"model_id": "unrelated-model", "display_name": "Other", "implementation_family": "pandapower", "available": True},
         ]},
     )
+
+
+def _runtime_claim(value):
+    """Use the production Claim identity contract at the runtime boundary."""
+    from capstone_agent.thread_service import AttemptClaim
+    from capstone_agent.thread_protocol import AttemptSnapshot
+    from capstone_agent.turn_router import TurnPlan
+    context = value.model_context
+    plan = value.turn_plan
+    request = getattr(plan, 'intent_request', None)
+    document = {} if request is None else request.to_document()
+    turn_id = document.get('turn_id', 'turn_fixture')
+    attempt = AttemptSnapshot(turn_id, value.attempt.attempt_id, 'running', context.id)
+    return AttemptClaim(document.get('thread_id', 'thr_fixture'), getattr(value, 'run_id', 'run_fixture'),
+        attempt, 'send_auto', getattr(value, 'instruction', 'Explain the selected context'),
+        context.id, context.selection_revision, 'lease_fixture', context,
+        turn_plan=TurnPlan(turn_id, attempt.attempt_id, plan.route, 'fixture', 'fixture-v1', None, {},
+            intent_request=request, intent_decision=getattr(plan, 'intent_decision', None),
+            intent_engine=getattr(plan, 'intent_engine', None), intent_resources=getattr(plan, 'intent_resources', None)),
+        application_catalog=getattr(value, 'application_catalog', None),
+        previous_instruction=getattr(value, 'previous_instruction', None),
+        prior_results=getattr(value, 'prior_results', ()),
+        selected_task_reader=getattr(value, 'selected_task_reader', None),
+        submission=getattr(value, 'submission', None))
 
 
 @pytest.mark.parametrize('dependency,identity_drift,selected_skill', [(False, False, False), (True, False, False), (False, True, False), (False, False, True)])
@@ -526,10 +550,10 @@ def test_business_builder_loads_the_same_source_bound_execution_projection(tmp_p
     if identity_drift:
         from capstone_agent.harness import HarnessRuntimeConfigurationError
         with pytest.raises(HarnessRuntimeConfigurationError, match='configuration'):
-            builder(claim, None, (profile,))
+            builder(_runtime_claim(claim), None, (profile,))
         assert not launches
         return
-    session = builder(claim, None, (profile,))
+    session = builder(_runtime_claim(claim), None, (profile,))
     session.stop()
     assert launches[0].environment['CAPSTONE_POWERMCP_MANAGED_ROOT'] == '/prepared/root'
     assert launches[0].environment['CAPSTONE_POWERMCP_INSTALL_ID'] == 'installs/' + 'a' * 32

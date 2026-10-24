@@ -1,13 +1,30 @@
+import {applicationCapacity} from './applicationCapacity'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import {useSessionViewState} from './workspaceSessionCache'
+import {RefreshCw} from 'lucide-react'
+import {readWorkspacePanels} from './workspaceEntry'
 import { MessageNotSentError } from '@assistant-ui/react'
 import { buildThreadCommand, CapstoneThreadClient, type ThreadCommand } from './threadClient'
 import { createFixtureTransport, instructionOrdinal, ThreadProjectionStore, type ThreadProjectionState } from './threadProjectionStore'
 import { threadUiFixture, type ThreadUiFixtureId } from './threadUiFixtures'
 import CapstoneAssistantThread, { projectAssistantActivity, ResultProjectionCard } from './CapstoneAssistantThread'
 import ThreadModelPane from './ThreadModelPane'
+import TaskResultWorkspace from './TaskResultWorkspace'
+import ProcessProductWorkspace from './ProcessProductWorkspace'
+import type { ProcessProduct } from './processProducts'
+import SessionHeading from './SessionHeading'
+import TaskDeliveriesWorkspace from './TaskDeliveriesWorkspace'
+import NativeArtifactsWorkspace from './NativeArtifactsWorkspace'
+import ThreadProductsWorkspace,{type ProductRequest} from './ThreadProductsWorkspace'
+import type {ContextProductRef} from './threadProducts'
+import AnswerDetailSheet from './AnswerDetailSheet'
+import AttemptRecordPanel from './AttemptRecordPanel'
+import { projectNativeArtifacts, type NativeArtifact } from './nativeArtifacts'
+import { displaySessionTitle } from './sessionTitle'
+import { taskResultCollections, type TaskResultCollection } from './taskResultCollections'
 import ThreadModelDirectory, { modelUnavailableCopy } from './ThreadModelDirectory'
 import { commandRejectionCopy } from './threadFeedback'
-import { upsertSystemNotice, type ThreadSystemNotice } from './threadSystemNotices'
+import { resultProjectionHistoryText,upsertSystemNotice, type ThreadSystemNotice } from './threadSystemNotices'
 import { threadPreviewDiagram } from './threadModelDiagram'
 import type { DiagramNetworkView, NetworkDiagram } from './types'
 import type { ResultProjection } from './threadProtocol'
@@ -36,6 +53,8 @@ function connectionLabel(connection: ThreadProjectionState['connection']): strin
 export type ThreadWorkspaceProps = {
   presentation?: 'workspace'
   navigation?: ReactNode
+  workspaceActions?: ReactNode
+  preparedStore?:ThreadProjectionStore
   fixtureId?: ThreadUiFixtureId
   client?: CapstoneThreadClient
   threadId?: string
@@ -49,25 +68,43 @@ export type ThreadWorkspaceProps = {
   prepareConnection?: PrepareConnection
 }
 
-export default function ThreadFixtureApp({ fixtureId, client, threadId: requestedThreadId, previewDiagram, storageKey, readOnly = false, headerActions, sessionNotice, disabledToolIds: sharedDisabledToolIds, onDisabledToolIdsChange, prepareConnection, presentation, navigation }: ThreadWorkspaceProps) {
+export default function ThreadFixtureApp({ fixtureId, client, threadId: requestedThreadId, previewDiagram, storageKey, readOnly = false, headerActions, sessionNotice, disabledToolIds: sharedDisabledToolIds, onDisabledToolIdsChange, prepareConnection, presentation, navigation,workspaceActions,preparedStore }: ThreadWorkspaceProps) {
   const workspace = presentation === 'workspace'
-  const [resourcePanelOpen, setResourcePanelOpen] = useState(false)
-  const [selectedProduct, setSelectedProduct] = useState<string>()
-  const [resourceView,setResourceView]=useState('model')
+  const [resourcePanelOpen, setResourcePanelOpen] = useSessionViewState('resource.open',()=>readWorkspacePanels(requestedThreadId).resource??false)
+  const [selectedProduct, setSelectedProduct] = useSessionViewState<string|undefined>('grid.product',undefined)
+  const [taskResults, setTaskResults] = useState<(TaskResultCollection & {threadId: string})>()
+  const [savedCollection,setSavedCollection]=useSessionViewState<string|undefined>('grid.collection',undefined)
+  const observedTaskOutputs = useRef<{threadId:string; ids:Set<string>} | null>(null)
+  const [resourceView,setResourceView]=useSessionViewState('resource.view','model')
+  const [processReference,setProcessReference]=useState<ProcessProduct>()
   const settingsTrigger=useRef<HTMLButtonElement>(null)
-  const observedProducts = useRef<{ threadId: string; ids: Set<string>; cursor: number; opened: boolean } | null>(null)
+  const topologyTrigger=useRef<HTMLButtonElement>(null)
+  const productTrigger=useRef<HTMLButtonElement>(null)
+  const [requestedProduct,setRequestedProduct]=useState<ProductRequest>()
+  const [requestedReference,setRequestedReference]=useState<{selection:ContextProductRef;nonce:number}>()
+  const [inspectedProductAttempt,setInspectedProductAttempt]=useState<string>()
+  const fileBaseline=useRef<{threadId:string;seq:number;opened:boolean}|undefined>(undefined)
+  const [requestedFile,setRequestedFile]=useState<{threadId:string;attemptId:string;artifactId:string;nonce:number}>()
+  const [selectedDeliveryFile,setSelectedDeliveryFile]=useState<NativeArtifact>()
+  function openFile(file:NativeArtifact) {
+    if(file.thread_id!==threadId)return
+    if(fileBaseline.current?.threadId===threadId)fileBaseline.current.opened=true
+    setRequestedFile({threadId,attemptId:file.attempt_id,artifactId:file.artifact_id,nonce:Date.now()})
+    setRequestedProduct({origin:'native_file',attemptId:file.attempt_id,artifactId:file.artifact_id,workId:file.work_id,nonce:Date.now()});setResourceView(client?.supportsProductIndex?'products':'native-files');setResourcePanelOpen(true)
+  }
   const [localDisabledToolIds, setLocalDisabledToolIds] = useState<string[]>([])
   const disabledToolIds = sharedDisabledToolIds ?? localDisabledToolIds
   const setDisabledToolIds = onDisabledToolIdsChange ?? setLocalDisabledToolIds
   const fixture = useMemo(() => fixtureId ? threadUiFixture(fixtureId) : null, [fixtureId])
   const store = useMemo(() => {
+    if(preparedStore)return preparedStore
     if (client) return new ThreadProjectionStore(client, storageKey)
     if (fixture) return new ThreadProjectionStore(new CapstoneThreadClient(createFixtureTransport(fixture)))
     throw new Error('Thread workspace requires a client or fixture')
-  }, [client, fixture, storageKey])
+  }, [client, fixture, storageKey,preparedStore])
   const threadId = requestedThreadId || (fixture ? String((fixture.snapshot as { thread_id: string }).thread_id) : '')
   const [projection, setProjection] = useState<ThreadProjectionState>(store.state)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(!preparedStore)
   const [error, setError] = useState<string | null>(null)
   const [versionFailure, setVersionFailure] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
@@ -79,7 +116,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   const [reload, setReload] = useState(0)
   const [modelTarget, setModelTarget] = useState('ieee39')
   const [focusedElement, setFocusedElement] = useState<{ resultId: string; modelId: string; modelRevision: string; elementId: string }>()
-  const [selectedNetworkAttempt, setSelectedNetworkAttempt] = useState<string>()
+  const [selectedNetworkAttempt, setSelectedNetworkAttempt] = useSessionViewState<string|undefined>('grid.network-attempt',undefined)
   const networkFollowCursor = useRef<{ threadId: string; eventSeq: number } | null>(null)
   const [instructionLocation, setInstructionLocation] = useState<{ attemptId: string; nonce: number }>()
   const [taskReturn, setTaskReturn] = useState<{ contextId: string; attemptId?: string; nonce: number }>()
@@ -141,16 +178,17 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
       if (active) setProjection({ ...store.state, pendingCommands: [...store.state.pendingCommands] })
     })
     if (!pageVisible || activity.paused) return () => { active = false; abort.abort(); unsubscribe() }
-    setLoading(true); setError(null); setVersionFailure(false); setNotice(null)
+    if(!store.state.snapshot)setLoading(true); setError(null); setVersionFailure(false); setNotice(null)
     void (async () => {
       try {
-        await store.load(threadId)
+        if(!preparedStore||reload>0)await store.load(threadId)
         for (const entry of store.state.pendingCommands) {
           if (!entry.receipt && ['send_auto', 'send_ordinary', 'send_professional'].includes(entry.command.kind)) composerCommands.current.add(entry.command.command_id)
         }
         // React StrictMode mounts effects twice in development. An old load
         // must not continue into catch-up and race the active projection.
         if (!active) return
+        if(fileBaseline.current?.threadId!==threadId)fileBaseline.current={threadId,seq:store.state.eventSeq,opened:false}
         if (fixture?.local_view.viewed_grid_page_id && fixture.local_view.viewed_grid_page_id !== store.state.snapshot?.activeGridPageId) {
           store.viewGridPage(fixture.local_view.viewed_grid_page_id)
         }
@@ -169,7 +207,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
                 const payload = entry.command.payload
                 const submission = payload.input ? { input: payload.input,
                   ...(payload.resource_profile ? { resource_profile: payload.resource_profile } : {}),
-                  context_selection: payload.context_selection || { include_refs: [], exclude_refs: [] } } as InputSubmission : undefined
+                  context_selection: payload.context_selection || { include_refs: [], exclude_refs: [] },...(payload.context_product_refs!==undefined?{context_product_refs:payload.context_product_refs}:{}) } as InputSubmission : undefined
                 setAcceptedDraft(savedCandidate(entry.command.command_id) || { text: entry.command.payload.text, commandId: entry.command.command_id, submission })
               }
               addSystemNotice('已确认原操作提交成功。', 'info', `receipt-${entry.command.command_id}`)
@@ -180,7 +218,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
         }
         if (active) setProjection({ ...store.state, pendingCommands: [...store.state.pendingCommands] })
         if (active && store.canStreamEvents) {
-          stableTimer = setTimeout(() => { reconnectFailures.current = 0 }, 30_000)
+          stableTimer = setTimeout(() => { reconnectFailures.current = 0 }, applicationCapacity('ui_reconnect_stable_ms'))
           void store.consumeEvents(abort.signal).catch((cause) => {
             if (stableTimer) clearTimeout(stableTimer)
             if (active && !(cause instanceof DOMException && cause.name === 'AbortError')) {
@@ -202,24 +240,32 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   }, [fixture, pageVisible, activity.paused, reload, store, threadId])
 
   const snapshot = projection.snapshot
+  useEffect(()=>{
+    if(taskResults){setSavedCollection(taskResults.id);return}
+    if(!savedCollection||!snapshot)return
+    const results=snapshot.resultProjections||[]
+    const found=[...new Set(results.map(result=>result.attemptId))].flatMap(attempt=>taskResultCollections(results,attempt)).find(collection=>collection.id===savedCollection)
+    if(found)setTaskResults({...found,threadId:snapshot.threadId})
+  },[taskResults,savedCollection,snapshot])
   const product = snapshot?.resultProjections?.find(result => result.resultId === selectedProduct)
   useEffect(() => {
     if (!workspace || !snapshot) return
-    const products = (snapshot.resultProjections || []).filter(result => result.status !== 'unavailable' && result.resultRef && (result.summary.length > 0 || result.tables.length > 0))
-    const observed = observedProducts.current
-    if (!observed || observed.threadId !== snapshot.threadId) {
-      observedProducts.current = {threadId:snapshot.threadId, ids:new Set(products.map(result=>result.resultId)), cursor:projection.eventSeq, opened:false}
-      return
-    }
-    const latestAttempt = snapshot.currentAttempt?.attemptId || [...store.publicEvents].reverse()
-      .find(event => event.attemptId && ['command_accepted','attempt_started','attempt_completed','attempt_failed','attempt_cancelled','attempt_interrupted'].includes(event.eventType))?.attemptId
-    const generated = products.find(result => !observed.ids.has(result.resultId) && result.attemptId === latestAttempt && projection.eventSeq > observed.cursor)
-    observed.ids = new Set(products.map(result=>result.resultId))
-    if (generated && !observed.opened) {
-      observed.opened = true
-      setSelectedProduct(generated.resultId); setResourceView('result'); setResourcePanelOpen(true)
-    }
-  }, [workspace, snapshot, projection.eventSeq])
+    const results = snapshot.resultProjections || []
+    const attempts = [...new Set(results.map(result => result.attemptId))]
+    const collections = attempts.flatMap(attempt => taskResultCollections(results, attempt))
+    const previous = observedTaskOutputs.current
+    observedTaskOutputs.current = {threadId:snapshot.threadId,ids:new Set(collections.map(item => item.id))}
+    if (!previous || previous.threadId !== snapshot.threadId) return
+    const latest = [...store.publicEvents].reverse().find(event => event.eventType === 'attempt_completed')
+    const generated = collections.find(item => !previous.ids.has(item.id) && item.attemptId === latest?.attemptId)
+    if (generated) { setTaskResults({...generated,threadId:snapshot.threadId}); if(!fileBaseline.current?.opened){if(fileBaseline.current)fileBaseline.current.opened=true;setResourceView('task-results'); setResourcePanelOpen(true)} }
+  }, [workspace, snapshot, store])
+  useEffect(()=>{
+    const baseline=fileBaseline.current
+    if(!workspace||!baseline||baseline.threadId!==threadId||baseline.opened)return
+    const file=projectNativeArtifacts(store.publicEvents.filter(event=>event.eventSeq>baseline.seq)).find(file=>file.thread_id===threadId)
+    if(file)openFile(file)
+  },[workspace,threadId,projection.eventSeq,store])
   const selectedTools = useMemo(() => enabledTools(projection.catalog?.profiles || [], disabledToolIds), [projection.catalog?.profiles, disabledToolIds])
   useEffect(() => {
     if (!snapshot) return
@@ -318,9 +364,11 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
     return [active, ...fromCatalog]
   }, [projection.catalog?.models, snapshot])
   const events = store.publicEvents
-  const firstInput=events.find(event=>event.eventType==='command_accepted' && ['send_auto','send_ordinary','send_professional'].includes(String(event.payload.kind)))
-  const acceptedText=firstInput?.payload.text ?? (firstInput?.payload.payload as Record<string,unknown> | undefined)?.text
-  const workspaceTitle=typeof acceptedText==='string' && acceptedText.trim() ? acceptedText.trim() : '新会话'
+  const workspaceTitle=snapshot?.sessionTitle ? displaySessionTitle(snapshot.sessionTitle) : '电网分析与决策'
+  const nativeFiles=projectNativeArtifacts(events).filter(file=>file.thread_id===threadId)
+  const productRevision=Math.max(0,...events.filter(event=>['attempt_completed','attempt_failed','attempt_cancelled','attempt_interrupted','native_artifact_published','delivery_published'].includes(event.eventType)).map(event=>event.eventSeq))
+  const nativeAttemptIds=[...new Set(nativeFiles.map(file=>file.attempt_id))]
+  const modelOpen=resourcePanelOpen&&resourceView==='model'
   useEffect(() => {
     if (loading || !snapshot) return
     const previous = networkFollowCursor.current
@@ -455,7 +503,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   async function locateTaskInstruction(target: string, stillCurrent: () => boolean, generation: number) {
     const hasInstruction = () => store.publicEvents.some(event => event.attemptId === target && event.eventType === 'command_accepted'
       && ['send_auto', 'send_ordinary', 'send_professional'].includes(String(event.payload.kind)))
-    for (let pages = 0; !hasInstruction() && store.state.hasOlderHistory && pages < 8; pages++) {
+    for (let pages = 0; !hasInstruction() && store.state.hasOlderHistory && pages < applicationCapacity('artifact_initial_pages'); pages++) {
       await store.loadOlderHistory()
       if (!stillCurrent()) return
       sync()
@@ -633,8 +681,9 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
       }
     }
     if (store.state.snapshot?.runtimeMode === 'pi_reference') {
-      const receipt = await dispatch('send_auto', { text, ...input, input: input?.input || { kind: 'text', text } })
+      const receipt = await dispatch('send_auto', { text, ...input, input: input?.input || { kind: 'text', text }, ...(processReference?.threadId === threadId ? {source_attempt_id:processReference.attemptId} : {}) })
       if (receipt?.status !== 'accepted') throw new MessageNotSentError('指令未发送，请检查页面提示后重试。')
+      setProcessReference(undefined)
       return
     }
     let family = store.state.snapshot?.pendingModelSwitch?.implementationFamily || store.state.snapshot?.activeModelContext.implementationFamily || ''
@@ -674,9 +723,11 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
     }
     const tools = requireEnabledTools(family, text)
     const receipt = await dispatch(mode === 'professional' ? 'send_professional' : mode === 'ordinary' ? 'send_ordinary' : 'send_auto', { text, ...input, input: input?.input || { kind: 'text', text },
+      ...(processReference?.threadId === threadId ? {source_attempt_id:processReference.attemptId} : {}),
       ...(projection.catalog?.profiles.length ? { enabled_profiles: tools.map((profile) => ({ profile_id: profile.profileId, profile_version: profile.profileVersion })) } : {}),
     })
     if (receipt?.status !== 'accepted') throw new MessageNotSentError('指令未发送，请检查页面提示后重试。')
+    setProcessReference(undefined)
   }
 
   async function changeModel(kind: 'open_model' | 'activate_model' | 'close_model' | 'reopen_model_context', payload: Record<string, unknown>, owner?: symbol): Promise<boolean> {
@@ -776,23 +827,39 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
           modelBusy={!canConfigure}
           onOpenHistoricalModel={projection.modelWorkspace ? (modelId, revision) => { void changeModel('open_model', { model_id: modelId, model_revision: revision }).catch(() => addSystemNotice('历史模型无法打开，请重新连接。', 'error')) } : undefined} />
     </>
-  return <ThreadWorkspace loading={loading} ready={Boolean(snapshot)} conversationOnly={workspace} subtitle={workspace ? '企业工作台' : undefined}
-    workspaceActions={workspace && <button type="button" className="workspace-resource-menu" aria-label={`业务能力与资源，已选择${selectedTools.length}项`} onClick={()=>{settingsTrigger.current?.click();settingsTrigger.current?.focus({preventScroll:true})}}>业务能力 {selectedTools.length}</button>}
-    resourcePanel={workspace ? modelPane : undefined} resourceLabel={product && resourceView==='result' ? '计算结果' : '模型与结果'} resourcePanelOpen={resourcePanelOpen} onResourcePanelOpenChange={setResourcePanelOpen}
+  const productsPanel=client&&<ThreadProductsWorkspace key={threadId} client={client} threadId={threadId} workId={null} revision={Math.max(0,...events.filter(event=>['attempt_completed','attempt_failed','attempt_cancelled','attempt_interrupted','native_artifact_published','delivery_published'].includes(event.eventType)).map(event=>event.eventSeq))} requested={requestedProduct}
+    onReference={(entry,excerpt)=>setRequestedReference({selection:{ref:entry.ref,purpose:'historical-context',...(excerpt?{excerpt}:{})},nonce:Date.now()})}
+    onAdopt={client.supportsDeliveries?file=>{setSelectedDeliveryFile(file);setResourceView('deliveries');setResourcePanelOpen(true)}:undefined}
+    onLocate={attemptId=>{const generation=++taskReturnGeneration.current;void locateTaskInstruction(attemptId,()=>generation===taskReturnGeneration.current,generation).then(()=>setResourcePanelOpen(false)).catch(()=>setNotice('原指令暂时无法定位，请重试。'))}}
+    onFocusElement={focusResultElement} onBrowse={()=>{if(fileBaseline.current?.threadId===threadId)fileBaseline.current.opened=true}} onInspect={setInspectedProductAttempt}
+    fallback={<><details open={requestedProduct?.origin==='native_file'}><summary>指令文件</summary><NativeArtifactsWorkspace client={client} threadId={threadId} attemptIds={nativeAttemptIds} revision={productRevision} requestedArtifact={requestedFile?.threadId===threadId?requestedFile:undefined} onAdopt={client.supportsDeliveries?file=>{setSelectedDeliveryFile(file);setResourceView('deliveries');setResourcePanelOpen(true)}:undefined}/></details>{product&&<ResultProjectionCard projection={product} onFocusElement={focusResultElement}/>}<details><summary>任务交付</summary><TaskDeliveriesWorkspace client={client} threadId={threadId} revision={productRevision}/></details><details><summary>过程记录</summary><ProcessProductWorkspace client={client} threadId={threadId} revision={productRevision} onReference={setProcessReference} onLocate={setSelectedNetworkAttempt}/></details></>}/>
+  return <ThreadWorkspace sessionKey={threadId} loading={loading} ready={Boolean(snapshot)} conversationOnly={workspace} subtitle={workspace ? '企业工作台' : undefined}
+    resourceToggleRef={resourceView==='model'?topologyTrigger:productTrigger}
+    resourcePanel={workspace ? modelPane : undefined} resourceLabel={resourceView==='products'?'成果':resourceView==='native-files'?'指令文件':resourceView==='deliveries'?'任务交付':resourceView==='process-products'?'过程制品':taskResults && resourceView==='task-results' ? taskResults.title : product && resourceView==='result' ? '计算结果' : '电气拓扑'} resourcePanelOpen={resourcePanelOpen} onResourcePanelOpenChange={setResourcePanelOpen}
     selectedResourceView={resourceView} onResourceViewChange={setResourceView}
     resourceViews={workspace ? [{id:'model',label:'电气拓扑',content:modelPane,description:isHistorical ? '历史模型资源 · 保持原模型修订与只读边界' : '当前模型资源 · 计算状态以实际运行结果为准'},
+      ...(client?.supportsProductIndex?[{id:'products',label:'成果',content:productsPanel,description:'任务交付与指令产物，保留真实来源和版本。'}]:[]),
+      ...(!client?.supportsProductIndex && client && nativeFiles.length ? [{id:'native-files',label:'指令文件',content:<NativeArtifactsWorkspace key={threadId} client={client} threadId={threadId} attemptIds={nativeAttemptIds} revision={productRevision} requestedArtifact={requestedFile?.threadId===threadId?requestedFile:undefined} onAdopt={client.supportsDeliveries?file=>{setSelectedDeliveryFile(file);setResourceView('deliveries');setResourcePanelOpen(true)}:undefined}/>}]:[]),
+      ...(client?.supportsDeliveries && (!client.supportsProductIndex || selectedDeliveryFile?.thread_id===threadId) ? [{id:'deliveries',label:'任务交付',content:<TaskDeliveriesWorkspace key={threadId} client={client} threadId={threadId} revision={Math.max(0,...events.filter(event=>['attempt_completed','attempt_failed','attempt_cancelled','attempt_interrupted','delivery_published'].includes(event.eventType)).map(event=>event.eventSeq))} requestedArtifact={selectedDeliveryFile?.thread_id===threadId?selectedDeliveryFile:undefined} onPublished={()=>{void store.catchUp().then(sync)}} />}] : []),
+      ...(!client?.supportsProductIndex && client?.supportsProcessProducts ? [{id:'process-products',label:'过程制品',content:<ProcessProductWorkspace key={threadId} client={client} threadId={threadId} revision={Math.max(0,...events.filter(event=>['attempt_completed','attempt_failed','attempt_cancelled','attempt_interrupted'].includes(event.eventType)).map(event=>event.eventSeq))} onReference={setProcessReference} onLocate={target=>{const generation=++taskReturnGeneration.current;void locateTaskInstruction(target,()=>generation===taskReturnGeneration.current,generation).catch(()=>setNotice('原指令暂时无法定位，请重试。'))}} />}] : []),
+      ...(taskResults && taskResults.threadId === threadId ? [{id:'task-results',label:taskResults.title,description:'本次指令的分析结果 · 可按运行状态查看与核查',content:<TaskResultWorkspace key={taskResults.id} collection={taskResults} onFocusElement={focusResultElement} />}] : []),
       ...(product ? [{id:'result',label:'计算结果',description:`${product.modelId} · ${product.status==='partial' ? '部分结果' : '已完成'} · 已保存的计算结果`,content:<div className="thread-result-product-view"><p>{product.modelContextId===snapshot?.activeModelContext.id ? '当前模型的已保存计算结果' : '历史模型的已保存计算结果'} · {product.modelId}</p><ResultProjectionCard projection={product} onFocusElement={focusResultElement} /></div>}] : [])] : undefined}
     preparation={(activity.mode === 'preparing' || activity.mode === 'failed') && <div className="thread-resume-progress">
       <WorkbenchPreparation compact updates={activity.updates} error={activity.error}
         onRetry={() => { void activity.ensureReady().catch(() => {}) }} />
     </div>}
     sidebar={workspace ? navigation : modelPane}
-    heading={snapshot && <div className="thread-chat-heading"><div className="thread-chat-heading-title"><h2>{workspace ? workspaceTitle : '智能体对话'}</h2><span className="thread-model-short">{snapshot.activeModelContext.modelId} · {snapshot.activeModelContext.implementationFamily}</span></div><div className="thread-chat-heading-meta">{projection.connection !== 'live' && <span className={`thread-connection-state is-${projection.connection}`}>{versionFailure ? '需更新应用' : connectionLabel(projection.connection)}</span>}{activity.mode === 'idle' && <span className="thread-idle-state" title="页面暂未操作，继续使用时自动恢复连接。">按需连接</span>}<span inert={activity.paused}>{headerActions}</span></div></div>}
+    workspaceActions={workspace?<>{workspaceActions}<button type="button" className="thread-control-button thread-session-refresh" aria-label="刷新会话" title="刷新会话状态，不重新执行任务" onClick={()=>{void store.catchUp().then(sync).catch(()=>setNotice('刷新未完成，请重试。'))}}><RefreshCw size={16} aria-hidden="true"/></button></>:undefined}
+    heading={snapshot && <div className="thread-chat-heading"><SessionHeading title={workspace ? workspaceTitle : '智能体对话'} subtitle={`${snapshot.activeModelContext.modelId} · ${snapshot.activeModelContext.implementationFamily}`} subtitleAction={workspace?<><button ref={topologyTrigger} type="button" className="session-object-link" aria-label={modelOpen?'收起电气拓扑':'打开电气拓扑'} title={modelOpen?'收起电气拓扑':'打开电气拓扑'} aria-expanded={modelOpen} aria-controls={`thread-resource-panel-${threadId}`} onClick={()=>{setResourceView('model');setResourcePanelOpen(!modelOpen)}}>拓扑</button>{client?.supportsProductIndex&&<button ref={productTrigger} type="button" className="session-object-link" aria-label={resourcePanelOpen&&resourceView==='products'?'收起成果目录':'打开成果目录'} aria-expanded={resourcePanelOpen&&resourceView==='products'} onClick={()=>{if(fileBaseline.current?.threadId===threadId)fileBaseline.current.opened=true;setResourceView('products');setResourcePanelOpen(!(resourcePanelOpen&&resourceView==='products'))}}>成果</button>}</>:undefined} onSave={workspace && client?.supportsSessionTitle ? async text=>{const key=commandKey();const receipt=await client.renameSession(threadId,snapshot.run.runId,snapshot.sessionTitle?.revision || 0,text,key,key);if(receipt.status!=='accepted')throw new Error('名称未保存');if(receipt.acceptedEventSeq)await store.catchUpThrough(receipt.acceptedEventSeq);sync();window.dispatchEvent(new Event('capstone-session-renamed'))} : undefined}/><div className="thread-chat-heading-meta">{projection.connection !== 'live' && <span className={`thread-connection-state is-${projection.connection}`}>{versionFailure ? '需更新应用' : connectionLabel(projection.connection)}</span>}{activity.mode === 'idle' && <span className="thread-idle-state" title="页面暂未操作，继续使用时自动恢复连接。">按需连接</span>}<span inert={activity.paused}>{headerActions}</span></div></div>}
   >
+    {inspectedProductAttempt&&client&&<AnswerDetailSheet title="执行详情" answerLabel="所选成果的来源指令" onClose={()=>setInspectedProductAttempt(undefined)}><AttemptRecordPanel attemptId={inspectedProductAttempt} read={(id,after)=>client.attemptRecords(threadId,id,after)}/></AnswerDetailSheet>}
     {snapshot && <>
-          <CapstoneAssistantThread emptyState={workspace ? <div className="workspace-conversation-empty"><span className="eyebrow">A SPACE FOR YOUR WORK</span><strong>从一个问题开始，<br />让工作逐步成形。</strong><p>提出目标，补充资料，或继续一项研究。</p></div> : undefined} storageKey={storageKey} hasOlderHistory={projection.hasOlderHistory} historyLoading={projection.historyLoading}
+          <CapstoneAssistantThread resultHistoryNotice={resultProjectionHistoryText(snapshot)} emptyState={workspace ? <div className="workspace-conversation-empty"><span className="eyebrow">A SPACE FOR YOUR WORK</span><strong>从一个问题开始，<br />让工作逐步成形。</strong><p>提出目标，补充资料，或继续一项研究。</p></div> : undefined} storageKey={storageKey} hasOlderHistory={projection.hasOlderHistory} historyLoading={projection.historyLoading}
+            productReferenceReader={client?(ref,signal)=>client.resolveProduct(ref,signal):undefined} requestedProductReference={requestedReference?.selection.ref.thread_id===threadId?requestedReference:undefined}
+            onOpenNativeArtifact={workspace&&client?openFile:undefined}
             onOpenAnswerDetail={workspace ? ()=>setResourcePanelOpen(false) : undefined}
-            onOpenResultProduct={workspace ? result=>{setSelectedProduct(result.resultId);setResourceView('result');setResourcePanelOpen(true)} : undefined}
+            onOpenTaskResults={workspace ? value=>{setTaskResults({...value,threadId});setResourceView('task-results');setResourcePanelOpen(true)} : undefined}
+            onOpenResultProduct={workspace ? result=>{setSelectedProduct(result.resultId);setRequestedProduct({origin:'domain_result',attemptId:result.attemptId,resultId:result.resultId,workId:null,nonce:Date.now()});setResourceView(client?.supportsProductIndex?'products':'result');setResourcePanelOpen(true)} : undefined}
             onReadAttemptRecords={client?.supportsAttemptRecords ? (attemptId, after) => client.attemptRecords(threadId, attemptId, after) : undefined}
             systemNotices={systemState.thread === threadId ? systemState.items : []} onSystemAction={() => setReload((value) => value + 1)}
             historyAtLatest={projection.historyAtLatest} onReturnLatest={() => setReload((value) => value + 1)}
@@ -816,7 +883,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
             caseExecution={displayedCaseExecution} caseCatalog={projection.catalog?.cases || []} caseConnection={projection.connection}
             caseStartDisabledReason={inputCatalog?.operations.find(item => item.operation_id === 'start_case_execution')?.available === false ? '当前执行角色或能力不支持案例' : !inputCatalog && snapshot.runtimeMode === 'pi_reference' ? '请先切换到 Capstone' : undefined}
             onCaseStart={startCase} onCaseAction={caseAction}
-            composerControls={(historyActions) => <><ThreadControls triggerRef={settingsTrigger} catalog={projection.catalog} selectedProfiles={selectedTools}
+            composerControls={(historyActions) => <>{processReference?.threadId === threadId && <span className="process-reference" title={processReference.instruction}>引用：{processReference.instruction.slice(0,36)}<button type="button" aria-label="移除指令引用" onClick={()=>setProcessReference(undefined)}>×</button></span>}<ThreadControls triggerRef={settingsTrigger} catalog={projection.catalog} selectedProfiles={selectedTools}
               pendingModel={snapshot.pendingModelSwitch?.modelId} disabled={!canConfigure} historyActions={historyActions}
               resetDisabled={!canConfigure}
               onResetWork={projection.catalog?.workContextReset ? () => { void changeModel('reopen_model_context', { model_id: snapshot.activeModelContext.modelId, reason: 'user_requested_work_reset' }).catch(() => addSystemNotice('重置尚未确认，请重新连接后检查当前模型。', 'error')) } : undefined}

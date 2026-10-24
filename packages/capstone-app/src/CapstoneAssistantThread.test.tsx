@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import CapstoneAssistantThread, { projectAssistantActivity, projectAssistantMessages } from './CapstoneAssistantThread'
 import type { EventEnvelope, ResultProjection } from './threadProtocol'
+import {parseProductRef} from './threadProducts'
 
 afterEach(() => { cleanup(); localStorage.clear() })
 
@@ -11,16 +12,281 @@ const event = (eventType: string, eventSeq: number, payload: Record<string, unkn
 })
 
 describe('CapstoneAssistantThread', () => {
-  it('offers a persisted result product card only for that answer and opens its registered viewer', () => {
-    const result:ResultProjection={resultId:'res_one',resultRef:'result:one',evidenceRefs:['evidence:one'],threadId:'thr_demo',runId:'run_demo',turnId:'turn_one',attemptId:'one',modelContextId:'ctx_one',modelId:'ieee39',modelRevision:'7',source:{capabilityId:'powerflow.ac',domainPackId:'grid',implementationFamily:'pandapower'},status:'completed',summary:[{metricId:'loss',label:'有功损耗',value:1}],tables:[],elementRefs:[]}
+  it('shows timed main-chain startup before the first task or tool exists', () => {
+    const events=[event('command_accepted',1,{kind:'send_auto',payload:{text:'分析资料'}},'startup'),event('attempt_started',2,{},'startup')]
+    render(<CapstoneAssistantThread events={events} activity={projectAssistantActivity(events)} disabled={false} isRunning={true} onSend={async()=>{}} onCancel={async()=>{}} />)
+    expect(screen.getByRole('region',{name:'任务启动'}).textContent).toContain('处理中')
+    expect(screen.getByRole('region',{name:'任务启动'}).textContent).toContain('已用时')
+  })
+  it('passes the trusted cancelled attempt phase to its retained graph reader', () => {
+    const owner = { thread_id: 'thr_demo', work_id: 'work', research_id: 'research', goal_revision: 1 }
+    const node = { id: 'actual-node', purpose: 'Retained parent', questions: [], checks: [], depends_on: [], expected_outputs: [], mode: 'execute', execution: 'parent', instruction: 'Use evidence', outputs: [], inputs: [], phase: 'ready', applicability: 'current', execution_revision: 1, execute_action_id: null, assess_action_id: null, blocked_by: [], wait_reason: null, input_bindings: [], output_bindings: [], settled_status: null }
+    Object.assign(node, { source_refs: ['source:retained'], selected_source_versions: [{ ref: 'source:retained', revision: 'v1' }] })
+    const graph = { schema: 'capstone-enterprise-graph/2', graph_ref: 'graph:one', graph_revision: 1, goal: 'Inspect', output_mode: 'text', model_revision_reason: null, nodes: [node], actions: [], results: [] }
+    render(<CapstoneAssistantThread events={[event('command_accepted', 1, { kind: 'send_auto', text: 'Inspect' }, 'graph'), event('attempt_started', 2, {}, 'graph'),
+      event('runtime_event', 3, { research_graph: { type: 'enterprise_graph_progress', owner, attempt_id: 'graph', task_id: 'task', checkpoint: { ref: 'checkpoint:one', revision: 1 }, graph, events: [] } }, 'graph'),
+      event('attempt_cancelled', 4, {}, 'graph')]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: '放大阅读执行过程' }))
+    fireEvent.click(within(screen.getByRole('dialog', { name: '执行过程' })).getByRole('button', { name: '查看完整计划' }))
+    expect(within(screen.getByRole('dialog', { name: '执行过程' })).getByText('任务已取消 · 最后步骤状态：可执行')).toBeTruthy()
+    const source = within(screen.getByRole('dialog', { name: '执行过程' })).getByText('source:retained')
+    expect(source.closest('details')!.open).toBe(false)
+  })
+  it.each(['input_name', 'producer_step_id'])('keeps the reader safe and uses legacy fallback for malformed %s', field => {
+    const owner = { thread_id: 'thr_demo', work_id: 'work', research_id: 'research', goal_revision: 1 }
+    const node = { id: 'actual-node', purpose: 'Valid graph question', questions: [], checks: [], depends_on: [], expected_outputs: [], mode: 'execute', execution: 'parent', instruction: 'Use evidence', outputs: [], inputs: [], phase: 'ready', applicability: 'current', execution_revision: 1, execute_action_id: null, assess_action_id: null, blocked_by: [], wait_reason: null, input_bindings: [], output_bindings: [], settled_status: null }
+    const graph = { schema: 'capstone-enterprise-graph/2', graph_ref: 'graph:one', graph_revision: 1, goal: 'Inspect', output_mode: 'text', model_revision_reason: null, nodes: [node], actions: [], results: [] }
+    const bad = structuredClone(graph)
+    Object.assign(bad.nodes[0], { input_bindings: [{ result_ref: 'result:old', slot: 'answer', [field]: { bad: true } }] })
+    const progress = (seq: number, value: typeof graph) => event('runtime_event', seq, { task_step: { id: 'legacy', number: 1, title: 'Safe legacy process', status: 'running' }, research_graph: { type: 'enterprise_graph_progress', owner, attempt_id: 'graph', task_id: 'task', checkpoint: { ref: `checkpoint:${seq}`, revision: seq }, graph: value, events: [] } }, 'graph')
+    const start = [event('command_accepted', 1, { kind: 'send_auto', text: 'Inspect' }, 'graph'), event('attempt_started', 2, {}, 'graph')]
+    const props = { disabled: false, isRunning: true, activity: [], onSend: async () => {}, onCancel: async () => {} }
+    const { rerender } = render(<CapstoneAssistantThread {...props} events={[...start, progress(3, bad)]} />)
+    expect(screen.getByText('Safe legacy process')).toBeTruthy()
+    expect(screen.queryByRole('region', { name: 'Valid graph question' })).toBeNull()
+    rerender(<CapstoneAssistantThread {...props} events={[...start, progress(3, graph), progress(4, bad)]} />)
+    fireEvent.click(screen.getByRole('button', { name: '查看完整计划' }))
+    expect(screen.getByRole('region', { name: 'Valid graph question' })).toBeTruthy()
+    expect(screen.queryByText('Safe legacy process')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '放大阅读执行过程' }))
+    fireEvent.click(within(screen.getByRole('dialog', { name: '执行过程' })).getByRole('button', { name: '查看完整计划' }))
+    expect(within(screen.getByRole('dialog', { name: '执行过程' })).getByRole('region', { name: 'Valid graph question' })).toBeTruthy()
+  })
+  it('uses the admitted graph in the existing reader and leaves legacy projections out of graph records', () => {
+    const owner = { thread_id: 'thr_demo', work_id: 'work', research_id: 'research', goal_revision: 1 }
+    const node = { id: 'actual-node', purpose: '模型原始研究问题', questions: ['为何发生？'], checks: [], depends_on: [], expected_outputs: ['解释'], mode: 'execute', execution: 'parent', instruction: '分析实际观察', outputs: [], inputs: [], phase: 'ready', applicability: 'current', execution_revision: 1, execute_action_id: null, assess_action_id: null, blocked_by: [], wait_reason: null, input_bindings: [], output_bindings: [], settled_status: null }
+    const graph = { schema: 'capstone-enterprise-graph/2', graph_ref: 'graph:one', graph_revision: 1, goal: '分析原因', output_mode: 'text', model_revision_reason: null, nodes: [node], actions: [], results: [] }
+    const events = [event('command_accepted', 1, { kind: 'send_auto', text: '分析原因' }, 'graph'), event('attempt_started', 2, {}, 'graph'), event('runtime_event', 3, { task_step: { id: 'legacy', number: 1, title: '旧单步骤准备', status: 'running' }, research_graph: { type: 'enterprise_graph_progress', owner, attempt_id: 'graph', task_id: 'task', checkpoint: { ref: 'checkpoint:one', revision: 1 }, graph, events: [{ kind: 'graph_committed', graph_ref: 'graph:one' }] } }, 'graph')]
+    render(<CapstoneAssistantThread events={events} disabled={false} isRunning activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: '查看完整计划' }))
+    expect(screen.getByRole('region', { name: '模型原始研究问题' })).toBeTruthy()
+    expect(screen.queryByText('旧单步骤准备')).toBeNull()
+    const embeddedToggle = screen.getByRole('button', { name: '展开步骤：模型原始研究问题' })
+    expect(embeddedToggle.getAttribute('aria-expanded')).toBe('false')
+    const enlarge = screen.getByRole('button', { name: '放大阅读执行过程' }); enlarge.focus(); fireEvent.click(enlarge)
+    const reader = screen.getByRole('dialog', { name: '执行过程' })
+    fireEvent.click(within(reader).getByRole('button', { name: '查看完整计划' }))
+    expect(within(reader).getByText('为何发生？')).toBeTruthy()
+    expect(within(reader).getByText(/模型提交执行图/)).toBeTruthy()
+    fireEvent.click(within(reader).getByRole('button', { name: '折叠步骤：模型原始研究问题' }))
+    fireEvent.keyDown(reader, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).toBeNull(); expect(document.activeElement).toBe(enlarge)
+    expect(embeddedToggle.getAttribute('aria-expanded')).toBe('false')
+    fireEvent.click(enlarge)
+    fireEvent.click(within(screen.getByRole('dialog', { name: '执行过程' })).getByRole('button', { name: '查看完整计划' }))
+    expect(within(screen.getByRole('dialog', { name: '执行过程' })).getByRole('button', { name: '展开步骤：模型原始研究问题' }).getAttribute('aria-expanded')).toBe('false')
+  })
+  it.each([false,true])('shows typed capacity values and phase without exposing raw exceptions, admitted partial=%s',partial=>{
+    const capacity={code:'capacity_exceeded',dimension:'artifact_file_bytes',actual:8193,limit:8192,unit:'bytes',phase:'collect_artifacts',retryable:false}
+    render(<CapstoneAssistantThread events={[
+      event('assistant_text_delta',1,{text:'已经保存的分析。'},'bounded'),
+      event('attempt_failed',2,{error_code:'native_capacity_exceeded',message:'RAW_EXCEPTION private/path secret',failure:{code:'native_capacity_exceeded',phase:'native_execution',capacity},...(partial?{answer:'已经保存的分析。',outcome:{status:'partial'}}:{})},'bounded'),
+    ]} disabled={false} isRunning={false} activity={[]} onSend={async()=>{}} onCancel={async()=>{}} />)
+    expect(screen.getByText('已经保存的分析。')).toBeTruthy()
+    const notice=screen.getByText('执行超过容量限制').closest('.capstone-system-notice')!
+    expect(notice.textContent).toContain('实际：8193 字节')
+    expect(notice.textContent).toContain('上限：8192 字节')
+    expect(notice.textContent).toContain('发生位置：collect_artifacts')
+    expect(screen.queryByText(/RAW_EXCEPTION/)).toBeNull()
+  })
+  it('keeps malformed capacity records safe without inventing quantities or showing an exception',()=>{
+    render(<CapstoneAssistantThread events={[event('attempt_failed',1,{error_code:'native_capacity_exceeded',error:'RAW_EXCEPTION credentials',failure:{code:'native_capacity_exceeded',phase:'native_execution',capacity:{actual:99}}},'bounded')]} disabled={false} isRunning={false} activity={[]} onSend={async()=>{}} onCancel={async()=>{}} />)
+    expect(screen.getByText(/当前记录未提供可核对的实际值与上限/)).toBeTruthy()
+    expect(screen.queryByText(/RAW_EXCEPTION/)).toBeNull()
+  })
+  it('renders native work records and tools inside the shared runtime steps', () => {
+    const step={id:'pi-task.runtime-1',number:1,title:'检查资料覆盖和缺失',status:'completed'}
+    render(<CapstoneAssistantThread events={[
+      event('runtime_action',1,{task_step:step},'native'),
+      event('runtime_event',2,{task_id:'pi-task',native_type:'tool_execution_start',tool_name:'bash',tool_call_id:'read',task_step_id:step.id,activity:{operation:'读取上传资料'}},'native'),
+      event('runtime_event',3,{task_id:'pi-task',native_type:'tool_execution_end',tool_name:'bash',tool_call_id:'read',is_error:false,task_step_id:step.id},'native'),
+      event('runtime_event',4,{task_id:'pi-task',native_type:'tool_execution_end',tool_name:'agent_task_progress',tool_call_id:'note',is_error:false,task_step_id:step.id,runtime_step_tracking:true,task_progress:{kind:'observation',text:'两列存在缺失，按实际覆盖统计。',refs:[]}},'native'),
+      event('attempt_completed',5,{answer:'分析完成',task_steps:[step]},'native'),
+    ]} disabled={false} isRunning={false} activity={[]} onSend={async()=>{}} onCancel={async()=>{}} />)
+    fireEvent.click(screen.getByRole('button',{name:'查看执行过程'}))
+    const title=screen.getByText('检查资料覆盖和缺失')
+    const section=title.closest('details')!
+    expect(within(section).getByText('两列存在缺失，按实际覆盖统计。')).toBeTruthy()
+    expect(within(section).getByText('读取上传资料')).toBeTruthy()
+  })
+  it('opens live process research details in a reader without changing embedded folds and restores focus with Escape', () => {
+    const step = { id: 'readable', number: 1, title: '核查来源差异', status: 'running', questions: ['为何有差异？'], result_summary: '已确认一项差异' }
+    const props = { disabled: false, isRunning: true, activity: [], onSend: async () => {}, onCancel: async () => {} }
+    const events = [event('command_accepted', 1, { kind: 'send_auto', text: '核查来源' }, 'reader'), event('attempt_started', 2, {}, 'reader'), event('runtime_event', 3, { task_step: step }, 'reader')]
+    const { rerender, container } = render(<CapstoneAssistantThread {...props} events={events} />)
+    const trigger = screen.getByRole('button', { name: '放大阅读执行过程' })
+    const embeddedTools = container.querySelector<HTMLDetailsElement>('.capstone-business-step')!
+    fireEvent.click(embeddedTools.querySelector('summary')!)
+    const embeddedViewport = container.querySelector<HTMLElement>('.capstone-chat-activity-preview')!
+    embeddedViewport.scrollTop = 37
+    trigger.focus()
+    expect(screen.queryByText('为何有差异？')).toBeNull()
+    fireEvent.click(trigger)
+    const reader = screen.getByRole('dialog', { name: '执行过程' })
+    expect(within(reader).getByText('为何有差异？')).toBeTruthy()
+    expect(within(reader).getByText('已确认一项差异')).toBeTruthy()
+    expect(reader.querySelector<HTMLDetailsElement>('.capstone-business-step')!.open).toBe(false)
+    rerender(<CapstoneAssistantThread {...props} events={[...events, event('runtime_event', 4, { task_step: { id: 'next', number: 2, title: '追加核查', status: 'partial', result_summary: '还有缺口' } }, 'reader')]} />)
+    expect(within(reader).getAllByText('追加核查').length).toBeGreaterThan(0)
+    fireEvent.keyDown(reader, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(document.activeElement).toBe(trigger)
+    expect(screen.queryByText('为何有差异？')).toBeNull()
+    expect(container.querySelector<HTMLDetailsElement>('.capstone-business-step')!.open).toBe(true)
+    expect(embeddedViewport.scrollTop).toBe(37)
+  })
+  it('shows actual branch results under their parent objective and keeps transition errors visible', () => {
+    const step = { id: 'native-objective', number: 1, title: '解释异常差异', status: 'partial', questions: ['差异是否由缺数造成？'], expected_outputs: ['差异解释'], result_summary: '缺数解释不足', next_action_reason: '追加核查检修窗口' }
+    const branch = { subordinate: true, parent_tool_call_id: 'delegate_one', child_id: 'check', title: '独立核对缺数', questions: ['缺数分布是否一致？'], expected_outputs: ['缺数对照'], owner: { thread_id: 'thr_demo' }, attempt_id: 'branches', parent_action_id: 'action_one', parent_step_id: step.id, checkpoint: { ref: 'checkpoint_one', revision: 1 } }
+    const events = [event('runtime_event', 1, { task_step: step }, 'branches'),
+      event('runtime_event', 2, { research_branch: { ...branch, type: 'delegation_child_started' } }, 'branches'),
+      event('runtime_event', 3, { research_branch: { ...branch, type: 'delegation_child_tool', activity: 'tool_execution_end', tool_name: 'read', tool_call_id: 'read_one', is_error: false } }, 'branches'),
+      event('runtime_event', 4, { research_branch: { ...branch, type: 'delegation_child_finished', status: 'completed', result_summary: '已完成缺数对照，仍需父任务综合' } }, 'branches'),
+      event('runtime_event', 5, { task_step_error: 'Step transition was not applied; the existing step was retained.' }, 'branches'),
+      event('attempt_failed', 6, { error_code: 'research_cycle_no_progress' }, 'branches')]
+    const { container } = render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    expect(screen.getByRole('status').textContent).toContain('步骤未推进')
+    fireEvent.click(screen.getByRole('button', { name: '查看执行过程' }))
+    const objective = screen.getByText('解释异常差异').closest('.capstone-business-step-record')!
+    expect(within(objective as HTMLElement).getAllByText('缺数解释不足').length).toBeGreaterThan(0)
+    fireEvent.click(within(objective as HTMLElement).getByRole('button', { name: /展开步骤/ }))
+    fireEvent.click(within(objective as HTMLElement).getByRole('button', { name: '下一步理由' }))
+    expect(within(objective as HTMLElement).getByText('追加核查检修窗口')).toBeTruthy()
+    expect(within(objective as HTMLElement).getByRole('region', { name: '子分支：独立核对缺数' })).toBeTruthy()
+    expect(screen.getByText(/子执行完成，待综合评估/)).toBeTruthy()
+    expect(screen.getByText('已完成缺数对照，仍需父任务综合')).toBeTruthy()
+    expect(container.querySelector<HTMLDetailsElement>('.capstone-research-branch details')!.open).toBe(false)
+    expect(container.querySelector<HTMLDetailsElement>('.capstone-business-step')!.open).toBe(false)
+  })
+  it('does not treat an empty business-object projection as missing uploaded files', () => {
+    const events=[event('command_accepted',1,{kind:'send_auto',text:'分析上传资料'},'attempt_one'),
+      event('turn_plan_created',2,{accepted_context:{objects:[],materials:[],full_model_tables:false}},'attempt_one'),
+      event('attempt_completed',3,{answer:'报告已保存'},'attempt_one')]
+    render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async()=>{}} onCancel={async()=>{}} />)
+    expect(screen.queryByText('未提供完整网络表或文件资料。')).toBeNull()
+    expect(screen.queryByText('本轮业务对象 · 0 个对象')).toBeNull()
+  })
+  it('keeps real business objects in the process reader auxiliary area only', () => {
+    render(<CapstoneAssistantThread events={[
+      event('command_accepted', 1, { kind: 'send_auto', text: '检查模型' }, 'objects'),
+      event('turn_plan_created', 2, { accepted_context: { objects: [{ object_id: 'model_one', display_name: '真实模型', version: 'v2' }] } }, 'objects'),
+      event('attempt_completed', 3, { answer: '检查完成' }, 'objects'),
+    ]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    expect(screen.queryByText('本轮业务对象 · 1 个对象')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '放大阅读执行过程' }))
+    expect(within(screen.getByRole('dialog')).getByText('本轮业务对象 · 1 个对象')).toBeTruthy()
+    expect(screen.getByText('真实模型 · v2')).toBeTruthy()
+  })
+  it('folds unassigned tool details in the reader while keeping their failure summary visible', () => {
+    render(<CapstoneAssistantThread events={[
+      event('attempt_started', 1, {}, 'unassigned'),
+      event('runtime_event', 2, { task_step: { id: 'known', number: 1, title: '已记录研究步骤', status: 'failed' } }, 'unassigned'),
+      event('tool_started', 3, { tool_call_id: 'call_one', tool_name: 'grid_context_get' }, 'unassigned'),
+      event('tool_completed', 4, { tool_call_id: 'call_one', ok: false, error: { message: '没有可用模型' } }, 'unassigned'),
+      event('attempt_failed', 5, { error_code: 'tool_failed' }, 'unassigned'),
+    ]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: '放大阅读执行过程' }))
+    const reader = screen.getByRole('dialog')
+    const tools = reader.querySelector<HTMLDetailsElement>('.capstone-unassigned-tool')!
+    expect(tools.open).toBe(false)
+    expect(within(reader).getByText('读取模型上下文：调用失败')).toBeTruthy()
+    expect(within(reader).getByText('读取模型上下文：调用失败').closest('.capstone-unassigned-tool')).toBeNull()
+  })
+  it('hides protected configuration in older native output receipts', () => {
+    const items=projectAssistantActivity([event('runtime_event',1,{
+      task_id:'pi_one',native_type:'tool_execution_end',tool_name:'bash',tool_call_id:'one',
+      activity:{output_excerpt:'{"apiKey":"private-value","models":["demo"]}'},
+    },'attempt_one')])
+    expect(items[0].outputExcerpt).toBe('输出包含受保护配置或凭据信息，已隐藏。')
+    expect(JSON.stringify(items)).not.toContain('private-value')
+  })
+  it('keeps native operation and output bound to the same call across receipts', () => {
+    const events = [
+      event('runtime_event', 1, {task_id:'pi_one',native_type:'tool_execution_start',tool_name:'bash',tool_call_id:'one',activity:{operation:'python report.py'}}, 'attempt_one'),
+      event('runtime_event', 2, {task_id:'pi_one',native_type:'tool_execution_end',tool_name:'bash',tool_call_id:'one',is_error:true,activity:{output_excerpt:'File not found: input.csv'}}, 'attempt_one'),
+      event('runtime_event', 3, {task_id:'pi_one',native_type:'tool_execution_start',tool_name:'bash',tool_call_id:'two'}, 'attempt_one'),
+    ]
+    const projected=projectAssistantActivity(events)
+    expect(projected[0]).toMatchObject({operation:'python report.py',outputExcerpt:'File not found: input.csv',status:'failed',failure:{summary:'File not found: input.csv'}})
+    expect(projected[1].operation).toBeUndefined()
+    expect(projected[1].outputExcerpt).toBeUndefined()
+  })
+  it('does not claim zero calls when restored history has no public tool records',()=>{
+    const events=[event('attempt_started',1,{},'legacy_native'),event('attempt_completed',3,{answer:'文件已保存',task_steps:[{id:'prepare',number:1,title:'准备',status:'completed'}]},'legacy_native')]
+    render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async()=>{}} onCancel={async()=>{}}/>)
+    expect(screen.getByText(/工具调用数未记录/)).toBeTruthy()
+    expect(screen.getByTitle('当前记录未提供可核对的工具调用数量，可查看执行过程。')).toBeTruthy()
+    expect(screen.queryByText(/0 次工具调用/)).toBeNull()
+  })
+  it('keeps an exact product reference in the existing draft until accepted or explicitly removed',async()=>{
+    const ref=parseProductRef({schema:'capstone-product-ref/1',thread_id:'thr_demo',product_id:'delivery_one',origin:'task_delivery',scope:'task',event_seq:12,revision:2,digest:'a'.repeat(64),work_id:'old_work',attempt_id:'old_attempt',producer_attempt_id:null})
+    const selection={ref,purpose:'historical-context' as const}
+    const entry={ref,title:'季度分析.csv',media_type:'text/csv',byte_size:10,source_status:'completed',created_at:'2026-10-17T00:00:00Z',download_url:null,source:{},dependencies:[],presentation:{kind:'task_delivery' as const},capabilities:{read:true as const,select:true},selection_unavailable_reason:null,historical_only:true as const}
+    const reader=vi.fn().mockResolvedValue({entry,bytes:null,projection:null,record:null}),send=vi.fn().mockResolvedValue(undefined)
+    const base={events:[],disabled:false,isRunning:false,activity:[],onSend:send,onCancel:async()=>{},productReferenceReader:reader,storageKey:'product-reference-composer'}
+    const view=render(<CapstoneAssistantThread {...base} requestedProductReference={{selection,nonce:1}}/>)
+    await screen.findByText('季度分析.csv · v2')
+    fireEvent.change(screen.getByRole('textbox',{name:'Thread 指令'}),{target:{value:'用此版本继续分析'}})
+    fireEvent.click(screen.getByRole('button',{name:'发送指令'}))
+    await waitFor(()=>expect(send).toHaveBeenCalledWith('automatic','用此版本继续分析',expect.objectContaining({context_product_refs:[selection]})))
+    await waitFor(()=>expect(screen.queryByRole('button',{name:'移除成果引用：季度分析.csv'})).toBeNull())
+    view.rerender(<CapstoneAssistantThread {...base} requestedProductReference={{selection,nonce:2}}/>)
+    fireEvent.click(await screen.findByRole('button',{name:'移除成果引用：季度分析.csv'}))
+    expect(screen.queryByText('季度分析.csv · v2')).toBeNull()
+    view.unmount();sessionStorage.removeItem('product-reference-composer.input');sessionStorage.removeItem('product-reference-composer.draft')
+  })
+  it('restores genuine native observations without counting missing identities or inventing task steps',()=>{
+    // Saved production receipts carry task_id inside reference, not in the outer payload.
+    const observation=(seq:number,call:string)=>event('runtime_event',seq,{external_reference_kind:'sources',reference:{kind:'native_tool_observation',task_id:'pi_saved',parent_attempt_id:'native_attempt',metadata:{tool_name:'bash',tool_call_id:call,output_sha256:'a'.repeat(64)}}},'native_attempt')
+    const events=[event('command_accepted',1,{kind:'send_auto',text:'生成文件'},'native_attempt'),
+      event('runtime_event',2,{task_id:'pi_saved',native_type:'tool_execution_start'},'native_attempt'),
+      observation(3,'call_first'),observation(4,'call_second'),observation(5,'call_second'),
+      event('attempt_completed',6,{answer:'文件已保存'},'native_attempt')]
+    const activities=projectAssistantActivity(events)
+    expect(activities).toHaveLength(2)
+    expect(activities.map(item=>[item.label,item.source,item.status])).toEqual([['bash','pi · bash','completed'],['bash','pi · bash','completed']])
+    const messages=projectAssistantMessages(events)
+    expect(messages.at(-1)?.metadata?.custom?.activities).toEqual(activities)
+    expect(messages.at(-1)?.metadata?.custom?.taskSteps).toEqual([])
+    render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={activities} onSend={async()=>{}} onCancel={async()=>{}} />)
+    expect(screen.getByText(/2 次工具调用/)).toBeTruthy()
+  })
+  it('merges native live events and final observations by task and call identity, retaining true failures',()=>{
+    const native=(seq:number,nativeType:string,payload:Record<string,unknown>={})=>event('runtime_event',seq,{task_id:'pi_live',native_type:nativeType,tool_name:'read',tool_call_id:'call_live',...payload},'native_attempt',`2026-10-17T13:00:0${seq}Z`)
+    const started=native(1,'tool_execution_start')
+    expect(projectAssistantActivity([started])[0]).toMatchObject({label:'read',status:'running',startedAt:started.occurredAt})
+    const ended=native(2,'tool_execution_end',{is_error:true})
+    const observation=event('runtime_event',3,{task_id:'pi_live',external_reference_kind:'sources',reference:{kind:'native_tool_observation',task_id:'pi_live',parent_attempt_id:'native_attempt',metadata:{tool_name:'read',tool_call_id:'call_live'}}},'native_attempt')
+    const retry=native(4,'tool_execution_start',{tool_call_id:'call_retry'})
+    expect(projectAssistantActivity([started,ended,observation,retry])).toMatchObject([{label:'read',status:'failed',finishedAt:ended.occurredAt,durationMs:1000},{label:'read',status:'running'}])
+    expect(projectAssistantActivity([{...observation,payload:{...observation.payload,reference:{kind:'native_tool_observation',task_id:'pi_live',parent_attempt_id:'other_attempt',metadata:{tool_name:'read',tool_call_id:'call_live'}}}}])).toEqual([])
+  })
+  it('shows a persisted instruction file only beneath its owning answer',()=>{
+    const digest='a'.repeat(64),artifactId=`file-${'b'.repeat(16)}-${digest}`
+    const artifact={schema:'capstone-process-artifact/1',scope:'instruction',thread_id:'thr_demo',run_id:'run_demo',turn_id:'turn_one',attempt_id:'one',work_id:null,task_snapshot_id:null,goal_revision:null,task_id:'native_one',artifact_id:artifactId,executor_identity_sha256:'c'.repeat(64),source_status:'completed',file_name:'已保存说明.md',media_type:'text/markdown',sha256:digest,size_bytes:12,download_url:`/api/v1/threads/thr_demo/attempts/one/artifacts/${artifactId}`}
     const open=vi.fn()
-    render(<CapstoneAssistantThread events={[event('attempt_completed',1,{answer:'已完成计算。'},'one'),event('attempt_completed',2,{answer:'普通说明。'},'two')]}
-      resultProjections={[result]} onOpenResultProduct={open} disabled={false} isRunning={false} activity={[]} onSend={async()=>{}} onCancel={async()=>{}} />)
-    const cards=screen.getAllByRole('button',{name:'打开计算结果：有功损耗'})
-    expect(cards).toHaveLength(1)
-    fireEvent.click(cards[0])
-    expect(open).toHaveBeenCalledWith(result)
-    expect(screen.queryByRole('link',{name:/报告|PDF/})).toBeNull()
+    render(<CapstoneAssistantThread events={[{...event('native_artifact_published',1,{artifact},'one'),turnId:'turn_one'},event('attempt_completed',2,{answer:'附有文件的回答'},'one'),event('attempt_completed',3,{answer:'普通回答'},'two')]} onOpenNativeArtifact={open} disabled={false} isRunning={false} activity={[]} onSend={async()=>{}} onCancel={async()=>{}} />)
+    const files=screen.getAllByRole('button',{name:'打开指令文件：已保存说明.md'})
+    expect(files).toHaveLength(1)
+    expect(files[0].closest('.capstone-chat-message')?.textContent).toContain('附有文件的回答')
+    fireEvent.click(files[0])
+    expect(open).toHaveBeenCalledWith(artifact)
+  })
+  it('keeps intermediate results available for inspection without final-product links', () => {
+    const result: ResultProjection = {resultId:'r',resultRef:'result:r',evidenceRefs:[],threadId:'thr_demo',runId:'run_demo',turnId:'turn_one',attemptId:'one',modelContextId:'ctx',modelId:'ieee39',modelRevision:'7',source:{capabilityId:'powerflow.ac',domainPackId:'grid',implementationFamily:'pandapower'},status:'completed',summary:[{metricId:'loss',label:'有功损耗',value:1}],tables:[],elementRefs:[]}
+    const open = vi.fn()
+    result.presentation = {collectionId:'analysis',collectionTitle:'电网分析结果',groupId:'state_1',groupTitle:'运行状态 1',purpose:'task_output'}
+    render(<CapstoneAssistantThread events={[event('attempt_completed',1,{answer:'计算说明'},'one'),event('attempt_completed',2,{answer:'普通说明'},'two')]} resultProjections={[result]} onOpenResultProduct={vi.fn()} onOpenTaskResults={open} disabled={false} isRunning={false} activity={[]} onSend={async()=>{}} onCancel={async()=>{}} />)
+    expect(screen.queryByRole('button', {name:'打开计算结果：有功损耗'})).toBeNull()
+    const conclusions = screen.getAllByRole('button', {name:'打开电网分析结果'})
+    expect(conclusions).toHaveLength(1)
+    fireEvent.click(conclusions[0])
+    expect(open).toHaveBeenCalledWith(expect.objectContaining({attemptId:'one',title:'电网分析结果',results:[result]}))
+    const buttons = screen.getAllByRole('button', {name:'查看计算结果'})
+    expect(buttons).toHaveLength(1)
+    fireEvent.click(buttons[0])
+    expect(screen.getByRole('dialog', {name:'结果明细'})).toBeTruthy()
+    expect(screen.getAllByText('有功损耗').length).toBeGreaterThan(0)
   })
   it('opens only real sources in an answer-owned sheet while execution stays in the conversation', () => {
     const events = [
@@ -112,6 +378,16 @@ describe('CapstoneAssistantThread', () => {
     expect(screen.getByText(/排名不可用，改从数据集取数/)).toBeTruthy()
     expect(screen.queryByText('已重新规划')).toBeNull()
   })
+  it('keeps the last recorded work visible after failure without inventing completion', () => {
+    render(<CapstoneAssistantThread events={[
+      event('attempt_started', 1, {}, 'unfinished'),
+      event('tool_completed', 2, { tool_name: 'agent_task_progress', capability: 'agent_task_progress', ok: true,
+        task_progress: { kind: 'observation', text: '已生成图表，正在组装报告。', refs: [] } }, 'unfinished'),
+      event('attempt_failed', 3, { message: '执行中断' }, 'unfinished'),
+    ]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    expect(screen.getByLabelText('中断前的工作记录').textContent).toContain('已生成图表，正在组装报告。')
+    expect(screen.queryByText('报告已完成')).toBeNull()
+  })
   it('shows host preparation and terminal timing even before any tool call', () => {
     const preparation = { id: 'task-preparation', number: 1, title: '任务准备', status: 'running' }
     const events = [event('attempt_started', 1, { task_step: preparation }, 'stages'),
@@ -136,6 +412,9 @@ describe('CapstoneAssistantThread', () => {
     const frame = container.querySelector<HTMLDetailsElement>('.capstone-chat-activity-attached')!
     expect(expand.closest('summary')).toBe(frame.querySelector(':scope > summary'))
     expect(frame.querySelector(':scope > summary')!.textContent).not.toContain('查看执行过程')
+    expect(expand.disabled).toBe(false)
+    expect(collapse.disabled).toBe(true)
+    fireEvent.click(expand)
     expect(expand.disabled).toBe(true)
     expect(collapse.disabled).toBe(false)
     fireEvent.click(collapse)
@@ -144,12 +423,58 @@ describe('CapstoneAssistantThread', () => {
     expect(frame.open).toBe(true)
     expect(collapse.disabled).toBe(true)
     expect(expand.disabled).toBe(false)
-    fireEvent.click(steps[0].querySelector('summary')!)
+    fireEvent.click(screen.getByRole('button', { name: '展开步骤：检查' }))
     expect(expand.disabled).toBe(false)
     expect(collapse.disabled).toBe(false)
     fireEvent.click(expand)
-    expect(steps.every(step => step.open)).toBe(true)
+    expect(screen.getByRole('button', { name: '折叠步骤：检查' }).getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByRole('button', { name: '折叠步骤：生成回复' }).getAttribute('aria-expanded')).toBe('true')
     expect(expand.disabled).toBe(true)
+  })
+  it('positions a new running instruction near the top even when it was already visible', async () => {
+    const scroll = vi.spyOn(HTMLElement.prototype, 'scrollTo')
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const viewport = document.querySelector('.capstone-chat-viewport')
+      const top = this.classList.contains('capstone-chat-viewport') ? 100 : 400 - (viewport?.scrollTop || 0)
+      return { top, bottom: top + (this === viewport ? 500 : 40), left: 0, right: 800, width: 800, height: this === viewport ? 500 : 40, x: 0, y: top, toJSON: () => ({}) }
+    })
+    try {
+      const events = [event('command_accepted', 1, {kind:'send_auto',text:'读取线路参数'}, 'anchor'), event('attempt_started', 2, {}, 'anchor')]
+      render(<CapstoneAssistantThread events={events} activity={[]} disabled={false} isRunning onSend={async()=>{}} onCancel={async()=>{}} />)
+      const viewport = document.querySelector('.capstone-chat-viewport') as HTMLElement
+      Object.defineProperties(viewport, {clientHeight:{configurable:true,value:500},scrollHeight:{configurable:true,value:800}})
+      await waitFor(() => expect(scroll).toHaveBeenCalledWith({ top: 292, behavior: 'smooth' }))
+    } finally { rect.mockRestore(); scroll.mockRestore() }
+  })
+  it('keeps both running process views readable when the bottom of the message has little space', async () => {
+    let bottom = 500, processOffset = 0
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const top = this.classList.contains('capstone-chat-viewport') ? 100 : 280 - processOffset
+      return { top, bottom, left: 0, right: 800, width: 800, height: bottom - top, x: 0, y: top, toJSON: () => ({}) }
+    })
+    try {
+      const events = [event('attempt_started', 1, {}, 'fit'), event('tool_started', 2, {tool_name: 'grid_context_get'}, 'fit')]
+      render(<CapstoneAssistantThread events={events} activity={projectAssistantActivity(events)} disabled={false} isRunning onSend={async()=>{}} onCancel={async()=>{}} />)
+      const preview = screen.getByLabelText('执行过程预览')
+      expect(preview.style.maxHeight).toBe('208px')
+      bottom = 360
+      fireEvent.resize(window)
+      expect(preview.style.maxHeight).toBe('80px')
+      fireEvent.click(document.querySelector('.capstone-chat-activity-attached > summary')!)
+      await waitFor(() => expect((document.querySelector('.capstone-complete-process') as HTMLElement)?.style.maxHeight).toBe('80px'))
+      bottom = 1200
+      fireEvent.resize(window)
+      const maximum = Math.min(1100 * .72, window.innerHeight * .65)
+      const body = document.querySelector('.capstone-complete-process') as HTMLElement
+      expect(Number.parseFloat(body.style.maxHeight)).toBeLessThanOrEqual(maximum)
+      processOffset = 400
+      fireEvent.scroll(document.querySelector('.capstone-chat-viewport')!)
+      expect(Number.parseFloat(body.style.maxHeight)).toBeLessThanOrEqual(maximum)
+      const height = body.style.maxHeight
+      processOffset = 800
+      fireEvent.scroll(document.querySelector('.capstone-chat-viewport')!)
+      expect(body.style.maxHeight).toBe(height)
+    } finally { rect.mockRestore() }
   })
   it('keeps all actions and a separate committed work explanation in the height-limited running window', () => {
     const snapshot = { research_id: 'research-1', revision: 1, goal: '核验故障影响', condition_refs: [], claims: [],
@@ -219,6 +544,8 @@ describe('CapstoneAssistantThread', () => {
       onReadAttemptRecords={read} />)
     fireEvent.click(screen.getByRole('button', { name: '查看执行过程' }))
     expect(read).not.toHaveBeenCalled()
+    expect(screen.queryByText(/已完成.*工具调用数未记录/)).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '放大阅读执行过程' }))
     fireEvent.click(screen.getByRole('button', { name: '读取原任务记录' }))
     await screen.findByText('原任务')
     expect(read).toHaveBeenCalledWith('attempt_old', 0)
@@ -252,6 +579,7 @@ describe('CapstoneAssistantThread', () => {
     const buttons = screen.getAllByRole('button', { name: '查看执行过程' }) as HTMLButtonElement[]
     expect(buttons.map(button => button.disabled)).toEqual([false])
     fireEvent.click(buttons[0])
+    fireEvent.click(screen.getAllByRole('button', { name: '放大阅读执行过程' })[0])
     fireEvent.click(screen.getByText('研究判断与工作记录 · 修订 1'))
     expect(screen.getByText('还需核验边界')).toBeTruthy()
   })
@@ -1240,6 +1568,7 @@ describe('CapstoneAssistantThread', () => {
     const action = screen.getByRole('button', { name: '查看执行过程' })
     expect((action as HTMLButtonElement).disabled).toBe(false)
     fireEvent.click(action)
+    fireEvent.click(screen.getByRole('button', { name: '放大阅读执行过程' }))
     expect(screen.getByRole('region', { name: '执行失败记录' })).toBeTruthy()
     expect(screen.queryByText('计算引用已准入。业务判断的核验范围以计算结果为准。')).toBeNull()
   })

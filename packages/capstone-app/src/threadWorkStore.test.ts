@@ -3,6 +3,7 @@ import { CapstoneThreadClient, type ThreadTransport } from './threadClient'
 import { ThreadProjectionStore } from './threadProjectionStore'
 import { parseEventEnvelope } from './threadProtocol'
 import { buildStartWorkCommand } from './threadWorkProtocol'
+import { projectWorkConversation } from './threadWorkMessages'
 
 afterEach(() => sessionStorage.clear())
 
@@ -81,6 +82,44 @@ it('persists a lost start command and restores its exact identity without a refr
   await restored.load('thr_work')
   expect(send).toHaveBeenCalledTimes(1)
   expect(restored.state.pendingCommands[0].command).toEqual(command)
+})
+
+it('preserves two complete native turns across streaming and refresh with no professional snapshot', async () => {
+  const rows: Array<Omit<ReturnType<typeof event>, 'payload'> & {
+    payload: Record<string, unknown>; attempt_id: string; turn_id: string
+  }> = []
+  for (let turn = 0; turn < 2; turn++) {
+    const identity = {attempt_id: `attempt_${turn}`, turn_id: `turn_${turn}`}
+    rows.push({...event(rows.length + 1), ...identity, event_type: 'command_accepted', event_version: 1,
+      payload: {kind: 'send_auto', payload: {text: `用户${turn}`}, work_id: 'work_one'}})
+    rows.push({...event(rows.length + 1), ...identity, event_type: 'attempt_started', event_version: 1,
+      payload: {work_id: 'work_one'}})
+    rows.push({...event(rows.length + 1), ...identity, event_type: 'assistant_text_delta', event_version: 1,
+      payload: {text: '部分答复'}})
+    rows.push({...event(rows.length + 1), ...identity, event_type: 'attempt_completed', event_version: 1,
+      payload: {work_id: 'work_one', answer: `完整${turn}`}})
+  }
+  let cursor = 0
+  const readSnapshot = () => ({...workSnapshot(), last_event_seq: cursor, runtime_mode: 'capstone',
+    native_execution: {available: true, unavailable_reason: null},
+    works: [{...work(3 + cursor, cursor ? 'completed' : 'ready'), conversation_mode: true, messages: []}]})
+  const connection = transport({getSnapshot: async () => readSnapshot(),
+    readEvents: async (_id, after) => ({schema: 'capstone-thread-events/1', thread_id: 'thr_work',
+      after_event_seq: after, next_event_seq: cursor, has_more: false, events: rows.filter(row => row.event_seq > after && row.event_seq <= cursor)}),
+    streamEvents: async function* () {for (const row of rows) {cursor = row.event_seq; yield parseEventEnvelope(row)}}})
+  const store = new ThreadProjectionStore(new CapstoneThreadClient(connection), undefined, {protocolVersion: '2'})
+  await store.load('thr_work')
+  await store.consumeEvents()
+  const render = (value: ThreadProjectionStore) => projectWorkConversation(value.publicEvents,
+    value.state.workSnapshot!.works[0], value.state.workSnapshot!.works).messages
+  expect(store.state.snapshot).toBeNull()
+  expect(store.state.workSnapshot?.currentAttempt).toBeNull()
+  expect(store.state.eventSeq).toBe(8)
+  expect(render(store).map(message => message.role)).toEqual(['user', 'assistant', 'user', 'assistant'])
+  const restored = new ThreadProjectionStore(new CapstoneThreadClient(connection), undefined, {protocolVersion: '2'})
+  await restored.load('thr_work')
+  expect(render(restored)).toEqual(render(store))
+  expect(render(restored)[3].content).toEqual([{type: 'text', text: '完整1'}])
 })
 
 it('keeps an in-flight start under its original Thread when its view is disposed', async () => {

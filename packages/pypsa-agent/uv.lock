@@ -154,6 +154,7 @@ dependencies = [
     { name = "boto3" },
     { name = "capability-agent-kernel" },
     { name = "capstone-model-capability-spi" },
+    { name = "enterprise-research-domain-pack" },
     { name = "fastapi" },
     { name = "google-cloud-storage" },
     { name = "httpx" },
@@ -170,6 +171,7 @@ requires-dist = [
     { name = "boto3", specifier = ">=1.40,<2" },
     { name = "capability-agent-kernel", editable = "../capability-agent-kernel" },
     { name = "capstone-model-capability-spi", editable = "../capstone-model-capability-spi" },
+    { name = "enterprise-research-domain-pack", editable = "../enterprise-research-domain-pack" },
     { name = "fastapi", specifier = ">=0.139,<1" },
     { name = "google-cloud-storage", specifier = ">=3.14,<4" },
     { name = "httpx", specifier = ">=0.28,<1" },
@@ -652,6 +654,17 @@ sdist = { url = "https://files.pythonhosted.org/packages/5a/d3/8ae2869247df154b6
 wheels = [
     { url = "https://files.pythonhosted.org/packages/02/c3/253a89ee03fc9b9682f1541728eb66db7db22148cd94f89ab22528cd1e1b/deprecation-2.1.0-py2.py3-none-any.whl", hash = "sha256:a10811591210e1fb0e768a8c25517cabeabcba6f0bf96564f8ff45189f90b14a", size = 11178, upload-time = "2020-04-20T14:23:36.581Z" },
 ]
+
+[[package]]
+name = "enterprise-research-domain-pack"
+version = "1.0.0"
+source = { editable = "../enterprise-research-domain-pack" }
+dependencies = [
+    { name = "capability-agent-kernel" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "capability-agent-kernel", editable = "../capability-agent-kernel" }]
 
 [[package]]
 name = "fastapi"

@@ -32,9 +32,9 @@ _ContextKey = tuple[str, str, str, str, tuple[tuple[str, str], ...], str]
 
 def _selected_references(claim: AttemptClaim) -> tuple[tuple[str, str], ...]:
     """Limit prepared resources to validated needs within the frozen selection."""
-    if claim.task_context is not None and claim.task_context.model_contexts != (claim.model_context,):
+    if claim.task_context is not None and claim.task_context.model_contexts != (claim.professional_context,):
         raise ValueError('Work Profile selection does not match the accepted model snapshot')
-    enabled = tuple(claim.model_context.enabled_profiles)
+    enabled = tuple(claim.professional_context.enabled_profiles)
     decision = getattr(claim.turn_plan, "intent_decision", None)
     if decision is None:
         return enabled  # Registered scripted plans retain their exact selection.
@@ -168,11 +168,11 @@ class ApplicationProfileCapabilityAdapter:
     def prepare_for_claim(self, handle: ModelCapabilityProfileHandle, claim: AttemptClaim):
         prepare = getattr(self._prepare_profile, 'prepare_for_claim', None)
         if not callable(prepare):
-            return self.prepare(handle, model_context=claim.model_context)
+            return self.prepare(handle, model_context=claim.professional_context)
         if not isinstance(handle, ApplicationProfileCapabilityHandle) or handle.closed:
             raise ValueError('application profile handle is unavailable')
         prepared = prepare(handle.profile, claim)
-        return ApplicationProfileCapabilityContribution(self.descriptor, claim.model_context, handle.profile, prepared)
+        return ApplicationProfileCapabilityContribution(self.descriptor, claim.professional_context, handle.profile, prepared)
 
 
 def register_application_profile(
@@ -251,9 +251,10 @@ class ModelCapabilityContextOwner:
         if not isinstance(catalog, CapstoneModelCapabilityCatalog):
             raise TypeError("catalog must be a CapstoneModelCapabilityCatalog")
         self.catalog = catalog
-        self.max_contexts = int(os.environ.get('CAPSTONE_THREAD_CONTEXT_LIMIT', '1024')) if max_contexts is None else max_contexts
+        from .application_capacity import limits
+        self.max_contexts = int(os.environ.get('CAPSTONE_THREAD_CONTEXT_LIMIT', str(limits.prepared_context_count))) if max_contexts is None else max_contexts
         self.idle_seconds = float(os.environ.get('CAPSTONE_THREAD_CONTEXT_IDLE_SECONDS', '0')) if idle_seconds is None else idle_seconds
-        if not 1 <= self.max_contexts <= 1024 or not 0 <= self.idle_seconds <= 86400:
+        if self.max_contexts < 1 or self.idle_seconds < 0:
             raise ValueError('model capability resource limits are invalid')
         self._memory_pressure = memory_pressure
         self._clock = clock
@@ -306,7 +307,7 @@ class ModelCapabilityContextOwner:
         selection = (claim.submission or {}).get('professional_resource')
         backend = (claim.submission or {}).get('_professional_backend')
         resource_revision = content_hash(selection or backend) if selection or backend else ''
-        return self._prepare_model(claim.thread_id, claim.run_id, claim.model_context,
+        return self._prepare_model(claim.thread_id, claim.run_id, claim.professional_context,
                                    references, resource_revision, claim)
 
     def prepare_model(self, thread_id: str, run_id: str,

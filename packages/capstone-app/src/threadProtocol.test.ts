@@ -16,6 +16,13 @@ function validSnapshot(): Record<string, unknown> {
     last_event_seq: 0, base_event_seq: 0,
   }
 }
+it('preserves the host result-history window through snapshot parsing and serialization',()=>{
+  const history={omitted_count:7,has_more:true,model_context_id:'ctx_ieee39_7'}
+  const snapshot=parseThreadSnapshot({...validSnapshot(),application_state:{result_projection_history:history}})
+  expect(snapshot.applicationState?.result_projection_history).toEqual(history)
+  expect(snapshot.toDocument().application_state).toEqual({result_projection_history:history})
+  expect(()=>parseThreadSnapshot({...validSnapshot(),application_state:{result_projection_history:{...history,omitted_count:-1}}})).toThrow()
+})
 
 function event(sequence: number): Record<string, unknown> {
   return {
@@ -138,7 +145,13 @@ describe('browser Thread protocol parser', () => {
       source: { capability_id: 'analysis.powerflow.ac.run', domain_pack_id: 'pandapower-static-analysis', implementation_family: 'pandapower' },
       status: 'completed', summary: [], tables: [], element_refs: [], overlay: null,
     }]
-    expect(() => parseThreadSnapshot(document)).not.toThrow()
+    const legacy = parseThreadSnapshot(document)
+    expect(legacy.resultProjections?.[0].presentation).toBeUndefined()
+    const presentation = {collection_id:'analysis',collection_title:'分析结果',group_id:'context_1',group_title:'运行状态 1',purpose:'task_output'}
+    ;(document.result_projections as Record<string, unknown>[])[0].presentation = presentation
+    const parsed = parseThreadSnapshot(document)
+    expect(parsed.resultProjections?.[0].presentation?.groupId).toBe('context_1')
+    expect((parsed.toDocument().result_projections as Record<string, unknown>[])[0].presentation).toEqual(presentation)
   })
 
   it('preserves command identity and status from a receipt', () => {

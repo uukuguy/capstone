@@ -7,9 +7,10 @@ from hashlib import sha256
 import json
 import time
 from typing import Any, cast
+from .application_capacity import CapacityExceeded, limits, observe_capacity
 
 from .harness import AdmittedAttemptAnswer, HarnessRuntime, terminal_payload_for_admission, HarnessRuntimeConfigurationError
-from .pi_delegation import GeneralPiExecutor, PiTaskRequest, PiTaskResult
+from .pi_delegation import GeneralPiExecutor, PiTaskRequest, PiTaskResult, PiHTTPFailure, PiTransportTimeout
 from .business_context import BusinessContext
 from .request_intent import IntentDecision, IntentRequest, NodeControl
 from .thread_service import AttemptClaim
@@ -18,8 +19,36 @@ from .business_goal_dependency import AdmittedBusinessGoalDependency, business_d
 from .thread_network import normalize_thread_network_projection
 
 BUSINESS_OPERATIONS = frozenset({'business_read', 'business_execute'})
-PARENT_PAYLOAD_BUDGET = 64 * 1024 - 2048
 SHORTENED_NOTICE = '\n\n[Reply shortened. Complete task results are retained in the saved records.]'
+
+
+def child_failure_code(error: BaseException) -> str:
+    """Keep diagnostic categories, never arbitrary exception text or credentials."""
+    if isinstance(error, CapacityExceeded):
+        return 'native_capacity_exceeded'
+    if isinstance(error, PiHTTPFailure):
+        return 'native_executor_http_rejected'
+    known = {
+        'Pi transport deadline expired; task state is unknown': 'native_transport_timeout',
+        'Pi executor transport failed; task state may be unknown': 'native_transport_failed',
+        'Pi task deadline expired': 'native_task_deadline',
+        'Pi response exceeds byte bounds': 'native_response_too_large',
+        'Pi event history exceeds bounds': 'native_event_history_limit',
+        'Pi event identity changed': 'native_event_identity_changed',
+        'research response is invalid': 'native_research_response_invalid',
+        'research observation source is not task-bound': 'native_research_source_invalid',
+    }
+    if str(error) in known:
+        return known[str(error)]
+    if isinstance(error, InterruptedError):
+        return 'native_parent_cancelled'
+    if isinstance(error, TimeoutError):
+        return 'native_deadline_exceeded'
+    if isinstance(error, ValueError):
+        return 'native_contract_rejected'
+    if isinstance(error, GoalReceiptPersistenceError):
+        return 'native_receipt_persistence_failed'
+    return 'native_execution_error'
 
 
 def json_document(value):
@@ -49,6 +78,7 @@ class DelegatedRuntime:
         self.runtime_mode = 'pi_reference' if direct else 'capstone'
         self._active: HarnessRuntime | None = None
         self._active_task: str | None = None
+        self._artifact_store = None
         self._general_results: dict[str, PiTaskResult] = {}
         self._business_admissions: list[AdmittedAttemptAnswer] = []
         self._business_answers: dict[str, str] = {}
@@ -59,6 +89,12 @@ class DelegatedRuntime:
         self.network_projection_failure_code = 'projection_unavailable'
         self._business_started: set[str] = set()
         self._statuses: dict[str, str] = {}
+        self._research_bridge = None
+
+    def bind_research(self, bridge):
+        if self._research_bridge is not None:
+            raise ValueError('research controller is already bound')
+        self._research_bridge = bridge
 
     def start(self):
         return None
@@ -97,10 +133,10 @@ class DelegatedRuntime:
         if self._active_task is not None and self._executor is not None:
             self._executor.cancel(self._active_task)
 
-    def _emit(self, on_event, payload):
+    def _emit(self, on_event, payload, *, visibility='diagnostic'):
         try:
             on_event({'event_type': 'runtime_event', 'runtime_mode': self.runtime_mode,
-                      'visibility': 'diagnostic', 'payload': payload})
+                      'visibility': visibility, 'payload': payload})
         except Exception as error:
             raise GoalReceiptPersistenceError('goal receipt could not be saved') from error
 
@@ -129,12 +165,27 @@ class DelegatedRuntime:
                 continue
             text = ('Current task dependency: application-admitted business answer text. '
                     'No Authority evidence is transferred.\n' + self._business_answers[dependency])
+            observe_capacity('delegation_dependency_bytes', len(text.encode()), 'delegation_dependency')
             messages.append({'message_id': 'dep-' + sha256((parent + '\0' + dependency).encode()).hexdigest(),
-                'role': 'assistant', 'content': text.encode()[:2048].decode('utf-8', errors='ignore'),
+                'role': 'assistant', 'content': text.encode()[:limits.delegation_dependency_bytes].decode('utf-8', errors='ignore'),
                 'turn_id': self._claim.attempt.turn_id, 'attempt_id': parent,
                 'model_context_id': '', 'status': 'completed'})
-        while len(messages) > 32 or sum(len(item['content'].encode()) for item in messages) > 32768:
+        observe_capacity('delegation_history_count', len(messages), 'delegation_history')
+        observe_capacity('delegation_history_bytes', sum(len(item['content'].encode()) for item in messages), 'delegation_history')
+        while len(messages) > limits.delegation_history_count or sum(len(item['content'].encode()) for item in messages) > limits.delegation_history_bytes:
             messages.pop(0)
+        from .thread_products import render_product_context
+        product_context = render_product_context((resources.get('submission') or {}).get('_product_context', []))
+        if product_context:
+            product_message = {'message_id': 'product-' + sha256((parent + '\0product-context').encode()).hexdigest(),
+                'role': 'user', 'content': product_context, 'turn_id': self._claim.attempt.turn_id,
+                'attempt_id': parent, 'model_context_id': '', 'status': 'completed'}
+            observe_capacity('delegation_history_count', len(messages) + 1, 'delegation_products')
+            observe_capacity('delegation_history_bytes', sum(len(item['content'].encode()) for item in messages) + len(product_context.encode()), 'delegation_products')
+            while messages and (len(messages) >= limits.delegation_history_count or
+                    sum(len(item['content'].encode()) for item in messages) + len(product_context.encode()) > limits.delegation_history_bytes):
+                messages.pop(0)
+            messages.append(product_message)
         context = None if context_document is None else BusinessContext.from_document(context_document)
         submission = resources.get('submission')
         selected_input = (submission if submission and submission['input']['kind'] == 'skill_invocation'
@@ -161,50 +212,148 @@ class DelegatedRuntime:
         request = PiTaskRequest(task_id, parent, 'direct' if self._direct else 'delegated',
             instruction, tuple(messages), tuple(self._general_results[identity].to_document()
                 for identity in dependencies if identity in self._general_results),
-            frozen['identity'], frozen['timeout_seconds'], **task_fields)
+            frozen['identity'], frozen['timeout_seconds'],
+            native_context=resources.get('native_context'),
+            research_binding=None if self._research_bridge is None else self._research_bridge.binding,
+            **task_fields)
         self._emit(on_event, {'task_id': task_id, 'goal_id': goal['goal_id'],
             'parent_attempt_id': parent, 'child_status': 'started',
             'executor_identity': frozen['identity'], 'entrypoint': request.entrypoint})
 
+        from .task_steps import NativeStepTracker
+        from .native_research_bridge import CYCLE_CONTROL_TOOLS
+        steps = NativeStepTracker(prefix=task_id, objective_steps=bool(set(CYCLE_CONTROL_TOOLS).intersection(
+            resources.get('native_context', {}).get('policy', {}).get('allowed_tools', ()))))
+        stream_text = self._direct or (self._decision is not None
+            and len(self._decision.to_document()['goals']) == 1)
+
         def native(event):
             control.checkpoint()
+            kind = event.get('type', event.get('event', 'unknown'))
+            delta = event.get('text') if kind in {'text_delta', 'assistant_delta'} else None
+            update = event.get('assistantMessageEvent')
+            if isinstance(update, Mapping) and update.get('type') == 'text_delta':
+                delta = update.get('delta')
+            if stream_text and isinstance(delta, str):
+                # The text event is the replay record. A second metadata-only
+                # event for the same chunk carries no additional observation.
+                steps.annotate(event)
+                on_event({'event_type': 'assistant_process_delta', 'runtime_mode': self.runtime_mode,
+                    'visibility': 'diagnostic', 'payload': {'text': delta[:16384]}})
+                return
+            event = steps.annotate(event)
+            if event.get('type') == 'runtime_action':
+                from .harness import normalize_runtime_event
+                on_event(normalize_runtime_event(event, runtime_mode=self.runtime_mode))
+                return
             # General tools are host observations. They never become semantic
             # tool events and never contribute result/evidence references.
             kind = event.get('type', event.get('event', 'unknown'))
+            tool_name = event.get('tool_name', event.get('toolName'))
+            tool_call_id = event.get('tool_call_id', event.get('toolCallId'))
+            public_tool = kind in {'tool_execution_start', 'tool_execution_end'} and (
+                isinstance(tool_name, str) and bool(tool_name) and isinstance(tool_call_id, str) and bool(tool_call_id))
+            research_branch = kind in {'delegation_child_started', 'delegation_child_tool', 'delegation_child_finished', 'delegation_child_response'}
+            research_graph_event = kind in {'enterprise_graph_tool_binding', 'enterprise_graph_child_started',
+                'enterprise_graph_child_tool', 'enterprise_graph_child_response_started', 'enterprise_graph_child_response', 'enterprise_graph_child_finished'}
             self._emit(on_event, {'task_id': task_id, 'goal_id': goal['goal_id'],
                 'native_type': kind if isinstance(kind, str) else 'unknown',
-                **({'tool_name': event['toolName'][:256]} if isinstance(event.get('toolName'), str) else {})})
-            if self._direct or (self._decision is not None and len(self._decision.to_document()['goals']) == 1):
-                delta = event.get('text') if kind in {'text_delta', 'assistant_delta'} else None
-                update = event.get('assistantMessageEvent')
-                if isinstance(update, Mapping) and update.get('type') == 'text_delta':
-                    delta = update.get('delta')
-                if isinstance(delta, str):
-                    on_event({'event_type': 'assistant_process_delta', 'runtime_mode': self.runtime_mode,
-                              'visibility': 'diagnostic', 'payload': {'text': delta[:16384]}})
+                **({'transport': {key: value[:64] for key in ('operation', 'transport_phase')
+                    if isinstance((value := event.get(key)), str)}} if kind in {'transport_interrupted', 'transport_restored'} else {}),
+                **({'tool_name': tool_name[:256]} if isinstance(tool_name, str) else {}),
+                **({'tool_call_id': tool_call_id[:256]} if isinstance(tool_call_id, str) else {}),
+                **({'task_progress': event['task_progress']} if isinstance(event.get('task_progress'), Mapping) else {}),
+                **({'research_cycle': {key: event[key] for key in
+                    ('owner', 'attempt_id', 'action_id', 'checkpoint', 'progress') if key in event}}
+                    if kind == 'enterprise_cycle_progress' else {}),
+                **({'research_graph': {key: event[key] for key in
+                    ('type', 'owner', 'attempt_id', 'task_id', 'action_id', 'checkpoint', 'graph', 'events', 'control')
+                    if key in event}} if kind == 'enterprise_graph_progress' else {}),
+                **({'research_graph_event': {key: event[key] for key in
+                    ('type', 'owner', 'attempt_id', 'task_id', 'action_id', 'step_id', 'checkpoint',
+                     'tool_call_id', 'tool_name', 'child_id', 'activity', 'tool_activity', 'is_error',
+                     'execution_ms', 'response_number', 'response_ms', 'tool_call_ids', 'tool_requests', 'response_text', 'stop_reason', 'usage', 'status', 'result_summary', 'model_responses', 'turns')
+                    if key in event}} if research_graph_event else {}),
+                **({'research_branch': {key: event[key] for key in ('type', 'subordinate', 'owner', 'attempt_id',
+                    'parent_action_id', 'parent_step_id', 'parent_tool_call_id', 'child_id', 'title', 'questions',
+                    'expected_outputs', 'checkpoint', 'status', 'result_summary', 'error', 'response_number', 'response_ms',
+                    'activity', 'tool_activity', 'tool_name', 'tool_call_id', 'is_error') if key in event}} if research_branch else {}),
+                **{key: event[key] for key in ('task_step', 'task_steps', 'task_step_id', 'task_step_number',
+                    'step_tool_number', 'task_step_error', 'runtime_step_tracking') if key in event},
+                **({'activity': {key: value[:limit] for key, limit in
+                    (('operation', 241), ('output_excerpt', 601))
+                    if isinstance((value := cast(Mapping, event.get('activity')).get(key)), str)}}
+                    if isinstance(event.get('activity'), Mapping) else {}),
+                **({'is_error': event['is_error']} if type(event.get('is_error')) is bool else {})},
+                visibility='public' if public_tool or research_branch or research_graph_event or kind in {
+                    'enterprise_cycle_progress', 'enterprise_graph_progress'} else 'diagnostic')
         self._active_task = task_id
         try:
-            result = self._executor.execute(request, control, native)
+            manifests = resources.get('native_context', {}).get('resource_manifests', ())
+            if manifests:
+                stage = getattr(self._executor, 'stage_resources', None)
+                if not callable(stage) or self._claim.resource_reader is None:
+                    raise HarnessRuntimeConfigurationError('resource acquisition transport is unavailable')
+                stage_events = getattr(self._executor, 'stage_resources_with_events', None)
+                if callable(stage_events):
+                    stage_events(task_id, manifests, self._claim.resource_reader, control, native)
+                else:
+                    stage(task_id, manifests, self._claim.resource_reader, control)
+            if self._research_bridge is None:
+                result = self._executor.execute(request, control, native)
+            else:
+                execute = getattr(self._executor, 'execute_with_research', None)
+                if not callable(execute):
+                    raise HarnessRuntimeConfigurationError('research control transport is unavailable')
+                result = cast(PiTaskResult, execute(request, control, native, self._research_bridge))
             result = PiTaskResult.from_document(result.to_document(), request)
             control.checkpoint()
         except BaseException as error:
             cancelled = True
             try:
-                self._executor.cancel(task_id)
+                retained = self._executor.cancel(task_id)
+                if retained is not None:
+                    retained = PiTaskResult.from_document(retained.to_document(), request)
+                    self._publish_artifacts(retained, request, on_event)
             except Exception:
                 cancelled = False
                 error.add_note('Child cancellation was not confirmed; task state is unknown')
             self._emit(on_event, {'task_id': task_id, 'goal_id': goal['goal_id'],
                 'parent_attempt_id': parent, 'child_status': 'cancelled' if isinstance(error, InterruptedError) else 'failed',
-                'cancellation_confirmed': cancelled})
+                'cancellation_confirmed': cancelled, 'failure_code': child_failure_code(error),
+                **({'transport_failure': dict(error.diagnostic)}
+                   if isinstance(error, (PiHTTPFailure, PiTransportTimeout)) else {}),
+                **({'failure': {'code':'native_capacity_exceeded','phase':error.phase or 'execution',
+                    'capacity':error.to_document()}} if isinstance(error, CapacityExceeded) else {}),
+                'timeout_seconds': request.timeout_seconds})
             raise
         finally:
             self._active_task = None
+            if steps.tracker.active is not None:
+                from .harness import normalize_runtime_event
+                on_event(normalize_runtime_event(steps.annotate(
+                    {'type': 'runtime_action', 'phase': 'interrupted'}), runtime_mode=self.runtime_mode))
         self._general_results[goal['goal_id']] = result
         document = result.to_document()
+        try:
+            self._publish_artifacts(result, request, on_event, control)
+        except Exception:
+            self._emit(on_event, {'task_id': task_id, 'goal_id': goal['goal_id'],
+                'parent_attempt_id': parent, 'child_status': 'failed',
+                'failure_code': 'native_artifact_persistence_failed',
+                'executor_status': result.status})
+            raise
         self._emit(on_event, {'task_id': task_id, 'goal_id': goal['goal_id'],
             'parent_attempt_id': parent, 'child_status': result.status,
+            **({'failure_code': result.failure['code'], 'failure_phase': result.failure['phase'],
+                'failure': dict(result.to_document()['failure']),
+                'timeout_seconds': request.timeout_seconds} if result.failure is not None else {}),
             'executor_identity': document['executor_identity'], 'usage': bounded_metadata(document['usage'])})
+        if result.failure is not None:
+            capacity=result.to_document()['failure'].get('capacity')
+            if isinstance(capacity,dict) and capacity.get('mode')=='debug':
+                raise CapacityExceeded(capacity['dimension'],capacity['actual'],capacity['limit'],
+                                       capacity['phase'],mode='debug')
         # Separate receipts stay below the Thread event bound even when a
         # result has many sources. These are external identities, not evidence.
         for kind in ('sources', 'artifacts'):
@@ -216,6 +365,48 @@ class DelegatedRuntime:
                 self._emit(on_event, {'goal_id': goal['goal_id'], 'external_reference_kind': kind,
                                       'reference': reference})
         return result.status, result.answer
+
+    def bind_artifact_store(self, objects):
+        self._artifact_store = objects
+
+    def _publish_artifacts(self, result, request, on_event, control=None):
+        from .native_artifact_projection import project_native_artifacts, retain_native_artifact
+        from .pi_delegation import PiArtifactTransportUnavailable
+        if control is not None:
+            # Model execution has returned. Persist its files under a separate
+            # bounded transfer window; keep the same cancellation/lease callback.
+            # Reuse the configured task timeout, without renewing model execution.
+            control = NodeControl(control.check, time.monotonic() + request.timeout_seconds)
+        for artifact in project_native_artifacts(self._claim, result, expected_parent_attempt_id=request.parent_attempt_id):
+            if self._artifact_store is not None:
+                interrupted, delay = False, 0.1
+                while True:
+                    if control is not None:
+                        control.checkpoint()
+                    try:
+                        retain_native_artifact(self._artifact_store, self._executor, artifact)
+                        break
+                    except PiArtifactTransportUnavailable:
+                        # Cancellation cleanup preserves available process files,
+                        # but must not enter a new task-lifetime retry loop.
+                        if control is None:
+                            raise
+                        if not interrupted:
+                            self._emit(on_event, {'task_id': result.task_id,
+                                'transport': {'operation': 'artifact_transfer'},
+                                'child_status': 'transport_interrupted'})
+                        interrupted = True
+                        until = time.monotonic() + delay
+                        while time.monotonic() < until:
+                            control.checkpoint()
+                            time.sleep(min(0.025, max(0, until - time.monotonic())))
+                        delay = min(2, delay * 2)
+                if interrupted:
+                    self._emit(on_event, {'task_id': result.task_id,
+                        'transport': {'operation': 'artifact_transfer'},
+                        'child_status': 'transport_restored'})
+            on_event({'event_type': 'native_artifact_published', 'runtime_mode': self.runtime_mode,
+                      'visibility': 'public', 'payload': {'artifact': artifact}})
 
     def _business_goal(self, goal, dependencies, control, on_event, heartbeat):
         plan = self._plan
@@ -298,7 +489,7 @@ class DelegatedRuntime:
             self._business_admissions.append(admitted)
             self._business_answers[goal['goal_id']] = admitted.answer
             self._business_dependencies[goal['goal_id']] = AdmittedBusinessGoalDependency(
-                self._claim.attempt.attempt_id, goal['goal_id'], self._claim.model_context_id,
+                self._claim.attempt.attempt_id, goal['goal_id'], self._claim.professional_context.id,
                 tuple(goal['capability_refs']), admitted, tuple(events))
             self._capture_network_projection(runtime, scoped, admitted, events)
             return 'completed', admitted.answer
@@ -311,7 +502,7 @@ class DelegatedRuntime:
         heartbeat = on_heartbeat or (lambda: None)
         frozen = self._resources
         general = frozen['resources']['general_executor'] if self._direct else frozen.get('general_executor')
-        timeout = 600 if general is None else general['timeout_seconds']
+        timeout = limits.delegation_task_seconds if general is None else general['timeout_seconds']
         control = NodeControl(heartbeat, time.monotonic() + timeout)
         goals: list[dict] = ([dict(goal_id='direct', operation='answer', depends_on=[], missing_requirements=[])]
             if self._direct else cast(IntentDecision, self._decision).to_document()['goals'])
@@ -344,10 +535,14 @@ class DelegatedRuntime:
                         status, answer = self._general_task(goal, dependencies, control, on_event)
                 except (BusinessAdmissionError, GoalReceiptPersistenceError, HarnessRuntimeConfigurationError):
                     raise
-                except Exception:
+                except Exception as error:
+                    if isinstance(error,CapacityExceeded) and error.mode=='debug':
+                        raise
                     control.checkpoint()  # Parent cancellation and deadline stay fatal.
                     status, answer = 'failed', 'A task failed. Its result is unavailable.'
             self._statuses[identity] = status
+            if self._plan.source == 'native_conversation' and status != 'completed':
+                raise RuntimeError('native conversation did not complete')
             self._emit(on_event, {'goal_id': identity, 'goal_status': status,
                                   'operation': goal['operation']})
             if status == 'failed':
@@ -369,10 +564,14 @@ class DelegatedRuntime:
 
         def fits(text):
             payload = terminal_payload_for_admission(admission, answer=text)
-            return len(text) <= 64000 and len(json.dumps(payload, ensure_ascii=False,
-                allow_nan=False, sort_keys=True).encode()) <= PARENT_PAYLOAD_BUDGET
+            return len(text) <= limits.delegation_answer_chars and len(json.dumps(payload, ensure_ascii=False,
+                allow_nan=False, sort_keys=True).encode()) <= limits.delegation_reply_bytes
 
         full = '\n\n'.join(answers)
+        observe_capacity('delegation_answer_chars', len(full), 'delegation_reply')
+        observe_capacity('delegation_reply_bytes', len(json.dumps(
+            terminal_payload_for_admission(admission, answer=full), ensure_ascii=False,
+            allow_nan=False, sort_keys=True).encode()), 'delegation_reply')
         if fits(full):
             return full
         pieces = [answer if ordinal in protected else '' for ordinal, answer in enumerate(answers)]

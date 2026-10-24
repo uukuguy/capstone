@@ -1,0 +1,104 @@
+import {applicationCapacity} from './applicationCapacity'
+import {afterEach,expect,it,vi} from 'vitest'
+import {act,cleanup,fireEvent,render,screen,waitFor} from '@testing-library/react'
+import ThreadProductsWorkspace from './ThreadProductsWorkspace'
+import {parseProductRef,type ProductEntry} from './threadProducts'
+
+afterEach(()=>{cleanup();vi.unstubAllGlobals()})
+const ref=parseProductRef({schema:'capstone-product-ref/1',thread_id:'thr_one',product_id:'record_one',origin:'process_record',scope:'instruction',event_seq:8,revision:null,digest:'a'.repeat(64),work_id:'work_current',attempt_id:'attempt_one',producer_attempt_id:null})
+const entry:ProductEntry={ref,title:'原分析未完成',media_type:null,byte_size:null,source_status:'failed',created_at:'2026-10-17T00:00:00Z',download_url:null,source:{instruction:'原分析未完成',attempt_id:'attempt_one',status:'failed',failure_code:'data_missing'},dependencies:[],presentation:{kind:'process_record'},capabilities:{read:true,select:false},selection_unavailable_reason:'record_only',historical_only:true}
+it('finds the current completed primary report beyond process pages and exposes its real files',async()=>{
+  const report={...entry,ref:{...ref,origin:'native_file' as const,attempt_id:'attempt_current',product_id:'report'},title:'报告.html',media_type:'text/html',byte_size:10,source_status:'completed',source:{file_name:'报告.html',presentation_role:'primary'}}
+  const metrics={...report,ref:{...report.ref,product_id:'metrics'},title:'指标.csv',media_type:'text/csv',source:{file_name:'指标.csv',presentation_role:'primary'}}
+  const old={...report,ref:{...report.ref,attempt_id:'attempt_old',product_id:'old'},title:'旧报告.html'}
+  const ready=vi.fn(),client={productIndex:vi.fn().mockResolvedValueOnce({products:[old,entry],hasMore:true,nextCursor:'next'}).mockResolvedValue({products:[metrics,report],hasMore:false,nextCursor:null}),resolveProduct:vi.fn().mockResolvedValue({entry:report,bytes:null,projection:null,record:null})}
+  render(<ThreadProductsWorkspace client={client} threadId="thr_one" workId="work_current" revision={99} primaryAttemptId="attempt_current" onPrimaryReady={ready}/>)
+  await waitFor(()=>expect(ready).toHaveBeenCalledWith(report))
+  expect(client.productIndex).toHaveBeenCalledWith('thr_one',{workId:'work_current',cursor:'next'},expect.any(AbortSignal))
+  expect(await screen.findByRole('heading',{name:'报告.html'})).toBeTruthy()
+  fireEvent.click(screen.getByText(/浏览成果/))
+  expect(screen.getByRole('button',{name:'查看：指标.csv'})).toBeTruthy()
+})
+it('does not replace a user-selected artifact when another primary completes',async()=>{
+  const report={...entry,ref:{...ref,origin:'native_file' as const,attempt_id:'attempt_current',product_id:'report'},title:'报告.html',media_type:'text/html',byte_size:10,source_status:'completed',source:{file_name:'报告.html',presentation_role:'primary'}}
+  const ready=vi.fn(),client={productIndex:vi.fn().mockResolvedValue({products:[entry],hasMore:false,nextCursor:null}),resolveProduct:vi.fn().mockResolvedValue({entry,bytes:null,projection:null,record:entry.source})}
+  const view=render(<ThreadProductsWorkspace client={client} threadId="thr_one" workId="work_current" revision={1} onPrimaryReady={ready}/>)
+  fireEvent.click(await screen.findByRole('button',{name:'查看：原分析未完成'}))
+  await screen.findByRole('heading',{name:'原分析未完成'})
+  client.productIndex.mockResolvedValue({products:[report,entry],hasMore:false,nextCursor:null})
+  view.rerender(<ThreadProductsWorkspace client={client} threadId="thr_one" workId="work_current" revision={2} primaryAttemptId="attempt_current" onPrimaryReady={ready}/>)
+  await waitFor(()=>expect(client.productIndex).toHaveBeenCalledTimes(2))
+  expect(ready).not.toHaveBeenCalled()
+  expect(screen.getByRole('heading',{name:'原分析未完成'})).toBeTruthy()
+})
+it('removes the previous download immediately while locating a newly requested version',async()=>{
+  let serial=0
+  vi.stubGlobal('URL',class extends URL{static createObjectURL=()=>`blob:version-${++serial}`;static revokeObjectURL=vi.fn()})
+  const old={...entry,ref:{...ref,origin:'native_file' as const},title:'report.html',media_type:'text/html',source:{artifact_id:'old',file_name:'report.html',presentation_role:'primary'}}
+  const next={...old,ref:{...old.ref,product_id:'file_two',attempt_id:'attempt_two',event_seq:9,digest:'b'.repeat(64)},source:{...old.source,artifact_id:'new'}}
+  const client={productIndex:vi.fn().mockResolvedValue({products:[old],hasMore:false,nextCursor:null}),resolveProduct:vi.fn(async(ref)=>({entry:ref.product_id===next.ref.product_id?next:old,bytes:new TextEncoder().encode(ref.product_id),projection:null,record:null}))}
+  const props={client,threadId:'thr_one',workId:'work_current',revision:8}
+  const view=render(<ThreadProductsWorkspace {...props}/>)
+  expect((await screen.findByRole('link',{name:'下载文件'})).getAttribute('href')).toBe('blob:version-1')
+  let finish!:(value:unknown)=>void
+  client.productIndex.mockImplementationOnce(()=>new Promise(resolve=>{finish=resolve}) as never)
+  view.rerender(<ThreadProductsWorkspace {...props} requested={{origin:'native_file',attemptId:'attempt_two',artifactId:'new'}}/>)
+  expect(screen.queryByRole('link',{name:'下载文件'})).toBeNull()
+  await act(async()=>finish({products:[next,old],hasMore:false,nextCursor:null}))
+  expect((await screen.findByRole('link',{name:'下载文件'})).getAttribute('href')).toBe('blob:version-2')
+})
+it.each([['report.html','text/html'],['chart.svg','image/svg+xml']])('uses the real source filename to preview generic-media product %s',async(fileName,media)=>{
+  const create=vi.fn((_blob:Blob)=>`blob:product`),revoke=vi.fn()
+  vi.stubGlobal('URL',class extends URL{static createObjectURL=create;static revokeObjectURL=revoke})
+  const file={...entry,ref:{...ref,origin:'task_delivery' as const,scope:'task' as const,revision:1},title:'正式报告',media_type:'application/octet-stream',source:{file_name:fileName},source_status:'completed'}
+  const client={productIndex:vi.fn().mockResolvedValue({products:[file],hasMore:false,nextCursor:null}),resolveProduct:vi.fn().mockResolvedValue({entry:file,bytes:new TextEncoder().encode('<h1>报告</h1>'),projection:null,record:null})}
+  const view=render(<ThreadProductsWorkspace client={client} threadId="thr_one" workId="work_current" revision={8}/>)
+  fireEvent.click(await screen.findByRole('button',{name:'查看：正式报告'}))
+  await screen.findByRole('link',{name:'下载文件'})
+  if(media==='text/html')expect(screen.getByTitle(`HTML 预览：${fileName}`).getAttribute('sandbox')).toBe('')
+  else expect(screen.getByRole('img',{name:fileName}).getAttribute('src')).toBe('blob:product')
+  expect(create.mock.calls[0][0].type).toBe(media)
+  view.unmount()
+  expect(revoke).toHaveBeenCalledWith('blob:product')
+})
+it('defaults to the actual current Work, keeps failed records visible, and loads history only on demand',async()=>{
+  const client={productIndex:vi.fn().mockResolvedValue({products:[entry],hasMore:false,nextCursor:null}),resolveProduct:vi.fn().mockResolvedValue({entry,bytes:null,projection:null,record:entry.source})}
+  render(<ThreadProductsWorkspace client={client} threadId="thr_one" workId="work_current" revision={8} onReference={vi.fn()}/>)
+  fireEvent.click(await screen.findByRole('button',{name:'查看：原分析未完成'}))
+  await screen.findByText('此项是执行记录，没有文件内容。')
+  expect(client.productIndex.mock.calls[0][1]).toEqual({workId:'work_current'})
+  expect(screen.queryByRole('link',{name:'下载文件'})).toBeNull()
+  expect((screen.getByRole('button',{name:'引用到下一轮'}) as HTMLButtonElement).disabled).toBe(true)
+  fireEvent.change(screen.getByRole('combobox',{name:'成果范围'}),{target:{value:'history'}})
+  await waitFor(()=>expect(client.productIndex).toHaveBeenLastCalledWith('thr_one',{},expect.any(AbortSignal)))
+})
+it('references the exact version and does not replace the selected reading view on a directory refresh',async()=>{
+  const file={...entry,ref:{...ref,product_id:'result_one',origin:'domain_result' as const},title:'电网校核',media_type:'application/json',byte_size:20,source_status:'partial',capabilities:{read:true as const,select:true},selection_unavailable_reason:null,presentation:{kind:'domain_result' as const}}
+  const referenced=vi.fn(),client={productIndex:vi.fn().mockResolvedValue({products:[file],hasMore:false,nextCursor:null}),resolveProduct:vi.fn().mockResolvedValue({entry:file,bytes:null,projection:null,record:null})}
+  const view=render(<ThreadProductsWorkspace client={client} threadId="thr_one" workId="work_current" revision={8} onReference={referenced}/>)
+  fireEvent.click(await screen.findByRole('button',{name:'查看：电网校核'}))
+  fireEvent.click(await screen.findByRole('button',{name:'引用到下一轮'}))
+  expect(referenced).toHaveBeenCalledWith(file)
+  view.rerender(<ThreadProductsWorkspace client={client} threadId="thr_one" workId="work_current" revision={9} onReference={referenced}/>)
+  expect(screen.getByRole('heading',{name:'电网校核'})).toBeTruthy()
+  expect(client.resolveProduct).toHaveBeenCalledTimes(1)
+})
+it('offers an excerpt only when the host permits it and makes the chosen bound explicit',async()=>{
+  const large={...entry,title:'大文件.csv',capabilities:{read:true as const,select:false,select_excerpt:true},selection_unavailable_reason:'input_capacity'}
+  const reference=vi.fn(),client={productIndex:vi.fn().mockResolvedValue({products:[large],hasMore:false,nextCursor:null}),resolveProduct:vi.fn().mockResolvedValue({entry:large,bytes:null,projection:null,record:null})}
+  render(<ThreadProductsWorkspace client={client} threadId="thr_one" workId="work_current" revision={8} onReference={reference}/>)
+  fireEvent.click(await screen.findByRole('button',{name:'查看：大文件.csv'}))
+  fireEvent.click(await screen.findByRole('button',{name:`引用开头摘录（最多${Math.ceil(applicationCapacity('product_excerpt_bytes')/1024)}KiB）`}))
+  expect(reference).toHaveBeenCalledWith(large,{max_bytes:applicationCapacity('product_excerpt_bytes')})
+})
+it('ignores an old Thread resolution that finishes after navigation',async()=>{
+  let finish!:(value:unknown)=>void
+  const read=vi.fn().mockImplementation(()=>new Promise(resolve=>{finish=resolve}))
+  const client={productIndex:vi.fn().mockResolvedValue({products:[entry],hasMore:false,nextCursor:null}),resolveProduct:read}
+  const view=render(<ThreadProductsWorkspace client={client as never} threadId="thr_one" workId="work_current" revision={8}/>)
+  fireEvent.click(await screen.findByRole('button',{name:'查看：原分析未完成'}))
+  await waitFor(()=>expect(finish).toBeDefined())
+  view.rerender(<ThreadProductsWorkspace client={client as never} threadId="thr_two" workId="work_new" revision={0}/>)
+  await act(async()=>finish({entry,bytes:null,projection:null,record:entry.source}))
+  expect(screen.queryByRole('heading',{name:'原分析未完成'})).toBeNull()
+})

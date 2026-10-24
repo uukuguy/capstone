@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any, Mapping, Sequence
 
-from .network_diagram import MAX_EVENT_PAGE_BYTES
+from .application_capacity import limits, require_capacity
 from .thread_protocol import EventEnvelope, ThreadProtocolError, ThreadSnapshot
 
 
@@ -14,14 +14,17 @@ def validate_limit(limit: int, maximum: int) -> None:
         raise ThreadProtocolError("page limit is invalid")
 
 
-def thread_descriptor(snapshot: ThreadSnapshot, *, created_at: str, archived: bool) -> dict[str, Any]:
+def thread_descriptor(snapshot: ThreadSnapshot, *, created_at: str, archived: bool, updated_at: str | None = None) -> dict[str, Any]:
     return {
         "thread_id": snapshot.thread_id,
         "model_id": None if snapshot.active_model_context is None else snapshot.active_model_context.model_id,
         "implementation_family": None if snapshot.active_model_context is None else snapshot.active_model_context.implementation_family,
         "created_at": created_at,
+        "updated_at": updated_at or (created_at if snapshot.last_event_seq == 0 else None),
         "archived": archived,
         "last_event_seq": snapshot.last_event_seq,
+        **({'session_title': snapshot.session_title.to_document()} if snapshot.session_title else {}),
+        **({'session_type': snapshot.session_type} if snapshot.session_type else {}),
         **({'minimum_protocol_version': 2} if snapshot.minimum_protocol_version == 2 else {}),
     }
 
@@ -51,9 +54,9 @@ def history_page(thread_id: str, before: int, events: list[EventEnvelope], limit
     for event in events[:limit]:
         document = event.to_document()
         event_size = len(json.dumps(document, ensure_ascii=False).encode()) + 2
-        if size + event_size > MAX_EVENT_PAGE_BYTES:
+        if size + event_size > limits.event_page_bytes:
             if not selected:
-                raise ThreadProtocolError("event exceeds the page size limit")
+                require_capacity('event_page_bytes', size + event_size, phase='history_page')
             break
         size += event_size
         selected.append(document)
@@ -71,6 +74,6 @@ def network_context_page(snapshot: ThreadSnapshot, events: list[EventEnvelope]) 
         "model_context_id": None if snapshot.active_model_context is None else snapshot.active_model_context.id,
         "events": [event.to_document() for event in sorted(events, key=lambda event: event.event_seq)],
     }
-    if len(events) > 4 or len(json.dumps(page, ensure_ascii=False).encode()) > MAX_EVENT_PAGE_BYTES:
-        raise ThreadProtocolError("network context projection exceeds its limit")
+    require_capacity('ui_network_event_items', len(events), phase='network_context')
+    require_capacity('event_page_bytes', len(json.dumps(page, ensure_ascii=False).encode()), phase='network_context')
     return page

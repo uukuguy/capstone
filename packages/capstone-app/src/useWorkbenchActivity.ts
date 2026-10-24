@@ -1,8 +1,8 @@
+import {applicationCapacity} from './applicationCapacity'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { PreparationUpdate } from './workbenchPreparation'
 
 export type PrepareConnection = (signal: AbortSignal, update: (value: PreparationUpdate) => void) => Promise<void>
-const IDLE_MS = 15 * 60 * 1000
 
 /** Browser presence is not a lease. Keep task state; release idle subscriptions. */
 export function useWorkbenchActivity(prepare: PrepareConnection | undefined, busy: boolean) {
@@ -26,7 +26,7 @@ export function useWorkbenchActivity(prepare: PrepareConnection | undefined, bus
     const current = ++generation.current
     const abort = new AbortController()
     abortRef.current = abort
-    const timeout = setTimeout(() => abort.abort(), 180000)
+    const timeout = setTimeout(() => abort.abort(), applicationCapacity('ui_prepare_timeout_ms'))
     changeMode('preparing'); setError(null)
     setUpdates([{ component: 'api', status: 'preparing' }])
     const request = (async () => {
@@ -79,11 +79,11 @@ export function useWorkbenchActivity(prepare: PrepareConnection | undefined, bus
     }
     const check = () => {
       if (modeRef.current !== 'active') return
-      const remaining = IDLE_MS - (Date.now() - lastActivity.current)
+      const remaining = applicationCapacity('ui_activity_idle_ms') - (Date.now() - lastActivity.current)
       if (!busy && remaining <= 0) suspend()
-      else timer = setTimeout(check, busy ? IDLE_MS : Math.max(1, remaining))
+      else timer = setTimeout(check, busy ? applicationCapacity('ui_activity_idle_ms') : Math.max(1, remaining))
     }
-    if (mode === 'active') { lastActivity.current = Date.now(); timer = setTimeout(check, IDLE_MS) }
+    if (mode === 'active') { lastActivity.current = Date.now(); timer = setTimeout(check, applicationCapacity('ui_activity_idle_ms')) }
     const events = ['pointermove', 'pointerdown', 'keydown', 'wheel', 'touchstart', 'focus']
     for (const event of events) window.addEventListener(event, activity, { capture: true, passive: true })
     document.addEventListener('visibilitychange', visibility)

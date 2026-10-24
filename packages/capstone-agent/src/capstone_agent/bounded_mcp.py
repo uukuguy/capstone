@@ -15,7 +15,7 @@ from referencing.exceptions import NoSuchResource
 from .runtime_resources import content_hash, safe_path
 from .resource_installation import private_environment, verify_source_tree
 
-MAX_BYTES = 128 * 1024
+from .application_capacity import limits, initialize_capacity, require_capacity, CapacityExceeded
 
 
 def _deny(uri):
@@ -25,8 +25,9 @@ def _deny(uri):
 def validate_arguments(name, arguments, schemas, hashes):
     if name not in schemas or content_hash(schemas[name]) != hashes.get(name):
         raise ValueError('MCP tool identity changed')
-    if not isinstance(arguments, dict) or len(json.dumps(arguments, allow_nan=False).encode()) > MAX_BYTES:
+    if not isinstance(arguments, dict):
         raise ValueError('MCP arguments exceed bounds')
+    require_capacity('mcp_frame_bytes', len(json.dumps(arguments, allow_nan=False).encode()), 'mcp_arguments')
     try:
         schema = schemas[name]['inputSchema']
         Draft202012Validator.check_schema(schema)
@@ -40,6 +41,7 @@ async def serve(config: dict):
     # select the executable, descriptor, server or transport.
     from mcp import ClientSession, StdioServerParameters  # pyright: ignore[reportMissingImports]
     from mcp.client.stdio import stdio_client  # pyright: ignore[reportMissingImports]
+    initialize_capacity(config.get('runtimeLimits'), mode=config.get('runtimeLimitMode', 'normal'))
     config = config['mcp']
     install, work = Path(config['install']), Path(config['workspace'])
     descriptor = config['descriptor']
@@ -57,36 +59,35 @@ async def serve(config: dict):
         args=[str(safe_path(install, descriptor['server']))], cwd=str(work), env=env)
     async with stdio_client(parameters) as streams:
         async with ClientSession(*streams) as session:
-            await asyncio.wait_for(session.initialize(), 60)
-            listing = await asyncio.wait_for(session.list_tools(), 30)
+            await asyncio.wait_for(session.initialize(), limits.mcp_initialize_seconds)
+            listing = await asyncio.wait_for(session.list_tools(), limits.mcp_catalog_seconds)
             schemas = {tool.name: tool.model_dump(mode='json', by_alias=True, exclude_none=True) for tool in listing.tools}
             if schemas != descriptor['tool_schemas'] or {name: content_hash(schema) for name, schema in schemas.items()} != descriptor['tool_schema_hashes']:
                 raise ValueError('MCP publication changed')
             print(json.dumps({'type': 'mcp_ready', 'tool_schema_hashes': descriptor['tool_schema_hashes']}), flush=True)
             calls = 0
-            while line := await asyncio.to_thread(sys.stdin.buffer.readline, MAX_BYTES + 1):
+            while line := await asyncio.to_thread(sys.stdin.buffer.readline, limits.mcp_frame_bytes + 1):
                 calls += 1
-                if calls > 32:
-                    raise ValueError('MCP call limit exceeded')
-                if len(line) > MAX_BYTES:
-                    raise ValueError('MCP frame exceeds bounds')
+                require_capacity('mcp_call_count', calls, 'mcp_call')
+                require_capacity('mcp_frame_bytes', len(line), 'mcp_frame')
                 request = json.loads(line)
                 name, arguments = request['name'], request['arguments']
                 try:
                     validate_arguments(name, arguments, schemas, descriptor['tool_schema_hashes'])
+                except CapacityExceeded:
+                    raise
                 except ValueError:
                     print(json.dumps({'error': 'invalid_tool_arguments'}), flush=True)
                     continue
                 # A timeout ends this connection. Never retry a possible mutation.
                 try:
-                    result = await asyncio.wait_for(session.call_tool(name, arguments=arguments), 30)
+                    result = await asyncio.wait_for(session.call_tool(name, arguments=arguments), limits.mcp_tool_seconds)
                 except BaseException:
                     print(json.dumps({'error': 'tool_outcome_unknown_no_retry'}), flush=True)
                     raise
                 value = result.model_dump(mode='json', by_alias=True, exclude_none=True)
                 body = json.dumps(value, allow_nan=False).encode()
-                if len(body) > MAX_BYTES:
-                    raise ValueError('MCP result exceeds bounds; outcome unknown')
+                require_capacity('mcp_frame_bytes', len(body), 'mcp_result')
                 if 'outputSchema' in schemas[name] and result.structured_content is not None:
                     try:
                         Draft202012Validator(schemas[name]['outputSchema'], registry=Registry(retrieve=_deny)).validate(result.structured_content)
@@ -98,14 +99,16 @@ async def serve(config: dict):
                     'descriptor_sha256': config['descriptor_sha256'], 'tool': name,
                     'tool_schema_sha256': descriptor['tool_schema_hashes'][name],
                     'output_sha256': hashlib.sha256(body).hexdigest()}})
-                if len(frame.encode()) > MAX_BYTES:
-                    raise ValueError('MCP result envelope exceeds bounds; outcome unknown')
+                require_capacity('mcp_frame_bytes', len(frame.encode()), 'mcp_envelope')
                 print(frame, flush=True)
 
 
 def main():
     try:
         asyncio.run(serve(json.loads(Path(sys.argv[1]).read_text())))
+    except CapacityExceeded as error:
+        print(json.dumps({'error': 'capacity_exceeded', 'capacity': error.to_document()}), flush=True)
+        sys.exit(1)
     except BaseException:
         # No raw server error, file content or environment enters public output.
         print(json.dumps({'error': 'mcp_connection_failed_no_retry'}), flush=True)

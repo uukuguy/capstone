@@ -1,3 +1,4 @@
+import {exceedsCapacity} from './applicationCapacity'
 import { ThreadProtocolError } from './threadProtocol'
 
 export type OpenedModel = {
@@ -28,14 +29,14 @@ export function parseModelControl(text: string): { kind: 'open_model' | 'activat
 export function parseModelWorkspace(value: unknown, threadId: string): ModelWorkspace {
   const fail = (): never => { throw new ThreadProtocolError('模型集合身份或内容无效') }
   const object = (item: unknown): Record<string, unknown> => item !== null && typeof item === 'object' && !Array.isArray(item) ? item as Record<string, unknown> : fail()
-  const text = (item: unknown): string => typeof item === 'string' && item.trim().length > 0 && item.length <= 256 ? item : fail()
+  const text = (item: unknown): string => typeof item === 'string' && item.trim().length > 0 && !exceedsCapacity(item.length,'ui_result_text_chars') ? item : fail()
   const sequence = (item: unknown): number => typeof item === 'number' && Number.isSafeInteger(item) && item >= 0 ? item : fail()
   const fields = (item: Record<string, unknown>, allowed: string[]) => { if (Object.keys(item).length !== allowed.length || allowed.some((key) => !(key in item))) fail() }
   const body = object(value)
   fields(body, ['schema', 'thread_id', 'run_id', 'event_seq', 'current_entry_id', 'models', 'blocked_reason'])
   if (body.schema !== 'capstone-thread-model-workspace/1' || body.thread_id !== threadId ||
-      new TextEncoder().encode(JSON.stringify(body)).length > 64 * 1024 ||
-      !Array.isArray(body.models) || !body.models.length || body.models.length > 64) fail()
+      exceedsCapacity(new TextEncoder().encode(JSON.stringify(body)).length,'ui_model_workspace_bytes') ||
+      !Array.isArray(body.models) || !body.models.length || exceedsCapacity(body.models.length,'open_models')) fail()
   const models = (body.models as unknown[]).map((item): OpenedModel => {
     const model = object(item)
     fields(model, ['entry_id', 'model_id', 'model_revision', 'implementation_family', 'authority_model_ref', 'display_name', 'diagram_provider_id', 'last_active_seq'])

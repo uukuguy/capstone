@@ -70,6 +70,20 @@ def test_compose_protects_persistent_resources_and_starts_seed_entrypoint():
     assert 'CMD ["python", "-m", "capstone_agent.general_pi_resource_seed"]' in image
 
 
+def test_native_analysis_installs_locked_scipy_and_checks_pandas_statistics():
+    project = Path(__file__).parents[3]
+    image = (project / 'deploy/general-pi.Dockerfile').read_text()
+    manifest = json.loads((project / 'configs/runtime/native-analysis.json').read_text())
+    roots = {item['requirement'].split('==')[0] for item in manifest['packages']}
+    assert {'numpy', 'pandas', 'scipy'} <= roots
+    lock = json.loads((project / 'configs/runtime/power-samples.lock.json').read_text())
+    assert all(name in lock['dependencies'] for name in ('numpy', 'pandas', 'scipy'))
+    assert '--require-hashes --only-binary :all: -r configs/runtime/native-analysis.lock.txt' in image
+    assert 'python tools/native_analysis_smoke.py' in image
+    smoke = (project / 'tools/native_analysis_smoke.py').read_text()
+    assert "method='spearman'" in smoke, 'build must exercise the pandas optional-dependency path'
+
+
 def test_python_derived_bytecode_is_not_a_retained_resource(tmp_path):
     from capstone_agent.general_pi_resource_seed import retain_seed
     source, retained = tmp_path / 'seed', tmp_path / 'retained'

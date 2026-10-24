@@ -90,7 +90,12 @@ def test_http_model_free_creation_skips_professional_preparation():
         assert response.json()['active_model_context'] is None
         assert client.get('/api/v1/threads', headers=headers).json()['threads'][0]['model_id'] is None
         assert client.get('/api/v1/threads/thr_work/models', headers=headers).status_code == 409
-        assert client.get('/api/v1/threads/thr_work/input-catalog', headers=headers).status_code == 503
+        catalog = client.get('/api/v1/threads/thr_work/input-catalog', headers=headers)
+        assert catalog.status_code == 200
+        assert catalog.json()['context_id'] is None
+        assert catalog.json()['objects'] == []
+        assert catalog.json()['resource_profiles'] == {}
+        assert not next(item for item in catalog.json()['operations'] if item['operation_id'] == 'view_topology')['available']
     assert calls == []
 
 

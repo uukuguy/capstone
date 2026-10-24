@@ -1,0 +1,32 @@
+.capstone-call-trace { list-style: none; padding: 0; margin: 2px 0; font-size: 11px; color: inherit; }
+.capstone-call-trace > li + li { margin-top: 10px; }
+.capstone-call-model { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; padding: 3px 0; }
+.capstone-call-model strong { font-weight: 500; }
+.capstone-call-tokens { display: flex; flex-wrap: wrap; gap: 3px 12px; font-size: 10px; color: var(--graph-muted, #647d76); font-variant-numeric: tabular-nums; }
+.capstone-call-intent, .capstone-call-response { font-size: 11px; margin: 4px 0; max-width: 85ch; overflow-wrap: anywhere; }
+.capstone-call-intent { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--graph-muted, #647d76); }
+.capstone-call-round[data-record-gap] { background: #fff8ea; border-radius: 4px; padding: 5px 8px; }
+.capstone-call-gap { margin: 5px 0; color: #805516; font-size: 10px; }
+.capstone-call-gap > p { display: flex; align-items: center; gap: 5px; margin: 2px 0; font-weight: 500; }
+.capstone-call-gap svg { width: 12px; height: 12px; flex: none; }
+.capstone-call-gap code { display: block; overflow-wrap: anywhere; font-size: 9px; }
+.capstone-call-gap ul { padding-left: 16px; margin: 3px 0; }
+.capstone-call-round:focus-visible { outline: 2px solid #b18132; outline-offset: 2px; }
+.capstone-process-trace-warning { display: inline-flex; align-items: center; gap: 4px; border: 1px solid #dfc99f; background: #fff8ea; color: #805516; border-radius: 4px; font: inherit; font-size: 10px; padding: 2px 5px; cursor: pointer; white-space: nowrap; }
+.capstone-process-trace-warning > svg { width: 12px; height: 12px; flex: none; }
+.capstone-process-trace-warning:focus-visible { outline: 2px solid #b18132; outline-offset: 2px; }
+.capstone-call-model small, .capstone-call-tool small, .capstone-call-pending { color: var(--graph-muted, #647d76); font-size: 10px; }
+.capstone-call-duration { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.capstone-call-batch { margin: 2px 0 0 14px; }
+.capstone-call-tool { margin: 0; padding: 2px 0; border: 0; }
+.capstone-call-tool > summary { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; cursor: pointer; list-style: none; }
+.capstone-call-tool > summary::-webkit-details-marker { display: none; }
+.capstone-call-tool > summary::marker { content: ''; }
+.capstone-call-tool > summary > svg { width: 11px; height: 11px; flex: none; }
+.capstone-call-tool[open] > summary > svg { transform: rotate(90deg); }
+.capstone-call-tool strong { font-weight: 400; overflow-wrap: anywhere; }
+.capstone-call-tool > summary:focus-visible { outline: 2px solid var(--graph-accent, #3d725c); outline-offset: 2px; }
+.capstone-call-tool-detail { padding: 3px 0 5px 19px; }
+.capstone-call-tool-detail p { margin: 3px 0; }
+.capstone-call-operation { white-space: pre-wrap; overflow-wrap: anywhere; }
+.capstone-call-pending { margin: 2px 0 0 14px; }

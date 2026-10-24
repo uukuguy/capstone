@@ -10,6 +10,10 @@ describe it as the complete topology when counts are omitted. `model.derive_seri
 changes one bounded per-snapshot load profile; `model.validate` reports bounded
 topology and demand validation. Do not request raw
 Network objects, arbitrary files, Python execution, or solver calls.
+`model.inspect.load_p_set_mw` contains static defaults only. Time-series load
+profiles override those defaults. Use `load_demand_summary_mw` for effective
+demand ranges across snapshots, retaining missing-snapshot and omitted-load
+counts. A zero static default does not establish zero operating demand.
 After completing the required tool calls, return one formal reader-facing
 answer for the current instruction. Do not narrate planning, retries, or tool
 calls in that answer. Do not include internal model, result, evidence, context,

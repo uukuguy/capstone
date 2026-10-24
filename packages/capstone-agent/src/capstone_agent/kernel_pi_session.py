@@ -30,6 +30,7 @@ from capability_agent.application.composition import PreparedApplication
 from capability_agent.tools.catalog import CoreToolCatalog
 
 from .harness import AdmittedAttemptAnswer, PiPromptSession, HarnessRuntimeConfigurationError, normalize_runtime_event
+from .application_capacity import current_capacity
 from .kernel_capability_preparation import PreparedKernelApplicationProfile
 from .kernel_reference_handoff import PreparedKernelReferenceHandoffs
 from .model_capability_context import PreparedModelCapabilityContext
@@ -80,10 +81,10 @@ class PreparedKernelPiSessionFactory:
             raise TypeError("claim must be an AttemptClaim")
         if not isinstance(context, PreparedModelCapabilityContext):
             raise TypeError("context must be a PreparedModelCapabilityContext")
-        if context.model_context != claim.model_context:
+        if context.model_context != claim.professional_context:
             raise ValueError("prepared Kernel context does not match Attempt snapshot")
         prepared = tuple(
-            _require_prepared_kernel_profile(contribution, claim.model_context)
+            _require_prepared_kernel_profile(contribution, claim.professional_context)
             for contribution in context.contributions
         )
         plan = claim.turn_plan
@@ -161,8 +162,9 @@ class PreparedKernelPiRpcSessionBuilder:
             selected_task = claim.previous_instruction if claim.previous_instruction is not None and claim.previous_instruction.model_context is not None else None
             policy = _compose_attempt_policy(directory, None, include_generic=True,
                 application_catalog=claim.application_catalog,
-                model_context=claim.model_context if selected_task is not None else None,
-                previous_instruction=selected_task)
+                model_context=claim.professional_context if selected_task is not None else None,
+                previous_instruction=selected_task,
+                context_products=(claim.submission or {}).get('_product_context', []))
             paths = RuntimePaths(command=self._runtime_host.command,
                 project_pi_dir=self._runtime_host.project_pi_dir, session_dir=directory / "session",
                 workspace=directory, extension_path=None, domain_search_paths=(), system_policy_path=policy)
@@ -183,7 +185,7 @@ class PreparedKernelPiRpcSessionBuilder:
             active = self._research_is_active
             research = AttemptResearch(workspace.root.parent / "thread-research", thread_id=claim.thread_id,
                 run_id=claim.run_id, attempt_id=claim.attempt.attempt_id,
-                model_context=claim.model_context if claim.task_context is None else None,
+                model_context=claim.professional_context if claim.task_context is None else None,
                 task_context=claim.task_context,
                 research_generation=claim.research_generation if claim.task_context is None else None,
                 channel_root=workspace.core_path / "research-channels" / claim.attempt.attempt_id,
@@ -216,6 +218,8 @@ class PreparedKernelPiRpcSessionBuilder:
                 ):
                     raise RuntimeError("prepared Pi tool resources are unavailable")
                 descriptor = descriptor_from_endpoint(
+                    runtime_limits=current_capacity().values,
+                    runtime_limit_mode=current_capacity().mode,
                     binding_id=binding_id,
                     workspace=workspace.domain_path(binding_id),
                     application_workspace_path=workspace.root,
@@ -252,17 +256,18 @@ class PreparedKernelPiRpcSessionBuilder:
         ordinary = claim.turn_plan is not None and claim.turn_plan.route == "ordinary"
         intent_request = getattr(claim.turn_plan, 'intent_request', None)
         system_policy_path = self._runtime_host.system_policy_path
-        if profiles and intent_request is None:
+        if profiles and (intent_request is None or (claim.submission or {}).get('_product_context')):
             system_policy_path = _compose_attempt_policy(
                 workspace.core_path / "pi" / "attempts" / claim.attempt.attempt_id,
                 self._runtime_host.system_policy_path,
                 include_generic=ordinary,
                 include_research=self._research_enabled,
                 application_catalog=claim.application_catalog,
-                model_context=claim.model_context,
+                model_context=claim.professional_context,
                 profiles=profiles,
                 prior_results=claim.prior_results,
                 previous_instruction=claim.previous_instruction,
+                context_products=(claim.submission or {}).get('_product_context', []),
             )
         from .professional_resources import prepared_authority_environment
         extra_environment = {**self._runtime_host.extra_environment,
@@ -303,7 +308,7 @@ class PreparedKernelPiRpcSessionBuilder:
                 'phase': 'execution', 'history_cutoff': request_document['history_cutoff'],
                 'history_truncated': request_document.get('history_truncated', False),
                 'execution_plan': execution_plan_for(intent_request, claim.turn_plan.intent_decision),
-                'model_context': claim.model_context.to_document(),
+                'model_context': claim.professional_context.to_document(),
                 'bindings': [{'binding_id': profile.model_binding.binding_id,
                               'context_ref': profile.model_binding.context_ref} for profile in profiles],
                 'prior_results': [{'result_ref': ref.result_ref, 'evidence_refs': list(ref.evidence_refs),
@@ -373,8 +378,9 @@ class PreparedKernelPiRpcSessionBuilder:
         policy = _compose_attempt_policy(
             attempt_path, None, include_generic=True,
             application_catalog=claim.application_catalog,
-            model_context=claim.model_context,
+            model_context=claim.professional_context,
             previous_instruction=claim.previous_instruction,
+            context_products=(claim.submission or {}).get('_product_context', []),
         )
         paths = RuntimePaths(
             command=self._runtime_host.command,
@@ -461,6 +467,7 @@ def _compose_attempt_policy(
     profiles: tuple[PreparedKernelApplicationProfile, ...] = (),
     prior_results: tuple[PriorResultReference, ...] = (),
     previous_instruction: PreviousInstruction | None = None,
+    context_products: list | tuple = (),
 ) -> Path:
     """Compose generic, domain, and application catalog guidance for one Attempt."""
 
@@ -474,12 +481,14 @@ def _compose_attempt_policy(
         domain_text = domain_policy.read_text(encoding="utf-8")
     catalog_text = _render_application_catalog_context(application_catalog)
     model_text = _render_attempt_model_context(model_context, profiles, prior_results=prior_results, previous_instruction=previous_instruction) if model_context is not None else ""
-    if sum(map(len, (generic_text, domain_text, catalog_text, model_text, research_text, delivery_text))) > 128_000:
+    from .thread_products import render_product_context
+    product_text = render_product_context(context_products)
+    if sum(map(len, (generic_text, domain_text, catalog_text, model_text, research_text, delivery_text, product_text))) > 128_000:
         raise RuntimeError("combined runtime policy is too large")
     directory.mkdir(mode=0o700, parents=True, exist_ok=True)
     path = directory / "system-policy.md"
     path.write_text(
-        "\n\n".join(item for item in (generic_text, domain_text, catalog_text, model_text, research_text, delivery_text) if item),
+        "\n\n".join(item for item in (generic_text, domain_text, catalog_text, model_text, research_text, delivery_text, product_text) if item),
         encoding="utf-8",
     )
     path.chmod(0o600)
@@ -519,6 +528,8 @@ def _render_attempt_model_context(
             "Use them to understand follow-up references. Retrieve admitted results/evidence before making calculation claims.",
             json.dumps({"attempt_id": previous_instruction.attempt_id, "phase": previous_instruction.phase,
                        "instruction": previous_instruction.instruction, "answer_excerpt": previous_instruction.answer,
+                       "instruction_truncated": getattr(previous_instruction, 'instruction_truncated', False),
+                       "answer_truncated": getattr(previous_instruction, 'answer_truncated', False),
                        **({"source_model_context": previous_instruction.model_context.to_document()}
                           if previous_instruction.model_context is not None else {})}, ensure_ascii=False),
         ])
@@ -1157,9 +1168,9 @@ def _build_result_projections(
             "run_id": claim.run_id,
             "turn_id": claim.attempt.turn_id,
             "attempt_id": claim.attempt.attempt_id,
-            "model_context_id": claim.model_context.id,
-            "model_id": claim.model_context.model_id,
-            "model_revision": claim.model_context.model_revision,
+            "model_context_id": claim.professional_context.id,
+            "model_id": claim.professional_context.model_id,
+            "model_revision": claim.professional_context.model_revision,
             "source": {
                 "capability_id": capability_id,
                 "domain_pack_id": domain_pack_id,
@@ -1172,7 +1183,7 @@ def _build_result_projections(
         return normalize_result_projection(
             raw,
             admitted_refs=tuple((*result_refs, *evidence_refs_for_result)),
-            expected_model_revision=claim.model_context.model_revision,
+            expected_model_revision=claim.professional_context.model_revision,
         )
 
     owners: dict[str, str] = {}
@@ -1263,7 +1274,7 @@ def _build_result_projections(
                 # visible as an explicitly unavailable projection rather than
                 # silently dropping it or pretending another domain's shape.
                 domain_pack_id = str(getattr(domain_profile, "id", binding_id))
-                implementation_family = claim.model_context.implementation_family
+                implementation_family = claim.professional_context.implementation_family
                 capability_id = next(
                     (
                         str(event.get("capability_id"))
@@ -1293,9 +1304,9 @@ def _build_result_projections(
                         authority=authority,
                         invoke=invoke,
                         context_ref=context_ref,
-                        model_revision=claim.model_context.model_revision,
-                        model_context_id=claim.model_context.id,
-                        model_id=claim.model_context.model_id,
+                        model_revision=claim.professional_context.model_revision,
+                        model_context_id=claim.professional_context.id,
+                        model_id=claim.professional_context.model_id,
                         thread_id=claim.thread_id,
                         run_id=claim.run_id,
                         turn_id=claim.attempt.turn_id,
@@ -1334,7 +1345,7 @@ def _build_result_projections(
                     raw_projections = ()
                     projection_error = True
             domain_pack_id = str(getattr(domain_profile, "id", binding_id))
-            implementation_family = claim.model_context.implementation_family
+            implementation_family = claim.professional_context.implementation_family
             capability_id = next(
                 (
                     str(event.get("capability_id"))
@@ -1374,7 +1385,7 @@ def _build_result_projections(
                         break
                     diagram_ids = list(raw_diagram_ids)
                 try:
-                    expected_revision = claim.model_context.model_revision
+                    expected_revision = claim.professional_context.model_revision
                     verify_result = getattr(authority, "verify_result", None)
                     if raw_result_ref in result_contexts:
                         expected_revision = result_contexts[raw_result_ref][1]
@@ -1402,11 +1413,11 @@ def _build_result_projections(
                     break
                 if diagram_ids is not None:
                     normalized["_diagram_element_ids"] = diagram_ids
-                if expected_revision != claim.model_context.model_revision:
+                if expected_revision != claim.professional_context.model_revision:
                     # Host-only receipt: added after Authority verification and
                     # projection normalization, never accepted from model text.
                     normalized["_verified_context_binding"] = {
-                        "base_model_revision": claim.model_context.model_revision,
+                        "base_model_revision": claim.professional_context.model_revision,
                         "result_model_revision": expected_revision,
                         "result_ref": raw_result_ref,
                     }

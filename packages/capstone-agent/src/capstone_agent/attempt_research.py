@@ -104,8 +104,10 @@ class AttemptResearch:
         self._started = self.store.snapshot.core.active_turn is None
         if self._started:
             self.store.append(self._start_event)
+        from .application_capacity import current_capacity
         self.controller = ResearchController(self.store, research_id=self.research_id,
-            turn_id=self.turn_id, admit_reference=admit_reference)
+            turn_id=self.turn_id, admit_reference=admit_reference,
+            runtime_limits=dict(current_capacity().values))
         initial_state = self.controller.read()
         self._initial_notes = {note.note_id: note for note in initial_state.notes} if initial_state else {}
         self._closed = False
@@ -137,12 +139,18 @@ class AttemptResearch:
         state = self.controller.read()
         if state is None:
             return None
+        # Runtime recovery notes remain in the protected research channel.
+        # Public progress carries the findings, not serialized runtime state.
+        public_notes = [note for note in state.notes
+                        if not note.note_id.startswith(("runtime.checkpoint.", "runtime.dispatch."))]
+        snapshot = state.model_dump(mode="json")
+        snapshot["notes"] = [note.model_dump(mode="json") for note in public_notes]
         return {"research_id": state.research_id, "research_revision": state.revision,
                 "goal": state.goal, **self._context_fields(),
                 "claim_count": len(state.claims), "open_question_count": len(state.open_questions),
-                "current_note_ids": [note.note_id for note in state.notes
+                "current_note_ids": [note.note_id for note in public_notes
                     if self._initial_notes.get(note.note_id) != note],
-                "research_snapshot": state.model_dump(mode="json")}
+                "research_snapshot": snapshot}
 
     def _context_fields(self) -> dict[str, object]:
         if self.task_context is not None:
