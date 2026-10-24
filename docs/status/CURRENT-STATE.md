@@ -1,5 +1,15 @@
 # Current State
 
+## Workspace integration active — 2026-10-25
+
+User authorized merging fix/workspace-reading-type into dev. PR56 is draft and
+mergeable at e8bfb5ae; final remote runs40119881315(PR) and40119884971(Linux/macOS)
+are in progress. Complete local product and release gate segments passed; see
+docs/reviews/2026-10-25-workspace-integration.md. No merge or cloud/demo change yet.
+Original dev edits are preserved in recovery stash c306060c. Keep data and all
+unmerged recovery work. Named workspaces and refined home/empty states remain
+follow-up requirements, not completed features.
+
 Branch policy: the phase-complete conversation application is a release baseline for main,
 with small maintenance fixes in the near term. Enterprise autonomous execution is the dev
 research and delivery focus. Pi is an executor ecosystem, not a permanent product branch.

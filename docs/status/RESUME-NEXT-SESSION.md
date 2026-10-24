@@ -1,5 +1,21 @@
 # Live Session Checkpoint
 
+## Integration active — 2026-10-25
+
+PR56 at e8bfb5ae is draft, mergeable and waiting on final CI40119881315 and
+dual-platform release40119884971. Local full gate segments, independent wheel
+installation and source setup passed. Review: docs/reviews/2026-10-25-workspace-integration.md.
+Dev remains7b2adbc6 until PR merge. Original dev control edits: stash c306060c.
+Do not drop that stash or research/user work. Source code in model-decision is
+committed; scratch and the superseded account/team proposal remain outside Git.
+After both platforms and PR gate pass: ready/merge PR56, stash these task-owned
+control updates, fast-forward dev, setup/install-pi/doctor, stop observed old
+Vite14792 and rebuild from actual dev with ROOT/deploy/local.env and root model
+assets. Verify its App and API/worker identity, scoped cleanup. Reconcile six
+preserved design/control updates from /tmp/workspace-final-control-reconcile.json,
+freeze the integration node to e8bfb5ae, update control via a docs PR, then close
+merged branch refs while preserving the implementation worktree and data.
+
 Updated: 2026-10-17 15:54 CST. Active work; no final handoff.
 
 ## Current scope and verified state
