@@ -2,6 +2,38 @@
 
 ## Branch integration active — 2026-10-25
 
+FINAL LOCAL GATES PASSED. Product targets and release extras all passed in
+scoped segments. See docs/reviews/2026-10-25-workspace-integration.md. Actual
+integration gaps fixed: registered shared-resource symlinks in the data-source
+descriptor; sdist/wheel materialization; enterprise Domain Pack wheel inputs.
+Additional fixture corrections supply timeout_seconds and explicit small capacity
+profiles, distinguish reply/event budgets, isolate host Provider overrides, and
+provide the SDK event registration stub. Build/cache/native-report tests are now
+in the local-rebuild gate. Final package-artifacts and source-setup passed.
+Next commit contains these corrections; all earlier remote runs were cancelled
+because they preceded them. Start final PR CI and dual-platform workflow on the
+new head, wait for both, then merge PR56 and follow the dev closeout below.
+
+Latest integration head is c8bc4ac3. PR56 is draft, mergeable, not merged.
+Final remote checks: PR run40117230048 and explicit dual-platform release
+run40117255250, both still in progress. Superseded runs40116959775 and
+40116957302 were cancelled. Local full gate log is now
+/tmp/workspace-integration-check-pr-direct.log, with NO_PROXY loopback bypass
+because macOS system proxies caused two loopback test502s. The direct96-test
+native-server/context/product check passed. Previous full gate had936passes,
+3skips and two obsolete test failures; both corrected in c8bc4ac3.
+No additional product edits. Six unique dev design/control reconciliations are
+prepared in /tmp/workspace-final-control-reconcile.json for a docs closeout PR
+AFTER PR56 merges, including the10/20/50 cache specification. Preserve
+c306060c stash. Next: wait/fix final gates, mark PR56 ready, merge without bypass,
+fast-forward actual dev, run make setup/install-pi/doctor there, stop observed
+old VitePID14792 and canonical rebuild from dev with ROOT/deploy/local.env and
+ROOT/.grid-agent/runtime/pypsa-models. Verify dev's real App and backend, scoped
+cleanup. Reconcile preserved docs, freeze integration node to c8bc4ac3 before
+closing source branch, update control in actual dev, integrate docs via PR,
+then detach preserved implementation worktree and delete only merged branch refs.
+Keep research-worker/browser scratch, superseded proposal, root work and data.
+
 PR56 is open as a draft at ae9dd0fe, current dev has been merged into it.
 Dev's original dirty files are preserved in stash c306060c175483dbcfa9eec8f4ae0875e593d219;
 do not drop it until all divergent documentation and config changes are reconciled.

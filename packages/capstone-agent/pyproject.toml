@@ -30,6 +30,36 @@ dev = ["pytest>=9,<10"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/capstone_agent"]
+exclude = [
+  "/src/capstone_agent/resources/application-capacity.json",
+  "/src/capstone_agent/resources/capstone-pi",
+  "/src/capstone_agent/resources/execution-guidance.mjs",
+  "/src/capstone_agent/resources/runtime-limits.mjs",
+  "/src/capstone_agent/resources/task-record-tools.mjs",
+]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/capstone_agent/resources/application-capacity.json" = "capstone_agent/resources/application-capacity.json"
+"src/capstone_agent/resources/capstone-pi" = "capstone_agent/resources/capstone-pi"
+"src/capstone_agent/resources/execution-guidance.mjs" = "capstone_agent/resources/execution-guidance.mjs"
+"src/capstone_agent/resources/runtime-limits.mjs" = "capstone_agent/resources/runtime-limits.mjs"
+"src/capstone_agent/resources/task-record-tools.mjs" = "capstone_agent/resources/task-record-tools.mjs"
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+  "/src/capstone_agent/resources/application-capacity.json",
+  "/src/capstone_agent/resources/capstone-pi",
+  "/src/capstone_agent/resources/execution-guidance.mjs",
+  "/src/capstone_agent/resources/runtime-limits.mjs",
+  "/src/capstone_agent/resources/task-record-tools.mjs",
+]
+
+[tool.hatch.build.targets.sdist.force-include]
+"../../configs/runtime/application-capacity.json" = "src/capstone_agent/resources/application-capacity.json"
+"../../configs/runtime/capstone-pi" = "src/capstone_agent/resources/capstone-pi"
+"../pi-capability-tools/src/execution-guidance.mjs" = "src/capstone_agent/resources/execution-guidance.mjs"
+"../pi-capability-tools/src/runtime-limits.mjs" = "src/capstone_agent/resources/runtime-limits.mjs"
+"../pi-capability-tools/src/task-record-tools.mjs" = "src/capstone_agent/resources/task-record-tools.mjs"
 
 [tool.uv.sources]
 capability-agent-kernel = { path = "../capability-agent-kernel", editable = true }

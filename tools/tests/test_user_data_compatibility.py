@@ -50,6 +50,39 @@ def commit_context(root):
     return subprocess.check_output(["git", "-C", str(root), "rev-parse", "HEAD"], text=True).strip()
 
 
+@pytest.mark.parametrize('name', ['application-capacity.json', 'execution-guidance.mjs',
+                                'runtime-limits.mjs', 'task-record-tools.mjs'])
+def test_shared_resource_link_tracks_exact_target_and_rejects_rebinding(tmp_path, name):
+    m = module()
+    root = context(tmp_path / 'repo')
+    for manifest in ['packages/capstone-agent/pyproject.toml', 'packages/pi-capability-tools/package.json']:
+        path = root / manifest
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('fixture manifest')
+    link = root / 'packages/capstone-agent/src/capstone_agent/resources' / name
+    link.parent.mkdir(parents=True)
+    target = root / ('configs/runtime/application-capacity.json' if name.endswith('.json')
+                     else 'packages/pi-capability-tools/src/' + name)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text('first bytes')
+    import os
+    link.symlink_to(os.path.relpath(target, link.parent))
+    revision = commit_context(root)
+    first = m.generate_descriptor(root, revision, IMAGES)
+    assert m.descriptor_from_git(root, revision, IMAGES) == first
+    target.write_text('second bytes')
+    second = m.generate_descriptor(root, revision, IMAGES)
+    assert second['CAPSTONE_DATA_FORMAT_SHA256'] != first['CAPSTONE_DATA_FORMAT_SHA256']
+    updated = commit_context(root)
+    assert m.descriptor_from_git(root, updated, IMAGES) == m.generate_descriptor(root, updated, IMAGES)
+    link.unlink()
+    link.symlink_to('/tmp/unregistered-capstone-resource')
+    invalid = commit_context(root)
+    for generate in (m.generate_descriptor, m.descriptor_from_git):
+        with pytest.raises(ValueError, match='symlink'):
+            generate(root, invalid, IMAGES)
+
+
 def test_registered_policy_link_matches_git_and_tracks_target_content(tmp_path):
     m = module()
     root = policy_context(tmp_path / "repo")

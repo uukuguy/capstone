@@ -31,7 +31,7 @@ def test_publication_recovers_same_file_after_connection_loss(monkeypatch):
             raise PiArtifactTransportUnavailable('interrupted')
     runtime, artifact = setup_publication(monkeypatch, retain)
     runtime._publish_artifacts(SimpleNamespace(task_id='task'),
-        SimpleNamespace(parent_attempt_id='attempt'), events.append,
+        SimpleNamespace(parent_attempt_id='attempt', timeout_seconds=2), events.append,
         NodeControl(lambda: None, time.monotonic() + 2))
     assert attempts == [artifact] * 3
     assert [e.get('child_status') for e in events] == [
@@ -48,7 +48,7 @@ def test_permanent_failure_or_user_cancel_never_publishes(monkeypatch, error):
     runtime, _ = setup_publication(monkeypatch, retain)
     with pytest.raises(type(error)):
         runtime._publish_artifacts(SimpleNamespace(task_id='task'),
-            SimpleNamespace(parent_attempt_id='attempt'), events.append,
+            SimpleNamespace(parent_attempt_id='attempt', timeout_seconds=2), events.append,
             NodeControl(lambda: None, time.monotonic() + 2))
     assert calls == [1]
     assert events == []
@@ -64,7 +64,7 @@ def test_user_can_cancel_during_transfer_recovery(monkeypatch):
             raise InterruptedError('cancelled')
     with pytest.raises(InterruptedError):
         runtime._publish_artifacts(SimpleNamespace(task_id='task'),
-            SimpleNamespace(parent_attempt_id='attempt'), events.append,
+            SimpleNamespace(parent_attempt_id='attempt', timeout_seconds=2), events.append,
             NodeControl(cancel, time.monotonic() + 2))
     assert len(events) == 1
     assert events[0]['child_status'] == 'transport_interrupted'

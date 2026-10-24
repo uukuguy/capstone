@@ -256,8 +256,10 @@ test("records bounded decisions only against controller-known refs", async () =>
     next_action: "Answer",
     refs: ["result:sha256:" + "b".repeat(64)],
   });
+  const maximum = decision.parameters.properties.intent.maxLength;
+  assert.ok(Number.isSafeInteger(maximum));
   const outOfBounds = await decision.execute("decision-3", {
-    intent: "x".repeat(501),
+    intent: "x".repeat(maximum + 1),
     decision: "Guess",
     next_action: "Answer",
     refs: [],
@@ -269,7 +271,9 @@ test("records bounded decisions only against controller-known refs", async () =>
   assert.equal(rejected.isError, true);
   assert.equal(rejected.details.error.code, "unknown_decision_ref");
   assert.equal(outOfBounds.isError, true);
-  assert.equal(outOfBounds.details.error.code, "invalid_decision");
+  assert.equal(outOfBounds.details.error.code, "capacity_exceeded");
+  assert.equal(outOfBounds.details.error.dimension, "decision_text_chars");
+  assert.equal(outOfBounds.details.error.limit, maximum);
 });
 
 test("native request capture subscribes to before_model_request only", async () => {

@@ -12,6 +12,23 @@ from test_delegated_runtime import Executor, Recognizer, BusinessRuntime, busine
 from test_intent_runtime import claim
 
 
+@pytest.fixture(autouse=True)
+def bounded_parent_reply(monkeypatch):
+    # Exercise overflow and complete receipt retention under a small profile.
+    from capstone_agent import application_capacity
+    monkeypatch.setattr(application_capacity, '_current',
+        application_capacity._profile({'delegation_reply_bytes': 65536}))
+
+
+def assert_parent_reply_and_event_budgets(payload):
+    from capstone_agent.application_capacity import limits
+    # Harness stage metadata belongs to the event budget, not the child reply.
+    reply = dict(payload)
+    assert reply.pop('task_steps')
+    assert len(json.dumps(reply, ensure_ascii=False, sort_keys=True).encode()) <= limits.delegation_reply_bytes
+    assert len(json.dumps(dict(payload), ensure_ascii=False, sort_keys=True).encode()) <= limits.event_bytes
+
+
 def test_business_dependency_is_typed_current_attempt_input_with_admitted_refs():
     service, current = claim()
     current = business_claim(current)
@@ -115,7 +132,7 @@ def test_real_host_process_stream_is_diagnostic_in_both_entries(tmp_path, direct
 
 @pytest.mark.parametrize('text,multiple', [('a' * 40000, True), ('"' * 40000, False), ('电' * 20000, True)],
                          ids=['multiple_ascii', 'escaped_quotes', 'multibyte'])
-def test_valid_large_child_answers_fit_parent_terminal_json_and_remain_complete(text, multiple):
+def test_valid_large_child_answers_fit_reply_and_event_budgets_and_remain_complete(text, multiple):
     service, current = claim()
     class Large(Executor):
         def execute(self, request, control, on_event):
@@ -128,7 +145,7 @@ def test_valid_large_child_answers_fit_parent_terminal_json_and_remain_complete(
     result = run(service, current, factory(executor, Recognizer(goals)))
     assert result.status == 'completed'
     terminal = service.read_events(current.thread_id, 0).events[-1]
-    assert len(json.dumps(dict(terminal.payload), ensure_ascii=False, sort_keys=True).encode()) <= 65536
+    assert_parent_reply_and_event_budgets(terminal.payload)
     assert 'shortened' in result.answer
     assert result.result_refs == result.evidence_refs == ()
 
@@ -215,7 +232,7 @@ def test_answer_budget_reserves_exact_result_projection_and_admitted_refs():
         goal('calc', 'business_execute', refs=['grid@1'], excerpt='翻译成英文')]), business))
     assert result.status == 'completed'
     terminal = service.read_events(current.thread_id, 0).events[-1]
-    assert len(json.dumps(dict(terminal.payload), ensure_ascii=False, sort_keys=True).encode()) <= 65536
+    assert_parent_reply_and_event_budgets(terminal.payload)
     assert 'Verified professional facts.' in result.answer and 'shortened' in result.answer
     assert result.result_refs == (projections[0]['result_ref'],)
     assert result.evidence_refs == tuple(projections[0]['evidence_refs'])

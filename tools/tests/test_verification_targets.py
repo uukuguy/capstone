@@ -35,6 +35,9 @@ def test_offline_aggregate_covers_all_packages_without_grid_e2e() -> None:
         "tools/tests/test_verification_targets.py",
         "tools/tests/test_runtime_risk_exception.py",
         "tools/tests/test_projection_benchmark.py",
+        "tools/tests/test_local_build_cache_cleanup.py",
+        "tools/tests/test_image_layer_order.py",
+        "tools/tests/test_native_report.py",
     ):
         assert expected in output
     assert "pytest packages/grid-agent/tests/e2e -q" not in output
