@@ -2,9 +2,10 @@
 
 ## Workspace integration active — 2026-10-25
 
-User authorized merging fix/workspace-reading-type into dev. PR56 is draft and
-mergeable at e8bfb5ae; final remote runs40119881315(PR) and40119884971(Linux/macOS)
-are in progress. Complete local product and release gate segments passed; see
+User authorized merging fix/workspace-reading-type into dev. PR56 is ready and
+mergeable at e8bfb5ae; required dev PR gate40119881315 remains in progress.
+User clarified this is development integration, not release. Additional release
+run40119884971 was cancelled and is not an acceptance gate. Local checks passed; see
 docs/reviews/2026-10-25-workspace-integration.md. No merge or cloud/demo change yet.
 Original dev edits are preserved in recovery stash c306060c. Keep data and all
 unmerged recovery work. Named workspaces and refined home/empty states remain

@@ -180,6 +180,10 @@ counts, prices, limits, versions, or deployment state here.
   macOS checks during development; main and explicit release verification
   require macOS and Linux checks. Record
   any administrator emergency bypass. Branch heads do not imply deployment.
+- Ordinary dev branch integration is not release acceptance. Use the affected
+  local checks and dev's required PR gate. Do not run `check-release` or dispatch
+  `release=true` merely to merge a development branch or obtain extra platform
+  checks. Full release verification is for an explicit release or baseline task.
 
 - Keep project control bidirectionally aligned. Changes to implementation, branches,
   PRs, validation or deployment update `docs/status/VERSION-CONTROL.md` and its

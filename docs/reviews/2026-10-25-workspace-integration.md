@@ -57,8 +57,10 @@ excluded from the macOS system proxy. Logs retain earlier failed runs as failure
 Offline and scripted validation plus real SDK capture checks passed. Artifact
 installation and source setup passed, including installed resource configuration,
 grid smoke, HTTP Authority, PyPSA modeling/operations/planning/sector, installed
-SDK registration and frozen source installation. Remote CI must
-pass on the final commit before merge; earlier cancelled revisions do not count.
+SDK registration and frozen source installation. The required dev PR gate must
+pass before merge. The user clarified this is development integration, not release
+acceptance. Additional release run40119884971 was cancelled and is not a merge
+condition. Earlier cancelled revisions do not count.
 
 Primary logs: /tmp/workspace-integration-check-pr-direct.log,
 /tmp/workspace-integration-check-pr-resume-final.log,
