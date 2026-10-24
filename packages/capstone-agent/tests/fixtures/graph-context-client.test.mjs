@@ -45,11 +45,11 @@ test('reference read client retains the exact action and byte range with an idem
   await mkdir(join(root,'responses'));let emissions=0;
   const result={ref:'product:exact',kind:'product',sha256:'a'.repeat(64),bytes:100,offset_bytes:12,read_bytes:4,text:'data',content_status:'text',next_offset_bytes:16};
   const args={action:{id:'execute:producer'},checkpoint:{ref:'checkpoint:exact',revision:7},selection:{ref:'product:exact',offset_bytes:12,length_bytes:4}};
-  const client=createGraphContextClient({graphContextPath:root,researchOwner:{thread_id:'T'},researchAttemptId:'A',researchTaskId:'T'},{emit:async request=>{
-    emissions++;assert.equal(request.operation,'read');assert.equal(request.action_id,args.action.id);assert.deepEqual(request.selection,args.selection);
-    const digest=createHash('sha256').update(JSON.stringify(canonical(request))).digest('hex');
-    await writeFile(join(root,'responses',request.request_id+'.json'),JSON.stringify({schema:'capstone-enterprise-graph-context/1',
-      request_id:request.request_id,request_sha256:digest,ok:true,result}));
+  const client=createGraphContextClient({graphContextPath:root,researchOwner:{thread_id:'T'},researchAttemptId:'A',researchTaskId:'T'},{emit:async graphRead=>{
+    emissions++;assert.equal(graphRead.operation,'read');assert.equal(graphRead.action_id,args.action.id);assert.deepEqual(graphRead.selection,args.selection);
+    const digest=createHash('sha256').update(JSON.stringify(canonical(graphRead))).digest('hex');
+    await writeFile(join(root,'responses',graphRead.request_id+'.json'),JSON.stringify({schema:'capstone-enterprise-graph-context/1',
+      request_id:graphRead.request_id,request_sha256:digest,ok:true,result}));
   }});
   try{assert.deepEqual(await client.read(args),result);assert.deepEqual(await client.read(args),result);assert.equal(emissions,1);}
   finally{await rm(root,{recursive:true,force:true});}

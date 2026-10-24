@@ -1,5 +1,7 @@
 # 多线版本控制
 
+2026-10-25 分支收口进行中：PR #56 将已验收的工作空间及完整运行依赖并入dev。运行b87ac5d2、界面c34b4780、文档db60bc8d；ae9dd0fe已同步dev。当前PR为草稿，双平台CI与完整回归待完成，尚未合入。dev原控制改动保存在c306060c恢复stash；不删除恢复引用或用户数据。URL命名工作空间和精致空态为后续工作。
+
 2026-10-25 左栏修正：缓存视图恢复时补读置顶偏好，命名空间切换与跨页偏好变更保持同步；收起再展开回归通过。改名输入框13px/30px，Esc取消编辑并保留左栏。941App及最终8项框架测试、构建、doctor、浏览器检查通过。内存策略已改默认10，可选10/20/50，按切换次数与最后打开时间保留。URL命名工作空间及精致空态仍待实现；候选未合dev，cloud/demo不变。
 
 2026-10-24 会话阅读状态与分层缓存：最近5个会话保留内存，可在设置选择1–20范围内的数量；超额按最近访问顺序释放旧视图，浏览器磁盘保留轻量阅读状态，宿主持久化会话和制品。自动释放不执行业务归档、不取消任务。932App/类型/doctor通过；实页主区180px、iframe220px保留，返回完整快照请求0；上限1时释放旧DOM，再开恢复165px及原报告选择。规范重建backendc64fbe52c992/nativeada86461950c，118源码/ready/App通过。未合dev，cloud/demo不变。[验证](../reviews/2026-10-24-session-view-cache.md)
@@ -567,6 +569,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
 | dev-head | dev | main | dev · 当前研发位置 | 当前Git HEAD，验收范围见对应里程碑 | 动态绑定本地dev实际提交并连接真实祖先；不将分支HEAD当作部署或业务验收。[当前状态](CURRENT-STATE.md) | shared-agent |
+| workspace-integration | fix/workspace-reading-type | feature | 工作空间 · 集成候选 | PR #56草稿；CI与完整回归待完成 | 已提交已验收界面及运行依赖；同步dev并保留未交付方案，不更新cloud/demo。[集成](https://github.com/uukuguy/capstone/pull/56) | model-decision |
+| workspace-app-source | c34b4780 | feature | 工作空间 · 已验证App来源 | 942App测试、构建及浏览器通过；待集成 | 稳定导航、会话缓存和阅读状态恢复已提交；保留实际App源码身份。[验证](../reviews/2026-10-25-left-navigation.md) | model-decision |
 | workspace-outputs | 15980389 | feature | 共享工作空间 · 稳定导航、阅读状态与分层缓存 | 本地修正已验证；命名工作空间待实现；未集成dev | 内存默认10，可选10/20/50；按切换次数和最后打开时间保留，释放不改变归档状态。补读置顶偏好，收起展开保留列表；改名Esc保留左栏。942App/构建/doctor及实页通过；规范重建e18d8e7d33f2、ready及清理通过。原阅读状态与零完整快照复验保留。[验证](../reviews/2026-10-25-left-navigation.md) | model-decision |
 | pypsa-demand-fix | 4120e57b | feature | 专业试用修复 · 结果解释与会话恢复 | local-dev同源ready；PR #54检查中；IEEE39发电机归属解释缺陷仍开放 | effc9ccd修正有效时序需求；e0c8d246修复旧会话准备；6415a57d补充平衡电源解释；4120e57b区分元件名称与表索引，无具体样例硬编码 | model-decision |
 | native-conversation | c9e57152 | feature | 共同基座 · 无模型对话执行 | 离线验证通过；未合入或部署 | 同一账本、租约和Harness承接原生对话；长文本收尾修复及两轮RPC原文恢复通过，前端接入另行验收 | shared-agent |
@@ -647,6 +651,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | dev-business-base | 开发分支起点 | dev | 恢复业务执行并保留独立轻量路由；Pi与自主智能体的共同业务基线 | 已合入，业务缺陷保留 |
 | dev | 重要demo发布与大分支合并 | dev | 统一研究、执行、结果与证据合入主线；两个demo固定该基线，保留发布验收与回退来源 | 两个demo已验收 |
 | dev-head | 当前研发位置 | dev | 实际dev分支头及真实祖先连线；产品验收与部署来源独立标记 | Git位置随生成更新，验收范围见对应里程碑 |
+| workspace-integration | 集成候选 | fix/workspace-reading-type | 运行支持、会话导航与阅读状态保持已提交；最新dev已同步，PR #56草稿 | 完整回归及双平台CI待通过；未合入dev或更新cloud/demo |
+| workspace-app-source | 已验证App来源 | fix/workspace-reading-type | 会话导航、缓存与阅读状态恢复；置顶恢复和Esc取消编辑修正 | 942App/构建/浏览器通过；尚未合入dev |
 | workspace-outputs | 当前开发焦点 | fix/workspace-reading-type | 稳定三栏与会话管理；本地真实交互验收通过 | 当前三路338秒/59工具基线不变。会话切换无临时当前会话占位，目录连续显示，恢复电网工具条。宽度/置顶本地保持，名称/归档/删除宿主持久化。运行中会话不能被删除动作取消，文件保留范围明确。[验证](../reviews/2026-10-24-workspace-navigation.md) |
 | pypsa-demand-fix | 当前试用修复候选 | fix/pypsa-inspection-semantics | 区分实际需求与静态默认值，恢复已保存会话；平衡电源解释按通用指南修正 | PR #54检查中；以IEEE39原有样例为主复验 |
 | native-conversation | 无模型对话基座候选 | feat/work-attempt-binding | 复用账本与Harness完成无模型逐轮执行；完整原文保留，研究笔记按协议摘录 | 本地c9e57152；1394项后端及23项真实PG通过，未部署 |

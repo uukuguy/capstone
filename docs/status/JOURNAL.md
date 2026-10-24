@@ -5587,3 +5587,6 @@ separate. No model task is active.
 2026-10-25 — c34b4780: Committed workspace navigation and session recovery so dev can retain the verified interface.
 
 2026-10-25 — db60bc8d: Recorded workspace acceptance and deferred scope to preserve the integration boundary.
+
+2026-10-25 — ae9dd0fe: Merged current dev into the workspace candidate to resolve control-document conflicts before PR56.
+2026-10-25 — Preserved dev control changes in recovery stash c306060c175483dbcfa9eec8f4ae0875e593d219 before synchronization.

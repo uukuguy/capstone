@@ -2,6 +2,14 @@
 
 ## Branch integration active — 2026-10-25
 
+PR56 is open as a draft at ae9dd0fe, current dev has been merged into it.
+Dev's original dirty files are preserved in stash c306060c175483dbcfa9eec8f4ae0875e593d219;
+do not drop it until all divergent documentation and config changes are reconciled.
+Local product regression found one obsolete-token false match in a graph test
+fixture; renamed its request variable without changing the graph contract.
+The first CI revision is superseded by that fixture correction; wait for final
+PR and Linux/macOS workflow results before merging.
+
 User authorized closing fix/workspace-reading-type and merging dev. Runtime
 dependencies committed as b87ac5d2; App committed as c34b4780. Full make check-pr
 is running in this checkout, log /tmp/workspace-integration-check-pr.log.
