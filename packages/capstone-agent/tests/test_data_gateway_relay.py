@@ -31,6 +31,8 @@ def test_issued_receipt_binds_exact_task_call_and_result():
     result = asyncio.run(resource.call('task-1', request()))
     assert result['observation']['parent_attempt_id'] == 'attempt-1'
     assert resource.verify('task-1', 'call-1', request()['name'], result['observation'], result['result_json'])
+    augmented = dict(result['observation'], native_research_source={'source_ref': 'host-wrapper'})
+    assert resource.verify('task-1', 'call-1', request()['name'], augmented, result['result_json'])
     assert not resource.verify('task-2', 'call-1', request()['name'], result['observation'], result['result_json'])
     assert not resource.verify('task-1', 'call-other', request()['name'], result['observation'], result['result_json'])
     assert not resource.verify('task-1', 'call-1', request()['name'], result['observation'], '{}')
@@ -89,6 +91,64 @@ def test_http_route_requires_task_grant_and_revocation(tmp_path):
             relay.revoke('task-1')
             assert client.post(url, json=dict(request(), call_id='call-2'),
                                headers={'Authorization': 'Bearer task-grant'}).status_code == 401
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(2)
+
+
+def test_host_publishes_gateway_only_for_explicit_enterprise_admission(tmp_path):
+    from capstone_agent.data_gateway_relay import research_gateway_tools
+    from capstone_agent.native_task_context import CURRENT_RESEARCH_POLICY_TEXT, GENERAL_CHAT_POLICY_TEXT
+    from capstone_agent.general_pi_server import GeneralPiHost
+    class Runner:
+        gateway = access()
+        def __call__(self, *_):
+            return '', {}
+    host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'}, run_task=Runner())
+    publication = host.capability['data_gateway']
+    assert publication['available']
+    native = {'policy': {'system_policy': CURRENT_RESEARCH_POLICY_TEXT}}
+    assert research_gateway_tools(native, publication) == {'data_gateway_discover_data_capabilities'}
+    native['policy']['system_policy'] = GENERAL_CHAT_POLICY_TEXT
+    assert research_gateway_tools(native, publication) == set()
+    assert research_gateway_tools(None, publication) == set()
+    assert research_gateway_tools({'policy': {'system_policy': CURRENT_RESEARCH_POLICY_TEXT}}, {'available': False}) == set()
+
+
+def test_actual_sdk_child_calls_protected_http_relay_and_has_host_receipt(tmp_path):
+    import json
+    from pathlib import Path
+    import subprocess
+    import threading
+    import time
+    from capstone_agent.general_pi_server import GeneralPiHost, make_server
+    from capstone_agent.general_pi_relay import ProviderRelay
+    resource = access()
+    schema = {'name': 'discover_data_capabilities', 'inputSchema': {'type': 'object', 'properties': {}}}
+    resource.catalog['tools']['data_gateway_discover_data_capabilities'] = schema
+    relay = ProviderRelay()
+    relay.register('task-1', 'task-grant', time.monotonic() + 20)
+    runner = SimpleNamespace(gateway=resource, relay=relay)
+    host = GeneralPiHost(root=tmp_path / 'host', identity={'engine': 'pi'}, run_task=lambda *_: ('', {}))
+    server = make_server(host, control_token='host-control', address=('127.0.0.1', 0), runner=runner)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    workspace = tmp_path / 'workspace'
+    workspace.mkdir()
+    try:
+        fixture = Path(__file__).parent / 'fixtures/data-gateway-child-sdk.mjs'
+        config = {'workspace': str(workspace), 'gateway': {'url': f'http://127.0.0.1:{server.server_port}/data-gateway/task-1',
+            'grant': 'task-grant', 'taskId': 'task-1', 'catalog': resource.catalog}}
+        process = subprocess.run(['node', str(fixture)], cwd=Path(__file__).resolve().parents[3],
+            input=json.dumps(config), text=True, capture_output=True, timeout=20)
+        assert process.returncode == 0, process.stderr
+        value = json.loads(process.stdout)
+        event = value['event']
+        assert value['turns'] == 2
+        assert resource.verify('task-1', event['tool_call_id'], event['tool_name'],
+                               event['result']['details'], event['result']['content'][0]['text'])
+        assert value['receipt']['ref'] == event['result']['details']['native_research_source']['source_ref']
     finally:
         server.shutdown()
         server.server_close()

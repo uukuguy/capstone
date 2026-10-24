@@ -5620,3 +5620,5 @@ separate. No model task is active.
 2026-10-25 — da48a15a: Added protected remote MCP catalog and calls; six checks and actual gateway discovery pass before research integration.
 
 2026-10-25 — 5c2df318: Retained WebGL rendering and measured 100k-node acceptance as later work so production-data research stays first.
+
+2026-10-25 — 4c50c9a1: Added task-bound gateway relay and issued receipts to protect production data calls before native integration.

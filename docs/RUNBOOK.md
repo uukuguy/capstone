@@ -248,6 +248,22 @@ read/write/edit/bash 在独立 UID 和工作区中运行；宿主凭据通过可
 
 基础 Python、CLI、依赖锁、构建检查及环境收据见[原生隔离编程环境](architecture/capstone-native-programming-environment.md)。
 
+### 企业生产数据 MCP
+
+enterprise-research 可按应用授权使用 data-gateway 的远程工具。设置
+`CAPSTONE_DATA_GATEWAY_CONFIG_DIR` 为运维连接目录，设置
+`CAPSTONE_DATA_GATEWAY_CONNECTION_FILE=/run/capstone-data-gateway/connection.json`。
+目录只读挂载至 general-pi，连接文件须为0600，包含 Streamable HTTP URL及Bearer头。
+凭据不进入App、模型上下文或原生任务环境；任务仅获得可撤销的本地宿主代理授权。
+不要把连接文件提交到Git或作为研究附件上传。
+
+`configs/runtime/data-gateway.json`声明准入工具。启动时发现实际schema并绑定执行器身份，
+任务只调用已接纳的`data_gateway_`工具，研究子节点沿用同一目录与来源回执校验。
+网关管理其数据后端，Capstone不增加数据库切换或副本选择流程。未配置时保持原研究
+能力；已配置但连接失败时明确标记不可用，不回退合成数据或宣称生产数据访问成功。
+工具schema变化须刷新执行器能力并开始新任务，不改变在途任务契约。
+电网模型六工具在本阶段不开放。更改源码或配置后使用规范本地重建入口。
+
 ### 共享背景与角色资源
 
 `/skills` 打开资源选择器，显示来源、版本、可用状态与实际执行角色。

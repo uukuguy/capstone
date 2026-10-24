@@ -8,6 +8,16 @@ from .application_capacity import limits, require_capacity
 from .data_gateway_mcp import GatewayError, encode, fingerprint
 
 
+def research_gateway_tools(native_context, publication):
+    if not native_context or not publication.get('available'):
+        return set()
+    from .native_task_context import POLICY_TEXT, resolve_research_policy
+    text = native_context.get('policy', {}).get('system_policy')
+    if text != POLICY_TEXT and resolve_research_policy(text) is None:
+        return set()
+    return set(publication['catalog']['tools'])
+
+
 class DataGatewayAccess:
     def __init__(self, client, catalog):
         self.client, self.catalog = client, deepcopy(catalog)
@@ -61,5 +71,6 @@ class DataGatewayAccess:
     def verify(self, task_id, call_id, name, observation, result_json):
         with self._lock:
             expected = self._tasks.get(task_id, {}).get('issued', {}).get(call_id)
-            return bool(expected and expected['observation'] == observation
+            receipt = {key: value for key, value in observation.items() if key != 'native_research_source'}
+            return bool(expected and expected['observation'] == receipt
                         and observation['tool'] == name and expected['result_json'] == result_json)

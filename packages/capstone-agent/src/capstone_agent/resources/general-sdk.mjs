@@ -5,6 +5,7 @@ import { createInterface } from "node:readline";
 import {checkCapacity,runtimeLimits as resolveLimits,onDebugCapacityExceeded} from './runtime-limits.mjs';
 import {prepareDeliveryReview,reviewChildPrompt} from './delivery-review.mjs';
 import {createManagedSubagents} from './managed-subagents.mjs';
+import {createDataGatewayTools} from './general-data-gateway.mjs';
 import {createTaskNodeReturn} from './task-node-return.mjs';
 import {taskTurnGuidance} from './task-turn-guidance.mjs';
 
@@ -283,7 +284,7 @@ function graphChildTools(config,tools,binding){
     emit({type:'enterprise_graph_child_tool',...base,activity:'start',tool_name:tool.name,tool_call_id:scoped,args:args[0]});
     const executionStarted=performance.now();
     try{
-      const actual=await tool.execute(callId,...args);
+      const actual=await tool.execute(tool.name.startsWith('data_gateway_')?scoped:callId,...args);
       const executionMs=performance.now()-executionStarted;
       const result=actual.isError===true?actual:nativeObservation(config,scoped,actual);
       receipts.push(result.isError===true?graphFailureReceipt(config,token,'failed'):
@@ -357,7 +358,7 @@ export function applicationToolOptions(config, nativeTools, research=()=>undefin
   if (!config.applicationPolicy) return {};
   // SDK `tools` filters the full registry, including registered extensions.
   // Keep publication intact; the active set and execution guard enforce grants.
-  return { customTools: nativeTools.map(tool => {
+  return { customTools: [...nativeTools,...createDataGatewayTools(config)].map(tool => {
     const guarded = guardToolExecution(tool, async call => applicationToolAdmission(config, call.toolName));
     if (!config.researchChannelPath) return guarded;
     return {...guarded, async execute(callId, ...args) {
@@ -372,7 +373,7 @@ export function applicationToolOptions(config, nativeTools, research=()=>undefin
         throw error;
       }
       if(usesEnterpriseGraph(config)&&result.isError===true){controller?.endTool(token,result);return result;}
-      if(!usesEnterpriseGraph(config)&&!['read','bash','edit','write','agent_delegate'].includes(tool.name)) {
+      if(!usesEnterpriseGraph(config)&&!['read','bash','edit','write','agent_delegate'].includes(tool.name)&&!tool.name.startsWith('data_gateway_')) {
         controller?.endTool(token,result);return result;
       }
       const source = {task_id: config.researchTaskId, tool_call_id: callId,
@@ -852,7 +853,7 @@ export function createGraphNodeDispatcher(config,sdk,modelRuntime,{skills,contex
     const limits=config.researchRuntime.delegation;
     const runner=createManagedSubagents({maxTurns:limits.maxTurns,graceTurns:limits.graceTurns,
       createChildSession:({signal})=>createManagedChildSession(config,sdk,modelRuntime,{signal,cwd,researchExecution:true,
-        toolNames:config.applicationPolicy.allowed_tools.filter(name=>['read','bash','edit','write','grep','find','ls'].includes(name)),
+        toolNames:config.applicationPolicy.allowed_tools.filter(name=>['read','bash','edit','write','grep','find','ls'].includes(name)||name.startsWith('data_gateway_')),
         skills,graphBinding:{action,checkpoint,emit,receipts,taskReturn,executionMode:node.mode,turnGuidance:turn_guidance,
           freezeReturn:({products,callId,signal})=>retainTaskProducts(contextClient,action,checkpoint,products,
             {signal,requestKey:'task-return:'+createHash('sha256').update(action.id+'\0'+callId).digest('hex')})}})});
