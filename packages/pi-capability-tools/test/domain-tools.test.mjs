@@ -19,6 +19,49 @@ import {
   withExecutionPurpose,
 } from "../src/domain-tools.mjs";
 
+test('registered domain tools forward initialization runtime_limits into the real subprocess', async () => {
+  const fixture = await runtimeV1Fixture();
+  const processFixture = await transportFixture("process.stdout.write('x'.repeat(2048))");
+  await writeFile(fixture.catalogPath, JSON.stringify({tools:[contract('inventory_asset_list','asset.list')]}));
+  const descriptor={...fixture.descriptor,runtime_limits:{tool_observation_bytes:1024,tool_timeout_seconds:5},
+    domains:[{...fixture.descriptor.domains[0],executable:processFixture.name}]};
+  const tools=new Map(), previous=process.env.PATH;
+  process.env.PATH=`${processFixture.bin}:${previous}`;
+  try {
+    createDomainToolsExtension(descriptor,{createTool(_runtime,definition,runner){
+      return {name:definition.name, execute:()=>runner(buildCapabilityRequest(inventory,'asset.list',{},'capacity'))};
+    }})({registerTool:tool=>tools.set(tool.name,tool),on(){}});
+    const response=await tools.get('inventory_asset_list').execute();
+    assert.equal(response.error.code,'capability_transport_output_limit');
+    assert.match(response.error.message,/1024/);
+    assert.deepEqual({dimension:response.error.dimension,actual:response.error.actual,limit:response.error.limit,unit:response.error.unit,retryable:response.error.retryable},
+      {dimension:'tool_observation_bytes',actual:2048,limit:1024,unit:'bytes',retryable:false});
+  } finally { process.env.PATH=previous; }
+});
+
+test('debug domain tools preserve injected mode and reject observation overflow instead of graded tool error',async()=>{
+  const fixture=await runtimeV1Fixture(), processFixture=await transportFixture("process.stdout.write('x'.repeat(2048))");
+  await writeFile(fixture.catalogPath,JSON.stringify({tools:[contract('inventory_asset_list','asset.list')]}));
+  const descriptor={...fixture.descriptor,runtime_limits:{tool_observation_bytes:1024,tool_timeout_seconds:5},runtime_limit_mode:'debug',
+    domains:[{...fixture.descriptor.domains[0],executable:processFixture.name}]};
+  const tools=new Map(), previous=process.env.PATH;process.env.PATH=`${processFixture.bin}:${previous}`;
+  try{
+    createDomainToolsExtension(descriptor,{createTool(_runtime,definition,runner){return {name:definition.name,
+      execute:()=>runner(buildCapabilityRequest(inventory,'asset.list',{},'debug-capacity'))};}})
+      ({registerTool:tool=>tools.set(tool.name,tool),on(){}});
+    await assert.rejects(tools.get('inventory_asset_list').execute(),error=>error.name==='CapacityExceeded'&&error.mode==='debug');
+  }finally{process.env.PATH=previous;}
+});
+
+test('debug execution-purpose overflow reaches typed host check before the underlying domain executes',async()=>{
+  let called=false;
+  const wrapped=withExecutionPurpose({name:'sample',parameters:{type:'object',properties:{}},execute:async()=>{called=true;}},
+    {runtimeLimits:{research_progress_chars:2},runtimeLimitMode:'debug'});
+  assert.equal(wrapped.parameters.properties.execution_purpose.maxLength,undefined);
+  await assert.rejects(wrapped.execute('overflow',{execution_purpose:'long'}),error=>error.name==='CapacityExceeded'&&error.mode==='debug');
+  assert.equal(called,false);
+});
+
 test("execution purpose stays outside the domain contract and missing records do not block execution", async () => {
   const calls = [];
   const original = { name: "sample", description: "Query data", parameters: { type: "object", additionalProperties: false, properties: { value: { type: "number" } } },
@@ -468,6 +511,7 @@ test("generic extension accepts a split application and domain workspace", async
   const registered = [];
 
   createDomainToolsExtension(descriptor)({
+    on() {},
     registerTool: (tool) => registered.push(tool.name),
   });
 
@@ -487,7 +531,7 @@ test("default extension factory reads only the controller runtime descriptor", a
     const extensionModule = await import("../src/domain-tools.mjs");
     assert.equal(typeof extensionModule.default, "function");
     const registered = [];
-    extensionModule.default({ registerTool: (tool) => registered.push(tool.name) });
+    extensionModule.default({ on() {}, registerTool: (tool) => registered.push(tool.name) });
     assert.deepEqual(registered, ["inventory_guide_open"]);
   } finally {
     if (previousDescriptor === undefined) {
@@ -1083,6 +1127,7 @@ test("runtime v1.1 registers both domain groups and shared core and capture once
   const fixture = await runtimeV11Fixture();
   const registered = new Map();
   const events = [];
+  const handlers = new Map();
   const calls = [];
   createDomainToolsExtension(fixture.descriptor, {
     createTool(runtime, capabilityContract, runner) {
@@ -1098,14 +1143,18 @@ test("runtime v1.1 registers both domain groups and shared core and capture once
       });
     },
   })({
-    on: (name) => events.push(name),
+    on: (name, handler) => { events.push(name); handlers.set(name, handler); },
     registerTool: (tool) => registered.set(tool.name, tool),
   });
   assert.deepEqual([...registered.keys()], [
     "grid_bus_list", "grid_guide_open", "inventory_asset_list", "inventory_guide_open",
     "agent_context_get", "agent_record_decision",
   ]);
-  assert.deepEqual(events, ["before_model_request"]);
+  assert.deepEqual(events, ["before_agent_start", "before_model_request"]);
+  const policy = await handlers.get("before_agent_start")({systemPrompt: "Professional policy."});
+  assert.ok(policy.systemPrompt.startsWith("Professional policy."));
+  assert.match(policy.systemPrompt, /independent actions in the same model response/);
+  assert.match(policy.systemPrompt, /does not grant tools or access/);
   await registered.get("grid_bus_list").execute("grid-call", {});
   await registered.get("inventory_asset_list").execute("inventory-call", {});
   assert.deepEqual(calls.map(({ bindingId, executable, payload }) => [bindingId, executable, payload.protocol]), [

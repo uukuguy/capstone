@@ -32,6 +32,9 @@ class _Service:
     def __init__(self) -> None:
         self.created: ThreadSnapshot | None = None
 
+    def set_material_store(self, store) -> None:
+        self.material_store = store
+
     def create_thread(self, snapshot: ThreadSnapshot) -> ThreadSnapshot:
         self.created = snapshot
         return snapshot
@@ -50,6 +53,31 @@ class _Service:
 class _Ledger:
     def ping(self) -> bool:
         return True
+
+
+def test_session_presets_keep_objects_and_titles_distinct():
+    service = _Service()
+    creator = ThreadCreator(service, _Catalog())
+    for preset, title in [('general-chat', '通用聊天'), ('enterprise-research', '企业研究与分析')]:
+        snapshot = creator.create(session_type=preset)
+        assert snapshot.active_model_context is None
+        assert snapshot.minimum_protocol_version == 2
+        assert snapshot.session_type == preset
+        assert snapshot.session_title.text.startswith(title + ' · ')
+        assert ThreadSnapshot.from_document(snapshot.to_document()).session_type == preset
+    snapshot = creator.create('ieee39', session_type='grid-analysis')
+    assert snapshot.active_model_context.model_id == 'ieee39'
+    assert snapshot.session_title.text.startswith('电网分析与决策 · ')
+    assert ThreadSnapshot.from_document(snapshot.to_document()).session_type == 'grid-analysis'
+
+
+def test_session_creation_rejects_model_in_native_preset_and_unknown_type():
+    import pytest
+    creator = ThreadCreator(_Service(), _Catalog())
+    for values in [dict(model_id='ieee39',session_type='general-chat'),
+                   dict(session_type='unknown'),dict(session_type='grid-analysis')]:
+        with pytest.raises(ValueError):
+            creator.create(**values)
 
 
 def test_unregistered_model_creation_returns_422_and_creates_no_thread() -> None:

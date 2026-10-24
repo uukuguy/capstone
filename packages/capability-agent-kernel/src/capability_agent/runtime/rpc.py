@@ -19,6 +19,7 @@ from capability_agent.runtime.environment import PiLaunch
 from capability_agent.runtime.lock import PiCommand
 from capability_agent.runtime.trace import JsonlTraceWriter
 from capability_agent.runtime.process_stream import ProcessStream
+from capability_agent.runtime.capacity import runtime_limits as resolve_limits,check_capacity,observe_capacity
 
 
 SemanticEventCallback = Callable[[dict[str, Any], int], None]
@@ -38,7 +39,6 @@ CAPTURE_FATAL_EXIT_CODE = 86
 CAPTURE_FATAL_MARKER = "trajectory model request commit failed"
 _CAPTURE_POLL_SECONDS = 0.025
 _CONTROL_POLL_SECONDS = 0.025
-_STDERR_CAPTURE_LIMIT = 64 * 1024
 _SAFE_TOOL_CALL_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$")
 _DIAGNOSTIC_SECRET_ASSIGNMENT = re.compile(
     r"(?i)\b(api[_-]?key|token|password|secret|credential|authorization)\s*[:=]\s*([^\s,;]+)"
@@ -120,8 +120,10 @@ class PiRpcClient:
         timeout_seconds: float | None = None,
         correlation_id: str | None = None,
         process_delta_batch_seconds: float = 0,
+        runtime_limits=None,
     ) -> None:
         self.command = command
+        self.runtime_limits=resolve_limits(runtime_limits)
         self.workspace = workspace
         self.trace = trace
         self.environment = environment
@@ -185,7 +187,7 @@ class PiRpcClient:
                 args=(self.process.stdout, self._stdout_lines),
                 daemon=True,
             ).start()
-        self._stderr_capture = _BoundedStderrCapture()
+        self._stderr_capture = _BoundedStderrCapture(self.runtime_limits['diagnostic_tail_bytes'])
         if self.process.stderr is not None:
             Thread(
                 target=_drain_stderr,
@@ -218,7 +220,7 @@ class PiRpcClient:
                     on_semantic_event(payload, sequence)
                 finally:
                     timing.observer_seconds += time.perf_counter() - observer_started
-        stream = ProcessStream(publish, self.process_delta_batch_seconds)
+        stream = ProcessStream(publish, self.process_delta_batch_seconds,runtime_limits=self.runtime_limits)
         try:
             answer = self._prompt_and_wait(question, timing=timing, stream=stream, on_event=on_event,
                 on_semantic_event=on_semantic_event, on_heartbeat=on_heartbeat,
@@ -384,7 +386,7 @@ class PiRpcClient:
             if on_event is not None:
                 on_event(event)
             answer_state.observe(event)
-            for payload in _semantic_trace_payloads(event, answer_state.answer(), pending_tool_calls):
+            for payload in _semantic_trace_payloads(event, answer_state.answer(), pending_tool_calls,self.runtime_limits):
                 trace_correlation = event_correlation or expected_correlation
                 if trace_correlation is not None:
                     payload = {**payload, "correlation_id": trace_correlation}
@@ -403,7 +405,7 @@ class PiRpcClient:
                         capture.drain_model_requests()
                     detail = event.get("error") or event.get("message") or "unknown error"
                     raise PiProtocolError(
-                        f"Pi prompt failed: {_sanitize_diagnostic(detail, self.secret_values)}"
+                        f"Pi prompt failed: {_sanitize_diagnostic(detail, self.secret_values, runtime_limits=self.runtime_limits)}"
                     )
             if event.get("type") == "agent_end":
                 if not acknowledged:
@@ -423,7 +425,7 @@ class PiRpcClient:
                         capture.drain_model_requests()
                     raise PiProtocolError(
                         "Pi provider failure: "
-                        + _sanitize_diagnostic(provider_error, self.secret_values)
+                        + _sanitize_diagnostic(provider_error, self.secret_values, runtime_limits=self.runtime_limits)
                     )
                 answer = answer_state.answer()
                 if not answer.strip():
@@ -456,7 +458,7 @@ class PiRpcClient:
             stderr_text = ""
         marker_line = next(
             (
-                _sanitize_diagnostic(line, self.secret_values)
+                _sanitize_diagnostic(line, self.secret_values, runtime_limits=self.runtime_limits)
                 for line in stderr_text.splitlines()
                 if CAPTURE_FATAL_MARKER in line.lower()
             ),
@@ -465,7 +467,7 @@ class PiRpcClient:
         if returncode == CAPTURE_FATAL_EXIT_CODE or marker_line is not None:
             detail = marker_line or next(
                 (
-                    _sanitize_diagnostic(line, self.secret_values)
+                    _sanitize_diagnostic(line, self.secret_values, runtime_limits=self.runtime_limits)
                     for line in stderr_text.splitlines()
                     if line.strip()
                 ),
@@ -496,8 +498,8 @@ class PiRpcClient:
 
 
 class _BoundedStderrCapture:
-    def __init__(self, limit: int = _STDERR_CAPTURE_LIMIT) -> None:
-        self._limit = limit
+    def __init__(self, limit: int | None = None) -> None:
+        self._limit = resolve_limits()['diagnostic_tail_bytes'] if limit is None else limit
         self._buffer = bytearray()
         self._lock = Lock()
         self._done = Event()
@@ -612,7 +614,7 @@ def _provider_error(event: dict[str, Any]) -> str | None:
     return None
 
 
-def _sanitize_diagnostic(value: object, secret_values: Iterable[str] = ()) -> str:
+def _sanitize_diagnostic(value: object, secret_values: Iterable[str] = (), *, runtime_limits=None) -> str:
     if isinstance(value, str):
         text = value
     elif isinstance(value, (int, float, bool)):
@@ -625,38 +627,33 @@ def _sanitize_diagnostic(value: object, secret_values: Iterable[str] = ()) -> st
         text = text.replace(secret, "[REDACTED]")
     text = _DIAGNOSTIC_SECRET_ASSIGNMENT.sub(r"\1=[REDACTED]", text)
     text = _DIAGNOSTIC_BEARER.sub(r"\1[REDACTED]", text)
-    text = text.strip()[:500]
+    limits=resolve_limits(runtime_limits)
+    text=text.strip()
+    observe_capacity('diagnostic_text_chars',len(text),limits=limits,unit='characters',phase='rpc_diagnostic')
+    text=text[:limits['diagnostic_text_chars']]
     return text or "provider reported an error"
+
+
+from capability_agent.runtime.step_events import project_runtime_action
 
 
 def _semantic_trace_payloads(
     event: dict[str, Any],
     assembled_public_text: str,
     pending_tool_calls: dict[str, dict[str, str]],
+    runtime_limits=None,
 ) -> tuple[dict[str, Any], ...]:
-    # Deltas are provisional process output until the final message and answer
-    # admission complete. They must never be treated as the formal answer stream.
-    if event.get("type") in {"turn_start", "turn_end"}:
-        return ({"type": "runtime_action", "phase": "started" if event["type"] == "turn_start" else "completed"},)
-    if event.get("type") == "message_end":
-        message = event.get("message")
-        if isinstance(message, dict) and message.get("role") == "assistant":
-            content = message.get("content")
-            tools = isinstance(content, list) and any(isinstance(item, dict) and item.get("type") == "toolCall" for item in content)
-            response: dict[str, Any] = {"type": "runtime_action", "phase": "response_completed", "response_kind": "tools" if tools else "text"}
-            usage = message.get('usage')
-            if isinstance(usage, dict):
-                counts = {key: usage[key] for key in ('input', 'output', 'cacheRead', 'cacheWrite', 'totalTokens')
-                          if type(usage.get(key)) is int and 0 <= usage[key] <= 100_000_000}
-                if counts:
-                    response['usage'] = counts
-            return (response,)
+    # Provisional process output never becomes the admitted formal answer.
+    action = project_runtime_action(event)
+    if action is not None:
+        return (action,)
     delta = event.get("text") if event.get("type") == "text_delta" else None
     update = event.get("assistantMessageEvent") if event.get("type") == "message_update" else None
     if isinstance(update, dict) and update.get("type") == "text_delta":
         delta = update.get("delta")
     if isinstance(delta, str):
-        return ({"type": "assistant_process_delta", "text": delta[:16384]},)
+        check_capacity(resolve_limits(runtime_limits),'rpc_frame_bytes',len(delta.encode()),unit='bytes',phase='semantic_delta')
+        return ({"type": "assistant_process_delta", "text": delta},)
     canonical_tool_result = _canonical_tool_result_event(event, pending_tool_calls)
     if canonical_tool_result is not None:
         return (canonical_tool_result,)

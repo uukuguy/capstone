@@ -201,8 +201,9 @@ class PandapowerResultProjector:
                     result_evidence={ref: result_evidence.get(ref, ()) for ref in group},
                 )
                 for item in group_projections:
-                    if isinstance(item.get("presentation"), dict):
-                        item["presentation"]["group_title"] = f"运行状态 {group_index}"
+                    presentation = item.get("presentation")
+                    if isinstance(presentation, dict):
+                        presentation["group_title"] = f"运行状态 {group_index}"
                 derived.extend(group_projections)
             return tuple(derived)
         context_artifact = verify_context(context_ref)
@@ -258,7 +259,7 @@ class PandapowerResultProjector:
                 item["presentation"] = {
                     "collection_id": "grid-analysis-results", "collection_title": "电网分析结果",
                     "group_id": "context_" + context_ref.rsplit(":", 1)[-1],
-                    "group_title": "运行状态 1", "purpose": "task_output",
+                    "group_title": "运行状态 1", "purpose": "process_output",
                 }
         return tuple(projections)
 

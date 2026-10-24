@@ -172,6 +172,8 @@ class TurnRouter(Protocol):
 
 def _context_snapshot(claim: AttemptClaim) -> dict[str, object]:
     context = claim.model_context
+    if context is None:
+        return {}
     profiles = [
         {"profile_id": profile_id, "profile_version": version}
         for profile_id, version in context.enabled_profiles[:16]

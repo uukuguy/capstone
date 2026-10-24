@@ -46,6 +46,8 @@ def _origin(value: str) -> bool:
 
 
 def load_host_settings(environment: Mapping[str, str]) -> HostSettings:
+    from .application_capacity import initialize_capacity
+    initialize_capacity(environment=environment)
     database_url = environment.get("DATABASE_URL", "")
     token = environment.get("CAPSTONE_OPERATOR_TOKEN", "")
     token_file = environment.get("CAPSTONE_OPERATOR_TOKEN_FILE", "")

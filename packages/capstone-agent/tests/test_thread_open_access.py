@@ -17,7 +17,9 @@ def _app(open_access=False):
 def test_open_access_allows_anonymous_thread_history_and_management():
     with TestClient(_app(True), base_url="http://localhost") as client:
         entry = client.get("/api/v1/thread-access")
-        assert entry.json() == {"schema": "capstone-thread-access/1", "mode": "open"}
+        assert entry.json()['schema'] == 'capstone-thread-access/1'
+        assert entry.json()['mode'] == 'open'
+        assert entry.json()['capacity']['schema'] == 'capstone-capacity-profile/1'
         assert "hosted-secret" not in entry.text
         assert client.get("/api/v1/threads/thr_demo_39").status_code == 200
         assert client.get("/api/v1/threads").status_code == 200

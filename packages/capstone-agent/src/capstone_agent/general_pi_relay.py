@@ -2,6 +2,8 @@
 import asyncio
 from dataclasses import dataclass, field
 import math
+import json
+import logging
 import secrets
 import socket
 from threading import Event, RLock, Thread
@@ -9,6 +11,52 @@ import time
 
 import httpx
 from .bounded_http_loop import write_http
+
+_LOG = logging.getLogger(__name__)
+
+from .application_capacity import limits, current_capacity, CapacityExceeded
+
+
+class StreamDiagnostics:
+    """Read protocol endings, never retain model text or tool arguments."""
+    def __init__(self):
+        self.pending = b''
+        self.dropping = False
+        self.done = False
+        self.finish_reason = None
+
+    def feed(self, chunk):
+        data = self.pending + chunk
+        self.pending = b''
+        lines = data.split(b'\n')
+        for line in lines[:-1]:
+            if self.dropping:
+                self.dropping = False
+                continue
+            if len(line) > 131072 or not line.startswith(b'data:'):
+                continue
+            value = line[5:].strip()
+            if value == b'[DONE]':
+                self.done = True
+                continue
+            try:
+                document = json.loads(value)
+            except (ValueError, UnicodeError):
+                continue
+            if not isinstance(document, dict):
+                continue
+            for choice in document.get('choices', []) if isinstance(document.get('choices'), list) else []:
+                reason = choice.get('finish_reason') if isinstance(choice, dict) else None
+                if isinstance(reason, str) and reason in {'stop', 'tool_calls', 'function_call', 'length', 'network_error', 'content_filter'}:
+                    self.finish_reason = reason
+        tail = lines[-1]
+        if len(tail) > 131072:
+            self.dropping = True
+        elif not self.dropping:
+            self.pending = tail
+
+    def summary(self):
+        return {'stream_done': self.done, 'finish_reason': self.finish_reason}
 
 
 @dataclass(eq=False)
@@ -36,7 +84,9 @@ class RelayLease:
 
 
 class ProviderRelay:
-    def __init__(self, *, max_requests=16, per_task=2):
+    def __init__(self, *, max_requests=None, per_task=None):
+        max_requests = limits.provider_relay_requests if max_requests is None else max_requests
+        per_task = limits.provider_relay_task_requests if per_task is None else per_task
         if max_requests < 1 or per_task < 1:
             raise ValueError('Provider relay limits are invalid')
         self.max_requests, self.per_task = max_requests, per_task
@@ -57,9 +107,12 @@ class ProviderRelay:
             deadline = self.deadlines.get(task_id, 0)
             if not accepted or not secrets.compare_digest(accepted, grant) or deadline <= time.monotonic():
                 raise PermissionError('Provider relay grant is unavailable')
-            if (len(self.active) >= self.max_requests
-                    or sum(item.task_id == task_id for item in self.active) >= self.per_task):
-                raise RuntimeError('Provider relay capacity reached')
+            for dimension, actual, maximum in (
+                ('provider_relay_requests', len(self.active) + 1, self.max_requests),
+                ('provider_relay_task_requests', sum(item.task_id == task_id for item in self.active) + 1, self.per_task),
+            ):
+                if actual > maximum:
+                    raise CapacityExceeded(dimension, actual, maximum, 'provider_relay', mode=current_capacity().mode)
             lease = RelayLease(task_id, grant, deadline, downstream)
             self.active.add(lease)
         def watch():
@@ -91,9 +144,14 @@ async def forward_provider(handler, lease: RelayLease, upstream: str, body: byte
     lease.loop, lease.task = asyncio.get_running_loop(), asyncio.current_task()
     if lease.cancelled.is_set():
         raise asyncio.CancelledError()
-    async with httpx.AsyncClient(timeout=None, trust_env=False) as client:
-        async with client.stream('POST', upstream.rstrip('/') + '/chat/completions', content=body,
+    started, total, status = time.monotonic(), 0, None
+    stream, diagnostics, failure = False, StreamDiagnostics(), None
+    try:
+        async with httpx.AsyncClient(timeout=None, trust_env=False) as client, client.stream(
+            'POST', upstream.rstrip('/') + '/chat/completions', content=body,
             headers={'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key}) as response:
+            status = response.status_code
+            stream = response.headers.get('Content-Type', '').split(';')[0].strip() == 'text/event-stream'
             if lease.cancelled.is_set():
                 raise asyncio.CancelledError()
             def headers():
@@ -103,14 +161,35 @@ async def forward_provider(handler, lease: RelayLease, upstream: str, body: byte
                 handler.end_headers()
                 handler.close_connection = True
             await write_http(headers)
-            total = 0
             async for chunk in response.aiter_bytes():
                 if lease.cancelled.is_set() or time.monotonic() >= lease.deadline:
                     raise asyncio.CancelledError()
                 total += len(chunk)
-                if total > 4 * 1024 * 1024:
+                if stream and limits.provider_stream_bytes and total > limits.provider_stream_bytes:
+                    failure = 'response_limit'
+                    raise ValueError('Provider stream exceeds configured capacity')
+                if stream:
+                    diagnostics.feed(chunk)
+                # SSE repeats protocol/usage metadata for each token. This is
+                # a bounded-memory relay, not an accumulated document. A total
+                # wire-byte cap truncates valid long responses mid-tool-call.
+                # Task deadlines/revocation still close the whole exchange.
+                if not stream and total > limits.provider_response_bytes:
+                    failure = 'response_size_limit'
                     raise ValueError('Provider response exceeds bounds')
                 def write(data=chunk):
                     handler.wfile.write(data)
                     handler.wfile.flush()
                 await write_http(write)
+    except BaseException as error:
+        failure = failure or ('cancelled' if lease.cancelled.is_set() else type(error).__name__)
+        raise
+    finally:
+        if failure or (status is not None and status >= 400) or (stream and (
+                not diagnostics.done or diagnostics.finish_reason in {'network_error', 'content_filter'})):
+            # Only bounded protocol metadata crosses the operator log boundary.
+            # No URL, credentials, prompts, output text or exception text.
+            _LOG.warning('Provider relay failure: %s', json.dumps({
+                'task_id': lease.task_id, 'status': status, 'response_bytes': total,
+                'duration_seconds': round(time.monotonic() - started, 3),
+                'failure': failure, **diagnostics.summary()}))

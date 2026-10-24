@@ -15,9 +15,9 @@ from .thread_catalog import ThreadCatalogProjection
 from .thread_protocol import CaseExecutionSnapshot, CommandReceipt, EventPage, ThreadProtocolError, ThreadSnapshot
 
 
-from .network_diagram import MAX_THREAD_JSON_BYTES
+from .application_capacity import CapacityExceeded, limits, require_capacity
 
-MAX_JSON_BYTES = MAX_THREAD_JSON_BYTES
+MAX_JSON_BYTES = limits.control_document_bytes
 
 
 class ThreadHttpError(RuntimeError):
@@ -40,14 +40,22 @@ def _origin(value: str) -> str:
     return value.rstrip("/")
 
 
+def _check_size(actual: int, phase: str) -> None:
+    try:
+        require_capacity('control_document_bytes', actual, phase=phase)
+    except CapacityExceeded as error:
+        raise ThreadHttpError(413, 'Thread JSON exceeds application capacity', {'detail': error.to_document()}) from error
+
+
 def _decode(status_code: int, is_success: bool, content: bytes) -> Any:
-    if len(content) > MAX_JSON_BYTES:
-        raise ThreadHttpError(status_code, "Thread response exceeds the bounded JSON limit")
+    _check_size(len(content), 'http_response')
     try:
         body = json.loads(content)
     except (json.JSONDecodeError, ValueError) as error:
         raise ThreadHttpError(status_code, "Thread response is not JSON") from error
     if not is_success:
+        if isinstance(body, dict) and isinstance(body.get('detail'), dict) and body['detail'].get('code') == 'capacity_exceeded':
+            raise ThreadHttpError(status_code, 'Thread request exceeds application capacity', body)
         if isinstance(body, dict) and isinstance(body.get('error'), str) and body['error'] in {
             'unsupported_thread_version', 'protocol_upgrade_required',
         }:
@@ -101,8 +109,7 @@ class HttpThreadSession:
                 request_size = len(json.dumps(json_body, ensure_ascii=False, allow_nan=False).encode())
             except (TypeError, ValueError) as error:
                 raise ThreadHttpError(400, "Thread request JSON is invalid") from error
-            if request_size > MAX_JSON_BYTES:
-                raise ThreadHttpError(413, "Thread request exceeds the bounded JSON limit")
+            _check_size(request_size, 'http_request')
         with self.client.stream(method, f"{self.api_origin}{path}", headers=headers, json=json_body, **kwargs) as response:
             compatible_versions = {None, '1'} if self.protocol_version == 1 else {'2'}
             if response.is_success and response.headers.get('Capstone-Thread-Version') not in compatible_versions:
@@ -111,8 +118,7 @@ class HttpThreadSession:
             content = bytearray()
             for chunk in response.iter_bytes():
                 content.extend(chunk)
-                if len(content) > MAX_JSON_BYTES:
-                    raise ThreadHttpError(response.status_code, "Thread response exceeds the bounded JSON limit")
+                _check_size(len(content), 'http_response')
             return _decode(response.status_code, response.is_success, bytes(content))
 
     def create(self, model_id: str | None = None) -> ThreadSnapshot:

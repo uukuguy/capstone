@@ -102,6 +102,7 @@ dependencies = [
     { name = "boto3" },
     { name = "capability-agent-kernel" },
     { name = "capstone-model-capability-spi" },
+    { name = "enterprise-research-domain-pack" },
     { name = "fastapi" },
     { name = "google-cloud-storage" },
     { name = "httpx" },
@@ -123,6 +124,7 @@ requires-dist = [
     { name = "boto3", specifier = ">=1.40,<2" },
     { name = "capability-agent-kernel", editable = "../capability-agent-kernel" },
     { name = "capstone-model-capability-spi", editable = "../capstone-model-capability-spi" },
+    { name = "enterprise-research-domain-pack", editable = "../enterprise-research-domain-pack" },
     { name = "fastapi", specifier = ">=0.139,<1" },
     { name = "google-cloud-storage", specifier = ">=3.14,<4" },
     { name = "httpx", specifier = ">=0.28,<1" },
@@ -439,6 +441,17 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/1f/ab/89e2b798d2c3925f82e2bb72d5979f3d2f6da2dd22ef4a8cd8b70d920039/cryptography-50.0.1-cp39-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:2a93d05e34d5f67fba6f891fe85d929999baa7195e853923ea6d7576c9e68c5e", size = 5044355, upload-time = "2026-08-25T19:45:22.353Z" },
     { url = "https://files.pythonhosted.org/packages/99/89/87ef49ffe383ef4e147d27b7bf2088fb0b54ea409dd87b5a89442e5828a5/cryptography-50.0.1-cp39-abi3-win_amd64.whl", hash = "sha256:55d16b1ef3ee0958d893a977b19777887e546c9954ea81b200c3301a864013f2", size = 3875429, upload-time = "2026-08-25T19:45:24.418Z" },
 ]
+
+[[package]]
+name = "enterprise-research-domain-pack"
+version = "1.0.0"
+source = { editable = "../enterprise-research-domain-pack" }
+dependencies = [
+    { name = "capability-agent-kernel" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "capability-agent-kernel", editable = "../capability-agent-kernel" }]
 
 [[package]]
 name = "fastapi"

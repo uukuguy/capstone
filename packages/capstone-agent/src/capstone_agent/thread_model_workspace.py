@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from .application_capacity import limits, require_capacity
+
 import hashlib
 import json
 import secrets
@@ -13,8 +15,8 @@ from .network_diagram import normalize_network_diagram
 from .thread_protocol import ModelContextSnapshot, ThreadProtocolError, ThreadSnapshot
 
 MODEL_COMMANDS = frozenset({"open_model", "activate_model", "close_model"})
-MAX_OPEN_MODELS = 64
-MAX_WORKSPACE_BYTES = 64 * 1024
+MAX_OPEN_MODELS = limits.open_models
+MAX_WORKSPACE_BYTES = limits.ui_model_workspace_bytes
 _ENTRY_FIELDS = {"entry_id", "model_id", "model_revision", "implementation_family",
                  "authority_model_ref", "display_name", "diagram_provider_id", "last_active_seq"}
 
@@ -37,7 +39,9 @@ def validate_workspace(value: Any) -> dict[str, Any]:
     if not isinstance(value, dict) or set(value) != {"models", "current_entry_id"}:
         raise ThreadProtocolError("model workspace is invalid")
     models = value["models"]
-    if not isinstance(models, list) or not 1 <= len(models) <= MAX_OPEN_MODELS:
+    if isinstance(models, list):
+        require_capacity('open_models', len(models), phase='model_workspace')
+    if not isinstance(models, list) or not 1 <= len(models) <= limits.open_models:
         raise ThreadProtocolError("model workspace size is invalid")
     identifiers = set()
     identities = set()
@@ -73,7 +77,8 @@ def validate_workspace(value: Any) -> dict[str, Any]:
     if value["current_entry_id"] not in identifiers:
         raise ThreadProtocolError("current model is not open")
     encoded = json.dumps(value, ensure_ascii=False, allow_nan=False)
-    if len(encoded.encode()) > MAX_WORKSPACE_BYTES:
+    require_capacity('ui_model_workspace_bytes', len(encoded.encode()), phase='model_workspace')
+    if len(encoded.encode()) > limits.ui_model_workspace_bytes:
         raise ThreadProtocolError("model workspace is too large")
     return json.loads(encoded)
 
@@ -128,7 +133,7 @@ def migrate_workspace(value: Any, snapshot: ThreadSnapshot, contexts: list[tuple
     for seq, document in sorted(contexts, key=lambda item: item[0], reverse=True):
         context = ModelContextSnapshot.from_document(document)
         entry = model_entry(context, seq)
-        if entry["entry_id"] in identifiers or len(workspace["models"]) >= MAX_OPEN_MODELS:
+        if entry["entry_id"] in identifiers or len(workspace["models"]) >= limits.open_models:
             continue
         metadata = None
         if catalog is not None:
@@ -140,7 +145,7 @@ def migrate_workspace(value: Any, snapshot: ThreadSnapshot, contexts: list[tuple
         if entry["display_name"] in closed_names:
             continue
         candidate = {**workspace, "models": [*workspace["models"], entry]}
-        if len(json.dumps(candidate, ensure_ascii=False).encode()) > MAX_WORKSPACE_BYTES:
+        if len(json.dumps(candidate, ensure_ascii=False).encode()) > limits.ui_model_workspace_bytes:
             continue
         workspace = candidate
         identifiers.add(entry["entry_id"])
@@ -158,7 +163,7 @@ def workspace_projection(workspace: dict[str, Any], snapshot: ThreadSnapshot, bl
 
 def workspace_has_capacity(workspace: dict[str, Any], target: Any) -> bool:
     identity = model_entry(target, 0)["entry_id"]
-    return len(workspace["models"]) < MAX_OPEN_MODELS or any(item["entry_id"] == identity for item in workspace["models"])
+    return len(workspace["models"]) < limits.open_models or any(item["entry_id"] == identity for item in workspace["models"])
 
 
 @dataclass(frozen=True)
@@ -208,7 +213,7 @@ def prepare_workspace_change(snapshot: ThreadSnapshot, workspace: dict[str, Any]
         existing = next((item for item in state["models"] if item["entry_id"] == target["entry_id"]), None)
         if existing is not None:
             target = existing
-        elif len(state["models"]) >= MAX_OPEN_MODELS:
+        elif len(state["models"]) >= limits.open_models:
             return None, "opened_model_limit"
         else:
             state["models"].append(target)

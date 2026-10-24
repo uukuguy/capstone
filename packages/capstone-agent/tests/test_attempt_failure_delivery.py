@@ -141,6 +141,111 @@ def test_runtime_failure_delivers_a_persisted_reader_outcome_without_raw_errors(
     assert "runtime_failed" not in result.answer
 
 
+@pytest.mark.parametrize('code,reason', [
+    ('native_continuation_no_progress', '后续动作未产生新的工具执行或已保存的状态进展'),
+    ('native_transport_timeout', '执行器连接超时'),
+    ('native_task_deadline', '执行时间上限'),
+    ('native_contract_rejected', '系统校验未通过'),
+    ('native_artifact_persistence_failed', '生成文件未能完整保存'),
+    ('native_model_rate_limit', '模型服务限制'),
+    ('native_model_context_limit', '上下文容量不足'),
+    ('native_model_output_rejected', '模型服务拒绝'),
+    ('native_model_turn_incomplete', '模型回复未正常结束'),
+])
+def test_native_failure_reason_reaches_saved_user_reply(code, reason):
+    class FailedRuntime(HarnessPiClient):
+        def prompt(self, question, *, on_event, **kwargs):
+            on_event({'event_type': 'runtime_event', 'runtime_mode': 'capstone',
+                'visibility': 'diagnostic', 'payload': {'child_status': 'failed',
+                'failure_code': code, 'cancellation_confirmed': True}})
+            raise RuntimeError('PRIVATE provider details')
+    service = _thread_service()
+    result = HarnessAttemptRunner(service, FailedRuntime(Session())).run(claim_attempt(service))
+    terminal = service.read_events('thr_harness', 0).events[-1]
+    assert reason in result.answer
+    assert terminal.payload['error_code'] == code
+    assert terminal.payload['answer'] == result.answer
+    assert 'PRIVATE' not in result.answer
+
+
+def test_executor_http_failure_saves_precise_allowlisted_cause_in_user_answer():
+    class FailedRuntime(HarnessPiClient):
+        def prompt(self, question, *, on_event, **kwargs):
+            on_event({'event_type': 'runtime_event', 'runtime_mode': 'capstone',
+                'visibility': 'diagnostic', 'payload': {'child_status': 'failed',
+                'failure_code': 'native_executor_http_rejected', 'transport_failure': {
+                    'operation': 'research_pending', 'http_status': 400,
+                    'protocol_code': 'research_transport_file_changed'}}})
+            raise RuntimeError('PRIVATE raw response')
+    service = _thread_service()
+    result = HarnessAttemptRunner(service, FailedRuntime(Session())).run(claim_attempt(service))
+    terminal = service.read_events('thr_harness', 0).events[-1]
+    assert terminal.payload['error_code'] == 'native_executor_http_rejected'
+    assert terminal.payload['answer'] == result.answer
+    assert 'research_pending' in result.answer and 'HTTP 400' in result.answer
+    assert 'research_transport_file_changed' in result.answer and 'PRIVATE' not in result.answer
+    from capstone_agent.failure_delivery import native_transport_summary
+    assert native_transport_summary({'operation': 'PRIVATE', 'http_status': 400, 'protocol_code': 'invalid_task'}) == ''
+    assert native_transport_summary({'operation': [], 'http_status': 400, 'protocol_code': 'invalid_task'}) == ''
+
+
+def test_resource_deadline_saves_actual_operation_without_raw_transport_text():
+    class FailedRuntime(HarnessPiClient):
+        def prompt(self, question, *, on_event, **kwargs):
+            on_event({'event_type':'runtime_event','runtime_mode':'capstone','visibility':'diagnostic',
+                'payload':{'child_status':'failed','failure_code':'native_transport_timeout',
+                    'transport_failure':{'operation':'resource_complete','transport_phase':'task_deadline'}}})
+            raise RuntimeError('PRIVATE network details')
+    service = _thread_service()
+    result = HarnessAttemptRunner(service,FailedRuntime(Session())).run(claim_attempt(service))
+    terminal = service.read_events('thr_harness',0).events[-1]
+    assert terminal.payload['answer'] == result.answer
+    assert 'resource_complete' in result.answer and 'task_deadline' in result.answer
+    assert 'PRIVATE' not in result.answer
+
+
+@pytest.mark.parametrize('timeout', [600, 1800, 3600])
+def test_native_timeout_reports_actual_application_limit(timeout):
+    class FailedRuntime(HarnessPiClient):
+        def prompt(self, question, *, on_event, **kwargs):
+            on_event({'event_type': 'runtime_event', 'runtime_mode': 'capstone',
+                'visibility': 'diagnostic', 'payload': {'child_status': 'failed',
+                'failure_code': 'native_deadline_exceeded', 'timeout_seconds': timeout}})
+            raise TimeoutError('PRIVATE provider details')
+    service = _thread_service()
+    result = HarnessAttemptRunner(service, FailedRuntime(Session())).run(claim_attempt(service))
+    terminal = service.read_events('thr_harness', 0).events[-1]
+    assert f'{timeout} 秒' in result.answer
+    assert terminal.payload['answer'] == result.answer
+    assert terminal.payload['error_code'] == 'native_deadline_exceeded'
+    assert 'PRIVATE' not in result.answer
+
+
+@pytest.mark.parametrize('native', [False, True])
+def test_capacity_failure_retains_typed_actual_limit_and_phase_without_raw_exception(native):
+    from capstone_agent.application_capacity import CapacityExceeded, limits
+    detail = CapacityExceeded('native_context_bytes', limits.native_context_bytes + 1,
+                              limits.native_context_bytes, 'native_context').to_document()
+    expected_code = 'native_capacity_exceeded' if native else 'capacity_exceeded'
+    class FailedRuntime(HarnessPiClient):
+        def prompt(self, question, *, on_event, **kwargs):
+            if native:
+                on_event({'event_type': 'runtime_event', 'runtime_mode': 'capstone',
+                    'visibility': 'diagnostic', 'payload': {'child_status': 'failed',
+                    'failure_code': expected_code, 'failure': {'code': expected_code,
+                        'phase': 'native_context', 'capacity': detail, 'message': 'PRIVATE details'}}})
+                raise RuntimeError('PRIVATE exception')
+            raise CapacityExceeded('native_context_bytes', limits.native_context_bytes + 1,
+                                   limits.native_context_bytes, 'native_context')
+    service = _thread_service()
+    result = HarnessAttemptRunner(service, FailedRuntime(Session())).run(claim_attempt(service))
+    terminal = service.read_events('thr_harness', 0).events[-1]
+    assert result.status == 'failed' and result.error_code == expected_code
+    assert terminal.payload['failure'] == {'code': expected_code, 'phase': 'native_context', 'capacity': detail}
+    assert '容量' in result.answer and 'PRIVATE' not in result.answer
+    assert 'PRIVATE' not in str(terminal.payload)
+
+
 def test_runtime_failure_describes_admitted_results_without_claiming_task_success():
     from test_result_projection import valid_projection
 
@@ -422,7 +527,11 @@ def test_incompatible_valid_groups_do_not_discard_all_results():
     assert len([event for event in events if event.event_type == "tool_completed"]) == 20
 
 
-def test_exceeding_answer_capacity_delivers_verified_subset_and_keeps_all_receipts():
+def test_exceeding_answer_capacity_delivers_verified_subset_and_keeps_all_receipts(request):
+    from capstone_agent.application_capacity import current_capacity, initialize_capacity
+    previous = current_capacity()
+    request.addfinalizer(lambda: initialize_capacity(previous))
+    initialize_capacity({'context_references': 1024})
     service = _thread_service()
 
     class OverCapacity(Session):

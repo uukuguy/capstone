@@ -42,11 +42,12 @@ def valid_projection() -> dict[str, object]:
     }
 
 
-def test_optional_pack_presentation_roundtrip() -> None:
+@pytest.mark.parametrize('purpose', ['process_output', 'task_output', 'inspection'])
+def test_optional_pack_presentation_roundtrip(purpose) -> None:
     document = valid_projection()
     assert "presentation" not in ResultProjection.from_document(document).to_document()
     document["presentation"] = {"collection_id": "analysis", "collection_title": "分析结果",
-        "group_id": "context_1", "group_title": "运行状态 1", "purpose": "task_output"}
+        "group_id": "context_1", "group_title": "运行状态 1", "purpose": purpose}
     assert ResultProjection.from_document(document).to_document()["presentation"] == document["presentation"]
 
 

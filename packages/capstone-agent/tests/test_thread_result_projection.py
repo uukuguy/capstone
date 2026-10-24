@@ -130,7 +130,8 @@ def test_result_projection_survives_public_snapshot_roundtrip_and_keeps_attempt_
     assert roundtrip.result_projections[0].attempt_id == claim.attempt.attempt_id
     assert roundtrip.result_projections[0].result_ref == RESULT_ONE
     assert roundtrip.result_projections[0].model_revision == REVISION
-    terminal = service.read_events("thr_projection", 0).events[-1]
+    terminal = next(event for event in reversed(service.read_events("thr_projection", 0).events)
+                    if event.event_type == "attempt_completed")
     assert terminal.event_type == "attempt_completed"
     assert terminal.payload["result_projections"] == [projection]
 
@@ -173,17 +174,29 @@ def test_snapshot_rejects_malformed_projection_instead_of_dropping_it() -> None:
 
 
 def test_result_projection_catalog_keeps_only_the_recent_bounded_window() -> None:
+    from capstone_agent.application_capacity import limits
     service = _service()
-    for ordinal in range(1, 66):
+    for ordinal in range(1, limits.ui_result_projection_count + 2):
         result_ref = "result:sha256:" + f"{ordinal:064x}"[-64:]
         evidence_ref = "evidence:sha256:" + f"{ordinal:064x}"[-64:]
         claim, projection = _claim_and_projection(service, ordinal, result_ref, evidence_ref)
         _complete(service, claim, projection, result_ref, evidence_ref)
 
     projections = service.snapshot("thr_projection").result_projections
-    assert len(projections) == 64
+    assert len(projections) == limits.ui_result_projection_count
     assert projections[0].result_ref == "result:sha256:" + f"{2:064x}"
-    assert projections[-1].result_ref == "result:sha256:" + f"{65:064x}"
+    assert projections[-1].result_ref == "result:sha256:" + f"{limits.ui_result_projection_count + 1:064x}"
+    assert service.snapshot('thr_projection').application_state['result_projection_history'] == {
+        'omitted_count': 1, 'has_more': True, 'model_context_id': 'ctx_ieee39'}
+    history = service.read_history('thr_projection', limit=limits.history_page_items)
+    # Full results remain in the same ledger and can be recovered by pagination.
+    all_events = list(history['events'])
+    while history.get('has_more'):
+        history = service.read_history('thr_projection', before=history['next_before_event_seq'], limit=limits.history_page_items)
+        all_events.extend(history['events'])
+    assert any(item['event_type'] == 'attempt_completed'
+               and item['payload'].get('result_projections', [{}])[0].get('result_id') == 'projection_1'
+               for item in all_events)
 
 
 def test_result_projection_with_element_refs_requires_domain_diagram_identity() -> None:

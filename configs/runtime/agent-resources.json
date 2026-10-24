@@ -52,6 +52,20 @@
         "audit_network"
       ],
       "adapter": "powermcp-pandapower/1"
+    },
+    {
+      "id": "anthropic-explore-data",
+      "kind": "skill",
+      "version": "33eeda1e8fd856455b05479d13a0f85b5f803744",
+      "source": "https://github.com/anthropics/knowledge-work-plugins",
+      "roles": [
+        "delegated_pi",
+        "direct_pi"
+      ],
+      "enabled": true,
+      "managed": false,
+      "native_name": "explore-data",
+      "required_tools": []
     }
   ]
 }

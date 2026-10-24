@@ -481,7 +481,10 @@ def test_rpc_rejects_invalid_utf8_stdout_without_decode_details(tmp_path: Path) 
     assert "UnicodeDecodeError" not in str(captured.value)
 
 
-def test_rpc_sanitizes_secret_in_response_error(tmp_path: Path) -> None:
+@pytest.mark.parametrize('limit_mode',['normal','debug'])
+def test_rpc_sanitizes_secret_in_response_error(tmp_path: Path, monkeypatch, limit_mode) -> None:
+    import capability_agent.runtime.capacity as capacity
+    monkeypatch.setattr(capacity,'_mode',limit_mode)
     script = tmp_path / "error-provider.py"
     script.write_text(
         "import json\n"
@@ -497,16 +500,21 @@ def test_rpc_sanitizes_secret_in_response_error(tmp_path: Path) -> None:
         _Workspace(workspace),
         trace,
         secret_values={"topsecret"},
+        runtime_limits={'diagnostic_text_chars':5} if limit_mode=='debug' else None,
     )
 
     client.start()
     try:
-        with pytest.raises(PiProtocolError, match="preflight failed") as captured:
+        with pytest.raises(capacity.CapacityExceeded if limit_mode=='debug' else PiProtocolError) as captured:
             client.prompt_and_wait("question")
     finally:
         client.stop()
         trace.close()
     assert "topsecret" not in str(captured.value)
+    if limit_mode=='debug':
+        assert captured.value.dimension=='diagnostic_text_chars'
+    else:
+        assert 'preflight failed' in str(captured.value)
 
 
 def test_rpc_sanitizes_capture_fatal_stderr(tmp_path: Path) -> None:

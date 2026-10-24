@@ -82,6 +82,9 @@ class _CreatorService:
     def __init__(self) -> None:
         self.snapshot = None
 
+    def set_material_store(self, store):
+        self.material_store = store
+
     def create_thread(self, snapshot):
         self.snapshot = snapshot
         return snapshot

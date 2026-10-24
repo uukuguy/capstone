@@ -40,6 +40,48 @@ def test_archive_is_reversible_and_does_not_delete_history():
     assert service.read_events("thr_demo_39", 0).to_document() == before
 
 
+def test_catalog_update_time_comes_from_the_last_saved_event():
+    service = _service()
+    initial = service.list_threads()['threads'][0]
+    assert initial['updated_at'] == initial['created_at']
+    _message(service, 1)
+    claim = service.claim_attempt('worker', 30)
+    service.finish_attempt(claim, phase='failed', payload={'error_code': 'test_failure'})
+    current = service.list_threads()['threads'][0]
+    latest = service.read_events('thr_demo_39', 0).events[-1]
+    assert current['updated_at'] == latest.occurred_at
+    assert service.set_archived('thr_demo_39', True)['updated_at'] == latest.occurred_at
+
+
+def test_delete_removes_an_inactive_thread_from_catalog_and_direct_access():
+    service = _service()
+    with TestClient(_app(service), base_url="http://localhost") as client:
+        preflight = client.options('/api/v1/threads/thr_demo_39', headers={'Origin':'http://localhost:5173','Access-Control-Request-Method':'DELETE'})
+        assert 'DELETE' in preflight.headers['Access-Control-Allow-Methods']
+        assert client.delete('/api/v1/threads/thr_demo_39').status_code == 401
+        assert client.delete('/api/v1/threads/thr_demo_39', headers=_auth()).status_code == 204
+        assert client.get('/api/v1/threads', headers=_auth()).json()['threads'] == []
+        assert client.get('/api/v1/threads?archived=true', headers=_auth()).json()['threads'] == []
+        assert client.get('/api/v1/threads/thr_demo_39', headers=_auth()).status_code == 404
+
+
+def test_delete_does_not_cancel_or_remove_active_work():
+    service = _service()
+    _message(service, 1)
+    with TestClient(_app(service), base_url="http://localhost") as client:
+        assert client.delete('/api/v1/threads/thr_demo_39', headers=_auth()).status_code == 409
+        assert client.get('/api/v1/threads/thr_demo_39', headers=_auth()).status_code == 200
+
+
+def test_postgres_delete_is_durable_and_leaves_other_threads(postgres_thread_service):
+    service, thread_id = postgres_thread_service
+    service.create_thread(_snapshot(thread_id))
+    service.delete_thread(thread_id)
+    from capstone_agent.thread_service import ThreadNotFound
+    with pytest.raises(ThreadNotFound):
+        service.snapshot(thread_id)
+
+
 def _message_command(service, ordinal: int):
     snapshot = service.snapshot("thr_demo_39")
     return ThreadCommandFactory(snapshot.thread_id, snapshot.run.run_id).send_auto(
@@ -89,13 +131,20 @@ def test_management_routes_require_auth_and_validate_input():
     with TestClient(_app(_service()), base_url="http://localhost") as client:
         for route in ["/api/v1/threads", "/api/v1/threads/thr_demo_39/history"]:
             assert client.get(route).status_code == 401
-        assert client.get("/api/v1/threads?limit=51", headers=_auth()).status_code == 422
+        from capstone_agent.application_capacity import limits
+        oversized = client.get(f'/api/v1/threads?limit={limits.history_page_items + 1}', headers=_auth())
+        assert oversized.status_code == 413
+        assert oversized.json()['detail']['dimension'] == 'history_page_items'
+        assert client.get('/api/v1/threads?limit=0', headers=_auth()).status_code == 422
         assert client.get("/api/v1/threads/thr_demo_39/history?before=-1", headers=_auth()).status_code == 422
         assert client.post("/api/v1/threads/thr_demo_39/archive", headers=_auth(), json={"archived": "yes"}).status_code == 422
 
 
 @pytest.mark.parametrize("limit", [0, 257, True])
 def test_history_service_rejects_unbounded_limits(limit):
+    from capstone_agent.application_capacity import limits
+    if limit == 257:
+        limit = limits.history_page_items + 1
     with pytest.raises(ThreadProtocolError):
         _service().read_history("thr_demo_39", limit=limit)
 

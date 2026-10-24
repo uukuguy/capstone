@@ -12,7 +12,8 @@ from typing import BinaryIO, Protocol
 
 from capability_agent.application.runner import ApplicationRequest
 
-from capstone_agent.protocol import MAX_FRAME_BYTES, Frame, ProtocolError
+from capstone_agent.protocol import Frame, ProtocolError
+from capstone_agent.application_capacity import limits
 from capstone_agent.progress import render_progress, summarize_answer
 from capstone_agent.network_view import normalize_network_view
 from capstone_agent.network_diagram import normalize_network_projection
@@ -75,7 +76,7 @@ def serve_application(
 
     source = input_stream or sys.stdin.buffer
     target = output_stream or sys.stdout.buffer
-    raw_open = source.readline(MAX_FRAME_BYTES + 1)
+    raw_open = source.readline(limits.control_document_bytes + 1)
     opening = Frame.from_line(raw_open, expected_sequence=1)
     if opening.kind != "open":
         raise ProtocolError("worker must open a registered application first")
@@ -170,7 +171,7 @@ def serve_application(
 
     def next_frame() -> Frame | None:
         nonlocal expected_input
-        raw = source.readline(MAX_FRAME_BYTES + 1)
+        raw = source.readline(limits.control_document_bytes + 1)
         if not raw:
             return None
         frame = Frame.from_line(raw, expected_sequence=expected_input)

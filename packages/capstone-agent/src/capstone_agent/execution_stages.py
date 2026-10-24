@@ -33,7 +33,8 @@ class ExecutionStages:
 
     def _close(self, at: float | None = None) -> dict[str, object]:
         state = self.steps[self.active]
-        state['status'] = 'completed'
+        if state['status'] == 'running':
+            state['status'] = 'completed'
         state['duration_ms'] = max(0, round(((self.clock() if at is None else at) - cast(float, state['start'])) * 1000))
         return self._public(self.active)
 
@@ -46,16 +47,47 @@ class ExecutionStages:
             'title': '执行任务', 'status': 'running', 'start': self.execution_entry}
         return previous
 
+    def _record_batch(self, value: object) -> list[dict[str, object]]:
+        """Apply native terminal observations before closing the active stage."""
+        records: dict[str, dict[str, object]] = {}
+        for step in value if isinstance(value, list) else []:
+            if not isinstance(step, Mapping) or not isinstance(step.get('id'), str):
+                continue
+            identity = step['id']
+            if identity not in self.steps:
+                self.steps[identity] = {'id': identity, 'number': len(self.steps) + 1,
+                    'title': step.get('title', '执行任务'), 'status': 'running', 'start': self.clock()}
+            state = self.steps[identity]
+            for key in ('title', 'duration_ms', 'response_ms', 'first_text_ms', 'usage', 'finish_reason', 'after_failed_steps',
+                        'questions', 'expected_outputs', 'derived_from', 'result_summary', 'next_action_reason'):
+                if key in step:
+                    state[key] = step[key]
+            if step.get('status') in {'completed', 'partial', 'failed', 'limited', 'cancelled'}:
+                state['status'] = step['status']
+            records[identity] = self._public(identity)
+        return list(records.values())
+
+    @staticmethod
+    def _merge_previous(batch: object, previous: dict[str, object]) -> list[dict[str, object]]:
+        # A source batch wins over an automatically closed copy of the same
+        # stage. Keep both records when they represent different stages.
+        records = {previous['id']: previous}
+        for step in batch if isinstance(batch, list) else []:
+            records[step['id']] = step
+        return sorted(records.values(), key=lambda step: cast(int, step['number']))
+
     def annotate(self, event: Mapping[str, object]) -> dict[str, object]:
         output = dict(event)
         original = event.get('payload')
         if not isinstance(original, Mapping):
             return output
         payload = dict(original)
+        if isinstance(payload.get('task_steps'), list):
+            payload['task_steps'] = self._record_batch(payload['task_steps'])
         if event.get('event_type') in {'tool_started', 'tool_completed'} and 'task_step' not in payload:
             previous = self._open_unframed_execution()
             if previous is not None:
-                payload['task_steps'] = [previous]
+                payload['task_steps'] = self._merge_previous(payload.get('task_steps'), previous)
             if self.active == 'task-execution':
                 payload['task_step'] = self._public(self.active)
                 payload['task_step_id'] = self.active
@@ -68,12 +100,15 @@ class ExecutionStages:
                 self.steps[identity] = {'id': identity, 'number': len(self.steps) + 1,
                     'title': step.get('title', '执行任务'), 'status': 'running', 'start': self.clock()}
                 self.active = identity
-                payload['task_steps'] = [previous]
+                payload['task_steps'] = self._merge_previous(payload.get('task_steps'), previous)
             state = self.steps[identity]
-            for key in ('title', 'response_ms', 'first_text_ms', 'usage', 'finish_reason', 'after_failed_steps'):
+            for key in ('title', 'response_ms', 'first_text_ms', 'usage', 'finish_reason', 'after_failed_steps',
+                        'questions', 'expected_outputs', 'derived_from', 'result_summary', 'next_action_reason'):
                 if key in step:
                     state[key] = step[key]
-            if step.get('status') == 'completed' and identity == self.active:
+            if step.get('status') in {'completed', 'partial', 'failed', 'limited', 'cancelled'}:
+                state['status'] = step['status']
+            if step.get('status') in {'completed', 'partial', 'failed', 'limited', 'cancelled'} and identity == self.active:
                 self._close()
             payload['task_step'] = self._public(identity)
         parent = payload.get('task_step_id')
@@ -95,5 +130,7 @@ class ExecutionStages:
         return {'event_type': 'runtime_action', 'runtime_mode': 'capstone', 'visibility': 'public',
             'payload': {'phase': 'started', 'task_steps': ([preparation] if preparation is not None else []) + [previous], 'task_step': self._public(identity)}}
 
-    def finish(self) -> list[dict[str, object]]:
+    def finish(self, *, interrupted: bool = False) -> list[dict[str, object]]:
+        if interrupted and self.steps[self.active]['status'] == 'running':
+            self.steps[self.active]['finish_reason'] = 'interrupted'
         return [self._close()]

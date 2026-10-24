@@ -9,6 +9,321 @@ from capstone_agent.pi_delegation import PiTaskRequest, HttpGeneralPiExecutor
 from capstone_agent.request_intent import NodeControl
 
 
+@pytest.mark.parametrize('version', ['1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0'])
+def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted_attempt_origin(tmp_path, monkeypatch, version):
+    import json
+    from types import SimpleNamespace
+    from capstone_agent import general_pi_server as module
+    from capstone_agent.business_context import BusinessContext
+    from capstone_agent.native_task_context import native_context_for, research_policy_capabilities
+    from capstone_agent.native_conversation import executor_binding
+    from test_enterprise_normal_chat import native_executor
+    from test_native_graph_progress import graph_fixture
+    executor = native_executor()
+    executor.capability = {**executor.capability, 'research_bridge_schemas': ['capstone-research-bridge/1'],
+        'research_graph_schemas': ['capstone-enterprise-graph/2'], 'research_policy_profiles': research_policy_capabilities()}
+    selected = executor_binding(executor, profile_version=version)
+    native = native_context_for(SimpleNamespace(submission=None, selected_task_reader=None,
+        started_at='2026-10-21T06:00:00Z'), selected)
+    binding, task, _, _ = graph_fixture()
+    binding['graph_work_edition'] = 'capstone-graph-work/1'
+    captured = []
+    class Captured(Exception):
+        pass
+    def launch(**kwargs):
+        captured.append(json.loads(json.dumps(kwargs['sdk_config'])))
+        raise Captured()
+    monkeypatch.setattr(module, 'native_pi_launch', launch)
+    monkeypatch.setattr(module.os, 'geteuid', lambda: 0)
+    root = tmp_path / 'private'
+    (root / 'receipts').mkdir(parents=True)
+    runner = module.NativeTaskRunner(root=root, config_root=tmp_path, command=('node', '/opt/pi/dist/cli.js'),
+        model='fixture', relay_origin='http://127.0.0.1:8790')
+    # Exercise the checked-in settings through the actual publication overlay,
+    # rather than constructing researchRuntime flags only inside a fixture.
+    settings_path = Path(__file__).resolve().parents[3] / 'configs/runtime/general-pi/settings.json'
+    published_settings = json.loads(settings_path.read_text())
+    runner.resources = SimpleNamespace(
+        profiles={'direct_pi': SimpleNamespace(revision='test')},
+        task_config=lambda *args, **kwargs: {'settings': published_settings, 'mcp': None})
+    runner.environment_context = 'HOST VERIFIED ENVIRONMENT: offline libraries and report renderer'
+    ready = threading.Event()
+    ready.set()
+    runner.bind_research_reader(lambda _: SimpleNamespace(root=tmp_path / 'channel', ready=ready))
+    runner.bind_graph_context_provider(lambda *_: SimpleNamespace(root=tmp_path / 'contexts'))
+    request = PiTaskRequest(task, binding['attempt_id'], 'direct', 'Prepare the useful requested output', (), (), {'engine': 'pi'}, 1800,
+        business_context=BusinessContext.empty('workspace', 0), resource_profile={'profile_id': 'direct_pi', 'revision': 'test'},
+        input={'kind': 'text', 'text': 'Prepare the useful requested output'}, native_context=native, research_binding=binding)
+    with pytest.raises(Captured):
+        runner(request, lambda: False, lambda _: None)
+    actual = captured[0]['researchRuntime']
+    assert actual.get('nodeReviewMode') == 'advisory'
+    assert 'nodeReviewMode' not in captured[0]['settings'].get('retry', {})
+    assert captured[0]['runtimeEnvironment'] == runner.environment_context
+    assert actual['isolatedTaskExecution'] is (version in {'1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0'})
+    assert actual['goalDrivenExecution'] is (version in {'1.16.0', '1.17.0', '1.18.0'})
+    assert actual['lightweightTaskNodes'] is (version in {'1.17.0', '1.18.0'})
+    assert actual['graphWorkEdition'] == 'capstone-graph-work/1'
+    assert actual['graphWorkStartedAt'] == native['graph_work']['started_at_ms']
+    assert actual['graphWork'] == {'schema': 'capstone-graph-work/1', 'mode': 'off' if version in {'1.16.0', '1.17.0', '1.18.0'} else 'usable_draft',
+        'target_seconds': 240, 'integration_reserve_seconds': 60, 'child_wrapup_seconds': 15}
+    assert captured[0]['deadlineAt'] > actual['graphWorkStartedAt']
+
+
+@pytest.mark.parametrize('version,controls', [
+    ('1.1.0', ['agent_research_cycle']),
+    ('1.2.0', ['agent_research_plan', 'agent_research_record', 'agent_research_assess']),
+])
+def test_host_retains_selected_control_interface_and_requires_research_binding(tmp_path, version, controls):
+    from dataclasses import replace
+    from types import SimpleNamespace
+    from capstone_agent.business_context import BusinessContext
+    from capstone_agent.general_pi_server import GeneralPiHost
+    from capstone_agent.native_task_context import native_context_for
+    from capstone_agent.native_conversation import executor_binding
+    from test_enterprise_normal_chat import native_executor
+    from test_native_research_bridge import _cycle_progress_fixture, research
+    from capstone_agent.native_research_bridge import WorkerResearchBridge
+    worker = research(tmp_path / 'research')
+    binding, _, _, _ = _cycle_progress_fixture(tmp_path / 'fixture', worker=worker)
+    bridge = WorkerResearchBridge(worker.channel, owner_id='a' * 64, producer_binding=binding)
+    from test_research_policy_compatibility import registered_binding
+    selected = registered_binding(version)
+    context = native_context_for(SimpleNamespace(submission=None, selected_task_reader=None), selected)
+    context['policy']['allowed_tools'] = controls
+    received = []
+    host = GeneralPiHost(root=tmp_path / 'host', identity={'engine': 'pi'},
+        run_task=lambda request, *_: received.append(request) or ('Answer', {}))
+    request = PiTaskRequest('control-interface', binding['attempt_id'], 'direct', 'Explain', (), (), host.identity, 2,
+        business_context=BusinessContext.empty('workspace', 0),
+        resource_profile={'profile_id': 'direct_pi', 'revision': 'test'},
+        input={'kind': 'text', 'text': 'Explain'}, native_context=context)
+    with pytest.raises(ValueError, match='unpublished tool'):
+        host.submit(request)
+    admitted = replace(request, research_binding=binding)
+    host.submit(admitted)
+    host.research_mirror(admitted.task_id).bootstrap('a' * 64, bridge.bootstrap())
+    deadline = time.monotonic() + 2
+    while host.read(admitted.task_id)['status'] == 'running' and time.monotonic() < deadline:
+        time.sleep(.005)
+    host.submit(admitted)
+    assert len(received) == 1
+    assert received[0].to_document()['native_context']['policy']['allowed_tools'] == controls
+    assert host.read(admitted.task_id)['result']['status'] == 'completed'
+
+
+@pytest.mark.parametrize('version,variant,expected', [('1.3.0', 'default', 'completed'),
+    ('1.3.0', 'initial-review', 'completed'), ('1.4.0', 'default', 'completed'), ('1.2.0', 'default', 'failed')])
+def test_host_assess_review_requires_reviewed_profile(tmp_path, version, variant, expected):
+    import json
+    from types import SimpleNamespace
+    from capstone_agent.business_context import BusinessContext
+    from capstone_agent.general_pi_server import GeneralPiHost
+    from capstone_agent.native_task_context import native_context_for
+    from capstone_agent.native_conversation import executor_binding
+    from capstone_agent.native_research_bridge import WorkerResearchBridge, write_json
+    from test_enterprise_normal_chat import native_executor
+    from test_native_research_bridge import _branch_progress_fixture, research
+    worker = research(tmp_path / 'research')
+    binding, task, view, branch = _branch_progress_fixture(tmp_path / 'fixture', worker=worker)
+    saved = json.loads(view['state']['notes'][0]['text'])
+    saved['snapshot']['pending_action']['kind'] = 'assess'
+    view['state']['notes'][0]['text'] = json.dumps(saved)
+    branch['review_mode'] = 'delivery'
+    bridge = WorkerResearchBridge(worker.channel, owner_id='a' * 64, producer_binding=binding)
+    from test_research_policy_compatibility import registered_binding
+    selected = registered_binding(version, variant)
+    context = native_context_for(SimpleNamespace(submission=None, selected_task_reader=None), selected)
+    context['policy']['allowed_tools'] = ['agent_delegate']
+    def run(request, cancelled, emit):
+        write_json(host.research_mirror(task).root / 'view.json', view)
+        emit({'type': 'tool_execution_start', 'toolName': 'agent_delegate', 'toolCallId': 'delegate-call'})
+        emit(branch)
+        emit({**branch, 'type': 'delegation_child_finished', 'status': 'completed',
+              'result_summary': 'Text review completed.'})
+        return 'Reviewed answer', {}
+    host = GeneralPiHost(root=tmp_path / 'host', identity={'engine': 'pi'}, run_task=run)
+    request = PiTaskRequest(task, binding['attempt_id'], 'direct', 'Review', (), (), host.identity, 2,
+        business_context=BusinessContext.empty('workspace', 0),
+        resource_profile={'profile_id': 'direct_pi', 'revision': 'test'},
+        input={'kind': 'text', 'text': 'Review'}, native_context=context, research_binding=binding)
+    host.submit(request)
+    host.research_mirror(task).bootstrap('a' * 64, bridge.bootstrap())
+    deadline = time.monotonic() + 2
+    while host.read(task)['status'] == 'running' and time.monotonic() < deadline:
+        time.sleep(.005)
+    result = host.read(task)
+    assert result['status'] == expected
+    if expected == 'completed':
+        branches = [event for event in result['events'] if event['type'].startswith('delegation_child_')]
+        assert len(branches) == 2
+        assert all(event['review_mode'] == 'delivery' for event in branches)
+    else:
+        assert result['result']['failure']['code'] == 'native_research_branch_invalid'
+
+
+def test_no_progress_rpc_failure_retains_actual_files_and_safe_public_reason(tmp_path):
+    import json
+    import sys
+    from capstone_agent.general_pi_executor import GeneralPiProcess
+    from capstone_agent.general_pi_server import GeneralPiHost
+    script = tmp_path / 'no_progress.py'
+    script.write_text("import json,sys\nfrom pathlib import Path\nsys.stdin.readline()\n"
+                      "Path('retained.md').write_text('Previously generated actual output')\n"
+                      "print(json.dumps({'type':'response','success':False,'code':'continuation_no_progress',"
+                      "'message':'PRIVATE model diagnostics'}),flush=True)\n")
+    def run(request, cancelled, emit):
+        workspace = tmp_path / 'tasks' / request.task_id
+        workspace.mkdir(parents=True)
+        process = GeneralPiProcess((sys.executable, str(script)), {'PATH': '/usr/bin'}, workspace)
+        return process.run(request.instruction, timeout=2, cancelled=cancelled, on_event=emit), process.usage
+    host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'}, run_task=run)
+    request = PiTaskRequest('no-progress', 'attempt', 'direct', 'Explain', (), (), host.identity, 2)
+    host.submit(request)
+    deadline = time.monotonic() + 2
+    while host.read(request.task_id)['status'] == 'running' and time.monotonic() < deadline:
+        time.sleep(.01)
+    result = host.read(request.task_id)['result']
+    assert result['status'] == 'failed'
+    assert result['failure'] == {'code': 'native_continuation_no_progress', 'phase': 'execution'}
+    assert any(artifact['metadata']['path'] == 'retained.md' for artifact in result['artifacts'])
+    assert 'PRIVATE' not in str(result)
+
+
+@pytest.mark.parametrize('cancel', [False, True])
+def test_actual_usage_receipt_survives_host_failure_cancellation_and_restart(tmp_path, cancel):
+    from capstone_agent.general_pi_server import GeneralPiHost
+    ready = threading.Event()
+    usage = {'parent_model_responses': 3, 'child_model_responses': None,
+             'parent_input': 12, 'child_input': None, 'total_input': None,
+             'usage_complete': False, 'cost_status': 'unknown'}
+    def run(request, cancelled, emit):
+        ready.set()
+        if cancel:
+            while not cancelled():
+                time.sleep(.005)
+        error = InterruptedError() if cancel else RuntimeError('private transport details')
+        error.saved_usage = usage
+        raise error
+    host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'}, run_task=run)
+    request = PiTaskRequest('usage-task', 'attempt', 'direct', 'Explain', (), (), host.identity, 2)
+    host.submit(request)
+    assert ready.wait(1)
+    if cancel:
+        host.cancel(request.task_id)
+    deadline = time.monotonic() + 2
+    while host.read(request.task_id)['status'] == 'running' and time.monotonic() < deadline:
+        time.sleep(.005)
+    result = host.read(request.task_id)['result']
+    assert result['status'] == ('cancelled' if cancel else 'failed')
+    assert result['usage'] == usage
+    restarted = GeneralPiHost(root=tmp_path, identity=host.identity, run_task=lambda *_: pytest.fail('must not replay'))
+    restarted.submit(request)
+    assert restarted.read(request.task_id)['result']['usage'] == usage
+
+
+def test_isolated_runtime_projection_needs_only_python_standard_library():
+    import subprocess
+    import sys
+    root = Path(__file__).resolve().parents[2]
+    source = root / 'capability-agent-kernel/src/capability_agent/runtime/step_events.py'
+    code = ("import runpy,sys; m=runpy.run_path(sys.argv[1]); "
+            "assert m['project_runtime_action']({'type':'turn_start'}) == "
+            "{'type':'runtime_action','phase':'started'}; "
+            "assert not any(k.startswith('capability_agent') for k in sys.modules)")
+    subprocess.run([sys.executable, '-I', '-S', '-c', code, str(source)], check=True)
+
+
+def test_native_turn_boundaries_survive_bounded_host_projection(tmp_path):
+    from capstone_agent.general_pi_server import GeneralPiHost
+    def run(request, cancelled, emit):
+        emit({'type': 'turn_start'})
+        emit({'type': 'message_end', 'message': {'role': 'assistant',
+            'content': [{'type': 'thinking', 'thinking': 'PRIVATE'},
+                        {'type': 'toolCall', 'name': 'bash', 'arguments': {'secret': 'PRIVATE'}}],
+            'usage': {'input': 23, 'output': 4, 'cost': {'private': 'PRIVATE'}}}})
+        emit({'type': 'turn_end'})
+        return 'Answer', {}
+    host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'}, run_task=run)
+    request = PiTaskRequest('turns', 'attempt', 'direct', 'Explain', (), (), host.identity, 2)
+    host.submit(request)
+    deadline = time.monotonic() + 2
+    while host.read(request.task_id)['status'] == 'running' and time.monotonic() < deadline:
+        time.sleep(.01)
+    events = host.read(request.task_id)['events']
+    assert [e.get('phase') for e in events] == ['started', 'response_completed', 'completed']
+    assert events[1]['response_kind'] == 'tools'
+    assert events[1]['usage'] == {'input': 23, 'output': 4}
+    assert 'PRIVATE' not in str(events)
+
+
+@pytest.mark.parametrize('fails', [False, True])
+def test_host_coalesces_text_before_sequence_assignment_and_flushes_before_tools_and_failure(tmp_path, fails):
+    from capstone_agent.general_pi_server import GeneralPiHost
+    prefix = '甲乙丙丁' * 100
+    tail = '结束前的最后一段'
+    def run(request, cancelled, emit):
+        emit({'type': 'turn_start'})
+        for index, char in enumerate(prefix):
+            emit({'type': 'message_update', 'assistantMessageEvent': {'type': 'text_delta', 'delta': char}})
+            if index == 0:
+                assert host.read(request.task_id)['events'][-1]['text'] == char
+        emit({'type': 'tool_execution_start', 'toolName': 'read', 'toolCallId': 'read-1'})
+        for char in tail:
+            emit({'type': 'message_update', 'assistantMessageEvent': {'type': 'text_delta', 'delta': char}})
+        if fails:
+            raise RuntimeError('PRIVATE runtime failure')
+        return 'Answer', {}
+    host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'}, run_task=run)
+    request = PiTaskRequest('stream-task', 'attempt', 'direct', 'Explain', (), (), host.identity, 2)
+    host.submit(request)
+    deadline = time.monotonic() + 2
+    while host.read(request.task_id)['status'] == 'running' and time.monotonic() < deadline:
+        time.sleep(.01)
+    result = host.read(request.task_id)
+    assert result['status'] == ('failed' if fails else 'completed')
+    events = result['events']
+    assert [e['event_id'] for e in events] == ['event-' + str(n) for n in range(1, len(events) + 1)]
+    text_events = [e for e in events if e['type'] == 'assistant_delta']
+    assert ''.join(e['text'] for e in text_events) == prefix + tail
+    assert len(text_events) < 10
+    tool_index = next(i for i, e in enumerate(events) if e['type'] == 'tool_execution_start')
+    assert ''.join(e.get('text', '') for e in events[:tool_index]) == prefix
+    assert 'PRIVATE' not in str(result)
+
+
+@pytest.mark.parametrize('error,code', [
+    ('continuation_no_progress', 'native_continuation_no_progress'),
+    ('task_goal_blocked', 'native_goal_blocked'),
+    ('model_rate_limit', 'native_model_rate_limit'),
+    ('model_output_rejected', 'native_model_output_rejected'),
+    ('General Pi did not complete', 'native_model_turn_incomplete'),
+    (ValueError('research branch does not belong to the committed parent action'), 'native_research_branch_invalid'),
+    (ValueError('research branch identity changed'), 'native_research_branch_invalid'),
+    ('PRIVATE provider detail', 'native_execution_error'),
+    (ModuleNotFoundError('PRIVATE dependency path'), 'native_runtime_dependency_missing'),
+])
+def test_native_failure_reason_survives_host_result_and_restart(tmp_path, error, code):
+    from capstone_agent.general_pi_server import GeneralPiHost
+    def fail(*args):
+        if isinstance(error, Exception):
+            raise error
+        raise RuntimeError(error)
+    host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'}, run_task=fail)
+    request = PiTaskRequest('failure-task', 'attempt', 'direct', 'Explain', (), (), host.identity, 2)
+    host.submit(request)
+    deadline = time.monotonic()+2
+    while host.read(request.task_id)['status'] == 'running' and time.monotonic() < deadline:
+        time.sleep(.01)
+    result = host.read(request.task_id)['result']
+    assert result['failure'] == {'code': code, 'phase': 'execution'}
+    assert 'PRIVATE' not in str(result)
+    restarted = GeneralPiHost(root=tmp_path, identity=host.identity,
+        run_task=lambda *_: pytest.fail('Task repeated'))
+    restarted.submit(request)
+    assert restarted.read(request.task_id)['result']['failure'] == result['failure']
+
+
 def test_v2_service_advertises_support_and_retains_public_context(tmp_path):
     from capstone_agent.business_context import BusinessContext
     from capstone_agent.general_pi_server import GeneralPiHost
@@ -38,6 +353,7 @@ def test_native_runner_writes_business_context_as_private_data(tmp_path, monkeyp
     monkeypatch.setattr(module.os, 'chown', lambda *_: None)
     captured = []
     def launch(**kwargs):
+        assert 'applicationPolicy' not in kwargs['sdk_config'], 'network state must not invent a tool allowlist'
         kwargs['workspace'].mkdir(parents=True)
         (kwargs['workspace'].parent / ('.inputs-' + kwargs['workspace'].name)).mkdir()
         captured.append(__import__('json').dumps(kwargs['sdk_config']['context']))
@@ -53,8 +369,11 @@ def test_native_runner_writes_business_context_as_private_data(tmp_path, monkeyp
     monkeypatch.setattr(module, 'GeneralPiProcess', Process)
     root = tmp_path / 'private'
     (root / 'receipts').mkdir(parents=True)
+    from capstone_agent.native_network_policy import NativeNetworkPolicy
+    network_policy = NativeNetworkPolicy(apply_rules=lambda _: None)
+    network_policy.start()
     runner = module.NativeTaskRunner(root=root, config_root=tmp_path, command=('node', '/opt/pi/dist/cli.js'),
-        model='fixture', relay_origin='http://127.0.0.1:8790')
+        model='fixture', relay_origin='http://127.0.0.1:8790', network_policy=network_policy)
     context = BusinessContext.empty('workspace', 0)
     request = PiTaskRequest('task', 'attempt', 'direct', 'Explain', (), (), {'engine': 'pi'}, 2,
         business_context=context, resource_profile={'profile_id': 'direct_pi', 'revision': 'test'},
@@ -126,6 +445,41 @@ def test_executor_service_binds_identity_and_control_authorization(tmp_path):
         thread.join(timeout=2)
 
 
+def test_network_control_requires_host_credential_and_returns_applied_state(tmp_path):
+    from capstone_agent.general_pi_server import GeneralPiHost, make_server
+    from capstone_agent.native_network_policy import NativeNetworkPolicy
+    policy = NativeNetworkPolicy(apply_rules=lambda _: None)
+    policy.start()
+    host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi', 'config_revision': 'test'},
+                         run_task=lambda *_: ('Answer', {}))
+    server = make_server(host, control_token='host-secret', address=('127.0.0.1', 0), network_policy=policy)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    origin = f'http://127.0.0.1:{server.server_port}'
+    try:
+        assert httpx.get(origin + '/network-policy').status_code == 401
+        assert httpx.post(origin + '/network-policy', json={'external_access': True}).status_code == 401
+        headers = {'Authorization': 'Bearer host-secret'}
+        assert httpx.get(origin + '/network-policy', headers=headers).json()['external_access'] is False
+        response = httpx.post(origin + '/network-policy', headers=headers, json={'external_access': True})
+        assert response.status_code == 200
+        assert response.json() == {'external_access': True, 'enforced': True}
+        audit = (tmp_path / 'receipts' / 'network-policy.jsonl').read_text()
+        assert '"external_access": true' in audit
+        assert httpx.post(origin + '/network-policy', headers=headers,
+                          json={'external_access': 'yes'}).status_code == 400
+        def disk_full(*_):
+            raise OSError('audit disk is full')
+        host.record_network_policy = disk_full
+        assert httpx.post(origin + '/network-policy', headers=headers,
+                          json={'external_access': False}).status_code == 503
+        assert policy.state()['external_access'] is False
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+
 def test_cancel_service_stops_child_and_duplicate_tasks_do_not_repeat_actions(tmp_path):
     from capstone_agent.general_pi_server import GeneralPiHost
     calls = []
@@ -165,11 +519,51 @@ def test_service_restart_replays_receipt_without_repeating_work(tmp_path):
     assert restarted.read('t1')['result']['answer'] == 'Saved answer'
 
 
+def test_task_runner_failure_retains_private_category_without_error_message(tmp_path):
+    import json
+    from capstone_agent.general_pi_server import GeneralPiHost
+    def broken(*args):
+        raise OSError(30, 'PRIVATE_SENSITIVE_MESSAGE')
+    host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'}, run_task=broken)
+    request = PiTaskRequest('task-private-failure', 'attempt', 'direct', 'Explain', (), (), host.identity, 2)
+    host.submit(request)
+    deadline = time.monotonic() + 2
+    while host.read(request.task_id)['status'] == 'running' and time.monotonic() < deadline:
+        time.sleep(.01)
+    record = json.loads((tmp_path / 'receipts/failures/task-private-failure.json').read_text())
+    assert record == {'schema': 'capstone-pi-private-failure/1', 'task_id': request.task_id,
+                      'phase': 'task_runner', 'exception_type': 'OSError', 'errno': 30}
+    assert 'PRIVATE_SENSITIVE_MESSAGE' not in json.dumps(record)
+
+
+@pytest.mark.parametrize('message,reason', [
+    ('General Pi frame exceeds bounds', 'rpc_frame_too_large'),
+    ('General Pi ended before completion', 'rpc_process_ended'),
+    ('General Pi rejected request', 'rpc_request_rejected'),
+    ('General Pi did not complete', 'model_turn_incomplete'),
+    ('model_context_limit', 'model_context_limit'),
+    ('General Pi task deadline exceeded', 'task_deadline_exceeded'),
+])
+def test_private_frame_failure_has_fixed_operator_reason(tmp_path, message, reason):
+    import json
+    from capstone_agent.general_pi_server import GeneralPiHost
+    def broken(*args):
+        raise RuntimeError(message)
+    host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'}, run_task=broken)
+    request = PiTaskRequest('task-frame-failure', 'attempt', 'direct', 'Explain', (), (), host.identity, 2)
+    host.submit(request)
+    deadline = time.monotonic() + 2
+    while host.read(request.task_id)['status'] == 'running' and time.monotonic() < deadline:
+        time.sleep(.01)
+    record = json.loads((tmp_path / 'receipts/failures/task-frame-failure.json').read_text())
+    assert record['reason_code'] == reason
+
+
 def test_sources_reference_actual_host_observed_tool_results(tmp_path):
     from capstone_agent.general_pi_server import GeneralPiHost
     def run(request, cancelled, emit):
         emit({'type': 'tool_execution_end', 'toolName': 'bash', 'toolCallId': 'call-1',
-              'result': {'content': [{'type': 'text', 'text': 'Observed output'}]}})
+              'isError': True, 'result': {'content': [{'type': 'text', 'text': 'Observed output'}]}})
         return 'Answer', {}
     host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'}, run_task=run)
     request = PiTaskRequest.from_document({'schema': 'capstone-pi-task/1', 'task_id': 't1',
@@ -184,10 +578,21 @@ def test_sources_reference_actual_host_observed_tool_results(tmp_path):
     assert sources[0]['kind'] == 'native_tool_observation'
     assert sources[0]['task_id'] == 't1'
     assert sources[0]['metadata']['tool_name'] == 'bash'
+    assert host.read('t1')['events'][0] == {'event_id': 'event-1', 'type': 'tool_execution_end',
+        'tool_name': 'bash', 'tool_call_id': 'call-1', 'is_error': True,
+        'activity': {'output_excerpt': 'Observed output'}}
     assert list((tmp_path / 'receipts/observations/t1').glob('*.json'))
 
 
-def test_invalid_native_answer_finishes_failed_instead_of_stranding_task(tmp_path):
+@pytest.fixture
+def small_answer_envelope():
+    from capstone_agent.application_capacity import initialize_capacity
+    initialize_capacity({'control_document_bytes': 65536})
+    yield
+    initialize_capacity()
+
+
+def test_invalid_native_answer_finishes_failed_instead_of_stranding_task(tmp_path, small_answer_envelope):
     from capstone_agent.general_pi_server import GeneralPiHost
     host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'},
                          run_task=lambda *_: ('字' * 64000, {}))
@@ -250,13 +655,14 @@ def test_storage_quota_rejects_new_work_without_losing_saved_products(tmp_path):
     storage.save({'task_id': 'first'}, {'answer': 'kept'})
     with pytest.raises(OSError, match='capacity'):
         storage.save({'task_id': 'second'}, None)
-    with pytest.raises(OSError, match='quota'):
+    from capstone_agent.application_capacity import CapacityExceeded
+    with pytest.raises(CapacityExceeded, match='native_storage_bytes'):
         storage.observation('first', 'large', b'x' * 1024)
     assert storage.load('first')['result']['answer'] == 'kept'
     assert storage.load('second') is None
 
 
-def test_artifact_persistence_failure_settles_failed_and_releases_workspace(tmp_path, monkeypatch):
+def test_artifact_persistence_failure_settles_failed_and_preserves_workspace(tmp_path, monkeypatch):
     from capstone_agent.general_pi_server import GeneralPiHost
     def run(request, *_):
         workspace = tmp_path / 'tasks' / request.task_id
@@ -275,5 +681,70 @@ def test_artifact_persistence_failure_settles_failed_and_releases_workspace(tmp_
     while host.read('t1')['status'] == 'running' and time.monotonic() < deadline:
         time.sleep(0.01)
     assert host.read('t1')['status'] == 'failed'
-    assert not (tmp_path / 'tasks/t1').exists()
+    assert (tmp_path / 'tasks/t1/product.txt').read_text() == 'Product'
     assert host.storage.load('t1')['result']['status'] == 'failed'
+
+
+def test_products_over_eight_megabytes_use_the_configured_storage_quota(tmp_path):
+    from capstone_agent.general_pi_storage import GeneralPiStorage
+    from capstone_agent.general_pi_executor import collect_artifacts
+    storage = GeneralPiStorage(tmp_path / 'receipts', max_bytes=32 * 1024**2)
+    workspace = tmp_path / 'work'
+    workspace.mkdir()
+    for index in range(3):
+        (workspace / f'data-{index}.csv').write_bytes(bytes([65 + index]) * (3 * 1024**2))
+    artifacts = collect_artifacts(workspace, 'task', 'attempt')
+    storage.artifacts('task', workspace, artifacts)
+    storage.save({'task_id': 'task'}, {'artifacts': artifacts})
+    for artifact in artifacts:
+        assert len(storage.read_artifact('task', artifact['artifact_id'])) == 3 * 1024**2
+
+
+def test_receipt_quota_failure_settles_and_keeps_verified_file_metadata(tmp_path, monkeypatch):
+    from capstone_agent.application_capacity import CapacityExceeded
+    from capstone_agent.general_pi_server import GeneralPiHost
+    def run(request, *_):
+        workspace = tmp_path / 'tasks' / request.task_id
+        workspace.mkdir(parents=True)
+        (workspace / 'product.txt').write_text('Product')
+        return 'Done', {}
+    host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'}, run_task=run)
+    original = host.storage.save
+    def save(request, result):
+        if result is not None:
+            raise CapacityExceeded('native_storage_bytes', 2049, 2048, 'persistence')
+        return original(request, result)
+    monkeypatch.setattr(host.storage, 'save', save)
+    request = PiTaskRequest.from_document({'schema': 'capstone-pi-task/1', 'task_id': 't1',
+        'parent_attempt_id': 'a1', 'entrypoint': 'direct', 'instruction': 'Explain', 'messages': [],
+        'dependency_results': [], 'executor_identity': host.identity, 'timeout_seconds': 2})
+    host.submit(request)
+    deadline = time.monotonic() + 2
+    while host.read('t1')['status'] == 'running' and time.monotonic() < deadline:
+        time.sleep(.01)
+    result = host.read('t1')['result']
+    assert result['status'] == 'failed'
+    assert result['failure']['capacity']['limit'] == 2048
+    assert len(result['artifacts']) == 1
+    assert (tmp_path / 'tasks/t1/product.txt').read_text() == 'Product'
+
+
+def test_partial_persistence_keeps_verified_saved_descriptors(tmp_path, monkeypatch):
+    from capstone_agent.general_pi_storage import GeneralPiStorage
+    from capstone_agent.general_pi_executor import collect_artifacts
+    storage = GeneralPiStorage(tmp_path / 'receipts')
+    workspace = tmp_path / 'work'
+    workspace.mkdir()
+    (workspace / 'a.txt').write_text('first')
+    (workspace / 'b.txt').write_text('second')
+    original = storage._write
+    calls = []
+    def write(path, data):
+        calls.append(path)
+        if len(calls) == 2:
+            raise OSError('storage unavailable')
+        original(path, data)
+    monkeypatch.setattr(storage, '_write', write)
+    with pytest.raises(OSError) as failure:
+        storage.artifacts('task', workspace, collect_artifacts(workspace, 'task', 'attempt'))
+    assert [item['metadata']['path'] for item in failure.value.saved_artifacts] == ['a.txt']

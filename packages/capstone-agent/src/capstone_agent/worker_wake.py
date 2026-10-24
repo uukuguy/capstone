@@ -99,7 +99,7 @@ def create_wake_app(
     thread_family: Callable[[str], str] | None = None,
     prepare_model: Callable[[str], object] | None = None,
 ) -> FastAPI:
-    if runtime_mode not in {"normal", "m11-provider-free"} or implementation_family not in {None, "pandapower", "pypsa"}:
+    if runtime_mode not in {"normal", "m11-provider-free"} or implementation_family not in {None, "pandapower", "pypsa", "native"}:
         raise ValueError("worker runtime identity is invalid")
     app = FastAPI(title="capstone-worker-wake", docs_url=None, redoc_url=None,
                   openapi_url=None)

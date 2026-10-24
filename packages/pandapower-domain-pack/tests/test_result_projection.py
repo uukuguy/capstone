@@ -40,7 +40,7 @@ def test_derived_result_uses_verified_child_diagram_and_revision() -> None:
     assert payloads[0]["model_revision"] == REVISION_REF
     assert payloads[0]["presentation"] == {
         "collection_id": "grid-analysis-results", "collection_title": "电网分析结果",
-        "group_id": "context_" + "d" * 64, "group_title": "运行状态 1", "purpose": "task_output",
+        "group_id": "context_" + "d" * 64, "group_title": "运行状态 1", "purpose": "process_output",
     }
     assert payloads[0]["overlay"]["values"][0]["value"] == 67.15
 
