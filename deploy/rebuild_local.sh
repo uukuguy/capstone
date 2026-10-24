@@ -22,6 +22,18 @@ case "$app_environment" in
 esac
 export CAPSTONE_APP_ENVIRONMENT="$app_environment"
 
+# Check before dependency installation or Docker writes. Operators may set a
+# different reserve for their build host; do not delete user data automatically.
+min_free_gib="${CAPSTONE_LOCAL_MIN_FREE_GIB:-20}"
+case "$min_free_gib" in
+  ''|*[!0-9]*) fail "CAPSTONE_LOCAL_MIN_FREE_GIB must be a positive integer" ;;
+esac
+[ "$min_free_gib" -ge 1 ] && [ "$min_free_gib" -le 1048576 ] \
+  || fail "CAPSTONE_LOCAL_MIN_FREE_GIB is outside the supported host capacity"
+free_kib="$(df -Pk "$repo_root" | awk 'END {print $4}')"
+[ "$free_kib" -ge "$((min_free_gib * 1024 * 1024))" ] \
+  || fail "insufficient host disk space: $((free_kib / 1024 / 1024)) GiB available; ${min_free_gib} GiB required (CAPSTONE_LOCAL_MIN_FREE_GIB). No build was started."
+
 command -v docker >/dev/null 2>&1 || fail "docker is not installed or not on PATH"
 docker compose version >/dev/null 2>&1 || fail "Docker Compose is not available"
 command -v curl >/dev/null 2>&1 || fail "curl is not installed or not on PATH"
@@ -53,13 +65,22 @@ fi
 printf '%s\n' "==> Validating local Compose configuration"
 "${compose[@]}" config --quiet
 
-build_args=(build api worker worker-pypsa objects-init)
+build_options=()
+build_environment=(env)
+# Build containers need a container-reachable proxy, not host loopback.
+# Docker's predefined proxy args do not become runtime image ENV values.
+if [ -n "${CAPSTONE_LOCAL_BUILD_PROXY:-}" ]; then
+  build_environment+=("HTTP_PROXY=$CAPSTONE_LOCAL_BUILD_PROXY" "HTTPS_PROXY=$CAPSTONE_LOCAL_BUILD_PROXY"
+    "http_proxy=$CAPSTONE_LOCAL_BUILD_PROXY" "https_proxy=$CAPSTONE_LOCAL_BUILD_PROXY")
+  build_options+=(--build-arg HTTP_PROXY --build-arg HTTPS_PROXY --build-arg http_proxy --build-arg https_proxy)
+fi
+build_args=(build ${build_options[@]+"${build_options[@]}"} api worker worker-pypsa worker-native objects-init)
 if [ "${CAPSTONE_LOCAL_PULL:-0}" = "1" ]; then
-  build_args=(build --pull api worker worker-pypsa objects-init)
+  build_args=(build --pull ${build_options[@]+"${build_options[@]}"} api worker worker-pypsa worker-native objects-init)
 fi
 printf '%s\n' "==> Building API and worker from the current checkout"
-"${compose[@]}" "${build_args[@]}"
-"${compose[@]}" build general-pi
+"${build_environment[@]}" "${compose[@]}" "${build_args[@]}"
+"${build_environment[@]}" "${compose[@]}" build ${build_options[@]+"${build_options[@]}"} general-pi
 
 printf '%s\n' "==> Preserving local runtime records before container replacement"
 uv run --project "$repo_root/packages/capstone-agent" python \
@@ -69,7 +90,7 @@ uv run --project "$repo_root/packages/capstone-agent" python \
 
 printf '%s\n' "==> Starting dependencies and replacing API/worker containers"
 "${compose[@]}" up --no-build --force-recreate --wait -d \
-  postgres objects objects-init general-pi api worker worker-pypsa
+  postgres objects objects-init general-pi api worker worker-pypsa worker-native
 
 api_binding="$("${compose[@]}" port api 8766 | head -n 1)"
 [ -n "$api_binding" ] || fail "Compose did not publish the API port"
@@ -80,12 +101,14 @@ curl -fsS "$api_origin/health/ready" >/dev/null \
 api_container="$("${compose[@]}" ps -q api)"
 worker_container="$("${compose[@]}" ps -q worker)"
 worker_pypsa_container="$("${compose[@]}" ps -q worker-pypsa)"
+worker_native_container="$("${compose[@]}" ps -q worker-native)"
 [ -n "$api_container" ] && [ -n "$worker_container" ] && [ -n "$worker_pypsa_container" ] \
   || fail "API or worker container is not running"
 api_image="$(docker inspect -f '{{.Image}}' "$api_container")"
 worker_image="$(docker inspect -f '{{.Image}}' "$worker_container")"
 worker_pypsa_image="$(docker inspect -f '{{.Image}}' "$worker_pypsa_container")"
-[ "$api_image" = "$worker_image" ] && [ "$api_image" = "$worker_pypsa_image" ] \
+worker_native_image="$(docker inspect -f '{{.Image}}' "$worker_native_container")"
+[ "$api_image" = "$worker_image" ] && [ "$api_image" = "$worker_pypsa_image" ] && [ "$api_image" = "$worker_native_image" ] \
   || fail "API and workers are running different image revisions"
 
 app_host="${CAPSTONE_APP_HOST:-0.0.0.0}"
@@ -177,3 +200,21 @@ printf '    API:    %s\n' "$api_origin"
 printf '    App:    %s/ (%s)\n' "$app_origin" "$app_state"
 printf '    Image:  %s\n' "$api_image"
 printf '%s\n' "    Foreground App alternative: make capstone-app-dev"
+
+# Run only after readiness/identity/App checks. Maintenance must never turn a
+# healthy deployment into a failed deployment. This is not a global Docker prune.
+case "${CAPSTONE_LOCAL_CACHE_CLEANUP:-1}" in
+  0) printf '%s\n' "==> Capstone cache maintenance skipped (CAPSTONE_LOCAL_CACHE_CLEANUP=0)" ;;
+  1)
+    cache_state_dir="$repo_root/.capstone-agent"
+    cache_log="$cache_state_dir/cache-maintenance-$(date +%Y%m%d-%H%M%S)-$$.log"
+    printf '%s\n' "==> Maintaining only proven Capstone unused images/build cache"
+    if mkdir -p "$cache_state_dir" && python3 "$repo_root/deploy/cleanup_local_build_cache.py" \
+      --apply >"$cache_log" 2>&1; then
+      printf '    Cache maintenance finished or skipped behind its lock. Receipt: %s\n' "$cache_log"
+    else
+      printf 'WARNING: Capstone cache maintenance failed; deployment remains healthy. Receipt: %s\n' "$cache_log" >&2
+    fi
+    ;;
+  *) printf '%s\n' "WARNING: Invalid CAPSTONE_LOCAL_CACHE_CLEANUP (use 0 or 1); maintenance skipped, deployment remains healthy." >&2 ;;
+esac

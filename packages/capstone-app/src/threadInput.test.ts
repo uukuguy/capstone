@@ -1,7 +1,24 @@
 import { describe, expect, it } from 'vitest'
 import { parseInputCommand, buildInputSubmission, readInputDraft, writeInputDraft } from './threadInput'
+import {parseProductRef} from './threadProducts'
 
 describe('typed composer input', () => {
+  it('stores and submits exact historical product versions without turning them into current evidence',()=>{
+    const ref=parseProductRef({schema:'capstone-product-ref/1',thread_id:'thr_one',product_id:'delivery_one',origin:'task_delivery',scope:'task',event_seq:12,revision:2,digest:'a'.repeat(64),work_id:'old_work',attempt_id:'old_attempt',producer_attempt_id:null})
+    const state={mode:'capstone' as const,context:{include_refs:[],exclude_refs:[]},context_product_refs:[{ref,purpose:'historical-context' as const}]}
+    expect(buildInputSubmission('继续分析',state).context_product_refs).toEqual(state.context_product_refs)
+    writeInputDraft('product-test',state)
+    expect(readInputDraft('product-test')?.context_product_refs).toEqual(state.context_product_refs)
+    expect(()=>buildInputSubmission('继续分析',{...state,context_product_refs:[...state.context_product_refs,...state.context_product_refs]})).toThrow()
+  })
+  it('retains explicit material choices while absence keeps session defaults', () => {
+    const state = {mode: 'capstone' as const, context: {include_refs: [], exclude_refs: []},
+      material_refs: ['material_' + 'a'.repeat(32)]}
+    expect(buildInputSubmission('Read', state).material_refs).toEqual(state.material_refs)
+    writeInputDraft('material-test', state)
+    expect(readInputDraft('material-test')?.material_refs).toEqual(state.material_refs)
+    expect(buildInputSubmission('Read', {mode: 'capstone', context: state.context})).not.toHaveProperty('material_refs')
+  })
   it('parses only a leading standalone command position', () => {
     expect(parseInputCommand('/skills')).toEqual({ kind: 'skills', rest: '' })
     expect(parseInputCommand('/context task')).toEqual({ kind: 'context', rest: 'task' })

@@ -7,8 +7,11 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 
 class ThreadStreamBudget:
-    def __init__(self, app: ASGIApp, *, max_streams: int = 32, per_thread: int = 2):
-        if not 1 <= per_thread <= max_streams <= 1024:
+    def __init__(self, app: ASGIApp, *, max_streams: int | None = None, per_thread: int | None = None):
+        from .application_capacity import limits
+        max_streams = limits.thread_stream_count if max_streams is None else max_streams
+        per_thread = limits.thread_streams_per_thread if per_thread is None else per_thread
+        if not 1 <= per_thread <= max_streams:
             raise ValueError('Thread stream limits are invalid')
         self.app, self.max_streams, self.per_thread = app, max_streams, per_thread
         self._counts: dict[str, int] = {}

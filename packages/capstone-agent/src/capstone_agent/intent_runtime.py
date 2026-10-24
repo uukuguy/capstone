@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
+import math
 from dataclasses import replace
 from hashlib import sha256
 import json
+from pathlib import Path
 from typing import TYPE_CHECKING
 from typing import cast
 
@@ -29,7 +31,7 @@ def intent_request_for_claim(claim: AttemptClaim, general_capability: Mapping | 
     messages, history_objects = history['messages'], history.get('objects', [])
     if not isinstance(messages, list) or not isinstance(history_objects, list):
         raise ValueError('conversation projection is invalid')
-    context = claim.model_context
+    context = claim.professional_context
     enabled = {f"{pid}@{version}" for pid, version in context.enabled_profiles}
     catalog = claim.application_catalog or {}
     capabilities: list[dict] = []
@@ -103,12 +105,12 @@ def context_selection_request_for_claim(claim: AttemptClaim) -> ContextSelection
         objects.append({'object_id': item['object_id'],
             'display_name': item.get('display_name', item.get('model_id', item['object_id'])),
             'kind': 'model', 'version': version,
-            'relation': 'current' if item['object_id'] == claim.model_context.id else 'historical',
+            'relation': 'current' if item['object_id'] == claim.professional_context.id else 'historical',
             'source': {'kind': 'workspace', 'workspace_id': source['thread_id'],
                 'message_refs': [message['message_id'] for message in source['messages']
                     if message['model_context_id'] == item['object_id']]}})
     return ContextSelectionRequest.from_document({'schema': 'capstone-context-selection-request/1',
-        'workspace_id': source['thread_id'], 'current_object_id': claim.model_context.id,
+        'workspace_id': source['thread_id'], 'current_object_id': claim.professional_context.id,
         **{key: source[key] for key in ('turn_id', 'attempt_id', 'instruction_message_id',
             'instruction', 'history_cutoff', 'history_truncated', 'messages')}, 'objects': objects,
         **({'context_selection': source['context_selection']} if 'context_selection' in source else {})})
@@ -124,17 +126,24 @@ class IntentRuntimeFactory:
                  ordinary_session_factory: Callable[[AttemptClaim, IntentDecision], PiPromptSession],
                  *, general_executor: GeneralPiExecutor | None | object = _LEGACY,
                  general_timeout_seconds: float = 600,
+                 application_timeout_seconds: Mapping[str, float] | None = None,
                  context_selector_factory: Callable[[], ContextSelector] | None = None,
-                 research_router: ResearchTurnRouter | None = None):
+                 research_router: ResearchTurnRouter | None = None,
+                 native_research_root: Path | None = None):
         self._business = business_factory
         self._recognizer = recognizer_factory
         self._ordinary = ordinary_session_factory
         self._general = general_executor
         self._context_selector = context_selector_factory
         self._research_router = research_router
-        if not 1 <= general_timeout_seconds <= 3600:
+        self.native_research_root = native_research_root
+        if type(general_timeout_seconds) not in {int, float} or not math.isfinite(general_timeout_seconds) or general_timeout_seconds < 1:
             raise ValueError('general task timeout is invalid')
         self._general_timeout = general_timeout_seconds
+        self._application_timeouts = dict(application_timeout_seconds or {})
+        for timeout in self._application_timeouts.values():
+            if type(timeout) not in {int, float} or not math.isfinite(timeout) or timeout < 1:
+                raise ValueError('application task timeout is invalid')
 
     def _general_resources(self, claim: AttemptClaim) -> dict | None:
         if self._general is _LEGACY or self._general is None:
@@ -143,13 +152,21 @@ class IntentRuntimeFactory:
         # Export fresh JSON; private origins and control tokens are not resources.
         from .delegated_runtime import json_document
         capability = cast(dict[str, object], json_document(executor.capability))
+        if claim.model_context is None:
+            from .native_conversation import executor_binding
+            capability = executor_binding(executor)['capability']
         if claim.submission is not None and 'resource_profiles' in claim.submission:
             capability['resource_profiles'] = {role: profile for role, profile in claim.submission['resource_profiles'].items()
                                                if role in {'direct_pi', 'delegated_pi'}}
         return {'identity': json_document(executor.identity),
                 'capability': capability,
                 'original_attempt_id': claim.attempt.attempt_id,
-                'timeout_seconds': self._general_timeout}
+                'timeout_seconds': self._timeout_for(claim)}
+
+    def _timeout_for(self, claim: AttemptClaim) -> float:
+        binding = (claim.submission or {}).get('_native_execution', {})
+        profile_id = binding.get('application_profile', {}).get('profile_id')
+        return self._application_timeouts.get(profile_id, self._general_timeout)
 
     @property
     def rollback_selection_on_failure(self) -> bool:
@@ -159,9 +176,11 @@ class IntentRuntimeFactory:
                     freeze: Callable[[AttemptClaim, dict], dict], *,
                     freeze_decision: Callable[[AttemptClaim, dict | None], dict | None] | None = None) -> TurnPlan:
         control.checkpoint()
+        if claim.model_context is None:
+            return self._plan_native_conversation(claim, control, freeze, freeze_decision)
         if claim.attempt.runtime_mode != 'pi_reference' and self._research_router is not None:
             selection = (claim.submission or {}).get('context_selection', {})
-            if claim.model_context.id in selection.get('exclude_refs', ()):
+            if claim.professional_context.id in selection.get('exclude_refs', ()):
                 raise HarnessRuntimeConfigurationError('research model is explicitly excluded')
             return self._research_router.plan(routing_input_for_claim(claim))
         general = self._general_resources(claim)
@@ -176,7 +195,7 @@ class IntentRuntimeFactory:
         visible_attempts = {message['attempt_id'] for message in request_document['messages']
                             if message['status'] == 'completed'}
         resources = {'application_catalog': claim.application_catalog,
-                     'current_object_id': claim.model_context.id,
+                     'current_object_id': claim.professional_context.id,
                      'prior_results': [{'result_ref': ref.result_ref, 'evidence_refs': list(ref.evidence_refs),
                                         'capability_id': ref.capability_id, 'attempt_id': ref.attempt_id}
                                        for ref in claim.prior_results if ref.attempt_id in visible_attempts]}
@@ -220,7 +239,7 @@ class IntentRuntimeFactory:
                     raise ValueError('intent requested a disabled or unavailable capability')
             if goal['operation'] in {'business_read', 'business_execute'} and not goal['capability_refs']:
                 raise ValueError('business intent has no authorized capability')
-            if goal['operation'] in {'business_read', 'business_execute'} and claim.model_context.id in request_doc.get('context_selection', {}).get('exclude_refs', []):
+            if goal['operation'] in {'business_read', 'business_execute'} and claim.professional_context.id in request_doc.get('context_selection', {}).get('exclude_refs', []):
                 raise ValueError('business execution cannot use the explicitly excluded current object')
             general_id = None if general is None else general['capability']['capability_id']
             if goal['operation'] in {'business_read', 'business_execute'} and general_id in goal['capability_refs']:
@@ -235,7 +254,7 @@ class IntentRuntimeFactory:
                 if any(ref != general_id for ref in goal['capability_refs']):
                     raise ValueError('general execution cannot use domain capabilities')
             if goal['operation'] in {'business_read', 'business_execute'} and any(
-                ref != claim.model_context.id for ref in goal['object_refs']
+                ref != claim.professional_context.id for ref in goal['object_refs']
             ):
                 raise ValueError('business execution requires the active model context')
         if freeze_decision is not None:
@@ -268,6 +287,64 @@ class IntentRuntimeFactory:
             intent_decision=decision, intent_engine=identity, intent_request=request,
             intent_resources=execution_resources,
         )
+
+    def _plan_native_conversation(self, claim, control, freeze, freeze_decision):
+        """A declared ordinary conversation needs no business intent planner."""
+        from .native_conversation import validate_binding, executor_binding
+        if self._general is _LEGACY or self._general is None:
+            raise HarnessRuntimeConfigurationError('native conversation executor is unavailable')
+        accepted = validate_binding((claim.submission or {}).get('_native_execution'))
+        current = executor_binding(cast(GeneralPiExecutor, self._general),
+                                   session_type=accepted['application_profile']['profile_id'])
+        if accepted['identity'] != current['identity']:
+            raise HarnessRuntimeConfigurationError('native conversation executor configuration changed')
+        history = claim.conversation_context.to_document()
+        submission = claim.submission or {}
+        request = IntentRequest.from_document({
+            'schema': 'capstone-intent-request/1', 'thread_id': claim.thread_id,
+            'turn_id': claim.attempt.turn_id, 'attempt_id': claim.attempt.attempt_id,
+            'instruction_message_id': claim.attempt.attempt_id + ':user',
+            'instruction': claim.instruction, 'history_cutoff': history['history_cutoff'],
+            'history_truncated': history['truncated'], 'messages': history['messages'],
+            'objects': submission.get('objects', []), 'capabilities': [{
+                'capability_id': 'general-pi', 'enabled': True, 'available': True}],
+            'mode_hint': 'ordinary',
+            **({'context_selection': submission['context_selection']} if 'context_selection' in submission else {}),
+            **({'selected_skill': {**submission['resource_profile'],
+                'skill_id': submission['input']['skill_id'], 'skill_version': submission['input']['skill_version']}}
+                if submission.get('input', {}).get('kind') == 'skill_invocation' else {}),
+        })
+        general = {'identity': accepted['identity'], 'capability': accepted['capability'],
+                   'application_profile': accepted['application_profile'],
+                   'original_attempt_id': claim.attempt.attempt_id, 'timeout_seconds': self._timeout_for(claim)}
+        resources = {'general_executor': general, 'submission': {key: value for key, value in (claim.submission or {}).items() if key != '_materials'},
+                     'application_catalog': None, 'prior_results': []}
+        from .native_task_context import native_context_for
+        resources['native_context'] = native_context_for(claim, accepted)
+        frozen = freeze(claim, {'request': request.to_document(), 'resources': resources})
+        if frozen['resources']['general_executor']['identity'] != current['identity']:
+            raise HarnessRuntimeConfigurationError('native conversation configuration changed')
+        request = IntentRequest.from_document(frozen['request'])
+        decision = IntentDecision.from_document({
+            'schema': 'capstone-intent-decision/1', 'attempt_id': claim.attempt.attempt_id,
+            'history_cutoff': request.to_document()['history_cutoff'], 'relationship': 'continuation',
+            'goals': [{'goal_id': 'conversation', 'description': 'Reply to the current user input',
+                'operation': 'answer', 'message_refs': [item['message_id'] for item in history['messages']],
+                'object_refs': request.to_document().get('context_selection', {}).get('include_refs', []),
+                'capability_refs': ['general-pi'], 'missing_requirements': [],
+                'depends_on': [], **({'uses_selected_skill': True} if 'selected_skill' in request.to_document() else {})}],
+            'clarification': None}, request)
+        if freeze_decision is not None:
+            saved = freeze_decision(claim, decision.to_document())
+            if saved is None:
+                raise ValueError('native conversation decision was not saved')
+            decision = IntentDecision.from_document(saved, request)
+        resources = {**frozen['resources'], 'business_contexts': {
+            'conversation': business_context_for(request, decision).to_document()}}
+        control.checkpoint()
+        return TurnPlan(claim.attempt.turn_id, claim.attempt.attempt_id,
+            'ordinary', 'native_conversation', 'turn-native-conversation-v1', None, {},
+            intent_request=request, intent_decision=decision, intent_resources=resources)
 
     def _plan_direct(self, claim, control, freeze, freeze_decision, general):
         if self._context_selector is None:
@@ -358,7 +435,32 @@ class IntentRuntimeFactory:
         if self._general is not _LEGACY:
             from .delegated_runtime import DelegatedRuntime
             self._check_general_configuration(self._general_resources(claim), resources)
-            return DelegatedRuntime(claim, cast(GeneralPiExecutor | None, self._general), self._business)
+            runtime = DelegatedRuntime(claim, cast(GeneralPiExecutor | None, self._general), self._business)
+            if claim.model_context is None and self.native_research_root is not None:
+                from .native_conversation import NativeResearchRuntime
+                accepted_submission = cast(Mapping, resources.get('submission') or {})
+                accepted_profile = accepted_submission.get('_native_execution', {}).get('application_profile', {})
+                return NativeResearchRuntime(runtime, claim, self.native_research_root,
+                    governed=accepted_profile in (
+                        {'profile_id': 'enterprise-research', 'profile_version': '1.1.0'},
+                        {'profile_id': 'enterprise-research', 'profile_version': '1.2.0'},
+                        {'profile_id': 'enterprise-research', 'profile_version': '1.3.0'},
+                        {'profile_id': 'enterprise-research', 'profile_version': '1.4.0'},
+                        {'profile_id': 'enterprise-research', 'profile_version': '1.5.0'},
+                        {'profile_id': 'enterprise-research', 'profile_version': '1.6.0'},
+                        {'profile_id': 'enterprise-research', 'profile_version': '1.7.0'},
+                        {'profile_id': 'enterprise-research', 'profile_version': '1.8.0'},
+                        {'profile_id': 'enterprise-research', 'profile_version': '1.9.0'},
+                        {'profile_id': 'enterprise-research', 'profile_version': '1.10.0'},
+                        {'profile_id': 'enterprise-research', 'profile_version': '1.11.0'},
+                        {'profile_id': 'enterprise-research', 'profile_version': '1.12.0'},
+                        {'profile_id': 'enterprise-research', 'profile_version': '1.13.0'},
+                        {'profile_id': 'enterprise-research', 'profile_version': '1.14.0'},
+                        {'profile_id': 'enterprise-research', 'profile_version': '1.15.0'},
+                        {'profile_id': 'enterprise-research', 'profile_version': '1.16.0'},
+                        {'profile_id': 'enterprise-research', 'profile_version': '1.17.0'},
+                        {'profile_id': 'enterprise-research', 'profile_version': '1.18.0'}))
+            return runtime
         if plan.route == 'professional':
             return self._business(claim)
         session = self._ordinary(claim, plan.intent_decision)

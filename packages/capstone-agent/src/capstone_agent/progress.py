@@ -1,5 +1,7 @@
 """Bounded operator messages for application-neutral semantic events."""
 
+# Layer-cache marker: this comment changes source identity only.
+
 from __future__ import annotations
 
 import re
@@ -10,6 +12,9 @@ _REFERENCE = re.compile(r"\b[a-z][a-z0-9_-]*:(?:[a-z0-9_.-]+:)?sha256:[0-9a-f]{6
 _INPUT_FIELDS = ("model_id", "model", "network", "dataset", "operation", "case_id", "element", "index", "limit")
 _RESULT_FIELDS = ("model", "dataset", "operation", "status", "converged", "row_count", "returned_row_count", "total_active_loss")
 _SECRET_TEXT = (
+    re.compile(
+        r"""(?i)["']?(?:api[_ -]?key|access[_ -]?token|refresh[_ -]?token|password|secret)["']?\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,;}]+)"""
+    ),
     re.compile(r"\bAuthorization\s*:\s*Bearer\s+[^\s,;，；。)）]+", re.IGNORECASE),
     re.compile(
         r"\b(?:access[_ -]?token|refresh[_ -]?token|api[_ -]?key|secret|password)"
@@ -28,6 +33,49 @@ def _redact_text(value: str) -> str:
 def _summary(value: object, limit: int = 200) -> str:
     compact = " ".join(_REFERENCE.sub("[引用]", _redact_text(str(value))).split())
     return compact if len(compact) <= limit else compact[:limit] + "…"
+
+
+def project_native_tool_activity(event: Mapping) -> dict[str, str]:
+    """Bound native activity text at the executor boundary; omit raw frames."""
+    receipt: dict[str, str] = {}
+    arguments = event.get("args")
+    if isinstance(arguments, Mapping):
+        for key in ("command", "path", "file_path"):
+            value = arguments.get(key)
+            if isinstance(value, str) and value.strip():
+                receipt["operation"] = _summary(value, 240)
+                break
+    result = event.get("result")
+    if isinstance(result, Mapping):
+        content = result.get("content")
+        if isinstance(content, list):
+            failed = event.get('isError') is True or event.get('is_error') is True
+            snippets = [
+                block["text"] if failed else block["text"][:2000]
+                for block in (content if failed else content[:8])
+                if isinstance(block, Mapping) and block.get("type") == "text"
+                and isinstance(block.get("text"), str)
+            ]
+            if snippets:
+                output = " ".join(snippets)
+                protected = re.search(
+                    r'(?i)(?:api[_ -]?key|access[_ -]?token|refresh[_ -]?token|authorization|password|secret)["\x27]?\s*[:=]',
+                    output,
+                )
+                if protected:
+                    receipt['output_excerpt'] = '输出包含受保护配置或凭据信息，已隐藏。'
+                elif failed:
+                    # The model keeps the original tool result. Only this
+                    # public observation changes: a long table must not hide
+                    # the actual failure and exit status at its end. Select
+                    # after sanitizing the complete text, never by guessing
+                    # success from exception words in otherwise valid output.
+                    compact = ' '.join(_REFERENCE.sub('[引用]', _redact_text(output)).split())
+                    receipt['output_excerpt'] = (compact if len(compact) <= 600
+                        else compact[:100] + ' … ' + compact[-497:])
+                else:
+                    receipt['output_excerpt'] = _summary(output, 600)
+    return receipt
 
 
 def project_tool_failure(value: object) -> dict[str, str]:

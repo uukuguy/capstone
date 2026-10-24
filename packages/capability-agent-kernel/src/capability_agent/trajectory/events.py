@@ -76,15 +76,15 @@ class ToolPayload(StrictFrozenModel):
 
 
 class DecisionPayload(StrictFrozenModel):
-    intent: str = Field(min_length=1, max_length=500)
-    decision: str = Field(min_length=1, max_length=500)
-    next_action: str = Field(min_length=1, max_length=500)
+    intent: str = Field(min_length=1)
+    decision: str = Field(min_length=1)
+    next_action: str = Field(min_length=1)
 
 
 class ClaimPayload(StrictFrozenModel):
     submission_id: str
-    statement: str = Field(min_length=1, max_length=1000)
-    category: str = Field(min_length=1, max_length=100)
+    statement: str = Field(min_length=1)
+    category: str = Field(min_length=1)
     result_refs: tuple[str, ...] = ()
     evidence_refs: tuple[str, ...] = ()
 

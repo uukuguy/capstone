@@ -180,6 +180,23 @@ def test_committed_projection_preserves_claims_and_notes_as_of_revision(tmp_path
             "research_revision": 2}, runtime_mode="capstone")
 
 
+def test_runtime_checkpoints_remain_private_and_recoverable(tmp_path):
+    research = AttemptResearch(tmp_path, thread_id="thr_one", run_id="run_one",
+        attempt_id="attempt_one", model_context=MODEL, is_active=lambda: True,
+        admit_reference=lambda _: False)
+    research.controller.update({"request_id": "save-1", "expected_revision": 0,
+        "changes": {"goal": "Review sources", "notes": [
+            {"note_id": "runtime.checkpoint.task.round", "text": '{"phase":"searching"}', "refs": []},
+            {"note_id": "runtime.dispatch.task.started", "text": '{"schema":"capstone-enterprise-cycle-checkpoint/2","snapshot":"retained"}', "refs": []},
+            {"note_id": "finding-1", "text": "Coverage is incomplete", "refs": []}]}})
+    projection = research.current_projection()
+    assert projection["current_note_ids"] == ["finding-1"]
+    assert [note["note_id"] for note in projection["research_snapshot"]["notes"]] == ["finding-1"]
+    assert len(research.controller.read().notes) == 3
+    assert research.controller.read().notes[0].text == '{"phase":"searching"}'
+    assert research.controller.read().notes[1].text == '{"schema":"capstone-enterprise-cycle-checkpoint/2","snapshot":"retained"}'
+
+
 def test_research_snapshot_transport_preserves_large_committed_records(tmp_path):
     from capstone_agent.thread_protocol import AttemptSnapshot
     from capstone_agent.thread_service import AttemptClaim, _validate_runtime_payload

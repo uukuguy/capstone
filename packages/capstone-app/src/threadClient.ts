@@ -1,3 +1,4 @@
+import {assertCapacity} from './applicationCapacity'
 import {
   parseCommandReceipt, parseContext, parseEventPage, parseThreadSnapshot,
   type CommandReceipt, type EventEnvelope, type EventPage, type ThreadSnapshot,
@@ -6,6 +7,8 @@ import { parseThreadCatalog, type ThreadCatalog } from './threadCatalog'
 import { parseNetworkContextEvents, parseThreadHistoryPage } from './threadHistory'
 import { parseModelWorkspace } from './threadModelWorkspace'
 import type { AttemptRecords } from './attemptRecords'
+import type { ProcessProductPage } from './processProducts'
+import type { NativeArtifact, NativeArtifactPage } from './nativeArtifacts'
 import { parseWorkSnapshot, type WorkCommand } from './threadWorkProtocol'
 
 export type AnyThreadCommand = ThreadCommand | WorkCommand
@@ -23,9 +26,23 @@ export type ThreadCommand = {
 
 export type ThreadTransportState = 'live' | 'reconnecting' | 'resync_required' | 'offline'
 
+import type {ProductIndex,ProductQuery,ProductRef,ProductResolution} from './threadProducts'
+
 export interface ThreadTransport {
+  readProductIndex?(threadId:string,query?:ProductQuery,signal?:AbortSignal):Promise<ProductIndex>
+  resolveProduct?(ref:ProductRef,signal?:AbortSignal):Promise<ProductResolution>
+  uploadThreadMaterial?(threadId:string,file:File,signal?:AbortSignal):Promise<unknown>
+  removeThreadMaterial?(threadId:string,materialId:string,signal?:AbortSignal):Promise<unknown>
+  readNativeArtifacts?(threadId:string,attemptId:string,after?:number,signal?:AbortSignal):Promise<NativeArtifactPage>
+  readNativeArtifact?(artifact:NativeArtifact,signal?:AbortSignal):Promise<Uint8Array>
+  readProcessProducts?(threadId: string, before?: number, signal?: AbortSignal): Promise<ProcessProductPage>
   readAttemptRecords?(threadId: string, attemptId: string, after?: number, signal?: AbortSignal): Promise<AttemptRecords>
   createThread?(modelId?: string, signal?: AbortSignal): Promise<unknown>
+  renameSession?(threadId:string,runId:string,revision:number,text:string,commandId:string,idempotencyKey:string):Promise<unknown>
+  readDeliveries?(threadId:string,before?:number,signal?:AbortSignal):Promise<unknown>
+  publishDelivery?(threadId:string,request:Record<string,unknown>):Promise<unknown>
+  readDeliveryContent?(threadId:string,artifactId:string,revision:number,signal?:AbortSignal):Promise<string>
+  readDeliveryFile?(threadId:string,artifactId:string,revision:number,size:number,digest:string,signal?:AbortSignal):Promise<Uint8Array>
   getSnapshot(threadId: string, signal?: AbortSignal): Promise<unknown>
   getCatalog?(threadId: string, signal?: AbortSignal): Promise<unknown>
   getInputCatalog?(threadId: string, signal?: AbortSignal): Promise<unknown>
@@ -57,6 +74,8 @@ export function buildThreadCommand(input: {
   }
   if (input.runId !== undefined && !commandIdentifierPattern.test(input.runId)) throw new Error('runId is invalid')
   if (!Number.isSafeInteger(input.expectedEventSeq) || input.expectedEventSeq < 0) throw new Error('expectedEventSeq is invalid')
+  if(typeof input.payload.text==='string')assertCapacity(input.payload.text.length,'input_text_chars')
+  assertCapacity(new TextEncoder().encode(JSON.stringify(input)).byteLength,'command_bytes')
   return {
     schema: 'capstone-command/1', command_id: input.commandId,
     idempotency_key: input.idempotencyKey, thread_id: input.threadId,
@@ -68,6 +87,33 @@ export function buildThreadCommand(input: {
 
 export class CapstoneThreadClient {
   constructor(private readonly transport: ThreadTransport) {}
+  get supportsProductIndex():boolean{return Boolean(this.transport.readProductIndex&&this.transport.resolveProduct)}
+  async productIndex(threadId:string,query:ProductQuery={},signal?:AbortSignal):Promise<ProductIndex>{
+    if(!this.transport.readProductIndex)throw new Error('当前服务未提供统一成果目录')
+    return this.transport.readProductIndex(threadId,query,signal)
+  }
+  async resolveProduct(ref:ProductRef,signal?:AbortSignal):Promise<ProductResolution>{
+    if(!this.transport.resolveProduct)throw new Error('当前服务未提供成果读取')
+    return this.transport.resolveProduct(ref,signal)
+  }
+
+  async uploadThreadMaterial(threadId:string,file:File,signal?:AbortSignal) {
+    if(!this.transport.uploadThreadMaterial)throw new Error('当前服务不支持资料上传')
+    return this.transport.uploadThreadMaterial(threadId,file,signal)
+  }
+  async removeThreadMaterial(threadId:string,materialId:string,signal?:AbortSignal) {
+    if(!this.transport.removeThreadMaterial)throw new Error('当前服务不支持资料移除')
+    return this.transport.removeThreadMaterial(threadId,materialId,signal)
+  }
+
+  async nativeArtifacts(threadId:string,attemptId:string,after=0,signal?:AbortSignal):Promise<NativeArtifactPage> {
+    if(!this.transport.readNativeArtifacts)throw new Error('指令文件目录不可用')
+    return this.transport.readNativeArtifacts(threadId,attemptId,after,signal)
+  }
+  async nativeArtifact(artifact:NativeArtifact,signal?:AbortSignal):Promise<Uint8Array> {
+    if(!this.transport.readNativeArtifact)throw new Error('指令文件读取不可用')
+    return this.transport.readNativeArtifact(artifact,signal)
+  }
 
   get connectionState(): ThreadTransportState {
     return this.transport.connectionState ?? 'live'
@@ -80,6 +126,12 @@ export class CapstoneThreadClient {
   get supportsHistory(): boolean { return this.transport.readHistory !== undefined }
 
   get supportsAttemptRecords(): boolean { return this.transport.readAttemptRecords !== undefined }
+  get supportsProcessProducts(): boolean { return this.transport.readProcessProducts !== undefined }
+
+  async processProducts(threadId: string, before?: number, signal?: AbortSignal): Promise<ProcessProductPage> {
+    if (!this.transport.readProcessProducts) throw new Error('过程制品目录暂不可用')
+    return this.transport.readProcessProducts(threadId, before, signal)
+  }
 
   async attemptRecords(threadId: string, attemptId: string, after = 0, signal?: AbortSignal): Promise<AttemptRecords> {
     if (!this.transport.readAttemptRecords) throw new Error('任务记录读取不可用')
@@ -121,6 +173,30 @@ export class CapstoneThreadClient {
 
   async load(threadId: string, signal?: AbortSignal): Promise<ThreadSnapshot> {
     return parseThreadSnapshot(await this.transport.getSnapshot(threadId, signal))
+  }
+
+  get supportsSessionTitle():boolean {return Boolean(this.transport.renameSession)}
+  get supportsDeliveries():boolean {return Boolean(this.transport.readDeliveries&&this.transport.publishDelivery&&this.transport.readDeliveryContent)}
+  get supportsDeliveryFiles():boolean {return Boolean(this.transport.readDeliveryFile)}
+  async deliveryFile(threadId:string,artifactId:string,revision:number,size:number,digest:string,signal?:AbortSignal) {
+    if(!this.transport.readDeliveryFile)throw new Error('交付文件不可用')
+    return this.transport.readDeliveryFile(threadId,artifactId,revision,size,digest,signal)
+  }
+  async deliveries(threadId:string,before?:number,signal?:AbortSignal){
+    if(!this.transport.readDeliveries)throw new Error('交付目录不可用')
+    return this.transport.readDeliveries(threadId,before,signal)
+  }
+  async publishDelivery(threadId:string,request:Record<string,unknown>){
+    if(!this.transport.publishDelivery)throw new Error('交付生成不可用')
+    return this.transport.publishDelivery(threadId,request)
+  }
+  async deliveryContent(threadId:string,artifactId:string,revision:number,signal?:AbortSignal){
+    if(!this.transport.readDeliveryContent)throw new Error('交付文件不可用')
+    return this.transport.readDeliveryContent(threadId,artifactId,revision,signal)
+  }
+  async renameSession(threadId:string,runId:string,revision:number,text:string,commandId:string,idempotencyKey:string) {
+    if(!this.transport.renameSession)throw new Error('当前服务不支持会话改名')
+    return parseCommandReceipt(await this.transport.renameSession(threadId,runId,revision,text,commandId,idempotencyKey))
   }
 
   async loadWork(threadId: string, signal?: AbortSignal) {

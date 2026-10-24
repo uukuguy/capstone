@@ -5,6 +5,7 @@ from collections.abc import Mapping
 import json
 
 from .request_intent import _canonical, _fields, _items, _text
+from .application_capacity import CapacityExceeded, limits, require_capacity
 
 
 class InputRejected(ValueError):
@@ -14,12 +15,15 @@ class InputRejected(ValueError):
 def context_selection(value: object, known: set[str] | None = None) -> dict:
     value = _fields(value, {'include_refs', 'exclude_refs'})
     for key in ('include_refs', 'exclude_refs'):
-        refs = _items(value[key], key, limit=24)
+        if isinstance(value[key], list):
+            require_capacity('context_references', len(value[key]), phase='input')
+        refs = _items(value[key], key, limit=limits.context_references)
         for ref in refs:
             _text(ref, key, limit=256)
         if len(set(refs)) != len(refs) or (known is not None and not set(refs) <= known):
             raise ValueError('context selection reference is unavailable')
-    return json.loads(_canonical(value, 16384))
+    require_capacity('control_document_bytes', len(json.dumps(value, ensure_ascii=False).encode()), phase='input')
+    return json.loads(_canonical(value, limits.control_document_bytes))
 
 
 def validate_submission(payload: Mapping, *, mode: str, objects: list[dict],
@@ -42,6 +46,9 @@ def validate_submission(payload: Mapping, *, mode: str, objects: list[dict],
                       if key != '_professional_selection'} for role, profile in (profiles or {}).items()},
                   'context_selection': context_selection(payload.get('context_selection',
                       {'include_refs': [], 'exclude_refs': []}), {item['object_id'] for item in objects})}
+        if 'context_product_refs' in payload:
+            from .thread_products import checked_selections
+            result['context_product_refs'] = checked_selections(payload['context_product_refs'])
         if kind == 'skill_invocation':
             for key in ('skill_id', 'skill_version'):
                 _text(raw[key], key, limit=256)
@@ -69,8 +76,9 @@ def validate_submission(payload: Mapping, *, mode: str, objects: list[dict],
                 result['professional_resource'] = private
         elif 'resource_profile' in payload:
             raise ValueError('plain text cannot select a resource profile')
-        return json.loads(_canonical(result, 65536))
-    except InputRejected:
+        require_capacity('command_bytes', len(json.dumps(result, ensure_ascii=False).encode()), phase='input')
+        return json.loads(_canonical(result, limits.command_bytes))
+    except (InputRejected, CapacityExceeded):
         raise
     except (KeyError, TypeError, ValueError) as error:
         raise InputRejected('input_invalid') from error
@@ -82,11 +90,13 @@ def admission_submission(snapshot, command, provider=None) -> tuple[dict | None,
     payload = command['payload']
     if {'professional_resource', '_professional_backend', '_professional_selection'} & payload.keys():
         return None, 'input_invalid'
-    if not {'input', 'context_selection', 'resource_profile'} & payload.keys():
+    if not {'input', 'context_selection', 'resource_profile', 'context_product_refs'} & payload.keys():
         return None, None  # Existing clients retain their accepted legacy contract.
     context = snapshot.active_model_context
     selected = payload.get('resource_profile')
     if isinstance(selected, Mapping) and selected.get('profile_id') == 'harness_engine':
+        if context is None:
+            return None, 'resource_role_incompatible'
         current_profiles = [{'profile_id': profile_id, 'profile_version': version}
                             for profile_id, version in context.enabled_profiles]
         if snapshot.pending_model_switch is not None or snapshot.pending_selection is not None or (
@@ -96,13 +106,13 @@ def admission_submission(snapshot, command, provider=None) -> tuple[dict | None,
             # Apply the workspace change, then select its fresh resource identity.
             return None, 'resource_catalog_stale'
     catalog = provider(snapshot) if provider is not None else {
-        'objects': [{'object_id': context.id, 'model_id': context.model_id,
+        'objects': [] if context is None else [{'object_id': context.id, 'model_id': context.model_id,
                      'model_revision': context.model_revision,
                      'implementation_family': context.implementation_family}], 'resource_profiles': {}}
     try:
         submission = validate_submission(payload, mode=snapshot.runtime_mode,
             objects=catalog['objects'], profiles=catalog['resource_profiles'])
-        submission['model_context'] = context.to_document()
+        submission['model_context'] = None if context is None else context.to_document()
         return submission, None
     except InputRejected as error:
         return None, str(error)

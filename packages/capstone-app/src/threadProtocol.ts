@@ -1,4 +1,6 @@
+import {applicationCapacity,assertCapacity,exceedsCapacity} from './applicationCapacity'
 import { parseNetworkDiagram } from './networkValidation'
+import { parseSessionTitle, type SessionTitle } from './sessionTitle'
 
 export type RunState = 'created' | 'open' | 'closing' | 'closed' | 'failed'
 export type RuntimeMode = 'capstone' | 'pi_reference'
@@ -47,6 +49,7 @@ export type ResultTablePagination = { manifestRef: string; totalRows: number; pa
 export type ResultTable = { tableId: string; title: string; columns: ResultColumn[]; rows: ResultRow[]; pagination?: ResultTablePagination }
 export type ResultOverlay = { metric: string; unit: string; sourceRef: string; values: Array<{ elementId: string; value: number }> }
 export type ResultProjection = {
+  presentation?: { collectionId: string; collectionTitle: string; groupId: string; groupTitle: string; purpose: 'process_output' | 'task_output' | 'inspection' }
   resultId: string; resultRef?: string; evidenceRefs: string[]
   threadId: string; runId: string; turnId: string; attemptId: string
   modelContextId: string; modelId: string; modelRevision: string
@@ -56,6 +59,8 @@ export type ResultProjection = {
   overlay?: ResultOverlay; unavailableReason?: string
 }
 export type ThreadSnapshot = {
+  sessionType?: 'grid-analysis'|'enterprise-research'|'general-chat'
+  sessionTitle?: SessionTitle
   threadId: string
   runtimeMode: RuntimeMode
   run: RunSnapshot
@@ -125,12 +130,7 @@ const attemptPhases = new Set<AttemptPhase>([
 const caseStatuses = new Set<CaseExecutionSnapshot['status']>(['idle', 'created', 'running', 'waiting_step', 'blocked', 'cancelled', 'completed'])
 const caseStepStatuses = new Set<CaseStepSnapshot['status']>(['pending', 'running', 'completed', 'failed', 'cancelled', 'interrupted'])
 const caseActionIds = new Set<CaseActionSnapshot['actionId']>(['start_case', 'retry_case_step', 'cancel_case', 'view_case_details'])
-const maxApplicationStateBytes = 64 * 1024
-const maxCaseTextChars = 256
-const maxCaseDetailsBytes = 16 * 1024
 const maxCaseActions = 4
-const maxCaseReasons = 16
-const maxCaseDurationMs = 86_400_000
 const caseActionMatrix: Record<CaseExecutionSnapshot['status'], readonly CaseActionSnapshot['actionId'][]> = {
   idle: ['start_case'], created: [], running: ['cancel_case'], waiting_step: ['cancel_case'],
   blocked: ['retry_case_step', 'cancel_case'], cancelled: [], completed: ['view_case_details'],
@@ -138,15 +138,6 @@ const caseActionMatrix: Record<CaseExecutionSnapshot['status'], readonly CaseAct
 const resultProjectionStatuses = new Set<ResultProjection['status']>(['completed', 'partial', 'unavailable'])
 const resultProjectionSeverities = new Set<ResultMetric['severity']>(['info', 'warning', 'error'])
 const resultRefPattern = /^(?:[a-z][a-z0-9_-]{0,31}-)?(result|evidence|revision):sha256:[0-9a-f]{64}$/
-const maxResultSummary = 32
-const maxResultTables = 12
-const maxResultProjections = 64
-const maxResultColumns = 32
-const maxResultRows = 128
-const maxResultElements = 128
-const maxAttemptReferences = 1024
-const maxResultOverlayValues = 256
-const maxResultText = 256
 
 function object(value: unknown, name: string): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -188,7 +179,7 @@ function text(value: unknown, name: string): string {
 
 function caseText(value: unknown, name: string): string {
   const result = text(value, name)
-  if (result.length > maxCaseTextChars) throw new ThreadProtocolError(`${name} is too long`)
+  if (exceedsCapacity(result.length,'ui_case_text_chars')) throw new ThreadProtocolError(`${name} is too long`)
   return result
 }
 
@@ -219,7 +210,7 @@ function timestamp(value: unknown, name: string): string {
 
 function resultText(value: unknown, name: string): string {
   const result = text(value, name)
-  if (result.length > maxResultText) throw new ThreadProtocolError(`${name} is too long`)
+  if (exceedsCapacity(result.length,'ui_result_text_chars')) throw new ThreadProtocolError(`${name} is too long`)
   return result
 }
 
@@ -244,7 +235,7 @@ function resultRef(value: unknown, name: string, kind?: string): string {
 
 function resultScalar(value: unknown, name: string): string | number | boolean | null {
   if (value === null || typeof value === 'string' || typeof value === 'boolean') {
-    if (typeof value === 'string' && value.length > maxResultText) throw new ThreadProtocolError(`${name} is too long`)
+    if (typeof value === 'string' && exceedsCapacity(value.length,'ui_result_text_chars')) throw new ThreadProtocolError(`${name} is too long`)
     return value
   }
   if (typeof value === 'number' && Number.isFinite(value)) return value
@@ -260,7 +251,7 @@ function parseResultElementRef(value: unknown, name: string): ResultElementRef {
 
 function parseResultProjection(value: unknown): ResultProjection {
   const document = object(value, 'result projection')
-  const keys = ['schema', 'result_id', 'result_ref', 'evidence_refs', 'thread_id', 'run_id', 'turn_id', 'attempt_id', 'model_context_id', 'model_id', 'model_revision', 'source', 'status', 'summary', 'tables', 'element_refs', 'overlay', 'unavailable_reason']
+  const keys = ['schema', 'result_id', 'result_ref', 'evidence_refs', 'thread_id', 'run_id', 'turn_id', 'attempt_id', 'model_context_id', 'model_id', 'model_revision', 'source', 'status', 'summary', 'tables', 'element_refs', 'overlay', 'unavailable_reason', 'presentation']
   fields(document, new Set(keys), 'result projection')
   required(document, keys.slice(0, 17), 'result projection')
   if (document.schema !== 'capstone-result-projection/1.0') throw new ThreadProtocolError('result projection.schema is invalid')
@@ -269,11 +260,11 @@ function parseResultProjection(value: unknown): ResultProjection {
   const source = object(document.source, 'result projection.source')
   fields(source, new Set(['capability_id', 'domain_pack_id', 'implementation_family']), 'result projection.source')
   required(source, ['capability_id', 'domain_pack_id', 'implementation_family'], 'result projection.source')
-  if (!Array.isArray(document.evidence_refs) || document.evidence_refs.length > maxAttemptReferences) throw new ThreadProtocolError('result projection.evidence_refs is invalid')
+  if (!Array.isArray(document.evidence_refs) || exceedsCapacity(document.evidence_refs.length,'context_references')) throw new ThreadProtocolError('result projection.evidence_refs is invalid')
   const evidenceRefs = document.evidence_refs.map((item, index) => resultRef(item, `result projection.evidence_refs[${index}]`, 'evidence'))
   const resultReference = document.result_ref == null ? undefined : resultRef(document.result_ref, 'result projection.result_ref', 'result')
   if ((status === 'completed' || status === 'partial') && (!resultReference || evidenceRefs.length === 0)) throw new ThreadProtocolError('available result projection requires result and evidence references')
-  if (!Array.isArray(document.summary) || document.summary.length > maxResultSummary) throw new ThreadProtocolError('result projection.summary is invalid')
+  if (!Array.isArray(document.summary) || exceedsCapacity(document.summary.length,'ui_result_summary_count')) throw new ThreadProtocolError('result projection.summary is invalid')
   const summary = document.summary.map((entry, index) => {
     const item = object(entry, `result projection.summary[${index}]`)
     fields(item, new Set(['metric_id', 'label', 'value', 'unit', 'severity']), `result projection.summary[${index}]`)
@@ -283,12 +274,12 @@ function parseResultProjection(value: unknown): ResultProjection {
     return { metricId: resultIdentifier(item.metric_id, `result projection.summary[${index}].metric_id`), label: resultText(item.label, `result projection.summary[${index}].label`), value: resultScalar(item.value, `result projection.summary[${index}].value`), ...(item.unit == null ? {} : { unit: resultText(item.unit, `result projection.summary[${index}].unit`) }), ...(severity ? { severity } : {}) }
   })
   if (new Set(summary.map((item) => item.metricId)).size !== summary.length) throw new ThreadProtocolError('result projection summary contains duplicates')
-  if (!Array.isArray(document.tables) || document.tables.length > maxResultTables) throw new ThreadProtocolError('result projection.tables is invalid')
+  if (!Array.isArray(document.tables) || exceedsCapacity(document.tables.length,'ui_result_table_count')) throw new ThreadProtocolError('result projection.tables is invalid')
   const tables = document.tables.map((entry, tableIndex) => {
     const item = object(entry, `result projection.tables[${tableIndex}]`)
     fields(item, new Set(['table_id', 'title', 'columns', 'rows', 'pagination']), `result projection.tables[${tableIndex}]`)
     required(item, ['table_id', 'title', 'columns', 'rows'], `result projection.tables[${tableIndex}]`)
-    if (!Array.isArray(item.columns) || !item.columns.length || item.columns.length > maxResultColumns || !Array.isArray(item.rows) || item.rows.length > maxResultRows) throw new ThreadProtocolError('result projection table arrays are invalid')
+    if (!Array.isArray(item.columns) || !item.columns.length || exceedsCapacity(item.columns.length,'ui_result_column_count') || !Array.isArray(item.rows) || exceedsCapacity(item.rows.length,'ui_result_row_count')) throw new ThreadProtocolError('result projection table arrays are invalid')
     const columns = item.columns.map((entry, columnIndex) => {
       const column = object(entry, `result projection.tables[${tableIndex}].columns[${columnIndex}]`)
       fields(column, new Set(['column_id', 'label', 'unit']), `result projection.tables[${tableIndex}].columns[${columnIndex}]`)
@@ -314,7 +305,7 @@ function parseResultProjection(value: unknown): ResultProjection {
       required(value, ['manifest_ref', 'total_rows', 'page_size'], 'result table.pagination')
       if (typeof value.manifest_ref !== 'string' || !/^table-manifest:sha256:[a-f0-9]{64}$/.test(value.manifest_ref)
           || typeof value.total_rows !== 'number' || !Number.isSafeInteger(value.total_rows) || value.total_rows < rows.length
-          || typeof value.page_size !== 'number' || !Number.isSafeInteger(value.page_size) || value.page_size < 1 || value.page_size > maxResultRows) {
+          || typeof value.page_size !== 'number' || !Number.isSafeInteger(value.page_size) || value.page_size < 1 || exceedsCapacity(value.page_size,'ui_result_row_count')) {
         throw new ThreadProtocolError('result table.pagination is invalid')
       }
       pagination = { manifestRef: value.manifest_ref, totalRows: value.total_rows, pageSize: value.page_size }
@@ -322,7 +313,7 @@ function parseResultProjection(value: unknown): ResultProjection {
     return { tableId: resultIdentifier(item.table_id, 'result table.table_id'), title: resultText(item.title, 'result table.title'), columns, rows, ...(pagination ? { pagination } : {}) }
   })
   if (new Set(tables.map((table) => table.tableId)).size !== tables.length) throw new ThreadProtocolError('result projection tables contain duplicates')
-  if (!Array.isArray(document.element_refs) || document.element_refs.length > maxResultElements) throw new ThreadProtocolError('result projection.element_refs is invalid')
+  if (!Array.isArray(document.element_refs) || exceedsCapacity(document.element_refs.length,'ui_result_element_count')) throw new ThreadProtocolError('result projection.element_refs is invalid')
   const elementRefs = document.element_refs.map((entry, index) => parseResultElementRef(entry, `result projection.element_refs[${index}]`))
   if (new Set(elementRefs.map((entry) => `${entry.elementKind}:${entry.elementId}`)).size !== elementRefs.length) throw new ThreadProtocolError('result projection element_refs contain duplicates')
   let overlay: ResultOverlay | undefined
@@ -330,7 +321,7 @@ function parseResultProjection(value: unknown): ResultProjection {
     const raw = object(document.overlay, 'result projection.overlay')
     fields(raw, new Set(['metric', 'unit', 'source_ref', 'values']), 'result projection.overlay')
     required(raw, ['metric', 'unit', 'source_ref', 'values'], 'result projection.overlay')
-    if (!Array.isArray(raw.values) || raw.values.length > maxResultOverlayValues) throw new ThreadProtocolError('result projection.overlay.values is invalid')
+    if (!Array.isArray(raw.values) || exceedsCapacity(raw.values.length,'ui_result_overlay_count')) throw new ThreadProtocolError('result projection.overlay.values is invalid')
     const values = raw.values.map((entry, index) => {
       const item = object(entry, `result projection.overlay.values[${index}]`)
       fields(item, new Set(['element_id', 'value']), `result projection.overlay.values[${index}]`)
@@ -344,7 +335,17 @@ function parseResultProjection(value: unknown): ResultProjection {
   const reason = document.unavailable_reason == null ? undefined : resultText(document.unavailable_reason, 'result projection.unavailable_reason')
   if (status === 'unavailable' && (!reason || summary.length || tables.length || elementRefs.length || overlay)) throw new ThreadProtocolError('unavailable result projection is inconsistent')
   if (status === 'completed' && reason) throw new ThreadProtocolError('completed result projection cannot have an unavailable reason')
+  let presentation: ResultProjection['presentation']
+  if (document.presentation != null) {
+    const value = object(document.presentation, 'result presentation')
+    const names = ['collection_id', 'collection_title', 'group_id', 'group_title', 'purpose']
+    fields(value, new Set(names), 'result presentation')
+    required(value, names, 'result presentation')
+    if (value.purpose !== 'process_output' && value.purpose !== 'task_output' && value.purpose !== 'inspection') throw new ThreadProtocolError('result presentation purpose is invalid')
+    presentation = {collectionId:resultIdentifier(value.collection_id, 'collection id'), collectionTitle:resultText(value.collection_title, 'collection title'), groupId:resultIdentifier(value.group_id, 'group id'), groupTitle:resultText(value.group_title, 'group title'), purpose:value.purpose}
+  }
   return {
+    ...(presentation ? {presentation} : {}),
     resultId: resultIdentifier(document.result_id, 'result projection.result_id'), resultRef: resultReference, evidenceRefs,
     threadId: identifier(document.thread_id, 'result projection.thread_id'), runId: identifier(document.run_id, 'result projection.run_id'),
     turnId: identifier(document.turn_id, 'result projection.turn_id'), attemptId: identifier(document.attempt_id, 'result projection.attempt_id'),
@@ -369,10 +370,10 @@ function parseCaseExecution(value: unknown): CaseExecutionSnapshot {
   const status = text(document.status, 'application_state.case_execution.status') as CaseExecutionSnapshot['status']
   if (!caseStatuses.has(status)) throw new ThreadProtocolError('application_state.case_execution.status is invalid')
   const total = document.total_steps; const completed = document.completed_steps
-  if (!Number.isSafeInteger(total) || (total as number) < 1 || (total as number) > 32 || !Number.isSafeInteger(completed) || (completed as number) < 0 || (completed as number) > (total as number)) throw new ThreadProtocolError('application_state.case_execution step counts are invalid')
+  if (!Number.isSafeInteger(total) || (total as number) < 1 || exceedsCapacity(total as number,'ui_case_step_count') || !Number.isSafeInteger(completed) || (completed as number) < 0 || (completed as number) > (total as number)) throw new ThreadProtocolError('application_state.case_execution step counts are invalid')
   const current = document.current_step
   if (current !== null && (!Number.isSafeInteger(current) || (current as number) < 1 || (current as number) > (total as number))) throw new ThreadProtocolError('application_state.case_execution.current_step is invalid')
-  if (!Array.isArray(document.steps) || document.steps.length !== total || !Array.isArray(document.actions) || document.actions.length > maxCaseActions || !Array.isArray(document.disabled_reasons) || document.disabled_reasons.length > maxCaseReasons) throw new ThreadProtocolError('application_state.case_execution arrays are invalid')
+  if (!Array.isArray(document.steps) || document.steps.length !== total || !Array.isArray(document.actions) || document.actions.length > maxCaseActions || !Array.isArray(document.disabled_reasons) || exceedsCapacity(document.disabled_reasons.length,'ui_case_reason_count')) throw new ThreadProtocolError('application_state.case_execution arrays are invalid')
   const steps = document.steps.map((entry, index) => {
     const item = object(entry, `application_state.case_execution.steps[${index}]`)
     fields(item, new Set(['ordinal', 'title', 'status', 'duration_ms', 'details']), `application_state.case_execution.steps[${index}]`)
@@ -380,9 +381,9 @@ function parseCaseExecution(value: unknown): CaseExecutionSnapshot {
     if (item.ordinal !== index + 1 || !Number.isSafeInteger(item.ordinal)) throw new ThreadProtocolError('application_state.case_execution step ordinal is invalid')
     const stepStatus = text(item.status, 'case step.status') as CaseStepSnapshot['status']
     if (!caseStepStatuses.has(stepStatus)) throw new ThreadProtocolError('case step.status is invalid')
-    if (item.duration_ms !== null && (!Number.isSafeInteger(item.duration_ms) || (item.duration_ms as number) < 0 || (item.duration_ms as number) > maxCaseDurationMs)) throw new ThreadProtocolError('case step.duration_ms is invalid')
+    if (item.duration_ms !== null && (!Number.isSafeInteger(item.duration_ms) || (item.duration_ms as number) < 0 || exceedsCapacity(item.duration_ms as number,'ui_case_duration_ms'))) throw new ThreadProtocolError('case step.duration_ms is invalid')
     const details = object(item.details, 'case step.details'); jsonValue(details, 'case step.details')
-    if (jsonBytes(details, 'case step.details') > maxCaseDetailsBytes) throw new ThreadProtocolError('case step.details is too large')
+    if (exceedsCapacity(jsonBytes(details, 'case step.details'),'ui_case_details_bytes')) throw new ThreadProtocolError('case step.details is too large')
     return { ordinal: item.ordinal as number, title: caseText(item.title, 'case step.title'), status: stepStatus, durationMs: item.duration_ms as number | null, details }
   })
   const actions = document.actions.map((entry, index) => {
@@ -524,7 +525,10 @@ function snapshotDocument(snapshot: Omit<ThreadSnapshot, 'toDocument'>): Record<
     last_event_seq: snapshot.lastEventSeq,
     base_event_seq: snapshot.baseEventSeq,
     ...(snapshot.resultProjections ? { result_projections: snapshot.resultProjections.map(resultProjectionDocument) } : {}),
+    ...(snapshot.sessionTitle ? {session_title: {...snapshot.sessionTitle}} : {}),
+    ...(snapshot.sessionType ? {session_type:snapshot.sessionType} : {}),
     ...(snapshot.applicationState ? { application_state: {
+      ...(snapshot.applicationState.result_projection_history?{result_projection_history:snapshot.applicationState.result_projection_history}:{}),
       ...(snapshot.applicationState.caseExecution ? { case_execution: {
         display_name: snapshot.applicationState.caseExecution.displayName,
         status: snapshot.applicationState.caseExecution.status,
@@ -554,9 +558,10 @@ function snapshotDocument(snapshot: Omit<ThreadSnapshot, 'toDocument'>): Record<
 
 export function parseThreadSnapshot(value: unknown): ThreadSnapshot {
   const document = object(value, 'snapshot')
-  const keys = ['schema', 'thread_id', 'run', 'active_model_context', 'active_grid_page_id', 'current_attempt', 'last_event_seq', 'base_event_seq', 'pending_selection', 'pending_model_switch', 'result_projections', 'application_state', 'runtime_mode']
+  const keys = ['schema', 'thread_id', 'run', 'active_model_context', 'active_grid_page_id', 'current_attempt', 'last_event_seq', 'base_event_seq', 'pending_selection', 'pending_model_switch', 'result_projections', 'application_state', 'runtime_mode', 'session_title', 'session_type']
   fields(document, new Set(keys), 'snapshot')
-  required(document, keys.filter((key) => !['pending_selection', 'pending_model_switch', 'result_projections', 'application_state', 'runtime_mode'].includes(key)), 'snapshot')
+  required(document, keys.filter((key) => !['pending_selection', 'pending_model_switch', 'result_projections', 'application_state', 'runtime_mode', 'session_title', 'session_type'].includes(key)), 'snapshot')
+  if(document.session_type!=null && !['grid-analysis','enterprise-research','general-chat'].includes(String(document.session_type)))throw new ThreadProtocolError('会话类型无效')
   if (document.schema !== 'capstone-thread-snapshot/1') throw new ThreadProtocolError('snapshot.schema is invalid')
   const lastEventSeq = sequence(document.last_event_seq, 'snapshot.last_event_seq')
   const baseEventSeq = sequence(document.base_event_seq, 'snapshot.base_event_seq')
@@ -571,13 +576,20 @@ export function parseThreadSnapshot(value: unknown): ThreadSnapshot {
   let applicationState: ThreadSnapshot['applicationState'] | undefined
   if (document.application_state !== undefined && document.application_state !== null) {
     const app = object(document.application_state, 'snapshot.application_state')
-    if (jsonBytes(app, 'snapshot.application_state') > maxApplicationStateBytes) throw new ThreadProtocolError('snapshot.application_state is too large')
-    fields(app, new Set(['case_execution']), 'snapshot.application_state')
-    required(app, ['case_execution'], 'snapshot.application_state')
-    applicationState = { caseExecution: parseCaseExecution(app.case_execution) }
+    assertCapacity(jsonBytes(app, 'snapshot.application_state'),'application_state_bytes')
+    fields(app, new Set(['case_execution','result_projection_history']), 'snapshot.application_state')
+    if(!Object.keys(app).length)throw new ThreadProtocolError('snapshot.application_state is empty')
+    applicationState = {...(app.case_execution===undefined?{}:{caseExecution:parseCaseExecution(app.case_execution)})}
+    if(app.result_projection_history!==undefined){
+      const history=object(app.result_projection_history,'snapshot.result_projection_history')
+      fields(history,new Set(['omitted_count','has_more','model_context_id']),'snapshot.result_projection_history')
+      if(!Number.isSafeInteger(history.omitted_count)||(history.omitted_count as number)<1||history.has_more!==true
+        ||history.model_context_id!==null&&(typeof history.model_context_id!=='string'||!identifierPattern.test(history.model_context_id)))throw new ThreadProtocolError('snapshot.result_projection_history is invalid')
+      applicationState.result_projection_history={...history}
+    }
   }
   const resultProjections = document.result_projections === undefined ? undefined : (() => {
-    if (!Array.isArray(document.result_projections) || document.result_projections.length > maxResultProjections) throw new ThreadProtocolError('snapshot.result_projections is invalid')
+    if (!Array.isArray(document.result_projections) || exceedsCapacity(document.result_projections.length,'ui_result_projection_count')) throw new ThreadProtocolError('snapshot.result_projections is invalid')
     const projections = document.result_projections.map(parseResultProjection)
     if (projections.some((projection) => projection.threadId !== threadId || projection.runId !== run.runId)) {
       throw new ThreadProtocolError('snapshot.result_projections identity does not match snapshot')
@@ -595,6 +607,8 @@ export function parseThreadSnapshot(value: unknown): ThreadSnapshot {
     baseEventSeq,
     ...(resultProjections ? { resultProjections } : {}),
     ...(applicationState ? { applicationState } : {}),
+    ...(document.session_title == null ? {} : {sessionTitle: parseSessionTitle(document.session_title)}),
+    ...(document.session_type == null ? {} : {sessionType: document.session_type as ThreadSnapshot['sessionType']}),
     ...(document.pending_selection == null ? {} : { pendingSelection: parsePendingSelection(document.pending_selection) }),
     ...(document.pending_model_switch == null ? {} : { pendingModelSwitch: parsePendingModelSwitch(document.pending_model_switch) }),
   }
@@ -603,6 +617,7 @@ export function parseThreadSnapshot(value: unknown): ThreadSnapshot {
 
 function resultProjectionDocument(projection: ResultProjection): Record<string, unknown> {
   return {
+    ...(projection.presentation ? {presentation:{collection_id:projection.presentation.collectionId,collection_title:projection.presentation.collectionTitle,group_id:projection.presentation.groupId,group_title:projection.presentation.groupTitle,purpose:projection.presentation.purpose}} : {}),
     schema: 'capstone-result-projection/1.0', result_id: projection.resultId,
     ...(projection.resultRef ? { result_ref: projection.resultRef } : { result_ref: null }),
     evidence_refs: projection.evidenceRefs, thread_id: projection.threadId, run_id: projection.runId,

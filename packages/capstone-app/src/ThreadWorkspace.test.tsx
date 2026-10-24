@@ -2,8 +2,70 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import CapstoneAssistantThread from './CapstoneAssistantThread'
 import ThreadWorkspace from './ThreadWorkspace'
+import SessionNavigation from './SessionNavigation'
 
-afterEach(() => { cleanup(); sessionStorage.clear() })
+afterEach(() => { cleanup(); sessionStorage.clear();localStorage.clear() })
+it('keeps pinned sessions after collapsing and reopening the sidebar',()=>{
+  localStorage.setItem('capstone.workspace.navigation-open','true')
+  const items=['a','b'].map(threadId=>({threadId,modelId:null,sessionTitle:{text:`会话${threadId}`,source:'user' as const,revision:1,source_ref:null}}))
+  render(<ThreadWorkspace conversationOnly sidebar={<SessionNavigation items={items}/>}/>)
+  fireEvent.contextMenu(screen.getByRole('link',{name:'会话b'}))
+  fireEvent.click(screen.getByRole('menuitem',{name:'置顶',exact:true}))
+  const toggle=screen.getByRole('button',{name:'会话导航'})
+  for(let i=0;i<3;i++){
+    fireEvent.click(toggle);fireEvent.click(toggle)
+    expect(screen.getAllByRole('link')[0].textContent).toBe('会话b')
+    expect(JSON.parse(localStorage.getItem('capstone.session-pins:workspace')!)).toEqual(['b'])
+  }
+})
+it('cancels inline rename with Escape while keeping the navigation open',()=>{
+  localStorage.setItem('capstone.workspace.navigation-open','true')
+  const rename=vi.fn(async()=>{})
+  render(<ThreadWorkspace conversationOnly sidebar={<SessionNavigation items={[{threadId:'a',modelId:null,sessionTitle:{text:'测试会话',source:'user',revision:1,source_ref:null}}]} actions={{rename,archive:vi.fn(async()=>{}),remove:vi.fn(async()=>{}),archived:vi.fn(async()=>({threads:[],hasMore:false,nextBeforeThreadId:null}))}}/>}/>)
+  fireEvent.contextMenu(screen.getByRole('link',{name:'测试会话'}))
+  fireEvent.click(screen.getByRole('menuitem',{name:'改名'}))
+  const input=screen.getByRole('textbox',{name:'会话名称'})
+  fireEvent.change(input,{target:{value:'不保存的名称'}})
+  fireEvent.keyDown(input,{key:'Escape'})
+  expect(screen.getByRole('button',{name:'会话导航'}).getAttribute('aria-expanded')).toBe('true')
+  expect(screen.queryByRole('textbox',{name:'会话名称'})).toBeNull()
+  expect(screen.getByRole('link',{name:'测试会话'})).toBeTruthy()
+  expect(rename).not.toHaveBeenCalled()
+})
+
+it('keeps both sidebars independently visible and remembers navigation width and visibility',()=>{
+  localStorage.setItem('capstone.workspace.navigation-open','true')
+  const view=render(<ThreadWorkspace conversationOnly sidebar={<p>会话列表</p>} resourcePanel={<p>成果内容</p>} resourcePanelOpen><p>对话</p></ThreadWorkspace>)
+  const toggle=screen.getByRole('button',{name:'会话导航'})
+  expect(toggle.getAttribute('aria-expanded')).toBe('true')
+  const divider=screen.getByRole('separator',{name:'调整会话栏宽度'})
+  fireEvent.keyDown(divider,{key:'ArrowRight'})
+  expect(divider.getAttribute('aria-valuenow')).toBe('232')
+  fireEvent.click(toggle)
+  expect(toggle.getAttribute('aria-expanded')).toBe('false')
+  expect(document.querySelector('.has-resource-panel')).toBeTruthy()
+  view.unmount()
+  render(<ThreadWorkspace conversationOnly sidebar={<p>会话列表</p>} resourcePanel={<p>成果内容</p>} resourcePanelOpen />)
+  expect(screen.getByRole('button',{name:'会话导航'}).getAttribute('aria-expanded')).toBe('false')
+  fireEvent.click(screen.getByRole('button',{name:'会话导航'}))
+  expect(screen.getByRole('separator',{name:'调整会话栏宽度'}).getAttribute('aria-valuenow')).toBe('232')
+})
+
+it('closes overlay navigation with its button, outside area and Escape without closing products', () => {
+  localStorage.setItem('capstone.workspace.navigation-open','false')
+  render(<ThreadWorkspace conversationOnly resourcePanel={<p>结果表</p>} resourcePanelOpen sidebar={<p>会话列表</p>}><p>对话</p></ThreadWorkspace>)
+  const toggle=screen.getByRole('button',{name:'会话导航'})
+  for(const action of ['button','outside','escape']) {
+    fireEvent.click(toggle)
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+    if(action==='button')fireEvent.click(screen.getByRole('button',{name:'收起会话导航'}))
+    else if(action==='outside')fireEvent.click(screen.getByRole('button',{name:'关闭会话导航遮罩'}))
+    else fireEvent.keyDown(window,{key:'Escape'})
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    expect(document.querySelector('.has-resource-panel')).toBeTruthy()
+    expect(document.activeElement).toBe(toggle)
+  }
+})
 
 it('clamps a narrow window without replacing the preferred split and can reset it', () => {
   localStorage.clear()
@@ -19,7 +81,7 @@ it('clamps a narrow window without replacing the preferred split and can reset i
   width=1600;fireEvent.resize(window)
   expect(separator.getAttribute('aria-valuenow')).toBe('70')
   fireEvent.click(screen.getByRole('button',{name:'恢复默认比例'}))
-  expect(separator.getAttribute('aria-valuenow')).toBe('45')
+  expect(separator.getAttribute('aria-valuenow')).toBe('60')
   rect.mockRestore();localStorage.clear()
 })
 
@@ -46,12 +108,12 @@ it('lets the keyboard resize and restore the conversation/product split', () => 
   localStorage.clear()
   const view=render(<ThreadWorkspace conversationOnly resourcePanel={<p>真实成果</p>} resourcePanelOpen><p>对话</p></ThreadWorkspace>)
   const separator=screen.getByRole('separator',{name:'调整对话与成果宽度'})
-  expect(separator.getAttribute('aria-valuenow')).toBe('45')
+  expect(separator.getAttribute('aria-valuenow')).toBe('60')
   fireEvent.keyDown(separator,{key:'ArrowRight'})
-  expect(separator.getAttribute('aria-valuenow')).toBe('47')
+  expect(separator.getAttribute('aria-valuenow')).toBe('62')
   view.unmount()
   render(<ThreadWorkspace conversationOnly resourcePanel={<p>真实成果</p>} resourcePanelOpen><p>对话</p></ThreadWorkspace>)
-  expect(screen.getByRole('separator').getAttribute('aria-valuenow')).toBe('47')
+  expect(screen.getByRole('separator').getAttribute('aria-valuenow')).toBe('62')
   localStorage.clear()
 })
 

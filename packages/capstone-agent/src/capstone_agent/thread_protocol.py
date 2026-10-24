@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from .application_capacity import CapacityExceeded, limits, require_capacity
+
 import json
 import re
 from dataclasses import dataclass
@@ -11,7 +13,8 @@ from typing import Any, Mapping
 from capstone_model_capability_spi import ModelCapabilitySelection
 
 from .model_identity import validate_model_id
-from .result_projection import MAX_RESULT_PROJECTIONS, ResultProjection
+from .result_projection import ResultProjection
+from .session_title import SessionTitle
 
 
 THREAD_PROTOCOL = "capstone-thread/1"
@@ -19,16 +22,9 @@ _SNAPSHOT_SCHEMA = "capstone-thread-snapshot/1"
 _EVENT_PAGE_SCHEMA = "capstone-thread-events/1"
 _RECEIPT_SCHEMA = "capstone-command-receipt/1"
 _IDENTIFIER = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
-_MAX_APPLICATION_STATE_BYTES = 64 * 1024
-_MAX_CASE_TEXT_CHARS = 256
-_MAX_CASE_DETAILS_BYTES = 16 * 1024
-_MAX_CASE_ACTIONS = 4
-_MAX_CASE_REASONS = 16
-_MAX_CASE_DURATION_MS = 86_400_000
 # A snapshot keeps a bounded recent result catalog.  The projection itself has
 # tighter table/row limits; this separate cap prevents an active Thread from
 # growing without limit while allowing ordinary multi-turn analysis sessions.
-_MAX_RESULT_PROJECTIONS = MAX_RESULT_PROJECTIONS
 _CASE_STATUSES = frozenset({"idle", "created", "running", "waiting_step", "blocked", "cancelled", "completed"})
 _CASE_STEP_STATUSES = frozenset({"pending", "running", "completed", "failed", "cancelled", "interrupted"})
 _CASE_ACTION_IDS = frozenset({"start_case", "retry_case_step", "cancel_case", "view_case_details"})
@@ -70,18 +66,23 @@ class CaseStepSnapshot:
         _fields(document, allowed, name="case step")
         _required(document, allowed, name="case step")
         ordinal = document["ordinal"]
-        if type(ordinal) is not int or not 1 <= ordinal <= 32:
+        if type(ordinal) is int:
+            require_capacity('ui_case_step_count', ordinal, phase='case')
+        if type(ordinal) is not int or not 1 <= ordinal <= limits.ui_case_step_count:
             raise ThreadProtocolError("case step.ordinal is invalid")
         title = _case_text(document["title"], name="case step.title")
         status = _text(document["status"], name="case step.status")
         if status not in _CASE_STEP_STATUSES:
             raise ThreadProtocolError("case step.status is invalid")
         duration = document["duration_ms"]
-        if duration is not None and (type(duration) is not int or duration < 0 or duration > _MAX_CASE_DURATION_MS):
+        if type(duration) is int:
+            require_capacity('ui_case_duration_ms', duration, phase='case')
+        if duration is not None and (type(duration) is not int or duration < 0 or duration > limits.ui_case_duration_ms):
             raise ThreadProtocolError("case step.duration_ms is invalid")
         details = _document(document["details"], name="case step.details")
         _json(details, name="case step.details")
-        if len(json.dumps(details, ensure_ascii=False, allow_nan=False).encode("utf-8")) > _MAX_CASE_DETAILS_BYTES:
+        require_capacity('ui_case_details_bytes', len(json.dumps(details, ensure_ascii=False, allow_nan=False).encode('utf-8')), phase='case')
+        if len(json.dumps(details, ensure_ascii=False, allow_nan=False).encode("utf-8")) > limits.ui_case_details_bytes:
             raise ThreadProtocolError("case step.details is too large")
         return cls(ordinal, title, status, duration, dict(details))
 
@@ -134,8 +135,10 @@ class CaseExecutionSnapshot:
         if status not in _CASE_STATUSES:
             raise ThreadProtocolError("case_execution.status is invalid")
         total = document["total_steps"]
+        if type(total) is int:
+            require_capacity('ui_case_step_count', total, phase='case')
         completed = document["completed_steps"]
-        if type(total) is not int or not 1 <= total <= 32 or type(completed) is not int or not 0 <= completed <= total:
+        if type(total) is not int or not 1 <= total <= limits.ui_case_step_count or type(completed) is not int or not 0 <= completed <= total:
             raise ThreadProtocolError("case_execution step counts are invalid")
         current = document["current_step"]
         if current is not None and (type(current) is not int or not 1 <= current <= total):
@@ -143,9 +146,13 @@ class CaseExecutionSnapshot:
         raw_steps = document["steps"]
         raw_actions = document["actions"]
         reasons = document["disabled_reasons"]
+        if isinstance(raw_actions, list):
+            require_capacity('ui_case_step_count', len(raw_actions), phase='case')
+        if isinstance(reasons, list):
+            require_capacity('ui_case_reason_count', len(reasons), phase='case')
         if not isinstance(raw_steps, list) or len(raw_steps) != total:
             raise ThreadProtocolError("case_execution.steps is invalid")
-        if not isinstance(raw_actions, list) or len(raw_actions) > _MAX_CASE_ACTIONS or not isinstance(reasons, list) or len(reasons) > _MAX_CASE_REASONS:
+        if not isinstance(raw_actions, list) or len(raw_actions) > limits.ui_case_step_count or not isinstance(reasons, list) or len(reasons) > limits.ui_case_reason_count:
             raise ThreadProtocolError("case_execution actions or disabled_reasons are invalid")
         steps = tuple(CaseStepSnapshot.from_document(item) for item in raw_steps)
         if tuple(step.ordinal for step in steps) != tuple(range(1, total + 1)):
@@ -279,7 +286,8 @@ def _text(value: Any, *, name: str) -> str:
 
 def _case_text(value: Any, *, name: str) -> str:
     text = _text(value, name=name)
-    if len(text) > _MAX_CASE_TEXT_CHARS:
+    require_capacity('ui_case_text_chars', len(text), phase='case')
+    if len(text) > limits.ui_case_text_chars:
         raise ThreadProtocolError(f"{name} is too long")
     return text
 
@@ -471,7 +479,7 @@ class AttemptSnapshot:
     turn_id: str
     attempt_id: str
     phase: str
-    target_model_context_id: str
+    target_model_context_id: str | None
     runtime_mode: str = "capstone"
 
     def __post_init__(self) -> None:
@@ -491,7 +499,7 @@ class AttemptSnapshot:
             attempt_id=_identifier(document["attempt_id"], name="current_attempt.attempt_id"),
             phase=phase,
             runtime_mode=runtime_mode(document.get("runtime_mode", "capstone")),
-            target_model_context_id=_identifier(
+            target_model_context_id=_optional_identifier(
                 document["target_model_context_id"], name="current_attempt.target_model_context_id"
             ),
         )
@@ -522,6 +530,9 @@ class ThreadSnapshot:
     runtime_mode: str = "capstone"
     minimum_protocol_version: int = 1
     works: tuple[Mapping[str, Any], ...] = ()
+    native_execution: Mapping[str, Any] | None = None
+    session_title: SessionTitle | None = None
+    session_type: str | None = None
 
     @property
     def professional_context(self) -> ModelContextSnapshot:
@@ -531,11 +542,16 @@ class ThreadSnapshot:
         return self.active_model_context
 
     def __post_init__(self) -> None:
+        if self.session_type not in {None, 'grid-analysis', 'enterprise-research', 'general-chat'}:
+            raise ThreadProtocolError('invalid session type')
+        if self.session_title is not None and not isinstance(self.session_title, SessionTitle):
+            raise ThreadProtocolError('invalid session title')
         runtime_mode(self.runtime_mode)
         if type(self.minimum_protocol_version) is not int or self.minimum_protocol_version not in {1, 2}:
             raise ThreadProtocolError('invalid minimum protocol version')
         if self.active_model_context is None and (
-                self.minimum_protocol_version != 2 or self.active_grid_page_id is not None or self.current_attempt is not None):
+                self.minimum_protocol_version != 2 or self.active_grid_page_id is not None
+                or (self.current_attempt is not None and self.current_attempt.target_model_context_id is not None)):
             raise ThreadProtocolError('model-free Thread requires protocol 2 and no professional execution')
         if self.application_state is None:
             return
@@ -547,7 +563,8 @@ class ThreadSnapshot:
             ).encode("utf-8")
         except (TypeError, ValueError):
             raise ThreadProtocolError("snapshot.application_state is not JSON") from None
-        if len(encoded_state) > _MAX_APPLICATION_STATE_BYTES:
+        require_capacity('application_state_bytes', len(encoded_state), phase='snapshot')
+        if len(encoded_state) > limits.application_state_bytes:
             raise ThreadProtocolError("snapshot.application_state is too large")
         object.__setattr__(self, "application_state", dict(self.application_state))
 
@@ -559,13 +576,13 @@ class ThreadSnapshot:
             return parse_snapshot(document)
         allowed = frozenset({
             "schema", "thread_id", "run", "active_model_context", "active_grid_page_id",
-            "current_attempt", "last_event_seq", "base_event_seq", "pending_selection",
+            "current_attempt", "last_event_seq", "base_event_seq", "pending_selection", "session_title", "session_type",
             "pending_model_switch", "result_projections", "application_state", "runtime_mode",
         })
         _fields(document, allowed, name="snapshot")
         _required(
             document,
-            allowed - {"pending_selection", "pending_model_switch", "result_projections", "application_state", "runtime_mode"},
+            allowed - {"pending_selection", "pending_model_switch", "result_projections", "application_state", "runtime_mode", "session_title", "session_type"},
             name="snapshot",
         )
         if document["schema"] != _SNAPSHOT_SCHEMA:
@@ -591,10 +608,14 @@ class ThreadSnapshot:
             else PendingModelSwitchSnapshot.from_document(document["pending_model_switch"])
         )
         raw_result_projections = document.get("result_projections", [])
-        if not isinstance(raw_result_projections, list) or len(raw_result_projections) > _MAX_RESULT_PROJECTIONS:
+        if isinstance(raw_result_projections, list):
+            require_capacity('ui_result_projection_count', len(raw_result_projections), phase='snapshot')
+        if not isinstance(raw_result_projections, list) or len(raw_result_projections) > limits.ui_result_projection_count:
             raise ThreadProtocolError("snapshot.result_projections is invalid")
         try:
             result_projections = tuple(ResultProjection.from_document(item) for item in raw_result_projections)
+        except CapacityExceeded:
+            raise
         except (TypeError, ValueError) as exc:
             raise ThreadProtocolError("snapshot.result_projections is invalid") from exc
         if len({item.result_id for item in result_projections}) != len(result_projections):
@@ -616,7 +637,8 @@ class ThreadSnapshot:
                 ).encode("utf-8")
             except (TypeError, ValueError):
                 raise ThreadProtocolError("snapshot.application_state is not JSON") from None
-            if len(encoded_state) > _MAX_APPLICATION_STATE_BYTES:
+            require_capacity('application_state_bytes', len(encoded_state), phase='snapshot')
+            if len(encoded_state) > limits.application_state_bytes:
                 raise ThreadProtocolError("snapshot.application_state is too large")
         return cls(
             thread_id=thread_id,
@@ -630,6 +652,8 @@ class ThreadSnapshot:
             pending_model_switch=pending_model_switch,
             result_projections=result_projections,
             application_state=application_state,
+            session_title=None if document.get('session_title') is None else SessionTitle.from_document(document['session_title']),
+            session_type=document.get('session_type'),
             runtime_mode=runtime_mode(document.get("runtime_mode", "capstone")),
         )
 
@@ -647,6 +671,10 @@ class ThreadSnapshot:
         }
         if self.pending_selection is not None:
             document["pending_selection"] = self.pending_selection.to_document()
+        if self.session_title is not None:
+            document['session_title'] = self.session_title.to_document()
+        if self.session_type is not None:
+            document['session_type'] = self.session_type
         if self.pending_model_switch is not None:
             document["pending_model_switch"] = self.pending_model_switch.to_document()
         if self.result_projections:

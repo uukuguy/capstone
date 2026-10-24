@@ -1,3 +1,4 @@
+import {exceedsCapacity} from './applicationCapacity'
 export type ThreadCatalogModel = {
   modelId: string
   authorityModelRef: string
@@ -100,7 +101,7 @@ function parseProfile(value: unknown, index: number): ThreadCatalogProfile {
   const item = record(value, `catalog.profiles[${index}]`)
   const keys = ['profile_id', 'profile_version', 'display_name', 'implementation_families']
   fields(item, keys, `catalog.profiles[${index}]`); required(item, keys, `catalog.profiles[${index}]`)
-  if (!Array.isArray(item.implementation_families) || item.implementation_families.length > 32) throw new ThreadCatalogProtocolError(`catalog.profiles[${index}].implementation_families is invalid`)
+  if (!Array.isArray(item.implementation_families) || exceedsCapacity(item.implementation_families.length,'resource_profile_items')) throw new ThreadCatalogProtocolError(`catalog.profiles[${index}].implementation_families is invalid`)
   return {
     profileId: string(item.profile_id, `catalog.profiles[${index}].profile_id`, identifierPattern),
     profileVersion: string(item.profile_version, `catalog.profiles[${index}].profile_version`, /^[0-9]+(?:\.[0-9]+){1,3}(?:[-+][a-z0-9.-]+)?$/),
@@ -113,10 +114,10 @@ function parseCase(value: unknown, index: number): ThreadCatalogCase {
   const item = record(value, `catalog.cases[${index}]`)
   const keys = ['case_id', 'case_version', 'title', 'summary', 'model_ids', 'step_count']
   fields(item, keys, `catalog.cases[${index}]`); required(item, keys, `catalog.cases[${index}]`)
-  if (!Array.isArray(item.model_ids) || item.model_ids.length > 32 || !item.model_ids.every((model) => typeof model === 'string' && modelIdentifierPattern.test(model))) {
+  if (!Array.isArray(item.model_ids) || exceedsCapacity(item.model_ids.length,'resource_profile_items') || !item.model_ids.every((model) => typeof model === 'string' && modelIdentifierPattern.test(model))) {
     throw new ThreadCatalogProtocolError(`catalog.cases[${index}].model_ids is invalid`)
   }
-  if (!Number.isSafeInteger(item.step_count) || (item.step_count as number) < 1 || (item.step_count as number) > 32) {
+  if (!Number.isSafeInteger(item.step_count) || (item.step_count as number) < 1 || exceedsCapacity(item.step_count as number,'ui_case_step_count')) {
     throw new ThreadCatalogProtocolError(`catalog.cases[${index}].step_count is invalid`)
   }
   return {
@@ -136,9 +137,9 @@ export function parseThreadCatalog(value: unknown): ThreadCatalog {
   if (document.task_followup_binding !== undefined && typeof document.task_followup_binding !== 'boolean') throw new ThreadCatalogProtocolError('catalog.task_followup_binding is invalid')
   required(document, ['schema', 'models', 'profiles'], 'catalog')
   if (document.schema !== 'capstone-thread-catalog/1' || !Array.isArray(document.models) || !Array.isArray(document.profiles)) throw new ThreadCatalogProtocolError('catalog schema is invalid')
-  if (document.models.length > 128 || document.profiles.length > 128) throw new ThreadCatalogProtocolError('catalog is too large')
+  if (exceedsCapacity(document.models.length,'resource_profile_items') || exceedsCapacity(document.profiles.length,'resource_profile_items')) throw new ThreadCatalogProtocolError('catalog is too large')
   const cases = document.cases === undefined ? undefined : (() => {
-    if (!Array.isArray(document.cases) || document.cases.length > 128) throw new ThreadCatalogProtocolError('catalog.cases is invalid')
+    if (!Array.isArray(document.cases) || exceedsCapacity(document.cases.length,'resource_profile_items')) throw new ThreadCatalogProtocolError('catalog.cases is invalid')
     return document.cases.map(parseCase)
   })()
   return {

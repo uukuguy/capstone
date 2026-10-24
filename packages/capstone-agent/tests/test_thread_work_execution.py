@@ -359,7 +359,11 @@ def test_work_input_uses_existing_runtime_bound_without_new_16384_gate(execution
     assert len(routing_input_for_claim(claim).instruction) <= 16384
 
 
-def test_work_over_existing_runtime_bound_is_rejected_idempotently(execution_store):
+def test_work_over_existing_runtime_bound_is_rejected_idempotently(execution_store, request):
+    from capstone_agent.application_capacity import current_capacity, initialize_capacity
+    previous = current_capacity()
+    request.addfinalizer(lambda: initialize_capacity(previous))
+    initialize_capacity({'input_text_chars': 65536})
     store, thread_id = execution_store
     store.submit_command(command(store, thread_id, 'work_message', 'large_goal', payload={'text': 'g' * 33000}))
     work = store.snapshot(thread_id).to_document()['works'][0]

@@ -23,3 +23,20 @@ it.each(['assistant_text_delta', 'attempt_completed', 'tool_completed'])('isolat
   const confirmed = { ...delta('attempt_old'), eventId: 'evt_start', eventSeq: 100, eventType: 'command_accepted', payload: { kind: 'send_auto', payload: { text: '旧专业指令' } } }
   expect(projectWorkConversation([confirmed, delta('attempt_old')]).hasUnattributedHistory).toBe(false)
 })
+
+it('reconstructs native conversation turns from the ledger after pending messages are consumed', () => {
+  const selected = {...work('work_a', 'attempt_b'), conversationMode: true, messages: []}
+  const events: EventEnvelope[] = []
+  for (const [index, text] of ['你好', '继续说明'].entries()) {
+    const attemptId = index ? 'attempt_b' : 'attempt_a'
+    const base = {...delta(attemptId), turnId: `turn_${index}`, payload: {work_id: 'work_a'}}
+    events.push({...base, eventId: `evt_user_${index}`, eventSeq: index * 3 + 1, eventType: 'command_accepted', payload: {work_id: 'work_a', kind: 'send_auto', payload: {text}}})
+    events.push({...base, eventId: `evt_delta_${index}`, eventSeq: index * 3 + 2, payload: {text: '临时流式'}})
+    events.push({...base, eventId: `evt_done_${index}`, eventSeq: index * 3 + 3, eventType: 'attempt_completed', payload: {work_id: 'work_a', answer: `完整答复${index}`}})
+  }
+  const projected = projectWorkConversation(events, selected, [selected])
+  expect(projected.messages.map(message => [message.role, message.content])).toEqual([
+    ['user', '你好'], ['assistant', [{type: 'text', text: '完整答复0'}]],
+    ['user', '继续说明'], ['assistant', [{type: 'text', text: '完整答复1'}]],
+  ])
+})

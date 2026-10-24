@@ -35,7 +35,8 @@ def test_worker_frame_rejects_unknown_or_unsequenced_input(
 
 
 def test_worker_frame_rejects_oversized_line() -> None:
-    with pytest.raises(ProtocolError, match="size"):
+    from capstone_agent.application_capacity import CapacityExceeded
+    with pytest.raises(CapacityExceeded, match="control_document_bytes"):
         Frame.from_line(b"x" * (MAX_FRAME_BYTES + 1))
 
 

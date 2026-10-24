@@ -1,0 +1,15 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "enterprise-research-domain-pack"
+version = "1.0.0"
+requires-python = ">=3.12"
+dependencies = ["capability-agent-kernel==0.1.0"]
+
+[tool.uv.sources]
+capability-agent-kernel = { path = "../capability-agent-kernel", editable = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/enterprise_research"]

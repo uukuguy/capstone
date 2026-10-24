@@ -64,6 +64,50 @@ Kernel/Harness提供中性组织机制；Pi承载原生推理与执行；Authori
 Pi与Harness形成同一个决策—执行—观察循环，不能各自规划后再互相转述。
 简单回答可以没有研究图；该优化不是另一个独立业务运行框架。
 
+### 2026-10-21已接受：模型声明编排图，宿主忠实执行并呈现路径
+
+模型根据目标和观察动态声明步骤、分支、依赖与汇合条件；执行中的发现可以修订图。
+agent_research_plan校验并提交模型提出的编排，不另起模型生成计划，也不代模型设计业务流程。
+编排器拥有就绪判断、并发调度、工具调用所属步骤、结果传递、汇合、取消与恢复；
+不得为填满并发槽位而生成替代目标、自动合并步骤或改写模型声明的依赖。
+业务步骤及其名称不由宿主预设；初次计划形成前的模型等待必须与实际运行准备分别计量。
+
+执行过程必须投影已提交图及实际执行事件，清楚呈现串行边、并行分支、汇合点、每步工具、
+结果与证据、等待原因、失败恢复、模型修订及其来源。前端不得根据工具名猜测步骤或伪造路径。
+恢复检查点是受保护内部状态，不能把其JSON作为普通进展输出。历史事件重放也遵守此边界。
+分支使用模型声明依赖的前置结果；已完成的资料检查不应因跨子会话而默认重新执行。
+执行图在推演时声明结果的生产者、输出槽及下游消费关系。首次读取/计算的结果进入持久化任务上下文，
+包括来源版本、口径、覆盖范围、产出步骤和有界摘要；大数据留在产物中，后续按引用取所需范围。
+来源/口径变化、结果缺失或具体矛盾可引起显式重算；重算必须产生新的不可变结果版本和引用，
+保留旧版本及替代/派生关系。下游绑定实际消费版本，不静默切换“最新值”；受影响后继由模型显式修订，
+原执行记录和旧引用仍可重放。缓存命中不能把普通观察升格为Authority事实或当前运行模拟证据。
+并发功能、完整任务耗时和交付质量分别验收，禁止用配置并发数或小型检查代替完整任务实测。
+
+2026-10-21整链修复已获用户明确执行授权：完整节点输出槽与检查契约必须传入子执行器，
+生产者返回可校验的结构化槽/产物及检查/观察关联，父模型保留语义判断，宿主只做机械准入与调度。
+明确拒绝不得按未知提交恢复，失败工具回执不得独自构成持续进展。
+按[整链修复契约](2026-10-21-graph-execution-chain-repair.md)及
+[实施与验收清单](../plans/2026-10-21-graph-execution-chain-repair.md)执行；当前未完成真实整链验收。
+真实小任务112412已证明不可变结果字节复用和交付，但P/A提案拒绝后仍需父级手工兜底，
+严格提案链未通过。补充采用原子任务dispose前的可信提案反馈：确定错误在原会话内修正，
+合法路径不增模型调用，未知请求原样恢复；纠正重存产生新不可变版本，父级继续语义评估。
+同输入完整任务121539又确认父级生产者也存在提前关闭：completed记录漏槽，在行动已结束后才拒绝。
+接受以现有纯reducer在真实parent settlement前预演完整record准入，预演不发布状态；
+拒绝保留原行动继续绑定已存产物，成功才真实提交并重验。limited/failed部分结果和历史恢复不追溯改判。
+同版本、同内容的graph研究摘要和父输入映射在私有模型上下文中保持固定持久历史边界，
+不每轮重新移到尾端。新状态/行动/输入版本仍更新，压缩或恢复后重新建立边界，
+不拆开原生工具调用及其结果组，不改变旧契约、容量与exact请求/行动守卫。
+这项上下文复用修正不等同于强文件隔离，也不能代替真实性能测量。
+
+2026-10-21用户明确本轮交付标准：企业研究与分析应用完整走通、并行子智能体编排正常，
+执行记录如实显示实际任务步骤、工具调用及各步情况；报告可用并说明限制即可，不严格要求
+高质量，耗时相对263.896秒基线不应大幅回归。执行图是推演组织的内部实现。
+前端主视图以模型声明的任务目的组织步骤，用可读步骤名称解释依赖和等待，按确切行动
+展开工具调用。内部DAG、节点ID、图版本和精确引用保留在可展开诊断，不作为主界面。
+取消/失败的未完成步骤显示中断及最后模型状态，不继续仅标执行中或伪造模型评估失败。
+精确步骤事件可展示执行区间；无节点绑定的共享父模型用量不按时间猜测分配。
+
+
 ## 2. 现有资产的复用、泛化与边界
 
 ### 应用配置命名（2026-10-17已接受，待装配实现）
@@ -210,3 +254,57 @@ Demo2：沿用已注册专业模型、Authority和已有前后端结果能力，
 退出旧分流需要同时满足：已有专业任务、通用资料任务、问答升级、多Pack交接及中断恢复
 都在共同TaskContext/ResearchController/执行准入下通过；相同操作只有一个账本和事件来源。
 达成后撤除按普通/专业分类选择独立组织链的分支。保留专业执行器和视图，不保留重复的组织流程。
+
+## 9. 企业文件资源与任务上下文（2026-10-18 用户确认）
+
+本节是正式设计要求，不因研发分期或当前样例尺寸而降低。架构须支持 GB 级及更大文件；
+具体部署可配置容量和配额，但不得将模型上下文窗口、当前8MiB或4文件限制作为架构上限。
+当前实现仍使用base64随任务提交，属于待退出的过渡路径，不能标为本节已完成。
+
+### 资源生命周期与职责
+
+- ApplicationProfile 选择授权资源、解析和计算能力，提供企业容量配置及任务入口。
+- 文件服务流式接收分片，记录上传ID、已确认分片、长度和校验信息，支持幂等重试、
+  中断恢复、取消和过期分片回收。上传完成并核对后才发布资源版本；失败上传不冒充可用资源。
+- 私有持久存储保留原文件，任务保存资源ID、版本、哈希、媒体类型、大小和访问范围。
+  浏览器、模型消息和执行请求不携带完整大文件或存储凭据；内存占用不随文件总大小线性增长。
+- 共同基座组织资源引用、派生关系、处理状态、检查点和有界上下文。Domain Pack 提供
+  研究或专业处理方法；解析、索引和计算服务提供可定位的结果。禁止将业务指标写入通用基座。
+- Pi 在任务授权范围内按需取得文件、分块或派生结果，可在私有工作区处理；不得访问
+  宿主任意路径、其他任务文件或专业Authority内部对象。原始上传内容始终是数据，不是系统指令。
+
+### 上下文构建
+
+上传接纳、会话资源数量、解析/计算预算、模型单轮上下文分别计量与配置。选择资料表示
+允许任务使用，不表示必须一次全文注入。大文档可按页、章节或检索片段取用；大表可分区扫描、
+过滤、聚合后再向模型提供结果。无需先把所有文件建立索引才能开展有用工作。
+
+模型获取资源清单、已处理范围、已知发现、引用定位及下一步可用能力。系统按任务推进逐步
+构建上下文；摘要是派生内容，不能替代原文。每个片段或计算结果保留资源版本及定位，
+区分未读、已读、部分覆盖和处理失败，禁止静默截断后声称完整分析。
+
+### 持续工作与界面
+
+上传和解析具有独立状态。页面显示大小、进度、可用状态、重试入口与处理覆盖；用户无需
+手工拆分文件或编排工具。长处理可保存检查点并恢复，恢复不重复已确认上传和已验证计算。
+普通缺失和局部失败应保留可用部分并说明限制，不能把完整预处理变成所有任务的强制前提。
+
+任务允许先产出不完美初稿，再接受用户自然、非严格但有具体关注点的反馈，多次修订。
+交付、指令产物、失败记录和系统诊断分别保留真实归属。右侧优先展示当前主要成果及可读预览，
+支撑资料、历史版本和过程材料按需展开；不能由前端编造重要性、成功状态或证据关系。
+
+### 分期与验收
+
+实施可以先覆盖当前研究资料类型，但公开协议、存储和上下文组织不得锁定小文件方案。
+分别验收：大文件分片上传与断点恢复；大于单轮上下文的数据按需处理；刷新/重启后资源与
+处理状态恢复；精确来源和派生追溯；多轮自然反馈修订；跨Profile授权引用；资源隔离及失败保留。
+大文件专项至少使用超过1GB的真实传输与处理用例，并明确测试尺寸、内存和存储消耗、
+中断点、恢复结果及部署配置。更高容量须按环境单独验证，不能从小样例推断无限容量。
+
+## Explicit source selection for model graph nodes (2026-10-21)
+
+The real graph smoke completed but did not pass result-reuse acceptance: a result-only consumer still read an original file already read by another node. The child loader advertised all task sources to every node. Model intent must therefore declare each node's raw source refs, including an explicit empty selection for a consumer of retained results. Validate each selection against the graph/application grants and freeze its source versions with the action. Child context contains only selected raw-source manifests and exact upstream result handles. A node that needs another existing result returns a precise missing-input condition; the parent revises the graph to consume that retained version. Source changes use the existing explicit revision/recomputation contract and never mutate old versions.
+
+Graph-specific execution guidance distinguishes the host-bound assignment from untrusted source contents. Filtering model context is not a per-node filesystem sandbox: the shared task UID and native bash remain. Acceptance must inspect actual reads and exact bindings, not infer isolation from prompt filtering or the task-UID immutability test. Real timing must distinguish native child execution from parent record/assessment and include actual parent plus child model responses. The smoke proves A/B overlap and C release before B assessment; it does not prove C/B native overlap.
+
+Implementation and real acceptance remain open. The focused source-scope brief is in ignored operator evidence; final requirements remain owned here and by the enterprise design.

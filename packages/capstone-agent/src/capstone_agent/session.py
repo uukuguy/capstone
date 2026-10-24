@@ -12,7 +12,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Mapping
 
-from capstone_agent.protocol import MAX_FRAME_BYTES, Frame, ProtocolError
+from capstone_agent.protocol import Frame, ProtocolError
+from capstone_agent.application_capacity import CapacityExceeded, limits
 
 
 _SCRIPTED_ENV_NAMES = frozenset({
@@ -289,7 +290,7 @@ class WorkerSession:
         assert process is not None and process.stdout is not None
         expected = 1
         try:
-            while raw := process.stdout.readline(MAX_FRAME_BYTES + 1):
+            while raw := process.stdout.readline(limits.control_document_bytes + 1):
                 event = Frame.from_line(raw, expected_sequence=expected)
                 if event.session_id != self.session_id or event.kind not in {
                     "ready", "progress", "answer_committed", "network_view", "network_view_unavailable",
@@ -326,6 +327,11 @@ class WorkerSession:
                         and not any(event.kind == "completed" for event in self._events)):
                     self._failure = "application worker disconnected"
                     self._failure_code = "worker_disconnected"
+                self._condition.notify_all()
+        except CapacityExceeded:
+            with self._condition:
+                self._failure = 'application worker exceeded the configured frame capacity'
+                self._failure_code = 'capacity_exceeded'
                 self._condition.notify_all()
         except (ProtocolError, OSError):
             with self._condition:

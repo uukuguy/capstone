@@ -22,6 +22,8 @@ _FIELDS = {'schema', 'workspace_id', 'snapshot_id', 'history_cutoff', 'selection
            'object_refs', 'goals', 'constraints', 'materials', 'outcomes', 'coverage'}
 _SOURCE_KINDS = {'workspace', 'user', 'historical_authority', 'external_observation', 'pi_observation'}
 
+from .application_capacity import limits
+
 
 def _fields(value, fields):
     if type(value) is not dict or set(value) != set(fields):
@@ -106,7 +108,7 @@ def _validate(document):
         identities.add(item[key])
 
     workspace = document['workspace_id']
-    for item in _items(document['object_refs'], MAX_OBJECTS):
+    for item in _items(document['object_refs'], limits.context_references):
         _fields(item, {'object_id', 'display_name', 'kind', 'version', 'relation', 'source'})
         identity(item, 'object_id')
         _text(item['display_name'])
@@ -122,20 +124,20 @@ def _validate(document):
             _text(item['text'], limit=8192)
             _source(item['source'], workspace, user=True)
     total_material_bytes = 0
-    for item in _items(document['materials'], MAX_MATERIALS):
+    for item in _items(document['materials'], limits.inline_material_count):
         _fields(item, {'material_id', 'kind', 'summary', 'content_hash', 'size_bytes',
                        'availability', 'purpose', 'source'})
         identity(item, 'material_id')
         _text(item['kind'], limit=64)
         _text(item['summary'], limit=4096)
         _hash(item['content_hash'])
-        _integer(item['size_bytes'], MAX_MATERIAL_BYTES)
+        _integer(item['size_bytes'], limits.inline_material_bytes)
         total_material_bytes += item['size_bytes']
         if type(item['availability']) is not str or item['availability'] not in {'available', 'unavailable', 'revoked'}:
             raise ValueError('business material availability is invalid')
         _text(item['purpose'], limit=1024)
         _source(item['source'], workspace)
-    if total_material_bytes > MAX_TOTAL_MATERIAL_BYTES:
+    if total_material_bytes > limits.inline_material_bytes:
         raise ValueError('business materials exceed aggregate byte bounds')
     for item in _items(document['outcomes']):
         _fields(item, {'outcome_id', 'kind', 'summary', 'object_refs', 'source'})
@@ -144,7 +146,7 @@ def _validate(document):
             raise ValueError('business outcome kind is invalid')
         _text(item['summary'], limit=4096)
         seen_objects = set()
-        for ref in _items(item['object_refs'], MAX_OBJECTS):
+        for ref in _items(item['object_refs'], limits.context_references):
             _fields(ref, {'object_id', 'version'})
             _text(ref['object_id'])
             _hash(ref['version'])
@@ -173,7 +175,7 @@ class BusinessContext:
 
     def __init__(self, document: dict):
         serialized = _canonical(document)
-        if len(serialized.encode('utf-8')) > MAX_CONTEXT_BYTES:
+        if len(serialized.encode('utf-8')) > limits.native_context_bytes:
             raise ValueError('business context exceeds byte bounds')
         _validate(json.loads(serialized))
         object.__setattr__(self, '_document_json', serialized)

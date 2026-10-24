@@ -1,5 +1,11 @@
 # Unified Enterprise Execution Implementation Plan
 
+2026-10-22当前校准：规划策略属于共享执行层，应用/Pack仅适配授权能力、来源、领域约束与交付。App1.13/Pack1.11先验证研究入口，电网/复杂聊天未接通。原始请求235939三路并行64.165秒，但218.375秒按failure收口、无报告，不通过146秒（145.914727秒）基线。步骤号和标题行计量已修订，282项App检查/类型通过；独立复审未完成，无Git/cloud/demo变更。以ROOT最新RESUME和编排修复记录为恢复入口，不继续采用旧263.896秒口径。
+
+2026-10-17当前纵向切片：按[持续工作会话计划](2026-10-17-continuous-work-session.md)细化Task 2–6。
+优先组织对象、阶段任务、指令过程制品（含失败）、显式引用及用户按需多次发起的任务级交付。
+标题栏仅呈现这一主链路的状态，不作为核心能力替代；交付不是会话结束或默认文字总结。
+
 > For agentic workers: execute this plan task-by-task, with review and focused verification after each task. Use the applicable implementation and review skills. Do not treat the design prototype as production code.
 
 **Goal:** 在保留已有业务能力和数据的基础上，将专用与通用执行接入同一个长程自主组织机制。
@@ -20,6 +26,38 @@ wire协商、对象CAS、命令生效与检查来源采用[协议决定](../spec
 **Tech Stack:** 现有Python/FastAPI/PostgreSQL/私有对象存储、Pi SDK 0.84.4、React/TypeScript/Vite；不新增第二套框架。
 
 ## 全局约束
+
+### 2026-10-21活动修正：忠实编排与执行路径
+
+当前执行入口：[整链契约修复计划](2026-10-21-graph-execution-chain-repair.md)。
+653.118秒/119响应取消已判定机制验收失败；用户已明确要求贯通整条链，
+按完整节点契约、结构化结果准入、语义判断与拒绝/恢复/交付状态推进，不再用局部通过代替完成。
+112412小任务199.794秒已交付且实际引用字节一致，P/A提案需手工兜底，严格链未过。
+活动修正增加原child结束前的提案校验反馈，保留累计预算/用量、未知原请求恢复及不可变版本；
+先完成该接缝的源码复核和真实提案链，再启动完整同输入基线比较。
+正常契约小任务120512已通过typed记录、父显式评估与确切版本摘要复用；完整121539仍在653.573秒取消未交付。
+实际completed漏槽记录先结束行动、后在评估拒绝，导致恢复绕路；活动清单新增父settlement前完整record纯预演。
+该预演已独立复审并部署52e5/8a97，181JS/52Python和33部署源码检查通过，真实模型待验收。
+两个graph上下文hook把未变摘要/输入映射每轮移到尾端的问题已复现；活动修正为共享稳定位置，
+新状态或版本仍即时更新，保留工具配对、压缩恢复及exact请求守卫，不据此宣称Provider提速。
+用户当前验收为完整应用、真实并行子编排、忠实任务步骤/工具/状态和不过大回归的总耗时；
+报告可用并说明限制即可。执行图仅为内部实现，取消面向用户的内部图示要求，主视图展示
+任务目的和真实执行展开，内部ID/图版本等放诊断详情。补取消终态叠层及精确步骤区间，
+不以新增父模型逐节点用量契约或高质量报告扩大当前门槛。
+聚合CSV的84项数值核对通过不等于交付或性能通过；并行零分支是本轮模型选择父级连续图，不解释全部耗时。
+
+- [x] 盘点Git与保留恢复引用；原文/四同SHA资料完成557.789秒实测。三路重叠108.129秒，但较263.896秒慢111.367%，未接受新性能/质量基线。
+- 2026-10-21当前状态覆盖：内部图执行、完整子契约、typed提案、父record预检、稳定上下文和用户任务步骤已实现并局部验证，local-dev部署5143/319f；仍未合dev、未云端验收。142026于379.306秒因异常消耗取消、报告未开始；真实自动并发成立，但分支各承担完整分析/作图，实际256+8轮预算未收束，limited结果无法供下游汇总。下一切片为Application自主规划、有界生产者/诚实部分交接及显式确切limited输入，见[整链修正](../specs/2026-10-21-graph-execution-chain-repair.md)。正式验收不得附加技术并行提示；以下未勾选项保留整链验收未通过含义，不否认已验证的局部实现。
+- [x] 源码修复内部runtime.dispatch检查点进入公开进展；历史重放也过滤，恢复字节保留。待规范重建及实际界面验证。
+- [ ] 撤出宿主host-ready合并目标策略；保留模型原步骤、依赖与汇合，由编排器执行声明图。不得新增固定“计划/资料/分析/报告”业务步骤。
+- [ ] 复用enterprise-cycle-state、enterprise-research-runtime、delegation-scheduler与task_steps；记录就绪/执行/等待/汇合及准确工具归属，按声明依赖传递前置观察。
+- [ ] 图中声明生产者/输出槽/消费者，结果与有界摘要写入既有任务上下文；下游取引用。重算新增不可变版本和替代关系，绑定消费版本，保留旧执行重放，不静默覆盖或重绑。
+- [ ] 经native_research_bridge受检投影有版本的公开编排记录；复用TaskStepProcess及现有工作台交互，展示实际路径和修订，不展示私有检查点。
+- [ ] 先用保留原节点/边、真实并发、依赖未满足不启动、步骤工具绑定、失败/取消/恢复及历史重放回归，再运行同输入完整实测；记录首次模型等待、前置轮次、各分支和汇总成本。
+
+涉及文件：capstone-agent/resources/enterprise-cycle-state.mjs、enterprise-research-runtime.mjs、general-sdk.mjs、delegation-tool.mjs；native_research_bridge.py、task_steps.py、execution_stages.py；capstone-app/taskProgress.ts、TaskStepProcess.tsx及对应测试。当前只完成检查点公开投影修复，不能把设计或已有三路试验写成多步骤编排闭环。
+
+后续实现遵守定稿“2026-10-21已接受”节；不强制固定阶段，不削弱事实准入、权限、产品版本绑定或持久化。
 
 - 以[定稿v1](../specs/2026-10-15-enterprise-design-final.md)为准，修订旧文档中的平行Work控制面提案。
 - Thread event_seq、现有命令幂等/回执及worker领取机制继续作为真相来源；Work状态是关联聚合。
@@ -308,3 +346,11 @@ expect(selectedResult.attemptId).toBe(selectedCandidate.attemptId)
 生产切换使用已验证的应用装配与协议版本组合；加法数据结构不代表旧解析器自动兼容。
 回退须保留新旧任务及证据，未被旧版本支持的任务保持可恢复，不回滚删除用户数据。
 实施完成须覆盖每个切片和所有R1–R7关闭证据；设计资产检查通过仅证明本计划输入一致。
+
+## Explicit source selection for model graph nodes (2026-10-21)
+
+The real graph smoke completed but did not pass result-reuse acceptance: a result-only consumer still read an original file already read by another node. The child loader advertised all task sources to every node. Model intent must therefore declare each node's raw source refs, including an explicit empty selection for a consumer of retained results. Validate each selection against the graph/application grants and freeze its source versions with the action. Child context contains only selected raw-source manifests and exact upstream result handles. A node that needs another existing result returns a precise missing-input condition; the parent revises the graph to consume that retained version. Source changes use the existing explicit revision/recomputation contract and never mutate old versions.
+
+Graph-specific execution guidance distinguishes the host-bound assignment from untrusted source contents. Filtering model context is not a per-node filesystem sandbox: the shared task UID and native bash remain. Acceptance must inspect actual reads and exact bindings, not infer isolation from prompt filtering or the task-UID immutability test. Real timing must distinguish native child execution from parent record/assessment and include actual parent plus child model responses. The smoke proves A/B overlap and C release before B assessment; it does not prove C/B native overlap.
+
+Implementation and real acceptance remain open. The focused source-scope brief is in ignored operator evidence; final requirements remain owned here and by the enterprise design.

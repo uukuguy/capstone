@@ -2,10 +2,22 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from capstone_agent.conversation_context import ConversationContext, project_conversation, MAX_HISTORY_BYTES
+from capstone_agent.conversation_context import ConversationContext, project_conversation
+from capstone_agent.application_capacity import current_capacity, initialize_capacity
 from capstone_agent.thread_service import ThreadExecutionError
 from test_thread_attempts import _model_service, _command, _ModelCatalog, _AnySelectionCatalog
 from test_thread_postgres import postgres_thread_service, _snapshot, _command as postgres_command
+
+
+@pytest.fixture
+def small_history_capacity():
+    original = current_capacity()
+    try:
+        yield initialize_capacity({'history_turn_count': 16,
+                                   'history_context_bytes': 32 * 1024,
+                                   'history_message_bytes': 2048})
+    finally:
+        initialize_capacity(original)
 
 
 def send(service, text, key, kind="send_ordinary", payload=None):
@@ -59,7 +71,7 @@ def test_cancel_retry_uses_original_history_cutoff_and_excludes_partial_text():
     assert retry.attempt.attempt_id != cancelled.attempt.attempt_id
 
 
-def test_shared_history_is_bounded_and_marks_truncation():
+def test_shared_history_is_bounded_and_marks_truncation(small_history_capacity):
     service = _model_service()
     for ordinal in range(18):
         claim = send(service, "request " + str(ordinal), str(ordinal))
@@ -67,7 +79,7 @@ def test_shared_history_is_bounded_and_marks_truncation():
     latest = send(service, "latest", "latest")
     document = latest.conversation_context.to_document()
     assert document["truncated"] is True
-    assert len(document["messages"]) == 32
+    assert len(document["messages"]) == small_history_capacity.values['history_turn_count'] * 2
     assert document["messages"][0]["content"] == "request 2"
 
 
@@ -87,7 +99,7 @@ def test_frozen_attempt_input_retains_config_across_retry_and_returns_copies():
         service.freeze_attempt_input(first, {})
 
 
-def test_unicode_history_keeps_eight_recent_turns_within_byte_budget():
+def test_unicode_history_keeps_eight_recent_turns_within_byte_budget(small_history_capacity):
     rows = [{"instruction": "电" * 10000, "answer": "网" * 10000,
              "turn_id": "turn_" + str(i), "attempt_id": "attempt_" + str(i),
              "model_context_id": "context", "status": "completed"} for i in range(16)]
@@ -95,7 +107,7 @@ def test_unicode_history_keeps_eight_recent_turns_within_byte_budget():
     document = context.to_document()
     assert document["truncated"] is True
     assert len({m["turn_id"] for m in document["messages"]}) >= 8
-    assert sum(len(m["content"].encode()) for m in document["messages"]) <= MAX_HISTORY_BYTES
+    assert sum(len(m["content"].encode()) for m in document["messages"]) <= small_history_capacity.values['history_context_bytes']
     assert ConversationContext.from_document(document) == context
 
 

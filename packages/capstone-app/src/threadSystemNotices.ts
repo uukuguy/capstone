@@ -1,5 +1,15 @@
+import {applicationCapacity,observeCapacity} from './applicationCapacity'
 import type { ThreadMessageLike } from '@assistant-ui/react'
-import type { EventEnvelope } from './threadProtocol'
+import type { EventEnvelope,ThreadSnapshot } from './threadProtocol'
+
+export function resultProjectionHistoryText(snapshot?:ThreadSnapshot|null):string|undefined{
+  const value=snapshot?.applicationState?.result_projection_history
+  if(!value||typeof value!=='object'||Array.isArray(value))return
+  const history=value as Record<string,unknown>
+  if(history.has_more!==true||!Number.isSafeInteger(history.omitted_count)||(history.omitted_count as number)<1
+    ||history.model_context_id!==null&&history.model_context_id!==snapshot?.activeModelContext.id)return
+  return `当前快照未包含 ${history.omitted_count} 份较早结果；可在成果目录的会话历史或更早消息中查看完整记录。`
+}
 
 /** Client presentation only: never a command, answer or authority record. */
 export type ThreadSystemNotice = {
@@ -13,7 +23,8 @@ export type ThreadSystemNotice = {
 
 export function upsertSystemNotice(items: readonly ThreadSystemNotice[], notice: ThreadSystemNotice): ThreadSystemNotice[] {
   const index = items.findIndex((item) => item.id === notice.id)
-  if (index < 0) return [...items, notice].slice(-100)
+  if(index<0)observeCapacity(items.length+1,'ui_cache_items','notices.retain')
+  if (index < 0) return [...items, notice].slice(-applicationCapacity('ui_cache_items'))
   const next = [...items]
   next[index] = { ...notice, afterEventSeq: items[index].afterEventSeq }
   return next

@@ -291,7 +291,7 @@ def test_read_chain_reads_marker_at_exact_max_plus_one_bound(
 
     read_chain(entry)
 
-    assert marker_reads[0] == MARKER_MAX_BYTES + 1
+    assert marker_reads[0] == min(64*1024,segments_module.runtime_limits()['context_manifest_bytes']+1)
 
 
 def test_read_chain_rejects_oversize_manifest_and_segment(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -302,7 +302,8 @@ def test_read_chain_rejects_oversize_manifest_and_segment(tmp_path: Path, monkey
         read_chain(entry)
 
     entry = _write_layout(tmp_path / "segment", (manifest,), ((digest, raw),))
-    monkeypatch.setattr(segments_module, "SEGMENT_MAX_BYTES", len(raw) - 1)
+    defaults=dict(segments_module.runtime_limits())
+    monkeypatch.setattr(segments_module,'runtime_limits',lambda:{**defaults,'context_segment_bytes':len(raw)-1})
     with pytest.raises(SegmentStorageError):
         read_chain(entry)
 

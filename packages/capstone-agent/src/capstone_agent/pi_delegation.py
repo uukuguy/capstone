@@ -24,13 +24,49 @@ from .business_context import BusinessContext
 from .request_intent import NodeControl
 
 MAX_DOCUMENT_BYTES = 256 * 1024
+from .native_document_types import MAX_NATIVE_TASK_BYTES
+MAX_TASK_DOCUMENT_BYTES = MAX_NATIVE_TASK_BYTES
 CANCELLATION_TIMEOUT_SECONDS = 0.5
+TASK_EXCHANGE_TIMEOUT_SECONDS = 5.0
+
+
+class PiTransportTimeout(TimeoutError):
+    """A communication interruption; it says nothing about task completion."""
+    transport_phase: str = ''
+    operation: str = 'unknown'
+
+    @property
+    def diagnostic(self):
+        return {'operation': self.operation, 'transport_phase': self.transport_phase}
+
+
+class PiTransportUnavailable(RuntimeError):
+    """A transient connection failure, distinct from invalid task contracts."""
+    transport_phase: str = ''
+
+
+class PiHTTPFailure(RuntimeError):
+    """Non-retryable host rejection with allowlisted public diagnostics only."""
+    def __init__(self, status, code):
+        self.diagnostic = {'operation': 'unknown', 'http_status': status, 'protocol_code': code}
+        super().__init__('Pi executor transport failed; task state may be unknown')
+
+    def __str__(self):
+        value = self.diagnostic
+        return ('Pi executor HTTP request rejected: operation=' + value['operation']
+                + ', status=' + str(value['http_status']) + ', code=' + value['protocol_code'])
+
+
+class PiArtifactTransportUnavailable(OSError):
+    """Retry the same receipt-selected file; never restart its completed task."""
 STATUSES = frozenset({"completed", "needs_clarification", "capability_unavailable", "failed", "cancelled"})
 _FORBIDDEN = {"authority", "authority_refs", "result_refs", "evidence_refs", "model_revision",
               "api_key", "credentials", "password", "token", "secret", "endpoint"}
 _TASK_V1_FIELDS = ('task_id', 'parent_attempt_id', 'entrypoint', 'instruction',
                    'messages', 'dependency_results', 'executor_identity', 'timeout_seconds')
 _TASK_V2_FIELDS = ('business_context', 'resource_profile', 'input')
+
+from .application_capacity import limits, current_capacity
 
 
 def _json_document(value: object) -> dict:
@@ -39,7 +75,7 @@ def _json_document(value: object) -> dict:
     def visit(item, depth=0):
         nonlocal nodes
         nodes += 1
-        if depth > 12 or nodes > 8192:
+        if depth > limits.json_depth or nodes > limits.json_nodes:
             raise ValueError("Pi JSON exceeds structural bounds")
         if isinstance(item, Mapping):
             if any(not isinstance(k, str) or len(k) > 256 for k in item):
@@ -53,14 +89,14 @@ def _json_document(value: object) -> dict:
             return item
         if type(item) is float and math.isfinite(item):
             return item
-        if isinstance(item, str) and len(item.encode("utf-8")) <= 65536:
+        if isinstance(item, str) and len(item.encode("utf-8")) <= limits.native_task_bytes:
             return item
         raise ValueError("Pi values must be bounded finite JSON")
 
     document = visit(value)
     if not isinstance(document, dict):
         raise ValueError("Pi document must be an object")
-    if len(json.dumps(document, ensure_ascii=False, allow_nan=False).encode()) > MAX_DOCUMENT_BYTES:
+    if len(json.dumps(document, ensure_ascii=False, allow_nan=False).encode()) > limits.control_document_bytes:
         raise ValueError("Pi JSON exceeds byte bounds")
     return document
 
@@ -128,6 +164,8 @@ class PiTaskRequest:
     business_context: BusinessContext | Mapping | None = field(default=None, kw_only=True)
     resource_profile: Mapping | None = field(default=None, kw_only=True)
     input: Mapping | None = field(default=None, kw_only=True)
+    native_context: Mapping | None = field(default=None, kw_only=True)
+    research_binding: Mapping | None = field(default=None, kw_only=True)
 
     def __post_init__(self):
         document = _json_document({name: getattr(self, name) for name in _TASK_V1_FIELDS})
@@ -137,9 +175,11 @@ class PiTaskRequest:
             raise ValueError("Pi entrypoint is invalid")
         if not isinstance(self.instruction, str) or not self.instruction.strip():
             raise ValueError("Pi instruction is required")
+        from .application_capacity import require_capacity
+        require_capacity('input_text_chars', len(self.instruction), 'native_admission')
         _identity(document["executor_identity"])
         if (type(self.timeout_seconds) not in {int, float} or not math.isfinite(self.timeout_seconds)
-                or not 0 < self.timeout_seconds <= 3600):
+                or self.timeout_seconds <= 0):
             raise ValueError("Pi timeout is invalid")
         if not isinstance(document["messages"], list) or not isinstance(document["dependency_results"], list):
             raise ValueError("Pi context must contain lists")
@@ -150,7 +190,7 @@ class PiTaskRequest:
             if message["message_id"] in seen:
                 raise ValueError("duplicate Pi message identity")
             seen.add(message["message_id"])
-        if len(document["dependency_results"]) > 16:
+        if len(document["dependency_results"]) > limits.context_references:
             raise ValueError("too many Pi dependency results")
         seen = {self.task_id}
         for dependency in document["dependency_results"]:
@@ -173,6 +213,19 @@ class PiTaskRequest:
             object.__setattr__(self, 'business_context', context)
             object.__setattr__(self, 'resource_profile', profile)
             object.__setattr__(self, 'input', task_input)
+        if self.native_context is not None:
+            from .native_task_context import checked_native_context
+            if self.business_context is None:
+                raise ValueError('native context requires typed Pi input')
+            object.__setattr__(self, 'native_context', _freeze(checked_native_context(self.native_context)))
+        if self.research_binding is not None:
+            from .native_research_bridge import checked_binding
+            if self.business_context is None:
+                raise ValueError('research channel requires typed Pi input')
+            binding = checked_binding(json.loads(json.dumps(_json_document(self.research_binding))))
+            if binding['attempt_id'] != self.parent_attempt_id:
+                raise ValueError('research producer identity changed')
+            object.__setattr__(self, 'research_binding', _freeze(binding))
         # Include the schema and every v2 field in the total transport budget.
         self.to_document()
 
@@ -185,9 +238,10 @@ class PiTaskRequest:
             document = _json_document(document)
             _fields(document, _TASK_V1_FIELDS, schema)
         elif schema == 'capstone-pi-task/2':
-            _fields(document, _TASK_V1_FIELDS + _TASK_V2_FIELDS, schema)
+            optional = tuple(key for key in ('native_context', 'research_binding') if key in document)
+            _fields(document, _TASK_V1_FIELDS + _TASK_V2_FIELDS + optional, schema)
             base = _json_document({key: document[key] for key in _TASK_V1_FIELDS})
-            document = {'schema': schema, **base, **{key: document[key] for key in _TASK_V2_FIELDS}}
+            document = {'schema': schema, **base, **{key: document[key] for key in _TASK_V2_FIELDS + optional}}
             if any(document[key] is None for key in _TASK_V2_FIELDS):
                 raise ValueError('Pi v2 fields cannot be null')
         else:
@@ -200,13 +254,45 @@ class PiTaskRequest:
         if self.business_context is not None:
             document.update(schema='capstone-pi-task/2', business_context=cast(BusinessContext, self.business_context).to_document(),
                             resource_profile=_json_document(self.resource_profile), input=_json_document(self.input))
-        if len(json.dumps(document, ensure_ascii=False, allow_nan=False).encode('utf-8')) > MAX_DOCUMENT_BYTES:
+        if self.native_context is not None:
+            from .native_task_context import checked_native_context
+            document['native_context'] = checked_native_context(self.native_context)
+        if self.research_binding is not None:
+            document['research_binding'] = _json_document(self.research_binding)
+        byte_limit = limits.native_task_bytes if self.native_context is not None else limits.control_document_bytes
+        if len(json.dumps(document, ensure_ascii=False, allow_nan=False).encode('utf-8')) > byte_limit:
             raise ValueError('Pi JSON exceeds byte bounds')
         return document
 
 
 def _validate_result(document, task_id, parent_attempt_id, executor_identity):
-    _fields(document, PiTaskResult.__dataclass_fields__, "capstone-pi-task-result/1")
+    fields = set(PiTaskResult.__dataclass_fields__) - {'failure'}
+    if 'failure' in document:
+        fields.add('failure')
+        failure = document['failure']
+        if (document.get('status') != 'failed' or not isinstance(failure, dict)
+                or set(failure) - {'capacity'} != {'code', 'phase'}
+                or failure['phase'] not in {'execution', 'persistence'}):
+            raise ValueError('Pi failure fields are invalid')
+        _id(failure['code'])
+        if 'capacity' in failure:
+            capacity = failure['capacity']
+            debug_fields={'mode','fatal','effective','source','location'} if isinstance(capacity,dict) and capacity.get('mode')=='debug' else set()
+            if (not isinstance(capacity, dict) or set(capacity)-debug_fields != {
+                    'code', 'dimension', 'actual', 'limit', 'unit', 'phase', 'retryable'}
+                    or capacity['code'] != 'capacity_exceeded' or capacity['retryable'] is not False
+                    or not isinstance(capacity['dimension'], str)
+                    or capacity['dimension'] not in current_capacity().values
+                    or type(capacity['actual']) is not int or type(capacity['limit']) is not int
+                    or not 0 <= capacity['limit'] < capacity['actual']
+                    or capacity['unit'] not in {'bytes', 'seconds', 'items', 'chars', 'tokens'}
+                    or capacity['phase'] is not None and (not isinstance(capacity['phase'], str)
+                        or len(capacity['phase']) > 128)):
+                raise ValueError('Pi capacity failure fields are invalid')
+            if debug_fields and (capacity.get('fatal') is not True or capacity.get('effective')!=capacity['limit']
+                    or capacity.get('source')!='application_capacity' or capacity.get('location')!=capacity['phase']):
+                raise ValueError('Pi debug capacity failure fields are invalid')
+    _fields(document, fields, "capstone-pi-task-result/2" if 'failure' in document else "capstone-pi-task-result/1")
     _id(document["task_id"])
     _id(document["parent_attempt_id"])
     _identity(document["executor_identity"])
@@ -220,7 +306,7 @@ def _validate_result(document, task_id, parent_attempt_id, executor_identity):
         raise ValueError("Pi usage must be an object")
     for collection, identity_key in (("sources", "source_id"), ("artifacts", "artifact_id")):
         items = document[collection]
-        if not isinstance(items, list) or len(items) > 64:
+        if not isinstance(items, list) or len(items) > (limits.artifact_count if collection == 'artifacts' else limits.context_references):
             raise ValueError("Pi references exceed bounds")
         seen = set()
         for item in items:
@@ -246,13 +332,15 @@ class PiTaskResult:
     sources: tuple
     artifacts: tuple
     usage: Mapping
+    failure: Mapping | None = None
 
     def __post_init__(self):
-        document = {"schema": "capstone-pi-task-result/1", **_json_document(
-            {field: getattr(self, field) for field in self.__dataclass_fields__})}
+        document = self.to_document()
         _validate_result(document, self.task_id, self.parent_attempt_id, document["executor_identity"])
         for field in ("sources", "artifacts", "usage", "executor_identity"):
             object.__setattr__(self, field, _freeze(document[field]))
+        if self.failure is not None:
+            object.__setattr__(self, 'failure', _freeze(document['failure']))
 
     @classmethod
     def from_document(cls, document, request: PiTaskRequest):
@@ -262,8 +350,9 @@ class PiTaskResult:
         return cls(**{k: v for k, v in document.items() if k != "schema"})
 
     def to_document(self):
-        return {"schema": "capstone-pi-task-result/1", **_json_document(
-            {field: getattr(self, field) for field in self.__dataclass_fields__})}
+        return {"schema": "capstone-pi-task-result/2" if self.failure is not None else "capstone-pi-task-result/1", **_json_document(
+            {field: getattr(self, field) for field in self.__dataclass_fields__
+             if field != 'failure' or self.failure is not None})}
 
 
 @runtime_checkable
@@ -277,14 +366,16 @@ class GeneralPiExecutor(Protocol):
     def execute(self, request: PiTaskRequest, control: NodeControl,
                 on_event: Callable[[dict], None]) -> PiTaskResult: ...
 
-    def cancel(self, task_id: str) -> None: ...
+    def cancel(self, task_id: str) -> PiTaskResult | None: ...
 
 
 class HttpGeneralPiExecutor:
     """Host-selected private transport. Requests cannot select an origin."""
 
     def __init__(self, origin: str, *, identity: Mapping, capability: Mapping,
-                 poll_interval_seconds: float = 0.05, control_token: str | None = None):
+                 poll_interval_seconds: float = 0.05, control_token: str | None = None,
+                 exchange_timeout_seconds: float | None = None,
+                 cancellation_timeout_seconds: float | None = None):
         parsed = urlsplit(origin)
         if (parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username
                 or parsed.password or parsed.path not in {"", "/"} or parsed.query or parsed.fragment):
@@ -297,6 +388,11 @@ class HttpGeneralPiExecutor:
         self._identity = _freeze(identity)
         self._capability = _freeze(_json_document(capability))
         self._poll_interval = poll_interval_seconds
+        self._exchange_timeout = limits.native_exchange_seconds if exchange_timeout_seconds is None else exchange_timeout_seconds
+        self._cancel_timeout = limits.native_cancel_seconds if cancellation_timeout_seconds is None else cancellation_timeout_seconds
+        if any(type(value) not in {int, float} or not math.isfinite(value) or value <= 0
+               for value in (self._exchange_timeout, self._cancel_timeout)):
+            raise ValueError('Pi transport timeouts are invalid')
         self._headers = {"Authorization": "Bearer " + control_token} if control_token else {}
 
     @property
@@ -307,27 +403,69 @@ class HttpGeneralPiExecutor:
     def capability(self):
         return self._capability
 
-    def _call(self, method, path, *, document=None, timeout=0.25,
-              total_timeout=0.25, checkpoint=lambda: None):
+    def network_policy(self):
+        return self._call('GET', '/network-policy', timeout=2, total_timeout=3)
+
+    def set_network_policy(self, enabled: bool):
+        if type(enabled) is not bool:
+            raise ValueError('external_access must be a boolean')
+        return self._call('POST', '/network-policy', document={'external_access': enabled},
+                          timeout=12, total_timeout=13)
+
+    def _call(self, method, path, *, document=None, timeout=None,
+              total_timeout=None, checkpoint=lambda: None, research_transport=False,
+              capacity_dimension=None, capacity_phase='native_http'):
         """Bound the entire exchange, including response headers and slow reads.
 
         Application workers call this synchronous API from their worker threads.
         The private async loop lets the total timer interrupt network awaits.
         """
+        from .application_capacity import limits, observe_capacity
+        if timeout is None:
+            timeout=limits.native_http_wait_ms/1000
+            capacity_dimension=capacity_dimension or 'native_http_wait_ms'
+        if total_timeout is None:
+            total_timeout=limits.native_http_wait_ms/1000
+        started=time.monotonic()
         checkpoint()
 
         async def fetch():
             async with httpx.AsyncClient(trust_env=False, follow_redirects=False, headers=self._headers) as client:
                 async with client.stream(method, self._origin + path, json=document, timeout=timeout) as response:
-                    response.raise_for_status()
                     body = bytearray()
                     async for chunk in response.aiter_bytes():
                         checkpoint()
                         body.extend(chunk)
-                        if len(body) > MAX_DOCUMENT_BYTES:
+                        if len(body) > (limits.research_response_bytes if research_transport else limits.control_document_bytes):
                             raise ValueError("Pi response exceeds byte bounds")
+                    if response.is_error:
+                        try:
+                            error = json.loads(body).get('error')
+                        except (ValueError, AttributeError):
+                            error = None
+                        if error=='capacity_exceeded':
+                            detail=json.loads(body).get('capacity')
+                            from .application_capacity import current_capacity,CapacityExceeded
+                            if (isinstance(detail,dict) and detail.get('mode')=='debug'
+                                    and isinstance(detail.get('dimension'),str)
+                                    and detail.get('dimension') in current_capacity().values
+                                    and type(detail.get('actual')) is int and type(detail.get('limit')) is int
+                                    and 0<=detail['limit']<detail['actual']
+                                    and isinstance(detail.get('phase'),str)
+                                    and re.fullmatch(r'[A-Za-z0-9_.:-]{1,128}',detail['phase'])):
+                                raise CapacityExceeded(detail['dimension'],detail['actual'],detail['limit'],detail['phase'],mode='debug')
+                        known = {'invalid_task', 'task_not_found', 'research_owner_conflict',
+                                 'unauthorized', 'executor_capacity', 'resource_not_found',
+                                 'research_transport_file_changed'}
+                        raise PiHTTPFailure(response.status_code, error if isinstance(error, str) and error in known else 'unrecognized_response')
+                    response.raise_for_status()
             checkpoint()
-            result = _json_document(json.loads(body))
+            result = json.loads(body)
+            if research_transport:
+                if not isinstance(result, dict):
+                    raise ValueError('research transport response must be an object')
+            else:
+                result = _json_document(result)
             checkpoint()
             return result
 
@@ -349,9 +487,20 @@ class HttpGeneralPiExecutor:
         try:
             from .bounded_http_loop import run_http
             return run_http(bounded_fetch())
-        except (TimeoutError, httpx.TimeoutException):
+        except (TimeoutError, httpx.TimeoutException) as error:
+            if capacity_dimension is not None:
+                elapsed=time.monotonic()-started
+                observe_capacity(capacity_dimension,math.ceil(elapsed*(1000 if capacity_dimension.endswith('_ms') else 1)),
+                                 phase=capacity_phase)
             checkpoint()
-            raise TimeoutError("Pi transport deadline expired; task state is unknown") from None
+            failure = PiTransportTimeout("Pi transport deadline expired; task state is unknown")
+            failure.transport_phase = type(error).__name__
+            raise failure from None
+        except httpx.TransportError as error:
+            checkpoint()
+            failure = PiTransportUnavailable("Pi executor transport failed; task state may be unknown")
+            failure.transport_phase = type(error).__name__
+            raise failure from None
         except (httpx.HTTPError, json.JSONDecodeError, UnicodeDecodeError):
             checkpoint()
             raise RuntimeError("Pi executor transport failed; task state may be unknown") from None
@@ -359,13 +508,14 @@ class HttpGeneralPiExecutor:
     def cancel(self, task_id):
         """Request cancellation and confirm a bound terminal state within cleanup budget."""
         _id(task_id)
-        control = NodeControl(lambda: None, time.monotonic() + CANCELLATION_TIMEOUT_SECONDS)
+        control = NodeControl(lambda: None, time.monotonic() + self._cancel_timeout)
 
         def call(method):
             control.checkpoint()
             return self._call(method, "/tasks/" + task_id,
-                              timeout=max(0.001, min(0.1, control.deadline - time.monotonic())),
+                              timeout=max(0.001, min(limits.native_cancel_wait_ms/1000, control.deadline - time.monotonic())),
                               total_timeout=max(0.001, control.deadline - time.monotonic()),
+                              capacity_dimension='native_cancel_wait_ms',capacity_phase='native_cancel',
                               checkpoint=control.checkpoint)
 
         receipt = call("DELETE")
@@ -375,7 +525,7 @@ class HttpGeneralPiExecutor:
             response = call("GET")
             if (set(response) != {"status", "events", "result"}
                     or not isinstance(response["status"], str)
-                    or not isinstance(response["events"], list) or len(response["events"]) > 128):
+                    or not isinstance(response["events"], list) or len(response["events"]) > limits.event_buffer_count):
                 raise ValueError("Pi cancellation status is invalid; task state is unknown")
             status = response["status"]
             if status in STATUSES:
@@ -385,12 +535,143 @@ class HttpGeneralPiExecutor:
                 if document["status"] != status:
                     raise ValueError("Pi cancellation terminal status is invalid")
                 control.checkpoint()
-                return
+                return PiTaskResult(**{key: value for key, value in document.items() if key != 'schema'})
             if status not in {"queued", "running"} or response["result"] is not None:
                 raise ValueError("Pi cancellation status is invalid; task state is unknown")
             time.sleep(min(self._poll_interval, max(0, control.deadline - time.monotonic())))
 
+    def read_artifact(self, task_id: str, artifact_id: str, *, expected_sha256: str, expected_size: int) -> bytes:
+        """Fetch a receipt-selected file from the fixed protected executor."""
+        from hashlib import sha256
+        _id(task_id)
+        _id(artifact_id)
+        if (not isinstance(expected_sha256, str) or not re.fullmatch(r'[a-f0-9]{64}', expected_sha256)
+                or type(expected_size) is not int or not 0 <= expected_size <= limits.artifact_file_bytes):
+            raise ValueError('Pi artifact content identity is invalid')
+        async def fetch():
+            async with httpx.AsyncClient(trust_env=False, follow_redirects=False, headers=self._headers) as client:
+                async with client.stream('GET', self._origin + '/tasks/' + task_id + '/artifacts/' + artifact_id,
+                                         timeout=limits.artifact_transfer_seconds) as response:
+                    response.raise_for_status()
+                    data = bytearray()
+                    async for chunk in response.aiter_bytes():
+                        data.extend(chunk)
+                        if len(data) > expected_size:
+                            raise OSError('Pi artifact exceeds accepted byte count')
+            return bytes(data)
+        async def bounded():
+            return await asyncio.wait_for(fetch(), timeout=limits.artifact_transfer_seconds)
+        from .bounded_http_loop import run_http
+        try:
+            data = run_http(bounded())
+        except (httpx.TransportError, TimeoutError):
+            raise PiArtifactTransportUnavailable('Pi artifact transfer interrupted') from None
+        except (httpx.HTTPError, TimeoutError):
+            raise OSError('Pi artifact content is unavailable') from None
+        if len(data) != expected_size or sha256(data).hexdigest() != expected_sha256:
+            raise OSError('Pi artifact content identity changed')
+        return data
+
     def execute(self, request, control, on_event):
+        return self._execute(request, control, on_event, None)
+
+    def stage_resources_with_events(self, task_id, manifests, reader, control, on_event):
+        return self.stage_resources(task_id, manifests, reader, control, on_event=on_event)
+
+    def stage_resources(self, task_id, manifests, reader, control, *, on_event=lambda _: None):
+        from .native_resource_staging import CHUNK_BYTES
+        from .resource_manifest import checked_resource
+        from hashlib import sha256
+        import base64
+        sequence = 0
+        for item in manifests:
+            resource = checked_resource(_json_document(item))
+            request = {'task_id': task_id, 'resource': resource}
+            def call(operation, **extra):
+                nonlocal sequence
+                disconnected = False
+                delay = .1
+                while True:
+                    started = time.monotonic()
+                    try:
+                        control.checkpoint()
+                        remaining = max(0.001, control.deadline-time.monotonic())
+                        from .application_capacity import limits
+                        started = time.monotonic()
+                        value = self._call('POST', '/inputs', document={**request, 'operation': operation, **extra},
+                            timeout=min(limits.native_staging_wait_seconds,remaining), total_timeout=remaining, checkpoint=control.checkpoint,
+                            capacity_dimension='native_staging_wait_seconds',capacity_phase='resource_'+operation,
+                            research_transport=True)
+                    except PiHTTPFailure as error:
+                        error.diagnostic['operation'] = 'resource_' + operation
+                        raise
+                    except (PiTransportTimeout, PiTransportUnavailable) as error:
+                        if isinstance(error, PiTransportTimeout):
+                            from .application_capacity import observe_capacity
+                            observe_capacity('native_staging_wait_seconds', math.ceil(time.monotonic()-started),
+                                             phase='resource_' + operation)
+                        if not disconnected:
+                            sequence += 1
+                            on_event({'event_id': 'staging-transport-' + str(sequence),
+                                'type': 'transport_interrupted', 'operation': 'resource_' + operation,
+                                'transport_phase': getattr(error, 'transport_phase', 'unknown')})
+                            disconnected = True
+                        until = min(control.deadline, time.monotonic() + delay)
+                        while time.monotonic() < until:
+                            try:
+                                control.checkpoint()
+                            except TimeoutError:
+                                terminal = PiTransportTimeout('Pi transport deadline expired; task state is unknown')
+                                terminal.operation, terminal.transport_phase = 'resource_' + operation, 'task_deadline'
+                                raise terminal from None
+                            time.sleep(min(.025, max(0, until-time.monotonic())))
+                        delay = min(2., delay*2)
+                        continue
+                    except TimeoutError:
+                        error = PiTransportTimeout('Pi transport deadline expired; task state is unknown')
+                        error.operation, error.transport_phase = 'resource_' + operation, 'task_deadline'
+                        raise error from None
+                    if disconnected:
+                        sequence += 1
+                        on_event({'event_id': 'staging-transport-' + str(sequence),
+                            'type': 'transport_restored', 'operation': 'resource_' + operation})
+                    return value
+            status = call('status')
+            if status.get('resource_id') != resource['resource_id'] or status.get('chunk_bytes') != CHUNK_BYTES:
+                raise ValueError('resource staging receipt mismatch')
+            received = status.get('received_parts', [])
+            if not isinstance(received, list):
+                raise ValueError('resource staging parts are invalid')
+            pending, index, total, digest = bytearray(), 0, 0, sha256()
+            def send(data, index):
+                if index in received:
+                    return
+                receipt = call('part', index=index, content_base64=base64.b64encode(data).decode())
+                if receipt != {'index':index,'sha256':sha256(data).hexdigest(),'size_bytes':len(data)}:
+                    raise ValueError('resource part receipt mismatch')
+            for data in reader(resource):
+                control.checkpoint()
+                total += len(data)
+                if total > resource['size_bytes'] or len(data) > CHUNK_BYTES:
+                    raise ValueError('resource reader exceeds admitted size')
+                digest.update(data); pending.extend(data)
+                while len(pending) >= CHUNK_BYTES:
+                    send(bytes(pending[:CHUNK_BYTES]), index)
+                    del pending[:CHUNK_BYTES]; index += 1
+            if pending:
+                send(bytes(pending), index)
+            if total != resource['size_bytes'] or digest.hexdigest() != resource['sha256']:
+                raise ValueError('resource reader identity mismatch')
+            receipt = call('complete')
+            if receipt != {'resource_id':resource['resource_id'],'sha256':resource['sha256'],'size_bytes':total}:
+                raise ValueError('resource completion receipt mismatch')
+
+    def execute_with_research(self, request, control, on_event, bridge):
+        return self._execute(request, control, on_event, bridge)
+
+    def _execute(self, request, control, on_event, bridge):
+        if (request.research_binding is None) != (bridge is None):
+            raise ValueError('research task requires its bound controller')
         if request.executor_identity != self.identity:
             raise ValueError("Pi request executor identity is not selected")
         deadline = min(control.deadline, time.monotonic() + request.timeout_seconds)
@@ -403,22 +684,73 @@ class HttpGeneralPiExecutor:
         checkpoint()
         complete = False
         seen_events = {}
-        try:
-            accepted = self._call("POST", "/tasks", document=request.to_document(),
-                                  timeout=max(0.001, min(0.25, deadline - time.monotonic())),
-                                  total_timeout=max(0.001, deadline - time.monotonic()), checkpoint=checkpoint)
-            if accepted != {"task_id": request.task_id}:
-                raise ValueError("Pi accepted task identity is invalid")
+        research_ready = False
+        transport_sequence = 0
+
+        def exchange(method, path, *, operation, **kwargs):
+            # Every call here is replay-safe: task admission uses the same task
+            # ID and request hash; research writes bind owner, revision and exact
+            # receipt bytes. Never restart the model or repeat a business tool.
+            nonlocal transport_sequence
+            disconnected = False
+            delay = .1
             while True:
                 checkpoint()
-                response = self._call("GET", "/tasks/" + request.task_id,
-                                      timeout=max(0.001, min(0.25, deadline - time.monotonic())),
-                                      total_timeout=max(0.001, deadline - time.monotonic()), checkpoint=checkpoint)
+                try:
+                    value = self._call(method, path, total_timeout=max(.001, deadline-time.monotonic()),
+                        checkpoint=checkpoint, capacity_dimension='native_exchange_seconds',capacity_phase=operation, **kwargs)
+                except (PiTransportTimeout, PiTransportUnavailable) as error:
+                    checkpoint()
+                    if not disconnected:
+                        transport_sequence += 1
+                        on_event({'event_id': 'transport-' + str(transport_sequence),
+                            'type': 'transport_interrupted', 'operation': operation,
+                            'transport_phase': getattr(error, 'transport_phase', 'unknown')})
+                        disconnected = True
+                    until = min(deadline, time.monotonic()+delay)
+                    while time.monotonic() < until:
+                        checkpoint()
+                        time.sleep(min(.025, max(0, until-time.monotonic())))
+                    delay = min(2.0, delay*2)
+                    continue
+                except PiHTTPFailure as error:
+                    error.diagnostic['operation'] = operation
+                    raise
+                if disconnected:
+                    transport_sequence += 1
+                    on_event({'event_id': 'transport-' + str(transport_sequence),
+                        'type': 'transport_restored', 'operation': operation})
+                return value
+
+        try:
+            accepted = exchange("POST", "/tasks", operation='task_admission', document=request.to_document(),
+                                  # Admission validates and durably saves selected file bytes.
+                                  # Its read timeout is distinct from lightweight status polling.
+                                  timeout=self._exchange_timeout)
+            if accepted != {"task_id": request.task_id}:
+                raise ValueError("Pi accepted task identity is invalid")
+            event_cursor = 0
+            while True:
                 checkpoint()
-                if set(response) != {"status", "events", "result"} or not isinstance(response["events"], list):
+                response = exchange("GET", "/tasks/" + request.task_id + '?after=' + str(event_cursor), operation='task_status',
+                                      # Scheduling and receipt I/O can exceed one poll interval.
+                                      # User cancellation remains checked every 25 ms in _call.
+                                      timeout=self._exchange_timeout)
+                checkpoint()
+                paged = 'event_cursor' in response
+                if set(response) != ({"status", "events", "result", "event_cursor"} if paged else {"status", "events", "result"}) or not isinstance(response["events"], list):
                     raise ValueError("Pi task status fields are invalid")
-                if len(response["events"]) > 128:
+                if len(response["events"]) > limits.event_buffer_count:
                     raise ValueError("Pi events exceed bounds")
+                cursor = event_cursor
+                if paged:
+                    cursor = response['event_cursor']
+                    if type(cursor) is not int or not event_cursor <= cursor <= event_cursor + limits.event_buffer_count:
+                        raise ValueError('Pi event cursor is invalid')
+                    expected = ['event-' + str(index) for index in range(event_cursor + 1, cursor + 1)]
+                    if any(not isinstance(event, dict) for event in response['events']) or [
+                            event.get('event_id') for event in response['events']] != expected:
+                        raise ValueError('Pi event page is incomplete')
                 for event in response["events"]:
                     if not isinstance(event, dict) or "event_id" not in event:
                         raise ValueError("Pi event identity is required")
@@ -427,11 +759,14 @@ class HttpGeneralPiExecutor:
                     if event_id in seen_events and seen_events[event_id] != event:
                         raise ValueError("Pi event identity changed")
                     if event_id not in seen_events:
-                        if len(seen_events) >= 128:
+                        if len(seen_events) >= limits.event_buffer_count and not paged:
                             raise ValueError("Pi event history exceeds bounds")
                         seen_events[event_id] = event
                         on_event(_json_document(event))
                         checkpoint()
+                if paged:
+                    event_cursor = cursor
+                    seen_events.clear()
                 status = response["status"]
                 if not isinstance(status, str):
                     raise ValueError("Pi task status is invalid")
@@ -444,6 +779,35 @@ class HttpGeneralPiExecutor:
                     return result
                 if status not in {"queued", "running"} or response["result"] is not None:
                     raise ValueError("Pi task status is invalid")
+                if bridge is not None:
+                    checkpoint()
+                    path = '/tasks/' + request.task_id + '/research'
+                    if not research_ready:
+                        exchange('POST', path, operation='research_bootstrap', document={'owner': bridge.owner_id,
+                            'operation': 'bootstrap', 'document': bridge.bootstrap()},
+                            timeout=self._exchange_timeout,
+                            research_transport=True)
+                        research_ready = True
+                    pending = exchange('POST', path, operation='research_pending', document={'owner': bridge.owner_id,
+                        'operation': 'pending'}, timeout=self._exchange_timeout,
+                        research_transport=True)
+                    if set(pending) != {'requests', 'source_refs'} or not isinstance(pending['source_refs'], list) or len(pending['source_refs']) > limits.context_references:
+                        raise ValueError('research response is invalid')
+                    for source in pending['source_refs']:
+                        if (not isinstance(source, dict) or set(source) != {'task_id', 'parent_attempt_id', 'source_ref', 'observation_sha256'}
+                                or source['task_id'] != request.task_id or source['parent_attempt_id'] != request.parent_attempt_id
+                                or not isinstance(source['observation_sha256'], str)
+                                or not re.fullmatch(r'[a-f0-9]{64}', source['observation_sha256'])
+                                or not re.fullmatch(re.escape('native-observation:' + request.task_id + ':') + r'[a-f0-9]{64}', source['source_ref'])):
+                            raise ValueError('research observation source is not task-bound')
+                    bridge.admit_sources(pending['source_refs'])
+                    if pending['requests']:
+                        response_document = bridge.process(pending['requests'])
+                        checkpoint()
+                        exchange('POST', path, operation='research_acknowledge', document={'owner': bridge.owner_id,
+                            'operation': 'acknowledge', 'document': response_document},
+                            timeout=self._exchange_timeout,
+                            research_transport=True)
                 time.sleep(min(self._poll_interval, max(0, deadline - time.monotonic())))
         finally:
             if not complete:

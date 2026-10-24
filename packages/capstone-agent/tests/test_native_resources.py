@@ -7,11 +7,107 @@ import pytest
 from capstone_agent.runtime_resources import ResolvedResourceProfile, ResourceDescriptor
 
 
+def test_native_rpc_projection_does_not_resend_accumulated_session_history():
+    entry = Path(__file__).parents[1] / 'src/capstone_agent/resources/general-sdk.mjs'
+    script = '''const {rpcEvent}=await import(process.env.ENTRY);
+const history=Array.from({length:60},()=>({role:'assistant',content:[{type:'toolCall',arguments:{script:'x'.repeat(10000)}}],usage:{input:2,output:3}}));
+history.push({role:'assistant',stopReason:'stop',content:[{type:'text',text:'Report saved.'}],usage:{input:5,output:7}});
+const end=rpcEvent({type:'agent_end',messages:history});
+const delta=rpcEvent({type:'message_update',message:{content:'x'.repeat(300000)},assistantMessageEvent:{type:'text_delta',delta:'Done',partial:{content:'x'.repeat(300000)}}});
+console.log(JSON.stringify({size:Buffer.byteLength(JSON.stringify(end)),end,delta}));'''
+    result = subprocess.run([__import__('shutil').which('node'), '--input-type=module', '-e', script],
+                            env={'ENTRY': entry.as_uri()}, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    value = json.loads(result.stdout)
+    assert value['size'] < 262144
+    assert value['end']['messages'][-1]['content'] == [{'type': 'text', 'text': 'Report saved.'}]
+    assert sum(item['usage']['input'] for item in value['end']['messages']) == 125
+    assert value['delta'] == {'type': 'message_update', 'assistantMessageEvent': {'type': 'text_delta', 'delta': 'Done'}}
+
+
+def test_native_image_and_turn_events_do_not_repeat_model_only_payloads():
+    entry = Path(__file__).parents[1] / 'src/capstone_agent/resources/general-sdk.mjs'
+    script = """const {rpcEvent}=await import(process.env.ENTRY);
+const result={content:[{type:'image',data:'A'.repeat(900000),mimeType:'image/png'}],
+details:{native_research_source:{source_ref:'observed'}}};
+const end=rpcEvent({type:'tool_execution_end',toolName:'read',toolCallId:'image',result,isError:false});
+const turn=rpcEvent({type:'turn_end',message:{content:'PRIVATE'.repeat(100000)},toolResults:[result]});
+const message=rpcEvent({type:'message_end',message:{role:'assistant',usage:{output:1},
+content:[{type:'toolCall',arguments:{script:'PRIVATE'.repeat(100000)}}]}});
+const update=rpcEvent({type:'tool_execution_update',toolName:'read',partialResult:result});
+const mcp=rpcEvent({type:'tool_execution_end',toolName:'external_tool',result});
+console.log(JSON.stringify({end,turn,message,update,mcpPreserved:mcp.result===result,original:result.content[0].data.length}));"""
+    result = subprocess.run([__import__('shutil').which('node'), '--input-type=module', '-e', script],
+        env={'ENTRY': entry.as_uri()}, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    value = json.loads(result.stdout)
+    assert len(result.stdout) < 8192
+    assert value['original'] == 900000
+    assert value['mcpPreserved'] is True
+    assert value['turn'] == {'type': 'turn_end'}
+    assert value['update'] == {'type': 'tool_execution_update'}
+    assert value['message']['message']['content'] == [{'type': 'toolCall'}]
+    assert value['end']['result']['details']['native_research_source'] == {'source_ref': 'observed'}
+    assert 'data' not in value['end']['result']['content'][0]
+    assert 'PRIVATE' not in result.stdout
+
+
 def profile():
     resource = ResourceDescriptor('sample', 'skill', 'v1', 'local', ('direct_pi',), True,
                                   True, True, None, (), 'identity')
     return ResolvedResourceProfile('project', 'revision', 'direct_pi', (), (resource,), (), None, None,
                                   json.dumps({'resources': [{'id': 'sample', 'native_name': 'sample'}]}))
+
+
+@pytest.mark.parametrize('message,code', [
+    ('Stream ended without finish_reason', 'model_transport'),
+    ('503 service unavailable', 'model_transport'),
+    ('Provider finish_reason: content_filter', 'model_output_rejected'),
+])
+def test_native_provider_failure_category_is_specific_without_error_text(message, code):
+    entry = Path(__file__).parents[1] / 'src/capstone_agent/resources/general-sdk.mjs'
+    script = """const {rpcEvent}=await import(process.env.ENTRY);
+console.log(JSON.stringify(rpcEvent({type:'agent_end',messages:[{role:'assistant',
+stopReason:'error',errorMessage:JSON.parse(process.env.MESSAGE)+' Bearer PRIVATE_SECRET',content:[]}]})));"""
+    result = subprocess.run([__import__('shutil').which('node'), '--input-type=module', '-e', script],
+        env={'ENTRY': entry.as_uri(), 'MESSAGE': json.dumps(message)}, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)['messages'][0]['errorCode'] == code
+    assert message not in result.stdout and 'PRIVATE_SECRET' not in result.stdout
+
+
+def test_native_terminal_error_keeps_only_safe_failure_category():
+    entry = Path(__file__).parents[1] / 'src/capstone_agent/resources/general-sdk.mjs'
+    script = """const {rpcEvent}=await import(process.env.ENTRY);
+console.log(JSON.stringify(rpcEvent({type:'agent_end',messages:[{role:'assistant',
+stopReason:'error',errorMessage:'maximum context length exceeded; Bearer PRIVATE_SECRET',content:[]}]})));"""
+    result = subprocess.run([__import__('shutil').which('node'), '--input-type=module', '-e', script],
+        env={'ENTRY': entry.as_uri()}, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)['messages'][0]['errorCode'] == 'model_context_limit'
+    assert 'PRIVATE_SECRET' not in result.stdout
+
+
+def test_native_prompt_waits_for_sdk_recovery_without_replaying_tools():
+    entry = Path(__file__).parents[1] / 'src/capstone_agent/resources/general-sdk.mjs'
+    script = """const {runSettledPrompt}=await import(process.env.ENTRY);
+let listener, prompts=0, disposed=false; const events=[];
+const session={subscribe(fn){listener=fn;return ()=>{disposed=true;};},
+async prompt(){prompts++; listener({type:'tool_execution_end',toolCallId:'once'});
+listener({type:'agent_end',messages:[{role:'assistant',stopReason:'error',errorMessage:'context limit'}]});
+await Promise.resolve(); listener({type:'auto_compaction_end'});
+listener({type:'agent_end',messages:[{role:'assistant',stopReason:'stop',content:[{type:'text',text:'Report ready'}]}]});}};
+await runSettledPrompt(session,{kind:'text',text:'Continue'},null,event=>events.push(event));
+console.log(JSON.stringify({prompts,disposed,events}));"""
+    result = subprocess.run([__import__('shutil').which('node'), '--input-type=module', '-e', script],
+        env={'ENTRY': entry.as_uri()}, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    data = json.loads(result.stdout)
+    assert data['prompts'] == 1 and data['disposed']
+    assert len([e for e in data['events'] if e['type'] == 'tool_execution_end']) == 1
+    terminal = [e for e in data['events'] if e['type'] == 'agent_end']
+    assert len(terminal) == 1
+    assert terminal[0]['messages'][0]['stopReason'] == 'stop'
 
 
 def test_typed_input_requires_exact_ready_skill_version():

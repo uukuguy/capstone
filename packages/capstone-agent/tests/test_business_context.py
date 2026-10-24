@@ -7,6 +7,19 @@ import json
 import pytest
 
 from capstone_agent.request_intent import IntentDecision, IntentRequest
+from capstone_agent.application_capacity import current_capacity, initialize_capacity
+
+
+@pytest.fixture
+def small_business_capacity():
+    original = current_capacity()
+    try:
+        yield initialize_capacity({'native_context_bytes': 24 * 1024,
+                                   'context_references': 16,
+                                   'inline_material_count': 8,
+                                   'inline_material_bytes': 4 * 1024 * 1024})
+    finally:
+        initialize_capacity(original)
 
 
 def context_api():
@@ -173,7 +186,7 @@ def test_from_content_creates_and_validates_the_content_identity():
     lambda d: d['coverage'].update(truncated='yes'),
     lambda d: d['coverage'].update(provided_refs=['unknown']),
 ])
-def test_context_rejects_invalid_or_protected_fields(mutation):
+def test_context_rejects_invalid_or_protected_fields(mutation, small_business_capacity):
     api = context_api()
     document = populated_document()
     mutation(document)
@@ -186,7 +199,7 @@ def test_context_rejects_invalid_or_protected_fields(mutation):
         api.BusinessContext.from_document(document)
 
 
-def test_required_projection_is_not_silently_truncated():
+def test_required_projection_is_not_silently_truncated(small_business_capacity):
     api = context_api()
     request, decision = intent(['current'])
     doc = request.to_document()
@@ -212,7 +225,7 @@ def test_explicit_current_identity_overrides_object_order_and_missing_revision_f
         api.business_context_for(IntentRequest.from_document(source), decision)
 
 
-def test_material_count_and_aggregate_bounds():
+def test_material_count_and_aggregate_bounds(small_business_capacity):
     api = context_api()
     doc = populated_document()
     for count, size in [(9, 1), (5, 4 * 1024 * 1024)]:
@@ -224,7 +237,7 @@ def test_material_count_and_aggregate_bounds():
             api.BusinessContext.from_document(signed(candidate))
 
 
-def test_complete_context_text_budget_is_bounded():
+def test_complete_context_text_budget_is_bounded(small_business_capacity):
     api = context_api()
     doc = populated_document()
     doc['goals'] = [dict(doc['goals'][0], goal_id=f'g{i}', text='x' * 8192) for i in range(4)]

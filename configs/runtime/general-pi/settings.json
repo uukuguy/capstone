@@ -1,3 +1,35 @@
 {
-  "retry": { "enabled": false }
+  "retry": {
+    "enabled": true,
+    "maxRetries": 2,
+    "baseDelayMs": 1000
+  },
+  "researchRuntime": {
+    "enabled": true,
+    "nodeReviewMode": "advisory",
+    "turnGuidance": {
+      "mode": "usable_draft",
+      "target_seconds": 240,
+      "integration_reserve_seconds": 60
+    },
+    "limits": {
+      "maxRounds": 64,
+      "maxFindings": 4096,
+      "maxQuestions": 256,
+      "snapshotBytes": 16777216,
+      "timeoutMs": 1800000
+    },
+    "delegation": {
+      "concurrency": 3,
+      "maxTasks": 64,
+      "maxTurns": 256,
+      "graceTurns": 8
+    },
+    "deliveryReview": {
+      "sourceExcerptChars": 16384
+    }
+  },
+  "skills": [
+    "vendor/anthropic-data"
+  ]
 }

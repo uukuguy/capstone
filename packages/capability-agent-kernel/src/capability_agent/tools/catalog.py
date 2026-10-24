@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from capability_agent.runtime.capacity import runtime_limits as resolve_limits
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -194,14 +195,14 @@ class CoreToolCatalog:
     tools: tuple[ToolDocument, ...]
 
     @classmethod
-    def default(cls, *, namespace: str = "agent_", include_research: bool = False) -> "CoreToolCatalog":
+    def default(cls, *, namespace: str = "agent_", include_research: bool = False, runtime_limits=None) -> "CoreToolCatalog":
         if namespace != "agent_":
             raise ToolCatalogError("generic core tool namespace must be agent_")
         _validate_tool_name_prefix(namespace)
         return cls(
             namespace=namespace,
-            tools=(_decision_tool(namespace), _context_tool(namespace),
-                   *(_research_tools(namespace) if include_research else ())),
+            tools=(_decision_tool(namespace,runtime_limits), _context_tool(namespace),
+                   *(_research_tools(namespace,runtime_limits) if include_research else ())),
         )
 
 
@@ -444,8 +445,9 @@ def _materialize_tool(
     )
 
 
-def _decision_tool(tool_name_prefix: str) -> ToolDocument:
-    bounded_text = {"type": "string", "minLength": 1, "maxLength": 500}
+def _decision_tool(tool_name_prefix: str, runtime_limits=None) -> ToolDocument:
+    limits=resolve_limits(runtime_limits)
+    bounded_text = {"type": "string", "minLength": 1, "maxLength": limits['decision_text_chars']}
     tool_name = f"{tool_name_prefix}record_decision"
     return ToolDocument(
         name=tool_name,
@@ -466,16 +468,16 @@ def _decision_tool(tool_name_prefix: str) -> ToolDocument:
                 "refs": {
                     "type": "array",
                     "items": {"type": "string", "minLength": 1},
-                    "maxItems": 20,
+                    "maxItems": limits['decision_references'],
                 },
             },
         },
     )
 
 
-def _research_tools(namespace: str) -> tuple[ToolDocument, ...]:
+def _research_tools(namespace: str,runtime_limits=None) -> tuple[ToolDocument, ...]:
     from capability_agent.application.research_models import research_depth_tool_schema, research_tool_schemas, task_progress_tool_schema
-    read_schema, update_schema = research_tool_schemas()
+    read_schema, update_schema = research_tool_schemas(runtime_limits)
     return (
         ToolDocument(name=namespace + "research_read", capability=namespace + "research_read",
                      description="Read bounded committed research state. Page records when needed. This creates no Authority results or evidence.",
@@ -488,7 +490,7 @@ def _research_tools(namespace: str) -> tuple[ToolDocument, ...]:
                      input_schema=research_depth_tool_schema()),
         ToolDocument(name=namespace + "task_progress", capability=namespace + "task_progress",
                      description="Record one concise purpose for each batch of domain tool calls in that same batch, without a separate progress-only round. Describe the batch's work, not the whole task or every tool. Record meaningful observations, adjustments or limitations using actual receipts. This is an agent work record, not a verified Authority claim. Do not publish private reasoning.",
-                     input_schema=task_progress_tool_schema()),
+                     input_schema=task_progress_tool_schema(runtime_limits)),
     )
 
 

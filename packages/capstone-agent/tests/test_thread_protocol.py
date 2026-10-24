@@ -133,9 +133,10 @@ def test_case_projection_rejects_actions_that_do_not_match_status() -> None:
 
 
 def test_snapshot_rejects_oversized_application_state() -> None:
+    from capstone_agent.application_capacity import CapacityExceeded, limits
     document = valid_snapshot()
-    document["application_state"] = {"large": "x" * (64 * 1024)}
-    with pytest.raises(ThreadProtocolError, match="too large"):
+    document["application_state"] = {"large": "x" * limits.application_state_bytes}
+    with pytest.raises(CapacityExceeded, match="application_state_bytes"):
         ThreadSnapshot.from_document(document)
 
 

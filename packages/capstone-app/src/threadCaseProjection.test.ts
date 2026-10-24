@@ -1,3 +1,5 @@
+import {afterEach} from 'vitest'
+import {initializeApplicationCapacity} from './applicationCapacity'
 import { describe, expect, it } from 'vitest'
 import { parseCaseExecutionSnapshot, parseThreadSnapshot, ThreadProtocolError } from './threadProtocol'
 
@@ -51,9 +53,10 @@ describe('shared Case interaction projection', () => {
   })
 
   it('enforces the shared duration and application-state bounds', () => {
+    initializeApplicationCapacity({ui_case_duration_ms:86_400_000,application_state_bytes:65536})
     const document = caseState('blocked')
     document.steps[0].duration_ms = 86_400_001
-    expect(() => parseCaseExecutionSnapshot(document)).toThrowError(/duration_ms/)
+    expect(() => parseCaseExecutionSnapshot(document)).toThrowError(/ui_case_duration_ms/)
 
     const snapshot = {
       schema: 'capstone-thread-snapshot/1', thread_id: 'thr_demo',
@@ -63,6 +66,8 @@ describe('shared Case interaction projection', () => {
       application_state: { case_execution: { ...caseState('blocked'), steps: [], disabled_reasons: ['运行被中断'] } },
     }
     ;(snapshot.application_state.case_execution as Record<string, unknown>).display_name = 'x'.repeat(70_000)
-    expect(() => parseThreadSnapshot(snapshot)).toThrowError(/too large/)
+    expect(() => parseThreadSnapshot(snapshot)).toThrowError(/application_state_bytes/)
   })
 })
+
+afterEach(()=>initializeApplicationCapacity())

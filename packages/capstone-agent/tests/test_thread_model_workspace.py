@@ -239,7 +239,8 @@ def test_opened_model_limit_rejects_immediate_and_legacy_controls_before_activat
     service = _model_service()
     context = service.snapshot("thr_attempts").active_model_context
     workspace = service._model_workspace
-    workspace["models"].extend(model_entry(replace(context, id=f"ctx_test{i}", model_id=f"test{i}"), 0) for i in range(63))
+    from capstone_agent.application_capacity import limits
+    workspace["models"].extend(model_entry(replace(context, id=f"ctx_test{i}", model_id=f"test{i}"), 0) for i in range(limits.open_models - 1))
     before = service.snapshot("thr_attempts")
     receipt = service.submit_command(command(service, kind, {"model_id": "pypsa39"}))
     assert receipt.rejection == "opened_model_limit"
@@ -321,7 +322,7 @@ def test_legacy_workspace_import_keeps_distinct_versions_and_bounds_recent_model
     from capstone_agent.thread_model_workspace import MAX_OPEN_MODELS, migrate_workspace
     snapshot = _snapshot("thr_migration")
     context = snapshot.active_model_context
-    documents = [(seq, replace(context, id=f"ctx_grid{seq}", model_id=f"grid{seq}").to_document()) for seq in range(70)]
+    documents = [(seq, replace(context, id=f"ctx_grid{seq}", model_id=f"grid{seq}").to_document()) for seq in range(MAX_OPEN_MODELS + 6)]
     documents += [(80, replace(context, id="ctx_older", model_revision="older").to_document())]
     workspace = migrate_workspace(None, snapshot, documents, set())
     assert len(workspace["models"]) == MAX_OPEN_MODELS

@@ -31,6 +31,11 @@ export default function (pi) {
     const business = context.business_context
       ? [{ role: "user", content: JSON.stringify({ business_context: context.business_context }), timestamp: 0 }]
       : [];
-    return { messages: [...history, ...business, ...observations, ...event.messages] };
+    const boundedRecords = context.records_truncated
+      ? [{ role: "user", content: JSON.stringify({ historical_record_snapshot_truncated: true,
+          source: context.selected_task_source,
+          notice: "Only the published original task pages are available in this execution. Do not claim to have read omitted pages." }), timestamp: 0 }]
+      : [];
+    return { messages: [...history, ...business, ...observations, ...boundedRecords, ...event.messages] };
   });
 }

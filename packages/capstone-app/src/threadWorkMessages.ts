@@ -26,14 +26,16 @@ export function projectWorkConversation(events: readonly EventEnvelope[], work?:
   const sequences = new Map(selected.map(event => [event.eventId, event.eventSeq]))
   const attempts = new Map<string, number>()
   for (const event of selected) if (event.attemptId && !attempts.has(event.attemptId)) attempts.set(event.attemptId, event.eventSeq)
-  const rows = projectAssistantMessages(selected).filter(message => message.role !== 'user'
+  const presentation = selected.map(event => event.eventType === 'command_accepted' && event.payload.kind === 'send_message'
+    ? {...event, payload: {...event.payload, kind: 'send_auto'}} : event)
+  const rows = projectAssistantMessages(presentation).filter(message => work?.conversationMode || message.role !== 'user'
     || !selected.some(event => event.eventId === message.metadata?.custom?.eventId && work !== undefined && event.payload.work_id === work.workId))
     .map((message, index) => {
       const custom = message.metadata?.custom
       const seq = typeof custom?.eventId === 'string' ? sequences.get(custom.eventId) : typeof custom?.attemptId === 'string' ? attempts.get(custom.attemptId) : undefined
       return { message, seq: seq ?? 0, order: index }
     })
-  for (const [index, text] of (work?.messages || []).entries()) {
+  for (const [index, text] of (work?.conversationMode ? [] : work?.messages || []).entries()) {
     const source = selected.find(event => {
       const row = event.payload.work as Record<string, unknown> | undefined
       return event.payload.work_id === work?.workId && Array.isArray(row?.messages) && row.messages.length > index

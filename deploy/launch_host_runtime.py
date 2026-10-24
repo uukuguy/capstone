@@ -34,12 +34,23 @@ def select_runtime(root: Path, environment: dict[str, str], command: str):
     application = environment.get("CAPSTONE_HOSTED_APPLICATION", "")
     if command == "api" and application == "capstone":
         role = "api"
-    elif command == "worker" and application in {"pandapower", "pypsa"}:
+    elif command == "worker" and application in {"pandapower", "pypsa", "native"}:
         role = application
     else:
         raise RuntimeContractError("CAPSTONE_HOSTED_APPLICATION/command")
+    if role not in contract['roles']:
+        raise RuntimeContractError("CAPSTONE_HOSTED_APPLICATION/command")
     spec = contract["roles"][role]
     selected = dict(environment)
+    # Compose forwards empty optional overrides. Capacity defaults belong to
+    # the application profile, not this host-role contract. Keep only valid
+    # explicit legacy overrides; never install another copy of the defaults.
+    for key in ('CAPSTONE_THREAD_MAX_STREAMS', 'CAPSTONE_THREAD_STREAMS_PER_THREAD'):
+        value = selected.get(key)
+        if not value:
+            selected.pop(key, None)
+        elif not (value.isascii() and value.isdecimal()) or int(value) < 1:
+            raise RuntimeContractError(key)
     research_mode = selected.get("CAPSTONE_AUTONOMOUS_RESEARCH", "0")
     if research_mode not in {"0", "1"}:
         raise RuntimeContractError("CAPSTONE_AUTONOMOUS_RESEARCH")
@@ -80,7 +91,7 @@ def select_runtime(root: Path, environment: dict[str, str], command: str):
         value = selected.get(credential_name, "").strip()
         if not value or value.startswith(("replace-", "<")):
             raise RuntimeContractError(credential_name)
-        selected["CAPSTONE_THREAD_FAMILY"] = spec["family"]
+        selected["CAPSTONE_THREAD_FAMILY"] = spec.get("family", "native")
     return contract, role, spec, selected
 
 
@@ -92,7 +103,7 @@ def wait_for_workers(contract, environment, *, probe=None, clock=time.monotonic,
             raise RuntimeContractError("CAPSTONE_FAMILY_HEALTH_URLS")
         endpoints[family] = origin.rstrip("/") + "/health"
     settings = contract["startup"]
-    if set(endpoints) != set(settings["required_families"]):
+    if set(endpoints) != set(settings["required_families"]) | set(settings.get("optional_families", ())):
         raise RuntimeContractError("CAPSTONE_FAMILY_HEALTH_URLS")
 
     def http_probe(url):

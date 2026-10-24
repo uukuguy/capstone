@@ -1,3 +1,4 @@
+import {applicationCapacity} from './applicationCapacity'
 import { describe, expect, it, vi } from 'vitest'
 import { HttpThreadTransport, ThreadTransportError } from './threadHttpTransport'
 import { MAX_THREAD_JSON_BYTES } from './networkLimits'
@@ -10,6 +11,22 @@ const command = {
 }
 
 describe('HttpThreadTransport', () => {
+  it('accepts an empty successful delete response without treating it as invalid JSON',async()=>{
+    const fetcher=vi.fn<typeof fetch>().mockResolvedValue(new Response(null,{status:204}))
+    const transport=new HttpThreadTransport('','',fetcher)
+    await expect(transport.deleteThread('thr_disposable')).resolves.toBeUndefined()
+    expect(fetcher.mock.calls[0][1]?.method).toBe('DELETE')
+  })
+  it('uploads a CSV larger than the obsolete client limit using published material limits', async () => {
+    const fetcher=vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify({limits:{max_file_bytes:8*1024*1024,supported_extensions:['.csv']}})))
+      .mockResolvedValueOnce(new Response('{}'))
+    const transport=new HttpThreadTransport('', '', fetcher)
+    const file=new File(['x'.repeat(600*1024)],'prices.csv')
+    await transport.uploadThreadMaterial('thr_demo_39',file)
+    expect(fetcher.mock.calls[1][1]?.body).toBe(file)
+    expect(fetcher.mock.calls[1][1]?.method).toBe('POST')
+  })
   it('reads mixed-version lists without upgrading the current conversation transport', async () => {
     const page = {schema:'capstone-thread-list/1',threads:[{thread_id:'thr_work',model_id:null,
       implementation_family:null,minimum_protocol_version:2,created_at:'2026-10-17T00:00:00Z',archived:false,last_event_seq:2}],has_more:false,next_before_thread_id:null}
@@ -84,7 +101,7 @@ describe('HttpThreadTransport', () => {
     const page = await transport.readAttemptRecords('thr_1', 'attempt_1', 7)
     expect(page.instruction).toBe('Original task')
     expect(fetcher).toHaveBeenCalledOnce()
-    expect(fetcher.mock.calls[0][0]).toBe('/api/v1/threads/thr_1/attempts/attempt_1/records?after=7&limit=32')
+    expect(fetcher.mock.calls[0][0]).toBe(`/api/v1/threads/thr_1/attempts/attempt_1/records?after=7&limit=${applicationCapacity('native_record_count')}`)
     expect(fetcher.mock.calls[0][1]?.body).toBeUndefined()
   })
   it('bounds each SSE frame rather than a chunk containing multiple complete diagrams', async () => {
@@ -104,7 +121,7 @@ describe('HttpThreadTransport', () => {
     for await (const event of transport.streamEvents('thr_demo_39', 0)) sequences.push(event.eventSeq)
     expect(sequences).toEqual([1, 2])
     const oversized = new HttpThreadTransport('', '', vi.fn<typeof fetch>().mockResolvedValue(new Response('x'.repeat(MAX_THREAD_JSON_BYTES + 1))))
-    await expect(oversized.getSnapshot('thr_demo_39')).rejects.toThrow('超过允许大小')
+    await expect(oversized.getSnapshot('thr_demo_39')).rejects.toThrow(/event_page_bytes/)
   })
   it('reads a snapshot and event page through the configured Thread resource', async () => {
     const fetcher = vi.fn<typeof fetch>()

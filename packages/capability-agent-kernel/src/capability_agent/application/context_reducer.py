@@ -182,7 +182,8 @@ def _update_research(core: CoreContext, draft: ContextEventDraft, payload: Mappi
         raise ContextTransitionError("research state is not binding-owned")
     if set(payload) != {"research_id", "request_id", "expected_revision", "changes"}:
         raise ContextTransitionError("invalid research update")
-    update = ResearchUpdate.model_validate({key: value for key, value in payload.items() if key != "research_id"})
+    update = ResearchUpdate.model_validate({key: value for key, value in payload.items() if key != "research_id"},
+                                         context={'skip_runtime_capacity': True})
     current = core.research
     if current is not None and current.research_id != payload["research_id"]:
         raise ContextTransitionError("research identity does not match current state")

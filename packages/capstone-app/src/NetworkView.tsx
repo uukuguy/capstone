@@ -322,7 +322,7 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
               </g>}
               {(highlighted || state) && <text x={(state?.markers ? markers[0].x : centerX) + 7 * visualScale} y={(state?.markers ? markers[0].y : centerY) - 9 * visualScale}
                 className="network-branch-label"
-                style={{ fontSize: `${12 * symbolScale}px`, strokeWidth: `${4 * symbolScale}px`,
+                style={{ fontSize: `calc(var(--network-label-size, 12px) * ${symbolScale})`, strokeWidth: `${4 * symbolScale}px`,
                   fill: color }}>{label}</text>}
               <title>{label}{state ? ` · ${state.label}` : ''}{value === undefined ? '' : ` · ${value.toFixed(1)} ${layer!.overlay!.unit}`}</title>
             </g>
@@ -354,7 +354,7 @@ export function NetworkView({ view, previewDiagram = null, modelName, focusKey, 
               {(nodes.length <= 25 || highlighted || historical || (state && state.style !== 'unresolved') || focusBuses.has(bus.id) || hovered === bus.id) &&
                 <text x={bus.x + 13 * visualScale} y={bus.y - 11 * visualScale}
                   className="network-node-label"
-                  style={{ fontSize: `${12 * symbolScale}px`, strokeWidth: `${3 * symbolScale}px` }}>{label}</text>}
+                  style={{ fontSize: `calc(var(--network-label-size, 12px) * ${symbolScale})`, strokeWidth: `${3 * symbolScale}px` }}>{label}</text>}
               <title>{label}{region ? ` · ${region.label}` : ''}{state ? ` · ${state.label}` : ''}{'vn_kv' in bus && bus.vn_kv !== null ? ` · ${bus.vn_kv} kV` : ''}{value === undefined ? '' : ` · ${value.toFixed(3)} ${layer!.overlay!.unit}`}</title>
             </g>
           })}
