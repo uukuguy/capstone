@@ -14,7 +14,7 @@ from jsonschema import Draft202012Validator
 from referencing import Registry
 from referencing.exceptions import NoSuchResource
 
-from .application_capacity import limits, require_capacity
+from .application_capacity import limits, require_capacity, CapacityExceeded
 
 
 MODEL_TOOLS = frozenset({'discover_network_models', 'inspect_network_model', 'build_network_model',
@@ -36,6 +36,23 @@ def fingerprint(value):
 
 def _deny(uri):
     raise NoSuchResource(ref=uri)
+
+
+def public_failure(error, fallback):
+    pending, seen = [error], set()
+    for _ in range(32):
+        if not pending:
+            break
+        current = pending.pop()
+        if id(current) in seen:
+            continue
+        seen.add(id(current))
+        if getattr(getattr(current, 'response', None), 'status_code', None) in {401, 403}:
+            return 'gateway_authentication_failed'
+        pending.extend(getattr(current, 'exceptions', ()))
+        if current.__cause__ is not None:
+            pending.append(current.__cause__)
+    return fallback
 
 
 def validate(schema, value):
@@ -63,6 +80,8 @@ class DataGatewayMcp:
                 raise ValueError()
             connection = json.loads(path.read_text())
             address = urlsplit(connection['url'])
+            if address.port is not None and not 0 < address.port <= 65535:
+                raise ValueError()
             if (set(connection) != {'transport', 'url', 'headers'}
                     or connection['transport'] != 'streamable-http'
                     or address.scheme not in {'http', 'https'} or not address.hostname
@@ -131,8 +150,10 @@ class DataGatewayMcp:
             return deepcopy(catalog)
         except GatewayError:
             raise
-        except Exception:
-            raise GatewayError('gateway_connection_failed') from None
+        except CapacityExceeded:
+            raise
+        except Exception as error:
+            raise GatewayError(public_failure(error, 'gateway_connection_failed')) from None
 
     async def call(self, name, arguments, catalog):
         try:
@@ -160,5 +181,7 @@ class DataGatewayMcp:
             return value
         except GatewayError:
             raise
-        except Exception:
-            raise GatewayError('gateway_call_failed_no_retry') from None
+        except CapacityExceeded:
+            raise
+        except Exception as error:
+            raise GatewayError(public_failure(error, 'gateway_call_failed_no_retry')) from None

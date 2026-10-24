@@ -172,7 +172,7 @@ def test_real_streamable_http_discovery_call_and_bad_auth(tmp_path):
         asyncio.run(exercise())
         config['headers']['Authorization'] = 'Bearer wrong-credential'
         existing.connection_path.write_text(json.dumps(config))
-        with pytest.raises(GatewayError, match='gateway_connection_failed'):
+        with pytest.raises(GatewayError, match='gateway_authentication_failed'):
             asyncio.run(DataGatewayMcp(existing.connection_path, existing.policy).prepare())
     finally:
         server.should_exit = True

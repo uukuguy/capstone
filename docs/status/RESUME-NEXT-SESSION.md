@@ -6,9 +6,21 @@ Accepted dev is 346de403 after PR56/57. Main checkout remains on dev; its two
 post-merge metadata changes (journal and overview) are preserved. Recovery refs
 and ignored user data remain intact. Do not repeat release CI for development.
 
-Worktree .worktrees/dev-macos-ci uses feat/enterprise-data-gateway. Commit
-0d20a8f2 records the proposed integration contract, execution draft, core notebook
-and independent model probe. Runtime gateway integration is not implemented.
+Worktree .worktrees/dev-macos-ci uses feat/enterprise-data-gateway. Design0d20a8f2,
+adapterda48a15a, relay4c50c9a1, native integratione39fd6c3 and guidance/verifier
+45394040 are committed. Twelve gateway/actual-child checks pass, plus100 focused
+host checks and62SDK checks. Pi setup/install/doctor completed in this worktree.
+Initial missing-runtime and loopback-proxy failures are environment issues;
+after setup/NO_PROXY, host66 and chat14 checks pass, and existing graph execution
+checks pass. No real model task has been started yet.
+
+Canonical local rebuild is active under /tmp/capstone-gateway-local-rebuild.log
+(exec session21487). Host health already publishes41 gateway tools. Wait for
+readiness and scoped cleanup. Freeze final source and rebuild again if runtime
+hashes differ after the later authentication-code correction. Do not start
+model work against mismatched bytes. Use ROOT deploy/local.env and model assets
+via explicit paths; gateway connection is mounted from its original directory,
+never copied into task storage. App on5173 still serves ROOT dev (UI unchanged).
 
 User accepted production-data enterprise-research first. Capstone only explores
 and obtains data through MCP; backend selection/switching belongs to data-gateway.
@@ -22,9 +34,11 @@ outputs/data-gateway-20261025/network-models/report.json. No process is active.
 
 Written contract: docs/superpowers/specs/2026-10-25-enterprise-data-gateway-design.md.
 Plan: docs/superpowers/plans/2026-10-25-enterprise-data-gateway.md.
-Next: written-contract review, then implement host-owned remote adapter, protected
-task relay, actual research tool propagation/source admission, and real multi-turn
-research acceptance. Preserve current local PowerMCP and Authority contracts.
+Next: run scripts/verify_data_gateway_research.py for series, followup on the same
+thread/work, and bounded semantic-table exploration; use --poll-only to resume
+without resubmission. Save under ROOT outputs/data-gateway-20261025. Inspect
+actual reports/source/hash, then browser refresh recovery. Finish control update,
+dev PR scoped checks and actual dev integration. No release workflow or cloud/demo.
 
 Current model files support topology inspection, not valid power-flow or
 optimisation. Our existing diagram needs capstone-network-diagram/1.0 projection,
