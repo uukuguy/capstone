@@ -5610,3 +5610,5 @@ separate. No model task is active.
 2026-10-25 — 0d20a8f2: Defined production-data MCP integration and recorded real topology delivery checks to guide enterprise research implementation.
 
 2026-10-25 — 1a4b2830: Recorded gateway scope and recovery checkpoint to separate verified model delivery from pending runtime integration.
+
+2026-10-25 — d4b55ee9: Added the verified design source node so the control graph shows the current integration focus.

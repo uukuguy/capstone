@@ -154,3 +154,7 @@ Download, integrity verification and native SDK loading do not prove power-flow
 readiness. The gateway's quality declarations remain binding. Capstone model
 registration, conversion, Authority admission and calculation are outside this
 first research integration.
+
+Large graph display must be supported by both scale-aware gateway projections
+and a measured large-network renderer; raw model voltage filtering alone is not
+sufficient. See [topology view requirements](2026-10-25-grid-topology-view-requirements.md).
