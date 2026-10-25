@@ -1,7 +1,7 @@
 import type {NetworkScene,SceneCamera,SceneSearchResult,SceneSelection} from './networkScene'
 type Box={minX:number;minY:number;maxX:number;maxY:number}
 type Tree=Box&{count:number;indices?:number[];left?:Tree;right?:Tree}
-export type SceneIndex={scene:NetworkScene;positions:Float32Array;endpoints:Uint32Array;edgeOffsets:Float32Array;nodeIds:Map<string,number>;edgeIds:Map<string,number>;nodes:Tree;edges:Tree;search:{key:string;result:SceneSearchResult}[]}
+export type SceneIndex={scene:NetworkScene;bounds:SceneCamera;positions:Float32Array;endpoints:Uint32Array;edgeOffsets:Float32Array;nodeIds:Map<string,number>;edgeIds:Map<string,number>;nodes:Tree;edges:Tree;search:{key:string;result:SceneSearchResult}[]}
 const intersects=(a:Box,b:Box)=>a.minX<=b.maxX&&a.maxX>=b.minX&&a.minY<=b.maxY&&a.maxY>=b.minY
 function tree(indices:number[],box:(index:number)=>Box):Tree {
   let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity
@@ -20,7 +20,8 @@ function edgeBox(index:SceneIndex,i:number):Box {
   const padding=Math.abs(index.edgeOffsets[i])+12
   return {minX:Math.min(index.positions[a],index.positions[b])-padding,maxX:Math.max(index.positions[a],index.positions[b])+padding,minY:Math.min(index.positions[a+1],index.positions[b+1])-padding,maxY:Math.max(index.positions[a+1],index.positions[b+1])+padding}
 }
-export function buildSceneIndex(scene:NetworkScene):SceneIndex {
+export function buildSceneIndex(scene:NetworkScene,aspect=5/3):SceneIndex {
+  const height=1000/Math.max(.35,Math.min(4,aspect)),bounds={x:0,y:0,width:1000,height}
   const nodeIds=new Map<string,number>(),edgeIds=new Map<string,number>()
   scene.nodes.forEach((node,i)=>{if(nodeIds.has(node.id))throw new Error('Duplicate topology node ID');nodeIds.set(node.id,i)})
   const endpoints=new Uint32Array(scene.edges.length*2),positions=new Float32Array(scene.nodes.length*2),edgeOffsets=new Float32Array(scene.edges.length)
@@ -37,8 +38,8 @@ export function buildSceneIndex(scene:NetworkScene):SceneIndex {
   if(supplied){
     let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity
     for(const node of scene.nodes){minX=Math.min(minX,node.x!);maxX=Math.max(maxX,node.x!);minY=Math.min(minY,node.y!);maxY=Math.max(maxY,node.y!)}
-    const scale=Math.min(920/Math.max(1,maxX-minX),528/Math.max(1,maxY-minY))
-    scene.nodes.forEach((node,i)=>{positions[i*2]=500+(node.x!-(minX+maxX)/2)*scale;positions[i*2+1]=300+(node.y!-(minY+maxY)/2)*scale*(scene.coordinateSystem==='geographic'?-1:1)})
+    const scale=Math.min(920/Math.max(1,maxX-minX),(height-72)/Math.max(1,maxY-minY))
+    scene.nodes.forEach((node,i)=>{positions[i*2]=500+(node.x!-(minX+maxX)/2)*scale;positions[i*2+1]=height/2+(node.y!-(minY+maxY)/2)*scale*(scene.coordinateSystem==='geographic'?-1:1)})
   }else{
     // Linear-time deterministic graph traversal, on the worker rather than the UI thread.
     const neighbors=scene.nodes.map(()=>[] as number[])
@@ -48,10 +49,29 @@ export function buildSceneIndex(scene:NetworkScene):SceneIndex {
       const queue=[start];visited[start]=1
       for(let cursor=0;cursor<queue.length;cursor++){const n=queue[cursor];order.push(n);for(const next of neighbors[n])if(!visited[next]){visited[next]=1;queue.push(next)}}
     }
-    const columns=Math.max(1,Math.ceil(Math.sqrt(scene.nodes.length*5/3))),rows=Math.max(1,Math.ceil(scene.nodes.length/columns))
-    order.forEach((node,i)=>{positions[node*2]=40+(i%columns+.5)*920/columns;positions[node*2+1]=36+(Math.floor(i/columns)+.5)*528/rows})
+    const columns=Math.max(1,Math.ceil(Math.sqrt(scene.nodes.length*aspect))),rows=Math.max(1,Math.ceil(scene.nodes.length/columns))
+    order.forEach((node,i)=>{positions[node*2]=40+(i%columns+.5)*920/columns;positions[node*2+1]=36+(Math.floor(i/columns)+.5)*(height-72)/rows})
+    if(scene.nodes.length<=1500&&scene.nodes.length>1){
+      // Bounded local repulsion plus edge springs exposes the small overview's graph
+      // structure. Large detail never enters an all-pairs layout.
+      const ideal=Math.sqrt(920*(height-72)/scene.nodes.length),cell=ideal*1.6,forces=new Float32Array(positions.length)
+      for(let iteration=0;iteration<100;iteration++){
+        forces.fill(0);const cells=new Map<string,number[]>()
+        for(let i=0;i<scene.nodes.length;i++){const key=`${Math.floor(positions[i*2]/cell)}:${Math.floor(positions[i*2+1]/cell)}`,items=cells.get(key)||[];items.push(i);cells.set(key,items)}
+        for(let i=0;i<scene.nodes.length;i++){
+          const x=positions[i*2],y=positions[i*2+1],cx=Math.floor(x/cell),cy=Math.floor(y/cell)
+          for(let gx=cx-1;gx<=cx+1;gx++)for(let gy=cy-1;gy<=cy+1;gy++)for(const j of cells.get(`${gx}:${gy}`)||[])if(j>i){
+            const dx=x-positions[j*2],dy=y-positions[j*2+1],distance=Math.max(1,Math.hypot(dx,dy)),force=Math.min(20,ideal*ideal/distance*.4)
+            forces[i*2]+=dx/distance*force;forces[i*2+1]+=dy/distance*force;forces[j*2]-=dx/distance*force;forces[j*2+1]-=dy/distance*force
+          }
+        }
+        for(let e=0;e<endpoints.length;e+=2){const a=endpoints[e]*2,b=endpoints[e+1]*2,dx=positions[b]-positions[a],dy=positions[b+1]-positions[a+1],distance=Math.max(1,Math.hypot(dx,dy)),force=(distance-ideal*1.2)*.025;forces[a]+=dx/distance*force;forces[a+1]+=dy/distance*force;forces[b]-=dx/distance*force;forces[b+1]-=dy/distance*force}
+        const cooling=1-iteration/120
+        for(let i=0;i<scene.nodes.length;i++){positions[i*2]=Math.max(40,Math.min(960,positions[i*2]+Math.max(-12,Math.min(12,forces[i*2]))*cooling));positions[i*2+1]=Math.max(36,Math.min(height-36,positions[i*2+1]+Math.max(-12,Math.min(12,forces[i*2+1]))*cooling))}
+      }
+    }
   }
-  const index:SceneIndex={scene,positions,endpoints,edgeOffsets,nodeIds,edgeIds,nodes:null!,edges:null!,search:[]}
+  const index:SceneIndex={scene,bounds,positions,endpoints,edgeOffsets,nodeIds,edgeIds,nodes:null!,edges:null!,search:[]}
   index.nodes=tree(scene.nodes.map((_,i)=>i),i=>nodeBox(positions,i))
   index.edges=tree(scene.edges.map((_,i)=>i),i=>edgeBox(index,i))
   index.search=[...scene.nodes.map(node=>({key:`${node.id} ${node.label}`.toLocaleLowerCase(),result:{id:node.id,label:node.label,kind:node.kind,type:'node' as const}})),

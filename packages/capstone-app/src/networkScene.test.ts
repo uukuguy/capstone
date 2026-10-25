@@ -42,4 +42,11 @@ describe('indexed network scenes',()=>{
     expect(adapted.nodes[0].state).toBe('unresolved')
     expect(adapted.nodes[0].details).toContainEqual({label:'voltage_pu',value:'0.97 p.u.'})
   })
+  it('lays out uncoordinated source graphs for the actual portrait viewport without inventing geographic coordinates',()=>{
+    const unpositioned={...scene,nodes:scene.nodes.map(({x:_,y:__,...node})=>node)}
+    const first=buildSceneIndex(unpositioned,.8),second=buildSceneIndex(unpositioned,.8)
+    expect(first.bounds.height).toBe(1250)
+    expect([...first.positions]).toEqual([...second.positions])
+    expect(first.scene.coordinateSystem).toBe('schematic')
+  })
 })

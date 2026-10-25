@@ -10,9 +10,11 @@ export type LargeNetworkViewProps={scene:NetworkScene;title?:string;focusIds?:re
 export default function LargeNetworkView({scene,title='电网拓扑',focusIds=[],focusKey,focusMarkersOnly=false,taskLayerReady=true,storageKey,viewKey,onSelect,onActivate,onReady,onReturnCurrentTask,returnCurrentTaskLabel='回到当前任务',returnTaskRequest}:LargeNetworkViewProps){
   const canvas=useRef<HTMLCanvasElement>(null),labels=useRef<HTMLDivElement>(null),worker=useRef<Worker|null>(null),renderer=useRef<ReturnType<typeof createNetworkRenderer>|null>(null)
   const camera=useRef<SceneCamera>(readNetworkCamera(storageKey,viewKey)||FULL),request=useRef(0),pendingView=useRef(false),dirtyView=useRef(false),ready=useRef(false),frame=useRef<SceneFrame|null>(null)
+  const fullBounds=useRef<SceneCamera>(FULL)
   const drawRequest=useRef(0),persistTimer=useRef<ReturnType<typeof setTimeout>|undefined>(undefined),drag=useRef<{x:number;y:number;camera:SceneCamera;moved:boolean}|null>(null)
   const activationRequest=useRef(0)
   const focusIdentity=focusKey??focusIds.join('\u0000'),lastAutoFocus=useRef<string|undefined>(undefined),consumedReturn=useRef<number|undefined>(undefined)
+  const lastAutoView=useRef<string|undefined>(undefined),restoredInitialCamera=useRef(Boolean(readNetworkCamera(storageKey,viewKey)))
   const callbacks=useRef({onSelect,onActivate,onReady,focusIds,focusMarkersOnly,taskLayerReady,returnTaskRequest,focusIdentity});callbacks.current={onSelect,onActivate,onReady,focusIds,focusMarkersOnly,taskLayerReady,returnTaskRequest,focusIdentity}
   const [error,setError]=useState(''),[stats,setStats]=useState<SceneStats>(),[selected,setSelected]=useState<SceneSelection>(),[query,setQuery]=useState(''),[results,setResults]=useState<SceneSearchResult[]>([])
   const searchId=useRef(0),searchTimer=useRef<ReturnType<typeof setTimeout>|undefined>(undefined),controlId=useId()
@@ -26,7 +28,7 @@ export default function LargeNetworkView({scene,title='电网拓扑',focusIds=[]
     if(!ready.current)return
     if(pendingView.current){dirtyView.current=true;return}
     pendingView.current=true;dirtyView.current=false
-    send({type:'view',request:++request.current,camera:camera.current,pixels:canvas.current?.clientWidth||800,focusIds:callbacks.current.focusIds})
+    send({type:'view',request:++request.current,camera:camera.current,pixels:canvas.current?.clientWidth||800,height:canvas.current?.clientHeight||480,focusIds:callbacks.current.focusIds})
   }
   function positionLabels(){
     const root=labels.current,node=canvas.current;if(!root||!node||!frame.current)return
@@ -34,7 +36,7 @@ export default function LargeNetworkView({scene,title='电网拓扑',focusIds=[]
     for(let i=0;i<root.children.length;i++){
       const label=frame.current.labels[i],element=root.children[i] as HTMLElement
       const x=(label.x-c.x)/c.width*node.clientWidth,y=(label.y-c.y)/c.height*node.clientHeight
-      element.style.transform=`translate(${x+8}px,${y-8}px)`;element.hidden=x<0||y<0||x>node.clientWidth||y>node.clientHeight
+      element.style.transform=`translate(${x+label.dx}px,${y+label.dy}px)`;element.hidden=x<0||y<0||x>node.clientWidth||y>node.clientHeight
     }
   }
   function scheduleDraw(){
@@ -67,10 +69,15 @@ export default function LargeNetworkView({scene,title='电网拓扑',focusIds=[]
         if(!alive)return
         const data=event.data
         if(data.type==='ready'){
+          fullBounds.current=data.bounds||FULL
+          if(!readNetworkCamera(storageKey,viewKey))camera.current=fullBounds.current
           ready.current=true;camera.current=aspectCamera(camera.current);setStats(data.stats);callbacks.current.onReady?.(data.stats);requestView()
           const returned=applyReturn()
-          if(!returned&&lastAutoFocus.current!==callbacks.current.focusIdentity&&callbacks.current.focusIds.length&&!readNetworkCamera(storageKey,viewKey))focus()
+          if(lastAutoFocus.current!==undefined&&lastAutoFocus.current!==callbacks.current.focusIdentity)restoredInitialCamera.current=false
+          const newAttention=lastAutoFocus.current!==callbacks.current.focusIdentity||lastAutoView.current!==viewKey&&!restoredInitialCamera.current
+          if(!returned&&newAttention&&callbacks.current.focusIds.length&&!readNetworkCamera(storageKey,viewKey))focus()
           lastAutoFocus.current=callbacks.current.focusIdentity
+          lastAutoView.current=viewKey
         }else if(data.type==='frame'){
           pendingView.current=false;frame.current=data;renderer.current?.upload(data);renderer.current?.draw(camera.current)
           if(canvas.current){canvas.current.dataset.drawnNodes=String(data.drawnNodes);canvas.current.dataset.drawnEdges=String(data.drawnEdges)}
@@ -88,7 +95,7 @@ export default function LargeNetworkView({scene,title='电网拓扑',focusIds=[]
         else if(data.type==='error')setError(data.message)
       }
       instance.onerror=()=>{if(alive)setError('电网布局或索引未完成，请重新打开视图。')}
-      instance.postMessage({type:'load',scene} satisfies SceneWorkerRequest)
+      instance.postMessage({type:'load',scene,aspect:canvas.current.clientWidth&&canvas.current.clientHeight?canvas.current.clientWidth/canvas.current.clientHeight:5/3} satisfies SceneWorkerRequest)
     }catch(cause){setError(cause instanceof Error?cause.message:'大图渲染暂不可用')}
     const observer=typeof ResizeObserver==='undefined'?undefined:new ResizeObserver(()=>{camera.current=aspectCamera(camera.current);scheduleDraw()});if(canvas.current)observer?.observe(canvas.current)
     return()=>{alive=false;ready.current=false;worker.current?.terminate();worker.current=null;renderer.current?.dispose();renderer.current=null;observer?.disconnect();cancelAnimationFrame(drawRequest.current);clearTimeout(persistTimer.current);clearTimeout(searchTimer.current)}
@@ -97,7 +104,7 @@ export default function LargeNetworkView({scene,title='电网拓扑',focusIds=[]
   return <section className="large-network-view" aria-label={title}>
     <div className="large-network-toolbar"><strong>{title}</strong><div aria-label="电网图操作">
       <button type="button" aria-label="放大" onClick={()=>zoom(.8)}>＋</button><button type="button" aria-label="缩小" onClick={()=>zoom(1.25)}>−</button>
-      <button type="button" onClick={()=>move(FULL)}>适配全图</button>{focusIds.length>0&&<button type="button" onClick={focus}>定位任务对象</button>}
+      <button type="button" onClick={()=>move(fullBounds.current)}>适配全图</button>{focusIds.length>0&&<button type="button" onClick={focus}>定位任务对象</button>}
       {onReturnCurrentTask&&<button type="button" onClick={onReturnCurrentTask}>{returnCurrentTaskLabel}</button>}
     </div></div>
     <label className="large-network-search" htmlFor={controlId}>查找对象<input id={controlId} type="search" value={query} placeholder="名称或稳定 ID" onChange={event=>{

@@ -19,7 +19,7 @@ it('uses a worker with typed scene identity and exposes bounded accessible picke
   const onSelect=vi.fn()
   render(<LargeNetworkView scene={scene} onSelect={onSelect}/>)
   const worker=TestWorker.instances[0]
-  expect(worker.postMessage).toHaveBeenCalledWith({type:'load',scene})
+  expect(worker.postMessage).toHaveBeenCalledWith(expect.objectContaining({type:'load',scene}))
   worker.emit({type:'ready',stats:{nodes:1,edges:0,indexMs:1,bufferBytes:8}})
   expect(worker.postMessage).toHaveBeenCalledWith(expect.objectContaining({type:'view',camera:expect.any(Object)}))
   worker.emit({type:'selected',request:1,item:{type:'node',...scene.nodes[0]}})
@@ -60,4 +60,15 @@ it('waits for worker and task-layer readiness before consuming a return request 
   const second=TestWorker.instances[1]
   second.emit({type:'ready',stats:{nodes:1,edges:0,indexMs:1,bufferBytes:8}})
   expect(second.postMessage.mock.calls.filter(([message])=>message.type==='focus')).toHaveLength(0)
+})
+it('focuses a newly admitted unsaved scene even when the instruction focus key stays the same',()=>{
+  const props={scene,focusIds:['station'],focusKey:'same-instruction'}
+  const {rerender}=render(<LargeNetworkView {...props} viewKey="source-one"/>)
+  const first=TestWorker.instances[0]
+  first.emit({type:'ready',stats:{nodes:1,edges:0,indexMs:1,bufferBytes:8}})
+  expect(first.postMessage.mock.calls.filter(([message])=>message.type==='focus')).toHaveLength(1)
+  rerender(<LargeNetworkView {...props} viewKey="source-two"/>)
+  const second=TestWorker.instances[1]
+  second.emit({type:'ready',stats:{nodes:1,edges:0,indexMs:1,bufferBytes:8}})
+  expect(second.postMessage.mock.calls.filter(([message])=>message.type==='focus')).toHaveLength(1)
 })
