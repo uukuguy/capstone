@@ -31,4 +31,12 @@ describe('source workspace',()=>{
     expect(read.mock.calls[1][0]).toMatchObject({scope_id:'north',level:'station',selected_object_id:'station:a'})
     expect(read.mock.calls[1][0].expected_view_ref).toBeUndefined()
   })
+  it('refuses a drill-down whose published selection rule changes',async()=>{
+    const read=vi.fn().mockResolvedValueOnce({...page,selection:{rule_sha256:'rule-a'}}).mockResolvedValueOnce({
+      ...page,level:'station',view_ref:'station-view',selection:{rule_sha256:'rule-b'},
+    })
+    render(<GridSourceWorkspace transport={{gridSourceTopology:read} as unknown as HttpThreadTransport} onQuestion={vi.fn()}/>)
+    fireEvent.click(await screen.findByText('展开节点（0条可定位连接）'))
+    expect((await screen.findByRole('alert')).textContent).toContain('来源选择规则已变化')
+  })
 })

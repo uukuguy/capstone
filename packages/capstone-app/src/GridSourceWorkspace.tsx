@@ -5,7 +5,7 @@ import { LargeNetworkView } from './LargeNetworkView'
 import type { NetworkScene } from './networkScene'
 import './gridSource.css'
 
-type Selection = { level: GridSourceLevel; selected_object_id?: string | null; label: string; sourceSnapshot?: string; sourceInstance?: string }
+type Selection = { level: GridSourceLevel; selected_object_id?: string | null; label: string; sourceSnapshot?: string; sourceInstance?: string; sourceRule?: string }
 const root: Selection = { level:'region', label:'华北' }
 
 export default function GridSourceWorkspace({ transport, onQuestion }: {
@@ -31,6 +31,8 @@ export default function GridSourceWorkspace({ transport, onQuestion }: {
         if(selection.sourceSnapshot && (result.page.source_snapshot.metadata_snapshot!==selection.sourceSnapshot
             || result.page.source_snapshot.source_instance!==selection.sourceInstance))
           throw new Error('来源快照已变化，请回到华北总览重新加载。')
+        if(selection.sourceRule && result.page.selection.rule_sha256!==selection.sourceRule)
+          throw new Error('来源选择规则已变化，请回到华北总览重新加载。')
         if(!controller.signal.aborted&&generation.current===ticket)setView(result)
       })
       .catch(cause=>{if(!controller.signal.aborted)setError(cause instanceof Error?cause.message:'源拓扑读取失败。')})
@@ -50,6 +52,7 @@ export default function GridSourceWorkspace({ transport, onQuestion }: {
     const object: GridSourceObject|undefined=objects.get(item.id)
     if(object?.expand)setPath(previous=>[...previous,{...object.expand!,label:object.label||object.id,
       sourceSnapshot:typeof view?.page.source_snapshot.metadata_snapshot==='string'?view.page.source_snapshot.metadata_snapshot:undefined,
+      sourceRule:typeof view?.page.selection.rule_sha256==='string'?view.page.selection.rule_sha256:undefined,
       sourceInstance:typeof view?.page.source_snapshot.source_instance==='string'?view.page.source_snapshot.source_instance:undefined}])
   }
   async function ask() {
