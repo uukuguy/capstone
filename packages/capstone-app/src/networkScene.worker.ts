@@ -1,7 +1,7 @@
 import {buildSceneIndex,focusScene,queryScene,searchScene,type SceneIndex} from './networkSceneIndex'
 import type {NetworkScene,SceneCamera,SceneSelection,SceneRelated} from './networkScene'
 import {networkSymbol,sceneGlyphs} from './networkSymbols'
-import {pickPresentedScene,presentedBundle,sceneNeighborhood,type ScenePresentation} from './networkScenePresentation'
+import {bundleSelection,pickPresentedScene,presentedBundle,sceneNeighborhood,type ScenePresentation} from './networkScenePresentation'
 import {collapsedStation} from './networkStationLayout'
 
 export type SceneWorkerRequest=
@@ -17,10 +17,10 @@ const color=(selected:boolean,node=false,style?:{color?:readonly number[];state?
 function selection(index:SceneIndex,id:string):{item:SceneSelection;x:number;y:number}|undefined {
   const node=index.nodeIds.get(id)
   if(node!==undefined)return {item:{type:'node',...index.scene.nodes[node]},x:index.positions[node*2],y:index.positions[node*2+1]}
-  const edge=index.edgeIds.get(id)
+  const bundle=bundleSelection(index,id),edge=index.edgeIds.get(id)??index.bundles.get(id)?.[0]
   if(edge===undefined)return
   const a=index.endpoints[edge*2]*2,b=index.endpoints[edge*2+1]*2
-  return {item:{type:'edge',...index.scene.edges[edge]},x:(index.positions[a]+index.positions[b])/2,y:(index.positions[a+1]+index.positions[b+1])/2}
+  return {item:bundle||{type:'edge',...index.scene.edges[edge]},x:(index.positions[a]+index.positions[b])/2,y:(index.positions[a+1]+index.positions[b+1])/2}
 }
 export function related(index:SceneIndex,item:SceneSelection|undefined):SceneRelated|undefined{
   if(!index.scene.displayMode?.startsWith('source')||item?.type!=='node')return
@@ -39,6 +39,11 @@ export function sceneFrame(index:SceneIndex,message:Extract<SceneWorkerRequest,{
   }
   const priorities=message.selectionId?[message.selectionId,...message.focusIds.slice(0,63)]:message.focusIds.slice(0,64)
   for(const id of priorities){const n=index.nodeIds.get(id),e=index.edgeIds.get(id);if(n!==undefined)nodes.add(n);if(e!==undefined)edges.add(e)}
+  const selectedEdge=source&&message.selectionId?(index.edgeIds.get(message.selectionId)??index.bundles.get(message.selectionId)?.[0]):undefined
+  if(selectedEdge!==undefined){
+    edges.add(selectedEdge)
+    for(const i of [index.endpoints[selectedEdge*2],index.endpoints[selectedEdge*2+1]]){nodes.add(i);focused.add(index.scene.nodes[i].id)}
+  }
   const lineValues:number[]=[],pointValues:number[]=[],labels:Label[]=[]
   const scale=message.camera.width/Math.max(1,message.pixels)
   const detailed=index.scene.nodes.length<=1500||message.camera.width<index.bounds.width*.25
@@ -61,6 +66,7 @@ export function sceneFrame(index:SceneIndex,message:Extract<SceneWorkerRequest,{
   const visibleNode=(i:number)=>sourceDetail&&near?near.nodeIds.has(index.scene.nodes[i].id):!collapsed.has(index.nodeStation[i])||focused.has(index.scene.nodes[i].id)
   for(const i of nodes)if(!visibleNode(i))nodes.delete(i)
   for(const i of edges){
+    if(i===selectedEdge)continue
     if(sourceDetail&&near?!near.edgeIds.has(index.scene.edges[i].id):collapsed.has(index.nodeStation[index.endpoints[i*2]])||collapsed.has(index.nodeStation[index.endpoints[i*2+1]]))edges.delete(i)
   }
   const renderedBundles=new Set<string>();let drawnEdges=0,representedEdges=0
@@ -126,10 +132,19 @@ export function sceneFrame(index:SceneIndex,message:Extract<SceneWorkerRequest,{
 
 /** Search frames actual immediate neighbors at their indexed positions, not a fixed 220-unit box. */
 export function sourceNeighborhoodCamera(index:SceneIndex,id:string):SceneCamera|undefined {
-  if(index.scene.displayMode!=='source-detail'||!index.nodeIds.has(id))return
-  const near=sceneNeighborhood(index,id)
+  if(!index.scene.displayMode?.startsWith('source'))return
+  let nodeIds:Set<string>
+  if(index.nodeIds.has(id)){
+    if(index.scene.displayMode!=='source-detail')return
+    nodeIds=sceneNeighborhood(index,id).nodeIds
+  }else{
+    const edge=index.edgeIds.get(id)??index.bundles.get(id)?.[0]
+    if(edge===undefined)return
+    const record=index.scene.edges[edge]
+    nodeIds=new Set([record.source,record.target])
+  }
   let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity
-  for(const node of near.nodeIds){const i=index.nodeIds.get(node)!;minX=Math.min(minX,index.positions[i*2]);maxX=Math.max(maxX,index.positions[i*2]);minY=Math.min(minY,index.positions[i*2+1]);maxY=Math.max(maxY,index.positions[i*2+1])}
+  for(const node of nodeIds){const i=index.nodeIds.get(node)!;minX=Math.min(minX,index.positions[i*2]);maxX=Math.max(maxX,index.positions[i*2]);minY=Math.min(minY,index.positions[i*2+1]);maxY=Math.max(maxY,index.positions[i*2+1])}
   const width=Math.max(1,(maxX-minX)*1.5,(maxY-minY)*2.5),height=width*.6
   return {x:(minX+maxX-width)/2,y:(minY+maxY-height)/2,width,height}
 }
