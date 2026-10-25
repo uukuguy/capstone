@@ -92,6 +92,11 @@ def test_native_runtime_has_bounded_consumer_regression():
     'packages/capstone-agent/src/capstone_agent/resources/application-capacity.json',
     'packages/capstone-agent/tests/fixtures/systematic-diagnosis.test.mjs',
     'packages/capstone-agent/tests/fixtures/case.json',
+    'packages/capstone-agent/tests/general-sdk-shell.test.mjs',
+    'packages/capstone-agent/tests/general-sdk-capacity.test.mjs',
+    'packages/capstone-agent/tests/managed-subagents-sdk.test.mjs',
+    'packages/capstone-agent/tests/delivery-review-sdk.test.mjs',
+    'packages/capstone-agent/tests/research-guidance.test.mjs',
     'deploy/general-pi.Dockerfile',
     'packages/pi-capability-tools/src/research-tools.mjs',
     'packages/pi-capability-tools/src/research-context-window.mjs',
@@ -127,6 +132,7 @@ def test_conversation_mixed_foundation_or_native_infrastructure_widens(extra):
     'packages/capstone-app/package-lock.json', 'packages/capstone-app/src/unknown.json',
     'packages/pi-capability-tools/src/new-professional-tools.mjs',
     'packages/pi-capability-tools/package.json', 'deploy/Dockerfile', 'Makefile', 'unknown.file',
+    'packages/capstone-agent/tests/unregistered/test-professional.test.mjs',
 ])
 def test_conversation_unknown_professional_or_dependency_change_still_requires_product(extra):
     assert classify(['packages/capstone-agent/src/capstone_agent/resources/general-sdk.mjs', extra]) == 'product'

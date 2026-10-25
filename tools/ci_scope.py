@@ -112,6 +112,8 @@ def classify(paths: list[str], *, target: str = "dev", release: bool = False,
         if (path in CONVERSATION_RUNTIME_FILES
                 or (path.startswith('packages/capstone-agent/src/capstone_agent/') and path.endswith('.py')
                     and PurePosixPath(path).name.startswith('general_pi_'))
+                or (PurePosixPath(path).parent == PurePosixPath('packages/capstone-agent/tests')
+                    and path.endswith('.test.mjs'))
                 or (path.startswith(('packages/capstone-agent/src/capstone_agent/resources/',
                                      'packages/capstone-agent/tests/fixtures/'))
                     and path.endswith(('.mjs', '.json')))):

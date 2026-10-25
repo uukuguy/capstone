@@ -207,7 +207,7 @@ def test_conversation_runtime_ci_excludes_unchanged_professional_suites():
     assert 'timeout-minutes: 10' in block
     for expected in ('check-package-boundaries', 'check-types', 'test-capstone-agent',
                      'test-capstone-app', 'build-capstone-app', 'test-capstone-client',
-                     'node --test packages/capstone-agent/tests/fixtures/*.test.mjs',
+                     'node --test packages/capstone-agent/tests/*.test.mjs packages/capstone-agent/tests/fixtures/*.test.mjs',
                      'tools/tests/test_image_layer_order.py', 'tools/tests/test_host_runtime_contract.py'):
         assert expected in block
     for forbidden in ('test-kernel', 'test-domain-package', 'test-registered-workers', 'test-local-rebuild',
