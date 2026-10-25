@@ -28,6 +28,21 @@ def test_historical_record_receipt_is_visible_without_admitting_nested_evidence(
 import pytest
 import json
 
+
+def test_public_thinking_normalization_has_no_answer_or_authority_metadata():
+    event = normalize_runtime_event({'type': 'assistant_thinking_delta', 'text': 'Check available inputs.',
+        'task_id': 'native-task', 'result_refs': ['forged-result'], 'evidence_refs': ['forged-evidence'],
+        'signature': 'PRIVATE', 'thinking': 'PRIVATE', 'trace_sequence': 1, 'trace_correlation_id': 'PRIVATE'}, runtime_mode='capstone')
+    assert event['event_type'] == 'assistant_thinking_delta'
+    assert event['visibility'] == 'public'
+    assert event['payload'] == {'text': 'Check available inputs.', 'task_id': 'native-task'}
+
+
+@pytest.mark.parametrize('text', [None, {'thinking': 'PRIVATE'}, 'x' * 4097])
+def test_public_thinking_normalization_rejects_non_text_and_oversized_chunks(text):
+    with pytest.raises(ValueError):
+        normalize_runtime_event({'type': 'assistant_thinking_delta', 'text': text}, runtime_mode='capstone')
+
 from capstone_agent.harness import (
     AdmittedAttemptAnswer,
     CapstoneHarness,

@@ -289,6 +289,7 @@ class GeneralPiHost:
             raise InterruptedError('event delivery stopped with task')
         from .stream_progress import TextDeltaBuffer
         text_buffer = TextDeltaBuffer(lambda text: publish({'type': 'assistant_delta', 'text': text}))
+        thinking_buffer = TextDeltaBuffer(lambda text: publish({'type': 'assistant_thinking_delta', 'text': text}))
         def capture_graph_observation(call_id, tool_name, result, *, is_error=False, child=False):
             failed = is_error or result.get('isError') is True
             gateway_tool = tool_name in self.capability.get('data_gateway', {}).get('catalog', {}).get('tools', {})
@@ -532,11 +533,20 @@ class GeneralPiHost:
                 change = event.get('assistantMessageEvent', {})
                 if change.get('type') == 'text_delta':
                     payload = {'type': 'assistant_delta', 'text': str(change.get('delta', ''))}
+                elif change.get('type') == 'thinking_delta' and isinstance(change.get('delta'), str):
+                    # Only the SDK's displayable stream delta enters this channel.
+                    # Completed thinking blocks, signatures and replay metadata do not.
+                    payload = {'type': 'assistant_thinking_delta', 'text': change['delta']}
             if payload is not None:
                 if payload.get('type') == 'assistant_delta':
+                    thinking_buffer.flush()
                     text_buffer.push(payload['text'])
+                elif payload.get('type') == 'assistant_thinking_delta':
+                    text_buffer.flush()
+                    thinking_buffer.push(payload['text'])
                 else:
                     text_buffer.flush()
+                    thinking_buffer.flush()
                     publish(payload)
         status, answer, usage = 'completed', '', {}
         public_failure = None
@@ -551,6 +561,7 @@ class GeneralPiHost:
             finally:
                 if not cancelled():
                     text_buffer.flush()
+                    thinking_buffer.flush()
         except InterruptedError as error:
             usage = getattr(error, 'saved_usage', usage)
             status = 'cancelled' if record['cancel'].is_set() else 'failed'
