@@ -1,13 +1,15 @@
 # docs/status INDEX
 
-Current delivery (2026-10-26): actual devf46dc0e4, large-grid candidate7ba27575
-on feat/grid-scale-view is implemented and locally verified. See
+Current delivery (2026-10-26): PR64 merged into actual dev78f81e66 after
+scoped macOS40232655933 passed. North source rendering, model release, native
+business delivery and exact source replay passed; actual App5173 restores the
+57-node/56-connection Chaoyang view and opens saved products. See
 [source/scale verification](../reviews/2026-10-26-grid-scale-source.md).
-Hardware120k/239300 cases, actual North region/station/equipment and a real
-source question passed. Same-Thread unrelated instruction completed3.93s without
-tools or grid-plan continuation. Esc no longer hides navigation; Vivaldi current
-tab inspection passed. Dev PR/primary-entry closeout remains pending. Root5173
-still serves accepted0dc; feature5175 is a visible candidate, not a new release.
+Hardware120k/239300 cases and actual North52625/48319 full source load passed.
+Same-Thread business follow-up saved five verified files; the original failed
+execution remains recorded. Esc no longer hides navigation. Vivaldi reused its
+existing tab; product16aa9b82 is integrated, not a cloud release. The North model
+build returned explicit quality/construction gaps and no numerical result.
 Credentials and user data remain protected. Cloud/demo/main are unchanged.
 
 Historical boundary before this implementation:
@@ -367,6 +369,7 @@ dev默认开发集成主线和main发布主线均启用轻量保护：PR与两�
 | [线上到本地的功能范围核对](DEPLOYMENT-FUNCTION-SCOPE.md) | 功能与分支归属；近期需求遗漏核对和统一前端命令设计范围；现用执行账本仍必要，旧存储优化实验归档。 |
 | [Git 分支清理记录](GIT-BRANCH-CLEANUP.md) | PR #6/#9/#10/#11合并后关闭分支名；本地目录、精确归档引用和日志保留；旧存储及R0实验未提交记录保留。 |
 | `CURRENT-STATE.md` | Structural project snapshot. |
+| [_archive/2026-10-26-pre-grid-source-state.txt](_archive/2026-10-26-pre-grid-source-state.txt) | Exact previous snapshot, including historical session transcripts; original relative links use docs/status as their base. |
 | [多线版本控制](VERSION-CONTROL.md) | 2026-10-21：旧完整653.118秒未交付；新小任务199.794秒确切复用成立，P/A提案手工兜底不计通过，完整比较暂停。 |
 | [完整回答与结果复用修复验收](../reviews/2026-10-12-answer-and-result-reuse.md) | 原始三轮专项的Authority/工具/浏览器独立核对与逐阶段耗时；整体另验，历史失败不删除。 |
 | [GitHub Issues 与后台 AI 修复设计](../superpowers/specs/2026-10-10-github-issue-automation-design.md) | 已授权命令驱动实施：截图/短句反馈，默认 cloud-demo；当前 AI 会话中文处理，定时/无人值守与额外模型调用延期。 |

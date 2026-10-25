@@ -1,80 +1,45 @@
 # Live Session Checkpoint
 
-> Updated: 2026-10-26 04:35 Asia/Shanghai. Active correction and integration; not a final handoff.
+Updated 2026-10-26 05:06 Asia/Shanghai. Final control alignment remains active; this is not a final handoff.
 
-## Current boundary
+## Immediate live boundary
 
-- Immediate blocker: real native North business Attempt949fa4ccfe681818 failed native_execution_error after42.9s; no blind retries. diagnostic_tool is tracing actual worker/native logs. Event receipt /tmp/capstone-north-business-events.json. Current Thread model successfully released, active contextNone and target modelNone confirmed.
-- Latest product7dbec64d; source routing0f87556c, source scope33e379f9; independent reviews found no remaining Important after explicit fixes. Full App1089pass13.34s; selected backend885pass133skip plus seven localhost proxy failures, affected two-file recheck NO_PROXY=localhost,127.0.0.1 yields81pass9.62s. Consumers/types/boundaries/build+client15pass.
-- Canonical final backend16a72370 ready: API/all workers32a8c0956808f66eb068894abbed517ee6f6e0f29ab9b4b4ae77664973bcf308; native97088c90cfd9a2fb85b1ad1cbaa2cb7d283afc15460bda4b6584383a896bf48c; cache receipt043128-63904. Do not restart while an Attempt is active.
+- The user means **North China**, not IEEE39. Root acknowledged the mistaken comparison. Do not substitute another grid.
+- Existing Vivaldi tab: `http://127.0.0.1:5173/?workspace=enterprise&thread=thr_1b22f19781911c68df3c`. Reuse it; no new browser pages. Visible GUI tests use Vivaldi only.
+- Thread `thr_1b22f19781911c68df3c`, Work `work_844168b067efeb823f65`; North business9435fc0c completed and saved5files, downloaded/hash-verified. Graph-only **attempt_7f352f9e6084203b** completed64s; correct source57/56 rendered and restored after refresh. All test Attempts are terminal; no more Provider calls are required for this slice.
+- Prior North Attempt949fa4cc failed after42.9s. Root cause was Host treating the SDK's bound, unentered unknown-tool rejection as an invalid observation. Fix **3af1004c** preserves failed/no-source diagnostics; it does not grant forbidden model tools or relax source validation. Independent review passed. Current follow-up tests actual recovery and North business delivery.
+- Product16aa9b82 plus CI44e8eca2 merged through **PR64 as78f81e66**. Final macOS40232655933 passed7m31s; source consumer step5m24s. Actual dev App5173 product16aa and source57/56/report were verified; product files equal44e8. The gate ran affected Thread/host/App/client/gateway consumers, not release or unrelated solver suites.
+- Business source hints exposed another bug: deriving explicit330 from effective page selection changes the gateway view identity relative to omitted/null original arguments. UI replay failed503; the same original omission returned200/57nodes56edges. Fix16aa9b82 now privately binds exact original arguments to verified receipts and emits original selectors.164 focused checks/types and independent review passed. Current7f352f9e tests actual graph replay without repeating all business queries.
 
+## Runtime and repository
 
-- Actual root dev=f46dc0e4; feature feat/grid-scale-view in .worktrees/dev-macos-ci, latest source UI472045c2.
-- User clarified NORTH CHINA, not IEEE39. Do not substitute a benchmark for the requested grid.
-- Visible Vivaldi existing tab5175 Thread thr_1b22f19781911c68df3c loads actual North raw source52625nodes/48319edges, 330kV selection, no electrical equivalence.
-- Canonical rebuild04702d63 ready; API/worker image32bc0c471e79ee52546105d82d8cc79e06a97b9765aeefef9c11214daed55bfa, cleanup041906-24860.
-- North build job475f9fec380ad0bb6fbf9a360edaf9c2960b085a3a3507b3ebc436c792ac2704 failed quality_check; no solver result/artifact. Do not resubmit or invent defaults. Exact gap receipt outputs/grid-scale-20261026/north-power-flow-job.json in root.
-- Agents: process_views owns Adapter instruction routing; diagnostic_tool owns native last-model closing/backend+directory; review_unified owns raw station-aware large diagram LOD/neighborhood.
-- Root owns GridSourceWorkspace scope/raw handoff/manual path persistence; 14 focused tests pass. stationId/parentId projection WIP waits renderer type.
-- Need finish focused checks, rebuild final changed backend, real native source business task in same Vivaldi tab, readable full/detail graph, review, scoped dev PR CI/integration, root5173 verification and control register/graph.
-- Root App5173 remains earlier product; preview5175 is feature. Feature has no PR yet. Do not claim merged/deployed/accepted.
-- Root task-owned dirty control/design files must be backed up/sorted before fast-forward. Preserve user data, other worktrees, PR50 and cloud/demo/main.
+- Root dev=78f81e66; current root checkout is the final docs/grid-scale-dev-closeout branch. Initialized `.worktrees/dev-macos-ci` is detached at78f81e66; feat/grid-scale-view is closed locally/remotely, owned5175 preview stopped, ignored runtimes/user data preserved. Feature dirty docs have a hashed recovery copy under feature-before-close.
+- Canonical rebuild for16aa9b82 passed. API/all workers image **e02570acd9623a068aac4242c6c33f722ea0df43429a9400f8ad765ef16163c0**; scoped cache receipt045404-34105. Host/API/native hashes agree for server70738e818c8f, topology8eedc3555ec8 and relayad4ea856b150. Native copy lives under `/opt/general/capstone_agent`, API under `/app/packages/capstone-agent/src/capstone_agent`.
+- Root owns the final control/design/state update. Recovery copy `.capstone-agent/recovery/grid-scale-integration-20261026-050218` preserves20 root/feature files, SHA manifest and diffs before root fast-forward. New state cleanup preserves the original1162-line root CURRENT-STATE byte-for-byte at `docs/status/_archive/2026-10-26-pre-grid-source-state.txt`; CURRENT-STATE is now structural, and INDEX records the archive.
+- These post-code documentation changes are intentionally uncommitted in root/feature until final actual-dev control alignment: CURRENT-STATE, INDEX, JOURNAL, RESUME, archive, and final version/graph/review updates. Preserve them with an explicit recovery copy before root fast-forward. They do not justify rerunning code CI before the real case finishes.
+- Preserve all root var/user data, ignored gateway authentication, unrelated worktrees, PR50, main, cloud/demo and local-demo. Do not copy credentials into the feature worktree.
 
-## Accepted task/resource semantics
+## North facts and receipts
 
-There is no session-wide current business goal. Each instruction determines its
-resources: explicit targets win; relevant continuation may inherit; unrelated
-instructions remain independent; consequential ambiguity gets a short question.
-Uploads/open grids cue the next instruction without permanently binding all turns.
-Stop preserves history/resources but does not resume work under a new instruction.
-Policy7e079c91 has19 tests (1 opt-in skipped) and is in the verified native image.
+- Published raw source view uses level:null, selection regional/min_ac_kv330, retained external stubs; **52625 nodes +48319 edges**. It is not all voltage levels or a verified in-service fleet.
+- Raw kinds include825 busbar records,1046 transformers and2722 windings. All53 pages validated,19 optional display labels normalized, zero unresolved endpoint IDs; device/source quality gaps remain explicit.
+- Full source view_ref d73fe042446e625fd1284880bc7402426c977dba8f456558b7e3bc82eaf03fc4. Source metadata snapshot a1e1127c0a80e7fe2ecae71edba5414e0be47f7fa034a145e1d85ecf892f52ba.
+- Vivaldi full load, real station partitions and Chaoyang4# busbar direct relationship were inspected. Renderer7b2e0011 uses declared station membership only;7dbec64d frames real endpoints of selected edges. Missing station membership stays unknown.
+- One actual North pandapower power_flow build job **475f9fec380ad0bb6fbf9a360edaf9c2960b085a3a3507b3ebc436c792ac2704** failed quality_check/model_not_calculation_ready. No model artifact or numerical solver result. Missing switch positions29689, equipment states1924, electrical parameter checks7198, incomplete line connections125, scenario/electrical reduction and unimplemented mapping/boundary equivalents. Do not blindly resubmit or fabricate defaults.
+- Operator gateway business checks passed: Chaoyang exact identity/object,14 source line relations, regional plant classifications, active-power metric dictionary, busbar/transformer directories. Directory totals86804/120926 differ from330kV model selection and do not imply operating capacity or current state.
+- Root receipts: `outputs/grid-scale-20261026/`, including `north-model-check.md`, `north-power-flow-job.json`, `raw-pages/actual-001.json`…053, business-checks, station-layout-receipt.json, north-native-failed-events.json.
 
-## Completed evidence
+## Implementation and verification
 
-- North region405nodes/1003edges, station44/10 and breaker3/2 via actual protected
-  gateway and browser drill-down. Scope discovery6regions+4groups validated after
-  actual-shape fixd9b72190. Source display groups are not solver models.
-- Real source question: Threadthr_1b22f19781911c68df3c, Attempt1fc523da0b0f5290,
-  114.6s, completed, two saved products; distinguishes405/1003 totals from50/50
-  samples and declines unsupported power-flow/connectivity claims.
-- Same Thread/Work unrelated questiondeed15fd345d4333 completed3.93s, text-only,
-  no tools, no grid-plan continuation. No provider loops or active tasks remain.
--120k nodes/239300 edges, M3Max/Chromium155 hardwareMetal: provided-coordinate
-  firstframe1064ms, no-coordinate771ms; RAFp9518.1ms, pick0.5ms. Initial LOD24k/40k.
-  Heap excludes worker/GPU; synthetic does not prove arbitrary-grid readability.
-- Independent review at638302d1: no Important/Critical blocker. It checked repairs
-  for quality across pages, task/history focus, deferred return, scene identity,
-  selected highlight and panel resize.69renderer checks + focused late cases pass.
--31 source/HTTP checks,103 governance checks,44 source/Work checks, types pass.
-- User new steering7ba27575 removes global Escape sidebar hiding.15workspace checks
-  pass. Visible Vivaldi current tab confirmed Escape leaves navigation expanded and
-  actual405/1003 source geometry is shown.
+- Exact instruction routing0f87556c uses verified source_view or exact admitted model layers; no upload/keyword routing. Manual selection wins. Historical baseline layers do not trigger automatic views. Scope33e379f9 and consumed-hint persistence preserve manual paths across region changes/reopen.
+- Native last-model release16a72370 passed actual PostgreSQL close/retry/restart and Vivaldi close. Professional and active-task guards remain. Thread snapshot active_model_context=null/native available was verified before new North submission.
+- Full App1089 passed13.34s. Selected backend885 passed/133 optional DB checks skipped; seven localhost proxy failures were resolved by rerunning both affected files with explicit NO_PROXY,81 passed9.62s.
+- Native SDK/fixtures425 passed15.40s. Image contracts80 passed/3 skipped. Types/boundaries/App build/client15 passed. Latest rejection fix135 Python and19 SDK checks passed, Pyright0. Independent reviews have no remaining Important/Critical findings.
+- Root doctor and changed Markdown links/diff checks passed. Existing Vivaldi control tab inspected actual-dev graph with fixed7dbec64d source node; exact deployed sources remain separate from branch HEADs.
 
-## Browser and operator rules
+## Next actions
 
-Use ONLY visible Vivaldi for further workbench UI checks. Reuse its current tab;
-do not create more pages/tabs or new Playwright browsers. Current tab is5175,
-Thread1b22, source pane open. Use orca computer via loaded computer-use skill;
-bundle com.vivaldi.Vivaldi, current window95859 (refresh if stale). AppleScript URL
-assignment navigates this tab; JavaScript via AppleEvents is disabled, do not change
-that setting. Keep user pages/data and browser preferences intact.
-
-Gateway credentials ONLY root .capstone-agent/auth/data-gateway/connection.json,
-0600/dir0700, selected by ignored deploy/local.env protected mount. Never print,
-copy into feature, or put in args/logs/App/artifacts. Browser @fs access403.
-Detailed safe receipts: root outputs/grid-scale-20261026/; review document and
-owning grid-scale plan contain implementation and limits.
-
-## Immediate closeout
-
-1. Verify changed docs/links/symlink, doctor/diff. Commit mirrored task-owned docs.
-2. Push feat/grid-scale-view and create PR to dev, no release dispatch. Guarded
-   source-topology gate covers direct consumers with10min failure ceiling; unknown,
-   foundation, Authority/dependency/legacy transport changes still broaden.
-3. After required gate passes, merge exact reviewed HEAD. Back up root dirty
-   snapshots, fast-forward actual dev, verify real5173 source/retained task and
-   source pane in SAME Vivaldi tab. API/worker code hashes already match candidate;
-   no backend rebuild just for docs/CI/merge. Finish scoped cleanup if new build used.
-4. Refresh canonical register/graph in actual dev, inspect using existing Vivaldi
-   tab and return to workbench. Record source, CI duration, merge and actual entry
-   separately. Avoid self-hash commit cycles. No cloud/main/demo deployment.
+1. Integrate the final documentation/control update through a normal docs PR. Doctor, Markdown links, symlink and diff checks apply; do not rerun code or Provider suites for this update.
+2. Return root to actual dev, fast-forward, refresh and inspect its final control graph in the existing Vivaldi control tab. A final generated HEAD snapshot may stay explicitly dirty to avoid an endless self-hash commit loop.
+3. After docs merge, align the detached initialized worktree to accepted dev and close the docs control branch. Feature docs/branch/preview cleanup is already complete. Leave the existing browser tab showing the North graph on5173.
+4. No cloud/demo promotion is authorized. A calculable North model remains blocked by the gateway's recorded data/construction gaps; do not fabricate defaults or resubmit the failed build automatically.
