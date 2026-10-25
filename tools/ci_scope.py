@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import argparse
+import ast
 from copy import deepcopy
+import json
 from pathlib import Path, PurePosixPath
 import re
 from urllib.parse import unquote
@@ -57,6 +59,135 @@ RUNTIME_DEPENDENCIES = {'packages/capstone-agent/pyproject.toml'} | {
 MCP_PACKAGES = {'mcp', 'httpx-sse', 'sse-starlette', 'pydantic-settings',
                 'python-multipart', 'pywin32', 'pyjwt'}
 
+# This is an exact addition contract, not a general exemption for transport code.
+# Changing any legacy method, timeout, origin, authentication or task semantics
+# still requires product verification, even in a source-view PR.
+SOURCE_CONTROL_METHODS = '''
+    def grid_source_catalog(self):
+        return self._call('GET', '/grid-sources', timeout=2, total_timeout=3)
+
+    def grid_source_scopes(self):
+        from .grid_source_topology import EXCHANGE_SECONDS
+        return self._call('GET', '/grid-sources/data-gateway/scopes',
+                          timeout=EXCHANGE_SECONDS + 2, total_timeout=EXCHANGE_SECONDS + 3)
+
+    def grid_source_resolve_scope(self, document):
+        from .grid_source_topology import EXCHANGE_SECONDS
+        return self._call('POST', '/grid-sources/data-gateway/resolve-scope', document=document,
+                          timeout=EXCHANGE_SECONDS + 2, total_timeout=EXCHANGE_SECONDS + 3)
+
+    def grid_source_topology(self, document):
+        from .grid_source_topology import EXCHANGE_SECONDS, checked_topology_request
+        return self._call('POST', '/grid-sources/data-gateway/topology',
+                          document=checked_topology_request(document),
+                          timeout=EXCHANGE_SECONDS + 2, total_timeout=EXCHANGE_SECONDS + 3)
+'''
+SOURCE_ERROR_CODES = {'grid_source_unavailable', 'grid_source_request_invalid', 'grid_source_view_changed',
+                      'grid_source_response_invalid', 'grid_source_observation_unavailable'}
+SOURCE_BACKEND_MODULES = {'grid_source_topology', 'grid_source_http', 'host_api',
+                          'general_pi_server', 'pi_delegation'}
+SOURCE_BACKEND_TESTS = {'test_grid_source_topology', 'test_grid_source_http', 'test_general_pi_native',
+    'test_general_pi_server', 'test_pi_delegation', 'test_host_api', 'test_thread_http_api',
+    'test_thread_model_workspace', 'test_data_gateway_mcp', 'test_data_gateway_relay',
+    'test_network_policy_http', 'test_native_network_policy'}
+SOURCE_FILES = {'configs/runtime/data-gateway.json', 'deploy/general-pi.Dockerfile',
+               'packages/capstone-agent/src/capstone_agent/resources/general-context.mjs'}
+SOURCE_ANCHORS = {'packages/capstone-agent/src/capstone_agent/grid_source_topology.py',
+                  'packages/capstone-agent/src/capstone_agent/grid_source_http.py'}
+
+
+def source_transport_document(old: str, new: str) -> bool:
+    """Admit only the exact source-control additions; compare all legacy AST."""
+    expected = {node.name: ast.dump(node) for node in ast.parse(
+        'class HttpGeneralPiExecutor:\n' + SOURCE_CONTROL_METHODS).body[0].body}
+
+    def normalize(text):
+        tree = ast.parse(text)
+        classes = [node for node in tree.body if isinstance(node, ast.ClassDef)
+                   and node.name == 'HttpGeneralPiExecutor']
+        if len(classes) != 1:
+            raise ValueError('transport class missing or duplicated')
+        owner = classes[0]
+        kept, seen = [], set()
+        for node in owner.body:
+            if isinstance(node, ast.FunctionDef) and node.name in expected:
+                if node.name in seen or ast.dump(node) != expected[node.name]:
+                    raise ValueError('unregistered source forwarding implementation')
+                seen.add(node.name)
+                continue
+            if isinstance(node, ast.FunctionDef) and node.name == '_call':
+                for assignment in ast.walk(node):
+                    if (isinstance(assignment, ast.Assign) and len(assignment.targets) == 1
+                            and isinstance(assignment.targets[0], ast.Name)
+                            and assignment.targets[0].id == 'known' and isinstance(assignment.value, ast.Set)):
+                        assignment.value.elts = [item for item in assignment.value.elts
+                            if not (isinstance(item, ast.Constant) and item.value in SOURCE_ERROR_CODES)]
+            kept.append(node)
+        owner.body = kept
+        return ast.dump(tree)
+    try:
+        return normalize(old) == normalize(new)
+    except (SyntaxError, ValueError, TypeError):
+        return False
+
+
+def source_gateway_document(old: dict, new: dict) -> bool:
+    """Only publish this one read-only topology tool; other policy edits widen."""
+    values = []
+    for document in (old, new):
+        if not isinstance(document, dict) or not isinstance(document.get('allowed_tools'), list):
+            return False
+        value = deepcopy(document)
+        tools = value['allowed_tools']
+        if any(not isinstance(tool, str) for tool in tools) or tools.count('get_network_topology_view') > 1:
+            return False
+        value['allowed_tools'] = [tool for tool in tools if tool != 'get_network_topology_view']
+        values.append(value)
+    return (values[0] == values[1]
+            and old['allowed_tools'].count('get_network_topology_view') <= new['allowed_tools'].count('get_network_topology_view'))
+
+
+def source_topology_diff(paths: list[str], base: str, head: str) -> bool:
+    checks = {'packages/capstone-agent/src/capstone_agent/pi_delegation.py': source_transport_document,
+              'configs/runtime/data-gateway.json': source_gateway_document}
+    for path, check in checks.items():
+        if path not in paths:
+            continue
+        try:
+            old, new = [subprocess.check_output(['git', 'show', f'{revision}:{path}'], text=True)
+                        for revision in (base, head)]
+            if path.endswith('.json'):
+                old, new = json.loads(old), json.loads(new)
+            if not check(old, new):
+                return False
+        except (subprocess.CalledProcessError, ValueError, TypeError, OSError):
+            return False
+    return True
+
+
+def source_topology_paths(paths: list[str]) -> bool:
+    if not set(paths) & SOURCE_ANCHORS:
+        return False
+    for path in paths:
+        location = PurePosixPath(path)
+        if '..' in location.parts:
+            return False
+        if path in SOURCE_FILES or path in DOC_FILES or path in GOVERNANCE_FILES:
+            continue
+        if path.startswith(('docs/', 'tools/project_overview/')):
+            continue
+        if (location.parent == PurePosixPath('packages/capstone-agent/src/capstone_agent')
+                and location.suffix == '.py' and location.stem in SOURCE_BACKEND_MODULES):
+            continue
+        if (location.parent == PurePosixPath('packages/capstone-agent/tests')
+                and location.suffix == '.py' and location.stem in SOURCE_BACKEND_TESTS):
+            continue
+        if path.startswith('packages/capstone-app/src/') and (location.suffix in {'.ts', '.tsx', '.css'}
+                or path.startswith('packages/capstone-app/src/fixtures/') and location.suffix == '.json'):
+            continue
+        return False
+    return True
+
 
 def runtime_dependency_document(path: str, old: dict, new: dict) -> bool:
     if path not in RUNTIME_DEPENDENCIES:
@@ -101,11 +232,13 @@ def runtime_dependency_diff(paths: list[str], base: str, head: str) -> bool:
 
 
 def classify(paths: list[str], *, target: str = "dev", release: bool = False,
-             runtime_dependencies: bool = False) -> str:
+             runtime_dependencies: bool = False, source_topology: bool = False) -> str:
     if target == "main" or release:
         return "release"
     if not paths:
         return "product"
+    if source_topology and source_topology_paths(paths):
+        return 'source-topology'
     governance = False
     shared_agent = False
     foundation = False
@@ -178,7 +311,8 @@ def main() -> None:
         print("Changed Markdown file links passed")
     else:
         print(classify(paths, target=args.target, release=args.release,
-                       runtime_dependencies=runtime_dependency_diff(paths, args.base, args.head)))
+                       runtime_dependencies=runtime_dependency_diff(paths, args.base, args.head),
+                       source_topology=source_topology_diff(paths, args.base, args.head)))
 
 
 def is_ignored_delivery_link(root: Path, document: Path, target: str) -> bool:

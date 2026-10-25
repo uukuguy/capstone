@@ -7,6 +7,96 @@ import subprocess
 
 ROOT = Path(__file__).resolve().parents[2]
 
+SOURCE_PATHS = [
+    'packages/capstone-agent/src/capstone_agent/grid_source_topology.py',
+    'packages/capstone-agent/src/capstone_agent/grid_source_http.py',
+    'packages/capstone-agent/src/capstone_agent/host_api.py',
+    'packages/capstone-agent/src/capstone_agent/pi_delegation.py',
+    'packages/capstone-agent/src/capstone_agent/general_pi_server.py',
+    'packages/capstone-agent/src/capstone_agent/resources/general-context.mjs',
+    'packages/capstone-agent/tests/test_grid_source_topology.py',
+    'packages/capstone-agent/tests/test_grid_source_http.py',
+    'packages/capstone-agent/tests/test_general_pi_native.py',
+    'deploy/general-pi.Dockerfile', 'configs/runtime/data-gateway.json',
+    'packages/capstone-app/src/NetworkView.tsx', 'tools/ci_scope.py',
+]
+
+
+def test_source_topology_requires_verified_content_and_exact_covered_paths():
+    assert classify(SOURCE_PATHS) == 'product'
+    assert classify(SOURCE_PATHS, source_topology=True) == 'source-topology'
+    assert classify(SOURCE_PATHS, source_topology=True, target='main') == 'release'
+    assert classify(SOURCE_PATHS, source_topology=True, release=True) == 'release'
+    for extra in ('packages/capstone-agent/src/capstone_agent/kernel_pi_session.py',
+                  'packages/capstone-agent/src/capstone_agent/new_provider.py',
+                  'packages/capstone-agent/tests/test_new_provider.py',
+                  'packages/capability-agent-kernel/src/capability_agent/application/composition.py',
+                  'packages/grid-simulator/src/grid_simulator/solver.py',
+                  'packages/grid-agent/src/grid_agent/authority.py',
+                  'packages/capstone-agent/pyproject.toml', 'packages/grid-agent/uv.lock',
+                  'packages/capstone-app/package-lock.json', 'compose.yaml', 'unknown.file'):
+        assert classify(SOURCE_PATHS + [extra], source_topology=True) == 'product'
+
+
+def test_source_transport_guard_preserves_all_legacy_behavior():
+    from tools.ci_scope import source_transport_document, SOURCE_CONTROL_METHODS
+    old = 'class HttpGeneralPiExecutor:\n    def _call(self):\n        known={"invalid_task"}\n        return "legacy"\n'
+    new = old + SOURCE_CONTROL_METHODS
+    assert source_transport_document(old, new)
+    assert not source_transport_document(old, new.replace('return "legacy"', 'return "changed"'))
+    assert not source_transport_document(old, new.replace("'/grid-sources'", "'/tasks'"))
+    assert not source_transport_document(old, new.replace('total_timeout=3', 'total_timeout=300'))
+    assert not source_transport_document(old, new + '\n    def bypass(self): return self._call("POST", "/tasks")\n')
+    codes = ', '.join(repr(code) for code in ('invalid_task', 'grid_source_unavailable',
+        'grid_source_request_invalid', 'grid_source_view_changed', 'grid_source_response_invalid',
+        'grid_source_observation_unavailable'))
+    candidate = new.replace('{"invalid_task"}', '{' + codes + '}')
+    assert source_transport_document(old, candidate)
+    assert not source_transport_document(old, candidate.replace("'invalid_task', ", ''))
+    assert not source_transport_document(old, candidate.replace("'invalid_task'", "'new_unknown_code'"))
+    assert not source_transport_document(old, 'not Python!')
+
+
+def test_source_policy_guard_allows_only_one_readonly_tool_addition():
+    from copy import deepcopy
+    from tools.ci_scope import source_gateway_document
+    old = {'schema': 'capstone-data-gateway/1', 'allowed_tools': ['discover_data_capabilities']}
+    new = deepcopy(old)
+    new['allowed_tools'].append('get_network_topology_view')
+    assert source_gateway_document(old, new)
+    for forbidden in ('build_network_model', 'query_database_sql', 'caller_selected_tool'):
+        changed = deepcopy(new)
+        changed['allowed_tools'].append(forbidden)
+        assert not source_gateway_document(old, changed)
+    new['namespace'] = 'changed'
+    assert not source_gateway_document(old, new)
+
+
+def test_source_diff_fails_closed_if_critical_base_is_unavailable(monkeypatch):
+    from tools.ci_scope import source_topology_diff
+    def missing(*args, **kwargs):
+        raise subprocess.CalledProcessError(128, args[0])
+    monkeypatch.setattr(subprocess, 'check_output', missing)
+    assert not source_topology_diff(SOURCE_PATHS, 'base', 'head')
+
+
+def test_source_diff_and_classifier_reject_legacy_transport_edits_alongside_approved_additions(monkeypatch):
+    from tools.ci_scope import source_topology_diff, SOURCE_CONTROL_METHODS
+    old = 'class HttpGeneralPiExecutor:\n    def _call(self):\n        return "legacy"\n'
+    documents = {'base': old, 'head': old + SOURCE_CONTROL_METHODS}
+    def git_show(arguments, **kwargs):
+        assert arguments[:2] == ['git', 'show']
+        return documents[arguments[2].split(':', 1)[0]]
+    monkeypatch.setattr(subprocess, 'check_output', git_show)
+    paths = ['packages/capstone-agent/src/capstone_agent/grid_source_http.py',
+             'packages/capstone-agent/src/capstone_agent/pi_delegation.py']
+    approved = source_topology_diff(paths, 'base', 'head')
+    assert approved and classify(paths, source_topology=approved) == 'source-topology'
+    documents['head'] = documents['head'].replace('return "legacy"', 'return "changed task semantics"')
+    approved = source_topology_diff(paths, 'base', 'head')
+    assert not approved
+    assert classify(paths, source_topology=approved) == 'product'
+
 
 def test_documentation_and_overview_changes():
     assert classify(["docs/status/PROJECT-OVERVIEW.html", "README.md"]) == "docs"

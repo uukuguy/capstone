@@ -13,6 +13,30 @@ from pathlib import PurePosixPath
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def test_source_topology_gate_covers_direct_consumers_without_solver_or_release_suites():
+    workflow = (ROOT / '.github/workflows/verify.yml').read_text()
+    assert 'source-topology|' in workflow
+    block = workflow.split('      - name: Verify source topology consumers\n', 1)[1].split('      - name:', 1)[0]
+    assert "if: steps.scope.outputs.gate == 'source-topology'" in block
+    assert 'timeout-minutes: 10' in block
+    for expected in ('check-package-boundaries', 'check-types', 'test-capstone-app', 'build-capstone-app',
+                     'test-capstone-client', 'test_grid_source_*.py', 'test_pi_delegation.py',
+                     'test_general_pi_*.py', 'test_host*.py', 'test_thread*.py',
+                     'test_data_gateway_*.py', 'test_network_policy_http.py', 'test_native_network_policy.py',
+                     'test_enterprise_normal_chat.py', 'test_native_session_profile.py',
+                     'test_harness.py', 'test_delegated_runtime.py',
+                     'node --test packages/capstone-agent/tests/*.test.mjs packages/capstone-agent/tests/fixtures/*.test.mjs',
+                     'tools/tests/test_image_layer_order.py', 'tools/tests/test_host_runtime_contract.py'):
+        assert expected in block
+    for forbidden in ('test-capstone-agent', 'test-kernel', 'test-registered-workers', 'test-domain-package',
+                      'test-local-rebuild', 'test-inventory-pi', 'test-pi-capture-runtime',
+                      'packages/grid-agent/tests', 'packages/grid-simulator/tests', 'packages/pypsa-agent/tests',
+                      'make check-pr', 'make check-release', 'test_user_local_installer.py'):
+        assert forbidden not in block
+    foundation = workflow.split('      - name: Verify shared foundation assembly\n', 1)[1].split('      - name:', 1)[0]
+    assert 'source-topology' not in foundation
+
+
 def _dry_run(target: str) -> str:
     completed = subprocess.run(
         ["make", "-n", target], cwd=ROOT, text=True, capture_output=True, check=True

@@ -43,7 +43,7 @@ jobs:
           else
             gate=$(python3 tools/ci_scope.py --base "$BASE_SHA" --head "$HEAD_SHA" --target "$TARGET_BRANCH")
           fi
-          case "$gate" in docs|governance|shared-agent|conversation-runtime|foundation|native-runtime|product|release) ;; *) exit 1 ;; esac
+          case "$gate" in docs|governance|shared-agent|conversation-runtime|source-topology|foundation|native-runtime|product|release) ;; *) exit 1 ;; esac
           echo "gate=$gate" >> "$GITHUB_OUTPUT"
       # Pinned per https://github.com/astral-sh/setup-uv (v10.0.1).
       - name: Install uv
@@ -82,6 +82,14 @@ jobs:
           uv run --project packages/capstone-agent pytest -q packages/capstone-agent/tests/test_general_pi_*.py packages/capstone-agent/tests/test_harness.py packages/capstone-agent/tests/test_delegated_runtime.py packages/capstone-agent/tests/test_thread_http_api.py packages/capstone-agent/tests/test_enterprise_normal_chat.py packages/capstone-agent/tests/test_thread_work.py packages/capstone-agent/tests/test_thread_work_execution.py packages/capstone-agent/tests/test_thread_worker.py packages/capstone-agent/tests/test_attempt_research.py packages/capstone-agent/tests/test_native_diagnosis.py
           node --test packages/capstone-agent/tests/*.test.mjs packages/capstone-agent/tests/fixtures/*.test.mjs
           node --test packages/pi-capability-tools/test/*.test.mjs
+          uv run --project packages/capstone-agent pytest tools/tests/test_image_layer_order.py tools/tests/test_host_runtime_contract.py -q
+      - name: Verify source topology consumers
+        if: steps.scope.outputs.gate == 'source-topology'
+        timeout-minutes: 10
+        run: |
+          make check-package-boundaries check-types test-capstone-app build-capstone-app test-capstone-client
+          uv run --project packages/capstone-agent pytest -q packages/capstone-agent/tests/test_grid_source_*.py packages/capstone-agent/tests/test_pi_delegation.py packages/capstone-agent/tests/test_general_pi_*.py packages/capstone-agent/tests/test_host*.py packages/capstone-agent/tests/test_thread*.py packages/capstone-agent/tests/test_data_gateway_*.py packages/capstone-agent/tests/test_network_policy_http.py packages/capstone-agent/tests/test_native_network_policy.py packages/capstone-agent/tests/test_enterprise_normal_chat.py packages/capstone-agent/tests/test_native_session_profile.py packages/capstone-agent/tests/test_harness.py packages/capstone-agent/tests/test_delegated_runtime.py
+          node --test packages/capstone-agent/tests/*.test.mjs packages/capstone-agent/tests/fixtures/*.test.mjs
           uv run --project packages/capstone-agent pytest tools/tests/test_image_layer_order.py tools/tests/test_host_runtime_contract.py -q
       - name: Verify shared foundation assembly
         if: steps.scope.outputs.gate == 'foundation' || steps.scope.outputs.gate == 'native-runtime'
