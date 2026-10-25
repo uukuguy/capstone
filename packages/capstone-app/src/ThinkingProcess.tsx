@@ -41,7 +41,7 @@ export default function ThinkingProcess({thinking,storageKey,now=Date.now(),expa
   const elapsed=Number.isFinite(start)&&Number.isFinite(end)&&end>=start?(end-start)/1000:undefined
   const status=thinking.phase==='failed'?'思考已停止（本轮失败）':thinking.phase==='cancelled'?'思考已取消':thinking.phase==='interrupted'?'思考已中断':
     active?thinking.phase==='queued'?'等待执行…':'思考中…':elapsed===undefined?'已思考':`已思考 ${Math.round(elapsed)}秒`
-  const label=open?status:elapsed===undefined?'用时 —':`用时 ${elapsed.toFixed(1)}s`
+  const label=open?status:elapsed===undefined?'—':`${elapsed.toFixed(1)}s`
   const viewport=useRef<HTMLDivElement>(null),following=useRef(true)
   useLayoutEffect(()=>{
     if(active&&open&&following.current&&viewport.current)viewport.current.scrollTop=viewport.current.scrollHeight
