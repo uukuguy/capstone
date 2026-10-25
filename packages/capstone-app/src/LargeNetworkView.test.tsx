@@ -74,3 +74,21 @@ it('focuses a newly admitted unsaved scene even when the instruction focus key s
   second.emit({type:'ready',stats:{nodes:1,edges:0,indexMs:1,bufferBytes:8}})
   expect(second.postMessage.mock.calls.filter(([message])=>message.type==='focus')).toHaveLength(1)
 })
+it('preserves camera scale through panel resizing and ignores hidden zero-size canvases',()=>{
+  vi.useFakeTimers();let resize!:()=>void
+  const previous=globalThis.ResizeObserver
+  vi.stubGlobal('ResizeObserver',class{constructor(callback:()=>void){resize=callback}observe(){}disconnect(){}})
+  try{
+    render(<LargeNetworkView scene={scene}/>)
+    const canvas=screen.getByRole('img');let width=1000,height=600
+    Object.defineProperties(canvas,{clientWidth:{get:()=>width},clientHeight:{get:()=>height}})
+    TestWorker.instances[0].emit({type:'ready',stats:{nodes:1,edges:0,indexMs:1,bufferBytes:8}})
+    height=400;act(()=>{resize();vi.advanceTimersByTime(20)})
+    expect(renderGL.draw).toHaveBeenLastCalledWith(expect.objectContaining({width:1000,height:400}))
+    const calls=renderGL.draw.mock.calls.length
+    width=0;height=0;act(()=>{resize();vi.advanceTimersByTime(20)})
+    expect(renderGL.draw.mock.calls).toHaveLength(calls)
+    width=1000;height=600;act(()=>{resize();vi.advanceTimersByTime(20)})
+    expect(renderGL.draw).toHaveBeenLastCalledWith(expect.objectContaining({width:1000,height:600}))
+  }finally{vi.stubGlobal('ResizeObserver',previous)}
+})

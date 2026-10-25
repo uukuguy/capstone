@@ -98,7 +98,11 @@ export default function LargeNetworkView({scene,title='电网拓扑',focusIds=[]
       instance.onerror=()=>{if(alive)setError('电网布局或索引未完成，请重新打开视图。')}
       instance.postMessage({type:'load',scene,aspect:canvas.current.clientWidth&&canvas.current.clientHeight?canvas.current.clientWidth/canvas.current.clientHeight:5/3} satisfies SceneWorkerRequest)
     }catch(cause){setError(cause instanceof Error?cause.message:'大图渲染暂不可用')}
-    const observer=typeof ResizeObserver==='undefined'?undefined:new ResizeObserver(()=>{camera.current=aspectCamera(camera.current);scheduleDraw()});if(canvas.current)observer?.observe(canvas.current)
+    const observer=typeof ResizeObserver==='undefined'?undefined:new ResizeObserver(()=>{
+      const node=canvas.current;if(!node?.clientWidth||!node.clientHeight)return
+      const before=camera.current,height=before.width*node.clientHeight/node.clientWidth
+      camera.current={...before,y:before.y+(before.height-height)/2,height};scheduleDraw()
+    });if(canvas.current)observer?.observe(canvas.current)
     return()=>{alive=false;ready.current=false;worker.current?.terminate();worker.current=null;renderer.current?.dispose();renderer.current=null;observer?.disconnect();cancelAnimationFrame(drawRequest.current);clearTimeout(persistTimer.current);clearTimeout(searchTimer.current)}
   },[scene,storageKey,viewKey])
   useEffect(()=>{if(ready.current){if(!applyReturn()&&lastAutoFocus.current!==focusIdentity&&focusIds.length)focus();lastAutoFocus.current=focusIdentity;requestView()}},[focusIdentity,returnTaskRequest,taskLayerReady])
