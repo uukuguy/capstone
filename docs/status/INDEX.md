@@ -1,5 +1,51 @@
 # docs/status INDEX
 
+Unified conversation and diagnosis (2026-10-25): active branch
+`feat/unified-conversation-diagnostics` HEAD `8acfe331` records acceptance;
+local-dev runtime source remains `afe173cf`. Both descend from actual dev `5b142802`. Model handoff,
+actual process focus and durable bounded diagnosis are implemented. Initial
+checks passed: 2,170 backend tests (2 skipped), 658 Kernel, 144 Pack, 15 client
+and 3 registered checks. The final tool-focus UI `f86465fa` passed 958 App tests.
+User Stop→new-instruction feedback exposed retained pending input. `bad830c7`
+supersedes it for new instructions and keeps explicit retries exact; six regression
+cases failed first, then passed within 74 related memory/PostgreSQL checks.
+`00fb086d` adds a one-shot diagnosis report without IDs/begin/finish, with scoped
+3-correction and 2-ignored-repeat limits shared by parent/child execution. Published
+historical policies retain exact replay. The 107 Python and 26 Node checks and Pyright pass.
+Real replay on 00fb still replanned the stopped task with the new task.
+`bd386585` labels the retained Work goal as background; `48fe84e1` keeps terminal
+status in native history. `afe173cf` skips the diagnosis watcher when no grant
+exists. Its two SDK regressions failed first, then passed. The full native SDK
+suite passed 367 tests in 16.96 s; backend passed 2,207 tests with 2 skips in 148.34 s.
+The same real Work completed direct answer in 16.203 s, tool products in 70.620 s,
+production-data research in 207.959 s and registered IEEE39 calculation in 26.4 s.
+Saved CSV/README, sample statistics and Authority-admitted projection/evidence
+were checked. These are separate results, not full acceptance. Source 816 fixed
+the empty-workspace HTTP and child diagnosis observation allowlist. Its diagnosis
+run was cancelled after about 226 s and 19 invalid metadata retries; three process
+products remain. The new simpler report and Stop fix still need real acceptance.
+Current source afe uses image 012d101db1fd across API/three workers and native
+aa1b86ffa8b7. All 84 exact source hashes and readiness pass; cache receipt
+211057-30406.log is saved. The fresh stopped-task/new-process test passed in
+89.073 s on Thread thr_832dff3c85e0259ed969, Work work_dd109ea8c398b5776426.
+Its graph contains only inspect-processes; the answer states that the old CSV
+task was cancelled and was not resumed. PID/name CSV and notes are saved, and
+browser refresh restores products and the normal composer. The 89 s duration
+for this simple task remains a non-blocking optimization gap. Diagnosis recovery
+attempt_c943fed923157cdd passed in 178.175 s (about 88 s queued and 90 s executing).
+It reused saved diagnosis/probe state without recalculating the CSV, saved one
+host report with zero rejections, and retained reported_only/advisory/retain_gap.
+The 3,545-byte 诊断恢复说明.md has SHA256
+023fc091a4c56d92a9b7aa66b61a7b17e0bd1fc9ffab3fcaf5a61581d6fad34d;
+host state was checked. Local validation is complete for this slice; dev PR and
+integration remain pending. Prior failed runs remain recorded.
+Candidate App5174 uses the feature checkout; root App5173 keeps its old UI until
+integration. Cloud-dev and both demo sources remain unchanged.
+See [the control graph](PROJECT-OVERVIEW.html),
+[verification record](../reviews/2026-10-25-unified-conversation-diagnostics.md),
+[design](../superpowers/specs/2026-10-25-unified-conversation-diagnostics-design.md)
+and [plan](../superpowers/plans/2026-10-25-unified-conversation-diagnostics.md).
+
 Gateway integration focus (2026-10-25): VERSION-CONTROL.md and
 PROJECT-OVERVIEW.html include design0d20a8f2, runtime22e61786 and PR58 merge48da021b.
 [Real model acceptance](../reviews/2026-10-25-enterprise-data-gateway.md) records
