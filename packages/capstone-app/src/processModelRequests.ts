@@ -20,6 +20,8 @@ export function projectProcessModelRequests(events: readonly EventEnvelope[], at
       pending = { id: event.eventId, number: calls.length + 1, ms: 0, startedAt: event.occurredAt }
       calls.push(pending)
     } else if (event.payload.phase === 'response_completed' && pending) {
+      // The host explicitly distinguishes text-only responses from tool requests.
+      if(event.payload.response_kind==='text')pending.toolCallIds=[]
       if (event.payload.response_kind === 'error' || event.payload.response_kind === 'aborted') pending.stopReason = event.payload.response_kind
       const elapsed = Date.parse(event.occurredAt) - Date.parse(pending.startedAt!)
       if (Number.isFinite(elapsed) && elapsed >= 0) {

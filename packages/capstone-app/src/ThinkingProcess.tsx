@@ -13,7 +13,7 @@ export type InitialThinking={
 /** Only supplied public text before the first admitted execution boundary. */
 export function projectInitialThinking(events:readonly EventEnvelope[],attemptId:string,handoffSeq?:number):InitialThinking|undefined {
   const current=events.filter(event=>event.visibility==='public'&&(event.attemptId===attemptId||(!event.attemptId&&event.turnId===attemptId)))
-  const begin=current.find(event=>['command_accepted','attempt_started','assistant_thinking_delta','runtime_action'].includes(event.eventType))
+  const begin=current.find(event=>event.eventType==='attempt_started')??current.find(event=>['command_accepted','assistant_thinking_delta','runtime_action'].includes(event.eventType))
   if(!begin)return
   const terminal=current.find(event=>['attempt_completed','attempt_failed','attempt_cancelled','attempt_interrupted'].includes(event.eventType))
   const handoff=handoffSeq===undefined?undefined:current.find(event=>event.eventSeq===handoffSeq)

@@ -2,7 +2,7 @@ import {afterEach,expect,it,vi} from 'vitest'
 import {act,cleanup,fireEvent,render,screen,within} from '@testing-library/react'
 import CapstoneAssistantThread,{projectAssistantMessages} from './CapstoneAssistantThread'
 import type {EventEnvelope} from './threadProtocol'
-import ThinkingProcess from './ThinkingProcess'
+import ThinkingProcess,{projectInitialThinking} from './ThinkingProcess'
 
 afterEach(()=>{cleanup();localStorage.clear()})
 const event=(eventType:string,eventSeq:number,payload:Record<string,unknown>={},attemptId='thinking'):EventEnvelope=>({eventId:`e${eventSeq}`,eventType,eventSeq,eventVersion:1,threadId:'thread',runId:'run',attemptId,visibility:'public',occurredAt:`2026-10-25T12:00:${String(eventSeq).padStart(2,'0')}Z`,payload})
@@ -10,6 +10,13 @@ const accepted=event('command_accepted',1,{kind:'send_auto',payload:{text:'Curre
 const started=event('attempt_started',2)
 const delta=event('assistant_thinking_delta',3,{text:'Actual public thought. '})
 const props={disabled:false,isRunning:true,activity:[],onSend:async()=>{},onCancel:async()=>{}}
+
+it('excludes acceptance queue time from thinking duration once execution starts',()=>{
+  const thinking=projectInitialThinking([accepted,started,delta,event('attempt_completed',4,{answer:'Answer only.'})],'thinking')!
+  expect(thinking.startedAt).toBe(started.occurredAt)
+  render(<ThinkingProcess thinking={thinking} storageKey="duration"/>)
+  expect(screen.getByRole('button',{name:'展开初始思考'}).textContent).toBe('Thinking · 2.0s')
+})
 
 it.each([false,true])('keeps thinking before the answer during streaming and after completion (tools=%s)',withTool=>{
   const {rerender}=render(<CapstoneAssistantThread {...props} events={[accepted,started,delta]}/>)
@@ -69,7 +76,7 @@ it('keeps thinking for lifecycle and goal-only notes, then archives it once actu
   const archive=screen.getByRole('region',{name:'初始思考记录'})
   const archiveTrigger=within(archive).getByRole('button',{name:'展开初始思考'})
   expect(archiveTrigger.getAttribute('aria-expanded')).toBe('false')
-  expect(archiveTrigger.textContent).toBe('Thinking · 5.0s')
+  expect(archiveTrigger.textContent).toBe('Thinking · 4.0s')
   expect(screen.queryByText('Actual public thought.')).toBeNull()
   expect(screen.getByRole('region',{name:'工具调用过程'})).toBeTruthy()
   fireEvent.click(within(archive).getByRole('button',{name:'展开初始思考'}))
@@ -136,7 +143,7 @@ it.each(['completed','failed','cancelled','interrupted'] as const)('auto-folds t
   expect(screen.queryByText('Actual public thought.')).toBeNull()
   const region=screen.getByRole('region',{name:'思考状态'})
   expect(region.getAttribute('data-phase')).toBe(phase)
-  expect(within(region).getByRole('button',{name:'展开初始思考'}).textContent).toBe('Thinking · 3.0s')
+  expect(within(region).getByRole('button',{name:'展开初始思考'}).textContent).toBe('Thinking · 2.0s')
   fireEvent.click(within(region).getByRole('button',{name:'展开初始思考'}))
   expect(within(region).getByText('Actual public thought.')).toBeTruthy()
   unmount()
