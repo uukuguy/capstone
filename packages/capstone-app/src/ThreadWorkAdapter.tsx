@@ -447,6 +447,13 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
   const historicalModel=Boolean(professional&&viewedModelPage!==activeModelPage)
   const currentModelView=professional?modelGridPages.find(page=>
     page.context.id===professional.activeModelContext.id&&page.pageId===activeModelPage)?.networkView:null
+  const displayedModelPage=modelGridPages.find(page=>page.pageId===viewedModelPage)
+  const displayedModelView=historicalModel?displayedModelPage?.networkView:currentModelView
+  const displayedModelContext=historicalModel?displayedModelPage?.context:professional?.activeModelContext
+  // Ordinal 1 also belongs to taskless base diagrams. Only an exact admitted
+  // task/view identity can associate the displayed layer with an Attempt.
+  const displayedModelTask=displayedModelView?store.networkTasks.find(task=>
+    task.context.id===displayedModelContext?.id&&task.pageId===viewedModelPage&&task.view===displayedModelView):undefined
   async function selectModelPage(pageId:string){
     const generation=++modelPageGeneration.current
     store.viewGridPage(pageId);setModelViewIssue(null)
@@ -468,6 +475,7 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
     <ThreadModelPane snapshot={professional} activePage={activeModelPage} viewedPage={viewedModelPage}
       gridPages={modelGridPages} workingPages={store.modelWorkingPages} isHistorical={historicalModel}
       projectionEventSeq={projection.eventSeq} previewDiagram={null} networkView={currentModelView}
+      instructionLabel={displayedModelTask?'已保存任务图层':'模型基础拓扑'} networkTaskId={displayedModelTask?.attemptId}
       cameraStorageKey={`${commandStorageKey}.network-cameras`} modelOptions={projection.catalog?.models||[]}
       onSelectPage={pageId=>void selectModelPage(pageId)} feedback={modelViewIssue}
       modelBusy={busy||active||!!currentAttempt||projection.connection!=='live'}

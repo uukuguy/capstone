@@ -7,7 +7,7 @@ import type {ThreadModelPaneProps} from './ThreadModelPane'
 import type {CapstoneAssistantThreadProps} from './CapstoneAssistantThread'
 import {HttpThreadTransport} from './threadHttpTransport'
 import {parseWorkSnapshot, type WorkCommand} from './threadWorkProtocol'
-import {ThreadProjectionStore, type ThreadProjectionState} from './threadProjectionStore'
+import {ThreadProjectionStore, type ThreadProjectionState, type ThreadNetworkTask} from './threadProjectionStore'
 import {sampleDiagramView} from './networkFixture'
 
 vi.mock('./ThreadWorkspace',()=>({default:(props:ComponentProps<typeof ThreadWorkspace>)=><>
@@ -27,6 +27,7 @@ vi.mock('./ThreadModelDirectory',()=>({default:({onSwitch,onActivate}:{onSwitch:
 vi.mock('./ThreadModelPane',()=>({default:(props:ThreadModelPaneProps)=><output data-testid="formal-pane">{JSON.stringify({
   context:props.snapshot.activeModelContext.id,view:props.networkView?.diagram.ref??null,
   preview:props.previewDiagram,historical:props.isHistorical,page:props.viewedPage,feedback:props.feedback,
+  instructionLabel:props.instructionLabel,networkTaskId:props.networkTaskId??null,
 })}</output>}))
 vi.mock('./ThreadProductsWorkspace',()=>({default:()=>null}))
 vi.mock('./ThreadMaterialUpload',()=>({default:()=>null}))
@@ -47,6 +48,7 @@ function fixture(initialContext:string|null='ctx_one'){
     eventSeq:0,resyncRequired:false,pendingCommands:[],viewedGridPageId:initialContext?'page_ieee39':null,
     catalog:{models:[],profiles:[]},networkView:null,gridPages:[],hasOlderHistory:false,historyLoading:false,historyAtLatest:true}
   const listeners=new Set<()=>void>()
+  let tasks:ThreadNetworkTask[]=[]
   const publish=()=>listeners.forEach(fn=>fn())
   const restore=vi.fn(async(_id:string)=>'page_ieee39')
   const refresh=vi.fn(async()=>{})
@@ -55,6 +57,7 @@ function fixture(initialContext:string|null='ctx_one'){
     return {status:'accepted',target:{kind:'model_workspace',id:'thr_formal'},commandId:command.command_id}
   })
   const store={get state(){return state},publicEvents:[],canStreamEvents:false,
+    get networkTasks(){return tasks},
     get modelWorkingPages(){return []},subscribe:(fn:()=>void)=>{listeners.add(fn);return()=>listeners.delete(fn)},
     catchUp:async()=>{},load:async()=>{},dispose:()=>{},refreshWorkSnapshot:async()=>{},dispatch,
     restoreHistoricalNetwork:restore,refreshModels:refresh,
@@ -73,6 +76,7 @@ function fixture(initialContext:string|null='ctx_one'){
   const transport=new HttpThreadTransport('','',fetcher,'/api/v1/threads','2')
   const view={...sampleDiagramView,diagram:{...sampleDiagramView.diagram,model:{id:'ieee39',revision:'revision:one',source:'gridctl'}}}
   return {store,transport,restore,refresh,dispatch,view,
+    setTasks(value:ThreadNetworkTask[]){tasks=value;publish()},
     setContext(id:string){const next=work(id);state={...state,snapshot:next.professionalSnapshot!,workSnapshot:next};publish()},
     admit(id:string,pageId='page_ieee39'){const context=state.snapshot!.activeModelContext;state={...state,networkView:view,
       gridPages:[...state.gridPages.filter(page=>page.context.id!==id),{pageId,context:{...context,id},networkView:view}]};publish()},
@@ -162,4 +166,18 @@ it('reports a current restoration failure without inventing a preview diagram',a
   const pane=JSON.parse(screen.getByTestId('formal-pane').textContent!)
   expect(pane.view).toBeNull();expect(pane.preview).toBeNull()
   expect(server.store.state.snapshot?.activeModelContext.id).toBe('ctx_one')
+})
+
+it.each(['none','other-context','copied-view','exact-layer'])('labels only the exact admitted task view (%s)',async match=>{
+  const server=fixture()
+  server.admit('ctx_one')
+  if(match!=='none')server.setTasks([{attemptId:'attempt_grid_saved',eventSeq:4,pageId:'page_ieee39',
+    context:{...server.store.state.snapshot!.activeModelContext,id:match==='other-context'?'ctx_other':'ctx_one'},
+    view:match==='copied-view'?structuredClone(server.view):server.view}])
+  render(<ThreadWorkAdapter transport={server.transport} threadId="thr_formal" namespace="formal" preparedStore={server.store}/> )
+  await waitFor(()=>expect(server.refresh).toHaveBeenCalledOnce())
+  fireEvent.click(screen.getByText('Show resources'));fireEvent.click(await screen.findByText('电气拓扑'))
+  const pane=JSON.parse(screen.getByTestId('formal-pane').textContent!)
+  expect(pane.instructionLabel).toBe(match==='exact-layer'?'已保存任务图层':'模型基础拓扑')
+  expect(pane.networkTaskId).toBe(match==='exact-layer'?'attempt_grid_saved':null)
 })
