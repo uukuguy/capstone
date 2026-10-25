@@ -197,3 +197,58 @@ def test_station_source_shape_keeps_unverified_voltage_and_hierarchy():
     assert page['nodes'][0]['parent_id'] == station
     assert page['nodes'][1]['station_id'] == '01121100000001'
     assert page['complete'] is True
+
+
+def test_explicit_raw_source_view_keeps_equipment_kinds_and_full_independent_totals():
+    from capstone_agent.grid_source_topology import GridSourceProvider
+    gateway = Gateway()
+    gateway.data.update(level=None, selected_object_id=None, display_grouping_only=False,
+        nodes=[{'id':'breakers:132111000000000001','kind':'breakers','label':'5045断路器',
+                'source_id':'132111000000000001','station_id':'01121100000003',
+                'expand':{'level':'equipment','selected_object_id':'breakers:132111000000000001'}}],
+        edges=[{'id':'breaker:one:node:one','source':'breakers:132111000000000001',
+                'target':'node:0112110000000310030042','kind':'source_connection'}],
+        total_nodes=52625,total_edges=48319)
+    provider=GridSourceProvider(gateway)
+    page=asyncio.run(provider.topology({'scope_id':'north','level':None,'limit':1000}))
+    assert page['level'] is None and page['selected_object_id'] is None
+    assert page['display_grouping_only'] is False and page['electrical_equivalence_performed'] is False
+    assert page['nodes'][0]['kind']=='breakers' and page['nodes'][0]['station_id']=='01121100000003'
+    assert page['edges'][0]['kind']=='source_connection'
+    assert (page['total_nodes'],page['total_edges'])==(52625,48319)
+    assert page['next_node_offset']==1 and page['next_edge_offset']==1
+    assert gateway.calls[0][1]['level'] is None
+    assert None in provider.catalog()['sources'][0]['levels']
+    # One stream can end while the other still has a page. No repeated starts.
+    gateway.data.update(nodes=[],node_offset=52625,next_node_offset=None,
+                        edge_offset=48318,next_edge_offset=None)
+    last=asyncio.run(provider.topology({'scope_id':'north','level':None,'limit':1000,
+        'node_offset':52625,'edge_offset':48318,'expected_view_ref':'view-one'}))
+    assert last['complete'] is True
+
+
+@pytest.mark.parametrize('change',[{'display_grouping_only':True},{'electrical_equivalence_performed':True}])
+def test_raw_view_does_not_accept_grouped_or_electrically_reduced_claims(change):
+    from capstone_agent.grid_source_topology import GridSourceProvider,GridSourceError
+    gateway=Gateway()
+    gateway.data.update(level=None,display_grouping_only=False)
+    gateway.data.update(change)
+    with pytest.raises(GridSourceError):
+        asyncio.run(GridSourceProvider(gateway).topology({'scope_id':'north','level':None}))
+
+
+def test_raw_request_has_no_selected_group_and_omitted_level_stays_regional():
+    from capstone_agent.grid_source_topology import checked_topology_request,GridSourceError
+    assert checked_topology_request({'scope_id':'north'})['level']=='region'
+    with pytest.raises(GridSourceError):
+        checked_topology_request({'scope_id':'north','level':None,'selected_object_id':'station:one'})
+
+
+def test_raw_source_object_gaps_preserve_actual_ids_without_inventing_messages():
+    from capstone_agent.grid_source_topology import GridSourceProvider
+    gateway=Gateway()
+    object_gaps=[{'id':f'windings:{index}','reason':'device_topology_missing'} for index in range(5926)]
+    gateway.data.update(level=None,display_grouping_only=False,gaps=object_gaps)
+    page=asyncio.run(GridSourceProvider(gateway).topology({'scope_id':'north','level':None}))
+    assert page['gaps']==object_gaps
+    assert 'message' not in page['gaps'][0]

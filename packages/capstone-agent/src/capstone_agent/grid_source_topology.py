@@ -111,6 +111,21 @@ def _gaps(value):
     return result
 
 
+def _topology_gaps(value):
+    # Raw views publish device-level topology omissions, not Result Gap
+    # messages. Retain source IDs/reasons without manufacturing descriptions.
+    # The completed public page is also capped by PAGE_BYTES below.
+    if not isinstance(value, list) or len(value) > 100000:
+        _invalid()
+    result = []
+    for item in value:
+        if isinstance(item, dict) and set(item) == {'id', 'reason'}:
+            result.append({'id': _text(item['id']), 'reason': _text(item['reason'])})
+        else:
+            result.extend(_gaps([item]))
+    return result
+
+
 def _scope_definitions(data):
     """Project the published definition dictionary, not a data-coverage claim."""
     if not isinstance(data, dict):
@@ -161,12 +176,14 @@ def checked_topology_request(document):
             'edge_offset': _integer(document.get('edge_offset', 0)),
             'limit': _integer(document.get('limit', 200)),
             'expected_view_ref': document.get('expected_view_ref')}
-        if request['level'] not in LEVELS or not 1 <= request['limit'] <= PAGE_LIMIT:
+        if (request['level'] is not None and request['level'] not in LEVELS) or not 1 <= request['limit'] <= PAGE_LIMIT:
             _invalid()
         for key in ('selected_object_id', 'expected_view_ref'):
             if request[key] is not None:
                 _text(request[key])
-        if request['level'] != 'region' and request['selected_object_id'] is None:
+        if request['level'] in {'station', 'equipment'} and request['selected_object_id'] is None:
+            _invalid()
+        if request['level'] is None and request['selected_object_id'] is not None:
             _invalid()
         voltage = request['voltage_min_kv']
         if voltage is not None and (type(voltage) not in {int, float} or not math.isfinite(voltage) or voltage < 0):
@@ -215,9 +232,10 @@ def topology_page(data, request, *, catalog_revision, tool_schema_sha256, status
     if request['expected_view_ref'] is not None and view_ref != request['expected_view_ref']:
         raise GridSourceError('grid_source_view_changed')
     scope = _scope(data.get('scope'))
-    if (scope['scope_id'] != request['scope_id'] or data.get('level') != request['level']
+    grouped = request['level'] is not None
+    if ('level' not in data or scope['scope_id'] != request['scope_id'] or data.get('level') != request['level']
             or data.get('selected_object_id') != request['selected_object_id']
-            or data.get('display_grouping_only') is not True
+            or data.get('display_grouping_only') is not grouped
             or data.get('electrical_equivalence_performed') is not False):
         _invalid()
     selection = _metadata(data.get('selection'), ('profile', 'min_ac_kv', 'rule_version', 'rule_sha256',
@@ -232,11 +250,11 @@ def topology_page(data, request, *, catalog_revision, tool_schema_sha256, status
         'status': status, 'view_ref': view_ref, 'source_instance': _text(data.get('source_instance')),
         'scope': scope, 'selection': selection, 'source_snapshot': snapshot,
         'level': request['level'], 'selected_object_id': request['selected_object_id'],
-        'display_grouping_only': True, 'electrical_equivalence_performed': False,
+        'display_grouping_only': grouped, 'electrical_equivalence_performed': False,
         'coordinate_system': 'schematic',
         'boundary_object_ids': _strings(data.get('boundary_object_ids')),
         'source_gaps': _strings(data.get('source_gaps'), 256),
-        'gaps': _gaps(gaps) + _gaps(data.get('gaps', [])),
+        'gaps': _gaps(gaps) + _topology_gaps(data.get('gaps', [])),
         'provenance': _metadata(provenance, ('request_id', 'queried_at', 'source_instance',
             'metadata_snapshot', 'source_nature', 'data_backend', 'database_driver',
             'measurement_availability_verified'))}
@@ -289,7 +307,7 @@ class GridSourceProvider:
         return {'schema': 'capstone-grid-source-catalog/1', 'sources': [{
             'source_id': SOURCE_ID, 'display_name': 'Data gateway source topology',
             'available': available, 'unavailable_reason': None if available else 'grid_source_unavailable',
-            'levels': ['region', 'station', 'equipment'], 'page_limit': PAGE_LIMIT,
+            'levels': [None, 'region', 'station', 'equipment'], 'page_limit': PAGE_LIMIT,
             'display_only': True}]}
 
     async def _call(self, tool, arguments):
