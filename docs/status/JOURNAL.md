@@ -5730,3 +5730,11 @@ Prior closeout receipts preserved verbatim from the root checkout:
 2026-10-25 — User requires affected-part checks during early development; oversized CI40198028306 cancelled17m11; targeted gate implementation underway.
 2026-10-25 — CI40200263790 backend2069passed/146skipped216.79s; App957passed/1SSE-readiness race. No solver suites ran.
 2026-10-25 — 9367fc2b reproduces delayed-replay race, waits actual SSE before cancellation assertion;8focused App tests pass3.51s, production unchanged.
+2026-10-25 — 67aa3cdd closes actual-dev integration records and proportional-check policy; source and graph verified, runtime unchanged.
+2026-10-25 — 4ef4aea5 records user-specified streamed thinking and actual-task handoff; isolated branchfeat/streamed-thinking, focused checks only.
+2026-10-25 — 8c41a3ca corrects thinking design filenames to the session date; user interaction is unchanged.
+2026-10-25 — ec90e1b0 streams bounded public thinking by attempt; answer separation/redaction preserved;176focused Python tests and native SDK fixture pass.
+2026-10-26 — 07ad1668/c0b2c83a stream initial thinking and fold at real execution/terminal; goal-only notes preserve thinking.
+2026-10-26 — a37a59e4 replaces resource-driven focus with actual admitted task organization, including no-upload tasks; supersedes7c16heuristic.
+2026-10-26 — 98c9dc58/2da9051a keep goal notes secondary and hide main thinking after execution takeover;17focused tests/types pass.
+2026-10-26 — Local rebuild77source checks pass; real model returns14public thinking deltas/823characters6.079s; report history restores5steps/59calls without rerun.

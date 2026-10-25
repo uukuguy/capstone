@@ -96,9 +96,10 @@ explicitly. A new conversation instruction supersedes its old pending input;
 the framework must not concatenate the stopped request into new executable work.
 Terminal history retains its status and identity in model context. A retained
 Work goal is background; it does not silently add obligations to a new turn.
-Process emphasis follows actual execution and selected resources: thinking state,
-general tool calls, or business task planning. Internal scheduling graphs alone
-do not establish a business task or completed analysis.
+Process emphasis follows actual execution: initial thinking, direct tool calls,
+or admitted task organization. Task organization selects task steps regardless
+of uploaded resources. Host lifecycle timing and unadmitted graph text do not
+establish task planning or completed analysis.
 
 Systematic diagnosis is an application-owned native foundation capability with
 an on-demand method guide and host-persisted reported records. Ordinary use is

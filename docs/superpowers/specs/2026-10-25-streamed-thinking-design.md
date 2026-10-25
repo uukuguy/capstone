@@ -10,6 +10,9 @@ instruction. Reuse the shared conversation and its event ledger.
   Do not reconstruct hidden/redacted content, emit signatures or invent thinking.
 - A real visible tool or business-task process replaces the initial thinking
   view. Generic host preparation/execution/finalization does not trigger handoff.
+- An admitted task-organization plan selects the task-step view with or without
+  uploaded data. Resource presence, domain labels and tool names do not select
+  presentation. Direct tool chains without task organization remain tool-focused.
 - A direct answer retains thinking until completion, then folds it. Failure and
   cancellation fold with their actual status. Retained text can be opened again.
 - Replay uses the same ordered, attempt-bound records. A later instruction gets
