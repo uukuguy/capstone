@@ -1,0 +1,34 @@
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { HttpThreadTransport } from './threadHttpTransport'
+import GridSourceWorkspace from './GridSourceWorkspace'
+
+vi.mock('./LargeNetworkView',()=>({LargeNetworkView:({scene,onActivate}:{scene:{nodes:{id:string}[];edges:unknown[]};onActivate:(node:{id:string})=>void})=>
+  <button onClick={()=>onActivate(scene.nodes[0])}>展开节点（{scene.edges.length}条可定位连接）</button>}))
+const page={schema:'capstone-grid-source-topology/1',source_id:'data-gateway',view_ref:'north-view',level:'region',
+  selected_object_id:null,scope:{scope_id:'north'},selection:{boundary_policy:'retain_external_stub'},source_snapshot:{metadata_snapshot:'source-a',source_instance:'source-1'},provenance:{},
+  nodes:[{id:'station:a',kind:'station',label:'站点甲',expand:{level:'station',selected_object_id:'station:a'}}],
+  edges:[{id:'line:a',source:'station:a',target:'missing',kind:'source_line'}],total_nodes:1,total_edges:1,
+  node_offset:0,edge_offset:0,next_node_offset:null,next_edge_offset:null,source_gaps:['switch_positions_unverified'],gaps:[],boundary_object_ids:[],
+  display_grouping_only:true,electrical_equivalence_performed:false}
+describe('source workspace',()=>{
+  afterEach(cleanup)
+  it('retains source counts while omitting unresolved geometry, and hands off the exact accepted source view',async()=>{
+    const read=vi.fn().mockResolvedValue(page),ask=vi.fn().mockResolvedValue(undefined)
+    render(<GridSourceWorkspace transport={{gridSourceTopology:read} as unknown as HttpThreadTransport} onQuestion={ask}/>)
+    expect(await screen.findByText('展开节点（0条可定位连接）')).toBeTruthy()
+    expect(screen.getByText(/1 个源节点 · 1 条源连接 · 未定位端点 1/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button',{name:'在独立源拓扑会话中提问'}))
+    await waitFor(()=>expect(ask).toHaveBeenCalledTimes(1))
+    expect(ask.mock.calls[0][0]).toMatchObject({page:{view_ref:'north-view'},unresolvedEndpoints:['missing']})
+  })
+  it('refuses a drill-down from a different source snapshot',async()=>{
+    const read=vi.fn().mockResolvedValueOnce(page).mockResolvedValueOnce({...page,view_ref:'station-view',level:'station',
+      source_snapshot:{metadata_snapshot:'source-b',source_instance:'source-1'}})
+    render(<GridSourceWorkspace transport={{gridSourceTopology:read} as unknown as HttpThreadTransport} onQuestion={vi.fn()}/>)
+    fireEvent.click(await screen.findByText('展开节点（0条可定位连接）'))
+    expect((await screen.findByRole('alert')).textContent).toContain('来源快照已变化')
+    expect(read.mock.calls[1][0]).toMatchObject({scope_id:'north',level:'station',selected_object_id:'station:a'})
+    expect(read.mock.calls[1][0].expected_view_ref).toBeUndefined()
+  })
+})

@@ -1,5 +1,6 @@
 import {applicationCapacity,assertCapacity,exceedsCapacity,CapacityError,type CapacityKey} from './applicationCapacity'
 import { parseEventEnvelope, type EventEnvelope } from './threadProtocol'
+import { parseGridSourcePage, type GridSourceQuery } from './gridSource'
 import type { ThreadCommand, ThreadTransport, ThreadTransportState } from './threadClient'
 import { parseThreadDescriptor, parseThreadListPage, type ThreadListPage, type ThreadDescriptor } from './threadManagement'
 import { fetchWithReadRetry } from './httpRetry'
@@ -309,6 +310,12 @@ export class HttpThreadTransport implements ThreadTransport {
 
   createSession(selection: {session_type:'grid-analysis'|'enterprise-research'|'general-chat'; model_id?:string}, signal?:AbortSignal):Promise<unknown> {
     return this.request(this.resourcePath, {method:'POST',signal,body:JSON.stringify(selection)})
+  }
+
+  gridSourceTopology(query: GridSourceQuery, signal?: AbortSignal) {
+    return this.request('/api/v1/grid-sources/data-gateway/topology', {
+      method:'POST', signal, body:JSON.stringify(query),
+    }).then(parseGridSourcePage)
   }
 
   renameSession(threadId:string,runId:string,revision:number,text:string,commandId:string,idempotencyKey:string):Promise<unknown> {

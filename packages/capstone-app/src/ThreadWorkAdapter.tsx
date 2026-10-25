@@ -39,6 +39,8 @@ import {useSessionViewState,useSessionViewRef} from './workspaceSessionCache'
 import ThreadModelDirectory from './ThreadModelDirectory'
 import type {ModelWorkspace} from './threadModelWorkspace'
 import {buildModelWorkspaceCommand} from './threadWorkProtocol'
+import GridSourceWorkspace from './GridSourceWorkspace'
+import type {GridSourceView} from './gridSource'
 
 const statusCopy: Record<string, string> = { ready: '已保存，待执行', queued: '已排队', running: '执行中', completed: '已完成', failed: '执行失败', cancelled: '已取消', interrupted: '执行已中断', blocked: '执行不可用' }
 class CommandRejectedError extends Error {}
@@ -245,6 +247,31 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
     } catch (cause) { setError(cause instanceof Error ? cause.message : '创建失败，请重试。') }
     finally { writing.current = false; setBusy(false) }
   }
+  async function prepareSourceQuestion(view: GridSourceView, question: string) {
+    if(writing.current)throw new Error('请等待当前操作完成。')
+    writing.current=true;setBusy(true)
+    let createdId: string | undefined
+    try {
+      const next=parseWorkSnapshot(await transport.createSession({session_type:'enterprise-research'}))
+      createdId=next.threadId
+      const material={schema:'capstone-grid-source-observation/1',purpose:'frozen_source_observation',
+        source_id:view.page.source_id,view_ref:view.page.view_ref,scope:view.page.scope,
+        selection:view.page.selection,source_snapshot:view.page.source_snapshot,provenance:view.page.provenance,
+        display_grouping_only:true,electrical_equivalence_performed:false,
+        total_nodes:view.page.total_nodes,total_edges:view.page.total_edges,complete_view_loaded:view.complete,
+        source_gaps:view.page.source_gaps,gaps:view.page.gaps,boundary_object_ids:view.page.boundary_object_ids,
+        unresolved_endpoint_count:view.unresolvedEndpoints.length,
+        record_sample_only:true,sample_limit_per_kind:50,nodes:view.nodes.slice(0,50),edges:view.edges.slice(0,50),
+        limitations:['This source display is not a calculation model.','Record samples cannot establish rankings or full connectivity.']}
+      await transport.uploadThreadMaterial(next.threadId,new File([JSON.stringify(material,null,2)],'grid-source-observation.json',{type:'application/json'}))
+      const text=`${question}\n\n请依据所附 grid-source-observation.json 的冻结来源摘要回答；区分完整视图总数与抽样对象，说明源质量缺口，不推断未提供的潮流或电气连通性。`
+      sessionStorage.setItem(`${namespace}.${next.threadId}.work-draft`,JSON.stringify({selected:'new',drafts:{new:text}}))
+      const url=new URL(window.location.href);url.searchParams.set('workspace','enterprise');url.searchParams.set('thread',next.threadId)
+      window.history.pushState({},'',url);onNavigate(next.threadId)
+    } catch(cause) {
+      throw new Error(`${cause instanceof Error?cause.message:'源资料准备失败。'}${createdId?` 已创建会话 ${createdId}，可从历史会话继续。`:''}`)
+    } finally {writing.current=false;if(mounted.current)setBusy(false)}
+  }
   const selectedWork = snapshot?.works.find(work => work.workId === selected)
   const viewingLegacy=nativeChat&&!!selectedWork&&!selectedWork.conversationMode
   const liveConversation=nativeChat&&!viewingLegacy
@@ -382,7 +409,7 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
   const materialSubtitle=materials.length?materials.length===1?`资料：${materials[0].display_name}`:`已关联 ${materials.length} 份资料 · ${materials[0].display_name}`:undefined
   return <ThreadWorkspace sessionKey={currentId} conversationOnly subtitle="企业任务工作台"
     resourcePanel={nativeChat?(client.supportsProductIndex?productsPanel:client.supportsProcessProducts?processPanel:undefined):undefined}
-    resourceViews={nativeChat?client.supportsProductIndex?[{id:'products',label:'成果',content:productsPanel,description:'任务交付与指令产物，保留真实来源和版本。'},...(selectedDeliveryFile?[{id:'deliveries',label:'采用为任务交付',content:<TaskDeliveriesWorkspace client={client} threadId={currentId} revision={terminalRevision} requestedArtifact={selectedDeliveryFile} onPublished={()=>{setResourceView('products');window.dispatchEvent(new Event('capstone-session-renamed'))}}/>}]:[])]:[{id:'process-products',label:'过程制品',content:processPanel,description:'指令执行结果与未完成记录，保留原始归属。'},
+    resourceViews={nativeChat?client.supportsProductIndex?[{id:'products',label:'成果',content:productsPanel,description:'任务交付与指令产物，保留真实来源和版本。'},{id:'source-topology',label:'源电网',content:<GridSourceWorkspace transport={transport} onQuestion={prepareSourceQuestion}/>,description:'源拓扑、显示分组与来源质量。'},...(selectedDeliveryFile?[{id:'deliveries',label:'采用为任务交付',content:<TaskDeliveriesWorkspace client={client} threadId={currentId} revision={terminalRevision} requestedArtifact={selectedDeliveryFile} onPublished={()=>{setResourceView('products');window.dispatchEvent(new Event('capstone-session-renamed'))}}/>}]:[])]:[{id:'process-products',label:'过程制品',content:processPanel,description:'指令执行结果与未完成记录，保留原始归属。'},
       {id:'native-files',label:'指令文件',content:<NativeArtifactsWorkspace client={client} threadId={currentId} attemptIds={nativeAttemptIds} revision={terminalRevision} requestedArtifact={requestedArtifact} attemptLabels={attemptLabels} onAdopt={file=>{setSelectedDeliveryFile(file);setResourceView('deliveries');setProductsOpen(true)}}/>,description:'本轮执行生成并保存的真实文件。'},
       {id:'deliveries',label:'任务交付',content:<TaskDeliveriesWorkspace client={client} threadId={currentId} revision={terminalRevision} requestedArtifact={selectedDeliveryFile} onPublished={()=>{setResourceView('deliveries');window.dispatchEvent(new Event('capstone-session-renamed'))}}/>,description:'按用户提出的交付要求组织和修订。'}]:undefined}
     selectedResourceView={resourceView} onResourceViewChange={setResourceView}
@@ -397,7 +424,7 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
       {sessionError && <p role="status">会话列表暂不可用，当前任务仍可使用。</p>}
       <SessionNavigation items={sessions?.threads||[]} currentId={currentId} storageKey={namespace} actions={sessionManagement(transport,change=>{if(change)setSessions(previous=>previous?{...previous,threads:previous.threads.filter(item=>item.threadId!==change.remove)}:null);setListReload(value=>value+1)})} />
     </nav>}
-    workspaceActions={currentId !== 'new' && <><SessionAdjacentControls items={sessions?.threads||[]} currentId={currentId} storageKey={namespace}/><button type="button" className="thread-control-button thread-session-refresh" aria-label="刷新任务" title="刷新会话状态，不重新执行任务" onClick={() => setReload(value => value + 1)}><RefreshCw aria-hidden="true" size={16} /></button></>}
+    workspaceActions={currentId !== 'new' && <>{nativeChat&&<button type="button" className="thread-control-button" onClick={()=>{setResourceView('source-topology');setProductsOpen(true)}}>源电网</button>}<SessionAdjacentControls items={sessions?.threads||[]} currentId={currentId} storageKey={namespace}/><button type="button" className="thread-control-button thread-session-refresh" aria-label="刷新任务" title="刷新会话状态，不重新执行任务" onClick={() => setReload(value => value + 1)}><RefreshCw aria-hidden="true" size={16} /></button></>}
     heading={<><div className="thread-chat-heading"><SessionHeading title={(snapshot?.sessionTitle&&displaySessionTitle(snapshot.sessionTitle))||(nativeChat?(snapshot.sessionType&&sessionTypeNames[snapshot.sessionType])||'工作会话':'历史任务会话')}
       subtitle={nativeChat?materialSubtitle:selectedWork ? `修订 ${selectedWork.goalRevision} · ${selectedWork.cancelRequested ? '停止请求中' : statusCopy[selectedWork.status] || selectedWork.status}` : '对话与任务记录'}
       onSubtitleClick={nativeChat&&materialSubtitle&&!active&&!busy&&!pending?()=>{setProductsOpen(false);requestAnimationFrame(()=>{contextTrigger.current?.click();contextTrigger.current?.focus()})}:undefined}
