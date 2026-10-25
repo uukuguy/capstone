@@ -5668,3 +5668,7 @@ Prior closeout receipts preserved verbatim from the root checkout:
 2026-10-25 — 29e43835: Reused macOS single-child cleanup for stable progress tests;54executor and relay checks pass without production changes.
 
 2026-10-25 — Fixed cancellation-test release ordering and all single-child macOS fixtures;54checks pass under simulated signal denial and delayed release.
+
+2026-10-25 — a3241fd4: Synchronized cancellation assertions and platform fixtures to prevent scheduling-dependent CI failures; production runtime remains22e61786.
+
+2026-10-25 — 48da021b: Merged PR58 after native-runtime CI passed16m09s; actual dev fast-forwarded, matches running source, and passes doctor.

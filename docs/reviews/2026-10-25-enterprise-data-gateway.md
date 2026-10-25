@@ -4,7 +4,10 @@ Status: real model functional acceptance passed on runtime source 2f9c6b56.
 Runtime22e61786 includes the later type correction and passed the final rebuild,
 source/permission checks and retained-product browser recovery. Test-only29e43835
 does not change that running source.
-Dev integration and required PR checks are separate. No cloud/demo promotion.
+PR58 merged as48da021b, with the same tree as tested heada3241fd4. Required
+macOS CI40172250793 passed in16m09s: foundation10m57s, runtime consumers3m22s,
+plus setup/governance/cleanup. Actual ROOT dev fast-forwarded, doctor passed,
+and its runtime files match the rebuilt22e61786. No cloud/demo promotion.
 
 PR #58 first failed type checks; correction015112a7 passes Pyright and105focused
 checks. The next CI run40138770412 failed one authorization test after22m36s:
@@ -12,8 +15,8 @@ checks. The next CI run40138770412 failed one authorization test after22m36s:
 failure. Starting the test grant after host/server/client setup fixes that case
 without extending production authorization. The delayed-start check and8gateway
 relay tests pass. User requested lighter development CI;60scope/contract tests
-and362native SDK tests pass for the bounded native-runtime gate. Its remote
-duration is pending. Independent review could not start because its configured
+and362native SDK tests pass for the bounded native-runtime gate. Its successful
+remote duration is recorded above. Independent review could not start because its configured
 model is unavailable; no independent approval is claimed.
 The following CI attempts exposed macOS single-child fixture cleanup and a
 cancelled-request assertion that preceded handler lease release. Existing macOS
