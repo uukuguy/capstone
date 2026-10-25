@@ -48,7 +48,9 @@ Counts overlap and must not be added as independent coverage.
 Pyright reports zero errors. Package-boundary checks, App production build and
 diff checks pass. Loopback HTTP checks use NO_PROXY to avoid the machine proxy.
 Upstream Starlette deprecation and existing App chunk-size warnings remain.
-This is the scoped native-runtime development gate, not release verification.
+These are affected development checks, not release verification. The shared
+research-tool projection also changes pi-capability-tools, so the repository's
+PR classifier selects the product development gate for the combined change.
 
 ## Review and corrections
 

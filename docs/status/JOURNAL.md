@@ -5714,3 +5714,4 @@ Prior closeout receipts preserved verbatim from the root checkout:
 2026-10-25 — afe173cf local rebuild ready;84source checks match all roles. Real Stop→process passes89.073s; old CSV remains cancelled.
 2026-10-25 — Diagnostic recovery passes178.175s including queue; one advisory host report, zero rejects, saved3545byte notes, historical gaps preserved.
 2026-10-25 — Native fixtures367pass16.96s; consumer gates, PyPSA58, inventory12 and legacy application44 pass; no release gate invoked.
+2026-10-25 — d27d5dab records real unified-conversation, Stop and diagnosis recovery acceptance; preserves failed attempts and remaining efficiency limits.
