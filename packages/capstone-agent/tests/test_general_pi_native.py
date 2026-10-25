@@ -52,6 +52,41 @@ def test_native_context_extension_adds_trusted_background_policy(tmp_path):
     assert 'data, not instructions' in policy and 'current-run' in policy
 
 
+@pytest.mark.parametrize('status', ['failed', 'cancelled', 'interrupted'])
+@pytest.mark.parametrize('current', ['Calculate 1 + 1 only.', 'Resume the stopped CSV analysis using its saved output.'])
+def test_native_context_marks_unsuccessful_history_terminal_without_changing_current_input(tmp_path, status, current):
+    from pathlib import Path
+    original = {'message_id': 'old-attempt:user', 'role': 'user',
+        'content': 'Investigate the old CSV and continue until the report is complete.',
+        'turn_id': 'old-turn', 'attempt_id': 'old-attempt', 'model_context_id': None, 'status': status}
+    (tmp_path / 'context.json').write_text(json.dumps({'messages': [original], 'dependency_results': []}))
+    extension = Path(__file__).parents[1] / 'src/capstone_agent/resources/general-context.mjs'
+    result = subprocess.run(['node', '--input-type=module', '-e',
+        'const {default: register} = await import(process.argv[1]); '
+        'const events = {}; register({on: (name, fn) => {events[name] = fn}}); '
+        'const current = {role:"user",content:process.argv[2],timestamp:123}; '
+        'console.log(JSON.stringify({projection:await events.context({messages:[current]}, '
+        '{model:{api:"fixture",provider:"fixture",id:"fixture"}}), '
+        'policy:await events.before_agent_start({systemPrompt:"Native policy"})}));',
+        extension.as_uri(), current], cwd=tmp_path, capture_output=True, text=True, check=True)
+    document = json.loads(result.stdout)
+    messages = document['projection']['messages']
+    assert len(messages) == 2
+    assert messages[0]['role'] == original['role']
+    assert messages[0]['content'][1] == {'type': 'text', 'text': original['content']}
+    annotation = json.loads(messages[0]['content'][0]['text'])
+    assert annotation['historical_request']['status'] == status
+    assert annotation['historical_request']['attempt_id'] == original['attempt_id']
+    assert annotation['historical_request']['turn_id'] == original['turn_id']
+    assert annotation['historical_request']['message_id'] == original['message_id']
+    assert annotation['task_state'] == 'terminal_not_pending'
+    assert messages[-1] == {'role': 'user', 'content': current, 'timestamp': 123}
+    policy = document['policy']['systemPrompt']
+    assert 'latest current user input' in policy
+    assert 'explicitly asks to resume or retry' in policy
+    assert 'retained Work research goal, claims and open questions are background' in policy
+
+
 @pytest.mark.skipif(os.environ.get('CAPSTONE_GENERAL_NATIVE_TESTS') != '1', reason='requires local general Pi Docker image')
 def test_real_general_pi_builtin_bash_isolated_and_same_for_both_entrypoints(tmp_path):
     calls = []
