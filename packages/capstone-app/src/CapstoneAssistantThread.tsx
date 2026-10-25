@@ -504,7 +504,7 @@ export function projectAssistantMessages(events: readonly EventEnvelope[], instr
         parameters: event.payload.request_parameters as Record<string, unknown>,
         resultRefs: stringRefs(event.payload.result_refs), evidenceRefs: stringRefs(event.payload.evidence_refs), sequence: event.eventSeq }))
     const research = events.filter(event => event.attemptId === attemptId && event.eventType === 'research_state_updated').at(-1)
-    const researchGoal = typeof research?.payload.goal === 'string' ? research.payload.goal : undefined
+    const retainedResearchGoal = typeof research?.payload.goal === 'string' ? research.payload.goal : undefined
     const parsedResearch = parseResearchSnapshot(research?.payload.research_snapshot)
     const researchSnapshot = parsedResearch && parsedResearch.research_id === research?.payload.research_id &&
       parsedResearch.revision === research.payload.research_revision && parsedResearch.goal === research.payload.goal ? parsedResearch : undefined
@@ -513,6 +513,7 @@ export function projectAssistantMessages(events: readonly EventEnvelope[], instr
     const stepDiagnostics = attemptId ? projectTaskStepDiagnostics(events, attemptId) : []
     const researchBranches = attemptId ? projectResearchBranches(events, attemptId) : []
     const executionGraph = attemptId ? projectExecutionGraph(events, attemptId) : undefined
+    const researchGoal=executionGraph?.current.goal??taskProgress.find(item=>item.kind==='goal')?.text
     const modelRequests = attemptId ? projectProcessModelRequests(events, attemptId) : []
     const firstCheckpoint=executionGraph?.checkpoints[0]?.checkpoint.ref
     const executionEvent=attemptId?events.find(event=>{
@@ -525,7 +526,7 @@ export function projectAssistantMessages(events: readonly EventEnvelope[], instr
       return Boolean(firstCheckpoint&&progress?.checkpoint?.ref===firstCheckpoint)
     }):undefined
     const initialThinking=attemptId?projectInitialThinking(events,attemptId,executionEvent?.eventSeq):undefined
-    const withMetadata = { ...message, metadata: { custom: { ...custom, activities, modelRequests, initialThinking, nativeGraphFocus: nativeGraphFocus(executionGraph), runtimeMode, acceptedContext, failureResults, researchGoal, researchSnapshot, toolExecutions, taskProgress, taskSteps, stepDiagnostics, researchBranches, executionGraph, stepStorageKey: `${events[0]?.threadId ?? ''}:${attemptId ?? ''}` } } }
+    const withMetadata = { ...message, metadata: { custom: { ...custom, activities, modelRequests, initialThinking, nativeGraphFocus: nativeGraphFocus(executionGraph), runtimeMode, acceptedContext, failureResults, researchGoal, retainedResearchGoal, researchSnapshot, toolExecutions, taskProgress, taskSteps, stepDiagnostics, researchBranches, executionGraph, stepStorageKey: `${events[0]?.threadId ?? ''}:${attemptId ?? ''}` } } }
     return typeof message.content === 'string'
       ? { ...withMetadata, content: [{ type: 'text' as const, text: message.content }] }
       : withMetadata
@@ -991,9 +992,9 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
     {role==='assistant'&&Boolean(custom?.initialThinking)&&<ThinkingProcess thinking={custom?.initialThinking as InitialThinking} storageKey={typeof custom?.stepStorageKey==='string'?custom.stepStorageKey:attemptId}/>}
     <div className="capstone-chat-body">
       {!completedAnswer && <span className="capstone-chat-role">{role === 'user' ? '你' : author}</span>}
-      {role === 'assistant' && typeof custom?.researchGoal === 'string' && <details className="capstone-task-research">
-        <summary>本次任务的研究目标</summary>
-        <p>{custom.researchGoal}</p>
+      {role === 'assistant' && typeof custom?.retainedResearchGoal === 'string' && <details className="capstone-task-research">
+        <summary>研究记录中的目标</summary>
+        <p>{custom.retainedResearchGoal}</p>
       </details>}
       {terminalNotice ? <>
         {typeof custom?.partialText === 'string' && custom.partialText && <MarkdownMessage>{custom.partialText}</MarkdownMessage>}
