@@ -1,10 +1,10 @@
 /** Source display records. These are not admitted electrical calculation models. */
-export type GridSourceLevel = 'region' | 'station' | 'equipment'
+export type GridSourceLevel = 'region' | 'station' | 'equipment' | null
 export type GridSourceObject = {
   id: string; kind: string; label?: string; source_id?: string; boundary?: boolean
   voltage_kv?: number | null; vn_kv?: number | null; parent_id?: string | null; station_id?: string | null
   source?: string; target?: string
-  expand?: { level: GridSourceLevel; selected_object_id: string } | null
+  expand?: { level: Exclude<GridSourceLevel,null>; selected_object_id: string } | null
 }
 export type GridSourcePage = {
   schema: 'capstone-grid-source-topology/1'; source_id: string; view_ref: string
@@ -15,7 +15,7 @@ export type GridSourcePage = {
   total_nodes: number; total_edges: number; node_offset: number; edge_offset: number
   next_node_offset: number | null; next_edge_offset: number | null
   source_gaps: unknown[]; gaps: unknown[]; boundary_object_ids: string[]
-  display_grouping_only: true; electrical_equivalence_performed: false
+  display_grouping_only: boolean; electrical_equivalence_performed: false
 }
 export type GridSourceQuery = {
   scope_id: string; level?: GridSourceLevel; selected_object_id?: string | null
@@ -32,8 +32,8 @@ const integer = (value: unknown): value is number => typeof value === 'number' &
 export function parseGridSourcePage(value: unknown): GridSourcePage {
   if (!record(value) || value.schema !== 'capstone-grid-source-topology/1'
       || typeof value.view_ref !== 'string' || !value.view_ref || value.source_id !== 'data-gateway'
-      || !['region', 'station', 'equipment'].includes(String(value.level))
-      || value.display_grouping_only !== true || value.electrical_equivalence_performed !== false)
+      || value.level!==null&&!['region', 'station', 'equipment'].includes(String(value.level))
+      || value.display_grouping_only !== (value.level!==null) || value.electrical_equivalence_performed !== false)
     throw new Error('源拓扑响应无效。')
   for (const key of ['scope', 'selection', 'source_snapshot', 'provenance'])
     if (!record(value[key])) throw new Error('源拓扑缺少来源信息。')
@@ -75,6 +75,8 @@ export async function loadGridSourceView(
     const page = parseGridSourcePage(await read({ ...query, node_offset: nodeOffset, edge_offset: edgeOffset,
       limit: 1000, ...(first ? { expected_view_ref: first.view_ref } : {}) }, signal))
     signal?.throwIfAborted()
+    if(page.scope.scope_id!==query.scope_id||page.level!==(query.level===undefined?'region':query.level)
+        ||page.selected_object_id!==(query.selected_object_id??null))throw new Error('源拓扑对象与本次请求不一致。')
     if (!first) first = page
     if (page.view_ref !== first.view_ref || page.total_nodes !== first.total_nodes || page.total_edges !== first.total_edges
         || page.level !== first.level || page.node_offset !== nodeOffset || page.edge_offset !== edgeOffset

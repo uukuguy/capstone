@@ -11,6 +11,13 @@ function page(overrides: Partial<GridSourcePage> = {}): GridSourcePage {
     display_grouping_only:true,electrical_equivalence_performed:false,...overrides}
 }
 describe('source topology paging', () => {
+  it('loads ungrouped raw electrical-source objects without asserting bus reduction',async()=>{
+    const result=await loadGridSourceView(async()=>page({level:null,display_grouping_only:false,total_nodes:1,next_node_offset:null}),{scope_id:'north',level:null})
+    expect(result.page.level).toBeNull()
+    expect(result.page.display_grouping_only).toBe(false)
+    expect(result.page.electrical_equivalence_performed).toBe(false)
+    await expect(loadGridSourceView(async()=>page({total_nodes:1,next_node_offset:null}),{scope_id:'north',level:null})).rejects.toThrow('本次请求')
+  })
   it('uses the application source contract without requiring a Thread protocol response header',async()=>{
     const fetcher=(async()=>new Response(JSON.stringify(page()),{status:200,headers:{'Content-Type':'application/json'}})) as typeof fetch
     const transport=new HttpThreadTransport('http://localhost:8767','',fetcher,'/api/v1/threads','2')
