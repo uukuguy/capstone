@@ -5738,3 +5738,36 @@ Prior closeout receipts preserved verbatim from the root checkout:
 2026-10-26 — a37a59e4 replaces resource-driven focus with actual admitted task organization, including no-upload tasks; supersedes7c16heuristic.
 2026-10-26 — 98c9dc58/2da9051a keep goal notes secondary and hide main thinking after execution takeover;17focused tests/types pass.
 2026-10-26 — Local rebuild77source checks pass; real model returns14public thinking deltas/823characters6.079s; report history restores5steps/59calls without rerun.
+2026-10-26 — f5484fff records real thinking-stream verification and organization-led view; current local App5173 serves candidate, dev integration pending.
+
+- 01:03 `aa0e03ac` Removed collapsed thinking prefix per user request; elapsed seconds remain. Focused component tests: 13 passed (1.59s).
+- 01:03 `c6e8a26b` Restored fresh-instruction authorization and separated research bookkeeping from live environment evidence; focused tests: 21 passed, 2 skipped.
+
+- 01:04 `1c255d6c` Retained Thinking label beside elapsed seconds; user requested prefix removal only. Component checks: 13 passed (1.63s).
+
+- 01:10 `c146ace0` Isolated secondary Thinking typography from answer CSS; matched supplied compact references. Component tests: 13 passed; TypeScript clean; live replay verified.
+
+- 01:14 `6250db45` Moved Thinking before each assistant answer so completion cannot relocate it below content. 133 focused tests and TypeScript passed; live replay checked.
+
+- 01:16 `46acb3d5` Shared summary font-size token between Thinking and execution records for equal hierarchy; live browser confirms both10px.
+
+- 01:27 `ccb82729` Aligned Thinking start with Attempt execution and marked known text-only replies as no tools; 142 App checks passed.
+- 01:27 `e5d863a2` Bound research state scope and historical message scope to prevent stale state claims; 34 Node and31 Python tests passed.
+- 01:27 Real same-Thread process check450adcea still reused historical zero-task claims after policy-only c6e8a26b rebuild; rejected as acceptance.
+
+- 01:36 `4a28c993` Moved cross-attempt history into read-only reference records so old assistant replies cannot form the new executor trajectory;14tests passed.
+- 01:36 Same-Thread372b929a aftere5 retained scope disclaimer but repeated stale zero-process/tool-count claims; rejected acceptance. No further label-only fixes.
+
+- 01:40 User authorized next: after task-isolation acceptance, fully implement100k+ grid visualization, connect Data Gateway, display North China model and verify a real grid question.
+
+- 01:42 `8b58e9ff` Supplies host-owned native task status independently from research state;80context/server tests passed (two proxy-routed localHTTP failures passed with NO_PROXY),1opt-in skipped.
+- 01:42 Realc65a72d8 ledger consistently running→completed, but model still reused zero-process history; rejected semantic acceptance. Stopped notice-only experiments.
+
+- 01:52 `45b7b5a3` Gates retained research auto-context on actual current organization, preserves on-demand reads and request guard;35Node cases passed1.44s.
+
+- 01:55 `fcff367f` Scopes conversation CI to named adapters/direct consumers; uncovered backend changes widen to product.97governance tests passed0.88s.
+
+- 02:17 `0dcbd466` Separates retained Work goals from current graph/progress goals;134App cases,TypeScript and actual Linux-task browser replay passed.
+- 02:17 Correction:372b929a and47e61fec each performed one native agent_research_read. Earlier generic-only event count missed it; no tool log was lost. Bare phrase remains ambiguous, not OS acceptance.
+- 02:17 Real9e33804c new Linux-process instruction completed123s,1step/10tools,5PIDs; Work/Attempt running→completed sameID, no report resumption. Efficiency not accepted.77runtime+2shared-source hashes match0dc; localready/cache receipt015648-52956. Independent review no Important/Critical blocker.
+- 02:17 User gateway credentials saved only in root ignored protected authentication file0600/directory0700; no token in source/log/test artifacts. Authenticated MCP1.30.0/50tools, north source inventory and region view405nodes/1003edges,3+3page read passed. Initial readiness inspection20s read timeout is not a readiness pass.
