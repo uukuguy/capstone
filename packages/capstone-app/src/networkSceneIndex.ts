@@ -147,7 +147,7 @@ export function focusScene(index:SceneIndex,ids:readonly string[],markersOnly=fa
       else{add(index.endpoints[edge*2]);add(index.endpoints[edge*2+1])}
     }
   }
-  if(!Number.isFinite(minX))return {x:0,y:0,width:1000,height:600}
+  if(!Number.isFinite(minX))return {...index.bounds}
   const width=Math.min(950,Math.max(380,maxX-minX+250,(maxY-minY+170)*5/3)),height=width*.6
   return {x:(minX+maxX-width)/2,y:(minY+maxY-height)/2,width,height}
 }

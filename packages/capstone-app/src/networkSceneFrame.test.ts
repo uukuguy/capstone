@@ -16,3 +16,7 @@ it('frames branch terminals and admitted marker-only attention differently',()=>
   const index=buildSceneIndex({ref:'fault',coordinateSystem:'schematic',nodes:[{id:'a',kind:'bus',label:'A',x:0,y:0},{id:'b',kind:'bus',label:'B',x:100,y:0}],edges:[{id:'e',source:'a',target:'b',kind:'line',terminalStates:[{nodeId:'a',label:'Disconnected'}]}]})
   expect(focusScene(index,['e']).width).toBeGreaterThan(focusScene(index,['e'],true).width)
 })
+it('returns the actual portrait bounds when a task has no locatable attention IDs',()=>{
+  const index=buildSceneIndex({ref:'portrait',coordinateSystem:'schematic',nodes:[{id:'a',kind:'station',label:'A'}],edges:[]},.8)
+  expect(focusScene(index,[])).toEqual(index.bounds)
+})
