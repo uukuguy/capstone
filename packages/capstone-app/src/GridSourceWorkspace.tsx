@@ -3,15 +3,28 @@ import type { HttpThreadTransport } from './threadHttpTransport'
 import { loadGridSourceView, type GridSourceLevel, type GridSourceObject, type GridSourceView } from './gridSource'
 import { LargeNetworkView } from './LargeNetworkView'
 import type { NetworkScene } from './networkScene'
+import { useSessionViewState } from './workspaceSessionCache'
 import './gridSource.css'
 
 type Selection = { level: GridSourceLevel; selected_object_id?: string | null; label: string; sourceSnapshot?: string; sourceInstance?: string; sourceRule?: string }
 const root: Selection = { level:'region', label:'华北' }
+function restorePath(value: unknown): Selection[] {
+  return Array.isArray(value)&&value.length>0&&value.length<=32&&value[0]?.level==='region'
+    &&value.every(item=>item&&['region','station','equipment'].includes(item.level)
+      &&typeof item.label==='string'&&item.label.length<=512
+      &&(item.level==='region'||typeof item.selected_object_id==='string'&&item.selected_object_id.length<=512)
+      &&['sourceSnapshot','sourceInstance','sourceRule'].every(key=>item[key]===undefined||typeof item[key]==='string'&&item[key].length<=512))
+    ?value as Selection[]:[root]
+}
 
 export default function GridSourceWorkspace({ transport, onQuestion }: {
   transport: HttpThreadTransport; onQuestion: (view: GridSourceView, question: string) => Promise<void>
 }) {
-  const [path,setPath] = useState<Selection[]>([root])
+  const [savedPath,setSavedPath] = useSessionViewState<unknown>('source-topology.path',[root])
+  const path=restorePath(savedPath)
+  function setPath(next: Selection[] | ((previous: Selection[])=>Selection[])) {
+    setSavedPath((previous:unknown)=>typeof next==='function'?next(restorePath(previous)):next)
+  }
   const [view,setView] = useState<GridSourceView>()
   const [error,setError] = useState('')
   const [loading,setLoading] = useState(false)
@@ -42,9 +55,11 @@ export default function GridSourceWorkspace({ transport, onQuestion }: {
   const objects = useMemo(()=>new Map([...(view?.nodes||[]),...(view?.edges||[])].map(item=>[item.id,item])),[view])
   const nodeIds = useMemo(()=>new Set(view?.nodes.map(item=>item.id)),[view])
   const scene = useMemo<NetworkScene|undefined>(()=>view?{
-    ref:view.page.view_ref,coordinateSystem:'schematic',
+    ref:view.page.view_ref,coordinateSystem:'schematic',displayMode:view.page.level==='region'?'source-regional':'source-detail',
     nodes:view.nodes.map(item=>({id:item.id,label:item.label||item.id,kind:item.kind,sourceRef:item.source_id,
-      details:[{label:'来源对象',value:item.source_id||item.id},{label:'边界对象',value:item.boundary?'是':'否'}]})),
+      voltageKv:item.voltage_kv??item.vn_kv,boundary:item.boundary,
+      details:[{label:'来源对象',value:item.source_id||item.id},{label:'边界对象',value:item.boundary?'是':'否'},
+        ...(item.parent_id?[{label:'上级对象',value:item.parent_id}]:[]),...(item.station_id?[{label:'所属站点',value:item.station_id}]:[])]})),
     edges:view.edges.filter(item=>nodeIds.has(item.source!)&&nodeIds.has(item.target!)).map(item=>({id:item.id,source:item.source!,target:item.target!,kind:item.kind,
       label:item.label||item.id,sourceRef:item.source_id})),
   }:undefined,[view,nodeIds])
@@ -63,14 +78,14 @@ export default function GridSourceWorkspace({ transport, onQuestion }: {
     finally{setAsking(false)}
   }
   return <section className="grid-source-workspace" aria-label="源电网拓扑">
-    <header><strong>华北源电网</strong><button type="button" disabled={loading} onClick={()=>setRevision(value=>value+1)}>重新加载</button></header>
+    <header><strong>{selection.level==='region'?'华北 · 区域站点总览':selection.level==='station'?`${selection.label} · 站内元件`:`${selection.label} · 元件连接`}</strong><button type="button" disabled={loading} onClick={()=>setRevision(value=>value+1)}>重新加载</button></header>
     <nav aria-label="拓扑层级">{path.map((item,index)=><button key={`${index}:${item.selected_object_id||'north'}`} type="button"
       aria-current={index===path.length-1?'location':undefined} onClick={()=>setPath(previous=>previous.slice(0,index+1))}>{item.label}</button>)}</nav>
-    <p className="grid-source-note">源拓扑示意图 · 站点分组不代表电气等值模型。双击对象可展开，具体可用层级以来源记录为准。</p>
+    <p className="grid-source-note">{selection.level==='region'?'站点总览用于导航；潮流与优化使用经校核的母线、线路、变压器等电气模型。':'按来源展示电气元件；开关状态、参数和连接完整性仍需校核。'} 双击对象可下钻；交叉线不表示电气相连。</p>
     {loading&&<p role="status">正在读取源拓扑 · {counts[0].toLocaleString()} 个节点 / {counts[1].toLocaleString()} 条连接</p>}
     {error&&<p role="alert">{error}</p>}
     {scene&&view&&<>
-      <LargeNetworkView scene={scene} title={selection.label} storageKey="capstone-source-north" viewKey={`${selection.level}:${selection.selected_object_id||''}:${view.page.view_ref}`} onActivate={activate}/>
+      <LargeNetworkView scene={scene} title={selection.label} storageKey="capstone-source-north" viewKey={`${selection.level}:${selection.selected_object_id||''}:${view.page.view_ref}:source-layout-v2`} onActivate={activate} canActivate={item=>!!objects.get(item.id)?.expand}/>
       <p>{view.nodes.length.toLocaleString()} 个源节点 · {view.edges.length.toLocaleString()} 条源连接 · 未定位端点 {view.unresolvedEndpoints.length}</p>
       <details><summary>来源与质量缺口</summary>
         <dl><dt>视图版本</dt><dd>{view.page.view_ref}</dd><dt>选择规则</dt><dd><pre>{JSON.stringify(view.page.selection,null,2)}</pre></dd>

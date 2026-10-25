@@ -2,6 +2,7 @@
 export type GridSourceLevel = 'region' | 'station' | 'equipment'
 export type GridSourceObject = {
   id: string; kind: string; label?: string; source_id?: string; boundary?: boolean
+  voltage_kv?: number | null; vn_kv?: number | null; parent_id?: string | null; station_id?: string | null
   source?: string; target?: string
   expand?: { level: GridSourceLevel; selected_object_id: string } | null
 }

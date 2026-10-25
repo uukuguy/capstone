@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { HttpThreadTransport } from './threadHttpTransport'
 import GridSourceWorkspace from './GridSourceWorkspace'
+import { SessionReadingProvider } from './workspaceSessionCache'
 
 vi.mock('./LargeNetworkView',()=>({LargeNetworkView:({scene,onActivate}:{scene:{nodes:{id:string}[];edges:unknown[]};onActivate:(node:{id:string})=>void})=>
   <button onClick={()=>onActivate(scene.nodes[0])}>展开节点（{scene.edges.length}条可定位连接）</button>}))
@@ -38,5 +39,16 @@ describe('source workspace',()=>{
     render(<GridSourceWorkspace transport={{gridSourceTopology:read} as unknown as HttpThreadTransport} onQuestion={vi.fn()}/>)
     fireEvent.click(await screen.findByText('展开节点（0条可定位连接）'))
     expect((await screen.findByRole('alert')).textContent).toContain('来源选择规则已变化')
+  })
+  it('keeps the selected source object when switching resource tabs within the same session',async()=>{
+    const read=vi.fn().mockImplementation(async query=>({...page,level:query.level,selected_object_id:query.selected_object_id||null}))
+    const transport={gridSourceTopology:read} as unknown as HttpThreadTransport
+    const content=(open:boolean)=><SessionReadingProvider namespace="source-restore" threadId="thr_source_restore">{open&&<GridSourceWorkspace transport={transport} onQuestion={vi.fn()}/>}</SessionReadingProvider>
+    const result=render(content(true))
+    fireEvent.click(await screen.findByText('展开节点（0条可定位连接）'))
+    await waitFor(()=>expect(read.mock.calls.at(-1)?.[0].selected_object_id).toBe('station:a'))
+    result.rerender(content(false));result.rerender(content(true))
+    await waitFor(()=>expect(read.mock.calls.at(-1)?.[0]).toMatchObject({level:'station',selected_object_id:'station:a'}))
+    expect(screen.getByRole('button',{name:'站点甲'})).toBeTruthy()
   })
 })
