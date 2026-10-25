@@ -1,0 +1,5 @@
+.capstone-thinking-process { margin: 4px 0 8px; }
+.capstone-thinking-process .capstone-process-step-heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: 5px; }
+.capstone-thinking-status, .capstone-thinking-process small { color: inherit; font-size: 11px; font-weight: 400; }
+.capstone-thinking-copy { padding: 3px 9px 4px 23px; font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; }
+.capstone-thinking-copy p { margin: 3px 0; }
