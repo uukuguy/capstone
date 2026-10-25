@@ -53,11 +53,16 @@ def test_native_context_extension_adds_trusted_background_policy(tmp_path):
 
 
 @pytest.mark.parametrize('status', ['failed', 'cancelled', 'interrupted'])
-@pytest.mark.parametrize('current', ['Calculate 1 + 1 only.', 'Resume the stopped CSV analysis using its saved output.'])
-def test_native_context_marks_unsuccessful_history_terminal_without_changing_current_input(tmp_path, status, current):
+@pytest.mark.parametrize('historical,current', [
+    ('Investigate the old CSV and continue until the report is complete.', 'Calculate 1 + 1 only.'),
+    ('Investigate the old CSV and continue until the report is complete.', 'Resume the stopped CSV analysis using its saved output.'),
+    ('Investigate the old CSV and continue until the report is complete.', 'Investigate the old CSV and continue until the report is complete.'),
+    ('列出当前活跃的进程列表', '列出当前活跃的进程列表'),
+])
+def test_native_context_marks_unsuccessful_history_terminal_without_changing_current_input(tmp_path, status, historical, current):
     from pathlib import Path
     original = {'message_id': 'old-attempt:user', 'role': 'user',
-        'content': 'Investigate the old CSV and continue until the report is complete.',
+        'content': historical,
         'turn_id': 'old-turn', 'attempt_id': 'old-attempt', 'model_context_id': None, 'status': status}
     (tmp_path / 'context.json').write_text(json.dumps({'messages': [original], 'dependency_results': []}))
     extension = Path(__file__).parents[1] / 'src/capstone_agent/resources/general-context.mjs'
@@ -80,11 +85,17 @@ def test_native_context_marks_unsuccessful_history_terminal_without_changing_cur
     assert annotation['historical_request']['turn_id'] == original['turn_id']
     assert annotation['historical_request']['message_id'] == original['message_id']
     assert annotation['task_state'] == 'terminal_not_pending'
+    assert 'does not cancel a new accepted instruction' in annotation['notice']
     assert messages[-1] == {'role': 'user', 'content': current, 'timestamp': 123}
     policy = document['policy']['systemPrompt']
     assert 'latest current user input' in policy
-    assert 'explicitly asks to resume or retry' in policy
+    assert 'Each new accepted current instruction is fresh authorization' in policy
+    assert 'even if it repeats' in policy
+    assert 'does not require special resume or retry words' in policy
     assert 'retained Work research goal, claims and open questions are background' in policy
+    assert 'Research cycle and task graph status are bookkeeping' in policy
+    assert 'authorized live observation' in policy
+    assert 'isolated execution environment' in policy
 
 
 @pytest.mark.skipif(os.environ.get('CAPSTONE_GENERAL_NATIVE_TESTS') != '1', reason='requires local general Pi Docker image')
