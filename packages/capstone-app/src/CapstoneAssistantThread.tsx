@@ -525,7 +525,7 @@ export function projectAssistantMessages(events: readonly EventEnvelope[], instr
       return Boolean(firstCheckpoint&&progress?.checkpoint?.ref===firstCheckpoint)
     }):undefined
     const initialThinking=attemptId?projectInitialThinking(events,attemptId,executionEvent?.eventSeq):undefined
-    const withMetadata = { ...message, metadata: { custom: { ...custom, activities, modelRequests, initialThinking, nativeGraphFocus: attemptId ? nativeGraphFocus(events,attemptId,executionGraph) : undefined, runtimeMode, acceptedContext, failureResults, researchGoal, researchSnapshot, toolExecutions, taskProgress, taskSteps, stepDiagnostics, researchBranches, executionGraph, stepStorageKey: `${events[0]?.threadId ?? ''}:${attemptId ?? ''}` } } }
+    const withMetadata = { ...message, metadata: { custom: { ...custom, activities, modelRequests, initialThinking, nativeGraphFocus: nativeGraphFocus(executionGraph), runtimeMode, acceptedContext, failureResults, researchGoal, researchSnapshot, toolExecutions, taskProgress, taskSteps, stepDiagnostics, researchBranches, executionGraph, stepStorageKey: `${events[0]?.threadId ?? ''}:${attemptId ?? ''}` } } }
     return typeof message.content === 'string'
       ? { ...withMetadata, content: [{ type: 'text' as const, text: message.content }] }
       : withMetadata
