@@ -3,7 +3,7 @@ import type { HttpThreadTransport } from './threadHttpTransport'
 import { loadGridSourceView, type GridSourceLevel, type GridSourceObject, type GridSourceView } from './gridSource'
 import { LargeNetworkView } from './LargeNetworkView'
 import type { NetworkScene } from './networkScene'
-import { useSessionViewState } from './workspaceSessionCache'
+import { useSessionViewRef, useSessionViewState } from './workspaceSessionCache'
 import type { ThreadSourceViewRequest } from './threadViewRouting'
 import './gridSource.css'
 
@@ -28,12 +28,16 @@ export default function GridSourceWorkspace({ transport, onQuestion, requestedVi
   const scopedRoot=useMemo<Selection>(()=>({...root,label:`${scopeName}全网元件`,voltageMin:requestedView?.voltage_min_kv}),[scopeName,requestedView?.voltage_min_kv])
   const scopedRegion=useMemo<Selection>(()=>({...region,label:`${scopeName}站点总览`,voltageMin:requestedView?.voltage_min_kv}),[scopeName,requestedView?.voltage_min_kv])
   const [savedPath,setSavedPath] = useSessionViewState<unknown>(`source-topology.path:${scopeId}`,[scopedRoot])
+  const appliedRequest=useSessionViewRef<string|undefined>(`source-topology.applied:${scopeId}`,undefined)
   const path=restorePath(savedPath,scopedRoot)
   function setPath(next: Selection[] | ((previous: Selection[])=>Selection[])) {
     setSavedPath((previous:unknown)=>typeof next==='function'?next(restorePath(previous,scopedRoot)):next)
   }
   useEffect(()=>{
     if(!requestedView)return
+    const identity=JSON.stringify([requestedView,requestNonce])
+    if(appliedRequest.current===identity)return
+    appliedRequest.current=identity
     const target:Selection={level:requestedView.level,selected_object_id:requestedView.selected_object_id,
       label:requestedView.selected_object_id||`${scopeName}${requestedView.level==='region'?'站点总览':'全网元件'}`,viewRef:requestedView.view_ref,
       voltageMin:requestedView.voltage_min_kv,sourceSnapshot:requestedView.source_snapshot.metadata_snapshot,
@@ -73,7 +77,7 @@ export default function GridSourceWorkspace({ transport, onQuestion, requestedVi
   const nodeIds = useMemo(()=>new Set(view?.nodes.map(item=>item.id)),[view])
   const scene = useMemo<NetworkScene|undefined>(()=>view?{
     ref:view.page.view_ref,coordinateSystem:'schematic',displayMode:view.page.level==='region'?'source-regional':'source-detail',
-    nodes:view.nodes.map(item=>({id:item.id,label:item.label||item.id,kind:item.kind,sourceRef:item.source_id,
+    nodes:view.nodes.map(item=>({id:item.id,label:item.label||item.id,kind:item.kind,sourceRef:item.source_id,stationId:item.station_id??undefined,parentId:item.parent_id??undefined,
       voltageKv:item.voltage_kv??item.vn_kv,boundary:item.boundary,
       details:[{label:'来源对象',value:item.source_id||item.id},{label:'边界对象',value:item.boundary?'是':'否'},
         ...(item.parent_id?[{label:'上级对象',value:item.parent_id}]:[]),...(item.station_id?[{label:'所属站点',value:item.station_id}]:[])]})),
