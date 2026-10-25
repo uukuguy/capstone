@@ -108,6 +108,8 @@ export function configureDiagnosisCorrectionGuard(pi,config){
 }
 
 export function watchDiagnosisValidation(session,config){
+  if(!isAbsolute(config.diagnosisContextPath??'')||!config.applicationPolicy?.allowed_tools?.includes('agent_diagnosis_record'))
+    return ()=>{};
   const state=runtimeState(config);
   return session.subscribe(event=>{
     if(event.type==='tool_execution_end')observeSuccess(state,event);
