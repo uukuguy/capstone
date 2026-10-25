@@ -11,6 +11,22 @@ const started=event('attempt_started',2)
 const delta=event('assistant_thinking_delta',3,{text:'Actual public thought. '})
 const props={disabled:false,isRunning:true,activity:[],onSend:async()=>{},onCancel:async()=>{}}
 
+it.each([false,true])('keeps thinking before the answer during streaming and after completion (tools=%s)',withTool=>{
+  const {rerender}=render(<CapstoneAssistantThread {...props} events={[accepted,started,delta]}/>)
+  const assertOrder=()=>{
+    const message=document.querySelector('.is-assistant[data-attempt-id="thinking"]')!
+    const thinking=message.querySelector('.capstone-thinking-process')!
+    const answer=message.querySelector('.capstone-chat-body')!
+    expect(message.querySelectorAll('.capstone-thinking-process')).toHaveLength(1)
+    expect(thinking.compareDocumentPosition(answer)&Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  }
+  assertOrder()
+  const execution=withTool?[event('tool_started',4,{tool_name:'read',tool_call_id:'read'}),event('tool_completed',5,{tool_name:'read',tool_call_id:'read'})]:[]
+  rerender(<CapstoneAssistantThread {...props} isRunning={false} events={[accepted,started,delta,...execution,event('attempt_completed',6,{answer:'Answer only.'})]}/>)
+  assertOrder()
+  expect(screen.getByRole('button',{name:'展开初始思考'}).getAttribute('aria-expanded')).toBe('false')
+})
+
 it('shows thinking during submit before any accepted or started event',async()=>{
   let finish!:()=>void
   const onSend=vi.fn(()=>new Promise<void>(resolve=>{finish=resolve}))
