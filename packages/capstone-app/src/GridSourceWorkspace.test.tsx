@@ -34,16 +34,22 @@ describe('source workspace',()=>{
     result.rerender(<GridSourceWorkspace transport={transport} requestedView={requestedView} requestNonce={2} onManualNavigate={manual} onQuestion={vi.fn()}/>)
     await waitFor(()=>expect(read.mock.calls.at(-1)?.[0].expected_view_ref).toBe('chosen-view'))
   })
-  it('does not reapply an already consumed instruction hint after manual navigation and reopening',async()=>{
-    const requestedView:ThreadSourceViewRequest={schema:'capstone-grid-source-view-request/1',source_id:'data-gateway',
+  it.each([false,true])('retains manual navigation after reopening, including a scope transition (%s)',async(switchScope)=>{
+    let requestedView:ThreadSourceViewRequest={schema:'capstone-grid-source-view-request/1',source_id:'data-gateway',
       scope_id:'north',scope_name:'华北',level:null,selected_object_id:null,view_ref:'north-view',
       source_snapshot:{metadata_snapshot:'source-a',source_instance:'source-1'},voltage_min_kv:330,display_grouping_only:false}
-    const read=vi.fn().mockImplementation(async query=>({...page,level:query.level,selected_object_id:query.selected_object_id||null,
+    const read=vi.fn().mockImplementation(async query=>({...page,scope:{scope_id:query.scope_id},level:query.level,selected_object_id:query.selected_object_id||null,
       display_grouping_only:query.level!==null,view_ref:query.expected_view_ref||'manual-view'}))
     const transport={gridSourceTopology:read} as unknown as HttpThreadTransport
     const content=(open:boolean)=><SessionReadingProvider namespace="source-consumed" threadId="thr_source_consumed">{open&&<GridSourceWorkspace transport={transport} requestedView={requestedView} requestNonce={7} onQuestion={vi.fn()}/>}</SessionReadingProvider>
     const result=render(content(true))
     await screen.findByText('展开节点（0条可定位连接）')
+    if(switchScope){
+      requestedView={...requestedView,scope_id:'east',scope_name:'华东',view_ref:'east-view'}
+      result.rerender(content(true))
+      await waitFor(()=>expect(read.mock.calls.at(-1)?.[0].expected_view_ref).toBe('east-view'))
+      await screen.findByText('展开节点（0条可定位连接）')
+    }
     fireEvent.click(screen.getByRole('button',{name:'站点总览'}))
     await waitFor(()=>expect(read.mock.calls.at(-1)?.[0].level).toBe('region'))
     result.rerender(content(false));result.rerender(content(true))

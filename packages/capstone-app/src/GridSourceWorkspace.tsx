@@ -20,10 +20,14 @@ function restorePath(value: unknown,fallback:Selection=root): Selection[] {
     ?value as Selection[]:[fallback]
 }
 
-export default function GridSourceWorkspace({ transport, onQuestion, requestedView, requestNonce, onManualNavigate }: {
+type SourceWorkspaceProps = {
   transport: HttpThreadTransport; onQuestion: (view: GridSourceView, question: string) => Promise<void>
   requestedView?:ThreadSourceViewRequest;requestNonce?:number;onManualNavigate?:()=>void
-}) {
+}
+export default function GridSourceWorkspace(props:SourceWorkspaceProps) {
+  return <ScopedSourceWorkspace key={props.requestedView?.scope_id||'north'} {...props}/>
+}
+function ScopedSourceWorkspace({ transport, onQuestion, requestedView, requestNonce, onManualNavigate }: SourceWorkspaceProps) {
   const scopeId=requestedView?.scope_id||'north',scopeName=requestedView?.scope_name||'华北'
   const scopedRoot=useMemo<Selection>(()=>({...root,label:`${scopeName}全网元件`,voltageMin:requestedView?.voltage_min_kv}),[scopeName,requestedView?.voltage_min_kv])
   const scopedRegion=useMemo<Selection>(()=>({...region,label:`${scopeName}站点总览`,voltageMin:requestedView?.voltage_min_kv}),[scopeName,requestedView?.voltage_min_kv])
