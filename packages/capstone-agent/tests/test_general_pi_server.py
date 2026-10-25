@@ -503,6 +503,14 @@ def test_native_runner_writes_business_context_as_private_data(tmp_path, monkeyp
     runner(request, lambda: False, lambda _: None)
     import json
     assert json.loads(captured[0])['business_context'] == context.to_document()
+    state = json.loads(captured[0])['execution_state']
+    assert state['task_id'] == request.task_id
+    assert state['parent_attempt_id'] == request.parent_attempt_id
+    assert state['task_status'] == 'running'
+    assert state['scope'] == 'current_native_task_only'
+    assert state['operating_system_processes_observed'] is False
+    assert state['other_tasks_observed'] is False
+    assert isinstance(state['observed_at_ms'], int)
 
 
 @pytest.mark.parametrize('raw,tamper,completed', [

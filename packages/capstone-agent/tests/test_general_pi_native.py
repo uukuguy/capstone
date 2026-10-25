@@ -21,9 +21,11 @@ def test_native_context_extension_keeps_cross_task_history_as_reference_data(tmp
     from pathlib import Path
     from capstone_agent.business_context import BusinessContext
     context = BusinessContext.empty('workspace', 0).to_document()
+    execution = {'task_id': 'new-task', 'parent_attempt_id': 'new-attempt', 'task_status': 'running',
+                 'scope': 'current_native_task_only', 'operating_system_processes_observed': False}
     (tmp_path / 'context.json').write_text(json.dumps({'messages': [
         {'role': 'user', 'content': 'User history'}, {'role': 'assistant', 'content': 'Assistant history'}],
-        'dependency_results': [], 'business_context': context}))
+        'dependency_results': [], 'business_context': context, 'execution_state': execution}))
     extension = Path(__file__).parents[1] / 'src/capstone_agent/resources/general-context.mjs'
     result = subprocess.run(['node', '--input-type=module', '-e',
         'const {default: register} = await import(process.argv[1]); '
@@ -32,9 +34,10 @@ def test_native_context_extension_keeps_cross_task_history_as_reference_data(tmp
         '{model: {api: "fixture", provider: "fixture", id: "fixture"}})));', extension.as_uri()],
         cwd=tmp_path, capture_output=True, text=True, check=True)
     messages = json.loads(result.stdout)['messages']
-    assert [message['role'] for message in messages] == ['user', 'user', 'user']
+    assert [message['role'] for message in messages] == ['user', 'user', 'user', 'user']
     assert json.loads(messages[1]['content'])['business_context'] == context
     assert messages[-1]['content'] == 'Current task'
+    assert json.loads(messages[-2]['content']) == {'execution_state': execution}
     history = json.loads(messages[0]['content'])
     assert history['state_scope'] == 'historical_not_current_observation'
     assert history['historical_records'] == [

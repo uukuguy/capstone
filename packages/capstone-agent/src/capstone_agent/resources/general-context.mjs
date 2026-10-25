@@ -16,6 +16,7 @@ export default function (pi) {
       "It does not require special resume or retry words. Follow what the current instruction asks, including clear references to history; quoted past instructions alone do not reopen old obligations. " +
       "The retained Work research goal, claims and open questions are background, not automatic obligations to continue old business work. " +
       "Research cycle and task graph status are bookkeeping, not live operating-system or external-environment evidence. Never infer live process counts or other environment facts from an idle or empty task graph. " +
+      "The host execution_state separately reports this native task at observed_at_ms. A running task remains running even if its research graph is empty. Fields marked unobserved are unknown, not zero. Do not invent tool-call counts or claim an observation that has no current tool return. " +
       "For current environment facts obtain an authorized live observation and state its scope. Observations from the isolated execution environment do not establish the operator's host state or ungranted external system state. " +
       "Use only existing published tools and workspace grants; this policy grants no native tools to a professional Domain Pack.",
   }));
@@ -45,6 +46,9 @@ export default function (pi) {
           source: context.selected_task_source,
           notice: "Only the published original task pages are available in this execution. Do not claim to have read omitted pages." }), timestamp: 0 }]
       : [];
-    return { messages: [...history, ...business, ...observations, ...boundedRecords, ...event.messages] };
+    const execution = context.execution_state
+      ? [{role:"user",content:JSON.stringify({execution_state:context.execution_state}),timestamp:0}]
+      : [];
+    return { messages: [...history, ...business, ...observations, ...boundedRecords, ...execution, ...event.messages] };
   });
 }

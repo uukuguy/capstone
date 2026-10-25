@@ -106,6 +106,11 @@ including in compact recovery windows. An idle research cycle describes that
 controller only; it is not an observation of operating-system processes or other
 attempts. A new accepted instruction is fresh authorization within existing
 grants even when it repeats a terminal request.
+The native execution host supplies a separate current-task status snapshot with
+its native task ID, parent Attempt ID, capture time and bounded scope. It does
+not claim to enumerate other tasks or operating-system processes. Missing
+observations are unknown, not zero. Research-cycle status cannot replace this
+host execution snapshot; neither snapshot grants new tools or Authority access.
 Process emphasis follows actual execution: initial thinking, direct tool calls,
 or admitted task organization. Task organization selects task steps regardless
 of uploaded resources. Host lifecycle timing and unadmitted graph text do not

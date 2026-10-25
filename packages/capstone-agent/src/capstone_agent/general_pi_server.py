@@ -770,6 +770,13 @@ class NativeTaskRunner:
             role = 'direct_pi' if request.entrypoint == 'direct' else 'delegated_pi'
             document = request.to_document()
             context = {'messages': document['messages'], 'dependency_results': document['dependency_results']}
+            # Host-owned status of this allocated execution, not a global task
+            # inventory and not state inferred from the research controller.
+            context['execution_state'] = {'source': 'native_task_runner',
+                'task_id': request.task_id, 'parent_attempt_id': request.parent_attempt_id,
+                'task_status': 'running', 'scope': 'current_native_task_only',
+                'observed_at_ms': int(time.time() * 1000),
+                'operating_system_processes_observed': False, 'other_tasks_observed': False}
             if request.business_context is not None:
                 context['business_context'] = request.business_context.to_document()
             task_input = document.get('input', {'kind': 'text', 'text': request.instruction})
