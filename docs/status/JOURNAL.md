@@ -5715,3 +5715,10 @@ Prior closeout receipts preserved verbatim from the root checkout:
 2026-10-25 — Diagnostic recovery passes178.175s including queue; one advisory host report, zero rejects, saved3545byte notes, historical gaps preserved.
 2026-10-25 — Native fixtures367pass16.96s; consumer gates, PyPSA58, inventory12 and legacy application44 pass; no release gate invoked.
 2026-10-25 — d27d5dab records real unified-conversation, Stop and diagnosis recovery acceptance; preserves failed attempts and remaining efficiency limits.
+2026-10-25 — 8acfe331 records product development gate selection for shared research tools; release verification remains separate.
+2026-10-25 — c7d76a2c records unified conversation acceptance and exact runtime sources for development integration; feature graph verified.
+2026-10-25 — PR60 opened atc7d76a2c; macOS product gate40198028306 running. System-proxy HTTPS push recovered transport; isolated test PostgreSQL removed.
+2026-10-25 — Same Work after IEEE39 accepts direct answer12.294s; no tools, products or new Authority result/evidence refs.
+2026-10-25 — User requires affected-part checks during early development; cancelled oversized CI40198028306 after17m11, retaining verified local receipts.
+2026-10-25 — Cancelled CI measured unchanged grid-agent706.84s and simulator174.51s; targeted conversation-runtime policy replaces unrelated professional regressions.
+2026-10-25 — 72173ac1 scopes conversation CI to affected consumers;90governance tests pass1.03s; unchanged solver suites excluded.

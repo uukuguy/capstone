@@ -48,9 +48,14 @@ Counts overlap and must not be added as independent coverage.
 Pyright reports zero errors. Package-boundary checks, App production build and
 diff checks pass. Loopback HTTP checks use NO_PROXY to avoid the machine proxy.
 Upstream Starlette deprecation and existing App chunk-size warnings remain.
-These are affected development checks, not release verification. The shared
-research-tool projection also changes pi-capability-tools, so the repository's
-PR classifier selects the product development gate for the combined change.
+These are affected development checks, not release verification. The initial PR
+classifier sent shared research-context mirrors and App JSON fixtures to the
+product gate. The user rejected this broad early-development scope. Run40198028306
+was cancelled after17m11s: unchanged grid-agent tests took706.84s and simulator
+tests174.51s before reaching the changed agent code. No failed or unfinished check
+is presented as passed. A targeted conversation-runtime gate replaces that scope;
+Authority, solver, unknown dependency and explicit release changes retain their
+own wider checks.
 
 ## Review and corrections
 
@@ -115,6 +120,12 @@ saved products, reused mean4 without reading/recalculating CSV, submitted exactl
 one report with zero rejected submissions, and saved3545bytes of recovery notes.
 The host record isreported_only/advisory withretain_gap. Historical uncertain
 records remain uncertain. Saved bytes and artifact hashes were verified.
+
+After the registered grid calculation, the same Work accepted a normal direct
+question and completed in12.294s without tool calls, products or new result/evidence
+refs. Selecting a registered model does not force subsequent ordinary input into
+professional calculation. Diagnostic exhaustion is covered by host and actual SDK
+regressions; no extra paid-model rejection loop was forced for this receipt.
 
 ## Integration to complete
 
