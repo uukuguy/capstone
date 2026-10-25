@@ -111,6 +111,43 @@ def _gaps(value):
     return result
 
 
+def _scope_definitions(data):
+    """Project the published definition dictionary, not a data-coverage claim."""
+    if not isinstance(data, dict):
+        _invalid()
+    result: dict[str, object] = {'schema': 'capstone-grid-source-definitions/1',
+              'definition_version': _text(data.get('definition_version')),
+              'scope': _text(data.get('scope'))}
+    all_scopes = []
+    for key in ('regions', 'groups'):
+        records = data.get(key)
+        if not isinstance(records, list) or len(records) > 128:
+            _invalid()
+        projected = [_scope(record) for record in records]
+        result[key] = projected
+        all_scopes.extend(projected)
+    scope_ids = {scope['scope_id'] for scope in all_scopes}
+    if len(scope_ids) != len(all_scopes):
+        _invalid()
+    aliases = data.get('aliases')
+    if not isinstance(aliases, dict) or len(aliases) > 512:
+        _invalid()
+    projected_aliases = {_text(name): _text(target) for name, target in aliases.items()}
+    result['aliases'] = projected_aliases
+    if any(target not in scope_ids for target in projected_aliases.values()):
+        _invalid()
+    result['not_aliases'] = _strings(data.get('not_aliases'), 256)
+    bases = data.get('statistical_basis_values')
+    if not isinstance(bases, list) or len(bases) > 64:
+        _invalid()
+    result['statistical_basis_values'] = [
+        {'code': _text(item.get('code')), 'name': _text(item.get('name'))}
+        if isinstance(item, dict) else _invalid() for item in bases]
+    for key in ('statistical_basis_evidence', 'historical_adjustments'):
+        result[key] = _text(data.get(key), 2048)
+    return result, all_scopes
+
+
 def checked_topology_request(document):
     allowed = {'scope_id', 'level', 'selected_object_id', 'voltage_min_kv',
                'node_offset', 'edge_offset', 'limit', 'expected_view_ref'}
@@ -152,6 +189,9 @@ def _element(value, edge=False):
         _invalid()
     result.update(_metadata(value, ('label', 'source_id', 'source_table', 'voltage_kv', 'vn_kv',
                                    'member_count', 'equipment_type')))
+    for key in ('parent_id', 'station_id'):
+        if key in value:
+            result[key] = None if value[key] is None else _text(value[key])
     if 'boundary' in value:
         if type(value['boundary']) is not bool:
             _invalid()
@@ -270,12 +310,20 @@ class GridSourceProvider:
     async def scopes(self):
         content = await self._call('discover_region_scopes', {})
         data = content.get('data')
-        scopes = data.get('scopes') if isinstance(data, dict) else data
-        if not isinstance(scopes, list) or len(scopes) > 128:
+        if isinstance(data, dict) and 'regions' in data and 'groups' in data:
+            definitions, scopes = _scope_definitions(data)
+        else:
+            records = data.get('scopes') if isinstance(data, dict) else data
+            if not isinstance(records, list) or len(records) > 128:
+                _invalid()
+            definitions, scopes = None, [_scope(scope) for scope in records]
+        result = {'schema': 'capstone-grid-source-scopes/1', 'source_id': SOURCE_ID,
+                  'status': content['status'], 'scopes': scopes,
+                  'gaps': _gaps(content.get('gaps', [])),
+                  **({'definitions': definitions} if definitions is not None else {})}
+        if len(json.dumps(result, allow_nan=False).encode()) > PAGE_BYTES:
             _invalid()
-        return {'schema': 'capstone-grid-source-scopes/1', 'source_id': SOURCE_ID,
-                'status': content['status'], 'scopes': [_scope(scope) for scope in scopes],
-                'gaps': _gaps(content.get('gaps', []))}
+        return result
 
     async def resolve_scope(self, document):
         if not isinstance(document, dict) or set(document) != {'scope'}:

@@ -150,3 +150,50 @@ def test_scope_quality_is_typed_not_truthy(field, value):
     gateway.data['scope'][field] = value
     with pytest.raises(GridSourceError):
         asyncio.run(GridSourceProvider(gateway).topology({'scope_id': 'north'}))
+
+
+def test_published_scope_dictionary_preserves_definitions_aliases_and_statistical_limits():
+    """Gateway1.30 real discovery shape (2026-10-26); no invented resolved scope."""
+    from capstone_agent.grid_source_topology import GridSourceProvider
+    gateway = Gateway()
+    north = topology_data()['scope']
+    group = {**north, 'scope_id': 'north_three', 'name': '北三区'}
+    gateway.data = {'definition_version': 'national-dispatch-2026-10-24',
+        'scope': 'national_dispatch_state_grid', 'regions': [north], 'groups': [group],
+        'aliases': {'华北': 'north', '北三区': 'north_three'}, 'not_aliases': ['全国电网'],
+        'statistical_basis_values': [{'code': '1001', 'name': '经营区'}],
+        'statistical_basis_evidence': 'SG_META_PROPERTY.DATARANGE annotations; not a universal field mapping',
+        'historical_adjustments': 'Preserve source RUNINDEXRANGE and effective versions',
+        'url': 'private endpoint must be omitted'}
+    page = asyncio.run(GridSourceProvider(gateway).scopes())
+    assert page['scopes'] == [north, group]
+    definitions = page['definitions']
+    assert definitions['regions'] == [north] and definitions['groups'] == [group]
+    assert definitions['definition_version'] == gateway.data['definition_version']
+    assert definitions['aliases'] == {'华北': 'north', '北三区': 'north_three'}
+    assert definitions['not_aliases'] == ['全国电网']
+    assert definitions['statistical_basis_values'] == [{'code': '1001', 'name': '经营区'}]
+    assert definitions['statistical_basis_evidence'].endswith('not a universal field mapping')
+    assert 'url' not in definitions
+
+
+def test_station_source_shape_keeps_unverified_voltage_and_hierarchy():
+    """Representative published station records, including the unknown voltage group."""
+    from capstone_agent.grid_source_topology import GridSourceProvider
+    gateway = Gateway()
+    station = 'station:01121100000001'
+    gateway.data.update(level='station', selected_object_id=station,
+        nodes=[{'id': 'voltage:01121100000001:None', 'kind': 'voltage_level',
+                'label': '未核准电压层', 'parent_id': station, 'voltage_kv': None,
+                'expand': {'level': 'equipment', 'selected_object_id': station}},
+               {'id': 'breakers:132111000000000007', 'kind': 'breakers',
+                'label': '5011断路器', 'source_id': '132111000000000007',
+                'station_id': '01121100000001', 'parent_id': 'voltage:01121100000001:500'}],
+        edges=[{'id': 'line:one:terminal:one', 'source': 'line:one', 'target': 'terminal:one', 'kind': 'line_terminal'}],
+        total_nodes=2, total_edges=1, next_node_offset=None, next_edge_offset=None)
+    page = asyncio.run(GridSourceProvider(gateway).topology({'scope_id': 'north', 'level': 'station',
+                      'selected_object_id': station, 'limit': 1000}))
+    assert page['nodes'][0]['voltage_kv'] is None
+    assert page['nodes'][0]['parent_id'] == station
+    assert page['nodes'][1]['station_id'] == '01121100000001'
+    assert page['complete'] is True
