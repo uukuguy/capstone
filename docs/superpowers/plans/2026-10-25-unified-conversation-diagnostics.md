@@ -92,9 +92,9 @@ Produces thinking, tool-chain or business-task presentation without session keyw
   against its Authority contract; isolated-runner tests do not prove unified execution.
 - [x] Record incomplete grid integration explicitly if any remains. Update canonical
   worklist, review receipt, JOURNAL and recovery checkpoint.
-- [ ] Update VERSION-CONTROL/INDEX and regenerate/inspect PROJECT-OVERVIEW using
+- [x] Update VERSION-CONTROL/INDEX and regenerate/inspect PROJECT-OVERVIEW using
   ui-ux-pro-max. Push a scoped PR to dev, pass its gate and integrate.
-- [ ] Refresh actual dev control state after merge and verify its real entry point.
+- [x] Refresh actual dev control state after merge and verify its real entry point.
 
 ## Initial verification
 

@@ -1,35 +1,35 @@
-# Live Session Checkpoint
+# Project Checkpoint
 
-> Updated: 2026-10-25 21:52 CST. Session remains active.
+> Updated: 2026-10-25 14:45:18 UTC. Source work is integrated; control-only closeout is active.
 
-## Objective and sources
+## Current boundary
 
-- Unified conversation and built-in systematic diagnosis are implemented and locally verified. Complete dev PR integration and actual dev entry/control verification. No cloud/demo/main release is authorized by this slice.
-- Implementation worktree .worktrees/dev-macos-ci, branch feat/unified-conversation-diagnostics, HEADc7d76a2c, runtime source afe173cf. PR60 is open. User rejected broad early-development gates; CI40198028306 was CANCELLED after17m11 (unchanged grid706.84s/simulator174.51s). diagnostic_tool is implementing a targeted conversation-runtime gate in workflow/classifier/tests; root owns lifecycle/review/worklist updates. Push the scoped policy and wait only its required checks. Root dev remains5b142802. Root7dirty paths have exact backups under .capstone-agent/recovery/unified-conversation-root-20261025 and newer unified-conversation-root-premerge-20261025; preserve later journal/baton edits too.
-- Preserve all data, other worktrees and unmerged PR50. Its draft work is historical and is not a dependency of this branch.
+- PR60 merged into dev6f9ca536. Actual ROOT dev is fast-forwarded and App5173 is verified.
+- Runtime sourceafe173cf remains deployed locally. All84source hashes match dev6f9ca536; no production source changed after the verified build. API/threeworkers image012d101db1fd; nativeaa1b86ffa8b7. APIready passes.
+- Implementation worktree .worktrees/dev-macos-ci now uses docs/unified-conversation-dev-closeout. Its pending task-owned docs consolidate actual-dev control, review, plan and journal. Commit/push a docs-only PR, integrate it and refresh actualdev current-HEAD snapshot once.
+- User requires proportional checks during early development: changed behavior and direct consumers only. Reuse valid unchanged results. Do not repeat solver/professional/full-release suites for conversation edits or control docs. Main and explicit release still retain complete dual-platform acceptance.
 
-## Verified behavior
+## Verification and behavior
 
-- Same Thread thr_d9576805d1efeab634b3 / Work work_fea9ff10d260368869f8: direct16.203s, tool products70.620s, actual gateway research207.959s, explicit IEEE39 selection and Authority calculation26.4s. Squares total338350; gateway first-five mean6745.8721MW; grid loss43.64112576085046MW, voltage0.982–1.0636pu with current-run refs.
-- Stop bug needed queue supersession and context corrections. bad830c7 retires pending old input when new input is accepted, preserves explicitretry. bd386585 labels retained goal background;48fe84e1 preserves failed/cancelled/interrupted history status. New request itself was always correctly passed in the second failure.
-- Fresh real Stop→process verification onafe173cf: Thread thr_832dff3c85e0259ed969 / Work work_dd109ea8c398b5776426. Old Attempt f8546237a207c6f7 cancelled after planning; new Attempt8128eede43463220 completed89.073s with only inspect-processes node, PID/nameCSV and notes. NoCSVresume. Reload inspected. Simple-task organization overhead remains an efficiency gap.
-- One-shot diagnosis recovery Attemptc943fed923157cdd on Threadthr_40acc387429f6416c476 completed178.175s including~88squeue/~90sexecution. Read frozen prior reports, noCSVrecompute,1hostreport,0rejects, advisory/reported_only/retain_gap,3545byte recovery notes. Old uncertain records remain uncertain.
-- Earlier diagnosis failed at missing child source allowlist (fixed816a482a), then226.283s metadata retries were cancelled. Preserve those failures; do not reinterpret historical probes as passed.
-- User owns business direction and key decisions. Research quality defaults to advisory gaps; grid uses strict objective Pack/Authority admission with bounded repairs.
+- PR60 required macOS CI40201683198 passed:8m11 overall,6m14 conversation-runtime step. Scope policy72173ac1/50cf1bd8;96policy tests0.88s,56top-levelnative tests0.847s. Local backend2207pass/2skip148.34s, App958pass11.76s, nativefixtures367pass16.96s; counts overlap.
+- Same Work completed direct, tools, gateway research, IEEE39 calculation, then ordinary direct answer12.294s without tools/new evidence. Current-run grid Authority refs are retained; native products never become Authority evidence.
+- Fresh real Stop→newprocess passes89.073s. OldCSVAttempt remains cancelled; newgraph onlyinspect-processes. Queue supersession plus terminal-status/background-goal labels fix implicit resume. Explicit diagnostic recovery reuses frozen products,1advisory host report,0rejects,3545byte notes;178.175s includes~88squeue. Simple-task organization overhead remains a separate efficiency gap.
+- Original diagnosis allowlist/metadata-loop failures remain recorded; never relabel old unknown probes as passed. View focus follows actual thinking/tool/business execution; private reasoning is not exposed.
+- Source and saved-product receipts: ignored ROOT outputs/unified-conversation-20261025; dev-root-entry.png inspected after App5173restart. RootApp buildrevisionafe, repositoryRevision6f, dirtyfalse.
+- Broad CI40198028306 cancelled17m11 on user instruction: unchanged grid706.84s/simulator174.51s. Scoped CI40200263790 exposed an old SSE-test startup race;9367fc2b fixed the test readiness condition,8focused tests3.51s passed.
+- Automatic duplicate devpush40202723488 hit an unchanged80ms request-budget timing assertion (0events instead of1). Merged6f tree equals passed9367fc2b exactly. Record as a non-blocking test-stability follow-up, not a passed run or reason for full reruns. Review contains details.
 
-## Checks and local runtime
+## Preservation and cleanup
 
-- Backend2207passed/2skipped148.34s; App958passed11.76s; native fixture367passed16.96s; Pyright0; package boundaries pass. Kernel658/Pack144/client15/registered3 passed. Additional native consumers, PyPSA58, inventory12 and legacy App44 pass. Counts overlap. Doctor, links, symlink and diff checks pass.
-- Canonical rebuild sourceafe173cf ready: API+3workers image012d101db1fd49df0301818d01bfeae1ba6b4e799a71432da8f4ce3dc1b50e8e; nativeaa1b86ffa8b743f09ea5ec4c0389cb199d62d2cdae8f3f7b7c72043d9aa4cf55.84filechecks match. Cache receipt211057-30406.log. Root ignored outputs/unified-conversation-20261025 contains exact source, savedproducts, hostdiagnosis, numericlineage and stop receipts.
-- Candidate App5174 serves implementation; root App5173 must be verified after dev integration. Playwright fallback sessioncapstone-unified; tab0root/tab1candidate. Browser plugin unavailable. Desktop/mobile design checked; stop-new-process-desktop.png latest.
-- No active model tasks. Isolated tmpfs test PostgreSQL containercapstone-unified-test-postgres was stopped/removed after checks. Preserve every other container/data.
-- Control worker committed c7d76a2c and then prepared uncommitted VERSION/INDEX/HTML updates for PR60/CI pending. Carry these, JOURNAL and this baton into the postmerge control PR; do not drop them. Temporary graph static server18791 session90553; stop it at end.
-- Direct GitHub HTTPS failed; SSH authenticates as an unrelated account without repo permission. Push succeeded using the existing system HTTP proxy: git -c http.proxy=http://127.0.0.1:7897 -c http.version=HTTP/1.1 -c credential.helper= -c 'credential.helper=!gh auth git-credential' push ... . No global config or credentials changed. gh API works.
+- Original7root dirty/untracked task paths preserved under .capstone-agent/recovery/unified-conversation-root-final-20261025, plus two earlier backups. Journal union preserves both worktrees' entries.
+- Do not delete user var/data, other worktrees or unmerged PR50. Cloud/main/demo/user-local unchanged.
+- Scoped cache helper--apply completed after use. Owned temporary test PostgreSQL was stopped/removed.
+- Root App5173 starts via make capstone-app-dev; durable parentPID35122 stored .capstone-agent/app-dev.pid. Keep it running.
+- After root verification, stop only candidateApp5174 if proven owned and temporary graph server18791(session90553). Preserve the initialized reused worktree; detach it after closing merged branches.
+- Final control metadata may retain a small generated current-HEAD snapshot and append-only journal/baton edits to avoid an endless self-hash commit cycle. Record exact paths/reasons after final integration.
 
-## Remaining actions
+## Next
 
-1. Finish/review targeted conversation-runtime classifier/workflow (worker owns fivefiles), commit root policy docs, push PR60 and verify the new bounded gate. No rerun of unchanged full professional suites. Main/release full gates stay unchanged. No release=true. Review user latest instruction before selecting further checks.
-2. Backed-up root task metadata may be restored/moved only after comparison. Merge accepted PR, fast-forward actualdev, preserve all original changes and journal lines. Do not delete unmerged branches.
-3. Verify root App5173 current source and saved session/model/products. If local source differs, canonical rebuild with rootenv and pinned model/gateway paths; source84checks suffice to avoid repeating paid successfulcases.
-4. Update actualdev register and generate/browser-inspect actualdev graph, including currentHEAD/merge source and exactlocal runtime source. A featuregraph alone is incomplete. Avoid endless own-hash commits.
-5. Clean only owned temporary testcontainer/server and scoped cache as required; final response reports dev integration and remaining efficiency limits honestly.
+1. Complete docs-only control PR and actualdev snapshot; no runtime rebuild or paid model rerun.
+2. Close only verified merged feature/control branches, preserving other unmerged work.
+3. Final response: proportional checks implemented, Stop bug fixed, built-in diagnosis/local unified paths verified and dev integrated; cloud deployment remains separate.
