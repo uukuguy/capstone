@@ -5664,3 +5664,7 @@ Prior closeout receipts preserved verbatim from the root checkout:
 2026-10-25 — CI40170377784 passed gateway checks; reused existing macOS single-child cleanup for progress fixtures after a process-group permission failure.
 
 2026-10-25 — Rebuilt22e61786; five-role hashes, shared backend87e9bae78f79, nativef2c3afaf5b5f,41gateway tools, ready200 and UID10000 credential denial passed.
+
+2026-10-25 — 29e43835: Reused macOS single-child cleanup for stable progress tests;54executor and relay checks pass without production changes.
+
+2026-10-25 — Fixed cancellation-test release ordering and all single-child macOS fixtures;54checks pass under simulated signal denial and delayed release.

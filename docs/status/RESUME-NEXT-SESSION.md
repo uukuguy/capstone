@@ -52,6 +52,11 @@ Push this correction and inspect the required dev gate. No release/cloud/demo.
 CI40170377784 passed gateway checks but hit an existing macOS group-signal
 PermissionError in the progress fixture. Reuse the already established
 single-child fixture cleanup for that test; production cleanup is unchanged.
+CI40171246448 exposed the same macOS restriction in another single-child test
+and a cancellation assertion that ran before the handler released its lease.
+Use the established cleanup across this RPC fixture module, and wait for the
+handler's completed release signal.54checks pass with simulated killpg denial;
+an explicit delayed-release probe passes. Runtime remains22e61786, unchanged.
 After green,
 merge normally, reconcile ROOT's two preserved metadata files, fast-forward dev,
 verify its real entrypoint and close only merged feature refs. Update canonical

@@ -165,7 +165,7 @@ def test_revocation_cancels_inflight_gateway_and_issues_no_receipt(tmp_path):
     from capstone_agent.general_pi_server import GeneralPiHost, make_server
     from capstone_agent.general_pi_relay import ProviderRelay
     resource = access()
-    started, stopped = threading.Event(), threading.Event()
+    started, stopped, released = threading.Event(), threading.Event(), threading.Event()
 
     async def waiting(*_):
         started.set()
@@ -176,6 +176,11 @@ def test_revocation_cancels_inflight_gateway_and_issues_no_receipt(tmp_path):
 
     resource.client.call = waiting
     relay = ProviderRelay()
+    release = relay.release
+    def release_and_signal(lease):
+        release(lease)
+        released.set()
+    relay.release = release_and_signal
     runner = SimpleNamespace(gateway=resource, relay=relay)
     host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'}, run_task=lambda *_: ('', {}))
     server = make_server(host, control_token='host-control', address=('127.0.0.1', 0), runner=runner)
@@ -192,6 +197,9 @@ def test_revocation_cancels_inflight_gateway_and_issues_no_receipt(tmp_path):
             with pytest.raises(httpx.HTTPError):
                 future.result(timeout=2)
         assert not resource.verify('task-1', 'call-1', request()['name'], {}, '{}')
+        # The cancelled coroutine and socket finish before the handler's finally
+        # block. Wait for actual lease release, not merely client disconnection.
+        assert released.wait(2)
         assert not relay.active
     finally:
         server.shutdown()

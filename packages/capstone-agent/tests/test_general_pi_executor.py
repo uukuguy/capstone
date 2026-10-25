@@ -6,14 +6,15 @@ import time
 import pytest
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def single_child_cleanup(monkeypatch):
-    # These event fixtures create one child and no descendants. The macOS test
+    # This module's RPC fixtures create one child and no descendants. The macOS test
     # host can deny group signals; Linux retains the real group cleanup path.
     if sys.platform != 'darwin':
         return
     from capstone_agent.general_pi_executor import GeneralPiProcess
     def stop_fixture(process):
+        assert process.uid is None, 'UID isolation needs the Linux integration fixture'
         child, process.process = process.process, None
         if child is not None:
             child.terminate()

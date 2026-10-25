@@ -1,6 +1,9 @@
 # Enterprise research through production-data MCP
 
-Status: local functional acceptance passed on runtime source 2f9c6b56.
+Status: real model functional acceptance passed on runtime source 2f9c6b56.
+Runtime22e61786 includes the later type correction and passed the final rebuild,
+source/permission checks and retained-product browser recovery. Test-only29e43835
+does not change that running source.
 Dev integration and required PR checks are separate. No cloud/demo promotion.
 
 PR #58 first failed type checks; correction015112a7 passes Pyright and105focused
@@ -12,6 +15,11 @@ relay tests pass. User requested lighter development CI;60scope/contract tests
 and362native SDK tests pass for the bounded native-runtime gate. Its remote
 duration is pending. Independent review could not start because its configured
 model is unavailable; no independent approval is claimed.
+The following CI attempts exposed macOS single-child fixture cleanup and a
+cancelled-request assertion that preceded handler lease release. Existing macOS
+cleanup now covers the RPC fixture module; cancellation waits for completed
+release.54checks pass under simulated group-signal denial, and delayed handler
+release passes. Production process-group termination is unchanged.
 
 ## Delivered scope
 
@@ -99,16 +107,23 @@ no new UI implementation was required.
 
 ## Source and operational receipts
 
-Canonical rebuild log: /tmp/capstone-gateway-private-rebuild.log.
-API and all three workers share image e69d4f1b6e56; native image b605fa2b1a6c.
-Seven relevant source files in all five roles matched the selected source.
+Original acceptance rebuild: /tmp/capstone-gateway-private-rebuild.log,
+API/workers e69d4f1b6e56 and native b605fa2b1a6c.
+Final rebuild: /tmp/capstone-gateway-final-rebuild.log,
+API and all three workers share image87e9bae78f79; native imagef2c3afaf5b5f.
+Eight relevant source files in all five roles matched runtime22e61786.
 Readiness returned200. The running App serves the actual root checkout and its
 unchanged App product source e8bfb5ae. Operator gateway mount selection is retained
 in the existing ignored root deploy/local.env, without embedding credentials.
 Scoped image/build-cache maintenance ran after the rebuild.
+Post-use scoped maintenance also completed. The real management summary remains
+selected after reload on the rebuilt services; its download still hashes to
+778b135c4f96a7b2f654ff543aa6e78145543a91718882edef5b1251bb0f7927.
 
 Ignored ROOT evidence, not public source-data fixtures:
 - outputs/data-gateway-20261025/local-source-verification.json
+- outputs/data-gateway-20261025/final-local-source-verification.json
+- outputs/data-gateway-20261025/final-browser-recovery-verification.json
 - outputs/data-gateway-20261025/direct-query/
 - outputs/data-gateway-20261025/real-series-1/
 - outputs/data-gateway-20261025/real-followup-1/
