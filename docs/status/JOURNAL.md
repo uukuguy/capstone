@@ -5774,3 +5774,38 @@ Prior closeout receipts preserved verbatim from the root checkout:
 - 2026-10-26 recovery: PR62 merged364aa6e9, scoped CI40220567507 passed. Root App5173 now serves actual root checkout, product0dcbd466; API/worker6c6c8b956ebf and native11c0da509403 source hashes checked. No cloud/demo/main deployment.
 - 2026-10-26 accepted: each instruction determines resource scope; explicit targets win, relevant continuation may inherit, unrelated tasks remain independent. No session-wide business goal. Policy7e079c91 has19focused checks passing,1opt-in skipped; real runtime validation pending.
 - 2026-10-26 implementation started: large-grid plan2026-10-26-grid-scale-view; renderer/worker and protected typed topology backend have separate ownership in initialized fix/instruction-resource-scope worktree. Preserve root control edits, credentials and user data.
+- 722f396f: Record merged Thinking evidence and instruction resource scope; establish authorized large-grid implementation and recovery ownership.
+- f46dc0e4: PR63 merged with scoped documentation CI40223168840 passing103s; actual root dev fast-forwarded, control graph regenerated.
+- 3a5b440f: Add bounded protected source topology pages so App displays gateway facts without calculation-model conversion;187affected checks pass.
+- 2026-10-26: Canonical feature rebuild started using protected root gateway config and existing pinned model assets; App feature preview5175 is separate from root5173. No cloud change.
+- f772f364: Add revision-safe source browsing and frozen question drafts; preserve independent streams, late-page quality and formal model selection.
+- 2026-10-26: Feature canonical rebuild passed; API/all workers848f8d48f117 match,ready200,scoped cache receipt025943-92793. Source catalog available;42App checks passed7.11s.
+- 7b2f9e0f: Add indexed worker/WebGL topology rendering while preserving formal task focus and source identity;65focused checks pass.
+- 483ccb72: Fix source API protocol handling exposed by live browser; actual north405nodes/1003edges fully displayed, no unresolved endpoints.
+- c6aadf76: Add guarded source-topology CI scope to verify direct consumers without unrelated professional suites;103governance checks pass.
+- d9b72190: Accept published scope dictionaries and preserve station hierarchy without weakening source quality or paging validation;31checks pass.
+- 5d68e8fb: Fit source schematics to viewport and bound labels by screen space while preserving task navigation;69focused renderer checks pass.
+- 2026-10-26: Real UI source question1fc523da completed in model-free Thread1b22; saved products and answer distinguish405/1003totals from50/50samples and reject unsupported electrical claims. Deferred canonical rebuild now applies scope/hierarchy fix after task terminal.
+- 1799a6da: Mount source viewers only when requested and preserve drill-down snapshot/rule identity across task-resource changes.
+- 638302d1: Preserve topology camera scale across hidden panels and aspect changes; six focused regressions pass.
+- 7ba27575: Remove Escape navigation hiding as requested;15workspace checks/types pass, current Vivaldi tab confirms navigation remains open.
+- 2026-10-26: Final source rebuild8f2b58af953a/native5c6f09fa99ba ready with cache receipt031132-36100;actual scopes6+4 and region/station/equipment pass. SameThread unrelateddeed15fd answered3.93s,text-only,no tools. Final review at638 found no Important/Critical blockers.
+- 2026-10-26 preference: Workbench UI tests use visible Vivaldi and reuse its current tab; no further new browser pages. Existing hardware stress receipts are explicitly Chromium155 measurements from before this instruction.
+
+- 2026-10-26 04:23 +08 — 472045c2: Load complete source equipment and exact instruction scope; preserve source identity and quality gaps.
+
+- 2026-10-26 04:24 +08 — North raw view loads 52,625 nodes/48,319 edges in Vivaldi; one model build fails quality checks, no solver result.
+
+- 7b2e0011: Group source equipment by declared station; preserve direct adjacency and bound overview detail.
+- ee9488d0: Preserve manual source navigation after reopening; retain exact admitted scope and source station identity.
+
+- 16a72370: Let native conversations release their last model while preserving professional and active-task guards.
+- 5b88fa38: Register source workspace controls in the bounded gate with complete Thread and host consumers; preserve wider scope guards.
+- 33e379f9: Isolate source reading state across region switches; preserve manual navigation on reopen.
+- 0f87556c: Route verified instruction views and clear closed model context to prevent stale automatic diagrams.
+
+- 7dbec64d: Frame real endpoints when locating source connections; retain selected endpoints through station LOD.
+- 2026-10-26 04:35 +08 — Native model release verified in Vivaldi; North Attempt949fa4cc failed after42.9s, preserving records; diagnose before retry.
+
+- 40d89a4f: Record North model checks, scoped verification and the failed native acceptance before diagnosis.
+- 2026-10-26 04:36 +08 — Refreshed actual-dev control graph with7dbec64d candidate and execution blocker; existing Vivaldi control tab inspected.

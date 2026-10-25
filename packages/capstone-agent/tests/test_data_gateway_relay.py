@@ -52,6 +52,23 @@ def test_unknown_task_duplicate_call_and_model_tool_are_refused():
         asyncio.run(resource.call('task-1', request()))
 
 
+def test_verified_arguments_are_host_owned_and_available_only_for_exact_receipt():
+    resource=access()
+    arguments={'scope_id':'north','level':'equipment','selected_object_id':'station:one','voltage_min_kv':None}
+    result=asyncio.run(resource.call('task-1',{**request(),'arguments':arguments}))
+    arguments['voltage_min_kv']=330
+    saved=resource.verified_arguments('task-1','call-1',request()['name'],result['observation'],result['result_json'])
+    assert saved['voltage_min_kv'] is None
+    saved['level']='region'
+    assert resource.verified_arguments('task-1','call-1',request()['name'],result['observation'],result['result_json'])['level']=='equipment'
+    assert 'arguments' not in result and 'arguments' not in result['observation']
+    with pytest.raises(GatewayError):
+        resource.verified_arguments('task-1','call-1',request()['name'],result['observation'],'forged')
+    resource.revoke('task-1')
+    with pytest.raises(GatewayError):
+        resource.verified_arguments('task-1','call-1',request()['name'],result['observation'],result['result_json'])
+
+
 def test_failed_call_is_not_replayed_or_issued_as_source():
     resource = access()
 

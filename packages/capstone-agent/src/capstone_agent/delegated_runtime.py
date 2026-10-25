@@ -267,6 +267,17 @@ class DelegatedRuntime:
             research_branch = kind in {'delegation_child_started', 'delegation_child_tool', 'delegation_child_finished', 'delegation_child_response'}
             research_graph_event = kind in {'enterprise_graph_tool_binding', 'enterprise_graph_child_started',
                 'enterprise_graph_child_tool', 'enterprise_graph_child_response_started', 'enterprise_graph_child_response', 'enterprise_graph_child_finished'}
+            source_view = None
+            if (kind == 'tool_execution_end' or kind == 'enterprise_graph_child_tool' and event.get('activity') == 'end'):
+                if (tool_name == 'data_gateway_get_network_topology_view' and isinstance(tool_call_id, str)
+                        and tool_call_id and event.get('is_error') is not True
+                        and event.get('task_id', task_id) == task_id
+                        and event.get('attempt_id', parent) == parent):
+                    from .grid_source_topology import checked_source_view_request, GridSourceError
+                    try:
+                        source_view = checked_source_view_request(event.get('source_view'))
+                    except GridSourceError:
+                        pass  # Optional presentation metadata cannot block the task.
             self._emit(on_event, {'task_id': task_id, 'goal_id': goal['goal_id'],
                 'native_type': kind if isinstance(kind, str) else 'unknown',
                 **({'transport': {key: value[:64] for key in ('operation', 'transport_phase')
@@ -274,6 +285,7 @@ class DelegatedRuntime:
                 **({'tool_name': tool_name[:256]} if isinstance(tool_name, str) else {}),
                 **({'tool_call_id': tool_call_id[:256]} if isinstance(tool_call_id, str) else {}),
                 **({'task_progress': event['task_progress']} if isinstance(event.get('task_progress'), Mapping) else {}),
+                **({'source_view': source_view} if source_view is not None else {}),
                 **({'research_cycle': {key: event[key] for key in
                     ('owner', 'attempt_id', 'action_id', 'checkpoint', 'progress') if key in event}}
                     if kind == 'enterprise_cycle_progress' else {}),

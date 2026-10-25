@@ -461,6 +461,44 @@ const dynamicLayer = {
   model_revision: '7',
 }
 
+it.each(['valid', 'wrong-context', 'wrong-revision', 'private', 'missing-flag'] as const)(
+  'clears only an explicit matching last-model close before snapshot refresh: %s', async variant => {
+    const events = [
+      { ...conversationalEvent(1, 'network_diagram', 1), payload: { diagram: dynamicDiagram } },
+      { ...conversationalEvent(2, 'network_layer', 1), payload: { ordinal: 1, layer: dynamicLayer } },
+    ]
+    const fixture = { ...idleFixture, snapshot: { ...idleFixture.snapshot,
+      schema: 'capstone-thread-snapshot/2', minimum_protocol_version: 2,
+      selected_model_context_id: context.id, session_type: 'enterprise-research', works: [], task_context: null,
+      last_event_seq: 2 }, events: { ...idleFixture.events, next_event_seq: 2, events } }
+    const close = parseEventEnvelope({ event_id: 'evt_close', event_seq: 3, event_type: 'model_workspace_changed',
+      event_version: 1, thread_id: 'thr_demo_39', run_id: 'run_001',
+      occurred_at: '2026-10-26T00:00:00Z', visibility: variant === 'private' ? 'diagnostic' : 'public',
+      payload: { model_context_cleared: variant !== 'missing-flag', current_model_name: null,
+        previous_context: { ...context, ...(variant === 'wrong-context' ? { id: 'ctx_other' } : {}),
+          ...(variant === 'wrong-revision' ? { model_revision: '8' } : {}) } } })
+    const store = new ThreadProjectionStore(new CapstoneThreadClient({ ...createFixtureTransport(fixture),
+      streamEvents: async function* () { yield close },
+    }), undefined, { protocolVersion: '2' })
+    await store.load('thr_demo_39')
+    const historicalView = store.state.gridPages[0].networkView
+    expect(historicalView).toBeTruthy()
+    vi.spyOn(store, 'refreshWorkSnapshot').mockResolvedValue(undefined)
+    await store.consumeEvents()
+    expect(store.state.eventSeq).toBe(3)
+    expect(store.state.workSnapshot?.modelContext?.id ?? null).toBe(variant === 'valid' ? null : context.id)
+    expect(store.state.snapshot?.activeModelContext.id ?? null).toBe(variant === 'valid' ? null : context.id)
+    if (variant === 'valid') {
+      expect(store.state.workSnapshot?.selectedModelContextId).toBeNull()
+      expect(store.state.workSnapshot?.toDocument().active_grid_page_id).toBeNull()
+      expect(store.state.networkView).toBeNull()
+      expect(store.state.viewedGridPageId).toBeNull()
+      expect(store.state.gridPages[0].networkView).toBe(historicalView)
+      store.viewGridPage(store.state.gridPages[0].pageId)
+      expect(store.state.gridPages[0].context.id).toBe(context.id)
+    }
+  })
+
 it('shares immutable geometry between repeated instructions while retaining every event and task', async () => {
   const events = [1, 2, 3, 4].map((seq) => ({
     event_id: `evt_${seq}`, event_seq: seq,
@@ -475,6 +513,7 @@ it('shares immutable geometry between repeated instructions while retaining ever
   await store.load('thr_demo_39')
   expect(store.publicEvents).toHaveLength(4)
   expect(store.networkTasks).toHaveLength(2)
+  expect(store.networkTasks.every(task=>task.presentationSource==='admitted_layer')).toBe(true)
   expect(store.networkTasks[0].view.diagram).toBe(store.networkTasks[1].view.diagram)
   const diagrams = store.publicEvents.filter((event) => event.eventType === 'network_diagram')
   expect(diagrams[0].payload.diagram).toBe(diagrams[1].payload.diagram)
@@ -756,7 +795,9 @@ describe('ThreadProjectionStore', () => {
       expect(contextId).toBe(historical.id)
       return { schema: 'capstone-thread-network-events/1', thread_id: 'thr_demo_39', model_context_id: historical.id,
         model_context: historical, events: [{ event_id: 'evt_closed_diagram', event_seq: 1, event_type: 'network_diagram', event_version: 1,
-          thread_id: 'thr_demo_39', run_id: 'run_001', model_context_id: historical.id, occurred_at: '2026-10-08T00:00:00Z', visibility: 'public', payload: { diagram } }] }
+          thread_id: 'thr_demo_39', run_id: 'run_001', model_context_id: historical.id, occurred_at: '2026-10-08T00:00:00Z', visibility: 'public', payload: { diagram } },
+          { event_id:'evt_unrelated_later',event_seq:99,event_type:'attempt_completed',event_version:1,
+            thread_id:'thr_demo_39',run_id:'run_001',model_context_id:historical.id,attempt_id:'attempt_unrelated',occurred_at:'2026-10-08T00:00:02Z',visibility:'public',payload:{} }] }
     })
     const store = new ThreadProjectionStore(new CapstoneThreadClient({ ...createFixtureTransport(idleFixture), readNetworkEvents }))
     await store.load('thr_demo_39')
@@ -764,6 +805,7 @@ describe('ThreadProjectionStore', () => {
     expect(pageId).toBe(`page_${historical.id}`)
     expect(store.state.snapshot?.toDocument()).toEqual({ ...snapshotBefore, runtime_mode: 'capstone' })
     expect(store.networkTasks.find((task) => task.attemptId === 'attempt_closed')?.view.diagram.model.revision).toBe(historical.model_revision)
+    expect(store.networkTasks.find(task=>task.attemptId==='attempt_closed')).toMatchObject({eventSeq:1,presentationSource:'historical_baseline'})
     expect(store.state.pendingCommands).toEqual([])
   })
 

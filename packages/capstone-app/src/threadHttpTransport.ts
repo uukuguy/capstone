@@ -1,5 +1,6 @@
 import {applicationCapacity,assertCapacity,exceedsCapacity,CapacityError,type CapacityKey} from './applicationCapacity'
 import { parseEventEnvelope, type EventEnvelope } from './threadProtocol'
+import { parseGridSourcePage, type GridSourceQuery } from './gridSource'
 import type { ThreadCommand, ThreadTransport, ThreadTransportState } from './threadClient'
 import { parseThreadDescriptor, parseThreadListPage, type ThreadListPage, type ThreadDescriptor } from './threadManagement'
 import { fetchWithReadRetry } from './httpRetry'
@@ -107,7 +108,7 @@ export class HttpThreadTransport implements ThreadTransport {
     this.resourcePath = resourcePath.replace(/\/$/, '')
   }
 
-  private async request(path: string, init: RequestInit = {}, maximumBytes=applicationCapacity('event_page_bytes'),capacityKey:CapacityKey='event_page_bytes'): Promise<unknown> {
+  private async request(path: string, init: RequestInit = {}, maximumBytes=applicationCapacity('event_page_bytes'),capacityKey:CapacityKey='event_page_bytes',threadVersion=true): Promise<unknown> {
     if(typeof init.body==='string')assertCapacity(new TextEncoder().encode(init.body).byteLength,'command_bytes')
     const response = await fetchWithReadRetry(this.base + path, {
       ...init,
@@ -116,12 +117,12 @@ export class HttpThreadTransport implements ThreadTransport {
         ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
         ...(init.body ? { 'Content-Type': 'application/json' } : {}),
         ...init.headers,
-        ...(this.versionAdvertised || this.protocolVersion === '2' ? { [THREAD_VERSION_HEADER]: this.protocolVersion } : {}),
+        ...(threadVersion && (this.versionAdvertised || this.protocolVersion === '2') ? { [THREAD_VERSION_HEADER]: this.protocolVersion } : {}),
       },
     }, this.fetcher)
-    await checkResponseVersion(response, this.protocolVersion)
+    if(threadVersion)await checkResponseVersion(response, this.protocolVersion)
     if(response.status===204)return undefined
-    this.versionAdvertised = response.ok && response.headers.get(THREAD_VERSION_HEADER) === this.protocolVersion
+    if(threadVersion)this.versionAdvertised = response.ok && response.headers.get(THREAD_VERSION_HEADER) === this.protocolVersion
     const text = await boundedResponseText(response,capacityKey,maximumBytes)
     let body: unknown = undefined
     try {
@@ -309,6 +310,16 @@ export class HttpThreadTransport implements ThreadTransport {
 
   createSession(selection: {session_type:'grid-analysis'|'enterprise-research'|'general-chat'; model_id?:string}, signal?:AbortSignal):Promise<unknown> {
     return this.request(this.resourcePath, {method:'POST',signal,body:JSON.stringify(selection)})
+  }
+
+  gridSourceTopology(query: GridSourceQuery, signal?: AbortSignal) {
+    return this.request('/api/v1/grid-sources/data-gateway/topology', {
+      method:'POST', signal, body:JSON.stringify(query),
+    },4*1024*1024,'event_page_bytes',false).then(parseGridSourcePage).catch(cause=>{
+      if(cause instanceof ThreadTransportError)throw new Error(cause.status===409
+        ?'源拓扑版本已变化，请重新加载。':cause.status===400?'源拓扑读取范围无效，请重新选择对象。':'源拓扑暂时无法读取，请稍后重新加载。')
+      throw cause
+    })
   }
 
   renameSession(threadId:string,runId:string,revision:number,text:string,commandId:string,idempotencyKey:string):Promise<unknown> {

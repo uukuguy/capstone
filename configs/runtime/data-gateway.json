@@ -22,6 +22,7 @@
     "get_metric_availability",
     "get_metric_coverage_report",
     "get_network_connectivity",
+    "get_network_topology_view",
     "get_power_resource",
     "get_region_members",
     "get_section_definition",

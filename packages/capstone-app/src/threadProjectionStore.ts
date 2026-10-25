@@ -1,5 +1,5 @@
 import {applicationCapacity,CapacityError,observeCapacity,rethrowDebugCapacity,assertCapacity} from './applicationCapacity'
-import { parseThreadSnapshot, type CommandReceipt, type EventEnvelope, type EventPage, type ModelContextSnapshot, type ThreadSnapshot } from './threadProtocol'
+import { parseContext, parseThreadSnapshot, type CommandReceipt, type EventEnvelope, type EventPage, type ModelContextSnapshot, type ThreadSnapshot } from './threadProtocol'
 import { parseNetworkDiagram, parseNetworkView } from './networkValidation'
 import type { DiagramNetworkView, NetworkDiagram } from './types'
 import type { ThreadCatalog } from './threadCatalog'
@@ -43,6 +43,7 @@ export type ThreadNetworkTask = {
   pageId: string
   context: ModelContextSnapshot
   view: DiagramNetworkView
+  presentationSource?: 'admitted_layer' | 'historical_baseline'
 }
 
 export type ThreadProjectionState = {
@@ -644,7 +645,12 @@ export class ThreadProjectionStore {
     for (const event of history.events) this.applyNetworkProjection(event, this.current.snapshot!, this.admittedNetworkRefs(history.events, event))
     if (attemptId && !this.taskViews.has(attemptId)) {
       const view = this.networkViews.get(contextId)
-      if (view) this.taskViews.set(attemptId, { attemptId, eventSeq: history.events.at(-1)?.eventSeq || 0, pageId, context: history.context, view })
+      let baseline:EventEnvelope|undefined
+      for(const event of history.events){
+        if(event.visibility==='public'&&event.eventType==='network_diagram'&&!event.attemptId&&event.modelContextId===contextId&&
+          record(record(event.payload).diagram).ref===view?.diagram.ref&&(!baseline||event.eventSeq>baseline.eventSeq))baseline=event
+      }
+      if(view&&baseline)this.taskViews.set(attemptId,{attemptId,eventSeq:baseline.eventSeq,pageId,context:history.context,view,presentationSource:'historical_baseline'})
     }
     this.trimProjectionCaches()
     this.notify()
@@ -832,6 +838,33 @@ export class ThreadProjectionStore {
     }
     event = this.internDiagramEvent(event)
     const workSnapshot = this.current.workSnapshot
+    // The host explicitly clears the active calculation context when a native
+    // conversation closes its last model. Do this before the asynchronous
+    // snapshot refresh, without deleting retained read-only model pages.
+    if (workSnapshot?.modelContext && !workSnapshot.currentAttempt &&
+        ['general-chat', 'enterprise-research'].includes(workSnapshot.sessionType ?? '') &&
+        event.visibility === 'public' && event.runId === workSnapshot.runId &&
+        event.eventType === 'model_workspace_changed' && event.payload.model_context_cleared === true &&
+        event.payload.current_model_name === null && !event.modelContextId && !event.selectionRevision) {
+      let matches = false
+      try {
+        matches = JSON.stringify(parseContext(event.payload.previous_context)) === JSON.stringify(workSnapshot.modelContext)
+      } catch (error) { rethrowDebugCapacity(error) }
+      if (matches) {
+        const document = workSnapshot.toDocument()
+        delete document.pending_model_switch
+        delete document.pending_selection
+        this.resultDelivery.clear()
+        this.current = { ...this.current, snapshot: null, networkView: null, viewedGridPageId: null,
+          workSnapshot: parseWorkSnapshot({ ...document, active_model_context: null,
+            selected_model_context_id: null, active_grid_page_id: null, last_event_seq: event.eventSeq }),
+          eventSeq: event.eventSeq }
+        this.eventLog.push(event)
+        this.trimHistory(this.current.historyAtLatest)
+        this.notify()
+        return
+      }
+    }
     if (workSnapshot) {
       const document = workSnapshot.toDocument()
       const payload = record(event.payload)
@@ -1082,7 +1115,7 @@ export class ThreadProjectionStore {
           view.diagram.model.id !== context.modelId || view.diagram.model.revision !== context.modelRevision) return
       if (event.attemptId) {
         this.taskViews.set(event.attemptId, { attemptId: event.attemptId, eventSeq: event.eventSeq,
-          pageId: page.pageId, context, view })
+          pageId: page.pageId, context, view, presentationSource:'admitted_layer' })
         observeCapacity(this.taskViews.size,'ui_cache_items','projection.task-views')
         if (this.taskViews.size > applicationCapacity('ui_cache_items')) this.taskViews.delete(this.taskViews.keys().next().value!)
       }

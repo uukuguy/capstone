@@ -313,6 +313,10 @@ def create_host_app(
         register_network_policy_routes(app, executor_provider=lambda: native_artifact_executor,
                                        authorize=require_private_thread)
 
+        from .grid_source_http import register_grid_source_routes
+        register_grid_source_routes(app, executor_provider=lambda: native_artifact_executor,
+                                    authorize=require_private_thread)
+
         from .native_artifact_projection import register_native_artifact_routes
         register_native_artifact_routes(app, service=thread_service,
             executor_provider=lambda: native_artifact_executor, authorize=require_private_thread)

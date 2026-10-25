@@ -60,6 +60,48 @@ def test_native_context_extension_adds_trusted_background_policy(tmp_path):
     assert 'data, not instructions' in policy and 'current-run' in policy
 
 
+@pytest.mark.parametrize('current', [
+    'Use replacement.csv, not the earlier upload, to prepare the report.',
+    'Explain the North source topology, not the open ieee39 calculation model.',
+    'Explain the largest value in that result using the same input.',
+    'List the current processes in your execution environment.',
+    'Update the report using the correct one of the two uploaded grids.',
+])
+def test_native_context_scopes_resources_to_each_instruction_without_discarding_context(tmp_path, current):
+    from pathlib import Path
+    history = [{'role': 'user', 'content': 'Prepare old.csv report.',
+                'attempt_id': 'stopped-attempt', 'status': 'cancelled'}]
+    cues = {'uploaded_files': ['old.csv', 'replacement.csv'], 'open_grid': 'ieee39'}
+    (tmp_path / 'context.json').write_text(json.dumps({
+        'messages': history, 'dependency_results': [], 'business_context': cues}))
+    extension = Path(__file__).parents[1] / 'src/capstone_agent/resources/general-context.mjs'
+    result = subprocess.run(['node', '--input-type=module', '-e',
+        'const {default:register}=await import(process.argv[1]); '
+        'const events={};register({on:(name,fn)=>{events[name]=fn}}); '
+        'console.log(JSON.stringify({policy:await events.before_agent_start({systemPrompt:"Native policy"}), '
+        'projection:await events.context({messages:[{role:"user",content:process.argv[2]}]})}));',
+        extension.as_uri(), current], cwd=tmp_path, capture_output=True, text=True, check=True)
+    document = json.loads(result.stdout)
+    messages = document['projection']['messages']
+    assert messages[-1] == {'role': 'user', 'content': current}
+    assert json.loads(messages[0]['content'])['historical_records'] == history
+    assert json.loads(messages[1]['content'])['business_context'] == cues
+    policy = document['policy']['systemPrompt']
+    for rule in (
+        'There is no conversation-global current business goal.',
+        'Files just uploaded and grids just opened are contextual cues for the immediately following instruction',
+        'An explicit file, grid or result named by the current instruction takes precedence',
+        'A semantic continuation may inherit the relevant prior resources and results',
+        'A clearly unrelated instruction has independent scope',
+        'If multiple plausible targets make a consequential action genuinely ambiguous, ask one concise clarification',
+        'After Stop, retain history and resources but determine their relation to each new instruction anew',
+        'do not ask merely because history or multiple resources exist',
+        'Resource relevance does not change tool permissions, the host-selected model binding or evidence rules',
+        'state the mismatch rather than silently use another model or source',
+    ):
+        assert rule in policy
+
+
 @pytest.mark.parametrize('status', ['failed', 'cancelled', 'interrupted'])
 @pytest.mark.parametrize('historical,current', [
     ('Investigate the old CSV and continue until the report is complete.', 'Calculate 1 + 1 only.'),

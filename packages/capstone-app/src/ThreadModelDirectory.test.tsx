@@ -12,6 +12,30 @@ const models: ThreadCatalogModel[] = [
 const props = { models, currentModelId: 'grid-a', target: 'grid-a', disabled: false, pending: false, onTargetChange: vi.fn(), onSwitch: vi.fn() }
 
 describe('on-demand registered model directory', () => {
+  it.each([true,false])('permits closing the last model only with explicit allowEmpty=%s',allowEmpty=>{
+    const onClose=vi.fn()
+    const model=models[0]
+    const workspace={threadId:'thr_native',runId:'run_native',eventSeq:1,currentEntryId:'mdl_one',blockedReason:null,
+      models:[{...model,entryId:'mdl_one',modelRevision:'7',authorityModelRef:model.authorityModelRef||null,
+        diagramProviderId:model.diagramProviderId||null,lastActiveSeq:0}]}
+    render(<ThreadModelDirectory {...props} workspace={workspace} allowEmpty={allowEmpty} onClose={onClose}/>)
+    fireEvent.click(screen.getByRole('button',{name:'当前模型：Grid Alpha'}))
+    const close=screen.getByRole('button',{name:'关闭 Grid Alpha'}) as HTMLButtonElement
+    expect(close.disabled).toBe(!allowEmpty)
+    fireEvent.click(close)
+    expect(onClose).toHaveBeenCalledTimes(allowEmpty?1:0)
+  })
+  it('keeps last-model close blocked while pending even when allowEmpty is enabled',()=>{
+    const onClose=vi.fn(),model=models[0]
+    const workspace={threadId:'thr_native',runId:'run_native',eventSeq:1,currentEntryId:'mdl_one',blockedReason:null,
+      models:[{...model,entryId:'mdl_one',modelRevision:'7',authorityModelRef:model.authorityModelRef||null,
+        diagramProviderId:model.diagramProviderId||null,lastActiveSeq:0}]}
+    const mounted=render(<ThreadModelDirectory {...props} workspace={workspace} allowEmpty onClose={onClose}/>)
+    fireEvent.click(screen.getByRole('button',{name:'当前模型：Grid Alpha'}))
+    mounted.rerender(<ThreadModelDirectory {...props} workspace={workspace} allowEmpty pending onClose={onClose}/>)
+    const close=screen.getByRole('button',{name:'关闭 Grid Alpha'}) as HTMLButtonElement
+    expect(close.disabled).toBe(true);fireEvent.click(close);expect(onClose).not.toHaveBeenCalled()
+  })
   it('shows opened models first and keeps close independent of activation', () => {
     const onActivate = vi.fn(), onClose = vi.fn()
     const workspace = { threadId: 'thr_demo', runId: 'run_demo', eventSeq: 1, currentEntryId: 'mdl_a', blockedReason: null,

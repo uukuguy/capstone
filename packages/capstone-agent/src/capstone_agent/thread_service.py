@@ -1539,6 +1539,8 @@ class InMemoryThreadService(NativeExecutionOwner):
                     assert change is not None
                     if change.changed:
                         previous = self._snapshot
+                        if change.clear_context:
+                            self._snapshot = replace(previous, active_model_context=None, active_grid_page_id=None)
                         if change.context is not None:
                             event = self._append_control_event(event_type="model_context_activated", context=change.context,
                                 payload=_workspace_activation_payload(parsed, previous, change.context, resumed=change.resumed))
@@ -3355,12 +3357,12 @@ class PostgresThreadService(NativeExecutionOwner):
                     receipt = self._receipt(parsed, status="rejected", rejection=rejection)
                 else:
                     assert change is not None
-                    context = change.context or snapshot.professional_context
+                    context = None if change.clear_context else change.context or snapshot.active_model_context
                     seq = snapshot.last_event_seq
                     if change.changed:
                         events = []
                         if change.context is not None:
-                            events.append(("model_context_activated", _workspace_activation_payload(parsed, snapshot, context, resumed=change.resumed)))
+                            events.append(("model_context_activated", _workspace_activation_payload(parsed, snapshot, change.context, resumed=change.resumed)))
                         if change.diagram is not None:
                             events.append(("network_diagram", {"diagram": change.diagram}))
                         events.append(("model_workspace_changed", workspace_outcome(parsed, workspace, change.workspace)))
@@ -3370,9 +3372,12 @@ class PostgresThreadService(NativeExecutionOwner):
                         connection.execute("""UPDATE capstone_threads SET model_context_id = %s, model_id = %s,
                             model_revision = %s, implementation_family = %s, selection_revision = %s,
                             enabled_profiles = %s, active_grid_page_id = %s, model_workspace = %s, last_event_seq = %s
-                            WHERE thread_id = %s""", (context.id, context.model_id, context.model_revision, context.implementation_family,
-                            context.selection_revision, Jsonb([{"profile_id": pid, "profile_version": version} for pid, version in context.enabled_profiles]),
-                            page_id_for_model(context.model_id), Jsonb(change.workspace), seq, snapshot.thread_id))
+                            WHERE thread_id = %s""", (None if context is None else context.id,
+                            None if context is None else context.model_id, None if context is None else context.model_revision,
+                            None if context is None else context.implementation_family,
+                            None if context is None else context.selection_revision,
+                            Jsonb([] if context is None else [{"profile_id": pid, "profile_version": version} for pid, version in context.enabled_profiles]),
+                            None if context is None else page_id_for_model(context.model_id), Jsonb(change.workspace), seq, snapshot.thread_id))
                     receipt = self._receipt(parsed, status="accepted", accepted_event_seq=seq,
                         target={"entry_id": change.workspace["current_entry_id"], "changed": change.changed})
             elif parsed["kind"] == "cancel_live_attempt":
@@ -4582,7 +4587,7 @@ class PostgresThreadService(NativeExecutionOwner):
 
     @staticmethod
     def _make_control_event(
-        thread: Mapping[str, Any], context: ModelContextSnapshot, *, event_seq: int,
+        thread: Mapping[str, Any], context: ModelContextSnapshot | None, *, event_seq: int,
         event_type: str, payload: Mapping[str, Any], visibility: str = "public",
     ) -> EventEnvelope:
         return EventEnvelope(
@@ -4590,8 +4595,8 @@ class PostgresThreadService(NativeExecutionOwner):
             event_type=event_type, event_version=1,
             thread_id=thread["thread_id"], run_id=thread["run_id"],
             turn_id=None, attempt_id=None,
-            model_context_id=context.id,
-            selection_revision=context.selection_revision,
+            model_context_id=None if context is None else context.id,
+            selection_revision=None if context is None else context.selection_revision,
             occurred_at=_now(), visibility=visibility, payload=dict(payload),
         )
 
