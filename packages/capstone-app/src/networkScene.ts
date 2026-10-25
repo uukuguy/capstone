@@ -2,14 +2,14 @@ import type {LegacyNetworkView,NetworkDiagram,NetworkLayer} from './types'
 
 export type SceneDetail={label:string;value:string}
 type SceneStyle={color?:readonly [number,number,number];state?:'disconnected'|'warning'|'unresolved'}
-export type NetworkSceneNode=SceneStyle&{id:string;label:string;kind:string;boundary?:boolean;x?:number|null;y?:number|null;voltageKv?:number|null;sourceRef?:string;details?:readonly SceneDetail[]}
+export type NetworkSceneNode=SceneStyle&{id:string;label:string;kind:string;stationId?:string;parentId?:string;boundary?:boolean;x?:number|null;y?:number|null;voltageKv?:number|null;sourceRef?:string;details?:readonly SceneDetail[]}
 export type NetworkSceneEdge=SceneStyle&{id:string;source:string;target:string;kind:string;label?:string;sourceRef?:string;details?:readonly SceneDetail[];terminalStates?:readonly {nodeId:string;label:string}[]}
 export type NetworkScene={ref:string;coordinateSystem:'geographic'|'schematic';displayMode?:'source-regional'|'source-detail'|'electrical';nodes:readonly NetworkSceneNode[];edges:readonly NetworkSceneEdge[]}
 export type SceneBundle={type:'bundle';id:string;label:string;kind:'parallel_circuits';source:string;target:string;memberIds:readonly string[];members:readonly SceneSearchResult[];sourceRef?:never;details?:readonly SceneDetail[]}
 export type SceneSelection=({type:'node'}&NetworkSceneNode)|({type:'edge'}&NetworkSceneEdge)|SceneBundle
 export type SceneCamera={x:number;y:number;width:number;height:number}
 export type SceneSearchResult={id:string;label:string;kind:string;type:'node'|'edge'}
-export type SceneStats={nodes:number;edges:number;indexMs:number;bufferBytes:number;drawnNodes?:number;drawnEdges?:number;representedEdges?:number;bundledGroups?:number;limited?:boolean}
+export type SceneStats={nodes:number;edges:number;indexMs:number;bufferBytes:number;drawnNodes?:number;drawnEdges?:number;representedEdges?:number;bundledGroups?:number;collapsedStations?:number;limited?:boolean}
 export type SceneRelated={nodes:SceneSearchResult[];totalNodes:number;edges:number}
 export const LARGE_NETWORK_THRESHOLD=1000
 

@@ -1,8 +1,9 @@
 import type {NetworkScene,SceneCamera,SceneSearchResult,SceneSelection} from './networkScene'
 import {layoutSourceTopology} from './networkTopologyLayout'
+import {layoutStationDetail,type StationDisplayGroup} from './networkStationLayout'
 type Box={minX:number;minY:number;maxX:number;maxY:number}
 type Tree=Box&{count:number;indices?:number[];left?:Tree;right?:Tree}
-export type SceneIndex={scene:NetworkScene;bounds:SceneCamera;positions:Float32Array;endpoints:Uint32Array;edgeOffsets:Float32Array;incidentOffsets:Uint32Array;incidentEdges:Uint32Array;bundles:Map<string,number[]>;bundleByEdge:Map<number,string>;nodeIds:Map<string,number>;edgeIds:Map<string,number>;nodes:Tree;edges:Tree;search:{key:string;result:SceneSearchResult}[]}
+export type SceneIndex={scene:NetworkScene;bounds:SceneCamera;stationGroups:StationDisplayGroup[];nodeStation:Int32Array;positions:Float32Array;endpoints:Uint32Array;edgeOffsets:Float32Array;incidentOffsets:Uint32Array;incidentEdges:Uint32Array;bundles:Map<string,number[]>;bundleByEdge:Map<number,string>;nodeIds:Map<string,number>;edgeIds:Map<string,number>;nodes:Tree;edges:Tree;search:{key:string;result:SceneSearchResult}[]}
 const intersects=(a:Box,b:Box)=>a.minX<=b.maxX&&a.maxX>=b.minX&&a.minY<=b.maxY&&a.maxY>=b.minY
 function tree(indices:number[],box:(index:number)=>Box):Tree {
   let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity
@@ -49,11 +50,14 @@ export function buildSceneIndex(scene:NetworkScene,aspect=5/3):SceneIndex {
     }
   }
   const supplied=scene.nodes.length>0&&scene.nodes.every(node=>typeof node.x==='number'&&Number.isFinite(node.x)&&typeof node.y==='number'&&Number.isFinite(node.y))
+  let stationGroups:StationDisplayGroup[]=[]
   if(supplied){
     let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity
     for(const node of scene.nodes){minX=Math.min(minX,node.x!);maxX=Math.max(maxX,node.x!);minY=Math.min(minY,node.y!);maxY=Math.max(maxY,node.y!)}
     const scale=Math.min(920/Math.max(1,maxX-minX),(height-72)/Math.max(1,maxY-minY))
     scene.nodes.forEach((node,i)=>{positions[i*2]=500+(node.x!-(minX+maxX)/2)*scale;positions[i*2+1]=height/2+(node.y!-(minY+maxY)/2)*scale*(scene.coordinateSystem==='geographic'?-1:1)})
+  }else if(scene.displayMode==='source-detail'&&scene.nodes.length>1500&&scene.nodes.some(node=>node.stationId)){
+    stationGroups=layoutStationDetail(scene,endpoints,bounds,positions)
   }else{
     // Linear-time deterministic graph traversal, on the worker rather than the UI thread.
     const neighbors=scene.nodes.map(()=>[] as number[])
@@ -87,7 +91,9 @@ export function buildSceneIndex(scene:NetworkScene,aspect=5/3):SceneIndex {
       }
     }
   }
-  const index:SceneIndex={scene,bounds,positions,endpoints,edgeOffsets,incidentOffsets,incidentEdges,bundles,bundleByEdge,nodeIds,edgeIds,nodes:null!,edges:null!,search:[]}
+  const nodeStation=new Int32Array(scene.nodes.length).fill(-1)
+  stationGroups.forEach((group,i)=>group.indices.forEach(node=>{nodeStation[node]=i}))
+  const index:SceneIndex={scene,bounds,stationGroups,nodeStation,positions,endpoints,edgeOffsets,incidentOffsets,incidentEdges,bundles,bundleByEdge,nodeIds,edgeIds,nodes:null!,edges:null!,search:[]}
   index.nodes=tree(scene.nodes.map((_,i)=>i),i=>nodeBox(positions,i))
   index.edges=tree(scene.edges.map((_,i)=>i),i=>edgeBox(index,i))
   index.search=[...scene.nodes.map(node=>({key:`${node.id} ${node.label}`.toLocaleLowerCase(),result:{id:node.id,label:node.label,kind:node.kind,type:'node' as const}})),
@@ -118,11 +124,12 @@ export function queryScene(index:SceneIndex,camera:SceneCamera,nodeLimit=24000,e
   return {nodeIndices:query(index.nodes,nodeLimit,i=>nodeBox(index.positions,i)),edgeIndices:query(index.edges,edgeLimit,i=>edgeBox(index,i)),limited}
 }
 function boxDistance(box:Box,x:number,y:number){const dx=Math.max(box.minX-x,0,x-box.maxX),dy=Math.max(box.minY-y,0,y-box.maxY);return dx*dx+dy*dy}
-export function pickScene(index:SceneIndex,x:number,y:number,tolerance:number,offsetForEdge?:(edge:number)=>number):SceneSelection|undefined {
+export function pickScene(index:SceneIndex,x:number,y:number,tolerance:number,offsetForEdge?:(edge:number)=>number,include?:(id:string)=>boolean):SceneSelection|undefined {
   let best=tolerance*tolerance,selected:SceneSelection|undefined
   function visit(root:Tree,node:boolean){
     if(boxDistance(root,x,y)>best)return
     if(root.indices)for(const i of root.indices){
+      if(include&&!include(node?index.scene.nodes[i].id:index.scene.edges[i].id))continue
       let distance:number
       if(node){distance=(index.positions[i*2]-x)**2+(index.positions[i*2+1]-y)**2}
       else{

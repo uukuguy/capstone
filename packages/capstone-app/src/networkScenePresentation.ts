@@ -24,7 +24,8 @@ export function presentedBundle(index:SceneIndex,edge:number,options:ScenePresen
   return key
 }
 export function pickPresentedScene(index:SceneIndex,x:number,y:number,tolerance:number,options:ScenePresentation={}):SceneSelection|undefined{
-  const picked=pickScene(index,x,y,tolerance,edge=>presentedBundle(index,edge,options)?0:index.edgeOffsets[edge])
+  const near=index.scene.displayMode==='source-detail'&&options.neighborhood!==false&&options.selectionId&&index.nodeIds.has(options.selectionId)?sceneNeighborhood(index,options.selectionId):undefined
+  const picked=pickScene(index,x,y,tolerance,edge=>presentedBundle(index,edge,options)?0:index.edgeOffsets[edge],near?id=>near.nodeIds.has(id)||near.edgeIds.has(id):undefined)
   if(picked?.type==='edge'){
     const key=presentedBundle(index,index.edgeIds.get(picked.id)!,options)
     if(key)return bundleSelection(index,key)

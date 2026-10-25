@@ -116,3 +116,17 @@ it('renders the exact source-edge count separately from direct-neighbor count',(
   worker.emit({type:'selected',request:2,item:{type:'node',...scene.nodes[0]},related:{nodes:[],totalNodes:2}})
   expect(screen.getByLabelText('来源直接关联').textContent).not.toContain('·  条源线路')
 })
+it('supports source-detail direct relationships and frames the worker-provided neighborhood camera',()=>{
+  vi.useFakeTimers()
+  render(<LargeNetworkView scene={{...scene,displayMode:'source-detail'}}/>)
+  expect(screen.getByRole('checkbox',{name:'突出直接关联'})).toBeTruthy()
+  expect(screen.queryByRole('checkbox',{name:'合并并行回路'})).toBeNull()
+  const worker=TestWorker.instances[0],camera={x:10,y:20,width:8,height:4.8}
+  worker.emit({type:'ready',stats:{nodes:1,edges:2,indexMs:1,bufferBytes:8}})
+  worker.emit({type:'located',request:1,item:{type:'node',...scene.nodes[0]},camera,related:{nodes:[{id:'next',label:'Next terminal',kind:'terminal',type:'node'}],totalNodes:1,edges:2}})
+  act(()=>vi.advanceTimersByTime(20))
+  expect(renderGL.draw).toHaveBeenLastCalledWith(camera)
+  expect(screen.getByLabelText('来源直接关联').textContent).toContain('1 个直接关联对象 · 2 条源连接')
+  fireEvent.click(screen.getByRole('button',{name:'Next terminal'}))
+  expect(worker.postMessage).toHaveBeenCalledWith(expect.objectContaining({type:'locate',id:'next'}))
+})
