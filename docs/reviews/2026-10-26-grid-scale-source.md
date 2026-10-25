@@ -1,9 +1,12 @@
 # Large topology and gateway source verification
 
-Status: local implementation verified; dev PR integration and actual primary
-entry closeout are pending. No cloud, demo or main release.
+Status: source projection, typed symbols, station layout and focused scale checks
+passed. Native last-model release passed in the existing Vivaldi Thread. A new
+North business Attempt failed during execution; diagnosis and end-to-end acceptance
+remain open. Dev PR and actual primary entry closeout are pending. No cloud,
+demo or main release.
 
-Latest product source7ba27575 includes the requested Escape change.15 focused
+Source472045c2 loads full raw equipment and exact instruction view scope. The earlier7ba27575 includes the requested Escape change.15 focused
 workspace tests and types passed. In visible Vivaldi8.2, the current tab loaded
 the source view; pressing Escape with focus outside the composer left navigation
 expanded. Actual405/1003 geometry was visually inspected there. Subsequent UI
@@ -39,6 +42,7 @@ protected application API. These are source observations, not solver evidence.
 
 | View | Nodes | Connections | Check |
 | --- | ---: | ---: | --- |
+| North raw equipment, 330kV selected source view | 52625 | 48319 | All53 pages validated; actual visible Vivaldi full load passed at backend04702d63 |
 | North regional | 405 | 1003 | Both streams completed under one view reference; zero unresolved endpoints |
 | Chaoyang station | 44 | 10 | Source expansion reference; browser search and station expansion passed |
 | Selected breaker detail | 3 | 2 | Source expansion reference; station/equipment API reads passed |
@@ -53,6 +57,41 @@ The source declares a330kV regional minimum, external-stub retention, six source
 quality gaps, no verified electrical bus reduction and no verified operating
 measurements. These flags remain visible and travel with question material.
 
+After the user's electrical-model clarification, an operator read-only
+`inspect_network_model(scope_id=north,purpose=power_flow,target_format=pandapower)`
+returned partial/model_not_calculation_ready. Source topology is ready; AC
+power flow and linear OPF are not. Missing checks include switch/equipment states,
+parameters, operating scenario, mapping, boundaries, source connections and bus
+reduction/island balance; OPF also lacks thermal limits. No scenario, switch
+state, injection or parameter was fabricated. This
+inspection did not grant model-build tools to the general executor/source broker.
+
+The user then requested an actual attempt despite missing data. One
+`build_network_model(scope_id=north,target_format=pandapower,purpose=power_flow)`
+request was submitted. Job475f9fec380ad0bb6fbf9a360edaf9c2960b085a3a3507b3ebc436c792ac2704
+failed at quality_check with model_not_calculation_ready. It reported29689
+unverified switch positions,1924 equipment states,7198 electrical parameter
+checks,125 incomplete line connections, missing scenario/bus reduction and
+unimplemented mapping/boundary equivalents. No model artifact or numerical
+solver result was generated; the attempt was not retried. Thermal-limit gaps
+also block OPF. Gap counts use this model selection, not the full source directory.
+
+Raw equipment includes825 busbar records,1046 transformers,2722 windings and
+source switch/terminal/connection objects. It remains source-node topology,
+without electrical equivalence. Nineteen optional display labels containing
+source whitespace were normalized; IDs and relationships stay unchanged.
+Renderer7b2e0011 replaces the dense flat overview with declared station partitions
+and bounded detail. Actual source indexing took241ms; no station membership is
+inferred for missing references. In visible Vivaldi, locating Chaoyang4# busbar
+showed its actual connection node and one source edge. Fix7dbec64d also frames
+both endpoints when selecting a long source edge; station LOD retains them.
+
+Actual source business checks also passed: Chaoyang unique identity and object
+record,14 source line relationships, busbar/transformer inventory, regional
+plant classifications and active-power metric dictionary discovery. Directory
+counts are not operational capacities; discovered metrics do not prove available
+time-series measurements or a valid operating scenario.
+
 Real UI-created Thread `thr_1b22f19781911c68df3c`, Attempt
 `attempt_1fc523da0b0f5290` completed in114.6s. Its answer separates405/1003
 source-declared totals from50/50 sampled records, explains snapshot/quality
@@ -64,6 +103,14 @@ The next unrelated instruction in that same Thread/Work asked for a one-sentence
 2FA explanation. Attempt `attempt_deed15fd345d4333` completed in3.93s, used a
 text-only response with no tool calls, and did not restart the grid plan. Thus
 retained source material did not become an obligation for the unrelated turn.
+
+Native model release16a72370 and current-instruction routing0f87556c are now
+implemented. Visible Vivaldi closed the previous IEEE39 binding; the authoritative
+Thread snapshot confirmed active_model_context=null and native execution available.
+Attempt949fa4ccfe681818 then accepted a North-only source business instruction
+with target_model_context_id=null. It failed after42.9s with native_execution_error
+after some successful source reads. This is a failed acceptance, not a completed
+business result. Its saved event sequence is being diagnosed before any retry.
 
 ## Measured scale
 
@@ -99,9 +146,15 @@ zoom and station drill-down provide detail. The layout is explicitly schematic.
   resource panel and wide/portrait changes; six focused cases and types pass.
 - Source workspace and existing Work consumers:44 passed in6.59s; types clean.
 - Canonical rebuild used the protected gateway mount and pinned assets. Final
-  API/all worker image8f2b58af953a matched; native image5c6f09fa99ba. Source
+  API/all worker image32a8c0956808 matches backend16a72370, native97088c90cfd9. Source
   topology and instruction-policy hashes match checked-in files exactly.
-  Readiness passed and scoped cleanup receipt031132-36100 was saved.
+  Readiness passed and scoped cleanup receipt043128-63904 was saved.
+- Full App:1089 tests passed in13.34s. Selected backend suite:885 passed/133
+  optional database checks skipped; seven localhost HTTP checks initially used
+  the machine proxy and failed. The complete two affected files passed81 checks
+  in9.62s with explicit localhost proxy bypass. Types, boundaries, App build and
+  all15 client contract checks passed. Independent final reviews found no
+  remaining Important/Critical issues after cross-region state and edge-camera fixes.
 
 Local detailed receipts and screenshots are retained in ignored
 `outputs/grid-scale-20261026/`. Provider credentials are absent from them.

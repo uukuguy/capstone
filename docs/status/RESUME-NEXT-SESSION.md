@@ -1,21 +1,24 @@
 # Live Session Checkpoint
 
-> Updated: 2026-10-26 03:20 Asia/Shanghai. Active implementation closeout, not a final handoff.
+> Updated: 2026-10-26 04:35 Asia/Shanghai. Active correction and integration; not a final handoff.
 
 ## Current boundary
 
-- Actual root dev=f46dc0e4 (PR63 merged). PR62 code milestone364aa6e9 stays fixed.
-- Product candidate7ba27575 on feat/grid-scale-view in initialized .worktrees/dev-macos-ci.
-- Backend and UI are implemented, scoped checks and independent review passed.
-  Need push dev PR, required scoped CI, merge, root fast-forward and actual primary
-  entry verification. User authorized full implementation/integration, not branch-only.
-- Root task-owned dirty control/design records are mirrored into feature for this
-  review boundary. Preserve/back up exact root paths before integration. Preserve
-  all unrelated worktrees, PR50, root var, main/cloud/demo/user-local data.
-- Root App5173 still serves accepted0dc. Preview5175 serves feature candidate.
-  Final API/all workers=image8f2b58af953a4d186d6bffdcd8c44655bd73fe614720bb60e198de515414a746.
-  Native=image5c6f09fa99baf3914eecb02220399d1d9dbc1302b36371a2356c8596bea74c71.
-  Canonical rebuild passed; topology/policy hashes match; cleanup receipt031132-36100.
+- Immediate blocker: real native North business Attempt949fa4ccfe681818 failed native_execution_error after42.9s; no blind retries. diagnostic_tool is tracing actual worker/native logs. Event receipt /tmp/capstone-north-business-events.json. Current Thread model successfully released, active contextNone and target modelNone confirmed.
+- Latest product7dbec64d; source routing0f87556c, source scope33e379f9; independent reviews found no remaining Important after explicit fixes. Full App1089pass13.34s; selected backend885pass133skip plus seven localhost proxy failures, affected two-file recheck NO_PROXY=localhost,127.0.0.1 yields81pass9.62s. Consumers/types/boundaries/build+client15pass.
+- Canonical final backend16a72370 ready: API/all workers32a8c0956808f66eb068894abbed517ee6f6e0f29ab9b4b4ae77664973bcf308; native97088c90cfd9a2fb85b1ad1cbaa2cb7d283afc15460bda4b6584383a896bf48c; cache receipt043128-63904. Do not restart while an Attempt is active.
+
+
+- Actual root dev=f46dc0e4; feature feat/grid-scale-view in .worktrees/dev-macos-ci, latest source UI472045c2.
+- User clarified NORTH CHINA, not IEEE39. Do not substitute a benchmark for the requested grid.
+- Visible Vivaldi existing tab5175 Thread thr_1b22f19781911c68df3c loads actual North raw source52625nodes/48319edges, 330kV selection, no electrical equivalence.
+- Canonical rebuild04702d63 ready; API/worker image32bc0c471e79ee52546105d82d8cc79e06a97b9765aeefef9c11214daed55bfa, cleanup041906-24860.
+- North build job475f9fec380ad0bb6fbf9a360edaf9c2960b085a3a3507b3ebc436c792ac2704 failed quality_check; no solver result/artifact. Do not resubmit or invent defaults. Exact gap receipt outputs/grid-scale-20261026/north-power-flow-job.json in root.
+- Agents: process_views owns Adapter instruction routing; diagnostic_tool owns native last-model closing/backend+directory; review_unified owns raw station-aware large diagram LOD/neighborhood.
+- Root owns GridSourceWorkspace scope/raw handoff/manual path persistence; 14 focused tests pass. stationId/parentId projection WIP waits renderer type.
+- Need finish focused checks, rebuild final changed backend, real native source business task in same Vivaldi tab, readable full/detail graph, review, scoped dev PR CI/integration, root5173 verification and control register/graph.
+- Root App5173 remains earlier product; preview5175 is feature. Feature has no PR yet. Do not claim merged/deployed/accepted.
+- Root task-owned dirty control/design files must be backed up/sorted before fast-forward. Preserve user data, other worktrees, PR50 and cloud/demo/main.
 
 ## Accepted task/resource semantics
 

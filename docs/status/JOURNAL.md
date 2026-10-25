@@ -5791,3 +5791,18 @@ Prior closeout receipts preserved verbatim from the root checkout:
 - 7ba27575: Remove Escape navigation hiding as requested;15workspace checks/types pass, current Vivaldi tab confirms navigation remains open.
 - 2026-10-26: Final source rebuild8f2b58af953a/native5c6f09fa99ba ready with cache receipt031132-36100;actual scopes6+4 and region/station/equipment pass. SameThread unrelateddeed15fd answered3.93s,text-only,no tools. Final review at638 found no Important/Critical blockers.
 - 2026-10-26 preference: Workbench UI tests use visible Vivaldi and reuse its current tab; no further new browser pages. Existing hardware stress receipts are explicitly Chromium155 measurements from before this instruction.
+
+- 2026-10-26 04:23 +08 — 472045c2: Load complete source equipment and exact instruction scope; preserve source identity and quality gaps.
+
+- 2026-10-26 04:24 +08 — North raw view loads 52,625 nodes/48,319 edges in Vivaldi; one model build fails quality checks, no solver result.
+
+- 7b2e0011: Group source equipment by declared station; preserve direct adjacency and bound overview detail.
+- ee9488d0: Preserve manual source navigation after reopening; retain exact admitted scope and source station identity.
+
+- 16a72370: Let native conversations release their last model while preserving professional and active-task guards.
+- 5b88fa38: Register source workspace controls in the bounded gate with complete Thread and host consumers; preserve wider scope guards.
+- 33e379f9: Isolate source reading state across region switches; preserve manual navigation on reopen.
+- 0f87556c: Route verified instruction views and clear closed model context to prevent stale automatic diagrams.
+
+- 7dbec64d: Frame real endpoints when locating source connections; retain selected endpoints through station LOD.
+- 2026-10-26 04:35 +08 — Native model release verified in Vivaldi; North Attempt949fa4cc failed after42.9s, preserving records; diagnose before retry.
