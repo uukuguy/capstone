@@ -51,20 +51,24 @@ it('keeps both sidebars independently visible and remembers navigation width and
   expect(screen.getByRole('separator',{name:'调整会话栏宽度'}).getAttribute('aria-valuenow')).toBe('232')
 })
 
-it('closes overlay navigation with its button, outside area and Escape without closing products', () => {
+it('closes overlay navigation with its button or outside area, while Escape keeps it open', () => {
   localStorage.setItem('capstone.workspace.navigation-open','false')
   render(<ThreadWorkspace conversationOnly resourcePanel={<p>结果表</p>} resourcePanelOpen sidebar={<p>会话列表</p>}><p>对话</p></ThreadWorkspace>)
   const toggle=screen.getByRole('button',{name:'会话导航'})
-  for(const action of ['button','outside','escape']) {
+  for(const action of ['button','outside']) {
     fireEvent.click(toggle)
     expect(toggle.getAttribute('aria-expanded')).toBe('true')
     if(action==='button')fireEvent.click(screen.getByRole('button',{name:'收起会话导航'}))
-    else if(action==='outside')fireEvent.click(screen.getByRole('button',{name:'关闭会话导航遮罩'}))
-    else fireEvent.keyDown(window,{key:'Escape'})
+    else fireEvent.click(screen.getByRole('button',{name:'关闭会话导航遮罩'}))
     expect(toggle.getAttribute('aria-expanded')).toBe('false')
     expect(document.querySelector('.has-resource-panel')).toBeTruthy()
     expect(document.activeElement).toBe(toggle)
   }
+  fireEvent.click(toggle)
+  fireEvent.keyDown(window,{key:'Escape'})
+  expect(toggle.getAttribute('aria-expanded')).toBe('true')
+  expect(screen.getByRole('button',{name:'收起会话导航'})).toBeTruthy()
+  expect(document.querySelector('.has-resource-panel')).toBeTruthy()
 })
 
 it('clamps a narrow window without replacing the preferred split and can reset it', () => {

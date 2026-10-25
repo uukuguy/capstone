@@ -36,12 +36,6 @@ export default function ThreadWorkspace({ preparation, sidebar, heading, childre
   const resizeNavigation=(value:number)=>{const next=Math.round(Math.max(180,Math.min(360,value)));setNavigationWidth(next);try{localStorage.setItem('capstone.workspace.navigation-width',String(next))}catch{/* Keep live width. */}}
   const navigationToggle=useRef<HTMLButtonElement>(null)
   const closeNavigation=()=>{setNavigationOpen(false);navigationToggle.current?.focus({preventScroll:true})}
-  useEffect(()=>{
-    if(!navigationOpen)return
-    const close=(event:KeyboardEvent)=>{if(event.key==='Escape'&&!event.defaultPrevented&&!document.querySelector('.session-new-popover, .session-context-menu')&&!(event.target instanceof Element&&event.target.closest('input,textarea,[contenteditable="true"]'))){event.preventDefault();event.stopPropagation();closeNavigation()}}
-    window.addEventListener('keydown',close)
-    return ()=>window.removeEventListener('keydown',close)
-  },[navigationOpen])
   const [expanded, setExpanded] = useSessionViewState(sessionKey?'layout.expanded':'preparation.expanded',false)
   useEffect(()=>{if(resourcePanel)saveWorkspacePanels(sessionKey,{resource:resourcePanelOpen})},[sessionKey,resourcePanelOpen,Boolean(resourcePanel)])
   useEffect(() => { if (!resourcePanelOpen) setExpanded(false) }, [resourcePanelOpen])
