@@ -1009,6 +1009,8 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 provider_key: str | None = None, network_policy=None):
     if not control_token:
         raise ValueError('General Pi control authentication is required')
+    from .grid_source_topology import GridSourceProvider, GridSourceError, REQUEST_BYTES
+    source_provider = GridSourceProvider(getattr(runner or host._run, 'gateway', None))
     class Handler(BaseHTTPRequestHandler):
         def setup(self):
             super().setup()
@@ -1037,12 +1039,21 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
         def authorized(self):
             return secrets.compare_digest(self.headers.get('Authorization', ''), 'Bearer ' + control_token)
 
+        def source_error(self, error):
+            code = str(error)
+            status = 409 if code == 'grid_source_view_changed' else 400 if code == 'grid_source_request_invalid' else 503
+            return self.send_json(status, {'error': code})
+
         def do_GET(self):
             if self.path == '/health/ready':
                 return self.send_json(200, {'identity': host.identity, 'capability': host.capability})
             if not self.authorized():
                 return self.send_json(401, {'error': 'unauthorized'})
             try:
+                if self.path == '/grid-sources':
+                    return self.send_json(200, source_provider.catalog())
+                if self.path == '/grid-sources/data-gateway/scopes':
+                    return self.send_json(200, run_http(source_provider.scopes()))
                 if self.path == '/network-policy':
                     if network_policy is None:
                         return self.send_json(503, {'error': 'network_policy_unavailable'})
@@ -1062,6 +1073,8 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 query = parse_qs(path.query)
                 after = int(query['after'][0]) if 'after' in query else None
                 self.send_json(200, host.read(path.path.removeprefix('/tasks/'), after))
+            except GridSourceError as error:
+                self.source_error(error)
             except TimeoutError:
                 self.request_timeout()
             except CapacityExceeded as error:
@@ -1091,6 +1104,16 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
             try:
                 length = int(self.headers.get('Content-Length', '0'))
                 parts = self.path.split('/')
+                if self.path in {'/grid-sources/data-gateway/resolve-scope', '/grid-sources/data-gateway/topology'}:
+                    if not 0 < length <= REQUEST_BYTES:
+                        raise GridSourceError('grid_source_request_invalid')
+                    try:
+                        document = json.loads(self.rfile.read(length))
+                    except (ValueError, UnicodeDecodeError):
+                        raise GridSourceError('grid_source_request_invalid') from None
+                    operation = (source_provider.topology if self.path.endswith('/topology')
+                                 else source_provider.resolve_scope)
+                    return self.send_json(200, run_http(operation(document)))
                 if self.path == '/network-policy':
                     if network_policy is None:
                         return self.send_json(503, {'error': 'network_policy_unavailable'})
@@ -1134,6 +1157,8 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 request = PiTaskRequest.from_document(json.loads(self.rfile.read(length)))
                 host.submit(request)
                 self.send_json(202, {'task_id': request.task_id})
+            except GridSourceError as error:
+                self.source_error(error)
             except TimeoutError:
                 self.request_timeout()
             except CapacityExceeded as error:
@@ -1295,7 +1320,7 @@ def main():
                 'runtime_lock_sha256': sha256(Path('/opt/general/pi-runtime.lock.json').read_bytes()).hexdigest(),
                 'executor_revision': sha256(b''.join((Path(__file__).parent / name).read_bytes()
                     for name in ('general_pi_server.py', 'general_pi_executor.py', 'general_pi_storage.py', 'general_pi_relay.py', 'native_network_policy.py', 'bounded_http_loop.py', 'pi_delegation.py', 'business_context.py', 'request_intent.py', 'native_task_context.py', 'native_diagnosis.py',
-                                 'native_resources.py', 'runtime_resources.py', 'resource_installation.py', 'general_pi_resource_seed.py', 'bounded_mcp.py', 'native_environment.py', 'data_gateway_mcp.py', 'data_gateway_relay.py', 'resources/general-data-gateway.mjs',
+                                 'native_resources.py', 'runtime_resources.py', 'resource_installation.py', 'general_pi_resource_seed.py', 'bounded_mcp.py', 'native_environment.py', 'data_gateway_mcp.py', 'data_gateway_relay.py', 'grid_source_topology.py', 'resources/general-data-gateway.mjs',
                                  'progress.py', 'stream_progress.py', 'resource_manifest.py', 'native_resource_staging.py',
                                  'native_research_bridge.py', 'native_graph_context.py', 'native_graph_events.py',
                                  'native_product_roles.py', 'continuation_resources.py', 'resources/general-research.mjs', 'resources/research-guidance.mjs',

@@ -406,6 +406,25 @@ class HttpGeneralPiExecutor:
     def network_policy(self):
         return self._call('GET', '/network-policy', timeout=2, total_timeout=3)
 
+    def grid_source_catalog(self):
+        return self._call('GET', '/grid-sources', timeout=2, total_timeout=3)
+
+    def grid_source_scopes(self):
+        from .grid_source_topology import EXCHANGE_SECONDS
+        return self._call('GET', '/grid-sources/data-gateway/scopes',
+                          timeout=EXCHANGE_SECONDS + 2, total_timeout=EXCHANGE_SECONDS + 3)
+
+    def grid_source_resolve_scope(self, document):
+        from .grid_source_topology import EXCHANGE_SECONDS
+        return self._call('POST', '/grid-sources/data-gateway/resolve-scope', document=document,
+                          timeout=EXCHANGE_SECONDS + 2, total_timeout=EXCHANGE_SECONDS + 3)
+
+    def grid_source_topology(self, document):
+        from .grid_source_topology import EXCHANGE_SECONDS, checked_topology_request
+        return self._call('POST', '/grid-sources/data-gateway/topology',
+                          document=checked_topology_request(document),
+                          timeout=EXCHANGE_SECONDS + 2, total_timeout=EXCHANGE_SECONDS + 3)
+
     def set_network_policy(self, enabled: bool):
         if type(enabled) is not bool:
             raise ValueError('external_access must be a boolean')
@@ -456,7 +475,9 @@ class HttpGeneralPiExecutor:
                                 raise CapacityExceeded(detail['dimension'],detail['actual'],detail['limit'],detail['phase'],mode='debug')
                         known = {'invalid_task', 'task_not_found', 'research_owner_conflict',
                                  'unauthorized', 'executor_capacity', 'resource_not_found',
-                                 'research_transport_file_changed'}
+                                 'research_transport_file_changed', 'grid_source_unavailable',
+                                 'grid_source_request_invalid', 'grid_source_view_changed',
+                                 'grid_source_response_invalid', 'grid_source_observation_unavailable'}
                         raise PiHTTPFailure(response.status_code, error if isinstance(error, str) and error in known else 'unrecognized_response')
                     response.raise_for_status()
             checkpoint()

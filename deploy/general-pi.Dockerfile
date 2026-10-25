@@ -67,6 +67,7 @@ COPY packages/capstone-agent/src/capstone_agent/general_pi_storage.py capstone_a
 COPY packages/capstone-agent/src/capstone_agent/general_pi_relay.py capstone_agent/general_pi_relay.py
 COPY packages/capstone-agent/src/capstone_agent/data_gateway_mcp.py capstone_agent/data_gateway_mcp.py
 COPY packages/capstone-agent/src/capstone_agent/data_gateway_relay.py capstone_agent/data_gateway_relay.py
+COPY packages/capstone-agent/src/capstone_agent/grid_source_topology.py capstone_agent/grid_source_topology.py
 COPY packages/capstone-agent/src/capstone_agent/resources/general-data-gateway.mjs capstone_agent/resources/general-data-gateway.mjs
 COPY configs/runtime/data-gateway.json configs/runtime/data-gateway.json
 COPY packages/capstone-agent/src/capstone_agent/bounded_http_loop.py capstone_agent/bounded_http_loop.py
