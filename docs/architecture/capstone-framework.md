@@ -96,6 +96,19 @@ explicitly. A new conversation instruction supersedes its old pending input;
 the framework must not concatenate the stopped request into new executable work.
 Terminal history retains its status and identity in model context. A retained
 Work goal is background; it does not silently add obligations to a new turn.
+The conversation has no session-wide "current business goal". A goal belongs
+to a concrete organized task or its admitted plan, not to every message in the
+Thread. Ordinary answers and temporary tool instructions need no business-goal
+banner. Later instructions may continue or adjust a referenced task; the retained
+Work storage anchor is not an implicit instruction to resume it.
+Resource scope also belongs to each instruction. An upload or an open grid is
+a contextual cue for the next instruction, not a permanent conversation target.
+An explicit file or grid reference takes precedence. A clear continuation may
+reuse the referenced task's resources and accepted results. An unrelated new
+instruction starts its own scope. When several plausible targets would change
+the result, ask a short clarification rather than silently choose one. Stopping
+a task preserves its history and resources; it does not authorize its execution
+under the next instruction.
 Historical user and assistant messages retain their source roles and original
 text inside a read-only reference packet. They are not replayed as the new
 executor's own assistant trajectory. Only this task's live messages form that

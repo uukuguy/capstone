@@ -1,5 +1,32 @@
 # Live Project Checkpoint
 
+> Recovery override, 2026-10-26: the older detailed checkpoint below is historical.
+> PR62 is merged at dev364aa6e9. Root branch docs/thinking-dev-closeout contains
+> task-owned control updates; App5173 now serves root, content0dcbd466. Backend
+> API/worker image6c6c8b956ebf, native11c0da509403 were source-hash checked.
+> No cloud/demo/main change. Root var and all unrelated worktrees remain intact.
+>
+> Accepted new rule: resource scope belongs to each instruction. Explicit file
+> or grid wins; relevant continuation may inherit, unrelated instructions do not.
+> No session-wide business goal. Native policy commit7e079c91 is verified by
+> 19 focused checks (1 Docker opt-in skipped), not yet integrated/rebuilt.
+>
+> Active implementation uses initialized .worktrees/dev-macos-ci on
+> fix/instruction-resource-scope. Do not switch that shared branch while workers
+> run. process_views owns large renderer/worker/NetworkView; diagnostic_tool owns
+> typed source topology backend/routes/protected gateway integration. Root owns
+> workspace/client integration, real tests and project control. Plan:
+> docs/superpowers/plans/2026-10-26-grid-scale-view.md. Complete the authorized
+> 100k+ view, North China display and real source-backed question; plan-only is
+> not delivery. No formal model claims or solver from display groups.
+>
+> Gateway protected file remains root .capstone-agent/auth/data-gateway/connection.json.
+> Existing safe receipts outputs/data-gateway-connection-20261026 prove real north
+> view405station groups/1003source lines; only first3+3 records fetched. Both
+> cursors and stable view_ref are required. Quality gaps remain. No token in
+> arguments/logs/docs/browser. Bare process phrase interpretation/123s efficiency
+> remain limitations, not passing performance claims. Do not repeat that loop.
+
 > Updated: 2026-10-26 01:56 Asia/Shanghai. Active debugging; not final handoff.
 
 ## Current objective

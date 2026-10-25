@@ -1,5 +1,32 @@
 # docs/status INDEX
 
+Current boundary (2026-10-26): PR62 merged as `364aa6e9`; actual root dev was
+fast-forwarded and App5173 now serves that checkout. Content revision0dcbd466,
+backend/native source byte checks, readiness and scoped cleanup passed. The
+accepted source80c11e10 passed scoped macOS40220567507 and independent review.
+See [Thinking/task-state verification](../reviews/2026-10-26-streamed-thinking.md).
+There is no session-wide business goal; targets belong to actual organized tasks.
+
+Next authorized delivery is the complete100k+ topology implementation and real
+North China source-view/question verification. Its
+[owning baseline](../superpowers/specs/2026-10-25-grid-topology-view-requirements.md)
+now records the gateway1.30 publication and successful source reads. The large
+renderer is not implemented yet. Credentials remain only in ignored protected
+operator authentication state. Cloud/demo/main/user-local are unchanged.
+The [implementation plan](../superpowers/plans/2026-10-26-grid-scale-view.md)
+owns the active renderer, source API, workspace integration and real acceptance.
+Resource relevance is determined per instruction; the focused native policy
+change7e079c91 is verified locally but not yet rebuilt or integrated.
+
+Final snapshot (2026-10-25): actual ROOT dev HEAD is `77109781`.
+[PR #61](https://github.com/uukuguy/capstone/pull/61) merged at 14:50:56 UTC;
+documentation CI40203874616 passed in 83 s. Closeout is complete. PR60 commit
+`6f9ca536` remains the fixed code milestone, not the current HEAD. App content
+stays at `afe173cf`; its repository position is now 77109781. Feature/control
+branches are historical merged sources. VERSION-CONTROL.md, INDEX.md and
+PROJECT-OVERVIEW.html remain uncommitted final snapshots to avoid a self-hash
+cycle. No further commit, PR, build or model rerun is required for this snapshot.
+
 Post-merge check note (2026-10-25): automatic dev push run 40202723488 failed
 the old `test_pi_delegation::test_request_budget_cancels_and_deduplicates_events`:
 its 0.08 s budget expired before the first event, while the assertion expected one.
@@ -10,7 +37,7 @@ no production change or broad rerun is planned. See the
 
 Unified conversation and diagnosis (2026-10-25):
 [PR #60](https://github.com/uukuguy/capstone/pull/60) merged as `6f9ca536` at
-14:32:29 UTC. The actual root dev checkout is at that commit. Tested source
+14:32:29 UTC. This is the code milestone; current dev HEAD is 77109781. Tested source
 `9367fc2b` passed macOS run 40201683198 in 8 m 11 s; the affected-parts step
 took 6 m 14 s. It did not run unchanged full professional suites.
 The earlier broad product run 40198028306 was cancelled at 17 m 11 s as
@@ -20,10 +47,10 @@ Test-only fix 9367fc2b reproduced it with 100 ms replay delay, then passed
 8 focused tests in 3.51 s before the successful final CI run.
 Runtime source remains `afe173cf`: all 84 file hashes match merged dev `6f9ca536`,
 so no duplicate backend rebuild or paid model run is required. Root App5173
-reports revision afe173cf, repositoryRevision 6f9ca536 and dirty=false. The same
+reports content revision afe173cf and current repositoryRevision 77109781. The same
 Thread/Work restores grid evidence, the current answer, IEEE39 selection and the
 normal composer. Readiness and scoped cache cleanup pass; only the owned Vite
-process was restarted. Control metadata will use a separate PR.
+process was restarted. Control metadata was accepted through PR61.
 Model handoff,
 actual process focus and durable bounded diagnosis are implemented. Initial
 checks passed: 2,170 backend tests (2 skipped), 658 Kernel, 144 Pack, 15 client
@@ -60,7 +87,7 @@ host report with zero rejections, and retained reported_only/advisory/retain_gap
 The 3,545-byte 诊断恢复说明.md has SHA256
 023fc091a4c56d92a9b7aa66b61a7b17e0bd1fc9ffab3fcaf5a61581d6fad34d;
 host state was checked. Local validation and PR60 integration are complete for
-this slice. Actual-dev entry verification has passed; the control PR remains open.
+this slice. Actual-dev entry verification and control PR61 closeout have passed.
 Prior failed runs remain recorded.
 Root App5173 is the verified dev entry. Candidate App5174 is not needed to prove
 the merged entry. Cloud-dev and both demo sources remain unchanged.
