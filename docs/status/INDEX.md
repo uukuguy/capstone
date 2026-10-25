@@ -1,6 +1,18 @@
 # docs/status INDEX
 
-Current boundary (2026-10-26): PR62 merged as `364aa6e9`; actual root dev was
+Current delivery (2026-10-26): actual devf46dc0e4, large-grid candidate7ba27575
+on feat/grid-scale-view is implemented and locally verified. See
+[source/scale verification](../reviews/2026-10-26-grid-scale-source.md).
+Hardware120k/239300 cases, actual North region/station/equipment and a real
+source question passed. Same-Thread unrelated instruction completed3.93s without
+tools or grid-plan continuation. Esc no longer hides navigation; Vivaldi current
+tab inspection passed. Dev PR/primary-entry closeout remains pending. Root5173
+still serves accepted0dc; feature5175 is a visible candidate, not a new release.
+Credentials and user data remain protected. Cloud/demo/main are unchanged.
+
+Historical boundary before this implementation:
+
+Earlier boundary (2026-10-26): PR62 merged as `364aa6e9`; actual root dev was
 fast-forwarded and App5173 now serves that checkout. Content revision0dcbd466,
 backend/native source byte checks, readiness and scoped cleanup passed. The
 accepted source80c11e10 passed scoped macOS40220567507 and independent review.

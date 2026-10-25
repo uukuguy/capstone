@@ -1,7 +1,32 @@
 # Scale-aware grid topology views
 
-Status: user-requested capability and proposed service contract, 2026-10-25.
-Production-data enterprise research remains the first implementation delivery.
+Status: authorized implementation, 2026-10-26. Local source views and measured
+large rendering are implemented; dev integration closeout is pending. Historical
+proposal sections below retain their design context. Current implementation and
+limits are recorded in [verification](../../reviews/2026-10-26-grid-scale-source.md).
+
+## Implemented application contract
+
+The existing workspace exposes source topology on demand through fixed protected
+`/api/v1/grid-sources` operations. Source discovery, scope resolution and topology
+pages are separate from formal calculation model selection. The typed page
+`capstone-grid-source-topology/1` preserves source/view identity, independent
+node and edge cursors, typed objects, parent/expansion references, source quality
+and boundaries. Pagination fixes the view reference; drill-down validates source
+snapshot and selection-rule identity. Unresolved endpoints remain explicit.
+
+The native registered gateway connection remains protected backend state. The
+browser cannot choose an upstream URL or arbitrary MCP tool. A source question
+freezes bounded observation material, marks record samples, and opens an explicit
+model-free enterprise draft. It does not activate the source as a solver model
+or change an existing formal model selection.
+
+Large formal diagrams and source scenes share worker/index/WebGL presentation.
+The scene contract stays independent of electrical buses and renderer libraries.
+Actual browser measurements cover120000nodes/239300edges with and without
+provided coordinates. Viewport geometry, labels and search results have explicit
+budgets; overview density is not a claim of arbitrary-grid readability. Region,
+station and equipment source checks supplement the synthetic scale measurements.
 
 ## Observed limitation
 

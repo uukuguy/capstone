@@ -123,7 +123,20 @@ application suites. Its selected step has a10-minute ceiling; this ceiling is a
 failure bound, not a target duration. A mixed change to foundation composition,
 Authority, solver or unknown dependencies still selects its owning wider scope.
 
-Dev PRs and pushes select documentation, bounded governance contracts, conversation-runtime, shared-agent,
+The source-topology gate checks the fixed application source-display provider,
+its protected transport adapters, and their direct consumers. Its exact source
+and test allowlist includes backend HTTP/Thread/native/gateway consumers, App
+tests/build, client contracts, native fixtures, types/boundaries and targeted
+image contracts. Transport qualification compares Python ASTs: only the named
+source-forwarding methods and public source error codes may be added; any change
+to existing transport behavior still selects product verification. Gateway policy
+qualification permits only the exact topology-tool allowlist addition. Unknown,
+foundation, Authority and dependency changes retain their wider gates. The
+selected step has a10-minute failure ceiling, not an expected duration. Record
+its actual CI duration. This gate does not run unrelated professional solvers,
+registered workers, Kernel, Pack or release-installer suites.
+
+Dev PRs and pushes select documentation, bounded governance contracts, source-topology, conversation-runtime, shared-agent,
 foundation or native-runtime dependency regression, or `make check-pr` on macOS. Python source/tests
 under capstone-agent and TypeScript/TSX/CSS under capstone-app/src use the shared-agent
 gate: package boundaries, global type checks, complete agent and Kernel suites,
