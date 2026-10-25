@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { loadGridSourceView, type GridSourcePage } from './gridSource'
+import { HttpThreadTransport } from './threadHttpTransport'
 
 const node = (id: string) => ({id,kind:'station',label:id})
 function page(overrides: Partial<GridSourcePage> = {}): GridSourcePage {
@@ -10,6 +11,12 @@ function page(overrides: Partial<GridSourcePage> = {}): GridSourcePage {
     display_grouping_only:true,electrical_equivalence_performed:false,...overrides}
 }
 describe('source topology paging', () => {
+  it('uses the application source contract without requiring a Thread protocol response header',async()=>{
+    const fetcher=(async()=>new Response(JSON.stringify(page()),{status:200,headers:{'Content-Type':'application/json'}})) as typeof fetch
+    const transport=new HttpThreadTransport('http://localhost:8767','',fetcher,'/api/v1/threads','2')
+    expect((await transport.gridSourceTopology({scope_id:'north'})).view_ref).toBe('snapshot-a')
+    await expect(transport.getSnapshot('thr_example')).rejects.toThrow('协议版本不兼容')
+  })
   it('loads both streams under the same revision and resolves later endpoints without collapsing parallel circuits',async()=>{
     const queries: unknown[]=[]
     const result=await loadGridSourceView(async query=>{

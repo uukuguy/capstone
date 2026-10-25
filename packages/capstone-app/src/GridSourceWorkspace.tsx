@@ -38,13 +38,14 @@ export default function GridSourceWorkspace({ transport, onQuestion }: {
     return()=>controller.abort()
   },[transport,selection,revision])
   const objects = useMemo(()=>new Map([...(view?.nodes||[]),...(view?.edges||[])].map(item=>[item.id,item])),[view])
+  const nodeIds = useMemo(()=>new Set(view?.nodes.map(item=>item.id)),[view])
   const scene = useMemo<NetworkScene|undefined>(()=>view?{
     ref:view.page.view_ref,coordinateSystem:'schematic',
     nodes:view.nodes.map(item=>({id:item.id,label:item.label||item.id,kind:item.kind,sourceRef:item.source_id,
       details:[{label:'来源对象',value:item.source_id||item.id},{label:'边界对象',value:item.boundary?'是':'否'}]})),
-    edges:view.edges.filter(item=>objects.has(item.source!)&&objects.has(item.target!)).map(item=>({id:item.id,source:item.source!,target:item.target!,kind:item.kind,
+    edges:view.edges.filter(item=>nodeIds.has(item.source!)&&nodeIds.has(item.target!)).map(item=>({id:item.id,source:item.source!,target:item.target!,kind:item.kind,
       label:item.label||item.id,sourceRef:item.source_id})),
-  }:undefined,[view,objects])
+  }:undefined,[view,nodeIds])
   function activate(item: {id:string}) {
     const object: GridSourceObject|undefined=objects.get(item.id)
     if(object?.expand)setPath(previous=>[...previous,{...object.expand!,label:object.label||object.id,

@@ -108,7 +108,7 @@ export class HttpThreadTransport implements ThreadTransport {
     this.resourcePath = resourcePath.replace(/\/$/, '')
   }
 
-  private async request(path: string, init: RequestInit = {}, maximumBytes=applicationCapacity('event_page_bytes'),capacityKey:CapacityKey='event_page_bytes'): Promise<unknown> {
+  private async request(path: string, init: RequestInit = {}, maximumBytes=applicationCapacity('event_page_bytes'),capacityKey:CapacityKey='event_page_bytes',threadVersion=true): Promise<unknown> {
     if(typeof init.body==='string')assertCapacity(new TextEncoder().encode(init.body).byteLength,'command_bytes')
     const response = await fetchWithReadRetry(this.base + path, {
       ...init,
@@ -117,12 +117,12 @@ export class HttpThreadTransport implements ThreadTransport {
         ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
         ...(init.body ? { 'Content-Type': 'application/json' } : {}),
         ...init.headers,
-        ...(this.versionAdvertised || this.protocolVersion === '2' ? { [THREAD_VERSION_HEADER]: this.protocolVersion } : {}),
+        ...(threadVersion && (this.versionAdvertised || this.protocolVersion === '2') ? { [THREAD_VERSION_HEADER]: this.protocolVersion } : {}),
       },
     }, this.fetcher)
-    await checkResponseVersion(response, this.protocolVersion)
+    if(threadVersion)await checkResponseVersion(response, this.protocolVersion)
     if(response.status===204)return undefined
-    this.versionAdvertised = response.ok && response.headers.get(THREAD_VERSION_HEADER) === this.protocolVersion
+    if(threadVersion)this.versionAdvertised = response.ok && response.headers.get(THREAD_VERSION_HEADER) === this.protocolVersion
     const text = await boundedResponseText(response,capacityKey,maximumBytes)
     let body: unknown = undefined
     try {
@@ -315,7 +315,7 @@ export class HttpThreadTransport implements ThreadTransport {
   gridSourceTopology(query: GridSourceQuery, signal?: AbortSignal) {
     return this.request('/api/v1/grid-sources/data-gateway/topology', {
       method:'POST', signal, body:JSON.stringify(query),
-    }).then(parseGridSourcePage)
+    },4*1024*1024,'event_page_bytes',false).then(parseGridSourcePage)
   }
 
   renameSession(threadId:string,runId:string,revision:number,text:string,commandId:string,idempotencyKey:string):Promise<unknown> {
