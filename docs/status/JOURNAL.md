@@ -5606,3 +5606,65 @@ separate. No model task is active.
 2026-10-25 — 78e80abf: Synchronized control closeout with accepted dev and reconciled preserved designs without changing runtime source.
 
 2026-10-25 — 032f5024: Removed an unsupported test-query option; frontend type checking and eight sidebar regressions pass.
+
+2026-10-25 — 0d20a8f2: Defined production-data MCP integration and recorded real topology delivery checks to guide enterprise research implementation.
+
+2026-10-25 — 1a4b2830: Recorded gateway scope and recovery checkpoint to separate verified model delivery from pending runtime integration.
+
+2026-10-25 — d4b55ee9: Added the verified design source node so the control graph shows the current integration focus.
+
+2026-10-25 — f6772561: Defined scale-aware topology projections and measured large-grid rendering requirements to avoid unreadable regional detail.
+
+2026-10-25 — dd49270e: Agreed identical gateway and Capstone SDK pins to avoid unnecessary cross-version compatibility work.
+
+2026-10-25 — da48a15a: Added protected remote MCP catalog and calls; six checks and actual gateway discovery pass before research integration.
+
+2026-10-25 — 5c2df318: Retained WebGL rendering and measured 100k-node acceptance as later work so production-data research stays first.
+
+2026-10-25 — 4c50c9a1: Added task-bound gateway relay and issued receipts to protect production data calls before native integration.
+
+2026-10-25 — e39fd6c3: Enabled admitted gateway tools in enterprise research and isolated nodes; focused host and SDK checks protect source identity.
+
+2026-10-25 — 45394040: Propagated production-data guidance into isolated nodes and added a resumable real-task verifier for multi-turn acceptance.
+
+2026-10-25 — 726e08a7: Separated authentication failures from connection errors and retained typed capacity failures without exposing gateway credentials.
+
+2026-10-25 — 797ddf9a: Preserved debug capacity interruption and verified inflight revocation so cancelled gateway calls issue no source receipt.
+
+2026-10-25 — 98462b60: Recorded implemented gateway source and pending real-task acceptance so the control graph distinguishes code from acceptance.
+
+2026-10-25 — Real task-UID probe could read a mode0600 host bind; native host stopped before model work, pending private-parent isolation.
+
+2026-10-25 — 2f9c6b56: Isolated gateway bind beneath an image-native private parent so task UIDs cannot read host credentials.
+
+2026-10-25 — Private-parent rebuild passed exact five-role hashes, same backend image, gateway41 readiness and actual setuid10000 open denial.
+
+2026-10-25 — Started real series attempt_a064c1744e3f09b5 in thr_1897f293f4778aa394ad; preserve active work and inspect report before acceptance.
+
+2026-10-25 — 302d6e19: Checkpointed the verified private mount and exact active attempt so interrupted work can resume without duplicate submissions.
+
+2026-10-25 — Real series completed216.411s with19 successful gateway calls; same-Work follow-up completed58.847s without new gateway calls.
+
+2026-10-25 — Five source strings/statistics match; browser summary selection and download hash survive reload; semantic prepare/execute passed in the original task.
+
+Prior closeout receipts preserved verbatim from the root checkout:
+
+2026-10-25 — PR #58 opened. Fixed11CI type errors; Pyright and105focused tests pass. Running images remain2f9c6b56. Large-grid WebGL implementation stays deferred.
+
+2026-10-25 — 64e40f41: Recorded directed dev verification and the exact recovery scope before the final scoped closeout gate.
+
+2026-10-25 — 346de403: Merged PR #57 after the required dev gate passed in 9m55s. Actual dev frontend type checking passes. PR #56 runtime remains unchanged. Original 109 paths and generated artifacts have verified recovery copies; merged temporary branch refs are closed. The final generated overview and this journal receipt are deliberate post-merge metadata, without a self-hash commit cycle. No release or deployment promotion.
+
+2026-10-25 — 015112a7: Corrected MCP field access and optional gateway checks so the required dev type gate passes.
+
+2026-10-25 — Reproduced startup-expired test grants; registration after setup passes. User requested bounded native-runtime CI;60scope and362SDK checks pass.
+
+2026-10-25 — 22e61786: Added bounded native-runtime CI and corrected test grant timing to shorten development feedback without skipping consumers.
+
+2026-10-25 — CI40170377784 passed gateway checks; reused existing macOS single-child cleanup for progress fixtures after a process-group permission failure.
+
+2026-10-25 — Rebuilt22e61786; five-role hashes, shared backend87e9bae78f79, nativef2c3afaf5b5f,41gateway tools, ready200 and UID10000 credential denial passed.
+
+2026-10-25 — 29e43835: Reused macOS single-child cleanup for stable progress tests;54executor and relay checks pass without production changes.
+
+2026-10-25 — Fixed cancellation-test release ordering and all single-child macOS fixtures;54checks pass under simulated signal denial and delayed release.

@@ -88,12 +88,13 @@ async def serve(config: dict):
                 value = result.model_dump(mode='json', by_alias=True, exclude_none=True)
                 body = json.dumps(value, allow_nan=False).encode()
                 require_capacity('mcp_frame_bytes', len(body), 'mcp_result')
-                if 'outputSchema' in schemas[name] and result.structured_content is not None:
+                structured = getattr(result, 'structured_content', value.get('structuredContent'))
+                if 'outputSchema' in schemas[name] and structured is not None:
                     try:
-                        Draft202012Validator(schemas[name]['outputSchema'], registry=Registry(retrieve=_deny)).validate(result.structured_content)
+                        Draft202012Validator(schemas[name]['outputSchema'], registry=Registry(retrieve=_deny)).validate(structured)
                     except Exception:
                         raise ValueError('MCP output schema failed; outcome unknown') from None
-                frame = json.dumps({'result_json': body.decode(), 'is_error': result.is_error, 'observation': {
+                frame = json.dumps({'result_json': body.decode(), 'is_error': getattr(result, 'is_error', value.get('isError', False)), 'observation': {
                     'kind': 'external_mcp_observation', 'task_id': config['task_id'],
                     'parent_attempt_id': config['parent_attempt_id'],
                     'descriptor_sha256': config['descriptor_sha256'], 'tool': name,

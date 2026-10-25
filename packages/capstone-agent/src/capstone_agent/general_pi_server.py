@@ -42,6 +42,9 @@ class GeneralPiHost:
         self.capability['research_bridge_schemas'] = ['capstone-research-bridge/1']
         self.capability['research_graph_schemas'] = ['capstone-enterprise-graph/2']
         self.capability['delivery_review_schemas'] = ['capstone-delivery-review/1']
+        gateway = getattr(run_task, 'gateway', None)
+        self.capability['data_gateway'] = (gateway.publication() if gateway else
+            getattr(run_task, 'gateway_publication', {'available': False, 'reason': 'not_configured'}))
         from .native_task_context import research_policy_capabilities
         self.capability['research_policy_profiles'] = research_policy_capabilities()
         self._max_tasks, self._max_records = max_tasks, max_records
@@ -107,6 +110,8 @@ class GeneralPiHost:
             profile = (store.accepted(role, request.resource_profile['revision']) if store is not None
                        else self.capability.get('resource_profiles', {}).get(role, {}))
             published = set(self.capability.get('native_tools', ()))
+            from .data_gateway_relay import research_gateway_tools
+            published.update(research_gateway_tools(native, self.capability.get('data_gateway', {})))
             published.update(profile.get('load_receipt', {}).get('published_tool_ids', ()))
             if request.research_binding is not None:
                 from .native_research_bridge import ALL_ENTERPRISE_RESEARCH_TOOLS
@@ -155,6 +160,14 @@ class GeneralPiHost:
 
     def _save(self, request: PiTaskRequest, result: dict | None) -> None:
         self.storage.save(request.to_document(), result)
+
+    def verify_gateway_observation(self, request, call_id, name, result):
+        gateway = getattr(self._run, 'gateway', None)
+        details = result.get('details', {})
+        content = result.get('content', [])
+        if (gateway is None or not content or content[0].get('type') != 'text'
+                or not gateway.verify(request.task_id, call_id, name, details, content[0].get('text'))):
+            raise ValueError('gateway observation was not issued by this host')
 
     def record_network_policy(self, event: str, state: dict) -> None:
         path = self.root / 'receipts' / 'network-policy.jsonl'
@@ -248,6 +261,9 @@ class GeneralPiHost:
         text_buffer = TextDeltaBuffer(lambda text: publish({'type': 'assistant_delta', 'text': text}))
         def capture_graph_observation(call_id, tool_name, result, *, is_error=False, child=False):
             failed = is_error or result.get('isError') is True
+            gateway_tool = tool_name in self.capability.get('data_gateway', {}).get('catalog', {}).get('tools', {})
+            if gateway_tool and (not failed or result.get('details', {}).get('kind') == 'external_gateway_observation'):
+                self.verify_gateway_observation(request, call_id, tool_name, result)
             issued = result.get('details', {}).get('native_research_source')
             guard, context = record.get('graph_events'), record.get('graph_context')
             if guard is None and failed and issued is None:
@@ -257,7 +273,7 @@ class GeneralPiHost:
             action_id = guard.action_for_call(call_id, tool_name, required=not failed)
             expected_ref = 'native-observation:' + request.task_id + ':' + sha256(call_id.encode()).hexdigest()
             expected_source = {'task_id': request.task_id, 'tool_call_id': call_id, 'source_ref': expected_ref}
-            if ((tool_name not in {'read', 'bash', 'edit', 'write', 'grep', 'find', 'ls'}
+            if ((tool_name not in {'read', 'bash', 'edit', 'write', 'grep', 'find', 'ls'} and not gateway_tool
                     and not (child and tool_name == 'agent_task_return'))
                     or issued != expected_source and (not failed or issued is not None)):
                 raise ValueError('native observation source identity changed')
@@ -404,8 +420,9 @@ class GeneralPiHost:
                     payload['task_progress'] = progress
                 graph_binding = (request.research_binding is not None
                     and request.research_binding.get('graph_schema') == 'capstone-enterprise-graph/2')
-                if kind == 'tool_execution_end' and graph_binding and payload['tool_name'] in {
-                        'read', 'bash', 'edit', 'write', 'grep', 'find', 'ls', 'agent_task_return'}:
+                if kind == 'tool_execution_end' and graph_binding and (payload['tool_name'] in {
+                        'read', 'bash', 'edit', 'write', 'grep', 'find', 'ls', 'agent_task_return'}
+                        or payload['tool_name'] in self.capability.get('data_gateway', {}).get('catalog', {}).get('tools', {})):
                     capture_graph_observation(payload['tool_call_id'], payload['tool_name'], event.get('result', {}),
                         is_error=event.get('isError') is True)
                 if kind == 'tool_execution_end' and not graph_binding and len(sources) < limits.context_references:
@@ -419,6 +436,8 @@ class GeneralPiHost:
                     if activity:
                         metadata['activity'] = activity
                     details = event.get('result', {}).get('details', {})
+                    if payload['tool_name'].startswith('data_gateway_') and not payload.get('is_error'):
+                        self.verify_gateway_observation(request, payload['tool_call_id'], payload['tool_name'], event['result'])
                     issued = details.get('native_research_source')
                     if request.research_binding is not None and isinstance(issued, dict):
                         expected_ref = ('native-observation:' + request.task_id + ':'
@@ -426,7 +445,7 @@ class GeneralPiHost:
                         allowed_sources = ({'read', 'bash', 'edit', 'write', 'grep', 'find', 'ls'}
                             if request.research_binding.get('graph_schema') == 'capstone-enterprise-graph/2'
                             else {'read', 'bash', 'edit', 'write', 'agent_delegate'})
-                        if (payload['tool_name'] not in allowed_sources
+                        if (payload['tool_name'] not in allowed_sources and not payload['tool_name'].startswith('data_gateway_')
                                 or issued != {'task_id': request.task_id, 'tool_call_id': payload['tool_call_id'],
                                               'source_ref': expected_ref}):
                             raise ValueError('native observation source identity changed')
@@ -446,6 +465,11 @@ class GeneralPiHost:
                                 raise ValueError('graph observation has no host context')
                             context.admit_observation(expected_ref, observation_id, digest,
                                 action_id=guard.action_for_call(payload['tool_call_id'], payload['tool_name']))
+                    if details.get('kind') == 'external_gateway_observation':
+                        self.verify_gateway_observation(request, payload['tool_call_id'], payload['tool_name'], event['result'])
+                        source_kind = 'external_gateway_observation'
+                        metadata.update(catalog_revision=details['catalog_revision'],
+                            tool_schema_sha256=details['tool_schema_sha256'], gateway_output_sha256=details['output_sha256'])
                     if details.get('kind') == 'external_mcp_observation':
                         role = 'direct_pi' if request.entrypoint == 'direct' else 'delegated_pi'
                         receipt = self.capability.get('resource_profiles', {}).get(role, {}).get('load_receipt', {})
@@ -649,7 +673,7 @@ class GeneralPiHost:
 class NativeTaskRunner:
     """Pi uses a task UID; host secrets remain in a different root process."""
     def __init__(self, *, root: Path, config_root: Path, command: tuple[str, ...],
-                 model: str, relay_origin: str, network_policy=None) -> None:
+                 model: str, relay_origin: str, network_policy=None, gateway=None) -> None:
         if os.geteuid() != 0 or os.name != 'posix':
             raise RuntimeError('General Pi requires its isolated Linux container')
         self.root, self.config_root, self.command = root, config_root, command
@@ -657,6 +681,8 @@ class NativeTaskRunner:
         from .native_environment import environment_context
         self.environment_context = environment_context()
         self.network_policy = network_policy
+        self.gateway = gateway
+        self.gateway_publication = gateway.publication() if gateway else {'available': False, 'reason': 'not_configured'}
         self._lock = threading.Lock()
         self.relay = ProviderRelay()
         self.grants = self.relay.grants
@@ -725,6 +751,21 @@ class NativeTaskRunner:
                 from .native_task_context import checked_native_context, resolve_research_policy
                 native = checked_native_context(request.native_context)
                 sdk_config['applicationPolicy'] = native['policy']
+                from .data_gateway_relay import research_gateway_tools
+                gateway_tools = research_gateway_tools(native, self.gateway.publication() if self.gateway else {})
+                admitted_gateway = gateway_tools.intersection(native['policy']['allowed_tools'])
+                if admitted_gateway and self.gateway is not None:
+                    self.gateway.bind(request.task_id, request.parent_attempt_id)
+                    sdk_config['dataGateway'] = {'url': self.relay_origin + '/data-gateway/' + request.task_id,
+                        'grant': grant, 'taskId': request.task_id, 'catalog': self.gateway.publication()['catalog']}
+                    sdk_config.setdefault('contextFiles', []).append({'path': 'registered-production-data',
+                        'content': 'Application-authorized data_gateway_ tools provide production data through a protected service. '
+                        'Use discover_data_capabilities and discover_business_services first, then discover exact objects, metrics, sources and time coverage. '
+                        'These explicit data grants do not enable arbitrary external web lookup. Preserve status, gaps, provenance and calculation. '
+                        'Use prepare_data_query before execute_data_query and retain its returned validation fingerprint. '
+                        'Do not guess units, source IDs, joins, availability or missing values. '
+                        'Save retrieved data and analysis as named task products when needed for subsequent analysis. '
+                        'The gateway owns all backend selection. Model operations are not enabled.'})
                 sdk_config['selectedTaskRecords'] = native['selected_task_records']
                 sdk_config['selectedTaskMaterials'] = native.get('materials', [])
                 sdk_config['researchSources'] = sorted({
@@ -862,6 +903,8 @@ class NativeTaskRunner:
             finally:
                 with self._lock:
                     self.relay.revoke(request.task_id)
+                if self.gateway:
+                    self.gateway.revoke(request.task_id)
                 shutil.rmtree(inputs, ignore_errors=True)
                 if hasattr(self, '_resource_staging'):
                     self._resource_staging.remove(request.task_id)
@@ -979,6 +1022,8 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 self.send_json(404, {'error': 'task_not_found'})
 
         def do_POST(self):
+            if self.path.startswith('/data-gateway/'):
+                return self.relay_data_gateway()
             if self.path.startswith('/provider/'):
                 return self.relay_provider()
             if not self.authorized():
@@ -1037,6 +1082,47 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 self.send_json(400, {'error': 'invalid_task'})
             except (RuntimeError, OSError):
                 self.send_json(503, {'error': 'executor_capacity'})
+
+        def relay_data_gateway(self):
+            from .data_gateway_mcp import GatewayError
+            gateway = getattr(runner, 'gateway', None)
+            parts = self.path.split('/')
+            if runner is None or gateway is None or len(parts) != 3 or not parts[2]:
+                return self.send_json(404, {'error': 'gateway_unavailable'})
+            task_id = parts[2]
+            grant = self.headers.get('Authorization', '').removeprefix('Bearer ')
+            try:
+                lease = runner.relay.acquire(task_id, grant, self.connection)
+            except PermissionError:
+                return self.send_json(401, {'error': 'unauthorized'})
+            except CapacityExceeded as error:
+                if error.mode == 'debug':
+                    host.interrupt_capacity(task_id, error)
+                    runner.relay.revoke(task_id)
+                return self.send_json(503, {'error': 'capacity_exceeded', 'capacity': error.to_document()})
+            try:
+                length = int(self.headers.get('Content-Length', '0'))
+                if not 0 < length <= limits.mcp_frame_bytes:
+                    raise GatewayError('gateway_request_invalid')
+                document = json.loads(self.rfile.read(length))
+                async def forward():
+                    lease.loop, lease.task = asyncio.get_running_loop(), asyncio.current_task()
+                    if lease.cancelled.is_set():
+                        raise asyncio.CancelledError()
+                    async with asyncio.timeout(max(.001, lease.deadline - time.monotonic())):
+                        return await gateway.call(task_id, document)
+                self.send_json(200, run_http(forward()))
+            except GatewayError as error:
+                self.send_json(400, {'error': str(error)})
+            except CapacityExceeded as error:
+                if error.mode == 'debug':
+                    host.interrupt_capacity(task_id, error)
+                    runner.relay.revoke(task_id)
+                self.send_json(503, {'error': 'capacity_exceeded', 'capacity': error.to_document()})
+            except (ValueError, OSError, TimeoutError, asyncio.CancelledError, CancelledError):
+                self.close_connection = True
+            finally:
+                runner.relay.release(lease)
 
         def relay_provider(self):
             # A task gets a revocable relay grant, never the Provider credential.
@@ -1132,12 +1218,16 @@ def main():
         internal_endpoints=tuple(InternalEndpoint(**item) for item in endpoints))
     # No task (including resource inventory) may start before enforcement.
     network_policy.start()
+    from .data_gateway_relay import load_container_gateway
+    gateway, gateway_publication = load_container_gateway(
+        os.environ.get('CAPSTONE_DATA_GATEWAY_CONNECTION_FILE'), config.parent / 'data-gateway.json')
     # Accepted native configuration belongs to its role profile. Engine and
     # fixed dispatch changes remain bound by executor_revision below.
     revision = sha256(b'capstone-general-sdk/2:isolated-uid:fixed-relay:fixed-mcp'
                       + current_capacity().fingerprint.encode())
     from .native_environment import environment_context
     revision.update((environment_context() or '').encode())
+    revision.update(json.dumps(gateway_publication, sort_keys=True).encode())
     lock = json.loads(Path('/opt/general/pi-runtime.lock.json').read_bytes())
     identity = {'engine': 'pi', 'model': os.environ['CAPSTONE_PUBLIC_MODEL'],
                 'provider': os.environ['CAPSTONE_PUBLIC_PROVIDER'],
@@ -1145,7 +1235,7 @@ def main():
                 'runtime_lock_sha256': sha256(Path('/opt/general/pi-runtime.lock.json').read_bytes()).hexdigest(),
                 'executor_revision': sha256(b''.join((Path(__file__).parent / name).read_bytes()
                     for name in ('general_pi_server.py', 'general_pi_executor.py', 'general_pi_storage.py', 'general_pi_relay.py', 'native_network_policy.py', 'bounded_http_loop.py', 'pi_delegation.py', 'business_context.py', 'request_intent.py', 'native_task_context.py',
-                                 'native_resources.py', 'runtime_resources.py', 'resource_installation.py', 'general_pi_resource_seed.py', 'bounded_mcp.py', 'native_environment.py',
+                                 'native_resources.py', 'runtime_resources.py', 'resource_installation.py', 'general_pi_resource_seed.py', 'bounded_mcp.py', 'native_environment.py', 'data_gateway_mcp.py', 'data_gateway_relay.py', 'resources/general-data-gateway.mjs',
                                  'progress.py', 'stream_progress.py', 'resource_manifest.py', 'native_resource_staging.py',
                                  'native_research_bridge.py', 'native_graph_context.py', 'native_graph_events.py',
                                  'native_product_roles.py', 'continuation_resources.py', 'resources/general-research.mjs', 'resources/research-guidance.mjs',
@@ -1162,7 +1252,8 @@ def main():
                         for path in sorted((Path(__file__).parent / 'resources' / directory).rglob('*.mjs')))).hexdigest()}
     runner = NativeTaskRunner(root=root, config_root=config,
         command=('node', '/opt/pi/packages/coding-agent/dist/cli.js'), model=identity['model'],
-        relay_origin=f'http://127.0.0.1:{port}', network_policy=network_policy)
+        relay_origin=f'http://127.0.0.1:{port}', network_policy=network_policy, gateway=gateway)
+    runner.gateway_publication = gateway_publication
     host = GeneralPiHost(root=root, identity=identity, run_task=runner)
     host.record_network_policy('startup_default', network_policy.state())
     host.capability['native_tools'] = runner.verify_tools(identity)

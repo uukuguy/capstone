@@ -1,5 +1,13 @@
 # docs/status INDEX
 
+Gateway integration focus (2026-10-25): VERSION-CONTROL.md and
+PROJECT-OVERVIEW.html include design0d20a8f2 and locally accepted runtime2f9c6b56.
+[Real model acceptance](../reviews/2026-10-25-enterprise-data-gateway.md) records
+research/follow-up, source values, protected mounts and browser recovery.
+Required dev checks/integration remain pending. Model delivery is topology only.
+PR58 uses a bounded native-runtime development gate after the user's CI scope
+correction; lifecycle and acceptance records describe the retained consumers.
+
 2026-10-24：[会话阅读状态与缓存验证](../reviews/2026-10-24-session-view-cache.md)记录内存LRU、磁盘阅读状态、冷/热切换验收；[缓存契约](../superpowers/specs/2026-10-24-session-view-cache.md)说明自动释放与业务归档的区别。
 
 2026-10-24 22:52：中断恢复后的界面复验见[工作空间记录](../reviews/2026-10-24-workspace-navigation.md)；927App/类型/doctor、真实归档分页和本地规范重建通过。当前合并状态见[版本台账](VERSION-CONTROL.md)，下一集成边界见[恢复记录](RESUME-NEXT-SESSION.md)。

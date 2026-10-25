@@ -190,6 +190,7 @@ services:
       CAPSTONE_PUBLIC_MODEL: ${CAPSTONE_PUBLIC_MODEL:?Set deploy/local.env}
       CAPSTONE_GENERAL_CONTROL_TOKEN: ${CAPSTONE_GENERAL_CONTROL_TOKEN:?Set deploy/local.env}
       CAPSTONE_NATIVE_INTERNAL_ENDPOINTS: ${CAPSTONE_NATIVE_INTERNAL_ENDPOINTS:-[]}
+      CAPSTONE_DATA_GATEWAY_CONNECTION_FILE: ${CAPSTONE_DATA_GATEWAY_CONNECTION_FILE:-}
       CAPSTONE_CAPACITY_JSON: ${CAPSTONE_CAPACITY_JSON:-}
       CAPSTONE_CAPACITY_MODE: ${CAPSTONE_CAPACITY_MODE:-normal}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
@@ -199,6 +200,10 @@ services:
       - general-pi-receipts:/var/lib/general-pi/receipts
       - general-pi-inputs:/var/lib/general-pi/inputs
       - general-pi-profiles:/var/lib/general-pi/profiles
+      - type: bind
+        source: ${CAPSTONE_DATA_GATEWAY_CONFIG_DIR:-./.capstone-agent/data-gateway}
+        target: /run/capstone-private/data-gateway
+        read_only: true
       - type: volume
         source: general-pi-resources
         target: /opt/general/.grid-agent/runtime

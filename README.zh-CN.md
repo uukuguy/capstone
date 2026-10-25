@@ -1,8 +1,8 @@
 # Capstone Agent Framework
 
 开发与发布版本遵循固定的[多线版本控制台账](docs/status/VERSION-CONTROL.md)。
-初始共同运行基线以当前已验收 demo 为起点。原生 Pi、skills 和资源扩展目前保留在
-`feat/pi-skills-integration` 开发分支。`dev` 是默认开发集成主线，保存当前项目控制记录；
+共同研发运行时包含原生 Pi、skills 与受管理资源，验收范围和精确部署来源以台账为准。
+`dev` 是默认开发集成主线，保存当前项目控制记录；
 功能与文档 PR 面向 dev。`main` 保存已接受的发布基线与发布快照，
 demo 只接收经过发布验收的功能范围。详见[分支生命周期](docs/architecture/capstone-development-lifecycle.md)。
 
@@ -16,9 +16,8 @@ demo 只接收经过发布验收的功能范围。详见[分支生命周期](doc
 local-dev 对应 cloud-dev 的开发测试和发布验证；local-demo 跟随 cloud-demo，
 用于线上复现、紧急修复和发布验证，仅在已登记的修复或发布候选验证时临时偏离。
 
-本分支包含开发中的原生 Pi、skills 和资源集成。源码从 `e9aca89` 保存并重新应用在共同基线上；
-它不是已验收的 demo 发布版本。合并或部署前遵循[多线版本控制台账](docs/status/VERSION-CONTROL.md)。
-源码保存不代表本轮已经取得新的运行验收。
+已实现、已验证、已合并与已部署范围分别记录于[多线版本控制台账](docs/status/VERSION-CONTROL.md)。
+demo 发布遵循独立的发布验收流程。
 
 简体中文 | [English](README.md) | [打开在线 Demo](https://capstone-app-production-975e.up.railway.app/)
 
@@ -30,6 +29,9 @@ local-dev 对应 cloud-dev 的开发测试和发布验证；local-demo 跟随 cl
 Capstone 是面向已登记业务系统与科学计算系统的领域中立智能体框架。应用选择 Domain Pack 和权威系统，智能体组合其中已发布的语义工具，权威系统负责模型事实与计算。框架将结果、证据和模型修订绑定到每次运行，再通过对话、报告和交互视图呈现。
 
 首个正式应用是**通过智能体对话开展电网静态分析**。工作台连接 pandapower 与 PyPSA 模型，支持连续分析：提出问题、执行领域工具、检查回答，再在电气拓扑图上定位相关元件。
+
+企业研究可通过已配置的生产数据 MCP 网关探索数据、查询已登记服务、保存有来源的报告，
+并基于保留产物继续追问。凭据保留在受保护宿主，连接方式见[运行手册](docs/RUNBOOK.md#企业生产数据-mcp)。
 
 设计遵循四个原则：
 

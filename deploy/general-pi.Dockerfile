@@ -5,7 +5,7 @@ FROM python:3.12-slim-bookworm@sha256:54c85f3c47607a77f32adec749d3c81d1348bf2583
 COPY --from=node /usr/local/bin/node /usr/local/bin/node
 RUN apt-get update && apt-get install --no-install-recommends -y ca-certificates curl git nftables \
     && rm -rf /var/lib/apt/lists/* \
-    && pip install --no-cache-dir uv==0.10.7 httpx==0.28.1 jsonschema==4.26.0 referencing==0.37.0
+    && pip install --no-cache-dir uv==0.10.7 httpx==0.28.1 jsonschema==4.26.0 referencing==0.37.0 mcp==1.30.0
 WORKDIR /opt/general
 
 # Scientific packages follow only their lock. Later source and the backend image stay below.
@@ -65,6 +65,10 @@ COPY packages/capstone-agent/src/capstone_agent/general_pi_server.py capstone_ag
 COPY packages/capability-agent-kernel/src/capability_agent/runtime/step_events.py capstone_runtime_events.py
 COPY packages/capstone-agent/src/capstone_agent/general_pi_storage.py capstone_agent/general_pi_storage.py
 COPY packages/capstone-agent/src/capstone_agent/general_pi_relay.py capstone_agent/general_pi_relay.py
+COPY packages/capstone-agent/src/capstone_agent/data_gateway_mcp.py capstone_agent/data_gateway_mcp.py
+COPY packages/capstone-agent/src/capstone_agent/data_gateway_relay.py capstone_agent/data_gateway_relay.py
+COPY packages/capstone-agent/src/capstone_agent/resources/general-data-gateway.mjs capstone_agent/resources/general-data-gateway.mjs
+COPY configs/runtime/data-gateway.json configs/runtime/data-gateway.json
 COPY packages/capstone-agent/src/capstone_agent/bounded_http_loop.py capstone_agent/bounded_http_loop.py
 COPY packages/capstone-agent/src/capstone_agent/conversation_context.py capstone_agent/conversation_context.py
 COPY packages/capstone-agent/src/capstone_agent/request_intent.py capstone_agent/request_intent.py
@@ -123,6 +127,7 @@ COPY configs/runtime/capstone-pi/settings.json configs/runtime/capstone-pi/setti
 COPY configs/runtime/agent-resources.json configs/runtime/agent-resources.json
 COPY configs/llm-providers.json llm-providers.json
 COPY configs/runtime/pi-runtime.lock.json pi-runtime.lock.json
+RUN mkdir -p /run/capstone-private && chmod 0700 /run/capstone-private
 ENV PYTHONUNBUFFERED=1 CAPSTONE_GENERAL_SANDBOX=container PORT=8790
 RUN python -c "from capstone_agent.general_pi_executor import collect_artifacts; from capstone_agent.native_product_roles import read_product_roles" \
     && python -c 'from capstone_agent.native_task_context import checked_native_context, RESEARCH_POLICY_TEXT, SPLIT_RESEARCH_POLICY_TEXT; [checked_native_context({"selected_task_records": [], "selected_task_source": None, "records_truncated": False, "policy": {"schema": "capstone-conversation-policy/1", "system_policy": policy, "allowed_tools": tools, "external_lookup_enabled": False}}) for policy, tools in [(RESEARCH_POLICY_TEXT, ["agent_research_cycle"]), (SPLIT_RESEARCH_POLICY_TEXT, ["agent_research_plan", "agent_research_record", "agent_research_assess"])]]' \

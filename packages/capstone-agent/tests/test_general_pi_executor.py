@@ -6,9 +6,28 @@ import time
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def single_child_cleanup(monkeypatch):
+    # This module's RPC fixtures create one child and no descendants. The macOS test
+    # host can deny group signals; Linux retains the real group cleanup path.
+    if sys.platform != 'darwin':
+        return
+    from capstone_agent.general_pi_executor import GeneralPiProcess
+    def stop_fixture(process):
+        assert process.uid is None, 'UID isolation needs the Linux integration fixture'
+        child, process.process = process.process, None
+        if child is not None:
+            child.terminate()
+            child.wait(timeout=1)
+            for stream in (child.stdin, child.stdout, child.stderr):
+                if stream is not None:
+                    stream.close()
+    monkeypatch.setattr(GeneralPiProcess, 'stop', stop_fixture)
+
+
 @pytest.mark.parametrize('mode', ['normal', 'debug'])
 @pytest.mark.parametrize('outcome', ['complete', 'cancelled', 'deadline'])
-def test_native_frame_backpressure_keeps_the_queue_bounded_without_aborting_research(tmp_path, monkeypatch, mode, outcome):
+def test_native_frame_backpressure_keeps_the_queue_bounded_without_aborting_research(tmp_path, monkeypatch, single_child_cleanup, mode, outcome):
     from queue import Queue, Full
     from capstone_agent import general_pi_executor as module
     from capstone_agent.application_capacity import current_capacity, initialize_capacity
@@ -31,15 +50,6 @@ def test_native_frame_backpressure_keeps_the_queue_bounded_without_aborting_rese
         'for index in range(40): print(json.dumps({"type":"turn_start","index":index}),flush=True)\n'
         'print(' + repr(json.dumps(terminal)) + ',flush=True)\n')
     process = module.GeneralPiProcess((sys.executable, str(script)), {'PATH': '/usr/bin'}, tmp_path)
-    if sys.platform == 'darwin':
-        # The Mac test host denies group signals. This single-child fixture has
-        # no descendants; process-group isolation is covered by the Linux run.
-        def stop_fixture():
-            child, process.process = process.process, None
-            if child is not None:
-                child.terminate()
-                child.wait(timeout=1)
-        monkeypatch.setattr(process, 'stop', stop_fixture)
     observed = []
     def consume(event):
         observed.append(event['index'])
@@ -114,7 +124,7 @@ def test_failed_continuation_terminal_preserves_real_usage_and_never_succeeds(tm
 
 
 @pytest.mark.parametrize('kind', ['enterprise_cycle_progress', 'delegation_child_started', 'delegation_child_tool', 'delegation_child_finished', 'enterprise_graph_tool_failure'])
-def test_cycle_progress_is_forwarded_without_counting_an_extra_model_response(tmp_path, kind):
+def test_cycle_progress_is_forwarded_without_counting_an_extra_model_response(tmp_path, single_child_cleanup, kind):
     from capstone_agent.general_pi_executor import GeneralPiProcess
     progress = {'type': kind, 'owner': {'thread_id': 'thread', 'work_id': 'work',
         'research_id': 'research', 'goal_revision': 1}, 'attempt_id': 'attempt', 'action_id': 'cycle-' + 'a' * 64,

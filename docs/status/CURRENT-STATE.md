@@ -1,3 +1,22 @@
+## Current focus: gateway-backed enterprise research — 2026-10-25
+
+Accepted development source is dev346de403 (PR56 and PR57 merged). Current work
+uses feat/enterprise-data-gateway in .worktrees/dev-macos-ci. The first scope is
+enterprise-research production-data discovery, retrieval, analysis and persistent
+sources/products through MCP. Backend selection belongs to data-gateway.
+Unified conversation and grid model calculation integration remain later work.
+The host adapter, fixed catalog, private mount, task relay and native research
+node/source integration are implemented through2f9c6b56. Real model research,
+semantic prepare/execute, exact five-value/statistic checks, same-Work follow-up
+and browser preview/reload/download passed.102focused host and62SDK checks pass.
+API/3worker imagee69d4f1b6e56 and nativeb605fa2b1a6c match exact source hashes;
+actual task UID cannot open the connection file. Dev integration/required checks
+remain pending; cloud/demo are unchanged. See
+[acceptance](../reviews/2026-10-25-enterprise-data-gateway.md).
+Real MCP discovery and north topology delivery checks passed; see
+[contract](../superpowers/specs/2026-10-25-enterprise-data-gateway-design.md) and
+[model probe](../reviews/2026-10-25-data-gateway-model-probe.md).
+
 ## Workspace merged into dev — 2026-10-25
 
 PR56 merged as e72722fc after required dev CI40119881315 passed in35m37s.

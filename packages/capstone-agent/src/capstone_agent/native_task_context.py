@@ -277,6 +277,10 @@ def native_context_for(claim, binding):
                                      binding['application_profile']['profile_version'],
                                      policy_variant=entry.variant if entry else 'default')
     tools = set(binding['capability'].get('native_builtin_tools', ()))
+    if binding['application_profile']['profile_id'] == 'enterprise-research':
+        gateway = binding['capability'].get('data_gateway', {})
+        if gateway.get('available'):
+            tools.update(gateway['catalog']['tools'])
     from .native_research_bridge import research_tools_for_profile
     tools.update(research_tools_for_profile(binding['application_profile']['profile_id'],
                                            binding['application_profile']['profile_version']))
