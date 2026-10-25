@@ -127,7 +127,10 @@ The source-topology gate checks the fixed application source-display provider,
 its protected transport adapters, and their direct consumers. Its exact source
 and test allowlist includes backend HTTP/Thread/native/gateway consumers, App
 tests/build, client contracts, native fixtures, types/boundaries and targeted
-image contracts. Transport qualification compares Python ASTs: only the named
+image contracts. The allowlist also registers model workspace controls and Thread service state:
+the same gate runs the complete Thread and host consumer suites, including
+last-model release, active-task guards and professional-model retention.
+Transport qualification compares Python ASTs: only the named
 source-forwarding methods and public source error codes may be added; any change
 to existing transport behavior still selects product verification. Gateway policy
 qualification permits only the exact topology-tool allowlist addition. Unknown,

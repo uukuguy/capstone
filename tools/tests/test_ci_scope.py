@@ -47,6 +47,20 @@ def test_source_view_handoff_registers_its_exact_forwarder_and_graph_consumer():
                     source_topology=True)=='product'
 
 
+def test_source_workspace_controls_have_complete_thread_consumers():
+    paths=SOURCE_PATHS+['packages/capstone-agent/src/capstone_agent/thread_model_workspace.py',
+        'packages/capstone-agent/src/capstone_agent/thread_service.py',
+        'packages/capstone-agent/tests/test_thread_model_workspace.py']
+    assert classify(paths,source_topology=True)=='source-topology'
+    workflow=(ROOT/'.github/workflows/verify.yml').read_text()
+    gate=workflow.split('- name: Verify source topology consumers',1)[1].split('- name:',1)[0]
+    assert 'tests/test_thread*.py' in gate
+    assert 'tests/test_host*.py' in gate
+    assert 'test-capstone-app' in gate
+    assert classify(paths+['packages/capstone-agent/src/capstone_agent/thread_worker.py'],source_topology=True)=='product'
+    assert classify(paths,source_topology=True,target='main')=='release'
+
+
 def test_source_transport_guard_preserves_all_legacy_behavior():
     from tools.ci_scope import source_transport_document, SOURCE_CONTROL_METHODS
     old = 'class HttpGeneralPiExecutor:\n    def _call(self):\n        known={"invalid_task"}\n        return "legacy"\n'

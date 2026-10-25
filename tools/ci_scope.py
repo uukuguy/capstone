@@ -85,7 +85,10 @@ SOURCE_CONTROL_METHODS = '''
 SOURCE_ERROR_CODES = {'grid_source_unavailable', 'grid_source_request_invalid', 'grid_source_view_changed',
                       'grid_source_response_invalid', 'grid_source_observation_unavailable'}
 SOURCE_BACKEND_MODULES = {'grid_source_topology', 'grid_source_http', 'host_api',
-                          'general_pi_server', 'pi_delegation', 'delegated_runtime'}
+                          'general_pi_server', 'pi_delegation', 'delegated_runtime',
+                          # The gate runs all test_thread*.py and host consumers,
+                          # including native model release and professional guards.
+                          'thread_model_workspace', 'thread_service'}
 SOURCE_BACKEND_TESTS = {'test_grid_source_topology', 'test_grid_source_http', 'test_general_pi_native',
     'test_general_pi_server', 'test_pi_delegation', 'test_host_api', 'test_thread_http_api',
     'test_thread_model_workspace', 'test_data_gateway_mcp', 'test_data_gateway_relay',
