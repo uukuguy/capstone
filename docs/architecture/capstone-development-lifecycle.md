@@ -113,7 +113,10 @@ remain explicit baseline/release work.
 
 The conversation-runtime gate covers native conversation/context/diagnosis
 resources, the native executor image, and the explicitly registered shared
-research-context mirrors. It checks agent behavior, App/build, client contracts,
+research-context mirrors. It checks the named affected backend modules and their
+HTTP, Work, worker and research-status consumers rather than collecting the whole
+agent suite. The source allowlist and named tests must agree; an uncovered backend
+module mixed into a conversation change selects the wider product gate. It also checks App/build, client contracts,
 native SDK fixtures, types/boundaries and targeted native image contracts. It does
 not run unchanged solver, Pack, Kernel, deployment-installer or full professional
 application suites. Its selected step has a10-minute ceiling; this ceiling is a

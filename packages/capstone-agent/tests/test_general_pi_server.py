@@ -314,6 +314,72 @@ def test_native_turn_boundaries_survive_bounded_host_projection(tmp_path):
 
 
 @pytest.mark.parametrize('fails', [False, True])
+def test_host_streams_only_displayable_sdk_thinking_with_bounded_ordered_chunks(tmp_path, fails):
+    from capstone_agent.general_pi_server import GeneralPiHost
+    thought = '核对当前任务。' * 900
+    tail = '再选择工具。'
+    def run(request, cancelled, emit):
+        emit({'type': 'turn_start'})
+        emit({'type': 'message_end', 'message': {'role': 'assistant', 'content': [
+            {'type': 'thinking', 'thinking': 'PRIVATE_RAW_THINKING', 'signature': 'PRIVATE_SIGNATURE'}]}})
+        for char in thought:
+            emit({'type': 'message_update', 'assistantMessageEvent': {'type': 'thinking_delta', 'delta': char}})
+        emit({'type': 'message_update', 'assistantMessageEvent': {'type': 'text_delta', 'delta': 'DRAFT_ANSWER'}})
+        for kind in ('thinking_end', 'thinking_signature', 'redacted_thinking'):
+            emit({'type': 'message_update', 'assistantMessageEvent': {'type': kind, 'delta': 'PRIVATE'}})
+        emit({'type': 'message_update', 'assistantMessageEvent': {'type': 'thinking_delta', 'delta': tail}})
+        emit({'type': 'tool_execution_start', 'toolName': 'read', 'toolCallId': 'read-1'})
+        if fails:
+            raise RuntimeError('PRIVATE_DIAGNOSTIC')
+        return 'Final answer', {}
+    host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'}, run_task=run)
+    request = PiTaskRequest('thinking-task', 'thinking-attempt', 'direct', 'Explain', (), (), host.identity, 3)
+    host.submit(request)
+    deadline = time.monotonic() + 3
+    while host.read(request.task_id)['status'] == 'running' and time.monotonic() < deadline:
+        time.sleep(.005)
+    receipt = host.read(request.task_id)
+    events = receipt['events']
+    thinking = [event for event in events if event['type'] == 'assistant_thinking_delta']
+    assert ''.join(event['text'] for event in thinking) == thought + tail
+    assert all(0 < len(event['text']) <= 1024 for event in thinking)
+    assert [event['event_id'] for event in events] == ['event-' + str(index + 1) for index in range(len(events))]
+    draft_index = next(index for index, event in enumerate(events) if event['type'] == 'assistant_delta')
+    assert ''.join(event['text'] for event in events[:draft_index] if event['type'] == 'assistant_thinking_delta') == thought
+    tool_index = next(index for index, event in enumerate(events) if event['type'] == 'tool_execution_start')
+    assert all(events.index(event) < tool_index for event in thinking)
+    assert 'PRIVATE' not in str(receipt)
+    assert receipt['result']['answer'] == ('Final answer' if not fails else '')
+    assert receipt['result']['sources'] == []
+
+
+def test_cancelled_native_thinking_drops_pending_and_late_text(tmp_path):
+    from capstone_agent.general_pi_server import GeneralPiHost
+    ready, release = threading.Event(), threading.Event()
+    def run(request, cancelled, emit):
+        emit({'type': 'message_update', 'assistantMessageEvent': {'type': 'thinking_delta', 'delta': 'Visible before cancel'}})
+        emit({'type': 'message_update', 'assistantMessageEvent': {'type': 'thinking_delta', 'delta': 'PENDING'}})
+        ready.set()
+        release.wait(2)
+        if cancelled():
+            raise InterruptedError('cancelled')
+        emit({'type': 'message_update', 'assistantMessageEvent': {'type': 'thinking_delta', 'delta': 'LATE'}})
+        return 'Answer', {}
+    host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'}, run_task=run)
+    request = PiTaskRequest('cancel-thinking', 'attempt-cancel', 'direct', 'Explain', (), (), host.identity, 3)
+    host.submit(request)
+    assert ready.wait(2)
+    host.cancel(request.task_id)
+    release.set()
+    deadline = time.monotonic() + 3
+    while host.read(request.task_id)['status'] == 'running' and time.monotonic() < deadline:
+        time.sleep(.005)
+    receipt = host.read(request.task_id)
+    assert receipt['result']['status'] == 'cancelled'
+    assert ''.join(event.get('text', '') for event in receipt['events']) == 'Visible before cancel'
+
+
+@pytest.mark.parametrize('fails', [False, True])
 def test_host_coalesces_text_before_sequence_assignment_and_flushes_before_tools_and_failure(tmp_path, fails):
     from capstone_agent.general_pi_server import GeneralPiHost
     prefix = '甲乙丙丁' * 100
@@ -437,6 +503,14 @@ def test_native_runner_writes_business_context_as_private_data(tmp_path, monkeyp
     runner(request, lambda: False, lambda _: None)
     import json
     assert json.loads(captured[0])['business_context'] == context.to_document()
+    state = json.loads(captured[0])['execution_state']
+    assert state['task_id'] == request.task_id
+    assert state['parent_attempt_id'] == request.parent_attempt_id
+    assert state['task_status'] == 'running'
+    assert state['scope'] == 'current_native_task_only'
+    assert state['operating_system_processes_observed'] is False
+    assert state['other_tasks_observed'] is False
+    assert isinstance(state['observed_at_ms'], int)
 
 
 @pytest.mark.parametrize('raw,tamper,completed', [

@@ -211,6 +211,7 @@ _EVENT_TYPES = {
     "research_state": ("research_state_updated", "public"),
     "text_delta": ("assistant_process_delta", "diagnostic"),
     "assistant_process_delta": ("assistant_process_delta", "diagnostic"),
+    "assistant_thinking_delta": ("assistant_thinking_delta", "public"),
     "message_update": ("assistant_process_update", "diagnostic"),
     "message_end": ("assistant_process_end", "diagnostic"),
     "tool_execution_start": ("tool_started", "public"),
@@ -278,6 +279,17 @@ def normalize_runtime_event(
                     or not set(note_ids).issubset({note.note_id for note in state.notes})):
                     raise ValueError("invalid current research note identities")
                 payload["current_note_ids"] = note_ids
+    elif event_type == "assistant_thinking_delta":
+        text = event.get('text')
+        if not isinstance(text, str) or not text or len(text) > 4096:
+            raise ValueError('thinking delta must contain bounded display text')
+        require_capacity('event_bytes', len(text.encode('utf-8')), phase='thinking_delta')
+        payload = {'text': text}
+        if 'task_id' in event:
+            task_id = event['task_id']
+            if not isinstance(task_id, str):
+                raise ValueError('thinking task identity is invalid')
+            payload['task_id'] = _identity_text(task_id, 256)
     elif event_type == "assistant_process_delta":
         text = event.get("text")
         if isinstance(text, str):
@@ -291,7 +303,7 @@ def normalize_runtime_event(
         payload = _small_runtime_payload(event)
     sequence = event.get("trace_sequence")
     correlation = event.get("trace_correlation_id")
-    if type(sequence) is int and sequence > 0 and isinstance(correlation, str) and 0 < len(correlation) <= 128:
+    if event_type != 'assistant_thinking_delta' and type(sequence) is int and sequence > 0 and isinstance(correlation, str) and 0 < len(correlation) <= 128:
         payload["trace_sequence"] = sequence
         payload["trace_correlation_id"] = correlation
     return {

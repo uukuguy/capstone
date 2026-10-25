@@ -230,6 +230,17 @@ class DelegatedRuntime:
         def native(event):
             control.checkpoint()
             kind = event.get('type', event.get('event', 'unknown'))
+            if kind == 'assistant_thinking_delta':
+                if event.get('text') == '':
+                    return
+                from .harness import normalize_runtime_event
+                thinking = normalize_runtime_event({'type': 'assistant_thinking_delta',
+                    'text': event.get('text'), 'task_id': task_id}, runtime_mode=self.runtime_mode)
+                try:
+                    on_event(thinking)
+                except Exception as error:
+                    raise GoalReceiptPersistenceError('thinking event could not be saved') from error
+                return
             delta = event.get('text') if kind in {'text_delta', 'assistant_delta'} else None
             update = event.get('assistantMessageEvent')
             if isinstance(update, Mapping) and update.get('type') == 'text_delta':

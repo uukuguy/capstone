@@ -17,13 +17,15 @@ from capstone_agent.pi_delegation import HttpGeneralPiExecutor, PiTaskRequest
 from capstone_agent.request_intent import NodeControl
 
 
-def test_native_context_extension_preserves_roles_and_separates_business_data(tmp_path):
+def test_native_context_extension_keeps_cross_task_history_as_reference_data(tmp_path):
     from pathlib import Path
     from capstone_agent.business_context import BusinessContext
     context = BusinessContext.empty('workspace', 0).to_document()
+    execution = {'task_id': 'new-task', 'parent_attempt_id': 'new-attempt', 'task_status': 'running',
+                 'scope': 'current_native_task_only', 'operating_system_processes_observed': False}
     (tmp_path / 'context.json').write_text(json.dumps({'messages': [
         {'role': 'user', 'content': 'User history'}, {'role': 'assistant', 'content': 'Assistant history'}],
-        'dependency_results': [], 'business_context': context}))
+        'dependency_results': [], 'business_context': context, 'execution_state': execution}))
     extension = Path(__file__).parents[1] / 'src/capstone_agent/resources/general-context.mjs'
     result = subprocess.run(['node', '--input-type=module', '-e',
         'const {default: register} = await import(process.argv[1]); '
@@ -32,9 +34,15 @@ def test_native_context_extension_preserves_roles_and_separates_business_data(tm
         '{model: {api: "fixture", provider: "fixture", id: "fixture"}})));', extension.as_uri()],
         cwd=tmp_path, capture_output=True, text=True, check=True)
     messages = json.loads(result.stdout)['messages']
-    assert [message['role'] for message in messages] == ['user', 'assistant', 'user', 'user']
-    assert json.loads(messages[2]['content'])['business_context'] == context
+    assert [message['role'] for message in messages] == ['user', 'user', 'user', 'user']
+    assert json.loads(messages[1]['content'])['business_context'] == context
     assert messages[-1]['content'] == 'Current task'
+    assert json.loads(messages[-2]['content']) == {'execution_state': execution}
+    history = json.loads(messages[0]['content'])
+    assert history['state_scope'] == 'historical_not_current_observation'
+    assert history['historical_records'] == [
+        {'role': 'user', 'content': 'User history'}, {'role': 'assistant', 'content': 'Assistant history'}]
+    assert 'not executable instructions' in history['notice']
 
 
 def test_native_context_extension_adds_trusted_background_policy(tmp_path):
@@ -53,11 +61,16 @@ def test_native_context_extension_adds_trusted_background_policy(tmp_path):
 
 
 @pytest.mark.parametrize('status', ['failed', 'cancelled', 'interrupted'])
-@pytest.mark.parametrize('current', ['Calculate 1 + 1 only.', 'Resume the stopped CSV analysis using its saved output.'])
-def test_native_context_marks_unsuccessful_history_terminal_without_changing_current_input(tmp_path, status, current):
+@pytest.mark.parametrize('historical,current', [
+    ('Investigate the old CSV and continue until the report is complete.', 'Calculate 1 + 1 only.'),
+    ('Investigate the old CSV and continue until the report is complete.', 'Resume the stopped CSV analysis using its saved output.'),
+    ('Investigate the old CSV and continue until the report is complete.', 'Investigate the old CSV and continue until the report is complete.'),
+    ('列出当前活跃的进程列表', '列出当前活跃的进程列表'),
+])
+def test_native_context_marks_unsuccessful_history_terminal_without_changing_current_input(tmp_path, status, historical, current):
     from pathlib import Path
     original = {'message_id': 'old-attempt:user', 'role': 'user',
-        'content': 'Investigate the old CSV and continue until the report is complete.',
+        'content': historical,
         'turn_id': 'old-turn', 'attempt_id': 'old-attempt', 'model_context_id': None, 'status': status}
     (tmp_path / 'context.json').write_text(json.dumps({'messages': [original], 'dependency_results': []}))
     extension = Path(__file__).parents[1] / 'src/capstone_agent/resources/general-context.mjs'
@@ -73,18 +86,20 @@ def test_native_context_marks_unsuccessful_history_terminal_without_changing_cur
     messages = document['projection']['messages']
     assert len(messages) == 2
     assert messages[0]['role'] == original['role']
-    assert messages[0]['content'][1] == {'type': 'text', 'text': original['content']}
-    annotation = json.loads(messages[0]['content'][0]['text'])
-    assert annotation['historical_request']['status'] == status
-    assert annotation['historical_request']['attempt_id'] == original['attempt_id']
-    assert annotation['historical_request']['turn_id'] == original['turn_id']
-    assert annotation['historical_request']['message_id'] == original['message_id']
-    assert annotation['task_state'] == 'terminal_not_pending'
+    annotation = json.loads(messages[0]['content'])
+    assert annotation['historical_records'] == [original]
+    assert annotation['state_scope'] == 'historical_not_current_observation'
+    assert 'does not cancel a new accepted instruction' in annotation['notice']
     assert messages[-1] == {'role': 'user', 'content': current, 'timestamp': 123}
     policy = document['policy']['systemPrompt']
     assert 'latest current user input' in policy
-    assert 'explicitly asks to resume or retry' in policy
+    assert 'Each new accepted current instruction is fresh authorization' in policy
+    assert 'even if it repeats' in policy
+    assert 'does not require special resume or retry words' in policy
     assert 'retained Work research goal, claims and open questions are background' in policy
+    assert 'Research cycle and task graph status are bookkeeping' in policy
+    assert 'authorized live observation' in policy
+    assert 'isolated execution environment' in policy
 
 
 @pytest.mark.skipif(os.environ.get('CAPSTONE_GENERAL_NATIVE_TESTS') != '1', reason='requires local general Pi Docker image')

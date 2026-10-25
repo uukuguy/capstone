@@ -21,6 +21,7 @@ import ProcessCallTrace, { type ProcessModelCall } from './ProcessCallTrace'
 import { projectProcessModelRequests } from './processModelRequests'
 import {isExecutionLifecycleStep} from './executionLifecycle'
 import {nativeGraphFocus} from './nativeGraphFocus'
+import ThinkingProcess,{projectInitialThinking,type InitialThinking} from './ThinkingProcess'
 import { projectExecutionGraph, type ExecutionGraph } from './executionGraph'
 import ResultExplorer from './ResultExplorer'
 import { taskResultCollections, type TaskResultCollection } from './taskResultCollections'
@@ -389,6 +390,8 @@ export function projectAssistantMessages(events: readonly EventEnvelope[], instr
         if (event.turnId) instructionByTurn.set(event.turnId, instruction)
         messages.push({ id: `user-${event.eventId}`, role: 'user', content: text, metadata: { custom: { mode: commandMode(event), eventId: event.eventId, attemptId: key, modelId: event.modelContextId ? models.get(event.modelContextId) : undefined, sentAt: event.occurredAt, receipt: `${commandMode(event)} · accepted` } } })
       }
+      const key=event.attemptId||event.turnId
+      if(key)ensureAssistant(key)
       continue
     }
     if (event.eventType === 'attempt_started') {
@@ -403,6 +406,10 @@ export function projectAssistantMessages(events: readonly EventEnvelope[], instr
     if (event.eventType === 'assistant_text_delta') {
       const key = event.attemptId || event.turnId || `event-${event.eventId}`
       ensureAssistant(key).content += payloadText(event)
+      continue
+    }
+    if(event.visibility==='public'&&event.eventType==='assistant_thinking_delta'&&event.attemptId&&typeof event.payload.text==='string') {
+      ensureAssistant(event.attemptId)
       continue
     }
     if (event.eventType === 'attempt_completed' || event.eventType === 'attempt_failed' || event.eventType === 'attempt_cancelled' || event.eventType === 'attempt_interrupted') {
@@ -497,7 +504,7 @@ export function projectAssistantMessages(events: readonly EventEnvelope[], instr
         parameters: event.payload.request_parameters as Record<string, unknown>,
         resultRefs: stringRefs(event.payload.result_refs), evidenceRefs: stringRefs(event.payload.evidence_refs), sequence: event.eventSeq }))
     const research = events.filter(event => event.attemptId === attemptId && event.eventType === 'research_state_updated').at(-1)
-    const researchGoal = typeof research?.payload.goal === 'string' ? research.payload.goal : undefined
+    const retainedResearchGoal = typeof research?.payload.goal === 'string' ? research.payload.goal : undefined
     const parsedResearch = parseResearchSnapshot(research?.payload.research_snapshot)
     const researchSnapshot = parsedResearch && parsedResearch.research_id === research?.payload.research_id &&
       parsedResearch.revision === research.payload.research_revision && parsedResearch.goal === research.payload.goal ? parsedResearch : undefined
@@ -506,8 +513,20 @@ export function projectAssistantMessages(events: readonly EventEnvelope[], instr
     const stepDiagnostics = attemptId ? projectTaskStepDiagnostics(events, attemptId) : []
     const researchBranches = attemptId ? projectResearchBranches(events, attemptId) : []
     const executionGraph = attemptId ? projectExecutionGraph(events, attemptId) : undefined
+    const researchGoal=executionGraph?.current.goal??taskProgress.find(item=>item.kind==='goal')?.text
     const modelRequests = attemptId ? projectProcessModelRequests(events, attemptId) : []
-    const withMetadata = { ...message, metadata: { custom: { ...custom, activities, modelRequests, nativeGraphFocus: attemptId ? nativeGraphFocus(events,attemptId,executionGraph) : undefined, runtimeMode, acceptedContext, failureResults, researchGoal, researchSnapshot, toolExecutions, taskProgress, taskSteps, stepDiagnostics, researchBranches, executionGraph, stepStorageKey: `${events[0]?.threadId ?? ''}:${attemptId ?? ''}` } } }
+    const firstCheckpoint=executionGraph?.checkpoints[0]?.checkpoint.ref
+    const executionEvent=attemptId?events.find(event=>{
+      if(event.attemptId!==attemptId||event.visibility!=='public')return false
+      if(['tool_started','tool_completed','tool_failed','tool_cancelled'].includes(event.eventType)&&toolName(event)!=='agent_task_progress')return true
+      const native=nativeToolActivity(event)
+      if(native&&native.name!=='agent_task_progress')return true
+      if(projectTaskSteps([event],attemptId).some(step=>!isExecutionLifecycleStep(step.id)))return true
+      const progress=event.payload.research_graph as {checkpoint?:{ref?:unknown}}|undefined
+      return Boolean(firstCheckpoint&&progress?.checkpoint?.ref===firstCheckpoint)
+    }):undefined
+    const initialThinking=attemptId?projectInitialThinking(events,attemptId,executionEvent?.eventSeq):undefined
+    const withMetadata = { ...message, metadata: { custom: { ...custom, activities, modelRequests, initialThinking, nativeGraphFocus: nativeGraphFocus(executionGraph), runtimeMode, acceptedContext, failureResults, researchGoal, retainedResearchGoal, researchSnapshot, toolExecutions, taskProgress, taskSteps, stepDiagnostics, researchBranches, executionGraph, stepStorageKey: `${events[0]?.threadId ?? ''}:${attemptId ?? ''}` } } }
     return typeof message.content === 'string'
       ? { ...withMetadata, content: [{ type: 'text' as const, text: message.content }] }
       : withMetadata
@@ -672,7 +691,7 @@ function TaskProgressItems({ items }: { items: readonly TaskProgress[] }) {
   </section>)}</div>
 }
 
-function AttemptActivity({ activities, modelRequests = [], nativeGraphFocus: selectedGraphFocus, executionGraph, diagnostics: legacyDiagnostics = [], branches: legacyBranches = [], progress: legacyProgress = [], steps: legacySteps = [], stepStorageKey = '', goal, running, phase, open, onOpenChange, startedAt, durationMs, detailsRef, auxiliary, hasAuxiliary = false }: { activities: ChatActivity[]; modelRequests?: ProcessModelCall[]; nativeGraphFocus?: 'tools' | 'tasks'; executionGraph?: ExecutionGraph; diagnostics?: readonly TaskStepDiagnostic[]; branches?: readonly ResearchBranch[]; progress?: readonly TaskProgress[]; steps?: readonly TaskStep[]; stepStorageKey?: string; goal?: string; running: boolean; phase?: string; open: boolean; onOpenChange: (open: boolean) => void; startedAt?: string; durationMs?: number; detailsRef: React.RefObject<HTMLDetailsElement | null>; auxiliary?: ReactNode; hasAuxiliary?: boolean }) {
+function AttemptActivity({ activities, modelRequests = [], initialThinking, nativeGraphFocus: selectedGraphFocus, executionGraph, diagnostics: legacyDiagnostics = [], branches: legacyBranches = [], progress: legacyProgress = [], steps: legacySteps = [], stepStorageKey = '', goal, running, phase, open, onOpenChange, startedAt, durationMs, detailsRef, auxiliary, hasAuxiliary = false }: { activities: ChatActivity[]; modelRequests?: ProcessModelCall[]; initialThinking?: InitialThinking; nativeGraphFocus?: 'tools' | 'tasks'; executionGraph?: ExecutionGraph; diagnostics?: readonly TaskStepDiagnostic[]; branches?: readonly ResearchBranch[]; progress?: readonly TaskProgress[]; steps?: readonly TaskStep[]; stepStorageKey?: string; goal?: string; running: boolean; phase?: string; open: boolean; onOpenChange: (open: boolean) => void; startedAt?: string; durationMs?: number; detailsRef: React.RefObject<HTMLDetailsElement | null>; auxiliary?: ReactNode; hasAuxiliary?: boolean }) {
   const steps = executionGraph ? [] : legacySteps.filter(step=>!isExecutionLifecycleStep(step.id))
   const lifecycleSteps = executionGraph ? [] : legacySteps.filter(step=>isExecutionLifecycleStep(step.id))
   const branches = executionGraph ? [] : legacyBranches
@@ -694,7 +713,7 @@ function AttemptActivity({ activities, modelRequests = [], nativeGraphFocus: sel
   }
   const graphUnassignedTools = toolActivities.filter(activity => !graphToolIds.has(callId(activity)))
   const toolCount = executionGraph ? graphToolIds.size + graphUnassignedTools.length : toolActivities.length
-  const focus = executionGraph && selectedGraphFocus ? selectedGraphFocus : executionGraph || steps.length > 0 || branches.length > 0 || progress.length > 0 ? 'tasks' : toolCount > 0 ? 'tools' : 'thinking'
+  const focus = initialThinking && !initialThinking.handedOff ? 'thinking' : executionGraph && selectedGraphFocus ? selectedGraphFocus : executionGraph || steps.length > 0 || branches.length > 0 ? 'tasks' : toolCount > 0 ? 'tools' : 'thinking'
   const processViewport = useRef<HTMLDivElement>(null)
   const followProcess = useRef(true)
   useLayoutEffect(() => {
@@ -748,7 +767,7 @@ function AttemptActivity({ activities, modelRequests = [], nativeGraphFocus: sel
   }, [running])
   const liveDuration = startedAt ? durationBetween(startedAt, new Date(now).toISOString()) : undefined
   const elapsed = running ? liveDuration : durationMs
-  const hasProcess = running || modelRequests.length > 0 || !!startedAt || !!executionGraph || activities.length > 0 || progress.length > 0 || steps.length > 0 || lifecycleSteps.length > 0 || diagnostics.length > 0 || branches.length > 0
+  const hasProcess = Boolean(initialThinking) || running || modelRequests.length > 0 || !!startedAt || !!executionGraph || activities.length > 0 || progress.length > 0 || steps.length > 0 || lifecycleSteps.length > 0 || diagnostics.length > 0 || branches.length > 0
   if (!hasProcess && !hasAuxiliary) return null
   const terminalLabel = phase === 'failed' ? '执行失败 ·' : phase === 'cancelled' ? '已取消 ·' : phase === 'interrupted' ? '已中断 ·' : '已完成'
   const terminalClass = phase === 'failed' || phase === 'interrupted' ? ` is-${phase}` : phase === 'cancelled' ? ' is-cancelled' : ''
@@ -764,12 +783,10 @@ function AttemptActivity({ activities, modelRequests = [], nativeGraphFocus: sel
       return <div key={activity.id}>{control ? <p>图控制 · <code>{control.graphRef}</code> · 检查点 v{control.checkpoint.revision}</p> : <p>未记录确切图版本关联</p>}<ActivityItems activities={[activity]} /></div>
     })}</details>}</>
   const process = (expandedResearch = false) => {
-    if (focus === 'thinking') return <section className="capstone-thinking-process" aria-label="思考状态">
-      <p className="capstone-task-goal">{running ? modelRequests.some(call => !call.finishedAt) ? '模型处理中' : '等待模型进展' : phase === 'failed' ? '模型处理失败' : phase === 'cancelled' || phase === 'interrupted' ? '模型处理已停止' : '模型处理已结束'}{elapsed === undefined ? '' : ` · ${running ? '已用时' : '总耗时'} ${formatDuration(elapsed)}`}</p>
-      <p className="capstone-task-goal">当前记录未提供公开思考摘要。</p>
+    if (focus === 'thinking') return <>
       {modelRequests.length > 0 && <ProcessCallTrace models={modelRequests} tools={[]} now={running ? now : undefined} active={running} />}
       {lifecycleDetails}
-    </section>
+    </>
     if (focus === 'tools' && executionGraph) return <>
       <section aria-label="工具调用过程">
         {executionGraph.executions.map(execution=><ProcessCallTrace key={execution.action.id} models={[]} tools={execution.tools} active={running&&!execution.nativeStatus} now={running?now:undefined} renderToolDetails={tool=>{
@@ -810,6 +827,7 @@ function AttemptActivity({ activities, modelRequests = [], nativeGraphFocus: sel
   }
   return <>{reading && <AnswerDetailSheet title="执行过程" answerLabel={goalText ? goalText.slice(0, 80) : '当前指令'} className="capstone-process-reader" onClose={closeReader} metadata={<span className="capstone-process-reader-status">{running ? '执行中' : phase === 'failed' ? '执行失败' : phase === 'cancelled' ? '已取消' : phase === 'interrupted' ? '已中断' : phase === 'completed' ? '已完成' : '执行状态未记录'}{elapsed === undefined ? '' : ` · 总耗时 ${formatDuration(elapsed)}`}</span>}>
     <div ref={readerContent} className="capstone-chat-activity-frame">
+      {initialThinking&&<ThinkingProcess thinking={initialThinking} storageKey={stepStorageKey} now={now} expanded/>}
       {steps.length > 1 && <nav className="capstone-process-directory" aria-label="任务步骤目录">{steps.map(step => <button type="button" key={step.id} title={step.title} onClick={() => {
         const node = [...(readerContent.current?.querySelectorAll<HTMLElement>('[data-step-id]') ?? [])].find(node => node.dataset.stepId === step.id)
         node?.scrollIntoView({ block: 'start', behavior: 'smooth' })
@@ -971,11 +989,12 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
   const terminalNotice = typeof custom?.terminalNotice === 'string' ? custom.terminalNotice : undefined
   const completedAnswer = !terminalNotice && hasText && role === 'assistant' && status?.type === 'complete'
   return <MessagePrimitive.Root data-message-id={id} data-attempt-id={attemptId} data-run-phase={role==='assistant'?(status?.type==='running'?'running':typeof custom?.terminalPhase==='string'?custom.terminalPhase:undefined):undefined} data-run-duration-ms={role==='assistant'?durationMs:undefined} data-run-started-at={role==='assistant'?startedAt:undefined} tabIndex={-1} aria-label={role === 'user' ? '用户指令' : '智能体回答'} className={`capstone-chat-message is-${role}${messageState ? ` is-${messageState}` : ''}`}>
+    {role==='assistant'&&Boolean(custom?.initialThinking)&&<ThinkingProcess thinking={custom?.initialThinking as InitialThinking} storageKey={typeof custom?.stepStorageKey==='string'?custom.stepStorageKey:attemptId}/>}
     <div className="capstone-chat-body">
       {!completedAnswer && <span className="capstone-chat-role">{role === 'user' ? '你' : author}</span>}
-      {role === 'assistant' && typeof custom?.researchGoal === 'string' && <details className="capstone-task-research">
-        <summary>本次任务的研究目标</summary>
-        <p>{custom.researchGoal}</p>
+      {role === 'assistant' && typeof custom?.retainedResearchGoal === 'string' && <details className="capstone-task-research">
+        <summary>研究记录中的目标</summary>
+        <p>{custom.retainedResearchGoal}</p>
       </details>}
       {terminalNotice ? <>
         {typeof custom?.partialText === 'string' && custom.partialText && <MarkdownMessage>{custom.partialText}</MarkdownMessage>}
@@ -1001,7 +1020,7 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
       {typeof custom?.modelId === 'string' && <span className="capstone-instruction-model">{instructionModelName(custom.modelId)}</span>}
       {typeof custom?.sentAt === 'string' && Number.isFinite(Date.parse(custom.sentAt)) && <InstructionTime value={custom.sentAt} />}
     </div>}
-    {role === 'assistant' && (showActivity || status?.type === 'running' || hasAuxiliary) && <AttemptActivity activities={activities} modelRequests={Array.isArray(custom?.modelRequests) ? custom.modelRequests as ProcessModelCall[] : []} nativeGraphFocus={custom?.nativeGraphFocus === 'tools' || custom?.nativeGraphFocus === 'tasks' ? custom.nativeGraphFocus : undefined} executionGraph={custom?.executionGraph as ExecutionGraph | undefined} diagnostics={Array.isArray(custom?.stepDiagnostics) ? custom.stepDiagnostics as TaskStepDiagnostic[] : []} branches={Array.isArray(custom?.researchBranches) ? custom.researchBranches as ResearchBranch[] : []} steps={Array.isArray(custom?.taskSteps) ? custom.taskSteps as TaskStep[] : []} stepStorageKey={typeof custom?.stepStorageKey === 'string' ? custom.stepStorageKey : attemptId} progress={Array.isArray(custom?.taskProgress) ? custom.taskProgress as TaskProgress[] : []} goal={typeof custom?.researchGoal === 'string' ? custom.researchGoal : undefined} phase={typeof custom?.terminalPhase === 'string' ? custom.terminalPhase : undefined} running={status?.type === 'running'} open={activityOpen} onOpenChange={(open) => { if (open) selectPanel('process'); else if (activePanel === 'process') selectPanel(null) }} startedAt={startedAt} durationMs={durationMs} detailsRef={activityRef} hasAuxiliary={hasAuxiliary} auxiliary={<>
+    {role === 'assistant' && (showActivity || status?.type === 'running' || hasAuxiliary) && <AttemptActivity activities={activities} modelRequests={Array.isArray(custom?.modelRequests) ? custom.modelRequests as ProcessModelCall[] : []} initialThinking={custom?.initialThinking as InitialThinking|undefined} nativeGraphFocus={custom?.nativeGraphFocus === 'tools' || custom?.nativeGraphFocus === 'tasks' ? custom.nativeGraphFocus : undefined} executionGraph={custom?.executionGraph as ExecutionGraph | undefined} diagnostics={Array.isArray(custom?.stepDiagnostics) ? custom.stepDiagnostics as TaskStepDiagnostic[] : []} branches={Array.isArray(custom?.researchBranches) ? custom.researchBranches as ResearchBranch[] : []} steps={Array.isArray(custom?.taskSteps) ? custom.taskSteps as TaskStep[] : []} stepStorageKey={typeof custom?.stepStorageKey === 'string' ? custom.stepStorageKey : attemptId} progress={Array.isArray(custom?.taskProgress) ? custom.taskProgress as TaskProgress[] : []} goal={typeof custom?.researchGoal === 'string' ? custom.researchGoal : undefined} phase={typeof custom?.terminalPhase === 'string' ? custom.terminalPhase : undefined} running={status?.type === 'running'} open={activityOpen} onOpenChange={(open) => { if (open) selectPanel('process'); else if (activePanel === 'process') selectPanel(null) }} startedAt={startedAt} durationMs={durationMs} detailsRef={activityRef} hasAuxiliary={hasAuxiliary} auxiliary={<>
       <AcceptedContextDetails value={custom?.acceptedContext} />
       {readRecords && <AttemptRecordPanel key={attemptId} attemptId={attemptId} read={readRecords} />}
       <ResearchEvidence snapshot={parseResearchSnapshot(custom?.researchSnapshot)} />
@@ -1184,7 +1203,13 @@ export default function CapstoneAssistantThread({ nativeArtifactProjections, pro
   },[requestedProductReference?.nonce])
   const activeInput = { ...inputDraft, mode: runtimeMode }
   useEffect(() => { if(restoredInput.error&&inputDraft===restoredInput.draft)return; try{writeInputDraft(storageKey, activeInput)}catch(error){setProductReferenceError(error instanceof Error?error.message:'输入草稿暂时无法保存。')} }, [storageKey, inputDraft, runtimeMode])
-  const allMessages = useMemo(() => projectedMessages ? [...projectedMessages] : projectSystemNotices(projectAssistantMessages(events, instructionModels), events, systemNotices, historyAtLatest), [projectedMessages, events, instructionModels, systemNotices, historyAtLatest])
+  const [submittingThinking,setSubmittingThinking]=useState<{id:string;text:string;afterSeq:number;at:string}>()
+  const submitSequence=useRef(0)
+  const allMessages = useMemo(() => {
+    const rows=projectedMessages ? [...projectedMessages] : projectSystemNotices(projectAssistantMessages(events, instructionModels), events, systemNotices, historyAtLatest)
+    if(!submittingThinking||events.some(event=>event.eventType==='command_accepted'&&event.eventSeq>submittingThinking.afterSeq&&payloadText(event,true)===submittingThinking.text))return rows
+    return [...rows,{id:submittingThinking.id,role:'assistant' as const,content:'',status:{type:'running' as const},metadata:{custom:{source:'optimistic-submit',initialThinking:{text:'',phase:'queued',handedOff:false,startedAt:submittingThinking.at} satisfies InitialThinking,stepStorageKey:submittingThinking.id}}}]
+  }, [projectedMessages, events, instructionModels, systemNotices, historyAtLatest,submittingThinking])
   const firstPublicEventSeq = useMemo(() => events.reduce((first, event) => event.visibility === 'public' ? Math.min(first, event.eventSeq) : first, Number.POSITIVE_INFINITY), [events])
   const [foldState, setFoldState] = useSessionViewState<{ thread: string | undefined; ids: string[] }>('conversation.folds',{ thread: storageKey, ids: [] })
   const collapsedAnswers = new Set(foldState.thread === storageKey ? foldState.ids : [])
@@ -1518,6 +1543,9 @@ export default function CapstoneAssistantThread({ nativeArtifactProjections, pro
     onNew: async (message) => {
       const text = messageText(message)
       if (text.trim()) {
+        const submissionId=`assistant-submitting-${++submitSequence.current}`
+        setSubmittingThinking({id:submissionId,text:text.trim(),afterSeq:Math.max(0,...events.map(event=>event.eventSeq)),at:new Date().toISOString()})
+        try {
         if (composerMode === 'text') {
           await onSend('automatic', text.trim())
           returnToLatest()
@@ -1529,6 +1557,7 @@ export default function CapstoneAssistantThread({ nativeArtifactProjections, pro
         else await onSend('automatic', text.trim())
         setInputDraft(current => current === sent ? {...emptyInputDraft(runtimeMode),...(sent.material_refs===undefined?{}:{material_refs:sent.material_refs})} : current)
         returnToLatest()
+        } finally { setSubmittingThinking(current=>current?.id===submissionId?undefined:current) }
       }
     },
     onEdit: async (message) => {

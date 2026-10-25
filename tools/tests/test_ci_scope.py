@@ -112,6 +112,12 @@ def test_conversation_runtime_uses_affected_consumer_gate(path):
     assert classify(mixed, release=True) == 'release'
 
 
+def test_conversation_resources_do_not_narrow_uncovered_backend_changes():
+    paths=['packages/capstone-agent/src/capstone_agent/resources/general-context.mjs',
+           'packages/capstone-agent/src/capstone_agent/uncovered_new_service.py']
+    assert classify(paths)=='product'
+
+
 @pytest.mark.parametrize('extra', [
     'compose.yaml', 'configs/runtime/data-gateway.json',
     'packages/grid-simulator/src/grid_simulator/powermcp_sidecar.py',

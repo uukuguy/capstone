@@ -937,6 +937,81 @@ def test_worker_keeps_general_process_text_diagnostic(mode, event_type, child_st
     assert all(event.visibility == 'diagnostic' for event in events if event.event_type == 'runtime_event')
 
 
+@pytest.mark.parametrize('mode', ['direct', 'delegated'])
+@pytest.mark.parametrize('child_status', ['completed', 'failed'])
+def test_worker_persists_public_thinking_for_exact_attempt_without_answer_or_evidence(mode, child_status):
+    service, current = claim()
+    if mode == 'direct':
+        current = replace(current, attempt=replace(current.attempt, runtime_mode='pi_reference'))
+    class ThinkingExecutor(Executor):
+        def execute(self, request, control, on_event):
+            self.requests.append(request)
+            on_event({'type': 'assistant_thinking_delta', 'text': 'Check the available inputs.',
+                'task_id': 'forged-task', 'result_refs': ['forged-result'], 'evidence_refs': ['forged-evidence']})
+            on_event({'type': 'message_update', 'assistantMessageEvent': {'type': 'thinking_end', 'thinking': 'PRIVATE'}})
+            return PiTaskResult(request.task_id, request.parent_attempt_id, self.identity,
+                child_status, 'Final answer', (), (), {})
+    executor = ThinkingExecutor()
+    result = run(service, current, factory(executor, Recognizer([goal('one')])))
+    events = service.read_events(current.thread_id, 0).events
+    thinking = [event for event in events if event.event_type == 'assistant_thinking_delta']
+    assert len(thinking) == 1
+    assert thinking[0].visibility == 'public'
+    assert thinking[0].attempt_id == current.attempt.attempt_id
+    assert thinking[0].payload['text'] == 'Check the available inputs.'
+    assert thinking[0].payload['task_id'] == executor.requests[0].task_id
+    replay = service.read_events(current.thread_id, thinking[0].event_seq - 1).events
+    assert [event for event in replay if event.event_type == 'assistant_thinking_delta'] == thinking
+    assert 'Check the available inputs.' not in (result.answer or '')
+    assert 'PRIVATE' not in str(events)
+    assert result.result_refs == result.evidence_refs == ()
+
+
+def test_delegated_thinking_obeys_parent_cancel_before_publishing_late_chunk():
+    service, current = claim()
+    stopped = [False]
+    class ThinkingExecutor(Executor):
+        def execute(self, request, control, on_event):
+            self.requests.append(request)
+            on_event({'type': 'assistant_thinking_delta', 'text': 'Visible before cancellation.'})
+            stopped[0] = True
+            on_event({'type': 'assistant_thinking_delta', 'text': 'LATE_THINKING'})
+            pytest.fail('cancelled execution must not reach an answer')
+    executor = ThinkingExecutor()
+    selected = factory(executor, Recognizer([goal('one')]))
+    plan = selected.plan_intent(current, NodeControl(lambda: None, time.monotonic() + 10), service.freeze_attempt_input)
+    runtime = selected(replace(current, turn_plan=plan))
+    events = []
+    def heartbeat():
+        if stopped[0]:
+            raise InterruptedError('parent cancelled')
+    with pytest.raises(InterruptedError):
+        runtime.prompt(current.instruction, on_event=events.append, on_heartbeat=heartbeat)
+    assert [event['payload']['text'] for event in events if event['event_type'] == 'assistant_thinking_delta'] == ['Visible before cancellation.']
+    assert executor.cancelled == [executor.requests[0].task_id]
+
+
+def test_public_thinking_persistence_failure_remains_fatal():
+    service, current = claim()
+    class ThinkingExecutor(Executor):
+        def execute(self, request, control, on_event):
+            self.requests.append(request)
+            on_event({'type': 'assistant_thinking_delta', 'text': 'Check inputs.'})
+            pytest.fail('failed persistence must not reach an answer')
+    executor = ThinkingExecutor()
+    selected = factory(executor, Recognizer([goal('one')]))
+    plan = selected.plan_intent(current, NodeControl(lambda: None, time.monotonic() + 10), service.freeze_attempt_input)
+    runtime = selected(replace(current, turn_plan=plan))
+    def sink(event):
+        if event['event_type'] == 'assistant_thinking_delta':
+            raise RuntimeError('ledger unavailable')
+    from capstone_agent.delegated_runtime import GoalReceiptPersistenceError
+    with pytest.raises(GoalReceiptPersistenceError, match='thinking event') as failure:
+        runtime.prompt(current.instruction, on_event=sink)
+    assert str(failure.value.__cause__) == 'ledger unavailable'
+    assert executor.cancelled == [executor.requests[0].task_id]
+
+
 def test_native_live_tool_projection_preserves_host_receipt_identity_without_private_content():
     service, current = claim()
     class LiveExecutor(Executor):

@@ -96,9 +96,31 @@ explicitly. A new conversation instruction supersedes its old pending input;
 the framework must not concatenate the stopped request into new executable work.
 Terminal history retains its status and identity in model context. A retained
 Work goal is background; it does not silently add obligations to a new turn.
-Process emphasis follows actual execution and selected resources: thinking state,
-general tool calls, or business task planning. Internal scheduling graphs alone
-do not establish a business task or completed analysis.
+Historical user and assistant messages retain their source roles and original
+text inside a read-only reference packet. They are not replayed as the new
+executor's own assistant trajectory. Only this task's live messages form that
+trajectory. Historical instructions, status and factual claims do not
+establish current execution or live environment facts. Research summaries carry
+an immutable attempt/turn identity and an explicit research-bookkeeping scope,
+including in compact recovery windows. An idle research cycle describes that
+controller only; it is not an observation of operating-system processes or other
+attempts. A new accepted instruction is fresh authorization within existing
+grants even when it repeats a terminal request.
+The native execution host supplies a separate current-task status snapshot with
+its native task ID, parent Attempt ID, capture time and bounded scope. It does
+not claim to enumerate other tasks or operating-system processes. Missing
+observations are unknown, not zero. Research-cycle status cannot replace this
+host execution snapshot; neither snapshot grants new tools or Authority access.
+For continuing native tasks, retained research memory is read on demand while
+the current research controller is unstarted. Automatic research context begins
+only after the current controller has accepted organization or execution state.
+The request guard verifies that an idle context has not become active between
+context preparation and the model request. Existing research state is preserved;
+neither a fresh instruction nor an idle view silently clears it.
+Process emphasis follows actual execution: initial thinking, direct tool calls,
+or admitted task organization. Task organization selects task steps regardless
+of uploaded resources. Host lifecycle timing and unadmitted graph text do not
+establish task planning or completed analysis.
 
 Systematic diagnosis is an application-owned native foundation capability with
 an on-demand method guide and host-persisted reported records. Ordinary use is

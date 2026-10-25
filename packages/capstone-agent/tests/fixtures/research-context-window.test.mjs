@@ -37,10 +37,12 @@ test('small context remains exact and later pages retain exact identities',()=>{
 
 test('minimal recovery context preserves the retained goal scope',()=>{
   const value={goal:'Old request',goal_scope:'retained_work_background',scope_notice:'The current user instruction controls this turn.',
+    state_scope:{kind:'research_bookkeeping',attempt_id:'current',live_environment_observation:false},
     cycle:{graph:{nodes:[{id:'x'.repeat(8000)}]}}};
   const page=windowResearchContext(value,{limit:1500});
   assert.equal(page.goal_scope,value.goal_scope);
   assert.equal(page.scope_notice,value.scope_notice);
+  assert.deepEqual(page.state_scope,value.state_scope);
 });
 
 test('debug mode oversized graph context keeps the request guard ready and supports overview pages',async()=>{
@@ -61,9 +63,42 @@ test('debug mode oversized graph context keeps the request guard ready and suppo
     const prepared=await hooks.context({messages:[]});assert.ok(prepared.messages[0].content.length<=4000);
     const projected=JSON.parse(prepared.messages[0].content.split('\n').slice(1).join('\n'));
     assert.equal(projected.goal_scope,'retained_work_background');
+    assert.deepEqual(projected.state_scope,{kind:'research_bookkeeping',turn_id:'turn',attempt_id:'attempt',
+      research_id:'research',live_environment_observation:false});
     assert.match(projected.scope_notice,/current user instruction/);
     await hooks.before_model_request({context:{messages:[{role:'user',content:prepared.messages[0].content}]}});
     const page=await tools.agent_research_read.execute('page',{section:'overview',offset:8,limit:4});
     assert.equal(page.details.ok,true);assert.equal(page.details.result.cycle.graph.current_results[0].result_ref,'result-8');
+    assert.deepEqual(page.details.result.state_scope,projected.state_scope);
+  }finally{await rm(root,{recursive:true,force:true});}
+});
+
+test('idle new instruction does not inherit an automatic retained-Work research prompt',async()=>{
+  const root=await realpath(await mkdtemp(join(tmpdir(),'research-idle-'))),hooks={},tools={};
+  const identity={run_id:'run',turn_id:'new-turn',attempt_id:'new-attempt',research_id:'retained'};
+  const cycle={phase:'idle',graph:null,checkpoint:null};
+  try{
+    await mkdir(join(root,'requests'));await mkdir(join(root,'receipts'));
+    await writeFile(join(root,'binding.json'),JSON.stringify({schema_version:'capability-research-channel/1.0',...identity,
+      read_tool_schema:{type:'object',additionalProperties:false,properties:{section:{type:'string'}}},
+      update_tool_schema:{type:'object',additionalProperties:false,properties:{changes:{},expected_revision:{}}}}));
+    await writeFile(join(root,'view.json'),JSON.stringify({schema_version:'capability-research-view/1.0',...identity,research_revision:1,
+      state:{research_id:'retained',revision:1,goal:'Old stopped report',claims:[],notes:[],open_questions:[]}}));
+    configureResearchTools({on:(name,fn)=>{hooks[name]=fn;},registerTool:tool=>{tools[tool.name]=tool;}},root,
+      {retainedWorkBackground:true,getControllerState:async()=>structuredClone(cycle),fatal:message=>{throw Error(message);}});
+    const current={role:'user',content:'Observe the current environment',timestamp:123};
+    const prepared=await hooks.context({messages:[current]});
+    assert.deepEqual(prepared.messages,[current]);
+    await hooks.before_model_request({context:{messages:[current]}});
+    const read=await tools.agent_research_read.execute('read',{section:'overview'});
+    assert.equal(read.details.result.goal,'Old stopped report');
+    assert.equal(read.details.result.state_scope.attempt_id,'new-attempt');
+    await hooks.context({messages:[current]});
+    cycle.phase='active';cycle.checkpoint={ref:'accepted-current-plan',revision:1};
+    await assert.rejects(hooks.before_model_request({context:{messages:[current]}}),/research context/);
+    const active=await hooks.context({messages:[current]});
+    assert.equal(active.messages[0],current);
+    assert.equal(active.messages.length,2);
+    await hooks.before_model_request({context:{messages:[current,{role:'user',content:active.messages[1].content}]}});
   }finally{await rm(root,{recursive:true,force:true});}
 });

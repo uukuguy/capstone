@@ -101,3 +101,31 @@ Do not promise a fixed frame rate based on node count alone.
 No sibling-project modification or external message was made for this proposal.
 Model calculation remains gated by the separate source quality and Authority
 contracts. This requirement does not defer the first production-data research path.
+
+## Verified gateway publication, 2026-10-26
+
+The user has now authorized full implementation after the task-isolation fix,
+followed by real North China display and one source-backed grid question.
+The earlier implementation deferral is superseded by that instruction.
+
+A read-only authenticated MCP check reached gateway1.30.0 and discovered50tools.
+The published get_network_topology_view accepts scope_id, level(region/station/
+equipment), selected_object_id, voltage_min_kv, independent node_offset/edge_offset,
+limit and expected_view_ref. It returns view_ref, source snapshot, typed nodes and
+edges, explicit display-only grouping, total counts, independent continuation
+cursors, boundary IDs and source-quality gaps. Do not assume a proposed viewport
+or corridor-bundling argument exists in this publication.
+
+The real north regional view at330kV minimum reports405station display nodes and
+1003source-line edges. The check read only3nodes/3edges and retained both next
+cursors. These are total metadata counts, not a claim that the whole model was
+downloaded. Edge endpoints may be on other pages; load both streams against the
+same expected_view_ref. The first saved view ref is60832719129307ce6885987bfa183cf982ed0574c00a6d38f18c7c1fce8943f7.
+
+Source reports line parameters, switch positions and injections unverified,
+no electrical bus reduction, incomplete engine mapping and incomplete source
+line connections. Display grouping is not an electrical equivalent. A separate
+model-readiness call exceeded the initial20second HTTP budget; do not claim
+source-backed power-flow readiness from this display check. No build or solver
+call was made. Credentials are in ignored operator authentication state and must
+not enter this document, App, model context or artifacts.

@@ -43,8 +43,8 @@ describe('CapstoneAssistantThread', () => {
   it('shows public thinking status before the first task or tool exists', () => {
     const events=[event('command_accepted',1,{kind:'send_auto',payload:{text:'分析资料'}},'startup'),event('attempt_started',2,{},'startup')]
     render(<CapstoneAssistantThread events={events} activity={projectAssistantActivity(events)} disabled={false} isRunning={true} onSend={async()=>{}} onCancel={async()=>{}} />)
-    expect(screen.getByRole('region',{name:'思考状态'}).textContent).toContain('等待模型进展')
-    expect(screen.getByRole('region',{name:'思考状态'}).textContent).toContain('已用时')
+    expect(screen.getByRole('region',{name:'思考状态'}).textContent).toContain('Thinking…')
+    expect(screen.queryByText('当前记录未提供公开思考摘要。')).toBeNull()
     expect(screen.queryByText('正在准备输入、规划和调度首个任务。')).toBeNull()
   })
   it('changes from measured thinking to visible tools to recorded tasks and keeps that focus on replay', () => {
@@ -53,7 +53,7 @@ describe('CapstoneAssistantThread', () => {
       event('runtime_action', 3, {phase:'response_completed'}, 'mixed', '2026-09-30T00:00:03Z')]
     const props = {disabled:false,isRunning:true,activity:[],onSend:async()=>{},onCancel:async()=>{}}
     const {rerender,unmount} = render(<CapstoneAssistantThread {...props} events={start} />)
-    expect(screen.getByRole('region',{name:'思考状态'}).textContent).toContain('未提供公开思考摘要')
+    expect(screen.getByRole('region',{name:'思考状态'}).textContent).toContain('Thinking…')
     expect(screen.getByRole('group',{name:'LLM 调用 1'}).textContent).toContain('2.0s')
     const toolEvents = [...start, event('runtime_event',4,{native_type:'tool_execution_start',task_id:'task',tool_call_id:'call',tool_name:'read',activity:{operation:'Read registered source'}},'mixed')]
     rerender(<CapstoneAssistantThread {...props} events={toolEvents} />)
@@ -680,7 +680,7 @@ describe('CapstoneAssistantThread', () => {
     expect(screen.getByText('还需核验边界')).toBeTruthy()
   })
 
-  it('keeps a committed research goal on its own task without adding a selector', () => {
+  it('retains a research-record goal without labelling it the current instruction goal', () => {
     const events = [
       event('attempt_started', 1, {}, 'study'),
       event('research_state_updated', 2, { goal: '比较方案并核验可行性' }, 'study'),
@@ -688,10 +688,12 @@ describe('CapstoneAssistantThread', () => {
       event('attempt_completed', 4, { answer: '另一任务的回答。' }, 'other'),
     ]
     const messages = projectAssistantMessages(events)
-    expect(messages.find(message => message.id === 'assistant-study')?.metadata?.custom?.researchGoal).toBe('比较方案并核验可行性')
+    expect(messages.find(message => message.id === 'assistant-study')?.metadata?.custom?.retainedResearchGoal).toBe('比较方案并核验可行性')
+    expect(messages.find(message => message.id === 'assistant-study')?.metadata?.custom?.researchGoal).toBeUndefined()
     expect(messages.find(message => message.id === 'assistant-other')?.metadata?.custom?.researchGoal).toBeUndefined()
     render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
-    expect(screen.getAllByText('本次任务的研究目标')).toHaveLength(1)
+    expect(screen.getAllByText('研究记录中的目标')).toHaveLength(1)
+    expect(screen.queryByText('本次任务的研究目标')).toBeNull()
   })
   it('includes failed execution and validation records in calculation results', () => {
     const events = [
