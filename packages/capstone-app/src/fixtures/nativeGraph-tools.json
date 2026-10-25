@@ -1,0 +1,467 @@
+[
+  {
+    "event_id": "evt_d04ff42f5f3b5802",
+    "event_seq": 42,
+    "event_type": "attempt_started",
+    "event_version": 1,
+    "thread_id": "thr_d9576805d1efeab634b3",
+    "run_id": "run_d9576805d1efeab634b3",
+    "occurred_at": "2026-10-25T11:57:15.307169Z",
+    "visibility": "public",
+    "turn_id": "turn_0308778c91fe2f23",
+    "attempt_id": "attempt_025ac01ad7e8e5f2",
+    "payload": {
+      "task_step": {
+        "id": "task-preparation",
+        "title": "任务准备",
+        "number": 1,
+        "status": "running"
+      }
+    }
+  },
+  {
+    "event_id": "evt_80bcdbcdb7f61ce8",
+    "event_seq": 44,
+    "event_type": "turn_plan_created",
+    "event_version": 1,
+    "thread_id": "thr_d9576805d1efeab634b3",
+    "run_id": "run_d9576805d1efeab634b3",
+    "occurred_at": "2026-10-25T11:57:15.413217Z",
+    "visibility": "public",
+    "turn_id": "turn_0308778c91fe2f23",
+    "attempt_id": "attempt_025ac01ad7e8e5f2",
+    "payload": {
+      "source": "native_conversation",
+      "plan_revision": "turn-native-conversation-v1",
+      "accepted_context": {
+        "objects": [],
+        "materials": [],
+        "truncated": false,
+        "full_model_tables": false
+      }
+    }
+  },
+  {
+    "event_id": "evt_5806ed69904a91a2",
+    "event_seq": 51,
+    "event_type": "runtime_event",
+    "event_version": 1,
+    "thread_id": "thr_d9576805d1efeab634b3",
+    "run_id": "run_d9576805d1efeab634b3",
+    "occurred_at": "2026-10-25T11:57:25.988875Z",
+    "visibility": "public",
+    "turn_id": "turn_0308778c91fe2f23",
+    "attempt_id": "attempt_025ac01ad7e8e5f2",
+    "payload": {
+      "task_id": "pi-4b4a5df90b5cc636153159f5b5ee7f1d687c3977dcd451445a9ae82b8b9578ec",
+      "native_type": "enterprise_graph_progress",
+      "research_graph": {
+        "type": "enterprise_graph_progress",
+        "graph": {
+          "goal": "Recorded fixture text",
+          "nodes": [
+            {
+              "id": "compute_square_sum",
+              "mode": "execute",
+              "phase": "ready",
+              "checks": [],
+              "inputs": [],
+              "outputs": [
+                {
+                  "kind": "observation",
+                  "slot": "square_sum_finding",
+                  "description": "1..100 平方和的最终数值、闭式公式交叉校验结论与读取注意事项"
+                },
+                {
+                  "kind": "artifact",
+                  "slot": "result_csv",
+                  "description": "包含 n、n^2 与总计划的结果 CSV 文件"
+                },
+                {
+                  "kind": "artifact",
+                  "slot": "readme_note",
+                  "description": "简短说明文件：口径、方法、校验、结果数值与 CSV 结构"
+                }
+              ],
+              "purpose": "Recorded fixture text",
+              "execution": "delegated",
+              "questions": [
+                "Recorded fixture requirement 1"
+              ],
+              "blocked_by": [],
+              "depends_on": [],
+              "supersedes": [],
+              "instruction": "Recorded fixture text",
+              "source_refs": [],
+              "wait_reason": null,
+              "stale_reason": null,
+              "applicability": "current",
+              "input_targets": [],
+              "definition_ref": "node:98d7212d581f0bafdc068e8ce741fdf102c9208f5afb92730d82db596a42fcc3",
+              "input_bindings": [],
+              "settled_status": null,
+              "output_bindings": [],
+              "assess_action_id": null,
+              "expected_outputs": [
+                "Recorded fixture requirement 1",
+                "Recorded fixture requirement 2",
+                "Recorded fixture requirement 3"
+              ],
+              "recompute_reason": null,
+              "execute_action_id": null,
+              "dependency_targets": [],
+              "execution_revision": 1,
+              "selected_source_versions": []
+            }
+          ],
+          "schema": "capstone-enterprise-graph/2",
+          "actions": [],
+          "results": [],
+          "graph_ref": "graph:189121b5ef728465c0925495544ef2bc66987edbfc39c5a8fa3184910afa1a87",
+          "output_mode": "files",
+          "graph_revision": 1,
+          "model_revision_reason": null
+        },
+        "owner": {
+          "work_id": "work_fea9ff10d260368869f8",
+          "thread_id": "thr_d9576805d1efeab634b3",
+          "research_id": "research-24fe38b46d7c6a8f73ed",
+          "goal_revision": 1
+        },
+        "events": [
+          {
+            "kind": "graph_committed",
+            "nodes": [
+              {
+                "id": "compute_square_sum",
+                "mode": "execute",
+                "checks": [],
+                "inputs": [],
+                "outputs": [
+                  {
+                    "kind": "observation",
+                    "slot": "square_sum_finding",
+                    "description": "1..100 平方和的最终数值、闭式公式交叉校验结论与读取注意事项"
+                  },
+                  {
+                    "kind": "artifact",
+                    "slot": "result_csv",
+                    "description": "包含 n、n^2 与总计划的结果 CSV 文件"
+                  },
+                  {
+                    "kind": "artifact",
+                    "slot": "readme_note",
+                    "description": "简短说明文件：口径、方法、校验、结果数值与 CSV 结构"
+                  }
+                ],
+                "purpose": "Recorded fixture text",
+                "execution": "delegated",
+                "questions": [
+                  "Recorded fixture requirement 1"
+                ],
+                "depends_on": [],
+                "instruction": "Recorded fixture text",
+                "source_refs": [],
+                "expected_outputs": [
+                  "Recorded fixture requirement 1",
+                  "Recorded fixture requirement 2",
+                  "Recorded fixture requirement 3"
+                ]
+              }
+            ],
+            "graph_ref": "graph:189121b5ef728465c0925495544ef2bc66987edbfc39c5a8fa3184910afa1a87",
+            "graph_revision": 1,
+            "previous_graph_ref": null,
+            "model_revision_reason": null
+          }
+        ],
+        "control": {
+          "tool_name": "agent_research_plan",
+          "tool_call_id": "call_00_q3VB0IcomzBYTXlIuUbV2947"
+        },
+        "task_id": "pi-4b4a5df90b5cc636153159f5b5ee7f1d687c3977dcd451445a9ae82b8b9578ec",
+        "attempt_id": "attempt_025ac01ad7e8e5f2",
+        "checkpoint": {
+          "ref": "runtime.checkpoint.085c4d5390dc50f90ba9.57fdfa2088f4c67efe8d8eaf",
+          "revision": 1
+        }
+      }
+    }
+  },
+  {
+    "event_id": "evt_315857f64fbae099",
+    "event_seq": 53,
+    "event_type": "runtime_event",
+    "event_version": 1,
+    "thread_id": "thr_d9576805d1efeab634b3",
+    "run_id": "run_d9576805d1efeab634b3",
+    "occurred_at": "2026-10-25T11:57:26.154015Z",
+    "visibility": "public",
+    "turn_id": "turn_0308778c91fe2f23",
+    "attempt_id": "attempt_025ac01ad7e8e5f2",
+    "payload": {
+      "task_id": "pi-4b4a5df90b5cc636153159f5b5ee7f1d687c3977dcd451445a9ae82b8b9578ec",
+      "native_type": "enterprise_graph_progress",
+      "research_graph": {
+        "type": "enterprise_graph_progress",
+        "graph": {
+          "goal": "Recorded fixture text",
+          "nodes": [
+            {
+              "id": "compute_square_sum",
+              "mode": "execute",
+              "phase": "executing",
+              "checks": [],
+              "inputs": [],
+              "outputs": [
+                {
+                  "kind": "observation",
+                  "slot": "square_sum_finding",
+                  "description": "1..100 平方和的最终数值、闭式公式交叉校验结论与读取注意事项"
+                },
+                {
+                  "kind": "artifact",
+                  "slot": "result_csv",
+                  "description": "包含 n、n^2 与总计划的结果 CSV 文件"
+                },
+                {
+                  "kind": "artifact",
+                  "slot": "readme_note",
+                  "description": "简短说明文件：口径、方法、校验、结果数值与 CSV 结构"
+                }
+              ],
+              "purpose": "Recorded fixture text",
+              "execution": "delegated",
+              "questions": [
+                "Recorded fixture requirement 1"
+              ],
+              "blocked_by": [],
+              "depends_on": [],
+              "supersedes": [],
+              "instruction": "Recorded fixture text",
+              "source_refs": [],
+              "wait_reason": null,
+              "stale_reason": null,
+              "applicability": "current",
+              "input_targets": [],
+              "definition_ref": "node:98d7212d581f0bafdc068e8ce741fdf102c9208f5afb92730d82db596a42fcc3",
+              "input_bindings": [],
+              "settled_status": null,
+              "output_bindings": [],
+              "assess_action_id": null,
+              "expected_outputs": [
+                "Recorded fixture requirement 1",
+                "Recorded fixture requirement 2",
+                "Recorded fixture requirement 3"
+              ],
+              "recompute_reason": null,
+              "execute_action_id": "action:08cfe2be60352836ebdd0cce27ae90d836eebf685be65900f7d62622e326b28c",
+              "dependency_targets": [],
+              "execution_revision": 1,
+              "selected_source_versions": []
+            }
+          ],
+          "schema": "capstone-enterprise-graph/2",
+          "actions": [
+            {
+              "id": "action:08cfe2be60352836ebdd0cce27ae90d836eebf685be65900f7d62622e326b28c",
+              "kind": "execute",
+              "owner": {
+                "work_id": "work_fea9ff10d260368869f8",
+                "thread_id": "thr_d9576805d1efeab634b3",
+                "research_id": "research-24fe38b46d7c6a8f73ed",
+                "goal_revision": 1
+              },
+              "step_id": "compute_square_sum",
+              "graph_ref": "graph:189121b5ef728465c0925495544ef2bc66987edbfc39c5a8fa3184910afa1a87",
+              "attempt_id": "attempt_025ac01ad7e8e5f2",
+              "source_refs": [],
+              "definition_ref": "node:98d7212d581f0bafdc068e8ce741fdf102c9208f5afb92730d82db596a42fcc3",
+              "graph_revision": 1,
+              "input_bindings": [],
+              "source_versions": [],
+              "execution_revision": 1
+            }
+          ],
+          "results": [],
+          "graph_ref": "graph:189121b5ef728465c0925495544ef2bc66987edbfc39c5a8fa3184910afa1a87",
+          "output_mode": "files",
+          "graph_revision": 1,
+          "model_revision_reason": null
+        },
+        "owner": {
+          "work_id": "work_fea9ff10d260368869f8",
+          "thread_id": "thr_d9576805d1efeab634b3",
+          "research_id": "research-24fe38b46d7c6a8f73ed",
+          "goal_revision": 1
+        },
+        "events": [
+          {
+            "kind": "node_started",
+            "step_id": "compute_square_sum",
+            "action_id": "action:08cfe2be60352836ebdd0cce27ae90d836eebf685be65900f7d62622e326b28c",
+            "graph_ref": "graph:189121b5ef728465c0925495544ef2bc66987edbfc39c5a8fa3184910afa1a87",
+            "input_bindings": [],
+            "settled_status": null,
+            "execution_revision": 1
+          }
+        ],
+        "task_id": "pi-4b4a5df90b5cc636153159f5b5ee7f1d687c3977dcd451445a9ae82b8b9578ec",
+        "action_id": "action:08cfe2be60352836ebdd0cce27ae90d836eebf685be65900f7d62622e326b28c",
+        "attempt_id": "attempt_025ac01ad7e8e5f2",
+        "checkpoint": {
+          "ref": "runtime.checkpoint.085c4d5390dc50f90ba9.7813b37c9b8cb493b203df1b",
+          "revision": 2
+        }
+      }
+    }
+  },
+  {
+    "event_id": "evt_fe1d310ccce5c77c",
+    "event_seq": 75,
+    "event_type": "runtime_event",
+    "event_version": 1,
+    "thread_id": "thr_d9576805d1efeab634b3",
+    "run_id": "run_d9576805d1efeab634b3",
+    "occurred_at": "2026-10-25T11:57:34.114023Z",
+    "visibility": "public",
+    "turn_id": "turn_0308778c91fe2f23",
+    "attempt_id": "attempt_025ac01ad7e8e5f2",
+    "payload": {
+      "task_id": "pi-4b4a5df90b5cc636153159f5b5ee7f1d687c3977dcd451445a9ae82b8b9578ec",
+      "tool_name": "bash",
+      "native_type": "enterprise_graph_tool_binding",
+      "tool_call_id": "graph-child:0ebadf91e9e2648df752f4c82415b48f1d4ea88d4e7ae403104578ff1d0d12b1",
+      "research_graph_event": {
+        "type": "enterprise_graph_tool_binding",
+        "owner": {
+          "work_id": "work_fea9ff10d260368869f8",
+          "thread_id": "thr_d9576805d1efeab634b3",
+          "research_id": "research-24fe38b46d7c6a8f73ed",
+          "goal_revision": 1
+        },
+        "step_id": "compute_square_sum",
+        "task_id": "pi-4b4a5df90b5cc636153159f5b5ee7f1d687c3977dcd451445a9ae82b8b9578ec",
+        "action_id": "action:08cfe2be60352836ebdd0cce27ae90d836eebf685be65900f7d62622e326b28c",
+        "tool_name": "bash",
+        "attempt_id": "attempt_025ac01ad7e8e5f2",
+        "checkpoint": {
+          "ref": "runtime.checkpoint.085c4d5390dc50f90ba9.7813b37c9b8cb493b203df1b",
+          "revision": 2
+        },
+        "tool_call_id": "graph-child:0ebadf91e9e2648df752f4c82415b48f1d4ea88d4e7ae403104578ff1d0d12b1"
+      }
+    }
+  },
+  {
+    "event_id": "evt_6edff3f0fc70ccbf",
+    "event_seq": 76,
+    "event_type": "runtime_event",
+    "event_version": 1,
+    "thread_id": "thr_d9576805d1efeab634b3",
+    "run_id": "run_d9576805d1efeab634b3",
+    "occurred_at": "2026-10-25T11:57:34.125135Z",
+    "visibility": "public",
+    "turn_id": "turn_0308778c91fe2f23",
+    "attempt_id": "attempt_025ac01ad7e8e5f2",
+    "payload": {
+      "task_id": "pi-4b4a5df90b5cc636153159f5b5ee7f1d687c3977dcd451445a9ae82b8b9578ec",
+      "tool_name": "bash",
+      "native_type": "enterprise_graph_child_tool",
+      "tool_call_id": "graph-child:0ebadf91e9e2648df752f4c82415b48f1d4ea88d4e7ae403104578ff1d0d12b1",
+      "research_graph_event": {
+        "type": "enterprise_graph_child_tool",
+        "owner": {
+          "work_id": "work_fea9ff10d260368869f8",
+          "thread_id": "thr_d9576805d1efeab634b3",
+          "research_id": "research-24fe38b46d7c6a8f73ed",
+          "goal_revision": 1
+        },
+        "step_id": "compute_square_sum",
+        "task_id": "pi-4b4a5df90b5cc636153159f5b5ee7f1d687c3977dcd451445a9ae82b8b9578ec",
+        "activity": "start",
+        "child_id": "compute_square_sum",
+        "action_id": "action:08cfe2be60352836ebdd0cce27ae90d836eebf685be65900f7d62622e326b28c",
+        "tool_name": "bash",
+        "attempt_id": "attempt_025ac01ad7e8e5f2",
+        "checkpoint": {
+          "ref": "runtime.checkpoint.085c4d5390dc50f90ba9.7813b37c9b8cb493b203df1b",
+          "revision": 2
+        },
+        "tool_call_id": "graph-child:0ebadf91e9e2648df752f4c82415b48f1d4ea88d4e7ae403104578ff1d0d12b1",
+        "tool_activity": {
+          "operation": "Recorded fixture text"
+        }
+      }
+    }
+  },
+  {
+    "event_id": "evt_6e56c18778f56700",
+    "event_seq": 77,
+    "event_type": "runtime_event",
+    "event_version": 1,
+    "thread_id": "thr_d9576805d1efeab634b3",
+    "run_id": "run_d9576805d1efeab634b3",
+    "occurred_at": "2026-10-25T11:57:34.140543Z",
+    "visibility": "public",
+    "turn_id": "turn_0308778c91fe2f23",
+    "attempt_id": "attempt_025ac01ad7e8e5f2",
+    "payload": {
+      "task_id": "pi-4b4a5df90b5cc636153159f5b5ee7f1d687c3977dcd451445a9ae82b8b9578ec",
+      "is_error": false,
+      "tool_name": "bash",
+      "native_type": "enterprise_graph_child_tool",
+      "tool_call_id": "graph-child:0ebadf91e9e2648df752f4c82415b48f1d4ea88d4e7ae403104578ff1d0d12b1",
+      "research_graph_event": {
+        "type": "enterprise_graph_child_tool",
+        "owner": {
+          "work_id": "work_fea9ff10d260368869f8",
+          "thread_id": "thr_d9576805d1efeab634b3",
+          "research_id": "research-24fe38b46d7c6a8f73ed",
+          "goal_revision": 1
+        },
+        "step_id": "compute_square_sum",
+        "task_id": "pi-4b4a5df90b5cc636153159f5b5ee7f1d687c3977dcd451445a9ae82b8b9578ec",
+        "activity": "end",
+        "child_id": "compute_square_sum",
+        "is_error": false,
+        "action_id": "action:08cfe2be60352836ebdd0cce27ae90d836eebf685be65900f7d62622e326b28c",
+        "tool_name": "bash",
+        "attempt_id": "attempt_025ac01ad7e8e5f2",
+        "checkpoint": {
+          "ref": "runtime.checkpoint.085c4d5390dc50f90ba9.7813b37c9b8cb493b203df1b",
+          "revision": 2
+        },
+        "execution_ms": 19.8194739999999,
+        "tool_call_id": "graph-child:0ebadf91e9e2648df752f4c82415b48f1d4ea88d4e7ae403104578ff1d0d12b1",
+        "tool_activity": {
+          "output_excerpt": "Recorded fixture text"
+        }
+      }
+    }
+  },
+  {
+    "event_id": "evt_08c5a6d7ff90cd5e",
+    "event_seq": 146,
+    "event_type": "attempt_completed",
+    "event_version": 1,
+    "thread_id": "thr_d9576805d1efeab634b3",
+    "run_id": "run_d9576805d1efeab634b3",
+    "occurred_at": "2026-10-25T11:58:25.815119Z",
+    "visibility": "public",
+    "turn_id": "turn_0308778c91fe2f23",
+    "attempt_id": "attempt_025ac01ad7e8e5f2",
+    "payload": {
+      "answer": "Recorded fixture answer",
+      "task_steps": [
+        {
+          "id": "task-finalization-3",
+          "title": "核验与结果整理",
+          "number": 3,
+          "status": "completed",
+          "duration_ms": 11
+        }
+      ]
+    }
+  }
+]
