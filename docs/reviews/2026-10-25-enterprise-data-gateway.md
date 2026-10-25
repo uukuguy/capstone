@@ -3,6 +3,16 @@
 Status: local functional acceptance passed on runtime source 2f9c6b56.
 Dev integration and required PR checks are separate. No cloud/demo promotion.
 
+PR #58 first failed type checks; correction015112a7 passes Pyright and105focused
+checks. The next CI run40138770412 failed one authorization test after22m36s:
+2007agent checks passed. A simulated11-second server startup reproduced the
+failure. Starting the test grant after host/server/client setup fixes that case
+without extending production authorization. The delayed-start check and8gateway
+relay tests pass. User requested lighter development CI;60scope/contract tests
+and362native SDK tests pass for the bounded native-runtime gate. Its remote
+duration is pending. Independent review could not start because its configured
+model is unavailable; no independent approval is claimed.
+
 ## Delivered scope
 
 Enterprise-research uses application-admitted data-gateway tools through a fixed

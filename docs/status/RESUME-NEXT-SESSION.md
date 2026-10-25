@@ -39,12 +39,14 @@ control view. Temporary graph server18765/session94799 serves this worktree.
 ## Next action
 
 PR #58 is open: https://github.com/uukuguy/capstone/pull/58.
-Its first required gate failed on11Pyright errors. The correction passes Pyright
-with0errors and105focused gateway/relay/server/resource tests in11.46s. Local
-HTTP tests require NO_PROXY/no_proxy=127.0.0.1,localhost; without it7requests went
-through the machine proxy and failed. Push the correction and inspect its gate.
-Run only required dev gates, not release=true or cloud/demo. The transport and
-new dependencies select the existing product integration gate. After green,
+015112a7 resolved11Pyright errors. CI40138770412 then failed one test after22m36s:
+the10-second test grant began before service initialization. An11-second startup
+reproduces it; registration after setup passes. The user requested lighter CI.
+The new native-runtime scope retains foundation/SDK/MCP/deployment consumers;
+only semantic MCP dependency changes qualify.60scope tests and362SDK tests pass.
+Local HTTP tests require NO_PROXY/no_proxy=127.0.0.1,localhost.
+Push this correction and inspect the required dev gate. No release/cloud/demo.
+After green,
 merge normally, reconcile ROOT's two preserved metadata files, fast-forward dev,
 verify its real entrypoint and close only merged feature refs. Update canonical
 control in actual dev and preserve unmerged research/recovery branches and data.

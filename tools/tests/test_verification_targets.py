@@ -177,7 +177,7 @@ def test_shared_agent_ci_checks_dependencies_with_a_time_budget() -> None:
 def test_foundation_ci_keeps_professional_adapters_and_time_budget() -> None:
     workflow = (ROOT / '.github/workflows/verify.yml').read_text()
     block = workflow.split('      - name: Verify shared foundation assembly\n', 1)[1].split('      - name:', 1)[0]
-    assert "if: steps.scope.outputs.gate == 'foundation'" in block
+    assert "if: steps.scope.outputs.gate == 'foundation' || steps.scope.outputs.gate == 'native-runtime'" in block
     assert 'timeout-minutes: 15' in block
     for expected in ('test-kernel', 'test-capstone-agent', 'test-registered-workers',
                      'test-domain-package', 'packages/pypsa-agent/tests', 'test-capstone-app', 'check-types',
@@ -185,6 +185,18 @@ def test_foundation_ci_keeps_professional_adapters_and_time_budget() -> None:
                      'test_generic_entrypoint.py', 'test_composition.py', 'test_hosted_thread.py',
                      'test_application_conformance.py', 'test_multi_binding_application.py'):
         assert expected in block
+
+
+def test_native_runtime_ci_checks_mcp_and_deployment_consumers():
+    workflow = (ROOT / '.github/workflows/verify.yml').read_text()
+    block = workflow.split('      - name: Verify native runtime consumers\n', 1)[1].split('      - name:', 1)[0]
+    assert "if: steps.scope.outputs.gate == 'native-runtime'" in block
+    assert 'timeout-minutes: 10' in block
+    for expected in ('test-local-rebuild', 'test-inventory-pi', 'test-pi-capture-runtime',
+                     'test_powermcp_audit.py', 'fixtures/*.test.mjs'):
+        assert expected in block
+    assert 'make check-pr' not in block
+    assert 'make check-release' not in block
 
 
 def test_iteration_requires_explicit_scope_and_propagates_failure(tmp_path: Path) -> None:

@@ -74,7 +74,6 @@ def test_http_route_requires_task_grant_and_revocation(tmp_path):
     from capstone_agent.general_pi_relay import ProviderRelay
     resource = access()
     relay = ProviderRelay()
-    relay.register('task-1', 'task-grant', time.monotonic() + 10)
     runner = SimpleNamespace(gateway=resource, relay=relay)
     host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'}, run_task=lambda *_: ('', {}))
     server = make_server(host, control_token='host-secret', address=('127.0.0.1', 0), runner=runner)
@@ -83,6 +82,9 @@ def test_http_route_requires_task_grant_and_revocation(tmp_path):
     url = f'http://127.0.0.1:{server.server_port}/data-gateway/task-1'
     try:
         with httpx.Client(trust_env=False) as client:
+            # Start task lifetime after host/server/client initialization. Cold
+            # runner startup must not consume the authorization under test.
+            relay.register('task-1', 'task-grant', time.monotonic() + 10)
             assert client.post(url, json=request()).status_code == 401
             assert client.post(url, json=request(), headers={'Authorization': 'Bearer host-secret'}).status_code == 401
             response = client.post(url, json=request(), headers={'Authorization': 'Bearer task-grant'})
@@ -128,7 +130,6 @@ def test_actual_sdk_child_calls_protected_http_relay_and_has_host_receipt(tmp_pa
     schema = {'name': 'discover_data_capabilities', 'inputSchema': {'type': 'object', 'properties': {}}}
     resource.catalog['tools']['data_gateway_discover_data_capabilities'] = schema
     relay = ProviderRelay()
-    relay.register('task-1', 'task-grant', time.monotonic() + 20)
     runner = SimpleNamespace(gateway=resource, relay=relay)
     host = GeneralPiHost(root=tmp_path / 'host', identity={'engine': 'pi'}, run_task=lambda *_: ('', {}))
     server = make_server(host, control_token='host-control', address=('127.0.0.1', 0), runner=runner)
@@ -138,6 +139,7 @@ def test_actual_sdk_child_calls_protected_http_relay_and_has_host_receipt(tmp_pa
     workspace.mkdir()
     try:
         fixture = Path(__file__).parent / 'fixtures/data-gateway-child-sdk.mjs'
+        relay.register('task-1', 'task-grant', time.monotonic() + 20)
         config = {'workspace': str(workspace), 'gateway': {'url': f'http://127.0.0.1:{server.server_port}/data-gateway/task-1',
             'grant': 'task-grant', 'taskId': 'task-1', 'catalog': resource.catalog}}
         process = subprocess.run(['node', str(fixture)], cwd=Path(__file__).resolve().parents[3],
@@ -174,7 +176,6 @@ def test_revocation_cancels_inflight_gateway_and_issues_no_receipt(tmp_path):
 
     resource.client.call = waiting
     relay = ProviderRelay()
-    relay.register('task-1', 'task-grant', time.monotonic() + 5)
     runner = SimpleNamespace(gateway=resource, relay=relay)
     host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'}, run_task=lambda *_: ('', {}))
     server = make_server(host, control_token='host-control', address=('127.0.0.1', 0), runner=runner)
@@ -182,6 +183,7 @@ def test_revocation_cancels_inflight_gateway_and_issues_no_receipt(tmp_path):
     thread.start()
     try:
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            relay.register('task-1', 'task-grant', time.monotonic() + 5)
             future = pool.submit(httpx.post, f'http://127.0.0.1:{server.server_port}/data-gateway/task-1',
                 json=request(), headers={'Authorization': 'Bearer task-grant'}, trust_env=False, timeout=3)
             assert started.wait(2)

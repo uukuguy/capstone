@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 import argparse
+from copy import deepcopy
 from pathlib import Path, PurePosixPath
 import re
 from urllib.parse import unquote
 import subprocess
+import tomllib
 
 
 DOC_FILES = {"README.md", "README.zh-CN.md", "AGENTS.md", "CLAUDE.md",
@@ -14,8 +16,8 @@ GOVERNANCE_FILES = {".github/workflows/verify.yml", "tools/ci_scope.py",
                     "configs/development/issue-automation.json",
                     "tools/tests/test_ci_scope.py", "tools/tests/test_verification_targets.py"}
 
-# Assembly contracts have a bounded cross-package gate. Runtime transports,
-# authority protocols, solvers, dependencies and unknown paths remain product.
+# Assembly and native-runtime contracts have bounded cross-package gates.
+# Authority protocols, solvers and unknown dependencies still require product.
 FOUNDATION_FILES = {
     'packages/capability-agent-kernel/src/capability_agent/' + path
     for path in ('application/composition.py', 'application/profile.py',
@@ -29,8 +31,64 @@ FOUNDATION_FILES = {
     'packages/pypsa-agent/src/pypsa_agent/worker.py',
 }
 
+RUNTIME_FILES = {
+    'compose.yaml', 'deploy/general-pi.Dockerfile', 'deploy/local.env.example',
+    'configs/runtime/data-gateway.json', 'scripts/verify_data_gateway_research.py',
+    'packages/grid-simulator/src/grid_simulator/powermcp_sidecar.py',
+}
+RUNTIME_DEPENDENCIES = {'packages/capstone-agent/pyproject.toml'} | {
+    f'packages/{package}/uv.lock' for package in ('capstone-agent', 'grid-agent', 'pypsa-agent')
+}
+# MCP's additional transport/auth packages. Any other dependency change expands
+# the gate, including a solver version changed only through a downstream lock.
+MCP_PACKAGES = {'mcp', 'httpx-sse', 'sse-starlette', 'pydantic-settings',
+                'python-multipart', 'pywin32', 'pyjwt'}
 
-def classify(paths: list[str], *, target: str = "dev", release: bool = False) -> str:
+
+def runtime_dependency_document(path: str, old: dict, new: dict) -> bool:
+    if path not in RUNTIME_DEPENDENCIES:
+        return False
+
+    def without_mcp(document):
+        value = deepcopy(document)
+        if path.endswith('pyproject.toml'):
+            project = value.get('project', {})
+            project['dependencies'] = [entry for entry in project.get('dependencies', [])
+                                       if not re.match(r'^mcp(?:[<>=!~;\[]|$)', entry)]
+        else:
+            packages = []
+            for package in value.get('package', []):
+                if package.get('name') in MCP_PACKAGES:
+                    continue
+                if package.get('name') == 'capstone-agent':
+                    for owner, key in ((package, 'dependencies'),
+                                       (package.get('metadata', {}), 'requires-dist')):
+                        if key in owner:
+                            owner[key] = [item for item in owner[key] if item.get('name') != 'mcp']
+                packages.append(package)
+            value['package'] = packages
+        return value
+
+    return without_mcp(old) == without_mcp(new)
+
+
+def runtime_dependency_diff(paths: list[str], base: str, head: str) -> bool:
+    changed = set(paths) & RUNTIME_DEPENDENCIES
+    if not changed:
+        return False
+    for path in changed:
+        try:
+            old, new = [tomllib.loads(subprocess.check_output(
+                ['git', 'show', f'{revision}:{path}'], text=True)) for revision in (base, head)]
+        except (subprocess.CalledProcessError, tomllib.TOMLDecodeError):
+            return False
+        if not runtime_dependency_document(path, old, new):
+            return False
+    return True
+
+
+def classify(paths: list[str], *, target: str = "dev", release: bool = False,
+             runtime_dependencies: bool = False) -> str:
     if target == "main" or release:
         return "release"
     if not paths:
@@ -38,14 +96,21 @@ def classify(paths: list[str], *, target: str = "dev", release: bool = False) ->
     governance = False
     shared_agent = False
     foundation = False
+    native_runtime = False
     for path in paths:
         if ".." in PurePosixPath(path).parts:
             return "product"
         if path.startswith("packages/capstone-agent/src/capstone_agent/") and (
-                PurePosixPath(path).name.startswith("general_pi_")
-                or PurePosixPath(path).name in {"kernel_pi_session.py", "pi_delegation.py"}):
+                PurePosixPath(path).name in {"kernel_pi_session.py", "pi_delegation.py"}):
             return "product"
-        if path in FOUNDATION_FILES or (
+        if (path in RUNTIME_FILES or (runtime_dependencies and path in RUNTIME_DEPENDENCIES)
+                or (path.startswith('packages/capstone-agent/src/capstone_agent/')
+                    and PurePosixPath(path).name.startswith('general_pi_'))
+                or (path.startswith(('packages/capstone-agent/src/capstone_agent/resources/',
+                                     'packages/capstone-agent/tests/fixtures/'))
+                    and path.endswith(('.mjs', '.json')))):
+            native_runtime = True
+        elif path in FOUNDATION_FILES or (
                 path.startswith('packages/capability-agent-kernel/tests/') and path.endswith('.py')):
             foundation = True
         elif path in GOVERNANCE_FILES or path.startswith("tools/issue_automation/") or (
@@ -60,6 +125,8 @@ def classify(paths: list[str], *, target: str = "dev", release: bool = False) ->
             shared_agent = True
         elif path not in DOC_FILES and not path.startswith(("docs/", "tools/project_overview/")):
             return "product"
+    if native_runtime:
+        return 'native-runtime'
     if foundation:
         return 'foundation'
     if shared_agent:
@@ -83,7 +150,8 @@ def main() -> None:
         check_document_links(Path.cwd(), paths)
         print("Changed Markdown file links passed")
     else:
-        print(classify(paths, target=args.target, release=args.release))
+        print(classify(paths, target=args.target, release=args.release,
+                       runtime_dependencies=runtime_dependency_diff(paths, args.base, args.head)))
 
 
 def is_ignored_delivery_link(root: Path, document: Path, target: str) -> bool:

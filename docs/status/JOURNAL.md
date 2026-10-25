@@ -5654,3 +5654,7 @@ Prior closeout receipts preserved verbatim from the root checkout:
 2026-10-25 — 64e40f41: Recorded directed dev verification and the exact recovery scope before the final scoped closeout gate.
 
 2026-10-25 — 346de403: Merged PR #57 after the required dev gate passed in 9m55s. Actual dev frontend type checking passes. PR #56 runtime remains unchanged. Original 109 paths and generated artifacts have verified recovery copies; merged temporary branch refs are closed. The final generated overview and this journal receipt are deliberate post-merge metadata, without a self-hash commit cycle. No release or deployment promotion.
+
+2026-10-25 — 015112a7: Corrected MCP field access and optional gateway checks so the required dev type gate passes.
+
+2026-10-25 — Reproduced startup-expired test grants; registration after setup passes. User requested bounded native-runtime CI;60scope and362SDK checks pass.

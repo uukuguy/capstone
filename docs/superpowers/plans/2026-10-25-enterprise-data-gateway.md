@@ -137,6 +137,14 @@ Files to create:
 
 ## Task 5: Dev integration and control closure
 
+2026-10-25 scope correction requested by the user: keep development CI bounded.
+Add a native-runtime scope in tools/ci_scope.py and verify.yml, with semantic
+MCP-only dependency checks. Retain foundation, SDK, authorization and deployment
+consumers; unknown/solver changes still expand to product and release remains full.
+Verify classifier failures, mixed changes and downstream lock changes. Fix the
+gateway test's startup-before-grant ordering; prove authorization and revocation
+still work with service initialization longer than the test's grant lifetime.
+
 - [ ] Update CURRENT-STATE, RESUME-NEXT-SESSION and JOURNAL with exact implemented,
   verified and deferred scope. Update VERSION-CONTROL and regenerate its graph.
 - [ ] Use ui-ux-pro-max and a browser to verify current HEAD nodes, ancestry edges,

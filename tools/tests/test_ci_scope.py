@@ -52,9 +52,6 @@ def test_shared_agent_python_changes_select_dependency_regression():
 @pytest.mark.parametrize("extra", [
     "packages/capstone-agent/pyproject.toml",
     "packages/capstone-agent/uv.lock",
-    "packages/capstone-agent/src/capstone_agent/resources/general-sdk.mjs",
-    "packages/capstone-agent/src/capstone_agent/general_pi_executor.py",
-    "packages/capstone-agent/src/capstone_agent/general_pi_server.py",
     "packages/capstone-agent/src/capstone_agent/kernel_pi_session.py",
     "packages/capstone-agent/src/capstone_agent/pi_delegation.py",
     "packages/capability-agent-kernel/src/capability_agent/core.py",
@@ -70,6 +67,51 @@ def test_shared_agent_mixed_runtime_or_unknown_change_expands_gate(extra):
 def test_shared_agent_and_governance_keep_product_regression():
     assert classify(["packages/capstone-agent/src/capstone_agent/harness.py",
                      "tools/ci_scope.py"]) == "shared-agent"
+
+
+def test_native_runtime_has_bounded_consumer_regression():
+    paths = ['packages/capstone-agent/src/capstone_agent/general_pi_server.py',
+             'packages/capstone-agent/src/capstone_agent/resources/general-sdk.mjs',
+             'packages/capstone-agent/tests/fixtures/data-gateway-research.test.mjs',
+             'configs/runtime/data-gateway.json', 'compose.yaml', 'deploy/general-pi.Dockerfile']
+    assert classify(paths) == 'native-runtime'
+    assert classify(paths + ['packages/grid-simulator/src/grid_simulator/powermcp_sidecar.py']) == 'native-runtime'
+    assert classify(paths + ['packages/pypsa-agent/src/pypsa_agent/worker.py']) == 'native-runtime'
+    assert classify(paths, target='main') == 'release'
+    assert classify(paths, release=True) == 'release'
+    for extra in ['packages/grid-simulator/src/grid_simulator/solver.py',
+                  'packages/capstone-agent/src/capstone_agent/pi_delegation.py',
+                  'packages/grid-agent/uv.lock', 'deploy/Dockerfile', 'Makefile']:
+        assert classify(paths + [extra]) == 'product'
+
+
+def test_runtime_dependency_scope_checks_content_not_only_path():
+    from tools.ci_scope import runtime_dependency_document
+    from copy import deepcopy
+    path = 'packages/capstone-agent/pyproject.toml'
+    old = {'project': {'dependencies': ['httpx>=0.28,<1']}}
+    new = deepcopy(old)
+    new['project']['dependencies'].append('mcp>=1.30,<2')
+    assert runtime_dependency_document(path, old, new)
+    new['project']['dependencies'].append('pandapower==3.5')
+    assert not runtime_dependency_document(path, old, new)
+    assert not runtime_dependency_document('packages/grid-agent/pyproject.toml', old, new)
+    old = {'version': 1, 'package': [
+        {'name': 'capstone-agent', 'dependencies': [{'name': 'httpx'}]},
+        {'name': 'pandapower', 'version': '3.4.0'}]}
+    new = deepcopy(old)
+    new['package'][0]['dependencies'].append({'name': 'mcp'})
+    new['package'].append({'name': 'mcp', 'version': '1.30.0'})
+    assert runtime_dependency_document('packages/grid-agent/uv.lock', old, new)
+    new['package'][1]['version'] = '3.5.0'
+    assert not runtime_dependency_document('packages/grid-agent/uv.lock', old, new)
+
+
+def test_verified_runtime_dependency_diff_still_cannot_hide_unknown_source():
+    paths = ['packages/capstone-agent/pyproject.toml', 'packages/grid-agent/uv.lock']
+    assert classify(paths, runtime_dependencies=True) == 'native-runtime'
+    assert classify(paths + ['packages/grid-simulator/src/grid_simulator/solver.py'],
+                    runtime_dependencies=True) == 'product'
 
 
 def test_foundation_assembly_has_an_explicit_dependency_gate():

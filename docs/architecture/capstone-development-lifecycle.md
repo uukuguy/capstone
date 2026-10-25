@@ -103,8 +103,8 @@ the relevant Python tests and its application entry smoke check. Do not repeat
 all offline, E2E, packaging and release checks after each edit. Local API, worker
 or App changes still use the canonical local rebuild before deployment claims.
 
-Dev PRs and pushes select documentation, bounded governance contracts, shared-agent
-or foundation dependency regression, or `make check-pr` on macOS. Python source/tests
+Dev PRs and pushes select documentation, bounded governance contracts, shared-agent,
+foundation or native-runtime dependency regression, or `make check-pr` on macOS. Python source/tests
 under capstone-agent and TypeScript/TSX/CSS under capstone-app/src use the shared-agent
 gate: package boundaries, global type checks, complete agent and Kernel suites,
 App tests/build and client tests. This includes registered worker regression.
@@ -115,7 +115,16 @@ and their professional application adapters. This gate retains the shared-agent
 checks, the pandapower Pack, the complete PyPSA application suite, inventory
 conformance/multi-binding tests and the hosted/Thread/diagram adapter tests.
 It also has a 15-minute step limit. It does not cover arbitrary Kernel changes.
-Changes to native bridges, Domain Packs, Authorities, other Kernel code, dependencies, build/deployment configuration or
+The native-runtime gate covers the native host, its JavaScript resources, protected
+MCP gateway configuration, the native image/Compose wiring and the MCP sidecar.
+It retains the foundation gate, then checks deployment contracts, native inventory
+delegation, both capture wrappers, PowerMCP audit contracts and all native SDK test
+fixtures. Its additional step has a 10-minute budget. This avoids running unrelated
+solver suites for a host transport edit. MCP dependency updates qualify only when
+semantic comparisons of the manifests and downstream lock files show no other
+dependency changes; a solver change hidden in a lock still expands the gate.
+Changes to professional delegation contracts, Domain Packs, other Authority code,
+other Kernel code, unrecognised dependencies/build files or
 unknown paths still require the broader product gate. Mixed changes select the
 broader gate. Documentation/governance changes cannot hide product changes.
 Unknown paths require product regression;
