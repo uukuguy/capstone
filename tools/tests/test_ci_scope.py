@@ -40,6 +40,8 @@ def test_source_topology_requires_verified_content_and_exact_covered_paths():
 
 def test_source_view_handoff_registers_its_exact_forwarder_and_graph_consumer():
     paths=SOURCE_PATHS+['packages/capstone-agent/src/capstone_agent/delegated_runtime.py',
+        'packages/capstone-agent/src/capstone_agent/data_gateway_relay.py',
+        'packages/capstone-agent/tests/test_data_gateway_relay.py',
         'packages/capstone-agent/tests/test_delegated_runtime.py',
         'packages/capstone-agent/tests/test_graph_host_observation.py']
     assert classify(paths,source_topology=True)=='source-topology'
@@ -56,6 +58,7 @@ def test_source_workspace_controls_have_complete_thread_consumers():
     gate=workflow.split('- name: Verify source topology consumers',1)[1].split('- name:',1)[0]
     assert 'tests/test_thread*.py' in gate
     assert 'tests/test_host*.py' in gate
+    assert 'tests/test_data_gateway_*.py' in gate
     assert 'test-capstone-app' in gate
     assert classify(paths+['packages/capstone-agent/src/capstone_agent/thread_worker.py'],source_topology=True)=='product'
     assert classify(paths,source_topology=True,target='main')=='release'
