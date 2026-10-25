@@ -111,6 +111,12 @@ its native task ID, parent Attempt ID, capture time and bounded scope. It does
 not claim to enumerate other tasks or operating-system processes. Missing
 observations are unknown, not zero. Research-cycle status cannot replace this
 host execution snapshot; neither snapshot grants new tools or Authority access.
+For continuing native tasks, retained research memory is read on demand while
+the current research controller is unstarted. Automatic research context begins
+only after the current controller has accepted organization or execution state.
+The request guard verifies that an idle context has not become active between
+context preparation and the model request. Existing research state is preserved;
+neither a fresh instruction nor an idle view silently clears it.
 Process emphasis follows actual execution: initial thinking, direct tool calls,
 or admitted task organization. Task organization selects task steps regardless
 of uploaded resources. Host lifecycle timing and unadmitted graph text do not

@@ -84,7 +84,12 @@ export function configureResearchTools(pi, channelPath, { timeoutMs, fatal = cap
     throw new Error("research channel binding is invalid");
   }
   let observedRevision = 0, observedHash, requiredRevision = 0, compacting = false;
-  let preparedGraphRequest = null;
+  let preparedGraphRequest = null, preparedIdleContext = false;
+  async function hasCurrentResearchCycle() {
+    if(!retainedWorkBackground||!getControllerState)return true;
+    const cycle=await getControllerState({full:false});
+    return !(cycle?.phase==='idle'&&!cycle.graph&&!cycle.checkpoint&&!cycle.pending_action&&!cycle.organization);
+  }
   function loadView() {
     const view = readJson(join(root, "view.json"));
     if (view.schema_version !== "capability-research-view/1.0"
@@ -325,7 +330,14 @@ export function configureResearchTools(pi, channelPath, { timeoutMs, fatal = cap
     const view = loadView();
     const messages = event.messages.filter(message => !(message.role === "custom" && message.customType === CUSTOM_TYPE));
     preparedGraphRequest = null;
+    preparedIdleContext = false;
     if (view.state !== null) {
+      // Retained Work memory is available through the read tool, but must not
+      // put an unrelated new instruction inside an unstarted research cycle.
+      if(!await hasCurrentResearchCycle()) {
+        preparedIdleContext=true;
+        return {messages};
+      }
       let graph = false;
       const content = PREFIX + JSON.stringify(await summary(view, {captureGraph: value => { graph = value; }}));
       // Child settlement can advance the live checkpoint after this hook.
@@ -342,6 +354,11 @@ export function configureResearchTools(pi, channelPath, { timeoutMs, fatal = cap
     try {
       const view = loadView();
       if (view.state === null) return;
+      if(preparedIdleContext) {
+        preparedIdleContext=false;
+        if(await hasCurrentResearchCycle())throw new Error('research cycle started after idle context preparation');
+        return;
+      }
       let expected;
       const prepared = preparedGraphRequest;
       preparedGraphRequest = null;
@@ -359,7 +376,7 @@ export function configureResearchTools(pi, channelPath, { timeoutMs, fatal = cap
       if (count !== 1) throw new Error("current research state is absent or duplicated in the model request");
     } catch(error) { if(error.capacity?.mode==='debug')throw error; return fatal("research context is not ready for the model request"); }
   });
-  pi.on("session_before_compact", () => { compacting = true; preparedGraphRequest = null; });
+  pi.on("session_before_compact", () => { compacting = true; preparedGraphRequest = null; preparedIdleContext = false; });
   pi.on("session_compact", () => { compacting = false; });
   pi.on("session_compact_failed", () => { compacting = false; });
 
