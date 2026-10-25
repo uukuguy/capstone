@@ -2,6 +2,7 @@ import {afterEach,expect,it,vi} from 'vitest'
 import {act,cleanup,fireEvent,render,screen,within} from '@testing-library/react'
 import CapstoneAssistantThread,{projectAssistantMessages} from './CapstoneAssistantThread'
 import type {EventEnvelope} from './threadProtocol'
+import ThinkingProcess from './ThinkingProcess'
 
 afterEach(()=>{cleanup();localStorage.clear()})
 const event=(eventType:string,eventSeq:number,payload:Record<string,unknown>={},attemptId='thinking'):EventEnvelope=>({eventId:`e${eventSeq}`,eventType,eventSeq,eventVersion:1,threadId:'thread',runId:'run',attemptId,visibility:'public',occurredAt:`2026-10-25T12:00:${String(eventSeq).padStart(2,'0')}Z`,payload})
@@ -49,10 +50,13 @@ it('keeps thinking for lifecycle and goal-only notes, then archives it once actu
   const executed=[accepted,started,delta,preparation,goal,nativeGoal,tool]
   rerender(<CapstoneAssistantThread {...props} events={executed}/>)
   expect(screen.queryByRole('region',{name:'思考状态'})).toBeNull()
-  expect(screen.queryByRole('region',{name:'初始思考记录'})).toBeNull()
-  expect(screen.queryByRole('button',{name:'展开初始思考'})).toBeNull()
+  const archive=screen.getByRole('region',{name:'初始思考记录'})
+  expect(within(archive).getByRole('button',{name:'展开初始思考'}).getAttribute('aria-expanded')).toBe('false')
   expect(screen.queryByText('Actual public thought.')).toBeNull()
   expect(screen.getByRole('region',{name:'工具调用过程'})).toBeTruthy()
+  fireEvent.click(within(archive).getByRole('button',{name:'展开初始思考'}))
+  expect(within(archive).getByText('Actual public thought.')).toBeTruthy()
+  fireEvent.click(within(archive).getByRole('button',{name:'折叠初始思考'}))
   rerender(<CapstoneAssistantThread {...props} events={[...executed,event('tool_completed',7,{tool_name:'read',tool_call_id:'read'}),event('assistant_thinking_delta',8,{text:'LATER_TASK_THINKING'})]}/>)
   expect(screen.queryByRole('region',{name:'思考状态'})).toBeNull()
   fireEvent.click(screen.getByRole('button',{name:'放大阅读执行过程'}))
@@ -66,6 +70,27 @@ it('never shows a missing-thinking placeholder alongside supplied 823-character 
   render(<CapstoneAssistantThread {...props} events={[accepted,started,event('assistant_thinking_delta',3,{text})]}/>)
   expect(screen.getByRole('region',{name:'思考状态'}).textContent).toContain(text.trim())
   expect(screen.queryByText('当前记录未提供公开思考摘要。')).toBeNull()
+})
+it('uses one clickable muted trigger and no invented body while waiting for supplied text',()=>{
+  render(<CapstoneAssistantThread {...props} events={[accepted,started]}/>)
+  const region=within(screen.getByRole('region',{name:'思考状态'}))
+  expect(region.getByRole('button',{name:'折叠初始思考'}).textContent).toContain('思考中')
+  expect(region.queryByText('当前记录未提供公开思考摘要。')).toBeNull()
+})
+it('follows streamed text until the reader scrolls up and resumes only at the bottom',()=>{
+  const thinking={text:'First supplied text',phase:'running' as const,handedOff:false}
+  const {rerender}=render(<ThinkingProcess thinking={thinking} storageKey="scroll-test"/>)
+  const body=document.querySelector('.capstone-thinking-copy') as HTMLElement
+  Object.defineProperties(body,{scrollHeight:{value:400,configurable:true},clientHeight:{value:96,configurable:true}})
+  rerender(<ThinkingProcess thinking={{...thinking,text:'More supplied text'}} storageKey="scroll-test"/>)
+  expect(body.scrollTop).toBe(400)
+  body.scrollTop=100;fireEvent.scroll(body)
+  rerender(<ThinkingProcess thinking={{...thinking,text:'Another supplied delta'}} storageKey="scroll-test"/>)
+  expect(body.scrollTop).toBe(100)
+  body.scrollTop=304;fireEvent.scroll(body)
+  Object.defineProperty(body,'scrollHeight',{value:600,configurable:true})
+  rerender(<ThinkingProcess thinking={{...thinking,text:'Final supplied delta'}} storageKey="scroll-test"/>)
+  expect(body.scrollTop).toBe(600)
 })
 it('hands off to recorded business steps without hiding the plan during later thinking',()=>{
   const step=event('runtime_action',4,{task_step:{id:'business-inspect',number:1,title:'Inspect selected business records',status:'running'}})

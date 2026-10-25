@@ -43,8 +43,8 @@ describe('CapstoneAssistantThread', () => {
   it('shows public thinking status before the first task or tool exists', () => {
     const events=[event('command_accepted',1,{kind:'send_auto',payload:{text:'分析资料'}},'startup'),event('attempt_started',2,{},'startup')]
     render(<CapstoneAssistantThread events={events} activity={projectAssistantActivity(events)} disabled={false} isRunning={true} onSend={async()=>{}} onCancel={async()=>{}} />)
-    expect(screen.getByRole('region',{name:'思考状态'}).textContent).toContain('等待模型进展')
-    expect(screen.getByRole('region',{name:'思考状态'}).textContent).toContain('已用时')
+    expect(screen.getByRole('region',{name:'思考状态'}).textContent).toContain('思考中')
+    expect(screen.queryByText('当前记录未提供公开思考摘要。')).toBeNull()
     expect(screen.queryByText('正在准备输入、规划和调度首个任务。')).toBeNull()
   })
   it('changes from measured thinking to visible tools to recorded tasks and keeps that focus on replay', () => {
@@ -53,7 +53,7 @@ describe('CapstoneAssistantThread', () => {
       event('runtime_action', 3, {phase:'response_completed'}, 'mixed', '2026-09-30T00:00:03Z')]
     const props = {disabled:false,isRunning:true,activity:[],onSend:async()=>{},onCancel:async()=>{}}
     const {rerender,unmount} = render(<CapstoneAssistantThread {...props} events={start} />)
-    expect(screen.getByRole('region',{name:'思考状态'}).textContent).toContain('未提供公开思考摘要')
+    expect(screen.getByRole('region',{name:'思考状态'}).textContent).toContain('思考中')
     expect(screen.getByRole('group',{name:'LLM 调用 1'}).textContent).toContain('2.0s')
     const toolEvents = [...start, event('runtime_event',4,{native_type:'tool_execution_start',task_id:'task',tool_call_id:'call',tool_name:'read',activity:{operation:'Read registered source'}},'mixed')]
     rerender(<CapstoneAssistantThread {...props} events={toolEvents} />)

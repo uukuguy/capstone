@@ -1,4 +1,4 @@
-import {useId,useState} from 'react'
+import {useId,useLayoutEffect,useRef,useState} from 'react'
 import {ChevronRight} from 'lucide-react'
 import MarkdownContent from './MarkdownContent'
 import {readProcessStepOpen,saveProcessStepOpen} from './ProcessStepRecord'
@@ -37,20 +37,21 @@ export default function ThinkingProcess({thinking,storageKey,now=Date.now(),expa
   const fallback=active||expanded
   const [fold,setFold]=useState(()=>({id:foldId,open:readProcessStepOpen(storageKey,foldId,fallback)}))
   const open=fold.id===foldId?fold.open:readProcessStepOpen(storageKey,foldId,fallback)
-  const status=thinking.phase==='failed'?'本轮失败':thinking.phase==='cancelled'?'本轮已取消':thinking.phase==='interrupted'?'本轮已中断':
-    thinking.handedOff?'已转入执行过程':thinking.phase==='completed'?'已结束':thinking.phase==='queued'?'已提交，等待执行':thinking.text?'正在思考':'等待模型进展'
   const start=Date.parse(thinking.startedAt??''),end=thinking.endedAt?Date.parse(thinking.endedAt):now
-  const elapsed=Number.isFinite(start)&&Number.isFinite(end)&&end>=start?((end-start)/1000).toFixed(1):undefined
-  return <section className="capstone-thinking-process" role="region" aria-label={thinking.handedOff?'初始思考记录':'思考状态'} data-phase={thinking.phase} aria-busy={active}>
-    <div className="capstone-process-step-heading">
-      <button type="button" className="capstone-process-step-toggle" aria-label={`${open?'折叠':'展开'}初始思考`} aria-expanded={open} aria-controls={bodyId} onClick={()=>{
-        setFold({id:foldId,open:!open});saveProcessStepOpen(storageKey,foldId,!open)
-      }}><ChevronRight aria-hidden="true"/></button>
-      <strong>思考</strong><span className="capstone-thinking-status">{status}</span>
-      {elapsed!==undefined&&<small>{active?'已用时':'用时'} {elapsed}s</small>}
-    </div>
-    {open&&<div id={bodyId} className="capstone-thinking-copy">
-      {thinking.text?<MarkdownContent>{thinking.text}</MarkdownContent>:<p className="capstone-task-goal">当前记录未提供公开思考摘要。</p>}
-    </div>}
+  const elapsed=Number.isFinite(start)&&Number.isFinite(end)&&end>=start?Math.round((end-start)/1000):undefined
+  const status=thinking.phase==='failed'?'思考已停止（本轮失败）':thinking.phase==='cancelled'?'思考已取消':thinking.phase==='interrupted'?'思考已中断':
+    active?thinking.phase==='queued'?'等待执行…':'思考中…':elapsed===undefined?'已思考':`已思考 ${elapsed}秒`
+  const viewport=useRef<HTMLDivElement>(null),following=useRef(true)
+  useLayoutEffect(()=>{
+    if(active&&open&&following.current&&viewport.current)viewport.current.scrollTop=viewport.current.scrollHeight
+  },[active,open,thinking.text])
+  return <section className={`capstone-thinking-process${active?' is-active':''}${expanded?' is-reader':''}`} role="region" aria-label={thinking.handedOff?'初始思考记录':'思考状态'} data-phase={thinking.phase} aria-busy={active}>
+    <button type="button" className="capstone-thinking-trigger" aria-label={`${open?'折叠':'展开'}初始思考`} aria-expanded={open} aria-controls={open&&thinking.text?bodyId:undefined} onClick={()=>{
+      following.current=true;setFold({id:foldId,open:!open});saveProcessStepOpen(storageKey,foldId,!open)
+    }}><span>{status}</span><ChevronRight aria-hidden="true"/></button>
+    {open&&thinking.text&&<div id={bodyId} ref={viewport} className="capstone-thinking-copy" onScroll={()=>{
+      const node=viewport.current
+      if(node)following.current=node.scrollHeight-node.scrollTop-node.clientHeight<24
+    }}><MarkdownContent>{thinking.text}</MarkdownContent></div>}
   </section>
 }

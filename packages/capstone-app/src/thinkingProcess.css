@@ -1,5 +1,14 @@
-.capstone-thinking-process { margin: 4px 0 8px; }
-.capstone-thinking-process .capstone-process-step-heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: 5px; }
-.capstone-thinking-status, .capstone-thinking-process small { color: inherit; font-size: 11px; font-weight: 400; }
-.capstone-thinking-copy { padding: 3px 9px 4px 23px; font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; }
-.capstone-thinking-copy p { margin: 3px 0; }
+.capstone-thinking-process { margin: 2px 0 10px; color: var(--text-muted, #646b75); }
+.capstone-thinking-trigger { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 4px 0; border: 0; background: none; color: inherit; font: inherit; font-size: 13px; line-height: 1.5; cursor: pointer; }
+.capstone-thinking-trigger:hover { color: var(--text-primary, #303741); }
+.capstone-thinking-trigger:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; border-radius: 3px; }
+.capstone-thinking-trigger svg { width: 14px; height: 14px; transition: transform 140ms ease; }
+.capstone-thinking-trigger[aria-expanded="true"] svg { transform: rotate(90deg); }
+.capstone-thinking-process.is-active .capstone-thinking-trigger span { animation: capstone-thinking-shimmer 2s ease-in-out infinite; }
+.capstone-thinking-copy { box-sizing: border-box; max-height: 160px; overflow-y: auto; overscroll-behavior: contain; padding: 4px 10px 8px 0; font-size: 13px; line-height: 1.75; overflow-wrap: anywhere; }
+.capstone-thinking-copy p { margin: 4px 0 10px; }
+.capstone-thinking-process.is-active .capstone-thinking-copy { max-height: 96px; mask-image: linear-gradient(to bottom, transparent, black 8px, black calc(100% - 12px), transparent); }
+.capstone-thinking-process.is-reader .capstone-thinking-copy { max-height: none; overflow: visible; mask-image: none; }
+@keyframes capstone-thinking-shimmer { 0%, 100% { opacity: .65; } 50% { opacity: 1; } }
+@media (pointer: coarse) { .capstone-thinking-trigger { min-height: 44px; } }
+@media (prefers-reduced-motion: reduce) { .capstone-thinking-process.is-active .capstone-thinking-trigger span { animation: none; } .capstone-thinking-trigger svg { transition: none; } }
