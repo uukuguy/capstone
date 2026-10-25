@@ -37,6 +37,7 @@ import type {StoredResource} from './resourceUploads'
 import ThreadSettingsMenu from './ThreadSettingsMenu'
 import {useSessionViewState,useSessionViewRef} from './workspaceSessionCache'
 import ThreadModelDirectory from './ThreadModelDirectory'
+import ThreadModelPane from './ThreadModelPane'
 import type {ModelWorkspace} from './threadModelWorkspace'
 import {buildModelWorkspaceCommand} from './threadWorkProtocol'
 import GridSourceWorkspace from './GridSourceWorkspace'
@@ -81,6 +82,30 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
   const conversationExecutionAvailable=Boolean(snapshot?.modelContext)||snapshot?.nativeExecution?.available===true
   const [modelWorkspace,setModelWorkspace]=useState<ModelWorkspace|null>(null)
   const [modelTarget,setModelTarget]=useState('')
+  const [modelViewIssue,setModelViewIssue]=useState<string|null>(null)
+  const modelRefreshChain=useRef(Promise.resolve())
+  const modelPageGeneration=useRef(0)
+  useEffect(()=>{
+    const context=professional?.activeModelContext
+    if(!context)return
+    let live=true
+    const generation=++modelPageGeneration.current
+    setModelViewIssue(null)
+    // A reopened Context can have the same model/revision as an old view.
+    // Restore its own admitted page even when the store retains another view.
+    modelRefreshChain.current=modelRefreshChain.current.catch(()=>{}).then(async()=>{
+      if(!live||store.state.snapshot?.activeModelContext.id!==context.id)return
+      try{
+        await store.restoreHistoricalNetwork(context.id)
+        if(!live||store.state.snapshot?.activeModelContext.id!==context.id)return
+        await store.refreshModels()
+      }catch(cause){
+        rethrowDebugCapacity(cause)
+        if(live&&generation===modelPageGeneration.current&&store.state.snapshot?.activeModelContext.id===context.id)setModelViewIssue('电气拓扑暂时无法恢复；当前模型选择已保留，请重新连接后重试。')
+      }
+    })
+    return()=>{live=false}
+  },[store,currentId,professional?.activeModelContext.id,professional?.activeModelContext.modelRevision])
   useEffect(()=>{
     if(!nativeChat||!snapshot)return
     let live=true
@@ -311,7 +336,13 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
   }
   async function changeModel(kind:'open_model'|'activate_model'|'close_model',payload:Record<string,string>) {
     if(!snapshot||!modelWorkspace)throw new Error('请先同步模型目录。')
-    try{await dispatch(buildModelWorkspaceCommand(currentId,snapshot.runId,`cmd_${commandKey()}`,`idem_${commandKey()}`,modelWorkspace.eventSeq,kind,payload))}
+    try{
+      await dispatch(buildModelWorkspaceCommand(currentId,snapshot.runId,`cmd_${commandKey()}`,`idem_${commandKey()}`,modelWorkspace.eventSeq,kind,payload))
+      if(kind==='open_model'||kind==='activate_model'){
+        artifactOpened.current=true;setResourceView('model');setProductsOpen(true)
+        if(store.state.snapshot)store.viewGridPage(store.state.snapshot.activeGridPageId)
+      }
+    }
     catch{/* dispatch retains the error and exact request for recovery. */}
   }
   async function send(text: string,submission?:InputSubmission) {
@@ -408,13 +439,47 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
   const materials=inputCatalog?.materials||[]
   const remainingMaterialBytes=Math.max(0,applicationCapacity('inline_material_bytes')-materials.reduce((sum,item)=>sum+(item.size_bytes||0),0))
   const materialSubtitle=materials.length?materials.length===1?`资料：${materials[0].display_name}`:`已关联 ${materials.length} 份资料 · ${materials[0].display_name}`:undefined
+  const activeModelPage=professional?.activeGridPageId
+  const viewedModelPage=projection.viewedGridPageId||activeModelPage
+  // A stale page with the active page ID is not an intentional history view.
+  const modelGridPages=projection.gridPages.filter(page=>page.pageId!==activeModelPage
+    ||page.context.id===professional?.activeModelContext.id)
+  const historicalModel=Boolean(professional&&viewedModelPage!==activeModelPage)
+  const currentModelView=professional?modelGridPages.find(page=>
+    page.context.id===professional.activeModelContext.id&&page.pageId===activeModelPage)?.networkView:null
+  async function selectModelPage(pageId:string){
+    const generation=++modelPageGeneration.current
+    store.viewGridPage(pageId);setModelViewIssue(null)
+    const page=store.state.gridPages.find(item=>item.pageId===pageId)
+    if(!page||page.networkView)return
+    try{
+      const restoredPage=await store.restoreHistoricalNetwork(page.context.id)
+      if(mounted.current&&generation===modelPageGeneration.current&&store.state.viewedGridPageId===pageId)store.viewGridPage(restoredPage)
+    }
+    catch(cause){
+      rethrowDebugCapacity(cause)
+      if(mounted.current&&generation===modelPageGeneration.current)setModelViewIssue('该历史模型没有可验证的电气拓扑，请重新连接后重试。')
+    }
+  }
+  const formalModelPanel=professional&&activeModelPage&&viewedModelPage?<>
+    {modelGridPages.length>1&&<label>电气拓扑视图<select aria-label="电气拓扑视图" value={viewedModelPage} onChange={event=>void selectModelPage(event.target.value)}>
+      {modelGridPages.map(page=><option key={page.pageId} value={page.pageId}>{projection.catalog?.models.find(model=>model.modelId===page.context.modelId)?.displayName||page.context.modelId}{page.context.id===professional.activeModelContext.id?' · 当前模型':' · 历史只读'}</option>)}
+    </select></label>}
+    <ThreadModelPane snapshot={professional} activePage={activeModelPage} viewedPage={viewedModelPage}
+      gridPages={modelGridPages} workingPages={store.modelWorkingPages} isHistorical={historicalModel}
+      projectionEventSeq={projection.eventSeq} previewDiagram={null} networkView={currentModelView}
+      cameraStorageKey={`${commandStorageKey}.network-cameras`} modelOptions={projection.catalog?.models||[]}
+      onSelectPage={pageId=>void selectModelPage(pageId)} feedback={modelViewIssue}
+      modelBusy={busy||active||!!currentAttempt||projection.connection!=='live'}
+      onOpenHistoricalModel={(modelId,revision)=>void changeModel('open_model',{model_id:modelId,model_revision:revision})}/>
+  </>:null
   return <ThreadWorkspace sessionKey={currentId} conversationOnly subtitle="企业任务工作台"
     resourcePanel={nativeChat?(client.supportsProductIndex?productsPanel:client.supportsProcessProducts?processPanel:undefined):undefined}
-    resourceViews={nativeChat?client.supportsProductIndex?[{id:'products',label:'成果',content:productsPanel,description:'任务交付与指令产物，保留真实来源和版本。'},{id:'source-topology',label:'源电网',content:resourceView==='source-topology'&&productsOpen?<GridSourceWorkspace transport={transport} onQuestion={prepareSourceQuestion}/>:null,description:'源拓扑、显示分组与来源质量。'},...(selectedDeliveryFile?[{id:'deliveries',label:'采用为任务交付',content:<TaskDeliveriesWorkspace client={client} threadId={currentId} revision={terminalRevision} requestedArtifact={selectedDeliveryFile} onPublished={()=>{setResourceView('products');window.dispatchEvent(new Event('capstone-session-renamed'))}}/>}]:[])]:[{id:'process-products',label:'过程制品',content:processPanel,description:'指令执行结果与未完成记录，保留原始归属。'},
+    resourceViews={nativeChat?client.supportsProductIndex?[...(formalModelPanel?[{id:'model',label:'电气拓扑',content:formalModelPanel,description:'注册计算模型的母线与支路；来源和修订保持实际绑定。'}]:[]),{id:'products',label:'成果',content:productsPanel,description:'任务交付与指令产物，保留真实来源和版本。'},{id:'source-topology',label:'源电网',content:resourceView==='source-topology'&&productsOpen?<GridSourceWorkspace transport={transport} onQuestion={prepareSourceQuestion}/>:null,description:'源拓扑、显示分组与来源质量。'},...(selectedDeliveryFile?[{id:'deliveries',label:'采用为任务交付',content:<TaskDeliveriesWorkspace client={client} threadId={currentId} revision={terminalRevision} requestedArtifact={selectedDeliveryFile} onPublished={()=>{setResourceView('products');window.dispatchEvent(new Event('capstone-session-renamed'))}}/>}]:[])]:[{id:'process-products',label:'过程制品',content:processPanel,description:'指令执行结果与未完成记录，保留原始归属。'},
       {id:'native-files',label:'指令文件',content:<NativeArtifactsWorkspace client={client} threadId={currentId} attemptIds={nativeAttemptIds} revision={terminalRevision} requestedArtifact={requestedArtifact} attemptLabels={attemptLabels} onAdopt={file=>{setSelectedDeliveryFile(file);setResourceView('deliveries');setProductsOpen(true)}}/>,description:'本轮执行生成并保存的真实文件。'},
       {id:'deliveries',label:'任务交付',content:<TaskDeliveriesWorkspace client={client} threadId={currentId} revision={terminalRevision} requestedArtifact={selectedDeliveryFile} onPublished={()=>{setResourceView('deliveries');window.dispatchEvent(new Event('capstone-session-renamed'))}}/>,description:'按用户提出的交付要求组织和修订。'}]:undefined}
     selectedResourceView={resourceView} onResourceViewChange={setResourceView}
-    resourceLabel={resourceView==='products'?'成果':resourceView==='native-files'?'指令文件':resourceView==='deliveries'?'任务交付':'过程制品'} resourcePanelOpen={productsOpen} onResourcePanelOpenChange={open=>{if(open)artifactOpened.current=true;setProductsOpen(open)}}
+    resourceLabel={resourceView==='model'?'电气拓扑':resourceView==='source-topology'?'源电网':resourceView==='products'?'成果':resourceView==='native-files'?'指令文件':resourceView==='deliveries'?'任务交付':'过程制品'} resourcePanelOpen={productsOpen} onResourcePanelOpenChange={open=>{if(open)artifactOpened.current=true;setProductsOpen(open)}}
     sidebar={<nav className="thread-session-navigation" aria-label="任务与会话">
       {currentId==='new'&&!recoveryOnly&&!nativeChat?<button className="thread-session-new" disabled={busy} onClick={()=>void create()}><Plus aria-hidden="true" size={16}/>新建任务会话</button>:<SessionNewPopover onCreated={navigateSession} />}
       {snapshot&&(!nativeChat||!!legacyWorks?.length)&&<h2>{nativeChat?'历史保存记录':'当前会话'}</h2>}
