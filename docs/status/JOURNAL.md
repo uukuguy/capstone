@@ -5806,3 +5806,6 @@ Prior closeout receipts preserved verbatim from the root checkout:
 
 - 7dbec64d: Frame real endpoints when locating source connections; retain selected endpoints through station LOD.
 - 2026-10-26 04:35 +08 — Native model release verified in Vivaldi; North Attempt949fa4cc failed after42.9s, preserving records; diagnose before retry.
+
+- 40d89a4f: Record North model checks, scoped verification and the failed native acceptance before diagnosis.
+- 2026-10-26 04:36 +08 — Refreshed actual-dev control graph with7dbec64d candidate and execution blocker; existing Vivaldi control tab inspected.
