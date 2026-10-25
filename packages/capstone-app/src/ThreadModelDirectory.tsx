@@ -14,6 +14,7 @@ type Props = {
   workspace?: ModelWorkspace | null
   onActivate?: (entryId: string) => void
   onClose?: (entryId: string) => void
+  allowEmpty?: boolean
   embedded?: boolean
 }
 
@@ -50,8 +51,8 @@ function OpenedModelMenu(props: Props & { workspace: ModelWorkspace }) {
         <div className="thread-opened-list">{props.workspace.models.map((model) => <div key={model.entryId} className="thread-opened-row">
           <button type="button" className="thread-opened-select" aria-label={`设为当前模型：${model.displayName}`} aria-pressed={model.entryId === current.entryId} disabled={disabled}
             onClick={() => { props.onActivate?.(model.entryId); close() }}><span className="thread-opened-check">{model.entryId === current.entryId && <Check aria-hidden="true" />}</span><span>{model.displayName}</span></button>
-          <button type="button" className="thread-opened-close" aria-label={`关闭 ${model.displayName}`} title={props.workspace.models.length === 1 ? '会话至少保留一个模型' : `关闭 ${model.displayName}`}
-            disabled={disabled || props.workspace.models.length === 1} onClick={() => { props.onClose?.(model.entryId); close() }}><X aria-hidden="true" /></button>
+          <button type="button" className="thread-opened-close" aria-label={`关闭 ${model.displayName}`} title={props.workspace.models.length === 1 && !props.allowEmpty ? '会话至少保留一个模型' : `关闭 ${model.displayName}`}
+            disabled={disabled || props.workspace.models.length === 1 && !props.allowEmpty} onClick={() => { props.onClose?.(model.entryId); close() }}><X aria-hidden="true" /></button>
         </div>)}</div>
         <button type="button" className="thread-model-open-other" disabled={disabled} onClick={() => setDirectory(true)}>打开其他模型…</button>
       </>}

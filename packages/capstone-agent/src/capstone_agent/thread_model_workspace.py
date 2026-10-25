@@ -197,14 +197,18 @@ class WorkspaceChange:
     diagram: Mapping[str, Any] | None = None
     changed: bool = True
     resumed: bool = False
+    clear_context: bool = False
 
 
 def workspace_outcome(command: Mapping[str, Any], before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
-    current = next(item for item in after["models"] if item["entry_id"] == after["current_entry_id"])
-    payload = {"command_id": command["command_id"], "kind": command["kind"], "current_model_name": current["display_name"]}
+    current = next((item for item in after["models"] if item["entry_id"] == after["current_entry_id"]), None)
+    payload = {"command_id": command["command_id"], "kind": command["kind"],
+               "current_model_name": None if current is None else current["display_name"]}
     if command["kind"] == "close_model":
         closed = next(item for item in before["models"] if item["entry_id"] == command["payload"]["entry_id"])
         payload["closed_model_name"] = closed["display_name"]
+        if current is None:
+            payload.update(model_context_cleared=True, previous_context=closed.get('work_context'))
     return payload
 
 
@@ -247,6 +251,9 @@ def prepare_workspace_change(snapshot: ThreadSnapshot, workspace: dict[str, Any]
             return None, "model_not_open"
         if kind == "close_model":
             if len(state["models"]) == 1:
+                if (snapshot.minimum_protocol_version == 2
+                        and snapshot.session_type in {'enterprise-research', 'general-chat'}):
+                    return WorkspaceChange({'models': [], 'current_entry_id': None}, clear_context=True), None
                 return None, "last_model_required"
             state["models"] = [item for item in state["models"] if item["entry_id"] != target["entry_id"]]
             if target["entry_id"] != state["current_entry_id"]:

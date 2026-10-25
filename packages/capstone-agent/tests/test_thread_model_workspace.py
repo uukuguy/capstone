@@ -76,6 +76,89 @@ def workspace_command(service, thread_id, kind, payload, key):
                        'expected_revision': snapshot.last_event_seq}}
 
 
+@pytest.mark.parametrize('session_type',['enterprise-research','general-chat'])
+def test_native_conversation_closes_last_model_and_next_instruction_is_model_free(session_type):
+    from test_enterprise_normal_chat import native_executor
+    from test_thread_work_execution import command as work_command
+    base=_model_service()
+    service=InMemoryThreadService(replace(base.snapshot('thr_attempts'),minimum_protocol_version=2,
+        session_type=session_type),model_catalog=base._model_catalog,capability_catalog=base._capability_catalog)
+    service.set_native_executor(native_executor())
+    before=service.snapshot('thr_attempts')
+    opened=service.read_models('thr_attempts')
+    request=workspace_command(service,'thr_attempts','close_model',{'entry_id':opened['current_entry_id']},'last_native')
+    receipt=service.submit_command(request)
+    assert receipt.status=='accepted',receipt.rejection
+    assert service.submit_command(request)==receipt
+    after=service.snapshot('thr_attempts')
+    assert after.active_model_context is None and after.active_grid_page_id is None
+    assert service.read_models('thr_attempts')['models']==[]
+    assert service.read_models('thr_attempts')['current_entry_id'] is None
+    event=service.read_events('thr_attempts',0).events[-1]
+    assert event.event_type=='model_workspace_changed' and event.model_context_id is None
+    assert event.payload['model_context_cleared'] is True
+    assert event.payload['previous_context']==before.active_model_context.to_document()
+    sent=service.submit_command(work_command(service,'thr_attempts','send_message','source_after_close',
+        payload={'text':'Read the selected North source topology'}))
+    assert sent.status=='accepted',sent.rejection
+    claimed=service.claim_attempt('native',30)
+    assert claimed is not None and claimed.model_context is None
+    assert claimed.task_context.model_contexts==()
+
+
+@pytest.mark.parametrize('session_type',[None,'grid-analysis'])
+def test_professional_conversation_cannot_close_last_registered_model(session_type):
+    base=_model_service()
+    service=InMemoryThreadService(replace(base.snapshot('thr_attempts'),minimum_protocol_version=2,
+        session_type=session_type),model_catalog=base._model_catalog)
+    before=service.snapshot('thr_attempts')
+    opened=service.read_models('thr_attempts')
+    result=service.submit_command(workspace_command(service,'thr_attempts','close_model',
+        {'entry_id':opened['current_entry_id']},'protected_last'))
+    assert result.rejection=='last_model_required'
+    assert service.snapshot('thr_attempts')==before
+
+
+def test_native_last_close_still_rejects_live_attempt_and_pending_context():
+    from capstone_agent.thread_model_workspace import prepare_workspace_change,synchronize_workspace
+    base=_model_service()
+    base.submit_command(_command())
+    busy=replace(base.snapshot('thr_attempts'),minimum_protocol_version=2,session_type='enterprise-research')
+    workspace=synchronize_workspace(None,busy,base._model_catalog)
+    close={'kind':'close_model','payload':{'entry_id':workspace['current_entry_id']}}
+    assert prepare_workspace_change(busy,workspace,close,base._model_catalog,lambda _:True)[1]=='attempt_in_progress'
+    pending=_model_service()
+    pending.submit_command(command(pending,'switch_model',{'model_id':'pypsa39'}))
+    snapshot=replace(pending.snapshot('thr_attempts'),minimum_protocol_version=2,session_type='enterprise-research')
+    assert prepare_workspace_change(snapshot,workspace,close,pending._model_catalog,lambda _:True)[1]=='context_change_pending'
+
+
+def test_postgres_native_last_close_is_atomic_idempotent_and_survives_restart(postgres_thread_service):
+    from capstone_agent.thread_service import PostgresThreadService
+    service,thread_id=postgres_thread_service
+    service.set_model_catalog(_model_service()._model_catalog)
+    initial=replace(_snapshot(thread_id),active_model_context=None,active_grid_page_id=None,
+                    minimum_protocol_version=2,session_type='enterprise-research')
+    service.create_thread(initial)
+    opened=service.submit_command(workspace_command(service,thread_id,'open_model',{'model_id':'ieee39'},'pg_open_native'))
+    assert opened.status=='accepted',opened.rejection
+    before=service.snapshot(thread_id)
+    workspace=service.read_models(thread_id)
+    request=workspace_command(service,thread_id,'close_model',{'entry_id':workspace['current_entry_id']},'pg_native_last')
+    receipt=service.submit_command(request)
+    assert receipt.status=='accepted',receipt.rejection
+    restored=PostgresThreadService(service.dsn)
+    restored.set_model_catalog(service._model_catalog)
+    assert restored.submit_command(request)==receipt
+    snapshot=restored.snapshot(thread_id)
+    assert snapshot.active_model_context is None and snapshot.active_grid_page_id is None
+    assert restored.read_models(thread_id)['models']==[]
+    event=restored.read_events(thread_id,0).events[-1]
+    assert event.event_type=='model_workspace_changed' and event.model_context_id is None
+    assert event.payload['previous_context']==before.active_model_context.to_document()
+    assert event.payload['model_context_cleared'] is True
+
+
 def test_v2_workspace_controls_check_target_and_cursor_and_keep_exact_retry():
     service = _model_service()
     request = workspace_command(service, 'thr_attempts', 'open_model', {'model_id': 'pypsa39'}, 'v2_open')
