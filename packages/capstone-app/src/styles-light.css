@@ -1037,7 +1037,7 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .capstone-evidence-trace, .capstone-research-records { font-size: 11px; line-height: 1.6; }
 .capstone-chat-activity-frame .capstone-chat-activity-attached summary,
 .capstone-chat-activity-frame .capstone-process-controls button,
-.capstone-chat-activity-frame .capstone-task-progress details > summary { font-size: 10px; line-height: 1.5; }
+.capstone-chat-activity-frame .capstone-task-progress details > summary { font-size: var(--capstone-process-summary-font-size, 10px); line-height: 1.5; }
 .capstone-chat-activity-frame .capstone-business-step > summary .capstone-step-metrics small,
 .capstone-chat-activity-frame .capstone-chat-activity-item small,
 .capstone-chat-activity-frame .capstone-task-progress small { font-size: 10px; line-height: 1.5; }

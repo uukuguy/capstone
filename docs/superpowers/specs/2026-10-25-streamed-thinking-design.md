@@ -21,7 +21,8 @@ instruction. Reuse the shared conversation and its event ledger.
   This change does not force unsupported reasoning or add another model call.
 
 Visual refinement (2026-10-26, supplied screenshot references): use a compact
-12px neutral-grey Thinking trigger, leading chevron and lighter elapsed seconds.
+neutral-grey Thinking trigger with the same font-size token as the execution
+process summary (currently 10px), leading chevron and lighter elapsed seconds.
 Expanded text is secondary, indented behind a hairline, and must not inherit
 answer Markdown colours or heading sizes. Streaming is bounded to 96px with
 scroll-follow; manually reopened main-thread text is bounded to 144px. Preserve

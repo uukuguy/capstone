@@ -1,5 +1,5 @@
 .capstone-thinking-process { margin: 2px 0 10px; color: #717976; }
-.capstone-thinking-trigger { display: inline-flex; align-items: center; gap: 5px; min-height: 24px; padding: 2px 0; border: 0; background: none; color: inherit; font: inherit; font-size: 12px; line-height: 20px; cursor: pointer; }
+.capstone-thinking-trigger { display: inline-flex; align-items: center; gap: 5px; min-height: 24px; padding: 2px 0; border: 0; background: none; color: inherit; font: inherit; font-size: var(--capstone-process-summary-font-size, 10px); line-height: 1.5; cursor: pointer; }
 .capstone-thinking-label { font-weight: 500; }
 .capstone-thinking-duration { margin-left: -3px; color: #858c89; font-variant-numeric: tabular-nums; }
 .capstone-thinking-trigger:hover { color: var(--text-primary, #303741); }
