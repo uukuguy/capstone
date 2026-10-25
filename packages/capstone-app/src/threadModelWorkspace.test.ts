@@ -26,6 +26,10 @@ describe('opened model projection', () => {
     expect(() => parseModelWorkspace({ ...workspace, current_entry_id: 'mdl_missing' }, 'thr_demo')).toThrow()
     expect(() => parseModelWorkspace(workspace, 'thr_other')).toThrow()
   })
+  it('allows a model-free conversation only with an empty collection and null current entry', () => {
+    expect(parseModelWorkspace({...workspace,models:[],current_entry_id:null},'thr_demo')).toMatchObject({models:[],currentEntryId:null})
+    expect(() => parseModelWorkspace({...workspace,current_entry_id:null},'thr_demo')).toThrow()
+  })
   it('rejects duplicate entries and unbounded membership', () => {
     expect(() => parseModelWorkspace({ ...workspace, models: [model, model] }, 'thr_demo')).toThrow()
     expect(() => parseModelWorkspace({ ...workspace, models: Array.from({ length: 65 }, (_, index) => ({ ...model, entry_id: `mdl_${index}` })) }, 'thr_demo')).toThrow()

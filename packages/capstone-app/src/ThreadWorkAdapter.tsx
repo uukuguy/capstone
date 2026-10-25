@@ -36,6 +36,9 @@ import ThreadMaterialUpload from './ThreadMaterialUpload'
 import type {StoredResource} from './resourceUploads'
 import ThreadSettingsMenu from './ThreadSettingsMenu'
 import {useSessionViewState,useSessionViewRef} from './workspaceSessionCache'
+import ThreadModelDirectory from './ThreadModelDirectory'
+import type {ModelWorkspace} from './threadModelWorkspace'
+import {buildModelWorkspaceCommand} from './threadWorkProtocol'
 
 const statusCopy: Record<string, string> = { ready: '已保存，待执行', queued: '已排队', running: '执行中', completed: '已完成', failed: '执行失败', cancelled: '已取消', interrupted: '执行已中断', blocked: '执行不可用' }
 class CommandRejectedError extends Error {}
@@ -72,7 +75,24 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
   const [projection, setProjection] = useState(store.state)
   const snapshot = projection.workSnapshot
   const professional = projection.snapshot
-  const nativeChat=!!snapshot&&!snapshot.modelContext&&(snapshot.nativeExecution!==undefined||snapshot.sessionType==='general-chat'||snapshot.sessionType==='enterprise-research'||snapshot.works.some(work=>work.conversationMode))
+  const nativeChat=!!snapshot&&(snapshot.sessionType==='general-chat'||snapshot.sessionType==='enterprise-research'||snapshot.works.some(work=>work.conversationMode)||(!snapshot.modelContext&&snapshot.nativeExecution!==undefined))
+  const conversationExecutionAvailable=Boolean(snapshot?.modelContext)||snapshot?.nativeExecution?.available===true
+  const [modelWorkspace,setModelWorkspace]=useState<ModelWorkspace|null>(null)
+  const [modelTarget,setModelTarget]=useState('')
+  useEffect(()=>{
+    if(!nativeChat||!snapshot)return
+    let live=true
+    void client.models(currentId).then(workspace=>{
+      if(!live)return
+      const entry=workspace?.models.find(model=>model.entryId===workspace.currentEntryId)
+      const context=snapshot.modelContext
+      if(workspace?.runId!==snapshot.runId || (context ? !entry||entry.modelId!==context.modelId||entry.modelRevision!==context.modelRevision||entry.implementationFamily!==context.implementationFamily : Boolean(entry))) {
+        setModelWorkspace(null);return
+      }
+      setModelWorkspace(workspace)
+    }).catch(cause=>{rethrowDebugCapacity(cause);if(live)setModelWorkspace(null)})
+    return()=>{live=false}
+  },[client,currentId,nativeChat,snapshot?.lastEventSeq,snapshot?.modelContext?.id])
   const recovery=recoveryOnly&&!nativeChat
   const materialRevision=Math.max(0,...store.publicEvents.filter(event=>['material_uploaded','material_removed'].includes(event.eventType)).map(event=>event.eventSeq))
   const [inputCatalog,setInputCatalog]=useState<InputCatalog>()
@@ -249,10 +269,10 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
         setAcceptedDraft({text:payload.text,commandId:command.command_id,submission})
       }
       if (command.kind === 'work_message' || command.kind === 'revise_goal'||command.kind==='send_message') { drafts.current[selected] = ''; persist(selected) }
-      setNotice(command.kind==='send_message'?'':command.kind === 'start_work' ? '执行请求已接收；排队、执行与结果以实际任务状态为准。' : command.kind === 'cancel_work' ? active ? '停止请求已接收，正在等待实际执行停止。' : '停止请求已确认。' : '任务已保存。保存资料不会自动启动分析。')
+      setNotice(command.target.kind==='model_workspace'?'模型选择已更新。':command.kind==='send_message'?'':command.kind === 'start_work' ? '执行请求已接收；排队、执行与结果以实际任务状态为准。' : command.kind === 'cancel_work' ? active ? '停止请求已接收，正在等待实际执行停止。' : '停止请求已确认。' : '任务已保存。保存资料不会自动启动分析。')
       await store.refreshWorkSnapshot().catch(cause => { if (mounted.current) setError(cause.message) })
       if (!mounted.current) return
-      if (selected === 'new' && typeof receipt.target?.id === 'string' && receipt.target.id !== 'new') {
+      if (command.target.kind==='work' && selected === 'new' && typeof receipt.target?.id === 'string' && receipt.target.id !== 'new') {
         const id = receipt.target.id; setSelected(id); setInitialText(drafts.current[id] || ''); persist(id)
       }
     } catch (cause) {
@@ -260,6 +280,11 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
       if (mounted.current && !(cause instanceof CommandRejectedError) && canReconnect(cause)) setReload(value => value + 1)
       throw cause
     } finally { writing.current = false; if (mounted.current) setBusy(false) }
+  }
+  async function changeModel(kind:'open_model'|'activate_model'|'close_model',payload:Record<string,string>) {
+    if(!snapshot||!modelWorkspace)throw new Error('请先同步模型目录。')
+    try{await dispatch(buildModelWorkspaceCommand(currentId,snapshot.runId,`cmd_${commandKey()}`,`idem_${commandKey()}`,modelWorkspace.eventSeq,kind,payload))}
+    catch{/* dispatch retains the error and exact request for recovery. */}
   }
   async function send(text: string,submission?:InputSubmission) {
     if(nativeChat&&!pendingMessage){
@@ -395,7 +420,8 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
       {inspectedProductAttempt&&<AnswerDetailSheet title="执行详情" answerLabel="所选成果的来源指令" onClose={()=>setInspectedProductAttempt(undefined)}><AttemptRecordPanel attemptId={inspectedProductAttempt} read={(id,after)=>client.attemptRecords(currentId,id,after)}/></AnswerDetailSheet>}
       {recovery && <p role="status">此会话使用旧版任务协议，可查看历史、保留草稿、确认原请求及停止已有执行；当前入口尚不能继续发送。可新建会话继续工作。</p>}
       {viewingLegacy&&<p role="status">正在查看历史保存记录，可保留草稿、确认原请求及停止已有执行。返回当前对话后可继续发送。</p>}
-      {nativeChat&&snapshot?.nativeExecution?.available!==true&&<p role="status">当前会话的执行能力暂不可用，可保留草稿并稍后重试。</p>}
+      {nativeChat&&!conversationExecutionAvailable&&<p role="status">当前会话的执行能力暂不可用，可保留草稿并稍后重试。</p>}
+      {pending?.target.kind==='model_workspace'&&<button type="button" className="thread-control-button" disabled={busy||projection.connection!=='live'} onClick={()=>void dispatch(pending).catch(()=>{})}>重试模型选择请求</button>}
       {error && <p role="alert">{error}</p>}
       {!nativeChat&&selectedWork && !selectedWork.startAvailable && <p id="work-start-reason" role="status">{startReason ? reasonCopy[startReason] || '当前任务暂不可启动，请刷新后查看最新状态。仍可保存目标和资料。' : '当前任务暂不可启动，仍可保存资料。'}</p>}
       {notice && <p role="status">{notice}</p>}
@@ -410,7 +436,7 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
       onOpenAnswerDetail={nativeChat?()=>setProductsOpen(false):undefined}
       runtimeMode={snapshot?.runtimeMode} instructionLocation={instructionLocation}
       acceptedDraft={nativeChat?acceptedDraft:undefined}
-      composerControls={liveConversation?(historyActions,inputActions)=><><ThreadSettingsMenu>{historyActions}</ThreadSettingsMenu><ThreadMaterialUpload threadId={currentId} upload={(file,signal)=>client.uploadThreadMaterial(currentId,file,signal)} resourceUpload={(file,options)=>transport.uploadThreadResource(currentId,file,options)} cancelResource={id=>transport.cancelResourceUpload(currentId,id)} disabled={busy||active||!!pending} remainingFiles={Math.max(0,applicationCapacity('inline_material_count')-materials.length)} remainingBytes={materials.length>=applicationCapacity('inline_material_count')?0:remainingMaterialBytes} onBusyChange={setUploadBusy} onUploaded={material=>{inputActions.addMaterial(material.material_id);setCatalogReload(value=>value+1)}}
+      composerControls={liveConversation?(historyActions,inputActions)=><><ThreadSettingsMenu>{historyActions}</ThreadSettingsMenu>{modelWorkspace&&<ThreadModelDirectory models={projection.catalog?.models||[]} currentModelId={snapshot?.modelContext?.modelId||''} target={modelTarget} onTargetChange={setModelTarget} disabled={busy||active||!!currentAttempt||projection.connection!=='live'} pending={!!pending} workspace={modelWorkspace} onSwitch={modelId=>void changeModel('open_model',{model_id:modelId})} onActivate={entryId=>void changeModel('activate_model',{entry_id:entryId})} onClose={entryId=>void changeModel('close_model',{entry_id:entryId})}/>}<ThreadMaterialUpload threadId={currentId} upload={(file,signal)=>client.uploadThreadMaterial(currentId,file,signal)} resourceUpload={(file,options)=>transport.uploadThreadResource(currentId,file,options)} cancelResource={id=>transport.cancelResourceUpload(currentId,id)} disabled={busy||active||!!pending} remainingFiles={Math.max(0,applicationCapacity('inline_material_count')-materials.length)} remainingBytes={materials.length>=applicationCapacity('inline_material_count')?0:remainingMaterialBytes} onBusyChange={setUploadBusy} onUploaded={material=>{inputActions.addMaterial(material.material_id);setCatalogReload(value=>value+1)}}
         attachments={attachments} onResourceUploaded={()=>setAttachmentReload(value=>value+1)} onRemoveAttachment={async id=>{
           await transport.cancelResourceUpload(currentId,id.replace('resource_','upload_'))
           setAttachments(files=>files.filter(file=>file.resource_id!==id))
@@ -418,7 +444,7 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
       contextTriggerRef={contextTrigger} onRemoveMaterial={nativeChat?async id=>{const result=await client.removeThreadMaterial(currentId,id) as {removed?:string};if(result?.removed!==id)throw new Error('资料尚未移除。');setCatalogReload(value=>value+1)}:undefined}
       inputCatalog={inputCatalog} inputCatalogLoading={catalogLoading} onRefreshInputCatalog={()=>setCatalogReload(value=>value+1)} inputControlsDisabled={busy||active||!!pending||uploadBusy}
       sendLabel={viewingLegacy?'确认原保存请求':nativeChat?pendingMessage?'重试发送':'发送':pendingMessage ? '重试保存' : '保存任务'} initialText={initialText} onDraftChange={onDraftChange}
-      storageKey={liveConversation?`${key}.conversation`:`${key}.${selected}`} disabled={((recovery||viewingLegacy) && !pendingMessage) || (nativeChat&&snapshot?.nativeExecution?.available!==true&&!pendingMessage) || busy || uploadBusy || (!snapshot && !professional) || ((!nativeChat||!pendingMessage)&&(!!currentAttempt||active)) || (!!pendingCommand && !pendingMessage) || projection.connection !== 'live'} lockDraft={!!pendingMessage}
+      storageKey={liveConversation?`${key}.conversation`:`${key}.${selected}`} disabled={((recovery||viewingLegacy) && !pendingMessage) || (nativeChat&&!conversationExecutionAvailable&&!pendingMessage) || busy || uploadBusy || (!snapshot && !professional) || ((!nativeChat||!pendingMessage)&&(!!currentAttempt||active)) || (!!pendingCommand && !pendingMessage) || projection.connection !== 'live'} lockDraft={!!pendingMessage}
       isRunning={active} canCancel={canStop}
       cancelLabel={pending?.kind === 'cancel_work' ? '重试停止请求' : selectedWork?.cancelRequested ? '停止请求中' : '停止任务'}
       cancelDisabled={busy || projection.connection !== 'live' || (!!pending && pending.kind !== 'cancel_work') || (selectedWork?.cancelRequested === true && pending?.kind !== 'cancel_work')}

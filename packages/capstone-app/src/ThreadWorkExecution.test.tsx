@@ -11,7 +11,7 @@ import type { WorkCommand } from './threadWorkProtocol'
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); sessionStorage.clear(); localStorage.clear(); window.history.replaceState({}, '', '/') })
 
 /** In-memory HTTP authority fixture. It never invokes a Provider or simulator. */
-function authority({ lostStart = false, lostCancel = false, lostMessage=false, rejectMessage=false, modelFree = false, existingWork = false, native = false, nativeAvailable=true,legacySaved=false } = {}) {
+function authority({ lostStart = false, lostCancel = false, lostMessage=false, rejectMessage=false, modelFree = false, existingWork = false, native = false, nativeAvailable=true,legacySaved=false,modelControls=false } = {}) {
   const model = { id: 'ctx_one', model_id: 'ieee39', model_revision: `revision:sha256:${'c'.repeat(64)}`, implementation_family: 'pandapower', selection_revision: 'sel_one' }
   const context = { binding: { thread_id: 'thr_work', work_id: 'work_one', research_id: 'research-one' }, goal_revision: 1,
     snapshot_id: 'task_one', model_contexts: modelFree||native ? [] : [model], resource_refs: [] }
@@ -30,17 +30,18 @@ function authority({ lostStart = false, lostCancel = false, lostMessage=false, r
   const commands: WorkCommand[] = []
   let attemptsCreated = 0
   let snapshots = 0
+  let openedModel = false
   function projection() {
     const reason = modelFree ? 'execution_unavailable' : attempt ? 'attempt_in_progress' : null
     return { ...work, start_available: reason === null, start_unavailable_reason: reason }
   }
   function snapshot() {
     const base = { schema: 'capstone-thread-snapshot/1', thread_id: 'thr_work', run: { run_id: 'run_work', state: 'open' },
-      active_model_context: modelFree||native ? null : model, active_grid_page_id: modelFree||native ? null : 'page_one', current_attempt: attempt,
+      active_model_context: modelFree||(native&&!openedModel) ? null : model, active_grid_page_id: modelFree||(native&&!openedModel) ? null : 'page_one', current_attempt: attempt,
       last_event_seq: events.length, base_event_seq: 0, result_projections: projections }
     return upgraded ? { ...base, schema: 'capstone-thread-snapshot/2', minimum_protocol_version: 2,
-      selected_model_context_id: modelFree||native ? null : model.id, works: saved ? [projection()] : [], task_context: saved ? context : null,
-      ...(native?{session_type:'general-chat',native_execution:{available:nativeAvailable,unavailable_reason:nativeAvailable?null:'native_executor_unavailable'}}:{}) } : base
+      selected_model_context_id: modelFree||(native&&!openedModel) ? null : model.id, works: saved ? [projection()] : [], task_context: saved ? context : null,
+      ...(native?{session_type:'general-chat',native_execution:{available:nativeAvailable&&!openedModel,unavailable_reason:nativeAvailable&&!openedModel?null:'native_executor_unavailable'}}:{}) } : base
   }
   function append(type: string, payload: Record<string, unknown>, withAttempt = false) {
     const event = { event_id: `evt_${events.length + 1}`, event_seq: events.length + 1, event_type: type, event_version: 2,
@@ -124,12 +125,17 @@ function authority({ lostStart = false, lostCancel = false, lostMessage=false, r
       const command = JSON.parse(String(init?.body)) as WorkCommand; commands.push(command)
       const previous = receipts.get(command.idempotency_key)
       if (previous) return response(previous)
+      if (command.kind === 'open_model') {
+        openedModel = true
+        const accepted = append('model_workspace_changed',{kind:command.kind})
+        return response({schema:'capstone-command-receipt/1',command_id:command.command_id,idempotency_key:command.idempotency_key,thread_id:'thr_work',status:'accepted',accepted_event_seq:accepted,target:{kind:'model_workspace',id:'thr_work',expected_revision:accepted}})
+      }
       if (command.kind === 'send_message' && rejectMessage) return response({schema:'capstone-command-receipt/1',command_id:command.command_id,idempotency_key:command.idempotency_key,thread_id:'thr_work',run_id:'run_work',status:'rejected',rejection:'product_context_unavailable'})
       if (command.kind === 'work_message') { upgraded = true; saved = true }
       if (command.kind === 'send_message') {saved=true;work.messages.push(String(command.payload.text));work.goal=String(command.payload.text)}
       if (command.kind === 'start_work'||command.kind === 'send_message') {
         attemptsCreated += 1; work.status = 'queued'; work.revision += 1; work.latest_attempt_id = 'attempt_one'
-        attempt = { attempt_id: 'attempt_one', turn_id: 'turn_one', target_model_context_id: native?null:model.id, phase: 'accepted', runtime_mode: 'capstone',...(native?{work_id:'work_one'}:{}) }
+        attempt = { attempt_id: 'attempt_one', turn_id: 'turn_one', target_model_context_id: native&&!openedModel?null:model.id, phase: 'accepted', runtime_mode: 'capstone',...(native?{work_id:'work_one'}:{}) }
       }
       if (command.kind === 'cancel_work') { work.cancel_requested = true; work.revision += 1 }
       const accepted = append('command.applied', { command_id: command.command_id, work_id: work.work_id, work: projection() })
@@ -145,7 +151,8 @@ function authority({ lostStart = false, lostCancel = false, lostMessage=false, r
       return response(receipt)
     }
     if (parsed.pathname.endsWith('/thr_work')) { snapshots += 1; return response(snapshot()) }
-    if (parsed.pathname.endsWith('/catalog')) return response({ schema: 'capstone-thread-catalog/1', models: [], profiles: [] })
+    if (parsed.pathname.endsWith('/models')&&modelControls) return response({schema:'capstone-thread-model-workspace/1',thread_id:'thr_work',run_id:'run_work',event_seq:events.length,current_entry_id:openedModel?'mdl_one':null,models:openedModel?[{entry_id:'mdl_one',model_id:model.model_id,model_revision:model.model_revision,implementation_family:'pandapower',authority_model_ref:'gridctl:ieee39',display_name:'IEEE-39',diagram_provider_id:'gridctl',last_active_seq:events.length}]:[],blocked_reason:null})
+    if (parsed.pathname.endsWith('/catalog')) return response({ schema: 'capstone-thread-catalog/1', models: modelControls?[{model_id:'ieee39',implementation_family:'pandapower',authority_model_ref:'gridctl:ieee39',display_name:'IEEE-39',diagram_provider_id:'gridctl'}]:[], profiles: [] })
     throw new Error(`Unexpected test request: ${parsed.pathname}`)
   })
   return { fetcher, commands, started, finish, snapshot, work, publishFile,
@@ -198,6 +205,37 @@ it('sends a native instruction directly through the shared composer and resumes 
   await waitFor(()=>expect(server.commands).toHaveLength(2))
   expect(server.commands[1].kind).toBe('send_message')
   expect(server.commands[1].target.id).toBe('work_one')
+})
+
+it('opens a registered model without replacing the conversation, saved products or normal send path',async()=>{
+  const server=authority({native:true,modelControls:true})
+  vi.stubGlobal('fetch',server.fetcher)
+  const mount=()=>render(<ThreadWorkAdapter transport={new HttpThreadTransport('','',server.fetcher,'/api/v1/threads','2')} threadId="thr_work" namespace="mixed-model" recoveryOnly />)
+  mount()
+  fireEvent.change(await screen.findByRole('textbox',{name:'Thread 指令'}),{target:{value:'先解释分析方法'}})
+  await waitFor(()=>expect((screen.getByRole('button',{name:'发送'}) as HTMLButtonElement).disabled).toBe(false))
+  fireEvent.click(screen.getByRole('button',{name:'发送'}))
+  await waitFor(()=>expect(server.commands[0]?.kind).toBe('send_message'))
+  await act(async()=>{server.publishFile('notes.md');server.finish()})
+  await screen.findByText('来自真实事件的测试结果')
+  fireEvent.click(await screen.findByRole('button',{name:'模型目录'}))
+  fireEvent.change(screen.getByRole('listbox',{name:'目标电网模型'}),{target:{value:'ieee39'}})
+  await screen.findByRole('button',{name:'当前模型：IEEE-39'})
+  expect(server.commands[1].target).toEqual({kind:'model_workspace',id:'thr_work',expected_revision:4})
+  expect(screen.queryByRole('button',{name:'保存任务'})).toBeNull()
+  expect(screen.queryByRole('button',{name:'开始任务'})).toBeNull()
+  expect(screen.getByText('来自真实事件的测试结果')).toBeTruthy()
+  expect(screen.queryByText('当前会话的执行能力暂不可用，可保留草稿并稍后重试。')).toBeNull()
+  fireEvent.change(screen.getByRole('textbox',{name:'Thread 指令'}),{target:{value:'对当前模型运行潮流'}})
+  await waitFor(()=>expect((screen.getByRole('button',{name:'发送'}) as HTMLButtonElement).disabled).toBe(false))
+  fireEvent.click(screen.getByRole('button',{name:'发送'}))
+  await waitFor(()=>expect(server.commands).toHaveLength(3))
+  expect(server.commands[2].kind).toBe('send_message')
+  expect(server.commands[2].target.id).toBe('work_one')
+  cleanup();mount()
+  await screen.findByRole('textbox',{name:'Thread 指令'})
+  expect(screen.queryByRole('button',{name:'保存任务'})).toBeNull()
+  expect(await screen.findByText('来自真实事件的测试结果')).toBeTruthy()
 })
 
 it('recovers an uncertain native send after a terminal event and refresh with its exact original request',async()=>{

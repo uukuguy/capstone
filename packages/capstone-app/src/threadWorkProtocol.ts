@@ -28,9 +28,9 @@ export type WorkSnapshot = {
 }
 export type WorkCommand = {
   schema: 'capstone-command/2'; thread_id: string; run_id: string
-  command_id: string; idempotency_key: string; kind: 'work_message' | 'revise_goal' | 'start_work' | 'cancel_work' | 'send_message'
-  target: { kind: 'work'; id: string; expected_revision: number }
-  payload: ({ text: string; source_attempt_id?: string } & Partial<InputSubmission>) | Record<string, never>
+  command_id: string; idempotency_key: string; kind: 'work_message' | 'revise_goal' | 'start_work' | 'cancel_work' | 'send_message' | 'open_model' | 'activate_model' | 'close_model'
+  target: { kind: 'work' | 'model_workspace'; id: string; expected_revision: number }
+  payload: ({ text: string; source_attempt_id?: string } & Partial<InputSubmission>) | Record<string, string>
 }
 function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new ThreadProtocolError('工作记录无效')
@@ -170,7 +170,11 @@ export function parseStoredWorkCommand(value: unknown, threadId: string): WorkCo
   const command = object(value)
   const target = object(command.target)
   const payload = object(command.payload)
-  if (command.schema !== 'capstone-command/2' || command.thread_id !== threadId || target.kind !== 'work') throw new ThreadProtocolError('工作命令身份无效')
+  if (command.schema !== 'capstone-command/2' || command.thread_id !== threadId) throw new ThreadProtocolError('工作命令身份无效')
+  if (target.kind === 'model_workspace' && target.id === threadId && ['open_model','activate_model','close_model'].includes(String(command.kind))) {
+    return buildModelWorkspaceCommand(threadId,id(command.run_id),id(command.command_id),id(command.idempotency_key),revision(target.expected_revision),command.kind as 'open_model'|'activate_model'|'close_model',payload)
+  }
+  if (target.kind !== 'work') throw new ThreadProtocolError('工作命令身份无效')
   if (command.kind === 'send_message' && typeof payload.text === 'string'
       && Object.keys(payload).every(key => ['text', 'input', 'context_selection', 'resource_profile', 'source_attempt_id', 'material_refs','context_product_refs','attachment_refs'].includes(key))) {
     const {text, source_attempt_id, ...submission} = payload
@@ -182,4 +186,17 @@ export function parseStoredWorkCommand(value: unknown, threadId: string): WorkCo
   if (command.kind === 'cancel_work' && Object.keys(payload).length === 0) return buildCancelWorkCommand(threadId, id(command.run_id), id(command.command_id), id(command.idempotency_key), id(target.id), revision(target.expected_revision))
   if ((command.kind === 'work_message' || command.kind === 'revise_goal') && typeof payload.text === 'string' && Object.keys(payload).length === 1) return buildWorkCommand(threadId, id(command.run_id), id(command.command_id), id(command.idempotency_key), id(target.id), revision(target.expected_revision), payload.text, command.kind)
   throw new ThreadProtocolError('工作命令无效')
+}
+
+export function buildModelWorkspaceCommand(threadId: string, runId: string, commandId: string, idempotencyKey: string,
+  expectedRevision: number, kind: 'open_model' | 'activate_model' | 'close_model', payload: Record<string, unknown>): WorkCommand {
+  const fields = Object.keys(payload)
+  const validText = (value:unknown):value is string => typeof value === 'string' && value.trim().length > 0 && !exceedsCapacity(value.length,'ui_result_text_chars')
+  if (kind === 'open_model' ? !validText(payload.model_id) || fields.some(key=>!['model_id','model_revision'].includes(key)) ||
+      (payload.model_revision !== undefined && !validText(payload.model_revision))
+    : !['activate_model','close_model'].includes(kind) || fields.length !== 1 || !validText(payload.entry_id)) throw new ThreadProtocolError('模型操作无效')
+  const command: WorkCommand = {schema:'capstone-command/2',thread_id:id(threadId),run_id:id(runId),command_id:id(commandId),idempotency_key:id(idempotencyKey),kind,
+    target:{kind:'model_workspace',id:id(threadId),expected_revision:revision(expectedRevision)},payload:structuredClone(payload) as Record<string,string>}
+  assertCapacity(new TextEncoder().encode(JSON.stringify(command)).byteLength,'command_bytes')
+  return command
 }
