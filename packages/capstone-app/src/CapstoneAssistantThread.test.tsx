@@ -3,6 +3,8 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import CapstoneAssistantThread, { projectAssistantActivity, projectAssistantMessages } from './CapstoneAssistantThread'
 import type { EventEnvelope, ResultProjection } from './threadProtocol'
 import {parseProductRef} from './threadProducts'
+import directExecutionLifecycle from './fixtures/directExecutionLifecycle.json'
+import {parseEventEnvelope} from './threadProtocol'
 
 afterEach(() => { cleanup(); localStorage.clear() })
 
@@ -12,11 +14,105 @@ const event = (eventType: string, eventSeq: number, payload: Record<string, unkn
 })
 
 describe('CapstoneAssistantThread', () => {
-  it('shows timed main-chain startup before the first task or tool exists', () => {
+  // Public boundaries from real Attempt attempt_83571febfda61ed7 (2026-10-25).
+  it('keeps recorded host lifecycle stages out of direct answer and tool-chain focus', () => {
+    const events=directExecutionLifecycle.map(parseEventEnvelope)
+    const props={disabled:false,isRunning:false,activity:[],onSend:async()=>{},onCancel:async()=>{}}
+    const {rerender}=render(<CapstoneAssistantThread {...props} events={events} />)
+    fireEvent.click(screen.getByRole('button',{name:'放大阅读执行过程'}))
+    let reader=within(screen.getByRole('dialog',{name:'执行过程'}))
+    expect(reader.getByRole('region',{name:'思考状态'})).toBeTruthy()
+    expect(reader.getAllByRole('group',{name:/LLM 调用/})).toHaveLength(1)
+    expect(reader.queryByLabelText('任务步骤')).toBeNull()
+    expect(reader.getByText('运行阶段与计时').closest('details')?.open).toBe(false)
+    fireEvent.keyDown(screen.getByRole('dialog',{name:'执行过程'}),{key:'Escape'})
+    const toolEvent=event('runtime_event',35,{native_type:'tool_execution_end',task_id:'task',tool_call_id:'read',tool_name:'read',task_step_id:'task-execution',activity:{operation:'Read a registered source'}},events[0].attemptId)
+    rerender(<CapstoneAssistantThread {...props} events={[...events.slice(0,-1),toolEvent,events.at(-1)!]} />)
+    fireEvent.click(screen.getByRole('button',{name:'放大阅读执行过程'}))
+    reader=within(screen.getByRole('dialog',{name:'执行过程'}))
+    expect(reader.getByRole('region',{name:'工具调用过程'})).toBeTruthy()
+    expect(reader.queryByLabelText('任务步骤')).toBeNull()
+    fireEvent.keyDown(screen.getByRole('dialog',{name:'执行过程'}),{key:'Escape'})
+    const businessStep=event('runtime_event',36,{task_step:{id:'task-finalization-review',number:4,title:'核验与结果整理',status:'completed',result_summary:'Recorded business review'}},events[0].attemptId)
+    rerender(<CapstoneAssistantThread {...props} events={[...events,businessStep]} />)
+    fireEvent.click(screen.getByRole('button',{name:'放大阅读执行过程'}))
+    reader=within(screen.getByRole('dialog',{name:'执行过程'}))
+    expect(reader.getByLabelText('任务步骤')).toBeTruthy()
+    expect(reader.getByText('Recorded business review')).toBeTruthy()
+  })
+  it('shows public thinking status before the first task or tool exists', () => {
     const events=[event('command_accepted',1,{kind:'send_auto',payload:{text:'分析资料'}},'startup'),event('attempt_started',2,{},'startup')]
     render(<CapstoneAssistantThread events={events} activity={projectAssistantActivity(events)} disabled={false} isRunning={true} onSend={async()=>{}} onCancel={async()=>{}} />)
-    expect(screen.getByRole('region',{name:'任务启动'}).textContent).toContain('处理中')
-    expect(screen.getByRole('region',{name:'任务启动'}).textContent).toContain('已用时')
+    expect(screen.getByRole('region',{name:'思考状态'}).textContent).toContain('等待模型进展')
+    expect(screen.getByRole('region',{name:'思考状态'}).textContent).toContain('已用时')
+    expect(screen.queryByText('正在准备输入、规划和调度首个任务。')).toBeNull()
+  })
+  it('changes from measured thinking to visible tools to recorded tasks and keeps that focus on replay', () => {
+    const start = [event('attempt_started', 1, {}, 'mixed'),
+      event('runtime_action', 2, {phase:'started'}, 'mixed', '2026-09-30T00:00:01Z'),
+      event('runtime_action', 3, {phase:'response_completed'}, 'mixed', '2026-09-30T00:00:03Z')]
+    const props = {disabled:false,isRunning:true,activity:[],onSend:async()=>{},onCancel:async()=>{}}
+    const {rerender,unmount} = render(<CapstoneAssistantThread {...props} events={start} />)
+    expect(screen.getByRole('region',{name:'思考状态'}).textContent).toContain('未提供公开思考摘要')
+    expect(screen.getByRole('group',{name:'LLM 调用 1'}).textContent).toContain('2.0s')
+    const toolEvents = [...start, event('runtime_event',4,{native_type:'tool_execution_start',task_id:'task',tool_call_id:'call',tool_name:'read',activity:{operation:'Read registered source'}},'mixed')]
+    rerender(<CapstoneAssistantThread {...props} events={toolEvents} />)
+    const tools = screen.getByRole('region',{name:'工具调用过程'})
+    expect(within(tools).getByText('Read registered source')).toBeTruthy()
+    expect(tools.closest('details')).toBeNull()
+    expect(screen.queryByRole('region',{name:'思考状态'})).toBeNull()
+    const taskEvents = [...toolEvents,event('runtime_event',5,{task_step:{id:'check',number:1,title:'Compare source coverage',status:'running'}},'mixed')]
+    rerender(<CapstoneAssistantThread {...props} events={taskEvents} />)
+    expect(screen.getByText('Compare source coverage')).toBeTruthy()
+    expect(screen.queryByRole('region',{name:'工具调用过程'})).toBeNull()
+    unmount()
+    render(<CapstoneAssistantThread {...props} isRunning={false} events={[...taskEvents,event('attempt_cancelled',6,{},'mixed')]} />)
+    fireEvent.click(screen.getByRole('button',{name:'查看执行过程'}))
+    expect(screen.getByText('Compare source coverage')).toBeTruthy()
+    expect(screen.queryByRole('region',{name:'思考状态'})).toBeNull()
+  })
+  it('keeps direct-answer timing on refresh without rendering diagnostic reasoning as a public summary', () => {
+    render(<CapstoneAssistantThread events={[event('attempt_started',1,{},'direct'),
+      {...event('assistant_process_delta',2,{text:'PRIVATE_REASONING'},'direct'),visibility:'diagnostic'},
+      event('runtime_action',3,{phase:'started'},'direct','2026-09-30T00:00:01Z'),
+      event('runtime_action',4,{phase:'response_completed'},'direct','2026-09-30T00:00:03Z'),
+      event('attempt_completed',5,{answer:'Hello'},'direct','2026-09-30T00:00:04Z')]} disabled={false} isRunning={false} activity={[]} onSend={async()=>{}} onCancel={async()=>{}} />)
+    expect(screen.getByText(/思考状态.*4.0s/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button',{name:'查看执行过程'}))
+    expect(screen.getByRole('group',{name:'LLM 调用 1'}).textContent).toContain('2.0s')
+    expect(screen.queryByText('PRIVATE_REASONING')).toBeNull()
+  })
+  it.each([
+    ['error','attempt_failed','错误响应'],
+    ['aborted','attempt_cancelled','已中断'],
+    [undefined,'attempt_failed','未完整记录'],
+    [undefined,'attempt_interrupted','已中断'],
+  ])('retains public model failure status on replay: %s / %s', (responseKind,terminal,label) => {
+    const events=[event('attempt_started',1,{},'model-error'),
+      event('runtime_action',2,{phase:'started'},'model-error','2026-09-30T00:00:01Z'),
+      ...(responseKind?[event('runtime_action',3,{phase:'response_completed',response_kind:responseKind},'model-error','2026-09-30T00:00:03Z')]:[]),
+      event(terminal,4,{},'model-error','2026-09-30T00:00:04Z')]
+    render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async()=>{}} onCancel={async()=>{}} />)
+    fireEvent.click(screen.getByRole('button',{name:'放大阅读执行过程'}))
+    const call=within(screen.getByRole('dialog',{name:'执行过程'})).getByRole('group',{name:'LLM 调用 1'})
+    expect(within(call).getByText(label)).toBeTruthy()
+    expect(within(call).queryByText('已返回')).toBeNull()
+    expect(within(call).getByText(responseKind?'2.0s':'耗时 —')).toBeTruthy()
+  })
+  it('shows actual overlapping native calls and retained errors in the tool process reader', () => {
+    const tool = (seq:number,call:string,type:string,seconds:number,is_error=false) => event('runtime_event',seq,
+      {native_type:type,task_id:'task',tool_call_id:call,tool_name:call,is_error,activity:{operation:`Read ${call}`,output_excerpt:is_error?'Source unavailable':'Source read'}},
+      'parallel',`2026-09-30T00:00:0${seconds}Z`)
+    const events=[event('attempt_started',1,{},'parallel'),
+      tool(2,'first','tool_execution_start',1),tool(3,'second','tool_execution_start',2),
+      tool(4,'second','tool_execution_end',3,true),tool(5,'first','tool_execution_end',4),
+      event('attempt_failed',6,{message:'A source is unavailable'},'parallel')]
+    render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async()=>{}} onCancel={async()=>{}} />)
+    fireEvent.click(screen.getByRole('button',{name:'放大阅读执行过程'}))
+    const tools=within(screen.getByRole('dialog',{name:'执行过程'})).getByRole('region',{name:'工具调用过程'})
+    expect(within(tools).getAllByText('并行调用')).toHaveLength(2)
+    expect(within(tools).getByText('失败')).toBeTruthy()
+    expect(within(tools).getByText('Source unavailable',{selector:'.capstone-tool-failure-reason'})).toBeTruthy()
   })
   it('passes the trusted cancelled attempt phase to its retained graph reader', () => {
     const owner = { thread_id: 'thr_demo', work_id: 'work', research_id: 'research', goal_revision: 1 }

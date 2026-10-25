@@ -86,6 +86,48 @@ def test_unavailable_send_does_not_partially_save_input(chat_store):
     assert store.snapshot(thread_id).current_attempt is None
 
 
+def test_general_entry_keeps_shared_organization_and_history_for_followup(chat_store, tmp_path):
+    from capstone_agent.native_task_context import research_policy_capabilities
+    store, thread_id = chat_store
+    if isinstance(store, InMemoryThreadService):
+        store._snapshot = replace(store._snapshot, session_type='general-chat')
+    else:
+        import psycopg
+        with psycopg.connect(store.dsn) as connection:
+            connection.execute('UPDATE capstone_threads SET session_type=%s WHERE thread_id=%s',
+                               ('general-chat', thread_id))
+    executor = native_executor()
+    executor.capability.update({
+        'research_bridge_schemas': ['capstone-research-bridge/1'],
+        'delivery_review_schemas': ['capstone-delivery-review/1'],
+        'research_graph_schemas': ['capstone-enterprise-graph/2'],
+        'research_policy_profiles': research_policy_capabilities(),
+    })
+    executor.execute_with_research = lambda request, control, emit, bridge: executor.execute(request, control, emit)
+    store.set_native_executor(executor)
+    def forbidden(*args):
+        raise AssertionError('native organization must not prepare a scientific model')
+    factory = IntentRuntimeFactory(forbidden, forbidden, forbidden, general_executor=executor,
+                                   native_research_root=tmp_path)
+    first = store.submit_command(command(store, thread_id, 'send_message', 'shared_first',
+                                         payload={'text': 'Explain this goal briefly'}))
+    assert first.status == 'accepted'
+    assert run_pending_attempt(store, factory, worker_id='shared', implementation_family='native').status == 'completed'
+    work = store.snapshot(thread_id).works[0]
+    second = store.submit_command(command(store, thread_id, 'send_message', 'shared_followup',
+        work_id=work['work_id'], revision=work['revision'], payload={'text': 'Now inspect the supplied data and state any gaps'}))
+    assert second.status == 'accepted'
+    assert run_pending_attempt(store, factory, worker_id='shared', implementation_family='native').status == 'completed'
+    assert store.snapshot(thread_id).session_type == 'general-chat'
+    assert len(store.snapshot(thread_id).works) == 1
+    assert len(executor.requests) == 2
+    for request in executor.requests:
+        assert request.native_context['policy']['external_lookup_enabled'] is False
+        assert 'agent_research_plan' in request.native_context['policy']['allowed_tools']
+        assert request.research_binding is not None
+    assert any(message['content'] == 'General answer' for message in executor.requests[1].messages)
+
+
 @pytest.mark.parametrize('phase', ['queued', 'running'])
 def test_normal_conversation_stop_uses_existing_cancel_and_keeps_unconsumed_input(chat_store, phase, monkeypatch):
     from itertools import count
@@ -129,6 +171,76 @@ def test_native_failure_is_failed_instead_of_a_completed_placeholder(chat_store)
     assert result.status == 'failed'
     assert store.snapshot(thread_id).works[0]['status'] == 'failed'
     assert store.snapshot(thread_id).works[0]['messages'] == ['Hello']
+
+
+@pytest.mark.parametrize('terminal', ['cancelled', 'failed', 'interrupted'])
+def test_new_conversation_instruction_does_not_replay_prior_unfinished_input(chat_store, terminal):
+    store, thread_id = chat_store
+    store.set_native_executor(native_executor())
+    old_text = 'Perform the long research task and write its report'
+    new_text = 'List active processes in the isolated task environment'
+    assert store.submit_command(command(store, thread_id, 'send_message', 'superseded_old',
+                                       payload={'text': old_text})).status == 'accepted'
+    previous = store.claim_attempt('old', 30)
+    assert previous is not None
+    store.finish_attempt(previous, phase=terminal, payload={})
+    work = store.snapshot(thread_id).works[0]
+    assert work['messages'] == [old_text]  # Explicit retry remains possible before a new instruction.
+    request = command(store, thread_id, 'send_message', 'superseding_new',
+        work_id=work['work_id'], revision=work['revision'], payload={'text': new_text})
+    accepted = store.submit_command(request)
+    assert accepted.status == 'accepted'
+    assert store.submit_command(request) == accepted
+    current = store.claim_attempt('new', 30)
+    assert current is not None
+    assert current.instruction == new_text
+    assert current.task_context.binding == previous.task_context.binding
+    assert any(message['content'] == old_text and message['status'] == terminal
+               for message in current.conversation_context.to_document()['messages'])
+    assert previous.instruction == old_text
+
+
+def test_explicit_work_retry_keeps_the_cancelled_instruction(chat_store):
+    store, thread_id = chat_store
+    store.set_native_executor(native_executor())
+    text = 'Continue the original investigation'
+    assert store.submit_command(command(store, thread_id, 'send_message', 'retry_original',
+        payload={'text': text})).status == 'accepted'
+    old = store.claim_attempt('old', 30)
+    assert old is not None
+    store.finish_attempt(old, phase='cancelled', payload={})
+    work = store.snapshot(thread_id).works[0]
+    assert store.submit_command(command(store, thread_id, 'start_work', 'retry_exact',
+        work_id=work['work_id'], revision=work['revision'])).status == 'accepted'
+    retried = store.claim_attempt('retry', 30)
+    assert retried is not None and retried.instruction == text
+
+
+def test_worker_receives_only_the_new_instruction_after_cancel(chat_store, tmp_path):
+    store, thread_id = chat_store
+    executor = native_executor()
+    store.set_native_executor(executor)
+    old_text, new_text = 'Write the previous long research report', 'Show active isolated processes'
+    assert store.submit_command(command(store, thread_id, 'send_message', 'worker_old',
+        payload={'text': old_text})).status == 'accepted'
+    previous = store.claim_attempt('old', 30)
+    assert previous is not None
+    store.finish_attempt(previous, phase='cancelled', payload={})
+    before = store.snapshot(thread_id)
+    work = before.works[0]
+    stale = command(store, thread_id, 'send_message', 'worker_stale',
+        work_id=work['work_id'], revision=0, payload={'text': new_text})
+    assert store.submit_command(stale).rejection == 'revision_conflict'
+    assert store.snapshot(thread_id).works == before.works
+    assert store.submit_command(command(store, thread_id, 'send_message', 'worker_new',
+        work_id=work['work_id'], revision=work['revision'], payload={'text': new_text})).status == 'accepted'
+    result = run_pending_attempt(store, IntentRuntimeFactory(None, None, None,
+        general_executor=executor, native_research_root=tmp_path),
+        worker_id='native', implementation_family='native')
+    assert result.status == 'completed'
+    assert len(executor.requests) == 1 and executor.requests[0].instruction == new_text
+    assert any(message['content'] == old_text and message['status'] == 'cancelled'
+               for message in executor.requests[0].messages)
 
 
 def test_native_input_catalog_and_selected_skill_are_consumed(chat_store):
@@ -255,7 +367,9 @@ def test_native_postgres_restart_retains_accepted_configuration_and_old_lease_ca
         revision=work['revision'], payload={'text': 'Continue'})
     assert restored.submit_command(next_request).status == 'accepted'
     current = restored.claim_attempt('replacement', 30, 'native')
-    assert current.instruction == 'Keep this input\n\nContinue'
+    assert current.instruction == 'Continue'
+    assert any(message['content'] == 'Keep this input' and message['status'] == 'interrupted'
+               for message in current.conversation_context.to_document()['messages'])
     with pytest.raises(ThreadExecutionError, match='lease'):
         restored.finish_attempt(claim, phase='completed', payload={'answer': 'late again'})
     restored.finish_attempt(current, phase='failed', payload={'error_code': 'fixture_end'})

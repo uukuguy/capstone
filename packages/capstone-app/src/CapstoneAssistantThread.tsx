@@ -15,9 +15,12 @@ import { answerEvidenceState, evidenceStateCopy, type AnswerEvidenceState } from
 import InferenceEvidencePanel, { type FailureEvidence, type ToolExecutionRecord } from './InferenceEvidencePanel'
 import ResearchEvidence, { parseResearchSnapshot, type ResearchSnapshot } from './ResearchEvidence'
 import { projectTaskProgress, projectTaskStepDiagnostics, projectResearchBranches, type TaskProgress, type TaskStepDiagnostic, type ResearchBranch } from './taskProgress'
-import TaskStepProcess, { StepErrorDetails, projectTaskSteps, ResearchBranchItems, readStepOpen, saveStepOpen, toolExecutionMs, type StepFoldCommand, type TaskStep } from './TaskStepProcess'
+import TaskStepProcess, { RecordedResult, StepErrorDetails, projectTaskSteps, ResearchBranchItems, readStepOpen, saveStepOpen, toolExecutionMs, type StepFoldCommand, type TaskStep } from './TaskStepProcess'
 import ExecutionGraphProcess, { graphTraceIssues, type GraphTraceFocus } from './ExecutionGraphProcess'
-import ProcessLifecycleNode from './ProcessLifecycleNode'
+import ProcessCallTrace, { type ProcessModelCall } from './ProcessCallTrace'
+import { projectProcessModelRequests } from './processModelRequests'
+import {isExecutionLifecycleStep} from './executionLifecycle'
+import {nativeGraphFocus} from './nativeGraphFocus'
 import { projectExecutionGraph, type ExecutionGraph } from './executionGraph'
 import ResultExplorer from './ResultExplorer'
 import { taskResultCollections, type TaskResultCollection } from './taskResultCollections'
@@ -503,7 +506,8 @@ export function projectAssistantMessages(events: readonly EventEnvelope[], instr
     const stepDiagnostics = attemptId ? projectTaskStepDiagnostics(events, attemptId) : []
     const researchBranches = attemptId ? projectResearchBranches(events, attemptId) : []
     const executionGraph = attemptId ? projectExecutionGraph(events, attemptId) : undefined
-    const withMetadata = { ...message, metadata: { custom: { ...custom, activities, runtimeMode, acceptedContext, failureResults, researchGoal, researchSnapshot, toolExecutions, taskProgress, taskSteps, stepDiagnostics, researchBranches, executionGraph, stepStorageKey: `${events[0]?.threadId ?? ''}:${attemptId ?? ''}` } } }
+    const modelRequests = attemptId ? projectProcessModelRequests(events, attemptId) : []
+    const withMetadata = { ...message, metadata: { custom: { ...custom, activities, modelRequests, nativeGraphFocus: attemptId ? nativeGraphFocus(events,attemptId,executionGraph) : undefined, runtimeMode, acceptedContext, failureResults, researchGoal, researchSnapshot, toolExecutions, taskProgress, taskSteps, stepDiagnostics, researchBranches, executionGraph, stepStorageKey: `${events[0]?.threadId ?? ''}:${attemptId ?? ''}` } } }
     return typeof message.content === 'string'
       ? { ...withMetadata, content: [{ type: 'text' as const, text: message.content }] }
       : withMetadata
@@ -627,16 +631,25 @@ function ToolDiagnostic({ diagnostic }: { diagnostic: string }) {
 }
 
 function ActivityItems({ activities }: { activities: ChatActivity[] }) {
+  const interval = (item: ChatActivity) => [Date.parse(item.startedAt ?? ''), item.finishedAt ? Date.parse(item.finishedAt) : item.status === 'running' ? Infinity : NaN]
   return <div className="capstone-chat-activity-list">{activities.map((item) => {
     const [owner, ...detail] = item.source.split(' · ')
     const reason = toolFailureReason(item.failure)
     const diagnostic = [reason, item.failure?.code ? `诊断：${item.failure.code}` : '',
       item.failure?.message ? `原文：${item.failure.message}` : ''].filter(Boolean).join('\n')
+    const [start, end] = interval(item)
+    const parallel = activities.some(other => {
+      if (other.id === item.id) return false
+      const [otherStart, otherEnd] = interval(other)
+      return start < end && otherStart < otherEnd && start < otherEnd && otherStart < end
+    })
     return <div key={item.id} className={`capstone-chat-activity-item is-${item.status}`}>
       <span className="capstone-chat-activity-icon" aria-hidden="true" />
       <div className="capstone-tool-call-content">
         <div className="capstone-tool-call-heading">
           <strong>{item.taskStepNumber !== undefined && item.stepToolNumber !== undefined ? `${String(item.taskStepNumber).padStart(2, '0')}.${item.stepToolNumber} ` : ''}{item.label}</strong>
+          <small>{item.status === 'running' ? '执行中' : item.status === 'failed' ? '失败' : item.status === 'cancelled' ? '已停止' : '完成'}</small>
+          {parallel && <small title="调用记录的时间区间重叠。">并行调用</small>}
         </div>
         <small><span className="capstone-chat-activity-source" data-owner={owner}>{owner.toUpperCase()}</span> {detail.join(' · ')}{item.durationMs === undefined ? '' : ` · ${formatDuration(item.durationMs)}`}</small>
         {item.operation && <div className="capstone-tool-operation">{item.operation}</div>}
@@ -659,8 +672,9 @@ function TaskProgressItems({ items }: { items: readonly TaskProgress[] }) {
   </section>)}</div>
 }
 
-function AttemptActivity({ activities, executionGraph, diagnostics: legacyDiagnostics = [], branches: legacyBranches = [], progress: legacyProgress = [], steps: legacySteps = [], stepStorageKey = '', goal, running, phase, open, onOpenChange, startedAt, durationMs, detailsRef, auxiliary, hasAuxiliary = false }: { activities: ChatActivity[]; executionGraph?: ExecutionGraph; diagnostics?: readonly TaskStepDiagnostic[]; branches?: readonly ResearchBranch[]; progress?: readonly TaskProgress[]; steps?: readonly TaskStep[]; stepStorageKey?: string; goal?: string; running: boolean; phase?: string; open: boolean; onOpenChange: (open: boolean) => void; startedAt?: string; durationMs?: number; detailsRef: React.RefObject<HTMLDetailsElement | null>; auxiliary?: ReactNode; hasAuxiliary?: boolean }) {
-  const steps = executionGraph ? [] : legacySteps
+function AttemptActivity({ activities, modelRequests = [], nativeGraphFocus: selectedGraphFocus, executionGraph, diagnostics: legacyDiagnostics = [], branches: legacyBranches = [], progress: legacyProgress = [], steps: legacySteps = [], stepStorageKey = '', goal, running, phase, open, onOpenChange, startedAt, durationMs, detailsRef, auxiliary, hasAuxiliary = false }: { activities: ChatActivity[]; modelRequests?: ProcessModelCall[]; nativeGraphFocus?: 'tools' | 'tasks'; executionGraph?: ExecutionGraph; diagnostics?: readonly TaskStepDiagnostic[]; branches?: readonly ResearchBranch[]; progress?: readonly TaskProgress[]; steps?: readonly TaskStep[]; stepStorageKey?: string; goal?: string; running: boolean; phase?: string; open: boolean; onOpenChange: (open: boolean) => void; startedAt?: string; durationMs?: number; detailsRef: React.RefObject<HTMLDetailsElement | null>; auxiliary?: ReactNode; hasAuxiliary?: boolean }) {
+  const steps = executionGraph ? [] : legacySteps.filter(step=>!isExecutionLifecycleStep(step.id))
+  const lifecycleSteps = executionGraph ? [] : legacySteps.filter(step=>isExecutionLifecycleStep(step.id))
   const branches = executionGraph ? [] : legacyBranches
   const progress = executionGraph ? [] : legacyProgress
   const diagnostics = executionGraph ? [] : legacyDiagnostics
@@ -680,6 +694,7 @@ function AttemptActivity({ activities, executionGraph, diagnostics: legacyDiagno
   }
   const graphUnassignedTools = toolActivities.filter(activity => !graphToolIds.has(callId(activity)))
   const toolCount = executionGraph ? graphToolIds.size + graphUnassignedTools.length : toolActivities.length
+  const focus = executionGraph && selectedGraphFocus ? selectedGraphFocus : executionGraph || steps.length > 0 || branches.length > 0 || progress.length > 0 ? 'tasks' : toolCount > 0 ? 'tools' : 'thinking'
   const processViewport = useRef<HTMLDivElement>(null)
   const followProcess = useRef(true)
   useLayoutEffect(() => {
@@ -733,31 +748,52 @@ function AttemptActivity({ activities, executionGraph, diagnostics: legacyDiagno
   }, [running])
   const liveDuration = startedAt ? durationBetween(startedAt, new Date(now).toISOString()) : undefined
   const elapsed = running ? liveDuration : durationMs
-  const hasProcess = running || !!executionGraph || activities.length > 0 || progress.length > 0 || steps.length > 0 || diagnostics.length > 0 || branches.length > 0
+  const hasProcess = running || modelRequests.length > 0 || !!startedAt || !!executionGraph || activities.length > 0 || progress.length > 0 || steps.length > 0 || lifecycleSteps.length > 0 || diagnostics.length > 0 || branches.length > 0
   if (!hasProcess && !hasAuxiliary) return null
   const terminalLabel = phase === 'failed' ? '执行失败 ·' : phase === 'cancelled' ? '已取消 ·' : phase === 'interrupted' ? '已中断 ·' : '已完成'
   const terminalClass = phase === 'failed' || phase === 'interrupted' ? ` is-${phase}` : phase === 'cancelled' ? ' is-cancelled' : ''
   const lastWork = !running && !open && ['failed', 'interrupted', 'cancelled'].includes(phase ?? '')
     ? progress.filter(item => item.kind !== 'goal').at(-1) : undefined
+  const lifecycleDetails = lifecycleSteps.length > 0 && <details className="capstone-native-tool-calls"><summary>运行阶段与计时</summary>
+    {lifecycleSteps.map(step=><p className="capstone-task-goal" key={step.id}><span>{step.title}</span> · {step.status === 'running' ? running ? '进行中' : '结束状态未记录' : step.status === 'completed' ? '已结束' : step.status === 'cancelled' ? '已停止' : step.status === 'failed' ? '失败' : '受限'} · <span>{step.durationMs === undefined ? '耗时未记录' : formatDuration(step.durationMs)}</span></p>)}
+  </details>
+  const graphProcess = (expandedResearch = false) => executionGraph && <><ExecutionGraphProcess attemptStartedAt={startedAt} attemptDurationMs={durationMs} overallTools={toolActivities.map(activity=>({...activity,id:callId(activity),name:activity.source,
+    status:activity.status==='cancelled'?'failed':activity.status,origin:'parent' as const}))} traceFocus={traceFocus} graph={executionGraph} storageKey={expandedResearch ? `${stepStorageKey}:reader` : stepStorageKey} attemptPhase={phase} expandedResearch={expandedResearch} showFoldControls={expandedResearch} foldCommand={expandedResearch ? undefined : foldCommand} onFoldChange={expandedResearch ? undefined : reportFold} now={running ? now : undefined} />
+    {graphUnassignedTools.length > 0 && <details className="capstone-graph-control-tools"><summary>图控制与未归属工具 · {graphUnassignedTools.length} 次</summary>{graphUnassignedTools.map(activity => {
+      const control = executionGraph.controlCalls.find(control => control.callId === callId(activity))
+      return <div key={activity.id}>{control ? <p>图控制 · <code>{control.graphRef}</code> · 检查点 v{control.checkpoint.revision}</p> : <p>未记录确切图版本关联</p>}<ActivityItems activities={[activity]} /></div>
+    })}</details>}</>
   const process = (expandedResearch = false) => {
-    if (executionGraph) return <><ExecutionGraphProcess attemptStartedAt={startedAt} attemptDurationMs={durationMs} overallTools={toolActivities.map(activity=>({...activity,id:callId(activity),name:activity.source,
-      status:activity.status==='cancelled'?'failed':activity.status,origin:'parent' as const}))} traceFocus={traceFocus} graph={executionGraph} storageKey={expandedResearch ? `${stepStorageKey}:reader` : stepStorageKey} attemptPhase={phase} expandedResearch={expandedResearch} showFoldControls={expandedResearch} foldCommand={expandedResearch ? undefined : foldCommand} onFoldChange={expandedResearch ? undefined : reportFold} now={running ? now : undefined} />
-      {graphUnassignedTools.length > 0 && <details className="capstone-graph-control-tools"><summary>图控制与未归属工具 · {graphUnassignedTools.length} 次</summary>{graphUnassignedTools.map(activity => {
-        const control = executionGraph.controlCalls.find(control => control.callId === callId(activity))
-        return <div key={activity.id}>{control ? <p>图控制 · <code>{control.graphRef}</code> · 检查点 v{control.checkpoint.revision}</p> : <p>未记录确切图版本关联</p>}<ActivityItems activities={[activity]} /></div>
-      })}</details>}</>
+    if (focus === 'thinking') return <section className="capstone-thinking-process" aria-label="思考状态">
+      <p className="capstone-task-goal">{running ? modelRequests.some(call => !call.finishedAt) ? '模型处理中' : '等待模型进展' : phase === 'failed' ? '模型处理失败' : phase === 'cancelled' || phase === 'interrupted' ? '模型处理已停止' : '模型处理已结束'}{elapsed === undefined ? '' : ` · ${running ? '已用时' : '总耗时'} ${formatDuration(elapsed)}`}</p>
+      <p className="capstone-task-goal">当前记录未提供公开思考摘要。</p>
+      {modelRequests.length > 0 && <ProcessCallTrace models={modelRequests} tools={[]} now={running ? now : undefined} active={running} />}
+      {lifecycleDetails}
+    </section>
+    if (focus === 'tools' && executionGraph) return <>
+      <section aria-label="工具调用过程">
+        {executionGraph.executions.map(execution=><ProcessCallTrace key={execution.action.id} models={[]} tools={execution.tools} active={running&&!execution.nativeStatus} now={running?now:undefined} renderToolDetails={tool=>{
+          const record=execution.tools.find(item=>item.id===tool.id)
+          return record?.output&&<RecordedResult text={record.output} title={record.name}/>
+        }}/>) }
+        <ActivityItems activities={graphUnassignedTools.filter(activity=>!executionGraph.controlCalls.some(control=>control.callId===callId(activity)))} />
+      </section>
+      <details className="capstone-native-tool-calls"><summary>任务组织记录</summary>{graphProcess(expandedResearch)}</details>
+    </>
+    if (focus === 'tools') return <section aria-label="工具调用过程"><ActivityItems activities={toolActivities} />
+      {modelRequests.length > 0 && <details className="capstone-native-tool-calls"><summary>模型请求 · {modelRequests.length} 次</summary><ProcessCallTrace models={modelRequests} tools={[]} now={running ? now : undefined} active={running} /></details>}
+      {lifecycleDetails}
+    </section>
+    if (executionGraph) return graphProcess(expandedResearch)
     const readerTools = (items: ChatActivity[]) => <>
       {items.filter(item => item.status === 'failed').map(item => <StepErrorDetails key={item.id} label={`${item.label}：调用失败`} reason={item.failure?.summary || item.failure?.message || '未记录具体原因，可展开工具明细查看。'} />)}
       <details className="capstone-native-tool-calls capstone-unassigned-tool"><summary>工具明细 · 未归属步骤</summary><ActivityItems activities={items} /></details>
     </>
-    if(running&&steps.length===0&&activities.length===0)return <ProcessLifecycleNode kind="startup" storageKey={stepStorageKey}
-      startedAt={startedAt?Date.parse(startedAt):undefined} active now={now} expanded={expandedResearch} foldCommand={foldCommand} />
-    if(steps.length === 0 && activities.some(item=>item.source.startsWith('pi · '))&&!activities.some(item=>item.taskStepId))return <>
+    if(steps.length === 0)return <>
       <TaskProgressItems items={progress.filter(item=>item.stepId||item.kind==='goal')} />
-      {progress.length===0&&<p className="capstone-task-goal">{running?'正在处理；尚未收到可展示的工作进展。':'此历史记录没有保存可读的工作进展。'}</p>}
+      <p className="capstone-task-goal">当前记录未提供任务计划。</p>
       {expandedResearch ? readerTools(toolActivities) : <details className="capstone-native-tool-calls"><summary>工具调用明细 · {toolActivities.length}</summary><ActivityItems activities={toolActivities}/></details>}
     </>
-    if (steps.length === 0) return expandedResearch ? readerTools(toolActivities) : <ActivityItems activities={toolActivities} />
     const entries = [
       ...steps.map(step => ({ id: `step:${step.id}`, at: step.startedAt, step, activity: undefined as ChatActivity | undefined })),
       ...toolActivities.filter(item => !item.taskStepId).map(activity => ({ id: `tool:${activity.id}`, at: activity.startedAt, step: undefined as TaskStep | undefined, activity })),
@@ -770,7 +806,7 @@ function AttemptActivity({ activities, executionGraph, diagnostics: legacyDiagno
         toolMs={stepId => toolExecutionMs(toolActivities.filter(item => item.taskStepId === stepId))}
         renderProgress={stepId => <><TaskProgressItems items={progress.filter(item => item.stepId === stepId && item.phase !== 'started' && !(item.kind === 'goal' && item.text === taskGoal))} />{toolActivities.filter(item => item.taskStepId === stepId && item.status === 'failed').map(item => <StepErrorDetails key={item.id} label={`${item.label}：调用失败`} reason={item.failure?.summary || item.failure?.message || '未记录具体原因，可展开工具明细查看。'} />)}</>}
         renderTools={stepId => <ActivityItems activities={toolActivities.filter(item => item.taskStepId === stepId)} />} /> :
-      <div key={entry.id} title="未归属任务步骤">{expandedResearch ? readerTools(entry.activity ? [entry.activity] : []) : <ActivityItems activities={entry.activity ? [entry.activity] : []} />}</div>)}</>
+      <div key={entry.id} title="未归属任务步骤">{expandedResearch ? readerTools(entry.activity ? [entry.activity] : []) : <ActivityItems activities={entry.activity ? [entry.activity] : []} />}</div>)}{lifecycleDetails}</>
   }
   return <>{reading && <AnswerDetailSheet title="执行过程" answerLabel={goalText ? goalText.slice(0, 80) : '当前指令'} className="capstone-process-reader" onClose={closeReader} metadata={<span className="capstone-process-reader-status">{running ? '执行中' : phase === 'failed' ? '执行失败' : phase === 'cancelled' ? '已取消' : phase === 'interrupted' ? '已中断' : phase === 'completed' ? '已完成' : '执行状态未记录'}{elapsed === undefined ? '' : ` · 总耗时 ${formatDuration(elapsed)}`}</span>}>
     <div ref={readerContent} className="capstone-chat-activity-frame">
@@ -786,7 +822,7 @@ function AttemptActivity({ activities, executionGraph, diagnostics: legacyDiagno
       {hasAuxiliary && <aside className="capstone-process-auxiliary">{auxiliary}</aside>}
     </div>
   </AnswerDetailSheet>}{!hasProcess ? <button type="button" className="capstone-process-auxiliary-entry" aria-label="放大阅读执行过程" title="查看任务资料与记录" onClick={openReader}><Maximize2 aria-hidden="true" />任务资料与记录</button> : <div className={`capstone-chat-activity-frame${running ? ' is-running' : ' is-settled'}`} aria-busy={running}>{branches.some(branch => !steps.some(step => step.id === branch.parentStepId)) && <div aria-label="父步骤未在当前记录中的子分支"><ResearchBranchItems branches={branches.filter(branch => !steps.some(step => step.id === branch.parentStepId))} storageKey={stepStorageKey} /></div>}{diagnostics.map(item => <StepErrorDetails key={item.id} label="步骤未推进" reason={item.text} />)}<details ref={detailsRef} className={`capstone-chat-activity capstone-chat-activity-attached${terminalClass}`} open={open} onToggle={(event) => onOpenChange(event.currentTarget.open)}>
-    <summary><Activity aria-hidden="true" /><span title={toolCount===0?'当前记录未提供可核对的工具调用数量，可查看执行过程。':undefined}>{running ? '正在执行' : terminalLabel} {steps.length > 0 ? `${steps.length} 个任务步骤 · ` : ''}{toolCount>0?`${toolCount} 次工具调用`:'工具调用数未记录'}{elapsed === undefined ? '' : ` · 总耗时 ${formatDuration(elapsed)}`}</span>{traceIssues.length > 0 && <button type="button" className="capstone-process-trace-warning" aria-label="定位工具记录缺失" onClick={event => { event.preventDefault(); event.stopPropagation(); openReader(); setTraceFocus(previous => ({ ...traceIssues[0], revision: (previous?.revision ?? 0) + 1 })) }}><AlertTriangle aria-hidden="true" />工具记录缺失 · {traceIssues.reduce((sum, issue) => sum + issue.missingToolIds.length, 0)}项</button>}{!open && <small>查看执行过程</small>}<span className="capstone-process-toolbar">{open && foldSteps.length > 0 && <span className="capstone-process-controls" role="group" aria-label="步骤显示"><button type="button" aria-label="展开步骤" title="展开全部步骤" disabled={foldSteps.every(step => isStepOpen(step.id))} onClick={event => { event.preventDefault(); event.stopPropagation(); foldAll(true) }}><ChevronsUpDown aria-hidden="true" /></button><button type="button" aria-label="折叠步骤" title="折叠全部步骤" disabled={foldSteps.every(step => !isStepOpen(step.id))} onClick={event => { event.preventDefault(); event.stopPropagation(); foldAll(false) }}><ChevronsDownUp aria-hidden="true" /></button></span>}<button type="button" className="capstone-process-enlarge" title="放大阅读执行过程" aria-label="放大阅读执行过程" onClick={event => { event.preventDefault(); event.stopPropagation(); openReader() }}><Maximize2 aria-hidden="true" /></button></span></summary>
+    <summary><Activity aria-hidden="true" /><span title={toolCount===0?'当前记录未提供可核对的工具调用数量，可查看执行过程。':undefined}>{running ? '正在执行' : terminalLabel} {focus === 'thinking' ? '思考状态' : <>{focus === 'tasks' && foldSteps.length > 0 ? `${foldSteps.length} 个任务步骤 · ` : ''}{toolCount>0?`${toolCount} 次工具调用`:'工具调用数未记录'}</>}{elapsed === undefined ? '' : ` · 总耗时 ${formatDuration(elapsed)}`}</span>{traceIssues.length > 0 && <button type="button" className="capstone-process-trace-warning" aria-label="定位工具记录缺失" onClick={event => { event.preventDefault(); event.stopPropagation(); openReader(); setTraceFocus(previous => ({ ...traceIssues[0], revision: (previous?.revision ?? 0) + 1 })) }}><AlertTriangle aria-hidden="true" />工具记录缺失 · {traceIssues.reduce((sum, issue) => sum + issue.missingToolIds.length, 0)}项</button>}{!open && <small>查看执行过程</small>}<span className="capstone-process-toolbar">{open && focus === 'tasks' && foldSteps.length > 0 && <span className="capstone-process-controls" role="group" aria-label="步骤显示"><button type="button" aria-label="展开步骤" title="展开全部步骤" disabled={foldSteps.every(step => isStepOpen(step.id))} onClick={event => { event.preventDefault(); event.stopPropagation(); foldAll(true) }}><ChevronsUpDown aria-hidden="true" /></button><button type="button" aria-label="折叠步骤" title="折叠全部步骤" disabled={foldSteps.every(step => !isStepOpen(step.id))} onClick={event => { event.preventDefault(); event.stopPropagation(); foldAll(false) }}><ChevronsDownUp aria-hidden="true" /></button></span>}<button type="button" className="capstone-process-enlarge" title="放大阅读执行过程" aria-label="放大阅读执行过程" onClick={event => { event.preventDefault(); event.stopPropagation(); openReader() }}><Maximize2 aria-hidden="true" /></button></span></summary>
     {(!running || open) && <div ref={processViewport} onScroll={observeProcessScroll} className="capstone-complete-process">{goalText && <p className="capstone-task-goal">{goalText}</p>}<TaskProgressItems items={progress.filter(item => !item.stepId && item.kind !== 'goal')} />{process()}</div>}
   </details>{lastWork && <div className="capstone-chat-activity-preview" aria-label="中断前的工作记录"><p className="capstone-task-goal">中断前的工作记录（不代表任务已完成）</p><TaskProgressItems items={[lastWork]} /></div>}{running && !open && <div ref={processViewport} onScroll={observeProcessScroll} className="capstone-chat-activity-preview" aria-label="执行过程预览">{goalText && <p className="capstone-task-goal">{goalText}</p>}<TaskProgressItems items={progress.filter(item => !item.stepId && item.kind !== 'goal')} />{process()}</div>}</div>}</>
 }
@@ -954,7 +990,7 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
       <RunDuration startedAt={startedAt} durationMs={durationMs} running={status?.type === 'running'} />
       {(hasText || terminalWithoutText) && <ChatActions answerLabel={instruction || text.slice(0, 100) || '本次回答'} onCloseEvidence={() => selectPanel(null)} networkSelected={selectedNetworkAttempt === attemptId} onShowNetwork={networkAttemptIds.includes(attemptId) && onShowNetwork ? () => onShowNetwork(attemptId) : undefined} role={role} text={text} evidenceRefs={evidenceState === 'available' ? evidenceRefs : []} evidenceState={evidenceState} resultAvailable={hasResults} resultOpen={resultOpen} onShowResult={() => togglePanel('result')} evidenceOpen={activePanel === 'evidence'} onShowEvidence={() => togglePanel('evidence')} contextId={contextId} selectionRevision={selectionRevision} toolCount={activities.length || toolCount} activityOpen={activityOpen} showActivity={showActivity} onShowActivity={toggleActivity} onRegenerate={retryable && onRegenerate ? () => onRegenerate(attemptId, instruction) : undefined}
         attemptId={attemptId} resultRefs={resultRefs} projections={attemptResultProjections} failures={failureResults} researchSnapshot={parseResearchSnapshot(custom?.researchSnapshot)} executions={(Array.isArray(custom?.toolExecutions) ? custom.toolExecutions : []) as ToolExecutionRecord[]}
-        processAvailable={Boolean(custom?.executionGraph) || (Array.isArray(custom?.taskSteps) && custom.taskSteps.length > 0) || Boolean(custom?.researchSnapshot) || failureResults.length > 0 || Boolean(readRecords)}
+        processAvailable={Boolean(startedAt) || (Array.isArray(custom?.modelRequests) && custom.modelRequests.length > 0) || Boolean(custom?.executionGraph) || (Array.isArray(custom?.taskSteps) && custom.taskSteps.length > 0) || Boolean(custom?.researchSnapshot) || failureResults.length > 0 || Boolean(readRecords)}
         onSelectResult={(resultId) => { selectPanel('result'); setPendingResultId(resultId) }} />}
     </div>}
     {role === 'assistant' && hasResults && resultOpen && <AnswerDetailSheet title="结果明细" answerLabel={instruction || text.slice(0, 100) || '本次回答'} onClose={() => selectPanel(null)}><ResultExplorer projections={attemptResultProjections} failures={failureResults}
@@ -965,7 +1001,7 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
       {typeof custom?.modelId === 'string' && <span className="capstone-instruction-model">{instructionModelName(custom.modelId)}</span>}
       {typeof custom?.sentAt === 'string' && Number.isFinite(Date.parse(custom.sentAt)) && <InstructionTime value={custom.sentAt} />}
     </div>}
-    {role === 'assistant' && (showActivity || status?.type === 'running' || hasAuxiliary) && <AttemptActivity activities={activities} executionGraph={custom?.executionGraph as ExecutionGraph | undefined} diagnostics={Array.isArray(custom?.stepDiagnostics) ? custom.stepDiagnostics as TaskStepDiagnostic[] : []} branches={Array.isArray(custom?.researchBranches) ? custom.researchBranches as ResearchBranch[] : []} steps={Array.isArray(custom?.taskSteps) ? custom.taskSteps as TaskStep[] : []} stepStorageKey={typeof custom?.stepStorageKey === 'string' ? custom.stepStorageKey : attemptId} progress={Array.isArray(custom?.taskProgress) ? custom.taskProgress as TaskProgress[] : []} goal={typeof custom?.researchGoal === 'string' ? custom.researchGoal : undefined} phase={typeof custom?.terminalPhase === 'string' ? custom.terminalPhase : undefined} running={status?.type === 'running'} open={activityOpen} onOpenChange={(open) => { if (open) selectPanel('process'); else if (activePanel === 'process') selectPanel(null) }} startedAt={startedAt} durationMs={durationMs} detailsRef={activityRef} hasAuxiliary={hasAuxiliary} auxiliary={<>
+    {role === 'assistant' && (showActivity || status?.type === 'running' || hasAuxiliary) && <AttemptActivity activities={activities} modelRequests={Array.isArray(custom?.modelRequests) ? custom.modelRequests as ProcessModelCall[] : []} nativeGraphFocus={custom?.nativeGraphFocus === 'tools' || custom?.nativeGraphFocus === 'tasks' ? custom.nativeGraphFocus : undefined} executionGraph={custom?.executionGraph as ExecutionGraph | undefined} diagnostics={Array.isArray(custom?.stepDiagnostics) ? custom.stepDiagnostics as TaskStepDiagnostic[] : []} branches={Array.isArray(custom?.researchBranches) ? custom.researchBranches as ResearchBranch[] : []} steps={Array.isArray(custom?.taskSteps) ? custom.taskSteps as TaskStep[] : []} stepStorageKey={typeof custom?.stepStorageKey === 'string' ? custom.stepStorageKey : attemptId} progress={Array.isArray(custom?.taskProgress) ? custom.taskProgress as TaskProgress[] : []} goal={typeof custom?.researchGoal === 'string' ? custom.researchGoal : undefined} phase={typeof custom?.terminalPhase === 'string' ? custom.terminalPhase : undefined} running={status?.type === 'running'} open={activityOpen} onOpenChange={(open) => { if (open) selectPanel('process'); else if (activePanel === 'process') selectPanel(null) }} startedAt={startedAt} durationMs={durationMs} detailsRef={activityRef} hasAuxiliary={hasAuxiliary} auxiliary={<>
       <AcceptedContextDetails value={custom?.acceptedContext} />
       {readRecords && <AttemptRecordPanel key={attemptId} attemptId={attemptId} read={readRecords} />}
       <ResearchEvidence snapshot={parseResearchSnapshot(custom?.researchSnapshot)} />

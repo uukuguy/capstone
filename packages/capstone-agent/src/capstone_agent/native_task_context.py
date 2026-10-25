@@ -173,7 +173,7 @@ def public_document(value):
 def checked_native_context(value):
     value = public_document(value)
     fields = {'policy', 'selected_task_records', 'selected_task_source', 'records_truncated'}
-    if (not isinstance(value, dict) or not fields <= set(value) or set(value) - fields - {'materials', 'material_notices', 'resource_manifests', 'resource_origins', 'graph_work'}
+    if (not isinstance(value, dict) or not fields <= set(value) or set(value) - fields - {'materials', 'material_notices', 'resource_manifests', 'resource_origins', 'graph_work', 'systematic_diagnosis'}
             or type(value['records_truncated']) is not bool
             or not isinstance(value['selected_task_records'], list) or len(value['selected_task_records']) > 64):
         raise ValueError('native task context is invalid')
@@ -240,6 +240,11 @@ def checked_native_context(value):
             or len(set(policy['allowed_tools'])) != len(policy['allowed_tools'])):
         raise ValueError('native application policy is invalid')
     publication = resolve_research_policy(policy['system_policy'])
+    from .native_diagnosis import DIAGNOSIS_POLICY, DIAGNOSIS_TOOLS
+    diagnosis = value.get('systematic_diagnosis')
+    if ((diagnosis is not None and diagnosis != DIAGNOSIS_POLICY)
+            or set(policy['allowed_tools']) & set(DIAGNOSIS_TOOLS) and diagnosis != DIAGNOSIS_POLICY):
+        raise ValueError('native diagnosis policy is not registered')
     work = value.get('graph_work')
     if publication and publication.work_edition:
         if (not isinstance(work, dict) or set(work) != {'edition', 'started_at_ms'}
@@ -277,6 +282,10 @@ def native_context_for(claim, binding):
                                      binding['application_profile']['profile_version'],
                                      policy_variant=entry.variant if entry else 'default')
     tools = set(binding['capability'].get('native_builtin_tools', ()))
+    from .native_diagnosis import DIAGNOSIS_POLICY, DIAGNOSIS_TOOLS
+    diagnosis = binding['capability'].get('systematic_diagnosis')
+    if diagnosis == DIAGNOSIS_POLICY:
+        tools.update(DIAGNOSIS_TOOLS)
     if binding['application_profile']['profile_id'] == 'enterprise-research':
         gateway = binding['capability'].get('data_gateway', {})
         if gateway.get('available'):
@@ -323,6 +332,7 @@ def native_context_for(claim, binding):
         'system_policy': profile.application_policy.load(), 'allowed_tools': sorted(tools),
         'external_lookup_enabled': False}, 'selected_task_records': pages,
         'selected_task_source': source, 'records_truncated': truncated, **work,
+        **({'systematic_diagnosis': DIAGNOSIS_POLICY} if diagnosis == DIAGNOSIS_POLICY else {}),
         **({'materials': materials} if materials else {}),
         **({'resource_manifests': public_document(submission['_resource_manifests'])} if submission.get('_resource_manifests') else {}),
         **({'resource_origins': origins} if origins else {}),

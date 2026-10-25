@@ -5672,3 +5672,53 @@ Prior closeout receipts preserved verbatim from the root checkout:
 2026-10-25 — a3241fd4: Synchronized cancellation assertions and platform fixtures to prevent scheduling-dependent CI failures; production runtime remains22e61786.
 
 2026-10-25 — 48da021b: Merged PR58 after native-runtime CI passed16m09s; actual dev fast-forwarded, matches running source, and passes doctor.
+
+2026-10-25 — d00dc044: Recorded merged gateway acceptance and exact runtime sources; regenerated and inspected the development control graph.
+
+2026-10-25 — 5b142802: Merged PR59 after its docs gate passed1m50s; actual dev includes gateway acceptance and the canonical control record.
+
+2026-10-25 — Closed merged gateway/closeout branches locally and remotely; preserved research/recovery refs, ignored runtimes and user data.
+
+2026-10-25 — Closeout complete atdev5b142802. Final journal/generated overview are deliberate metadata; no pending implementation, model task or release.
+
+2026-10-25 — User defined multi-turn enterprise control, advisory research checks, strict calculation handoffs and bounded justified retries; owning designs updated.
+
+2026-10-25 — 7fc74198: Committed approved unified-conversation design and implementation plan to preserve differentiated checks and bounded diagnosis.
+
+2026-10-25 — 7877dfaf: Shared native organization and v2 registered-model controls preserve Work identity;73 PostgreSQL/profile/worker checks passed.
+
+2026-10-25 — be6b892f: Committed execution-focused views and persistent model handoff;952 App tests passed, including public error replay.
+
+2026-10-25 — 9135dde5: Built-in diagnosis uses durable scoped budgets; independent review cleared numeric identity and finite recovery fixes.
+2026-10-25 — e2d8f354: Latched unknown diagnostic receipts before further model requests;19 diagnostic checks and Pyright pass.
+
+2026-10-25 — 2d5a9cce/40ab342e: Moved SDK diagnosis checks into scoped CI; corrected relative imports,4checks pass; native-runtime selected.
+
+2026-10-25 — c66edd8c: Native image imports exposed missing diagnosis COPY entries; corrected packaging smoke passed before local service replacement.
+
+2026-10-25 — c66edd8c local rebuild passed;42five-role source checks, ready200 and scoped cache cleanup verified.
+2026-10-25 — Same Work completed direct/tool/real-data research/IEEE39 calculation; saved products and current-run Authority references verified.
+2026-10-25 — bcafa2e5/81f518e6: Real browser exposed empty-model HTTP rejection and synthetic-stage focus; regression fixes committed.
+2026-10-25 — Real diagnosis failed at child guide observation admission; host allowlist omission identified, scoped integration repair active.
+
+2026-10-25 — 816a482a: Granted child diagnosis source admission fixed;91host/graph/diagnosis checks pass and revised local rebuild verified.
+2026-10-25 — f86465fa: Actual native graph tool chains now primary;958App checks pass, business sources retain task planning.
+2026-10-25 — Diagnosis metadata retries ran226s after successful probe; cancelled, retained3products; simplifying reports and bounding child corrections.
+
+2026-10-25 — bad830c7: Reproduced stopped-input concatenation in memory/PostgreSQL; new instructions supersede pending input, explicit retry retained;74checks pass.
+2026-10-25 — 00fb086d: Simplified reported diagnosis and bounded scoped correction loops;107focusedPython/26Node/Pyright pass; real acceptance pending.
+2026-10-25 — bd386585 labels retained Work goals as background; prevents stopped requests from becoming new-turn obligations. Four context tests pass.
+2026-10-25 — 48fe84e1 preserves terminal history status so new instructions do not restart stopped work;15focused tests pass.
+2026-10-25 — Final backend2207passed,2skipped148.34s. Real stop replay exposed background-goal contamination; persisted current instruction itself was correct.
+2026-10-25 — afe173cf skips ungranted diagnostic watchers; exact failing SDK fixture pair now33passed. Independent stop-scope review approved.
+2026-10-25 — afe173cf local rebuild ready;84source checks match all roles. Real Stop→process passes89.073s; old CSV remains cancelled.
+2026-10-25 — Diagnostic recovery passes178.175s including queue; one advisory host report, zero rejects, saved3545byte notes, historical gaps preserved.
+2026-10-25 — Native fixtures367pass16.96s; consumer gates, PyPSA58, inventory12 and legacy application44 pass; no release gate invoked.
+2026-10-25 — d27d5dab records real unified-conversation, Stop and diagnosis recovery acceptance; preserves failed attempts and remaining efficiency limits.
+2026-10-25 — 8acfe331 records product development gate selection for shared research tools; release verification remains separate.
+2026-10-25 — c7d76a2c records unified conversation acceptance and exact runtime sources for development integration; feature graph verified.
+2026-10-25 — PR60 opened atc7d76a2c; macOS product gate40198028306 running. System-proxy HTTPS push recovered transport; isolated test PostgreSQL removed.
+2026-10-25 — Same Work after IEEE39 accepts direct answer12.294s; no tools, products or new Authority result/evidence refs.
+2026-10-25 — User requires affected-part checks during early development; cancelled oversized CI40198028306 after17m11, retaining verified local receipts.
+2026-10-25 — Cancelled CI measured unchanged grid-agent706.84s and simulator174.51s; targeted conversation-runtime policy replaces unrelated professional regressions.
+2026-10-25 — 72173ac1 scopes conversation CI to affected consumers;90governance tests pass1.03s; unchanged solver suites excluded.

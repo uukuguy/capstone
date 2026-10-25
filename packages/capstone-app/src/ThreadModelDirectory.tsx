@@ -21,7 +21,7 @@ const modelOrder = new Intl.Collator('en', { numeric: true, sensitivity: 'base' 
 
 /** Browsing is local; opening a model uses the existing Thread command path. */
 export default function ThreadModelDirectory(props: Props) {
-  return props.workspace ? <OpenedModelMenu {...props} workspace={props.workspace} /> : <RegisteredModelDirectory {...props} />
+  return props.workspace?.models.length ? <OpenedModelMenu {...props} workspace={props.workspace} /> : <RegisteredModelDirectory {...props} disabled={props.disabled || Boolean(props.workspace?.blockedReason)} />
 }
 
 function OpenedModelMenu(props: Props & { workspace: ModelWorkspace }) {

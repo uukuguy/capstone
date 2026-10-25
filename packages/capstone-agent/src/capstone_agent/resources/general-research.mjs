@@ -47,6 +47,7 @@ export function configureGeneralResearch(pi, config, {getControllerState,readRef
     runtimeLimits: config.runtimeLimits,
     runtimeLimitMode: config.runtimeLimitMode,
     getControllerState,
+    retainedWorkBackground: true,
     boundedGraphContext: config.researchRuntime?.lightweightTaskNodes === true,
     ...(config.researchRuntime?.graphSchema === 'capstone-enterprise-graph/2' ? {
       isRecordVisible: (section, record) => section !== 'notes' ||

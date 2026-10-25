@@ -107,7 +107,7 @@ def _workspace_blocked_reason(snapshot: ThreadSnapshot, archived: bool) -> str |
 
 def _workspace_activation_payload(command: Mapping[str, Any], snapshot: ThreadSnapshot, context: ModelContextSnapshot, *, resumed: bool = False) -> dict[str, Any]:
     return {"command_id": command["command_id"], "reason": "model_resume" if resumed else "model_switch",
-            "previous_context": snapshot.professional_context.to_document(),
+            "previous_context": None if snapshot.active_model_context is None else snapshot.active_model_context.to_document(),
             "previous_grid_page_id": snapshot.active_grid_page_id,
             "active_grid_page_id": page_id_for_model(context.model_id), "model_context": context.to_document()}
 
@@ -1455,11 +1455,11 @@ class InMemoryThreadService(NativeExecutionOwner):
                 return existing.receipt
             if parsed["command_id"] in self._command_ids:
                 return self._receipt(parsed, status="rejected", rejection="command_id_conflict")
-            if command.get('schema') == 'capstone-command/2':
+            if command.get('schema') == 'capstone-command/2' and parsed['kind'] not in MODEL_COMMANDS:
                 if parsed['kind'] == 'rename_session':
                     return self._submit_title_command(parsed, request_hash)
                 return self._submit_work_command(parsed, request_hash)
-            if self._snapshot.minimum_protocol_version > 1:
+            if self._snapshot.minimum_protocol_version > 1 and command.get('schema') != 'capstone-command/2':
                 return self._receipt(parsed, status='rejected', rejection='protocol_upgrade_required')
             if self._archived:
                 receipt = self._receipt(parsed, status="rejected", rejection="thread_archived")
@@ -2412,6 +2412,9 @@ class InMemoryThreadService(NativeExecutionOwner):
         if not isinstance(command, Mapping):
             raise ThreadProtocolError("command must be an object")
         if command.get('schema') == 'capstone-command/2':
+            if command.get('kind') in MODEL_COMMANDS:
+                from .thread_model_workspace import parse_workspace_command
+                return parse_workspace_command(command)
             from .thread_work import parse_command
             return parse_command(command)
         unknown = set(command) - _COMMAND_FIELDS
@@ -3279,11 +3282,11 @@ class PostgresThreadService(NativeExecutionOwner):
                 if existing["request_hash"] != request_hash:
                     return self._receipt(parsed, status="rejected", rejection="idempotency_conflict")
                 return CommandReceipt.from_document(existing["receipt"])
-            if command.get('schema') == 'capstone-command/2':
+            if command.get('schema') == 'capstone-command/2' and parsed['kind'] not in MODEL_COMMANDS:
                 if parsed['kind'] == 'rename_session':
                     return self._submit_title(connection, thread, snapshot, parsed, request_hash)
                 return self._submit_work(connection, thread, snapshot, parsed, request_hash)
-            if snapshot.minimum_protocol_version > 1:
+            if snapshot.minimum_protocol_version > 1 and command.get('schema') != 'capstone-command/2':
                 return self._receipt(parsed, status='rejected', rejection='protocol_upgrade_required')
             message_selection, message_selection_rejection = _message_selection_for_command(snapshot, parsed, self._capability_catalog)
             submission, input_rejection = admission_submission(snapshot, parsed, self._input_catalog_provider)

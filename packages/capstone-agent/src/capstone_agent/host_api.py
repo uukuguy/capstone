@@ -479,8 +479,6 @@ def create_host_app(
         def get_thread_models(thread_id: str, request: Request):
             require_private_thread(request)
             try:
-                if thread_service.snapshot(thread_id).active_model_context is None:
-                    return JSONResponse({'error': 'model_context_unavailable'}, status_code=409)
                 return thread_service.read_models(thread_id)
             except ThreadNotFound:
                 raise HTTPException(404, "thread not found") from None

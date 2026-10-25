@@ -6,7 +6,7 @@ export type OpenedModel = {
   authorityModelRef: string | null; displayName: string; diagramProviderId: string | null; lastActiveSeq: number
 }
 export type ModelWorkspace = {
-  threadId: string; runId: string; eventSeq: number; currentEntryId: string;
+  threadId: string; runId: string; eventSeq: number; currentEntryId: string | null;
   models: OpenedModel[]; blockedReason: string | null
 }
 
@@ -36,7 +36,7 @@ export function parseModelWorkspace(value: unknown, threadId: string): ModelWork
   fields(body, ['schema', 'thread_id', 'run_id', 'event_seq', 'current_entry_id', 'models', 'blocked_reason'])
   if (body.schema !== 'capstone-thread-model-workspace/1' || body.thread_id !== threadId ||
       exceedsCapacity(new TextEncoder().encode(JSON.stringify(body)).length,'ui_model_workspace_bytes') ||
-      !Array.isArray(body.models) || !body.models.length || exceedsCapacity(body.models.length,'open_models')) fail()
+      !Array.isArray(body.models) || exceedsCapacity(body.models.length,'open_models')) fail()
   const models = (body.models as unknown[]).map((item): OpenedModel => {
     const model = object(item)
     fields(model, ['entry_id', 'model_id', 'model_revision', 'implementation_family', 'authority_model_ref', 'display_name', 'diagram_provider_id', 'last_active_seq'])
@@ -46,9 +46,10 @@ export function parseModelWorkspace(value: unknown, threadId: string): ModelWork
       authorityModelRef: model.authority_model_ref === null ? null : text(model.authority_model_ref),
       diagramProviderId: model.diagram_provider_id === null ? null : text(model.diagram_provider_id), lastActiveSeq: sequence(model.last_active_seq) }
   })
-  const currentEntryId = text(body.current_entry_id)
+  const currentEntryId = body.current_entry_id === null ? null : text(body.current_entry_id)
   if (new Set(models.map((model) => model.entryId)).size !== models.length ||
-      new Set(models.map((model) => `${model.implementationFamily}\0${model.modelId}\0${model.modelRevision}`)).size !== models.length || !models.some((model) => model.entryId === currentEntryId)) fail()
+      new Set(models.map((model) => `${model.implementationFamily}\0${model.modelId}\0${model.modelRevision}`)).size !== models.length ||
+      (models.length === 0 ? currentEntryId !== null : !models.some((model) => model.entryId === currentEntryId))) fail()
   return { threadId, runId: text(body.run_id), eventSeq: sequence(body.event_seq), currentEntryId, models,
     blockedReason: body.blocked_reason === null ? null : text(body.blocked_reason) }
 }

@@ -4,6 +4,7 @@ import {initializeApplicationCapacity} from './applicationCapacity'
 import { describe, expect, it } from 'vitest'
 import { parseWorkSnapshot, buildWorkCommand, buildStartWorkCommand, buildSendMessageCommand, parseStoredWorkCommand } from './threadWorkProtocol'
 import {parseProductRef} from './threadProducts'
+import {buildModelWorkspaceCommand} from './threadWorkProtocol'
 
 export function workSnapshot() {
   return { schema: 'capstone-thread-snapshot/2', thread_id: 'thr_work',
@@ -13,6 +14,15 @@ export function workSnapshot() {
 }
 
 describe('Work protocol', () => {
+  it('roundtrips version 2 model controls with workspace CAS and rejects a mismatched target', () => {
+    for (const kind of ['open_model','activate_model','close_model'] as const) {
+      const command=buildModelWorkspaceCommand('thr_work','run_work','cmd_model','idem_model',12,kind,
+        kind==='open_model'?{model_id:'ieee39'}:{entry_id:'mdl_one'})
+      expect(command.target).toEqual({kind:'model_workspace',id:'thr_work',expected_revision:12})
+      expect(parseStoredWorkCommand(command,'thr_work')).toEqual(command)
+      expect(()=>parseStoredWorkCommand({...command,target:{...command.target,id:'thr_other'}},'thr_work')).toThrow()
+    }
+  })
   it('roundtrips atomic typed native input without discarding selected resources', () => {
     const submission = { input: {kind: 'skill_invocation' as const, text: '继续', skill_id: 'summary', skill_version: '1'},
       resource_profile: {profile_id: 'delegated_pi' as const, revision: 'rev1'},

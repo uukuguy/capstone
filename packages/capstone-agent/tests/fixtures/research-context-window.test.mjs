@@ -35,6 +35,14 @@ test('small context remains exact and later pages retain exact identities',()=>{
   assert.equal(page.coverage.context_window.next_offset,null);
 });
 
+test('minimal recovery context preserves the retained goal scope',()=>{
+  const value={goal:'Old request',goal_scope:'retained_work_background',scope_notice:'The current user instruction controls this turn.',
+    cycle:{graph:{nodes:[{id:'x'.repeat(8000)}]}}};
+  const page=windowResearchContext(value,{limit:1500});
+  assert.equal(page.goal_scope,value.goal_scope);
+  assert.equal(page.scope_notice,value.scope_notice);
+});
+
 test('debug mode oversized graph context keeps the request guard ready and supports overview pages',async()=>{
   const root=await realpath(await mkdtemp(join(tmpdir(),'research-window-'))),hooks={},tools={};
   const identity={run_id:'run',turn_id:'turn',attempt_id:'attempt',research_id:'research'};
@@ -48,9 +56,12 @@ test('debug mode oversized graph context keeps the request guard ready and suppo
     const cycle={organization:{requirements:[{id:'required',description:'Required work',kind:'finding'}]},
       graph:{schema:'capstone-enterprise-graph/2',graph_ref:'graph:one',current_results:Array.from({length:20},(_,i)=>({result_ref:'result-'+i,summary:'a'.repeat(10000)}))}};
     configureResearchTools({on:(name,fn)=>{hooks[name]=fn;},registerTool:tool=>{tools[tool.name]=tool;}},root,
-      {runtimeLimitMode:'debug',runtimeLimits:{research_summary_chars:4000},boundedGraphContext:true,
+      {runtimeLimitMode:'debug',runtimeLimits:{research_summary_chars:4000},boundedGraphContext:true,retainedWorkBackground:true,
         getControllerState:async()=>structuredClone(cycle),fatal:message=>assert.fail(message)});
     const prepared=await hooks.context({messages:[]});assert.ok(prepared.messages[0].content.length<=4000);
+    const projected=JSON.parse(prepared.messages[0].content.split('\n').slice(1).join('\n'));
+    assert.equal(projected.goal_scope,'retained_work_background');
+    assert.match(projected.scope_notice,/current user instruction/);
     await hooks.before_model_request({context:{messages:[{role:'user',content:prepared.messages[0].content}]}});
     const page=await tools.agent_research_read.execute('page',{section:'overview',offset:8,limit:4});
     assert.equal(page.details.ok,true);assert.equal(page.details.result.cycle.graph.current_results[0].result_ref,'result-8');

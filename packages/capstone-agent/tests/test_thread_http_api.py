@@ -248,6 +248,19 @@ def test_opened_model_projection_uses_the_private_thread_boundary():
     assert workspace["current_entry_id"] == workspace["models"][0]["entry_id"]
 
 
+def test_model_free_conversation_exposes_empty_private_workspace_for_first_selection():
+    from dataclasses import replace
+    service = InMemoryThreadService(replace(_service().snapshot('thr_demo_39'),
+        active_model_context=None, active_grid_page_id=None, minimum_protocol_version=2))
+    with TestClient(_app(service), base_url='http://localhost') as client:
+        path = '/api/v1/threads/thr_demo_39/models'
+        assert client.get(path, headers={'Capstone-Thread-Version': '2'}).status_code == 401
+        response = client.get(path, headers={**_auth(), 'Capstone-Thread-Version': '2'})
+    assert response.status_code == 200
+    assert response.json()['models'] == []
+    assert response.json()['current_entry_id'] is None
+
+
 @pytest.mark.parametrize("kind", ["switch_model", "reopen_model_context"])
 def test_unregistered_model_command_returns_a_rejection_without_changing_thread(kind) -> None:
     service = _service()

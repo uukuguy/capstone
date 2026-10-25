@@ -16,7 +16,7 @@ const ID = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/;
 const { O_RDONLY, O_DIRECTORY, O_NOFOLLOW } = constants;
 
 /** Register host-bound research tools and a request-level readiness guard. */
-export function configureResearchTools(pi, channelPath, { timeoutMs, fatal = captureFatal, runtimeLimits, runtimeLimitMode: limitMode, getControllerState, isRecordVisible, boundedGraphContext=false } = {}) {
+export function configureResearchTools(pi, channelPath, { timeoutMs, fatal = captureFatal, runtimeLimits, runtimeLimitMode: limitMode, getControllerState, isRecordVisible, boundedGraphContext=false, retainedWorkBackground=false } = {}) {
   const registered = new Map();
   const register = definition => {
     registered.set(definition.name, definition);
@@ -117,6 +117,8 @@ export function configureResearchTools(pi, channelPath, { timeoutMs, fatal = cap
     captureGraph?.(cycle?.graph?.schema === 'capstone-enterprise-graph/2');
     const projected = {
       ...identity(view), goal: debug?state.goal:state.goal.slice(0,Math.floor(limits.research_summary_chars/4)),
+      ...(retainedWorkBackground?{goal_scope:'retained_work_background',
+        scope_notice:'The retained Work goal and unresolved historical items are background. The current user instruction controls this turn. Resume stopped or failed work only when that instruction requests it. The cycle below belongs to the current execution.'}:{}),
       ...(cycle?{cycle}:{}),
       condition_refs: [...(state.condition_refs ?? [])],
       claims: (state.claims ?? []).map(item => ({ ...item, statement: debug?item.statement:item.statement.slice(0,limits.research_text_chars), refs:[...item.refs] })),

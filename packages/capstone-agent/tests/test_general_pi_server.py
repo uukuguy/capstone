@@ -9,6 +9,62 @@ from capstone_agent.pi_delegation import PiTaskRequest, HttpGeneralPiExecutor
 from capstone_agent.request_intent import NodeControl
 
 
+@pytest.mark.parametrize('tool_name,publication,grant,accepted', [
+    ('agent_diagnosis_guide', True, True, True),
+    ('agent_diagnosis_record', True, True, True),
+    ('agent_diagnosis_guide', False, False, False),
+    ('agent_diagnosis_record', False, False, False),
+    ('agent_diagnosis_guide', True, False, False),
+    ('agent_diagnosis_record', True, False, False),
+    ('agent_diagnosis_guide', 'host_mismatch', True, False),
+    ('agent_diagnosis_record', 'host_mismatch', True, False),
+    ('agent_diagnosis_unpublished', True, False, False),
+])
+def test_child_diagnosis_observation_uses_exact_host_publication_and_grant(
+        tmp_path, monkeypatch, tool_name, publication, grant, accepted):
+    from dataclasses import replace
+    from capstone_agent import general_pi_server as module
+    from capstone_agent.native_diagnosis import DIAGNOSIS_POLICY
+    from capstone_agent.native_task_context import POLICY_TEXT
+    from capstone_agent.native_research_bridge import SourceReceiptCache
+    from test_native_graph_progress import test_task_return_observation_crosses_the_host_only_for_the_exact_child_lease
+
+    # Reuse the full real-host sequence: committed checkpoint, delegated child
+    # start, bound tool call, saved bytes, tool end, observation and source grant.
+    hosts = []
+    class DiagnosticHost(module.GeneralPiHost):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            if publication == 'host_mismatch':
+                self.capability['systematic_diagnosis'] = {}
+            hosts.append(self)
+
+        def submit(self, request):
+            native = {'policy': {'schema': 'capstone-conversation-policy/1', 'system_policy': POLICY_TEXT,
+                'allowed_tools': [tool_name] if grant else [], 'external_lookup_enabled': False},
+                'selected_task_records': [], 'selected_task_source': None, 'records_truncated': False,
+                **({'systematic_diagnosis': DIAGNOSIS_POLICY} if publication else {})}
+            return super().submit(replace(request, native_context=native))
+
+    monkeypatch.setattr(module, 'GeneralPiHost', DiagnosticHost)
+    test_task_return_observation_crosses_the_host_only_for_the_exact_child_lease(
+        tmp_path, 'child', tool_name, accepted)
+    host = hosts[0]
+    result = host.read('task_graph')['result']
+    pending = host.research_control('task_graph', {'operation': 'pending', 'owner': 'b' * 64})
+    assert len(pending['source_refs']) == int(accepted)
+    # This is the same source-receipt admission used by WorkerResearchBridge.
+    # It has no tool-name bypass: only exact task-bound observation receipts pass.
+    cache = SourceReceiptCache(tmp_path / 'accepted-sources.json', {'thread_id': 'thread_graph'})
+    cache.accept(pending['source_refs'])
+    assert len(cache.records) == int(accepted)
+    if accepted:
+        observation = result['sources'][0]
+        assert observation['kind'] == 'native_tool_observation'
+        assert observation['metadata']['tool_name'] == tool_name
+        assert observation['metadata']['source_ref'] in cache.records
+
+
 @pytest.mark.parametrize('version', ['1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0'])
 def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted_attempt_origin(tmp_path, monkeypatch, version):
     import json

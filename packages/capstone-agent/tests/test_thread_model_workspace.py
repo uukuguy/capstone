@@ -26,6 +26,90 @@ def test_workspace_is_separate_from_legacy_snapshot_and_starts_with_current_mode
     assert "model_workspace" not in service.snapshot("thr_attempts").to_document()
 
 
+def test_model_free_conversation_can_open_registered_model_without_replacing_work():
+    from test_enterprise_normal_chat import native_executor
+    from test_thread_work_execution import command as work_command
+    base = _model_service()
+    snapshot = replace(base.snapshot('thr_attempts'), active_model_context=None,
+                       active_grid_page_id=None, minimum_protocol_version=2, session_type='general-chat')
+    service = InMemoryThreadService(snapshot, model_catalog=base._model_catalog,
+                                   capability_catalog=base._capability_catalog)
+    from capstone_model_capability_spi import ModelCapabilitySelection
+    class Defaults:
+        def resolve(self, model, selection=None):
+            return ModelCapabilitySelection((('pandapower-static-analysis', '1.0.1'),))
+    service.set_capability_catalog(Defaults())
+    service.set_native_executor(native_executor())
+    before = service.read_models('thr_attempts')
+    assert before['models'] == [] and before['current_entry_id'] is None
+    sent = service.submit_command(work_command(service, 'thr_attempts', 'send_message', 'native_first',
+                                               payload={'text': 'Explain the analysis goal'}))
+    assert sent.status == 'accepted'
+    claim = service.claim_attempt('native', 30)
+    assert claim is not None
+    service.finish_attempt(claim, phase='completed', payload={'answer': 'Ready to continue'})
+    work = service.snapshot('thr_attempts').works[0]
+    opened = service.submit_command(workspace_command(service, 'thr_attempts', 'open_model',
+        {'model_id': 'ieee39'}, 'first_model'))
+    assert opened.status == 'accepted', opened.rejection
+    active = service.snapshot('thr_attempts').active_model_context
+    assert active is not None and active.model_id == 'ieee39'
+    followup = service.submit_command(work_command(service, 'thr_attempts', 'send_message', 'grid_next',
+        work_id=work['work_id'], revision=work['revision'], payload={'text': 'Run the registered calculation'}))
+    assert followup.status == 'accepted', followup.rejection
+    next_claim = service.claim_attempt('grid', 30)
+    assert next_claim is not None and next_claim.model_context == active
+    assert next_claim.task_context.binding == claim.task_context.binding
+    assert next_claim.task_context.model_contexts == (active,)
+    assert next_claim.conversation_context.messages
+    activations = [event for event in service.read_events('thr_attempts', 0).events
+                   if event.event_type == 'model_context_activated']
+    assert activations[-1].payload['previous_context'] is None
+
+
+def workspace_command(service, thread_id, kind, payload, key):
+    snapshot = service.snapshot(thread_id)
+    return {'schema': 'capstone-command/2', 'thread_id': thread_id, 'run_id': snapshot.run.run_id,
+            'command_id': 'cmd_' + key, 'idempotency_key': 'idem_' + key,
+            'kind': kind, 'payload': payload,
+            'target': {'kind': 'model_workspace', 'id': thread_id,
+                       'expected_revision': snapshot.last_event_seq}}
+
+
+def test_v2_workspace_controls_check_target_and_cursor_and_keep_exact_retry():
+    service = _model_service()
+    request = workspace_command(service, 'thr_attempts', 'open_model', {'model_id': 'pypsa39'}, 'v2_open')
+    wrong_target = {**request, 'target': {**request['target'], 'id': 'thr_other'}}
+    from capstone_agent.thread_protocol import ThreadProtocolError
+    with pytest.raises(ThreadProtocolError):
+        service.submit_command(wrong_target)
+    stale = {**request, 'target': {**request['target'], 'expected_revision': 999}}
+    assert service.submit_command(stale).rejection == 'stale_event_seq'
+    request = workspace_command(service, 'thr_attempts', 'open_model', {'model_id': 'pypsa39'}, 'v2_valid')
+    accepted = service.submit_command(request)
+    assert accepted.status == 'accepted', accepted.rejection
+    assert service.submit_command(request) == accepted
+    assert service.snapshot('thr_attempts').active_model_context.model_id == 'pypsa39'
+
+
+def test_postgres_model_free_workspace_and_first_model_survive_restart(postgres_thread_service):
+    from capstone_agent.thread_service import PostgresThreadService
+    service, thread_id = postgres_thread_service
+    service.create_thread(replace(_snapshot(thread_id), active_model_context=None,
+        active_grid_page_id=None, minimum_protocol_version=2, session_type='enterprise-research'))
+    service.set_model_catalog(_model_service()._model_catalog)
+    empty = service.read_models(thread_id)
+    assert empty['models'] == [] and empty['current_entry_id'] is None
+    original = workspace_command(service, thread_id, 'open_model', {'model_id': 'ieee39'}, 'pg_first_model')
+    accepted = service.submit_command(original)
+    assert accepted.status == 'accepted', accepted.rejection
+    restored = PostgresThreadService(service.dsn)
+    restored.set_model_catalog(service._model_catalog)
+    assert restored.submit_command(original) == accepted
+    assert restored.read_models(thread_id)['models'][0]['model_id'] == 'ieee39'
+    assert restored.snapshot(thread_id).active_model_context == service.snapshot(thread_id).active_model_context
+
+
 def test_open_and_activate_finish_without_an_attempt_and_keep_exact_revision():
     service = _model_service()
     original = service.snapshot("thr_attempts").active_model_context

@@ -103,7 +103,24 @@ the relevant Python tests and its application entry smoke check. Do not repeat
 all offline, E2E, packaging and release checks after each edit. Local API, worker
 or App changes still use the canonical local rebuild before deployment claims.
 
-Dev PRs and pushes select documentation, bounded governance contracts, shared-agent,
+During early product development, an ordinary edit must not trigger hours of
+unrelated verification. Select checks for the changed behavior and its direct
+consumers. Reuse recorded successful checks when source and relevant contracts
+have not changed. Do not repeat the same full suites at every local, PR and
+control-document boundary. Record elapsed time and narrow an incorrectly selected
+gate instead of waiting indefinitely. Complete release and cross-platform checks
+remain explicit baseline/release work.
+
+The conversation-runtime gate covers native conversation/context/diagnosis
+resources, the native executor image, and the explicitly registered shared
+research-context mirrors. It checks agent behavior, App/build, client contracts,
+native SDK fixtures, types/boundaries and targeted native image contracts. It does
+not run unchanged solver, Pack, Kernel, deployment-installer or full professional
+application suites. Its selected step has a10-minute ceiling; this ceiling is a
+failure bound, not a target duration. A mixed change to foundation composition,
+Authority, solver or unknown dependencies still selects its owning wider scope.
+
+Dev PRs and pushes select documentation, bounded governance contracts, conversation-runtime, shared-agent,
 foundation or native-runtime dependency regression, or `make check-pr` on macOS. Python source/tests
 under capstone-agent and TypeScript/TSX/CSS under capstone-app/src use the shared-agent
 gate: package boundaries, global type checks, complete agent and Kernel suites,
@@ -115,8 +132,8 @@ and their professional application adapters. This gate retains the shared-agent
 checks, the pandapower Pack, the complete PyPSA application suite, inventory
 conformance/multi-binding tests and the hosted/Thread/diagram adapter tests.
 It also has a 15-minute step limit. It does not cover arbitrary Kernel changes.
-The native-runtime gate covers the native host, its JavaScript resources, protected
-MCP gateway configuration, the native image/Compose wiring and the MCP sidecar.
+The wider native-runtime gate covers protected MCP gateway configuration,
+Compose wiring, the MCP sidecar and changes combined with foundation assembly.
 It retains the foundation gate, then checks deployment contracts, native inventory
 delegation, both capture wrappers, PowerMCP audit contracts and all native SDK test
 fixtures. Its additional step has a 10-minute budget. This avoids running unrelated

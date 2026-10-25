@@ -82,7 +82,7 @@ export default function ProcessCallTrace({ models, tools, now, active = true, re
   return <ol className="capstone-call-trace" aria-label="模型与工具调用过程">{entries.map(entry => {
     if (entry.tool) return <li key={entry.id}>{renderTool(entry.tool, true)}</li>
     const model = entry.model!, selected = tools.filter(tool => owned(tool, model)), toolMs = toolExecutionMs(selected.map(timed))
-    const pending = !!model.startedAt && !model.finishedAt, running = pending && active
+    const pending = !!model.startedAt && !model.finishedAt, running = pending && active && !model.settled
     const linked = model.toolCallIds !== undefined
     const issue = issues.find(item => item.modelId === model.id)
     const usage = model.usage, inputParts = [count(usage?.input), count(usage?.cacheRead), count(usage?.cacheWrite)]
@@ -91,8 +91,8 @@ export default function ProcessCallTrace({ models, tools, now, active = true, re
     return <li key={entry.id}><section role="group" aria-label={model.label ?? `LLM 调用 ${model.number}`} className="capstone-call-round" data-record-gap={issue ? true : undefined}
       tabIndex={-1} ref={element => { if (element) roundElements.current.set(model.id, element); else roundElements.current.delete(model.id) }}>
       <div className="capstone-call-model"><strong>{model.label ?? `LLM ${String(model.number).padStart(2, '0')}`}</strong>
-        <span className="capstone-call-duration">{pending && !active ? '耗时 —' : time(modelCallMs(model, running ? now : undefined))}</span>
-        {running ? <span role="status">进行中</span> : pending ? <span>未完整记录</span> : model.stopReason === 'error' ? <span>错误响应</span> : model.stopReason === 'aborted' ? <span>已中断</span> : model.stopReason === 'length' ? <span>输出截断</span> : <span>已返回</span>}
+        <span className="capstone-call-duration">{pending && (!active || model.settled) ? '耗时 —' : time(modelCallMs(model, running ? now : undefined))}</span>
+        {model.stopReason === 'error' ? <span>错误响应</span> : model.stopReason === 'aborted' ? <span>已中断</span> : running ? <span role="status">进行中</span> : pending ? <span>未完整记录</span> : model.stopReason === 'length' ? <span>输出截断</span> : <span>已返回</span>}
         {!running && <small>{!linked ? '工具关联未记录' : !model.toolCallIds!.length ? '未调用工具' : `工具 ${model.toolCallIds!.length}次${toolMs === undefined ? '' : ` · 活动区间 ${time(toolMs)}`}`}</small>}
       </div>
       {usage && <div className="capstone-call-tokens" title="输入包含 SDK 单独报告的缓存读取/写入 token；未报告的值保持未知。">

@@ -83,12 +83,24 @@ def executor_binding(executor, *, session_type: str | None = None, profile_versi
 
 
 def binding_for_session(binding: Mapping | None, session_type: str | None) -> dict:
-    """Select a trusted preset from the host's executor, never client config."""
+    """Select host-published organization; session labels retain entry defaults."""
     from types import SimpleNamespace
     if binding is None:
         raise ValueError('native conversation executor is unavailable')
+    if session_type not in {None, 'general-chat', 'enterprise-research'}:
+        raise ValueError('native session type is not registered')
+    capability = binding['capability']
+    from .native_task_context import registered_research_policy
+    # The current incremental organizer can answer without constructing a task
+    # graph, then plan useful work on a later turn. Older publications retain
+    # their explicit presets; persisted Attempts still use validate_binding.
+    shared = ('capstone-research-bridge/1' in capability.get('research_bridge_schemas', ())
+              and 'capstone-enterprise-graph/2' in capability.get('research_graph_schemas', ())
+              and registered_research_policy('1.18.0').capability()
+              in capability.get('research_policy_profiles', ()))
+    selected = 'enterprise-research' if shared else session_type
     return executor_binding(SimpleNamespace(identity=binding['identity'], capability=binding['capability']),
-                            session_type=session_type)
+                            session_type=selected)
 
 
 def validate_binding(value: object) -> dict:

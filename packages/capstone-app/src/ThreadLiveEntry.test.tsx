@@ -30,6 +30,7 @@ const snapshot = {
 describe('ThreadLiveEntry', () => {
   it('retains each visited session conversation and resource DOM across switches and new-session entry',async()=>{
     const streams:{id:string;signal?:AbortSignal|null}[]=[]
+    let firstReplay=true
     const fetcher=vi.fn(async(url:string|URL,_init?:RequestInit)=>{
       const path=String(url),id=path.match(/\/threads\/(thr_[a-z0-9_]+)/)?.[1]??'thr_demo_39'
       if(path.endsWith('/thread-access'))return new Response(JSON.stringify({schema:'capstone-thread-access/1',mode:'open'}))
@@ -39,12 +40,19 @@ describe('ThreadLiveEntry', () => {
       if(path.endsWith('/metadata'))return new Response(JSON.stringify({archived:false}))
       if(path.includes('/events/stream')){streams.push({id,signal:_init?.signal});return new Response(new ReadableStream({start(){}}))}
       if(path.includes('/history?'))return new Response(JSON.stringify({schema:'capstone-thread-history/1',thread_id:id,before_event_seq:1,next_before_event_seq:1,has_more:false,events:[]}))
-      if(path.includes('/events?'))return new Response(JSON.stringify({schema:'capstone-thread-events/1',thread_id:id,after_event_seq:0,next_event_seq:0,has_more:false,events:[]}))
+      if(path.includes('/events?')){
+        if(id==='thr_demo_39'&&firstReplay){firstReplay=false;await new Promise(resolve=>setTimeout(resolve,100))}
+        return new Response(JSON.stringify({schema:'capstone-thread-events/1',thread_id:id,after_event_seq:0,next_event_seq:0,has_more:false,events:[]}))
+      }
       return new Response(JSON.stringify({...snapshot,thread_id:id}))
     })
     vi.stubGlobal('fetch',fetcher)
     render(<ThreadLiveEntry threadId="thr_demo_39" presentation="workspace" />)
     const composer=await screen.findByRole('textbox',{name:'Thread 指令'})
+    // Rendering the composer does not mean history replay and SSE startup finished.
+    await waitFor(()=>expect(streams.find(stream=>stream.id==='thr_demo_39')).toBeDefined())
+    const initialStream=streams.find(stream=>stream.id==='thr_demo_39')!
+    expect(initialStream.signal?.aborted).toBe(false)
     fireEvent.click(screen.getByRole('button',{name:'打开电气拓扑'}))
     fireEvent.click(screen.getByRole('button',{name:'扩大成果区'}))
     const viewport=document.querySelector('.capstone-chat-viewport') as HTMLElement
@@ -52,7 +60,7 @@ describe('ThreadLiveEntry', () => {
     viewport.scrollTop=123;resource.querySelector('.workspace-product-paper')!.scrollTop=67
     await act(async()=>navigateSession('thr_other'))
     await waitFor(()=>expect(screen.getByRole('textbox',{name:'Thread 指令'})).not.toBe(composer))
-    await waitFor(()=>expect(streams.find(stream=>stream.id==='thr_demo_39')?.signal?.aborted).toBe(true))
+    await waitFor(()=>expect(initialStream.signal?.aborted).toBe(true))
     await act(async()=>navigateSession('thr_demo_39'))
     await waitFor(()=>expect(screen.getByRole('textbox',{name:'Thread 指令'})).toBe(composer))
     expect(viewport.scrollTop).toBe(123)
