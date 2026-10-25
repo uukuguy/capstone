@@ -42,6 +42,7 @@ export function windowResearchContext(value,{limit,offset=0,pageSize=8}={}){
   // its recovery identity instead of terminating other running task nodes.
   const result={research_id:value.research_id,research_revision:value.research_revision,
     goal:Array.from(value.goal??'').slice(0,128).join(''),
+    ...(value.goal_scope?{goal_scope:value.goal_scope,scope_notice:value.scope_notice}:{}),
     cycle:{checkpoint:value.cycle?.checkpoint,graph:{schema:value.cycle?.graph?.schema,
       graph_ref:value.cycle?.graph?.graph_ref,graph_revision:value.cycle?.graph?.graph_revision}},
     coverage:{context_window:{complete:false,original_chars:original,limit_chars:limit,
