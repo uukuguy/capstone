@@ -42,6 +42,8 @@ class GeneralPiHost:
         self.capability['research_bridge_schemas'] = ['capstone-research-bridge/1']
         self.capability['research_graph_schemas'] = ['capstone-enterprise-graph/2']
         self.capability['delivery_review_schemas'] = ['capstone-delivery-review/1']
+        from .native_diagnosis import DIAGNOSIS_POLICY
+        self.capability['systematic_diagnosis'] = dict(DIAGNOSIS_POLICY)
         gateway = getattr(run_task, 'gateway', None)
         self.capability['data_gateway'] = (gateway.publication() if gateway else
             getattr(run_task, 'gateway_publication', {'available': False, 'reason': 'not_configured'}))
@@ -71,6 +73,8 @@ class GeneralPiHost:
         for task_id in self.storage.sweep(set()):
             shutil.rmtree(self.root / 'tasks' / task_id, ignore_errors=True)
             shutil.rmtree(self.root / 'tasks' / '.contexts' / task_id, ignore_errors=True)
+            shutil.rmtree(self.root / 'tasks' / '.diagnoses' / task_id, ignore_errors=True)
+            shutil.rmtree(self.storage.root / 'diagnoses' / task_id, ignore_errors=True)
             shutil.rmtree(self._research_path(task_id), ignore_errors=True)
             shutil.rmtree(self.resource_staging.root / task_id, ignore_errors=True)
         bind_research = getattr(run_task, 'bind_research_reader', None)
@@ -79,6 +83,22 @@ class GeneralPiHost:
         bind_context = getattr(run_task, 'bind_graph_context_provider', None)
         if callable(bind_context):
             bind_context(self.graph_context)
+        bind_diagnosis = getattr(run_task, 'bind_diagnosis_provider', None)
+        if callable(bind_diagnosis):
+            bind_diagnosis(self.diagnosis_context)
+
+    def diagnosis_context(self, request, workspace, uid):
+        from .native_diagnosis import NativeDiagnosis, DIAGNOSIS_POLICY
+        from .native_task_context import checked_native_context
+        native = checked_native_context(request.native_context)
+        if native.get('systematic_diagnosis') != DIAGNOSIS_POLICY:
+            raise ValueError('diagnosis was not selected by the application')
+        context = NativeDiagnosis(root=self.root / 'tasks' / '.diagnoses' / request.task_id,
+            state_root=self.storage.root / 'diagnoses' / request.task_id, uid=uid,
+            policy=native['systematic_diagnosis'], storage=self.storage)
+        with self._lock:
+            self._tasks[request.task_id]['diagnosis_context'] = context
+        return context
 
     def graph_context(self, request, workspace, uid):
         """Runner supplies the actual isolated UID; model input cannot select it."""
@@ -118,6 +138,9 @@ class GeneralPiHost:
                 published.update(ALL_ENTERPRISE_RESEARCH_TOOLS)
             if native['selected_task_records']:
                 published.add('agent_task_records_read')
+            from .native_diagnosis import DIAGNOSIS_POLICY, DIAGNOSIS_TOOLS
+            if native.get('systematic_diagnosis') == DIAGNOSIS_POLICY:
+                published.update(DIAGNOSIS_TOOLS)
             if not set(native['policy']['allowed_tools']) <= published:
                 raise ValueError('native application requested an unpublished tool')
         with self._lock:
@@ -199,6 +222,8 @@ class GeneralPiHost:
             for task_id in self.storage.sweep(active):
                 shutil.rmtree(self.root / 'tasks' / task_id, ignore_errors=True)
                 shutil.rmtree(self.root / 'tasks' / '.contexts' / task_id, ignore_errors=True)
+                shutil.rmtree(self.root / 'tasks' / '.diagnoses' / task_id, ignore_errors=True)
+                shutil.rmtree(self.storage.root / 'diagnoses' / task_id, ignore_errors=True)
                 self._tasks.pop(task_id, None)
                 shutil.rmtree(self._research_path(task_id), ignore_errors=True)
                 self.resource_staging.remove(task_id)
@@ -363,6 +388,12 @@ class GeneralPiHost:
                         task_id=request.task_id, attempt_id=request.parent_attempt_id,
                         private_roots=(str(record['graph_context'].root),) if record.get('graph_context') is not None else ())
                 record['graph_events'].admit_progress(payload)
+            elif kind == 'systematic_diagnosis_request':
+                context = record.get('diagnosis_context')
+                if context is None:
+                    raise ValueError('diagnosis context is not configured')
+                context.handle(event)
+                return  # Private request/receipt transport, not Authority evidence.
             elif kind == 'enterprise_graph_context_request':
                 context = record.get('graph_context')
                 if context is None:
@@ -700,6 +731,9 @@ class NativeTaskRunner:
     def bind_graph_context_provider(self, provider):
         self._graph_context_provider = provider
 
+    def bind_diagnosis_provider(self, provider):
+        self._diagnosis_provider = provider
+
     def bind_resource_staging(self, staging):
         self._resource_staging = staging
 
@@ -751,6 +785,9 @@ class NativeTaskRunner:
                 from .native_task_context import checked_native_context, resolve_research_policy
                 native = checked_native_context(request.native_context)
                 sdk_config['applicationPolicy'] = native['policy']
+                if native.get('systematic_diagnosis'):
+                    diagnosis = self._diagnosis_provider(request, workspace, uid)
+                    sdk_config['diagnosisContextPath'] = str(diagnosis.root)
                 from .data_gateway_relay import research_gateway_tools
                 gateway_tools = research_gateway_tools(native, self.gateway.publication() if self.gateway else {})
                 admitted_gateway = gateway_tools.intersection(native['policy']['allowed_tools'])
@@ -1234,14 +1271,14 @@ def main():
                 'pi_commit': lock['source']['commit'], 'config_revision': revision.hexdigest(),
                 'runtime_lock_sha256': sha256(Path('/opt/general/pi-runtime.lock.json').read_bytes()).hexdigest(),
                 'executor_revision': sha256(b''.join((Path(__file__).parent / name).read_bytes()
-                    for name in ('general_pi_server.py', 'general_pi_executor.py', 'general_pi_storage.py', 'general_pi_relay.py', 'native_network_policy.py', 'bounded_http_loop.py', 'pi_delegation.py', 'business_context.py', 'request_intent.py', 'native_task_context.py',
+                    for name in ('general_pi_server.py', 'general_pi_executor.py', 'general_pi_storage.py', 'general_pi_relay.py', 'native_network_policy.py', 'bounded_http_loop.py', 'pi_delegation.py', 'business_context.py', 'request_intent.py', 'native_task_context.py', 'native_diagnosis.py',
                                  'native_resources.py', 'runtime_resources.py', 'resource_installation.py', 'general_pi_resource_seed.py', 'bounded_mcp.py', 'native_environment.py', 'data_gateway_mcp.py', 'data_gateway_relay.py', 'resources/general-data-gateway.mjs',
                                  'progress.py', 'stream_progress.py', 'resource_manifest.py', 'native_resource_staging.py',
                                  'native_research_bridge.py', 'native_graph_context.py', 'native_graph_events.py',
                                  'native_product_roles.py', 'continuation_resources.py', 'resources/general-research.mjs', 'resources/research-guidance.mjs',
                                  'application_capacity.py', 'resources/application-capacity.json', 'resources/runtime-limits.mjs',
                                  'resources/research-tools.mjs', 'resources/execution-guidance.mjs', 'resources/model-request-capture.mjs',
-                                 'resources/general-context.mjs', 'resources/general-sdk.mjs', 'resources/general-mcp.mjs', 'resources/task-record-tools.mjs',
+                                 'resources/general-context.mjs', 'resources/general-sdk.mjs', 'resources/systematic-diagnosis.mjs', 'resources/general-mcp.mjs', 'resources/task-record-tools.mjs',
                                  'resources/enterprise-research-runtime.mjs', 'resources/enterprise-cycle-contract.mjs',
                                  'resources/enterprise-cycle-state.mjs', 'resources/enterprise-graph-contract.mjs',
                                  'resources/enterprise-graph-state.mjs', 'resources/enterprise-graph-runtime.mjs', 'resources/task-goal-state.mjs', 'resources/task-node-return.mjs', 'resources/research-context-window.mjs',

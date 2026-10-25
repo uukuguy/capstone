@@ -8,6 +8,7 @@ import {createManagedSubagents} from './managed-subagents.mjs';
 import {createDataGatewayTools} from './general-data-gateway.mjs';
 import {createTaskNodeReturn} from './task-node-return.mjs';
 import {taskTurnGuidance} from './task-turn-guidance.mjs';
+import {createDiagnosisTools,diagnosisTools,diagnosisDigest} from './systematic-diagnosis.mjs';
 
 const nativeShellGuidance='Native bash uses pipefail: an upstream pipeline failure is a tool failure, including SIGPIPE from expected truncation. Handle expected truncation or recovery explicitly with shell control flow. Errexit is not enabled.';
 const nativeBatchGuidance='Use multiple tool calls in one model response when their arguments are already known and the operations are independent. The runtime collects the batch results before the next model turn. Batch independent reads of known paths, independent checks and writes to different files. Do not batch a read with a calculation that needs its unseen contents, a file write with its dependent execution, competing edits, or control operations that require references returned by another operation. Do not add tools merely to fill a batch. ';
@@ -349,7 +350,7 @@ export function guardToolExecution(tool, admit) {
 
 export function applicationToolAdmission(config, toolName) {
   const policy = config.applicationPolicy;
-  return { accepted: (!config.researchRuntime?.isolatedTaskExecution||toolName!=='agent_research_inspect'&&(toolName.startsWith('agent_research_')||toolName==='agent_task_progress'))&&
+  return { accepted: (!config.researchRuntime?.isolatedTaskExecution||diagnosisTools.includes(toolName)||toolName!=='agent_research_inspect'&&(toolName.startsWith('agent_research_')||toolName==='agent_task_progress'))&&
       (!policy || policy.allowed_tools.includes(toolName)),
     reason: "This application did not authorize the requested tool. Select a registered resource or continue without it." };
 }
@@ -358,9 +359,10 @@ export function applicationToolOptions(config, nativeTools, research=()=>undefin
   if (!config.applicationPolicy) return {};
   // SDK `tools` filters the full registry, including registered extensions.
   // Keep publication intact; the active set and execution guard enforce grants.
-  return { customTools: [...nativeTools,...createDataGatewayTools(config)].map(tool => {
+  return { customTools: [...nativeTools,...createDataGatewayTools(config),...createDiagnosisTools(config)].map(tool => {
     const guarded = guardToolExecution(tool, async call => applicationToolAdmission(config, call.toolName));
-    if (!config.researchChannelPath) return guarded;
+    // Foundation records do not open a native graph action or produce business evidence.
+    if (!config.researchChannelPath||diagnosisTools.includes(tool.name)) return guarded;
     return {...guarded, async execute(callId, ...args) {
       args[1]?.throwIfAborted();
       const controller=research(),token=await controller?.beginTool({toolCallId:callId,toolName:tool.name,signal:args[1]});
@@ -580,6 +582,7 @@ export async function createManagedChildSession(config, sdk, modelRuntime,
     throw new Error('Child skills are not authorized by the application');
   }
   const childConfig = {...config, researchChannelPath:undefined,
+    diagnosisNamespace:graphBinding?.action?.id??'child-'+randomUUID(),
     researchRuntime:{...config.researchRuntime,isolatedTaskExecution:false},
     applicationPolicy: {...config.applicationPolicy, allowed_tools: [...new Set(toolNames)]}};
   const settingsManager = sdk.SettingsManager.inMemory(config.settings);
@@ -738,6 +741,35 @@ export function configureGraphParentContext(pi,config,controller){
   const type='capstone-graph-parent-inputs',digest=value=>createHash('sha256').update(JSON.stringify(canonical(value))).digest('hex');
   const limits=resolveLimits({...JSON.parse(readFileSync(new URL('./application-capacity.json',import.meta.url),'utf8')).limits,...config.runtimeLimits},{mode:config.runtimeLimitMode});
   let prepared,compacting=false,repeatedRejection=false,lastProgress,failure;
+  const diagnosticPort=createDiagnosisTools(config).find(tool=>tool.name==='agent_diagnosis_record');
+  const diagnosticSelections=new Map(),pendingDiagnosticCalls=new Map(),blockedDiagnosticCalls=new Set();
+  let diagnosticRestore,settleRejections=0;
+  const diagnosticSelection=async(event,signal)=>{
+    const selected=await controller.readParentInputs({signal});
+    return {tool_name:event.toolName,input:event.input??{},action_identity:selected?
+      {action_id:selected.action.id,input_bindings:selected.action.input_bindings??[]}:null};
+  };
+  // Exhaustion blocks its exact failed action, not the next model request.
+  // The model can deliver a limited answer or run another permitted action.
+  pi.on('tool_call',async(event,ctx)=>{
+    if(!diagnosticPort||diagnosisTools.includes(event.toolName))return;
+    diagnosticRestore??=diagnosticPort.execute('restore-diagnostic-scopes-'+randomUUID(),{operation:'read'},ctx.signal).then(retained=>{
+      for(const scope of retained.details.diagnosis.scopes??[])
+        if(scope.selection_key)diagnosticSelections.set(scope.selection_key,scope);
+    });
+    await diagnosticRestore;
+    const selection=await diagnosticSelection(event,ctx.signal),key=diagnosisDigest(selection);
+    const previous=diagnosticSelections.get(key);
+    if(previous){
+      const retained=await diagnosticPort.execute('check-'+event.toolCallId,{operation:'check_scope',record:{scope_ref:previous.scope_ref}},ctx.signal);
+      const status=retained.details.diagnosis;diagnosticSelections.set(key,status);
+      if(status.status==='exhausted'){
+        blockedDiagnosticCalls.add(event.toolCallId);settleRejections++;
+        return {block:true,reason:status.reason+' This call did not execute. Answer with the retained gap or choose an independent permitted action.'};
+      }
+    }
+    pendingDiagnosticCalls.set(event.toolCallId,{selection,started:performance.now()});
+  });
   const rejectedSelections=new Set();
   const summaryType='capstone-research-state',placements=new Map();
   function placeContext(messages,map,fingerprint){
@@ -796,7 +828,25 @@ export function configureGraphParentContext(pi,config,controller){
     if(!controller.progressKey)return;
     const progress=await controller.progressKey({signal:ctx.signal});
     if(progress!==lastProgress){rejectedSelections.clear();repeatedRejection=false;lastProgress=progress;}
-    if(event.isError!==true&&event.details?.ok!==false||event.details?.error?.category==='unknown')return;
+    const pendingCall=pendingDiagnosticCalls.get(event.toolCallId);pendingDiagnosticCalls.delete(event.toolCallId);
+    if(blockedDiagnosticCalls.delete(event.toolCallId))return;
+    if(event.isError!==true&&event.details?.ok!==false){
+      if(!diagnosisTools.includes(event.toolName))settleRejections=0;
+      return;
+    }
+    if(event.details?.error?.category==='unknown')return;
+    // New publication: count actual protocol/tool rejections in the host-owned
+    // selection budget, even if the model never chooses the diagnostic tool.
+    // Advisory business findings do not become errors through this guard.
+    if(diagnosticPort&&!diagnosisTools.includes(event.toolName)){
+      const selection=pendingCall?.selection??await diagnosticSelection(event,ctx.signal);
+      const retained=await diagnosticPort.execute('observed-'+event.toolCallId,{operation:'observe_rejection',record:{
+        tool_call_id:event.toolCallId,selection,code:event.details?.error?.code??'tool_failed',
+        duration_ms:pendingCall?Math.max(0,performance.now()-pendingCall.started):0}},ctx.signal);
+      diagnosticSelections.set(diagnosisDigest(selection),retained.details.diagnosis);
+      return {content:[...(event.content??[]),{type:'text',text:retained.details.diagnosis.reason}],
+        details:{...event.details,diagnosis:retained.details.diagnosis}};
+    }
     const selection=digest({tool_name:event.toolName,input:event.input,code:event.details?.error?.code??'tool_failed'});
     if(rejectedSelections.has(selection))repeatedRejection=true;
     rejectedSelections.add(selection);
@@ -818,9 +868,10 @@ export function configureGraphParentContext(pi,config,controller){
       const progress=await controller.progressKey({signal:ctx.signal});
       if(progress!==lastProgress){rejectedSelections.clear();repeatedRejection=false;lastProgress=progress;}
     }
-    if(repeatedRejection){
+    if(diagnosticPort?settleRejections>=2:repeatedRejection){
       failure=new ManagedContinuationStalledError();
-      failure.message='Repeated rejected graph selection made no accepted progress. Saved outputs remain retained; correct the selection or close with actual limitations.';
+      failure.message=diagnosticPort?'Diagnostic settle attempts repeated an exhausted selection. Saved outputs and findings remain retained.':
+        'Repeated rejected graph selection made no accepted progress. Saved outputs remain retained; correct the selection or close with actual limitations.';
       throw failure;
     }
     const packet=prepared;prepared=undefined;
@@ -854,7 +905,7 @@ export function createGraphNodeDispatcher(config,sdk,modelRuntime,{skills,contex
     const limits=config.researchRuntime.delegation;
     const runner=createManagedSubagents({maxTurns:limits.maxTurns,graceTurns:limits.graceTurns,
       createChildSession:({signal})=>createManagedChildSession(config,sdk,modelRuntime,{signal,cwd,researchExecution:true,
-        toolNames:config.applicationPolicy.allowed_tools.filter(name=>['read','bash','edit','write','grep','find','ls'].includes(name)||name.startsWith('data_gateway_')),
+        toolNames:config.applicationPolicy.allowed_tools.filter(name=>['read','bash','edit','write','grep','find','ls'].includes(name)||diagnosisTools.includes(name)||name.startsWith('data_gateway_')),
         skills,graphBinding:{action,checkpoint,emit,receipts,taskReturn,executionMode:node.mode,turnGuidance:turn_guidance,
           freezeReturn:({products,callId,signal})=>retainTaskProducts(contextClient,action,checkpoint,products,
             {signal,requestKey:'task-return:'+createHash('sha256').update(action.id+'\0'+callId).digest('hex')})}})});
@@ -1166,7 +1217,7 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
           createChildSession: ({signal}) => reviewing?createDeliveryReviewSession(config,sdk,modelRuntime,{signal,cwd}):
             createManagedChildSession(config,sdk,modelRuntime,{signal,cwd,
               researchExecution:true,
-              toolNames:config.applicationPolicy.allowed_tools.filter(name => ['read','bash','edit','write','grep','find','ls'].includes(name)),
+              toolNames:config.applicationPolicy.allowed_tools.filter(name => ['read','bash','edit','write','grep','find','ls'].includes(name)||diagnosisTools.includes(name)),
               skills:loader.getSkills().skills})});
         const prompt=(reviewing?reviewChildPrompt(job,callbacks.reviewPacket):job.instruction +
           '\nAccepted research questions: '+JSON.stringify(job.questions??[]) +
@@ -1228,7 +1279,7 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
   try {
     await session.bindExtensions({ onError: () => { throw new Error("Native extension failed"); } });
     if (config.applicationPolicy) session.setActiveToolsByName(config.applicationPolicy.allowed_tools.filter(name=>
-      !config.researchRuntime?.isolatedTaskExecution||name!=='agent_research_inspect'&&(name.startsWith('agent_research_')||name==='agent_task_progress')));
+      !config.researchRuntime?.isolatedTaskExecution||diagnosisTools.includes(name)||name!=='agent_research_inspect'&&(name.startsWith('agent_research_')||name==='agent_task_progress')));
     const skills = loader.getSkills().skills.map(s => ({ name: s.name,
       sha256: createHash("sha256").update(readFileSync(s.filePath)).digest("hex") }));
     const toolHashes = verifyMcpPublication(session, config);

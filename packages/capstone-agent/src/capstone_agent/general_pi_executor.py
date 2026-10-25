@@ -466,7 +466,7 @@ class GeneralPiProcess:
                 if event.get('type') in {'turn_start', 'turn_end', 'message_end',
                                          'tool_execution_start', 'tool_execution_end', 'message_update',
                                          'enterprise_cycle_progress', 'enterprise_graph_progress',
-                                         'enterprise_graph_context_request', 'enterprise_graph_tool_binding', 'enterprise_graph_tool_failure',
+                                         'systematic_diagnosis_request', 'enterprise_graph_context_request', 'enterprise_graph_tool_binding', 'enterprise_graph_tool_failure',
                                          'enterprise_graph_child_started', 'enterprise_graph_child_tool',
                                          'enterprise_graph_child_response_started', 'enterprise_graph_child_response', 'enterprise_graph_child_finished', 'delegation_child_started',
                                          'delegation_child_tool', 'delegation_child_finished', 'delegation_child_response'}:
