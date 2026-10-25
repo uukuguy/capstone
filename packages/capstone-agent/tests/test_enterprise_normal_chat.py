@@ -173,6 +173,76 @@ def test_native_failure_is_failed_instead_of_a_completed_placeholder(chat_store)
     assert store.snapshot(thread_id).works[0]['messages'] == ['Hello']
 
 
+@pytest.mark.parametrize('terminal', ['cancelled', 'failed', 'interrupted'])
+def test_new_conversation_instruction_does_not_replay_prior_unfinished_input(chat_store, terminal):
+    store, thread_id = chat_store
+    store.set_native_executor(native_executor())
+    old_text = 'Perform the long research task and write its report'
+    new_text = 'List active processes in the isolated task environment'
+    assert store.submit_command(command(store, thread_id, 'send_message', 'superseded_old',
+                                       payload={'text': old_text})).status == 'accepted'
+    previous = store.claim_attempt('old', 30)
+    assert previous is not None
+    store.finish_attempt(previous, phase=terminal, payload={})
+    work = store.snapshot(thread_id).works[0]
+    assert work['messages'] == [old_text]  # Explicit retry remains possible before a new instruction.
+    request = command(store, thread_id, 'send_message', 'superseding_new',
+        work_id=work['work_id'], revision=work['revision'], payload={'text': new_text})
+    accepted = store.submit_command(request)
+    assert accepted.status == 'accepted'
+    assert store.submit_command(request) == accepted
+    current = store.claim_attempt('new', 30)
+    assert current is not None
+    assert current.instruction == new_text
+    assert current.task_context.binding == previous.task_context.binding
+    assert any(message['content'] == old_text and message['status'] == terminal
+               for message in current.conversation_context.to_document()['messages'])
+    assert previous.instruction == old_text
+
+
+def test_explicit_work_retry_keeps_the_cancelled_instruction(chat_store):
+    store, thread_id = chat_store
+    store.set_native_executor(native_executor())
+    text = 'Continue the original investigation'
+    assert store.submit_command(command(store, thread_id, 'send_message', 'retry_original',
+        payload={'text': text})).status == 'accepted'
+    old = store.claim_attempt('old', 30)
+    assert old is not None
+    store.finish_attempt(old, phase='cancelled', payload={})
+    work = store.snapshot(thread_id).works[0]
+    assert store.submit_command(command(store, thread_id, 'start_work', 'retry_exact',
+        work_id=work['work_id'], revision=work['revision'])).status == 'accepted'
+    retried = store.claim_attempt('retry', 30)
+    assert retried is not None and retried.instruction == text
+
+
+def test_worker_receives_only_the_new_instruction_after_cancel(chat_store, tmp_path):
+    store, thread_id = chat_store
+    executor = native_executor()
+    store.set_native_executor(executor)
+    old_text, new_text = 'Write the previous long research report', 'Show active isolated processes'
+    assert store.submit_command(command(store, thread_id, 'send_message', 'worker_old',
+        payload={'text': old_text})).status == 'accepted'
+    previous = store.claim_attempt('old', 30)
+    assert previous is not None
+    store.finish_attempt(previous, phase='cancelled', payload={})
+    before = store.snapshot(thread_id)
+    work = before.works[0]
+    stale = command(store, thread_id, 'send_message', 'worker_stale',
+        work_id=work['work_id'], revision=0, payload={'text': new_text})
+    assert store.submit_command(stale).rejection == 'revision_conflict'
+    assert store.snapshot(thread_id).works == before.works
+    assert store.submit_command(command(store, thread_id, 'send_message', 'worker_new',
+        work_id=work['work_id'], revision=work['revision'], payload={'text': new_text})).status == 'accepted'
+    result = run_pending_attempt(store, IntentRuntimeFactory(None, None, None,
+        general_executor=executor, native_research_root=tmp_path),
+        worker_id='native', implementation_family='native')
+    assert result.status == 'completed'
+    assert len(executor.requests) == 1 and executor.requests[0].instruction == new_text
+    assert any(message['content'] == old_text and message['status'] == 'cancelled'
+               for message in executor.requests[0].messages)
+
+
 def test_native_input_catalog_and_selected_skill_are_consumed(chat_store):
     store, thread_id = chat_store
     executor = native_executor()
@@ -297,7 +367,9 @@ def test_native_postgres_restart_retains_accepted_configuration_and_old_lease_ca
         revision=work['revision'], payload={'text': 'Continue'})
     assert restored.submit_command(next_request).status == 'accepted'
     current = restored.claim_attempt('replacement', 30, 'native')
-    assert current.instruction == 'Keep this input\n\nContinue'
+    assert current.instruction == 'Continue'
+    assert any(message['content'] == 'Keep this input' and message['status'] == 'interrupted'
+               for message in current.conversation_context.to_document()['messages'])
     with pytest.raises(ThreadExecutionError, match='lease'):
         restored.finish_attempt(claim, phase='completed', payload={'answer': 'late again'})
     restored.finish_attempt(current, phase='failed', payload={'error_code': 'fixture_end'})

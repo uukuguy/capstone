@@ -68,6 +68,14 @@ task without a recorded plan must not display fabricated plan steps. Live and
 replayed views must agree after refresh, continuation, failure and cancellation.
 Reuse existing message, composer, fold state, products and source components.
 
+After cancellation, failure or interruption, a newly submitted conversation
+instruction supersedes pending input from the stopped Attempt. Only the new input
+is executable; prior instructions, products and statuses remain historical context.
+Explicit retry retains the old frozen request. A stale/rejected new command must
+not consume old pending input. Do not infer permission to resume a stopped task
+from a later unrelated instruction. Verify stop followed by an ordinary process
+inspection through the actual command, worker and native execution path.
+
 ## Different task-chain acceptance policies
 
 The user clarified these requirements on 2026-10-25. They constrain the proposed

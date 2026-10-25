@@ -149,7 +149,18 @@ def apply_work(snapshot, command, *, archived=False):
     if command['kind'] == 'send_message':
         if command['target']['id'] == 'new' and any(work.get('conversation_mode') for work in snapshot.works):
             return snapshot, 'conversation_work_exists', None
-        saved, rejection, work = apply_work(snapshot, {**command, 'kind': 'work_message',
+        staged = snapshot
+        previous = next((item for item in snapshot.works if item['work_id'] == command['target']['id']), None)
+        if (previous is not None and previous.get('conversation_mode')
+                and previous['status'] in {'cancelled', 'failed', 'interrupted'}):
+            # A new instruction supersedes the pending input of a finished
+            # Attempt. Keep the old bytes in history and available for explicit
+            # retry; never concatenate them into an unrelated new request.
+            works = deepcopy(list(snapshot.works))
+            prior = next(item for item in works if item['work_id'] == previous['work_id'])
+            prior['consumed_message_count'] = len(prior['messages'])
+            staged = replace(snapshot, works=tuple(works))
+        saved, rejection, work = apply_work(staged, {**command, 'kind': 'work_message',
             'payload': {'text': command['payload'].get('text')}}, archived=archived)
         if rejection is not None:
             return snapshot, rejection, None
