@@ -1,65 +1,34 @@
 # Live Session Checkpoint
 
-Updated2026-10-25. Data gateway implementation is merged; control closeout is active.
+> Updated: 2026-10-25 21:20 CST. Session remains active.
 
-## Accepted source
+## Objective and sources
 
-PR58 merged as48da021bb4d817c74382d7834b1695991eb75072, tree identical to tested
-a3241fd4. Required macOS CI40172250793 passed in16m09s. The user requested lighter
-development CI: native-runtime retains foundation consumers, SDK/MCP and deployment
-contracts, with semantic MCP-only dependency checks. Unknown/solver changes still
-use product checks; release remains full. Do not dispatch release or cloud/demo.
+- Unified conversation and built-in systematic diagnosis are implemented and locally verified. Complete dev PR integration and actual dev entry/control verification. No cloud/demo/main release is authorized by this slice.
+- Implementation worktree .worktrees/dev-macos-ci, branch feat/unified-conversation-diagnostics, runtime source afe173cf. Root dev is5b142802 with task-owned metadata edits. All7root dirty/untracked paths have exact backups under .capstone-agent/recovery/unified-conversation-root-20261025; root journal has no lines absent from implementation journal.
+- Preserve all data, other worktrees and unmerged PR50. Its draft work is historical and is not a dependency of this branch.
 
-ROOT is actual dev48da021b. Its doctor passes and runtime files match rebuilt
-22e61786. Backend/API/three-worker image87e9bae78f79, nativef2c3afaf5b5f.
-Eight file hashes across five roles, readiness200,41gateway tools and actual
-UID10000 credential-open denial passed. Original real model acceptance ran on
-2f9c6b56; later production edits were type/optional-state corrections. Final
-browser reload retained the management summary and its original download hash.
-Scoped build cleanup completed after use.
+## Verified behavior
 
-## Real task receipts; do not resubmit
+- Same Thread thr_d9576805d1efeab634b3 / Work work_fea9ff10d260368869f8: direct16.203s, tool products70.620s, actual gateway research207.959s, explicit IEEE39 selection and Authority calculation26.4s. Squares total338350; gateway first-five mean6745.8721MW; grid loss43.64112576085046MW, voltage0.982–1.0636pu with current-run refs.
+- Stop bug needed queue supersession and context corrections. bad830c7 retires pending old input when new input is accepted, preserves explicitretry. bd386585 labels retained goal background;48fe84e1 preserves failed/cancelled/interrupted history status. New request itself was always correctly passed in the second failure.
+- Fresh real Stop→process verification onafe173cf: Thread thr_832dff3c85e0259ed969 / Work work_dd109ea8c398b5776426. Old Attempt f8546237a207c6f7 cancelled after planning; new Attempt8128eede43463220 completed89.073s with only inspect-processes node, PID/nameCSV and notes. NoCSVresume. Reload inspected. Simple-task organization overhead remains an efficiency gap.
+- One-shot diagnosis recovery Attemptc943fed923157cdd on Threadthr_40acc387429f6416c476 completed178.175s including~88squeue/~90sexecution. Read frozen prior reports, noCSVrecompute,1hostreport,0rejects, advisory/reported_only/retain_gap,3545byte recovery notes. Old uncertain records remain uncertain.
+- Earlier diagnosis failed at missing child source allowlist (fixed816a482a), then226.283s metadata retries were cancelled. Preserve those failures; do not reinterpret historical probes as passed.
+- User owns business direction and key decisions. Research quality defaults to advisory gaps; grid uses strict objective Pack/Authority admission with bounded repairs.
 
-Threadthr_1897f293f4778aa394ad / Workwork_933aff1d8c8316ffd4db:
-- attempt_a064c1744e3f09b5:216.411s,19successful gateway calls, including semantic
-  prepare/execute; source values/statistics match the report.
-- attempt_29ca9301923d867a:58.847s, same-Work follow-up, no new gateway queries.
-- No model task is active. No extra table-only case is needed.
+## Checks and local runtime
 
-Evidence is ignored ROOT outputs/data-gateway-20261025/: real-series-1,
-real-followup-1, numeric-product-verification.json, real-task-metrics.json,
-final-local-source-verification.json and final-browser-recovery-verification.json.
-Acceptance is docs/reviews/2026-10-25-enterprise-data-gateway.md.
-Source rows/credentials are not versioned. ROOT ignored deploy/local.env retains
-the existing credentials and the protected gateway mount pointers.
+- Backend2207passed/2skipped148.34s; App958passed11.76s; native fixture367passed16.96s; Pyright0; package boundaries pass. Kernel658/Pack144/client15/registered3 passed. Additional native consumers, PyPSA58, inventory12 and legacy App44 pass. Counts overlap. Doctor, links, symlink and diff checks pass.
+- Canonical rebuild sourceafe173cf ready: API+3workers image012d101db1fd49df0301818d01bfeae1ba6b4e799a71432da8f4ce3dc1b50e8e; nativeaa1b86ffa8b743f09ea5ec4c0389cb199d62d2cdae8f3f7b7c72043d9aa4cf55.84filechecks match. Cache receipt211057-30406.log. Root ignored outputs/unified-conversation-20261025 contains exact source, savedproducts, hostdiagnosis, numericlineage and stop receipts.
+- Candidate App5174 serves implementation; root App5173 must be verified after dev integration. Playwright fallback sessioncapstone-unified; tab0root/tab1candidate. Browser plugin unavailable. Desktop/mobile design checked; stop-new-process-desktop.png latest.
+- No active model tasks. Isolated tmpfs test PostgreSQL containercapstone-unified-test-postgres port32776 may be removed afterchecks. Preserve every other container/data.
+- Control worker owns VERSION-CONTROL/INDEX/PROJECT-OVERVIEW and finalrender. Temporary graph static server18791 session90553; stop it at end.
 
-## Remaining closeout
+## Remaining actions
 
-The existing implementation worktree .worktrees/dev-macos-ci is now
-docs/data-gateway-integration-closeout. Commit the updated canonical register,
-graph, acceptance, plan and state. Verify the graph with ui-ux-pro-max/browser,
-open a docs-only PR to dev, then merge after its required lightweight gate.
-Synchronize ROOT, regenerate and inspect its actual dev HEAD node and source edges.
-Close only merged feature/closeout refs; detach this reused worktree rather than
-removing its ignored runtimes. Preserve unmerged research/recovery refs and data.
-
-ROOT's previous two metadata changes were backed up with hashes under
-outputs/git-recovery-20261025/gateway-closeout before fast-forward. The prior
-journal receipts are preserved in the merged journal. At the final graph refresh,
-avoid an endless self-hash commit cycle: any remaining files must be only the
-explicit final journal/generated-snapshot metadata, never source or untracked work.
-
-Browser sessions gateway-real and gateway-integration-control are available.
-Port18765 serves the feature worktree graph. Stop that temporary server after use;
-keep the real App5173/API8767 running. Use NO_PROXY/no_proxy=127.0.0.1,localhost
-for local HTTP tests. Do not change production process-group cleanup to work
-around macOS test-host restrictions. Independent reviewer launch failed because
-the configured model is unavailable; no independent approval is claimed.
-
-## Deferred scope
-
-Gateway backend selection belongs to data-gateway. First delivery is enterprise
-research data access. Unified conversations, model ingestion/calculation and
-100k+ WebGL topology rendering remain later work. Identical SDK baseline is
-pandapower3.4.0/PyPSA1.3.0, without cross-version experiments. Full gateway response
-file materialisation and concise reader summaries are tracked improvements.
+1. Commit verified docs/control with exact source/acceptance. Push scoped PR targetingdev; wait macOS native-runtime gate, no release=true.
+2. Backed-up root task metadata may be restored/moved only after comparison. Merge accepted PR, fast-forward actualdev, preserve all original changes and journal lines. Do not delete unmerged branches.
+3. Verify root App5173 current source and saved session/model/products. If local source differs, canonical rebuild with rootenv and pinned model/gateway paths; source84checks suffice to avoid repeating paid successfulcases.
+4. Update actualdev register and generate/browser-inspect actualdev graph, including currentHEAD/merge source and exactlocal runtime source. A featuregraph alone is incomplete. Avoid endless own-hash commits.
+5. Clean only owned temporary testcontainer/server and scoped cache as required; final response reports dev integration and remaining efficiency limits honestly.

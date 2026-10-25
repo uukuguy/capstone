@@ -89,6 +89,31 @@ does not make a domain-specific output envelope a Kernel requirement.
 
 ### General Pi task delegation
 
+The continuing-conversation development path retains one Thread/Work while its
+instructions use direct answers, authorized native work and explicitly selected
+registered models. A stopped instruction remains history and may be retried
+explicitly. A new conversation instruction supersedes its old pending input;
+the framework must not concatenate the stopped request into new executable work.
+Terminal history retains its status and identity in model context. A retained
+Work goal is background; it does not silently add obligations to a new turn.
+Process emphasis follows actual execution and selected resources: thinking state,
+general tool calls, or business task planning. Internal scheduling graphs alone
+do not establish a business task or completed analysis.
+
+Systematic diagnosis is an application-owned native foundation capability with
+an on-demand method guide and host-persisted reported records. Ordinary use is
+a single report of the issue, observed outcome and next action; manual IDs,
+hashes and probe reservation are not required. Scoped correction and repetition
+budgets permit useful independent work and limited delivery. Known field errors
+receive bounded correction guidance; unknown required persistence remains fatal.
+Diagnostic records cannot grant tools, certify their own findings or become
+Authority evidence. Research quality findings remain advisory gaps; professional
+calculations retain their Pack and Authority contracts. See the
+[design](../superpowers/specs/2026-10-25-unified-conversation-diagnostics-design.md)
+and [acceptance record](../reviews/2026-10-25-unified-conversation-diagnostics.md)
+for the implemented scope and verification limits. These local development changes
+do not establish cloud or user-trial deployment.
+
 The application can delegate general goals to a separate native Pi executor.
 Capstone mode first uses a model-based intent node to select goals and dependencies.
 Business goals retain the Domain Pack and Authority path. General goals use the
