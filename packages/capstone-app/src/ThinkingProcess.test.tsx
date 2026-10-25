@@ -66,6 +66,16 @@ it('hands off to recorded business steps without hiding the plan during later th
   expect(screen.getByText('Inspect selected business records')).toBeTruthy()
   expect(screen.queryByText('LATER_TASK_THINKING')).toBeNull()
 })
+it('keeps a goal-only progress note secondary when direct bash execution starts',()=>{
+  const goal=event('tool_completed',3,{tool_name:'agent_task_progress',capability:'agent_task_progress',ok:true,tool_call_id:'goal',task_progress:{kind:'goal',text:'Recorded goal without a task plan',refs:[]}})
+  const {rerender}=render(<CapstoneAssistantThread {...props} events={[accepted,goal]}/>)
+  expect(screen.getByRole('region',{name:'思考状态'})).toBeTruthy()
+  rerender(<CapstoneAssistantThread {...props} events={[accepted,goal,event('tool_started',4,{tool_name:'bash',tool_call_id:'bash-direct'})]}/>)
+  expect(screen.queryByRole('region',{name:'思考状态'})).toBeNull()
+  expect(screen.getByRole('region',{name:'工具调用过程'})).toBeTruthy()
+  expect(screen.getByText('Recorded goal without a task plan')).toBeTruthy()
+  expect(screen.queryByText('当前记录未提供任务计划。')).toBeNull()
+})
 it.each(['completed','failed','cancelled','interrupted'] as const)('auto-folds thinking at %s and permits manual reopening on replay',phase=>{
   const {rerender,unmount}=render(<CapstoneAssistantThread {...props} events={[accepted,started,delta]}/>)
   const terminal=event(`attempt_${phase}`,4,phase==='completed'?{answer:'Answer only.'}:{})

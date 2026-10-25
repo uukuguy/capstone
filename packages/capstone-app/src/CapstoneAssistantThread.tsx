@@ -712,7 +712,7 @@ function AttemptActivity({ activities, modelRequests = [], initialThinking, nati
   }
   const graphUnassignedTools = toolActivities.filter(activity => !graphToolIds.has(callId(activity)))
   const toolCount = executionGraph ? graphToolIds.size + graphUnassignedTools.length : toolActivities.length
-  const focus = initialThinking && !initialThinking.handedOff ? 'thinking' : executionGraph && selectedGraphFocus ? selectedGraphFocus : executionGraph || steps.length > 0 || branches.length > 0 || progress.length > 0 ? 'tasks' : toolCount > 0 ? 'tools' : 'thinking'
+  const focus = initialThinking && !initialThinking.handedOff ? 'thinking' : executionGraph && selectedGraphFocus ? selectedGraphFocus : executionGraph || steps.length > 0 || branches.length > 0 ? 'tasks' : toolCount > 0 ? 'tools' : 'thinking'
   const processViewport = useRef<HTMLDivElement>(null)
   const followProcess = useRef(true)
   useLayoutEffect(() => {
