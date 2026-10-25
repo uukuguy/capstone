@@ -1,75 +1,65 @@
 # Live Session Checkpoint
 
-Updated 2026-10-25. Local gateway acceptance passed; dev integration is active.
+Updated2026-10-25. Data gateway implementation is merged; control closeout is active.
 
-## Source and worktrees
+## Accepted source
 
-Accepted dev remains346de403. Implementation worktree .worktrees/dev-macos-ci is
-feat/enterprise-data-gateway. Runtime source2f9c6b56 is committed/pushed; later
-commits through58455077 contain documentation only. A subsequent CI correction
-updates MCP field access and optional gateway narrowing. Runtime22e61786 is now
-rebuilt: backend87e9bae78f79, nativef2c3afaf5b5f. Five-role source hashes,41tools,
-ready200 and actual UID10000 refusal pass; final-local-source-verification.json
-holds the receipt. Earlier real task receipts remain valid and are not rerun.
-ROOT remains actual dev and its original
-post-merge journal/overview changes are preserved. Operator gateway mount paths
-were added to ignored ROOT deploy/local.env; no credentials were copied.
+PR58 merged as48da021bb4d817c74382d7834b1695991eb75072, tree identical to tested
+a3241fd4. Required macOS CI40172250793 passed in16m09s. The user requested lighter
+development CI: native-runtime retains foundation consumers, SDK/MCP and deployment
+contracts, with semantic MCP-only dependency checks. Unknown/solver changes still
+use product checks; release remains full. Do not dispatch release or cloud/demo.
 
-## Passed local path
+ROOT is actual dev48da021b. Its doctor passes and runtime files match rebuilt
+22e61786. Backend/API/three-worker image87e9bae78f79, nativef2c3afaf5b5f.
+Eight file hashes across five roles, readiness200,41gateway tools and actual
+UID10000 credential-open denial passed. Original real model acceptance ran on
+2f9c6b56; later production edits were type/optional-state corrections. Final
+browser reload retained the management summary and its original download hash.
+Scoped build cleanup completed after use.
 
-API and three workers share imagee69d4f1b6e56; native imageb605fa2b1a6c.
-Five-role source hashes, ready200, gateway41 and actual UID10000 credential-open
-DENIAL passed. Connection path is /run/capstone-private/data-gateway/connection.json
-under image-native root0700. The earlier mode0600 bind-only configuration failed
-that probe and was repaired BEFORE any model task. No credential bytes printed.
-14gateway checks,102focused host checks and62SDK checks pass. Independent review
-agent failed to launch (unavailable configured model); manual audit is recorded.
+## Real task receipts; do not resubmit
 
-Real Threadthr_1897f293f4778aa394ad / Workwork_933aff1d8c8316ffd4db:
-- Series attempt_a064c1744e3f09b5 completed216.411s:19 gateway calls, zero gateway
-  errors,33 child tools/one repaired producer-return rejection, six product records.
-- Follow-up attempt_29ca9301923d867a completed58.847s:zero gateway calls, six child
-  tools, one management summary. It reuses the same Work and saved material.
-- The first task also passed semantic prepare/execute. No extra table model case.
-- Five primary CSV strings and statistics match independent gateway data exactly.
-- Browser reload retained the selected summary; browser download hash matches.
+Threadthr_1897f293f4778aa394ad / Workwork_933aff1d8c8316ffd4db:
+- attempt_a064c1744e3f09b5:216.411s,19successful gateway calls, including semantic
+  prepare/execute; source values/statistics match the report.
+- attempt_29ca9301923d867a:58.847s, same-Work follow-up, no new gateway queries.
+- No model task is active. No extra table-only case is needed.
 
-NO MODEL TASK IS ACTIVE. Observers44788/46985 finished. Keep their receipts;
-do not resubmit either task. App5173 serves ROOT (App producte8bfb5ae, unchanged).
-Browser sessiongateway-real shows the summary; gateway-integration-control is the
-control view. Temporary graph server18765/session94799 serves this worktree.
+Evidence is ignored ROOT outputs/data-gateway-20261025/: real-series-1,
+real-followup-1, numeric-product-verification.json, real-task-metrics.json,
+final-local-source-verification.json and final-browser-recovery-verification.json.
+Acceptance is docs/reviews/2026-10-25-enterprise-data-gateway.md.
+Source rows/credentials are not versioned. ROOT ignored deploy/local.env retains
+the existing credentials and the protected gateway mount pointers.
 
-## Next action
+## Remaining closeout
 
-PR #58 is open: https://github.com/uukuguy/capstone/pull/58.
-015112a7 resolved11Pyright errors. CI40138770412 then failed one test after22m36s:
-the10-second test grant began before service initialization. An11-second startup
-reproduces it; registration after setup passes. The user requested lighter CI.
-The new native-runtime scope retains foundation/SDK/MCP/deployment consumers;
-only semantic MCP dependency changes qualify.60scope tests and362SDK tests pass.
-Local HTTP tests require NO_PROXY/no_proxy=127.0.0.1,localhost.
-Push this correction and inspect the required dev gate. No release/cloud/demo.
-CI40170377784 passed gateway checks but hit an existing macOS group-signal
-PermissionError in the progress fixture. Reuse the already established
-single-child fixture cleanup for that test; production cleanup is unchanged.
-CI40171246448 exposed the same macOS restriction in another single-child test
-and a cancellation assertion that ran before the handler released its lease.
-Use the established cleanup across this RPC fixture module, and wait for the
-handler's completed release signal.54checks pass with simulated killpg denial;
-an explicit delayed-release probe passes. Runtime remains22e61786, unchanged.
-After green,
-merge normally, reconcile ROOT's two preserved metadata files, fast-forward dev,
-verify its real entrypoint and close only merged feature refs. Update canonical
-control in actual dev and preserve unmerged research/recovery branches and data.
+The existing implementation worktree .worktrees/dev-macos-ci is now
+docs/data-gateway-integration-closeout. Commit the updated canonical register,
+graph, acceptance, plan and state. Verify the graph with ui-ux-pro-max/browser,
+open a docs-only PR to dev, then merge after its required lightweight gate.
+Synchronize ROOT, regenerate and inspect its actual dev HEAD node and source edges.
+Close only merged feature/closeout refs; detach this reused worktree rather than
+removing its ignored runtimes. Preserve unmerged research/recovery refs and data.
 
-Evidence: ROOT outputs/data-gateway-20261025/ contains direct-query, real-series-1,
-real-followup-1, local-source-verification.json, numeric-product-verification.json,
-real-task-metrics.json and browser-recovery-verification.json. Source rows stay
-ignored. Acceptance: docs/reviews/2026-10-25-enterprise-data-gateway.md.
-Post-use scoped cleanup ran with /tmp/capstone-gateway-post-use-cleanup.log.
+ROOT's previous two metadata changes were backed up with hashes under
+outputs/git-recovery-20261025/gateway-closeout before fast-forward. The prior
+journal receipts are preserved in the merged journal. At the final graph refresh,
+avoid an endless self-hash commit cycle: any remaining files must be only the
+explicit final journal/generated-snapshot metadata, never source or untracked work.
 
-First delivery is enterprise-research data access only. Gateway backend choices
-belong to the gateway. Calculation SDK baseline is pandapower3.4.0/PyPSA1.3.0 in
-both projects, without cross-version work. Models/calculation and100k+ WebGL
-rendering remain deferred. Full gateway result-file materialisation and concise
-reader summaries are later improvements, not new acceptance gates.
+Browser sessions gateway-real and gateway-integration-control are available.
+Port18765 serves the feature worktree graph. Stop that temporary server after use;
+keep the real App5173/API8767 running. Use NO_PROXY/no_proxy=127.0.0.1,localhost
+for local HTTP tests. Do not change production process-group cleanup to work
+around macOS test-host restrictions. Independent reviewer launch failed because
+the configured model is unavailable; no independent approval is claimed.
+
+## Deferred scope
+
+Gateway backend selection belongs to data-gateway. First delivery is enterprise
+research data access. Unified conversations, model ingestion/calculation and
+100k+ WebGL topology rendering remain later work. Identical SDK baseline is
+pandapower3.4.0/PyPSA1.3.0, without cross-version experiments. Full gateway response
+file materialisation and concise reader summaries are tracked improvements.

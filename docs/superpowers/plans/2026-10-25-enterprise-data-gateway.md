@@ -145,13 +145,13 @@ Verify classifier failures, mixed changes and downstream lock changes. Fix the
 gateway test's startup-before-grant ordering; prove authorization and revocation
 still work with service initialization longer than the test's grant lifetime.
 
-- [ ] Update CURRENT-STATE, RESUME-NEXT-SESSION and JOURNAL with exact implemented,
+- [x] Update CURRENT-STATE, RESUME-NEXT-SESSION and JOURNAL with exact implemented,
   verified and deferred scope. Update VERSION-CONTROL and regenerate its graph.
-- [ ] Use ui-ux-pro-max and a browser to verify current HEAD nodes, ancestry edges,
+- [x] Use ui-ux-pro-max and a browser to verify current HEAD nodes, ancestry edges,
   readable cards and no overlapping cards after graph generation.
-- [ ] Open a PR targeting dev and run its required affected-layer gate. Do not
+- [x] Open a PR targeting dev and run its required affected-layer gate. Do not
   dispatch release=true or cloud/demo deployment. Merge after required checks.
-- [ ] Synchronize the actual dev checkout and validate its real entrypoint.
+- [x] Synchronize the actual dev checkout and validate its real entrypoint.
   Close only merged temporary refs; preserve recovery branches and user data.
 
 ## Separate model-service probe
