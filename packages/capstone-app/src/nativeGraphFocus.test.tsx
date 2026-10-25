@@ -4,6 +4,7 @@ import CapstoneAssistantThread,{projectAssistantMessages} from './CapstoneAssist
 import {parseEventEnvelope,type EventEnvelope} from './threadProtocol'
 import toolsFixture from './fixtures/nativeGraph-tools.json'
 import researchFixture from './fixtures/nativeGraph-research.json'
+import resourceScope from './fixtures/nativeGraph-resource-scope.json'
 
 afterEach(()=>{cleanup();localStorage.clear()})
 // Structural excerpts from real same-Work Attempts; all free text/output is synthetic.
@@ -56,4 +57,24 @@ it('does not promote arbitrary unbound business-like tool names to a business pl
   const reader=read([...tools,raw])
   expect(reader.getByRole('region',{name:'工具调用过程'})).toBeTruthy()
   expect(reader.getByText('任务组织记录').closest('details')?.open).toBe(false)
+})
+function resourceGraphEvents(revision=resourceScope.source_versions[0].revision) {
+  return tools.map(event=>{
+    const progress=event.payload.research_graph as {graph?:{nodes:Record<string,unknown>[];actions:Record<string,unknown>[]}}|undefined
+    if(!progress?.graph)return event
+    const versions=resourceScope.source_versions.map(source=>({...source,revision}))
+    return {...event,payload:{...event.payload,research_graph:{...progress,graph:{...progress.graph,
+      nodes:progress.graph.nodes.map(node=>({...node,source_refs:resourceScope.source_refs,selected_source_versions:versions})),
+      actions:progress.graph.actions.map(action=>({...action,source_refs:resourceScope.source_refs,source_versions:versions})),
+    }}}}
+  })
+}
+it('keeps uploaded business research task steps primary from admitted frozen graph resource versions with empty Work grants',()=>{
+  const reader=read(resourceGraphEvents())
+  expect(reader.queryByRole('region',{name:'工具调用过程'})).toBeNull()
+  expect(reader.getByRole('button',{name:'查看完整计划'})).toBeTruthy()
+})
+it('requires the exact resource content hash instead of an arbitrary graph source label or mismatched version',()=>{
+  const reader=read(resourceGraphEvents(`sha256:${'c'.repeat(64)}`))
+  expect(reader.getByRole('region',{name:'工具调用过程'})).toBeTruthy()
 })
