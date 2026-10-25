@@ -1,6 +1,7 @@
 # Large grid view and source gateway implementation
 
-Status: authorized implementation. Owning design:
+Status: implemented and integrated through PR64/78f81e66; local source and
+business acceptance passed. Cloud/demo/main remain unchanged. Owning design:
 [scale-aware topology](../specs/2026-10-25-grid-topology-view-requirements.md).
 
 ## Scope and contracts
@@ -54,3 +55,19 @@ branch. Do not use full release or unrelated solver suites for these slices.
 
 Acceptance records distinguish implemented, locally verified, merged and
 deployed states. Cloud/demo/main remain unchanged unless separately authorized.
+
+## Completion receipts
+
+All six slices are implemented. The shared renderer uses an independent typed
+scene and WebGL/Worker path; source paging preserves exact revisions and original
+selectors. Native model release and failed pre-entry tool diagnostics preserve
+professional guards. Real North raw52625/48319, Chaoyang57/56, source business
+delivery with five files, same-Thread continuation and Vivaldi refresh passed.
+Actual dev App5173 serves the tested product; PR64 required macOS passed7m31s
+with a5m24s scoped consumer step. See [verification](../../reviews/2026-10-26-grid-scale-source.md).
+
+The user-requested North power-flow model build was actually attempted once.
+The gateway returned model_not_calculation_ready with explicit data and
+construction gaps, including mapping and boundary equivalents. No numerical
+solver result or usable calculation model was produced. This source-view plan
+does not weaken the registered calculation contracts or invent missing data.

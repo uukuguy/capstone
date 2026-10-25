@@ -5809,3 +5809,16 @@ Prior closeout receipts preserved verbatim from the root checkout:
 
 - 40d89a4f: Record North model checks, scoped verification and the failed native acceptance before diagnosis.
 - 2026-10-26 04:36 +08 — Refreshed actual-dev control graph with7dbec64d candidate and execution blocker; existing Vivaldi control tab inspected.
+
+- 9a4ccada: Record source/scale verification and scoped CI; dev integration remains pending actual UI acceptance.
+- 2026-10-26 visual correction: User rejected square-only dense region view as unlike electrical diagrams. Actual station kinds were not fully mapped. Reopen visual acceptance; implement typed symbols/legend, parallel source-circuit bundles and neighborhood focus without inventing electrical bus reduction. Regional stations are navigation, not power-flow/OPF objects.
+- 2026-10-26 read-only Authority inspection: north topology ready, AC power flow/linear OPF not ready; missing states, parameters, scenario, mapping, boundaries, connections and bus reduction, plus OPF thermal limits. Source question acceptance is not power-flow validation. No build/solver, fake scenario or general-tool grant.
+- 3a5faee7: Align canonical control graph with the North candidate, runtime identity and failed acceptance.
+- 2026-10-26: All425 native SDK/fixtures passed15.40s; image contracts80passed/3skipped; no professional solver suites repeated.
+- 3af1004c: Retain bound SDK tool rejections as diagnostics so unavailable selections can be corrected safely.
+- 2026-10-26 04:44 +08 — Canonical5dc599275f17/native2d6ff65cf0c4 ready, exact host hashes/cleanup verified; North follow-up9435fc0c running.
+- 16aa9b82: Preserve verified source selectors so null defaults replay the original view identity.
+- 44e8eca2: Register selector relay with complete gateway consumers in the bounded source gate.
+- 2026-10-26: North business9435fc0c completed with5saved/hash-verified products; graph-only7f352f9e now tests exact replay on canonicale02570acd962.
+
+- 2026-10-26 05:08 +08 — PR64 merged78f81e66; scoped macOS40232655933 passed7m31s/consumer5m24s; actual5173 source57/56 and saved report verified.

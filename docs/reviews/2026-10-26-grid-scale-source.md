@@ -1,10 +1,12 @@
 # Large topology and gateway source verification
 
-Status: source projection, typed symbols, station layout and focused scale checks
-passed. Native last-model release passed in the existing Vivaldi Thread. A new
-North business Attempt failed during execution; diagnosis and end-to-end acceptance
-remain open. Dev PR and actual primary entry closeout are pending. No cloud,
-demo or main release.
+Status: source projection, typed symbols, station layout and scoped checks passed.
+Native model release, corrected North business delivery and exact source replay
+passed in the existing Vivaldi Thread, including refresh recovery. PR64 merged
+as78f81e66 after scoped macOS40232655933 passed. Actual primary App5173 serves
+product16aa9b82; its product files equal tested44e8eca2. Source57/56 recovery and
+the saved report were opened there. Final control documentation is being aligned.
+No cloud, demo or main release.
 
 Source472045c2 loads full raw equipment and exact instruction view scope. The earlier7ba27575 includes the requested Escape change.15 focused
 workspace tests and types passed. In visible Vivaldi8.2, the current tab loaded
@@ -112,6 +114,35 @@ with target_model_context_id=null. It failed after42.9s with native_execution_er
 after some successful source reads. This is a failed acceptance, not a completed
 business result. Its saved event sequence is being diagnosed before any retry.
 
+Actual diagnosis found observation_source_invalid: the SDK had correctly bound
+an unavailable model-tool selection as a failed pre-entry call, but the Host
+mistook its lack of an observation source for a fatal identity fault. Fix3af1004c
+retains only exact bound failed/no-source diagnostics. Unknown-tool success and
+forged sources still fail; model-tool grants and retry budgets are unchanged.
+
+Corrected Attempt9435fc0c54406972 completed in224s with four task steps and82
+tool records. It saved five products: the main North verification Markdown,
+station/line details, busbar/transformer samples CSV, topology summary JSON and
+topology counts CSV. All downloads match their declared sizes andSHA256; main
+report14256bytes has digestabcf59fde16931bd4c1c95d850ba17cc5e9711a1e2a65e01e8b0ff78b17a6f2b.
+Its14 line relationships and86804/120926 directory totals agree with independent
+gateway reads. Delivery remains limited: snapshot data, source code/relationship
+gaps and unperformed analytical checks are visible, not silently upgraded.
+
+Real replay exposed an independent selector bug: the gateway distinguishes an
+omitted voltage selector from explicit330 even when both use effective330kV.
+Deriving a request from page selection caused a source version conflict.
+Fix16aa9b82 privately retains original gateway arguments, verifies the complete
+issued receipt before retrieving them, and projects only supported selectors.
+No guessed fallback or source identity relaxation was added.
+
+Final graph-only Attempt7f352f9e6084203b completed in64s with one business
+topology call and seven total tool records. Its committed source_view has
+voltage_min_kv=null and exact source view1fbe6225…bb8a. Visible Vivaldi rendered
+57 nodes/56 connections, including busbar/transformer/switch symbols and zero
+unresolved endpoints; the same graph restored after browser refresh. This is
+source display acceptance, not a latency benchmark or an electrical calculation.
+
 ## Measured scale
 
 Apple M3 Max, Chromium155, ANGLE Metal WebGL1,1098×396 canvas,DPR1. The synthetic
@@ -146,15 +177,25 @@ zoom and station drill-down provide detail. The layout is explicitly schematic.
   resource panel and wide/portrait changes; six focused cases and types pass.
 - Source workspace and existing Work consumers:44 passed in6.59s; types clean.
 - Canonical rebuild used the protected gateway mount and pinned assets. Final
-  API/all worker image32a8c0956808 matches backend16a72370, native97088c90cfd9. Source
+  API/all worker imagee02570acd962 contains final selector fix16aa9b82. Source
   topology and instruction-policy hashes match checked-in files exactly.
-  Readiness passed and scoped cleanup receipt043128-63904 was saved.
+  Readiness passed and scoped cleanup receipt045404-34105 was saved. Host/API/native
+  hashes agree for server70738e818c8f, topology8eedc3555ec8 and relayad4ea856b150.
+  Native imageaafdcaf484f0 is recorded separately; API and all three workers use
+  the same full e02570acd962 image digest. Main/dev/cloud/demo data was preserved.
 - Full App:1089 tests passed in13.34s. Selected backend suite:885 passed/133
   optional database checks skipped; seven localhost HTTP checks initially used
   the machine proxy and failed. The complete two affected files passed81 checks
   in9.62s with explicit localhost proxy bypass. Types, boundaries, App build and
   all15 client contract checks passed. Independent final reviews found no
   remaining Important/Critical issues after cross-region state and edge-camera fixes.
+- Selector relay/handoff:164 affected tests passed in6.62s; Pyright0. Independent
+  review confirmed exact private argument binding, strict receipts and preserved
+  unknown-tool/default-selector behavior.
+- Required macOS40232655933 passed in7m31s; the affected source/Thread/App/gateway
+  consumer step took5m24s. No release flag, admin bypass or unrelated numerical
+  solver suites were used. Root doctor, changed-document links and symlink checks
+  accompany the final control update.
 
 Local detailed receipts and screenshots are retained in ignored
 `outputs/grid-scale-20261026/`. Provider credentials are absent from them.
