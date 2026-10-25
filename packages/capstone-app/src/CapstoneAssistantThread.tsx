@@ -518,7 +518,8 @@ export function projectAssistantMessages(events: readonly EventEnvelope[], instr
     const executionEvent=attemptId?events.find(event=>{
       if(event.attemptId!==attemptId||event.visibility!=='public')return false
       if(['tool_started','tool_completed','tool_failed','tool_cancelled'].includes(event.eventType)&&toolName(event)!=='agent_task_progress')return true
-      if(nativeToolActivity(event))return true
+      const native=nativeToolActivity(event)
+      if(native&&native.name!=='agent_task_progress')return true
       if(projectTaskSteps([event],attemptId).some(step=>!isExecutionLifecycleStep(step.id)))return true
       const progress=event.payload.research_graph as {checkpoint?:{ref?:unknown}}|undefined
       return Boolean(firstCheckpoint&&progress?.checkpoint?.ref===firstCheckpoint)

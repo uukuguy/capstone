@@ -42,10 +42,11 @@ it('streams only public current-attempt thinking and keeps it out of the answer'
 it('keeps thinking for lifecycle and goal-only notes, then archives it once actual execution starts',()=>{
   const preparation=event('runtime_action',4,{task_step:{id:'task-preparation',number:1,title:'任务准备',status:'running'}})
   const goal=event('tool_completed',5,{tool_name:'agent_task_progress',tool_call_id:'goal',task_progress:{kind:'goal',text:'Recorded goal',refs:[]}})
-  const {rerender}=render(<CapstoneAssistantThread {...props} events={[accepted,started,delta,preparation,goal]}/>)
+  const nativeGoal={...event('runtime_event',5,{native_type:'tool_execution_end',task_id:'task',tool_name:'agent_task_progress',tool_call_id:'native-goal'}),eventId:'native-goal'}
+  const {rerender}=render(<CapstoneAssistantThread {...props} events={[accepted,started,delta,preparation,goal,nativeGoal]}/>)
   expect(screen.getByRole('region',{name:'思考状态'}).textContent).toContain('Actual public thought.')
   const tool=event('tool_started',6,{tool_name:'read',tool_call_id:'read'})
-  const executed=[accepted,started,delta,preparation,goal,tool]
+  const executed=[accepted,started,delta,preparation,goal,nativeGoal,tool]
   rerender(<CapstoneAssistantThread {...props} events={executed}/>)
   expect(screen.queryByRole('region',{name:'思考状态'})).toBeNull()
   expect(screen.queryByText('Actual public thought.')).toBeNull()
