@@ -11,6 +11,7 @@ export default function LargeNetworkView({scene,title='电网拓扑',focusIds=[]
   const canvas=useRef<HTMLCanvasElement>(null),labels=useRef<HTMLDivElement>(null),worker=useRef<Worker|null>(null),renderer=useRef<ReturnType<typeof createNetworkRenderer>|null>(null)
   const camera=useRef<SceneCamera>(readNetworkCamera(storageKey,viewKey)||FULL),request=useRef(0),pendingView=useRef(false),dirtyView=useRef(false),ready=useRef(false),frame=useRef<SceneFrame|null>(null)
   const fullBounds=useRef<SceneCamera>(FULL)
+  const pickedId=useRef<string|undefined>(undefined)
   const drawRequest=useRef(0),persistTimer=useRef<ReturnType<typeof setTimeout>|undefined>(undefined),drag=useRef<{x:number;y:number;camera:SceneCamera;moved:boolean}|null>(null)
   const activationRequest=useRef(0)
   const focusIdentity=focusKey??focusIds.join('\u0000'),lastAutoFocus=useRef<string|undefined>(undefined),consumedReturn=useRef<number|undefined>(undefined)
@@ -28,7 +29,7 @@ export default function LargeNetworkView({scene,title='电网拓扑',focusIds=[]
     if(!ready.current)return
     if(pendingView.current){dirtyView.current=true;return}
     pendingView.current=true;dirtyView.current=false
-    send({type:'view',request:++request.current,camera:camera.current,pixels:canvas.current?.clientWidth||800,height:canvas.current?.clientHeight||480,focusIds:callbacks.current.focusIds})
+    send({type:'view',request:++request.current,camera:camera.current,pixels:canvas.current?.clientWidth||800,height:canvas.current?.clientHeight||480,focusIds:pickedId.current?[...new Set([...callbacks.current.focusIds,pickedId.current])]:callbacks.current.focusIds})
   }
   function positionLabels(){
     const root=labels.current,node=canvas.current;if(!root||!node||!frame.current)return
@@ -60,7 +61,7 @@ export default function LargeNetworkView({scene,title='电网拓扑',focusIds=[]
   }
   useEffect(()=>{
     let alive=true;setError('');setSelected(undefined);setResults([]);setStats(undefined)
-    camera.current=readNetworkCamera(storageKey,viewKey)||FULL;ready.current=false;pendingView.current=false;frame.current=null
+    camera.current=readNetworkCamera(storageKey,viewKey)||FULL;ready.current=false;pendingView.current=false;frame.current=null;pickedId.current=undefined
     try{
       if(!canvas.current)throw new Error('电网画布暂不可用')
       renderer.current=createNetworkRenderer(canvas.current)
@@ -85,10 +86,10 @@ export default function LargeNetworkView({scene,title='电网拓扑',focusIds=[]
           setStats(previous=>previous?{...previous,drawnNodes:data.drawnNodes,drawnEdges:data.drawnEdges,limited:data.limited}:previous)
           if(dirtyView.current)requestView()
         }else if(data.type==='selected'){
-          setSelected(data.item);if(data.item)callbacks.current.onSelect?.(data.item)
+          pickedId.current=data.item?.id;setSelected(data.item);if(data.item)callbacks.current.onSelect?.(data.item);requestView()
           if(data.item&&data.request===activationRequest.current)callbacks.current.onActivate?.(data.item)
         }else if(data.type==='located'&&data.item){
-          setSelected(data.item);callbacks.current.onSelect?.(data.item);move({x:data.x-110,y:data.y-66,width:220,height:132})
+          pickedId.current=data.item.id;setSelected(data.item);callbacks.current.onSelect?.(data.item);move({x:data.x-110,y:data.y-66,width:220,height:132})
         }else if(data.type==='focused'){
           move(data.camera)
         }else if(data.type==='search'&&data.request===searchId.current)setResults(data.results)
