@@ -81,23 +81,32 @@ class DataGatewayAccess:
                 raise GatewayError('gateway_call_already_started')
             require_capacity('mcp_call_count', len(record['started']) + 1, 'gateway_call')
             record['started'].add(call_id)
-        result = await self.client.call(name, document['arguments'], self.catalog)
+        arguments = deepcopy(document['arguments'])
+        result = await self.client.call(name, deepcopy(arguments), self.catalog)
         body = encode(result).decode()
         observation = {'kind': 'external_gateway_observation', 'task_id': task_id,
             'parent_attempt_id': record['attempt_id'], 'tool_call_id': call_id, 'tool': name,
             'catalog_revision': self.catalog['revision'], 'tool_schema_sha256': self.catalog['tool_hashes'][name],
-            'arguments_sha256': fingerprint(document['arguments']), 'output_sha256': sha256(body.encode()).hexdigest()}
+            'arguments_sha256': fingerprint(arguments), 'output_sha256': sha256(body.encode()).hexdigest()}
         response = {'result_json': body, 'is_error': result.get('isError') is True, 'observation': observation}
         require_capacity('mcp_frame_bytes', len(encode(response)), 'gateway_envelope')
         with self._lock:
             if self._tasks.get(task_id) is not record:
                 raise GatewayError('gateway_task_not_admitted')
-            record['issued'][call_id] = deepcopy(response)
+            record['issued'][call_id] = {'response': deepcopy(response), 'arguments': arguments}
         return response
 
     def verify(self, task_id, call_id, name, observation, result_json):
         with self._lock:
-            expected = self._tasks.get(task_id, {}).get('issued', {}).get(call_id)
+            issued = self._tasks.get(task_id, {}).get('issued', {}).get(call_id)
+            expected = issued['response'] if issued else None
             receipt = {key: value for key, value in observation.items() if key != 'native_research_source'}
             return bool(expected and expected['observation'] == receipt
                         and observation['tool'] == name and expected['result_json'] == result_json)
+
+    def verified_arguments(self, task_id, call_id, name, observation, result_json):
+        """Read private original arguments only for this host's exact receipt."""
+        with self._lock:
+            if not self.verify(task_id, call_id, name, observation, result_json):
+                raise GatewayError('gateway_observation_not_issued')
+            return deepcopy(self._tasks[task_id]['issued'][call_id]['arguments'])

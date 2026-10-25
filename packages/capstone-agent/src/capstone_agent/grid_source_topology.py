@@ -314,10 +314,10 @@ def checked_source_view_request(value):
     return deepcopy(value)
 
 
-def source_view_from_gateway_result(result):
+def source_view_from_gateway_result(result, arguments):
     """Optional projection of an already host-verified gateway observation.
 
-    Receipt verification belongs to the caller and must run before this helper.
+    Receipt and original argument verification belong to the caller.
     An unpresentable page omits this hint without failing the business result.
     """
     try:
@@ -331,10 +331,10 @@ def source_view_from_gateway_result(result):
         if upstream.get('isError') or not isinstance(content, dict) or content.get('status') not in {'ok', 'partial'}:
             return None
         data = content['data']
-        request = checked_topology_request({'scope_id': data['scope']['scope_id'], 'level': data['level'],
-            'selected_object_id': data['selected_object_id'], 'voltage_min_kv': data['selection'].get('min_ac_kv'),
-            'node_offset': data['node_offset'], 'edge_offset': data['edge_offset'],
-            'limit': PAGE_LIMIT, 'expected_view_ref': data['view_ref']})
+        # The gateway defaults to the raw view; the public display API defaults
+        # to region. Bind that default explicitly, but never infer selectors
+        # from effective selection metadata (None and 330 have distinct hashes).
+        request = checked_topology_request({**arguments, 'level': arguments.get('level')})
         page = topology_page(data, request, catalog_revision=result['details']['catalog_revision'],
             tool_schema_sha256=result['details']['tool_schema_sha256'], status=content['status'],
             gaps=content.get('gaps', []), provenance=content.get('provenance', {}))
@@ -343,7 +343,7 @@ def source_view_from_gateway_result(result):
             'selected_object_id': page['selected_object_id'], 'view_ref': page['view_ref'],
             'source_snapshot': {'metadata_snapshot': page['source_snapshot']['metadata_snapshot'],
                                 'source_instance': page['source_snapshot'].get('source_instance', page['source_instance'])},
-            'voltage_min_kv': page['selection'].get('min_ac_kv'), 'display_grouping_only': page['display_grouping_only']})
+            'voltage_min_kv': request['voltage_min_kv'], 'display_grouping_only': page['display_grouping_only']})
     except (ValueError, TypeError, KeyError, IndexError, AttributeError):
         return None
 

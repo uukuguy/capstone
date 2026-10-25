@@ -262,7 +262,7 @@ def test_source_view_hint_is_small_and_derived_from_a_strict_actual_page():
     upstream={'structuredContent':{'status':'ok','data':data,'gaps':[],'provenance':{}},'isError':False}
     result={'content':[{'type':'text','text':json.dumps(upstream)}],
             'details':{'catalog_revision':'catalog-one','tool_schema_sha256':'schema-one'}}
-    hint=source_view_from_gateway_result(result)
+    hint=source_view_from_gateway_result(result, {'scope_id':'north','level':None,'voltage_min_kv':330})
     assert hint=={'schema':'capstone-grid-source-view-request/1','source_id':'data-gateway',
         'scope_id':'north','scope_name':'North','level':None,'selected_object_id':None,'view_ref':'view-one',
         'source_snapshot':{'metadata_snapshot':'snapshot-one','source_instance':'fixture-source'},
@@ -271,9 +271,36 @@ def test_source_view_hint_is_small_and_derived_from_a_strict_actual_page():
     assert 'nodes' not in hint and 'gaps' not in hint
     data['next_node_offset']=0
     result['content'][0]['text']=json.dumps(upstream)
-    assert source_view_from_gateway_result(result) is None
+    assert source_view_from_gateway_result(result, {'scope_id':'north','level':None}) is None
     with pytest.raises(ValueError):
         checked_source_view_request({**hint,'credential':'never publish'})
+
+
+@pytest.mark.parametrize('selectors,expected', [({},None),({'voltage_min_kv':None},None),({'voltage_min_kv':330},330)])
+def test_source_view_hint_preserves_requested_voltage_instead_of_effective_selection(selectors,expected):
+    from capstone_agent.grid_source_topology import source_view_from_gateway_result
+    data=topology_data()
+    data.update(level='equipment',selected_object_id='station:01121100000001')
+    result={'content':[{'type':'text','text':json.dumps({'structuredContent':{'status':'ok','data':data}})}],
+            'details':{'catalog_revision':'catalog-one','tool_schema_sha256':'schema-one'}}
+    arguments={'scope_id':'north','level':'equipment','selected_object_id':data['selected_object_id'],**selectors}
+    hint=source_view_from_gateway_result(result,arguments)
+    assert hint is not None
+    assert hint['voltage_min_kv']==expected
+    assert source_view_from_gateway_result(result,{**arguments,'scope_id':'east'}) is None
+    assert source_view_from_gateway_result(result,{**arguments,'selected_object_id':'station:other'}) is None
+    assert source_view_from_gateway_result(result,{**arguments,'voltage_min_kv':500}) is None
+    assert source_view_from_gateway_result(result,{**arguments,'url':'https://caller'}) is None
+
+
+def test_source_view_hint_uses_gateway_raw_default_when_level_is_omitted():
+    from capstone_agent.grid_source_topology import source_view_from_gateway_result
+    data=topology_data()
+    data.update(level=None,display_grouping_only=False)
+    result={'content':[{'type':'text','text':json.dumps({'structuredContent':{'status':'ok','data':data}})}],
+            'details':{'catalog_revision':'catalog-one','tool_schema_sha256':'schema-one'}}
+    hint=source_view_from_gateway_result(result,{'scope_id':'north'})
+    assert hint is not None and hint['level'] is None and hint['voltage_min_kv'] is None
 
 
 def test_optional_source_labels_normalize_whitespace_without_rewriting_source_identity():

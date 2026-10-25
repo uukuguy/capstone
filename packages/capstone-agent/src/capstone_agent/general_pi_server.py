@@ -184,13 +184,15 @@ class GeneralPiHost:
     def _save(self, request: PiTaskRequest, result: dict | None) -> None:
         self.storage.save(request.to_document(), result)
 
-    def verify_gateway_observation(self, request, call_id, name, result):
+    def verify_gateway_observation(self, request, call_id, name, result, *, include_arguments=False):
         gateway = getattr(self._run, 'gateway', None)
         details = result.get('details', {})
         content = result.get('content', [])
         if (gateway is None or not content or content[0].get('type') != 'text'
                 or not gateway.verify(request.task_id, call_id, name, details, content[0].get('text'))):
             raise ValueError('gateway observation was not issued by this host')
+        if include_arguments:
+            return gateway.verified_arguments(request.task_id, call_id, name, details, content[0]['text'])
 
     def record_network_policy(self, event: str, state: dict) -> None:
         path = self.root / 'receipts' / 'network-policy.jsonl'
@@ -551,9 +553,10 @@ class GeneralPiHost:
                 # budget is full. Only the optional display projection can fail
                 # open; a forged gateway receipt must still stop execution.
                 result = event.get('result', {})
-                self.verify_gateway_observation(request, payload['tool_call_id'], payload['tool_name'], result)
+                arguments = self.verify_gateway_observation(request, payload['tool_call_id'], payload['tool_name'], result,
+                    include_arguments=True)
                 from .grid_source_topology import source_view_from_gateway_result
-                source_view = source_view_from_gateway_result(result)
+                source_view = source_view_from_gateway_result(result, arguments)
                 if source_view is not None:
                     payload = {**payload, 'source_view': source_view}
             if payload is not None:

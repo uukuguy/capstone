@@ -733,7 +733,7 @@ def test_gateway_source_hint_requires_host_receipt_even_after_capture_budget(tmp
         def __call__(self,request,cancelled,emit):
             gateway.bind(request.task_id,request.parent_attempt_id)
             response=asyncio.run(gateway.call(request.task_id,{'call_id':'view-one',
-                'name':'data_gateway_get_network_topology_view','arguments':{'scope_id':'north'}}))
+                'name':'data_gateway_get_network_topology_view','arguments':{'scope_id':'north','level':'region'}}))
             details=response['observation']
             if mode=='forged':details={**details,'output_sha256':'forged'}
             emit({'type':'tool_execution_end','toolName':'data_gateway_get_network_topology_view',

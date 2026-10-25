@@ -49,7 +49,7 @@ def run_graph_host(tmp_path, delegated, exercise, *, pre_progress=(), gateway=No
             if delegated:
                 emit({**base, 'type': 'enterprise_graph_child_started', 'child_id': 'A'})
             private_handle = str(context.root / 'observations' / 'opaque')
-            def call(call_id, *, error=False, bind=True, source='valid', text=None, status=None, result_error=False, tool_name='read'):
+            def call(call_id, *, error=False, bind=True, source='valid', text=None, status=None, result_error=False, tool_name='read', arguments=None):
                 if bind:
                     emit({**base, 'type': 'enterprise_graph_tool_binding',
                           'tool_call_id': call_id, 'tool_name': tool_name})
@@ -58,7 +58,7 @@ def run_graph_host(tmp_path, delegated, exercise, *, pre_progress=(), gateway=No
                 if gateway is not None and tool_name.startswith('data_gateway_'):
                     import asyncio
                     response = asyncio.run(gateway.call(task, {'call_id': call_id, 'name': tool_name,
-                                                             'arguments': {'scope_id': 'north'}}))
+                                                             'arguments': {'scope_id': 'north'} if arguments is None else arguments}))
                     result = {'content': [{'type': 'text', 'text': response['result_json']}],
                               'details': response['observation']}
                 if result_error:
@@ -93,19 +93,26 @@ def run_graph_host(tmp_path, delegated, exercise, *, pre_progress=(), gateway=No
 
 
 @pytest.mark.parametrize('delegated', [False, True])
-def test_gateway_source_hint_survives_committed_parent_and_child_graph_publication(tmp_path, delegated):
+@pytest.mark.parametrize('level', ['station','equipment'])
+@pytest.mark.parametrize('selectors,expected', [({},None),({'voltage_min_kv':None},None),({'voltage_min_kv':330},330)])
+def test_gateway_source_hint_survives_committed_parent_and_child_graph_publication(tmp_path, delegated,level,selectors,expected):
     from capstone_agent.data_gateway_relay import DataGatewayAccess
     from test_grid_source_topology import Gateway
     client=Gateway()
+    client.data.update(level=level,selected_object_id='station:01121100000001')
     gateway=DataGatewayAccess(client,client.catalog)
     def exercise(call, context, action, private_handle):
-        call('gateway-view',tool_name='data_gateway_get_network_topology_view')
+        call('gateway-view',tool_name='data_gateway_get_network_topology_view',arguments={
+            'scope_id':'north','level':level,'selected_object_id':'station:01121100000001',**selectors})
     host,task,_=run_graph_host(tmp_path,delegated,exercise,gateway=gateway)
     saved=host.read(task)
     assert saved['result']['status']=='completed',saved['result']
     hints=[event for event in saved['events'] if 'source_view' in event]
     assert len(hints)==1
     assert hints[0]['source_view']['scope_name']=='North'
+    assert hints[0]['source_view']['voltage_min_kv']==expected
+    assert hints[0]['source_view']['level']==level
+    assert hints[0]['source_view']['selected_object_id']=='station:01121100000001'
     assert hints[0]['tool_call_id']=='gateway-view'
     if delegated:
         assert hints[0]['type']=='enterprise_graph_child_tool'
