@@ -8,7 +8,7 @@ import {createManagedSubagents} from './managed-subagents.mjs';
 import {createDataGatewayTools} from './general-data-gateway.mjs';
 import {createTaskNodeReturn} from './task-node-return.mjs';
 import {taskTurnGuidance} from './task-turn-guidance.mjs';
-import {createDiagnosisTools,diagnosisTools,diagnosisDigest} from './systematic-diagnosis.mjs';
+import {createDiagnosisTools,diagnosisTools,diagnosisDigest,configureDiagnosisCorrectionGuard,watchDiagnosisValidation} from './systematic-diagnosis.mjs';
 
 const nativeShellGuidance='Native bash uses pipefail: an upstream pipeline failure is a tool failure, including SIGPIPE from expected truncation. Handle expected truncation or recovery explicitly with shell control flow. Errexit is not enabled.';
 const nativeBatchGuidance='Use multiple tool calls in one model response when their arguments are already known and the operations are independent. The runtime collects the batch results before the next model turn. Batch independent reads of known paths, independent checks and writes to different files. Do not batch a read with a calculation that needs its unseen contents, a file write with its dependent execution, competing edits, or control operations that require references returned by another operation. Do not add tools merely to fill a batch. ';
@@ -591,6 +591,7 @@ export async function createManagedChildSession(config, sdk, modelRuntime,
     ? [{path:'verified-programming-environment',content:config.runtimeEnvironment}]:[]),
     ...(config.contextFiles??[]).filter(item=>item.path==='registered-production-data')];
   const loader = new sdk.DefaultResourceLoader({cwd, agentDir: process.env.PI_CODING_AGENT_DIR,
+    extensionFactories:[pi=>configureDiagnosisCorrectionGuard(pi,childConfig)],
     settingsManager, noExtensions: true, noSkills: true, noPromptTemplates: true,
     noThemes: true, noContextFiles: true,
     additionalExtensionPaths: config.extensions.filter(path =>
@@ -626,6 +627,7 @@ export async function createManagedChildSession(config, sdk, modelRuntime,
     modelRuntime, model, resourceLoader: loader, settingsManager,
     ...tools,
     sessionManager: sdk.SessionManager.inMemory()});
+  const stopDiagnosisValidation=watchDiagnosisValidation(session,childConfig);
   const stopUnenteredTools=graphBinding?session.subscribe(event=>{
     if(event.type!=='tool_execution_end'||!(event.isError===true||event.result?.isError===true)||
       typeof event.toolCallId!=='string'||!event.toolCallId||typeof event.toolName!=='string'||!event.toolName||event.toolName.length>128)return;
@@ -650,7 +652,7 @@ export async function createManagedChildSession(config, sdk, modelRuntime,
     if (closed) return;
     closed = true;
     try {await session.extensionRunner?.emit({type:'session_shutdown',reason:'quit'});}
-    finally {stopUnenteredTools?.();session.dispose();releaseDebug();}
+    finally {stopDiagnosisValidation();stopUnenteredTools?.();session.dispose();releaseDebug();}
   };
   try {
     signal?.throwIfAborted();
@@ -1127,8 +1129,8 @@ export function createGraphNodeDispatcher(config,sdk,modelRuntime,{skills,contex
 
 export async function runManagedSession(config, sdk, suppliedModelRuntime) {
   config={...config,runtimeLimits:resolveLimits(config.runtimeLimits,{mode:config.runtimeLimitMode})};
-  let researchController,dispatchSubtasks,dispatchGraphNode,graphContext,graphGuard;
-  const extensionFactories = [];
+  let researchController,dispatchSubtasks,dispatchGraphNode,graphContext,graphGuard,diagnosisCorrectionGuard;
+  const extensionFactories = [pi=>{diagnosisCorrectionGuard=configureDiagnosisCorrectionGuard(pi,config);}];
   const managedResearch = config.researchRuntime?.enabled === true && Boolean(config.researchChannelPath);
   const graphResearch=managedResearch&&usesEnterpriseGraph(config);
   const organizationOnly=graphResearch&&config.researchRuntime.isolatedTaskExecution===true&&config.researchRuntime.lightweightTaskNodes===true;
@@ -1285,6 +1287,7 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
     modelRuntime, model, resourceLoader: loader, settingsManager,
     ...toolOptions,
     sessionManager: sdk.SessionManager.inMemory() });
+  const stopDiagnosisValidation=watchDiagnosisValidation(session,config);
   const releaseDebug=bindDebugCapacityAbort(session,modelRuntime,config.runtimeLimitMode,config.researchRuntime?.lightweightTaskNodes===true);
   try {
     await session.bindExtensions({ onError: () => { throw new Error("Native extension failed"); } });
@@ -1302,7 +1305,8 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
       validatePromptFrame(line, config);
       await runSettledPrompt(session, config.input, config.skillName,
         event => process.stdout.write(JSON.stringify(event) + "\n"),
-        researchController ? () => researchController.continuationState() : undefined,{failure:()=>graphGuard?.failure()});
+        researchController ? () => researchController.continuationState() : undefined,
+        {failure:()=>diagnosisCorrectionGuard?.failure()??graphGuard?.failure()});
       break;
     }
     lines.close();
@@ -1311,7 +1315,7 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
     try {await researchController?.close?.({reason:'Native parent session ended'});}
     finally {
     try {await session.extensionRunner?.emit?.({type:'session_shutdown',reason:'quit'});}
-    finally {session.dispose();releaseDebug();if(activeResearchBinding?.controller===researchController)activeResearchBinding=undefined;}
+    finally {stopDiagnosisValidation();session.dispose();releaseDebug();if(activeResearchBinding?.controller===researchController)activeResearchBinding=undefined;}
     }
   }
 }

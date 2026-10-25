@@ -3,7 +3,7 @@ import os
 
 import pytest
 
-from capstone_agent.native_diagnosis import NativeDiagnosis, DIAGNOSIS_POLICY
+from capstone_agent.native_diagnosis import NativeDiagnosis, DIAGNOSIS_POLICY, DIAGNOSIS_MAX_CORRECTIONS
 
 
 def request(call, operation='begin', **record):
@@ -168,11 +168,11 @@ def test_required_diagnostic_persistence_failure_is_fatal(tmp_path, monkeypatch)
     assert not (instance.root / 'responses' / 'cannot-retain.json').exists()
 
 
-def _run_sdk(instance, workspace, mode, numeric=None):
+def _run_sdk(instance, workspace, mode, numeric=None, *, diagnostic=False):
     from pathlib import Path
     import subprocess
     workspace.mkdir(exist_ok=True)
-    script = Path(__file__).parent / 'fixtures/systematic-diagnosis-sdk.mjs'
+    script = Path(__file__).parent / 'fixtures' / ('diagnosis-record-sdk.mjs' if diagnostic else 'systematic-diagnosis-sdk.mjs')
     process = subprocess.Popen(['node', str(script), str(workspace), str(instance.root), mode,
                                 *([] if numeric is None else [json.dumps(numeric)])],
                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -256,3 +256,102 @@ def test_unknown_diagnostic_receipt_stops_sdk_even_if_result_hook_error_is_swall
     assert result['requests'] == 1
     assert result['retained'] == 'Retained facts'
     assert 'identity changed' in result['failure']
+
+
+def test_one_shot_report_needs_no_probe_id_and_does_not_close_unknown_probe(tmp_path):
+    instance = host(tmp_path)
+    instance.handle(request('reserved', **probe()))
+    result = instance.handle(request('report', 'report', issue='The selected column is absent.',
+        outcome='passed', information_gained='The saved probe found amount; its mean is 4.',
+        next_disposition='continue', limitations=['The historic reserved probe has no finish receipt.']))
+    assert result['ok'] is True
+    assert result['result']['record']['reported_only'] is True
+    assert result['result']['record']['acceptance'] == 'advisory'
+    assert result['result']['record']['report_id']
+    records = host(tmp_path).handle(request('recover', 'read'))['result']['records']
+    assert records[0]['outcome'] == 'unknown'
+    assert records[0]['probe_state'] == 'reserved'
+    assert records[1]['probe_state'] == 'reported'
+
+
+def test_invalid_finish_has_field_guidance_and_corrected_finish_can_succeed(tmp_path):
+    instance = host(tmp_path)
+    instance.handle(request('reserved', **probe()))
+    finish = dict(probe_id='reserved', outcome='passed', outcome_refs=['observation:probe'],
+        information_gained='The selected column is amount.', rejected_hypotheses=[], next_disposition='continue')
+    invalid = instance.handle(request('bad-finish', 'finish', **finish, issue='unneeded copied begin field'))
+    assert invalid['ok'] is False
+    assert invalid['error']['category'] == 'rejected'
+    assert invalid['error']['extra_fields'] == ['issue']
+    assert invalid['error']['required_fields'] == sorted(finish)
+    assert instance.handle(request('corrected', 'finish', **finish))['result']['status'] == 'recorded'
+
+
+def test_bad_finish_budget_uses_host_probe_not_changed_labels_and_survives_restart(tmp_path):
+    instance = host(tmp_path)
+    instance.handle(request('reserved', **probe()))
+    for index in range(DIAGNOSIS_MAX_CORRECTIONS):
+        rejected = host(tmp_path).handle(request(f'bad-{index}', 'finish', probe_id='reserved',
+            issue=f'renamed-{index}', outcome='passed'))
+        assert rejected['error']['category'] == 'rejected'
+    exhausted = host(tmp_path).handle(request('still-bad', 'finish', probe_id='reserved', issue='another label'))
+    assert exhausted['error']['status'] == 'exhausted'
+    assert exhausted['error']['next_disposition'] == 'retain_gap'
+    assert host(tmp_path).handle(request('useful-report', 'report', issue='Retain useful work.', outcome='unknown',
+        information_gained='The probe record is unresolved; the saved file remains available.', next_disposition='retain_gap'))['ok'] is True
+
+
+@pytest.mark.parametrize('role', ['parent', 'child'])
+@pytest.mark.parametrize('mode', ['correct', 'ignore', 'gap'])
+def test_actual_sdk_diagnostic_field_corrections_are_actionable_and_bounded(tmp_path, role, mode):
+    instance = host(tmp_path)
+    result = _run_sdk(instance, tmp_path / 'workspace', role + '-' + mode, diagnostic=True)
+    assert result['retained'] == 'Retained facts'
+    assert result['lastRejection']['extra_fields'] == ['issue']
+    assert result['lastRejection']['category'] == 'rejected'
+    assert result['requests'] < 12
+    records = instance.handle(request('read-final', 'read'))['result']['records']
+    if mode == 'ignore':
+        assert result['stopReason'] == 'error'
+        assert records[0]['outcome'] == 'unknown'
+    else:
+        assert result['stopReason'] == 'stop'
+        assert 'explicit metadata gap' in json.dumps(result['final'])
+        assert records[-1]['probe_state'] == 'reported'
+        assert records[0]['outcome'] == ('passed' if mode == 'correct' else 'unknown')
+
+
+@pytest.mark.parametrize('role', ['parent', 'child'])
+def test_actual_sdk_bounds_schema_errors_before_tool_entry(tmp_path, role):
+    result = _run_sdk(host(tmp_path), tmp_path / 'workspace', role + '-schema-ignore', diagnostic=True)
+    assert result['stopReason'] == 'error'
+    assert result['requests'] == 5  # One accepted begin, then four invalid schemas.
+    assert result['retained'] == 'Retained facts'
+
+
+def test_old_policy_and_known_rejection_remain_readable(tmp_path, monkeypatch):
+    import capstone_agent.native_diagnosis as module
+    assert DIAGNOSIS_POLICY == {'schema': 'capstone-systematic-diagnosis/1', 'max_probes': 6, 'max_seconds': 120}
+    original = module.write_json
+    def old_rejection(path, document, **kwargs):
+        if path.parent.name == 'responses' and document.get('ok') is False:
+            document = {key: value for key, value in document.items() if key != 'error'}
+        return original(path, document, **kwargs)
+    monkeypatch.setattr(module, 'write_json', old_rejection)
+    result = _run_sdk(host(tmp_path), tmp_path / 'workspace', 'child-correct', diagnostic=True)
+    assert result['stopReason'] == 'stop'
+    state_path = tmp_path / 'private' / 'state.json'
+    state = json.loads(state_path.read_text())
+    state.pop('corrections', None)
+    state_path.write_text(json.dumps(state))
+    assert host(tmp_path).handle(request('read-legacy', 'read'))['result']['records'][0]['outcome'] == 'passed'
+
+
+@pytest.mark.parametrize('role', ['parent', 'child'])
+@pytest.mark.parametrize('mode', ['two-scopes', 'schema-separated'])
+def test_correction_settlement_is_scoped_and_useful_work_clears_no_progress(tmp_path, role, mode):
+    result = _run_sdk(host(tmp_path), tmp_path / 'workspace', role + '-' + mode, diagnostic=True)
+    assert result['stopReason'] == 'stop'
+    assert result['requests'] == 10
+    assert 'explicit metadata gap' in json.dumps(result['final'])
+    assert result['retained'] == 'Retained facts'

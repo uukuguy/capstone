@@ -18,6 +18,15 @@ from .general_pi_storage import sync_directory
 SCHEMA = 'capstone-systematic-diagnosis/1'
 DIAGNOSIS_TOOLS = ('agent_diagnosis_record', 'agent_diagnosis_guide')
 DIAGNOSIS_POLICY = {'schema': SCHEMA, 'max_probes': 6, 'max_seconds': 120}
+# Internal correction defaults preserve the already-published policy and saved contexts.
+DIAGNOSIS_MAX_CORRECTIONS = 3
+DIAGNOSIS_MAX_SETTLE_REJECTIONS = 2
+_BEGIN_FIELDS = {'issue', 'input_version', 'evidence_refs', 'hypothesis', 'minimal_probe',
+                 'retry_reason', 'comparison', 'rejected_hypotheses', 'acceptance'}
+_FINISH_FIELDS = {'probe_id', 'outcome', 'outcome_refs', 'information_gained', 'rejected_hypotheses', 'next_disposition'}
+_REPORT_FIELDS = {'issue', 'outcome', 'information_gained', 'next_disposition'}
+_REPORT_OPTIONAL = {'input_version', 'evidence_refs', 'hypothesis', 'minimal_probe', 'retry_reason',
+                    'comparison', 'rejected_hypotheses', 'acceptance', 'outcome_refs', 'limitations', 'scope_ref'}
 
 
 def _text(value, *, optional=False):
@@ -96,12 +105,19 @@ class NativeDiagnosis:
             else:
                 if len(state['requests']) >= 128:
                     raise ValueError('diagnosis receipt capacity exceeded')
+                correction_scope = self._correction_scope(state, frame)
+                corrections = state.setdefault('corrections', {})
+                exhausted = corrections.get(correction_scope, 0) >= DIAGNOSIS_MAX_CORRECTIONS
                 try:
+                    if exhausted:
+                        raise ValueError('diagnosis correction budget exhausted')
                     result = self._apply(state, frame)
                     receipt = dict(schema=SCHEMA, request_id=key, request_sha256=digest, ok=True, result=result)
                 except (ValueError, KeyError, TypeError):
+                    corrections[correction_scope] = corrections.get(correction_scope, 0) + (0 if exhausted else 1)
+                    error = self._field_guidance(frame, correction_scope, corrections[correction_scope])
                     receipt = dict(schema=SCHEMA, request_id=key, request_sha256=digest, ok=False,
-                                   code='diagnosis_record_invalid')
+                                   code='diagnosis_record_invalid', error=error)
                 # Commit the request and result together before publishing its receipt.
                 state['requests'][key] = receipt
                 if self.storage is None:
@@ -133,6 +149,26 @@ class NativeDiagnosis:
             if set(record) != {'scope_ref'}:
                 raise ValueError('diagnosis scope fields are invalid')
             return self._scope_status(state, record['scope_ref'])
+        if operation == 'report':
+            if (not _REPORT_FIELDS <= set(record) or set(record) - _REPORT_FIELDS - _REPORT_OPTIONAL
+                    or record['outcome'] not in {'passed', 'failed', 'not_run', 'unknown'}
+                    or record['next_disposition'] not in {'continue', 'change_method', 'retain_gap', 'stop_dependent', 'request_input'}):
+                raise ValueError('diagnosis report fields are invalid')
+            checked = {name: _texts(value) if name in {'evidence_refs', 'outcome_refs', 'limitations', 'rejected_hypotheses'}
+                else _text(value, optional=name in {'hypothesis', 'minimal_probe', 'comparison'}) for name, value in record.items()}
+            if checked.get('acceptance', 'advisory') not in {'advisory', 'objective'}:
+                raise ValueError('diagnosis acceptance is invalid')
+            if len(state['records']) >= 64:
+                raise ValueError('diagnosis record capacity exceeded')
+            scope_ref = checked.get('scope_ref', 'unbound-task')
+            if not isinstance(scope_ref, str) or scope_ref != 'unbound-task' and scope_ref not in state['scopes']:
+                raise ValueError('diagnosis scope is not observed')
+            self._scope(state, scope_ref)
+            saved = {'acceptance': 'advisory', **checked, 'scope_ref': scope_ref,
+                     'report_id': 'diagnosis-report:' + frame['request_id'], 'probe_state': 'reported',
+                     'reported_only': True, 'recorded_at': self.clock()}
+            state['records'].append(saved)
+            return {'status': 'recorded', 'record': saved, 'acceptance_unchanged': True}
         if operation == 'observe_rejection':
             if set(record) != {'tool_call_id', 'selection', 'code', 'duration_ms'}:
                 raise ValueError('diagnosis rejection fields are invalid')
@@ -154,8 +190,7 @@ class NativeDiagnosis:
                     'code': code, 'scope_ref': scope_ref, 'observed_at': self.clock(), 'reported_only': True})
             return self._scope_status(state, scope_ref)
         if operation == 'begin':
-            required = {'issue', 'input_version', 'evidence_refs', 'hypothesis', 'minimal_probe',
-                        'retry_reason', 'comparison', 'rejected_hypotheses', 'acceptance'}
+            required = _BEGIN_FIELDS
             if not required <= set(record) or set(record) - required - {'scope_ref'} or record['acceptance'] not in {'advisory', 'objective'}:
                 raise ValueError('diagnosis fields are invalid')
             checked = {name: _texts(value) if name in {'evidence_refs', 'rejected_hypotheses'} else
@@ -188,12 +223,11 @@ class NativeDiagnosis:
             return {'status': 'probe_reserved', 'record': saved,
                     'remaining_probes': self.policy['max_probes'] - scope['used']}
         if operation == 'finish':
-            if (set(record) != {'probe_id', 'outcome', 'outcome_refs', 'information_gained',
-                               'rejected_hypotheses', 'next_disposition'}
+            if (set(record) != _FINISH_FIELDS
                     or record['outcome'] not in {'passed', 'failed', 'not_run', 'unknown'}
                     or record['next_disposition'] not in {'continue', 'change_method', 'retain_gap', 'stop_dependent', 'request_input'}):
                 raise ValueError('diagnosis outcome is invalid')
-            saved = next((item for item in state['records'] if item['probe_id'] == record['probe_id']), None)
+            saved = next((item for item in state['records'] if item.get('probe_id') == record['probe_id']), None)
             if saved is None:
                 raise ValueError('diagnosis probe is unavailable')
             if saved.get('finished_at') is not None:
@@ -206,6 +240,38 @@ class NativeDiagnosis:
             saved.update(outcome, finished_at=finished, probe_state='finished')
             return {'status': 'recorded', 'record': saved, 'acceptance_unchanged': True}
         raise ValueError('diagnosis operation is invalid')
+
+    def _correction_scope(self, state, frame):
+        record = frame['record'] if isinstance(frame['record'], dict) else {}
+        operation = frame['operation']
+        target = 'unbound-task'
+        if operation == 'finish':
+            candidate = record.get('probe_id')
+            target = candidate if isinstance(candidate, str) and any(
+                item.get('probe_id') == candidate for item in state['records']) else 'unresolved-probe'
+        elif isinstance(record.get('scope_ref'), str) and record['scope_ref'] in state['scopes']:
+            target = record['scope_ref']
+        return 'correction-' + _digest({'operation': operation, 'host_target': target})
+
+    def _field_guidance(self, frame, scope, used):
+        operation = frame['operation']
+        required, optional = {'begin': (_BEGIN_FIELDS, {'scope_ref'}), 'finish': (_FINISH_FIELDS, set()),
+            'report': (_REPORT_FIELDS, _REPORT_OPTIONAL), 'read': (set(), {'scope_ref'})}.get(operation, (set(), set()))
+        record = frame['record'] if isinstance(frame['record'], dict) else {}
+        exhausted = used >= DIAGNOSIS_MAX_CORRECTIONS
+        return {'category': 'rejected', 'status': 'exhausted' if exhausted else 'rejected',
+                'correction_scope': scope, 'remaining_corrections': max(0, DIAGNOSIS_MAX_CORRECTIONS - used),
+                'max_settle_rejections': DIAGNOSIS_MAX_SETTLE_REJECTIONS,
+                'operation': operation, 'required_fields': sorted(required),
+                'missing_fields': sorted(required - set(record)),
+                'extra_fields': [key if re.fullmatch(r'[A-Za-z_]{1,64}', key) else '<unexpected field>'
+                                 for key in sorted(set(record) - required - optional)],
+                'next_disposition': 'retain_gap' if exhausted else 'correct_fields',
+                'message': ('This operation/probe correction budget is exhausted. Keep useful work and the metadata gap; '
+                    'use report for a separate honest observation or continue independent work. Do not repeat this rejected operation.' if exhausted else
+                    'Known field rejection; no outcome was changed. Use only the listed fields. outcome is passed/failed/not_run/unknown; '
+                    'next_disposition is continue/change_method/retain_gap/stop_dependent/request_input. '
+                    'For ordinary work prefer report: issue, outcome, information_gained, next_disposition; no probe ID is needed.')}
 
     def _scope(self, state, scope_ref, *, selection_key=None):
         if scope_ref not in state['scopes']:
