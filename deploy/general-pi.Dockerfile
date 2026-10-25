@@ -73,6 +73,7 @@ COPY packages/capstone-agent/src/capstone_agent/bounded_http_loop.py capstone_ag
 COPY packages/capstone-agent/src/capstone_agent/conversation_context.py capstone_agent/conversation_context.py
 COPY packages/capstone-agent/src/capstone_agent/request_intent.py capstone_agent/request_intent.py
 COPY packages/capstone-agent/src/capstone_agent/native_task_context.py capstone_agent/native_task_context.py
+COPY packages/capstone-agent/src/capstone_agent/native_diagnosis.py capstone_agent/native_diagnosis.py
 COPY packages/capstone-agent/src/capstone_agent/resources/research-policy-catalog.json capstone_agent/resources/research-policy-catalog.json
 COPY packages/capstone-agent/src/capstone_agent/resources/graph-work-policy-1.12.json capstone_agent/resources/graph-work-policy-1.12.json
 COPY packages/capstone-agent/src/capstone_agent/resources/graph-work-policy-1.16.json capstone_agent/resources/graph-work-policy-1.16.json
@@ -99,6 +100,7 @@ COPY packages/capstone-agent/src/capstone_agent/resources/research-guidance.mjs 
 COPY packages/pi-capability-tools/src/task-record-tools.mjs capstone_agent/resources/task-record-tools.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/general-context.mjs capstone_agent/resources/general-context.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/general-sdk.mjs capstone_agent/resources/general-sdk.mjs
+COPY packages/capstone-agent/src/capstone_agent/resources/systematic-diagnosis.mjs capstone_agent/resources/systematic-diagnosis.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/enterprise-research-runtime.mjs capstone_agent/resources/enterprise-research-runtime.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/enterprise-cycle-contract.mjs capstone_agent/resources/enterprise-cycle-contract.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/enterprise-cycle-state.mjs capstone_agent/resources/enterprise-cycle-state.mjs
@@ -135,6 +137,6 @@ RUN python -c "from capstone_agent.general_pi_executor import collect_artifacts;
     && python -c 'from capstone_agent.native_task_context import checked_native_context, registered_research_policies; [checked_native_context({"selected_task_records": [], "selected_task_source": None, "records_truncated": False, **({"graph_work": {"edition": entry.work_edition, "started_at_ms": 1792562400000}} if entry.work_edition else {}), "policy": {"schema": "capstone-conversation-policy/1", "system_policy": entry.system_policy, "allowed_tools": ["agent_research_cycle"] if entry.application_version == "1.1.0" else ["agent_research_plan", "agent_research_record", "agent_research_assess"], "external_lookup_enabled": False}}) for entry in registered_research_policies()]' \
     && python -c 'from capstone_agent.native_task_context import registered_research_policies; from enterprise_research import ResearchPolicy; [entry.capability() for entry in registered_research_policies()]; [(entry.work_policy(), ResearchPolicy(entry.pack_version, variant=entry.variant).progress_guidance()) for entry in registered_research_policies() if entry.work_edition]' \
     && node --check capstone_agent/resources/research-guidance.mjs \
-    && node --input-type=module -e 'await import("./capstone_agent/resources/delivery-review.mjs")'
+    && node --input-type=module -e 'await import("./capstone_agent/resources/delivery-review.mjs"); await import("./capstone_agent/resources/systematic-diagnosis.mjs")'
 EXPOSE 8790
 CMD ["python", "-m", "capstone_agent.general_pi_resource_seed"]
