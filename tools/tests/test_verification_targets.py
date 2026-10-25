@@ -25,6 +25,7 @@ def test_source_topology_gate_covers_direct_consumers_without_solver_or_release_
                      'test_data_gateway_*.py', 'test_network_policy_http.py', 'test_native_network_policy.py',
                      'test_enterprise_normal_chat.py', 'test_native_session_profile.py',
                      'test_harness.py', 'test_delegated_runtime.py',
+                     'test_graph_host_observation.py',
                      'node --test packages/capstone-agent/tests/*.test.mjs packages/capstone-agent/tests/fixtures/*.test.mjs',
                      'tools/tests/test_image_layer_order.py', 'tools/tests/test_host_runtime_contract.py'):
         assert expected in block

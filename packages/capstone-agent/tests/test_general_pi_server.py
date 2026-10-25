@@ -714,6 +714,48 @@ def test_sources_reference_actual_host_observed_tool_results(tmp_path):
     assert list((tmp_path / 'receipts/observations/t1').glob('*.json'))
 
 
+@pytest.mark.parametrize('mode',['valid','unpresentable','forged'])
+def test_gateway_source_hint_requires_host_receipt_even_after_capture_budget(tmp_path,monkeypatch,mode):
+    import asyncio
+    from capstone_agent.data_gateway_relay import DataGatewayAccess
+    from capstone_agent.general_pi_server import GeneralPiHost
+    import capstone_agent.general_pi_server as server_module
+    from test_grid_source_topology import Gateway
+    original=server_module.limits
+    class NoCapture:
+        def __getattr__(self,name):
+            return 0 if name=='context_references' else getattr(original,name)
+    monkeypatch.setattr(server_module,'limits',NoCapture())
+    client=Gateway()
+    if mode=='unpresentable':client.data['next_node_offset']=0
+    gateway=DataGatewayAccess(client,client.catalog)
+    class Runner:
+        def __call__(self,request,cancelled,emit):
+            gateway.bind(request.task_id,request.parent_attempt_id)
+            response=asyncio.run(gateway.call(request.task_id,{'call_id':'view-one',
+                'name':'data_gateway_get_network_topology_view','arguments':{'scope_id':'north'}}))
+            details=response['observation']
+            if mode=='forged':details={**details,'output_sha256':'forged'}
+            emit({'type':'tool_execution_end','toolName':'data_gateway_get_network_topology_view',
+                'toolCallId':'view-one','isError':False,'result':{
+                    'content':[{'type':'text','text':response['result_json']}],'details':details}})
+            return 'Answer',{}
+    runner=Runner();runner.gateway=gateway
+    host=GeneralPiHost(root=tmp_path,identity={'engine':'pi'},run_task=runner)
+    request=PiTaskRequest('hint-task','hint-attempt','direct','Read source',(),(),host.identity,2)
+    host.submit(request)
+    deadline=time.monotonic()+2
+    while host.read(request.task_id)['status']=='running' and time.monotonic()<deadline:time.sleep(.005)
+    saved=host.read(request.task_id)
+    assert saved['result']['status']==('failed' if mode=='forged' else 'completed')
+    hints=[event['source_view'] for event in saved['events'] if 'source_view' in event]
+    assert len(hints)==(1 if mode=='valid' else 0)
+    if hints:
+        assert hints[0]['schema']=='capstone-grid-source-view-request/1'
+        assert hints[0]['scope_name']=='North'
+        assert 'nodes' not in hints[0]
+
+
 @pytest.fixture
 def small_answer_envelope():
     from capstone_agent.application_capacity import initialize_capacity

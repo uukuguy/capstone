@@ -250,6 +250,35 @@ def test_worker_external_lookup_uses_actual_general_executor():
     assert not any(e.event_type in {'tool_started', 'tool_completed'} for e in saved)
 
 
+@pytest.mark.parametrize('mode',['valid','extra-field','wrong-task','wrong-tool'])
+def test_validated_source_view_survives_public_attempt_persistence_only_in_its_task_scope(mode):
+    hint={'schema':'capstone-grid-source-view-request/1','source_id':'data-gateway','scope_id':'north',
+        'scope_name':'North','level':None,'selected_object_id':None,'view_ref':'view-one',
+        'source_snapshot':{'metadata_snapshot':'snapshot-one','source_instance':'fixture-source'},
+        'voltage_min_kv':330,'display_grouping_only':False}
+    class SourceExecutor(Executor):
+        def execute(self,request,control,on_event):
+            self.requests.append(request)
+            on_event({'type':'tool_execution_end','task_id':request.task_id if mode!='wrong-task' else 'another-task',
+                'attempt_id':request.parent_attempt_id,'tool_name':'data_gateway_get_network_topology_view' if mode!='wrong-tool' else 'bash',
+                'tool_call_id':'source-call','is_error':False,
+                'source_view':{**hint,**({'private':'never publish'} if mode=='extra-field' else {})}})
+            return PiTaskResult(request.task_id,request.parent_attempt_id,self.identity,'completed','Source answer',(),(),{})
+    service,current=claim()
+    executor=SourceExecutor()
+    result=run(service,current,factory(executor,Recognizer([goal('lookup','external_lookup',refs=['general-pi'])])))
+    assert result.status=='completed'
+    events=service.read_events(current.thread_id,0).events
+    hinted=[event for event in events if 'source_view' in event.payload]
+    assert len(hinted)==(1 if mode=='valid' else 0)
+    if hinted:
+        event=hinted[0]
+        assert event.visibility=='public' and event.attempt_id==current.attempt.attempt_id
+        assert event.payload['source_view']==hint
+        assert event.payload['task_id']==executor.requests[0].task_id
+        assert event.payload['tool_call_id']=='source-call'
+
+
 def test_native_worker_persists_shared_steps_without_promoting_tools_to_authority():
     class SteppedExecutor(Executor):
         def execute(self, request, control, on_event):

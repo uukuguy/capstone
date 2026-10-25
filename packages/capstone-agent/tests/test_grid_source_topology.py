@@ -1,4 +1,5 @@
 import asyncio
+import json
 from copy import deepcopy
 
 import pytest
@@ -252,3 +253,44 @@ def test_raw_source_object_gaps_preserve_actual_ids_without_inventing_messages()
     page=asyncio.run(GridSourceProvider(gateway).topology({'scope_id':'north','level':None}))
     assert page['gaps']==object_gaps
     assert 'message' not in page['gaps'][0]
+
+
+def test_source_view_hint_is_small_and_derived_from_a_strict_actual_page():
+    from capstone_agent.grid_source_topology import source_view_from_gateway_result,checked_source_view_request
+    data=topology_data()
+    data.update(level=None,display_grouping_only=False)
+    upstream={'structuredContent':{'status':'ok','data':data,'gaps':[],'provenance':{}},'isError':False}
+    result={'content':[{'type':'text','text':json.dumps(upstream)}],
+            'details':{'catalog_revision':'catalog-one','tool_schema_sha256':'schema-one'}}
+    hint=source_view_from_gateway_result(result)
+    assert hint=={'schema':'capstone-grid-source-view-request/1','source_id':'data-gateway',
+        'scope_id':'north','scope_name':'North','level':None,'selected_object_id':None,'view_ref':'view-one',
+        'source_snapshot':{'metadata_snapshot':'snapshot-one','source_instance':'fixture-source'},
+        'voltage_min_kv':330,'display_grouping_only':False}
+    assert checked_source_view_request(hint)==hint
+    assert 'nodes' not in hint and 'gaps' not in hint
+    data['next_node_offset']=0
+    result['content'][0]['text']=json.dumps(upstream)
+    assert source_view_from_gateway_result(result) is None
+    with pytest.raises(ValueError):
+        checked_source_view_request({**hint,'credential':'never publish'})
+
+
+def test_optional_source_labels_normalize_whitespace_without_rewriting_source_identity():
+    from capstone_agent.grid_source_topology import GridSourceProvider,GridSourceError
+    gateway=Gateway()
+    gateway.data['nodes'][0]['label']='500kV四串联络50422刀闸\t\t'
+    page=asyncio.run(GridSourceProvider(gateway).topology({'scope_id':'north'}))
+    assert page['nodes'][0]['label']=='500kV四串联络50422刀闸'
+    gateway.data['nodes'][0]['source_id']='source\t'
+    with pytest.raises(GridSourceError):
+        asyncio.run(GridSourceProvider(gateway).topology({'scope_id':'north'}))
+
+
+def test_unpresentable_optional_label_retains_object_with_declared_projection_gap():
+    from capstone_agent.grid_source_topology import GridSourceProvider
+    gateway=Gateway()
+    gateway.data['nodes'][0]['label']='\x00'
+    page=asyncio.run(GridSourceProvider(gateway).topology({'scope_id':'north'}))
+    assert page['nodes'][0]['id']=='station:1' and 'label' not in page['nodes'][0]
+    assert {'id':'station:1','reason':'source_label_unpresentable'} in page['gaps']

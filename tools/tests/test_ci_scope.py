@@ -38,6 +38,15 @@ def test_source_topology_requires_verified_content_and_exact_covered_paths():
         assert classify(SOURCE_PATHS + [extra], source_topology=True) == 'product'
 
 
+def test_source_view_handoff_registers_its_exact_forwarder_and_graph_consumer():
+    paths=SOURCE_PATHS+['packages/capstone-agent/src/capstone_agent/delegated_runtime.py',
+        'packages/capstone-agent/tests/test_delegated_runtime.py',
+        'packages/capstone-agent/tests/test_graph_host_observation.py']
+    assert classify(paths,source_topology=True)=='source-topology'
+    assert classify(paths+['packages/capstone-agent/src/capstone_agent/unknown_forwarder.py'],
+                    source_topology=True)=='product'
+
+
 def test_source_transport_guard_preserves_all_legacy_behavior():
     from tools.ci_scope import source_transport_document, SOURCE_CONTROL_METHODS
     old = 'class HttpGeneralPiExecutor:\n    def _call(self):\n        known={"invalid_task"}\n        return "legacy"\n'

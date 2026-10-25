@@ -204,8 +204,12 @@ def _element(value, edge=False):
     result: dict[str, object] = {'id': _text(value.get('id')), 'kind': kind}
     if not re.fullmatch(r'[a-z][a-z0-9_:-]*', kind):
         _invalid()
-    result.update(_metadata(value, ('label', 'source_id', 'source_table', 'voltage_kv', 'vn_kv',
+    result.update(_metadata(value, ('source_id', 'source_table', 'voltage_kv', 'vn_kv',
                                    'member_count', 'equipment_type')))
+    if isinstance(value.get('label'), str):
+        label = ' '.join(value['label'].split())
+        if label and len(label) <= 2048 and not any(ord(char) < 32 for char in label):
+            result['label'] = label
     for key in ('parent_id', 'station_id'):
         if key in value:
             result[key] = None if value[key] is None else _text(value[key])
@@ -262,7 +266,11 @@ def topology_page(data, request, *, catalog_revision, tool_schema_sha256, status
         rows = data.get(stream + 's')
         if not isinstance(rows, list) or len(rows) > request['limit']:
             _invalid()
-        rows = [_element(row, edge=stream == 'edge') for row in rows]
+        source_rows = rows
+        rows = [_element(row, edge=stream == 'edge') for row in source_rows]
+        for original, projected in zip(source_rows, rows):
+            if original.get('label') is not None and 'label' not in projected:
+                result['gaps'].append({'id': projected['id'], 'reason': 'source_label_unpresentable'})
         if len({row['id'] for row in rows}) != len(rows):
             _invalid()
         total = _integer(data.get('total_' + stream + 's'))
@@ -283,6 +291,61 @@ def topology_page(data, request, *, catalog_revision, tool_schema_sha256, status
     if len(json.dumps(result, allow_nan=False).encode()) > PAGE_BYTES:
         _invalid()
     return result
+
+
+def checked_source_view_request(value):
+    """A bounded display request, never a model binding or evidence grant."""
+    fields = {'schema', 'source_id', 'scope_id', 'scope_name', 'level', 'selected_object_id',
+              'view_ref', 'source_snapshot', 'voltage_min_kv', 'display_grouping_only'}
+    if (not isinstance(value, dict) or set(value) != fields
+            or value['schema'] != 'capstone-grid-source-view-request/1' or value['source_id'] != SOURCE_ID):
+        _invalid()
+    checked_topology_request({key: value[key] for key in
+        ('scope_id', 'level', 'selected_object_id', 'voltage_min_kv')})
+    _text(value['scope_name'])
+    _text(value['view_ref'])
+    if value['display_grouping_only'] is not (value['level'] is not None):
+        _invalid()
+    snapshot = value['source_snapshot']
+    if not isinstance(snapshot, dict) or set(snapshot) != {'metadata_snapshot', 'source_instance'}:
+        _invalid()
+    for text in snapshot.values():
+        _text(text)
+    return deepcopy(value)
+
+
+def source_view_from_gateway_result(result):
+    """Optional projection of an already host-verified gateway observation.
+
+    Receipt verification belongs to the caller and must run before this helper.
+    An unpresentable page omits this hint without failing the business result.
+    """
+    try:
+        text = result['content'][0]['text']
+        if not isinstance(text, str) or len(text.encode()) > PAGE_BYTES * 2:
+            return None
+        def invalid_constant(_value):
+            raise ValueError('invalid JSON constant')
+        upstream = json.loads(text, parse_constant=invalid_constant)
+        content = upstream.get('structuredContent')
+        if upstream.get('isError') or not isinstance(content, dict) or content.get('status') not in {'ok', 'partial'}:
+            return None
+        data = content['data']
+        request = checked_topology_request({'scope_id': data['scope']['scope_id'], 'level': data['level'],
+            'selected_object_id': data['selected_object_id'], 'voltage_min_kv': data['selection'].get('min_ac_kv'),
+            'node_offset': data['node_offset'], 'edge_offset': data['edge_offset'],
+            'limit': PAGE_LIMIT, 'expected_view_ref': data['view_ref']})
+        page = topology_page(data, request, catalog_revision=result['details']['catalog_revision'],
+            tool_schema_sha256=result['details']['tool_schema_sha256'], status=content['status'],
+            gaps=content.get('gaps', []), provenance=content.get('provenance', {}))
+        return checked_source_view_request({'schema': 'capstone-grid-source-view-request/1', 'source_id': SOURCE_ID,
+            'scope_id': page['scope']['scope_id'], 'scope_name': page['scope']['name'], 'level': page['level'],
+            'selected_object_id': page['selected_object_id'], 'view_ref': page['view_ref'],
+            'source_snapshot': {'metadata_snapshot': page['source_snapshot']['metadata_snapshot'],
+                                'source_instance': page['source_snapshot'].get('source_instance', page['source_instance'])},
+            'voltage_min_kv': page['selection'].get('min_ac_kv'), 'display_grouping_only': page['display_grouping_only']})
+    except (ValueError, TypeError, KeyError, IndexError, AttributeError):
+        return None
 
 
 class GridSourceProvider:

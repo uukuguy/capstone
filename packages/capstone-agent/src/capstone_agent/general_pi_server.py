@@ -537,6 +537,19 @@ class GeneralPiHost:
                     # Only the SDK's displayable stream delta enters this channel.
                     # Completed thinking blocks, signatures and replay metadata do not.
                     payload = {'type': 'assistant_thinking_delta', 'text': change['delta']}
+            if (payload is not None and (kind == 'tool_execution_end'
+                    or kind == 'enterprise_graph_child_tool' and event.get('activity') == 'end')
+                    and payload.get('tool_name') == 'data_gateway_get_network_topology_view'
+                    and payload.get('is_error') is not True):
+                # Verification is mandatory even when the observation capture
+                # budget is full. Only the optional display projection can fail
+                # open; a forged gateway receipt must still stop execution.
+                result = event.get('result', {})
+                self.verify_gateway_observation(request, payload['tool_call_id'], payload['tool_name'], result)
+                from .grid_source_topology import source_view_from_gateway_result
+                source_view = source_view_from_gateway_result(result)
+                if source_view is not None:
+                    payload = {**payload, 'source_view': source_view}
             if payload is not None:
                 if payload.get('type') == 'assistant_delta':
                     thinking_buffer.flush()

@@ -7,7 +7,7 @@ import pytest
 from test_native_graph_progress import graph_fixture
 
 
-def run_graph_host(tmp_path, delegated, exercise, *, pre_progress=()):
+def run_graph_host(tmp_path, delegated, exercise, *, pre_progress=(), gateway=None):
     from capstone_agent.attempt_research import AttemptResearch
     from capstone_agent.business_context import BusinessContext
     from capstone_agent.general_pi_server import GeneralPiHost
@@ -33,8 +33,10 @@ def run_graph_host(tmp_path, delegated, exercise, *, pre_progress=()):
     bridge = WorkerResearchBridge(worker.channel, owner_id='b' * 64, producer_binding=binding)
 
     class Runner:
+        def __init__(self): self.gateway = gateway
         def bind_graph_context_provider(self, provider): self.provider = provider
         def __call__(self, request, cancelled, emit):
+            if gateway is not None: gateway.bind(request.task_id, request.parent_attempt_id)
             for frame in pre_progress:
                 emit(frame)
             workspace = tmp_path / 'host' / 'tasks' / task
@@ -47,26 +49,32 @@ def run_graph_host(tmp_path, delegated, exercise, *, pre_progress=()):
             if delegated:
                 emit({**base, 'type': 'enterprise_graph_child_started', 'child_id': 'A'})
             private_handle = str(context.root / 'observations' / 'opaque')
-            def call(call_id, *, error=False, bind=True, source='valid', text=None, status=None, result_error=False):
+            def call(call_id, *, error=False, bind=True, source='valid', text=None, status=None, result_error=False, tool_name='read'):
                 if bind:
                     emit({**base, 'type': 'enterprise_graph_tool_binding',
-                          'tool_call_id': call_id, 'tool_name': 'read'})
+                          'tool_call_id': call_id, 'tool_name': tool_name})
                 ref = 'native-observation:' + task + ':' + sha256(call_id.encode()).hexdigest()
                 result = {'content': [{'type': 'text', 'text': text or 'Actual source bytes from ' + private_handle}]}
+                if gateway is not None and tool_name.startswith('data_gateway_'):
+                    import asyncio
+                    response = asyncio.run(gateway.call(task, {'call_id': call_id, 'name': tool_name,
+                                                             'arguments': {'scope_id': 'north'}}))
+                    result = {'content': [{'type': 'text', 'text': response['result_json']}],
+                              'details': response['observation']}
                 if result_error:
                     result['isError'] = True
                 if source != 'missing':
-                    result['details'] = {'native_research_source': {'task_id': task,
-                        'tool_call_id': call_id, 'source_ref': ref if source == 'valid' else 'forged'}}
+                    result.setdefault('details', {})['native_research_source'] = {'task_id': task,
+                        'tool_call_id': call_id, 'source_ref': ref if source == 'valid' else 'forged'}
                 if status:
                     emit({**base, 'type': 'enterprise_graph_tool_failure', 'tool_call_id': call_id,
-                          'tool_name': 'read', 'status': status})
+                          'tool_name': tool_name, 'status': status})
                 if delegated:
                     emit({**base, 'type': 'enterprise_graph_child_tool', 'child_id': 'A',
-                          'activity': 'end', 'tool_call_id': call_id, 'tool_name': 'read',
+                          'activity': 'end', 'tool_call_id': call_id, 'tool_name': tool_name,
                           'args': {'path': private_handle}, 'result': result, 'is_error': error})
                 else:
-                    emit({'type': 'tool_execution_end', 'toolCallId': call_id, 'toolName': 'read',
+                    emit({'type': 'tool_execution_end', 'toolCallId': call_id, 'toolName': tool_name,
                           'args': {'path': private_handle}, 'result': result, 'isError': error})
                 return ref, result
             exercise(call, context, action, private_handle)
@@ -82,6 +90,26 @@ def run_graph_host(tmp_path, delegated, exercise, *, pre_progress=()):
     deadline = time.monotonic() + 3
     while host.read(task)['status'] == 'running' and time.monotonic() < deadline: time.sleep(.005)
     return host, task, action
+
+
+@pytest.mark.parametrize('delegated', [False, True])
+def test_gateway_source_hint_survives_committed_parent_and_child_graph_publication(tmp_path, delegated):
+    from capstone_agent.data_gateway_relay import DataGatewayAccess
+    from test_grid_source_topology import Gateway
+    client=Gateway()
+    gateway=DataGatewayAccess(client,client.catalog)
+    def exercise(call, context, action, private_handle):
+        call('gateway-view',tool_name='data_gateway_get_network_topology_view')
+    host,task,_=run_graph_host(tmp_path,delegated,exercise,gateway=gateway)
+    saved=host.read(task)
+    assert saved['result']['status']=='completed',saved['result']
+    hints=[event for event in saved['events'] if 'source_view' in event]
+    assert len(hints)==1
+    assert hints[0]['source_view']['scope_name']=='North'
+    assert hints[0]['tool_call_id']=='gateway-view'
+    if delegated:
+        assert hints[0]['type']=='enterprise_graph_child_tool'
+        assert hints[0]['task_id']==task and hints[0]['attempt_id']=='attempt_graph'
 
 
 @pytest.mark.parametrize('delegated', [False, True])
