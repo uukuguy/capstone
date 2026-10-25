@@ -78,8 +78,10 @@ jobs:
         if: steps.scope.outputs.gate == 'conversation-runtime'
         timeout-minutes: 10
         run: |
-          make check-package-boundaries check-types test-capstone-agent test-capstone-app build-capstone-app test-capstone-client
+          make check-package-boundaries check-types test-capstone-app build-capstone-app test-capstone-client
+          uv run --project packages/capstone-agent pytest -q packages/capstone-agent/tests/test_general_pi_*.py packages/capstone-agent/tests/test_harness.py packages/capstone-agent/tests/test_delegated_runtime.py packages/capstone-agent/tests/test_thread_http_api.py packages/capstone-agent/tests/test_enterprise_normal_chat.py packages/capstone-agent/tests/test_thread_work.py packages/capstone-agent/tests/test_thread_work_execution.py packages/capstone-agent/tests/test_thread_worker.py packages/capstone-agent/tests/test_attempt_research.py packages/capstone-agent/tests/test_native_diagnosis.py
           node --test packages/capstone-agent/tests/*.test.mjs packages/capstone-agent/tests/fixtures/*.test.mjs
+          node --test packages/pi-capability-tools/test/*.test.mjs
           uv run --project packages/capstone-agent pytest tools/tests/test_image_layer_order.py tools/tests/test_host_runtime_contract.py -q
       - name: Verify shared foundation assembly
         if: steps.scope.outputs.gate == 'foundation' || steps.scope.outputs.gate == 'native-runtime'

@@ -205,12 +205,16 @@ def test_conversation_runtime_ci_excludes_unchanged_professional_suites():
     block = workflow.split('      - name: Verify conversation runtime consumers\n', 1)[1].split('      - name:', 1)[0]
     assert "if: steps.scope.outputs.gate == 'conversation-runtime'" in block
     assert 'timeout-minutes: 10' in block
-    for expected in ('check-package-boundaries', 'check-types', 'test-capstone-agent',
+    for expected in ('check-package-boundaries', 'check-types',
                      'test-capstone-app', 'build-capstone-app', 'test-capstone-client',
+                     'tests/test_general_pi_*.py', 'tests/test_harness.py', 'tests/test_delegated_runtime.py',
+                     'tests/test_thread_http_api.py', 'tests/test_thread_work.py', 'tests/test_thread_worker.py',
+                     'tests/test_enterprise_normal_chat.py', 'tests/test_attempt_research.py',
+                     'tests/test_native_diagnosis.py', 'tests/test_thread_work_execution.py',
                      'node --test packages/capstone-agent/tests/*.test.mjs packages/capstone-agent/tests/fixtures/*.test.mjs',
                      'tools/tests/test_image_layer_order.py', 'tools/tests/test_host_runtime_contract.py'):
         assert expected in block
-    for forbidden in ('test-kernel', 'test-domain-package', 'test-registered-workers', 'test-local-rebuild',
+    for forbidden in ('test-capstone-agent', 'test-kernel', 'test-domain-package', 'test-registered-workers', 'test-local-rebuild',
                       'test-inventory-pi', 'test-pi-capture-runtime', 'make check-pr', 'make check-release',
                       'packages/grid-agent/tests', 'packages/grid-simulator/tests', 'packages/pypsa-agent/tests',
                       'packages/pandapower-domain-pack/tests', 'packages/inventory-domain-pack/tests',

@@ -36,6 +36,14 @@ CONVERSATION_RUNTIME_FILES = {
     'packages/pi-capability-tools/src/research-tools.mjs',
     'packages/pi-capability-tools/src/research-context-window.mjs',
 }
+# These modules and their direct consumers are named in the conversation gate.
+# Other backend edits must not inherit its smaller test set just because a
+# resource file changed in the same PR.
+CONVERSATION_BACKEND_MODULES = {'delegated_runtime', 'harness', 'thread_work', 'native_diagnosis'}
+CONVERSATION_BACKEND_TESTS = {'test_' + name for name in CONVERSATION_BACKEND_MODULES} | {
+    'test_thread_http_api', 'test_enterprise_normal_chat', 'test_thread_work_execution',
+    'test_thread_worker', 'test_attempt_research',
+}
 RUNTIME_FILES = {
     'compose.yaml', 'deploy/local.env.example',
     'configs/runtime/data-gateway.json', 'scripts/verify_data_gateway_research.py',
@@ -103,6 +111,7 @@ def classify(paths: list[str], *, target: str = "dev", release: bool = False,
     foundation = False
     native_runtime = False
     conversation_runtime = False
+    uncovered_backend = False
     for path in paths:
         if ".." in PurePosixPath(path).parts:
             return "product"
@@ -130,6 +139,10 @@ def classify(paths: list[str], *, target: str = "dev", release: bool = False,
                 "packages/capstone-agent/src/capstone_agent/",
                 "packages/capstone-agent/tests/")):
             shared_agent = True
+            name=PurePosixPath(path).stem
+            covered=(name in CONVERSATION_BACKEND_MODULES if path.startswith('packages/capstone-agent/src/')
+                     else name in CONVERSATION_BACKEND_TESTS or name.startswith('test_general_pi_'))
+            uncovered_backend = uncovered_backend or not covered
         elif path.startswith("packages/capstone-app/src/") and (path.endswith((
                 ".ts", ".tsx", ".css")) or path.startswith("packages/capstone-app/src/fixtures/") and path.endswith('.json')):
             shared_agent = True
@@ -138,6 +151,8 @@ def classify(paths: list[str], *, target: str = "dev", release: bool = False,
     if native_runtime or foundation and conversation_runtime:
         return 'native-runtime'
     if conversation_runtime:
+        if uncovered_backend:
+            return 'product'
         return 'conversation-runtime'
     if foundation:
         return 'foundation'
