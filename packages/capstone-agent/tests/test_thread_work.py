@@ -89,7 +89,9 @@ def test_http_model_free_creation_skips_professional_preparation():
         assert response.status_code == 201
         assert response.json()['active_model_context'] is None
         assert client.get('/api/v1/threads', headers=headers).json()['threads'][0]['model_id'] is None
-        assert client.get('/api/v1/threads/thr_work/models', headers=headers).status_code == 409
+        models = client.get('/api/v1/threads/thr_work/models', headers=headers)
+        assert models.status_code == 200
+        assert models.json()['models'] == [] and models.json()['current_entry_id'] is None
         catalog = client.get('/api/v1/threads/thr_work/input-catalog', headers=headers)
         assert catalog.status_code == 200
         assert catalog.json()['context_id'] is None
