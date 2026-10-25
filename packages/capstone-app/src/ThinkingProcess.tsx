@@ -38,17 +38,18 @@ export default function ThinkingProcess({thinking,storageKey,now=Date.now(),expa
   const [fold,setFold]=useState(()=>({id:foldId,open:readProcessStepOpen(storageKey,foldId,fallback)}))
   const open=fold.id===foldId?fold.open:readProcessStepOpen(storageKey,foldId,fallback)
   const start=Date.parse(thinking.startedAt??''),end=thinking.endedAt?Date.parse(thinking.endedAt):now
-  const elapsed=Number.isFinite(start)&&Number.isFinite(end)&&end>=start?Math.round((end-start)/1000):undefined
+  const elapsed=Number.isFinite(start)&&Number.isFinite(end)&&end>=start?(end-start)/1000:undefined
   const status=thinking.phase==='failed'?'思考已停止（本轮失败）':thinking.phase==='cancelled'?'思考已取消':thinking.phase==='interrupted'?'思考已中断':
-    active?thinking.phase==='queued'?'等待执行…':'思考中…':elapsed===undefined?'已思考':`已思考 ${elapsed}秒`
+    active?thinking.phase==='queued'?'等待执行…':'思考中…':elapsed===undefined?'已思考':`已思考 ${Math.round(elapsed)}秒`
+  const label=open?status:elapsed===undefined?'用时 —':`用时 ${elapsed.toFixed(1)}s`
   const viewport=useRef<HTMLDivElement>(null),following=useRef(true)
   useLayoutEffect(()=>{
     if(active&&open&&following.current&&viewport.current)viewport.current.scrollTop=viewport.current.scrollHeight
   },[active,open,thinking.text])
   return <section className={`capstone-thinking-process${active?' is-active':''}${expanded?' is-reader':''}`} role="region" aria-label={thinking.handedOff?'初始思考记录':'思考状态'} data-phase={thinking.phase} aria-busy={active}>
-    <button type="button" className="capstone-thinking-trigger" aria-label={`${open?'折叠':'展开'}初始思考`} aria-expanded={open} aria-controls={open&&thinking.text?bodyId:undefined} onClick={()=>{
+    <button type="button" className="capstone-thinking-trigger" aria-label={`${open?'折叠':'展开'}初始思考`} aria-description={status} aria-expanded={open} aria-controls={open&&thinking.text?bodyId:undefined} onClick={()=>{
       following.current=true;setFold({id:foldId,open:!open});saveProcessStepOpen(storageKey,foldId,!open)
-    }}><span>{status}</span><ChevronRight aria-hidden="true"/></button>
+    }}><span>{label}</span><ChevronRight aria-hidden="true"/></button>
     {open&&thinking.text&&<div id={bodyId} ref={viewport} className="capstone-thinking-copy" onScroll={()=>{
       const node=viewport.current
       if(node)following.current=node.scrollHeight-node.scrollTop-node.clientHeight<24

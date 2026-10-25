@@ -1,6 +1,7 @@
 .capstone-thinking-process { margin: 2px 0 10px; color: var(--text-muted, #646b75); }
 .capstone-thinking-trigger { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 4px 0; border: 0; background: none; color: inherit; font: inherit; font-size: 13px; line-height: 1.5; cursor: pointer; }
 .capstone-thinking-trigger:hover { color: var(--text-primary, #303741); }
+.capstone-thinking-trigger[aria-expanded="false"] { width: fit-content; min-height: 20px; padding-block: 0; line-height: 20px; }
 .capstone-thinking-trigger:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; border-radius: 3px; }
 .capstone-thinking-trigger svg { width: 14px; height: 14px; transition: transform 140ms ease; }
 .capstone-thinking-trigger[aria-expanded="true"] svg { transform: rotate(90deg); }
