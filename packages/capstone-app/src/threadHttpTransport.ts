@@ -315,7 +315,11 @@ export class HttpThreadTransport implements ThreadTransport {
   gridSourceTopology(query: GridSourceQuery, signal?: AbortSignal) {
     return this.request('/api/v1/grid-sources/data-gateway/topology', {
       method:'POST', signal, body:JSON.stringify(query),
-    },4*1024*1024,'event_page_bytes',false).then(parseGridSourcePage)
+    },4*1024*1024,'event_page_bytes',false).then(parseGridSourcePage).catch(cause=>{
+      if(cause instanceof ThreadTransportError)throw new Error(cause.status===409
+        ?'源拓扑版本已变化，请重新加载。':cause.status===400?'源拓扑读取范围无效，请重新选择对象。':'源拓扑暂时无法读取，请稍后重新加载。')
+      throw cause
+    })
   }
 
   renameSession(threadId:string,runId:string,revision:number,text:string,commandId:string,idempotencyKey:string):Promise<unknown> {

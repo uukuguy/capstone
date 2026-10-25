@@ -17,6 +17,11 @@ describe('source topology paging', () => {
     expect((await transport.gridSourceTopology({scope_id:'north'})).view_ref).toBe('snapshot-a')
     await expect(transport.getSnapshot('thr_example')).rejects.toThrow('协议版本不兼容')
   })
+  it('reports source availability failures without exposing internal service errors',async()=>{
+    const fetcher=(async()=>new Response(JSON.stringify({detail:'grid_source_response_invalid'}),{status:503})) as typeof fetch
+    const transport=new HttpThreadTransport('http://localhost:8767','',fetcher,'/api/v1/threads','2')
+    await expect(transport.gridSourceTopology({scope_id:'north'})).rejects.toThrow('源拓扑暂时无法读取')
+  })
   it('loads both streams under the same revision and resolves later endpoints without collapsing parallel circuits',async()=>{
     const queries: unknown[]=[]
     const result=await loadGridSourceView(async query=>{
