@@ -17,12 +17,12 @@ it('shows thinking during submit before any accepted or started event',async()=>
   render(<CapstoneAssistantThread {...props} isRunning={false} events={[]} onSend={onSend}/>)
   fireEvent.change(screen.getByRole('textbox',{name:'Thread 指令'}),{target:{value:'Current instruction'}})
   fireEvent.click(screen.getByRole('button',{name:'发送指令'}))
-  expect((await screen.findByRole('region',{name:'思考状态'})).textContent).toContain('等待执行')
+  expect((await screen.findByRole('region',{name:'思考状态'})).textContent).toContain('Thinking…')
   await act(async()=>finish())
 })
 it('shows queued thinking from acceptance before attempt_started',()=>{
   render(<CapstoneAssistantThread {...props} events={[accepted]}/>)
-  expect(screen.getByRole('region',{name:'思考状态'}).textContent).toContain('等待执行')
+  expect(screen.getByRole('region',{name:'思考状态'}).textContent).toContain('Thinking…')
 })
 it('streams only public current-attempt thinking and keeps it out of the answer',()=>{
   const {rerender}=render(<CapstoneAssistantThread {...props} events={[accepted,started,delta]}/>)
@@ -53,7 +53,7 @@ it('keeps thinking for lifecycle and goal-only notes, then archives it once actu
   const archive=screen.getByRole('region',{name:'初始思考记录'})
   const archiveTrigger=within(archive).getByRole('button',{name:'展开初始思考'})
   expect(archiveTrigger.getAttribute('aria-expanded')).toBe('false')
-  expect(archiveTrigger.textContent).toBe('5.0s')
+  expect(archiveTrigger.textContent).toBe('Thinking · 5.0s')
   expect(screen.queryByText('Actual public thought.')).toBeNull()
   expect(screen.getByRole('region',{name:'工具调用过程'})).toBeTruthy()
   fireEvent.click(within(archive).getByRole('button',{name:'展开初始思考'}))
@@ -76,7 +76,7 @@ it('never shows a missing-thinking placeholder alongside supplied 823-character 
 it('uses one clickable muted trigger and no invented body while waiting for supplied text',()=>{
   render(<CapstoneAssistantThread {...props} events={[accepted,started]}/>)
   const region=within(screen.getByRole('region',{name:'思考状态'}))
-  expect(region.getByRole('button',{name:'折叠初始思考'}).textContent).toContain('思考中')
+  expect(region.getByRole('button',{name:'折叠初始思考'}).textContent).toBe('Thinking…')
   expect(region.queryByText('当前记录未提供公开思考摘要。')).toBeNull()
 })
 it('follows streamed text until the reader scrolls up and resumes only at the bottom',()=>{
@@ -120,7 +120,7 @@ it.each(['completed','failed','cancelled','interrupted'] as const)('auto-folds t
   expect(screen.queryByText('Actual public thought.')).toBeNull()
   const region=screen.getByRole('region',{name:'思考状态'})
   expect(region.getAttribute('data-phase')).toBe(phase)
-  expect(within(region).getByRole('button',{name:'展开初始思考'}).textContent).toBe('3.0s')
+  expect(within(region).getByRole('button',{name:'展开初始思考'}).textContent).toBe('Thinking · 3.0s')
   fireEvent.click(within(region).getByRole('button',{name:'展开初始思考'}))
   expect(within(region).getByText('Actual public thought.')).toBeTruthy()
   unmount()
