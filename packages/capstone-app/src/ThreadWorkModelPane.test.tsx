@@ -1,6 +1,6 @@
 import {afterEach, expect, it, vi} from 'vitest'
 import {act, cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react'
-import type {ComponentProps} from 'react'
+import {useState, type ComponentProps} from 'react'
 import ThreadWorkAdapter from './ThreadWorkAdapter'
 import type ThreadWorkspace from './ThreadWorkspace'
 import type {ThreadModelPaneProps} from './ThreadModelPane'
@@ -9,9 +9,14 @@ import {HttpThreadTransport} from './threadHttpTransport'
 import {parseWorkSnapshot, type WorkCommand} from './threadWorkProtocol'
 import {ThreadProjectionStore, type ThreadProjectionState, type ThreadNetworkTask} from './threadProjectionStore'
 import {sampleDiagramView} from './networkFixture'
+import type GridSourceWorkspace from './GridSourceWorkspace'
+import type {EventEnvelope} from './threadProtocol'
+import {SessionReadingProvider} from './workspaceSessionCache'
 
 vi.mock('./ThreadWorkspace',()=>({default:(props:ComponentProps<typeof ThreadWorkspace>)=><>
   {props.children}<button onClick={()=>props.onResourcePanelOpenChange?.(true)}>Show resources</button>
+  <button onClick={()=>props.onResourcePanelOpenChange?.(false)}>Close resources</button>
+  <output data-testid="resource-open">{String(props.resourcePanelOpen)}</output>
   <output data-testid="selected-resource">{props.selectedResourceView}</output>
   {props.resourcePanelOpen&&props.resourceViews?.map(view=><section key={view.id}>
     <button onClick={()=>props.onResourceViewChange?.(view.id)}>{view.label}</button>
@@ -31,6 +36,10 @@ vi.mock('./ThreadModelPane',()=>({default:(props:ThreadModelPaneProps)=><output 
 })}</output>}))
 vi.mock('./ThreadProductsWorkspace',()=>({default:()=>null}))
 vi.mock('./ThreadMaterialUpload',()=>({default:()=>null}))
+vi.mock('./GridSourceWorkspace',()=>({default:(props:ComponentProps<typeof GridSourceWorkspace>)=>{
+  const [initialScope]=useState(props.requestedView?.scope_id??'north')
+  return <><output data-testid="source-pane">{JSON.stringify({request:props.requestedView,nonce:props.requestNonce,initialScope})}</output><button onClick={props.onManualNavigate}>Manual source navigation</button></>
+}}))
 
 afterEach(()=>{cleanup();vi.unstubAllGlobals();localStorage.clear();sessionStorage.clear()})
 
@@ -49,6 +58,7 @@ function fixture(initialContext:string|null='ctx_one'){
     catalog:{models:[],profiles:[]},networkView:null,gridPages:[],hasOlderHistory:false,historyLoading:false,historyAtLatest:true}
   const listeners=new Set<()=>void>()
   let tasks:ThreadNetworkTask[]=[]
+  let publicEvents:EventEnvelope[]=[]
   const publish=()=>listeners.forEach(fn=>fn())
   const restore=vi.fn(async(_id:string)=>'page_ieee39')
   const refresh=vi.fn(async()=>{})
@@ -56,7 +66,7 @@ function fixture(initialContext:string|null='ctx_one'){
     const next=work('ctx_one');state={...state,workSnapshot:next,snapshot:next.professionalSnapshot!};publish()
     return {status:'accepted',target:{kind:'model_workspace',id:'thr_formal'},commandId:command.command_id}
   })
-  const store={get state(){return state},publicEvents:[],canStreamEvents:false,
+  const store={get state(){return state},get publicEvents(){return publicEvents},canStreamEvents:false,
     get networkTasks(){return tasks},
     get modelWorkingPages(){return []},subscribe:(fn:()=>void)=>{listeners.add(fn);return()=>listeners.delete(fn)},
     catchUp:async()=>{},load:async()=>{},dispose:()=>{},refreshWorkSnapshot:async()=>{},dispatch,
@@ -74,10 +84,12 @@ function fixture(initialContext:string|null='ctx_one'){
     return new Response('{}',{status:404})
   })
   const transport=new HttpThreadTransport('','',fetcher,'/api/v1/threads','2')
-  const view={...sampleDiagramView,diagram:{...sampleDiagramView.diagram,model:{id:'ieee39',revision:'revision:one',source:'gridctl'}}}
+  const view={...sampleDiagramView,diagram:{...sampleDiagramView.diagram,model:{id:'ieee39',revision:'revision:one',source:'gridctl'}},layer:{...sampleDiagramView.layer,model_revision:'revision:one'}}
   return {store,transport,restore,refresh,dispatch,view,
     setTasks(value:ThreadNetworkTask[]){tasks=value;publish()},
+    setEvents(value:EventEnvelope[]){publicEvents=value;state={...state,eventSeq:Math.max(0,...value.map(event=>event.eventSeq))};publish()},
     setContext(id:string){const next=work(id);state={...state,snapshot:next.professionalSnapshot!,workSnapshot:next};publish()},
+    setWorkContextOnly(id:string|null){state={...state,workSnapshot:work(id)};publish()},
     admit(id:string,pageId='page_ieee39'){const context=state.snapshot!.activeModelContext;state={...state,networkView:view,
       gridPages:[...state.gridPages.filter(page=>page.context.id!==id),{pageId,context:{...context,id},networkView:view}]};publish()},
   }
@@ -168,16 +180,88 @@ it('reports a current restoration failure without inventing a preview diagram',a
   expect(server.store.state.snapshot?.activeModelContext.id).toBe('ctx_one')
 })
 
-it.each(['none','other-context','copied-view','exact-layer'])('labels only the exact admitted task view (%s)',async match=>{
+it.each(['none','other-context','copied-view','exact-layer','baseline'])('labels only the exact admitted task view (%s)',async match=>{
   const server=fixture()
   server.admit('ctx_one')
   if(match!=='none')server.setTasks([{attemptId:'attempt_grid_saved',eventSeq:4,pageId:'page_ieee39',
     context:{...server.store.state.snapshot!.activeModelContext,id:match==='other-context'?'ctx_other':'ctx_one'},
-    view:match==='copied-view'?structuredClone(server.view):server.view}])
+    view:match==='copied-view'?structuredClone(server.view):server.view,presentationSource:match==='baseline'?'historical_baseline':'admitted_layer'}])
   render(<ThreadWorkAdapter transport={server.transport} threadId="thr_formal" namespace="formal" preparedStore={server.store}/> )
   await waitFor(()=>expect(server.refresh).toHaveBeenCalledOnce())
   fireEvent.click(screen.getByText('Show resources'));fireEvent.click(await screen.findByText('电气拓扑'))
   const pane=JSON.parse(screen.getByTestId('formal-pane').textContent!)
   expect(pane.instructionLabel).toBe(match==='exact-layer'?'已保存任务图层':'模型基础拓扑')
   expect(pane.networkTaskId).toBe(match==='exact-layer'?'attempt_grid_saved':null)
+})
+
+const sourceRequest={schema:'capstone-grid-source-view-request/1' as const,source_id:'data-gateway' as const,scope_id:'north',scope_name:'华北',level:null,selected_object_id:null,view_ref:'verified-source',source_snapshot:{metadata_snapshot:'snapshot',source_instance:'gateway'},voltage_min_kv:330,display_grouping_only:false}
+const instruction=(eventSeq:number,attemptId:string):EventEnvelope=>({eventId:`accepted${eventSeq}`,eventSeq,eventType:'command_accepted',eventVersion:1,threadId:'thr_formal',runId:'run_formal',attemptId,visibility:'public',occurredAt:'2026-10-26T00:00:00Z',payload:{kind:'send_message',payload:{text:'Actual instruction'}}})
+const sourceEvent=(eventSeq:number,attemptId:string,viewRef=sourceRequest.view_ref):EventEnvelope=>({...instruction(eventSeq,attemptId),eventId:`source${eventSeq}`,eventType:'runtime_event',payload:{source_view:{...sourceRequest,view_ref:viewRef}}})
+it('automatically opens the exact current instruction source request and closes only its automatic view for a later plain instruction',async()=>{
+  const server=fixture(null)
+  server.setEvents([instruction(1,'attempt_source'),sourceEvent(2,'attempt_source')])
+  render(<ThreadWorkAdapter transport={server.transport} threadId="thr_formal" namespace="routing" preparedStore={server.store}/> )
+  const source=JSON.parse((await screen.findByTestId('source-pane')).textContent!)
+  expect(source.request).toEqual(sourceRequest);expect(source.nonce).toBe(1)
+  await act(async()=>server.setEvents([instruction(1,'attempt_source'),sourceEvent(2,'attempt_source'),instruction(3,'attempt_plain')]))
+  await waitFor(()=>expect(screen.getByTestId('resource-open').textContent).toBe('false'))
+  expect(screen.getByTestId('selected-resource').textContent).toBe('products')
+  expect(screen.queryByTestId('source-pane')).toBeNull()
+})
+it('retains manual source navigation and panel closure over later proposals in the same instruction',async()=>{
+  const server=fixture(null)
+  server.setEvents([instruction(1,'attempt_source'),sourceEvent(2,'attempt_source')])
+  render(<ThreadWorkAdapter transport={server.transport} threadId="thr_formal" namespace="routing-manual" preparedStore={server.store}/> )
+  await screen.findByTestId('source-pane')
+  fireEvent.click(screen.getByText('Manual source navigation'))
+  await act(async()=>server.setEvents([instruction(1,'attempt_source'),sourceEvent(2,'attempt_source'),sourceEvent(4,'attempt_source','newer-source')]))
+  expect(JSON.parse(screen.getByTestId('source-pane').textContent!).request.view_ref).toBe('verified-source')
+  fireEvent.click(screen.getByText('Close resources'))
+  await act(async()=>server.setEvents([instruction(1,'attempt_source'),sourceEvent(5,'attempt_source','latest-source')]))
+  expect(screen.getByTestId('resource-open').textContent).toBe('false')
+})
+it('deduplicates repeated identical source pages and keeps the request nonce across session remounts',async()=>{
+  const server=fixture(null)
+  server.setEvents([instruction(1,'attempt_source'),sourceEvent(2,'attempt_source')])
+  const tree=()=> <SessionReadingProvider namespace="routing-cache" threadId="thr_formal"><ThreadWorkAdapter transport={server.transport} threadId="thr_formal" namespace="routing-cache" preparedStore={server.store}/></SessionReadingProvider>
+  const first=render(tree())
+  await screen.findByTestId('source-pane')
+  await act(async()=>server.setEvents([instruction(1,'attempt_source'),sourceEvent(2,'attempt_source'),sourceEvent(3,'attempt_source')]))
+  expect(JSON.parse(screen.getByTestId('source-pane').textContent!).nonce).toBe(1)
+  first.unmount();render(tree())
+  expect(JSON.parse((await screen.findByTestId('source-pane')).textContent!).nonce).toBe(1)
+})
+it('switches source to the later admitted current model task and ignores a historical baseline',async()=>{
+  const server=fixture();server.admit('ctx_one')
+  server.setEvents([instruction(1,'attempt_current'),sourceEvent(2,'attempt_current')])
+  render(<ThreadWorkAdapter transport={server.transport} threadId="thr_formal" namespace="routing-mixed" preparedStore={server.store}/> )
+  await screen.findByTestId('source-pane')
+  await act(async()=>server.setTasks([{attemptId:'attempt_current',eventSeq:3,pageId:'page_ieee39',context:server.store.state.snapshot!.activeModelContext,view:server.view,presentationSource:'historical_baseline'}]))
+  expect(screen.getByTestId('selected-resource').textContent).toBe('source-topology')
+  await act(async()=>server.setTasks([{attemptId:'attempt_current',eventSeq:4,pageId:'page_ieee39',context:server.store.state.snapshot!.activeModelContext,view:server.view,presentationSource:'admitted_layer'}]))
+  await waitFor(()=>expect(screen.getByTestId('selected-resource').textContent).toBe('model'))
+  expect(JSON.parse(screen.getByTestId('formal-pane').textContent!).networkTaskId).toBe('attempt_current')
+})
+
+it('remounts scope-owned source state when a later verified instruction selects another scope',async()=>{
+  const server=fixture()
+  server.setEvents([instruction(1,'attempt_current'),sourceEvent(2,'attempt_current')])
+  render(<ThreadWorkAdapter transport={server.transport} threadId="thr_formal" namespace="routing-scope" preparedStore={server.store}/> )
+  const first=JSON.parse((await screen.findByTestId('source-pane')).textContent!)
+  const next=sourceEvent(3,'attempt_current')
+  next.payload={...next.payload,source_view:{...sourceRequest,scope_id:'east',scope_name:'East'}}
+  await act(async()=>server.setEvents([instruction(1,'attempt_current'),next]))
+  await waitFor(()=>expect(JSON.parse(screen.getByTestId('source-pane').textContent!).initialScope).toBe('east'))
+  expect(first.initialScope).not.toBe('east')
+})
+
+it('does not retain a stale professional context after the Work model is cleared',async()=>{
+  const server=fixture();server.admit('ctx_one')
+  render(<ThreadWorkAdapter transport={server.transport} threadId="thr_formal" namespace="routing-close" preparedStore={server.store}/> )
+  fireEvent.click(screen.getByText('Show resources'));fireEvent.click(await screen.findByText('电气拓扑'))
+  expect(screen.getByTestId('formal-pane')).toBeTruthy()
+  await act(async()=>server.setWorkContextOnly(null))
+  expect(screen.queryByTestId('formal-pane')).toBeNull()
+  expect(screen.queryByText('电气拓扑')).toBeNull()
+  expect(server.store.state.snapshot?.activeModelContext.id).toBe('ctx_one')
 })

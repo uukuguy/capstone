@@ -1,5 +1,5 @@
 import {applicationCapacity,CapacityError,observeCapacity,rethrowDebugCapacity,assertCapacity} from './applicationCapacity'
-import { parseThreadSnapshot, type CommandReceipt, type EventEnvelope, type EventPage, type ModelContextSnapshot, type ThreadSnapshot } from './threadProtocol'
+import { parseContext, parseThreadSnapshot, type CommandReceipt, type EventEnvelope, type EventPage, type ModelContextSnapshot, type ThreadSnapshot } from './threadProtocol'
 import { parseNetworkDiagram, parseNetworkView } from './networkValidation'
 import type { DiagramNetworkView, NetworkDiagram } from './types'
 import type { ThreadCatalog } from './threadCatalog'
@@ -838,6 +838,33 @@ export class ThreadProjectionStore {
     }
     event = this.internDiagramEvent(event)
     const workSnapshot = this.current.workSnapshot
+    // The host explicitly clears the active calculation context when a native
+    // conversation closes its last model. Do this before the asynchronous
+    // snapshot refresh, without deleting retained read-only model pages.
+    if (workSnapshot?.modelContext && !workSnapshot.currentAttempt &&
+        ['general-chat', 'enterprise-research'].includes(workSnapshot.sessionType ?? '') &&
+        event.visibility === 'public' && event.runId === workSnapshot.runId &&
+        event.eventType === 'model_workspace_changed' && event.payload.model_context_cleared === true &&
+        event.payload.current_model_name === null && !event.modelContextId && !event.selectionRevision) {
+      let matches = false
+      try {
+        matches = JSON.stringify(parseContext(event.payload.previous_context)) === JSON.stringify(workSnapshot.modelContext)
+      } catch (error) { rethrowDebugCapacity(error) }
+      if (matches) {
+        const document = workSnapshot.toDocument()
+        delete document.pending_model_switch
+        delete document.pending_selection
+        this.resultDelivery.clear()
+        this.current = { ...this.current, snapshot: null, networkView: null, viewedGridPageId: null,
+          workSnapshot: parseWorkSnapshot({ ...document, active_model_context: null,
+            selected_model_context_id: null, active_grid_page_id: null, last_event_seq: event.eventSeq }),
+          eventSeq: event.eventSeq }
+        this.eventLog.push(event)
+        this.trimHistory(this.current.historyAtLatest)
+        this.notify()
+        return
+      }
+    }
     if (workSnapshot) {
       const document = workSnapshot.toDocument()
       const payload = record(event.payload)

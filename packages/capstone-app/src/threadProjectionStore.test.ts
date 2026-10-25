@@ -461,6 +461,44 @@ const dynamicLayer = {
   model_revision: '7',
 }
 
+it.each(['valid', 'wrong-context', 'wrong-revision', 'private', 'missing-flag'] as const)(
+  'clears only an explicit matching last-model close before snapshot refresh: %s', async variant => {
+    const events = [
+      { ...conversationalEvent(1, 'network_diagram', 1), payload: { diagram: dynamicDiagram } },
+      { ...conversationalEvent(2, 'network_layer', 1), payload: { ordinal: 1, layer: dynamicLayer } },
+    ]
+    const fixture = { ...idleFixture, snapshot: { ...idleFixture.snapshot,
+      schema: 'capstone-thread-snapshot/2', minimum_protocol_version: 2,
+      selected_model_context_id: context.id, session_type: 'enterprise-research', works: [], task_context: null,
+      last_event_seq: 2 }, events: { ...idleFixture.events, next_event_seq: 2, events } }
+    const close = parseEventEnvelope({ event_id: 'evt_close', event_seq: 3, event_type: 'model_workspace_changed',
+      event_version: 1, thread_id: 'thr_demo_39', run_id: 'run_001',
+      occurred_at: '2026-10-26T00:00:00Z', visibility: variant === 'private' ? 'diagnostic' : 'public',
+      payload: { model_context_cleared: variant !== 'missing-flag', current_model_name: null,
+        previous_context: { ...context, ...(variant === 'wrong-context' ? { id: 'ctx_other' } : {}),
+          ...(variant === 'wrong-revision' ? { model_revision: '8' } : {}) } } })
+    const store = new ThreadProjectionStore(new CapstoneThreadClient({ ...createFixtureTransport(fixture),
+      streamEvents: async function* () { yield close },
+    }), undefined, { protocolVersion: '2' })
+    await store.load('thr_demo_39')
+    const historicalView = store.state.gridPages[0].networkView
+    expect(historicalView).toBeTruthy()
+    vi.spyOn(store, 'refreshWorkSnapshot').mockResolvedValue(undefined)
+    await store.consumeEvents()
+    expect(store.state.eventSeq).toBe(3)
+    expect(store.state.workSnapshot?.modelContext?.id ?? null).toBe(variant === 'valid' ? null : context.id)
+    expect(store.state.snapshot?.activeModelContext.id ?? null).toBe(variant === 'valid' ? null : context.id)
+    if (variant === 'valid') {
+      expect(store.state.workSnapshot?.selectedModelContextId).toBeNull()
+      expect(store.state.workSnapshot?.toDocument().active_grid_page_id).toBeNull()
+      expect(store.state.networkView).toBeNull()
+      expect(store.state.viewedGridPageId).toBeNull()
+      expect(store.state.gridPages[0].networkView).toBe(historicalView)
+      store.viewGridPage(store.state.gridPages[0].pageId)
+      expect(store.state.gridPages[0].context.id).toBe(context.id)
+    }
+  })
+
 it('shares immutable geometry between repeated instructions while retaining every event and task', async () => {
   const events = [1, 2, 3, 4].map((seq) => ({
     event_id: `evt_${seq}`, event_seq: seq,
