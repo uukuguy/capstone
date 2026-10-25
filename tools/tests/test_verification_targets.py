@@ -199,6 +199,27 @@ def test_native_runtime_ci_checks_mcp_and_deployment_consumers():
     assert 'make check-release' not in block
 
 
+def test_conversation_runtime_ci_excludes_unchanged_professional_suites():
+    workflow = (ROOT / '.github/workflows/verify.yml').read_text()
+    assert 'conversation-runtime|' in workflow
+    block = workflow.split('      - name: Verify conversation runtime consumers\n', 1)[1].split('      - name:', 1)[0]
+    assert "if: steps.scope.outputs.gate == 'conversation-runtime'" in block
+    assert 'timeout-minutes: 10' in block
+    for expected in ('check-package-boundaries', 'check-types', 'test-capstone-agent',
+                     'test-capstone-app', 'build-capstone-app', 'test-capstone-client',
+                     'node --test packages/capstone-agent/tests/fixtures/*.test.mjs',
+                     'tools/tests/test_image_layer_order.py', 'tools/tests/test_host_runtime_contract.py'):
+        assert expected in block
+    for forbidden in ('test-kernel', 'test-domain-package', 'test-registered-workers', 'test-local-rebuild',
+                      'test-inventory-pi', 'test-pi-capture-runtime', 'make check-pr', 'make check-release',
+                      'packages/grid-agent/tests', 'packages/grid-simulator/tests', 'packages/pypsa-agent/tests',
+                      'packages/pandapower-domain-pack/tests', 'packages/inventory-domain-pack/tests',
+                      'test_package_artifacts.sh', 'test_source_setup.sh', 'test_user_local_installer.py'):
+        assert forbidden not in block
+    foundation = workflow.split('      - name: Verify shared foundation assembly\n', 1)[1].split('      - name:', 1)[0]
+    assert 'conversation-runtime' not in foundation
+
+
 def test_iteration_requires_explicit_scope_and_propagates_failure(tmp_path: Path) -> None:
     empty = subprocess.run(["make", "check-iteration"], cwd=ROOT, capture_output=True)
     assert empty.returncode != 0

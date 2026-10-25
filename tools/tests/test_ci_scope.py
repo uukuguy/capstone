@@ -85,6 +85,58 @@ def test_native_runtime_has_bounded_consumer_regression():
         assert classify(paths + [extra]) == 'product'
 
 
+@pytest.mark.parametrize('path', [
+    'packages/capstone-agent/src/capstone_agent/general_pi_server.py',
+    'packages/capstone-agent/src/capstone_agent/general_pi_executor.py',
+    'packages/capstone-agent/src/capstone_agent/resources/general-sdk.mjs',
+    'packages/capstone-agent/src/capstone_agent/resources/application-capacity.json',
+    'packages/capstone-agent/tests/fixtures/systematic-diagnosis.test.mjs',
+    'packages/capstone-agent/tests/fixtures/case.json',
+    'deploy/general-pi.Dockerfile',
+    'packages/pi-capability-tools/src/research-tools.mjs',
+    'packages/pi-capability-tools/src/research-context-window.mjs',
+])
+def test_conversation_runtime_uses_affected_consumer_gate(path):
+    assert classify([path]) == 'conversation-runtime'
+    mixed = [path, 'packages/capstone-agent/src/capstone_agent/thread_work.py',
+             'packages/capstone-agent/tests/test_native_diagnosis.py',
+             'packages/capstone-app/src/ThreadWorkAdapter.tsx',
+             'packages/capstone-app/src/fixtures/nativeGraph-tools.json', 'tools/ci_scope.py', 'docs/RUNBOOK.md']
+    assert classify(mixed) == 'conversation-runtime'
+    assert classify(mixed, target='main') == 'release'
+    assert classify(mixed, release=True) == 'release'
+
+
+@pytest.mark.parametrize('extra', [
+    'compose.yaml', 'configs/runtime/data-gateway.json',
+    'packages/grid-simulator/src/grid_simulator/powermcp_sidecar.py',
+    'packages/capability-agent-kernel/src/capability_agent/application/composition.py',
+])
+def test_conversation_mixed_foundation_or_native_infrastructure_widens(extra):
+    assert classify(['packages/capstone-agent/src/capstone_agent/resources/general-sdk.mjs', extra]) == 'native-runtime'
+
+
+@pytest.mark.parametrize('extra', [
+    'packages/grid-agent/src/grid_agent/authority.py',
+    'packages/grid-simulator/src/grid_simulator/solver.py',
+    'packages/pypsa-agent/src/pypsa_agent/solver.py',
+    'packages/pypsa-domain-pack/src/solver.py',
+    'packages/capstone-agent/src/capstone_agent/kernel_pi_session.py',
+    'packages/capstone-agent/src/capstone_agent/pi_delegation.py',
+    'packages/capstone-agent/pyproject.toml', 'packages/grid-agent/uv.lock',
+    'packages/capstone-app/package-lock.json', 'packages/capstone-app/src/unknown.json',
+    'packages/pi-capability-tools/src/new-professional-tools.mjs',
+    'packages/pi-capability-tools/package.json', 'deploy/Dockerfile', 'Makefile', 'unknown.file',
+])
+def test_conversation_unknown_professional_or_dependency_change_still_requires_product(extra):
+    assert classify(['packages/capstone-agent/src/capstone_agent/resources/general-sdk.mjs', extra]) == 'product'
+
+
+def test_conversation_does_not_bypass_verified_mcp_dependency_consumer_gate():
+    assert classify(['packages/capstone-agent/src/capstone_agent/resources/general-sdk.mjs',
+                     'packages/capstone-agent/pyproject.toml'], runtime_dependencies=True) == 'native-runtime'
+
+
 def test_runtime_dependency_scope_checks_content_not_only_path():
     from tools.ci_scope import runtime_dependency_document
     from copy import deepcopy

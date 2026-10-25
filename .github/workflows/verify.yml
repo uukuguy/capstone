@@ -43,7 +43,7 @@ jobs:
           else
             gate=$(python3 tools/ci_scope.py --base "$BASE_SHA" --head "$HEAD_SHA" --target "$TARGET_BRANCH")
           fi
-          case "$gate" in docs|governance|shared-agent|foundation|native-runtime|product|release) ;; *) exit 1 ;; esac
+          case "$gate" in docs|governance|shared-agent|conversation-runtime|foundation|native-runtime|product|release) ;; *) exit 1 ;; esac
           echo "gate=$gate" >> "$GITHUB_OUTPUT"
       # Pinned per https://github.com/astral-sh/setup-uv (v10.0.1).
       - name: Install uv
@@ -74,6 +74,13 @@ jobs:
         if: steps.scope.outputs.gate == 'shared-agent'
         timeout-minutes: 15
         run: make check-package-boundaries check-types test-capstone-agent test-kernel test-capstone-app build-capstone-app test-capstone-client test-registered-workers
+      - name: Verify conversation runtime consumers
+        if: steps.scope.outputs.gate == 'conversation-runtime'
+        timeout-minutes: 10
+        run: |
+          make check-package-boundaries check-types test-capstone-agent test-capstone-app build-capstone-app test-capstone-client
+          node --test packages/capstone-agent/tests/fixtures/*.test.mjs
+          uv run --project packages/capstone-agent pytest tools/tests/test_image_layer_order.py tools/tests/test_host_runtime_contract.py -q
       - name: Verify shared foundation assembly
         if: steps.scope.outputs.gate == 'foundation' || steps.scope.outputs.gate == 'native-runtime'
         timeout-minutes: 15

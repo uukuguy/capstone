@@ -31,8 +31,13 @@ FOUNDATION_FILES = {
     'packages/pypsa-agent/src/pypsa_agent/worker.py',
 }
 
+CONVERSATION_RUNTIME_FILES = {
+    'deploy/general-pi.Dockerfile',
+    'packages/pi-capability-tools/src/research-tools.mjs',
+    'packages/pi-capability-tools/src/research-context-window.mjs',
+}
 RUNTIME_FILES = {
-    'compose.yaml', 'deploy/general-pi.Dockerfile', 'deploy/local.env.example',
+    'compose.yaml', 'deploy/local.env.example',
     'configs/runtime/data-gateway.json', 'scripts/verify_data_gateway_research.py',
     'packages/grid-simulator/src/grid_simulator/powermcp_sidecar.py',
 }
@@ -97,18 +102,21 @@ def classify(paths: list[str], *, target: str = "dev", release: bool = False,
     shared_agent = False
     foundation = False
     native_runtime = False
+    conversation_runtime = False
     for path in paths:
         if ".." in PurePosixPath(path).parts:
             return "product"
         if path.startswith("packages/capstone-agent/src/capstone_agent/") and (
                 PurePosixPath(path).name in {"kernel_pi_session.py", "pi_delegation.py"}):
             return "product"
-        if (path in RUNTIME_FILES or (runtime_dependencies and path in RUNTIME_DEPENDENCIES)
-                or (path.startswith('packages/capstone-agent/src/capstone_agent/')
+        if (path in CONVERSATION_RUNTIME_FILES
+                or (path.startswith('packages/capstone-agent/src/capstone_agent/') and path.endswith('.py')
                     and PurePosixPath(path).name.startswith('general_pi_'))
                 or (path.startswith(('packages/capstone-agent/src/capstone_agent/resources/',
                                      'packages/capstone-agent/tests/fixtures/'))
                     and path.endswith(('.mjs', '.json')))):
+            conversation_runtime = True
+        elif path in RUNTIME_FILES or (runtime_dependencies and path in RUNTIME_DEPENDENCIES):
             native_runtime = True
         elif path in FOUNDATION_FILES or (
                 path.startswith('packages/capability-agent-kernel/tests/') and path.endswith('.py')):
@@ -120,13 +128,15 @@ def classify(paths: list[str], *, target: str = "dev", release: bool = False,
                 "packages/capstone-agent/src/capstone_agent/",
                 "packages/capstone-agent/tests/")):
             shared_agent = True
-        elif path.startswith("packages/capstone-app/src/") and path.endswith((
-                ".ts", ".tsx", ".css")):
+        elif path.startswith("packages/capstone-app/src/") and (path.endswith((
+                ".ts", ".tsx", ".css")) or path.startswith("packages/capstone-app/src/fixtures/") and path.endswith('.json')):
             shared_agent = True
         elif path not in DOC_FILES and not path.startswith(("docs/", "tools/project_overview/")):
             return "product"
-    if native_runtime:
+    if native_runtime or foundation and conversation_runtime:
         return 'native-runtime'
+    if conversation_runtime:
+        return 'conversation-runtime'
     if foundation:
         return 'foundation'
     if shared_agent:
