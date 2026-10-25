@@ -475,6 +475,7 @@ it('shares immutable geometry between repeated instructions while retaining ever
   await store.load('thr_demo_39')
   expect(store.publicEvents).toHaveLength(4)
   expect(store.networkTasks).toHaveLength(2)
+  expect(store.networkTasks.every(task=>task.presentationSource==='admitted_layer')).toBe(true)
   expect(store.networkTasks[0].view.diagram).toBe(store.networkTasks[1].view.diagram)
   const diagrams = store.publicEvents.filter((event) => event.eventType === 'network_diagram')
   expect(diagrams[0].payload.diagram).toBe(diagrams[1].payload.diagram)
@@ -756,7 +757,9 @@ describe('ThreadProjectionStore', () => {
       expect(contextId).toBe(historical.id)
       return { schema: 'capstone-thread-network-events/1', thread_id: 'thr_demo_39', model_context_id: historical.id,
         model_context: historical, events: [{ event_id: 'evt_closed_diagram', event_seq: 1, event_type: 'network_diagram', event_version: 1,
-          thread_id: 'thr_demo_39', run_id: 'run_001', model_context_id: historical.id, occurred_at: '2026-10-08T00:00:00Z', visibility: 'public', payload: { diagram } }] }
+          thread_id: 'thr_demo_39', run_id: 'run_001', model_context_id: historical.id, occurred_at: '2026-10-08T00:00:00Z', visibility: 'public', payload: { diagram } },
+          { event_id:'evt_unrelated_later',event_seq:99,event_type:'attempt_completed',event_version:1,
+            thread_id:'thr_demo_39',run_id:'run_001',model_context_id:historical.id,attempt_id:'attempt_unrelated',occurred_at:'2026-10-08T00:00:02Z',visibility:'public',payload:{} }] }
     })
     const store = new ThreadProjectionStore(new CapstoneThreadClient({ ...createFixtureTransport(idleFixture), readNetworkEvents }))
     await store.load('thr_demo_39')
@@ -764,6 +767,7 @@ describe('ThreadProjectionStore', () => {
     expect(pageId).toBe(`page_${historical.id}`)
     expect(store.state.snapshot?.toDocument()).toEqual({ ...snapshotBefore, runtime_mode: 'capstone' })
     expect(store.networkTasks.find((task) => task.attemptId === 'attempt_closed')?.view.diagram.model.revision).toBe(historical.model_revision)
+    expect(store.networkTasks.find(task=>task.attemptId==='attempt_closed')).toMatchObject({eventSeq:1,presentationSource:'historical_baseline'})
     expect(store.state.pendingCommands).toEqual([])
   })
 

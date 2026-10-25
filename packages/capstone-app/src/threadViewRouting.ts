@@ -67,7 +67,7 @@ export function selectThreadViewProposal({events,networkTasks,attemptId,currentC
   if(currentContext)for(const task of networkTasks){
     // These tasks already passed Authority admission in ThreadProjectionStore.
     // Raw network_layer events never enter this selection path.
-    if(task.attemptId!==attemptId||!sequence(task.eventSeq)||!text(task.pageId)||!task.context||!sameContext(task.context,currentContext))continue
+    if(task.presentationSource==='historical_baseline'||task.attemptId!==attemptId||!sequence(task.eventSeq)||!text(task.pageId)||!task.context||!sameContext(task.context,currentContext))continue
     const view=task.view
     if(view?.schema!=='capstone-network-view/2.0'||view.diagram?.schema!=='capstone-network-diagram/1.0'||
       view.diagram.model?.id!==currentContext.modelId||view.diagram.model.revision!==currentContext.modelRevision||

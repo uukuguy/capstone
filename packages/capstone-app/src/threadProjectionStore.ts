@@ -43,6 +43,7 @@ export type ThreadNetworkTask = {
   pageId: string
   context: ModelContextSnapshot
   view: DiagramNetworkView
+  presentationSource?: 'admitted_layer' | 'historical_baseline'
 }
 
 export type ThreadProjectionState = {
@@ -644,7 +645,12 @@ export class ThreadProjectionStore {
     for (const event of history.events) this.applyNetworkProjection(event, this.current.snapshot!, this.admittedNetworkRefs(history.events, event))
     if (attemptId && !this.taskViews.has(attemptId)) {
       const view = this.networkViews.get(contextId)
-      if (view) this.taskViews.set(attemptId, { attemptId, eventSeq: history.events.at(-1)?.eventSeq || 0, pageId, context: history.context, view })
+      let baseline:EventEnvelope|undefined
+      for(const event of history.events){
+        if(event.visibility==='public'&&event.eventType==='network_diagram'&&!event.attemptId&&event.modelContextId===contextId&&
+          record(record(event.payload).diagram).ref===view?.diagram.ref&&(!baseline||event.eventSeq>baseline.eventSeq))baseline=event
+      }
+      if(view&&baseline)this.taskViews.set(attemptId,{attemptId,eventSeq:baseline.eventSeq,pageId,context:history.context,view,presentationSource:'historical_baseline'})
     }
     this.trimProjectionCaches()
     this.notify()
@@ -1082,7 +1088,7 @@ export class ThreadProjectionStore {
           view.diagram.model.id !== context.modelId || view.diagram.model.revision !== context.modelRevision) return
       if (event.attemptId) {
         this.taskViews.set(event.attemptId, { attemptId: event.attemptId, eventSeq: event.eventSeq,
-          pageId: page.pageId, context, view })
+          pageId: page.pageId, context, view, presentationSource:'admitted_layer' })
         observeCapacity(this.taskViews.size,'ui_cache_items','projection.task-views')
         if (this.taskViews.size > applicationCapacity('ui_cache_items')) this.taskViews.delete(this.taskViews.keys().next().value!)
       }

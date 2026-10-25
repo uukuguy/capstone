@@ -67,3 +67,8 @@ it('follows actual source/model transitions and produces the same proposal on re
   expect(selectThreadViewProposal({events:[source],networkTasks:[later,task],attemptId:'latest',currentContext})).toEqual(first)
   expect(selectThreadViewProposal({events:[event(15)],networkTasks:[later],attemptId:'new-instruction',currentContext})).toBeNull()
 })
+it('never promotes a manual historical baseline to an automatic instruction view or ranks it above a source hint',()=>{
+  const baseline=model(99,{presentationSource:'historical_baseline'})
+  expect(selectThreadViewProposal({events:[],networkTasks:[baseline],attemptId:'latest',currentContext})).toBeNull()
+  expect(selectThreadViewProposal({events:[event(10)],networkTasks:[baseline],attemptId:'latest',currentContext})?.kind).toBe('source')
+})
