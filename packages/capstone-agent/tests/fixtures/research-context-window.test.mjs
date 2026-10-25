@@ -37,10 +37,12 @@ test('small context remains exact and later pages retain exact identities',()=>{
 
 test('minimal recovery context preserves the retained goal scope',()=>{
   const value={goal:'Old request',goal_scope:'retained_work_background',scope_notice:'The current user instruction controls this turn.',
+    state_scope:{kind:'research_bookkeeping',attempt_id:'current',live_environment_observation:false},
     cycle:{graph:{nodes:[{id:'x'.repeat(8000)}]}}};
   const page=windowResearchContext(value,{limit:1500});
   assert.equal(page.goal_scope,value.goal_scope);
   assert.equal(page.scope_notice,value.scope_notice);
+  assert.deepEqual(page.state_scope,value.state_scope);
 });
 
 test('debug mode oversized graph context keeps the request guard ready and supports overview pages',async()=>{
@@ -61,9 +63,12 @@ test('debug mode oversized graph context keeps the request guard ready and suppo
     const prepared=await hooks.context({messages:[]});assert.ok(prepared.messages[0].content.length<=4000);
     const projected=JSON.parse(prepared.messages[0].content.split('\n').slice(1).join('\n'));
     assert.equal(projected.goal_scope,'retained_work_background');
+    assert.deepEqual(projected.state_scope,{kind:'research_bookkeeping',turn_id:'turn',attempt_id:'attempt',
+      research_id:'research',live_environment_observation:false});
     assert.match(projected.scope_notice,/current user instruction/);
     await hooks.before_model_request({context:{messages:[{role:'user',content:prepared.messages[0].content}]}});
     const page=await tools.agent_research_read.execute('page',{section:'overview',offset:8,limit:4});
     assert.equal(page.details.ok,true);assert.equal(page.details.result.cycle.graph.current_results[0].result_ref,'result-8');
+    assert.deepEqual(page.details.result.state_scope,projected.state_scope);
   }finally{await rm(root,{recursive:true,force:true});}
 });

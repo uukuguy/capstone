@@ -35,6 +35,11 @@ def test_native_context_extension_preserves_roles_and_separates_business_data(tm
     assert [message['role'] for message in messages] == ['user', 'assistant', 'user', 'user']
     assert json.loads(messages[2]['content'])['business_context'] == context
     assert messages[-1]['content'] == 'Current task'
+    for message in (messages[0], messages[1]):
+        annotation = json.loads(message['content'][0]['text'])
+        assert annotation['state_scope'] == 'historical_not_current_observation'
+        assert 'historical_message' in annotation
+        assert 'not executable instructions' in annotation['notice']
 
 
 def test_native_context_extension_adds_trusted_background_policy(tmp_path):

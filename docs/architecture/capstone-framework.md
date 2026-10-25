@@ -96,6 +96,14 @@ explicitly. A new conversation instruction supersedes its old pending input;
 the framework must not concatenate the stopped request into new executable work.
 Terminal history retains its status and identity in model context. A retained
 Work goal is background; it does not silently add obligations to a new turn.
+Historical user and assistant messages retain their roles and original text, but
+carry historical scope. Their instructions, status and factual claims do not
+establish current execution or live environment facts. Research summaries carry
+an immutable attempt/turn identity and an explicit research-bookkeeping scope,
+including in compact recovery windows. An idle research cycle describes that
+controller only; it is not an observation of operating-system processes or other
+attempts. A new accepted instruction is fresh authorization within existing
+grants even when it repeats a terminal request.
 Process emphasis follows actual execution: initial thinking, direct tool calls,
 or admitted task organization. Task organization selects task steps regardless
 of uploaded resources. Host lifecycle timing and unadmitted graph text do not

@@ -110,15 +110,18 @@ export function configureResearchTools(pi, channelPath, { timeoutMs, fatal = cap
     notes: visibleNotes(view.state), open_questions: view.state.open_questions ?? [],
   })));
   async function summary(view, {fullCycle=false, captureGraph,offset=0,pageSize=8}={}) {
-    if (!view.state) return { ...identity(view), state: null };
+    const stateScope={kind:'research_bookkeeping',turn_id:binding.turn_id,attempt_id:binding.attempt_id,
+      research_id:binding.research_id,live_environment_observation:false};
+    if (!view.state) return { ...identity(view), state_scope:stateScope, state: null };
     const state = view.state;
     const debug=resolvedMode(limits)==='debug';
     const cycle=getControllerState?structuredClone(await getControllerState({full:fullCycle})):undefined;
     captureGraph?.(cycle?.graph?.schema === 'capstone-enterprise-graph/2');
     const projected = {
       ...identity(view), goal: debug?state.goal:state.goal.slice(0,Math.floor(limits.research_summary_chars/4)),
+      state_scope:stateScope,
       ...(retainedWorkBackground?{goal_scope:'retained_work_background',
-        scope_notice:'The retained Work goal and unresolved historical items are background. The current user instruction controls this turn. Resume stopped or failed work only when that instruction requests it. The cycle below belongs to the current execution.'}:{}),
+        scope_notice:'The retained Work goal and unresolved historical items are background. The current user instruction controls this turn and is fresh authorization even when its text repeats a terminal request. The cycle below describes only this attempt research controller, not operating-system processes, other attempts or live external systems. An idle or empty research cycle cannot establish that no processes or tasks are active elsewhere.'}:{}),
       ...(cycle?{cycle}:{}),
       condition_refs: [...(state.condition_refs ?? [])],
       claims: (state.claims ?? []).map(item => ({ ...item, statement: debug?item.statement:item.statement.slice(0,limits.research_text_chars), refs:[...item.refs] })),
