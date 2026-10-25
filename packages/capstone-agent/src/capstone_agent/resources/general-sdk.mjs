@@ -742,6 +742,15 @@ export function configureGraphParentContext(pi,config,controller){
   const limits=resolveLimits({...JSON.parse(readFileSync(new URL('./application-capacity.json',import.meta.url),'utf8')).limits,...config.runtimeLimits},{mode:config.runtimeLimitMode});
   let prepared,compacting=false,repeatedRejection=false,lastProgress,failure;
   const diagnosticPort=createDiagnosisTools(config).find(tool=>tool.name==='agent_diagnosis_record');
+  const diagnosticRequest=async(...args)=>{
+    try{return await diagnosticPort.execute(...args);}
+    catch(error){
+      // The SDK can report and swallow a tool_result hook failure. Retain the
+      // barrier so no further model request bypasses unknown host persistence.
+      failure=error instanceof Error?error:new Error('Diagnostic receipt persistence is unknown');
+      throw failure;
+    }
+  };
   const diagnosticSelections=new Map(),pendingDiagnosticCalls=new Map(),blockedDiagnosticCalls=new Set();
   let diagnosticRestore,settleRejections=0;
   const diagnosticSelection=async(event,signal)=>{
@@ -753,7 +762,7 @@ export function configureGraphParentContext(pi,config,controller){
   // The model can deliver a limited answer or run another permitted action.
   pi.on('tool_call',async(event,ctx)=>{
     if(!diagnosticPort||diagnosisTools.includes(event.toolName))return;
-    diagnosticRestore??=diagnosticPort.execute('restore-diagnostic-scopes-'+randomUUID(),{operation:'read'},ctx.signal).then(retained=>{
+    diagnosticRestore??=diagnosticRequest('restore-diagnostic-scopes-'+randomUUID(),{operation:'read'},ctx.signal).then(retained=>{
       for(const scope of retained.details.diagnosis.scopes??[])
         if(scope.selection_key)diagnosticSelections.set(scope.selection_key,scope);
     });
@@ -761,7 +770,7 @@ export function configureGraphParentContext(pi,config,controller){
     const selection=await diagnosticSelection(event,ctx.signal),key=diagnosisDigest(selection);
     const previous=diagnosticSelections.get(key);
     if(previous){
-      const retained=await diagnosticPort.execute('check-'+event.toolCallId,{operation:'check_scope',record:{scope_ref:previous.scope_ref}},ctx.signal);
+      const retained=await diagnosticRequest('check-'+event.toolCallId,{operation:'check_scope',record:{scope_ref:previous.scope_ref}},ctx.signal);
       const status=retained.details.diagnosis;diagnosticSelections.set(key,status);
       if(status.status==='exhausted'){
         blockedDiagnosticCalls.add(event.toolCallId);settleRejections++;
@@ -840,7 +849,7 @@ export function configureGraphParentContext(pi,config,controller){
     // Advisory business findings do not become errors through this guard.
     if(diagnosticPort&&!diagnosisTools.includes(event.toolName)){
       const selection=pendingCall?.selection??await diagnosticSelection(event,ctx.signal);
-      const retained=await diagnosticPort.execute('observed-'+event.toolCallId,{operation:'observe_rejection',record:{
+      const retained=await diagnosticRequest('observed-'+event.toolCallId,{operation:'observe_rejection',record:{
         tool_call_id:event.toolCallId,selection,code:event.details?.error?.code??'tool_failed',
         duration_ms:pendingCall?Math.max(0,performance.now()-pendingCall.started):0}},ctx.signal);
       diagnosticSelections.set(diagnosisDigest(selection),retained.details.diagnosis);
@@ -862,6 +871,7 @@ export function configureGraphParentContext(pi,config,controller){
     return {messages};
   });
   pi.on('before_model_request',async(event,ctx)=>{
+    if(diagnosticPort&&failure)throw failure;
     // The SDK compactor uses streamFunction without the normal context hook.
     if(compacting)return;
     if(repeatedRejection&&controller.progressKey){

@@ -241,3 +241,18 @@ def test_typed_wire_hash_matches_binary64_numbers_and_utf8_key_order():
     assert result.stdout == _digest(value)
     assert _digest([1]) != _digest({'0': 1})
     assert _digest(1) != _digest('1')
+
+
+def test_unknown_diagnostic_receipt_stops_sdk_even_if_result_hook_error_is_swallowed(tmp_path, monkeypatch):
+    import capstone_agent.native_diagnosis as module
+    original = module.write_json
+    def broken_receipt(path, document, **kwargs):
+        if path.parent.name == 'responses' and document.get('result', {}).get('status') == 'investigating':
+            document = {**document, 'request_sha256': '0' * 64}
+        return original(path, document, **kwargs)
+    monkeypatch.setattr(module, 'write_json', broken_receipt)
+    result = _run_sdk(host(tmp_path), tmp_path / 'workspace', 'limited')
+    assert result['failedExecutions'] == 1
+    assert result['requests'] == 1
+    assert result['retained'] == 'Retained facts'
+    assert 'identity changed' in result['failure']
