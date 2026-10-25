@@ -1,5 +1,6 @@
 import type {SceneCamera} from './networkScene'
 import type {SceneFrame} from './networkScene.worker'
+import {NETWORK_GLYPH_FRAGMENT} from './networkSymbols'
 
 /** Bounded visible buffers; camera motion changes uniforms, not the full graph. */
 export function createNetworkRenderer(canvas:HTMLCanvasElement){
@@ -8,7 +9,7 @@ export function createNetworkRenderer(canvas:HTMLCanvasElement){
   function shader(type:number,source:string){const s=gl!.createShader(type)!;gl!.shaderSource(s,source);gl!.compileShader(s);if(!gl!.getShaderParameter(s,gl!.COMPILE_STATUS))throw new Error(gl!.getShaderInfoLog(s)||'Shader compile failed');return s}
   function program(point:boolean){
     const p=gl!.createProgram()!,v=shader(gl!.VERTEX_SHADER,`attribute vec2 position;attribute vec4 color;${point?'attribute float size;attribute float kind;varying float symbol;':''}uniform vec4 camera;uniform vec2 viewport;uniform float ratio;varying vec4 tint;void main(){vec2 xy=(position-camera.xy)/camera.zw;gl_Position=vec4(xy.x*2.0-1.0,1.0-xy.y*2.0,0.0,1.0);tint=color;${point?'gl_PointSize=size*ratio;symbol=kind;':''}}`),
-      f=shader(gl!.FRAGMENT_SHADER,`precision mediump float;varying vec4 tint;${point?'varying float symbol;':''}void main(){${point?`vec2 p=gl_PointCoord*2.0-1.0;float d=length(p);if(symbol<0.5){if(d>0.8)discard;}else if(symbol<1.5){if(abs(p.x)>0.9||abs(p.y)>0.12)discard;}else if(symbol<2.5){float a=abs(length(p-vec2(-0.3,0.0))-0.45);float b=abs(length(p-vec2(0.3,0.0))-0.45);if(min(a,b)>0.13)discard;}else if(symbol<3.5){if(abs(p.x+p.y)>0.2)discard;}else if(symbol<4.5){if(max(abs(p.x),abs(p.y))>0.8||max(abs(p.x),abs(p.y))<0.5)discard;}else{if(abs(p.x)+abs(p.y)>0.9)discard;}`:''}gl_FragColor=tint;}`)
+      f=shader(gl!.FRAGMENT_SHADER,`precision mediump float;varying vec4 tint;${point?'varying float symbol;':''}void main(){${point?`vec2 p=gl_PointCoord*2.0-1.0;float d=length(p);${NETWORK_GLYPH_FRAGMENT}`:''}gl_FragColor=tint;}`)
     gl!.attachShader(p,v);gl!.attachShader(p,f);gl!.linkProgram(p);gl!.deleteShader(v);gl!.deleteShader(f)
     if(!gl!.getProgramParameter(p,gl!.LINK_STATUS))throw new Error('Network shader link failed')
     return {program:p,buffer:gl!.createBuffer()!,point}

@@ -2,9 +2,9 @@ import {expect,it} from 'vitest'
 import {buildSceneIndex,pickScene,queryScene,searchScene} from './networkSceneIndex'
 import {sceneFrame} from './networkScene.worker'
 import type {NetworkScene} from './networkScene'
-it('indexes and queries a 120000-node, 239300-edge scene with bounded geometry and labels',()=>{
+it.each(['electrical','source-regional'] as const)('indexes and queries a 120000-node,239300-edge %s scene with bounded geometry and labels',mode=>{
   const count=120000,columns=400
-  const scene:NetworkScene={ref:'synthetic-120k',coordinateSystem:'schematic',nodes:Array.from({length:count},(_,i)=>({id:`n${i}`,label:`Node ${i}`,kind:'bus',x:i%columns,y:Math.floor(i/columns)})),edges:[]}
+  const scene:NetworkScene={ref:'synthetic-120k',coordinateSystem:'schematic',displayMode:mode,nodes:Array.from({length:count},(_,i)=>({id:`n${i}`,label:`Node ${i}`,kind:'bus',x:i%columns,y:Math.floor(i/columns)})),edges:[]}
   const edges=[]
   for(let i=0;i<count;i++){
     if(i%columns<columns-1)edges.push({id:`h${i}`,source:`n${i}`,target:`n${i+1}`,kind:'line'})

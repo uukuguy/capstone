@@ -1,7 +1,8 @@
 import type {NetworkScene,SceneCamera,SceneSearchResult,SceneSelection} from './networkScene'
+import {layoutSourceTopology} from './networkTopologyLayout'
 type Box={minX:number;minY:number;maxX:number;maxY:number}
 type Tree=Box&{count:number;indices?:number[];left?:Tree;right?:Tree}
-export type SceneIndex={scene:NetworkScene;bounds:SceneCamera;positions:Float32Array;endpoints:Uint32Array;edgeOffsets:Float32Array;nodeIds:Map<string,number>;edgeIds:Map<string,number>;nodes:Tree;edges:Tree;search:{key:string;result:SceneSearchResult}[]}
+export type SceneIndex={scene:NetworkScene;bounds:SceneCamera;positions:Float32Array;endpoints:Uint32Array;edgeOffsets:Float32Array;incidentOffsets:Uint32Array;incidentEdges:Uint32Array;bundles:Map<string,number[]>;bundleByEdge:Map<number,string>;nodeIds:Map<string,number>;edgeIds:Map<string,number>;nodes:Tree;edges:Tree;search:{key:string;result:SceneSearchResult}[]}
 const intersects=(a:Box,b:Box)=>a.minX<=b.maxX&&a.maxX>=b.minX&&a.minY<=b.maxY&&a.maxY>=b.minY
 function tree(indices:number[],box:(index:number)=>Box):Tree {
   let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity
@@ -34,6 +35,19 @@ export function buildSceneIndex(scene:NetworkScene,aspect=5/3):SceneIndex {
     const group=parallel.get(key)||[];group.push(i);parallel.set(key,group)
   })
   for(const group of parallel.values())group.forEach((edge,i)=>{edgeOffsets[edge]=(i-(group.length-1)/2)*4*(endpoints[edge*2]<=endpoints[edge*2+1]?1:-1)})
+  const incidentOffsets=new Uint32Array(scene.nodes.length+1),incidentEdges=new Uint32Array(endpoints.length)
+  for(const node of endpoints)incidentOffsets[node+1]++
+  for(let i=1;i<incidentOffsets.length;i++)incidentOffsets[i]+=incidentOffsets[i-1]
+  const next=incidentOffsets.slice(0,-1)
+  for(let e=0;e<scene.edges.length;e++){incidentEdges[next[endpoints[e*2]]++]=e;incidentEdges[next[endpoints[e*2+1]]++]=e}
+  const bundles=new Map<string,number[]>(),bundleByEdge=new Map<number,string>()
+  if(scene.displayMode==='source-regional'){
+    for(const pair of parallel.values())if(pair.length>1){
+      const kinds=new Map<string,number[]>()
+      for(const i of pair){const edge=scene.edges[i];if(!['source_line','line'].includes(edge.kind))continue;const members=kinds.get(edge.kind)||[];members.push(i);kinds.set(edge.kind,members)}
+      for(const [kind,members] of kinds)if(members.length>1){const edge=scene.edges[members[0]],key=`bundle:${JSON.stringify([kind,...[edge.source,edge.target].sort()])}`;bundles.set(key,members);for(const i of members)bundleByEdge.set(i,key)}
+    }
+  }
   const supplied=scene.nodes.length>0&&scene.nodes.every(node=>typeof node.x==='number'&&Number.isFinite(node.x)&&typeof node.y==='number'&&Number.isFinite(node.y))
   if(supplied){
     let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity
@@ -51,7 +65,9 @@ export function buildSceneIndex(scene:NetworkScene,aspect=5/3):SceneIndex {
     }
     const columns=Math.max(1,Math.ceil(Math.sqrt(scene.nodes.length*aspect))),rows=Math.max(1,Math.ceil(scene.nodes.length/columns))
     order.forEach((node,i)=>{positions[node*2]=40+(i%columns+.5)*920/columns;positions[node*2+1]=36+(Math.floor(i/columns)+.5)*(height-72)/rows})
-    if(scene.nodes.length<=1500&&scene.nodes.length>1){
+    if(scene.displayMode==='source-regional'&&scene.nodes.length<=800&&scene.nodes.length>1){
+      positions.set(layoutSourceTopology(scene.nodes.length,endpoints,bounds))
+    }else if(scene.nodes.length<=1500&&scene.nodes.length>1){
       // Bounded local repulsion plus edge springs exposes the small overview's graph
       // structure. Large detail never enters an all-pairs layout.
       const ideal=Math.sqrt(920*(height-72)/scene.nodes.length),cell=ideal*1.6,forces=new Float32Array(positions.length)
@@ -71,7 +87,7 @@ export function buildSceneIndex(scene:NetworkScene,aspect=5/3):SceneIndex {
       }
     }
   }
-  const index:SceneIndex={scene,bounds,positions,endpoints,edgeOffsets,nodeIds,edgeIds,nodes:null!,edges:null!,search:[]}
+  const index:SceneIndex={scene,bounds,positions,endpoints,edgeOffsets,incidentOffsets,incidentEdges,bundles,bundleByEdge,nodeIds,edgeIds,nodes:null!,edges:null!,search:[]}
   index.nodes=tree(scene.nodes.map((_,i)=>i),i=>nodeBox(positions,i))
   index.edges=tree(scene.edges.map((_,i)=>i),i=>edgeBox(index,i))
   index.search=[...scene.nodes.map(node=>({key:`${node.id} ${node.label}`.toLocaleLowerCase(),result:{id:node.id,label:node.label,kind:node.kind,type:'node' as const}})),
@@ -102,7 +118,7 @@ export function queryScene(index:SceneIndex,camera:SceneCamera,nodeLimit=24000,e
   return {nodeIndices:query(index.nodes,nodeLimit,i=>nodeBox(index.positions,i)),edgeIndices:query(index.edges,edgeLimit,i=>edgeBox(index,i)),limited}
 }
 function boxDistance(box:Box,x:number,y:number){const dx=Math.max(box.minX-x,0,x-box.maxX),dy=Math.max(box.minY-y,0,y-box.maxY);return dx*dx+dy*dy}
-export function pickScene(index:SceneIndex,x:number,y:number,tolerance:number):SceneSelection|undefined {
+export function pickScene(index:SceneIndex,x:number,y:number,tolerance:number,offsetForEdge?:(edge:number)=>number):SceneSelection|undefined {
   let best=tolerance*tolerance,selected:SceneSelection|undefined
   function visit(root:Tree,node:boolean){
     if(boxDistance(root,x,y)>best)return
@@ -112,9 +128,10 @@ export function pickScene(index:SceneIndex,x:number,y:number,tolerance:number):S
       else{
         const a=index.endpoints[i*2]*2,b=index.endpoints[i*2+1]*2,ax=index.positions[a],ay=index.positions[a+1],bx=index.positions[b],by=index.positions[b+1]
         const length=Math.hypot(bx-ax,by-ay)
-        if(!length)distance=(Math.hypot(x-ax,y-ay)-(8+Math.abs(index.edgeOffsets[i])))**2
+        const offset=offsetForEdge?offsetForEdge(i):index.edgeOffsets[i]
+        if(!length)distance=(Math.hypot(x-ax,y-ay)-(8+Math.abs(offset)))**2
         else{
-          const mx=(ax+bx)/2-(by-ay)/length*index.edgeOffsets[i],my=(ay+by)/2+(bx-ax)/length*index.edgeOffsets[i]
+          const mx=(ax+bx)/2-(by-ay)/length*offset,my=(ay+by)/2+(bx-ax)/length*offset
           const segment=(sx:number,sy:number,tx:number,ty:number)=>{const squared=(tx-sx)**2+(ty-sy)**2,t=squared?Math.max(0,Math.min(1,((x-sx)*(tx-sx)+(y-sy)*(ty-sy))/squared)):0;return (sx+t*(tx-sx)-x)**2+(sy+t*(ty-sy)-y)**2}
           distance=Math.min(segment(ax,ay,mx,my),segment(mx,my,bx,by))
         }

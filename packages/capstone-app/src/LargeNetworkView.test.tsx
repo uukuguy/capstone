@@ -28,7 +28,7 @@ it('uses a worker with typed scene identity and exposes bounded accessible picke
   expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({kind:'station'}))
   expect(worker.postMessage).toHaveBeenLastCalledWith(expect.objectContaining({type:'view',focusIds:['station']}))
   expect(document.querySelectorAll('canvas')).toHaveLength(1)
-  expect(document.querySelectorAll('svg')).toHaveLength(0)
+  expect(document.querySelectorAll('.large-network-stage svg')).toHaveLength(0)
 })
 it('terminates obsolete views and ignores their late replies',()=>{
   const ready=vi.fn(),{rerender}=render(<LargeNetworkView scene={scene} onReady={ready}/>)
@@ -91,4 +91,28 @@ it('preserves camera scale through panel resizing and ignores hidden zero-size c
     width=1000;height=600;act(()=>{resize();vi.advanceTimersByTime(20)})
     expect(renderGL.draw).toHaveBeenLastCalledWith(expect.objectContaining({width:1000,height:600}))
   }finally{vi.stubGlobal('ResizeObserver',previous)}
+})
+it('keeps regional bundle controls and raw member selection explicit, without activating a fake source object',()=>{
+  const onActivate=vi.fn(),regional={...scene,displayMode:'source-regional' as const,edges:[{id:'e1',source:'station',target:'station',kind:'source_line'},{id:'e2',source:'station',target:'station',kind:'source_line'}]}
+  render(<LargeNetworkView scene={regional} onActivate={onActivate}/>)
+  expect(screen.getByRole('checkbox',{name:'合并并行回路'})).toBeTruthy()
+  expect(screen.getByLabelText('拓扑符号图例').textContent).toContain('站点分组')
+  const worker=TestWorker.instances[0]
+  worker.emit({type:'ready',stats:{nodes:1,edges:2,indexMs:1,bufferBytes:8}})
+  worker.emit({type:'frame',request:1,lines:new Float32Array(),points:new Float32Array(),labels:[],drawnNodes:1,drawnEdges:1,representedEdges:2,bundledGroups:1,limited:false})
+  worker.emit({type:'selected',request:2,item:{type:'bundle',id:'bundle-test',kind:'parallel_circuits',label:'并行回路束',source:'station',target:'station',memberIds:['e1','e2'],members:[{id:'e1',kind:'source_line',label:'Circuit1',type:'edge'},{id:'e2',kind:'source_line',label:'Circuit2',type:'edge'}]}})
+  fireEvent.click(screen.getByRole('button',{name:'展开2条源线路'}))
+  expect(onActivate).not.toHaveBeenCalled()
+  worker.emit({type:'frame',request:3,lines:new Float32Array(),points:new Float32Array(),labels:[],drawnNodes:1,drawnEdges:1,representedEdges:2,bundledGroups:1,limited:false})
+  expect(worker.postMessage).toHaveBeenLastCalledWith(expect.objectContaining({type:'view',expandedBundles:['bundle-test']}))
+  fireEvent.click(screen.getByRole('button',{name:'查看回路：e2'}))
+  expect(worker.postMessage).toHaveBeenCalledWith(expect.objectContaining({type:'locate',id:'e2'}))
+})
+it('renders the exact source-edge count separately from direct-neighbor count',()=>{
+  render(<LargeNetworkView scene={{...scene,displayMode:'source-regional'}}/>)
+  const worker=TestWorker.instances[0]
+  worker.emit({type:'selected',request:1,item:{type:'node',...scene.nodes[0]},related:{nodes:[],totalNodes:2,edges:5}})
+  expect(screen.getByLabelText('来源直接关联').textContent).toContain('2 个直接关联对象 · 5 条源线路')
+  worker.emit({type:'selected',request:2,item:{type:'node',...scene.nodes[0]},related:{nodes:[],totalNodes:2}})
+  expect(screen.getByLabelText('来源直接关联').textContent).not.toContain('·  条源线路')
 })

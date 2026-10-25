@@ -20,3 +20,10 @@ it('returns the actual portrait bounds when a task has no locatable attention ID
   const index=buildSceneIndex({ref:'portrait',coordinateSystem:'schematic',nodes:[{id:'a',kind:'station',label:'A'}],edges:[]},.8)
   expect(focusScene(index,[])).toEqual(index.bounds)
 })
+it('keeps geometry bounded even when a task references more objects than the visible budget',()=>{
+  const nodes=Array.from({length:25000},(_,i)=>({id:`n${i}`,label:`Node ${i}`,kind:'bus',x:i%200,y:Math.floor(i/200)}))
+  const index=buildSceneIndex({ref:'many-focused',coordinateSystem:'schematic',nodes,edges:[]})
+  const frame=sceneFrame(index,{type:'view',request:1,camera:index.bounds,pixels:1000,focusIds:nodes.map(node=>node.id),selectionId:'n24999'})
+  expect(frame.drawnNodes).toBeLessThanOrEqual(24064)
+  expect(frame.labels.some(label=>label.id==='n24999')).toBe(true)
+})
