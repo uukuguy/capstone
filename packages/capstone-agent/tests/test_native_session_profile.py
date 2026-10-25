@@ -77,3 +77,37 @@ def test_native_session_presets_have_distinct_consumed_policies_and_reject_unkno
         binding_for_session(binding, 'unregistered')
     with pytest.raises(ValueError):
         validate_binding({**binding, 'application_profile': {'profile_id': 'general-chat', 'profile_version': 'unknown'}})
+
+
+def test_current_host_organization_is_available_across_native_session_presets():
+    from copy import deepcopy
+    from capstone_agent.native_task_context import research_policy_capabilities
+    executor = native_executor()
+    executor.capability.update({
+        'research_bridge_schemas': ['capstone-research-bridge/1'],
+        'delivery_review_schemas': ['capstone-delivery-review/1'],
+        'research_graph_schemas': ['capstone-enterprise-graph/2'],
+        'research_policy_profiles': research_policy_capabilities(),
+    })
+    original = executor_binding(executor)
+    frozen = deepcopy(original)
+    shared = binding_for_session(original, 'general-chat')
+    assert shared == binding_for_session(original, 'enterprise-research')
+    assert shared['application_profile'] == {'profile_id': 'enterprise-research', 'profile_version': '1.18.0'}
+    assert validate_binding(shared) == shared
+    assert original == frozen
+    with pytest.raises(ValueError, match='not registered'):
+        binding_for_session(original, 'unregistered')
+
+
+def test_old_graph_publication_does_not_silently_upgrade_general_chat():
+    from capstone_agent.native_task_context import registered_research_policy
+    executor = native_executor()
+    executor.capability.update({
+        'research_bridge_schemas': ['capstone-research-bridge/1'],
+        'research_graph_schemas': ['capstone-enterprise-graph/2'],
+        'research_policy_profiles': [registered_research_policy('1.10.0').capability()],
+    })
+    original = executor_binding(executor)
+    assert binding_for_session(original, 'general-chat')['application_profile'] == {
+        'profile_id': 'general-chat', 'profile_version': '1.0.0'}

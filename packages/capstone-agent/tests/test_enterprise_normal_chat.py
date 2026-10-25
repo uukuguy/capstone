@@ -86,6 +86,48 @@ def test_unavailable_send_does_not_partially_save_input(chat_store):
     assert store.snapshot(thread_id).current_attempt is None
 
 
+def test_general_entry_keeps_shared_organization_and_history_for_followup(chat_store, tmp_path):
+    from capstone_agent.native_task_context import research_policy_capabilities
+    store, thread_id = chat_store
+    if isinstance(store, InMemoryThreadService):
+        store._snapshot = replace(store._snapshot, session_type='general-chat')
+    else:
+        import psycopg
+        with psycopg.connect(store.dsn) as connection:
+            connection.execute('UPDATE capstone_threads SET session_type=%s WHERE thread_id=%s',
+                               ('general-chat', thread_id))
+    executor = native_executor()
+    executor.capability.update({
+        'research_bridge_schemas': ['capstone-research-bridge/1'],
+        'delivery_review_schemas': ['capstone-delivery-review/1'],
+        'research_graph_schemas': ['capstone-enterprise-graph/2'],
+        'research_policy_profiles': research_policy_capabilities(),
+    })
+    executor.execute_with_research = lambda request, control, emit, bridge: executor.execute(request, control, emit)
+    store.set_native_executor(executor)
+    def forbidden(*args):
+        raise AssertionError('native organization must not prepare a scientific model')
+    factory = IntentRuntimeFactory(forbidden, forbidden, forbidden, general_executor=executor,
+                                   native_research_root=tmp_path)
+    first = store.submit_command(command(store, thread_id, 'send_message', 'shared_first',
+                                         payload={'text': 'Explain this goal briefly'}))
+    assert first.status == 'accepted'
+    assert run_pending_attempt(store, factory, worker_id='shared', implementation_family='native').status == 'completed'
+    work = store.snapshot(thread_id).works[0]
+    second = store.submit_command(command(store, thread_id, 'send_message', 'shared_followup',
+        work_id=work['work_id'], revision=work['revision'], payload={'text': 'Now inspect the supplied data and state any gaps'}))
+    assert second.status == 'accepted'
+    assert run_pending_attempt(store, factory, worker_id='shared', implementation_family='native').status == 'completed'
+    assert store.snapshot(thread_id).session_type == 'general-chat'
+    assert len(store.snapshot(thread_id).works) == 1
+    assert len(executor.requests) == 2
+    for request in executor.requests:
+        assert request.native_context['policy']['external_lookup_enabled'] is False
+        assert 'agent_research_plan' in request.native_context['policy']['allowed_tools']
+        assert request.research_binding is not None
+    assert any(message['content'] == 'General answer' for message in executor.requests[1].messages)
+
+
 @pytest.mark.parametrize('phase', ['queued', 'running'])
 def test_normal_conversation_stop_uses_existing_cancel_and_keeps_unconsumed_input(chat_store, phase, monkeypatch):
     from itertools import count

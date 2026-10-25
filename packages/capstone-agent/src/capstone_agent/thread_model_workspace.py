@@ -21,6 +21,24 @@ _ENTRY_FIELDS = {"entry_id", "model_id", "model_revision", "implementation_famil
                  "authority_model_ref", "display_name", "diagram_provider_id", "last_active_seq"}
 
 
+def parse_workspace_command(command: Mapping[str, Any]) -> dict[str, Any]:
+    """Adapt a v2 workspace target to the existing cursor-checked model control."""
+    fields = {'schema', 'command_id', 'idempotency_key', 'thread_id', 'run_id', 'kind', 'payload', 'target'}
+    target = command.get('target')
+    if (set(command) - fields or fields - {'run_id'} - set(command)
+            or command.get('kind') not in MODEL_COMMANDS
+            or not isinstance(target, dict)
+            or set(target) != {'kind', 'id', 'expected_revision'}
+            or target['kind'] != 'model_workspace' or target['id'] != command['thread_id']):
+        raise ThreadProtocolError('invalid model workspace target')
+    from .thread_service import InMemoryThreadService
+    # Keep payload validation and command identity in the established path. The
+    # caller hashes the original wire bytes, so retries cannot change envelopes.
+    adapted = {key: value for key, value in command.items() if key != 'target'}
+    return InMemoryThreadService._parse_command({**adapted, 'schema': 'capstone-command/1',
+        'expected_event_seq': target['expected_revision']})
+
+
 def model_entry(context: Any, seq: int, metadata: Any = None) -> dict[str, Any]:
     identity = f"{context.implementation_family}\0{context.model_id}\0{context.model_revision}"
     return {
@@ -41,7 +59,7 @@ def validate_workspace(value: Any) -> dict[str, Any]:
     models = value["models"]
     if isinstance(models, list):
         require_capacity('open_models', len(models), phase='model_workspace')
-    if not isinstance(models, list) or not 1 <= len(models) <= limits.open_models:
+    if not isinstance(models, list) or not 0 <= len(models) <= limits.open_models:
         raise ThreadProtocolError("model workspace size is invalid")
     identifiers = set()
     identities = set()
@@ -74,7 +92,8 @@ def validate_workspace(value: Any) -> dict[str, Any]:
             if context.id in context_bindings and context_bindings[context.id] != identity:
                 raise ThreadProtocolError("model work context identity is reused")
             context_bindings[context.id] = identity
-    if value["current_entry_id"] not in identifiers:
+    if (models and value['current_entry_id'] not in identifiers
+            or not models and value['current_entry_id'] is not None):
         raise ThreadProtocolError("current model is not open")
     encoded = json.dumps(value, ensure_ascii=False, allow_nan=False)
     require_capacity('ui_model_workspace_bytes', len(encoded.encode()), phase='model_workspace')
@@ -85,8 +104,13 @@ def validate_workspace(value: Any) -> dict[str, Any]:
 
 def synchronize_workspace(value: Any, snapshot: ThreadSnapshot, catalog: Any = None) -> dict[str, Any]:
     """Migrate an active-only Thread and mirror legacy activation or rollback."""
-    context = snapshot.professional_context
+    context = snapshot.active_model_context
     workspace = validate_workspace(value) if value is not None else None
+    if context is None:
+        # A continuing conversation can start without a scientific model. An
+        # empty workspace is real state, not a fabricated default model grant.
+        return workspace if workspace is not None else validate_workspace({
+            'models': [], 'current_entry_id': None})
     entry = model_entry(context, snapshot.last_event_seq)
     existing = next((item for item in workspace["models"] if item["entry_id"] == entry["entry_id"]), None) if workspace is not None else None
     if workspace is not None and workspace["current_entry_id"] == entry["entry_id"]:
