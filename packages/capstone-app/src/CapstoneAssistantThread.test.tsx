@@ -3,6 +3,8 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import CapstoneAssistantThread, { projectAssistantActivity, projectAssistantMessages } from './CapstoneAssistantThread'
 import type { EventEnvelope, ResultProjection } from './threadProtocol'
 import {parseProductRef} from './threadProducts'
+import directExecutionLifecycle from './fixtures/directExecutionLifecycle.json'
+import {parseEventEnvelope} from './threadProtocol'
 
 afterEach(() => { cleanup(); localStorage.clear() })
 
@@ -12,6 +14,32 @@ const event = (eventType: string, eventSeq: number, payload: Record<string, unkn
 })
 
 describe('CapstoneAssistantThread', () => {
+  // Public boundaries from real Attempt attempt_83571febfda61ed7 (2026-10-25).
+  it('keeps recorded host lifecycle stages out of direct answer and tool-chain focus', () => {
+    const events=directExecutionLifecycle.map(parseEventEnvelope)
+    const props={disabled:false,isRunning:false,activity:[],onSend:async()=>{},onCancel:async()=>{}}
+    const {rerender}=render(<CapstoneAssistantThread {...props} events={events} />)
+    fireEvent.click(screen.getByRole('button',{name:'放大阅读执行过程'}))
+    let reader=within(screen.getByRole('dialog',{name:'执行过程'}))
+    expect(reader.getByRole('region',{name:'思考状态'})).toBeTruthy()
+    expect(reader.getAllByRole('group',{name:/LLM 调用/})).toHaveLength(1)
+    expect(reader.queryByLabelText('任务步骤')).toBeNull()
+    expect(reader.getByText('运行阶段与计时').closest('details')?.open).toBe(false)
+    fireEvent.keyDown(screen.getByRole('dialog',{name:'执行过程'}),{key:'Escape'})
+    const toolEvent=event('runtime_event',35,{native_type:'tool_execution_end',task_id:'task',tool_call_id:'read',tool_name:'read',task_step_id:'task-execution',activity:{operation:'Read a registered source'}},events[0].attemptId)
+    rerender(<CapstoneAssistantThread {...props} events={[...events.slice(0,-1),toolEvent,events.at(-1)!]} />)
+    fireEvent.click(screen.getByRole('button',{name:'放大阅读执行过程'}))
+    reader=within(screen.getByRole('dialog',{name:'执行过程'}))
+    expect(reader.getByRole('region',{name:'工具调用过程'})).toBeTruthy()
+    expect(reader.queryByLabelText('任务步骤')).toBeNull()
+    fireEvent.keyDown(screen.getByRole('dialog',{name:'执行过程'}),{key:'Escape'})
+    const businessStep=event('runtime_event',36,{task_step:{id:'task-finalization-review',number:4,title:'核验与结果整理',status:'completed',result_summary:'Recorded business review'}},events[0].attemptId)
+    rerender(<CapstoneAssistantThread {...props} events={[...events,businessStep]} />)
+    fireEvent.click(screen.getByRole('button',{name:'放大阅读执行过程'}))
+    reader=within(screen.getByRole('dialog',{name:'执行过程'}))
+    expect(reader.getByLabelText('任务步骤')).toBeTruthy()
+    expect(reader.getByText('Recorded business review')).toBeTruthy()
+  })
   it('shows public thinking status before the first task or tool exists', () => {
     const events=[event('command_accepted',1,{kind:'send_auto',payload:{text:'分析资料'}},'startup'),event('attempt_started',2,{},'startup')]
     render(<CapstoneAssistantThread events={events} activity={projectAssistantActivity(events)} disabled={false} isRunning={true} onSend={async()=>{}} onCancel={async()=>{}} />)

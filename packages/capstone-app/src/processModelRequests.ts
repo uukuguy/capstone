@@ -1,5 +1,6 @@
 import type { EventEnvelope } from './threadProtocol'
 import type { ProcessModelCall } from './ProcessCallTrace'
+import {isExecutionLifecycleStep} from './executionLifecycle'
 
 /** Only public parent request boundaries. Diagnostic text is never reasoning copy. */
 export function projectProcessModelRequests(events: readonly EventEnvelope[], attemptId: string): ProcessModelCall[] {
@@ -13,6 +14,8 @@ export function projectProcessModelRequests(events: readonly EventEnvelope[], at
       pending = undefined
     }
     if (event.eventType !== 'runtime_action') continue
+    const step=event.payload.task_step
+    if (step && typeof step === 'object' && 'id' in step && typeof step.id === 'string' && isExecutionLifecycleStep(step.id)) continue
     if (event.payload.phase === 'started' && !pending) {
       pending = { id: event.eventId, number: calls.length + 1, ms: 0, startedAt: event.occurredAt }
       calls.push(pending)
