@@ -112,6 +112,35 @@ def test_gateway_source_hint_survives_committed_parent_and_child_graph_publicati
         assert hints[0]['task_id']==task and hints[0]['attempt_id']=='attempt_graph'
 
 
+def test_child_unknown_gateway_model_tool_rejection_is_a_failed_diagnostic_not_task_abort(tmp_path):
+    """SDK stopUnenteredTools binds unknown-tool failure before any execution."""
+    observed={}
+    def exercise(call, context, action, private_handle):
+        ref,_=call('unknown-model',tool_name='data_gateway_discover_network_models',
+            error=True,result_error=True,source='missing',status='failed',text='Tool is not available in this session.')
+        assert ref not in context.observations
+        valid,_=call('corrective-read')
+        observed['valid']=valid
+        assert valid in context.observations
+    host,task,_=run_graph_host(tmp_path,True,exercise)
+    result=host.read(task)['result']
+    assert result['status']=='completed',result
+    failed=[source for source in result['sources'] if source['metadata'].get('status')=='failed']
+    assert len(failed)==1 and 'source_ref' not in failed[0]['metadata']
+    assert failed[0]['metadata']['tool_name']=='data_gateway_discover_network_models'
+    assert any(event.get('type')=='enterprise_graph_child_tool' and event.get('tool_name')=='data_gateway_discover_network_models'
+               and event.get('is_error') is True for event in host.read(task)['events'])
+
+
+@pytest.mark.parametrize('error,source,status',[(False,'valid',None),(True,'valid','failed'),(True,'missing',None)])
+def test_unknown_child_tool_cannot_claim_execution_or_unrecorded_sdk_failure(tmp_path,error,source,status):
+    def exercise(call, context, action, private_handle):
+        call('unknown-model',tool_name='data_gateway_discover_network_models',
+             error=error,result_error=error,source=source,status=status)
+    host,task,_=run_graph_host(tmp_path,True,exercise)
+    assert host.read(task)['result']['status']=='failed'
+
+
 @pytest.mark.parametrize('delegated', [False, True])
 def test_host_seals_real_call_bound_observation_before_next_frame(tmp_path, delegated):
     def exercise(call, context, action, private_handle):

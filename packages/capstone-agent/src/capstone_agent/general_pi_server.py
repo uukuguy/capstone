@@ -304,8 +304,14 @@ class GeneralPiHost:
             action_id = guard.action_for_call(call_id, tool_name, required=not failed)
             expected_ref = 'native-observation:' + request.task_id + ':' + sha256(call_id.encode()).hexdigest()
             expected_source = {'task_id': request.task_id, 'tool_call_id': call_id, 'source_ref': expected_ref}
+            # The SDK can reject an unknown child selection before a native
+            # wrapper runs. Its exact bound failure is diagnostic only: it has
+            # no issued observation and grants no tool execution or source.
+            unentered_rejection = (child and failed and issued is None
+                and guard.failures.get(call_id) in {'failed', 'cancelled'})
             if ((tool_name not in {'read', 'bash', 'edit', 'write', 'grep', 'find', 'ls'} and not gateway_tool
-                    and not (child and (tool_name == 'agent_task_return' or tool_name in diagnostic_sources)))
+                    and not (child and (tool_name == 'agent_task_return' or tool_name in diagnostic_sources))
+                    and not unentered_rejection)
                     or issued != expected_source and (not failed or issued is not None)):
                 raise ValueError('native observation source identity changed')
             # SDK validation and pre-execution aborts can fail before a wrapper
