@@ -4,8 +4,8 @@ import {mkdtemp,mkdir,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
-import * as adapter from '../src/capstone_agent/resources/general-sdk.mjs';
-import {createDiagnosisTools,diagnosisDigest} from '../src/capstone_agent/resources/systematic-diagnosis.mjs';
+import * as adapter from '../../src/capstone_agent/resources/general-sdk.mjs';
+import {createDiagnosisTools,diagnosisDigest} from '../../src/capstone_agent/resources/systematic-diagnosis.mjs';
 
 test('diagnostic host port recovers exact calls without probe execution or model state',async()=>{
   const root=await mkdtemp(resolve(tmpdir(),'diagnosis-port-'));
@@ -33,7 +33,7 @@ test('diagnostic host port recovers exact calls without probe execution or model
 });
 
 test('pinned SDK publishes diagnostic tools to parent and explicitly authorized child',async()=>{
-  const sdk=await import(pathToFileURL(resolve(import.meta.dirname,'../../../.grid-agent/runtime/pi/source/packages/coding-agent/dist/index.js')).href);
+  const sdk=await import(pathToFileURL(resolve(import.meta.dirname,'../../../../.grid-agent/runtime/pi/source/packages/coding-agent/dist/index.js')).href);
   const root=await mkdtemp(resolve(tmpdir(),'diagnosis-sdk-'));
   const cwd=process.cwd(),agent=process.env.PI_CODING_AGENT_DIR;
   const model={id:'fixed',name:'Offline',provider:'capstone-general',api:'openai-completions',baseUrl:'http://127.0.0.1:1',
