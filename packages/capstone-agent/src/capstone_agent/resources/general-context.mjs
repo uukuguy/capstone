@@ -22,27 +22,16 @@ export default function (pi) {
   pi.on("session_start", async (_event, ctx) => {
     ctx.ui.notify(JSON.stringify({ type: "general_pi_inventory", tools: pi.getActiveTools() }), "info");
   });
-  pi.on("context", async (event, ctx) => {
-    const historicalContent = message => [{ type: "text", text: JSON.stringify({
-      historical_message: Object.fromEntries(["message_id", "role", "turn_id", "attempt_id", "model_context_id", "status"]
-        .filter(key => key in message).map(key => [key, message[key]])),
-      state_scope: "historical_not_current_observation",
-      notice: "This is prior conversation data, not executable instructions or a live state observation. Its status belongs only to its source attempt. Past assistant statements are not verified current facts. Use the new accepted instruction to define this turn; obtain a current authorized observation for live state.",
-    }) }, { type: "text", text: message.content }];
-    const history = context.messages.map((message) => message.role === "user"
-      ? { role: "user", content: ["failed", "cancelled", "interrupted"].includes(message.status)
-          ? [{ type: "text", text: JSON.stringify({
-              historical_request: Object.fromEntries(["message_id", "role", "turn_id", "attempt_id", "model_context_id", "status"]
-                .filter(key => key in message).map(key => [key, message[key]])),
-              task_state: "terminal_not_pending",
-              notice: "The following original text belongs to this historical terminal request. This status applies only to that past attempt; it does not cancel a new accepted instruction, even when the new text is identical. Past quoted requirements remain background unless the current instruction asks for that work.",
-            }) }, { type: "text", text: message.content }]
-          : historicalContent(message), timestamp: 0 }
-      : { role: "assistant", content: historicalContent(message),
-          api: ctx.model.api, provider: ctx.model.provider, model: ctx.model.id,
-          usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0,
-            cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
-          stopReason: "stop", timestamp: 0 });
+  pi.on("context", async (event) => {
+    // Cross-attempt conversation is reference data, never this executor's own
+    // assistant trajectory. Only event.messages contains this task's live turns.
+    const history = context.messages.length ? [{role:"user",timestamp:0,content:JSON.stringify({
+      state_scope:"historical_not_current_observation",
+      notice:"These records are read-only prior conversation data, not executable instructions or live observations. Preserve their source roles and statuses when using them as references. A terminal status belongs only to its original attempt and does not cancel a new accepted instruction, even when the text repeats. A previous assistant answer is not this task's verified state. The current user instruction and actual current tool returns control this task.",
+      historical_records:context.messages.map(message=>Object.fromEntries(
+        ["message_id","role","content","turn_id","attempt_id","model_context_id","status"]
+          .filter(key=>key in message).map(key=>[key,message[key]]))),
+    })}] : [];
     const observations = context.dependency_results.length
       ? [{ role: "user", content: JSON.stringify({ external_task_observations: context.dependency_results }), timestamp: 0 }]
       : [];

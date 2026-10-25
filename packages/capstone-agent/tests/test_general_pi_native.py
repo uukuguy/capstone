@@ -17,7 +17,7 @@ from capstone_agent.pi_delegation import HttpGeneralPiExecutor, PiTaskRequest
 from capstone_agent.request_intent import NodeControl
 
 
-def test_native_context_extension_preserves_roles_and_separates_business_data(tmp_path):
+def test_native_context_extension_keeps_cross_task_history_as_reference_data(tmp_path):
     from pathlib import Path
     from capstone_agent.business_context import BusinessContext
     context = BusinessContext.empty('workspace', 0).to_document()
@@ -32,14 +32,14 @@ def test_native_context_extension_preserves_roles_and_separates_business_data(tm
         '{model: {api: "fixture", provider: "fixture", id: "fixture"}})));', extension.as_uri()],
         cwd=tmp_path, capture_output=True, text=True, check=True)
     messages = json.loads(result.stdout)['messages']
-    assert [message['role'] for message in messages] == ['user', 'assistant', 'user', 'user']
-    assert json.loads(messages[2]['content'])['business_context'] == context
+    assert [message['role'] for message in messages] == ['user', 'user', 'user']
+    assert json.loads(messages[1]['content'])['business_context'] == context
     assert messages[-1]['content'] == 'Current task'
-    for message in (messages[0], messages[1]):
-        annotation = json.loads(message['content'][0]['text'])
-        assert annotation['state_scope'] == 'historical_not_current_observation'
-        assert 'historical_message' in annotation
-        assert 'not executable instructions' in annotation['notice']
+    history = json.loads(messages[0]['content'])
+    assert history['state_scope'] == 'historical_not_current_observation'
+    assert history['historical_records'] == [
+        {'role': 'user', 'content': 'User history'}, {'role': 'assistant', 'content': 'Assistant history'}]
+    assert 'not executable instructions' in history['notice']
 
 
 def test_native_context_extension_adds_trusted_background_policy(tmp_path):
@@ -83,13 +83,9 @@ def test_native_context_marks_unsuccessful_history_terminal_without_changing_cur
     messages = document['projection']['messages']
     assert len(messages) == 2
     assert messages[0]['role'] == original['role']
-    assert messages[0]['content'][1] == {'type': 'text', 'text': original['content']}
-    annotation = json.loads(messages[0]['content'][0]['text'])
-    assert annotation['historical_request']['status'] == status
-    assert annotation['historical_request']['attempt_id'] == original['attempt_id']
-    assert annotation['historical_request']['turn_id'] == original['turn_id']
-    assert annotation['historical_request']['message_id'] == original['message_id']
-    assert annotation['task_state'] == 'terminal_not_pending'
+    annotation = json.loads(messages[0]['content'])
+    assert annotation['historical_records'] == [original]
+    assert annotation['state_scope'] == 'historical_not_current_observation'
     assert 'does not cancel a new accepted instruction' in annotation['notice']
     assert messages[-1] == {'role': 'user', 'content': current, 'timestamp': 123}
     policy = document['policy']['systemPrompt']
