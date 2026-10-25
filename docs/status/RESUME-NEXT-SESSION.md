@@ -7,8 +7,11 @@ Updated 2026-10-25. Local gateway acceptance passed; dev integration is active.
 Accepted dev remains346de403. Implementation worktree .worktrees/dev-macos-ci is
 feat/enterprise-data-gateway. Runtime source2f9c6b56 is committed/pushed; later
 commits through58455077 contain documentation only. A subsequent CI correction
-updates MCP field access and optional gateway narrowing; it is not in the
-accepted running images yet. ROOT remains actual dev and its original
+updates MCP field access and optional gateway narrowing. Runtime22e61786 is now
+rebuilt: backend87e9bae78f79, nativef2c3afaf5b5f. Five-role source hashes,41tools,
+ready200 and actual UID10000 refusal pass; final-local-source-verification.json
+holds the receipt. Earlier real task receipts remain valid and are not rerun.
+ROOT remains actual dev and its original
 post-merge journal/overview changes are preserved. Operator gateway mount paths
 were added to ignored ROOT deploy/local.env; no credentials were copied.
 
@@ -46,6 +49,9 @@ The new native-runtime scope retains foundation/SDK/MCP/deployment consumers;
 only semantic MCP dependency changes qualify.60scope tests and362SDK tests pass.
 Local HTTP tests require NO_PROXY/no_proxy=127.0.0.1,localhost.
 Push this correction and inspect the required dev gate. No release/cloud/demo.
+CI40170377784 passed gateway checks but hit an existing macOS group-signal
+PermissionError in the progress fixture. Reuse the already established
+single-child fixture cleanup for that test; production cleanup is unchanged.
 After green,
 merge normally, reconcile ROOT's two preserved metadata files, fast-forward dev,
 verify its real entrypoint and close only merged feature refs. Update canonical

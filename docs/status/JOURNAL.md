@@ -5658,3 +5658,9 @@ Prior closeout receipts preserved verbatim from the root checkout:
 2026-10-25 — 015112a7: Corrected MCP field access and optional gateway checks so the required dev type gate passes.
 
 2026-10-25 — Reproduced startup-expired test grants; registration after setup passes. User requested bounded native-runtime CI;60scope and362SDK checks pass.
+
+2026-10-25 — 22e61786: Added bounded native-runtime CI and corrected test grant timing to shorten development feedback without skipping consumers.
+
+2026-10-25 — CI40170377784 passed gateway checks; reused existing macOS single-child cleanup for progress fixtures after a process-group permission failure.
+
+2026-10-25 — Rebuilt22e61786; five-role hashes, shared backend87e9bae78f79, nativef2c3afaf5b5f,41gateway tools, ready200 and UID10000 credential denial passed.
