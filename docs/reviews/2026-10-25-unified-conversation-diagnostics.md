@@ -1,7 +1,7 @@
 # Unified conversation and systematic diagnosis
 
 Status: implementation, affected offline checks, canonical local rebuild and real
-model/browser acceptance passed. Dev PR integration remains pending. This receipt
+model/browser acceptance passed. PR60 merged into dev at6f9ca536. This receipt
 does not claim cloud or user-trial deployment acceptance.
 
 ## Implemented slice
@@ -127,9 +127,31 @@ refs. Selecting a registered model does not force subsequent ordinary input into
 professional calculation. Diagnostic exhaustion is covered by host and actual SDK
 regressions; no extra paid-model rejection loop was forced for this receipt.
 
-## Integration to complete
+## Dev integration
 
-- Dev PR gate, integration and actual dev graph/entry-point verification.
+PR60 passed targeted macOS CI40201683198:8m11 overall,6m14 for the affected
+consumer step. A previous run passed2069backend tests with146skipped but exposed
+one old UI test race. A delayed first replay reproduced it; waiting for the actual
+SSE connection before asserting cancellation fixed it. Eight focused tests passed
+in3.51s, and the final required gate passed. Product code was unchanged by that
+test repair.
+
+The actual dev checkout is6f9ca536. All84running-source checks match that checkout
+and the existing verified runtime images. Backend and native production files are
+identical toafe173cf; App production files also match, with only a test changed.
+The root App5173 was restarted through its existing entrypoint and inspected with
+the saved Work: grid evidence, subsequent direct reply, selected IEEE39 model and
+normal composer remain available. API readiness passes. This reuses the verified
+build and real-task receipts; no duplicate backend rebuild or model calls were
+needed. Scoped cache maintenance completed after use.
+
+The automatic post-merge duplicate run40202723488 hit an unchanged timing test,
+test_request_budget_cancels_and_deduplicates_events: an80ms request budget expired
+before the first event on that runner. Its assertion requires one event, even
+though expiry before that event is valid. The merged tree is byte-identical to
+the passed PR tree9367fc2b. Keep this as a separate test-stability follow-up; the
+duplicate failure is not represented as a pass, and unchanged suites were not
+rerun to obtain a favourable result.
 
 Cloud-dev, cloud-demo, local-demo and user-local installations are unchanged.
 The production-data gateway model export remains topology-only; calculation

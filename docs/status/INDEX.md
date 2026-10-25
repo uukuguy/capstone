@@ -1,8 +1,30 @@
 # docs/status INDEX
 
-Unified conversation and diagnosis (2026-10-25): active branch
-`feat/unified-conversation-diagnostics` HEAD `8acfe331` records acceptance;
-local-dev runtime source remains `afe173cf`. Both descend from actual dev `5b142802`. Model handoff,
+Post-merge check note (2026-10-25): automatic dev push run 40202723488 failed
+the old `test_pi_delegation::test_request_budget_cancels_and_deduplicates_events`:
+its 0.08 s budget expired before the first event, while the assertion expected one.
+The merged 6f9ca536 tree exactly matches passed PR source 9367fc2b (empty Git diff).
+PR60 acceptance is unchanged. This is a non-blocking test-stability follow-up;
+no production change or broad rerun is planned. See the
+[review record](../reviews/2026-10-25-unified-conversation-diagnostics.md).
+
+Unified conversation and diagnosis (2026-10-25):
+[PR #60](https://github.com/uukuguy/capstone/pull/60) merged as `6f9ca536` at
+14:32:29 UTC. The actual root dev checkout is at that commit. Tested source
+`9367fc2b` passed macOS run 40201683198 in 8 m 11 s; the affected-parts step
+took 6 m 14 s. It did not run unchanged full professional suites.
+The earlier broad product run 40198028306 was cancelled at 17 m 11 s as
+overscoped. Scoped run 40200263790 passed backend checks (2,069 passed,
+146 skipped), but had one old App SSE readiness-test failure (957 passed).
+Test-only fix 9367fc2b reproduced it with 100 ms replay delay, then passed
+8 focused tests in 3.51 s before the successful final CI run.
+Runtime source remains `afe173cf`: all 84 file hashes match merged dev `6f9ca536`,
+so no duplicate backend rebuild or paid model run is required. Root App5173
+reports revision afe173cf, repositoryRevision 6f9ca536 and dirty=false. The same
+Thread/Work restores grid evidence, the current answer, IEEE39 selection and the
+normal composer. Readiness and scoped cache cleanup pass; only the owned Vite
+process was restarted. Control metadata will use a separate PR.
+Model handoff,
 actual process focus and durable bounded diagnosis are implemented. Initial
 checks passed: 2,170 backend tests (2 skipped), 658 Kernel, 144 Pack, 15 client
 and 3 registered checks. The final tool-focus UI `f86465fa` passed 958 App tests.
@@ -37,10 +59,11 @@ It reused saved diagnosis/probe state without recalculating the CSV, saved one
 host report with zero rejections, and retained reported_only/advisory/retain_gap.
 The 3,545-byte 诊断恢复说明.md has SHA256
 023fc091a4c56d92a9b7aa66b61a7b17e0bd1fc9ffab3fcaf5a61581d6fad34d;
-host state was checked. Local validation is complete for this slice; dev PR and
-integration remain pending. Prior failed runs remain recorded.
-Candidate App5174 uses the feature checkout; root App5173 keeps its old UI until
-integration. Cloud-dev and both demo sources remain unchanged.
+host state was checked. Local validation and PR60 integration are complete for
+this slice. Actual-dev entry verification has passed; the control PR remains open.
+Prior failed runs remain recorded.
+Root App5173 is the verified dev entry. Candidate App5174 is not needed to prove
+the merged entry. Cloud-dev and both demo sources remain unchanged.
 See [the control graph](PROJECT-OVERVIEW.html),
 [verification record](../reviews/2026-10-25-unified-conversation-diagnostics.md),
 [design](../superpowers/specs/2026-10-25-unified-conversation-diagnostics-design.md)

@@ -5722,3 +5722,11 @@ Prior closeout receipts preserved verbatim from the root checkout:
 2026-10-25 — User requires affected-part checks during early development; cancelled oversized CI40198028306 after17m11, retaining verified local receipts.
 2026-10-25 — Cancelled CI measured unchanged grid-agent706.84s and simulator174.51s; targeted conversation-runtime policy replaces unrelated professional regressions.
 2026-10-25 — 72173ac1 scopes conversation CI to affected consumers;90governance tests pass1.03s; unchanged solver suites excluded.
+2026-10-25 — PR60 merged6f9ca536; targeted CI40201683198 passes8m11 overall,6m14 test step. Rootdev fast-forwarded with original7paths backed up.
+2026-10-25 — Root5173 restores same Work/model/grid evidence/direct reply;84runtime hashes match6f9ca536. Reused verified images; scoped cache cleanup passes.
+2026-10-25 — Duplicate dev run40202723488 hit unchanged80ms event-timing test;6f9ca536 tree equals passed9367fc2b. Recorded stability follow-up; no broad rerun.
+2026-10-25 — 5c7c4bf2 records proportional development checks; reuse unchanged verified results and reserve full release suites for explicit boundaries.
+2026-10-25 — 50cf1bd8 includes top-level native SDK tests in scoped CI;96governance tests pass0.88s,56native tests pass0.847s.
+2026-10-25 — User requires affected-part checks during early development; oversized CI40198028306 cancelled17m11; targeted gate implementation underway.
+2026-10-25 — CI40200263790 backend2069passed/146skipped216.79s; App957passed/1SSE-readiness race. No solver suites ran.
+2026-10-25 — 9367fc2b reproduces delayed-replay race, waits actual SSE before cancellation assertion;8focused App tests pass3.51s, production unchanged.

@@ -1,7 +1,9 @@
 # Unified conversation and systematic diagnosis
 
 Status: user approved on 2026-10-25, including the clarified task-chain policies.
-Implementation is active; no runtime acceptance is claimed.
+Implementation and local real-task acceptance are recorded in the
+[verification receipt](../../reviews/2026-10-25-unified-conversation-diagnostics.md).
+PR60 is integrated into dev; cloud and user-trial deployment remain separate.
 
 ## Intent and owning contracts
 
