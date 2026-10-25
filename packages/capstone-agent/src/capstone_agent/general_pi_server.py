@@ -268,6 +268,11 @@ class GeneralPiHost:
     def _execute(self, request: PiTaskRequest, record: dict) -> None:
         started = time.monotonic()
         sources = []
+        from .native_diagnosis import DIAGNOSIS_POLICY, DIAGNOSIS_TOOLS
+        native = request.native_context
+        diagnostic_sources = (set(DIAGNOSIS_TOOLS).intersection(native['policy']['allowed_tools'])
+            if native is not None and native.get('systematic_diagnosis') == DIAGNOSIS_POLICY
+            and self.capability.get('systematic_diagnosis') == DIAGNOSIS_POLICY else set())
         def cancelled():
             return record['cancel'].is_set() or time.monotonic() - started >= request.timeout_seconds
         def publish(payload):
@@ -299,7 +304,7 @@ class GeneralPiHost:
             expected_ref = 'native-observation:' + request.task_id + ':' + sha256(call_id.encode()).hexdigest()
             expected_source = {'task_id': request.task_id, 'tool_call_id': call_id, 'source_ref': expected_ref}
             if ((tool_name not in {'read', 'bash', 'edit', 'write', 'grep', 'find', 'ls'} and not gateway_tool
-                    and not (child and tool_name == 'agent_task_return'))
+                    and not (child and (tool_name == 'agent_task_return' or tool_name in diagnostic_sources)))
                     or issued != expected_source and (not failed or issued is not None)):
                 raise ValueError('native observation source identity changed')
             # SDK validation and pre-execution aborts can fail before a wrapper
