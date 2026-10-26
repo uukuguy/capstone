@@ -1115,7 +1115,9 @@ class NativeTaskRunner:
         task_id = 'readiness-' + secrets.token_hex(8)
         request = PiTaskRequest.from_document({'schema': 'capstone-pi-task/1', 'task_id': task_id,
             'parent_attempt_id': task_id, 'entrypoint': 'direct', 'instruction': 'Readiness',
-            'messages': [], 'dependency_results': [], 'executor_identity': identity, 'timeout_seconds': 15})
+            # Cold local MCP initialization shares the resource-readiness budget.
+            # This is startup inventory only, not a user task or Provider call.
+            'messages': [], 'dependency_results': [], 'executor_identity': identity, 'timeout_seconds': 90})
         try:
             checked = self(request, lambda: False, lambda _: None, inventory_only=True)[1]
             self.builtin_tools = checked['inventory'].get('builtin_tools', [])
