@@ -28,9 +28,10 @@ export function createGraphContextClient(config,{emit=frame=>process.stdout.writ
   const capacities=runtimeLimits(config.runtimeLimits,{mode:config.runtimeLimitMode}),confirmed=new Map(),sent=new Map();
   async function request(operation,{action,checkpoint,selection},{signal,requestKey}={}){
     signal?.throwIfAborted();
-    if(!action?.id||!checkpoint?.ref||!Number.isSafeInteger(checkpoint.revision))throw new TypeError('An exact committed graph lease is required');
+    const direct=operation==='direct_sources'&&config.researchRuntime?.adaptiveAgentLoop===true;
+    if(!direct&&(!action?.id||!checkpoint?.ref||!Number.isSafeInteger(checkpoint.revision)))throw new TypeError('An exact committed graph lease is required');
     const payload={type:'enterprise_graph_context_request',schema:SCHEMA,owner:config.researchOwner,
-      attempt_id:config.researchAttemptId,task_id:config.researchTaskId,action_id:action.id,checkpoint,operation,selection};
+      attempt_id:config.researchAttemptId,task_id:config.researchTaskId,...(!direct?{action_id:action.id,checkpoint}:{}),operation,selection};
     if(requestKey!==undefined&&(typeof requestKey!=='string'||!/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/.test(requestKey)))
       throw new TypeError('Graph context request key is invalid');
     // A new explicit model call may retry a rejected selection. Replaying the
@@ -59,7 +60,7 @@ export function createGraphContextClient(config,{emit=frame=>process.stdout.writ
         if(receipt.ok!==true)throw new GraphContextError('rejected',id,operation,
           ['selection_invalid','action_unavailable','owner_invalid','source_unavailable','capacity_exceeded'].includes(receipt.code)?receipt.code:
             receipt.code===undefined||receipt.code===null||receipt.code===''?'selection_invalid':'host_rejected',
-          {action_id:action.id,checkpoint});
+          direct?undefined:{action_id:action.id,checkpoint});
         confirmed.set(id,structuredClone(receipt.result));return structuredClone(receipt.result);
       }catch(error){if(error.code!=='ENOENT')throw error;}
       finally{await file?.close();}
@@ -71,9 +72,9 @@ export function createGraphContextClient(config,{emit=frame=>process.stdout.writ
         error.request_id=id;error.operation=operation;error.category='unknown';throw error;
       }
       if(error.code==='capacity_exceeded')throw error;
-      throw new GraphContextError('unknown',id,operation,undefined,{action_id:action.id,checkpoint});
+      throw new GraphContextError('unknown',id,operation,undefined,direct?undefined:{action_id:action.id,checkpoint});
     }
   }
   return Object.freeze({freeze:(args,control)=>request('freeze',args,control),resolve:(args,control)=>request('resolve',args,control),
-    read:(args,control)=>request('read',args,control)});
+    read:(args,control)=>request('read',args,control),directSources:(args,control)=>request('direct_sources',args,control)});
 }

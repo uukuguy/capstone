@@ -446,8 +446,11 @@ def test_native_task_runner_rpc_process_reads_original_source_beyond_excerpt(cha
     node = shutil.which('node')
     assert node is not None
     rpc = tmp_path / 'offline-rpc.py'
-    rpc.write_text('''import json, os, subprocess, sys
+    rpc.write_text('''import json, os, subprocess, sys, traceback
 from pathlib import Path
+def fixture_failure(kind, error, tb):
+    Path(__file__).with_suffix('.failure.txt').write_text(''.join(traceback.format_exception(kind, error, tb)) + str(getattr(error, 'output', '')))
+sys.excepthook = fixture_failure
 config = json.load(open(sys.argv[1]))
 policy = config['applicationPolicy']['system_policy']
 assert 'verified original saved bytes' in policy
@@ -486,7 +489,7 @@ if(!page.has_more)break; after=page.next_after;}
 if(!answer.endsWith('SOURCE_SUFFIX') || (process.argv[3]==='long' && answer.length<=2048))throw Error('original source was lost');
 console.log('Recovered SOURCE_SUFFIX');"""
     answer = subprocess.check_output([NODE, '--input-type=module', '-e', code, extension,
-        os.environ['CAPSTONE_SELECTED_TASK_RECORDS'], 'excerpt' if explicit_excerpt else 'long'], text=True).strip()
+        os.environ['CAPSTONE_SELECTED_TASK_RECORDS'], 'excerpt' if explicit_excerpt else 'long'], text=True, stderr=subprocess.STDOUT).strip()
 else:
     answer = 'A' * 3000 + 'SOURCE_SUFFIX'
 Path('generated.md').write_text(answer)
@@ -539,7 +542,10 @@ print(json.dumps({'type':'agent_end','messages':[{'role':'assistant','content':[
         assert store.submit_command(command(store, thread_id, 'send_message', 'rpc_second', work_id=work['work_id'],
             revision=work['revision'], payload={'text': 'Read the original suffix'})).status == 'accepted'
         second = run_pending_attempt(store, factory, worker_id='native', implementation_family='native')
-        assert second.status == 'completed'
+        assert second.status == 'completed', (second, runner_errors,
+            rpc.with_suffix('.failure.txt').read_text() if rpc.with_suffix('.failure.txt').exists() else '',
+            [event.payload for event in store.read_events(thread_id, 0).events
+             if event.event_type == 'attempt_failed'])
         assert second.answer == 'Recovered SOURCE_SUFFIX'
         from capstone_agent.native_artifact_projection import read_native_artifact
         artifacts = [event for event in store.read_events(thread_id, 0).events if event.event_type == 'native_artifact_published']

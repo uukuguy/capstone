@@ -86,7 +86,7 @@ describe('ThreadLiveEntry', () => {
     await waitFor(()=>expect(screen.getByRole('button',{name:'恢复左右布局'})).toBeTruthy())
     expect((restored.closest('.capstone-assistant-thread')!.querySelector('.capstone-chat-viewport') as HTMLElement).scrollTop).toBe(123)
     expect(screen.getByRole('complementary',{name:'电气拓扑'}).querySelector('.workspace-product-paper')!.scrollTop).toBe(67)
-    expect(fetcher.mock.calls.some(([, init])=>(init as RequestInit|undefined)?.method==='POST')).toBe(false)
+    expect(fetcher.mock.calls.filter(([, init])=>(init as RequestInit|undefined)?.method==='POST')).toHaveLength(1)
     clock.mockRestore()
   },15000)
   it('keeps the workspace navigation and a new-session exit when the selected session is missing',async()=>{
@@ -125,12 +125,11 @@ describe('ThreadLiveEntry', () => {
     const composer=screen.getByRole('textbox',{name:'Thread 指令'})
     fireEvent.change(composer,{target:{value:'仍在当前会话的草稿'}})
     fireEvent.click(screen.getByRole('button',{name:'新建会话'}))
-    await screen.findByRole('button',{name:'通用聊天'})
+    await screen.findByRole('button',{name:'重试创建'})
     expect(screen.getByRole('textbox',{name:'Thread 指令'})).toBe(composer)
     expect((composer as HTMLTextAreaElement).value).toBe('仍在当前会话的草稿')
-    fireEvent.keyDown(document,{key:'Escape'})
     expect(screen.queryByRole('dialog',{name:'新建会话'})).toBeNull()
-    expect(fetcher.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false)
+    expect(fetcher.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1)
   })
   it('shows actual startup progress and hides all input until preparation completes', async () => {
     let stream: ReadableStreamDefaultController<Uint8Array>

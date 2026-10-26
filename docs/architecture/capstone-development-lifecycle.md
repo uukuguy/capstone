@@ -142,7 +142,15 @@ selected step has a10-minute failure ceiling, not an expected duration. Record
 its actual CI duration. This gate does not run unrelated professional solvers,
 registered workers, Kernel, Pack or release-installer suites.
 
-Dev PRs and pushes select documentation, bounded governance contracts, source-topology, conversation-runtime, shared-agent,
+The adaptive-agent gate covers the named lightweight-loop and research adapters,
+versioned research policy assets, and the two registered Kernel research ledger
+and channel modules. It runs the complete agent, registered-worker, Kernel, App,
+client and research Pack checks, plus native SDK fixtures and types/boundaries.
+Its15-minute ceiling is a failure bound. Exact source registration is required;
+unknown Kernel, Authority, solver, runtime and dependency changes cannot use this
+scope. This avoids unrelated professional solver suites for research-loop work.
+
+Dev PRs and pushes select documentation, bounded governance contracts, source-topology, conversation-runtime, adaptive-agent, shared-agent,
 foundation or native-runtime dependency regression, or `make check-pr` on macOS. Python source/tests
 under capstone-agent and TypeScript/TSX/CSS under capstone-app/src use the shared-agent
 gate: package boundaries, global type checks, complete agent and Kernel suites,

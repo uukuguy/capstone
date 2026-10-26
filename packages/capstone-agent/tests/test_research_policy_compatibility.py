@@ -40,12 +40,12 @@ def test_parallel_planning_publication_preserves_baseline_and_selects_existing_g
     executor.capability = {**executor.capability, 'research_bridge_schemas': ['capstone-research-bridge/1'],
         'research_graph_schemas': ['capstone-enterprise-graph/2'], 'research_policy_profiles': research_policy_capabilities()}
     binding = executor_binding(executor)
-    assert binding['application_profile']['profile_version'] == '1.18.0'
+    assert binding['application_profile']['profile_version'] == '1.19.0'
     assert validate_binding(binding) == binding
     assert set(GRAPH_CONTROL_TOOLS).issubset(research_tools_for_profile('enterprise-research', '1.13.0'))
     assert registered_research_policy('1.12.0') == baseline
     from importlib.resources import files
-    old_entries = [item for item in json.loads(files('capstone_agent').joinpath('resources/research-policy-catalog.json').read_text())['policies'] if item['application_version'] not in {'1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0'}]
+    old_entries = [item for item in json.loads(files('capstone_agent').joinpath('resources/research-policy-catalog.json').read_text())['policies'] if item['application_version'] not in {'1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0', '1.19.0'}]
     assert sha256(json.dumps(old_entries, ensure_ascii=False, sort_keys=True).encode()).hexdigest() == '1744bf335858b1d814e099a4780a7d37087c097d6fd0d9f2bdd8f5336a38560f'
 
 

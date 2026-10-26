@@ -28,6 +28,28 @@ test('isolated organization engine cannot invoke native execution despite applic
   assert.equal(host.applicationToolAdmission(planner,'agent_research_update').accepted,false);
   assert.equal(host.applicationToolAdmission(config,'read').accepted,true);
 });
+test('adaptive loop admits only application-granted direct tools',()=>{
+  const adaptive={...config,researchRuntime:{...config.researchRuntime,isolatedTaskExecution:true,adaptiveAgentLoop:true}};
+  assert.equal(host.applicationToolAdmission(adaptive,'read').accepted,true);
+  assert.equal(host.applicationToolAdmission(adaptive,'bash').accepted,false);
+  assert.equal(host.applicationToolAdmission(adaptive,'unregistered').accepted,false);
+});
+test('only an admitted Deep Research plan narrows the subsequent model tool menu',()=>{
+  let hook,selected;
+  host.configureAdaptiveToolHandoff({on:(name,fn)=>{assert.equal(name,'tool_result');hook=fn;},setActiveTools:names=>{selected=names;}},
+    {...config,applicationPolicy:{allowed_tools:['read','agent_research_plan','agent_research_record']},
+      researchRuntime:{isolatedTaskExecution:true,adaptiveAgentLoop:true}});
+  hook({toolName:'read',details:{ok:true}});assert.equal(selected,undefined);
+  hook({toolName:'agent_research_plan',details:{ok:false},isError:true});assert.equal(selected,undefined);
+  hook({toolName:'agent_research_plan',details:{ok:true}});assert.deepEqual(selected,['agent_research_plan','agent_research_record']);
+});
+test('Deep Research execution roles retain granted ordinary tools',()=>{
+  const child={...config,applicationPolicy:{allowed_tools:['read','write','bash']},
+    researchRuntime:{adaptiveAgentLoop:true,isolatedTaskExecution:false}};
+  host.configureAdaptiveToolHandoff({on:()=>assert.fail('Execution role must not install organizer handoff')},child);
+  for(const name of child.applicationPolicy.allowed_tools)assert.equal(host.applicationToolAdmission(child,name).accepted,true);
+  assert.equal(host.applicationToolAdmission(child,'unregistered').accepted,false);
+});
 
 test('pinned HTTP wire exports object read parameters and preserves strict graph and legacy branches',async()=>{
   const dir=await realpath(await mkdtemp(join(tmpdir(),'graph-read-wire-')));

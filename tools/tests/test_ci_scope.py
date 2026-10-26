@@ -7,6 +7,55 @@ import subprocess
 
 ROOT = Path(__file__).resolve().parents[2]
 
+ADAPTIVE_PATHS = [
+    'packages/capability-agent-kernel/src/capability_agent/application/context_store.py',
+    'packages/capability-agent-kernel/src/capability_agent/runtime/research_channel.py',
+    'packages/capability-agent-kernel/tests/runtime/test_research_channel.py',
+    'packages/capstone-agent/src/capstone_agent/native_conversation.py',
+    'packages/capstone-agent/src/capstone_agent/general_pi_server.py',
+    'packages/capstone-agent/src/capstone_agent/resources/general-sdk.mjs',
+    'packages/capstone-agent/src/capstone_agent/resources/task-planning-policy-1.6.md',
+    'packages/capstone-agent/tests/test_adaptive_agent_profile.py',
+    'packages/capstone-agent/tests/fixtures/graph-context-client.test.mjs',
+    'packages/capstone-app/src/SessionEntry.tsx',
+    'packages/enterprise-research-domain-pack/src/enterprise_research/__init__.py',
+    'packages/enterprise-research-domain-pack/src/enterprise_research/resources/versions/1.16.0/system-policy.md',
+    'packages/enterprise-research-domain-pack/tests/test_profile.py',
+    'tools/ci_scope.py', 'docs/RUNBOOK.md',
+]
+
+
+def test_adaptive_agent_selects_complete_owned_consumers_and_keeps_release_gate():
+    assert classify(ADAPTIVE_PATHS) == 'adaptive-agent'
+    assert classify(ADAPTIVE_PATHS, target='main') == 'release'
+    assert classify(ADAPTIVE_PATHS, release=True) == 'release'
+
+
+@pytest.mark.parametrize('extra', [
+    'packages/capability-agent-kernel/src/capability_agent/runtime/environment.py',
+    'packages/capability-agent-kernel/src/capability_agent/domain/authority.py',
+    'packages/capability-agent-kernel/src/capability_agent/application/composition.py',
+    'packages/enterprise-research-domain-pack/src/enterprise_research/new_executor.py',
+    'packages/enterprise-research-domain-pack/pyproject.toml',
+    'packages/capstone-agent/src/capstone_agent/new_provider.py',
+    'packages/capstone-agent/src/capstone_agent/pi_delegation.py',
+    'packages/capstone-agent/src/capstone_agent/resources/unknown.md',
+    'packages/grid-simulator/src/grid_simulator/solver.py',
+    'packages/grid-agent/src/grid_agent/authority.py',
+    'packages/pypsa-agent/src/pypsa_agent/solver.py',
+    'packages/capstone-agent/pyproject.toml', 'packages/grid-agent/uv.lock',
+    'packages/capstone-app/package-lock.json', 'compose.yaml',
+    'configs/runtime/data-gateway.json', 'deploy/general-pi.Dockerfile',
+    'Makefile', 'unknown.file', '../docs/escape.md',
+])
+def test_adaptive_agent_does_not_narrow_unknown_or_wider_changes(extra):
+    assert classify([*ADAPTIVE_PATHS, extra]) == 'product'
+
+
+def test_only_registered_kernel_research_modules_enter_adaptive_gate():
+    for path in ADAPTIVE_PATHS[:2]:
+        assert classify([path]) == 'adaptive-agent'
+
 SOURCE_PATHS = [
     'packages/capstone-agent/src/capstone_agent/grid_source_topology.py',
     'packages/capstone-agent/src/capstone_agent/grid_source_http.py',

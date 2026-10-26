@@ -88,6 +88,45 @@ def test_channel_publishes_view_before_success_receipt(channel):
     assert view["attempt_id"] == "attempt-1"
 
 
+def test_checkpoint_replays_unchanged_history_once(channel, monkeypatch):
+    import capability_agent.application.context_store as module
+    pump, _ = channel
+    original = module.reduce_context
+    historical_turns = []
+
+    def counted(state, draft):
+        if draft.event_type == 'turn.started':
+            historical_turns.append(draft.turn_id)
+        return original(state, draft)
+
+    monkeypatch.setattr(module, 'reduce_context', counted)
+    publish(pump)
+    pump.drain()
+    assert receipt(pump)['status'] == 'committed'
+    assert historical_turns == ['turn-1']
+    publish(pump, request_id='update-2', revision=1, goal='Continue')
+    pump.drain()
+    assert receipt(pump, 'update-2')['status'] == 'committed'
+    assert historical_turns == ['turn-1', 'turn-1']
+
+
+def test_checkpoint_detects_ledger_change_between_lookup_and_update(channel, monkeypatch):
+    pump, _ = channel
+    original = pump.controller.preview
+    path = pump.controller.store.workspace.context_events_path
+
+    def corrupt_after_preview(document):
+        candidate = original(document)
+        path.write_bytes(path.read_bytes().replace(b'turn.started', b'turn.invalid'))
+        return candidate
+
+    monkeypatch.setattr(pump.controller, 'preview', corrupt_after_preview)
+    publish(pump)
+    pump.drain()
+    assert receipt(pump)['status'] == 'not_confirmed'
+    assert pump.controller.read() is None
+
+
 def test_note_overwrite_is_a_definite_rejection_and_later_update_can_commit(channel):
     pump, _ = channel
     initial = {"request_id": "initial", "expected_revision": 0,

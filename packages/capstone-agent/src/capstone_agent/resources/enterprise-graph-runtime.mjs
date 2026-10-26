@@ -62,7 +62,7 @@ export const graphReferenceReadParameters={type:'object',additionalProperties:fa
   section:{const:'reference',type:'string'},action_id:ref,ref,mode:{type:'string',enum:['metadata','text']},
   offset_bytes:{type:'integer',minimum:0},length_bytes:{type:'integer',minimum:1}}};
 
-export function createEnterpriseGraphController({config,readResearch,commitResearch,inspectProducts,onProgress=()=>{},dispatchNode,resolveInputs,readReferenceContent}){
+export function createEnterpriseGraphController({config,readResearch,commitResearch,inspectProducts,onProgress=()=>{},dispatchNode,resolveInputs,readReferenceContent,prepareSources}){
   if(!opaque(config?.researchTaskId)||!opaque(config?.researchAttemptId)||!config?.researchOwner||
     ![readResearch,commitResearch,inspectProducts,onProgress,dispatchNode,resolveInputs].every(port=>typeof port==='function'))
     throw new TypeError('Graph runtime needs exact owner, Attempt, task and protected host ports');
@@ -498,7 +498,21 @@ export function createEnterpriseGraphController({config,readResearch,commitResea
       if(candidates.length){
         for(const {note,saved} of candidates)if(saved.committed_revision<=current.research_revision)
           retainExecuteCheckpoints(saved,{ref:note.note_id,revision:saved.committed_revision});
-        const latest=candidates.sort((a,b)=>b.saved.committed_revision-a.saved.committed_revision)[0];validateSaved(latest.saved);
+        const latest=candidates.sort((a,b)=>b.saved.committed_revision-a.saved.committed_revision)[0];
+        // Checkpoints retain exact selected source identities and versions. Restore
+        // their protected manifests before validation or scheduling any consumer.
+        if(config.researchRuntime?.adaptiveAgentLoop===true){
+          const refs=[...new Set((latest.saved.snapshot?.nodes??[]).flatMap(node=>node.source_refs??[]))];
+          for(const source of await prepareSources?.(refs,{signal:admissionSignal()})??[]){
+            const frozen=(latest.saved.snapshot?.actions??[]).flatMap(action=>action.source_versions??[])
+              .filter(item=>item.ref===source.ref);
+            requireCycle(frozen.every(item=>item.revision===source.revision),'Restored source version changed');
+            const previous=sources.find(item=>item.ref===source.ref);
+            requireCycle(!previous||hash(previous)===hash(source),'Source version changed');
+            if(!previous)sources.push(clone(source));
+          }
+        }
+        validateSaved(latest.saved);
         adopt(latest.saved,{ref:latest.note.note_id,revision:latest.saved.committed_revision});
         // No process-local child survives restore. Unknown remains explicit;
         // the native executor is never started from a saved executing lease.
@@ -841,6 +855,15 @@ export function createEnterpriseGraphController({config,readResearch,commitResea
   async function executeSingle(operation,callId,payload,{signal}={}){
     try{
       signal=admissionSignal(signal);await waitFor(load(),signal);requireCycle(operations.includes(operation),'Only bound model graph operations are allowed');
+      if(config.researchRuntime?.adaptiveAgentLoop===true&&['plan','revise'].includes(operation)){
+        const refs=[...new Set((payload?.nodes??[]).flatMap(node=>node.source_refs??[]))];
+        const admitted=await prepareSources?.(refs,{signal});
+        for(const source of admitted??[]){
+          const previous=sources.find(item=>item.ref===source.ref);
+          requireCycle(!previous||hash(previous)===hash(source),'Source version changed');
+          if(!previous)sources.push(clone(source));
+        }
+      }
       if(goalDriven&&operation==='assess'&&Object.hasOwn(payload??{},'goal_review'))return await assessGoal(callId,payload,signal);
       const submitted=clone(payload);
       let proposedOrganization;
@@ -1190,6 +1213,7 @@ export function createEnterpriseGraphController({config,readResearch,commitResea
     },
     async beginTool({toolCallId,toolName,signal}){
       signal=admissionSignal(signal);await waitFor(load(),signal);
+      if(config.researchRuntime?.adaptiveAgentLoop===true&&!snapshot&&!pending&&!closed&&!closing&&!delivery)return null;
       requireCycle(!isolatedTasks,'Native work requires an independent task executor');
       requireCycle(toolName!=='agent_delegate','Manual delegation is not permitted on the graph route');
       requireCycle(!toolName.startsWith('agent_research_'),'Graph control tools are not native execution');

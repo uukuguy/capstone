@@ -69,3 +69,32 @@ it('does not treat an unadmitted graph or arbitrary business-like tool name as o
   expect(reader.getByRole('region',{name:'工具调用过程'})).toBeTruthy()
   expect(reader.queryByRole('button',{name:'查看完整计划'})).toBeNull()
 })
+it('retains lightweight thinking and tool records exactly once when an admitted plan arrives',()=>{
+  const seed=tools[0]
+  const thought={...seed,eventId:'light-thought',eventSeq:seed.eventSeq+1,eventType:'assistant_thinking_delta',payload:{text:'Before the plan. '}}
+  const read={...seed,eventId:'light-read',eventSeq:seed.eventSeq+2,eventType:'runtime_event',payload:{native_type:'tool_execution_end',task_id:'light-task',tool_call_id:'light-read',tool_name:'read',activity:{operation:'Read before planning'}}}
+  const next={...seed,eventId:'light-next',eventSeq:seed.eventSeq+3,eventType:'assistant_thinking_delta',payload:{text:'Now organize the work.'}}
+  const before=[seed,thought,read,next]
+  const {rerender}=render(<CapstoneAssistantThread {...props} isRunning events={before}/>)
+  expect(screen.getByRole('region',{name:'初始思考记录'})).toBeTruthy()
+  expect(screen.queryByRole('region',{name:'思考状态'})).toBeNull()
+  expect(screen.getAllByText('Read before planning')).toHaveLength(1)
+  const events=[...before,...tools.slice(1).map(event=>({...event,eventSeq:event.eventSeq+10}))]
+  rerender(<CapstoneAssistantThread {...props} events={events}/>)
+  const archive=screen.getByRole('region',{name:'初始思考记录'})
+  expect(within(archive).getByRole('button',{name:'展开初始思考'})).toBeTruthy()
+  const projected=projectAssistantMessages(events).at(-1)?.metadata?.custom
+  expect((projected?.initialThinking as {text:string}).text).toBe('Before the plan. ')
+  expect((projected?.initialThinking as {continuationText:string}).continuationText).toBe('Now organize the work.')
+  expect(projected?.executionGraph).toBeTruthy()
+  fireEvent.click(screen.getByRole('button',{name:'放大阅读执行过程'}))
+  const reader=within(screen.getByRole('dialog',{name:'执行过程'}))
+  // The full-round timing view also references this call. It remains one
+  // activity record in the process, not a second execution.
+  const activities=screen.getByRole('dialog',{name:'执行过程'}).querySelectorAll('.capstone-chat-activity-item')
+  expect([...activities].filter(item=>item.textContent?.includes('Read before planning'))).toHaveLength(1)
+  expect((projected?.activities as {operation?:string}[]).filter(item=>item.operation==='Read before planning')).toHaveLength(1)
+  expect(reader.getAllByText('Before the plan.')).toHaveLength(1)
+  expect(reader.getAllByText('Now organize the work.')).toHaveLength(1)
+  expect(reader.getByRole('button',{name:'查看完整计划'})).toBeTruthy()
+})

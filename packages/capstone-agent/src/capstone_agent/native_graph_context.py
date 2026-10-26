@@ -30,17 +30,20 @@ def _stamp(value):
 
 
 class NativeGraphContext:
-    def __init__(self, *, root, workspace, uid, task_id, attempt_id, owner, view_provider, storage):
+    def __init__(self, *, root, workspace, uid, task_id, attempt_id, owner, view_provider, storage,
+                 adaptive_agent_loop=False):
         if uid == os.geteuid() or not _IDENTITY.fullmatch(task_id):
             raise ValueError('Graph context requires a separate host owner')
         self.root, self.workspace = Path(root), Path(workspace).resolve()
         self.uid, self.task_id, self.attempt_id = uid, task_id, attempt_id
         self.owner = json.loads(_json(owner))
         self.view_provider, self.storage = view_provider, storage
+        self.adaptive_agent_loop = adaptive_agent_loop is True
+        self.direct_observations = {}
         self.lock, self.grants, self.observations = RLock(), {}, {}
-        for path in (self.root.parent, self.root, self.root / 'responses', self.root / 'results', self.root / 'grants', self.root / 'observations', self.root / 'observation-grants'):
+        for path in (self.root.parent, self.root, self.root / 'responses', self.root / 'results', self.root / 'grants', self.root / 'observations', self.root / 'observation-grants', self.root / 'direct-observation-grants'):
             path.mkdir(parents=True, mode=0o750, exist_ok=True)
-            self._protect(path, 0o711 if path == self.root.parent else 0o700 if path.name in {'grants', 'observation-grants'} else 0o750,
+            self._protect(path, 0o711 if path == self.root.parent else 0o700 if path.name in {'grants', 'observation-grants', 'direct-observation-grants'} else 0o750,
                           shared=path == self.root.parent)
         for path in (self.root / 'grants').glob('*.json'):
             grant = read_json(path)
@@ -50,30 +53,53 @@ class NativeGraphContext:
             grant = read_json(path)
             self._check_observation(grant)
             self.observations[grant['ref']] = grant
+        for path in (self.root / 'direct-observation-grants').glob('*.json'):
+            grant = read_json(path)
+            self._check_observation(grant)
+            self.direct_observations[grant['ref']] = grant
 
     def admit_observation(self, source_ref, source_id, observation_sha256, *, action_id):
         """HOST ONLY: seal an already persisted, call-bound native observation."""
+        return self._admit_observation(source_ref, source_id, observation_sha256, action_id=action_id)
+
+    def admit_direct_observation(self, source_ref, source_id, observation_sha256, *, tool_call_id, tool_name):
+        """HOST ONLY: retain raw input, without a graph action or result grant."""
+        if (not self.adaptive_agent_loop or not isinstance(tool_call_id, str) or not tool_call_id
+                or not isinstance(tool_name, str) or not tool_name
+                or source_ref != 'native-observation:' + self.task_id + ':' + sha256(tool_call_id.encode()).hexdigest()):
+            raise ValueError('Direct observation identity is invalid')
+        return self._admit_observation(source_ref, source_id, observation_sha256, action_id=None,
+            direct={'tool_call_id': tool_call_id, 'tool_name': tool_name, 'origin': 'native_tool_observation'})
+
+    def _admit_observation(self, source_ref, source_id, observation_sha256, *, action_id, direct=None):
         with self.lock:
             if (not isinstance(source_ref, str) or not re.fullmatch(re.escape('native-observation:' + self.task_id + ':') + r'[a-f0-9]{64}', source_ref)
                     or not isinstance(source_id, str) or not _IDENTITY.fullmatch(source_id)
                     or not re.fullmatch(r'[a-f0-9]{64}', observation_sha256)):
                 raise ValueError('Graph observation identity is invalid')
-            previous = self.observations.get(source_ref)
+            observations = self.observations if direct is None else self.direct_observations
+            provenance = {'action_id': action_id} if direct is None else direct
+            other = self.direct_observations if direct is None else self.observations
+            if source_ref in other:
+                raise ValueError('Observation execution mode changed')
+            previous = observations.get(source_ref)
             if previous is not None:
-                if previous['sha256'] != observation_sha256 or previous['action_id'] != action_id or previous['source_id'] != source_id:
+                if (previous['sha256'] != observation_sha256 or previous['source_id'] != source_id
+                        or any(previous.get(key) != value for key, value in provenance.items())):
                     raise ValueError('Graph observation identity changed')
                 self._check_observation(previous)
                 return
-            view = self.view_provider()['view']
-            candidates = []
-            for note in view.get('state', {}).get('notes', []):
-                if not note.get('note_id', '').startswith('runtime.checkpoint.'): continue
-                saved = json.loads(note['text'])
-                if saved.get('schema') == 'capstone-enterprise-graph-checkpoint/1' and saved.get('runId') == self.task_id:
-                    candidates.append((saved['committed_revision'], note['note_id']))
-            if not candidates: raise ValueError('Graph observation has no committed lease')
-            revision, ref = max(candidates)
-            self._saved({'checkpoint': {'ref': ref, 'revision': revision}, 'action_id': action_id})
+            if direct is None:
+                view = self.view_provider()['view']
+                candidates = []
+                for note in view.get('state', {}).get('notes', []):
+                    if not note.get('note_id', '').startswith('runtime.checkpoint.'): continue
+                    saved = json.loads(note['text'])
+                    if saved.get('schema') == 'capstone-enterprise-graph-checkpoint/1' and saved.get('runId') == self.task_id:
+                        candidates.append((saved['committed_revision'], note['note_id']))
+                if not candidates: raise ValueError('Graph observation has no committed lease')
+                revision, ref = max(candidates)
+                self._saved({'checkpoint': {'ref': ref, 'revision': revision}, 'action_id': action_id})
             source = self.storage.root / 'observations' / self.task_id / (source_id + '.json')
             temporary = self.root / 'observations' / ('.' + uuid4().hex)
             target = self.root / 'observations' / sha256(source_ref.encode()).hexdigest()
@@ -98,13 +124,15 @@ class NativeGraphContext:
                 temporary.unlink()
                 self._protect(target, 0o440)
                 grant = {'ref': source_ref, 'source_id': source_id, 'sha256': observation_sha256, 'bytes': size,
-                    'action_id': action_id, 'attempt_id': self.attempt_id, 'owner': self.owner,
+                    **provenance, 'attempt_id': self.attempt_id, 'owner': self.owner,
                     'path': str(target), 'stamp': list(_stamp(target.stat()))}
-                index = self.root / 'observation-grants' / (sha256(source_ref.encode()).hexdigest() + '.json')
+                index = self.root / ('observation-grants' if direct is None else 'direct-observation-grants') / (sha256(source_ref.encode()).hexdigest() + '.json')
                 write_json(index, grant)
                 self._protect(index, 0o400)
-                self.observations[source_ref] = grant
+                observations[source_ref] = grant
                 sync_directory(target.parent)
+                if direct is not None:
+                    sync_directory(index.parent)
             finally:
                 temporary.unlink(missing_ok=True)
 
@@ -115,6 +143,25 @@ class NativeGraphContext:
                 or info.st_uid != os.geteuid() or info.st_mode & 0o222 or list(_stamp(info)) != grant['stamp']
                 or grant['owner'] != self.owner or grant['attempt_id'] != self.attempt_id):
             raise ValueError('Graph observation handle is unavailable')
+
+    def validate_direct_sources(self, graph):
+        """Check current-task direct inputs before admitting a graph lease.
+
+        Other namespaces retain application-selected immutable input grants;
+        this registry must not reinterpret a previous task's source identity.
+        """
+        if not self.adaptive_agent_loop:
+            return
+        with self.lock:
+            for action in graph.get('actions', []):
+                for ref in action.get('source_refs', []):
+                    if not isinstance(ref, str) or not ref.startswith('native-observation:' + self.task_id + ':'):
+                        continue
+                    grant = self.direct_observations.get(ref)
+                    versions = [item for item in action.get('source_versions', []) if item.get('ref') == ref]
+                    if grant is None or versions != [{'ref': ref, 'revision': 'sha256:' + grant['sha256']}]:
+                        raise ValueError('Direct graph source version is not admitted')
+                    self._check_observation(grant)
 
     def _protect(self, path, mode, *, shared=False):
         info = path.lstat()
@@ -139,6 +186,7 @@ class NativeGraphContext:
         if (action is None or action.get('owner') != self.owner or action.get('attempt_id') != self.attempt_id
                 or action.get('kind') != 'execute'):
             raise ValueError('Graph context action is unavailable')
+        self.validate_direct_sources({'actions': [action]})
         latest = saved
         for item in notes:
             if not item.get('note_id', '').startswith('runtime.checkpoint.'): continue
@@ -172,18 +220,24 @@ class NativeGraphContext:
             rejection_code = 'selection_invalid'
             try:
                 require_capacity('research_request_bytes', len(_json(request).encode()), 'graph_context')
-                if (set(request) != {'type', 'schema', 'owner', 'attempt_id', 'task_id', 'action_id', 'checkpoint', 'request_id', 'operation', 'selection'}
+                direct = request.get('operation') == 'direct_sources'
+                fields = {'type', 'schema', 'owner', 'attempt_id', 'task_id', 'request_id', 'operation', 'selection'}
+                if not direct: fields.update({'action_id', 'checkpoint'})
+                if (set(request) != fields
                         or request['type'] != 'enterprise_graph_context_request' or request['schema'] != SCHEMA
                         or request['owner'] != self.owner or request['attempt_id'] != self.attempt_id or request['task_id'] != self.task_id):
                     rejection_code = 'owner_invalid'
                     raise ValueError('Graph context request owner is invalid')
-                rejection_code = 'action_unavailable'
-                saved, action, node = self._saved(request)
-                rejection_code = 'selection_invalid'
-                if request['operation'] == 'freeze': result = self._freeze(request['selection'], action, node)
-                elif request['operation'] == 'resolve': result = self._resolve(request['selection'], saved, action)
-                elif request['operation'] == 'read': result = self._read_reference(request['selection'], saved, action)
-                else: raise ValueError('Graph context operation is invalid')
+                if direct:
+                    result = self._direct_sources(request['selection'])
+                else:
+                    rejection_code = 'action_unavailable'
+                    saved, action, node = self._saved(request)
+                    rejection_code = 'selection_invalid'
+                    if request['operation'] == 'freeze': result = self._freeze(request['selection'], action, node)
+                    elif request['operation'] == 'resolve': result = self._resolve(request['selection'], saved, action)
+                    elif request['operation'] == 'read': result = self._read_reference(request['selection'], saved, action)
+                    else: raise ValueError('Graph context operation is invalid')
                 receipt = {**base, 'ok': True, 'result': result}
             except (ValueError, OSError, KeyError, TypeError) as error:
                 receipt = {**base, 'ok': False, 'code': 'source_unavailable' if isinstance(error, OSError) else rejection_code,
@@ -196,7 +250,29 @@ class NativeGraphContext:
                     receipt['diagnostic'] = diagnostic
             write_json(response_path, receipt)
             self._protect(response_path, 0o440)
+            if request.get('operation') == 'direct_sources':
+                sync_directory(response_path.parent)
             return receipt
+
+    def _direct_sources(self, selection):
+        if (not self.adaptive_agent_loop or set(selection) != {'source_refs'}
+                or not isinstance(selection['source_refs'], list)
+                or any(not isinstance(ref, str) for ref in selection['source_refs'])
+                or len(set(selection['source_refs'])) != len(selection['source_refs'])):
+            raise ValueError('Direct source selection is invalid')
+        require_capacity('context_references', len(selection['source_refs']), 'direct_sources')
+        sources = []
+        for ref in selection['source_refs']:
+            grant = self.direct_observations.get(ref)
+            if grant is None: raise ValueError('Direct observation is unavailable')
+            self._check_observation(grant)
+            sources.append({'source_ref': ref, 'path': grant['path'],
+                'file_name': grant['tool_name'] + '-' + sha256(ref.encode()).hexdigest()[:16] + '.json',
+                'size_bytes': grant['bytes'], 'sha256': grant['sha256'], 'origin': 'native_tool_observation',
+                'task_id': self.task_id, 'parent_attempt_id': self.attempt_id,
+                'tool_call_id': grant['tool_call_id'], 'tool_name': grant['tool_name']})
+        require_capacity('research_response_bytes', len(_json({'sources': sources}).encode()), 'direct_sources')
+        return {'sources': sources}
 
     def _open_source(self, parts):
         descriptors = [os.open(self.workspace, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)]

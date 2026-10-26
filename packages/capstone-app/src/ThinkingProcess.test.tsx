@@ -17,6 +17,17 @@ it('excludes acceptance queue time from thinking duration once execution starts'
   render(<ThinkingProcess thinking={thinking} storageKey="duration"/>)
   expect(screen.getByRole('button',{name:'展开初始思考'}).textContent).toBe('Thinking · 2.0s')
 })
+it('deduplicates retained thinking and stops it at admitted organization without exposing other streams',()=>{
+  const tool=event('tool_started',4,{tool_name:'read',tool_call_id:'read'})
+  const later=event('assistant_thinking_delta',5,{text:'After reading.'})
+  const privateText={...event('assistant_thinking_delta',6,{text:'PRIVATE'}),visibility:'diagnostic' as const}
+  const other=event('assistant_thinking_delta',7,{text:'OTHER'},'other')
+  const organized=event('runtime_action',8,{task_step:{id:'inspect',number:1,title:'Inspect',status:'running'}})
+  const thinking=projectInitialThinking([accepted,started,delta,tool,later,later,privateText,other,organized,event('assistant_thinking_delta',9,{text:'TASK_OWNED'})],'thinking',4,8)!
+  expect(thinking.text).toBe('Actual public thought. ')
+  expect(thinking.continuationText).toBe('After reading.')
+  expect(thinking.endedAt).toBe(tool.occurredAt)
+})
 
 it.each([false,true])('keeps thinking before the answer during streaming and after completion (tools=%s)',withTool=>{
   const {rerender}=render(<CapstoneAssistantThread {...props} events={[accepted,started,delta]}/>)
@@ -63,7 +74,7 @@ it('streams only public current-attempt thinking and keeps it out of the answer'
   expect(JSON.stringify(answer.content)).not.toContain('Actual public thought')
   expect(JSON.stringify(answer.content)).toContain('Answer only.')
 })
-it('keeps thinking for lifecycle and goal-only notes, then archives it once actual execution starts',()=>{
+it('folds thinking at the first tool and retains later lightweight deltas in the same bounded record',()=>{
   const preparation=event('runtime_action',4,{task_step:{id:'task-preparation',number:1,title:'任务准备',status:'running'}})
   const goal=event('tool_completed',5,{tool_name:'agent_task_progress',tool_call_id:'goal',task_progress:{kind:'goal',text:'Recorded goal',refs:[]}})
   const nativeGoal={...event('runtime_event',5,{native_type:'tool_execution_end',task_id:'task',tool_name:'agent_task_progress',tool_call_id:'native-goal'}),eventId:'native-goal'}
@@ -72,23 +83,17 @@ it('keeps thinking for lifecycle and goal-only notes, then archives it once actu
   const tool=event('tool_started',6,{tool_name:'read',tool_call_id:'read'})
   const executed=[accepted,started,delta,preparation,goal,nativeGoal,tool]
   rerender(<CapstoneAssistantThread {...props} events={executed}/>)
-  expect(screen.queryByRole('region',{name:'思考状态'})).toBeNull()
-  const archive=screen.getByRole('region',{name:'初始思考记录'})
-  const archiveTrigger=within(archive).getByRole('button',{name:'展开初始思考'})
-  expect(archiveTrigger.getAttribute('aria-expanded')).toBe('false')
-  expect(archiveTrigger.textContent).toBe('Thinking · 4.0s')
-  expect(screen.queryByText('Actual public thought.')).toBeNull()
+  const thinking=screen.getByRole('region',{name:'初始思考记录'})
+  expect(within(thinking).getByRole('button',{name:'展开初始思考'}).textContent).toBe('Thinking · 4.0s')
   expect(screen.getByRole('region',{name:'工具调用过程'})).toBeTruthy()
-  fireEvent.click(within(archive).getByRole('button',{name:'展开初始思考'}))
-  expect(within(archive).getByText('Actual public thought.')).toBeTruthy()
-  fireEvent.click(within(archive).getByRole('button',{name:'折叠初始思考'}))
   rerender(<CapstoneAssistantThread {...props} events={[...executed,event('tool_completed',7,{tool_name:'read',tool_call_id:'read'}),event('assistant_thinking_delta',8,{text:'LATER_TASK_THINKING'})]}/>)
   expect(screen.queryByRole('region',{name:'思考状态'})).toBeNull()
+  expect(screen.queryByText('LATER_TASK_THINKING')).toBeNull()
+  expect(screen.queryByText('当前记录未提供任务计划。')).toBeNull()
   fireEvent.click(screen.getByRole('button',{name:'放大阅读执行过程'}))
   const reader=within(screen.getByRole('dialog',{name:'执行过程'}))
-  expect(reader.getByRole('region',{name:'初始思考记录'})).toBeTruthy()
-  expect(reader.getByText('Actual public thought.')).toBeTruthy()
-  expect(screen.queryByText('LATER_TASK_THINKING')).toBeNull()
+  expect(reader.getByRole('region',{name:'初始思考记录'}).textContent).toContain('LATER_TASK_THINKING')
+  expect(reader.getByRole('region',{name:'初始思考记录'}).textContent).toContain('Actual public thought.')
 })
 it('never shows a missing-thinking placeholder alongside supplied 823-character public thinking',()=>{
   const text='Public supplied thinking '.repeat(40).slice(0,823)

@@ -93,7 +93,7 @@ def test_current_host_organization_is_available_across_native_session_presets():
     frozen = deepcopy(original)
     shared = binding_for_session(original, 'general-chat')
     assert shared == binding_for_session(original, 'enterprise-research')
-    assert shared['application_profile'] == {'profile_id': 'enterprise-research', 'profile_version': '1.18.0'}
+    assert shared['application_profile'] == {'profile_id': 'enterprise-research', 'profile_version': '1.19.0'}
     assert validate_binding(shared) == shared
     assert original == frozen
     with pytest.raises(ValueError, match='not registered'):

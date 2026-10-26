@@ -350,9 +350,20 @@ export function guardToolExecution(tool, admit) {
 
 export function applicationToolAdmission(config, toolName) {
   const policy = config.applicationPolicy;
-  return { accepted: (!config.researchRuntime?.isolatedTaskExecution||diagnosisTools.includes(toolName)||toolName!=='agent_research_inspect'&&(toolName.startsWith('agent_research_')||toolName==='agent_task_progress'))&&
+  return { accepted: (config.researchRuntime?.adaptiveAgentLoop===true||!config.researchRuntime?.isolatedTaskExecution||diagnosisTools.includes(toolName)||toolName!=='agent_research_inspect'&&(toolName.startsWith('agent_research_')||toolName==='agent_task_progress'))&&
       (!policy || policy.allowed_tools.includes(toolName)),
     reason: "This application did not authorize the requested tool. Select a registered resource or continue without it." };
+}
+
+export function configureAdaptiveToolHandoff(pi,config){
+  if(config.researchRuntime?.adaptiveAgentLoop!==true||config.researchRuntime?.isolatedTaskExecution!==true)return;
+  pi.on('tool_result',event=>{
+    if(event.toolName!=='agent_research_plan'||event.isError===true||event.details?.ok!==true)return;
+    // The execution guard remains authoritative. Narrow the next model's tool
+    // menu as well, so accepted organization does not invite rejected shell work.
+    const organized={...config,researchRuntime:{...config.researchRuntime,adaptiveAgentLoop:false}};
+    pi.setActiveTools(config.applicationPolicy.allowed_tools.filter(name=>applicationToolAdmission(organized,name).accepted));
+  });
 }
 
 export function applicationToolOptions(config, nativeTools, research=()=>undefined) {
@@ -1133,7 +1144,8 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
   const extensionFactories = [pi=>{diagnosisCorrectionGuard=configureDiagnosisCorrectionGuard(pi,config);}];
   const managedResearch = config.researchRuntime?.enabled === true && Boolean(config.researchChannelPath);
   const graphResearch=managedResearch&&usesEnterpriseGraph(config);
-  const organizationOnly=graphResearch&&config.researchRuntime.isolatedTaskExecution===true&&config.researchRuntime.lightweightTaskNodes===true;
+  const adaptiveLoop=graphResearch&&config.researchRuntime.adaptiveAgentLoop===true;
+  const organizationOnly=graphResearch&&!adaptiveLoop&&config.researchRuntime.isolatedTaskExecution===true&&config.researchRuntime.lightweightTaskNodes===true;
   if (managedResearch) {
     const {configureGeneralResearch} = await import('./general-research.mjs');
     const {createEnterpriseResearchController} = await import('./enterprise-research-runtime.mjs');
@@ -1141,6 +1153,7 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
     const {createGraphContextClient} = await import('./graph-context-client.mjs');
     const {inspectResearchProducts} = await import('./research-products.mjs');
     extensionFactories.push(pi => {
+      configureAdaptiveToolHandoff(pi,config);
       pi.on('tool_result', event => {
         if (event.toolName === 'agent_delegate' && Array.isArray(event.details?.children) &&
             !event.details.children.some(child => child.status === 'completed')) return {isError:true};
@@ -1161,6 +1174,19 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
           return {ref:candidates[0].note.note_id,revision:candidates[0].saved.committed_revision};
         };
         researchController=createEnterpriseGraphController({config:{...config,researchSources:graphSourceGrants(config)},...client,
+          prepareSources:async(refs,control)=>{
+            const selected=refs.filter(ref=>ref.startsWith('native-observation:')&&
+              !(config.deliveryReviewSources??[]).some(source=>source.source_ref===ref));
+            if(!selected.length)return [];
+            const result=await graphContext.directSources({selection:{source_refs:selected}},control);
+            for(const source of result.sources){
+              const existing=(config.deliveryReviewSources??[]).find(item=>item.source_ref===source.source_ref);
+              if(existing&&existing.sha256!==source.sha256)throw new Error('Direct observation source version changed');
+              if(!existing)(config.deliveryReviewSources??=[]).push(source);
+              if(!(config.researchSources??=[]).includes(source.source_ref))config.researchSources.push(source.source_ref);
+            }
+            return graphSourceGrants(config).filter(source=>selected.includes(source.ref));
+          },
           dispatchNode:(...args)=>dispatchGraphNode(...args),onProgress:hostEmit,
           resolveInputs:async(action,control)=>{
             const result=await graphContext.resolve({action,checkpoint:await committedCheckpoint(action),
@@ -1198,7 +1224,8 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
     noContextFiles: true, agentsFilesOverride: () => ({ agentsFiles: config.contextFiles }),
     systemPromptOverride: () => organizationOnly?[organizationEnginePolicy,organizationExecutionContract(),organizationSourceCatalog(config),config.systemPrompt].filter(Boolean).join('\n\n'):config.systemPrompt ?? undefined,
     appendSystemPromptOverride: () => [...(config.appendSystemPrompt??[]),
-      ...(!organizationOnly?[nativeShellGuidance,...(managedResearch?[continuationSourceGuidance]:[])]:[])],
+      ...(!organizationOnly?[nativeShellGuidance,...(managedResearch?[continuationSourceGuidance]:[])]:[]),
+      ...(adaptiveLoop?['Start with the current instruction in a lightweight agent loop. At each cycle answer if sufficient, call an authorized tool for needed observations, or use agent_research_plan when remaining work needs task organization. No planning call is mandatory. Tool count, file uploads and session labels do not decide escalation. Before organization you may use native and granted gateway tools directly. After an accepted plan, use the isolated task execution contracts. Reuse exact Host observation references as explicitly selected source_refs; these are raw inputs, never accepted task results or Authority evidence.']:[])],
     skillsOverride: current => ({ ...current, skills: current.skills.filter(s => config.allowedSkills.includes(s.name)) }) });
   await loader.reload();
   const errors = [...loader.getExtensions().errors, ...loader.getSkills().diagnostics.filter(d => d.type === "collision")];
@@ -1292,7 +1319,7 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
   try {
     await session.bindExtensions({ onError: () => { throw new Error("Native extension failed"); } });
     if (config.applicationPolicy) session.setActiveToolsByName(config.applicationPolicy.allowed_tools.filter(name=>
-      !config.researchRuntime?.isolatedTaskExecution||diagnosisTools.includes(name)||name!=='agent_research_inspect'&&(name.startsWith('agent_research_')||name==='agent_task_progress')));
+      applicationToolAdmission(config,name).accepted));
     const skills = loader.getSkills().skills.map(s => ({ name: s.name,
       sha256: createHash("sha256").update(readFileSync(s.filePath)).digest("hex") }));
     const toolHashes = verifyMcpPublication(session, config);

@@ -7,6 +7,23 @@ import {createHash} from 'node:crypto';
 
 const modulePath='../../src/capstone_agent/resources/graph-context-client.mjs';
 const canonical=value=>Array.isArray(value)?value.map(canonical):value&&typeof value==='object'?Object.fromEntries(Object.keys(value).sort().map(key=>[key,canonical(value[key])])):value;
+test('direct source promotion needs adaptive publication and a confirmed exact host receipt',async()=>{
+  const {createGraphContextClient}=await import(modulePath),root=await mkdtemp(join(tmpdir(),'direct-source-client-'));
+  await mkdir(join(root,'responses'));let emissions=0;
+  const config={graphContextPath:root,researchOwner:{},researchAttemptId:'A',researchTaskId:'T'};
+  const args={selection:{source_refs:['native-observation:T:one']}};
+  try{
+    await assert.rejects(createGraphContextClient(config).directSources(args),/committed graph lease/);
+    const client=createGraphContextClient({...config,researchRuntime:{adaptiveAgentLoop:true}},{emit:async request=>{
+      emissions++;assert.equal(request.operation,'direct_sources');assert.equal('action_id' in request,false);
+      assert.equal('checkpoint' in request,false);assert.deepEqual(request.selection,args.selection);
+      await writeFile(join(root,'responses',request.request_id+'.json'),JSON.stringify({schema:'capstone-enterprise-graph-context/1',
+        request_id:request.request_id,request_sha256:createHash('sha256').update(JSON.stringify(canonical(request))).digest('hex'),
+        ok:true,result:{sources:[{source_ref:args.selection.source_refs[0],sha256:'a'.repeat(64)}]}}));
+    }});
+    assert.deepEqual(await client.directSources(args),await client.directSources(args));assert.equal(emissions,1);
+  }finally{await rm(root,{recursive:true,force:true});}
+});
 test('only known selection rejection is correctable and unknown host codes stay definite and private',async()=>{
   const {createGraphContextClient}=await import(modulePath);
   for(const code of [undefined,'','selection_invalid','action_unavailable','owner_invalid','/private/unknown-host-reason']){
