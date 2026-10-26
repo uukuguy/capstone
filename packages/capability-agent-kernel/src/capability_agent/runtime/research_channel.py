@@ -109,6 +109,10 @@ class ResearchRequestChannel:
         return handled
 
     def _process(self, raw: bytes, request_id: str) -> dict[str, object]:
+        with self.controller.store.research_transaction():
+            return self._process_request(raw, request_id)
+
+    def _process_request(self, raw: bytes, request_id: str) -> dict[str, object]:
         try:
             document = json.loads(raw)
             if isinstance(document, dict):
