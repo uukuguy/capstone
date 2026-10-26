@@ -31,8 +31,17 @@ describe('source electrical geometry',()=>{
     assertClear({...scene,nodes,edges:[{id:'skip-middle',source:'n0',target:'n2',kind:'source_connection',relation:'connection'}]})
     assertClear(scene)
   })
+  it('packs a local source component despite incomplete station and voltage metadata',()=>{
+    const input:NetworkScene={...scene,nodes:[{id:'bus',kind:'busbars',label:'Bus',stationId:'s'},{id:'junction',kind:'connection_node',label:'Junction',voltageKv:500},{id:'switch',kind:'breakers',label:'Switch',stationId:'s'},{id:'high',kind:'windings',label:'High winding',stationId:'s'},{id:'transformer',kind:'transformers',label:'Transformer',stationId:'s'},{id:'low',kind:'windings',label:'Low winding',stationId:'s'},{id:'low-node',kind:'connection_node',label:'Low junction',voltageKv:66}],edges:[{id:'b-j',source:'bus',target:'junction',kind:'source_connection',relation:'connection'},{id:'j-s',source:'junction',target:'switch',kind:'source_connection',relation:'connection'},{id:'s-h',source:'switch',target:'high',kind:'source_connection',relation:'connection'},{id:'t-h',source:'transformer',target:'high',kind:'winding_membership',relation:'membership'},{id:'t-l',source:'transformer',target:'low',kind:'winding_membership',relation:'membership'},{id:'l-n',source:'low',target:'low-node',kind:'source_connection',relation:'connection'}]}
+    const index=buildSceneIndex(input),geometry=sceneGeometry(index)!,bar=geometry.busbars.get(0)!
+    expect(bar[1].x-bar[0].x).toBeGreaterThan(index.bounds.width*.8)
+    expect([...geometry.routes.values()].every(route=>route.length<=6)).toBe(true)
+    expect(input.nodes[1].stationId).toBeUndefined();expect(input.nodes[6].voltageKv).toBe(66)
+    expect(input.edges.filter(edge=>edge.relation==='membership')).toHaveLength(2)
+    assertClear(input)
+  })
   it('does not join two disconnected busbar branches in a fallback trunk',()=>{
-    const input:NetworkScene={...scene,nodes:[...['bus-a','bus-b','bus-obstacle'].map(id=>({id,label:id,kind:'busbars'})),...['a','b'].map(id=>({id,label:id,kind:'breakers'}))],edges:[{id:'branch-a',source:'bus-a',target:'a',kind:'source_connection',relation:'connection'},{id:'branch-b',source:'bus-b',target:'b',kind:'source_connection',relation:'connection'}]}
+    const input:NetworkScene={...scene,nodes:[...['bus-a','bus-b','bus-obstacle'].map(id=>({id,label:id,kind:'busbars'})),...['a','b'].map(id=>({id,label:id,kind:'breakers'})),...Array.from({length:496},(_,i)=>({id:`isolated${i}`,label:'Isolated',kind:'load'}))],edges:[{id:'branch-a',source:'bus-a',target:'a',kind:'source_connection',relation:'connection'},{id:'branch-b',source:'bus-b',target:'b',kind:'source_connection',relation:'connection'}]}
     const geometry=sceneGeometry(buildSceneIndex(input))!,a=geometry.routes.get(0)!,b=geometry.routes.get(1)!
     expect(a.length).toBeGreaterThan(4);expect(b.length).toBeGreaterThan(4)
     for(let i=1;i<a.length;i++)for(let j=1;j<b.length;j++){
