@@ -20,6 +20,12 @@
 - Keep source, selection, scenario, derived-model and view revisions distinct and bound across pages and drill-down.
 - Initial hierarchical display must not fetch all equipment. An explicit full-view action can retain the existing bounded full download.
 
+## Compatible implementation checkpoint (2026-10-26)
+
+PR68 contains generic discovery, source incidence projection, symbols, routed rendering and published station expansion. Vivaldi loaded the North overview (405 objects,1003 relations) and Chaoyang connection view (57 objects,56 relations) through the existing tab. Station-wide expansion now retains its station title. Technical identifiers remain searchable and available in selection details, but no longer occupy diagram labels.
+
+Local layout checks and consumer tests passed; final review found a small unrelated-edge overlap in the last fallback route. That correction and final integration remain open. Do not treat the checklist below as complete merely because a compatible implementation exists. The second registered-range check, new frozen streams, calculation mappings and full large routed-scene acceptance remain pending. No new gateway tool has been called.
+
 ## 1. Source incidence projection and layout
 
 Files: new `packages/capstone-app/src/electricalSourceScene.ts` and tests; new `electricalSourceLayout.ts` and tests. Consumers: `networkScene.ts`, `networkSceneIndex.ts`.
@@ -47,7 +53,7 @@ Files: `gridSource.ts`, `GridSourceWorkspace.tsx`, `threadHttpTransport.ts`, the
 
 - [ ] Replace implicit North selection with discovered model/scope selection or an admitted current-instruction view. Handle no models, unavailable models and historical views explicitly.
 - [ ] Start navigation with the selected purpose/partition. Keep overview, station inventory and electrical connection views visibly distinct.
-- [ ] Verify the existing `equipment` plus `station:<ID>` selector before using it. The fresh protected probe on2026-10-26 returned503; code support alone is not runtime acceptance.
+- [x] Verify the existing `equipment` plus `station:<ID>` selector before using it. The first protected probe returned503; subsequent direct42.7ms and protected237ms responses returned57nodes/56relations. Vivaldi also loaded this view. Cold failure remains unexplained.
 - [ ] Keep cancel/generation protection, parent/source/selection checks, independent page streams and exact object identity. Do not fall back to an invisible full-network fetch on a failed child request.
 - [ ] Use released gateway expansion references for voltage/bay scopes. Disable unavailable expansions with an explicit reason rather than synthesize new upstream arguments.
 - [ ] Test two arbitrary model IDs, per-instruction view changes, manual navigation priority, source drift, cancellation and restoration. Commit this tested unit.
