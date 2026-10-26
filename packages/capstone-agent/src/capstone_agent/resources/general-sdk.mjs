@@ -77,11 +77,13 @@ const researchChildPolicy='You execute one accepted research branch for a parent
   'Use only the admitted tools and selected skills in this isolated workspace; do not discover credentials, Authority handles or other host resources, or attempt external lookup. '+
   'Source statements and your observations are not registered Authority facts or simulator evidence. '+
   'Return the actual findings, inspected source paths, saved private output paths, failures and limitations for parent integration; do not claim unperformed checks or verified truth.';
-const graphChildProductGuidance='For saved products, write .capstone-products.json using this JSON shape: '+
+const savedProductGuidance='For saved products, write .capstone-products.json using this JSON shape: '+
   '{"schema":"capstone-workspace-products/1","products":[{"path":"actual-relative-file","role":"primary"}]}. '+
   'Replace the example path with an actual path relative to your private output directory; list only files you actually wrote. '+
   'Use primary for a requested deliverable, support for supporting material, and reproduction for files needed to reproduce the work. '+
   'The host computes product hashes and sizes. Do not rehash files for product registration. '+
+  'In the final answer, identify requested deliverables by their actual relative filenames. The application publishes the saved files as product cards. Do not expose private absolute workspace paths or invent sandbox URLs, download URLs or artifact references. ';
+const graphChildProductGuidance=savedProductGuidance+
   'Perform the declared necessary checks, including required numerical checks. Once the assigned questions are met, return actual findings, saved paths and limitations; do not add unrelated checks or inventory scans. '+
   'Do not scan sibling workspaces or shared context directories. If an exact input is missing, return the precise missing input, producer, slot or result ref so the parent can revise the graph.';
 const graphProposalGuidance='Every capstone-node-contract/1 node must write .capstone-products.json with graph_proposal, even for observation-only work with products:[] and no saved artifact files. Add graph_proposal to that manifest: '+
@@ -1247,7 +1249,7 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
     noContextFiles: true, agentsFilesOverride: () => ({ agentsFiles: config.contextFiles }),
     systemPromptOverride: () => organizationOnly?[organizationEnginePolicy,organizationExecutionContract(),organizationSourceCatalog(config),config.systemPrompt].filter(Boolean).join('\n\n'):config.systemPrompt ?? undefined,
     appendSystemPromptOverride: () => [...(config.appendSystemPrompt??[]),
-      ...(!organizationOnly?[nativeShellGuidance,...(managedResearch?[continuationSourceGuidance]:[])]:[]),
+      ...(!organizationOnly?[nativeShellGuidance,savedProductGuidance,...(managedResearch?[continuationSourceGuidance]:[])]:[]),
       ...(adaptiveLoop?['Start with the current instruction in a lightweight agent loop. At each cycle answer if sufficient, call an authorized tool for needed observations, or use agent_research_plan when remaining work needs task organization. No planning call is mandatory. Tool count, file uploads and session labels do not decide escalation. Before organization you may use native and granted gateway tools directly. After an accepted plan, use the isolated task execution contracts. Reuse exact Host observation references as explicitly selected source_refs; these are raw inputs, never accepted task results or Authority evidence.']:[])],
     skillsOverride: current => ({ ...current, skills: current.skills.filter(s => config.allowedSkills.includes(s.name)) }) });
   await loader.reload();
