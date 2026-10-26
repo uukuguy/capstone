@@ -83,6 +83,41 @@ def test_failed_call_is_not_replayed_or_issued_as_source():
     assert not resource.verify('task-1', 'call-1', request()['name'], {}, '{}')
 
 
+def test_transport_failure_stops_other_probes_only_for_the_failed_task():
+    resource = access()
+    other = 'data_gateway_discover_business_services'
+    resource.catalog['tools'][other] = {}
+    resource.catalog['tool_hashes'][other] = 'c' * 64
+    calls = []
+
+    async def failed(name, *_):
+        calls.append(name)
+        raise GatewayError('gateway_timeout')
+
+    resource.client.call = failed
+    for value in [request(), dict(request(), call_id='call-2', name=other)]:
+        with pytest.raises(GatewayError, match='gateway_timeout'):
+            asyncio.run(resource.call('task-1', value))
+    assert calls == [request()['name']]
+    assert not resource.verify('task-1', 'call-2', other, {}, '{}')
+    resource.bind('task-2', 'attempt-2')
+    resource.client = Client()
+    assert asyncio.run(resource.call('task-2', request()))['is_error'] is False
+
+
+def test_argument_failure_does_not_stop_a_corrected_call():
+    resource = access()
+
+    async def failed(*_):
+        raise GatewayError('gateway_arguments_invalid')
+
+    resource.client.call = failed
+    with pytest.raises(GatewayError, match='gateway_arguments_invalid'):
+        asyncio.run(resource.call('task-1', request()))
+    resource.client = Client()
+    assert asyncio.run(resource.call('task-1', dict(request(), call_id='call-2')))['is_error'] is False
+
+
 def test_http_route_requires_task_grant_and_revocation(tmp_path):
     import threading
     import time

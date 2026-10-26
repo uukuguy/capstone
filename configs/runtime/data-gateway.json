@@ -11,6 +11,7 @@
     "discover_business_services",
     "discover_data_capabilities",
     "discover_metric_sources",
+    "discover_network_models",
     "discover_power_resource_types",
     "discover_region_scopes",
     "execute_data_query",

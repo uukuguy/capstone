@@ -115,6 +115,33 @@ def test_rejects_model_policy_and_non_http_connection(tmp_path):
         DataGatewayMcp(client.connection_path, client.policy)
 
 
+def test_model_inventory_is_explicitly_admitted_but_model_execution_stays_denied(tmp_path):
+    client, session = gateway(tmp_path)
+    policy = dict(client.policy, allowed_tools=[*client.policy['allowed_tools'], 'discover_network_models'])
+    admitted = DataGatewayMcp(client.connection_path, policy, connect=client.connect)
+    session.tools.append(Tool('discover_network_models'))
+    catalog = asyncio.run(admitted.prepare())
+    result = asyncio.run(admitted.call('data_gateway_discover_network_models', {}, catalog))
+    assert result['structuredContent']['status'] == 'partial'
+    assert session.calls == [('discover_network_models', {})]
+    for name in ['inspect_network_model', 'build_network_model', 'get_network_model_job',
+                 'get_network_model_artifact', 'read_network_model_artifact']:
+        with pytest.raises(GatewayError, match='gateway_policy_invalid'):
+            DataGatewayMcp(client.connection_path, dict(policy, allowed_tools=[*policy['allowed_tools'], name]))
+
+
+def test_wrapped_transport_failures_keep_safe_diagnostic_codes():
+    import httpx
+    from capstone_agent.data_gateway_mcp import public_failure
+    for error, expected in [
+        (httpx.ReadTimeout('secret-canary'), 'gateway_timeout'),
+        (TimeoutError('secret-canary'), 'gateway_timeout'),
+        (httpx.ConnectError('secret-canary'), 'gateway_transport_failed'),
+    ]:
+        wrapped = ExceptionGroup('secret-canary', [error])
+        assert public_failure(wrapped, 'gateway_call_failed_no_retry') == expected
+
+
 def test_real_streamable_http_discovery_call_and_bad_auth(tmp_path):
     import socket
     import threading

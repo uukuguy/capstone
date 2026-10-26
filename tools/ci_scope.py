@@ -85,7 +85,7 @@ SOURCE_CONTROL_METHODS = '''
 SOURCE_ERROR_CODES = {'grid_source_unavailable', 'grid_source_request_invalid', 'grid_source_view_changed',
                       'grid_source_response_invalid', 'grid_source_observation_unavailable'}
 SOURCE_BACKEND_MODULES = {'grid_source_topology', 'grid_source_http', 'host_api',
-                          'general_pi_server', 'pi_delegation', 'delegated_runtime', 'data_gateway_relay',
+                          'general_pi_server', 'pi_delegation', 'delegated_runtime', 'data_gateway_relay', 'data_gateway_mcp',
                           # The gate runs all test_thread*.py and host consumers,
                           # including native model release and professional guards.
                           'thread_model_workspace', 'thread_service'}
@@ -94,9 +94,13 @@ SOURCE_BACKEND_TESTS = {'test_grid_source_topology', 'test_grid_source_http', 't
     'test_thread_model_workspace', 'test_data_gateway_mcp', 'test_data_gateway_relay',
     'test_network_policy_http', 'test_native_network_policy', 'test_delegated_runtime', 'test_graph_host_observation'}
 SOURCE_FILES = {'configs/runtime/data-gateway.json', 'deploy/general-pi.Dockerfile',
-               'packages/capstone-agent/src/capstone_agent/resources/general-context.mjs'}
+               'packages/capstone-agent/src/capstone_agent/resources/general-context.mjs',
+               'packages/capstone-agent/src/capstone_agent/resources/general-data-gateway.mjs',
+               'packages/capstone-agent/tests/fixtures/data-gateway-research.test.mjs'}
 SOURCE_ANCHORS = {'packages/capstone-agent/src/capstone_agent/grid_source_topology.py',
-                  'packages/capstone-agent/src/capstone_agent/grid_source_http.py'}
+                  'packages/capstone-agent/src/capstone_agent/grid_source_http.py',
+                  'packages/capstone-agent/src/capstone_agent/data_gateway_mcp.py',
+                  'packages/capstone-agent/src/capstone_agent/data_gateway_relay.py'}
 
 
 def source_transport_document(old: str, new: str) -> bool:
@@ -135,19 +139,20 @@ def source_transport_document(old: str, new: str) -> bool:
 
 
 def source_gateway_document(old: dict, new: dict) -> bool:
-    """Only publish this one read-only topology tool; other policy edits widen."""
+    """Admit the named read-only display/inventory additions; other edits widen."""
+    additions = {'get_network_topology_view', 'discover_network_models'}
     values = []
     for document in (old, new):
         if not isinstance(document, dict) or not isinstance(document.get('allowed_tools'), list):
             return False
         value = deepcopy(document)
         tools = value['allowed_tools']
-        if any(not isinstance(tool, str) for tool in tools) or tools.count('get_network_topology_view') > 1:
+        if any(not isinstance(tool, str) for tool in tools) or len(set(tools)) != len(tools):
             return False
-        value['allowed_tools'] = [tool for tool in tools if tool != 'get_network_topology_view']
+        value['allowed_tools'] = [tool for tool in tools if tool not in additions]
         values.append(value)
     return (values[0] == values[1]
-            and old['allowed_tools'].count('get_network_topology_view') <= new['allowed_tools'].count('get_network_topology_view'))
+            and all(old['allowed_tools'].count(tool) <= new['allowed_tools'].count(tool) for tool in additions))
 
 
 def source_topology_diff(paths: list[str], base: str, head: str) -> bool:

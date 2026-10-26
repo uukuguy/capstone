@@ -64,7 +64,11 @@ The general Pi host reads an operator-selected connection file from protected
 storage. A versioned, credential-free policy declares the gateway resource ID,
 tool namespace and explicit permitted tools. Initial permission is limited to
 research discovery and data retrieval, including the gateway's bounded semantic
-table-query interface. The six model operations are excluded in this delivery.
+table-query interface. The first delivery excluded all six model operations.
+The 2026-10-26 model-list follow-up admits only `discover_network_models` as
+read-only inventory. It lists registered scopes and their declared limitations;
+it does not inspect, build, download, register or calculate a model. The other
+five model operations remain excluded from this research adapter.
 Newly published tools require policy admission; discovery alone grants no access.
 
 An immutable task catalog records accepted tool schemas, their hashes, a catalog
@@ -80,6 +84,11 @@ call counts and timeouts under application-capacity configuration. Errors are
 bounded public codes, without raw HTTP requests or credential-bearing exceptions.
 No automatic call replay follows an unknown outcome. Authentication failures,
 schema drift and transport errors remain distinguishable from unavailable data.
+The SDK preserves only recognized public error codes. Timeout, connection,
+authentication and publication failures stop further gateway probes in that task,
+including its other research nodes. Calls already in flight can settle. Argument
+errors can be corrected under a new call ID. A new user instruction gets a fresh
+task and may check again. A failed request does not prove gateway-wide downtime.
 
 An unconfigured optional gateway leaves the current research path usable. A
 configured but unreachable gateway is explicitly unavailable; it must not be
@@ -99,6 +108,10 @@ objects, inspect metrics and coverage, select an explicit source when needed,
 then retrieve the requested window. Structured table queries use the gateway's
 prepare_data_query/execute_data_query contract and preserve its validation
 fingerprint; Capstone does not expose raw SQL or invent table relationships.
+For a model-list question, use the published `discover_network_models({})`
+contract once and answer from that inventory. Preserve the distinction between
+registered scopes, built artifacts and calculation readiness. Extra inspection
+or a build is not part of listing the available models.
 
 Preserve status, data, gaps, provenance and calculation. Missing values remain
 missing; units and time semantics come from the service. Report conclusions must

@@ -133,7 +133,10 @@ last-model release, active-task guards and professional-model retention.
 Transport qualification compares Python ASTs: only the named
 source-forwarding methods and public source error codes may be added; any change
 to existing transport behavior still selects product verification. Gateway policy
-qualification permits only the exact topology-tool allowlist addition. Unknown,
+qualification permits only the exact read-only topology and model-inventory
+allowlist additions. The MCP adapter, task relay and SDK gateway wrapper are
+registered with their existing gateway, native, host and Thread consumers.
+Model inspection, build or artifact permissions still select the wider gate. Unknown,
 foundation, Authority and dependency changes retain their wider gates. The
 selected step has a10-minute failure ceiling, not an expected duration. Record
 its actual CI duration. This gate does not run unrelated professional solvers,
