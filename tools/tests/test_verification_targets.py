@@ -23,8 +23,14 @@ def test_adaptive_agent_gate_keeps_full_owned_suites_without_professional_solver
                      'test-capstone-app', 'build-capstone-app', 'test-capstone-client', 'test-registered-workers',
                      'node --test packages/capstone-agent/tests/*.test.mjs packages/capstone-agent/tests/fixtures/*.test.mjs',
                      'node --test packages/pi-capability-tools/test/*.test.mjs',
-                     'pytest packages/enterprise-research-domain-pack/tests -q'):
+                     'pytest packages/capstone-agent/tests/test_graph_research_publication.py packages/capstone-agent/tests/test_research_policy_compatibility.py packages/capstone-agent/tests/test_adaptive_agent_profile.py -q'):
         assert expected in block
+    for line in block.splitlines():
+        if ' pytest ' not in line:
+            continue
+        for target in line.split(' pytest ', 1)[1].split():
+            if target.startswith('packages/'):
+                assert list(ROOT.glob(target)), f'Adaptive gate test path does not exist: {target}'
     for forbidden in ('make check-pr', 'make check-release', 'test-domain-package', 'test-local-rebuild',
                       'packages/grid-agent/tests', 'packages/grid-simulator/tests', 'packages/pypsa-agent/tests',
                       'packages/pandapower-domain-pack/tests', 'test_user_local_installer.py'):

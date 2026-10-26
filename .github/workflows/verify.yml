@@ -90,7 +90,7 @@ jobs:
           make check-package-boundaries check-types test-capstone-agent test-kernel test-capstone-app build-capstone-app test-capstone-client test-registered-workers
           node --test packages/capstone-agent/tests/*.test.mjs packages/capstone-agent/tests/fixtures/*.test.mjs
           node --test packages/pi-capability-tools/test/*.test.mjs
-          uv run --project packages/capstone-agent pytest packages/enterprise-research-domain-pack/tests -q
+          uv run --project packages/capstone-agent pytest packages/capstone-agent/tests/test_graph_research_publication.py packages/capstone-agent/tests/test_research_policy_compatibility.py packages/capstone-agent/tests/test_adaptive_agent_profile.py -q
       - name: Verify source topology consumers
         if: steps.scope.outputs.gate == 'source-topology'
         timeout-minutes: 10
