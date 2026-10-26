@@ -26,12 +26,22 @@ existing Thread/Attempt receipts and React views.
 Files: `packages/capstone-agent/src/capstone_agent/data_gateway_mcp.py` and
 `packages/capstone-agent/tests/test_data_gateway_mcp.py`.
 
-- [ ] Add regressions: add, change or remove another admitted tool after prepare;
+- [x] Add regressions: add, change or remove another admitted tool after prepare;
   call the unchanged tool and assert one actual remote call.
-- [ ] Retain rejection tests for called-tool change/removal and forged catalog.
-- [ ] Replace full-catalog equality in `call` with complete called-tool equality:
+- [x] Retain rejection tests for called-tool change/removal and forged catalog.
+- [x] Replace full-catalog equality in `call` with complete called-tool equality:
   `live['tools'].get(name) != schema`. Preserve pre-call validation and grants.
-- [ ] Run the focused MCP tests, inspect the diff and commit this unit.
+- [x] Run the focused MCP tests, inspect the diff and commit this unit.
+
+Implemented in `44228b91`; follow-up `425be8c6` keeps publication rejection
+tool-scoped in both host and SDK, without automatic replay. MCP plus electrical
+provider checks: 55 passed in 3.97 seconds. SDK checks: 8 passed in 0.30 seconds.
+
+Host preparation in `5fa5a559` binds explicit task tool subsets and enforces them
+on every call. The model receives only those tools. Generic guidance now uses
+published preconditions and composition conditions, without electrical business
+sequences. Static business admission remains until Unit 2 consumes published
+permissions. These source changes are not yet rebuilt or accepted in Vivaldi.
 
 ## Unit 2: Consume published permissions and semantic discovery
 
