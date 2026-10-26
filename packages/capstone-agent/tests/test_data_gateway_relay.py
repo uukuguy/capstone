@@ -64,6 +64,8 @@ def request():
 @pytest.mark.parametrize('failed_open', [False, True])
 def test_preparation_jobs_require_an_issued_open_in_the_same_task(failed_open):
     resource = access(['data_gateway_open_network_model_view', 'data_gateway_get_network_model_job'])
+    resource.catalog['tools']['data_gateway_get_network_model_job'] = {
+        'inputSchema': {'type': 'object', 'properties': {'job_ref': {'type': 'string'}}, 'required': ['job_ref']}}
     calls = []
     async def upstream(name, arguments, catalog):
         calls.append(name)
@@ -88,10 +90,77 @@ def test_preparation_jobs_require_an_issued_open_in_the_same_task(failed_open):
     with pytest.raises(GatewayError, match='gateway_tool_not_admitted'): job('task-1', 'build', 'build-job')
     if not failed_open:
         async def wrong_kind(*_):
-            return {'structuredContent': {'status':'ok','data':{'job_ref':'prepare-one','task_type':'build','state':'succeeded','artifact_ref':'forbidden'}}}
+            return {'structuredContent': {'status':'ok','data':{'job_ref':'other-job','task_type':'build','state':'succeeded'}}}
         resource.client.call = wrong_kind
         with pytest.raises(GatewayError, match='gateway_output_invalid'): job('task-1', 'wrong-kind')
         assert not resource.verify('task-1', 'wrong-kind', 'data_gateway_get_network_model_job', {}, '{}')
+
+
+@pytest.mark.parametrize('producer,reader', [
+    ('data_gateway_build_network_model', 'data_gateway_get_network_model_job'),
+    ('data_gateway_start_export', 'data_gateway_export_status')])
+@pytest.mark.parametrize('field', ['job_ref', 'preparation_ref'])
+def test_generic_operation_refs_are_task_owned(producer, reader, field):
+    resource = access([producer, reader])
+    resource.catalog['tools'][reader] = {'inputSchema': {
+        'type': 'object', 'properties': {'job_ref': {'type': 'string'}}, 'required': ['job_ref']}}
+    calls = []
+    async def upstream(name, arguments, catalog):
+        calls.append(name)
+        data = {field: 'operation-one'} if name == producer else {'job_ref': arguments['job_ref'], 'task_type': 'build'}
+        return {'structuredContent': {'status': 'ok', 'data': data}}
+    resource.client.call = upstream
+    value = {'call_id': 'poll', 'name': reader, 'arguments': {'job_ref': 'operation-one'}}
+    with pytest.raises(GatewayError, match='gateway_tool_not_admitted'):
+        asyncio.run(resource.call('task-1', value))
+    asyncio.run(resource.call('task-1', {'call_id': 'produce', 'name': producer, 'arguments': {}}))
+    assert asyncio.run(resource.call('task-1', value))['is_error'] is False
+    async def mismatch(*_):
+        return {'structuredContent': {'status': 'ok', 'data': {'job_ref': 'foreign-operation'}}}
+    resource.client.call = mismatch
+    with pytest.raises(GatewayError, match='gateway_output_invalid'):
+        asyncio.run(resource.call('task-1', {**value, 'call_id': 'wrong-reply'}))
+    assert not resource.verify('task-1', 'wrong-reply', reader, {}, '{}')
+    with pytest.raises(GatewayError, match='gateway_tool_not_admitted'):
+        asyncio.run(resource.call('task-1', {**value, 'call_id': 'foreign-reply',
+            'arguments': {'job_ref': 'foreign-operation'}}))
+    async def stopped(*_):
+        raise GatewayError('gateway_timeout')
+    resource.client.call = stopped
+    with pytest.raises(GatewayError, match='gateway_timeout'):
+        asyncio.run(resource.call('task-1', {**value, 'call_id': 'timeout'}))
+    with pytest.raises(GatewayError, match='gateway_timeout'):
+        asyncio.run(resource.call('task-1', {**value, 'call_id': 'after-stop'}))
+    resource.bind('foreign', 'attempt-other', {reader})
+    with pytest.raises(GatewayError, match='gateway_tool_not_admitted'):
+        asyncio.run(resource.call('foreign', value))
+    resource.revoke('task-1')
+    with pytest.raises(GatewayError, match='gateway_task_not_admitted'):
+        asyncio.run(resource.call('task-1', {**value, 'call_id': 'after-revoke'}))
+    assert calls == [producer, reader]
+
+
+@pytest.mark.parametrize('data,status,is_error', [
+    ({'rows': [{'job_ref': 'operation-one'}]}, 'ok', False),
+    ({'job_ref': 'operation-one'}, 'error', False),
+    ({'job_ref': 'operation-one'}, 'ok', True)])
+def test_nested_or_failed_results_do_not_issue_operation_refs(data, status, is_error):
+    resource = access(['data_gateway_start_export', 'data_gateway_export_status'])
+    resource.catalog['tools']['data_gateway_export_status'] = {'inputSchema': {
+        'properties': {'job_ref': {'type': 'string'}}}}
+    async def upstream(*_):
+        return {'isError': is_error, 'structuredContent': {'status': status, 'data': data}}
+    resource.client.call = upstream
+    asyncio.run(resource.call('task-1', {'call_id': 'produce', 'name': 'data_gateway_start_export', 'arguments': {}}))
+    with pytest.raises(GatewayError, match='gateway_tool_not_admitted'):
+        asyncio.run(resource.call('task-1', {'call_id': 'poll', 'name': 'data_gateway_export_status',
+            'arguments': {'job_ref': 'operation-one'}}))
+
+
+def test_undeclared_job_parameter_cannot_bypass_operation_ref_check():
+    resource = access()
+    with pytest.raises(GatewayError, match='gateway_tool_not_admitted'):
+        asyncio.run(resource.call('task-1', {**request(), 'arguments': {'job_ref': 'foreign'}}))
 
 
 def test_issued_receipt_binds_exact_task_call_and_result():

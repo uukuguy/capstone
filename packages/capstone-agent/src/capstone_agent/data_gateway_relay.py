@@ -77,6 +77,8 @@ class DataGatewayAccess:
                 or not isinstance(document['arguments'], dict)):
             raise GatewayError('gateway_request_invalid')
         call_id, name = document['call_id'], document['name']
+        properties = self.catalog['tools'][name].get('inputSchema', {}).get('properties', {})
+        consumes_job = 'job_ref' in properties or 'job_ref' in document['arguments']
         with self._lock:
             record = self._tasks.get(task_id)
             if record is None:
@@ -87,9 +89,10 @@ class DataGatewayAccess:
                 raise GatewayError('gateway_call_already_started')
             if record.get('failure'):
                 raise GatewayError(record['failure'])
-            if name == 'data_gateway_get_network_model_job':
+            if consumes_job:
                 job_ref = document['arguments'].get('job_ref')
-                if not isinstance(job_ref, str) or job_ref not in record.get('preparations', set()):
+                if ('job_ref' not in properties or not isinstance(job_ref, str)
+                        or job_ref not in record.get('operation_refs', set())):
                     raise GatewayError('gateway_tool_not_admitted')
             require_capacity('mcp_call_count', len(record['started']) + 1, 'gateway_call')
             record['started'].add(call_id)
@@ -106,9 +109,8 @@ class DataGatewayAccess:
         data = content.get('data', {}) if isinstance(content, dict) else {}
         successful = (result.get('isError') is not True and isinstance(content, dict)
                       and content.get('status') in {'ok', 'partial'})
-        if (name == 'data_gateway_get_network_model_job' and successful
-                and (not isinstance(data, dict) or data.get('task_type') != 'view_preparation'
-                     or data.get('job_ref') != arguments.get('job_ref'))):
+        if (consumes_job and successful
+                and (not isinstance(data, dict) or data.get('job_ref') != arguments.get('job_ref'))):
             raise GatewayError('gateway_output_invalid')
         body = encode(result).decode()
         observation = {'kind': 'external_gateway_observation', 'task_id': task_id,
@@ -121,12 +123,13 @@ class DataGatewayAccess:
             if self._tasks.get(task_id) is not record:
                 raise GatewayError('gateway_task_not_admitted')
             record['issued'][call_id] = {'response': deepcopy(response), 'arguments': arguments}
-            if (name == 'data_gateway_open_network_model_view' and successful and isinstance(data, dict)
-                    and data.get('schema') == 'gateway-electrical-view/1' and data.get('state') == 'preparing'
-                    and data.get('model_ref') == arguments.get('model_ref')
-                    and isinstance(data.get('preparation_ref'), str)
-                    and re.fullmatch(r'[A-Za-z0-9_.:-]{1,512}', data['preparation_ref'])):
-                record.setdefault('preparations', set()).add(data['preparation_ref'])
+            if successful and isinstance(data, dict):
+                # Only explicit operation references at the result's data root
+                # grant access. Business rows and nested objects never do.
+                for field in ('job_ref', 'preparation_ref'):
+                    ref = data.get(field)
+                    if isinstance(ref, str) and re.fullmatch(r'[A-Za-z0-9_.:-]{1,512}', ref):
+                        record.setdefault('operation_refs', set()).add(ref)
         return response
 
     def verify(self, task_id, call_id, name, observation, result_json):
