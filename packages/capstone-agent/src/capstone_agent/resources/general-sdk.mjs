@@ -355,6 +355,17 @@ export function applicationToolAdmission(config, toolName) {
     reason: "This application did not authorize the requested tool. Select a registered resource or continue without it." };
 }
 
+export function configureAdaptiveToolHandoff(pi,config){
+  if(config.researchRuntime?.adaptiveAgentLoop!==true)return;
+  pi.on('tool_result',event=>{
+    if(event.toolName!=='agent_research_plan'||event.isError===true||event.details?.ok!==true)return;
+    // The execution guard remains authoritative. Narrow the next model's tool
+    // menu as well, so accepted organization does not invite rejected shell work.
+    const organized={...config,researchRuntime:{...config.researchRuntime,adaptiveAgentLoop:false}};
+    pi.setActiveTools(config.applicationPolicy.allowed_tools.filter(name=>applicationToolAdmission(organized,name).accepted));
+  });
+}
+
 export function applicationToolOptions(config, nativeTools, research=()=>undefined) {
   if (!config.applicationPolicy) return {};
   // SDK `tools` filters the full registry, including registered extensions.
@@ -1142,6 +1153,7 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
     const {createGraphContextClient} = await import('./graph-context-client.mjs');
     const {inspectResearchProducts} = await import('./research-products.mjs');
     extensionFactories.push(pi => {
+      configureAdaptiveToolHandoff(pi,config);
       pi.on('tool_result', event => {
         if (event.toolName === 'agent_delegate' && Array.isArray(event.details?.children) &&
             !event.details.children.some(child => child.status === 'completed')) return {isError:true};
