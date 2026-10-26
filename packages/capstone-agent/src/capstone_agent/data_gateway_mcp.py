@@ -129,7 +129,7 @@ class DataGatewayMcp:
                     await session.initialize()
                     yield session
 
-    async def _catalog(self, session):
+    async def _catalog(self, session, *, tool_name=None):
         schemas, cursor = {}, None
         for _ in range(16):
             page = await session.list_tools(**({'cursor': cursor} if cursor else {}))
@@ -137,6 +137,8 @@ class DataGatewayMcp:
                 if tool.name not in self.policy['allowed_tools']:
                     continue
                 name = self.policy['namespace'] + tool.name
+                if tool_name is not None and name != tool_name:
+                    continue
                 if name in schemas:
                     raise GatewayError('gateway_catalog_invalid')
                 document = tool.model_dump(mode='json', by_alias=True, exclude_none=True)
@@ -152,7 +154,7 @@ class DataGatewayMcp:
             cursor = next_cursor
         else:
             raise GatewayError('gateway_catalog_invalid')
-        if not schemas or 'data_gateway_discover_data_capabilities' not in schemas:
+        if tool_name is None and (not schemas or 'data_gateway_discover_data_capabilities' not in schemas):
             raise GatewayError('gateway_catalog_unavailable')
         value = {'resource_id': self.policy['resource_id'], 'tools': schemas,
                  'tool_hashes': {n: fingerprint(s) for n, s in schemas.items()}}
@@ -186,7 +188,10 @@ class DataGatewayMcp:
                 raise GatewayError('gateway_arguments_invalid') from None
             async with asyncio.timeout(limits.mcp_tool_seconds):
                 async with self.connect() as session:
-                    if await self._catalog(session) != catalog:
+                    current = await self._catalog(session, tool_name=name)
+                    # The caller's whole grant was checked above. Publication
+                    # drift matters only for the exact tool being invoked.
+                    if current['tools'].get(name) != schema:
                         raise GatewayError('gateway_publication_changed')
                     response = await session.call_tool(schema['name'], arguments=arguments)
                     value = response.model_dump(mode='json', by_alias=True, exclude_none=True)

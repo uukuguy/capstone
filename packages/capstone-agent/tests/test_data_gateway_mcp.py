@@ -89,6 +89,65 @@ def test_changed_or_forged_catalog_is_rejected_before_call(tmp_path):
         asyncio.run(client.call('data_gateway_build_network_model', {}, forged))
 
 
+@pytest.mark.parametrize('change', ['addition', 'removal', 'description', 'invalid_schema', 'annotations', 'meta'])
+def test_unrelated_published_tool_drift_does_not_block_the_unchanged_admitted_tool(tmp_path, change):
+    initial, session = gateway(tmp_path)
+    other = Tool('discover_network_models')
+    if change != 'addition':
+        session.tools.append(other)
+    client = DataGatewayMcp(initial.connection_path, dict(initial.policy,
+        allowed_tools=['discover_data_capabilities', 'discover_network_models']), connect=initial.connect)
+    catalog = asyncio.run(client.prepare())
+    if change == 'addition':
+        session.tools.append(other)
+    elif change == 'removal':
+        session.tools.remove(other)
+    elif change == 'invalid_schema':
+        other.value['inputSchema'] = {'type': 'not-a-json-schema-type'}
+    else:
+        other.value[change] = {'changed': True} if change in {'annotations', 'meta'} else 'Changed unrelated tool'
+    result = asyncio.run(client.call('data_gateway_discover_data_capabilities', {}, catalog))
+    assert result['structuredContent']['status'] == 'partial'
+    assert session.calls == [('discover_data_capabilities', {})]
+
+
+def test_removal_of_discovery_does_not_revoke_a_different_unchanged_admitted_tool(tmp_path):
+    initial, session = gateway(tmp_path)
+    session.tools.append(Tool('discover_network_models'))
+    client = DataGatewayMcp(initial.connection_path, dict(initial.policy,
+        allowed_tools=['discover_data_capabilities', 'discover_network_models']), connect=initial.connect)
+    catalog = asyncio.run(client.prepare())
+    session.tools = [tool for tool in session.tools if tool.name != 'discover_data_capabilities']
+    asyncio.run(client.call('data_gateway_discover_network_models', {}, catalog))
+    assert session.calls == [('discover_network_models', {})]
+
+
+@pytest.mark.parametrize('field', ['description', 'inputSchema', 'outputSchema', 'annotations', 'meta', 'removed'])
+def test_every_part_of_the_called_tool_contract_remains_guarded(tmp_path, field):
+    client, session = gateway(tmp_path)
+    catalog = asyncio.run(client.prepare())
+    if field == 'removed':
+        session.tools = session.tools[1:]
+    else:
+        session.tools[0].value[field] = ({'type': 'object'} if field.endswith('Schema') else
+            {'readOnlyHint': True} if field == 'annotations' else {'revision': 'changed'} if field == 'meta' else 'Changed')
+    with pytest.raises(GatewayError, match='^gateway_publication_changed$'):
+        asyncio.run(client.call('data_gateway_discover_data_capabilities', {}, catalog))
+    assert session.calls == []
+
+
+def test_forging_an_unused_catalog_entry_still_rejects_the_whole_caller_grant(tmp_path):
+    initial, session = gateway(tmp_path)
+    session.tools.append(Tool('discover_network_models'))
+    client = DataGatewayMcp(initial.connection_path, dict(initial.policy,
+        allowed_tools=['discover_data_capabilities', 'discover_network_models']), connect=initial.connect)
+    catalog = asyncio.run(client.prepare())
+    catalog['tools']['data_gateway_discover_network_models']['description'] = 'Forged unused entry'
+    with pytest.raises(GatewayError, match='^gateway_tool_not_admitted$'):
+        asyncio.run(client.call('data_gateway_discover_data_capabilities', {}, catalog))
+    assert session.calls == []
+
+
 def test_connection_failure_has_only_public_code(tmp_path):
     client, _ = gateway(tmp_path)
 
@@ -221,13 +280,24 @@ def test_real_streamable_http_discovery_call_and_bad_auth(tmp_path):
         config = json.loads(existing.connection_path.read_text())
         config['url'] = f'http://127.0.0.1:{port}/mcp'
         existing.connection_path.write_text(json.dumps(config))
-        client = DataGatewayMcp(existing.connection_path, existing.policy)
+        client = DataGatewayMcp(existing.connection_path, dict(existing.policy,
+            allowed_tools=['discover_data_capabilities', 'discover_network_models']))
 
         async def exercise():
             catalog = await client.prepare()
             result = await client.call('data_gateway_discover_data_capabilities', {}, catalog)
             assert result['structuredContent']['provenance']['request_id'] == 'real-http'
             assert result['structuredContent']['status'] == 'partial'
+            def discover_network_models() -> dict:
+                return {'models': []}
+            mcp.add_tool(discover_network_models)
+            result = await client.call('data_gateway_discover_data_capabilities', {}, catalog)
+            assert result['structuredContent']['provenance']['request_id'] == 'real-http'
+            mcp.remove_tool('discover_network_models')
+            await client.call('data_gateway_discover_data_capabilities', {}, catalog)
+            mcp.remove_tool('discover_data_capabilities')
+            with pytest.raises(GatewayError, match='^gateway_publication_changed$'):
+                await client.call('data_gateway_discover_data_capabilities', {}, catalog)
 
         asyncio.run(exercise())
         config['headers']['Authorization'] = 'Bearer wrong-credential'
