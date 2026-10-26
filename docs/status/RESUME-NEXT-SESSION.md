@@ -1,85 +1,32 @@
 # Live Session Checkpoint
 
-Updated 2026-10-27 Asia/Shanghai. Live checkpoint; non-diagram local acceptance passed, PR69 integration remains active.
+Updated 2026-10-27 Asia/Shanghai. Non-diagram acceptance and PR69 integration passed; final control alignment remains active.
 
-## Immediate next action — supersedes older in-flight entries
+## Current boundary
 
-- Current feature HEAD e913c450; PR69 latest CI pending. CI40402480242 passed938 formal-application tests but failed an outdated simulator discovery set after15m57s. e913c450 updates that set and the Pack resource count;59 protocol/contract tests and2 resource checks pass. No runtime code change in this commit. All other capability-count expectations were searched.
-- Runtime ed0c5ff2 canonical rebuild passed;API/all3 workers image cad1795d62599748f79190968b7877f96d2e43070fe36e61ac77261056651aa6,healthy,restart0;native healthy/restart0. Scoped cleanup complete. Existing Vivaldi thread thr_260fbf7ddde61dd0dd89 refreshed and restored all products;receipts outputs/mcp-self-discovery-20261027/vivaldi/ed0c5ff2-* in root. Do not repeat business calls.
-- PR69 at 432b94b5 failed CI40398582352 after17m23s: the published model.artifact.import capability had no skill guide. Exact failure reproduced locally in0.24s; grant/quality/receipt/recovery guidance added to the owning Pack. Four skill checks pass0.11s; the contract directory check is running. Commit the guide fix and complete the normal PR gate before merge.
-- Root dev is temporarily clean: its owned dirty docs match feature and were preserved in a scoped stash, recorded in outputs/control-recovery-20261027/stash-ref.txt. Do not reapply all of that stash after fast-forward; those files are already committed on the feature. Preserve its journal tail and the stash recovery reference.
-- Feature HEAD4c70736e, PR69 targets dev. First macOS CI40396162810 failed two optional-value type checks after3m28s. Fix4c70736e passed focused Pyright and47 broker tests; push/new CI must be checked. Do not merge failed checks.
-- Product runtime214c2e23: canonical rebuild passed, API/workers image c470a1240dd5b869692601618b4b2da6212a66921e138ffbfef507656e086779, native healthy with zero restarts, scoped cache cleanup completed. No cloud/demo/main change.
-- Vivaldi final delivery retest passed: CSV primary card, statistics note support,4 native calls/about76s, no gateway requery; refresh preserves files/roles and all four folded Thinking records. No active task remains. Existing enterprise tab in window131132 shows the results. New tabs are not authorized by this workflow.
-- Scope query21s, real Beijing5points54.7s, statistics/CSV61s; mean6021.43852MW independently verified. The 76s final turn shows latency variability, not a fully solved performance claim.
-- Root control docs updated by process_views, currentHEAD4c70736e/runtime214c distinct. Existing Vivaldi control tab checked after generation: source/local-dev edges and text fit pass. Root dirty docs and feature journal must be preserved, synchronized and committed through PR69 before final dev alignment.
-- Git direct github.com connection failed; the already configured system HTTP proxy127.0.0.1:7897 worked for push via per-command git -c http.proxy. No global network configuration changed.
-- Latest user priority: finish non-diagram work first. All provincial/v2/graph-location work is paused. User reports Beijing gateway work complete; client graph acceptance deferred. Preserve reviewed Authority import groundwork, but do not continue its public integration now.
+- Actual dev bcd1a5ad merged PR69 normally. Feature519bf75f passed required macOS CI40409319046 in27m16s. No cloud/demo/main change.
+- User priority: finish non-diagram work first. User now reports Beijing,Tianjin,Shanghai,Hubei,Zhejiang provincial grids ready;Capstone graph acceptance remains pending. Provincial/v2 diagram,drilldown/location and public power-flow import integration remain deferred. Use MCP discovery/shared components,not hard-coded province routes.
+- Local backend source ed0c5ff2,image cad1795d62599748f79190968b7877f96d2e43070fe36e61ac77261056651aa6. Canonical rebuild passed;API/all3workers healthy/same image/restart0;native healthy/restart0;scoped cleanup completed. Later commits change tests/docs only.
+- Real Vivaldi acceptance on214c2e23: scope21s/3tools;Beijing5samples54.7s;statistics/CSV61s;final primary CSV/support note76s/4tools,no gateway requery. Mean6021.43852MW independently verified. Latency remains variable,not fully solved.
+- Existing Vivaldi thread thr_260fbf7ddde61dd0dd89 refreshed oned0c5ff2 and restored all four turns/products. Evidence outputs/mcp-self-discovery-20261027/vivaldi/. Window131132;reuse existing enterprise/control tabs. Do not repeat completed Provider cases.
 
-## Current user priority
+## Immediate actions
 
-- Finish non-diagram work first: dynamic MCP discovery, business queries, conversation continuation, execution records, visible Vivaldi acceptance. Diagram implementation is paused. User reports Beijing grid is now complete on gateway; client verification remains deferred.
+1. Finish actual-dev App entry-point check and control alignment. process_views owns ROOT VERSION-CONTROL.md,INDEX.md,PROJECT-OVERVIEW.html and is generating merged state. Root owns journal,this checkpoint,and review.
+2. Inspect graph in existing Vivaldi control tab,return to enterprise results,run scoped docs checks,commit through normal docs PR into dev. No release gates or rebuild for docs/test-only changes.
+3. Synchronize accepted branch copies without deleting ignored runtime/user data;record retained dirty snapshot paths and recovery reason.
 
-## Latest non-diagram verification
+## Verification
 
-- Canonical rebuild209f8ac6 passed; API/workers same image5c837f6e, native zero restarts, scoped cleanup completed.
-- Vivaldi actual new conversations: scope query21.0s (search/load/query,3tools,4models); Beijing5-minute curve54.7s (correct5points/source/MW); continuation statistics+CSV61s (mean6021.43852, correct extrema). CSV preview/download works; refresh retains both answers, folded Thinking and CSV.
-- Found CSV incorrectly presented as process output and internal path in answer. Fixed60468ba0 by reusing saved-product guidance in lightweight loop;2SDKchecks pass. Canonical rebuild60468ba0 passed, API/workers image54134fed3f7acb3f63305449eebc679a711e4f88ea0d325348e360e0a6a44905; scoped cleanup completed.
-- Third instruction completed35.7s,8tools,8models; no gateway query or internal path. Manifest was actually written under out/, so roles remained absent. Exact trace in /tmp/capstone-vivaldi-delivery-trace.json. 214c2e23 explicitly requires workspace-root manifest with root-relative paths. Canonical rebuild pending below; final delivery acceptance is not yet passed. Evidence outputs/mcp-self-discovery-20261027/vivaldi/ in root.
-- Finish this delivery retest, inspect execution record, then update review/control and integrate scoped accepted work via normal dev PR. Diagram work remains paused.
+- Dynamic MCP admission/init guidance/task-scoped discovery and lightweight product guidance passed. CSV manifest belongs at initial workspace root,paths include output directory;final answers avoid internal paths.
+- Packaging omitted general-tool-discovery.mjs;explicit COPY and static-import packaging check fixed it. Cold inventory measured18.94s;bounded90s readiness and5minute Compose startup grace fixed startup without restart loops.
+- Types fixed4c70736e;import guide/catalog expectations fixeded0c5ff2/e913c450. Sleep-based backpressure fixture fixed519bf75f with Event and controlled deadline;46file checks plus10x6 repeated cases pass.
+- Local agent2331pass147skip144.92s;Pack145pass1.17s;39contracts,59protocol/contracts+2resources pass. Model-capability/local-rebuild/generic-tools pass. Required final CI passed;earlier failed runs remain recorded,not accepted.
 
-## Active recovery boundary
+## Recovery
 
-- User withdrew the handoff-document request, then asked to continue implementation. Preserve the already committed document; do not submit it to the sibling project.
-- Feature HEAD b1c25287 includes d504ab37 (missing native tool-discovery Docker COPY), 8f430858 (transitive SDK packaging check), and b1c25287 (startup inventory budget 90 seconds, matching resource readiness).
-- First rebuild failed on missing module. Second reached MCP startup but its 15-second inventory deadline expired. An isolated no-Provider diagnostic completed the same MCP inventory in 18.94 seconds. Automatic restart loop was stopped before diagnosis; no business tasks were submitted.
-- Focused host/packaging checks: 74 passed initially; two localhost tests hit proxy 502, then passed in 1.88 seconds with NO_PROXY. Canonical rebuild b1c25287 exited when Compose marked native unhealthy before cold initialization finished. Native then became healthy with zero restarts. 209f8ac6 adds a five-minute startup grace (healthy passes immediately), and fixes wildcard handling in packaging checks. Rebuild209f8ac6 is running, session4031, log /tmp/capstone-local-final-startup.log. Verify readiness and API/worker image identity before Vivaldi acceptance.
-- Browser current window131132 still contains the existing enterprise tab. Refresh state before clicks. No new business conversation has been submitted in this continuation.
-
-## Latest user priorities (supersede earlier next-action order)
-
-- Defer further power-flow model integration. Preserve committed Authority/broker/Pack groundwork; do not keep building its backend endpoint now.
-- Prioritize electrical topology display and exact query/statistics-to-diagram location. Station/busbar/transformer/line clicks use source-qualified references; aggregate rows drill into real members. No name-based identity inference or fabricated connections.
-- All BUSINESS instruction acceptance must be visible in Vivaldi's Capstone workspace using a NEW CONVERSATION. Reuse existing browser tab; continuation sequences stay in the same conversation. Background scripts are diagnostics/data cross-checks only.
-- Read sibling docs/调控业务数据能力与测试指令.md as developer test selection reference; do not feed expected answers into runtime agent context. Beijing directory/measurement scope does not establish a ready provincial electrical or calculation model.
-- Dynamic gateway source now7507ce58 (54 tools by explicit safe effects + init guidance),869c482c (generic task operation references),c104ef9b (imported Pack provenance),11e91972 (guidance delivered to task).200focusedhost/MCP/relaychecks pass20.25s. Canonical local rebuild for11e91972 running session2367, log/tmp/capstone-self-discovery-rebuild.log; source frozen until build context is fixed. No new business instruction submitted yet.
-- Vivaldi currently PID4993/window131132, existing Capstone enterprise tab127.0.0.1:5173. AX tree initiallyshallow; screenshot shows old North神二 frozenviewexpired, no active task. Use fresh state, no repeated stale indexes. User explicitly authorized newconversation, not newbrowserpage.
-
-## Latest verified boundary
-
-- User authorized gateway-independent grid/Authority/on-demand menu work, then prioritized MCP-only validation of new sibling handoff docs/superpowers/specs/2026-10-27-capstone-mcp-self-discovery.md. Major gateway feedback only; defer small polish. Sibling remains read-only.
-- Live gateway1.30.0 publishes54tools, contract6d73ef216541b1de4c276a00ce7ade2979bdca02834decb38c67e0540e106ae1. All54 tool schemas match detailed contracts. Structured errors retain recovery; missing required input retains plain isError text.
-- Fresh enterprise agent20calls compared directory classes, exact-ID cross-checked two legal compositions, found unavailable September2026 evidence. Fresh grid agent19calls found Chaoyang8busbars/2trafos/3windings/14lines;2lineshaveendpointgaps. Readiness inspect exceeded40s HTTP wait; view stillpreparing after2jobchecks. No solver/readiness or ranking claim. Rootoutputs/mcp-self-discovery-20261027 holds full receipts andreports. Review committed407184fe; this is protocol-only, not workbench/Provider live acceptance.
-- New source commits: efa44267 plan; d3a8f1a6 boundedtoolmenu;8fd7e93f Authorityimport; c45af505 streamingApplicationbroker;1d953595 hostmenuwiring;407184fe MCPtrialreport;e0cc9552 brokerqualitybinding;3c7ace95 Authorityreviewfix. HEAD3c7ace95. New source NOT rebuilt/deployed, runtime stays9e01f5dc/2a8.
-- Authority imported actual East demo ZIP; registeredACsolve did notconverge. A separate explicitlydeclaredsmall demo imported/converged/rankedkeys20,18,19. SeparategridctlprocessrestoredEastcontext. Review found dtypebooleanbypass/switch-target/metadataqualitymismatch; fixed3c7ace95+e0cc9552 and independentoriginalrepros plus omittedboolcolumn all reject,reviewPASS5.49s.83Authority/47brokerchecks pass. StricterEast reimport retainsdemo=true/real=false; re-solve nonconvergedsaved8ccd295c.... BrokeractualEast65chunkcalls wereOFFLINEfixture,notlivenetwork. Pack/applicationtransport/bindingintegrationstillpending. No remainingImportantwithinreviewedscope; notfullsystemacceptance.
-- Ondemand menus searchablewithinhosttaskgrant;exactschemasactivatednextturn,count8/schema24k bounds, parent/childisolation.42SDKchecks androot70host+7SDKpass. Schemaerrorwasobservedredbeforehostflagfix. No newgatewaybusinessfieldguessed.
-- BaselineNorth/EastAPIclosure13requests each passed5.158s/7.048s onOLDimage. Vivaldi openedthenexitedduringinspection;no newtab. Current-sourcevisualacceptancepending.
-- Immediate integration gaps: staticbusinessliststillfiltersdiscover_gateway/describe_gateway_contract (and6otherpublishedtools);MCPinitializationinstructionsdiscarded. Fixgenerically,notpermanentname-listappend. Gatewaymajorfeedbackonly: investigateboundedlonginspection/jobcontinuation;timeoutcauseunproven. Smallstatus/wordingissuesdeferred.
-- Continue reviewer findings, wirebroker/Pack/Authority import, thencoherentcanonicalrebuild/livechecks/normaldevPR. Preserve rootdirtycontrol/docs, featureappend-onlyjournal, sourceworktrees andalluserdata. Do not substituteEastdemo/IEEE39forNorthoperatingacceptance.
-
-## Current steering
-
-- User approved dynamic discovery/admission for ALL gateway tools, not only graphs. Gateway is implementing unified semantic/operation definitions, layered on-demand discovery and consistent result/error metadata. Compositions express conditions, not fixed sequences. Runtime agents must use MCP only, without repository docs.
-- Active design/plan in .worktrees/electrical-diagrams: docs/superpowers/{specs/2026-10-27-gateway-self-description-design.md,plans/2026-10-27-gateway-self-description.md}. No guessed unpublished wire fields or sibling edits.
-- Audit confirmed static tool-name admission and required discovery name in data_gateway_mcp; business call sequences in general_pi_server; view-only job guards in relay. Existing JS tool menu is dynamic. Keep specialized renderers separate from general admission.
-- Independent fixes committed: 44228b91 checks the exact called-tool contract; 425be8c6 keeps publication failures tool-scoped; 5fa5a559 enforces host task tool subsets and removes global business sequences/grid-specific prompts. Plan progress4dbb92af. Root independently verified171 host/MCP/relay checks (169 first pass, two localhost proxy failures then passed with NO_PROXY),55 MCP/electrical checks,8 JS checks; doctor and diff checks pass. No current-source rebuild or Vivaldi acceptance yet. New generic semantic/effect admission awaits actual publication details; the static business list still exists.
-- Second rebuild9e01f5dc finished image2a8f632b154f5068b013c3de7e3d67008d04c32ff5dd53f6d4b053603122d64c, but canonical command exit2 after native inventory startup failure. Native auto-restarted once; already-created API/workers manually started, all healthy and readiness200 at23:56:58. Do not call canonical rebuild successful. Scoped cleanup now complete; receipt outputs/electrical-integration-20261026/gateway-self-description/cleanup-receipt.json.
-- Feature has only its existing append-only JOURNAL changes uncommitted; the six new lines were copied to canonical root journal without changing past entries. Root control/review/recovery docs remain deliberately dirty pending integrated branch closeout; preserve them. Next: consume actual newly published MCP self-description, remove static business-name admission using its permission semantics, then one coherent rebuild and real multi-task acceptance. Do not claim complete dynamic integration from the groundwork commits.
-- Below records the preceding electrical integration boundary. Authority import and real mapped calculation remain incomplete; do not silently drop them after this gateway unit.
-
-## Preceding electrical integration boundary
-
-- Root dev9d691624 synchronized to merged PR68. Dirty control/review/journal/plan/handoff preserved; stash159959f08cec3753d6e5f2f47f75419073a1906c retained. PR68 f9010be5 macOS40339429930 passed12m31s.
-- Active .worktrees/electrical-diagrams branch feat/gateway-electrical-views HEAD9e01f5dc;20fbbf23 mergedorigin/dev. App5173 serves this worktree. Cloud/demo/main unchanged. Branch not pushed/PR-created yet.
-- Local gateway release20261026-05 published52tools and7model scopes, including frozen electrical open/read/job. Probe evidence outputs/electrical-integration-20261026. Sibling gateway read-only.
-- 07484883/0eb4b189 admit exact tools/current-task verified descriptors. 3eee8516 loads eight streams. 6b65f1e2 protects API contracts (141tests/Pyright). 83827d03 adds bounded workspace navigation, frozen restore and Docker packaging (59App tests/types).
-- First canonical rebuild passed on83827d03 backend; image5be84475ac02959307ed662250a9a403bd80bfa0c48c74733edaa46149476816, readiness and scopedcleanup passed. Second canonical rebuild on9e01f5dc running session35413; log/tmp/capstone-electrical-rebuild-publication.log. Last stage65 uv installs done, catalog bake/chown/source digest still running. Commands may be slow under local load; no broadtestgate running.
-- Vivaldi restarted, nowwindow129764/pid50839, same thread thr_a07ac5a8e68691e55c30/tab. North神二 displayed449nodes/372relations. Weightedpacking4d494e5e fixedtinyconnectedcomponent. Afterreload currentpaneerror; do not claimstableacceptanceyet.
-- Protected two-model acceptance saved rootoutputs/electrical-integration-20261026/protected-{north,east}-closure.json andprotected-acceptance.json. North188devices/186ports/180connections;East72/104/104. Two directorypages+eightstreams+exactreopen passed.
-- Refreshedviewfailure diagnosed and fixed9e01f5dc: gatewayrepublishedopen/read optionalview_schema andsummary streams; cachedcatalog18918c2e vsfresh3dd1667f. NestedExceptionGroup masked publication_changed. Fix preservesfixedcode, refreshescompatibleprotectedcatalogonce, pinsv1, retainsrunningtaskcatalog.59tests includingthreadedHTTPcoalescing, schemafailure andno-transport-retry pass;Pyright0. Postrebuildrealacceptancepending. Evidence outputs/electrical-integration-20261026/publication-change-regression.json.
-- Root owns workspace/transport/routing/packaging committed83827d03. Worktree JOURNAL has three agent lines to merge into canonical root journal.
-- PureCmapper1b38b72f committed; actualchecksum-verified3310entrymap parses. Authoritydesign53979ada usesdata-onlydecoding, notunsafeppJSONregistry. Layoutagentdone4d494e5e. Preserve process_views backendedits.
-- C gap: pandapower Authority opens registered factories only; no gateway bundle import seam. Actual East demo3310-element bundle built/read/mapped, NOT solved. IEEE39 does not prove gateway mapping.
-- Next: complete9e01rebuild; verify API/workeridentity+cleanup; reuseVivaldi129764 same tab. CheckNorth/East views, refresh, device details and realmodelinstructionauto-open. Retryonlyafternewbackendready. Update realreview/control; transfercanonicalrootdocs tofeature preservingappend-onlyjournal; normaldevPR/requiredgate/merge/rootentry. Then implement reviewed Authority admission and real mapped calculation. No arbitrary Python solver bypass.
-- Update stale plan/handoff/control at coherent boundary. PR68 route fallback fixed; gateway no longer unpublished. Preserve root data and dirty old dev-macos-ci docs.
-- Historical North readiness failure outputs/grid-scale-20261026/north-model-check.md; do not repeat unchanged.
+- Root scoped stash4a1981905c7fd073f9d1ce4a14d0157839307d88 preserved10owned dirty/untracked docs before fast-forward. Backup outputs/control-recovery-20261027/. Those files are now committed;newer feature journal/control edits copied explicitly. Do not blindly apply the stash.
+- Earlier stash159959f08cec3753d6e5f2f47f75419073a1906c retained. Never delete/migrate root var/.
+- Feature .worktrees/electrical-diagrams retains doc updates pending synchronization;root owns final delivery. Preserve ignored runtimes/recovery references.
+- Git direct transport times out;per-command git -c http.proxy=http://127.0.0.1:7897 uses existing system proxy. Global settings unchanged.
+- Sibling data-gateway remains read-only. Withdrawn handoff document stays preserved,not submitted. Runtime agents use MCP;repository docs are development references.

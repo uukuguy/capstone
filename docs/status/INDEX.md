@@ -7,21 +7,37 @@ stays deferred. The [provincial scope/cache handoff](../superpowers/specs/2026-1
 is a retained follow-up, not active delivery. Visible business checks use new
 conversations in the existing Vivaldi Capstone tab.
 
-Current boundary (2026-10-27): root dev remains 9d691624 after PR68. Feature
-feat/gateway-electrical-views HEAD 4c70736e narrows nullable types.
-Product deployment/acceptance remains 214c2e23. Push succeeded and
-[PR69](https://github.com/uukuguy/capstone/pull/69) is open against dev, with no merge.
-Initial CI40396162810 failed at type checking after 3m28s with two nullable-value
-warnings. Fix 4c70736e binds expiry.utcoffset to a local variable and narrows
-endpoint.role to a string. Focused Pyright reports zero errors; 47 broker tests
-passed in 0.20s. The fix is being pushed for a new CI run; its result is pending.
+Current boundary (2026-10-27): [PR69](https://github.com/uukuguy/capstone/pull/69)
+merged as bcd1a5ad1d51b8ade53a305a5498ca6d557a2c7b; actual root dev has fast-forwarded.
+Required CI40409319046 passed on 519bf75f in 27m16s. The feature branch is closed
+for development as a merged source; its worktree and recovery references remain.
+Runtime stays ed0c5ff2; fixed business acceptance stays 214c2e23. The actual-dev App
+entry is verified: feature Vite PID54072 stopped; root make capstone-app-dev launched
+PID92924 on port5173. lsof confirms ROOT/packages/capstone-app as cwd, checkout
+bcd1a5ad. API readiness is 200; refreshing the existing Vivaldi thread restored CSV
+downloads and products. Effective local-dev content remains ed0c5ff2 because
+localBuildIdentity excludes document/test changes. Root documents are restored; the earlier
+scoped stash reference remains in outputs/control-recovery-20261027/stash-ref.txt.
+Initial CI40396162810 failed type checks in 3m28s; 4c70736e fixed both nullable
+values (Pyright zero errors, 47 broker tests in 0.20s). CI40398582352 then failed
+on the missing model.artifact.import guide; ed0c5ff2 fixed guides and stale contract
+assumptions (39 passed). CI40402480242 failed on an old simulator discovery set;
+e913c450 updated simulator/Pack expectations (59+2 passed). CI40405274111 failed
+on a flaky backpressure test after 24m15s. Fix 519bf75f uses an Event and controlled
+deadline instead of sleep(0.2); 46 file checks and ten repeated six-case runs passed.
+The local full agent suite passed 2331 with 147 skipped in 144.92s; Pack passed 145
+in 1.17s. Model-capability, local-rebuild and generic-tools checks passed. These
+local checks remain distinct from the passed required PR gate.
 Direct Git access first timed out; the earlier successful push used
 the existing system proxy at 127.0.0.1:7897 without changing global configuration.
 Dynamic admission (7507ce58), relay (869c482c),
 initialization guidance (11e91972) and menus (1d953595) are deployed.
-The canonical 214c2e23 rebuild passed; API and all three workers
-share image sha256:c470a1240dd5b869692601618b4b2da6212a66921e138ffbfef507656e086779.
-Native is healthy with zero restarts; scoped cache cleanup is complete.
+The canonical ed0c5ff2 rebuild passed; API and all three workers share image
+sha256:cad1795d62599748f79190968b7877f96d2e43070fe36e61ac77261056651aa6.
+All roles, including native, are healthy with zero restarts; scoped cleanup is complete.
+Existing Vivaldi thread thr_260fbf7ddde61dd0dd89 retained all products after the
+rebuild and refresh. No business calls were repeated. The earlier c470 image at
+214c2e23 supplied the following fixed business acceptance evidence.
 Vivaldi checks passed: ten scopes in 21s with three tools/four model requests;
 five correct Beijing samples in 54.7s; same-conversation statistics/CSV in 61s,
 mean 6021.43852. Product-role guidance and the misplaced output manifest were fixed
@@ -30,10 +46,11 @@ product, statistics notes support it, and both restore after refresh without ano
 gateway query. Independent review has no Important/Critical findings; 13 Python
 and seven JS focused checks passed. Timing still varies; this is not a claim of
 complete performance optimization. Cloud/demo/main are unchanged.
-The coordinator refreshed the existing Vivaldi control tab: the latest source node
-and local-dev source edge were correct, with no clipped text or overlapping cards.
-The browser returned to the workbench result tab. This update changes only HEAD/CI
-metadata, retaining the ancestry graph. See [the self-description and workbench report](../reviews/2026-10-27-mcp-self-discovery.md).
+The earlier 214c control graph passed Vivaldi source-edge and text/card checks.
+This refresh generates the actual ROOT dev graph once, showing bcd1a5ad as a real
+node and retaining the ed0c runtime and fixed 214c business-acceptance nodes.
+The coordinator will check the new layout and source edges in Vivaldi; that check
+is pending. See [the self-description and workbench report](../reviews/2026-10-27-mcp-self-discovery.md).
 
 Previous boundary (historical): dev was 9d691624 after PR68 merged.
 Required macOS CI 40339429930 passed on f9010be5 in 12m31s. Root fast-forward
