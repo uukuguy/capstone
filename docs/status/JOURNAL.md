@@ -5946,3 +5946,7 @@ Prior closeout receipts preserved verbatim from the root checkout:
 - 2026-10-27 `ed0c5ff2`: Document granted import and correct stale contract assumptions;39 checks pass in4.44s.
 
 - 2026-10-27 `ed0c5ff2`: Canonical rebuild passed;API/workers share cad1795d image;scoped cleanup complete;PR69 CI remains pending.
+
+- 2026-10-27 `e913c450`: Align simulator and Pack discovery expectations with granted import;61 focused checks pass.
+
+- 2026-10-27 `e913c450`: Agent consumer regression passes2331 tests with147 skips in144.92s;PR69 CI remains pending.
