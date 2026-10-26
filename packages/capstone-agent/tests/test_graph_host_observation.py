@@ -166,6 +166,41 @@ def test_direct_gateway_keeps_exact_host_receipt_validation(tmp_path, tamper):
 
 
 @pytest.mark.parametrize('delegated', [False, True])
+@pytest.mark.parametrize('mode', ['ready', 'preparing', 'wrong-model', 'tampered'])
+def test_electrical_open_hint_requires_ready_receipt_bound_current_call(tmp_path, delegated, mode):
+    from capstone_agent.data_gateway_relay import DataGatewayAccess
+    from test_grid_source_topology import Gateway
+    tool = 'data_gateway_open_network_model_view'
+    client = Gateway()
+    client.catalog['tools'][tool] = {}
+    client.catalog['tool_hashes'][tool] = 'schema-open'
+    client.data = {'schema':'gateway-electrical-view/1','state':'ready','model_ref':'grid:test',
+        'model_revision':'rev1','selection_ref':'sel1','source_snapshot_ref':'snap1','view_ref':'view1',
+        'representation':'source_node_breaker','target':None,'artifact_ref':None,
+        'capture':{'source_transaction_consistency_verified':False},
+        'streams':{stream:{'total_count':0,'read':{'tool':'read_network_model_view',
+            'arguments':{'view_ref':'view1','stream':stream}}} for stream in
+            ['devices','ports','connectivity_nodes','connections','device_relations','groups','boundaries','issues']}}
+    if mode == 'preparing': client.data.update(state='preparing', preparation_ref='prepare1')
+    if mode == 'wrong-model': client.data['model_ref'] = 'grid:other'
+    gateway = DataGatewayAccess(client, client.catalog)
+    native = direct_native_context()
+    native['policy']['allowed_tools'] = [tool]
+    def exercise(call, *_):
+        call('open-view', tool_name=tool, arguments={'model_ref':'grid:test'}, tamper=mode=='tampered')
+    host, task, _ = run_graph_host(tmp_path, delegated, exercise, direct=not delegated,
+        native_context=native if not delegated else None, gateway=gateway)
+    saved = host.read(task)
+    assert saved['result']['status'] == ('failed' if mode == 'tampered' else 'completed'), saved['result']
+    hints = [event['source_view'] for event in saved['events'] if 'source_view' in event]
+    assert len(hints) == (1 if mode == 'ready' else 0)
+    if hints:
+        assert hints[0] == {key:client.data[key] for key in ['model_ref','model_revision','selection_ref',
+            'source_snapshot_ref','view_ref','representation','target','artifact_ref']} | {
+                'schema':'capstone-electrical-view-request/1','source_id':'data-gateway'}
+
+
+@pytest.mark.parametrize('delegated', [False, True])
 @pytest.mark.parametrize('level', ['station','equipment'])
 @pytest.mark.parametrize('selectors,expected', [({},None),({'voltage_min_kv':None},None),({'voltage_min_kv':330},330)])
 def test_gateway_source_hint_survives_committed_parent_and_child_graph_publication(tmp_path, delegated,level,selectors,expected):

@@ -34,6 +34,31 @@ def _adaptive_agent_loop(request):
     return publication is not None and getattr(publication, 'adaptive_agent_loop', False) is True
 
 
+def _electrical_view_from_verified_result(result, arguments):
+    """Project a ready open response only after exact gateway receipt admission."""
+    from .grid_electrical_view import electrical_descriptor
+    try:
+        text = result['content'][0]['text']
+        if not isinstance(text, str) or len(text.encode()) > limits.mcp_frame_bytes:
+            return None
+        upstream = json.loads(text)
+        content = upstream.get('structuredContent', {})
+        if upstream.get('isError') or content.get('status') not in {'ok', 'partial'}:
+            return None
+        data = content['data']
+        if (data.get('state') != 'ready' or data.get('model_ref') != arguments.get('model_ref')
+                or data.get('representation') != arguments.get('representation', 'source_node_breaker')
+                or data.get('target') != arguments.get('target')):
+            return None
+        for argument, field in [('expected_model_revision', 'model_revision'), ('selection_ref', 'selection_ref'),
+                                ('artifact_ref', 'artifact_ref')]:
+            if arguments.get(argument) is not None and arguments[argument] != data.get(field):
+                return None
+        return electrical_descriptor(data)
+    except (ValueError, TypeError, KeyError, IndexError, AttributeError):
+        return None
+
+
 class GeneralPiHost:
     def __init__(self, *, root: Path, identity: dict, run_task: Callable,
                  max_tasks: int | None = None, max_records: int | None = None, retention_seconds: float | None = None,
@@ -614,7 +639,7 @@ class GeneralPiHost:
                     payload = {'type': 'assistant_thinking_delta', 'text': change['delta']}
             if (payload is not None and (kind == 'tool_execution_end'
                     or kind == 'enterprise_graph_child_tool' and event.get('activity') == 'end')
-                    and payload.get('tool_name') == 'data_gateway_get_network_topology_view'
+                    and payload.get('tool_name') in {'data_gateway_get_network_topology_view', 'data_gateway_open_network_model_view'}
                     and payload.get('is_error') is not True):
                 # Verification is mandatory even when the observation capture
                 # budget is full. Only the optional display projection can fail
@@ -622,8 +647,11 @@ class GeneralPiHost:
                 result = event.get('result', {})
                 arguments = self.verify_gateway_observation(request, payload['tool_call_id'], payload['tool_name'], result,
                     include_arguments=True)
-                from .grid_source_topology import source_view_from_gateway_result
-                source_view = source_view_from_gateway_result(result, arguments)
+                if payload['tool_name'] == 'data_gateway_open_network_model_view':
+                    source_view = _electrical_view_from_verified_result(result, arguments)
+                else:
+                    from .grid_source_topology import source_view_from_gateway_result
+                    source_view = source_view_from_gateway_result(result, arguments)
                 if source_view is not None:
                     payload = {**payload, 'source_view': source_view}
             if payload is not None:
@@ -912,6 +940,12 @@ class NativeTaskRunner:
                         'Choose the published tool that directly answers the current instruction. Discover capabilities or services only when the needed operation is unknown. '
                         'For an inventory request, use summary/default arguments and answer from the returned list; do not add readiness audits, topology loading, sample opening or model builds unless requested. '
                         'When discover_network_models is admitted, a model-list request needs that inventory once with default detail=false, not a broader service investigation. '
+                        'For a requested electrical source view, use the discovered model_ref with open_network_model_view and source_node_breaker. '
+                        'If it returns preparing, query only its returned preparation_ref with get_network_model_job, then reopen after success. Do not poll without a bounded wait or retry failed preparation. '
+                        'Read groups first at the model root; select a returned station/device target and open its local view with parent_view_ref and expected_model_revision. '
+                        'Never prefetch all network devices or reconstruct a full network just to open a diagram. Preserve exact view_ref, model_revision, selection_ref and source_snapshot_ref on reads. '
+                        'Use refresh_source only when the current instruction asks to refresh source data. Captured content is fixed; source transaction consistency may remain unverified. '
+                        'A ready source view supports display, not power-flow readiness or Authority results. Calculation views require an admitted artifact and exact model mapping; do not invent one or build through this research adapter. '
                         'Registered scopes, built artifacts and calculation readiness are distinct claims. Preserve the returned distinction instead of trying extra operations to certify a list. '
                         'For actual data analysis, discover the needed exact objects, metrics, sources and time coverage. '
                         'These explicit data grants do not enable arbitrary external web lookup. Preserve status, gaps, provenance and calculation. '
@@ -1106,6 +1140,8 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
         raise ValueError('General Pi control authentication is required')
     from .grid_source_topology import GridSourceProvider, GridSourceError, REQUEST_BYTES
     source_provider = GridSourceProvider(getattr(runner or host._run, 'gateway', None))
+    from .grid_electrical_view import ElectricalViewProvider, ElectricalViewError
+    electrical_provider = ElectricalViewProvider(getattr(runner or host._run, 'gateway', None))
     class Handler(BaseHTTPRequestHandler):
         def setup(self):
             super().setup()
@@ -1147,6 +1183,11 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
             try:
                 if self.path == '/grid-sources':
                     return self.send_json(200, source_provider.catalog())
+                if self.path == '/grid-sources/data-gateway/electrical/models':
+                    try:
+                        return self.send_json(200, run_http(electrical_provider.models()))
+                    except ElectricalViewError as error:
+                        return self.send_json(error.status, {'error': error.code})
                 if self.path == '/grid-sources/data-gateway/scopes':
                     return self.send_json(200, run_http(source_provider.scopes()))
                 if self.path == '/network-policy':
@@ -1154,6 +1195,19 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                         return self.send_json(503, {'error': 'network_policy_unavailable'})
                     return self.send_json(200, network_policy.state())
                 parts = self.path.split('/')
+                electrical_routes = {f'/grid-sources/data-gateway/electrical/{name}': getattr(electrical_provider, name)
+                                     for name in ('open', 'read', 'job')}
+                if self.path in electrical_routes:
+                    try:
+                        if not 0 < length <= REQUEST_BYTES:
+                            raise ElectricalViewError('grid_electrical_request_invalid')
+                        try:
+                            document = json.loads(self.rfile.read(length))
+                        except (ValueError, UnicodeDecodeError):
+                            raise ElectricalViewError('grid_electrical_request_invalid') from None
+                        return self.send_json(200, run_http(electrical_routes[self.path](document)))
+                    except ElectricalViewError as error:
+                        return self.send_json(error.status, {'error': error.code})
                 if len(parts) == 5 and parts[1] == 'tasks' and parts[3] == 'artifacts':
                     data = host.read_artifact(parts[2], parts[4])
                     self.send_response(200)

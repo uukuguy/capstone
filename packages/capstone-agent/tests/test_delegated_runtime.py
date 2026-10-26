@@ -251,16 +251,24 @@ def test_worker_external_lookup_uses_actual_general_executor():
 
 
 @pytest.mark.parametrize('mode',['valid','extra-field','wrong-task','wrong-tool'])
-def test_validated_source_view_survives_public_attempt_persistence_only_in_its_task_scope(mode):
+@pytest.mark.parametrize('electrical',[False, True])
+def test_validated_source_view_survives_public_attempt_persistence_only_in_its_task_scope(mode, electrical):
     hint={'schema':'capstone-grid-source-view-request/1','source_id':'data-gateway','scope_id':'north',
         'scope_name':'North','level':None,'selected_object_id':None,'view_ref':'view-one',
         'source_snapshot':{'metadata_snapshot':'snapshot-one','source_instance':'fixture-source'},
         'voltage_min_kv':330,'display_grouping_only':False}
+    tool = 'data_gateway_get_network_topology_view'
+    if electrical:
+        tool = 'data_gateway_open_network_model_view'
+        hint = {'schema':'capstone-electrical-view-request/1','source_id':'data-gateway',
+            'model_ref':'grid:test','model_revision':'revision-one','view_ref':'view-one',
+            'selection_ref':'selection-one','source_snapshot_ref':'snapshot-one',
+            'representation':'source_node_breaker','target':None,'artifact_ref':None}
     class SourceExecutor(Executor):
         def execute(self,request,control,on_event):
             self.requests.append(request)
             on_event({'type':'tool_execution_end','task_id':request.task_id if mode!='wrong-task' else 'another-task',
-                'attempt_id':request.parent_attempt_id,'tool_name':'data_gateway_get_network_topology_view' if mode!='wrong-tool' else 'bash',
+                'attempt_id':request.parent_attempt_id,'tool_name':tool if mode!='wrong-tool' else 'bash',
                 'tool_call_id':'source-call','is_error':False,
                 'source_view':{**hint,**({'private':'never publish'} if mode=='extra-field' else {})}})
             return PiTaskResult(request.task_id,request.parent_attempt_id,self.identity,'completed','Source answer',(),(),{})
