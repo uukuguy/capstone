@@ -8,11 +8,14 @@ protocol 2025-11-25, contract revision
 
 The published self-description supports the tested enterprise research task and
 useful grid discovery, local structure queries and evidence-limited answers.
-It does not yet establish a complete grid calculation or workbench acceptance.
+Subsequent Vivaldi checks passed for non-diagram queries, conversation continuation,
+saved products and refresh recovery, as recorded below. Grid calculation and the
+new provincial diagram remain outside this acceptance.
+The initial protocol-only trial had the following limit:
 One synchronous readiness inspection timed out; a frozen view was still preparing
 within the trial's bounded checks. No unverified calculation claim was produced.
 
-Two fresh agent contexts received only the MCP transport interface and business
+In that initial trial, two fresh agent contexts received only the MCP transport interface and business
 question. They did not read repository docs, source, credentials or each other's
 results. The orchestrator read the handoff to set acceptance scope. Calls used a
 host-controlled CLI bridge to real Streamable HTTP, preserving full MCP responses.

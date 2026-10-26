@@ -1,5 +1,14 @@
 # Grid and gateway work independent of the next MCP publication
 
+Status 2026-10-27: bounded tool discovery/activation is implemented and verified
+through PR69 (`bcd1a5ad`); non-diagram MCP work and Vivaldi product recovery passed.
+Authority/broker groundwork is retained; public power-flow integration remains
+deferred. Diagram v2, provincial drilldown and query-location acceptance remain
+paused under the user's non-diagram-first priority. The user now reports Beijing,
+Tianjin, Shanghai, Hubei and Zhejiang grids ready at the gateway. This is gateway
+readiness reported by the user, not Capstone diagram acceptance. Use MCP discovery
+and the shared viewer when this work resumes; do not hard-code province routes.
+
 > **For agentic workers:** Use subagent-driven-development for the independent
 > Authority, menu and diagram units. Preserve other workers' changes.
 

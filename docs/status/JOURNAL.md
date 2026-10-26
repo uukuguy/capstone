@@ -5950,3 +5950,7 @@ Prior closeout receipts preserved verbatim from the root checkout:
 - 2026-10-27 `e913c450`: Align simulator and Pack discovery expectations with granted import;61 focused checks pass.
 
 - 2026-10-27 `e913c450`: Agent consumer regression passes2331 tests with147 skips in144.92s;PR69 CI remains pending.
+
+- 2026-10-27 `519bf75f`: Synchronize backpressure fixture instead of sleeping;46 checks and10 repeated six-case rounds pass.
+
+- 2026-10-27 `bcd1a5ad`: Merge PR69 after macOS40409319046 passed27m16s;actual dev fast-forwarded with recovery stash preserved.

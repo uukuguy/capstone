@@ -1,5 +1,14 @@
 # Gateway Self-description Implementation Plan
 
+Status 2026-10-27: implementation and non-diagram acceptance merged in PR69
+(`bcd1a5ad`), after required macOS CI40409319046 passed in27m16s.
+Units2/3 were completed by dynamic effect admission, task-scoped menus, generic
+operation references and MCP initialization guidance. Real MCP-only trials and
+Vivaldi query/continuation/product/refresh acceptance are recorded in
+[the validation report](../../reviews/2026-10-27-mcp-self-discovery.md).
+The completed checklist below supersedes the intermediate source-only notes. Runtime ed0c5ff2 is healthy;
+final control-document integration is in progress. Latency variability remains.
+
 > **For agentic workers:** Use subagent-driven-development for independent units.
 > Preserve other workers' changes and user data.
 
@@ -49,27 +58,27 @@ Files: runtime gateway policy, `data_gateway_mcp.py`, `data_gateway_relay.py`,
 `general_pi_server.py`, `native_task_context.py`, `resources/general-mcp.mjs`
 and their focused tests. Final field-level edits depend on gateway publication.
 
-- [ ] Capture the live MCP publication without secrets and map its actual
+- [x] Capture the live MCP publication without secrets and map its actual
   operation permissions, semantic discovery and result contracts to the design.
-- [ ] Replace business-name admission with trusted-service/grant evaluation.
+- [x] Replace business-name admission with trusted-service/grant evaluation.
   Add unknown-effect and ungranted-operation rejection tests before implementation.
-- [ ] Activate on-demand discovered tools at explicit loop boundaries, retaining
+- [x] Activate on-demand discovered tools at explicit loop boundaries, retaining
   the exact task grant and contract identity. Test new tool activation without
   config edits, forged grants, revocation and stopped-task isolation.
-- [ ] Replace electrical-job name special cases with the published resource-scope
+- [x] Replace electrical-job name special cases with the published resource-scope
   mechanism only when it can enforce equivalent ownership; keep adapter rendering
   separate. Test cross-task references and valid current-task job access.
-- [ ] Preserve output schema and semantic detail availability in model context,
+- [x] Preserve output schema and semantic detail availability in model context,
   using bounded references/pages instead of whole-catalog context expansion.
-- [ ] Run the changed bridge, relay and admission tests and commit the unit.
+- [x] Run the changed bridge, relay and admission tests and commit the unit.
 
 ## Unit 3: Real contract-only acceptance and integration
 
-- [ ] Test multiple fresh tasks using only MCP-provided discovery and semantics;
+- [x] Test multiple fresh tasks using only MCP-provided discovery and semantics;
   include valid alternative compositions and invalid joins from the design.
-- [ ] Record actual tool/model counts, discovery/context size and end-to-end
+- [x] Record actual tool/model counts, discovery/context size and end-to-end
   latency; do not equate successful fixtures with real agent acceptance.
-- [ ] Rebuild the coherent backend change once using the canonical local command;
+- [x] Rebuild the coherent backend change once using the canonical local command;
   verify current API/worker identity, readiness and scoped cache cleanup.
-- [ ] Inspect the existing Vivaldi session, record remaining gaps, update the
+- [x] Inspect the existing Vivaldi session, record remaining gaps, update the
   canonical status/control records, and integrate via the normal dev PR gate.
