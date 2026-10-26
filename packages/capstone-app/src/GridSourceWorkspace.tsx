@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { HttpThreadTransport } from './threadHttpTransport'
 import { loadGridSourceView, type GridSourceLevel, type GridSourceObject, type GridSourceScope, type GridSourceView } from './gridSource'
 import { LargeNetworkView } from './LargeNetworkView'
-import { electricalSourceScene } from './electricalSourceScene'
+import { electricalSourceScene, sourceLabelVisible } from './electricalSourceScene'
 import type { NetworkScene } from './networkScene'
 import { useSessionViewRef, useSessionViewState } from './workspaceSessionCache'
 import type { ThreadSourceViewRequest } from './threadViewRouting'
@@ -109,6 +109,7 @@ function ScopedSourceWorkspace({ transport, onQuestion, requestedView, requestNo
   const scene = useMemo<NetworkScene|undefined>(()=>view?.page.level==='equipment'?electricalSourceScene(view):view?{
     ref:view.page.view_ref,coordinateSystem:'schematic',displayMode:view.page.level==='region'?'source-regional':'source-detail',
     nodes:view.nodes.map(item=>({id:item.id,label:item.label||item.id,kind:item.kind,sourceRef:item.source_id,stationId:item.station_id??undefined,parentId:item.parent_id??undefined,
+      showLabel:sourceLabelVisible(item),
       voltageKv:item.voltage_kv??item.vn_kv,boundary:item.boundary,
       details:[{label:'来源对象',value:item.source_id||item.id},{label:'边界对象',value:item.boundary?'是':'否'},
         ...(item.parent_id?[{label:'上级对象',value:item.parent_id}]:[]),...(item.station_id?[{label:'所属站点',value:item.station_id}]:[])]})),

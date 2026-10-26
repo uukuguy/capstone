@@ -121,7 +121,7 @@ export function sceneFrame(index:SceneIndex,message:Extract<SceneWorkerRequest,{
     if(bar)lineValues.push(bar[0].x,bar[0].y,...tint,bar[1].x,bar[1].y,...tint)
     else pointValues.push(x,y,size,node.state==='unresolved'?sceneGlyphs.unresolved.code:detailed||emphasis?kind:0,...tint)
     const px=(x-message.camera.x)/scale,py=(y-message.camera.y)/scale
-    if((!near||near.nodeIds.has(node.id))&&px>=0&&py>=0&&px<=message.pixels&&py<=pixelHeight){
+    if(node.showLabel!==false&&(!near||near.nodeIds.has(node.id))&&px>=0&&py>=0&&px<=message.pixels&&py<=pixelHeight){
       const column=Math.min(labelColumns-1,Math.floor(px/message.pixels*labelColumns)),row=Math.min(labelRows-1,Math.floor(py/pixelHeight*labelRows)),key=`${column}:${row}`
       const distance=(px-(column+.5)*message.pixels/labelColumns)**2+(py-(row+.5)*pixelHeight/labelRows)**2
       if(!representatives.has(key)||representatives.get(key)!.distance>distance)representatives.set(key,{index:i,distance})

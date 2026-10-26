@@ -1,6 +1,12 @@
 import type {GridSourceView} from './gridSource'
 import type {NetworkScene} from './networkScene'
 
+/** Keep technical identifiers in search/details rather than on the drawing. */
+export function sourceLabelVisible(node:{id:string;label?:string;kind:string}):boolean {
+  return !['connection_node','connectivity_node'].includes(node.kind)
+    &&!!node.label?.trim()&&node.label!==node.id&&!/^node:/i.test(node.label)
+}
+
 /** Source records remain source records: this adapter creates no electrical facts. */
 export function electricalSourceScene(view:GridSourceView):NetworkScene {
   const ids=new Set(view.nodes.map(node=>node.id))
@@ -13,6 +19,7 @@ export function electricalSourceScene(view:GridSourceView):NetworkScene {
   }
   return {ref:view.page.view_ref,coordinateSystem:'schematic',displayMode:'source-electrical',
     nodes:view.nodes.map(node=>({id:node.id,label:node.label||node.id,kind:node.kind,
+      showLabel:sourceLabelVisible(node),
       sourceRef:node.source_id,stationId:node.station_id??undefined,parentId:node.parent_id??undefined,
       boundary:node.boundary,voltageKv:node.voltage_kv??node.vn_kv,
       symbolKind:windingCounts.get(node.id)?.size===3?'trafo3w':undefined,

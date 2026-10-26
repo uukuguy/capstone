@@ -2,7 +2,7 @@ import type {LegacyNetworkView,NetworkDiagram,NetworkLayer} from './types'
 
 export type SceneDetail={label:string;value:string}
 export type ScenePoint={x:number;y:number}
-type SceneStyle={color?:readonly [number,number,number];state?:'disconnected'|'warning'|'unresolved'}
+type SceneStyle={color?:readonly [number,number,number];state?:'disconnected'|'warning'|'unresolved';showLabel?:boolean}
 export type NetworkSceneNode=SceneStyle&{id:string;label:string;kind:string;symbolKind?:string;stationId?:string;parentId?:string;boundary?:boolean;x?:number|null;y?:number|null;voltageKv?:number|null;sourceRef?:string;details?:readonly SceneDetail[];switchState?:'open'|'closed'|'unknown'}
 export type NetworkSceneEdge=SceneStyle&{id:string;source:string;target:string;kind:string;label?:string;sourceRef?:string;details?:readonly SceneDetail[];relation?:'connection'|'membership'|'unresolved';terminalStates?:readonly {nodeId:string;label:string}[]}
 export type NetworkScene={ref:string;coordinateSystem:'geographic'|'schematic';displayMode?:'source-regional'|'source-detail'|'source-electrical'|'electrical';nodes:readonly NetworkSceneNode[];edges:readonly NetworkSceneEdge[]}

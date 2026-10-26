@@ -1,6 +1,13 @@
 import {it,expect} from 'vitest'
-import {electricalSourceScene} from './electricalSourceScene'
+import {electricalSourceScene,sourceLabelVisible} from './electricalSourceScene'
 import type {GridSourcePage,GridSourceView} from './gridSource'
+
+it('shows meaningful equipment names but suppresses source junction IDs and missing names',()=>{
+  expect(sourceLabelVisible({id:'node:123',kind:'connection_node',label:'node:123'})).toBe(false)
+  expect(sourceLabelVisible({id:'bus:123',kind:'busbars'})).toBe(false)
+  expect(sourceLabelVisible({id:'bus:123',kind:'busbars',label:'bus:123'})).toBe(false)
+  expect(sourceLabelVisible({id:'bus:123',kind:'busbars',label:'500kV一母'})).toBe(true)
+})
 
 it('keeps source identities, real incidence and membership distinct without adding missing links',()=>{
   const nodes=[{id:'t',kind:'transformers'},{id:'w1',kind:'windings'},{id:'w2',kind:'windings'},{id:'w3',kind:'windings'},{id:'bus',kind:'busbars'},{id:'switch',kind:'breakers'},{id:'g',kind:'generators'},{id:'load',kind:'loads'},{id:'line',kind:'line'},{id:'terminal',kind:'terminal'}]
