@@ -5,7 +5,16 @@ import pytest
 from grid_simulator.evidence import canonical_json, fingerprint, write_json
 
 
-def provision(root, *, foreign=False, member=None, wrong_map=False, radial=False):
+def provision(
+    root,
+    *,
+    foreign=False,
+    member=None,
+    wrong_map=False,
+    radial=False,
+    change_contents=None,
+    grant_quality=None,
+):
     import io
     import zipfile
     from datetime import datetime, timedelta, timezone
@@ -86,6 +95,8 @@ def provision(root, *, foreign=False, member=None, wrong_map=False, radial=False
     }
     if member:
         contents[member] = "{}"
+    if change_contents:
+        change_contents(contents)
     stream = io.BytesIO()
     with zipfile.ZipFile(stream, "w") as archive:
         for name, data in contents.items():
@@ -107,6 +118,12 @@ def provision(root, *, foreign=False, member=None, wrong_map=False, radial=False
         "scenario_revision": "s1",
         "map_sha256": fingerprint(contents["element-map.json"]),
         "allow_demo": True,
+        "quality": grant_quality
+        or {
+            "demo_only": True,
+            "power_flow_ready": True,
+            "real_power_flow_ready": False,
+        },
         "expires_at": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
         "revoked": False,
     }
@@ -242,6 +259,184 @@ def test_reject_fractional_native_reference_and_boolean_coercion():
     table = json.loads(document["_object"]["bus"]["_object"])
     table["data"][0][table["columns"].index("in_service")] = "false"
     document["_object"]["bus"]["_object"] = json.dumps(table)
+    with pytest.raises(ModelImportError):
+        decode_network(json.dumps(document))
+
+
+@pytest.mark.parametrize(
+    "column,value,dtype",
+    [
+        ("in_service", "false", "object"),
+        ("in_service", False, "object"),
+        ("vn_kv", "110", "object"),
+        ("vn_kv", True, "bool"),
+    ],
+)
+def test_reject_dtype_metadata_that_changes_native_column_semantics(
+    column, value, dtype
+):
+    from grid_simulator.artifact_import import decode_network, ModelImportError
+
+    net = pp.create_empty_network()
+    pp.create_bus(net, 110)
+    document = json.loads(pp.to_json(net))
+    frame = document["_object"]["bus"]
+    table = json.loads(frame["_object"])
+    table["data"][0][table["columns"].index(column)] = value
+    frame["_object"] = json.dumps(table)
+    frame["dtype"][column] = dtype
+    with pytest.raises(ModelImportError):
+        decode_network(json.dumps(document))
+
+
+@pytest.mark.parametrize(
+    "kind,key,bus", [("l", 999, 0), ("b", 999, 0), ("x", 1, 0), ("l", 0, 2)]
+)
+def test_reject_switch_reference_outside_its_native_element(kind, key, bus):
+    from grid_simulator.artifact_import import _validate_mapping, ModelImportError
+
+    net = pp.create_empty_network()
+    for index in range(3):
+        pp.create_bus(net, 110, index=index)
+    pp.create_line_from_parameters(net, 0, 1, 1, 0.1, 0.2, 0, 1)
+    pp.create_switch(net, 0, 0, "l")
+    net.switch.loc[0, ["et", "element", "bus"]] = [kind, key, bus]
+    mapping = {
+        "schema": "gateway-element-map/1",
+        "engine": "pandapower",
+        "engine_version": "3.4.0",
+        "artifact_ref": "a",
+        "model_ref": "test",
+        "model_revision": "r",
+        "scenario_revision": "s",
+        "covered_element_tables": ["bus", "line", "switch"],
+        "elements": [
+            {
+                "element_table": table,
+                "element_key": int(index),
+                "element_ref": f"{table}:{index}",
+                "endpoints": [],
+            }
+            for table in ["bus", "line", "switch"]
+            for index in net[table].index
+        ],
+    }
+    grant = {**mapping, "model_id": "test"}
+    with pytest.raises(ModelImportError):
+        _validate_mapping(mapping, net, grant)
+
+
+@pytest.mark.parametrize(
+    "part",
+    [
+        "archive_flags",
+        "native_flags",
+        "assumptions",
+        "native_demo_profile",
+        "baseline",
+        "map_digest",
+        "native_count",
+    ],
+)
+def test_reject_conflicting_bundle_quality_and_identity(grid, part):
+    def alter(contents):
+        if part == "archive_flags":
+            quality = json.loads(contents["quality.json"])
+            quality["quality"]["demo_only"] = False
+            contents["quality.json"] = canonical_json(quality)
+        elif part in {"native_flags", "native_demo_profile"}:
+            document = json.loads(contents["model.pandapower.json"])
+            if part == "native_flags":
+                document["_object"]["gateway_quality"] = {
+                    "demo_only": False,
+                    "power_flow_ready": True,
+                    "real_power_flow_ready": False,
+                }
+            else:
+                document["_object"]["gateway_demo_profile"] = {"purpose": "demo"}
+            contents["model.pandapower.json"] = canonical_json(document)
+            if part == "native_demo_profile":
+                quality = json.loads(contents["quality.json"])
+                quality["quality"]["demo_only"] = False
+                contents["quality.json"] = canonical_json(quality)
+        elif part == "assumptions":
+            contents["demo-assumptions.json"] = '{"demo_only":false}'
+        else:
+            quality = json.loads(contents["quality.json"])
+            if part == "baseline":
+                quality["baseline"] = {"model_ref": "wrong"}
+            elif part == "map_digest":
+                quality["element_map"] = {"sha256": "0" * 64}
+            else:
+                quality["loaded_counts"] = {"buses": 999}
+            contents["quality.json"] = canonical_json(quality)
+
+    ref, _ = provision(
+        grid.workspace.root,
+        change_contents=alter,
+        grant_quality=(
+            {
+                "demo_only": False,
+                "power_flow_ready": True,
+                "real_power_flow_ready": False,
+            }
+            if part == "native_demo_profile"
+            else None
+        ),
+    )
+    assert (
+        grid.call_error("model.artifact.import", {"input_ref": ref}).code
+        == "model_import_rejected"
+    )
+    assert not grid.workspace.contexts_dir.exists()
+
+
+def test_grant_quality_requires_exact_boolean_fields(grid):
+    from grid_simulator.artifact_import import grant_fingerprint
+
+    ref, _ = provision(grid.workspace.root)
+    path = grid.workspace.root / "inputs" / "grants" / f"{ref.split(':')[-1]}.json"
+    grant = json.loads(path.read_text())
+    grant["quality"]["demo_only"] = "true"
+    ref = "input:sha256:" + grant_fingerprint(grant)
+    grant["input_ref"] = ref
+    write_json(path.parent / f"{ref.split(':')[-1]}.json", grant)
+    assert (
+        grid.call_error("model.artifact.import", {"input_ref": ref}).code
+        == "model_import_rejected"
+    )
+
+
+def test_integer_dtype_normalization_cannot_wrap_native_references():
+    from grid_simulator.artifact_import import decode_network, ModelImportError
+
+    net = pp.create_empty_network()
+    pp.create_bus(net, 110)
+    pp.create_ext_grid(net, 0)
+    document = json.loads(pp.to_json(net))
+    frame = document["_object"]["ext_grid"]
+    table = json.loads(frame["_object"])
+    table["data"][0][table["columns"].index("bus")] = 2**32
+    frame["_object"] = json.dumps(table)
+    frame["dtype"]["bus"] = "int64"
+    with pytest.raises(ModelImportError):
+        decode_network(json.dumps(document))
+
+
+def test_populated_table_cannot_omit_native_boolean_column():
+    from grid_simulator.artifact_import import decode_network, ModelImportError
+
+    net = pp.create_empty_network()
+    pp.create_bus(net, 110)
+    document = json.loads(pp.to_json(net))
+    frame = document["_object"]["bus"]
+    table = json.loads(frame["_object"])
+    position = table["columns"].index("in_service")
+    table["columns"].pop(position)
+    for row in table["data"]:
+        row.pop(position)
+    frame["dtype"].pop("in_service")
+    frame["_object"] = json.dumps(table)
     with pytest.raises(ModelImportError):
         decode_network(json.dumps(document))
 

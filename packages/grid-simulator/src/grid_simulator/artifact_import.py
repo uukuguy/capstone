@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+from numbers import Integral
 import re
 import stat
 import zipfile
@@ -22,6 +23,22 @@ import pandapower as pp
 
 class ModelImportError(ValueError):
     pass
+
+
+_QUALITY_FLAGS = {"demo_only", "power_flow_ready", "real_power_flow_ready"}
+
+
+def _quality_flags(value):
+    if not isinstance(value, dict) or any(
+        type(value.get(key)) is not bool for key in _QUALITY_FLAGS
+    ):
+        raise ModelImportError("Quality requires three explicit boolean flags")
+    flags = {key: value[key] for key in sorted(_QUALITY_FLAGS)}
+    if flags["real_power_flow_ready"] and (
+        flags["demo_only"] or not flags["power_flow_ready"]
+    ):
+        raise ModelImportError("Quality readiness flags contradict each other")
+    return flags
 
 
 def grant_fingerprint(document):
@@ -93,6 +110,7 @@ def _resolve_grant(workspace, input_ref):
         "scenario_revision",
         "map_sha256",
         "allow_demo",
+        "quality",
         "expires_at",
         "revoked",
     }
@@ -129,6 +147,12 @@ def _resolve_grant(workspace, input_ref):
             "[0-9a-f]{64}", grant[key]
         ):
             raise ModelImportError("Invalid input content identity")
+    if (
+        not isinstance(grant["quality"], dict)
+        or set(grant["quality"]) != _QUALITY_FLAGS
+    ):
+        raise ModelImportError("Input grant quality contract is invalid")
+    _quality_flags(grant["quality"])
     return grant
 
 
@@ -208,6 +232,7 @@ def _validate_mapping(mapping, net, grant):
         "gen": {"bus": "bus"},
         "sgen": {"bus": "bus"},
         "ext_grid": {"bus": "bus"},
+        "switch": {"bus": "bus"},
     }
     for (table, index), row in indexed.items():
         for endpoint in row.get("endpoints", []):
@@ -239,6 +264,106 @@ def _validate_mapping(mapping, net, grant):
                         raise ModelImportError(
                             "Native endpoint references an unknown bus"
                         )
+    switch_targets = {
+        "b": ("bus", ()),
+        "l": ("line", ("from_bus", "to_bus")),
+        "t": ("trafo", ("hv_bus", "lv_bus")),
+        "t3": ("trafo3w", ("hv_bus", "mv_bus", "lv_bus")),
+    }
+    for switch in net.switch.itertuples():
+        target = switch_targets.get(switch.et)
+        if (
+            target is None
+            or not isinstance(switch.element, Integral)
+            or isinstance(switch.element, bool)
+        ):
+            raise ModelImportError("Unsupported native switch element reference")
+        table, terminal_fields = target
+        if switch.element not in net[table].index:
+            raise ModelImportError("Native switch references an unknown element")
+        if terminal_fields and switch.bus not in {
+            net[table].at[switch.element, field] for field in terminal_fields
+        }:
+            raise ModelImportError("Native switch bus is not a terminal of its element")
+
+
+def _validate_bundle_metadata(quality_document, assumptions, mapping, net, grant):
+    if not isinstance(quality_document, dict) or not isinstance(assumptions, dict):
+        raise ModelImportError("Bundle provenance metadata must use JSON objects")
+    flags = _quality_flags(quality_document.get("quality"))
+    if flags != grant["quality"] or flags["demo_only"] and not grant["allow_demo"]:
+        raise ModelImportError("Bundle quality does not match the application grant")
+    native_quality = net.get("gateway_quality")
+    if native_quality is not None and _quality_flags(native_quality) != flags:
+        raise ModelImportError("Native and archive quality declarations differ")
+    if "gateway_demo_profile" in net and (
+        not isinstance(net.gateway_demo_profile, dict) or not flags["demo_only"]
+    ):
+        raise ModelImportError("Native demo profile contradicts the archive quality")
+    if "demo_only" in assumptions and (
+        type(assumptions["demo_only"]) is not bool
+        or assumptions["demo_only"] != flags["demo_only"]
+    ):
+        raise ModelImportError("Demo assumptions contradict the archive quality")
+    for source in (mapping, mapping.get("quality", {})):
+        if not isinstance(source, dict) or any(
+            key in source
+            and (type(source[key]) is not bool or source[key] != flags[key])
+            for key in _QUALITY_FLAGS
+        ):
+            raise ModelImportError("Mapping quality contradicts the archive quality")
+    for key, expected in {
+        "engine_version": grant["engine_version"],
+        "target_format": grant["engine"],
+        "model_file": "model.pandapower.json",
+    }.items():
+        if key in quality_document and quality_document[key] != expected:
+            raise ModelImportError("Quality metadata identifies another model format")
+    baseline = quality_document.get("baseline", {})
+    if not isinstance(baseline, dict) or any(
+        key in baseline and baseline[key] != mapping.get(key)
+        for key in (
+            "model_ref",
+            "model_revision",
+            "source_snapshot_ref",
+            "selection_ref",
+        )
+    ):
+        raise ModelImportError("Quality baseline does not match the element map")
+    map_metadata = quality_document.get("element_map", {})
+    expected_map = {
+        "schema": mapping["schema"],
+        "file": "element-map.json",
+        "sha256": grant["map_sha256"],
+        "native_key_coverage_complete": True,
+        "mapped_elements": len(mapping["elements"]),
+    }
+    if not isinstance(map_metadata, dict) or any(
+        key in map_metadata and map_metadata[key] != value
+        for key, value in expected_map.items()
+    ):
+        raise ModelImportError("Quality mapping identity or coverage is invalid")
+    if (
+        "mapped_elements" in mapping
+        and mapping["mapped_elements"] != len(mapping["elements"])
+        or "native_key_coverage_complete" in mapping
+        and mapping["native_key_coverage_complete"] is not True
+    ):
+        raise ModelImportError("Mapping declared coverage differs from native coverage")
+    counts = {
+        "buses": len(net.bus),
+        "lines": len(net.line),
+        "transformers": len(net.trafo),
+        "loads": len(net.load),
+        "balance_sources": len(net.ext_grid),
+    }
+    declared_counts = quality_document.get("loaded_counts", {})
+    if not isinstance(declared_counts, dict) or any(
+        key not in counts or type(value) is not int or value != counts[key]
+        for key, value in declared_counts.items()
+    ):
+        raise ModelImportError("Quality counts do not match the native model")
+    return flags
 
 
 def import_artifact(workspace, engine, input_ref):
@@ -300,17 +425,12 @@ def import_artifact(workspace, engine, input_ref):
     net = decode_network(contents["model.pandapower.json"].decode("utf-8"))
     mapping = _json(contents["element-map.json"])
     _validate_mapping(mapping, net, grant)
-    quality = _json(contents["quality.json"]).get("quality", {})
-    flags = {
-        k: quality.get(k)
-        for k in ("demo_only", "power_flow_ready", "real_power_flow_ready")
-    }
-    if (
-        any(type(v) is not bool for v in flags.values())
-        or flags["demo_only"]
-        and not grant["allow_demo"]
-    ):
-        raise ModelImportError("Input demo permission or readiness flags are invalid")
+    quality_document = _json(contents["quality.json"])
+    assumptions = _json(contents["demo-assumptions.json"])
+    flags = _validate_bundle_metadata(
+        quality_document, assumptions, mapping, net, grant
+    )
+    quality = quality_document["quality"]
     serialized = engine.serialize(net)
     # Verify that the persisted representation remains inside the data-only profile.
     decode_network(serialized)
@@ -330,7 +450,7 @@ def import_artifact(workspace, engine, input_ref):
         "map_sha256": grant["map_sha256"],
         "mapping_ref": mapping_ref,
         "quality": quality,
-        "assumptions": _json(contents["demo-assumptions.json"]),
+        "assumptions": assumptions,
         "source_snapshot": mapping.get("source_snapshot"),
         "capture": mapping.get("capture"),
         **flags,
@@ -499,6 +619,10 @@ def decode_network(payload: str):
                 set(columns)
             ) != len(columns):
                 raise ModelImportError("Unsupported table columns")
+            if rows and not set(net[name].columns) <= set(columns):
+                raise ModelImportError(
+                    "Populated tables require the native schema columns"
+                )
             if any(
                 not isinstance(r, list)
                 or len(r) != len(columns)
@@ -533,7 +657,26 @@ def decode_network(payload: str):
                 raise ModelImportError(
                     "External result tables are not Authority evidence"
                 )
+            integers = {"int64", "Int64", "int32", "uint32", "uint64"}
+            normalized_dtype = {}
             for position, column in enumerate(columns):
+                expected = (
+                    str(net[name].dtypes[column])
+                    if column in net[name].columns
+                    else ("bool" if column in {"controllable", "oltc"} else "float64")
+                )
+                accepted = (
+                    integers
+                    if expected in integers
+                    else (
+                        integers | {"float64"} if expected == "float64" else {expected}
+                    )
+                )
+                if dtype[column] not in accepted:
+                    raise ModelImportError(
+                        "Table dtype changes native column semantics"
+                    )
+                normalized_dtype[column] = expected
                 for row in rows:
                     item = row[position]
                     kind = dtype[column]
@@ -549,6 +692,15 @@ def decode_network(payload: str):
                         raise ModelImportError(
                             "Integer columns require integral numeric values"
                         )
+                    if expected in integers and item is not None:
+                        unsigned = expected.startswith("u")
+                        bits = 32 if expected.endswith("32") else 64
+                        lower = 0 if unsigned else -(2 ** (bits - 1))
+                        upper = 2 ** (bits if unsigned else bits - 1) - 1
+                        if not lower <= item <= upper:
+                            raise ModelImportError(
+                                "Native integer value exceeds its declared range"
+                            )
                     if (
                         kind == "float64"
                         and item is not None
@@ -558,7 +710,7 @@ def decode_network(payload: str):
             try:
                 net[name] = pd.DataFrame(
                     rows, columns=columns, index=pd.Index(indices, dtype="int64")
-                ).astype(dtype)
+                ).astype(normalized_dtype)
             except (ValueError, TypeError, OverflowError) as exc:
                 raise ModelImportError("Invalid table scalar type") from exc
         elif name in metadata:
