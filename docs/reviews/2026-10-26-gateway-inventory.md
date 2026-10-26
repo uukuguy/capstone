@@ -33,3 +33,20 @@ isolation, unchanged receipt guards and scoped CI selection. Real Provider and
 Vivaldi acceptance are still required. All428 SDK checks and types/boundaries
 also passed. Independent review found no Important/Critical issue; its minor
 error-body cancellation finding was reproduced and corrected with a focused test.
+
+The first real same-Thread Vivaldi attempt, `attempt_f96b240ae1d2869f`, returned
+the seven scopes and saved a13,495-byte JSON product (SHA256
+`44bac855b09c7ed4df02e0e5dce23e92a677cccca0cb4ca3be43b315dbda8270`).
+This confirms the repaired connection and inventory admission. It also exposed
+stale host guidance: always discover capabilities/services first, with a blanket
+claim that model operations are disabled. The task requested detailed inventory
+and three extra topology checks, one of which timed out. The useful list was
+delivered, but this is not acceptance of an efficient list-only workflow.
+
+Host guidance now selects the direct published operation for the user's scope.
+An inventory question uses its summary/default mode and does not add readiness
+or topology audits. Seven captured native configurations first failed the new
+scope assertions, then passed after the correction. A second actual query will
+verify the resulting tool use. The environment convention is recorded in the
+runbook: localhost for host clients, host.docker.internal for local containers,
+and the configured fixed address for the development server.
