@@ -56,13 +56,15 @@ function ScopedSourceWorkspace({ transport, onQuestion, requestedView, requestNo
   const scopeId=scope.scope_id,scopeName=scope.name
   const scopedRoot=useMemo<Selection>(()=>({...root,label:`${scopeName}全网元件`,voltageMin:requestedView?.voltage_min_kv}),[scopeName,requestedView?.voltage_min_kv])
   const scopedRegion=useMemo<Selection>(()=>({...region,label:`${scopeName}站点总览`,voltageMin:requestedView?.voltage_min_kv}),[scopeName,requestedView?.voltage_min_kv])
-  const initial:Selection=requestedView?{level:requestedView.level,selected_object_id:requestedView.selected_object_id,
+  const requestIdentity=requestedView?JSON.stringify([requestedView,requestNonce]):undefined
+  const initial=useMemo<Selection>(()=>requestedView?{level:requestedView.level,selected_object_id:requestedView.selected_object_id,
     label:requestedView.selected_object_id||`${scopeName}${requestedView.level==='region'?'站点总览':'全网元件'}`,
     viewRef:requestedView.view_ref,voltageMin:requestedView.voltage_min_kv,
-    sourceSnapshot:requestedView.source_snapshot.metadata_snapshot,sourceInstance:requestedView.source_snapshot.source_instance}:scopedRegion
-  const [savedPath,setSavedPath] = useSessionViewState<unknown>(`source-topology.path:${scopeId}`,initial.level===null||initial.level==='region'?[initial]:[scopedRegion,initial])
-  const appliedRequest=useSessionViewRef<string|undefined>(`source-topology.applied:${scopeId}`,requestedView?JSON.stringify([requestedView,requestNonce]):undefined)
-  const path=restorePath(savedPath,scopedRoot)
+    sourceSnapshot:requestedView.source_snapshot.metadata_snapshot,sourceInstance:requestedView.source_snapshot.source_instance}:scopedRegion,[requestIdentity,scopeName,scopedRegion])
+  const initialPath=useMemo(()=>initial.level===null||initial.level==='region'?[initial]:[scopedRegion,initial],[initial,scopedRegion])
+  const [savedPath,setSavedPath] = useSessionViewState<unknown>(`source-topology.path:${scopeId}`,initialPath)
+  const appliedRequest=useSessionViewRef<string|undefined>(`source-topology.applied:${scopeId}`,undefined)
+  const path=requestIdentity&&appliedRequest.current!==requestIdentity?initialPath:restorePath(savedPath,scopedRegion)
   function setPath(next: Selection[] | ((previous: Selection[])=>Selection[])) {
     setSavedPath((previous:unknown)=>typeof next==='function'?next(restorePath(previous,scopedRoot)):next)
   }
@@ -71,11 +73,7 @@ function ScopedSourceWorkspace({ transport, onQuestion, requestedView, requestNo
     const identity=JSON.stringify([requestedView,requestNonce])
     if(appliedRequest.current===identity)return
     appliedRequest.current=identity
-    const target:Selection={level:requestedView.level,selected_object_id:requestedView.selected_object_id,
-      label:requestedView.selected_object_id||`${scopeName}${requestedView.level==='region'?'站点总览':'全网元件'}`,viewRef:requestedView.view_ref,
-      voltageMin:requestedView.voltage_min_kv,sourceSnapshot:requestedView.source_snapshot.metadata_snapshot,
-      sourceInstance:requestedView.source_snapshot.source_instance}
-    setPath(target.level===null?[target]:[scopedRoot,target])
+    setPath(initialPath)
   },[requestedView?.view_ref,requestedView?.scope_id,requestedView?.scope_name,requestedView?.level,requestedView?.selected_object_id,
     requestedView?.voltage_min_kv,requestedView?.source_snapshot.metadata_snapshot,requestedView?.source_snapshot.source_instance,requestNonce])
   const [view,setView] = useState<GridSourceView>()

@@ -45,6 +45,22 @@ describe('source workspace',()=>{
     expect(await screen.findByText(/源接线单线图/)).toBeTruthy()
     expect(read.mock.calls).toHaveLength(2)
   })
+  it('replaces cached discovered navigation with a newly admitted instruction target',async()=>{
+    const read=vi.fn().mockImplementation(async query=>({...page,scope:{scope_id:query.scope_id},level:query.level,
+      view_ref:query.expected_view_ref||'overview',display_grouping_only:query.level!==null,selected_object_id:query.selected_object_id||null}))
+    const transport={gridSourceTopology:read,gridSourceScopes:async()=>[{scope_id:'north',name:'测试范围'}]} as unknown as HttpThreadTransport
+    const content=(target?:ThreadSourceViewRequest)=><SessionReadingProvider namespace="discovery-instruction" threadId="thr_discovery">
+      <GridSourceWorkspace transport={transport} requestedView={target} onQuestion={vi.fn()}/></SessionReadingProvider>
+    const result=render(content())
+    fireEvent.change(await screen.findByRole('combobox',{name:'电网范围'}),{target:{value:'north'}})
+    await screen.findByText('展开节点（0条可定位连接）')
+    fireEvent.click(screen.getByRole('button',{name:'站点总览'}))
+    await screen.findByText('展开节点（0条可定位连接）')
+    read.mockClear()
+    result.rerender(content({...requested,level:'equipment',selected_object_id:'station:chosen',view_ref:'instruction-view',display_grouping_only:true}))
+    await waitFor(()=>expect(read.mock.calls.at(-1)?.[0]).toMatchObject({level:'equipment',selected_object_id:'station:chosen',expected_view_ref:'instruction-view'}))
+    expect(read.mock.calls).toHaveLength(1)
+  })
   it('loads the exact admitted instruction scope and snapshot, then lets manual navigation win',async()=>{
     const requestedView:ThreadSourceViewRequest={schema:'capstone-grid-source-view-request/1',source_id:'data-gateway',
       scope_id:'other-region',scope_name:'指定区域',level:'station',selected_object_id:'station:chosen',view_ref:'chosen-view',
