@@ -43,6 +43,8 @@ describe('source workspace',()=>{
     fireEvent.click(await screen.findByRole('button',{name:'查看站内接线图'}))
     await waitFor(()=>expect(read.mock.calls.at(-1)?.[0]).toMatchObject({scope_id:'north',level:'equipment',selected_object_id:'station:a'}))
     expect(await screen.findByText(/源接线单线图/)).toBeTruthy()
+    expect(screen.queryByRole('button',{name:'电压层'})).toBeNull()
+    expect(screen.getByText('station:a接线 · 元件连接')).toBeTruthy()
     expect(read.mock.calls).toHaveLength(2)
   })
   it('replaces cached discovered navigation with a newly admitted instruction target',async()=>{

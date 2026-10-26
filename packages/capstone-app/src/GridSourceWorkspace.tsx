@@ -119,7 +119,9 @@ function ScopedSourceWorkspace({ transport, onQuestion, requestedView, requestNo
     &&item.expand.selected_object_id===view.page.selected_object_id):undefined
   function activate(item: {id:string}) {
     const object: GridSourceObject|undefined=objects.get(item.id)
-    if(object?.expand){onManualNavigate?.();setPath(previous=>[...previous,{...object.expand!,label:object.label||object.id,
+    if(object?.expand){onManualNavigate?.();setPath(previous=>[...previous,{...object.expand!,
+      label:selection.level==='station'&&object.expand!.level==='equipment'
+        &&object.expand!.selected_object_id===selection.selected_object_id?`${selection.label}接线`:object.label||object.id,
       sourceSnapshot:typeof view?.page.source_snapshot.metadata_snapshot==='string'?view.page.source_snapshot.metadata_snapshot:undefined,
       sourceRule:typeof view?.page.selection.rule_sha256==='string'?view.page.selection.rule_sha256:undefined,
       sourceInstance:typeof view?.page.source_snapshot.source_instance==='string'?view.page.source_snapshot.source_instance:undefined,
