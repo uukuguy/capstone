@@ -20,6 +20,9 @@ import tempfile
 import zipfile
 
 
+QUALITY_FLAGS = ('demo_only', 'power_flow_ready', 'real_power_flow_ready')
+
+
 class ModelArtifactError(ValueError):
     """Fixed public diagnostic; upstream messages and credentials are excluded."""
 
@@ -162,7 +165,7 @@ class GatewayModelArtifactBroker:
         _require(mapping.get('schema') == 'gateway-element-map/1' and mapping.get('file') == 'element-map.json')
         _digest(mapping.get('sha256'))
         quality = data.get('quality', {})
-        _require(isinstance(quality, dict) and type(quality.get('demo_only')) is bool)
+        _require(isinstance(quality, dict) and all(type(quality.get(key)) is bool for key in QUALITY_FLAGS))
         _require(allow_demo or not quality['demo_only'], 'model_artifact_demo_not_authorized')
         _require(isinstance(data.get('source_gaps', []), list))
         return min(self.chunk_bytes, limit)
@@ -265,6 +268,7 @@ class GatewayModelArtifactBroker:
                      'engine': 'pandapower', 'engine_version': '3.4.0', 'model_id': mapping['model_ref'],
                      'model_revision': mapping['model_revision'], 'scenario_revision': mapping['scenario_revision'],
                      'map_sha256': metadata['element_map']['sha256'], 'allow_demo': allow_demo,
+                     'quality': {key: metadata['quality'][key] for key in QUALITY_FLAGS},
                      'expires_at': expires_at, 'revoked': False}
             identifier = hashlib.sha256(_encode(grant)).hexdigest()
             grant['input_ref'] = 'input:sha256:' + identifier

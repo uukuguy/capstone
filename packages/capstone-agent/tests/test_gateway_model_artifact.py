@@ -45,7 +45,7 @@ def fixture_bundle(*, member=None, demo=False):
                 'baseline': {'model_ref': mapping['model_ref'], 'model_revision': mapping['model_revision']},
                 'element_map': {'schema': 'gateway-element-map/1', 'file': 'element-map.json',
                                 'sha256': hashlib.sha256(map_bytes).hexdigest()},
-                'quality': {'demo_only': demo, 'real_power_flow_ready': False},
+                'quality': {'demo_only': demo, 'power_flow_ready': False, 'real_power_flow_ready': False},
                 'source_gaps': ['source_connections'],
                 'expires_at': (datetime.now(timezone.utc) + timedelta(days=2)).timestamp()}
     return data, metadata
@@ -93,6 +93,7 @@ def test_streams_exact_archive_and_issues_task_bound_content_addressed_grant(tmp
     assert grant['scenario_revision'] == 'c' * 64
     assert grant['authority'] == 'grid-simulator'
     assert grant['task_id'] == 'task' and grant['attempt_id'] == 'attempt'
+    assert grant['quality'] == metadata['quality']
     assert (tmp_path / 'inputs/objects' / (metadata['sha256'] + '.zip')).read_bytes() == data
     assert all(c[1]['length'] == 80 for c in transport.calls[1:])
     assert result['status'] == 'partial' and result['gap_count'] == 1
@@ -195,7 +196,7 @@ def test_returns_only_bounded_quality_flags_and_keeps_full_private_gaps(tmp_path
         return response
 
     result = stage(tmp_path, invoke)
-    assert result['quality'] == {'demo_only': False, 'real_power_flow_ready': False}
+    assert result['quality'] == {'demo_only': False, 'power_flow_ready': False, 'real_power_flow_ready': False}
     assert len(encoded(result)) < 2048
     receipt = json.loads(next(tmp_path.glob('inputs/receipts/*.json')).read_text())
     assert receipt['metadata_response']['data']['quality'] == metadata['quality']
@@ -295,3 +296,36 @@ def test_receipt_budget_rejects_instead_of_truncating_source_gaps(tmp_path):
         asyncio.run(broker.stage('a' * 64, tmp_path, 'task', 'attempt', expires_at='2099-01-01T00:00:00Z'))
     assert len(transport.calls) == 1
     assert not list(tmp_path.glob('inputs/grants/*.json'))
+
+
+@pytest.mark.parametrize('flag', ['demo_only', 'power_flow_ready', 'real_power_flow_ready'])
+@pytest.mark.parametrize('value', [None, 0, 'false', 'missing'])
+def test_all_grant_quality_flags_require_published_exact_booleans(tmp_path, flag, value):
+    data, metadata = fixture_bundle()
+    if value == 'missing':
+        del metadata['quality'][flag]
+    else:
+        metadata['quality'][flag] = value
+    transport = Transport(data, metadata)
+    with pytest.raises(ModelArtifactError): stage(tmp_path, transport, allow_demo=True)
+    assert len(transport.calls) == 1
+    assert not list(tmp_path.glob('inputs/grants/*.json'))
+
+
+def test_quality_flags_are_digest_bound_without_source_truth_downgrade(tmp_path):
+    data, metadata = fixture_bundle(demo=True)
+    metadata['quality'].update(power_flow_ready=True, real_power_flow_ready=False)
+    metadata['quality']['source_checks'] = [{'missing_ids': ['unverified-source']}]
+    install_binding(tmp_path, 'task', 'attempt')
+    expiry = '2099-01-01T00:00:00Z'
+    broker = GatewayModelArtifactBroker(Transport(data, metadata))
+    result = asyncio.run(broker.stage('a' * 64, tmp_path, 'task', 'attempt', allow_demo=True, expires_at=expiry))
+    identifier = result['input_ref'].split(':')[-1]
+    grant = json.loads((tmp_path / 'inputs/grants' / (identifier + '.json')).read_text())
+    assert grant['quality'] == {'demo_only': True, 'power_flow_ready': True, 'real_power_flow_ready': False}
+    original = {key: value for key, value in grant.items() if key != 'input_ref'}
+    assert hashlib.sha256(encoded(original)).hexdigest() == identifier
+    for flag in grant['quality']:
+        changed = deepcopy(original)
+        changed['quality'][flag] = not changed['quality'][flag]
+        assert hashlib.sha256(encoded(changed)).hexdigest() != identifier
