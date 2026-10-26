@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { HttpThreadTransport } from './threadHttpTransport'
 import { loadGridSourceView, type GridSourceLevel, type GridSourceObject, type GridSourceScope, type GridSourceView } from './gridSource'
 import { LargeNetworkView } from './LargeNetworkView'
+import { electricalSourceScene } from './electricalSourceScene'
 import type { NetworkScene } from './networkScene'
 import { useSessionViewRef, useSessionViewState } from './workspaceSessionCache'
 import type { ThreadSourceViewRequest } from './threadViewRouting'
@@ -107,7 +108,7 @@ function ScopedSourceWorkspace({ transport, onQuestion, requestedView, requestNo
   },[transport,selection,revision,scopeId])
   const objects = useMemo(()=>new Map([...(view?.nodes||[]),...(view?.edges||[])].map(item=>[item.id,item])),[view])
   const nodeIds = useMemo(()=>new Set(view?.nodes.map(item=>item.id)),[view])
-  const scene = useMemo<NetworkScene|undefined>(()=>view?{
+  const scene = useMemo<NetworkScene|undefined>(()=>view?.page.level==='equipment'?electricalSourceScene(view):view?{
     ref:view.page.view_ref,coordinateSystem:'schematic',displayMode:view.page.level==='region'?'source-regional':'source-detail',
     nodes:view.nodes.map(item=>({id:item.id,label:item.label||item.id,kind:item.kind,sourceRef:item.source_id,stationId:item.station_id??undefined,parentId:item.parent_id??undefined,
       voltageKv:item.voltage_kv??item.vn_kv,boundary:item.boundary,
@@ -116,6 +117,8 @@ function ScopedSourceWorkspace({ transport, onQuestion, requestedView, requestNo
     edges:view.edges.filter(item=>nodeIds.has(item.source!)&&nodeIds.has(item.target!)).map(item=>({id:item.id,source:item.source!,target:item.target!,kind:item.kind,
       label:item.label||item.id,sourceRef:item.source_id})),
   }:undefined,[view,nodeIds])
+  const connectionExpansion=view?.page.level==='station'?view.nodes.find(item=>item.expand?.level==='equipment'
+    &&item.expand.selected_object_id===view.page.selected_object_id):undefined
   function activate(item: {id:string}) {
     const object: GridSourceObject|undefined=objects.get(item.id)
     if(object?.expand){onManualNavigate?.();setPath(previous=>[...previous,{...object.expand!,label:object.label||object.id,
@@ -140,6 +143,8 @@ function ScopedSourceWorkspace({ transport, onQuestion, requestedView, requestNo
     {loading&&<p role="status">{`正在读取源拓扑 · ${counts[0].toLocaleString()} 个节点 / ${counts[1].toLocaleString()} 条连接`}</p>}
     {error&&<p role="alert">{error}</p>}
     {scene&&view&&<>
+      {connectionExpansion&&<button type="button" onClick={()=>activate(connectionExpansion)}>查看站内接线图</button>}
+      {view.page.level==='equipment'&&<p className="grid-source-note">源接线单线图 · 实线表示源连接，虚线表示设备归属；开关状态未核验，缺失连接不补线。</p>}
       <p className="grid-source-note">视图口径：{typeof view.page.selection.min_ac_kv==='number'?`交流电压下限 ${view.page.selection.min_ac_kv} kV`:'以来源筛选规则为准'}；目录范围和运行状态不作额外推断。</p>
       <LargeNetworkView scene={scene} title={selection.label} storageKey={`capstone-source-${scopeId}`} viewKey={`${selection.level}:${selection.selected_object_id||''}:${view.page.view_ref}:source-layout-v2`} onActivate={activate} canActivate={item=>!!objects.get(item.id)?.expand}/>
       <p>{view.nodes.length.toLocaleString()} 个源节点 · {view.edges.length.toLocaleString()} 条源连接 · 未定位端点 {view.unresolvedEndpoints.length}</p>

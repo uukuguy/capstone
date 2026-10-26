@@ -34,6 +34,17 @@ describe('source workspace',()=>{
     expect(await screen.findByText('暂无可浏览的登记电网范围。')).toBeTruthy()
     expect(read).not.toHaveBeenCalled()
   })
+  it('opens a station connection view only through its published expansion',async()=>{
+    const read=vi.fn().mockImplementation(async query=>({...page,view_ref:query.expected_view_ref||'connections',
+      level:query.level,selected_object_id:'station:a',display_grouping_only:true,
+      nodes:[{id:'voltage:a',kind:'voltage_level',label:'电压层',expand:{level:'equipment',selected_object_id:'station:a'}}]}))
+    render(<GridSourceWorkspace requestedView={{...requested,level:'station',selected_object_id:'station:a',display_grouping_only:true}}
+      transport={{gridSourceTopology:read} as unknown as HttpThreadTransport} onQuestion={vi.fn()}/>)
+    fireEvent.click(await screen.findByRole('button',{name:'查看站内接线图'}))
+    await waitFor(()=>expect(read.mock.calls.at(-1)?.[0]).toMatchObject({scope_id:'north',level:'equipment',selected_object_id:'station:a'}))
+    expect(await screen.findByText(/源接线单线图/)).toBeTruthy()
+    expect(read.mock.calls).toHaveLength(2)
+  })
   it('loads the exact admitted instruction scope and snapshot, then lets manual navigation win',async()=>{
     const requestedView:ThreadSourceViewRequest={schema:'capstone-grid-source-view-request/1',source_id:'data-gateway',
       scope_id:'other-region',scope_name:'指定区域',level:'station',selected_object_id:'station:chosen',view_ref:'chosen-view',
