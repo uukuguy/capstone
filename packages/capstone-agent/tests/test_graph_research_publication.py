@@ -17,7 +17,7 @@ def test_autonomous_work_publication_is_new_with_exact_config_and_no_legacy_upgr
     executor = native_executor()
     executor.capability = {**executor.capability, 'research_bridge_schemas': ['capstone-research-bridge/1'],
         'research_graph_schemas': ['capstone-enterprise-graph/2'], 'research_policy_profiles': research_policy_capabilities()}
-    assert executor_binding(executor)['application_profile']['profile_version'] == '1.18.0'
+    assert executor_binding(executor)['application_profile']['profile_version'] == '1.19.0'
     from types import SimpleNamespace
     from capstone_agent.native_task_context import native_context_for, checked_native_context
     binding = executor_binding(executor, profile_version='1.12.0')
@@ -46,13 +46,13 @@ def test_whole_chain_publication_is_new_and_all_prior_policy_entries_stay_exact(
     from test_enterprise_normal_chat import native_executor
     selected = registered_research_policy('1.11.0')
     assert selected.pack_version == '1.9.0' and selected.graph_schema == 'capstone-enterprise-graph/2'
-    old = [item for item in json.loads(files('capstone_agent').joinpath('resources/research-policy-catalog.json').read_text())['policies'] if item['application_version'] not in {'1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0'}]
+    old = [item for item in json.loads(files('capstone_agent').joinpath('resources/research-policy-catalog.json').read_text())['policies'] if item['application_version'] not in {'1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0', '1.19.0'}]
     assert sha256(json.dumps([item for item in old if item['application_version'] != '1.11.0'], ensure_ascii=False, sort_keys=True).encode()).hexdigest() == '146788234e7783fab1fae644a418ddd7c33fd489aa489fed35f1df66f0425369'
     executor = native_executor()
     from capstone_agent.native_task_context import research_policy_capabilities
     executor.capability = {**executor.capability, 'research_bridge_schemas': ['capstone-research-bridge/1'],
         'research_graph_schemas': ['capstone-enterprise-graph/2'], 'research_policy_profiles': research_policy_capabilities()}
-    assert executor_binding(executor)['application_profile']['profile_version'] == '1.18.0'
+    assert executor_binding(executor)['application_profile']['profile_version'] == '1.19.0'
     executor.capability = {**executor.capability, 'research_policy_profiles': [item for item in executor.capability['research_policy_profiles'] if item['profile_version'] != '1.11.0']}
     with pytest.raises(ValueError, match='policy profile is unavailable'):
         executor_binding(executor, profile_version='1.11.0')
@@ -104,7 +104,7 @@ def test_native_host_publishes_the_explicit_graph_protocol(tmp_path):
     assert host.capability['research_graph_schemas'] == ['capstone-enterprise-graph/2']
 
 
-@pytest.mark.parametrize('version', ['1.10.0', '1.9.0', '1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0'])
+@pytest.mark.parametrize('version', ['1.10.0', '1.9.0', '1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0', '1.19.0'])
 def test_real_worker_request_keeps_selected_graph_or_legacy_research_binding(tmp_path, version):
     from dataclasses import replace
     from capstone_agent.intent_runtime import IntentRuntimeFactory
@@ -122,7 +122,7 @@ def test_real_worker_request_keeps_selected_graph_or_legacy_research_binding(tmp
     executor.capability = {**executor.capability,
         'research_bridge_schemas': ['capstone-research-bridge/1'],
         'delivery_review_schemas': ['capstone-delivery-review/1'],
-        'research_graph_schemas': ['capstone-enterprise-graph/2'] if version in {'1.10.0', '1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0'} else [],
+        'research_graph_schemas': ['capstone-enterprise-graph/2'] if version in {'1.10.0', '1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0', '1.19.0'} else [],
         'research_policy_profiles': [registered_research_policy(version).capability()]}
     executor.execute_with_research = lambda request, control, emit, bridge: executor.execute(request, control, emit)
     store.set_native_executor(executor)
@@ -139,7 +139,7 @@ def test_real_worker_request_keeps_selected_graph_or_legacy_research_binding(tmp
     assert selected.application_version == version
     assert request['research_binding']['cycle_owner']['thread_id'] == thread_id
     assert request['research_binding'].get('graph_schema') == selected.graph_schema
-    if version in {'1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0'}:
+    if version in {'1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0', '1.19.0'}:
         assert request['research_binding']['graph_work_edition'] == selected.work_edition
         assert request['native_context']['graph_work']['started_at_ms'] > 0
     else:
