@@ -43,6 +43,13 @@ test('only an admitted Deep Research plan narrows the subsequent model tool menu
   hook({toolName:'agent_research_plan',details:{ok:false},isError:true});assert.equal(selected,undefined);
   hook({toolName:'agent_research_plan',details:{ok:true}});assert.deepEqual(selected,['agent_research_plan','agent_research_record']);
 });
+test('Deep Research execution roles retain granted ordinary tools',()=>{
+  const child={...config,applicationPolicy:{allowed_tools:['read','write','bash']},
+    researchRuntime:{adaptiveAgentLoop:true,isolatedTaskExecution:false}};
+  host.configureAdaptiveToolHandoff({on:()=>assert.fail('Execution role must not install organizer handoff')},child);
+  for(const name of child.applicationPolicy.allowed_tools)assert.equal(host.applicationToolAdmission(child,name).accepted,true);
+  assert.equal(host.applicationToolAdmission(child,'unregistered').accepted,false);
+});
 
 test('pinned HTTP wire exports object read parameters and preserves strict graph and legacy branches',async()=>{
   const dir=await realpath(await mkdtemp(join(tmpdir(),'graph-read-wire-')));

@@ -356,7 +356,7 @@ export function applicationToolAdmission(config, toolName) {
 }
 
 export function configureAdaptiveToolHandoff(pi,config){
-  if(config.researchRuntime?.adaptiveAgentLoop!==true)return;
+  if(config.researchRuntime?.adaptiveAgentLoop!==true||config.researchRuntime?.isolatedTaskExecution!==true)return;
   pi.on('tool_result',event=>{
     if(event.toolName!=='agent_research_plan'||event.isError===true||event.details?.ok!==true)return;
     // The execution guard remains authoritative. Narrow the next model's tool
