@@ -8,7 +8,7 @@ import pytest
 from test_native_graph_progress import graph_fixture
 
 
-def run_graph_host(tmp_path, delegated, exercise, *, pre_progress=(), gateway=None, direct=False, native_context=None):
+def run_graph_host(tmp_path, delegated, exercise, *, pre_progress=(), gateway=None, gateway_tools=(), direct=False, native_context=None):
     from capstone_agent.attempt_research import AttemptResearch
     from capstone_agent.business_context import BusinessContext
     from capstone_agent.general_pi_server import GeneralPiHost
@@ -37,7 +37,8 @@ def run_graph_host(tmp_path, delegated, exercise, *, pre_progress=(), gateway=No
         def __init__(self): self.gateway = gateway
         def bind_graph_context_provider(self, provider): self.provider = provider
         def __call__(self, request, cancelled, emit):
-            if gateway is not None: gateway.bind(request.task_id, request.parent_attempt_id)
+            if gateway is not None:
+                gateway.bind(request.task_id, request.parent_attempt_id, set(gateway_tools))
             for frame in pre_progress:
                 emit(frame)
             workspace = tmp_path / 'host' / 'tasks' / task
@@ -160,9 +161,45 @@ def test_direct_gateway_keeps_exact_host_receipt_validation(tmp_path, tamper):
     def exercise(call, context, *_):
         ref, _ = call('direct-gateway', tool_name='data_gateway_get_network_topology_view', tamper=tamper)
         assert ref in context.direct_observations
-    host, task, _ = run_graph_host(tmp_path, False, exercise, direct=True, native_context=native, gateway=gateway)
+    host, task, _ = run_graph_host(tmp_path, False, exercise, direct=True, native_context=native,
+        gateway=gateway, gateway_tools=native['policy']['allowed_tools'])
     result = host.read(task)['result']
     assert result['status'] == ('failed' if tamper else 'completed'), result
+
+
+@pytest.mark.parametrize('delegated', [False, True])
+@pytest.mark.parametrize('mode', ['ready', 'preparing', 'wrong-model', 'tampered'])
+def test_electrical_open_hint_requires_ready_receipt_bound_current_call(tmp_path, delegated, mode):
+    from capstone_agent.data_gateway_relay import DataGatewayAccess
+    from test_grid_source_topology import Gateway
+    tool = 'data_gateway_open_network_model_view'
+    client = Gateway()
+    client.catalog['tools'][tool] = {}
+    client.catalog['tool_hashes'][tool] = 'schema-open'
+    client.data = {'schema':'gateway-electrical-view/1','state':'ready','model_ref':'grid:test',
+        'model_revision':'rev1','selection_ref':'sel1','source_snapshot_ref':'snap1','view_ref':'view1',
+        'representation':'source_node_breaker','target':None,'artifact_ref':None,
+        'capture':{'source_transaction_consistency_verified':False},
+        'streams':{stream:{'total_count':0,'read':{'tool':'read_network_model_view',
+            'arguments':{'view_ref':'view1','stream':stream}}} for stream in
+            ['devices','ports','connectivity_nodes','connections','device_relations','groups','boundaries','issues']}}
+    if mode == 'preparing': client.data.update(state='preparing', preparation_ref='prepare1')
+    if mode == 'wrong-model': client.data['model_ref'] = 'grid:other'
+    gateway = DataGatewayAccess(client, client.catalog)
+    native = direct_native_context()
+    native['policy']['allowed_tools'] = [tool]
+    def exercise(call, *_):
+        call('open-view', tool_name=tool, arguments={'model_ref':'grid:test'}, tamper=mode=='tampered')
+    host, task, _ = run_graph_host(tmp_path, delegated, exercise, direct=not delegated,
+        native_context=native if not delegated else None, gateway=gateway, gateway_tools=[tool])
+    saved = host.read(task)
+    assert saved['result']['status'] == ('failed' if mode == 'tampered' else 'completed'), saved['result']
+    hints = [event['source_view'] for event in saved['events'] if 'source_view' in event]
+    assert len(hints) == (1 if mode == 'ready' else 0)
+    if hints:
+        assert hints[0] == {key:client.data[key] for key in ['model_ref','model_revision','selection_ref',
+            'source_snapshot_ref','view_ref','representation','target','artifact_ref']} | {
+                'schema':'capstone-electrical-view-request/1','source_id':'data-gateway'}
 
 
 @pytest.mark.parametrize('delegated', [False, True])
@@ -177,7 +214,8 @@ def test_gateway_source_hint_survives_committed_parent_and_child_graph_publicati
     def exercise(call, context, action, private_handle):
         call('gateway-view',tool_name='data_gateway_get_network_topology_view',arguments={
             'scope_id':'north','level':level,'selected_object_id':'station:01121100000001',**selectors})
-    host,task,_=run_graph_host(tmp_path,delegated,exercise,gateway=gateway)
+    host,task,_=run_graph_host(tmp_path,delegated,exercise,gateway=gateway,
+        gateway_tools=['data_gateway_get_network_topology_view'])
     saved=host.read(task)
     assert saved['result']['status']=='completed',saved['result']
     hints=[event for event in saved['events'] if 'source_view' in event]

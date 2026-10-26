@@ -1,6 +1,149 @@
 # docs/status INDEX
 
-Current delivery (2026-10-26): PR64 merged into actual dev78f81e66 after
+Latest user priority: finish the non-diagram gateway work first. Diagram v2,
+provincial drilldown and location work are paused. The user reports Beijing gateway
+work complete; Capstone integration remains pending. Power-flow terminal integration
+stays deferred. The [provincial scope/cache handoff](../superpowers/specs/2026-10-27-provincial-topology-cache-gateway-handoff.md)
+is a retained follow-up, not active delivery. Visible business checks use new
+conversations in the existing Vivaldi Capstone tab.
+
+Current boundary (2026-10-27): root dev remains 9d691624 after PR68. Feature
+feat/gateway-electrical-views HEAD 4c70736e narrows nullable types.
+Product deployment/acceptance remains 214c2e23. Push succeeded and
+[PR69](https://github.com/uukuguy/capstone/pull/69) is open against dev, with no merge.
+Initial CI40396162810 failed at type checking after 3m28s with two nullable-value
+warnings. Fix 4c70736e binds expiry.utcoffset to a local variable and narrows
+endpoint.role to a string. Focused Pyright reports zero errors; 47 broker tests
+passed in 0.20s. The fix is being pushed for a new CI run; its result is pending.
+Direct Git access first timed out; the earlier successful push used
+the existing system proxy at 127.0.0.1:7897 without changing global configuration.
+Dynamic admission (7507ce58), relay (869c482c),
+initialization guidance (11e91972) and menus (1d953595) are deployed.
+The canonical 214c2e23 rebuild passed; API and all three workers
+share image sha256:c470a1240dd5b869692601618b4b2da6212a66921e138ffbfef507656e086779.
+Native is healthy with zero restarts; scoped cache cleanup is complete.
+Vivaldi checks passed: ten scopes in 21s with three tools/four model requests;
+five correct Beijing samples in 54.7s; same-conversation statistics/CSV in 61s,
+mean 6021.43852. Product-role guidance and the misplaced output manifest were fixed
+by 60468ba0/214c2e23. The final real retest took 76s/four tools: CSV is the main
+product, statistics notes support it, and both restore after refresh without another
+gateway query. Independent review has no Important/Critical findings; 13 Python
+and seven JS focused checks passed. Timing still varies; this is not a claim of
+complete performance optimization. Cloud/demo/main are unchanged.
+The coordinator refreshed the existing Vivaldi control tab: the latest source node
+and local-dev source edge were correct, with no clipped text or overlapping cards.
+The browser returned to the workbench result tab. This update changes only HEAD/CI
+metadata, retaining the ancestry graph. See [the self-description and workbench report](../reviews/2026-10-27-mcp-self-discovery.md).
+
+Previous boundary (historical): dev was 9d691624 after PR68 merged.
+Required macOS CI 40339429930 passed on f9010be5 in 12m31s. Root fast-forward
+preserved dirty documents through retained stash 159959f08cec3753d6e5f2f47f75419073a1906c.
+The active branch feat/gateway-electrical-views has fix HEAD 3c7ace95, with broker
+fix e0cc9552. Report commit 407184fe records real MCP self-description
+trials: all 54 detailed tool schemas matched in 2.398s; a fresh enterprise context
+made 20 calls and gave evidence-bounded analysis. A fresh grid context made
+19 calls, including a 40s inspection timeout; the model view remained preparing.
+An alternative directory path found eight busbars, two transformers and 14 lines.
+These trials do not establish deployed Capstone Provider or workbench acceptance.
+Minor issues are deferred. The main recommendation is bounded, diagnosable
+continuation for long operations; the timeout alone does not prove a gateway defect.
+Capstone still blocks eight published tools in its static list, including
+discover_gateway and describe_gateway_contract, and discards initialize instructions.
+Source commits d3a8f1a6 menus, 8fd7e93f Authority, c45af505 broker and 1d953595
+host menus are not deployed. Three Important Authority findings—dtype, switch
+references and demo quality binding—have fixes implemented. Independent review
+passed in 5.49s: the original three reproductions and omitted boolean columns
+were rejected without creating context; grant flags matched exactly. No Important
+findings remain in that scope. This is source review, not deployed acceptance.
+Authority focused tests passed 83 in 28.30s; broker tests passed 47 in 1.05s.
+Actual East reimport retained demo=true/real=false. The subsequent AC solve did
+not converge and saved result 8ccd295c; this is not calculation success. C is not complete.
+See [the self-description trial report](../reviews/2026-10-27-mcp-self-discovery.md).
+Earlier source checks, which do not validate all the new changes:
+Source checks: root 171 passed after a NO_PROXY recheck of two proxy failures (1.94s);
+agent 221 passed in 23s and JS eight passed in 0.3s. A separate 55-test
+MCP/electrical provider check passed in 3.97s. Historical gateway release05 published
+52 tools and seven models. The current menu lists ten models; this does not establish new self-description acceptance.
+New API and three-worker image:
+2a8f632b154f5068b013c3de7e3d67008d04c32ff5dd53f6d4b053603122d64c, from 9e01f5dc.
+Native image is unchanged. The canonical rebuild exited 2 on a native inventory
+generic RPC rejection. One automatic restart restored native health. The root
+agent started the already-created API/workers. At 2026-10-26 23:56:58, ready was
+200 and API/three workers were healthy with the same image; native was healthy,
+with one restart.
+Do not count this as canonical exit 0. The earlier 838 build (image prefix 5be)
+passed. Protected North/East eight streams/pages/reopen checks passed on the prior
+image. Source-only catalog metadata preparation took about 440 seconds, a recorded
+performance issue; no solve ran. New real B validation and final UI checks remain
+pending. C is incomplete because the Authority import interface is not connected.
+Second-build scoped cleanup exited 0; receipt:
+outputs/electrical-integration-20261026/gateway-self-description/cleanup-receipt.json.
+HTML is generated once for the 3c7ace95 boundary. Runtime remains 9e01f5dc;
+new source is not rebuilt or deployed. Other deployments,
+main and PR states are unchanged.
+
+Previous boundary: dev was 32d72c28 after PR67 merged normally
+at 13:18:09Z. Required macOS CI 40327531795 passed on de648f58.
+Earlier CI 40322509147 had one continuation fixture failure (2183 passed,
+147 skipped); 40325864702 had a no-progress failure. Their intermittent root
+cause is unconfirmed. Diagnostics remain; the record does not claim a fix.
+The product diff from ce185 to 32d72c28 was empty. This was development integration,
+not full analytical acceptance. Commits271d752c,2b67b2e3,6f61185f and1321831d
+cover ledger replay, unified entry, adaptive execution and the type guard.
+
+Historical runtime, superseded by the new candidate: the 429d3a35 build had
+product bytes matching ce185a14. API and all three workers used image
+03c1721293d1919ee43159cc159230373f815d091f16381b183e45e4cd11db5f;
+native image is1b8533cf1b060fdda697f18b88a848803cc5fec787dd5d2e7537bfcabf0a7774.
+The canonical rebuild exited 1 because native resource seeding exceeded its
+120-second health window. Native became healthy after about three minutes.
+An explicit start of the already-created API/workers restored all five roles;
+ready 200 and API/worker image identity passed. Scoped cleanup passed, recorded
+in .worktrees/electrical-diagrams/.capstone-agent/cache-maintenance-electrical-20261026.log.
+This was a recovered rebuild, not a canonical exit-0 result. App 5173 serves
+the active implementation worktree; its new rebuild and live check are pending.
+Root dev 32d72c28 was checked earlier at PID 22505.
+Real inventory attempt36e273a93479fde7 took12.542486s against91.583562s:
+one gateway call, seven scopes, no graph or child task.
+Deep Research activation passed one real delayed-upgrade check: attempt
+4f3af7f303878605 in thread034c8790449839d745ee took98.652914s.
+One gateway call was reused by three tasks without a duplicate query.
+The4538-byte report b808554812adaebf-grid_model_scope_notes.md and task view
+were inspected in Vivaldi. This is scoped evidence, not full acceptance.
+Delivery was limited: one observation association was not admitted and remains
+unverified text, without a whole-task retry. The downloaded report hash is
+9dfcfa8c2c79891084a8b78bdba96e104907d28a22644b4e639c3f4006f924fc.
+Earlier candidatee320142d added worker publication tests:15 passed.
+Product sourcece185a14 follows20ae9445 and a73f9470. It limits menu handoff to
+isolated organizers; task executors retain ordinary tools.22 focused SDK checks
+pass. The ce185 rebuild is ready. Required CI passed after scope selection was
+corrected. Earlier intermittent failures remain recorded. Stop/follow-up checks passed:
+0e6afeba cancelled the running tool, then cbef9eff answered only5.
+See [the adaptive-loop record](../reviews/2026-10-26-adaptive-agent-loop.md).
+The1321831d guard passes Pyright with zero errors.
+Deep Research starts inactive but available;
+the agent can activate it at any cycle. Cloud, demo and main are unchanged.
+The canonical [control graph](PROJECT-OVERVIEW.html) was regenerated.
+Browser layout and edge inspection remain pending while the user is typing.
+
+The merged branch feat/purpose-electrical-diagrams reached f9010be5, based on
+9843692c. Commits 0f5c4f6b, 9370ae9e and 429d3a35 add scope discovery,
+electrical projection/layout and workspace wiring; e337c6d8 refines routing,
+and afeedbba applies instruction views over saved source navigation.
+It merged dev in 0a5ab4d6; d988033b records the gateway response, and 6db7e673
+fixes scope titles. PR68 merged it into dev 9d691624 after required CI passed.
+Vivaldi displayed the real 57-node/56-connection station in the earlier checks.
+The gateway's new publication is being connected by feat/gateway-electrical-views;
+offline checks do not establish live acceptance or completion of C.
+
+The user accepted generic grid model layers by purpose: overview, electrical,
+powerflow and optimization. This is a design decision, not an implementation
+claim or a North China special case. The data-gateway owner implements its own
+model capabilities; Capstone supplies the application handoff contract.
+See the [purpose-aware grid model handoff](../superpowers/specs/2026-10-26-purpose-grid-model-gateway-handoff.md).
+
+Previous delivery (2026-10-26): code PR64 merged as78f81e66 and control PR65
+merged as actual dev2c957c1c after
 scoped macOS40232655933 passed. North source rendering, model release, native
 business delivery and exact source replay passed; actual App5173 restores the
 57-node/56-connection Chaoyang view and opens saved products. See

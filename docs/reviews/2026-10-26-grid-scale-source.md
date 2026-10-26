@@ -5,7 +5,8 @@ Native model release, corrected North business delivery and exact source replay
 passed in the existing Vivaldi Thread, including refresh recovery. PR64 merged
 as78f81e66 after scoped macOS40232655933 passed. Actual primary App5173 serves
 product16aa9b82; its product files equal tested44e8eca2. Source57/56 recovery and
-the saved report were opened there. Final control documentation is being aligned.
+the saved report were opened there. Control PR65 merged as2c957c1c after its
+143-second documentation gate passed; initialized worktree and actual dev agree.
 No cloud, demo or main release.
 
 Source472045c2 loads full raw equipment and exact instruction view scope. The earlier7ba27575 includes the requested Escape change.15 focused

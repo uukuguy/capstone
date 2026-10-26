@@ -84,6 +84,7 @@ def test_registry_is_discoverable(tmp_path: Path) -> None:
         "environment.describe",
         "model.list",
         "model.create",
+        "model.artifact.import",
         "model.creator.describe",
         "model.creator.list",
         "model.revision.derive",

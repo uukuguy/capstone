@@ -54,11 +54,15 @@ class DataGatewayAccess:
     def publication(self):
         return {'available': True, 'catalog': deepcopy(self.catalog)}
 
-    def bind(self, task_id, attempt_id):
+    def bind(self, task_id, attempt_id, allowed_tools):
+        if (not isinstance(allowed_tools, (set, frozenset, list, tuple))
+                or any(not isinstance(name, str) or name not in self.catalog['tools'] for name in allowed_tools)):
+            raise GatewayError('gateway_tool_not_admitted')
         with self._lock:
             if task_id in self._tasks:
                 raise GatewayError('gateway_task_already_bound')
-            self._tasks[task_id] = {'attempt_id': attempt_id, 'started': set(), 'issued': {}}
+            self._tasks[task_id] = {'attempt_id': attempt_id, 'allowed_tools': frozenset(allowed_tools),
+                                    'started': set(), 'issued': {}}
 
     def revoke(self, task_id):
         with self._lock:
@@ -73,14 +77,23 @@ class DataGatewayAccess:
                 or not isinstance(document['arguments'], dict)):
             raise GatewayError('gateway_request_invalid')
         call_id, name = document['call_id'], document['name']
+        properties = self.catalog['tools'][name].get('inputSchema', {}).get('properties', {})
+        consumes_job = 'job_ref' in properties or 'job_ref' in document['arguments']
         with self._lock:
             record = self._tasks.get(task_id)
             if record is None:
                 raise GatewayError('gateway_task_not_admitted')
+            if name not in record['allowed_tools']:
+                raise GatewayError('gateway_tool_not_admitted')
             if call_id in record['started']:
                 raise GatewayError('gateway_call_already_started')
             if record.get('failure'):
                 raise GatewayError(record['failure'])
+            if consumes_job:
+                job_ref = document['arguments'].get('job_ref')
+                if ('job_ref' not in properties or not isinstance(job_ref, str)
+                        or job_ref not in record.get('operation_refs', set())):
+                    raise GatewayError('gateway_tool_not_admitted')
             require_capacity('mcp_call_count', len(record['started']) + 1, 'gateway_call')
             record['started'].add(call_id)
         arguments = deepcopy(document['arguments'])
@@ -92,6 +105,13 @@ class DataGatewayAccess:
                     if self._tasks.get(task_id) is record:
                         record['failure'] = str(error)
             raise
+        content = result.get('structuredContent', {})
+        data = content.get('data', {}) if isinstance(content, dict) else {}
+        successful = (result.get('isError') is not True and isinstance(content, dict)
+                      and content.get('status') in {'ok', 'partial'})
+        if (consumes_job and successful
+                and (not isinstance(data, dict) or data.get('job_ref') != arguments.get('job_ref'))):
+            raise GatewayError('gateway_output_invalid')
         body = encode(result).decode()
         observation = {'kind': 'external_gateway_observation', 'task_id': task_id,
             'parent_attempt_id': record['attempt_id'], 'tool_call_id': call_id, 'tool': name,
@@ -103,6 +123,13 @@ class DataGatewayAccess:
             if self._tasks.get(task_id) is not record:
                 raise GatewayError('gateway_task_not_admitted')
             record['issued'][call_id] = {'response': deepcopy(response), 'arguments': arguments}
+            if successful and isinstance(data, dict):
+                # Only explicit operation references at the result's data root
+                # grant access. Business rows and nested objects never do.
+                for field in ('job_ref', 'preparation_ref'):
+                    ref = data.get(field)
+                    if isinstance(ref, str) and re.fullmatch(r'[A-Za-z0-9_.:-]{1,512}', ref):
+                        record.setdefault('operation_refs', set()).add(ref)
         return response
 
     def verify(self, task_id, call_id, name, observation, result_json):

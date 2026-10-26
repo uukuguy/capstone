@@ -6,6 +6,7 @@ import {checkCapacity,runtimeLimits as resolveLimits,onDebugCapacityExceeded} fr
 import {prepareDeliveryReview,reviewChildPrompt} from './delivery-review.mjs';
 import {createManagedSubagents} from './managed-subagents.mjs';
 import {createDataGatewayTools} from './general-data-gateway.mjs';
+import {createToolDiscovery,discoveryToolNames} from './general-tool-discovery.mjs';
 import {createTaskNodeReturn} from './task-node-return.mjs';
 import {taskTurnGuidance} from './task-turn-guidance.mjs';
 import {createDiagnosisTools,diagnosisTools,diagnosisDigest,configureDiagnosisCorrectionGuard,watchDiagnosisValidation} from './systematic-diagnosis.mjs';
@@ -76,11 +77,13 @@ const researchChildPolicy='You execute one accepted research branch for a parent
   'Use only the admitted tools and selected skills in this isolated workspace; do not discover credentials, Authority handles or other host resources, or attempt external lookup. '+
   'Source statements and your observations are not registered Authority facts or simulator evidence. '+
   'Return the actual findings, inspected source paths, saved private output paths, failures and limitations for parent integration; do not claim unperformed checks or verified truth.';
-const graphChildProductGuidance='For saved products, write .capstone-products.json using this JSON shape: '+
+const savedProductGuidance='For saved products, write .capstone-products.json at the task workspace root (the initial working directory), never inside out/ or another output subdirectory, using this JSON shape: '+
   '{"schema":"capstone-workspace-products/1","products":[{"path":"actual-relative-file","role":"primary"}]}. '+
-  'Replace the example path with an actual path relative to your private output directory; list only files you actually wrote. '+
+  'Replace the example path with an actual path relative to that workspace root, including subdirectories such as out/report.csv; list only files you actually wrote. Changing the shell working directory does not change the manifest root. '+
   'Use primary for a requested deliverable, support for supporting material, and reproduction for files needed to reproduce the work. '+
   'The host computes product hashes and sizes. Do not rehash files for product registration. '+
+  'In the final answer, identify requested deliverables by their actual relative filenames. The application publishes the saved files as product cards. Do not expose private absolute workspace paths or invent sandbox URLs, download URLs or artifact references. ';
+const graphChildProductGuidance=savedProductGuidance+
   'Perform the declared necessary checks, including required numerical checks. Once the assigned questions are met, return actual findings, saved paths and limitations; do not add unrelated checks or inventory scans. '+
   'Do not scan sibling workspaces or shared context directories. If an exact input is missing, return the precise missing input, producer, slot or result ref so the parent can revise the graph.';
 const graphProposalGuidance='Every capstone-node-contract/1 node must write .capstone-products.json with graph_proposal, even for observation-only work with products:[] and no saved artifact files. Add graph_proposal to that manifest: '+
@@ -355,22 +358,34 @@ export function applicationToolAdmission(config, toolName) {
     reason: "This application did not authorize the requested tool. Select a registered resource or continue without it." };
 }
 
-export function configureAdaptiveToolHandoff(pi,config){
+export function configureAdaptiveToolHandoff(pi,config,discovery){
   if(config.researchRuntime?.adaptiveAgentLoop!==true||config.researchRuntime?.isolatedTaskExecution!==true)return;
   pi.on('tool_result',event=>{
     if(event.toolName!=='agent_research_plan'||event.isError===true||event.details?.ok!==true)return;
     // The execution guard remains authoritative. Narrow the next model's tool
     // menu as well, so accepted organization does not invite rejected shell work.
     const organized={...config,researchRuntime:{...config.researchRuntime,adaptiveAgentLoop:false}};
+    discovery?.close();
     pi.setActiveTools(config.applicationPolicy.allowed_tools.filter(name=>applicationToolAdmission(organized,name).accepted));
   });
 }
 
-export function applicationToolOptions(config, nativeTools, research=()=>undefined) {
+export function createGatewayToolDiscovery(config) {
+  if(config.dataGateway?.onDemandTools!==true)return;
+  const admittedNames=config.applicationPolicy?.allowed_tools;
+  if(Array.isArray(admittedNames)&&!admittedNames.some(name=>Object.hasOwn(config.dataGateway.catalog.tools,name)))return;
+  if(!Array.isArray(admittedNames)||discoveryToolNames.some(name=>!admittedNames.includes(name)))
+    throw new Error('Application did not authorize task tool discovery');
+  return createToolDiscovery({tools:createDataGatewayTools(config),publications:config.dataGateway.catalog.tools,
+    contractHashes:config.dataGateway.catalog.tool_hashes,admittedNames});
+}
+
+export function applicationToolOptions(config, nativeTools, research=()=>undefined, discovery=createGatewayToolDiscovery(config)) {
   if (!config.applicationPolicy) return {};
   // SDK `tools` filters the full registry, including registered extensions.
   // Keep publication intact; the active set and execution guard enforce grants.
-  return { customTools: [...nativeTools,...createDataGatewayTools(config),...createDiagnosisTools(config)].map(tool => {
+  const gatewayTools=discovery?[...discovery.guardedTools,...discovery.tools]:createDataGatewayTools(config);
+  return { customTools: [...nativeTools,...gatewayTools,...createDiagnosisTools(config)].map(tool => {
     const guarded = guardToolExecution(tool, async call => applicationToolAdmission(config, call.toolName));
     // Foundation records do not open a native graph action or produce business evidence.
     if (!config.researchChannelPath||diagnosisTools.includes(tool.name)) return guarded;
@@ -592,17 +607,25 @@ export async function createManagedChildSession(config, sdk, modelRuntime,
   if (skills.some(skill => !config.allowedSkills.includes(skill.name) || typeof skill.filePath !== 'string')) {
     throw new Error('Child skills are not authorized by the application');
   }
+  const childTools=[...new Set(toolNames)];
+  if(config.dataGateway?.onDemandTools===true&&childTools.some(name=>Object.hasOwn(config.dataGateway.catalog.tools,name))) {
+    if(discoveryToolNames.some(name=>!grants.includes(name)))throw new Error('Child tool discovery is not authorized by the application');
+    childTools.push(...discoveryToolNames.filter(name=>!childTools.includes(name)));
+  }
   const childConfig = {...config, researchChannelPath:undefined,
     diagnosisNamespace:graphBinding?.action?.id??'child-'+randomUUID(),
     researchRuntime:{...config.researchRuntime,isolatedTaskExecution:false},
-    applicationPolicy: {...config.applicationPolicy, allowed_tools: [...new Set(toolNames)]}};
+    applicationPolicy: {...config.applicationPolicy, allowed_tools: childTools}};
+  // Children keep their own task-local active set and cannot inherit a parent's
+  // loaded menu or add tools outside the selected child grant.
+  const discovery=createGatewayToolDiscovery(childConfig);
   const settingsManager = sdk.SettingsManager.inMemory(config.settings);
   const childSources=graphBinding?graphSelectedSources(config,graphBinding.action):config.deliveryReviewSources??[];
   const runtimeContext=[...(typeof config.runtimeEnvironment==='string'&&config.runtimeEnvironment
     ? [{path:'verified-programming-environment',content:config.runtimeEnvironment}]:[]),
     ...(config.contextFiles??[]).filter(item=>item.path==='registered-production-data')];
   const loader = new sdk.DefaultResourceLoader({cwd, agentDir: process.env.PI_CODING_AGENT_DIR,
-    extensionFactories:[pi=>configureDiagnosisCorrectionGuard(pi,childConfig)],
+    extensionFactories:[pi=>configureDiagnosisCorrectionGuard(pi,childConfig),...(discovery?[pi=>discovery.configure(pi)]:[])],
     settingsManager, noExtensions: true, noSkills: true, noPromptTemplates: true,
     noThemes: true, noContextFiles: true,
     additionalExtensionPaths: config.extensions.filter(path =>
@@ -628,7 +651,7 @@ export async function createManagedChildSession(config, sdk, modelRuntime,
   const model = modelRuntime.getModel('capstone-general', config.model);
   if (!model) throw new Error('Managed child model is unavailable');
   if(graphBinding)graphBinding={...graphBinding,observedToolCalls:new Set()};
-  let tools=applicationToolOptions(childConfig,createIsolatedNativeTools(sdk,cwd));
+  let tools=applicationToolOptions(childConfig,createIsolatedNativeTools(sdk,cwd),undefined,discovery);
   if(graphBinding?.taskReturn){
     tools.customTools.push(taskReturnTool(config,cwd,graphBinding));
     childConfig.applicationPolicy.allowed_tools.push('agent_task_return');
@@ -668,7 +691,7 @@ export async function createManagedChildSession(config, sdk, modelRuntime,
   try {
     signal?.throwIfAborted();
     await session.bindExtensions({onError: () => {throw new Error('Managed child extension failed');}});
-    session.setActiveToolsByName(childConfig.applicationPolicy.allowed_tools);
+    session.setActiveToolsByName(discovery?discovery.initialToolNames(childConfig.applicationPolicy.allowed_tools):childConfig.applicationPolicy.allowed_tools);
     signal?.throwIfAborted();
     return {session, close};
   } catch(error) {const fatal=debugFailure;await close();throw fatal??error;}
@@ -1140,8 +1163,10 @@ export function createGraphNodeDispatcher(config,sdk,modelRuntime,{skills,contex
 
 export async function runManagedSession(config, sdk, suppliedModelRuntime) {
   config={...config,runtimeLimits:resolveLimits(config.runtimeLimits,{mode:config.runtimeLimitMode})};
+  const discovery=createGatewayToolDiscovery(config);
   let researchController,dispatchSubtasks,dispatchGraphNode,graphContext,graphGuard,diagnosisCorrectionGuard;
   const extensionFactories = [pi=>{diagnosisCorrectionGuard=configureDiagnosisCorrectionGuard(pi,config);}];
+  if(discovery)extensionFactories.push(pi=>discovery.configure(pi));
   const managedResearch = config.researchRuntime?.enabled === true && Boolean(config.researchChannelPath);
   const graphResearch=managedResearch&&usesEnterpriseGraph(config);
   const adaptiveLoop=graphResearch&&config.researchRuntime.adaptiveAgentLoop===true;
@@ -1153,7 +1178,7 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
     const {createGraphContextClient} = await import('./graph-context-client.mjs');
     const {inspectResearchProducts} = await import('./research-products.mjs');
     extensionFactories.push(pi => {
-      configureAdaptiveToolHandoff(pi,config);
+      configureAdaptiveToolHandoff(pi,config,discovery);
       pi.on('tool_result', event => {
         if (event.toolName === 'agent_delegate' && Array.isArray(event.details?.children) &&
             !event.details.children.some(child => child.status === 'completed')) return {isError:true};
@@ -1224,7 +1249,7 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
     noContextFiles: true, agentsFilesOverride: () => ({ agentsFiles: config.contextFiles }),
     systemPromptOverride: () => organizationOnly?[organizationEnginePolicy,organizationExecutionContract(),organizationSourceCatalog(config),config.systemPrompt].filter(Boolean).join('\n\n'):config.systemPrompt ?? undefined,
     appendSystemPromptOverride: () => [...(config.appendSystemPrompt??[]),
-      ...(!organizationOnly?[nativeShellGuidance,...(managedResearch?[continuationSourceGuidance]:[])]:[]),
+      ...(!organizationOnly?[nativeShellGuidance,savedProductGuidance,...(managedResearch?[continuationSourceGuidance]:[])]:[]),
       ...(adaptiveLoop?['Start with the current instruction in a lightweight agent loop. At each cycle answer if sufficient, call an authorized tool for needed observations, or use agent_research_plan when remaining work needs task organization. No planning call is mandatory. Tool count, file uploads and session labels do not decide escalation. Before organization you may use native and granted gateway tools directly. After an accepted plan, use the isolated task execution contracts. Reuse exact Host observation references as explicitly selected source_refs; these are raw inputs, never accepted task results or Authority evidence.']:[])],
     skillsOverride: current => ({ ...current, skills: current.skills.filter(s => config.allowedSkills.includes(s.name)) }) });
   await loader.reload();
@@ -1295,7 +1320,7 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
       }}:{}),
       emit:event=>process.stdout.write(JSON.stringify(event)+'\n')}));
   }
-  const toolOptions=applicationToolOptions(config,nativeTools,()=>researchController);
+  const toolOptions=applicationToolOptions(config,nativeTools,()=>researchController,discovery);
   const delegatedTool=toolOptions.customTools?.find(tool=>tool.name==='agent_delegate');
   if(delegatedTool)dispatchSubtasks=async(toolCallId,tasks,signal)=>{
     const args={tasks},emit=event=>process.stdout.write(JSON.stringify(event)+'\n');
@@ -1318,8 +1343,11 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
   const releaseDebug=bindDebugCapacityAbort(session,modelRuntime,config.runtimeLimitMode,config.researchRuntime?.lightweightTaskNodes===true);
   try {
     await session.bindExtensions({ onError: () => { throw new Error("Native extension failed"); } });
-    if (config.applicationPolicy) session.setActiveToolsByName(config.applicationPolicy.allowed_tools.filter(name=>
-      applicationToolAdmission(config,name).accepted));
+    if (config.applicationPolicy) {
+      const allowed=config.applicationPolicy.allowed_tools.filter(name=>applicationToolAdmission(config,name).accepted);
+      session.setActiveToolsByName(discovery?discovery.initialToolNames(allowed).filter(name=>
+        applicationToolAdmission(config,name).accepted):allowed);
+    }
     const skills = loader.getSkills().skills.map(s => ({ name: s.name,
       sha256: createHash("sha256").update(readFileSync(s.filePath)).digest("hex") }));
     const toolHashes = verifyMcpPublication(session, config);

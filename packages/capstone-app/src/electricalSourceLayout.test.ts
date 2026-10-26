@@ -31,6 +31,18 @@ describe('source electrical geometry',()=>{
     assertClear({...scene,nodes,edges:[{id:'skip-middle',source:'n0',target:'n2',kind:'source_connection',relation:'connection'}]})
     assertClear(scene)
   })
+  it('allocates local component area by records rather than giving every isolated device a full cell',()=>{
+    const nodes=[{id:'bus',label:'Bus',kind:'busbar'},...Array.from({length:20},(_,i)=>({id:`connected${i}`,label:'Connected',kind:'breaker'})),...Array.from({length:10},(_,i)=>({id:`isolated${i}`,label:'Isolated',kind:'breaker'}))]
+    const edges=Array.from({length:20},(_,i)=>({id:`edge${i}`,source:i%5?`connected${i-1}`:'bus',target:`connected${i}`,kind:'source_connection',relation:'connection' as const}))
+    const input:NetworkScene={...scene,nodes,edges},index=buildSceneIndex(input),geometry=sceneGeometry(index)!,bar=geometry.busbars.get(0)!
+    expect(bar[1].x-bar[0].x).toBeGreaterThan(index.bounds.width*.5)
+    const connected=[...geometry.symbolRadii].filter(([i])=>i>0&&i<=20).map(([,radius])=>radius).sort((a,b)=>a-b),isolated=[...geometry.symbolRadii].filter(([i])=>i>20).map(([,radius])=>radius).sort((a,b)=>a-b)
+    expect(connected[10]/isolated[5]).toBeGreaterThan(.5)
+    expect(connected[10]/isolated[5]).toBeLessThan(2)
+    expect(index.nodeIds.size).toBe(31);expect(geometry.routes.size).toBe(20)
+    for(let n=21;n<31;n++)expect(index.incidentOffsets[n+1]-index.incidentOffsets[n]).toBe(0)
+    assertClear(input)
+  })
   it('validates the final fallback against existing routes in a dense 12-node scene',()=>{
     const pairs=[[5,7],[2,4],[2,3],[8,11],[6,2],[1,10],[8,0],[5,9],[4,5],[6,7],[3,11],[2,0],[1,4],[3,6],[5,11],[0,7],[10,4]]
     const id=(n:number)=>`n${String(n).padStart(2,'0')}`

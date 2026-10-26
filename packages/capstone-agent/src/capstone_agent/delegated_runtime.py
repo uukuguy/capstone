@@ -269,14 +269,18 @@ class DelegatedRuntime:
                 'enterprise_graph_child_tool', 'enterprise_graph_child_response_started', 'enterprise_graph_child_response', 'enterprise_graph_child_finished'}
             source_view = None
             if (kind == 'tool_execution_end' or kind == 'enterprise_graph_child_tool' and event.get('activity') == 'end'):
-                if (tool_name == 'data_gateway_get_network_topology_view' and isinstance(tool_call_id, str)
+                if (tool_name in {'data_gateway_get_network_topology_view', 'data_gateway_open_network_model_view'} and isinstance(tool_call_id, str)
                         and tool_call_id and event.get('is_error') is not True
                         and event.get('task_id', task_id) == task_id
                         and event.get('attempt_id', parent) == parent):
                     from .grid_source_topology import checked_source_view_request, GridSourceError
                     try:
-                        source_view = checked_source_view_request(event.get('source_view'))
-                    except GridSourceError:
+                        if tool_name == 'data_gateway_open_network_model_view':
+                            from .grid_electrical_view import checked_electrical_descriptor
+                            source_view = checked_electrical_descriptor(event.get('source_view'))
+                        else:
+                            source_view = checked_source_view_request(event.get('source_view'))
+                    except (GridSourceError, ValueError):
                         pass  # Optional presentation metadata cannot block the task.
             self._emit(on_event, {'task_id': task_id, 'goal_id': goal['goal_id'],
                 'native_type': kind if isinstance(kind, str) else 'unknown',

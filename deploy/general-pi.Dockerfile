@@ -68,6 +68,8 @@ COPY packages/capstone-agent/src/capstone_agent/general_pi_relay.py capstone_age
 COPY packages/capstone-agent/src/capstone_agent/data_gateway_mcp.py capstone_agent/data_gateway_mcp.py
 COPY packages/capstone-agent/src/capstone_agent/data_gateway_relay.py capstone_agent/data_gateway_relay.py
 COPY packages/capstone-agent/src/capstone_agent/grid_source_topology.py capstone_agent/grid_source_topology.py
+COPY packages/capstone-agent/src/capstone_agent/grid_electrical_view.py capstone_agent/grid_electrical_view.py
+COPY packages/capstone-agent/src/capstone_agent/resources/gateway-electrical-view-v1.schema.json capstone_agent/resources/gateway-electrical-view-v1.schema.json
 COPY packages/capstone-agent/src/capstone_agent/resources/general-data-gateway.mjs capstone_agent/resources/general-data-gateway.mjs
 COPY configs/runtime/data-gateway.json configs/runtime/data-gateway.json
 COPY packages/capstone-agent/src/capstone_agent/bounded_http_loop.py capstone_agent/bounded_http_loop.py
@@ -101,6 +103,7 @@ COPY packages/capstone-agent/src/capstone_agent/resources/research-guidance.mjs 
 COPY packages/pi-capability-tools/src/task-record-tools.mjs capstone_agent/resources/task-record-tools.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/general-context.mjs capstone_agent/resources/general-context.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/general-sdk.mjs capstone_agent/resources/general-sdk.mjs
+COPY packages/capstone-agent/src/capstone_agent/resources/general-tool-discovery.mjs capstone_agent/resources/general-tool-discovery.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/systematic-diagnosis.mjs capstone_agent/resources/systematic-diagnosis.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/enterprise-research-runtime.mjs capstone_agent/resources/enterprise-research-runtime.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/enterprise-cycle-contract.mjs capstone_agent/resources/enterprise-cycle-contract.mjs

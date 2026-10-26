@@ -10,13 +10,27 @@ export type ThreadSourceViewRequest={
   view_ref:string;source_snapshot:{metadata_snapshot:string;source_instance:string}
   voltage_min_kv:number|null;display_grouping_only:boolean
 }
+export type ThreadElectricalViewRequest={schema:'capstone-electrical-view-request/1';source_id:'data-gateway';
+  model_ref:string;model_revision:string;view_ref:string;selection_ref:string;source_snapshot_ref:string;
+  representation:'source_node_breaker'|'calculation_bus_branch';target:string|null;artifact_ref:string|null}
+export type ThreadDisplayRequest=ThreadSourceViewRequest|ThreadElectricalViewRequest
 export type ThreadViewProposal=
-  |{kind:'source';eventSeq:number;attemptId:string;request:ThreadSourceViewRequest}
+  |{kind:'source';eventSeq:number;attemptId:string;request:ThreadDisplayRequest}
   |{kind:'model';eventSeq:number;attemptId:string;contextId:string;pageId:string;view:DiagramNetworkView}
 const object=(value:unknown):value is Record<string,unknown>=>value!==null&&typeof value==='object'&&!Array.isArray(value)
 const text=(value:unknown):value is string=>typeof value==='string'&&value.length<=512&&value.trim().length>0&&!/[\u0000-\u001f\u007f]/.test(value)
 const keys=(value:Record<string,unknown>,expected:readonly string[])=>Object.keys(value).length===expected.length&&expected.every(key=>Object.hasOwn(value,key))
 const sequence=(value:number)=>Number.isSafeInteger(value)&&value>0
+
+export function parseThreadDisplayRequest(value:unknown):ThreadDisplayRequest|null {
+  if(!object(value)||value.schema!=='capstone-electrical-view-request/1')return parseThreadSourceViewRequest(value)
+  if(!keys(value,['schema','source_id','model_ref','model_revision','view_ref','selection_ref','source_snapshot_ref','representation','target','artifact_ref'])
+    ||value.source_id!=='data-gateway'||!['source_node_breaker','calculation_bus_branch'].includes(String(value.representation))
+    ||!['model_ref','model_revision','view_ref','selection_ref','source_snapshot_ref'].every(key=>text(value[key]))
+    ||!(value.target===null||text(value.target))||!(value.artifact_ref===null||text(value.artifact_ref))
+    ||value.representation==='calculation_bus_branch'&&!text(value.artifact_ref))return null
+  return {...value} as ThreadElectricalViewRequest
+}
 
 export function parseThreadSourceViewRequest(value:unknown):ThreadSourceViewRequest|null{
   if(!object(value)||!keys(value,['schema','source_id','scope_id','scope_name','level','selected_object_id','view_ref','source_snapshot','voltage_min_kv','display_grouping_only'])||
@@ -61,7 +75,7 @@ export function selectThreadViewProposal({events,networkTasks,attemptId,currentC
   let proposal:ThreadViewProposal|null=null
   for(const event of events){
     if(event.visibility!=='public'||event.attemptId!==attemptId||event.eventType!=='runtime_event'||!sequence(event.eventSeq)||!successful(event.payload))continue
-    const request=parseThreadSourceViewRequest(event.payload.source_view)
+    const request=parseThreadDisplayRequest(event.payload.source_view)
     if(request&&(!proposal||event.eventSeq>proposal.eventSeq))proposal={kind:'source',eventSeq:event.eventSeq,attemptId,request}
   }
   if(currentContext)for(const task of networkTasks){

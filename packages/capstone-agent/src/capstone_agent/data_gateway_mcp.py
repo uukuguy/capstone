@@ -4,10 +4,12 @@ from __future__ import annotations
 import asyncio
 from contextlib import asynccontextmanager
 from copy import deepcopy
+from dataclasses import dataclass
 from hashlib import sha256
 import json
 from pathlib import Path
 import re
+from typing import Any
 from urllib.parse import urlsplit
 
 from jsonschema import Draft202012Validator
@@ -17,14 +19,24 @@ from referencing.exceptions import NoSuchResource
 from .application_capacity import limits, require_capacity, CapacityExceeded
 
 
-MODEL_TOOLS = frozenset({'inspect_network_model', 'build_network_model',
-                        'get_network_model_job', 'get_network_model_artifact', 'read_network_model_artifact'})
+_TOOL_NAME = re.compile(r'[a-z][a-z0-9_]{0,49}')
+_INSTRUCTIONS_BYTES = 16384
+
+
+@dataclass(frozen=True)
+class InitializedGatewaySession:
+    """Connection-local initialization data; never shared between MCP sessions."""
+    session: object
+    instructions: str | None = None
 
 # These failures stop further remote probes in the admitted task. A new user
 # instruction gets its own task state and can check the resource again.
 TASK_STOP_ERRORS = frozenset({'gateway_timeout', 'gateway_transport_failed',
     'gateway_authentication_failed', 'gateway_connection_failed', 'gateway_call_failed_no_retry',
-    'gateway_publication_changed', 'gateway_catalog_invalid', 'gateway_catalog_unavailable'})
+    'gateway_catalog_invalid', 'gateway_catalog_unavailable'})
+_PUBLIC_GATEWAY_ERRORS = TASK_STOP_ERRORS | {'gateway_arguments_invalid', 'gateway_output_invalid',
+    'gateway_tool_not_admitted', 'gateway_policy_invalid', 'gateway_connection_config_invalid',
+    'gateway_publication_changed'}
 
 
 class GatewayError(ValueError):
@@ -55,6 +67,10 @@ def public_failure(error, fallback):
         if id(current) in seen:
             continue
         seen.add(id(current))
+        # MCP task groups may wrap a pre-call admission rejection during context
+        # teardown. Preserve only fixed public codes, never exception messages.
+        if isinstance(current, GatewayError) and str(current) in _PUBLIC_GATEWAY_ERRORS:
+            return str(current)
         if getattr(getattr(current, 'response', None), 'status_code', None) in {401, 403}:
             return 'gateway_authentication_failed'
         if isinstance(current, (TimeoutError, httpx.TimeoutException)):
@@ -77,12 +93,18 @@ class DataGatewayMcp:
         self.connection_path = Path(connection_path)
         self.policy = deepcopy(policy)
         allowed = policy.get('allowed_tools', [])
-        if (set(policy) != {'schema', 'resource_id', 'namespace', 'allowed_tools'}
-                or policy['schema'] != 'capstone-data-gateway/1'
-                or policy['resource_id'] != 'data-gateway' or policy['namespace'] != 'data_gateway_'
-                or not isinstance(allowed, list) or not allowed or len(set(allowed)) != len(allowed)
-                or any(not isinstance(n, str) or not re.fullmatch(r'[a-z][a-z0-9_]{0,49}', n)
-                       or n in MODEL_TOOLS for n in allowed)):
+        # v1 supports existing private configurations only. Production uses v2:
+        # application authorization of safe effects on this fixed trusted service.
+        legacy = (set(policy) == {'schema', 'resource_id', 'namespace', 'allowed_tools'}
+            and policy.get('schema') == 'capstone-data-gateway/1'
+            and isinstance(allowed, list) and bool(allowed)
+            and all(isinstance(n, str) and _TOOL_NAME.fullmatch(n) for n in allowed)
+            and len(set(allowed)) == len(allowed))
+        dynamic = (set(policy) == {'schema', 'resource_id', 'namespace', 'admission'}
+            and policy.get('schema') == 'capstone-data-gateway/2'
+            and policy.get('admission') == 'trusted-service-safe-effects')
+        if (not (legacy or dynamic) or policy.get('resource_id') != 'data-gateway'
+                or policy.get('namespace') != 'data_gateway_'):
             raise GatewayError('gateway_policy_invalid')
         try:
             path = self.connection_path
@@ -120,36 +142,67 @@ class DataGatewayMcp:
                                      trust_env=False, follow_redirects=False) as client:
             async with streamable_http_client(self._connection['url'], http_client=client) as (reader, writer, _):
                 async with ClientSession(reader, writer) as session:
-                    await session.initialize()
-                    yield session
+                    initialized = await session.initialize()
+                    yield InitializedGatewaySession(session, initialized.instructions)
 
-    async def _catalog(self, session):
-        schemas, cursor = {}, None
+    async def _catalog(self, session, *, tool_name=None):
+        instructions = getattr(session, 'instructions', None) if hasattr(session, 'session') else None
+        session = getattr(session, 'session', session)
+        if tool_name is None:
+            if instructions is None:
+                instructions = ''
+            if not isinstance(instructions, str) or len(instructions.encode('utf-8')) > _INSTRUCTIONS_BYTES:
+                raise GatewayError('gateway_catalog_invalid')
+        schemas, cursor, seen_names, seen_cursors = {}, None, set(), set()
         for _ in range(16):
             page = await session.list_tools(**({'cursor': cursor} if cursor else {}))
             for tool in page.tools:
-                if tool.name not in self.policy['allowed_tools']:
+                if tool_name is not None and tool.name != tool_name.removeprefix(self.policy['namespace']):
                     continue
-                name = self.policy['namespace'] + tool.name
-                if name in schemas:
+                if (not isinstance(tool.name, str) or not _TOOL_NAME.fullmatch(tool.name)
+                        or tool.name in seen_names):
                     raise GatewayError('gateway_catalog_invalid')
+                seen_names.add(tool.name)
+                name = self.policy['namespace'] + tool.name
                 document = tool.model_dump(mode='json', by_alias=True, exclude_none=True)
-                Draft202012Validator.check_schema(document['inputSchema'])
-                if 'outputSchema' in document:
-                    Draft202012Validator.check_schema(document['outputSchema'])
+                if self.policy['schema'] == 'capstone-data-gateway/1':
+                    if tool.name not in self.policy['allowed_tools']:
+                        continue
+                else:
+                    effects = document.get('annotations')
+                    if (not isinstance(effects, dict)
+                            or type(effects.get('readOnlyHint')) is not bool
+                            or effects.get('destructiveHint') is not False
+                            or effects.get('openWorldHint') is not False):
+                        continue
+                try:
+                    if document['name'] != tool.name:
+                        raise ValueError()
+                    # Admission validates schemas. At call time compare the full
+                    # published contract first, so even an invalid changed schema
+                    # remains a rejection of this tool rather than the whole task.
+                    if tool_name is None:
+                        Draft202012Validator.check_schema(document['inputSchema'])
+                        if 'outputSchema' in document:
+                            Draft202012Validator.check_schema(document['outputSchema'])
+                except Exception:
+                    raise GatewayError('gateway_catalog_invalid') from None
                 schemas[name] = document
             next_cursor = page.nextCursor
             if not next_cursor:
                 break
-            if next_cursor == cursor:
+            if not isinstance(next_cursor, str) or next_cursor in seen_cursors:
                 raise GatewayError('gateway_catalog_invalid')
+            seen_cursors.add(next_cursor)
             cursor = next_cursor
         else:
             raise GatewayError('gateway_catalog_invalid')
-        if not schemas or 'data_gateway_discover_data_capabilities' not in schemas:
+        if tool_name is None and not schemas:
             raise GatewayError('gateway_catalog_unavailable')
         value = {'resource_id': self.policy['resource_id'], 'tools': schemas,
                  'tool_hashes': {n: fingerprint(s) for n, s in schemas.items()}}
+        if tool_name is None:
+            value['instructions'] = instructions
         require_capacity('mcp_frame_bytes', len(encode(value)), 'gateway_catalog')
         return {**value, 'revision': fingerprint(value)}
 
@@ -180,9 +233,13 @@ class DataGatewayMcp:
                 raise GatewayError('gateway_arguments_invalid') from None
             async with asyncio.timeout(limits.mcp_tool_seconds):
                 async with self.connect() as session:
-                    if await self._catalog(session) != catalog:
+                    current = await self._catalog(session, tool_name=name)
+                    # The caller's whole grant was checked above. Publication
+                    # drift matters only for the exact tool being invoked.
+                    if current['tools'].get(name) != schema:
                         raise GatewayError('gateway_publication_changed')
-                    response = await session.call_tool(schema['name'], arguments=arguments)
+                    active_session: Any = getattr(session, 'session', session)
+                    response = await active_session.call_tool(schema['name'], arguments=arguments)
                     value = response.model_dump(mode='json', by_alias=True, exclude_none=True)
             require_capacity('mcp_frame_bytes', len(encode(value)), 'gateway_result')
             if not value.get('isError') and 'outputSchema' in schema:

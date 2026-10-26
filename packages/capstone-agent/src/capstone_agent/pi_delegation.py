@@ -425,6 +425,27 @@ class HttpGeneralPiExecutor:
                           document=checked_topology_request(document),
                           timeout=EXCHANGE_SECONDS + 2, total_timeout=EXCHANGE_SECONDS + 3)
 
+    def grid_electrical_models(self):
+        from .grid_source_topology import EXCHANGE_SECONDS
+        return self._call('GET', '/grid-sources/data-gateway/electrical/models',
+                          timeout=EXCHANGE_SECONDS + 2, total_timeout=EXCHANGE_SECONDS + 3, electrical_transport=True)
+
+    def _grid_electrical(self, operation, document):
+        from .grid_electrical_view import checked_electrical_request
+        from .grid_source_topology import EXCHANGE_SECONDS
+        return self._call('POST', '/grid-sources/data-gateway/electrical/' + operation,
+                          document=checked_electrical_request(operation, document),
+                          timeout=EXCHANGE_SECONDS + 2, total_timeout=EXCHANGE_SECONDS + 3, electrical_transport=True)
+
+    def grid_electrical_open(self, document):
+        return self._grid_electrical('open', document)
+
+    def grid_electrical_read(self, document):
+        return self._grid_electrical('read', document)
+
+    def grid_electrical_job(self, document):
+        return self._grid_electrical('job', document)
+
     def set_network_policy(self, enabled: bool):
         if type(enabled) is not bool:
             raise ValueError('external_access must be a boolean')
@@ -433,7 +454,7 @@ class HttpGeneralPiExecutor:
 
     def _call(self, method, path, *, document=None, timeout=None,
               total_timeout=None, checkpoint=lambda: None, research_transport=False,
-              capacity_dimension=None, capacity_phase='native_http'):
+              capacity_dimension=None, capacity_phase='native_http', electrical_transport=False):
         """Bound the entire exchange, including response headers and slow reads.
 
         Application workers call this synchronous API from their worker threads.
@@ -455,7 +476,8 @@ class HttpGeneralPiExecutor:
                     async for chunk in response.aiter_bytes():
                         checkpoint()
                         body.extend(chunk)
-                        if len(body) > (limits.research_response_bytes if research_transport else limits.control_document_bytes):
+                        from .grid_source_topology import PAGE_BYTES
+                        if len(body) > (PAGE_BYTES if electrical_transport else limits.research_response_bytes if research_transport else limits.control_document_bytes):
                             raise ValueError("Pi response exceeds byte bounds")
                     if response.is_error:
                         try:
@@ -478,11 +500,13 @@ class HttpGeneralPiExecutor:
                                  'research_transport_file_changed', 'grid_source_unavailable',
                                  'grid_source_request_invalid', 'grid_source_view_changed',
                                  'grid_source_response_invalid', 'grid_source_observation_unavailable'}
+                        from .grid_electrical_view import ERRORS as electrical_errors
+                        known.update(electrical_errors)
                         raise PiHTTPFailure(response.status_code, error if isinstance(error, str) and error in known else 'unrecognized_response')
                     response.raise_for_status()
             checkpoint()
             result = json.loads(body)
-            if research_transport:
+            if research_transport or electrical_transport:
                 if not isinstance(result, dict):
                     raise ValueError('research transport response must be an object')
             else:

@@ -28,6 +28,7 @@ export const sceneGlyphs={
 } as const
 const kinds:Record<string,NetworkSymbol>={bus:sceneGlyphs.bus,busbars:{...sceneGlyphs.bus,label:'母线条（源记录）'},transformer:sceneGlyphs.transformer,transformers:sceneGlyphs.transformer,trafo:sceneGlyphs.transformer,trafo3w:sceneGlyphs.transformer3w,station:sceneGlyphs.station,voltage_group:sceneGlyphs.voltage,voltage_level:sceneGlyphs.voltage,switch:sceneGlyphs.switchUnknown,disconnectors:sceneGlyphs.disconnectorUnknown,ground_disconnectors:sceneGlyphs.groundUnknown,breakers:sceneGlyphs.breakerUnknown,windings:sceneGlyphs.winding,terminal:sceneGlyphs.terminal,connection_node:sceneGlyphs.node,source_node:sceneGlyphs.node,boundary:sceneGlyphs.boundary,line:sceneGlyphs.line,generator:sceneGlyphs.generator,generators:sceneGlyphs.generator,load:sceneGlyphs.load,loads:sceneGlyphs.load}
 export function networkSymbol(kind:string,switchState:'open'|'closed'|'unknown'='unknown'):NetworkSymbol{
+  if(kind==='port')return {...sceneGlyphs.terminal,label:'端口'}
   const aliases:Record<string,string>={busbar:'busbars',busbar_section:'busbars',breaker:'breakers',disconnector:'disconnectors',ground_disconnector:'ground_disconnectors',winding:'windings'}
   kind=aliases[kind]||kind
   const base=kinds[kind]

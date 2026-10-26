@@ -109,6 +109,7 @@ EXECUTABLE_CAPABILITIES = frozenset(
         "model.creator.list",
         "model.creator.describe",
         "model.create",
+        "model.artifact.import",
         "model.revision.derive",
         "model.equivalent.derive",
         "context.open",
@@ -193,6 +194,19 @@ def _dispatch(
         return _model_creator_describe(services.engine, request.arguments)
     if request.capability == "model.create":
         return _model_create(workspace, services.engine, request.arguments)
+    if request.capability == "model.artifact.import":
+        from grid_simulator.artifact_import import import_artifact, ModelImportError
+
+        try:
+            return import_artifact(workspace, services.engine, request.arguments["input_ref"])
+        except (ModelImportError, ValueError, TypeError, KeyError, UnicodeError) as exc:
+            raise _failure(
+                "model_import_rejected", "Model input failed Authority admission", phase="validate"
+            ) from exc
+        except OSError as exc:
+            raise _failure(
+                "persist_failed", "Model input or evidence storage is unavailable", phase="persist"
+            ) from exc
     if request.capability == "model.revision.derive":
         return _model_revision_derive(workspace, services.engine, request.arguments)
     if request.capability == "model.equivalent.derive":

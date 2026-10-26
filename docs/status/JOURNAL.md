@@ -5822,3 +5822,131 @@ Prior closeout receipts preserved verbatim from the root checkout:
 - 2026-10-26: North business9435fc0c completed with5saved/hash-verified products; graph-only7f352f9e now tests exact replay on canonicale02570acd962.
 
 - 2026-10-26 05:08 +08 — PR64 merged78f81e66; scoped macOS40232655933 passed7m31s/consumer5m24s; actual5173 source57/56 and saved report verified.
+
+- 4a8f2844: Close North integration records and restore a structural snapshot while preserving the original state archive.
+
+- 2026-10-26 05:26 +08 — PR65 merged2c957c1c, docs CI40234933418 passed143s; root/dev and preserved detached worktree aligned, both task branches closed,5175 stopped.
+- Final post-merge HEAD receipts/graph stay explicitly uncommitted to avoid a self-hash commit cycle; product files remain exactly tested44e8eca2.
+
+- Final actual-dev graph inspected in existing Vivaldi tab: HEAD2c957c1c, fixed code78f81e66 and exact local source44e8eca2 are visible with ancestry edges.
+
+- 2026-10-26 15:53 +08 — Gateway inventory repair: historical timeout cause unproven; fresh connectivity passed;145 Python and6 SDK checks passed.
+- 7a51beb9: Restore read-only model inventory and safe gateway diagnostics; stop repeated failed probes within each task.
+- 2026-10-26 16:00 +08 — Old LAN route timed out; same authenticated host gateway passed0.5s. Protected container route now uses host.docker.internal.
+- e38660b5: Scope inventory guidance to direct summary queries; document stable local and fixed-server addresses after real-query feedback.
+- 271d752c: Reuse verified ledger replay within one request to reduce checkpoint overhead while retaining disk-change checks.
+- 2026-10-26: Accepted lightweight default loop; Deep Research stays inactive until autonomous activation at any cycle.
+- 2b67b2e3: Unify new-session entry and retain thinking across lightweight tool cycles; focused App checks passed.
+- 6f61185f: Default to lightweight execution and activate Deep Research with protected source reuse; focused tests and blocker review passed.
+- 1321831d: Guard optional native policy during direct observation admission; resolve CI type failure without widening tool grants.
+- 2026-10-26: Real inventory completed12.542486s versus91.583562s baseline; one gateway call, seven scopes, no task graph or children.
+- a73f9470: Record accepted adaptive loop, inactive Deep Research default, actual-event presentation and remaining real acceptance work.
+- 20ae9445: Narrow model tool menu after accepted Deep Research activation to avoid unnecessary rejected native calls.
+- 2026-10-26: Delayed Deep Research completed98.652914s with one gateway query, three tasks and4538-byte Markdown; compact Thinking retained.
+- ce185a14: Limit tool-menu handoff to organizer roles; verify Deep Research executors retain authorized ordinary tools.
+- 2026-10-26: Visible Stop cancelled0e6afeba; unrelated follow-upcbef9eff returned5 without tools or resumed work; final candidate rebuild started.
+- e320142d: Extend exact-publication worker tests through App1.19 while preserving historical policy hashes; fifteen focused checks passed.
+- 236d60b3: Scope adaptive CI to execution consumers and repair a stale control-host fixture;131 focused checks passed.
+- 2173dc90: Record measured local loop, Deep Research, source reuse and cancellation results with explicit verification limits.
+- 9cc95950: Correct CI research-test paths and reject nonexistent targets;49 focused consumer checks and21 workflow checks passed.
+- 2026-10-26: User selected sibling data-gateway/runtime/connections as the gateway connection source. Local development uses local-integration.json on the host or local-integration-container.json in Docker. The protected Capstone connection matches the container endpoint and credentials. While the development server and Dameng are disconnected, keep local integration; remote-integration.json is the later explicit switch to the server (Dameng and intranet model). Do not use gateway self-development endpoints or register both environments under the same gateway identity. No credentials recorded here.
+- 9843692c: Retain offline continuation failure diagnostics; CI failure did not reproduce in fifteen focused runs or local consumers.
+- 2026-10-26: User requires generic, purpose-selected hierarchical electrical diagrams. Data-gateway implementation belongs to its project; Capstone supplies a contract handoff.
+- de648f58: Expose safe host receipt in failing RPC assertion; no-progress CI failure needs classification before any product fix.
+- 0f5c4f6b: Discover grid scopes without implicit North/full-network downloads;18 focused tests and types passed in electrical-diagram worktree.
+- 9370ae9e: Add source electrical layout and route-aware rendering; preserve source identity and distinguish connection from membership.
+- 2026-10-26: Station equipment closure initially returned503; direct gateway then returned57nodes/56relations, and protectedAPI replay passed237ms.
+- 429d3a35: Wire published station expansions to generic source single-line views;19 workspace checks and types passed before rebuild.
+- 32d72c28: Merge PR67 after required macOS40327531795 passed; actualdev fast-forwarded, preserving dirty control documents and recovery backup.
+- e337c6d8: Avoid false source junctions and bound routed buffers; add obstacle and dense membership regressions.
+- afeedbba: Apply newly admitted instruction views before cached source navigation; regression reproduced and20 workspace checks passed.
+- 814a2529: Separate circuit escape lanes and mark terminal membership nonconducting; prevent false visual joins between independent circuits.
+- 0a5ab4d6: Synchronize electrical-diagram branch with merged dev; no product conflicts and no source changes from merge.
+- d988033b: Align gateway response and client plan; new electrical interfaces remain unpublished external dependencies.
+- 6db7e673: Preserve actual station scope in connection titles; Vivaldi reproduced misleading voltage label,20 tests and types passed.
+- d0848491: Compact local source diagrams and shorten routes while retaining source identities and explicit relation semantics.
+- 8a33a818: Hide technical source labels on diagrams; retain search and selection details,18 tests and types passed.
+- fe1893d4: Record real compatible diagram checks and unpublished gateway dependencies; final fallback overlap remains under correction.
+- dbd33740: Reset obsolete saved cameras after compact layout changes, so restored diagrams fit the current geometry.
+- f9010be5: Reserve route corridors to prevent false electrical joins; PR68 merged after required macOS verification passed.
+- 07484883 / 0eb4b189: Admit published electrical tools and verified current-task view descriptors without granting generic model-build access.
+- 3eee8516: Load frozen electrical streams and preserve genuine port incidence; released station projection passed focused tests.
+- 6b65f1e2: Protect electrical view APIs with bounded schema and frozen identity checks;141 scoped tests passed.
+- 83827d03: Add bounded electrical workspace navigation and frozen restoration;59 focused App tests and TypeScript passed.
+- 2026-10-26 22:47: Local gateway release20261026-05 exposes52tools;7models discovered, North ready. Canonical rebuild running; live new-view acceptance pending.
+- 2026-10-26 22:47: Gateway bundle calculation needs a registered Authority import seam; current Authority accepts factory models only.
+- b23f78fe: Document Authority artifact admission to close the verified gateway calculation import gap without bypassing evidence boundaries.
+- 1b38b72f: Bind native results by exact typed identity and retain calculation bus aliases;48 focused tests passed.
+- df9d700f: Preserve manual electrical drilldown on panel restoration; new instruction still takes priority,24 tests and types passed.
+- 2026-10-26 23:01: Canonical rebuild passed; backend image5be84475ac02 shared by roles, scoped cache maintenance completed. Protected discovery returns7models.
+- 2026-10-26 23:01: Root dev synchronized to PR68 merge9d691624; dirty control work preserved, recovery stash159959f08cec3753d6e5f2f47f75419073a1906c retained.
+- d9a1e5ab: Record real two-model frozen-stream checks and calculation import gaps; distinguish implementation from visual acceptance.
+- 2026-10-26 23:07: North神二 and East怀洪 protected pagination/eight-stream/reopen checks passed in14.929s/15.795s; real Vivaldi exposes component-area layout defect.
+- 20fbbf23: Synchronize the new electrical-view branch with merged PR68 without product conflicts.
+- 4d494e5e: Allocate component area by record count so isolated devices no longer shrink connected station diagrams.
+- 53979ada: Harden the import proposal with data-only decoding and host-bound grants; no new permission gate.
+- a89b4c0b: Distinguish real electrical connections from nonconducting display membership in graph counts and legends;13 tests passed.
+- 2026-10-26 23:22: Repeated live view failure traced to changed gateway publication and masked nested GatewayError; bounded catalog-refresh fix in progress.
+- ad598183: Show explicit demo-only model status so structural views do not imply real operating conditions; focused App check passed.
+- 9e01f5dc: Preserve publication diagnostics and refresh compatible protected catalogs once;59 focused tests and scoped types passed.
+- 2026-10-26 23:48: Source-only rebuild repeated wide Authority catalog export/identity work (~440s); no solves. Exact-dependency export caching remains improvement work.
+
+- 2026-10-27 ef010c27: Defined gateway-wide dynamic discovery and semantic-contract acceptance; removed graph-only scope from the implementation direction.
+- 2026-10-27 44228b91: Isolated publication checks per invoked tool; unrelated catalog updates no longer invalidate unchanged calls.
+- 2026-10-27: Scoped cleanup completed after second local build; protected container images and user data retained. Receipt /tmp/capstone-gateway-cleanup-20261027.json.
+- 22:33 Admitted electrical view tools with task-bound preparation jobs; kept model builds denied. 22 tests passed. [07484883]
+- 22:36 Projected receipt-verified ready electrical views into current-task events; preserved source-only semantics and preparation status. [0eb4b189]
+- 22:36 Electrical agent bridge passed 223 focused tests in 10.39 seconds with localhost proxy bypass; initial proxy failures resolved.
+- 22:50 Proposed bounded Authority bundle admission and exact result mapping; recorded unsupported gateway calculation path and verified artifact. [b23f78fe]
+- 23:14 Required data-only import reconstruction and host-bound workspace grants to prevent decoder execution and cross-task admission. [53979ada]
+- 2026-10-27 00:23 Enforced task gateway grants and generic contract guidance; preserved catalog receipts. 221 tests and focused Pyright passed. [5fa5a559]
+- 2026-10-27 425be8c6: Kept changed-tool failures local; other granted tools remain usable without automatic replay.
+- 2026-10-27: Root verification passed 171 host/MCP/relay tests; two localhost proxy failures passed after NO_PROXY correction. SDK8 and doctor passed.
+- 2026-10-27 4dbb92af: Recorded verified gateway groundwork and remaining publication-dependent admission work.
+- 2026-10-27: Control register/HTML updated for gateway groundwork; graph checks pass. Visual inspection pending after Vivaldi AX failure.
+- 2026-10-27 efa44267 planned grid admission, diagram acceptance and bounded tool loading while semantic publication was pending.
+- 2026-10-27 d3a8f1a6 added bounded per-task tool discovery and next-turn activation; 42 SDK checks passed.
+- 2026-10-27 8fd7e93f added task-bound safe model admission; 65 focused checks passed; East solve did not converge.
+- 2026-10-27 c45af505 added verified artifact staging and task grants; 34 focused checks passed; live integration remains pending.
+- 2026-10-27 1d953595 enabled on-demand gateway menus at host boundary; 70 host tests and seven SDK tests passed.
+- 2026-10-27 407184fe recorded MCP-only enterprise/grid trials: 54 contract schemas matched; grid readiness timed out; client integration gaps remain.
+- 2026-10-27: Import review found dtype, switch-reference and demo-quality binding defects; fixes active before any runtime deployment.
+- 2026-10-27 e0cc9552: Bound exact gateway quality flags into input grants; 47 broker checks passed.
+- 2026-10-27 3c7ace95: Hardened import types, switch targets and quality identity; 83 focused checks passed.
+- 2026-10-27: Independent import re-review passed all three original reproductions plus omitted boolean columns in5.49s; no remaining scoped Important findings.
+- 2026-10-27 7507ce58 dynamically admitted trusted safe gateway tools and preserved bounded initialization guidance.
+- 2026-10-27 869c482c generalized task-owned operation references without electrical workflow branches.
+- 2026-10-27 c104ef9b preserved imported provenance in the Pack projection.
+- 2026-10-27 11e91972 delivered service guidance into task context; 200 focused checks passed; canonical local rebuild started.
+- 2026-10-27 User deferred power-flow integration and prioritized electrical topology plus query/statistics location; visible Vivaldi new-conversation acceptance required.
+- 2026-10-27 817125ab: Defined gateway-owned provincial topology warming, on-demand cache and exact business-to-diagram location handoff.
+
+- 2026-10-27 `d504ab37`: Package native tool discovery module to restore executor startup; canonical local rebuild started.
+
+- 2026-10-27 `8f430858`: Verify native SDK dependency packaging; six focused checks passed in 0.39 seconds.
+
+- 2026-10-27 `b1c25287`: Bound cold MCP readiness at 90 seconds; measured 18.94 seconds; 76 focused checks pass after localhost proxy exclusion.
+
+- 2026-10-27 `209f8ac6`: Allow bounded native cold-start health grace; correct wildcard packaging checks. Native became healthy without restart.
+
+- 2026-10-27 `209f8ac6`: Canonical rebuild passed; API/workers share image5c837f6e; native zero restarts; Vivaldi scope-query acceptance started.
+
+- 2026-10-27 `60468ba0`: Share saved-product guidance with lightweight tasks after Vivaldi exposed process-only CSV delivery; two SDK checks pass.
+
+- 2026-10-27 `214c2e23`: Clarify root-relative product manifest after live trace showed manifest written under out/. No data loss.
+
+- 2026-10-27 `214c2e23`: Rebuild and Vivaldi delivery retest pass; primary CSV, supporting note and folded Thinking survive refresh; latency remains variable.
+
+- 2026-10-27 `cea10ee0`: Record visible MCP business, continuation, product delivery and refresh acceptance; keep latency and diagram limits explicit.
+
+- 2026-10-27 `4c70736e`: Fix PR69 optional-value type failures; focused Pyright clean and47 broker tests pass in0.20s.
+
+- 2026-10-27 `432b94b5`: Align control and recovery docs with non-diagram acceptance before dev integration.
+
+- 2026-10-27 `ed0c5ff2`: Document granted import and correct stale contract assumptions;39 checks pass in4.44s.
+
+- 2026-10-27 `ed0c5ff2`: Canonical rebuild passed;API/workers share cad1795d image;scoped cleanup complete;PR69 CI remains pending.
+
+- 2026-10-27 `e913c450`: Align simulator and Pack discovery expectations with granted import;61 focused checks pass.
+
+- 2026-10-27 `e913c450`: Agent consumer regression passes2331 tests with147 skips in144.92s;PR69 CI remains pending.

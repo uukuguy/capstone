@@ -18,6 +18,9 @@ export default function NetworkLegend({scene}:{scene:NetworkScene}){
   },[scene])
   return <details className="network-symbol-legend" open><summary>符号图例</summary><div aria-label="拓扑符号图例">
     {entries.map(({symbol,count},i)=><span key={`${symbol.code}:${i}`}><NetworkSymbolIcon symbol={symbol}/>{symbol.label} <small>{count}</small></span>)}
-    {scene.edges.length>0&&<span><svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true"><path d="M 2 10 H 18" stroke="currentColor"/></svg>{scene.displayMode==='source-regional'?'源线路（可聚束）':scene.displayMode==='source-detail'?'源端子 / 连接关系':'线路 / 连接'} <small>{scene.edges.length}</small></span>}
+    {scene.displayMode==='source-electrical'?<>
+      <span>源连接 <small>{scene.edges.filter(edge=>edge.relation==='connection').length}</small></span>
+      <span>构成与归属（非导通） <small>{scene.edges.filter(edge=>edge.relation==='membership').length}</small></span>
+    </>:scene.edges.length>0&&<span><svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true"><path d="M 2 10 H 18" stroke="currentColor"/></svg>{scene.displayMode==='source-regional'?'源线路（可聚束）':scene.displayMode==='source-detail'?'源端子 / 连接关系':'线路 / 连接'} <small>{scene.edges.length}</small></span>}
   </div>{scene.displayMode?.startsWith('source')&&<p>按来源类别示意；开关符号不表示开合状态。</p>}</details>
 }

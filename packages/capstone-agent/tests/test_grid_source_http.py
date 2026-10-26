@@ -91,3 +91,94 @@ def test_real_application_registration_preserves_operator_and_demo_access_bounda
         assert client.get(path, headers={'Authorization': 'Bearer hosted-secret'}).status_code == 200
         credential = client.get('/api/v1/demo-credential').json()
         assert client.get(path, headers={'Authorization': 'Bearer ' + credential['token']}).status_code == 404
+
+
+def test_frozen_electrical_api_crosses_both_auth_boundaries_and_preserves_typed_errors(tmp_path):
+    from capstone_agent.general_pi_server import GeneralPiHost, make_server
+    from capstone_agent.grid_source_http import register_grid_source_routes
+    from capstone_agent.pi_delegation import HttpGeneralPiExecutor
+    from test_grid_electrical_view import Gateway as ElectricalGateway, page
+    gateway = ElectricalGateway()
+    identity = {'engine': 'pi', 'config_revision': 'test'}
+    host = GeneralPiHost(root=tmp_path, identity=identity, run_task=lambda *_: ('Answer', {}))
+    server = make_server(host, control_token='protected', address=('127.0.0.1', 0), runner=SimpleNamespace(gateway=gateway))
+    thread = threading.Thread(target=server.serve_forever, daemon=True); thread.start()
+    origin = f'http://127.0.0.1:{server.server_port}'
+    executor = HttpGeneralPiExecutor(origin, identity=identity, capability={}, control_token='protected')
+    app = FastAPI()
+    def authorize(request):
+        if request.headers.get('Authorization') != 'Bearer operator':
+            raise HTTPException(403, 'not permitted')
+    register_grid_source_routes(app, executor_provider=lambda: executor, authorize=authorize)
+    client = TestClient(app); headers = {'Authorization': 'Bearer operator'}
+    path = '/api/v1/grid-sources/data-gateway/electrical'
+    try:
+        assert client.post(path + '/open', json={'model_ref': 'model:one'}).status_code == 403
+        assert httpx.post(origin + '/grid-sources/data-gateway/electrical/open', json={'model_ref': 'model:one'}, trust_env=False).status_code == 401
+        opened = client.post(path + '/open', headers=headers, json={'model_ref': 'model:one'})
+        assert opened.status_code == 200 and opened.json()['view_ref'] == 'view-one'
+        gateway.data = page()
+        response = client.post(path + '/read', headers=headers, json={'view_ref': 'view-one', 'stream': 'devices'})
+        assert response.status_code == 200 and response.json()['records'][0]['switch_position']['value'] == 'unknown'
+        assert 'Authorization' not in response.text
+        gateway.data = {'count': 1, 'listing_complete': True, 'scopes': [{'scope_id': 'arbitrary',
+            'model_ref': 'registered:actual', 'name': 'Arbitrary model', 'model_revision': None}],
+            'electrical_views': {'schema': 'gateway-electrical-view/1', 'targets': ['model', 'station', 'device']}}
+        catalog = client.get(path + '/models', headers=headers)
+        assert catalog.status_code == 200 and catalog.json()['scopes'][0]['model_ref'] == 'registered:actual'
+        gateway.data = {'schema': 'gateway-electrical-view/1', 'state': 'preparing', 'model_ref': 'model:one',
+                        'preparation_ref': 'prepare-one'}
+        assert client.post(path + '/open', headers=headers, json={'model_ref': 'model:one'}).json()['state'] == 'preparing'
+        gateway.data = {'job_ref': 'prepare-one', 'task_type': 'view_preparation', 'model_ref': 'model:one',
+                        'state': 'running', 'stage': 'indexing_structure', 'owner_pid': 1}
+        job = client.post(path + '/job', headers=headers, json={'job_ref': 'prepare-one'})
+        assert job.status_code == 200 and job.json()['task_type'] == 'view_preparation' and 'owner_pid' not in job.text
+        count = len(gateway.calls)
+        assert client.post(path + '/read', headers=headers, json={'view_ref': 'view-one', 'stream': 'devices', 'limit': 1001}).status_code == 400
+        invalid = client.post(path + '/open', headers=headers, content='x' * 17000)
+        assert invalid.status_code == 400 and invalid.json()['detail']['code'] == 'grid_electrical_request_invalid'
+        assert len(gateway.calls) == count
+        gateway.error = {'status': 'error', 'gaps': [{'reason': 'view_expired', 'message': 'private-secret'}]}
+        response = client.post(path + '/read', headers=headers, json={'view_ref': 'expired', 'stream': 'groups'})
+        assert response.status_code == 410
+        assert response.json()['detail'] == {'code': 'view_expired', 'retryable': False, 'recovery_action': 'reopen_view'}
+        assert 'private-secret' not in response.text
+    finally:
+        server.shutdown(); server.server_close(); thread.join(timeout=2)
+
+
+def test_concurrent_native_http_threads_coalesce_protected_publication_refresh(tmp_path):
+    import asyncio
+    from concurrent.futures import ThreadPoolExecutor
+    from copy import deepcopy
+    from capstone_agent.data_gateway_mcp import GatewayError
+    from capstone_agent.general_pi_server import GeneralPiHost, make_server
+    from test_grid_electrical_view import Gateway as ElectricalGateway, manifest
+    gateway = ElectricalGateway(); original = deepcopy(gateway.catalog); fresh = deepcopy(original)
+    fresh['revision'] = 'new-publication'; refreshes = []
+    async def prepare():
+        refreshes.append(True)
+        await asyncio.sleep(.05)
+        return fresh
+    async def call(name, arguments, catalog):
+        if catalog['revision'] == original['revision']:
+            await asyncio.sleep(.02)
+            raise GatewayError('gateway_publication_changed')
+        data = manifest() if name.endswith('open_network_model_view') else {'count': 0, 'scopes': [],
+            'electrical_views': {'schema': 'gateway-electrical-view/1', 'targets': ['model', 'station', 'device']}}
+        return {'structuredContent': {'status': 'ok', 'data': data}}
+    gateway.prepare = prepare; gateway.call = call
+    host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'}, run_task=lambda *_: ('Answer', {}))
+    server = make_server(host, control_token='protected', address=('127.0.0.1', 0), runner=SimpleNamespace(gateway=gateway))
+    thread = threading.Thread(target=server.serve_forever, daemon=True); thread.start()
+    base = f'http://127.0.0.1:{server.server_port}/grid-sources/data-gateway/electrical'
+    def query(operation):
+        with httpx.Client(headers={'Authorization': 'Bearer protected'}, trust_env=False, timeout=5) as client:
+            return client.get(base + '/models') if operation == 'models' else client.post(base + '/open', json={'model_ref': 'model:one'})
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            responses = list(pool.map(query, ('models', 'open')))
+        assert [response.status_code for response in responses] == [200, 200]
+        assert len(refreshes) == 1 and gateway.catalog == original
+    finally:
+        server.shutdown(); server.server_close(); thread.join(timeout=2)

@@ -55,7 +55,7 @@ class OpenedContext(BaseModel):
     revision_ref: str
     engine: Literal["pandapower"]
     engine_version: Literal["3.4.0"]
-    origin: Literal["registered", "created", "derived"] = "registered"
+    origin: Literal["registered", "created", "derived", "imported"] = "registered"
     parent_context_ref: str | None = None
     lineage_ref: str | None = None
 
@@ -169,6 +169,9 @@ class ContextStore:
         payload = artifact_path.read_text(encoding="utf-8")
         self._verify_metadata(context)
         try:
+            if context.origin == "imported":
+                from grid_simulator.artifact_import import decode_network
+                return decode_network(payload)
             return self._engine.deserialize(payload)
         except Exception as exc:
             raise ContextIntegrityError("model artifact is not valid pandapower JSON") from exc
@@ -210,6 +213,22 @@ class ContextStore:
         }
         if any(lineage.get(key) != value for key, value in expected.items()):
             raise ContextIntegrityError("revision lineage does not match context")
+        if context.origin == "imported":
+            mapping_ref = lineage.get("mapping_ref", "")
+            receipt_ref = lineage.get("import_receipt_ref", "")
+            if (
+                not isinstance(mapping_ref, str)
+                or not re.fullmatch(r"mapping:sha256:[0-9a-f]{64}", mapping_ref)
+                or not isinstance(receipt_ref, str)
+                or not re.fullmatch(r"import-receipt:sha256:[0-9a-f]{64}", receipt_ref)
+            ):
+                raise ContextIntegrityError("Imported context provenance references are invalid")
+            for directory, reference in [("mappings", mapping_ref), ("imports", receipt_ref)]:
+                path = self._workspace.root / "evidence" / directory / f"{reference.split(':')[-1]}.json"
+                if not path.is_file() or fingerprint(path.read_bytes()) != reference.split(':')[-1]:
+                    raise ContextIntegrityError("Imported context provenance is unavailable or corrupt")
+            if lineage.get("map_sha256") != mapping_ref.split(":")[-1]:
+                raise ContextIntegrityError("Imported mapping identity does not match lineage")
         if context.origin == "derived":
             if context.parent_context_ref is None:
                 raise ContextIntegrityError("derived context has no parent")

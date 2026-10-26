@@ -41,12 +41,13 @@ import ThreadModelPane from './ThreadModelPane'
 import type {ModelWorkspace} from './threadModelWorkspace'
 import {buildModelWorkspaceCommand} from './threadWorkProtocol'
 import GridSourceWorkspace from './GridSourceWorkspace'
+import ElectricalModelWorkspace from './ElectricalModelWorkspace'
 import type {GridSourceView} from './gridSource'
-import {parseThreadSourceViewRequest,selectThreadViewProposal,type ThreadSourceViewRequest} from './threadViewRouting'
+import {parseThreadDisplayRequest,selectThreadViewProposal,type ThreadDisplayRequest} from './threadViewRouting'
 
 const statusCopy: Record<string, string> = { ready: '已保存，待执行', queued: '已排队', running: '执行中', completed: '已完成', failed: '执行失败', cancelled: '已取消', interrupted: '执行已中断', blocked: '执行不可用' }
 class CommandRejectedError extends Error {}
-type InstructionViewState={attemptId:string|null;manual:boolean;appliedSeq:number;automatic:'source'|'model'|null;requestedSource?:ThreadSourceViewRequest;requestNonce:number}
+type InstructionViewState={attemptId:string|null;manual:boolean;appliedSeq:number;automatic:'source'|'model'|null;requestedSource?:ThreadDisplayRequest;requestNonce:number}
 const reasonCopy: Record<string, string> = { execution_unavailable: '当前任务的执行能力尚未接通，仍可保存目标和资料。', model_context_required: '当前任务没有专业模型，仍可保存资料。', capability_required: '当前任务尚未启用执行所需的业务能力，仍可保存目标和资料。', attempt_in_progress: '当前会话已有任务正在执行。', case_execution_active: '当前会话已有案例正在执行。', case_context_locked: '当前案例正在使用任务上下文，请等待其完成。', context_change_pending: '任务上下文正在更新，请稍后重试。', thread_archived: '此会话已归档。', run_not_open: '当前运行已关闭。' }
 
 /** Data adapter for the existing workspace and assistant-ui presentation. */
@@ -403,6 +404,10 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
     artifactOpened.current=true
   }
   function selectResourceView(id:string){markManualView();setResourceView(id);setProductsOpen(true)}
+  function browseElectricalModels(){
+    markManualView()
+    saveInstructionView({...instructionViewRef.current,requestedSource:undefined,requestNonce:instructionViewRef.current.requestNonce+1})
+  }
   function setResourcePanelOpen(open:boolean){markManualView();setProductsOpen(open)}
   useEffect(()=>{
     if(!liveConversation||!latestInstructionAttempt)return
@@ -424,7 +429,7 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
     }
     artifactOpened.current=true;setProductsOpen(true)
   },[liveConversation,latestInstructionAttempt,viewProposal,resourceView,store,saveInstructionView,client.supportsProductIndex])
-  const requestedSourceView=parseThreadSourceViewRequest(instructionView.requestedSource)??undefined
+  const requestedSourceView=parseThreadDisplayRequest(instructionView.requestedSource)??undefined
   const nativeFiles=projectNativeArtifacts(conversation.events)
   const attemptLabels=Object.fromEntries(conversation.events.filter(event=>event.eventType==='command_accepted'&&event.attemptId).flatMap(event=>{
     const nested=event.payload.payload as Record<string,unknown>|undefined
@@ -530,7 +535,7 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
   </>:null
   return <ThreadWorkspace sessionKey={currentId} conversationOnly subtitle="企业任务工作台"
     resourcePanel={nativeChat?(client.supportsProductIndex?productsPanel:client.supportsProcessProducts?processPanel:undefined):undefined}
-    resourceViews={nativeChat?client.supportsProductIndex?[...(formalModelPanel?[{id:'model',label:'电气拓扑',content:formalModelPanel,description:'注册计算模型的母线与支路；来源和修订保持实际绑定。'}]:[]),{id:'products',label:'成果',content:productsPanel,description:'任务交付与指令产物，保留真实来源和版本。'},{id:'source-topology',label:'源电网',content:resourceView==='source-topology'&&productsOpen?<GridSourceWorkspace key={requestedSourceView?.scope_id||'north'} transport={transport} onQuestion={prepareSourceQuestion} requestedView={requestedSourceView} requestNonce={instructionView.requestNonce} onManualNavigate={markManualView}/>:null,description:'源拓扑、显示分组与来源质量。'},...(selectedDeliveryFile?[{id:'deliveries',label:'采用为任务交付',content:<TaskDeliveriesWorkspace client={client} threadId={currentId} revision={terminalRevision} requestedArtifact={selectedDeliveryFile} onPublished={()=>{setResourceView('products');window.dispatchEvent(new Event('capstone-session-renamed'))}}/>}]:[])]:[{id:'process-products',label:'过程制品',content:processPanel,description:'指令执行结果与未完成记录，保留原始归属。'},
+    resourceViews={nativeChat?client.supportsProductIndex?[...(formalModelPanel?[{id:'model',label:'电气拓扑',content:formalModelPanel,description:'注册计算模型的母线与支路；来源和修订保持实际绑定。'}]:[]),{id:'products',label:'成果',content:productsPanel,description:'任务交付与指令产物，保留真实来源和版本。'},{id:'source-topology',label:'源电网',content:resourceView==='source-topology'&&productsOpen?(requestedSourceView?.schema==='capstone-grid-source-view-request/1'?<><button onClick={browseElectricalModels}>浏览电网模型目录</button><GridSourceWorkspace key={requestedSourceView.scope_id} transport={transport} onQuestion={prepareSourceQuestion} requestedView={requestedSourceView} requestNonce={instructionView.requestNonce} onManualNavigate={markManualView}/></>:<ElectricalModelWorkspace storageKey={`${namespace}.${currentId}.electrical-view`} transport={transport} requestedView={requestedSourceView} requestNonce={instructionView.requestNonce} onManualNavigate={markManualView}/>):null,description:'源拓扑、显示分组与来源质量。'},...(selectedDeliveryFile?[{id:'deliveries',label:'采用为任务交付',content:<TaskDeliveriesWorkspace client={client} threadId={currentId} revision={terminalRevision} requestedArtifact={selectedDeliveryFile} onPublished={()=>{setResourceView('products');window.dispatchEvent(new Event('capstone-session-renamed'))}}/>}]:[])]:[{id:'process-products',label:'过程制品',content:processPanel,description:'指令执行结果与未完成记录，保留原始归属。'},
       {id:'native-files',label:'指令文件',content:<NativeArtifactsWorkspace client={client} threadId={currentId} attemptIds={nativeAttemptIds} revision={terminalRevision} requestedArtifact={requestedArtifact} attemptLabels={attemptLabels} onAdopt={file=>{markManualView();setSelectedDeliveryFile(file);setResourceView('deliveries');setProductsOpen(true)}}/>,description:'本轮执行生成并保存的真实文件。'},
       {id:'deliveries',label:'任务交付',content:<TaskDeliveriesWorkspace client={client} threadId={currentId} revision={terminalRevision} requestedArtifact={selectedDeliveryFile} onPublished={()=>{setResourceView('deliveries');window.dispatchEvent(new Event('capstone-session-renamed'))}}/>,description:'按用户提出的交付要求组织和修订。'}]:undefined}
     selectedResourceView={resourceView} onResourceViewChange={selectResourceView}

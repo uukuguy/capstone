@@ -29,10 +29,18 @@ def single_child_cleanup(monkeypatch):
 @pytest.mark.parametrize('outcome', ['complete', 'cancelled', 'deadline'])
 def test_native_frame_backpressure_keeps_the_queue_bounded_without_aborting_research(tmp_path, monkeypatch, single_child_cleanup, mode, outcome):
     from queue import Queue, Full
+    from threading import Event
+    from types import SimpleNamespace
     from capstone_agent import general_pi_executor as module
     from capstone_agent.application_capacity import current_capacity, initialize_capacity
     previous = current_capacity()
     initialize_capacity({'native_rpc_queue_frames': 2}, mode=mode)
+    backpressure = Event()
+    deadline_expired = Event()
+    monotonic = time.monotonic
+    monkeypatch.setattr(module, 'time', SimpleNamespace(
+        monotonic=lambda: monotonic() + (20 if deadline_expired.is_set() else 0),
+        sleep=time.sleep))
     class TrackedQueue(Queue):
         blocked = 0
         def put(self, *args, **kwargs):
@@ -40,6 +48,7 @@ def test_native_frame_backpressure_keeps_the_queue_bounded_without_aborting_rese
                 return super().put(*args, **kwargs)
             except Full:
                 self.blocked += 1
+                backpressure.set()
                 raise
     frames = TrackedQueue(maxsize=2)
     monkeypatch.setattr(module, 'Queue', lambda maxsize: frames)
@@ -54,9 +63,11 @@ def test_native_frame_backpressure_keeps_the_queue_bounded_without_aborting_rese
     def consume(event):
         observed.append(event['index'])
         if len(observed) == 1:
-            time.sleep(0.2)  # The producer must wait, not exceed its two-frame buffer.
+            assert backpressure.wait(5), 'producer did not reach the bounded queue'
+            if outcome == 'deadline':
+                deadline_expired.set()
     try:
-        run = lambda: process.run('task', timeout=0.1 if outcome == 'deadline' else 5,
+        run = lambda: process.run('task', timeout=10,
             cancelled=lambda: outcome == 'cancelled' and bool(observed), on_event=consume)
         if outcome == 'complete':
             assert run() == 'Useful research answer'
