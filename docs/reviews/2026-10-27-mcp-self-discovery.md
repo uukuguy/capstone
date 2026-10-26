@@ -67,7 +67,42 @@ deferred: a missing measurement partition requires reading coverage fields even
 when status=ok; an older short description conflicts with published read-only SQL
 availability. Neither blocked this trial. No sibling gateway code was changed.
 
-## Capstone-owned integration gaps
+## Capstone integration and visible workbench checks
+
+Follow-up implementation removed production business-name admission, preserved
+MCP initialization guidance, and enabled task-scoped search and schema loading.
+The canonical local rebuild at `209f8ac6` passed. API and all workers use image
+`sha256:5c837f6eef383b008d5e9abb69009ea5bcc475d7a1df30e05f5267d8d93aa33b`.
+Native startup completed with zero restarts. This is local validation only.
+
+Business instructions were submitted through Vivaldi in new conversations,
+using the existing browser tab. Expected answers were not given to the agent.
+
+| Case | Observed result | Time |
+| --- | --- | --- |
+| Registered model scopes, no build or solve | Ten scopes; search, load and one gateway query; four model requests; no task graph | 21.0 s |
+| Beijing generation active power, five minute samples | Five points, specified source, MW, exclusive end time; reference values match | 54.7 s |
+| Same-conversation statistics and CSV | Same object/source/window; mean 6021.43852 MW, correct extrema; saved CSV opens with a download link | 61 s |
+
+The CSV was first classified as a process file, and the answer exposed an internal
+workspace path. `60468ba0` shares product-role guidance with the lightweight loop.
+A real retest showed the manifest under `out/`; `214c2e23` makes the required
+workspace-root location explicit. The canonical rebuild passed with API/workers
+image `sha256:c470a1240dd5b869692601618b4b2da6212a66921e138ffbfef507656e086779`.
+Native remained healthy without restarts; scoped cleanup completed.
+
+The final same-conversation retest took about 76 seconds and four tool calls.
+It reused saved data without another gateway query. The CSV now appears as a
+primary product card, and the statistics note as supporting material. Refresh
+preserves the four answers, folded Thinking records, product roles and download
+entry. This verifies the tested workflow, not uniformly low model latency.
+Independent review found no Important/Critical issue; 13 Python and seven
+JavaScript checks passed. The static packaging test does not yet scan dynamic
+`import()` dependencies; this is a recorded non-blocking test gap.
+Diagram work is paused at user request. Gateway Beijing availability is reported
+by the user; Capstone provincial-diagram acceptance remains pending.
+
+### Gaps recorded before implementation
 
 The existing static business-name policy still excludes eight published tools,
 including discover_gateway and describe_gateway_contract. The MCP client also
