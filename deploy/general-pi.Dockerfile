@@ -103,6 +103,7 @@ COPY packages/capstone-agent/src/capstone_agent/resources/research-guidance.mjs 
 COPY packages/pi-capability-tools/src/task-record-tools.mjs capstone_agent/resources/task-record-tools.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/general-context.mjs capstone_agent/resources/general-context.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/general-sdk.mjs capstone_agent/resources/general-sdk.mjs
+COPY packages/capstone-agent/src/capstone_agent/resources/general-tool-discovery.mjs capstone_agent/resources/general-tool-discovery.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/systematic-diagnosis.mjs capstone_agent/resources/systematic-diagnosis.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/enterprise-research-runtime.mjs capstone_agent/resources/enterprise-research-runtime.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/enterprise-cycle-contract.mjs capstone_agent/resources/enterprise-cycle-contract.mjs
