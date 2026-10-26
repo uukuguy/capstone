@@ -25,6 +25,8 @@ MODEL_TOOLS = frozenset({'inspect_network_model', 'build_network_model',
 TASK_STOP_ERRORS = frozenset({'gateway_timeout', 'gateway_transport_failed',
     'gateway_authentication_failed', 'gateway_connection_failed', 'gateway_call_failed_no_retry',
     'gateway_publication_changed', 'gateway_catalog_invalid', 'gateway_catalog_unavailable'})
+_PUBLIC_GATEWAY_ERRORS = TASK_STOP_ERRORS | {'gateway_arguments_invalid', 'gateway_output_invalid',
+    'gateway_tool_not_admitted', 'gateway_policy_invalid', 'gateway_connection_config_invalid'}
 
 
 class GatewayError(ValueError):
@@ -55,6 +57,10 @@ def public_failure(error, fallback):
         if id(current) in seen:
             continue
         seen.add(id(current))
+        # MCP task groups may wrap a pre-call admission rejection during context
+        # teardown. Preserve only fixed public codes, never exception messages.
+        if isinstance(current, GatewayError) and str(current) in _PUBLIC_GATEWAY_ERRORS:
+            return str(current)
         if getattr(getattr(current, 'response', None), 'status_code', None) in {401, 403}:
             return 'gateway_authentication_failed'
         if isinstance(current, (TimeoutError, httpx.TimeoutException)):

@@ -145,3 +145,40 @@ def test_frozen_electrical_api_crosses_both_auth_boundaries_and_preserves_typed_
         assert 'private-secret' not in response.text
     finally:
         server.shutdown(); server.server_close(); thread.join(timeout=2)
+
+
+def test_concurrent_native_http_threads_coalesce_protected_publication_refresh(tmp_path):
+    import asyncio
+    from concurrent.futures import ThreadPoolExecutor
+    from copy import deepcopy
+    from capstone_agent.data_gateway_mcp import GatewayError
+    from capstone_agent.general_pi_server import GeneralPiHost, make_server
+    from test_grid_electrical_view import Gateway as ElectricalGateway, manifest
+    gateway = ElectricalGateway(); original = deepcopy(gateway.catalog); fresh = deepcopy(original)
+    fresh['revision'] = 'new-publication'; refreshes = []
+    async def prepare():
+        refreshes.append(True)
+        await asyncio.sleep(.05)
+        return fresh
+    async def call(name, arguments, catalog):
+        if catalog['revision'] == original['revision']:
+            await asyncio.sleep(.02)
+            raise GatewayError('gateway_publication_changed')
+        data = manifest() if name.endswith('open_network_model_view') else {'count': 0, 'scopes': [],
+            'electrical_views': {'schema': 'gateway-electrical-view/1', 'targets': ['model', 'station', 'device']}}
+        return {'structuredContent': {'status': 'ok', 'data': data}}
+    gateway.prepare = prepare; gateway.call = call
+    host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'}, run_task=lambda *_: ('Answer', {}))
+    server = make_server(host, control_token='protected', address=('127.0.0.1', 0), runner=SimpleNamespace(gateway=gateway))
+    thread = threading.Thread(target=server.serve_forever, daemon=True); thread.start()
+    base = f'http://127.0.0.1:{server.server_port}/grid-sources/data-gateway/electrical'
+    def query(operation):
+        with httpx.Client(headers={'Authorization': 'Bearer protected'}, trust_env=False, timeout=5) as client:
+            return client.get(base + '/models') if operation == 'models' else client.post(base + '/open', json={'model_ref': 'model:one'})
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            responses = list(pool.map(query, ('models', 'open')))
+        assert [response.status_code for response in responses] == [200, 200]
+        assert len(refreshes) == 1 and gateway.catalog == original
+    finally:
+        server.shutdown(); server.server_close(); thread.join(timeout=2)

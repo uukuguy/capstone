@@ -151,6 +151,30 @@ def test_wrapped_transport_failures_keep_safe_diagnostic_codes():
         assert public_failure(wrapped, 'gateway_call_failed_no_retry') == expected
 
 
+def test_wrapped_publication_guard_remains_precise_and_does_not_expose_unknown_messages():
+    from capstone_agent.data_gateway_mcp import public_failure
+    assert public_failure(ExceptionGroup('private', [GatewayError('gateway_publication_changed')]),
+                          'gateway_call_failed_no_retry') == 'gateway_publication_changed'
+    assert public_failure(ExceptionGroup('private', [GatewayError('secret-canary')]),
+                          'gateway_call_failed_no_retry') == 'gateway_call_failed_no_retry'
+
+
+def test_wrapped_mcp_teardown_preserves_the_pre_call_publication_rejection(tmp_path):
+    client, session = gateway(tmp_path)
+    catalog = asyncio.run(client.prepare())
+    @asynccontextmanager
+    async def wrapped_connect():
+        try:
+            yield session
+        except Exception as error:
+            raise ExceptionGroup('transport cleanup', [error]) from None
+    client.connect = wrapped_connect
+    session.tools[0].value['description'] = 'Changed publication'
+    with pytest.raises(GatewayError, match='^gateway_publication_changed$'):
+        asyncio.run(client.call('data_gateway_discover_data_capabilities', {}, catalog))
+    assert session.calls == []
+
+
 def test_real_streamable_http_discovery_call_and_bad_auth(tmp_path):
     import socket
     import threading

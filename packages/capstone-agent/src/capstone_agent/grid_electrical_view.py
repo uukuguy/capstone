@@ -15,7 +15,7 @@ import threading
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import ValidationError
 
-from .data_gateway_mcp import GatewayError
+from .data_gateway_mcp import GatewayError, validate as validate_gateway_schema
 from .grid_source_topology import REQUEST_BYTES, PAGE_BYTES, EXCHANGE_SECONDS
 
 STREAMS = ('devices', 'ports', 'connectivity_nodes', 'connections', 'device_relations', 'groups', 'boundaries', 'issues')
@@ -24,6 +24,7 @@ SCHEMA = 'gateway-electrical-view/1'
 _SCHEMA = json.loads(files('capstone_agent').joinpath('resources/gateway-electrical-view-v1.schema.json').read_text())
 _VALIDATOR = Draft202012Validator(_SCHEMA)
 ERRORS = {
+    'gateway_publication_changed': (409, False, 'refresh_capabilities'),
     'revision_mismatch': (409, False, 'reopen_view'), 'invalid_cursor': (409, False, 'restart_stream'),
     'view_expired': (410, False, 'reopen_view'), 'unsupported_representation': (422, False, 'choose_supported_representation'),
     'unknown_model': (404, False, 'discover_models'), 'invalid_view_ref': (400, False, 'reopen_view'),
@@ -261,6 +262,10 @@ def electrical_descriptor(data):
 class ElectricalViewProvider:
     def __init__(self, gateway):
         self.gateway = gateway
+        # Protected UI reads can re-admit a compatible publication without
+        # rewriting the immutable catalog granted to running research tasks.
+        self._catalog = deepcopy(gateway.catalog) if gateway is not None else {}
+        self._refresh_lock = asyncio.Lock()
         self._views = OrderedDict()
         self._jobs = OrderedDict()
         self._page_receipts = OrderedDict()
@@ -284,7 +289,7 @@ class ElectricalViewProvider:
         if self.gateway is None:
             raise ElectricalViewError('grid_electrical_unavailable')
         name = 'data_gateway_' + tool
-        catalog = self.gateway.catalog
+        catalog = self._catalog
         published = catalog.get('tools', {}).get(name, {})
         annotations = published.get('annotations', {})
         if (annotations.get('destructiveHint') is not False or
@@ -294,7 +299,15 @@ class ElectricalViewProvider:
             raise ElectricalViewError('grid_electrical_unavailable')
         try:
             async with asyncio.timeout(EXCHANGE_SECONDS):
-                response = await self.gateway.client.call(name, arguments, catalog)
+                try:
+                    response = await self._invoke(tool, arguments, catalog)
+                except GatewayError as error:
+                    if str(error) != 'gateway_publication_changed':
+                        raise
+                    catalog = await self._refresh_catalog(catalog)
+                    # Only this pre-call rejection permits one rediscovery.
+                    # Transport errors and actual tool failures never replay.
+                    response = await self._invoke(tool, arguments, catalog)
             _bounded(response)
             content = response.get('structuredContent')
             if not isinstance(content, dict):
@@ -309,8 +322,69 @@ class ElectricalViewProvider:
             return data
         except ElectricalViewError:
             raise
-        except (GatewayError, TimeoutError, OSError, ValueError, TypeError, KeyError, AttributeError):
+        except GatewayError as error:
+            if str(error) == 'gateway_publication_changed':
+                raise ElectricalViewError('gateway_publication_changed') from None
             raise ElectricalViewError('grid_electrical_observation_unavailable') from None
+        except (TimeoutError, OSError, ValueError, TypeError, KeyError, AttributeError):
+            raise ElectricalViewError('grid_electrical_observation_unavailable') from None
+
+    async def _invoke(self, tool, arguments, catalog):
+        arguments = deepcopy(arguments)
+        properties = catalog['tools']['data_gateway_' + tool]['inputSchema'].get('properties', {})
+        if tool == 'open_network_model_view' and 'view_schema' in properties:
+            arguments['view_schema'] = SCHEMA
+        return await self.gateway.client.call('data_gateway_' + tool, arguments, catalog)
+
+    @staticmethod
+    def _compatible_catalog(previous, current):
+        """Permit the published optional version selector and stream extension.
+
+        All existing request fields, required fields and effect annotations
+        remain exact. The frozen response is still checked against v1 locally.
+        """
+        try:
+            for tool in ('discover_network_models', 'open_network_model_view', 'read_network_model_view', 'get_network_model_job'):
+                name = 'data_gateway_' + tool
+                before, after = previous['tools'][name], current['tools'][name]
+                if (after.get('annotations', {}).get('destructiveHint') is not False or
+                    after['annotations'].get('readOnlyHint') is not (tool != 'open_network_model_view') or
+                    not isinstance(current['tool_hashes'][name], str)):
+                    return False
+                old, new = before['inputSchema'], after['inputSchema']
+                if {k: v for k, v in old.items() if k != 'properties'} != {k: v for k, v in new.items() if k != 'properties'}:
+                    return False
+                old_props, new_props = old.get('properties', {}), new.get('properties', {})
+                added = set(new_props) - set(old_props)
+                if added - ({'view_schema'} if tool == 'open_network_model_view' else set()) or set(old_props) - set(new_props):
+                    return False
+                for key, original in old_props.items():
+                    candidate = new_props[key]
+                    if tool == 'read_network_model_view' and key == 'stream':
+                        if (not set(original.get('enum', [])) <= set(candidate.get('enum', [])) or
+                            {k: v for k, v in original.items() if k != 'enum'} != {k: v for k, v in candidate.items() if k != 'enum'}):
+                            return False
+                    elif key == 'view_schema' and tool == 'open_network_model_view':
+                        # The explicit v1 request must remain valid even when
+                        # a newer publication changes its optional default.
+                        validate_gateway_schema(candidate, SCHEMA)
+                    elif original != candidate:
+                        return False
+                if 'view_schema' in new_props:
+                    validate_gateway_schema(new_props['view_schema'], SCHEMA)
+            return True
+        except Exception:
+            return False
+
+    async def _refresh_catalog(self, rejected):
+        async with self._refresh_lock:
+            if self._catalog['revision'] != rejected['revision']:
+                return self._catalog
+            current = await self.gateway.client.prepare()
+            if not self._compatible_catalog(rejected, current):
+                raise ElectricalViewError('gateway_publication_changed')
+            self._catalog = deepcopy(current)
+            return self._catalog
 
     async def models(self):
         value = await self._call('discover_network_models', {'detail': False})

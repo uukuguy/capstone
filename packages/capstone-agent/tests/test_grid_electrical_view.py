@@ -164,3 +164,104 @@ def test_issue_evidence_projects_connection_fields_not_arbitrary_source_rows():
     result = asyncio.run(ElectricalViewProvider(gateway).read({'view_ref': 'view-one', 'stream': 'issues'}))
     assert result['records'][0]['evidence'] == {'ID': 'source-one', 'FIRST_NODE_ID': 'node-one'}
 
+
+@pytest.mark.parametrize('incompatible', [False, True])
+def test_only_pre_call_publication_change_gets_one_compatible_protected_refresh(incompatible):
+    from capstone_agent.grid_electrical_view import ElectricalViewProvider, ElectricalViewError
+    from capstone_agent.data_gateway_mcp import GatewayError
+    gateway = Gateway(); original = deepcopy(gateway.catalog); calls = []; refreshes = []
+    fresh = deepcopy(original); fresh['revision'] = 'catalog-two'
+    schema = fresh['tools']['data_gateway_open_network_model_view']['inputSchema']
+    schema['properties'] = {'view_schema': {'type': 'string', 'default': 'gateway-electrical-view/2'}}
+    if incompatible:
+        schema['required'] = ['model_ref', 'unpublished_input']
+    async def prepare():
+        refreshes.append(True); await asyncio.sleep(0)
+        return fresh
+    async def call(name, arguments, catalog):
+        calls.append((name, deepcopy(arguments), catalog['revision']))
+        if catalog['revision'] == 'catalog-one':
+            raise GatewayError('gateway_publication_changed')
+        return {'structuredContent': {'status': 'ok', 'data': manifest()}}
+    gateway.prepare = prepare; gateway.call = call
+    provider = ElectricalViewProvider(gateway)
+    if incompatible:
+        with pytest.raises(ElectricalViewError) as caught:
+            asyncio.run(provider.open({'model_ref': 'model:one'}))
+        assert caught.value.code == 'gateway_publication_changed'
+        assert len(calls) == 1
+    else:
+        assert asyncio.run(provider.open({'model_ref': 'model:one'}))['state'] == 'ready'
+        assert calls[-1][1]['view_schema'] == 'gateway-electrical-view/1'
+        assert len(calls) == 2
+    assert len(refreshes) == 1
+    assert gateway.catalog == original  # Running research task grants do not change.
+
+
+def test_concurrent_protected_calls_share_refresh_but_do_not_retry_transport_failures():
+    from capstone_agent.grid_electrical_view import ElectricalViewProvider, ElectricalViewError
+    from capstone_agent.data_gateway_mcp import GatewayError
+    gateway = Gateway(); fresh = deepcopy(gateway.catalog); fresh['revision'] = 'catalog-two'; refreshes = []; calls = []
+    async def prepare():
+        refreshes.append(True); await asyncio.sleep(0.01); return fresh
+    async def call(name, arguments, catalog):
+        calls.append(catalog['revision'])
+        if catalog['revision'] == 'catalog-one':
+            await asyncio.sleep(0)
+            raise GatewayError('gateway_publication_changed')
+        return {'structuredContent': {'status': 'ok', 'data': manifest()}}
+    gateway.prepare = prepare; gateway.call = call; provider = ElectricalViewProvider(gateway)
+    async def concurrent():
+        return await asyncio.gather(provider.open({'model_ref': 'model:one'}), provider.open({'model_ref': 'model:one'}))
+    assert len(asyncio.run(concurrent())) == 2
+    assert len(refreshes) == 1 and len(calls) == 4
+    calls.clear()
+    async def failure(*args):
+        calls.append(True); raise GatewayError('gateway_timeout')
+    gateway.call = failure
+    with pytest.raises(ElectricalViewError):
+        asyncio.run(provider.open({'model_ref': 'model:one'}))
+    assert len(calls) == 1 and len(refreshes) == 1
+
+
+@pytest.mark.parametrize('change', ['required_argument', 'unsupported_v1', 'destructive', 'changed_existing_type'])
+def test_incompatible_publication_is_not_used_even_for_a_valid_cached_request(change):
+    from capstone_agent.grid_electrical_view import ElectricalViewProvider, ElectricalViewError
+    from capstone_agent.data_gateway_mcp import GatewayError
+    gateway = Gateway()
+    gateway.catalog['tools']['data_gateway_open_network_model_view']['inputSchema']['properties'] = {'model_ref': {'type': 'string'}}
+    fresh = deepcopy(gateway.catalog); fresh['revision'] = 'incompatible'; calls = []
+    tool = fresh['tools']['data_gateway_open_network_model_view']
+    if change == 'required_argument':
+        tool['inputSchema']['required'].append('caller_selected_url')
+    elif change == 'unsupported_v1':
+        tool['inputSchema']['properties']['view_schema'] = {'enum': ['gateway-electrical-view/2']}
+    elif change == 'destructive':
+        tool['annotations']['destructiveHint'] = True
+    else:
+        tool['inputSchema']['properties']['model_ref']['type'] = 'integer'
+    async def prepare():
+        return fresh
+    async def call(*args):
+        calls.append(True); raise GatewayError('gateway_publication_changed')
+    gateway.prepare = prepare; gateway.call = call
+    with pytest.raises(ElectricalViewError) as raised:
+        asyncio.run(ElectricalViewProvider(gateway).open({'model_ref': 'model:one'}))
+    assert raised.value.code == 'gateway_publication_changed' and raised.value.status == 409
+    assert calls == [True]
+
+
+def test_a_second_publication_change_stops_without_repeated_catalog_or_tool_probes():
+    from capstone_agent.grid_electrical_view import ElectricalViewProvider, ElectricalViewError
+    from capstone_agent.data_gateway_mcp import GatewayError
+    gateway = Gateway(); calls = []; refreshes = []
+    async def prepare():
+        refreshes.append(True); return {**gateway.catalog, 'revision': 'second'}
+    async def call(*args):
+        calls.append(True); raise GatewayError('gateway_publication_changed')
+    gateway.prepare = prepare; gateway.call = call
+    with pytest.raises(ElectricalViewError) as raised:
+        asyncio.run(ElectricalViewProvider(gateway).open({'model_ref': 'model:one'}))
+    assert raised.value.code == 'gateway_publication_changed'
+    assert len(calls) == 2 and len(refreshes) == 1
+
