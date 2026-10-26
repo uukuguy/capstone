@@ -31,6 +31,19 @@ describe('source electrical geometry',()=>{
     assertClear({...scene,nodes,edges:[{id:'skip-middle',source:'n0',target:'n2',kind:'source_connection',relation:'connection'}]})
     assertClear(scene)
   })
+  it('validates the final fallback against existing routes in a dense 12-node scene',()=>{
+    const pairs=[[5,7],[2,4],[2,3],[8,11],[6,2],[1,10],[8,0],[5,9],[4,5],[6,7],[3,11],[2,0],[1,4],[3,6],[5,11],[0,7],[10,4]]
+    const id=(n:number)=>`n${String(n).padStart(2,'0')}`
+    const input:NetworkScene={...scene,nodes:Array.from({length:12},(_,i)=>({id:id(i),label:id(i),kind:i<2?'busbar':i%3===0?'connection_node':'breaker'})),edges:pairs.map(([a,b],i)=>({id:`edge${i}`,source:id(a),target:id(b),kind:'source_connection',relation:'connection'}))}
+    const geometry=sceneGeometry(buildSceneIndex(input))!
+    expect(geometry.routes.size).toBe(pairs.length)
+    for(const [e,a] of geometry.routes)for(const [f,b] of geometry.routes)if(e<f&&!pairs[e].some(n=>pairs[f].includes(n)))for(let i=1;i<a.length;i++)for(let j=1;j<b.length;j++){
+      const p=a[i-1],q=a[i],r=b[j-1],s=b[j],vertical=p.x===q.x&&r.x===s.x&&p.x===r.x,horizontal=p.y===q.y&&r.y===s.y&&p.y===r.y
+      const overlap=vertical?Math.min(Math.max(p.y,q.y),Math.max(r.y,s.y))-Math.max(Math.min(p.y,q.y),Math.min(r.y,s.y)):horizontal?Math.min(Math.max(p.x,q.x),Math.max(r.x,s.x))-Math.max(Math.min(p.x,q.x),Math.min(r.x,s.x)):0
+      expect(overlap,`edges ${e} and ${f}`).toBeLessThanOrEqual(0)
+    }
+    assertClear(input)
+  })
   it('packs a local source component despite incomplete station and voltage metadata',()=>{
     const input:NetworkScene={...scene,nodes:[{id:'bus',kind:'busbars',label:'Bus',stationId:'s'},{id:'junction',kind:'connection_node',label:'Junction',voltageKv:500},{id:'switch',kind:'breakers',label:'Switch',stationId:'s'},{id:'high',kind:'windings',label:'High winding',stationId:'s'},{id:'transformer',kind:'transformers',label:'Transformer',stationId:'s'},{id:'low',kind:'windings',label:'Low winding',stationId:'s'},{id:'low-node',kind:'connection_node',label:'Low junction',voltageKv:66}],edges:[{id:'b-j',source:'bus',target:'junction',kind:'source_connection',relation:'connection'},{id:'j-s',source:'junction',target:'switch',kind:'source_connection',relation:'connection'},{id:'s-h',source:'switch',target:'high',kind:'source_connection',relation:'connection'},{id:'t-h',source:'transformer',target:'high',kind:'winding_membership',relation:'membership'},{id:'t-l',source:'transformer',target:'low',kind:'winding_membership',relation:'membership'},{id:'l-n',source:'low',target:'low-node',kind:'source_connection',relation:'connection'}]}
     const index=buildSceneIndex(input),geometry=sceneGeometry(index)!,bar=geometry.busbars.get(0)!

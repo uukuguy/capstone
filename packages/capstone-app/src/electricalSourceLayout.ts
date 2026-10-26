@@ -65,7 +65,7 @@ export function electricalSourceLayout(scene:NetworkScene,endpoints:Uint32Array,
     }return true
   }
   const attachments=new Map<number,number[]>(),parallel=new Map<string,number[]>()
-  scene.edges.forEach((edge,i)=>{for(const n of [endpoints[2*i],endpoints[2*i+1]])if(busbars.has(n)){const list=attachments.get(n)||[];list.push(i);attachments.set(n,list)}const key=[edge.source,edge.target].sort().join('\u0000');const list=parallel.get(key)||[];list.push(i);parallel.set(key,list)})
+  scene.edges.forEach((edge,i)=>{for(const n of new Set([endpoints[2*i],endpoints[2*i+1]])){const list=attachments.get(n)||[];list.push(i);attachments.set(n,list)}const key=[edge.source,edge.target].sort().join('\u0000');const list=parallel.get(key)||[];list.push(i);parallel.set(key,list)})
   const anchors=new Map<string,ScenePoint>()
   const occupied=new Map<string,Map<string,Array<[number,number]>>>()
   const junctions=new Set(scene.nodes.flatMap((node,i)=>node.kind==='connection_node'||bus(node.kind)?[String(i)]:[]))
@@ -73,8 +73,40 @@ export function electricalSourceLayout(scene:NetworkScene,endpoints:Uint32Array,
   // Common incidence may meet at an explicit source junction/busbar. Devices
   // such as switches are not junctions: never route around their unknown state.
   const overlaps=(route:ScenePoint[],pair:string)=>segments(route).some(segment=>[...(occupied.get(segment.key)||[])].some(([other,intervals])=>other!==pair&&!pair.split(':').some(n=>junctions.has(n)&&other.split(':').includes(n))&&intervals.some(([low,high])=>Math.min(high,segment.high)>Math.max(low,segment.low))))
-  const save=(edge:number,route:ScenePoint[],pair:string)=>{const compact=route.filter((p,i)=>!i||p.x!==route[i-1].x||p.y!==route[i-1].y);routes.set(edge,compact);for(const segment of segments(compact)){const groups=occupied.get(segment.key)||new Map<string,Array<[number,number]>>(),intervals=groups.get(pair)||[];intervals.push([segment.low,segment.high]);groups.set(pair,intervals);occupied.set(segment.key,groups)}}
-  for(const [n,edges] of attachments){edges.sort((a,b)=>scene.edges[a].id.localeCompare(scene.edges[b].id));const [a,b]=busbars.get(n)!;edges.forEach((e,rank)=>{const other=endpoints[e*2]===n?endpoints[e*2+1]:endpoints[e*2];anchors.set(`${n}:${e}`,{x:edges.length===1?Math.max(a.x+4,Math.min(b.x-4,positions[other*2])):a.x+(b.x-a.x)*(rank+1)/(edges.length+1),y:a.y})})}
+  const reserve=(route:ScenePoint[],pair:string)=>{for(const segment of segments(route)){const groups=occupied.get(segment.key)||new Map<string,Array<[number,number]>>(),intervals=groups.get(pair)||[];intervals.push([segment.low,segment.high]);groups.set(pair,intervals);occupied.set(segment.key,groups)}}
+  const save=(edge:number,route:ScenePoint[],pair:string)=>{const compact=route.filter((p,i)=>!i||p.x!==route[i-1].x||p.y!==route[i-1].y);routes.set(edge,compact);reserve(compact,pair)}
+  for(const [n,edges] of attachments){
+    const bar=busbars.get(n)
+    const other=(e:number)=>endpoints[e*2]===n?endpoints[e*2+1]:endpoints[e*2]
+    edges.sort((a,b)=>(bar?0:positions[other(a)*2+1]-positions[other(b)*2+1]||positions[other(a)*2]-positions[other(b)*2])||scene.edges[a].id.localeCompare(scene.edges[b].id))
+    edges.forEach((e,rank)=>{
+      const other=endpoints[e*2]===n?endpoints[e*2+1]:endpoints[e*2]
+      if(bar){const [a,b]=bar;anchors.set(`${n}:${e}`,{x:edges.length===1?Math.max(a.x+4,Math.min(b.x-4,positions[other*2])):a.x+(b.x-a.x)*(rank+1)/(edges.length+1),y:a.y});return}
+      if(junctions.has(String(n))||edges.length<2)return
+      // Attachment slots stay inside the device glyph. They are display
+      // geometry, not invented source ports, terminal roles, or junctions.
+      const point={x:positions[n*2],y:positions[n*2+1]+((rank+1)/(edges.length+1)-.5)*Math.min(6,(symbolRadii.get(n)||0)*.5)}
+      anchors.set(`${n}:${e}`,point)
+      const reach=Math.abs(escapes.get(n)![0].x-point.x)*1.2,pair=[n,other].sort((a,b)=>a-b).join(':')
+      reserve([{x:point.x-reach,y:point.y},{x:point.x+reach,y:point.y}],pair)
+    })
+  }
+  // Reserve complete default escape lanes before any compact route can occupy
+  // them. Unique row/column offsets and in-glyph slots keep these lanes apart.
+  const primaryRoutes=new Map<number,ScenePoint[]>()
+  scene.edges.forEach((_,e)=>{
+    const fraction=(e+1)/(scene.edges.length+1),factor=.75+fraction*.375
+    const escape=(n:number)=>{
+      const point=anchors.get(`${n}:${e}`)||{x:positions[n*2],y:positions[n*2+1]},path=escapes.get(n)!,outside=path.at(-1)!.x+cellW*(-.03+.06*fraction)
+      if(busbars.has(n)){const y=point.y+(path[0].y-point.y)*factor;return [point,{x:point.x,y},{x:outside,y}]}
+      const x=positions[n*2]+(path[0].x-positions[n*2])*factor,y=positions[n*2+1]+(path[1].y-positions[n*2+1])*factor
+      return [point,{x,y:point.y},{x,y},{x:outside,y}]
+    }
+    const a=endpoints[2*e],b=endpoints[2*e+1],from=escape(a),to=escape(b),channel=bounds.y-8-fraction*20,x=from.at(-1)!.x
+    const bridge=a!==b&&x===to.at(-1)!.x?[]:[{x,y:channel},...(a===b?[{x:x+8,y:channel},{x:x+8,y:channel-8},{x,y:channel-8}]:[]),{x:to.at(-1)!.x,y:channel}]
+    const route=[...from,...bridge,...to.reverse()],pair=[a,b].sort((x,y)=>x-y).join(':')
+    primaryRoutes.set(e,route);reserve(route,pair)
+  })
   for(const edges of parallel.values())edges.sort((a,b)=>scene.edges[a].id.localeCompare(scene.edges[b].id)).forEach((e,rank)=>{
     const a=endpoints[2*e],b=endpoints[2*e+1],start=anchors.get(`${a}:${e}`)||{x:positions[2*a],y:positions[2*a+1]},end=anchors.get(`${b}:${e}`)||{x:positions[2*b],y:positions[2*b+1]}
     const lane=(start.y+end.y)/2+(rank-(edges.length-1)/2)*Math.min(8,20/edges.length)
@@ -90,17 +122,30 @@ export function electricalSourceLayout(scene:NetworkScene,endpoints:Uint32Array,
     }
     // Each edge has its own horizontal and vertical reserved lanes. A shared
     // perimeter trunk would falsely join circuits with different source nodes.
+    const primary=primaryRoutes.get(e)!
+    if(clear(primary,a,b)&&!overlaps(primary,pair)){save(e,primary,pair);return}
     const fraction=(e+1)/(scene.edges.length+1),factor=.75+fraction*.375
-    const escape=(n:number,point:ScenePoint)=>{
-      const path=escapes.get(n)!,outside=path.at(-1)!.x+cellW*(-.03+.06*fraction)
-      if(busbars.has(n)){const y=point.y+(path[0].y-point.y)*factor;return [point,{x:point.x,y},{x:outside,y},{x:outside,y:path.at(-1)!.y}]}
-      const x=point.x+(path[0].x-point.x)*factor,y=point.y+(path[1].y-point.y)*factor
-      return [point,{x,y:point.y},{x,y},{x:outside,y},{x:outside,y:path.at(-1)!.y}]
+    const escape=(n:number,point:ScenePoint,outsideSide:number,horizontal:number,vertical:number,verticalFirst:boolean)=>{
+      const path=escapes.get(n)!,outside=path.at(-1)!.x+cellW*(-.03+.06*fraction)+(outsideSide<0?-cellW*.92:0)
+      if(busbars.has(n)){const y=point.y+(path[0].y-point.y)*factor*vertical;return [point,{x:point.x,y},{x:outside,y},{x:outside,y:path.at(-1)!.y}]}
+      const x=point.x+(path[0].x-point.x)*factor*horizontal,y=point.y+(path[1].y-point.y)*factor*vertical
+      return [point,verticalFirst?{x:point.x,y}:{x,y:point.y},{x,y},{x:outside,y},{x:outside,y:path.at(-1)!.y}]
     }
-    const from=escape(a,start),to=escape(b,end),channel=bounds.y-8-(e+1)/(scene.edges.length+1)*20
-    if(a!==b&&from.at(-1)!.x===to.at(-1)!.x){const perimeter=[...from.slice(0,-1),...to.slice(0,-1).reverse()];if(clear(perimeter,a,b)&&!overlaps(perimeter,pair)){save(e,perimeter,pair);return}}
-    const x=from.at(-1)!.x,loop=a===b?[{x:x+8,y:channel},{x:x+8,y:channel-8},{x,y:channel-8}]:[]
-    save(e,[...from,{x,y:channel},...loop,{x:to.at(-1)!.x,y:channel},...to.reverse()],pair)
+    const exits=(n:number,point:ScenePoint)=>{
+      const options:ScenePoint[][]=[]
+      for(const verticalFirst of [false,true])for(const outside of [1,-1])for(const horizontal of [1,-1])for(const vertical of [1,-1]){if(busbars.has(n)&&(horizontal<0||verticalFirst))continue;const route=escape(n,point,outside,horizontal,vertical,verticalFirst);if(clear(route,a,b)&&!overlaps(route,pair))options.push(route)}
+      return options
+    }
+    const channel=bounds.y-8-(e+1)/(scene.edges.length+1)*20
+    // At most 16 exits per endpoint, hence at most 256 complete candidates.
+    // Never publish a final route that bypasses either collision check.
+    for(const from of exits(a,start))for(const to of exits(b,end)){
+      if(a!==b&&from.at(-1)!.x===to.at(-1)!.x){const perimeter=[...from.slice(0,-1),...to.slice(0,-1).reverse()];if(clear(perimeter,a,b)&&!overlaps(perimeter,pair)){save(e,perimeter,pair);return}}
+      const x=from.at(-1)!.x,loop=a===b?[{x:x+8,y:channel},{x:x+8,y:channel-8},{x,y:channel-8}]:[]
+      const route=[...from,{x,y:channel},...loop,{x:to.at(-1)!.x,y:channel},...to.slice().reverse()]
+      if(clear(route,a,b)&&!overlaps(route,pair)){save(e,route,pair);return}
+    }
+    throw new Error('No collision-free source route within the bounded layout')
   })
   return {routes,busbars,symbolRadii}
 }
