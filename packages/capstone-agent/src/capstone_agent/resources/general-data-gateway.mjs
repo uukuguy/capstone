@@ -5,7 +5,7 @@ const publicErrors=new Set(['gateway_arguments_invalid','gateway_request_invalid
   'gateway_publication_changed','gateway_authentication_failed','gateway_connection_failed',
   'gateway_call_failed_no_retry','gateway_timeout','gateway_transport_failed','gateway_output_invalid','gateway_catalog_invalid',
   'gateway_catalog_unavailable','gateway_unavailable','capacity_exceeded','unauthorized']);
-const resourceErrors=new Set(['gateway_publication_changed','gateway_authentication_failed',
+const resourceErrors=new Set(['gateway_authentication_failed',
   'gateway_connection_failed','gateway_call_failed_no_retry','gateway_timeout','gateway_transport_failed','gateway_catalog_invalid',
   'gateway_catalog_unavailable','gateway_unavailable','gateway_task_not_admitted','unauthorized']);
 

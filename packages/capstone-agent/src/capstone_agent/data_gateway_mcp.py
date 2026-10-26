@@ -24,9 +24,10 @@ MODEL_TOOLS = frozenset({'inspect_network_model', 'build_network_model',
 # instruction gets its own task state and can check the resource again.
 TASK_STOP_ERRORS = frozenset({'gateway_timeout', 'gateway_transport_failed',
     'gateway_authentication_failed', 'gateway_connection_failed', 'gateway_call_failed_no_retry',
-    'gateway_publication_changed', 'gateway_catalog_invalid', 'gateway_catalog_unavailable'})
+    'gateway_catalog_invalid', 'gateway_catalog_unavailable'})
 _PUBLIC_GATEWAY_ERRORS = TASK_STOP_ERRORS | {'gateway_arguments_invalid', 'gateway_output_invalid',
-    'gateway_tool_not_admitted', 'gateway_policy_invalid', 'gateway_connection_config_invalid'}
+    'gateway_tool_not_admitted', 'gateway_policy_invalid', 'gateway_connection_config_invalid',
+    'gateway_publication_changed'}
 
 
 class GatewayError(ValueError):

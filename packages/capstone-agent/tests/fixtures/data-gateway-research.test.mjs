@@ -65,6 +65,25 @@ test('argument errors do not block other calls and untrusted error text is omitt
  assert.equal(calls,2);
 });
 
+test('one tool publication change leaves another admitted tool callable without replay',async()=>{
+ const c=config(),first='data_gateway_discover_data_capabilities',other='data_gateway_other',calls=[];
+ c.dataGateway.catalog.tools[other]={...c.dataGateway.catalog.tools[first],name:'other'};
+ c.dataGateway.catalog.tool_hashes[other]='c'.repeat(64);
+ const tools=createDataGatewayTools(c,{fetchImpl:async(_url,options)=>{
+  const request=JSON.parse(options.body);calls.push(request);
+  if(request.name===first)return {ok:false,status:400,json:async()=>({error:'gateway_publication_changed'})};
+  return {ok:true,json:async()=>({result_json:'{"status":"ok"}',observation:{
+   kind:'external_gateway_observation',task_id:'task-1',tool_call_id:request.call_id,tool:other,
+   catalog_revision:c.dataGateway.catalog.revision,tool_schema_sha256:c.dataGateway.catalog.tool_hashes[other]}})};
+ }});
+ await assert.rejects(tools[0].execute('first',{}),error=>
+  error.message.includes('gateway_publication_changed')&&!error.message.includes('probe other gateway tools'));
+ assert.equal(calls.length,1);
+ const result=await tools[1].execute('second',{});
+ assert.equal(JSON.parse(result.content[0].text).status,'ok');
+ assert.deepEqual(calls.map(call=>call.name),[first,other]);
+});
+
 test('transport stop state cannot leak into a new task',async()=>{
  let calls=0;
  const fetchImpl=async()=>{calls++;return {ok:false,status:400,json:async()=>({error:'gateway_timeout'})};};
