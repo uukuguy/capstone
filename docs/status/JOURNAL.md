@@ -5940,3 +5940,5 @@ Prior closeout receipts preserved verbatim from the root checkout:
 - 2026-10-27 `cea10ee0`: Record visible MCP business, continuation, product delivery and refresh acceptance; keep latency and diagram limits explicit.
 
 - 2026-10-27 `4c70736e`: Fix PR69 optional-value type failures; focused Pyright clean and47 broker tests pass in0.20s.
+
+- 2026-10-27 `432b94b5`: Align control and recovery docs with non-diagram acceptance before dev integration.

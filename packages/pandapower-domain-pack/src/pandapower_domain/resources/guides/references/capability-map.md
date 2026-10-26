@@ -21,6 +21,7 @@ Source aliases such as `pandapower:line:11` are resolvable identifiers for user-
 - `model.creator.list`: lists the complete pinned pandapower 3.4.0 element-creator allowlist and required arguments.
 - `model.creator.describe`: describes one creator's signature, defaults, and local-reference arguments before construction.
 - `model.create`: creates an immutable network from ordered allowlisted pandapower element creators and local element references.
+- `model.artifact.import`: admits an application-granted, host-staged native model with exact element mapping; the receipt proves admission, not calculation success. See `model-and-context` for grant and quality constraints.
 - `context.open`: opens a supported model and creates a context with evidence.
 - `context.get`: returns metadata for an existing context.
 - `model.dataset.list`: lists every schema-described static network table in the active revision.

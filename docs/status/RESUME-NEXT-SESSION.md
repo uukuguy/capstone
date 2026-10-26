@@ -4,6 +4,8 @@ Updated 2026-10-27 Asia/Shanghai. Live checkpoint; non-diagram local acceptance 
 
 ## Immediate next action — supersedes older in-flight entries
 
+- PR69 at 432b94b5 failed CI40398582352 after17m23s: the published model.artifact.import capability had no skill guide. Exact failure reproduced locally in0.24s; grant/quality/receipt/recovery guidance added to the owning Pack. Four skill checks pass0.11s; the contract directory check is running. Commit the guide fix and complete the normal PR gate before merge.
+- Root dev is temporarily clean: its owned dirty docs match feature and were preserved in a scoped stash, recorded in outputs/control-recovery-20261027/stash-ref.txt. Do not reapply all of that stash after fast-forward; those files are already committed on the feature. Preserve its journal tail and the stash recovery reference.
 - Feature HEAD4c70736e, PR69 targets dev. First macOS CI40396162810 failed two optional-value type checks after3m28s. Fix4c70736e passed focused Pyright and47 broker tests; push/new CI must be checked. Do not merge failed checks.
 - Product runtime214c2e23: canonical rebuild passed, API/workers image c470a1240dd5b869692601618b4b2da6212a66921e138ffbfef507656e086779, native healthy with zero restarts, scoped cache cleanup completed. No cloud/demo/main change.
 - Vivaldi final delivery retest passed: CSV primary card, statistics note support,4 native calls/about76s, no gateway requery; refresh preserves files/roles and all four folded Thinking records. No active task remains. Existing enterprise tab in window131132 shows the results. New tabs are not authorized by this workflow.
