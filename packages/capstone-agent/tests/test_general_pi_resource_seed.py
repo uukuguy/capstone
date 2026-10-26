@@ -10,7 +10,19 @@ def test_native_image_includes_local_sdk_module_dependencies():
     project = Path(__file__).parents[3]
     resources = project / 'packages/capstone-agent/src/capstone_agent/resources'
     image = (project / 'deploy/general-pi.Dockerfile').read_text()
-    destinations = [line.split()[-1] for line in image.splitlines() if line.startswith('COPY ')]
+    destinations = set()
+    for line in image.splitlines():
+        if not line.startswith('COPY ') or '--from=' in line:
+            continue
+        *sources, destination = line.split()[1:]
+        for pattern in sources:
+            for source in project.glob(pattern):
+                if source.is_dir():
+                    destinations.update(str(Path(destination) / item.relative_to(source))
+                                        for item in source.rglob('*') if item.is_file())
+                else:
+                    destinations.add(str(Path(destination) / source.name)
+                                     if destination.endswith('/') else destination)
     pending = ['general-sdk.mjs']
     checked = set()
     while pending:
@@ -19,8 +31,7 @@ def test_native_image_includes_local_sdk_module_dependencies():
             continue
         checked.add(name)
         target = f'capstone_agent/resources/{name}'
-        assert any(target == dest or (dest.endswith('/') and target.startswith(dest))
-                   for dest in destinations), f'Native image omits {name}'
+        assert target in destinations, f'Native image omits {name}'
         source = (resources / name).read_text()
         pending.extend(str(Path(name).parent / dependency) for dependency in
                        re.findall(r"(?:from\s+|import\s*)['\"]\./([^'\"]+\.mjs)['\"]", source))

@@ -214,6 +214,7 @@ services:
       - /var/lib/general-pi/tasks:rw,nosuid,size=${CAPSTONE_NATIVE_WORKSPACE_SIZE:-4g},mode=0711
     healthcheck:
       test: [CMD, python, -c, "from urllib.request import urlopen; urlopen('http://127.0.0.1:8790/health/ready', timeout=3).close()"]
+      start_period: 5m
       interval: 10s
       timeout: 5s
       retries: 12
