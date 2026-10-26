@@ -320,6 +320,19 @@ export class HttpThreadTransport implements ThreadTransport {
       })
   }
 
+  electricalModels(signal?:AbortSignal):Promise<unknown> {
+    return this.request('/api/v1/grid-sources/data-gateway/electrical/models',{signal},4*1024*1024,'event_page_bytes',false)
+  }
+  electricalOpen(query:Record<string,unknown>,signal?:AbortSignal):Promise<unknown> {
+    return this.request('/api/v1/grid-sources/data-gateway/electrical/open',{method:'POST',signal,body:JSON.stringify(query)},4*1024*1024,'event_page_bytes',false)
+  }
+  electricalRead(query:{view_ref:string;stream:string;cursor?:string;limit?:number},signal?:AbortSignal):Promise<unknown> {
+    return this.request('/api/v1/grid-sources/data-gateway/electrical/read',{method:'POST',signal,body:JSON.stringify(query)},4*1024*1024,'event_page_bytes',false)
+  }
+  electricalJob(job_ref:string,signal?:AbortSignal):Promise<unknown> {
+    return this.request('/api/v1/grid-sources/data-gateway/electrical/job',{method:'POST',signal,body:JSON.stringify({job_ref})},4*1024*1024,'event_page_bytes',false)
+  }
+
   gridSourceTopology(query: GridSourceQuery, signal?: AbortSignal) {
     return this.request('/api/v1/grid-sources/data-gateway/topology', {
       method:'POST', signal, body:JSON.stringify(query),

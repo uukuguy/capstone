@@ -1,5 +1,5 @@
 import {expect,it} from 'vitest'
-import {parseThreadSourceViewRequest,selectThreadViewProposal} from './threadViewRouting'
+import {parseThreadSourceViewRequest,parseThreadDisplayRequest,selectThreadViewProposal} from './threadViewRouting'
 import {sampleDiagramView} from './networkFixture'
 import type {EventEnvelope,ModelContextSnapshot} from './threadProtocol'
 import type {ThreadNetworkTask} from './threadProjectionStore'
@@ -8,6 +8,19 @@ const request={schema:'capstone-grid-source-view-request/1',source_id:'data-gate
 const event=(seq:number,payload:Record<string,unknown>={source_view:request},attemptId='latest'):EventEnvelope=>({eventId:`event${seq}`,eventSeq:seq,eventType:'runtime_event',eventVersion:1,threadId:'thread',runId:'run',attemptId,visibility:'public',occurredAt:'2026-10-26T00:00:00Z',payload})
 const currentContext:ModelContextSnapshot={id:'context',modelId:sampleDiagramView.diagram.model.id,modelRevision:sampleDiagramView.diagram.model.revision,implementationFamily:'pandapower',selectionRevision:'selection',enabledProfiles:[]}
 const model=(eventSeq:number,overrides:Partial<ThreadNetworkTask>={}):ThreadNetworkTask=>({attemptId:'latest',eventSeq,pageId:'page',context:currentContext,view:sampleDiagramView,...overrides})
+
+it('routes only current successful frozen electrical descriptors with full model identity',()=>{
+  const request={schema:'capstone-electrical-view-request/1',source_id:'data-gateway',model_ref:'grid:custom',model_revision:'revision',
+    view_ref:'frozen',selection_ref:'selection',source_snapshot_ref:'snapshot',representation:'source_node_breaker',target:null,artifact_ref:null}
+  expect(parseThreadDisplayRequest(request)).toEqual(request)
+  expect(parseThreadDisplayRequest({...request,model_revision:''})).toBeNull()
+  expect(parseThreadDisplayRequest({...request,representation:'calculation_bus_branch'})).toBeNull()
+  expect(parseThreadDisplayRequest({...request,url:'http://untrusted'})).toBeNull()
+  const input={events:[event(1,{source_view:request})],networkTasks:[],attemptId:'latest',currentContext}
+  expect(selectThreadViewProposal(input)?.kind).toBe('source')
+  expect(selectThreadViewProposal({...input,attemptId:'other'})).toBeNull()
+  expect(selectThreadViewProposal({...input,events:[event(1,{source_view:request,is_error:true})]})).toBeNull()
+})
 
 it('accepts only the complete bounded host descriptor and preserves immutable source identity',()=>{
   const parsed=parseThreadSourceViewRequest(request)
