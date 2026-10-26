@@ -83,17 +83,33 @@ Upload/storage quotas remain separate from import processing budgets.
 
 Proposed public `grid-capability/1.0` operation: `model.artifact.import` with
 `{input_ref}` only. The application-selected Domain Pack exposes this semantic
-operation only when the task has the corresponding broker grant. An immutable
-Authority-owned input registry resolves the grant within the private execution
-workspace. A missing, revoked, foreign or expired grant fails before file access.
+operation only when the task has the corresponding broker grant. Use the existing
+private `gridctl --workspace` provisioning path, with a durable grant manifest
+and content-addressed input storage; no new service is required. The host installs
+an execution binding for the current task/attempt in that protected workspace.
+The public capability request carries no attempt identity, so caller arguments
+cannot establish this binding. The Authority compares the grant with the installed
+binding before resolving stored content. A missing, revoked, foreign or expired
+grant fails before input file access. General Pi cannot write grants or bindings.
 
 The Authority validates the archive before loading: reject traversal, absolute
 paths, links, duplicate member names, unexpected required-file substitutions,
 and decompression beyond the processing budget. Read only the expected files.
-Deserialize only the supported pandapower JSON format in the Authority runtime;
-do not execute bundled scripts, pickle payloads or caller-selected constructors.
-The implementation must verify the supported decoder's trust boundary before
-admitting external JSON; package hashes alone do not make deserialization safe.
+Use data-only reconstruction of the supported JSON split tables in the Authority
+runtime. Parse with a plain JSON parser, validate table names, columns, integer
+indices, scalar values and allowed dtype metadata, then construct tables and a
+native network through fixed Authority code. Reject unsupported serialized objects,
+controllers and executable metadata. Do not execute bundled scripts, pickle
+payloads or caller-selected constructors. There is no `pp.from_json` or
+`pp.from_json_string` fallback for untrusted bundle content.
+
+This requirement follows inspection of the pinned pandapower 3.4.0
+`pandapower/io_utils.py`: `FromSerializableRegistry.rest` at line 658 imports the
+payload-selected module, resolves its class and calls its constructor or
+`from_dict`. Its DataFrame handler at lines 544–557 passes absolute `.json` strings
+to `pd.read_json` as paths. Therefore, even a valid bundle hash does not make the
+generic decoder safe. Regression tests must reject both object construction and
+file-path payloads without importing their modules or opening their paths.
 
 Validate the native model and map together. Engine version and bundle/map
 identities must match. Every supported native element key must have one exact
@@ -104,7 +120,10 @@ references against the same native model. Missing source-port roles remain gaps.
 
 Persist atomically before returning: normalized native bytes, the Authority
 revision, imported-origin lineage, original bundle/map identities and an import
-receipt. The Authority revision is a content identity of the admitted native
+receipt. Write content-addressed model, mapping and evidence objects first, then
+commit the context record last. Only that final record makes the import usable;
+interrupted preparation can leave unreferenced objects, never a partial context.
+The Authority revision is a content identity of the admitted native
 model, distinct from the gateway `model_revision`; record their explicit link.
 Import failure exposes no usable context. Repeated admission of the same granted
 content is idempotent. Import receipts describe provenance and validation, not
@@ -135,7 +154,7 @@ ranking or zero-valued substitute results.
 
 | Owner | Required changes |
 | --- | --- |
-| Application | Protected artifact broker and immutable input grants; `kernel_capability_preparation.py` and `model_capability_context.py` bind imported models through existing Authority selection. |
+| Application | Protected artifact broker, durable input grants and host-installed task/attempt binding through existing private workspace provisioning; `kernel_capability_preparation.py` and `model_capability_context.py` bind imported models through existing Authority selection. |
 | Domain Pack | `pandapower-domain-pack` semantic import schema, tool publication, execution routing and provenance policy. |
 | Authority | `grid-simulator` capability definitions/registry, `operations.py`, `models.py`, `workspace.py` and a focused import module; imported-origin integrity and mapping storage. |
 | Projection | `grid-agent/thread_network_view.py` and application electrical-view layer adapter consume verified imported identity and typed element keys. |
@@ -171,5 +190,7 @@ After review, implement admission as one coherent unit with these gates:
 5. Test wrong-revision rejection, source/calculation separation and visible demo
    status. Check the real App result display after the canonical local rebuild.
 
-No gateway repository edit, deployment, new build permission in the research
-adapter, or calculation acceptance is authorized by this proposal alone.
+The user has authorized Capstone Stage C implementation. This document defines
+the next implementation scope for review; it does not add an authorization gate.
+Sibling gateway edits remain prohibited. Research-adapter model-build permissions
+remain unchanged, and calculation acceptance still requires the evidence above.
