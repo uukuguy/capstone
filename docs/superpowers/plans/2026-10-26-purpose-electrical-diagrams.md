@@ -10,8 +10,8 @@
 
 ## Status and constraints
 
-- Accepted direction, 2026-10-26; compatible source-diagram implementation is underway; new gateway contract acceptance remains pending.
-- Gateway response prioritizes B(source structure) and C(element-map plus calculation_bus_branch). Exact proposed tools are open_network_model_view/read_network_model_view; neither is released yet. Preserve source_node_breaker/calculation_bus_branch distinctions. Optimization and Dameng consistent extraction remain later dependencies.
+- Accepted direction, 2026-10-26; compatible source diagrams merged through PR68. Published gateway electrical-view integration is active.
+- Local gateway release20261026-05 publishes open_network_model_view/read_network_model_view and preparation jobs. B(source structure) live acceptance is underway; C(element-map plus calculation_bus_branch) requires registered Authority artifact admission. Preserve representation distinctions. Optimization remains unsupported; transaction-consistent source capture is a later capability, not a local display gate.
 - Contract proposal: [gateway handoff](../specs/2026-10-26-purpose-grid-model-gateway-handoff.md). Proposed names are not callable tool parameters.
 - The user owns submission and implementation in the sibling data-gateway project. Do not edit that repository.
 - No North-specific algorithms, fixed regional default, fabricated connectivity or unknown-switch bus reduction.
@@ -24,7 +24,7 @@
 
 PR68 contains generic discovery, source incidence projection, symbols, routed rendering and published station expansion. Vivaldi loaded the North overview (405 objects,1003 relations) and Chaoyang connection view (57 objects,56 relations) through the existing tab. Station-wide expansion now retains its station title. Technical identifiers remain searchable and available in selection details, but no longer occupy diagram labels.
 
-Local layout checks and consumer tests passed; final review found a small unrelated-edge overlap in the last fallback route. That correction and final integration remain open. Do not treat the checklist below as complete merely because a compatible implementation exists. The second registered-range check, new frozen streams, calculation mappings and full large routed-scene acceptance remain pending. No new gateway tool has been called.
+The final fallback-route overlap was fixed in f9010be5 and PR68 merged after required macOS verification. New protected gateway discovery/open/read calls now run against the local released service. Frozen stream adapters, bounded directory navigation and exact-key result binding have focused test coverage. Vivaldi displays the new North station records, but exposed uneven component packing that remains under correction. Calculation import and real mapped solver results remain incomplete; structural readiness is not calculation acceptance.
 
 ## 1. Source incidence projection and layout
 
