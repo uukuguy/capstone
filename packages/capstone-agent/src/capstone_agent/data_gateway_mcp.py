@@ -18,7 +18,7 @@ from .application_capacity import limits, require_capacity, CapacityExceeded
 
 
 MODEL_TOOLS = frozenset({'inspect_network_model', 'build_network_model',
-                        'get_network_model_job', 'get_network_model_artifact', 'read_network_model_artifact'})
+                        'get_network_model_artifact', 'read_network_model_artifact'})
 
 # These failures stop further remote probes in the admitted task. A new user
 # instruction gets its own task state and can check the resource again.

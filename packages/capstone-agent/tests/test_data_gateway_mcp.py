@@ -124,10 +124,19 @@ def test_model_inventory_is_explicitly_admitted_but_model_execution_stays_denied
     result = asyncio.run(admitted.call('data_gateway_discover_network_models', {}, catalog))
     assert result['structuredContent']['status'] == 'partial'
     assert session.calls == [('discover_network_models', {})]
-    for name in ['inspect_network_model', 'build_network_model', 'get_network_model_job',
+    for name in ['inspect_network_model', 'build_network_model',
                  'get_network_model_artifact', 'read_network_model_artifact']:
         with pytest.raises(GatewayError, match='gateway_policy_invalid'):
             DataGatewayMcp(client.connection_path, dict(policy, allowed_tools=[*policy['allowed_tools'], name]))
+
+
+def test_electrical_view_tools_can_be_published_without_build_permissions(tmp_path):
+    client, session = gateway(tmp_path)
+    names = ['open_network_model_view', 'read_network_model_view', 'get_network_model_job']
+    policy = dict(client.policy, allowed_tools=[*client.policy['allowed_tools'], *names])
+    session.tools.extend(Tool(name) for name in names)
+    admitted = DataGatewayMcp(client.connection_path, policy, connect=client.connect)
+    assert all('data_gateway_' + name in asyncio.run(admitted.prepare())['tools'] for name in names)
 
 
 def test_wrapped_transport_failures_keep_safe_diagnostic_codes():

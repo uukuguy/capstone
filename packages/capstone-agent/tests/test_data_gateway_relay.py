@@ -26,6 +26,42 @@ def request():
     return {'call_id': 'call-1', 'name': 'data_gateway_discover_data_capabilities', 'arguments': {}}
 
 
+@pytest.mark.parametrize('failed_open', [False, True])
+def test_preparation_jobs_require_an_issued_open_in_the_same_task(failed_open):
+    resource = access()
+    for tool in ['open_network_model_view', 'get_network_model_job']:
+        resource.catalog['tools']['data_gateway_' + tool] = {}
+        resource.catalog['tool_hashes']['data_gateway_' + tool] = 'd' * 64
+    calls = []
+    async def upstream(name, arguments, catalog):
+        calls.append(name)
+        data = ({'schema': 'gateway-electrical-view/1', 'state': 'preparing',
+                 'model_ref': 'grid:test', 'preparation_ref': 'prepare-one'}
+                if name.endswith('open_network_model_view') else
+                {'job_ref': arguments['job_ref'], 'task_type': 'view_preparation', 'state': 'running'})
+        return {'isError': failed_open, 'structuredContent': {'status': 'error' if failed_open else 'ok', 'data': data}}
+    resource.client.call = upstream
+    def job(task, call, ref='prepare-one'):
+        return asyncio.run(resource.call(task, {'call_id': call, 'name': 'data_gateway_get_network_model_job', 'arguments': {'job_ref': ref}}))
+    with pytest.raises(GatewayError, match='gateway_tool_not_admitted'):
+        job('task-1', 'before')
+    assert calls == []
+    asyncio.run(resource.call('task-1', {'call_id': 'open', 'name': 'data_gateway_open_network_model_view', 'arguments': {'model_ref': 'grid:test'}}))
+    if failed_open:
+        with pytest.raises(GatewayError, match='gateway_tool_not_admitted'): job('task-1', 'after')
+    else:
+        assert job('task-1', 'after')['is_error'] is False
+    resource.bind('task-2', 'attempt-2')
+    with pytest.raises(GatewayError, match='gateway_tool_not_admitted'): job('task-2', 'foreign')
+    with pytest.raises(GatewayError, match='gateway_tool_not_admitted'): job('task-1', 'build', 'build-job')
+    if not failed_open:
+        async def wrong_kind(*_):
+            return {'structuredContent': {'status':'ok','data':{'job_ref':'prepare-one','task_type':'build','state':'succeeded','artifact_ref':'forbidden'}}}
+        resource.client.call = wrong_kind
+        with pytest.raises(GatewayError, match='gateway_output_invalid'): job('task-1', 'wrong-kind')
+        assert not resource.verify('task-1', 'wrong-kind', 'data_gateway_get_network_model_job', {}, '{}')
+
+
 def test_issued_receipt_binds_exact_task_call_and_result():
     resource = access()
     result = asyncio.run(resource.call('task-1', request()))
