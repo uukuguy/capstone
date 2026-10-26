@@ -76,7 +76,7 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     from test_enterprise_normal_chat import native_executor
     from test_native_graph_progress import graph_fixture
     executor = native_executor()
-    gateway_publication = {'available': True, 'catalog': {'revision': 'catalog-revision', 'tool_hashes': {
+    gateway_publication = {'available': True, 'catalog': {'instructions': 'SERVICE_GUIDANCE_SENTINEL', 'revision': 'catalog-revision', 'tool_hashes': {
         'data_gateway_discover_network_models': 'hash-one', 'data_gateway_other': 'hash-two'}, 'tools': {
         'data_gateway_discover_network_models': {'name': 'discover_network_models'},
         'data_gateway_other': {'name': 'other'}}}}
@@ -126,6 +126,9 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     assert gateway_bindings == [(task, binding['attempt_id'], {'data_gateway_discover_network_models'})]
     catalog = captured[0]['dataGateway']['catalog']
     assert captured[0]['dataGateway']['onDemandTools'] is True
+    guidance = next(item['content'] for item in captured[0]['contextFiles'] if item['path'] == 'registered-data-gateway-guidance')
+    assert 'SERVICE_GUIDANCE_SENTINEL' in guidance
+    assert 'data_gateway_' in guidance
     assert {'agent_tool_search', 'agent_tool_load'} <= set(captured[0]['applicationPolicy']['allowed_tools'])
     assert set(catalog['tools']) == {'data_gateway_discover_network_models'}
     assert catalog['tool_hashes'] == {'data_gateway_discover_network_models': 'hash-one'}
