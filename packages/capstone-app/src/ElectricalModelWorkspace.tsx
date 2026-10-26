@@ -138,6 +138,7 @@ export default function ElectricalModelWorkspace({transport,requestedView,reques
     {preparing&&<button disabled={busy} onClick={()=>void checkPreparation()}>检查准备进度</button>}
     {manifest&&<>
       <p className="grid-source-note">{manifest.representation==='source_node_breaker'?'源设备接线 · 开关状态以来源记录为准；缺失接线不补线。结构可读不代表潮流可算。':'计算模型拓扑 · 元件对应当前模型包；计算状态和结果以计算服务记录为准。'}</p>
+      {record(manifest.derivation)&&manifest.derivation.demo_only===true&&<p className="grid-source-note">演示补全模型 · 不代表电网真实运行工况。</p>}
       {!view&&<>
         <label>查找已加载站点<input value={query} onChange={event=>setQuery(event.target.value)} placeholder="站点名称"/></label>
         <p>{groups.length} / {manifest.streams.groups.total_count} 个站点 · 仅显示已加载目录</p>
