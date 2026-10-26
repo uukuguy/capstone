@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { HttpThreadTransport } from './threadHttpTransport'
-import { loadGridSourceView, type GridSourceLevel, type GridSourceObject, type GridSourceView } from './gridSource'
+import { loadGridSourceView, type GridSourceLevel, type GridSourceObject, type GridSourceScope, type GridSourceView } from './gridSource'
 import { LargeNetworkView } from './LargeNetworkView'
 import type { NetworkScene } from './networkScene'
 import { useSessionViewRef, useSessionViewState } from './workspaceSessionCache'
@@ -8,8 +8,8 @@ import type { ThreadSourceViewRequest } from './threadViewRouting'
 import './gridSource.css'
 
 type Selection = { level: GridSourceLevel; selected_object_id?: string | null; label: string; sourceSnapshot?: string; sourceInstance?: string; sourceRule?: string; viewRef?:string; voltageMin?:number|null }
-const root: Selection = { level:null, label:'华北全网元件' }
-const region: Selection = { level:'region', label:'华北站点总览' }
+const root: Selection = { level:null, label:'全网元件' }
+const region: Selection = { level:'region', label:'站点总览' }
 function restorePath(value: unknown,fallback:Selection=root): Selection[] {
   return Array.isArray(value)&&value.length>0&&value.length<=32&&(value[0]?.level===null||value[0]?.level==='region')
     &&value.every(item=>item&&(item.level===null||['region','station','equipment'].includes(item.level))
@@ -25,14 +25,42 @@ type SourceWorkspaceProps = {
   requestedView?:ThreadSourceViewRequest;requestNonce?:number;onManualNavigate?:()=>void
 }
 export default function GridSourceWorkspace(props:SourceWorkspaceProps) {
-  return <ScopedSourceWorkspace key={props.requestedView?.scope_id||'north'} {...props}/>
+  if(props.requestedView)return <ScopedSourceWorkspace key={props.requestedView.scope_id} {...props}
+    scope={{scope_id:props.requestedView.scope_id,name:props.requestedView.scope_name||props.requestedView.scope_id}}/>
+  return <DiscoveredSourceWorkspace {...props}/>
 }
-function ScopedSourceWorkspace({ transport, onQuestion, requestedView, requestNonce, onManualNavigate }: SourceWorkspaceProps) {
-  const scopeId=requestedView?.scope_id||'north',scopeName=requestedView?.scope_name||'华北'
+function DiscoveredSourceWorkspace(props:SourceWorkspaceProps) {
+  const [scopes,setScopes]=useState<GridSourceScope[]>(),[error,setError]=useState(''),[revision,setRevision]=useState(0)
+  const [selected,setSelected]=useSessionViewState<string>('source-topology.selected-scope','')
+  useEffect(()=>{
+    const controller=new AbortController();setError('');setScopes(undefined)
+    props.transport.gridSourceScopes(controller.signal).then(value=>{if(!controller.signal.aborted)setScopes(value)})
+      .catch(cause=>{if(!controller.signal.aborted)setError(cause instanceof Error?cause.message:'电网范围目录暂时无法读取。')})
+    return()=>controller.abort()
+  },[props.transport,revision])
+  const scope=scopes?.find(item=>item.scope_id===selected)
+  return <>
+    <section className="grid-source-workspace" aria-label="选择源电网">
+      {!scopes&&!error&&<p role="status">正在读取电网范围…</p>}
+      {error&&<p role="alert">{error} <button type="button" onClick={()=>setRevision(value=>value+1)}>重新读取</button></p>}
+      {scopes?.length===0&&<p>暂无可浏览的登记电网范围。</p>}
+      {!!scopes?.length&&<label>电网范围<select value={scope?.scope_id||''} onChange={event=>{props.onManualNavigate?.();setSelected(event.target.value)}}>
+        <option value="">请选择电网范围</option>{scopes.map(item=><option key={item.scope_id} value={item.scope_id}>{item.name}</option>)}
+      </select></label>}
+    </section>
+    {scope&&<ScopedSourceWorkspace key={scope.scope_id} {...props} scope={scope}/>}
+  </>
+}
+function ScopedSourceWorkspace({ transport, onQuestion, requestedView, requestNonce, onManualNavigate,scope }: SourceWorkspaceProps&{scope:GridSourceScope}) {
+  const scopeId=scope.scope_id,scopeName=scope.name
   const scopedRoot=useMemo<Selection>(()=>({...root,label:`${scopeName}全网元件`,voltageMin:requestedView?.voltage_min_kv}),[scopeName,requestedView?.voltage_min_kv])
   const scopedRegion=useMemo<Selection>(()=>({...region,label:`${scopeName}站点总览`,voltageMin:requestedView?.voltage_min_kv}),[scopeName,requestedView?.voltage_min_kv])
-  const [savedPath,setSavedPath] = useSessionViewState<unknown>(`source-topology.path:${scopeId}`,[scopedRoot])
-  const appliedRequest=useSessionViewRef<string|undefined>(`source-topology.applied:${scopeId}`,undefined)
+  const initial:Selection=requestedView?{level:requestedView.level,selected_object_id:requestedView.selected_object_id,
+    label:requestedView.selected_object_id||`${scopeName}${requestedView.level==='region'?'站点总览':'全网元件'}`,
+    viewRef:requestedView.view_ref,voltageMin:requestedView.voltage_min_kv,
+    sourceSnapshot:requestedView.source_snapshot.metadata_snapshot,sourceInstance:requestedView.source_snapshot.source_instance}:scopedRegion
+  const [savedPath,setSavedPath] = useSessionViewState<unknown>(`source-topology.path:${scopeId}`,initial.level===null||initial.level==='region'?[initial]:[scopedRegion,initial])
+  const appliedRequest=useSessionViewRef<string|undefined>(`source-topology.applied:${scopeId}`,requestedView?JSON.stringify([requestedView,requestNonce]):undefined)
   const path=restorePath(savedPath,scopedRoot)
   function setPath(next: Selection[] | ((previous: Selection[])=>Selection[])) {
     setSavedPath((previous:unknown)=>typeof next==='function'?next(restorePath(previous,scopedRoot)):next)
