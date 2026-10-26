@@ -1,6 +1,6 @@
 import type {NetworkScene,SceneCamera,ScenePoint} from './networkScene'
 
-export type ElectricalGeometry={routes:Map<number,ScenePoint[]>;busbars:Map<number,ScenePoint[]>}
+export type ElectricalGeometry={routes:Map<number,ScenePoint[]>;busbars:Map<number,ScenePoint[]>;symbolRadii:Map<number,number>}
 const bus=(kind:string)=>['bus','busbar','busbars','busbar_section'].includes(kind)
 /** Bounded source layout. Anchors are display coordinates, never source terminals. */
 export function electricalSourceLayout(scene:NetworkScene,endpoints:Uint32Array,bounds:SceneCamera,positions:Float32Array):ElectricalGeometry {
@@ -17,24 +17,45 @@ export function electricalSourceLayout(scene:NetworkScene,endpoints:Uint32Array,
   })
   const groups=[...partitions.entries()].sort(([a],[b])=>a.localeCompare(b)),columns=Math.max(1,Math.ceil(Math.sqrt(groups.length*bounds.width/bounds.height)))
   const cellW=bounds.width/columns,cellH=bounds.height/Math.max(1,Math.ceil(groups.length/columns)),busbars=new Map<number,ScenePoint[]>(),routes=new Map<number,ScenePoint[]>()
+  const symbolRadii=new Map<number,number>(),escapes=new Map<number,ScenePoint[]>(),obstacles:{node:number;left:number;right:number;top:number;bottom:number}[]=[]
   groups.forEach(([,members],groupIndex)=>{
     const left=bounds.x+groupIndex%columns*cellW+cellW*.08,top=bounds.y+Math.floor(groupIndex/columns)*cellH+cellH*.08,width=cellW*.84,height=cellH*.84
     const sorted=members.slice().sort((a,b)=>scene.nodes[a].id.localeCompare(scene.nodes[b].id)),bars=sorted.filter(i=>bus(scene.nodes[i].kind)),remaining=sorted.filter(i=>!bus(scene.nodes[i].kind))
-    const memberSet=new Set(members),visited=new Set(bars),order:number[]=[],queue=bars.slice()
-    for(let cursor=0;cursor<queue.length;cursor++)for(const next of neighbors[queue[cursor]])if(memberSet.has(next)&&!visited.has(next)){visited.add(next);queue.push(next);order.push(next)}
+    const memberSet=new Set(members),visited=new Set(bars),order:number[]=[],queue=bars.slice(),depth=new Map(bars.map(n=>[n,0]))
+    for(let cursor=0;cursor<queue.length;cursor++)for(const next of neighbors[queue[cursor]])if(memberSet.has(next)&&!visited.has(next)){visited.add(next);depth.set(next,depth.get(queue[cursor])!+1);queue.push(next);order.push(next)}
     order.push(...remaining.filter(i=>!visited.has(i)))
-    bars.forEach((i,rank)=>{const y=top+height*.2*(rank+1)/Math.max(1,bars.length);positions[i*2]=left+width/2;positions[i*2+1]=y;busbars.set(i,[{x:left,y},{x:left+width,y}])})
-    const lanes=Math.max(1,Math.ceil(Math.sqrt(order.length))),rows=Math.max(1,Math.ceil(order.length/lanes))
-    order.forEach((i,rank)=>{positions[i*2]=left+(rank%lanes+.5)*width/lanes;positions[i*2+1]=top+height*(bars.length?.35:.05)+(Math.floor(rank/lanes)+.5)*height*(bars.length?.6:.9)/rows})
+    const outside=left+width+cellW*.04
+    bars.forEach((i,rank)=>{const y=top+height*.2*(rank+1)/Math.max(1,bars.length);positions[i*2]=left+width/2;positions[i*2+1]=y;busbars.set(i,[{x:left,y},{x:left+width,y}]);escapes.set(i,[{x:outside,y:y+height*.07/Math.max(1,bars.length)},{x:outside,y:top-cellH*.04}]);obstacles.push({node:i,left,right:left+width,top:y-1,bottom:y+1})})
+    const lanes=Math.max(1,Math.ceil(Math.sqrt(order.length))),levels:number[][]=[]
+    // Show actual graph distance below the busbar. Membership does not enter
+    // this traversal. Unconnected records occupy separate trailing rows.
+    if(bars.length){for(const n of order)if(depth.has(n)){const row=depth.get(n)!-1;while(levels.length<=row)levels.push([]);levels[row].push(n)}}
+    const isolated=order.filter(n=>!bars.length||!depth.has(n))
+    for(let i=0;i<isolated.length;i+=lanes)levels.push(isolated.slice(i,i+lanes))
+    const pitchY=height*(bars.length?.6:.9)/Math.max(1,levels.length)
+    levels.forEach((nodes,row)=>nodes.forEach((i,column)=>{const pitchX=width/Math.max(1,nodes.length),x=left+(column+.5)*pitchX,y=top+height*(bars.length?.35:.05)+(row+.5)*pitchY,radius=Math.min(11,pitchX*.18,pitchY*.18);positions[i*2]=x;positions[i*2+1]=y;symbolRadii.set(i,radius);escapes.set(i,[{x:x+pitchX*.4,y},{x:x+pitchX*.4,y:y+pitchY*.4},{x:outside,y:y+pitchY*.4},{x:outside,y:top-cellH*.04}]);obstacles.push({node:i,left:x-radius,right:x+radius,top:y-radius,bottom:y+radius})}))
   })
+  // Spatial buckets keep route checks local; no node-by-edge all-pairs pass.
+  const bucketSize=Math.max(bounds.width,bounds.height)/64,buckets=new Map<string,number[]>()
+  obstacles.forEach((box,i)=>{for(let x=Math.floor(box.left/bucketSize);x<=Math.floor(box.right/bucketSize);x++)for(let y=Math.floor(box.top/bucketSize);y<=Math.floor(box.bottom/bucketSize);y++){const key=`${x}:${y}`,list=buckets.get(key)||[];list.push(i);buckets.set(key,list)}})
+  const clear=(route:ScenePoint[],a:number,b:number)=>{
+    for(let s=1;s<route.length;s++){const p=route[s-1],q=route[s],left=Math.min(p.x,q.x),right=Math.max(p.x,q.x),top=Math.min(p.y,q.y),bottom=Math.max(p.y,q.y)
+      for(let x=Math.floor(left/bucketSize);x<=Math.floor(right/bucketSize);x++)for(let y=Math.floor(top/bucketSize);y<=Math.floor(bottom/bucketSize);y++)for(const i of buckets.get(`${x}:${y}`)||[]){const box=obstacles[i];if(box.node!==a&&box.node!==b&&left<=box.right&&right>=box.left&&top<=box.bottom&&bottom>=box.top)return false}
+    }return true
+  }
   const attachments=new Map<number,number[]>(),parallel=new Map<string,number[]>()
   scene.edges.forEach((edge,i)=>{for(const n of [endpoints[2*i],endpoints[2*i+1]])if(busbars.has(n)){const list=attachments.get(n)||[];list.push(i);attachments.set(n,list)}const key=[edge.source,edge.target].sort().join('\u0000');const list=parallel.get(key)||[];list.push(i);parallel.set(key,list)})
   const anchors=new Map<string,ScenePoint>()
   for(const [n,edges] of attachments){edges.sort((a,b)=>scene.edges[a].id.localeCompare(scene.edges[b].id));const [a,b]=busbars.get(n)!;edges.forEach((e,rank)=>anchors.set(`${n}:${e}`,{x:a.x+(b.x-a.x)*(rank+1)/(edges.length+1),y:a.y}))}
   for(const edges of parallel.values())edges.sort((a,b)=>scene.edges[a].id.localeCompare(scene.edges[b].id)).forEach((e,rank)=>{
     const a=endpoints[2*e],b=endpoints[2*e+1],start=anchors.get(`${a}:${e}`)||{x:positions[2*a],y:positions[2*a+1]},end=anchors.get(`${b}:${e}`)||{x:positions[2*b],y:positions[2*b+1]}
-    const lane=(start.y+end.y)/2+(rank-(edges.length-1)/2)*8
-    routes.set(e,a===b?[start,{x:start.x+12+rank*8,y:start.y},{x:start.x+12+rank*8,y:start.y+16},{x:start.x,y:start.y+16},end]:[start,{x:start.x,y:lane},{x:end.x,y:lane},end])
+    const lane=(start.y+end.y)/2+(rank-(edges.length-1)/2)*Math.min(8,20/edges.length)
+    const direct=[start,{x:start.x,y:lane},{x:end.x,y:lane},end]
+    if(a!==b&&clear(direct,a,b)){routes.set(e,direct);return}
+    const escape=(n:number,point:ScenePoint)=>{const path=escapes.get(n)!;return busbars.has(n)?[point,{x:point.x,y:path[0].y},...path]:[point,{x:path[0].x,y:point.y},...path.slice(1)]}
+    const from=escape(a,start),to=escape(b,end),channel=bounds.y-8-(e+1)/(scene.edges.length+1)*20
+    const x=from.at(-1)!.x,loop=a===b?[{x:x+8,y:channel},{x:x+8,y:channel-8},{x,y:channel-8}]:[]
+    routes.set(e,[...from,{x,y:channel},...loop,{x:to.at(-1)!.x,y:channel},...to.reverse()])
   })
-  return {routes,busbars}
+  return {routes,busbars,symbolRadii}
 }
