@@ -137,7 +137,7 @@ def _model_context(
         raise ValueError("model context projection requires model")
     source = result.get("source")
     if not isinstance(source, str):
-        source = "registered"
+        source = "imported" if spec.capability == "model.artifact.import" else "registered"
     counts = result.get("counts")
     return DomainStateDelta(
         projector=spec.projector,
