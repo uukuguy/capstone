@@ -77,9 +77,9 @@ const researchChildPolicy='You execute one accepted research branch for a parent
   'Use only the admitted tools and selected skills in this isolated workspace; do not discover credentials, Authority handles or other host resources, or attempt external lookup. '+
   'Source statements and your observations are not registered Authority facts or simulator evidence. '+
   'Return the actual findings, inspected source paths, saved private output paths, failures and limitations for parent integration; do not claim unperformed checks or verified truth.';
-const savedProductGuidance='For saved products, write .capstone-products.json using this JSON shape: '+
+const savedProductGuidance='For saved products, write .capstone-products.json at the task workspace root (the initial working directory), never inside out/ or another output subdirectory, using this JSON shape: '+
   '{"schema":"capstone-workspace-products/1","products":[{"path":"actual-relative-file","role":"primary"}]}. '+
-  'Replace the example path with an actual path relative to your private output directory; list only files you actually wrote. '+
+  'Replace the example path with an actual path relative to that workspace root, including subdirectories such as out/report.csv; list only files you actually wrote. Changing the shell working directory does not change the manifest root. '+
   'Use primary for a requested deliverable, support for supporting material, and reproduction for files needed to reproduce the work. '+
   'The host computes product hashes and sizes. Do not rehash files for product registration. '+
   'In the final answer, identify requested deliverables by their actual relative filenames. The application publishes the saved files as product cards. Do not expose private absolute workspace paths or invent sandbox URLs, download URLs or artifact references. ';
