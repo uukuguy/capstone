@@ -43,7 +43,7 @@ jobs:
           else
             gate=$(python3 tools/ci_scope.py --base "$BASE_SHA" --head "$HEAD_SHA" --target "$TARGET_BRANCH")
           fi
-          case "$gate" in docs|governance|shared-agent|conversation-runtime|source-topology|foundation|native-runtime|product|release) ;; *) exit 1 ;; esac
+          case "$gate" in docs|governance|shared-agent|adaptive-agent|conversation-runtime|source-topology|foundation|native-runtime|product|release) ;; *) exit 1 ;; esac
           echo "gate=$gate" >> "$GITHUB_OUTPUT"
       # Pinned per https://github.com/astral-sh/setup-uv (v10.0.1).
       - name: Install uv
@@ -83,6 +83,14 @@ jobs:
           node --test packages/capstone-agent/tests/*.test.mjs packages/capstone-agent/tests/fixtures/*.test.mjs
           node --test packages/pi-capability-tools/test/*.test.mjs
           uv run --project packages/capstone-agent pytest tools/tests/test_image_layer_order.py tools/tests/test_host_runtime_contract.py -q
+      - name: Verify adaptive agent consumers
+        if: steps.scope.outputs.gate == 'adaptive-agent'
+        timeout-minutes: 15
+        run: |
+          make check-package-boundaries check-types test-capstone-agent test-kernel test-capstone-app build-capstone-app test-capstone-client test-registered-workers
+          node --test packages/capstone-agent/tests/*.test.mjs packages/capstone-agent/tests/fixtures/*.test.mjs
+          node --test packages/pi-capability-tools/test/*.test.mjs
+          uv run --project packages/capstone-agent pytest packages/enterprise-research-domain-pack/tests -q
       - name: Verify source topology consumers
         if: steps.scope.outputs.gate == 'source-topology'
         timeout-minutes: 10

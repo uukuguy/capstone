@@ -15,6 +15,7 @@ def test_research_exchange_uses_research_budgets_not_native_task_capacity():
                          'research_request_bytes': 8192, 'research_response_bytes': 16384})
 
     class Host:
+        _run = None  # This control-only host has no registered gateway runner.
         def research_control(self, task, document):
             assert task == 'task-capacity'
             assert len(document['document']['text']) == 3000

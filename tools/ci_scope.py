@@ -46,6 +46,61 @@ CONVERSATION_BACKEND_TESTS = {'test_' + name for name in CONVERSATION_BACKEND_MO
     'test_thread_http_api', 'test_enterprise_normal_chat', 'test_thread_work_execution',
     'test_thread_worker', 'test_attempt_research',
 }
+# The adaptive gate runs the full agent, Kernel and owning research Pack suites.
+# These two ledger/channel modules are not an allowance for arbitrary Kernel code.
+ADAPTIVE_KERNEL_FILES = {
+    'packages/capability-agent-kernel/src/capability_agent/application/context_store.py',
+    'packages/capability-agent-kernel/src/capability_agent/runtime/research_channel.py',
+}
+ADAPTIVE_BACKEND_MODULES = {
+    'enterprise_application', 'intent_runtime', 'native_conversation', 'native_graph_context',
+    'native_research_bridge', 'native_task_context', 'task_planning_policy',
+}
+ADAPTIVE_RESOURCE_FILES = {
+    'packages/capstone-agent/src/capstone_agent/resources/' + name
+    for name in ('enterprise-graph-runtime.mjs', 'general-sdk.mjs', 'graph-context-client.mjs',
+                 'research-policy-catalog.json', 'task-planning-policy-1.6.md')
+}
+ADAPTIVE_PACK_ROOT = 'packages/enterprise-research-domain-pack/'
+
+
+def adaptive_agent_paths(paths: list[str]) -> bool:
+    """Accept only the registered adaptive stack and its fully tested consumers."""
+    anchored = False
+    for path in paths:
+        location = PurePosixPath(path)
+        if '..' in location.parts:
+            return False
+        if path in ADAPTIVE_KERNEL_FILES:
+            anchored = True
+        elif (location.parent == PurePosixPath('packages/capstone-agent/src/capstone_agent')
+              and location.suffix == '.py' and location.stem in ADAPTIVE_BACKEND_MODULES):
+            anchored = True
+        elif (path == ADAPTIVE_PACK_ROOT + 'src/enterprise_research/__init__.py'
+              or re.fullmatch(re.escape(ADAPTIVE_PACK_ROOT) + r'src/enterprise_research/resources/'
+                              r'(?:versions/\d+\.\d+\.\d+/)?(?:system-policy|research-method|progress-guidance)\.md', path)):
+            anchored = True
+        elif path in ADAPTIVE_RESOURCE_FILES or path in DOC_FILES or path in GOVERNANCE_FILES:
+            continue
+        elif (location.parent == PurePosixPath('packages/capstone-agent/src/capstone_agent')
+              and location.suffix == '.py' and location.stem in CONVERSATION_BACKEND_MODULES | {'general_pi_server'}):
+            continue
+        elif (path.startswith(('packages/capstone-agent/tests/', 'packages/capability-agent-kernel/tests/',
+                               ADAPTIVE_PACK_ROOT + 'tests/')) and location.suffix == '.py'):
+            continue
+        elif ((location.parent == PurePosixPath('packages/capstone-agent/tests') and path.endswith('.test.mjs'))
+              or path.startswith('packages/capstone-agent/tests/fixtures/') and location.suffix in {'.mjs', '.json'}):
+            continue
+        elif path.startswith('packages/capstone-app/src/') and (location.suffix in {'.ts', '.tsx', '.css'}
+              or path.startswith('packages/capstone-app/src/fixtures/') and location.suffix == '.json'):
+            continue
+        elif path.startswith(('docs/', 'tools/project_overview/')):
+            continue
+        else:
+            return False
+    return anchored
+
+
 RUNTIME_FILES = {
     'compose.yaml', 'deploy/local.env.example',
     'configs/runtime/data-gateway.json', 'scripts/verify_data_gateway_research.py',
@@ -247,6 +302,8 @@ def classify(paths: list[str], *, target: str = "dev", release: bool = False,
         return "product"
     if source_topology and source_topology_paths(paths):
         return 'source-topology'
+    if adaptive_agent_paths(paths):
+        return 'adaptive-agent'
     governance = False
     shared_agent = False
     foundation = False

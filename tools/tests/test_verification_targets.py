@@ -13,6 +13,24 @@ from pathlib import PurePosixPath
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def test_adaptive_agent_gate_keeps_full_owned_suites_without_professional_solvers():
+    workflow = (ROOT / '.github/workflows/verify.yml').read_text()
+    assert 'adaptive-agent|' in workflow
+    block = workflow.split('      - name: Verify adaptive agent consumers\n', 1)[1].split('      - name:', 1)[0]
+    assert "if: steps.scope.outputs.gate == 'adaptive-agent'" in block
+    assert 'timeout-minutes: 15' in block
+    for expected in ('check-package-boundaries', 'check-types', 'test-capstone-agent', 'test-kernel',
+                     'test-capstone-app', 'build-capstone-app', 'test-capstone-client', 'test-registered-workers',
+                     'node --test packages/capstone-agent/tests/*.test.mjs packages/capstone-agent/tests/fixtures/*.test.mjs',
+                     'node --test packages/pi-capability-tools/test/*.test.mjs',
+                     'pytest packages/enterprise-research-domain-pack/tests -q'):
+        assert expected in block
+    for forbidden in ('make check-pr', 'make check-release', 'test-domain-package', 'test-local-rebuild',
+                      'packages/grid-agent/tests', 'packages/grid-simulator/tests', 'packages/pypsa-agent/tests',
+                      'packages/pandapower-domain-pack/tests', 'test_user_local_installer.py'):
+        assert forbidden not in block
+
+
 def test_source_topology_gate_covers_direct_consumers_without_solver_or_release_suites():
     workflow = (ROOT / '.github/workflows/verify.yml').read_text()
     assert 'source-topology|' in workflow
