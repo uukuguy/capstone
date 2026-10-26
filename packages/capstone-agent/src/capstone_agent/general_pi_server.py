@@ -304,7 +304,7 @@ class GeneralPiHost:
         thinking_buffer = TextDeltaBuffer(lambda text: publish({'type': 'assistant_thinking_delta', 'text': text}))
         def capture_direct_observation(call_id, tool_name, result, *, is_error=False):
             context = record.get('graph_context')
-            if (not adaptive or context is None or direct_calls.get(call_id) != tool_name
+            if (not adaptive or native is None or context is None or direct_calls.get(call_id) != tool_name
                     or tool_name not in native['policy']['allowed_tools']):
                 raise ValueError('Direct observation has no authorized native call')
             failed = is_error or result.get('isError') is True
