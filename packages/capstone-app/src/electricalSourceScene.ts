@@ -20,6 +20,6 @@ export function electricalSourceScene(view:GridSourceView):NetworkScene {
       details:[{label:'来源对象',value:node.id},{label:'图形约定',value:'源模型单线图；未推断端子角色或开关状态'}]})),
     edges:view.edges.filter(edge=>edge.source&&edge.target&&ids.has(edge.source)&&ids.has(edge.target)).map(edge=>({
       id:edge.id,source:edge.source!,target:edge.target!,kind:edge.kind,label:edge.label||edge.id,sourceRef:edge.source_id,
-      relation:edge.kind==='winding_membership'?'membership':['source_connection','line_terminal'].includes(edge.kind)?'connection':'unresolved',
+      relation:['winding_membership','line_terminal'].includes(edge.kind)?'membership':edge.kind==='source_connection'?'connection':'unresolved',
       details:[{label:'关系类型',value:edge.kind}]}))}
 }

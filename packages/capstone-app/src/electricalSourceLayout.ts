@@ -46,16 +46,29 @@ export function electricalSourceLayout(scene:NetworkScene,endpoints:Uint32Array,
   const attachments=new Map<number,number[]>(),parallel=new Map<string,number[]>()
   scene.edges.forEach((edge,i)=>{for(const n of [endpoints[2*i],endpoints[2*i+1]])if(busbars.has(n)){const list=attachments.get(n)||[];list.push(i);attachments.set(n,list)}const key=[edge.source,edge.target].sort().join('\u0000');const list=parallel.get(key)||[];list.push(i);parallel.set(key,list)})
   const anchors=new Map<string,ScenePoint>()
+  const occupied=new Map<string,Map<string,Array<[number,number]>>>()
+  const segments=(route:ScenePoint[])=>route.slice(1).map((q,i)=>{const p=route[i],vertical=p.x===q.x;return {key:`${vertical?'x':'y'}:${vertical?p.x:p.y}`,low:Math.min(vertical?p.y:p.x,vertical?q.y:q.x),high:Math.max(vertical?p.y:p.x,vertical?q.y:q.x)}}).filter(segment=>segment.high>segment.low)
+  const overlaps=(route:ScenePoint[],pair:string)=>segments(route).some(segment=>[...(occupied.get(segment.key)||[])].some(([other,intervals])=>other!==pair&&intervals.some(([low,high])=>Math.min(high,segment.high)>Math.max(low,segment.low))))
+  const save=(edge:number,route:ScenePoint[],pair:string)=>{routes.set(edge,route);for(const segment of segments(route)){const groups=occupied.get(segment.key)||new Map<string,Array<[number,number]>>(),intervals=groups.get(pair)||[];intervals.push([segment.low,segment.high]);groups.set(pair,intervals);occupied.set(segment.key,groups)}}
   for(const [n,edges] of attachments){edges.sort((a,b)=>scene.edges[a].id.localeCompare(scene.edges[b].id));const [a,b]=busbars.get(n)!;edges.forEach((e,rank)=>anchors.set(`${n}:${e}`,{x:a.x+(b.x-a.x)*(rank+1)/(edges.length+1),y:a.y}))}
   for(const edges of parallel.values())edges.sort((a,b)=>scene.edges[a].id.localeCompare(scene.edges[b].id)).forEach((e,rank)=>{
     const a=endpoints[2*e],b=endpoints[2*e+1],start=anchors.get(`${a}:${e}`)||{x:positions[2*a],y:positions[2*a+1]},end=anchors.get(`${b}:${e}`)||{x:positions[2*b],y:positions[2*b+1]}
     const lane=(start.y+end.y)/2+(rank-(edges.length-1)/2)*Math.min(8,20/edges.length)
     const direct=[start,{x:start.x,y:lane},{x:end.x,y:lane},end]
-    if(a!==b&&clear(direct,a,b)){routes.set(e,direct);return}
-    const escape=(n:number,point:ScenePoint)=>{const path=escapes.get(n)!;return busbars.has(n)?[point,{x:point.x,y:path[0].y},...path]:[point,{x:path[0].x,y:point.y},...path.slice(1)]}
+    const pair=[a,b].sort((x,y)=>x-y).join(':')
+    if(a!==b&&clear(direct,a,b)&&!overlaps(direct,pair)){save(e,direct,pair);return}
+    // Each edge has its own horizontal and vertical reserved lanes. A shared
+    // perimeter trunk would falsely join circuits with different source nodes.
+    const fraction=(e+1)/(scene.edges.length+1),factor=.75+fraction*.375
+    const escape=(n:number,point:ScenePoint)=>{
+      const path=escapes.get(n)!,outside=path.at(-1)!.x+cellW*(-.03+.06*fraction)
+      if(busbars.has(n)){const y=point.y+(path[0].y-point.y)*factor;return [point,{x:point.x,y},{x:outside,y},{x:outside,y:path.at(-1)!.y}]}
+      const x=point.x+(path[0].x-point.x)*factor,y=point.y+(path[1].y-point.y)*factor
+      return [point,{x,y:point.y},{x,y},{x:outside,y},{x:outside,y:path.at(-1)!.y}]
+    }
     const from=escape(a,start),to=escape(b,end),channel=bounds.y-8-(e+1)/(scene.edges.length+1)*20
     const x=from.at(-1)!.x,loop=a===b?[{x:x+8,y:channel},{x:x+8,y:channel-8},{x,y:channel-8}]:[]
-    routes.set(e,[...from,{x,y:channel},...loop,{x:to.at(-1)!.x,y:channel},...to.reverse()])
+    save(e,[...from,{x,y:channel},...loop,{x:to.at(-1)!.x,y:channel},...to.reverse()],pair)
   })
   return {routes,busbars,symbolRadii}
 }

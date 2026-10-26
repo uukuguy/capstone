@@ -31,6 +31,18 @@ describe('source electrical geometry',()=>{
     assertClear({...scene,nodes,edges:[{id:'skip-middle',source:'n0',target:'n2',kind:'source_connection',relation:'connection'}]})
     assertClear(scene)
   })
+  it('does not join two disconnected busbar branches in a fallback trunk',()=>{
+    const input:NetworkScene={...scene,nodes:[...['bus-a','bus-b','bus-obstacle'].map(id=>({id,label:id,kind:'busbars'})),...['a','b'].map(id=>({id,label:id,kind:'breakers'}))],edges:[{id:'branch-a',source:'bus-a',target:'a',kind:'source_connection',relation:'connection'},{id:'branch-b',source:'bus-b',target:'b',kind:'source_connection',relation:'connection'}]}
+    const geometry=sceneGeometry(buildSceneIndex(input))!,a=geometry.routes.get(0)!,b=geometry.routes.get(1)!
+    expect(a.length).toBeGreaterThan(4);expect(b.length).toBeGreaterThan(4)
+    for(let i=1;i<a.length;i++)for(let j=1;j<b.length;j++){
+      const p=a[i-1],q=a[i],r=b[j-1],s=b[j]
+      const vertical=p.x===q.x&&r.x===s.x&&p.x===r.x,horizontal=p.y===q.y&&r.y===s.y&&p.y===r.y
+      const overlap=vertical?Math.min(Math.max(p.y,q.y),Math.max(r.y,s.y))-Math.max(Math.min(p.y,q.y),Math.min(r.y,s.y)):horizontal?Math.min(Math.max(p.x,q.x),Math.max(r.x,s.x))-Math.max(Math.min(p.x,q.x),Math.min(r.x,s.x)):0
+      expect(overlap).toBeLessThanOrEqual(0)
+    }
+    assertClear(input)
+  })
   it('places real feeder depth below busbars and keeps membership-only devices separate',()=>{
     const index=buildSceneIndex({...scene,nodes:['busbars','breakers','disconnectors','windings'].map((kind,i)=>({id:`n${i}`,label:kind,kind})),edges:[{id:'a',source:'n0',target:'n1',kind:'source_connection',relation:'connection'},{id:'b',source:'n1',target:'n2',kind:'source_connection',relation:'connection'},{id:'m',source:'n0',target:'n3',kind:'winding_membership',relation:'membership'},{id:'self',source:'n2',target:'n2',kind:'source_connection',relation:'connection'}]})
     expect(index.positions[1]).toBeLessThan(index.positions[3]);expect(index.positions[3]).toBeLessThan(index.positions[5]);expect(index.positions[5]).toBeLessThan(index.positions[7])
