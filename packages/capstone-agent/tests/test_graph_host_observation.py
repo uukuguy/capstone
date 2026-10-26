@@ -2,12 +2,13 @@
 from hashlib import sha256
 import json
 import time
+from pathlib import Path
 import pytest
 
 from test_native_graph_progress import graph_fixture
 
 
-def run_graph_host(tmp_path, delegated, exercise, *, pre_progress=(), gateway=None):
+def run_graph_host(tmp_path, delegated, exercise, *, pre_progress=(), gateway=None, direct=False, native_context=None):
     from capstone_agent.attempt_research import AttemptResearch
     from capstone_agent.business_context import BusinessContext
     from capstone_agent.general_pi_server import GeneralPiHost
@@ -42,15 +43,17 @@ def run_graph_host(tmp_path, delegated, exercise, *, pre_progress=(), gateway=No
             workspace = tmp_path / 'host' / 'tasks' / task
             workspace.mkdir(parents=True, exist_ok=True)
             context = self.provider(request, workspace, 65534)
-            emit(event)
+            if not direct: emit(event)
             base = {'owner': binding['cycle_owner'],
                   'attempt_id': binding['attempt_id'], 'task_id': task,
                   'action_id': action['id'], 'step_id': 'A', 'checkpoint': event['checkpoint']}
             if delegated:
                 emit({**base, 'type': 'enterprise_graph_child_started', 'child_id': 'A'})
             private_handle = str(context.root / 'observations' / 'opaque')
-            def call(call_id, *, error=False, bind=True, source='valid', text=None, status=None, result_error=False, tool_name='read', arguments=None):
-                if bind:
+            def call(call_id, *, error=False, bind=True, source='valid', text=None, status=None, result_error=False, tool_name='read', arguments=None, start=True, tamper=False):
+                if direct and start:
+                    emit({'type': 'tool_execution_start', 'toolCallId': call_id, 'toolName': tool_name})
+                if bind and not direct:
                     emit({**base, 'type': 'enterprise_graph_tool_binding',
                           'tool_call_id': call_id, 'tool_name': tool_name})
                 ref = 'native-observation:' + task + ':' + sha256(call_id.encode()).hexdigest()
@@ -61,6 +64,7 @@ def run_graph_host(tmp_path, delegated, exercise, *, pre_progress=(), gateway=No
                                                              'arguments': {'scope_id': 'north'} if arguments is None else arguments}))
                     result = {'content': [{'type': 'text', 'text': response['result_json']}],
                               'details': response['observation']}
+                    if tamper: result['content'][0]['text'] = 'Invented gateway output'
                 if result_error:
                     result['isError'] = True
                 if source != 'missing':
@@ -81,15 +85,84 @@ def run_graph_host(tmp_path, delegated, exercise, *, pre_progress=(), gateway=No
             return 'Answer', {}
 
     host = GeneralPiHost(root=tmp_path / 'host', identity={'engine': 'pi'}, run_task=Runner())
+    if direct: host.capability['native_tools'] = ['read', 'bash']
     request = PiTaskRequest(task, binding['attempt_id'], 'direct', 'Compare sources', (), (), host.identity, 3,
         business_context=BusinessContext.empty('workspace', 0),
         resource_profile={'profile_id': 'direct_pi', 'revision': 'test'},
-        input={'kind': 'text', 'text': 'Compare sources'}, research_binding=binding)
+        input={'kind': 'text', 'text': 'Compare sources'}, research_binding=binding, native_context=native_context)
     host.submit(request)
     host.research_mirror(task).bootstrap('b' * 64, bridge.bootstrap())
     deadline = time.monotonic() + 3
     while host.read(task)['status'] == 'running' and time.monotonic() < deadline: time.sleep(.005)
     return host, task, action
+
+
+def direct_native_context(*, adaptive=True):
+    context = json.loads((Path(__file__).parent / 'fixtures/research-policy-deployed-context.json').read_text())
+    context['policy']['allowed_tools'] = ['read']
+    if adaptive:
+        from capstone_agent.native_task_context import registered_research_policy
+        context['policy']['system_policy'] = registered_research_policy('1.19.0').system_policy
+        context['graph_work'] = {'edition': 'capstone-graph-work/1', 'started_at_ms': 1}
+    return context
+
+
+def test_direct_host_seals_success_without_graph_action(tmp_path):
+    def exercise(call, context, action, private_handle):
+        ref, result = call('direct-call')
+        receipt = context.handle({'type': 'enterprise_graph_context_request',
+            'schema': 'capstone-enterprise-graph-context/1', 'owner': context.owner,
+            'attempt_id': context.attempt_id, 'task_id': context.task_id,
+            'request_id': 'selected-direct', 'operation': 'direct_sources', 'selection': {'source_refs': [ref]}})
+        assert receipt['ok'], receipt
+        source, = receipt['result']['sources']
+        assert json.loads(Path(source['path']).read_bytes()) == result
+        assert ref not in context.observations
+    host, task, _ = run_graph_host(tmp_path, False, exercise, direct=True, native_context=direct_native_context())
+    result = host.read(task)['result']
+    assert result['status'] == 'completed', result
+    source, = result['sources']
+    assert source['metadata']['execution_mode'] == 'direct'
+    assert 'action_id' not in source['metadata']
+
+
+@pytest.mark.parametrize('options', [{'source': 'forged'}, {'start': False}, {'tool_name': 'bash'}])
+def test_direct_host_rejects_unowned_observations(tmp_path, options):
+    host, task, _ = run_graph_host(tmp_path, False, lambda call, *_: call('invalid', **options),
+        direct=True, native_context=direct_native_context())
+    assert host.read(task)['result']['status'] == 'failed'
+
+
+def test_direct_host_failure_cannot_be_promoted(tmp_path):
+    def exercise(call, context, *_):
+        ref, _ = call('failed', error=True, source='missing')
+        assert ref not in context.direct_observations
+    host, task, _ = run_graph_host(tmp_path, False, exercise, direct=True, native_context=direct_native_context())
+    result = host.read(task)['result']
+    assert result['status'] == 'completed', result
+    assert 'source_ref' not in result['sources'][0]['metadata']
+
+
+def test_legacy_policy_does_not_enable_direct_graph_observations(tmp_path):
+    host, task, _ = run_graph_host(tmp_path, False, lambda call, *_: call('legacy-direct'),
+        direct=True, native_context=direct_native_context(adaptive=False))
+    assert host.read(task)['result']['status'] == 'failed'
+
+
+@pytest.mark.parametrize('tamper', [False, True])
+def test_direct_gateway_keeps_exact_host_receipt_validation(tmp_path, tamper):
+    from capstone_agent.data_gateway_relay import DataGatewayAccess
+    from test_grid_source_topology import Gateway
+    client = Gateway()
+    gateway = DataGatewayAccess(client, client.catalog)
+    native = direct_native_context()
+    native['policy']['allowed_tools'] = ['data_gateway_get_network_topology_view']
+    def exercise(call, context, *_):
+        ref, _ = call('direct-gateway', tool_name='data_gateway_get_network_topology_view', tamper=tamper)
+        assert ref in context.direct_observations
+    host, task, _ = run_graph_host(tmp_path, False, exercise, direct=True, native_context=native, gateway=gateway)
+    result = host.read(task)['result']
+    assert result['status'] == ('failed' if tamper else 'completed'), result
 
 
 @pytest.mark.parametrize('delegated', [False, True])

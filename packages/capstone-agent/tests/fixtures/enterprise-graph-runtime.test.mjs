@@ -58,6 +58,46 @@ function fixture(extra={}){
 }
 const record=action_id=>({action_id,outcome:'completed',outputs:[{slot:'value',observation_refs:[],artifact_refs:[],summary:'Actual result',scope:'Observed inputs'}],limitations:[]});
 const registered=controller=>{const tools=[];controller.register({registerTool:tool=>tools.push(tool)});return Object.fromEntries(tools.map(tool=>[tool.name,tool]));};
+test('adaptive loop permits several direct cycles then locks native work after Deep Research activation',async()=>{
+  const ref='native-observation:task:observed',source={ref,revision:'sha256:'+'a'.repeat(64)};
+  const selected=[];
+  const f=fixture({config:{researchRuntime:{graphLimits:limits,delegation:{concurrency:1},
+    isolatedTaskExecution:true,lightweightTaskNodes:true,adaptiveAgentLoop:true}},
+    ports:{prepareSources:async refs=>{selected.push(refs);return [source];}}});
+  try{
+    for(let i=0;i<3;i++){
+      assert.equal(await f.controller.beginTool({toolCallId:'direct-'+i,toolName:'read'}),null);
+      assert.equal(await f.controller.continuationState(),null);
+    }
+    assert.equal(f.requests.length,0,'Direct cycles must not create research checkpoints');
+    const result=await f.controller.execute('plan','escalate',plan([node('A',{source_refs:[ref]})]));
+    assert.equal(result.details.ok,true);
+    assert.deepEqual(selected,[[ref]]);
+    assert.deepEqual(f.calls[0].action.source_versions,[source]);
+    await assert.rejects(f.controller.beginTool({toolCallId:'after-plan',toolName:'read'}),/independent task/);
+    await f.settle('A');
+    const restoredSelections=[];
+    const restored=createEnterpriseGraphController({...f.ports,prepareSources:async refs=>{
+      restoredSelections.push(refs);return [source];
+    }});
+    try{
+      await restored.readState();assert.deepEqual(restoredSelections,[[ref]]);
+      const revised=await restored.execute('revise','more',{
+        nodes:[node('B',{source_refs:[ref]})],reason:'Additional independent question',rerun:[]});
+      assert.equal(revised.details.ok,true);
+      assert.deepEqual(f.calls.at(-1).action.source_versions,[source]);
+    }finally{await restored.close({reason:'Done'});}
+  }finally{await f.controller.close({reason:'Done'});}
+});
+test('failed source promotion does not admit a Deep Research plan',async()=>{
+  const f=fixture({config:{researchRuntime:{graphLimits:limits,delegation:{concurrency:1},
+    isolatedTaskExecution:true,lightweightTaskNodes:true,adaptiveAgentLoop:true}},
+    ports:{prepareSources:async()=>{throw new Error('Source persistence is not confirmed');}}});
+  try{
+    const result=await f.controller.execute('plan','escalate',plan([node('A',{source_refs:['native-observation:missing']})]));
+    assert.equal(result.details.ok,false);assert.equal(f.calls.length,0);assert.equal(f.requests.length,0);
+  }finally{await f.controller.close({reason:'Done'});}
+});
 test('lightweight scheduler starts synthesis from selected limited returns without a second acceptance form',async()=>{
   const f=fixture({config:{researchRuntime:{graphLimits:limits,delegation:{concurrency:1},isolatedTaskExecution:true,lightweightTaskNodes:true}}});
   try{

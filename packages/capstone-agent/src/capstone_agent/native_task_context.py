@@ -61,23 +61,27 @@ class ResearchPolicyRegistration:
 
     @property
     def graph_schema(self) -> str | None:
-        return 'capstone-enterprise-graph/2' if self.application_version in {'1.10.0', '1.11.0', '1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0'} else None
+        return 'capstone-enterprise-graph/2' if self.application_version in {'1.10.0', '1.11.0', '1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0', '1.19.0'} else None
 
     @property
     def isolated_task_execution(self) -> bool:
-        return self.application_version in {'1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0'}
+        return self.application_version in {'1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0', '1.19.0'}
+
+    @property
+    def adaptive_agent_loop(self) -> bool:
+        return self.application_version == '1.19.0'
 
     @property
     def goal_driven_execution(self) -> bool:
-        return self.application_version in {'1.16.0', '1.17.0', '1.18.0'}
+        return self.application_version in {'1.16.0', '1.17.0', '1.18.0', '1.19.0'}
 
     @property
     def lightweight_task_nodes(self) -> bool:
-        return self.application_version in {'1.17.0', '1.18.0'}
+        return self.application_version in {'1.17.0', '1.18.0', '1.19.0'}
 
     @property
     def work_edition(self) -> str | None:
-        return 'capstone-graph-work/1' if self.application_version in {'1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0'} else None
+        return 'capstone-graph-work/1' if self.application_version in {'1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0', '1.19.0'} else None
 
     def work_policy(self) -> dict:
         if not self.work_edition:
@@ -100,16 +104,16 @@ def registered_research_policies() -> tuple[ResearchPolicyRegistration, ...]:
     catalog = json.loads(files(__package__).joinpath('resources/research-policy-catalog.json').read_text())
     if catalog.get('schema') != 'capstone-research-policy-catalog/1':
         raise ValueError('research policy catalog is invalid')
-    versions = {'1.1.0': '1.0.0', '1.2.0': '1.1.0', '1.3.0': '1.2.0', '1.4.0': '1.3.0', '1.5.0': '1.4.0', '1.6.0': '1.5.0', '1.7.0': '1.6.0', '1.8.0': '1.7.0', '1.9.0': '1.7.0', '1.10.0': '1.8.0', '1.11.0': '1.9.0', '1.12.0': '1.10.0', '1.13.0': '1.11.0', '1.14.0': '1.12.0', '1.15.0': '1.12.0', '1.16.0': '1.13.0', '1.17.0': '1.14.0', '1.18.0': '1.15.0'}
+    versions = {'1.1.0': '1.0.0', '1.2.0': '1.1.0', '1.3.0': '1.2.0', '1.4.0': '1.3.0', '1.5.0': '1.4.0', '1.6.0': '1.5.0', '1.7.0': '1.6.0', '1.8.0': '1.7.0', '1.9.0': '1.7.0', '1.10.0': '1.8.0', '1.11.0': '1.9.0', '1.12.0': '1.10.0', '1.13.0': '1.11.0', '1.14.0': '1.12.0', '1.15.0': '1.12.0', '1.16.0': '1.13.0', '1.17.0': '1.14.0', '1.18.0': '1.15.0', '1.19.0': '1.16.0'}
     entries = []
     for item in catalog['policies']:
         entry = ResearchPolicyRegistration(**{key: item[key] for key in ResearchPolicyRegistration.__dataclass_fields__})
         policy = ResearchPolicy(entry.pack_version, variant=entry.variant).load()
         provider = ResearchGuides(entry.pack_version, variant=entry.variant)
         guides = [dict(provider.open(guide['resource_id'])) for guide in provider.load()]
-        if entry.application_version in {'1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0'}:
+        if entry.application_version in {'1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0', '1.19.0'}:
             from .task_planning_policy import task_planning_policy
-            shared = task_planning_policy({'1.13.0': '1.0.0', '1.14.0': '1.1.0', '1.15.0': '1.2.0', '1.16.0': '1.3.0', '1.17.0': '1.4.0', '1.18.0': '1.5.0'}[entry.application_version])
+            shared = task_planning_policy({'1.13.0': '1.0.0', '1.14.0': '1.1.0', '1.15.0': '1.2.0', '1.16.0': '1.3.0', '1.17.0': '1.4.0', '1.18.0': '1.5.0', '1.19.0': '1.6.0'}[entry.application_version])
             if entry.system_policy != POLICY_TEXT + '\n\n' + shared.text + '\n\n' + policy:
                 raise ValueError('research adapter does not select the exact shared planning policy')
         if (versions.get(entry.application_version) != entry.pack_version

@@ -28,6 +28,12 @@ test('isolated organization engine cannot invoke native execution despite applic
   assert.equal(host.applicationToolAdmission(planner,'agent_research_update').accepted,false);
   assert.equal(host.applicationToolAdmission(config,'read').accepted,true);
 });
+test('adaptive loop admits only application-granted direct tools',()=>{
+  const adaptive={...config,researchRuntime:{...config.researchRuntime,isolatedTaskExecution:true,adaptiveAgentLoop:true}};
+  assert.equal(host.applicationToolAdmission(adaptive,'read').accepted,true);
+  assert.equal(host.applicationToolAdmission(adaptive,'bash').accepted,false);
+  assert.equal(host.applicationToolAdmission(adaptive,'unregistered').accepted,false);
+});
 
 test('pinned HTTP wire exports object read parameters and preserves strict graph and legacy branches',async()=>{
   const dir=await realpath(await mkdtemp(join(tmpdir(),'graph-read-wire-')));

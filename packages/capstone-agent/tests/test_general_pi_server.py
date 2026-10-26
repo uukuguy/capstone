@@ -65,7 +65,7 @@ def test_child_diagnosis_observation_uses_exact_host_publication_and_grant(
         assert observation['metadata']['source_ref'] in cache.records
 
 
-@pytest.mark.parametrize('version', ['1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0'])
+@pytest.mark.parametrize('version', ['1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0', '1.19.0'])
 def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted_attempt_origin(tmp_path, monkeypatch, version):
     import json
     from types import SimpleNamespace
@@ -125,12 +125,13 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     assert actual.get('nodeReviewMode') == 'advisory'
     assert 'nodeReviewMode' not in captured[0]['settings'].get('retry', {})
     assert captured[0]['runtimeEnvironment'] == runner.environment_context
-    assert actual['isolatedTaskExecution'] is (version in {'1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0'})
-    assert actual['goalDrivenExecution'] is (version in {'1.16.0', '1.17.0', '1.18.0'})
-    assert actual['lightweightTaskNodes'] is (version in {'1.17.0', '1.18.0'})
+    assert actual['adaptiveAgentLoop'] is (version == '1.19.0')
+    assert actual['isolatedTaskExecution'] is (version in {'1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0', '1.19.0'})
+    assert actual['goalDrivenExecution'] is (version in {'1.16.0', '1.17.0', '1.18.0', '1.19.0'})
+    assert actual['lightweightTaskNodes'] is (version in {'1.17.0', '1.18.0', '1.19.0'})
     assert actual['graphWorkEdition'] == 'capstone-graph-work/1'
     assert actual['graphWorkStartedAt'] == native['graph_work']['started_at_ms']
-    assert actual['graphWork'] == {'schema': 'capstone-graph-work/1', 'mode': 'off' if version in {'1.16.0', '1.17.0', '1.18.0'} else 'usable_draft',
+    assert actual['graphWork'] == {'schema': 'capstone-graph-work/1', 'mode': 'off' if version in {'1.16.0', '1.17.0', '1.18.0', '1.19.0'} else 'usable_draft',
         'target_seconds': 240, 'integration_reserve_seconds': 60, 'child_wrapup_seconds': 15}
     assert captured[0]['deadlineAt'] > actual['graphWorkStartedAt']
 

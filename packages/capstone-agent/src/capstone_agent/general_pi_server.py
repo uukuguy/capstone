@@ -27,6 +27,13 @@ from .bounded_http_loop import run_http
 from .application_capacity import limits, initialize_capacity, current_capacity, CapacityExceeded, observe_capacity
 
 
+def _adaptive_agent_loop(request):
+    from .native_task_context import resolve_research_policy
+    native = request.native_context
+    publication = resolve_research_policy(native['policy']['system_policy']) if native is not None else None
+    return publication is not None and getattr(publication, 'adaptive_agent_loop', False) is True
+
+
 class GeneralPiHost:
     def __init__(self, *, root: Path, identity: dict, run_task: Callable,
                  max_tasks: int | None = None, max_records: int | None = None, retention_seconds: float | None = None,
@@ -111,6 +118,7 @@ class GeneralPiHost:
         context = NativeGraphContext(root=self.root / 'tasks' / '.contexts' / request.task_id,
             workspace=workspace, uid=uid, task_id=request.task_id,
             attempt_id=request.parent_attempt_id, owner=binding['cycle_owner'], storage=self.storage,
+            adaptive_agent_loop=_adaptive_agent_loop(request),
             view_provider=lambda: {'binding': binding, 'view': read_json(mirror.root / 'view.json',
                 maximum=mirror.limits['research_response_bytes'])})
         with self._lock:
@@ -272,6 +280,8 @@ class GeneralPiHost:
         sources = []
         from .native_diagnosis import DIAGNOSIS_POLICY, DIAGNOSIS_TOOLS
         native = request.native_context
+        adaptive = _adaptive_agent_loop(request)
+        direct_calls = {}
         diagnostic_sources = (set(DIAGNOSIS_TOOLS).intersection(native['policy']['allowed_tools'])
             if native is not None and native.get('systematic_diagnosis') == DIAGNOSIS_POLICY
             and self.capability.get('systematic_diagnosis') == DIAGNOSIS_POLICY else set())
@@ -292,6 +302,48 @@ class GeneralPiHost:
         from .stream_progress import TextDeltaBuffer
         text_buffer = TextDeltaBuffer(lambda text: publish({'type': 'assistant_delta', 'text': text}))
         thinking_buffer = TextDeltaBuffer(lambda text: publish({'type': 'assistant_thinking_delta', 'text': text}))
+        def capture_direct_observation(call_id, tool_name, result, *, is_error=False):
+            context = record.get('graph_context')
+            if (not adaptive or context is None or direct_calls.get(call_id) != tool_name
+                    or tool_name not in native['policy']['allowed_tools']):
+                raise ValueError('Direct observation has no authorized native call')
+            failed = is_error or result.get('isError') is True
+            gateway_tool = tool_name in self.capability.get('data_gateway', {}).get('catalog', {}).get('tools', {})
+            if tool_name not in {'read', 'bash', 'edit', 'write', 'grep', 'find', 'ls'} and not gateway_tool:
+                raise ValueError('Direct observation tool is invalid')
+            if gateway_tool and (not failed or result.get('details', {}).get('kind') == 'external_gateway_observation'):
+                self.verify_gateway_observation(request, call_id, tool_name, result)
+            expected_ref = 'native-observation:' + request.task_id + ':' + sha256(call_id.encode()).hexdigest()
+            issued = result.get('details', {}).get('native_research_source')
+            if (issued != {'task_id': request.task_id, 'tool_call_id': call_id, 'source_ref': expected_ref}
+                    and (not failed or issued is not None)):
+                raise ValueError('Direct observation source identity changed')
+            body = json.dumps(result, ensure_ascii=False).encode()
+            digest = sha256(body).hexdigest()
+            status = 'failed' if failed else 'completed'
+            previous = record['research_call_hashes'].get(call_id)
+            if previous is not None:
+                if previous != digest or record.get('direct_call_statuses', {}).get(call_id) != status:
+                    raise ValueError('Direct observation call identity changed')
+                return
+            from .application_capacity import require_capacity
+            require_capacity('context_references', len(sources) + 1, 'direct_observation')
+            observation_id = 'observation-' + str(len(sources)) + '-' + digest
+            self.storage.observation(request.task_id, observation_id, body)
+            if not failed:
+                context.admit_direct_observation(expected_ref, observation_id, digest,
+                    tool_call_id=call_id, tool_name=tool_name)
+            record['research_call_hashes'][call_id] = digest
+            record.setdefault('direct_call_statuses', {})[call_id] = status
+            if not failed:
+                record['research_sources'].append({'task_id': request.task_id,
+                    'parent_attempt_id': request.parent_attempt_id, 'source_ref': expected_ref,
+                    'observation_sha256': digest})
+            sources.append({'source_id': observation_id, 'task_id': request.task_id,
+                'parent_attempt_id': request.parent_attempt_id, 'kind': 'native_tool_observation',
+                'metadata': {'tool_name': tool_name, 'tool_call_id': call_id, 'output_sha256': digest,
+                    'execution_mode': 'direct', 'status': status, **({'source_ref': expected_ref} if not failed else {})}})
+
         def capture_graph_observation(call_id, tool_name, result, *, is_error=False, child=False):
             failed = is_error or result.get('isError') is True
             gateway_tool = tool_name in self.capability.get('data_gateway', {}).get('catalog', {}).get('tools', {})
@@ -396,6 +448,11 @@ class GeneralPiHost:
                 payload = checked_graph_progress(event, binding=request.to_document()['research_binding'],
                     task_id=request.task_id, attempt_id=request.parent_attempt_id,
                     view=read_json(mirror.root / 'view.json', maximum=mirror.limits['research_response_bytes']))
+                if adaptive:
+                    context = record.get('graph_context')
+                    if context is None:
+                        raise ValueError('Graph source validation has no host context')
+                    context.validate_direct_sources(payload['graph'])
                 from .native_graph_events import NativeGraphEvents
                 if 'graph_events' not in record:
                     record['graph_events'] = NativeGraphEvents(owner=payload['owner'],
@@ -435,6 +492,13 @@ class GeneralPiHost:
             elif kind in {'tool_execution_start', 'tool_execution_end'}:
                 payload = {'type': kind, 'tool_name': str(event.get('toolName', ''))[:128],
                            'tool_call_id': str(event.get('toolCallId', ''))[:128]}
+                if adaptive and kind == 'tool_execution_start':
+                    call_id, tool_name = payload['tool_call_id'], payload['tool_name']
+                    if not call_id or (call_id in direct_calls and direct_calls[call_id] != tool_name):
+                        raise ValueError('Native tool call identity changed')
+                    from .application_capacity import require_capacity
+                    require_capacity('event_buffer_count', len(direct_calls) + (call_id not in direct_calls), 'direct_observation')
+                    direct_calls[call_id] = tool_name
                 if kind == 'tool_execution_start' and event.get('toolName') == 'agent_delegate':
                     record.setdefault('delegate_calls', set()).add(payload['tool_call_id'])
                 from capstone_agent.progress import project_native_tool_activity
@@ -468,8 +532,11 @@ class GeneralPiHost:
                 if kind == 'tool_execution_end' and graph_binding and (payload['tool_name'] in {
                         'read', 'bash', 'edit', 'write', 'grep', 'find', 'ls', 'agent_task_return'}
                         or payload['tool_name'] in self.capability.get('data_gateway', {}).get('catalog', {}).get('tools', {})):
-                    capture_graph_observation(payload['tool_call_id'], payload['tool_name'], event.get('result', {}),
-                        is_error=event.get('isError') is True)
+                    guard = record.get('graph_events')
+                    action = guard.action_for_call(payload['tool_call_id'], payload['tool_name'], required=False) if guard is not None else None
+                    capture = capture_direct_observation if adaptive and action is None else capture_graph_observation
+                    capture(payload['tool_call_id'], payload['tool_name'], event.get('result', {}),
+                            is_error=event.get('isError') is True)
                 if kind == 'tool_execution_end' and not graph_binding and len(sources) < limits.context_references:
                     body = json.dumps(event.get('result', {}), ensure_ascii=False).encode()
                     digest = sha256(body).hexdigest()
@@ -896,6 +963,7 @@ class NativeTaskRunner:
                         sdk_config['researchRuntime']['isolatedTaskExecution'] = publication.isolated_task_execution
                         sdk_config['researchRuntime']['goalDrivenExecution'] = publication.goal_driven_execution
                         sdk_config['researchRuntime']['lightweightTaskNodes'] = publication.lightweight_task_nodes
+                        sdk_config['researchRuntime']['adaptiveAgentLoop'] = publication.adaptive_agent_loop
                         if publication.work_edition:
                             if document.get('research_binding', {}).get('graph_work_edition') != publication.work_edition:
                                 raise ValueError('graph work policy and protected binding differ')
@@ -973,7 +1041,8 @@ class NativeTaskRunner:
             role_options = ({'required_tools': ('agent_research_plan', 'agent_research_record', 'agent_research_assess',
                 'agent_research_revise', 'agent_research_finish'),
                 'forbidden_tools': ('read', 'bash', 'write', 'edit', 'agent_delegate')}
-                if sdk_config.get('researchRuntime', {}).get('isolatedTaskExecution') else {})
+                if (sdk_config.get('researchRuntime', {}).get('isolatedTaskExecution')
+                    and not sdk_config.get('researchRuntime', {}).get('adaptiveAgentLoop')) else {})
             process = GeneralPiProcess(argv, environment, workspace, uid=uid, **role_options)
             answer = process.run(request.instruction, timeout=request.timeout_seconds,
                                  cancelled=cancelled, on_event=emit, inventory_only=inventory_only)

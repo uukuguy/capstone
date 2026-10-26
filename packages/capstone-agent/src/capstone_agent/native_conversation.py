@@ -30,22 +30,22 @@ def executor_binding(executor, *, session_type: str | None = None, profile_versi
     research_version = next((version for version in ('1.9.0', '1.8.0', '1.7.0', '1.6.0', '1.5.0', '1.4.0')
                              if registered_research_policy(version).capability() in supported_policies), '1.3.0') if review_supported else '1.2.0'
     graph_supported = 'capstone-enterprise-graph/2' in capability.get('research_graph_schemas', ())
-    for graph_version in ('1.10.0', '1.11.0', '1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0'):
+    for graph_version in ('1.10.0', '1.11.0', '1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0', '1.19.0'):
         if graph_supported and registered_research_policy(graph_version).capability() in supported_policies:
             research_version = graph_version
     version = profile_version or (research_version if supported and session_type in {None, 'enterprise-research'} else '1.0.0')
-    if version in {'1.10.0', '1.11.0', '1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0'} and not graph_supported:
+    if version in {'1.10.0', '1.11.0', '1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0', '1.19.0'} and not graph_supported:
         raise ValueError('research graph protocol is unavailable on this executor')
     if version in {'1.3.0', '1.4.0', '1.5.0', '1.6.0', '1.7.0', '1.8.0', '1.9.0'} and not review_supported:
         raise ValueError('independent delivery review is unavailable')
-    if version in {'1.4.0', '1.5.0', '1.6.0', '1.7.0', '1.8.0', '1.9.0', '1.10.0', '1.11.0', '1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0'} and registered_research_policy(version).capability() not in supported_policies:
+    if version in {'1.4.0', '1.5.0', '1.6.0', '1.7.0', '1.8.0', '1.9.0', '1.10.0', '1.11.0', '1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0', '1.19.0'} and registered_research_policy(version).capability() not in supported_policies:
         raise ValueError('research policy profile is unavailable on this executor')
     profile = resolve_native_profile(session_type, version, policy_variant=_policy_variant)
     native_bindings = [item for item in profile.domains if isinstance(item.profile, NativeDomainRuntimeProfile)]
     if len(native_bindings) != 1:
         raise ValueError('conversation execution requires one selected native executor binding')
     binding = native_bindings[0]
-    if version in {'1.1.0', '1.2.0', '1.3.0', '1.4.0', '1.5.0', '1.6.0', '1.7.0', '1.8.0', '1.9.0', '1.10.0', '1.11.0', '1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0'} and not supported:
+    if version in {'1.1.0', '1.2.0', '1.3.0', '1.4.0', '1.5.0', '1.6.0', '1.7.0', '1.8.0', '1.9.0', '1.10.0', '1.11.0', '1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0', '1.19.0'} and not supported:
         raise ValueError('research control transport is unavailable')
     if not isinstance(binding.profile, NativeDomainRuntimeProfile):
         raise ValueError('native application selected an incompatible binding')
@@ -64,7 +64,7 @@ def executor_binding(executor, *, session_type: str | None = None, profile_versi
             'application_profile': {'profile_id': profile.manifest.application_id,
                                     'profile_version': profile.manifest.version},
             'binding_id': binding.binding_id, 'identity': identity, 'capability': capability}
-    if version in {'1.1.0', '1.2.0', '1.3.0', '1.4.0', '1.5.0', '1.6.0', '1.7.0', '1.8.0', '1.9.0', '1.10.0', '1.11.0', '1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0'}:
+    if version in {'1.1.0', '1.2.0', '1.3.0', '1.4.0', '1.5.0', '1.6.0', '1.7.0', '1.8.0', '1.9.0', '1.10.0', '1.11.0', '1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0', '1.19.0'}:
         from hashlib import sha256
         pack = binding.profile
         guides = []
@@ -96,8 +96,9 @@ def binding_for_session(binding: Mapping | None, session_type: str | None) -> di
     # their explicit presets; persisted Attempts still use validate_binding.
     shared = ('capstone-research-bridge/1' in capability.get('research_bridge_schemas', ())
               and 'capstone-enterprise-graph/2' in capability.get('research_graph_schemas', ())
-              and registered_research_policy('1.18.0').capability()
-              in capability.get('research_policy_profiles', ()))
+              and any(registered_research_policy(version).capability()
+                      in capability.get('research_policy_profiles', ())
+                      for version in ('1.18.0', '1.19.0')))
     selected = 'enterprise-research' if shared else session_type
     return executor_binding(SimpleNamespace(identity=binding['identity'], capability=binding['capability']),
                             session_type=selected)
@@ -124,7 +125,8 @@ def validate_binding(value: object) -> dict:
         {'profile_id': 'enterprise-research', 'profile_version': '1.15.0'},
         {'profile_id': 'enterprise-research', 'profile_version': '1.16.0'},
         {'profile_id': 'enterprise-research', 'profile_version': '1.17.0'},
-        {'profile_id': 'enterprise-research', 'profile_version': '1.18.0'})
+        {'profile_id': 'enterprise-research', 'profile_version': '1.18.0'},
+        {'profile_id': 'enterprise-research', 'profile_version': '1.19.0'})
     fields = {'schema', 'application_profile', 'binding_id', 'identity', 'capability'}
     if governed:
         fields.add('pack_bindings')
@@ -150,7 +152,8 @@ def validate_binding(value: object) -> dict:
         {'profile_id': 'enterprise-research', 'profile_version': '1.15.0'},
         {'profile_id': 'enterprise-research', 'profile_version': '1.16.0'},
         {'profile_id': 'enterprise-research', 'profile_version': '1.17.0'},
-        {'profile_id': 'enterprise-research', 'profile_version': '1.18.0'})
+        {'profile_id': 'enterprise-research', 'profile_version': '1.18.0'},
+        {'profile_id': 'enterprise-research', 'profile_version': '1.19.0'})
             or value['binding_id'] != ('research-methods' if governed
                                         else 'native-conversation')):
         raise ValueError('native conversation binding is invalid')
@@ -214,9 +217,10 @@ class NativeResearchRuntime:
         {'profile_id': 'enterprise-research', 'profile_version': '1.15.0'},
         {'profile_id': 'enterprise-research', 'profile_version': '1.16.0'},
         {'profile_id': 'enterprise-research', 'profile_version': '1.17.0'},
-        {'profile_id': 'enterprise-research', 'profile_version': '1.18.0'}):
+        {'profile_id': 'enterprise-research', 'profile_version': '1.18.0'},
+        {'profile_id': 'enterprise-research', 'profile_version': '1.19.0'}):
                 binding['graph_schema'] = 'capstone-enterprise-graph/2'
-                if claim.turn_plan.intent_resources['general_executor']['application_profile']['profile_version'] in {'1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0'}:
+                if claim.turn_plan.intent_resources['general_executor']['application_profile']['profile_version'] in {'1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0', '1.19.0'}:
                     binding['graph_work_edition'] = 'capstone-graph-work/1'
             self._bridge = WorkerResearchBridge(self._research.channel,
                 owner_id=sha256(claim.lease_token.encode()).hexdigest(), producer_binding=binding,

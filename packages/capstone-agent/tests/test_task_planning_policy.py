@@ -23,7 +23,7 @@ def test_research_turn_publication_preserves_all_prior_catalog_bytes():
     import json
     from importlib.resources import files
     catalog = json.loads(files('capstone_agent').joinpath('resources/research-policy-catalog.json').read_text())['policies']
-    old = [item for item in catalog if item['application_version'] != '1.18.0']
+    old = [item for item in catalog if item['application_version'] not in {'1.18.0', '1.19.0'}]
     assert sha256(json.dumps(old, ensure_ascii=False, sort_keys=True).encode()).hexdigest() == '2e0b1944a4d8facf1b5d2d963749237d154545c88f08095dde22626f23b6820d'
 
 
@@ -98,7 +98,7 @@ def test_decision_bounded_discovery_is_new_shared_publication_with_exact_legacy_
     assert task_planning_policy('1.0.0').sha256 == 'f20fe61bd9b6edf9a2836194e54f41a60ed5214af8b3ba15858e40e97e8ad905'
     assert task_planning_policy('1.1.0').sha256 == '7fc08cc4058864f22f375f57cd7870a4f06896117b833948836c57843abae5ba'
     catalog = json.loads(files('capstone_agent').joinpath('resources/research-policy-catalog.json').read_text())['policies']
-    old = [item for item in catalog if item['application_version'] not in {'1.15.0', '1.16.0', '1.17.0', '1.18.0'}]
+    old = [item for item in catalog if item['application_version'] not in {'1.15.0', '1.16.0', '1.17.0', '1.18.0', '1.19.0'}]
     assert sha256(json.dumps(old, ensure_ascii=False, sort_keys=True).encode()).hexdigest() == 'c4e8ec81e325e34383786063f4bdabe3ba33003fa078a4dbb613e55966adb371'
 
 
@@ -115,7 +115,7 @@ def test_whole_goal_lifecycle_publication_disables_soft_deadline_without_upgradi
     assert registered_research_policy('1.15.0').work_policy()['mode'] == 'usable_draft'
     assert not registered_research_policy('1.15.0').goal_driven_execution
     catalog = json.loads(files('capstone_agent').joinpath('resources/research-policy-catalog.json').read_text())['policies']
-    old = [item for item in catalog if item['application_version'] not in {'1.16.0', '1.17.0', '1.18.0'}]
+    old = [item for item in catalog if item['application_version'] not in {'1.16.0', '1.17.0', '1.18.0', '1.19.0'}]
     assert sha256(json.dumps(old, ensure_ascii=False, sort_keys=True).encode()).hexdigest() == '2b4db9e6ca58a0e880733f8d5011f1170288d9463966d32c956425b0340039f1'
 
 
@@ -123,5 +123,5 @@ def test_lightweight_publication_preserves_every_previous_catalog_entry():
     import json
     from importlib.resources import files
     catalog = json.loads(files('capstone_agent').joinpath('resources/research-policy-catalog.json').read_text())['policies']
-    old = [item for item in catalog if item['application_version'] not in {'1.17.0', '1.18.0'}]
+    old = [item for item in catalog if item['application_version'] not in {'1.17.0', '1.18.0', '1.19.0'}]
     assert sha256(json.dumps(old, ensure_ascii=False, sort_keys=True).encode()).hexdigest() == '69af13ea8823b0c901dbc8f135c7f701ca78ec427574109434bc965d6757a46c'

@@ -12,6 +12,64 @@ from test_native_graph_progress import graph_fixture
 from capstone_agent.general_pi_storage import GeneralPiStorage
 
 
+def test_direct_observation_is_selected_raw_source_without_graph_action(tmp_path):
+    context, request, _, storage, _ = setup_context(tmp_path)
+    context.adaptive_agent_loop = True
+    body = b'{"content":[{"type":"text","text":"Observed inventory"}]}'
+    digest = sha256(body).hexdigest()
+    ref = 'native-observation:' + context.task_id + ':' + sha256(b'direct-call').hexdigest()
+    storage.observation(context.task_id, 'direct-source', body)
+    context.admit_direct_observation(ref, 'direct-source', digest, tool_call_id='direct-call', tool_name='read')
+    selection = {key: value for key, value in request.items() if key not in {'action_id', 'checkpoint'}}
+    selection.update(request_id='direct-sources', operation='direct_sources', selection={'source_refs': [ref]})
+    receipt = context.handle(selection)
+    assert receipt['ok'] is True
+    source, = receipt['result']['sources']
+    assert Path(source['path']).read_bytes() == body
+    assert source['source_ref'] == ref and source['sha256'] == digest
+    assert source['origin'] == 'native_tool_observation'
+    assert 'action_id' not in source
+    assert ref not in context.observations
+    selected_action = {'source_refs': [ref], 'source_versions': [{'ref': ref, 'revision': 'sha256:' + digest}]}
+    context.validate_direct_sources({'actions': [selected_action]})
+    # Prior application-selected inputs keep their original grant path. This
+    # current-task validator must neither reject nor mint a direct grant for them.
+    prior_ref = 'native-observation:prior-task:' + sha256(b'prior-call').hexdigest()
+    context.validate_direct_sources({'actions': [{'source_refs': [prior_ref],
+        'source_versions': [{'ref': prior_ref, 'revision': 'sha256:' + digest}]}]})
+    assert prior_ref not in context.direct_observations
+    prior_selection = {**selection, 'request_id': 'foreign-task-source', 'selection': {'source_refs': [prior_ref]}}
+    assert context.handle(prior_selection)['ok'] is False
+    for invalid in (
+            {**selected_action, 'source_versions': []},
+            {**selected_action, 'source_versions': [{'ref': ref, 'revision': 'sha256:' + '0' * 64}]},
+            {'source_refs': [ref + '0'], 'source_versions': []}):
+        with pytest.raises(ValueError, match='Direct graph source'):
+            context.validate_direct_sources({'actions': [invalid]})
+    assert context.handle(selection) == receipt
+    selection.update(request_id='unselected', selection={'source_refs': [ref + '0']})
+    assert context.handle(selection)['ok'] is False
+    from capstone_agent.native_graph_context import NativeGraphContext
+    restored = NativeGraphContext(root=context.root, workspace=context.workspace, uid=context.uid,
+        task_id=context.task_id, attempt_id=context.attempt_id, owner=context.owner,
+        view_provider=lambda: (_ for _ in ()).throw(AssertionError('No graph lease is needed')),
+        storage=storage, adaptive_agent_loop=True)
+    selection.update(request_id='restored-direct', selection={'source_refs': [ref]})
+    assert restored.handle(selection)['result']['sources'] == [source]
+    selection.update(request_id='foreign-owner', owner={**context.owner, 'work_id': 'other'})
+    assert restored.handle(selection)['ok'] is False
+    selection.update(request_id='legacy-selection', owner=context.owner)
+    restored.adaptive_agent_loop = False
+    assert restored.handle(selection)['ok'] is False
+    restored.adaptive_agent_loop = True
+    sealed = Path(source['path'])
+    sealed.chmod(0o640)
+    sealed.write_bytes(b'changed')
+    sealed.chmod(0o440)
+    selection.update(request_id='changed-bytes')
+    assert restored.handle(selection)['ok'] is False
+
+
 def test_actual_runtime_inspection_bindings_match_host_leases_after_record_and_restore():
     from capstone_agent.native_graph_events import NativeGraphEvents
     from capstone_agent.native_research_bridge import checked_graph_progress
