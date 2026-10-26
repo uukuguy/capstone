@@ -932,6 +932,8 @@ class NativeTaskRunner:
                 gateway_tools = research_gateway_tools(native, self.gateway.publication() if self.gateway else {})
                 admitted_gateway = gateway_tools.intersection(native['policy']['allowed_tools'])
                 if admitted_gateway and self.gateway is not None:
+                    sdk_config['applicationPolicy'] = {**native['policy'], 'allowed_tools': sorted({
+                        *native['policy']['allowed_tools'], 'agent_tool_search', 'agent_tool_load'})}
                     self.gateway.bind(request.task_id, request.parent_attempt_id, admitted_gateway)
                     task_catalog = self.gateway.publication()['catalog']
                     # This is a menu projection, not a new accepted catalog.
@@ -940,10 +942,11 @@ class NativeTaskRunner:
                         'tools': {name: task_catalog['tools'][name] for name in sorted(admitted_gateway)},
                         'tool_hashes': {name: task_catalog['tool_hashes'][name] for name in sorted(admitted_gateway)}}
                     sdk_config['dataGateway'] = {'url': self.relay_origin + '/data-gateway/' + request.task_id,
-                        'grant': grant, 'taskId': request.task_id, 'catalog': task_catalog}
+                        'grant': grant, 'taskId': request.task_id, 'catalog': task_catalog, 'onDemandTools': True}
                     sdk_config.setdefault('contextFiles', []).append({'path': 'registered-production-data',
                         'content': 'Application-authorized data_gateway_ tools provide production data through a protected service. '
                         'Choose the published tool that directly answers the current instruction. Discover capabilities or services only when the needed operation is unknown. '
+                        'Use agent_tool_search to find authorized tools and agent_tool_load to activate their exact schemas for the next model turn. '
                         'For an inventory request, use summary/default arguments and answer from the returned list; do not expand into unrelated investigations or operations. '
                         'Use the current published tool descriptions and schemas to determine prerequisites and valid combinations; do not assume a fixed discovery or execution sequence. '
                         'Follow returned references and conditional next steps only when needed for the current instruction and admitted by the task grant. '
@@ -1478,7 +1481,7 @@ def main():
                                  'native_product_roles.py', 'continuation_resources.py', 'resources/general-research.mjs', 'resources/research-guidance.mjs',
                                  'application_capacity.py', 'resources/application-capacity.json', 'resources/runtime-limits.mjs',
                                  'resources/research-tools.mjs', 'resources/execution-guidance.mjs', 'resources/model-request-capture.mjs',
-                                 'resources/general-context.mjs', 'resources/general-sdk.mjs', 'resources/systematic-diagnosis.mjs', 'resources/general-mcp.mjs', 'resources/task-record-tools.mjs',
+                                 'resources/general-context.mjs', 'resources/general-sdk.mjs', 'resources/general-tool-discovery.mjs', 'resources/systematic-diagnosis.mjs', 'resources/general-mcp.mjs', 'resources/task-record-tools.mjs',
                                  'resources/enterprise-research-runtime.mjs', 'resources/enterprise-cycle-contract.mjs',
                                  'resources/enterprise-cycle-state.mjs', 'resources/enterprise-graph-contract.mjs',
                                  'resources/enterprise-graph-state.mjs', 'resources/enterprise-graph-runtime.mjs', 'resources/task-goal-state.mjs', 'resources/task-node-return.mjs', 'resources/research-context-window.mjs',

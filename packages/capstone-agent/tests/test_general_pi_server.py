@@ -125,6 +125,8 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     gateway_context = next(item['content'] for item in captured[0]['contextFiles'] if item['path'] == 'registered-production-data')
     assert gateway_bindings == [(task, binding['attempt_id'], {'data_gateway_discover_network_models'})]
     catalog = captured[0]['dataGateway']['catalog']
+    assert captured[0]['dataGateway']['onDemandTools'] is True
+    assert {'agent_tool_search', 'agent_tool_load'} <= set(captured[0]['applicationPolicy']['allowed_tools'])
     assert set(catalog['tools']) == {'data_gateway_discover_network_models'}
     assert catalog['tool_hashes'] == {'data_gateway_discover_network_models': 'hash-one'}
     assert catalog['revision'] == 'catalog-revision'
