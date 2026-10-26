@@ -243,7 +243,8 @@ def _validate_mapping(mapping, net, grant):
             ):
                 raise ModelImportError("Invalid mapped endpoint")
             bus = indexed.get(("bus", endpoint["element_key"]))
-            field = roles.get(table, {}).get(endpoint.get("role"))
+            role = endpoint.get("role")
+            field = roles.get(table, {}).get(role) if isinstance(role, str) else None
             if (
                 bus is None
                 or bus["element_ref"] != endpoint.get("element_ref")

@@ -213,7 +213,8 @@ class GatewayModelArtifactBroker:
             _digest(artifact_ref)
             _require(type(allow_demo) is bool)
             expiry = datetime.fromisoformat(_text(expires_at).replace('Z', '+00:00'))
-            _require(expiry.utcoffset() is not None and expiry.utcoffset().total_seconds() == 0
+            offset = expiry.utcoffset()
+            _require(offset is not None and offset.total_seconds() == 0
                      and expiry > datetime.now(timezone.utc), 'model_input_expiry_invalid')
             workspace = Path(workspace)
             _require(workspace.is_dir() and not workspace.is_symlink(), 'model_input_storage_invalid')
