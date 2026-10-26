@@ -30,11 +30,12 @@ function requestTarget(request:ThreadElectricalViewRequest,name=request.model_re
     ...(request.target?{parent_view_ref:request.view_ref,target:request.target}:{}),
     ...(request.artifact_ref?{artifact_ref:request.artifact_ref}:{})}}
 }
-function restoredTarget(key?:string):Target[] {
+function restoredTarget(key?:string,requestIdentity?:string):Target[] {
   if(!key)return []
   try{
     const saved:unknown=JSON.parse(sessionStorage.getItem(key)||'null')
     if(!record(saved))return []
+    if(requestIdentity&&saved.appliedRequestIdentity!==requestIdentity)return []
     const request=parseThreadDisplayRequest(saved.request)
     return request?.schema==='capstone-electrical-view-request/1'?[requestTarget(request,label(saved.name)?saved.name as string:request.model_ref)]:[]
   }catch{return []}
@@ -42,15 +43,18 @@ function restoredTarget(key?:string):Target[] {
 export default function ElectricalModelWorkspace({transport,requestedView,requestNonce,onManualNavigate,storageKey}:{
   transport:HttpThreadTransport;requestedView?:ThreadElectricalViewRequest;requestNonce?:number;onManualNavigate?:()=>void;storageKey?:string
 }) {
-  const [catalog,setCatalog]=useState<Model[]>([]),[path,setPath]=useState<Target[]>(()=>requestedView?[]:restoredTarget(storageKey)),[refresh,setRefresh]=useState(0)
+  const requestIdentity=JSON.stringify([requestedView,requestNonce])
+  const [catalog,setCatalog]=useState<Model[]>([]),[path,setPath]=useState<Target[]>(()=>restoredTarget(storageKey,requestedView?requestIdentity:undefined)),[refresh,setRefresh]=useState(0)
+  const appliedRequest=useRef(path.length?requestIdentity:null)
   const [manifest,setManifest]=useState<ElectricalViewReady>(),[view,setView]=useState<ElectricalModelView>()
   const [groups,setGroups]=useState<ElectricalGroup[]>([]),[cursor,setCursor]=useState<string|null>(null)
   const [query,setQuery]=useState(''),[error,setError]=useState(''),[progress,setProgress]=useState(''),[busy,setBusy]=useState(false)
   const [preparing,setPreparing]=useState<string>(),generation=useRef(0),controller=useRef<AbortController|null>(null)
   const loadedGroups=useRef<ElectricalGroup[]>([]),seenCursors=useRef(new Set<string>())
-  const target=path.at(-1),requestIdentity=JSON.stringify([requestedView,requestNonce])
+  const target=path.at(-1)
   useEffect(()=>{
-    if(!requestedView)return
+    if(!requestedView||appliedRequest.current===requestIdentity)return
+    appliedRequest.current=requestIdentity
     setPath([requestTarget(requestedView)])
   },[requestIdentity])
   useEffect(()=>{
@@ -90,7 +94,7 @@ export default function ElectricalModelWorkspace({transport,requestedView,reques
       if(storageKey){
         const request=parseThreadDisplayRequest({schema:'capstone-electrical-view-request/1',source_id:'data-gateway',
           ...Object.fromEntries(['model_ref','model_revision','view_ref','selection_ref','source_snapshot_ref','representation','target','artifact_ref'].map(field=>[field,opened[field]??null]))})
-        if(request)try{sessionStorage.setItem(storageKey,JSON.stringify({request,name:target.label}))}catch{/* Storage is optional. */}
+        if(request)try{sessionStorage.setItem(storageKey,JSON.stringify({request,name:target.label,appliedRequestIdentity:requestIdentity}))}catch{/* Storage is optional. */}
       }
       if(!opened.target&&opened.representation==='source_node_breaker')await directory(opened,undefined,stop.signal,ticket)
       else {
@@ -130,10 +134,10 @@ export default function ElectricalModelWorkspace({transport,requestedView,reques
       const model=catalog.find(item=>item.model_ref===event.target.value);onManualNavigate?.();setPath(model?[{label:model.name,query:{model_ref:model.model_ref,representation:'source_node_breaker'}}]:[])
     }}><option value="">请选择电网模型</option>{catalog.map(item=><option key={item.model_ref} value={item.model_ref}>{item.name}</option>)}</select></label>}
     <nav aria-label="电气模型层级">{path.map((item,index)=><button key={index} aria-current={index===path.length-1?'location':undefined} onClick={()=>{onManualNavigate?.();setPath(previous=>previous.slice(0,index+1))}}>{item.label}</button>)}</nav>
-    {error&&<p role="alert">{error}</p>}{progress&&<p role="status">{progress}</p>}
+    {error&&<><p role="alert">{error}</p>{target&&<button disabled={busy} onClick={()=>setRefresh(value=>value+1)}>重新读取此视图</button>}</>}{progress&&<p role="status">{progress}</p>}
     {preparing&&<button disabled={busy} onClick={()=>void checkPreparation()}>检查准备进度</button>}
     {manifest&&<>
-      <p className="grid-source-note">源设备接线 · 开关状态以来源记录为准；缺失接线不补线。结构可读不代表潮流可算。</p>
+      <p className="grid-source-note">{manifest.representation==='source_node_breaker'?'源设备接线 · 开关状态以来源记录为准；缺失接线不补线。结构可读不代表潮流可算。':'计算模型拓扑 · 元件对应当前模型包；计算状态和结果以计算服务记录为准。'}</p>
       {!view&&<>
         <label>查找已加载站点<input value={query} onChange={event=>setQuery(event.target.value)} placeholder="站点名称"/></label>
         <p>{groups.length} / {manifest.streams.groups.total_count} 个站点 · 仅显示已加载目录</p>

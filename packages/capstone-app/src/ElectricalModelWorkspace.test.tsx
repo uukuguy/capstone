@@ -47,3 +47,15 @@ it('does not accept a reopened descriptor with a different frozen revision',asyn
   await waitFor(()=>expect(screen.getByRole('alert').textContent).toMatch(/版本|来源/))
   expect(read).not.toHaveBeenCalled()
 })
+it('keeps manual station navigation on remount but applies a new instruction request',async()=>{
+  const request={...identity,schema:'capstone-electrical-view-request/1' as const,source_id:'data-gateway' as const,representation:'source_node_breaker' as const,target:null,artifact_ref:null}
+  sessionStorage.setItem('manual',JSON.stringify({name:'站甲',request:{...request,target:'station-object',view_ref:'child'},appliedRequestIdentity:JSON.stringify([request,1])}))
+  const open=vi.fn(async(q:Record<string,unknown>)=>({...ready,view_ref:q.target?'child':'root',target:q.target??null,streams:Object.fromEntries(ELECTRICAL_STREAMS.map(s=>[s,{total_count:0}]))}))
+  const read=vi.fn(async(q:{view_ref:string;stream:string})=>({...identity,view_ref:q.view_ref,stream:q.stream,records:[],returned_count:0,total_count:0,next_cursor:null,complete:true}))
+  const transport={electricalOpen:open,electricalRead:read} as unknown as HttpThreadTransport
+  const ui=render(<ElectricalModelWorkspace storageKey="manual" transport={transport} requestedView={request} requestNonce={1}/>)
+  await screen.findByText('接线画布')
+  expect(open.mock.calls[0][0]).toMatchObject({parent_view_ref:'child',target:'station-object'})
+  ui.rerender(<ElectricalModelWorkspace storageKey="manual" transport={transport} requestedView={request} requestNonce={2}/>)
+  await waitFor(()=>expect(open.mock.calls.at(-1)?.[0]).not.toHaveProperty('target'))
+})
