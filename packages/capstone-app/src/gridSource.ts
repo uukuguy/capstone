@@ -1,5 +1,19 @@
 /** Source display records. These are not admitted electrical calculation models. */
 export type GridSourceLevel = 'region' | 'station' | 'equipment' | null
+export type GridSourceScope = {scope_id:string;name:string}
+export function parseGridSourceScopes(value:unknown):GridSourceScope[] {
+  if(!record(value)||value.schema!=='capstone-grid-source-scopes/1'||value.source_id!=='data-gateway'
+      ||value.status!=='ok'||!Array.isArray(value.scopes)||value.scopes.length>1000)
+    throw new Error('电网范围目录暂时无法读取。')
+  const ids=new Set<string>()
+  return value.scopes.map(item=>{
+    if(!record(item)||typeof item.scope_id!=='string'||!item.scope_id||item.scope_id.length>512
+        ||typeof item.name!=='string'||!item.name||item.name.length>512||ids.has(item.scope_id))
+      throw new Error('电网范围目录无效。')
+    ids.add(item.scope_id)
+    return {scope_id:item.scope_id,name:item.name}
+  })
+}
 export type GridSourceObject = {
   id: string; kind: string; label?: string; source_id?: string; boundary?: boolean
   voltage_kv?: number | null; vn_kv?: number | null; parent_id?: string | null; station_id?: string | null

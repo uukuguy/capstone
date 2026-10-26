@@ -1,6 +1,15 @@
 import {expect,it} from 'vitest'
 import {sceneFrame} from './networkScene.worker'
-import {buildSceneIndex,focusScene} from './networkSceneIndex'
+import {buildSceneIndex,focusScene,searchScene} from './networkSceneIndex'
+it('keeps hidden technical labels searchable without drawing them even when selected',()=>{
+  const index=buildSceneIndex({ref:'labels',coordinateSystem:'schematic',nodes:[
+    {id:'node:123456789',label:'node:123456789',kind:'connection_node',showLabel:false,x:0,y:0},
+    {id:'bus:1',label:'一号母线',kind:'bus',x:100,y:0}],edges:[]})
+  const frame=sceneFrame(index,{type:'view',request:1,camera:index.bounds,pixels:1000,height:600,focusIds:['node:123456789'],selectionId:'node:123456789'})
+  expect(frame.labels.some(label=>label.id==='node:123456789')).toBe(false)
+  expect(frame.labels.some(label=>label.label==='一号母线')).toBe(true)
+  expect(searchScene(index,'node:123456789')[0].id).toBe('node:123456789')
+})
 it('fits sparse non-overlapping label rectangles to a narrow viewport instead of drawing100 labels',()=>{
   const scene={ref:'narrow',coordinateSystem:'schematic' as const,nodes:Array.from({length:405},(_,i)=>({id:`n${i}`,label:`站点名称 ${i}`,kind:'station'})),edges:Array.from({length:404},(_,i)=>({id:`e${i}`,source:`n${i}`,target:`n${i+1}`,kind:'line'}))}
   const index=buildSceneIndex(scene,.8),frame=sceneFrame(index,{type:'view',request:1,camera:index.bounds,pixels:320,height:400,focusIds:[]})

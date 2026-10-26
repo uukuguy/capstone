@@ -11,6 +11,12 @@ function page(overrides: Partial<GridSourcePage> = {}): GridSourcePage {
     display_grouping_only:true,electrical_equivalence_performed:false,...overrides}
 }
 describe('source topology paging', () => {
+  it('reads bounded source scopes without a Thread version header or guessed region',async()=>{
+    const fetcher=(async()=>new Response(JSON.stringify({schema:'capstone-grid-source-scopes/1',source_id:'data-gateway',status:'ok',
+      scopes:[{scope_id:'island-grid',name:'海岛电网',electrical_model_complete:false}]}),{status:200})) as typeof fetch
+    const transport=new HttpThreadTransport('http://localhost:8767','',fetcher,'/api/v1/threads','2')
+    expect(await transport.gridSourceScopes()).toEqual([{scope_id:'island-grid',name:'海岛电网'}])
+  })
   it('loads ungrouped raw electrical-source objects without asserting bus reduction',async()=>{
     const result=await loadGridSourceView(async()=>page({level:null,display_grouping_only:false,total_nodes:1,next_node_offset:null}),{scope_id:'north',level:null})
     expect(result.page.level).toBeNull()

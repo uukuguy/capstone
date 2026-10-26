@@ -1,6 +1,6 @@
 import {applicationCapacity,assertCapacity,exceedsCapacity,CapacityError,type CapacityKey} from './applicationCapacity'
 import { parseEventEnvelope, type EventEnvelope } from './threadProtocol'
-import { parseGridSourcePage, type GridSourceQuery } from './gridSource'
+import { parseGridSourcePage, parseGridSourceScopes, type GridSourceQuery } from './gridSource'
 import type { ThreadCommand, ThreadTransport, ThreadTransportState } from './threadClient'
 import { parseThreadDescriptor, parseThreadListPage, type ThreadListPage, type ThreadDescriptor } from './threadManagement'
 import { fetchWithReadRetry } from './httpRetry'
@@ -310,6 +310,14 @@ export class HttpThreadTransport implements ThreadTransport {
 
   createSession(selection: {session_type:'grid-analysis'|'enterprise-research'|'general-chat'; model_id?:string}, signal?:AbortSignal):Promise<unknown> {
     return this.request(this.resourcePath, {method:'POST',signal,body:JSON.stringify(selection)})
+  }
+
+  gridSourceScopes(signal?:AbortSignal) {
+    return this.request('/api/v1/grid-sources/data-gateway/scopes',{signal},4*1024*1024,'event_page_bytes',false)
+      .then(parseGridSourceScopes).catch(cause=>{
+        if(cause instanceof ThreadTransportError)throw new Error('电网范围目录暂时无法读取。')
+        throw cause
+      })
   }
 
   gridSourceTopology(query: GridSourceQuery, signal?: AbortSignal) {

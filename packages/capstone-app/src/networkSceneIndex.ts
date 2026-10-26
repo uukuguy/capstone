@@ -1,7 +1,12 @@
 import type {NetworkScene,SceneCamera,SceneSearchResult,SceneSelection} from './networkScene'
 import {layoutSourceTopology} from './networkTopologyLayout'
 import {layoutStationDetail,type StationDisplayGroup} from './networkStationLayout'
+import {electricalSourceLayout,type ElectricalGeometry} from './electricalSourceLayout'
 type Box={minX:number;minY:number;maxX:number;maxY:number}
+const geometries=new WeakMap<SceneIndex,ElectricalGeometry>()
+export const sceneGeometry=(index:SceneIndex)=>geometries.get(index)
+function pointsBox(points:readonly {x:number;y:number}[]):Box {return {minX:Math.min(...points.map(p=>p.x)),maxX:Math.max(...points.map(p=>p.x)),minY:Math.min(...points.map(p=>p.y)),maxY:Math.max(...points.map(p=>p.y))}}
+const indexedNodeBox=(index:SceneIndex,i:number)=>{const segment=sceneGeometry(index)?.busbars.get(i);return segment?pointsBox(segment):nodeBox(index.positions,i)}
 type Tree=Box&{count:number;indices?:number[];left?:Tree;right?:Tree}
 export type SceneIndex={scene:NetworkScene;bounds:SceneCamera;stationGroups:StationDisplayGroup[];nodeStation:Int32Array;positions:Float32Array;endpoints:Uint32Array;edgeOffsets:Float32Array;incidentOffsets:Uint32Array;incidentEdges:Uint32Array;bundles:Map<string,number[]>;bundleByEdge:Map<number,string>;nodeIds:Map<string,number>;edgeIds:Map<string,number>;nodes:Tree;edges:Tree;search:{key:string;result:SceneSearchResult}[]}
 const intersects=(a:Box,b:Box)=>a.minX<=b.maxX&&a.maxX>=b.minX&&a.minY<=b.maxY&&a.maxY>=b.minY
@@ -18,6 +23,7 @@ function tree(indices:number[],box:(index:number)=>Box):Tree {
 }
 const nodeBox=(positions:Float32Array,index:number):Box=>({minX:positions[index*2],maxX:positions[index*2],minY:positions[index*2+1],maxY:positions[index*2+1]})
 function edgeBox(index:SceneIndex,i:number):Box {
+  const route=sceneGeometry(index)?.routes.get(i);if(route)return pointsBox(route)
   const a=index.endpoints[i*2]*2,b=index.endpoints[i*2+1]*2
   const padding=Math.abs(index.edgeOffsets[i])+12
   return {minX:Math.min(index.positions[a],index.positions[b])-padding,maxX:Math.max(index.positions[a],index.positions[b])+padding,minY:Math.min(index.positions[a+1],index.positions[b+1])-padding,maxY:Math.max(index.positions[a+1],index.positions[b+1])+padding}
@@ -51,7 +57,9 @@ export function buildSceneIndex(scene:NetworkScene,aspect=5/3):SceneIndex {
   }
   const supplied=scene.nodes.length>0&&scene.nodes.every(node=>typeof node.x==='number'&&Number.isFinite(node.x)&&typeof node.y==='number'&&Number.isFinite(node.y))
   let stationGroups:StationDisplayGroup[]=[]
-  if(supplied){
+  let geometry:ElectricalGeometry|undefined
+  if(scene.displayMode==='source-electrical')geometry=electricalSourceLayout(scene,endpoints,bounds,positions)
+  else if(supplied){
     let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity
     for(const node of scene.nodes){minX=Math.min(minX,node.x!);maxX=Math.max(maxX,node.x!);minY=Math.min(minY,node.y!);maxY=Math.max(maxY,node.y!)}
     const scale=Math.min(920/Math.max(1,maxX-minX),(height-72)/Math.max(1,maxY-minY))
@@ -94,7 +102,13 @@ export function buildSceneIndex(scene:NetworkScene,aspect=5/3):SceneIndex {
   const nodeStation=new Int32Array(scene.nodes.length).fill(-1)
   stationGroups.forEach((group,i)=>group.indices.forEach(node=>{nodeStation[node]=i}))
   const index:SceneIndex={scene,bounds,stationGroups,nodeStation,positions,endpoints,edgeOffsets,incidentOffsets,incidentEdges,bundles,bundleByEdge,nodeIds,edgeIds,nodes:null!,edges:null!,search:[]}
-  index.nodes=tree(scene.nodes.map((_,i)=>i),i=>nodeBox(positions,i))
+  if(geometry){
+    geometries.set(index,geometry)
+    let minX=bounds.x,minY=bounds.y,maxX=bounds.x+bounds.width,maxY=bounds.y+bounds.height
+    for(const route of geometry.routes.values())for(const point of route){minX=Math.min(minX,point.x-12);minY=Math.min(minY,point.y-12);maxX=Math.max(maxX,point.x+12);maxY=Math.max(maxY,point.y+12)}
+    Object.assign(bounds,{x:minX,y:minY,width:maxX-minX,height:maxY-minY})
+  }
+  index.nodes=tree(scene.nodes.map((_,i)=>i),i=>indexedNodeBox(index,i))
   index.edges=tree(scene.edges.map((_,i)=>i),i=>edgeBox(index,i))
   index.search=[...scene.nodes.map(node=>({key:`${node.id} ${node.label}`.toLocaleLowerCase(),result:{id:node.id,label:node.label,kind:node.kind,type:'node' as const}})),
     ...scene.edges.map(edge=>({key:`${edge.id} ${edge.label||''}`.toLocaleLowerCase(),result:{id:edge.id,label:edge.label||edge.id,kind:edge.kind,type:'edge' as const}}))]
@@ -121,7 +135,7 @@ export function queryScene(index:SceneIndex,camera:SceneCamera,nodeLimit=24000,e
     }
     visit(root,limit);return Uint32Array.from(found)
   }
-  return {nodeIndices:query(index.nodes,nodeLimit,i=>nodeBox(index.positions,i)),edgeIndices:query(index.edges,edgeLimit,i=>edgeBox(index,i)),limited}
+  return {nodeIndices:query(index.nodes,nodeLimit,i=>indexedNodeBox(index,i)),edgeIndices:query(index.edges,edgeLimit,i=>edgeBox(index,i)),limited}
 }
 function boxDistance(box:Box,x:number,y:number){const dx=Math.max(box.minX-x,0,x-box.maxX),dy=Math.max(box.minY-y,0,y-box.maxY);return dx*dx+dy*dy}
 export function pickScene(index:SceneIndex,x:number,y:number,tolerance:number,offsetForEdge?:(edge:number)=>number,include?:(id:string)=>boolean):SceneSelection|undefined {
@@ -131,7 +145,9 @@ export function pickScene(index:SceneIndex,x:number,y:number,tolerance:number,of
     if(root.indices)for(const i of root.indices){
       if(include&&!include(node?index.scene.nodes[i].id:index.scene.edges[i].id))continue
       let distance:number
-      if(node){distance=(index.positions[i*2]-x)**2+(index.positions[i*2+1]-y)**2}
+      const route=node?sceneGeometry(index)?.busbars.get(i):sceneGeometry(index)?.routes.get(i)
+      if(route){distance=Infinity;for(let s=1;s<route.length;s++){const a=route[s-1],b=route[s],dx=b.x-a.x,dy=b.y-a.y,length=dx*dx+dy*dy,t=length?Math.max(0,Math.min(1,((x-a.x)*dx+(y-a.y)*dy)/length)):0;distance=Math.min(distance,(a.x+t*dx-x)**2+(a.y+t*dy-y)**2)}}
+      else if(node){distance=(index.positions[i*2]-x)**2+(index.positions[i*2+1]-y)**2}
       else{
         const a=index.endpoints[i*2]*2,b=index.endpoints[i*2+1]*2,ax=index.positions[a],ay=index.positions[a+1],bx=index.positions[b],by=index.positions[b+1]
         const length=Math.hypot(bx-ax,by-ay)
@@ -164,14 +180,14 @@ export function focusScene(index:SceneIndex,ids:readonly string[],markersOnly=fa
   const add=(i:number)=>{const x=index.positions[i*2],y=index.positions[i*2+1];minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y)}
   for(const id of ids){
     const node=index.nodeIds.get(id),edge=index.edgeIds.get(id)
-    if(node!==undefined)add(node)
+    if(node!==undefined){add(node);const segment=sceneGeometry(index)?.busbars.get(node);if(segment){const box=pointsBox(segment);minX=Math.min(minX,box.minX);maxX=Math.max(maxX,box.maxX);minY=Math.min(minY,box.minY);maxY=Math.max(maxY,box.maxY)}}
     if(edge!==undefined){
       const markers=index.scene.edges[edge].terminalStates?.flatMap(marker=>{const i=index.nodeIds.get(marker.nodeId);return i===undefined?[]:[i]})
       if(markersOnly&&markers?.length)markers.forEach(add)
-      else{add(index.endpoints[edge*2]);add(index.endpoints[edge*2+1])}
+      else{add(index.endpoints[edge*2]);add(index.endpoints[edge*2+1]);const route=sceneGeometry(index)?.routes.get(edge);if(route){const box=pointsBox(route);minX=Math.min(minX,box.minX);maxX=Math.max(maxX,box.maxX);minY=Math.min(minY,box.minY);maxY=Math.max(maxY,box.maxY)}}
     }
   }
   if(!Number.isFinite(minX))return {...index.bounds}
-  const width=Math.min(950,Math.max(380,maxX-minX+250,(maxY-minY+170)*5/3)),height=width*.6
+  const width=Math.min(sceneGeometry(index)?Infinity:950,Math.max(380,maxX-minX+250,(maxY-minY+170)*5/3)),height=width*.6
   return {x:(minX+maxX-width)/2,y:(minY+maxY-height)/2,width,height}
 }

@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { HttpThreadTransport } from './threadHttpTransport'
-import { loadGridSourceView, type GridSourceLevel, type GridSourceObject, type GridSourceView } from './gridSource'
+import { loadGridSourceView, type GridSourceLevel, type GridSourceObject, type GridSourceScope, type GridSourceView } from './gridSource'
 import { LargeNetworkView } from './LargeNetworkView'
+import { electricalSourceScene, sourceLabelVisible } from './electricalSourceScene'
 import type { NetworkScene } from './networkScene'
 import { useSessionViewRef, useSessionViewState } from './workspaceSessionCache'
 import type { ThreadSourceViewRequest } from './threadViewRouting'
 import './gridSource.css'
 
 type Selection = { level: GridSourceLevel; selected_object_id?: string | null; label: string; sourceSnapshot?: string; sourceInstance?: string; sourceRule?: string; viewRef?:string; voltageMin?:number|null }
-const root: Selection = { level:null, label:'华北全网元件' }
-const region: Selection = { level:'region', label:'华北站点总览' }
+const root: Selection = { level:null, label:'全网元件' }
+const region: Selection = { level:'region', label:'站点总览' }
 function restorePath(value: unknown,fallback:Selection=root): Selection[] {
   return Array.isArray(value)&&value.length>0&&value.length<=32&&(value[0]?.level===null||value[0]?.level==='region')
     &&value.every(item=>item&&(item.level===null||['region','station','equipment'].includes(item.level))
@@ -25,15 +26,45 @@ type SourceWorkspaceProps = {
   requestedView?:ThreadSourceViewRequest;requestNonce?:number;onManualNavigate?:()=>void
 }
 export default function GridSourceWorkspace(props:SourceWorkspaceProps) {
-  return <ScopedSourceWorkspace key={props.requestedView?.scope_id||'north'} {...props}/>
+  if(props.requestedView)return <ScopedSourceWorkspace key={props.requestedView.scope_id} {...props}
+    scope={{scope_id:props.requestedView.scope_id,name:props.requestedView.scope_name||props.requestedView.scope_id}}/>
+  return <DiscoveredSourceWorkspace {...props}/>
 }
-function ScopedSourceWorkspace({ transport, onQuestion, requestedView, requestNonce, onManualNavigate }: SourceWorkspaceProps) {
-  const scopeId=requestedView?.scope_id||'north',scopeName=requestedView?.scope_name||'华北'
+function DiscoveredSourceWorkspace(props:SourceWorkspaceProps) {
+  const [scopes,setScopes]=useState<GridSourceScope[]>(),[error,setError]=useState(''),[revision,setRevision]=useState(0)
+  const [selected,setSelected]=useSessionViewState<string>('source-topology.selected-scope','')
+  useEffect(()=>{
+    const controller=new AbortController();setError('');setScopes(undefined)
+    props.transport.gridSourceScopes(controller.signal).then(value=>{if(!controller.signal.aborted)setScopes(value)})
+      .catch(cause=>{if(!controller.signal.aborted)setError(cause instanceof Error?cause.message:'电网范围目录暂时无法读取。')})
+    return()=>controller.abort()
+  },[props.transport,revision])
+  const scope=scopes?.find(item=>item.scope_id===selected)
+  return <>
+    <section className="grid-source-workspace" aria-label="选择源电网">
+      {!scopes&&!error&&<p role="status">正在读取电网范围…</p>}
+      {error&&<p role="alert">{error} <button type="button" onClick={()=>setRevision(value=>value+1)}>重新读取</button></p>}
+      {scopes?.length===0&&<p>暂无可浏览的登记电网范围。</p>}
+      {!!scopes?.length&&<label>电网范围<select value={scope?.scope_id||''} onChange={event=>{props.onManualNavigate?.();setSelected(event.target.value)}}>
+        <option value="">请选择电网范围</option>{scopes.map(item=><option key={item.scope_id} value={item.scope_id}>{item.name}</option>)}
+      </select></label>}
+    </section>
+    {scope&&<ScopedSourceWorkspace key={scope.scope_id} {...props} scope={scope}/>}
+  </>
+}
+function ScopedSourceWorkspace({ transport, onQuestion, requestedView, requestNonce, onManualNavigate,scope }: SourceWorkspaceProps&{scope:GridSourceScope}) {
+  const scopeId=scope.scope_id,scopeName=scope.name
   const scopedRoot=useMemo<Selection>(()=>({...root,label:`${scopeName}全网元件`,voltageMin:requestedView?.voltage_min_kv}),[scopeName,requestedView?.voltage_min_kv])
   const scopedRegion=useMemo<Selection>(()=>({...region,label:`${scopeName}站点总览`,voltageMin:requestedView?.voltage_min_kv}),[scopeName,requestedView?.voltage_min_kv])
-  const [savedPath,setSavedPath] = useSessionViewState<unknown>(`source-topology.path:${scopeId}`,[scopedRoot])
+  const requestIdentity=requestedView?JSON.stringify([requestedView,requestNonce]):undefined
+  const initial=useMemo<Selection>(()=>requestedView?{level:requestedView.level,selected_object_id:requestedView.selected_object_id,
+    label:requestedView.selected_object_id||`${scopeName}${requestedView.level==='region'?'站点总览':'全网元件'}`,
+    viewRef:requestedView.view_ref,voltageMin:requestedView.voltage_min_kv,
+    sourceSnapshot:requestedView.source_snapshot.metadata_snapshot,sourceInstance:requestedView.source_snapshot.source_instance}:scopedRegion,[requestIdentity,scopeName,scopedRegion])
+  const initialPath=useMemo(()=>initial.level===null||initial.level==='region'?[initial]:[scopedRegion,initial],[initial,scopedRegion])
+  const [savedPath,setSavedPath] = useSessionViewState<unknown>(`source-topology.path:${scopeId}`,initialPath)
   const appliedRequest=useSessionViewRef<string|undefined>(`source-topology.applied:${scopeId}`,undefined)
-  const path=restorePath(savedPath,scopedRoot)
+  const path=requestIdentity&&appliedRequest.current!==requestIdentity?initialPath:restorePath(savedPath,scopedRegion)
   function setPath(next: Selection[] | ((previous: Selection[])=>Selection[])) {
     setSavedPath((previous:unknown)=>typeof next==='function'?next(restorePath(previous,scopedRoot)):next)
   }
@@ -42,11 +73,7 @@ function ScopedSourceWorkspace({ transport, onQuestion, requestedView, requestNo
     const identity=JSON.stringify([requestedView,requestNonce])
     if(appliedRequest.current===identity)return
     appliedRequest.current=identity
-    const target:Selection={level:requestedView.level,selected_object_id:requestedView.selected_object_id,
-      label:requestedView.selected_object_id||`${scopeName}${requestedView.level==='region'?'站点总览':'全网元件'}`,viewRef:requestedView.view_ref,
-      voltageMin:requestedView.voltage_min_kv,sourceSnapshot:requestedView.source_snapshot.metadata_snapshot,
-      sourceInstance:requestedView.source_snapshot.source_instance}
-    setPath(target.level===null?[target]:[scopedRoot,target])
+    setPath(initialPath)
   },[requestedView?.view_ref,requestedView?.scope_id,requestedView?.scope_name,requestedView?.level,requestedView?.selected_object_id,
     requestedView?.voltage_min_kv,requestedView?.source_snapshot.metadata_snapshot,requestedView?.source_snapshot.source_instance,requestNonce])
   const [view,setView] = useState<GridSourceView>()
@@ -79,18 +106,23 @@ function ScopedSourceWorkspace({ transport, onQuestion, requestedView, requestNo
   },[transport,selection,revision,scopeId])
   const objects = useMemo(()=>new Map([...(view?.nodes||[]),...(view?.edges||[])].map(item=>[item.id,item])),[view])
   const nodeIds = useMemo(()=>new Set(view?.nodes.map(item=>item.id)),[view])
-  const scene = useMemo<NetworkScene|undefined>(()=>view?{
+  const scene = useMemo<NetworkScene|undefined>(()=>view?.page.level==='equipment'?electricalSourceScene(view):view?{
     ref:view.page.view_ref,coordinateSystem:'schematic',displayMode:view.page.level==='region'?'source-regional':'source-detail',
     nodes:view.nodes.map(item=>({id:item.id,label:item.label||item.id,kind:item.kind,sourceRef:item.source_id,stationId:item.station_id??undefined,parentId:item.parent_id??undefined,
+      showLabel:sourceLabelVisible(item),
       voltageKv:item.voltage_kv??item.vn_kv,boundary:item.boundary,
       details:[{label:'来源对象',value:item.source_id||item.id},{label:'边界对象',value:item.boundary?'是':'否'},
         ...(item.parent_id?[{label:'上级对象',value:item.parent_id}]:[]),...(item.station_id?[{label:'所属站点',value:item.station_id}]:[])]})),
     edges:view.edges.filter(item=>nodeIds.has(item.source!)&&nodeIds.has(item.target!)).map(item=>({id:item.id,source:item.source!,target:item.target!,kind:item.kind,
       label:item.label||item.id,sourceRef:item.source_id})),
   }:undefined,[view,nodeIds])
+  const connectionExpansion=view?.page.level==='station'?view.nodes.find(item=>item.expand?.level==='equipment'
+    &&item.expand.selected_object_id===view.page.selected_object_id):undefined
   function activate(item: {id:string}) {
     const object: GridSourceObject|undefined=objects.get(item.id)
-    if(object?.expand){onManualNavigate?.();setPath(previous=>[...previous,{...object.expand!,label:object.label||object.id,
+    if(object?.expand){onManualNavigate?.();setPath(previous=>[...previous,{...object.expand!,
+      label:selection.level==='station'&&object.expand!.level==='equipment'
+        &&object.expand!.selected_object_id===selection.selected_object_id?`${selection.label}接线`:object.label||object.id,
       sourceSnapshot:typeof view?.page.source_snapshot.metadata_snapshot==='string'?view.page.source_snapshot.metadata_snapshot:undefined,
       sourceRule:typeof view?.page.selection.rule_sha256==='string'?view.page.selection.rule_sha256:undefined,
       sourceInstance:typeof view?.page.source_snapshot.source_instance==='string'?view.page.source_snapshot.source_instance:undefined,
@@ -112,8 +144,10 @@ function ScopedSourceWorkspace({ transport, onQuestion, requestedView, requestNo
     {loading&&<p role="status">{`正在读取源拓扑 · ${counts[0].toLocaleString()} 个节点 / ${counts[1].toLocaleString()} 条连接`}</p>}
     {error&&<p role="alert">{error}</p>}
     {scene&&view&&<>
+      {connectionExpansion&&<button type="button" onClick={()=>activate(connectionExpansion)}>查看站内接线图</button>}
+      {view.page.level==='equipment'&&<p className="grid-source-note">源接线单线图 · 实线表示源连接，虚线表示设备归属；开关状态未核验，缺失连接不补线。</p>}
       <p className="grid-source-note">视图口径：{typeof view.page.selection.min_ac_kv==='number'?`交流电压下限 ${view.page.selection.min_ac_kv} kV`:'以来源筛选规则为准'}；目录范围和运行状态不作额外推断。</p>
-      <LargeNetworkView scene={scene} title={selection.label} storageKey={`capstone-source-${scopeId}`} viewKey={`${selection.level}:${selection.selected_object_id||''}:${view.page.view_ref}:source-layout-v2`} onActivate={activate} canActivate={item=>!!objects.get(item.id)?.expand}/>
+      <LargeNetworkView scene={scene} title={selection.label} storageKey={`capstone-source-${scopeId}`} viewKey={`${selection.level}:${selection.selected_object_id||''}:${view.page.view_ref}:source-layout-v3`} onActivate={activate} canActivate={item=>!!objects.get(item.id)?.expand}/>
       <p>{view.nodes.length.toLocaleString()} 个源节点 · {view.edges.length.toLocaleString()} 条源连接 · 未定位端点 {view.unresolvedEndpoints.length}</p>
       <details><summary>来源与质量缺口</summary>
         <dl><dt>视图版本</dt><dd>{view.page.view_ref}</dd><dt>选择规则</dt><dd><pre>{JSON.stringify(view.page.selection,null,2)}</pre></dd>
