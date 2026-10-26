@@ -1195,19 +1195,6 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                         return self.send_json(503, {'error': 'network_policy_unavailable'})
                     return self.send_json(200, network_policy.state())
                 parts = self.path.split('/')
-                electrical_routes = {f'/grid-sources/data-gateway/electrical/{name}': getattr(electrical_provider, name)
-                                     for name in ('open', 'read', 'job')}
-                if self.path in electrical_routes:
-                    try:
-                        if not 0 < length <= REQUEST_BYTES:
-                            raise ElectricalViewError('grid_electrical_request_invalid')
-                        try:
-                            document = json.loads(self.rfile.read(length))
-                        except (ValueError, UnicodeDecodeError):
-                            raise ElectricalViewError('grid_electrical_request_invalid') from None
-                        return self.send_json(200, run_http(electrical_routes[self.path](document)))
-                    except ElectricalViewError as error:
-                        return self.send_json(error.status, {'error': error.code})
                 if len(parts) == 5 and parts[1] == 'tasks' and parts[3] == 'artifacts':
                     data = host.read_artifact(parts[2], parts[4])
                     self.send_response(200)
@@ -1253,6 +1240,19 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
             try:
                 length = int(self.headers.get('Content-Length', '0'))
                 parts = self.path.split('/')
+                electrical_routes = {f'/grid-sources/data-gateway/electrical/{name}': getattr(electrical_provider, name)
+                                     for name in ('open', 'read', 'job')}
+                if self.path in electrical_routes:
+                    try:
+                        if not 0 < length <= REQUEST_BYTES:
+                            raise ElectricalViewError('grid_electrical_request_invalid')
+                        try:
+                            document = json.loads(self.rfile.read(length))
+                        except (ValueError, UnicodeDecodeError):
+                            raise ElectricalViewError('grid_electrical_request_invalid') from None
+                        return self.send_json(200, run_http(electrical_routes[self.path](document)))
+                    except ElectricalViewError as error:
+                        return self.send_json(error.status, {'error': error.code})
                 if self.path in {'/grid-sources/data-gateway/resolve-scope', '/grid-sources/data-gateway/topology'}:
                     if not 0 < length <= REQUEST_BYTES:
                         raise GridSourceError('grid_source_request_invalid')
@@ -1469,7 +1469,7 @@ def main():
                 'runtime_lock_sha256': sha256(Path('/opt/general/pi-runtime.lock.json').read_bytes()).hexdigest(),
                 'executor_revision': sha256(b''.join((Path(__file__).parent / name).read_bytes()
                     for name in ('general_pi_server.py', 'general_pi_executor.py', 'general_pi_storage.py', 'general_pi_relay.py', 'native_network_policy.py', 'bounded_http_loop.py', 'pi_delegation.py', 'business_context.py', 'request_intent.py', 'native_task_context.py', 'native_diagnosis.py',
-                                 'native_resources.py', 'runtime_resources.py', 'resource_installation.py', 'general_pi_resource_seed.py', 'bounded_mcp.py', 'native_environment.py', 'data_gateway_mcp.py', 'data_gateway_relay.py', 'grid_source_topology.py', 'resources/general-data-gateway.mjs',
+                                 'native_resources.py', 'runtime_resources.py', 'resource_installation.py', 'general_pi_resource_seed.py', 'bounded_mcp.py', 'native_environment.py', 'data_gateway_mcp.py', 'data_gateway_relay.py', 'grid_source_topology.py', 'grid_electrical_view.py', 'resources/gateway-electrical-view-v1.schema.json', 'resources/general-data-gateway.mjs',
                                  'progress.py', 'stream_progress.py', 'resource_manifest.py', 'native_resource_staging.py',
                                  'native_research_bridge.py', 'native_graph_context.py', 'native_graph_events.py',
                                  'native_product_roles.py', 'continuation_resources.py', 'resources/general-research.mjs', 'resources/research-guidance.mjs',
