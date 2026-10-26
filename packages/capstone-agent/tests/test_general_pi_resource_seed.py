@@ -1,8 +1,29 @@
 """Stable, protected native runtime installation persistence."""
 import json
+import re
 from pathlib import Path
 
 import pytest
+
+
+def test_native_image_includes_local_sdk_module_dependencies():
+    project = Path(__file__).parents[3]
+    resources = project / 'packages/capstone-agent/src/capstone_agent/resources'
+    image = (project / 'deploy/general-pi.Dockerfile').read_text()
+    destinations = [line.split()[-1] for line in image.splitlines() if line.startswith('COPY ')]
+    pending = ['general-sdk.mjs']
+    checked = set()
+    while pending:
+        name = pending.pop()
+        if name in checked:
+            continue
+        checked.add(name)
+        target = f'capstone_agent/resources/{name}'
+        assert any(target == dest or (dest.endswith('/') and target.startswith(dest))
+                   for dest in destinations), f'Native image omits {name}'
+        source = (resources / name).read_text()
+        pending.extend(str(Path(name).parent / dependency) for dependency in
+                       re.findall(r"(?:from\s+|import\s*)['\"]\./([^'\"]+\.mjs)['\"]", source))
 
 
 def seed(root: Path, name: str):
