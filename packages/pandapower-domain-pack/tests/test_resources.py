@@ -11,7 +11,8 @@ def test_load_uses_installed_simulator_contract_resources() -> None:
     documents = sorted(
         resources.capability_contract_root.glob("*.json"), key=lambda path: path.name
     )
-    assert len(documents) == 30
+    assert len(documents) == 31
+    assert any(path.name == "model.artifact.import.json" for path in documents)
     assert all(path.is_file() for path in documents)
     assert not any("packages/grid-simulator/src" in str(path) for path in documents)
 

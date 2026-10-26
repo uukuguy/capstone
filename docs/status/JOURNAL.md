@@ -5942,3 +5942,7 @@ Prior closeout receipts preserved verbatim from the root checkout:
 - 2026-10-27 `4c70736e`: Fix PR69 optional-value type failures; focused Pyright clean and47 broker tests pass in0.20s.
 
 - 2026-10-27 `432b94b5`: Align control and recovery docs with non-diagram acceptance before dev integration.
+
+- 2026-10-27 `ed0c5ff2`: Document granted import and correct stale contract assumptions;39 checks pass in4.44s.
+
+- 2026-10-27 `ed0c5ff2`: Canonical rebuild passed;API/workers share cad1795d image;scoped cleanup complete;PR69 CI remains pending.
