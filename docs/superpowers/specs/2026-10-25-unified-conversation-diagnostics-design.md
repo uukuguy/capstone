@@ -177,4 +177,29 @@ Scope development CI to affected consumers. Cloud and demo deployment are separa
 release work. Production gateway topology is not an accepted calculation model;
 use registered calculation-ready models for the grid execution acceptance.
 
-No implementation or verification in this document has yet been completed.
+## Accepted clarification: adaptive loop and Deep Research (2026-10-26)
+
+Every instruction starts in a lightweight agent loop. In each cycle the agent
+interprets the current instruction and observations, answers when sufficient,
+calls an authorized tool, or starts Deep Research when task organization is
+needed. Deep Research names the existing heavier planner and isolated task
+execution chain. It is inactive by default, but available for autonomous
+activation at any cycle. There is no first-tool-only decision, mandatory routing
+model call, upload heuristic, session-type prerequisite, or new-entry mode picker.
+
+Activation retains completed observations through host-admitted, immutable raw
+source grants. It does not repeat completed queries or turn native observations
+into accepted graph results or Authority evidence. Once organization starts,
+existing isolated task, source selection and professional calculation contracts
+continue to apply. A new instruction does not resume an interrupted organization
+without the instruction's scope authorizing that continuation.
+
+The process view follows actual events: compact initial Thinking, direct tool
+records, then Deep Research task steps only after organization is admitted.
+Keep earlier Thinking and tool records through escalation and refresh. Thinking
+folds at execution handoff; its archive remains bounded and uses `Thinking · 12s`
+style without a separate duration label. Do not add tool time to Thinking or
+double-count earlier calls in the task view. Historical records stay readable.
+
+Implementation and local acceptance are tracked separately in the canonical
+worklist and session checkpoint; this decision alone is not runtime acceptance.
