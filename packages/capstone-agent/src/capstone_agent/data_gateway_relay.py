@@ -54,11 +54,15 @@ class DataGatewayAccess:
     def publication(self):
         return {'available': True, 'catalog': deepcopy(self.catalog)}
 
-    def bind(self, task_id, attempt_id):
+    def bind(self, task_id, attempt_id, allowed_tools):
+        if (not isinstance(allowed_tools, (set, frozenset, list, tuple))
+                or any(not isinstance(name, str) or name not in self.catalog['tools'] for name in allowed_tools)):
+            raise GatewayError('gateway_tool_not_admitted')
         with self._lock:
             if task_id in self._tasks:
                 raise GatewayError('gateway_task_already_bound')
-            self._tasks[task_id] = {'attempt_id': attempt_id, 'started': set(), 'issued': {}}
+            self._tasks[task_id] = {'attempt_id': attempt_id, 'allowed_tools': frozenset(allowed_tools),
+                                    'started': set(), 'issued': {}}
 
     def revoke(self, task_id):
         with self._lock:
@@ -77,6 +81,8 @@ class DataGatewayAccess:
             record = self._tasks.get(task_id)
             if record is None:
                 raise GatewayError('gateway_task_not_admitted')
+            if name not in record['allowed_tools']:
+                raise GatewayError('gateway_tool_not_admitted')
             if call_id in record['started']:
                 raise GatewayError('gateway_call_already_started')
             if record.get('failure'):

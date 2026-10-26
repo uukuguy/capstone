@@ -14,12 +14,47 @@ class Client:
                 'structuredContent': {'status': 'partial', 'gaps': ['missing'], 'provenance': {'id': 'actual'}}}
 
 
-def access():
+def access(extra_tools=()):
     catalog = {'revision': 'a' * 64, 'tools': {'data_gateway_discover_data_capabilities': {}},
                'tool_hashes': {'data_gateway_discover_data_capabilities': 'b' * 64}}
+    for tool in extra_tools:
+        catalog['tools'][tool] = {}
+        catalog['tool_hashes'][tool] = 'd' * 64
     resource = DataGatewayAccess(Client(), catalog)
-    resource.bind('task-1', 'attempt-1')
+    resource.bind('task-1', 'attempt-1', set(catalog['tools']))
     return resource
+
+
+def test_task_grant_rejects_catalog_tool_outside_frozen_subset():
+    resource = access(['data_gateway_other'])
+    allowed = {request()['name']}
+    resource.bind('restricted', 'attempt-2', allowed)
+    allowed.add('data_gateway_other')
+    calls = []
+    async def upstream(name, arguments, catalog):
+        calls.append((name, catalog))
+        return await Client().call(name, arguments, catalog)
+    resource.client.call = upstream
+    with pytest.raises(GatewayError, match='gateway_tool_not_admitted'):
+        asyncio.run(resource.call('restricted', dict(request(), name='data_gateway_other')))
+    assert calls == []
+    response = asyncio.run(resource.call('restricted', request()))
+    assert calls == [(request()['name'], resource.catalog)]
+    assert response['observation']['catalog_revision'] == resource.catalog['revision']
+
+
+@pytest.mark.parametrize('allowed', [None, 'data_gateway_other', {'missing'}, {1}])
+def test_task_binding_rejects_invalid_tool_grants(allowed):
+    resource = access()
+    with pytest.raises(GatewayError, match='gateway_tool_not_admitted'):
+        resource.bind('restricted', 'attempt-2', allowed)
+
+
+def test_empty_task_grant_does_not_inherit_catalog():
+    resource = access()
+    resource.bind('restricted', 'attempt-2', set())
+    with pytest.raises(GatewayError, match='gateway_tool_not_admitted'):
+        asyncio.run(resource.call('restricted', request()))
 
 
 def request():
@@ -28,10 +63,7 @@ def request():
 
 @pytest.mark.parametrize('failed_open', [False, True])
 def test_preparation_jobs_require_an_issued_open_in_the_same_task(failed_open):
-    resource = access()
-    for tool in ['open_network_model_view', 'get_network_model_job']:
-        resource.catalog['tools']['data_gateway_' + tool] = {}
-        resource.catalog['tool_hashes']['data_gateway_' + tool] = 'd' * 64
+    resource = access(['data_gateway_open_network_model_view', 'data_gateway_get_network_model_job'])
     calls = []
     async def upstream(name, arguments, catalog):
         calls.append(name)
@@ -51,7 +83,7 @@ def test_preparation_jobs_require_an_issued_open_in_the_same_task(failed_open):
         with pytest.raises(GatewayError, match='gateway_tool_not_admitted'): job('task-1', 'after')
     else:
         assert job('task-1', 'after')['is_error'] is False
-    resource.bind('task-2', 'attempt-2')
+    resource.bind('task-2', 'attempt-2', set(resource.catalog['tools']))
     with pytest.raises(GatewayError, match='gateway_tool_not_admitted'): job('task-2', 'foreign')
     with pytest.raises(GatewayError, match='gateway_tool_not_admitted'): job('task-1', 'build', 'build-job')
     if not failed_open:
@@ -120,10 +152,8 @@ def test_failed_call_is_not_replayed_or_issued_as_source():
 
 
 def test_transport_failure_stops_other_probes_only_for_the_failed_task():
-    resource = access()
     other = 'data_gateway_discover_business_services'
-    resource.catalog['tools'][other] = {}
-    resource.catalog['tool_hashes'][other] = 'c' * 64
+    resource = access([other])
     calls = []
 
     async def failed(name, *_):
@@ -136,7 +166,7 @@ def test_transport_failure_stops_other_probes_only_for_the_failed_task():
             asyncio.run(resource.call('task-1', value))
     assert calls == [request()['name']]
     assert not resource.verify('task-1', 'call-2', other, {}, '{}')
-    resource.bind('task-2', 'attempt-2')
+    resource.bind('task-2', 'attempt-2', set(resource.catalog['tools']))
     resource.client = Client()
     assert asyncio.run(resource.call('task-2', request()))['is_error'] is False
 
@@ -152,6 +182,26 @@ def test_argument_failure_does_not_stop_a_corrected_call():
         asyncio.run(resource.call('task-1', request()))
     resource.client = Client()
     assert asyncio.run(resource.call('task-1', dict(request(), call_id='call-2')))['is_error'] is False
+
+
+def test_changed_tool_publication_does_not_stop_another_granted_tool():
+    other = 'data_gateway_other'
+    resource = access([other])
+    calls = []
+    async def upstream(name, arguments, catalog):
+        calls.append(name)
+        if name == request()['name']:
+            raise GatewayError('gateway_publication_changed')
+        return await Client().call(name, arguments, catalog)
+    resource.client.call = upstream
+    with pytest.raises(GatewayError, match='gateway_publication_changed'):
+        asyncio.run(resource.call('task-1', request()))
+    with pytest.raises(GatewayError, match='gateway_call_already_started'):
+        asyncio.run(resource.call('task-1', request()))
+    assert not resource.verify('task-1', 'call-1', request()['name'], {}, '{}')
+    response = asyncio.run(resource.call('task-1', dict(request(), call_id='call-2', name=other)))
+    assert response['is_error'] is False
+    assert calls == [request()['name'], other]
 
 
 def test_http_route_requires_task_grant_and_revocation(tmp_path):

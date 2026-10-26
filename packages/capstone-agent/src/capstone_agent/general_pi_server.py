@@ -932,27 +932,30 @@ class NativeTaskRunner:
                 gateway_tools = research_gateway_tools(native, self.gateway.publication() if self.gateway else {})
                 admitted_gateway = gateway_tools.intersection(native['policy']['allowed_tools'])
                 if admitted_gateway and self.gateway is not None:
-                    self.gateway.bind(request.task_id, request.parent_attempt_id)
+                    self.gateway.bind(request.task_id, request.parent_attempt_id, admitted_gateway)
+                    task_catalog = self.gateway.publication()['catalog']
+                    # This is a menu projection, not a new accepted catalog.
+                    # Receipts retain the full host catalog revision and exact tool hashes.
+                    task_catalog = {**task_catalog,
+                        'tools': {name: task_catalog['tools'][name] for name in sorted(admitted_gateway)},
+                        'tool_hashes': {name: task_catalog['tool_hashes'][name] for name in sorted(admitted_gateway)}}
                     sdk_config['dataGateway'] = {'url': self.relay_origin + '/data-gateway/' + request.task_id,
-                        'grant': grant, 'taskId': request.task_id, 'catalog': self.gateway.publication()['catalog']}
+                        'grant': grant, 'taskId': request.task_id, 'catalog': task_catalog}
                     sdk_config.setdefault('contextFiles', []).append({'path': 'registered-production-data',
                         'content': 'Application-authorized data_gateway_ tools provide production data through a protected service. '
                         'Choose the published tool that directly answers the current instruction. Discover capabilities or services only when the needed operation is unknown. '
-                        'For an inventory request, use summary/default arguments and answer from the returned list; do not add readiness audits, topology loading, sample opening or model builds unless requested. '
-                        'When discover_network_models is admitted, a model-list request needs that inventory once with default detail=false, not a broader service investigation. '
-                        'For a requested electrical source view, use the discovered model_ref with open_network_model_view and source_node_breaker. '
-                        'If it returns preparing, query only its returned preparation_ref with get_network_model_job, then reopen after success. Do not poll without a bounded wait or retry failed preparation. '
-                        'Read groups first at the model root; select a returned station/device target and open its local view with parent_view_ref and expected_model_revision. '
-                        'Never prefetch all network devices or reconstruct a full network just to open a diagram. Preserve exact view_ref, model_revision, selection_ref and source_snapshot_ref on reads. '
-                        'Use refresh_source only when the current instruction asks to refresh source data. Captured content is fixed; source transaction consistency may remain unverified. '
-                        'A ready source view supports display, not power-flow readiness or Authority results. Calculation views require an admitted artifact and exact model mapping; do not invent one or build through this research adapter. '
-                        'Registered scopes, built artifacts and calculation readiness are distinct claims. Preserve the returned distinction instead of trying extra operations to certify a list. '
-                        'For actual data analysis, discover the needed exact objects, metrics, sources and time coverage. '
-                        'These explicit data grants do not enable arbitrary external web lookup. Preserve status, gaps, provenance and calculation. '
-                        'Use prepare_data_query before execute_data_query and retain its returned validation fingerprint. '
+                        'For an inventory request, use summary/default arguments and answer from the returned list; do not expand into unrelated investigations or operations. '
+                        'Use the current published tool descriptions and schemas to determine prerequisites and valid combinations; do not assume a fixed discovery or execution sequence. '
+                        'Follow returned references and conditional next steps only when needed for the current instruction and admitted by the task grant. '
+                        'Keep reads and follow-up calls bounded. Do not poll without a bounded wait or retry failed operations automatically. '
+                        'Refresh source data only when the current instruction requests it. Captured content may lack verified source transaction consistency. '
+                        'Preserve returned status, provenance, source identity, version, time coverage, units, quality, completeness and gaps. '
+                        'Check published input/output and composition conditions before combining results; do not infer compatibility from similar names. '
+                        'These explicit data grants do not enable arbitrary external web lookup. '
+                        'Retain validation references required by the published operation contract. '
                         'Do not guess units, source IDs, joins, availability or missing values. '
                         'Save retrieved data and analysis as named task products when needed for subsequent analysis. '
-                        'The gateway owns all backend selection. Only published tools in the current grant are enabled; inventory admission does not grant model inspection, build or artifact access.'})
+                        'The gateway owns all backend selection. Only published tools in the current task grant are enabled. Gateway observations do not become registered Authority results or evidence without explicit admission.'})
                 sdk_config['selectedTaskRecords'] = native['selected_task_records']
                 sdk_config['selectedTaskMaterials'] = native.get('materials', [])
                 sdk_config['researchSources'] = sorted({
