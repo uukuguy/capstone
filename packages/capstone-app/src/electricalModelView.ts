@@ -76,9 +76,11 @@ export function parseElectricalViewPage(value:unknown):ElectricalViewPage {
   for(const item of row.records){const record=parseRecord(row.stream as ElectricalStream,item);if(seen.has(record.id))fail('duplicate_record');seen.add(record.id)}
   return row as ElectricalViewPage
 }
-export function validateElectricalClosure(records:ElectricalRecords):void {
+export function validateElectricalClosure(records:ElectricalRecords,representation:'source_node_breaker'|'calculation_bus_branch'='source_node_breaker'):void {
   const devices=new Set(records.devices.map(row=>row.id)),ports=new Set(records.ports.map(row=>row.id)),nodes=new Set(records.connectivity_nodes.map(row=>row.id)),owners=new Map(records.ports.map(row=>[row.id,row.device_id]))
-  if(new Set([...devices,...ports,...nodes]).size!==devices.size+ports.size+nodes.size)fail('ambiguous_object_identity')
+  const nativeBuses=new Set(representation==='calculation_bus_branch'?records.devices.filter(device=>device.kind==='bus').map(device=>device.id):[])
+  const aliases=records.connectivity_nodes.filter(node=>node.kind==='calculation_bus'&&nativeBuses.has(node.id)).length
+  if(new Set([...devices,...ports,...nodes]).size!==devices.size+ports.size+nodes.size-aliases)fail('ambiguous_object_identity')
   for(const port of records.ports)if(!devices.has(port.device_id))fail('missing_port_device')
   for(const connection of records.connections)if(!ports.has(connection.port_id)||!nodes.has(connection.connectivity_node_id))fail('missing_connection_endpoint')
   for(const relation of records.device_relations)if(!devices.has(relation.parent_id)||!(relation.child_stream==='ports'?ports:devices).has(relation.child_id))fail('missing_relation_endpoint')
@@ -87,7 +89,9 @@ export function validateElectricalClosure(records:ElectricalRecords):void {
 export async function loadElectricalModelView(manifest:ElectricalViewReady,read:(request:ElectricalReadRequest,signal?:AbortSignal)=>Promise<unknown>,options:{mode:'groups'|'closure';signal?:AbortSignal;pageSize?:number;maxRecords?:number;maxPages?:number;onProgress?:(stream:ElectricalStream,loaded:number,total:number)=>void}):Promise<ElectricalModelView> {
   if(!options||!['groups','closure'].includes(options.mode))fail('explicit_read_mode_required')
   const ready=parseElectricalViewOpen(manifest);if(ready.state!=='ready')fail('view_not_ready')
-  if(options.mode==='closure'&&!ready.target)fail('root_closure_requires_explicit_target')
+  const explicitCalculation=ready.representation==='calculation_bus_branch'&&string(ready.artifact_ref)
+  if(options.mode==='closure'&&ready.representation==='calculation_bus_branch'&&!explicitCalculation)fail('calculation_artifact_required')
+  if(options.mode==='closure'&&!ready.target&&!explicitCalculation)fail('root_closure_requires_explicit_target')
   const streams:ElectricalStream[]=options.mode==='groups'?['groups']:[...ELECTRICAL_STREAMS],pageSize=options.pageSize??200,maxRecords=options.maxRecords??100000,maxPages=options.maxPages??2000
   if(!count(pageSize)||pageSize<1||pageSize>1000||!count(maxRecords)||!count(maxPages)||maxPages<1)fail('invalid_read_budget')
   if(streams.reduce((sum,stream)=>sum+ready.streams[stream].total_count,0)>maxRecords)fail('view_budget_exceeded')
@@ -107,6 +111,6 @@ export async function loadElectricalModelView(manifest:ElectricalViewReady,read:
       options.onProgress?.(stream,ids.size,page.total_count);cursor=page.next_cursor??undefined
     }while(cursor)
   }
-  abort();if(options.mode==='closure')validateElectricalClosure(records)
+  abort();if(options.mode==='closure')validateElectricalClosure(records,ready.representation)
   return {manifest:ready,records,loadedStreams:streams,complete:true}
 }

@@ -32,3 +32,14 @@ it('keeps the root projection a station directory without electrical edges',asyn
   expect(scene.nodes).toHaveLength(1);expect(scene.nodes[0].kind).toBe('station');expect(scene.edges).toEqual([])
   expect(()=>electricalModelScene({...view,complete:false})).toThrow('incomplete_view')
 })
+it('projects a published calculation bus alias once without changing its element identity',async()=>{
+  const records=electricalRecords();records.devices.push({id:'j1',kind:'bus',name:'Bus name 16',element_key:7,origin:'source_equivalence'});records.connectivity_nodes[0].kind='calculation_bus'
+  const manifest=electricalManifest(records,null);manifest.representation='calculation_bus_branch';manifest.artifact_ref='artifact:one'
+  const view=await loadElectricalModelView(manifest,async request=>electricalPage(manifest,records,request),{mode:'closure'}),scene=electricalModelScene(view)
+  expect(scene.nodes.filter(node=>node.id==='j1')).toHaveLength(1)
+  expect(scene.nodes.find(node=>node.id==='j1')).toMatchObject({kind:'bus',label:'Bus name 16',voltageKv:110})
+  expect(scene.nodes.find(node=>node.id==='j1')?.details).toContainEqual({label:'引擎元素键',value:'number: 7'})
+  expect(scene.nodes.find(node=>node.id==='j1')?.details).toContainEqual({label:'元素来源',value:'source_equivalence'})
+  expect(scene.edges.find(edge=>edge.id==='c1')?.target).toBe('j1')
+  expect(()=>buildSceneIndex(scene)).not.toThrow()
+})

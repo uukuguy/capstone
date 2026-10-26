@@ -12,6 +12,18 @@ describe('frozen electrical record loading',()=>{
     await expect(loadElectricalModelView(manifest,read,{mode:'closure'})).rejects.toThrow('root_closure_requires_explicit_target')
     expect(read).toHaveBeenCalledTimes(1)
   })
+  it('allows calculation root closure only with an explicit ready artifact and exact native bus alias',async()=>{
+    const records=electricalRecords();records.devices.push({id:'j1',kind:'bus',name:'Native bus',element_key:7});records.connectivity_nodes[0].kind='calculation_bus'
+    const manifest=electricalManifest(records,null);manifest.representation='calculation_bus_branch'
+    const read=vi.fn(async request=>electricalPage(manifest,records,request))
+    await expect(loadElectricalModelView(manifest,read,{mode:'closure'})).rejects.toThrow('calculation_artifact_required');expect(read).not.toHaveBeenCalled()
+    manifest.artifact_ref='artifact:one'
+    expect((await loadElectricalModelView(manifest,read,{mode:'closure'})).records.devices).toHaveLength(2)
+    records.devices[1].kind='load'
+    await expect(loadElectricalModelView(manifest,read,{mode:'closure'})).rejects.toThrow('ambiguous_object_identity')
+    records.devices[1].kind='bus';manifest.representation='source_node_breaker';manifest.target='station'
+    await expect(loadElectricalModelView(manifest,read,{mode:'closure'})).rejects.toThrow('ambiguous_object_identity')
+  })
   it('paginates all eight streams independently and retains typed identity and uncertainty',async()=>{
     const records=electricalRecords(),manifest=electricalManifest(records),read=vi.fn(async request=>electricalPage(manifest,records,request))
     const view=await loadElectricalModelView(manifest,read,{mode:'closure',pageSize:1})

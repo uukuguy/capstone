@@ -25,8 +25,9 @@ export function electricalModelScene(view:ElectricalModelView):NetworkScene {
     nodes:view.records.groups.map(group=>({id:group.id,label:group.name||group.id,showLabel:!!group.name?.trim()&&group.name!==group.id,kind:'station',sourceRef:group.id,details:[...details(group),{label:'分组',value:'源站点目录；不代表电气等值母线'},{label:'成员数',value:String(group.member_count)}]})),
   }
   if(!ELECTRICAL_STREAMS.every(stream=>view.loadedStreams.includes(stream)))throw new ElectricalViewContractError('incomplete_closure')
-  validateElectricalClosure(view.records)
+  validateElectricalClosure(view.records,view.manifest.representation)
   const {devices,ports,connectivity_nodes,connections,device_relations,boundaries}=view.records
+  const nativeBuses=new Map(connectivity_nodes.filter(node=>node.kind==='calculation_bus').map(node=>[node.id,node]))
   const boundaryIds=new Set(boundaries.flatMap(row=>[row.port_id,row.device_id]))
   const counts=new Map<string,Set<string>>(),deviceKinds=new Map(devices.map(device=>[device.id,device.kind]))
   for(const relation of device_relations)if(relation.child_stream==='devices'&&['winding','windings'].includes(deviceKinds.get(relation.child_id)||'')){
@@ -35,10 +36,12 @@ export function electricalModelScene(view:ElectricalModelView):NetworkScene {
   const nodes:NetworkSceneNode[]=[
     ...devices.map(device=>({id:device.id,label:device.name||device.id,showLabel:!!device.name?.trim()&&device.name!==device.id,kind:device.kind,sourceRef:device.id,
       stationId:device.station_refs?.length===1?device.station_refs[0]:undefined,boundary:boundaryIds.has(device.id),switchState:switchState(device),
-      symbolKind:['transformer','transformers'].includes(device.kind)&&counts.get(device.id)?.size===3?'trafo3w':undefined,details:details(device)})),
+      symbolKind:['transformer','transformers'].includes(device.kind)&&counts.get(device.id)?.size===3?'trafo3w':undefined,
+      voltageKv:nativeBuses.get(device.id)?.nominal_kv,
+      details:[...details(device),...(nativeBuses.has(device.id)?[{label:'记录类型',value:'原生计算母线；设备与连接节点为同一 element_ref'}]:[]),...(text(device.origin)?[{label:'元素来源',value:text(device.origin)!}]:[])]})),
     ...ports.map(port=>({id:port.id,label:port.id,showLabel:false,kind:'port',symbolKind:'terminal',parentId:port.device_id,sourceRef:port.id,boundary:boundaryIds.has(port.id),
       details:[...details(port),{label:'所属设备',value:port.device_id},{label:'身份来源',value:port.identity_origin},{label:'端子角色',value:port.role??'未核准'},...(port.sequence===undefined||port.sequence===null?[]:[{label:'端序',value:String(port.sequence)}]),...(port.source_slot?[{label:'源字段槽位',value:port.source_slot}]:[])]})),
-    ...connectivity_nodes.map(node=>({id:node.id,label:node.name||node.id,showLabel:false,kind:node.kind==='calculation_bus'?'bus':'connection_node',sourceRef:node.id,voltageKv:node.nominal_kv,
+    ...connectivity_nodes.filter(node=>!deviceKinds.has(node.id)).map(node=>({id:node.id,label:node.name||node.id,showLabel:false,kind:node.kind==='calculation_bus'?'bus':'connection_node',sourceRef:node.id,voltageKv:node.nominal_kv,
       details:[...details(node),{label:'记录类型',value:node.kind},...(text(node.voltage_origin)?[{label:'电压来源',value:text(node.voltage_origin)!}]:[])]})),
   ]
   const edges:NetworkSceneEdge[]=[
