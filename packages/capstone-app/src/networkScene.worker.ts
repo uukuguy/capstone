@@ -1,4 +1,4 @@
-import {buildSceneIndex,focusScene,queryScene,searchScene,type SceneIndex} from './networkSceneIndex'
+import {buildSceneIndex,focusScene,queryScene,searchScene,sceneGeometry,type SceneIndex} from './networkSceneIndex'
 import type {NetworkScene,SceneCamera,SceneSelection,SceneRelated} from './networkScene'
 import {networkSymbol,sceneGlyphs} from './networkSymbols'
 import {bundleSelection,pickPresentedScene,presentedBundle,sceneNeighborhood,type ScenePresentation} from './networkScenePresentation'
@@ -79,7 +79,9 @@ export function sceneFrame(index:SceneIndex,message:Extract<SceneWorkerRequest,{
     const dx=bx-ax,dy=by-ay,length=Math.hypot(dx,dy)||1,offset=bundle?0:index.edgeOffsets[i]
     const chosen=focused.has(edge.id)||Boolean(bundle&&bundle===message.selectionId)
     const mx=(ax+bx)/2-dy/length*offset,my=(ay+by)/2+dx/length*offset,c=regional?(chosen?[.12,.32,.63,1]:near?near.edgeIds.has(edge.id)?[.18,.40,.65,.85]:[.5,.58,.63,.035]:[.45,.54,.59,.25]):color(chosen,false,edge)
-    if(a===b){
+    const route=sceneGeometry(index)?.routes.get(i)
+    if(route){for(let segment=1;segment<route.length;segment++){const start=route[segment-1],end=route[segment];if(edge.relation==='membership'||edge.relation==='unresolved'){const count=Math.max(1,Math.ceil(Math.hypot(end.x-start.x,end.y-start.y)/8));for(let dash=0;dash<count;dash++){const from=dash/count,to=(dash+.5)/count;lineValues.push(start.x+(end.x-start.x)*from,start.y+(end.y-start.y)*from,...c,start.x+(end.x-start.x)*to,start.y+(end.y-start.y)*to,...c)}}else lineValues.push(start.x,start.y,...c,end.x,end.y,...c)}}
+    else if(a===b){
       const radius=8+Math.abs(index.edgeOffsets[i])
       for(let segment=0;segment<16;segment++){const first=segment*Math.PI/8,next=(segment+1)*Math.PI/8;lineValues.push(ax+Math.cos(first)*radius,ay+Math.sin(first)*radius,...c,ax+Math.cos(next)*radius,ay+Math.sin(next)*radius,...c)}
     }else lineValues.push(ax,ay,...c,mx,my,...c,mx,my,...c,bx,by,...c)
@@ -98,11 +100,13 @@ export function sceneFrame(index:SceneIndex,message:Extract<SceneWorkerRequest,{
   for(const i of orderedNodes){
     const node=index.scene.nodes[i],x=index.positions[i*2],y=index.positions[i*2+1],selected=focused.has(node.id)
     const emphasis=message.selectionId===node.id||selected&&focused.size<=64||Boolean(sourceDetail&&near?.nodeIds.has(node.id))
-    const kind=networkSymbol(node.kind).code
+    const kind=networkSymbol(node.symbolKind||node.kind,node.switchState).code
     const size=emphasis?20:detailed?regional?near&&!near.nodeIds.has(node.id)?5:8:kind===1?18:kind===2?20:kind===0?7:14:Math.max(1,Math.min(3,Math.sqrt(message.pixels*pixelHeight/Math.max(1,nodes.size))*.5))
     const tint=regional?(selected?[.12,.32,.63,1]:near&&!near.nodeIds.has(node.id)?[.52,.6,.65,.25]:[.32,.42,.48,1]):color(selected,true,node)
     if(node.boundary)pointValues.push(x,y,size+10,sceneGlyphs.boundaryHalo.code,...tint)
-    pointValues.push(x,y,size,node.state==='unresolved'?sceneGlyphs.unresolved.code:detailed||emphasis?kind:0,...tint)
+    const bar=sceneGeometry(index)?.busbars.get(i)
+    if(bar)lineValues.push(bar[0].x,bar[0].y,...tint,bar[1].x,bar[1].y,...tint)
+    else pointValues.push(x,y,size,node.state==='unresolved'?sceneGlyphs.unresolved.code:detailed||emphasis?kind:0,...tint)
     const px=(x-message.camera.x)/scale,py=(y-message.camera.y)/scale
     if((!near||near.nodeIds.has(node.id))&&px>=0&&py>=0&&px<=message.pixels&&py<=pixelHeight){
       const column=Math.min(labelColumns-1,Math.floor(px/message.pixels*labelColumns)),row=Math.min(labelRows-1,Math.floor(py/pixelHeight*labelRows)),key=`${column}:${row}`
@@ -133,6 +137,7 @@ export function sceneFrame(index:SceneIndex,message:Extract<SceneWorkerRequest,{
 /** Search frames actual immediate neighbors at their indexed positions, not a fixed 220-unit box. */
 export function sourceNeighborhoodCamera(index:SceneIndex,id:string):SceneCamera|undefined {
   if(!index.scene.displayMode?.startsWith('source'))return
+  if(index.scene.displayMode==='source-electrical')return focusScene(index,[id,...sceneNeighborhood(index,id).edgeIds])
   let nodeIds:Set<string>
   if(index.nodeIds.has(id)){
     if(index.scene.displayMode!=='source-detail')return
