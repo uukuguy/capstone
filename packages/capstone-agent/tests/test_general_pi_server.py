@@ -76,8 +76,11 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     from test_enterprise_normal_chat import native_executor
     from test_native_graph_progress import graph_fixture
     executor = native_executor()
+    gateway_publication = {'available': True, 'catalog': {'tools': {
+        'data_gateway_discover_network_models': {'name': 'discover_network_models'}}}}
     executor.capability = {**executor.capability, 'research_bridge_schemas': ['capstone-research-bridge/1'],
-        'research_graph_schemas': ['capstone-enterprise-graph/2'], 'research_policy_profiles': research_policy_capabilities()}
+        'research_graph_schemas': ['capstone-enterprise-graph/2'], 'research_policy_profiles': research_policy_capabilities(),
+        'data_gateway': gateway_publication}
     selected = executor_binding(executor, profile_version=version)
     native = native_context_for(SimpleNamespace(submission=None, selected_task_reader=None,
         started_at='2026-10-21T06:00:00Z'), selected)
@@ -103,6 +106,7 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
         profiles={'direct_pi': SimpleNamespace(revision='test')},
         task_config=lambda *args, **kwargs: {'settings': published_settings, 'mcp': None})
     runner.environment_context = 'HOST VERIFIED ENVIRONMENT: offline libraries and report renderer'
+    runner.gateway = SimpleNamespace(publication=lambda: gateway_publication, bind=lambda *_: None, revoke=lambda *_: None)
     ready = threading.Event()
     ready.set()
     runner.bind_research_reader(lambda _: SimpleNamespace(root=tmp_path / 'channel', ready=ready))
@@ -113,6 +117,11 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     with pytest.raises(Captured):
         runner(request, lambda: False, lambda _: None)
     actual = captured[0]['researchRuntime']
+    gateway_context = next(item['content'] for item in captured[0]['contextFiles'] if item['path'] == 'registered-production-data')
+    assert 'For an inventory request' in gateway_context
+    assert 'summary/default arguments' in gateway_context
+    assert 'Use discover_data_capabilities and discover_business_services first' not in gateway_context
+    assert 'Model operations are not enabled.' not in gateway_context
     assert actual.get('nodeReviewMode') == 'advisory'
     assert 'nodeReviewMode' not in captured[0]['settings'].get('retry', {})
     assert captured[0]['runtimeEnvironment'] == runner.environment_context

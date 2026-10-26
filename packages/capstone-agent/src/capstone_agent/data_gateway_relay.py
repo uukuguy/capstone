@@ -9,7 +9,7 @@ import stat
 from threading import RLock
 
 from .application_capacity import limits, require_capacity, CapacityExceeded
-from .data_gateway_mcp import GatewayError, encode, fingerprint
+from .data_gateway_mcp import GatewayError, TASK_STOP_ERRORS, encode, fingerprint
 
 
 def load_container_gateway(connection_file, policy_path, *, private_root=Path('/run/capstone-private'), owner_uid=0):
@@ -79,10 +79,19 @@ class DataGatewayAccess:
                 raise GatewayError('gateway_task_not_admitted')
             if call_id in record['started']:
                 raise GatewayError('gateway_call_already_started')
+            if record.get('failure'):
+                raise GatewayError(record['failure'])
             require_capacity('mcp_call_count', len(record['started']) + 1, 'gateway_call')
             record['started'].add(call_id)
         arguments = deepcopy(document['arguments'])
-        result = await self.client.call(name, deepcopy(arguments), self.catalog)
+        try:
+            result = await self.client.call(name, deepcopy(arguments), self.catalog)
+        except GatewayError as error:
+            if str(error) in TASK_STOP_ERRORS:
+                with self._lock:
+                    if self._tasks.get(task_id) is record:
+                        record['failure'] = str(error)
+            raise
         body = encode(result).decode()
         observation = {'kind': 'external_gateway_observation', 'task_id': task_id,
             'parent_attempt_id': record['attempt_id'], 'tool_call_id': call_id, 'tool': name,

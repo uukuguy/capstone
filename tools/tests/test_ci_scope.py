@@ -64,6 +64,22 @@ def test_source_workspace_controls_have_complete_thread_consumers():
     assert classify(paths,source_topology=True,target='main')=='release'
 
 
+def test_gateway_readonly_inventory_and_transport_have_named_consumers():
+    paths = ['packages/capstone-agent/src/capstone_agent/data_gateway_mcp.py',
+             'packages/capstone-agent/src/capstone_agent/data_gateway_relay.py',
+             'packages/capstone-agent/src/capstone_agent/resources/general-data-gateway.mjs',
+             'packages/capstone-agent/tests/fixtures/data-gateway-research.test.mjs',
+             'packages/capstone-agent/tests/test_data_gateway_mcp.py',
+             'packages/capstone-agent/tests/test_data_gateway_relay.py',
+             'configs/runtime/data-gateway.json']
+    assert classify(paths, source_topology=True) == 'source-topology'
+    assert classify(paths + ['packages/grid-agent/src/grid_agent/authority.py'], source_topology=True) == 'product'
+    from tools.ci_scope import source_gateway_document
+    old = {'allowed_tools': ['discover_data_capabilities']}
+    assert source_gateway_document(old, {'allowed_tools': [*old['allowed_tools'], 'discover_network_models']})
+    assert not source_gateway_document(old, {'allowed_tools': [*old['allowed_tools'], 'build_network_model']})
+
+
 def test_source_transport_guard_preserves_all_legacy_behavior():
     from tools.ci_scope import source_transport_document, SOURCE_CONTROL_METHODS
     old = 'class HttpGeneralPiExecutor:\n    def _call(self):\n        known={"invalid_task"}\n        return "legacy"\n'

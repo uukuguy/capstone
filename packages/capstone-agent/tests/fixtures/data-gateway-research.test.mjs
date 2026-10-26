@@ -42,3 +42,46 @@ test('application and child tool options include the admitted gateway tools',()=
  assert.equal(applicationToolOptions(c,[]).customTools[0].name,'data_gateway_discover_data_capabilities');
  assert.deepEqual(createDataGatewayTools({}),[]);
 });
+
+test('connection failure retains a safe code and stops other probes in this task',async()=>{
+ let calls=0;
+ const c=config();
+ c.dataGateway.catalog.tools.data_gateway_other=c.dataGateway.catalog.tools.data_gateway_discover_data_capabilities;
+ const tools=createDataGatewayTools(c,{fetchImpl:async()=>{
+  calls++;return {ok:false,status:400,json:async()=>({error:'gateway_call_failed_no_retry'})};
+ }});
+ await assert.rejects(tools[0].execute('first',{}),/gateway_call_failed_no_retry/);
+ await assert.rejects(tools[1].execute('second',{}),/gateway_call_failed_no_retry/);
+ assert.equal(calls,1);
+});
+
+test('argument errors do not block other calls and untrusted error text is omitted',async()=>{
+ let calls=0;
+ const [tool]=createDataGatewayTools(config(),{fetchImpl:async()=>{
+  calls++;return {ok:false,status:400,json:async()=>({error:calls===1?'gateway_arguments_invalid':'secret-canary upstream text'})};
+ }});
+ await assert.rejects(tool.execute('first',{}),/gateway_arguments_invalid/);
+ await assert.rejects(tool.execute('second',{}),error=>!error.message.includes('secret-canary'));
+ assert.equal(calls,2);
+});
+
+test('transport stop state cannot leak into a new task',async()=>{
+ let calls=0;
+ const fetchImpl=async()=>{calls++;return {ok:false,status:400,json:async()=>({error:'gateway_timeout'})};};
+ const [first]=createDataGatewayTools(config(),{fetchImpl});
+ await assert.rejects(first.execute('call-1',{}),/gateway_timeout/);
+ await assert.rejects(first.execute('call-2',{}),/gateway-wide availability is unverified/);
+ assert.equal(calls,1);
+ const next=config();next.dataGateway.taskId='task-2';
+ const [second]=createDataGatewayTools(next,{fetchImpl});
+ await assert.rejects(second.execute('call-1',{}),/gateway_timeout/);
+ assert.equal(calls,2);
+});
+
+test('abort while reading an error response remains cancellation',async()=>{
+ const controller=new AbortController();
+ const reason=new Error('task cancelled');
+ const [tool]=createDataGatewayTools(config(),{fetchImpl:async()=>({ok:false,status:400,
+  json:async()=>{controller.abort(reason);throw reason;}})});
+ await assert.rejects(tool.execute('call',{},controller.signal),error=>error===reason);
+});

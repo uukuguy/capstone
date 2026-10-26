@@ -17,8 +17,14 @@ from referencing.exceptions import NoSuchResource
 from .application_capacity import limits, require_capacity, CapacityExceeded
 
 
-MODEL_TOOLS = frozenset({'discover_network_models', 'inspect_network_model', 'build_network_model',
+MODEL_TOOLS = frozenset({'inspect_network_model', 'build_network_model',
                         'get_network_model_job', 'get_network_model_artifact', 'read_network_model_artifact'})
+
+# These failures stop further remote probes in the admitted task. A new user
+# instruction gets its own task state and can check the resource again.
+TASK_STOP_ERRORS = frozenset({'gateway_timeout', 'gateway_transport_failed',
+    'gateway_authentication_failed', 'gateway_connection_failed', 'gateway_call_failed_no_retry',
+    'gateway_publication_changed', 'gateway_catalog_invalid', 'gateway_catalog_unavailable'})
 
 
 class GatewayError(ValueError):
@@ -39,7 +45,9 @@ def _deny(uri):
 
 
 def public_failure(error, fallback):
+    import httpx
     pending, seen = [error], set()
+    transport_failure = None
     for _ in range(32):
         if not pending:
             break
@@ -49,10 +57,14 @@ def public_failure(error, fallback):
         seen.add(id(current))
         if getattr(getattr(current, 'response', None), 'status_code', None) in {401, 403}:
             return 'gateway_authentication_failed'
+        if isinstance(current, (TimeoutError, httpx.TimeoutException)):
+            transport_failure = 'gateway_timeout'
+        elif isinstance(current, httpx.TransportError) and transport_failure is None:
+            transport_failure = 'gateway_transport_failed'
         pending.extend(getattr(current, 'exceptions', ()))
         if current.__cause__ is not None:
             pending.append(current.__cause__)
-    return fallback
+    return transport_failure or fallback
 
 
 def validate(schema, value):

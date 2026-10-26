@@ -842,12 +842,16 @@ class NativeTaskRunner:
                         'grant': grant, 'taskId': request.task_id, 'catalog': self.gateway.publication()['catalog']}
                     sdk_config.setdefault('contextFiles', []).append({'path': 'registered-production-data',
                         'content': 'Application-authorized data_gateway_ tools provide production data through a protected service. '
-                        'Use discover_data_capabilities and discover_business_services first, then discover exact objects, metrics, sources and time coverage. '
+                        'Choose the published tool that directly answers the current instruction. Discover capabilities or services only when the needed operation is unknown. '
+                        'For an inventory request, use summary/default arguments and answer from the returned list; do not add readiness audits, topology loading, sample opening or model builds unless requested. '
+                        'When discover_network_models is admitted, a model-list request needs that inventory once with default detail=false, not a broader service investigation. '
+                        'Registered scopes, built artifacts and calculation readiness are distinct claims. Preserve the returned distinction instead of trying extra operations to certify a list. '
+                        'For actual data analysis, discover the needed exact objects, metrics, sources and time coverage. '
                         'These explicit data grants do not enable arbitrary external web lookup. Preserve status, gaps, provenance and calculation. '
                         'Use prepare_data_query before execute_data_query and retain its returned validation fingerprint. '
                         'Do not guess units, source IDs, joins, availability or missing values. '
                         'Save retrieved data and analysis as named task products when needed for subsequent analysis. '
-                        'The gateway owns all backend selection. Model operations are not enabled.'})
+                        'The gateway owns all backend selection. Only published tools in the current grant are enabled; inventory admission does not grant model inspection, build or artifact access.'})
                 sdk_config['selectedTaskRecords'] = native['selected_task_records']
                 sdk_config['selectedTaskMaterials'] = native.get('materials', [])
                 sdk_config['researchSources'] = sorted({
