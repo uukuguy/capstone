@@ -147,7 +147,7 @@ function ScopedSourceWorkspace({ transport, onQuestion, requestedView, requestNo
       {connectionExpansion&&<button type="button" onClick={()=>activate(connectionExpansion)}>查看站内接线图</button>}
       {view.page.level==='equipment'&&<p className="grid-source-note">源接线单线图 · 实线表示源连接，虚线表示设备归属；开关状态未核验，缺失连接不补线。</p>}
       <p className="grid-source-note">视图口径：{typeof view.page.selection.min_ac_kv==='number'?`交流电压下限 ${view.page.selection.min_ac_kv} kV`:'以来源筛选规则为准'}；目录范围和运行状态不作额外推断。</p>
-      <LargeNetworkView scene={scene} title={selection.label} storageKey={`capstone-source-${scopeId}`} viewKey={`${selection.level}:${selection.selected_object_id||''}:${view.page.view_ref}:source-layout-v2`} onActivate={activate} canActivate={item=>!!objects.get(item.id)?.expand}/>
+      <LargeNetworkView scene={scene} title={selection.label} storageKey={`capstone-source-${scopeId}`} viewKey={`${selection.level}:${selection.selected_object_id||''}:${view.page.view_ref}:source-layout-v3`} onActivate={activate} canActivate={item=>!!objects.get(item.id)?.expand}/>
       <p>{view.nodes.length.toLocaleString()} 个源节点 · {view.edges.length.toLocaleString()} 条源连接 · 未定位端点 {view.unresolvedEndpoints.length}</p>
       <details><summary>来源与质量缺口</summary>
         <dl><dt>视图版本</dt><dd>{view.page.view_ref}</dd><dt>选择规则</dt><dd><pre>{JSON.stringify(view.page.selection,null,2)}</pre></dd>
