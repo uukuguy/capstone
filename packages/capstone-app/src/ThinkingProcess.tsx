@@ -6,30 +6,32 @@ import type {EventEnvelope} from './threadProtocol'
 import './thinkingProcess.css'
 
 export type InitialThinking={
-  text:string;startedAt?:string;endedAt?:string;handedOff:boolean
+  text:string;continuationText?:string;startedAt?:string;endedAt?:string;handedOff:boolean
   phase:'queued'|'running'|'completed'|'failed'|'cancelled'|'interrupted'
 }
 
-/** Only supplied public text before the first admitted execution boundary. */
-export function projectInitialThinking(events:readonly EventEnvelope[],attemptId:string,handoffSeq?:number):InitialThinking|undefined {
+/** Public lightweight-loop text, retained until terminal or admitted task handoff. */
+export function projectInitialThinking(events:readonly EventEnvelope[],attemptId:string,handoffSeq?:number,retainUntilSeq=handoffSeq):InitialThinking|undefined {
   const current=events.filter(event=>event.visibility==='public'&&(event.attemptId===attemptId||(!event.attemptId&&event.turnId===attemptId)))
   const begin=current.find(event=>event.eventType==='attempt_started')??current.find(event=>['command_accepted','assistant_thinking_delta','runtime_action'].includes(event.eventType))
   if(!begin)return
   const terminal=current.find(event=>['attempt_completed','attempt_failed','attempt_cancelled','attempt_interrupted'].includes(event.eventType))
   const handoff=handoffSeq===undefined?undefined:current.find(event=>event.eventSeq===handoffSeq)
   const seen=new Set<string>()
-  let text=''
+  let text='',continuationText=''
   for(const event of current) {
     if(event.eventType!=='assistant_thinking_delta'||event.attemptId!==attemptId||typeof event.payload.text!=='string'||
-      (handoffSeq!==undefined&&event.eventSeq>=handoffSeq)||(terminal&&event.eventSeq>=terminal.eventSeq)||seen.has(event.eventId))continue
-    seen.add(event.eventId);text+=event.payload.text
+      (retainUntilSeq!==undefined&&event.eventSeq>=retainUntilSeq)||(terminal&&event.eventSeq>=terminal.eventSeq)||seen.has(event.eventId))continue
+    seen.add(event.eventId)
+    if(handoffSeq!==undefined&&event.eventSeq>=handoffSeq)continuationText+=event.payload.text
+    else text+=event.payload.text
   }
   const phase=terminal?terminal.eventType.slice('attempt_'.length) as InitialThinking['phase']:
     current.some(event=>event.eventType==='attempt_started'||event.eventType==='assistant_thinking_delta'||event.eventType==='runtime_action')?'running':'queued'
-  return {text,startedAt:begin.occurredAt,endedAt:handoff?.occurredAt??terminal?.occurredAt,handedOff:Boolean(handoff),phase}
+  return {text,...(continuationText?{continuationText}:{}),startedAt:begin.occurredAt,endedAt:handoff?.occurredAt??terminal?.occurredAt,handedOff:Boolean(handoff),phase}
 }
 
-/** Initial phase only. Later model calls remain in their task/tool process. */
+/** Lightweight thinking stays above the answer; admitted tasks own later thinking. */
 export default function ThinkingProcess({thinking,storageKey,now=Date.now(),expanded=false}:{thinking:InitialThinking;storageKey:string;now?:number;expanded?:boolean}) {
   const bodyId=useId()
   const active=!thinking.handedOff&&['queued','running'].includes(thinking.phase)
@@ -46,12 +48,12 @@ export default function ThinkingProcess({thinking,storageKey,now=Date.now(),expa
     if(active&&open&&following.current&&viewport.current)viewport.current.scrollTop=viewport.current.scrollHeight
   },[active,open,thinking.text])
   return <section className={`capstone-thinking-process${active?' is-active':''}${expanded?' is-reader':''}`} role="region" aria-label={thinking.handedOff?'初始思考记录':'思考状态'} data-phase={thinking.phase} aria-busy={active}>
-    <button type="button" className="capstone-thinking-trigger" aria-label={`${open?'折叠':'展开'}初始思考`} aria-description={status} aria-expanded={open} aria-controls={open&&thinking.text?bodyId:undefined} onClick={()=>{
+    <button type="button" className="capstone-thinking-trigger" aria-label={`${open?'折叠':'展开'}初始思考`} aria-description={status} aria-expanded={open} aria-controls={open&&(thinking.text||thinking.continuationText)?bodyId:undefined} onClick={()=>{
       following.current=true;setFold({id:foldId,open:!open});saveProcessStepOpen(storageKey,foldId,!open)
     }}><ChevronRight aria-hidden="true"/><span className="capstone-thinking-label">{active?'Thinking…':'Thinking'}</span>{!active&&elapsed!==undefined&&<span className="capstone-thinking-duration"> · {elapsed.toFixed(1)}s</span>}</button>
-    {open&&thinking.text&&<div id={bodyId} ref={viewport} className="capstone-thinking-copy" onScroll={()=>{
+    {open&&(thinking.text||thinking.continuationText)&&<div id={bodyId} ref={viewport} className="capstone-thinking-copy" onScroll={()=>{
       const node=viewport.current
       if(node)following.current=node.scrollHeight-node.scrollTop-node.clientHeight<24
-    }}><MarkdownContent>{thinking.text}</MarkdownContent></div>}
+    }}><MarkdownContent>{thinking.text}</MarkdownContent>{thinking.continuationText&&<><p>后续思考</p><MarkdownContent>{thinking.continuationText}</MarkdownContent></>}</div>}
   </section>
 }
