@@ -147,7 +147,7 @@ export default function LargeNetworkView({scene,title='电网拓扑',focusIds=[]
       {!stats&&!error&&<p className="large-network-loading" role="status">正在准备布局与空间索引…</p>}
     </div>
     {error&&<p role="alert">{error}</p>}
-    {stats&&<p className="large-network-counts" role="status">{stats.nodes.toLocaleString()} 个对象 · {stats.edges.toLocaleString()} 条连接{stats.limited?' · 当前缩放按细节预算显示，放大可查看更多对象':''}<span> · {scene.coordinateSystem==='geographic'?'来源地理坐标':'示意布局'} · Shift + 滚轮缩放</span></p>}
+    {stats&&<p className="large-network-counts" role="status">{stats.nodes.toLocaleString()} 个对象 · {stats.edges.toLocaleString()} {scene.displayMode==='source-electrical'?'条图关系':'条连接'}{stats.limited?' · 当前缩放按细节预算显示，放大可查看更多对象':''}<span> · {scene.coordinateSystem==='geographic'?'来源地理坐标':'示意布局'} · Shift + 滚轮缩放</span></p>}
     {!!stats?.collapsedStations&&<p className="large-network-counts">当前按来源站点分区显示，{stats.collapsedStations} 个区域已收起元件；点击区域或搜索元件查看连接。分区仅用于显示，不是电气等值。</p>}
     {source&&!regional&&selected?.type==='node'&&neighborhood&&<p className="large-network-counts">当前仅显示所选对象的直接源连接；高关联度按显示预算读取。取消“突出直接关联”可查看周边元件。</p>}
     {regional&&stats?.drawnEdges!==undefined&&<p className="large-network-counts">当前显示 {stats.drawnEdges} 条连线{stats.bundledGroups?`，其中 ${stats.bundledGroups} 束并行回路`:''}；源线路身份与数量保持不变。选择站点可查看直接关联。</p>}
