@@ -251,7 +251,8 @@ def test_no_progress_rpc_failure_retains_actual_files_and_safe_public_reason(tmp
         time.sleep(.01)
     result = host.read(request.task_id)['result']
     assert result['status'] == 'failed'
-    assert result['failure'] == {'code': 'native_continuation_no_progress', 'phase': 'execution'}
+    assert result['failure'] == {'code': 'native_continuation_no_progress', 'phase': 'execution'}, (
+        result['failure'], (tmp_path / 'receipts/failures/no-progress.json').read_text())
     assert any(artifact['metadata']['path'] == 'retained.md' for artifact in result['artifacts'])
     assert 'PRIVATE' not in str(result)
 
