@@ -6010,3 +6010,5 @@ Reproduced protected research acknowledgment waiting behind an entire public-eve
 - 2026-10-27: Bounded large gateway/schema results with private files and exact host restoration;safe error metadata.21 JS,115 backend,148 App tests pass.
 - 2026-10-27: 1d40a296 bounds gateway model context and preserves full observations;records safe model errors to diagnose incomplete turns.
 - 2026-10-27: Reproduced debug history4097/4096 rejection before eviction;trim retained window first.58 App store tests and TypeScript pass.
+- 2026-10-27: a48aa319 restores recoverable history trimming;browser completed state and10 CSV artifacts visible after reload.
+- 2026-10-27: User requests temporary removal of “查看之前的对话”;disable the workspace entry while preserving stored history.

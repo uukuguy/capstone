@@ -630,7 +630,7 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
       runtimeStatus={pending ? <span>上次操作结果待确认；重试将使用同一请求。</span> : projection.connection !== 'live' && currentId !== 'new' ? <span>连接已断开，后台状态待确认。</span> : nativeChat ? undefined : <span>目标与资料保存在当前任务中。保存不会自动启动执行。</span>}
       emptyState={<div className="capstone-chat-empty"><strong>{snapshot?.sessionType==='enterprise-research'?'从资料或研究问题开始':snapshot?.sessionType==='general-chat'?'有什么想聊的？':'有什么工作需要完成？'}</strong><p>{snapshot?.sessionType==='enterprise-research'?'上传资料，提出你关心的问题；可以边分析边明确需要的报告、图表或其他成果。':snapshot?.sessionType==='general-chat'?'直接提问、讨论想法，或接着追问。':'描述目标、已有资料与期望交付。'}</p></div>}
       onSend={(_, text,submission) => send(text,submission)} onCancel={cancel} canRerunCompleted={false}
-      hasOlderHistory={projection.hasOlderHistory} historyLoading={projection.historyLoading} onLoadOlder={() => store.loadOlderHistory()}
+      hasOlderHistory={false /* Temporarily disabled while conversation history navigation is repaired. */}
       resultProjections={professional?.resultProjections}
       caseExecution={professional?.applicationState?.caseExecution}
       onReadAttemptRecords={client.supportsAttemptRecords ? (attemptId, after) => client.attemptRecords(currentId, attemptId, after) : undefined} />}
