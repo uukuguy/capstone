@@ -58,6 +58,17 @@ function fixture(extra={}){
 }
 const record=action_id=>({action_id,outcome:'completed',outputs:[{slot:'value',observation_refs:[],artifact_refs:[],summary:'Actual result',scope:'Observed inputs'}],limitations:[]});
 const registered=controller=>{const tools=[];controller.register({registerTool:tool=>tools.push(tool)});return Object.fromEntries(tools.map(tool=>[tool.name,tool]));};
+test('typed producer inputs imply scheduler dependencies without another planning turn',async()=>{
+  const f=fixture({config:{researchRuntime:{graphLimits:limits,delegation:{concurrency:2},isolatedTaskExecution:true,lightweightTaskNodes:true}}});
+  try{
+    const consumer=node('C',{mode:'synthesis',inputs:[{name:'prior',from:{step_id:'A',slot:'value'}}]});
+    const response=await f.controller.execute('plan','typed-input',plan([node('A'),consumer]));
+    assert.equal(response.details.ok,true);
+    const state=await f.controller.readState();
+    assert.deepEqual(state.graph.nodes.find(item=>item.id==='C').depends_on,['A']);
+    assert.deepEqual(f.calls.map(item=>item.node.id),['A']);
+  }finally{await f.controller.close({reason:'Done'});}
+});
 test('adaptive loop permits several direct cycles then locks native work after Deep Research activation',async()=>{
   const ref='native-observation:task:observed',source={ref,revision:'sha256:'+'a'.repeat(64)};
   const selected=[];
@@ -476,8 +487,8 @@ test('lightweight planning defaults omitted empty arrays without inventing task 
     assert.deepEqual(f.calls[0].action.source_refs,[]);
     const added=await f.controller.execute('revise','light-revise',{nodes:[empty('B')],reason:'New independent question',rerun:[]});
     assert.equal(added.details.ok,true,JSON.stringify(added));
-    const invalid=await f.controller.execute('revise','light-dependent',{nodes:[{...empty('C'),inputs:[{name:'prior',from:{step_id:'A',slot:'value'}}]}],reason:'Invalid missing dependency',rerun:[]});
-    assert.equal(invalid.details.ok,false,'A selected producer still requires its explicit dependency');
+    const invalid=await f.controller.execute('revise','light-dependent',{nodes:[{...empty('C'),inputs:[{name:'prior',from:{step_id:'A',slot:'not-declared'}}]}],reason:'Invalid producer slot',rerun:[]});
+    assert.equal(invalid.details.ok,false,'A typed dependency cannot invent a producer output slot');
     const missing=empty('D');delete missing.source_refs;
     const unselected=await f.controller.execute('revise','missing-source',{nodes:[missing],reason:'Source selection omitted',rerun:[]});
     assert.equal(unselected.details.ok,false);

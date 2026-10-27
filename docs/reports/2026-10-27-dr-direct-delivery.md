@@ -71,3 +71,10 @@ The grant helper's first integration used a nonexistent host gateway attribute;
 production owns the gateway on `NativeTaskRunner`, retained as `host._run`.
 The corrected regression uses that actual ownership and the host now reads it.
 Both trials remain failed, with no report delivery or accepted speed comparison.
+
+Startup correction: a typed `inputs[].from` already selects an exact producer
+and slot. The lightweight planner now derives that scheduler dependency rather
+than requiring the model to repeat it in `depends_on`. The reducer still rejects
+unknown producers, undeclared slots and cycles, and exact frozen source/input
+grants remain required. This removes one observed redundant planning correction.
+122 controller/direct-delivery tests passed after this change (0.97s).

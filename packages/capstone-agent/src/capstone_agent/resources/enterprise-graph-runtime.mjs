@@ -106,7 +106,7 @@ export function createEnterpriseGraphController({config,readResearch,commitResea
         schema.description='Declare the task and its exact selected inputs. Omitted dependencies, result inputs and checks mean empty arrays. Questions and expected outputs derive from purpose and declared outputs when omitted. source_refs is required: select exact granted refs, including previous products. Top-level sources do not grant child access.';
         schema.properties.source_refs.description='Required explicit file inputs for this task, including selected previous products. Copy exact refs from the granted catalog. A filename in instruction or a top-level source_refs entry does not select child inputs. Use [] only when this task needs no source files.';
         schema.properties.mode.description='execute investigates sources or performs new analysis; synthesis composes retained findings/products and uses context for necessary interpretation. Mode guides scope; source permissions come only from the host catalog.';
-        schema.properties.depends_on.description='Explicit producer dependency IDs; omitted means []. Result inputs still require their producer dependency.';
+        schema.properties.depends_on.description='Additional task dependency IDs; omitted means []. Each typed inputs[].from producer also implies that dependency. Unknown producers, slots and cycles remain rejected.';
       }
     }
     parameters.revise.properties.nodes.description='Submit only new tasks or changed unstarted tasks. Existing tasks omitted here are retained exactly by the host. Never reconstruct a started definition to append new work.';
@@ -894,6 +894,11 @@ export function createEnterpriseGraphController({config,readResearch,commitResea
       if(lightweightTasks&&['plan','revise'].includes(operation)&&Array.isArray(payload?.nodes)){
         payload={...payload,nodes:payload.nodes.map(node=>node&&typeof node==='object'&&!Array.isArray(node)
           ? {depends_on:[],inputs:[],checks:[],...node,
+            // A typed producer selection already declares the data dependency.
+            // Derive its scheduler edge; still validate the exact producer/slot,
+            // cycles, source grants and frozen input versions below.
+            depends_on:Array.isArray(node.depends_on??[])?[...new Set([...(node.depends_on??[]),
+              ...(Array.isArray(node.inputs)?node.inputs.flatMap(input=>typeof input?.from?.step_id==='string'?[input.from.step_id]:[]):[])])]:node.depends_on,
             questions:node.questions===undefined||node.questions?.length===0?[node.purpose]:node.questions,
             expected_outputs:node.expected_outputs===undefined||node.expected_outputs?.length===0
               ?(Array.isArray(node.outputs)?node.outputs.map(output=>output?.description):[]):node.expected_outputs}:node)};
