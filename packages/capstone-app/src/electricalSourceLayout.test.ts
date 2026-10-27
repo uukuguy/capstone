@@ -35,10 +35,12 @@ describe('source electrical geometry',()=>{
     const input:NetworkScene={...scene,nodes,edges},original=JSON.stringify(input)
     expect(nodes).toHaveLength(543)
     const index=buildSceneIndex(input),geometry=sceneGeometry(index)!,bar=geometry.busbars.get(0)!
-    expect(bar[1].x-bar[0].x).toBeGreaterThan(index.bounds.width*.8)
+    expect(bar[1].x-bar[0].x).toBeLessThan(index.bounds.width*.2)
+    for(let n=0;n<nodes.length;n++)if(nodes[n].kind==='port'){const owner=index.nodeIds.get(nodes[n].parentId!)!;expect(Math.hypot(index.positions[n*2]-index.positions[owner*2],index.positions[n*2+1]-index.positions[owner*2+1])).toBeLessThan(25);expect(geometry.symbolRadii.get(n)!).toBeLessThan(1)}
     expect(geometry.routes.size).toBe(edges.length)
     expect(JSON.stringify(input)).toBe(original)
     expect(index.nodeIds.size).toBe(543)
+    assertClear(input)
     const smallNodes=nodes.slice(0,499),smallIds=new Set(smallNodes.map(node=>node.id))
     const smaller=buildSceneIndex({...input,nodes:smallNodes,edges:edges.filter(edge=>smallIds.has(edge.source)&&smallIds.has(edge.target))})
     const smallBar=sceneGeometry(smaller)!.busbars.get(0)!

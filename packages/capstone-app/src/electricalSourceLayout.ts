@@ -3,7 +3,7 @@ import type {NetworkScene,SceneCamera,ScenePoint} from './networkScene'
 export type ElectricalGeometry={routes:Map<number,ScenePoint[]>;busbars:Map<number,ScenePoint[]>;symbolRadii:Map<number,number>}
 const bus=(kind:string)=>['bus','busbar','busbars','busbar_section'].includes(kind)
 /** Bounded source layout. Anchors are display coordinates, never source terminals. */
-export function electricalSourceLayout(scene:NetworkScene,endpoints:Uint32Array,bounds:SceneCamera,positions:Float32Array):ElectricalGeometry {
+export function electricalSourceLayout(scene:NetworkScene,endpoints:Uint32Array,bounds:SceneCamera,positions:Float32Array,placementOnly=false):ElectricalGeometry {
   const neighbors=scene.nodes.map(()=>[] as number[])
   scene.edges.forEach((edge,i)=>{if(edge.relation==='connection'){const a=endpoints[2*i],b=endpoints[2*i+1];neighbors[a].push(b);neighbors[b].push(a)}})
   // Ports and junctions are separate source records, not separate equipment.
@@ -72,7 +72,7 @@ export function electricalSourceLayout(scene:NetworkScene,endpoints:Uint32Array,
     // A high-degree source junction can put hundreds of terminals in one BFS
     // level. Wrap that level rather than shrinking every glyph to a subpixel.
     // The source graph and each original endpoint remain unchanged.
-    if(connectedGroup&&members.length>500){
+    if(connectedGroup&&(members.length>500||placementOnly)){
       const maxColumns=Math.max(1,Math.ceil(Math.sqrt(order.length*width/height)))
       const wrapped:number[][]=[]
       for(const level of levels)for(let i=0;i<level.length;i+=maxColumns)wrapped.push(level.slice(i,i+maxColumns))
@@ -81,6 +81,28 @@ export function electricalSourceLayout(scene:NetworkScene,endpoints:Uint32Array,
     const pitchY=height*(bars.length?.6:.9)/Math.max(1,levels.length)
     levels.forEach((nodes,row)=>nodes.forEach((i,column)=>{const pitchX=width/Math.max(1,nodes.length),x=left+(column+.5)*pitchX,y=top+height*(bars.length?.35:.05)+(row+.5)*pitchY,radius=Math.min(11,pitchX*.18,pitchY*.18);positions[i*2]=x;positions[i*2+1]=y;symbolRadii.set(i,radius);escapes.set(i,[{x:x+pitchX*.4,y},{x:x+pitchX*.4,y:y+pitchY*.4},{x:outside,y:y+pitchY*.4},{x:outside,y:top-groupH*.04}]);obstacles.push({node:i,left:x-radius,right:x+radius,top:y-radius,bottom:y+radius})}))
   })
+  if(placementOnly)return {routes,busbars,symbolRadii}
+  const ids=new Map(scene.nodes.map((node,i)=>[node.id,i])),owners=new Map<number,number>()
+  if(local)scene.nodes.forEach((node,i)=>{const owner=node.parentId?ids.get(node.parentId):undefined;if(node.kind==='port'&&owner!==undefined&&scene.nodes[owner].kind!=='port')owners.set(i,owner)})
+  if(owners.size){
+    // The proxy exists only to place equipment and explicit source junctions.
+    // It is never rendered or returned as electrical connectivity.
+    const bodies=scene.nodes.flatMap((_,i)=>owners.has(i)?[]:[i]),proxyIds=new Map(bodies.map((n,i)=>[n,i]))
+    const proxyEdges=scene.edges.map((edge,e)=>({...edge,source:scene.nodes[owners.get(endpoints[e*2])??endpoints[e*2]].id,target:scene.nodes[owners.get(endpoints[e*2+1])??endpoints[e*2+1]].id})).filter(edge=>edge.source!==edge.target)
+    const proxy:NetworkScene={...scene,nodes:bodies.map(n=>scene.nodes[n]),edges:proxyEdges},proxyNodeIds=new Map(proxy.nodes.map((node,i)=>[node.id,i])),proxyPositions=new Float32Array(bodies.length*2)
+    const geometry=electricalSourceLayout(proxy,new Uint32Array(proxyEdges.flatMap(edge=>[proxyNodeIds.get(edge.source)!,proxyNodeIds.get(edge.target)!])),bounds,proxyPositions,true)
+    busbars.clear();symbolRadii.clear();obstacles.length=0;escapes.clear()
+    for(const n of bodies){const p=proxyIds.get(n)!;positions[n*2]=proxyPositions[p*2];positions[n*2+1]=proxyPositions[p*2+1];symbolRadii.set(n,geometry.symbolRadii.get(p)??6)
+      if(bus(scene.nodes[n].kind)){const x=positions[n*2],y=positions[n*2+1];busbars.set(n,[{x:x-18,y},{x:x+18,y}])}}
+    const children=new Map<number,number[]>()
+    for(const [port,owner] of owners){const list=children.get(owner)||[];list.push(port);children.set(owner,list)}
+    for(const [owner,ports] of children){ports.sort((a,b)=>scene.nodes[a].id.localeCompare(scene.nodes[b].id));const radius=symbolRadii.get(owner)!,bar=busbars.get(owner)
+      ports.forEach((n,rank)=>{const side=rank%2?-1:1,slot=Math.floor(rank/2),slots=Math.ceil(ports.length/2),pitch=Math.min(2,(bar?30:radius*2)/slots),x=positions[owner*2]+(bar?(slot-(slots-1)/2)*pitch:side*(radius+3)),y=positions[owner*2+1]+(bar?side*4:(slot-(slots-1)/2)*pitch)
+        positions[n*2]=x;positions[n*2+1]=y;symbolRadii.set(n,Math.min(.35,pitch*.2))})}
+    for(const n of bodies)if(scene.nodes[n].kind==='connection_node'&&neighbors[n].length===1&&neighbors[neighbors[n][0]].length===1){const port=neighbors[n][0],owner=owners.get(port);if(owner!==undefined){positions[n*2]=positions[port*2];positions[n*2+1]=positions[port*2+1]+(symbolRadii.get(owner)!+6);symbolRadii.set(n,.5)}}
+    for(let n=0;n<scene.nodes.length;n++){const x=positions[n*2],y=positions[n*2+1],r=symbolRadii.get(n)!,bar=busbars.get(n),reach=owners.has(n)?1.2:Math.max(3,r*1.5)
+      groupWidths[n]=bounds.width;escapes.set(n,[{x:x+reach,y:y+3},{x:x+reach,y:y+reach},{x:bounds.x+bounds.width+20,y:bounds.y-4}]);obstacles.push({node:n,left:bar?bar[0].x:x-r,right:bar?bar[1].x:x+r,top:y-(bar?1:r),bottom:y+(bar?1:r)})}
+  }
   if(!scene.edges.length)return {routes,busbars,symbolRadii}
   // Spatial buckets keep route checks local; no node-by-edge all-pairs pass.
   const bucketSize=Math.max(bounds.width,bounds.height)/64,buckets=new Map<string,number[]>()
@@ -114,11 +136,12 @@ export function electricalSourceLayout(scene:NetworkScene,endpoints:Uint32Array,
       const point={x:positions[n*2],y:positions[n*2+1]+((rank+1)/(edges.length+1)-.5)*Math.min(6,(symbolRadii.get(n)||0)*.5)}
       anchors.set(`${n}:${e}`,point)
       const reach=Math.abs(escapes.get(n)![0].x-point.x)*1.2,pair=[n,other].sort((a,b)=>a-b).join(':')
-      reserve([{x:point.x-reach,y:point.y},{x:point.x+reach,y:point.y}],pair)
+      if(!owners.size)reserve([{x:point.x-reach,y:point.y},{x:point.x+reach,y:point.y}],pair)
     })
   }
-  // Reserve complete default escape lanes before any compact route can occupy
-  // them. Unique row/column offsets and in-glyph slots keep these lanes apart.
+  // Ordinary layouts reserve default lanes up front. Composite terminals use
+  // nearby corridors and reserve only accepted routes, avoiding phantom lanes
+  // through their owning equipment. Every accepted route is checked below.
   const primaryRoutes=new Map<number,ScenePoint[]>()
   scene.edges.forEach((_,e)=>{
     const fraction=(e+1)/(scene.edges.length+1),factor=.75+fraction*.375
@@ -131,7 +154,7 @@ export function electricalSourceLayout(scene:NetworkScene,endpoints:Uint32Array,
     const a=endpoints[2*e],b=endpoints[2*e+1],from=escape(a),to=escape(b),channel=bounds.y-8-fraction*20,x=from.at(-1)!.x
     const bridge=a!==b&&x===to.at(-1)!.x?[]:[{x,y:channel},...(a===b?[{x:x+8,y:channel},{x:x+8,y:channel-8},{x,y:channel-8}]:[]),{x:to.at(-1)!.x,y:channel}]
     const route=[...from,...bridge,...to.reverse()],pair=[a,b].sort((x,y)=>x-y).join(':')
-    primaryRoutes.set(e,route);reserve(route,pair)
+    primaryRoutes.set(e,route);if(!owners.size)reserve(route,pair)
   })
   for(const edges of parallel.values())edges.sort((a,b)=>scene.edges[a].id.localeCompare(scene.edges[b].id)).forEach((e,rank)=>{
     const a=endpoints[2*e],b=endpoints[2*e+1],start=anchors.get(`${a}:${e}`)||{x:positions[2*a],y:positions[2*a+1]},end=anchors.get(`${b}:${e}`)||{x:positions[2*b],y:positions[2*b+1]}
@@ -142,9 +165,18 @@ export function electricalSourceLayout(scene:NetworkScene,endpoints:Uint32Array,
     if(a!==b){
       const offset=(rank-(edges.length-1)/2)*Math.min(8,20/edges.length),candidates:ScenePoint[][]=[]
       for(const ratio of [.25,.5,.75]){const x=start.x+(end.x-start.x)*ratio+offset,y=start.y+(end.y-start.y)*ratio+offset;candidates.push([start,{x,y:start.y},{x,y:end.y},end],[start,{x:start.x,y},{x:end.x,y},end])}
-      for(const delta of [-24,-12,12,24]){const x=(start.x+end.x)/2+delta+offset;candidates.push([start,{x:start.x,y:start.y+delta},{x,y:start.y+delta},{x,y:end.y+delta},{x:end.x,y:end.y+delta},end])}
+      for(let delta of (owners.size?[-24,-12,-4,-2,-1,1,2,4,12,24]:[-24,-12,12,24])){const shift=owners.size?(e+1)/(scene.edges.length+1):0,x=(start.x+end.x)/2+delta+offset+shift;delta+=shift;candidates.push([start,{x:start.x,y:start.y+delta},{x,y:start.y+delta},{x,y:end.y+delta},{x:end.x,y:end.y+delta},end])}
       candidates.sort((a,b)=>{const length=(route:ScenePoint[])=>route.slice(1).reduce((sum,p,i)=>sum+Math.abs(p.x-route[i].x)+Math.abs(p.y-route[i].y),0);return length(a)-length(b)})
       const compact=candidates.find(route=>clear(route,a,b)&&!overlaps(route,pair));if(compact){save(e,compact,pair);return}
+    }
+    if(owners.size&&a!==b){
+      // Composite terminals need short exits before traversing equipment rows.
+      // Search a fixed number of display corridors, still checking every route.
+      for(const delta of [-.8,.8,-2,2,-5,5,-9,9])for(let column=0;column<64;column++){
+        const x=bounds.x+(column+.37)*bounds.width/64,shift=(e+1)/(scene.edges.length+1)*.2
+        const route=[start,{x:start.x,y:start.y+delta+shift},{x,y:start.y+delta+shift},{x,y:end.y+delta+shift},{x:end.x,y:end.y+delta+shift},end]
+        if(clear(route,a,b)&&!overlaps(route,pair)){save(e,route,pair);return}
+      }
     }
     // Each edge has its own horizontal and vertical reserved lanes. A shared
     // perimeter trunk would falsely join circuits with different source nodes.
@@ -171,7 +203,7 @@ export function electricalSourceLayout(scene:NetworkScene,endpoints:Uint32Array,
       const route=[...from,{x,y:channel},...loop,{x:to.at(-1)!.x,y:channel},...to.slice().reverse()]
       if(clear(route,a,b)&&!overlaps(route,pair)){save(e,route,pair);return}
     }
-    throw new Error('No collision-free source route within the bounded layout')
+    throw new Error(`No collision-free source route within the bounded layout: ${scene.edges[e].id}`)
   })
   return {routes,busbars,symbolRadii}
 }
