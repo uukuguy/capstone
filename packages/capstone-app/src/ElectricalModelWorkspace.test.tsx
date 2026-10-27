@@ -314,8 +314,54 @@ it('keeps a known frozen parent chain for an instructed child and derives its st
   await screen.findByText('0 个设备 · 0 个端口 · 0 条源连接')
   expect(screen.getByRole('navigation').textContent).toBe('发布省网Station A · 电气接线')
   expect(download.dispose).not.toHaveBeenCalled()
-  ui.rerender(<ElectricalModelWorkspace transport={transport} requestedView={{...childRequest,model_revision:'different-frozen-revision'}} requestNonce={3}/>)
+  ui.rerender(<ElectricalModelWorkspace transport={transport} requestedView={request} requestNonce={3}/>)
+  await screen.findByText('当前层概览完整',{exact:false})
+  expect(screen.getByRole('navigation').textContent).toBe('发布省网')
+  expect(download.dispose).not.toHaveBeenCalled();expect(background.created).toHaveLength(1)
+  ui.rerender(<ElectricalModelWorkspace transport={transport} requestedView={childRequest} requestNonce={4}/>)
+  await screen.findByText('0 个设备 · 0 个端口 · 0 条源连接')
+  expect(screen.getByRole('navigation').textContent).toBe('发布省网Station A · 电气接线')
+  ui.rerender(<ElectricalModelWorkspace transport={transport} requestedView={{...childRequest,model_revision:'different-frozen-revision'}} requestNonce={5}/>)
   await screen.findByRole('alert')
   expect(screen.getByRole('navigation').textContent).toBe('局部电气接线')
   expect(download.dispose).toHaveBeenCalledTimes(1)
+})
+
+it('restores an instructed station name from frozen parent summaries and persists it for refresh',async()=>{
+  const records=electricalOverviewRecords();records.summary_nodes[1].name='朝阳站'
+  const root={...electricalOverviewManifest(records),name:'发布省网'}
+  const rootRequest={schema:'capstone-electrical-view-request/1' as const,source_id:'data-gateway' as const,model_ref:root.model_ref,model_revision:root.model_revision,
+    view_ref:root.view_ref,selection_ref:root.selection_ref!,source_snapshot_ref:root.source_snapshot_ref!,representation:'source_node_breaker' as const,
+    target:null,artifact_ref:null,name:root.name,view_schema:'gateway-electrical-view/2' as const}
+  const request={...rootRequest,view_ref:'instructed:cold-child',parent_view_ref:root.view_ref,target:'target:station'}
+  const empty={...records,...Object.fromEntries(ELECTRICAL_STREAMS.map(stream=>[stream,[]]))}
+  const child:ElectricalViewReady={...root,view_ref:request.view_ref,target:request.target,streams:Object.fromEntries(ELECTRICAL_STREAMS.map(stream=>[stream,{total_count:0}])) as ElectricalViewReady['streams']}
+  sessionStorage.setItem('cold-child',JSON.stringify({format:2,path:[{label:root.name,request:rootRequest}],appliedRequestIdentity:'old-instruction'}))
+  const read=vi.fn(async(query:Parameters<typeof electricalPage>[2])=>electricalPage(query.view_ref===root.view_ref?root:child,query.view_ref===root.view_ref?records:empty,query))
+  const transport={electricalOpen:async()=>child,electricalRead:read} as unknown as HttpThreadTransport
+  const ui=render(<ElectricalModelWorkspace transport={transport} storageKey="cold-child" requestedView={request} requestNonce={2}/>)
+  await screen.findByText('接线画布')
+  expect(screen.getByRole('navigation').textContent).toBe('发布省网朝阳站 · 电气接线')
+  expect(read.mock.calls.filter(([query])=>query.view_ref===root.view_ref).map(([query])=>query.stream)).toEqual(['summary_nodes','summary_edges'])
+  expect(JSON.parse(sessionStorage.getItem('cold-child')!).path.at(-1).label).toBe('朝阳站 · 电气接线')
+  ui.unmount();const before=read.mock.calls.length
+  render(<ElectricalModelWorkspace transport={transport} storageKey="cold-child" requestedView={request} requestNonce={2}/>)
+  await screen.findByText('接线画布');expect(screen.getByRole('navigation').textContent).toBe('发布省网朝阳站 · 电气接线')
+  expect(read.mock.calls.slice(before).some(([query])=>query.view_ref===root.view_ref)).toBe(false)
+})
+
+it('does not use a name from a parent summary with a changed frozen identity',async()=>{
+  const records=electricalOverviewRecords(),root=electricalOverviewManifest(records)
+  const child:ElectricalViewReady={...root,view_ref:'child',target:'target:station',streams:Object.fromEntries(ELECTRICAL_STREAMS.map(stream=>[stream,{total_count:0}])) as ElectricalViewReady['streams']}
+  const request={schema:'capstone-electrical-view-request/1' as const,source_id:'data-gateway' as const,model_ref:child.model_ref,model_revision:child.model_revision,
+    view_ref:child.view_ref,selection_ref:child.selection_ref!,source_snapshot_ref:child.source_snapshot_ref!,representation:'source_node_breaker' as const,
+    target:child.target!,artifact_ref:null,parent_view_ref:root.view_ref,view_schema:'gateway-electrical-view/2' as const}
+  const empty={...records,...Object.fromEntries(ELECTRICAL_STREAMS.map(stream=>[stream,[]]))}
+  const read=vi.fn(async(query:Parameters<typeof electricalPage>[2])=>query.view_ref===root.view_ref?
+    {...electricalPage(root,records,query),source_snapshot_ref:'different-source'}:electricalPage(child,empty,query))
+  render(<ElectricalModelWorkspace requestedView={request} transport={{electricalOpen:async()=>child,electricalRead:read} as unknown as HttpThreadTransport}/>)
+  await screen.findByText('接线画布')
+  expect(screen.getByRole('navigation').textContent).toBe('局部电气接线')
+  expect(screen.queryByRole('alert')).toBeNull()
+  expect(read.mock.calls.filter(([query])=>query.view_ref===root.view_ref)).toHaveLength(1)
 })

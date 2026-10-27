@@ -12,6 +12,7 @@ import './gridSource.css'
 type Model={model_ref:string;name:string;publishedName:boolean;query:Record<string,unknown>}
 type Target={query:Record<string,unknown>;label:string;expected?:ThreadElectricalViewRequest;mode?:'overview'|'closure'}
 type LoadTiming={started:number;viewRef?:string;overviewMs?:number;detailMs?:number}
+type TargetPresentation={label:string;mode:'overview'|'closure'}
 const record=(v:unknown):v is Record<string,unknown>=>!!v&&typeof v==='object'&&!Array.isArray(v)
 const label=(v:unknown)=>typeof v==='string'&&v.length>0&&v.length<=512
 const modelName=(v:unknown):v is string=>typeof v==='string'&&v.trim().length>0&&v.length<=2048&&!/[\u0000-\u001f\u007f]/.test(v)
@@ -89,6 +90,37 @@ function selectionScope(ready:ElectricalViewReady):string {
   const profile=typeof selection.profile==='string'&&selection.profile.trim()?`来源方案：${selection.profile}`:'来源方案未说明'
   return `当前范围：${range}（${profile}）。${known&&voltage>0?'不代表全部电压等级。':'仍以已发布来源记录为准。'}`
 }
+/** Optional names only: failed lookup must not invalidate an admitted child. */
+async function parentTargetPresentation(ready:ElectricalViewReady,parent:string,read:HttpThreadTransport['electricalRead'],signal:AbortSignal):Promise<TargetPresentation|undefined>{
+  if(ready.schema!=='gateway-electrical-view/2'||!ready.target)return
+  const stop=new AbortController(),abort=()=>stop.abort(),timer=setTimeout(abort,5000)
+  signal.addEventListener('abort',abort,{once:true})
+  try {
+    signal.throwIfAborted();let pages=0;const matches:TargetPresentation[]=[]
+    for(const stream of ['summary_nodes','summary_edges'] as const){
+      const ids=new Set<string>(),cursors=new Set<string>();let cursor:string|undefined,total:number|undefined
+      do {
+        stop.signal.throwIfAborted();if(++pages>8)return
+        const page=parseElectricalViewPage(await read({view_ref:parent,stream,limit:500,...(cursor?{cursor}:{})},stop.signal))
+        stop.signal.throwIfAborted()
+        if(page.view_ref!==parent||page.stream!==stream||page.returned_count>500||page.total_count>4000)return
+        for(const field of ['schema','model_ref','model_revision','source_snapshot_ref','selection_ref'] as const)if(page[field]!==ready[field])return
+        if(total!==undefined&&page.total_count!==total)return;total=page.total_count
+        for(const row of page.records){
+          if(ids.has(row.id))return;ids.add(row.id)
+          if(row.expand_target===ready.target){
+            if(stream==='summary_nodes'&&modelName(row.name))matches.push({label:row.group_kind==='station'?`${row.name} · 电气接线`:row.name,mode:row.group_kind==='grid'?'overview':'closure'})
+            if(stream==='summary_edges')matches.push({label:`${row.member_count} 条源线路 · 线路接线`,mode:'closure'})
+          }
+        }
+        if(matches.length>1||ids.size>total||page.complete&&ids.size!==total||!page.complete&&(!page.returned_count||ids.size>=total))return
+        if(page.next_cursor!==null){if(cursors.has(page.next_cursor))return;cursors.add(page.next_cursor)}
+        cursor=page.next_cursor??undefined
+      }while(cursor)
+    }
+    return matches.length===1?matches[0]:undefined
+  }catch{return undefined}finally{clearTimeout(timer);signal.removeEventListener('abort',abort)}
+}
 export default function ElectricalModelWorkspace({transport,requestedView,requestNonce,onManualNavigate,storageKey}:{
   transport:HttpThreadTransport;requestedView?:ThreadElectricalViewRequest;requestNonce?:number;onManualNavigate?:()=>void;storageKey?:string
 }) {
@@ -104,6 +136,7 @@ export default function ElectricalModelWorkspace({transport,requestedView,reques
   const backgroundGeneration=useRef(0),paused=useRef(false),resolved=useRef(new Map<Target,ThreadElectricalViewRequest>())
   const resolvedNames=useRef(new Map<Target,string>())
   const knownModelNames=useRef(new Map<string,string>())
+  const resolvedModes=useRef(new Map<Target,TargetPresentation['mode']>())
   function targetName(item:Target,index:number):string {
     const name=index===0&&!item.query.target&&typeof item.query.model_ref==='string'?knownModelNames.current.get(item.query.model_ref):undefined
     return name??resolvedNames.current.get(item)??item.label
@@ -119,8 +152,18 @@ export default function ElectricalModelWorkspace({transport,requestedView,reques
   useEffect(()=>{
     if(!requestedView||appliedRequest.current===requestIdentity)return
     appliedRequest.current=requestIdentity
+    const knownPath=path.length?path:restoredTarget(storageKey)
+    if(!requestedView.target){
+      const rootIndex=knownPath.findIndex(item=>{
+        const request=resolved.current.get(item)??item.expected
+        return request&&request.view_ref===requestedView.view_ref&&request.target===null
+          &&(['model_ref','model_revision','selection_ref','source_snapshot_ref','representation','artifact_ref'] as const).every(field=>request[field]===requestedView[field])
+          &&(!requestedView.view_schema||request.view_schema===requestedView.view_schema)
+      })
+      if(rootIndex>=0){setPath([...knownPath.slice(0,rootIndex),requestTarget(requestedView,targetName(knownPath[rootIndex],rootIndex))]);return}
+    }
     if(requestedView.target&&requestedView.parent_view_ref){
-      const parentIndex=path.findIndex(item=>{
+      const parentIndex=knownPath.findIndex(item=>{
         const parent=resolved.current.get(item)??item.expected
         if(!parent)return false
         return parent.view_ref===requestedView.parent_view_ref
@@ -137,7 +180,15 @@ export default function ElectricalModelWorkspace({transport,requestedView,reques
             else next=activation({type:'edge',id:edges[0].id,label:edges[0].id,kind:edges[0].relation_kind})
           }
         }
-        setPath([...path.slice(0,parentIndex+1),requestTarget(requestedView,next?.label,next?.mode)])
+        const previous=[...resolved.current.entries()].find(([,request])=>request.view_ref===requestedView.view_ref&&request.parent_view_ref===requestedView.parent_view_ref
+          &&(['model_ref','model_revision','selection_ref','source_snapshot_ref','target','representation'] as const).every(field=>request[field]===requestedView[field]))?.[0]
+        const savedChild=knownPath.find(item=>{
+          const request=item.expected
+          return request&&request.view_ref===requestedView.view_ref&&request.parent_view_ref===requestedView.parent_view_ref
+            &&(['model_ref','model_revision','selection_ref','source_snapshot_ref','target','representation'] as const).every(field=>request[field]===requestedView[field])
+        })
+        const named=previous??savedChild
+        setPath([...knownPath.slice(0,parentIndex+1),requestTarget(requestedView,next?.label??(named?resolvedNames.current.get(named)??named.label:undefined),next?.mode??named?.mode)])
         return
       }
     }
@@ -197,17 +248,23 @@ export default function ElectricalModelWorkspace({transport,requestedView,reques
       if(path.length===1&&timingRef.current&&!opened.target){timingRef.current.viewRef=opened.view_ref;setTiming({...timingRef.current})}
       const saved=descriptor(opened,target.query)
       if(saved)resolved.current.set(target,saved)
+      if(opened.target&&target.label==='局部电气接线'&&typeof target.query.parent_view_ref==='string'){
+        const presentation=await parentTargetPresentation(opened,target.query.parent_view_ref,(query,signal)=>transport.electricalRead(query,signal),stop.signal)
+        if(stop.signal.aborted||generation.current!==ticket)return
+        if(presentation){resolvedNames.current.set(target,presentation.label);resolvedModes.current.set(target,presentation.mode)}
+      }
       if(storageKey){
         const savedPath=path.map((item,index)=>{
           let request=resolved.current.get(item)??item.expected
           const name=index===0&&request&&!request.target?knownModelNames.current.get(request.model_ref):undefined
           if(name&&request){const named=parseThreadDisplayRequest({...request,name});if(named?.schema==='capstone-electrical-view-request/1')request=named}
-          return {label:targetName(item,index),mode:item.mode,request}
+          return {label:targetName(item,index),mode:resolvedModes.current.get(item)??item.mode,request}
         })
         if(savedPath.every(item=>item.request))try{sessionStorage.setItem(storageKey,JSON.stringify({format:2,path:savedPath,appliedRequestIdentity:requestIdentity}))}catch{/* Storage is optional. */}
       }
+      const mode=resolvedModes.current.get(target)??target.mode
       const overview=opened.schema==='gateway-electrical-view/2'&&opened.representation==='source_node_breaker'
-        &&(target.mode==='overview'||!opened.target||opened.default_stream==='summary_nodes'||opened.default_stream==='summary_edges')&&target.mode!=='closure'
+        &&(mode==='overview'||!opened.target||opened.default_stream==='summary_nodes'||opened.default_stream==='summary_edges')&&mode!=='closure'
       if(!overview&&!opened.target&&opened.representation==='source_node_breaker')await directory(opened,undefined,stop.signal,ticket)
       else {
         const result=await loadElectricalModelView(opened,(q,s)=>transport.electricalRead(q,s),{mode:overview?'overview':'closure',signal:stop.signal,
@@ -325,7 +382,7 @@ export default function ElectricalModelWorkspace({transport,requestedView,reques
         {cursor&&<button disabled={busy} onClick={()=>void more()}>加载更多站点</button>}
       </>}
       {scene&&view&&<>
-        <LargeNetworkView scene={scene} title={view.loadedStreams.includes('summary_nodes')?`${target?targetName(target,path.length-1):'电网'} · 厂站概览`:target?.label||'电气接线'} storageKey={storageKey?`${storageKey}.camera`:'capstone-electrical-model'} viewKey={manifest.view_ref}
+        <LargeNetworkView scene={scene} title={view.loadedStreams.includes('summary_nodes')?`${target?targetName(target,path.length-1):'电网'} · 厂站概览`:target?targetName(target,path.length-1):'电气接线'} storageKey={storageKey?`${storageKey}.camera`:'capstone-electrical-model'} viewKey={manifest.view_ref}
         onFirstFrame={overviewFirstFrame}
         activationLabel={item=>!busy?activation(item)?.actionLabel:undefined}
         canActivate={item=>!busy&&!!activation(item)} onActivate={item=>{const next=activation(item);if(next)expandTarget(next.target,next.label,next.mode)}}/>
