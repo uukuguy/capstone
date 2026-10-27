@@ -58,6 +58,7 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
     }};
   function close(){closed=true;active.clear();pending=undefined;}
   return {tools:[search,load],initialToolNames,close,
+    admittedTools:[...entries.values()].map(({tool})=>tool),
     guardedTools:[...entries].map(([name,{tool}])=>({...tool,async execute(...args){
       check(args[2]);if(!active.has(name))throw new Error('Requested tool is not active; load it and wait for the next model turn');
       return tool.execute(...args);

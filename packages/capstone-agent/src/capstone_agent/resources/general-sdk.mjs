@@ -424,7 +424,7 @@ export function applicationToolOptions(config, nativeTools, research=()=>undefin
       ['bash','write'].every(name=>config.applicationPolicy.allowed_tools.includes(name))){
     // Explicit program selection uses the admitted catalog, independent of the
     // model's small active menu. The same host relay validates each invocation.
-    let nested=createDataGatewayTools(config).map(wrap);
+    let nested=(discovery?.admittedTools??createDataGatewayTools(config)).map(wrap);
     if(graphBinding)nested=graphChildTools(config,nested,graphBinding);
     const selected=new Map(nested.map(tool=>[tool.name,tool]));
     customTools.push(wrap(createToolCompositionTool({policy:compositionPolicy,

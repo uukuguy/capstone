@@ -65,3 +65,13 @@ test('bounded concurrency assigns unique IDs to queued calls and drains them bef
   }).execute('queue',{tools:['data_gateway_read'],concurrency:2,program:`return await Promise.all(Array.from({length:9},(_,i)=>tools.call('data_gateway_read',{i})));`},new AbortController().signal);
   assert.equal(result.isError,false);assert.equal(ids.length,9);assert.equal(new Set(ids).size,9);assert.equal(peak,2);assert.equal(active,0);
 }));
+test('large returns spill before delivery and later programs reuse actual session observations without querying again',()=>fixture(async cwd=>{
+  let count=0;const t=tool(cwd,async()=>{count++;return native({unit:'MW',rows:[1,2]});});
+  const first=await t.execute('first',{tools:['data_gateway_read'],program:`return (await tools.call('data_gateway_read',{})).ref;`});
+  const ref=JSON.parse(first.content[0].text).result;
+  const second=await t.execute('second',{tools:[],program:`return await saveContext('reuse',{bindings:{unit:{call:${JSON.stringify(ref)},pointer:'/data/unit'}}});`});
+  assert.equal(second.isError,false,JSON.stringify(second));assert.equal(count,1);
+  const large=await t.execute('large',{tools:[],program:`return 'x'.repeat(100000);`});
+  assert.equal(large.isError,false);const preview=JSON.parse(large.content[0].text);assert.equal(preview.preview_truncated,true);
+  assert.equal(JSON.parse(await readFile(preview.full_result.path,'utf8')).result.length,100000);
+}));

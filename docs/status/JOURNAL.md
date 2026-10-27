@@ -6030,6 +6030,15 @@ Reproduced protected research acknowledgment waiting behind an entire public-eve
 - 2026-10-28: 0468f165 records measured batching and shared tool-composition proposals; runtime behavior remains unchanged pending implementation scope.
 # 2026-10-28 — Shared native tool composition
 
+7229b0b7: Added shared tool programs and semantic packages to reduce model roundtrips while retaining per-call receipts.
+
+First real Vivaldi trial completed in 176.61s with 34 model responses, 25 programs
+and 17 published files. Found oversized program-return rejection and session-local
+reference loss; both caused avoidable recovery. Fix automatically spills returns
+and retains issued refs across programs in the same session. DR nodes still need
+explicit packages. Also share the admitted gateway wrappers with menu calls so
+their resource-failure circuit remains common. Focused correction tests pass.
+
 User approved implementation. Added task-isolated async programs, bounded parallel
 gateway calls, dependent data flow, Python calculation, explicit cancellation and
 source-backed semantic packages. Both ordinary loop and DR child grants select

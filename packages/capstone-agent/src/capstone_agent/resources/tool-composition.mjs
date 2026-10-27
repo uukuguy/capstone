@@ -2,14 +2,18 @@ import {fork} from 'node:child_process';
 import {readFileSync} from 'node:fs';
 import {randomUUID} from 'node:crypto';
 import {saveSemanticContext,loadSemanticContext} from './semantic-data-context.mjs';
+import {boundToolResult} from './tool-result-context.mjs';
 export const compositionPolicy=Object.freeze(JSON.parse(readFileSync(new URL('./tool-composition-policy.json',import.meta.url),'utf8')));
 export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,invoke,scope,deadlineAt=Infinity,allowedInputs=[],restore=async x=>x,onProgress=()=>{}}){
+  // Session-local issued observations survive program calls, never task grants.
+  // A different DR node must receive an explicit saved context package.
+  const records=new Map();
   return {name:'agent_tools_execute',label:'组合工具与计算',description:'Run an async JavaScript program in the isolated task workspace. Select admitted gateway tools explicitly. Use Promise.all for independent calls and pass results directly to dependent calls. tools.call(name,args) returns {ref,ok,status,data,provenance,gaps,value}; tools.describe(name) returns its exact contract. python(code,data) runs Python with JSON stdin. saveContext(name,{bindings,datasets}) preserves observed source fields with call refs and JSON pointers, declared values, and unknown fields. loadContext(path) reuses a saved package. Return a compact summary; retain source data in packages. No automatic retries. Source packages are observations, not Authority evidence.',
-    parameters:{type:'object',properties:{program:{type:'string'},tools:{type:'array',items:{type:'string'}},purpose:{type:'string'},concurrency:{type:'integer',minimum:1,maximum:policy.concurrency},max_calls:{type:'integer',minimum:1,maximum:policy.max_calls},timeout_ms:{type:'integer',minimum:1,maximum:policy.max_program_ms}},required:['program','tools'],additionalProperties:false},
+    parameters:{type:'object',properties:{program:{type:'string',description:'Async program body. Actual call refs remain usable by later programs in this instruction/session. A different task must receive a saved context package. Large returns are saved automatically; return selected fields to reduce model context.'},tools:{type:'array',items:{type:'string'}},purpose:{type:'string'},concurrency:{type:'integer',minimum:1,maximum:policy.concurrency},max_calls:{type:'integer',minimum:1,maximum:policy.max_calls},timeout_ms:{type:'integer',minimum:1,maximum:policy.max_program_ms}},required:['program','tools'],additionalProperties:false},
     async execute(callId,input,signal){
       signal?.throwIfAborted();
       const failure=error=>({isError:true,content:[{type:'text',text:String(error.message??error)}]});
-      let child,timer;const abort=new AbortController(),records=new Map(),queue=[],operations=new Set();let active=0,calls=0,finished=false;
+      let child,timer;const abort=new AbortController(),queue=[],operations=new Set();let active=0,calls=0,finished=false;
       const stop=()=>{abort.abort(Error('Composition stopped'));for(const reject of queue.splice(0))reject();if(child?.pid){try{process.kill(-child.pid,'SIGKILL');}catch{child.kill('SIGKILL');}}};
       try{
         if(typeof input.program!=='string'||input.program.length>policy.code_chars)throw Error('Program code budget exceeded');
@@ -61,9 +65,9 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
           });
           child.send({kind:'start',program:input.program,schemas,outputBytes:policy.output_bytes});
         });
-        const text=JSON.stringify({result:result??null,calls,packages:[...records.keys()].length});
-        if(Buffer.byteLength(text)>policy.output_bytes)throw Error('Program result budget exceeded; save a context package and return its reference');
-        return {isError:false,content:[{type:'text',text}],details:{kind:policy.schema,calls}};
+        const text=JSON.stringify({result:result??null,calls});
+        return await boundToolResult({isError:false,content:[{type:'text',text}],details:{kind:policy.schema,calls}},
+          {cwd,toolName:'agent_tools_execute',callId,maxChars:policy.output_bytes});
       }catch(error){if(signal?.aborted)throw signal.reason??error;return failure(error);}
       finally{clearTimeout(timer);stop();await Promise.allSettled([...operations]);}
     }};
