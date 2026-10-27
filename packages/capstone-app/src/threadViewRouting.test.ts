@@ -8,6 +8,49 @@ const request={schema:'capstone-grid-source-view-request/1',source_id:'data-gate
 const event=(seq:number,payload:Record<string,unknown>={source_view:request},attemptId='latest'):EventEnvelope=>({eventId:`event${seq}`,eventSeq:seq,eventType:'runtime_event',eventVersion:1,threadId:'thread',runId:'run',attemptId,visibility:'public',occurredAt:'2026-10-26T00:00:00Z',payload})
 const currentContext:ModelContextSnapshot={id:'context',modelId:sampleDiagramView.diagram.model.id,modelRevision:sampleDiagramView.diagram.model.revision,implementationFamily:'pandapower',selectionRevision:'selection',enabledProfiles:[]}
 const model=(eventSeq:number,overrides:Partial<ThreadNetworkTask>={}):ThreadNetworkTask=>({attemptId:'latest',eventSeq,pageId:'page',context:currentContext,view:sampleDiagramView,...overrides})
+const electricalRequest={schema:'capstone-electrical-view-request/1',source_id:'data-gateway',model_ref:'grid:custom',model_revision:'revision',
+  view_ref:'frozen',selection_ref:'selection',source_snapshot_ref:'snapshot',representation:'source_node_breaker',target:null,artifact_ref:null}
+
+it('preserves exact optional schema and root selection metadata on verified electrical requests',()=>{
+  const root={...electricalRequest,view_schema:'gateway-electrical-view/2',selection_profile:'province_all_ac',boundary_policy:'retain_external_stub'}
+  expect(parseThreadDisplayRequest(root)).toEqual(root)
+  expect(parseThreadDisplayRequest({...root,boundary_policy:'internal_only',selection_profile:'a'.repeat(64)})).toBeTruthy()
+  expect(parseThreadDisplayRequest({...electricalRequest,view_schema:'gateway-electrical-view/1'})).toBeTruthy()
+  expect(parseThreadDisplayRequest(electricalRequest)).toEqual(electricalRequest)
+  const proposal=selectThreadViewProposal({events:[event(1,{source_view:root})],networkTasks:[],attemptId:'latest',currentContext})
+  expect(proposal?.kind==='source'&&proposal.request).toEqual(root)
+})
+
+it('retains frozen child schema and actual parent reference without root-only selection overrides',()=>{
+  const child={...electricalRequest,view_schema:'gateway-electrical-view/2',target:'opaque:station',parent_view_ref:'actual:parent'}
+  expect(parseThreadDisplayRequest(child)).toEqual(child)
+  expect(parseThreadDisplayRequest({...child,parent_view_ref:'p'.repeat(2048)})).toBeTruthy()
+  expect(parseThreadDisplayRequest({...electricalRequest,representation:'calculation_bus_branch',artifact_ref:'artifact',view_schema:'gateway-electrical-view/1'})).toBeTruthy()
+})
+
+it.each([
+  {view_schema:'gateway-electrical-view/3'}, {view_schema:['gateway-electrical-view/2']}, {view_schema:null}, {view_schema:undefined},
+  {view_schema:'gateway-electrical-view/2',representation:'calculation_bus_branch',artifact_ref:'artifact'},
+  {selection_profile:''}, {selection_profile:'A_profile'}, {selection_profile:'a/b'}, {selection_profile:'a'.repeat(65)}, {selection_profile:'a\n'},
+  {selection_profile:null}, {selection_profile:undefined}, {selection_profile:['province']},
+  {boundary_policy:'drop_external'}, {boundary_policy:null}, {boundary_policy:undefined}, {boundary_policy:['internal_only']},
+  {parent_view_ref:''}, {parent_view_ref:null}, {parent_view_ref:undefined},
+  {parent_view_ref:'p'.repeat(2049),target:'station'}, {parent_view_ref:'bad\nparent',target:'station'},
+  {parent_view_ref:'frozen',target:'station'}, {parent_view_ref:'parent'},
+  {parent_view_ref:'parent',target:'station',selection_profile:'province'},
+  {parent_view_ref:'parent',target:'station',boundary_policy:'internal_only'},
+  {representation:'calculation_bus_branch',artifact_ref:'artifact',selection_profile:'province'},
+  {representation:'calculation_bus_branch',artifact_ref:'artifact',boundary_policy:'retain_external_stub'},
+  {arbitrary_metadata:'not-admitted'},
+])('rejects invalid or incompatible optional electrical metadata %#',metadata=>{
+  expect(parseThreadDisplayRequest({...electricalRequest,...metadata})).toBeNull()
+})
+
+it('applies the backend ASCII JSON budget to electrical descriptors with multibyte identities',()=>{
+  const oversized={...electricalRequest,target:'站'.repeat(512)}
+  for(const field of ['model_ref','model_revision','view_ref','selection_ref','source_snapshot_ref'] as const)oversized[field]='网'.repeat(512)
+  expect(parseThreadDisplayRequest(oversized)).toBeNull()
+})
 
 it('routes only current successful frozen electrical descriptors with full model identity',()=>{
   const request={schema:'capstone-electrical-view-request/1',source_id:'data-gateway',model_ref:'grid:custom',model_revision:'revision',
