@@ -1,32 +1,25 @@
 # Live Session Checkpoint
 
-Updated 2026-10-27 Asia/Shanghai. Non-diagram acceptance and PR69 integration passed; final control alignment remains active.
+Updated 2026-10-27. Work remains active.
 
 ## Current boundary
 
-- Actual dev bcd1a5ad merged PR69 normally. Feature519bf75f passed required macOS CI40409319046 in27m16s. No cloud/demo/main change.
-- User priority: finish non-diagram work first. User now reports Beijing,Tianjin,Shanghai,Hubei,Zhejiang provincial grids ready;Capstone graph acceptance remains pending. Provincial/v2 diagram,drilldown/location and public power-flow import integration remain deferred. Use MCP discovery/shared components,not hard-coded province routes.
-- Local backend source ed0c5ff2,image cad1795d62599748f79190968b7877f96d2e43070fe36e61ac77261056651aa6. Canonical rebuild passed;API/all3workers healthy/same image/restart0;native healthy/restart0;scoped cleanup completed. Later commits change tests/docs only.
-- Real Vivaldi acceptance on214c2e23: scope21s/3tools;Beijing5samples54.7s;statistics/CSV61s;final primary CSV/support note76s/4tools,no gateway requery. Mean6021.43852MW independently verified. Latency remains variable,not fully solved.
-- Existing Vivaldi thread thr_260fbf7ddde61dd0dd89 refreshed oned0c5ff2 and restored all four turns/products. Evidence outputs/mcp-self-discovery-20261027/vivaldi/. Window131132;reuse existing enterprise/control tabs. Do not repeat completed Provider cases.
+- Feature worktree .worktrees/electrical-diagrams, branch feat/provincial-electrical-view, HEAD64c9de9f; actual dev f1e6e9fd. Not merged or released.
+- Backend image sha256:9d69f54bdbf19620a21161a65bb76fafc32e04a00813ef0449e37bd2dc0f9a3f includes names and source-view transport fix. Canonical rebuild and scoped cleanup passed. Vite5173 serves feature.
+- Literal “打开北京电网” automatically opened Beijing overview in Vivaldi thread thr_072a9587b4bda536cd19:26.3s/14tools, warm gateway/browser caches. Earlier manual sample:0.49s overview,16.30s complete78407 records,220kV provincial profile. Distinct measurements.
+- 64c9de9f restores each instruction's admitted graph through existing answer toolbar icon.89 focused tests and TypeScript passed. Vivaldi first icon restored Beijing overview; second restored 朝阳电气接线 with Beijing breadcrumb. No task rerun.
+- b074f8db composite layout passed20 tests and real-data obstacle checks. Actual station remains dense; readability not accepted.
 
-## Immediate actions
+## Immediate work
 
-1. Finish actual-dev App entry-point check and control alignment. process_views owns ROOT VERSION-CONTROL.md,INDEX.md,PROJECT-OVERVIEW.html and is generating merged state. Root owns journal,this checkpoint,and review.
-2. Inspect graph in existing Vivaldi control tab,return to enterprise results,run scoped docs checks,commit through normal docs PR into dev. No release gates or rebuild for docs/test-only changes.
-3. Synchronize accepted branch copies without deleting ignored runtime/user data;record retained dirty snapshot paths and recovery reason.
-
-## Verification
-
-- Dynamic MCP admission/init guidance/task-scoped discovery and lightweight product guidance passed. CSV manifest belongs at initial workspace root,paths include output directory;final answers avoid internal paths.
-- Packaging omitted general-tool-discovery.mjs;explicit COPY and static-import packaging check fixed it. Cold inventory measured18.94s;bounded90s readiness and5minute Compose startup grace fixed startup without restart loops.
-- Types fixed4c70736e;import guide/catalog expectations fixeded0c5ff2/e913c450. Sleep-based backpressure fixture fixed519bf75f with Event and controlled deadline;46file checks plus10x6 repeated cases pass.
-- Local agent2331pass147skip144.92s;Pack145pass1.17s;39contracts,59protocol/contracts+2resources pass. Model-capability/local-rebuild/generic-tools pass. Required final CI passed;earlier failed runs remain recorded,not accepted.
+1. a6f323fa completed historical child name/path restoration. ca41e6e7 fixes older history replay overwriting the selected graph;115 focused tests and TypeScript passed. Final live refresh retest pending: user switched to thread thr_5b5621f93b94fb538c66, do not disturb it.
+2. Finish name/refresh verification. Existing Vivaldi window131132; user actively uses this thread. Do not overwrite drafts, interrupt runs, or create tabs.
+3. Continue station readability, real background-download conversation/pause-resume acceptance, then normal dev integration and control alignment. Full Beijing diagram acceptance remains pending.
 
 ## Recovery
 
-- Root scoped stash4a1981905c7fd073f9d1ce4a14d0157839307d88 preserved10owned dirty/untracked docs before fast-forward. Backup outputs/control-recovery-20261027/. Those files are now committed;newer feature journal/control edits copied explicitly. Do not blindly apply the stash.
-- Earlier stash159959f08cec3753d6e5f2f47f75419073a1906c retained. Never delete/migrate root var/.
-- Feature .worktrees/electrical-diagrams retains doc updates pending synchronization;root owns final delivery. Preserve ignored runtimes/recovery references.
-- Git direct transport times out;per-command git -c http.proxy=http://127.0.0.1:7897 uses existing system proxy. Global settings unchanged.
-- Sibling data-gateway remains read-only. Withdrawn handoff document stays preserved,not submitted. Runtime agents use MCP;repository docs are development references.
+- Feature .superpowers/sdd/task-1-report.md has prior uncommitted agent rewrite; retain for review. Root control INDEX/JOURNAL/PROJECT-OVERVIEW/RESUME/VERSION-CONTROL remain intentionally dirty; preserve.
+- Plan docs/superpowers/plans/2026-10-27-beijing-electrical-display.md; report docs/reports/2026-10-27-beijing-electrical-view-validation.md.
+- Root outputs/beijing-electrical-20261027/vivaldi includes natural-open-success and instruction-overview-restored / instruction-station-restored screenshots.
+- Sibling data-gateway read-only. Discover contracts through MCP. Preserve ignored data/runtimes and recovery stashes.
+- Scoped development checks only. No cloud/demo/main change. Command-local Git proxy http://127.0.0.1:7897 if needed.

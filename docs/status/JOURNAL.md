@@ -5978,3 +5978,9 @@ Prior closeout receipts preserved verbatim from the root checkout:
 - 2026-10-27 `e3d8c5c8`: Restore root breadcrumb names by exact model identity without reopening the root view.
 - 2026-10-27 Vivaldi: Exact instruction “打开北京电网” automatically opened the named overview;14tools,26.3s, warm gateway/browser caches.
 - 2026-10-27 `9f4db401`: Show source voltage scope, isolate cameras by session, and retain verified parents for instructed child views.
+- 2026-10-27 `b074f8db`: Anchor source ports beside equipment and shorten busbars to improve station geometry while preserving electrical identities.
+# 2026-10-27 live continuation
+- 64c9de9f: Restore instruction-linked grid views through existing answer toolbar; preserve manual selection without rerunning tasks. Focused 89 tests passed.
+- a6f323fa: Recover historical child labels from frozen parent summaries; persist names and navigation across remounts.
+- ca41e6e7: Prevent older history pages from replacing selected grids during refresh; 115 focused tests and TypeScript passed.
+- Vivaldi verified overview/Chaoyang toolbar navigation. Refresh replay defect reproduced and fixed; final live refresh deferred because user changed sessions.
