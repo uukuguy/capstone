@@ -434,6 +434,8 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
     if(!liveConversation||!latestInstructionAttempt)return
     let state=instructionViewRef.current
     if(state.attemptId!==latestInstructionAttempt){
+      // Refresh can first replay an older history page. It is not a new instruction.
+      if(latestAcceptedInstruction&&latestAcceptedInstruction.eventSeq<=state.appliedSeq)return
       // Reading and background model downloads outlive one agent instruction.
       // Reset proposal ownership without closing the user's current resource.
       state={...state,attemptId:latestInstructionAttempt,manual:state.attemptId===null&&state.manual,appliedSeq:0,automatic:null}
@@ -449,7 +451,7 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
       store.viewGridPage(viewProposal.pageId);setResourceView('model')
     }
     artifactOpened.current=true;setProductsOpen(true)
-  },[liveConversation,latestInstructionAttempt,viewProposal,resourceView,store,saveInstructionView,client.supportsProductIndex])
+  },[liveConversation,latestInstructionAttempt,latestAcceptedInstruction,viewProposal,resourceView,store,saveInstructionView,client.supportsProductIndex])
   const requestedSourceView=parseThreadDisplayRequest(instructionView.requestedSource)??undefined
   const nativeFiles=projectNativeArtifacts(conversation.events)
   const attemptLabels=Object.fromEntries(conversation.events.filter(event=>event.eventType==='command_accepted'&&event.attemptId).flatMap(event=>{

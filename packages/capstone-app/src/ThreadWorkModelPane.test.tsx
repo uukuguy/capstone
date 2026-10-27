@@ -248,6 +248,15 @@ it('deduplicates repeated identical source pages and keeps the request nonce acr
   first.unmount();render(tree())
   expect(JSON.parse((await screen.findByTestId('source-pane')).textContent!).nonce).toBe(1)
 })
+it('does not replace a saved child with an older history page during refresh',async()=>{
+  const server=fixture(null),root=[instruction(1,'root'),sourceEvent(2,'root','root-view')]
+  server.setEvents([...root,instruction(3,'child'),sourceEvent(4,'child','child-view')])
+  const tree=()=> <SessionReadingProvider namespace="routing-refresh" threadId="thr_formal"><ThreadWorkAdapter transport={server.transport} threadId="thr_formal" namespace="routing-refresh" preparedStore={server.store}/></SessionReadingProvider>
+  const first=render(tree());await screen.findByTestId('source-pane')
+  fireEvent.click(screen.getByText('View instruction child'))
+  first.unmount();server.setEvents(root);render(tree())
+  expect(JSON.parse((await screen.findByTestId('source-pane')).textContent!).request.view_ref).toBe('child-view')
+})
 it('switches source to the later admitted current model task and ignores a historical baseline',async()=>{
   const server=fixture();server.admit('ctx_one')
   server.setEvents([instruction(1,'attempt_current'),sourceEvent(2,'attempt_current')])
