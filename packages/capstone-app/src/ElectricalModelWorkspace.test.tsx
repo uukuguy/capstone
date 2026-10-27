@@ -11,7 +11,7 @@ afterEach(()=>{cleanup();sessionStorage.clear();background.created=[];vi.clearAl
 vi.mock('./electricalViewDownload',()=>({createElectricalViewDownload:(_manifest:unknown,_read:unknown,publish:(value:ElectricalDownloadProgress)=>void)=>{
   const download={start:vi.fn(),pause:vi.fn(),dispose:vi.fn(),publish};background.created.push(download);return download
 }}))
-vi.mock('./LargeNetworkView',()=>({LargeNetworkView:({scene,title,onActivate,canActivate,activationLabel,onFirstFrame}:LargeNetworkViewProps)=> <div data-view-title={title}>接线画布
+vi.mock('./LargeNetworkView',()=>({LargeNetworkView:({scene,title,storageKey,onActivate,canActivate,activationLabel,onFirstFrame}:LargeNetworkViewProps)=> <div data-view-title={title} data-camera-key={storageKey}>接线画布
   <button onClick={()=>onFirstFrame?.()}>画布首帧</button>
   {[...scene.nodes.map(node=>({...node,type:'node' as const})),...scene.edges.map(edge=>({...edge,type:'edge' as const}))].filter(item=>canActivate?.(item)).map(item=><button key={item.id} data-entry-label={activationLabel?.(item)} onClick={()=>onActivate?.(item)}>展开 {item.label}</button>)}
 </div>}))
@@ -272,4 +272,50 @@ it.each([false,true])('updates a restored generic root breadcrumb from an exact 
   expect(open).toHaveBeenCalledTimes(1)
   if(requested)expect(catalog).not.toHaveBeenCalled()
   expect(JSON.parse(sessionStorage.getItem('restored-name')!).path[0].request.name).toBe('发布的省网名称')
+})
+
+it.each([[220,'交流 220 kV及以上'],[0,'交流电压未设下限'],[undefined,'交流电压范围未说明'],[null,'交流电压范围未说明'],['220','交流电压范围未说明']])('shows the actual voltage scope without assuming full-voltage coverage (%s)',async(voltage,expected)=>{
+  const records=electricalOverviewRecords(),manifest={...electricalOverviewManifest(records),overview_coverage:{source_selection:{profile:'published_scope',...(voltage===undefined?{}:{min_ac_kv:voltage})}}}
+  const transport={electricalModels:async()=>({scopes:[{model_ref:manifest.model_ref,name:'来源电网'}],electrical_views:{v2:{open_arguments:{view_schema:'gateway-electrical-view/2'}}}}),
+    electricalOpen:async()=>manifest,electricalRead:async(request:Parameters<typeof electricalPage>[2])=>electricalPage(manifest,records,request)} as unknown as HttpThreadTransport
+  render(<ElectricalModelWorkspace transport={transport} storageKey="thread:scope"/>)
+  await screen.findByRole('option',{name:'来源电网'});fireEvent.change(screen.getByRole('combobox'),{target:{value:manifest.model_ref}})
+  await screen.findByText('接线画布')
+  expect(screen.getByLabelText('当前数据范围').textContent).toContain(expected)
+  expect(screen.getByLabelText('当前数据范围').textContent).toContain('published_scope')
+  expect(screen.getByText('接线画布').getAttribute('data-camera-key')).toBe('thread:scope.camera')
+})
+
+it('passes separate camera namespaces for different thread workspace keys',async()=>{
+  const records=electricalOverviewRecords(),manifest=electricalOverviewManifest(records)
+  const transport={electricalModels:async()=>({scopes:[{model_ref:manifest.model_ref,name:'来源电网'}],electrical_views:{v2:{open_arguments:{view_schema:'gateway-electrical-view/2'}}}}),
+    electricalOpen:async()=>manifest,electricalRead:async(request:Parameters<typeof electricalPage>[2])=>electricalPage(manifest,records,request)} as unknown as HttpThreadTransport
+  const ui=render(<ElectricalModelWorkspace transport={transport} storageKey="thread-one"/>)
+  await screen.findByRole('option',{name:'来源电网'});fireEvent.change(screen.getByRole('combobox'),{target:{value:manifest.model_ref}})
+  await screen.findByText('接线画布');expect(screen.getByText('接线画布').getAttribute('data-camera-key')).toBe('thread-one.camera')
+  ui.rerender(<ElectricalModelWorkspace transport={transport} storageKey="thread-two"/>)
+  expect(screen.getByText('接线画布').getAttribute('data-camera-key')).toBe('thread-two.camera')
+  expect(background.created).toHaveLength(1)
+})
+
+it('keeps a known frozen parent chain for an instructed child and derives its station label from the published summary target',async()=>{
+  const records=electricalOverviewRecords(),root={...electricalOverviewManifest(records),name:'发布省网'}
+  const request={schema:'capstone-electrical-view-request/1' as const,source_id:'data-gateway' as const,model_ref:root.model_ref,model_revision:root.model_revision,
+    view_ref:root.view_ref,selection_ref:root.selection_ref!,source_snapshot_ref:root.source_snapshot_ref!,representation:'source_node_breaker' as const,
+    target:null,artifact_ref:null,view_schema:'gateway-electrical-view/2' as const}
+  const childRequest={...request,view_ref:'instructed:child',target:'target:station',parent_view_ref:root.view_ref}
+  const empty={...records,...Object.fromEntries(ELECTRICAL_STREAMS.map(stream=>[stream,[]]))}
+  const child:ElectricalViewReady={...root,view_ref:childRequest.view_ref,target:childRequest.target,streams:Object.fromEntries(ELECTRICAL_STREAMS.map(stream=>[stream,{total_count:0}])) as ElectricalViewReady['streams']}
+  const transport={electricalOpen:async(query:Record<string,unknown>)=>query.target?child:root,
+    electricalRead:async(query:Parameters<typeof electricalPage>[2])=>electricalPage(query.view_ref===root.view_ref?root:child,query.view_ref===root.view_ref?records:empty,query)} as unknown as HttpThreadTransport
+  const ui=render(<ElectricalModelWorkspace transport={transport} requestedView={request} requestNonce={1}/>)
+  await screen.findByText('接线画布');const download=background.created[0]
+  ui.rerender(<ElectricalModelWorkspace transport={transport} requestedView={childRequest} requestNonce={2}/>)
+  await screen.findByText('0 个设备 · 0 个端口 · 0 条源连接')
+  expect(screen.getByRole('navigation').textContent).toBe('发布省网Station A · 电气接线')
+  expect(download.dispose).not.toHaveBeenCalled()
+  ui.rerender(<ElectricalModelWorkspace transport={transport} requestedView={{...childRequest,model_revision:'different-frozen-revision'}} requestNonce={3}/>)
+  await screen.findByRole('alert')
+  expect(screen.getByRole('navigation').textContent).toBe('局部电气接线')
+  expect(download.dispose).toHaveBeenCalledTimes(1)
 })

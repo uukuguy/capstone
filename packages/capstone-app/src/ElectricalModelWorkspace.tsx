@@ -82,6 +82,13 @@ function descriptor(ready:ElectricalViewReady,query:Target['query']):ThreadElect
       ...(selection.boundary_policy??query.boundary_policy?{boundary_policy:selection.boundary_policy??query.boundary_policy}:{})})})
   return parsed?.schema==='capstone-electrical-view-request/1'?parsed:undefined
 }
+function selectionScope(ready:ElectricalViewReady):string {
+  const coverage=record(ready.overview_coverage)?ready.overview_coverage:{},selection=record(coverage.source_selection)?coverage.source_selection:{}
+  const voltage=selection.min_ac_kv,known=typeof voltage==='number'&&Number.isFinite(voltage)&&voltage>=0
+  const range=known?voltage===0?'交流电压未设下限':`交流 ${voltage} kV及以上`:'交流电压范围未说明'
+  const profile=typeof selection.profile==='string'&&selection.profile.trim()?`来源方案：${selection.profile}`:'来源方案未说明'
+  return `当前范围：${range}（${profile}）。${known&&voltage>0?'不代表全部电压等级。':'仍以已发布来源记录为准。'}`
+}
 export default function ElectricalModelWorkspace({transport,requestedView,requestNonce,onManualNavigate,storageKey}:{
   transport:HttpThreadTransport;requestedView?:ThreadElectricalViewRequest;requestNonce?:number;onManualNavigate?:()=>void;storageKey?:string
 }) {
@@ -112,6 +119,28 @@ export default function ElectricalModelWorkspace({transport,requestedView,reques
   useEffect(()=>{
     if(!requestedView||appliedRequest.current===requestIdentity)return
     appliedRequest.current=requestIdentity
+    if(requestedView.target&&requestedView.parent_view_ref){
+      const parentIndex=path.findIndex(item=>{
+        const parent=resolved.current.get(item)??item.expected
+        if(!parent)return false
+        return parent.view_ref===requestedView.parent_view_ref
+          &&(['model_ref','model_revision','selection_ref','source_snapshot_ref','representation'] as const).every(field=>parent[field]===requestedView[field])
+          &&(!requestedView.view_schema||requestedView.view_schema===(parent.view_schema??(manifest?.view_ref===parent.view_ref?manifest.schema:undefined)))
+      })
+      if(parentIndex>=0){
+        let next:ReturnType<typeof activation>
+        if(view?.manifest.view_ref===requestedView.parent_view_ref){
+          const nodes=view.records.summary_nodes.filter(item=>item.expand_target===requestedView.target)
+          const edges=view.records.summary_edges.filter(item=>item.expand_target===requestedView.target)
+          if(nodes.length+edges.length===1){
+            if(nodes.length)next=activation({type:'node',id:nodes[0].id,label:nodes[0].name||nodes[0].id,kind:nodes[0].group_kind})
+            else next=activation({type:'edge',id:edges[0].id,label:edges[0].id,kind:edges[0].relation_kind})
+          }
+        }
+        setPath([...path.slice(0,parentIndex+1),requestTarget(requestedView,next?.label,next?.mode)])
+        return
+      }
+    }
     clearBackground();resetTiming()
     setPath([requestTarget(requestedView)])
   },[requestIdentity])
@@ -284,7 +313,9 @@ export default function ElectricalModelWorkspace({transport,requestedView,reques
     </aside>}
     {manifest&&<>
       <p className="grid-source-note">{view?.loadedStreams.includes('summary_nodes')?<><span>单击厂站后选择“进入电气接线”，也可双击厂站。缩放仅调整视野。</span> 来源概览非电气等值。</>:
-        manifest.representation==='source_node_breaker'?'源设备接线 · 开关状态以来源记录为准；缺失接线不补线。结构可读不代表潮流可算。':'计算模型拓扑 · 元件对应当前模型包；计算状态和结果以计算服务记录为准。'}</p>
+        manifest.representation==='source_node_breaker'?'源设备接线 · 开关状态以来源记录为准；缺失接线不补线。结构可读不代表潮流可算。':'计算模型拓扑 · 元件对应当前模型包；计算状态和结果以计算服务记录为准。'}
+        {manifest.representation==='source_node_breaker'&&<span aria-label="当前数据范围"> {selectionScope(manifest)}</span>}
+      </p>
       {record(manifest.derivation)&&manifest.derivation.demo_only===true&&<p className="grid-source-note">演示补全模型 · 不代表电网真实运行工况。</p>}
       {!view&&manifest.schema==='gateway-electrical-view/1'&&manifest.representation==='source_node_breaker'&&!manifest.target&&<>
         <label>查找已加载站点<input value={query} onChange={event=>setQuery(event.target.value)} placeholder="站点名称"/></label>
@@ -294,7 +325,7 @@ export default function ElectricalModelWorkspace({transport,requestedView,reques
         {cursor&&<button disabled={busy} onClick={()=>void more()}>加载更多站点</button>}
       </>}
       {scene&&view&&<>
-        <LargeNetworkView scene={scene} title={view.loadedStreams.includes('summary_nodes')?`${target?targetName(target,path.length-1):'电网'} · 厂站概览`:target?.label||'电气接线'} storageKey="capstone-electrical-model" viewKey={manifest.view_ref}
+        <LargeNetworkView scene={scene} title={view.loadedStreams.includes('summary_nodes')?`${target?targetName(target,path.length-1):'电网'} · 厂站概览`:target?.label||'电气接线'} storageKey={storageKey?`${storageKey}.camera`:'capstone-electrical-model'} viewKey={manifest.view_ref}
         onFirstFrame={overviewFirstFrame}
         activationLabel={item=>!busy?activation(item)?.actionLabel:undefined}
         canActivate={item=>!busy&&!!activation(item)} onActivate={item=>{const next=activation(item);if(next)expandTarget(next.target,next.label,next.mode)}}/>
