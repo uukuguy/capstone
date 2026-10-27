@@ -32,3 +32,15 @@ test('packages cannot read outside the task or select an output path by traversa
   await assert.rejects(saveSemanticContext({cwd,name:'../outside',spec,records,scope}),/name|path/i);
   await assert.rejects(loadSemanticContext({cwd,path:'/etc/passwd'}),/path|outside|admitted/i);
 }));
+test('parallel saves retain every support product and publish distinct immutable package paths',()=>fixture(async cwd=>{
+  await writeFile(join(cwd,'.capstone-products.json'),JSON.stringify({schema:'capstone-workspace-products/1',products:[{path:'report.html',role:'primary'}]}));
+  const saved=await Promise.all(Array.from({length:8},()=>saveSemanticContext({cwd,name:'shared',spec,records,scope})));
+  const manifest=JSON.parse(await readFile(join(cwd,'.capstone-products.json'),'utf8'));
+  assert.equal(manifest.products.length,9);assert.equal(manifest.products[0].role,'primary');assert.equal(new Set(saved.map(p=>p.path)).size,8);
+  for(const file of saved)assert.equal((await loadSemanticContext({cwd,path:file.path})).bindings.unit.basis,'observed');
+}));
+test('shorthand semantic metadata remains declared instead of causing a task retry',()=>fixture(async cwd=>{
+  const saved=await saveSemanticContext({cwd,name:'metadata',scope,records,spec:{bindings:{unit:'MW',window:{start:'2025-06-15'},missing:null}}});
+  const data=await loadSemanticContext({cwd,path:saved.path});
+  for(const b of Object.values(data.bindings))assert.equal(b.basis,'declared');assert.equal(data.bindings.unit.value,'MW');
+}));

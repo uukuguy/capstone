@@ -8,10 +8,14 @@ User approved shared native programmatic composition and semantic data packages.
 Design/plan: `docs/superpowers/{specs,plans}/2026-10-28-tool-composition*.md`.
 New modules: resources/tool-composition.mjs, tool-composition-worker.mjs,
 tool-composition-policy.json, semantic-data-context.mjs, native_tool_composition.py.
-Nine real worker/package tests pass. SDK, native grants, host receipts and Docker
-wiring are edited; integration tests, rebuild and visible Vivaldi business trial
-remain pending. No speed improvement or full acceptance claimed yet.
-Current local running source remains df12507d. Preserve unrelated
+58 real Node/SDK/worker/package checks and 89 Python host checks pass. Native
+grants, host receipts and Docker wiring committed in 7229b0b7, output/reference
+corrections in 6627764f/cabf52cc. Two Vivaldi lightweight trials completed
+(176.61s/34 models, 225.88s/31 models), raw runs/tool-composition-20261028/.
+Independent review's concurrent manifest Important fixed and verified (reviewer
+confirmed); commit/rebuild/DR package handoff trial still pending. No task-speed
+improvement or full acceptance claimed yet.
+Current local running source cabf52cc, backend image d493c700b7409ebe8eee9b615633638e627d8a2ab26c72bc91d0bceb5fc53fbb. Preserve unrelated
 `.superpowers/sdd/task-1-report.md` and root dev control edits.
 
 ## Latest discussion

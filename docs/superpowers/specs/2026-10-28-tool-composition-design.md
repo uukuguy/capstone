@@ -1,5 +1,12 @@
 # Shared tool composition and semantic data packages
 
+Implementation feedback: plain binding metadata is retained as `declared`;
+only fields selected by an actual issued call ref and JSON pointer are `observed`.
+Package saves publish unique paths and serialize product-manifest updates.
+Large program returns use bounded saved-file projections across both model and
+host transport. Issued refs may be reused within one session; separate DR nodes
+continue to require explicit saved package inputs.
+
 User approved implementation on2026-10-28. This implements the shared mechanism
 discussed in the core evolution notebook; the earlier same-task comparison stays
 frozen. The existing enterprise application selects a versioned neutral execution

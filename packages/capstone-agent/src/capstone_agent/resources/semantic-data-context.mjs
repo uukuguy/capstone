@@ -1,6 +1,23 @@
-import {readFile,writeFile,mkdir,realpath} from 'node:fs/promises';
+import {readFile,writeFile,mkdir,realpath,rename,lstat} from 'node:fs/promises';
 import {resolve,join,sep,relative} from 'node:path';
-import {createHash} from 'node:crypto';
+import {createHash,randomUUID} from 'node:crypto';
+const manifestUpdates=new Map();
+async function appendProduct(cwd,product){
+  const key=await realpath(cwd),previous=manifestUpdates.get(key)??Promise.resolve();
+  const update=previous.catch(()=>{}).then(async()=>{
+    const manifestPath=join(key,'.capstone-products.json');let manifest={schema:'capstone-workspace-products/1',products:[]};
+    try{
+      if((await lstat(manifestPath)).isSymbolicLink())throw Error('Invalid product manifest path');
+      manifest=JSON.parse(await readFile(manifestPath,'utf8'));
+    }catch(e){if(e.code!=='ENOENT')throw e;}
+    if(!Array.isArray(manifest.products))throw Error('Invalid product manifest');
+    manifest.products.push(product);
+    const temporary=join(key,`.capstone-products.${randomUUID()}.tmp`);
+    await writeFile(temporary,JSON.stringify(manifest),{flag:'wx'});await rename(temporary,manifestPath);
+  });
+  manifestUpdates.set(key,update);
+  try{await update;}finally{if(manifestUpdates.get(key)===update)manifestUpdates.delete(key);}
+}
 const canonical=v=>Array.isArray(v)?v.map(canonical):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])):v;
 const digest=v=>createHash('sha256').update(JSON.stringify(canonical(v))).digest('hex');
 function pointer(value,path=''){
@@ -16,10 +33,13 @@ export async function saveSemanticContext({cwd,name,spec,records,scope}){
   const selected=new Map();
   const observe=ref=>{const record=records.get(ref);if(!record)throw Error('Unknown observation reference');selected.set(ref,record);return record;};
   const bindings=Object.fromEntries(Object.entries(spec.bindings??{}).map(([key,b])=>{
-    if(b.call){const record=observe(b.call);return [key,{basis:'observed',value:pointer(record.value,b.pointer),ref:b.call,pointer:b.pointer??''}];}
-    if(b.unknown===true)return [key,{basis:'unknown',reason:b.reason??''}];
-    if(Object.hasOwn(b,'value'))return [key,{basis:'declared',value:b.value}];
-    throw Error('Invalid semantic binding');
+    if(b&&typeof b==='object'){
+      if(b.call){const record=observe(b.call);return [key,{basis:'observed',value:pointer(record.value,b.pointer),ref:b.call,pointer:b.pointer??''}];}
+      if(b.unknown===true)return [key,{basis:'unknown',reason:b.reason??''}];
+      if(Object.hasOwn(b,'value'))return [key,{basis:'declared',value:b.value}];
+    }
+    // Shorthand metadata is usable, but never promoted to an observed fact.
+    return [key,{basis:'declared',value:b}];
   }));
   const datasets=(spec.datasets??[]).map(d=>{const r=observe(d.call);pointer(r.value,d.pointer);return {name:d.name,ref:d.call,pointer:d.pointer??''};});
   if(new Set(datasets.map(d=>d.name)).size!==datasets.length)throw Error('Duplicate dataset name');
@@ -28,17 +48,12 @@ export async function saveSemanticContext({cwd,name,spec,records,scope}){
   document.sha256=digest(document);
   const text=JSON.stringify(document);
   if(Buffer.byteLength(text)>16*1024*1024)throw Error('Context processing budget exceeded; retain upstream resource references');
-  const directory=join(cwd,'out',name);await mkdir(directory,{recursive:true});
+  const directory=join(cwd,'out',`${name}-${randomUUID()}`);await mkdir(directory,{recursive:true});
   const root=await realpath(cwd),actual=await realpath(directory);
   if(!actual.startsWith(root+sep))throw Error('Output path outside task');
-  const path=join(directory,'context.json');await writeFile(path,text);
-  const manifestPath=join(cwd,'.capstone-products.json');let manifest={schema:'capstone-workspace-products/1',products:[]};
-  try{manifest=JSON.parse(await readFile(manifestPath,'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}
-  manifest.products??=[];
-  const productPath=relative(cwd,path);
-  manifest.products=manifest.products.filter(p=>p.path!==productPath);
-  manifest.products.push({path:productPath,role:'support'});
-  await writeFile(manifestPath,JSON.stringify(manifest));return {path,sha256:document.sha256};
+  const path=join(directory,'context.json');await writeFile(path,text,{flag:'wx'});
+  await appendProduct(cwd,{path:relative(cwd,path),role:'support'});
+  return {path,sha256:document.sha256};
 }
 export async function loadSemanticContext({cwd,path,allowedInputs=[]}){
   const root=await realpath(cwd),actual=await realpath(resolve(cwd,path));

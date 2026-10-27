@@ -6030,6 +6030,18 @@ Reproduced protected research acknowledgment waiting behind an entire public-eve
 - 2026-10-28: 0468f165 records measured batching and shared tool-composition proposals; runtime behavior remains unchanged pending implementation scope.
 # 2026-10-28 — Shared native tool composition
 
+Independent review found concurrent package saves losing product manifest entries.
+Fixed with per-workspace serialization, atomic manifest writes and unique immutable
+package paths. Eight same-name concurrent saves retain primary + all support files;
+reviewer confirmed the Important resolved. Added exact save/load examples and
+safe declared shorthand metadata to avoid rejecting usable analyst annotations.
+Same-prompt corrected lightweight trial completed: 225.88s, 31 model responses,
+12 programs. No end-to-end acceleration claim: query choices and native report
+repairs differed, and one binding-shape repair is addressed in this new change.
+58 scoped Node checks pass; latest DR integration trial remains pending.
+
+cabf52cc: Kept saved program outputs bounded across host transport to prevent frame limits from causing redundant recovery.
+
 6627764f: Retained session observation refs and spilled large returns to prevent repeated gateway work after recoverable output limits.
 
 Transport review caught rpcEvent restoring the large program return after spill.
