@@ -5984,3 +5984,14 @@ Prior closeout receipts preserved verbatim from the root checkout:
 - a6f323fa: Recover historical child labels from frozen parent summaries; persist names and navigation across remounts.
 - ca41e6e7: Prevent older history pages from replacing selected grids during refresh; 115 focused tests and TypeScript passed.
 - Vivaldi verified overview/Chaoyang toolbar navigation. Refresh replay defect reproduced and fixed; final live refresh deferred because user changed sessions.
+- 00ad5b63: Record navigation verification and active recovery boundary; retain pending visual acceptance and dev integration.
+- f243d99a: Flush departing grid camera before fast switching; preserve independent zoom and position.38 focused tests and TypeScript passed.
+- 290565de: Route oversized continuation files to resource references before inline admission;21 tests passed,21 PostgreSQL cases skipped.
+- Local rebuild passed for290565de;API/workers image d2cbc10a6f8695df23480f8c8f3ccc602f2636258ab6612f4b53ebf21b6af36b;scoped cleanup completed.
+- Vivaldi original continuation retry admitted and executing after capacity fix;complete report and resource-read acceptance remain pending.
+- 702d6c5a: Recheck actionable research state after checkpoint pulses; prevent text-only planner wakeups while children run.107 tests passed.
+- 64e33e75: Retain advisory check gaps without rejecting usable returns; expose handoff timing, failures and limitations.179 App tests passed.
+# 2026-10-27: Research receipt starvation
+
+Reproduced protected research acknowledgment waiting behind an entire public-event page. Service control receipts between ordered events after250ms.137 scoped transport/bridge tests pass,1 skipped (37.03s); live latency comparison remains pending. Previous64e33e75 local rebuild and Vivaldi two-company trial completed with correct metrics in92s. Extra association inspection/recalculation and final parent turns remain open. Details: `docs/reports/2026-10-27-deep-research-handoff-investigation.md`.
+

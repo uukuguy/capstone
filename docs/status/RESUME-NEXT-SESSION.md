@@ -2,6 +2,12 @@
 
 Updated 2026-10-27. Work remains active.
 
+Latest active focus: Deep Research handoff latency and advisory completion.702d6c5a fixes premature continuation wakeups;64e33e75 records malformed advisory checks as limitations and exposes handoff state/duration/failures. Local rebuild passed with image7fd5e39bb8d0ae0f7b8b5a4239cf30eb152031472b585c5970d5e146ebae29dd. Vivaldi small real case attempt_10974869a39ee7f8 completed in92s with correct company metrics; no-progress fixed in this case, latency not accepted. Earlier large report attempt_d52ae75e269018d8 is terminal failed, not running. Current transport fix services protected research receipts during public-event draining;137 tests passed,1 skipped in37.03s. Rebuild/live comparison pending. See docs/reports/2026-10-27-deep-research-handoff-investigation.md. Preserve all older graph/capacity follow-ups below.
+
+Latest backend290565de fixes automatic continuation capacity routing before inline admission.21 tests passed,21 PostgreSQL skipped. Canonical rebuild/cleanup passed;image d2cbc10a6f8695df23480f8c8f3ccc602f2636258ab6612f4b53ebf21b6af36b supersedes9d69 below. In existing Vivaldi, original failed instruction “结合轻量执行的结果，启用深度研究模式，制作完整的报告。” was retried at12:00 and admitted;currently executing, final resource access/report not verified. Do not interrupt. Explicit product-context selection has separate inline-overflow rejection in thread_products.py;follow-up scope remains open. Upload configuration64GiB/file,256GiB/session;inline budget8MiB distinct.
+
+Latest local fix f243d99a flushes per-view camera on unmount/switch, preventing the200ms save debounce from losing zoom/position.38 focused tests and TypeScript passed; browser camera-switch acceptance remains pending. Journal/checkpoint edits are task-owned, uncommitted until the next documentation boundary.
+
 ## Current boundary
 
 - Feature worktree .worktrees/electrical-diagrams, branch feat/provincial-electrical-view, HEAD64c9de9f; actual dev f1e6e9fd. Not merged or released.

@@ -787,6 +787,42 @@ class HttpGeneralPiExecutor:
                         'type': 'transport_restored', 'operation': operation})
                 return value
 
+        last_research_service = time.monotonic()
+
+        def service_research():
+            nonlocal research_ready, last_research_service
+            if bridge is None:
+                return
+            checkpoint()
+            path = '/tasks/' + request.task_id + '/research'
+            if not research_ready:
+                exchange('POST', path, operation='research_bootstrap', document={'owner': bridge.owner_id,
+                    'operation': 'bootstrap', 'document': bridge.bootstrap()},
+                    timeout=self._exchange_timeout,
+                    research_transport=True)
+                research_ready = True
+            pending = exchange('POST', path, operation='research_pending', document={'owner': bridge.owner_id,
+                'operation': 'pending'}, timeout=self._exchange_timeout,
+                research_transport=True)
+            if set(pending) != {'requests', 'source_refs'} or not isinstance(pending['source_refs'], list) or len(pending['source_refs']) > limits.context_references:
+                raise ValueError('research response is invalid')
+            for source in pending['source_refs']:
+                if (not isinstance(source, dict) or set(source) != {'task_id', 'parent_attempt_id', 'source_ref', 'observation_sha256'}
+                        or source['task_id'] != request.task_id or source['parent_attempt_id'] != request.parent_attempt_id
+                        or not isinstance(source['observation_sha256'], str)
+                        or not re.fullmatch(r'[a-f0-9]{64}', source['observation_sha256'])
+                        or not re.fullmatch(re.escape('native-observation:' + request.task_id + ':') + r'[a-f0-9]{64}', source['source_ref'])):
+                    raise ValueError('research observation source is not task-bound')
+            bridge.admit_sources(pending['source_refs'])
+            if pending['requests']:
+                response_document = bridge.process(pending['requests'])
+                checkpoint()
+                exchange('POST', path, operation='research_acknowledge', document={'owner': bridge.owner_id,
+                    'operation': 'acknowledge', 'document': response_document},
+                    timeout=self._exchange_timeout,
+                    research_transport=True)
+            last_research_service = time.monotonic()
+
         try:
             accepted = exchange("POST", "/tasks", operation='task_admission', document=request.to_document(),
                                   # Admission validates and durably saves selected file bytes.
@@ -829,6 +865,11 @@ class HttpGeneralPiExecutor:
                         seen_events[event_id] = event
                         on_event(_json_document(event, native_events=True))
                         checkpoint()
+                        # Durable event publication must not starve control receipts.
+                        if (bridge is not None and response["status"] in {"queued", "running"}
+                                and response["result"] is None
+                                and time.monotonic() - last_research_service >= .25):
+                            service_research()
                 if paged:
                     event_cursor = cursor
                     seen_events.clear()
@@ -844,35 +885,7 @@ class HttpGeneralPiExecutor:
                     return result
                 if status not in {"queued", "running"} or response["result"] is not None:
                     raise ValueError("Pi task status is invalid")
-                if bridge is not None:
-                    checkpoint()
-                    path = '/tasks/' + request.task_id + '/research'
-                    if not research_ready:
-                        exchange('POST', path, operation='research_bootstrap', document={'owner': bridge.owner_id,
-                            'operation': 'bootstrap', 'document': bridge.bootstrap()},
-                            timeout=self._exchange_timeout,
-                            research_transport=True)
-                        research_ready = True
-                    pending = exchange('POST', path, operation='research_pending', document={'owner': bridge.owner_id,
-                        'operation': 'pending'}, timeout=self._exchange_timeout,
-                        research_transport=True)
-                    if set(pending) != {'requests', 'source_refs'} or not isinstance(pending['source_refs'], list) or len(pending['source_refs']) > limits.context_references:
-                        raise ValueError('research response is invalid')
-                    for source in pending['source_refs']:
-                        if (not isinstance(source, dict) or set(source) != {'task_id', 'parent_attempt_id', 'source_ref', 'observation_sha256'}
-                                or source['task_id'] != request.task_id or source['parent_attempt_id'] != request.parent_attempt_id
-                                or not isinstance(source['observation_sha256'], str)
-                                or not re.fullmatch(r'[a-f0-9]{64}', source['observation_sha256'])
-                                or not re.fullmatch(re.escape('native-observation:' + request.task_id + ':') + r'[a-f0-9]{64}', source['source_ref'])):
-                            raise ValueError('research observation source is not task-bound')
-                    bridge.admit_sources(pending['source_refs'])
-                    if pending['requests']:
-                        response_document = bridge.process(pending['requests'])
-                        checkpoint()
-                        exchange('POST', path, operation='research_acknowledge', document={'owner': bridge.owner_id,
-                            'operation': 'acknowledge', 'document': response_document},
-                            timeout=self._exchange_timeout,
-                            research_transport=True)
+                service_research()
                 time.sleep(min(self._poll_interval, max(0, deadline - time.monotonic())))
         finally:
             if not complete:
