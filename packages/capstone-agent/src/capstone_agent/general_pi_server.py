@@ -46,7 +46,17 @@ def _electrical_view_from_verified_result(result, arguments):
         if upstream.get('isError') or content.get('status') not in {'ok', 'partial'}:
             return None
         data = content['data']
-        if (data.get('state') != 'ready' or data.get('model_ref') != arguments.get('model_ref')
+        scope = arguments.get('scope')
+        if arguments.get('model_ref') is None:
+            if (not isinstance(scope, dict) or set(scope) != {'source_instance', 'object_type', 'object_id'}
+                    or scope.get('object_type') != 'grid'
+                    or any(not isinstance(item, str) or not item or len(item) > 256
+                           or any(ord(char) < 32 for char in item) for item in scope.values())
+                    or arguments.get('parent_view_ref') is not None):
+                return None
+        elif scope is not None or data.get('model_ref') != arguments['model_ref']:
+            return None
+        if (data.get('state') != 'ready'
                 or data.get('representation') != arguments.get('representation', 'source_node_breaker')
                 or data.get('target') != arguments.get('target')):
             return None
@@ -54,7 +64,7 @@ def _electrical_view_from_verified_result(result, arguments):
                                 ('artifact_ref', 'artifact_ref')]:
             if arguments.get(argument) is not None and arguments[argument] != data.get(field):
                 return None
-        return electrical_descriptor(data)
+        return electrical_descriptor(data, arguments)
     except (ValueError, TypeError, KeyError, IndexError, AttributeError):
         return None
 

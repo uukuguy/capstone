@@ -10,6 +10,7 @@ from copy import deepcopy
 from importlib.resources import files
 import json
 import hashlib
+import re
 import threading
 
 from jsonschema import Draft202012Validator
@@ -304,8 +305,11 @@ def checked_manifest(value):
 
 def checked_electrical_descriptor(value):
     fields = {'schema', 'source_id', *IDENTITY, 'view_ref', 'representation', 'target', 'artifact_ref'}
-    if not isinstance(value, dict) or set(value) != fields or value['schema'] != 'capstone-electrical-view-request/1' or value['source_id'] != 'data-gateway':
+    optional = {'view_schema', 'selection_profile', 'boundary_policy', 'parent_view_ref'}
+    if (not isinstance(value, dict) or not fields <= set(value) or set(value) - fields - optional or
+        value['schema'] != 'capstone-electrical-view-request/1' or value['source_id'] != 'data-gateway'):
         _invalid()
+    _bounded(value, REQUEST_BYTES)
     for key in (*IDENTITY, 'view_ref'):
         _text(value[key])
     for key in ('target', 'artifact_ref'):
@@ -313,15 +317,59 @@ def checked_electrical_descriptor(value):
             _text(value[key])
     if value['representation'] not in {'source_node_breaker', 'calculation_bus_branch'}:
         _invalid()
+    if 'view_schema' in value:
+        if value['view_schema'] not in (SCHEMA, SCHEMA_V2):
+            _invalid()
+        if value['view_schema'] == SCHEMA_V2 and value['representation'] != 'source_node_breaker':
+            _invalid()
+    if 'selection_profile' in value:
+        profile = _text(value['selection_profile'], 64)
+        if not re.fullmatch(r'[a-z][a-z0-9_-]{0,63}', profile):
+            _invalid()
+    if 'boundary_policy' in value and value['boundary_policy'] not in ('retain_external_stub', 'internal_only'):
+        _invalid()
+    if 'parent_view_ref' in value:
+        _text(value['parent_view_ref'])
+        if value['parent_view_ref'] == value['view_ref'] or not value['target'] or set(value) & {'selection_profile', 'boundary_policy'}:
+            _invalid()
+    if value['representation'] == 'calculation_bus_branch' and set(value) & {'selection_profile', 'boundary_policy'}:
+        _invalid()
     return deepcopy(value)
 
 
-def electrical_descriptor(data):
+def electrical_descriptor(data, open_arguments=None):
     try:
         value = checked_manifest(data)
+        arguments = {} if open_arguments is None else open_arguments
+        if not isinstance(arguments, dict):
+            _invalid()
+        for key, field in (('view_schema', 'schema'), ('model_ref', 'model_ref'),
+                           ('representation', 'representation'), ('expected_model_revision', 'model_revision'),
+                           ('selection_ref', 'selection_ref'), ('target', 'target'), ('artifact_ref', 'artifact_ref')):
+            if arguments.get(key) is not None and arguments[key] != value.get(field):
+                _invalid()
+        retained = {}
+        if value['schema'] == SCHEMA_V2 or arguments.get('view_schema') is not None:
+            retained['view_schema'] = value['schema']
+        if value.get('target') is not None:
+            if arguments.get('selection_profile') is not None or arguments.get('boundary_policy') is not None:
+                _invalid()
+            if arguments.get('parent_view_ref') is not None:
+                retained['parent_view_ref'] = arguments['parent_view_ref']
+        else:
+            if arguments.get('parent_view_ref') is not None:
+                _invalid()
+            selection = value.get('overview_coverage', {}).get('source_selection', {})
+            for key, field in (('selection_profile', 'profile'), ('boundary_policy', 'boundary_policy')):
+                actual, requested = selection.get(field), arguments.get(key)
+                if actual is not None and requested is not None and actual != requested:
+                    _invalid()
+                selected = actual if actual is not None else requested
+                if selected is not None:
+                    retained[key] = selected
         return checked_electrical_descriptor({'schema': 'capstone-electrical-view-request/1', 'source_id': 'data-gateway',
             **{key: value[key] for key in (*IDENTITY, 'view_ref', 'representation')},
-            'target': value.get('target'), 'artifact_ref': value.get('artifact_ref')})
+            'target': value.get('target'), 'artifact_ref': value.get('artifact_ref'), **retained})
     except (ElectricalViewError, TypeError, KeyError, AttributeError):
         return None
 

@@ -322,6 +322,56 @@ def test_ready_descriptor_is_exact_and_rejects_raw_unvalidated_graph():
     assert electrical_descriptor({'view_ref': 'raw'}) is None
 
 
+def test_v2_root_descriptor_keeps_the_returned_schema_and_source_selection():
+    from capstone_agent.grid_electrical_view import electrical_descriptor, checked_electrical_descriptor
+    descriptor = electrical_descriptor(v2_manifest())
+    assert descriptor['view_schema'] == V2
+    assert descriptor['selection_profile'] == 'station'
+    assert descriptor['boundary_policy'] == 'retain_external_stub'
+    assert checked_electrical_descriptor(descriptor) == descriptor
+
+
+def test_legacy_descriptor_remains_valid_without_new_optional_fields():
+    from capstone_agent.grid_electrical_view import electrical_descriptor, checked_electrical_descriptor
+    descriptor = electrical_descriptor(manifest())
+    for key in ('view_schema', 'selection_profile', 'boundary_policy', 'parent_view_ref'):
+        descriptor.pop(key, None)
+    assert checked_electrical_descriptor(descriptor) == descriptor
+
+
+def test_child_descriptor_uses_actual_parent_arguments_and_does_not_invent_a_parent():
+    from capstone_agent.grid_electrical_view import electrical_descriptor
+    child = v2_manifest(view_ref='child-view', target='returned-station')
+    arguments = {'model_ref': 'model:one', 'parent_view_ref': 'actual-parent-view',
+        'expected_model_revision': 'revision-one', 'target': 'returned-station'}
+    descriptor = electrical_descriptor(child, arguments)
+    assert descriptor['parent_view_ref'] == 'actual-parent-view'
+    assert descriptor['view_schema'] == V2
+    assert 'selection_profile' not in descriptor and 'boundary_policy' not in descriptor
+    assert 'parent_view_ref' not in electrical_descriptor(child)
+
+
+@pytest.mark.parametrize('fields', [
+    {'view_schema': 'gateway-electrical-view/3'}, {'view_schema': None},
+    {'selection_profile': {'Authorization': 'secret'}}, {'selection_profile': 'bad profile'},
+    {'boundary_policy': 'unknown'}, {'parent_view_ref': ''}, {'parent_view_ref': 'view-one'},
+    {'parent_view_ref': 'parent', 'selection_profile': 'station'},
+    {'parent_view_ref': 'parent', 'boundary_policy': 'internal_only'},
+])
+def test_descriptor_optional_fields_are_closed_typed_and_scope_bound(fields):
+    from capstone_agent.grid_electrical_view import electrical_descriptor, checked_electrical_descriptor, ElectricalViewError
+    descriptor = electrical_descriptor(manifest())
+    descriptor.update(fields)
+    with pytest.raises(ElectricalViewError):
+        checked_electrical_descriptor(descriptor)
+
+
+def test_root_descriptor_rejects_selection_or_schema_drift_from_the_actual_request():
+    from capstone_agent.grid_electrical_view import electrical_descriptor
+    assert electrical_descriptor(v2_manifest(), {'model_ref': 'model:one', 'view_schema': 'gateway-electrical-view/1'}) is None
+    assert electrical_descriptor(v2_manifest(), {'model_ref': 'model:one', 'selection_profile': 'regional'}) is None
+
+
 def test_page_retry_cannot_mutate_records_and_cursor_cannot_repeat():
     from capstone_agent.grid_electrical_view import ElectricalViewProvider, ElectricalViewError
     gateway = Gateway(); provider = ElectricalViewProvider(gateway)

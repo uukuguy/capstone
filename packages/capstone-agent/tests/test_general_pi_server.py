@@ -797,6 +797,40 @@ def small_answer_envelope():
     initialize_capacity()
 
 
+def test_verified_electrical_descriptor_keeps_v2_open_arguments():
+    import json
+    from capstone_agent.general_pi_server import _electrical_view_from_verified_result
+    from test_grid_electrical_view import v2_manifest
+    def result(data):
+        return {'content': [{'text': json.dumps({'structuredContent': {'status': 'ok', 'data': data}})}]}
+    root = _electrical_view_from_verified_result(result(v2_manifest()), {
+        'model_ref': 'model:one', 'view_schema': 'gateway-electrical-view/2', 'selection_profile': 'station'})
+    assert root['view_schema'] == 'gateway-electrical-view/2'
+    assert root['selection_profile'] == 'station'
+    child = _electrical_view_from_verified_result(result(v2_manifest(view_ref='child', target='station-one')), {
+        'model_ref': 'model:one', 'parent_view_ref': 'actual-parent',
+        'expected_model_revision': 'revision-one', 'target': 'station-one'})
+    assert child['parent_view_ref'] == 'actual-parent'
+    assert 'selection_profile' not in child
+    assert _electrical_view_from_verified_result(result(v2_manifest()), {
+        'model_ref': 'model:one', 'view_schema': 'gateway-electrical-view/1'}) is None
+
+
+def test_verified_scope_root_descriptor_uses_the_gateway_returned_model_reference():
+    import json
+    from capstone_agent.general_pi_server import _electrical_view_from_verified_result
+    from test_grid_electrical_view import v2_manifest
+    result = {'content': [{'text': json.dumps({'structuredContent': {'status': 'ok',
+        'data': v2_manifest(model_ref='opaque:gateway-returned-model')}})}]}
+    arguments = {'scope': {'source_instance': 'source-one', 'object_type': 'grid', 'object_id': '000123'},
+        'view_schema': 'gateway-electrical-view/2', 'selection_profile': 'station'}
+    descriptor = _electrical_view_from_verified_result(result, arguments)
+    assert descriptor['model_ref'] == 'opaque:gateway-returned-model'
+    assert descriptor['selection_profile'] == 'station'
+    assert _electrical_view_from_verified_result(result, {**arguments, 'model_ref': 'caller-ref'}) is None
+    assert _electrical_view_from_verified_result(result, {**arguments, 'scope': {'object_type': 'grid'}}) is None
+
+
 def test_invalid_native_answer_finishes_failed_instead_of_stranding_task(tmp_path, small_answer_envelope):
     from capstone_agent.general_pi_server import GeneralPiHost
     host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'},
