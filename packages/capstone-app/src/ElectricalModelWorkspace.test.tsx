@@ -11,7 +11,8 @@ afterEach(()=>{cleanup();sessionStorage.clear();background.created=[];vi.clearAl
 vi.mock('./electricalViewDownload',()=>({createElectricalViewDownload:(_manifest:unknown,_read:unknown,publish:(value:ElectricalDownloadProgress)=>void)=>{
   const download={start:vi.fn(),pause:vi.fn(),dispose:vi.fn(),publish};background.created.push(download);return download
 }}))
-vi.mock('./LargeNetworkView',()=>({LargeNetworkView:({scene,onActivate,canActivate}:LargeNetworkViewProps)=> <div>接线画布
+vi.mock('./LargeNetworkView',()=>({LargeNetworkView:({scene,onActivate,canActivate,onFirstFrame}:LargeNetworkViewProps)=> <div>接线画布
+  <button onClick={()=>onFirstFrame?.()}>画布首帧</button>
   {[...scene.nodes.map(node=>({...node,type:'node' as const})),...scene.edges.map(edge=>({...edge,type:'edge' as const}))].filter(item=>canActivate?.(item)).map(item=><button key={item.id} onClick={()=>onActivate?.(item)}>展开 {item.label}</button>)}
 </div>}))
 const identity={schema:'gateway-electrical-view/1',model_ref:'registered:any',model_revision:'r1',selection_ref:'s1',source_snapshot_ref:'source1',view_ref:'root'}
@@ -131,9 +132,12 @@ it('preserves a user pause through edge closure navigation, disposes on model sw
   expect(open.mock.calls.at(-1)?.[0]).toMatchObject({target:'target:line-set:one',parent_view_ref:root.view_ref})
   expect(original.start).toHaveBeenCalledTimes(starts)
   fireEvent.click(screen.getByRole('button',{name:'继续后台下载'}));expect(original.start).toHaveBeenCalledTimes(starts+1)
+  const previousStart=screen.getByLabelText('电气视图加载耗时').getAttribute('data-model-open-start-ms')
   fireEvent.change(screen.getByRole('combobox'),{target:{value:second.model_ref}})
   expect(original.dispose).toHaveBeenCalledTimes(1)
   await screen.findByText('当前层概览完整',{exact:false});await waitFor(()=>expect(background.created).toHaveLength(2))
+  expect(screen.getByLabelText('电气视图加载耗时').getAttribute('data-model-open-start-ms')).not.toBe(previousStart)
+  expect(screen.getByLabelText('电气视图加载耗时').getAttribute('data-detail-complete-ms')).toBeNull()
   act(()=>original.publish({state:'error',loaded:9,total:9,streams:{},error:'obsolete'}))
   expect(screen.queryByText(/obsolete/)).toBeNull()
 })
@@ -194,4 +198,36 @@ it('retains published root schema/selection metadata across exact refresh restor
   await screen.findByText('接线画布')
   expect(open.mock.calls.at(-1)?.[0]).toMatchObject({model_ref:manifest.model_ref,view_schema:'gateway-electrical-view/2',
     expected_model_revision:manifest.model_revision,selection_ref:manifest.selection_ref,selection_profile:'station',boundary_policy:'retain_external_stub'})
+})
+
+it('measures first overview frame and detail completion from the same model open, retaining timing on rerender and navigation',async()=>{
+  let now=100
+  const clock=vi.spyOn(performance,'now').mockImplementation(()=>now)
+  let paint:FrameRequestCallback|undefined
+  const raf=vi.spyOn(window,'requestAnimationFrame').mockImplementation(callback=>{paint=callback;return 1})
+  try {
+    const records=electricalOverviewRecords(),root=electricalOverviewManifest(records),child={...root,target:'target:grid',view_ref:'child-grid'}
+    const transport={electricalModels:async()=>({scopes:[{model_ref:root.model_ref,name:'模型'}],electrical_views:{v2:{open_arguments:{view_schema:'gateway-electrical-view/2'}}}}),
+      electricalOpen:async(q:Record<string,unknown>)=>q.target?child:root,
+      electricalRead:async(request:Parameters<typeof electricalPage>[2])=>electricalPage(request.view_ref===root.view_ref?root:child,records,request)} as unknown as HttpThreadTransport
+    const ui=render(<ElectricalModelWorkspace transport={transport}/>)
+    await screen.findByRole('option',{name:'模型'});fireEvent.change(screen.getByRole('combobox'),{target:{value:root.model_ref}})
+    await screen.findByText('接线画布')
+    let timing=screen.getByLabelText('电气视图加载耗时')
+    expect(timing.getAttribute('data-model-open-start-ms')).toBe('100')
+    expect(timing.getAttribute('data-overview-ready-ms')).toBeNull()
+    now=350;fireEvent.click(screen.getByRole('button',{name:'画布首帧'}))
+    expect(timing.getAttribute('data-overview-ready-ms')).toBeNull()
+    act(()=>paint?.(now));expect(timing.getAttribute('data-overview-ready-ms')).toBe('250')
+    ui.rerender(<ElectricalModelWorkspace transport={transport}/>);expect(background.created).toHaveLength(1)
+    fireEvent.click(screen.getByRole('button',{name:'展开 Region A'}))
+    await waitFor(()=>expect(screen.getByRole('navigation').textContent).toContain('Region A'))
+    now=900;fireEvent.click(await screen.findByRole('button',{name:'画布首帧'}));act(()=>paint?.(now))
+    timing=screen.getByLabelText('电气视图加载耗时')
+    expect(timing.getAttribute('data-overview-ready-ms')).toBe('250')
+    now=2100;act(()=>background.created[0].publish({state:'complete',loaded:5,total:5,streams:{}}))
+    expect(timing.getAttribute('data-detail-complete-ms')).toBe('2000')
+    now=5100;act(()=>background.created[0].publish({state:'complete',loaded:5,total:5,streams:{}}))
+    expect(timing.getAttribute('data-detail-complete-ms')).toBe('2000')
+  } finally{clock.mockRestore();raf.mockRestore()}
 })

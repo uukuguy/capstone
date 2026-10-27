@@ -11,6 +11,7 @@ import './gridSource.css'
 
 type Model={model_ref:string;name:string;query:Record<string,unknown>}
 type Target={query:Record<string,unknown>;label:string;expected?:ThreadElectricalViewRequest;mode?:'overview'|'closure'}
+type LoadTiming={started:number;viewRef?:string;overviewMs?:number;detailMs?:number}
 const record=(v:unknown):v is Record<string,unknown>=>!!v&&typeof v==='object'&&!Array.isArray(v)
 const label=(v:unknown)=>typeof v==='string'&&v.length>0&&v.length<=512
 function models(value:unknown):Model[]{
@@ -92,14 +93,17 @@ export default function ElectricalModelWorkspace({transport,requestedView,reques
   const backgroundRef=useRef<{download:ElectricalViewDownload;viewRef:string;transport:HttpThreadTransport}|undefined>(undefined)
   const backgroundGeneration=useRef(0),paused=useRef(false),resolved=useRef(new Map<Target,ThreadElectricalViewRequest>())
   const backgroundState=useRef<ElectricalDownloadProgress['state']|undefined>(undefined)
+  const timingRef=useRef<LoadTiming|undefined>(undefined),timingFrame=useRef<number|undefined>(undefined)
+  const [timing,setTiming]=useState<LoadTiming>()
+  function resetTiming(){if(timingFrame.current!==undefined)cancelAnimationFrame(timingFrame.current);timingFrame.current=undefined;timingRef.current=undefined;setTiming(undefined)}
   function clearBackground(){backgroundGeneration.current++;backgroundRef.current?.download.dispose();backgroundRef.current=undefined;backgroundState.current=undefined;setBackground(undefined);paused.current=false;setUserPaused(false)}
-  useEffect(()=>()=>{backgroundGeneration.current++;backgroundRef.current?.download.dispose()},[])
+  useEffect(()=>()=>{backgroundGeneration.current++;backgroundRef.current?.download.dispose();if(timingFrame.current!==undefined)cancelAnimationFrame(timingFrame.current)},[])
   const loadedGroups=useRef<ElectricalGroup[]>([]),seenCursors=useRef(new Set<string>())
   const target=path.at(-1)
   useEffect(()=>{
     if(!requestedView||appliedRequest.current===requestIdentity)return
     appliedRequest.current=requestIdentity
-    clearBackground()
+    clearBackground();resetTiming()
     setPath([requestTarget(requestedView)])
   },[requestIdentity])
   useEffect(()=>{
@@ -125,7 +129,7 @@ export default function ElectricalModelWorkspace({transport,requestedView,reques
   }
   useEffect(()=>{
     const stop=new AbortController(),ticket=++generation.current;controller.current=stop
-    if(backgroundRef.current?.transport!==transport&&backgroundRef.current)clearBackground()
+    if(backgroundRef.current?.transport!==transport&&backgroundRef.current){clearBackground();resetTiming()}
     if(backgroundState.current!=='error'&&backgroundState.current!=='complete')backgroundRef.current?.download.pause()
     loadedGroups.current=[];seenCursors.current.clear()
     setError('');setManifest(undefined);setView(undefined);setGroups([]);setCursor(null);setPreparing(undefined);setQuery('')
@@ -133,6 +137,7 @@ export default function ElectricalModelWorkspace({transport,requestedView,reques
     setBusy(true);setProgress('正在打开电气模型…')
     void (async()=>{
       if(target.expected?.target&&!target.expected.parent_view_ref)throw new Error('保存的局部视图缺少父视图，请从模型目录重新打开。')
+      if(path.length===1&&!timingRef.current){timingRef.current={started:performance.now()};setTiming({...timingRef.current})}
       const opened=parseElectricalViewOpen(await transport.electricalOpen(target.query,stop.signal))
       if(stop.signal.aborted||generation.current!==ticket)return
       if(opened.state==='preparing'){setPreparing(opened.preparation_ref);setProgress('网关正在准备模型结构。');return}
@@ -142,6 +147,7 @@ export default function ElectricalModelWorkspace({transport,requestedView,reques
       for(const [key,field] of [['model_ref','model_ref'],['expected_model_revision','model_revision'],['selection_ref','selection_ref'],['target','target'],['view_schema','schema']] as const)
         if(target.query[key]!==undefined&&target.query[key]!==opened[field])throw new Error('来源版本已变化，请重新打开该模型。')
       setManifest(opened)
+      if(path.length===1&&timingRef.current&&!opened.target){timingRef.current.viewRef=opened.view_ref;setTiming({...timingRef.current})}
       const saved=descriptor(opened,target.query)
       if(saved)resolved.current.set(target,saved)
       if(storageKey){
@@ -159,8 +165,14 @@ export default function ElectricalModelWorkspace({transport,requestedView,reques
           if(overview&&path.length===1&&!opened.target){
             if(backgroundRef.current?.viewRef!==opened.view_ref){
               clearBackground();const current=backgroundGeneration.current
+              const measurement=timingRef.current
               const download=createElectricalViewDownload(opened,(q,s)=>transport.electricalRead(q,s),value=>{
-                if(backgroundGeneration.current===current){backgroundState.current=value.state;setBackground(value)}
+                if(backgroundGeneration.current===current){
+                  backgroundState.current=value.state;setBackground(value)
+                  if(value.state==='complete'&&measurement&&timingRef.current===measurement&&measurement.detailMs===undefined){
+                    measurement.detailMs=Math.max(0,performance.now()-measurement.started);setTiming({...measurement})
+                  }
+                }
               })
               backgroundRef.current={download,viewRef:opened.view_ref,transport}
             }
@@ -173,6 +185,16 @@ export default function ElectricalModelWorkspace({transport,requestedView,reques
     return()=>stop.abort()
   },[transport,target,refresh])
   const scene=useMemo(()=>view?electricalModelScene(view):undefined,[view])
+  function overviewFirstFrame(){
+    const measurement=timingRef.current
+    if(!measurement||measurement.overviewMs!==undefined||manifest?.view_ref!==measurement.viewRef||!view?.loadedStreams.includes('summary_nodes'))return
+    if(timingFrame.current!==undefined)cancelAnimationFrame(timingFrame.current)
+    timingFrame.current=requestAnimationFrame(()=>{
+      timingFrame.current=undefined
+      if(timingRef.current!==measurement||measurement.overviewMs!==undefined)return
+      measurement.overviewMs=Math.max(0,performance.now()-measurement.started);setTiming({...measurement})
+    })
+  }
   function expandTarget(expand_target:string,name:string,mode:Target['mode']='closure'){
     if(!manifest||busy)return
     onManualNavigate?.();setPath(previous=>[...previous,{label:name,mode,query:{model_ref:manifest.model_ref,representation:manifest.representation,
@@ -208,13 +230,20 @@ export default function ElectricalModelWorkspace({transport,requestedView,reques
   }
   return <section className="grid-source-workspace" aria-label="电气模型">
     {!requestedView&&<label>电网模型<select aria-label="电网模型" value={String(path[0]?.query.model_ref||'')} onChange={event=>{
-      const model=catalog.find(item=>item.model_ref===event.target.value);onManualNavigate?.();clearBackground();setPath(model?[{label:model.name,query:model.query}]:[])
+      const model=catalog.find(item=>item.model_ref===event.target.value);onManualNavigate?.();clearBackground();resetTiming();setPath(model?[{label:model.name,query:model.query}]:[])
     }}><option value="">请选择电网模型</option>{catalog.map(item=><option key={item.model_ref} value={item.model_ref}>{item.name}</option>)}</select></label>}
     <nav aria-label="电气模型层级">{path.map((item,index)=><button key={index} aria-current={index===path.length-1?'location':undefined} onClick={()=>{
       onManualNavigate?.();setPath(previous=>previous.slice(0,index+1).map(entry=>{const saved=resolved.current.get(entry)??entry.expected;return saved?requestTarget(saved,entry.label,entry.mode):entry}))
     }}>{item.label}</button>)}</nav>
     {error&&<><p role="alert">{error}</p>{target&&<button disabled={busy} onClick={()=>setRefresh(value=>value+1)}>重新读取此视图</button>}</>}{progress&&<p role="status">{progress}</p>}
     {preparing&&<button disabled={busy} onClick={()=>void checkPreparation()}>检查准备进度</button>}
+    {timing&&manifest?.schema==='gateway-electrical-view/2'&&manifest.representation==='source_node_breaker'&&<details aria-label="电气视图加载耗时" data-model-open-start-ms={timing.started}
+      data-overview-ready-ms={timing.overviewMs} data-detail-complete-ms={timing.detailMs}>
+      <summary>加载耗时</summary>
+      <p>概览可交互：{timing.overviewMs===undefined?'尚未就绪':`${(timing.overviewMs/1000).toFixed(2)} 秒`}</p>
+      <p>全部明细下载：{timing.detailMs===undefined?'尚未完成':`${(timing.detailMs/1000).toFixed(2)} 秒`}</p>
+      <small>均从开始打开模型计时，包含暂停与导航等待；缓存命中会影响耗时。</small>
+    </details>}
     {!backgroundRef.current&&path.length>1&&path[0].expected?.view_schema==='gateway-electrical-view/2'&&
       <p role="status">后台明细尚未恢复；返回根概览后继续下载。</p>}
     {backgroundRef.current&&<aside aria-label="后台明细下载">
@@ -237,6 +266,7 @@ export default function ElectricalModelWorkspace({transport,requestedView,reques
         {cursor&&<button disabled={busy} onClick={()=>void more()}>加载更多站点</button>}
       </>}
       {scene&&view&&<><LargeNetworkView scene={scene} title={target?.label||'电气接线'} storageKey="capstone-electrical-model" viewKey={manifest.view_ref}
+        onFirstFrame={overviewFirstFrame}
         canActivate={item=>!busy&&!!activation(item)} onActivate={item=>{const next=activation(item);if(next)expandTarget(next.target,next.label,next.mode)}}/>
         {view.loadedStreams.includes('summary_nodes')?<p>{view.records.summary_nodes.length} 个概览分组 · {view.records.summary_edges.length} 条来源线路分组 · 当前层概览完整</p>:<p>{view.records.devices.length} 个设备 · {view.records.ports.length} 个端口 · {view.records.connections.length} 条源连接</p>}
         {!!view.records.groups.length&&<details><summary>关联站点</summary>{view.records.groups.map(group=><button key={group.id} onClick={()=>expand(group)}>{group.name||'站点'}</button>)}</details>}
