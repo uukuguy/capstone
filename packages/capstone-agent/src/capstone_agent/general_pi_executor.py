@@ -456,7 +456,7 @@ class GeneralPiProcess:
                         if (not isinstance(delivered, dict) or delivered != committed_delivery
                                 or delivered.get('outcome') not in {'success', 'limited'}
                                 or not isinstance(delivered.get('summary'), str) or not delivered['summary'].strip()
-                                or not assistants or any(item.get('stopReason') in {'error', 'aborted'} for item in assistants)):
+                                or not assistants or assistants[-1].get('stopReason') in {'error', 'aborted'}):
                             raise ValueError('General Pi committed delivery is invalid')
                         answer = delivered['summary']
                         require_capacity('answer_bytes', len(answer.encode('utf-8')), 'native_answer')
