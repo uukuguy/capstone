@@ -6030,6 +6030,13 @@ Reproduced protected research acknowledgment waiting behind an entire public-eve
 - 2026-10-28: 0468f165 records measured batching and shared tool-composition proposals; runtime behavior remains unchanged pending implementation scope.
 # 2026-10-28 — Shared native tool composition
 
+e2abb75b: Fixed provider-status type narrowing and registered real worker/package and descendant-cancellation checks in the Python gate.
+
+Implementation report, accepted-design feedback, canonical worklist and recovery
+checkpoint now record completed Vivaldi trials and exact limits. 60 Node checks
+pass in 0.78s. PR71 awaits the next source push and required dev CI; actual dev
+entry-point and graph update follow. Root control snapshots remain preserved.
+
 PR71 development CI40572210058 failed in 2m37s on a pre-existing branch type
 narrowing expression in harness.py (two comparisons on object). Reproduced with
 file-scoped Pyright, retained the value in a local int guard: zero errors.

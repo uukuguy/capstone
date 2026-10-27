@@ -1,5 +1,16 @@
 # Unified Enterprise Execution Implementation Plan
 
+2026-10-28当前切片：用户批准并已实现轻量链/DR执行节点共享的程序化工具组合与
+语义数据包。逐调用授权、契约、来源回执与事件保留；不同节点显式交接，缺失可选
+语义字段记录unknown，不拒绝整个可用包。并发保存和取消真实Python子进程已验证。
+新Vivaldi会话实测两次北京一周分析、DR资料→报告和后续包复用；后两消费者网关
+调用为0。60Node/133Python及类型检查通过，独立审查的重要问题已修正。
+详见[设计](../specs/2026-10-28-tool-composition-design.md)、
+[实施计划](2026-10-28-tool-composition.md)与
+[真实验证](../../reports/2026-10-28-tool-composition-validation.md)。
+PR71集成待必需开发CI；不把本地功能验证当作整体提速或云发布接受。
+DR现由用户在输入区明确选择，仅影响下一条指令，默认关闭；覆盖下文旧的自动升级候选。
+
 2026-10-26当前交付：默认轻量智能体循环，Deep Research 默认不启动，允许每轮自主升级。
 取消新建会话分类选择；过程记录根据实际 Thinking、工具与已接纳任务组织事件切换。
 实现候选在 feat/unified-agent-loop（PR67）：271d752c、2b67b2e3、6f61185f。

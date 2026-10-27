@@ -1,6 +1,6 @@
 # Live Session Checkpoint
 
-Updated: 2026-10-28. Tool composition implementation in progress; no final handoff requested.
+Updated: 2026-10-28. Tool composition implemented/local trials complete; PR71 integration active. No final handoff requested.
 
 ## Active implementation
 
@@ -8,14 +8,22 @@ User approved shared native programmatic composition and semantic data packages.
 Design/plan: `docs/superpowers/{specs,plans}/2026-10-28-tool-composition*.md`.
 New modules: resources/tool-composition.mjs, tool-composition-worker.mjs,
 tool-composition-policy.json, semantic-data-context.mjs, native_tool_composition.py.
-58 real Node/SDK/worker/package checks and 89 Python host checks pass. Native
+60 real Node/SDK/worker/package checks and 133 affected Python checks pass. Native
 grants, host receipts and Docker wiring committed in 7229b0b7, output/reference
 corrections in 6627764f/cabf52cc. Two Vivaldi lightweight trials completed
 (176.61s/34 models, 225.88s/31 models), raw runs/tool-composition-20261028/.
 Independent review's concurrent manifest Important fixed and verified (reviewer
-confirmed); commit/rebuild/DR package handoff trial still pending. No task-speed
-improvement or full acceptance claimed yet.
-Current local running source cabf52cc, backend image d493c700b7409ebe8eee9b615633638e627d8a2ab26c72bc91d0bceb5fc53fbb. Preserve unrelated
+confirmed). DR trial 231.15s/4 parent+47 child responses, canonical package frozen
+and used by report consumer with zero gateway calls. Ordinary continuation 24.20s/
+7 responses used loadContext three times, zero gateway calls. Actual package API
+hash and source digests verified after artifact rename. Report:
+docs/reports/2026-10-28-tool-composition-validation.md. No task-speed improvement
+or cloud acceptance claimed. PR71 draft targets dev. CI40572210058 failed in
+2m37s at old branch harness.py type narrowing; fixed/reproduced green in e2abb75b.
+Push latest code/docs once, await scoped required dev CI, fix actual failures,
+merge and align actual root dev with preserved status snapshots. Then canonical
+root rebuild/entry-point refresh and control-graph sync. No release gate.
+Current local running source 184a519e, backend image 921826ad1faa7cf7e1dac1866111bea86b04c0ea7a94ee91b69d7107fc305863. Preserve unrelated
 `.superpowers/sdd/task-1-report.md` and root dev control edits.
 
 ## Latest discussion
