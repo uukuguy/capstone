@@ -6025,3 +6025,5 @@ Reproduced protected research acknowledgment waiting behind an entire public-eve
 - 2026-10-28: 5981a4e6 records both real summer trials and complete call paths; no stable overall DR advantage demonstrated.
 - 2026-10-28: df12507d simplifies toolbar, binds instruction attachment cards and retains pending DR choices; 265App tests pass.
 - 2026-10-28 01:01: Vivaldi upload/refresh/instruction isolation and toggle states verified; canonical rebuild and scoped cleanup passed.
+- 2026-10-28: df22d303 records real Vivaldi composer acceptance and recovery state; implementation df12507d remains the verified local source.
+- 2026-10-28: Reviewed gateway concurrency and composition; existing batching works, but programmatic orchestration and shared semantics remain optimization candidates.

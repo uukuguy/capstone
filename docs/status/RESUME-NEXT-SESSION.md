@@ -1,6 +1,22 @@
 # Live Session Checkpoint
 
-Updated: 2026-10-28 01:02. Work remains resumable; no final handoff requested.
+Updated: 2026-10-28 01:12. Work remains resumable; no final handoff requested.
+
+## Latest discussion
+
+User asks optimization opportunities for enterprise lightweight/DR, especially
+gateway parallelism/composition. Source assessment recorded at top of core
+evolution notebook2026-10-28; proposed, NOTimplemented. ExistingPi batches really
+work: light24double/40single/1zero; DRchildren30double/5triple/5quad/101single/6zero.
+Toolload replaces8-tool active set nextturn; repeatedinactivecalls observed.
+Gatewayclient opensMCP+initialize+tools/list for EACHcall; threadedrelay has no
+lockheld acrossremoteawait. No separatehandshake/dbtiming yet. Proposal priorities:
+shared authorized programmatic composition (knownargs/dataflow/pagination/local
+analysis withoutLLMperstep), compact shared semanticbindings/datasetrefs, predictable
+toolworking-set/contractreuse; then measureconnectionpoolbenefit. Usepublished
+semantictools viaMCPdiscovery, no fixedbusinessflow/SQL/years, no credentials in
+nativecode. Per-call receipts/progress retained. User has not yet asked to
+implement this new execution capability. Currentrunning source remainsdf12507d.
 
 ## Delivered in this turn
 
