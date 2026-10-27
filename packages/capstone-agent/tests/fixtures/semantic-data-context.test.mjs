@@ -19,7 +19,9 @@ test('package derives source fields, retains partial provenance, and keeps decla
 }));
 test('unobserved references and missing source fields cannot become observed semantic facts',()=>fixture(async cwd=>{
   await assert.rejects(saveSemanticContext({cwd,name:'bad',scope,records,spec:{...spec,bindings:{unit:{call:'forged',pointer:'/data/unit'}}}}),/observ|reference/i);
-  await assert.rejects(saveSemanticContext({cwd,name:'bad',scope,records,spec:{...spec,bindings:{unit:{call:'observed',pointer:'/data/missing'}}}}),/pointer|field/i);
+  const saved=await saveSemanticContext({cwd,name:'limited',scope,records,spec:{...spec,bindings:{unit:{call:'observed',pointer:'/data/missing'}}}});
+  const limited=await loadSemanticContext({cwd,path:saved.path});assert.equal(limited.bindings.unit.basis,'unknown');
+  assert.equal(limited.gaps[0].reason,'source_field_missing');assert.equal(saved.product_path.startsWith('out/'),true);
 }));
 test('self-contained packages survive normal artifact renaming and reject changed source bytes',()=>fixture(async cwd=>{
   const saved=await saveSemanticContext({cwd,name:'shared',spec,records,scope});
@@ -43,4 +45,12 @@ test('shorthand semantic metadata remains declared instead of causing a task ret
   const saved=await saveSemanticContext({cwd,name:'metadata',scope,records,spec:{bindings:{unit:'MW',window:{start:'2025-06-15'},missing:null}}});
   const data=await loadSemanticContext({cwd,path:saved.path});
   for(const b of Object.values(data.bindings))assert.equal(b.basis,'declared');assert.equal(data.bindings.unit.value,'MW');
+}));
+test('an exact admitted external input is reusable while an adjacent ungranted file stays blocked',()=>fixture(async cwd=>{
+  await fixture(async source=>{
+    const saved=await saveSemanticContext({cwd:source,name:'producer',scope,records,spec});
+    const other=await saveSemanticContext({cwd:source,name:'other',scope,records,spec});
+    assert.equal((await loadSemanticContext({cwd,path:saved.path,allowedInputs:[saved.path]})).bindings.unit.value,'MW');
+    await assert.rejects(loadSemanticContext({cwd,path:other.path,allowedInputs:[saved.path]}),/outside|admitted/i);
+  });
 }));

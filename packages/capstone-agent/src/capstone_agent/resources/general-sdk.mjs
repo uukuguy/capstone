@@ -430,7 +430,7 @@ export function applicationToolOptions(config, nativeTools, research=()=>undefin
     customTools.push(wrap(createToolCompositionTool({policy:compositionPolicy,
       cwd:config.toolResultCwd??process.cwd(),catalog:config.dataGateway.catalog,
       scope:{task_id:config.researchTaskId,attempt_id:config.researchAttemptId},deadlineAt:config.deadlineAt,
-      allowedInputs:graphBinding?graphSelectedSources(config,graphBinding.action).map(s=>s.path):[],restore:restoreToolResult,
+      allowedInputs:(graphBinding?graphSelectedSources(config,graphBinding.action):config.deliveryReviewSources??[]).map(s=>s.path),restore:restoreToolResult,
       async invoke(name,args,{callId,signal}){
         const tool=selected.get(name);if(!tool)throw Error('Composition tool is not admitted');
         if(!graphBinding)hostEmit(rpcEvent({type:'tool_execution_start',toolName:name,toolCallId:callId,args}));

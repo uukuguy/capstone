@@ -6,6 +6,11 @@ Package saves publish unique paths and serialize product-manifest updates.
 Large program returns use bounded saved-file projections across both model and
 host transport. Issued refs may be reused within one session; separate DR nodes
 continue to require explicit saved package inputs.
+Absent optional binding fields become `unknown` with a source-field gap, retaining
+the actual source ref and pointer. Unissued refs and invalid pointer syntax remain
+errors. `saveContext` returns both an absolute load path and a relative
+`product_path` for typed task returns. Ordinary continuations and DR nodes can
+load only task-local paths or their exact admitted input paths.
 
 User approved implementation on2026-10-28. This implements the shared mechanism
 discussed in the core evolution notebook; the earlier same-task comparison stays

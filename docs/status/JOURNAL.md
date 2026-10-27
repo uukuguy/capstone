@@ -6030,6 +6030,17 @@ Reproduced protected research acknowledgment waiting behind an entire public-eve
 - 2026-10-28: 0468f165 records measured batching and shared tool-composition proposals; runtime behavior remains unchanged pending implementation scope.
 # 2026-10-28 — Shared native tool composition
 
+Reviewed-source DR trial completed in 231.15s (4 parent +47 child model responses).
+Producer used real composition calls and saved semantic packages. Consumer made
+zero gateway calls and used the explicitly frozen package to deliver HTML.
+Optional missing fields still caused avoidable source re-query; changed bindings
+to retain unknown/source-field gaps instead of rejecting the whole package.
+Unissued refs remain rejected. Return also exposes relative product_path, and
+ordinary continuation load accepts exact admitted source paths like DR children.
+This does not establish whole-task speedup; model script/semantic repairs remain.
+
+3d0089b4: Serialized semantic package publication and clarified helper contracts so concurrent DR producers retain every reusable product.
+
 Independent review found concurrent package saves losing product manifest entries.
 Fixed with per-workspace serialization, atomic manifest writes and unique immutable
 package paths. Eight same-name concurrent saves retain primary + all support files;
