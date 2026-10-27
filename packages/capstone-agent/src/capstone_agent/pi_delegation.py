@@ -69,10 +69,10 @@ _TASK_V2_FIELDS = ('business_context', 'resource_profile', 'input')
 from .application_capacity import limits, current_capacity
 
 
-def _json_document(value: object) -> dict:
+def _json_document(value: object, *, native_events: bool = False) -> dict:
     nodes = 0
 
-    def visit(item, depth=0):
+    def visit(item, depth=0, path=(), presentation=False):
         nonlocal nodes
         nodes += 1
         if depth > limits.json_depth or nodes > limits.json_nodes:
@@ -80,11 +80,30 @@ def _json_document(value: object) -> dict:
         if isinstance(item, Mapping):
             if any(not isinstance(k, str) or len(k) > 256 for k in item):
                 raise ValueError("Pi JSON keys are invalid")
-            if set(item) & _FORBIDDEN:
+            protected = set(item) & _FORBIDDEN
+            if protected and not (presentation and protected == {'model_revision'}):
                 raise ValueError("Pi JSON contains protected fields")
-            return {k: visit(v, depth + 1) for k, v in item.items()}
+            # Only the fixed presentation descriptor on a native gateway end
+            # event may carry a source model revision. This is not an Authority
+            # binding, result or evidence grant. Keep generic task JSON closed.
+            event_position = native_events and (not path or len(path) == 2 and path[0] == 'events' and type(path[1]) is int)
+            gateway_end = (item.get('type') == 'tool_execution_end' or
+                item.get('type') == 'enterprise_graph_child_tool' and item.get('activity') == 'end')
+            electrical_view = (event_position and gateway_end
+                and item.get('tool_name') == 'data_gateway_open_network_model_view'
+                and isinstance(item.get('tool_call_id'), str) and bool(item['tool_call_id'])
+                and item.get('is_error') is not True)
+            result = {}
+            for key, child in item.items():
+                if electrical_view and key == 'source_view':
+                    from .grid_electrical_view import checked_electrical_descriptor
+                    child = checked_electrical_descriptor(child)
+                    result[key] = visit(child, depth + 1, path + (key,), presentation=True)
+                else:
+                    result[key] = visit(child, depth + 1, path + (key,))
+            return result
         if isinstance(item, (list, tuple)):
-            return [visit(v, depth + 1) for v in item]
+            return [visit(v, depth + 1, path + (index,)) for index, v in enumerate(item)]
         if item is None or type(item) in {bool, int}:
             return item
         if type(item) is float and math.isfinite(item):
@@ -510,7 +529,8 @@ class HttpGeneralPiExecutor:
                 if not isinstance(result, dict):
                     raise ValueError('research transport response must be an object')
             else:
-                result = _json_document(result)
+                task_status = method == 'GET' and re.fullmatch(r'/tasks/[^/?]+(?:\?after=[0-9]+)?', path) is not None
+                result = _json_document(result, native_events=task_status)
             checkpoint()
             return result
 
@@ -807,7 +827,7 @@ class HttpGeneralPiExecutor:
                         if len(seen_events) >= limits.event_buffer_count and not paged:
                             raise ValueError("Pi event history exceeds bounds")
                         seen_events[event_id] = event
-                        on_event(_json_document(event))
+                        on_event(_json_document(event, native_events=True))
                         checkpoint()
                 if paged:
                     event_cursor = cursor
