@@ -816,6 +816,34 @@ def test_verified_electrical_descriptor_keeps_v2_open_arguments():
         'model_ref': 'model:one', 'view_schema': 'gateway-electrical-view/1'}) is None
 
 
+def test_executor_revision_changes_when_the_published_v2_schema_changes(tmp_path):
+    import ast
+    from hashlib import sha256
+    from pathlib import Path
+    import capstone_agent.general_pi_server as server_module
+    tree = ast.parse(Path(server_module.__file__).read_text())
+    expressions = [value for node in ast.walk(tree) if isinstance(node, ast.Dict)
+        for key, value in zip(node.keys, node.values)
+        if isinstance(key, ast.Constant) and key.value == 'executor_revision']
+    assert len(expressions) == 1
+    expression = expressions[0]
+    resources = next(node for node in ast.walk(expression) if isinstance(node, ast.Tuple)
+        and any(isinstance(item, ast.Constant) and item.value == 'general_pi_server.py' for item in node.elts))
+    for item in resources.elts:
+        path = tmp_path / item.value
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b'fixed-resource')
+    schema = tmp_path / 'resources/gateway-electrical-view-v2.schema.json'
+    schema.write_bytes(Path(server_module.__file__).parent.joinpath(
+        'resources/gateway-electrical-view-v2.schema.json').read_bytes())
+    # Exercise the exact production hash expression without starting services.
+    compiled = compile(ast.Expression(expression), '<executor_revision>', 'eval')
+    namespace = {'sha256': sha256, 'Path': Path, '__file__': str(tmp_path / 'general_pi_server.py')}
+    before = eval(compiled, namespace)
+    schema.write_bytes(schema.read_bytes() + b'\n')
+    assert eval(compiled, namespace) != before
+
+
 def test_verified_scope_root_descriptor_uses_the_gateway_returned_model_reference():
     import json
     from capstone_agent.general_pi_server import _electrical_view_from_verified_result
