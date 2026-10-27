@@ -17,6 +17,33 @@ const scene:NetworkScene={ref:'source:fixture',coordinateSystem:'schematic',disp
   {id:'member',source:'transformer',target:'winding',kind:'winding_membership',relation:'membership'},
 ]}
 describe('source electrical geometry',()=>{
+  it('keeps a 543-record station with explicit device ports in one bounded display component',()=>{
+    const nodes:Array<NetworkScene['nodes'][number]>=[{id:'bus',label:'Bus',kind:'busbar',stationId:'station'},
+      {id:'bus-port',label:'',kind:'port',parentId:'bus'},{id:'bus-node',label:'',kind:'connection_node'}]
+    const edges:Array<NetworkScene['edges'][number]>=[{id:'bus-owner',source:'bus',target:'bus-port',kind:'port_ownership',relation:'membership'},
+      {id:'bus-connection',source:'bus-port',target:'bus-node',kind:'source_connection',relation:'connection'}]
+    for(let i=0;i<135;i++){
+      const id=`switch-${String(i).padStart(3,'0')}`
+      nodes.push({id,label:id,kind:'breaker',stationId:'station'},
+        {id:`${id}-a`,label:'',kind:'port',parentId:id},{id:`${id}-b`,label:'',kind:'port',parentId:id},
+        {id:`${id}-node`,label:'',kind:'connection_node'})
+      edges.push({id:`${id}-owner-a`,source:id,target:`${id}-a`,kind:'port_ownership',relation:'membership'},
+        {id:`${id}-owner-b`,source:id,target:`${id}-b`,kind:'port_ownership',relation:'membership'},
+        {id:`${id}-connection-a`,source:`${id}-a`,target:'bus-node',kind:'source_connection',relation:'connection'},
+        {id:`${id}-connection-b`,source:`${id}-b`,target:`${id}-node`,kind:'source_connection',relation:'connection'})
+    }
+    const input:NetworkScene={...scene,nodes,edges},original=JSON.stringify(input)
+    expect(nodes).toHaveLength(543)
+    const index=buildSceneIndex(input),geometry=sceneGeometry(index)!,bar=geometry.busbars.get(0)!
+    expect(bar[1].x-bar[0].x).toBeGreaterThan(index.bounds.width*.8)
+    expect(geometry.routes.size).toBe(edges.length)
+    expect(JSON.stringify(input)).toBe(original)
+    expect(index.nodeIds.size).toBe(543)
+    const smallNodes=nodes.slice(0,499),smallIds=new Set(smallNodes.map(node=>node.id))
+    const smaller=buildSceneIndex({...input,nodes:smallNodes,edges:edges.filter(edge=>smallIds.has(edge.source)&&smallIds.has(edge.target))})
+    const smallBar=sceneGeometry(smaller)!.busbars.get(0)!
+    expect(bar[1].x-bar[0].x).toBeCloseTo(smallBar[1].x-smallBar[0].x)
+  })
   const assertClear=(input:NetworkScene)=>{
     const index=buildSceneIndex(input),geometry=sceneGeometry(index)!
     for(const [e,route] of geometry.routes)for(let n=0;n<input.nodes.length;n++){

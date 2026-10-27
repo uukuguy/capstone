@@ -6,7 +6,11 @@ const bus=(kind:string)=>['bus','busbar','busbars','busbar_section'].includes(ki
 export function electricalSourceLayout(scene:NetworkScene,endpoints:Uint32Array,bounds:SceneCamera,positions:Float32Array):ElectricalGeometry {
   const neighbors=scene.nodes.map(()=>[] as number[])
   scene.edges.forEach((edge,i)=>{if(edge.relation==='connection'){const a=endpoints[2*i],b=endpoints[2*i+1];neighbors[a].push(b);neighbors[b].push(a)}})
-  const local=scene.nodes.length<=500,displayNeighbors=local?scene.nodes.map(()=>[] as Array<{node:number;cost:number}>):[]
+  // Ports and junctions are separate source records, not separate equipment.
+  // Keep ordinary station closures local without sending large networks through
+  // the weighted/component layout. These are display-only work budgets.
+  const equipment=scene.nodes.filter(node=>!['port','connection_node'].includes(node.kind)).length
+  const local=scene.nodes.length<=1500&&scene.edges.length<=3000&&equipment<=500,displayNeighbors=local?scene.nodes.map(()=>[] as Array<{node:number;cost:number}>):[]
   if(local)scene.edges.forEach((edge,i)=>{const a=endpoints[2*i],b=endpoints[2*i+1],cost=edge.relation==='connection'?1:3;displayNeighbors[a].push({node:b,cost});displayNeighbors[b].push({node:a,cost})})
   const components=new Int32Array(scene.nodes.length).fill(-1)
   if(local)for(let start=0;start<scene.nodes.length;start++)if(components[start]===-1){const queue=[start];components[start]=start;for(let cursor=0;cursor<queue.length;cursor++)for(const {node} of displayNeighbors[queue[cursor]])if(components[node]===-1){components[node]=start;queue.push(node)}}
@@ -64,6 +68,15 @@ export function electricalSourceLayout(scene:NetworkScene,endpoints:Uint32Array,
       for(let i=levels.length-1;i>=0;i--)if(!levels[i].length)levels.splice(i,1)
       const rank=new Map<number,number>();levels.forEach(nodes=>nodes.forEach((n,i)=>rank.set(n,(i+.5)/nodes.length)))
       for(let pass=0;pass<6;pass++){const rows=pass%2?levels.slice().reverse():levels;for(const nodes of rows){const score=(n:number)=>{const adjacent=displayNeighbors[n].filter(next=>rank.has(next.node));return adjacent.length?adjacent.reduce((sum,next)=>sum+rank.get(next.node)!,0)/adjacent.length:rank.get(n)!};nodes.sort((a,b)=>score(a)-score(b)||scene.nodes[a].id.localeCompare(scene.nodes[b].id));nodes.forEach((n,i)=>rank.set(n,(i+.5)/nodes.length))}}
+    }
+    // A high-degree source junction can put hundreds of terminals in one BFS
+    // level. Wrap that level rather than shrinking every glyph to a subpixel.
+    // The source graph and each original endpoint remain unchanged.
+    if(connectedGroup&&members.length>500){
+      const maxColumns=Math.max(1,Math.ceil(Math.sqrt(order.length*width/height)))
+      const wrapped:number[][]=[]
+      for(const level of levels)for(let i=0;i<level.length;i+=maxColumns)wrapped.push(level.slice(i,i+maxColumns))
+      levels.splice(0,levels.length,...wrapped)
     }
     const pitchY=height*(bars.length?.6:.9)/Math.max(1,levels.length)
     levels.forEach((nodes,row)=>nodes.forEach((i,column)=>{const pitchX=width/Math.max(1,nodes.length),x=left+(column+.5)*pitchX,y=top+height*(bars.length?.35:.05)+(row+.5)*pitchY,radius=Math.min(11,pitchX*.18,pitchY*.18);positions[i*2]=x;positions[i*2+1]=y;symbolRadii.set(i,radius);escapes.set(i,[{x:x+pitchX*.4,y},{x:x+pitchX*.4,y:y+pitchY*.4},{x:outside,y:y+pitchY*.4},{x:outside,y:top-groupH*.04}]);obstacles.push({node:i,left:x-radius,right:x+radius,top:y-radius,bottom:y+radius})}))
