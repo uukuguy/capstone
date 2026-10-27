@@ -413,8 +413,8 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
     if(!liveConversation||!latestInstructionAttempt)return
     let state=instructionViewRef.current
     if(state.attemptId!==latestInstructionAttempt){
-      const ownedView=state.automatic==='source'?'source-topology':state.automatic==='model'?'model':undefined
-      if(!state.manual&&ownedView===resourceView){setProductsOpen(false);setResourceView(client.supportsProductIndex?'products':'process-products')}
+      // Reading and background model downloads outlive one agent instruction.
+      // Reset proposal ownership without closing the user's current resource.
       state={...state,attemptId:latestInstructionAttempt,manual:state.attemptId===null&&state.manual,appliedSeq:0,automatic:null}
       saveInstructionView(state)
     }

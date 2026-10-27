@@ -197,16 +197,16 @@ it.each(['none','other-context','copied-view','exact-layer','baseline'])('labels
 const sourceRequest={schema:'capstone-grid-source-view-request/1' as const,source_id:'data-gateway' as const,scope_id:'north',scope_name:'华北',level:null,selected_object_id:null,view_ref:'verified-source',source_snapshot:{metadata_snapshot:'snapshot',source_instance:'gateway'},voltage_min_kv:330,display_grouping_only:false}
 const instruction=(eventSeq:number,attemptId:string):EventEnvelope=>({eventId:`accepted${eventSeq}`,eventSeq,eventType:'command_accepted',eventVersion:1,threadId:'thr_formal',runId:'run_formal',attemptId,visibility:'public',occurredAt:'2026-10-26T00:00:00Z',payload:{kind:'send_message',payload:{text:'Actual instruction'}}})
 const sourceEvent=(eventSeq:number,attemptId:string,viewRef=sourceRequest.view_ref):EventEnvelope=>({...instruction(eventSeq,attemptId),eventId:`source${eventSeq}`,eventType:'runtime_event',payload:{source_view:{...sourceRequest,view_ref:viewRef}}})
-it('automatically opens the exact current instruction source request and closes only its automatic view for a later plain instruction',async()=>{
+it('keeps the opened source view mounted while a later plain instruction runs',async()=>{
   const server=fixture(null)
   server.setEvents([instruction(1,'attempt_source'),sourceEvent(2,'attempt_source')])
   render(<ThreadWorkAdapter transport={server.transport} threadId="thr_formal" namespace="routing" preparedStore={server.store}/> )
   const source=JSON.parse((await screen.findByTestId('source-pane')).textContent!)
   expect(source.request).toEqual(sourceRequest);expect(source.nonce).toBe(1)
   await act(async()=>server.setEvents([instruction(1,'attempt_source'),sourceEvent(2,'attempt_source'),instruction(3,'attempt_plain')]))
-  await waitFor(()=>expect(screen.getByTestId('resource-open').textContent).toBe('false'))
-  expect(screen.getByTestId('selected-resource').textContent).toBe('products')
-  expect(screen.queryByTestId('source-pane')).toBeNull()
+  expect(screen.getByTestId('resource-open').textContent).toBe('true')
+  expect(screen.getByTestId('selected-resource').textContent).toBe('source-topology')
+  expect(JSON.parse(screen.getByTestId('source-pane').textContent!)).toEqual(source)
 })
 it('retains manual source navigation and panel closure over later proposals in the same instruction',async()=>{
   const server=fixture(null)
