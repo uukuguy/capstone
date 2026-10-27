@@ -97,6 +97,10 @@ export default function ElectricalModelWorkspace({transport,requestedView,reques
   const backgroundGeneration=useRef(0),paused=useRef(false),resolved=useRef(new Map<Target,ThreadElectricalViewRequest>())
   const resolvedNames=useRef(new Map<Target,string>())
   const knownModelNames=useRef(new Map<string,string>())
+  function targetName(item:Target,index:number):string {
+    const name=index===0&&!item.query.target&&typeof item.query.model_ref==='string'?knownModelNames.current.get(item.query.model_ref):undefined
+    return name??resolvedNames.current.get(item)??item.label
+  }
   const backgroundState=useRef<ElectricalDownloadProgress['state']|undefined>(undefined)
   const timingRef=useRef<LoadTiming|undefined>(undefined),timingFrame=useRef<number|undefined>(undefined)
   const [timing,setTiming]=useState<LoadTiming>()
@@ -165,7 +169,12 @@ export default function ElectricalModelWorkspace({transport,requestedView,reques
       const saved=descriptor(opened,target.query)
       if(saved)resolved.current.set(target,saved)
       if(storageKey){
-        const savedPath=path.map(item=>({label:resolvedNames.current.get(item)??item.label,mode:item.mode,request:resolved.current.get(item)??item.expected}))
+        const savedPath=path.map((item,index)=>{
+          let request=resolved.current.get(item)??item.expected
+          const name=index===0&&request&&!request.target?knownModelNames.current.get(request.model_ref):undefined
+          if(name&&request){const named=parseThreadDisplayRequest({...request,name});if(named?.schema==='capstone-electrical-view-request/1')request=named}
+          return {label:targetName(item,index),mode:item.mode,request}
+        })
         if(savedPath.every(item=>item.request))try{sessionStorage.setItem(storageKey,JSON.stringify({format:2,path:savedPath,appliedRequestIdentity:requestIdentity}))}catch{/* Storage is optional. */}
       }
       const overview=opened.schema==='gateway-electrical-view/2'&&opened.representation==='source_node_breaker'
@@ -250,8 +259,8 @@ export default function ElectricalModelWorkspace({transport,requestedView,reques
       const model=catalog.find(item=>item.model_ref===event.target.value);onManualNavigate?.();clearBackground();resetTiming();setPath(model?[{label:model.name,query:model.query}]:[])
     }}><option value="">请选择电网模型</option>{catalog.map(item=><option key={item.model_ref} value={item.model_ref}>{item.name}</option>)}</select></label>}
     <nav aria-label="电气模型层级">{path.map((item,index)=><button key={index} aria-current={index===path.length-1?'location':undefined} onClick={()=>{
-      onManualNavigate?.();setPath(previous=>previous.slice(0,index+1).map(entry=>{const saved=resolved.current.get(entry)??entry.expected;return saved?requestTarget(saved,resolvedNames.current.get(entry)??entry.label,entry.mode):entry}))
-    }}>{resolvedNames.current.get(item)??item.label}</button>)}</nav>
+      onManualNavigate?.();setPath(previous=>previous.slice(0,index+1).map((entry,position)=>{const saved=resolved.current.get(entry)??entry.expected;return saved?requestTarget(saved,targetName(entry,position),entry.mode):entry}))
+    }}>{targetName(item,index)}</button>)}</nav>
     {error&&<><p role="alert">{error}</p>{target&&<button disabled={busy} onClick={()=>setRefresh(value=>value+1)}>重新读取此视图</button>}</>}{progress&&<p role="status">{progress}</p>}
     {preparing&&<button disabled={busy} onClick={()=>void checkPreparation()}>检查准备进度</button>}
     {timing&&manifest?.schema==='gateway-electrical-view/2'&&manifest.representation==='source_node_breaker'&&<details aria-label="电气视图加载耗时" data-model-open-start-ms={timing.started}
@@ -285,7 +294,7 @@ export default function ElectricalModelWorkspace({transport,requestedView,reques
         {cursor&&<button disabled={busy} onClick={()=>void more()}>加载更多站点</button>}
       </>}
       {scene&&view&&<>
-        <LargeNetworkView scene={scene} title={view.loadedStreams.includes('summary_nodes')?`${target?resolvedNames.current.get(target)??target.label:'电网'} · 厂站概览`:target?.label||'电气接线'} storageKey="capstone-electrical-model" viewKey={manifest.view_ref}
+        <LargeNetworkView scene={scene} title={view.loadedStreams.includes('summary_nodes')?`${target?targetName(target,path.length-1):'电网'} · 厂站概览`:target?.label||'电气接线'} storageKey="capstone-electrical-model" viewKey={manifest.view_ref}
         onFirstFrame={overviewFirstFrame}
         activationLabel={item=>!busy?activation(item)?.actionLabel:undefined}
         canActivate={item=>!busy&&!!activation(item)} onActivate={item=>{const next=activation(item);if(next)expandTarget(next.target,next.label,next.mode)}}/>

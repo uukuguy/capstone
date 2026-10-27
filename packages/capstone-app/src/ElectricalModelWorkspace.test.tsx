@@ -252,3 +252,24 @@ it('keeps a resolved human model name when a refreshed catalog temporarily omits
   await waitFor(()=>expect(screen.queryByRole('option',{name:'未命名电网'})).toBeNull())
   expect(screen.getByRole('navigation').textContent).toBe('发布电网名称')
 })
+
+it.each([false,true])('updates a restored generic root breadcrumb from an exact model name without opening root (requested %s)',async requested=>{
+  const records=electricalOverviewRecords(),root=electricalOverviewManifest(records)
+  const rootRequest={schema:'capstone-electrical-view-request/1' as const,source_id:'data-gateway' as const,model_ref:root.model_ref,
+    model_revision:root.model_revision,view_ref:root.view_ref,selection_ref:root.selection_ref!,source_snapshot_ref:root.source_snapshot_ref!,
+    representation:'source_node_breaker' as const,target:null,artifact_ref:null,view_schema:'gateway-electrical-view/2' as const}
+  const childRequest={...rootRequest,view_ref:'restored:station',parent_view_ref:root.view_ref,target:'actual:station'}
+  const child:ElectricalViewReady={...root,name:'发布的省网名称',view_ref:childRequest.view_ref,target:childRequest.target,
+    streams:Object.fromEntries(ELECTRICAL_STREAMS.map(stream=>[stream,{total_count:0}])) as ElectricalViewReady['streams']}
+  sessionStorage.setItem('restored-name',JSON.stringify({format:2,appliedRequestIdentity:requested?JSON.stringify([rootRequest,1]):undefined,
+    path:[{label:'电网模型',request:rootRequest},{label:'厂站 · 电气接线',mode:'closure',request:childRequest}]}))
+  const catalog=vi.fn(async()=>({scopes:[{model_ref:root.model_ref,name:'发布的省网名称'}]}))
+  const open=vi.fn(async()=>child),empty={...records,...Object.fromEntries(ELECTRICAL_STREAMS.map(stream=>[stream,[]]))}
+  render(<ElectricalModelWorkspace storageKey="restored-name" requestedView={requested?rootRequest:undefined} requestNonce={requested?1:undefined}
+    transport={{electricalModels:catalog,electricalOpen:open,electricalRead:async(request:Parameters<typeof electricalPage>[2])=>electricalPage(child,empty,request)} as unknown as HttpThreadTransport}/>)
+  await screen.findByText('接线画布')
+  expect(screen.getByRole('navigation').textContent).toBe('发布的省网名称厂站 · 电气接线')
+  expect(open).toHaveBeenCalledTimes(1)
+  if(requested)expect(catalog).not.toHaveBeenCalled()
+  expect(JSON.parse(sessionStorage.getItem('restored-name')!).path[0].request.name).toBe('发布的省网名称')
+})
