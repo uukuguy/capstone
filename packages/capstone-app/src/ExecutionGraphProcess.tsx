@@ -28,16 +28,18 @@ function ResultVersion({ result }: { result: GraphResult }) {
   </details>
 }
 
-function HandoffStatus({execution,now,interrupted}:{execution?:GraphExecution;now?:number;interrupted:boolean}){
+function HandoffStatus({execution,nodePhase,now,interrupted}:{execution?:GraphExecution;nodePhase:string;now?:number;interrupted:boolean}){
   const calls=execution?.tools.filter(tool=>tool.name==='agent_task_return')??[]
   if(!calls.length)return null
   const latest=calls.at(-1)!,failures=calls.filter(tool=>tool.status==='failed')
   const running=!interrupted&&!execution?.nativeStatus&&latest.status==='running'
   const start=Date.parse(calls[0].startedAt??''),end=running?now:Date.parse(latest.finishedAt??'')
   const duration=Number.isFinite(start)&&end!==undefined&&Number.isFinite(end)?Math.max(0,end-start):undefined
+  const registered=['success','limited','failure'].includes(nodePhase)
+  const savedLabel=registered?`结果已登记${nodePhase==='limited'?' · 含限制':nodePhase==='failure'?' · 失败结果':''}`:'返回已保存 · 待接收'
   return <div className="capstone-graph-metrics" aria-label="结果交接状态">
-    <span>{running?'结果交接中':latest.status==='completed'?'结果已交回':interrupted?'结果交接已停止':'结果交接未完成'}{duration!==undefined?` · ${running?'已用时':'交接区间'} ${time(duration)}`:''}</span>
-    {failures.length>0&&<span>交接失败 {failures.length} 次{latest.status==='completed'?' · 后续已交回':''}</span>}
+    <span title="提交时长仅包含子任务返回调用及其重试；系统登记和主流程处理由实际任务状态单独表示。">{running?'提交返回中':latest.status==='completed'?savedLabel:interrupted?'结果提交已停止':'结果提交未完成'}{duration!==undefined?` · ${running?'已用时':'返回提交区间'} ${time(duration)}`:''}</span>
+    {failures.length>0&&<span>交接失败 {failures.length} 次{latest.status==='completed'?' · 后续返回已保存':''}</span>}
     {failures.at(-1)?.output&&<span>{failures.at(-1)!.output}</span>}
     {!!latest.returnLimitations?.count&&<details><summary>已记录 {latest.returnLimitations.count} 项限制，结果保留</summary><ul>{latest.returnLimitations.notes.map((note,index)=><li key={index}>{note}</li>)}</ul></details>}
   </div>
@@ -229,7 +231,7 @@ export default function ExecutionGraphProcess({ graph, storageKey, attemptPhase,
         {prior.length > 0 && <details className="capstone-graph-history"><summary>本步骤历史执行 · {prior.length}</summary>{prior.map(old => <section key={old.action.id}><strong>执行 v{old.action.execution_revision} · {phaseLabels[old.node.phase]}</strong><code>{old.action.id}</code><ExecutionMetrics node={old.node} execution={old} /><InputBindings node={old.node} results={current.results} /><SourceScope node={old.node} execution={old} /><ExecutionTools execution={old} storageKey={storageKey} /></section>)}</details>}
         </ProcessDetailGroup>
         </ProcessStepRecord>
-        <HandoffStatus execution={execution} now={now} interrupted={!!interruption}/>
+        <HandoffStatus execution={execution} nodePhase={node.phase} now={now} interrupted={!!interruption}/>
       </section>
           })}
         </div>

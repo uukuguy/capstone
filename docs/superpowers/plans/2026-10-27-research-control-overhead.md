@@ -13,7 +13,7 @@ The user has requested record-and-continue behavior and removal of repeated hand
 - [x] Align tool descriptions and continuation guidance with automatic registration. Overview reads in advisory mode wait for actionable returns, with cancellation; they do not repeatedly return unchanged state for model polling.117 controller and14 SDK tests pass.
 - [x] Permit one advisory finish call carrying the model's whole-goal decision and selected delivery. Keep exact review persistence, reference validation and replay; strict mode still requires its explicit review reference.
 - [x] Preserve an actual returned producer statement when supplied observation aliases cannot be resolved; omit unknown refs and retain limitations, never convert them into passed checks.
-- [ ] Make automatic receipt, remaining limitations, main-chain work and final response timing visible in execution records. Do not label a locally saved return as completed host admission.
+- [x] Distinguish saved returns from host registration in execution records; show return submission duration as such, not full handoff duration. Existing main-chain finalization timing remains separate.180 focused App tests and TypeScript pass. Live visual acceptance remains pending.
 - [ ] Rebuild locally and verify through a new conversation in the existing Vivaldi tab. Measure child completion to dependent dispatch and final answer separately. Stop abnormal idle runs.
 
 ## Evidence to retain
