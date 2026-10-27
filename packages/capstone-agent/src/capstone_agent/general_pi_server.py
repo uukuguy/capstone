@@ -320,6 +320,8 @@ class GeneralPiHost:
         diagnostic_sources = (set(DIAGNOSIS_TOOLS).intersection(native['policy']['allowed_tools'])
             if native is not None and native.get('systematic_diagnosis') == DIAGNOSIS_POLICY
             and self.capability.get('systematic_diagnosis') == DIAGNOSIS_POLICY else set())
+        discovery_sources = ({'agent_tool_search', 'agent_tool_load'}.intersection(native['policy']['allowed_tools'])
+            if native is not None else set())
         def cancelled():
             return record['cancel'].is_set() or time.monotonic() - started >= request.timeout_seconds
         def publish(payload):
@@ -399,7 +401,8 @@ class GeneralPiHost:
             unentered_rejection = (child and failed and issued is None
                 and guard.failures.get(call_id) in {'failed', 'cancelled'})
             if ((tool_name not in {'read', 'bash', 'edit', 'write', 'grep', 'find', 'ls'} and not gateway_tool
-                    and not (child and (tool_name == 'agent_task_return' or tool_name in diagnostic_sources))
+                    and not (child and (tool_name == 'agent_task_return' or tool_name in diagnostic_sources
+                                        or tool_name in discovery_sources))
                     and not unentered_rejection)
                     or issued != expected_source and (not failed or issued is not None)):
                 raise ValueError('native observation source identity changed')

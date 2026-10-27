@@ -9,6 +9,35 @@ from capstone_agent.pi_delegation import PiTaskRequest, HttpGeneralPiExecutor
 from capstone_agent.request_intent import NodeControl
 
 
+@pytest.mark.parametrize('tool_name,grant,accepted', [
+    ('agent_tool_search', True, True),
+    ('agent_tool_load', True, True),
+    ('agent_tool_search', False, False),
+    ('agent_tool_load', False, False),
+    ('agent_tool_unpublished', True, False),
+])
+def test_child_tool_discovery_observation_requires_its_exact_application_grant(tmp_path, monkeypatch, tool_name, grant, accepted):
+    from dataclasses import replace
+    from capstone_agent import general_pi_server as module
+    from capstone_agent.native_task_context import POLICY_TEXT
+    from test_native_graph_progress import test_task_return_observation_crosses_the_host_only_for_the_exact_child_lease
+
+    class DiscoveryHost(module.GeneralPiHost):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            self.capability['native_tools'] = [tool_name]
+
+        def submit(self, request):
+            native = {'policy': {'schema': 'capstone-conversation-policy/1', 'system_policy': POLICY_TEXT,
+                'allowed_tools': [tool_name] if grant else [], 'external_lookup_enabled': False},
+                'selected_task_records': [], 'selected_task_source': None, 'records_truncated': False}
+            return super().submit(replace(request, native_context=native))
+
+    monkeypatch.setattr(module, 'GeneralPiHost', DiscoveryHost)
+    test_task_return_observation_crosses_the_host_only_for_the_exact_child_lease(
+        tmp_path, 'child', tool_name, accepted)
+
+
 @pytest.mark.parametrize('tool_name,publication,grant,accepted', [
     ('agent_diagnosis_guide', True, True, True),
     ('agent_diagnosis_record', True, True, True),

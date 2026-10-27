@@ -6001,3 +6001,5 @@ Reproduced protected research acknowledgment waiting behind an entire public-eve
 - 2026-10-27: Vivaldi trial attempt_bb279f4dfb2c31a1 completed in69.1s; automatic registration worked, final tail20.8s remains.132 return/controller tests pass.
 - 2026-10-27: fe2dd666 retains actual producer statements when supplied support is unknown, preventing unnecessary registration repair or recalculation.
 - 2026-10-27: 5d9b40c2 combines advisory goal review and delivery in one model call, preserving reference checks and exact replay.
+- 2026-10-27: 5d8e92f2 distinguishes saved child returns from registered results;180 App tests and TypeScript pass.
+- 2026-10-27: Trial attempt_0fbba5e903defbb0 exposed missing host admission for granted child discovery tools;87 host/progress tests verify the correction.
