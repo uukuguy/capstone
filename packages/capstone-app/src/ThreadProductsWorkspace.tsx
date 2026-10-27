@@ -13,7 +13,7 @@ type ProductClient={productIndex:(threadId:string,query?:ProductQuery,signal?:Ab
 export type ProductRequest={ref?:ProductRef;origin?:ProductRef['origin'];attemptId?:string;artifactId?:string;resultId?:string;workId?:string|null;nonce?:number}
 /** Only host-bound primary files from the exact completed instruction may open automatically. */
 function primaryProduct(items:ProductEntry[],threadId:string,workId:string|null|undefined,attemptId?:string){
-  const mediaOrder=['text/html','application/pdf','text/markdown','text/plain','image/svg+xml','text/csv','application/json']
+  const mediaOrder=['text/html','application/pdf','application/vnd.openxmlformats-officedocument.presentationml.presentation','text/markdown','text/plain','image/svg+xml','text/csv','application/json']
   return items.filter(item=>item.ref.thread_id===threadId&&item.ref.work_id===workId&&item.ref.attempt_id===attemptId
     &&item.ref.origin==='native_file'&&item.source.presentation_role==='primary')
     .sort((a,b)=>{
@@ -70,7 +70,7 @@ export default function ThreadProductsWorkspace({client,threadId,workId,revision
       let page=await client.productIndex(threadId,query,controller.signal)
       const loaded=[...page.products]
       const seekPrimary=scope==='current'&&!!primaryAttemptId&&!!onPrimaryReady&&!requested&&!userSelected.current
-      const foundDocument=()=>{const item=primaryProduct(loaded,threadId,workId,primaryAttemptId);return !!item&&['text/html','application/pdf','text/markdown'].includes(nativePreviewMedia(typeof item.source.file_name==='string'?item.source.file_name:item.title,item.media_type))}
+      const foundDocument=()=>{const item=primaryProduct(loaded,threadId,workId,primaryAttemptId);return !!item&&['text/html','application/pdf','application/vnd.openxmlformats-officedocument.presentationml.presentation','text/markdown'].includes(nativePreviewMedia(typeof item.source.file_name==='string'?item.source.file_name:item.title,item.media_type))}
       let scanned=1
       for(let scan=1;((requested&&!requested.ref&&!loaded.some(item=>matches(item,requested)))||(seekPrimary&&!foundDocument()))&&page.hasMore&&scan<applicationCapacity('artifact_initial_pages');scan++){
         if(controller.signal.aborted||token!==generation.current)return

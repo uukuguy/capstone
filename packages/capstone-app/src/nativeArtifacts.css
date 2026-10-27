@@ -24,3 +24,5 @@
 .native-artifact-view dd { margin: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 .native-artifacts-workspace :focus-visible { outline: 2px solid #245b47; outline-offset: 2px; }
 @media(max-width:760px) { .native-artifacts-workspace { padding: 16px; } .native-artifact-list button { min-height: 44px; } }
+.pptx-preview nav { display:flex; align-items:center; justify-content:center; gap:16px; padding:12px; }
+.pptx-preview img { display:block; width:100%; height:auto; background:white; }

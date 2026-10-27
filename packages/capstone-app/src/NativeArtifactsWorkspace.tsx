@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type {NativeArtifact,NativeArtifactPage} from './nativeArtifacts'
 import './nativeArtifacts.css'
+import PptxPreview from './PptxPreview'
 import {useSessionViewState,useSessionObjectUrls,sessionObjectUrl} from './workspaceSessionCache'
 
 type FileClient={
@@ -21,6 +22,7 @@ export function nativePreviewMedia(name:string,media:string|null|undefined){
   if(normalized&&normalized!=='application/octet-stream')return normalized
   if(/\.html?$/i.test(name))return 'text/html'
   if(/\.svg$/i.test(name))return 'image/svg+xml'
+  if(/\.pptx$/i.test(name))return 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
   return normalized||'application/octet-stream'
 }
 const htmlPreviewPolicy='<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; img-src data: blob:; font-src data:; base-uri \'none\'; form-action \'none\'">'
@@ -46,6 +48,7 @@ export function NativeFileContent({name,media,url,text,textUnavailable,previewSi
     :text!==undefined?<pre>{text}</pre>
     :['image/png','image/jpeg','image/svg+xml'].includes(media)?<img src={url} alt={name}/>
     :media==='application/pdf'?<iframe src={url} title={`PDF 预览：${name}`} sandbox="" referrerPolicy="no-referrer"/>
+    :media==='application/vnd.openxmlformats-officedocument.presentationml.presentation'?<PptxPreview key={url} name={name} url={url}/>
     :<p>此文件格式没有内置预览，可下载后查看。</p>}</div>
 }
 

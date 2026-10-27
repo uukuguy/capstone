@@ -53,6 +53,20 @@ function pagedHistory(events: Record<string, unknown>[], pageSize: number) {
   })
 }
 
+it('restores conversation bodies beyond the raw event window without dropping recent records',async()=>{
+  initializeApplicationCapacity({schema:'capstone-capacity-profile/1',mode:'normal',limits:{event_buffer_count:2}})
+  const events=Array.from({length:8},(_,index)=>conversationalEvent(index+1,index%2===0?'command_accepted':'attempt_completed',Math.floor(index/2),index%2===0?{kind:'send_auto',payload:{text:`问题${index}`}}:{answer:`回答${index}`}))
+  const fixture={...idleFixture,snapshot:{...idleFixture.snapshot,last_event_seq:8}}
+  const store=new ThreadProjectionStore(new CapstoneThreadClient({...createFixtureTransport(fixture),readHistory:pagedHistory(events,2)}))
+  await store.load('thr_demo_39')
+  await store.restoreConversationHistory()
+  expect(store.publicEvents.length).toBeLessThanOrEqual(2)
+  expect(store.conversationEvents.map(event=>event.eventSeq)).toEqual([1,2,3,4,5,6,7,8])
+  expect(store.state.eventSeq).toBe(8)
+  await store.restoreConversationHistory()
+  expect(store.conversationEvents).toHaveLength(8)
+})
+
 it('loads durable model membership independently of the legacy snapshot', async () => {
   const model = { entry_id: 'mdl_ieee39', model_id: context.model_id, model_revision: context.model_revision,
     implementation_family: context.implementation_family, authority_model_ref: 'gridctl:ieee39', display_name: 'IEEE-39', diagram_provider_id: 'gridctl', last_active_seq: 0 }

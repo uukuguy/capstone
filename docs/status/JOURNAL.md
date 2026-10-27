@@ -6012,3 +6012,4 @@ Reproduced protected research acknowledgment waiting behind an entire public-eve
 - 2026-10-27: Reproduced debug history4097/4096 rejection before eviction;trim retained window first.58 App store tests and TypeScript pass.
 - 2026-10-27: a48aa319 restores recoverable history trimming;browser completed state and10 CSV artifacts visible after reload.
 - 2026-10-27: User requests temporary removal of “查看之前的对话”;disable the workspace entry while preserving stored history.
+- 2026-10-27: df2c9e31 hides older-conversation navigation;TypeScript passed and Vivaldi confirms the entry is absent.

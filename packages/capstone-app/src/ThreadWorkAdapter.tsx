@@ -252,6 +252,9 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
       try {
         if(!preparedStore||reload>0)await store.load(currentId)
         if (!live) return
+        void store.restoreConversationHistory(controller.signal).catch(()=>{
+          if(!controller.signal.aborted)setNotice('部分历史正文暂未读取完成，刷新会话可重试。')
+        })
         if(artifactBaseline.current===null)artifactBaseline.current=store.state.eventSeq
         await store.catchUp()
         if (!live) return
@@ -393,7 +396,7 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
       if (mounted.current) { setError(cause instanceof Error ? cause.message : '原请求结果待确认。'); if (canReconnect(cause)) setReload(value => value + 1) }
     } finally { writing.current = false; if (mounted.current) setBusy(false) }
   }
-  const conversation = projectWorkConversation(store.publicEvents, selectedWork, snapshot?.works, !snapshot)
+  const conversation = projectWorkConversation(store.conversationEvents, selectedWork, snapshot?.works, !snapshot)
   const latestAcceptedInstruction=useMemo(()=>store.publicEvents.reduce<EventEnvelope|undefined>((latest,event)=>
     event.eventType==='command_accepted'&&event.attemptId&&['send_message','send_auto','send_ordinary','send_professional'].includes(String(event.payload.kind))&&(!latest||event.eventSeq>latest.eventSeq)?event:latest,undefined),[store,projection])
   const declaredAttemptId=selectedWork?.latestAttemptId||currentAttempt?.attemptId

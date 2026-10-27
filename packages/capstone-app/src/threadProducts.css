@@ -18,6 +18,14 @@
 .thread-products-workspace button:disabled { opacity: .55; cursor: default; }
 .thread-products-workspace :focus-visible { outline: 2px solid #245b47; outline-offset: 2px; }
 .thread-product-view { overflow-wrap: anywhere; }
+.is-resource-expanded .thread-products-workspace:has(.pptx-preview) { padding:0; }
+.is-resource-expanded .thread-products-workspace:has(.pptx-preview) > .thread-products-directory,
+.is-resource-expanded .thread-product-view:has(.pptx-preview) > :not(.native-artifact-preview) { display:none; }
+.is-resource-expanded .pptx-preview nav { padding:6px; }
+.is-resource-expanded .pptx-preview img { max-height:calc(100dvh - 130px); object-fit:contain; }
+.is-resource-expanded .thread-resource-panel:has(.workspace-product-paper:not([hidden]) .pptx-preview) .workspace-product-stage { padding:0; }
+.is-resource-expanded .thread-resource-panel:has(.workspace-product-paper:not([hidden]) .pptx-preview) .workspace-product-paper { border:0; box-shadow:none; }
+.is-resource-expanded .thread-resource-panel:has(.workspace-product-paper:not([hidden]) .pptx-preview) .workspace-product-footer { display:none; }
 .thread-product-view .native-artifact-preview { min-width: 0; }
 .thread-product-references { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 10px; font-size: 11px; line-height: 1.6; }
 .thread-product-references > span { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; background: #eef2ec; color: #385547; border-radius: 4px; padding: 3px 6px; }
