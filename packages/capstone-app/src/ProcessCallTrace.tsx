@@ -3,7 +3,8 @@ import { AlertTriangle, ChevronRight } from 'lucide-react'
 import { toolExecutionMs } from './processTiming'
 import './processCallTrace.css'
 
-export type ProcessModelCall = { id: string; number: number; ms: number; label?: string; sequenceId?: string; settled?: boolean; startedAt?: string; finishedAt?: string; toolCallIds?: readonly string[]; stopReason?: string; usage?: Record<string, unknown>; responseText?: string; toolRequests?: readonly { id: string; name: string; operation?: string }[] }
+export type ProcessModelCall = { id: string; number: number; ms: number; label?: string; sequenceId?: string; settled?: boolean; startedAt?: string; finishedAt?: string; toolCallIds?: readonly string[]; stopReason?: string; errorCode?: string; errorStatus?: number; usage?: Record<string, unknown>; responseText?: string; toolRequests?: readonly { id: string; name: string; operation?: string }[] }
+const modelErrors:Record<string,string>={model_context_limit:'上下文超限',model_rate_limit:'请求限流',model_authentication:'模型认证失败',model_transport:'模型连接异常',model_output_invalid:'模型输出格式异常',model_output_rejected:'模型输出被拒绝',model_turn_incomplete:'原因未记录'}
 export type ProcessToolCall = { id: string; name: string; status: 'running' | 'completed' | 'failed'; startedAt?: string; finishedAt?: string; durationMs?: number; executionMs?: number; operation?: string; origin?: 'model' | 'parent' | 'system' | 'unknown' }
 export type ProcessTraceFocus = { modelId: string; revision: number }
 export function callTraceIssues(models: readonly ProcessModelCall[], tools: readonly ProcessToolCall[], active = true) {
@@ -93,6 +94,7 @@ export default function ProcessCallTrace({ models, tools, now, active = true, re
       <div className="capstone-call-model"><strong>{model.label ?? `LLM ${String(model.number).padStart(2, '0')}`}</strong>
         <span className="capstone-call-duration">{pending && (!active || model.settled) ? '耗时 —' : time(modelCallMs(model, running ? now : undefined))}</span>
         {model.stopReason === 'error' ? <span>错误响应</span> : model.stopReason === 'aborted' ? <span>已中断</span> : running ? <span role="status">进行中</span> : pending ? <span>未完整记录</span> : model.stopReason === 'length' ? <span>输出截断</span> : <span>已返回</span>}
+        {model.stopReason==='error'&&model.errorCode&&Object.hasOwn(modelErrors,model.errorCode)&&<span>{modelErrors[model.errorCode]}{typeof model.errorStatus==='number'&&Number.isInteger(model.errorStatus)&&model.errorStatus>=400&&model.errorStatus<=599?` · HTTP ${model.errorStatus}`:''}</span>}
         {!running && <small>{!linked ? '工具关联未记录' : !model.toolCallIds!.length ? '未调用工具' : `工具 ${model.toolCallIds!.length}次${toolMs === undefined ? '' : ` · 活动区间 ${time(toolMs)}`}`}</small>}
       </div>
       {usage && <div className="capstone-call-tokens" title="输入包含 SDK 单独报告的缓存读取/写入 token；未报告的值保持未知。">

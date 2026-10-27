@@ -9,3 +9,9 @@ it('distinguishes a recorded text-only response from missing tool ownership meta
   expect(calls[0].toolCallIds).toEqual([])
   expect(calls[1].toolCallIds).toBeUndefined()
 })
+it('retains safe model error classification on the failed request',()=>{
+  const end=boundary(2,'response_completed','error');end.payload.error_code='model_context_limit';end.payload.error_status=400
+  const [call]=projectProcessModelRequests([boundary(1,'started'),end],'attempt')
+  expect(call.errorCode).toBe('model_context_limit')
+  expect(call.errorStatus).toBe(400)
+})

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createToolDiscovery} from '../../src/capstone_agent/resources/general-tool-discovery.mjs';
-import {mkdtemp,rm} from 'node:fs/promises';
+import {mkdtemp,readFile,realpath,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createServer} from 'node:http';
@@ -54,6 +54,22 @@ test('selected complete contracts must fit explicit count and schema budgets',as
   await assert.rejects(load.execute('many',{names:['source_0','source_1']}),/capacity/);
   await assert.rejects(load.execute('huge',{names:['source_0']}),/capacity/);
 });
+test('large output contracts remain available by file without expanding the model history',async()=>{
+  const dir=await mkdtemp(join(tmpdir(),'output-contract-'));
+  try{
+    const publication={description:'Source',inputSchema:{type:'object',properties:{}},
+      outputSchema:{type:'object',description:'x'.repeat(12000),properties:{value:{type:'number'}}}};
+    const tool={name:'source',parameters:publication.inputSchema,execute:async()=>({content:[]})};
+    const c=createToolDiscovery({tools:[tool],publications:{source:publication},admittedNames:['source'],cwd:dir});
+    const result=await c.tools[1].execute('load-large',{names:['source']});
+    assert.ok(JSON.stringify(result.content).length<=6000);
+    const projection=JSON.parse(result.content[0].text);
+    const full=JSON.parse(await readFile(projection.full_result.path,'utf8'));
+    assert.deepEqual(full.tools[0].outputSchema,publication.outputSchema);
+    assert.equal(full.activation,'next_turn');
+    assert.equal(host.rpcEvent({type:'tool_execution_end',toolName:'agent_tool_load',result}).result.content[0].text,JSON.stringify(full));
+  }finally{await rm(dir,{recursive:true,force:true});}
+});
 
 test('sessions without any gateway grant do not acquire discovery tools',()=>{
   const config={dataGateway:{onDemandTools:true,catalog:{tools:{ungranted:{description:'No grant',inputSchema:{type:'object'}}}}},
@@ -82,12 +98,14 @@ for(const mode of ['parent','managed-child'])test('actual pinned SDK '+mode+' lo
   const dir=await mkdtemp(join(mode==='parent'?tmpdir():new URL('../../../../.grid-agent/runtime/',import.meta.url).pathname,'tool-discovery-sdk-'));
   const previousAgentDir=process.env.PI_CODING_AGENT_DIR;
   process.env.PI_CODING_AGENT_DIR=dir;
-  const calls=[],menus=[],errors=[];
+  const calls=[],menus=[],errors=[],observations=[];
+  const resultBody=JSON.stringify({structuredContent:{status:'partial',data:{unit:'MW',
+    points:Array.from({length:5000},(_,i)=>({time:i,value:i+.5}))}}});
   const server=createServer(async(req,res)=>{
     let body='';for await(const chunk of req)body+=chunk;
     const call=JSON.parse(body);calls.push(call);
     res.setHeader('Content-Type','application/json');
-    res.end(JSON.stringify({result_json:'{"status":"partial"}',observation:{kind:'external_gateway_observation',
+    res.end(JSON.stringify({result_json:resultBody,observation:{kind:'external_gateway_observation',
       task_id:'task-sdk',tool_call_id:call.call_id,tool:call.name,catalog_revision:'revision',tool_schema_sha256:'hash-0'}}));
   });
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
@@ -95,7 +113,7 @@ for(const mode of ['parent','managed-child'])test('actual pinned SDK '+mode+' lo
     name:'source_'+i,description:'Published searchable source '+i,
     inputSchema:{type:'object',properties:{query:{type:'string'}},required:['query'],additionalProperties:false},
     outputSchema:{type:'object',properties:{status:{type:'string'}}}}]));
-  const config={model:'fixture',settings:{compaction:{enabled:false}},extensions:[],allowedSkills:[],contextFiles:[],
+  const config={model:'fixture',toolResultCwd:dir,settings:{compaction:{enabled:false}},extensions:[],allowedSkills:[],contextFiles:[],
     deadlineAt:Date.now()+10000,applicationPolicy:{allowed_tools:[...['agent_tool_search','agent_tool_load'],
     ...Object.keys(publications).slice(0,29)]},dataGateway:{onDemandTools:true,
     url:'http://127.0.0.1:'+server.address().port,grant:'task-only-fixture',taskId:'task-sdk',
@@ -134,6 +152,8 @@ for(const mode of ['parent','managed-child'])test('actual pinned SDK '+mode+' lo
     await session.bindExtensions({onError:error=>errors.push(error)});
     session.setActiveToolsByName(discovery.initialToolNames(config.applicationPolicy.allowed_tools));
     }
+    session.subscribe(event=>{if(event.type==='tool_execution_end'&&event.toolName==='data_gateway_source_0'&&!event.isError)
+      observations.push(host.rpcEvent(event));});
     await session.prompt('Read a published source.');
     assert.deepEqual(errors,[]);assert.equal(calls.length,1);assert.equal(calls[0].arguments.query,'current');
     assert.deepEqual(menus[0].map(t=>t.name),['agent_tool_search','agent_tool_load']);
@@ -145,6 +165,12 @@ for(const mode of ['parent','managed-child'])test('actual pinned SDK '+mode+' lo
     assert.ok(results.some(m=>m.toolName==='agent_tool_load'&&m.isError));
     assert.ok(results.some(m=>m.toolName==='data_gateway_source_0'&&m.isError));
     assert.equal(results.filter(m=>m.toolName==='data_gateway_source_0'&&!m.isError).length,1);
+    const result=results.find(m=>m.toolName==='data_gateway_source_0'&&!m.isError);
+    assert.ok(JSON.stringify(result.content).length<=6000,'The actual model history must not contain all data rows');
+    const reference=JSON.parse(result.content[0].text).full_result;
+    assert.ok(reference.path.startsWith(await realpath(dir)),'Use the selected private child/parent directory');
+    assert.equal(await readFile(reference.path,'utf8'),resultBody);
+    assert.equal(observations[0].result.content[0].text,resultBody,'The real SDK event restores exact gateway bytes for host verification');
   }finally{if(owned)await owned.close();else session?.dispose();await new Promise(resolve=>server.close(resolve));await rm(dir,{recursive:true,force:true});
     if(previousAgentDir===undefined)delete process.env.PI_CODING_AGENT_DIR;else process.env.PI_CODING_AGENT_DIR=previousAgentDir;}
 });

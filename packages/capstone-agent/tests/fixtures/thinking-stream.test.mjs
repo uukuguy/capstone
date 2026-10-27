@@ -8,6 +8,16 @@ import {pathToFileURL} from 'node:url';
 import {rpcEvent} from '../../src/capstone_agent/resources/general-sdk.mjs';
 import {configureModelRequestCapture} from '../../src/capstone_agent/resources/model-request-capture.mjs';
 
+test('failed response boundaries retain safe error classification without provider text',()=>{
+  const message={role:'assistant',stopReason:'error',errorMessage:'400 Input token length is too long; api_key=secret-canary',content:[]};
+  const frame=rpcEvent({type:'message_end',message});
+  assert.equal(frame.message.errorCode,'model_context_limit');
+  assert.equal(frame.message.errorStatus,400);
+  assert.doesNotMatch(JSON.stringify(frame),/secret-canary|api_key|Input token/);
+  const terminal=rpcEvent({type:'agent_end',messages:[message]});
+  assert.equal(terminal.messages[0].errorCode,'model_context_limit');
+});
+
 test('actual pinned SDK streams supplied thinking with reasoning false while capture stays redacted',async()=>{
   const ai=await import(pathToFileURL(resolve(import.meta.dirname,'../../../../.grid-agent/runtime/pi/source/packages/ai/dist/api/openai-completions.js')).href);
   const root=await mkdtemp(join(tmpdir(),'public-thinking-'));

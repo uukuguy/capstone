@@ -5,6 +5,13 @@ import ProcessCallTrace, { callTraceIssues } from './ProcessCallTrace'
 
 afterEach(cleanup)
 
+it('explains a classified model failure without exposing unknown error text',()=>{
+  render(<ProcessCallTrace models={[{id:'error',number:1,ms:100,stopReason:'error',errorCode:'model_context_limit',errorStatus:400},
+    {id:'unknown',number:2,ms:100,stopReason:'error',errorCode:'private-provider-text'}]} tools={[]} />)
+  expect(screen.getByText('上下文超限 · HTTP 400')).toBeVisible()
+  expect(screen.queryByText('private-provider-text')).toBeNull()
+})
+
 it('shows the actual shell action instead of its workspace prefix and retains the full command', () => {
   const operation = 'cd /var/lib/general-pi/tasks/private-workspace && python3 analyze_prices.py --monthly'
   render(<ProcessCallTrace models={[{id:'m',number:1,ms:100,toolCallIds:[],toolRequests:[{id:'t',name:'bash',operation}]}]} tools={[]} />)

@@ -66,7 +66,7 @@ def test_native_image_includes_every_published_shared_planning_resource():
     sources = [token for step in steps if step.startswith('COPY ')
                for token in shlex.split(step)[1:-1]]
     resources = ROOT / 'packages/capstone-agent/src/capstone_agent/resources'
-    selected = [*resources.glob('task-planning-policy-*.md'), *resources.glob('graph-work-policy-*.json'), resources / 'task-goal-state.mjs', resources / 'task-node-return.mjs', resources / 'research-context-window.mjs']
+    selected = [*resources.glob('task-planning-policy-*.md'), *resources.glob('graph-work-policy-*.json'), resources / 'task-goal-state.mjs', resources / 'task-node-return.mjs', resources / 'research-context-window.mjs', resources / 'tool-result-context.mjs']
     for resource in selected:
         assert any(fnmatchcase(resource.relative_to(ROOT).as_posix(), pattern)
                    for pattern in sources), resource.name

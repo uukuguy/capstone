@@ -1,5 +1,6 @@
 // The host supplies this task-bound relay and catalog. Upstream credentials
 // and endpoint selectors are never tool parameters or native task inputs.
+import {boundToolResult} from './tool-result-context.mjs';
 const publicErrors=new Set(['gateway_arguments_invalid','gateway_request_invalid',
   'gateway_tool_not_admitted','gateway_task_not_admitted','gateway_call_already_started',
   'gateway_publication_changed','gateway_authentication_failed','gateway_connection_failed',
@@ -9,7 +10,7 @@ const resourceErrors=new Set(['gateway_authentication_failed',
   'gateway_connection_failed','gateway_call_failed_no_retry','gateway_timeout','gateway_transport_failed','gateway_catalog_invalid',
   'gateway_catalog_unavailable','gateway_unavailable','gateway_task_not_admitted','unauthorized']);
 
-export function createDataGatewayTools(config,{fetchImpl=globalThis.fetch}={}) {
+export function createDataGatewayTools(config,{fetchImpl=globalThis.fetch,cwd=config.toolResultCwd}={}) {
   const gateway=config.dataGateway;
   if(!gateway)return [];
   let stopped;
@@ -49,7 +50,8 @@ export function createDataGatewayTools(config,{fetchImpl=globalThis.fetch}={}) {
           receipt.task_id!==gateway.taskId||receipt.tool_call_id!==callId||receipt.tool!==name||
           receipt.catalog_revision!==gateway.catalog.revision||
           receipt.tool_schema_sha256!==gateway.catalog.tool_hashes[name])throw new Error('gateway receipt identity changed');
-      return {content:[{type:'text',text:value.result_json}],details:receipt,isError:value.is_error===true};
+      return boundToolResult({content:[{type:'text',text:value.result_json}],details:receipt,isError:value.is_error===true},
+        {cwd,toolName:name,callId});
     }
   }));
 }

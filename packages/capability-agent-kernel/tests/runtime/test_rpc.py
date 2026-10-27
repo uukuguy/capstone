@@ -33,6 +33,19 @@ def test_native_response_usage_keeps_only_bounded_token_counts():
     assert 'private' not in json.dumps(result)
 
 
+def test_native_error_boundary_keeps_machine_code_and_status_without_error_text():
+    from capability_agent.runtime.step_events import project_runtime_action
+    event = {'type': 'message_end', 'message': {'role': 'assistant', 'stopReason': 'error',
+        'errorCode': 'model_context_limit', 'errorStatus': 400, 'errorMessage': 'private-provider-text', 'content': []}}
+    result = project_runtime_action(event)
+    assert result['error_code'] == 'model_context_limit'
+    assert result['error_status'] == 400
+    assert 'private-provider-text' not in json.dumps(result)
+    event['message'].update(errorCode='secret=private', errorStatus=True)
+    result = project_runtime_action(event)
+    assert 'error_code' not in result and 'error_status' not in result
+
+
 @dataclass(frozen=True)
 class _Workspace:
     root_path: Path

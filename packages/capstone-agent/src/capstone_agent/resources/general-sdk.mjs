@@ -8,6 +8,7 @@ import {createManagedSubagents} from './managed-subagents.mjs';
 import {createDataGatewayTools} from './general-data-gateway.mjs';
 import {createToolDiscovery,discoveryToolNames} from './general-tool-discovery.mjs';
 import {createTaskNodeReturn} from './task-node-return.mjs';
+import {restoreToolResult} from './tool-result-context.mjs';
 import {taskTurnGuidance} from './task-turn-guidance.mjs';
 import {createDiagnosisTools,diagnosisTools,diagnosisDigest,configureDiagnosisCorrectionGuard,watchDiagnosisValidation} from './systematic-diagnosis.mjs';
 
@@ -377,7 +378,7 @@ export function createGatewayToolDiscovery(config) {
   if(!Array.isArray(admittedNames)||discoveryToolNames.some(name=>!admittedNames.includes(name)))
     throw new Error('Application did not authorize task tool discovery');
   return createToolDiscovery({tools:createDataGatewayTools(config),publications:config.dataGateway.catalog.tools,
-    contractHashes:config.dataGateway.catalog.tool_hashes,admittedNames});
+    contractHashes:config.dataGateway.catalog.tool_hashes,admittedNames,cwd:config.toolResultCwd});
 }
 
 export function applicationToolOptions(config, nativeTools, research=()=>undefined, discovery=createGatewayToolDiscovery(config)) {
@@ -455,7 +456,7 @@ async function main() {
 // This projection changes transport only; the SDK keeps its full model context.
 function modelFailureCode(message) {
   const text = String(message ?? "").slice(0, 4096);
-  if (/context.{0,40}(length|limit|exceed)|too many tokens/i.test(text)) return "model_context_limit";
+  if (/context.{0,40}(length|limit|exceed)|too many tokens|input.{0,20}token.{0,30}(too long|exceed)|prompt.{0,20}(too long|exceed)/i.test(text)) return "model_context_limit";
   if (/429|rate.?limit/i.test(text)) return "model_rate_limit";
   if (/401|403|unauthoriz|invalid.{0,10}api.?key/i.test(text)) return "model_authentication";
   if (/content_filter|content.?policy|safety.{0,20}(block|reject)/i.test(text)) return "model_output_rejected";
@@ -465,6 +466,7 @@ function modelFailureCode(message) {
 }
 
 export function rpcEvent(event) {
+  if(event.type==='tool_execution_end')event={...event,result:restoreToolResult(event.result)};
   if (["turn_start", "turn_end", "message_start", "tool_execution_update"].includes(event.type)) {
     // The SDK keeps messages and tool observations in its model session.
     // The host needs the boundary, not another copy of those payloads.
@@ -472,8 +474,11 @@ export function rpcEvent(event) {
   }
   if (event.type === "message_end") {
     const message = event.message ?? {};
+    const status=String(message.errorMessage??'').slice(0,4096).match(/\b([45]\d\d)\b/);
     return {type: event.type, message: {role: message.role, usage: message.usage ?? {},
       stopReason: message.stopReason,
+      ...(message.stopReason==='error'?{errorCode:modelFailureCode(message.errorMessage),
+        ...(status?{errorStatus:Number(status[1])}:{})}:{}),
       content: (message.content ?? []).map(part => ({type: part.type}))}};
   }
   if (event.type === "tool_execution_end" && ["read", "bash", "edit", "write"].includes(event.toolName)) {
@@ -612,7 +617,7 @@ export async function createManagedChildSession(config, sdk, modelRuntime,
     if(discoveryToolNames.some(name=>!grants.includes(name)))throw new Error('Child tool discovery is not authorized by the application');
     childTools.push(...discoveryToolNames.filter(name=>!childTools.includes(name)));
   }
-  const childConfig = {...config, researchChannelPath:undefined,
+  const childConfig = {...config, researchChannelPath:undefined,toolResultCwd:cwd,
     diagnosisNamespace:graphBinding?.action?.id??'child-'+randomUUID(),
     researchRuntime:{...config.researchRuntime,isolatedTaskExecution:false},
     applicationPolicy: {...config.applicationPolicy, allowed_tools: childTools}};

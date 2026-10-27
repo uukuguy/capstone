@@ -23,6 +23,8 @@ export function projectProcessModelRequests(events: readonly EventEnvelope[], at
       // The host explicitly distinguishes text-only responses from tool requests.
       if(event.payload.response_kind==='text')pending.toolCallIds=[]
       if (event.payload.response_kind === 'error' || event.payload.response_kind === 'aborted') pending.stopReason = event.payload.response_kind
+      if(typeof event.payload.error_code==='string'&&/^[a-z][a-z0-9_]{0,127}$/.test(event.payload.error_code))pending.errorCode=event.payload.error_code
+      if(typeof event.payload.error_status==='number'&&Number.isInteger(event.payload.error_status)&&event.payload.error_status>=400&&event.payload.error_status<=599)pending.errorStatus=event.payload.error_status
       const elapsed = Date.parse(event.occurredAt) - Date.parse(pending.startedAt!)
       if (Number.isFinite(elapsed) && elapsed >= 0) {
         pending.finishedAt = event.occurredAt

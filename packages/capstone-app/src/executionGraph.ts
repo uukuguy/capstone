@@ -24,7 +24,7 @@ export type ExecutionGraphSnapshot = { schema: string; graph_ref: string; graph_
 export type GraphTool = { id: string; name: string; status: 'running' | 'completed' | 'failed'; startedAt?: string; finishedAt?: string; durationMs?: number; executionMs?: number; operation?: string; output?: string; actionId?: string; actionKind?: string; origin?: 'parent'; returnLimitations?: {count:number;notes:string[]} }
 export type GraphResponse = { number: number; ms: number; usage?: RecordValue; startedAt?: string; finishedAt?: string; toolCallIds?: string[]; stopReason?: string; responseText?: string; toolRequests?: { id: string; name: string; operation?: string }[] }
 export type GraphExecution = { action: GraphAction; node: GraphNode; tools: GraphTool[]; responses: GraphResponse[]; nativeStatus?: string; resultSummary?: string; startedAt?: string; finishedAt?: string; durationMs?: number; executionStartedAt?: string; executionFinishedAt?: string; executionIntervalMs?: number; modelResponseCount?: number; turnCount?: number }
-export type GraphParentResponse = { id: string; startedAt: string; finishedAt: string; ms: number; kind: string }
+export type GraphParentResponse = { id: string; startedAt: string; finishedAt: string; ms: number; kind: string; errorCode?:string; errorStatus?:number }
 export type ExecutionGraph = {
   owner: GraphOwner; taskId: string; current: ExecutionGraphSnapshot;
   checkpoints: { checkpoint: GraphCheckpoint; graph: ExecutionGraphSnapshot }[];
@@ -271,7 +271,9 @@ export function projectExecutionGraph(events: readonly EventEnvelope[], attemptI
       const start = starts.get(key), ms = elapsed(start?.occurredAt, event.occurredAt)
       starts.delete(key)
       if (start && ms !== undefined && enumValue(p.response_kind, ['tools', 'text', 'error'])) {
-        parentResponses.push({ id: event.eventId, startedAt: start.occurredAt, finishedAt: event.occurredAt, ms, kind: p.response_kind })
+        parentResponses.push({ id: event.eventId, startedAt: start.occurredAt, finishedAt: event.occurredAt, ms, kind: p.response_kind,
+          ...(typeof p.error_code==='string'&&/^[a-z][a-z0-9_]{0,127}$/.test(p.error_code)?{errorCode:p.error_code}:{}),
+          ...(typeof p.error_status==='number'&&Number.isInteger(p.error_status)&&p.error_status>=400&&p.error_status<=599?{errorStatus:p.error_status}:{}) })
       }
     } else if (p.phase === 'completed') starts.delete(key)
   }

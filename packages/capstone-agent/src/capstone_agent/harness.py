@@ -238,6 +238,11 @@ def normalize_runtime_event(
     payload: dict[str, object]
     if event_type == "runtime_action":
         payload = {key: event[key] for key in ("phase", "response_kind") if isinstance(event.get(key), str)}
+        if event.get('error_code') in {'model_context_limit', 'model_rate_limit', 'model_authentication',
+                                      'model_transport', 'model_output_invalid', 'model_output_rejected', 'model_turn_incomplete'}:
+            payload['error_code'] = event['error_code']
+        if type(event.get('error_status')) is int and 400 <= event['error_status'] <= 599:
+            payload['error_status'] = event['error_status']
         step = event.get("task_step")
         if isinstance(step, Mapping):
             payload["task_step"] = dict(step)
