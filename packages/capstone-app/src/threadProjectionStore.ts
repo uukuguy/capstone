@@ -362,8 +362,8 @@ export class ThreadProjectionStore {
       if (!this.eventSizes.has(event.eventSeq)) this.eventSizes.set(event.eventSeq, new TextEncoder().encode(JSON.stringify(event)).byteLength)
       bytes += this.eventSizes.get(event.eventSeq)!
     }
-    observeCapacity(this.eventLog.length,'event_buffer_count','history.trim')
-    observeCapacity(bytes,'event_buffer_bytes','history.trim')
+    // The server retains the complete ledger. This is a recoverable display
+    // window, so apply its eviction policy before checking retained capacity.
     let trimmed = false
     while (this.eventLog.length > 1 && (this.eventLog.length > applicationCapacity('event_buffer_count') || bytes > applicationCapacity('event_buffer_bytes'))) {
       // Diagnostic token deltas are retained by the server. They must not
@@ -375,6 +375,8 @@ export class ThreadProjectionStore {
       this.eventSizes.delete(event.eventSeq)
       trimmed ||= event.visibility === 'public'
     }
+    observeCapacity(this.eventLog.length,'event_buffer_count','history.retained')
+    observeCapacity(bytes,'event_buffer_bytes','history.retained')
     if (trimmed) {
       if (keepLatest) this.olderHistoryCursor = this.eventLog[0]?.eventSeq ?? null
       this.current = { ...this.current, hasOlderHistory: keepLatest || this.current.hasOlderHistory, historyAtLatest: keepLatest }

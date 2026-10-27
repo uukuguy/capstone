@@ -1,5 +1,5 @@
 import {afterEach} from 'vitest'
-import {initializeApplicationCapacity,CapacityError} from './applicationCapacity'
+import {initializeApplicationCapacity} from './applicationCapacity'
 import { describe, expect, it, vi } from 'vitest'
 import { CapstoneThreadClient, type ThreadCommand, type ThreadTransport } from './threadClient'
 import { createFixtureTransport, instructionOrdinal, ThreadProjectionStore } from './threadProjectionStore'
@@ -398,7 +398,7 @@ it('bounds a continuing stream and treats clean EOF as a reconnect without chang
   expect(store.state.hasOlderHistory).toBe(true)
   expect(store.state.connection).toBe('reconnecting')
 })
-it('hard-interrupts a debug stream at the buffer bound without trimming or consuming later events',async()=>{
+it('trims the recoverable history window in debug mode and consumes later events',async()=>{
   initializeApplicationCapacity({schema:'capstone-capacity-profile/1',mode:'debug',limits:{event_buffer_count:2}})
   let emitted=0
   const store=new ThreadProjectionStore(new CapstoneThreadClient({
@@ -411,11 +411,25 @@ it('hard-interrupts a debug stream at the buffer bound without trimming or consu
     },
   }))
   await store.load('thr_demo_39')
-  await expect(store.consumeEvents(new AbortController().signal)).rejects.toMatchObject({name:'CapacityError',dimension:'event_buffer_count',actual:3,effective:2,mode:'debug',fatal:true,location:'history.trim'})
-  expect(emitted).toBe(3)
-  expect(store.publicEvents.map(event=>event.eventSeq)).toEqual([1,2,3])
-  expect(store.state.connection).not.toBe('reconnecting')
-  expect(CapacityError.prototype).toBeInstanceOf(Error)
+  await expect(store.consumeEvents(new AbortController().signal)).rejects.toThrow('实时连接已关闭')
+  expect(emitted).toBe(4)
+  expect(store.publicEvents.map(event=>event.eventSeq)).toEqual([3,4])
+  expect(store.state.eventSeq).toBe(4)
+  expect(store.state.hasOlderHistory).toBe(true)
+  expect(store.state.connection).toBe('reconnecting')
+})
+it('trims by retained history bytes in debug mode without dropping the latest event cursor',async()=>{
+  const event=(seq:number)=>({eventId:`evt_${seq}`,eventSeq:seq,eventType:'assistant_text_delta',eventVersion:1,
+    threadId:'thr_demo_39',runId:'run_001',occurredAt:'2026-10-06T00:00:00Z',visibility:'public' as const,payload:{text:'x'.repeat(150)}})
+  const size=new TextEncoder().encode(JSON.stringify(event(1))).byteLength
+  initializeApplicationCapacity({schema:'capstone-capacity-profile/1',mode:'debug',limits:{event_buffer_count:10,event_buffer_bytes:size*2+4}})
+  const store=new ThreadProjectionStore(new CapstoneThreadClient({...createFixtureTransport(idleFixture),
+    streamEvents:async function*(){for(let seq=1;seq<=4;seq++)yield event(seq)}}))
+  await store.load('thr_demo_39')
+  await expect(store.consumeEvents(new AbortController().signal)).rejects.toThrow('实时连接已关闭')
+  expect(store.publicEvents.map(item=>item.eventSeq)).toEqual([3,4])
+  expect(store.state.eventSeq).toBe(4)
+  expect(store.state.hasOlderHistory).toBe(true)
 })
 
 const historicalFixture = {

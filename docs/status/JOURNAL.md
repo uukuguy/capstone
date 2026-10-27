@@ -6008,3 +6008,5 @@ Reproduced protected research acknowledgment waiting behind an entire public-eve
 - 2026-10-27: bf7a40ec records verified control-overhead reduction and preserved open acceptance work;doctor and diff checks passed.
 - 2026-10-27: Diagnosed summer-PPT failure attempt_4abd327e421a84db:40 parent requests, repeated100k-token context, three final model errors; exact provider reason unavailable.
 - 2026-10-27: Bounded large gateway/schema results with private files and exact host restoration;safe error metadata.21 JS,115 backend,148 App tests pass.
+- 2026-10-27: 1d40a296 bounds gateway model context and preserves full observations;records safe model errors to diagnose incomplete turns.
+- 2026-10-27: Reproduced debug history4097/4096 rejection before eviction;trim retained window first.58 App store tests and TypeScript pass.
