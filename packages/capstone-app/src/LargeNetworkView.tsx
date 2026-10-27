@@ -9,14 +9,15 @@ import {networkSymbol} from './networkSymbols'
 import type {ScenePresentation} from './networkScenePresentation'
 
 const FULL:SceneCamera={x:0,y:0,width:1000,height:600}
-export type LargeNetworkViewProps={scene:NetworkScene;title?:string;focusIds?:readonly string[];focusKey?:string;focusMarkersOnly?:boolean;taskLayerReady?:boolean;storageKey?:string;viewKey?:string;onSelect?:(item:SceneSelection)=>void;onActivate?:(item:SceneSelection)=>void;canActivate?:(item:SceneSelection)=>boolean;onReady?:(stats:SceneStats)=>void;onReturnCurrentTask?:()=>void;returnCurrentTaskLabel?:string;returnTaskRequest?:number}
-export default function LargeNetworkView({scene,title='电网拓扑',focusIds=[],focusKey,focusMarkersOnly=false,taskLayerReady=true,storageKey,viewKey,onSelect,onActivate,canActivate,onReady,onReturnCurrentTask,returnCurrentTaskLabel='回到当前任务',returnTaskRequest}:LargeNetworkViewProps){
+export type LargeNetworkViewProps={scene:NetworkScene;title?:string;focusIds?:readonly string[];focusKey?:string;focusMarkersOnly?:boolean;taskLayerReady?:boolean;storageKey?:string;viewKey?:string;onSelect?:(item:SceneSelection)=>void;onActivate?:(item:SceneSelection)=>void;canActivate?:(item:SceneSelection)=>boolean;onReady?:(stats:SceneStats)=>void;onFirstFrame?:()=>void;onReturnCurrentTask?:()=>void;returnCurrentTaskLabel?:string;returnTaskRequest?:number}
+export default function LargeNetworkView({scene,title='电网拓扑',focusIds=[],focusKey,focusMarkersOnly=false,taskLayerReady=true,storageKey,viewKey,onSelect,onActivate,canActivate,onReady,onFirstFrame,onReturnCurrentTask,returnCurrentTaskLabel='回到当前任务',returnTaskRequest}:LargeNetworkViewProps){
   const canvas=useRef<HTMLCanvasElement>(null),labels=useRef<HTMLDivElement>(null),worker=useRef<Worker|null>(null),renderer=useRef<ReturnType<typeof createNetworkRenderer>|null>(null)
   const camera=useRef<SceneCamera>(readNetworkCamera(storageKey,viewKey)||FULL),request=useRef(0),pendingView=useRef(false),dirtyView=useRef(false),ready=useRef(false),frame=useRef<SceneFrame|null>(null)
   const fullBounds=useRef<SceneCamera>(FULL)
   const pickedId=useRef<string|undefined>(undefined)
   const drawRequest=useRef(0),persistTimer=useRef<ReturnType<typeof setTimeout>|undefined>(undefined),drag=useRef<{x:number;y:number;camera:SceneCamera;moved:boolean}|null>(null)
   const activationRequest=useRef(0)
+  const firstFrameCallback=useRef(onFirstFrame);firstFrameCallback.current=onFirstFrame
   const focusIdentity=focusKey??focusIds.join('\u0000'),lastAutoFocus=useRef<string|undefined>(undefined),consumedReturn=useRef<number|undefined>(undefined)
   const lastAutoView=useRef<string|undefined>(undefined),restoredInitialCamera=useRef(Boolean(readNetworkCamera(storageKey,viewKey)))
   const callbacks=useRef({onSelect,onActivate,canActivate,onReady,focusIds,focusMarkersOnly,taskLayerReady,returnTaskRequest,focusIdentity});callbacks.current={onSelect,onActivate,canActivate,onReady,focusIds,focusMarkersOnly,taskLayerReady,returnTaskRequest,focusIdentity}
@@ -68,7 +69,7 @@ export default function LargeNetworkView({scene,title='电网拓扑',focusIds=[]
     consumedReturn.current=current.returnTaskRequest;focus();return true
   }
   useEffect(()=>{
-    let alive=true;setError('');setSelected(undefined);setResults([]);setStats(undefined);setRelated(undefined);setExpandedBundles([])
+    let alive=true,painted=false;setError('');setSelected(undefined);setResults([]);setStats(undefined);setRelated(undefined);setExpandedBundles([])
     camera.current=readNetworkCamera(storageKey,viewKey)||FULL;ready.current=false;pendingView.current=false;frame.current=null;pickedId.current=undefined
     try{
       if(!canvas.current)throw new Error('电网画布暂不可用')
@@ -91,6 +92,7 @@ export default function LargeNetworkView({scene,title='电网拓扑',focusIds=[]
           pendingView.current=false;frame.current=data;renderer.current?.upload(data);renderer.current?.draw(camera.current)
           if(canvas.current){canvas.current.dataset.drawnNodes=String(data.drawnNodes);canvas.current.dataset.drawnEdges=String(data.drawnEdges)}
           if(labels.current){labels.current.replaceChildren(...data.labels.map((label:SceneFrame['labels'][number])=>{const span=document.createElement('span');span.textContent=label.label;return span}));positionLabels()}
+          if(!painted){painted=true;firstFrameCallback.current?.()}
           setStats(previous=>previous?{...previous,drawnNodes:data.drawnNodes,drawnEdges:data.drawnEdges,representedEdges:data.representedEdges,bundledGroups:data.bundledGroups,collapsedStations:data.collapsedStations,limited:data.limited}:previous)
           if(dirtyView.current)requestView()
         }else if(data.type==='selected'){

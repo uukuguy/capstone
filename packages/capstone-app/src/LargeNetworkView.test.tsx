@@ -15,6 +15,21 @@ class TestWorker {
 vi.stubGlobal('Worker',TestWorker)
 afterEach(()=>{cleanup();TestWorker.instances=[];vi.clearAllMocks();vi.useRealTimers()})
 const scene:NetworkScene={ref:'source-view',coordinateSystem:'schematic',nodes:[{id:'station',label:'Source station',kind:'station',details:[{label:'Origin',value:'Source record'}]}],edges:[]}
+it('reports the first drawn frame once per scene, after drawing rather than worker readiness',()=>{
+  const painted=vi.fn(()=>expect(renderGL.draw).toHaveBeenCalled())
+  const ui=render(<LargeNetworkView scene={scene} onFirstFrame={painted}/>)
+  const first=TestWorker.instances[0]
+  first.emit({type:'ready',stats:{nodes:1,edges:0,indexMs:1,bufferBytes:8}})
+  expect(painted).not.toHaveBeenCalled()
+  const frame={type:'frame',request:1,lines:new Float32Array(),points:new Float32Array(),labels:[],drawnNodes:1,drawnEdges:0,limited:false}
+  first.emit(frame);first.emit(frame)
+  expect(painted).toHaveBeenCalledTimes(1)
+  ui.rerender(<LargeNetworkView scene={{...scene,ref:'next'}} onFirstFrame={painted}/>)
+  first.emit(frame)
+  expect(painted).toHaveBeenCalledTimes(1)
+  TestWorker.instances[1].emit(frame)
+  expect(painted).toHaveBeenCalledTimes(2)
+})
 it('uses a worker with typed scene identity and exposes bounded accessible picked details',()=>{
   const onSelect=vi.fn()
   render(<LargeNetworkView scene={scene} onSelect={onSelect}/>)
