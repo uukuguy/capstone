@@ -6023,3 +6023,5 @@ Reproduced protected research acknowledgment waiting behind an entire public-eve
 - 2026-10-28 00:04: Same-task comparison: lightweight completed383.658s/65responses/14slides; DR started; admitted snapshots differ only by mode.
 - 2026-10-28 00:30: DR completed843.856s/157responses/15slides; comparison finds broader coverage, semantic errors, fast automatic handoff; 514-event trace saved.
 - 2026-10-28: 5981a4e6 records both real summer trials and complete call paths; no stable overall DR advantage demonstrated.
+- 2026-10-28: df12507d simplifies toolbar, binds instruction attachment cards and retains pending DR choices; 265App tests pass.
+- 2026-10-28 01:01: Vivaldi upload/refresh/instruction isolation and toggle states verified; canonical rebuild and scoped cleanup passed.
