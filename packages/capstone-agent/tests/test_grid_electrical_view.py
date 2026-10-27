@@ -160,6 +160,51 @@ def test_discovered_provincial_roots_and_v2_capabilities_are_preserved_exactly()
     assert result['electrical_views']['view_schemas'] == ['gateway-electrical-view/1', V2]
 
 
+def test_source_grid_catalog_retains_only_the_published_human_name_without_extra_lookup():
+    from capstone_agent.grid_electrical_view import ElectricalViewProvider
+    gateway = v2_gateway()
+    source_model = {'model_ref': 'opaque:returned-grid', 'name': 'Published provincial grid',
+        'scope': {'source_instance': 'source-one', 'object_type': 'grid', 'object_id': 'returned-id'},
+        'Authorization': 'secret'}
+    gateway.data = {'count': 0, 'scopes': [], 'electrical_views': {'schema': V2,
+        'source_grid_models': [source_model]}}
+    result = asyncio.run(ElectricalViewProvider(gateway).models())
+    projected = result['electrical_views']['source_grid_models'][0]
+    assert projected['name'] == source_model['name']
+    assert projected['model_ref'] == 'opaque:returned-grid'
+    assert 'Authorization' not in projected
+    assert gateway.calls == [('data_gateway_discover_network_models', {'detail': False})]
+
+
+def test_manifest_and_descriptor_retain_published_name_without_deriving_from_model_identity():
+    from capstone_agent.grid_electrical_view import checked_manifest, electrical_descriptor, checked_electrical_descriptor
+    value = v2_manifest(name='Published provincial grid')
+    assert checked_manifest(value)['name'] == value['name']
+    descriptor = electrical_descriptor(value)
+    assert descriptor['name'] == value['name']
+    assert checked_electrical_descriptor(descriptor) == descriptor
+    assert 'name' not in checked_manifest(manifest())
+    assert 'name' not in electrical_descriptor(manifest())
+
+
+@pytest.mark.parametrize('name', ['', None, 7, {'name': 'nested'}, 'bad\nname', 'x' * 2049, '   ', 'bad\x7fname'],
+    ids=['empty', 'null', 'number', 'nested', 'control', 'overlong', 'whitespace', 'delete-control'])
+def test_optional_published_names_are_bounded_scalars_in_catalog_manifest_and_descriptor(name):
+    from capstone_agent.grid_electrical_view import ElectricalViewProvider, ElectricalViewError, checked_manifest, electrical_descriptor, checked_electrical_descriptor
+    gateway = v2_gateway()
+    gateway.data = {'count': 0, 'scopes': [], 'electrical_views': {'schema': V2,
+        'source_grid_models': [{'model_ref': 'opaque:returned-grid', 'name': name}]}}
+    with pytest.raises(ElectricalViewError):
+        asyncio.run(ElectricalViewProvider(gateway).models())
+    with pytest.raises(ElectricalViewError):
+        checked_manifest(v2_manifest(name=name))
+    descriptor = electrical_descriptor(manifest())
+    descriptor['name'] = name
+    with pytest.raises(ElectricalViewError):
+        checked_electrical_descriptor(descriptor)
+    assert electrical_descriptor(v2_manifest(name=name)) is None
+
+
 @pytest.mark.parametrize('field', ['targets', 'streams', 'summary_semantics'])
 def test_v2_capability_projection_rejects_nested_private_metadata(field):
     from capstone_agent.grid_electrical_view import ElectricalViewProvider, ElectricalViewError

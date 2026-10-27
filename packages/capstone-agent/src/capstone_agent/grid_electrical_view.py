@@ -69,6 +69,13 @@ def _text(value, limit=2048):
     return value
 
 
+def _display_name(value):
+    name = _text(value)
+    if not name.strip() or '\x7f' in name:
+        _invalid()
+    return name
+
+
 def _count(value):
     if type(value) is not int or not 0 <= value <= 2**53 - 1:
         _invalid()
@@ -261,7 +268,9 @@ def checked_manifest(value):
         streams[stream] = {'total_count': total, 'read': expected}
     result = _pick(value, ('schema', 'state', *IDENTITY, 'view_ref', 'representation', 'target', 'artifact_ref',
                            'frozen_at', 'expires_at', 'issue_count', 'readiness', 'readiness_scope',
-                           'default_stream', 'closure', 'electrical_equivalence_performed'))
+                           'default_stream', 'closure', 'electrical_equivalence_performed', 'name'))
+    if 'name' in result:
+        _display_name(result['name'])
     result['streams'] = streams
     if 'default_stream' in result and result['default_stream'] not in streams:
         _invalid()
@@ -305,11 +314,13 @@ def checked_manifest(value):
 
 def checked_electrical_descriptor(value):
     fields = {'schema', 'source_id', *IDENTITY, 'view_ref', 'representation', 'target', 'artifact_ref'}
-    optional = {'view_schema', 'selection_profile', 'boundary_policy', 'parent_view_ref'}
+    optional = {'view_schema', 'selection_profile', 'boundary_policy', 'parent_view_ref', 'name'}
     if (not isinstance(value, dict) or not fields <= set(value) or set(value) - fields - optional or
         value['schema'] != 'capstone-electrical-view-request/1' or value['source_id'] != 'data-gateway'):
         _invalid()
     _bounded(value, REQUEST_BYTES)
+    if 'name' in value:
+        _display_name(value['name'])
     for key in (*IDENTITY, 'view_ref'):
         _text(value[key])
     for key in ('target', 'artifact_ref'):
@@ -349,6 +360,8 @@ def electrical_descriptor(data, open_arguments=None):
             if arguments.get(key) is not None and arguments[key] != value.get(field):
                 _invalid()
         retained = {}
+        if 'name' in value:
+            retained['name'] = value['name']
         if value['schema'] == SCHEMA_V2 or arguments.get('view_schema') is not None:
             retained['view_schema'] = value['schema']
         if value.get('target') is not None:
@@ -578,8 +591,10 @@ class ElectricalViewProvider:
             provincial = []
             seen_models = set()
             for model in models:
-                projected_model = _pick(model, ('model_ref', 'readiness'))
+                projected_model = _pick(model, ('model_ref', 'readiness', 'name'))
                 _text(projected_model.get('model_ref'))
+                if 'name' in projected_model:
+                    _display_name(projected_model['name'])
                 if 'readiness' in projected_model:
                     _text(projected_model['readiness'])
                 if projected_model['model_ref'] in seen_models:
