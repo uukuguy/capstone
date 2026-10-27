@@ -1253,13 +1253,16 @@ export function createEnterpriseGraphController({config,readResearch,commitResea
       if(!snapshot&&!pending&&!closing&&!jobs.size)return null;
       const control=()=>snapshot?.nodes.some(node=>{const current=snapshot.node_states[node.id];return ['executed','recorded','assessing'].includes(current.phase)||
         node.execution==='parent'&&current.phase==='ready';});
-      if(!pending&&!closing&&!control()&&jobs.size){
+      // Checkpoint and scheduling pulses do not necessarily deliver a result.
+      // Re-check the predicate before spending another planner model turn.
+      while(!delivery&&!pending&&!closing&&!control()&&jobs.size){
         await new Promise((resolve,reject)=>{
           const done=()=>{signal?.removeEventListener('abort',abort);waiters.delete(done);resolve();};
           const abort=()=>{waiters.delete(done);reject(signal.reason??new DOMException('Aborted','AbortError'));};
           signal?.throwIfAborted();waiters.add(done);signal?.addEventListener('abort',abort,{once:true});
         });await recoverPending({signal});
       }
+      if(delivery){if(goalDriven&&delivery.outcome==='failure')fail('task_goal_blocked','The whole goal is blocked; partial results are retained, not completed delivery.');return null;}
       const state=await this.readState({compact:true,signal});
       if(state.update_pending)fail('research_update_not_confirmed','A scheduled checkpoint is still unconfirmed after host recovery. Retain its exact request; native work was not repeated.');
       if(config.runtimeLimitMode==='debug'&&config.researchRuntime?.lightweightTaskNodes!==true){

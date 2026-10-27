@@ -1298,6 +1298,15 @@ test('continuation waits for one owned durable job rather than returning a polli
   await f.settle('A');assert.ok((await wait).prompt.includes('obs-A'));assert.equal((await f.controller.readState()).graph.nodes[1].phase,'executing');
   await f.controller.close({reason:'Done'});
 });
+test('checkpoint wakes do not resume the planner while only children remain actionable',async()=>{
+  const f=fixture();await f.controller.execute('plan','plan',plan([node('A')]));let resumed=false;
+  const wait=f.controller.continuationState().then(value=>{resumed=true;return value;});await tick();
+  const added=await f.controller.execute('revise','independent',{nodes:[node('A'),node('B')],reason:'Independent work',rerun:[]});
+  assert.equal(added.details.ok,true,JSON.stringify(added));await tick();
+  assert.equal(resumed,false,'a checkpoint pulse is not a settled child result');
+  await f.settle('A');assert.ok((await wait).prompt.includes('obs-A'));
+  await f.controller.close({reason:'Done'});
+});
 test('failed parent native work cannot be recorded completed',async()=>{
   const f=fixture();await f.controller.execute('plan','plan',plan([node('P',{execution:'parent'})]));await f.controller.execute('start','start',{step_id:'P'});
   const token=await f.controller.beginTool({toolCallId:'bad-read',toolName:'read'});f.controller.endTool(token,undefined,new Error('Actual read failed'));
