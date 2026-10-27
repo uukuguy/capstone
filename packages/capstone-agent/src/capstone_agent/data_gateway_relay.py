@@ -45,6 +45,13 @@ def research_gateway_tools(native_context, publication):
     return set(publication['catalog']['tools'])
 
 
+def gateway_discovery_tools(native_context, publication, *, gateway_available):
+    """The SDK and receipt validator share the same task-scoped discovery grant."""
+    admitted = research_gateway_tools(native_context, publication).intersection(
+        native_context.get('policy', {}).get('allowed_tools', ())) if native_context else set()
+    return {'agent_tool_search', 'agent_tool_load'} if gateway_available and admitted else set()
+
+
 class DataGatewayAccess:
     def __init__(self, client, catalog):
         self.client, self.catalog = client, deepcopy(catalog)

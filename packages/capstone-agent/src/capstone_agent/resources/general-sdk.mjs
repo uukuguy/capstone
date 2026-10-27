@@ -9,6 +9,7 @@ import {createDataGatewayTools} from './general-data-gateway.mjs';
 import {createToolDiscovery,discoveryToolNames} from './general-tool-discovery.mjs';
 import {createTaskNodeReturn} from './task-node-return.mjs';
 import {restoreToolResult} from './tool-result-context.mjs';
+import {configureCommittedDelivery} from './committed-delivery.mjs';
 import {taskTurnGuidance} from './task-turn-guidance.mjs';
 import {createDiagnosisTools,diagnosisTools,diagnosisDigest,configureDiagnosisCorrectionGuard,watchDiagnosisValidation} from './systematic-diagnosis.mjs';
 
@@ -47,7 +48,7 @@ const organizationEnginePolicy='You are the task organization engine. Retain the
   'Do not make exhaustive profiling, all downstream calculations or a transformed master dataset a default prerequisite. '+
   'Require intermediate files only for a concrete consumer need. Do not prescribe substitute measurements before reading the source definitions. '+
   'Accept a sufficient result, review the unresolved whole goal and then add the justified task or batch. '+
-  'For a returned lightweight task, use record with its exact proposal_ref and actual findings. Follow the published record contract: when the host settles nodes automatically, do not request a separate node review or add assessment to approve the work. Checks and ordinary analytical problems remain diagnostics, not rejection or redo gates. '+
+  'Validated advisory task returns are registered and settled automatically. Use current results directly; use record only for an unresolved return with its exact proposal_ref and supported findings. Do not request a separate node review or add assessment to approve automatically settled work. Checks and ordinary analytical problems remain diagnostics, not rejection or redo gates. '+
   'Ordinary tool errors, incomplete checks, missing optional inputs and uncertain analysis are local limitations, not reasons to abort the whole instruction. Preserve useful returns, continue unaffected work and deliver available findings with the remaining gaps. Do not prolong repairs to guarantee analytical correctness. Only an unsafe system state such as lost ownership, unauthorized access or unconfirmed required persistence prevents safe continuation. User cancellation is respected. '+
   'Each user instruction is one research turn in an ongoing conversation; the user judges whether its analysis meets their needs. '+
   'Deliver useful findings with their actual scope, uncertainty and limitations, then allow follow-up corrections. '+
@@ -546,6 +547,8 @@ export async function runSettledPrompt(session, input, skillName, emit, continua
         throw failure;
       }
       completedMessages.push(...terminal.messages);
+      const delivered=control.delivery?.();
+      if(delivered){terminal={...terminal,committed_delivery:delivered};break;}
       if (terminal.messages.some(message => ['error','aborted'].includes(message.stopReason))) break;
       const followUp = await continuation?.();
       if (!followUp) break;
@@ -1002,7 +1005,7 @@ export function createGraphNodeDispatcher(config,sdk,modelRuntime,{skills,contex
       node.instruction+'\nAccepted research questions: '+JSON.stringify(node.questions)+'\nExpected results: '+JSON.stringify(node.expected_outputs))+
       '\n'+inputPrompt+
       '\nYour private output directory: '+cwd+'. Use only the explicit input handles and admitted source manifest. '+
-      'Write saved outputs only here. Follow the graph product and completion rules. Native return is only a proposal; the parent model records and assesses it.'+
+      'Write saved outputs only here. Follow the graph product and completion rules. Native return is a producer statement, not independent verification. The host registers valid advisory returns automatically; do not request another parent approval.'+
       (work_envelope?'\nWork mode: usable draft within this shared absolute task window. Produce only this node contract and reusable slots. Produce a full report only when this node explicitly owns that deliverable. Avoid cosmetic plotting loops, new questions or repeated setup already supplied in inputs. Save useful partial work and honest not_run/failed checks with limitations before the declared child deadline.':'');
     checkCapacity(config.runtimeLimits,'input_text_chars',Array.from(prompt).length,'characters','graph_child');
     emit({type:'enterprise_graph_child_started',...base});
@@ -1157,7 +1160,7 @@ export function createGraphNodeDispatcher(config,sdk,modelRuntime,{skills,contex
     const output=(result?.responseText??'')+(retainedFindings?'\nReturned research claims; not user acceptance or Authority evidence: '+retainedFindings:'')+
       (limitation?'\n'+limitation:'');
     emit({type:'enterprise_graph_child_finished',...base,status,
-      result_summary:'Native child returned '+status+'. The parent must record and assess its result.'+(limitation?' '+limitation:''),
+      result_summary:'Native child returned '+status+(config.researchRuntime.nodeReviewMode==='advisory'?'. The host registers validated returns automatically and continues ready work.':'. The parent must record and assess its result.')+(limitation?' '+limitation:''),
       ...(result?{usage:result.usage,model_responses:result.modelResponses,turns:result.turns}:{})});
     if(capacityFailure&&!capacity)throw capacityFailure;
     return {status,receipts,products:inspected.products,output,...(persistence?{persistence}:{}),...(handoff?{handoff}:{}),...(handoff_error?{handoff_error}:{}),
@@ -1170,7 +1173,7 @@ export function createGraphNodeDispatcher(config,sdk,modelRuntime,{skills,contex
 export async function runManagedSession(config, sdk, suppliedModelRuntime) {
   config={...config,runtimeLimits:resolveLimits(config.runtimeLimits,{mode:config.runtimeLimitMode})};
   const discovery=createGatewayToolDiscovery(config);
-  let researchController,dispatchSubtasks,dispatchGraphNode,graphContext,graphGuard,diagnosisCorrectionGuard;
+  let researchController,dispatchSubtasks,dispatchGraphNode,graphContext,graphGuard,diagnosisCorrectionGuard,committedDelivery;
   const extensionFactories = [pi=>{diagnosisCorrectionGuard=configureDiagnosisCorrectionGuard(pi,config);}];
   if(discovery)extensionFactories.push(pi=>discovery.configure(pi));
   const managedResearch = config.researchRuntime?.enabled === true && Boolean(config.researchChannelPath);
@@ -1237,6 +1240,7 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
             return graphContext.freeze({action,checkpoint,selection:{products}},control);
           }});
         graphGuard=configureGraphParentContext(pi,config,researchController);
+        if(config.researchRuntime.nodeReviewMode==='advisory')committedDelivery=configureCommittedDelivery(pi,researchController);
       }else researchController = createEnterpriseResearchController({config,...client,
         dispatchSubtasks:(...args)=>dispatchSubtasks(...args),
         onProgress:event=>process.stdout.write(JSON.stringify(event)+'\n'),
@@ -1369,7 +1373,7 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
       await runSettledPrompt(session, config.input, config.skillName,
         event => process.stdout.write(JSON.stringify(event) + "\n"),
         researchController ? () => researchController.continuationState() : undefined,
-        {failure:()=>diagnosisCorrectionGuard?.failure()??graphGuard?.failure()});
+        {failure:()=>diagnosisCorrectionGuard?.failure()??graphGuard?.failure(),delivery:()=>committedDelivery?.delivery()});
       break;
     }
     lines.close();

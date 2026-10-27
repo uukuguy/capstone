@@ -20,6 +20,7 @@ import {reduceEnterpriseGraph,projectEnterpriseGraph,graphAction,resolveEnterpri
 import {createTaskGoal,reviewTaskGoal,validateTaskGoalFinish,taskRequirementSchema,taskGoalReviewSchema} from './task-goal-state.mjs';
 import {runtimeLimits as resolveRuntimeLimits,checkCapacity,CapacityExceeded} from './runtime-limits.mjs';
 import {taskTurnGuidance} from './task-turn-guidance.mjs';
+import {finalizeCommittedDelivery} from './committed-delivery.mjs';
 
 export const GRAPH_CHECKPOINT_SCHEMA='capstone-enterprise-graph-checkpoint/1';
 const operations=['plan','start','record','assess','revise','resolve'];
@@ -1259,7 +1260,10 @@ export function createEnterpriseGraphController({config,readResearch,commitResea
       }
       pi.registerTool({name:'agent_research_finish',label:'Finish research',parameters:finishParameters,
         description:(goalDriven?(advisoryReviews?'Prefer one delivery call: include goal_review with your actual complete/limited/blocked decision, requirement coverage and summary together with delivery fields. No preceding assess call is needed. Alternatively use an exact existing goal_review_ref; never supply both. ':'Requires exact goal_review_ref from a current complete or limited whole-goal assessment. ')+ 'A continue decision forbids finish: append the next justified tasks. A limited decision preserves unmet requirements and needs explicit limitations and an actual retained result. A blocked goal may close only as failure. A performance estimate is not a hard deadline. ':'')+'Explicitly close delivery. Before closing, '+(advisoryReviews?'use automatically registered contributing results; recover only unresolved returns with record, with no separate node assessment. ':'record and assess every node whose output should contribute, including settled children. ')+'Host drain/cancellation settles jobs but does not record their outputs. Select exact current assessed result refs and their inspected artifact refs. Use success only when all current nodes succeeded with known native outcomes; limited or failure remains valid with explicit limitations. Once finish commits, later record/assess calls are rejected. Node success alone is not task delivery.',
-        execute:(callId,payload,signal)=>finish(callId,payload,{signal})});
+        execute:async(callId,payload,signal)=>{
+          const result=await finish(callId,payload,{signal});
+          return advisoryReviews?finalizeCommittedDelivery(result):result;
+        }});
     },
     async beginTool({toolCallId,toolName,signal}){
       signal=admissionSignal(signal);await waitFor(load(),signal);

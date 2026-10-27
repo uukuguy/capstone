@@ -28,7 +28,7 @@ ALL_ENTERPRISE_RESEARCH_TOOLS = tuple(dict.fromkeys((*RESEARCH_TOOLS, *CYCLE_CON
 def research_tools_for_profile(profile_id: str, version: str) -> tuple[str, ...]:
     if profile_id != 'enterprise-research':
         return ()
-    if version in {'1.10.0', '1.11.0', '1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0', '1.19.0'}:
+    if version in {'1.10.0', '1.11.0', '1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0', '1.19.0', '1.20.0'}:
         return (*(name for name in RESEARCH_TOOLS if name != 'agent_research_update'), *GRAPH_CONTROL_TOOLS)
     if version == '1.1.0':
         return ENTERPRISE_RESEARCH_TOOLS

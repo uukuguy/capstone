@@ -115,6 +115,7 @@ def resolve_native_profile(session_type: str | None, version: str | None = None,
     registry.register('enterprise-research', '1.17.0', lambda: build_governed_research_profile('1.17.0'))
     registry.register('enterprise-research', '1.18.0', lambda: build_governed_research_profile('1.18.0'))
     registry.register('enterprise-research', '1.19.0', lambda: build_governed_research_profile('1.19.0'))
+    registry.register('enterprise-research', '1.20.0', lambda: build_governed_research_profile('1.20.0'))
     registry.register('general-chat', '1.0.0', build_general_chat_profile)
     return registry.resolve(selected, version or '1.0.0')
 

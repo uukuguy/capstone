@@ -322,6 +322,9 @@ class GeneralPiHost:
             and self.capability.get('systematic_diagnosis') == DIAGNOSIS_POLICY else set())
         discovery_sources = ({'agent_tool_search', 'agent_tool_load'}.intersection(native['policy']['allowed_tools'])
             if native is not None else set())
+        from .data_gateway_relay import gateway_discovery_tools
+        discovery_sources.update(gateway_discovery_tools(native, self.capability.get('data_gateway', {}),
+            gateway_available=getattr(self, 'gateway', None) is not None))
         def cancelled():
             return record['cancel'].is_set() or time.monotonic() - started >= request.timeout_seconds
         def publish(payload):
@@ -945,8 +948,10 @@ class NativeTaskRunner:
                 gateway_tools = research_gateway_tools(native, self.gateway.publication() if self.gateway else {})
                 admitted_gateway = gateway_tools.intersection(native['policy']['allowed_tools'])
                 if admitted_gateway and self.gateway is not None:
+                    from .data_gateway_relay import gateway_discovery_tools
                     sdk_config['applicationPolicy'] = {**native['policy'], 'allowed_tools': sorted({
-                        *native['policy']['allowed_tools'], 'agent_tool_search', 'agent_tool_load'})}
+                        *native['policy']['allowed_tools'], *gateway_discovery_tools(native,
+                            self.gateway.publication(), gateway_available=True)})}
                     self.gateway.bind(request.task_id, request.parent_attempt_id, admitted_gateway)
                     task_catalog = self.gateway.publication()['catalog']
                     # This is a menu projection, not a new accepted catalog.
@@ -1503,7 +1508,7 @@ def main():
                                  'native_product_roles.py', 'continuation_resources.py', 'resources/general-research.mjs', 'resources/research-guidance.mjs',
                                  'application_capacity.py', 'resources/application-capacity.json', 'resources/runtime-limits.mjs',
                                  'resources/research-tools.mjs', 'resources/execution-guidance.mjs', 'resources/model-request-capture.mjs',
-                                 'resources/general-context.mjs', 'resources/general-sdk.mjs', 'resources/general-tool-discovery.mjs', 'resources/tool-result-context.mjs', 'resources/systematic-diagnosis.mjs', 'resources/general-mcp.mjs', 'resources/task-record-tools.mjs',
+                                 'resources/general-context.mjs', 'resources/general-sdk.mjs', 'resources/general-tool-discovery.mjs', 'resources/tool-result-context.mjs', 'resources/committed-delivery.mjs', 'resources/systematic-diagnosis.mjs', 'resources/general-mcp.mjs', 'resources/task-record-tools.mjs',
                                  'resources/enterprise-research-runtime.mjs', 'resources/enterprise-cycle-contract.mjs',
                                  'resources/enterprise-cycle-state.mjs', 'resources/enterprise-graph-contract.mjs',
                                  'resources/enterprise-graph-state.mjs', 'resources/enterprise-graph-runtime.mjs', 'resources/task-goal-state.mjs', 'resources/task-node-return.mjs', 'resources/research-context-window.mjs',

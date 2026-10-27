@@ -73,6 +73,7 @@ COPY packages/capstone-agent/src/capstone_agent/resources/gateway-electrical-vie
 COPY packages/capstone-agent/src/capstone_agent/resources/gateway-electrical-view-v2.schema.json capstone_agent/resources/gateway-electrical-view-v2.schema.json
 COPY packages/capstone-agent/src/capstone_agent/resources/general-data-gateway.mjs capstone_agent/resources/general-data-gateway.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/tool-result-context.mjs capstone_agent/resources/tool-result-context.mjs
+COPY packages/capstone-agent/src/capstone_agent/resources/committed-delivery.mjs capstone_agent/resources/committed-delivery.mjs
 COPY configs/runtime/data-gateway.json configs/runtime/data-gateway.json
 COPY packages/capstone-agent/src/capstone_agent/bounded_http_loop.py capstone_agent/bounded_http_loop.py
 COPY packages/capstone-agent/src/capstone_agent/conversation_context.py capstone_agent/conversation_context.py

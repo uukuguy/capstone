@@ -460,7 +460,8 @@ class IntentRuntimeFactory:
                         {'profile_id': 'enterprise-research', 'profile_version': '1.16.0'},
                         {'profile_id': 'enterprise-research', 'profile_version': '1.17.0'},
                         {'profile_id': 'enterprise-research', 'profile_version': '1.18.0'},
-                        {'profile_id': 'enterprise-research', 'profile_version': '1.19.0'}))
+                        {'profile_id': 'enterprise-research', 'profile_version': '1.19.0'},
+        {'profile_id': 'enterprise-research', 'profile_version': '1.20.0'}))
             return runtime
         if plan.route == 'professional':
             return self._business(claim)

@@ -128,7 +128,7 @@ describe('CapstoneAssistantThread', () => {
     const source = within(screen.getByRole('dialog', { name: '执行过程' })).getByText('source:retained')
     expect(source.closest('details')!.open).toBe(false)
   })
-  it.each(['input_name', 'producer_step_id'])('keeps the reader safe and uses legacy fallback for malformed %s', field => {
+  it.each(['input_name', 'producer_step_id'])('keeps the reader safe and uses legacy fallback for malformed %s', async field => {
     const owner = { thread_id: 'thr_demo', work_id: 'work', research_id: 'research', goal_revision: 1 }
     const node = { id: 'actual-node', purpose: 'Valid graph question', questions: [], checks: [], depends_on: [], expected_outputs: [], mode: 'execute', execution: 'parent', instruction: 'Use evidence', outputs: [], inputs: [], phase: 'ready', applicability: 'current', execution_revision: 1, execute_action_id: null, assess_action_id: null, blocked_by: [], wait_reason: null, input_bindings: [], output_bindings: [], settled_status: null }
     const graph = { schema: 'capstone-enterprise-graph/2', graph_ref: 'graph:one', graph_revision: 1, goal: 'Inspect', output_mode: 'text', model_revision_reason: null, nodes: [node], actions: [], results: [] }
@@ -141,6 +141,8 @@ describe('CapstoneAssistantThread', () => {
     expect(screen.getByText('Safe legacy process')).toBeTruthy()
     expect(screen.queryByRole('region', { name: 'Valid graph question' })).toBeNull()
     rerender(<CapstoneAssistantThread {...props} events={[...start, progress(3, graph), progress(4, bad)]} />)
+    fireEvent.click(document.querySelector('details.capstone-chat-activity > summary')!)
+    await screen.findByRole('button', { name: '查看完整计划' })
     fireEvent.click(screen.getByRole('button', { name: '查看完整计划' }))
     expect(screen.getByRole('region', { name: 'Valid graph question' })).toBeTruthy()
     expect(screen.queryByText('Safe legacy process')).toBeNull()
@@ -148,12 +150,15 @@ describe('CapstoneAssistantThread', () => {
     fireEvent.click(within(screen.getByRole('dialog', { name: '执行过程' })).getByRole('button', { name: '查看完整计划' }))
     expect(within(screen.getByRole('dialog', { name: '执行过程' })).getByRole('region', { name: 'Valid graph question' })).toBeTruthy()
   })
-  it('uses the admitted graph in the existing reader and leaves legacy projections out of graph records', () => {
+  it('uses the admitted graph in the existing reader and leaves legacy projections out of graph records', async () => {
     const owner = { thread_id: 'thr_demo', work_id: 'work', research_id: 'research', goal_revision: 1 }
     const node = { id: 'actual-node', purpose: '模型原始研究问题', questions: ['为何发生？'], checks: [], depends_on: [], expected_outputs: ['解释'], mode: 'execute', execution: 'parent', instruction: '分析实际观察', outputs: [], inputs: [], phase: 'ready', applicability: 'current', execution_revision: 1, execute_action_id: null, assess_action_id: null, blocked_by: [], wait_reason: null, input_bindings: [], output_bindings: [], settled_status: null }
     const graph = { schema: 'capstone-enterprise-graph/2', graph_ref: 'graph:one', graph_revision: 1, goal: '分析原因', output_mode: 'text', model_revision_reason: null, nodes: [node], actions: [], results: [] }
     const events = [event('command_accepted', 1, { kind: 'send_auto', text: '分析原因' }, 'graph'), event('attempt_started', 2, {}, 'graph'), event('runtime_event', 3, { task_step: { id: 'legacy', number: 1, title: '旧单步骤准备', status: 'running' }, research_graph: { type: 'enterprise_graph_progress', owner, attempt_id: 'graph', task_id: 'task', checkpoint: { ref: 'checkpoint:one', revision: 1 }, graph, events: [{ kind: 'graph_committed', graph_ref: 'graph:one' }] } }, 'graph')]
     render(<CapstoneAssistantThread events={events} disabled={false} isRunning activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    expect(screen.getByLabelText('研究进展')).toBeTruthy()
+    fireEvent.click(document.querySelector('details.capstone-chat-activity > summary')!)
+    await screen.findByRole('button', { name: '查看完整计划' })
     fireEvent.click(screen.getByRole('button', { name: '查看完整计划' }))
     expect(screen.getByRole('region', { name: '模型原始研究问题' })).toBeTruthy()
     expect(screen.queryByText('旧单步骤准备')).toBeNull()

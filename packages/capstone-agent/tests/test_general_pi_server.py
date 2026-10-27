@@ -15,6 +15,10 @@ from capstone_agent.request_intent import NodeControl
     ('agent_tool_search', False, False),
     ('agent_tool_load', False, False),
     ('agent_tool_unpublished', True, False),
+    ('agent_tool_search', 'gateway', True),
+    ('agent_tool_load', 'gateway', True),
+    ('agent_tool_search', 'gateway-unavailable', False),
+    ('agent_tool_unpublished', 'gateway', False),
 ])
 def test_child_tool_discovery_observation_requires_its_exact_application_grant(tmp_path, monkeypatch, tool_name, grant, accepted):
     from dataclasses import replace
@@ -26,10 +30,13 @@ def test_child_tool_discovery_observation_requires_its_exact_application_grant(t
         def __init__(self, **kwargs):
             super().__init__(**kwargs)
             self.capability['native_tools'] = [tool_name]
+            if isinstance(grant, str):
+                self.gateway = object() if grant == 'gateway' else None
+                self.capability['data_gateway'] = {'available': True, 'catalog': {'tools': {'data_gateway_fixture': {}}}}
 
         def submit(self, request):
             native = {'policy': {'schema': 'capstone-conversation-policy/1', 'system_policy': POLICY_TEXT,
-                'allowed_tools': [tool_name] if grant else [], 'external_lookup_enabled': False},
+                'allowed_tools': ['data_gateway_fixture'] if isinstance(grant, str) else [tool_name] if grant else [], 'external_lookup_enabled': False},
                 'selected_task_records': [], 'selected_task_source': None, 'records_truncated': False}
             return super().submit(replace(request, native_context=native))
 
@@ -94,7 +101,7 @@ def test_child_diagnosis_observation_uses_exact_host_publication_and_grant(
         assert observation['metadata']['source_ref'] in cache.records
 
 
-@pytest.mark.parametrize('version', ['1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0', '1.19.0'])
+@pytest.mark.parametrize('version', ['1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0', '1.19.0', '1.20.0'])
 def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted_attempt_origin(tmp_path, monkeypatch, version):
     import json
     from types import SimpleNamespace

@@ -381,6 +381,7 @@ class GeneralPiProcess:
         Thread(target=drain, daemon=True).start()
         deadline = time.monotonic() + timeout
         accounting = _NativeUsage()
+        committed_delivery = None
         try:
             assert process.stdin is not None
             if not inventory_only:
@@ -450,6 +451,17 @@ class GeneralPiProcess:
                         raise RuntimeError('continuation_no_progress')
                     messages = event.get('messages', [])
                     assistants = [item for item in messages if item.get('role') == 'assistant']
+                    delivered = event.get('committed_delivery')
+                    if delivered is not None:
+                        if (not isinstance(delivered, dict) or delivered != committed_delivery
+                                or delivered.get('outcome') not in {'success', 'limited'}
+                                or not isinstance(delivered.get('summary'), str) or not delivered['summary'].strip()
+                                or not assistants or any(item.get('stopReason') in {'error', 'aborted'} for item in assistants)):
+                            raise ValueError('General Pi committed delivery is invalid')
+                        answer = delivered['summary']
+                        require_capacity('answer_bytes', len(answer.encode('utf-8')), 'native_answer')
+                        self.usage['native_tools'] = self.tools
+                        return answer
                     if not assistants or assistants[-1].get('stopReason') in {'error', 'aborted'}:
                         code = assistants[-1].get('errorCode') if assistants else None
                         if code in {'model_context_limit', 'model_rate_limit', 'model_authentication',
@@ -470,6 +482,10 @@ class GeneralPiProcess:
                                          'enterprise_graph_child_started', 'enterprise_graph_child_tool',
                                          'enterprise_graph_child_response_started', 'enterprise_graph_child_response', 'enterprise_graph_child_finished', 'delegation_child_started',
                                          'delegation_child_tool', 'delegation_child_finished', 'delegation_child_response'}:
+                    if event.get('type') == 'tool_execution_end' and event.get('toolName') == 'agent_research_finish':
+                        details = event.get('result', {}).get('details', {})
+                        committed_delivery = (details.get('result', {}).get('delivery')
+                            if event.get('isError') is not True and details.get('ok') is True else None)
                     on_event(event)
         except Exception as error:
             self.usage = accounting.summary()

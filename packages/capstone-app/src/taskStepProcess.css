@@ -167,3 +167,7 @@
 .capstone-process-lifecycle .capstone-step-number { font-size: 10px; white-space: nowrap; }
 @media (max-width: 480px) { .capstone-graph-result-version dl { grid-template-columns: minmax(0, 1fr); } .capstone-graph-result-version dd { padding-left: 8px; } }
 @media (pointer: coarse) { .capstone-execution-graph :is(summary, button), .capstone-graph-dependencies a { min-height: 44px; } }
+.capstone-research-summary { padding:12px 16px; color:#526a62; font-size:12px; line-height:1.6; }
+.capstone-research-summary > p:first-child { display:flex; justify-content:space-between; gap:16px; margin:0 0 8px; }
+.capstone-research-summary details { margin-top:8px; }
+.capstone-research-summary ul { margin:6px 0; padding-left:20px; }

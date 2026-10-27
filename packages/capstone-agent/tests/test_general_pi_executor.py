@@ -153,6 +153,31 @@ def test_cycle_progress_is_forwarded_without_counting_an_extra_model_response(tm
     assert process.usage['parent_model_responses'] == 1 and process.usage['parent_input'] == 4
 
 
+@pytest.mark.parametrize('receipt', ['matching', 'missing', 'changed', 'failed'])
+def test_committed_delivery_needs_exact_successful_finish_and_preserves_usage(tmp_path, receipt):
+    from capstone_agent.general_pi_executor import GeneralPiProcess
+    delivery = {'outcome': 'limited', 'summary': 'Saved report; weather gap retained.',
+                'delivery_result_refs': ['result:one'], 'delivery_product_refs': ['artifact:one'],
+                'limitations': ['Weather gap']}
+    frames = []
+    if receipt != 'missing':
+        frames.append({'type': 'tool_execution_end', 'toolName': 'agent_research_finish',
+                       'isError': receipt == 'failed', 'result': {'details': {'ok': True, 'result': {'delivery': delivery}}}})
+    selected = {**delivery, 'summary': 'Changed answer'} if receipt == 'changed' else delivery
+    frames.append({'type': 'agent_end', 'committed_delivery': selected, 'messages': [
+        {'role': 'assistant', 'stopReason': 'toolUse', 'content': [], 'usage': {'input': 4, 'output': 2}}]})
+    script = tmp_path / 'delivery.py'
+    script.write_text('import sys\nsys.stdin.readline()\n' + '\n'.join(
+        'print(' + repr(json.dumps(event)) + ',flush=True)' for event in frames))
+    process = GeneralPiProcess((sys.executable, str(script)), {'PATH': '/usr/bin'}, tmp_path)
+    if receipt == 'matching':
+        assert process.run('task', timeout=5, cancelled=lambda: False, on_event=lambda _: None) == delivery['summary']
+        assert process.usage['parent_model_responses'] == 1
+    else:
+        with pytest.raises(ValueError, match='delivery'):
+            process.run('task', timeout=5, cancelled=lambda: False, on_event=lambda _: None)
+
+
 def test_native_parent_child_usage_is_separate_complete_and_not_double_counted(tmp_path):
     from capstone_agent.general_pi_executor import GeneralPiProcess
     from capstone_agent.delegated_runtime import bounded_metadata
