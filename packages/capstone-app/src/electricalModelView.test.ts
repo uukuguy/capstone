@@ -1,6 +1,6 @@
 import {describe,it,expect,vi} from 'vitest'
-import {ELECTRICAL_STREAMS,loadElectricalModelView,parseElectricalViewOpen,parseElectricalViewPage,parseElectricalViewFailure} from './electricalModelView'
-import {electricalRecords,electricalManifest,electricalPage} from './electricalModelFixtures'
+import {ELECTRICAL_DETAIL_STREAMS,ELECTRICAL_SUMMARY_STREAMS,loadElectricalModelView,parseElectricalViewOpen,parseElectricalViewPage,parseElectricalViewFailure} from './electricalModelView'
+import {electricalRecords,electricalManifest,electricalPage,electricalOverviewRecords,electricalOverviewManifest} from './electricalModelFixtures'
 
 describe('frozen electrical record loading',()=>{
   it('reads only root groups, without downloading full devices or connections',async()=>{
@@ -27,7 +27,7 @@ describe('frozen electrical record loading',()=>{
   it('paginates all eight streams independently and retains typed identity and uncertainty',async()=>{
     const records=electricalRecords(),manifest=electricalManifest(records),read=vi.fn(async request=>electricalPage(manifest,records,request))
     const view=await loadElectricalModelView(manifest,read,{mode:'closure',pageSize:1})
-    expect(view.records).toEqual(records);expect(view.loadedStreams).toEqual(ELECTRICAL_STREAMS)
+    expect(view.records).toEqual(records);expect(view.loadedStreams).toEqual(ELECTRICAL_DETAIL_STREAMS)
     for(const [request] of read.mock.calls)if(request.cursor)expect(request.cursor).toContain(`:${request.stream}:`)
     expect(view.records.ports[0].role).toBeNull();expect(view.records.devices[0].element_key).toBe(7)
     expect(view.manifest.capture.source_transaction_consistency_verified).toBe(false)
@@ -79,5 +79,67 @@ describe('frozen electrical record loading',()=>{
     expect(()=>parseElectricalViewPage({...page,records:[{id:'r',parent_id:'device',child_id:'p1',child_stream:'ports',kind:'membership',electrical_connection:true}],returned_count:1,total_count:1})).toThrow('invalid_membership')
     const ports=electricalPage(manifest,records,{view_ref:manifest.view_ref,stream:'ports'})
     expect(()=>parseElectricalViewPage({...ports,records:[...ports.records,...ports.records],returned_count:4,total_count:4})).toThrow('duplicate_record')
+  })
+})
+
+describe('v2 summary loading',()=>{
+  it('reads both overview streams to completion without reading detail streams',async()=>{
+    const records=electricalOverviewRecords(),manifest=electricalOverviewManifest(records)
+    manifest.streams.devices.total_count=1000000
+    const read=vi.fn(async request=>electricalPage(manifest,records,request))
+    const view=await loadElectricalModelView(manifest,read,{mode:'overview',pageSize:1})
+    expect(view.loadedStreams).toEqual(ELECTRICAL_SUMMARY_STREAMS)
+    expect(view.records.summary_nodes).toEqual(records.summary_nodes)
+    expect(view.records.summary_edges).toEqual(records.summary_edges)
+    expect(view.records.devices).toEqual([])
+    expect(read.mock.calls.map(([request])=>request.stream)).toEqual(['summary_nodes','summary_nodes','summary_nodes','summary_edges','summary_edges'])
+    expect(view.records.summary_nodes[0].source_ref).toEqual(records.summary_nodes[0].source_ref)
+  })
+  it('loads v2 closures from eight detail streams even when summaries exceed the display budget',async()=>{
+    const records=electricalRecords(),manifest=electricalOverviewManifest(records);manifest.target='station'
+    manifest.streams.summary_nodes!.total_count=1000000
+    const read=vi.fn(async request=>electricalPage(manifest,records,request))
+    const view=await loadElectricalModelView(manifest,read,{mode:'closure'})
+    expect(view.loadedStreams).toEqual(ELECTRICAL_DETAIL_STREAMS)
+    expect(read.mock.calls.map(([request])=>request.stream)).toEqual(ELECTRICAL_DETAIL_STREAMS)
+    expect(view.records.summary_nodes).toEqual([])
+  })
+  it('requires published v2 summary streams and keeps v1 summary reads invalid',async()=>{
+    const records=electricalOverviewRecords(),manifest=electricalOverviewManifest(records)
+    const missing={...manifest,streams:{...manifest.streams}};delete missing.streams.summary_edges
+    expect(()=>parseElectricalViewOpen(missing)).toThrow('invalid_stream_total')
+    expect(()=>parseElectricalViewOpen({...manifest,representation:'calculation_bus_branch'})).toThrow('invalid_representation')
+    const v1=electricalManifest(records)
+    await expect(loadElectricalModelView(v1,vi.fn(),{mode:'overview'})).rejects.toThrow('overview_requires_v2')
+    expect(()=>parseElectricalViewPage({...electricalPage(manifest,records,{view_ref:manifest.view_ref,stream:'summary_nodes'}),schema:'gateway-electrical-view/1'})).toThrow('invalid_stream')
+  })
+  it('rejects page schema drift even when every frozen identity matches',async()=>{
+    const records=electricalOverviewRecords(),manifest=electricalOverviewManifest(records);manifest.target='station'
+    await expect(loadElectricalModelView(manifest,async request=>({...electricalPage(manifest,records,request),schema:'gateway-electrical-view/1'}),{mode:'closure'})).rejects.toThrow('frozen_baseline_mismatch')
+  })
+  it.each(['model_ref','model_revision','view_ref','source_snapshot_ref','selection_ref'])('rejects overview %s drift',async field=>{
+    const records=electricalOverviewRecords(),manifest=electricalOverviewManifest(records)
+    await expect(loadElectricalModelView(manifest,async request=>({...electricalPage(manifest,records,request),[field]:'changed'}),{mode:'overview'})).rejects.toThrow('frozen_baseline_mismatch')
+  })
+  it.each(['duplicate','total','cursor','missing_endpoint'])('rejects invalid overview %s',async kind=>{
+    const records=electricalOverviewRecords(),manifest=electricalOverviewManifest(records)
+    if(kind==='missing_endpoint')records.summary_edges[0].target_id='absent'
+    await expect(loadElectricalModelView(manifest,async request=>{
+      const page=electricalPage(manifest,records,request)
+      if(kind==='duplicate'&&request.stream==='summary_nodes'&&request.cursor)return {...page,records:[records.summary_nodes[0]]}
+      if(kind==='total')return {...page,total_count:99}
+      if(kind==='cursor')return {...page,next_cursor:'cursor:summary_nodes:1',complete:false}
+      return page
+    },{mode:'overview',pageSize:1})).rejects.toThrow({duplicate:'duplicate_record',total:'stream_manifest_mismatch',cursor:'cursor_cycle',missing_endpoint:'missing_summary_endpoint'}[kind])
+  })
+  it.each(['node_equivalent','edge_equivalent','verified_connection','bad_count','missing_target'])('rejects invented summary semantics: %s',kind=>{
+    const records=electricalOverviewRecords(),manifest=electricalOverviewManifest(records),stream=kind==='node_equivalent'?'summary_nodes':'summary_edges'
+    const page=electricalPage(manifest,records,{view_ref:manifest.view_ref,stream})
+    const first={...page.records[0]}
+    if(kind.endsWith('equivalent'))first.electrical_equivalent=true
+    if(kind==='verified_connection')first.electrical_connectivity_verified=true
+    if(kind==='bad_count')first.member_count=0
+    if(kind==='missing_target')delete first.expand_target
+    expect(()=>parseElectricalViewPage({...page,records:[first],returned_count:1})).toThrow(kind==='node_equivalent'?'invalid_summary_node':'invalid_summary_edge')
   })
 })
