@@ -102,7 +102,7 @@ it('presents the full conversation in the workspace with an optional real model 
   expect(screen.getByRole('group',{name:'对话设置'})).toBeTruthy()
   fireEvent.keyDown(document,{key:'Escape'})
   expect(screen.getByRole('button', {name:'深度思考'})).toBeTruthy()
-  expect(screen.getByRole('button', {name:'本轮上下文'})).toBeTruthy()
+  expect(screen.queryByRole('button', {name:'本轮上下文'})).toBeNull()
   expect(screen.getByRole('button', {name:'对话设置'})).toBeTruthy()
   expect(screen.queryByRole('button', {name:'保存任务'})).toBeNull()
   expect(screen.queryByRole('button', {name:'开始任务'})).toBeNull()

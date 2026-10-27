@@ -885,11 +885,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
             caseExecution={displayedCaseExecution} caseCatalog={projection.catalog?.cases || []} caseConnection={projection.connection}
             caseStartDisabledReason={inputCatalog?.operations.find(item => item.operation_id === 'start_case_execution')?.available === false ? '当前执行角色或能力不支持案例' : !inputCatalog && snapshot.runtimeMode === 'pi_reference' ? '请先切换到 Capstone' : undefined}
             onCaseStart={startCase} onCaseAction={caseAction}
-            composerControls={(historyActions) => <>{processReference?.threadId === threadId && <span className="process-reference" title={processReference.instruction}>引用：{processReference.instruction.slice(0,36)}<button type="button" aria-label="移除指令引用" onClick={()=>setProcessReference(undefined)}>×</button></span>}<ThreadControls triggerRef={settingsTrigger} catalog={projection.catalog} selectedProfiles={selectedTools}
-              pendingModel={snapshot.pendingModelSwitch?.modelId} disabled={!canConfigure} historyActions={historyActions}
-              resetDisabled={!canConfigure}
-              onResetWork={projection.catalog?.workContextReset ? () => { void changeModel('reopen_model_context', { model_id: snapshot.activeModelContext.modelId, reason: 'user_requested_work_reset' }).catch(() => addSystemNotice('重置尚未确认，请重新连接后检查当前模型。', 'error')) } : undefined}
-              onProfileSelection={(profiles) => { if (changeInput()) setDisabledToolIds(updateToolPreferences(projection.catalog?.profiles || [], disabledToolIds, profiles)) }} />
+            composerControls={(historyActions) => <>{processReference?.threadId === threadId && <span className="process-reference" title={processReference.instruction}>引用：{processReference.instruction.slice(0,36)}<button type="button" aria-label="移除指令引用" onClick={()=>setProcessReference(undefined)}>×</button></span>}
               <ThreadRuntimeMenu value={snapshot.runtimeMode}
                 disabled={!canConfigure}
                 onChange={(mode) => { void changeRuntime(mode) }} />
@@ -898,7 +894,12 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
                 workspace={projection.modelWorkspace}
                 onActivate={(entryId) => { void changeModel('activate_model', { entry_id: entryId }).catch(() => addSystemNotice('模型切换尚未完成，请重新连接。', 'error')) }}
                 onClose={(entryId) => { void changeModel('close_model', { entry_id: entryId }).catch(() => addSystemNotice('模型关闭尚未完成，请重新连接。', 'error')) }}
-                onTargetChange={setModelTarget} onSwitch={(modelId) => void (projection.modelWorkspace ? changeModel('open_model', { model_id: modelId }) : sendConversation('automatic', `打开 ${modelId} 电网模型`)).catch(() => {})} /></>}
+                onTargetChange={setModelTarget} onSwitch={(modelId) => void (projection.modelWorkspace ? changeModel('open_model', { model_id: modelId }) : sendConversation('automatic', `打开 ${modelId} 电网模型`)).catch(() => {})} />
+              <ThreadControls triggerRef={settingsTrigger} catalog={projection.catalog} selectedProfiles={selectedTools}
+                pendingModel={snapshot.pendingModelSwitch?.modelId} disabled={!canConfigure} historyActions={historyActions}
+                resetDisabled={!canConfigure}
+                onResetWork={projection.catalog?.workContextReset ? () => { void changeModel('reopen_model_context', { model_id: snapshot.activeModelContext.modelId, reason: 'user_requested_work_reset' }).catch(() => addSystemNotice('重置尚未确认，请重新连接后检查当前模型。', 'error')) } : undefined}
+                onProfileSelection={(profiles) => { if (changeInput()) setDisabledToolIds(updateToolPreferences(projection.catalog?.profiles || [], disabledToolIds, profiles)) }} /></>}
             modelSummary={{ modelId: snapshot.activeModelContext.modelId, implementationFamily: snapshot.activeModelContext.implementationFamily, modelRevision: snapshot.activeModelContext.modelRevision, contextId: snapshot.activeModelContext.id }}
             instructionModels={[snapshot.activeModelContext, ...projection.gridPages.map(page => page.context), ...store.networkTasks.map(task => task.context)].map(context => ({ contextId: context.id, modelId: context.modelId }))}
             inputCatalog={inputCatalog?.context_id === snapshot.activeModelContext.id && inputCatalog?.selection_revision === snapshot.activeModelContext.selectionRevision ? inputCatalog : undefined}

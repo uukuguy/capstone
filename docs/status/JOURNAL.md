@@ -6022,3 +6022,4 @@ Reproduced protected research acknowledgment waiting behind an entire public-eve
 - 2026-10-27 23:44: 7b1d9c19 adds explicit per-instruction DR choice and removes skill toolbar; enables a controlled summer-task comparison.
 - 2026-10-28 00:04: Same-task comparison: lightweight completed383.658s/65responses/14slides; DR started; admitted snapshots differ only by mode.
 - 2026-10-28 00:30: DR completed843.856s/157responses/15slides; comparison finds broader coverage, semantic errors, fast automatic handoff; 514-event trace saved.
+- 2026-10-28: 5981a4e6 records both real summer trials and complete call paths; no stable overall DR advantage demonstrated.

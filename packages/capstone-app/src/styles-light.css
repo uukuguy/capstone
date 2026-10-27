@@ -914,7 +914,14 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 @media (pointer: coarse) { .thread-input-controls button { min-height: 44px; } }
 .thread-settings-menu .thread-settings-trigger { min-width: 44px; min-height: 28px; border: 0; font: inherit; }
 .thread-settings-menu .thread-settings-trigger[aria-expanded="true"] { color: #287a6d; }
-.thread-deep-research-toggle[aria-pressed="true"] { color:#287a6d; background:#e5f1ed; border-radius:6px; }
+.thread-deep-research-toggle[aria-pressed="false"] { color:#69746e; background:transparent; }
+.thread-deep-research-toggle[aria-pressed="true"] { color:#1f5d4a; background:#e2eee8; border-radius:6px; box-shadow:inset 0 0 0 1px #c2dacd; font-weight:600; }
+.capstone-instruction-files { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 10px; padding:0; list-style:none; }
+.capstone-instruction-files li { display:flex; align-items:center; gap:8px; min-width:0; max-width:260px; padding:8px 10px; border:1px solid #d0ded6; border-radius:8px; background:#fafcf9; }
+.capstone-instruction-files li > svg { width:18px; height:18px; flex-shrink:0; color:#496d5e; }
+.capstone-instruction-files li > span { min-width:0; }
+.capstone-instruction-files strong { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; font-weight:500; }
+.capstone-instruction-files small { display:block; color:#69746e; font-size:11px; }
 .thread-runtime-panel { width: 144px; gap: 2px; }
 .thread-runtime-option { width: 100%; border-radius: 5px; }
 .thread-runtime-option[aria-checked="true"] { color: #287a6d; background: #f1f7f4; }

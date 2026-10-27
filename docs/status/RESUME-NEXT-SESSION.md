@@ -1,73 +1,65 @@
 # Live Session Checkpoint
 
-Updated: 2026-10-28 00:15. Session remains active.
+Updated: 2026-10-28 00:48. Session remains active.
 
-## Immediate task
+## Current task
 
-User requests the SAME complex summer research in TWO NEW Vivaldi conversations,
-ordinary loop OFF and Deep Research ON, then full path comparison. Plan:
-`docs/superpowers/plans/2026-10-27-summer-lightweight-dr-comparison.md`.
-Common prompt: `docs/reports/2026-10-27-summer-comparison-prompt.txt`.
-Do not alter task text between runs or reuse earlier thread products.
-Run sequentially; keep model/grants/source equal. Capture admitted flags and
-all parent/child model/tool events, actual saved PPTX/CSV, quality and limitations.
-LIGHTWEIGHT completed: thr_29e40e5648ea8a4efdd4 /
-attempt_d8d12373f42699f0,383.658s,65responses,88tools,14slides/6images/16files.
-Files copied to ignored runs/summer-comparison-20261027/lightweight/products.
-15object peaks/yoy independently recompute consistently (rounding<=0.5MW).
-BUT main yearly curve uses actual2024/2025 dates rather than alignedMMDD, axis
-950GW clips11/29days2024 +1/29days2025. Concluding causal inference and drought
-labels also need careful evaluation. Do NOT fix outputs before comparison.
-DR RUNNING: thr_e86cb36eec2efb6dac51 / attempt_b3caef238dd7fd17,
-started00:03:30.194753. Actual admitted snapshot differs ONLYdeep_research true;
-same profiles and_native_execution. Discovery32responses/191.882s, parent reads
-and revises55.2s (progress/read/dependency errors); threeparallelbranches start
-00:07:53. Load35responses/360.801s, weather36/260.559s,typhoon20/111.219s.
-Load-weather jointcheck auto-start00:13:55.087852,0.955s after last producer.
-Deliver node depends on load/weather/jointcheck/typhoon. No parent native work.
-Do not rebuild/interfere while this productive run proceeds. Full report:
-docs/reports/2026-10-27-summer-lightweight-dr-comparison.md. Collector
-/tmp/collect_capstone_comparison.py THREAD LABEL; analyzer
-/tmp/analyze_capstone_comparison.py LABEL. Both write ignored runs/.../{dr,lightweight}.
-Raw events, graph snapshots/model/tool timelines retained. After DR ends, copy
-published files from host receipts, inspect PPT/CSV and Vivaldi rendering, final
-usage from /var/lib/general-pi/receipts/records/<taskid>.json. Never copy .agent
-auth from task dirs. DR taskid pi-4798814afeb8380c1290802d61aaeddae36be1e5bb9970df34731ae3810b7ef4.
-Business tests must use the existing Vivaldi tab through visible GUI. Fresh AX;
-`--restore-window`, omit stale window id; use `--element-index`. Do not overwrite
-user drafts. Sibling data-gateway is read-only.
+Same-task summer comparison is DONE, commit5981a4e6. Both new conversations
+completed with the exact same instruction/profiles/native binding; only DR flag
+changed. Report docs/reports/2026-10-27-summer-lightweight-dr-comparison.md and
+514-row execution-path.csv. Light383.658s/65responses/88tools/14slides; DR843.856s/
+157responses/204tools/15slides. DR finds real2024typhoons and deeper checks but
+semantic/unit/summary inconsistencies remain. Neither fully business accepted.
+Do not change saved reports to improve comparison results. Raw evidence and
+products in ignored runs/summer-comparison-20261027/{lightweight,dr}. Both PPT
+covers rendered in Vivaldi; 56published artifact hashes matched. Doctor passed.
 
-## Source and runtime
+User NOW requests toolbar: remove Context; attachments beside owning instruction;
+DR binary defaultOFF, mutedOFF/highlightedON, next submitted instruction ONLY,
+resetOFF after acceptance; Settings FIRST or LAST (we choseLAST). Agreed order:
+深度思考, 模型, 上传资料, 设置. No questions/approval needed.
 
-Implementation worktree `.worktrees/electrical-diagrams`, branch
-`feat/provincial-electrical-view`, source7b1d9c19 explicit per-instruction DR toggle
-(defaultOFF, ON organization-only from first request; resets after send).
-Skill toolbar removed; slash commands retained. Backend tests111+8, SDK144,
-App223+TSC pass. Canonical rebuild PASSED log
-`/tmp/capstone-dr-comparison-rebuild.log`, image9ca5136edc64ba12e46e4681a34d06fc60b7fdbc6035bd8b35e07b23cbf1baaf.
-Readiness/identity/scoped cleanup passed before both cases. Use root local.env and
-root pypsa-model assets for rebuild, never copy credentials.
+UI changes implemented, tested265App tests/9.16s +TSC +diffcheck. New
+InstructionAttachments.tsx joins accepted attachment_refs to existing stored
+resource metadata; no file bodies. Per-instruction projection and reload tested.
+Old slash contracts kept; material session subtitle/context shortcut removed.
+Settings last in WorkAdapter and Fixture. Added deep_research to pending-command
+recovery whitelist (previously missing); exactchoice roundtrip tests pass.
+Uncertain send preserves draft/choice, successful send resetsOFF. Need commit
+this UI unit, canonical rebuild, visible Vivaldi upload/attachment+toggle test,
+update verification record and commit final evidence. No active attempts atlast
+DB check. User may inspect browser or submit their own cases, so check again.
 
-Only preexisting unrelated `.superpowers/sdd/task-1-report.md` remains source-dirty;
-preserve it. Root actual dev has unrelated dirty control docs INDEX/JOURNAL/
-PROJECT-OVERVIEW/RESUME/VERSION-CONTROL. No dev integration, cloud or demo claim.
-All source unit7b1d committed; subsequent journal/checkpoint/prompt/comparisonreport are task-owned.
+## Workspace/runtime
 
-## Earlier evidence (not the requested controlled comparison)
+Implementation: .worktrees/electrical-diagrams, feat/provincial-electrical-view.
+Latestcommitted source7b1d9c19; comparisondocs5981a4e6. CurrentdirtyAppunit+spec/
+plan/journal are owned; preexisting .superpowers/sdd/task-1-report.md is NOTowned.
+Preserve it. Rootactualdev has dirty control docs INDEX/JOURNAL/PROJECT-OVERVIEW/
+RESUME/VERSION-CONTROL; preserve. Dev integration/control alignment stillpending,
+no cloud/demo deployment. Do not claim these as merged/deployed acceptance.
+Running backend source7b1d, image9ca5136edc64ba12e46e4681a34d06fc60b7fdbc6035bd8b35e07b23cbf1baaf;
+canonical build log/tmp/capstone-dr-comparison-rebuild.log; cleanup234833-13755.
+AppHMRalreadyusescurrentUI. For rebuild use rootdeploy/local.env and root
+.grid-agent/runtime/pypsa-models via CAPSTONE_LOCAL_ENV_FILE and
+CAPSTONE_PYPSA_MODEL_LIBRARY_DIR. Never copy auth. API8767/App5173.
 
-Full trial850a42b6b456892b in thr_29ad91a0229c70901a00 took514.494s,
-82parentrequests,14slidePPTX+CSV, but NO DR despite prose request.
-Subsequent actualDR local revisionaa8e961f2587d076 took220.509s,
-11parent+24childresponses; two parallel reviews then synthesis. Handoff0.460s,
-registration0.015–0.277s; finish1.025s then terminal1.264s, no extra model.
-Actual files verified14slides, onlyslides3/13changed,7imagesidentical.
-Still59.6s startup and4 unavailable parentbash attempts (new ON role fixes scope).
-Report `docs/reports/2026-10-27-dr-direct-delivery.md` retains full evidence and
-both earlier FAILED gateway-grant trials. Do not claim a speed advantage from
-unequal task scopes or current2026coverage absent in gateway.
+## Vivaldi
 
-## Deferred work
+Existing tab only; com.vivaldi.Vivaldi, pid53691/window137137 (may change).
+Use computer-use via orca. Getfreshstate beforeactions; --element-index,
+--restore-window. Omitstalewindowid. JSONresult.snapshot.treeText and
+result.screenshot.path/scale. HugeAXtrees may omitrightpane; sometimes inputmethod
+ABCdialog overridesAX; freshscreenshot coordinate fallback works (divide byscale).
+User is actively browsing report pages; do not overwrite drafts. New UI trial in
+one NEWconversation through NewSession button, same tab. Tiny benign upload
+fixture through native filepicker (CmdShiftG path). Verify acceptedfile card stays
+with instruction afterrefresh. ToggleON screenshot thenOFF; no need extra DR run.
 
-Normal dev integration and control graph alignment pending. Existing graph
-readability/progressive loading/camera acceptance are separate, not this task.
-Conversation archive restoration/PPTX preview implemented in a0b4e18e; preserve.
+## Earlier evidence and deferred scope
+
+Old actualDRrevisionaa8e...220.509s with14slides only3/13changed is unequal-scope
+prior evidence, not currentcontrolledcomparison. Both earliergatewaygrant trials
+failed; report2026-10-27-dr-direct-delivery.md retains them. Graph/progressive
+loading/camera acceptance and dev integration are separate pending work.
+Sibling data-gateway is READONLY. No subagents. Focusedchecks only.

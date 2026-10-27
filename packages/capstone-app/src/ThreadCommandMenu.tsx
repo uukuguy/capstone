@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode,type RefObject } from 'react'
 import { useAui, useAuiState } from '@assistant-ui/react'
-import { Brain, Layers, X } from 'lucide-react'
+import { Brain, X } from 'lucide-react'
 import { parseInputCommand, skillCompatible, inputDraftError, type InputCatalog, type InputDraft, type SkillChoice, type SkillRole } from './threadInput'
 import ThreadContextPanel from './ThreadContextPanel'
 
@@ -85,7 +85,6 @@ export default function ThreadCommandMenu({ children, catalog, loading, onRefres
   const selectedSkillName = allSkills.find(skill => skill.id === draft.skill?.id)?.native_name || draft.skill?.id
   const inputTools = <div className="thread-input-tools">
       {draft.mode==='capstone'&&<button disabled={disabled} type="button" className="thread-settings-trigger thread-deep-research-toggle" aria-label="深度思考" aria-pressed={draft.deep_research===true} title={draft.deep_research?'本条指令使用 Deep Research 任务组织；发送后恢复关闭':'开启后，本条指令使用 Deep Research 任务组织'} onClick={()=>{if(onBeforeChange?.()!==false)onChange({...draft,deep_research:!draft.deep_research})}}><Brain aria-hidden="true"/>深度思考</button>}
-      <button ref={contextTriggerRef} disabled={disabled} type="button" className="thread-settings-trigger" aria-label="本轮上下文" aria-expanded={panel === 'context'} onClick={() => panel === 'context' ? close() : open('context')}><Layers aria-hidden="true" />上下文</button>
     </div>
   return <div ref={root} className="thread-input-controls" style={panelHeight === undefined ? undefined : { '--thread-input-panel-space': `${panelHeight}px` } as CSSProperties} onCompositionStart={() => { composing.current = true }} onCompositionEnd={() => { composing.current = false }}
     onClickCapture={event => {

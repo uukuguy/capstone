@@ -124,6 +124,7 @@ export function buildSendMessageCommand(threadId: string, runId: string, command
                                        workId: string, expectedRevision: number, text: string, submission?: InputSubmission, sourceAttemptId?: string): WorkCommand {
   const command: WorkCommand = {...buildWorkCommand(threadId, runId, commandId, idempotencyKey, workId, expectedRevision, text), kind: 'send_message'}
   if (submission) {
+    if(submission.deep_research!==undefined&&typeof submission.deep_research!=='boolean')throw new ThreadProtocolError('深度思考选项无效')
     const input = object(submission.input)
     const choice = object(submission.context_selection)
     if (input.text !== text || !['text', 'skill_invocation'].includes(String(input.kind))
@@ -176,7 +177,7 @@ export function parseStoredWorkCommand(value: unknown, threadId: string): WorkCo
   }
   if (target.kind !== 'work') throw new ThreadProtocolError('工作命令身份无效')
   if (command.kind === 'send_message' && typeof payload.text === 'string'
-      && Object.keys(payload).every(key => ['text', 'input', 'context_selection', 'resource_profile', 'source_attempt_id', 'material_refs','context_product_refs','attachment_refs'].includes(key))) {
+      && Object.keys(payload).every(key => ['text', 'input', 'context_selection', 'resource_profile', 'source_attempt_id', 'material_refs','context_product_refs','attachment_refs','deep_research'].includes(key))) {
     const {text, source_attempt_id, ...submission} = payload
     return buildSendMessageCommand(threadId, id(command.run_id), id(command.command_id), id(command.idempotency_key), id(target.id), revision(target.expected_revision), text,
       Object.keys(submission).length ? submission as InputSubmission : undefined,

@@ -27,3 +27,17 @@ and real Vivaldi submissions in both modes. The user subsequently requested a
 full comparison: submit the same summer research task in two new conversations,
 one with this option off and one on. Keep model and grants equal and compare
 the complete paths and saved products, not only elapsed time.
+
+## Composer refinement accepted 2026-10-28
+
+Remove the context toolbar button. Uploaded files belong beside their submitted
+instruction; draft files remain with the unsent input. Resolve accepted resource
+IDs against stored resource metadata, without putting file bodies in messages.
+Preserve historical/slash contracts. Remove the session-wide material subtitle
+and its context-button shortcut from the unified conversation view.
+
+Toolbar order: 深度思考, 模型, 上传资料, 设置. Settings is last. Deep Research
+is a binary pressed button: muted off, highlighted on, with keyboard focus
+retained. It defaults off and affects the next submitted instruction only;
+acceptance resets the next draft off. Failed/uncertain sends retain the original
+draft and exact choice. No change to admitted old tasks.
