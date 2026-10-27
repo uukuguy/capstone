@@ -6015,3 +6015,4 @@ Reproduced protected research acknowledgment waiting behind an entire public-eve
 - 2026-10-27: df2c9e31 hides older-conversation navigation;TypeScript passed and Vivaldi confirms the entry is absent.
 - 2026-10-27: a0b4e18e adds private PPTX reading and restores conversation bodies; expanded slides hide metadata. Local checks passed.
 - 2026-10-27: 62631dca implements direct DR delivery and shared gateway grants; real acceptance pending; v1.20 overlay test expectations need updating.
+- 2026-10-27: 8ad49174 verifies v1.20 runtime selection; 92 host and 50 executor checks pass before the repaired DR trial.

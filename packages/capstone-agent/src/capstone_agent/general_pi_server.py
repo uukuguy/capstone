@@ -324,7 +324,7 @@ class GeneralPiHost:
             if native is not None else set())
         from .data_gateway_relay import gateway_discovery_tools
         discovery_sources.update(gateway_discovery_tools(native, self.capability.get('data_gateway', {}),
-            gateway_available=getattr(self, 'gateway', None) is not None))
+            gateway_available=getattr(self._run, 'gateway', None) is not None))
         def cancelled():
             return record['cancel'].is_set() or time.monotonic() - started >= request.timeout_seconds
         def publish(payload):

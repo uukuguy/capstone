@@ -63,3 +63,11 @@ native tool list. A host regression reproduces both legitimate discoveries being
 rejected. Gateway SDK setup and receipt admission now share a task-scoped grant
 function. An unavailable gateway and unpublished discovery tool remain rejected.
 The previous explicit-grant tests alone did not cover this actual wiring.
+
+Second trial `attempt_4c3cddcff6804d68` / `thr_79caf54fa728b80d4a9e`
+started22:15:56 and failed22:18:07 on the first child discovery call. It also
+had two plan corrections (extra node fields, then an omitted producer dependency).
+The grant helper's first integration used a nonexistent host gateway attribute;
+production owns the gateway on `NativeTaskRunner`, retained as `host._run`.
+The corrected regression uses that actual ownership and the host now reads it.
+Both trials remain failed, with no report delivery or accepted speed comparison.

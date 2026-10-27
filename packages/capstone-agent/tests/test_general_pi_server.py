@@ -31,7 +31,8 @@ def test_child_tool_discovery_observation_requires_its_exact_application_grant(t
             super().__init__(**kwargs)
             self.capability['native_tools'] = [tool_name]
             if isinstance(grant, str):
-                self.gateway = object() if grant == 'gateway' else None
+                # Match production ownership: NativeTaskRunner holds the gateway.
+                self._run.gateway = object() if grant == 'gateway' else None
                 self.capability['data_gateway'] = {'available': True, 'catalog': {'tools': {'data_gateway_fixture': {}}}}
 
         def submit(self, request):
