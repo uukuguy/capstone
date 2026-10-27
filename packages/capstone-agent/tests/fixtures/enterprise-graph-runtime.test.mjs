@@ -317,6 +317,50 @@ test('advisory goal review ignores unrelated node-review fields without adopting
     assert.equal((await f.controller.execute('assess','foreign',bad)).details.ok,false);
   }finally{await f.controller.close({reason:'Done'});}
 });
+for(const review of ['advisory','strict'])for(const checkStatus of ['passed','not_run'])for(const lostReceipt of [false,true])test(`validated ${review} return with ${checkStatus} checks ${review==='advisory'?'dispatches dependents without planner registration':'retains explicit review'}; lost receipt=${lostReceipt}`,async()=>{
+  const f=fixture({config:{researchRuntime:{graphLimits:limits,delegation:{concurrency:1},isolatedTaskExecution:true,
+    lightweightTaskNodes:true,nodeReviewMode:review}}});
+  try{
+    await f.controller.execute('plan','plan',plan([node('A'),node('B',{depends_on:['A'],mode:'synthesis',
+      inputs:[{name:'finding',from:{step_id:'A',slot:'value'}}]})]));
+    const action=f.calls[0].action;
+    const handoff={schema:'capstone-node-proposal/1',binding:{action_id:action.id,definition_ref:action.definition_ref,
+      execution_revision:action.execution_revision,consumed_results:[],source_versions:[]},
+      outputs:[{slot:'value',artifact_refs:[],observation_refs:['obs-A'],summary:'Actual finding',scope:'Simulated data'}],
+      checks:[{description:'Verify A',status:checkStatus,refs:checkStatus==='passed'?['obs-A']:[],explanation:'Producer check'}],
+      limitations:checkStatus==='not_run'?['Independent check not run']:[]};
+    const before=f.requests.length;
+    if(lostReceipt)f.lose();
+    await f.settle('A','completed','Actual finding',[],handoff);await tick();
+    if(lostReceipt){
+      assert.equal((await f.controller.readState()).update_pending,true);
+      await f.controller.recoverPending();await tick();
+      assert.equal(f.calls.filter(call=>call.node.id==='A').length,1,'Receipt recovery must not repeat native work');
+    }
+    const state=await f.controller.readState();
+    if(review==='strict'){
+      assert.equal(state.graph.nodes[0].phase,'executed');assert.equal(f.calls.length,1);
+    }else{
+      assert.equal(state.graph.nodes[0].phase,checkStatus==='passed'?'success':'limited');
+      assert.equal(f.calls[1]?.node.id,'B');
+      assert.deepEqual(state.graph.results[0].observation_refs,['obs-A']);
+      assert.equal(state.pending_proposals.some(item=>item.step_id==='A'),false);
+      assert.equal(f.requests.length-before,lostReceipt?3:2,'One atomic return checkpoint, exact recovery if needed, and one dependent start');
+    }
+  }finally{await f.controller.close({reason:'Done'});}
+});
+test('advisory automatic registration cannot admit a foreign observation',async()=>{
+  const f=fixture({config:{researchRuntime:{graphLimits:limits,delegation:{concurrency:1},isolatedTaskExecution:true,
+    lightweightTaskNodes:true,nodeReviewMode:'advisory'}}});
+  try{
+    await f.controller.execute('plan','plan',plan([node('A',{checks:[]})]));const action=f.calls[0].action;
+    await f.settle('A','completed','Unverified finding',[],{schema:'capstone-node-proposal/1',
+      binding:{action_id:action.id,definition_ref:action.definition_ref,execution_revision:action.execution_revision,consumed_results:[],source_versions:[]},
+      outputs:[{slot:'value',artifact_refs:[],observation_refs:['foreign'],summary:'Unsupported',scope:'Unknown'}],checks:[],limitations:[]});
+    const state=await f.controller.readState();assert.equal(state.graph.nodes[0].phase,'executed');
+    assert.equal(state.graph.results.length,0);assert.equal(state.pending_proposals[0].proposal.status,'rejected');
+  }finally{await f.controller.close({reason:'Done'});}
+});
 test('advisory mode automatically settles returned work and never treats parent review as a node gate',async()=>{
   const f=fixture({config:{researchRuntime:{graphLimits:limits,delegation:{concurrency:1},isolatedTaskExecution:true,
     lightweightTaskNodes:true,nodeReviewMode:'advisory'}}});
