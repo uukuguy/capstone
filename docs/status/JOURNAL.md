@@ -6019,3 +6019,6 @@ Reproduced protected research acknowledgment waiting behind an entire public-eve
 - 2026-10-27: 4859e980 corrects actual runner ownership for child discovery grants; both earlier full trials remain failed, without delivery.
 - 2026-10-27: bf9c2d1e derives typed input dependencies to avoid redundant planning retries; 122 controller/SDK checks passed.
 - 2026-10-27: 109ca6cd clarifies prompt DR activation via delegated discovery; 23 SDK checks pass; running trial retains prior image.
+- 2026-10-27 23:44: 7b1d9c19 adds explicit per-instruction DR choice and removes skill toolbar; enables a controlled summer-task comparison.
+- 2026-10-28 00:04: Same-task comparison: lightweight completed383.658s/65responses/14slides; DR started; admitted snapshots differ only by mode.
+- 2026-10-28 00:30: DR completed843.856s/157responses/15slides; comparison finds broader coverage, semantic errors, fast automatic handoff; 514-event trace saved.

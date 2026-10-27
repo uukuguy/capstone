@@ -1,61 +1,73 @@
 # Live Session Checkpoint
 
-Updated: 2026-10-27. Session remains active.
+Updated: 2026-10-28 00:15. Session remains active.
 
-## Active work
+## Immediate task
 
-23:25 active checkpoint: user NEW accepted direction: explicit 深度思考 toolbar option, defaultOFF; ON forcesDR, OFFordinaryloop; remove技能toolbarbutton. Implementing that across InputDraft/InputSubmission deep_research bool, thread_input/work validation, native_context optionalbool, actualSDK runtimeoverlay (adaptive=!choice), tooladmission offdeniesresearchcontrols, forceorganization-onlyrole, continuationcan'tsilentlyanswerwithoutplan. CurrentUIHMRalreadyhasbutton+removedskill; backendimage9682ed...source109ca6cd doesNOTyetcontainmanualflag, so rebuildbeforetrial. Tests111backend+22skips,144SDK,223App andTSCpassed. Dirty tasksource12+files/tests anddocsmanualspec; unrelatedsuperpowersrewritepreserved. Need commit/rebuild, realVivaldiOFFdirectanswer andONlocalPPTedit, confirmrecordflag/runtime andsavedfile. ExistingVivaldithreadthr_29ad91a0229c70901a00, noactiveattempt.
+User requests the SAME complex summer research in TWO NEW Vivaldi conversations,
+ordinary loop OFF and Deep Research ON, then full path comparison. Plan:
+`docs/superpowers/plans/2026-10-27-summer-lightweight-dr-comparison.md`.
+Common prompt: `docs/reports/2026-10-27-summer-comparison-prompt.txt`.
+Do not alter task text between runs or reuse earlier thread products.
+Run sequentially; keep model/grants/source equal. Capture admitted flags and
+all parent/child model/tool events, actual saved PPTX/CSV, quality and limitations.
+LIGHTWEIGHT completed: thr_29e40e5648ea8a4efdd4 /
+attempt_d8d12373f42699f0,383.658s,65responses,88tools,14slides/6images/16files.
+Files copied to ignored runs/summer-comparison-20261027/lightweight/products.
+15object peaks/yoy independently recompute consistently (rounding<=0.5MW).
+BUT main yearly curve uses actual2024/2025 dates rather than alignedMMDD, axis
+950GW clips11/29days2024 +1/29days2025. Concluding causal inference and drought
+labels also need careful evaluation. Do NOT fix outputs before comparison.
+DR RUNNING: thr_e86cb36eec2efb6dac51 / attempt_b3caef238dd7fd17,
+started00:03:30.194753. Actual admitted snapshot differs ONLYdeep_research true;
+same profiles and_native_execution. Discovery32responses/191.882s, parent reads
+and revises55.2s (progress/read/dependency errors); threeparallelbranches start
+00:07:53. Load35responses/360.801s, weather36/260.559s,typhoon20/111.219s.
+Load-weather jointcheck auto-start00:13:55.087852,0.955s after last producer.
+Deliver node depends on load/weather/jointcheck/typhoon. No parent native work.
+Do not rebuild/interfere while this productive run proceeds. Full report:
+docs/reports/2026-10-27-summer-lightweight-dr-comparison.md. Collector
+/tmp/collect_capstone_comparison.py THREAD LABEL; analyzer
+/tmp/analyze_capstone_comparison.py LABEL. Both write ignored runs/.../{dr,lightweight}.
+Raw events, graph snapshots/model/tool timelines retained. After DR ends, copy
+published files from host receipts, inspect PPT/CSV and Vivaldi rendering, final
+usage from /var/lib/general-pi/receipts/records/<taskid>.json. Never copy .agent
+auth from task dirs. DR taskid pi-4798814afeb8380c1290802d61aaeddae36be1e5bb9970df34731ae3810b7ef4.
+Business tests must use the existing Vivaldi tab through visible GUI. Fresh AX;
+`--restore-window`, omit stale window id; use `--element-index`. Do not overwrite
+user drafts. Sibling data-gateway is read-only.
 
-PreviousDRtrialaa8e961f2587d076 SUCCEEDED22:52:56–22:56:37=220.509s,11parentrequests,24childresponses,parallelreviews→synthesis. Registration0.015/0.208s; downstream0.460s; synthregistration0.277s; finish1.025s→terminal1.264s,noextraLLM. ActualsavedPPTXcomparison via `/tmp/capstone-dr-verification/{0,1}.pptx` proves14slides,ONLYslides3/13changed,7imagesidentical. Parentstillmade4unavailablebashcalls aftersynthesis; manualONrole engine nowaddressesroleinertia. Newuser instruction supersedesmodel-decidedDRforcurrentcomposer. Keep defaultordinary modefast; legacyrequestswithoutflagkeepoldcontract. User also submitted a tablecatalogquestion3918...betweenourtrials; don'toverwriteuserdrafts. Reportspecpathsunder2026-10-27-dr-direct-delivery anduser-selected-deep-research. Needrootdevintegration/controlalignmentstillpending; don'tclaimcloudorfulloriginal2026coverage.
+## Source and runtime
 
-22:47 checkpoint: third attempt850a42...COMPLETED22:44:08.684495,514.49s/82parentrequests,14-slidePPTX+coreCSV. Actual deck visible/rendered in Vivaldi rightpane, threadthr_29ad91a0229c70901a00. BUT noDRactivated, so not DRacceptance. Sourcebf9imageafde... ran. Rebuild109ca6cd (earlyDRdiscoveryguidance) nowRUNNING `/tmp/capstone-dr-early-start-rebuild.log`,session19405. No activebusinessattempt. Next AFTERreadiness: continue SAMEconversation with explicitDR parallel coverage/claim-scope review and localizedPPTrevision, reuse savedfiles; include one bounded gateway coverage check to exercise actual childdiscoverygrant, nofullrecollection. Need startup/handoff/synthesis/directfinish timings and real revisedPPT, then localordinaryfollowup ifneeded. Currentcomposer601empty,Send608disabled atlastAX; freshobservebeforeaction. ExistingVivalditab,restore-window andomitwindowid. Firsttwofailedtrials stayfailed. Sourcecommits62631dca,8ad49174,4859e980,bf9c2d1e,109ca6cd; onlyunrelatedsuperpowersrewrite+taskjournal/checkpointdirty. Do not claimoptimizedDRcomplete untilrealhandoff+finishpasses. Reportdocs/reports/2026-10-27-dr-direct-delivery.md containscurrenttruth.
+Implementation worktree `.worktrees/electrical-diagrams`, branch
+`feat/provincial-electrical-view`, source7b1d9c19 explicit per-instruction DR toggle
+(defaultOFF, ON organization-only from first request; resets after send).
+Skill toolbar removed; slash commands retained. Backend tests111+8, SDK144,
+App223+TSC pass. Canonical rebuild PASSED log
+`/tmp/capstone-dr-comparison-rebuild.log`, image9ca5136edc64ba12e46e4681a34d06fc60b7fdbc6035bd8b35e07b23cbf1baaf.
+Readiness/identity/scoped cleanup passed before both cases. Use root local.env and
+root pypsa-model assets for rebuild, never copy credentials.
 
-22:40 live: THIRD trial RUNNING, threadthr_29ad91a0229c70901a00 / attempt_850a42b6b456892b, started22:35:34.190557; firsttool2.72s. Runtime sourcebf9c2d1e, canonicalimageafdeae5e713231ae0a29ae3f0a1643215de7117b825cdcb5c6e8de896964b3c5, cleanup223233-81046. Native host now correctly uses self._run.gateway for implicit discovery grants; typed input.from derives scheduleredges. However parent again performs long discovery before DR activation. 109ca6cd adds explicit-user-DR early discovery delegation guidance,23SDKchecks passed; NOT in currently running image. Do not rebuild during this productive trial. Wait actual graphactivation,childcalls,delivery; verify files and directfinish. Then rebuild109ca6cd and test earlyactivation/localrevision using retained products if useful. Firsttwofailedtrials remainfailures. Sourcechangescommitted, onlyunrelatedsuperpowersrewrite andpostcommitjournal/checkpointdirty. BrowserVivaldi existingtab, --restore-window omitstalewindowid. Prompt /tmp/capstone-dr-prompt.txt. Needfullrealacceptance,notjustofflineclaims. Report2026-10-27-dr-direct-delivery.md contains chronology and honestpendingstatus.
+Only preexisting unrelated `.superpowers/sdd/task-1-report.md` remains source-dirty;
+preserve it. Root actual dev has unrelated dirty control docs INDEX/JOURNAL/
+PROJECT-OVERVIEW/RESUME/VERSION-CONTROL. No dev integration, cloud or demo claim.
+All source unit7b1d committed; subsequent journal/checkpoint/prompt/comparisonreport are task-owned.
 
-22:22 correction supersedes prior RUNNING note: second trial attempt_4c3cddcff6804d68 / thr_79caf54fa728b80d4a9e FAILED22:18:07 at first childagent_tool_search, again observation_source_invalid. The first grant fix incorrectly looked at host.gateway; real gateway is host._run.gateway (NativeTaskRunner ownership). Fixed source and test to use production ownership; focused92host tests running `/tmp/capstone-dr-host-production-owner.log`, session24014. Need commit, canonical rebuild then new actual trial. No active attempt. Do not claim either trial passes or performance improved. Startup firsttool2.10s, acceptedgraph22:18:06 aftertwoavoidableplanrejections. Sourcebase8ad49174; dirtytasksourcegeneral_pi_server.py/test_general_pi_server.py plusdocsreport/checkpoint/journal, unrelatedsuperpowersrewrite remains. Prompt `/tmp/capstone-dr-prompt.txt`. Vivaldi existing tab; use Orca --restore-window without stalewindow-id. FullPPTX+CSV and directfinish stillunverifiedrealmodel.
+## Earlier evidence (not the requested controlled comparison)
 
-22:17 live: repaired canonical build READY, image14c034f214975eb49b948e1ca7fc9169d6bdd5d0bd4f9d8056df0bb596f7e78a, source8ad49174; cleanup221507-48168. EXACT same DR summer prompt submitted in existing Vivaldi new conversation thr_79caf54fa728b80d4a9e, attempt_4c3cddcff6804d68, started22:15:56.022567. RUNNING; do not rebuild. First tool22:15:58.123573 (~2.10s). Monitor rawSQL only bounded projections, preserve model/tool distinction. Parent again starts lightweight gateway discovery; activation may follow. Previous trial failed due nowfixedimplicitgatewaydiscoverygrant. Need actual savedPPTX+CSV and directfinish verification, business-progress screenshot, follow-up local modification, then update report/plan/journal and control/integration state honestly. No acceptance claimed yet.
+Full trial850a42b6b456892b in thr_29ad91a0229c70901a00 took514.494s,
+82parentrequests,14slidePPTX+CSV, but NO DR despite prose request.
+Subsequent actualDR local revisionaa8e961f2587d076 took220.509s,
+11parent+24childresponses; two parallel reviews then synthesis. Handoff0.460s,
+registration0.015–0.277s; finish1.025s then terminal1.264s, no extra model.
+Actual files verified14slides, onlyslides3/13changed,7imagesidentical.
+Still59.6s startup and4 unavailable parentbash attempts (new ON role fixes scope).
+Report `docs/reports/2026-10-27-dr-direct-delivery.md` retains full evidence and
+both earlier FAILED gateway-grant trials. Do not claim a speed advantage from
+unequal task scopes or current2026coverage absent in gateway.
 
-22:16 checkpoint: source62631dca +8ad49174 now committed. DR direct-finish, App1.20/Pack1.17/shared1.7, compact progress and shared gateway discovery grant are implemented.92host/graph checks,50executor checks,133earlierbackend checks,143JS and162App checks passed. Canonical rebuild including grant fix is running (`/tmp/capstone-dr-grant-rebuild.log`, exec session14138); wait for readiness before submitting. New existing-Vivaldi-tab conversation thr_79caf54fa728b80d4a9e created; composer contains EXACT prior DR summer prompt, not yet submitted. Fresh AX Send index was522, but observe again before clicking; use --restore-window and omit stale window-id when Orca cannot match it. Prompt saved `/tmp/capstone-dr-prompt.txt` from ledger. First trialthr_d9ad.../attempt_ac1864e024486d49 failedobservation_source_invalid; keep it as failure. Next: submit new case, monitor actual graph/tasks, savedPPTX+CSV, directfinish tail and follow-up correction; do not rebuild during execution. Report/plan docs/reports/2026-10-27-dr-direct-delivery.md. User wants continuous work and real Vivaldi results. No release gate or cloud deployment. Root controlsdirty are unrelated; taskbranch only unrelatedsuperpowersrewrite+postcommitjournal remain dirty before this checkpoint.
+## Deferred work
 
-21:58 correction: DR trial attempt_ac1864e024486d49 / thr_d9ad2d9b56a91ad85a5f FAILED21:51:38 after actual graph activation, private reason observation_source_invalid; no PPT. SDK implicitly granted tool discovery for admitted gateway tools, while child receipt admission checked only explicit native allowed_tools. Added a shared task-scoped gateway_discovery_tools function to data_gateway_relay and use it in both SDK setup and host admission. Host tests reproduced two failures before this fix; full focused host checks are running. Need rebuild and retry real trial, not claim acceptance. UI162tests passed. No active attempt at last check. Keep original source/gateway grant boundaries and unknown-tool rejection. Main implementation remains uncommitted while this same unit is verified; task paths are in git diff, plus newly added DR policy/resources/tests/report/plan. Preserve unrelated .superpowers/sdd/task-1-report.md and root control files.
-
-21:45 update: user approved DR startup/handoff/finalization reduction and a real summer-peak trial. New Application1.20/Pack1.17/shared1.7 preserves old publications; advisory finish uses the pinned SDK terminate hint and RPC committed_delivery, checked against the exact successful finish receipt. Compact business progress replaces raw DR preview by default; full records stay expandable.133backend+143JS tests passed; UI118 existing assistant tests passed after intentional default-view updates. Canonical rebuild/readiness passed image6e8b897a3c92cf163a07ccc786f405597cd68a8767766facc26689fb20197d99, cleanup214339-85159. New Vivaldi conversation thr_d9ad2d9b56a91ad85a5f has the full summer question with explicitDR for acceptance, PPTX+CSV and honest2026coverage gaps. Submission and final outcome still need monitoring. Do not rebuild while it runs. See docs/reports/2026-10-27-dr-direct-delivery.md and plan with matching name. Preserve unrelated .superpowers/sdd/task-1-report.md and root control edits.
-
-20:24 update supersedes the running/pending notes below: attempt_397aad042f70e71f completed19:59:34 and saved a16-slide PPTX. User revised its fourth slide in the same thread. PPTX preview now renders actual saved decks locally in the right pane; Vivaldi verified slides and expanded mode without directory/actions/metadata. Conversation body archive plus background history reads restores all three instructions/answers without unbounding raw tool/token cache.79focused App tests plus12consumer tests and TypeScript passed. Canonical rebuild/readiness passed20:22, image3a2e25d1c1a21bf86f29a8a867c16843cb6524522ceb53b02329e352bcbb0f24; scoped cleanup receipt `.capstone-agent/cache-maintenance-20261027-202207-38559.log`. Final CSS adjustment was checked through Vite in Vivaldi. Original business scope remains incomplete: source data covers2024/2025, not2026summer; report figures and claims need separate acceptance. See docs/reports/2026-10-27-pptx-preview-history.md. Dev integration/control graph remain pending; preserve unrelated changes.
-
-Latest user steering: temporarily disable “查看之前的对话”. Done in df2c9e31 at ThreadWorkAdapter, no user history deleted; TypeScript passed and Vivaldi AX confirms absent. a48aa319 also fixes history4097/4096 debug overflow by evicting before retained-window checks (58 store tests). Browser actual reload restored completed19:32 trial and10 CSVs; it had ended with progress-only answer and NO PPT, so business acceptance remains incomplete. A follow-up instruction to reuse saved CSVs and complete an actual PPT was submitted in the SAME test thread thr_4fed88ded08c8ef37b10 at19:52:29, attempt_397aad042f70e71f, currently RUNNING. Do not rebuild until it ends. App HMR contains a48aa319/df2c9e31; backend source/image remains1d40a296/3a2e25d1c1a21bf86f29a8a867c16843cb6524522ceb53b02329e352bcbb0f24. Canonical rebuild for newest App changes is pending after the active task. Report docs/reports/2026-10-27-summer-ppt-failure.md records failures and acceptance gaps. Preserve unrelated .superpowers/sdd/task-1-report.md and root dev control edits.
-
-1d40a296 canonical rebuild passed, image3a2e25d1c1a21bf86f29a8a867c16843cb6524522ceb53b02329e352bcbb0f24; cleanup receipt `.capstone-agent/cache-maintenance-20261027-193158-32438.log`. Exact original summer-PPT request submitted in NEW Vivaldi conversation thr_4fed88ded08c8ef37b10, attempt_4d9d65ecc575c476 at19:32:30. Currently RUNNING; do not rebuild or interrupt productive work. Uses same existing Vivaldi tab/window137137. Gateway/schema files are being read via Python from `.observations`; model turns so far1–3s, not the original minute-scale tail. Current gateway data discovery shows2024/2025 historical data and gaps; check that PPT states missing current-year data honestly. No PPT has been accepted yet. Remaining acceptance: actual saved PPT opens, numerical/source scope and limitations, final token usage versus failed attempt; do not claim full recovery before this.
-
-New reported failure: “企业研究与分析 · 10-27 15:01:49”, thread thr_d6a5d364641c974aea45, attempt_4abd327e421a84db. Original request: summer-peak grid/weather/typhoon comparison for June15–August15 of current/prior two years, national and selected provinces, deliver PPT. It ran40 parent requests, no children, repeated100k-token context; last three model responses errored; native_model_turn_incomplete. Exact provider cause was not retained. Successful gateway results and loaded output schemas bloated context. Commit1d40a296 now bounds large gateway/discovery results to6000 chars with complete task-local JSON files and host-only original-byte restoration; child cwd isolated. Adds safe model error code/status metadata through SDK/Kernel/Harness/App.21 JS,115 backend,148 App tests + TypeScript pass. Canonical rebuild running; log /tmp/capstone-bounded-observation-rebuild.log. No user task was active before rebuilding. After readiness and cleanup, use existing Vivaldi Capstone tab, discover current window ID (browser was restarted), open a NEW conversation for the same actual business request. Do not claim original failure recovered before real PPT verification. Plan docs/superpowers/plans/2026-10-27-bounded-gateway-observations.md. Preserve older results/failure records and all unrelated work.
-
-Reduce Deep Research control overhead. User requires interactive record-and-continue behavior, no repeated rejection/recalculation for ordinary gaps, and truthful process timing. Use scoped checks. Business tests must run in a new conversation in the existing Vivaldi tab/window131132. Sibling data-gateway is read-only.
-
-## Current source and runtime
-
-- Implementation worktree: `.worktrees/electrical-diagrams`, branch `feat/provincial-electrical-view`, source7513fc34; verification recordbf7a40ec. Actual dev remainsf1e6e9fd. No merge, cloud or demo deployment.
-- Source fixes:702d6c5a continuation predicate;64e33e75 advisory checks and handoff UI;0fffe239 receipt service during event drain;6b08e322 atomic automatic return registration;31eb8fb5 overview waits;fe2dd666 retain producer statement despite unknown support;5d9b40c2 combined goal review/finish;5d8e92f2 saved-vs-registered UI;7513fc34 granted child discovery observation admission.
-- Current running source7513fc34: imagefc72fe1ab67bca182a82a3bf7eeab829821fcc80040daf68c7244379c3d1f74c. Canonical rebuild/readiness and scoped cleanup passed; log `/tmp/capstone-discovery-observation-rebuild.log`.
-- Latest checks:133 controller/return tests;14 pinned SDK cases;180 App tests + TypeScript. Latest discovery fix:87 host/progress tests in3.42s. Set NO_PROXY/no_proxy=127.0.0.1,localhost for tests using httpx localhost; inherited proxy caused two502 failures on the first run.
-- No business task is running. Latest bounded Vivaldi trial passed. Existing browser restarted: PID53691, window137137. Reuse the existing Capstone tab; user may switch tabs/conversations during work.
-
-## Real measurements and next action
-
-1. Trial attempt_10974869a39ee7f8 / thr_5a8b701431950552a440 completed in92s with correct simulated metrics.
-2. Transport-only attempt_b00880d6422c9d88 / thr_22c47d471965dc8d5c60 had record calls0.437s/0.689s, repeated overview polls and unavailable bash calls. Summary ended12:54:27; outstanding parent action did not return before cancellation12:57:35. Cause of that stall remains unproven.
-3. Automatic-registration attempt_bb279f4dfb2c31a1 / thr_b9e0c2c19255f0a11ee8 completed13:12:19.160–13:13:28.304,69.144s. Company B and summary registered automatically about0.2s after return. Company A needed limited-record correction. Final parent tail20.794s. Correct visible answer and CSV. Comparison is observational; model paths differ.
-4. Latest attempt_0fbba5e903defbb0 / thr_8ec05c90864392f53980 failed13:25:41 with observation_source_invalid. Events86–90 show child agent_tool_search. SDK exposed a granted discovery tool, but host observation allowlist omitted it.7513fc34 fixes this exact mismatch and tests missing grants/unknown names. Not a proven combined-finish regression.
-5. Final attempt_340b0038e1a828cb / thr_f5d01cc73278b64e9631 completed13:57:00.180–13:57:43.606=43.426s. No failed, retry, polling or node-registration model calls. Main tools: plan + combined finish. Registration0.175–0.187s; final analysis→summary start0.384s; summary end→answer10.556s. Correct simulated table and limitations visible. Root `outputs/research-control-20261027/` contains screenshot/AX evidence. Generated heading “利润同向” is inaccurate but numeric comparison is correct; record, do not retry.
-6. Bounded control-overhead implementation is verified locally. Next acceptance: original large report and unresolved provider/parent stall, plus policy-publication alignment. Current policy1.19.0/pack1.16.0 still contains older explicit record/assess prose, and child-finished summaries also say parent must record/assess. Publish a new version when aligning them; do not silently edit old policy versions. No extra full-suite/release gate is authorized solely by this local change.
-
-Plan: `docs/superpowers/plans/2026-10-27-research-control-overhead.md`. Investigation: `docs/reports/2026-10-27-deep-research-handoff-investigation.md`.
-
-## Preserved open work
-
-- Large graph: b074f8db composite layout still dense; station readability not accepted. Progressive background download plus continuing conversation/pause-resume needs real acceptance.
-- Navigation:64c9de9f per-instruction toolbar graph restore verified in browser. a6f323fa historical names;ca41e6e7 older-page replay guard;f243d99a flush per-view camera on fast switch. Final refresh/camera verification pending.
-- Capacity:290565de routes oversized automatic continuation artifacts to references before8MiB inline check; upload64GiB/file,256GiB/session remain separate. Explicit product-context selection in thread_products.py still has inline overflow rejection. Large report attempt_d52ae75e269018d8 failed; final report not accepted.
-- Plans/reports: `docs/superpowers/plans/2026-10-27-beijing-electrical-display.md`, `docs/reports/2026-10-27-beijing-electrical-view-validation.md`. Root outputs/beijing-electrical-20261027/vivaldi has earlier graph captures.
-- Preserve unrelated `.superpowers/sdd/task-1-report.md` rewrite and dirty actual-dev control files INDEX/JOURNAL/PROJECT-OVERVIEW/RESUME/VERSION-CONTROL. Do not stage unrelated paths. Existing recovery stashes remain intact. Normal dev integration and control graph alignment remain pending.
-- Task-owned `docs/status/JOURNAL.md` and this live checkpoint have post-bf7a40ec recovery entries left uncommitted to avoid a commit/journal self-reference loop. Include them in the next coherent task commit.
+Normal dev integration and control graph alignment pending. Existing graph
+readability/progressive loading/camera acceptance are separate, not this task.
+Conversation archive restoration/PPTX preview implemented in a0b4e18e; preserve.
