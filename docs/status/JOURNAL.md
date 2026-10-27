@@ -6030,6 +6030,18 @@ Reproduced protected research acknowledgment waiting behind an entire public-eve
 - 2026-10-28: 0468f165 records measured batching and shared tool-composition proposals; runtime behavior remains unchanged pending implementation scope.
 # 2026-10-28 — Shared native tool composition
 
+PR71 development CI40572210058 failed in 2m37s on a pre-existing branch type
+narrowing expression in harness.py (two comparisons on object). Reproduced with
+file-scoped Pyright, retained the value in a local int guard: zero errors.
+43 harness tests pass. Added the new real Node programs/packages to the Python
+gate and verified actual Python descendant termination on cancel. Combined
+affected Python checks: 133 passed, 16 version combinations skipped, 4.54s.
+Continuation on reviewed output completed in 24.20s/7 model responses with three
+loadContext programs and zero gateway calls, verifying renamed admitted package
+reuse after rebuild. Actual downloaded package hash and internal digests passed.
+
+184a519e: Preserved missing-field gaps and exact continuation grants so semantic packages remain reusable without whole-task retries.
+
 Reviewed-source DR trial completed in 231.15s (4 parent +47 child model responses).
 Producer used real composition calls and saved semantic packages. Consumer made
 zero gateway calls and used the explicitly frozen package to deliver HTML.

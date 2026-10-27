@@ -77,3 +77,18 @@ test('large returns spill before delivery and later programs reuse actual sessio
   assert.equal(JSON.parse(await readFile(preview.full_result.path,'utf8')).result.length,100000);
   assert.ok(JSON.stringify(rpcEvent({type:'tool_execution_end',toolName:'agent_tools_execute',result:large})).length<40000);
 }));
+test('abort kills a real Python descendant before the next instruction can run',()=>fixture(async cwd=>{
+  const abort=new AbortController();let entered;const ready=new Promise(resolve=>{entered=resolve;});
+  const t=tool(cwd,async(_name,_args,{signal})=>{entered();await new Promise((resolve,reject)=>signal.addEventListener('abort',()=>reject(signal.reason),{once:true}));});
+  const code="import subprocess,sys; p=subprocess.Popen([sys.executable,'-c','import time; time.sleep(60)'],stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL); open('descendant.pid','w').write(str(p.pid)); print('ready')";
+  const run=t.execute('descendant',{tools:['data_gateway_read'],program:`await python(${JSON.stringify(code)},{});await tools.call('data_gateway_read',{});`},abort.signal);
+  await ready;const pid=Number(await readFile(join(cwd,'descendant.pid'),'utf8'));abort.abort(Error('cancelled'));
+  await assert.rejects(run,/cancelled/);
+  let active=true;
+  for(let i=0;i<100;i++){
+    try{process.kill(pid,0);if(process.platform==='linux'&&(await readFile(`/proc/${pid}/stat`,'utf8')).split(') ')[1].startsWith('Z')){active=false;break;}}
+    catch(error){if(error.code==='ESRCH'||error.code==='ENOENT'){active=false;break;}throw error;}
+    await new Promise(resolve=>setTimeout(resolve,10));
+  }
+  assert.equal(active,false,'Python descendant remained active after abort');
+}));
