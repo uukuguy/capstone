@@ -114,7 +114,12 @@ export default function LargeNetworkView({scene,title='电网拓扑',focusIds=[]
       const before=camera.current,height=before.width*node.clientHeight/node.clientWidth
       camera.current={...before,y:before.y+(before.height-height)/2,height};scheduleDraw()
     });if(canvas.current)observer?.observe(canvas.current)
-    return()=>{alive=false;ready.current=false;worker.current?.terminate();worker.current=null;renderer.current?.dispose();renderer.current=null;observer?.disconnect();cancelAnimationFrame(drawRequest.current);clearTimeout(persistTimer.current);clearTimeout(searchTimer.current)}
+    return()=>{
+      // Flush under the departing view's key before another view changes the ref.
+      // A fast drilldown can unmount the canvas before the debounced save fires.
+      if(ready.current)writeNetworkCamera(storageKey,viewKey,camera.current)
+      alive=false;ready.current=false;worker.current?.terminate();worker.current=null;renderer.current?.dispose();renderer.current=null;observer?.disconnect();cancelAnimationFrame(drawRequest.current);clearTimeout(persistTimer.current);clearTimeout(searchTimer.current)
+    }
   },[scene,storageKey,viewKey])
   useEffect(()=>{if(ready.current){if(!applyReturn()&&lastAutoFocus.current!==focusIdentity&&focusIds.length)focus();lastAutoFocus.current=focusIdentity;requestView()}},[focusIdentity,returnTaskRequest,taskLayerReady])
   useEffect(()=>{if(ready.current)requestView()},[bundleParallel,expandedBundles,neighborhood])
