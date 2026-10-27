@@ -26,7 +26,7 @@ function selectedProducts(value){
   return {products:[...products.values()],limitations:[...new Set(limitations)]};
 }
 
-export function createTaskNodeReturn(action,node,inputs){
+export function createTaskNodeReturn(action,node,inputs,{advisoryChecks=false}={}){
   const binding=clone({action_id:action.id,definition_ref:action.definition_ref,execution_revision:action.execution_revision,
     consumed_results:action.input_bindings.map(item=>item.result_ref),source_versions:action.source_versions});
   const declarations=clone(node),aliases=new Map(),observed=new Map();
@@ -63,6 +63,19 @@ export function createTaskNodeReturn(action,node,inputs){
     submission(value,submissionRef){
       requireValue(text(value?.summary)&&Array.isArray(value.outputs)&&text(submissionRef),'submission');
       const supplied=new Map(),notes=[...(value.limitations??[])];
+      let returnedChecks=value.checks??[];
+      if(advisoryChecks){
+        const candidates=Array.isArray(returnedChecks)?returnedChecks:[];
+        if(!Array.isArray(returnedChecks))notes.push('Invalid advisory check list was retained as a limitation; verification was not performed.');
+        returnedChecks=candidates.filter((item,index)=>{
+          const valid=item&&Number.isInteger(item.check)&&item.check>0&&item.check<=declarations.checks.length
+            &&candidates.filter(other=>other?.check===item.check).length===1
+            &&['passed','failed','not_run'].includes(item.status)&&text(item.explanation)
+            &&(item.observations===undefined||Array.isArray(item.observations));
+          if(!valid)notes.push('Invalid advisory check at position '+(index+1)+' was not accepted as verification; usable task outputs were retained.');
+          return valid;
+        });
+      }
       for(const item of value.outputs){
         if(!declarations.outputs.some(output=>output.slot===item?.slot)){
           notes.push('Unbound output was retained as a producer statement; its slot was not declared.');continue;
@@ -75,7 +88,7 @@ export function createTaskNodeReturn(action,node,inputs){
         summary:text(item.summary)?item.summary:value.summary,
         scope:'Producer statement for '+declarations.purpose+'; not independent analytical verification.',
         observations:item.observations?.length?item.observations:[submissionRef],files:item.files??[]})),
-        checks:(value.checks??[]).map(item=>({check:item.check,status:item.status,explanation:item.explanation,
+        checks:returnedChecks.map(item=>({check:item.check,status:item.status,explanation:item.explanation,
           observations:item.observations??[]})),limitations:notes};
       this.normalize(result);return result;
     },

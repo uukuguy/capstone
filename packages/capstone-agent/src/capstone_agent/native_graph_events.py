@@ -202,6 +202,15 @@ class NativeGraphEvents:
                       'result': event.get('result', {}), 'isError': event.get('is_error', False)}
             activity = project_graph_tool_activity(native, self.private_roots)
             if activity: public['tool_activity'] = activity
+            result = event.get('result')
+            details = result.get('details') if isinstance(result, dict) else None
+            if (event['tool_name'] == 'agent_task_return' and event['activity'] == 'end'
+                    and event.get('is_error') is False and isinstance(details, dict)
+                    and details.get('task_return_saved') is True):
+                notes = details.get('task_return_limitations', [])
+                if isinstance(notes, list) and all(isinstance(note, str) for note in notes):
+                    public['task_return'] = {'status': 'saved', 'limitation_count': len(notes),
+                        'limitations': [_public_text(note, self.private_roots) for note in notes[:16]]}
         return public
 
     @staticmethod

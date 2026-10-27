@@ -270,7 +270,7 @@ function taskReturnTool(config,cwd,binding){
       }
       return {content:[{type:'text',text:'Task return saved. Findings: '+value.summary+'\nThe host retains available files and records unavailable products separately. Do not resubmit or rerun this task for admission issues. Finish briefly.'+
         (retained?.unavailable?.length?'\nProduct limitations: '+JSON.stringify(retained.unavailable):'')}],
-        details:{task_return_saved:true,output_slots:value.outputs.map(item=>item.slot),
+        details:{task_return_saved:true,task_return_limitations:manifest.limitations,output_slots:value.outputs.map(item=>item.slot),
           ...(retained?.admission?{product_admission:retained.admission}:{}),
           ...(retained?.unavailable?.length?{unavailable_products:retained.unavailable}:{})}};
     }};
@@ -941,7 +941,8 @@ export function createGraphNodeDispatcher(config,sdk,modelRuntime,{skills,contex
   return async function dispatchNode({action,node,inputs,checkpoint,contract_schema,work_envelope,turn_guidance},{signal,validateProposal}={}){
     signal?.throwIfAborted();
     const taskReturn=config.researchRuntime.lightweightTaskNodes===true&&contract_schema?
-      createTaskNodeReturn(action,node,{...inputs,handles:graphInputFiles(action,inputs)}):undefined;
+      createTaskNodeReturn(action,node,{...inputs,handles:graphInputFiles(action,inputs)},
+        {advisoryChecks:config.researchRuntime.nodeReviewMode==='advisory'}):undefined;
     const inputPrompt=taskReturn?'':graphInputPrompt(action,inputs);
     const cwd=join(process.cwd(),'.research-workers',createHash('sha256').update(action.id).digest('hex'));
     await mkdir(cwd,{recursive:true});

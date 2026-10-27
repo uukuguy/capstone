@@ -33,6 +33,13 @@ describe('exact execution graph projection', () => {
     ], 'attempt')!
     expect(p.executions[0].tools[0]).toMatchObject({ durationMs: 10000, executionMs: 2710.25 })
   })
+  it('projects host-recorded return limitations on the bound task tool',()=>{
+    const p=projectExecutionGraph([progress(1),
+      frame(2,'enterprise_graph_tool_binding','A',{tool_call_id:'return:A',tool_name:'agent_task_return'}),
+      frame(3,'enterprise_graph_child_tool','A',{activity:'end',tool_call_id:'return:A',tool_name:'agent_task_return',is_error:false,
+        task_return:{status:'saved',limitation_count:1,limitations:['Check not verified']}})],'attempt')!
+    expect(p.executions[0].tools[0].returnLimitations).toEqual({count:1,notes:['Check not verified']})
+  })
   it('retains public parent request timing, including errors, without inventing node usage', () => {
     const runtime = (seq: number, phase: string, extra = {}): EventEnvelope => ({ ...event(seq, { runtime_mode: 'capstone', phase, ...extra }), eventType: 'runtime_action' })
     const rows: EventEnvelope[] = [progress(1), runtime(2, 'started'), runtime(4, 'response_completed', { response_kind: 'tools' }),

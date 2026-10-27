@@ -49,6 +49,17 @@ def test_child_public_projection_drops_private_native_results():
     with pytest.raises(ValueError): guard.admit(changed)
 
 
+def test_saved_task_return_projects_recorded_limitations_without_private_result():
+    guard, base = fixture()
+    guard.admit({**base, 'type': 'enterprise_graph_child_started', 'child_id': 'A'})
+    guard.admit({**base, 'type': 'enterprise_graph_tool_binding', 'tool_call_id': 'return', 'tool_name': 'agent_task_return'})
+    public = guard.admit({**base, 'type': 'enterprise_graph_child_tool', 'child_id': 'A',
+        'tool_call_id': 'return', 'tool_name': 'agent_task_return', 'activity': 'end', 'is_error': False,
+        'result': {'details': {'task_return_saved': True, 'task_return_limitations': ['Check was not verified']}}})
+    assert public['task_return'] == {'status': 'saved', 'limitation_count': 1, 'limitations': ['Check was not verified']}
+    assert 'result' not in public
+
+
 @pytest.mark.parametrize('duration', [0, 2710.25])
 def test_child_tool_preserves_native_execution_duration(duration):
     guard, base = fixture()

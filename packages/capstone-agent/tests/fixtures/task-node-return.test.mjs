@@ -21,6 +21,16 @@ test('selected files retain descriptive host metadata beside the exact read-only
 const value=()=>({schema:'capstone-task-return/1',outputs:[{slot:'answer',summary:'Observed answer',scope:'Assigned inputs',
   observations:['o1','i1'],files:[{path:'answer.md',role:'primary'}]}],
   checks:[{check:1,status:'passed',observations:['o1'],explanation:'Read the saved file'}],limitations:[]});
+test('advisory submission retains usable output and records malformed checks without a repair loop',()=>{
+  const adapter=createTaskNodeReturn(action,node,inputs,{advisoryChecks:true});
+  const request={summary:'Usable result',outputs:[{slot:'answer',files:[{path:'answer.md',role:'primary'}]}],
+    checks:[{check:999,status:'passed',explanation:'Unbound check'},{check:1,status:'pass',explanation:''}]};
+  const submitted=adapter.submission(request,'submission-observation'),result=adapter.normalize(submitted);
+  assert.equal(result.products[0].path,'answer.md');
+  assert.equal(result.proposal.checks[0].status,'not_run');
+  assert.ok(result.proposal.limitations.some(note=>note.includes('Invalid advisory check')));
+  assert.throws(()=>createTaskNodeReturn(action,node,inputs).submission(request,'submission-observation'),/invalid check/);
+});
 test('structured submissions leave identity, scope and unchecked status to the host',()=>{
   const adapter=createTaskNodeReturn(action,node,inputs);
   const submitted=adapter.submission({summary:'A useful "quoted" finding\n第二行',outputs:[{slot:'answer',files:[{path:'answer.md',role:'primary'}]}],

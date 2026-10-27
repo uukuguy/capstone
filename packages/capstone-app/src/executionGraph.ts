@@ -21,7 +21,7 @@ export type GraphResult = {
   method: Record<string, string>; supersedes: string[]; recompute_reason: { kind: string; refs: string[]; diagnostic?: string } | null;
 }
 export type ExecutionGraphSnapshot = { schema: string; graph_ref: string; graph_revision: number; goal: string; output_mode: string; model_revision_reason: string | null; nodes: GraphNode[]; actions: GraphAction[]; results: GraphResult[] }
-export type GraphTool = { id: string; name: string; status: 'running' | 'completed' | 'failed'; startedAt?: string; finishedAt?: string; durationMs?: number; executionMs?: number; operation?: string; output?: string; actionId?: string; actionKind?: string; origin?: 'parent' }
+export type GraphTool = { id: string; name: string; status: 'running' | 'completed' | 'failed'; startedAt?: string; finishedAt?: string; durationMs?: number; executionMs?: number; operation?: string; output?: string; actionId?: string; actionKind?: string; origin?: 'parent'; returnLimitations?: {count:number;notes:string[]} }
 export type GraphResponse = { number: number; ms: number; usage?: RecordValue; startedAt?: string; finishedAt?: string; toolCallIds?: string[]; stopReason?: string; responseText?: string; toolRequests?: { id: string; name: string; operation?: string }[] }
 export type GraphExecution = { action: GraphAction; node: GraphNode; tools: GraphTool[]; responses: GraphResponse[]; nativeStatus?: string; resultSummary?: string; startedAt?: string; finishedAt?: string; durationMs?: number; executionStartedAt?: string; executionFinishedAt?: string; executionIntervalMs?: number; modelResponseCount?: number; turnCount?: number }
 export type GraphParentResponse = { id: string; startedAt: string; finishedAt: string; ms: number; kind: string }
@@ -240,6 +240,10 @@ export function projectExecutionGraph(events: readonly EventEnvelope[], attemptI
         if (binding && binding.actionId === f.action_id && binding.name === f.tool_name) {
           applyTool(execution, f.tool_call_id, f.tool_name, f.activity, event, f.is_error, f.tool_activity)
           if (f.activity === 'end' && nonnegative(f.execution_ms)) execution.tools.find(t => t.id === f.tool_call_id)!.executionMs ??= f.execution_ms
+          if(f.activity==='end'&&f.tool_name==='agent_task_return'&&f.is_error===false&&object(f.task_return)
+            &&f.task_return.status==='saved'&&Number.isSafeInteger(f.task_return.limitation_count)&&Number(f.task_return.limitation_count)>=0
+            &&Array.isArray(f.task_return.limitations)&&f.task_return.limitations.length<=16&&f.task_return.limitations.every(item=>typeof item==='string'))
+            execution.tools.find(t=>t.id===f.tool_call_id)!.returnLimitations={count:Number(f.task_return.limitation_count),notes:f.task_return.limitations as string[]}
         }
       }
     }
