@@ -233,9 +233,8 @@ def freeze_material_submission(service, snapshot, payload, submission, *, connec
     if not payload.get('context_product_refs'):
         from .native_artifact_projection import read_native_artifact
         for source in _process_files(service, snapshot, work_id, payload.get('source_attempt_id'), connection):
-            if payload.get('material_refs') != [] and PurePosixPath(source['file_name']).suffix.lower() in TYPES:
-                observe_capacity('inline_material_count', len(frozen)+1, phase='material.continuation')
-                observe_capacity('inline_material_bytes', sum(item['size_bytes'] for item in frozen)+source['size_bytes'], phase='material.continuation')
+            # Choose the transport before admission. A resource reference does
+            # not consume inline bytes; large continuation files are expected.
             if (payload.get('material_refs') == [] or len(frozen) >= limits.inline_material_count
                     or sum(item['size_bytes'] for item in frozen) + source['size_bytes'] > limits.inline_material_bytes
                     or PurePosixPath(source['file_name']).suffix.lower() not in TYPES):

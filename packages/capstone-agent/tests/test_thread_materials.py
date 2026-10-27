@@ -51,7 +51,8 @@ def test_missing_durable_adoption_uses_real_store_backend_without_memory_attribu
 
 
 @pytest.mark.parametrize('phase', ['failed', 'cancelled', 'completed'])
-def test_terminal_work_files_remain_available_beyond_inline_material_slots(chat_store, phase):
+@pytest.mark.parametrize('large_automatic', [False, True])
+def test_terminal_work_files_remain_available_beyond_inline_material_slots(chat_store, phase, large_automatic, monkeypatch):
     from hashlib import sha256
     from types import SimpleNamespace
     from capstone_agent.native_artifact_projection import project_native_artifacts
@@ -64,7 +65,12 @@ def test_terminal_work_files_remain_available_beyond_inline_material_slots(chat_
         payload={'text': 'Analyze the sources'})).status == 'accepted'
     claim = store.claim_attempt('materials', 30, 'native')
     task_id = 'partial-files-task'
-    files = [('metrics.csv', b'x,y\n1,2\n')] + [(f'chart-{i}.png', b'PNG' + bytes([i])) for i in range(6)]
+    from dataclasses import replace
+    from capstone_agent import application_capacity
+    if large_automatic:
+        monkeypatch.setattr(application_capacity, '_current', replace(application_capacity.current_capacity(), mode='debug'))
+    data = b'x,y\n1,2\n' if not large_automatic else b'1,2\n' * (application_capacity.limits.inline_material_bytes // 4 + 1)
+    files = [('metrics.csv', data)] + [(f'chart-{i}.png', b'PNG' + bytes([i])) for i in range(6)]
     by_id = {}
     entries = []
     for name, data in files:
@@ -82,7 +88,7 @@ def test_terminal_work_files_remain_available_beyond_inline_material_slots(chat_
     work = store.snapshot(thread_id).works[0]
     assert store.submit_command(command(store, thread_id, 'send_message', 'resume_partial',
         work_id=work['work_id'], revision=work['revision'],
-        payload={'text': 'Please finish the report', 'material_refs': []})).status == 'accepted'
+        payload={'text': 'Please finish the report', **({} if large_automatic else {'material_refs': []})})).status == 'accepted'
     resumed = store.claim_attempt('materials', 30, 'native')
     assert resumed.submission['_materials'] == []
     assert len(resumed.submission['_continuation_artifacts']) == 7
