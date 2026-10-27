@@ -5996,3 +5996,4 @@ Prior closeout receipts preserved verbatim from the root checkout:
 Reproduced protected research acknowledgment waiting behind an entire public-event page. Service control receipts between ordered events after250ms.137 scoped transport/bridge tests pass,1 skipped (37.03s); live latency comparison remains pending. Previous64e33e75 local rebuild and Vivaldi two-company trial completed with correct metrics in92s. Extra association inspection/recalculation and final parent turns remain open. Details: `docs/reports/2026-10-27-deep-research-handoff-investigation.md`.
 
 - 2026-10-27: 0fffe239 services research receipts during event publication to prevent control starvation;137 focused tests passed.
+- 2026-10-27: 6b08e322 registers validated advisory returns atomically, removing planner registration turns;116 controller and14 SDK tests passed.

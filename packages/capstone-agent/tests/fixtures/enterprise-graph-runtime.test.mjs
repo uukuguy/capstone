@@ -1351,6 +1351,18 @@ test('checkpoint wakes do not resume the planner while only children remain acti
   await f.settle('A');assert.ok((await wait).prompt.includes('obs-A'));
   await f.controller.close({reason:'Done'});
 });
+test('planner overview waits for an actionable return and remains cancellable',async()=>{
+  const f=fixture();await f.controller.execute('plan','plan',plan([node('A')]));
+  try{
+    let resumed=false;const abort=new AbortController();
+    const cancelled=f.controller.waitForDecision({signal:abort.signal});
+    abort.abort(new DOMException('Stop','AbortError'));await assert.rejects(cancelled,{name:'AbortError'});
+    const pending=f.controller.waitForDecision().then(()=>{resumed=true;});await tick();
+    assert.equal(resumed,false,'An overview request must not produce repeated polling responses');
+    await f.settle('A');await pending;assert.equal(resumed,true);
+    assert.equal((await f.controller.readState()).pending_proposals[0].step_id,'A');
+  }finally{await f.controller.close({reason:'Done'});}
+});
 test('failed parent native work cannot be recorded completed',async()=>{
   const f=fixture();await f.controller.execute('plan','plan',plan([node('P',{execution:'parent'})]));await f.controller.execute('start','start',{step_id:'P'});
   const token=await f.controller.beginTool({toolCallId:'bad-read',toolName:'read'});f.controller.endTool(token,undefined,new Error('Actual read failed'));

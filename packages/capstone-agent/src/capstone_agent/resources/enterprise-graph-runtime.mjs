@@ -1153,7 +1153,24 @@ export function createEnterpriseGraphController({config,readResearch,commitResea
       },signal);
     }catch(error){signal?.throwIfAborted();interruptDebug(error);return errorReply(error);}
   }
-  const controller={execute,finish,inspect:inspectParent,recoverPending,readReference,
+  async function waitForDecision({signal}={}){
+    signal=admissionSignal(signal);await recoverPending({signal});
+    await waitForActionable(signal);
+  }
+  async function waitForActionable(signal){
+    const control=()=>snapshot?.nodes.some(node=>{const current=snapshot.node_states[node.id];return ['executed','recorded','assessing'].includes(current.phase)||
+      node.execution==='parent'&&current.phase==='ready';});
+    // Checkpoint and scheduling pulses do not necessarily deliver a result.
+    // Re-check the predicate before spending another planner model turn.
+    while(!delivery&&!pending&&!closing&&!control()&&jobs.size){
+      await new Promise((resolve,reject)=>{
+        const done=()=>{signal?.removeEventListener('abort',abort);waiters.delete(done);resolve();};
+        const abort=()=>{waiters.delete(done);reject(signal.reason??new DOMException('Aborted','AbortError'));};
+        signal?.throwIfAborted();waiters.add(done);signal?.addEventListener('abort',abort,{once:true});
+      });await recoverPending({signal});
+    }
+  }
+  const controller={execute,finish,inspect:inspectParent,recoverPending,readReference,waitForDecision,
     // Private model context only. Never place these handles in durable state or tool replies.
     async readParentInputs({signal}={}){
       signal=admissionSignal(signal);await recoverPending({signal});await waitFor(writer,signal);
@@ -1270,17 +1287,7 @@ export function createEnterpriseGraphController({config,readResearch,commitResea
       // No accepted work exists to continue. Let the same first model turn answer
       // a simple request directly; do not manufacture a planning turn after it.
       if(!snapshot&&!pending&&!closing&&!jobs.size)return null;
-      const control=()=>snapshot?.nodes.some(node=>{const current=snapshot.node_states[node.id];return ['executed','recorded','assessing'].includes(current.phase)||
-        node.execution==='parent'&&current.phase==='ready';});
-      // Checkpoint and scheduling pulses do not necessarily deliver a result.
-      // Re-check the predicate before spending another planner model turn.
-      while(!delivery&&!pending&&!closing&&!control()&&jobs.size){
-        await new Promise((resolve,reject)=>{
-          const done=()=>{signal?.removeEventListener('abort',abort);waiters.delete(done);resolve();};
-          const abort=()=>{waiters.delete(done);reject(signal.reason??new DOMException('Aborted','AbortError'));};
-          signal?.throwIfAborted();waiters.add(done);signal?.addEventListener('abort',abort,{once:true});
-        });await recoverPending({signal});
-      }
+      await waitForActionable(signal);
       if(delivery){if(goalDriven&&delivery.outcome==='failure')fail('task_goal_blocked','The whole goal is blocked; partial results are retained, not completed delivery.');return null;}
       const state=await this.readState({compact:true,signal});
       if(state.update_pending)fail('research_update_not_confirmed','A scheduled checkpoint is still unconfirmed after host recovery. Retain its exact request; native work was not repeated.');

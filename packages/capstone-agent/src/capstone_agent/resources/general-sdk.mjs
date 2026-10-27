@@ -1186,6 +1186,8 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
       });
       const client = configureGeneralResearch(pi, config, {getControllerState:options=>researchController.readState(
         graphResearch?{compact:options?.full!==true}:{includeReviewDetails:options?.full===true}),
+        ...(graphResearch&&config.researchRuntime.nodeReviewMode==='advisory'
+          ?{waitForDecision:control=>researchController.waitForDecision(control)}:{}),
         ...(graphResearch?{readReference:(callId,payload,control)=>researchController.readReference(callId,payload,{...control,
           onBinding:token=>hostEmit(graphToolBinding(config,{...token,toolCallId:callId,toolName:'agent_research_read'}))})}:{})});
       if(graphResearch){
