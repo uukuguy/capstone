@@ -317,6 +317,31 @@ test('advisory goal review ignores unrelated node-review fields without adopting
     assert.equal((await f.controller.execute('assess','foreign',bad)).details.ok,false);
   }finally{await f.controller.close({reason:'Done'});}
 });
+test('advisory delivery accepts one combined whole-goal decision and finish with exact replay',async()=>{
+  const f=fixture({config:{researchRuntime:{graphLimits:limits,delegation:{concurrency:1},isolatedTaskExecution:true,
+    lightweightTaskNodes:true,nodeReviewMode:'advisory',goalDrivenExecution:true}}});
+  try{
+    await f.controller.execute('plan','plan',{...plan([node('A',{checks:[]})]),
+      requirements:[{id:'answer',kind:'finding',description:'Answer the question'}]});
+    await f.settle('A');const returned=record(f.calls[0].action.id);returned.outputs[0].observation_refs=['obs-A'];
+    await f.controller.execute('record','retain',returned);
+    const ref=(await f.controller.readState()).graph.results[0].result_ref;
+    const payload={outcome:'success',delivery_result_refs:[ref],delivery_product_refs:[],limitations:[],summary:'Actual answer',
+      goal_review:{decision:'complete',requirements:[{id:'answer',status:'satisfied',result_refs:[ref],explanation:'Returned finding answers the question'}],summary:'Current request is complete'}};
+    const tools=registered(f.controller);
+    assert.ok(tools.agent_research_finish.parameters.properties.goal_review);
+    assert.equal(tools.agent_research_finish.parameters.required.includes('goal_review_ref'),false);
+    assert.equal((await f.controller.finish('bad-ref',{...payload,goal_review:{...payload.goal_review,
+      requirements:[{id:'answer',status:'satisfied',result_refs:['foreign-result'],explanation:'Not admitted'}]}})).details.ok,false);
+    assert.equal((await f.controller.finish('ambiguous',{...payload,goal_review_ref:'foreign-review'})).details.ok,false);
+    assert.equal((await f.controller.finish('not-done',{...payload,goal_review:{...payload.goal_review,decision:'continue'}})).details.ok,false);
+    assert.notEqual(f.controller.status.phase,'done');
+    const reply=await f.controller.finish('deliver',payload);assert.equal(reply.details.ok,true,JSON.stringify(reply));
+    assert.equal(f.controller.status.phase,'done');
+    assert.deepEqual(await f.controller.finish('deliver',payload),reply);
+    assert.equal((await f.controller.finish('deliver',{...payload,goal_review:{...payload.goal_review,summary:'Changed'}})).details.ok,false);
+  }finally{await f.controller.close({reason:'Done'});}
+});
 for(const review of ['advisory','strict'])for(const checkStatus of ['passed','not_run'])for(const lostReceipt of [false,true])test(`validated ${review} return with ${checkStatus} checks ${review==='advisory'?'dispatches dependents without planner registration':'retains explicit review'}; lost receipt=${lostReceipt}`,async()=>{
   const f=fixture({config:{researchRuntime:{graphLimits:limits,delegation:{concurrency:1},isolatedTaskExecution:true,
     lightweightTaskNodes:true,nodeReviewMode:review}}});

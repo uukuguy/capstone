@@ -1067,6 +1067,14 @@ export function createEnterpriseGraphController({config,readResearch,commitResea
   async function finish(callId,payload,{signal}={}){
     try{
       signal=admissionSignal(signal);await waitFor(load(),signal);requireCycle(opaque(callId),'Finish command ID must be opaque');
+      if(goalDriven&&advisoryReviews&&Object.hasOwn(payload??{},'goal_review')){
+        requireCycle(!Object.hasOwn(payload,'goal_review_ref'),'Choose goal_review or goal_review_ref, not both');
+        const {goal_review,...deliveryPayload}=payload;
+        finishPayload(deliveryPayload);
+        requireCycle(['complete','limited','blocked'].includes(goal_review?.decision),'A combined delivery needs a terminal whole-goal decision');
+        const reviewed=await assessGoal('finish-review:'+hash(callId).slice(0,40),{goal_review},signal);
+        payload={...deliveryPayload,goal_review_ref:reviewed.details.result.organization.review.review_ref};
+      }
       const {goal_review_ref,...core}=payload??{};
       finishPayload(goalDriven?core:payload);
       if(goalDriven)requireCycle(opaque(goal_review_ref),'Finish requires an exact whole-goal review reference');
@@ -1242,9 +1250,15 @@ export function createEnterpriseGraphController({config,readResearch,commitResea
         description:'Ask the host to freeze and inspect selected parent output files. Supply safe relative paths and presentation roles. Only a committed host grant supplies artifact refs for record; inspection is not execution or quality evidence.',
         execute:(callId,payload,signal)=>inspectParent(callId,payload,{signal})});
       const finishParameters=clone(graphFinishToolParameters);
-      if(goalDriven){finishParameters.properties.goal_review_ref=clone(ref);finishParameters.required.push('goal_review_ref');}
+      if(goalDriven){
+        finishParameters.properties.goal_review_ref=clone(ref);
+        if(advisoryReviews){
+          finishParameters.properties.goal_review=clone(taskGoalReviewSchema);
+          finishParameters.oneOf=[{required:['goal_review']},{required:['goal_review_ref']}];
+        }else finishParameters.required.push('goal_review_ref');
+      }
       pi.registerTool({name:'agent_research_finish',label:'Finish research',parameters:finishParameters,
-        description:(goalDriven?'Requires exact goal_review_ref from a current complete or limited whole-goal assessment. A continue decision forbids finish: append the next justified tasks. A limited decision preserves unmet requirements and needs explicit limitations and an actual retained result. A blocked goal may close only as failure. A performance estimate is not a hard deadline. ':'')+'Explicitly close delivery. Before closing, '+(advisoryReviews?'use automatically registered contributing results; recover only unresolved returns with record, with no separate node assessment. ':'record and assess every node whose output should contribute, including settled children. ')+'Host drain/cancellation settles jobs but does not record their outputs. Select exact current assessed result refs and their inspected artifact refs. Use success only when all current nodes succeeded with known native outcomes; limited or failure remains valid with explicit limitations. Once finish commits, later record/assess calls are rejected. Node success alone is not task delivery.',
+        description:(goalDriven?(advisoryReviews?'Prefer one delivery call: include goal_review with your actual complete/limited/blocked decision, requirement coverage and summary together with delivery fields. No preceding assess call is needed. Alternatively use an exact existing goal_review_ref; never supply both. ':'Requires exact goal_review_ref from a current complete or limited whole-goal assessment. ')+ 'A continue decision forbids finish: append the next justified tasks. A limited decision preserves unmet requirements and needs explicit limitations and an actual retained result. A blocked goal may close only as failure. A performance estimate is not a hard deadline. ':'')+'Explicitly close delivery. Before closing, '+(advisoryReviews?'use automatically registered contributing results; recover only unresolved returns with record, with no separate node assessment. ':'record and assess every node whose output should contribute, including settled children. ')+'Host drain/cancellation settles jobs but does not record their outputs. Select exact current assessed result refs and their inspected artifact refs. Use success only when all current nodes succeeded with known native outcomes; limited or failure remains valid with explicit limitations. Once finish commits, later record/assess calls are rejected. Node success alone is not task delivery.',
         execute:(callId,payload,signal)=>finish(callId,payload,{signal})});
     },
     async beginTool({toolCallId,toolName,signal}){

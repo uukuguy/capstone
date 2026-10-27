@@ -11,6 +11,8 @@ The user has requested record-and-continue behavior and removal of repeated hand
 - [x] In `enterprise-graph-runtime.mjs`, combine validated child settlement, record and advisory assessment into one protected checkpoint. Preserve result refs and declared limitations. Missing checks produce a limited result, never a fabricated pass. Invalid or unknown associations retain their diagnostics and cannot gain trusted references.
 - [x] Add controller tests for automatic dependent-task dispatch, missing checks, strict-mode behavior, foreign references and replay.116 controller tests and14 pinned-SDK cases pass (0.95s and8.33s).
 - [x] Align tool descriptions and continuation guidance with automatic registration. Overview reads in advisory mode wait for actionable returns, with cancellation; they do not repeatedly return unchanged state for model polling.117 controller and14 SDK tests pass.
+- [x] Permit one advisory finish call carrying the model's whole-goal decision and selected delivery. Keep exact review persistence, reference validation and replay; strict mode still requires its explicit review reference.
+- [x] Preserve an actual returned producer statement when supplied observation aliases cannot be resolved; omit unknown refs and retain limitations, never convert them into passed checks.
 - [ ] Make automatic receipt, remaining limitations, main-chain work and final response timing visible in execution records. Do not label a locally saved return as completed host admission.
 - [ ] Rebuild locally and verify through a new conversation in the existing Vivaldi tab. Measure child completion to dependent dispatch and final answer separately. Stop abnormal idle runs.
 

@@ -5999,3 +5999,4 @@ Reproduced protected research acknowledgment waiting behind an entire public-eve
 - 2026-10-27: 6b08e322 registers validated advisory returns atomically, removing planner registration turns;116 controller and14 SDK tests passed.
 - 2026-10-27: 31eb8fb5 makes advisory overview wait for actionable results, avoiding repeated model polling;117 controller and14 SDK tests passed.
 - 2026-10-27: Vivaldi trial attempt_bb279f4dfb2c31a1 completed in69.1s; automatic registration worked, final tail20.8s remains.132 return/controller tests pass.
+- 2026-10-27: fe2dd666 retains actual producer statements when supplied support is unknown, preventing unnecessary registration repair or recalculation.
