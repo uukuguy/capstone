@@ -6018,3 +6018,4 @@ Reproduced protected research acknowledgment waiting behind an entire public-eve
 - 2026-10-27: 8ad49174 verifies v1.20 runtime selection; 92 host and 50 executor checks pass before the repaired DR trial.
 - 2026-10-27: 4859e980 corrects actual runner ownership for child discovery grants; both earlier full trials remain failed, without delivery.
 - 2026-10-27: bf9c2d1e derives typed input dependencies to avoid redundant planning retries; 122 controller/SDK checks passed.
+- 2026-10-27: 109ca6cd clarifies prompt DR activation via delegated discovery; 23 SDK checks pass; running trial retains prior image.

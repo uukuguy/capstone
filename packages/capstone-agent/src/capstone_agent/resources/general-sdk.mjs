@@ -354,6 +354,8 @@ export function guardToolExecution(tool, admit) {
 }
 
 export function applicationToolAdmission(config, toolName) {
+  if(config.researchRuntime?.deepResearch===false&&toolName.startsWith('agent_research_'))
+    return {accepted:false,reason:'Deep Research is off for this instruction. Use the ordinary agent loop.'};
   const policy = config.applicationPolicy;
   return { accepted: (config.researchRuntime?.adaptiveAgentLoop===true||!config.researchRuntime?.isolatedTaskExecution||diagnosisTools.includes(toolName)||toolName!=='agent_research_inspect'&&(toolName.startsWith('agent_research_')||toolName==='agent_task_progress'))&&
       (!policy || policy.allowed_tools.includes(toolName)),
@@ -1261,6 +1263,7 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
     noContextFiles: true, agentsFilesOverride: () => ({ agentsFiles: config.contextFiles }),
     systemPromptOverride: () => organizationOnly?[organizationEnginePolicy,organizationExecutionContract(),organizationSourceCatalog(config),config.systemPrompt].filter(Boolean).join('\n\n'):config.systemPrompt ?? undefined,
     appendSystemPromptOverride: () => [...(config.appendSystemPrompt??[]),
+      ...(config.researchRuntime?.deepResearch===true?['The user explicitly selected Deep Research for this instruction. Start by admitting a task plan, then use independent executors and a committed delivery. Do not replace this selection with direct native work or a direct final answer.']:config.researchRuntime?.deepResearch===false?['Deep Research is off for this instruction. Use the ordinary reasoning and authorized tool loop. Do not activate task organization.']:[]),
       ...(!organizationOnly?[nativeShellGuidance,savedProductGuidance,...(managedResearch?[continuationSourceGuidance]:[])]:[]),
       ...(adaptiveLoop?['Start with the current instruction in a lightweight agent loop. At each cycle answer if sufficient, call an authorized tool for needed observations, or use agent_research_plan when task organization is useful. Respect an explicit user request to use Deep Research. When that choice is already clear, activate it promptly with the smallest useful discovery or preparation task; discovering coverage is executable research and can be delegated before the full plan is known. Do not perform a long discovery, data collection or environment inventory in the parent merely to prepare a complete plan. Independent work and known downstream dependencies can be appended or declared once justified. An ordinary answer or short local edit still needs no plan. Tool count, file uploads and session labels do not decide escalation. Before organization you may use native and granted gateway tools directly. After an accepted plan, use the isolated task execution contracts. Reuse exact Host observation references as explicitly selected source_refs; these are raw inputs, never accepted task results or Authority evidence.']:[])],
     skillsOverride: current => ({ ...current, skills: current.skills.filter(s => config.allowedSkills.includes(s.name)) }) });

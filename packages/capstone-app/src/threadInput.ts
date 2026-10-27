@@ -6,8 +6,8 @@ import type {StoredResource} from './resourceUploads'
 export type SkillRole = 'harness_engine' | 'direct_pi' | 'delegated_pi'
 export type SkillChoice = { id: string; version: string; role: SkillRole; revision: string }
 export type ContextChoice = { include_refs: string[]; exclude_refs: string[] }
-export type InputDraft = { mode: RuntimeMode; skill?: SkillChoice; context: ContextChoice; literal?: boolean; material_refs?: string[];context_product_refs?:ContextProductRef[] }
-export type InputSubmission = { input: { kind: 'text' | 'skill_invocation'; text: string; skill_id?: string; skill_version?: string }; resource_profile?: { profile_id: SkillRole; revision: string }; context_selection: ContextChoice; material_refs?: string[];context_product_refs?:ContextProductRef[];attachment_refs?:string[] }
+export type InputDraft = { mode: RuntimeMode; deep_research?:boolean; skill?: SkillChoice; context: ContextChoice; literal?: boolean; material_refs?: string[];context_product_refs?:ContextProductRef[] }
+export type InputSubmission = { deep_research?:boolean; input: { kind: 'text' | 'skill_invocation'; text: string; skill_id?: string; skill_version?: string }; resource_profile?: { profile_id: SkillRole; revision: string }; context_selection: ContextChoice; material_refs?: string[];context_product_refs?:ContextProductRef[];attachment_refs?:string[] }
 export type InputCatalog = {
   stored_resources?:StoredResource[]
   schema: 'capstone-thread-input-catalog/1'; revision: string; context_id: string; selection_revision: string
@@ -43,6 +43,7 @@ export function buildInputSubmission(text: string, draft: InputDraft): InputSubm
   if (draft.material_refs !== undefined && !validMaterialRefs(draft.material_refs)) throw new Error('所选资料无效。')
   if (draft.skill && !skillCompatible(draft.skill, draft.mode)) throw new Error('所选技能与当前模式不兼容，请重新选择。')
   return { input: draft.skill ? { kind: 'skill_invocation', text, skill_id: draft.skill.id, skill_version: draft.skill.version } : { kind: 'text', text },
+    ...(draft.deep_research===undefined?{}:{deep_research:draft.deep_research}),
     ...(draft.skill ? { resource_profile: { profile_id: draft.skill.role, revision: draft.skill.revision } } : {}), context_selection: draft.context,
     ...(draft.material_refs === undefined ? {} : {material_refs: [...draft.material_refs]}),
     ...(draft.context_product_refs===undefined?{}:{context_product_refs:parseContextProductRefs(draft.context_product_refs)}) }
@@ -57,6 +58,7 @@ export function readInputDraft(key?: string): InputDraft | undefined {
     if (!text) return
     assertCapacity(new TextEncoder().encode(text).byteLength,'ui_input_draft_bytes')
     const value = JSON.parse(text)
+    if(value.deep_research!==undefined&&typeof value.deep_research!=='boolean')return
     if (!['capstone', 'pi_reference'].includes(value.mode) || !Array.isArray(value.context?.include_refs) || !Array.isArray(value.context?.exclude_refs)) return
     if (value.skill && (!['harness_engine', 'direct_pi', 'delegated_pi'].includes(value.skill.role) || ['id', 'version', 'revision'].some(key => typeof value.skill[key] !== 'string'))) return
     if (value.material_refs !== undefined && !validMaterialRefs(value.material_refs)) return

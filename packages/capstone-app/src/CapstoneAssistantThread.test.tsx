@@ -1821,7 +1821,7 @@ describe('CapstoneAssistantThread', () => {
     fireEvent.change(input, { target: { value: '第一行\n第二行' } })
     fireEvent.keyDown(input, { key: 'Enter', code: 'Enter', charCode: 13 })
 
-    await waitFor(() => expect(onSend).toHaveBeenCalledWith('automatic', '第一行\n第二行'))
+    await waitFor(() => expect(onSend).toHaveBeenCalledWith('automatic', '第一行\n第二行', expect.objectContaining({deep_research:false})))
   })
 
   it('keeps a stable composer action footprint while the input is empty', async () => {
@@ -1847,6 +1847,6 @@ describe('CapstoneAssistantThread', () => {
     fireEvent.change(input, { target: { value: '第一行\n第二行' } })
     fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
 
-    await waitFor(() => expect(onSend).toHaveBeenCalledWith('automatic', '第一行\n第二行'))
+    await waitFor(() => expect(onSend).toHaveBeenCalledWith('automatic', '第一行\n第二行', expect.objectContaining({deep_research:false})))
   })
 })

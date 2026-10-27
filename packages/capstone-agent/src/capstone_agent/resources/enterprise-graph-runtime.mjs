@@ -1309,7 +1309,12 @@ export function createEnterpriseGraphController({config,readResearch,commitResea
       if(delivery){if(goalDriven&&delivery.outcome==='failure')fail('task_goal_blocked','The whole goal is blocked; partial results are retained, not completed delivery.');return null;}
       // No accepted work exists to continue. Let the same first model turn answer
       // a simple request directly; do not manufacture a planning turn after it.
-      if(!snapshot&&!pending&&!closing&&!jobs.size)return null;
+      if(!snapshot&&!pending&&!closing&&!jobs.size){
+        if(config.researchRuntime?.deepResearch===true)return {
+          prompt:'The user selected Deep Research for this instruction. Call agent_research_plan now with the smallest useful task or batch; discovery can be its first delegated task. Do not replace this selection with a direct answer.',
+          actionId:'user-selected-deep-research',checkpoint:0,progress_key:'user-selected-deep-research'};
+        return null;
+      }
       await waitForActionable(signal);
       if(delivery){if(goalDriven&&delivery.outcome==='failure')fail('task_goal_blocked','The whole goal is blocked; partial results are retained, not completed delivery.');return null;}
       const state=await this.readState({compact:true,signal});

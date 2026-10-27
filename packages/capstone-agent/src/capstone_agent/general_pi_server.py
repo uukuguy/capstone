@@ -1029,6 +1029,9 @@ class NativeTaskRunner:
                         sdk_config['researchRuntime']['goalDrivenExecution'] = publication.goal_driven_execution
                         sdk_config['researchRuntime']['lightweightTaskNodes'] = publication.lightweight_task_nodes
                         sdk_config['researchRuntime']['adaptiveAgentLoop'] = publication.adaptive_agent_loop
+                        if 'deep_research' in native:
+                            sdk_config['researchRuntime']['deepResearch'] = native['deep_research']
+                            sdk_config['researchRuntime']['adaptiveAgentLoop'] = not native['deep_research']
                         if publication.work_edition:
                             if document.get('research_binding', {}).get('graph_work_edition') != publication.work_edition:
                                 raise ValueError('graph work policy and protected binding differ')

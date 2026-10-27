@@ -5,6 +5,7 @@ import type { InputCatalog } from './threadInput'
 import { MessageNotSentError } from '@assistant-ui/react'
 
 afterEach(() => { cleanup(); sessionStorage.clear() })
+function openSkills(){const composer=screen.getByRole('textbox',{name:'Thread 指令'});fireEvent.change(composer,{target:{value:'/skills'}});fireEvent.keyDown(composer,{key:'Enter'});}
 
 it('binds a unique native skill name and keeps same-name collisions in the picker', async () => {
   const skill = { id: 'powerskills-pandapower', native_name: 'pandapower', kind: 'skill', version: 'version-A', source: 'managed', ready: true, reason: null }
@@ -15,7 +16,7 @@ it('binds a unique native skill name and keeps same-name collisions in the picke
   const input = screen.getByRole('textbox', { name: 'Thread 指令' })
   fireEvent.change(input, { target: { value: '/skill:pandapower inspect model' } })
   fireEvent.keyDown(input, { key: 'Enter' })
-  expect(screen.getByRole('button', { name: '选择技能' }).title).toContain('pandapower')
+  expect(screen.queryByRole('button', { name: '选择技能' })).toBeNull()
   expect(onSend).not.toHaveBeenCalled()
   fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
   await waitFor(() => expect(onSend).toHaveBeenCalledWith('automatic', 'inspect model', expect.objectContaining({
@@ -57,7 +58,7 @@ it('opens UI commands without sending and completion Enter never submits', async
 it('preserves text and incompatible selection on mode change and requires re-selection', () => {
   const props = { events: [], disabled: false, isRunning: false, activity: [], onSend: vi.fn(async () => {}), onCancel: async () => {}, inputCatalog: catalog }
   const view = render(<CapstoneAssistantThread {...props} />)
-  fireEvent.click(screen.getByRole('button', { name: '选择技能' }))
+  openSkills()
   fireEvent.click(screen.getByRole('button', { name: /skill-a/ }))
   const input = screen.getByRole('textbox', { name: 'Thread 指令' })
   fireEvent.change(input, { target: { value: 'keep draft' } })
@@ -71,7 +72,7 @@ it('restores the exact draft and skill after an uncertain submission and remount
   const onSend = vi.fn(async () => { throw new MessageNotSentError('receipt unknown') })
   const props = { events: [], disabled: false, isRunning: false, activity: [], onSend, onCancel: async () => {}, inputCatalog: catalog, storageKey: 'typed-recovery' }
   const view = render(<CapstoneAssistantThread {...props} />)
-  fireEvent.click(screen.getByRole('button', { name: '选择技能' }))
+  openSkills()
   fireEvent.click(screen.getByRole('button', { name: /skill-a/ }))
   fireEvent.change(screen.getByRole('textbox', { name: 'Thread 指令' }), { target: { value: 'original draft' } })
   fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
@@ -80,7 +81,7 @@ it('restores the exact draft and skill after an uncertain submission and remount
   view.unmount()
   render(<CapstoneAssistantThread {...props} />)
   expect((screen.getByRole('textbox', { name: 'Thread 指令' }) as HTMLTextAreaElement).value).toBe('original draft')
-  fireEvent.click(screen.getByRole('button', { name: '选择技能' }))
+  openSkills()
   expect(screen.getByRole('button', { name: '移除技能 skill-a' })).toBeTruthy()
 })
 
@@ -99,7 +100,7 @@ it('unknown commands require a literal choice and do not silently submit', async
 it('clears recovered accepted metadata but keeps a changed next draft', async () => {
   const props = { events: [], disabled: false, isRunning: false, activity: [], onSend: async () => {}, onCancel: async () => {}, inputCatalog: catalog }
   const view = render(<CapstoneAssistantThread {...props} />)
-  fireEvent.click(screen.getByRole('button', { name: '选择技能' }))
+  openSkills()
   fireEvent.click(screen.getByRole('button', { name: /skill-a/ }))
   const input = screen.getByRole('textbox', { name: 'Thread 指令' })
   fireEvent.change(input, { target: { value: 'original draft' } })

@@ -145,7 +145,7 @@ describe('ThreadFixtureApp', () => {
       await screen.findByText(/操作提交结果尚未确认/)
     }
     expect(input.disabled).toBe(false)
-    for (const name of ['运行模式', '选择技能', '本轮上下文']) expect((screen.getByRole('button', { name }) as HTMLButtonElement).disabled).toBe(true)
+    for (const name of ['运行模式', '本轮上下文']) expect((screen.getByRole('button', { name }) as HTMLButtonElement).disabled).toBe(true)
     fireEvent.click(screen.getByRole('button', { name: '对话设置' }))
     for (const checkbox of screen.getAllByRole('checkbox')) expect((checkbox as HTMLInputElement).disabled).toBe(true)
     fireEvent.change(input, { target: { value: 'next draft preserved' } })
@@ -172,7 +172,7 @@ describe('ThreadFixtureApp', () => {
     await waitFor(() => expect(commands).toHaveLength(1))
     expect(commands[0].kind).toBe(first === 'send' ? 'send_auto' : 'switch_runtime')
     expect(input.disabled).toBe(false)
-    expect((screen.getByRole('button', { name: '选择技能' }) as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.queryByRole('button', { name: '选择技能' })).toBeNull()
     fireEvent.change(input, { target: { value: 'next draft' } })
     expect(input.value).toBe('next draft')
     release()

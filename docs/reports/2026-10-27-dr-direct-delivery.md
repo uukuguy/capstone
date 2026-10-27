@@ -82,10 +82,46 @@ grants remain required. This removes one observed redundant planning correction.
 Third trial `attempt_850a42b6b456892b` / `thr_29ad91a0229c70901a00`
 started22:35:34 on sourcebf9c2d1e, image
 `afdeae5e713231ae0a29ae3f0a1643215de7117b825cdcb5c6e8de896964b3c5`.
-The first tool started2.72s later. It is still running at this checkpoint.
+The first tool started2.72s later. It completed22:44:08.684495 (514.49s),
+with82parent model requests, a14-slide PPTX and core CSV. Vivaldi rendered the
+actual saved14-slide deck in the right pane. It never activated a task graph,
+despite the explicit DR request. This is a successful ordinary file delivery,
+not DR acceptance or a valid DR speed comparison.
 The organizer again performed substantial discovery before activating DR.
 An additional SDK guidance correction now clarifies that an explicit DR request
 can begin with one independent discovery task, without finishing data collection
 or a full plan in the parent. Ordinary answers and local edits still require no
 plan. This guidance passed23 SDK checks but is not in the running third trial;
 it needs a later canonical rebuild and real verification.
+
+Next real check reuses the delivered summer report and saved data for parallel
+coverage and claim-scope review, followed by a local PPT revision. It will include
+one bounded gateway coverage check to exercise actual child discovery admission,
+without repeating full collection. Measure admitted-plan startup, child-return
+registration, synthesis dispatch and direct finish. Default local edits still
+prefer ordinary execution; explicit DR here is an acceptance request.
+
+## Real organized revision completed
+
+Attempt `attempt_aa8e961f2587d076` in the same summer conversation ran
+22:52:56.996781–22:56:37.505420,220.509s. It used11parent model requests and
+24child responses (7+9+8). Coverage and claim-scope review ran in parallel.
+Their returned findings were registered in0.015s and0.208s. Synthesis started
+0.460s after the last reviewer returned. Its return registered in0.277s.
+There were no model record or assessment calls. The finish call took1.025s;
+the final persisted answer followed1.264s later, with no further model request.
+
+The host saved a revised PPTX and change note. An operator compared both real
+saved ZIPs:14slides remain, only slide3.xml and slide13.xml changed, and all7media
+files match byte-for-byte. This validates the requested local revision, not the
+report's numerical claims. Gateway search was available in the child and crossed
+the real receipt boundary; the limited granted menu did not expose the requested
+coverage query, so the review retained that explicit gap rather than inventing
+fresh coverage evidence.
+
+Remaining measured overhead: startup before the admitted graph was59.60s,
+including initial source handling and parent inspection. After synthesis the
+parent attempted unavailable bash4times, then finished. Those calls add no useful
+verification. The user subsequently selected an explicit toolbar DR mode, so an
+enabled instruction now starts with the organization-only role instead of
+retaining the coding role. Both mode choices still need real browser acceptance.

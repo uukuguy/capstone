@@ -1081,7 +1081,9 @@ function ComposerSurface({ initialRestoreError, productReferenceReader, disabled
       if (aui.composer.getState().text.trim() === acceptedDraft.text.trim()) {
         try {
           const current = buildInputSubmission(acceptedDraft.text.trim(), inputDraft)
-          if (!acceptedDraft.submission || JSON.stringify(current) === JSON.stringify(acceptedDraft.submission)) {
+          const {deep_research:currentDeep=false,...currentInput}=current
+          const {deep_research:acceptedDeep=false,...acceptedInput}=acceptedDraft.submission??{}
+          if (!acceptedDraft.submission || currentDeep===acceptedDeep&&JSON.stringify(currentInput)===JSON.stringify(acceptedInput)) {
             aui.composer.setText('')
             onInputChange({...emptyInputDraft(inputDraft.mode),...(inputDraft.material_refs===undefined?{}:{material_refs:inputDraft.material_refs})})
           }
@@ -1206,7 +1208,7 @@ export default function CapstoneAssistantThread({ nativeArtifactProjections, pro
       setInputDraft(current=>({...current,context_product_refs:exists?items.map(item=>productRefKey(item.ref)===productRefKey(selection.ref)?selection:item):[...items,selection]}))
     }catch{setProductReferenceError('成果引用无效，请重新选择。')}
   },[requestedProductReference?.nonce])
-  const activeInput = { ...inputDraft, mode: runtimeMode }
+  const activeInput = { ...inputDraft, mode: runtimeMode,deep_research:runtimeMode==='capstone'?inputDraft.deep_research??false:undefined }
   useEffect(() => { if(restoredInput.error&&inputDraft===restoredInput.draft)return; try{writeInputDraft(storageKey, activeInput)}catch(error){setProductReferenceError(error instanceof Error?error.message:'输入草稿暂时无法保存。')} }, [storageKey, inputDraft, runtimeMode])
   const [submittingThinking,setSubmittingThinking]=useState<{id:string;text:string;afterSeq:number;at:string}>()
   const submitSequence=useRef(0)
@@ -1558,8 +1560,8 @@ export default function CapstoneAssistantThread({ nativeArtifactProjections, pro
         }
         const sent = inputDraft
         const metadata = buildInputSubmission(text.trim(), activeInput)
-        if (inputDraft.skill || inputDraft.literal || inputDraft.context.include_refs.length || inputDraft.context.exclude_refs.length || inputDraft.material_refs!==undefined || inputDraft.context_product_refs!==undefined) await onSend('automatic', text.trim(), metadata)
-        else await onSend('automatic', text.trim())
+        if(runtimeMode==='capstone'||inputDraft.skill||inputDraft.literal||inputDraft.context.include_refs.length||inputDraft.context.exclude_refs.length||inputDraft.material_refs!==undefined||inputDraft.context_product_refs!==undefined)await onSend('automatic', text.trim(), metadata)
+        else await onSend('automatic',text.trim())
         setInputDraft(current => current === sent ? {...emptyInputDraft(runtimeMode),...(sent.material_refs===undefined?{}:{material_refs:sent.material_refs})} : current)
         returnToLatest()
         } finally { setSubmittingThinking(current=>current?.id===submissionId?undefined:current) }

@@ -103,7 +103,10 @@ def test_child_diagnosis_observation_uses_exact_host_publication_and_grant(
 
 
 @pytest.mark.parametrize('version', ['1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0', '1.19.0', '1.20.0'])
-def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted_attempt_origin(tmp_path, monkeypatch, version):
+@pytest.mark.parametrize('choice', [None, False, True])
+def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted_attempt_origin(tmp_path, monkeypatch, version, choice):
+    if choice is not None and version != '1.20.0':
+        pytest.skip('Explicit UI control is verified against the current publication')
     import json
     from types import SimpleNamespace
     from capstone_agent import general_pi_server as module
@@ -124,6 +127,8 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     native = native_context_for(SimpleNamespace(submission=None, selected_task_reader=None,
         started_at='2026-10-21T06:00:00Z'), selected)
     native['policy']['allowed_tools'].remove('data_gateway_other')
+    if choice is not None:
+        native['deep_research'] = choice
     binding, task, _, _ = graph_fixture()
     binding['graph_work_edition'] = 'capstone-graph-work/1'
     captured = []
@@ -184,7 +189,9 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     assert actual.get('nodeReviewMode') == 'advisory'
     assert 'nodeReviewMode' not in captured[0]['settings'].get('retry', {})
     assert captured[0]['runtimeEnvironment'] == runner.environment_context
-    assert actual['adaptiveAgentLoop'] is (version in {'1.19.0', '1.20.0'})
+    assert actual['adaptiveAgentLoop'] is (not choice if choice is not None else version in {'1.19.0', '1.20.0'})
+    if choice is not None:
+        assert actual['deepResearch'] is choice
     assert actual['isolatedTaskExecution'] is (version in {'1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0', '1.19.0', '1.20.0'})
     assert actual['goalDrivenExecution'] is (version in {'1.16.0', '1.17.0', '1.18.0', '1.19.0', '1.20.0'})
     assert actual['lightweightTaskNodes'] is (version in {'1.17.0', '1.18.0', '1.19.0', '1.20.0'})

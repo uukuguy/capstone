@@ -670,6 +670,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
       if (!control.task) return
       text = control.task
       if (input) {
+        if(input.resource_profile||input.context_selection.include_refs.length||input.context_selection.exclude_refs.length){
         const catalog = await client?.inputCatalog(threadId)
         const current = store.state.snapshot!
         if (!catalog || catalog.context_id !== current.activeModelContext.id || catalog.selection_revision !== current.activeModelContext.selectionRevision
@@ -677,6 +678,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
           throw new MessageNotSentError('模型已切换，请重新确认本轮上下文后发送。')
         }
         setInputCatalog(catalog)
+        }
         input = { ...input, input: { ...input.input, text } }
       }
     }

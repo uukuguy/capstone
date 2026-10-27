@@ -34,6 +34,16 @@ test('adaptive loop admits only application-granted direct tools',()=>{
   assert.equal(host.applicationToolAdmission(adaptive,'bash').accepted,false);
   assert.equal(host.applicationToolAdmission(adaptive,'unregistered').accepted,false);
 });
+test('explicit user DR choice controls tool admission instead of model inference',()=>{
+  const policy={allowed_tools:['read','agent_research_plan','agent_research_read']};
+  const off={...config,applicationPolicy:policy,researchRuntime:{...config.researchRuntime,adaptiveAgentLoop:true,isolatedTaskExecution:true,deepResearch:false}};
+  assert.equal(host.applicationToolAdmission(off,'read').accepted,true);
+  assert.equal(host.applicationToolAdmission(off,'agent_research_plan').accepted,false);
+  assert.equal(host.applicationToolAdmission(off,'agent_research_read').accepted,false);
+  const on={...off,researchRuntime:{...off.researchRuntime,adaptiveAgentLoop:false,deepResearch:true}};
+  assert.equal(host.applicationToolAdmission(on,'agent_research_plan').accepted,true);
+  assert.equal(host.applicationToolAdmission(on,'read').accepted,false);
+});
 test('only an admitted Deep Research plan narrows the subsequent model tool menu',()=>{
   let hook,selected;
   host.configureAdaptiveToolHandoff({on:(name,fn)=>{assert.equal(name,'tool_result');hook=fn;},setActiveTools:names=>{selected=names;}},

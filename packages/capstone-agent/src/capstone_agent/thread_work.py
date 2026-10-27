@@ -122,7 +122,7 @@ def parse_command(command):
     if not isinstance(command['kind'], str) or not isinstance(command['payload'], dict):
         raise ThreadProtocolError('invalid Work command')
     if command['kind'] == 'send_message' and (set(command['payload']) - {
-            'text', 'input', 'context_selection', 'resource_profile', 'enabled_profiles', 'source_attempt_id', 'material_refs', 'context_product_refs', 'attachment_refs'}):
+            'text', 'input', 'context_selection', 'resource_profile', 'enabled_profiles', 'source_attempt_id', 'material_refs', 'context_product_refs', 'attachment_refs', 'deep_research'}):
         raise ThreadProtocolError('invalid message input fields')
     _validate_json(command['payload'], name='command.payload')
     require_capacity('command_bytes', len(_canonical(command).encode()), phase='command')

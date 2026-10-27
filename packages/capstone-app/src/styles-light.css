@@ -914,6 +914,7 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 @media (pointer: coarse) { .thread-input-controls button { min-height: 44px; } }
 .thread-settings-menu .thread-settings-trigger { min-width: 44px; min-height: 28px; border: 0; font: inherit; }
 .thread-settings-menu .thread-settings-trigger[aria-expanded="true"] { color: #287a6d; }
+.thread-deep-research-toggle[aria-pressed="true"] { color:#287a6d; background:#e5f1ed; border-radius:6px; }
 .thread-runtime-panel { width: 144px; gap: 2px; }
 .thread-runtime-option { width: 100%; border-radius: 5px; }
 .thread-runtime-option[aria-checked="true"] { color: #287a6d; background: #f1f7f4; }

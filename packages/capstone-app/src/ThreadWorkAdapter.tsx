@@ -333,7 +333,7 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
         const payload=command.payload as {text:string}&Partial<InputSubmission>
         setAttachments(files=>files.filter(file=>!payload.attachment_refs?.includes(file.resource_id)))
         setCatalogReload(value=>value+1)
-        const submission=payload.input&&payload.context_selection?{input:payload.input,context_selection:payload.context_selection,...(payload.resource_profile?{resource_profile:payload.resource_profile}:{}),...(payload.material_refs!==undefined?{material_refs:payload.material_refs}:{}),...(payload.context_product_refs!==undefined?{context_product_refs:payload.context_product_refs}:{})}:undefined
+        const submission=payload.input&&payload.context_selection?{input:payload.input,context_selection:payload.context_selection,...(payload.deep_research===undefined?{}:{deep_research:payload.deep_research}),...(payload.resource_profile?{resource_profile:payload.resource_profile}:{}),...(payload.material_refs!==undefined?{material_refs:payload.material_refs}:{}),...(payload.context_product_refs!==undefined?{context_product_refs:payload.context_product_refs}:{})}:undefined
         setAcceptedDraft({text:payload.text,commandId:command.command_id,submission})
       }
       if (command.kind === 'work_message' || command.kind === 'revise_goal'||command.kind==='send_message') { drafts.current[selected] = ''; persist(selected) }

@@ -46,6 +46,10 @@ def validate_submission(payload: Mapping, *, mode: str, objects: list[dict],
                       if key != '_professional_selection'} for role, profile in (profiles or {}).items()},
                   'context_selection': context_selection(payload.get('context_selection',
                       {'include_refs': [], 'exclude_refs': []}), {item['object_id'] for item in objects})}
+        if 'deep_research' in payload:
+            if type(payload['deep_research']) is not bool or payload['deep_research'] and mode != 'capstone':
+                raise InputRejected('deep_research_invalid')
+            result['deep_research'] = payload['deep_research']
         if 'context_product_refs' in payload:
             from .thread_products import checked_selections
             result['context_product_refs'] = checked_selections(payload['context_product_refs'])
@@ -90,7 +94,7 @@ def admission_submission(snapshot, command, provider=None) -> tuple[dict | None,
     payload = command['payload']
     if {'professional_resource', '_professional_backend', '_professional_selection'} & payload.keys():
         return None, 'input_invalid'
-    if not {'input', 'context_selection', 'resource_profile', 'context_product_refs'} & payload.keys():
+    if not {'input', 'context_selection', 'resource_profile', 'context_product_refs', 'deep_research'} & payload.keys():
         return None, None  # Existing clients retain their accepted legacy contract.
     context = snapshot.active_model_context
     selected = payload.get('resource_profile')
