@@ -399,6 +399,27 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
   const declaredAttemptId=selectedWork?.latestAttemptId||currentAttempt?.attemptId
   const latestInstructionAttempt=latestAcceptedInstruction&&(!declaredAttemptId||latestAcceptedInstruction.eventSeq>(snapshot?.lastEventSeq??0))?latestAcceptedInstruction.attemptId:declaredAttemptId
   const viewProposal=useMemo(()=>selectThreadViewProposal({events:store.publicEvents,networkTasks:store.networkTasks,attemptId:latestInstructionAttempt,currentContext:professional?.activeModelContext}),[store,projection,latestInstructionAttempt,professional?.activeModelContext])
+  // Reconstruct associations from admitted events, including loaded history.
+  // Selecting a saved presentation never dispatches a business command.
+  const instructionViews=useMemo(()=>{
+    const attempts=new Set(store.publicEvents.map(event=>event.attemptId).filter((id):id is string=>!!id))
+    return new Map([...attempts].flatMap(attemptId=>{
+      const proposal=selectThreadViewProposal({events:store.publicEvents,networkTasks:store.networkTasks,attemptId,currentContext:professional?.activeModelContext})
+      return proposal?[[attemptId,proposal] as const]:[]
+    }))
+  },[store,projection,professional?.activeModelContext])
+  function showInstructionNetwork(attemptId:string){
+    const proposal=instructionViews.get(attemptId)
+    if(!proposal)return
+    markManualView()
+    if(proposal.kind==='source'){
+      saveInstructionView({...instructionViewRef.current,requestedSource:proposal.request,requestNonce:instructionViewRef.current.requestNonce+1})
+      setResourceView('source-topology')
+    }else{
+      store.viewGridPage(proposal.pageId);setResourceView('model')
+    }
+    setProductsOpen(true)
+  }
   function markManualView(){
     saveInstructionView({...instructionViewRef.current,attemptId:latestInstructionAttempt??null,manual:true,automatic:null})
     artifactOpened.current=true
@@ -588,6 +609,7 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
       composerPlaceholder={snapshot?.sessionType==='enterprise-research'?'提出研究问题，或上传资料开始分析…':snapshot?.sessionType==='general-chat'?'输入问题，或聊聊你的想法…':undefined}
       onOpenAnswerDetail={nativeChat?()=>setResourcePanelOpen(false):undefined}
       runtimeMode={snapshot?.runtimeMode} instructionLocation={instructionLocation}
+      networkAttemptIds={[...instructionViews.keys()]} onShowNetwork={showInstructionNetwork}
       acceptedDraft={nativeChat?acceptedDraft:undefined}
       composerControls={liveConversation?(historyActions,inputActions)=><><ThreadSettingsMenu>{historyActions}</ThreadSettingsMenu>{modelWorkspace&&<ThreadModelDirectory models={projection.catalog?.models||[]} currentModelId={snapshot?.modelContext?.modelId||''} target={modelTarget} onTargetChange={setModelTarget} disabled={busy||active||!!currentAttempt||projection.connection!=='live'} pending={!!pending} workspace={modelWorkspace} allowEmpty={snapshot?.sessionType==='enterprise-research'||snapshot?.sessionType==='general-chat'} onSwitch={modelId=>void changeModel('open_model',{model_id:modelId})} onActivate={entryId=>void changeModel('activate_model',{entry_id:entryId})} onClose={entryId=>void changeModel('close_model',{entry_id:entryId})}/>}
       <ThreadMaterialUpload threadId={currentId} upload={(file,signal)=>client.uploadThreadMaterial(currentId,file,signal)} resourceUpload={(file,options)=>transport.uploadThreadResource(currentId,file,options)} cancelResource={id=>transport.cancelResourceUpload(currentId,id)} disabled={busy||active||!!pending} remainingFiles={Math.max(0,applicationCapacity('inline_material_count')-materials.length)} remainingBytes={materials.length>=applicationCapacity('inline_material_count')?0:remainingMaterialBytes} onBusyChange={setUploadBusy} onUploaded={material=>{inputActions.addMaterial(material.material_id);setCatalogReload(value=>value+1)}}

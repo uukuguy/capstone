@@ -24,7 +24,7 @@ vi.mock('./ThreadWorkspace',()=>({default:(props:ComponentProps<typeof ThreadWor
   </section>)}
 </>}))
 vi.mock('./CapstoneAssistantThread',()=>({projectAssistantActivity:()=>undefined,projectAssistantMessages:()=>[],
-  default:(props:CapstoneAssistantThreadProps)=><>{props.composerControls?.(null,{addMaterial:()=>{}})}</>}))
+  default:(props:CapstoneAssistantThreadProps)=><>{props.composerControls?.(null,{addMaterial:()=>{}})}{props.networkAttemptIds?.map(id=><button key={id} onClick={()=>props.onShowNetwork?.(id)}>View instruction {id}</button>)}</>}))
 vi.mock('./ThreadModelDirectory',()=>({default:({onSwitch,onActivate}:{onSwitch:(id:string)=>void;onActivate:(id:string)=>void})=><>
   <button onClick={()=>onSwitch('ieee39')}>Open registered model</button>
   <button onClick={()=>onActivate('mdl_one')}>Activate registered model</button>
@@ -197,6 +197,23 @@ it.each(['none','other-context','copied-view','exact-layer','baseline'])('labels
 const sourceRequest={schema:'capstone-grid-source-view-request/1' as const,source_id:'data-gateway' as const,scope_id:'north',scope_name:'华北',level:null,selected_object_id:null,view_ref:'verified-source',source_snapshot:{metadata_snapshot:'snapshot',source_instance:'gateway'},voltage_min_kv:330,display_grouping_only:false}
 const instruction=(eventSeq:number,attemptId:string):EventEnvelope=>({eventId:`accepted${eventSeq}`,eventSeq,eventType:'command_accepted',eventVersion:1,threadId:'thr_formal',runId:'run_formal',attemptId,visibility:'public',occurredAt:'2026-10-26T00:00:00Z',payload:{kind:'send_message',payload:{text:'Actual instruction'}}})
 const sourceEvent=(eventSeq:number,attemptId:string,viewRef=sourceRequest.view_ref):EventEnvelope=>({...instruction(eventSeq,attemptId),eventId:`source${eventSeq}`,eventType:'runtime_event',payload:{source_view:{...sourceRequest,view_ref:viewRef}}})
+it('restores each instruction source view from the existing answer toolbar without rerunning tools',async()=>{
+  const server=fixture(null)
+  const events=[instruction(1,'overview'),sourceEvent(2,'overview','root-view')]
+  server.setEvents(events)
+  render(<ThreadWorkAdapter transport={server.transport} threadId="thr_formal" namespace="routing-history" preparedStore={server.store}/>)
+  await screen.findByTestId('source-pane')
+  await act(async()=>server.setEvents([...events,instruction(3,'station'),sourceEvent(4,'station','station-view')]))
+  expect(JSON.parse(screen.getByTestId('source-pane').textContent!).request.view_ref).toBe('station-view')
+  fireEvent.click(screen.getByText('View instruction overview'))
+  expect(JSON.parse(screen.getByTestId('source-pane').textContent!).request.view_ref).toBe('root-view')
+  // New events in the current instruction must not steal a manually restored view.
+  await act(async()=>server.setEvents([...events,instruction(3,'station'),sourceEvent(5,'station','station-view')]))
+  expect(JSON.parse(screen.getByTestId('source-pane').textContent!).request.view_ref).toBe('root-view')
+  fireEvent.click(screen.getByText('View instruction station'))
+  expect(JSON.parse(screen.getByTestId('source-pane').textContent!).request.view_ref).toBe('station-view')
+  expect(server.dispatch).not.toHaveBeenCalled()
+})
 it('keeps the opened source view mounted while a later plain instruction runs',async()=>{
   const server=fixture(null)
   server.setEvents([instruction(1,'attempt_source'),sourceEvent(2,'attempt_source')])
