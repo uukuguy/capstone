@@ -87,7 +87,11 @@ export function createTaskNodeReturn(action,node,inputs,{advisoryChecks=false}={
       const result={schema:'capstone-task-return/1',outputs:[...supplied.values()].map(item=>({slot:item.slot,
         summary:text(item.summary)?item.summary:value.summary,
         scope:'Producer statement for '+declarations.purpose+'; not independent analytical verification.',
-        observations:item.observations?.length?item.observations:[submissionRef],files:item.files??[]})),
+        // Keep the actual return as a producer statement even when supplied
+        // support is unknown. normalize admits this ref only after the host
+        // observes successful tool completion; it never supplies check evidence.
+        observations:item.observations===undefined||Array.isArray(item.observations)
+          ?[...(item.observations??[]),submissionRef]:item.observations,files:item.files??[]})),
         checks:returnedChecks.map(item=>({check:item.check,status:item.status,explanation:item.explanation,
           observations:item.observations??[]})),limitations:notes};
       this.normalize(result);return result;

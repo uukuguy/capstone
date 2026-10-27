@@ -48,3 +48,11 @@ The two initial children finished by12:40:09. One returned association could not
 The HTTP executor previously processed the entire public event page before polling and acknowledging research requests. A deterministic regression simulates20 events with100ms durable publication each. Before the fix, the receipt is acknowledged only after event20. The fix services the protected research bridge between events once250ms has elapsed. It preserves event order, cursor checks, source validation and replay behavior. This proves a starvation path; its share of the live6–13s calls still requires measurement.
 
 Scoped verification:137 transport/bridge tests passed,1 skipped,37.03s. The receipt-backlog test failed on the original code and passed after the change. Lost admission/bootstrap/acknowledgment response and terminal replay cases remain green.
+
+## Transport-only live comparison and control reduction
+
+Transport fix0fffe239 was rebuilt as imagec0226499f93e9c201581a23f201fb5238e993fc61172ff608ad759d72c6ffc48. Vivaldi trial `attempt_b00880d6422c9d88` in thread `thr_22c47d471965dc8d5c60` repeated the same question. Its two record calls took0.437s and0.689s. This supports reduced receipt delay, but is not a controlled total-latency result: model planning differed.
+
+The same trial made repeated overview calls and two unavailable bash calls from the planner. Summary execution finished at12:54:27.376. The outstanding parent action started at12:54:11.690 and produced no further main-chain event before manual cancellation at12:57:35.892. The attempt is cancelled, not passed. The ledger alone does not prove a continuation-wakeup failure; do not conflate this stall with the confirmed event-drain defect.
+
+6b08e322 removes model registration turns for validated advisory returns: settlement, record and diagnostic assessment use one atomic checkpoint. Declared dependents can start immediately; missing checks retain limited status, and foreign refs cannot be admitted.31eb8fb5 makes advisory overview requests wait for an actionable return, with cancellation, rather than repeatedly returning unchanged state.117 controller tests and14 pinned SDK cases pass. Canonical rebuild for31eb8fb5 passed with imagef44f5ca9c762aa78e9748f1da0557db8371c4b286ea8407337f49973f55445e6 and scoped cleanup. A new Vivaldi comparison is pending.
