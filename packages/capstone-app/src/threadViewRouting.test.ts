@@ -21,6 +21,11 @@ it('preserves exact optional schema and root selection metadata on verified elec
   expect(proposal?.kind==='source'&&proposal.request).toEqual(root)
 })
 
+it('preserves a bounded published electrical model name without allowing extra metadata',()=>{
+  expect(parseThreadDisplayRequest({...electricalRequest,name:'发布电网名称'})).toEqual({...electricalRequest,name:'发布电网名称'})
+  for(const name of ['', ' ', 'x'.repeat(2049), 'bad\nname', {name:'nested'}])expect(parseThreadDisplayRequest({...electricalRequest,name})).toBeNull()
+})
+
 it('retains frozen child schema and actual parent reference without root-only selection overrides',()=>{
   const child={...electricalRequest,view_schema:'gateway-electrical-view/2',target:'opaque:station',parent_view_ref:'actual:parent'}
   expect(parseThreadDisplayRequest(child)).toEqual(child)

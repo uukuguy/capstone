@@ -15,6 +15,7 @@ export type ThreadElectricalViewRequest={schema:'capstone-electrical-view-reques
   representation:'source_node_breaker'|'calculation_bus_branch';target:string|null;artifact_ref:string|null;
   /** Describes the frozen view; child open calls inherit schema from their parent. */
   view_schema?:'gateway-electrical-view/1'|'gateway-electrical-view/2';
+  name?:string;
   selection_profile?:string;boundary_policy?:'retain_external_stub'|'internal_only';parent_view_ref?:string}
 export type ThreadDisplayRequest=ThreadSourceViewRequest|ThreadElectricalViewRequest
 export type ThreadViewProposal=
@@ -25,7 +26,7 @@ const text=(value:unknown):value is string=>typeof value==='string'&&value.lengt
 const keys=(value:Record<string,unknown>,expected:readonly string[])=>Object.keys(value).length===expected.length&&expected.every(key=>Object.hasOwn(value,key))
 const sequence=(value:number)=>Number.isSafeInteger(value)&&value>0
 const electricalFields=['schema','source_id','model_ref','model_revision','view_ref','selection_ref','source_snapshot_ref','representation','target','artifact_ref'] as const
-const electricalMetadata=['view_schema','selection_profile','boundary_policy','parent_view_ref'] as const
+const electricalMetadata=['view_schema','selection_profile','boundary_policy','parent_view_ref','name'] as const
 const allowedElectricalFields=new Set<string>([...electricalFields,...electricalMetadata])
 function boundedElectricalDescriptor(value:Record<string,unknown>):boolean {
   // The backend budgets Python's ASCII JSON, including its separator spaces.
@@ -44,6 +45,7 @@ export function parseThreadDisplayRequest(value:unknown):ThreadDisplayRequest|nu
   if(Object.hasOwn(value,'view_schema')&&(value.view_schema!=='gateway-electrical-view/1'&&value.view_schema!=='gateway-electrical-view/2'
     ||value.view_schema==='gateway-electrical-view/2'&&value.representation!=='source_node_breaker'))return null
   if(Object.hasOwn(value,'selection_profile')&&(typeof value.selection_profile!=='string'||!/^[a-z][a-z0-9_-]{0,63}$/.test(value.selection_profile)))return null
+  if(Object.hasOwn(value,'name')&&(typeof value.name!=='string'||!value.name.trim()||value.name.length>2048||/[\u0000-\u001f\u007f]/.test(value.name)))return null
   if(Object.hasOwn(value,'boundary_policy')&&value.boundary_policy!=='retain_external_stub'&&value.boundary_policy!=='internal_only')return null
   if(Object.hasOwn(value,'parent_view_ref')&&(typeof value.parent_view_ref!=='string'||!value.parent_view_ref.length||value.parent_view_ref.length>2048
     ||/[\u0000-\u001f]/.test(value.parent_view_ref)||value.parent_view_ref===value.view_ref||!value.target

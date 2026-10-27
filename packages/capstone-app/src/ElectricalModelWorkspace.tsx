@@ -5,24 +5,25 @@ import {loadElectricalModelView,parseElectricalViewOpen,parseElectricalViewPage,
   type ElectricalViewReady,type ElectricalGroup,type ElectricalModelView} from './electricalModelView'
 import {electricalModelScene} from './electricalModelScene'
 import {LargeNetworkView} from './LargeNetworkView'
-import type {SceneSelection} from './networkScene'
+import type {SceneSelection,SceneSearchResult} from './networkScene'
 import {createElectricalViewDownload,type ElectricalViewDownload,type ElectricalDownloadProgress} from './electricalViewDownload'
 import './gridSource.css'
 
-type Model={model_ref:string;name:string;query:Record<string,unknown>}
+type Model={model_ref:string;name:string;publishedName:boolean;query:Record<string,unknown>}
 type Target={query:Record<string,unknown>;label:string;expected?:ThreadElectricalViewRequest;mode?:'overview'|'closure'}
 type LoadTiming={started:number;viewRef?:string;overviewMs?:number;detailMs?:number}
 const record=(v:unknown):v is Record<string,unknown>=>!!v&&typeof v==='object'&&!Array.isArray(v)
 const label=(v:unknown)=>typeof v==='string'&&v.length>0&&v.length<=512
+const modelName=(v:unknown):v is string=>typeof v==='string'&&v.trim().length>0&&v.length<=2048&&!/[\u0000-\u001f\u007f]/.test(v)
 function models(value:unknown):Model[]{
   if(!record(value)||!Array.isArray(value.scopes)||value.scopes.length>1000)throw new Error('电网模型目录无效。')
   const capability=record(value.electrical_views)?value.electrical_views:{},v2=record(capability.v2)?capability.v2:{}
   const version=record(v2.open_arguments)&&v2.open_arguments.view_schema==='gateway-electrical-view/2'?{view_schema:'gateway-electrical-view/2'}:{}
   const entries=new Map<string,Model>()
   for(const item of value.scopes){
-    if(!record(item)||!label(item.model_ref)||!label(item.name)||entries.has(item.model_ref as string))throw new Error('电网模型身份无效。')
+    if(!record(item)||!label(item.model_ref)||!modelName(item.name)||entries.has(item.model_ref as string))throw new Error('电网模型身份无效。')
     const model_ref=item.model_ref as string
-    entries.set(model_ref,{model_ref,name:item.name as string,query:{model_ref,representation:'source_node_breaker',...version}})
+    entries.set(model_ref,{model_ref,name:item.name as string,publishedName:true,query:{model_ref,representation:'source_node_breaker',...version}})
   }
   const sources=capability.source_grid_models??[]
   if(!Array.isArray(sources)||sources.length>1000)throw new Error('电网模型目录无效。')
@@ -33,7 +34,8 @@ function models(value:unknown):Model[]{
     if(!record(item.open_arguments)||item.open_arguments.model_ref!==model_ref
       ||Object.keys(item.open_arguments).some(key=>!['model_ref','selection_profile'].includes(key))
       ||item.open_arguments.selection_profile!==undefined&&(typeof item.open_arguments.selection_profile!=='string'||!/^[a-z][a-z0-9_-]{0,63}$/.test(item.open_arguments.selection_profile)))throw new Error('电网模型打开参数无效。')
-    entries.set(model_ref,{model_ref,name:entries.get(model_ref)?.name??model_ref,
+    entries.set(model_ref,{model_ref,name:modelName(item.name)?item.name:entries.get(model_ref)?.name??'未命名电网',
+      publishedName:modelName(item.name)||entries.get(model_ref)?.publishedName===true,
       query:{...item.open_arguments,representation:'source_node_breaker',...version}})
   }
   return [...entries.values()]
@@ -43,7 +45,7 @@ function failure(cause:unknown):string {
   if(body){const f=parseElectricalViewFailure(body);if(f)return `电气视图暂不可用：${f.code}。${f.recovery_action||''}`}
   return cause instanceof Error?cause.message:'电气视图暂时无法读取。'
 }
-function requestTarget(request:ThreadElectricalViewRequest,name=request.model_ref,mode?:Target['mode']):Target {
+function requestTarget(request:ThreadElectricalViewRequest,name=request.target?'局部电气接线':request.name||'电网模型',mode?:Target['mode']):Target {
   return {label:name,expected:request,query:{model_ref:request.model_ref,representation:request.representation,
     expected_model_revision:request.model_revision,selection_ref:request.selection_ref,
     ...(request.target?{...(request.parent_view_ref?{parent_view_ref:request.parent_view_ref}:{}),target:request.target}:{
@@ -64,7 +66,7 @@ function restoredTarget(key?:string,requestIdentity?:string):Target[] {
       if(!record(row))throw Error('invalid saved path')
       const request=parseThreadDisplayRequest(row.request)
       if(request?.schema!=='capstone-electrical-view-request/1')throw Error('invalid saved descriptor')
-      return requestTarget(request,label(row.label)?row.label as string:request.model_ref,
+      return requestTarget(request,modelName(row.label)&&row.label!==request.model_ref?row.label:request.target?'局部电气接线':request.name||'电网模型',
         row.mode==='overview'||row.mode==='closure'?row.mode:undefined)
     })
   }catch{return []}
@@ -72,6 +74,7 @@ function restoredTarget(key?:string,requestIdentity?:string):Target[] {
 function descriptor(ready:ElectricalViewReady,query:Target['query']):ThreadElectricalViewRequest|undefined {
   const coverage=record(ready.overview_coverage)?ready.overview_coverage:{},selection=record(coverage.source_selection)?coverage.source_selection:{}
   const parsed=parseThreadDisplayRequest({schema:'capstone-electrical-view-request/1',source_id:'data-gateway',
+    ...(modelName(ready.name)?{name:ready.name}:{}),
     ...Object.fromEntries(['model_ref','model_revision','view_ref','selection_ref','source_snapshot_ref','representation','target','artifact_ref'].map(field=>[field,ready[field]??null])),
     ...(ready.schema==='gateway-electrical-view/2'||query.view_schema?{view_schema:ready.schema}:{}),
     ...(ready.target?query.parent_view_ref?{parent_view_ref:query.parent_view_ref}:{}:{
@@ -92,6 +95,8 @@ export default function ElectricalModelWorkspace({transport,requestedView,reques
   const [background,setBackground]=useState<ElectricalDownloadProgress>(),[userPaused,setUserPaused]=useState(false)
   const backgroundRef=useRef<{download:ElectricalViewDownload;viewRef:string;transport:HttpThreadTransport}|undefined>(undefined)
   const backgroundGeneration=useRef(0),paused=useRef(false),resolved=useRef(new Map<Target,ThreadElectricalViewRequest>())
+  const resolvedNames=useRef(new Map<Target,string>())
+  const knownModelNames=useRef(new Map<string,string>())
   const backgroundState=useRef<ElectricalDownloadProgress['state']|undefined>(undefined)
   const timingRef=useRef<LoadTiming|undefined>(undefined),timingFrame=useRef<number|undefined>(undefined)
   const [timing,setTiming]=useState<LoadTiming>()
@@ -109,7 +114,11 @@ export default function ElectricalModelWorkspace({transport,requestedView,reques
   useEffect(()=>{
     if(requestedView)return
     const stop=new AbortController()
-    void transport.electricalModels(stop.signal).then(value=>{if(!stop.signal.aborted)setCatalog(models(value))})
+    void transport.electricalModels(stop.signal).then(value=>{if(!stop.signal.aborted){
+      const available=models(value)
+      for(const model of available)if(model.publishedName)knownModelNames.current.set(model.model_ref,model.name)
+      setCatalog(available.map(model=>({...model,name:knownModelNames.current.get(model.model_ref)??model.name})))
+    }})
       .catch(cause=>{if(!stop.signal.aborted)setError(failure(cause))})
     return()=>stop.abort()
   },[transport,!!requestedView])
@@ -147,11 +156,16 @@ export default function ElectricalModelWorkspace({transport,requestedView,reques
       for(const [key,field] of [['model_ref','model_ref'],['expected_model_revision','model_revision'],['selection_ref','selection_ref'],['target','target'],['view_schema','schema']] as const)
         if(target.query[key]!==undefined&&target.query[key]!==opened[field])throw new Error('来源版本已变化，请重新打开该模型。')
       setManifest(opened)
+      if(modelName(opened.name)){
+        const name=opened.name;knownModelNames.current.set(opened.model_ref,name)
+        setCatalog(previous=>previous.map(model=>model.model_ref===opened.model_ref?{...model,name,publishedName:true}:model))
+      }
+      if(path.length===1&&!opened.target&&modelName(opened.name))resolvedNames.current.set(target,opened.name)
       if(path.length===1&&timingRef.current&&!opened.target){timingRef.current.viewRef=opened.view_ref;setTiming({...timingRef.current})}
       const saved=descriptor(opened,target.query)
       if(saved)resolved.current.set(target,saved)
       if(storageKey){
-        const savedPath=path.map(item=>({label:item.label,mode:item.mode,request:resolved.current.get(item)??item.expected}))
+        const savedPath=path.map(item=>({label:resolvedNames.current.get(item)??item.label,mode:item.mode,request:resolved.current.get(item)??item.expected}))
         if(savedPath.every(item=>item.request))try{sessionStorage.setItem(storageKey,JSON.stringify({format:2,path:savedPath,appliedRequestIdentity:requestIdentity}))}catch{/* Storage is optional. */}
       }
       const overview=opened.schema==='gateway-electrical-view/2'&&opened.representation==='source_node_breaker'
@@ -200,12 +214,15 @@ export default function ElectricalModelWorkspace({transport,requestedView,reques
     onManualNavigate?.();setPath(previous=>[...previous,{label:name,mode,query:{model_ref:manifest.model_ref,representation:manifest.representation,
       parent_view_ref:manifest.view_ref,expected_model_revision:manifest.model_revision,selection_ref:manifest.selection_ref,target:expand_target}}])
   }
-  function activation(item:SceneSelection){
+  function activation(item:SceneSelection|SceneSearchResult){
     if(!view||item.type==='bundle')return
     const node=view.records.summary_nodes.find(node=>node.id===item.id)
-    if(node?.expand_target)return {target:node.expand_target,label:node.name||node.id,mode:node.group_kind==='grid'?'overview' as const:'closure' as const}
+    if(node?.expand_target)return {target:node.expand_target,
+      label:node.group_kind==='station'?`${node.name||node.id} · 电气接线`:node.name||node.id,
+      actionLabel:node.group_kind==='grid'?'进入区域概览':node.group_kind==='station'?'进入电气接线':'查看局部接线',
+      mode:node.group_kind==='grid'?'overview' as const:'closure' as const}
     const edge=view.records.summary_edges.find(edge=>edge.id===item.id)
-    if(edge?.expand_target)return {target:edge.expand_target,label:edge.id,mode:'closure' as const}
+    if(edge?.expand_target)return {target:edge.expand_target,label:`${edge.member_count} 条源线路 · 线路接线`,actionLabel:'查看线路接线',mode:'closure' as const}
   }
   function expand(group:ElectricalGroup){
     expandTarget(group.expand_target,group.name||'站点')
@@ -233,8 +250,8 @@ export default function ElectricalModelWorkspace({transport,requestedView,reques
       const model=catalog.find(item=>item.model_ref===event.target.value);onManualNavigate?.();clearBackground();resetTiming();setPath(model?[{label:model.name,query:model.query}]:[])
     }}><option value="">请选择电网模型</option>{catalog.map(item=><option key={item.model_ref} value={item.model_ref}>{item.name}</option>)}</select></label>}
     <nav aria-label="电气模型层级">{path.map((item,index)=><button key={index} aria-current={index===path.length-1?'location':undefined} onClick={()=>{
-      onManualNavigate?.();setPath(previous=>previous.slice(0,index+1).map(entry=>{const saved=resolved.current.get(entry)??entry.expected;return saved?requestTarget(saved,entry.label,entry.mode):entry}))
-    }}>{item.label}</button>)}</nav>
+      onManualNavigate?.();setPath(previous=>previous.slice(0,index+1).map(entry=>{const saved=resolved.current.get(entry)??entry.expected;return saved?requestTarget(saved,resolvedNames.current.get(entry)??entry.label,entry.mode):entry}))
+    }}>{resolvedNames.current.get(item)??item.label}</button>)}</nav>
     {error&&<><p role="alert">{error}</p>{target&&<button disabled={busy} onClick={()=>setRefresh(value=>value+1)}>重新读取此视图</button>}</>}{progress&&<p role="status">{progress}</p>}
     {preparing&&<button disabled={busy} onClick={()=>void checkPreparation()}>检查准备进度</button>}
     {timing&&manifest?.schema==='gateway-electrical-view/2'&&manifest.representation==='source_node_breaker'&&<details aria-label="电气视图加载耗时" data-model-open-start-ms={timing.started}
@@ -246,17 +263,19 @@ export default function ElectricalModelWorkspace({transport,requestedView,reques
     </details>}
     {!backgroundRef.current&&path.length>1&&path[0].expected?.view_schema==='gateway-electrical-view/2'&&
       <p role="status">后台明细尚未恢复；返回根概览后继续下载。</p>}
-    {backgroundRef.current&&<aside aria-label="后台明细下载">
-      <p>概览已就绪 · 后台明细 {background?.loaded??0} / {background?.total??0}{background?.state==='complete'?' · 已完成':background?.state==='error'?' · 下载失败':background?.state==='paused'?' · 已暂停':''}</p>
-      {background?.error&&<p role="status">后台缓存：{background.error}。概览仍可使用。</p>}
+    {backgroundRef.current&&<aside aria-label="后台明细下载" className="large-network-toolbar">
+      <details><summary>后台明细 {background?.loaded??0} / {background?.total??0}{background?.state==='complete'?' · 已完成':background?.state==='error'?' · 下载失败':background?.state==='paused'?' · 已暂停':''}</summary>
+        {background?.error&&<p role="status">后台缓存：{background.error}。概览仍可使用。</p>}
+        {background&&Object.entries(background.streams).map(([stream,value])=><p key={stream}>{stream} · {value.loaded} / {value.total}</p>)}
+      </details>
       {background?.state!=='complete'&&<button disabled={busy} onClick={()=>{
         if(userPaused||background?.state==='error'){paused.current=false;setUserPaused(false);backgroundRef.current?.download.start()}
         else {paused.current=true;setUserPaused(true);backgroundRef.current?.download.pause()}
       }}>{userPaused||background?.state==='error'?'继续后台下载':'暂停后台下载'}</button>}
-      {background&&<details><summary>各流下载进度</summary>{Object.entries(background.streams).map(([stream,value])=><p key={stream}>{stream} · {value.loaded} / {value.total}</p>)}</details>}
     </aside>}
     {manifest&&<>
-      <p className="grid-source-note">{manifest.representation==='source_node_breaker'?'源设备接线 · 开关状态以来源记录为准；缺失接线不补线。结构可读不代表潮流可算。':'计算模型拓扑 · 元件对应当前模型包；计算状态和结果以计算服务记录为准。'}</p>
+      <p className="grid-source-note">{view?.loadedStreams.includes('summary_nodes')?<><span>单击厂站后选择“进入电气接线”，也可双击厂站。缩放仅调整视野。</span> 来源概览非电气等值。</>:
+        manifest.representation==='source_node_breaker'?'源设备接线 · 开关状态以来源记录为准；缺失接线不补线。结构可读不代表潮流可算。':'计算模型拓扑 · 元件对应当前模型包；计算状态和结果以计算服务记录为准。'}</p>
       {record(manifest.derivation)&&manifest.derivation.demo_only===true&&<p className="grid-source-note">演示补全模型 · 不代表电网真实运行工况。</p>}
       {!view&&manifest.schema==='gateway-electrical-view/1'&&manifest.representation==='source_node_breaker'&&!manifest.target&&<>
         <label>查找已加载站点<input value={query} onChange={event=>setQuery(event.target.value)} placeholder="站点名称"/></label>
@@ -265,8 +284,10 @@ export default function ElectricalModelWorkspace({transport,requestedView,reques
           <button onClick={()=>expand(group)}>{group.name||'未命名站点'} · {group.member_count} 个设备</button></li>)}</ul>
         {cursor&&<button disabled={busy} onClick={()=>void more()}>加载更多站点</button>}
       </>}
-      {scene&&view&&<><LargeNetworkView scene={scene} title={target?.label||'电气接线'} storageKey="capstone-electrical-model" viewKey={manifest.view_ref}
+      {scene&&view&&<>
+        <LargeNetworkView scene={scene} title={view.loadedStreams.includes('summary_nodes')?`${target?resolvedNames.current.get(target)??target.label:'电网'} · 厂站概览`:target?.label||'电气接线'} storageKey="capstone-electrical-model" viewKey={manifest.view_ref}
         onFirstFrame={overviewFirstFrame}
+        activationLabel={item=>!busy?activation(item)?.actionLabel:undefined}
         canActivate={item=>!busy&&!!activation(item)} onActivate={item=>{const next=activation(item);if(next)expandTarget(next.target,next.label,next.mode)}}/>
         {view.loadedStreams.includes('summary_nodes')?<p>{view.records.summary_nodes.length} 个概览分组 · {view.records.summary_edges.length} 条来源线路分组 · 当前层概览完整</p>:<p>{view.records.devices.length} 个设备 · {view.records.ports.length} 个端口 · {view.records.connections.length} 条源连接</p>}
         {!!view.records.groups.length&&<details><summary>关联站点</summary>{view.records.groups.map(group=><button key={group.id} onClick={()=>expand(group)}>{group.name||'站点'}</button>)}</details>}

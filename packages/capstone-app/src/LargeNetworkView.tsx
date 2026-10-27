@@ -9,8 +9,8 @@ import {networkSymbol} from './networkSymbols'
 import type {ScenePresentation} from './networkScenePresentation'
 
 const FULL:SceneCamera={x:0,y:0,width:1000,height:600}
-export type LargeNetworkViewProps={scene:NetworkScene;title?:string;focusIds?:readonly string[];focusKey?:string;focusMarkersOnly?:boolean;taskLayerReady?:boolean;storageKey?:string;viewKey?:string;onSelect?:(item:SceneSelection)=>void;onActivate?:(item:SceneSelection)=>void;canActivate?:(item:SceneSelection)=>boolean;onReady?:(stats:SceneStats)=>void;onFirstFrame?:()=>void;onReturnCurrentTask?:()=>void;returnCurrentTaskLabel?:string;returnTaskRequest?:number}
-export default function LargeNetworkView({scene,title='电网拓扑',focusIds=[],focusKey,focusMarkersOnly=false,taskLayerReady=true,storageKey,viewKey,onSelect,onActivate,canActivate,onReady,onFirstFrame,onReturnCurrentTask,returnCurrentTaskLabel='回到当前任务',returnTaskRequest}:LargeNetworkViewProps){
+export type LargeNetworkViewProps={scene:NetworkScene;title?:string;focusIds?:readonly string[];focusKey?:string;focusMarkersOnly?:boolean;taskLayerReady?:boolean;storageKey?:string;viewKey?:string;onSelect?:(item:SceneSelection)=>void;onActivate?:(item:SceneSelection)=>void;canActivate?:(item:SceneSelection)=>boolean;activationLabel?:(item:SceneSelection|SceneSearchResult)=>string|undefined;onReady?:(stats:SceneStats)=>void;onFirstFrame?:()=>void;onReturnCurrentTask?:()=>void;returnCurrentTaskLabel?:string;returnTaskRequest?:number}
+export default function LargeNetworkView({scene,title='电网拓扑',focusIds=[],focusKey,focusMarkersOnly=false,taskLayerReady=true,storageKey,viewKey,onSelect,onActivate,canActivate,activationLabel,onReady,onFirstFrame,onReturnCurrentTask,returnCurrentTaskLabel='回到当前任务',returnTaskRequest}:LargeNetworkViewProps){
   const canvas=useRef<HTMLCanvasElement>(null),labels=useRef<HTMLDivElement>(null),worker=useRef<Worker|null>(null),renderer=useRef<ReturnType<typeof createNetworkRenderer>|null>(null)
   const camera=useRef<SceneCamera>(readNetworkCamera(storageKey,viewKey)||FULL),request=useRef(0),pendingView=useRef(false),dirtyView=useRef(false),ready=useRef(false),frame=useRef<SceneFrame|null>(null)
   const fullBounds=useRef<SceneCamera>(FULL)
@@ -59,7 +59,7 @@ export default function LargeNetworkView({scene,title='电网拓扑',focusIds=[]
     const before=camera.current,width=Math.min(1800,Math.max(1,before.width*factor)),height=before.height*width/before.width
     move({x:before.x+(before.width-width)*relativeX,y:before.y+(before.height-height)*relativeY,width,height})
   }
-  function locate(id:string){send({type:'locate',request:++request.current,id})}
+  function locate(id:string,activate=false){const idRequest=++request.current;if(activate)activationRequest.current=idRequest;send({type:'locate',request:idRequest,id})}
   function expandBundle(bundle:SceneBundle){setExpandedBundles(current=>current.includes(bundle.id)?current:[...current,bundle.id])}
   function overview(){pickedId.current=undefined;setSelected(undefined);setRelated(undefined);setExpandedBundles([]);setBundleParallel(true);requestView()}
   function focus(){send({type:'focus',request:++request.current,ids:callbacks.current.focusIds,markersOnly:callbacks.current.focusMarkersOnly})}
@@ -100,6 +100,7 @@ export default function LargeNetworkView({scene,title='电网拓扑',focusIds=[]
           if(data.item&&data.request===activationRequest.current){if(data.item.type==='bundle')expandBundle(data.item);else if(!callbacks.current.canActivate||callbacks.current.canActivate(data.item))callbacks.current.onActivate?.(data.item)}
         }else if(data.type==='located'&&data.item){
           pickedId.current=data.item.id;setSelected(data.item);setRelated(data.related);callbacks.current.onSelect?.(data.item);move(data.camera||{x:data.x-110,y:data.y-66,width:220,height:132})
+          if(data.request===activationRequest.current&&data.item.type!=='bundle'&&(!callbacks.current.canActivate||callbacks.current.canActivate(data.item)))callbacks.current.onActivate?.(data.item)
         }else if(data.type==='focused'){
           move(data.camera)
         }else if(data.type==='search'&&data.request===searchId.current)setResults(data.results)
@@ -132,7 +133,14 @@ export default function LargeNetworkView({scene,title='电网拓扑',focusIds=[]
       const value=event.target.value;setQuery(value);clearTimeout(searchTimer.current);setResults([]);searchId.current=++request.current
       if(value.trim())searchTimer.current=setTimeout(()=>send({type:'search',request:searchId.current,query:value}),120)
     }}/></label>
-    {results.length>0&&<ul className="large-network-results" aria-label="对象搜索结果">{results.map(item=><li key={`${item.type}:${item.id}`}><button type="button" onClick={()=>{locate(item.id);setResults([])}}>{item.label} <small>{item.kind} · {item.id}</small></button></li>)}</ul>}
+    {results.length>0&&<ul className="large-network-results" aria-label="对象搜索结果">{results.map(item=>{const action=activationLabel?.(item),name=activationLabel&&item.label===item.id?'未命名对象':item.label;return <li key={`${item.type}:${item.id}`}>
+      <button type="button" aria-label={activationLabel?`定位：${name}`:undefined} onClick={()=>{locate(item.id);setResults([])}}>{name} <small>{activationLabel?networkSymbol(item.kind).label:`${item.kind} · ${item.id}`}</small></button>
+      {onActivate&&action&&<button type="button" aria-label={`${action}：${name}`} onClick={()=>{locate(item.id,true);setResults([])}}>{action}</button>}
+    </li>})}</ul>}
+    {selected&&(selected.type==='bundle'||onActivate&&(!canActivate||canActivate(selected)))&&<div className="large-network-toolbar large-network-selection-action" role="group" aria-label="所选对象操作">
+      <strong>{activationLabel&&(!selected.label||selected.label===selected.id)?'未命名对象':selected.label||selected.id}</strong>{selected.type==='bundle'?<button type="button" onClick={()=>expandBundle(selected)}>展开{selected.memberIds.length}条源线路</button>:
+        <button type="button" onClick={()=>onActivate?.(selected)}>{activationLabel?.(selected)||'展开所选对象'}</button>}
+    </div>}
     <div className="large-network-stage">
       <canvas ref={canvas} tabIndex={0} role="img" aria-label="可缩放电网拓扑；使用加减键缩放，方向键平移，搜索查找对象" onKeyDown={event=>{
         if(event.key==='+'||event.key==='=')zoom(.8)
@@ -155,7 +163,7 @@ export default function LargeNetworkView({scene,title='电网拓扑',focusIds=[]
     {regional&&stats?.drawnEdges!==undefined&&<p className="large-network-counts">当前显示 {stats.drawnEdges} 条连线{stats.bundledGroups?`，其中 ${stats.bundledGroups} 束并行回路`:''}；源线路身份与数量保持不变。选择站点可查看直接关联。</p>}
     <NetworkLegend scene={scene}/>
     {selected&&<aside className="large-network-selection" aria-label="所选拓扑对象" aria-live="polite"><strong>{selected.label||selected.id}</strong><dl><dt>类型</dt><dd>{selected.type==='bundle'?'同端点源线路分组':networkSymbol(selected.kind).label}<small> · {selected.kind}</small></dd>{selected.type!=='bundle'&&<><dt>ID</dt><dd>{selected.id}</dd></>}{selected.sourceRef&&<><dt>来源</dt><dd>{selected.sourceRef}</dd></>}{selected.type==='node'&&selected.voltageKv!=null&&<><dt>电压等级</dt><dd>{selected.voltageKv} kV</dd></>}{selected.type!=='node'&&<><dt>端点</dt><dd>{selected.source} → {selected.target}</dd></>}{selected.details?.slice(0,20).map((detail,i)=><div key={i}><dt>{detail.label}</dt><dd>{detail.value}</dd></div>)}</dl>
-      {selected.type==='bundle'?<><p>{selected.memberIds.length} 条独立源线路，仅合并显示，不做电气等值。</p><button type="button" onClick={()=>expandBundle(selected)}>展开{selected.memberIds.length}条源线路</button><ul className="large-network-members">{selected.members.map(member=><li key={member.id}><button type="button" aria-label={`查看回路：${member.id}`} onClick={()=>locate(member.id)}>{member.label}<small>{member.id} · {member.kind}</small></button></li>)}</ul>{selected.memberIds.length>selected.members.length&&<small>此处列出前 {selected.members.length} 条；可按完整源 ID 搜索其他成员。</small>}</>:onActivate&&(!canActivate||canActivate(selected))&&<button type="button" onClick={()=>onActivate(selected)}>展开所选对象</button>}
+      {selected.type==='bundle'&&<><p>{selected.memberIds.length} 条独立源线路，仅合并显示，不做电气等值。</p><ul className="large-network-members">{selected.members.map(member=><li key={member.id}><button type="button" aria-label={`查看回路：${member.id}`} onClick={()=>locate(member.id)}>{member.label}<small>{member.id} · {member.kind}</small></button></li>)}</ul>{selected.memberIds.length>selected.members.length&&<small>此处列出前 {selected.members.length} 条；可按完整源 ID 搜索其他成员。</small>}</>}
       {source&&selected.type==='node'&&related&&<section className="large-network-related" aria-label="来源直接关联"><p>{`${related.totalNodes} 个直接关联对象 · ${Number.isSafeInteger(related.edges)?`${related.edges} 条${regional?'源线路':'源连接'}`:'源连接计数暂不可用'}`}</p>{related.nodes.map(item=><button type="button" key={item.id} onClick={()=>locate(item.id)}>{item.label}</button>)}{related.totalNodes>related.nodes.length&&<small>其余对象可通过名称或 ID 搜索。</small>}</section>}
     </aside>}
   </section>

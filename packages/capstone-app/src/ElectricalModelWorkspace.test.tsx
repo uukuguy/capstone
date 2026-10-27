@@ -11,9 +11,9 @@ afterEach(()=>{cleanup();sessionStorage.clear();background.created=[];vi.clearAl
 vi.mock('./electricalViewDownload',()=>({createElectricalViewDownload:(_manifest:unknown,_read:unknown,publish:(value:ElectricalDownloadProgress)=>void)=>{
   const download={start:vi.fn(),pause:vi.fn(),dispose:vi.fn(),publish};background.created.push(download);return download
 }}))
-vi.mock('./LargeNetworkView',()=>({LargeNetworkView:({scene,onActivate,canActivate,onFirstFrame}:LargeNetworkViewProps)=> <div>接线画布
+vi.mock('./LargeNetworkView',()=>({LargeNetworkView:({scene,title,onActivate,canActivate,activationLabel,onFirstFrame}:LargeNetworkViewProps)=> <div data-view-title={title}>接线画布
   <button onClick={()=>onFirstFrame?.()}>画布首帧</button>
-  {[...scene.nodes.map(node=>({...node,type:'node' as const})),...scene.edges.map(edge=>({...edge,type:'edge' as const}))].filter(item=>canActivate?.(item)).map(item=><button key={item.id} onClick={()=>onActivate?.(item)}>展开 {item.label}</button>)}
+  {[...scene.nodes.map(node=>({...node,type:'node' as const})),...scene.edges.map(edge=>({...edge,type:'edge' as const}))].filter(item=>canActivate?.(item)).map(item=><button key={item.id} data-entry-label={activationLabel?.(item)} onClick={()=>onActivate?.(item)}>展开 {item.label}</button>)}
 </div>}))
 const identity={schema:'gateway-electrical-view/1',model_ref:'registered:any',model_revision:'r1',selection_ref:'s1',source_snapshot_ref:'source1',view_ref:'root'}
 const ready={...identity,state:'ready',representation:'source_node_breaker',target:null,capture:{source_transaction_consistency_verified:false},streams:Object.fromEntries(ELECTRICAL_STREAMS.map(s=>[s,{total_count:s==='groups'?1:0}]))}
@@ -74,13 +74,18 @@ it('merges published provincial models, renders complete overview before indepen
   const records=electricalOverviewRecords(),manifest=electricalOverviewManifest(records)
   const open=vi.fn(async(_query:Record<string,unknown>)=>manifest),read=vi.fn(async request=>electricalPage(manifest,records,request))
   const transport={electricalModels:async()=>({scopes:[{model_ref:'scope:old',name:'旧目录'}],electrical_views:{source_grid_models:[{
-    model_ref:manifest.model_ref,open_arguments:{model_ref:manifest.model_ref,selection_profile:'station'}}],v2:{open_arguments:{view_schema:'gateway-electrical-view/2'}}}}),electricalOpen:open,electricalRead:read} as unknown as HttpThreadTransport
+    model_ref:manifest.model_ref,name:'来源电网名称',open_arguments:{model_ref:manifest.model_ref,selection_profile:'station'}}],v2:{open_arguments:{view_schema:'gateway-electrical-view/2'}}}}),electricalOpen:open,electricalRead:read} as unknown as HttpThreadTransport
   const ui=render(<ElectricalModelWorkspace transport={transport}/>)
-  await screen.findByRole('option',{name:'旧目录'});await screen.findByRole('option',{name:manifest.model_ref})
+  await screen.findByRole('option',{name:'旧目录'});await screen.findByRole('option',{name:'来源电网名称'})
   fireEvent.change(screen.getByRole('combobox'),{target:{value:manifest.model_ref}})
   await screen.findByText('接线画布')
   expect(open.mock.calls[0][0]).toMatchObject({model_ref:manifest.model_ref,selection_profile:'station',view_schema:'gateway-electrical-view/2'})
   expect(read.mock.calls.map(([request])=>request.stream)).toEqual(['summary_nodes','summary_edges'])
+  expect(screen.getByText('接线画布').getAttribute('data-view-title')).toContain('厂站概览')
+  expect(screen.getByText('单击厂站后选择“进入电气接线”，也可双击厂站。缩放仅调整视野。')).toBeTruthy()
+  expect(screen.getByRole('button',{name:'展开 Station A'}).getAttribute('data-entry-label')).toBe('进入电气接线')
+  expect(screen.getByRole('button',{name:'展开 Region A'}).getAttribute('data-entry-label')).toBe('进入区域概览')
+  expect(screen.getByRole('button',{name:'展开 2 条源线路'}).getAttribute('data-entry-label')).toBe('查看线路接线')
   expect(background.created).toHaveLength(1);expect(background.created[0].start).toHaveBeenCalledTimes(1)
   ui.rerender(<ElectricalModelWorkspace transport={transport}/>);expect(background.created).toHaveLength(1)
   fireEvent.click(screen.getByRole('button',{name:'暂停后台下载'}));expect(background.created[0].pause).toHaveBeenCalled()
@@ -186,7 +191,7 @@ it('aborts a stale foreground overview on model switch and ignores its eventual 
 })
 
 it('retains published root schema/selection metadata across exact refresh restoration',async()=>{
-  const records=electricalOverviewRecords(),manifest={...electricalOverviewManifest(records),overview_coverage:{source_selection:{profile:'station',boundary_policy:'retain_external_stub'}}}
+  const records=electricalOverviewRecords(),manifest={...electricalOverviewManifest(records),name:'实际发布电网',overview_coverage:{source_selection:{profile:'station',boundary_policy:'retain_external_stub'}}}
   const open=vi.fn(async(_query:Record<string,unknown>)=>manifest)
   const transport={electricalModels:async()=>({scopes:[{model_ref:manifest.model_ref,name:'有名称的省网'}],electrical_views:{source_grid_models:[{
     model_ref:manifest.model_ref,open_arguments:{model_ref:manifest.model_ref,selection_profile:'station'}}],v2:{open_arguments:{view_schema:'gateway-electrical-view/2'}}}}),
@@ -196,6 +201,9 @@ it('retains published root schema/selection metadata across exact refresh restor
   fireEvent.change(screen.getByRole('combobox'),{target:{value:manifest.model_ref}});await screen.findByText('接线画布')
   ui.unmount();render(<ElectricalModelWorkspace storageKey="metadata" transport={transport}/>)
   await screen.findByText('接线画布')
+  expect(screen.getByRole('navigation').textContent).toBe('实际发布电网')
+  expect(screen.getByText('接线画布').getAttribute('data-view-title')).toContain('实际发布电网')
+  expect(JSON.parse(sessionStorage.getItem('metadata')!).path[0].request.name).toBe('实际发布电网')
   expect(open.mock.calls.at(-1)?.[0]).toMatchObject({model_ref:manifest.model_ref,view_schema:'gateway-electrical-view/2',
     expected_model_revision:manifest.model_revision,selection_ref:manifest.selection_ref,selection_profile:'station',boundary_policy:'retain_external_stub'})
 })
@@ -230,4 +238,17 @@ it('measures first overview frame and detail completion from the same model open
     now=5100;act(()=>background.created[0].publish({state:'complete',loaded:5,total:5,streams:{}}))
     expect(timing.getAttribute('data-detail-complete-ms')).toBe('2000')
   } finally{clock.mockRestore();raf.mockRestore()}
+})
+
+it('keeps a resolved human model name when a refreshed catalog temporarily omits names',async()=>{
+  const records=electricalOverviewRecords(),manifest={...electricalOverviewManifest(records),name:'发布电网名称'}
+  const discovery={scopes:[],electrical_views:{source_grid_models:[{model_ref:manifest.model_ref,open_arguments:{model_ref:manifest.model_ref}}],v2:{open_arguments:{view_schema:'gateway-electrical-view/2'}}}}
+  const transport={electricalModels:async()=>discovery,electricalOpen:async()=>manifest,
+    electricalRead:async(request:Parameters<typeof electricalPage>[2])=>electricalPage(manifest,records,request)} as unknown as HttpThreadTransport
+  const ui=render(<ElectricalModelWorkspace transport={transport}/>)
+  await screen.findByRole('option',{name:'未命名电网'});fireEvent.change(screen.getByRole('combobox'),{target:{value:manifest.model_ref}})
+  await screen.findByText('接线画布');expect(screen.getByRole('option',{name:'发布电网名称'})).toBeTruthy()
+  ui.rerender(<ElectricalModelWorkspace transport={{...transport,electricalOpen:()=>new Promise(()=>{})} as unknown as HttpThreadTransport}/>)
+  await waitFor(()=>expect(screen.queryByRole('option',{name:'未命名电网'})).toBeNull())
+  expect(screen.getByRole('navigation').textContent).toBe('发布电网名称')
 })

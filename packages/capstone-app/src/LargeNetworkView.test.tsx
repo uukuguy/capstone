@@ -53,6 +53,32 @@ it('terminates obsolete views and ignores their late replies',()=>{
   first.emit({type:'ready',stats:{nodes:999,edges:0,indexMs:1,bufferBytes:8}})
   expect(ready).not.toHaveBeenCalled()
 })
+
+it('places a selected entry action above the canvas and long source details after a single selection',()=>{
+  const activate=vi.fn()
+  render(<LargeNetworkView scene={scene} onActivate={activate} canActivate={()=>true} activationLabel={()=>'进入电气接线'}/>)
+  TestWorker.instances[0].emit({type:'selected',request:1,item:{type:'node',...scene.nodes[0]}})
+  const button=screen.getByRole('button',{name:'进入电气接线'}),canvas=screen.getByRole('img')
+  expect(button.compareDocumentPosition(canvas)&Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  expect(button.compareDocumentPosition(screen.getByLabelText('所选拓扑对象'))&Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  fireEvent.click(button);expect(activate).toHaveBeenCalledWith(expect.objectContaining({id:scene.nodes[0].id,type:'node'}))
+})
+
+it('offers a separate search entry action and activates only the actual located selection',()=>{
+  vi.useFakeTimers();const activate=vi.fn()
+  render(<LargeNetworkView scene={scene} onActivate={activate} canActivate={item=>item.id===scene.nodes[0].id}
+    activationLabel={item=>item.id===scene.nodes[0].id?'进入电气接线':undefined}/>)
+  const worker=TestWorker.instances[0]
+  fireEvent.change(screen.getByRole('searchbox'),{target:{value:'Station'}});act(()=>vi.advanceTimersByTime(121))
+  const search=worker.postMessage.mock.calls.map(([value])=>value).find(value=>value.type==='search')
+  worker.emit({type:'search',request:search.request,results:[{type:'node',id:scene.nodes[0].id,label:'Station',kind:'station'}]})
+  expect(screen.getByLabelText('对象搜索结果').textContent).not.toContain(scene.nodes[0].id)
+  fireEvent.click(screen.getByRole('button',{name:'进入电气接线：Station'}));expect(activate).not.toHaveBeenCalled()
+  const located=worker.postMessage.mock.calls.at(-1)![0]
+  expect(located).toMatchObject({type:'locate',id:scene.nodes[0].id})
+  worker.emit({type:'located',request:located.request,item:{type:'node',...scene.nodes[0]},x:1,y:2})
+  expect(activate).toHaveBeenCalledWith({type:'node',...scene.nodes[0]})
+})
 it('debounces search on the worker and never sends the scene again for keyboard camera motion',()=>{
   vi.useFakeTimers()
   render(<LargeNetworkView scene={scene}/>)
