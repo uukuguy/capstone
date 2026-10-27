@@ -78,3 +78,14 @@ than requiring the model to repeat it in `depends_on`. The reducer still rejects
 unknown producers, undeclared slots and cycles, and exact frozen source/input
 grants remain required. This removes one observed redundant planning correction.
 122 controller/direct-delivery tests passed after this change (0.97s).
+
+Third trial `attempt_850a42b6b456892b` / `thr_29ad91a0229c70901a00`
+started22:35:34 on sourcebf9c2d1e, image
+`afdeae5e713231ae0a29ae3f0a1643215de7117b825cdcb5c6e8de896964b3c5`.
+The first tool started2.72s later. It is still running at this checkpoint.
+The organizer again performed substantial discovery before activating DR.
+An additional SDK guidance correction now clarifies that an explicit DR request
+can begin with one independent discovery task, without finishing data collection
+or a full plan in the parent. Ordinary answers and local edits still require no
+plan. This guidance passed23 SDK checks but is not in the running third trial;
+it needs a later canonical rebuild and real verification.

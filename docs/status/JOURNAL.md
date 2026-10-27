@@ -6017,3 +6017,4 @@ Reproduced protected research acknowledgment waiting behind an entire public-eve
 - 2026-10-27: 62631dca implements direct DR delivery and shared gateway grants; real acceptance pending; v1.20 overlay test expectations need updating.
 - 2026-10-27: 8ad49174 verifies v1.20 runtime selection; 92 host and 50 executor checks pass before the repaired DR trial.
 - 2026-10-27: 4859e980 corrects actual runner ownership for child discovery grants; both earlier full trials remain failed, without delivery.
+- 2026-10-27: bf9c2d1e derives typed input dependencies to avoid redundant planning retries; 122 controller/SDK checks passed.
