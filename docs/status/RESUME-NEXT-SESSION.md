@@ -4,6 +4,39 @@ Updated: 2026-10-28. Tool composition implemented/local trials complete; PR71 in
 
 ## Active implementation
 
+Live continuation: remote PR71 HEAD6b488fb4, required macOS run40577837096 failed
+after~30min:2418passed/8failed stale publication expectations. Affected tests now
+use exact historical version boundaries and latestdefault1.20; original snapshot
+hashes unchanged,27checks pass0.85s. Commit/push correction and rerun required CI.
+Product scope is due to accumulated145files, not a release. Do not push later
+docs-only updates onto PR71 and restart this full gate.
+The post-merge control-only PR should carry new reports/checkpoints/graph changes.
+
+Two new **full matched summer PPT** trials are now submitted via Vivaldi, exact
+original prompt `docs/reports/2026-10-27-summer-comparison-prompt.txt`, no helper
+names added. Runtime source184a519e:
+- lightweight threadthr_2a4a39ea4e577ba9589a, attempt_0bc80a51596e5828 completed
+  662.94s/77model responses/26programs/127SQL, realPPTX+CSV. Slower than baseline
+  383.66s/65models/27SQL. Record regression and investigate fan-out, not speedup.
+- DR threadthr_c19f67574890cfd629ef, attempt_66217d3b9720820c is running,
+  after single-worker queue. Queue time must be reported separately.
+Do NOT rebuild or switch the running App while these attempts are active.
+Collect via `/tmp/collect_capstone_comparison.py THREAD ../tool-composition-20261028/LABEL`
+and `/tmp/analyze_capstone_comparison.py ../tool-composition-20261028/LABEL`.
+Natural usage/performance results remain unclaimed until final products checked.
+
+Root dev f1e6e9fd retains5dirty control snapshots. Exact original files/sha256
+and patch are backed up in ROOT/runs/control-recovery-20261028-before-pr71.
+ROOT VERSION-CONTROL now additionally records current PR71/local184a facts and
+two graph nodes; HTML is deliberately not regenerated before integration (report
+targets absent on old root). Preserve this newer register before root restoration.
+After CI/merge: preserve these files again, restore only backed-up status paths,
+ff actualdev; stop only verified feature Vite5173 PID, canonical ROOT rebuild,
+refresh/verify products; create a control-only branch/PR from accepteddev, fold in
+prepared VERSION + original INDEX/history, update exact source/CI/merge identities,
+render with ui-ux-pro-max and inspect in existing Vivaldi tab. Merge docs PR then
+refresh graph at actual ROOT dev HEAD without self-hash commit loop.
+
 User approved shared native programmatic composition and semantic data packages.
 Design/plan: `docs/superpowers/{specs,plans}/2026-10-28-tool-composition*.md`.
 New modules: resources/tool-composition.mjs, tool-composition-worker.mjs,

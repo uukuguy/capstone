@@ -6030,6 +6030,19 @@ Reproduced protected research acknowledgment waiting behind an entire public-eve
 - 2026-10-28: 0468f165 records measured batching and shared tool-composition proposals; runtime behavior remains unchanged pending implementation scope.
 # 2026-10-28 — Shared native tool composition
 
+CI40577837096 failed after about30min: 2418 agent checks passed,8 failed due to
+old publication tests including new1.20 entries in legacy hashes/default1.19.
+Reproduced affected files; restrict snapshots to versions before their original
+boundary and assert currentdefault1.20. Original legacy expected hashes unchanged.
+27 checks pass in0.85s. No production policy bytes changed by this correction.
+Full matched natural-usage tests now run through Vivaldi (original prompt unchanged).
+Lightweight completed662.94s/77model responses/26programs/127SQL, delivered PPTX+CSV;
+slower than prior383.66s/65responses/27SQL. This is a measured regression, not
+an accepted speedup: programs enabled broad query fan-out. DR follow-up is running
+after the single native worker's queue, which must be measured separately.
+
+6b488fb4: Recorded real lightweight, DR and continuation evidence so integration preserves measured limits rather than claiming unproven speedups.
+
 e2abb75b: Fixed provider-status type narrowing and registered real worker/package and descendant-cancellation checks in the Python gate.
 
 Implementation report, accepted-design feedback, canonical worklist and recovery
