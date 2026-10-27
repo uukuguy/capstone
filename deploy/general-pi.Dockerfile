@@ -80,6 +80,7 @@ COPY packages/capstone-agent/src/capstone_agent/conversation_context.py capstone
 COPY packages/capstone-agent/src/capstone_agent/request_intent.py capstone_agent/request_intent.py
 COPY packages/capstone-agent/src/capstone_agent/native_task_context.py capstone_agent/native_task_context.py
 COPY packages/capstone-agent/src/capstone_agent/native_diagnosis.py capstone_agent/native_diagnosis.py
+COPY packages/capstone-agent/src/capstone_agent/native_tool_composition.py capstone_agent/native_tool_composition.py
 COPY packages/capstone-agent/src/capstone_agent/resources/research-policy-catalog.json capstone_agent/resources/research-policy-catalog.json
 COPY packages/capstone-agent/src/capstone_agent/resources/graph-work-policy-1.12.json capstone_agent/resources/graph-work-policy-1.12.json
 COPY packages/capstone-agent/src/capstone_agent/resources/graph-work-policy-1.16.json capstone_agent/resources/graph-work-policy-1.16.json
@@ -106,6 +107,10 @@ COPY packages/capstone-agent/src/capstone_agent/resources/research-guidance.mjs 
 COPY packages/pi-capability-tools/src/task-record-tools.mjs capstone_agent/resources/task-record-tools.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/general-context.mjs capstone_agent/resources/general-context.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/general-sdk.mjs capstone_agent/resources/general-sdk.mjs
+COPY packages/capstone-agent/src/capstone_agent/resources/tool-composition.mjs capstone_agent/resources/tool-composition.mjs
+COPY packages/capstone-agent/src/capstone_agent/resources/tool-composition-worker.mjs capstone_agent/resources/tool-composition-worker.mjs
+COPY packages/capstone-agent/src/capstone_agent/resources/tool-composition-policy.json capstone_agent/resources/tool-composition-policy.json
+COPY packages/capstone-agent/src/capstone_agent/resources/semantic-data-context.mjs capstone_agent/resources/semantic-data-context.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/general-tool-discovery.mjs capstone_agent/resources/general-tool-discovery.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/systematic-diagnosis.mjs capstone_agent/resources/systematic-diagnosis.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/enterprise-research-runtime.mjs capstone_agent/resources/enterprise-research-runtime.mjs

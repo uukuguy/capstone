@@ -6027,3 +6027,15 @@ Reproduced protected research acknowledgment waiting behind an entire public-eve
 - 2026-10-28 01:01: Vivaldi upload/refresh/instruction isolation and toggle states verified; canonical rebuild and scoped cleanup passed.
 - 2026-10-28: df22d303 records real Vivaldi composer acceptance and recovery state; implementation df12507d remains the verified local source.
 - 2026-10-28: Reviewed gateway concurrency and composition; existing batching works, but programmatic orchestration and shared semantics remain optimization candidates.
+- 2026-10-28: 0468f165 records measured batching and shared tool-composition proposals; runtime behavior remains unchanged pending implementation scope.
+# 2026-10-28 — Shared native tool composition
+
+User approved implementation. Added task-isolated async programs, bounded parallel
+gateway calls, dependent data flow, Python calculation, explicit cancellation and
+source-backed semantic packages. Both ordinary loop and DR child grants select
+the same versioned capability; DR organizer stays tool restricted. Gateway schemas
+and receipts remain host validated. No business workflows or gateway endpoints are
+encoded. Focused checks: 55 Node tests (0.78s), 89 Python tests (3.85s; 16 unrelated
+version combinations skipped), App type check and doctor passed. Canonical rebuild
+and visible real business verification pending. Unrelated task-1-report.md preserved.
+

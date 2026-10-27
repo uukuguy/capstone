@@ -1,0 +1,1 @@
+{"schema":"capstone-tool-composition/1","max_calls":64,"concurrency":4,"code_chars":65536,"output_bytes":32768,"worker_memory_mb":256,"max_program_ms":1800000}

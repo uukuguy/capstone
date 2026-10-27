@@ -97,6 +97,7 @@ const TOOL_LABELS: Record<string, string> = {
   agent_research_update: '保存研究进展与待解决问题',
   agent_research_depth: '调整后续推理深度',
   agent_task_progress: '记录任务进展',
+  agent_tools_execute: '组合工具与计算',
   agent_task_records_read: '读取原任务记录',
   grid_model_list: '读取模型目录',
   grid_context_get: '读取模型上下文',

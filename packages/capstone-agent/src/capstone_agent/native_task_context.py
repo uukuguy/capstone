@@ -177,7 +177,7 @@ def public_document(value):
 def checked_native_context(value):
     value = public_document(value)
     fields = {'policy', 'selected_task_records', 'selected_task_source', 'records_truncated'}
-    if (not isinstance(value, dict) or not fields <= set(value) or set(value) - fields - {'materials', 'material_notices', 'resource_manifests', 'resource_origins', 'graph_work', 'systematic_diagnosis', 'deep_research'}
+    if (not isinstance(value, dict) or not fields <= set(value) or set(value) - fields - {'materials', 'material_notices', 'resource_manifests', 'resource_origins', 'graph_work', 'systematic_diagnosis', 'tool_composition', 'deep_research'}
             or type(value['records_truncated']) is not bool
             or not isinstance(value['selected_task_records'], list) or len(value['selected_task_records']) > 64):
         raise ValueError('native task context is invalid')
@@ -247,6 +247,11 @@ def checked_native_context(value):
         raise ValueError('native application policy is invalid')
     publication = resolve_research_policy(policy['system_policy'])
     from .native_diagnosis import DIAGNOSIS_POLICY, DIAGNOSIS_TOOLS
+    from .native_tool_composition import COMPOSITION_POLICY, COMPOSITION_TOOLS
+    composition = value.get('tool_composition')
+    if ((composition is not None and composition != COMPOSITION_POLICY)
+            or set(policy['allowed_tools']) & set(COMPOSITION_TOOLS) and composition != COMPOSITION_POLICY):
+        raise ValueError('native composition policy is not registered')
     diagnosis = value.get('systematic_diagnosis')
     if ((diagnosis is not None and diagnosis != DIAGNOSIS_POLICY)
             or set(policy['allowed_tools']) & set(DIAGNOSIS_TOOLS) and diagnosis != DIAGNOSIS_POLICY):
@@ -299,6 +304,12 @@ def native_context_for(claim, binding):
     from .native_research_bridge import research_tools_for_profile
     tools.update(research_tools_for_profile(binding['application_profile']['profile_id'],
                                            binding['application_profile']['profile_version']))
+    from .native_tool_composition import COMPOSITION_POLICY, COMPOSITION_TOOLS
+    composition = (binding['capability'].get('tool_composition') == COMPOSITION_POLICY
+        and binding['application_profile']['profile_id'] == 'enterprise-research'
+        and {'bash', 'write'} <= tools and any(name.startswith('data_gateway_') for name in tools))
+    if composition:
+        tools.update(COMPOSITION_TOOLS)
     submission = claim.submission or {}
     if submission.get('input', {}).get('kind') == 'skill_invocation':
         selected = next((item for item in binding['capability']['resource_profiles']['delegated_pi']['resources']
@@ -340,6 +351,7 @@ def native_context_for(claim, binding):
         'selected_task_source': source, 'records_truncated': truncated, **work,
         **({'deep_research': submission['deep_research']} if 'deep_research' in submission else {}),
         **({'systematic_diagnosis': DIAGNOSIS_POLICY} if diagnosis == DIAGNOSIS_POLICY else {}),
+        **({'tool_composition': COMPOSITION_POLICY} if composition else {}),
         **({'materials': materials} if materials else {}),
         **({'resource_manifests': public_document(submission['_resource_manifests'])} if submission.get('_resource_manifests') else {}),
         **({'resource_origins': origins} if origins else {}),

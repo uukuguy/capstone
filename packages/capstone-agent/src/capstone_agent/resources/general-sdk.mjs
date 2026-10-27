@@ -9,6 +9,7 @@ import {createDataGatewayTools} from './general-data-gateway.mjs';
 import {createToolDiscovery,discoveryToolNames} from './general-tool-discovery.mjs';
 import {createTaskNodeReturn} from './task-node-return.mjs';
 import {restoreToolResult} from './tool-result-context.mjs';
+import {createToolCompositionTool,compositionPolicy} from './tool-composition.mjs';
 import {configureCommittedDelivery} from './committed-delivery.mjs';
 import {taskTurnGuidance} from './task-turn-guidance.mjs';
 import {createDiagnosisTools,diagnosisTools,diagnosisDigest,configureDiagnosisCorrectionGuard,watchDiagnosisValidation} from './systematic-diagnosis.mjs';
@@ -384,12 +385,12 @@ export function createGatewayToolDiscovery(config) {
     contractHashes:config.dataGateway.catalog.tool_hashes,admittedNames,cwd:config.toolResultCwd});
 }
 
-export function applicationToolOptions(config, nativeTools, research=()=>undefined, discovery=createGatewayToolDiscovery(config)) {
+export function applicationToolOptions(config, nativeTools, research=()=>undefined, discovery=createGatewayToolDiscovery(config), graphBinding) {
   if (!config.applicationPolicy) return {};
   // SDK `tools` filters the full registry, including registered extensions.
   // Keep publication intact; the active set and execution guard enforce grants.
   const gatewayTools=discovery?[...discovery.guardedTools,...discovery.tools]:createDataGatewayTools(config);
-  return { customTools: [...nativeTools,...gatewayTools,...createDiagnosisTools(config)].map(tool => {
+  const wrap=tool => {
     const guarded = guardToolExecution(tool, async call => applicationToolAdmission(config, call.toolName));
     // Foundation records do not open a native graph action or produce business evidence.
     if (!config.researchChannelPath||diagnosisTools.includes(tool.name)) return guarded;
@@ -405,7 +406,7 @@ export function applicationToolOptions(config, nativeTools, research=()=>undefin
         throw error;
       }
       if(usesEnterpriseGraph(config)&&result.isError===true){controller?.endTool(token,result);return result;}
-      if(!usesEnterpriseGraph(config)&&!['read','bash','edit','write','agent_delegate'].includes(tool.name)&&!tool.name.startsWith('data_gateway_')) {
+      if(!usesEnterpriseGraph(config)&&!['read','bash','edit','write','agent_delegate','agent_tools_execute'].includes(tool.name)&&!tool.name.startsWith('data_gateway_')) {
         controller?.endTool(token,result);return result;
       }
       const source = {task_id: config.researchTaskId, tool_call_id: callId,
@@ -416,7 +417,35 @@ export function applicationToolOptions(config, nativeTools, research=()=>undefin
         details: {...result.details, native_research_source: source}};
       return controller?await controller.completeTool(token,observed,{signal:args[1]}):observed;
     }};
-  }) };
+  };
+  const customTools=[...nativeTools,...gatewayTools,...createDiagnosisTools(config)].map(wrap);
+  if(JSON.stringify(canonical(config.toolComposition))===JSON.stringify(canonical(compositionPolicy))&&
+      config.applicationPolicy.allowed_tools.includes('agent_tools_execute')&&config.dataGateway&&
+      ['bash','write'].every(name=>config.applicationPolicy.allowed_tools.includes(name))){
+    // Explicit program selection uses the admitted catalog, independent of the
+    // model's small active menu. The same host relay validates each invocation.
+    let nested=createDataGatewayTools(config).map(wrap);
+    if(graphBinding)nested=graphChildTools(config,nested,graphBinding);
+    const selected=new Map(nested.map(tool=>[tool.name,tool]));
+    customTools.push(wrap(createToolCompositionTool({policy:compositionPolicy,
+      cwd:config.toolResultCwd??process.cwd(),catalog:config.dataGateway.catalog,
+      scope:{task_id:config.researchTaskId,attempt_id:config.researchAttemptId},deadlineAt:config.deadlineAt,
+      allowedInputs:graphBinding?graphSelectedSources(config,graphBinding.action).map(s=>s.path):[],restore:restoreToolResult,
+      async invoke(name,args,{callId,signal}){
+        const tool=selected.get(name);if(!tool)throw Error('Composition tool is not admitted');
+        if(!graphBinding)hostEmit(rpcEvent({type:'tool_execution_start',toolName:name,toolCallId:callId,args}));
+        try{
+          const result=await tool.execute(callId,args,signal);
+          if(!graphBinding)hostEmit(rpcEvent({type:'tool_execution_end',toolName:name,toolCallId:callId,result,isError:result.isError===true}));
+          return result;
+        }catch(error){
+          if(!graphBinding)hostEmit(rpcEvent({type:'tool_execution_end',toolName:name,toolCallId:callId,
+            result:{isError:true,content:[{type:'text',text:String(error.message??error)}]},isError:true}));
+          throw error;
+        }
+      }})));
+  }
+  return {customTools};
 }
 
 export function verifyMcpPublication(session, config) {
@@ -661,7 +690,7 @@ export async function createManagedChildSession(config, sdk, modelRuntime,
   const model = modelRuntime.getModel('capstone-general', config.model);
   if (!model) throw new Error('Managed child model is unavailable');
   if(graphBinding)graphBinding={...graphBinding,observedToolCalls:new Set()};
-  let tools=applicationToolOptions(childConfig,createIsolatedNativeTools(sdk,cwd),undefined,discovery);
+  let tools=applicationToolOptions(childConfig,createIsolatedNativeTools(sdk,cwd),undefined,discovery,graphBinding);
   if(graphBinding?.taskReturn){
     tools.customTools.push(taskReturnTool(config,cwd,graphBinding));
     childConfig.applicationPolicy.allowed_tools.push('agent_task_return');
@@ -962,7 +991,7 @@ export function createGraphNodeDispatcher(config,sdk,modelRuntime,{skills,contex
     const limits=config.researchRuntime.delegation;
     const runner=createManagedSubagents({maxTurns:limits.maxTurns,graceTurns:limits.graceTurns,
       createChildSession:({signal})=>createManagedChildSession(config,sdk,modelRuntime,{signal,cwd,researchExecution:true,
-        toolNames:config.applicationPolicy.allowed_tools.filter(name=>['read','bash','edit','write','grep','find','ls'].includes(name)||diagnosisTools.includes(name)||name.startsWith('data_gateway_')),
+        toolNames:config.applicationPolicy.allowed_tools.filter(name=>['read','bash','edit','write','grep','find','ls','agent_tools_execute'].includes(name)||diagnosisTools.includes(name)||name.startsWith('data_gateway_')),
         skills,graphBinding:{action,checkpoint,emit,receipts,taskReturn,executionMode:node.mode,turnGuidance:turn_guidance,
           freezeReturn:({products,callId,signal})=>retainTaskProducts(contextClient,action,checkpoint,products,
             {signal,requestKey:'task-return:'+createHash('sha256').update(action.id+'\0'+callId).digest('hex')})}})});

@@ -9,6 +9,35 @@ from capstone_agent.pi_delegation import PiTaskRequest, HttpGeneralPiExecutor
 from capstone_agent.request_intent import NodeControl
 
 
+@pytest.mark.parametrize('publication,grant,accepted', [(True, True, True), (False, True, False), ('changed', True, False), (True, False, False)])
+def test_composition_observation_requires_exact_capability_and_child_grant(tmp_path, monkeypatch, publication, grant, accepted):
+    from dataclasses import replace
+    from capstone_agent import general_pi_server as module
+    from capstone_agent.native_tool_composition import COMPOSITION_POLICY
+    from capstone_agent.native_task_context import POLICY_TEXT
+    from test_native_graph_progress import test_task_return_observation_crosses_the_host_only_for_the_exact_child_lease
+
+    class CompositionHost(module.GeneralPiHost):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            if publication == 'changed':
+                self.capability['tool_composition'] = {}
+
+        def submit(self, request):
+            native = {'policy': {'schema': 'capstone-conversation-policy/1', 'system_policy': POLICY_TEXT,
+                'allowed_tools': ['agent_tools_execute'] if grant else [], 'external_lookup_enabled': False},
+                'selected_task_records': [], 'selected_task_source': None, 'records_truncated': False,
+                **({'tool_composition': COMPOSITION_POLICY} if publication else {})}
+            return super().submit(replace(request, native_context=native))
+
+    monkeypatch.setattr(module, 'GeneralPiHost', CompositionHost)
+    if publication is False or publication == 'changed':
+        with pytest.raises(ValueError, match='composition policy|unpublished tool'):
+            test_task_return_observation_crosses_the_host_only_for_the_exact_child_lease(tmp_path, 'child', 'agent_tools_execute', accepted)
+    else:
+        test_task_return_observation_crosses_the_host_only_for_the_exact_child_lease(tmp_path, 'child', 'agent_tools_execute', accepted)
+
+
 @pytest.mark.parametrize('tool_name,grant,accepted', [
     ('agent_tool_search', True, True),
     ('agent_tool_load', True, True),
@@ -113,6 +142,7 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     from capstone_agent.business_context import BusinessContext
     from capstone_agent.native_task_context import native_context_for, research_policy_capabilities
     from capstone_agent.native_conversation import executor_binding
+    from capstone_agent.native_tool_composition import COMPOSITION_POLICY
     from test_enterprise_normal_chat import native_executor
     from test_native_graph_progress import graph_fixture
     executor = native_executor()
@@ -122,10 +152,13 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
         'data_gateway_other': {'name': 'other'}}}}
     executor.capability = {**executor.capability, 'research_bridge_schemas': ['capstone-research-bridge/1'],
         'research_graph_schemas': ['capstone-enterprise-graph/2'], 'research_policy_profiles': research_policy_capabilities(),
-        'data_gateway': gateway_publication}
+        'data_gateway': gateway_publication, 'tool_composition': COMPOSITION_POLICY,
+        'native_builtin_tools': ['bash', 'write', 'read', 'edit']}
     selected = executor_binding(executor, profile_version=version)
     native = native_context_for(SimpleNamespace(submission=None, selected_task_reader=None,
         started_at='2026-10-21T06:00:00Z'), selected)
+    assert native['tool_composition'] == COMPOSITION_POLICY
+    assert 'agent_tools_execute' in native['policy']['allowed_tools']
     native['policy']['allowed_tools'].remove('data_gateway_other')
     if choice is not None:
         native['deep_research'] = choice

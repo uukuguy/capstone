@@ -86,6 +86,8 @@ class GeneralPiHost:
         self.capability['delivery_review_schemas'] = ['capstone-delivery-review/1']
         from .native_diagnosis import DIAGNOSIS_POLICY
         self.capability['systematic_diagnosis'] = dict(DIAGNOSIS_POLICY)
+        from .native_tool_composition import COMPOSITION_POLICY
+        self.capability['tool_composition'] = dict(COMPOSITION_POLICY)
         gateway = getattr(run_task, 'gateway', None)
         self.capability['data_gateway'] = (gateway.publication() if gateway else
             getattr(run_task, 'gateway_publication', {'available': False, 'reason': 'not_configured'}))
@@ -184,6 +186,10 @@ class GeneralPiHost:
             from .native_diagnosis import DIAGNOSIS_POLICY, DIAGNOSIS_TOOLS
             if native.get('systematic_diagnosis') == DIAGNOSIS_POLICY:
                 published.update(DIAGNOSIS_TOOLS)
+            from .native_tool_composition import COMPOSITION_POLICY, COMPOSITION_TOOLS
+            if (native.get('tool_composition') == COMPOSITION_POLICY
+                    and self.capability.get('tool_composition') == COMPOSITION_POLICY):
+                published.update(COMPOSITION_TOOLS)
             if not set(native['policy']['allowed_tools']) <= published:
                 raise ValueError('native application requested an unpublished tool')
         with self._lock:
@@ -322,6 +328,10 @@ class GeneralPiHost:
             and self.capability.get('systematic_diagnosis') == DIAGNOSIS_POLICY else set())
         discovery_sources = ({'agent_tool_search', 'agent_tool_load'}.intersection(native['policy']['allowed_tools'])
             if native is not None else set())
+        from .native_tool_composition import COMPOSITION_POLICY, COMPOSITION_TOOLS
+        composition_sources = (set(COMPOSITION_TOOLS).intersection(native['policy']['allowed_tools'])
+            if native is not None and native.get('tool_composition') == COMPOSITION_POLICY
+            and self.capability.get('tool_composition') == COMPOSITION_POLICY else set())
         from .data_gateway_relay import gateway_discovery_tools
         discovery_sources.update(gateway_discovery_tools(native, self.capability.get('data_gateway', {}),
             gateway_available=getattr(self._run, 'gateway', None) is not None))
@@ -405,7 +415,7 @@ class GeneralPiHost:
                 and guard.failures.get(call_id) in {'failed', 'cancelled'})
             if ((tool_name not in {'read', 'bash', 'edit', 'write', 'grep', 'find', 'ls'} and not gateway_tool
                     and not (child and (tool_name == 'agent_task_return' or tool_name in diagnostic_sources
-                                        or tool_name in discovery_sources))
+                                        or tool_name in discovery_sources or tool_name in composition_sources))
                     and not unentered_rejection)
                     or issued != expected_source and (not failed or issued is not None)):
                 raise ValueError('native observation source identity changed')
@@ -598,6 +608,7 @@ class GeneralPiHost:
                         allowed_sources = ({'read', 'bash', 'edit', 'write', 'grep', 'find', 'ls'}
                             if request.research_binding.get('graph_schema') == 'capstone-enterprise-graph/2'
                             else {'read', 'bash', 'edit', 'write', 'agent_delegate'})
+                        allowed_sources.update(composition_sources)
                         if (payload['tool_name'] not in allowed_sources and not payload['tool_name'].startswith('data_gateway_')
                                 or issued != {'task_id': request.task_id, 'tool_call_id': payload['tool_call_id'],
                                               'source_ref': expected_ref}):
@@ -941,6 +952,8 @@ class NativeTaskRunner:
                 from .native_task_context import checked_native_context, resolve_research_policy
                 native = checked_native_context(request.native_context)
                 sdk_config['applicationPolicy'] = native['policy']
+                if native.get('tool_composition'):
+                    sdk_config['toolComposition'] = native['tool_composition']
                 if native.get('systematic_diagnosis'):
                     diagnosis = self._diagnosis_provider(request, workspace, uid)
                     sdk_config['diagnosisContextPath'] = str(diagnosis.root)
@@ -1504,7 +1517,7 @@ def main():
                 'pi_commit': lock['source']['commit'], 'config_revision': revision.hexdigest(),
                 'runtime_lock_sha256': sha256(Path('/opt/general/pi-runtime.lock.json').read_bytes()).hexdigest(),
                 'executor_revision': sha256(b''.join((Path(__file__).parent / name).read_bytes()
-                    for name in ('general_pi_server.py', 'general_pi_executor.py', 'general_pi_storage.py', 'general_pi_relay.py', 'native_network_policy.py', 'bounded_http_loop.py', 'pi_delegation.py', 'business_context.py', 'request_intent.py', 'native_task_context.py', 'native_diagnosis.py',
+                    for name in ('general_pi_server.py', 'general_pi_executor.py', 'general_pi_storage.py', 'general_pi_relay.py', 'native_network_policy.py', 'bounded_http_loop.py', 'pi_delegation.py', 'business_context.py', 'request_intent.py', 'native_task_context.py', 'native_diagnosis.py', 'native_tool_composition.py',
                                  'native_resources.py', 'runtime_resources.py', 'resource_installation.py', 'general_pi_resource_seed.py', 'bounded_mcp.py', 'native_environment.py', 'data_gateway_mcp.py', 'data_gateway_relay.py', 'grid_source_topology.py', 'grid_electrical_view.py', 'resources/gateway-electrical-view-v1.schema.json', 'resources/gateway-electrical-view-v2.schema.json', 'resources/general-data-gateway.mjs',
                                  'progress.py', 'stream_progress.py', 'resource_manifest.py', 'native_resource_staging.py',
                                  'native_research_bridge.py', 'native_graph_context.py', 'native_graph_events.py',
@@ -1512,6 +1525,7 @@ def main():
                                  'application_capacity.py', 'resources/application-capacity.json', 'resources/runtime-limits.mjs',
                                  'resources/research-tools.mjs', 'resources/execution-guidance.mjs', 'resources/model-request-capture.mjs',
                                  'resources/general-context.mjs', 'resources/general-sdk.mjs', 'resources/general-tool-discovery.mjs', 'resources/tool-result-context.mjs', 'resources/committed-delivery.mjs', 'resources/systematic-diagnosis.mjs', 'resources/general-mcp.mjs', 'resources/task-record-tools.mjs',
+                                 'resources/tool-composition.mjs', 'resources/tool-composition-worker.mjs', 'resources/tool-composition-policy.json', 'resources/semantic-data-context.mjs',
                                  'resources/enterprise-research-runtime.mjs', 'resources/enterprise-cycle-contract.mjs',
                                  'resources/enterprise-cycle-state.mjs', 'resources/enterprise-graph-contract.mjs',
                                  'resources/enterprise-graph-state.mjs', 'resources/enterprise-graph-runtime.mjs', 'resources/task-goal-state.mjs', 'resources/task-node-return.mjs', 'resources/research-context-window.mjs',
