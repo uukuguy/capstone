@@ -20,6 +20,13 @@ symbols, layout, selection and camera. No LLM loop per page; no invented edges.
 - Do not hard-code Beijing IDs or province-specific call sequences in product code.
 - Keep v1/calculation views compatible; no solver or calculation import work.
 - Initial overview downloads summary_nodes/summary_edges only, each cursor to completion.
+- User clarification: once overview is complete, show it immediately and keep it
+  interactive while remaining detail pages download in the background. Chat and
+  subsequent agent instructions remain usable independently of download state.
+- Background pages use bounded concurrency and version-bound IndexedDB storage,
+  not an unbounded in-memory full-network scene. Show per-stream progress and
+  pause/resume; selected local closures take priority. A new model aborts obsolete
+  requests. Cache failure keeps the overview usable and reports a paused download.
 - Distinguish source station-line aggregation from actual node-breaker connectivity.
 - Bounded concurrency, cancellation/generation isolation, version checks and exact
   identities remain mandatory. Preserve loaded content on a recoverable page error.
@@ -61,6 +68,8 @@ electricalModelFixtures.ts and their focused tests; layout/symbol consumers only
 
 Own ElectricalModelWorkspace.tsx/tests and needed threadViewRouting/transport
 consumers. Coordinate any backend request-binding changes with Task1.
+New electricalViewCache.ts/electricalViewDownload.ts own asynchronous page storage
+and background progress; their tests verify no closure/agent lock while downloading.
 
 - [ ] Discover provincial entries from the live catalog; request supported v2 explicitly.
 - [ ] Load the full current summary layer with per-stream progress, then render it.
@@ -73,6 +82,22 @@ consumers. Coordinate any backend request-binding changes with Task1.
   Run focused workspace/routing/transport tests and App build before commit.
 
 ### Task 4: Real acceptance and integration
+
+User acceptance clarifications during live testing:
+
+- Use gateway `name` in the catalog, title and breadcrumbs. Keep `model_ref` in
+  source/version details. Do not maintain a local province ID/name mapping.
+- A single station selection exposes a primary “进入电气接线” action above the
+  canvas. Search results offer the same action. Double-click is an optional
+  shortcut; zoom does not imply hierarchy navigation. Show the current level
+  and a clear return path.
+- Record overview first paint and complete detail-cache commit from the same
+  model-open origin, plus selection scope, counts and cache conditions. Record
+  agent/gateway preparation separately; do not present warm-view loading as
+  complete natural-language latency.
+- Validate the literal instruction “打开北京电网”, not only manual model selection.
+- Keep device/port placement coherent around the 500-node layout threshold;
+  preserve all source edges and their electrical versus membership semantics.
 
 - [ ] Read live Beijing overview and representative station/transformer/line closures;
   record unique counts, page counts, source identity, missing-data limits and timings.

@@ -5954,3 +5954,27 @@ Prior closeout receipts preserved verbatim from the root checkout:
 - 2026-10-27 `519bf75f`: Synchronize backpressure fixture instead of sleeping;46 checks and10 repeated six-case rounds pass.
 
 - 2026-10-27 `bcd1a5ad`: Merge PR69 after macOS40409319046 passed27m16s;actual dev fast-forwarded with recovery stash preserved.
+
+- 2026-10-27 `be6985af`: Scope Beijing topology delivery with interactive overview,background pages and independent conversation.
+
+- 2026-10-27 `42372304`: Admit protectedv2 summaries/inheritedchildren;53focusedchecks andlive-capture replay pass.
+
+- 2026-10-27 `8936e1a8`: Decode v2 electrical summaries and preserve endpoint identities so provincial overviews render without invented connectivity.
+
+- 2026-10-27 `b92202dd`: Preserve verified electrical descriptor metadata so replay retains source schema, root selection and actual parent identity.
+
+- 2026-10-27 `d30549e7`: Keep open grid views mounted across instructions so background downloads do not block or reset conversation.
+- 2026-10-27 `8ea8728e`: Preserve electrical descriptor scope and verified parents for frozen view restoration.
+- 2026-10-27 `e2e079b6`: Include v2 schema bytes in executor identity to track contract changes.
+- 2026-10-27 `033dfb84`: Show complete overview first and download details independently, preserving frozen navigation and pause state.
+- 2026-10-27 `7c7e6dad`: Expose the first painted frame so measured overview latency includes rendering.
+- 2026-10-27 `0565f8b4`: Measure overview paint and complete download from one model-open origin for browser acceptance.
+- 2026-10-27 `a86e65d6`: Admit checked display descriptors through native events so ready gateway views pass transport validation.
+- 2026-10-27 Vivaldi: Beijing provincial overview 0.49s;78,407 detail records cached16.30s. Natural instruction failed before transport fix.
+
+- 2026-10-27 `a9c030f2`: Preserve published model names through protected catalog, manifests and descriptors so users see source-backed human labels.
+- 11:17 Preserved bounded station grouping across 499/543 terminal-record counts; source identities unchanged. Twenty tests and TypeScript passed. [e80df08f]
+- 2026-10-27 `52496fec`: Expose visible station entry actions and published model names for clear overview navigation.
+- 2026-10-27 `e3d8c5c8`: Restore root breadcrumb names by exact model identity without reopening the root view.
+- 2026-10-27 Vivaldi: Exact instruction “打开北京电网” automatically opened the named overview;14tools,26.3s, warm gateway/browser caches.
+- 2026-10-27 `9f4db401`: Show source voltage scope, isolate cameras by session, and retain verified parents for instructed child views.
