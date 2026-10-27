@@ -14,7 +14,7 @@ The user has requested record-and-continue behavior and removal of repeated hand
 - [x] Permit one advisory finish call carrying the model's whole-goal decision and selected delivery. Keep exact review persistence, reference validation and replay; strict mode still requires its explicit review reference.
 - [x] Preserve an actual returned producer statement when supplied observation aliases cannot be resolved; omit unknown refs and retain limitations, never convert them into passed checks.
 - [x] Distinguish saved returns from host registration in execution records; show return submission duration as such, not full handoff duration. Existing main-chain finalization timing remains separate.180 focused App tests and TypeScript pass. Live visual acceptance remains pending.
-- [ ] Rebuild locally and verify through a new conversation in the existing Vivaldi tab. Measure child completion to dependent dispatch and final answer separately. Stop abnormal idle runs.
+- [x] Rebuild locally and verify through a new conversation in the existing Vivaldi tab. Latest7513fc34 trial completed43.426s, with0.175–0.187s registration,0.384s dependent dispatch,10.556s final tail, no failed/retried calls. Large report acceptance and immutable policy text alignment remain follow-ups.
 
 ## Evidence to retain
 

@@ -1,6 +1,6 @@
 # Deep Research handoff investigation
 
-Status: active. No claim that all handoff latency is resolved.
+Status: bounded calculation path verified. Large-report acceptance and the observed parent-request stall remain open.
 
 ## Real observation
 
@@ -66,3 +66,22 @@ Company A still needed an explicit limited record after an association failure. 
 The combined build passed canonical readiness and scoped cleanup as imagea439c731df75a5955d3ccef5362a7ad03f1464866646342aa2f8bbb480a6a3ec. Its next Vivaldi trial `attempt_0fbba5e903defbb0` / `thr_8ec05c90864392f53980` failed13:25:41.449, before analysis completion. The private failure receipt records `observation_source_invalid`. Events86–90 identify a child call to `agent_tool_search`; the SDK exposed this granted discovery tool but the host observation allowlist omitted it. This is a contract defect, not evidence of combined-finish failure.
 
 The host fix admits only the two application-granted discovery tools (`agent_tool_search`, `agent_tool_load`) for an exact bound child call. Existing task/source identity and receipt checks remain in place; unknown tool names and missing grants fail. A real-host regression reproduced both failures before the fix.87 host/progress tests pass in3.42s with localhost proxy bypass. Initial test execution had two localhost HTTP502 failures caused by inherited proxy settings; those passed with NO_PROXY. Rebuild and real trial for this discovery fix remain pending.
+
+## Final bounded trial
+
+7513fc34 passed canonical local rebuild and scoped cleanup, imagefc72fe1ab67bca182a82a3bf7eeab829821fcc80040daf68c7244379c3d1f74c. The same question was submitted in a new Vivaldi conversation after the browser restarted; existing window137137 and existing Capstone tab were reused.
+
+Attempt `attempt_340b0038e1a828cb`, thread `thr_f5d01cc73278b64e9631`, completed13:57:00.180–13:57:43.606,43.426s. No failed tool calls, correction calls, polling calls or explicit node record/assessment calls occurred. Parent tools were plan and combined finish only; the visible process records9 total tool calls and4 parent model requests.
+
+| Boundary | Time | Measured delay |
+| --- | --- | --- |
+| Company B child ends → registered success |13:57:16.115 →13:57:16.295|0.180s|
+| Company A child ends → registered success |13:57:16.599 →13:57:16.774|0.175s|
+| Last company child ends → summary starts |13:57:16.599 →13:57:16.983|0.384s|
+| Summary child ends → registered success |13:57:33.050 →13:57:33.237|0.187s|
+| Combined finish call |13:57:38.630–13:57:39.066|0.436s|
+| Summary child ends → final answer |13:57:33.050 →13:57:43.606|10.556s|
+
+Vivaldi shows the correct simulated calculation table and retained limitations. Each task shows registered status, and return submission timing is clearly named. Evidence is saved under root `outputs/research-control-20261027/` as screenshot and accessibility text. The prose heading “利润同向” is inaccurate although the following numeric comparison is correct; this is a non-blocking generated-text issue and was not made a new retry gate.
+
+The observed total decreased92s →69s →43.426s across successful samples. These are different model trajectories, not a statistically controlled benchmark. This validates the bounded calculation path; the original large report and provider-stall behavior still need separate measurement. The older versioned policy prose should be aligned through a new publication in later policy work, even though this trial correctly used the updated runtime contracts.

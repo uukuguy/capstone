@@ -6003,3 +6003,5 @@ Reproduced protected research acknowledgment waiting behind an entire public-eve
 - 2026-10-27: 5d9b40c2 combines advisory goal review and delivery in one model call, preserving reference checks and exact replay.
 - 2026-10-27: 5d8e92f2 distinguishes saved child returns from registered results;180 App tests and TypeScript pass.
 - 2026-10-27: Trial attempt_0fbba5e903defbb0 exposed missing host admission for granted child discovery tools;87 host/progress tests verify the correction.
+- 2026-10-27: 7513fc34 admits exact granted child discovery observations, preventing whole-task rejection on tool search;87 related tests passed.
+- 2026-10-27: 7513fc34 rebuilt;Vivaldi attempt_340b0038e1a828cb completed43.426s, registration0.175–0.187s, final tail10.556s, zero failed calls.

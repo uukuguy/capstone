@@ -1,37 +1,34 @@
 # Live Session Checkpoint
 
-Updated 2026-10-27. Work remains active.
+Updated: 2026-10-27. Session remains active.
 
-Latest Vivaldi trial attempt_bb279f4dfb2c31a1 / thr_b9e0c2c19255f0a11ee8 completed13:13:28 in69.1s (previous successful sample92s). Automatic registration for valid nodes and bounded overview waiting confirmed. One unresolved output association required record correction, one invalid reference read and one unavailable bash remain. Final child13:13:07.510→answer13:13:28.304=20.794s. Current local imagef44f5ca9c762aa78e9748f1da0557db8371c4b286ea8407337f49973f55445e6 includes31eb8fb5; cleanup passed. New source fix preserves each actual return statement alongside supplied observation refs; unknown refs remain limitations, never check evidence.132 tests+14 SDK tests pass; that newest fix is not rebuilt yet. Existing Vivaldi shows completed sample with table and process details.
+## Active work
 
-Automatic registration is committed6b08e322. Advisory overview waits are implemented and pass117 controller tests plus14 pinned SDK cases (8.31s). Next local rebuild must include this wiring in general-research/general-sdk; the running image is still0fffe239. No test currently running. The final answer path still needs Vivaldi verification; do not claim the latency issue is fully fixed.
+Reduce Deep Research control overhead. User requires interactive record-and-continue behavior, no repeated rejection/recalculation for ordinary gaps, and truthful process timing. Use scoped checks. Business tests must run in a new conversation in the existing Vivaldi tab/window131132. Sibling data-gateway is read-only.
 
-Active optimization now removes redundant planner registration: valid advisory child returns settle/record/assess in one atomic checkpoint and start declared dependents without model calls.116 controller tests and14 pinned SDK cases pass. Tool guidance updated; live rebuild pending. Plan: docs/superpowers/plans/2026-10-27-research-control-overhead.md. Next: make overview reads wait for actionable child progress instead of model polling, then verify UI admission diagnostics and real Vivaldi case. Last transport-only trial attempt_b00880d6422c9d88 was cancelled at12:57:35 after parent model action stalled; do not mark passed or blame continuation without evidence. Local running imagec0226499f93e9c201581a23f201fb5238e993fc61172ff608ad759d72c6ffc48 contains0fffe239, not the new automatic registration.
+## Current source and runtime
 
-Latest active focus: Deep Research handoff latency and advisory completion.702d6c5a fixes premature continuation wakeups;64e33e75 records malformed advisory checks as limitations and exposes handoff state/duration/failures. Local rebuild passed with image7fd5e39bb8d0ae0f7b8b5a4239cf30eb152031472b585c5970d5e146ebae29dd. Vivaldi small real case attempt_10974869a39ee7f8 completed in92s with correct company metrics; no-progress fixed in this case, latency not accepted. Earlier large report attempt_d52ae75e269018d8 is terminal failed, not running. Current transport fix services protected research receipts during public-event draining;137 tests passed,1 skipped in37.03s. Rebuild/live comparison pending. See docs/reports/2026-10-27-deep-research-handoff-investigation.md. Preserve all older graph/capacity follow-ups below.
+- Implementation worktree: `.worktrees/electrical-diagrams`, branch `feat/provincial-electrical-view`, HEAD7513fc34. Actual dev remainsf1e6e9fd. No merge, cloud or demo deployment.
+- Source fixes:702d6c5a continuation predicate;64e33e75 advisory checks and handoff UI;0fffe239 receipt service during event drain;6b08e322 atomic automatic return registration;31eb8fb5 overview waits;fe2dd666 retain producer statement despite unknown support;5d9b40c2 combined goal review/finish;5d8e92f2 saved-vs-registered UI;7513fc34 granted child discovery observation admission.
+- Current running source7513fc34: imagefc72fe1ab67bca182a82a3bf7eeab829821fcc80040daf68c7244379c3d1f74c. Canonical rebuild/readiness and scoped cleanup passed; log `/tmp/capstone-discovery-observation-rebuild.log`.
+- Latest checks:133 controller/return tests;14 pinned SDK cases;180 App tests + TypeScript. Latest discovery fix:87 host/progress tests in3.42s. Set NO_PROXY/no_proxy=127.0.0.1,localhost for tests using httpx localhost; inherited proxy caused two502 failures on the first run.
+- No business task is running. Latest bounded Vivaldi trial passed. Existing browser restarted: PID53691, window137137. Reuse the existing Capstone tab; user may switch tabs/conversations during work.
 
-Latest backend290565de fixes automatic continuation capacity routing before inline admission.21 tests passed,21 PostgreSQL skipped. Canonical rebuild/cleanup passed;image d2cbc10a6f8695df23480f8c8f3ccc602f2636258ab6612f4b53ebf21b6af36b supersedes9d69 below. In existing Vivaldi, original failed instruction “结合轻量执行的结果，启用深度研究模式，制作完整的报告。” was retried at12:00 and admitted;currently executing, final resource access/report not verified. Do not interrupt. Explicit product-context selection has separate inline-overflow rejection in thread_products.py;follow-up scope remains open. Upload configuration64GiB/file,256GiB/session;inline budget8MiB distinct.
+## Real measurements and next action
 
-Latest local fix f243d99a flushes per-view camera on unmount/switch, preventing the200ms save debounce from losing zoom/position.38 focused tests and TypeScript passed; browser camera-switch acceptance remains pending. Journal/checkpoint edits are task-owned, uncommitted until the next documentation boundary.
+1. Trial attempt_10974869a39ee7f8 / thr_5a8b701431950552a440 completed in92s with correct simulated metrics.
+2. Transport-only attempt_b00880d6422c9d88 / thr_22c47d471965dc8d5c60 had record calls0.437s/0.689s, repeated overview polls and unavailable bash calls. Summary ended12:54:27; outstanding parent action did not return before cancellation12:57:35. Cause of that stall remains unproven.
+3. Automatic-registration attempt_bb279f4dfb2c31a1 / thr_b9e0c2c19255f0a11ee8 completed13:12:19.160–13:13:28.304,69.144s. Company B and summary registered automatically about0.2s after return. Company A needed limited-record correction. Final parent tail20.794s. Correct visible answer and CSV. Comparison is observational; model paths differ.
+4. Latest attempt_0fbba5e903defbb0 / thr_8ec05c90864392f53980 failed13:25:41 with observation_source_invalid. Events86–90 show child agent_tool_search. SDK exposed a granted discovery tool, but host observation allowlist omitted it.7513fc34 fixes this exact mismatch and tests missing grants/unknown names. Not a proven combined-finish regression.
+5. Final attempt_340b0038e1a828cb / thr_f5d01cc73278b64e9631 completed13:57:00.180–13:57:43.606=43.426s. No failed, retry, polling or node-registration model calls. Main tools: plan + combined finish. Registration0.175–0.187s; final analysis→summary start0.384s; summary end→answer10.556s. Correct simulated table and limitations visible. Root `outputs/research-control-20261027/` contains screenshot/AX evidence. Generated heading “利润同向” is inaccurate but numeric comparison is correct; record, do not retry.
+6. Bounded control-overhead implementation is verified locally. Next acceptance: original large report and unresolved provider/parent stall, plus policy-publication alignment. Current policy1.19.0/pack1.16.0 still contains older explicit record/assess prose, and child-finished summaries also say parent must record/assess. Publish a new version when aligning them; do not silently edit old policy versions. No extra full-suite/release gate is authorized solely by this local change.
 
-## Current boundary
+Plan: `docs/superpowers/plans/2026-10-27-research-control-overhead.md`. Investigation: `docs/reports/2026-10-27-deep-research-handoff-investigation.md`.
 
-- Feature worktree .worktrees/electrical-diagrams, branch feat/provincial-electrical-view, HEAD64c9de9f; actual dev f1e6e9fd. Not merged or released.
-- Backend image sha256:9d69f54bdbf19620a21161a65bb76fafc32e04a00813ef0449e37bd2dc0f9a3f includes names and source-view transport fix. Canonical rebuild and scoped cleanup passed. Vite5173 serves feature.
-- Literal “打开北京电网” automatically opened Beijing overview in Vivaldi thread thr_072a9587b4bda536cd19:26.3s/14tools, warm gateway/browser caches. Earlier manual sample:0.49s overview,16.30s complete78407 records,220kV provincial profile. Distinct measurements.
-- 64c9de9f restores each instruction's admitted graph through existing answer toolbar icon.89 focused tests and TypeScript passed. Vivaldi first icon restored Beijing overview; second restored 朝阳电气接线 with Beijing breadcrumb. No task rerun.
-- b074f8db composite layout passed20 tests and real-data obstacle checks. Actual station remains dense; readability not accepted.
+## Preserved open work
 
-## Immediate work
-
-1. a6f323fa completed historical child name/path restoration. ca41e6e7 fixes older history replay overwriting the selected graph;115 focused tests and TypeScript passed. Final live refresh retest pending: user switched to thread thr_5b5621f93b94fb538c66, do not disturb it.
-2. Finish name/refresh verification. Existing Vivaldi window131132; user actively uses this thread. Do not overwrite drafts, interrupt runs, or create tabs.
-3. Continue station readability, real background-download conversation/pause-resume acceptance, then normal dev integration and control alignment. Full Beijing diagram acceptance remains pending.
-
-## Recovery
-
-- Feature .superpowers/sdd/task-1-report.md has prior uncommitted agent rewrite; retain for review. Root control INDEX/JOURNAL/PROJECT-OVERVIEW/RESUME/VERSION-CONTROL remain intentionally dirty; preserve.
-- Plan docs/superpowers/plans/2026-10-27-beijing-electrical-display.md; report docs/reports/2026-10-27-beijing-electrical-view-validation.md.
-- Root outputs/beijing-electrical-20261027/vivaldi includes natural-open-success and instruction-overview-restored / instruction-station-restored screenshots.
-- Sibling data-gateway read-only. Discover contracts through MCP. Preserve ignored data/runtimes and recovery stashes.
-- Scoped development checks only. No cloud/demo/main change. Command-local Git proxy http://127.0.0.1:7897 if needed.
+- Large graph: b074f8db composite layout still dense; station readability not accepted. Progressive background download plus continuing conversation/pause-resume needs real acceptance.
+- Navigation:64c9de9f per-instruction toolbar graph restore verified in browser. a6f323fa historical names;ca41e6e7 older-page replay guard;f243d99a flush per-view camera on fast switch. Final refresh/camera verification pending.
+- Capacity:290565de routes oversized automatic continuation artifacts to references before8MiB inline check; upload64GiB/file,256GiB/session remain separate. Explicit product-context selection in thread_products.py still has inline overflow rejection. Large report attempt_d52ae75e269018d8 failed; final report not accepted.
+- Plans/reports: `docs/superpowers/plans/2026-10-27-beijing-electrical-display.md`, `docs/reports/2026-10-27-beijing-electrical-view-validation.md`. Root outputs/beijing-electrical-20261027/vivaldi has earlier graph captures.
+- Preserve unrelated `.superpowers/sdd/task-1-report.md` rewrite and dirty actual-dev control files INDEX/JOURNAL/PROJECT-OVERVIEW/RESUME/VERSION-CONTROL. Do not stage unrelated paths. Existing recovery stashes remain intact. Normal dev integration and control graph alignment remain pending.
