@@ -6030,6 +6030,12 @@ Reproduced protected research acknowledgment waiting behind an entire public-eve
 - 2026-10-28: 0468f165 records measured batching and shared tool-composition proposals; runtime behavior remains unchanged pending implementation scope.
 # 2026-10-28 — Shared native tool composition
 
+6627764f: Retained session observation refs and spilled large returns to prevent repeated gateway work after recoverable output limits.
+
+Transport review caught rpcEvent restoring the large program return after spill.
+Keep only its bounded saved-file projection; upstream gateway receipts still retain
+their exact bytes. Added a real rpcEvent regression test (16 focused tests pass).
+
 7229b0b7: Added shared tool programs and semantic packages to reduce model roundtrips while retaining per-call receipts.
 
 First real Vivaldi trial completed in 176.61s with 34 model responses, 25 programs

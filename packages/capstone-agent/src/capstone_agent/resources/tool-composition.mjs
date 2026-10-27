@@ -66,8 +66,12 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
           child.send({kind:'start',program:input.program,schemas,outputBytes:policy.output_bytes});
         });
         const text=JSON.stringify({result:result??null,calls});
-        return await boundToolResult({isError:false,content:[{type:'text',text}],details:{kind:policy.schema,calls}},
+        const bounded=await boundToolResult({isError:false,content:[{type:'text',text}],details:{kind:policy.schema,calls}},
           {cwd,toolName:'agent_tools_execute',callId,maxChars:policy.output_bytes});
+        // Unlike gateway receipts, the program return has no host requirement
+        // to inline original bytes. Keep the saved-file reference bounded even
+        // when rpcEvent restores real upstream gateway observations.
+        return {isError:bounded.isError,content:bounded.content,details:bounded.details};
       }catch(error){if(signal?.aborted)throw signal.reason??error;return failure(error);}
       finally{clearTimeout(timer);stop();await Promise.allSettled([...operations]);}
     }};

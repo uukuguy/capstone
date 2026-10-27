@@ -4,6 +4,7 @@ import {mkdtemp,rm,readFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createToolCompositionTool,compositionPolicy} from '../../src/capstone_agent/resources/tool-composition.mjs';
+import {rpcEvent} from '../../src/capstone_agent/resources/general-sdk.mjs';
 
 const catalog={revision:'catalog',tools:{data_gateway_read:{name:'read',inputSchema:{type:'object'},description:'Read selected data'}},tool_hashes:{data_gateway_read:'a'.repeat(64)}};
 const native=value=>({content:[{type:'text',text:JSON.stringify({structuredContent:{status:'ok',data:value,provenance:{source_instance:'test',revision:'one'},gaps:[]}})}],details:{kind:'external_gateway_observation',tool:'data_gateway_read',catalog_revision:'catalog',output_sha256:'b'.repeat(64)}});
@@ -74,4 +75,5 @@ test('large returns spill before delivery and later programs reuse actual sessio
   const large=await t.execute('large',{tools:[],program:`return 'x'.repeat(100000);`});
   assert.equal(large.isError,false);const preview=JSON.parse(large.content[0].text);assert.equal(preview.preview_truncated,true);
   assert.equal(JSON.parse(await readFile(preview.full_result.path,'utf8')).result.length,100000);
+  assert.ok(JSON.stringify(rpcEvent({type:'tool_execution_end',toolName:'agent_tools_execute',result:large})).length<40000);
 }));
