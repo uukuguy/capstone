@@ -49,8 +49,9 @@ def validate_submission(payload: Mapping, *, mode: str, objects: list[dict],
         if 'llm_profile_id' in payload:
             if mode != 'capstone' or not isinstance(payload['llm_profile_id'], str):
                 raise InputRejected('llm_profile_invalid')
+        if mode == 'capstone':
             from .workbench_llm_profiles import ProfileRegistry
-            result['llm_selection'] = ProfileRegistry().freeze(payload['llm_profile_id'])
+            result['llm_selection'] = ProfileRegistry().freeze(payload.get('llm_profile_id'))
         if 'deep_research' in payload:
             if type(payload['deep_research']) is not bool or payload['deep_research'] and mode != 'capstone':
                 raise InputRejected('deep_research_invalid')

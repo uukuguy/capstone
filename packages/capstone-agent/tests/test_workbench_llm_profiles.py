@@ -34,6 +34,17 @@ def test_public_submission_freezes_only_registered_identity():
     assert result['llm_selection']['model'] == 'dsv4'
 
 
+def test_default_submission_freezes_before_deployment_preset_changes(monkeypatch):
+    from capstone_agent.thread_input import validate_submission
+    monkeypatch.setenv('DEEPSEEK_API_KEY', 'test-only')
+    monkeypatch.setenv('CAPSTONE_WORKBENCH_PRESET', 'local')
+    submitted = validate_submission({'text': 'hello'}, mode='capstone', objects=[])
+    monkeypatch.setenv('CAPSTONE_WORKBENCH_PRESET', 'intranet')
+    assert ProfileRegistry().default == 'intranet-dsv4-18804'
+    assert submitted['llm_selection']['profile_id'] == 'commercial-deepseek-flash'
+    assert ProfileRegistry().resolve(submitted['llm_selection'])['model'] == 'deepseek-flash'
+
+
 def test_task_relay_routes_frozen_profile_instead_of_runner_default(tmp_path):
     import json
     import threading
