@@ -33,16 +33,16 @@ class ProfileRegistry:
             raise ValueError('Unknown workbench LLM profile')
         p = self.profiles[profile_id]
         options = p.get('title_request_options', {})
-        if options not in ({}, {'thinking': {'type': 'disabled'}}):
-            raise ValueError('Invalid title request options')
         model = p.get('model') or self.environment.get(p.get('model_env', ''), '')
         url = p.get('base_url') or self.environment.get(p.get('base_url_env', ''), '')
         if p['provider'] == 'deepseek':
             url = 'https://api.deepseek.com/v1'
         key = self.environment.get(p.get('credential_env', ''), '')
         available = bool(model and url and (not p.get('credential_env') or key))
-        revision = hashlib.sha256(json.dumps({'profile': p, 'model': model, 'base_url': url}, sort_keys=True).encode()).hexdigest()
-        return {**p, 'model': model, 'base_url': url, 'key': key or 'internal', 'available': available, 'profile_revision': revision}
+        execution = {key: value for key, value in p.items() if key not in {'label', 'icon', 'title_request_options'}}
+        revision = hashlib.sha256(json.dumps({'profile': execution, 'model': model, 'base_url': url}, sort_keys=True).encode()).hexdigest()
+        title_revision = hashlib.sha256(json.dumps(options, sort_keys=True).encode()).hexdigest()
+        return {**p, 'model': model, 'base_url': url, 'key': key or 'internal', 'available': available, 'profile_revision': revision, 'title_request_revision': title_revision}
 
     def catalog(self):
         return {'default_profile_id': self.default, 'profiles': [{**{k: p[k] for k in ('id', 'label', 'model', 'available')}, 'icon': p.get('icon', 'server')}
@@ -57,5 +57,14 @@ class ProfileRegistry:
     def resolve(self, selection):
         expected = self.freeze(selection.get('profile_id'))
         if selection != expected:
-            raise ValueError('Frozen workbench LLM profile changed; resubmit the instruction')
+            # Accept previously issued whole-profile hashes only when they can
+            # still be proven against this exact registered execution target.
+            p = self.profiles[expected['profile_id']]
+            resolved = self._resolved(expected['profile_id'])
+            legacy = {hashlib.sha256(json.dumps({'profile': candidate, 'model': resolved['model'],
+                'base_url': resolved['base_url']}, sort_keys=True).encode()).hexdigest()
+                for candidate in (p, {k: v for k, v in p.items() if k != 'title_request_options'})}
+            if ({**selection, 'profile_revision': expected['profile_revision']} != expected
+                    or selection.get('profile_revision') not in legacy):
+                raise ValueError('Frozen workbench LLM profile changed; resubmit the instruction')
         return self._resolved(expected['profile_id'])

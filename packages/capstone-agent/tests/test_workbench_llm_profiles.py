@@ -86,14 +86,37 @@ def test_task_relay_routes_frozen_profile_instead_of_runner_default(tmp_path):
             item.server_close()
 
 
-def test_title_options_are_closed_and_part_of_frozen_revision():
+def test_title_and_display_metadata_do_not_change_execution_identity():
     registry = ProfileRegistry(environment={'DEEPSEEK_API_KEY': 'fixture-key'})
     selected = registry.freeze('commercial-deepseek-flash')
-    assert registry.resolve(selected)['title_request_options'] == {'thinking': {'type': 'disabled'}}
+    before = registry.resolve(selected)
     profile = registry.profiles['commercial-deepseek-flash']
-    profile['title_request_options'] = {'model': 'caller-model'}
-    with pytest.raises(ValueError, match='title request options'):
-        registry.freeze('commercial-deepseek-flash')
-    profile['title_request_options'] = {}
+    profile.update(title_request_options={}, label='New label', icon='new-icon')
+    after = registry.resolve(selected)
+    assert (before['provider'], before['model'], before['base_url']) == (after['provider'], after['model'], after['base_url'])
+    assert before['title_request_revision'] != after['title_request_revision']
+
+
+@pytest.mark.parametrize('field,value', [('base_url', 'http://different.test/v1'), ('model', 'different-model'), ('credential_env', 'NEW_CREDENTIAL')])
+def test_execution_changes_still_invalidate_frozen_identity(field, value):
+    registry = ProfileRegistry(environment={'NEW_CREDENTIAL': 'fixture-key'})
+    selected = registry.freeze('intranet-dsv4-18804')
+    registry.profiles['intranet-dsv4-18804'][field] = value
     with pytest.raises(ValueError, match='Frozen workbench LLM profile changed'):
         registry.resolve(selected)
+
+
+def test_pre_split_execution_snapshot_remains_valid_for_unchanged_target():
+    import hashlib
+    import json
+    registry = ProfileRegistry(environment={'DEEPSEEK_API_KEY': 'fixture-key'})
+    selected = registry.freeze('commercial-deepseek-flash')
+    resolved = registry.resolve(selected)
+    previous = {k: v for k, v in registry.profiles[selected['profile_id']].items() if k != 'title_request_options'}
+    legacy_revision = hashlib.sha256(json.dumps({'profile': previous, 'model': resolved['model'], 'base_url': resolved['base_url']}, sort_keys=True).encode()).hexdigest()
+    legacy = {**selected, 'profile_revision': legacy_revision}
+    assert registry.resolve(legacy)['model'] == selected['model']
+    registry.profiles[selected['profile_id']]['credential_env'] = 'OTHER_KEY'
+    registry.environment['OTHER_KEY'] = 'fixture'
+    with pytest.raises(ValueError):
+        registry.resolve(legacy)

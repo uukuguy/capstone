@@ -91,7 +91,9 @@ def test_actual_request_uses_frozen_profile_without_tools(monkeypatch):
         return httpx.Response(200, json={'choices': [{'message': {'content': '运输方案比较'}}], 'usage': {'total_tokens': 20}})
     original = httpx.AsyncClient
     monkeypatch.setattr(httpx, 'AsyncClient', lambda **kwargs: original(**kwargs, transport=httpx.MockTransport(handler)))
-    assert request_summary('比较三种运输方案的成本和时间', selection) == ('运输方案比较', {'total_tokens': 20})
+    result = request_summary('比较三种运输方案的成本和时间', selection)
+    assert result[:2] == ('运输方案比较', {'total_tokens': 20})
+    assert len(result[2]) == 64
     assert seen[0][0] == 'http://192.168.72.69:18804/v1/chat/completions'
     assert seen[0][1]['model'] == 'dsv4'
     assert seen[0][1]['max_tokens'] == 64
@@ -143,3 +145,18 @@ def test_title_request_uses_registered_options_and_keeps_truncated_usage(monkeyp
     assert len(calls) == 1
     assert error.value.code == 'title_output_truncated'
     assert error.value.usage == {'completion_tokens': 64, 'total_tokens': 118}
+
+
+def test_summary_input_preserves_initial_and_recent_topics_with_bounded_history():
+    from capstone_agent.session_title_summary import summary_input
+    service = InMemoryThreadService(_snapshot('thr_topics'))
+    complete(service, 'thr_topics', 'att_first', '比较运输方式的成本')
+    for i in range(10):
+        complete(service, 'thr_topics', f'att_middle_{i}', '补充信息' + str(i) + '要求' * 600)
+    complete(service, 'thr_topics', 'att_last', '再加入仓储成本和交付时间评估')
+    claim = SimpleNamespace(thread_id='thr_topics', attempt=SimpleNamespace(attempt_id='att_last'))
+    text = summary_input(service, claim)
+    assert '比较运输方式的成本' in text
+    assert '仓储成本和交付时间评估' in text
+    assert 'may be omitted' in text
+    assert len(text) <= 4096
