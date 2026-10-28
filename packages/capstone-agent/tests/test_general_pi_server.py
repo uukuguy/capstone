@@ -584,17 +584,20 @@ def test_v2_service_advertises_support_and_retains_public_context(tmp_path):
     assert restarted.read(request.task_id)['result']['answer'] == 'Answer'
 
 
-def test_native_runner_writes_business_context_as_private_data(tmp_path, monkeypatch):
+@pytest.mark.parametrize('gateway_reason', ['not_configured', 'gateway_endpoint_rejected', 'PRIVATE_CANARY'])
+def test_native_runner_writes_business_context_as_private_data(tmp_path, monkeypatch, gateway_reason):
     import capstone_agent.general_pi_server as module
     from capstone_agent.business_context import BusinessContext
     monkeypatch.setattr(module.os, 'geteuid', lambda: 0)
     monkeypatch.setattr(module.os, 'chown', lambda *_: None)
     captured = []
+    captured_files = []
     def launch(**kwargs):
         assert 'applicationPolicy' not in kwargs['sdk_config'], 'network state must not invent a tool allowlist'
         kwargs['workspace'].mkdir(parents=True)
         (kwargs['workspace'].parent / ('.inputs-' + kwargs['workspace'].name)).mkdir()
         captured.append(__import__('json').dumps(kwargs['sdk_config']['context']))
+        captured_files.extend(kwargs['sdk_config']['contextFiles'])
         return ('pi',), {}
     monkeypatch.setattr(module, 'native_pi_launch', launch)
     class Process:
@@ -612,6 +615,7 @@ def test_native_runner_writes_business_context_as_private_data(tmp_path, monkeyp
     network_policy.start()
     runner = module.NativeTaskRunner(root=root, config_root=tmp_path, command=('node', '/opt/pi/dist/cli.js'),
         model='fixture', relay_origin='http://127.0.0.1:8790', network_policy=network_policy)
+    runner.gateway_publication = {'available': False, 'reason': gateway_reason}
     context = BusinessContext.empty('workspace', 0)
     request = PiTaskRequest('task', 'attempt', 'direct', 'Explain', (), (), {'engine': 'pi'}, 2,
         business_context=context, resource_profile={'profile_id': 'direct_pi', 'revision': 'test'},
@@ -619,6 +623,9 @@ def test_native_runner_writes_business_context_as_private_data(tmp_path, monkeyp
     runner(request, lambda: False, lambda _: None)
     import json
     assert json.loads(captured[0])['business_context'] == context.to_document()
+    gateway_status = next(item['content'] for item in captured_files if item['path'] == 'registered-data-gateway-status')
+    assert (gateway_reason if gateway_reason != 'PRIVATE_CANARY' else 'gateway_unavailable') in gateway_status
+    assert 'PRIVATE_CANARY' not in gateway_status
     state = json.loads(captured[0])['execution_state']
     assert state['task_id'] == request.task_id
     assert state['parent_attempt_id'] == request.parent_attempt_id

@@ -204,6 +204,8 @@ def test_wrapped_transport_failures_keep_safe_diagnostic_codes():
         (httpx.ReadTimeout('secret-canary'), 'gateway_timeout'),
         (TimeoutError('secret-canary'), 'gateway_timeout'),
         (httpx.ConnectError('secret-canary'), 'gateway_transport_failed'),
+        (httpx.HTTPStatusError('secret-canary', request=httpx.Request('POST', 'http://localhost/mcp'),
+            response=httpx.Response(421)), 'gateway_endpoint_rejected'),
     ]:
         wrapped = ExceptionGroup('secret-canary', [error])
         assert public_failure(wrapped, 'gateway_call_failed_no_retry') == expected

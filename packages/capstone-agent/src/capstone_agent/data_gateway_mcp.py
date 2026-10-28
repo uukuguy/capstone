@@ -32,7 +32,7 @@ class InitializedGatewaySession:
 # These failures stop further remote probes in the admitted task. A new user
 # instruction gets its own task state and can check the resource again.
 TASK_STOP_ERRORS = frozenset({'gateway_timeout', 'gateway_transport_failed',
-    'gateway_authentication_failed', 'gateway_connection_failed', 'gateway_call_failed_no_retry',
+    'gateway_authentication_failed', 'gateway_endpoint_rejected', 'gateway_connection_failed', 'gateway_call_failed_no_retry',
     'gateway_catalog_invalid', 'gateway_catalog_unavailable'})
 _PUBLIC_GATEWAY_ERRORS = TASK_STOP_ERRORS | {'gateway_arguments_invalid', 'gateway_output_invalid',
     'gateway_tool_not_admitted', 'gateway_policy_invalid', 'gateway_connection_config_invalid',
@@ -73,6 +73,8 @@ def public_failure(error, fallback):
             return str(current)
         if getattr(getattr(current, 'response', None), 'status_code', None) in {401, 403}:
             return 'gateway_authentication_failed'
+        if getattr(getattr(current, 'response', None), 'status_code', None) == 421:
+            return 'gateway_endpoint_rejected'
         if isinstance(current, (TimeoutError, httpx.TimeoutException)):
             transport_failure = 'gateway_timeout'
         elif isinstance(current, httpx.TransportError) and transport_failure is None:

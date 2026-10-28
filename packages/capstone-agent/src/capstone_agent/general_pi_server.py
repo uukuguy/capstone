@@ -964,6 +964,19 @@ class NativeTaskRunner:
                 sdk_config['runtimeEnvironment'] = self.environment_context
                 sdk_config.setdefault('contextFiles', []).append({
                     'path': 'verified-programming-environment', 'content': self.environment_context})
+            if not self.gateway_publication.get('available'):
+                from .data_gateway_mcp import TASK_STOP_ERRORS
+                reason = self.gateway_publication.get('reason')
+                if reason not in TASK_STOP_ERRORS | {'not_configured', 'gateway_private_mount_invalid'}:
+                    reason = 'gateway_unavailable'
+                sdk_config.setdefault('contextFiles', []).append({
+                    'path': 'registered-data-gateway-status',
+                    'content': ('Host-observed registered data gateway status: unavailable; reason: ' + reason + '. '
+                        'No gateway tools are admitted for this execution. This connection state is not evidence '
+                        'that source data is absent. Do not search shell environments, runtime configuration, '
+                        'credentials, ports or network endpoints to bypass the unavailable tool connection. '
+                        'Use already admitted inputs when sufficient; otherwise state the connection limitation '
+                        'without claiming database coverage or fetched results. Do not invent source data.')})
             if request.native_context is not None:
                 from .native_task_context import checked_native_context, resolve_research_policy
                 native = checked_native_context(request.native_context)
