@@ -6030,6 +6030,24 @@ Reproduced protected research acknowledgment waiting behind an entire public-eve
 - 2026-10-28: 0468f165 records measured batching and shared tool-composition proposals; runtime behavior remains unchanged pending implementation scope.
 # 2026-10-28 — Shared native tool composition
 
+Failed summer artifact replay: verified all33saved file hashes, ran original PPT
+script offline in no-network/read-only container using nonrootuser; reproduced
+NameError undefinedk atline94. No data retrieval/model calls. Host receipt records
+only ValueError withoutreason, so root cause of whole-turn escalation remains
+unproven. Added safe trusted-frame origin helper (module/function/line only,
+no exceptiontext/paths/locals);2tests pass0.02s. Server owner will wire private
+receipt and executor identity. Model-switch and gateway diagnostics workers
+continue in separate owned files; their commits/validation remain distinct.
+
+32273a9f: Defined backend-owned model profiles and session selection contract, including local commercial and intranet18804 defaults.
+
+Verified all3internal /models and actual chat completion endpoints from BOTH Mac
+and dmdba@192.168.72.63 with proxy bypass: HTTP200/modelIDs exact, six generation
+responses have choices1/finishstop. SSHserver has curl but no python3 onPATH;
+used curl for remote probes. No deployment or workbench tool-call acceptance yet.
+
+77df1ea5: Scoped repeated resource failures to unchanged inputs so evidence-driven parameter changes remain executable within bounded programs.
+
 User-requested retry distinction: scope resource failures to canonical tool inputs,
 not tool name. Identical failed inputs are bounded; changed scope/parameters can
 execute in the same program.18 worker/package checks pass0.71s; new regression
@@ -6155,3 +6173,4 @@ encoded. Focused checks: 55 Node tests (0.78s), 89 Python tests (3.85s; 16 unrel
 version combinations skipped), App type check and doctor passed. Canonical rebuild
 and visible real business verification pending. Unrelated task-1-report.md preserved.
 
+- 2026-10-28 `0c7e4bb2`: Freeze registered session LLM identities and route task providers without exposing credentials.
