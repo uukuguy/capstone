@@ -5,6 +5,10 @@ Updated: 2026-10-28. Tool composition implemented/local trials complete; PR71 in
 ## Active implementation
 
 Current focus: lightweight progress/state stability, then FULL generation acceptance.
+Latest: full attempt a44450618326822a delivered actual PPT14/CSV14x21 in 420.676s,
+64 models/98 tools. See report 2026-10-28-session-llm-validation.md. No speed claim.
+LLM-led execution UI is implemented and seen in Vivaldi; 145 checks+TS pass.
+Backend bounded observation-history candidate is not yet deployed or performance accepted.
 Latest stage decision and checks are in the 2026-10-29 checkpoint below.
 Historical failed full trial: thr_ff8c3c7c95d8967a5a1c / attempt_0fca8bbb5cb5b180,
 source5723947c, commercial-deepseek-flash, deep_research=false, zero inherited materials.
@@ -336,4 +340,3 @@ Real full PPTX/CSV acceptance remains pending. Latest attempt
 `attempt_c3463976741ad57a` ended after 58.94 s with progress only and no files.
 Do not report it as successful delivery. Rebuild current source before next real
 test; preserve existing Vivaldi tab and user drafts. Internal network is offline.
-

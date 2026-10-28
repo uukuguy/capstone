@@ -20,6 +20,9 @@
 .capstone-call-batch { margin: 2px 0 0 14px; }
 .capstone-call-tool { margin: 0; padding: 2px 0; border: 0; }
 .capstone-call-tool > summary { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; cursor: pointer; list-style: none; }
+.capstone-call-batch .capstone-call-tool > summary { flex-wrap: nowrap; }
+.capstone-call-batch .capstone-call-tool > summary > strong { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.capstone-call-batch .capstone-call-tool > summary > span, .capstone-call-batch .capstone-call-tool > summary > small { flex: none; white-space: nowrap; }
 .capstone-call-tool > summary::-webkit-details-marker { display: none; }
 .capstone-call-tool > summary::marker { content: ''; }
 .capstone-call-tool > summary > svg { width: 11px; height: 11px; flex: none; }

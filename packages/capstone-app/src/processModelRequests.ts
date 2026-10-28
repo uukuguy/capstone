@@ -6,22 +6,38 @@ import {isExecutionLifecycleStep} from './executionLifecycle'
 export function projectProcessModelRequests(events: readonly EventEnvelope[], attemptId: string): ProcessModelCall[] {
   const calls: ProcessModelCall[] = []
   let pending: ProcessModelCall | undefined
+  let turn: ProcessModelCall | undefined
+  const native = events.some(event=>event.attemptId===attemptId&&event.visibility==='public'&&['turn_route_selected','turn_plan_created'].includes(event.eventType)&&event.payload.source==='native_conversation')
   for (const event of events) {
     if (event.attemptId !== attemptId || event.visibility !== 'public') continue
-    if (['attempt_cancelled','attempt_interrupted'].includes(event.eventType) && pending) {
-      pending.stopReason = 'aborted'
-      pending.settled = true
+    if (['attempt_completed','attempt_failed','attempt_cancelled','attempt_interrupted'].includes(event.eventType)) {
+      if(pending){
+        if(['attempt_cancelled','attempt_interrupted'].includes(event.eventType))pending.stopReason = 'aborted'
+        pending.settled = true
+      }
       pending = undefined
+      turn = undefined
+      continue
+    }
+    if(native&&turn?.toolAssociation==='turn'&&event.eventType==='runtime_event'&&event.payload.native_type==='tool_execution_start'){
+      const id=event.payload.tool_call_id
+      if(typeof id==='string'&&id&&!turn.toolCallIds?.includes(id))turn.toolCallIds=[...(turn.toolCallIds??[]),id]
     }
     if (event.eventType !== 'runtime_action') continue
     const step=event.payload.task_step
     if (step && typeof step === 'object' && 'id' in step && typeof step.id === 'string' && isExecutionLifecycleStep(step.id)) continue
-    if (event.payload.phase === 'started' && !pending) {
+    if (event.payload.phase === 'started') {
+      if(pending)pending.settled=true
       pending = { id: event.eventId, number: calls.length + 1, ms: 0, startedAt: event.occurredAt }
       calls.push(pending)
+      turn=pending
     } else if (event.payload.phase === 'response_completed' && pending) {
       // The host explicitly distinguishes text-only responses from tool requests.
       if(event.payload.response_kind==='text')pending.toolCallIds=[]
+      if(native&&event.payload.response_kind==='tools'){
+        pending.toolCallIds=[]
+        pending.toolAssociation='turn'
+      }
       if (event.payload.response_kind === 'error' || event.payload.response_kind === 'aborted') pending.stopReason = event.payload.response_kind
       if(typeof event.payload.error_code==='string'&&/^[a-z][a-z0-9_]{0,127}$/.test(event.payload.error_code))pending.errorCode=event.payload.error_code
       if(typeof event.payload.error_status==='number'&&Number.isInteger(event.payload.error_status)&&event.payload.error_status>=400&&event.payload.error_status<=599)pending.errorStatus=event.payload.error_status
@@ -32,6 +48,9 @@ export function projectProcessModelRequests(events: readonly EventEnvelope[], at
         pending.settled = true
       }
       pending = undefined
+    } else if (event.payload.phase === 'response_completed') {
+      // A response without its opening boundary cannot extend the prior turn.
+      turn = undefined
     } else if (['completed', 'interrupted'].includes(String(event.payload.phase))) {
       // A task terminal boundary cannot measure the preceding model request.
       if (pending && event.payload.phase === 'interrupted') {
@@ -39,6 +58,7 @@ export function projectProcessModelRequests(events: readonly EventEnvelope[], at
         pending.settled = true
       }
       pending = undefined
+      turn = undefined
     }
   }
   return calls

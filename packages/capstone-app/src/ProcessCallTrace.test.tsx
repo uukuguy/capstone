@@ -5,6 +5,24 @@ import ProcessCallTrace, { callTraceIssues } from './ProcessCallTrace'
 
 afterEach(cleanup)
 
+it('keeps tool cancellation distinct from a tool failure',()=>{
+  render(<ProcessCallTrace models={[{id:'m',number:1,ms:100,toolCallIds:['cancelled']}]} tools={[{id:'cancelled',name:'Stopped query',status:'cancelled',durationMs:100}]}/>)
+  expect(screen.getByText('已停止')).toBeVisible()
+  expect(screen.queryByText('失败')).toBeNull()
+})
+
+it('marks overlapping tools only inside the same response and keeps each tool collapsed',()=>{
+  render(<ProcessCallTrace models={[{id:'m1',number:1,ms:100,toolCallIds:['a','b']},{id:'m2',number:2,ms:100,toolCallIds:['c']}]} tools={[
+    {id:'a',name:'read A',status:'completed',startedAt:'2026-10-29T00:00:00Z',durationMs:500},
+    {id:'b',name:'read B',status:'completed',startedAt:'2026-10-29T00:00:00.100Z',durationMs:200},
+    {id:'c',name:'read C',status:'completed',startedAt:'2026-10-29T00:00:00.100Z',durationMs:200},
+  ]}/>)
+  expect(within(screen.getByRole('group',{name:'LLM 调用 1'})).getAllByText('并行调用')).toHaveLength(2)
+  expect(within(screen.getByRole('group',{name:'LLM 调用 2'})).queryByText('并行调用')).toBeNull()
+  expect(screen.getByText('read A').closest('details')).not.toHaveAttribute('open')
+  expect(within(screen.getByText('read A').closest('summary')!).getByText('500ms')).toBeVisible()
+})
+
 it('explains a classified model failure without exposing unknown error text',()=>{
   render(<ProcessCallTrace models={[{id:'error',number:1,ms:100,stopReason:'error',errorCode:'model_context_limit',errorStatus:400},
     {id:'unknown',number:2,ms:100,stopReason:'error',errorCode:'private-provider-text'}]} tools={[]} />)

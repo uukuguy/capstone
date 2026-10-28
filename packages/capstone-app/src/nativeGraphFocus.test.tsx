@@ -60,6 +60,23 @@ it('keeps lightweight narrative progress in the tool chain without claiming DR t
   expect(reader.getByRole('region',{name:'工具调用过程'})).toBeTruthy()
   expect(screen.queryByText(/1 个任务步骤/)).toBeNull()
 })
+it('shows lightweight LLM durations and counts with collapsed tools under the owning response',()=>{
+  const seed=tools[0]
+  const ev=(seq:number,type:string,payload:Record<string,unknown>):EventEnvelope=>({...seed,eventId:`timing-${seq}`,eventSeq:seq,eventType:type,occurredAt:`2026-10-29T00:00:0${seq}Z`,payload})
+  const events=[seed,ev(1,'turn_route_selected',{source:'native_conversation'}),ev(2,'runtime_action',{phase:'started'}),
+    ev(4,'runtime_action',{phase:'response_completed',response_kind:'tools'}),
+    ev(5,'runtime_event',{native_type:'tool_execution_start',task_id:'task',tool_call_id:'read-timed',tool_name:'read'}),
+    ev(6,'runtime_event',{native_type:'tool_execution_end',task_id:'task',tool_call_id:'read-timed',tool_name:'read',activity:{operation:'source.csv',output_excerpt:'Exact source output'}}),
+    ev(7,'runtime_action',{phase:'completed'})]
+  const reader=read(events)
+  const model=reader.getByRole('group',{name:'LLM 调用 1'})
+  expect(within(model).getByText('2.0s')).toBeTruthy()
+  const detail=model.querySelector('details.capstone-call-tool')!
+  expect(detail).toBeTruthy();expect(detail.hasAttribute('open')).toBe(false)
+  expect(detail.querySelector('summary')?.textContent).toContain('1.0s')
+  expect(screen.getByText(/LLM 1 次 · 累计 2.0s/)).toBeTruthy()
+  expect(screen.getByText(/1 次工具调用/)).toBeTruthy()
+})
 it('shows actual tool chains without organization as tools, regardless of accepted materials',()=>{
   const events=[...plainTools(),{...tools[1],eventId:'materials',payload:{...tools[1].payload,accepted_context:{objects:[],materials:[{material_id:`material_${'a'.repeat(32)}`}]}}}]
   expect(projectAssistantMessages(events).at(-1)?.metadata?.custom?.executionGraph).toBeUndefined()

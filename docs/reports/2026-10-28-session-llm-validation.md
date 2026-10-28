@@ -129,3 +129,46 @@ user message after the real task. For explicitly lightweight instructions it now
 stays in system guidance, without creating a new user request for a status answer.
 This is a candidate fix for premature progress-only answers. The real full
 PPTX/CSV task must still verify the effect; unit checks do not establish it.
+
+## Full lightweight delivery — 2026-10-29
+
+The same original instruction was submitted in a new Vivaldi conversation:
+`thr_0eb9fcae6393c8022b89`, attempt `attempt_a44450618326822a`.
+Instruction SHA256 remains `d3f126381daf74a6d46cd9a3fb1aa8b9cde84813702c305c73ddea0c7ab2e03f`.
+Source `61feb331`, backend image `c56e9b228a5682f9f8efa1897e00055746b4fd1d16bc0d5af2dbadf81aecc602`.
+Canonical rebuild and scoped cache maintenance completed. Commercial DeepSeek,
+local integration gateway, DR false, no inherited materials or research children.
+
+- Full run: 420.676 seconds, 64 model responses, 98 tool calls, 7 error receipts.
+- First tool: 2.135 seconds. Last tool return to attempt completion: 8.643 seconds.
+- Model response intervals sum to 336.62 seconds. Tool intervals sum to 54.09
+  seconds, including overlaps; these sums must not be added as disjoint stages.
+- Usage: 254,674 uncached input, 4,077,696 cache-read, 68,166 output tokens.
+  The 47-second response wrote the PPT generation script. Repeated discovery,
+  source-result parsing, data corrections, script construction and polishing
+  remain optimization targets. This run does not establish a speed improvement.
+- Actual primary PPTX downloaded: 715,648 bytes, 14 slides, 6 embedded media;
+  ZIP passes and SHA256 `90c9607644552d28886241d78a8ffbf770dcf680971ed841ac7a701cae2be31a`.
+- Actual core CSV downloaded: 2,044 bytes, 14 data rows, 21 columns;
+  SHA256 `aa2a9050613ae3163e38537b0444a0102bf8f8d0d64d842f3937d06701368cf3`.
+  Every row has the header column count. Download sizes and hashes match saved
+  references. Vivaldi displayed the real PPT cover. Full slide visual and
+  business-conclusion acceptance are not inferred from this check.
+- Semantic title succeeded in 1.031 seconds, 11 completion tokens, with thinking
+  disabled for naming only: “迎峰度夏电网数据PPT与CSV交付”.
+
+Execution UI now shows each model response as a primary row with its measured
+time. Native tools are grouped using explicit SDK turn boundaries and actual
+call IDs within that turn, not timestamp adjacency. Tools use single-line,
+closed-by-default details. Header counts and cumulative model time remain visible.
+Observed Vivaldi header: 98 tools, 64 LLM calls, cumulative 5m37s, total 7m01s.
+Overlap badges require the same response and overlapping recorded intervals.
+145 App checks and TypeScript pass. Missing response boundaries preserve the old
+request as incomplete and accept the next explicit start as a new request. A
+response with no matching start cannot keep assigning tools to the old turn.
+Cancelled tool receipts remain cancelled. Historical records without an admitted
+native turn scope remain unassociated. No tool contents or evidence are changed.
+
+Diagnostic evidence is retained under ignored `runs/light-full-20261029-stability/`,
+including events, timing breakdown, download hashes and actual files. Historical
+partial progress-only runs remain failed delivery comparisons, not successful baselines.

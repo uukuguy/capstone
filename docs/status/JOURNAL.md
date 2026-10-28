@@ -6243,3 +6243,19 @@ and visible real business verification pending. Unrelated task-1-report.md prese
   it is system advice. Full real PPTX/CSV acceptance is still pending.
 - Preserve user-owned `.superpowers/sdd/task-1-report.md`. No sibling gateway edits,
   internal network probes, deployment or release acceptance in this unit.
+- 61feb331 — Corrected lightweight progress ownership and unconfirmed completion to preserve task intent and truthful execution states.
+
+### 2026-10-29 — Full lightweight output and LLM-led execution view
+
+- Fresh Vivaldi attempt a44450618326822a delivered actual 14-slide PPTX and core
+  CSV in 420.676s/64 model responses/98 tools. Download hashes and ZIP checked;
+  real cover displayed. Timing breakdown shows 336.62s of model responses,
+  first tool 2.135s, final handoff 8.643s. No DR. Performance remains open.
+- User selected LLM responses as process primary nodes; tools are single rows
+  with timings and collapsed details. Native SDK turn boundaries establish group
+  scope; timestamps alone do not. Actual header shows 64/98, 5m37s/7m01s.
+- 145 App tests and TS passed. Review gaps for missing model boundaries and
+  cancelled-versus-failed tools were reproduced and corrected. Backend observation-history projection is a
+  separate uncommitted candidate in general-sdk.mjs, tool-result-context.mjs and
+  its fixture tests; 36 Node checks pass, real performance test is pending.
+- Preserve user task-1-report.md and the existing browser conversation/draft.
