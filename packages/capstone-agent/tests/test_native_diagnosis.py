@@ -83,6 +83,31 @@ def test_unrelated_failures_do_not_share_elapsed_time_or_budget(tmp_path):
     assert third['elapsed_seconds'] < 1
 
 
+def test_large_script_failure_is_recorded_without_resetting_its_scope(tmp_path):
+    command = '# 诊断脚本\n' + 'print("数据")\n' * 3000
+    selection = {'tool_name': 'bash', 'input': {'command': command}, 'action_identity': None}
+    def failed(call):
+        return request(call, 'observe_rejection', tool_call_id=call, code='tool_failed',
+                       duration_ms=1, selection=selection)
+    assert len(json.dumps(failed('first')).encode()) > 32768
+    first = host(tmp_path).handle(failed('first'))['result']
+    second = host(tmp_path).handle(failed('second'))['result']
+    assert first['scope_ref'] == second['scope_ref']
+    assert second['remaining_probes'] == DIAGNOSIS_POLICY['max_probes'] - 2
+    # Diagnostic persistence keeps identity and outcome, not copied source code.
+    assert 'print(' not in (tmp_path / 'private' / 'state.json').read_text()
+
+
+def test_diagnosis_keeps_the_native_rpc_transport_bound(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    from capstone_agent import native_diagnosis
+    monkeypatch.setattr(native_diagnosis, 'limits', SimpleNamespace(rpc_frame_bytes=1024))
+    with pytest.raises(ValueError, match='diagnosis request is invalid'):
+        host(tmp_path).handle(request('large', 'observe_rejection', tool_call_id='call',
+            code='tool_failed', duration_ms=1, selection={'tool_name': 'bash',
+            'input': {'command': 'x' * 2000}, 'action_identity': None}))
+
+
 def test_identity_change_rejected_and_state_outside_model_directory(tmp_path):
     instance = host(tmp_path)
     instance.handle(request('same', **probe()))
