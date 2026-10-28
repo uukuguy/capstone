@@ -22,7 +22,9 @@ export default function LlmProfileMenu({catalog,value,disabled,onChange}:{catalo
     if(!open)return
     const close=(event:PointerEvent)=>{if(event.target instanceof Node&&!root.current?.contains(event.target))setOpen(false)}
     document.addEventListener('pointerdown',close)
-    root.current?.querySelector<HTMLButtonElement>('[role="menuitemradio"][aria-checked="true"]:not(:disabled), [role="menuitemradio"]:not(:disabled)')?.focus()
+    const selected=root.current?.querySelector<HTMLButtonElement>('[role="menuitemradio"][aria-checked="true"]:not(:disabled)')
+    const target=selected??root.current?.querySelector<HTMLButtonElement>('[role="menuitemradio"]:not(:disabled)')
+    target?.focus()
     return ()=>document.removeEventListener('pointerdown',close)
   },[open])
   useEffect(()=>{if(disabled)setOpen(false)},[disabled])
