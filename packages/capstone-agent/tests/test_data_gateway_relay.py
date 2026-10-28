@@ -464,6 +464,6 @@ def test_unavailable_gateway_retains_only_configured_identity(tmp_path, monkeypa
     monkeypatch.setattr(DataGatewayMcp, 'prepare', unavailable)
     resource, publication = load_container_gateway(str(connection), policy, private_root=root, owner_uid=os.getuid())
     assert resource is None
-    assert publication['identity'] == {'connection_name': 'Configured gateway', 'endpoint': 'gateway.test:443'}
+    assert publication['identity'] == {'connection_name': 'Configured gateway', 'display_address': 'gateway.test:443'}
     assert publication['available'] is False
     assert 'secret-canary' not in json.dumps(publication)

@@ -463,7 +463,7 @@ def test_initialized_server_identity_is_whitelisted_and_connection_name_optional
     selected = DataGatewayMcp(client.connection_path, client.policy, connect=connect)
     catalog = asyncio.run(selected.prepare())
     publication = DataGatewayAccess(selected, catalog).publication()
-    assert publication['identity'] == {'connection_name': 'Selected gateway', 'endpoint': 'gateway.test:8000', 'server_name': 'Published gateway', 'server_version': '1.30.0'}
+    assert publication['identity'] == {'connection_name': 'Selected gateway', 'display_address': 'gateway.test:8000', 'server_name': 'Published gateway', 'server_version': '1.30.0'}
     assert catalog['server_info'] == {'name': 'Published gateway', 'version': '1.30.0'}
     assert 'secret-canary' not in json.dumps(publication)
     assert 'instance_id' not in publication['identity']

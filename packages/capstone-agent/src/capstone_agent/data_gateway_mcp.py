@@ -145,7 +145,7 @@ class DataGatewayMcp:
         address = urlsplit(self._connection['url'])
         hostname = address.hostname
         host = f'[{hostname}]' if ':' in hostname else hostname
-        result = {'endpoint': f'{host}:{address.port or (443 if address.scheme == "https" else 80)}'}
+        result = {'display_address': f'{host}:{address.port or (443 if address.scheme == "https" else 80)}'}
         if self._connection.get('name'):
             result['connection_name'] = self._connection['name']
         return result

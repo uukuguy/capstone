@@ -178,7 +178,16 @@ def test_gateway_projection_excludes_private_fields_and_unsafe_endpoint():
     from capstone_agent.thread_input_catalog import public_input_catalog
     document = {'resource_profiles': {}, 'data_gateway': {'headers': 'secret-canary'}}
     projected = public_input_catalog(document, gateway_publication={'available': False, 'identity': {
-        'connection_name': 'Configured gateway', 'endpoint': 'user:secret-canary@host:8000/path?key=secret-canary',
+        'connection_name': 'Configured gateway', 'display_address': 'user:secret-canary@host:8000/path?key=secret-canary',
         'headers': 'secret-canary', 'server_name': {'secret': 'secret-canary'}}})
     assert projected['data_gateway'] == {'available': False, 'connection_name': 'Configured gateway'}
     assert 'secret-canary' not in str(projected)
+
+
+def test_gateway_display_address_crosses_closed_pi_health_boundary():
+    from capstone_agent.pi_delegation import _json_document
+    from capstone_agent.thread_input_catalog import public_input_catalog
+    publication = {'available': True, 'identity': {'display_address': 'gateway.test:8000'}}
+    health = _json_document({'capability': {'data_gateway': publication}})
+    result = public_input_catalog({'resource_profiles': {}}, gateway_publication=health['capability']['data_gateway'])
+    assert result['data_gateway'] == {'available': True, 'endpoint': 'gateway.test:8000'}
