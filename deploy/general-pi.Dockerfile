@@ -152,3 +152,6 @@ RUN python -c "from capstone_agent.general_pi_executor import collect_artifacts;
     && node --input-type=module -e 'await import("./capstone_agent/resources/delivery-review.mjs"); await import("./capstone_agent/resources/systematic-diagnosis.mjs")'
 EXPOSE 8790
 CMD ["python", "-m", "capstone_agent.general_pi_resource_seed"]
+
+COPY packages/capstone-agent/src/capstone_agent/workbench_llm_profiles.py capstone_agent/workbench_llm_profiles.py
+COPY configs/runtime/workbench-llm-profiles.json configs/runtime/workbench-llm-profiles.json

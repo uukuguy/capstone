@@ -864,11 +864,13 @@ class GeneralPiHost:
 class NativeTaskRunner:
     """Pi uses a task UID; host secrets remain in a different root process."""
     def __init__(self, *, root: Path, config_root: Path, command: tuple[str, ...],
-                 model: str, relay_origin: str, network_policy=None, gateway=None) -> None:
+                 model: str, relay_origin: str, network_policy=None, gateway=None, llm_profiles=None) -> None:
         if os.geteuid() != 0 or os.name != 'posix':
             raise RuntimeError('General Pi requires its isolated Linux container')
         self.root, self.config_root, self.command = root, config_root, command
         self.model, self.relay_origin = model, relay_origin
+        self.llm_profiles = llm_profiles
+        self.task_llm_profiles = {}
         from .native_environment import environment_context
         self.environment_context = environment_context()
         self.network_policy = network_policy
@@ -898,6 +900,14 @@ class NativeTaskRunner:
         self._resource_staging = staging
 
     def __call__(self, request, cancelled, emit, *, inventory_only=False):
+        selection = (request.native_context or {}).get('llm_selection')
+        profile = None
+        if selection is not None:
+            if self.llm_profiles is None:
+                raise ValueError('Model selection is not supported by this executor')
+            profile = self.llm_profiles.resolve(dict(selection))
+        elif self.llm_profiles is not None:
+            profile = self.llm_profiles.resolve(self.llm_profiles.freeze())
         with self._lock:
             counter = self.root / 'receipts' / 'next-uid'
             uid = int(counter.read_text()) if counter.exists() else 10000
@@ -907,6 +917,8 @@ class NativeTaskRunner:
             counter.chmod(0o600)
             grant = secrets.token_urlsafe(32)
             self.relay.register(request.task_id, grant, time.monotonic() + request.timeout_seconds)
+            if profile is not None:
+                self.task_llm_profiles[request.task_id] = profile
         workspace = task_workspace(self.root / 'tasks', request.task_id)
         inputs = workspace.parent / ('.inputs-' + workspace.name)
         process = None
@@ -1101,7 +1113,7 @@ class NativeTaskRunner:
                 inputs = task_workspace(self.root / 'inputs', request.task_id)
                 launch_options['input_directory'] = inputs
             argv, environment = native_pi_launch(command=self.command, workspace=workspace,
-                config_root=self.config_root, model=self.model,
+                config_root=self.config_root, model=profile['model'] if profile else self.model,
                 relay_url=self.relay_origin + '/provider/' + request.task_id, relay_token=grant,
                 context_extension=Path(__file__).parent / 'resources' / 'general-context.mjs',
                 sdk_config=sdk_config, **launch_options)
@@ -1139,6 +1151,7 @@ class NativeTaskRunner:
             finally:
                 with self._lock:
                     self.relay.revoke(request.task_id)
+                    self.task_llm_profiles.pop(request.task_id, None)
                 if self.gateway:
                     self.gateway.revoke(request.task_id)
                 shutil.rmtree(inputs, ignore_errors=True)
@@ -1434,12 +1447,16 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                     raise ValueError()
                 body = self.rfile.read(length)
                 document = json.loads(body)
-                if document.get('model') != runner.model:
+                selected = getattr(runner, 'task_llm_profiles', {}).get(parts[2])
+                selected_model = selected['model'] if selected else runner.model
+                selected_upstream = selected['base_url'] if selected else upstream
+                selected_key = selected['key'] if selected else provider_key
+                if document.get('model') != selected_model:
                     raise ValueError()
-                target = urlsplit(upstream)
+                target = urlsplit(selected_upstream)
                 if target.hostname is None or target.scheme not in {'http', 'https'}:
                     raise ValueError()
-                run_http(forward_provider(self, lease, upstream, body, provider_key))
+                run_http(forward_provider(self, lease, selected_upstream, body, selected_key))
             except CapacityExceeded as error:
                 if error.mode == 'debug':
                     host.interrupt_capacity(parts[2], error)
@@ -1486,12 +1503,10 @@ def main():
         raise RuntimeError('General Pi service must run in the isolated container')
     config = Path('/opt/general/configs/runtime/general-pi')
     root = Path('/var/lib/general-pi')
-    providers = json.loads(Path('/opt/general/llm-providers.json').read_bytes())['providers']
-    provider = providers[os.environ['CAPSTONE_PUBLIC_PROVIDER']]
-    if (provider['auth']['kind'] != 'api_key_env'
-            or provider['compatibility_profile'] == 'anthropic-messages'):
-        raise ValueError('General Pi relay requires an API-key chat-completions transport')
-    key = os.environ[provider['auth']['default_env']]
+    from .workbench_llm_profiles import ProfileRegistry
+    llm_profiles = ProfileRegistry()
+    provider = llm_profiles.resolve(llm_profiles.freeze())
+    key = provider['key']
     port = int(os.environ.get('PORT', '8790'))
     from .native_network_policy import NativeNetworkPolicy, InternalEndpoint
     endpoints = json.loads(os.environ.get('CAPSTONE_NATIVE_INTERNAL_ENDPOINTS', '[]'))
@@ -1512,12 +1527,12 @@ def main():
     revision.update((environment_context() or '').encode())
     revision.update(json.dumps(gateway_publication, sort_keys=True).encode())
     lock = json.loads(Path('/opt/general/pi-runtime.lock.json').read_bytes())
-    identity = {'engine': 'pi', 'model': os.environ['CAPSTONE_PUBLIC_MODEL'],
-                'provider': os.environ['CAPSTONE_PUBLIC_PROVIDER'],
+    identity = {'engine': 'pi', 'model': provider['model'],
+                'provider': provider['provider'],
                 'pi_commit': lock['source']['commit'], 'config_revision': revision.hexdigest(),
                 'runtime_lock_sha256': sha256(Path('/opt/general/pi-runtime.lock.json').read_bytes()).hexdigest(),
                 'executor_revision': sha256(b''.join((Path(__file__).parent / name).read_bytes()
-                    for name in ('general_pi_server.py', 'general_pi_executor.py', 'general_pi_storage.py', 'general_pi_relay.py', 'native_network_policy.py', 'bounded_http_loop.py', 'pi_delegation.py', 'business_context.py', 'request_intent.py', 'native_task_context.py', 'native_diagnosis.py', 'native_tool_composition.py',
+                    for name in ('general_pi_server.py', 'general_pi_executor.py', 'general_pi_storage.py', 'general_pi_relay.py', 'native_network_policy.py', 'bounded_http_loop.py', 'pi_delegation.py', 'business_context.py', 'request_intent.py', 'native_task_context.py', 'workbench_llm_profiles.py', 'native_diagnosis.py', 'native_tool_composition.py',
                                  'native_resources.py', 'runtime_resources.py', 'resource_installation.py', 'general_pi_resource_seed.py', 'bounded_mcp.py', 'native_environment.py', 'data_gateway_mcp.py', 'data_gateway_relay.py', 'grid_source_topology.py', 'grid_electrical_view.py', 'resources/gateway-electrical-view-v1.schema.json', 'resources/gateway-electrical-view-v2.schema.json', 'resources/general-data-gateway.mjs',
                                  'progress.py', 'stream_progress.py', 'resource_manifest.py', 'native_resource_staging.py',
                                  'native_research_bridge.py', 'native_graph_context.py', 'native_graph_events.py',
@@ -1536,7 +1551,7 @@ def main():
                         for path in sorted((Path(__file__).parent / 'resources' / directory).rglob('*.mjs')))).hexdigest()}
     runner = NativeTaskRunner(root=root, config_root=config,
         command=('node', '/opt/pi/packages/coding-agent/dist/cli.js'), model=identity['model'],
-        relay_origin=f'http://127.0.0.1:{port}', network_policy=network_policy, gateway=gateway)
+        relay_origin=f'http://127.0.0.1:{port}', network_policy=network_policy, gateway=gateway, llm_profiles=llm_profiles)
     runner.gateway_publication = gateway_publication
     host = GeneralPiHost(root=root, identity=identity, run_task=runner)
     host.record_network_policy('startup_default', network_policy.state())

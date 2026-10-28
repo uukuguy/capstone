@@ -177,10 +177,14 @@ def public_document(value):
 def checked_native_context(value):
     value = public_document(value)
     fields = {'policy', 'selected_task_records', 'selected_task_source', 'records_truncated'}
-    if (not isinstance(value, dict) or not fields <= set(value) or set(value) - fields - {'materials', 'material_notices', 'resource_manifests', 'resource_origins', 'graph_work', 'systematic_diagnosis', 'tool_composition', 'deep_research'}
+    if (not isinstance(value, dict) or not fields <= set(value) or set(value) - fields - {'materials', 'material_notices', 'resource_manifests', 'resource_origins', 'graph_work', 'systematic_diagnosis', 'tool_composition', 'deep_research', 'llm_selection'}
             or type(value['records_truncated']) is not bool
             or not isinstance(value['selected_task_records'], list) or len(value['selected_task_records']) > 64):
         raise ValueError('native task context is invalid')
+    if 'llm_selection' in value:
+        selection = value['llm_selection']
+        if not isinstance(selection, dict) or set(selection) != {'profile_id', 'provider', 'model', 'profile_revision'} or any(not isinstance(v, str) or not v for v in selection.values()):
+            raise ValueError('Invalid frozen LLM selection')
     if 'deep_research' in value and type(value['deep_research']) is not bool:
         raise ValueError('native research choice is invalid')
     materials = value.get('materials', [])
@@ -350,6 +354,7 @@ def native_context_for(claim, binding):
         'external_lookup_enabled': False}, 'selected_task_records': pages,
         'selected_task_source': source, 'records_truncated': truncated, **work,
         **({'deep_research': submission['deep_research']} if 'deep_research' in submission else {}),
+        **({'llm_selection': submission['llm_selection']} if 'llm_selection' in submission else {}),
         **({'systematic_diagnosis': DIAGNOSIS_POLICY} if diagnosis == DIAGNOSIS_POLICY else {}),
         **({'tool_composition': COMPOSITION_POLICY} if composition else {}),
         **({'materials': materials} if materials else {}),

@@ -56,6 +56,8 @@ def public_input_catalog(document: dict) -> dict:
     public = {**document, 'resource_profiles': {
         role: {key: value for key, value in profile.items() if key != '_professional_selection'}
         for role, profile in document['resource_profiles'].items()}}
+    from .workbench_llm_profiles import ProfileRegistry
+    public['llm_profiles'] = ProfileRegistry().catalog()
     public.pop('revision', None)
     return {**public, 'revision': content_hash(public)}
 

@@ -160,6 +160,9 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     assert native['tool_composition'] == COMPOSITION_POLICY
     assert 'agent_tools_execute' in native['policy']['allowed_tools']
     native['policy']['allowed_tools'].remove('data_gateway_other')
+    from capstone_agent.workbench_llm_profiles import ProfileRegistry
+    registry = ProfileRegistry(environment={})
+    native['llm_selection'] = registry.freeze('intranet-dsv4-18804')
     if choice is not None:
         native['deep_research'] = choice
     binding, task, _, _ = graph_fixture()
@@ -168,6 +171,8 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     class Captured(Exception):
         pass
     def launch(**kwargs):
+        assert kwargs['model'] == 'dsv4'
+        assert runner.task_llm_profiles[task]['base_url'] == 'http://192.168.72.69:18804/v1'
         captured.append(json.loads(json.dumps(kwargs['sdk_config'])))
         raise Captured()
     monkeypatch.setattr(module, 'native_pi_launch', launch)
@@ -175,7 +180,7 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     root = tmp_path / 'private'
     (root / 'receipts').mkdir(parents=True)
     runner = module.NativeTaskRunner(root=root, config_root=tmp_path, command=('node', '/opt/pi/dist/cli.js'),
-        model='fixture', relay_origin='http://127.0.0.1:8790')
+        model='fixture', relay_origin='http://127.0.0.1:8790', llm_profiles=registry)
     # Exercise the checked-in settings through the actual publication overlay,
     # rather than constructing researchRuntime flags only inside a fixture.
     settings_path = Path(__file__).resolve().parents[3] / 'configs/runtime/general-pi/settings.json'
@@ -196,6 +201,7 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
         input={'kind': 'text', 'text': 'Prepare the useful requested output'}, native_context=native, research_binding=binding)
     with pytest.raises(Captured):
         runner(request, lambda: False, lambda _: None)
+    assert task not in runner.task_llm_profiles
     actual = captured[0]['researchRuntime']
     gateway_context = next(item['content'] for item in captured[0]['contextFiles'] if item['path'] == 'registered-production-data')
     assert gateway_bindings == [(task, binding['attempt_id'], {'data_gateway_discover_network_models'})]
