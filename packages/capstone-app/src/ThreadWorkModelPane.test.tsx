@@ -66,7 +66,7 @@ function fixture(initialContext:string|null='ctx_one'){
     const next=work('ctx_one');state={...state,workSnapshot:next,snapshot:next.professionalSnapshot!};publish()
     return {status:'accepted',target:{kind:'model_workspace',id:'thr_formal'},commandId:command.command_id}
   })
-  const store={get state(){return state},get publicEvents(){return publicEvents},canStreamEvents:false,
+  const store={get state(){return state},get publicEvents(){return publicEvents},get conversationEvents(){return publicEvents},canStreamEvents:false,
     get networkTasks(){return tasks},
     get modelWorkingPages(){return []},subscribe:(fn:()=>void)=>{listeners.add(fn);return()=>listeners.delete(fn)},
     catchUp:async()=>{},load:async()=>{},dispose:()=>{},refreshWorkSnapshot:async()=>{},dispatch,

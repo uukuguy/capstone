@@ -6030,6 +6030,16 @@ Reproduced protected research acknowledgment waiting behind an entire public-eve
 - 2026-10-28: 0468f165 records measured batching and shared tool-composition proposals; runtime behavior remains unchanged pending implementation scope.
 # 2026-10-28 — Shared native tool composition
 
+App CI follow-up: restored conversationEvents in the model-pane test double,
+and opened the process reader before asserting its full-plan control.28 focused
+checks pass.543-record layout isolated12checks pass4.69s; parallel suite crossed
+old5s ceiling, so that one triple-layout/clearance test now has bounded20s timeout.
+All1272App checks pass12.31s, TypeScript clean. No product UI behavior changed.
+6e1c1a6b canonical rebuild ready/imagecb43c4cfedb35cda3e2bf5162bf18199edc2741a88b0a94ecbefab49c643d4f6;
+API/worker consistency and scoped cache cleanup121617-35168 completed.
+
+6e1c1a6b: Bounded repeated resource failures per program while preserving partial results, independent tools and truthful unissued-call status.
+
 Recovery follow-up: repeated resource failures now stop queued calls for only that
 tool/program after3 consecutive failures. Unissued calls return not_executed with
 ref:null; partial quality gaps and independent tools remain usable.17 actual

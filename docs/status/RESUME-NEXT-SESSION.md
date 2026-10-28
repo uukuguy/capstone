@@ -4,6 +4,17 @@ Updated: 2026-10-28. Tool composition implemented/local trials complete; PR71 in
 
 ## Active implementation
 
+Latest continue update: resource failure circuit committed6e1c1a6b and canonical
+rebuild deployed it (imagecb43c4cfedb35cda3e2bf5162bf18199edc2741a88b0a94ecbefab49c643d4f6),
+cleanup121617-35168 ready.17 worker/package tests pass, including independent
+tool and partial-quality behavior. CI40583906308 failed25m36s at App tests;
+now corrected stale conversationEvents mock and full-plan reader expectation.
+543-record geometry test passes isolated4.69s, parallel5s timeout now bounded20s.
+All1272App tests pass12.31s, TS clean. Commit/push these test-only fixes, await
+required CI, perform targeted real circuit/path check before claiming acceptance.
+Actualdev integration/control still outstanding. Root backups/control prep below
+remain intact; never stage unrelated .superpowers/sdd/task-1-report.md.
+
 Daemon recovery update: both full trials completed. DR506.42s,13parent+104child
 responses (old843.86s/157total); light662.94s/77 (old383.66s/65). Raw full-dr and
 full-lightweight under runs/tool-composition-20261028. Do not claim universal speedup.

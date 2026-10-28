@@ -32,7 +32,8 @@ it('hands thinking over when the actual plan checkpoint is admitted, before chil
   expect(screen.getByRole('region',{name:'思考状态'})).toBeTruthy()
   rerender(<CapstoneAssistantThread {...props} isRunning events={research.filter(event=>event.eventSeq<=checkpoint.eventSeq)}/>)
   expect(screen.queryByRole('region',{name:'思考状态'})).toBeNull()
-  expect(screen.getByRole('button',{name:'查看完整计划'})).toBeTruthy()
+  fireEvent.click(screen.getByRole('button',{name:'放大阅读执行过程'}))
+  expect(within(screen.getByRole('dialog',{name:'执行过程'})).getByRole('button',{name:'查看完整计划'})).toBeTruthy()
 })
 it('keeps uploaded research task steps primary from admitted organization with empty Work grants',()=>{
   const selected=tools.map(event=>{

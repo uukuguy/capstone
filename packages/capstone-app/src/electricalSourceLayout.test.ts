@@ -45,7 +45,7 @@ describe('source electrical geometry',()=>{
     const smaller=buildSceneIndex({...input,nodes:smallNodes,edges:edges.filter(edge=>smallIds.has(edge.source)&&smallIds.has(edge.target))})
     const smallBar=sceneGeometry(smaller)!.busbars.get(0)!
     expect(bar[1].x-bar[0].x).toBeCloseTo(smallBar[1].x-smallBar[0].x)
-  })
+  },20000) // Three full layouts plus route-clearance checks; bounded under parallel CI load.
   const assertClear=(input:NetworkScene)=>{
     const index=buildSceneIndex(input),geometry=sceneGeometry(index)!
     for(const [e,route] of geometry.routes)for(let n=0;n<input.nodes.length;n++){
