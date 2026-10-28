@@ -6,7 +6,7 @@ import type {StoredResource} from './resourceUploads'
 export type SkillRole = 'harness_engine' | 'direct_pi' | 'delegated_pi'
 export type SkillChoice = { id: string; version: string; role: SkillRole; revision: string }
 export type ContextChoice = { include_refs: string[]; exclude_refs: string[] }
-export type GatewayConnectionStatus={available:boolean;connection_name?:string;server_name?:string;server_version?:string;endpoint?:string;instance_id?:string}
+export type GatewayConnectionStatus={available:boolean;connection_name?:string;server_name?:string;server_version?:string;endpoint?:string;instance_id?:string;instance_name?:string;environment_label?:string;data_source_label?:string;offline?:boolean}
 export type InputDraft = { mode: RuntimeMode; llm_profile_id?:string; deep_research?:boolean; skill?: SkillChoice; context: ContextChoice; literal?: boolean; material_refs?: string[];context_product_refs?:ContextProductRef[] }
 export type InputSubmission = { llm_profile_id?:string; deep_research?:boolean; input: { kind: 'text' | 'skill_invocation'; text: string; skill_id?: string; skill_version?: string }; resource_profile?: { profile_id: SkillRole; revision: string }; context_selection: ContextChoice; material_refs?: string[];context_product_refs?:ContextProductRef[];attachment_refs?:string[] }
 export type InputCatalog = {
@@ -102,7 +102,11 @@ export function parseInputCatalog(value: unknown): InputCatalog {
     const gateway=item.data_gateway
     if(!gateway||typeof gateway.available!=='boolean')throw new Error('数据网关连接信息无效')
     const projected:GatewayConnectionStatus={available:gateway.available}
-    for(const field of ['connection_name','server_name','server_version','endpoint','instance_id'] as const){
+    if(gateway.offline!==undefined){
+      if(typeof gateway.offline!=='boolean')throw new Error('数据网关连接信息无效')
+      projected.offline=gateway.offline
+    }
+    for(const field of ['connection_name','server_name','server_version','endpoint','instance_id','instance_name','environment_label','data_source_label'] as const){
       const text=gateway[field]
       if(text===undefined)continue
       if(typeof text!=='string'||text.length>2048||/[\u0000-\u001f\u007f]/.test(text))throw new Error('数据网关连接信息无效')

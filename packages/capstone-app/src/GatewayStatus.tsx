@@ -11,8 +11,8 @@ export default function GatewayStatus({gateway}:{gateway?:GatewayConnectionStatu
     return()=>document.removeEventListener('pointerdown',outside)
   },[])
   if(!gateway)return null
-  const label=gateway.connection_name||gateway.endpoint||gateway.server_name||'数据网关'
-  const fields=[['配置连接',gateway.connection_name],['MCP 服务',gateway.server_name],['MCP 版本',gateway.server_version],['地址',gateway.endpoint],['实例标识',gateway.instance_id]]
+  const label=gateway.instance_name||gateway.connection_name||gateway.endpoint||gateway.server_name||'数据网关'
+  const fields=[['实例名称',gateway.instance_name],['配置连接',gateway.connection_name],['环境',gateway.environment_label],['数据源',gateway.data_source_label],['离线模式',typeof gateway.offline==='boolean'?(gateway.offline?'是':'否'):undefined],['MCP 服务',gateway.server_name],['MCP 版本',gateway.server_version],['地址',gateway.endpoint],['实例标识',gateway.instance_id]]
   return <details ref={root} className={`gateway-status${gateway.available?'':' is-unavailable'}`} onKeyDown={event=>{
     if(event.key==='Escape'&&root.current?.open){event.preventDefault();event.stopPropagation();root.current.open=false;root.current.querySelector('summary')?.focus()}
   }}>
