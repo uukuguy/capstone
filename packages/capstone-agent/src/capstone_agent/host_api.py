@@ -160,6 +160,7 @@ def create_host_app(
         request.state.public_demo = False
         thread_resource = (request.url.path == '/api/v1/threads'
                            or request.url.path.startswith('/api/v1/threads/'))
+        versioned_resource = thread_resource or request.url.path == '/api/v1/workspace/connections'
         thread_version = request.headers.get('Capstone-Thread-Version', '1')
         if request.url.path != "/health/ready" and request.url.hostname not in allowed_hosts:
             return JSONResponse({"error": "invalid_host"}, status_code=400)
@@ -183,7 +184,7 @@ def create_host_app(
                 response = JSONResponse({"error": "unauthorized"}, status_code=401)
             else:
                 request.state.public_demo = demo_authorized
-                if thread_resource and not demo_authorized and thread_version not in {'1', '2'}:
+                if versioned_resource and not demo_authorized and thread_version not in {'1', '2'}:
                     response = JSONResponse({'error': 'unsupported_thread_version',
                                              'supported_versions': [1, 2]}, status_code=406)
                 else:
@@ -199,7 +200,7 @@ def create_host_app(
                                 if upgrade else await call_next(request))
         response.headers["Cache-Control"] = "no-store"
         response.headers["X-Content-Type-Options"] = "nosniff"
-        if thread_resource:
+        if versioned_resource:
             response.headers.append('Vary', 'Capstone-Thread-Version')
             if thread_version in {'1', '2'}:
                 response.headers['Capstone-Thread-Version'] = thread_version
@@ -308,6 +309,15 @@ def create_host_app(
         def require_private_thread(request: Request) -> None:
             if request.state.public_demo:
                 raise HTTPException(404, "thread not found")
+
+        @app.get('/api/v1/workspace/connections')
+        def workspace_connections(request: Request):
+            require_private_thread(request)
+            from .thread_input_catalog import public_gateway_identity
+            publication = getattr(native_artifact_executor, 'capability', {}).get('data_gateway')
+            identity = public_gateway_identity(publication)
+            return {'schema': 'capstone-workspace-connections/1',
+                    **({'data_gateway': identity} if identity is not None else {})}
 
         from .network_policy_http import register_network_policy_routes
         register_network_policy_routes(app, executor_provider=lambda: native_artifact_executor,

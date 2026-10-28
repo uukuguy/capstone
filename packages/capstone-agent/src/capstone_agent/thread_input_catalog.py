@@ -52,13 +52,9 @@ def with_case_availability(document: dict, availability: dict) -> dict:
     return {**public, 'revision': content_hash(public)}
 
 
-def public_input_catalog(document: dict, *, gateway_publication=None) -> dict:
-    public = {**document, 'resource_profiles': {
-        role: {key: value for key, value in profile.items() if key != '_professional_selection'}
-        for role, profile in document['resource_profiles'].items()}}
-    from .workbench_llm_profiles import ProfileRegistry
-    public['llm_profiles'] = ProfileRegistry().catalog()
-    public.pop('data_gateway', None)
+def public_gateway_identity(gateway_publication) -> dict | None:
+    """Read-only identity of the application-selected gateway, independent of a Thread."""
+    public = {}
     if isinstance(gateway_publication, Mapping):
         from .data_gateway_mcp import identity_text
         identity = gateway_publication.get('identity', {})
@@ -80,6 +76,19 @@ def public_input_catalog(document: dict, *, gateway_publication=None) -> dict:
                 raise ValueError()
         except ValueError:
             public['data_gateway'].pop('endpoint')
+    return public.get('data_gateway')
+
+
+def public_input_catalog(document: dict, *, gateway_publication=None) -> dict:
+    public = {**document, 'resource_profiles': {
+        role: {key: value for key, value in profile.items() if key != '_professional_selection'}
+        for role, profile in document['resource_profiles'].items()}}
+    from .workbench_llm_profiles import ProfileRegistry
+    public['llm_profiles'] = ProfileRegistry().catalog()
+    public.pop('data_gateway', None)
+    identity = public_gateway_identity(gateway_publication)
+    if identity is not None:
+        public['data_gateway'] = identity
     public.pop('revision', None)
     return {**public, 'revision': content_hash(public)}
 
