@@ -16,6 +16,7 @@
     "@assistant-ui/react": "^0.15.22",
     "@office-kit/pptx": "0.28.0",
     "@office-kit/pptx-preview": "0.21.0",
+    "lowlight": "3.3.0",
     "lucide-react": "^1.49.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",

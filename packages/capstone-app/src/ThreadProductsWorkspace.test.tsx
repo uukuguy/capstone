@@ -14,10 +14,26 @@ it('finds the current completed primary report beyond process pages and exposes 
   const ready=vi.fn(),client={productIndex:vi.fn().mockResolvedValueOnce({products:[old,entry],hasMore:true,nextCursor:'next'}).mockResolvedValue({products:[metrics,report],hasMore:false,nextCursor:null}),resolveProduct:vi.fn().mockResolvedValue({entry:report,bytes:null,projection:null,record:null})}
   render(<ThreadProductsWorkspace client={client} threadId="thr_one" workId="work_current" revision={99} primaryAttemptId="attempt_current" onPrimaryReady={ready}/>)
   await waitFor(()=>expect(ready).toHaveBeenCalledWith(report))
-  expect(client.productIndex).toHaveBeenCalledWith('thr_one',{workId:'work_current',cursor:'next'},expect.any(AbortSignal))
+  expect(client.productIndex).toHaveBeenCalledWith('thr_one',{cursor:'next'},expect.any(AbortSignal))
   expect(await screen.findByRole('heading',{name:'报告.html'})).toBeTruthy()
-  fireEvent.click(screen.getByText(/浏览成果/))
+  fireEvent.click(screen.getByText(/浏览产物/))
   expect(screen.getByRole('button',{name:'查看：指标.csv'})).toBeTruthy()
+})
+it('keeps the manually opened directory visible while selecting successive products',async()=>{
+  const first={...entry,title:'报告一',source:{...entry.source,presentation_role:'primary'}}
+  const second={...first,title:'报告二',ref:{...first.ref,product_id:'second'}}
+  const client={productIndex:vi.fn().mockResolvedValue({products:[first,second],hasMore:false,nextCursor:null}),resolveProduct:vi.fn(async(ref)=>({entry:ref.product_id===second.ref.product_id?second:first,bytes:null,projection:null,record:{}}))}
+  render(<ThreadProductsWorkspace client={client} threadId="thr_one" workId="work_current" revision={1}/>)
+  await screen.findByRole('heading',{name:'报告一'})
+  fireEvent.click(screen.getByText(/浏览产物/))
+  const directory=document.querySelector<HTMLDetailsElement>('.thread-products-directory')!
+  expect(directory.open).toBe(true)
+  fireEvent.click(screen.getByRole('button',{name:'查看：报告二'}))
+  await screen.findByRole('heading',{name:'报告二'})
+  expect(directory.open).toBe(true)
+  fireEvent.click(screen.getByRole('button',{name:'查看：报告一'}))
+  await screen.findByRole('heading',{name:'报告一'})
+  expect(directory.open).toBe(true)
 })
 it('does not replace a user-selected artifact when another primary completes',async()=>{
   const report={...entry,ref:{...ref,origin:'native_file' as const,attempt_id:'attempt_current',product_id:'report'},title:'报告.html',media_type:'text/html',byte_size:10,source_status:'completed',source:{file_name:'报告.html',presentation_role:'primary'}}
@@ -55,22 +71,22 @@ it.each([['report.html','text/html'],['chart.svg','image/svg+xml']])('uses the r
   const view=render(<ThreadProductsWorkspace client={client} threadId="thr_one" workId="work_current" revision={8}/>)
   fireEvent.click(await screen.findByRole('button',{name:'查看：正式报告'}))
   await screen.findByRole('link',{name:'下载文件'})
+  expect(screen.queryByText('当前执行链尚不能读取此文件格式。')).toBeNull()
   if(media==='text/html')expect(screen.getByTitle(`HTML 预览：${fileName}`).getAttribute('sandbox')).toBe('')
   else expect(screen.getByRole('img',{name:fileName}).getAttribute('src')).toBe('blob:product')
   expect(create.mock.calls[0][0].type).toBe(media)
   view.unmount()
   expect(revoke).toHaveBeenCalledWith('blob:product')
 })
-it('defaults to the actual current Work, keeps failed records visible, and loads history only on demand',async()=>{
+it('browses the conversation without a work-scope selector and keeps failed records visible',async()=>{
   const client={productIndex:vi.fn().mockResolvedValue({products:[entry],hasMore:false,nextCursor:null}),resolveProduct:vi.fn().mockResolvedValue({entry,bytes:null,projection:null,record:entry.source})}
   render(<ThreadProductsWorkspace client={client} threadId="thr_one" workId="work_current" revision={8} onReference={vi.fn()}/>)
   fireEvent.click(await screen.findByRole('button',{name:'查看：原分析未完成'}))
   await screen.findByText('此项是执行记录，没有文件内容。')
-  expect(client.productIndex.mock.calls[0][1]).toEqual({workId:'work_current'})
+  expect(client.productIndex.mock.calls[0][1]).toEqual({})
   expect(screen.queryByRole('link',{name:'下载文件'})).toBeNull()
-  expect((screen.getByRole('button',{name:'引用到下一轮'}) as HTMLButtonElement).disabled).toBe(true)
-  fireEvent.change(screen.getByRole('combobox',{name:'成果范围'}),{target:{value:'history'}})
-  await waitFor(()=>expect(client.productIndex).toHaveBeenLastCalledWith('thr_one',{},expect.any(AbortSignal)))
+  expect(screen.queryByRole('button',{name:'引用到下一轮'})).toBeNull()
+  expect(screen.queryByRole('combobox',{name:'产物范围'})).toBeNull()
 })
 it('references the exact version and does not replace the selected reading view on a directory refresh',async()=>{
   const file={...entry,ref:{...ref,product_id:'result_one',origin:'domain_result' as const},title:'电网校核',media_type:'application/json',byte_size:20,source_status:'partial',capabilities:{read:true as const,select:true},selection_unavailable_reason:null,presentation:{kind:'domain_result' as const}}

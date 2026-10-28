@@ -91,7 +91,7 @@ export default function ThreadWorkspace({ preparation, sidebar, heading, childre
         <WorkspaceProducts views={resourceViews || [{id:'resource',label:resourceLabel,content:resourcePanel}]} selectedId={selectedResourceView} onSelect={onResourceViewChange}
           actions={<>
             <button type="button" className="workspace-product-icon thread-resource-expand" aria-label="恢复默认比例" title="恢复默认比例" onClick={()=>resize(60)}><RotateCcw aria-hidden="true" /></button>
-            <button type="button" className="workspace-product-icon thread-resource-expand" aria-label={expanded ? '恢复左右布局' : '扩大成果区'} title={expanded ? '恢复左右布局' : '扩大成果区'} onClick={()=>setExpanded(value=>!value)}>{expanded ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}</button>
+            <button type="button" className="workspace-product-icon thread-resource-expand" aria-label={expanded ? '恢复左右布局' : '全屏'} title={expanded ? '恢复左右布局' : '全屏'} onClick={()=>setExpanded(value=>!value)}>{expanded ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}</button>
             <button type="button" className="workspace-product-icon" aria-label={`关闭${resourceLabel}`} title={`关闭${resourceLabel}`} onClick={closeResource}><X aria-hidden="true" /></button>
           </>} />
       </aside>}

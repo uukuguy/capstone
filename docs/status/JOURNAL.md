@@ -6338,3 +6338,11 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - Completed384.959s,77model/102tool calls; actual14-slide PPT and18x23CSV downloaded and hash-checked, cover shown in right pane. No DR. Uncached input grew3.09x; no performance acceptance claim.
 - Incorrect first title selector covered565 DB records. User challenged scope. Verified UI page128recent+20archived, restored444 out-of-scope titles using monotonic control events. Final121automatic updated;10visible manual and17default unchanged. All11DB manual documents retain original checksum.
 - Recent pagination is not exposed by sidebar; deferred separate UI issue. Detailed report:2026-10-29-lightweight-rerun.md. Protected original titles, receipts and correction live under ignored runs/title-refresh-20261029.
+- 3322eac2 — Recorded fresh-run timings and corrected title scope, preserving user names and restoring excluded records.
+
+### 2026-10-29 — Cleanup and Artifacts UI candidate
+- Added anchored nonmodal cleanup with date presets, full selected-catalog preview, fresh pin guards, cancellation, partial failure reporting and existing per-thread DELETE. No real delete was confirmed in browser checks.
+- Artifacts replaces permanent products/source-grid labels; current-thread directory retains manual open state, separates groups and preview, keeps browser entry in full-screen PPT, and uses a fixed frame across formats. Flat reference/locate/download icons replace unused adopt/inspect actions.
+- Code files use lazy Lowlight3.3.0 AST highlighting, language selection, line numbers and bounded rendering. Preview warnings no longer conflate reference admission with image/code/PPT rendering.
+- TypeScript and93focused App tests passed; scoped reviews closed pin corruption/unmount findings. Vivaldi anchored preview seen in /tmp/session-cleanup-anchored-preview.json. Full-screen cross-format visual check and canonical combined rebuild remain pending.
+- New accepted URL workspace implementation is active: authority_import owns backend scope guard/schema/creator tests; root owns frontend context/URL/cache. Do not report current enterprise URL as named-space isolation.

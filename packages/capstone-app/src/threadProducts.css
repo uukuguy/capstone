@@ -19,8 +19,8 @@
 .thread-products-workspace :focus-visible { outline: 2px solid #245b47; outline-offset: 2px; }
 .thread-product-view { overflow-wrap: anywhere; }
 .is-resource-expanded .thread-products-workspace:has(.pptx-preview) { padding:0; }
-.is-resource-expanded .thread-products-workspace:has(.pptx-preview) > .thread-products-directory,
 .is-resource-expanded .thread-product-view:has(.pptx-preview) > :not(.native-artifact-preview) { display:none; }
+.is-resource-expanded .thread-products-workspace:has(.pptx-preview) > .thread-products-directory { margin: 8px 10px; }
 .is-resource-expanded .pptx-preview nav { padding:6px; }
 .is-resource-expanded .pptx-preview img { max-height:calc(100dvh - 130px); object-fit:contain; }
 .is-resource-expanded .thread-resource-panel:has(.workspace-product-paper:not([hidden]) .pptx-preview) .workspace-product-stage { padding:0; }
@@ -66,3 +66,48 @@
   .thread-products-workspace:has(.thread-product-view iframe) > .thread-products-directory > summary > svg { display: block; }
 }
 .thread-products-directory > summary > svg { display: none; width: 16px; height: 16px; }
+
+/* Directory navigation and the document canvas have separate visual owners. */
+.thread-products-directory { padding: 0; margin-bottom: 16px; border: 1px solid #cbdad5; border-radius: 8px; background: #f2f6f4; }
+.thread-products-directory > summary { padding: 8px 10px; color: #29443b; font-weight: 600; }
+.thread-products-directory[open] > summary { background: #e7efeb; border-bottom: 1px solid #cbdad5; border-radius: 7px 7px 0 0; }
+.thread-products-directory .thread-products-directory-body { box-sizing: border-box; max-height: min(38dvh,320px); overflow: auto; overscroll-behavior: contain; padding: 8px; }
+.thread-products-directory-body > label { padding: 0 2px 8px; font-size: 11px; color: #50665d; }
+.thread-products-directory .thread-product-group, .thread-products-directory .thread-product-secondary { margin: 8px 0 0; padding: 0; border-top: 0; }
+.thread-products-directory .thread-product-group > h4, .thread-products-directory .thread-product-secondary > summary { display: flex; align-items: center; gap: 6px; margin: 0 0 4px; padding: 5px 7px; border-bottom: 1px solid #d0ded7; background: #e7eeea; color: #29443b; font-size: 11px; font-weight: 600; }
+.thread-products-directory .thread-product-secondary > summary { display: list-item; }
+.thread-products-directory .thread-product-secondary > ul { max-height: none; overflow: visible; }
+.thread-product-group > h4 > small, .thread-product-secondary > summary > small { margin-left: 6px; color: #52665e; font-weight: 400; }
+.thread-products-directory li > button { border-radius: 4px; padding: 6px 8px; color: #273e34; }
+.thread-products-directory li > button:hover { background: #e4ede8; }
+.thread-products-directory li > button[aria-pressed="true"] { background: #d8ece3; box-shadow: inset 3px 0 #24735c; color: #163e2e; }
+.thread-product-view { border-top: 2px solid #d5e1db; padding-top: 12px; background: #fff; }
+.thread-product-view > header { justify-content: flex-start; }
+.thread-product-view > header > :last-child { margin-left: auto; white-space: nowrap; }
+.thread-product-preview-label { flex: none; color: #576c61; font-size: 10px; font-weight: 400; }
+.thread-products-workspace:has(.thread-product-view iframe):has(> .thread-products-directory[open]) { display: flex; flex-direction: column; }
+.thread-products-workspace:has(.thread-product-view iframe) > .thread-products-directory[open] { position: static; margin: 8px 10px; border: 1px solid #cbdad5; }
+.thread-products-workspace:has(.thread-product-view iframe) > .thread-products-directory[open] .thread-products-directory-body { position: static; width: auto; max-height: min(32dvh,260px); border: 0; box-shadow: none; background: #f2f6f4; }
+.thread-products-workspace:has(.thread-product-view iframe) > .thread-products-directory[open] > summary { width: auto; height: auto; }
+.thread-products-workspace:has(.thread-product-view iframe) > .thread-products-directory[open] > summary > span { display: inline; }
+.thread-products-workspace:has(.thread-product-view iframe):has(> .thread-products-directory[open]) > .thread-product-view { flex: 1; height: auto; }
+.thread-products-workspace:has(.thread-product-view iframe):has(> .thread-products-directory[open]) > .thread-product-view > header { margin-left: 12px; }
+.thread-product-actions > :is(button,a) { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 5px; border: 0; border-radius: 4px; background: transparent; }
+.thread-product-actions > :is(button,a):hover { background: #e8f0eb; }
+.thread-product-actions svg { display: block; width: 14px; height: 14px; }
+.thread-product-actions svg + span { display: none; }
+
+/* One fixed reading frame for every full-screen format; only the preview scrolls. */
+.is-resource-expanded .thread-resource-panel .workspace-product-stage:has(.thread-products-workspace) { padding: 0; overflow: hidden; overflow-anchor: none; }
+.is-resource-expanded .thread-resource-panel .workspace-product-paper:has(> .thread-products-workspace) { height: 100%; min-height: 0; border: 0; box-shadow: none; }
+.is-resource-expanded .workspace-product-paper .thread-products-workspace { display: flex; flex-direction: column; gap: 8px; height: 100%; min-height: 0; padding: 10px; overflow: hidden; overflow-anchor: none; }
+.is-resource-expanded .workspace-product-paper .thread-products-workspace > .thread-products-directory { position: static; flex: none; margin: 0; padding: 0; width: auto; border: 1px solid #cbdad5; }
+.is-resource-expanded .workspace-product-paper .thread-products-directory > summary { width: auto; height: auto; padding: 7px 10px; }
+.is-resource-expanded .workspace-product-paper .thread-products-directory > summary > span { display: inline; }
+.is-resource-expanded .workspace-product-paper .thread-products-directory .thread-products-directory-body { position: static; width: auto; max-height: min(28dvh,240px); border: 0; box-shadow: none; overflow-anchor: none; }
+.is-resource-expanded .workspace-product-paper .thread-products-workspace > .thread-product-view { flex: 1; height: auto; min-height: 0; padding: 8px 0 0; overflow: auto; overscroll-behavior: contain; overflow-anchor: none; }
+.is-resource-expanded .workspace-product-paper .thread-products-workspace > .thread-product-view > header { margin-left: 0; }
+.is-resource-expanded .workspace-product-paper .thread-product-view > .native-artifact-preview:has(.pptx-preview) { height: 100%; min-height: 0; }
+.is-resource-expanded .workspace-product-paper .pptx-preview { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.is-resource-expanded .workspace-product-paper .pptx-preview > nav { flex: none; }
+.is-resource-expanded .workspace-product-paper .pptx-preview > img { flex: 1; min-height: 0; width: 100%; height: calc(100% - 42px); max-height: none; object-fit: contain; }

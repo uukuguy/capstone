@@ -10,9 +10,12 @@ export function navigateSession(id:string){
   url.searchParams.set('workspace','enterprise');url.searchParams.set('thread',id);url.searchParams.delete('thread-fixture')
   window.history.pushState({},'',url);window.dispatchEvent(new PopStateEvent('popstate'))
 }
+export function readSessionPins(storageKey='workspace'):string[]|undefined {
+  try{const value:unknown=JSON.parse(localStorage.getItem(`capstone.session-pins:${storageKey}`)??'[]');return Array.isArray(value)&&value.every(id=>typeof id==='string')?value:undefined}catch{return undefined}
+}
 export function useSessionPins(storageKey='workspace'){
   const key=`capstone.session-pins:${storageKey}`
-  const read=()=>{try{const v:unknown=JSON.parse(localStorage.getItem(key)||'[]');return Array.isArray(v)?v.filter((id):id is string=>typeof id==='string'):[]}catch{return []}}
+  const read=()=>readSessionPins(storageKey)??[]
   const [pins,setPins]=useState(read)
   useEffect(()=>{
     const refresh=()=>setPins(read())

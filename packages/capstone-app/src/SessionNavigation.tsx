@@ -1,7 +1,8 @@
 import {useEffect,useLayoutEffect,useRef,useState} from 'react'
 import {createPortal} from 'react-dom'
-import {Archive,ChevronLeft,ChevronRight,Pin,Pencil,Trash2} from 'lucide-react'
+import {Archive,ChevronLeft,ChevronRight,History,Pin,Pencil,Trash2} from 'lucide-react'
 import SessionRow from './SessionRow'
+import SessionCleanup from './SessionCleanup'
 import {navigateSession,sessionName,orderSessions,useSessionPins,type SessionNavItem} from './sessionNavigationState'
 import type {SessionManagementActions} from './sessionManagement'
 import type {ThreadListPage} from './threadManagement'
@@ -115,14 +116,16 @@ export default function SessionNavigation({items,currentId,storageKey='workspace
     onMenu={(x,y)=>{setMenu({item,x:Math.max(8,Math.min(x,window.innerWidth-190)),y:Math.max(8,Math.min(y,window.innerHeight-200))});setError('')}} onClose={actions&&!archiveView?()=>void archive(item,true):undefined}/>)
   return <div className="session-navigation">
     <div className="session-navigation-scroll" ref={list}>
-      {archiveView?<><h2>已归档会话</h2>{rows(displayed)}{!loading&&!displayed.length&&<p>暂无归档会话</p>}</>:
-        <><h2>置顶会话</h2>{rows(displayed.filter(item=>pins.includes(item.threadId)))}<h2>最近会话</h2>{rows(displayed.filter(item=>!pins.includes(item.threadId)))}</>}
+      {archiveView?<><h2 className="session-section-heading"><Archive size={12} aria-hidden="true"/><span>已归档会话</span></h2>{rows(displayed)}{!loading&&!displayed.length&&<p>暂无归档会话</p>}</>:
+        <><h2 className="session-section-heading"><Pin size={12} aria-hidden="true"/><span>置顶会话</span></h2>{rows(displayed.filter(item=>pins.includes(item.threadId)))}<h2 className="session-section-heading"><History size={12} aria-hidden="true"/><span>最近会话</span></h2>{rows(displayed.filter(item=>!pins.includes(item.threadId)))}</>}
       {loading&&<p role="status">正在读取归档会话…</p>}
       {busy&&archiveView&&<p role="status">正在更新会话…</p>}
       {archiveView&&archived?.hasMore&&<button type="button" className="session-archive-entry" disabled={loading} onClick={()=>void loadArchive(archived.nextBeforeThreadId??undefined)}>读取更多归档会话</button>}
     </div>
     {error&&<p role="alert">{error}</p>}
-    {actions&&<button type="button" className="session-archive-entry" onClick={()=>{setArchiveView(value=>!value);setRemoved([]);if(!archiveView)void loadArchive();else{archiveRequest.current++;setLoading(false);setError('')}}}><Archive size={14}/>{archiveView?'返回最近会话':'已归档会话'}</button>}
+    {actions&&<div className="session-navigation-actions"><button type="button" className="session-archive-entry" onClick={()=>{setArchiveView(value=>!value);setRemoved([]);if(!archiveView)void loadArchive();else{archiveRequest.current++;setLoading(false);setError('')}}}><Archive size={14}/>{archiveView?'返回最近会话':'已归档会话'}</button>
+      <SessionCleanup key={archiveView?'archived':'recent'} items={displayed} currentId={currentId} storageKey={storageKey} scopeLabel={archiveView?'归档会话':'最近会话'} remove={actions.remove} loadItems={actions.history?signal=>actions.history!(archiveView,signal):undefined} onRemoved={ids=>setRemoved(previous=>[...new Set([...previous,...ids])])}/>
+    </div>}
     {menu&&createPortal(<div ref={menuElement} className="session-context-menu" role="menu" aria-label="会话操作" style={{left:menu.x,top:menu.y}}>
       <button role="menuitem" disabled={!actions} onClick={()=>{setEditing(menu.item.threadId);setMenu(undefined)}}><Pencil size={14}/>改名</button>
       {!archiveView&&<button role="menuitem" onClick={()=>{toggle(menu.item.threadId);setMenu(undefined)}}><Pin size={14}/>{pins.includes(menu.item.threadId)?'取消置顶':'置顶'}</button>}
