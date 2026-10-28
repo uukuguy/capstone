@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 import re
 import stat
+import time
+from uuid import uuid4
 from threading import RLock
 
 from .application_capacity import limits, require_capacity, CapacityExceeded
@@ -61,7 +63,9 @@ class DataGatewayAccess:
     def publication(self):
         return {'available': True, 'catalog': deepcopy(self.catalog)}
 
-    def bind(self, task_id, attempt_id, allowed_tools):
+    def bind(self, task_id, attempt_id, allowed_tools, *, diagnostics=None):
+        from .gateway_diagnostics import checked_diagnostics
+        context = checked_diagnostics(diagnostics)
         if (not isinstance(allowed_tools, (set, frozenset, list, tuple))
                 or any(not isinstance(name, str) or name not in self.catalog['tools'] for name in allowed_tools)):
             raise GatewayError('gateway_tool_not_admitted')
@@ -69,13 +73,17 @@ class DataGatewayAccess:
             if task_id in self._tasks:
                 raise GatewayError('gateway_task_already_bound')
             self._tasks[task_id] = {'attempt_id': attempt_id, 'allowed_tools': frozenset(allowed_tools),
-                                    'started': set(), 'issued': {}}
+                                    'started': set(), 'issued': {}, 'diagnostics': context, 'diagnostic_calls': []}
 
     def revoke(self, task_id):
         with self._lock:
             self._tasks.pop(task_id, None)
 
-    async def call(self, task_id, document):
+    async def call(self, task_id, document, *, diagnostics=None, retry_of=None):
+        from .gateway_diagnostics import checked_diagnostics, diagnostic_id, response_diagnostics
+        override = checked_diagnostics(diagnostics)
+        if retry_of is not None:
+            diagnostic_id(retry_of)
         if (not isinstance(document, dict) or set(document) != {'call_id', 'name', 'arguments'}
                 or not isinstance(document.get('call_id'), str)
                 or not re.fullmatch(r'[A-Za-z0-9_.:-]{1,256}', document['call_id'])
@@ -92,6 +100,10 @@ class DataGatewayAccess:
                 raise GatewayError('gateway_task_not_admitted')
             if name not in record['allowed_tools']:
                 raise GatewayError('gateway_tool_not_admitted')
+            context = override if override is not None else record['diagnostics']
+            if override is not None and (record['diagnostics'] is None or any(
+                    override[key] != record['diagnostics'][key] for key in ('task_id', 'run_id', 'trace_id'))):
+                raise ValueError('gateway_diagnostics_binding_changed')
             if call_id in record['started']:
                 raise GatewayError('gateway_call_already_started')
             if record.get('failure'):
@@ -103,15 +115,38 @@ class DataGatewayAccess:
                     raise GatewayError('gateway_tool_not_admitted')
             require_capacity('mcp_call_count', len(record['started']) + 1, 'gateway_call')
             record['started'].add(call_id)
+            span = {**(context or {}), 'span_id': uuid4().hex, 'tool_call_id': call_id,
+                    'status': 'sending', **({'retry_of': retry_of} if retry_of is not None else {})}
+            record['diagnostic_calls'].append(span)
         arguments = deepcopy(document['arguments'])
+        started = time.monotonic()
         try:
-            result = await self.client.call(name, deepcopy(arguments), self.catalog)
+            result = await self.client.call(name, deepcopy(arguments), self.catalog,
+                **({'diagnostics': context} if context is not None else {}))
+            with self._lock:
+                span.update(response_diagnostics(result))
+                body = result.get('structuredContent', {})
+                failed = result.get('isError') is True or isinstance(body, dict) and body.get('status') in {'error', 'failed'}
+                span['status'] = 'business_error' if failed else 'received'
+        except asyncio.CancelledError:
+            with self._lock:
+                span['status'] = 'cancelled'
+            raise
         except GatewayError as error:
+            with self._lock:
+                span.update(status='adapter_error', failure_phase='gateway_client')
             if str(error) in TASK_STOP_ERRORS:
                 with self._lock:
                     if self._tasks.get(task_id) is record:
                         record['failure'] = str(error)
             raise
+        except Exception:
+            with self._lock:
+                span['status'] = 'transport_error'
+            raise
+        finally:
+            with self._lock:
+                span['duration_ms'] = (time.monotonic() - started) * 1000
         content = result.get('structuredContent', {})
         data = content.get('data', {}) if isinstance(content, dict) else {}
         successful = (result.get('isError') is not True and isinstance(content, dict)
@@ -138,6 +173,11 @@ class DataGatewayAccess:
                     if isinstance(ref, str) and re.fullmatch(r'[A-Za-z0-9_.:-]{1,512}', ref):
                         record.setdefault('operation_refs', set()).add(ref)
         return response
+
+    def diagnostic_calls(self, task_id):
+        """Host reads before revoke; durable event persistence is the host's job."""
+        with self._lock:
+            return deepcopy(self._tasks.get(task_id, {}).get('diagnostic_calls', []))
 
     def verify(self, task_id, call_id, name, observation, result_json):
         with self._lock:

@@ -220,7 +220,9 @@ class DataGatewayMcp:
         except Exception as error:
             raise GatewayError(public_failure(error, 'gateway_connection_failed')) from None
 
-    async def call(self, name, arguments, catalog):
+    async def call(self, name, arguments, catalog, *, diagnostics=None):
+        from .gateway_diagnostics import checked_diagnostics
+        context = checked_diagnostics(diagnostics)
         try:
             if (self._accepted.get(catalog.get('revision')) != catalog or name not in catalog['tools']
                     or not isinstance(arguments, dict)):
@@ -239,7 +241,8 @@ class DataGatewayMcp:
                     if current['tools'].get(name) != schema:
                         raise GatewayError('gateway_publication_changed')
                     active_session: Any = getattr(session, 'session', session)
-                    response = await active_session.call_tool(schema['name'], arguments=arguments)
+                    response = await active_session.call_tool(schema['name'], arguments=arguments,
+                        **({'meta': {'gateway/diagnostics': context}} if context is not None else {}))
                     value = response.model_dump(mode='json', by_alias=True, exclude_none=True)
             require_capacity('mcp_frame_bytes', len(encode(value)), 'gateway_result')
             if not value.get('isError') and 'outputSchema' in schema:
