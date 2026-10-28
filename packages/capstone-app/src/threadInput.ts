@@ -6,9 +6,10 @@ import type {StoredResource} from './resourceUploads'
 export type SkillRole = 'harness_engine' | 'direct_pi' | 'delegated_pi'
 export type SkillChoice = { id: string; version: string; role: SkillRole; revision: string }
 export type ContextChoice = { include_refs: string[]; exclude_refs: string[] }
-export type InputDraft = { mode: RuntimeMode; deep_research?:boolean; skill?: SkillChoice; context: ContextChoice; literal?: boolean; material_refs?: string[];context_product_refs?:ContextProductRef[] }
-export type InputSubmission = { deep_research?:boolean; input: { kind: 'text' | 'skill_invocation'; text: string; skill_id?: string; skill_version?: string }; resource_profile?: { profile_id: SkillRole; revision: string }; context_selection: ContextChoice; material_refs?: string[];context_product_refs?:ContextProductRef[];attachment_refs?:string[] }
+export type InputDraft = { mode: RuntimeMode; llm_profile_id?:string; deep_research?:boolean; skill?: SkillChoice; context: ContextChoice; literal?: boolean; material_refs?: string[];context_product_refs?:ContextProductRef[] }
+export type InputSubmission = { llm_profile_id?:string; deep_research?:boolean; input: { kind: 'text' | 'skill_invocation'; text: string; skill_id?: string; skill_version?: string }; resource_profile?: { profile_id: SkillRole; revision: string }; context_selection: ContextChoice; material_refs?: string[];context_product_refs?:ContextProductRef[];attachment_refs?:string[] }
 export type InputCatalog = {
+  llm_profiles?:{default_profile_id:string;profiles:{id:string;label:string;model:string;available:boolean}[]}
   stored_resources?:StoredResource[]
   schema: 'capstone-thread-input-catalog/1'; revision: string; context_id: string; selection_revision: string
   objects: { object_id: string; model_id: string; model_revision: string; implementation_family: string }[]
@@ -17,10 +18,16 @@ export type InputCatalog = {
   operations: { operation_id: string; scope: string; role: string; available: boolean; reason: string | null; revision: string }[]
 }
 export const emptyInputDraft = (mode: RuntimeMode): InputDraft => ({ mode, context: { include_refs: [], exclude_refs: [] } })
+export const validLlmProfileId=(value:unknown):value is string=>typeof value==='string'&&/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/.test(value)
 export function skillCompatible(skill: SkillChoice, mode: RuntimeMode) {
   return mode === 'pi_reference' ? skill.role === 'direct_pi' : skill.role === 'harness_engine' || skill.role === 'delegated_pi'
 }
 export function inputDraftError(draft: InputDraft, catalog?: InputCatalog): string | undefined {
+  if(draft.llm_profile_id!==undefined){
+    if(!validLlmProfileId(draft.llm_profile_id))return 'LLM 选择无效，请重新选择。'
+    if(!catalog)return '正在读取 LLM 目录。'
+    if(!catalog.llm_profiles?.profiles.some(profile=>profile.id===draft.llm_profile_id&&profile.available))return '所选 LLM 不可用或未配置，请重新选择。'
+  }
   try{if(draft.context_product_refs!==undefined)parseContextProductRefs(draft.context_product_refs)}catch(error){rethrowDebugCapacity(error);return error instanceof CapacityError?error.message:'成果引用无效，请移除后重新选择。'}
   if (draft.material_refs !== undefined && (!validMaterialRefs(draft.material_refs) || catalog && draft.material_refs.some(ref => !catalog.materials.some(item => item.material_id === ref)))) return '所选资料已变化，请重新选择。'
   if (draft.skill && !skillCompatible(draft.skill, draft.mode)) return '所选技能与当前模式不兼容，请重新选择。'
@@ -39,11 +46,13 @@ export function parseInputCommand(text: string): { kind: 'skills' | 'context'; r
   return { kind: 'unknown', name: match[1], rest: match[2] || '' }
 }
 export function buildInputSubmission(text: string, draft: InputDraft): InputSubmission {
+  if(draft.llm_profile_id!==undefined&&!validLlmProfileId(draft.llm_profile_id))throw new Error('LLM 选择无效。')
   assertCapacity(text.length,'input_text_chars')
   if (draft.material_refs !== undefined && !validMaterialRefs(draft.material_refs)) throw new Error('所选资料无效。')
   if (draft.skill && !skillCompatible(draft.skill, draft.mode)) throw new Error('所选技能与当前模式不兼容，请重新选择。')
   return { input: draft.skill ? { kind: 'skill_invocation', text, skill_id: draft.skill.id, skill_version: draft.skill.version } : { kind: 'text', text },
     ...(draft.deep_research===undefined?{}:{deep_research:draft.deep_research}),
+    ...(draft.llm_profile_id===undefined?{}:{llm_profile_id:draft.llm_profile_id}),
     ...(draft.skill ? { resource_profile: { profile_id: draft.skill.role, revision: draft.skill.revision } } : {}), context_selection: draft.context,
     ...(draft.material_refs === undefined ? {} : {material_refs: [...draft.material_refs]}),
     ...(draft.context_product_refs===undefined?{}:{context_product_refs:parseContextProductRefs(draft.context_product_refs)}) }
@@ -58,6 +67,7 @@ export function readInputDraft(key?: string): InputDraft | undefined {
     if (!text) return
     assertCapacity(new TextEncoder().encode(text).byteLength,'ui_input_draft_bytes')
     const value = JSON.parse(text)
+    if(value.llm_profile_id!==undefined&&!validLlmProfileId(value.llm_profile_id))return
     if(value.deep_research!==undefined&&typeof value.deep_research!=='boolean')return
     if (!['capstone', 'pi_reference'].includes(value.mode) || !Array.isArray(value.context?.include_refs) || !Array.isArray(value.context?.exclude_refs)) return
     if (value.skill && (!['harness_engine', 'direct_pi', 'delegated_pi'].includes(value.skill.role) || ['id', 'version', 'revision'].some(key => typeof value.skill[key] !== 'string'))) return
@@ -79,6 +89,12 @@ export function parseInputCatalog(value: unknown): InputCatalog {
   for (const [role, profile] of Object.entries(item.resource_profiles)) {
     if (!['harness_engine', 'direct_pi', 'delegated_pi'].includes(role) || !profile || typeof profile.revision !== 'string'
         || !Array.isArray(profile.resources) || exceedsCapacity(profile.resources.length,'resource_profile_items')) throw new Error('资源目录无效')
+  }
+  if(item.llm_profiles!==undefined){
+    const llm=item.llm_profiles
+    if(!llm||!validLlmProfileId(llm.default_profile_id)||!Array.isArray(llm.profiles)||llm.profiles.length>100
+      ||llm.profiles.some(profile=>!profile||!validLlmProfileId(profile.id)||typeof profile.available!=='boolean'||typeof profile.label!=='string'||!profile.label||profile.label.length>256||typeof profile.model!=='string'||profile.model.length>256)
+      ||new Set(llm.profiles.map(profile=>profile.id)).size!==llm.profiles.length||!llm.profiles.some(profile=>profile.id===llm.default_profile_id))throw new Error('LLM 目录无效')
   }
   return item
 }

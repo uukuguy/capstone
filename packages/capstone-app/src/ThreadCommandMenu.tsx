@@ -84,6 +84,11 @@ export default function ThreadCommandMenu({ children, catalog, loading, onRefres
   const draftError = inputDraftError(draft, catalog)
   const selectedSkillName = allSkills.find(skill => skill.id === draft.skill?.id)?.native_name || draft.skill?.id
   const inputTools = <div className="thread-input-tools">
+      <select className="thread-settings-trigger" aria-label="后端 LLM" title="本会话后续指令使用的 LLM；已提交指令保持原选择" value={draft.llm_profile_id??catalog?.llm_profiles?.default_profile_id??''} disabled={disabled||loading||!catalog?.llm_profiles} onChange={event=>{if(onBeforeChange?.()!==false)onChange({...draft,llm_profile_id:event.target.value})}}>
+        {!catalog?.llm_profiles&&<option value={draft.llm_profile_id??''}>{loading?'LLM 目录加载中':'LLM 目录未就绪'}</option>}
+        {catalog?.llm_profiles&&draft.llm_profile_id&&!catalog.llm_profiles.profiles.some(profile=>profile.id===draft.llm_profile_id)&&<option value={draft.llm_profile_id} disabled>已选 LLM 不可用</option>}
+        {catalog?.llm_profiles?.profiles.map(profile=><option key={profile.id} value={profile.id} disabled={!profile.available}>{profile.label}{profile.model&&profile.label!==profile.model?` · ${profile.model}`:''}{profile.available?'':'（未配置或不可用）'}</option>)}
+      </select>
       {draft.mode==='capstone'&&<button disabled={disabled} type="button" className="thread-settings-trigger thread-deep-research-toggle" aria-label="深度思考" aria-pressed={draft.deep_research===true} title={draft.deep_research?'本条指令使用 Deep Research 任务组织；发送后恢复关闭':'开启后，本条指令使用 Deep Research 任务组织'} onClick={()=>{if(onBeforeChange?.()!==false)onChange({...draft,deep_research:!draft.deep_research})}}><Brain aria-hidden="true"/>深度思考</button>}
     </div>
   return <div ref={root} className="thread-input-controls" style={panelHeight === undefined ? undefined : { '--thread-input-panel-space': `${panelHeight}px` } as CSSProperties} onCompositionStart={() => { composing.current = true }} onCompositionEnd={() => { composing.current = false }}

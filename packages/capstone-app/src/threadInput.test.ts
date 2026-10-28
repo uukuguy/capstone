@@ -1,8 +1,28 @@
 import { describe, expect, it } from 'vitest'
-import { parseInputCommand, buildInputSubmission, readInputDraft, writeInputDraft } from './threadInput'
+import { parseInputCommand, buildInputSubmission, readInputDraft, writeInputDraft,parseInputCatalog,inputDraftError } from './threadInput'
 import {parseProductRef} from './threadProducts'
 
 describe('typed composer input', () => {
+  it('uses deployment catalog defaults and rejects missing or disabled saved profiles',()=>{
+    const base={schema:'capstone-thread-input-catalog/1',revision:'r',objects:[],materials:[],resource_profiles:{},operations:[]}
+    const catalog=parseInputCatalog({...base,llm_profiles:{default_profile_id:'intranet',profiles:[{id:'intranet',label:'Server default',model:'dsv4',available:true},{id:'custom',label:'Custom',model:'',available:false}]}})
+    expect(catalog.llm_profiles?.default_profile_id).toBe('intranet')
+    const draft={mode:'capstone' as const,context:{include_refs:[],exclude_refs:[]},llm_profile_id:'intranet'}
+    expect(inputDraftError(draft,catalog)).toBeUndefined()
+    expect(inputDraftError({...draft,llm_profile_id:'custom'},catalog)).toContain('不可用')
+    expect(inputDraftError({...draft,llm_profile_id:'removed'},catalog)).toContain('不可用')
+    expect(()=>parseInputCatalog({...base,llm_profiles:{default_profile_id:'missing',profiles:[]}})).toThrow()
+    expect(()=>buildInputSubmission('text',{...draft,llm_profile_id:'https://caller'})).toThrow()
+  })
+  it('retains a session LLM choice across refresh and freezes the submitted ID',()=>{
+    const state={mode:'capstone' as const,llm_profile_id:'internal-choice',context:{include_refs:[],exclude_refs:[]}}
+    writeInputDraft('session-llm-one',state)
+    expect(readInputDraft('session-llm-one')?.llm_profile_id).toBe('internal-choice')
+    expect(readInputDraft('session-llm-other')?.llm_profile_id).toBeUndefined()
+    const submitted=buildInputSubmission('hello',state)
+    state.llm_profile_id='other-choice'
+    expect(submitted.llm_profile_id).toBe('internal-choice')
+  })
   it('stores and submits exact historical product versions without turning them into current evidence',()=>{
     const ref=parseProductRef({schema:'capstone-product-ref/1',thread_id:'thr_one',product_id:'delivery_one',origin:'task_delivery',scope:'task',event_seq:12,revision:2,digest:'a'.repeat(64),work_id:'old_work',attempt_id:'old_attempt',producer_attempt_id:null})
     const state={mode:'capstone' as const,context:{include_refs:[],exclude_refs:[]},context_product_refs:[{ref,purpose:'historical-context' as const}]}

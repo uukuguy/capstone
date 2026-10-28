@@ -6,7 +6,29 @@ import {parseProductRef} from './threadProducts'
 import directExecutionLifecycle from './fixtures/directExecutionLifecycle.json'
 import {parseEventEnvelope} from './threadProtocol'
 
-afterEach(() => { cleanup(); localStorage.clear() })
+afterEach(() => { cleanup(); localStorage.clear(); sessionStorage.clear() })
+
+it('keeps catalog LLM choices per session and across sends while DR resets',async()=>{
+  const catalog={schema:'capstone-thread-input-catalog/1' as const,revision:'r',context_id:'',selection_revision:'',objects:[],materials:[],resource_profiles:{},operations:[],llm_profiles:{default_profile_id:'local',profiles:[{id:'local',label:'Commercial',model:'flash',available:true},{id:'internal',label:'Intranet',model:'dsv4',available:true},{id:'custom',label:'Custom',model:'',available:false}]}}
+  const onSend=vi.fn().mockResolvedValue(undefined)
+  const props={events:[],disabled:false,isRunning:false,activity:[],onSend,onCancel:async()=>{},inputCatalog:catalog}
+  const {rerender}=render(<CapstoneAssistantThread key="one" {...props} storageKey="llm-session-one"/>)
+  expect((screen.getByRole('combobox',{name:'后端 LLM'}) as HTMLSelectElement).value).toBe('local')
+  expect((screen.getByRole('option',{name:/Custom.*未配置/}) as HTMLOptionElement).disabled).toBe(true)
+  fireEvent.change(screen.getByRole('combobox',{name:'后端 LLM'}),{target:{value:'internal'}})
+  fireEvent.click(screen.getByRole('button',{name:'深度思考'}))
+  fireEvent.change(screen.getByRole('textbox',{name:'Thread 指令'}),{target:{value:'first'}})
+  fireEvent.keyDown(screen.getByRole('textbox',{name:'Thread 指令'}),{key:'Enter',code:'Enter'})
+  await waitFor(()=>expect(onSend).toHaveBeenCalledWith('automatic','first',expect.objectContaining({llm_profile_id:'internal',deep_research:true})))
+  await waitFor(()=>expect(screen.getByRole('button',{name:'深度思考'}).getAttribute('aria-pressed')).toBe('false'))
+  expect((screen.getByRole('combobox',{name:'后端 LLM'}) as HTMLSelectElement).value).toBe('internal')
+  rerender(<CapstoneAssistantThread key="two" {...props} storageKey="llm-session-two"/>)
+  expect((screen.getByRole('combobox',{name:'后端 LLM'}) as HTMLSelectElement).value).toBe('local')
+  rerender(<CapstoneAssistantThread key="one-restored" {...props} storageKey="llm-session-one"/>)
+  expect((screen.getByRole('combobox',{name:'后端 LLM'}) as HTMLSelectElement).value).toBe('internal')
+  rerender(<CapstoneAssistantThread key="one-restored" {...props} inputCatalog={{...catalog,llm_profiles:{...catalog.llm_profiles,default_profile_id:'local'}}} storageKey="llm-session-one"/>)
+  expect((screen.getByRole('combobox',{name:'后端 LLM'}) as HTMLSelectElement).value).toBe('internal')
+})
 
 const event = (eventType: string, eventSeq: number, payload: Record<string, unknown>, attemptId?: string, occurredAt = '2026-09-30T00:00:00Z'): EventEnvelope => ({
   eventId: `evt_${eventSeq}`, eventSeq, eventType, eventVersion: 1, threadId: 'thr_demo', runId: 'run_demo', attemptId,

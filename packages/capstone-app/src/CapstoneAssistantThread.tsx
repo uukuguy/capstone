@@ -1088,7 +1088,7 @@ function ComposerSurface({ initialRestoreError, productReferenceReader, disabled
           const {deep_research:acceptedDeep=false,...acceptedInput}=acceptedDraft.submission??{}
           if (!acceptedDraft.submission || currentDeep===acceptedDeep&&JSON.stringify(currentInput)===JSON.stringify(acceptedInput)) {
             aui.composer.setText('')
-            onInputChange({...emptyInputDraft(inputDraft.mode),...(inputDraft.material_refs===undefined?{}:{material_refs:inputDraft.material_refs})})
+            onInputChange({...emptyInputDraft(inputDraft.mode),llm_profile_id:inputDraft.llm_profile_id,...(inputDraft.material_refs===undefined?{}:{material_refs:inputDraft.material_refs})})
           }
         } catch { /* Keep an edited or incompatible next draft. */ }
       }
@@ -1199,6 +1199,10 @@ export default function CapstoneAssistantThread({ nativeArtifactProjections, pro
   const nativeArtifacts=useMemo(()=>[...new Map([...projectNativeArtifacts(events),...(nativeArtifactProjections||[])].map(file=>[`${file.thread_id}:${file.attempt_id}:${file.artifact_id}`,file])).values()],[events,nativeArtifactProjections])
   const [restoredInput]=useState(()=>{try{return {draft:readInputDraft(storageKey)||emptyInputDraft(runtimeMode),error:''}}catch(error){return {draft:emptyInputDraft(runtimeMode),error:error instanceof Error?error.message:'输入草稿无法恢复。'}}})
   const [inputDraft, setInputDraft] = useState<InputDraft>(restoredInput.draft)
+  useEffect(()=>{
+    const profile=inputCatalog?.llm_profiles?.default_profile_id
+    if(profile)setInputDraft(current=>current.llm_profile_id===undefined?{...current,llm_profile_id:profile}:current)
+  },[inputCatalog?.llm_profiles?.default_profile_id])
   const [productReferenceError,setProductReferenceError]=useState(restoredInput.error)
   useEffect(()=>{
     if(!requestedProductReference)return
@@ -1211,8 +1215,8 @@ export default function CapstoneAssistantThread({ nativeArtifactProjections, pro
       setInputDraft(current=>({...current,context_product_refs:exists?items.map(item=>productRefKey(item.ref)===productRefKey(selection.ref)?selection:item):[...items,selection]}))
     }catch{setProductReferenceError('成果引用无效，请重新选择。')}
   },[requestedProductReference?.nonce])
-  const activeInput = { ...inputDraft, mode: runtimeMode,deep_research:runtimeMode==='capstone'?inputDraft.deep_research??false:undefined }
-  useEffect(() => { if(restoredInput.error&&inputDraft===restoredInput.draft)return; try{writeInputDraft(storageKey, activeInput)}catch(error){setProductReferenceError(error instanceof Error?error.message:'输入草稿暂时无法保存。')} }, [storageKey, inputDraft, runtimeMode])
+  const activeInput = { ...inputDraft, llm_profile_id:inputDraft.llm_profile_id??inputCatalog?.llm_profiles?.default_profile_id, mode: runtimeMode,deep_research:runtimeMode==='capstone'?inputDraft.deep_research??false:undefined }
+  useEffect(() => { if(restoredInput.error&&inputDraft===restoredInput.draft)return; try{writeInputDraft(storageKey, activeInput)}catch(error){setProductReferenceError(error instanceof Error?error.message:'输入草稿暂时无法保存。')} }, [storageKey, inputDraft, runtimeMode,activeInput.llm_profile_id])
   const [submittingThinking,setSubmittingThinking]=useState<{id:string;text:string;afterSeq:number;at:string}>()
   const submitSequence=useRef(0)
   const allMessages = useMemo(() => {
@@ -1563,9 +1567,9 @@ export default function CapstoneAssistantThread({ nativeArtifactProjections, pro
         }
         const sent = inputDraft
         const metadata = buildInputSubmission(text.trim(), activeInput)
-        if(runtimeMode==='capstone'||inputDraft.skill||inputDraft.literal||inputDraft.context.include_refs.length||inputDraft.context.exclude_refs.length||inputDraft.material_refs!==undefined||inputDraft.context_product_refs!==undefined)await onSend('automatic', text.trim(), metadata)
+        if(runtimeMode==='capstone'||metadata.llm_profile_id!==undefined||inputDraft.skill||inputDraft.literal||inputDraft.context.include_refs.length||inputDraft.context.exclude_refs.length||inputDraft.material_refs!==undefined||inputDraft.context_product_refs!==undefined)await onSend('automatic', text.trim(), metadata)
         else await onSend('automatic',text.trim())
-        setInputDraft(current => current === sent ? {...emptyInputDraft(runtimeMode),...(sent.material_refs===undefined?{}:{material_refs:sent.material_refs})} : current)
+        setInputDraft(current => current === sent ? {...emptyInputDraft(runtimeMode),llm_profile_id:metadata.llm_profile_id,...(sent.material_refs===undefined?{}:{material_refs:sent.material_refs})} : current)
         returnToLatest()
         } finally { setSubmittingThinking(current=>current?.id===submissionId?undefined:current) }
       }
