@@ -7,6 +7,13 @@ import directExecutionLifecycle from './fixtures/directExecutionLifecycle.json'
 import {parseEventEnvelope} from './threadProtocol'
 
 afterEach(() => { cleanup(); localStorage.clear(); sessionStorage.clear() })
+it('shows a live brand indicator only for the actual live session connection',()=>{
+  const props={events:[],disabled:false,isRunning:false,activity:[],onSend:async()=>{},onCancel:async()=>{}}
+  const view=render(<CapstoneAssistantThread {...props} connectionState="live"/>)
+  expect(screen.getByLabelText('会话实时连接已连接').classList.contains('is-live')).toBe(true)
+  view.rerender(<CapstoneAssistantThread {...props} connectionState="disconnected"/>)
+  expect(screen.getByLabelText('会话实时连接未连接').classList.contains('is-live')).toBe(false)
+})
 
 it('keeps runtime branding stable and does not render thread catalog gateway identity in the body',()=>{
   const catalog={schema:'capstone-thread-input-catalog/1' as const,revision:'r',context_id:'',selection_revision:'',objects:[],materials:[],resource_profiles:{},operations:[],data_gateway:{available:true,instance_name:'会话目录旧网关'}}
@@ -474,7 +481,7 @@ describe('CapstoneAssistantThread', () => {
     const view = render(<CapstoneAssistantThread {...props} runtimeMode="pi_reference" />)
     const authors = () => screen.getAllByLabelText('智能体回答').map(node => node.querySelector('.capstone-chat-role')?.textContent)
     expect(authors()).toEqual(['CAPSTONE', 'Pi'])
-    expect(document.querySelector('.capstone-assistant-runtime-label')?.textContent).toBe('Pi')
+    expect(document.querySelector('.capstone-assistant-runtime-label')?.textContent).toBe('Pi实时响应')
     expect(document.querySelector('.capstone-assistant-runtime-label .assistant-live-dot')).toBeNull()
     view.rerender(<CapstoneAssistantThread {...props} runtimeMode="capstone" isRunning={false}
       events={[...events, event('attempt_completed', 5, { answer: '通用结果' }, 'general')]} />)

@@ -1,4 +1,13 @@
 .workspace-top-actions { display: flex; align-items: center; gap: 8px; }
+.capstone-assistant-runtime-label .assistant-live-dot { background: #9ba9a1; box-shadow: none; }
+.capstone-assistant-runtime-label .assistant-live-dot.is-live { background: #1c9b86; box-shadow: 0 0 0 3px #1c9b8628; }
+.workspace-navfoot .workspace-connections-slot { width: 100%; max-width: 100%; color: inherit; }
+.workspace-navfoot .gateway-status { width: 100%; max-width: 100%; margin-left: 0; }
+.workspace-navfoot .gateway-status summary { color: #d2dfd5; padding: 4px 0; }
+.workspace-navfoot .gateway-status summary:hover,.workspace-navfoot .gateway-status[open] summary { background: #ffffff10; }
+.workspace-navfoot .gateway-status summary svg { width: 14px; height: 14px; }
+.workspace-navfoot .gateway-status-panel { top: auto; bottom: calc(100% + 8px); left: 0; right: auto; }
+.workspace-navfoot .workspace-connection-status>div { top: auto; bottom: 100%; left: 0; right: auto; }
 .workspace-session-connection-slot { width: 86px; min-height: 28px; flex-shrink: 0; }
 .workspace-connections-slot { width: 180px; max-width: 30vw; min-height: 28px; display: flex; align-items: center; font: 11px/1.4 system-ui,sans-serif; color: #60786d; }
 .workspace-connections-slot .gateway-status { margin-left: 0; max-width: 100%; }

@@ -5,6 +5,13 @@ import ThreadWorkspace from './ThreadWorkspace'
 import SessionNavigation from './SessionNavigation'
 
 afterEach(() => { cleanup(); sessionStorage.clear();localStorage.clear() })
+it('places global gateway metadata in the navigation footer above version information',()=>{
+  render(<ThreadWorkspace conversationOnly navigationFooter={<button>全局网关</button>}/>)
+  const footer=document.querySelector('.workspace-navfoot')!
+  expect(footer.contains(screen.getByRole('button',{name:'全局网关'}))).toBe(true)
+  expect(document.querySelector('.workspace-top-actions')?.contains(screen.getByRole('button',{name:'全局网关'}))).toBe(false)
+  expect(footer.firstElementChild?.textContent).toBe('全局网关')
+})
 it('places navigation and workspace connection actions to the right of the title',()=>{
   render(<ThreadWorkspace conversationOnly heading={<h1>当前会话</h1>} headerActions={<button>网关入口</button>}/>)
   const actions=document.querySelector('.workspace-top-actions')!

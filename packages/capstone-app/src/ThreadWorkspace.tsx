@@ -8,8 +8,8 @@ import {useSessionViewState,useSessionReadingPositions} from './workspaceSession
 
 /** Shared application frame. Controllers supply public state and capabilities. */
 export default function ThreadWorkspace({ preparation, sidebar, heading, children, loading = false,
-  ready = true, subtitle, headerActions, conversationOnly = false, resourcePanel, resourcePanelOpen = false, onResourcePanelOpenChange, resourceLabel = '模型与结果', resourceViews, selectedResourceView, onResourceViewChange, workspaceActions, hideResourceToggle = false, resourceToggleRef,sessionKey }: {
-  preparation?: ReactNode; sidebar?: ReactNode; heading?: ReactNode; children?: ReactNode
+  ready = true, subtitle, headerActions, navigationFooter, conversationOnly = false, resourcePanel, resourcePanelOpen = false, onResourcePanelOpenChange, resourceLabel = '模型与结果', resourceViews, selectedResourceView, onResourceViewChange, workspaceActions, hideResourceToggle = false, resourceToggleRef,sessionKey }: {
+  preparation?: ReactNode; sidebar?: ReactNode; heading?: ReactNode; children?: ReactNode; navigationFooter?: ReactNode
   loading?: boolean; ready?: boolean; subtitle?: string; headerActions?: ReactNode; conversationOnly?: boolean
   resourcePanel?: ReactNode; resourcePanelOpen?: boolean; onResourcePanelOpenChange?: (open: boolean) => void
   resourceLabel?: string
@@ -104,7 +104,7 @@ export default function ThreadWorkspace({ preparation, sidebar, heading, childre
         {navigationOpen && <button type="button" className="workspace-navigation-close" aria-label="收起会话导航" onClick={closeNavigation}><X size={18} aria-hidden="true" /></button>}
         <div className="workspace-brand"><div><AppBrand /><NetworkAccessLamp /></div><span>WORKSPACE</span></div>
         {sidebar}
-        <footer className="workspace-navfoot"><span>企业工作空间</span><WorkspaceBuildStatus /></footer>
+        <footer className="workspace-navfoot">{navigationFooter}<span>企业工作空间</span><WorkspaceBuildStatus /></footer>
       </aside>
       {navigationOpen&&sidebar&&<div className="workspace-navigation-separator" role="separator" aria-label="调整会话栏宽度" aria-orientation="vertical" tabIndex={0}
         aria-valuemin={180} aria-valuemax={360} aria-valuenow={navigationWidth}

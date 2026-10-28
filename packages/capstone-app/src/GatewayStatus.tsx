@@ -1,5 +1,5 @@
 import {useEffect,useRef} from 'react'
-import {ChevronDown,Network} from 'lucide-react'
+import {ChevronUp,Database} from 'lucide-react'
 import type {GatewayConnectionStatus} from './threadInput'
 import './GatewayStatus.css'
 
@@ -16,7 +16,7 @@ export default function GatewayStatus({gateway,notice,onRefresh}:{gateway?:Gatew
   return <details ref={root} className={`gateway-status${gateway.available?'':' is-unavailable'}`} onKeyDown={event=>{
     if(event.key==='Escape'&&root.current?.open){event.preventDefault();event.stopPropagation();root.current.open=false;root.current.querySelector('summary')?.focus()}
   }}>
-    <summary role="button" aria-label={`数据网关：${label}${gateway.available?'':'（当前不可用）'}`}><Network aria-hidden="true"/><span>{label}</span>{!gateway.available&&<em>当前不可用</em>}<ChevronDown aria-hidden="true"/></summary>
+    <summary role="button" aria-label={`数据网关：${label}${gateway.available?'':'（当前不可用）'}`}><Database size={14} aria-hidden="true"/><span>{label==='数据网关'?label:`数据网关 · ${label}`}</span>{!gateway.available&&<em>当前不可用</em>}<ChevronUp aria-hidden="true"/></summary>
     <div className="gateway-status-panel" aria-label="数据网关连接详情"><strong>数据网关</strong><dl><dt>状态</dt><dd>{gateway.available?'可用':'当前不可用'}</dd>
       {fields.filter(([,value])=>Boolean(value)).map(([name,value])=><div className="gateway-status-row" key={name}><dt>{name}</dt><dd>{value}</dd></div>)}
     </dl>{notice&&<p role="status">{notice}</p>}{onRefresh&&<button type="button" onClick={onRefresh}>刷新连接信息</button>}</div>
