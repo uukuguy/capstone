@@ -58,6 +58,8 @@ def test_native_image_copies_all_electrical_view_import_resources(tmp_path):
         [sys.executable, '-I', '-c',
          'import sys; sys.path.insert(0, sys.argv[1]); '
          'from capstone_agent.grid_electrical_view import ElectricalViewProvider; '
+         'from capstone_agent.gateway_diagnostics import checked_diagnostics; '
+         'assert checked_diagnostics(None) is None; '
          'print("electrical-view-import-ok")', str(tmp_path)],
         capture_output=True, text=True, timeout=30, check=False,
     )

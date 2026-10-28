@@ -67,6 +67,8 @@ COPY packages/capstone-agent/src/capstone_agent/general_pi_storage.py capstone_a
 COPY packages/capstone-agent/src/capstone_agent/general_pi_relay.py capstone_agent/general_pi_relay.py
 COPY packages/capstone-agent/src/capstone_agent/data_gateway_mcp.py capstone_agent/data_gateway_mcp.py
 COPY packages/capstone-agent/src/capstone_agent/data_gateway_relay.py capstone_agent/data_gateway_relay.py
+COPY packages/capstone-agent/src/capstone_agent/gateway_diagnostics.py capstone_agent/gateway_diagnostics.py
+RUN python -c 'from capstone_agent.gateway_diagnostics import checked_diagnostics; assert checked_diagnostics(None) is None'
 COPY packages/capstone-agent/src/capstone_agent/grid_source_topology.py capstone_agent/grid_source_topology.py
 COPY packages/capstone-agent/src/capstone_agent/grid_electrical_view.py capstone_agent/grid_electrical_view.py
 COPY packages/capstone-agent/src/capstone_agent/resources/gateway-electrical-view-v1.schema.json capstone_agent/resources/gateway-electrical-view-v1.schema.json
