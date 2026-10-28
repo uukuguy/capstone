@@ -16,6 +16,15 @@ test('repeated resource timeouts stop queued calls without inventing source obse
   for(const r of body.result.filter(r=>r.status==='not_executed'))assert.equal(r.ref,null);
 }));
 const native=value=>({content:[{type:'text',text:JSON.stringify({structuredContent:{status:'ok',data:value,provenance:{source_instance:'test',revision:'one'},gaps:[]}})}],details:{kind:'external_gateway_observation',tool:'data_gateway_read',catalog_revision:'catalog',output_sha256:'b'.repeat(64)}});
+test('changed query conditions remain callable after an unchanged condition exhausts its timeout budget',()=>fixture(async cwd=>{
+  const issued=[];
+  const result=await tool(cwd,async(_name,args)=>{issued.push(args.limit);return args.limit===10?native({n:1}):{content:[{type:'text',text:JSON.stringify({structuredContent:{status:'error',gaps:[{reason:'query_timeout'}]}})}]};
+  }).execute('changed',{tools:['data_gateway_read'],program:`
+    for(let i=0;i<4;i++)await tools.call('data_gateway_read',{limit:1000});
+    return await tools.call('data_gateway_read',{limit:10});`});
+  assert.equal(result.isError,false);assert.deepEqual(issued,[1000,1000,1000,10]);
+  assert.equal(JSON.parse(result.content[0].text).result.ok,true);
+}));
 test('a resource failure limit leaves independent tools and partial quality results usable',()=>fixture(async cwd=>{
   const two={...catalog,tools:{...catalog.tools,data_gateway_other:catalog.tools.data_gateway_read}};let reads=0,others=0;
   const result=await tool(cwd,async name=>{

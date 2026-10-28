@@ -6030,6 +6030,24 @@ Reproduced protected research acknowledgment waiting behind an entire public-eve
 - 2026-10-28: 0468f165 records measured batching and shared tool-composition proposals; runtime behavior remains unchanged pending implementation scope.
 # 2026-10-28 — Shared native tool composition
 
+User-requested retry distinction: scope resource failures to canonical tool inputs,
+not tool name. Identical failed inputs are bounded; changed scope/parameters can
+execute in the same program.18 worker/package checks pass0.71s; new regression
+proves smaller-limit call succeeds after unchanged large-limit calls are exhausted.
+This protects exact repetition only; semantic equivalence/plan quality remains
+model judgment under shared guidance and total program budgets, not a hardcoded
+business classifier. Real summer-prompt retest remains required.
+
+d0be9818: Preserved natural CSV column widths with horizontal scrolling; preview and type checks pass without changing downloaded bytes.
+
+bf504a05: Rendered CSV previews through literal GFM tables while preserving raw downloads; quoted cells and TypeScript checks passed.
+
+b1e65a93: Applied generic batch-first/source-reuse guidance to root execution after locating its omission in the lightweight path.
+
+User clarified evidence-driven composition exploration must remain allowed;
+per-tool failure counting is too coarse. Refine by failed method/conditions,
+changed evidence and bounded total attempts; record reason/change/outcome.
+
 Lightweight regression investigation: old88tools versus new272; SQL27→127.
 Largest composed batch147.71s continued after repeated20s query_timeout results.
 Existing batch guidance reached child policies but was absent from the root

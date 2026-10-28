@@ -1,9 +1,10 @@
 import {fork} from 'node:child_process';
 import {readFileSync} from 'node:fs';
-import {randomUUID} from 'node:crypto';
+import {randomUUID,createHash} from 'node:crypto';
 import {saveSemanticContext,loadSemanticContext} from './semantic-data-context.mjs';
 import {boundToolResult} from './tool-result-context.mjs';
 export const compositionPolicy=Object.freeze(JSON.parse(readFileSync(new URL('./tool-composition-policy.json',import.meta.url),'utf8')));
+const canonical=(v)=>Array.isArray(v)?v.map(canonical):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])):v;
 export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,invoke,scope,deadlineAt=Infinity,allowedInputs=[],restore=async x=>x,onProgress=()=>{}}){
   // Session-local issued observations survive program calls, never task grants.
   // A different DR node must receive an explicit saved context package.
@@ -13,7 +14,7 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
     async execute(callId,input,signal){
       signal?.throwIfAborted();
       const failure=error=>({isError:true,content:[{type:'text',text:String(error.message??error)}]});
-      let child,timer;const abort=new AbortController(),queue=[],operations=new Set(),resourceFailures=new Map(),blocked=new Set();let active=0,calls=0,requests=0,skipped=0,finished=false;
+      let child,timer;const abort=new AbortController(),queue=[],operations=new Set(),resourceFailures=new Map(),blocked=new Map();let active=0,calls=0,requests=0,skipped=0,finished=false;
       const stop=()=>{abort.abort(Error('Composition stopped'));for(const reject of queue.splice(0))reject();if(child?.pid){try{process.kill(-child.pid,'SIGKILL');}catch{child.kill('SIGKILL');}}};
       try{
         if(typeof input.program!=='string'||input.program.length>policy.code_chars)throw Error('Program code budget exceeded');
@@ -41,11 +42,13 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
               if(message.kind==='call'){
                 if(!Object.hasOwn(schemas,message.name))throw Error('Tool not selected for this program');
                 if(++requests>limit)throw Error('Composition call budget exceeded');
+                const argumentsHash=createHash('sha256').update(JSON.stringify(canonical(message.args))).digest('hex');
+                const failureKey=message.name+':'+argumentsHash;
                 if(active>=concurrency)await new Promise((resolve,reject)=>queue.push(()=>abort.signal.aborted?reject(abort.signal.reason):resolve()));
                 abort.signal.throwIfAborted();active++;
                 try{
-                  if(blocked.has(message.name)){
-                    skipped++;value={ref:null,ok:false,status:'not_executed',data:null,gaps:[{reason:'repeated_resource_failure',tool:message.name}],value:null};
+                  if(blocked.has(failureKey)){
+                    skipped++;value={ref:null,ok:false,status:'not_executed',data:null,gaps:[{reason:'repeated_resource_failure',tool:message.name,arguments_sha256:argumentsHash,scope:'unchanged_inputs'}],value:null};
                   }else{
                   calls++;
                   const nestedId=`${callId}:${run}:${message.id}`,native=await restore(await invoke(message.name,message.args,{callId:nestedId,signal:abort.signal}));
@@ -54,9 +57,9 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
                   const ref=`program-call:${run}:${message.id}`;
                   const ok=native.isError!==true&&!['error','failed','denied'].includes(observed?.status);
                   const timeout=!ok&&Array.isArray(observed?.gaps)&&observed.gaps.some(g=>/^(?:query_timeout|timeout|resource_exhausted|rate_limit)$/.test(g?.reason??''));
-                  const count=timeout?(resourceFailures.get(message.name)??0)+1:0;
-                  resourceFailures.set(message.name,count);
-                  if(count>=policy.consecutive_resource_failures)blocked.add(message.name);
+                  const count=timeout?(resourceFailures.get(failureKey)??0)+1:0;
+                  resourceFailures.set(failureKey,count);
+                  if(count>=policy.consecutive_resource_failures)blocked.set(failureKey,{tool:message.name,arguments_sha256:argumentsHash,scope:'unchanged_inputs'});
                   records.set(ref,{ref,ok,value:observed,receipt:native.details??{}});
                   value={ref,ok,...(observed&&typeof observed==='object'?observed:{}),value:observed};
                   }
@@ -74,7 +77,7 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
           });
           child.send({kind:'start',program:input.program,schemas,outputBytes:policy.output_bytes});
         });
-        const text=JSON.stringify({result:result??null,calls,skipped_calls:skipped,limited_tools:[...blocked]});
+        const text=JSON.stringify({result:result??null,calls,skipped_calls:skipped,limited_conditions:[...blocked.values()]});
         const bounded=await boundToolResult({isError:false,content:[{type:'text',text}],details:{kind:policy.schema,calls}},
           {cwd,toolName:'agent_tools_execute',callId,maxChars:policy.output_bytes});
         // Unlike gateway receipts, the program return has no host requirement

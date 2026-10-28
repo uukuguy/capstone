@@ -4,6 +4,36 @@ Updated: 2026-10-28. Tool composition implemented/local trials complete; PR71 in
 
 ## Active implementation
 
+Latest implementation: replaced overbroad per-tool circuit with canonical
+tool+arguments SHA256 scope.18 worker/package tests pass; changed/narrowed inputs
+can execute after identical failed inputs hit3failures. limited_conditions now
+reports input hashes/scope, skipped calls still ref:null. Does not pretend to
+classify all semantically equivalent queries; model reasoning/shared guidance and
+total64-call budget handle broader exploration. Commit/rebuild this change, then
+run exact original summer prompt in NEW Vivaldi conversation with DRoff. Current
+root guidance b1 build ready; CSV flat preview d0 HMR applied. Do not claim resolved
+performance before PPTX+CSV and actual requests/elapsed comparisons checked.
+
+Latest steering: CSV flat natural-width preview completed d0be9818 (GFM table,
+horizontal scroll, no forced wraps; raw CSV download unchanged); user explicitly
+requests continuing lightweight optimization after this. Current source HEADd0,
+root guidance b1e65a93 canonical build ready/image6a1f9387c7c8338f7437b2cc8abb657bae1a85a86729ef8920be9fb591c97d25,
+cleanup125403-9076. CI40631885091 passed38m7s for older ea765592, NOT latestsource.
+Do not claim current integration accepted. Next: refine per-tool circuit per user
+smart-exploration vs blind-retry distinction, then exact summer-prompt Vivaldi
+lightweight retest. Keep general guidance/budgets, no instance-specific paths.
+
+User correction: distinguish intelligent tool-composition exploration from blind
+brute-force retry. Current per-tool consecutive-failure circuit is TOO COARSE;
+do not treat it as accepted final retry policy. Legitimate next attempts should
+use evidence-driven changes in hypothesis, parameters, scope, source or combination
+and test the previous failure. Equivalent unchanged conditions or expanding the
+same costly failing method are blind repetition. Refine protection around failed
+method/conditions with an overall bounded budget, preserving alternative legal
+paths and logging reason/change/outcome. Avoid business-specific names or SQL
+workflow rules. b1e65a93 guidance source rebuild is running in session49750,
+log/tmp/light-regression-rebuild.log; recheck before rebuilding again.
+
 Latest user task: solve lightweight regression with general principles and this
 specific instance as verification. Found root ordinary prompt lacked existing
 nativeBatchGuidance (children had it). Added shared neutral batch-first/discovery/
