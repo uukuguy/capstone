@@ -1,4 +1,5 @@
 import ResearchProgressSummary from './ResearchProgressSummary'
+import GatewayStatus from './GatewayStatus'
 import {applicationCapacity,observeCapacity} from './applicationCapacity'
 import {capacityFailureNotice} from './capacityFailure'
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode,type RefObject } from 'react'
@@ -1597,7 +1598,7 @@ export default function CapstoneAssistantThread({ nativeArtifactProjections, pro
         preserveControl(message.dataset.messageId, summary)
       }
     }}>
-      <div className="capstone-assistant-runtime-label"><span className="assistant-live-dot" />{runtimeStatus ?? <>{runtimeMode === 'pi_reference' ? 'Pi' : 'CAPSTONE'}{runtimeMode === 'capstone' && <span>· HARNESS</span>}<small>实时响应</small></>}</div>
+      <div className="capstone-assistant-runtime-label"><span className="assistant-live-dot" />{runtimeStatus ?? <>{runtimeMode === 'pi_reference' ? 'Pi' : 'CAPSTONE'}{runtimeMode === 'capstone' && <span>· HARNESS</span>}<small>实时响应</small></>}<GatewayStatus gateway={inputCatalog?.data_gateway}/></div>
       <ThreadPrimitive.Root className="capstone-chat-runtime">
         {(hasOlderHistory || !historyAtLatest || historyError) && <div className="capstone-chat-history-controls" aria-label="消息历史">
           {hasOlderHistory && <button type="button" disabled={historyLoading} onClick={() => void olderMessages()}>{historyLoading ? '正在加载…' : '查看之前的对话'}</button>}
