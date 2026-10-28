@@ -17,6 +17,7 @@ from .data_gateway_mcp import GatewayError, TASK_STOP_ERRORS, encode, fingerprin
 def load_container_gateway(connection_file, policy_path, *, private_root=Path('/run/capstone-private'), owner_uid=0):
     if not connection_file:
         return None, {'available': False, 'reason': 'not_configured'}
+    client = None
     try:
         # This parent belongs to the image filesystem, outside the host bind.
         # Bind-file mode bits alone do not protect data on every host filesystem.
@@ -30,7 +31,7 @@ def load_container_gateway(connection_file, policy_path, *, private_root=Path('/
         resource = DataGatewayAccess(client, asyncio.run(client.prepare()))
         return resource, resource.publication()
     except GatewayError as error:
-        return None, {'available': False, 'reason': str(error)}
+        return None, {'available': False, 'reason': str(error), **({'identity': client.public_identity()} if client else {})}
     except CapacityExceeded:
         raise
     except (OSError, ValueError):
@@ -61,7 +62,11 @@ class DataGatewayAccess:
         self._lock = RLock()
 
     def publication(self):
-        return {'available': True, 'catalog': deepcopy(self.catalog)}
+        from .data_gateway_mcp import identity_text
+        identity = self.client.public_identity() if hasattr(self.client, 'public_identity') else {}
+        server = self.catalog.get('server_info', {})
+        identity.update({target: server[source] for source, target in (('name', 'server_name'), ('version', 'server_version')) if identity_text(server.get(source))})
+        return {'available': True, 'catalog': deepcopy(self.catalog), 'identity': identity}
 
     def bind(self, task_id, attempt_id, allowed_tools, *, diagnostics=None):
         from .gateway_diagnostics import checked_diagnostics

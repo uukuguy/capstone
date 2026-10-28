@@ -52,12 +52,30 @@ def with_case_availability(document: dict, availability: dict) -> dict:
     return {**public, 'revision': content_hash(public)}
 
 
-def public_input_catalog(document: dict) -> dict:
+def public_input_catalog(document: dict, *, gateway_publication=None) -> dict:
     public = {**document, 'resource_profiles': {
         role: {key: value for key, value in profile.items() if key != '_professional_selection'}
         for role, profile in document['resource_profiles'].items()}}
     from .workbench_llm_profiles import ProfileRegistry
     public['llm_profiles'] = ProfileRegistry().catalog()
+    public.pop('data_gateway', None)
+    if isinstance(gateway_publication, Mapping):
+        from .data_gateway_mcp import identity_text
+        identity = gateway_publication.get('identity', {})
+        public['data_gateway'] = {'available': gateway_publication.get('available') is True}
+        if isinstance(identity, Mapping):
+            public['data_gateway'].update({key: identity[key] for key in ('connection_name', 'server_name', 'server_version', 'endpoint', 'instance_id') if identity_text(identity.get(key))})
+    if 'data_gateway' in public and 'endpoint' in public['data_gateway']:
+        endpoint = public['data_gateway']['endpoint']
+        from urllib.parse import urlsplit
+        try:
+            if not isinstance(endpoint, str):
+                raise ValueError()
+            address = urlsplit('//'+endpoint)
+            if not address.hostname or address.port is None or any(c in endpoint for c in '/@?#'):
+                raise ValueError()
+        except ValueError:
+            public['data_gateway'].pop('endpoint')
     public.pop('revision', None)
     return {**public, 'revision': content_hash(public)}
 

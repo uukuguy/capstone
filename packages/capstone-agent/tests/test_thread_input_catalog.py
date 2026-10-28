@@ -172,3 +172,13 @@ def test_real_http_api_to_registered_worker_resource_projection():
         server.should_exit = True
         thread.join(3)
         sock.close()
+
+
+def test_gateway_projection_excludes_private_fields_and_unsafe_endpoint():
+    from capstone_agent.thread_input_catalog import public_input_catalog
+    document = {'resource_profiles': {}, 'data_gateway': {'headers': 'secret-canary'}}
+    projected = public_input_catalog(document, gateway_publication={'available': False, 'identity': {
+        'connection_name': 'Configured gateway', 'endpoint': 'user:secret-canary@host:8000/path?key=secret-canary',
+        'headers': 'secret-canary', 'server_name': {'secret': 'secret-canary'}}})
+    assert projected['data_gateway'] == {'available': False, 'connection_name': 'Configured gateway'}
+    assert 'secret-canary' not in str(projected)

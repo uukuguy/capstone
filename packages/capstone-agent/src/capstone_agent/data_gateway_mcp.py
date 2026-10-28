@@ -22,12 +22,17 @@ from .application_capacity import limits, require_capacity, CapacityExceeded
 _TOOL_NAME = re.compile(r'[a-z][a-z0-9_]{0,49}')
 _INSTRUCTIONS_BYTES = 16384
 
+def identity_text(value):
+    return isinstance(value, str) and 0 < len(value) <= 256 and not any(ord(c) < 32 or ord(c) == 127 for c in value)
+
+
 
 @dataclass(frozen=True)
 class InitializedGatewaySession:
     """Connection-local initialization data; never shared between MCP sessions."""
     session: object
     instructions: str | None = None
+    server_info: object = None
 
 # These failures stop further remote probes in the admitted task. A new user
 # instruction gets its own task state and can check the resource again.
@@ -118,7 +123,8 @@ class DataGatewayMcp:
             address = urlsplit(connection['url'])
             if address.port is not None and not 0 < address.port <= 65535:
                 raise ValueError()
-            if (set(connection) != {'transport', 'url', 'headers'}
+            if (not {'transport', 'url', 'headers'} <= set(connection) or set(connection) - {'transport', 'url', 'headers', 'name'}
+                    or ('name' in connection and not identity_text(connection['name']))
                     or connection['transport'] != 'streamable-http'
                     or address.scheme not in {'http', 'https'} or not address.hostname
                     or address.username or address.password or address.query or address.fragment
@@ -135,6 +141,15 @@ class DataGatewayMcp:
         self.connect = connect or self._connect
         self._accepted = {}
 
+    def public_identity(self):
+        address = urlsplit(self._connection['url'])
+        hostname = address.hostname
+        host = f'[{hostname}]' if ':' in hostname else hostname
+        result = {'endpoint': f'{host}:{address.port or (443 if address.scheme == "https" else 80)}'}
+        if self._connection.get('name'):
+            result['connection_name'] = self._connection['name']
+        return result
+
     @asynccontextmanager
     async def _connect(self):
         import httpx
@@ -145,10 +160,11 @@ class DataGatewayMcp:
             async with streamable_http_client(self._connection['url'], http_client=client) as (reader, writer, _):
                 async with ClientSession(reader, writer) as session:
                     initialized = await session.initialize()
-                    yield InitializedGatewaySession(session, initialized.instructions)
+                    yield InitializedGatewaySession(session, initialized.instructions, initialized.serverInfo.model_dump())
 
     async def _catalog(self, session, *, tool_name=None):
         instructions = getattr(session, 'instructions', None) if hasattr(session, 'session') else None
+        server_info = getattr(session, 'server_info', None)
         session = getattr(session, 'session', session)
         if tool_name is None:
             if instructions is None:
@@ -205,6 +221,8 @@ class DataGatewayMcp:
                  'tool_hashes': {n: fingerprint(s) for n, s in schemas.items()}}
         if tool_name is None:
             value['instructions'] = instructions
+            if isinstance(server_info, dict):
+                value['server_info'] = {key: server_info[key] for key in ('name', 'version') if identity_text(server_info.get(key))}
         require_capacity('mcp_frame_bytes', len(encode(value)), 'gateway_catalog')
         return {**value, 'revision': fingerprint(value)}
 

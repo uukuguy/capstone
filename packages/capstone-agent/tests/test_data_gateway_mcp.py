@@ -448,3 +448,22 @@ def test_invalid_changed_schema_is_a_tool_publication_rejection_not_a_global_cat
         asyncio.run(client.call('data_gateway_previously_unknown_action', {}, catalog))
     assert session.calls == []
     asyncio.run(client.call('data_gateway_build_network_model', {}, catalog))
+
+
+def test_initialized_server_identity_is_whitelisted_and_connection_name_optional(tmp_path):
+    from capstone_agent.data_gateway_mcp import InitializedGatewaySession
+    from capstone_agent.data_gateway_relay import DataGatewayAccess
+    client, session = gateway(tmp_path)
+    connection = json.loads(client.connection_path.read_text())
+    connection['name'] = 'Selected gateway'
+    client.connection_path.write_text(json.dumps(connection))
+    @asynccontextmanager
+    async def connect():
+        yield InitializedGatewaySession(session, None, {'name': 'Published gateway', 'version': '1.30.0', 'authorization': 'secret-canary', '_meta': {'instance_id': 'invented'}})
+    selected = DataGatewayMcp(client.connection_path, client.policy, connect=connect)
+    catalog = asyncio.run(selected.prepare())
+    publication = DataGatewayAccess(selected, catalog).publication()
+    assert publication['identity'] == {'connection_name': 'Selected gateway', 'endpoint': 'gateway.test:8000', 'server_name': 'Published gateway', 'server_version': '1.30.0'}
+    assert catalog['server_info'] == {'name': 'Published gateway', 'version': '1.30.0'}
+    assert 'secret-canary' not in json.dumps(publication)
+    assert 'instance_id' not in publication['identity']

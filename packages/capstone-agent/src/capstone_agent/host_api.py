@@ -492,7 +492,8 @@ def create_host_app(
             require_private_thread(request)
             try:
                 from .thread_input_catalog import with_case_availability, public_input_catalog
-                document = public_input_catalog(thread_service.input_catalog(thread_id))
+                publication = getattr(native_artifact_executor, 'capability', {}).get('data_gateway')
+                document = public_input_catalog(thread_service.input_catalog(thread_id), gateway_publication=publication)
                 return with_case_availability(document, case_service.input_availability(thread_id)) if case_service is not None else document
             except ThreadNotFound:
                 raise HTTPException(404, 'thread not found') from None
