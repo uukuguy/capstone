@@ -64,7 +64,9 @@ def public_input_catalog(document: dict, *, gateway_publication=None) -> dict:
         identity = gateway_publication.get('identity', {})
         public['data_gateway'] = {'available': gateway_publication.get('available') is True}
         if isinstance(identity, Mapping):
-            public['data_gateway'].update({key: identity[key] for key in ('connection_name', 'server_name', 'server_version', 'instance_id') if identity_text(identity.get(key))})
+            public['data_gateway'].update({key: identity[key] for key in ('connection_name', 'server_name', 'server_version', 'instance_id', 'instance_name', 'environment_label', 'data_source_label') if identity_text(identity.get(key))})
+            if type(identity.get('offline')) is bool:
+                public['data_gateway']['offline'] = identity['offline']
             if identity_text(identity.get('display_address')):
                 public['data_gateway']['endpoint'] = identity['display_address']
     if 'data_gateway' in public and 'endpoint' in public['data_gateway']:

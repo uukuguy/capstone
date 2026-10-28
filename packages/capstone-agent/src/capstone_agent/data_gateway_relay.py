@@ -62,10 +62,14 @@ class DataGatewayAccess:
         self._lock = RLock()
 
     def publication(self):
-        from .data_gateway_mcp import identity_text
+        from .data_gateway_mcp import identity_text, checked_instance_identity
         identity = self.client.public_identity() if hasattr(self.client, 'public_identity') else {}
         server = self.catalog.get('server_info', {})
         identity.update({target: server[source] for source, target in (('name', 'server_name'), ('version', 'server_version')) if identity_text(server.get(source))})
+        instance = checked_instance_identity(self.catalog.get('instance'))
+        if instance is not None:
+            identity.update({key: instance[key] for key in ('instance_id', 'instance_name', 'offline')})
+            identity.update(environment_label=instance['environment']['label'], data_source_label=instance['data_source']['label'])
         return {'available': True, 'catalog': deepcopy(self.catalog), 'identity': identity}
 
     def bind(self, task_id, attempt_id, allowed_tools, *, diagnostics=None):

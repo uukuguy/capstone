@@ -27,12 +27,29 @@ def identity_text(value):
 
 
 
+def checked_instance_identity(value):
+    """Project only the published v1 handshake identity; malformed means unknown."""
+    if not isinstance(value, dict) or type(value.get('schema_version')) is not int or value['schema_version'] != 1:
+        return None
+    environment, source = value.get('environment'), value.get('data_source')
+    if (not all(identity_text(value.get(key)) for key in ('instance_id', 'instance_name'))
+            or type(value.get('offline')) is not bool
+            or not isinstance(environment, dict) or not isinstance(source, dict)
+            or not all(identity_text(environment.get(key)) for key in ('id', 'label'))
+            or not identity_text(source.get('label'))):
+        return None
+    return {'schema_version': 1, 'instance_id': value['instance_id'], 'instance_name': value['instance_name'],
+            'environment': {key: environment[key] for key in ('id', 'label')},
+            'offline': value['offline'], 'data_source': {'label': source['label']}}
+
+
 @dataclass(frozen=True)
 class InitializedGatewaySession:
     """Connection-local initialization data; never shared between MCP sessions."""
     session: object
     instructions: str | None = None
     server_info: object = None
+    instance_identity: object = None
 
 # These failures stop further remote probes in the admitted task. A new user
 # instruction gets its own task state and can check the resource again.
@@ -160,11 +177,14 @@ class DataGatewayMcp:
             async with streamable_http_client(self._connection['url'], http_client=client) as (reader, writer, _):
                 async with ClientSession(reader, writer) as session:
                     initialized = await session.initialize()
-                    yield InitializedGatewaySession(session, initialized.instructions, initialized.serverInfo.model_dump())
+                    experimental = initialized.capabilities.experimental
+                    instance = experimental.get('data-gateway/identity') if isinstance(experimental, dict) else None
+                    yield InitializedGatewaySession(session, initialized.instructions, initialized.serverInfo.model_dump(), instance)
 
     async def _catalog(self, session, *, tool_name=None):
         instructions = getattr(session, 'instructions', None) if hasattr(session, 'session') else None
         server_info = getattr(session, 'server_info', None)
+        instance = checked_instance_identity(getattr(session, 'instance_identity', None))
         session = getattr(session, 'session', session)
         if tool_name is None:
             if instructions is None:
@@ -221,6 +241,8 @@ class DataGatewayMcp:
                  'tool_hashes': {n: fingerprint(s) for n, s in schemas.items()}}
         if tool_name is None:
             value['instructions'] = instructions
+            if instance is not None:
+                value['instance'] = instance
             if isinstance(server_info, dict):
                 value['server_info'] = {key: server_info[key] for key in ('name', 'version') if identity_text(server_info.get(key))}
         require_capacity('mcp_frame_bytes', len(encode(value)), 'gateway_catalog')
