@@ -777,6 +777,7 @@ def test_task_runner_failure_retains_private_category_without_error_message(tmp_
     while host.read(request.task_id)['status'] == 'running' and time.monotonic() < deadline:
         time.sleep(.01)
     record = json.loads((tmp_path / 'receipts/failures/task-private-failure.json').read_text())
+    assert all(item['module'].startswith('capstone_agent.') for item in record.pop('origin'))
     assert record == {'schema': 'capstone-pi-private-failure/1', 'task_id': request.task_id,
                       'phase': 'task_runner', 'exception_type': 'OSError', 'errno': 30}
     assert 'PRIVATE_SENSITIVE_MESSAGE' not in json.dumps(record)
