@@ -6311,3 +6311,9 @@ and visible real business verification pending. Unrelated task-1-report.md prese
   Navigation worker is investigating automatic scroll writes/owner races.
   Screenshot refs: ignored /tmp/nav-keyboard-deep.json and /tmp/nav-verified-other.json.
   User explicitly prioritizes fixing the left navigation before other UI issues.
+- fcfe3608 — Attached thinking to measured LLM requests and followed current tool details without collapsing the timeline.
+
+### 2026-10-29 — Process disclosure and readability
+- Bulk process controls now include per-call Thinking and tool details; individual disclosure state remains owned by each component.
+- LLM headings use dark text; Thinking uses a muted slate surface; tool output has a separate inset. Bounded scrolling stays in place.
+- TypeScript and 40 focused App tests passed; scoped review found no Critical/Important issue. Vivaldi visual check pending while navigation is investigated.

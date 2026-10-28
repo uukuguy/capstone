@@ -65,6 +65,7 @@ it('shows lightweight LLM durations and counts with collapsed tools under the ow
   const seed=tools[0]
   const ev=(seq:number,type:string,payload:Record<string,unknown>):EventEnvelope=>({...seed,eventId:`timing-${seq}`,eventSeq:seq,eventType:type,occurredAt:`2026-10-29T00:00:0${seq}Z`,payload})
   const events=[seed,ev(1,'turn_route_selected',{source:'native_conversation'}),ev(2,'runtime_action',{phase:'started'}),
+    ev(3,'assistant_thinking_delta',{text:'Inspect the source before reading.'}),
     ev(4,'runtime_action',{phase:'response_completed',response_kind:'tools'}),
     ev(5,'runtime_event',{native_type:'tool_execution_start',task_id:'task',tool_call_id:'read-timed',tool_name:'read'}),
     ev(6,'runtime_event',{native_type:'tool_execution_end',task_id:'task',tool_call_id:'read-timed',tool_name:'read',activity:{operation:'source.csv',output_excerpt:'Exact source output'}}),
@@ -78,6 +79,9 @@ it('shows lightweight LLM durations and counts with collapsed tools under the ow
   expect(detail.hasAttribute('open')).toBe(false)
   fireEvent.click(reader.getByRole('button',{name:'展开工具详情'}))
   expect(detail.hasAttribute('open')).toBe(true)
+  expect(within(model).getByRole('button',{name:'折叠本轮思考'}).getAttribute('aria-expanded')).toBe('true')
+  fireEvent.click(reader.getByRole('button',{name:'折叠工具详情'}))
+  expect(within(model).getByRole('button',{name:'展开本轮思考'}).getAttribute('aria-expanded')).toBe('false')
   expect(detail.querySelector('summary')?.textContent).toContain('1.0s')
   expect(reader.getByText(/LLM 1 次 · 累计 2.0s/)).toBeTruthy()
   expect(reader.getByText(/1 次工具调用/)).toBeTruthy()

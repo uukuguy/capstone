@@ -716,9 +716,12 @@ function AttemptActivity({ activities, modelRequests = [], initialThinking, nati
   const foldTools=(expanded:boolean,value:boolean)=>{
     const root=expanded?readerContent.current:processViewport.current
     root?.querySelectorAll<HTMLDetailsElement>('details.capstone-call-tool').forEach(node=>{node.open=value})
+    root?.querySelectorAll<HTMLButtonElement>('.capstone-thinking-trigger').forEach(button=>{
+      if(button.getAttribute('aria-expanded')!==String(value))button.click()
+    })
     if(expanded)setReaderToolsOpen(value);else setInlineToolsOpen(value)
   }
-  const toolControls=(expanded:boolean)=><span className="capstone-process-controls" role="group" aria-label="工具详情显示"><button type="button" aria-label="展开工具详情" title="展开全部工具详情" onClick={event=>{event.preventDefault();event.stopPropagation();foldTools(expanded,true)}}><ChevronsUpDown aria-hidden="true"/></button><button type="button" aria-label="折叠工具详情" title="折叠全部工具详情" onClick={event=>{event.preventDefault();event.stopPropagation();foldTools(expanded,false)}}><ChevronsDownUp aria-hidden="true"/></button></span>
+  const toolControls=(expanded:boolean)=><span className="capstone-process-controls" role="group" aria-label="思考与工具详情显示"><button type="button" aria-label="展开工具详情" title="展开全部 Thinking 与工具详情" onClick={event=>{event.preventDefault();event.stopPropagation();foldTools(expanded,true)}}><ChevronsUpDown aria-hidden="true"/></button><button type="button" aria-label="折叠工具详情" title="折叠全部 Thinking 与工具详情" onClick={event=>{event.preventDefault();event.stopPropagation();foldTools(expanded,false)}}><ChevronsDownUp aria-hidden="true"/></button></span>
   const toolActivities = executionGraph || selectedGraphFocus === 'tools' ? activities : activities.filter(item => !item.source.includes('agent_task_progress') || item.status === 'failed')
   const taskGoal = executionGraph?.current.goal ?? progress.find(item => item.kind === 'goal')?.text ?? goal
   const goalText = taskGoal?.replace(/^(?:任务目标|研究目标|目标)\s*[:：]\s*/u, '')
