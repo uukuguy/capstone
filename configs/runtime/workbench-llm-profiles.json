@@ -2,10 +2,10 @@
   "schema": "capstone-workbench-llm-profiles/1",
   "defaults": {"local": "commercial-deepseek-flash", "intranet": "intranet-dsv4-18804"},
   "profiles": [
-    {"id": "commercial-deepseek-flash", "label": "DeepSeek Flash", "provider": "deepseek", "model": "deepseek-flash", "credential_env": "DEEPSEEK_API_KEY", "network": "configured"},
-    {"id": "intranet-dsv4-18804", "label": "内网 DeepSeek V4 · 18804", "provider": "openai-compatible", "base_url": "http://192.168.72.69:18804/v1", "model": "dsv4", "network": "direct"},
-    {"id": "intranet-dsv4-16804", "label": "内网 DeepSeek V4 · 16804", "provider": "openai-compatible", "base_url": "http://192.168.72.69:16804/v1", "model": "dsv4", "network": "direct"},
-    {"id": "intranet-qwen-8011", "label": "内网 Qwen 3.8 27B · 8011", "provider": "openai-compatible", "base_url": "http://192.168.72.69:8011/v1", "model": "qwen3.8-27b", "network": "direct"},
-    {"id": "configured-openai-compatible", "label": "自定义 OpenAI 兼容模型", "provider": "openai-compatible", "base_url_env": "OPENAI_BASE_URL", "model_env": "OPENAI_MODEL", "credential_env": "OPENAI_API_KEY", "network": "configured"}
+    {"id": "commercial-deepseek-flash", "label": "deepseek-flash", "provider": "deepseek", "model": "deepseek-flash", "credential_env": "DEEPSEEK_API_KEY", "network": "configured"},
+    {"id": "intranet-dsv4-18804", "label": "192.168.72.69:18804", "provider": "openai-compatible", "base_url": "http://192.168.72.69:18804/v1", "model": "dsv4", "network": "direct"},
+    {"id": "intranet-dsv4-16804", "label": "192.168.72.69:16804", "provider": "openai-compatible", "base_url": "http://192.168.72.69:16804/v1", "model": "dsv4", "network": "direct"},
+    {"id": "intranet-qwen-8011", "label": "192.168.72.69:8011", "provider": "openai-compatible", "base_url": "http://192.168.72.69:8011/v1", "model": "qwen3.8-27b", "network": "direct"},
+    {"id": "configured-openai-compatible", "label": "自定义模型", "provider": "openai-compatible", "base_url_env": "OPENAI_BASE_URL", "model_env": "OPENAI_MODEL", "credential_env": "OPENAI_API_KEY", "network": "configured"}
   ]
 }
