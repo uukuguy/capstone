@@ -709,8 +709,10 @@ def test_real_sdk_research_updates_reach_next_model_request_and_original_files(t
     monkeypatch.setattr(module, 'native_pi_launch', offline_launch)
     config = tmp_path / 'config'
     config.mkdir()
+    from capstone_agent.workbench_llm_profiles import ProfileRegistry
     runner = module.NativeTaskRunner(root=tmp_path / 'host', config_root=config,
-        command=(node, str(sdk.with_name('cli.js'))), model='offline-research', relay_origin='http://127.0.0.1:1')
+        command=(node, str(sdk.with_name('cli.js'))), model='offline-research', relay_origin='http://127.0.0.1:1',
+        llm_profiles=ProfileRegistry())
     published = native_executor()
     host = module.GeneralPiHost(root=tmp_path / 'host', identity=published.identity, run_task=runner)
     host.capability = {**published.capability, 'research_bridge_schemas': ['capstone-research-bridge/1']}

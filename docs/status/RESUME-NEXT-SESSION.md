@@ -4,7 +4,28 @@ Updated: 2026-10-28. Tool composition implemented/local trials complete; PR71 in
 
 ## Active implementation
 
-Current focus: commercial/local-only execution and lightweight-chain efficiency.
+Current focus: lightweight progress/state stability, then FULL generation acceptance.
+Latest stage decision and checks are in the 2026-10-29 checkpoint below.
+Historical failed full trial: thr_ff8c3c7c95d8967a5a1c / attempt_0fca8bbb5cb5b180,
+source5723947c, commercial-deepseek-flash, deep_research=false, zero inherited materials.
+Actual original instruction SHA256d3f126381daf74a6d46cd9a3fb1aa8b9cde84813702c305c73ddea0c7ab2e03f,
+1311bytes. Report prompt file has only one extra trailing newline. Submitted through
+new conversation in existing Vivaldi tab. It failed; it is not active or accepted.
+Next test must verify real PPT+CSV, count model/tools/retries, and compare full runs honestly.
+Partial browser actions sometimes succeeded before capture errors; always inspect
+state and DB before retrying send. Vivaldi window137137 was hidden temporarily,
+AppleScript activate restored same window without new tabs. Do not read other tabs.
+5723947c wires existing nativeExecutionGuidance into lightweight root (previously child-only)
+and adds generic writable-copy guidance. Loader regression failed before fix;28 graph
+and23 error checks pass. Canonical rebuild ready image04a2e494f74bc6bd3283b5bf16d3604fbaf718c8bbf38af35cfbf34cb554a761;
+scoped cleanup204536-41777 completed. Independent model review had no new Important/Critical.
+Current real follow-up in original summer thread: attempt_965a0e5e5b29e862,
+cover-title-only PPT edit, no gateway allowed. It completed69.320s/10models/9bash, zero gateway; PPT downloaded, hash verified,
+slides2-15 and six media parts byte-identical, title suffix verified. Still slow for
+a small edit (three library/API errors); this is NOT full-generation acceptance.
+Earlier same edit test attempt_32e8ed14e272896c landed in the other no-PPT test
+conversation during browser navigation; no cross-session file was supplied. Not comparable performance.
+Always assert actual address field threadID before input/send; navigation-list URLs are insufficient.
 Recovery attempt_58c55b5ad6cf8d22 completed69.330s/16model/18tools, zero gateway.
 It delivered actual15-slide PPT564490bytes (e4b7e8af...), metrics_core.csv and sourceCSV.
 Downloads/hash/zip verified; Vivaldi cover/page2 displayed. Original run remainsfailed.
@@ -301,3 +322,18 @@ Nativefilepicker supports CmdOrCtrl+Shift+G, setpath, Return thenOpen.
 Rebuild with rootdeploy/local.env and root.grid-agent/runtime/pypsa-models using
 CAPSTONE_LOCAL_ENV_FILE andCAPSTONE_PYPSA_MODEL_LIBRARY_DIR; nevercopyauth.
 No active businessattempt at lastcheck. Recheck beforeanyrebuild.
+# Immediate checkpoint — 2026-10-29 lightweight stability
+
+User deferred automatic DR activation. Keep lightweight as default, with only
+explicit next-instruction DR selection enabled. Future automatic DR must close
+its delegated work and return to the main loop. Do not infer DR from narrative
+`agent_task_progress` steps.
+
+Current source changes fix lightweight progress presentation, unconfirmed step
+completion and synthetic user progress prompts. Checks: App 129 pass plus TS;
+Python stages/bridge 62 pass, 1 PostgreSQL skip; Node guidance 6 pass.
+Real full PPTX/CSV acceptance remains pending. Latest attempt
+`attempt_c3463976741ad57a` ended after 58.94 s with progress only and no files.
+Do not report it as successful delivery. Rebuild current source before next real
+test; preserve existing Vivaldi tab and user drafts. Internal network is offline.
+

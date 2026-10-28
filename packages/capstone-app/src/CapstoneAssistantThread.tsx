@@ -341,6 +341,7 @@ function terminalContent(event: EventEnvelope): string {
 export function projectAssistantMessages(events: readonly EventEnvelope[], instructionModels: readonly { contextId: string; modelId: string }[] = []): ThreadMessageLike[] {
   const models = new Map(instructionModels.map(model => [model.contextId, model.modelId]))
   const runtimeModes = new Map<string, RuntimeMode>()
+  const nativeAttempts = new Set(events.filter(event => event.payload.source === 'native_conversation').map(event => event.attemptId || event.turnId))
   for (const event of events) {
     const attempt = event.attemptId || event.turnId
     if (event.eventType === 'command_accepted' && attempt) {
@@ -533,7 +534,7 @@ export function projectAssistantMessages(events: readonly EventEnvelope[], instr
       return Boolean(native&&native.name!=='agent_task_progress')
     }):undefined
     const initialThinking=attemptId?projectInitialThinking(events,attemptId,executionEvent?.eventSeq,organizationEvent?.eventSeq??Infinity):undefined
-    const withMetadata = { ...message, metadata: { custom: { ...custom, activities, modelRequests, initialThinking, nativeGraphFocus: nativeGraphFocus(executionGraph), runtimeMode, acceptedContext, failureResults, researchGoal, retainedResearchGoal, researchSnapshot, toolExecutions, taskProgress, taskSteps, stepDiagnostics, researchBranches, executionGraph, stepStorageKey: `${events[0]?.threadId ?? ''}:${attemptId ?? ''}` } } }
+    const withMetadata = { ...message, metadata: { custom: { ...custom, activities, modelRequests, initialThinking, nativeGraphFocus: nativeGraphFocus(executionGraph) ?? (nativeAttempts.has(attemptId) ? 'tools' : undefined), runtimeMode, acceptedContext, failureResults, researchGoal, retainedResearchGoal, researchSnapshot, toolExecutions, taskProgress, taskSteps, stepDiagnostics, researchBranches, executionGraph, stepStorageKey: `${events[0]?.threadId ?? ''}:${attemptId ?? ''}` } } }
     return typeof message.content === 'string'
       ? { ...withMetadata, content: [{ type: 'text' as const, text: message.content }] }
       : withMetadata
@@ -720,7 +721,7 @@ function AttemptActivity({ activities, modelRequests = [], initialThinking, nati
   }
   const graphUnassignedTools = toolActivities.filter(activity => !graphToolIds.has(callId(activity)))
   const toolCount = executionGraph ? graphToolIds.size + graphUnassignedTools.length : toolActivities.length
-  const focus = executionGraph && selectedGraphFocus ? selectedGraphFocus : executionGraph || steps.length > 0 || branches.length > 0 ? 'tasks' : toolCount > 0 ? 'tools' : 'thinking'
+  const focus = selectedGraphFocus === 'tools' && !executionGraph ? (toolCount > 0 ? 'tools' : 'thinking') : executionGraph && selectedGraphFocus ? selectedGraphFocus : executionGraph || steps.length > 0 || branches.length > 0 ? 'tasks' : toolCount > 0 ? 'tools' : 'thinking'
   const processViewport = useRef<HTMLDivElement>(null)
   const followProcess = useRef(true)
   useLayoutEffect(() => {

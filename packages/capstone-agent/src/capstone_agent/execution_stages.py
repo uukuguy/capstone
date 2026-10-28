@@ -34,7 +34,13 @@ class ExecutionStages:
     def _close(self, at: float | None = None) -> dict[str, object]:
         state = self.steps[self.active]
         if state['status'] == 'running':
-            state['status'] = 'completed'
+            if self.active in {'task-preparation', 'task-execution'} or self.active.startswith('task-finalization-'):
+                state['status'] = 'completed'
+            else:
+                # Ending a model response or entering host finalization does
+                # not confirm that the reported business work was completed.
+                state['status'] = 'limited'
+                state['finish_reason'] = 'completion_not_confirmed'
         state['duration_ms'] = max(0, round(((self.clock() if at is None else at) - cast(float, state['start'])) * 1000))
         return self._public(self.active)
 
@@ -133,4 +139,5 @@ class ExecutionStages:
     def finish(self, *, interrupted: bool = False) -> list[dict[str, object]]:
         if interrupted and self.steps[self.active]['status'] == 'running':
             self.steps[self.active]['finish_reason'] = 'interrupted'
+            self.steps[self.active]['status'] = 'cancelled'
         return [self._close()]

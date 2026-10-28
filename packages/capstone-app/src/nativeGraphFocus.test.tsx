@@ -53,6 +53,13 @@ const plainTools=()=>[
   {...tools[0],eventId:'plain-read',eventSeq:tools[0].eventSeq+1,eventType:'runtime_event',payload:{native_type:'tool_execution_start',task_id:'task',tool_call_id:'read-one',tool_name:'read'}},
   {...tools[0],eventId:'plain-bash',eventSeq:tools[0].eventSeq+2,eventType:'runtime_event',payload:{native_type:'tool_execution_end',task_id:'task',tool_call_id:'bash-two',tool_name:'bash'}},
 ]
+it('keeps lightweight narrative progress in the tool chain without claiming DR task organization',()=>{
+  const events=[...plainTools(),{...tools[0],eventId:'native-route',eventSeq:998,eventType:'turn_route_selected',payload:{source:'native_conversation',route:'ordinary'}},
+    {...tools[0],eventId:'narrative-progress',eventSeq:999,eventType:'runtime_event',payload:{native_type:'tool_execution_end',tool_name:'agent_task_progress',tool_call_id:'progress',task_progress:{kind:'goal',phase:'started',step_id:'recon',text:'核查资料'},task_step:{id:'native.recon',number:2,title:'核查资料',status:'running'}}}]
+  const reader=read(events)
+  expect(reader.getByRole('region',{name:'工具调用过程'})).toBeTruthy()
+  expect(screen.queryByText(/1 个任务步骤/)).toBeNull()
+})
 it('shows actual tool chains without organization as tools, regardless of accepted materials',()=>{
   const events=[...plainTools(),{...tools[1],eventId:'materials',payload:{...tools[1].payload,accepted_context:{objects:[],materials:[{material_id:`material_${'a'.repeat(32)}`}]}}}]
   expect(projectAssistantMessages(events).at(-1)?.metadata?.custom?.executionGraph).toBeUndefined()

@@ -67,3 +67,65 @@ using staged inputs, then coping with read-only permissions inherited by a worki
 copy. The next optimization should improve generic staged-input guidance and
 combine related local operations. It must not encode this business script or
 weaken the read-only source boundary.
+
+## Scoped review and root-loop follow-up
+
+Independent review of a81f1820..98c7d33a found no new Critical/Important issues.
+The omitted-default issue is closed for the current Work send_message path;
+the historical non-Work bare-message compatibility path was not accepted by this review.
+The reviewer ran 11 Python and eight UI checks without provider or remote requests.
+
+5723947c found and fixed a concrete lightweight wiring omission: nativeExecutionGuidance
+was available to research children but absent from the normal root loader append.
+The new loader regression failed before this fix. It now includes the same generic
+execution grouping and read-only input working-copy advice; organization-only parents
+still do not receive native execution guidance. 28 graph and23 error-path checks passed.
+No end-to-end speed claim is based on this prompt wiring check alone.
+
+## Full fresh-generation attempt and gateway repair
+
+The latest root optimization was tested from a new Vivaldi conversation with the
+unchanged 1311-byte full summer instruction (SHA256 d3f126381daf74a6d46cd9a3fb1aa8b9cde84813702c305c73ddea0c7ab2e03f).
+Thread thr_ff8c3c7c95d8967a5a1c / attempt_0fca8bbb5cb5b180 used commercial DeepSeek,
+DR off and zero inherited materials. It failed after115.420s,10model responses,
+14bash calls and one progress call; no gateway business call was made. It is not
+full-generation acceptance and not a valid timing improvement over data-backed trials.
+
+Container-side MCP initialize returned421 with the fixed response Invalid Host header.
+URL and authentication matched the sibling local-integration-container configuration;
+authenticated host access succeeded. Capstone did not alter the sibling repository.
+The user asked the gateway owner to repair it. A later container MCP prepare succeeded
+and discover_gateway returned isError=false with status/data/gaps/provenance/calculation.
+The catalog contained51 tools at that probe; later publication may change.
+
+The failed task also exposed NativeDiagnosis.handle envelope validation. A long-script
+rejection reproduces that exact ValueError at the former hidden32KB limit. 9cb69245
+uses actual compact UTF8 size and the existing native RPC capacity; it does not change
+selection hashes or reset retry scope. The exact failing wire frame was not retained,
+so this regression identifies a real failure path without claiming a complete forensic
+proof for every earlier native_execution_error.39 diagnosis+failure-origin tests passed.
+The independent reviewer ran37 diagnosis and4 safe-status tests, finding no Important
+or Critical issue.137 MCP+host tests passed with NO_PROXY; two initial localhost502s
+were caused by proxy use and are not product acceptance failures.
+
+A rebuilt host must reload the restored gateway catalog before the next fresh full trial.
+# 2026-10-29 lightweight progress correction
+
+The current development stage keeps automatic DR escalation disabled. The user
+may require DR for the next instruction with the composer switch. Longer term,
+DR is a closed delegated operation of the lightweight reasoning loop, not a
+replacement for that loop. This future integration is not accepted yet.
+
+The 58.94-second attempt `attempt_c3463976741ad57a` did not start DR. Its
+`agent_task_progress` receipt started `data_recon`; it did not settle that step.
+The App nevertheless selected task presentation, and host finalization changed
+the running step to completed. Regression tests reproduce both faults. Native
+conversation progress now stays in the tool process unless an actual research
+graph is admitted. An unsettled business step closes as limited; interruption
+does not mark running work completed. Existing explicit terminal statuses remain.
+
+A separate context fault was found: progress guidance was appended as a synthetic
+user message after the real task. For explicitly lightweight instructions it now
+stays in system guidance, without creating a new user request for a status answer.
+This is a candidate fix for premature progress-only answers. The real full
+PPTX/CSV task must still verify the effect; unit checks do not establish it.

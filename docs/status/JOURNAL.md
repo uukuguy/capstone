@@ -6198,3 +6198,48 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 2026-10-28 `e04fe457`: Focus selected LLM and verify brand fallback, keyboard wrap and escape. Two interaction tests passed.
 
 - 2026-10-28: Summer recovery delivered 15-slide PPT in69.330s,16models,18tools,zero gateway; hashes and Vivaldi preview verified. Original failure preserved.
+
+- 2026-10-28 `5723947c`: Wire execution grouping into lightweight root; guide writable input copies. Regression reproduced;28 graph checks passed.
+
+- 2026-10-28 `98c7d33a`: Record commercial model verification, disconnected intranet and recovered summer artifacts without overstating acceptance.
+- 2026-10-28: Independent scoped review closed default-freeze Important; no new Critical/Important.11Python and8UI checks passed, no remote probes.
+- 2026-10-28: Confirmed protected native gateway points to host.docker.internal:18001; no remote gateway selected.
+
+- 2026-10-28: Started fresh full lightweight trial attempt_0fca8bbb5cb5b180; identical instruction, commercial model, DRoff, zero inherited materials.
+
+- 2026-10-28 `a95823f0`: Classify gateway421 and provide safe unavailable-tool context; four regressions reproduced before fix.
+
+- 2026-10-28 `9cb69245`: Remove hidden32KB diagnosis frame gate; preserve RPC bounds, exact retry scope and source-free persistence. Regression reproduced.
+
+- 2026-10-28: Gateway owner notified; container MCP initialize anddiscover_gateway recovered. Full115.420s trial remains failed; rerun pending rebuilt catalog.
+
+- 2026-10-28 `78349f60`: Keep usable artifact delivery, bounded script repair and host-measured statistics explicit in lightweight root guidance.28checks passed.
+
+- 2026-10-28 `84420760`: Safely project configured and observed gateway identity without credentials;84 checks and Pyright passed.
+- 2026-10-28 `379decfb`: Show current gateway identity and availability in conversation header;135 focused checks and TypeScript passed.
+
+- 2026-10-28 `63f46923`: Separate display_address from protected endpoint fields;85tests,Pyright and real health-document validation passed.
+
+- 2026-10-28 `f650d1b6`: Project versioned MCP instance identity without inventing metadata;90tests and Pyright passed.
+- 2026-10-28 `57ce8230`: Display published gateway instance name, environment and source details;131tests and TypeScript passed.
+
+- 2026-10-28 `ffcb8cfc`: Expose global workspace connection identity without Thread reads;11 checks and Pyright passed.
+- 2026-10-28 `ae736b85`: Add bounded background topic summaries; protect user titles, local revisions and late results.61passed4skip.
+
+- 2026-10-28 `f958744b`: Share gateway metadata globally and separate compact SSE status;184 scoped checks and TypeScript passed.
+
+- 2026-10-29: Fresh full lightweight attempt_c3463976741ad57a started viaVivaldi; frozen commercial,DRoff,zero materials. Do not rebuild while running.
+- 2026-10-29 `c0215f7a`: Separate execution revisions and aggregate bounded cumulative user intent for titles.27passed4skip.
+- 2026-10-29 `803673ea`: Add resumable operator title maintenance with explicit profile grants and stale-result protection.30passed4skip.
+- 2026-10-29 `c35f6d6e`: Bind status dot to SSE and move global gateway identity to navigation footer.148checks and TypeScript passed.
+# 2026-10-29 — lightweight progress and DR stage clarification
+
+- User clarified DR as a future closed operation of the lightweight main loop,
+  then explicitly deferred automatic activation until that loop is stable.
+  Keep the current explicit per-instruction DR gate; do not restore automatic DR.
+- Reproduced narrative progress selecting task presentation and host finalization
+  inventing completion. Added failing regressions before fixing both paths.
+- Lightweight progress guidance no longer appends a synthetic user status request;
+  it is system advice. Full real PPTX/CSV acceptance is still pending.
+- Preserve user-owned `.superpowers/sdd/task-1-report.md`. No sibling gateway edits,
+  internal network probes, deployment or release acceptance in this unit.
