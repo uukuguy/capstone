@@ -6259,3 +6259,22 @@ and visible real business verification pending. Unrelated task-1-report.md prese
   separate uncommitted candidate in general-sdk.mjs, tool-result-context.mjs and
   its fixture tests; 36 Node checks pass, real performance test is pending.
 - Preserve user task-1-report.md and the existing browser conversation/draft.
+- 4d5e11f9 — Grouped timed LLM and tool receipts so execution cost and ownership remain visible.
+
+### 2026-10-29 — Compact execution reader and global navigation position
+
+- Retained LLM labels with a brain-circuit icon; replaced repeated native status
+  words with accessible icons. Actual overlapping tools use only a left hairline.
+  Tool names, timing and status stay together. Model/tool latency grades differ.
+- Restored bulk tool detail controls. Embedded trace defaults closed; enlarged
+  trace opens tools and supports bulk close/open without changing embedded state.
+- Moved navigation toggle before the title; healthy connection renders no empty
+  header slot. Workspace-wide list reading position no longer follows currentId.
+  Pending scroll restoration survives asynchronous active/archive loading and
+  browser clamping; deliberate user scrolling cancels it. Per-session reading
+  cache excludes navigation while retaining independent body/product positions.
+- First-line action comments are projected from actual assistant text, never
+  thinking. Native prompt deployment and a real new-call check remain pending.
+- 189 focused App checks and TypeScript pass. Navigation worker's clamp and
+  Activity regressions are included. Backend history projection stays separate;
+  review accepted its issued-reference boundary; 36 Node checks pass.

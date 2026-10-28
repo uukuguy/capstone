@@ -7,9 +7,17 @@ export function projectProcessModelRequests(events: readonly EventEnvelope[], at
   const calls: ProcessModelCall[] = []
   let pending: ProcessModelCall | undefined
   let turn: ProcessModelCall | undefined
+  let openingText=''
   const native = events.some(event=>event.attemptId===attemptId&&event.visibility==='public'&&['turn_route_selected','turn_plan_created'].includes(event.eventType)&&event.payload.source==='native_conversation')
   for (const event of events) {
-    if (event.attemptId !== attemptId || event.visibility !== 'public') continue
+    if (event.attemptId !== attemptId) continue
+    if(pending&&event.eventType==='assistant_process_delta'&&typeof event.payload.text==='string'){
+      openingText=(openingText+event.payload.text).slice(0,512)
+      const line=openingText.split(/\r?\n/)[0].trim()
+      if(line.startsWith('//'))pending.intent=line.slice(2).trim().slice(0,160)
+      continue
+    }
+    if(event.visibility!=='public')continue
     if (['attempt_completed','attempt_failed','attempt_cancelled','attempt_interrupted'].includes(event.eventType)) {
       if(pending){
         if(['attempt_cancelled','attempt_interrupted'].includes(event.eventType))pending.stopReason = 'aborted'
@@ -31,6 +39,7 @@ export function projectProcessModelRequests(events: readonly EventEnvelope[], at
       pending = { id: event.eventId, number: calls.length + 1, ms: 0, startedAt: event.occurredAt }
       calls.push(pending)
       turn=pending
+      openingText=''
     } else if (event.payload.phase === 'response_completed' && pending) {
       // The host explicitly distinguishes text-only responses from tool requests.
       if(event.payload.response_kind==='text')pending.toolCallIds=[]

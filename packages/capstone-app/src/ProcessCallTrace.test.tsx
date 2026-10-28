@@ -4,6 +4,29 @@ import { cleanup, render, screen, within } from '@testing-library/react'
 import ProcessCallTrace, { callTraceIssues } from './ProcessCallTrace'
 
 afterEach(cleanup)
+it('uses compact glyphs and outlines actual parallel tools without repeated status text',()=>{
+  render(<ProcessCallTrace compact models={[{id:'m',number:1,ms:1200,toolCallIds:['a','b']}]} tools={[
+    {id:'a',name:'Read A',status:'completed',startedAt:'2026-10-29T00:00:00Z',durationMs:500},
+    {id:'b',name:'Read B',status:'completed',startedAt:'2026-10-29T00:00:00.100Z',durationMs:200},
+  ]}/>)
+  expect(screen.getByRole('img',{name:'已返回'})).toBeTruthy()
+  expect(screen.getAllByRole('img',{name:'完成'})).toHaveLength(2)
+  expect(screen.getByText('LLM 01')).toBeTruthy()
+  expect(screen.queryByText('已返回')).toBeNull()
+  expect(screen.queryByText('并行调用')).toBeNull()
+  expect(screen.getByRole('group',{name:'并行工具调用 · 2 项'})).toBeTruthy()
+})
+
+it('grades model and tool latency separately and updates a live request grade',()=>{
+  const models=[{id:'m',number:1,ms:0,startedAt:'2026-10-29T00:00:00Z',toolCallIds:['t']}]
+  const tools=[{id:'t',name:'Query',status:'completed' as const,durationMs:6000}]
+  const view=render(<ProcessCallTrace models={models} tools={tools} now={Date.parse('2026-10-29T00:00:12Z')}/>)
+  expect(screen.getByText('12.0s')).toHaveAttribute('data-latency','noticeable')
+  expect(within(screen.getByText('Query').closest('summary')!).getByText('6.0s')).toHaveAttribute('data-latency','slow')
+  view.rerender(<ProcessCallTrace models={models} tools={tools} now={Date.parse('2026-10-29T00:01:01Z')}/>)
+  expect(screen.getByText('61.0s')).toHaveAttribute('data-latency','very-slow')
+  expect(screen.getByText('61.0s').getAttribute('title')).toContain('明显偏长')
+})
 
 it('keeps tool cancellation distinct from a tool failure',()=>{
   render(<ProcessCallTrace models={[{id:'m',number:1,ms:100,toolCallIds:['cancelled']}]} tools={[{id:'cancelled',name:'Stopped query',status:'cancelled',durationMs:100}]}/>)

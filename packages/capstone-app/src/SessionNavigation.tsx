@@ -18,7 +18,7 @@ export function SessionAdjacentControls({items,currentId,storageKey}: {items:rea
 
 /** List preferences stay local. Mutations use the supplied host management ports. */
 export default function SessionNavigation({items,currentId,storageKey='workspace',actions}: {items:readonly SessionNavItem[];currentId?:string;storageKey?:string;actions?:SessionManagementActions}) {
-  const list=useRef<HTMLDivElement>(null),restored=useRef(false),menuElement=useRef<HTMLDivElement>(null),located=useRef<string | undefined>(undefined)
+  const list=useRef<HTMLDivElement>(null),menuElement=useRef<HTMLDivElement>(null)
   const {pins,toggle}=useSessionPins(storageKey)
   const [menu,setMenu]=useState<{item:SessionNavItem;x:number;y:number}>(),[editing,setEditing]=useState<string>()
   const [archiveView,setArchiveView]=useState(false),[archived,setArchived]=useState<ThreadListPage>(),[loading,setLoading]=useState(false)
@@ -32,13 +32,35 @@ export default function SessionNavigation({items,currentId,storageKey='workspace
   const scrollKey=`capstone.session-navigation.scroll:${storageKey}:${archiveView?'archived':'active'}`
   useLayoutEffect(()=>{
     const container=list.current;if(!container)return
-    if(!restored.current){try{container.scrollTop=Number(sessionStorage.getItem(scrollKey))||0}catch{/* Keep scroll. */}restored.current=true}
-    const keepVisible=()=>{if(located.current===currentId)return;const selected=container.querySelector<HTMLElement>('[aria-current="page"]');if(!selected||!container.getClientRects().length)return;const item=selected.getBoundingClientRect(),bounds=container.getBoundingClientRect();if(item.top<bounds.top+8)container.scrollTop-=bounds.top+8-item.top;else if(item.bottom>bounds.bottom-8)container.scrollTop+=item.bottom-bounds.bottom+8;located.current=currentId}
-    keepVisible()
-    const save=()=>{try{sessionStorage.setItem(scrollKey,String(container.scrollTop))}catch{/* Keep scroll. */}}
-    container.addEventListener('scroll',save,{passive:true});const observer=typeof ResizeObserver==='undefined'?undefined:new ResizeObserver(keepVisible);observer?.observe(container)
-    return()=>{save();container.removeEventListener('scroll',save);observer?.disconnect()}
-  },[currentId,items,scrollKey])
+    // A short/loading or hidden list cannot yet contain its saved position.
+    // Retain that target until content arrives, unless the user starts scrolling.
+    let pending:number|undefined
+    try{const value=Number(sessionStorage.getItem(scrollKey));pending=Number.isFinite(value)&&value>=0?value:0}catch{/* Keep scroll. */}
+    const visible=()=>container.clientHeight>0&&!container.closest('[hidden]')
+    const restore=()=>{
+      if(pending===undefined||!visible()||container.scrollHeight-container.clientHeight<pending)return
+      container.scrollTop=pending
+      if(Math.abs(container.scrollTop-pending)<2)pending=undefined
+    }
+    const save=()=>{
+      if(pending!==undefined||!visible())return
+      try{sessionStorage.setItem(scrollKey,String(container.scrollTop))}catch{/* Keep scroll. */}
+    }
+    const cancel=()=>{pending=undefined}
+    const key=(event:KeyboardEvent)=>{if(['ArrowUp','ArrowDown','PageUp','PageDown','Home','End',' '].includes(event.key)&&!(event.target instanceof Element&&event.target.closest('input,textarea,[contenteditable=true]')))cancel()}
+    container.addEventListener('scroll',save,{passive:true})
+    container.addEventListener('wheel',cancel,{passive:true});container.addEventListener('touchstart',cancel,{passive:true});container.addEventListener('keydown',key)
+    const observer=new MutationObserver(restore);observer.observe(container,{childList:true,subtree:true})
+    const resize=typeof ResizeObserver==='undefined'?undefined:new ResizeObserver(restore)
+    resize?.observe(container);if(container.firstElementChild)resize?.observe(container.firstElementChild)
+    restore()
+    return()=>{
+      // Scroll events already persist visible positions. Hidden Activity teardown
+      // must not overwrite another retained session's newer global position.
+      observer.disconnect();resize?.disconnect();container.removeEventListener('scroll',save)
+      container.removeEventListener('wheel',cancel);container.removeEventListener('touchstart',cancel);container.removeEventListener('keydown',key)
+    }
+  },[scrollKey])
   useEffect(()=>{
     if(!menu)return
     menuElement.current?.querySelector<HTMLButtonElement>('button')?.focus()
@@ -66,7 +88,7 @@ export default function SessionNavigation({items,currentId,storageKey='workspace
       await actions.archive(item.threadId,false)
       if(request!==archiveRequest.current)return
       setReopened(previous=>[{...item,archived:false},...previous.filter(value=>value.threadId!==item.threadId)])
-      setRemoved(previous=>previous.filter(id=>id!==item.threadId));setArchiveView(false);restored.current=false;setMenu(undefined)
+      setRemoved(previous=>previous.filter(id=>id!==item.threadId));setArchiveView(false);setMenu(undefined)
       navigateSession(item.threadId)
     }catch{if(request===archiveRequest.current)setError('会话恢复失败，请重试。')}
     finally{setBusy(false)}
@@ -85,7 +107,7 @@ export default function SessionNavigation({items,currentId,storageKey='workspace
       {archiveView&&archived?.hasMore&&<button type="button" className="session-archive-entry" disabled={loading} onClick={()=>void loadArchive(archived.nextBeforeThreadId??undefined)}>读取更多归档会话</button>}
     </div>
     {error&&<p role="alert">{error}</p>}
-    {actions&&<button type="button" className="session-archive-entry" onClick={()=>{setArchiveView(value=>!value);setRemoved([]);restored.current=false;if(!archiveView)void loadArchive();else{archiveRequest.current++;setLoading(false);setError('')}}}><Archive size={14}/>{archiveView?'返回最近会话':'已归档会话'}</button>}
+    {actions&&<button type="button" className="session-archive-entry" onClick={()=>{setArchiveView(value=>!value);setRemoved([]);if(!archiveView)void loadArchive();else{archiveRequest.current++;setLoading(false);setError('')}}}><Archive size={14}/>{archiveView?'返回最近会话':'已归档会话'}</button>}
     {menu&&createPortal(<div ref={menuElement} className="session-context-menu" role="menu" aria-label="会话操作" style={{left:menu.x,top:menu.y}}>
       <button role="menuitem" disabled={!actions} onClick={()=>{setEditing(menu.item.threadId);setMenu(undefined)}}><Pencil size={14}/>改名</button>
       {!archiveView&&<button role="menuitem" onClick={()=>{toggle(menu.item.threadId);setMenu(undefined)}}><Pin size={14}/>{pins.includes(menu.item.threadId)?'取消置顶':'置顶'}</button>}

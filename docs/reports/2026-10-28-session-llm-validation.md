@@ -172,3 +172,24 @@ native turn scope remain unassociated. No tool contents or evidence are changed.
 Diagnostic evidence is retained under ignored `runs/light-full-20261029-stability/`,
 including events, timing breakdown, download hashes and actual files. Historical
 partial progress-only runs remain failed delivery comparisons, not successful baselines.
+
+### Reader refinements after the full run
+
+The native compact trace retains `LLM 01` labels with a brain-circuit icon.
+Status icons have accessible labels and titles. Names, elapsed time and status
+sit together. Parallel intervals are grouped with a left hairline, not full boxes.
+Model latency colors start at 10/30/60 seconds; tool colors at 1/5/15 seconds.
+These are presentation thresholds, not execution rejection or timeout limits.
+Embedded tool details default closed; enlarged tool details default open. Both
+views have bulk expand/collapse controls. User-toggled details remain available.
+
+Navigation tests now simulate actual browser scroll clamping and deferred active
+and archive results. They verify pending restore, user cancellation and hidden
+Activity cleanup. The session reading cache cannot restore navigation positions.
+The navigation toggle precedes the title, and a healthy connection leaves no
+empty header slot. Combined affected checks: 189 App tests plus TypeScript.
+
+Future native responses must begin with a short `//` action comment. The process
+projection reads that actual first line as call purpose, excludes thinking, and
+does not issue an additional naming/summary request. Historical missing comments
+remain missing. A real new-response check after rebuild is still required.

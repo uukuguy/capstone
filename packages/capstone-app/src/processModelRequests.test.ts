@@ -15,6 +15,12 @@ it('retains safe model error classification on the failed request',()=>{
   expect(call.errorCode).toBe('model_context_limit')
   expect(call.errorStatus).toBe(400)
 })
+it('uses only the response first-line action comment and keeps reasoning out of the call purpose',()=>{
+  const delta=(seq:number,type:string,text:string):EventEnvelope=>({...boundary(seq,'delta'),eventType:type,visibility:'diagnostic',payload:{text}})
+  const calls=projectProcessModelRequests([boundary(1,'started'),delta(2,'assistant_thinking_delta','// PRIVATE reasoning'),delta(3,'assistant_process_delta','// 核对'),delta(4,'assistant_process_delta','指标口径\n实际回复\n// later text'),boundary(5,'response_completed','tools'),boundary(6,'completed'),boundary(7,'started')],'attempt')
+  expect(calls[0].intent).toBe('核对指标口径')
+  expect(calls[1].intent).toBeUndefined()
+})
 it('binds observed native tools through explicit SDK turn boundaries, never just adjacent times',()=>{
   const native={...boundary(0,'route'),eventType:'turn_route_selected',payload:{source:'native_conversation'}}
   const tool=(seq:number,id:string):EventEnvelope=>({...boundary(seq,'tool'),eventType:'runtime_event',payload:{native_type:'tool_execution_start',tool_call_id:id,tool_name:'read'}})

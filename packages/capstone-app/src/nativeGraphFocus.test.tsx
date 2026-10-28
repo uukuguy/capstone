@@ -55,10 +55,11 @@ const plainTools=()=>[
 ]
 it('keeps lightweight narrative progress in the tool chain without claiming DR task organization',()=>{
   const events=[...plainTools(),{...tools[0],eventId:'native-route',eventSeq:998,eventType:'turn_route_selected',payload:{source:'native_conversation',route:'ordinary'}},
-    {...tools[0],eventId:'narrative-progress',eventSeq:999,eventType:'runtime_event',payload:{native_type:'tool_execution_end',tool_name:'agent_task_progress',tool_call_id:'progress',task_progress:{kind:'goal',phase:'started',step_id:'recon',text:'核查资料'},task_step:{id:'native.recon',number:2,title:'核查资料',status:'running'}}}]
+    {...tools[0],eventId:'narrative-progress',eventSeq:999,eventType:'runtime_event',payload:{native_type:'tool_execution_end',task_id:'task',tool_name:'agent_task_progress',tool_call_id:'progress',task_progress:{kind:'goal',phase:'started',step_id:'recon',text:'核查资料'},task_step:{id:'native.recon',number:2,title:'核查资料',status:'running'}}}]
   const reader=read(events)
   expect(reader.getByRole('region',{name:'工具调用过程'})).toBeTruthy()
   expect(screen.queryByText(/1 个任务步骤/)).toBeNull()
+  expect(reader.getByText(/3 次工具调用/)).toBeTruthy()
 })
 it('shows lightweight LLM durations and counts with collapsed tools under the owning response',()=>{
   const seed=tools[0]
@@ -72,10 +73,14 @@ it('shows lightweight LLM durations and counts with collapsed tools under the ow
   const model=reader.getByRole('group',{name:'LLM 调用 1'})
   expect(within(model).getByText('2.0s')).toBeTruthy()
   const detail=model.querySelector('details.capstone-call-tool')!
-  expect(detail).toBeTruthy();expect(detail.hasAttribute('open')).toBe(false)
+  expect(detail).toBeTruthy();expect(detail.hasAttribute('open')).toBe(true)
+  fireEvent.click(reader.getByRole('button',{name:'折叠工具详情'}))
+  expect(detail.hasAttribute('open')).toBe(false)
+  fireEvent.click(reader.getByRole('button',{name:'展开工具详情'}))
+  expect(detail.hasAttribute('open')).toBe(true)
   expect(detail.querySelector('summary')?.textContent).toContain('1.0s')
-  expect(screen.getByText(/LLM 1 次 · 累计 2.0s/)).toBeTruthy()
-  expect(screen.getByText(/1 次工具调用/)).toBeTruthy()
+  expect(reader.getByText(/LLM 1 次 · 累计 2.0s/)).toBeTruthy()
+  expect(reader.getByText(/1 次工具调用/)).toBeTruthy()
 })
 it('shows actual tool chains without organization as tools, regardless of accepted materials',()=>{
   const events=[...plainTools(),{...tools[1],eventId:'materials',payload:{...tools[1].payload,accepted_context:{objects:[],materials:[{material_id:`material_${'a'.repeat(32)}`}]}}}]

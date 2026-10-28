@@ -36,6 +36,28 @@ function Reader(){
   const [selected,setSelected]=useSessionViewState('selected','report')
   return <div ref={root}><button onClick={()=>setSelected('metrics')}>{selected}</button><div data-reading-key="reader" data-testid="reader"/></div>
 }
+function WorkspaceReaders(){
+  const root=useRef<HTMLDivElement>(null)
+  useSessionReadingPositions(root)
+  return <div ref={root}><aside className="workspace-navigation"><div data-reading-key="navigation" data-testid="navigation"/></aside><div data-reading-key="conversation" data-testid="conversation"/><div data-reading-key="products" data-testid="products"/></div>
+}
+it('excludes global navigation from session restore, scroll saving and pagehide snapshots',()=>{
+  for(const [threadId,top] of [['a',130],['b',450]] as const){
+    const key=`capstone.workspace.reading:global-navigation:${threadId}`
+    localStorage.setItem(key,JSON.stringify({schema:1,values:{},positions:{'[data-reading-key="navigation"]':{top:300,left:0},'[data-reading-key="conversation"]':{top,left:0},'[data-reading-key="products"]':{top:top+20,left:0}}}))
+    const view=render(<SessionReadingProvider namespace="global-navigation" threadId={threadId}><WorkspaceReaders/></SessionReadingProvider>)
+    expect(screen.getByTestId('navigation').scrollTop).toBe(0)
+    expect(screen.getByTestId('conversation').scrollTop).toBe(top)
+    expect(screen.getByTestId('products').scrollTop).toBe(top+20)
+    const navigation=screen.getByTestId('navigation')
+    navigation.scrollTop=640;fireEvent.scroll(navigation)
+    navigation.scrollTop=810
+    window.dispatchEvent(new Event('pagehide'))
+    expect(JSON.parse(localStorage.getItem(key)!).positions['[data-reading-key="navigation"]'].top).toBe(300)
+    view.unmount()
+    expect(JSON.parse(localStorage.getItem(key)!).positions['[data-reading-key="navigation"]'].top).toBe(300)
+  }
+})
 it('restores lightweight reading state from disk after the retained view is removed',()=>{
   const first=render(<SessionReadingProvider namespace="test" threadId="a"><Reader/></SessionReadingProvider>)
   fireEvent.click(screen.getByRole('button',{name:'report'}))

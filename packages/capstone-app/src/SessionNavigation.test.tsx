@@ -1,9 +1,88 @@
 import {Activity} from 'react'
-import {afterEach,expect,it,vi} from 'vitest'
+import {afterEach,beforeEach,expect,it,vi} from 'vitest'
 import {act,cleanup,fireEvent,render,screen,waitFor,within} from '@testing-library/react'
 import SessionNavigation,{SessionAdjacentControls} from './SessionNavigation'
 const items=['a','b','c'].map(threadId=>({threadId,modelId:null,implementationFamily:null,createdAt:'2026-10-24',archived:false,lastEventSeq:0,sessionTitle:{text:`会话${threadId}`,source:'user' as const,source_ref:null,revision:1}}))
-afterEach(()=>{cleanup();window.history.replaceState({},'','/');sessionStorage.clear();localStorage.clear()})
+beforeEach(()=>{
+  vi.spyOn(HTMLElement.prototype,'clientHeight','get').mockReturnValue(200)
+  vi.spyOn(HTMLElement.prototype,'scrollHeight','get').mockImplementation(function(this:HTMLElement){return this.querySelectorAll('a').length>=3?2000:200})
+})
+afterEach(()=>{cleanup();window.history.replaceState({},'','/');sessionStorage.clear();localStorage.clear();vi.restoreAllMocks()})
+function clampScroll(list:HTMLElement){
+  let top=0
+  Object.defineProperty(list,'scrollTop',{configurable:true,get:()=>top,set:(value:number)=>{top=Math.max(0,Math.min(value,list.scrollHeight-list.clientHeight))}})
+  Object.defineProperty(list,'scrollHeight',{configurable:true,get:()=>list.querySelectorAll('a').length>=3?2000:200})
+}
+it('defers archived position restoration until asynchronous rows can contain it',async()=>{
+  let finish!:(page:{threads:typeof items;hasMore:boolean;nextBeforeThreadId:null})=>void
+  const actions={rename:vi.fn(async()=>{}),archive:vi.fn(async()=>{}),remove:vi.fn(async()=>{}),archived:vi.fn(()=>new Promise<{threads:typeof items;hasMore:boolean;nextBeforeThreadId:null}>(resolve=>{finish=resolve}))}
+  sessionStorage.setItem('capstone.session-navigation.scroll:workspace:archived','640')
+  const view=render(<SessionNavigation items={items} actions={actions}/>)
+  const list=view.container.querySelector('.session-navigation-scroll') as HTMLElement
+  clampScroll(list)
+  list.scrollTop=140;fireEvent.scroll(list)
+  fireEvent.click(screen.getByRole('button',{name:'已归档会话'}))
+  fireEvent.scroll(list)
+  expect(sessionStorage.getItem('capstone.session-navigation.scroll:workspace:archived')).toBe('640')
+  await act(async()=>finish({threads:items,hasMore:false,nextBeforeThreadId:null}))
+  await waitFor(()=>expect(list.scrollTop).toBe(640))
+  fireEvent.click(screen.getByRole('button',{name:'返回最近会话'}))
+  expect(list.scrollTop).toBe(140)
+})
+it('defers an active position until late rows arrive instead of overwriting it with a clamped zero',async()=>{
+  sessionStorage.setItem('capstone.session-navigation.scroll:workspace:active','640')
+  const view=render(<SessionNavigation items={[]}/>)
+  const list=view.container.querySelector('.session-navigation-scroll') as HTMLElement
+  clampScroll(list);list.scrollTop=640;fireEvent.scroll(list)
+  expect(sessionStorage.getItem('capstone.session-navigation.scroll:workspace:active')).toBe('640')
+  view.rerender(<SessionNavigation items={items}/>)
+  await waitFor(()=>expect(list.scrollTop).toBe(640))
+})
+it.each(['wheel','touchstart','keydown'])('lets user %s cancel a pending restore',async kind=>{
+  sessionStorage.setItem('capstone.session-navigation.scroll:workspace:active','640')
+  const view=render(<SessionNavigation items={[]}/>)
+  const list=view.container.querySelector('.session-navigation-scroll') as HTMLElement
+  clampScroll(list)
+  if(kind==='keydown')fireEvent.keyDown(list,{key:'PageDown'})
+  else fireEvent(list,new Event(kind,{bubbles:true}))
+  fireEvent.scroll(list)
+  view.rerender(<SessionNavigation items={items}/>)
+  await act(async()=>{})
+  expect(list.scrollTop).toBe(0)
+  expect(sessionStorage.getItem('capstone.session-navigation.scroll:workspace:active')).toBe('0')
+})
+it('restores the global list position when a cached session becomes visible again',()=>{
+  const view=render(<Activity mode="visible"><SessionNavigation items={items} currentId="a"/></Activity>)
+  const list=view.container.querySelector('.session-navigation-scroll') as HTMLElement
+  list.scrollTop=640;fireEvent.scroll(list)
+  view.rerender(<Activity mode="hidden"><SessionNavigation items={items} currentId="a"/></Activity>)
+  sessionStorage.setItem('capstone.session-navigation.scroll:workspace:active','860')
+  view.rerender(<Activity mode="visible"><SessionNavigation items={items} currentId="b"/></Activity>)
+  expect(list.scrollTop).toBe(860)
+})
+it('does not replace the global position with hidden layout zero during Activity teardown',()=>{
+  const view=render(<Activity mode="visible"><SessionNavigation items={items}/></Activity>)
+  const list=view.container.querySelector('.session-navigation-scroll') as HTMLElement
+  list.scrollTop=640;fireEvent.scroll(list)
+  Object.defineProperty(list,'clientHeight',{configurable:true,value:0})
+  list.scrollTop=0
+  view.rerender(<Activity mode="hidden"><SessionNavigation items={items}/></Activity>)
+  expect(sessionStorage.getItem('capstone.session-navigation.scroll:workspace:active')).toBe('640')
+  sessionStorage.setItem('capstone.session-navigation.scroll:workspace:active','860')
+  Object.defineProperty(list,'clientHeight',{configurable:true,value:200})
+  view.rerender(<Activity mode="visible"><SessionNavigation items={items}/></Activity>)
+  expect(list.scrollTop).toBe(860)
+})
+it('does not reposition a scrolled list to the selected row during a session switch',()=>{
+  const view=render(<SessionNavigation items={items} currentId="a"/>)
+  const list=view.container.querySelector('.session-navigation-scroll') as HTMLElement
+  Object.defineProperty(list,'getClientRects',{value:()=>[new DOMRect(0,0,200,200)]})
+  Object.defineProperty(list,'getBoundingClientRect',{value:()=>new DOMRect(0,0,200,200)})
+  Object.defineProperty(screen.getByRole('link',{name:'会话b'}),'getBoundingClientRect',{value:()=>new DOMRect(0,-100,180,20)})
+  list.scrollTop=640;fireEvent.scroll(list)
+  view.rerender(<SessionNavigation items={items} currentId="b"/>)
+  expect(list.scrollTop).toBe(640)
+})
 it('reloads pins when a cached navigation becomes visible again',()=>{
   const view=render(<Activity mode="visible"><SessionNavigation items={items}/></Activity>)
   view.rerender(<Activity mode="hidden"><SessionNavigation items={items}/></Activity>)

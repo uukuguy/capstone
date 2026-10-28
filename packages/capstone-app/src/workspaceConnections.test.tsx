@@ -53,7 +53,7 @@ it('keeps one short session connection slot and exposes pending request semantic
   view.rerender(<SessionConnectionStatus state="live"/>)
   expect(screen.queryByText('已连接')).toBeNull()
   expect(screen.queryByLabelText('会话连接状态')).toBeNull()
-  expect(document.querySelector('.workspace-session-connection-slot')).toBeTruthy()
+  expect(document.querySelector('.workspace-session-connection-slot')).toBeNull()
   view.rerender(<SessionConnectionStatus state="live" pending/>)
   expect(screen.getByText('操作待确认')).toBeTruthy()
   expect(screen.getByText('上次操作结果待确认；重试将使用同一请求。')).toBeTruthy()

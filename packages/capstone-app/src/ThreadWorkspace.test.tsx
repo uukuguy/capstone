@@ -12,10 +12,12 @@ it('places global gateway metadata in the navigation footer above version inform
   expect(document.querySelector('.workspace-top-actions')?.contains(screen.getByRole('button',{name:'全局网关'}))).toBe(false)
   expect(footer.firstElementChild?.textContent).toBe('全局网关')
 })
-it('places navigation and workspace connection actions to the right of the title',()=>{
+it('places navigation before the title and keeps workspace actions on the right',()=>{
   render(<ThreadWorkspace conversationOnly heading={<h1>当前会话</h1>} headerActions={<button>网关入口</button>}/>)
   const actions=document.querySelector('.workspace-top-actions')!
-  expect(actions.contains(screen.getByRole('button',{name:'会话导航'}))).toBe(true)
+  const toggle=screen.getByRole('button',{name:'会话导航'}),title=screen.getByRole('heading',{name:'当前会话'})
+  expect(actions.contains(toggle)).toBe(false)
+  expect(toggle.compareDocumentPosition(title)&Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   expect(actions.contains(screen.getByRole('button',{name:'网关入口'}))).toBe(true)
   expect(actions.contains(screen.getByRole('heading',{name:'当前会话'}))).toBe(false)
 })

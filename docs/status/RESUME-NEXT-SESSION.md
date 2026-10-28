@@ -5,6 +5,10 @@ Updated: 2026-10-28. Tool composition implemented/local trials complete; PR71 in
 ## Active implementation
 
 Current focus: lightweight progress/state stability, then FULL generation acceptance.
+Current UI candidate: compact LLM-labelled/icon status trace, latency colors,
+hairline parallel groups, detail fold controls (embedded closed/enlarged open),
+hamburger before title and global async-safe navigation scroll. 189 App tests+TS.
+First-line // action comment prompt and bounded history backend are not rebuilt yet.
 Latest: full attempt a44450618326822a delivered actual PPT14/CSV14x21 in 420.676s,
 64 models/98 tools. See report 2026-10-28-session-llm-validation.md. No speed claim.
 LLM-led execution UI is implemented and seen in Vivaldi; 145 checks+TS pass.
