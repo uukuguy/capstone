@@ -8,7 +8,7 @@ import {createManagedSubagents} from './managed-subagents.mjs';
 import {createDataGatewayTools} from './general-data-gateway.mjs';
 import {createToolDiscovery,discoveryToolNames} from './general-tool-discovery.mjs';
 import {createTaskNodeReturn} from './task-node-return.mjs';
-import {restoreToolResult} from './tool-result-context.mjs';
+import {restoreToolResult,configureObservationHistory} from './tool-result-context.mjs';
 import {createToolCompositionTool,compositionPolicy} from './tool-composition.mjs';
 import {configureCommittedDelivery} from './committed-delivery.mjs';
 import {taskTurnGuidance} from './task-turn-guidance.mjs';
@@ -17,6 +17,7 @@ import {createDiagnosisTools,diagnosisTools,diagnosisDigest,configureDiagnosisCo
 const nativeShellGuidance='Native bash uses pipefail: an upstream pipeline failure is a tool failure, including SIGPIPE from expected truncation. Handle expected truncation or recovery explicitly with shell control flow. Errexit is not enabled.';
 const nativeBatchGuidance='Prefer the admitted tool contract\'s batch filters and server-side aggregation before expanding requests per object or time window. Select the smallest discovery that unlocks the next requested result. Reuse established source identities, definitions, units and coverage observations; save selected bindings and datasets for dependent work. Programming makes calls cheaper to organize, but does not justify a broader investigation. Use multiple tool calls in one model response when their arguments are already known and the operations are independent. The runtime collects the batch results before the next model turn. Batch independent reads of known paths, independent checks and writes to different files. Do not batch a read with a calculation that needs its unseen contents, a file write with its dependent execution, competing edits, or control operations that require references returned by another operation. Do not add tools merely to fill a batch. Treat repeated timeouts as a resource or query-shape problem: retain successful results and missing coverage, then narrow the necessary operation or deliver limited findings instead of expanding the same failing scan. ';
 const nativeExecutionGuidance='Within this native task, organize an action around a useful execution intent, not an individual file operation. '+
+  'Begin the text of every response with one concise single-line // comment, in the user\'s language, stating the immediate action this response will perform. Put this before tool calls or the answer body. Use a concrete action, not private reasoning or a claim of success. Keep it under 60 characters where possible. Include it in this response; never add a separate model request or tool call for the comment. '+
   'When the user requests files, save a usable requested file from supported results and put remaining data or checking gaps inside it. Repairable script errors are a reason for a bounded local correction, not a reason to replace the requested delivery with a progress log or next-step plan. Returning to reasoning remains part of executing this instruction. Do not fabricate values to fill gaps. '+
   'Before calculations, inspect relevant types and comparison keys; check numeric conversion, join cardinality and empty subsets once rather than rebuilding an analysis after an invalid join. Leave total call counts and timings to the host execution record unless actual host measurements were supplied. '+
   'Use the exact host-staged input paths before probing an empty output directory. Staged sources stay read-only. To revise one, create a new writable file inside the task workspace with Python shutil.copyfile, which copies contents without source permissions. Plain cp and shutil.copy2 may preserve the read-only mode; if needed change only the workspace copy, never the admitted source. '+
@@ -1209,6 +1210,8 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
   const discovery=createGatewayToolDiscovery(config);
   let researchController,dispatchSubtasks,dispatchGraphNode,graphContext,graphGuard,diagnosisCorrectionGuard,committedDelivery;
   const extensionFactories = [pi=>{diagnosisCorrectionGuard=configureDiagnosisCorrectionGuard(pi,config);}];
+  if(config.researchRuntime?.deepResearch===false)
+    extensionFactories.push(pi=>configureObservationHistory(pi,config.observationHistory));
   if(discovery)extensionFactories.push(pi=>discovery.configure(pi));
   const managedResearch = config.researchRuntime?.enabled === true && Boolean(config.researchChannelPath);
   const graphResearch=managedResearch&&usesEnterpriseGraph(config);

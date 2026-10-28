@@ -5,6 +5,8 @@ import {join} from 'node:path';
 // Symbols survive native result wrappers, but never enter JSON, model messages
 // or public metadata. Only the host event projection reads this original.
 const originalResult=Symbol('capstoneOriginalToolResult');
+const issuedObservationRefs=new Set();
+const referenceKey=ref=>JSON.stringify([ref.path,ref.sha256,ref.size_bytes,ref.tool,ref.call_id]);
 const digest=value=>createHash('sha256').update(value).digest('hex');
 function preview(value,depth,items,chars){
   if(typeof value==='string')return value.length<=chars?value:value.slice(0,chars)+'… [read full result]';
@@ -42,8 +44,10 @@ export async function boundToolResult(result,{cwd=process.cwd(),toolName,callId,
   }
   const structured=value?.structuredContent;
   const source=structured&&typeof structured==='object'&&Object.keys(structured).length?structured:value;
+  const fullResult={path,sha256:digest(body),size_bytes:Buffer.byteLength(body),tool:toolName,call_id:callId};
+  issuedObservationRefs.add(referenceKey(fullResult));
   const envelope={preview_truncated:true,
-    full_result:{path,sha256:digest(body),size_bytes:Buffer.byteLength(body),tool:toolName,call_id:callId},
+    full_result:fullResult,
     instruction:'This is an incomplete preview. The exact original result is saved in the task directory. Read bounded sections or analyze the file with code; do not repeat the query to recover omitted rows. For independent analyses and deliverables, organize tasks when needed. This file is a source observation, not Authority evidence.'};
   let content;
   for(const [depth,items,chars] of [[6,12,400],[5,6,240],[4,3,160],[2,2,80],[0,8,80]]){
@@ -60,4 +64,40 @@ export function restoreToolResult(result){
   // Native wrappers append provenance/aliases after the preview. Preserve those
   // additions while restoring exact gateway bytes for the host receipt check.
   return {...original,content:[...original.content,...result.content.slice(1)],details:result.details};
+}
+
+/** Project older previews only. Files, audit receipts and tool calls stay exact. */
+export function projectObservationHistory(messages,{recentPreviews=6,maxPreviewChars=1200}={}){
+  if(!Number.isSafeInteger(recentPreviews)||recentPreviews<0||
+    !Number.isSafeInteger(maxPreviewChars)||maxPreviewChars<128)
+    throw new Error('Invalid observation history context budget');
+  let recent=0,changed=false;
+  const projected=[...messages];
+  for(let i=messages.length-1;i>=0;i--){
+    const message=messages[i],part=message.content?.[0];
+    if(message.role!=='toolResult'||message.isError===true||part?.type!=='text')continue;
+    let envelope;
+    try{envelope=JSON.parse(part.text);}catch{continue;}
+    const full=envelope?.full_result;
+    if(envelope?.preview_truncated!==true||!full||full.tool!==message.toolName||full.call_id!==message.toolCallId||
+      typeof full.path!=='string'||!/(?:^|\/)\.observations\/[a-f0-9]{64}\.(?:json|txt)$/.test(full.path)||
+      !/^[a-f0-9]{64}$/.test(full.sha256??'')||!Number.isSafeInteger(full.size_bytes)||full.size_bytes<0||
+      !issuedObservationRefs.has(referenceKey(full)))continue;
+    if(recent++<recentPreviews||envelope.history_preview_compacted===true)continue;
+    const preview=JSON.stringify(envelope.preview);
+    if(typeof preview!=='string'||preview.length<=maxPreviewChars)continue;
+    const {preview:omitted,...retained}=envelope;
+    const small={...retained,history_preview_compacted:true,
+      preview_excerpt:preview.slice(0,maxPreviewChars)+'… [older preview shortened; read full_result for exact data]'};
+    projected[i]={...message,content:[{...part,text:JSON.stringify(small)},...message.content.slice(1)]};
+    changed=true;
+  }
+  return changed?projected:messages;
+}
+
+export function configureObservationHistory(pi,options){
+  pi.on('context',event=>{
+    const messages=projectObservationHistory(event.messages,options);
+    return messages===event.messages?undefined:{messages};
+  });
 }

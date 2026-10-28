@@ -50,3 +50,33 @@ test('a native-created observation directory link cannot redirect saved results 
     assert.deepEqual(await readdir(roots[1]),[]);
   }finally{await Promise.all(roots.map(cwd=>rm(cwd,{recursive:true,force:true})));}
 });
+test('older saved observation previews shrink without changing messages, source references or recent/error results',async()=>{
+  const {projectObservationHistory}=await import('../../src/capstone_agent/resources/tool-result-context.mjs');
+  const cwd=await mkdtemp(join(tmpdir(),'issued-observation-'));
+  try{
+  const make=async(id,isError=false)=>{
+    const result=await boundToolResult({content:[{type:'text',text:JSON.stringify({rows:Array.from({length:50},()=> 'x'.repeat(600))})}]},{cwd,toolName:'source',callId:id});
+    return {role:'toolResult',toolCallId:id,toolName:'source',isError,content:[...result.content,{type:'text',text:'Host provenance stays exact.'}]};
+  };
+  const old=await make('old'),recent=await make('recent'),error=await make('failure',true),user={role:'user',content:'Generate the report.'};
+  const messages=[user,old,error,recent],before=JSON.stringify(messages);
+  const result=projectObservationHistory(messages,{recentPreviews:1,maxPreviewChars:500});
+  assert.equal(JSON.stringify(messages),before);
+  assert.equal(result[0],user);assert.equal(result[2],error);assert.equal(result[3],recent);
+  const full=JSON.parse(old.content[0].text),small=JSON.parse(result[1].content[0].text);
+  assert.deepEqual(small.full_result,full.full_result);
+  assert.equal(small.history_preview_compacted,true);assert.equal(small.preview_truncated,true);
+  assert.ok(result[1].content[0].text.length<1500);
+  assert.equal(result[1].content[1],old.content[1]);
+  assert.equal(projectObservationHistory(result,{recentPreviews:1,maxPreviewChars:500}),result);
+  }finally{await rm(cwd,{recursive:true,force:true});}
+});
+
+test('unsaved results, tool-call arguments and unknown reference shapes remain exact',async()=>{
+  const {projectObservationHistory}=await import('../../src/capstone_agent/resources/tool-result-context.mjs');
+  const messages=[{role:'assistant',content:[{type:'toolCall',id:'a',name:'bash',arguments:{command:'large script'}}]},
+    {role:'toolResult',toolCallId:'a',toolName:'bash',content:[{type:'text',text:'x'.repeat(8000)}]},
+    {role:'toolResult',toolCallId:'b',toolName:'source',content:[{type:'text',text:JSON.stringify({preview_truncated:true,full_result:{path:'/external/source',sha256:'invalid'},preview:'x'.repeat(6000)})}]},
+    {role:'toolResult',toolCallId:'forged',toolName:'source',content:[{type:'text',text:JSON.stringify({preview_truncated:true,full_result:{path:'/not-issued/.observations/'+'a'.repeat(64)+'.json',sha256:'b'.repeat(64),size_bytes:9000,tool:'source',call_id:'forged'},preview:'x'.repeat(6000)})}]}];
+  assert.equal(projectObservationHistory(messages,{recentPreviews:0,maxPreviewChars:500}),messages);
+});

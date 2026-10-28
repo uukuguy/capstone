@@ -6278,3 +6278,16 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 189 focused App checks and TypeScript pass. Navigation worker's clamp and
   Activity regressions are included. Backend history projection stays separate;
   review accepted its issued-reference boundary; 36 Node checks pass.
+- ea5b7050 — Refined compact execution details and fixed global navigation restoration, including delayed data and cached sessions.
+
+### 2026-10-29 — Bounded observation replay candidate
+
+- Lightweight model context retains six recent full previews and shortens older
+  previews to 1,200 characters. Exact saved references and host audit receipts
+  remain intact; errors, unsaved/unissued results, user text and tool arguments
+  are not changed. A private signed-by-host-issued reference registry prevents
+  shrinking invented file references. No domain-specific gateway mapping added.
+- Native responses now request one short first-line action comment in the same
+  response; no extra LLM request. Actual workbench verification follows rebuild.
+- 36 Node tests passed; focused review's issued-reference concern was reproduced
+  and fixed. This does not establish a real task speed improvement.
