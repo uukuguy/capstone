@@ -88,6 +88,15 @@ it('shows lightweight LLM durations and counts with collapsed tools under the ow
   expect(detail.querySelector('summary')?.textContent).toContain('1.0s')
   expect(reader.getByText(/LLM 1 次 · 累计 2.0s/)).toBeTruthy()
   expect(reader.getByText(/1 次工具调用/)).toBeTruthy()
+  fireEvent.click(reader.getByRole('button',{name:'关闭执行过程'}))
+  const embedded=document.querySelector<HTMLDetailsElement>('details.capstone-chat-activity-attached')!
+  embedded.open=true
+  fireEvent(embedded,new Event('toggle'))
+  const inline=within(embedded)
+  fireEvent.click(inline.getByRole('button',{name:'展开工具详情'}))
+  await waitFor(()=>expect(inline.getByRole('button',{name:'展开工具详情'}).hasAttribute('disabled')).toBe(true))
+  fireEvent.click(inline.getByRole('button',{name:'折叠工具详情'}))
+  await waitFor(()=>expect(inline.getByRole('button',{name:'折叠工具详情'}).hasAttribute('disabled')).toBe(true))
 })
 it('shows actual tool chains without organization as tools, regardless of accepted materials',()=>{
   const events=[...plainTools(),{...tools[1],eventId:'materials',payload:{...tools[1].payload,accepted_context:{objects:[],materials:[{material_id:`material_${'a'.repeat(32)}`}]}}}]

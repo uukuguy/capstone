@@ -6325,3 +6325,9 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - Process reader removes answer-label subtitle, places disclosure controls at right, disables actions from actual Thinking/tool state, and uses a 16px title. Unified trace typography.
 - TypeScript and 78 focused App tests passed in 1.76s; scoped reviews found no Critical/Important issue. Reader layout and disabled expansion seen in /tmp/process-user-final-layout.json.
 - Source is the feature checkout; dev integration and backend optimization rebuild remain pending. No release/deployment claim.
+- af2b2497 — Preserved fractional navigation positions and aligned reader disclosure, typography, and disabled states with user controls.
+
+### 2026-10-29 — Embedded disclosure disabled appearance
+- Reproduced native disabled state with green icons: legacy summary SVG color overrode the disabled button color. Scoped disabled SVG inheritance and dimming now make embedded controls visibly inactive.
+- Added embedded expand/collapse disabled assertions after leaving the reader. TypeScript and 40 focused tests passed. Vivaldi verified both states: /tmp/inline-disclosure-fixed.json and /tmp/inline-expanded-fixed.json.
+- Checked request47 original events: 18.462s response, 37 Thinking chunks/1227 characters, 17.974s public chunk interval. The bounded viewport showed only its tail.

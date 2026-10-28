@@ -57,4 +57,6 @@
 .capstone-process-reader { --capstone-trace-font-size: 12px; --capstone-process-summary-font-size: 12px; }
 .capstone-chat-activity-frame .capstone-call-trace .capstone-call-tool > summary { color: var(--trace-text); font-size: var(--capstone-trace-font-size, 11px); }
 .capstone-call-trace .capstone-call-tool-detail :is(p, pre, code), .capstone-call-trace .capstone-call-purpose { font-size: inherit; }
+.capstone-chat-activity-attached > summary .capstone-process-controls button:disabled { opacity: .4; background: transparent; cursor: default; }
+.capstone-chat-activity-attached > summary .capstone-process-controls button:disabled > svg { color: inherit; }
 .capstone-parallel-group { width: fit-content; max-width: 100%; padding: 0 0 0 5px; margin: 1px 0; border-left: 1px solid #c7d8cf; }
