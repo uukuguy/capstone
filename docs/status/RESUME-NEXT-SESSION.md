@@ -4,6 +4,16 @@ Updated: 2026-10-28. Tool composition implemented/local trials complete; PR71 in
 
 ## Active implementation
 
+Latest user task: solve lightweight regression with general principles and this
+specific instance as verification. Found root ordinary prompt lacked existing
+nativeBatchGuidance (children had it). Added shared neutral batch-first/discovery/
+reuse/timeout-scope guidance and included it in root append prompt.54 scoped Node
+checks pass. Commit/rebuild this source then rerun exact original summer prompt
+via NEW Vivaldi conversation, DRoff, same existing browser tab. Compare to383.66s/
+65models/27SQL baseline and regressed662.94s/77models/127SQL. No speedup claim until
+real files and measurements verified. Circuit6e1c already deployed. Preserve
+unrelated task-1-report.md/root control snapshots. PR71 latestCI40631885091 pending.
+
 Latest continue update: resource failure circuit committed6e1c1a6b and canonical
 rebuild deployed it (imagecb43c4cfedb35cda3e2bf5162bf18199edc2741a88b0a94ecbefab49c643d4f6),
 cleanup121617-35168 ready.17 worker/package tests pass, including independent

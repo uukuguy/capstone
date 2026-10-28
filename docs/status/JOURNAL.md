@@ -6030,6 +6030,16 @@ Reproduced protected research acknowledgment waiting behind an entire public-eve
 - 2026-10-28: 0468f165 records measured batching and shared tool-composition proposals; runtime behavior remains unchanged pending implementation scope.
 # 2026-10-28 — Shared native tool composition
 
+Lightweight regression investigation: old88tools versus new272; SQL27→127.
+Largest composed batch147.71s continued after repeated20s query_timeout results.
+Existing batch guidance reached child policies but was absent from the root
+ordinary loop append prompt. Apply the same neutral guidance to root execution:
+contract-supported batches/aggregation before fan-out, smallest useful discovery,
+reuse established bindings, retain gaps rather than widen timed-out scans.
+No province/year/metric/SQL is encoded.54 affected Node checks pass1.11s.
+
+ea765592: Aligned conversation test doubles and reader assertions; bounded complex layout checks while preserving all geometry assertions.
+
 App CI follow-up: restored conversationEvents in the model-pane test double,
 and opened the process reader before asserting its full-plan control.28 focused
 checks pass.543-record layout isolated12checks pass4.69s; parallel suite crossed
