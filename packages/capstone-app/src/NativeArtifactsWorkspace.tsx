@@ -2,6 +2,7 @@ import {applicationCapacity,exceedsCapacity,observeCapacity,rethrowDebugCapacity
 import {useEffect,useRef,useState} from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import {csvMarkdown} from './csvMarkdown'
 import type {NativeArtifact,NativeArtifactPage} from './nativeArtifacts'
 import './nativeArtifacts.css'
 import PptxPreview from './PptxPreview'
@@ -23,6 +24,7 @@ export function nativePreviewMedia(name:string,media:string|null|undefined){
   if(/\.html?$/i.test(name))return 'text/html'
   if(/\.svg$/i.test(name))return 'image/svg+xml'
   if(/\.pptx$/i.test(name))return 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+  if(/\.csv$/i.test(name))return 'text/csv'
   return normalized||'application/octet-stream'
 }
 const htmlPreviewPolicy='<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; img-src data: blob:; font-src data:; base-uri \'none\'; form-action \'none\'">'
@@ -42,9 +44,11 @@ export function htmlPreviewDocument(text:string) {
 /** Shared rendering for authenticated, verified persisted file bytes. */
 export function NativeFileContent({name,media,url,text,textUnavailable,previewSize}:{name:string;media:string;url?:string;text?:string;textUnavailable?:boolean;previewSize?:number}) {
   if(previewSize!==undefined)observeCapacity(previewSize,'preview_bytes','artifact.preview')
+  const csv=media==='text/csv'&&text!==undefined&&!textUnavailable&&(previewSize===undefined||previewSize<=applicationCapacity('preview_bytes'))?csvMarkdown(text):undefined;
   return <div className="native-artifact-preview">{previewSize!==undefined&&previewSize>applicationCapacity('preview_bytes')?<p>此文件超过内置预览容量（{applicationCapacity('preview_bytes')} 字节），可下载完整文件。</p>:textUnavailable?<p>此文件无法按 UTF-8 文本预览，可下载后查看。</p>
     :media==='text/html'?<iframe title={`HTML 预览：${name}`} sandbox="" referrerPolicy="no-referrer" srcDoc={htmlPreviewDocument(text||'')}/>
     :media==='text/markdown'?<div className="capstone-chat-markdown"><ReactMarkdown remarkPlugins={[remarkGfm]} components={{img:({alt})=><span>{alt?`图片引用：${alt}`:'外部图片引用'}</span>,a:({href,children})=><a href={href} target="_blank" rel="noopener noreferrer">{children}</a>}}>{text||''}</ReactMarkdown></div>
+    :csv?<div className="capstone-chat-markdown capstone-chat-table-scroll"><ReactMarkdown remarkPlugins={[remarkGfm]} components={{td:({children})=><td style={{whiteSpace:'pre-wrap'}}>{children}</td>,th:({children})=><th style={{whiteSpace:'pre-wrap'}}>{children}</th>}}>{csv.markdown}</ReactMarkdown>{csv.truncated&&<p>预览最多显示 500 行数据、100 列；下载可查看完整 CSV。</p>}</div>
     :text!==undefined?<pre>{text}</pre>
     :['image/png','image/jpeg','image/svg+xml'].includes(media)?<img src={url} alt={name}/>
     :media==='application/pdf'?<iframe src={url} title={`PDF 预览：${name}`} sandbox="" referrerPolicy="no-referrer"/>
