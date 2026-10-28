@@ -32,6 +32,9 @@ class ProfileRegistry:
         if profile_id not in self.profiles:
             raise ValueError('Unknown workbench LLM profile')
         p = self.profiles[profile_id]
+        options = p.get('title_request_options', {})
+        if options not in ({}, {'thinking': {'type': 'disabled'}}):
+            raise ValueError('Invalid title request options')
         model = p.get('model') or self.environment.get(p.get('model_env', ''), '')
         url = p.get('base_url') or self.environment.get(p.get('base_url_env', ''), '')
         if p['provider'] == 'deepseek':

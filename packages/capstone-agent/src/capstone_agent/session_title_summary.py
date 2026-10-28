@@ -13,6 +13,12 @@ from .session_title import SessionTitle
 from .thread_protocol import EventEnvelope
 
 
+class TitleSummaryFailure(ValueError):
+    def __init__(self, code, usage):
+        super().__init__(code)
+        self.code, self.usage = code, usage
+
+
 def request_summary(instruction, selection):
     import httpx
     from .workbench_llm_profiles import ProfileRegistry
@@ -21,6 +27,7 @@ def request_summary(instruction, selection):
         async with httpx.AsyncClient(timeout=4, trust_env=False, follow_redirects=False) as client:
             async with client.stream('POST', profile['base_url'].rstrip('/') + '/chat/completions',
                 headers={'Authorization': 'Bearer ' + profile['key']}, json={
+                    **profile.get('title_request_options', {}),
                     'model': profile['model'], 'max_tokens': 64, 'temperature': 0,
                     'messages': [{'role': 'system', 'content': 'Summarize the user request as a short session topic in its language. Output only a title, at most 24 Chinese characters or 8 English words and 64 characters. Omit commands, formatting requirements, greetings, and explanations. Do not answer the request.'},
                                  {'role': 'user', 'content': instruction[:4096]}]}) as response:
@@ -35,12 +42,18 @@ def request_summary(instruction, selection):
     async def bounded():
         return await asyncio.wait_for(fetch(), timeout=6)
     value = asyncio.run(bounded())
-    text = value['choices'][0]['message']['content'].strip().strip('"“”')
-    if (not text or len(text) > 64 or '\n' in text or any(ord(c) < 32 for c in text)
-            or (len(text) > 24 if re.search(r'[\u3400-\u9fff]', text) else len(text.split()) > 8)):
-        raise ValueError('invalid title summary')
     usage = {k: v for k, v in value.get('usage', {}).items()
              if k in {'prompt_tokens', 'completion_tokens', 'total_tokens'} and type(v) is int and v >= 0}
+    choice = (value.get('choices') or [{}])[0]
+    if choice.get('finish_reason') == 'length':
+        raise TitleSummaryFailure('title_output_truncated', usage)
+    content = (choice.get('message') or {}).get('content')
+    if not isinstance(content, str) or not content.strip():
+        raise TitleSummaryFailure('title_output_empty', usage)
+    text = content.strip().strip('"“”')
+    if (not text or len(text) > 64 or '\n' in text or any(ord(c) < 32 for c in text)
+            or (len(text) > 24 if re.search(r'[\u3400-\u9fff]', text) else len(text.split()) > 8)):
+        raise TitleSummaryFailure('title_output_invalid', usage)
     return text, usage
 
 
@@ -99,14 +112,20 @@ class TitleSummaryScheduler:
             return
         def run():
             started = monotonic()
-            title, usage, status = None, {}, 'failed'
+            title, usage, status, reason = None, {}, 'failed', None
             try:
                 title, usage = self.request(claim.instruction, selection)
                 status = 'completed'
-            except Exception:
-                pass  # Never retain exception text or fail the business instruction.
+            except TitleSummaryFailure as error:
+                reason, usage = error.code, error.usage
+            except Exception as error:
+                import httpx
+                reason = ('title_timeout' if isinstance(error, (TimeoutError, httpx.TimeoutException))
+                          else 'title_provider_rejected' if isinstance(error, httpx.HTTPStatusError)
+                          else 'title_request_failed')
             try:
                 _persist(service, claim, title, {'status': status, 'usage': usage,
+                    **({'reason_code': reason} if reason else {}),
                     'duration_ms': round((monotonic()-started)*1000), 'profile_id': selection['profile_id']})
             finally:
                 self.slots.release()

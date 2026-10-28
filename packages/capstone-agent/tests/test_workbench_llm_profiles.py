@@ -84,3 +84,16 @@ def test_task_relay_routes_frozen_profile_instead_of_runner_default(tmp_path):
         for item in (server, upstream):
             item.shutdown()
             item.server_close()
+
+
+def test_title_options_are_closed_and_part_of_frozen_revision():
+    registry = ProfileRegistry(environment={'DEEPSEEK_API_KEY': 'fixture-key'})
+    selected = registry.freeze('commercial-deepseek-flash')
+    assert registry.resolve(selected)['title_request_options'] == {'thinking': {'type': 'disabled'}}
+    profile = registry.profiles['commercial-deepseek-flash']
+    profile['title_request_options'] = {'model': 'caller-model'}
+    with pytest.raises(ValueError, match='title request options'):
+        registry.freeze('commercial-deepseek-flash')
+    profile['title_request_options'] = {}
+    with pytest.raises(ValueError, match='Frozen workbench LLM profile changed'):
+        registry.resolve(selected)

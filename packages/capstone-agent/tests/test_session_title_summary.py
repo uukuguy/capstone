@@ -121,3 +121,25 @@ def test_postgres_summary_persists_after_background_completion(postgres_thread_s
     scheduler.submit(service, claim, 'completed')
     scheduler.pool.shutdown(wait=True)
     assert service.snapshot(thread_id).session_title.text == '运输方案比较'
+
+
+def test_title_request_uses_registered_options_and_keeps_truncated_usage(monkeypatch):
+    import httpx
+    import json
+    import pytest
+    from capstone_agent.session_title_summary import request_summary, TitleSummaryFailure
+    from capstone_agent.workbench_llm_profiles import ProfileRegistry
+    monkeypatch.setenv('DEEPSEEK_API_KEY', 'fixture-key')
+    selected = ProfileRegistry().freeze('commercial-deepseek-flash')
+    calls = []
+    def handler(request):
+        calls.append(json.loads(request.content))
+        return httpx.Response(200, json={'choices': [{'finish_reason': 'length', 'message': {'content': '', 'reasoning_content': 'not retained'}}], 'usage': {'completion_tokens': 64, 'total_tokens': 118}})
+    original = httpx.AsyncClient
+    monkeypatch.setattr(httpx, 'AsyncClient', lambda **kwargs: original(**kwargs, transport=httpx.MockTransport(handler)))
+    with pytest.raises(TitleSummaryFailure) as error:
+        request_summary('经营数据报告', selected)
+    assert calls[0]['thinking'] == {'type': 'disabled'}
+    assert len(calls) == 1
+    assert error.value.code == 'title_output_truncated'
+    assert error.value.usage == {'completion_tokens': 64, 'total_tokens': 118}
