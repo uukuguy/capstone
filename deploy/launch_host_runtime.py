@@ -64,6 +64,26 @@ def select_runtime(root: Path, environment: dict[str, str], command: str):
     for key in selected:
         if key.startswith(("GRID_AGENT_LLM_", "CAPABILITY_AGENT_LLM_")) or key == "GRID_AGENT_PI_COMMAND":
             raise RuntimeContractError(key)
+    if contract["profile"] == "capstone-workbench-v1" and role in {"api", "native"}:
+        # Use the same registry as submission admission and the isolated relay.
+        # Professional family providers retain their separate configuration.
+        import importlib.util
+        module_spec = importlib.util.spec_from_file_location("workbench_llm_profiles",
+            root / "packages/capstone-agent/src/capstone_agent/workbench_llm_profiles.py")
+        module = importlib.util.module_from_spec(module_spec)
+        module_spec.loader.exec_module(module)
+        try:
+            registry = module.ProfileRegistry(root / "configs/runtime/workbench-llm-profiles.json", environment=selected)
+            profile = registry._resolved(registry.default)
+            if role == "native":
+                registry.freeze()
+        except ValueError:
+            raise RuntimeContractError("CAPSTONE_WORKBENCH_PRESET") from None
+        selected.update(CAPSTONE_WORKBENCH_PRESET=selected.get("CAPSTONE_WORKBENCH_PRESET", "local"),
+                        CAPSTONE_PUBLIC_PROVIDER=profile["provider"], CAPSTONE_PUBLIC_MODEL=profile["model"])
+        if role == "native":
+            selected["CAPSTONE_THREAD_FAMILY"] = "native"
+        return contract, role, spec, selected
     providers = json.loads((root / "configs/llm-providers.json").read_text())["providers"]
     selection = contract.get("provider_selection")
     if selection:
