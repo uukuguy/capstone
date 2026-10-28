@@ -1,4 +1,4 @@
-import {Activity} from 'react'
+import {Activity,useEffect,useState} from 'react'
 import {afterEach,beforeEach,expect,it,vi} from 'vitest'
 import {act,cleanup,fireEvent,render,screen,waitFor,within} from '@testing-library/react'
 import SessionNavigation,{SessionAdjacentControls} from './SessionNavigation'
@@ -13,6 +13,66 @@ function clampScroll(list:HTMLElement){
   Object.defineProperty(list,'scrollTop',{configurable:true,get:()=>top,set:(value:number)=>{top=Math.max(0,Math.min(value,list.scrollHeight-list.clientHeight))}})
   Object.defineProperty(list,'scrollHeight',{configurable:true,get:()=>list.querySelectorAll('a').length>=3?2000:200})
 }
+it('restores a fractional bottom offset when integer layout dimensions round down',()=>{
+  vi.spyOn(HTMLElement.prototype,'scrollHeight','get').mockReturnValue(840)
+  sessionStorage.setItem('capstone.session-navigation.scroll:workspace:active','640.5')
+  const view=render(<SessionNavigation items={items}/>)
+  const list=view.container.querySelector('.session-navigation-scroll') as HTMLElement
+  expect(list.scrollTop).toBe(640.5)
+})
+it('holds the nearest available bottom while a shorter preparation list waits for full layout',async()=>{
+  let height=800
+  vi.spyOn(HTMLElement.prototype,'scrollHeight','get').mockImplementation(()=>height)
+  sessionStorage.setItem('capstone.session-navigation.scroll:workspace:active','640.5')
+  const view=render(<SessionNavigation items={items.slice(0,2)}/>)
+  const list=view.container.querySelector('.session-navigation-scroll') as HTMLElement
+  expect(list.scrollTop).toBe(600)
+  fireEvent.scroll(list)
+  expect(sessionStorage.getItem('capstone.session-navigation.scroll:workspace:active')).toBe('640.5')
+  height=840
+  view.rerender(<SessionNavigation items={items}/>)
+  await waitFor(()=>expect(list.scrollTop).toBe(640.5))
+})
+it('captures End scrolling before routing even when its browser scroll event has not arrived',()=>{
+  const view=render(<SessionNavigation items={items} currentId="a"/>)
+  const list=view.container.querySelector('.session-navigation-scroll') as HTMLElement
+  fireEvent.keyDown(list,{key:'End'})
+  list.scrollTop=640
+  fireEvent.click(screen.getByRole('link',{name:'会话b'}))
+  expect(sessionStorage.getItem('capstone.session-navigation.scroll:workspace:active')).toBe('640')
+  view.unmount()
+  const next=render(<SessionNavigation items={items} currentId="b"/>)
+  expect(next.container.querySelector('.session-navigation-scroll')?.scrollTop).toBe(640)
+})
+it('rejects cold-mount programmatic zero after restoration but accepts dragging the scrollbar',()=>{
+  sessionStorage.setItem('capstone.session-navigation.scroll:workspace:active','640')
+  const view=render(<SessionNavigation items={items}/>)
+  const list=view.container.querySelector('.session-navigation-scroll') as HTMLElement
+  expect(list.scrollTop).toBe(640)
+  list.scrollTop=0;fireEvent.scroll(list)
+  expect(sessionStorage.getItem('capstone.session-navigation.scroll:workspace:active')).toBe('640')
+  expect(list.scrollTop).toBe(640)
+  fireEvent.pointerDown(list)
+  list.scrollTop=210;fireEvent.scroll(list)
+  expect(sessionStorage.getItem('capstone.session-navigation.scroll:workspace:active')).toBe('210')
+})
+it('transfers the live global position between retained Activity lists before route effects run',()=>{
+  function RetainedNavigation(){
+    const [current,setCurrent]=useState('a')
+    useEffect(()=>{const route=()=>setCurrent(new URLSearchParams(location.search).get('thread')??'a');window.addEventListener('popstate',route);return()=>window.removeEventListener('popstate',route)},[])
+    return <>{['a','b'].map(id=><Activity key={id} mode={current===id?'visible':'hidden'}><SessionNavigation items={items} currentId={id}/></Activity>)}</>
+  }
+  const view=render(<RetainedNavigation/>)
+  const lists=view.container.querySelectorAll<HTMLElement>('.session-navigation-scroll')
+  fireEvent.keyDown(lists[0],{key:'End'});lists[0].scrollTop=640
+  fireEvent.click(within(lists[0]).getByRole('link',{name:'会话b'}))
+  expect(lists[1].scrollTop).toBe(640)
+  lists[1].scrollTop=0;fireEvent.scroll(lists[1])
+  expect(lists[1].scrollTop).toBe(640)
+  fireEvent.pointerDown(lists[1]);lists[1].scrollTop=210;fireEvent.scroll(lists[1])
+  fireEvent.click(within(lists[1]).getByRole('link',{name:'会话a'}))
+  expect(lists[0].scrollTop).toBe(210)
+})
 it('defers archived position restoration until asynchronous rows can contain it',async()=>{
   let finish!:(page:{threads:typeof items;hasMore:boolean;nextBeforeThreadId:null})=>void
   const actions={rename:vi.fn(async()=>{}),archive:vi.fn(async()=>{}),remove:vi.fn(async()=>{}),archived:vi.fn(()=>new Promise<{threads:typeof items;hasMore:boolean;nextBeforeThreadId:null}>(resolve=>{finish=resolve}))}
@@ -20,7 +80,7 @@ it('defers archived position restoration until asynchronous rows can contain it'
   const view=render(<SessionNavigation items={items} actions={actions}/>)
   const list=view.container.querySelector('.session-navigation-scroll') as HTMLElement
   clampScroll(list)
-  list.scrollTop=140;fireEvent.scroll(list)
+  fireEvent.wheel(list);list.scrollTop=140;fireEvent.scroll(list)
   fireEvent.click(screen.getByRole('button',{name:'已归档会话'}))
   fireEvent.scroll(list)
   expect(sessionStorage.getItem('capstone.session-navigation.scroll:workspace:archived')).toBe('640')
@@ -54,7 +114,7 @@ it.each(['wheel','touchstart','keydown'])('lets user %s cancel a pending restore
 it('restores the global list position when a cached session becomes visible again',()=>{
   const view=render(<Activity mode="visible"><SessionNavigation items={items} currentId="a"/></Activity>)
   const list=view.container.querySelector('.session-navigation-scroll') as HTMLElement
-  list.scrollTop=640;fireEvent.scroll(list)
+  fireEvent.wheel(list);list.scrollTop=640;fireEvent.scroll(list)
   view.rerender(<Activity mode="hidden"><SessionNavigation items={items} currentId="a"/></Activity>)
   sessionStorage.setItem('capstone.session-navigation.scroll:workspace:active','860')
   view.rerender(<Activity mode="visible"><SessionNavigation items={items} currentId="b"/></Activity>)
@@ -63,7 +123,7 @@ it('restores the global list position when a cached session becomes visible agai
 it('does not replace the global position with hidden layout zero during Activity teardown',()=>{
   const view=render(<Activity mode="visible"><SessionNavigation items={items}/></Activity>)
   const list=view.container.querySelector('.session-navigation-scroll') as HTMLElement
-  list.scrollTop=640;fireEvent.scroll(list)
+  fireEvent.wheel(list);list.scrollTop=640;fireEvent.scroll(list)
   Object.defineProperty(list,'clientHeight',{configurable:true,value:0})
   list.scrollTop=0
   view.rerender(<Activity mode="hidden"><SessionNavigation items={items}/></Activity>)
@@ -79,7 +139,7 @@ it('does not reposition a scrolled list to the selected row during a session swi
   Object.defineProperty(list,'getClientRects',{value:()=>[new DOMRect(0,0,200,200)]})
   Object.defineProperty(list,'getBoundingClientRect',{value:()=>new DOMRect(0,0,200,200)})
   Object.defineProperty(screen.getByRole('link',{name:'会话b'}),'getBoundingClientRect',{value:()=>new DOMRect(0,-100,180,20)})
-  list.scrollTop=640;fireEvent.scroll(list)
+  fireEvent.wheel(list);list.scrollTop=640;fireEvent.scroll(list)
   view.rerender(<SessionNavigation items={items} currentId="b"/>)
   expect(list.scrollTop).toBe(640)
 })
@@ -171,10 +231,10 @@ it('restores active list scroll after visiting archived sessions',async()=>{
   const actions={rename:vi.fn(async()=>{}),archive:vi.fn(async()=>{}),remove:vi.fn(async()=>{}),archived:vi.fn(async()=>({threads:[items[2]],hasMore:false,nextBeforeThreadId:null}))}
   const view=render(<SessionNavigation items={items} actions={actions}/>)
   const list=view.container.querySelector('.session-navigation-scroll') as HTMLDivElement
-  list.scrollTop=140;fireEvent.scroll(list)
+  fireEvent.wheel(list);list.scrollTop=140;fireEvent.scroll(list)
   fireEvent.click(screen.getByRole('button',{name:'已归档会话'}))
   await screen.findByRole('link',{name:'会话c'})
-  list.scrollTop=20;fireEvent.scroll(list)
+  fireEvent.wheel(list);list.scrollTop=20;fireEvent.scroll(list)
   fireEvent.click(screen.getByRole('button',{name:'返回最近会话'}))
   expect(list.scrollTop).toBe(140)
 })

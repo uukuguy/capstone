@@ -708,6 +708,7 @@ function AttemptActivity({ activities, modelRequests = [], initialThinking, nati
   const diagnostics = executionGraph ? [] : legacyDiagnostics
   const [reading, setReading] = useState(false)
   const [inlineToolsOpen,setInlineToolsOpen]=useState(false),[readerToolsOpen,setReaderToolsOpen]=useState(true)
+  const [disclosureStates,setDisclosureStates]=useState([{canExpand:false,canCollapse:false},{canExpand:false,canCollapse:false}])
   const embeddedScroll = useRef(0)
   const restoreEmbeddedScroll = useRef(false)
   const readerContent = useRef<HTMLDivElement>(null)
@@ -721,7 +722,7 @@ function AttemptActivity({ activities, modelRequests = [], initialThinking, nati
     })
     if(expanded)setReaderToolsOpen(value);else setInlineToolsOpen(value)
   }
-  const toolControls=(expanded:boolean)=><span className="capstone-process-controls" role="group" aria-label="思考与工具详情显示"><button type="button" aria-label="展开工具详情" title="展开全部 Thinking 与工具详情" onClick={event=>{event.preventDefault();event.stopPropagation();foldTools(expanded,true)}}><ChevronsUpDown aria-hidden="true"/></button><button type="button" aria-label="折叠工具详情" title="折叠全部 Thinking 与工具详情" onClick={event=>{event.preventDefault();event.stopPropagation();foldTools(expanded,false)}}><ChevronsDownUp aria-hidden="true"/></button></span>
+  const toolControls=(expanded:boolean)=><span className="capstone-process-controls" role="group" aria-label="思考与工具详情显示"><button type="button" aria-label="展开工具详情" disabled={!disclosureStates[+expanded].canExpand} title="展开全部 Thinking 与工具详情" onClick={event=>{event.preventDefault();event.stopPropagation();foldTools(expanded,true)}}><ChevronsUpDown aria-hidden="true"/></button><button type="button" aria-label="折叠工具详情" disabled={!disclosureStates[+expanded].canCollapse} title="折叠全部 Thinking 与工具详情" onClick={event=>{event.preventDefault();event.stopPropagation();foldTools(expanded,false)}}><ChevronsDownUp aria-hidden="true"/></button></span>
   const toolActivities = executionGraph || selectedGraphFocus === 'tools' ? activities : activities.filter(item => !item.source.includes('agent_task_progress') || item.status === 'failed')
   const taskGoal = executionGraph?.current.goal ?? progress.find(item => item.kind === 'goal')?.text ?? goal
   const goalText = taskGoal?.replace(/^(?:任务目标|研究目标|目标)\s*[:：]\s*/u, '')
@@ -736,6 +737,21 @@ function AttemptActivity({ activities, modelRequests = [], initialThinking, nati
   const followLightweight=running&&focus==='tools'&&selectedGraphFocus==='tools'
   const processOpen=open||followLightweight
   const processViewport = useRef<HTMLDivElement>(null)
+  useLayoutEffect(()=>{
+    const roots=[processViewport.current,readerContent.current]
+    const measure=()=>{
+      const next=roots.map(root=>{
+        const states=[...(root?.querySelectorAll<HTMLDetailsElement>('details.capstone-call-tool')??[])].map(node=>node.open)
+        states.push(...[...(root?.querySelectorAll<HTMLButtonElement>('.capstone-thinking-trigger')??[])].map(node=>node.getAttribute('aria-expanded')==='true'))
+        return {canExpand:states.some(value=>!value),canCollapse:states.some(Boolean)}
+      })
+      setDisclosureStates(previous=>previous.every((state,index)=>state.canExpand===next[index].canExpand&&state.canCollapse===next[index].canCollapse)?previous:next)
+    }
+    measure()
+    const observer=new MutationObserver(measure)
+    roots.forEach(root=>{if(root)observer.observe(root,{subtree:true,childList:true,attributes:true,attributeFilter:['open','aria-expanded']})})
+    return()=>observer.disconnect()
+  })
   const followProcess = useRef(true)
   useLayoutEffect(() => {
     const node = processViewport.current
@@ -821,7 +837,7 @@ function AttemptActivity({ activities, modelRequests = [], initialThinking, nati
       </section>
       <details className="capstone-native-tool-calls"><summary>任务组织记录</summary>{graphProcess(expandedResearch)}</details>
     </>
-    if (focus === 'tools') return <section aria-label="工具调用过程">{modelRequests.length > 0 ? <ProcessCallTrace compact expandedTools={expandedResearch?readerToolsOpen:inlineToolsOpen} models={modelRequests} tools={toolActivities.map(activity=>({id:callId(activity),name:activity.label,status:activity.status,startedAt:activity.startedAt,finishedAt:activity.finishedAt,durationMs:activity.durationMs,operation:activity.operation}))} now={running ? now : undefined} active={running} renderToolDetails={tool=>{
+    if (focus === 'tools') return <section aria-label="工具调用过程">{modelRequests.length > 0 ? <ProcessCallTrace compact expandedThinking={expandedResearch} expandedTools={expandedResearch?readerToolsOpen:inlineToolsOpen} models={modelRequests} tools={toolActivities.map(activity=>({id:callId(activity),name:activity.label,status:activity.status,startedAt:activity.startedAt,finishedAt:activity.finishedAt,durationMs:activity.durationMs,operation:activity.operation}))} now={running ? now : undefined} active={running} renderToolDetails={tool=>{
       const activity=toolActivities.find(item=>callId(item)===tool.id)
       return <>{activity?.failure&&<p className="capstone-tool-failure-line">{toolFailureReason(activity.failure)||toolFailureCopy(activity.failure.code)}</p>}{activity?.outputExcerpt&&<p className="capstone-tool-operation">{activity.outputExcerpt}</p>}</>
     }}/> : <ActivityItems activities={toolActivities} />}
@@ -851,7 +867,7 @@ function AttemptActivity({ activities, modelRequests = [], initialThinking, nati
         renderTools={stepId => <ActivityItems activities={toolActivities.filter(item => item.taskStepId === stepId)} />} /> :
       <div key={entry.id} title="未归属任务步骤">{expandedResearch ? readerTools(entry.activity ? [entry.activity] : []) : <ActivityItems activities={entry.activity ? [entry.activity] : []} />}</div>)}{lifecycleDetails}</>
   }
-  return <>{reading && <AnswerDetailSheet title="执行过程" answerLabel={goalText ? goalText.slice(0, 80) : '当前指令'} className="capstone-process-reader" onClose={closeReader} metadata={<span className="capstone-process-reader-status">{running ? '执行中' : phase === 'failed' ? '执行失败' : phase === 'cancelled' ? '已取消' : phase === 'interrupted' ? '已中断' : phase === 'completed' ? '已完成' : '执行状态未记录'}{toolCount>0?` · ${toolCount} 次工具调用`:''}{modelSummary}{elapsed === undefined ? '' : ` · 总耗时 ${formatDuration(elapsed)}`}{focus==='tools'&&toolCount>0&&toolControls(true)}</span>}>
+  return <>{reading && <AnswerDetailSheet title="执行过程" showAnswerLabel={false} headerActions={focus==='tools'&&toolCount>0?toolControls(true):undefined} answerLabel={goalText ? goalText.slice(0, 80) : '当前指令'} className="capstone-process-reader" onClose={closeReader} metadata={<span className="capstone-process-reader-status">{running ? '执行中' : phase === 'failed' ? '执行失败' : phase === 'cancelled' ? '已取消' : phase === 'interrupted' ? '已中断' : phase === 'completed' ? '已完成' : '执行状态未记录'}{toolCount>0?` · ${toolCount} 次工具调用`:''}{modelSummary}{elapsed === undefined ? '' : ` · 总耗时 ${formatDuration(elapsed)}`}</span>}>
     <div ref={readerContent} className="capstone-chat-activity-frame">
       {initialThinking&&<ThinkingProcess thinking={initialThinking} storageKey={stepStorageKey} now={now} expanded/>}
       {steps.length > 1 && <nav className="capstone-process-directory" aria-label="任务步骤目录">{steps.map(step => <button type="button" key={step.id} title={step.title} onClick={() => {

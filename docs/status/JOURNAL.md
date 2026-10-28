@@ -6317,3 +6317,11 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - Bulk process controls now include per-call Thinking and tool details; individual disclosure state remains owned by each component.
 - LLM headings use dark text; Thinking uses a muted slate surface; tool output has a separate inset. Bounded scrolling stays in place.
 - TypeScript and 40 focused App tests passed; scoped review found no Critical/Important issue. Vivaldi visual check pending while navigation is investigated.
+- dc64e77d — Unified Thinking/tool disclosure and improved trace contrast for readable execution records.
+
+### 2026-10-29 — Navigation restore and process reader closure
+- Fixed fractional bottom offsets against integer layout capacity. Retain the global target while preparation lists clamp to their available bottom; explicit scroll input owns writes.
+- Vivaldi cold switch and return retained the deep list. Final preparation/ready screenshots: /tmp/nav-final-transition.json and /tmp/nav-final-ready.json. Diagnostic panel removed.
+- Process reader removes answer-label subtitle, places disclosure controls at right, disables actions from actual Thinking/tool state, and uses a 16px title. Unified trace typography.
+- TypeScript and 78 focused App tests passed in 1.76s; scoped reviews found no Critical/Important issue. Reader layout and disabled expansion seen in /tmp/process-user-final-layout.json.
+- Source is the feature checkout; dev integration and backend optimization rebuild remain pending. No release/deployment claim.

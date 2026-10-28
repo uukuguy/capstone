@@ -1,5 +1,5 @@
 import {afterEach,expect,it} from 'vitest'
-import {cleanup,fireEvent,render,screen,within} from '@testing-library/react'
+import {cleanup,fireEvent,render,screen,within,waitFor} from '@testing-library/react'
 import CapstoneAssistantThread,{projectAssistantMessages} from './CapstoneAssistantThread'
 import {parseEventEnvelope,type EventEnvelope} from './threadProtocol'
 import toolsFixture from './fixtures/nativeGraph-tools.json'
@@ -61,7 +61,7 @@ it('keeps lightweight narrative progress in the tool chain without claiming DR t
   expect(screen.queryByText(/1 个任务步骤/)).toBeNull()
   expect(reader.getByText(/3 次工具调用/)).toBeTruthy()
 })
-it('shows lightweight LLM durations and counts with collapsed tools under the owning response',()=>{
+it('shows lightweight LLM durations and counts with collapsed tools under the owning response',async()=>{
   const seed=tools[0]
   const ev=(seq:number,type:string,payload:Record<string,unknown>):EventEnvelope=>({...seed,eventId:`timing-${seq}`,eventSeq:seq,eventType:type,occurredAt:`2026-10-29T00:00:0${seq}Z`,payload})
   const events=[seed,ev(1,'turn_route_selected',{source:'native_conversation'}),ev(2,'runtime_action',{phase:'started'}),
@@ -71,14 +71,17 @@ it('shows lightweight LLM durations and counts with collapsed tools under the ow
     ev(6,'runtime_event',{native_type:'tool_execution_end',task_id:'task',tool_call_id:'read-timed',tool_name:'read',activity:{operation:'source.csv',output_excerpt:'Exact source output'}}),
     ev(7,'runtime_action',{phase:'completed'})]
   const reader=read(events)
+  expect(reader.queryByText('所属回答：当前指令')).toBeNull()
   const model=reader.getByRole('group',{name:'LLM 调用 1'})
   expect(within(model).getByText('2.0s')).toBeTruthy()
   const detail=model.querySelector('details.capstone-call-tool')!
   expect(detail).toBeTruthy();expect(detail.hasAttribute('open')).toBe(true)
   fireEvent.click(reader.getByRole('button',{name:'折叠工具详情'}))
   expect(detail.hasAttribute('open')).toBe(false)
+  await waitFor(()=>expect(reader.getByRole('button',{name:'折叠工具详情'}).hasAttribute('disabled')).toBe(true))
   fireEvent.click(reader.getByRole('button',{name:'展开工具详情'}))
   expect(detail.hasAttribute('open')).toBe(true)
+  await waitFor(()=>expect(reader.getByRole('button',{name:'展开工具详情'}).hasAttribute('disabled')).toBe(true))
   expect(within(model).getByRole('button',{name:'折叠本轮思考'}).getAttribute('aria-expanded')).toBe('true')
   fireEvent.click(reader.getByRole('button',{name:'折叠工具详情'}))
   expect(within(model).getByRole('button',{name:'展开本轮思考'}).getAttribute('aria-expanded')).toBe('false')
@@ -128,7 +131,7 @@ it('retains lightweight thinking and tool records exactly once when an admitted 
   const activities=screen.getByRole('dialog',{name:'执行过程'}).querySelectorAll('.capstone-chat-activity-item')
   expect([...activities].filter(item=>item.textContent?.includes('Read before planning'))).toHaveLength(1)
   expect((projected?.activities as {operation?:string}[]).filter(item=>item.operation==='Read before planning')).toHaveLength(1)
-  fireEvent.click(reader.getByRole('button',{name:'展开初始思考'}))
+  expect(reader.getByRole('button',{name:'折叠初始思考'})).toBeTruthy()
   expect(reader.getAllByText('Before the plan.')).toHaveLength(1)
   expect(reader.queryByText('Now organize the work.')).toBeNull()
   expect(reader.getByRole('button',{name:'查看完整计划'})).toBeTruthy()

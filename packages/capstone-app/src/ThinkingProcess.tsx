@@ -36,7 +36,7 @@ export default function ThinkingProcess({thinking,storageKey,now=Date.now(),expa
   const bodyId=useId()
   const active=!thinking.handedOff&&['queued','running'].includes(thinking.phase)
   const foldId=`thinking:${thinking.handedOff?'archive':'initial'}:${active?'active':thinking.phase}${expanded?':reader':''}`
-  const fallback=active
+  const fallback=expanded||active
   const [fold,setFold]=useState(()=>({id:foldId,open:readProcessStepOpen(storageKey,foldId,fallback)}))
   const open=fold.id===foldId?fold.open:readProcessStepOpen(storageKey,foldId,fallback)
   const start=Date.parse(thinking.startedAt??''),end=thinking.endedAt?Date.parse(thinking.endedAt):now

@@ -55,12 +55,13 @@ export function modelCallMs(call: Omit<ProcessModelCall, 'id'>, now?: number): n
 }
 
 /** Neutral presentation: adapters supply admitted identities, never inferred causality. */
-export default function ProcessCallTrace({ models, tools, now, active = true, compact = false, expandedTools = false, renderToolDetails, focusRequest }: {
+export default function ProcessCallTrace({ models, tools, now, active = true, compact = false, expandedTools = false, expandedThinking = false, renderToolDetails, focusRequest }: {
   models: readonly ProcessModelCall[]; tools: readonly ProcessToolCall[]; now?: number; active?: boolean;
   renderToolDetails?: (tool: ProcessToolCall) => ReactNode;
   focusRequest?: ProcessTraceFocus;
   compact?: boolean;
   expandedTools?: boolean;
+  expandedThinking?: boolean;
 }) {
   const roundElements = useRef(new Map<string, HTMLElement>())
   useEffect(() => {
@@ -136,7 +137,7 @@ export default function ProcessCallTrace({ models, tools, now, active = true, co
         {model.stopReason==='error'&&model.errorCode&&Object.hasOwn(modelErrors,model.errorCode)&&<span>{modelErrors[model.errorCode]}{typeof model.errorStatus==='number'&&Number.isInteger(model.errorStatus)&&model.errorStatus>=400&&model.errorStatus<=599?` · HTTP ${model.errorStatus}`:''}</span>}
         {!compact&&!running && <small title={model.toolAssociation==='turn'?'依据同一 SDK 执行轮次中的实际工具调用记录归组。':undefined}>{!linked ? '工具关联未记录' : !model.toolCallIds!.length ? '未调用工具' : `${model.toolAssociation==='turn'?'本轮工具':'工具'} ${model.toolCallIds!.length}次${toolMs === undefined || model.toolAssociation==='turn' ? '' : ` · 活动区间 ${time(toolMs)}`}`}</small>}
       </div>
-      {model.thinking&&<ThinkingProcess kind="call" storageKey={`model-thinking:${model.id}`} now={now} thinking={{text:model.thinking,startedAt:model.thinkingStartedAt,endedAt:running&&!model.thinkingSettled?undefined:model.thinkingEndedAt,handedOff:!running||model.thinkingSettled===true,phase:running&&!model.thinkingSettled?'running':'completed'}}/>}
+      {model.thinking&&<ThinkingProcess kind="call" expanded={expandedThinking} storageKey={`model-thinking:${model.id}`} now={now} thinking={{text:model.thinking,startedAt:model.thinkingStartedAt,endedAt:running&&!model.thinkingSettled?undefined:model.thinkingEndedAt,handedOff:!running||model.thinkingSettled===true,phase:running&&!model.thinkingSettled?'running':'completed'}}/>}
       {usage && <div className="capstone-call-tokens" title="输入包含 SDK 单独报告的缓存读取/写入 token；未报告的值保持未知。">
         <span>输入 {tokens(input)}</span><span>输出 {tokens(count(usage.output))}</span>
         {count(usage.cacheRead) !== undefined && Number(usage.cacheRead) > 0 && <span>缓存 {tokens(count(usage.cacheRead))}</span>}<span>token</span>

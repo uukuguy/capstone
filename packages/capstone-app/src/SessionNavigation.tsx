@@ -34,22 +34,36 @@ export default function SessionNavigation({items,currentId,storageKey='workspace
     const container=list.current;if(!container)return
     // A short/loading or hidden list cannot yet contain its saved position.
     // Retain that target until content arrives, unless the user starts scrolling.
-    let pending:number|undefined
+    let pending:number|undefined,position=0,userScrolling=false
     try{const value=Number(sessionStorage.getItem(scrollKey));pending=Number.isFinite(value)&&value>=0?value:0}catch{/* Keep scroll. */}
+    position=pending??0
     const visible=()=>container.clientHeight>0&&!container.closest('[hidden]')
     const restore=()=>{
-      if(pending===undefined||!visible()||container.scrollHeight-container.clientHeight<pending)return
+      if(pending===undefined)return
+      // scrollTop is fractional; scrollHeight/clientHeight round to integers.
+      if(!visible())return
+      const maximum=Math.max(0,container.scrollHeight-container.clientHeight)
+      if(maximum+1<pending){container.scrollTop=maximum;return}
       container.scrollTop=pending
       if(Math.abs(container.scrollTop-pending)<2)pending=undefined
     }
     const save=()=>{
       if(pending!==undefined||!visible())return
+      // Mount/layout/focus scroll events must not replace the shared position.
+      // Only an explicit scroll gesture grants this visible list write access.
+      if(!userScrolling){pending=position;restore();return}
+      position=container.scrollTop
       try{sessionStorage.setItem(scrollKey,String(container.scrollTop))}catch{/* Keep scroll. */}
     }
-    const cancel=()=>{pending=undefined}
-    const key=(event:KeyboardEvent)=>{if(['ArrowUp','ArrowDown','PageUp','PageDown','Home','End',' '].includes(event.key)&&!(event.target instanceof Element&&event.target.closest('input,textarea,[contenteditable=true]')))cancel()}
+    const cancel=()=>{pending=undefined;userScrolling=true;position=container.scrollTop}
+    const key=(event:KeyboardEvent)=>{if(['ArrowUp','ArrowDown','PageUp','PageDown','Home','End',' ','Tab'].includes(event.key)&&!(event.target instanceof Element&&event.target.closest('input,textarea,[contenteditable=true]')))cancel()}
+    const pointer=(event:PointerEvent)=>{if(event.target===container)cancel()}
+    // End/PageDown and scrollbar dragging can change scrollTop before the next
+    // animation-frame scroll event. Capture it before routing hides this DOM.
+    const checkpoint=()=>{if(userScrolling)save();userScrolling=false}
     container.addEventListener('scroll',save,{passive:true})
-    container.addEventListener('wheel',cancel,{passive:true});container.addEventListener('touchstart',cancel,{passive:true});container.addEventListener('keydown',key)
+    container.addEventListener('wheel',cancel,{passive:true});container.addEventListener('touchstart',cancel,{passive:true});container.addEventListener('keydown',key);container.addEventListener('pointerdown',pointer)
+    window.addEventListener('popstate',checkpoint,true);window.addEventListener('pagehide',checkpoint)
     const observer=new MutationObserver(restore);observer.observe(container,{childList:true,subtree:true})
     const resize=typeof ResizeObserver==='undefined'?undefined:new ResizeObserver(restore)
     resize?.observe(container);if(container.firstElementChild)resize?.observe(container.firstElementChild)
@@ -58,7 +72,8 @@ export default function SessionNavigation({items,currentId,storageKey='workspace
       // Scroll events already persist visible positions. Hidden Activity teardown
       // must not overwrite another retained session's newer global position.
       observer.disconnect();resize?.disconnect();container.removeEventListener('scroll',save)
-      container.removeEventListener('wheel',cancel);container.removeEventListener('touchstart',cancel);container.removeEventListener('keydown',key)
+      container.removeEventListener('wheel',cancel);container.removeEventListener('touchstart',cancel);container.removeEventListener('keydown',key);container.removeEventListener('pointerdown',pointer)
+      window.removeEventListener('popstate',checkpoint,true);window.removeEventListener('pagehide',checkpoint)
     }
   },[scrollKey])
   useEffect(()=>{

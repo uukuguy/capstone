@@ -3,8 +3,8 @@ import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 
 /** One presentation container; readers and result projections retain their existing owners. */
-export default function AnswerDetailSheet({ title, answerLabel, onClose, children, className = '', metadata }: {
-  title: string; answerLabel: string; onClose: () => void; children: ReactNode; className?: string; metadata?: ReactNode
+export default function AnswerDetailSheet({ title, answerLabel, onClose, children, className = '', metadata, headerActions, showAnswerLabel = true }: {
+  title: string; answerLabel: string; onClose: () => void; children: ReactNode; className?: string; metadata?: ReactNode; headerActions?: ReactNode; showAnswerLabel?: boolean
 }) {
   const titleId = useId()
   const descriptionId = useId()
@@ -27,7 +27,7 @@ export default function AnswerDetailSheet({ title, answerLabel, onClose, childre
   }, [])
   return createPortal(<div className={`answer-detail-layer ${className}`}>
     <div className="answer-detail-backdrop" aria-hidden="true" onClick={onClose} />
-    <section ref={panel} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={descriptionId}
+    <section ref={panel} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={showAnswerLabel?descriptionId:undefined}
       className="answer-detail-sheet" onKeyDown={event => {
         if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); onClose() }
         if (event.key === 'Tab') {
@@ -47,7 +47,8 @@ export default function AnswerDetailSheet({ title, answerLabel, onClose, childre
           else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
         }
       }}>
-      <header className="answer-detail-heading"><div><h2 id={titleId}>{title}</h2>{metadata}<p id={descriptionId}>所属回答：{answerLabel}</p></div>
+      <header className="answer-detail-heading"><div><h2 id={titleId}>{title}</h2>{metadata}{showAnswerLabel&&<p id={descriptionId}>所属回答：{answerLabel}</p>}</div>
+        {headerActions}
         <button ref={close} type="button" aria-label={`关闭${title}`} onClick={onClose}><X aria-hidden="true" /></button>
       </header>
       <div className="answer-detail-content">{children}</div>

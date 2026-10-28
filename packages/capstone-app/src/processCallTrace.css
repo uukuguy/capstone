@@ -1,4 +1,4 @@
-.capstone-call-trace { --trace-text: var(--text, #172d32); --trace-secondary: var(--muted, #576c70); --trace-accent: #286b62; list-style: none; padding: 0; margin: 2px 0; font-size: 11px; line-height: 1.45; color: var(--trace-text); }
+.capstone-call-trace { --trace-text: var(--text, #172d32); --trace-secondary: var(--muted, #576c70); --trace-accent: #286b62; list-style: none; padding: 0; margin: 2px 0; font-size: var(--capstone-trace-font-size, 11px); line-height: 1.45; color: var(--trace-text); }
 .capstone-call-trace > li + li { margin-top: 3px; }
 .capstone-call-model { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 10px; padding: 1px 0; }
 .capstone-call-model strong { font-weight: 600; }
@@ -22,7 +22,7 @@
 .capstone-call-duration[data-latency="very-slow"] { color: #a3333a; font-weight: 600; }
 .capstone-call-batch { margin: 1px 0 0 14px; }
 .capstone-call-tool { margin: 0; padding: 1px 0; border: 0; }
-.capstone-call-trace .capstone-call-tool > summary { min-height: 0; padding: 0; line-height: 1.45; }
+.capstone-call-trace .capstone-call-tool > summary { min-height: 0; padding: 0; line-height: 1.45; color: var(--trace-text); }
 .capstone-call-tool > summary { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; cursor: pointer; list-style: none; }
 .capstone-call-batch .capstone-call-tool > summary { flex-wrap: nowrap; }
 .capstone-call-batch .capstone-call-tool > summary > strong { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
@@ -49,4 +49,12 @@
 .is-compact .capstone-call-batch { width: fit-content; max-width: 100%; margin: 1px 0 1px 16px; }
 .is-compact .capstone-call-batch .capstone-call-tool > summary { width: fit-content; max-width: 100%; gap: 7px; }
 .is-compact .capstone-call-batch .capstone-call-tool > summary > strong { flex: 0 1 auto; max-width: 54ch; }
+.capstone-process-reader .answer-detail-heading { align-items: center; }
+.capstone-process-reader .answer-detail-heading > div:first-child { display: flex; flex: 1; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; min-width: 0; }
+.capstone-process-reader .answer-detail-heading h2 { font-size: 16px; }
+.capstone-process-reader .answer-detail-heading .capstone-process-controls { margin-left: auto; }
+.capstone-process-reader .answer-detail-heading .capstone-process-controls button:disabled { color: #a0afb7; cursor: default; background: transparent; }
+.capstone-process-reader { --capstone-trace-font-size: 12px; --capstone-process-summary-font-size: 12px; }
+.capstone-chat-activity-frame .capstone-call-trace .capstone-call-tool > summary { color: var(--trace-text); font-size: var(--capstone-trace-font-size, 11px); }
+.capstone-call-trace .capstone-call-tool-detail :is(p, pre, code), .capstone-call-trace .capstone-call-purpose { font-size: inherit; }
 .capstone-parallel-group { width: fit-content; max-width: 100%; padding: 0 0 0 5px; margin: 1px 0; border-left: 1px solid #c7d8cf; }

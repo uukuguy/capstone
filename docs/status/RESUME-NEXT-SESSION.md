@@ -5,9 +5,12 @@ Updated: 2026-10-28. Tool composition implemented/local trials complete; PR71 in
 ## Active implementation
 
 Current focus: lightweight progress/state stability, then FULL generation acceptance.
-USER PRIORITY NOW: actual left navigation still jumps on cold session switch;
-unit checks passed but real Vivaldi thr_0eb...→thr_252... returned to top.
-authority_import owns ongoing navigation investigation/fix; do not claim it closed.
+Left navigation scroll fix verified in Vivaldi: fractional scrollTop exceeded integer layout capacity;
+restore now allows rounding and retains its target across short preparation layouts.
+Cold switches and return keep the deep list; temporary diagnostic code has been removed.
+Process reader now has a compact 16px title, no answer-label subtitle, right-side disclosure controls,
+and state-based disabled buttons. Thinking and tools share typography and bulk disclosure.
+78 focused App tests and TypeScript pass. Large legacy progress prose still needs separate cleanup.
 Per-call Thinking and current-tool detail following are implemented; 209 checks+TS.
 First-line action comment policy is committed at cfd83cf5 but runtime rebuild pending.
 Current UI candidate: compact LLM-labelled/icon status trace, latency colors,
