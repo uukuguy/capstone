@@ -121,6 +121,8 @@ def _title(snapshot, created_at, source):
         current = SessionTitle(names.get(snapshot.session_type,
             '电网分析与决策' if snapshot.active_model_context is not None else '历史会话'))
     if source:
+        if source[0] == '会话主题' and current.source == 'automatic':
+            return current  # A failed/absent summary must not erase an existing name.
         return current.suggest(source[0], expected_revision=current.revision, source_ref=source[1])
     if current.source == 'default' and ' · ' not in current.text:
         instant = datetime.fromisoformat(created_at) if isinstance(created_at, str) else created_at

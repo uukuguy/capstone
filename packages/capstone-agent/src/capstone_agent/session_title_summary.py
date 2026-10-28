@@ -60,14 +60,15 @@ def request_summary(instruction, selection):
     return text, usage, profile['title_request_revision']
 
 
-def _persist(service, claim, title, metadata):
+def _persist(service, claim, title, metadata, *, expected_title=None):
     """Serialize naming with user rename and newer instruction admission."""
     payload = {'purpose': 'session_title', 'attempt_id': claim.attempt.attempt_id,
                'work_id': getattr(getattr(getattr(claim, 'task_context', None), 'binding', None), 'work_id', None), **metadata}
     if title:
         payload['title'] = title
     def eligible(snapshot):
-        return snapshot.current_attempt is None and (not snapshot.session_title or snapshot.session_title.source != 'user')
+        return (snapshot.current_attempt is None and (not snapshot.session_title or snapshot.session_title.source != 'user')
+                and (expected_title is None or snapshot.session_title == expected_title))
     if hasattr(service, '_lock'):
         with service._lock:
             snapshot = service._snapshot
@@ -81,7 +82,7 @@ def _persist(service, claim, title, metadata):
                 event = service._append_control_event(event_type='session_title_changed', payload={
                     'session_title': named.to_document(), 'naming_method': 'model_topic_summary'})
             service._snapshot = replace(snapshot, session_title=named, last_event_seq=event.event_seq)
-        return
+        return True
     with service._connect() as connection:
         row = connection.execute('SELECT * FROM capstone_threads WHERE thread_id=%s FOR UPDATE', (claim.thread_id,)).fetchone()
         snapshot = service._snapshot_from_row(row)
@@ -100,6 +101,7 @@ def _persist(service, claim, title, metadata):
             service._insert_event(connection, event)
         connection.execute('UPDATE capstone_threads SET session_title=%s,last_event_seq=%s WHERE thread_id=%s',
             (Jsonb(named.to_document()), event.event_seq, claim.thread_id))
+        return True
 
 
 def summary_input(service, claim):
@@ -134,6 +136,8 @@ def summary_input(service, claim):
         return None
     instructions = [text for _, text in sorted(records.items()) if _focus(text)]
     previous = previous[:64] if isinstance(previous, str) else ''
+    if not instructions and not previous:
+        return None
     # Allocate space to each retained instruction instead of truncating away
     # the latest scope change. The caller receives explicit omission notice.
     allowance = min(800, 3400 // max(1, len(instructions)))
