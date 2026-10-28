@@ -4,6 +4,18 @@ Updated: 2026-10-28. Tool composition implemented/local trials complete; PR71 in
 
 ## Active implementation
 
+Latest real rerun completed: thr_24cd727c28ae86115139 / attempt_4d0252ebe2c98a28,
+DeepSeek Flash, no DR, exact same instruction. Delivered checked PPT14 and CSV18x23.
+384.959s, 77 model calls, 102 tools, 12 error receipts; model sum328.607s.
+Local backend now runs56b83ec4/image e42ca852 (canonical rebuild and cleanup done).
+Performance is not accepted: input cache misses rose from254674 to787348 tokens.
+See 2026-10-29-lightweight-rerun.md for measured limits and next cache investigation.
+Title maintenance initially exceeded sidebar scope: 565 DB records were changed;
+444 out-of-scope title contents/provenance were restored with increasing revisions.
+Final visible scope148:121 automatic updated,10 manual and17 default unchanged.
+All11 DB user title documents unchanged. Recent128-page hasMore=true but no
+recent load-more UI; record as a separate unresolved display issue.
+
 Current focus: lightweight progress/state stability, then FULL generation acceptance.
 Left navigation scroll fix verified in Vivaldi: fractional scrollTop exceeded integer layout capacity;
 restore now allows rounding and retains its target across short preparation layouts.

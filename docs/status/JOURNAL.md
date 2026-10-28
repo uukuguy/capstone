@@ -6331,3 +6331,10 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - Reproduced native disabled state with green icons: legacy summary SVG color overrode the disabled button color. Scoped disabled SVG inheritance and dimming now make embedded controls visibly inactive.
 - Added embedded expand/collapse disabled assertions after leaving the reader. TypeScript and 40 focused tests passed. Vivaldi verified both states: /tmp/inline-disclosure-fixed.json and /tmp/inline-expanded-fixed.json.
 - Checked request47 original events: 18.462s response, 37 Thinking chunks/1227 characters, 17.974s public chunk interval. The bounded viewport showed only its tail.
+- 56b83ec4 — Made embedded disabled disclosure icons visibly inactive; added inline state regressions.
+
+### 2026-10-29 — Fresh summer-study rerun and scoped title correction
+- Canonical local rebuild ready at56b83ec4/image e42ca852; scoped cache cleanup completed. Submitted same instruction through Vivaldi in fresh thr24cd/attempt4d02, light mode, commercial DeepSeek.
+- Completed384.959s,77model/102tool calls; actual14-slide PPT and18x23CSV downloaded and hash-checked, cover shown in right pane. No DR. Uncached input grew3.09x; no performance acceptance claim.
+- Incorrect first title selector covered565 DB records. User challenged scope. Verified UI page128recent+20archived, restored444 out-of-scope titles using monotonic control events. Final121automatic updated;10visible manual and17default unchanged. All11DB manual documents retain original checksum.
+- Recent pagination is not exposed by sidebar; deferred separate UI issue. Detailed report:2026-10-29-lightweight-rerun.md. Protected original titles, receipts and correction live under ignored runs/title-refresh-20261029.
