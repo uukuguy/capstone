@@ -115,9 +115,8 @@ export default function ThreadWorkspace({ preparation, sidebar, heading, childre
         onPointerUp={event=>{navigationDragging.current=false;event.currentTarget.releasePointerCapture?.(event.pointerId)}} onPointerCancel={()=>{navigationDragging.current=false}}/>}
       <main className="workspace-shell">
         <header className="workspace-topbar" aria-label="工作空间">
-          <div className="workspace-breadcrumb"><button ref={navigationToggle} type="button" className="thread-navigation-toggle" aria-label="会话导航" aria-expanded={navigationOpen} aria-controls={navigationPanelId} onClick={()=>setNavigationOpen(value=>!value)}><Menu aria-hidden="true" /></button></div>
           {headingBar}
-          <div className="workspace-top-actions">{headerActions}</div>
+          <div className="workspace-top-actions"><button ref={navigationToggle} type="button" className="thread-navigation-toggle" aria-label="会话导航" aria-expanded={navigationOpen} aria-controls={navigationPanelId} onClick={()=>setNavigationOpen(value=>!value)}><Menu aria-hidden="true" /></button>{headerActions}</div>
         </header>
         {body}
       </main>

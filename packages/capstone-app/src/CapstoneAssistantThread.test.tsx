@@ -474,7 +474,8 @@ describe('CapstoneAssistantThread', () => {
     const view = render(<CapstoneAssistantThread {...props} runtimeMode="pi_reference" />)
     const authors = () => screen.getAllByLabelText('智能体回答').map(node => node.querySelector('.capstone-chat-role')?.textContent)
     expect(authors()).toEqual(['CAPSTONE', 'Pi'])
-    expect(document.querySelector('.capstone-assistant-runtime-label')?.textContent).toBe('Pi实时响应')
+    expect(document.querySelector('.capstone-assistant-runtime-label')?.textContent).toBe('Pi')
+    expect(document.querySelector('.capstone-assistant-runtime-label .assistant-live-dot')).toBeNull()
     view.rerender(<CapstoneAssistantThread {...props} runtimeMode="capstone" isRunning={false}
       events={[...events, event('attempt_completed', 5, { answer: '通用结果' }, 'general')]} />)
     expect(authors()).toEqual(['CAPSTONE', 'Pi'])

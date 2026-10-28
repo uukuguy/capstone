@@ -5,6 +5,13 @@ import ThreadWorkspace from './ThreadWorkspace'
 import SessionNavigation from './SessionNavigation'
 
 afterEach(() => { cleanup(); sessionStorage.clear();localStorage.clear() })
+it('places navigation and workspace connection actions to the right of the title',()=>{
+  render(<ThreadWorkspace conversationOnly heading={<h1>当前会话</h1>} headerActions={<button>网关入口</button>}/>)
+  const actions=document.querySelector('.workspace-top-actions')!
+  expect(actions.contains(screen.getByRole('button',{name:'会话导航'}))).toBe(true)
+  expect(actions.contains(screen.getByRole('button',{name:'网关入口'}))).toBe(true)
+  expect(actions.contains(screen.getByRole('heading',{name:'当前会话'}))).toBe(false)
+})
 it('keeps pinned sessions after collapsing and reopening the sidebar',()=>{
   localStorage.setItem('capstone.workspace.navigation-open','true')
   const items=['a','b'].map(threadId=>({threadId,modelId:null,sessionTitle:{text:`会话${threadId}`,source:'user' as const,revision:1,source_ref:null}}))

@@ -1597,7 +1597,7 @@ export default function CapstoneAssistantThread({ nativeArtifactProjections, pro
         preserveControl(message.dataset.messageId, summary)
       }
     }}>
-      <div className="capstone-assistant-runtime-label"><span className="assistant-live-dot" />{runtimeMode === 'pi_reference' ? 'Pi' : 'CAPSTONE'}{runtimeMode === 'capstone' && <span>· HARNESS</span>}<small>{runtimeStatus??'实时响应'}</small></div>
+      <div className="capstone-assistant-runtime-label">{runtimeMode === 'pi_reference' ? 'Pi' : 'CAPSTONE'}{runtimeMode === 'capstone' && <span>· HARNESS</span>}{runtimeStatus&&<small>{runtimeStatus}</small>}</div>
       <ThreadPrimitive.Root className="capstone-chat-runtime">
         {(hasOlderHistory || !historyAtLatest || historyError) && <div className="capstone-chat-history-controls" aria-label="消息历史">
           {hasOlderHistory && <button type="button" disabled={historyLoading} onClick={() => void olderMessages()}>{historyLoading ? '正在加载…' : '查看之前的对话'}</button>}
