@@ -40,7 +40,7 @@ export function retainSessions(previous:readonly string[],current:string,limit:n
 export function SessionCacheSetting(){
   const [limit,setLimit]=useState(memorySessionLimit)
   useEffect(()=>{const changed=(event:Event)=>setLimit((event as CustomEvent<number>).detail);window.addEventListener('capstone-session-cache-limit',changed);return()=>window.removeEventListener('capstone-session-cache-limit',changed)},[])
-  return <label className="workspace-cache-setting">内存保留会话<select aria-label="最多同时保留会话" value={limit} onChange={event=>setMemorySessionLimit(Number(event.target.value))}>{MEMORY_SESSION_LIMITS.map(n=><option key={n} value={n}>{n} 个</option>)}</select><small>按切换次数和最近打开时间保留常用会话；释放缓存后，记录和阅读状态仍保存。</small></label>
+  return <label className="workspace-cache-setting">内存保留会话<select aria-label="最多同时保留会话" value={limit} onChange={event=>setMemorySessionLimit(Number(event.target.value))}>{MEMORY_SESSION_LIMITS.map(n=><option key={n} value={n}>{n} 个</option>)}</select></label>
 }
 
 type ScrollPosition={top:number;left:number}

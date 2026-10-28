@@ -933,8 +933,7 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .thread-history-actions { display: grid; gap: 2px; }
 .thread-settings-section { padding: 3px 7px; color: #4f716b; font-size: 11px; font-weight: 500; }
 .workspace-cache-setting { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; padding: 10px 7px; border-top: 1px solid #dbe6df; color: #355d54; font-size: 12px; }
-.workspace-cache-setting select { min-height: 32px; padding: 4px 8px; border: 1px solid #b6c9bd; border-radius: 5px; background: #fff; color: #243e35; }
-.workspace-cache-setting small { grid-column: 1 / -1; max-width: 250px; line-height: 1.5; font-size: 12px; color: #536c60; }
+.workspace-cache-setting select { font: inherit; font-size: 11px; min-height: 28px; padding: 3px 6px; border: 1px solid #b6c9bd; border-radius: 5px; background: #fff; color: #243e35; }
 @media (pointer: coarse) { .workspace-cache-setting select { min-height: 44px; } }
 .thread-settings-popover .thread-settings-item { min-height: 36px; font-size: 11px; }
 .thread-settings-item:disabled { opacity: .45; cursor: default; }
