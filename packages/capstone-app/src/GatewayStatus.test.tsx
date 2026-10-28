@@ -20,12 +20,12 @@ it.each([false,true])('uses the returned instance name and preserves an explicit
 
 it('shows the actual connection and opens public service details without assuming an instance',()=>{
   render(<GatewayStatus gateway={{available:true,connection_name:'业务数据连接',server_name:'电网运行数据网关',server_version:'1.30.0',endpoint:'https://gateway.example/mcp'}}/>)
-  const trigger=screen.getByRole('button',{name:'数据网关：业务数据连接'})
+  const trigger=screen.getByRole('button',{name:'数据网关：https://gateway.example/mcp'})
   fireEvent.click(trigger)
   expect(trigger.closest('details')?.open).toBe(true)
   expect(screen.getByText('电网运行数据网关')).toBeTruthy()
   expect(screen.getByText('1.30.0')).toBeTruthy()
-  expect(screen.getByText('https://gateway.example/mcp')).toBeTruthy()
+  expect(screen.getAllByText('https://gateway.example/mcp')).toHaveLength(2)
   expect(screen.queryByText('实例标识')).toBeNull()
   expect(screen.queryByText('离线模式')).toBeNull()
   fireEvent.keyDown(trigger.closest('details')!,{key:'Escape'})

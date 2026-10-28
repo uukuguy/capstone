@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type 
 import { MessageNotSentError } from '@assistant-ui/react'
 import { Plus, RefreshCw } from 'lucide-react'
 import ThreadWorkspace from './ThreadWorkspace'
+import {WorkspaceGatewayStatus,SessionConnectionStatus} from './WorkspaceConnectionStatus'
 import {resultProjectionHistoryText} from './threadSystemNotices'
 import CapstoneAssistantThread, { projectAssistantActivity } from './CapstoneAssistantThread'
 import { commandKey } from './commandKey'
@@ -160,6 +161,8 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
   const [restoredKey, setRestoredKey] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [connectionError,setConnectionError]=useState<string>()
+  const [connectionRecovering,setConnectionRecovering]=useState(false)
   const [notice, setNotice] = useState('')
   const [acceptedDraft,setAcceptedDraft]=useState<{text:string;commandId:string;submission?:InputSubmission}>()
   const pendingCommand = projection.pendingCommands.find(item => !item.receipt)?.command
@@ -257,11 +260,13 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
         if(artifactBaseline.current===null)artifactBaseline.current=store.state.eventSeq
         await store.catchUp()
         if (!live) return
-        setError(null)
+        setConnectionError(undefined)
+        setConnectionRecovering(false)
         if (store.canStreamEvents) await store.consumeEvents(controller.signal)
       } catch (cause) {
         if (!live || controller.signal.aborted) return
-        setError(cause instanceof Error ? cause.message : '实时连接暂不可用。')
+        setConnectionError(cause instanceof Error ? cause.message : '实时连接暂不可用。')
+        setConnectionRecovering(canReconnect(cause))
         if (canReconnect(cause)) timer = setTimeout(() => { if (live) void connect() }, reconnectDelay(failures++))
       }
     }
@@ -558,6 +563,7 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
       onOpenHistoricalModel={(modelId,revision)=>void changeModel('open_model',{model_id:modelId,model_revision:revision})}/>
   </>:null
   return <ThreadWorkspace sessionKey={currentId} conversationOnly subtitle="企业任务工作台"
+    headerActions={<><SessionConnectionStatus state={projection.connection} error={connectionError} recovering={connectionRecovering} pending={!!pending}/><WorkspaceGatewayStatus transport={transport}/></>}
     resourcePanel={nativeChat?(client.supportsProductIndex?productsPanel:client.supportsProcessProducts?processPanel:undefined):undefined}
     resourceViews={nativeChat?client.supportsProductIndex?[...(formalModelPanel?[{id:'model',label:'电气拓扑',content:formalModelPanel,description:'注册计算模型的母线与支路；来源和修订保持实际绑定。'}]:[]),{id:'products',label:'成果',content:productsPanel,description:'任务交付与指令产物，保留真实来源和版本。'},{id:'source-topology',label:'源电网',content:resourceView==='source-topology'&&productsOpen?(requestedSourceView?.schema==='capstone-grid-source-view-request/1'?<><button onClick={browseElectricalModels}>浏览电网模型目录</button><GridSourceWorkspace key={requestedSourceView.scope_id} transport={transport} onQuestion={prepareSourceQuestion} requestedView={requestedSourceView} requestNonce={instructionView.requestNonce} onManualNavigate={markManualView}/></>:<ElectricalModelWorkspace storageKey={`${namespace}.${currentId}.electrical-view`} transport={transport} requestedView={requestedSourceView} requestNonce={instructionView.requestNonce} onManualNavigate={markManualView}/>):null,description:'源拓扑、显示分组与来源质量。'},...(selectedDeliveryFile?[{id:'deliveries',label:'采用为任务交付',content:<TaskDeliveriesWorkspace client={client} threadId={currentId} revision={terminalRevision} requestedArtifact={selectedDeliveryFile} onPublished={()=>{setResourceView('products');window.dispatchEvent(new Event('capstone-session-renamed'))}}/>}]:[])]:[{id:'process-products',label:'过程制品',content:processPanel,description:'指令执行结果与未完成记录，保留原始归属。'},
       {id:'native-files',label:'指令文件',content:<NativeArtifactsWorkspace client={client} threadId={currentId} attemptIds={nativeAttemptIds} revision={terminalRevision} requestedArtifact={requestedArtifact} attemptLabels={attemptLabels} onAdopt={file=>{markManualView();setSelectedDeliveryFile(file);setResourceView('deliveries');setProductsOpen(true)}}/>,description:'本轮执行生成并保存的真实文件。'},
@@ -627,7 +633,7 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
       cancelLabel={pending?.kind === 'cancel_work' ? '重试停止请求' : selectedWork?.cancelRequested ? '停止请求中' : '停止任务'}
       cancelDisabled={busy || projection.connection !== 'live' || (!!pending && pending.kind !== 'cancel_work') || (selectedWork?.cancelRequested === true && pending?.kind !== 'cancel_work')}
       activity={projectAssistantActivity(conversation.events)}
-      runtimeStatus={pending ? <span>上次操作结果待确认；重试将使用同一请求。</span> : projection.connection !== 'live' && currentId !== 'new' ? <span>连接已断开，后台状态待确认。</span> : nativeChat ? undefined : <span>目标与资料保存在当前任务中。保存不会自动启动执行。</span>}
+      runtimeStatus={nativeChat?undefined:<span>目标与资料保存在当前任务中。保存不会自动启动执行。</span>}
       emptyState={<div className="capstone-chat-empty"><strong>{snapshot?.sessionType==='enterprise-research'?'从资料或研究问题开始':snapshot?.sessionType==='general-chat'?'有什么想聊的？':'有什么工作需要完成？'}</strong><p>{snapshot?.sessionType==='enterprise-research'?'上传资料，提出你关心的问题；可以边分析边明确需要的报告、图表或其他成果。':snapshot?.sessionType==='general-chat'?'直接提问、讨论想法，或接着追问。':'描述目标、已有资料与期望交付。'}</p></div>}
       onSend={(_, text,submission) => send(text,submission)} onCancel={cancel} canRerunCompleted={false}
       hasOlderHistory={false /* Temporarily disabled while conversation history navigation is repaired. */}

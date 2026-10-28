@@ -11,10 +11,23 @@ import {parseNativeArtifact,parseNativeArtifacts,type NativeArtifact} from './na
 import {parseProductIndex,parseProductRef,parseProductResolution,type ProductQuery,type ProductRef} from './threadProducts'
 import {transferResource,parseStoredResources} from './resourceUploads'
 import {parseCapacityFailure} from './capacityFailure'
+import {parseGatewayConnectionStatus} from './threadInput'
+import type {WorkspaceConnections} from './workspaceConnections'
 
 const THREAD_VERSION_HEADER = 'Capstone-Thread-Version'
 const THREAD_VERSION = '1'
 const VERSION_ERRORS = new Set(['unsupported_thread_version', 'protocol_upgrade_required', 'thread_version_mismatch'])
+// Opaque scopes let retained session transports share workspace metadata without
+// placing connection credentials or session IDs in public UI storage.
+const workspaceScopes:{origin:string;token:string;scope:object}[]=[]
+function workspaceScope(origin:string,token:string){
+  const existing=workspaceScopes.find(entry=>entry.origin===origin&&entry.token===token)
+  if(existing)return existing.scope
+  const scope={}
+  workspaceScopes.push({origin,token,scope})
+  if(workspaceScopes.length>16)workspaceScopes.shift()
+  return scope
+}
 
 function versionError(body: unknown): boolean {
   return !!body && typeof body === 'object' && 'error' in body
@@ -85,6 +98,7 @@ async function verifiedFileBytes(response:Response,size:number,digest:string,key
 
 /** HTTP adapter for the negotiated Thread API; payload parsing remains in the client. */
 export class HttpThreadTransport implements ThreadTransport {
+  readonly workspaceConnectionsScope:object
   readonly connectionState: ThreadTransportState = 'live'
   private readonly base: string
   private readonly resourcePath: string
@@ -92,6 +106,12 @@ export class HttpThreadTransport implements ThreadTransport {
   // before adding a custom header that older cross-origin servers cannot allow.
   // Never retry a write to discover protocol support.
   private versionAdvertised = false
+
+  async workspaceConnections():Promise<WorkspaceConnections> {
+    const value=await this.request('/api/v1/workspace/connections') as WorkspaceConnections
+    if(!value||value.schema!=='capstone-workspace-connections/1')throw new Error('工作台连接信息无效')
+    return {schema:value.schema,...(value.data_gateway===undefined?{}:{data_gateway:parseGatewayConnectionStatus(value.data_gateway)})}
+  }
 
   constructor(
     baseUrl: string,
@@ -106,6 +126,7 @@ export class HttpThreadTransport implements ThreadTransport {
     if (this.base && !/^https?:\/\/[^/]+$/.test(this.base)) throw new Error('API 地址无效')
     if (!/^\/[^?]+$/.test(resourcePath)) throw new Error('Thread 资源路径无效')
     this.resourcePath = resourcePath.replace(/\/$/, '')
+    this.workspaceConnectionsScope=workspaceScope(this.base,this.token)
   }
 
   private async request(path: string, init: RequestInit = {}, maximumBytes=applicationCapacity('event_page_bytes'),capacityKey:CapacityKey='event_page_bytes',threadVersion=true): Promise<unknown> {

@@ -11,6 +11,15 @@ const command = {
 }
 
 describe('HttpThreadTransport', () => {
+  it('reads global connections using the selected API origin authentication and protocol',async()=>{
+    const body={schema:'capstone-workspace-connections/1',data_gateway:{available:true,instance_name:'真实实例',endpoint:'gateway.test:8000'}}
+    const fetcher=vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify(body),{headers:{'Capstone-Thread-Version':'2'}}))
+    const transport=new HttpThreadTransport('https://api.example','operator',fetcher,'/api/v1/threads','2')
+    expect(await transport.workspaceConnections()).toEqual(body)
+    expect(fetcher.mock.calls[0][0]).toBe('https://api.example/api/v1/workspace/connections')
+    expect(new Headers(fetcher.mock.calls[0][1]?.headers).get('Authorization')).toBe('Bearer operator')
+    expect(new Headers(fetcher.mock.calls[0][1]?.headers).get('Capstone-Thread-Version')).toBe('2')
+  })
   it('accepts an empty successful delete response without treating it as invalid JSON',async()=>{
     const fetcher=vi.fn<typeof fetch>().mockResolvedValue(new Response(null,{status:204}))
     const transport=new HttpThreadTransport('','',fetcher)

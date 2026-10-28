@@ -8,6 +8,16 @@ import {parseEventEnvelope} from './threadProtocol'
 
 afterEach(() => { cleanup(); localStorage.clear(); sessionStorage.clear() })
 
+it('keeps runtime branding stable and does not render thread catalog gateway identity in the body',()=>{
+  const catalog={schema:'capstone-thread-input-catalog/1' as const,revision:'r',context_id:'',selection_revision:'',objects:[],materials:[],resource_profiles:{},operations:[],data_gateway:{available:true,instance_name:'会话目录旧网关'}}
+  render(<CapstoneAssistantThread events={[]} disabled={false} isRunning={false} activity={[]} onSend={async()=>{}} onCancel={async()=>{}} inputCatalog={catalog} runtimeStatus="保留状态说明"/>)
+  const header=document.querySelector('.capstone-assistant-runtime-label')!
+  expect(header.textContent).toContain('CAPSTONE')
+  expect(header.textContent).toContain('HARNESS')
+  expect(header.textContent).toContain('保留状态说明')
+  expect(screen.queryByText('会话目录旧网关')).toBeNull()
+})
+
 it('keeps catalog LLM choices per session and across sends while DR resets',async()=>{
   const catalog={schema:'capstone-thread-input-catalog/1' as const,revision:'r',context_id:'',selection_revision:'',objects:[],materials:[],resource_profiles:{},operations:[],llm_profiles:{default_profile_id:'local',profiles:[{id:'local',label:'Commercial',model:'flash',available:true},{id:'internal',label:'Intranet',model:'dsv4',available:true},{id:'custom',label:'Custom',model:'',available:false}]}}
   const onSend=vi.fn().mockResolvedValue(undefined)

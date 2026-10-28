@@ -98,31 +98,33 @@ export function parseInputCatalog(value: unknown): InputCatalog {
       ||llm.profiles.some(profile=>!profile||!validLlmProfileId(profile.id)||typeof profile.available!=='boolean'||typeof profile.label!=='string'||!profile.label||profile.label.length>256||typeof profile.model!=='string'||profile.model.length>256)
       ||new Set(llm.profiles.map(profile=>profile.id)).size!==llm.profiles.length||!llm.profiles.some(profile=>profile.id===llm.default_profile_id))throw new Error('LLM 目录无效')
   }
-  if(item.data_gateway!==undefined){
-    const gateway=item.data_gateway
-    if(!gateway||typeof gateway.available!=='boolean')throw new Error('数据网关连接信息无效')
-    const projected:GatewayConnectionStatus={available:gateway.available}
-    if(gateway.offline!==undefined){
-      if(typeof gateway.offline!=='boolean')throw new Error('数据网关连接信息无效')
-      projected.offline=gateway.offline
-    }
-    for(const field of ['connection_name','server_name','server_version','endpoint','instance_id','instance_name','environment_label','data_source_label'] as const){
-      const text=gateway[field]
-      if(text===undefined)continue
-      if(typeof text!=='string'||text.length>2048||/[\u0000-\u001f\u007f]/.test(text))throw new Error('数据网关连接信息无效')
-      if(text.trim())projected[field]=text
-    }
-    if(projected.endpoint){
-      const address=projected.endpoint
-      const bare=!address.includes('://')
-      if(bare){
-        const matched=/^(?:\[[0-9a-fA-F:.]+\]|[a-zA-Z0-9.-]+):([0-9]{1,5})$/.exec(address)
-        if(!matched||Number(matched[1])<1||Number(matched[1])>65535)throw new Error('数据网关连接信息无效')
-      }
-      const url=new URL(bare?`http://${address}`:address)
-      if(!['http:','https:'].includes(url.protocol)||url.username||url.password||url.search||url.hash)throw new Error('数据网关连接信息无效')
-    }
-    return {...item,data_gateway:projected}
-  }
+  if(item.data_gateway!==undefined)return {...item,data_gateway:parseGatewayConnectionStatus(item.data_gateway)}
   return item
+}
+
+export function parseGatewayConnectionStatus(value:unknown):GatewayConnectionStatus {
+  const gateway=value as GatewayConnectionStatus
+  if(!gateway||typeof gateway.available!=='boolean')throw new Error('数据网关连接信息无效')
+  const projected:GatewayConnectionStatus={available:gateway.available}
+  if(gateway.offline!==undefined){
+    if(typeof gateway.offline!=='boolean')throw new Error('数据网关连接信息无效')
+    projected.offline=gateway.offline
+  }
+  for(const field of ['connection_name','server_name','server_version','endpoint','instance_id','instance_name','environment_label','data_source_label'] as const){
+    const text=gateway[field]
+    if(text===undefined)continue
+    if(typeof text!=='string'||text.length>2048||/[\u0000-\u001f\u007f]/.test(text))throw new Error('数据网关连接信息无效')
+    if(text.trim())projected[field]=text
+  }
+  if(projected.endpoint){
+    const address=projected.endpoint
+    const bare=!address.includes('://')
+    if(bare){
+      const matched=/^(?:\[[0-9a-fA-F:.]+\]|[a-zA-Z0-9.-]+):([0-9]{1,5})$/.exec(address)
+      if(!matched||Number(matched[1])<1||Number(matched[1])>65535)throw new Error('数据网关连接信息无效')
+    }
+    const url=new URL(bare?`http://${address}`:address)
+    if(!['http:','https:'].includes(url.protocol)||url.username||url.password||url.search||url.hash)throw new Error('数据网关连接信息无效')
+  }
+  return projected
 }
