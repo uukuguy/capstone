@@ -19,16 +19,27 @@ def _focus(value):
     if not isinstance(value, str):
         return None
     text = ' '.join(''.join(char if ord(char) >= 32 else ' ' for char in value).split())
+    # Conversational continuations and edits refer to an existing subject.
+    # They provide no evidence of a new session topic.
+    if re.match(r'^(?:谢谢|感谢|继续|请继续|只把|只改|仅修改|保持|thanks?\b|thank you\b|continue\b)', text, re.I):
+        return None
+    if re.search(r'(?:上一版|上一个|刚才的|previous (?:report|version|answer))', text, re.I):
+        return None
     plain = re.sub(r'[\W_]+', '', text).casefold()
     if len(plain) < 4 or plain in {
         '谢谢你的帮助', '谢谢你的回答', '继续执行', '请继续执行', '继续分析', '好的继续',
         'thankyou', 'thanks', 'continue', 'pleasecontinue', 'okcontinue',
     }:
         return None
-    return text[:56] + '…' if len(text) > 56 else text
+    return '会话主题' if len(text) > 32 else text
 
 
 def _candidate(kind, payload, attempt_id, seq):
+    if kind == 'session_title_summary':
+        title = payload.get('title')
+        if payload.get('status') == 'completed' and isinstance(title, str) and 0 < len(title) <= 64:
+            return title, 'summary:'+payload['attempt_id'], payload.get('work_id'), kind
+        return None
     if kind == 'delivery_published':
         delivery = payload.get('delivery', {})
         if not isinstance(delivery, Mapping):
@@ -54,6 +65,8 @@ def _select_source(candidates):
     for candidate in candidates:
         if candidate is None:
             continue
+        if candidate[3] == 'session_title_summary':
+            return (latest_input or candidate)[:2]
         if candidate[3] == 'delivery_published':
             # A task delivery remains the task name through follow-up instructions.
             # Only an explicitly different Work proves a newer task. Unknown
@@ -87,7 +100,7 @@ def _postgres_source(connection, thread_id):
                 AND a.attempt_id=e.attempt_id AND a.event_type='command_accepted'
               ORDER BY a.event_seq DESC LIMIT 1) ELSE e.payload END AS payload
         FROM capstone_thread_events e WHERE e.thread_id=%s
-          AND e.event_type IN ('attempt_completed','delivery_published')
+          AND e.event_type IN ('attempt_completed','delivery_published','session_title_summary')
         ORDER BY e.event_seq DESC''', (thread_id,))
         return _select_source(_candidate(row['event_type'], row['payload'] or {}, row['attempt_id'], row['event_seq'])
                               for row in cursor)
@@ -135,7 +148,7 @@ def ensure_session_title(service, thread_id):
                 seq = snapshot.last_event_seq
                 if title.source == 'automatic':
                     event = service._append_control_event(event_type='session_title_changed', payload={
-                        'session_title': title.to_document(), 'naming_method': 'completed_source_excerpt'})
+                        'session_title': title.to_document(), 'naming_method': 'completed_topic_source'})
                     seq = event.event_seq
                 service._snapshot = replace(snapshot, session_title=title, last_event_seq=seq)
             return service._snapshot
@@ -154,7 +167,7 @@ def ensure_session_title(service, thread_id):
                 event = EventEnvelope('evt_' + secrets.token_hex(8), seq, 'session_title_changed', 1,
                     thread_id, snapshot.run.run_id, None, None, None, None,
                     datetime.now(timezone.utc).isoformat(), 'public', {
-                        'session_title': title.to_document(), 'naming_method': 'completed_source_excerpt'})
+                        'session_title': title.to_document(), 'naming_method': 'completed_topic_source'})
                 service._insert_event(connection, event)
             connection.execute('UPDATE capstone_threads SET session_title=%s,last_event_seq=%s WHERE thread_id=%s',
                                (Jsonb(title.to_document()), seq, thread_id))

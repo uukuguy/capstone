@@ -2173,7 +2173,10 @@ class InMemoryThreadService(NativeExecutionOwner):
                 work_snapshot, current_attempt=None, last_event_seq=event.event_seq,
                 result_projections=work_snapshot.result_projections,
             )
-            return self._snapshot
+            snapshot = self._snapshot
+        from .session_title_summary import schedule_completed_title
+        schedule_completed_title(self, claim, phase, snapshot)
+        return snapshot
 
     def _require_claim(self, claim: AttemptClaim) -> dict[str, Any]:
         if claim.thread_id != self._snapshot.thread_id:
@@ -4358,7 +4361,10 @@ class PostgresThreadService(NativeExecutionOwner):
                  None if work_snapshot.application_state is None else Jsonb(dict(work_snapshot.application_state)), claim.thread_id),
             ).fetchone()
             assert updated is not None
-            return self._snapshot_from_row(updated)
+            snapshot = self._snapshot_from_row(updated)
+        from .session_title_summary import schedule_completed_title
+        schedule_completed_title(self, claim, phase, snapshot)
+        return snapshot
 
     def _selection_for_command(
         self, snapshot: ThreadSnapshot, command: Mapping[str, Any],
