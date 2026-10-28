@@ -9,7 +9,7 @@ export type ContextChoice = { include_refs: string[]; exclude_refs: string[] }
 export type InputDraft = { mode: RuntimeMode; llm_profile_id?:string; deep_research?:boolean; skill?: SkillChoice; context: ContextChoice; literal?: boolean; material_refs?: string[];context_product_refs?:ContextProductRef[] }
 export type InputSubmission = { llm_profile_id?:string; deep_research?:boolean; input: { kind: 'text' | 'skill_invocation'; text: string; skill_id?: string; skill_version?: string }; resource_profile?: { profile_id: SkillRole; revision: string }; context_selection: ContextChoice; material_refs?: string[];context_product_refs?:ContextProductRef[];attachment_refs?:string[] }
 export type InputCatalog = {
-  llm_profiles?:{default_profile_id:string;profiles:{id:string;label:string;model:string;available:boolean}[]}
+  llm_profiles?:{default_profile_id:string;profiles:{id:string;label:string;model:string;available:boolean;icon?:string}[]}
   stored_resources?:StoredResource[]
   schema: 'capstone-thread-input-catalog/1'; revision: string; context_id: string; selection_revision: string
   objects: { object_id: string; model_id: string; model_revision: string; implementation_family: string }[]

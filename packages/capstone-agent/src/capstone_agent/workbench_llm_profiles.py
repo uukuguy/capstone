@@ -42,7 +42,7 @@ class ProfileRegistry:
         return {**p, 'model': model, 'base_url': url, 'key': key or 'internal', 'available': available, 'profile_revision': revision}
 
     def catalog(self):
-        return {'default_profile_id': self.default, 'profiles': [{k: p[k] for k in ('id', 'label', 'model', 'available')}
+        return {'default_profile_id': self.default, 'profiles': [{**{k: p[k] for k in ('id', 'label', 'model', 'available')}, 'icon': p.get('icon', 'server')}
                 for p in (self._resolved(i) for i in self.profiles)]}
 
     def freeze(self, profile_id=None):

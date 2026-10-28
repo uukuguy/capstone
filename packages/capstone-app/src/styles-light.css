@@ -878,7 +878,7 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .thread-settings-popover { position: absolute; z-index: 30; bottom: calc(100% + 8px); left: 0; display: grid; gap: 6px; width: min(268px, 76vw); padding: 8px; border: 1px solid #cbded5; border-radius: 12px; background: #fff; box-shadow: 0 12px 28px #31564818; overflow-y: auto; }
 .thread-input-controls { position: relative; min-width: 0; }
 .thread-input-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 0 6px 6px; }
-.thread-llm-selector { display: inline-flex; align-items: center; gap: 4px; color: #78938b; min-width: 0; }
+.thread-llm-selector { position: relative; display: inline-flex; align-items: center; gap: 4px; color: #78938b; min-width: 0; }
 .thread-llm-selector > select { max-width: 260px; text-overflow: ellipsis; }
 .capstone-composer-toolbar > .thread-input-tools { padding: 0; }
 .thread-input-tools svg, .thread-input-chip svg { width: 14px; height: 14px; flex-shrink: 0; }
@@ -1489,3 +1489,12 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .session-delete-dialog>div{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}
 .session-delete-dialog button{padding:6px 12px;border:1px solid #d7e0da;border-radius:5px;background:white;font:inherit;cursor:pointer}
 @media(pointer:coarse){.session-row-actions{opacity:1}.session-row-actions .session-row-menu{display:grid!important}.session-row-actions button{min-height:32px!important;width:32px!important}.session-navigation-row>a{padding-right:70px!important}}
+
+.thread-llm-selector img { width: 15px; height: 15px; flex-shrink: 0; }
+.thread-llm-popover { position: absolute; bottom: calc(100% + 8px); left: 0; z-index: 50; padding: 5px; min-width: 280px; max-width: min(400px, 85vw); background: #fff; border: 1px solid #dce5df; border-radius: 12px; box-shadow: 0 8px 28px #20362d20; }
+.thread-llm-popover button { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 34px; padding: 7px 9px; border: 0; border-radius: 7px; background: transparent; color: #405a51; text-align: left; font: inherit; font-size: 12px; cursor: pointer; }
+.thread-llm-popover button > span { flex: 1; }
+.thread-llm-popover button[aria-checked="true"], .thread-llm-popover button:hover:not(:disabled), .thread-llm-popover button:focus-visible { background: #edf5f1; color: #287a6d; }
+.thread-llm-popover button:disabled { opacity: .45; cursor: default; }
+.thread-llm-popover small { margin-left: 8px; font-size: 11px; }
+@media (pointer: coarse) { .thread-llm-popover button { min-height: 44px; } }
