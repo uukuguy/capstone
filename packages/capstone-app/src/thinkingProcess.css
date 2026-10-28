@@ -17,7 +17,8 @@
 .capstone-thinking-process .capstone-thinking-copy .capstone-chat-markdown > :last-child { margin-bottom: 0; }
 .capstone-thinking-process .capstone-thinking-copy .capstone-chat-markdown :is(pre, code, blockquote) { background: transparent; }
 .capstone-thinking-process.is-active .capstone-thinking-copy { max-height: 96px; mask-image: linear-gradient(to bottom, transparent, black 8px, black calc(100% - 12px), transparent); }
-.capstone-thinking-process.is-reader .capstone-thinking-copy { max-height: none; overflow: visible; mask-image: none; }
+.capstone-thinking-process.is-reader .capstone-thinking-copy { max-height: 192px; overflow-y: auto; mask-image: none; }
+.capstone-call-round > .capstone-thinking-process { margin: 0 0 2px 16px; }
 @keyframes capstone-thinking-shimmer { 0%, 100% { opacity: .65; } 50% { opacity: 1; } }
 @media (pointer: coarse) { .capstone-thinking-trigger { min-height: 44px; } }
 @media (prefers-reduced-motion: reduce) { .capstone-thinking-process.is-active .capstone-thinking-label { animation: none; } .capstone-thinking-trigger svg { transition: none; } }

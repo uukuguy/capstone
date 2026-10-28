@@ -6291,3 +6291,23 @@ and visible real business verification pending. Unrelated task-1-report.md prese
   response; no extra LLM request. Actual workbench verification follows rebuild.
 - 36 Node tests passed; focused review's issued-reference concern was reproduced
   and fixed. This does not establish a real task speed improvement.
+- cfd83cf5 — Bounded issued observation previews and requested same-response action comments to reduce replay and clarify execution intent.
+
+### 2026-10-29 — Per-call thinking and live tool detail focus
+
+- Every measured parent request may retain its own public thinking chunks.
+  Exact request boundaries and event-ID deduplication prevent cross-request
+  aggregation. Diagnostic/private text never becomes public thinking or intent.
+- Per-call thinking streams in a bounded viewport and folds when that response
+  ends; the global continuation transcript is no longer rendered. First/last
+  public chunk timings are observation intervals, not hidden compute measurements.
+- Tool summaries and LLM rows remain visible. During lightweight execution the
+  current response's tool details open; the next response closes that default.
+  Embedded tools default closed at rest. Enlarged details default open; both
+  views have independent bulk expand/collapse controls.
+- 209 focused App tests and TypeScript passed; review found no new Important.
+- Real Vivaldi navigation test STILL jumps to the top on a deep-list cold switch
+  from thr_0eb9fcae6393c8022b89 to thr_252b66b56ac32e3c1abe. Keep this open.
+  Navigation worker is investigating automatic scroll writes/owner races.
+  Screenshot refs: ignored /tmp/nav-keyboard-deep.json and /tmp/nav-verified-other.json.
+  User explicitly prioritizes fixing the left navigation before other UI issues.

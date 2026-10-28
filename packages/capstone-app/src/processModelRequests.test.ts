@@ -21,6 +21,13 @@ it('uses only the response first-line action comment and keeps reasoning out of 
   expect(calls[0].intent).toBe('核对指标口径')
   expect(calls[1].intent).toBeUndefined()
 })
+it('keeps public thinking within its actual request and does not aggregate later rounds',()=>{
+  const thought=(seq:number,text:string):EventEnvelope=>({...boundary(seq,'thought'),eventType:'assistant_thinking_delta',payload:{text}})
+  const first=thought(2,'First thought. ')
+  const calls=projectProcessModelRequests([boundary(1,'started'),first,first,boundary(3,'response_completed','tools'),thought(4,'Outside response.'),boundary(5,'completed'),boundary(6,'started'),thought(7,'Second thought.')],'attempt')
+  expect(calls[0].thinking).toBe('First thought. ')
+  expect(calls[1].thinking).toBe('Second thought.')
+})
 it('binds observed native tools through explicit SDK turn boundaries, never just adjacent times',()=>{
   const native={...boundary(0,'route'),eventType:'turn_route_selected',payload:{source:'native_conversation'}}
   const tool=(seq:number,id:string):EventEnvelope=>({...boundary(seq,'tool'),eventType:'runtime_event',payload:{native_type:'tool_execution_start',tool_call_id:id,tool_name:'read'}})

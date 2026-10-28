@@ -4,6 +4,17 @@ import { cleanup, render, screen, within } from '@testing-library/react'
 import ProcessCallTrace, { callTraceIssues } from './ProcessCallTrace'
 
 afterEach(cleanup)
+it('opens current lightweight tool details and collapses them when the next LLM response starts',()=>{
+  const models=[{id:'m1',number:1,ms:100,toolCallIds:['a']},{id:'m2',number:2,ms:100,toolCallIds:['b']}]
+  const tools=[{id:'a',name:'Old tool',status:'completed' as const},{id:'b',name:'Current tool',status:'running' as const}]
+  const view=render(<ProcessCallTrace compact active models={models} tools={tools}/>)
+  expect(screen.getByText('Old tool').closest('details')).not.toHaveAttribute('open')
+  expect(screen.getByText('Current tool').closest('details')).toHaveAttribute('open')
+  view.rerender(<ProcessCallTrace compact active models={[...models,{id:'m3',number:3,ms:0,startedAt:'2026-10-29T00:00:03Z'}]} tools={tools}/>)
+  expect(screen.getByText('Current tool').closest('details')).not.toHaveAttribute('open')
+  expect(screen.getByText('LLM 01')).toBeVisible()
+  expect(screen.getByText('LLM 02')).toBeVisible()
+})
 it('uses compact glyphs and outlines actual parallel tools without repeated status text',()=>{
   render(<ProcessCallTrace compact models={[{id:'m',number:1,ms:1200,toolCallIds:['a','b']}]} tools={[
     {id:'a',name:'Read A',status:'completed',startedAt:'2026-10-29T00:00:00Z',durationMs:500},

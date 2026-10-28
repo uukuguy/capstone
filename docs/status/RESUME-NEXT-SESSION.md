@@ -5,6 +5,11 @@ Updated: 2026-10-28. Tool composition implemented/local trials complete; PR71 in
 ## Active implementation
 
 Current focus: lightweight progress/state stability, then FULL generation acceptance.
+USER PRIORITY NOW: actual left navigation still jumps on cold session switch;
+unit checks passed but real Vivaldi thr_0eb...→thr_252... returned to top.
+authority_import owns ongoing navigation investigation/fix; do not claim it closed.
+Per-call Thinking and current-tool detail following are implemented; 209 checks+TS.
+First-line action comment policy is committed at cfd83cf5 but runtime rebuild pending.
 Current UI candidate: compact LLM-labelled/icon status trace, latency colors,
 hairline parallel groups, detail fold controls (embedded closed/enlarged open),
 hamburger before title and global async-safe navigation scroll. 189 App tests+TS.

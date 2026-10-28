@@ -8,10 +8,21 @@ export function projectProcessModelRequests(events: readonly EventEnvelope[], at
   let pending: ProcessModelCall | undefined
   let turn: ProcessModelCall | undefined
   let openingText=''
+  const thinkingEvents=new Set<string>()
   const native = events.some(event=>event.attemptId===attemptId&&event.visibility==='public'&&['turn_route_selected','turn_plan_created'].includes(event.eventType)&&event.payload.source==='native_conversation')
   for (const event of events) {
     if (event.attemptId !== attemptId) continue
+    if(pending&&event.visibility==='public'&&event.eventType==='assistant_thinking_delta'&&typeof event.payload.text==='string'){
+      if(!thinkingEvents.has(event.eventId)){
+        thinkingEvents.add(event.eventId)
+        pending.thinking=(pending.thinking??'')+event.payload.text
+        pending.thinkingStartedAt??=event.occurredAt
+        pending.thinkingEndedAt=event.occurredAt
+      }
+      continue
+    }
     if(pending&&event.eventType==='assistant_process_delta'&&typeof event.payload.text==='string'){
+      if(pending.thinking)pending.thinkingSettled=true
       openingText=(openingText+event.payload.text).slice(0,512)
       const line=openingText.split(/\r?\n/)[0].trim()
       if(line.startsWith('//'))pending.intent=line.slice(2).trim().slice(0,160)

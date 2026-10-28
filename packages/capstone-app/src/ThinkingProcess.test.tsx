@@ -10,6 +10,14 @@ const accepted=event('command_accepted',1,{kind:'send_auto',payload:{text:'Curre
 const started=event('attempt_started',2)
 const delta=event('assistant_thinking_delta',3,{text:'Actual public thought. '})
 const props={disabled:false,isRunning:true,activity:[],onSend:async()=>{},onCancel:async()=>{}}
+it('keeps completed thinking folded in the reader and never appends a continuation transcript',()=>{
+  render(<ThinkingProcess expanded storageKey="bounded-reader" thinking={{text:'Initial text.',continuationText:'Later round.',handedOff:true,phase:'completed'}}/>)
+  expect(screen.getByRole('button',{name:'展开初始思考'}).getAttribute('aria-expanded')).toBe('false')
+  fireEvent.click(screen.getByRole('button',{name:'展开初始思考'}))
+  expect(screen.getByText('Initial text.')).toBeTruthy()
+  expect(screen.queryByText('Later round.')).toBeNull()
+  expect(screen.queryByText('后续思考')).toBeNull()
+})
 
 it('excludes acceptance queue time from thinking duration once execution starts',()=>{
   const thinking=projectInitialThinking([accepted,started,delta,event('attempt_completed',4,{answer:'Answer only.'})],'thinking')!
@@ -92,7 +100,8 @@ it('folds thinking at the first tool and retains later lightweight deltas in the
   expect(screen.queryByText('当前记录未提供任务计划。')).toBeNull()
   fireEvent.click(screen.getByRole('button',{name:'放大阅读执行过程'}))
   const reader=within(screen.getByRole('dialog',{name:'执行过程'}))
-  expect(reader.getByRole('region',{name:'初始思考记录'}).textContent).toContain('LATER_TASK_THINKING')
+  fireEvent.click(reader.getByRole('button',{name:'展开初始思考'}))
+  expect(reader.getByRole('region',{name:'初始思考记录'}).textContent).not.toContain('LATER_TASK_THINKING')
   expect(reader.getByRole('region',{name:'初始思考记录'}).textContent).toContain('Actual public thought.')
 })
 it('never shows a missing-thinking placeholder alongside supplied 823-character public thinking',()=>{
