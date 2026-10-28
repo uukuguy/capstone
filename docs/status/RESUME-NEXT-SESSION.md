@@ -4,6 +4,18 @@ Updated: 2026-10-28. Tool composition implemented/local trials complete; PR71 in
 
 ## Active implementation
 
+Daemon recovery update: both full trials completed. DR506.42s,13parent+104child
+responses (old843.86s/157total); light662.94s/77 (old383.66s/65). Raw full-dr and
+full-lightweight under runs/tool-composition-20261028. Do not claim universal speedup.
+PR71 remoteHEAD0f9c3a14, CI40583906308 pending. New local circuit correction
+in tool-composition.mjs + fixture: after3 consecutive structured resource timeout/
+rate-limit failures for one tool, skip remaining queued calls for that tool in
+that program. Skips have ref:null/status:not_executed; no fabricated observations,
+other tools remain usable.16worker/package tests pass. Not committed/deployed yet;
+need independent-tool/partial-quality regression and review, commit, journal,
+canonical rebuild plus targeted real test; update report/design. Then push once,
+CI/dev integration/control flow below remains required. User task NOT complete.
+
 Live continuation: remote PR71 HEAD6b488fb4, required macOS run40577837096 failed
 after~30min:2418passed/8failed stale publication expectations. Affected tests now
 use exact historical version boundaries and latestdefault1.20; original snapshot

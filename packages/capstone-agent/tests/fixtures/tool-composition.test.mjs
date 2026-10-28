@@ -7,7 +7,27 @@ import {createToolCompositionTool,compositionPolicy} from '../../src/capstone_ag
 import {rpcEvent} from '../../src/capstone_agent/resources/general-sdk.mjs';
 
 const catalog={revision:'catalog',tools:{data_gateway_read:{name:'read',inputSchema:{type:'object'},description:'Read selected data'}},tool_hashes:{data_gateway_read:'a'.repeat(64)}};
+test('repeated resource timeouts stop queued calls without inventing source observations',()=>fixture(async cwd=>{
+  let issued=0;
+  const t=tool(cwd,async()=>{issued++;await new Promise(r=>setTimeout(r,5));return {content:[{type:'text',text:JSON.stringify({structuredContent:{status:'error',data:null,gaps:[{reason:'query_timeout'}]}})}]};});
+  const result=await t.execute('bounded',{tools:['data_gateway_read'],concurrency:2,program:`return await Promise.all(Array.from({length:20},()=>tools.call('data_gateway_read',{})));`});
+  assert.equal(result.isError,false);const body=JSON.parse(result.content[0].text);
+  assert.ok(issued<=4);assert.ok(body.skipped_calls>=16);
+  for(const r of body.result.filter(r=>r.status==='not_executed'))assert.equal(r.ref,null);
+}));
 const native=value=>({content:[{type:'text',text:JSON.stringify({structuredContent:{status:'ok',data:value,provenance:{source_instance:'test',revision:'one'},gaps:[]}})}],details:{kind:'external_gateway_observation',tool:'data_gateway_read',catalog_revision:'catalog',output_sha256:'b'.repeat(64)}});
+test('a resource failure limit leaves independent tools and partial quality results usable',()=>fixture(async cwd=>{
+  const two={...catalog,tools:{...catalog.tools,data_gateway_other:catalog.tools.data_gateway_read}};let reads=0,others=0;
+  const result=await tool(cwd,async name=>{
+    if(name==='data_gateway_read'){reads++;return {content:[{type:'text',text:JSON.stringify({structuredContent:{status:'error',gaps:[{reason:'query_timeout'}]}})}]};}
+    others++;return {content:[{type:'text',text:JSON.stringify({structuredContent:{status:'partial',data:{n:others},gaps:[{reason:'missing_day'}]}})}]};
+  },{catalog:two}).execute('independent',{tools:['data_gateway_read','data_gateway_other'],concurrency:1,program:`
+    const failed=[];for(let i=0;i<8;i++)failed.push(await tools.call('data_gateway_read',{}));
+    const good=[];for(let i=0;i<8;i++)good.push(await tools.call('data_gateway_other',{}));return {failed,good};`});
+  assert.equal(result.isError,false);assert.equal(reads,3);assert.equal(others,8);
+  const body=JSON.parse(result.content[0].text);assert.equal(body.calls,11);assert.equal(body.skipped_calls,5);
+  assert.ok(body.result.good.every(r=>r.ok&&r.status==='partial'&&r.ref));
+}));
 async function fixture(run){const cwd=await mkdtemp(join(tmpdir(),'tool-composition-'));try{await run(cwd);}finally{await rm(cwd,{recursive:true,force:true});}}
 function tool(cwd,invoke,extras={}){return createToolCompositionTool({policy:compositionPolicy,cwd,catalog,invoke,scope:{task_id:'task',attempt_id:'attempt'},deadlineAt:Date.now()+10000,...extras});}
 function value(result){assert.equal(result.isError,true,JSON.stringify(result));}

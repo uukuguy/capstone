@@ -13,7 +13,7 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
     async execute(callId,input,signal){
       signal?.throwIfAborted();
       const failure=error=>({isError:true,content:[{type:'text',text:String(error.message??error)}]});
-      let child,timer;const abort=new AbortController(),queue=[],operations=new Set();let active=0,calls=0,finished=false;
+      let child,timer;const abort=new AbortController(),queue=[],operations=new Set(),resourceFailures=new Map(),blocked=new Set();let active=0,calls=0,requests=0,skipped=0,finished=false;
       const stop=()=>{abort.abort(Error('Composition stopped'));for(const reject of queue.splice(0))reject();if(child?.pid){try{process.kill(-child.pid,'SIGKILL');}catch{child.kill('SIGKILL');}}};
       try{
         if(typeof input.program!=='string'||input.program.length>policy.code_chars)throw Error('Program code budget exceeded');
@@ -40,17 +40,26 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
             try{
               if(message.kind==='call'){
                 if(!Object.hasOwn(schemas,message.name))throw Error('Tool not selected for this program');
-                if(++calls>limit)throw Error('Composition call budget exceeded');
+                if(++requests>limit)throw Error('Composition call budget exceeded');
                 if(active>=concurrency)await new Promise((resolve,reject)=>queue.push(()=>abort.signal.aborted?reject(abort.signal.reason):resolve()));
                 abort.signal.throwIfAborted();active++;
                 try{
+                  if(blocked.has(message.name)){
+                    skipped++;value={ref:null,ok:false,status:'not_executed',data:null,gaps:[{reason:'repeated_resource_failure',tool:message.name}],value:null};
+                  }else{
+                  calls++;
                   const nestedId=`${callId}:${run}:${message.id}`,native=await restore(await invoke(message.name,message.args,{callId:nestedId,signal:abort.signal}));
                   let raw;try{raw=JSON.parse(native.content.find(c=>c.type==='text')?.text??'null');}catch{raw={text:native.content};}
                   const observed=raw?.structuredContent??raw;
                   const ref=`program-call:${run}:${message.id}`;
                   const ok=native.isError!==true&&!['error','failed','denied'].includes(observed?.status);
+                  const timeout=!ok&&Array.isArray(observed?.gaps)&&observed.gaps.some(g=>/^(?:query_timeout|timeout|resource_exhausted|rate_limit)$/.test(g?.reason??''));
+                  const count=timeout?(resourceFailures.get(message.name)??0)+1:0;
+                  resourceFailures.set(message.name,count);
+                  if(count>=policy.consecutive_resource_failures)blocked.add(message.name);
                   records.set(ref,{ref,ok,value:observed,receipt:native.details??{}});
                   value={ref,ok,...(observed&&typeof observed==='object'?observed:{}),value:observed};
+                  }
                 }finally{active--;queue.shift()?.();}
               }else if(message.kind==='save')value=await saveSemanticContext({cwd,name:message.name,spec:message.spec,records,scope});
               else if(message.kind==='load')value=await loadSemanticContext({cwd,path:message.path,allowedInputs});
@@ -65,7 +74,7 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
           });
           child.send({kind:'start',program:input.program,schemas,outputBytes:policy.output_bytes});
         });
-        const text=JSON.stringify({result:result??null,calls});
+        const text=JSON.stringify({result:result??null,calls,skipped_calls:skipped,limited_tools:[...blocked]});
         const bounded=await boundToolResult({isError:false,content:[{type:'text',text}],details:{kind:policy.schema,calls}},
           {cwd,toolName:'agent_tools_execute',callId,maxChars:policy.output_bytes});
         // Unlike gateway receipts, the program return has no host requirement

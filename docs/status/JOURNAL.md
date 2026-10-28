@@ -6030,6 +6030,14 @@ Reproduced protected research acknowledgment waiting behind an entire public-eve
 - 2026-10-28: 0468f165 records measured batching and shared tool-composition proposals; runtime behavior remains unchanged pending implementation scope.
 # 2026-10-28 — Shared native tool composition
 
+Recovery follow-up: repeated resource failures now stop queued calls for only that
+tool/program after3 consecutive failures. Unissued calls return not_executed with
+ref:null; partial quality gaps and independent tools remain usable.17 actual
+worker/package tests pass (0.71s), including independent-tool/partial regressions.
+CI40583906308 failed25m36s in App fixtures (events is not iterable in
+ThreadWorkModelPane plus stale plan control expectation); previous Python errors
+are resolved. Targeted App reproduction started in/tmp/composition-pane-red.log.
+
 CI40577837096 failed after about30min: 2418 agent checks passed,8 failed due to
 old publication tests including new1.20 entries in legacy hashes/default1.19.
 Reproduced affected files; restrict snapshots to versions before their original
