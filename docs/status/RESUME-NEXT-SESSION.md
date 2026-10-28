@@ -4,6 +4,116 @@ Updated: 2026-10-28. Tool composition implemented/local trials complete; PR71 in
 
 ## Active implementation
 
+Current focus: commercial/local-only execution and lightweight-chain efficiency.
+Recovery attempt_58c55b5ad6cf8d22 completed69.330s/16model/18tools, zero gateway.
+It delivered actual15-slide PPT564490bytes (e4b7e8af...), metrics_core.csv and sourceCSV.
+Downloads/hash/zip verified; Vivaldi cover/page2 displayed. Original run remainsfailed.
+Avoidable empty-workspace probes and copied read-only mode caused extra model turns.
+Next optimize generic input guidance and group related local operations, no business-specific rules.
+Backend now560d7465 image787ff491621a57062850e3d96ef88de4d70a12882d07593edb2e92b0c685279c;
+App e04fe457. Canonical rebuild and scoped cleanup completed.
+User confirms研发服务器断开: do not probe/use internal models or remote gateway.
+18804 test attempt_61073af59d9b5c90 was cancelled via Vivaldi and ledger confirms cancelled.
+Session selection restored to commercial. Intranet testing/deployment is deferred.
+Commercial retest thr_fab1ac9870cddc90b83e completed2.985s, two model responses,
+one bash call, answer3973. New image da1310b18b776deac4fd3e1377c2a69549c9c227fe196bfe484be81068a5fe7b
+is ready; diagnostics import verified inside container.
+UI refinements are committed through 700b4a6e: per-option configured DeepSeek/server
+icons, compact labels, source-grid header shortcut removed, cache menu simplified
+and vertically aligned. Actual Vivaldi brand and header removal verified; no backend
+model acceptance inferred from screenshots. 125 App checks and TypeScript passed.
+
+Model implementation: 0c7e4bb2 backend catalog/frozen routing, e00db6bd startup presets,
+80278315 per-session UI state, 560d7465 freezes omitted/default selections at admission.
+Default-freeze regression proved failure before fix; combined checks 81 passed,
+18 unrelated version skips (3.86s). Preserve existing historic task fallback.
+
+Real commercial test thr_463ff387a579d24ee5c6 / attempt_7f08196479fe8ebd FAILED
+617ms before a model call. Private origin points to data_gateway_relay.bind line67:
+gateway_diagnostics.py was absent from selective native Docker COPY. 26cf1465 fixes
+COPY, build-time import and executor identity. The isolated image projection test
+reproduced ModuleNotFoundError before fix; seven packaging checks passed after.
+Canonical rebuild is in progress (/tmp/models-runtime-fix-rebuild.log, exec session22657).
+Do not claim model switching accepted until real Vivaldi tool runs pass. Next: finish
+rebuild, verify commercial and all3 intranet models, 2-session refresh persistence,
+then recover saved PPT in the workbench without gateway refetch. A subsequent rebuild
+is required to include 560d7465 (the current build started at26cf1465).
+Latest previous image d478d44ca259a0e181b503e034592cd30d41b4e0bcd6839ae8ab0c1e13093c1e
+had UI/catalog labels but missing diagnostics module. No cloud/demo/server deployment.
+
+Gateway diagnostics foundation78b8af1f exists; trusted task/revision/step correlation
+and durable host event integration remain incomplete. Sibling data-gateway stays
+read-only. Lightweight universal performance acceptance is NOT complete; full retest
+failed540.48s/83 models/121tools with33saved products. Original PPT script replay found
+NameError(k) then reverse Pearson-key lookup; ignored replay fixed both, produced
+15-slide PPT without network at runs/light-failure-replay-20261028. Original run stays
+failed. Why host escalated the script failure remains unproven; private origins added
+by2f4afd12/a81f1820. No repeated full benchmark until small recovery works.
+
+Latest user deployment steering: AFTER current fixes, deploy to
+dmdba@192.168.72.63 using internal models and sibling READONLY connection
+data-gateway/runtime/connections/remote-integration.json. Internal endpoints:
+http://192.168.72.69:18804/v1 modeldsv4;
+http://192.168.72.69:16804/v1 modeldsv4;
+http://192.168.72.69:8011/v1 modelqwen3.8-27b.
+Use wired direct route; explicitly bypass Clash/proxies. Both local curl
+--noproxy '*' and SSH BatchMode to server succeeded for all3 /models endpoints
+HTTP200, returnedexact IDs above. This proves discovery reachability only;
+actual generation/tool-calling tests still required on BOTH hosts. No deployment
+has been performed. No passwords/keys copied or logged. SSH already works.
+User requests unified convenient startup selection and frontend model switching,
+including external providers in local development. Actual source confirms
+runtime.py loads .env and legacyGRID_AGENT_LLM_* aliases into CAPABILITY_AGENT_LLM_*;
+native workbench general_pi_server separately selects CAPSTONE_PUBLIC_MODEL.
+Therefore current configuration is NOT one universal GRID_AGENT_LLM_* switch.
+Audit provider/role/model selection end-to-end; build one protected backend model
+registry/preselected deployment profile, same admitted frontend catalog; preserve
+per-instruction snapshots and existing tasks. Never expose endpoints/credentials
+as caller-controlled native authority grants. Read deployment lifecycle before
+environment/deploy changes; preserve remote data and other services. Record user
+supplied endpoints in versioned nonsecret configuration/design, keep authentication
+in protected ignored config. Latest current lightweight regression/failure and
+diagnostic-meta tasks remain active, not replaced by deployment preparation.
+
+Latest supplied requirement: sibling data-gateway/docs/Capstone任务执行链诊断接入要求.md
+read in full. Gateway runtime self-description diagnostics contract owns rules;
+document is development reference. Actual gap verified data_gateway_mcp.py:242
+calls active_session.call_tool(name,arguments=...) without meta. Integrate trusted
+params._meta['gateway/diagnostics'] {task_id,run_id,trace_id,parent_span_id} for HTTP/
+stdio; never alter business arguments or ask model to fill IDs. Audit Work/task
+revision mapping before assigning stabletask ID: do NOT equate entire conversation
+with one business task. Each run/revision differs; same-run retries retainrun ID;
+parallel calls sharetrace and have accurate parentapplication spans. Preserve
+gateway provenance.request_id/span_id on business errors, local failure stage when
+noresponse; no forgedgateway IDs. Explicit retry_of/attempt, pagination!=retry,
+reuse refs!=newgateway call. Distinguish queue/model/tool/report phases and real
+cancel propagation; HTTP cancellation does not prove backendjob stopped.
+Use dependencies and monotonicdurations, no additive nested time totals or
+cross-machine wallclock subtraction. Userprogress stage/results/waits/recoverable
+errors, lowlevel detailscollapsed; no inventedpercentages or hiddenreasoning logs.
+This is observability for iterative “ChatGPT for Grid”, NOT a stricter qualitygate.
+Sibling repo remainsREADONLY. Owning diagnostic integration implementation and
+joint acceptance still pending. Keep current failed products and investigate
+native_execution_error; do not rerun whole retrieval to get missing diagnostics.
+
+User product steering: internal “ChatGPT for Grid”; phase1 prioritizes production
+data exploration, multi-turn analysis, report generation and interactive revision.
+Each instruction should promptly deliver useful intermediate products. Analytical
+gaps/noncritical checks are recorded, not strict whole-turn rejection; avoid basic
+errors with proportionate checks. Retain authorization, truthful source identity,
+real execution status and required file persistence. Numerical Authority claims
+must still use actual admitted results. Do not label failed execution complete.
+
+Latest exact summer retest threadthr_4932d0b2b8e4d1a2105a /
+attempt_4c23f73890aa6450 FAILED after540.48s/83model responses/121tools;
+native_execution_error, no specific public cause;33process files retained.
+Last screenshot shows PPT build bash failed5.1s after source CSV succeeded.
+Details/tmp/light-failure-details.txt. Need inspect native host receipt/worker
+diagnostics for actual terminal reason and recover existing products first,
+without repeating retrieval. No speedup acceptance. Current runtime77df1ea5,
+image60910c36b1481dfa9fef4f98c903fa75320cfe4ce80c1fbc4a7eea7dca072f78,
+canonical build/cleanup135308-10774 ready; no active business attempt at lastcheck.
+
 Latest implementation: replaced overbroad per-tool circuit with canonical
 tool+arguments SHA256 scope.18 worker/package tests pass; changed/narrowed inputs
 can execute after identical failed inputs hit3failures. limited_conditions now

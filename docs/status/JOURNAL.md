@@ -6174,3 +6174,27 @@ version combinations skipped), App type check and doctor passed. Canonical rebui
 and visible real business verification pending. Unrelated task-1-report.md preserved.
 
 - 2026-10-28 `0c7e4bb2`: Freeze registered session LLM identities and route task providers without exposing credentials.
+- 2026-10-28 `e00db6bd`: Align workbench startup presets with registered session defaults while preserving professional provider settings.
+- 2026-10-28 `a81f1820`: Record trusted failure origins privately to identify execution failures without exposing exception contents.
+
+- 2026-10-28 `66ddd5e3`: Simplify model labels and add a compact icon to remove repeated information; 125 tests and TypeScript passed.
+
+- 2026-10-28 `839f7c69`: Add configured per-model icons and keyboard-accessible menu; remove native dropdown limitations. 129 focused tests passed.
+
+- 2026-10-28 `c2111cde`: Preserve DeepSeek brand with cached catalogs and widen model menu; verified live in Vivaldi.
+
+- 2026-10-28 `05ed6149`: Remove source-grid header shortcut as requested; preserve instruction-linked views. TypeScript passed.
+
+- 2026-10-28 `ab4db6df`: Compact cache selector typography and remove unnecessary explanation. TypeScript passed.
+
+- 2026-10-28 `700b4a6e`: Vertically center cache label and selector to fix row alignment.
+
+- 2026-10-28 `26cf1465`: Package missing gateway diagnostics; isolated image projection reproduced failure, seven checks now pass.
+
+- 2026-10-28 `560d7465`: Freeze default LLM at admission to prevent queued requests changing model. 25 checks passed, six skipped.
+
+- 2026-10-28: Server disconnected; cancelled intranet test attempt_61073af59d9b5c90 and restored commercial profile. Use local gateway only.
+
+- 2026-10-28 `e04fe457`: Focus selected LLM and verify brand fallback, keyboard wrap and escape. Two interaction tests passed.
+
+- 2026-10-28: Summer recovery delivered 15-slide PPT in69.330s,16models,18tools,zero gateway; hashes and Vivaldi preview verified. Original failure preserved.
