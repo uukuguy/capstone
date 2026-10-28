@@ -1491,7 +1491,7 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 @media(pointer:coarse){.session-row-actions{opacity:1}.session-row-actions .session-row-menu{display:grid!important}.session-row-actions button{min-height:32px!important;width:32px!important}.session-navigation-row>a{padding-right:70px!important}}
 
 .thread-llm-selector img { width: 15px; height: 15px; flex-shrink: 0; }
-.thread-llm-popover { position: absolute; bottom: calc(100% + 8px); left: 0; z-index: 50; padding: 5px; min-width: 280px; max-width: min(400px, 85vw); background: #fff; border: 1px solid #dce5df; border-radius: 12px; box-shadow: 0 8px 28px #20362d20; }
+.thread-llm-popover { position: absolute; bottom: calc(100% + 8px); left: 0; z-index: 50; padding: 5px; width: max-content; min-width: 280px; max-width: min(420px, 85vw); background: #fff; border: 1px solid #dce5df; border-radius: 12px; box-shadow: 0 8px 28px #20362d20; }
 .thread-llm-popover button { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 34px; padding: 7px 9px; border: 0; border-radius: 7px; background: transparent; color: #405a51; text-align: left; font: inherit; font-size: 12px; cursor: pointer; }
 .thread-llm-popover button > span { flex: 1; }
 .thread-llm-popover button[aria-checked="true"], .thread-llm-popover button:hover:not(:disabled), .thread-llm-popover button:focus-visible { background: #edf5f1; color: #287a6d; }
