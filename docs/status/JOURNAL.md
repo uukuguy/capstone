@@ -6375,3 +6375,5 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 2026-10-30: 5b2dbab2 dispatch trial verified peak two; fix saved-result rereads and Docker layer limit. Live correction check pending.
 
 2026-10-30: 40fdeb28 live reread passed: 21.979s, six main and three child requests, peak two, no duplicate analyses.
+
+2026-10-30: Summer repeat delivered14-slide PPTX/CSV in511.863s;81main calls,no analysis parallelism. Performance acceptance failed; evidence retained.

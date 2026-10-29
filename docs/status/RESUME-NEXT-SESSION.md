@@ -2,6 +2,15 @@
 
 ## Async execution continuation — current priority
 
+Full summer request-pool repeat finished: threadthr_f934d8b0481c8e7d0790,
+511.863s,81actual main requests,0analysis,138tools/23errors. FirstCSV246.864s,
+firstPPT401.830s. Final14slide PPTX/22x28CSV downloaded/hashchecked. Auto pane
+switching visible; no LLM parallelism in this natural task, performance FAILED
+versus480.158s previous repeat. Do not claim pool scheduling equals parallel
+task decomposition. Report records exact friction and renderer pagination.
+No active attempt. Next optimize actual discovery/result parsing/report revision
+and expose meaningful independent analysis without adding another heavy chain.
+
 2026-10-30 verified update: 5b2dbab2 implemented actual request dispatch;
 40fdeb28 fixes saved-answer rereads and the Docker layer limit. Canonical local
 runtime is bf9e3f4e, API/worker identity and cleanup passed. Vivaldi new thread

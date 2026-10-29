@@ -93,6 +93,49 @@ capacity reservation and immutable artifacts across later failure.
 Independent review closed blocking live transfer, unbounded capture close and
 unbounded assembled dependency context findings. No cloud/demo/main deployment
 or dev integration acceptance is claimed.
+# Full summer request-pool repeat — 2026-10-30
+
+Vivaldi existing tab, new thread `thr_f934d8b0481c8e7d0790`. The prompt is the
+same 1,311-byte summer task used in the previous full repeat, including its
+fixed reference date. DeepSeek Flash, DR off. Backend40fdeb28, Appbfe55afe.
+
+| Measurement | Previous full repeat | Actual request-pool repeat |
+| --- | --- | --- |
+| Total elapsed | 480.158 s | 511.863 s |
+| Main model calls | 50 reported responses | 81 actual dispatched requests |
+| Independent analysis requests | 0 | 0 |
+| Model interval sum | 392.756 s | 434.495 s |
+| Tool invocations | 134 | 138 |
+| Tool errors | 6 | 23 |
+| First CSV publication | 184.59 s | 246.864 s |
+| First PPTX publication | 445.96 s | 401.830 s |
+
+Dispatch counts include SDK requests; the older response count is not a new
+request-pool measurement. Actual pool peak was one: all requests used the main
+chain. This trial does not verify simultaneous expanded analysis rows and does
+not pass performance acceptance. Runtime queue support alone did not cause the
+model to decompose this task into independent analysis calls.
+
+The pane automatically selected the generated PPTX before completion. The first
+PPTX had31 slides because content blocks paginated; repeated script edits and
+checks followed. The final file has14 slides and7 media objects. Downloaded
+705,836 bytes; ZIP integrity passed; SHA-256
+`9b0cdab0032110f1670c2b6eb0d8ec4404577d6c2f6fb1759d7e64c4e5a8761e`.
+Final core CSV:10,869 bytes,22 rows including header,28 consistent columns;
+SHA-256 `ee263b1a062294d0876fc8f0f12bf73e9968b2dd1f4f3ff82df19e7a12051817`.
+Vivaldi shows the final14-page preview. These are file/structure checks, not a
+full factual review of all report conclusions.
+
+Observed friction: unloaded tool calls, oversized tool-load batch, incomplete
+metric identities, one SQL timeout, invalid SQL selection/arguments, result
+wrapper parsing, JSON serialization and generated report script syntax errors.
+The reusable renderer avoided custom drawing code but its block pagination
+triggered report rewrites. The trace also repeats main request metadata below
+each main LLM row; record this presentation issue for the next scoped fix.
+Evidence: ignored `runs/summer-request-pool-20261030/events.json`, `summary.json`,
+downloaded products and Vivaldi screenshot
+`296498c3-cfe5-4822-ba15-b264e88fb4e8-screenshot.png`.
+
 # Actual request dispatcher trial — 2026-10-30
 
 Existing Vivaldi tab, new thread `thr_5a6451c5b3e073de3301`, DeepSeek Flash,
