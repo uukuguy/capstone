@@ -51,7 +51,9 @@ def test_missing_durable_adoption_uses_real_store_backend_without_memory_attribu
 
 
 @pytest.mark.parametrize('phase', ['failed', 'cancelled', 'completed'])
-def test_terminal_work_files_remain_available_beyond_inline_material_slots(chat_store, phase):
+@pytest.mark.parametrize('large_automatic', [False, True])
+@pytest.mark.parametrize('incremental', [False, True])
+def test_terminal_work_files_remain_available_beyond_inline_material_slots(chat_store, phase, large_automatic, incremental, monkeypatch):
     from hashlib import sha256
     from types import SimpleNamespace
     from capstone_agent.native_artifact_projection import project_native_artifacts
@@ -64,7 +66,12 @@ def test_terminal_work_files_remain_available_beyond_inline_material_slots(chat_
         payload={'text': 'Analyze the sources'})).status == 'accepted'
     claim = store.claim_attempt('materials', 30, 'native')
     task_id = 'partial-files-task'
-    files = [('metrics.csv', b'x,y\n1,2\n')] + [(f'chart-{i}.png', b'PNG' + bytes([i])) for i in range(6)]
+    from dataclasses import replace
+    from capstone_agent import application_capacity
+    if large_automatic:
+        monkeypatch.setattr(application_capacity, '_current', replace(application_capacity.current_capacity(), mode='debug'))
+    data = b'x,y\n1,2\n' if not large_automatic else b'1,2\n' * (application_capacity.limits.inline_material_bytes // 4 + 1)
+    files = [('metrics.csv', data)] + [(f'chart-{i}.png', b'PNG' + bytes([i])) for i in range(6)]
     by_id = {}
     entries = []
     for name, data in files:
@@ -77,12 +84,18 @@ def test_terminal_work_files_remain_available_beyond_inline_material_slots(chat_
     result = SimpleNamespace(to_document=lambda: {'task_id': task_id, 'parent_attempt_id': claim.attempt.attempt_id,
         'executor_identity': executor.identity, 'status': phase, 'artifacts': entries})
     for source in project_native_artifacts(claim, result):
+        if incremental:
+            store.append_runtime_event(claim, event_type='native_artifact_published',
+                payload={'artifact': {**source, 'source_status': 'running'}})
+            # A producer may declare presentation only after saving the bytes.
+            if source['file_name'] == 'metrics.csv':
+                source = {**source, 'presentation_role': 'primary'}
         store.append_runtime_event(claim, event_type='native_artifact_published', payload={'artifact': source})
     store.finish_attempt(claim, phase=phase, payload={'error_code': 'fixture_interrupted'} if phase != 'completed' else {'answer': 'Files saved'})
     work = store.snapshot(thread_id).works[0]
     assert store.submit_command(command(store, thread_id, 'send_message', 'resume_partial',
         work_id=work['work_id'], revision=work['revision'],
-        payload={'text': 'Please finish the report', 'material_refs': []})).status == 'accepted'
+        payload={'text': 'Please finish the report', **({} if large_automatic else {'material_refs': []})})).status == 'accepted'
     resumed = store.claim_attempt('materials', 30, 'native')
     assert resumed.submission['_materials'] == []
     assert len(resumed.submission['_continuation_artifacts']) == 7
@@ -104,6 +117,22 @@ def test_terminal_work_files_remain_available_beyond_inline_material_slots(chat_
         submission={**resumed.submission, '_continuation_artifacts': foreign}))
     with pytest.raises(ValueError, match='outside this Work'):
         list(foreign_reader(context['resource_manifests'][0]))
+    if incremental and not large_automatic and phase == 'completed':
+        from capstone_agent import native_artifact_projection
+        original = native_artifact_projection.read_native_artifact
+        selected = dict(resumed.submission['_continuation_artifacts'][0])
+        with pytest.raises(KeyError, match='native file not found'):
+            original(store, executor, thread_id, selected['attempt_id'], selected['artifact_id'],
+                expected_descriptor={**selected, 'presentation_role': 'unpublished'})
+        for field, changed in [('task_id', 'foreign-task'), ('host_artifact_id', 'foreign-file'),
+                               ('sha256', '0' * 64)]:
+            def tampered(*args, field=field, changed=changed, **kwargs):
+                descriptor, blob = original(*args, **kwargs)
+                return {**descriptor, field: changed}, blob
+            with monkeypatch.context() as scoped:
+                scoped.setattr(native_artifact_projection, 'read_native_artifact', tampered)
+                with pytest.raises(ValueError, match='content identity changed'):
+                    list(reader(context['resource_manifests'][0]))
 
 
 def test_continuation_reuses_latest_file_versions_across_terminal_attempts(chat_store):

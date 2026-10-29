@@ -32,11 +32,11 @@ export function projectInitialThinking(events:readonly EventEnvelope[],attemptId
 }
 
 /** Lightweight thinking stays above the answer; admitted tasks own later thinking. */
-export default function ThinkingProcess({thinking,storageKey,now=Date.now(),expanded=false}:{thinking:InitialThinking;storageKey:string;now?:number;expanded?:boolean}) {
+export default function ThinkingProcess({thinking,storageKey,now=Date.now(),expanded=false,kind='initial'}:{thinking:InitialThinking;storageKey:string;now?:number;expanded?:boolean;kind?:'initial'|'call'}) {
   const bodyId=useId()
   const active=!thinking.handedOff&&['queued','running'].includes(thinking.phase)
   const foldId=`thinking:${thinking.handedOff?'archive':'initial'}:${active?'active':thinking.phase}${expanded?':reader':''}`
-  const fallback=active||expanded
+  const fallback=expanded||active
   const [fold,setFold]=useState(()=>({id:foldId,open:readProcessStepOpen(storageKey,foldId,fallback)}))
   const open=fold.id===foldId?fold.open:readProcessStepOpen(storageKey,foldId,fallback)
   const start=Date.parse(thinking.startedAt??''),end=thinking.endedAt?Date.parse(thinking.endedAt):now
@@ -47,13 +47,13 @@ export default function ThinkingProcess({thinking,storageKey,now=Date.now(),expa
   useLayoutEffect(()=>{
     if(active&&open&&following.current&&viewport.current)viewport.current.scrollTop=viewport.current.scrollHeight
   },[active,open,thinking.text])
-  return <section className={`capstone-thinking-process${active?' is-active':''}${expanded?' is-reader':''}`} role="region" aria-label={thinking.handedOff?'初始思考记录':'思考状态'} data-phase={thinking.phase} aria-busy={active}>
-    <button type="button" className="capstone-thinking-trigger" aria-label={`${open?'折叠':'展开'}初始思考`} aria-description={status} aria-expanded={open} aria-controls={open&&(thinking.text||thinking.continuationText)?bodyId:undefined} onClick={()=>{
+  return <section className={`capstone-thinking-process${active?' is-active':''}${expanded?' is-reader':''}`} role="region" aria-label={kind==='call'?'LLM 思考':thinking.handedOff?'初始思考记录':'思考状态'} data-phase={thinking.phase} aria-busy={active}>
+    <button type="button" className="capstone-thinking-trigger" aria-label={`${open?'折叠':'展开'}${kind==='call'?'本轮思考':'初始思考'}`} aria-description={status} aria-expanded={open} aria-controls={open&&thinking.text?bodyId:undefined} onClick={()=>{
       following.current=true;setFold({id:foldId,open:!open});saveProcessStepOpen(storageKey,foldId,!open)
     }}><ChevronRight aria-hidden="true"/><span className="capstone-thinking-label">{active?'Thinking…':'Thinking'}</span>{!active&&elapsed!==undefined&&<span className="capstone-thinking-duration"> · {elapsed.toFixed(1)}s</span>}</button>
-    {open&&(thinking.text||thinking.continuationText)&&<div id={bodyId} ref={viewport} className="capstone-thinking-copy" onScroll={()=>{
+    {open&&thinking.text&&<div id={bodyId} ref={viewport} className="capstone-thinking-copy" onScroll={()=>{
       const node=viewport.current
       if(node)following.current=node.scrollHeight-node.scrollTop-node.clientHeight<24
-    }}><MarkdownContent>{thinking.text}</MarkdownContent>{thinking.continuationText&&<><p>后续思考</p><MarkdownContent>{thinking.continuationText}</MarkdownContent></>}</div>}
+    }}><MarkdownContent>{thinking.text}</MarkdownContent></div>}
   </section>
 }

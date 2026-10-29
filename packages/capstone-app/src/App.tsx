@@ -6,7 +6,7 @@ import { NetworkView } from './NetworkView'
 import { PageHeader } from './AppHeader'
 import ThreadFixtureApp from './ThreadFixtureApp'
 import ThreadLiveEntry from './ThreadLiveEntry'
-import {readLastWorkspaceThread} from './workspaceEntry'
+import {currentWorkspaceName} from './workspaceName'
 import type { ThreadUiFixtureId } from './threadUiFixtures'
 import { parseNetworkDiagram } from './networkValidation'
 import { ensureCreateKey, forgetRun, readRun, readSelection,
@@ -758,20 +758,25 @@ function CaseWorkspace({ client, app, caseCard, visible, onInvalidToken }: {
 }
 
 export default function App({ clientFactory = defaultClientFactory }: Props) {
+  const [,refreshLocation]=useState(0)
+  useEffect(()=>{const changed=()=>refreshLocation(value=>value+1);window.addEventListener('popstate',changed);return()=>window.removeEventListener('popstate',changed)},[])
   const params = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search)
   const defaultWorkspace=typeof window!=='undefined'&&window.location.pathname==='/'&&!params?.has('thread')&&!params?.has('thread-fixture')&&!params?.has('workspace')
-  const enterpriseWorkspace=params?.get('workspace')==='enterprise'||defaultWorkspace
-  const liveThreadRoute=params?.get('thread')||(enterpriseWorkspace?readLastWorkspaceThread():undefined)||'new'
-  useEffect(()=>{if(defaultWorkspace){const url=new URL(window.location.href);url.searchParams.set('workspace','enterprise');url.searchParams.set('thread',liveThreadRoute);window.history.replaceState({},'',url)}},[defaultWorkspace,liveThreadRoute])
+  const enterpriseWorkspace=!!params?.has('workspace')||defaultWorkspace
+  let workspaceName='enterprise',workspaceError=''
+  try{workspaceName=currentWorkspaceName()}catch(error){workspaceError=error instanceof Error?error.message:'工作空间名称无效'}
+  const liveThreadRoute=params?.get('thread')||'new'
+  useEffect(()=>{if(defaultWorkspace){const url=new URL(window.location.href);url.searchParams.set('workspace','enterprise');window.history.replaceState({},'',url)}},[defaultWorkspace])
   useEffect(()=>{document.title=enterpriseWorkspace ? 'Capstone · 企业工作台' : 'Capstone · 电网分析工作台'},[enterpriseWorkspace])
   const fixtureRoute = params?.get('thread-fixture')
+  if(workspaceError)return <main role="alert">{workspaceError}</main>
   const fixtureIds = new Set<ThreadUiFixtureId>(['idle-ieee39', 'historical-live-attempt', 'resync-required', 'interrupted-attempt'])
   if (fixtureRoute && fixtureIds.has(fixtureRoute as ThreadUiFixtureId)) {
-    const workspace=params?.get('workspace')==='enterprise'
+    const workspace=!!params?.has('workspace')
     return <ThreadFixtureApp fixtureId={fixtureRoute as ThreadUiFixtureId} presentation={workspace ? 'workspace' : undefined}
       navigation={workspace && <nav id="thread-session-navigation" className="thread-session-navigation" aria-label="任务会话"><p role="status">离线会话预览</p><a aria-current="page" href={`/?workspace=enterprise&thread-fixture=${fixtureRoute}`}>当前记录会话</a></nav>} />
   }
-  if (enterpriseWorkspace) return <ThreadLiveEntry threadId={liveThreadRoute} presentation="workspace" />
+  if (enterpriseWorkspace) return <ThreadLiveEntry key={workspaceName} threadId={liveThreadRoute} presentation="workspace" />
   if (params?.get('thread')) return <ThreadLiveEntry threadId={liveThreadRoute} />
   const path = typeof window === 'undefined' ? '/' : window.location.pathname
   if (path !== '/old' && path !== '/old/') return <ThreadLiveEntry threadId="new" />

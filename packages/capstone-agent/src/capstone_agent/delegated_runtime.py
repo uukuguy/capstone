@@ -226,10 +226,14 @@ class DelegatedRuntime:
             resources.get('native_context', {}).get('policy', {}).get('allowed_tools', ()))))
         stream_text = self._direct or (self._decision is not None
             and len(self._decision.to_document()['goals']) == 1)
+        transfers = self._incremental_artifact_transfers(on_event, control)
 
         def native(event):
             control.checkpoint()
             kind = event.get('type', event.get('event', 'unknown'))
+            if kind == 'native_artifact_captured':
+                self._publish_captured_artifact(event, request, transfers)
+                return
             if kind == 'assistant_thinking_delta':
                 if event.get('text') == '':
                     return
@@ -267,6 +271,10 @@ class DelegatedRuntime:
             research_branch = kind in {'delegation_child_started', 'delegation_child_tool', 'delegation_child_finished', 'delegation_child_response'}
             research_graph_event = kind in {'enterprise_graph_tool_binding', 'enterprise_graph_child_started',
                 'enterprise_graph_child_tool', 'enterprise_graph_child_response_started', 'enterprise_graph_child_response', 'enterprise_graph_child_finished'}
+            llm_pool_call = event.get('llm_pool_call')
+            pool_progress = isinstance(llm_pool_call, Mapping)
+            model_request_pool = event.get('model_request_pool')
+            model_progress = isinstance(model_request_pool, Mapping)
             source_view = None
             if (kind == 'tool_execution_end' or kind == 'enterprise_graph_child_tool' and event.get('activity') == 'end'):
                 if (tool_name in {'data_gateway_get_network_topology_view', 'data_gateway_open_network_model_view'} and isinstance(tool_call_id, str)
@@ -283,7 +291,9 @@ class DelegatedRuntime:
                     except (GridSourceError, ValueError):
                         pass  # Optional presentation metadata cannot block the task.
             self._emit(on_event, {'task_id': task_id, 'goal_id': goal['goal_id'],
-                'native_type': kind if isinstance(kind, str) else 'unknown',
+                'native_type': 'model_request_pool' if model_progress else 'llm_pool_call' if pool_progress else kind if isinstance(kind, str) else 'unknown',
+                **({'model_request_pool':dict(model_request_pool)} if model_progress else {}),
+                **({'llm_pool_call':dict(llm_pool_call)} if pool_progress else {}),
                 **({'transport': {key: value[:64] for key in ('operation', 'transport_phase')
                     if isinstance((value := event.get(key)), str)}} if kind in {'transport_interrupted', 'transport_restored'} else {}),
                 **({'tool_name': tool_name[:256]} if isinstance(tool_name, str) else {}),
@@ -312,7 +322,7 @@ class DelegatedRuntime:
                     if isinstance((value := cast(Mapping, event.get('activity')).get(key)), str)}}
                     if isinstance(event.get('activity'), Mapping) else {}),
                 **({'is_error': event['is_error']} if type(event.get('is_error')) is bool else {})},
-                visibility='public' if public_tool or research_branch or research_graph_event or kind in {
+                visibility='public' if public_tool or research_branch or research_graph_event or pool_progress or model_progress or kind in {
                     'enterprise_cycle_progress', 'enterprise_graph_progress'} else 'diagnostic')
         self._active_task = task_id
         try:
@@ -336,6 +346,7 @@ class DelegatedRuntime:
             result = PiTaskResult.from_document(result.to_document(), request)
             control.checkpoint()
         except BaseException as error:
+            transfers.close()
             cancelled = True
             try:
                 retained = self._executor.cancel(task_id)
@@ -355,6 +366,7 @@ class DelegatedRuntime:
                 'timeout_seconds': request.timeout_seconds})
             raise
         finally:
+            transfers.close()
             self._active_task = None
             if steps.tracker.active is not None:
                 from .harness import normalize_runtime_event
@@ -397,14 +409,40 @@ class DelegatedRuntime:
         self._artifact_store = objects
 
     def _publish_artifacts(self, result, request, on_event, control=None):
-        from .native_artifact_projection import project_native_artifacts, retain_native_artifact
-        from .pi_delegation import PiArtifactTransportUnavailable
+        from .native_artifact_projection import project_native_artifacts
         if control is not None:
             # Model execution has returned. Persist its files under a separate
             # bounded transfer window; keep the same cancellation/lease callback.
             # Reuse the configured task timeout, without renewing model execution.
             control = NodeControl(control.check, time.monotonic() + request.timeout_seconds)
-        for artifact in project_native_artifacts(self._claim, result, expected_parent_attempt_id=request.parent_attempt_id):
+        artifacts = project_native_artifacts(self._claim, result, expected_parent_attempt_id=request.parent_attempt_id)
+        self._publish_artifact_descriptors(artifacts, result.task_id, on_event, control)
+
+    def _incremental_artifact_transfers(self, on_event, control):
+        from .incremental_artifact_transfers import IncrementalArtifactTransfers
+        from .native_artifact_projection import retain_native_artifact
+        def transfer(artifact, check):
+            def guard():
+                check()
+                control.checkpoint()
+            guard()
+            if self._artifact_store is not None:
+                retain_native_artifact(self._artifact_store, self._executor, artifact, check=guard)
+            guard()
+            on_event({'event_type':'native_artifact_published', 'runtime_mode':self.runtime_mode,
+                'visibility':'public', 'payload':{'artifact':artifact}})
+        return IncrementalArtifactTransfers(transfer, maximum=limits.artifact_count)
+
+    def _publish_captured_artifact(self, event, request, transfers):
+        from .native_artifact_projection import project_native_artifact_capture
+        artifacts = project_native_artifact_capture(self._claim, request, event)
+        for artifact in artifacts:
+            transfers.submit(artifact)
+
+    def _publish_artifact_descriptors(self, artifacts, task_id, on_event, control=None):
+        from .native_artifact_projection import retain_native_artifact
+        from .pi_delegation import PiArtifactTransportUnavailable
+        for artifact in artifacts:
             if self._artifact_store is not None:
                 interrupted, delay = False, 0.1
                 while True:
@@ -419,7 +457,7 @@ class DelegatedRuntime:
                         if control is None:
                             raise
                         if not interrupted:
-                            self._emit(on_event, {'task_id': result.task_id,
+                            self._emit(on_event, {'task_id': task_id,
                                 'transport': {'operation': 'artifact_transfer'},
                                 'child_status': 'transport_interrupted'})
                         interrupted = True
@@ -429,7 +467,7 @@ class DelegatedRuntime:
                             time.sleep(min(0.025, max(0, until - time.monotonic())))
                         delay = min(2, delay * 2)
                 if interrupted:
-                    self._emit(on_event, {'task_id': result.task_id,
+                    self._emit(on_event, {'task_id': task_id,
                         'transport': {'operation': 'artifact_transfer'},
                         'child_status': 'transport_restored'})
             on_event({'event_type': 'native_artifact_published', 'runtime_mode': self.runtime_mode,

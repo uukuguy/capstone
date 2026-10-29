@@ -14,6 +14,17 @@ export function workSnapshot() {
 }
 
 describe('Work protocol', () => {
+  it('recovers the frozen LLM profile on a pending command',()=>{
+    const submission={input:{kind:'text' as const,text:'分析'},context_selection:{include_refs:[],exclude_refs:[]},llm_profile_id:'selected-profile'}
+    const command=buildSendMessageCommand('thr_work','run_work','cmd_send','idem_send','new',0,'分析',submission)
+    expect(parseStoredWorkCommand(JSON.parse(JSON.stringify(command)),'thr_work')).toEqual(command)
+    expect(()=>buildSendMessageCommand('thr_work','run_work','cmd_send','idem_send','new',0,'分析',{...submission,llm_profile_id:'https://caller'})).toThrow()
+  })
+  it.each([false,true])('retains the exact DR choice through pending command recovery: %s',deep_research=>{
+    const submission={input:{kind:'text' as const,text:'分析'},context_selection:{include_refs:[],exclude_refs:[]},deep_research}
+    const command=buildSendMessageCommand('thr_work','run_work','cmd_send','idem_send','new',0,'分析',submission)
+    expect(parseStoredWorkCommand(JSON.parse(JSON.stringify(command)),'thr_work')).toEqual(command)
+  })
   it('roundtrips version 2 model controls with workspace CAS and rejects a mismatched target', () => {
     for (const kind of ['open_model','activate_model','close_model'] as const) {
       const command=buildModelWorkspaceCommand('thr_work','run_work','cmd_model','idem_model',12,kind,

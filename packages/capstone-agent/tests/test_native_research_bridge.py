@@ -538,6 +538,56 @@ def test_native_observation_ref_cannot_alias_changed_bytes_with_reused_call_id(t
     assert len(host.research_control(request.task_id, {'operation': 'pending', 'owner': 'a' * 64})['source_refs']) == filler_count + 1
 
 
+def test_research_receipt_is_not_blocked_by_public_event_backlog(tmp_path, monkeypatch):
+    import time
+    from types import SimpleNamespace
+    import capstone_agent.pi_delegation as module
+    from capstone_agent.native_research_bridge import WorkerResearchBridge
+    from capstone_agent.business_context import BusinessContext
+    from capstone_agent.request_intent import NodeControl
+    owner = research(tmp_path / 'worker')
+    real_bridge = WorkerResearchBridge(owner.channel, owner_id='a' * 64)
+    published, acknowledged = [], []
+    clock = [100.0]
+    monkeypatch.setattr(module, 'time', SimpleNamespace(
+        monotonic=lambda: clock[0], sleep=lambda seconds: clock.__setitem__(0, clock[0] + seconds)))
+    bridge = SimpleNamespace(owner_id=real_bridge.owner_id, bootstrap=real_bridge.bootstrap,
+        admit_sources=lambda refs: None, process=lambda requests: {'receipt': 'saved'})
+    request = module.PiTaskRequest('research-task', 'attempt_bridge', 'delegated', 'Check', (), (),
+        {'engine': 'pi'}, 30, business_context=BusinessContext.empty('workspace', 0),
+        resource_profile={'profile_id': 'delegated_pi', 'revision': 'test'},
+        input={'kind': 'text', 'text': 'Check'}, research_binding=real_bridge.binding)
+
+    class Executor(module.HttpGeneralPiExecutor):
+        pages = 0
+        def _call(self, method, path, **kwargs):
+            if path == '/tasks':
+                return {'task_id': request.task_id}
+            if method == 'GET':
+                self.pages += 1
+                if self.pages == 1:
+                    return {'status': 'running', 'result': None, 'event_cursor': 20,
+                        'events': [{'event_id': f'event-{i}', 'type': 'progress'} for i in range(1, 21)]}
+                from test_pi_delegation import result_document
+                return {'status': 'completed', 'result': result_document(request), 'events': [], 'event_cursor': 20}
+            operation = kwargs['document']['operation']
+            if operation == 'pending':
+                return {'source_refs': [], 'requests': ['pending'] if published and not acknowledged else []}
+            if operation == 'acknowledge':
+                acknowledged.append(len(published))
+            return {}
+
+    def publish(event):
+        published.append(event['event_id'])
+        clock[0] += .1  # Slow durable projection; no wall-clock sleeps in this test.
+
+    client = Executor('http://127.0.0.1:1', control_token='fixture', identity={'engine': 'pi'}, capability={})
+    result = client.execute_with_research(request, NodeControl(lambda: None, time.monotonic() + 30), publish, bridge)
+    assert result.status == 'completed'
+    assert acknowledged and 0 < acknowledged[0] < 20
+    assert published == [f'event-{i}' for i in range(1, 21)]
+
+
 @pytest.mark.parametrize('receipt_delay', [0, 0.4])
 @pytest.mark.parametrize('lost_response', [None, 'admission', 'bootstrap', 'acknowledge'])
 def test_protected_http_research_bridge_commits_during_native_task_and_replays_terminal(tmp_path, receipt_delay, lost_response):
@@ -659,8 +709,10 @@ def test_real_sdk_research_updates_reach_next_model_request_and_original_files(t
     monkeypatch.setattr(module, 'native_pi_launch', offline_launch)
     config = tmp_path / 'config'
     config.mkdir()
+    from capstone_agent.workbench_llm_profiles import ProfileRegistry
     runner = module.NativeTaskRunner(root=tmp_path / 'host', config_root=config,
-        command=(node, str(sdk.with_name('cli.js'))), model='offline-research', relay_origin='http://127.0.0.1:1')
+        command=(node, str(sdk.with_name('cli.js'))), model='offline-research', relay_origin='http://127.0.0.1:1',
+        llm_profiles=ProfileRegistry())
     published = native_executor()
     host = module.GeneralPiHost(root=tmp_path / 'host', identity=published.identity, run_task=runner)
     host.capability = {**published.capability, 'research_bridge_schemas': ['capstone-research-bridge/1']}
@@ -712,10 +764,12 @@ def test_real_sdk_research_updates_reach_next_model_request_and_original_files(t
         progress = [event.payload['task_progress'] for event in events
             if event.event_type == 'runtime_event' and 'task_progress' in event.payload]
         assert progress and progress[0]['text'] == 'Compare both source versions'
-        event = next(event for event in events if event.event_type == 'native_artifact_published'
-                     and event.payload['artifact']['file_name'] == 'comparison.md')
+        event = next(event for event in reversed(events) if event.event_type == 'native_artifact_published'
+                     and event.payload['artifact']['file_name'] == 'comparison.md'
+                     and event.payload['artifact']['source_status'] == 'completed')
         descriptor, data = read_native_artifact(store, executor, snapshot.thread_id,
-            event.attempt_id, event.payload['artifact']['artifact_id'])
+            event.attempt_id, event.payload['artifact']['artifact_id'],
+            expected_descriptor=event.payload['artifact'])
         assert b'A: 42\nB: 84' in data
         assert descriptor['source_status'] == 'completed'
         work = store.snapshot(snapshot.thread_id).works[0]

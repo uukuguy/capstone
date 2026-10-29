@@ -24,7 +24,7 @@ vi.mock('./ThreadWorkspace',()=>({default:(props:ComponentProps<typeof ThreadWor
   </section>)}
 </>}))
 vi.mock('./CapstoneAssistantThread',()=>({projectAssistantActivity:()=>undefined,projectAssistantMessages:()=>[],
-  default:(props:CapstoneAssistantThreadProps)=><>{props.composerControls?.(null,{addMaterial:()=>{}})}</>}))
+  default:(props:CapstoneAssistantThreadProps)=><>{props.composerControls?.(null,{addMaterial:()=>{}})}{props.networkAttemptIds?.map(id=><button key={id} onClick={()=>props.onShowNetwork?.(id)}>View instruction {id}</button>)}</>}))
 vi.mock('./ThreadModelDirectory',()=>({default:({onSwitch,onActivate}:{onSwitch:(id:string)=>void;onActivate:(id:string)=>void})=><>
   <button onClick={()=>onSwitch('ieee39')}>Open registered model</button>
   <button onClick={()=>onActivate('mdl_one')}>Activate registered model</button>
@@ -66,7 +66,7 @@ function fixture(initialContext:string|null='ctx_one'){
     const next=work('ctx_one');state={...state,workSnapshot:next,snapshot:next.professionalSnapshot!};publish()
     return {status:'accepted',target:{kind:'model_workspace',id:'thr_formal'},commandId:command.command_id}
   })
-  const store={get state(){return state},get publicEvents(){return publicEvents},canStreamEvents:false,
+  const store={get state(){return state},get publicEvents(){return publicEvents},get conversationEvents(){return publicEvents},canStreamEvents:false,
     get networkTasks(){return tasks},
     get modelWorkingPages(){return []},subscribe:(fn:()=>void)=>{listeners.add(fn);return()=>listeners.delete(fn)},
     catchUp:async()=>{},load:async()=>{},dispose:()=>{},refreshWorkSnapshot:async()=>{},dispatch,
@@ -105,7 +105,7 @@ it('restores the exact context once and exposes the admitted formal view separat
   expect(JSON.parse(screen.getByTestId('formal-pane').textContent!).context).toBe('ctx_one')
   expect(JSON.parse(screen.getByTestId('formal-pane').textContent!).view).toBe(server.view.diagram.ref)
   expect(server.restore).toHaveBeenCalledExactlyOnceWith('ctx_one')
-  expect(screen.getByText('源电网')).toBeTruthy()
+  expect(screen.queryByText('源电网')).toBeNull()
 })
 
 it('never reuses a non-null diagram from the same model revision under a reopened context',async()=>{
@@ -197,16 +197,33 @@ it.each(['none','other-context','copied-view','exact-layer','baseline'])('labels
 const sourceRequest={schema:'capstone-grid-source-view-request/1' as const,source_id:'data-gateway' as const,scope_id:'north',scope_name:'华北',level:null,selected_object_id:null,view_ref:'verified-source',source_snapshot:{metadata_snapshot:'snapshot',source_instance:'gateway'},voltage_min_kv:330,display_grouping_only:false}
 const instruction=(eventSeq:number,attemptId:string):EventEnvelope=>({eventId:`accepted${eventSeq}`,eventSeq,eventType:'command_accepted',eventVersion:1,threadId:'thr_formal',runId:'run_formal',attemptId,visibility:'public',occurredAt:'2026-10-26T00:00:00Z',payload:{kind:'send_message',payload:{text:'Actual instruction'}}})
 const sourceEvent=(eventSeq:number,attemptId:string,viewRef=sourceRequest.view_ref):EventEnvelope=>({...instruction(eventSeq,attemptId),eventId:`source${eventSeq}`,eventType:'runtime_event',payload:{source_view:{...sourceRequest,view_ref:viewRef}}})
-it('automatically opens the exact current instruction source request and closes only its automatic view for a later plain instruction',async()=>{
+it('restores each instruction source view from the existing answer toolbar without rerunning tools',async()=>{
+  const server=fixture(null)
+  const events=[instruction(1,'overview'),sourceEvent(2,'overview','root-view')]
+  server.setEvents(events)
+  render(<ThreadWorkAdapter transport={server.transport} threadId="thr_formal" namespace="routing-history" preparedStore={server.store}/>)
+  await screen.findByTestId('source-pane')
+  await act(async()=>server.setEvents([...events,instruction(3,'station'),sourceEvent(4,'station','station-view')]))
+  expect(JSON.parse(screen.getByTestId('source-pane').textContent!).request.view_ref).toBe('station-view')
+  fireEvent.click(screen.getByText('View instruction overview'))
+  expect(JSON.parse(screen.getByTestId('source-pane').textContent!).request.view_ref).toBe('root-view')
+  // New events in the current instruction must not steal a manually restored view.
+  await act(async()=>server.setEvents([...events,instruction(3,'station'),sourceEvent(5,'station','station-view')]))
+  expect(JSON.parse(screen.getByTestId('source-pane').textContent!).request.view_ref).toBe('root-view')
+  fireEvent.click(screen.getByText('View instruction station'))
+  expect(JSON.parse(screen.getByTestId('source-pane').textContent!).request.view_ref).toBe('station-view')
+  expect(server.dispatch).not.toHaveBeenCalled()
+})
+it('keeps the opened source view mounted while a later plain instruction runs',async()=>{
   const server=fixture(null)
   server.setEvents([instruction(1,'attempt_source'),sourceEvent(2,'attempt_source')])
   render(<ThreadWorkAdapter transport={server.transport} threadId="thr_formal" namespace="routing" preparedStore={server.store}/> )
   const source=JSON.parse((await screen.findByTestId('source-pane')).textContent!)
   expect(source.request).toEqual(sourceRequest);expect(source.nonce).toBe(1)
   await act(async()=>server.setEvents([instruction(1,'attempt_source'),sourceEvent(2,'attempt_source'),instruction(3,'attempt_plain')]))
-  await waitFor(()=>expect(screen.getByTestId('resource-open').textContent).toBe('false'))
-  expect(screen.getByTestId('selected-resource').textContent).toBe('products')
-  expect(screen.queryByTestId('source-pane')).toBeNull()
+  expect(screen.getByTestId('resource-open').textContent).toBe('true')
+  expect(screen.getByTestId('selected-resource').textContent).toBe('source-topology')
+  expect(JSON.parse(screen.getByTestId('source-pane').textContent!)).toEqual(source)
 })
 it('retains manual source navigation and panel closure over later proposals in the same instruction',async()=>{
   const server=fixture(null)
@@ -230,6 +247,15 @@ it('deduplicates repeated identical source pages and keeps the request nonce acr
   expect(JSON.parse(screen.getByTestId('source-pane').textContent!).nonce).toBe(1)
   first.unmount();render(tree())
   expect(JSON.parse((await screen.findByTestId('source-pane')).textContent!).nonce).toBe(1)
+})
+it('does not replace a saved child with an older history page during refresh',async()=>{
+  const server=fixture(null),root=[instruction(1,'root'),sourceEvent(2,'root','root-view')]
+  server.setEvents([...root,instruction(3,'child'),sourceEvent(4,'child','child-view')])
+  const tree=()=> <SessionReadingProvider namespace="routing-refresh" threadId="thr_formal"><ThreadWorkAdapter transport={server.transport} threadId="thr_formal" namespace="routing-refresh" preparedStore={server.store}/></SessionReadingProvider>
+  const first=render(tree());await screen.findByTestId('source-pane')
+  fireEvent.click(screen.getByText('View instruction child'))
+  first.unmount();server.setEvents(root);render(tree())
+  expect(JSON.parse((await screen.findByTestId('source-pane')).textContent!).request.view_ref).toBe('child-view')
 })
 it('switches source to the later admitted current model task and ignores a historical baseline',async()=>{
   const server=fixture();server.admit('ctx_one')

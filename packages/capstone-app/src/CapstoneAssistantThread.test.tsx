@@ -6,7 +6,47 @@ import {parseProductRef} from './threadProducts'
 import directExecutionLifecycle from './fixtures/directExecutionLifecycle.json'
 import {parseEventEnvelope} from './threadProtocol'
 
-afterEach(() => { cleanup(); localStorage.clear() })
+afterEach(() => { cleanup(); localStorage.clear(); sessionStorage.clear() })
+it('shows a live brand indicator only for the actual live session connection',()=>{
+  const props={events:[],disabled:false,isRunning:false,activity:[],onSend:async()=>{},onCancel:async()=>{}}
+  const view=render(<CapstoneAssistantThread {...props} connectionState="live"/>)
+  expect(screen.getByLabelText('会话实时连接已连接').classList.contains('is-live')).toBe(true)
+  view.rerender(<CapstoneAssistantThread {...props} connectionState="disconnected"/>)
+  expect(screen.getByLabelText('会话实时连接未连接').classList.contains('is-live')).toBe(false)
+})
+
+it('keeps runtime branding stable and does not render thread catalog gateway identity in the body',()=>{
+  const catalog={schema:'capstone-thread-input-catalog/1' as const,revision:'r',context_id:'',selection_revision:'',objects:[],materials:[],resource_profiles:{},operations:[],data_gateway:{available:true,instance_name:'会话目录旧网关'}}
+  render(<CapstoneAssistantThread events={[]} disabled={false} isRunning={false} activity={[]} onSend={async()=>{}} onCancel={async()=>{}} inputCatalog={catalog} runtimeStatus="保留状态说明"/>)
+  const header=document.querySelector('.capstone-assistant-runtime-label')!
+  expect(header.textContent).toContain('CAPSTONE')
+  expect(header.textContent).toContain('HARNESS')
+  expect(header.textContent).toContain('保留状态说明')
+  expect(screen.queryByText('会话目录旧网关')).toBeNull()
+})
+
+it('keeps catalog LLM choices per session and across sends while DR resets',async()=>{
+  const catalog={schema:'capstone-thread-input-catalog/1' as const,revision:'r',context_id:'',selection_revision:'',objects:[],materials:[],resource_profiles:{},operations:[],llm_profiles:{default_profile_id:'local',profiles:[{id:'local',label:'Commercial',model:'flash',available:true},{id:'internal',label:'Intranet',model:'dsv4',available:true},{id:'custom',label:'Custom',model:'',available:false}]}}
+  const onSend=vi.fn().mockResolvedValue(undefined)
+  const props={events:[],disabled:false,isRunning:false,activity:[],onSend,onCancel:async()=>{},inputCatalog:catalog}
+  const {rerender}=render(<CapstoneAssistantThread key="one" {...props} storageKey="llm-session-one"/>)
+  expect(screen.getByRole('button',{name:'后端 LLM'}).textContent).toContain('Commercial')
+  fireEvent.click(screen.getByRole('button',{name:'后端 LLM'}))
+  expect((screen.getByRole('menuitemradio',{name:/Custom.*未配置/}) as HTMLButtonElement).disabled).toBe(true)
+  fireEvent.click(screen.getByRole('menuitemradio',{name:/Intranet/}))
+  fireEvent.click(screen.getByRole('button',{name:'深度思考'}))
+  fireEvent.change(screen.getByRole('textbox',{name:'Thread 指令'}),{target:{value:'first'}})
+  fireEvent.keyDown(screen.getByRole('textbox',{name:'Thread 指令'}),{key:'Enter',code:'Enter'})
+  await waitFor(()=>expect(onSend).toHaveBeenCalledWith('automatic','first',expect.objectContaining({llm_profile_id:'internal',deep_research:true})))
+  await waitFor(()=>expect(screen.getByRole('button',{name:'深度思考'}).getAttribute('aria-pressed')).toBe('false'))
+  expect(screen.getByRole('button',{name:'后端 LLM'}).textContent).toContain('Intranet')
+  rerender(<CapstoneAssistantThread key="two" {...props} storageKey="llm-session-two"/>)
+  expect(screen.getByRole('button',{name:'后端 LLM'}).textContent).toContain('Commercial')
+  rerender(<CapstoneAssistantThread key="one-restored" {...props} storageKey="llm-session-one"/>)
+  expect(screen.getByRole('button',{name:'后端 LLM'}).textContent).toContain('Intranet')
+  rerender(<CapstoneAssistantThread key="one-restored" {...props} inputCatalog={{...catalog,llm_profiles:{...catalog.llm_profiles,default_profile_id:'local'}}} storageKey="llm-session-one"/>)
+  expect(screen.getByRole('button',{name:'后端 LLM'}).textContent).toContain('Intranet')
+})
 
 const event = (eventType: string, eventSeq: number, payload: Record<string, unknown>, attemptId?: string, occurredAt = '2026-09-30T00:00:00Z'): EventEnvelope => ({
   eventId: `evt_${eventSeq}`, eventSeq, eventType, eventVersion: 1, threadId: 'thr_demo', runId: 'run_demo', attemptId,
@@ -128,7 +168,7 @@ describe('CapstoneAssistantThread', () => {
     const source = within(screen.getByRole('dialog', { name: '执行过程' })).getByText('source:retained')
     expect(source.closest('details')!.open).toBe(false)
   })
-  it.each(['input_name', 'producer_step_id'])('keeps the reader safe and uses legacy fallback for malformed %s', field => {
+  it.each(['input_name', 'producer_step_id'])('keeps the reader safe and uses legacy fallback for malformed %s', async field => {
     const owner = { thread_id: 'thr_demo', work_id: 'work', research_id: 'research', goal_revision: 1 }
     const node = { id: 'actual-node', purpose: 'Valid graph question', questions: [], checks: [], depends_on: [], expected_outputs: [], mode: 'execute', execution: 'parent', instruction: 'Use evidence', outputs: [], inputs: [], phase: 'ready', applicability: 'current', execution_revision: 1, execute_action_id: null, assess_action_id: null, blocked_by: [], wait_reason: null, input_bindings: [], output_bindings: [], settled_status: null }
     const graph = { schema: 'capstone-enterprise-graph/2', graph_ref: 'graph:one', graph_revision: 1, goal: 'Inspect', output_mode: 'text', model_revision_reason: null, nodes: [node], actions: [], results: [] }
@@ -141,6 +181,8 @@ describe('CapstoneAssistantThread', () => {
     expect(screen.getByText('Safe legacy process')).toBeTruthy()
     expect(screen.queryByRole('region', { name: 'Valid graph question' })).toBeNull()
     rerender(<CapstoneAssistantThread {...props} events={[...start, progress(3, graph), progress(4, bad)]} />)
+    fireEvent.click(document.querySelector('details.capstone-chat-activity > summary')!)
+    await screen.findByRole('button', { name: '查看完整计划' })
     fireEvent.click(screen.getByRole('button', { name: '查看完整计划' }))
     expect(screen.getByRole('region', { name: 'Valid graph question' })).toBeTruthy()
     expect(screen.queryByText('Safe legacy process')).toBeNull()
@@ -148,12 +190,15 @@ describe('CapstoneAssistantThread', () => {
     fireEvent.click(within(screen.getByRole('dialog', { name: '执行过程' })).getByRole('button', { name: '查看完整计划' }))
     expect(within(screen.getByRole('dialog', { name: '执行过程' })).getByRole('region', { name: 'Valid graph question' })).toBeTruthy()
   })
-  it('uses the admitted graph in the existing reader and leaves legacy projections out of graph records', () => {
+  it('uses the admitted graph in the existing reader and leaves legacy projections out of graph records', async () => {
     const owner = { thread_id: 'thr_demo', work_id: 'work', research_id: 'research', goal_revision: 1 }
     const node = { id: 'actual-node', purpose: '模型原始研究问题', questions: ['为何发生？'], checks: [], depends_on: [], expected_outputs: ['解释'], mode: 'execute', execution: 'parent', instruction: '分析实际观察', outputs: [], inputs: [], phase: 'ready', applicability: 'current', execution_revision: 1, execute_action_id: null, assess_action_id: null, blocked_by: [], wait_reason: null, input_bindings: [], output_bindings: [], settled_status: null }
     const graph = { schema: 'capstone-enterprise-graph/2', graph_ref: 'graph:one', graph_revision: 1, goal: '分析原因', output_mode: 'text', model_revision_reason: null, nodes: [node], actions: [], results: [] }
     const events = [event('command_accepted', 1, { kind: 'send_auto', text: '分析原因' }, 'graph'), event('attempt_started', 2, {}, 'graph'), event('runtime_event', 3, { task_step: { id: 'legacy', number: 1, title: '旧单步骤准备', status: 'running' }, research_graph: { type: 'enterprise_graph_progress', owner, attempt_id: 'graph', task_id: 'task', checkpoint: { ref: 'checkpoint:one', revision: 1 }, graph, events: [{ kind: 'graph_committed', graph_ref: 'graph:one' }] } }, 'graph')]
     render(<CapstoneAssistantThread events={events} disabled={false} isRunning activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
+    expect(screen.getByLabelText('研究进展')).toBeTruthy()
+    fireEvent.click(document.querySelector('details.capstone-chat-activity > summary')!)
+    await screen.findByRole('button', { name: '查看完整计划' })
     fireEvent.click(screen.getByRole('button', { name: '查看完整计划' }))
     expect(screen.getByRole('region', { name: '模型原始研究问题' })).toBeTruthy()
     expect(screen.queryByText('旧单步骤准备')).toBeNull()
@@ -437,6 +482,7 @@ describe('CapstoneAssistantThread', () => {
     const authors = () => screen.getAllByLabelText('智能体回答').map(node => node.querySelector('.capstone-chat-role')?.textContent)
     expect(authors()).toEqual(['CAPSTONE', 'Pi'])
     expect(document.querySelector('.capstone-assistant-runtime-label')?.textContent).toBe('Pi实时响应')
+    expect(document.querySelector('.capstone-assistant-runtime-label .assistant-live-dot')).toBeNull()
     view.rerender(<CapstoneAssistantThread {...props} runtimeMode="capstone" isRunning={false}
       events={[...events, event('attempt_completed', 5, { answer: '通用结果' }, 'general')]} />)
     expect(authors()).toEqual(['CAPSTONE', 'Pi'])
@@ -1816,7 +1862,7 @@ describe('CapstoneAssistantThread', () => {
     fireEvent.change(input, { target: { value: '第一行\n第二行' } })
     fireEvent.keyDown(input, { key: 'Enter', code: 'Enter', charCode: 13 })
 
-    await waitFor(() => expect(onSend).toHaveBeenCalledWith('automatic', '第一行\n第二行'))
+    await waitFor(() => expect(onSend).toHaveBeenCalledWith('automatic', '第一行\n第二行', expect.objectContaining({deep_research:false})))
   })
 
   it('keeps a stable composer action footprint while the input is empty', async () => {
@@ -1842,6 +1888,6 @@ describe('CapstoneAssistantThread', () => {
     fireEvent.change(input, { target: { value: '第一行\n第二行' } })
     fireEvent.click(screen.getByRole('button', { name: '发送指令' }))
 
-    await waitFor(() => expect(onSend).toHaveBeenCalledWith('automatic', '第一行\n第二行'))
+    await waitFor(() => expect(onSend).toHaveBeenCalledWith('automatic', '第一行\n第二行', expect.objectContaining({deep_research:false})))
   })
 })

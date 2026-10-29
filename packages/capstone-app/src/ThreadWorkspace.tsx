@@ -5,11 +5,12 @@ import WorkspaceProducts, { type WorkspaceProductView } from './WorkspaceProduct
 import NetworkAccessLamp from './NetworkAccessLamp'
 import {readWorkspacePanels,saveWorkspacePanels} from './workspaceEntry'
 import {useSessionViewState,useSessionReadingPositions} from './workspaceSessionCache'
+import {currentWorkspaceName} from './workspaceName'
 
 /** Shared application frame. Controllers supply public state and capabilities. */
 export default function ThreadWorkspace({ preparation, sidebar, heading, children, loading = false,
-  ready = true, subtitle, headerActions, conversationOnly = false, resourcePanel, resourcePanelOpen = false, onResourcePanelOpenChange, resourceLabel = '模型与结果', resourceViews, selectedResourceView, onResourceViewChange, workspaceActions, hideResourceToggle = false, resourceToggleRef,sessionKey }: {
-  preparation?: ReactNode; sidebar?: ReactNode; heading?: ReactNode; children?: ReactNode
+  ready = true, subtitle, headerActions, navigationFooter, conversationOnly = false, resourcePanel, resourcePanelOpen = false, onResourcePanelOpenChange, resourceLabel = '模型与结果', resourceViews, selectedResourceView, onResourceViewChange, workspaceActions, hideResourceToggle = false, resourceToggleRef,sessionKey }: {
+  preparation?: ReactNode; sidebar?: ReactNode; heading?: ReactNode; children?: ReactNode; navigationFooter?: ReactNode
   loading?: boolean; ready?: boolean; subtitle?: string; headerActions?: ReactNode; conversationOnly?: boolean
   resourcePanel?: ReactNode; resourcePanelOpen?: boolean; onResourcePanelOpenChange?: (open: boolean) => void
   resourceLabel?: string
@@ -91,7 +92,7 @@ export default function ThreadWorkspace({ preparation, sidebar, heading, childre
         <WorkspaceProducts views={resourceViews || [{id:'resource',label:resourceLabel,content:resourcePanel}]} selectedId={selectedResourceView} onSelect={onResourceViewChange}
           actions={<>
             <button type="button" className="workspace-product-icon thread-resource-expand" aria-label="恢复默认比例" title="恢复默认比例" onClick={()=>resize(60)}><RotateCcw aria-hidden="true" /></button>
-            <button type="button" className="workspace-product-icon thread-resource-expand" aria-label={expanded ? '恢复左右布局' : '扩大成果区'} title={expanded ? '恢复左右布局' : '扩大成果区'} onClick={()=>setExpanded(value=>!value)}>{expanded ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}</button>
+            <button type="button" className="workspace-product-icon thread-resource-expand" aria-label={expanded ? '恢复左右布局' : '全屏'} title={expanded ? '恢复左右布局' : '全屏'} onClick={()=>setExpanded(value=>!value)}>{expanded ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}</button>
             <button type="button" className="workspace-product-icon" aria-label={`关闭${resourceLabel}`} title={`关闭${resourceLabel}`} onClick={closeResource}><X aria-hidden="true" /></button>
           </>} />
       </aside>}
@@ -102,9 +103,9 @@ export default function ThreadWorkspace({ preparation, sidebar, heading, childre
       {navigationOpen && <button className="workspace-navigation-backdrop" aria-label="关闭会话导航遮罩" tabIndex={-1} onClick={closeNavigation} />}
       <aside id={navigationPanelId} className="workspace-navigation" hidden={!navigationOpen} aria-label="工作空间导航">
         {navigationOpen && <button type="button" className="workspace-navigation-close" aria-label="收起会话导航" onClick={closeNavigation}><X size={18} aria-hidden="true" /></button>}
-        <div className="workspace-brand"><div><AppBrand /><NetworkAccessLamp /></div><span>WORKSPACE</span></div>
+        <div className="workspace-brand"><div><AppBrand /><NetworkAccessLamp /></div><span className="workspace-identity"><small>WORKSPACE</small><strong title={currentWorkspaceName()}>{currentWorkspaceName()}</strong></span></div>
         {sidebar}
-        <footer className="workspace-navfoot"><span>企业工作空间</span><WorkspaceBuildStatus /></footer>
+        <footer className="workspace-navfoot">{navigationFooter}<WorkspaceBuildStatus /></footer>
       </aside>
       {navigationOpen&&sidebar&&<div className="workspace-navigation-separator" role="separator" aria-label="调整会话栏宽度" aria-orientation="vertical" tabIndex={0}
         aria-valuemin={180} aria-valuemax={360} aria-valuenow={navigationWidth}
@@ -115,7 +116,7 @@ export default function ThreadWorkspace({ preparation, sidebar, heading, childre
         onPointerUp={event=>{navigationDragging.current=false;event.currentTarget.releasePointerCapture?.(event.pointerId)}} onPointerCancel={()=>{navigationDragging.current=false}}/>}
       <main className="workspace-shell">
         <header className="workspace-topbar" aria-label="工作空间">
-          <div className="workspace-breadcrumb"><button ref={navigationToggle} type="button" className="thread-navigation-toggle" aria-label="会话导航" aria-expanded={navigationOpen} aria-controls={navigationPanelId} onClick={()=>setNavigationOpen(value=>!value)}><Menu aria-hidden="true" /></button></div>
+          <button ref={navigationToggle} type="button" className="thread-navigation-toggle" aria-label="会话导航" aria-expanded={navigationOpen} aria-controls={navigationPanelId} onClick={()=>setNavigationOpen(value=>!value)}><Menu aria-hidden="true" /></button>
           {headingBar}
           <div className="workspace-top-actions">{headerActions}</div>
         </header>

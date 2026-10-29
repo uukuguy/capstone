@@ -2,6 +2,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { configureResearchGuidance } from '../src/capstone_agent/resources/research-guidance.mjs';
 
+test('lightweight progress guidance does not append a synthetic user request after the real instruction', () => {
+  const hooks={};
+  configureResearchGuidance({on:(name,fn)=>{hooks[name]=fn;}},'Report completed/current/gap progress.',{lightweight:true});
+  assert.equal(hooks.context,undefined);
+  assert.equal(hooks.tool_execution_end,undefined);
+  const result=hooks.before_agent_start({systemPrompt:'Application policy.'});
+  assert.match(result.systemPrompt,/Application policy/);
+  assert.match(result.systemPrompt,/Report completed\/current\/gap progress/);
+  assert.match(result.systemPrompt,/not a new user request/);
+});
+
 test('guidance starts before work and follows the first result without a call-count threshold', async () => {
   const hooks = {};
   configureResearchGuidance({on: (name, fn) => { hooks[name] = fn; }}, 'Record findings and remaining work.');

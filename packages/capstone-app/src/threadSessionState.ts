@@ -3,6 +3,7 @@ import { buildThreadCommand, type ThreadCommand } from './threadClient'
 import type { AnyThreadCommand } from './threadClient'
 import { parseStoredWorkCommand } from './threadWorkProtocol'
 import { isThreadVersionError } from './threadHttpTransport'
+import {currentWorkspaceName} from './workspaceName'
 
 
 export type FollowupTarget = { threadId: string; attemptId: string; modelId: string; label: string }
@@ -54,7 +55,7 @@ export function writeDraft(key: string | undefined, text: string): void {
   } catch { /* Keep the live Composer when browser storage is unavailable. */ }
 }
 
-export function storageNamespace(origin: string): string {
+export function storageNamespace(origin: string,workspace=currentWorkspaceName()): string {
   const namespaceKey = 'capstone.thread.storageSession'
   let session = ''
   try { session = sessionStorage.getItem(namespaceKey) || '' } catch { /* memory fallback */ }
@@ -62,7 +63,7 @@ export function storageNamespace(origin: string): string {
     session = crypto.randomUUID()
     try { sessionStorage.setItem(namespaceKey, session) } catch { /* memory fallback */ }
   }
-  return `capstone.thread.${encodeURIComponent(origin || window.location.origin)}.${session}`
+  return `capstone.thread.${encodeURIComponent(origin || window.location.origin)}.${session}${workspace==='enterprise'?'':`.workspace.${encodeURIComponent(workspace)}`}`
 }
 
 export function rotateStorageNamespace(): void {

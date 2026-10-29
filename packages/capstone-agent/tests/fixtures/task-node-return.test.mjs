@@ -21,6 +21,16 @@ test('selected files retain descriptive host metadata beside the exact read-only
 const value=()=>({schema:'capstone-task-return/1',outputs:[{slot:'answer',summary:'Observed answer',scope:'Assigned inputs',
   observations:['o1','i1'],files:[{path:'answer.md',role:'primary'}]}],
   checks:[{check:1,status:'passed',observations:['o1'],explanation:'Read the saved file'}],limitations:[]});
+test('advisory submission retains usable output and records malformed checks without a repair loop',()=>{
+  const adapter=createTaskNodeReturn(action,node,inputs,{advisoryChecks:true});
+  const request={summary:'Usable result',outputs:[{slot:'answer',files:[{path:'answer.md',role:'primary'}]}],
+    checks:[{check:999,status:'passed',explanation:'Unbound check'},{check:1,status:'pass',explanation:''}]};
+  const submitted=adapter.submission(request,'submission-observation'),result=adapter.normalize(submitted);
+  assert.equal(result.products[0].path,'answer.md');
+  assert.equal(result.proposal.checks[0].status,'not_run');
+  assert.ok(result.proposal.limitations.some(note=>note.includes('Invalid advisory check')));
+  assert.throws(()=>createTaskNodeReturn(action,node,inputs).submission(request,'submission-observation'),/invalid check/);
+});
 test('structured submissions leave identity, scope and unchecked status to the host',()=>{
   const adapter=createTaskNodeReturn(action,node,inputs);
   const submitted=adapter.submission({summary:'A useful "quoted" finding\n第二行',outputs:[{slot:'answer',files:[{path:'answer.md',role:'primary'}]}],
@@ -32,6 +42,21 @@ test('structured submissions leave identity, scope and unchecked status to the h
   assert.deepEqual(result.proposal.checks[0].refs,[]);
   assert.match(submitted.outputs[0].scope,/producer statement/i);
   assert.throws(()=>adapter.submission({summary:'Saved',outputs:[{slot:'answer',files:[{path:'../foreign',role:'primary'}]}]},'submission-observation'),/file path/);
+});
+test('a saved producer statement survives unknown support without inventing verification',()=>{
+  const adapter=createTaskNodeReturn(action,{...node,outputs:[{slot:'answer',kind:'observation',description:'Finding'}]},inputs);
+  const submitted=adapter.submission({summary:'Calculated result',outputs:[{slot:'answer',observations:['unknown-support']}],
+    checks:[{check:1,status:'passed',observations:['unknown-support'],explanation:'Producer claims checked'}]},'submission-observation');
+  assert.deepEqual(adapter.normalize(submitted).proposal.outputs[0].observation_refs,[],
+    'The submission receipt is not admitted before actual tool completion');
+  adapter.observe('submission-observation');
+  const result=adapter.normalize(submitted);
+  assert.deepEqual(result.proposal.outputs[0].observation_refs,['submission-observation']);
+  assert.match(result.proposal.outputs[0].scope,/producer statement/i);
+  assert.match(result.proposal.limitations.join('\n'),/unverified/);
+  assert.equal(result.proposal.checks[0].status,'not_run');
+  assert.deepEqual(result.proposal.checks[0].refs,[]);
+  assert.doesNotMatch(JSON.stringify(result),/unknown-support/);
 });
 test('a consumer receives the selected producer limitations as well as inherited limitations',()=>{
   const direct={result_ref:'result-A',assessment_ref:'assessment-A',record_limitations:['Review incomplete']};

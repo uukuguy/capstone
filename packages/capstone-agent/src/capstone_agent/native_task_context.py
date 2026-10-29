@@ -61,27 +61,27 @@ class ResearchPolicyRegistration:
 
     @property
     def graph_schema(self) -> str | None:
-        return 'capstone-enterprise-graph/2' if self.application_version in {'1.10.0', '1.11.0', '1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0', '1.19.0'} else None
+        return 'capstone-enterprise-graph/2' if self.application_version in {'1.10.0', '1.11.0', '1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0', '1.19.0', '1.20.0'} else None
 
     @property
     def isolated_task_execution(self) -> bool:
-        return self.application_version in {'1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0', '1.19.0'}
+        return self.application_version in {'1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0', '1.19.0', '1.20.0'}
 
     @property
     def adaptive_agent_loop(self) -> bool:
-        return self.application_version == '1.19.0'
+        return self.application_version in {'1.19.0', '1.20.0'}
 
     @property
     def goal_driven_execution(self) -> bool:
-        return self.application_version in {'1.16.0', '1.17.0', '1.18.0', '1.19.0'}
+        return self.application_version in {'1.16.0', '1.17.0', '1.18.0', '1.19.0', '1.20.0'}
 
     @property
     def lightweight_task_nodes(self) -> bool:
-        return self.application_version in {'1.17.0', '1.18.0', '1.19.0'}
+        return self.application_version in {'1.17.0', '1.18.0', '1.19.0', '1.20.0'}
 
     @property
     def work_edition(self) -> str | None:
-        return 'capstone-graph-work/1' if self.application_version in {'1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0', '1.19.0'} else None
+        return 'capstone-graph-work/1' if self.application_version in {'1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0', '1.19.0', '1.20.0'} else None
 
     def work_policy(self) -> dict:
         if not self.work_edition:
@@ -104,16 +104,16 @@ def registered_research_policies() -> tuple[ResearchPolicyRegistration, ...]:
     catalog = json.loads(files(__package__).joinpath('resources/research-policy-catalog.json').read_text())
     if catalog.get('schema') != 'capstone-research-policy-catalog/1':
         raise ValueError('research policy catalog is invalid')
-    versions = {'1.1.0': '1.0.0', '1.2.0': '1.1.0', '1.3.0': '1.2.0', '1.4.0': '1.3.0', '1.5.0': '1.4.0', '1.6.0': '1.5.0', '1.7.0': '1.6.0', '1.8.0': '1.7.0', '1.9.0': '1.7.0', '1.10.0': '1.8.0', '1.11.0': '1.9.0', '1.12.0': '1.10.0', '1.13.0': '1.11.0', '1.14.0': '1.12.0', '1.15.0': '1.12.0', '1.16.0': '1.13.0', '1.17.0': '1.14.0', '1.18.0': '1.15.0', '1.19.0': '1.16.0'}
+    versions = {'1.1.0': '1.0.0', '1.2.0': '1.1.0', '1.3.0': '1.2.0', '1.4.0': '1.3.0', '1.5.0': '1.4.0', '1.6.0': '1.5.0', '1.7.0': '1.6.0', '1.8.0': '1.7.0', '1.9.0': '1.7.0', '1.10.0': '1.8.0', '1.11.0': '1.9.0', '1.12.0': '1.10.0', '1.13.0': '1.11.0', '1.14.0': '1.12.0', '1.15.0': '1.12.0', '1.16.0': '1.13.0', '1.17.0': '1.14.0', '1.18.0': '1.15.0', '1.19.0': '1.16.0', '1.20.0': '1.17.0'}
     entries = []
     for item in catalog['policies']:
         entry = ResearchPolicyRegistration(**{key: item[key] for key in ResearchPolicyRegistration.__dataclass_fields__})
         policy = ResearchPolicy(entry.pack_version, variant=entry.variant).load()
         provider = ResearchGuides(entry.pack_version, variant=entry.variant)
         guides = [dict(provider.open(guide['resource_id'])) for guide in provider.load()]
-        if entry.application_version in {'1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0', '1.19.0'}:
+        if entry.application_version in {'1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0', '1.19.0', '1.20.0'}:
             from .task_planning_policy import task_planning_policy
-            shared = task_planning_policy({'1.13.0': '1.0.0', '1.14.0': '1.1.0', '1.15.0': '1.2.0', '1.16.0': '1.3.0', '1.17.0': '1.4.0', '1.18.0': '1.5.0', '1.19.0': '1.6.0'}[entry.application_version])
+            shared = task_planning_policy({'1.13.0': '1.0.0', '1.14.0': '1.1.0', '1.15.0': '1.2.0', '1.16.0': '1.3.0', '1.17.0': '1.4.0', '1.18.0': '1.5.0', '1.19.0': '1.6.0', '1.20.0': '1.7.0'}[entry.application_version])
             if entry.system_policy != POLICY_TEXT + '\n\n' + shared.text + '\n\n' + policy:
                 raise ValueError('research adapter does not select the exact shared planning policy')
         if (versions.get(entry.application_version) != entry.pack_version
@@ -177,10 +177,16 @@ def public_document(value):
 def checked_native_context(value):
     value = public_document(value)
     fields = {'policy', 'selected_task_records', 'selected_task_source', 'records_truncated'}
-    if (not isinstance(value, dict) or not fields <= set(value) or set(value) - fields - {'materials', 'material_notices', 'resource_manifests', 'resource_origins', 'graph_work', 'systematic_diagnosis'}
+    if (not isinstance(value, dict) or not fields <= set(value) or set(value) - fields - {'materials', 'material_notices', 'resource_manifests', 'resource_origins', 'graph_work', 'systematic_diagnosis', 'tool_composition', 'llm_call_pool', 'deep_research', 'llm_selection'}
             or type(value['records_truncated']) is not bool
             or not isinstance(value['selected_task_records'], list) or len(value['selected_task_records']) > 64):
         raise ValueError('native task context is invalid')
+    if 'llm_selection' in value:
+        selection = value['llm_selection']
+        if not isinstance(selection, dict) or set(selection) != {'profile_id', 'provider', 'model', 'profile_revision'} or any(not isinstance(v, str) or not v for v in selection.values()):
+            raise ValueError('Invalid frozen LLM selection')
+    if 'deep_research' in value and type(value['deep_research']) is not bool:
+        raise ValueError('native research choice is invalid')
     materials = value.get('materials', [])
     from .resource_manifest import checked_resource
     resources = value.get('resource_manifests', [])
@@ -245,6 +251,16 @@ def checked_native_context(value):
         raise ValueError('native application policy is invalid')
     publication = resolve_research_policy(policy['system_policy'])
     from .native_diagnosis import DIAGNOSIS_POLICY, DIAGNOSIS_TOOLS
+    from .native_tool_composition import COMPOSITION_POLICY, COMPOSITION_TOOLS
+    composition = value.get('tool_composition')
+    if ((composition is not None and composition != COMPOSITION_POLICY)
+            or set(policy['allowed_tools']) & set(COMPOSITION_TOOLS) and composition != COMPOSITION_POLICY):
+        raise ValueError('native composition policy is not registered')
+    from .native_llm_pool import LLM_CALL_POOL_TOOLS, registered_llm_call_pool
+    pool = value.get('llm_call_pool')
+    if (('llm_call_pool' in value and not registered_llm_call_pool(pool))
+            or set(policy['allowed_tools']) & set(LLM_CALL_POOL_TOOLS) and not registered_llm_call_pool(pool)):
+        raise ValueError('native LLM call pool policy is not registered')
     diagnosis = value.get('systematic_diagnosis')
     if ((diagnosis is not None and diagnosis != DIAGNOSIS_POLICY)
             or set(policy['allowed_tools']) & set(DIAGNOSIS_TOOLS) and diagnosis != DIAGNOSIS_POLICY):
@@ -297,7 +313,19 @@ def native_context_for(claim, binding):
     from .native_research_bridge import research_tools_for_profile
     tools.update(research_tools_for_profile(binding['application_profile']['profile_id'],
                                            binding['application_profile']['profile_version']))
+    from .native_tool_composition import COMPOSITION_POLICY, COMPOSITION_TOOLS
+    composition = (binding['capability'].get('tool_composition') == COMPOSITION_POLICY
+        and binding['application_profile']['profile_id'] == 'enterprise-research'
+        and {'bash', 'write'} <= tools and any(name.startswith('data_gateway_') for name in tools))
+    if composition:
+        tools.update(COMPOSITION_TOOLS)
     submission = claim.submission or {}
+    from .native_llm_pool import LLM_CALL_POOL_POLICY, LLM_CALL_POOL_TOOLS, registered_llm_call_pool
+    llm_pool = (binding['application_profile']['profile_id'] == 'enterprise-research'
+                and submission.get('deep_research') is False
+                and registered_llm_call_pool(public_document(binding['capability'].get('llm_call_pool'))))
+    if llm_pool:
+        tools.update(LLM_CALL_POOL_TOOLS)
     if submission.get('input', {}).get('kind') == 'skill_invocation':
         selected = next((item for item in binding['capability']['resource_profiles']['delegated_pi']['resources']
                          if item['id'] == submission['input']['skill_id'] and item['kind'] == 'skill'), None)
@@ -336,7 +364,11 @@ def native_context_for(claim, binding):
         'system_policy': profile.application_policy.load(), 'allowed_tools': sorted(tools),
         'external_lookup_enabled': False}, 'selected_task_records': pages,
         'selected_task_source': source, 'records_truncated': truncated, **work,
+        **({'deep_research': submission['deep_research']} if 'deep_research' in submission else {}),
+        **({'llm_selection': submission['llm_selection']} if 'llm_selection' in submission else {}),
         **({'systematic_diagnosis': DIAGNOSIS_POLICY} if diagnosis == DIAGNOSIS_POLICY else {}),
+        **({'tool_composition': COMPOSITION_POLICY} if composition else {}),
+        **({'llm_call_pool': LLM_CALL_POOL_POLICY} if llm_pool else {}),
         **({'materials': materials} if materials else {}),
         **({'resource_manifests': public_document(submission['_resource_manifests'])} if submission.get('_resource_manifests') else {}),
         **({'resource_origins': origins} if origins else {}),

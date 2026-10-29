@@ -1,4 +1,63 @@
-# Task 2 Report: Extract the neutral Python SDK and runtime preparation
+# Task 2 Report: Beijing electrical overview decoding and projection (2026-10-27)
+
+## Delivered scope
+
+- Exported eight detail streams, two summary streams and their combined catalog.
+- Added v2 summary node/edge types, required v2 stream checks and source-only
+  representation checks. V1 detail and calculation views keep their existing path.
+- Overview loading reads only both summary streams to completion. Closure loading
+  reads only the eight detail streams, regardless of advertised summary totals.
+- Page admission checks schema, frozen identities, stream totals, cursor progress,
+  duplicate IDs, budgets and cancellation. Overview edges require actual returned
+  endpoint nodes; missing endpoints fail without fabricated boundary records.
+- Summary scenes preserve source IDs and endpoints. Grid/station/boundary groups
+  use existing distinct symbols. Aggregate edges use dashed unresolved relations,
+  retain member counts and state that endpoint declarations do not prove electrical
+  connectivity. Detail scenes retain existing busbar, transformer, winding, switch
+  and terminal symbols, with source instance/table/object identity in details.
+- No workspace, downloader, transport, renderer or gateway files changed.
+
+## Verification
+
+Tests were written first. Before implementation, v2 overview tests failed on
+unsupported mode/schema and absent stream exports. After implementation:
+
+```text
+npm test -- --run src/electricalModelView.test.ts src/electricalModelScene.test.ts src/electricalSourceScene.test.ts src/ElectricalModelWorkspace.test.tsx
+4 files passed; 50 tests passed; 3.08 seconds
+
+npm run check
+tsc --noEmit: passed
+
+git diff --check
+passed
+```
+
+Read-only replay of the sanitized MCP captures at
+`outputs/beijing-electrical-20261027` through the actual TypeScript parser,
+loader and scene code also passed:
+
+| Capture | Loaded streams | Record/scene result |
+| --- | --- | --- |
+| Beijing root | summary_nodes, summary_edges | 219 nodes, 472 aggregate edges; zero conducting connections |
+| Chaoyang station | all eight detail streams | 268 devices, 399 ports, 127 connectivity nodes, 399 connections, 31 relations, 9 groups, 13 boundaries, 5 issues; scene 794 nodes/804 edges |
+
+Capture replay used Node's TypeScript transform and the saved response data;
+it did not change IDs, endpoints or source records. It is decoder/projection
+verification, not browser or live deployment acceptance.
+
+## Integration notes
+
+- Task 3 maps scene item IDs back to the original record's `expand_target`.
+  Targets remain opaque and can differ from record IDs.
+- Summary fields in v1 manifests are optional; v2 requires both summary totals.
+- `loadElectricalModelView(..., {mode:'overview'})` never reads detail streams.
+- Background full detail download and responsive chat remain Task 3 scope.
+- Browser layout, drilldown and refresh acceptance remain Task 4 scope.
+
+---
+
+# Historical Task 2 Report: Extract the neutral Python SDK and runtime preparation
 
 ## Scope
 

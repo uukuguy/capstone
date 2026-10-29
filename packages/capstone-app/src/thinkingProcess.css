@@ -1,14 +1,14 @@
-.capstone-thinking-process { margin: 2px 0 10px; color: #717976; }
-.capstone-thinking-trigger { display: inline-flex; align-items: center; gap: 5px; min-height: 24px; padding: 2px 0; border: 0; background: none; color: inherit; font: inherit; font-size: var(--capstone-process-summary-font-size, 10px); line-height: 1.5; cursor: pointer; }
+.capstone-thinking-process { margin: 2px 0 10px; color: var(--muted, #576c70); }
+.capstone-thinking-trigger { display: inline-flex; align-items: center; gap: 5px; min-height: 24px; padding: 2px 0; border: 0; background: none; color: inherit; font: inherit; font-size: var(--capstone-trace-font-size, 11px); line-height: 1.5; cursor: pointer; }
 .capstone-thinking-label { font-weight: 500; }
-.capstone-thinking-duration { margin-left: -3px; color: #858c89; font-variant-numeric: tabular-nums; }
+.capstone-thinking-duration { margin-left: -3px; color: inherit; font-variant-numeric: tabular-nums; }
 .capstone-thinking-trigger:hover { color: var(--text-primary, #303741); }
 .capstone-thinking-trigger[aria-expanded="false"] { width: fit-content; min-height: 20px; padding-block: 0; line-height: 20px; }
 .capstone-thinking-trigger:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; border-radius: 3px; }
-.capstone-thinking-trigger svg { width: 12px; height: 12px; color: #929995; transition: transform 140ms ease; }
+.capstone-thinking-trigger svg { width: 12px; height: 12px; color: inherit; transition: transform 140ms ease; }
 .capstone-thinking-trigger[aria-expanded="true"] svg { transform: rotate(90deg); }
 .capstone-thinking-process.is-active .capstone-thinking-label { animation: capstone-thinking-shimmer 2s ease-in-out infinite; }
-.capstone-thinking-copy { box-sizing: border-box; max-height: 144px; margin: 5px 0 4px 5px; border-left: 1px solid #dce0dd; overflow-y: auto; overscroll-behavior: contain; padding: 0 12px 0 14px; font-size: 12px; line-height: 1.65; overflow-wrap: anywhere; scrollbar-width: thin; scrollbar-color: #cbd0cd transparent; }
+.capstone-thinking-copy { box-sizing: border-box; max-height: 144px; margin: 4px 0 5px 5px; border-left: 2px solid #cbd3e0; background: #f5f6fa; color: #505c72; border-radius: 0 4px 4px 0; overflow-y: auto; overscroll-behavior: contain; padding: 5px 12px; font-size: var(--capstone-trace-font-size, 11px); line-height: 1.5; overflow-wrap: anywhere; scrollbar-width: thin; scrollbar-color: #cbd0cd transparent; }
 /* Thinking is secondary process text. Answer Markdown rules must not restyle it. */
 .capstone-thinking-process .capstone-thinking-copy .capstone-chat-markdown,
 .capstone-thinking-process .capstone-thinking-copy .capstone-chat-markdown :where(*) { color: inherit; font-size: inherit; line-height: inherit; }
@@ -17,7 +17,8 @@
 .capstone-thinking-process .capstone-thinking-copy .capstone-chat-markdown > :last-child { margin-bottom: 0; }
 .capstone-thinking-process .capstone-thinking-copy .capstone-chat-markdown :is(pre, code, blockquote) { background: transparent; }
 .capstone-thinking-process.is-active .capstone-thinking-copy { max-height: 96px; mask-image: linear-gradient(to bottom, transparent, black 8px, black calc(100% - 12px), transparent); }
-.capstone-thinking-process.is-reader .capstone-thinking-copy { max-height: none; overflow: visible; mask-image: none; }
+.capstone-thinking-process.is-reader .capstone-thinking-copy { max-height: 192px; overflow-y: auto; mask-image: none; }
+.capstone-call-round > .capstone-thinking-process { margin: 0 0 2px 16px; }
 @keyframes capstone-thinking-shimmer { 0%, 100% { opacity: .65; } 50% { opacity: 1; } }
 @media (pointer: coarse) { .capstone-thinking-trigger { min-height: 44px; } }
 @media (prefers-reduced-motion: reduce) { .capstone-thinking-process.is-active .capstone-thinking-label { animation: none; } .capstone-thinking-trigger svg { transition: none; } }

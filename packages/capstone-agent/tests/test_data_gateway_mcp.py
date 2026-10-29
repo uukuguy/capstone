@@ -204,6 +204,8 @@ def test_wrapped_transport_failures_keep_safe_diagnostic_codes():
         (httpx.ReadTimeout('secret-canary'), 'gateway_timeout'),
         (TimeoutError('secret-canary'), 'gateway_timeout'),
         (httpx.ConnectError('secret-canary'), 'gateway_transport_failed'),
+        (httpx.HTTPStatusError('secret-canary', request=httpx.Request('POST', 'http://localhost/mcp'),
+            response=httpx.Response(421)), 'gateway_endpoint_rejected'),
     ]:
         wrapped = ExceptionGroup('secret-canary', [error])
         assert public_failure(wrapped, 'gateway_call_failed_no_retry') == expected
@@ -446,3 +448,61 @@ def test_invalid_changed_schema_is_a_tool_publication_rejection_not_a_global_cat
         asyncio.run(client.call('data_gateway_previously_unknown_action', {}, catalog))
     assert session.calls == []
     asyncio.run(client.call('data_gateway_build_network_model', {}, catalog))
+
+
+def test_initialized_server_identity_is_whitelisted_and_connection_name_optional(tmp_path):
+    from capstone_agent.data_gateway_mcp import InitializedGatewaySession
+    from capstone_agent.data_gateway_relay import DataGatewayAccess
+    client, session = gateway(tmp_path)
+    connection = json.loads(client.connection_path.read_text())
+    connection['name'] = 'Selected gateway'
+    client.connection_path.write_text(json.dumps(connection))
+    @asynccontextmanager
+    async def connect():
+        yield InitializedGatewaySession(session, None, {'name': 'Published gateway', 'version': '1.30.0', 'authorization': 'secret-canary', '_meta': {'instance_id': 'invented'}})
+    selected = DataGatewayMcp(client.connection_path, client.policy, connect=connect)
+    catalog = asyncio.run(selected.prepare())
+    publication = DataGatewayAccess(selected, catalog).publication()
+    assert publication['identity'] == {'connection_name': 'Selected gateway', 'display_address': 'gateway.test:8000', 'server_name': 'Published gateway', 'server_version': '1.30.0'}
+    assert catalog['server_info'] == {'name': 'Published gateway', 'version': '1.30.0'}
+    assert 'secret-canary' not in json.dumps(publication)
+    assert 'instance_id' not in publication['identity']
+
+
+@pytest.mark.parametrize('invalid', [None, {'schema_version': 2}, {'schema_version': True}, {'schema_version': 1, 'instance_id': []}])
+def test_malformed_instance_extension_does_not_reject_catalog(tmp_path, invalid):
+    from capstone_agent.data_gateway_mcp import InitializedGatewaySession
+    client, session = gateway(tmp_path)
+    @asynccontextmanager
+    async def connect():
+        yield InitializedGatewaySession(session, None, None, invalid)
+    client.connect = connect
+    assert 'instance' not in asyncio.run(client.prepare())
+
+
+def test_handshake_instance_identity_is_bound_and_safely_projected(tmp_path):
+    from capstone_agent.data_gateway_mcp import InitializedGatewaySession
+    from capstone_agent.data_gateway_relay import DataGatewayAccess
+    from capstone_agent.thread_input_catalog import public_input_catalog
+    from capstone_agent.pi_delegation import _json_document
+    client, session = gateway(tmp_path)
+    instance = {'schema_version': 1, 'instance_id': '3db5bb96-2c27-4d97-8584-346bc4a18656',
+        'instance_name': '本地联调', 'environment': {'id': 'local_integration', 'label': '本地联调', 'url': 'secret-canary'},
+        'offline': False, 'data_source': {'label': 'SQLite 数据库后端', 'headers': 'secret-canary'}, 'url': 'secret-canary'}
+    @asynccontextmanager
+    async def connect():
+        yield InitializedGatewaySession(session, None, {'name': '电网运行数据网关', 'version': '0.1.0'}, instance)
+    client.connect = connect
+    catalog = asyncio.run(client.prepare())
+    assert catalog['instance']['instance_id'] == instance['instance_id']
+    publication = DataGatewayAccess(client, catalog).publication()
+    _json_document({'capability': {'data_gateway': publication}})
+    public = public_input_catalog({'resource_profiles': {}}, gateway_publication=publication)['data_gateway']
+    assert public['instance_id'] == instance['instance_id']
+    assert public['instance_name'] == '本地联调'
+    assert public['environment_label'] == '本地联调'
+    assert public['data_source_label'] == 'SQLite 数据库后端'
+    assert public['offline'] is False
+    assert 'secret-canary' not in json.dumps(publication)
+    instance['instance_id'] = 'another-instance'
+    assert asyncio.run(client.prepare())['revision'] != catalog['revision']

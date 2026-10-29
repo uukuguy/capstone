@@ -4,6 +4,8 @@ from copy import deepcopy
 import pytest
 
 STREAMS = ('devices', 'ports', 'connectivity_nodes', 'connections', 'device_relations', 'groups', 'boundaries', 'issues')
+V2 = 'gateway-electrical-view/2'
+V2_STREAMS = STREAMS + ('summary_nodes', 'summary_edges')
 
 
 def manifest(**changes):
@@ -41,6 +43,227 @@ class Gateway:
         self.calls.append((name, deepcopy(arguments)))
         return {'isError': bool(self.error), 'structuredContent': self.error or
                 {'status': 'partial', 'data': deepcopy(self.data), 'provenance': {'Authorization': 'secret'}}}
+
+
+def v2_manifest(**changes):
+    view_ref = changes.get('view_ref', 'view-one')
+    return manifest(schema=V2, default_stream='summary_nodes',
+        streams={stream: {'total_count': 1, 'read': {'tool': 'read_network_model_view',
+            'arguments': {'view_ref': view_ref, 'stream': stream}}} for stream in V2_STREAMS},
+        overview_coverage={'active_stations': 3, 'source_station_groups': 4,
+            'omitted_empty_station_groups': 1, 'dc_supported': False,
+            'line_endpoint_semantics': 'source_declarations; not verified electrical connectivity',
+            'source_selection': {'profile': 'station', 'min_ac_kv': 0, 'boundary_policy': 'retain_external_stub',
+                'rule_version': 'source-rule', 'rule_sha256': 'a' * 64, 'model_time': 'source_snapshot',
+                'station_id': None, 'Authorization': 'secret'}, 'Authorization': 'secret'}, **changes)
+
+
+def v2_gateway():
+    gateway = Gateway()
+    gateway.catalog['tools']['data_gateway_open_network_model_view']['inputSchema']['properties'] = {
+        'view_schema': {'anyOf': [{'enum': ['gateway-electrical-view/1', V2], 'type': 'string'}, {'type': 'null'}], 'default': None}}
+    gateway.data = v2_manifest()
+    return gateway
+
+
+def test_v2_root_open_preserves_bounded_coverage_without_fetching_records():
+    from capstone_agent.grid_electrical_view import ElectricalViewProvider
+    gateway = v2_gateway()
+    result = asyncio.run(ElectricalViewProvider(gateway).open({'model_ref': 'model:one', 'view_schema': V2}))
+    assert result['schema'] == V2 and set(result['streams']) == set(V2_STREAMS)
+    assert result['overview_coverage']['source_selection']['profile'] == 'station'
+    assert result['overview_coverage']['omitted_empty_station_groups'] == 1
+    assert 'Authorization' not in str(result)
+    assert gateway.calls == [('data_gateway_open_network_model_view', {
+        'model_ref': 'model:one', 'representation': 'source_node_breaker', 'view_schema': V2})]
+
+
+@pytest.mark.parametrize('kind', ['grid', 'station', 'summary_edge'])
+def test_v2_child_inherits_schema_and_exact_parent_identity(kind):
+    from capstone_agent.grid_electrical_view import ElectricalViewProvider
+    gateway = v2_gateway(); provider = ElectricalViewProvider(gateway)
+    asyncio.run(provider.open({'model_ref': 'model:one', 'view_schema': V2}))
+    gateway.data = v2_manifest(view_ref='child', target='returned:' + kind)
+    result = asyncio.run(provider.open({'model_ref': 'model:one', 'parent_view_ref': 'view-one',
+        'expected_model_revision': 'revision-one', 'target': 'returned:' + kind}))
+    assert result['schema'] == V2
+    assert 'view_schema' not in gateway.calls[-1][1]
+    assert len(gateway.calls) == 2
+
+
+@pytest.mark.parametrize('stream,record', [
+    ('summary_nodes', {'id': 'grid-one', 'name': 'Published directory name', 'group_kind': 'grid',
+        'expand_target': 'grid-one', 'active_station_count': 3, 'electrical_equivalent': False,
+        'source_ref': {'object_id': '001', 'table': 'SG_CON_PWRGRID_B', 'source_instance': 'source-one'}}),
+    ('summary_edges', {'id': 'edge-one', 'source_id': 'grid-one', 'target_id': 'external-one',
+        'relation_kind': 'source_ac_line_station_endpoints', 'member_count': 2, 'expand_target': 'edge-one',
+        'direction': 'undirected_display; consult member source endpoints', 'electrical_equivalent': False,
+        'electrical_connectivity_verified': False, 'source_evidence': {'table': 'SG_DEV_ACLINE_B',
+            'fields': ['START_ST_ID', 'END_ST_ID']}}),
+])
+def test_v2_summary_pages_retain_published_semantics_and_drop_private_fields(stream, record):
+    from capstone_agent.grid_electrical_view import ElectricalViewProvider
+    gateway = v2_gateway(); gateway.data = page(stream=stream, schema=V2, records=[{**record, 'Authorization': 'secret'}])
+    result = asyncio.run(ElectricalViewProvider(gateway).read({'view_ref': 'view-one', 'stream': stream}))
+    assert result['records'] == [record]
+    assert len(gateway.calls) == 1
+
+
+def test_v2_line_members_keep_source_endpoint_identity_without_power_direction():
+    from capstone_agent.grid_electrical_view import ElectricalViewProvider
+    endpoints = {'start_station_id': '001', 'end_station_id': None,
+        'direction_semantics': 'source_field_order; not power_flow_direction'}
+    gateway = v2_gateway(); gateway.data = page(schema=V2, records=[{'id': 'line-one', 'kind': 'line',
+        'source_endpoints': {**endpoints, 'Authorization': 'secret'}}])
+    result = asyncio.run(ElectricalViewProvider(gateway).read({'view_ref': 'view-one', 'stream': 'devices'}))
+    assert result['records'][0]['source_endpoints'] == endpoints
+
+
+@pytest.mark.parametrize('change', [{'schema': 'gateway-electrical-view/1'}, {'model_revision': 'changed'},
+    {'source_snapshot_ref': 'changed'}, {'selection_ref': 'changed'}])
+def test_v2_pages_cannot_change_frozen_schema_or_identity(change):
+    from capstone_agent.grid_electrical_view import ElectricalViewProvider, ElectricalViewError
+    gateway = v2_gateway(); provider = ElectricalViewProvider(gateway)
+    asyncio.run(provider.open({'model_ref': 'model:one', 'view_schema': V2}))
+    gateway.data = page(schema=V2); gateway.data.update(change)
+    with pytest.raises(ElectricalViewError):
+        asyncio.run(provider.read({'view_ref': 'view-one', 'stream': 'devices'}))
+
+
+@pytest.mark.parametrize('view_ref,stream', [('another-view', 'devices'), ('view-one', 'groups')])
+def test_known_cursor_cannot_cross_view_or_stream(view_ref, stream):
+    from capstone_agent.grid_electrical_view import ElectricalViewProvider, ElectricalViewError
+    gateway = v2_gateway(); provider = ElectricalViewProvider(gateway)
+    gateway.data = page(schema=V2, next_cursor='opaque-cursor', complete=False, total_count=2)
+    asyncio.run(provider.read({'view_ref': 'view-one', 'stream': 'devices'}))
+    gateway.data = page(schema=V2, view_ref=view_ref, stream=stream,
+        records=[{'id': 'station-one', 'kind': 'station', 'member_count': 1, 'expand_target': 'station-one'}])
+    with pytest.raises(ElectricalViewError):
+        asyncio.run(provider.read({'view_ref': view_ref, 'stream': stream, 'cursor': 'opaque-cursor'}))
+    assert len(gateway.calls) == 1
+
+
+def test_discovered_provincial_roots_and_v2_capabilities_are_preserved_exactly():
+    from capstone_agent.grid_electrical_view import ElectricalViewProvider
+    gateway = v2_gateway()
+    source_model = {'model_ref': 'registered:returned-province', 'scope': {'source_instance': 'source-one',
+        'object_type': 'grid', 'object_id': '000123'}, 'open_arguments': {
+        'model_ref': 'registered:returned-province', 'selection_profile': 'station'}, 'readiness': 'not_checked'}
+    capability = {'representation': 'source_node_breaker', 'targets': ['model', 'grid', 'station', 'device', 'summary_edge', 'unresolved'],
+        'streams': ['summary_nodes', 'summary_edges'], 'open_arguments': {'view_schema': V2},
+        'summary_semantics': 'display_only_source_line_endpoints; not electrical_equivalents'}
+    gateway.data = {'count': 0, 'scopes': [], 'electrical_views': {'schema': 'gateway-electrical-view/1',
+        'view_schemas': ['gateway-electrical-view/1', V2], 'source_grid_models': [source_model], 'v2': capability}}
+    result = asyncio.run(ElectricalViewProvider(gateway).models())
+    assert result['electrical_views']['source_grid_models'] == [source_model]
+    assert result['electrical_views']['v2'] == capability
+    assert result['electrical_views']['view_schemas'] == ['gateway-electrical-view/1', V2]
+
+
+def test_source_grid_catalog_retains_only_the_published_human_name_without_extra_lookup():
+    from capstone_agent.grid_electrical_view import ElectricalViewProvider
+    gateway = v2_gateway()
+    source_model = {'model_ref': 'opaque:returned-grid', 'name': 'Published provincial grid',
+        'scope': {'source_instance': 'source-one', 'object_type': 'grid', 'object_id': 'returned-id'},
+        'Authorization': 'secret'}
+    gateway.data = {'count': 0, 'scopes': [], 'electrical_views': {'schema': V2,
+        'source_grid_models': [source_model]}}
+    result = asyncio.run(ElectricalViewProvider(gateway).models())
+    projected = result['electrical_views']['source_grid_models'][0]
+    assert projected['name'] == source_model['name']
+    assert projected['model_ref'] == 'opaque:returned-grid'
+    assert 'Authorization' not in projected
+    assert gateway.calls == [('data_gateway_discover_network_models', {'detail': False})]
+
+
+def test_manifest_and_descriptor_retain_published_name_without_deriving_from_model_identity():
+    from capstone_agent.grid_electrical_view import checked_manifest, electrical_descriptor, checked_electrical_descriptor
+    value = v2_manifest(name='Published provincial grid')
+    assert checked_manifest(value)['name'] == value['name']
+    descriptor = electrical_descriptor(value)
+    assert descriptor['name'] == value['name']
+    assert checked_electrical_descriptor(descriptor) == descriptor
+    assert 'name' not in checked_manifest(manifest())
+    assert 'name' not in electrical_descriptor(manifest())
+
+
+@pytest.mark.parametrize('name', ['', None, 7, {'name': 'nested'}, 'bad\nname', 'x' * 2049, '   ', 'bad\x7fname'],
+    ids=['empty', 'null', 'number', 'nested', 'control', 'overlong', 'whitespace', 'delete-control'])
+def test_optional_published_names_are_bounded_scalars_in_catalog_manifest_and_descriptor(name):
+    from capstone_agent.grid_electrical_view import ElectricalViewProvider, ElectricalViewError, checked_manifest, electrical_descriptor, checked_electrical_descriptor
+    gateway = v2_gateway()
+    gateway.data = {'count': 0, 'scopes': [], 'electrical_views': {'schema': V2,
+        'source_grid_models': [{'model_ref': 'opaque:returned-grid', 'name': name}]}}
+    with pytest.raises(ElectricalViewError):
+        asyncio.run(ElectricalViewProvider(gateway).models())
+    with pytest.raises(ElectricalViewError):
+        checked_manifest(v2_manifest(name=name))
+    descriptor = electrical_descriptor(manifest())
+    descriptor['name'] = name
+    with pytest.raises(ElectricalViewError):
+        checked_electrical_descriptor(descriptor)
+    assert electrical_descriptor(v2_manifest(name=name)) is None
+
+
+@pytest.mark.parametrize('field', ['targets', 'streams', 'summary_semantics'])
+def test_v2_capability_projection_rejects_nested_private_metadata(field):
+    from capstone_agent.grid_electrical_view import ElectricalViewProvider, ElectricalViewError
+    gateway = v2_gateway()
+    capability = {'representation': 'source_node_breaker', 'targets': ['model', 'grid'],
+        'streams': ['summary_nodes', 'summary_edges'], 'summary_semantics': 'display only'}
+    capability[field] = {'Authorization': 'secret'}
+    gateway.data = {'count': 0, 'scopes': [], 'electrical_views': {'schema': 'gateway-electrical-view/1', 'v2': capability}}
+    with pytest.raises(ElectricalViewError):
+        asyncio.run(ElectricalViewProvider(gateway).models())
+
+
+@pytest.mark.parametrize('document', [
+    {'model_ref': 'model:one', 'view_schema': 'gateway-electrical-view/3'},
+    {'model_ref': 'model:one', 'view_schema': V2, 'representation': 'calculation_bus_branch', 'artifact_ref': 'artifact-one'},
+    {'model_ref': 'model:one', 'view_schema': V2, 'parent_view_ref': 'view-one', 'target': 'grid-one', 'expected_model_revision': 'revision-one'},
+])
+def test_invalid_or_noninherited_schema_never_reaches_gateway(document):
+    from capstone_agent.grid_electrical_view import ElectricalViewProvider, ElectricalViewError
+    gateway = v2_gateway()
+    with pytest.raises(ElectricalViewError):
+        asyncio.run(ElectricalViewProvider(gateway).open(document))
+    assert not gateway.calls
+
+
+def test_preparing_v2_root_and_wrong_schema_child_are_checked():
+    from capstone_agent.grid_electrical_view import ElectricalViewProvider, ElectricalViewError
+    gateway = v2_gateway(); provider = ElectricalViewProvider(gateway)
+    gateway.data = {'schema': V2, 'state': 'preparing', 'model_ref': 'model:one', 'preparation_ref': 'job-one'}
+    assert asyncio.run(provider.open({'model_ref': 'model:one', 'view_schema': V2}))['schema'] == V2
+    gateway.data = v2_manifest()
+    asyncio.run(provider.open({'model_ref': 'model:one', 'view_schema': V2}))
+    gateway.data = manifest(view_ref='child', target='returned-station')
+    with pytest.raises(ElectricalViewError):
+        asyncio.run(provider.open({'model_ref': 'model:one', 'parent_view_ref': 'view-one',
+            'expected_model_revision': 'revision-one', 'target': 'returned-station'}))
+
+
+def test_v2_does_not_extend_page_budget_or_accept_undeclared_streams():
+    from capstone_agent.grid_electrical_view import ElectricalViewProvider, ElectricalViewError, checked_manifest
+    gateway = v2_gateway(); provider = ElectricalViewProvider(gateway)
+    with pytest.raises(ElectricalViewError):
+        asyncio.run(provider.read({'view_ref': 'view-one', 'stream': 'summary_nodes', 'limit': 1001}))
+    assert not gateway.calls
+    malformed = v2_manifest(); malformed['streams']['unpublished'] = malformed['streams']['devices']
+    with pytest.raises(ElectricalViewError):
+        checked_manifest(malformed)
+    gateway.data = manifest()
+    asyncio.run(provider.open({'model_ref': 'model:one'}))
+    with pytest.raises(ElectricalViewError):
+        asyncio.run(provider.read({'view_ref': 'view-one', 'stream': 'summary_nodes'}))
+    assert len(gateway.calls) == 1
+
+
+def test_nonstring_schema_is_a_typed_response_rejection():
+    from capstone_agent.grid_electrical_view import ElectricalViewProvider, ElectricalViewError
+    gateway = v2_gateway(); gateway.data = page(schema={'Authorization': 'secret'})
+    with pytest.raises(ElectricalViewError):
+        asyncio.run(ElectricalViewProvider(gateway).read({'view_ref': 'view-one', 'stream': 'devices'}))
 
 
 def test_frozen_open_read_keeps_structural_unknowns_without_hidden_full_fetch():
@@ -142,6 +365,56 @@ def test_ready_descriptor_is_exact_and_rejects_raw_unvalidated_graph():
     assert descriptor['schema'] == 'capstone-electrical-view-request/1'
     assert checked_electrical_descriptor(descriptor) == descriptor
     assert electrical_descriptor({'view_ref': 'raw'}) is None
+
+
+def test_v2_root_descriptor_keeps_the_returned_schema_and_source_selection():
+    from capstone_agent.grid_electrical_view import electrical_descriptor, checked_electrical_descriptor
+    descriptor = electrical_descriptor(v2_manifest())
+    assert descriptor['view_schema'] == V2
+    assert descriptor['selection_profile'] == 'station'
+    assert descriptor['boundary_policy'] == 'retain_external_stub'
+    assert checked_electrical_descriptor(descriptor) == descriptor
+
+
+def test_legacy_descriptor_remains_valid_without_new_optional_fields():
+    from capstone_agent.grid_electrical_view import electrical_descriptor, checked_electrical_descriptor
+    descriptor = electrical_descriptor(manifest())
+    for key in ('view_schema', 'selection_profile', 'boundary_policy', 'parent_view_ref'):
+        descriptor.pop(key, None)
+    assert checked_electrical_descriptor(descriptor) == descriptor
+
+
+def test_child_descriptor_uses_actual_parent_arguments_and_does_not_invent_a_parent():
+    from capstone_agent.grid_electrical_view import electrical_descriptor
+    child = v2_manifest(view_ref='child-view', target='returned-station')
+    arguments = {'model_ref': 'model:one', 'parent_view_ref': 'actual-parent-view',
+        'expected_model_revision': 'revision-one', 'target': 'returned-station'}
+    descriptor = electrical_descriptor(child, arguments)
+    assert descriptor['parent_view_ref'] == 'actual-parent-view'
+    assert descriptor['view_schema'] == V2
+    assert 'selection_profile' not in descriptor and 'boundary_policy' not in descriptor
+    assert 'parent_view_ref' not in electrical_descriptor(child)
+
+
+@pytest.mark.parametrize('fields', [
+    {'view_schema': 'gateway-electrical-view/3'}, {'view_schema': None},
+    {'selection_profile': {'Authorization': 'secret'}}, {'selection_profile': 'bad profile'},
+    {'boundary_policy': 'unknown'}, {'parent_view_ref': ''}, {'parent_view_ref': 'view-one'},
+    {'parent_view_ref': 'parent', 'selection_profile': 'station'},
+    {'parent_view_ref': 'parent', 'boundary_policy': 'internal_only'},
+])
+def test_descriptor_optional_fields_are_closed_typed_and_scope_bound(fields):
+    from capstone_agent.grid_electrical_view import electrical_descriptor, checked_electrical_descriptor, ElectricalViewError
+    descriptor = electrical_descriptor(manifest())
+    descriptor.update(fields)
+    with pytest.raises(ElectricalViewError):
+        checked_electrical_descriptor(descriptor)
+
+
+def test_root_descriptor_rejects_selection_or_schema_drift_from_the_actual_request():
+    from capstone_agent.grid_electrical_view import electrical_descriptor
+    assert electrical_descriptor(v2_manifest(), {'model_ref': 'model:one', 'view_schema': 'gateway-electrical-view/1'}) is None
+    assert electrical_descriptor(v2_manifest(), {'model_ref': 'model:one', 'selection_profile': 'regional'}) is None
 
 
 def test_page_retry_cannot_mutate_records_and_cursor_cannot_repeat():

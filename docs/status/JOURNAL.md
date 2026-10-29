@@ -5954,3 +5954,434 @@ Prior closeout receipts preserved verbatim from the root checkout:
 - 2026-10-27 `519bf75f`: Synchronize backpressure fixture instead of sleeping;46 checks and10 repeated six-case rounds pass.
 
 - 2026-10-27 `bcd1a5ad`: Merge PR69 after macOS40409319046 passed27m16s;actual dev fast-forwarded with recovery stash preserved.
+
+- 2026-10-27 `be6985af`: Scope Beijing topology delivery with interactive overview,background pages and independent conversation.
+
+- 2026-10-27 `42372304`: Admit protectedv2 summaries/inheritedchildren;53focusedchecks andlive-capture replay pass.
+
+- 2026-10-27 `8936e1a8`: Decode v2 electrical summaries and preserve endpoint identities so provincial overviews render without invented connectivity.
+
+- 2026-10-27 `b92202dd`: Preserve verified electrical descriptor metadata so replay retains source schema, root selection and actual parent identity.
+
+- 2026-10-27 `d30549e7`: Keep open grid views mounted across instructions so background downloads do not block or reset conversation.
+- 2026-10-27 `8ea8728e`: Preserve electrical descriptor scope and verified parents for frozen view restoration.
+- 2026-10-27 `e2e079b6`: Include v2 schema bytes in executor identity to track contract changes.
+- 2026-10-27 `033dfb84`: Show complete overview first and download details independently, preserving frozen navigation and pause state.
+- 2026-10-27 `7c7e6dad`: Expose the first painted frame so measured overview latency includes rendering.
+- 2026-10-27 `0565f8b4`: Measure overview paint and complete download from one model-open origin for browser acceptance.
+- 2026-10-27 `a86e65d6`: Admit checked display descriptors through native events so ready gateway views pass transport validation.
+- 2026-10-27 Vivaldi: Beijing provincial overview 0.49s;78,407 detail records cached16.30s. Natural instruction failed before transport fix.
+
+- 2026-10-27 `a9c030f2`: Preserve published model names through protected catalog, manifests and descriptors so users see source-backed human labels.
+- 11:17 Preserved bounded station grouping across 499/543 terminal-record counts; source identities unchanged. Twenty tests and TypeScript passed. [e80df08f]
+- 2026-10-27 `52496fec`: Expose visible station entry actions and published model names for clear overview navigation.
+- 2026-10-27 `e3d8c5c8`: Restore root breadcrumb names by exact model identity without reopening the root view.
+- 2026-10-27 Vivaldi: Exact instruction “打开北京电网” automatically opened the named overview;14tools,26.3s, warm gateway/browser caches.
+- 2026-10-27 `9f4db401`: Show source voltage scope, isolate cameras by session, and retain verified parents for instructed child views.
+- 2026-10-27 `b074f8db`: Anchor source ports beside equipment and shorten busbars to improve station geometry while preserving electrical identities.
+# 2026-10-27 live continuation
+- 64c9de9f: Restore instruction-linked grid views through existing answer toolbar; preserve manual selection without rerunning tasks. Focused 89 tests passed.
+- a6f323fa: Recover historical child labels from frozen parent summaries; persist names and navigation across remounts.
+- ca41e6e7: Prevent older history pages from replacing selected grids during refresh; 115 focused tests and TypeScript passed.
+- Vivaldi verified overview/Chaoyang toolbar navigation. Refresh replay defect reproduced and fixed; final live refresh deferred because user changed sessions.
+- 00ad5b63: Record navigation verification and active recovery boundary; retain pending visual acceptance and dev integration.
+- f243d99a: Flush departing grid camera before fast switching; preserve independent zoom and position.38 focused tests and TypeScript passed.
+- 290565de: Route oversized continuation files to resource references before inline admission;21 tests passed,21 PostgreSQL cases skipped.
+- Local rebuild passed for290565de;API/workers image d2cbc10a6f8695df23480f8c8f3ccc602f2636258ab6612f4b53ebf21b6af36b;scoped cleanup completed.
+- Vivaldi original continuation retry admitted and executing after capacity fix;complete report and resource-read acceptance remain pending.
+- 702d6c5a: Recheck actionable research state after checkpoint pulses; prevent text-only planner wakeups while children run.107 tests passed.
+- 64e33e75: Retain advisory check gaps without rejecting usable returns; expose handoff timing, failures and limitations.179 App tests passed.
+# 2026-10-27: Research receipt starvation
+
+Reproduced protected research acknowledgment waiting behind an entire public-event page. Service control receipts between ordered events after250ms.137 scoped transport/bridge tests pass,1 skipped (37.03s); live latency comparison remains pending. Previous64e33e75 local rebuild and Vivaldi two-company trial completed with correct metrics in92s. Extra association inspection/recalculation and final parent turns remain open. Details: `docs/reports/2026-10-27-deep-research-handoff-investigation.md`.
+
+- 2026-10-27: 0fffe239 services research receipts during event publication to prevent control starvation;137 focused tests passed.
+- 2026-10-27: 6b08e322 registers validated advisory returns atomically, removing planner registration turns;116 controller and14 SDK tests passed.
+- 2026-10-27: 31eb8fb5 makes advisory overview wait for actionable results, avoiding repeated model polling;117 controller and14 SDK tests passed.
+- 2026-10-27: Vivaldi trial attempt_bb279f4dfb2c31a1 completed in69.1s; automatic registration worked, final tail20.8s remains.132 return/controller tests pass.
+- 2026-10-27: fe2dd666 retains actual producer statements when supplied support is unknown, preventing unnecessary registration repair or recalculation.
+- 2026-10-27: 5d9b40c2 combines advisory goal review and delivery in one model call, preserving reference checks and exact replay.
+- 2026-10-27: 5d8e92f2 distinguishes saved child returns from registered results;180 App tests and TypeScript pass.
+- 2026-10-27: Trial attempt_0fbba5e903defbb0 exposed missing host admission for granted child discovery tools;87 host/progress tests verify the correction.
+- 2026-10-27: 7513fc34 admits exact granted child discovery observations, preventing whole-task rejection on tool search;87 related tests passed.
+- 2026-10-27: 7513fc34 rebuilt;Vivaldi attempt_340b0038e1a828cb completed43.426s, registration0.175–0.187s, final tail10.556s, zero failed calls.
+- 2026-10-27: bf7a40ec records verified control-overhead reduction and preserved open acceptance work;doctor and diff checks passed.
+- 2026-10-27: Diagnosed summer-PPT failure attempt_4abd327e421a84db:40 parent requests, repeated100k-token context, three final model errors; exact provider reason unavailable.
+- 2026-10-27: Bounded large gateway/schema results with private files and exact host restoration;safe error metadata.21 JS,115 backend,148 App tests pass.
+- 2026-10-27: 1d40a296 bounds gateway model context and preserves full observations;records safe model errors to diagnose incomplete turns.
+- 2026-10-27: Reproduced debug history4097/4096 rejection before eviction;trim retained window first.58 App store tests and TypeScript pass.
+- 2026-10-27: a48aa319 restores recoverable history trimming;browser completed state and10 CSV artifacts visible after reload.
+- 2026-10-27: User requests temporary removal of “查看之前的对话”;disable the workspace entry while preserving stored history.
+- 2026-10-27: df2c9e31 hides older-conversation navigation;TypeScript passed and Vivaldi confirms the entry is absent.
+- 2026-10-27: a0b4e18e adds private PPTX reading and restores conversation bodies; expanded slides hide metadata. Local checks passed.
+- 2026-10-27: 62631dca implements direct DR delivery and shared gateway grants; real acceptance pending; v1.20 overlay test expectations need updating.
+- 2026-10-27: 8ad49174 verifies v1.20 runtime selection; 92 host and 50 executor checks pass before the repaired DR trial.
+- 2026-10-27: 4859e980 corrects actual runner ownership for child discovery grants; both earlier full trials remain failed, without delivery.
+- 2026-10-27: bf9c2d1e derives typed input dependencies to avoid redundant planning retries; 122 controller/SDK checks passed.
+- 2026-10-27: 109ca6cd clarifies prompt DR activation via delegated discovery; 23 SDK checks pass; running trial retains prior image.
+- 2026-10-27 23:44: 7b1d9c19 adds explicit per-instruction DR choice and removes skill toolbar; enables a controlled summer-task comparison.
+- 2026-10-28 00:04: Same-task comparison: lightweight completed383.658s/65responses/14slides; DR started; admitted snapshots differ only by mode.
+- 2026-10-28 00:30: DR completed843.856s/157responses/15slides; comparison finds broader coverage, semantic errors, fast automatic handoff; 514-event trace saved.
+- 2026-10-28: 5981a4e6 records both real summer trials and complete call paths; no stable overall DR advantage demonstrated.
+- 2026-10-28: df12507d simplifies toolbar, binds instruction attachment cards and retains pending DR choices; 265App tests pass.
+- 2026-10-28 01:01: Vivaldi upload/refresh/instruction isolation and toggle states verified; canonical rebuild and scoped cleanup passed.
+- 2026-10-28: df22d303 records real Vivaldi composer acceptance and recovery state; implementation df12507d remains the verified local source.
+- 2026-10-28: Reviewed gateway concurrency and composition; existing batching works, but programmatic orchestration and shared semantics remain optimization candidates.
+- 2026-10-28: 0468f165 records measured batching and shared tool-composition proposals; runtime behavior remains unchanged pending implementation scope.
+# 2026-10-28 — Shared native tool composition
+
+Failed summer artifact replay: verified all33saved file hashes, ran original PPT
+script offline in no-network/read-only container using nonrootuser; reproduced
+NameError undefinedk atline94. No data retrieval/model calls. Host receipt records
+only ValueError withoutreason, so root cause of whole-turn escalation remains
+unproven. Added safe trusted-frame origin helper (module/function/line only,
+no exceptiontext/paths/locals);2tests pass0.02s. Server owner will wire private
+receipt and executor identity. Model-switch and gateway diagnostics workers
+continue in separate owned files; their commits/validation remain distinct.
+
+32273a9f: Defined backend-owned model profiles and session selection contract, including local commercial and intranet18804 defaults.
+
+Verified all3internal /models and actual chat completion endpoints from BOTH Mac
+and dmdba@192.168.72.63 with proxy bypass: HTTP200/modelIDs exact, six generation
+responses have choices1/finishstop. SSHserver has curl but no python3 onPATH;
+used curl for remote probes. No deployment or workbench tool-call acceptance yet.
+
+77df1ea5: Scoped repeated resource failures to unchanged inputs so evidence-driven parameter changes remain executable within bounded programs.
+
+User-requested retry distinction: scope resource failures to canonical tool inputs,
+not tool name. Identical failed inputs are bounded; changed scope/parameters can
+execute in the same program.18 worker/package checks pass0.71s; new regression
+proves smaller-limit call succeeds after unchanged large-limit calls are exhausted.
+This protects exact repetition only; semantic equivalence/plan quality remains
+model judgment under shared guidance and total program budgets, not a hardcoded
+business classifier. Real summer-prompt retest remains required.
+
+d0be9818: Preserved natural CSV column widths with horizontal scrolling; preview and type checks pass without changing downloaded bytes.
+
+bf504a05: Rendered CSV previews through literal GFM tables while preserving raw downloads; quoted cells and TypeScript checks passed.
+
+b1e65a93: Applied generic batch-first/source-reuse guidance to root execution after locating its omission in the lightweight path.
+
+User clarified evidence-driven composition exploration must remain allowed;
+per-tool failure counting is too coarse. Refine by failed method/conditions,
+changed evidence and bounded total attempts; record reason/change/outcome.
+
+Lightweight regression investigation: old88tools versus new272; SQL27→127.
+Largest composed batch147.71s continued after repeated20s query_timeout results.
+Existing batch guidance reached child policies but was absent from the root
+ordinary loop append prompt. Apply the same neutral guidance to root execution:
+contract-supported batches/aggregation before fan-out, smallest useful discovery,
+reuse established bindings, retain gaps rather than widen timed-out scans.
+No province/year/metric/SQL is encoded.54 affected Node checks pass1.11s.
+
+ea765592: Aligned conversation test doubles and reader assertions; bounded complex layout checks while preserving all geometry assertions.
+
+App CI follow-up: restored conversationEvents in the model-pane test double,
+and opened the process reader before asserting its full-plan control.28 focused
+checks pass.543-record layout isolated12checks pass4.69s; parallel suite crossed
+old5s ceiling, so that one triple-layout/clearance test now has bounded20s timeout.
+All1272App checks pass12.31s, TypeScript clean. No product UI behavior changed.
+6e1c1a6b canonical rebuild ready/imagecb43c4cfedb35cda3e2bf5162bf18199edc2741a88b0a94ecbefab49c643d4f6;
+API/worker consistency and scoped cache cleanup121617-35168 completed.
+
+6e1c1a6b: Bounded repeated resource failures per program while preserving partial results, independent tools and truthful unissued-call status.
+
+Recovery follow-up: repeated resource failures now stop queued calls for only that
+tool/program after3 consecutive failures. Unissued calls return not_executed with
+ref:null; partial quality gaps and independent tools remain usable.17 actual
+worker/package tests pass (0.71s), including independent-tool/partial regressions.
+CI40583906308 failed25m36s in App fixtures (events is not iterable in
+ThreadWorkModelPane plus stale plan control expectation); previous Python errors
+are resolved. Targeted App reproduction started in/tmp/composition-pane-red.log.
+
+CI40577837096 failed after about30min: 2418 agent checks passed,8 failed due to
+old publication tests including new1.20 entries in legacy hashes/default1.19.
+Reproduced affected files; restrict snapshots to versions before their original
+boundary and assert currentdefault1.20. Original legacy expected hashes unchanged.
+27 checks pass in0.85s. No production policy bytes changed by this correction.
+Full matched natural-usage tests now run through Vivaldi (original prompt unchanged).
+Lightweight completed662.94s/77model responses/26programs/127SQL, delivered PPTX+CSV;
+slower than prior383.66s/65responses/27SQL. This is a measured regression, not
+an accepted speedup: programs enabled broad query fan-out. DR follow-up is running
+after the single native worker's queue, which must be measured separately.
+
+6b488fb4: Recorded real lightweight, DR and continuation evidence so integration preserves measured limits rather than claiming unproven speedups.
+
+e2abb75b: Fixed provider-status type narrowing and registered real worker/package and descendant-cancellation checks in the Python gate.
+
+Implementation report, accepted-design feedback, canonical worklist and recovery
+checkpoint now record completed Vivaldi trials and exact limits. 60 Node checks
+pass in 0.78s. PR71 awaits the next source push and required dev CI; actual dev
+entry-point and graph update follow. Root control snapshots remain preserved.
+
+PR71 development CI40572210058 failed in 2m37s on a pre-existing branch type
+narrowing expression in harness.py (two comparisons on object). Reproduced with
+file-scoped Pyright, retained the value in a local int guard: zero errors.
+43 harness tests pass. Added the new real Node programs/packages to the Python
+gate and verified actual Python descendant termination on cancel. Combined
+affected Python checks: 133 passed, 16 version combinations skipped, 4.54s.
+Continuation on reviewed output completed in 24.20s/7 model responses with three
+loadContext programs and zero gateway calls, verifying renamed admitted package
+reuse after rebuild. Actual downloaded package hash and internal digests passed.
+
+184a519e: Preserved missing-field gaps and exact continuation grants so semantic packages remain reusable without whole-task retries.
+
+Reviewed-source DR trial completed in 231.15s (4 parent +47 child model responses).
+Producer used real composition calls and saved semantic packages. Consumer made
+zero gateway calls and used the explicitly frozen package to deliver HTML.
+Optional missing fields still caused avoidable source re-query; changed bindings
+to retain unknown/source-field gaps instead of rejecting the whole package.
+Unissued refs remain rejected. Return also exposes relative product_path, and
+ordinary continuation load accepts exact admitted source paths like DR children.
+This does not establish whole-task speedup; model script/semantic repairs remain.
+
+3d0089b4: Serialized semantic package publication and clarified helper contracts so concurrent DR producers retain every reusable product.
+
+Independent review found concurrent package saves losing product manifest entries.
+Fixed with per-workspace serialization, atomic manifest writes and unique immutable
+package paths. Eight same-name concurrent saves retain primary + all support files;
+reviewer confirmed the Important resolved. Added exact save/load examples and
+safe declared shorthand metadata to avoid rejecting usable analyst annotations.
+Same-prompt corrected lightweight trial completed: 225.88s, 31 model responses,
+12 programs. No end-to-end acceleration claim: query choices and native report
+repairs differed, and one binding-shape repair is addressed in this new change.
+58 scoped Node checks pass; latest DR integration trial remains pending.
+
+cabf52cc: Kept saved program outputs bounded across host transport to prevent frame limits from causing redundant recovery.
+
+6627764f: Retained session observation refs and spilled large returns to prevent repeated gateway work after recoverable output limits.
+
+Transport review caught rpcEvent restoring the large program return after spill.
+Keep only its bounded saved-file projection; upstream gateway receipts still retain
+their exact bytes. Added a real rpcEvent regression test (16 focused tests pass).
+
+7229b0b7: Added shared tool programs and semantic packages to reduce model roundtrips while retaining per-call receipts.
+
+First real Vivaldi trial completed in 176.61s with 34 model responses, 25 programs
+and 17 published files. Found oversized program-return rejection and session-local
+reference loss; both caused avoidable recovery. Fix automatically spills returns
+and retains issued refs across programs in the same session. DR nodes still need
+explicit packages. Also share the admitted gateway wrappers with menu calls so
+their resource-failure circuit remains common. Focused correction tests pass.
+
+User approved implementation. Added task-isolated async programs, bounded parallel
+gateway calls, dependent data flow, Python calculation, explicit cancellation and
+source-backed semantic packages. Both ordinary loop and DR child grants select
+the same versioned capability; DR organizer stays tool restricted. Gateway schemas
+and receipts remain host validated. No business workflows or gateway endpoints are
+encoded. Focused checks: 55 Node tests (0.78s), 89 Python tests (3.85s; 16 unrelated
+version combinations skipped), App type check and doctor passed. Canonical rebuild
+and visible real business verification pending. Unrelated task-1-report.md preserved.
+
+- 2026-10-28 `0c7e4bb2`: Freeze registered session LLM identities and route task providers without exposing credentials.
+- 2026-10-28 `e00db6bd`: Align workbench startup presets with registered session defaults while preserving professional provider settings.
+- 2026-10-28 `a81f1820`: Record trusted failure origins privately to identify execution failures without exposing exception contents.
+
+- 2026-10-28 `66ddd5e3`: Simplify model labels and add a compact icon to remove repeated information; 125 tests and TypeScript passed.
+
+- 2026-10-28 `839f7c69`: Add configured per-model icons and keyboard-accessible menu; remove native dropdown limitations. 129 focused tests passed.
+
+- 2026-10-28 `c2111cde`: Preserve DeepSeek brand with cached catalogs and widen model menu; verified live in Vivaldi.
+
+- 2026-10-28 `05ed6149`: Remove source-grid header shortcut as requested; preserve instruction-linked views. TypeScript passed.
+
+- 2026-10-28 `ab4db6df`: Compact cache selector typography and remove unnecessary explanation. TypeScript passed.
+
+- 2026-10-28 `700b4a6e`: Vertically center cache label and selector to fix row alignment.
+
+- 2026-10-28 `26cf1465`: Package missing gateway diagnostics; isolated image projection reproduced failure, seven checks now pass.
+
+- 2026-10-28 `560d7465`: Freeze default LLM at admission to prevent queued requests changing model. 25 checks passed, six skipped.
+
+- 2026-10-28: Server disconnected; cancelled intranet test attempt_61073af59d9b5c90 and restored commercial profile. Use local gateway only.
+
+- 2026-10-28 `e04fe457`: Focus selected LLM and verify brand fallback, keyboard wrap and escape. Two interaction tests passed.
+
+- 2026-10-28: Summer recovery delivered 15-slide PPT in69.330s,16models,18tools,zero gateway; hashes and Vivaldi preview verified. Original failure preserved.
+
+- 2026-10-28 `5723947c`: Wire execution grouping into lightweight root; guide writable input copies. Regression reproduced;28 graph checks passed.
+
+- 2026-10-28 `98c7d33a`: Record commercial model verification, disconnected intranet and recovered summer artifacts without overstating acceptance.
+- 2026-10-28: Independent scoped review closed default-freeze Important; no new Critical/Important.11Python and8UI checks passed, no remote probes.
+- 2026-10-28: Confirmed protected native gateway points to host.docker.internal:18001; no remote gateway selected.
+
+- 2026-10-28: Started fresh full lightweight trial attempt_0fca8bbb5cb5b180; identical instruction, commercial model, DRoff, zero inherited materials.
+
+- 2026-10-28 `a95823f0`: Classify gateway421 and provide safe unavailable-tool context; four regressions reproduced before fix.
+
+- 2026-10-28 `9cb69245`: Remove hidden32KB diagnosis frame gate; preserve RPC bounds, exact retry scope and source-free persistence. Regression reproduced.
+
+- 2026-10-28: Gateway owner notified; container MCP initialize anddiscover_gateway recovered. Full115.420s trial remains failed; rerun pending rebuilt catalog.
+
+- 2026-10-28 `78349f60`: Keep usable artifact delivery, bounded script repair and host-measured statistics explicit in lightweight root guidance.28checks passed.
+
+- 2026-10-28 `84420760`: Safely project configured and observed gateway identity without credentials;84 checks and Pyright passed.
+- 2026-10-28 `379decfb`: Show current gateway identity and availability in conversation header;135 focused checks and TypeScript passed.
+
+- 2026-10-28 `63f46923`: Separate display_address from protected endpoint fields;85tests,Pyright and real health-document validation passed.
+
+- 2026-10-28 `f650d1b6`: Project versioned MCP instance identity without inventing metadata;90tests and Pyright passed.
+- 2026-10-28 `57ce8230`: Display published gateway instance name, environment and source details;131tests and TypeScript passed.
+
+- 2026-10-28 `ffcb8cfc`: Expose global workspace connection identity without Thread reads;11 checks and Pyright passed.
+- 2026-10-28 `ae736b85`: Add bounded background topic summaries; protect user titles, local revisions and late results.61passed4skip.
+
+- 2026-10-28 `f958744b`: Share gateway metadata globally and separate compact SSE status;184 scoped checks and TypeScript passed.
+
+- 2026-10-29: Fresh full lightweight attempt_c3463976741ad57a started viaVivaldi; frozen commercial,DRoff,zero materials. Do not rebuild while running.
+- 2026-10-29 `c0215f7a`: Separate execution revisions and aggregate bounded cumulative user intent for titles.27passed4skip.
+- 2026-10-29 `803673ea`: Add resumable operator title maintenance with explicit profile grants and stale-result protection.30passed4skip.
+- 2026-10-29 `c35f6d6e`: Bind status dot to SSE and move global gateway identity to navigation footer.148checks and TypeScript passed.
+# 2026-10-29 — lightweight progress and DR stage clarification
+
+- User clarified DR as a future closed operation of the lightweight main loop,
+  then explicitly deferred automatic activation until that loop is stable.
+  Keep the current explicit per-instruction DR gate; do not restore automatic DR.
+- Reproduced narrative progress selecting task presentation and host finalization
+  inventing completion. Added failing regressions before fixing both paths.
+- Lightweight progress guidance no longer appends a synthetic user status request;
+  it is system advice. Full real PPTX/CSV acceptance is still pending.
+- Preserve user-owned `.superpowers/sdd/task-1-report.md`. No sibling gateway edits,
+  internal network probes, deployment or release acceptance in this unit.
+- 61feb331 — Corrected lightweight progress ownership and unconfirmed completion to preserve task intent and truthful execution states.
+
+### 2026-10-29 — Full lightweight output and LLM-led execution view
+
+- Fresh Vivaldi attempt a44450618326822a delivered actual 14-slide PPTX and core
+  CSV in 420.676s/64 model responses/98 tools. Download hashes and ZIP checked;
+  real cover displayed. Timing breakdown shows 336.62s of model responses,
+  first tool 2.135s, final handoff 8.643s. No DR. Performance remains open.
+- User selected LLM responses as process primary nodes; tools are single rows
+  with timings and collapsed details. Native SDK turn boundaries establish group
+  scope; timestamps alone do not. Actual header shows 64/98, 5m37s/7m01s.
+- 145 App tests and TS passed. Review gaps for missing model boundaries and
+  cancelled-versus-failed tools were reproduced and corrected. Backend observation-history projection is a
+  separate uncommitted candidate in general-sdk.mjs, tool-result-context.mjs and
+  its fixture tests; 36 Node checks pass, real performance test is pending.
+- Preserve user task-1-report.md and the existing browser conversation/draft.
+- 4d5e11f9 — Grouped timed LLM and tool receipts so execution cost and ownership remain visible.
+
+### 2026-10-29 — Compact execution reader and global navigation position
+
+- Retained LLM labels with a brain-circuit icon; replaced repeated native status
+  words with accessible icons. Actual overlapping tools use only a left hairline.
+  Tool names, timing and status stay together. Model/tool latency grades differ.
+- Restored bulk tool detail controls. Embedded trace defaults closed; enlarged
+  trace opens tools and supports bulk close/open without changing embedded state.
+- Moved navigation toggle before the title; healthy connection renders no empty
+  header slot. Workspace-wide list reading position no longer follows currentId.
+  Pending scroll restoration survives asynchronous active/archive loading and
+  browser clamping; deliberate user scrolling cancels it. Per-session reading
+  cache excludes navigation while retaining independent body/product positions.
+- First-line action comments are projected from actual assistant text, never
+  thinking. Native prompt deployment and a real new-call check remain pending.
+- 189 focused App checks and TypeScript pass. Navigation worker's clamp and
+  Activity regressions are included. Backend history projection stays separate;
+  review accepted its issued-reference boundary; 36 Node checks pass.
+- ea5b7050 — Refined compact execution details and fixed global navigation restoration, including delayed data and cached sessions.
+
+### 2026-10-29 — Bounded observation replay candidate
+
+- Lightweight model context retains six recent full previews and shortens older
+  previews to 1,200 characters. Exact saved references and host audit receipts
+  remain intact; errors, unsaved/unissued results, user text and tool arguments
+  are not changed. A private signed-by-host-issued reference registry prevents
+  shrinking invented file references. No domain-specific gateway mapping added.
+- Native responses now request one short first-line action comment in the same
+  response; no extra LLM request. Actual workbench verification follows rebuild.
+- 36 Node tests passed; focused review's issued-reference concern was reproduced
+  and fixed. This does not establish a real task speed improvement.
+- cfd83cf5 — Bounded issued observation previews and requested same-response action comments to reduce replay and clarify execution intent.
+
+### 2026-10-29 — Per-call thinking and live tool detail focus
+
+- Every measured parent request may retain its own public thinking chunks.
+  Exact request boundaries and event-ID deduplication prevent cross-request
+  aggregation. Diagnostic/private text never becomes public thinking or intent.
+- Per-call thinking streams in a bounded viewport and folds when that response
+  ends; the global continuation transcript is no longer rendered. First/last
+  public chunk timings are observation intervals, not hidden compute measurements.
+- Tool summaries and LLM rows remain visible. During lightweight execution the
+  current response's tool details open; the next response closes that default.
+  Embedded tools default closed at rest. Enlarged details default open; both
+  views have independent bulk expand/collapse controls.
+- 209 focused App tests and TypeScript passed; review found no new Important.
+- Real Vivaldi navigation test STILL jumps to the top on a deep-list cold switch
+  from thr_0eb9fcae6393c8022b89 to thr_252b66b56ac32e3c1abe. Keep this open.
+  Navigation worker is investigating automatic scroll writes/owner races.
+  Screenshot refs: ignored /tmp/nav-keyboard-deep.json and /tmp/nav-verified-other.json.
+  User explicitly prioritizes fixing the left navigation before other UI issues.
+- fcfe3608 — Attached thinking to measured LLM requests and followed current tool details without collapsing the timeline.
+
+### 2026-10-29 — Process disclosure and readability
+- Bulk process controls now include per-call Thinking and tool details; individual disclosure state remains owned by each component.
+- LLM headings use dark text; Thinking uses a muted slate surface; tool output has a separate inset. Bounded scrolling stays in place.
+- TypeScript and 40 focused App tests passed; scoped review found no Critical/Important issue. Vivaldi visual check pending while navigation is investigated.
+- dc64e77d — Unified Thinking/tool disclosure and improved trace contrast for readable execution records.
+
+### 2026-10-29 — Navigation restore and process reader closure
+- Fixed fractional bottom offsets against integer layout capacity. Retain the global target while preparation lists clamp to their available bottom; explicit scroll input owns writes.
+- Vivaldi cold switch and return retained the deep list. Final preparation/ready screenshots: /tmp/nav-final-transition.json and /tmp/nav-final-ready.json. Diagnostic panel removed.
+- Process reader removes answer-label subtitle, places disclosure controls at right, disables actions from actual Thinking/tool state, and uses a 16px title. Unified trace typography.
+- TypeScript and 78 focused App tests passed in 1.76s; scoped reviews found no Critical/Important issue. Reader layout and disabled expansion seen in /tmp/process-user-final-layout.json.
+- Source is the feature checkout; dev integration and backend optimization rebuild remain pending. No release/deployment claim.
+- af2b2497 — Preserved fractional navigation positions and aligned reader disclosure, typography, and disabled states with user controls.
+
+### 2026-10-29 — Embedded disclosure disabled appearance
+- Reproduced native disabled state with green icons: legacy summary SVG color overrode the disabled button color. Scoped disabled SVG inheritance and dimming now make embedded controls visibly inactive.
+- Added embedded expand/collapse disabled assertions after leaving the reader. TypeScript and 40 focused tests passed. Vivaldi verified both states: /tmp/inline-disclosure-fixed.json and /tmp/inline-expanded-fixed.json.
+- Checked request47 original events: 18.462s response, 37 Thinking chunks/1227 characters, 17.974s public chunk interval. The bounded viewport showed only its tail.
+- 56b83ec4 — Made embedded disabled disclosure icons visibly inactive; added inline state regressions.
+
+### 2026-10-29 — Fresh summer-study rerun and scoped title correction
+- Canonical local rebuild ready at56b83ec4/image e42ca852; scoped cache cleanup completed. Submitted same instruction through Vivaldi in fresh thr24cd/attempt4d02, light mode, commercial DeepSeek.
+- Completed384.959s,77model/102tool calls; actual14-slide PPT and18x23CSV downloaded and hash-checked, cover shown in right pane. No DR. Uncached input grew3.09x; no performance acceptance claim.
+- Incorrect first title selector covered565 DB records. User challenged scope. Verified UI page128recent+20archived, restored444 out-of-scope titles using monotonic control events. Final121automatic updated;10visible manual and17default unchanged. All11DB manual documents retain original checksum.
+- Recent pagination is not exposed by sidebar; deferred separate UI issue. Detailed report:2026-10-29-lightweight-rerun.md. Protected original titles, receipts and correction live under ignored runs/title-refresh-20261029.
+- 3322eac2 — Recorded fresh-run timings and corrected title scope, preserving user names and restoring excluded records.
+
+### 2026-10-29 — Cleanup and Artifacts UI candidate
+- Added anchored nonmodal cleanup with date presets, full selected-catalog preview, fresh pin guards, cancellation, partial failure reporting and existing per-thread DELETE. No real delete was confirmed in browser checks.
+- Artifacts replaces permanent products/source-grid labels; current-thread directory retains manual open state, separates groups and preview, keeps browser entry in full-screen PPT, and uses a fixed frame across formats. Flat reference/locate/download icons replace unused adopt/inspect actions.
+- Code files use lazy Lowlight3.3.0 AST highlighting, language selection, line numbers and bounded rendering. Preview warnings no longer conflate reference admission with image/code/PPT rendering.
+- TypeScript and93focused App tests passed; scoped reviews closed pin corruption/unmount findings. Vivaldi anchored preview seen in /tmp/session-cleanup-anchored-preview.json. Full-screen cross-format visual check and canonical combined rebuild remain pending.
+- New accepted URL workspace implementation is active: authority_import owns backend scope guard/schema/creator tests; root owns frontend context/URL/cache. Do not report current enterprise URL as named-space isolation.
+- d0091470 — Added guarded cleanup and stable Artifacts/code previews to support user-controlled session and output browsing.
+
+### 2026-10-29 — URL workspace candidate
+- Left sidebar now displays the URL workspace name. Transport freezes the name; named requests require a matching backend echo. Catalog, drafts and retained navigation use separate namespaces. Missing thread opens the entry screen without creating a record.
+- Backend scopes list/cursor/create and all thread resource access. Existing records migrate to enterprise. This is shared URL naming, not account authentication; global MCP connection identity stays deployment-wide.
+- Reproduced and fixed three asynchronous navigation/catalog races. App focused checks:91 passed in7.04s; backend workspace checks:54 passed in1.14s; TypeScript/build passed. Real migration, Vivaldi acceptance and dev integration remain pending. User-owned task-1-report.md is excluded.
+- After UI acceptance, return to lightweight-chain execution diagnosis using the saved full summer-study run; do not claim the prior timing difference as performance acceptance.
+- b860f172 — Named-space source committed and rebuilt locally; image48081984. Existing960 thread IDs retained exactly (checksum2ccf15eff70345aa75560df77b1eb1e2). Default list200, named empty list200, cross-space known-ID404; scoped cleanup receipt cache-maintenance-20261029-091949-81505.log.
+- Vivaldi: workspace label and section colors visible; Artifacts full-screen PPT retains directory and CSV selection keeps it open. Browser found hidden automatic creation in SessionEntry for threadless URLs. Added an explicit-entry option, with a failing regression then20 passing checks plus TypeScript. Explicit new-session actions still use the unified direct path. Browser recheck retains threadless URL and count961; one earlier test-created empty thread remains only in Grid-Research, original960 unchanged. No user records deleted.
+- 020f3e16 — Explicit-entry fix rebuilt locally with image10440cf9; scoped cleanup completed (cache-maintenance-20261029-101715-90502.log). New-space browser URL now stays threadless and count remains961.
+- Returned focus to lightweight execution. Saved per-model tool path: discovery/data62 turns181.647model seconds, analysis/report14turns141.999, final4.961.22shell inspections of saved JSON precede analysis. Inspect generic summary/composition behavior next; menu replacement and rolling history are cache hypotheses, not established causes or accepted fixes.
+- 50fc4599 — Defined incremental artifact publication and bounded asynchronous reasoning to reduce waiting without automatic retries or DR activation.
+
+### 2026-10-29 — Lightweight asynchronous execution candidate
+- Added coalesced event-driven file capture, immutable running versions, bounded optional transfer queues, cancellation checks and retained versions after failure. Running primary means candidate, not user acceptance or Authority evidence.
+- Added application-selected text-only LLM pool:2concurrent/12jobs, explicit dependency inputs,120s execution deadline from actual start,30s maximum collection wait, no automatic retry. Cancelling holds its slot until cleanup; unseen answers prevent silent finalization. Exact final assembled input is bounded before child allocation; long answers retain full source bytes. Same protected model, independent contexts, no tools or implicit history.
+- Added structural observation indices and generic composition guidance. Saved-product guidance registers the first usable version immediately. Fixed a settled-child turn limit that otherwise requested an unnecessary wrap-up response.
+- Scoped backend376passed/16skipped in31.74s; App77focused tests in7.42s andTypeScript/build passed; doctor passed. Actual pinned SDK parent launches2independent calls concurrently and integrates actual answers; separate no-tool child contexts verified. Independent review closed artifact event blocking, unbounded capture-close and assembled-input-budget findings.
+- No live Provider/browser performance acceptance yet. Canonical rebuild, fresh Vivaldi trial, first-usable/primary/final timings and controlled summer-study rerun remain required. Root dev/control integration remains pending; user-owned task-1-report.md preserved.
+- b9a87970 — Added incremental products and bounded asynchronous reasoning to reduce waiting while preserving cancellation, source and model boundaries.
+- Live Vivaldi smoke thr_17b4f61cd2969e9e14ce completed25.587s: first primary CSV publishedrunning at11.250s before both child completions;2actual child model calls overlap2844/3898ms,0child failures,5parentcalls. Downloaded3files and verified hashes/CSV4rows. Evidence runs/light-async-20261029/. This verifies asynchronous delivery and pool wiring, not full-research speed acceptance.
+- Frozen selected running versions now say candidate/usable version, avoiding a false ongoing-generation label after task completion. Focused20App tests andTypeScript passed; viewport/selection behavior unchanged.
+- 41bb19f2 — Corrected frozen artifact labels after live validation so earlier versions do not falsely remain in progress.
+
+2026-10-29: Route lightweight SDK calls through dependency-aware request pool; verify queue UI, artifact follow, and reusable PPTX helper.
+
+2026-10-30: 5b2dbab2 dispatch trial verified peak two; fix saved-result rereads and Docker layer limit. Live correction check pending.
+
+2026-10-30: 40fdeb28 live reread passed: 21.979s, six main and three child requests, peak two, no duplicate analyses.
+
+2026-10-30: Summer repeat delivered14-slide PPTX/CSV in511.863s;81main calls,no analysis parallelism. Performance acceptance failed; evidence retained.
+
+2026-10-30: ad03a4b2 defaults to direct model execution; pools require explicit experiment because business speed benefit remains unproven.
+
+2026-10-30: Fix offline profile isolation and reader scroll restoration; backend2627, App1382 and client15 tests pass.
+
+2026-10-30: 030c1bf4 isolates offline profiles and preserves reader position; removes credential dependence and scroll restoration races.
+
+2026-10-30: Record final direct-loop continuation evidence; publish rejection fixtures atomically to match the host and avoid partial reads.

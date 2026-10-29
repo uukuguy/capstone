@@ -40,7 +40,7 @@ def project_native_tool_activity(event: Mapping) -> dict[str, str]:
     receipt: dict[str, str] = {}
     arguments = event.get("args")
     if isinstance(arguments, Mapping):
-        for key in ("command", "path", "file_path"):
+        for key in ("purpose", "command", "path", "file_path"):
             value = arguments.get(key)
             if isinstance(value, str) and value.strip():
                 receipt["operation"] = _summary(value, 240)

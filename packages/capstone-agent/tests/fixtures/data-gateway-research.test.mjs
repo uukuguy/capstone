@@ -2,6 +2,31 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createDataGatewayTools} from '../../src/capstone_agent/resources/general-data-gateway.mjs';
 import {applicationToolOptions} from '../../src/capstone_agent/resources/general-sdk.mjs';
+import {compositionPolicy} from '../../src/capstone_agent/resources/tool-composition.mjs';
+import {mkdtemp,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+
+test('registered composition reaches actual application wrapper and calls admitted gateway without active menu load',async()=>{
+ const cwd=await mkdtemp(join(tmpdir(),'composition-sdk-')),previous=globalThis.fetch,requests=[];
+ try{
+  const c=config();c.toolResultCwd=cwd;c.toolComposition=compositionPolicy;
+  c.applicationPolicy.allowed_tools.push('bash','write','agent_tools_execute','agent_tool_search','agent_tool_load');c.dataGateway.onDemandTools=true;
+  globalThis.fetch=async(url,options)=>{
+   const body=JSON.parse(options.body);requests.push(body);
+   return {ok:true,json:async()=>({result_json:JSON.stringify({structuredContent:{status:'ok',data:{n:4}}}),observation:{
+    kind:'external_gateway_observation',tool_call_id:body.call_id,task_id:'task-1',tool:body.name,
+    catalog_revision:c.dataGateway.catalog.revision,tool_schema_sha256:'b'.repeat(64)}})};
+  };
+  const composed=applicationToolOptions(c,[]).customTools.find(t=>t.name==='agent_tools_execute');
+  assert.ok(composed);
+  const result=await composed.execute('program',{tools:['data_gateway_discover_data_capabilities'],program:`const a=await tools.call('data_gateway_discover_data_capabilities',{});return a.data.n;`},new AbortController().signal);
+  assert.equal(result.isError,false,JSON.stringify(result));assert.match(result.content[0].text,/"result":4/);assert.equal(requests.length,1);
+  delete c.toolComposition;assert.equal(applicationToolOptions(c,[]).customTools.some(t=>t.name==='agent_tools_execute'),false);
+  c.toolComposition=compositionPolicy;c.applicationPolicy.allowed_tools=c.applicationPolicy.allowed_tools.filter(n=>n!=='bash');
+  assert.equal(applicationToolOptions(c,[]).customTools.some(t=>t.name==='agent_tools_execute'),false);
+ }finally{globalThis.fetch=previous;await rm(cwd,{recursive:true,force:true});}
+});
 
 function config(){return {deadlineAt:Date.now()+10000,applicationPolicy:{allowed_tools:['data_gateway_discover_data_capabilities']},
   dataGateway:{url:'http://127.0.0.1:8790/data-gateway/task-1',grant:'task-grant',taskId:'task-1',

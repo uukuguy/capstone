@@ -35,6 +35,31 @@ def _url(thread_id, attempt_id, artifact_id):
 def project_native_artifacts(claim, result, *, expected_parent_attempt_id=None):
     """Bind host file identities to the accepted Attempt, never promote delivery."""
     document = result.to_document()
+    return _project_artifact_document(claim, document, expected_parent_attempt_id=expected_parent_attempt_id)
+
+
+def project_native_artifact_capture(claim, request, event):
+    """A running capture is an available version, not a terminal task result."""
+    expected = {'type', 'schema', 'task_id', 'parent_attempt_id', 'executor_identity', 'artifact'}
+    if (not isinstance(event, dict) or set(event) - {'event_id'} != expected
+            or event.get('type') != 'native_artifact_captured'
+            or event.get('schema') != 'capstone-pi-artifact-capture/1'
+            or event['task_id'] != request.task_id or event['parent_attempt_id'] != request.parent_attempt_id
+            or event['executor_identity'] != request.to_document()['executor_identity']):
+        raise ValueError('native capture task identity changed')
+    artifact = event['artifact']
+    if (not isinstance(artifact, dict)
+            or set(artifact) != {'artifact_id','task_id','parent_attempt_id','kind','metadata'}
+            or artifact.get('kind') != 'workspace_file'
+            or not isinstance(artifact.get('metadata'), dict)
+            or set(artifact['metadata']) - {'path','sha256','size_bytes','presentation_role'}):
+        raise ValueError('native capture file descriptor is invalid')
+    return _project_artifact_document(claim, {'task_id':event['task_id'],
+        'parent_attempt_id':event['parent_attempt_id'], 'executor_identity':event['executor_identity'],
+        'status':'running', 'artifacts':[artifact]}, expected_parent_attempt_id=request.parent_attempt_id)
+
+
+def _project_artifact_document(claim, document, *, expected_parent_attempt_id=None):
     if not document['artifacts']:
         return []
     parent = claim.attempt.attempt_id
@@ -96,7 +121,7 @@ def project_native_artifacts(claim, result, *, expected_parent_attempt_id=None):
     return artifacts
 
 
-def native_artifact_page(service, thread_id, attempt_id, *, after=0):
+def native_artifact_page(service, thread_id, attempt_id, *, after=0, include_presentation=True):
     """Read one bounded existing Attempt-record page, with the same cursor."""
     _id(thread_id); _id(attempt_id)
     page = service.read_attempt_records(thread_id, attempt_id, after=after, limit=128)
@@ -112,7 +137,8 @@ def native_artifact_page(service, thread_id, attempt_id, *, after=0):
                 or item['download_url'] != _url(thread_id, attempt_id, item['artifact_id'])):
             raise ValueError('native file ledger ownership changed')
         from .native_product_roles import presentation_for_artifact
-        artifacts.append(presentation_for_artifact(item, getattr(service, '_material_objects', None), presentation_cache))
+        artifacts.append(presentation_for_artifact(item, getattr(service, '_material_objects', None), presentation_cache)
+                         if include_presentation else item)
     return {'schema': 'capstone-process-artifacts/1', 'thread_id': thread_id, 'attempt_id': attempt_id,
             'artifacts': artifacts, 'has_more': page['has_more'], 'next_after': page['next_after']}
 
@@ -138,9 +164,11 @@ def _saved_artifact(objects, item):
     return _verified_bytes(item, data)
 
 
-def retain_native_artifact(objects, executor, item):
+def retain_native_artifact(objects, executor, item, *, check=lambda:None):
     """Keep exact process bytes in the host store without promoting delivery."""
+    check()
     saved = _saved_artifact(objects, item)
+    check()
     if saved is not None:
         return saved
     if executor is None:
@@ -150,19 +178,25 @@ def retain_native_artifact(objects, executor, item):
     # determine a saved file's identity, not the current executor revision.
     data = _verified_bytes(item, executor.read_artifact(item['task_id'], item['host_artifact_id'],
         expected_sha256=item['sha256'], expected_size=item['size_bytes']))
+    check()
     if objects is not None:
         objects.put(artifact_object_key(item), data, item['media_type'])
+        check()
         _verified_bytes(item, objects.get(artifact_object_key(item), limits.artifact_file_bytes))
     return data
 
 
-def read_native_artifact(service, executor, thread_id, attempt_id, artifact_id, *, objects=None):
+def read_native_artifact(service, executor, thread_id, attempt_id, artifact_id, *, objects=None, expected_descriptor=None):
     """Authorize against durable process ownership before private host access."""
     _id(artifact_id)
     after = 0
     while True:
-        page = native_artifact_page(service, thread_id, attempt_id, after=after)
-        item = next((item for item in page['artifacts'] if item['artifact_id'] == artifact_id), None)
+        page = native_artifact_page(service, thread_id, attempt_id, after=after,
+                                    include_presentation=expected_descriptor is None)
+        # Continuations freeze a specific trusted ledger receipt. Earlier live
+        # receipts and later presentation enrichment must not replace that view.
+        item = next((item for item in page['artifacts'] if item['artifact_id'] == artifact_id
+                     and (expected_descriptor is None or dict(item) == dict(expected_descriptor))), None)
         if item is not None:
             if objects is None:
                 objects = getattr(service, '_material_objects', None)

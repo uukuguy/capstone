@@ -14,6 +14,7 @@ import time
 
 from .native_research_bridge import read_json, write_json
 from .general_pi_storage import sync_directory
+from .application_capacity import limits
 
 SCHEMA = 'capstone-systematic-diagnosis/1'
 DIAGNOSIS_TOOLS = ('agent_diagnosis_record', 'agent_diagnosis_guide')
@@ -89,7 +90,7 @@ class NativeDiagnosis:
                     or frame['type'] != 'systematic_diagnosis_request' or frame['schema'] != SCHEMA
                     or not isinstance(frame['request_id'], str)
                     or not re.fullmatch(r'[A-Za-z0-9_-]{1,128}', frame['request_id'])
-                    or len(json.dumps(frame).encode()) > 32768):
+                    or len(json.dumps(frame, ensure_ascii=False, separators=(',', ':')).encode('utf-8')) > limits.rpc_frame_bytes):
                 raise ValueError('diagnosis request is invalid')
             state = read_json(self.state_path, maximum=4 * 1024 * 1024) if self.state_path.exists() else {
                 'schema': SCHEMA, 'policy': self.policy, 'scopes': {}, 'records': [], 'gaps': [], 'rejections': [], 'requests': {}}

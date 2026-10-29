@@ -12,7 +12,11 @@ export type ThreadSourceViewRequest={
 }
 export type ThreadElectricalViewRequest={schema:'capstone-electrical-view-request/1';source_id:'data-gateway';
   model_ref:string;model_revision:string;view_ref:string;selection_ref:string;source_snapshot_ref:string;
-  representation:'source_node_breaker'|'calculation_bus_branch';target:string|null;artifact_ref:string|null}
+  representation:'source_node_breaker'|'calculation_bus_branch';target:string|null;artifact_ref:string|null;
+  /** Describes the frozen view; child open calls inherit schema from their parent. */
+  view_schema?:'gateway-electrical-view/1'|'gateway-electrical-view/2';
+  name?:string;
+  selection_profile?:string;boundary_policy?:'retain_external_stub'|'internal_only';parent_view_ref?:string}
 export type ThreadDisplayRequest=ThreadSourceViewRequest|ThreadElectricalViewRequest
 export type ThreadViewProposal=
   |{kind:'source';eventSeq:number;attemptId:string;request:ThreadDisplayRequest}
@@ -21,14 +25,33 @@ const object=(value:unknown):value is Record<string,unknown>=>value!==null&&type
 const text=(value:unknown):value is string=>typeof value==='string'&&value.length<=512&&value.trim().length>0&&!/[\u0000-\u001f\u007f]/.test(value)
 const keys=(value:Record<string,unknown>,expected:readonly string[])=>Object.keys(value).length===expected.length&&expected.every(key=>Object.hasOwn(value,key))
 const sequence=(value:number)=>Number.isSafeInteger(value)&&value>0
+const electricalFields=['schema','source_id','model_ref','model_revision','view_ref','selection_ref','source_snapshot_ref','representation','target','artifact_ref'] as const
+const electricalMetadata=['view_schema','selection_profile','boundary_policy','parent_view_ref','name'] as const
+const allowedElectricalFields=new Set<string>([...electricalFields,...electricalMetadata])
+function boundedElectricalDescriptor(value:Record<string,unknown>):boolean {
+  // The backend budgets Python's ASCII JSON, including its separator spaces.
+  // All admitted descriptor fields are scalar strings or null.
+  const ascii=JSON.stringify(value).replace(/[\u007f-\uffff]/g,char=>`\\u${char.charCodeAt(0).toString(16).padStart(4,'0')}`)
+  return ascii.length+Object.keys(value).length*2-1<=16*1024
+}
 
 export function parseThreadDisplayRequest(value:unknown):ThreadDisplayRequest|null {
   if(!object(value)||value.schema!=='capstone-electrical-view-request/1')return parseThreadSourceViewRequest(value)
-  if(!keys(value,['schema','source_id','model_ref','model_revision','view_ref','selection_ref','source_snapshot_ref','representation','target','artifact_ref'])
-    ||value.source_id!=='data-gateway'||!['source_node_breaker','calculation_bus_branch'].includes(String(value.representation))
+  if(!electricalFields.every(key=>Object.hasOwn(value,key))||Object.keys(value).some(key=>!allowedElectricalFields.has(key))
+    ||value.source_id!=='data-gateway'||value.representation!=='source_node_breaker'&&value.representation!=='calculation_bus_branch'
     ||!['model_ref','model_revision','view_ref','selection_ref','source_snapshot_ref'].every(key=>text(value[key]))
     ||!(value.target===null||text(value.target))||!(value.artifact_ref===null||text(value.artifact_ref))
     ||value.representation==='calculation_bus_branch'&&!text(value.artifact_ref))return null
+  if(Object.hasOwn(value,'view_schema')&&(value.view_schema!=='gateway-electrical-view/1'&&value.view_schema!=='gateway-electrical-view/2'
+    ||value.view_schema==='gateway-electrical-view/2'&&value.representation!=='source_node_breaker'))return null
+  if(Object.hasOwn(value,'selection_profile')&&(typeof value.selection_profile!=='string'||!/^[a-z][a-z0-9_-]{0,63}$/.test(value.selection_profile)))return null
+  if(Object.hasOwn(value,'name')&&(typeof value.name!=='string'||!value.name.trim()||value.name.length>2048||/[\u0000-\u001f\u007f]/.test(value.name)))return null
+  if(Object.hasOwn(value,'boundary_policy')&&value.boundary_policy!=='retain_external_stub'&&value.boundary_policy!=='internal_only')return null
+  if(Object.hasOwn(value,'parent_view_ref')&&(typeof value.parent_view_ref!=='string'||!value.parent_view_ref.length||value.parent_view_ref.length>2048
+    ||/[\u0000-\u001f]/.test(value.parent_view_ref)||value.parent_view_ref===value.view_ref||!value.target
+    ||Object.hasOwn(value,'selection_profile')||Object.hasOwn(value,'boundary_policy')))return null
+  if(value.representation==='calculation_bus_branch'&&(Object.hasOwn(value,'selection_profile')||Object.hasOwn(value,'boundary_policy')))return null
+  if(!boundedElectricalDescriptor(value))return null
   return {...value} as ThreadElectricalViewRequest
 }
 

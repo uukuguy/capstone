@@ -1,0 +1,110 @@
+import {afterEach,expect,it,vi} from 'vitest'
+import {act,cleanup,fireEvent,render,screen,waitFor} from '@testing-library/react'
+import SessionCleanup,{cleanupCandidates} from './SessionCleanup'
+import {readSessionHistory} from './sessionManagement'
+
+afterEach(()=>{cleanup();localStorage.clear()})
+const old={threadId:'old',modelId:null,createdAt:'2020-01-01T00:00:00Z',sessionTitle:{text:'旧分析',source:'automatic' as const,revision:1,source_ref:'test'}}
+const pinned={...old,threadId:'pinned',sessionTitle:{...old.sessionTitle,text:'置顶分析'}}
+it('selects dated records only, excluding pins, the current conversation, and duplicate identities',()=>{
+  const now=Date.parse('2026-10-29T00:00:00Z')
+  expect(cleanupCandidates([old,pinned,{...old,threadId:'current'},{...old,threadId:'missing',createdAt:undefined},old],['pinned'],30,now,'current').map(x=>x.threadId)).toEqual(['old'])
+  expect(cleanupCandidates([old],[],0,now)).toEqual([])
+})
+it('previews without deleting, then deletes only confirmed unpinned candidates',async()=>{
+  localStorage.setItem('capstone.session-pins:test',JSON.stringify(['pinned']))
+  const remove=vi.fn().mockResolvedValue(undefined),onRemoved=vi.fn()
+  render(<SessionCleanup items={[old,pinned]} storageKey="test" scopeLabel="最近会话" remove={remove} onRemoved={onRemoved}/> )
+  fireEvent.click(screen.getByRole('button',{name:'清理会话'}))
+  expect(screen.getByText('旧分析')).toBeTruthy();expect(screen.queryByText('置顶分析')).toBeNull()
+  expect(remove).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button',{name:'删除 1 个会话'}))
+  await waitFor(()=>expect(remove).toHaveBeenCalledWith('old'))
+  expect(remove).toHaveBeenCalledTimes(1)
+})
+it('rechecks pins immediately before deletion and preserves newly pinned sessions',async()=>{
+  const remove=vi.fn().mockResolvedValue(undefined)
+  render(<SessionCleanup items={[old]} storageKey="test" scopeLabel="最近会话" remove={remove} onRemoved={()=>{}}/> )
+  fireEvent.click(screen.getByRole('button',{name:'清理会话'}))
+  localStorage.setItem('capstone.session-pins:test',JSON.stringify(['old']))
+  fireEvent.click(screen.getByRole('button',{name:'删除 1 个会话'}))
+  await waitFor(()=>expect(screen.getByRole('status').textContent).toContain('保留 1'))
+  expect(remove).not.toHaveBeenCalled()
+})
+it('keeps failed deletions, reports partial results, and never retries them automatically',async()=>{
+  const remove=vi.fn().mockRejectedValueOnce(new Error('active')).mockResolvedValueOnce(undefined)
+  const onRemoved=vi.fn()
+  render(<SessionCleanup items={[old,{...old,threadId:'second'}]} storageKey="test" scopeLabel="归档会话" remove={remove} onRemoved={onRemoved}/> )
+  fireEvent.click(screen.getByRole('button',{name:'清理会话'}))
+  fireEvent.click(screen.getByRole('button',{name:'删除 2 个会话'}))
+  await waitFor(()=>expect(screen.getByRole('status').textContent).toContain('未删除 1'))
+  expect(remove).toHaveBeenCalledTimes(2);expect(onRemoved).toHaveBeenCalledWith(['second'])
+})
+it('reads the complete selected history without a visible pagination action',async()=>{
+  const listThreads=vi.fn().mockResolvedValueOnce({threads:[old],hasMore:true,nextBeforeThreadId:'old'}).mockResolvedValueOnce({threads:[pinned],hasMore:false,nextBeforeThreadId:null})
+  const controller=new AbortController()
+  expect((await readSessionHistory({listThreads},true,controller.signal)).map(x=>x.threadId)).toEqual(['old','pinned'])
+  expect(listThreads).toHaveBeenLastCalledWith(true,'old',controller.signal)
+})
+it('rejects repeated directory cursors instead of looping or exposing a partial deletion preview',async()=>{
+  const listThreads=vi.fn().mockResolvedValue({threads:[old],hasMore:true,nextBeforeThreadId:'old'})
+  await expect(readSessionHistory({listThreads},false,new AbortController().signal)).rejects.toThrow('未完整读取')
+  expect(listThreads).toHaveBeenCalledTimes(2)
+})
+it('disables deletion when full history cannot be loaded',async()=>{
+  const remove=vi.fn()
+  render(<SessionCleanup items={[old]} storageKey="test" scopeLabel="最近会话" remove={remove} onRemoved={()=>{}} loadItems={async()=>{throw new Error('unavailable')}}/> )
+  fireEvent.click(screen.getByRole('button',{name:'清理会话'}))
+  await waitFor(()=>expect(screen.getByRole('alert').textContent).toContain('未启用删除'))
+  expect(screen.getByRole('button',{name:'删除 0 个会话'}).hasAttribute('disabled')).toBe(true)
+  expect(remove).not.toHaveBeenCalled()
+})
+it('does not delete anything if the pin store cannot be read',async()=>{
+  const remove=vi.fn()
+  render(<SessionCleanup items={[old]} storageKey="test" scopeLabel="最近会话" remove={remove} onRemoved={()=>{}}/> )
+  fireEvent.click(screen.getByRole('button',{name:'清理会话'}))
+  localStorage.setItem('capstone.session-pins:test','invalid')
+  fireEvent.click(screen.getByRole('button',{name:'删除 1 个会话'}))
+  await waitFor(()=>expect(screen.getByRole('status').textContent).toContain('保留 1'))
+  expect(remove).not.toHaveBeenCalled()
+})
+it('stops unsent deletions when the cleanup component unmounts',async()=>{
+  let finish!:()=>void
+  const remove=vi.fn().mockImplementationOnce(()=>new Promise<void>(resolve=>{finish=resolve})).mockResolvedValue(undefined)
+  const onRemoved=vi.fn(),view=render(<SessionCleanup items={[old,{...old,threadId:'second'}]} storageKey="test" scopeLabel="最近会话" remove={remove} onRemoved={onRemoved}/> )
+  fireEvent.click(screen.getByRole('button',{name:'清理会话'}));fireEvent.click(screen.getByRole('button',{name:'删除 2 个会话'}))
+  expect(remove).toHaveBeenCalledTimes(1)
+  view.unmount()
+  await act(async()=>{finish();await Promise.resolve()})
+  expect(remove).toHaveBeenCalledTimes(1);expect(onRemoved).not.toHaveBeenCalled()
+})
+it('treats an existing empty pin document as unreadable, not as an empty pin list',async()=>{
+  const remove=vi.fn()
+  render(<SessionCleanup items={[old]} storageKey="test" scopeLabel="最近会话" remove={remove} onRemoved={()=>{}}/> )
+  fireEvent.click(screen.getByRole('button',{name:'清理会话'}));localStorage.setItem('capstone.session-pins:test','')
+  fireEvent.click(screen.getByRole('button',{name:'删除 1 个会话'}))
+  await waitFor(()=>expect(screen.getByRole('status').textContent).toContain('保留 1'))
+  expect(remove).not.toHaveBeenCalled()
+})
+it('opens an anchored nonmodal popover and closes on outside click or Escape without deleting',()=>{
+  const remove=vi.fn()
+  render(<SessionCleanup items={[old]} storageKey="test" scopeLabel="最近会话" remove={remove} onRemoved={()=>{}}/> )
+  const entry=screen.getByRole('button',{name:'清理会话'})
+  fireEvent.click(entry)
+  expect(screen.getByRole('dialog',{name:'清理会话'}).hasAttribute('aria-modal')).toBe(false)
+  expect(document.querySelector('.answer-detail-backdrop')).toBeNull()
+  fireEvent.pointerDown(document.body)
+  expect(screen.queryByRole('dialog')).toBeNull()
+  fireEvent.click(entry);fireEvent.keyDown(window,{key:'Escape'})
+  expect(screen.queryByRole('dialog')).toBeNull();expect(document.activeElement).toBe(entry)
+  expect(remove).not.toHaveBeenCalled()
+})
+it('stops unsent deletions when the user closes the popover during a request',async()=>{
+  let finish!:()=>void
+  const remove=vi.fn().mockImplementationOnce(()=>new Promise<void>(resolve=>{finish=resolve})).mockResolvedValue(undefined)
+  render(<SessionCleanup items={[old,{...old,threadId:'second'}]} storageKey="test" scopeLabel="最近会话" remove={remove} onRemoved={()=>{}}/> )
+  fireEvent.click(screen.getByRole('button',{name:'清理会话'}));fireEvent.click(screen.getByRole('button',{name:'删除 2 个会话'}))
+  fireEvent.click(screen.getByRole('button',{name:'停止'}))
+  await act(async()=>{finish();await Promise.resolve()})
+  expect(remove).toHaveBeenCalledTimes(1);expect(screen.queryByRole('dialog')).toBeNull()
+})

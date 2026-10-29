@@ -1,0 +1,34 @@
+.session-cleanup-entry { display: flex; align-items: center; gap: 7px; border: 0; background: transparent; color: inherit; padding: 8px 0; font: inherit; font-size: 11px; cursor: pointer; opacity: .8; }
+.session-cleanup-entry:hover { opacity: 1; }
+.session-cleanup-entry:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.session-cleanup-popover { position: fixed; z-index: 1000; box-sizing: border-box; width: min(320px,calc(100vw - 16px)); max-height: calc(100dvh - 32px); overflow: auto; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--text); box-shadow: 0 8px 28px #172d3224; font-size: 11px; line-height: 1.5; }
+.session-cleanup-popover > header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.session-cleanup-popover > header strong { font-size: 12px; font-weight: 600; }
+.session-cleanup-popover > header button { display: grid; place-items: center; padding: 3px; border: 0; background: transparent; color: var(--muted); cursor: pointer; }
+.session-cleanup-scope { margin-top: 0; color: var(--muted); }
+.session-cleanup-age { display: flex; align-items: center; gap: 8px; }
+.session-cleanup-age input { width: 72px; font: inherit; padding: 5px 7px; border: 1px solid var(--line); border-radius: 5px; }
+.session-cleanup-presets { display: flex; gap: 6px; margin: 8px 0 12px; }
+.session-cleanup-popover button { font: inherit; }
+.session-cleanup-presets button, .session-cleanup-actions button { border: 1px solid var(--line); border-radius: 5px; padding: 5px 10px; background: var(--surface); color: var(--text); cursor: pointer; }
+.session-cleanup-presets button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: var(--surface-soft); }
+.session-cleanup-preview { max-height: 120px; overflow: auto; list-style: none; margin: 6px 0 10px; padding: 0; border-block: 1px solid var(--line-soft); }
+.session-cleanup-preview li { display: flex; gap: 12px; justify-content: space-between; padding: 5px 0; }
+.session-cleanup-preview time { color: var(--muted); white-space: nowrap; }
+.session-cleanup-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.session-cleanup-actions .session-cleanup-confirm { color: #a3333a; border-color: #e3b9bc; }
+.session-cleanup-popover button:disabled { opacity: .4; cursor: default; }
+.session-navigation-actions { display: flex; flex: none; align-items: center; justify-content: space-between; gap: 10px; border-top: 1px solid #405046; margin-top: 6px; }
+.thread-session-navigation .session-navigation-actions > .session-archive-entry { border: 0; margin: 0; padding-inline: 0; font-size: 11px; }
+.thread-session-navigation .session-navigation-scroll h2.session-section-heading { display: flex; align-items: center; gap: 6px; margin: 10px 8px 4px; color: #e2ede7; font-size: 11px; line-height: 18px; font-weight: 650; letter-spacing: .4px; }
+.thread-session-navigation .session-navigation-scroll h2.session-section-heading:first-child { margin-top: 3px; }
+.session-section-heading > svg { flex: none; color: #b3cbbb; stroke-width: 1.6; }
+.session-section-heading::after { content: ''; flex: 1; height: 1px; margin-left: 2px; background: #496254; }
+.thread-session-navigation .session-navigation-scroll h2.session-section-heading:has(.lucide-pin) { color: #efcf8a; }
+.thread-session-navigation .session-navigation-scroll h2.session-section-heading:has(.lucide-history) { color: #a3dcc9; }
+.thread-session-navigation .session-navigation-scroll h2.session-section-heading:has(.lucide-archive) { color: #b7ccef; }
+.session-section-heading > svg { color: inherit; }
+.session-section-heading::after { background: currentColor; opacity: .3; }
+.workspace-brand .workspace-identity { display: flex; align-items: baseline; gap: 9px; min-width: 0; letter-spacing: normal; }
+.workspace-identity > small { flex: none; font-size: 9px; letter-spacing: 1.8px; color: #a6b8ac; }
+.workspace-identity > strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 500; color: #e0ebe3; }

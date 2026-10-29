@@ -27,7 +27,7 @@ it('selects an exact historical product in the shared professional workspace and
   fireEvent.click(screen.getByRole('button',{name:'发送指令'}))
   await waitFor(()=>expect(send).toHaveBeenCalled())
   expect(send.mock.calls[0][0]).toMatchObject({kind:'send_auto',payload:{context_product_refs:[{ref,purpose:'historical-context'}]}})
-  expect(transport.readProductIndex.mock.calls[0][1]).toEqual({workId:null})
+  expect(transport.readProductIndex.mock.calls[0][1]).toEqual({})
 })
 
 it('names the workspace at the application boundary without changing the professional title', () => {
@@ -74,14 +74,14 @@ it('restores conversation when the heading closes an expanded result view', asyn
   render(<ThreadFixtureApp fixtureId="idle-ieee39" presentation="workspace" />)
   await screen.findByRole('textbox', {name:'Thread 指令'})
   fireEvent.click(screen.getByRole('button', {name:'打开电气拓扑'}))
-  fireEvent.click(screen.getByRole('button', {name:'扩大成果区'}))
+  fireEvent.click(screen.getByRole('button', {name:'全屏'}))
   expect(document.querySelector('.is-resource-expanded')).toBeTruthy()
   expect(screen.queryByRole('button', {name:/业务能力与资源/})).toBeNull()
   fireEvent.click(screen.getByRole('button', {name:'收起电气拓扑'}))
   expect(document.querySelector('.is-resource-expanded')).toBeNull()
   expect(screen.getByRole('textbox', {name:'Thread 指令'})).toBeTruthy()
   fireEvent.click(screen.getByRole('button', {name:'打开电气拓扑'}))
-  expect(screen.getByRole('button', {name:'扩大成果区'})).toBeTruthy()
+  expect(screen.getByRole('button', {name:'全屏'})).toBeTruthy()
 })
 
 it('presents the full conversation in the workspace with an optional real model region', async () => {
@@ -101,8 +101,8 @@ it('presents the full conversation in the workspace with an optional real model 
   fireEvent.click(screen.getByRole('button',{name:'对话设置'}))
   expect(screen.getByRole('group',{name:'对话设置'})).toBeTruthy()
   fireEvent.keyDown(document,{key:'Escape'})
-  expect(screen.getByRole('button', {name:'选择技能'})).toBeTruthy()
-  expect(screen.getByRole('button', {name:'本轮上下文'})).toBeTruthy()
+  expect(screen.getByRole('button', {name:'深度思考'})).toBeTruthy()
+  expect(screen.queryByRole('button', {name:'本轮上下文'})).toBeNull()
   expect(screen.getByRole('button', {name:'对话设置'})).toBeTruthy()
   expect(screen.queryByRole('button', {name:'保存任务'})).toBeNull()
   expect(screen.queryByRole('button', {name:'开始任务'})).toBeNull()

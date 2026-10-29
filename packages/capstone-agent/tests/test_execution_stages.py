@@ -1,6 +1,20 @@
 from capstone_agent.execution_stages import ExecutionStages
 
 
+def test_finalization_does_not_confirm_an_unsettled_business_step():
+    stages = ExecutionStages()
+    stages.annotate(action('started', identity='native.data_recon'))
+    previous = stages.begin_finalization()['payload']['task_steps'][0]
+    assert previous['status'] == 'limited'
+    assert previous['finish_reason'] == 'completion_not_confirmed'
+
+
+def test_interruption_does_not_mark_running_work_completed():
+    stages = ExecutionStages()
+    stages.annotate(action('started', identity='native.data_recon'))
+    assert stages.finish(interrupted=True)[0]['status'] == 'cancelled'
+
+
 def test_native_takeover_batch_preserves_limited_old_step_and_global_numbers():
     stages = ExecutionStages()
     stages.annotate(action('started', identity='native.narrative'))

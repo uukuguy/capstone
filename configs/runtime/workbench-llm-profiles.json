@@ -1,0 +1,11 @@
+{
+  "schema": "capstone-workbench-llm-profiles/1",
+  "defaults": {"local": "commercial-deepseek-flash", "intranet": "intranet-dsv4-18804"},
+  "profiles": [
+    {"id": "commercial-deepseek-flash", "label": "deepseek-flash", "icon": "deepseek", "provider": "deepseek", "model": "deepseek-flash", "credential_env": "DEEPSEEK_API_KEY", "network": "configured", "title_request_options": {"thinking": {"type": "disabled"}}},
+    {"id": "intranet-dsv4-18804", "label": "192.168.72.69:18804", "icon": "server", "provider": "openai-compatible", "base_url": "http://192.168.72.69:18804/v1", "model": "dsv4", "network": "direct"},
+    {"id": "intranet-dsv4-16804", "label": "192.168.72.69:16804", "icon": "server", "provider": "openai-compatible", "base_url": "http://192.168.72.69:16804/v1", "model": "dsv4", "network": "direct"},
+    {"id": "intranet-qwen-8011", "label": "192.168.72.69:8011", "icon": "server", "provider": "openai-compatible", "base_url": "http://192.168.72.69:8011/v1", "model": "qwen3.8-27b", "network": "direct"},
+    {"id": "configured-openai-compatible", "label": "自定义模型", "icon": "server", "provider": "openai-compatible", "base_url_env": "OPENAI_BASE_URL", "model_env": "OPENAI_MODEL", "credential_env": "OPENAI_API_KEY", "network": "configured"}
+  ]
+}

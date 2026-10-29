@@ -694,6 +694,11 @@ test('real SDK entry point registers graph tools without a manual delegate grant
     config.researchRuntime.lightweightTaskNodes=false;
     await host.runManagedSession(config,sdk,{getModel:()=>({id:'fake'})});
     assert.equal(observed.loader.systemPromptOverride(),'SELECTED APPLICATION RULES');
+    const executionPrompt=observed.loader.appendSystemPromptOverride().join('\n');
+    assert.match(executionPrompt,/organize an action around a useful execution intent/);
+    assert.match(executionPrompt,/shutil.copyfile/);
+    assert.match(executionPrompt,/save a usable requested file/);
+    assert.match(executionPrompt,/not a reason to replace the requested delivery with a progress log/);
   }finally{process.stdout.write=original;process.chdir(previous);await rm(dir,{recursive:true,force:true});}
 });
 

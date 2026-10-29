@@ -57,7 +57,7 @@ export default function ThreadMaterialUpload({threadId,upload,onUploaded,disable
         available-=file.size
         slots--
         onUploaded(material)
-        setMessage(`${material.file_name} 已关联到会话，可在本轮上下文中调整。`)
+        setMessage(`${material.file_name} 已上传。`)
         }
       }catch(cause){if(!controller.signal.aborted)setError(cause instanceof Error?cause.message:'资料上传失败，请重试。')}
       finally{if(request.current===controller){request.current=undefined;setBusy(false);onBusyChange?.(false)}}

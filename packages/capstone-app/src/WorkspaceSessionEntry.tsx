@@ -7,6 +7,7 @@ import {storageNamespace} from './threadSessionState'
 import ThreadWorkspace from './ThreadWorkspace'
 import {HttpThreadTransport,ThreadTransportError} from './threadHttpTransport'
 import {readThreadAccess} from './threadAccess'
+import {currentWorkspaceName,isWorkspaceActive} from './workspaceName'
 
 export default function WorkspaceSessionEntry({onCreated,compact=false}:{onCreated:(id:string)=>void;compact?:boolean}) {
   const [error,setError]=useState('')
@@ -19,6 +20,7 @@ export default function WorkspaceSessionEntry({onCreated,compact=false}:{onCreat
   const mounted=useRef(false)
   useEffect(()=>{mounted.current=true;return()=>{mounted.current=false}},[])
   const origin=import.meta.env.VITE_API_ORIGIN||''
+  const workspaceName=currentWorkspaceName()
   const namespace=storageNamespace(origin),[sessions,setSessions]=useSessionCatalog(namespace)
   useEffect(()=>{
     const controller=new AbortController()
@@ -26,7 +28,7 @@ export default function WorkspaceSessionEntry({onCreated,compact=false}:{onCreat
     void readThreadAccess(origin,controller.signal).then(access=>{
       if(access==='operator'&&!token){setNeedsToken(true);return}
       const auth=access==='open'?'':token
-      const sessionTransport=new HttpThreadTransport(origin,auth)
+      const sessionTransport=new HttpThreadTransport(origin,auth,fetch,'/api/v1/threads','1',workspaceName)
       setTransport(sessionTransport)
       if(!compact) {
         void sessionTransport.listThreads(false,undefined,controller.signal).then(page=>{
@@ -43,7 +45,7 @@ export default function WorkspaceSessionEntry({onCreated,compact=false}:{onCreat
     const version='2'
     let body:{schema?:string;thread_id?:string}
     try {
-      body=await new HttpThreadTransport(origin,creationToken,fetch,'/api/v1/threads',version).createSession(selection) as typeof body
+      body=await new HttpThreadTransport(origin,creationToken,fetch,'/api/v1/threads',version,workspaceName).createSession(selection) as typeof body
     } catch(cause) {
       if(mounted.current&&creationToken&&cause instanceof ThreadTransportError&&cause.status===401){
         sessionStorage.removeItem('capstone.thread.operatorToken')
@@ -52,11 +54,11 @@ export default function WorkspaceSessionEntry({onCreated,compact=false}:{onCreat
       throw cause
     }
     if(!body||body.schema!==`capstone-thread-snapshot/${version}`||typeof body.thread_id!=='string'||!/^[a-z][a-z0-9_-]{0,63}$/.test(body.thread_id))throw new Error('会话创建响应无效，请重新读取会话列表。')
-    if(mounted.current)onCreated(body.thread_id)
+    if(mounted.current&&isWorkspaceActive(workspaceName))onCreated(body.thread_id)
   }
   const content=needsToken&&!token?<form className="session-entry" onSubmit={event=>{event.preventDefault();const value=new FormData(event.currentTarget).get('token');if(typeof value==='string'&&value.trim()){sessionStorage.setItem('capstone.thread.operatorToken',value.trim());setToken(value.trim())}}}><label>Operator token<input name="token" type="password" autoComplete="off" required /></label><button type="submit">连接</button></form>
       :error?<div className="session-entry" role="alert"><p>{error}</p><button type="button" onClick={()=>setRetry(value=>value+1)}>重试连接</button></div>
-      :ready?<SessionEntry compact={compact} onCreate={create} />:<p role="status">正在连接会话服务…</p>
+      :ready?<SessionEntry compact={compact} autoCreate={compact||new URLSearchParams(window.location.search).get('thread')==='new'} onCreate={create} />:<p role="status">正在连接会话服务…</p>
   if(compact)return content
   return <ThreadWorkspace conversationOnly heading={<div className="thread-chat-heading"><h2>新建任务会话</h2></div>}
     sidebar={<nav className="thread-session-navigation" aria-label="任务会话"><button type="button" className="thread-session-new" onClick={()=>navigateSession('new')}>新建会话</button>

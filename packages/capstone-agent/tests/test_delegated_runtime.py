@@ -729,6 +729,27 @@ def test_general_receipts_preserve_sources_and_artifacts_without_authority_refs(
     assert result.result_refs == result.evidence_refs == ()
 
 
+def test_host_checked_llm_pool_record_crosses_runtime_as_public_non_research_progress():
+    service, current = claim()
+    pool = {'type':'llm_pool_call','schema':'capstone-llm-call-pool/1',
+        'parent_tool_call_id':'call_submit','child_id':'analysis_a','title':'Compare observations',
+        'status':'running','queued_at_ms':100,'started_at_ms':110,'response_ms':12}
+    class WithPool(Executor):
+        def execute(self, request, control, on_event):
+            # This is the host's checked wire projection, not the raw SDK frame.
+            on_event({'event_id':'event-1','llm_pool_call':pool})
+            return super().execute(request,control,on_event)
+    result = run(service,current,factory(WithPool(),Recognizer([goal('one')])))
+    assert result.status == 'completed'
+    events = [event for event in service.read_events(current.thread_id,0).events
+              if 'llm_pool_call' in event.payload]
+    assert len(events)==1 and events[0].visibility=='public'
+    assert events[0].payload['llm_pool_call']==pool
+    assert events[0].payload['native_type']=='llm_pool_call'
+    assert not {'research_branch','research_graph','research_cycle'} & set(events[0].payload)
+    assert result.result_refs == result.evidence_refs == ()
+
+
 def test_host_executor_discovery_is_explicit_bounded_and_credential_private(monkeypatch):
     from capstone_agent.general_executor_composition import configured_general_executor
     from capstone_agent.pi_delegation import HttpGeneralPiExecutor

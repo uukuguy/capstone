@@ -1,9 +1,13 @@
 import {applicationCapacity,exceedsCapacity,observeCapacity,rethrowDebugCapacity,CapacityError} from './applicationCapacity'
-import {useEffect,useRef,useState} from 'react'
+import {lazy,Suspense,useEffect,useRef,useState} from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import {csvMarkdown} from './csvMarkdown'
 import type {NativeArtifact,NativeArtifactPage} from './nativeArtifacts'
 import './nativeArtifacts.css'
+import PptxPreview from './PptxPreview'
+import {codeLanguage} from './codeLanguage'
+const CodePreview=lazy(()=>import('./CodePreview'))
 import {useSessionViewState,useSessionObjectUrls,sessionObjectUrl} from './workspaceSessionCache'
 
 type FileClient={
@@ -13,14 +17,20 @@ type FileClient={
 type Selection={threadId:string;attemptId:string;artifactId:string;requestKey:string}
 type Preview={key:string;status:'loading'|'ready'|'error';url?:string;text?:string;textUnavailable?:boolean}
 const fileKey=(file:NativeArtifact)=>`${file.thread_id}:${file.attempt_id}:${file.artifact_id}`
-const statusNames:Record<string,string>={completed:'已完成',failed:'未完成',cancelled:'已取消',interrupted:'已中断',blocked:'未执行'}
+const statusNames:Record<string,string>={running:'可用版本',completed:'已完成',failed:'未完成',cancelled:'已取消',interrupted:'已中断',blocked:'未执行'}
 
 /** A filename fallback affects only the isolated preview, never the stored descriptor. */
 export function nativePreviewMedia(name:string,media:string|null|undefined){
   const normalized=media?.split(';')[0].trim().toLowerCase()
+  if(codeLanguage(name,normalized))return normalized?.startsWith('text/')||normalized==='application/json'?normalized:'text/plain'
   if(normalized&&normalized!=='application/octet-stream')return normalized
   if(/\.html?$/i.test(name))return 'text/html'
   if(/\.svg$/i.test(name))return 'image/svg+xml'
+  if(/\.pptx$/i.test(name))return 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+  if(/\.csv$/i.test(name))return 'text/csv'
+  if(/\.(md|markdown)$/i.test(name))return 'text/markdown'
+  if(/\.txt$/i.test(name))return 'text/plain'
+  if(/\.(png|jpe?g|gif|webp|avif|bmp)$/i.test(name))return `image/${name.split('.').at(-1)!.toLowerCase().replace('jpg','jpeg')}`
   return normalized||'application/octet-stream'
 }
 const htmlPreviewPolicy='<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; img-src data: blob:; font-src data:; base-uri \'none\'; form-action \'none\'">'
@@ -40,12 +50,16 @@ export function htmlPreviewDocument(text:string) {
 /** Shared rendering for authenticated, verified persisted file bytes. */
 export function NativeFileContent({name,media,url,text,textUnavailable,previewSize}:{name:string;media:string;url?:string;text?:string;textUnavailable?:boolean;previewSize?:number}) {
   if(previewSize!==undefined)observeCapacity(previewSize,'preview_bytes','artifact.preview')
+  const csv=media==='text/csv'&&text!==undefined&&!textUnavailable&&(previewSize===undefined||previewSize<=applicationCapacity('preview_bytes'))?csvMarkdown(text):undefined;
   return <div className="native-artifact-preview">{previewSize!==undefined&&previewSize>applicationCapacity('preview_bytes')?<p>此文件超过内置预览容量（{applicationCapacity('preview_bytes')} 字节），可下载完整文件。</p>:textUnavailable?<p>此文件无法按 UTF-8 文本预览，可下载后查看。</p>
     :media==='text/html'?<iframe title={`HTML 预览：${name}`} sandbox="" referrerPolicy="no-referrer" srcDoc={htmlPreviewDocument(text||'')}/>
     :media==='text/markdown'?<div className="capstone-chat-markdown"><ReactMarkdown remarkPlugins={[remarkGfm]} components={{img:({alt})=><span>{alt?`图片引用：${alt}`:'外部图片引用'}</span>,a:({href,children})=><a href={href} target="_blank" rel="noopener noreferrer">{children}</a>}}>{text||''}</ReactMarkdown></div>
+    :csv?<div className="capstone-chat-markdown capstone-chat-table-scroll native-csv-preview"><ReactMarkdown remarkPlugins={[remarkGfm]}>{csv.markdown}</ReactMarkdown>{csv.truncated&&<p>预览最多显示 500 行数据、100 列；下载可查看完整 CSV。</p>}</div>
+    :text!==undefined&&codeLanguage(name,media)?<Suspense fallback={<p>正在渲染代码…</p>}><CodePreview key={name} name={name} text={text}/></Suspense>
     :text!==undefined?<pre>{text}</pre>
-    :['image/png','image/jpeg','image/svg+xml'].includes(media)?<img src={url} alt={name}/>
+    :media.startsWith('image/')?<img src={url} alt={name}/>
     :media==='application/pdf'?<iframe src={url} title={`PDF 预览：${name}`} sandbox="" referrerPolicy="no-referrer"/>
+    :media==='application/vnd.openxmlformats-officedocument.presentationml.presentation'?<PptxPreview key={url} name={name} url={url}/>
     :<p>此文件格式没有内置预览，可下载后查看。</p>}</div>
 }
 

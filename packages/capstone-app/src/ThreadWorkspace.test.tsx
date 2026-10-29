@@ -5,6 +5,22 @@ import ThreadWorkspace from './ThreadWorkspace'
 import SessionNavigation from './SessionNavigation'
 
 afterEach(() => { cleanup(); sessionStorage.clear();localStorage.clear() })
+it('places global gateway metadata in the navigation footer above version information',()=>{
+  render(<ThreadWorkspace conversationOnly navigationFooter={<button>全局网关</button>}/>)
+  const footer=document.querySelector('.workspace-navfoot')!
+  expect(footer.contains(screen.getByRole('button',{name:'全局网关'}))).toBe(true)
+  expect(document.querySelector('.workspace-top-actions')?.contains(screen.getByRole('button',{name:'全局网关'}))).toBe(false)
+  expect(footer.firstElementChild?.textContent).toBe('全局网关')
+})
+it('places navigation before the title and keeps workspace actions on the right',()=>{
+  render(<ThreadWorkspace conversationOnly heading={<h1>当前会话</h1>} headerActions={<button>网关入口</button>}/>)
+  const actions=document.querySelector('.workspace-top-actions')!
+  const toggle=screen.getByRole('button',{name:'会话导航'}),title=screen.getByRole('heading',{name:'当前会话'})
+  expect(actions.contains(toggle)).toBe(false)
+  expect(toggle.compareDocumentPosition(title)&Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  expect(actions.contains(screen.getByRole('button',{name:'网关入口'}))).toBe(true)
+  expect(actions.contains(screen.getByRole('heading',{name:'当前会话'}))).toBe(false)
+})
 it('keeps pinned sessions after collapsing and reopening the sidebar',()=>{
   localStorage.setItem('capstone.workspace.navigation-open','true')
   const items=['a','b'].map(threadId=>({threadId,modelId:null,sessionTitle:{text:`会话${threadId}`,source:'user' as const,revision:1,source_ref:null}}))
@@ -101,7 +117,7 @@ it('bounds pointer resizing and keeps the split when the product workspace is ex
   expect(separator.getAttribute('aria-valuenow')).toBe('63')
   expect(parentMove).not.toHaveBeenCalled()
   fireEvent.pointerUp(separator)
-  fireEvent.click(screen.getByRole('button',{name:'扩大成果区'}))
+  fireEvent.click(screen.getByRole('button',{name:'全屏'}))
   expect(document.querySelector('.is-resource-expanded')).toBeTruthy()
   fireEvent.click(screen.getByRole('button',{name:'恢复左右布局'}))
   expect(separator.getAttribute('aria-valuenow')).toBe('63')

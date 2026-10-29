@@ -15,7 +15,7 @@ class TaskPlanningPolicy:
 
 
 def task_planning_policy(version: str) -> TaskPlanningPolicy:
-    resources = {'1.0.0': '1.0', '1.1.0': '1.1', '1.2.0': '1.2', '1.3.0': '1.3', '1.4.0': '1.4', '1.5.0': '1.5', '1.6.0': '1.6'}
+    resources = {'1.0.0': '1.0', '1.1.0': '1.1', '1.2.0': '1.2', '1.3.0': '1.3', '1.4.0': '1.4', '1.5.0': '1.5', '1.6.0': '1.6', '1.7.0': '1.7'}
     if version not in resources:
         raise ValueError('task planning policy version is not registered')
     return TaskPlanningPolicy(version, files(__package__).joinpath(

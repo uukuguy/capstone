@@ -29,7 +29,7 @@ def test_adaptive_loop_is_explicit_and_preserves_escalated_contracts():
 
 def test_adaptive_publication_preserves_every_old_catalog_entry():
     catalog = json.loads(files('capstone_agent').joinpath('resources/research-policy-catalog.json').read_text())['policies']
-    old = [item for item in catalog if item['application_version'] != '1.19.0']
+    old = [item for item in catalog if tuple(map(int, item['application_version'].split('.'))) < (1, 19, 0)]
     assert sha256(json.dumps(old, ensure_ascii=False, sort_keys=True).encode()).hexdigest() == '9ac1235c496698f3b76a7fe412cb497c8f8e9d4c22052d2c46fa25408254426d'
 
 
@@ -43,7 +43,7 @@ def test_published_adaptive_profile_is_default_but_frozen_older_binding_stays_ol
         'research_policy_profiles': research_policy_capabilities(),
     })
     current = executor_binding(executor)
-    assert current['application_profile']['profile_version'] == '1.19.0'
+    assert current['application_profile']['profile_version'] == '1.20.0'
     assert validate_binding(current) == current
     assert binding_for_session(current, 'general-chat')['application_profile'] == current['application_profile']
     old = executor_binding(executor, profile_version='1.18.0')

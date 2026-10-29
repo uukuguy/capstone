@@ -1,0 +1,22 @@
+.workspace-top-actions { display: flex; align-items: center; gap: 8px; }
+.capstone-assistant-runtime-label .assistant-live-dot { background: #9ba9a1; box-shadow: none; }
+.capstone-assistant-runtime-label .assistant-live-dot.is-live { background: #1c9b86; box-shadow: 0 0 0 3px #1c9b8628; }
+.workspace-navfoot .workspace-connections-slot { width: 100%; max-width: 100%; color: inherit; }
+.workspace-navfoot .gateway-status { width: 100%; max-width: 100%; margin-left: 0; }
+.workspace-navfoot .gateway-status summary { color: #d2dfd5; padding: 4px 0; }
+.workspace-navfoot .gateway-status summary:hover,.workspace-navfoot .gateway-status[open] summary { background: #ffffff10; }
+.workspace-navfoot .gateway-status summary svg { width: 14px; height: 14px; }
+.workspace-navfoot .gateway-status-panel { top: auto; bottom: calc(100% + 8px); left: 0; right: auto; }
+.workspace-navfoot .workspace-connection-status>div { top: auto; bottom: 100%; left: 0; right: auto; }
+.workspace-session-connection-slot { width: 86px; min-height: 28px; flex-shrink: 0; }
+.workspace-connections-slot { width: 180px; max-width: 30vw; min-height: 28px; display: flex; align-items: center; font: 11px/1.4 system-ui,sans-serif; color: #60786d; }
+.workspace-connections-slot .gateway-status { margin-left: 0; max-width: 100%; }
+.workspace-connection-status { position: relative; width: 86px; flex-shrink: 0; font: 11px/1.4 system-ui,sans-serif; color: #60786d; }
+.workspace-connection-status summary { display: flex; align-items: center; gap: 5px; min-height: 28px; padding: 3px; cursor: pointer; list-style: none; white-space: nowrap; }
+.workspace-connection-status summary::-webkit-details-marker { display: none; }
+.workspace-connection-status summary:focus-visible { outline: 2px solid #287a6d; outline-offset: 2px; border-radius: 4px; }
+.workspace-connection-status summary i { width: 5px; height: 5px; border-radius: 50%; background: #a8854b; }
+.workspace-connection-status>div { position: absolute; top: 100%; right: 0; z-index: 65; width: min(300px,80vw); padding: 12px; border: 1px solid #dce5df; border-radius: 9px; background: white; box-shadow: 0 8px 28px #20362d20; white-space: normal; overflow-wrap: anywhere; }
+.workspace-connection-status p { margin: 0 0 6px; }
+@media (pointer:coarse) { .workspace-connection-status summary { min-height: 44px; } }
+@media (max-width:760px) { .workspace-connections-slot { width: 110px; max-width: 28vw; } .workspace-connection-status,.workspace-session-connection-slot { width: 74px; } }

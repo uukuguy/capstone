@@ -67,16 +67,30 @@ COPY packages/capstone-agent/src/capstone_agent/general_pi_storage.py capstone_a
 COPY packages/capstone-agent/src/capstone_agent/general_pi_relay.py capstone_agent/general_pi_relay.py
 COPY packages/capstone-agent/src/capstone_agent/data_gateway_mcp.py capstone_agent/data_gateway_mcp.py
 COPY packages/capstone-agent/src/capstone_agent/data_gateway_relay.py capstone_agent/data_gateway_relay.py
+COPY packages/capstone-agent/src/capstone_agent/gateway_diagnostics.py capstone_agent/gateway_diagnostics.py
+RUN python -c 'from capstone_agent.gateway_diagnostics import checked_diagnostics; assert checked_diagnostics(None) is None'
 COPY packages/capstone-agent/src/capstone_agent/grid_source_topology.py capstone_agent/grid_source_topology.py
 COPY packages/capstone-agent/src/capstone_agent/grid_electrical_view.py capstone_agent/grid_electrical_view.py
 COPY packages/capstone-agent/src/capstone_agent/resources/gateway-electrical-view-v1.schema.json capstone_agent/resources/gateway-electrical-view-v1.schema.json
+COPY packages/capstone-agent/src/capstone_agent/resources/gateway-electrical-view-v2.schema.json capstone_agent/resources/gateway-electrical-view-v2.schema.json
 COPY packages/capstone-agent/src/capstone_agent/resources/general-data-gateway.mjs capstone_agent/resources/general-data-gateway.mjs
+COPY packages/capstone-agent/src/capstone_agent/resources/tool-result-context.mjs capstone_agent/resources/tool-result-context.mjs
+COPY packages/capstone-agent/src/capstone_agent/incremental_artifacts.py \
+     packages/capstone-agent/src/capstone_agent/native_llm_pool.py \
+     packages/capstone-agent/src/capstone_agent/native_model_request_pool.py capstone_agent/
+COPY packages/capstone-agent/src/capstone_agent/resources/async-call-pool.mjs \
+     packages/capstone-agent/src/capstone_agent/resources/llm-call-tools.mjs \
+     packages/capstone-agent/src/capstone_agent/resources/llm-call-pool-policy.json \
+     packages/capstone-agent/src/capstone_agent/resources/model-request-pool.mjs \
+     packages/capstone-agent/src/capstone_agent/resources/model-request-pool-policy.json capstone_agent/resources/
+COPY packages/capstone-agent/src/capstone_agent/resources/committed-delivery.mjs capstone_agent/resources/committed-delivery.mjs
 COPY configs/runtime/data-gateway.json configs/runtime/data-gateway.json
 COPY packages/capstone-agent/src/capstone_agent/bounded_http_loop.py capstone_agent/bounded_http_loop.py
 COPY packages/capstone-agent/src/capstone_agent/conversation_context.py capstone_agent/conversation_context.py
 COPY packages/capstone-agent/src/capstone_agent/request_intent.py capstone_agent/request_intent.py
 COPY packages/capstone-agent/src/capstone_agent/native_task_context.py capstone_agent/native_task_context.py
 COPY packages/capstone-agent/src/capstone_agent/native_diagnosis.py capstone_agent/native_diagnosis.py
+COPY packages/capstone-agent/src/capstone_agent/native_tool_composition.py capstone_agent/native_tool_composition.py
 COPY packages/capstone-agent/src/capstone_agent/resources/research-policy-catalog.json capstone_agent/resources/research-policy-catalog.json
 COPY packages/capstone-agent/src/capstone_agent/resources/graph-work-policy-1.12.json capstone_agent/resources/graph-work-policy-1.12.json
 COPY packages/capstone-agent/src/capstone_agent/resources/graph-work-policy-1.16.json capstone_agent/resources/graph-work-policy-1.16.json
@@ -103,6 +117,10 @@ COPY packages/capstone-agent/src/capstone_agent/resources/research-guidance.mjs 
 COPY packages/pi-capability-tools/src/task-record-tools.mjs capstone_agent/resources/task-record-tools.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/general-context.mjs capstone_agent/resources/general-context.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/general-sdk.mjs capstone_agent/resources/general-sdk.mjs
+COPY packages/capstone-agent/src/capstone_agent/resources/tool-composition.mjs capstone_agent/resources/tool-composition.mjs
+COPY packages/capstone-agent/src/capstone_agent/resources/tool-composition-worker.mjs capstone_agent/resources/tool-composition-worker.mjs
+COPY packages/capstone-agent/src/capstone_agent/resources/tool-composition-policy.json capstone_agent/resources/tool-composition-policy.json
+COPY packages/capstone-agent/src/capstone_agent/resources/semantic-data-context.mjs capstone_agent/resources/semantic-data-context.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/general-tool-discovery.mjs capstone_agent/resources/general-tool-discovery.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/systematic-diagnosis.mjs capstone_agent/resources/systematic-diagnosis.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/enterprise-research-runtime.mjs capstone_agent/resources/enterprise-research-runtime.mjs
@@ -144,3 +162,7 @@ RUN python -c "from capstone_agent.general_pi_executor import collect_artifacts;
     && node --input-type=module -e 'await import("./capstone_agent/resources/delivery-review.mjs"); await import("./capstone_agent/resources/systematic-diagnosis.mjs")'
 EXPOSE 8790
 CMD ["python", "-m", "capstone_agent.general_pi_resource_seed"]
+
+COPY packages/capstone-agent/src/capstone_agent/workbench_llm_profiles.py capstone_agent/workbench_llm_profiles.py
+COPY configs/runtime/workbench-llm-profiles.json configs/runtime/workbench-llm-profiles.json
+COPY packages/capstone-agent/src/capstone_agent/native_failure_origin.py capstone_agent/native_failure_origin.py

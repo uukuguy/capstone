@@ -161,8 +161,17 @@ def test_task_delivery_survives_same_work_and_unknown_followups():
     assert service.snapshot('thr_followup').session_title.text == '分析新任务中的运行风险'
 
 
-def test_input_naming_is_bounded_excerpt_not_semantic_summary():
+def test_long_legacy_input_uses_short_fallback_without_model_calls():
     service = InMemoryThreadService(_snapshot('thr_long_title'))
     source = '分析工作中的具体要求' * 30
     complete(service, 'thr_long_title', 'att_long', source)
-    assert service.snapshot('thr_long_title').session_title.text == source[:56] + '…'
+    assert service.snapshot('thr_long_title').session_title.text == '会话主题'
+
+
+def test_local_revision_and_continuation_keep_session_topic():
+    service = InMemoryThreadService(_snapshot('thr_topic_stable'))
+    complete(service, 'thr_topic_stable', 'att_topic', '比较不同运输方案的成本与时间')
+    original = service.snapshot('thr_topic_stable').session_title
+    for i, text in enumerate(('只把上一版报告第一页的标题改成蓝色，其余不变', '继续完善上一版的排版', '谢谢，先这样', 'Please change only the font of the previous report')):
+        complete(service, 'thr_topic_stable', f'att_edit_{i}', text)
+        assert service.snapshot('thr_topic_stable').session_title == original

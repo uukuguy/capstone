@@ -57,7 +57,7 @@ def resource_reader_for(service, claim):
         from .native_artifact_projection import read_native_artifact
         try:
             descriptor, data = read_native_artifact(service, getattr(service, '_native_executor', None),
-                claim.thread_id, source['attempt_id'], source['artifact_id'])
+                claim.thread_id, source['attempt_id'], source['artifact_id'], expected_descriptor=source)
         except OSError:
             from .thread_materials import _adopted_file_bytes
             data = _adopted_file_bytes(service, service.snapshot(claim.thread_id), source, None)

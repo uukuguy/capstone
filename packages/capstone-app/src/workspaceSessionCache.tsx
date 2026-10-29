@@ -40,7 +40,7 @@ export function retainSessions(previous:readonly string[],current:string,limit:n
 export function SessionCacheSetting(){
   const [limit,setLimit]=useState(memorySessionLimit)
   useEffect(()=>{const changed=(event:Event)=>setLimit((event as CustomEvent<number>).detail);window.addEventListener('capstone-session-cache-limit',changed);return()=>window.removeEventListener('capstone-session-cache-limit',changed)},[])
-  return <label className="workspace-cache-setting">内存保留会话<select aria-label="最多同时保留会话" value={limit} onChange={event=>setMemorySessionLimit(Number(event.target.value))}>{MEMORY_SESSION_LIMITS.map(n=><option key={n} value={n}>{n} 个</option>)}</select><small>按切换次数和最近打开时间保留常用会话；释放缓存后，记录和阅读状态仍保存。</small></label>
+  return <label className="workspace-cache-setting">内存保留会话<select aria-label="最多同时保留会话" value={limit} onChange={event=>setMemorySessionLimit(Number(event.target.value))}>{MEMORY_SESSION_LIMITS.map(n=><option key={n} value={n}>{n} 个</option>)}</select></label>
 }
 
 type ScrollPosition={top:number;left:number}
@@ -108,12 +108,13 @@ export function useSessionReadingPositions(root:React.RefObject<HTMLElement|null
         if(!position||!Number.isFinite(position.top)||!Number.isFinite(position.left)||position.top<0||position.left<0){pending.delete(key);continue}
         let node:HTMLElement|null=null
         try{node=container.querySelector<HTMLElement>(key)}catch{pending.delete(key);continue}
+        if(node?.closest('.workspace-navigation')){pending.delete(key);continue}
         if(!node||node.closest('[hidden]'))continue
         restoring.add(node);node.scrollTop=position.top;node.scrollLeft=position.left
         if(Math.abs(node.scrollTop-position.top)<2&&Math.abs(node.scrollLeft-position.left)<2)pending.delete(key)
       }
     }
-    const save=(event:Event)=>{const node=event.target;if(!(node instanceof HTMLElement)||node===container||!container.contains(node))return;const key=nodeKey(node,container);if(restoring.delete(node))return;pending.delete(key);store.snapshot.positions[key]={top:node.scrollTop,left:node.scrollLeft}}
+    const save=(event:Event)=>{const node=event.target;if(!(node instanceof HTMLElement)||node===container||!container.contains(node)||node.closest('.workspace-navigation'))return;const key=nodeKey(node,container);if(restoring.delete(node))return;pending.delete(key);store.snapshot.positions[key]={top:node.scrollTop,left:node.scrollLeft}}
     const cancel=()=>{pending.clear();restoring.clear()}
     container.addEventListener('scroll',save,true);container.addEventListener('wheel',cancel,{passive:true});container.addEventListener('touchstart',cancel,{passive:true})
     const observer=new MutationObserver(restore);observer.observe(container,{childList:true,subtree:true})

@@ -7,6 +7,7 @@ import { HttpThreadTransport, isThreadVersionError,ThreadTransportError } from '
 import ThreadWorkspace from './ThreadWorkspace'
 import {ThreadProjectionStore} from './threadProjectionStore'
 import {rememberWorkspaceThread,forgetWorkspaceThread} from './workspaceEntry'
+import {currentWorkspaceName,workspaceThreadUrl} from './workspaceName'
 import { parseNetworkDiagram } from './networkValidation'
 import type { NetworkDiagram } from './types'
 import { Plus } from 'lucide-react'
@@ -72,8 +73,7 @@ function WorkspaceRouteEntry({ threadId }: { threadId: string }) {
   useEffect(() => {
     if(visitsNamespace.current!==namespace){visits.current=recordSessionVisit(namespace,readSessionVisits(namespace),currentId);visitsNamespace.current=namespace}
     const navigate = () => {
-      const id = new URLSearchParams(window.location.search).get('thread')
-      if(!id)return
+      const id = new URLSearchParams(window.location.search).get('thread')||'new'
       released.current.delete(id)
       if(id!==currentId)visits.current=recordSessionVisit(namespace,visits.current,id)
       recent.current=retainSessions(recent.current.filter(value=>!released.current.has(value)),id,limit,visits.current)
@@ -107,6 +107,7 @@ function WorkspaceRouteEntry({ threadId }: { threadId: string }) {
 
 /** Read the host version before choosing a compatible presentation; reads never migrate a Thread. */
 function WorkspaceLiveEntry({ threadId }: { threadId: string }) {
+  const workspaceName=currentWorkspaceName()
   const [token, setToken] = useState(readToken)
   const [resolved, setResolved] = useState<{threadId:string;version:1|2;access:ThreadAccessMode;store:ThreadProjectionStore}|null>(null)
   const [preparing,setPreparing]=useState(true)
@@ -128,9 +129,9 @@ function WorkspaceLiveEntry({ threadId }: { threadId: string }) {
       if(controller.signal.aborted)return
       setAccess(access)
       if (access === 'operator' && !token) { if (!controller.signal.aborted) setNeedsToken(true); return }
-      const transport=new HttpThreadTransport(origin,access==='open'?'':token,fetch,'/api/v1/threads','2')
+      const transport=new HttpThreadTransport(origin,access==='open'?'':token,fetch,'/api/v1/threads','2',workspaceName)
       try{const page=await transport.listThreads(false,undefined,controller.signal);if(!controller.signal.aborted)setSessions(previous=>mergeSessionPage(previous,page))}catch{if(controller.signal.aborted)return}
-      const readVersion = (version: '1' | '2') => new HttpThreadTransport(origin, access === 'open' ? '' : token, fetch, '/api/v1/threads', version).getSnapshot(threadId, controller.signal)
+      const readVersion = (version: '1' | '2') => new HttpThreadTransport(origin, access === 'open' ? '' : token, fetch, '/api/v1/threads', version,workspaceName).getSnapshot(threadId, controller.signal)
       let representation: unknown
       try { representation = await readVersion('1') }
       catch (cause) { if (!isThreadVersionError(cause)) throw cause; representation = await readVersion('2') }
@@ -138,7 +139,7 @@ function WorkspaceLiveEntry({ threadId }: { threadId: string }) {
       if (controller.signal.aborted) return
       const version=snapshot.schema==='capstone-thread-snapshot/1'&&(snapshot.minimum_protocol_version===undefined||snapshot.minimum_protocol_version===1)?1:snapshot.schema==='capstone-thread-snapshot/2'&&snapshot.minimum_protocol_version===2?2:null
       if(!version)throw new Error('会话协议版本暂不支持，请更新应用后重试。')
-      const preparedTransport=new HttpThreadTransport(origin,access==='open'?'':token,fetch,'/api/v1/threads',version===2?'2':'1')
+      const preparedTransport=new HttpThreadTransport(origin,access==='open'?'':token,fetch,'/api/v1/threads',version===2?'2':'1',workspaceName)
       const store=new ThreadProjectionStore(new CapstoneThreadClient(preparedTransport),`${namespace}.${threadId}`,{protocolVersion:version===2?'2':'1'})
       await store.load(threadId)
       if(controller.signal.aborted){store.dispose();return}
@@ -159,9 +160,10 @@ function WorkspaceLiveEntry({ threadId }: { threadId: string }) {
 }
 
 function UnavailableWorkspace({message,missing,token,onRetry}:{message:string;missing:boolean;token:string;onRetry:()=>void}){
+  const workspaceName=currentWorkspaceName()
   const origin=import.meta.env.VITE_API_ORIGIN||'',namespace=storageNamespace(origin)
   const [sessions,setSessions]=useSessionCatalog(namespace),[revision,setRevision]=useState(0)
-  const transport=useMemo(()=>new HttpThreadTransport(origin,token,fetch,'/api/v1/threads','2'),[origin,token])
+  const transport=useMemo(()=>new HttpThreadTransport(origin,token,fetch,'/api/v1/threads','2',workspaceName),[origin,token])
   useEffect(()=>{const abort=new AbortController();void transport.listThreads(false,undefined,abort.signal).then(page=>{if(!abort.signal.aborted)setSessions(previous=>mergeSessionPage(previous,page))}).catch(()=>{});return()=>abort.abort()},[transport,revision])
   return <ThreadWorkspace conversationOnly heading={<div className="thread-chat-heading"><h2>工作空间</h2></div>}
     sidebar={<nav className="thread-session-navigation" aria-label="任务会话"><SessionNewPopover onCreated={navigateSession}/><SessionNavigation items={sessions?.threads??[]} storageKey={namespace} actions={sessionManagement(transport,()=>setRevision(value=>value+1))}/></nav>}>
@@ -172,6 +174,7 @@ function UnavailableWorkspace({message,missing,token,onRetry}:{message:string;mi
 }
 
 function WorkLiveEntry({ threadId, recoveryOnly = false,initialAccess,preparedStore }: { threadId: string; recoveryOnly?: boolean;initialAccess?:ThreadAccessMode;preparedStore?:ThreadProjectionStore }) {
+  const workspaceName=currentWorkspaceName()
   useEffect(() => {
     if (recoveryOnly) return
     const previousTitle = document.title
@@ -192,7 +195,7 @@ function WorkLiveEntry({ threadId, recoveryOnly = false,initialAccess,preparedSt
     return () => controller.abort()
   }, [origin, retry])
   const transport = useMemo(() => access === 'open' || (access === 'operator' && token)
-    ? new HttpThreadTransport(origin, access === 'open' ? '' : token, fetch, '/api/v1/threads', '2') : null,
+    ? new HttpThreadTransport(origin, access === 'open' ? '' : token, fetch, '/api/v1/threads', '2',workspaceName) : null,
   [access, origin, token])
   if (error) return <main className="thread-token-shell"><section className="thread-token-card" role="alert"><p>{error}</p><button onClick={() => setRetry(value => value + 1)}>重新连接</button></section></main>
   if (access === 'operator' && !token) return <TokenPrompt onSubmit={setToken} />
@@ -201,6 +204,7 @@ function WorkLiveEntry({ threadId, recoveryOnly = false,initialAccess,preparedSt
 }
 
 function LegacyThreadLiveEntry({ threadId, workspace = false,initialAccess,preparedStore }: { threadId: string; workspace?: boolean;initialAccess?:ThreadAccessMode;preparedStore?:ThreadProjectionStore }) {
+  const workspaceName=currentWorkspaceName()
   const [token, setToken] = useState(readToken)
   const [accessMode, setAccessMode] = useState<ThreadAccessMode | null>(initialAccess??null)
   const [accessError, setAccessError] = useState<string | null>(null)
@@ -221,7 +225,7 @@ function LegacyThreadLiveEntry({ threadId, workspace = false,initialAccess,prepa
   const hasAccess = accessMode === 'open' || (accessMode === 'operator' && Boolean(token))
   const effectiveToken = accessMode === 'open' ? '' : token
   const transport = useMemo(
-    () => hasAccess ? new HttpThreadTransport(apiOrigin, effectiveToken) : null,
+    () => hasAccess ? new HttpThreadTransport(apiOrigin,effectiveToken,fetch,'/api/v1/threads','1',workspaceName) : null,
     [apiOrigin, effectiveToken, hasAccess],
   )
   const client = useMemo(() => transport ? new CapstoneThreadClient(transport) : null, [transport])
@@ -350,7 +354,7 @@ function LegacyThreadLiveEntry({ threadId, workspace = false,initialAccess,prepa
     disabledToolIds={disabledToolIds} onDisabledToolIdsChange={setDisabledToolIds}
     storageKey={`${namespace}.${createdThreadId}`} readOnly={archived} previewDiagram={previewDiagram}
     workspaceActions={<SessionAdjacentControls items={sessions?.threads||[]} currentId={createdThreadId} storageKey={namespace} />}
-    sessionNotice={error} headerActions={workspace ? undefined : <><a className="thread-new-dialogue" href={`/?workspace=enterprise&thread=${encodeURIComponent(createdThreadId)}`}>任务工作台</a><button type="button" className="thread-new-dialogue"
+    sessionNotice={error} headerActions={workspace ? undefined : <><a className="thread-new-dialogue" href={workspaceThreadUrl(createdThreadId)}>任务工作台</a><button type="button" className="thread-new-dialogue"
       disabled={creating} onClick={() => void newThread()} aria-label={creating ? '正在新建…' : '新建对话'}>
       <Plus size={16} aria-hidden="true" /><span>{creating ? '正在新建…' : '新建对话'}</span>
     </button></>} />

@@ -2,17 +2,21 @@ import {useEffect,useState} from 'react'
 import type {ThreadDescriptor} from './threadManagement'
 import {sessionTypeNames} from './SessionEntry'
 import {displaySessionTitle} from './sessionTitle'
+import {currentWorkspaceName} from './workspaceName'
 export type SessionNavItem=Pick<ThreadDescriptor,'threadId'|'modelId'|'sessionTitle'|'sessionType'>&Partial<ThreadDescriptor>
 export function sessionName(item:SessionNavItem):string{return item.sessionTitle&&displaySessionTitle(item.sessionTitle)||item.sessionType&&sessionTypeNames[item.sessionType]||(item.modelId?'电网分析与决策':'工作会话')}
 export function navigateSession(id:string){
   const url=new URL(window.location.href)
-  if(url.searchParams.get('thread')===id&&url.searchParams.get('workspace')==='enterprise')return
-  url.searchParams.set('workspace','enterprise');url.searchParams.set('thread',id);url.searchParams.delete('thread-fixture')
+  if(url.searchParams.get('thread')===id&&url.searchParams.get('workspace')===currentWorkspaceName())return
+  url.searchParams.set('workspace',currentWorkspaceName());url.searchParams.set('thread',id);url.searchParams.delete('thread-fixture')
   window.history.pushState({},'',url);window.dispatchEvent(new PopStateEvent('popstate'))
+}
+export function readSessionPins(storageKey='workspace'):string[]|undefined {
+  try{const value:unknown=JSON.parse(localStorage.getItem(`capstone.session-pins:${storageKey}`)??'[]');return Array.isArray(value)&&value.every(id=>typeof id==='string')?value:undefined}catch{return undefined}
 }
 export function useSessionPins(storageKey='workspace'){
   const key=`capstone.session-pins:${storageKey}`
-  const read=()=>{try{const v:unknown=JSON.parse(localStorage.getItem(key)||'[]');return Array.isArray(v)?v.filter((id):id is string=>typeof id==='string'):[]}catch{return []}}
+  const read=()=>readSessionPins(storageKey)??[]
   const [pins,setPins]=useState(read)
   useEffect(()=>{
     const refresh=()=>setPins(read())

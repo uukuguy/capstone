@@ -54,7 +54,7 @@ describe('ThreadLiveEntry', () => {
     const initialStream=streams.find(stream=>stream.id==='thr_demo_39')!
     expect(initialStream.signal?.aborted).toBe(false)
     fireEvent.click(screen.getByRole('button',{name:'打开电气拓扑'}))
-    fireEvent.click(screen.getByRole('button',{name:'扩大成果区'}))
+    fireEvent.click(screen.getByRole('button',{name:'全屏'}))
     const viewport=document.querySelector('.capstone-chat-viewport') as HTMLElement
     const resource=screen.getByRole('complementary',{name:'电气拓扑'})
     viewport.scrollTop=123;resource.querySelector('.workspace-product-paper')!.scrollTop=67
@@ -118,8 +118,8 @@ describe('ThreadLiveEntry', () => {
     vi.stubGlobal('fetch', fetcher)
     render(<ThreadLiveEntry threadId="thr_demo_39" presentation="workspace" />)
     expect(await screen.findByRole('navigation', {name:'任务会话'})).toBeTruthy()
-    expect(await screen.findByRole('button', {name:'选择技能'})).toBeTruthy()
-    expect(screen.getByRole('button', {name:'本轮上下文'})).toBeTruthy()
+    expect(await screen.findByRole('button', {name:'深度思考'})).toBeTruthy()
+    expect(screen.queryByRole('button', {name:'本轮上下文'})).toBeNull()
     expect(screen.queryByRole('button', {name:'开始任务'})).toBeNull()
     expect(screen.queryByRole('button', {name:'保存任务'})).toBeNull()
     const composer=screen.getByRole('textbox',{name:'Thread 指令'})

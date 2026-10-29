@@ -3,8 +3,9 @@ import {afterEach,expect,it,vi} from 'vitest'
 import {cleanup,render,screen,waitFor} from '@testing-library/react'
 import WorkspaceSessionEntry from './WorkspaceSessionEntry'
 import SessionNavigation from './SessionNavigation'
-afterEach(()=>{cleanup();vi.unstubAllGlobals();sessionStorage.clear()})
+afterEach(()=>{cleanup();vi.unstubAllGlobals();sessionStorage.clear();window.history.replaceState({},'','/')})
 it('opens the direct new-session entry over v2 without selecting resources or waiting for history',async()=>{
+  window.history.replaceState({},'','/?workspace=enterprise&thread=new')
   const writes:RequestInit[]=[]
   vi.stubGlobal('fetch',vi.fn(async(url:string,init?:RequestInit)=>{
     if(url.endsWith('/thread-access'))return Response.json({schema:'capstone-thread-access/1',mode:'open'})
@@ -20,6 +21,14 @@ it('opens the direct new-session entry over v2 without selecting resources or wa
   expect((writes[0].headers as Record<string,string>)['Capstone-Thread-Version']).toBe('2')
   expect(screen.queryByRole('radio')).toBeNull()
   expect(screen.queryByRole('combobox')).toBeNull()
+})
+it('does not create a session merely by opening a workspace URL',async()=>{
+  window.history.replaceState({},'','/?workspace=enterprise')
+  const fetcher=vi.fn(async(url:string,_init?:RequestInit)=>url.endsWith('/thread-access')?Response.json({schema:'capstone-thread-access/1',mode:'open'}):Response.json({threads:[],has_more:false,next_before_thread_id:null}))
+  vi.stubGlobal('fetch',fetcher)
+  render(<WorkspaceSessionEntry onCreated={vi.fn()}/>)
+  await waitFor(()=>expect(screen.getAllByRole('button',{name:'新建会话'})).toHaveLength(2))
+  expect(fetcher.mock.calls.every(([,init])=>!init?.method||init.method==='GET')).toBe(true)
 })
 it('rejects an invalid creation response without navigating',async()=>{
   vi.stubGlobal('fetch',vi.fn(async(url:string)=>{

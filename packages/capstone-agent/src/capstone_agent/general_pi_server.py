@@ -27,6 +27,92 @@ from .bounded_http_loop import run_http
 from .application_capacity import limits, initialize_capacity, current_capacity, CapacityExceeded, observe_capacity
 
 
+def _checked_llm_pool_call(event, native, capability, record):
+    """Admit only bounded presentation events from this task's observed submit calls."""
+    from .native_llm_pool import LLM_CALL_POOL_POLICY, registered_llm_call_pool
+    from .native_task_context import public_document
+    native = public_document(native)
+    native_policy = native.get('policy') if isinstance(native, dict) else None
+    if (not isinstance(native, dict) or not registered_llm_call_pool(native.get('llm_call_pool'))
+            or not registered_llm_call_pool(capability.get('llm_call_pool'))
+            or not isinstance(native_policy, dict)
+            or 'agent_llm_submit' not in native_policy.get('allowed_tools', ())):
+        raise ValueError('LLM pool event has no application grant')
+    required = {'type', 'schema', 'parent_tool_call_id', 'child_id', 'title', 'status', 'queued_at_ms'}
+    optional = {'started_at_ms', 'finished_at_ms', 'cancel_reason', 'response_ms', 'response_number',
+                'usage', 'model_responses', 'turns'}
+    statuses = {'queued', 'waiting_dependencies', 'running', 'cancelling', 'completed', 'failed', 'cancelled', 'blocked'}
+    terminals = {'completed', 'failed', 'cancelled', 'blocked'}
+    def count(value):
+        return type(value) is int and 0 <= value <= 9007199254740991
+    def text(value, maximum):
+        return (isinstance(value, str) and 0 < len(value) <= maximum and bool(value.strip())
+                and all(ord(char) >= 32 and ord(char) != 127 for char in value))
+    if (not isinstance(event, dict) or not required <= set(event) or set(event) - required - optional
+            or event['type'] != 'llm_pool_call' or event['schema'] != LLM_CALL_POOL_POLICY['schema']
+            or not text(event['parent_tool_call_id'], 128) or not text(event['child_id'], 128)
+            or not text(event['title'], 120) or event['status'] not in statuses
+            or not count(event['queued_at_ms'])
+            or event['parent_tool_call_id'] not in record.get('llm_pool_submit_calls', set())):
+        raise ValueError('LLM pool event is invalid')
+    for key in ('started_at_ms', 'finished_at_ms', 'response_number', 'model_responses', 'turns'):
+        if key in event and not count(event[key]):
+            raise ValueError('LLM pool event count is invalid')
+    if ('response_ms' in event and (type(event['response_ms']) not in (int, float)
+            or not math.isfinite(event['response_ms']) or event['response_ms'] < 0)
+            or 'cancel_reason' in event and event['cancel_reason'] not in {'timeout', 'cancelled', 'closed', 'parent_cancelled'}):
+        raise ValueError('LLM pool event timing is invalid')
+    start, finish = event.get('started_at_ms'), event.get('finished_at_ms')
+    if ((start is not None and start < event['queued_at_ms'])
+            or finish is not None and finish < (start if start is not None else event['queued_at_ms'])
+            or (event['status'] in terminals) != (finish is not None)
+            or event['status'] == 'completed' and start is None):
+        raise ValueError('LLM pool event lifecycle timing is invalid')
+    if event['status'] not in terminals and {'usage', 'model_responses', 'turns'} & set(event):
+        raise ValueError('LLM pool usage preceded its terminal receipt')
+    if 'usage' in event:
+        rows = event['usage']
+        if not isinstance(rows, list) or len(rows) > 128:
+            raise ValueError('LLM pool usage is invalid')
+        for row in rows:
+            if not isinstance(row, dict) or set(row) - {'input', 'output', 'cacheRead', 'cacheWrite', 'totalTokens', 'cost'}:
+                raise ValueError('LLM pool usage is invalid')
+            for key, value in row.items():
+                if key != 'cost':
+                    valid = value is None or count(value)
+                elif isinstance(value, dict):
+                    valid = (not set(value) - {'input', 'output', 'cacheRead', 'cacheWrite', 'total'}
+                        and all(type(v) in (int, float) and math.isfinite(v) and v >= 0 for v in value.values()))
+                else:
+                    valid = value is None or type(value) in (int, float) and math.isfinite(value) and value >= 0
+                if not valid:
+                    raise ValueError('LLM pool usage is invalid')
+    bindings = record.setdefault('llm_pool_bindings', {})
+    previous = bindings.get(event['child_id'])
+    transitions = {'queued': {'queued', 'waiting_dependencies', 'running', 'cancelled', 'blocked'},
+        'waiting_dependencies': {'waiting_dependencies', 'queued', 'running', 'cancelled', 'blocked'},
+        'running': {'running', 'cancelling', 'completed', 'failed', 'cancelled'},
+        'cancelling': {'cancelling', 'cancelled', 'failed'}}
+    if previous is None:
+        if len(bindings) >= LLM_CALL_POOL_POLICY['max_jobs'] or event['status'] not in {'queued', 'waiting_dependencies'}:
+            raise ValueError('LLM pool event was not queued')
+    else:
+        if any(event[key] != previous[key] for key in ('parent_tool_call_id', 'child_id', 'title', 'queued_at_ms')):
+            raise ValueError('LLM pool child identity changed')
+        if previous['status'] in terminals:
+            if event != previous:
+                raise ValueError('LLM pool terminal changed')
+        elif event['status'] not in transitions[previous['status']]:
+            raise ValueError('LLM pool status transition is invalid')
+        if ('started_at_ms' in previous and start != previous['started_at_ms']
+                or 'cancel_reason' in previous and event.get('cancel_reason') != previous['cancel_reason']
+                or 'response_number' in event and event['response_number'] < previous.get('response_number', 0)):
+            raise ValueError('LLM pool response identity changed')
+    checked = json.loads(json.dumps(event, allow_nan=False))
+    bindings[event['child_id']] = checked
+    return checked
+
+
 def _adaptive_agent_loop(request):
     from .native_task_context import resolve_research_policy
     native = request.native_context
@@ -46,7 +132,17 @@ def _electrical_view_from_verified_result(result, arguments):
         if upstream.get('isError') or content.get('status') not in {'ok', 'partial'}:
             return None
         data = content['data']
-        if (data.get('state') != 'ready' or data.get('model_ref') != arguments.get('model_ref')
+        scope = arguments.get('scope')
+        if arguments.get('model_ref') is None:
+            if (not isinstance(scope, dict) or set(scope) != {'source_instance', 'object_type', 'object_id'}
+                    or scope.get('object_type') != 'grid'
+                    or any(not isinstance(item, str) or not item or len(item) > 256
+                           or any(ord(char) < 32 for char in item) for item in scope.values())
+                    or arguments.get('parent_view_ref') is not None):
+                return None
+        elif scope is not None or data.get('model_ref') != arguments['model_ref']:
+            return None
+        if (data.get('state') != 'ready'
                 or data.get('representation') != arguments.get('representation', 'source_node_breaker')
                 or data.get('target') != arguments.get('target')):
             return None
@@ -54,7 +150,7 @@ def _electrical_view_from_verified_result(result, arguments):
                                 ('artifact_ref', 'artifact_ref')]:
             if arguments.get(argument) is not None and arguments[argument] != data.get(field):
                 return None
-        return electrical_descriptor(data)
+        return electrical_descriptor(data, arguments)
     except (ValueError, TypeError, KeyError, IndexError, AttributeError):
         return None
 
@@ -76,6 +172,13 @@ class GeneralPiHost:
         self.capability['delivery_review_schemas'] = ['capstone-delivery-review/1']
         from .native_diagnosis import DIAGNOSIS_POLICY
         self.capability['systematic_diagnosis'] = dict(DIAGNOSIS_POLICY)
+        from .native_tool_composition import COMPOSITION_POLICY
+        self.capability['tool_composition'] = dict(COMPOSITION_POLICY)
+        if getattr(run_task, 'experimental_llm_pool', False) is True:
+            from .native_llm_pool import LLM_CALL_POOL_POLICY
+            self.capability['llm_call_pool'] = dict(LLM_CALL_POOL_POLICY)
+            from .native_model_request_pool import MODEL_REQUEST_POOL_POLICY
+            self.capability['model_request_pool'] = dict(MODEL_REQUEST_POOL_POLICY)
         gateway = getattr(run_task, 'gateway', None)
         self.capability['data_gateway'] = (gateway.publication() if gateway else
             getattr(run_task, 'gateway_publication', {'available': False, 'reason': 'not_configured'}))
@@ -174,6 +277,14 @@ class GeneralPiHost:
             from .native_diagnosis import DIAGNOSIS_POLICY, DIAGNOSIS_TOOLS
             if native.get('systematic_diagnosis') == DIAGNOSIS_POLICY:
                 published.update(DIAGNOSIS_TOOLS)
+            from .native_tool_composition import COMPOSITION_POLICY, COMPOSITION_TOOLS
+            if (native.get('tool_composition') == COMPOSITION_POLICY
+                    and self.capability.get('tool_composition') == COMPOSITION_POLICY):
+                published.update(COMPOSITION_TOOLS)
+            from .native_llm_pool import LLM_CALL_POOL_TOOLS, registered_llm_call_pool
+            if (registered_llm_call_pool(native.get('llm_call_pool'))
+                    and registered_llm_call_pool(self.capability.get('llm_call_pool'))):
+                published.update(LLM_CALL_POOL_TOOLS)
             if not set(native['policy']['allowed_tools']) <= published:
                 raise ValueError('native application requested an unpublished tool')
         with self._lock:
@@ -194,7 +305,7 @@ class GeneralPiHost:
                         'executor_identity': self.identity, 'status': 'failed',
                         'answer': ('Result retention expired; task was not repeated.' if saved.get('expired')
                                    else 'Previous execution outcome is unknown; the task was not repeated.'),
-                        'sources': [], 'artifacts': [], 'usage': {}}
+                        'sources': [], 'artifacts': self.storage.captured_artifacts(request.task_id), 'usage': {}}
                 result = PiTaskResult.from_document(saved['result'], request)
                 self._tasks[request.task_id] = {'request': request, 'status': result.status,
                     'events': [], 'result': result.to_document(), 'cancel': threading.Event()}
@@ -310,13 +421,28 @@ class GeneralPiHost:
         diagnostic_sources = (set(DIAGNOSIS_TOOLS).intersection(native['policy']['allowed_tools'])
             if native is not None and native.get('systematic_diagnosis') == DIAGNOSIS_POLICY
             and self.capability.get('systematic_diagnosis') == DIAGNOSIS_POLICY else set())
+        discovery_sources = ({'agent_tool_search', 'agent_tool_load'}.intersection(native['policy']['allowed_tools'])
+            if native is not None else set())
+        from .native_tool_composition import COMPOSITION_POLICY, COMPOSITION_TOOLS
+        composition_sources = (set[str](COMPOSITION_TOOLS).intersection(native['policy']['allowed_tools'])
+            if native is not None and native.get('tool_composition') == COMPOSITION_POLICY
+            and self.capability.get('tool_composition') == COMPOSITION_POLICY else set())
+        from .native_llm_pool import LLM_CALL_POOL_TOOLS, registered_llm_call_pool
+        if (native is not None and registered_llm_call_pool(native.get('llm_call_pool'))
+                and registered_llm_call_pool(self.capability.get('llm_call_pool'))):
+            composition_sources.update(set(LLM_CALL_POOL_TOOLS).intersection(native['policy']['allowed_tools']))
+        from .data_gateway_relay import gateway_discovery_tools
+        discovery_sources.update(gateway_discovery_tools(native, self.capability.get('data_gateway', {}),
+            gateway_available=getattr(self._run, 'gateway', None) is not None))
         def cancelled():
             return record['cancel'].is_set() or time.monotonic() - started >= request.timeout_seconds
-        def publish(payload):
+        def publish(payload, *, check=lambda:None):
             # Assign the transport sequence only after text coalescing. The
             # receiver still persists each event before acknowledging its page.
             while not cancelled():
+                check()
                 with self._lock:
+                    check()
                     if len(record['events']) < limits.event_buffer_count and len(json.dumps(record['events']).encode()) < limits.event_buffer_bytes:
                         sequence = record.get('event_sequence', 0) + 1
                         record['events'].append({'event_id': 'event-' + str(sequence), **payload})
@@ -327,6 +453,10 @@ class GeneralPiHost:
         from .stream_progress import TextDeltaBuffer
         text_buffer = TextDeltaBuffer(lambda text: publish({'type': 'assistant_delta', 'text': text}))
         thinking_buffer = TextDeltaBuffer(lambda text: publish({'type': 'assistant_thinking_delta', 'text': text}))
+        from .incremental_artifacts import IncrementalArtifacts
+        incremental = IncrementalArtifacts(workspace=self.root / 'tasks' / request.task_id,
+            request=request, identity=self.identity, storage=self.storage,
+            publish=lambda payload:publish(payload, check=incremental.check))
         def capture_direct_observation(call_id, tool_name, result, *, is_error=False):
             context = record.get('graph_context')
             if (not adaptive or native is None or context is None or direct_calls.get(call_id) != tool_name
@@ -389,7 +519,8 @@ class GeneralPiHost:
             unentered_rejection = (child and failed and issued is None
                 and guard.failures.get(call_id) in {'failed', 'cancelled'})
             if ((tool_name not in {'read', 'bash', 'edit', 'write', 'grep', 'find', 'ls'} and not gateway_tool
-                    and not (child and (tool_name == 'agent_task_return' or tool_name in diagnostic_sources))
+                    and not (child and (tool_name == 'agent_task_return' or tool_name in diagnostic_sources
+                                        or tool_name in discovery_sources or tool_name in composition_sources))
                     and not unentered_rejection)
                     or issued != expected_source and (not failed or issued is not None)):
                 raise ValueError('native observation source identity changed')
@@ -438,7 +569,13 @@ class GeneralPiHost:
             except ModuleNotFoundError:
                 from capability_agent.runtime.step_events import project_runtime_action
             payload = project_runtime_action(event)
-            if kind in {'delegation_child_started', 'delegation_child_tool', 'delegation_child_finished', 'delegation_child_response'}:
+            if kind == 'llm_pool_call':
+                payload = {'llm_pool_call': _checked_llm_pool_call(event, request.native_context, self.capability, record)}
+            elif kind == 'model_request_pool':
+                from .native_model_request_pool import checked_model_request_pool
+                payload = {'model_request_pool': checked_model_request_pool(
+                    event, request.native_context, self.capability, record)}
+            elif kind in {'delegation_child_started', 'delegation_child_tool', 'delegation_child_finished', 'delegation_child_response'}:
                 from .native_research_bridge import checked_branch_progress, read_json
                 if request.research_binding is None:
                     raise ValueError('research branch requires an accepted owner')
@@ -526,6 +663,14 @@ class GeneralPiHost:
                     direct_calls[call_id] = tool_name
                 if kind == 'tool_execution_start' and event.get('toolName') == 'agent_delegate':
                     record.setdefault('delegate_calls', set()).add(payload['tool_call_id'])
+                if kind == 'tool_execution_start' and event.get('toolName') == 'agent_llm_submit':
+                    from .application_capacity import require_capacity
+                    call_id = event.get('toolCallId')
+                    if not isinstance(call_id, str) or not call_id or len(call_id) > 128:
+                        raise ValueError('LLM pool submit identity is invalid')
+                    calls = record.setdefault('llm_pool_submit_calls', set())
+                    require_capacity('event_buffer_count', len(calls) + (call_id not in calls), 'llm_pool_submit')
+                    calls.add(call_id)
                 from capstone_agent.progress import project_native_tool_activity
                 if request.research_binding is not None and request.research_binding.get('graph_schema') == 'capstone-enterprise-graph/2':
                     from .native_graph_events import project_graph_tool_activity
@@ -582,6 +727,7 @@ class GeneralPiHost:
                         allowed_sources = ({'read', 'bash', 'edit', 'write', 'grep', 'find', 'ls'}
                             if request.research_binding.get('graph_schema') == 'capstone-enterprise-graph/2'
                             else {'read', 'bash', 'edit', 'write', 'agent_delegate'})
+                        allowed_sources.update(composition_sources)
                         if (payload['tool_name'] not in allowed_sources and not payload['tool_name'].startswith('data_gateway_')
                                 or issued != {'task_id': request.task_id, 'tool_call_id': payload['tool_call_id'],
                                               'source_ref': expected_ref}):
@@ -665,6 +811,8 @@ class GeneralPiHost:
                     text_buffer.flush()
                     thinking_buffer.flush()
                     publish(payload)
+            if kind == 'tool_execution_end' or kind == 'enterprise_graph_child_tool' and event.get('activity') == 'end':
+                incremental.trigger()
         status, answer, usage = 'completed', '', {}
         public_failure = None
         try:
@@ -691,6 +839,10 @@ class GeneralPiHost:
             # environment. The operator can locate the failed setup phase.
             failure: dict = {'schema': 'capstone-pi-private-failure/1', 'task_id': request.task_id,
                        'phase': 'task_runner', 'exception_type': type(error).__name__[:64]}
+            from .native_failure_origin import native_failure_origin
+            origin = native_failure_origin(error)
+            if origin:
+                failure['origin'] = origin
             # Only fixed runtime messages map to private codes. Never persist
             # arbitrary exception text from tools, providers or user files.
             reason = {'General Pi frame exceeds bounds': 'rpc_frame_too_large',
@@ -748,6 +900,8 @@ class GeneralPiHost:
                                     json.dumps(failure).encode())
             except (OSError, CapacityExceeded):
                 pass  # Keep the original failure; initial replay guard remains.
+        finally:
+            incremental.close()
         if cancelled():
             status = 'cancelled' if record['cancel'].is_set() else 'failed'
             answer = ''
@@ -837,11 +991,15 @@ class GeneralPiHost:
 class NativeTaskRunner:
     """Pi uses a task UID; host secrets remain in a different root process."""
     def __init__(self, *, root: Path, config_root: Path, command: tuple[str, ...],
-                 model: str, relay_origin: str, network_policy=None, gateway=None) -> None:
+                 model: str, relay_origin: str, network_policy=None, gateway=None, llm_profiles=None,
+                 experimental_llm_pool: bool = False) -> None:
         if os.geteuid() != 0 or os.name != 'posix':
             raise RuntimeError('General Pi requires its isolated Linux container')
         self.root, self.config_root, self.command = root, config_root, command
         self.model, self.relay_origin = model, relay_origin
+        self.llm_profiles = llm_profiles
+        self.experimental_llm_pool = experimental_llm_pool is True
+        self.task_llm_profiles = {}
         from .native_environment import environment_context
         self.environment_context = environment_context()
         self.network_policy = network_policy
@@ -871,6 +1029,14 @@ class NativeTaskRunner:
         self._resource_staging = staging
 
     def __call__(self, request, cancelled, emit, *, inventory_only=False):
+        selection = (request.native_context or {}).get('llm_selection')
+        profile = None
+        if selection is not None:
+            if self.llm_profiles is None:
+                raise ValueError('Model selection is not supported by this executor')
+            profile = self.llm_profiles.resolve(dict(selection))
+        elif self.llm_profiles is not None:
+            profile = self.llm_profiles.resolve(self.llm_profiles.freeze())
         with self._lock:
             counter = self.root / 'receipts' / 'next-uid'
             uid = int(counter.read_text()) if counter.exists() else 10000
@@ -880,6 +1046,8 @@ class NativeTaskRunner:
             counter.chmod(0o600)
             grant = secrets.token_urlsafe(32)
             self.relay.register(request.task_id, grant, time.monotonic() + request.timeout_seconds)
+            if profile is not None:
+                self.task_llm_profiles[request.task_id] = profile
         workspace = task_workspace(self.root / 'tasks', request.task_id)
         inputs = workspace.parent / ('.inputs-' + workspace.name)
         process = None
@@ -921,10 +1089,30 @@ class NativeTaskRunner:
                 sdk_config['runtimeEnvironment'] = self.environment_context
                 sdk_config.setdefault('contextFiles', []).append({
                     'path': 'verified-programming-environment', 'content': self.environment_context})
+            if not self.gateway_publication.get('available'):
+                from .data_gateway_mcp import TASK_STOP_ERRORS
+                reason = self.gateway_publication.get('reason')
+                if reason not in TASK_STOP_ERRORS | {'not_configured', 'gateway_private_mount_invalid'}:
+                    reason = 'gateway_unavailable'
+                sdk_config.setdefault('contextFiles', []).append({
+                    'path': 'registered-data-gateway-status',
+                    'content': ('Host-observed registered data gateway status: unavailable; reason: ' + reason + '. '
+                        'No gateway tools are admitted for this execution. This connection state is not evidence '
+                        'that source data is absent. Do not search shell environments, runtime configuration, '
+                        'credentials, ports or network endpoints to bypass the unavailable tool connection. '
+                        'Use already admitted inputs when sufficient; otherwise state the connection limitation '
+                        'without claiming database coverage or fetched results. Do not invent source data.')})
             if request.native_context is not None:
                 from .native_task_context import checked_native_context, resolve_research_policy
                 native = checked_native_context(request.native_context)
                 sdk_config['applicationPolicy'] = native['policy']
+                if self.experimental_llm_pool and native.get('deep_research') is False:
+                    from .native_model_request_pool import MODEL_REQUEST_POOL_POLICY
+                    sdk_config['modelRequestPool'] = dict(MODEL_REQUEST_POOL_POLICY)
+                if native.get('tool_composition'):
+                    sdk_config['toolComposition'] = native['tool_composition']
+                if self.experimental_llm_pool and native.get('deep_research') is False and native.get('llm_call_pool'):
+                    sdk_config['llmCallPool'] = native['llm_call_pool']
                 if native.get('systematic_diagnosis'):
                     diagnosis = self._diagnosis_provider(request, workspace, uid)
                     sdk_config['diagnosisContextPath'] = str(diagnosis.root)
@@ -932,8 +1120,10 @@ class NativeTaskRunner:
                 gateway_tools = research_gateway_tools(native, self.gateway.publication() if self.gateway else {})
                 admitted_gateway = gateway_tools.intersection(native['policy']['allowed_tools'])
                 if admitted_gateway and self.gateway is not None:
+                    from .data_gateway_relay import gateway_discovery_tools
                     sdk_config['applicationPolicy'] = {**native['policy'], 'allowed_tools': sorted({
-                        *native['policy']['allowed_tools'], 'agent_tool_search', 'agent_tool_load'})}
+                        *native['policy']['allowed_tools'], *gateway_discovery_tools(native,
+                            self.gateway.publication(), gateway_available=True)})}
                     self.gateway.bind(request.task_id, request.parent_attempt_id, admitted_gateway)
                     task_catalog = self.gateway.publication()['catalog']
                     # This is a menu projection, not a new accepted catalog.
@@ -1011,6 +1201,9 @@ class NativeTaskRunner:
                         sdk_config['researchRuntime']['goalDrivenExecution'] = publication.goal_driven_execution
                         sdk_config['researchRuntime']['lightweightTaskNodes'] = publication.lightweight_task_nodes
                         sdk_config['researchRuntime']['adaptiveAgentLoop'] = publication.adaptive_agent_loop
+                        if 'deep_research' in native:
+                            sdk_config['researchRuntime']['deepResearch'] = native['deep_research']
+                            sdk_config['researchRuntime']['adaptiveAgentLoop'] = not native['deep_research']
                         if publication.work_edition:
                             if document.get('research_binding', {}).get('graph_work_edition') != publication.work_edition:
                                 raise ValueError('graph work policy and protected binding differ')
@@ -1067,7 +1260,7 @@ class NativeTaskRunner:
                 inputs = task_workspace(self.root / 'inputs', request.task_id)
                 launch_options['input_directory'] = inputs
             argv, environment = native_pi_launch(command=self.command, workspace=workspace,
-                config_root=self.config_root, model=self.model,
+                config_root=self.config_root, model=profile['model'] if profile else self.model,
                 relay_url=self.relay_origin + '/provider/' + request.task_id, relay_token=grant,
                 context_extension=Path(__file__).parent / 'resources' / 'general-context.mjs',
                 sdk_config=sdk_config, **launch_options)
@@ -1105,6 +1298,7 @@ class NativeTaskRunner:
             finally:
                 with self._lock:
                     self.relay.revoke(request.task_id)
+                    self.task_llm_profiles.pop(request.task_id, None)
                 if self.gateway:
                     self.gateway.revoke(request.task_id)
                 shutil.rmtree(inputs, ignore_errors=True)
@@ -1400,12 +1594,16 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                     raise ValueError()
                 body = self.rfile.read(length)
                 document = json.loads(body)
-                if document.get('model') != runner.model:
+                selected = getattr(runner, 'task_llm_profiles', {}).get(parts[2])
+                selected_model = selected['model'] if selected else runner.model
+                selected_upstream = selected['base_url'] if selected else upstream
+                selected_key = selected['key'] if selected else provider_key
+                if document.get('model') != selected_model:
                     raise ValueError()
-                target = urlsplit(upstream)
+                target = urlsplit(selected_upstream)
                 if target.hostname is None or target.scheme not in {'http', 'https'}:
                     raise ValueError()
-                run_http(forward_provider(self, lease, upstream, body, provider_key))
+                run_http(forward_provider(self, lease, selected_upstream, body, selected_key))
             except CapacityExceeded as error:
                 if error.mode == 'debug':
                     host.interrupt_capacity(parts[2], error)
@@ -1452,12 +1650,10 @@ def main():
         raise RuntimeError('General Pi service must run in the isolated container')
     config = Path('/opt/general/configs/runtime/general-pi')
     root = Path('/var/lib/general-pi')
-    providers = json.loads(Path('/opt/general/llm-providers.json').read_bytes())['providers']
-    provider = providers[os.environ['CAPSTONE_PUBLIC_PROVIDER']]
-    if (provider['auth']['kind'] != 'api_key_env'
-            or provider['compatibility_profile'] == 'anthropic-messages'):
-        raise ValueError('General Pi relay requires an API-key chat-completions transport')
-    key = os.environ[provider['auth']['default_env']]
+    from .workbench_llm_profiles import ProfileRegistry
+    llm_profiles = ProfileRegistry()
+    provider = llm_profiles.resolve(llm_profiles.freeze())
+    key = provider['key']
     port = int(os.environ.get('PORT', '8790'))
     from .native_network_policy import NativeNetworkPolicy, InternalEndpoint
     endpoints = json.loads(os.environ.get('CAPSTONE_NATIVE_INTERNAL_ENDPOINTS', '[]'))
@@ -1478,19 +1674,22 @@ def main():
     revision.update((environment_context() or '').encode())
     revision.update(json.dumps(gateway_publication, sort_keys=True).encode())
     lock = json.loads(Path('/opt/general/pi-runtime.lock.json').read_bytes())
-    identity = {'engine': 'pi', 'model': os.environ['CAPSTONE_PUBLIC_MODEL'],
-                'provider': os.environ['CAPSTONE_PUBLIC_PROVIDER'],
+    identity = {'engine': 'pi', 'model': provider['model'],
+                'provider': provider['provider'],
                 'pi_commit': lock['source']['commit'], 'config_revision': revision.hexdigest(),
                 'runtime_lock_sha256': sha256(Path('/opt/general/pi-runtime.lock.json').read_bytes()).hexdigest(),
                 'executor_revision': sha256(b''.join((Path(__file__).parent / name).read_bytes()
-                    for name in ('general_pi_server.py', 'general_pi_executor.py', 'general_pi_storage.py', 'general_pi_relay.py', 'native_network_policy.py', 'bounded_http_loop.py', 'pi_delegation.py', 'business_context.py', 'request_intent.py', 'native_task_context.py', 'native_diagnosis.py',
-                                 'native_resources.py', 'runtime_resources.py', 'resource_installation.py', 'general_pi_resource_seed.py', 'bounded_mcp.py', 'native_environment.py', 'data_gateway_mcp.py', 'data_gateway_relay.py', 'grid_source_topology.py', 'grid_electrical_view.py', 'resources/gateway-electrical-view-v1.schema.json', 'resources/general-data-gateway.mjs',
+                    for name in ('general_pi_server.py', 'general_pi_executor.py', 'general_pi_storage.py', 'general_pi_relay.py', 'native_network_policy.py', 'bounded_http_loop.py', 'pi_delegation.py', 'business_context.py', 'request_intent.py', 'native_task_context.py', 'workbench_llm_profiles.py', 'native_failure_origin.py', 'native_diagnosis.py', 'native_tool_composition.py', 'native_llm_pool.py', 'native_model_request_pool.py', 'incremental_artifacts.py',
+                                 'native_resources.py', 'runtime_resources.py', 'resource_installation.py', 'general_pi_resource_seed.py', 'bounded_mcp.py', 'native_environment.py', 'data_gateway_mcp.py', 'data_gateway_relay.py', 'gateway_diagnostics.py', 'grid_source_topology.py', 'grid_electrical_view.py', 'resources/gateway-electrical-view-v1.schema.json', 'resources/gateway-electrical-view-v2.schema.json', 'resources/general-data-gateway.mjs',
                                  'progress.py', 'stream_progress.py', 'resource_manifest.py', 'native_resource_staging.py',
                                  'native_research_bridge.py', 'native_graph_context.py', 'native_graph_events.py',
                                  'native_product_roles.py', 'continuation_resources.py', 'resources/general-research.mjs', 'resources/research-guidance.mjs',
                                  'application_capacity.py', 'resources/application-capacity.json', 'resources/runtime-limits.mjs',
                                  'resources/research-tools.mjs', 'resources/execution-guidance.mjs', 'resources/model-request-capture.mjs',
-                                 'resources/general-context.mjs', 'resources/general-sdk.mjs', 'resources/general-tool-discovery.mjs', 'resources/systematic-diagnosis.mjs', 'resources/general-mcp.mjs', 'resources/task-record-tools.mjs',
+                                 'resources/general-context.mjs', 'resources/general-sdk.mjs', 'resources/general-tool-discovery.mjs', 'resources/tool-result-context.mjs', 'resources/committed-delivery.mjs', 'resources/systematic-diagnosis.mjs', 'resources/general-mcp.mjs', 'resources/task-record-tools.mjs',
+                                 'resources/tool-composition.mjs', 'resources/tool-composition-worker.mjs', 'resources/tool-composition-policy.json', 'resources/semantic-data-context.mjs',
+                                 'resources/async-call-pool.mjs', 'resources/llm-call-tools.mjs', 'resources/llm-call-pool-policy.json',
+                                 'resources/model-request-pool.mjs', 'resources/model-request-pool-policy.json',
                                  'resources/enterprise-research-runtime.mjs', 'resources/enterprise-cycle-contract.mjs',
                                  'resources/enterprise-cycle-state.mjs', 'resources/enterprise-graph-contract.mjs',
                                  'resources/enterprise-graph-state.mjs', 'resources/enterprise-graph-runtime.mjs', 'resources/task-goal-state.mjs', 'resources/task-node-return.mjs', 'resources/research-context-window.mjs',
@@ -1501,7 +1700,8 @@ def main():
                         for path in sorted((Path(__file__).parent / 'resources' / directory).rglob('*.mjs')))).hexdigest()}
     runner = NativeTaskRunner(root=root, config_root=config,
         command=('node', '/opt/pi/packages/coding-agent/dist/cli.js'), model=identity['model'],
-        relay_origin=f'http://127.0.0.1:{port}', network_policy=network_policy, gateway=gateway)
+        relay_origin=f'http://127.0.0.1:{port}', network_policy=network_policy, gateway=gateway, llm_profiles=llm_profiles,
+        experimental_llm_pool=os.environ.get('CAPSTONE_EXPERIMENTAL_LLM_POOL', '0') == '1')
     runner.gateway_publication = gateway_publication
     host = GeneralPiHost(root=root, identity=identity, run_task=runner)
     host.record_network_policy('startup_default', network_policy.state())

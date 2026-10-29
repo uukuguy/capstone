@@ -1,6 +1,7 @@
 import {useEffect,useRef,useState} from 'react'
 import {MoreHorizontal,X} from 'lucide-react'
 import {applicationCapacity} from './applicationCapacity'
+import {workspaceThreadUrl} from './workspaceName'
 import {navigateSession,sessionName,type SessionNavItem} from './sessionNavigationState'
 const updatedTimeFormat=new Intl.DateTimeFormat('zh-CN',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23',timeZoneName:'shortOffset'})
 
@@ -17,7 +18,7 @@ export default function SessionRow({item,current,editing,onEdit,onRename,onMenu,
   return <div className="session-navigation-row" data-selected={current||undefined} onContextMenu={event=>{event.preventDefault();onMenu(event.clientX,event.clientY)}}
     onKeyDown={event=>{if(event.key==='ContextMenu'||event.shiftKey&&event.key==='F10'){event.preventDefault();const r=event.currentTarget.getBoundingClientRect();onMenu(r.left+16,r.top+24)}}}>
     {editing?<form onSubmit={event=>{event.preventDefault();void save()}}><input autoFocus aria-label="会话名称" maxLength={applicationCapacity('ui_session_title_chars')} disabled={busy} value={draft} onChange={event=>setDraft(event.target.value)} onKeyDown={event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();if(!busy){setDraft(sessionName(item));onEdit();setError('');link.current?.focus()}}}}/><button type="submit" disabled={busy} aria-label="保存会话名称">保存</button>{error&&<span role="alert">{error}</span>}</form>:
-      <a ref={link} aria-current={current?'page':undefined} aria-label={`${sessionName(item)}${item.modelId?` · ${item.modelId}`:''}`} title={`${sessionName(item)}${item.modelId?` · ${item.modelId}`:''} · ${item.threadId}\n最后更新：${updated}`} href={`/?workspace=enterprise&thread=${encodeURIComponent(item.threadId)}`}
+      <a ref={link} aria-current={current?'page':undefined} aria-label={`${sessionName(item)}${item.modelId?` · ${item.modelId}`:''}`} title={`${sessionName(item)}${item.modelId?` · ${item.modelId}`:''} · ${item.threadId}\n最后更新：${updated}`} href={workspaceThreadUrl(item.threadId)}
         onDoubleClick={event=>{if(!onRename)return;event.preventDefault();clearTimeout(timer.current);setDraft(sessionName(item));onEdit()}}
         onClick={event=>{
           if(event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return

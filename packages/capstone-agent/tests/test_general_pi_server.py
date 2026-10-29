@@ -9,6 +9,72 @@ from capstone_agent.pi_delegation import PiTaskRequest, HttpGeneralPiExecutor
 from capstone_agent.request_intent import NodeControl
 
 
+@pytest.mark.parametrize('publication,grant,accepted', [(True, True, True), (False, True, False), ('changed', True, False), (True, False, False)])
+def test_composition_observation_requires_exact_capability_and_child_grant(tmp_path, monkeypatch, publication, grant, accepted):
+    from dataclasses import replace
+    from capstone_agent import general_pi_server as module
+    from capstone_agent.native_tool_composition import COMPOSITION_POLICY
+    from capstone_agent.native_task_context import POLICY_TEXT
+    from test_native_graph_progress import test_task_return_observation_crosses_the_host_only_for_the_exact_child_lease
+
+    class CompositionHost(module.GeneralPiHost):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            if publication == 'changed':
+                self.capability['tool_composition'] = {}
+
+        def submit(self, request):
+            native = {'policy': {'schema': 'capstone-conversation-policy/1', 'system_policy': POLICY_TEXT,
+                'allowed_tools': ['agent_tools_execute'] if grant else [], 'external_lookup_enabled': False},
+                'selected_task_records': [], 'selected_task_source': None, 'records_truncated': False,
+                **({'tool_composition': COMPOSITION_POLICY} if publication else {})}
+            return super().submit(replace(request, native_context=native))
+
+    monkeypatch.setattr(module, 'GeneralPiHost', CompositionHost)
+    if publication is False or publication == 'changed':
+        with pytest.raises(ValueError, match='composition policy|unpublished tool'):
+            test_task_return_observation_crosses_the_host_only_for_the_exact_child_lease(tmp_path, 'child', 'agent_tools_execute', accepted)
+    else:
+        test_task_return_observation_crosses_the_host_only_for_the_exact_child_lease(tmp_path, 'child', 'agent_tools_execute', accepted)
+
+
+@pytest.mark.parametrize('tool_name,grant,accepted', [
+    ('agent_tool_search', True, True),
+    ('agent_tool_load', True, True),
+    ('agent_tool_search', False, False),
+    ('agent_tool_load', False, False),
+    ('agent_tool_unpublished', True, False),
+    ('agent_tool_search', 'gateway', True),
+    ('agent_tool_load', 'gateway', True),
+    ('agent_tool_search', 'gateway-unavailable', False),
+    ('agent_tool_unpublished', 'gateway', False),
+])
+def test_child_tool_discovery_observation_requires_its_exact_application_grant(tmp_path, monkeypatch, tool_name, grant, accepted):
+    from dataclasses import replace
+    from capstone_agent import general_pi_server as module
+    from capstone_agent.native_task_context import POLICY_TEXT
+    from test_native_graph_progress import test_task_return_observation_crosses_the_host_only_for_the_exact_child_lease
+
+    class DiscoveryHost(module.GeneralPiHost):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            self.capability['native_tools'] = [tool_name]
+            if isinstance(grant, str):
+                # Match production ownership: NativeTaskRunner holds the gateway.
+                self._run.gateway = object() if grant == 'gateway' else None
+                self.capability['data_gateway'] = {'available': True, 'catalog': {'tools': {'data_gateway_fixture': {}}}}
+
+        def submit(self, request):
+            native = {'policy': {'schema': 'capstone-conversation-policy/1', 'system_policy': POLICY_TEXT,
+                'allowed_tools': ['data_gateway_fixture'] if isinstance(grant, str) else [tool_name] if grant else [], 'external_lookup_enabled': False},
+                'selected_task_records': [], 'selected_task_source': None, 'records_truncated': False}
+            return super().submit(replace(request, native_context=native))
+
+    monkeypatch.setattr(module, 'GeneralPiHost', DiscoveryHost)
+    test_task_return_observation_crosses_the_host_only_for_the_exact_child_lease(
+        tmp_path, 'child', tool_name, accepted)
+
+
 @pytest.mark.parametrize('tool_name,publication,grant,accepted', [
     ('agent_diagnosis_guide', True, True, True),
     ('agent_diagnosis_record', True, True, True),
@@ -65,14 +131,19 @@ def test_child_diagnosis_observation_uses_exact_host_publication_and_grant(
         assert observation['metadata']['source_ref'] in cache.records
 
 
-@pytest.mark.parametrize('version', ['1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0', '1.19.0'])
-def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted_attempt_origin(tmp_path, monkeypatch, version):
+@pytest.mark.parametrize('version', ['1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0', '1.19.0', '1.20.0'])
+@pytest.mark.parametrize('choice', [None, False, True])
+@pytest.mark.parametrize('experimental_llm_pool', [False, True])
+def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted_attempt_origin(tmp_path, monkeypatch, version, choice, experimental_llm_pool):
+    if choice is not None and version != '1.20.0':
+        pytest.skip('Explicit UI control is verified against the current publication')
     import json
     from types import SimpleNamespace
     from capstone_agent import general_pi_server as module
     from capstone_agent.business_context import BusinessContext
     from capstone_agent.native_task_context import native_context_for, research_policy_capabilities
     from capstone_agent.native_conversation import executor_binding
+    from capstone_agent.native_tool_composition import COMPOSITION_POLICY
     from test_enterprise_normal_chat import native_executor
     from test_native_graph_progress import graph_fixture
     executor = native_executor()
@@ -82,17 +153,31 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
         'data_gateway_other': {'name': 'other'}}}}
     executor.capability = {**executor.capability, 'research_bridge_schemas': ['capstone-research-bridge/1'],
         'research_graph_schemas': ['capstone-enterprise-graph/2'], 'research_policy_profiles': research_policy_capabilities(),
-        'data_gateway': gateway_publication}
+        'data_gateway': gateway_publication, 'tool_composition': COMPOSITION_POLICY,
+        'native_builtin_tools': ['bash', 'write', 'read', 'edit']}
     selected = executor_binding(executor, profile_version=version)
     native = native_context_for(SimpleNamespace(submission=None, selected_task_reader=None,
         started_at='2026-10-21T06:00:00Z'), selected)
+    assert native['tool_composition'] == COMPOSITION_POLICY
+    assert 'agent_tools_execute' in native['policy']['allowed_tools']
     native['policy']['allowed_tools'].remove('data_gateway_other')
+    from capstone_agent.workbench_llm_profiles import ProfileRegistry
+    registry = ProfileRegistry(environment={})
+    native['llm_selection'] = registry.freeze('intranet-dsv4-18804')
+    if choice is not None:
+        native['deep_research'] = choice
+    if experimental_llm_pool and choice is False:
+        from capstone_agent.native_llm_pool import LLM_CALL_POOL_POLICY, LLM_CALL_POOL_TOOLS
+        native['llm_call_pool'] = dict(LLM_CALL_POOL_POLICY)
+        native['policy']['allowed_tools'].extend(LLM_CALL_POOL_TOOLS)
     binding, task, _, _ = graph_fixture()
     binding['graph_work_edition'] = 'capstone-graph-work/1'
     captured = []
     class Captured(Exception):
         pass
     def launch(**kwargs):
+        assert kwargs['model'] == 'dsv4'
+        assert runner.task_llm_profiles[task]['base_url'] == 'http://192.168.72.69:18804/v1'
         captured.append(json.loads(json.dumps(kwargs['sdk_config'])))
         raise Captured()
     monkeypatch.setattr(module, 'native_pi_launch', launch)
@@ -100,7 +185,8 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     root = tmp_path / 'private'
     (root / 'receipts').mkdir(parents=True)
     runner = module.NativeTaskRunner(root=root, config_root=tmp_path, command=('node', '/opt/pi/dist/cli.js'),
-        model='fixture', relay_origin='http://127.0.0.1:8790')
+        model='fixture', relay_origin='http://127.0.0.1:8790', llm_profiles=registry,
+        experimental_llm_pool=experimental_llm_pool)
     # Exercise the checked-in settings through the actual publication overlay,
     # rather than constructing researchRuntime flags only inside a fixture.
     settings_path = Path(__file__).resolve().parents[3] / 'configs/runtime/general-pi/settings.json'
@@ -121,7 +207,10 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
         input={'kind': 'text', 'text': 'Prepare the useful requested output'}, native_context=native, research_binding=binding)
     with pytest.raises(Captured):
         runner(request, lambda: False, lambda _: None)
+    assert task not in runner.task_llm_profiles
     actual = captured[0]['researchRuntime']
+    assert ('modelRequestPool' in captured[0]) is (experimental_llm_pool and choice is False)
+    assert ('llmCallPool' in captured[0]) is (experimental_llm_pool and choice is False)
     gateway_context = next(item['content'] for item in captured[0]['contextFiles'] if item['path'] == 'registered-production-data')
     assert gateway_bindings == [(task, binding['attempt_id'], {'data_gateway_discover_network_models'})]
     catalog = captured[0]['dataGateway']['catalog']
@@ -147,13 +236,15 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     assert actual.get('nodeReviewMode') == 'advisory'
     assert 'nodeReviewMode' not in captured[0]['settings'].get('retry', {})
     assert captured[0]['runtimeEnvironment'] == runner.environment_context
-    assert actual['adaptiveAgentLoop'] is (version == '1.19.0')
-    assert actual['isolatedTaskExecution'] is (version in {'1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0', '1.19.0'})
-    assert actual['goalDrivenExecution'] is (version in {'1.16.0', '1.17.0', '1.18.0', '1.19.0'})
-    assert actual['lightweightTaskNodes'] is (version in {'1.17.0', '1.18.0', '1.19.0'})
+    assert actual['adaptiveAgentLoop'] is (not choice if choice is not None else version in {'1.19.0', '1.20.0'})
+    if choice is not None:
+        assert actual['deepResearch'] is choice
+    assert actual['isolatedTaskExecution'] is (version in {'1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0', '1.19.0', '1.20.0'})
+    assert actual['goalDrivenExecution'] is (version in {'1.16.0', '1.17.0', '1.18.0', '1.19.0', '1.20.0'})
+    assert actual['lightweightTaskNodes'] is (version in {'1.17.0', '1.18.0', '1.19.0', '1.20.0'})
     assert actual['graphWorkEdition'] == 'capstone-graph-work/1'
     assert actual['graphWorkStartedAt'] == native['graph_work']['started_at_ms']
-    assert actual['graphWork'] == {'schema': 'capstone-graph-work/1', 'mode': 'off' if version in {'1.16.0', '1.17.0', '1.18.0', '1.19.0'} else 'usable_draft',
+    assert actual['graphWork'] == {'schema': 'capstone-graph-work/1', 'mode': 'off' if version in {'1.16.0', '1.17.0', '1.18.0', '1.19.0', '1.20.0'} else 'usable_draft',
         'target_seconds': 240, 'integration_reserve_seconds': 60, 'child_wrapup_seconds': 15}
     assert captured[0]['deadlineAt'] > actual['graphWorkStartedAt']
 
@@ -501,17 +592,20 @@ def test_v2_service_advertises_support_and_retains_public_context(tmp_path):
     assert restarted.read(request.task_id)['result']['answer'] == 'Answer'
 
 
-def test_native_runner_writes_business_context_as_private_data(tmp_path, monkeypatch):
+@pytest.mark.parametrize('gateway_reason', ['not_configured', 'gateway_endpoint_rejected', 'PRIVATE_CANARY'])
+def test_native_runner_writes_business_context_as_private_data(tmp_path, monkeypatch, gateway_reason):
     import capstone_agent.general_pi_server as module
     from capstone_agent.business_context import BusinessContext
     monkeypatch.setattr(module.os, 'geteuid', lambda: 0)
     monkeypatch.setattr(module.os, 'chown', lambda *_: None)
     captured = []
+    captured_files = []
     def launch(**kwargs):
         assert 'applicationPolicy' not in kwargs['sdk_config'], 'network state must not invent a tool allowlist'
         kwargs['workspace'].mkdir(parents=True)
         (kwargs['workspace'].parent / ('.inputs-' + kwargs['workspace'].name)).mkdir()
         captured.append(__import__('json').dumps(kwargs['sdk_config']['context']))
+        captured_files.extend(kwargs['sdk_config']['contextFiles'])
         return ('pi',), {}
     monkeypatch.setattr(module, 'native_pi_launch', launch)
     class Process:
@@ -529,6 +623,7 @@ def test_native_runner_writes_business_context_as_private_data(tmp_path, monkeyp
     network_policy.start()
     runner = module.NativeTaskRunner(root=root, config_root=tmp_path, command=('node', '/opt/pi/dist/cli.js'),
         model='fixture', relay_origin='http://127.0.0.1:8790', network_policy=network_policy)
+    runner.gateway_publication = {'available': False, 'reason': gateway_reason}
     context = BusinessContext.empty('workspace', 0)
     request = PiTaskRequest('task', 'attempt', 'direct', 'Explain', (), (), {'engine': 'pi'}, 2,
         business_context=context, resource_profile={'profile_id': 'direct_pi', 'revision': 'test'},
@@ -536,6 +631,9 @@ def test_native_runner_writes_business_context_as_private_data(tmp_path, monkeyp
     runner(request, lambda: False, lambda _: None)
     import json
     assert json.loads(captured[0])['business_context'] == context.to_document()
+    gateway_status = next(item['content'] for item in captured_files if item['path'] == 'registered-data-gateway-status')
+    assert (gateway_reason if gateway_reason != 'PRIVATE_CANARY' else 'gateway_unavailable') in gateway_status
+    assert 'PRIVATE_CANARY' not in gateway_status
     state = json.loads(captured[0])['execution_state']
     assert state['task_id'] == request.task_id
     assert state['parent_attempt_id'] == request.parent_attempt_id
@@ -694,6 +792,7 @@ def test_task_runner_failure_retains_private_category_without_error_message(tmp_
     while host.read(request.task_id)['status'] == 'running' and time.monotonic() < deadline:
         time.sleep(.01)
     record = json.loads((tmp_path / 'receipts/failures/task-private-failure.json').read_text())
+    assert all(item['module'].startswith('capstone_agent.') for item in record.pop('origin'))
     assert record == {'schema': 'capstone-pi-private-failure/1', 'task_id': request.task_id,
                       'phase': 'task_runner', 'exception_type': 'OSError', 'errno': 30}
     assert 'PRIVATE_SENSITIVE_MESSAGE' not in json.dumps(record)
@@ -795,6 +894,68 @@ def small_answer_envelope():
     initialize_capacity({'control_document_bytes': 65536})
     yield
     initialize_capacity()
+
+
+def test_verified_electrical_descriptor_keeps_v2_open_arguments():
+    import json
+    from capstone_agent.general_pi_server import _electrical_view_from_verified_result
+    from test_grid_electrical_view import v2_manifest
+    def result(data):
+        return {'content': [{'text': json.dumps({'structuredContent': {'status': 'ok', 'data': data}})}]}
+    root = _electrical_view_from_verified_result(result(v2_manifest()), {
+        'model_ref': 'model:one', 'view_schema': 'gateway-electrical-view/2', 'selection_profile': 'station'})
+    assert root['view_schema'] == 'gateway-electrical-view/2'
+    assert root['selection_profile'] == 'station'
+    child = _electrical_view_from_verified_result(result(v2_manifest(view_ref='child', target='station-one')), {
+        'model_ref': 'model:one', 'parent_view_ref': 'actual-parent',
+        'expected_model_revision': 'revision-one', 'target': 'station-one'})
+    assert child['parent_view_ref'] == 'actual-parent'
+    assert 'selection_profile' not in child
+    assert _electrical_view_from_verified_result(result(v2_manifest()), {
+        'model_ref': 'model:one', 'view_schema': 'gateway-electrical-view/1'}) is None
+
+
+def test_executor_revision_changes_when_the_published_v2_schema_changes(tmp_path):
+    import ast
+    from hashlib import sha256
+    from pathlib import Path
+    import capstone_agent.general_pi_server as server_module
+    tree = ast.parse(Path(server_module.__file__).read_text())
+    expressions = [value for node in ast.walk(tree) if isinstance(node, ast.Dict)
+        for key, value in zip(node.keys, node.values)
+        if isinstance(key, ast.Constant) and key.value == 'executor_revision']
+    assert len(expressions) == 1
+    expression = expressions[0]
+    resources = next(node for node in ast.walk(expression) if isinstance(node, ast.Tuple)
+        and any(isinstance(item, ast.Constant) and item.value == 'general_pi_server.py' for item in node.elts))
+    for item in resources.elts:
+        path = tmp_path / item.value
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b'fixed-resource')
+    schema = tmp_path / 'resources/gateway-electrical-view-v2.schema.json'
+    schema.write_bytes(Path(server_module.__file__).parent.joinpath(
+        'resources/gateway-electrical-view-v2.schema.json').read_bytes())
+    # Exercise the exact production hash expression without starting services.
+    compiled = compile(ast.Expression(expression), '<executor_revision>', 'eval')
+    namespace = {'sha256': sha256, 'Path': Path, '__file__': str(tmp_path / 'general_pi_server.py')}
+    before = eval(compiled, namespace)
+    schema.write_bytes(schema.read_bytes() + b'\n')
+    assert eval(compiled, namespace) != before
+
+
+def test_verified_scope_root_descriptor_uses_the_gateway_returned_model_reference():
+    import json
+    from capstone_agent.general_pi_server import _electrical_view_from_verified_result
+    from test_grid_electrical_view import v2_manifest
+    result = {'content': [{'text': json.dumps({'structuredContent': {'status': 'ok',
+        'data': v2_manifest(model_ref='opaque:gateway-returned-model')}})}]}
+    arguments = {'scope': {'source_instance': 'source-one', 'object_type': 'grid', 'object_id': '000123'},
+        'view_schema': 'gateway-electrical-view/2', 'selection_profile': 'station'}
+    descriptor = _electrical_view_from_verified_result(result, arguments)
+    assert descriptor['model_ref'] == 'opaque:gateway-returned-model'
+    assert descriptor['selection_profile'] == 'station'
+    assert _electrical_view_from_verified_result(result, {**arguments, 'model_ref': 'caller-ref'}) is None
+    assert _electrical_view_from_verified_result(result, {**arguments, 'scope': {'object_type': 'grid'}}) is None
 
 
 def test_invalid_native_answer_finishes_failed_instead_of_stranding_task(tmp_path, small_answer_envelope):
@@ -942,14 +1103,14 @@ def test_partial_persistence_keeps_verified_saved_descriptors(tmp_path, monkeypa
     workspace.mkdir()
     (workspace / 'a.txt').write_text('first')
     (workspace / 'b.txt').write_text('second')
-    original = storage._write
+    original = storage.artifact_file
     calls = []
-    def write(path, data):
+    def write(task_id, path, artifact, **kwargs):
         calls.append(path)
         if len(calls) == 2:
             raise OSError('storage unavailable')
-        original(path, data)
-    monkeypatch.setattr(storage, '_write', write)
+        original(task_id, path, artifact, **kwargs)
+    monkeypatch.setattr(storage, 'artifact_file', write)
     with pytest.raises(OSError) as failure:
         storage.artifacts('task', workspace, collect_artifacts(workspace, 'task', 'attempt'))
     assert [item['metadata']['path'] for item in failure.value.saved_artifacts] == ['a.txt']

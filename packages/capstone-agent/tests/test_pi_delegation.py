@@ -381,6 +381,61 @@ def test_invalid_event_page_is_rejected_before_publication(service, cursor, even
     assert published == []
 
 
+@pytest.mark.parametrize('version', [1, 2])
+@pytest.mark.parametrize('event_type', ['tool_execution_end', 'enterprise_graph_child_tool'])
+def test_http_event_stream_keeps_checked_electrical_presentation_descriptor(service, version, event_type):
+    from capstone_agent.grid_electrical_view import electrical_descriptor
+    from test_grid_electrical_view import manifest, v2_manifest
+    origin, state = service
+    request = PiTaskRequest.from_document(request_document())
+    descriptor = electrical_descriptor(v2_manifest() if version == 2 else manifest())
+    event = {'event_id': 'event-1', 'type': event_type,
+        'tool_name': 'data_gateway_open_network_model_view', 'tool_call_id': 'open-one',
+        'is_error': False, 'source_view': descriptor}
+    if event_type == 'enterprise_graph_child_tool':event['activity'] = 'end'
+    state['response'] = {'status': 'completed', 'events': [event], 'event_cursor': 1,
+        'result': result_document(request)}
+    published = []
+    result = executor(origin).execute(request, NodeControl(lambda: None, time.monotonic()+2), published.append)
+    assert result.status == 'completed'
+    assert published == [event]
+    assert not state['cancelled']
+
+
+@pytest.mark.parametrize('mutation', ['event_revision', 'extra_credentials', 'evidence_refs', 'wrong_tool', 'wrong_type'])
+def test_http_event_descriptor_exception_does_not_admit_protected_metadata(service, mutation):
+    from capstone_agent.grid_electrical_view import electrical_descriptor
+    from test_grid_electrical_view import v2_manifest
+    origin, state = service
+    request = PiTaskRequest.from_document(request_document())
+    event = {'event_id': 'event-1', 'type': 'tool_execution_end',
+        'tool_name': 'data_gateway_open_network_model_view', 'tool_call_id': 'open-one',
+        'source_view': electrical_descriptor(v2_manifest())}
+    if mutation == 'event_revision':event['model_revision'] = 'forged'
+    elif mutation == 'extra_credentials':event['source_view']['credentials'] = {'api_key': 'private'}
+    elif mutation == 'evidence_refs':event['source_view']['evidence_refs'] = []
+    elif mutation == 'wrong_tool':event['tool_name'] = 'bash'
+    else:event['type'] = 'progress'
+    state['response'] = {'status': 'completed', 'events': [event], 'event_cursor': 1,
+        'result': result_document(request)}
+    published = []
+    with pytest.raises(ValueError):
+        executor(origin).execute(request, NodeControl(lambda: None, time.monotonic()+2), published.append)
+    assert not published
+
+
+def test_electrical_presentation_revision_remains_forbidden_in_generic_pi_json():
+    from capstone_agent.grid_electrical_view import electrical_descriptor
+    from capstone_agent.pi_delegation import _json_document
+    from test_grid_electrical_view import v2_manifest
+    event = {'type': 'tool_execution_end', 'tool_name': 'data_gateway_open_network_model_view',
+        'tool_call_id': 'open-one', 'source_view': electrical_descriptor(v2_manifest())}
+    with pytest.raises(ValueError, match='protected fields'):
+        _json_document(event)
+    with pytest.raises(ValueError, match='protected fields'):
+        _json_document({'model_revision': 'arbitrary'}, native_events=True)
+
+
 def test_failed_result_preserves_typed_reason_and_rejects_raw_details():
     request = PiTaskRequest.from_document(request_document())
     document = result_document(request)

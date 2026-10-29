@@ -10,6 +10,7 @@ from copy import deepcopy
 from importlib.resources import files
 import json
 import hashlib
+import re
 import threading
 
 from jsonschema import Draft202012Validator
@@ -19,10 +20,15 @@ from .data_gateway_mcp import GatewayError, validate as validate_gateway_schema
 from .grid_source_topology import REQUEST_BYTES, PAGE_BYTES, EXCHANGE_SECONDS
 
 STREAMS = ('devices', 'ports', 'connectivity_nodes', 'connections', 'device_relations', 'groups', 'boundaries', 'issues')
+SUMMARY_STREAMS = ('summary_nodes', 'summary_edges')
 IDENTITY = ('model_ref', 'model_revision', 'selection_ref', 'source_snapshot_ref')
 SCHEMA = 'gateway-electrical-view/1'
-_SCHEMA = json.loads(files('capstone_agent').joinpath('resources/gateway-electrical-view-v1.schema.json').read_text())
-_VALIDATOR = Draft202012Validator(_SCHEMA)
+SCHEMA_V2 = 'gateway-electrical-view/2'
+_VALIDATORS = {
+    schema: Draft202012Validator(json.loads(files('capstone_agent').joinpath(
+        f'resources/gateway-electrical-view-v{version}.schema.json').read_text()))
+    for version, schema in ((1, SCHEMA), (2, SCHEMA_V2))
+}
 ERRORS = {
     'gateway_publication_changed': (409, False, 'refresh_capabilities'),
     'revision_mismatch': (409, False, 'reopen_view'), 'invalid_cursor': (409, False, 'restart_stream'),
@@ -39,6 +45,7 @@ ERRORS = {
     'grid_electrical_response_invalid': (502, False, 'refresh_capabilities'),
     'grid_electrical_observation_unavailable': (503, True, 'retry_later'),
     'view_preparation_failed': (503, False, 'inspect_issues'),
+    'unsupported_schema': (422, False, 'choose_supported_representation'),
 }
 
 
@@ -62,6 +69,13 @@ def _text(value, limit=2048):
     return value
 
 
+def _display_name(value):
+    name = _text(value)
+    if not name.strip() or '\x7f' in name:
+        _invalid()
+    return name
+
+
 def _count(value):
     if type(value) is not int or not 0 <= value <= 2**53 - 1:
         _invalid()
@@ -76,10 +90,23 @@ def _bounded(value, budget=PAGE_BYTES):
         _invalid()
 
 
+def _validate_view(value):
+    if not isinstance(value, dict) or not isinstance(value.get('schema'), str) or value['schema'] not in _VALIDATORS:
+        _invalid()
+    try:
+        _VALIDATORS[value['schema']].validate(value)
+    except ValidationError:
+        _invalid()
+
+
+def _streams(schema):
+    return STREAMS + SUMMARY_STREAMS if schema == SCHEMA_V2 else STREAMS
+
+
 def checked_electrical_request(operation, value):
     """Closed App request shape; client URLs, tools and SQL are never accepted."""
     fields = {'open': {'model_ref', 'representation', 'expected_model_revision', 'selection_ref', 'parent_view_ref',
-                       'target', 'boundary_policy', 'selection_profile', 'artifact_ref', 'refresh_source'},
+                       'target', 'boundary_policy', 'selection_profile', 'artifact_ref', 'refresh_source', 'view_schema'},
               'read': {'view_ref', 'stream', 'cursor', 'limit'}, 'job': {'job_ref'}}
     try:
         if operation not in fields or not isinstance(value, dict) or set(value) - fields[operation]:
@@ -100,9 +127,14 @@ def checked_electrical_request(operation, value):
             representation = result.setdefault('representation', 'source_node_breaker')
             if representation not in {'source_node_breaker', 'calculation_bus_branch'}:
                 raise ElectricalViewError('unsupported_representation')
+            if 'view_schema' in result and result['view_schema'] not in _VALIDATORS:
+                _invalid()
+            if result.get('view_schema') == SCHEMA_V2 and representation != 'source_node_breaker':
+                raise ElectricalViewError('unsupported_schema')
             if result.get('parent_view_ref'):
                 _text(result.get('target')); _text(result.get('expected_model_revision'))
-                if result.get('refresh_source') or result.get('selection_profile') is not None or result.get('boundary_policy') is not None:
+                if ('view_schema' in result or result.get('refresh_source') or
+                    result.get('selection_profile') is not None or result.get('boundary_policy') is not None):
                     _invalid()
             elif result.get('target') is not None:
                 _invalid()
@@ -112,14 +144,14 @@ def checked_electrical_request(operation, value):
                 _text(result.get('artifact_ref'))
         elif operation == 'read':
             _text(result.get('view_ref'))
-            if result.get('stream') not in STREAMS:
+            if result.get('stream') not in STREAMS + SUMMARY_STREAMS:
                 _invalid()
             result.setdefault('limit', 200)
         else:
             _text(result.get('job_ref'))
         return result
     except ElectricalViewError as error:
-        if error.code == 'unsupported_representation':
+        if error.code in {'unsupported_representation', 'unsupported_schema'}:
             raise
         raise ElectricalViewError('grid_electrical_request_invalid') from None
 
@@ -141,6 +173,10 @@ RECORD_FIELDS = {
     'groups': COMMON + ('member_count', 'expand_target', 'electrical_equivalent', 'membership_basis', 'parent_id'),
     'boundaries': COMMON + ('port_id', 'device_id', 'reason', 'identity_retained'),
     'issues': ('id', 'code', 'subject_ref', 'evidence'),
+    'summary_nodes': ('id', 'name', 'group_kind', 'expand_target', 'electrical_equivalent',
+        'active_station_count', 'ownership_status', 'source_station_id', 'member_count'),
+    'summary_edges': ('id', 'source_id', 'target_id', 'relation_kind', 'member_count', 'expand_target',
+        'direction', 'electrical_equivalent', 'electrical_connectivity_verified'),
 }
 
 
@@ -162,6 +198,25 @@ def _record(stream, value):
         result['source_ref'] = _pick(value['source_ref'], SOURCE_FIELDS)
         if any(item is not None and type(item) not in {str, int} for item in result['source_ref'].values()):
             _invalid()
+    if stream == 'devices' and 'source_endpoints' in value:
+        result['source_endpoints'] = _pick(value['source_endpoints'],
+            ('start_station_id', 'end_station_id', 'direction_semantics'))
+        for item in result['source_endpoints'].values():
+            if item is not None:
+                _text(item)
+    if stream == 'summary_edges' and 'source_evidence' in value:
+        evidence = _pick(value['source_evidence'], ('table', 'fields'))
+        if 'table' in evidence:
+            _text(evidence['table'])
+        if 'fields' in evidence:
+            if not isinstance(evidence['fields'], list) or len(evidence['fields']) > 32:
+                _invalid()
+            for field in evidence['fields']:
+                _text(field)
+        result['source_evidence'] = evidence
+    for field in ('member_count', 'active_station_count'):
+        if field in result:
+            _count(result[field])
     for key in ('in_service', 'switch_position'):
         if key in result:
             state = _pick(result[key], ('value', 'verified', 'observed_at', 'origin'))
@@ -194,18 +249,15 @@ def _record(stream, value):
 
 def checked_manifest(value):
     _bounded(value)
-    try:
-        _VALIDATOR.validate(value)
-    except ValidationError:
-        _invalid()
+    _validate_view(value)
     if value.get('state') != 'ready':
         _invalid()
     for key in (*IDENTITY, 'view_ref'):
         _text(value.get(key))
-    if set(value['streams']) != set(STREAMS):
+    if set(value['streams']) != set(_streams(value['schema'])):
         _invalid()
     streams = {}
-    for stream in STREAMS:
+    for stream in _streams(value['schema']):
         entry = value['streams'][stream]
         if not isinstance(entry, dict):
             _invalid()
@@ -216,8 +268,33 @@ def checked_manifest(value):
         streams[stream] = {'total_count': total, 'read': expected}
     result = _pick(value, ('schema', 'state', *IDENTITY, 'view_ref', 'representation', 'target', 'artifact_ref',
                            'frozen_at', 'expires_at', 'issue_count', 'readiness', 'readiness_scope',
-                           'default_stream', 'closure', 'electrical_equivalence_performed'))
+                           'default_stream', 'closure', 'electrical_equivalence_performed', 'name'))
+    if 'name' in result:
+        _display_name(result['name'])
     result['streams'] = streams
+    if 'default_stream' in result and result['default_stream'] not in streams:
+        _invalid()
+    if 'overview_coverage' in value:
+        coverage = _pick(value['overview_coverage'], ('active_stations', 'source_station_groups',
+            'omitted_empty_station_groups', 'line_endpoint_semantics', 'dc_supported'))
+        for field in ('active_stations', 'source_station_groups', 'omitted_empty_station_groups'):
+            if field in coverage:
+                _count(coverage[field])
+        if 'dc_supported' in coverage and type(coverage['dc_supported']) is not bool:
+            _invalid()
+        if 'line_endpoint_semantics' in coverage:
+            _text(coverage['line_endpoint_semantics'])
+        if 'source_selection' in value['overview_coverage']:
+            selection = _pick(value['overview_coverage']['source_selection'], ('profile', 'min_ac_kv',
+                'boundary_policy', 'rule_version', 'rule_sha256', 'model_time', 'station_id'))
+            for key, item in selection.items():
+                if key == 'min_ac_kv':
+                    if type(item) not in {int, float} or item < 0:
+                        _invalid()
+                elif item is not None:
+                    _text(item)
+            coverage['source_selection'] = selection
+        result['overview_coverage'] = coverage
     for key in ('capture', 'last_source_read'):
         if key in value:
             result[key] = _pick(value[key], ('change_detection', 'read_started_at', 'read_completed_at',
@@ -237,8 +314,13 @@ def checked_manifest(value):
 
 def checked_electrical_descriptor(value):
     fields = {'schema', 'source_id', *IDENTITY, 'view_ref', 'representation', 'target', 'artifact_ref'}
-    if not isinstance(value, dict) or set(value) != fields or value['schema'] != 'capstone-electrical-view-request/1' or value['source_id'] != 'data-gateway':
+    optional = {'view_schema', 'selection_profile', 'boundary_policy', 'parent_view_ref', 'name'}
+    if (not isinstance(value, dict) or not fields <= set(value) or set(value) - fields - optional or
+        value['schema'] != 'capstone-electrical-view-request/1' or value['source_id'] != 'data-gateway'):
         _invalid()
+    _bounded(value, REQUEST_BYTES)
+    if 'name' in value:
+        _display_name(value['name'])
     for key in (*IDENTITY, 'view_ref'):
         _text(value[key])
     for key in ('target', 'artifact_ref'):
@@ -246,15 +328,61 @@ def checked_electrical_descriptor(value):
             _text(value[key])
     if value['representation'] not in {'source_node_breaker', 'calculation_bus_branch'}:
         _invalid()
+    if 'view_schema' in value:
+        if value['view_schema'] not in (SCHEMA, SCHEMA_V2):
+            _invalid()
+        if value['view_schema'] == SCHEMA_V2 and value['representation'] != 'source_node_breaker':
+            _invalid()
+    if 'selection_profile' in value:
+        profile = _text(value['selection_profile'], 64)
+        if not re.fullmatch(r'[a-z][a-z0-9_-]{0,63}', profile):
+            _invalid()
+    if 'boundary_policy' in value and value['boundary_policy'] not in ('retain_external_stub', 'internal_only'):
+        _invalid()
+    if 'parent_view_ref' in value:
+        _text(value['parent_view_ref'])
+        if value['parent_view_ref'] == value['view_ref'] or not value['target'] or set(value) & {'selection_profile', 'boundary_policy'}:
+            _invalid()
+    if value['representation'] == 'calculation_bus_branch' and set(value) & {'selection_profile', 'boundary_policy'}:
+        _invalid()
     return deepcopy(value)
 
 
-def electrical_descriptor(data):
+def electrical_descriptor(data, open_arguments=None):
     try:
         value = checked_manifest(data)
+        arguments = {} if open_arguments is None else open_arguments
+        if not isinstance(arguments, dict):
+            _invalid()
+        for key, field in (('view_schema', 'schema'), ('model_ref', 'model_ref'),
+                           ('representation', 'representation'), ('expected_model_revision', 'model_revision'),
+                           ('selection_ref', 'selection_ref'), ('target', 'target'), ('artifact_ref', 'artifact_ref')):
+            if arguments.get(key) is not None and arguments[key] != value.get(field):
+                _invalid()
+        retained = {}
+        if 'name' in value:
+            retained['name'] = value['name']
+        if value['schema'] == SCHEMA_V2 or arguments.get('view_schema') is not None:
+            retained['view_schema'] = value['schema']
+        if value.get('target') is not None:
+            if arguments.get('selection_profile') is not None or arguments.get('boundary_policy') is not None:
+                _invalid()
+            if arguments.get('parent_view_ref') is not None:
+                retained['parent_view_ref'] = arguments['parent_view_ref']
+        else:
+            if arguments.get('parent_view_ref') is not None:
+                _invalid()
+            selection = value.get('overview_coverage', {}).get('source_selection', {})
+            for key, field in (('selection_profile', 'profile'), ('boundary_policy', 'boundary_policy')):
+                actual, requested = selection.get(field), arguments.get(key)
+                if actual is not None and requested is not None and actual != requested:
+                    _invalid()
+                selected = actual if actual is not None else requested
+                if selected is not None:
+                    retained[key] = selected
         return checked_electrical_descriptor({'schema': 'capstone-electrical-view-request/1', 'source_id': 'data-gateway',
             **{key: value[key] for key in (*IDENTITY, 'view_ref', 'representation')},
-            'target': value.get('target'), 'artifact_ref': value.get('artifact_ref')})
+            'target': value.get('target'), 'artifact_ref': value.get('artifact_ref'), **retained})
     except (ElectricalViewError, TypeError, KeyError, AttributeError):
         return None
 
@@ -269,13 +397,14 @@ class ElectricalViewProvider:
         self._views = OrderedDict()
         self._jobs = OrderedDict()
         self._page_receipts = OrderedDict()
+        self._cursors = OrderedDict()
         self._lock = threading.RLock()
 
     def _remember(self, view, totals=None):
-        identity = {key: view[key] for key in IDENTITY}
+        identity = {key: view[key] for key in ('schema', *IDENTITY)}
         with self._lock:
             previous = self._views.get(view['view_ref'])
-            if previous and any(previous[key] != identity[key] for key in IDENTITY):
+            if previous and any(previous[key] != identity[key] for key in identity):
                 _invalid()
             entry = {**identity, 'totals': {**(previous or {}).get('totals', {}), **(totals or {})}}
             if previous and any(previous['totals'].get(key, count) != count for key, count in (totals or {}).items()):
@@ -332,8 +461,12 @@ class ElectricalViewProvider:
     async def _invoke(self, tool, arguments, catalog):
         arguments = deepcopy(arguments)
         properties = catalog['tools']['data_gateway_' + tool]['inputSchema'].get('properties', {})
-        if tool == 'open_network_model_view' and 'view_schema' in properties:
-            arguments['view_schema'] = SCHEMA
+        if tool == 'open_network_model_view' and not arguments.get('parent_view_ref'):
+            if 'view_schema' in properties:
+                arguments.setdefault('view_schema', SCHEMA)
+                validate_gateway_schema(properties['view_schema'], arguments['view_schema'])
+            elif arguments.get('view_schema') == SCHEMA_V2:
+                raise ElectricalViewError('grid_electrical_unavailable')
         return await self.gateway.client.call('data_gateway_' + tool, arguments, catalog)
 
     @staticmethod
@@ -402,10 +535,87 @@ class ElectricalViewProvider:
             seen.add(scope['model_ref'])
             projected.append(_pick(scope, ('scope_id', 'model_ref', 'model_revision', 'name', 'coverage', 'selection_profile', 'min_ac_kv', 'readiness')))
         capabilities = value.get('electrical_views')
-        if not isinstance(capabilities, dict) or capabilities.get('schema') != SCHEMA:
+        if not isinstance(capabilities, dict) or capabilities.get('schema') not in (SCHEMA, SCHEMA_V2):
             raise ElectricalViewError('grid_electrical_unavailable')
         public_capabilities = _pick(capabilities, ('schema', 'targets', 'max_page_records', 'source_coordinates',
-            'computational_readiness_implied', 'source_transaction_consistency_verified', 'cache_policy', 'open_tool', 'read_tool'))
+            'computational_readiness_implied', 'source_transaction_consistency_verified', 'cache_policy', 'open_tool', 'read_tool',
+            'view_schemas', 'default_view_schema', 'macro_default_view_schema', 'macro_models', 'locate_tool'))
+        if 'view_schemas' in public_capabilities:
+            versions = public_capabilities['view_schemas']
+            if (not isinstance(versions, list) or not versions or len(versions) > len(_VALIDATORS) or
+                any(not isinstance(item, str) or item not in _VALIDATORS for item in versions) or len(set(versions)) != len(versions)):
+                _invalid()
+        for field in ('default_view_schema', 'macro_default_view_schema'):
+            if field in public_capabilities and public_capabilities[field] not in (SCHEMA, SCHEMA_V2):
+                _invalid()
+        if 'macro_models' in public_capabilities:
+            if not isinstance(public_capabilities['macro_models'], list) or len(public_capabilities['macro_models']) > 1000:
+                _invalid()
+            for model_ref in public_capabilities['macro_models']:
+                _text(model_ref)
+        if 'locate_tool' in public_capabilities:
+            _text(public_capabilities['locate_tool'])
+        if 'v2' in capabilities:
+            public_capabilities['v2'] = _pick(capabilities['v2'],
+                ('representation', 'targets', 'streams', 'summary_semantics'))
+            v2 = public_capabilities['v2']
+            if v2.get('representation') != 'source_node_breaker':
+                _invalid()
+            for field, allowed in (('targets', {'model', 'grid', 'station', 'device', 'summary_edge', 'unresolved'}),
+                                   ('streams', set(SUMMARY_STREAMS))):
+                items = v2.get(field)
+                if (not isinstance(items, list) or len(items) > len(allowed) or
+                    any(not isinstance(item, str) or item not in allowed for item in items) or len(set(items)) != len(items)):
+                    _invalid()
+            if 'summary_semantics' in v2:
+                _text(v2['summary_semantics'])
+            if 'open_arguments' in capabilities['v2']:
+                arguments = _pick(capabilities['v2']['open_arguments'], ('view_schema',))
+                if arguments.get('view_schema') != SCHEMA_V2:
+                    _invalid()
+                public_capabilities['v2']['open_arguments'] = arguments
+        if 'source_grid_root' in capabilities:
+            public_capabilities['source_grid_root'] = _pick(capabilities['source_grid_root'],
+                ('argument', 'source', 'default_selection_profile', 'all_available_ac_selection_profile',
+                 'default_view_schema', 'omit_model_ref'))
+            for field, item in public_capabilities['source_grid_root'].items():
+                if field == 'omit_model_ref':
+                    if type(item) is not bool:
+                        _invalid()
+                else:
+                    _text(item)
+        if 'source_grid_models' in capabilities:
+            models = capabilities['source_grid_models']
+            if not isinstance(models, list) or len(models) > 1000:
+                _invalid()
+            provincial = []
+            seen_models = set()
+            for model in models:
+                projected_model = _pick(model, ('model_ref', 'readiness', 'name'))
+                _text(projected_model.get('model_ref'))
+                if 'name' in projected_model:
+                    _display_name(projected_model['name'])
+                if 'readiness' in projected_model:
+                    _text(projected_model['readiness'])
+                if projected_model['model_ref'] in seen_models:
+                    _invalid()
+                seen_models.add(projected_model['model_ref'])
+                if 'scope' in model:
+                    scope = _pick(model['scope'], ('source_instance', 'object_type', 'object_id'))
+                    if set(scope) != {'source_instance', 'object_type', 'object_id'} or scope['object_type'] != 'grid':
+                        _invalid()
+                    for item in scope.values():
+                        _text(item)
+                    projected_model['scope'] = scope
+                if 'open_arguments' in model:
+                    arguments = _pick(model['open_arguments'], ('model_ref', 'selection_profile'))
+                    if arguments.get('model_ref') != projected_model['model_ref']:
+                        _invalid()
+                    for item in arguments.values():
+                        _text(item)
+                    projected_model['open_arguments'] = arguments
+                provincial.append(projected_model)
+            public_capabilities['source_grid_models'] = provincial
         for kind in ('source_node_breaker', 'calculation_bus_branch', 'optimization'):
             if kind in capabilities:
                 public_capabilities[kind] = _pick(capabilities[kind], ('support', 'readiness', 'consistency', 'requires'))
@@ -416,14 +626,18 @@ class ElectricalViewProvider:
 
     async def open(self, document):
         request = checked_electrical_request('open', document)
+        expected_schema = request.get('view_schema', SCHEMA)
+        if request.get('parent_view_ref'):
+            with self._lock:
+                parent = deepcopy(self._views.get(request['parent_view_ref']))
+            expected_schema = parent['schema'] if parent else None
         value = await self._call('open_network_model_view', request)
         if value.get('model_ref') != request['model_ref']:
             _invalid()
+        if expected_schema is not None and value.get('schema') != expected_schema:
+            _invalid()
         if value.get('state') == 'preparing':
-            try:
-                _VALIDATOR.validate(value)
-            except ValidationError:
-                _invalid()
+            _validate_view(value)
             _text(value.get('preparation_ref'))
             with self._lock:
                 self._jobs[value['preparation_ref']] = request['model_ref']
@@ -442,16 +656,20 @@ class ElectricalViewProvider:
                 parent = self._views.get(request['parent_view_ref'])
             if parent and any(parent[key] != result[key] for key in IDENTITY):
                 _invalid()
-        self._remember(result, {stream: result['streams'][stream]['total_count'] for stream in STREAMS})
+        self._remember(result, {stream: entry['total_count'] for stream, entry in result['streams'].items()})
         return result
 
     async def read(self, document):
         request = checked_electrical_request('read', document)
+        with self._lock:
+            previous = self._views.get(request['view_ref'])
+            cursor_scope = self._cursors.get(request.get('cursor'))
+            if previous and request['stream'] not in _streams(previous['schema']):
+                _invalid()
+            if cursor_scope and cursor_scope != (request['view_ref'], request['stream']):
+                raise ElectricalViewError('invalid_cursor')
         value = await self._call('read_network_model_view', request)
-        try:
-            _VALIDATOR.validate(value)
-        except ValidationError:
-            _invalid()
+        _validate_view(value)
         for key in (*IDENTITY, 'view_ref'):
             _text(value.get(key))
         if value.get('view_ref') != request['view_ref'] or value.get('stream') != request['stream']:
@@ -482,6 +700,14 @@ class ElectricalViewProvider:
             self._page_receipts.move_to_end(key)
             while len(self._page_receipts) > 2048:
                 self._page_receipts.popitem(last=False)
+            if result['next_cursor'] is not None:
+                scope = (request['view_ref'], request['stream'])
+                if result['next_cursor'] in self._cursors and self._cursors[result['next_cursor']] != scope:
+                    _invalid()
+                self._cursors[result['next_cursor']] = scope
+                self._cursors.move_to_end(result['next_cursor'])
+                while len(self._cursors) > 2048:
+                    self._cursors.popitem(last=False)
         return result
 
     async def job(self, document):

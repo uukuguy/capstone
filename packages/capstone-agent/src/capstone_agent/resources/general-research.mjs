@@ -21,9 +21,9 @@ export default function (pi) {
   return configureGeneralResearch(pi, config);
 }
 
-export function configureGeneralResearch(pi, config, {getControllerState,readReference} = {}) {
+export function configureGeneralResearch(pi, config, {getControllerState,readReference,waitForDecision} = {}) {
   if (!config.researchChannelPath) return;
-  configureResearchGuidance(pi, config.researchGuidance);
+  configureResearchGuidance(pi, config.researchGuidance, {lightweight:config.researchRuntime?.deepResearch===false});
   // The managed native model currently declares reasoning unsupported. Do not
   // claim that changing a label enables reasoning on this model transport.
   const research = new Proxy(pi, { get(target, key) {
@@ -34,6 +34,9 @@ export function configureGeneralResearch(pi, config, {getControllerState,readRef
         description:tool.description+' For graph proposals/results, section reference with action_id reads only that exact current execute action or its selected inputs. It cannot read original uploaded sources directly. Before an execute action exists, use overview for state; assign source inspection to a delegated task with selected source_refs. Metadata is the default and lists safe logical product names, refs, roles, hashes, sizes and declared slots. The model assigns files to slots; order is not a binding. Text mode needs one exact ref, offset_bytes and length_bytes. Inspection creates no new evidence; keep the existing admitted observation refs for assessment.',
         execute:async(id,params,signal,...rest)=>{
           if(params?.section==='reference')return readReference(id,params,{signal});
+          // A planner with only running children has no new decision to make.
+          // Wait once instead of spending model turns polling the same state.
+          if((params?.section??'overview')==='overview')await waitForDecision?.({signal});
           const result=await tool.execute(id,params,signal,...rest);
           if(result.details?.error?.code==='invalid_arguments'&&['action_id','ref','mode','offset_bytes','length_bytes'].some(key=>Object.hasOwn(params??{},key)))
             return {...result,content:[{type:'text',text:'Graph output inspection requires section:"reference" and action_id. For text, also provide one exact ref, mode:"text", offset_bytes and length_bytes. For state, use {section:"overview"} without reference fields. Do not repeat the mixed request.'}]};

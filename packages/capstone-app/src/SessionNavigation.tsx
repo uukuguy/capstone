@@ -1,10 +1,12 @@
 import {useEffect,useLayoutEffect,useRef,useState} from 'react'
 import {createPortal} from 'react-dom'
-import {Archive,ChevronLeft,ChevronRight,Pin,Pencil,Trash2} from 'lucide-react'
+import {Archive,ChevronLeft,ChevronRight,History,Pin,Pencil,Trash2} from 'lucide-react'
 import SessionRow from './SessionRow'
+import SessionCleanup from './SessionCleanup'
 import {navigateSession,sessionName,orderSessions,useSessionPins,type SessionNavItem} from './sessionNavigationState'
 import type {SessionManagementActions} from './sessionManagement'
 import type {ThreadListPage} from './threadManagement'
+import {currentWorkspaceName,isWorkspaceActive} from './workspaceName'
 export {navigateSession,sessionName,type SessionNavItem} from './sessionNavigationState'
 
 export function SessionAdjacentControls({items,currentId,storageKey}: {items:readonly SessionNavItem[];currentId?:string;storageKey?:string}) {
@@ -18,12 +20,14 @@ export function SessionAdjacentControls({items,currentId,storageKey}: {items:rea
 
 /** List preferences stay local. Mutations use the supplied host management ports. */
 export default function SessionNavigation({items,currentId,storageKey='workspace',actions}: {items:readonly SessionNavItem[];currentId?:string;storageKey?:string;actions?:SessionManagementActions}) {
-  const list=useRef<HTMLDivElement>(null),restored=useRef(false),menuElement=useRef<HTMLDivElement>(null),located=useRef<string | undefined>(undefined)
+  const list=useRef<HTMLDivElement>(null),menuElement=useRef<HTMLDivElement>(null)
   const {pins,toggle}=useSessionPins(storageKey)
   const [menu,setMenu]=useState<{item:SessionNavItem;x:number;y:number}>(),[editing,setEditing]=useState<string>()
   const [archiveView,setArchiveView]=useState(false),[archived,setArchived]=useState<ThreadListPage>(),[loading,setLoading]=useState(false)
   const archiveRequest=useRef(0)
-  useEffect(()=>()=>{archiveRequest.current++},[])
+  const workspace=useRef(currentWorkspaceName()),mounted=useRef(true)
+  const mayUpdate=()=>mounted.current&&isWorkspaceActive(workspace.current)
+  useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;archiveRequest.current++}},[])
   const [removed,setRemoved]=useState<string[]>([]),[names,setNames]=useState<Record<string,string>>({}),[deleting,setDeleting]=useState<SessionNavItem>(),[busy,setBusy]=useState(false),[error,setError]=useState('')
   const [reopened,setReopened]=useState<SessionNavItem[]>([])
   useEffect(()=>{if(reopened.some(item=>items.some(existing=>existing.threadId===item.threadId)))setReopened(previous=>previous.filter(item=>!items.some(existing=>existing.threadId===item.threadId)))},[items,reopened])
@@ -32,13 +36,50 @@ export default function SessionNavigation({items,currentId,storageKey='workspace
   const scrollKey=`capstone.session-navigation.scroll:${storageKey}:${archiveView?'archived':'active'}`
   useLayoutEffect(()=>{
     const container=list.current;if(!container)return
-    if(!restored.current){try{container.scrollTop=Number(sessionStorage.getItem(scrollKey))||0}catch{/* Keep scroll. */}restored.current=true}
-    const keepVisible=()=>{if(located.current===currentId)return;const selected=container.querySelector<HTMLElement>('[aria-current="page"]');if(!selected||!container.getClientRects().length)return;const item=selected.getBoundingClientRect(),bounds=container.getBoundingClientRect();if(item.top<bounds.top+8)container.scrollTop-=bounds.top+8-item.top;else if(item.bottom>bounds.bottom-8)container.scrollTop+=item.bottom-bounds.bottom+8;located.current=currentId}
-    keepVisible()
-    const save=()=>{try{sessionStorage.setItem(scrollKey,String(container.scrollTop))}catch{/* Keep scroll. */}}
-    container.addEventListener('scroll',save,{passive:true});const observer=typeof ResizeObserver==='undefined'?undefined:new ResizeObserver(keepVisible);observer?.observe(container)
-    return()=>{save();container.removeEventListener('scroll',save);observer?.disconnect()}
-  },[currentId,items,scrollKey])
+    // A short/loading or hidden list cannot yet contain its saved position.
+    // Retain that target until content arrives, unless the user starts scrolling.
+    let pending:number|undefined,position=0,userScrolling=false
+    try{const value=Number(sessionStorage.getItem(scrollKey));pending=Number.isFinite(value)&&value>=0?value:0}catch{/* Keep scroll. */}
+    position=pending??0
+    const visible=()=>container.clientHeight>0&&!container.closest('[hidden]')
+    const restore=()=>{
+      if(pending===undefined)return
+      // scrollTop is fractional; scrollHeight/clientHeight round to integers.
+      if(!visible())return
+      const maximum=Math.max(0,container.scrollHeight-container.clientHeight)
+      if(maximum+1<pending){container.scrollTop=maximum;return}
+      container.scrollTop=pending
+      if(Math.abs(container.scrollTop-pending)<2)pending=undefined
+    }
+    const save=()=>{
+      if(pending!==undefined||!visible())return
+      // Mount/layout/focus scroll events must not replace the shared position.
+      // Only an explicit scroll gesture grants this visible list write access.
+      if(!userScrolling){pending=position;restore();return}
+      position=container.scrollTop
+      try{sessionStorage.setItem(scrollKey,String(container.scrollTop))}catch{/* Keep scroll. */}
+    }
+    const cancel=()=>{pending=undefined;userScrolling=true;position=container.scrollTop}
+    const key=(event:KeyboardEvent)=>{if(['ArrowUp','ArrowDown','PageUp','PageDown','Home','End',' ','Tab'].includes(event.key)&&!(event.target instanceof Element&&event.target.closest('input,textarea,[contenteditable=true]')))cancel()}
+    const pointer=(event:PointerEvent)=>{if(event.target===container)cancel()}
+    // End/PageDown and scrollbar dragging can change scrollTop before the next
+    // animation-frame scroll event. Capture it before routing hides this DOM.
+    const checkpoint=()=>{if(userScrolling)save();userScrolling=false}
+    container.addEventListener('scroll',save,{passive:true})
+    container.addEventListener('wheel',cancel,{passive:true});container.addEventListener('touchstart',cancel,{passive:true});container.addEventListener('keydown',key);container.addEventListener('pointerdown',pointer)
+    window.addEventListener('popstate',checkpoint,true);window.addEventListener('pagehide',checkpoint)
+    const observer=new MutationObserver(restore);observer.observe(container,{childList:true,subtree:true})
+    const resize=typeof ResizeObserver==='undefined'?undefined:new ResizeObserver(restore)
+    resize?.observe(container);if(container.firstElementChild)resize?.observe(container.firstElementChild)
+    restore()
+    return()=>{
+      // Scroll events already persist visible positions. Hidden Activity teardown
+      // must not overwrite another retained session's newer global position.
+      observer.disconnect();resize?.disconnect();container.removeEventListener('scroll',save)
+      container.removeEventListener('wheel',cancel);container.removeEventListener('touchstart',cancel);container.removeEventListener('keydown',key);container.removeEventListener('pointerdown',pointer)
+      window.removeEventListener('popstate',checkpoint,true);window.removeEventListener('pagehide',checkpoint)
+    }
+  },[scrollKey])
   useEffect(()=>{
     if(!menu)return
     menuElement.current?.querySelector<HTMLButtonElement>('button')?.focus()
@@ -52,7 +93,7 @@ export default function SessionNavigation({items,currentId,storageKey='workspace
     setLoading(true);setError('')
     try{
       const page=await actions.archived(before)
-      if(request!==archiveRequest.current)return
+      if(request!==archiveRequest.current||!mayUpdate())return
       setArchived(previous=>before?{...page,threads:[...(previous?.threads??[]),...page.threads]}:page)
     }catch{if(request===archiveRequest.current)setError('归档会话暂时无法读取')}
     finally{if(request===archiveRequest.current)setLoading(false)}
@@ -64,28 +105,30 @@ export default function SessionNavigation({items,currentId,storageKey='workspace
     setBusy(true);setLoading(false);setError('')
     try{
       await actions.archive(item.threadId,false)
-      if(request!==archiveRequest.current)return
+      if(request!==archiveRequest.current||!mayUpdate())return
       setReopened(previous=>[{...item,archived:false},...previous.filter(value=>value.threadId!==item.threadId)])
-      setRemoved(previous=>previous.filter(id=>id!==item.threadId));setArchiveView(false);restored.current=false;setMenu(undefined)
+      setRemoved(previous=>previous.filter(id=>id!==item.threadId));setArchiveView(false);setMenu(undefined)
       navigateSession(item.threadId)
     }catch{if(request===archiveRequest.current)setError('会话恢复失败，请重试。')}
     finally{setBusy(false)}
   }
-  async function archive(item:SessionNavItem,value:boolean){if(!actions||busy)return;setBusy(true);setMenu(undefined);setError('');try{await actions.archive(item.threadId,value);setRemoved(previous=>[...previous,item.threadId]);if(item.threadId===currentId&&value)navigateSession(displayed.find(other=>other.threadId!==item.threadId)?.threadId??'new')}catch{setError('操作未完成；运行中的会话需先停止。')}finally{setBusy(false)}}
+  async function archive(item:SessionNavItem,value:boolean){if(!actions||busy)return;setBusy(true);setMenu(undefined);setError('');try{await actions.archive(item.threadId,value);if(!mayUpdate())return;setRemoved(previous=>[...previous,item.threadId]);if(item.threadId===currentId&&value)navigateSession(displayed.find(other=>other.threadId!==item.threadId)?.threadId??'new')}catch{setError('操作未完成；运行中的会话需先停止。')}finally{setBusy(false)}}
   const rows=(values:SessionNavItem[])=>values.map(item=><SessionRow key={item.threadId} item={item} current={item.threadId===currentId} editing={editing===item.threadId} onEdit={()=>setEditing(previous=>previous===item.threadId?undefined:item.threadId)}
     onActivate={()=>void openSession(item)}
     onRename={actions?async text=>{await actions.rename(item.threadId,text);setNames(previous=>({...previous,[item.threadId]:text}));setEditing(undefined)}:undefined}
     onMenu={(x,y)=>{setMenu({item,x:Math.max(8,Math.min(x,window.innerWidth-190)),y:Math.max(8,Math.min(y,window.innerHeight-200))});setError('')}} onClose={actions&&!archiveView?()=>void archive(item,true):undefined}/>)
   return <div className="session-navigation">
     <div className="session-navigation-scroll" ref={list}>
-      {archiveView?<><h2>已归档会话</h2>{rows(displayed)}{!loading&&!displayed.length&&<p>暂无归档会话</p>}</>:
-        <><h2>置顶会话</h2>{rows(displayed.filter(item=>pins.includes(item.threadId)))}<h2>最近会话</h2>{rows(displayed.filter(item=>!pins.includes(item.threadId)))}</>}
+      {archiveView?<><h2 className="session-section-heading"><Archive size={12} aria-hidden="true"/><span>已归档会话</span></h2>{rows(displayed)}{!loading&&!displayed.length&&<p>暂无归档会话</p>}</>:
+        <><h2 className="session-section-heading"><Pin size={12} aria-hidden="true"/><span>置顶会话</span></h2>{rows(displayed.filter(item=>pins.includes(item.threadId)))}<h2 className="session-section-heading"><History size={12} aria-hidden="true"/><span>最近会话</span></h2>{rows(displayed.filter(item=>!pins.includes(item.threadId)))}</>}
       {loading&&<p role="status">正在读取归档会话…</p>}
       {busy&&archiveView&&<p role="status">正在更新会话…</p>}
       {archiveView&&archived?.hasMore&&<button type="button" className="session-archive-entry" disabled={loading} onClick={()=>void loadArchive(archived.nextBeforeThreadId??undefined)}>读取更多归档会话</button>}
     </div>
     {error&&<p role="alert">{error}</p>}
-    {actions&&<button type="button" className="session-archive-entry" onClick={()=>{setArchiveView(value=>!value);setRemoved([]);restored.current=false;if(!archiveView)void loadArchive();else{archiveRequest.current++;setLoading(false);setError('')}}}><Archive size={14}/>{archiveView?'返回最近会话':'已归档会话'}</button>}
+    {actions&&<div className="session-navigation-actions"><button type="button" className="session-archive-entry" onClick={()=>{setArchiveView(value=>!value);setRemoved([]);if(!archiveView)void loadArchive();else{archiveRequest.current++;setLoading(false);setError('')}}}><Archive size={14}/>{archiveView?'返回最近会话':'已归档会话'}</button>
+      <SessionCleanup key={archiveView?'archived':'recent'} items={displayed} currentId={currentId} storageKey={storageKey} scopeLabel={archiveView?'归档记录':'未归档记录'} remove={actions.remove} loadItems={actions.history?signal=>actions.history!(archiveView,signal):undefined} onRemoved={ids=>setRemoved(previous=>[...new Set([...previous,...ids])])}/>
+    </div>}
     {menu&&createPortal(<div ref={menuElement} className="session-context-menu" role="menu" aria-label="会话操作" style={{left:menu.x,top:menu.y}}>
       <button role="menuitem" disabled={!actions} onClick={()=>{setEditing(menu.item.threadId);setMenu(undefined)}}><Pencil size={14}/>改名</button>
       {!archiveView&&<button role="menuitem" onClick={()=>{toggle(menu.item.threadId);setMenu(undefined)}}><Pin size={14}/>{pins.includes(menu.item.threadId)?'取消置顶':'置顶'}</button>}
@@ -96,7 +139,7 @@ export default function SessionNavigation({items,currentId,storageKey='workspace
       if(event.key==='Escape'&&!busy){event.preventDefault();setDeleting(undefined)}
       if(event.key==='Tab'){const buttons=[...event.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')];if(!buttons.length){event.preventDefault();return}const first=buttons[0],last=buttons.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus()}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus()}}
     }}>
-      <h3 id="session-delete-title">删除会话？</h3><p>{sessionName(deleting)}</p><p>会话及对话记录将被删除，无法恢复。已生成文件按存储保留规则处理。</p><div><button autoFocus disabled={busy} onClick={()=>setDeleting(undefined)}>取消</button><button className="is-destructive" disabled={busy} onClick={()=>{if(!actions)return;setBusy(true);setError('');void actions.remove(deleting.threadId).then(()=>{setRemoved(previous=>[...previous,deleting.threadId]);setDeleting(undefined);if(deleting.threadId===currentId)navigateSession(displayed.find(other=>other.threadId!==deleting.threadId)?.threadId??'new')}).catch(()=>setError('删除未完成；运行中的会话需先停止。')).finally(()=>setBusy(false))}}>{busy?'删除中…':'删除'}</button></div>{error&&<p role="alert">{error}</p>}
+      <h3 id="session-delete-title">删除会话？</h3><p>{sessionName(deleting)}</p><p>会话及对话记录将被删除，无法恢复。已生成文件按存储保留规则处理。</p><div><button autoFocus disabled={busy} onClick={()=>setDeleting(undefined)}>取消</button><button className="is-destructive" disabled={busy} onClick={()=>{if(!actions)return;setBusy(true);setError('');void actions.remove(deleting.threadId).then(()=>{if(!mayUpdate())return;setRemoved(previous=>[...previous,deleting.threadId]);setDeleting(undefined);if(deleting.threadId===currentId)navigateSession(displayed.find(other=>other.threadId!==deleting.threadId)?.threadId??'new')}).catch(()=>setError('删除未完成；运行中的会话需先停止。')).finally(()=>setBusy(false))}}>{busy?'删除中…':'删除'}</button></div>{error&&<p role="alert">{error}</p>}
     </div></div>,document.body)}
   </div>
 }

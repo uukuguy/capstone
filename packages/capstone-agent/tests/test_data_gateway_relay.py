@@ -441,3 +441,29 @@ def test_container_gateway_refuses_unprotected_mount_parent(tmp_path, monkeypatc
         private_root=root, owner_uid=os.getuid())
     assert resource is None and publication['reason'] == 'gateway_private_mount_invalid'
     assert len(calls) == 1
+
+
+def test_unavailable_gateway_retains_only_configured_identity(tmp_path, monkeypatch):
+    import os
+    import json
+    from capstone_agent.data_gateway_mcp import DataGatewayMcp, GatewayError
+    from capstone_agent.data_gateway_relay import load_container_gateway
+    root = tmp_path / 'private'
+    root.mkdir(mode=0o700)
+    directory = root / 'data-gateway'
+    directory.mkdir()
+    connection = directory / 'connection.json'
+    connection.write_text(json.dumps({'name': 'Configured gateway', 'transport': 'streamable-http',
+        'url': 'https://gateway.test/mcp', 'headers': {'Authorization': 'Bearer secret-canary'}}))
+    connection.chmod(0o600)
+    policy = tmp_path / 'policy.json'
+    policy.write_text(json.dumps({'schema': 'capstone-data-gateway/2', 'resource_id': 'data-gateway',
+        'namespace': 'data_gateway_', 'admission': 'trusted-service-safe-effects'}))
+    async def unavailable(self):
+        raise GatewayError('gateway_timeout')
+    monkeypatch.setattr(DataGatewayMcp, 'prepare', unavailable)
+    resource, publication = load_container_gateway(str(connection), policy, private_root=root, owner_uid=os.getuid())
+    assert resource is None
+    assert publication['identity'] == {'connection_name': 'Configured gateway', 'display_address': 'gateway.test:443'}
+    assert publication['available'] is False
+    assert 'secret-canary' not in json.dumps(publication)

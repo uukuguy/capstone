@@ -318,3 +318,17 @@ def test_alignment_gate_rejects_cloud_artifact_and_stage_drift():
     cloud['api']['source_artifact_sha256'] = 'changed-source'
     with pytest.raises(ValueError, match='source artifact hashes differ'):
         gate.verify(local, cloud, contract, 'same-contract')
+
+
+def test_intranet_native_preset_requires_no_commercial_credential():
+    settings = environment('native') | {'CAPSTONE_WORKBENCH_PRESET': 'intranet'}
+    settings.pop('DEEPSEEK_API_KEY')
+    _, _, _, selected = RUNTIME.select_runtime(ROOT, settings, 'worker')
+    assert selected['CAPSTONE_PUBLIC_MODEL'] == 'dsv4'
+    assert selected['CAPSTONE_WORKBENCH_PRESET'] == 'intranet'
+
+
+def test_workbench_preset_does_not_change_professional_provider():
+    settings = environment('pandapower') | {'CAPSTONE_WORKBENCH_PRESET': 'intranet'}
+    _, _, _, selected = RUNTIME.select_runtime(ROOT, settings, 'worker')
+    assert selected['CAPSTONE_PUBLIC_MODEL'] == 'deepseek-flash'

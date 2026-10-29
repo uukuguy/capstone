@@ -41,6 +41,9 @@ def main() -> int:
         raise RuntimeError('native conversation executor is not configured')
     service = PostgresThreadService(settings.database_url)
     service.initialize()
+    from .session_title_summary import TitleSummaryScheduler
+    title_scheduler = TitleSummaryScheduler()
+    setattr(service, '_title_summary_scheduler', title_scheduler)
     service.set_material_store(build_artifacts(settings, Ledger(settings.database_url)).store)
     service.set_native_executor(executor)
     factory = native_runtime_factory(executor, research_root=settings.runs_root / 'native-research')
@@ -56,6 +59,7 @@ def main() -> int:
             thread_family=lambda _: 'native', health_check=scheduler.is_alive),
             host=settings.bind_host, port=settings.port, access_log=False)
     finally:
+        title_scheduler.pool.shutdown(wait=False, cancel_futures=True)
         stop.set()
         wake.set()
         scheduler.join(timeout=5)

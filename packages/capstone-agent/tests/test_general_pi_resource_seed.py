@@ -1,28 +1,34 @@
 """Stable, protected native runtime installation persistence."""
 import json
 import re
+import shutil
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
 
-def test_native_image_includes_local_sdk_module_dependencies():
-    project = Path(__file__).parents[3]
-    resources = project / 'packages/capstone-agent/src/capstone_agent/resources'
+def image_copy_files(project):
     image = (project / 'deploy/general-pi.Dockerfile').read_text()
-    destinations = set()
-    for line in image.splitlines():
+    for line in image.replace('\\\n', ' ').splitlines():
         if not line.startswith('COPY ') or '--from=' in line:
             continue
         *sources, destination = line.split()[1:]
         for pattern in sources:
             for source in project.glob(pattern):
                 if source.is_dir():
-                    destinations.update(str(Path(destination) / item.relative_to(source))
-                                        for item in source.rglob('*') if item.is_file())
+                    for item in source.rglob('*'):
+                        if item.is_file():
+                            yield item, Path(destination) / item.relative_to(source)
                 else:
-                    destinations.add(str(Path(destination) / source.name)
-                                     if destination.endswith('/') else destination)
+                    yield source, Path(destination) / source.name if destination.endswith('/') else Path(destination)
+
+
+def test_native_image_includes_local_sdk_module_dependencies():
+    project = Path(__file__).parents[3]
+    resources = project / 'packages/capstone-agent/src/capstone_agent/resources'
+    destinations = {str(destination) for _, destination in image_copy_files(project)}
     pending = ['general-sdk.mjs']
     checked = set()
     while pending:
@@ -35,6 +41,30 @@ def test_native_image_includes_local_sdk_module_dependencies():
         source = (resources / name).read_text()
         pending.extend(str(Path(name).parent / dependency) for dependency in
                        re.findall(r"(?:from\s+|import\s*)['\"]\./([^'\"]+\.mjs)['\"]", source))
+
+
+def test_native_image_copies_all_electrical_view_import_resources(tmp_path):
+    project = Path(__file__).parents[3]
+    # Import the actual selective COPY projection in a fresh Python process.
+    # The checkout's package resources must not fill gaps in the image seed.
+    for source, destination in image_copy_files(project):
+        if destination.parts[0] != 'capstone_agent':
+            continue
+        target = tmp_path / destination
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, target)
+    (tmp_path / 'capstone_agent/__init__.py').write_text('')
+    result = subprocess.run(
+        [sys.executable, '-I', '-c',
+         'import sys; sys.path.insert(0, sys.argv[1]); '
+         'from capstone_agent.grid_electrical_view import ElectricalViewProvider; '
+         'from capstone_agent.gateway_diagnostics import checked_diagnostics; '
+         'assert checked_diagnostics(None) is None; '
+         'print("electrical-view-import-ok")', str(tmp_path)],
+        capture_output=True, text=True, timeout=30, check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == 'electrical-view-import-ok'
 
 
 def seed(root: Path, name: str):

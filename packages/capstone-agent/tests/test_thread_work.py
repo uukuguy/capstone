@@ -195,7 +195,8 @@ def test_legacy_archive_page_does_not_read_default_active_page():
     store = _service()
     original = store.list_threads
     calls = []
-    def requested_page(*, before=None, limit=20, archived=False):
+    def requested_page(*, before=None, limit=20, archived=False, workspace_name=None):
+        assert workspace_name == 'enterprise'
         calls.append((before, limit, archived))
         page = original()
         if not archived:

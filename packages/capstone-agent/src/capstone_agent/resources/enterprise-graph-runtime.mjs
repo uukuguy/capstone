@@ -20,6 +20,7 @@ import {reduceEnterpriseGraph,projectEnterpriseGraph,graphAction,resolveEnterpri
 import {createTaskGoal,reviewTaskGoal,validateTaskGoalFinish,taskRequirementSchema,taskGoalReviewSchema} from './task-goal-state.mjs';
 import {runtimeLimits as resolveRuntimeLimits,checkCapacity,CapacityExceeded} from './runtime-limits.mjs';
 import {taskTurnGuidance} from './task-turn-guidance.mjs';
+import {finalizeCommittedDelivery} from './committed-delivery.mjs';
 
 export const GRAPH_CHECKPOINT_SCHEMA='capstone-enterprise-graph-checkpoint/1';
 const operations=['plan','start','record','assess','revise','resolve'];
@@ -105,7 +106,7 @@ export function createEnterpriseGraphController({config,readResearch,commitResea
         schema.description='Declare the task and its exact selected inputs. Omitted dependencies, result inputs and checks mean empty arrays. Questions and expected outputs derive from purpose and declared outputs when omitted. source_refs is required: select exact granted refs, including previous products. Top-level sources do not grant child access.';
         schema.properties.source_refs.description='Required explicit file inputs for this task, including selected previous products. Copy exact refs from the granted catalog. A filename in instruction or a top-level source_refs entry does not select child inputs. Use [] only when this task needs no source files.';
         schema.properties.mode.description='execute investigates sources or performs new analysis; synthesis composes retained findings/products and uses context for necessary interpretation. Mode guides scope; source permissions come only from the host catalog.';
-        schema.properties.depends_on.description='Explicit producer dependency IDs; omitted means []. Result inputs still require their producer dependency.';
+        schema.properties.depends_on.description='Additional task dependency IDs; omitted means []. Each typed inputs[].from producer also implies that dependency. Unknown producers, slots and cycles remain rejected.';
       }
     }
     parameters.revise.properties.nodes.description='Submit only new tasks or changed unstarted tasks. Existing tasks omitted here are retained exactly by the host. Never reconstruct a started definition to append new work.';
@@ -699,7 +700,26 @@ export function createEnterpriseGraphController({config,readResearch,commitResea
       ...(proposal.persistence?{persistence:clone(proposal.persistence)}:{}),
       ...(proposal.capacity?{capacity_recovery:clone(proposal.capacity)}:{}),
       ...(capacityError?{capacity_error:capacityError}:{output:proposal.output})}:item);
-    await persist('settle-'+hash(action.id).slice(0,32),data,result.events,action.id,signal);
+    const events=[...result.events];
+    if(advisoryReviews&&proposal.status==='completed'&&association?.status==='validated'&&!capacityError){
+      // Identity and associations were checked above. Registration is deterministic;
+      // it does not need a planner turn or imply independent analytical verification.
+      // Commit settlement, results and diagnostic assessment together so recovery
+      // cannot leave a returned node waiting for a redundant model registration.
+      const context=host({receipts:data.receipts,products:data.products,
+        computation:data.computations.find(item=>item.action_id===action.id)});
+      const recorded=reduceEnterpriseGraph(data.snapshot,'record',{action_id:action.id,outcome:'completed',
+        outputs:clone(association.outputs),limitations:clone(association.limitations)},context,limits);
+      const completeChecks=node.checks.every(description=>association.checks.some(check=>check.description===description&&check.status==='passed'));
+      const completeOutputs=node.outputs.every(output=>association.outputs.some(item=>item.slot===output.slot));
+      const assessed=reduceEnterpriseGraph(recorded.state,'assess',{
+        action_id:recorded.state.node_states[node.id].assess_action_id,
+        outcome:completeChecks&&completeOutputs?'success':'limited',checks:clone(association.checks),
+        summary:'Host registered the validated producer return. Checks remain diagnostic; independent verification and user acceptance are not implied.'
+      },context,limits);
+      data.snapshot=assessed.state;events.push(...recorded.events,...assessed.events);
+    }
+    await persist('settle-'+hash(action.id).slice(0,32),data,events,action.id,signal);
     proposals.delete(action.id);
     if(capacityError)lastError='research_capacity_exceeded';
   }
@@ -874,6 +894,11 @@ export function createEnterpriseGraphController({config,readResearch,commitResea
       if(lightweightTasks&&['plan','revise'].includes(operation)&&Array.isArray(payload?.nodes)){
         payload={...payload,nodes:payload.nodes.map(node=>node&&typeof node==='object'&&!Array.isArray(node)
           ? {depends_on:[],inputs:[],checks:[],...node,
+            // A typed producer selection already declares the data dependency.
+            // Derive its scheduler edge; still validate the exact producer/slot,
+            // cycles, source grants and frozen input versions below.
+            depends_on:Array.isArray(node.depends_on??[])?[...new Set([...(node.depends_on??[]),
+              ...(Array.isArray(node.inputs)?node.inputs.flatMap(input=>typeof input?.from?.step_id==='string'?[input.from.step_id]:[]):[])])]:node.depends_on,
             questions:node.questions===undefined||node.questions?.length===0?[node.purpose]:node.questions,
             expected_outputs:node.expected_outputs===undefined||node.expected_outputs?.length===0
               ?(Array.isArray(node.outputs)?node.outputs.map(output=>output?.description):[]):node.expected_outputs}:node)};
@@ -1048,6 +1073,14 @@ export function createEnterpriseGraphController({config,readResearch,commitResea
   async function finish(callId,payload,{signal}={}){
     try{
       signal=admissionSignal(signal);await waitFor(load(),signal);requireCycle(opaque(callId),'Finish command ID must be opaque');
+      if(goalDriven&&advisoryReviews&&Object.hasOwn(payload??{},'goal_review')){
+        requireCycle(!Object.hasOwn(payload,'goal_review_ref'),'Choose goal_review or goal_review_ref, not both');
+        const {goal_review,...deliveryPayload}=payload;
+        finishPayload(deliveryPayload);
+        requireCycle(['complete','limited','blocked'].includes(goal_review?.decision),'A combined delivery needs a terminal whole-goal decision');
+        const reviewed=await assessGoal('finish-review:'+hash(callId).slice(0,40),{goal_review},signal);
+        payload={...deliveryPayload,goal_review_ref:reviewed.details.result.organization.review.review_ref};
+      }
       const {goal_review_ref,...core}=payload??{};
       finishPayload(goalDriven?core:payload);
       if(goalDriven)requireCycle(opaque(goal_review_ref),'Finish requires an exact whole-goal review reference');
@@ -1134,7 +1167,24 @@ export function createEnterpriseGraphController({config,readResearch,commitResea
       },signal);
     }catch(error){signal?.throwIfAborted();interruptDebug(error);return errorReply(error);}
   }
-  const controller={execute,finish,inspect:inspectParent,recoverPending,readReference,
+  async function waitForDecision({signal}={}){
+    signal=admissionSignal(signal);await recoverPending({signal});
+    await waitForActionable(signal);
+  }
+  async function waitForActionable(signal){
+    const control=()=>snapshot?.nodes.some(node=>{const current=snapshot.node_states[node.id];return ['executed','recorded','assessing'].includes(current.phase)||
+      node.execution==='parent'&&current.phase==='ready';});
+    // Checkpoint and scheduling pulses do not necessarily deliver a result.
+    // Re-check the predicate before spending another planner model turn.
+    while(!delivery&&!pending&&!closing&&!control()&&jobs.size){
+      await new Promise((resolve,reject)=>{
+        const done=()=>{signal?.removeEventListener('abort',abort);waiters.delete(done);resolve();};
+        const abort=()=>{waiters.delete(done);reject(signal.reason??new DOMException('Aborted','AbortError'));};
+        signal?.throwIfAborted();waiters.add(done);signal?.addEventListener('abort',abort,{once:true});
+      });await recoverPending({signal});
+    }
+  }
+  const controller={execute,finish,inspect:inspectParent,recoverPending,readReference,waitForDecision,
     // Private model context only. Never place these handles in durable state or tool replies.
     async readParentInputs({signal}={}){
       signal=admissionSignal(signal);await recoverPending({signal});await waitFor(writer,signal);
@@ -1189,9 +1239,9 @@ export function createEnterpriseGraphController({config,readResearch,commitResea
     register(pi){
       for(const operation of operations)pi.registerTool({name:names[operation],label:'Research '+operation,
         parameters:clone(parameters[operation]),description:(advisoryReviews?{
-          plan:'Declare immutable whole-goal requirements as {id,description,kind:finding|artifact} and submit only the next justified task or batch. Tasks have independent contexts. Use record for returned findings; the host automatically settles nodes. Append justified tasks with revise, without a separate node review or continue review call. Review the whole goal when deciding actual delivery.',
+          plan:'Declare immutable whole-goal requirements as {id,description,kind:finding|artifact} and submit only the next justified task or batch. Tasks have independent contexts. Validated child returns are registered and settled automatically. Do not record or assess them again. Use record only to retain supported findings from an unresolved return with explicit limitations. Append justified tasks with revise, without a separate node review or continue review call. Review the whole goal when deciding actual delivery.',
           revise:'Submit the next justified independent tasks with reason and rerun:[] for new work. This operation itself records the decision to continue; a separate whole-goal continue review is not required. Existing unresolved requirements remain open. Do not retransmit existing tasks just to append new ones.',
-          record:'Register a validated return as {action_id:EXACT_EXECUTE_ACTION_ID,outcome:completed|limited|failed,proposal_ref:EXACT_RETURNED_PROPOSAL_REF,limitations:[]}. Choose exactly one proposal_ref or explicit outputs; omit outputs when using proposal_ref. If no validated proposal exists, supply actual outputs and omit proposal_ref. The host automatically settles the node and continues ready work. No separate node assessment or verification pass is required. Missing checks and partial results remain limitations, without a rejection or rerun gate.',
+          record:'Recovery only: validated child returns are already registered automatically. Never repeat record for settled nodes. For an unresolved return, register supported findings as {action_id:EXACT_EXECUTE_ACTION_ID,outcome:completed|limited|failed,proposal_ref:EXACT_RETURNED_PROPOSAL_REF,limitations:[]}. Choose exactly one proposal_ref or explicit outputs; omit outputs when using proposal_ref. If no validated proposal exists, supply actual outputs and omit proposal_ref. The host automatically settles the node and continues ready work. No separate node assessment or verification pass is required. Missing checks and partial results remain limitations, without a rejection or rerun gate.',
           assess:'Review the whole goal when deciding delivery using only {goal_review:{decision:continue|complete|limited|blocked,requirements:[{id,status:satisfied|open|blocked,result_refs:[],explanation}],summary}}. Omit all node-assessment fields from this form. Cite exact current result refs for satisfied coverage; artifact coverage needs an actual saved artifact. Send changed coverage; the host retains prior current support and leaves other requirements open. Use limited for useful delivery with unmet requirements disclosed. Copy the returned organization.review.review_ref into finish.goal_review_ref. Node-level review, if supplied separately, is only a diagnostic note: it cannot reject a node, undo its return or demand rework. Use record to register actual findings; the host handles node settlement.'
         }[operation]:undefined)??(goalDriven?{
           plan:'Declare immutable overall requirements as {id,description,kind:finding|artifact}. Preserve distinct substantive questions and requested deliverables as outcomes, separate from executable tasks. Submit only the next justified independent task or batch; do not merge unrelated investigations to reduce task count. After returns, record/assess node results and assess the whole goal.',
@@ -1206,10 +1256,19 @@ export function createEnterpriseGraphController({config,readResearch,commitResea
         description:'Ask the host to freeze and inspect selected parent output files. Supply safe relative paths and presentation roles. Only a committed host grant supplies artifact refs for record; inspection is not execution or quality evidence.',
         execute:(callId,payload,signal)=>inspectParent(callId,payload,{signal})});
       const finishParameters=clone(graphFinishToolParameters);
-      if(goalDriven){finishParameters.properties.goal_review_ref=clone(ref);finishParameters.required.push('goal_review_ref');}
+      if(goalDriven){
+        finishParameters.properties.goal_review_ref=clone(ref);
+        if(advisoryReviews){
+          finishParameters.properties.goal_review=clone(taskGoalReviewSchema);
+          finishParameters.oneOf=[{required:['goal_review']},{required:['goal_review_ref']}];
+        }else finishParameters.required.push('goal_review_ref');
+      }
       pi.registerTool({name:'agent_research_finish',label:'Finish research',parameters:finishParameters,
-        description:(goalDriven?'Requires exact goal_review_ref from a current complete or limited whole-goal assessment. A continue decision forbids finish: append the next justified tasks. A limited decision preserves unmet requirements and needs explicit limitations and an actual retained result. A blocked goal may close only as failure. A performance estimate is not a hard deadline. ':'')+'Explicitly close delivery. Before closing, '+(advisoryReviews?'record every contributing node; the host settles it automatically, with no separate node assessment. ':'record and assess every node whose output should contribute, including settled children. ')+'Host drain/cancellation settles jobs but does not record their outputs. Select exact current assessed result refs and their inspected artifact refs. Use success only when all current nodes succeeded with known native outcomes; limited or failure remains valid with explicit limitations. Once finish commits, later record/assess calls are rejected. Node success alone is not task delivery.',
-        execute:(callId,payload,signal)=>finish(callId,payload,{signal})});
+        description:(goalDriven?(advisoryReviews?'Prefer one delivery call: include goal_review with your actual complete/limited/blocked decision, requirement coverage and summary together with delivery fields. No preceding assess call is needed. Alternatively use an exact existing goal_review_ref; never supply both. ':'Requires exact goal_review_ref from a current complete or limited whole-goal assessment. ')+ 'A continue decision forbids finish: append the next justified tasks. A limited decision preserves unmet requirements and needs explicit limitations and an actual retained result. A blocked goal may close only as failure. A performance estimate is not a hard deadline. ':'')+'Explicitly close delivery. Before closing, '+(advisoryReviews?'use automatically registered contributing results; recover only unresolved returns with record, with no separate node assessment. ':'record and assess every node whose output should contribute, including settled children. ')+'Host drain/cancellation settles jobs but does not record their outputs. Select exact current assessed result refs and their inspected artifact refs. Use success only when all current nodes succeeded with known native outcomes; limited or failure remains valid with explicit limitations. Once finish commits, later record/assess calls are rejected. Node success alone is not task delivery.',
+        execute:async(callId,payload,signal)=>{
+          const result=await finish(callId,payload,{signal});
+          return advisoryReviews?finalizeCommittedDelivery(result):result;
+        }});
     },
     async beginTool({toolCallId,toolName,signal}){
       signal=admissionSignal(signal);await waitFor(load(),signal);
@@ -1250,16 +1309,14 @@ export function createEnterpriseGraphController({config,readResearch,commitResea
       if(delivery){if(goalDriven&&delivery.outcome==='failure')fail('task_goal_blocked','The whole goal is blocked; partial results are retained, not completed delivery.');return null;}
       // No accepted work exists to continue. Let the same first model turn answer
       // a simple request directly; do not manufacture a planning turn after it.
-      if(!snapshot&&!pending&&!closing&&!jobs.size)return null;
-      const control=()=>snapshot?.nodes.some(node=>{const current=snapshot.node_states[node.id];return ['executed','recorded','assessing'].includes(current.phase)||
-        node.execution==='parent'&&current.phase==='ready';});
-      if(!pending&&!closing&&!control()&&jobs.size){
-        await new Promise((resolve,reject)=>{
-          const done=()=>{signal?.removeEventListener('abort',abort);waiters.delete(done);resolve();};
-          const abort=()=>{waiters.delete(done);reject(signal.reason??new DOMException('Aborted','AbortError'));};
-          signal?.throwIfAborted();waiters.add(done);signal?.addEventListener('abort',abort,{once:true});
-        });await recoverPending({signal});
+      if(!snapshot&&!pending&&!closing&&!jobs.size){
+        if(config.researchRuntime?.deepResearch===true)return {
+          prompt:'The user selected Deep Research for this instruction. Call agent_research_plan now with the smallest useful task or batch; discovery can be its first delegated task. Do not replace this selection with a direct answer.',
+          actionId:'user-selected-deep-research',checkpoint:0,progress_key:'user-selected-deep-research'};
+        return null;
       }
+      await waitForActionable(signal);
+      if(delivery){if(goalDriven&&delivery.outcome==='failure')fail('task_goal_blocked','The whole goal is blocked; partial results are retained, not completed delivery.');return null;}
       const state=await this.readState({compact:true,signal});
       if(state.update_pending)fail('research_update_not_confirmed','A scheduled checkpoint is still unconfirmed after host recovery. Retain its exact request; native work was not repeated.');
       if(config.runtimeLimitMode==='debug'&&config.researchRuntime?.lightweightTaskNodes!==true){
@@ -1275,9 +1332,9 @@ export function createEnterpriseGraphController({config,readResearch,commitResea
         return {...reference,output:publicText(proposal.output)};
       });
       const packet={instruction:(goalDriven?(advisoryReviews?
-        'Keep whole-goal requirements visible. Record returned findings; the host settles nodes automatically, with checks diagnostic only. Append the next justified tasks with revise, which records continue without a separate review call. Use whole-goal review when choosing complete or limited delivery; retain remaining gaps and do not claim user acceptance. ':
+        'Keep whole-goal requirements visible. Validated returned findings are already registered and settled by the host, with checks diagnostic only. Do not repeat record or assess for them. A missing optional check or file association alone does not justify recomputation; retain supported findings and disclose limitations. Add work only for a missing requirement needed for the current user instruction. Append the next justified tasks with revise, which records continue without a separate review call. Use whole-goal review when choosing complete or limited delivery; retain remaining gaps and do not claim user acceptance. ':
         'Keep organization.requirements alive independently of the submitted tasks. After each accepted result/batch use assess with goal_review to review all requirements, then revise when decision is continue. A complete review permits successful/limited finish. An explicit limited review permits useful turn delivery with unmet requirements disclosed; this is not user acceptance. Blocked permits failure only. Do not use estimated performance targets as hard deadlines. '):'')+(isolatedTasks?'Plan only the next evidence-supported task or batch. Every executable task, including synthesis, uses an independent context. After accepting results, compare remaining requirements with the user goal and append justified tasks using revise with only the new node definitions; the host retains existing tasks unchanged. An empty task pool is not goal completion. Do not execute native analysis in the planner. ':'')+
-        'Use exact graph/action/proposal refs. Newly available native proposal text is supplied once. '+(advisoryReviews?'Record actual proposal_ref associations; the host settles nodes with no separate node assessment. ':'Record validated proposal_ref associations and explicitly assess their quality; parent outcome/summary are your judgment. ')+'Read agent_research_read section="overview" only to recover missing declarations or retained proposal text after compaction. '+(isolatedTasks?'':'Start ready parent work explicitly. ')+
+        'Use exact graph/action/proposal refs. Newly available native proposal text is supplied once. '+(advisoryReviews?'Use graph current_results directly for automatically registered nodes, with no separate node assessment. Use record only for unresolved pending proposals; preserve supported outputs and explicit limitations. ':'Record validated proposal_ref associations and explicitly assess their quality; parent outcome/summary are your judgment. ')+'Read agent_research_read section="overview" only to recover missing declarations or retained proposal text after compaction. '+(isolatedTasks?'':'Start ready parent work explicitly. ')+
         'When only children are running and no parent decision is actionable, end this response and yield; the host waits and wakes you on settlement. Do not poll overview. Finish with exact selected delivery or explicit limitations.',
         ...state};checkBytes('graph_continuation_bytes',packet,limits.publicBytes);
       for(const actionId of newlyDelivered)deliveredProposalOutputs.add(actionId);

@@ -2,6 +2,7 @@ import {afterEach,expect,it,vi} from 'vitest'
 import {act,cleanup,fireEvent,render,screen} from '@testing-library/react'
 import LargeNetworkView from './LargeNetworkView'
 import type {NetworkScene} from './networkScene'
+import {readNetworkCamera} from './threadNetworkCamera'
 const renderGL=vi.hoisted(()=>({draw:vi.fn(),upload:vi.fn(),dispose:vi.fn()}))
 vi.mock('./networkWebGL',()=>({createNetworkRenderer:()=>renderGL}))
 class TestWorker {
@@ -15,6 +16,43 @@ class TestWorker {
 vi.stubGlobal('Worker',TestWorker)
 afterEach(()=>{cleanup();TestWorker.instances=[];vi.clearAllMocks();vi.useRealTimers()})
 const scene:NetworkScene={ref:'source-view',coordinateSystem:'schematic',nodes:[{id:'station',label:'Source station',kind:'station',details:[{label:'Origin',value:'Source record'}]}],edges:[]}
+it('retains independent zoom and position when switching before the save debounce and after remount',()=>{
+  vi.useFakeTimers()
+  const storageKey='camera-fast-switch';sessionStorage.removeItem(storageKey)
+  const ui=render(<LargeNetworkView scene={scene} storageKey={storageKey} viewKey="overview"/>)
+  const overview={x:123,y:47,width:200,height:120},station={x:8,y:16,width:50,height:30}
+  const ready={type:'ready',stats:{nodes:1,edges:0,indexMs:1,bufferBytes:8}}
+  TestWorker.instances[0].emit(ready)
+  TestWorker.instances[0].emit({type:'focused',camera:overview})
+  ui.rerender(<LargeNetworkView scene={scene} storageKey={storageKey} viewKey="station"/>)
+  expect(readNetworkCamera(storageKey,'overview')).toEqual(overview)
+  TestWorker.instances[1].emit(ready)
+  TestWorker.instances[1].emit({type:'focused',camera:station})
+  ui.rerender(<LargeNetworkView scene={scene} storageKey={storageKey} viewKey="overview"/>)
+  TestWorker.instances[2].emit(ready)
+  expect(TestWorker.instances[2].postMessage).toHaveBeenCalledWith(expect.objectContaining({type:'view',camera:overview}))
+  expect(readNetworkCamera(storageKey,'station')).toEqual(station)
+  ui.unmount()
+  render(<LargeNetworkView scene={scene} storageKey={storageKey} viewKey="station"/>)
+  TestWorker.instances[3].emit(ready)
+  expect(TestWorker.instances[3].postMessage).toHaveBeenCalledWith(expect.objectContaining({type:'view',camera:station}))
+  sessionStorage.removeItem(storageKey)
+})
+it('reports the first drawn frame once per scene, after drawing rather than worker readiness',()=>{
+  const painted=vi.fn(()=>expect(renderGL.draw).toHaveBeenCalled())
+  const ui=render(<LargeNetworkView scene={scene} onFirstFrame={painted}/>)
+  const first=TestWorker.instances[0]
+  first.emit({type:'ready',stats:{nodes:1,edges:0,indexMs:1,bufferBytes:8}})
+  expect(painted).not.toHaveBeenCalled()
+  const frame={type:'frame',request:1,lines:new Float32Array(),points:new Float32Array(),labels:[],drawnNodes:1,drawnEdges:0,limited:false}
+  first.emit(frame);first.emit(frame)
+  expect(painted).toHaveBeenCalledTimes(1)
+  ui.rerender(<LargeNetworkView scene={{...scene,ref:'next'}} onFirstFrame={painted}/>)
+  first.emit(frame)
+  expect(painted).toHaveBeenCalledTimes(1)
+  TestWorker.instances[1].emit(frame)
+  expect(painted).toHaveBeenCalledTimes(2)
+})
 it('uses a worker with typed scene identity and exposes bounded accessible picked details',()=>{
   const onSelect=vi.fn()
   render(<LargeNetworkView scene={scene} onSelect={onSelect}/>)
@@ -37,6 +75,32 @@ it('terminates obsolete views and ignores their late replies',()=>{
   expect(first.terminate).toHaveBeenCalledOnce()
   first.emit({type:'ready',stats:{nodes:999,edges:0,indexMs:1,bufferBytes:8}})
   expect(ready).not.toHaveBeenCalled()
+})
+
+it('places a selected entry action above the canvas and long source details after a single selection',()=>{
+  const activate=vi.fn()
+  render(<LargeNetworkView scene={scene} onActivate={activate} canActivate={()=>true} activationLabel={()=>'进入电气接线'}/>)
+  TestWorker.instances[0].emit({type:'selected',request:1,item:{type:'node',...scene.nodes[0]}})
+  const button=screen.getByRole('button',{name:'进入电气接线'}),canvas=screen.getByRole('img')
+  expect(button.compareDocumentPosition(canvas)&Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  expect(button.compareDocumentPosition(screen.getByLabelText('所选拓扑对象'))&Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  fireEvent.click(button);expect(activate).toHaveBeenCalledWith(expect.objectContaining({id:scene.nodes[0].id,type:'node'}))
+})
+
+it('offers a separate search entry action and activates only the actual located selection',()=>{
+  vi.useFakeTimers();const activate=vi.fn()
+  render(<LargeNetworkView scene={scene} onActivate={activate} canActivate={item=>item.id===scene.nodes[0].id}
+    activationLabel={item=>item.id===scene.nodes[0].id?'进入电气接线':undefined}/>)
+  const worker=TestWorker.instances[0]
+  fireEvent.change(screen.getByRole('searchbox'),{target:{value:'Station'}});act(()=>vi.advanceTimersByTime(121))
+  const search=worker.postMessage.mock.calls.map(([value])=>value).find(value=>value.type==='search')
+  worker.emit({type:'search',request:search.request,results:[{type:'node',id:scene.nodes[0].id,label:'Station',kind:'station'}]})
+  expect(screen.getByLabelText('对象搜索结果').textContent).not.toContain(scene.nodes[0].id)
+  fireEvent.click(screen.getByRole('button',{name:'进入电气接线：Station'}));expect(activate).not.toHaveBeenCalled()
+  const located=worker.postMessage.mock.calls.at(-1)![0]
+  expect(located).toMatchObject({type:'locate',id:scene.nodes[0].id})
+  worker.emit({type:'located',request:located.request,item:{type:'node',...scene.nodes[0]},x:1,y:2})
+  expect(activate).toHaveBeenCalledWith({type:'node',...scene.nodes[0]})
 })
 it('debounces search on the worker and never sends the scene again for keyboard camera motion',()=>{
   vi.useFakeTimers()

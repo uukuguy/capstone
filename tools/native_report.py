@@ -13,10 +13,11 @@ import re
 import secrets
 import stat
 import sys
+import unicodedata
 from xml.etree import ElementTree
 
 
-VERSION = '1.0.0'
+VERSION = '1.1.0'
 CSS = '''
 :root{color-scheme:light;font-family:system-ui,-apple-system,"Noto Sans CJK SC",sans-serif;color:#172b3b;background:#edf2f5}
 *{box-sizing:border-box}body{margin:0;line-height:1.75}main{max-width:1100px;margin:32px auto;background:white;padding:48px 56px;border:1px solid #d8e2e8;border-radius:12px}
@@ -69,7 +70,7 @@ class Workspace:
             os.close(current)
             raise
 
-    def read(self, value, *, location='spec'):
+    def read(self, value, *, location='spec', maximum=None):
         parent = None
         try:
             parent, name = self.parent(value)
@@ -78,7 +79,13 @@ class Workspace:
                 info = os.fstat(stream.fileno())
                 if not stat.S_ISREG(info.st_mode):
                     raise ReportError('report sources must be regular files')
-                data = stream.read()
+                if info.st_nlink != 1:
+                    raise ReportError('hardlinked report sources are not supported')
+                if maximum is not None and info.st_size > maximum:
+                    raise ReportError('report source exceeds its rendering byte budget')
+                data = stream.read() if maximum is None else stream.read(maximum + 1)
+                if maximum is not None and len(data) > maximum:
+                    raise ReportError('report source exceeds its rendering byte budget')
                 self.identities.add((info.st_dev, info.st_ino))
         except OSError as error:
             code = 'source_missing' if isinstance(error, FileNotFoundError) else 'source_unavailable'
@@ -151,6 +158,8 @@ def figure_data(path, data):
 
 
 def render(spec_path, output):
+    if Path(output).suffix.lower() == '.pptx':
+        return render_presentation(spec_path, output)
     workspace = Workspace()
     try:
         spec = json.loads(workspace.read(spec_path))
@@ -227,11 +236,230 @@ def render(spec_path, output):
         os.close(workspace.root)
 
 
+def render_presentation(spec_path, output):
+    """Lay out bounded saved content. Never calculate, interpret or execute it."""
+    try:
+        from PIL import Image
+        from pptx import Presentation
+        from pptx.dml.color import RGBColor
+        from pptx.util import Inches, Pt
+    except ImportError:
+        raise ReportError('PPTX output requires the verified python-pptx and Pillow environment') from None
+
+    workspace = Workspace()
+    try:
+        spec = json.loads(workspace.read(spec_path, maximum=1024 * 1024))
+        fields(spec, ('schema', 'title', 'slides'), ('subtitle',))
+        if spec['schema'] != 'capstone-presentation/1':
+            raise ReportError('PPTX requires capstone-presentation/1')
+        if not isinstance(spec['slides'], list) or not 1 <= len(spec['slides']) <= 40:
+            raise ReportError('presentation slides must contain 1..40 content records')
+        deck = Presentation()
+        deck.slide_width, deck.slide_height = Inches(13.333), Inches(7.5)
+        font = 'Noto Sans CJK SC'
+        ink, teal, muted = RGBColor(23,43,59), RGBColor(33,119,120), RGBColor(82,103,116)
+        footers, image_bytes, figures, tables, table_rows = [], 0, 0, 0, 0
+
+        def literal(value, field, maximum):
+            value = text(value, field)
+            if len(value) > maximum or any(ord(c) < 32 and c != '\n' for c in value):
+                raise ReportError(field + ' exceeds its text budget or contains control characters')
+            return value
+
+        def wrap(value, width):
+            lines = []
+            for line in value.split('\n'):
+                current, units = '', 0
+                for char in line:
+                    weight = 0 if unicodedata.combining(char) else 2 if (ord(char)>127 or char.isupper() or char in 'mw@%#&') else 1
+                    if current and units + weight > width:
+                        lines.append(current);current, units = '', 0
+                    current += char;units += weight
+                lines.append(current)
+            return lines
+
+        def textbox(slide, x, y, width, height, lines, size, color=ink, bold=False):
+            shape = slide.shapes.add_textbox(Inches(x), Inches(y), Inches(width), Inches(height))
+            frame = shape.text_frame
+            frame.word_wrap = True
+            frame.margin_left = frame.margin_right = 0
+            frame.margin_top = frame.margin_bottom = 0
+            for index, line in enumerate(lines):
+                paragraph = frame.paragraphs[0] if index == 0 else frame.add_paragraph()
+                paragraph.text = line
+                paragraph.font.name, paragraph.font.size = font, Pt(size)
+                paragraph.font.color.rgb, paragraph.font.bold = color, bold
+                paragraph.line_spacing = 1.2
+                paragraph.space_after = Pt(0)
+            return shape
+
+        def page(title, notes, *, cover=False):
+            if len(deck.slides) >= 120:
+                raise ReportError('presentation exceeds the 120 rendered-slide budget; prepare a smaller content spec')
+            slide = deck.slides.add_slide(deck.slide_layouts[6])
+            lines = wrap(literal(title, 'slide title', 160), 38 if cover else 52)
+            if len(lines) > (4 if cover else 2):
+                raise ReportError('slide title is too long for its fixed layout')
+            textbox(slide,.8,1.3 if cover else .35,11.7,2.3 if cover else .95,
+                    lines,34 if cover else 27,teal,True)
+            if notes:
+                slide.notes_slide.notes_text_frame.text = '\n'.join(notes)
+            footers.append((slide,notes))
+            return slide
+
+        cover = page(literal(spec['title'], 'title', 160), [], cover=True)
+        if 'subtitle' in spec:
+            lines = wrap(literal(spec['subtitle'], 'subtitle', 500),84)
+            if len(lines)>6:raise ReportError('subtitle is too long for the cover layout')
+            textbox(cover,.8,4,11.7,2,lines,18,muted)
+
+        for index, content in enumerate(spec['slides']):
+            fields(content, ('title','blocks'), ('source_notes',))
+            title = literal(content['title'],'slide title',160)
+            blocks = content['blocks']
+            notes = content.get('source_notes',[])
+            if not isinstance(notes,list) or len(notes)>4:
+                raise ReportError('source_notes must contain at most four literal notes')
+            notes = [literal(note,'source note',240) for note in notes]
+            if len(wrap(' · '.join(notes),140))>2:
+                raise ReportError('source_notes exceed the two-line footer budget')
+            if not isinstance(blocks,list) or len(blocks)>20:
+                raise ReportError('each content record allows at most 20 blocks')
+            pending = []
+            emitted = False
+            def flush():
+                nonlocal pending, emitted
+                if not pending:return
+                slide = page(title,notes)
+                textbox(slide,.8,1.55,11.7,4.85,pending,18)
+                pending=[];emitted=True
+            def append_lines(lines):
+                for line in lines:
+                    if len(pending)>=14:flush()
+                    pending.append(line)
+
+            for block_index, block in enumerate(blocks):
+                if not isinstance(block,dict):raise ReportError('presentation blocks must be objects')
+                kind = block.get('type')
+                location = f'slides[{index}].blocks[{block_index}]'
+                if kind == 'paragraph':
+                    fields(block,('type','text'))
+                    append_lines(wrap(literal(block['text'],'paragraph',20000),74))
+                elif kind == 'bullets':
+                    fields(block,('type','items'))
+                    if not isinstance(block['items'],list) or not 1<=len(block['items'])<=100:
+                        raise ReportError('bullet items must contain 1..100 strings')
+                    for item in block['items']:
+                        lines=wrap(literal(item,'bullet',2000),70)
+                        append_lines(['• '+lines[0]]+['  '+line for line in lines[1:]])
+                elif kind == 'table':
+                    flush()
+                    fields(block,('type','csv','max_rows'),('columns','caption'))
+                    limit=block['max_rows']
+                    if type(limit) is not int or not 1<=limit<=1000:
+                        raise ReportError('table max_rows must be an integer within 1..1000')
+                    if not isinstance(block['csv'],str) or Path(block['csv']).suffix.lower()!='.csv':
+                        raise ReportError('table sources must be saved CSV files')
+                    data=workspace.read(block['csv'],location=location+'.csv',maximum=16*1024*1024)
+                    csv.field_size_limit(65536)
+                    reader=csv.reader(io.StringIO(data.decode('utf-8-sig'),newline=''),strict=True)
+                    header=next(reader,[])
+                    if not header or any(not name for name in header) or len(set(header))!=len(header):
+                        raise ReportError('CSV must have a nonempty unique header')
+                    columns=block.get('columns',header)
+                    if (not isinstance(columns,list) or not 1<=len(columns)<=8
+                            or any(not isinstance(name,str) or name not in header for name in columns)
+                            or len(set(columns))!=len(columns)):
+                        raise ReportError('select 1..8 unique existing CSV columns for the slide')
+                    indices=[header.index(name) for name in columns]
+                    rows=[]
+                    for row in reader:
+                        if len(rows)>=limit:raise ReportError('CSV exceeds explicit table max_rows; prepare a bounded display CSV')
+                        if len(row)!=len(header):raise ReportError('CSV row length does not match its header')
+                        rows.append([row[column] for column in indices])
+                    caption=literal(block['caption'],'table caption',240) if 'caption' in block else ''
+                    if len(wrap(caption,110))>2:raise ReportError('table caption exceeds its layout budget')
+                    unit_width=max(8,int(11.7*72/len(columns)/7))
+                    def height(row):
+                        if any(len(value)>2000 or any(ord(c)<32 and c!='\n' for c in value) for value in row):
+                            raise ReportError('CSV cell exceeds its literal text budget')
+                        return max(24, max(len(wrap(value,unit_width)) for value in row)*15+8)
+                    header_height=height(columns)
+                    if header_height>140:raise ReportError('CSV headers are too long for the table layout')
+                    pages, batch, used = [], [], header_height
+                    for row in rows:
+                        row_height=height(row)
+                        if row_height+header_height>330:raise ReportError('CSV cell cannot fit on one slide; prepare a compact display CSV')
+                        if used+row_height>330:
+                            pages.append(batch);batch=[];used=header_height
+                        batch.append((row,row_height));used+=row_height
+                    pages.append(batch)
+                    for batch in pages:
+                        slide=page(title,notes);emitted=True
+                        if caption:textbox(slide,.8,1.4,11.7,.5,wrap(caption,110),12,muted)
+                        shape=slide.shapes.add_table(len(batch)+1,len(columns),Inches(.8),Inches(2),Inches(11.7),Pt(header_height+sum(h for _,h in batch)))
+                        table=shape.table
+                        for row_number,(values,row_height) in enumerate([(columns,header_height),*batch]):
+                            table.rows[row_number].height=Pt(row_height)
+                            for column,value in enumerate(values):
+                                cell=table.cell(row_number,column)
+                                cell.text=value
+                                cell.margin_left=cell.margin_right=Inches(.06)
+                                cell.margin_top=cell.margin_bottom=Inches(.03)
+                                cell.text_frame.word_wrap=True
+                                for paragraph in cell.text_frame.paragraphs:
+                                    paragraph.font.name,paragraph.font.size=font,Pt(12)
+                                    paragraph.font.bold=row_number==0
+                                    paragraph.font.color.rgb=teal if row_number==0 else ink
+                        tables+=1
+                    table_rows+=len(rows)
+                elif kind == 'figure':
+                    flush();fields(block,('type','path','caption'))
+                    path=block['path']
+                    if not isinstance(path,str) or Path(path).suffix.lower() not in {'.png','.jpg','.jpeg'}:
+                        raise ReportError('PPTX figures must be saved PNG or JPEG files')
+                    data=workspace.read(path,location=location+'.path',maximum=8*1024*1024)
+                    image_bytes+=len(data)
+                    if image_bytes>32*1024*1024:raise ReportError('presentation figures exceed the 32 MiB processing budget')
+                    try:
+                        with Image.open(io.BytesIO(data)) as image:
+                            width,height=image.size
+                            if image.format not in {'PNG','JPEG'} or width*height>20000000 or not 1<=width<=20000 or not 1<=height<=20000:
+                                raise ReportError('figure type or pixel budget is invalid')
+                            image.verify()
+                    except (OSError,ValueError,Image.DecompressionBombError):
+                        raise ReportError('figure is not a valid bounded PNG or JPEG') from None
+                    caption=wrap(literal(block['caption'],'figure caption',400),110)
+                    if len(caption)>4:raise ReportError('figure caption exceeds its layout budget')
+                    slide=page(title,notes);emitted=True
+                    scale=min(11.7/width,4.3/height)
+                    image_width,image_height=width*scale,height*scale
+                    slide.shapes.add_picture(io.BytesIO(data),Inches(.8+(11.7-image_width)/2),Inches(1.45),
+                        width=Inches(image_width),height=Inches(image_height))
+                    textbox(slide,.8,5.9,11.7,.85,caption,12,muted)
+                    figures+=1
+                else:
+                    raise ReportError('unknown presentation block type')
+            flush()
+            if not emitted:page(title,notes)
+        for number,(slide,notes) in enumerate(footers,1):
+            if notes:textbox(slide,.8,6.85,10.7,.4,wrap(' · '.join(notes),140),10,muted)
+            textbox(slide,11.8,7.0,.7,.25,[f'{number}/{len(deck.slides)}'],10,muted)
+        stream=io.BytesIO();deck.save(stream)
+        if stream.tell()>64*1024*1024:raise ReportError('PPTX exceeds the 64 MiB output processing budget')
+        workspace.write(output,stream.getvalue())
+        return {'schema':'capstone-presentation-receipt/1','output':output,'slides':len(deck.slides),
+            'figures':figures,'tables':tables,'table_rows':table_rows,'source_sha256':workspace.sources,
+            'interpretation':'none; layout and source binding do not verify facts or conclusions'}
+    finally:
+        os.close(workspace.root)
+
+
 def main():
-    parser = argparse.ArgumentParser(description='Render report JSON with escaped text, exact CSV values and embedded PNG/JPEG/SVG figures. Paths are relative to the current workspace; no raw HTML or network resources.')
+    parser = argparse.ArgumentParser(description='Render report HTML or content-only PPTX JSON with literal text, exact CSV values and saved figures. HTML supports safe SVG/PNG/JPEG; PPTX supports PNG/JPEG. Workspace paths only; no raw HTML, scripts or network resources.')
     parser.add_argument('--version', action='version', version='capstone-report ' + VERSION)
-    parser.add_argument('--spec', required=True, help='Saved UTF-8 report JSON: title, subtitle?, sections[{id,title,blocks}]. Blocks: paragraph(text), bullets(items), table(csv,columns?,caption?), figure(path,caption).')
-    parser.add_argument('--output', required=True, help='HTML output within the current workspace; parent directory must exist.')
+    parser.add_argument('--spec', required=True, help='HTML: capstone-report/1 title, sections[{id,title,blocks}]. PPTX: capstone-presentation/1 title, subtitle?, slides[{title,blocks,source_notes?:[text]}]. Blocks: paragraph(text), bullets(items), table(csv,columns?,caption?,max_rows required for PPTX), figure(path,caption).')
+    parser.add_argument('--output', required=True, help='HTML or .pptx output within the current workspace; parent directory must exist.')
     args = parser.parse_args()
     try:
         receipt = render(args.spec, args.output)

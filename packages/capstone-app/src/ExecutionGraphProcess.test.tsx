@@ -14,6 +14,32 @@ function fixture(): ExecutionGraph {
 }
 
 describe('actual graph process reader', () => {
+  it('shows handoff failures and elapsed handoff time even when task details are folded',()=>{
+    const value=fixture(),execution=value.executions.find(item=>item.action.step_id==='B')!
+    execution.tools=[{id:'return1',name:'agent_task_return',status:'failed',startedAt:'2026-10-21T00:00:10Z',finishedAt:'2026-10-21T00:00:11Z',output:'Task return: invalid check'},
+      {id:'return2',name:'agent_task_return',status:'running',startedAt:'2026-10-21T00:00:20Z'}]
+    render(<ExecutionGraphProcess graph={value} storageKey="handoff-visible" attemptPhase="running" now={Date.parse('2026-10-21T00:00:25Z')}/>)
+    expect(screen.getByText(/提交返回中 · 已用时 15.0s/)).toBeVisible()
+    expect(screen.getByText(/交接失败 1 次/)).toBeVisible()
+    expect(within(screen.getByLabelText('结果交接状态')).getByText('Task return: invalid check')).toBeVisible()
+  })
+  it('shows recorded advisory limitations without marking a saved return as failed',()=>{
+    const value=fixture(),execution=value.executions.find(item=>item.action.step_id==='B')!
+    execution.tools=[{id:'return',name:'agent_task_return',status:'completed',returnLimitations:{count:1,notes:['Check not verified']}}]
+    render(<ExecutionGraphProcess graph={value} storageKey="handoff-notes" attemptPhase="running"/>)
+    expect(screen.getByText('返回已保存 · 待接收')).toBeVisible()
+    expect(screen.getByText('已记录 1 项限制，结果保留')).toBeVisible()
+    expect(screen.queryByText(/交接失败/)).toBeNull()
+  })
+  it('distinguishes host registration from saving the child return',()=>{
+    const value=fixture(),execution=value.executions.find(item=>item.action.step_id==='B')!
+    execution.tools=[{id:'return',name:'agent_task_return',status:'completed'}]
+    const node=value.current.nodes.find(item=>item.id==='B')!
+    node.phase='limited'
+    render(<ExecutionGraphProcess graph={value} storageKey="registered-return" attemptPhase="running"/>)
+    expect(screen.getByText('结果已登记 · 含限制')).toBeVisible()
+    expect(screen.queryByText('返回已保存 · 待接收')).toBeNull()
+  })
   it('shows main-chain finalization after the task executors finish, with live request timing', () => {
     const value=fixture()
     value.current.nodes=value.current.nodes.slice(0,1)

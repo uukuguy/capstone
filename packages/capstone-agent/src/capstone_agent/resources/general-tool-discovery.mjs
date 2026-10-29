@@ -1,11 +1,12 @@
 import {createHash} from 'node:crypto';
+import {boundToolResult} from './tool-result-context.mjs';
 
 export const discoveryToolNames=['agent_tool_search','agent_tool_load'];
 const reply=value=>({content:[{type:'text',text:JSON.stringify(value)}]});
 
 // This is a task-local index of an already admitted publication. Search and
 // activation cannot refresh a catalog or extend the host's grant.
-export function createToolDiscovery({tools,publications,contractHashes={},admittedNames,
+export function createToolDiscovery({tools,publications,contractHashes={},admittedNames,cwd,
   maxActiveTools=8,maxActiveSchemaChars=24000,pageSize=8,maxSummaryChars=240}={}) {
   for(const limit of [maxActiveTools,maxActiveSchemaChars,pageSize,maxSummaryChars])
     if(!Number.isSafeInteger(limit)||limit<=0)throw new Error('Invalid tool discovery capacity');
@@ -51,11 +52,13 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
       pending=selected;
       // Input schemas enter the next model menu; full output contracts are
       // available here without injecting the rest of the catalog.
-      return reply({activation:'next_turn',tools:contracts.map(({name,contract_sha256,publication})=>({name,contract_sha256,
-        ...('outputSchema' in publication?{outputSchema:publication.outputSchema}:{})}))});
+      return boundToolResult(reply({activation:'next_turn',tools:contracts.map(({name,contract_sha256,publication})=>({name,contract_sha256,
+        ...('outputSchema' in publication?{outputSchema:publication.outputSchema}:{})}))}),
+        {cwd,toolName:'agent_tool_load',callId:_id});
     }};
   function close(){closed=true;active.clear();pending=undefined;}
   return {tools:[search,load],initialToolNames,close,
+    admittedTools:[...entries.values()].map(({tool})=>tool),
     guardedTools:[...entries].map(([name,{tool}])=>({...tool,async execute(...args){
       check(args[2]);if(!active.has(name))throw new Error('Requested tool is not active; load it and wait for the next model turn');
       return tool.execute(...args);
