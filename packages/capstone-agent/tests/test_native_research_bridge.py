@@ -764,10 +764,12 @@ def test_real_sdk_research_updates_reach_next_model_request_and_original_files(t
         progress = [event.payload['task_progress'] for event in events
             if event.event_type == 'runtime_event' and 'task_progress' in event.payload]
         assert progress and progress[0]['text'] == 'Compare both source versions'
-        event = next(event for event in events if event.event_type == 'native_artifact_published'
-                     and event.payload['artifact']['file_name'] == 'comparison.md')
+        event = next(event for event in reversed(events) if event.event_type == 'native_artifact_published'
+                     and event.payload['artifact']['file_name'] == 'comparison.md'
+                     and event.payload['artifact']['source_status'] == 'completed')
         descriptor, data = read_native_artifact(store, executor, snapshot.thread_id,
-            event.attempt_id, event.payload['artifact']['artifact_id'])
+            event.attempt_id, event.payload['artifact']['artifact_id'],
+            expected_descriptor=event.payload['artifact'])
         assert b'A: 42\nB: 84' in data
         assert descriptor['source_status'] == 'completed'
         work = store.snapshot(snapshot.thread_id).works[0]

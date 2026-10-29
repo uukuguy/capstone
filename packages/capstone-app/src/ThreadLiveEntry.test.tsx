@@ -54,7 +54,7 @@ describe('ThreadLiveEntry', () => {
     const initialStream=streams.find(stream=>stream.id==='thr_demo_39')!
     expect(initialStream.signal?.aborted).toBe(false)
     fireEvent.click(screen.getByRole('button',{name:'打开电气拓扑'}))
-    fireEvent.click(screen.getByRole('button',{name:'扩大成果区'}))
+    fireEvent.click(screen.getByRole('button',{name:'全屏'}))
     const viewport=document.querySelector('.capstone-chat-viewport') as HTMLElement
     const resource=screen.getByRole('complementary',{name:'电气拓扑'})
     viewport.scrollTop=123;resource.querySelector('.workspace-product-paper')!.scrollTop=67

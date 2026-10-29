@@ -779,7 +779,7 @@ function AttemptActivity({ activities, modelRequests = [], initialThinking, nati
   }
   useLayoutEffect(() => {
     const node = processViewport.current
-    if (!reading && node && restoreEmbeddedScroll.current) { node.scrollTop = embeddedScroll.current; restoreEmbeddedScroll.current = false; return }
+    if (!reading && node && restoreEmbeddedScroll.current) { node.scrollTop = embeddedScroll.current; restoreEmbeddedScroll.current = false; followProcess.current = false; return }
     if (!reading && running && node && followProcess.current) node.scrollTop = Math.max(0, node.scrollHeight - node.clientHeight)
   }, [running, activities, progress, steps, open, reading])
   const [traceFocus, setTraceFocus] = useState<GraphTraceFocus>()

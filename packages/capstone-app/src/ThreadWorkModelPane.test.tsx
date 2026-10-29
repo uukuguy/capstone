@@ -105,7 +105,7 @@ it('restores the exact context once and exposes the admitted formal view separat
   expect(JSON.parse(screen.getByTestId('formal-pane').textContent!).context).toBe('ctx_one')
   expect(JSON.parse(screen.getByTestId('formal-pane').textContent!).view).toBe(server.view.diagram.ref)
   expect(server.restore).toHaveBeenCalledExactlyOnceWith('ctx_one')
-  expect(screen.getByText('源电网')).toBeTruthy()
+  expect(screen.queryByText('源电网')).toBeNull()
 })
 
 it('never reuses a non-null diagram from the same model revision under a reopened context',async()=>{

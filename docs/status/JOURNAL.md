@@ -6379,3 +6379,5 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 2026-10-30: Summer repeat delivered14-slide PPTX/CSV in511.863s;81main calls,no analysis parallelism. Performance acceptance failed; evidence retained.
 
 2026-10-30: ad03a4b2 defaults to direct model execution; pools require explicit experiment because business speed benefit remains unproven.
+
+2026-10-30: Fix offline profile isolation and reader scroll restoration; backend2627, App1382 and client15 tests pass.

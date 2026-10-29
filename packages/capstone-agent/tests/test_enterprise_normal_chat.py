@@ -516,8 +516,10 @@ print(json.dumps({'type':'agent_end','messages':[{'role':'assistant','content':[
                 import traceback
                 runner_errors.append(traceback.format_exc())
                 raise
+    from capstone_agent.workbench_llm_profiles import ProfileRegistry
     runner = CheckedTaskRunner(root=tmp_path / 'host', config_root=config_root,
-        command=(sys.executable, str(rpc)), model='offline-fixture', relay_origin='http://127.0.0.1:1')
+        command=(sys.executable, str(rpc)), model='offline-fixture', relay_origin='http://127.0.0.1:1',
+        llm_profiles=ProfileRegistry())
     host = module.GeneralPiHost(root=tmp_path / 'host', identity=published.identity, run_task=runner)
     host.capability = published.capability
     server = module.make_server(host, control_token='test-only-control', address=('127.0.0.1', 0))

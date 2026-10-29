@@ -117,7 +117,7 @@ it('bounds pointer resizing and keeps the split when the product workspace is ex
   expect(separator.getAttribute('aria-valuenow')).toBe('63')
   expect(parentMove).not.toHaveBeenCalled()
   fireEvent.pointerUp(separator)
-  fireEvent.click(screen.getByRole('button',{name:'扩大成果区'}))
+  fireEvent.click(screen.getByRole('button',{name:'全屏'}))
   expect(document.querySelector('.is-resource-expanded')).toBeTruthy()
   fireEvent.click(screen.getByRole('button',{name:'恢复左右布局'}))
   expect(separator.getAttribute('aria-valuenow')).toBe('63')

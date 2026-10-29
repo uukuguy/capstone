@@ -11,7 +11,7 @@ import pytest
 
 def image_copy_files(project):
     image = (project / 'deploy/general-pi.Dockerfile').read_text()
-    for line in image.splitlines():
+    for line in image.replace('\\\n', ' ').splitlines():
         if not line.startswith('COPY ') or '--from=' in line:
             continue
         *sources, destination = line.split()[1:]
