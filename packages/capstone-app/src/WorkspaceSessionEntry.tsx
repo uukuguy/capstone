@@ -7,7 +7,7 @@ import {storageNamespace} from './threadSessionState'
 import ThreadWorkspace from './ThreadWorkspace'
 import {HttpThreadTransport,ThreadTransportError} from './threadHttpTransport'
 import {readThreadAccess} from './threadAccess'
-import {currentWorkspaceName} from './workspaceName'
+import {currentWorkspaceName,isWorkspaceActive} from './workspaceName'
 
 export default function WorkspaceSessionEntry({onCreated,compact=false}:{onCreated:(id:string)=>void;compact?:boolean}) {
   const [error,setError]=useState('')
@@ -54,11 +54,11 @@ export default function WorkspaceSessionEntry({onCreated,compact=false}:{onCreat
       throw cause
     }
     if(!body||body.schema!==`capstone-thread-snapshot/${version}`||typeof body.thread_id!=='string'||!/^[a-z][a-z0-9_-]{0,63}$/.test(body.thread_id))throw new Error('会话创建响应无效，请重新读取会话列表。')
-    if(mounted.current)onCreated(body.thread_id)
+    if(mounted.current&&isWorkspaceActive(workspaceName))onCreated(body.thread_id)
   }
   const content=needsToken&&!token?<form className="session-entry" onSubmit={event=>{event.preventDefault();const value=new FormData(event.currentTarget).get('token');if(typeof value==='string'&&value.trim()){sessionStorage.setItem('capstone.thread.operatorToken',value.trim());setToken(value.trim())}}}><label>Operator token<input name="token" type="password" autoComplete="off" required /></label><button type="submit">连接</button></form>
       :error?<div className="session-entry" role="alert"><p>{error}</p><button type="button" onClick={()=>setRetry(value=>value+1)}>重试连接</button></div>
-      :ready?<SessionEntry compact={compact} onCreate={create} />:<p role="status">正在连接会话服务…</p>
+      :ready?<SessionEntry compact={compact} autoCreate={compact||new URLSearchParams(window.location.search).get('thread')==='new'} onCreate={create} />:<p role="status">正在连接会话服务…</p>
   if(compact)return content
   return <ThreadWorkspace conversationOnly heading={<div className="thread-chat-heading"><h2>新建任务会话</h2></div>}
     sidebar={<nav className="thread-session-navigation" aria-label="任务会话"><button type="button" className="thread-session-new" onClick={()=>navigateSession('new')}>新建会话</button>
