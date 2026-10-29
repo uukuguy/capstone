@@ -31,6 +31,16 @@ export function projectLlmPoolCalls(events:readonly EventEnvelope[],attemptId:st
 }
 export function summarizeLlmPoolCalls(calls:readonly ProcessLlmPoolCall[]){
  const unique=[...new Map(calls.map(call=>[JSON.stringify([call.parentToolCallId,call.id]),call])).values()]
- return {responses:unique.every(call=>call.responseCount!==undefined)?unique.reduce((sum,call)=>sum+call.responseCount!,0):undefined,
+ const boundaries:{at:number;change:number}[]=[]
+ for(const call of unique){
+  if(call.startedAtMs===undefined)continue
+  const end=call.finishedAtMs??(['running','cancelling'].includes(call.status)?Infinity:undefined)
+  if(end===undefined||end<=call.startedAtMs)continue
+  boundaries.push({at:call.startedAtMs,change:1},{at:end,change:-1})
+ }
+ boundaries.sort((a,b)=>a.at-b.at||a.change-b.change)
+ let concurrent=0,maxConcurrency=0
+ for(const boundary of boundaries){concurrent+=boundary.change;maxConcurrency=Math.max(maxConcurrency,concurrent)}
+ return {maxConcurrency,responses:unique.every(call=>call.responseCount!==undefined)?unique.reduce((sum,call)=>sum+call.responseCount!,0):undefined,
   responseMs:unique.every(call=>call.responseMs!==undefined||call.responseCount===0)?unique.reduce((sum,call)=>sum+(call.responseMs??0),0):undefined}
 }

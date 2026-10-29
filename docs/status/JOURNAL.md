@@ -6368,3 +6368,6 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - b9a87970 — Added incremental products and bounded asynchronous reasoning to reduce waiting while preserving cancellation, source and model boundaries.
 - Live Vivaldi smoke thr_17b4f61cd2969e9e14ce completed25.587s: first primary CSV publishedrunning at11.250s before both child completions;2actual child model calls overlap2844/3898ms,0child failures,5parentcalls. Downloaded3files and verified hashes/CSV4rows. Evidence runs/light-async-20261029/. This verifies asynchronous delivery and pool wiring, not full-research speed acceptance.
 - Frozen selected running versions now say candidate/usable version, avoiding a false ongoing-generation label after task completion. Focused20App tests andTypeScript passed; viewport/selection behavior unchanged.
+- 41bb19f2 — Corrected frozen artifact labels after live validation so earlier versions do not falsely remain in progress.
+
+2026-10-29: Route lightweight SDK calls through dependency-aware request pool; verify queue UI, artifact follow, and reusable PPTX helper.

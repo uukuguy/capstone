@@ -29,10 +29,47 @@ text analysis requests using explicit supplied observations and returned depende
 results. They share the selected protected model runtime, but not mutable model
 conversation state. They have no tools, file or business-authority grants.
 Gateway parallelism remains with the admitted composition tool. This is not DR.
-4. Reuse report and calculation mechanisms where actual errors warrant changes.
-Do not silently remove semantic checks or assume every script correction wasteful.
+4. The verified native report helper accepts `capstone-presentation/1` content
+JSON through `capstone-report --spec slides.json --output slides.pptx`. It reuses
+fixed layouts, continuation pages, bounded CSV tables and embedded PNG/JPEG;
+facts and numerical calculations remain with the caller and registered sources.
+The original HTML path stays compatible. Do not silently remove semantic checks
+or assume every script correction wasteful.
 
 ## Pool contract
+
+User clarified the runtime boundary: every business lightweight ModelRuntime
+request enters a single instruction-owned request dispatcher. The parent does
+not need to select a special tool to activate that dispatcher. Independent SDK
+sessions share its concurrency limit; requests within one conversation depend
+on the previous returned request. The optional text-analysis submission tools
+declare additional independent contexts and dependencies; they are not the
+only route into the pool. A pool does not invent decisions that depend on unseen
+model output. Session title maintenance remains outside this business dispatcher.
+
+Request publication: `capstone-model-request-pool/1`, concurrency2, lifetime
+budget256 requests,120s actual execution deadline. The separate whole-task
+budget is unchanged. Semantic analysis jobs do not charge time spent waiting
+inside the request dispatcher against a second execution timer. An aborted
+consumer is not transport cleanup: its semantic attempt stays reserved until
+the actual provider stream and result drain. Known never-started cancellations
+leave the queue immediately; explicit subsequent work may then proceed.
+
+The process viewer keeps queued/dependency calls at the bottom. Actual start
+moves a request into the execution trace and expands it; returns advance the
+normal chain. Model timing excludes queue and dependency waiting. Actual event
+intervals establish parallelism; parallel tools do not imply parallel LLM calls.
+Same-chain retries remain separately observable and cannot overlap an uncertain
+predecessor. Unknown ownership is displayed rather than guessed by timestamps.
+Once the parent SDK prompt has settled and no executable frontier remains, the
+host waits for real pool results instead of issuing model calls to poll status.
+Bounded collection waits do not themselves classify a business failure.
+
+Readable product versions in the active instruction open and update the right
+pane without requiring a late primary manifest. Selecting a current-instruction
+CSV does not stop following its later report. Historical selections and explicit
+grid browsing retain priority; the next instruction resets follow state. Stable
+host path plus digest suppresses same-byte terminal reclassification jumps.
 
 Submit atomically validates unique IDs and dependency DAGs. Ready calls start
 within the host concurrency limit. Submission returns immediately. The parent

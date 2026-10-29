@@ -273,6 +273,8 @@ class DelegatedRuntime:
                 'enterprise_graph_child_tool', 'enterprise_graph_child_response_started', 'enterprise_graph_child_response', 'enterprise_graph_child_finished'}
             llm_pool_call = event.get('llm_pool_call')
             pool_progress = isinstance(llm_pool_call, Mapping)
+            model_request_pool = event.get('model_request_pool')
+            model_progress = isinstance(model_request_pool, Mapping)
             source_view = None
             if (kind == 'tool_execution_end' or kind == 'enterprise_graph_child_tool' and event.get('activity') == 'end'):
                 if (tool_name in {'data_gateway_get_network_topology_view', 'data_gateway_open_network_model_view'} and isinstance(tool_call_id, str)
@@ -289,7 +291,8 @@ class DelegatedRuntime:
                     except (GridSourceError, ValueError):
                         pass  # Optional presentation metadata cannot block the task.
             self._emit(on_event, {'task_id': task_id, 'goal_id': goal['goal_id'],
-                'native_type': 'llm_pool_call' if pool_progress else kind if isinstance(kind, str) else 'unknown',
+                'native_type': 'model_request_pool' if model_progress else 'llm_pool_call' if pool_progress else kind if isinstance(kind, str) else 'unknown',
+                **({'model_request_pool':dict(model_request_pool)} if model_progress else {}),
                 **({'llm_pool_call':dict(llm_pool_call)} if pool_progress else {}),
                 **({'transport': {key: value[:64] for key in ('operation', 'transport_phase')
                     if isinstance((value := event.get(key)), str)}} if kind in {'transport_interrupted', 'transport_restored'} else {}),
@@ -319,7 +322,7 @@ class DelegatedRuntime:
                     if isinstance((value := cast(Mapping, event.get('activity')).get(key)), str)}}
                     if isinstance(event.get('activity'), Mapping) else {}),
                 **({'is_error': event['is_error']} if type(event.get('is_error')) is bool else {})},
-                visibility='public' if public_tool or research_branch or research_graph_event or pool_progress or kind in {
+                visibility='public' if public_tool or research_branch or research_graph_event or pool_progress or model_progress or kind in {
                     'enterprise_cycle_progress', 'enterprise_graph_progress'} else 'diagnostic')
         self._active_task = task_id
         try:

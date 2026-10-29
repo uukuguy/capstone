@@ -134,6 +134,6 @@ def test_svg_rejects_active_or_external_content(tmp_path, body):
 
 
 def test_cli_help_and_version_are_available_without_dependencies():
-    assert subprocess.check_output([sys.executable, str(SCRIPT), '--version'], text=True).strip() == 'capstone-report 1.0.0'
+    assert subprocess.check_output([sys.executable, str(SCRIPT), '--version'], text=True).strip() == 'capstone-report 1.1.0'
     help_text = subprocess.check_output([sys.executable, str(SCRIPT), '--help'], text=True)
     assert 'CSV' in help_text and 'SVG' in help_text and 'PNG' in help_text

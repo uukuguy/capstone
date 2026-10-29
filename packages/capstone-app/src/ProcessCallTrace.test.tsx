@@ -4,6 +4,34 @@ import { cleanup, render, screen, within } from '@testing-library/react'
 import ProcessCallTrace, { callTraceIssues } from './ProcessCallTrace'
 
 afterEach(cleanup)
+it('moves actual main requests out of the bottom queue only at dispatch and excludes queue time',()=>{
+ const queued={id:'request-1',chainId:'main',kind:'main' as const,modelTurnNumber:1,title:'主链请求',dependsOn:[],status:'queued' as const,queuedAtMs:100,association:'main' as const}
+ const model={id:'m',number:1,ms:0,startedAt:'1970-01-01T00:00:00.100Z',requestPool:[queued]}
+ const view=render(<ProcessCallTrace compact models={[model]} tools={[]} active now={900}/>)
+ expect(screen.queryByRole('group',{name:'LLM 调用 1'})).toBeNull();expect(screen.getByLabelText('模型请求等待队列')).toBeVisible()
+ expect(screen.queryByLabelText('进行中')).toBeNull()
+ view.rerender(<ProcessCallTrace compact models={[{...model,requestPool:[{...queued,status:'running',startedAtMs:800}]}]} tools={[]} active now={900}/>)
+ expect(screen.queryByLabelText('模型请求等待队列')).toBeNull()
+ expect(screen.getAllByText('0.1s').length).toBeGreaterThan(0)
+ expect(document.querySelector<HTMLDetailsElement>('.capstone-model-request')!.open).toBe(true)
+})
+it('shows queued cancellation as an unexecuted diagnostic without a fabricated response duration',()=>{
+ render(<ProcessCallTrace compact models={[{id:'m',number:1,ms:0,startedAt:'1970-01-01T00:00:00.100Z',requestPool:[{id:'request-1',chainId:'main',kind:'main',modelTurnNumber:1,dependsOn:[],status:'cancelled',queuedAtMs:100,finishedAtMs:200,association:'main'}]}]} tools={[]} active={false}/>)
+ expect(screen.getByRole('group',{name:'LLM 调用 1'})).toBeTruthy()
+ expect(screen.getByText('未执行')).toBeTruthy();expect(screen.getByLabelText('已停止')).toBeTruthy()
+ expect(screen.queryByText('0.0s')).toBeNull();expect(screen.queryByLabelText('模型请求等待队列')).toBeNull()
+})
+it('keeps a previously executed failed request visible while its same-turn retry waits',()=>{
+ const request={id:'request-1',chainId:'main',kind:'main' as const,modelTurnNumber:1,dependsOn:[],status:'failed' as const,queuedAtMs:100,startedAtMs:200,finishedAtMs:300,association:'main' as const}
+ render(<ProcessCallTrace compact models={[{id:'m',number:1,ms:100,startedAt:'1970-01-01T00:00:00.100Z',requestPool:[request,{...request,id:'request-2',status:'queued',dependsOn:['request-1'],queuedAtMs:350,startedAtMs:undefined,finishedAtMs:undefined}]}]} tools={[]} active now={500}/>)
+ expect(screen.getByRole('group',{name:'LLM 调用 1'})).toBeTruthy()
+ expect(screen.getByLabelText('模型请求等待队列')).toBeTruthy();expect(screen.getByText('请求失败')).toBeTruthy()
+})
+it('keeps started requests without a known parent distinct instead of inventing a model node',()=>{
+ render(<ProcessCallTrace models={[{id:'carrier',number:0,ms:0,requestPoolOnly:true,requestPool:[{id:'request-1',chainId:'main',kind:'main',dependsOn:[],status:'completed',queuedAtMs:100,startedAtMs:200,finishedAtMs:300,association:'unassociated'}]}]} tools={[]}/>)
+ expect(screen.getByLabelText('未关联模型请求')).toBeTruthy()
+ expect(screen.queryByRole('group',{name:'LLM 调用 0'})).toBeNull()
+})
 it('shows lightweight children under the submit tool with separate actual totals',()=>{
  render(<ProcessCallTrace compact expandedTools models={[{id:'m',number:1,ms:100,toolCallIds:['submit'],poolCalls:[
   {id:'a',parentToolCallId:'submit',title:'核对指标',status:'completed',queuedAtMs:100,responseCount:1,responseMs:45},

@@ -152,7 +152,6 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
   const [indexedArtifacts,setIndexedArtifacts]=useState<NativeArtifact[]>([])
   const artifactBaseline=useRef<number|null>(null)
   const artifactOpened=useSessionViewRef('resource.touched',false)
-  const completedArtifactOpened=useRef(new Set<string>())
   const [processReference,setProcessReference]=useState<ProcessProduct>()
   const [instructionLocation,setInstructionLocation]=useState<{attemptId:string;nonce:number}>()
   const locationGeneration=useRef(0)
@@ -449,6 +448,7 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
       // Reading and background model downloads outlive one agent instruction.
       // Reset proposal ownership without closing the user's current resource.
       state={...state,attemptId:latestInstructionAttempt,manual:state.attemptId===null&&state.manual,appliedSeq:0,automatic:null}
+      setRequestedProduct(undefined)
       saveInstructionView(state)
     }
     if(state.manual||!viewProposal||viewProposal.eventSeq<=state.appliedSeq)return
@@ -510,14 +510,17 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
       setIndexedArtifacts(previous=>JSON.stringify(previous)===JSON.stringify(files)?previous:files)
     }}
     primaryAttemptId={selectedWork&&['running','completed'].includes(selectedWork.status)?selectedWork.latestAttemptId||undefined:undefined}
+    runningAttemptId={selectedWork?.status==='running'?selectedWork.latestAttemptId||undefined:undefined}
+    followAvailable={!(resourceView!=='products'&&instructionView.manual&&instructionView.attemptId===latestInstructionAttempt)}
     onPrimaryReady={entry=>{
       const attempt=entry.ref.attempt_id
-      if(!attempt||completedArtifactOpened.current.has(attempt)||(productsOpen&&artifactOpened.current)||instructionViewRef.current.manual&&instructionViewRef.current.attemptId===latestInstructionAttempt)return
-      completedArtifactOpened.current.add(attempt);artifactOpened.current=true
+      if(!attempt||resourceView!=='products'&&instructionViewRef.current.manual&&instructionViewRef.current.attemptId===latestInstructionAttempt)return
+      artifactOpened.current=true
+      if(requestedProduct&&(requestedProduct.ref?.attempt_id??requestedProduct.attemptId)===attempt)setRequestedProduct(undefined)
       setResourceView('products');setProductsOpen(true)
     }}
     onReference={(entry,excerpt)=>setRequestedReference({selection:{ref:entry.ref,purpose:'historical-context',...(excerpt?{excerpt}:{})},nonce:Date.now()})}
-    onAdopt={file=>{markManualView();setSelectedDeliveryFile(file);setResourceView('deliveries');setProductsOpen(true)}} onLocate={attemptId=>void locateInstruction(attemptId)} onBrowse={markManualView} onInspect={setInspectedProductAttempt}
+    onAdopt={file=>{markManualView();setSelectedDeliveryFile(file);setResourceView('deliveries');setProductsOpen(true)}} onLocate={attemptId=>void locateInstruction(attemptId)} onBrowse={entry=>{if(entry.ref.attempt_id!==latestInstructionAttempt)markManualView();else setRequestedProduct(undefined)}} onInspect={setInspectedProductAttempt}
     fallback={<><details open={requestedProduct?.origin==='native_file'}><summary>指令文件</summary>{filesPanel}</details><details><summary>任务交付</summary><TaskDeliveriesWorkspace client={client} threadId={currentId} revision={terminalRevision}/></details><details><summary>过程记录</summary>{processPanel}</details></>}/>
   const materials=inputCatalog?.materials||[]
   const remainingMaterialBytes=Math.max(0,applicationCapacity('inline_material_bytes')-materials.reduce((sum,item)=>sum+(item.size_bytes||0),0))

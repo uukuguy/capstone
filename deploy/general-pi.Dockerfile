@@ -77,9 +77,12 @@ COPY packages/capstone-agent/src/capstone_agent/resources/general-data-gateway.m
 COPY packages/capstone-agent/src/capstone_agent/resources/tool-result-context.mjs capstone_agent/resources/tool-result-context.mjs
 COPY packages/capstone-agent/src/capstone_agent/incremental_artifacts.py capstone_agent/incremental_artifacts.py
 COPY packages/capstone-agent/src/capstone_agent/native_llm_pool.py capstone_agent/native_llm_pool.py
+COPY packages/capstone-agent/src/capstone_agent/native_model_request_pool.py capstone_agent/native_model_request_pool.py
 COPY packages/capstone-agent/src/capstone_agent/resources/async-call-pool.mjs capstone_agent/resources/async-call-pool.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/llm-call-tools.mjs capstone_agent/resources/llm-call-tools.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/llm-call-pool-policy.json capstone_agent/resources/llm-call-pool-policy.json
+COPY packages/capstone-agent/src/capstone_agent/resources/model-request-pool.mjs capstone_agent/resources/model-request-pool.mjs
+COPY packages/capstone-agent/src/capstone_agent/resources/model-request-pool-policy.json capstone_agent/resources/model-request-pool-policy.json
 COPY packages/capstone-agent/src/capstone_agent/resources/committed-delivery.mjs capstone_agent/resources/committed-delivery.mjs
 COPY configs/runtime/data-gateway.json configs/runtime/data-gateway.json
 COPY packages/capstone-agent/src/capstone_agent/bounded_http_loop.py capstone_agent/bounded_http_loop.py

@@ -324,7 +324,7 @@ it('opens the completed primary file and leaves later updates under user control
   fireEvent.click(second)
   await screen.findByRole('heading',{name:'second.md'})
 })
-it('opens the first running primary and preserves it when a later report and terminal arrive',async()=>{
+it('follows new running preview artifacts and retains the latest selected report on terminal',async()=>{
   vi.stubGlobal('crypto',webcrypto)
   vi.stubGlobal('URL',class extends URL {static createObjectURL=vi.fn(()=> 'blob:live-report');static revokeObjectURL=vi.fn()})
   const server=authority({native:true})
@@ -340,12 +340,13 @@ it('opens the first running primary and preserves it when a later report and ter
   await screen.findByRole('complementary',{name:'Artifacts'})
   await screen.findByRole('heading',{name:'key_metrics.csv'})
   await act(async()=>server.publishFile('report.html','primary'))
+  await screen.findByRole('heading',{name:'report.html'})
   await act(async()=>server.finish())
   await screen.findByRole('complementary',{name:'Artifacts'})
-  await screen.findByRole('heading',{name:'key_metrics.csv'})
-  expect(screen.queryByRole('heading',{name:'report.html'})).toBeNull()
+  await screen.findByRole('heading',{name:'report.html'})
+  expect(screen.queryByRole('heading',{name:'key_metrics.csv'})).toBeNull()
 })
-it('preserves an explicit CSV selection when the report arrives and the attempt completes',async()=>{
+it('continues following new reports after inspecting the current instruction CSV',async()=>{
   vi.stubGlobal('crypto',webcrypto)
   vi.stubGlobal('URL',class extends URL {static createObjectURL=vi.fn(()=> 'blob:manual-csv');static revokeObjectURL=vi.fn()})
   const server=authority({native:true})
@@ -355,14 +356,15 @@ it('preserves an explicit CSV selection when the report arrives and the attempt 
   await waitFor(()=>expect((screen.getByRole('button',{name:'发送'}) as HTMLButtonElement).disabled).toBe(false))
   fireEvent.click(screen.getByRole('button',{name:'发送'}))
   await waitFor(()=>expect(server.commands).toHaveLength(1))
+  await act(async()=>server.started())
   await act(async()=>server.publishFile('key_metrics.csv','primary'))
   fireEvent.click(await screen.findByRole('button',{name:'打开指令文件：key_metrics.csv'}))
   await screen.findByRole('heading',{name:'key_metrics.csv'})
   await act(async()=>server.publishFile('report.html','primary'))
   await act(async()=>server.finish())
   await waitFor(()=>expect(screen.queryByRole('button',{name:'停止'})).toBeNull())
-  expect(screen.getByRole('heading',{name:'key_metrics.csv'})).toBeTruthy()
-  expect(screen.queryByRole('heading',{name:'report.html'})).toBeNull()
+  expect(screen.getByRole('heading',{name:'report.html'})).toBeTruthy()
+  expect(screen.queryByRole('heading',{name:'key_metrics.csv'})).toBeNull()
 })
 it('restores the completed current primary report into the existing pane without a new command',async()=>{
   vi.stubGlobal('crypto',webcrypto)

@@ -1,5 +1,46 @@
 # Live Session Checkpoint
 
+## Async execution continuation — current priority
+
+Latest boundary: actual SDK request dispatcher and App queue are implemented.
+All lightweight model requests use the shared two-slot pool. Pending requests
+stay at the bottom; started requests enter the trace and open their details.
+Dependency and queue time remain separate from provider time. Cancellation
+retains the slot until the provider drains. No automatic retry is introduced.
+Artifact follow now handles current-attempt CSV and later reports without a
+primary manifest; historical selections retain priority. Generic PPTX rendering
+accepts bounded content JSON. Current source needs canonical rebuild and a new
+Vivaldi live trial. App 97 tests pass; dispatcher 14 tests pass; backend 414 pass,
+16 skip; cross-language actual SDK contract 24 pass; report helper 55 pass.
+The older ownership notes below are historical. Workers have finished.
+
+Feature HEAD41bb19f2 (runtime b9a87970), unmerged into dev. Canonical local
+backend image956bd0dc; ready/worker equality/cleanup verified. Vivaldi actual
+Capstone existing tab27 inwindow137137; user also uses other tabs, never replace
+the current unrelated page. Latest full threadthr_0850a2065d4ec8905a29 finished.
+
+Real small trial passed25.587s: firstprimaryCSV11.250s,2overlapping actual child
+LLM calls2844/3898ms,5parentcalls. Full same-prompt summer repeat did not improve:
+480.158s/50models/392.756model seconds vs384.959s/77models/328.607. No pool jobs
+were submitted by the model in that full run. Do not equate tool parallelism
+with LLM parallelism. Final PPT15slides9media and CSV21x23 downloaded/hashchecked.
+See docs/reports/2026-10-29-lightweight-async-validation.md and ignored runs/
+light-async-20261029 + light-async-summer-20261029.
+
+User reports new artifacts do not auto-open/switch and no visible LLM parallel
+evidence. Current implementation only auto-opens firstprimary; modelmanifestlate.
+diagnostic_tool owns pending App new-preview follow/switch (PPTafterCSV should
+switch, terminal samehash must not) and actual overlap peak summary. Root does
+not overlap its App files. authority_import owns reusable native_report PPTX
+JSON renderer plus native_environment/smoke/tests; reduces52.47s+47.32s long
+layout-code model requests. Root owns SDK guidance, integration/rebuild/live
+tests/report/control. No further Provider case until these concrete fixes tested.
+
+Scoped backend376pass16skip, App77pass, actualSDKparallel/no-tool isolation,
+Pyright/build/doctor passed. Reviews closed three Important issues. Only user
+task-1-report.md is unrelated; preserve it. Rootdev control5dirtyfiles preserved;
+canonical dev/control and PR71 integration still pending, no cloud/demo update.
+
 ## 2026-10-29 current boundary
 
 UI changes committed at d0091470, named workspace at b860f172, explicit

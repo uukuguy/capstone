@@ -11,6 +11,7 @@ import {createTaskNodeReturn} from './task-node-return.mjs';
 import {restoreToolResult,configureObservationHistory} from './tool-result-context.mjs';
 import {createToolCompositionTool,compositionPolicy} from './tool-composition.mjs';
 import {createLlmCallTools,llmCallToolNames,buildLlmCallPrompt} from './llm-call-tools.mjs';
+import {createModelRequestPool} from './model-request-pool.mjs';
 import {configureCommittedDelivery} from './committed-delivery.mjs';
 import {taskTurnGuidance} from './task-turn-guidance.mjs';
 import {createDiagnosisTools,diagnosisTools,diagnosisDigest,configureDiagnosisCorrectionGuard,watchDiagnosisValidation} from './systematic-diagnosis.mjs';
@@ -1313,17 +1314,26 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
     appendSystemPromptOverride: () => [...(config.appendSystemPrompt??[]),
       ...(config.researchRuntime?.deepResearch===true?['The user explicitly selected Deep Research for this instruction. Start by admitting a task plan, then use independent executors and a committed delivery. Do not replace this selection with direct native work or a direct final answer.']:config.researchRuntime?.deepResearch===false?['Deep Research is off for this instruction. Use the ordinary reasoning and authorized tool loop. Do not activate task organization.']:[]),
       ...(!organizationOnly?[nativeShellGuidance,nativeBatchGuidance,nativeExecutionGuidance,savedProductGuidance,
-        'For large saved observations, inspect the supplied structure index and bounded preview first. Use actual observed field names. When authorized agent_tools_execute is available, select exact tool names and use tools.describe for contracts, tools.call for observations, Promise.all for independent calls and saveContext/loadContext for dependent work. A program can inspect returned structure and continue known dependent operations without a model round trip for every field. Return only the compact observations needed for a real decision. Do not guess semantics or expand queries merely because batching is available. Keep the bounded active tool set needed for the current cohesive work together; agent_tool_load replaces the set, so avoid swapping one tool at a time.',
+        'For large saved observations, inspect the supplied structure index and bounded preview first. Use actual observed field names. When authorized agent_tools_execute is available, select exact tool names and use tools.describe for contracts, tools.call for observations, Promise.all for independent calls and saveContext/loadContext for dependent work. A program can inspect returned structure and continue known dependent operations without a model round trip for every field. Return only the compact observations needed for a real decision. When calls differ only by already observed identifiers or windows, write one reusable function and map the explicit parameter list instead of generating many expanded copies of the same query or script. Do not guess semantics or expand queries merely because batching is available. Keep the bounded active tool set needed for the current cohesive work together; agent_tool_load replaces the set, so avoid swapping one tool at a time.',
         ...(config.llmCallPool&&config.researchRuntime?.deepResearch===false?[
-          'Use agent_llm_submit only for substantive independent analysis of explicit supplied text/observations. It returns immediately; do useful independent work while calls run. Actual completed answers arrive asynchronously as labelled observations. Use dependencies only when a later analysis needs a returned answer. Gateway reads and program transformations belong in agent_tools_execute, not text-only LLM calls. Collect when blocked, cancel unneeded calls explicitly, and integrate actual results before finalizing. Queue age and collection wait timeout do not prove model failure. Never resubmit an uncertain running/cancelling call or start an automatic retry. Do not parallelize tiny formatting choices or add independent reviews without a concrete need.']:[]),
+          'Use agent_llm_submit for substantive independent analysis of explicit supplied text/observations. After a shared factual package is ready, identify independently answerable requested interpretation or report sections and submit them together when their necessary evidence fits the bounded input. It returns immediately; do useful independent program/render preparation while calls run. Actual completed answers arrive asynchronously as labelled observations. Use dependencies only when a later analysis needs a returned answer; do not add a separate synthesis child when the parent can integrate the available answers directly. Gateway reads and program transformations belong in agent_tools_execute, not text-only LLM calls. Collect when blocked, cancel unneeded calls explicitly, and integrate actual results before finalizing. Queue age and collection wait timeout do not prove model failure. Never resubmit an uncertain running/cancelling call or start an automatic retry. Do not parallelize tiny formatting choices or add independent reviews without a concrete need.']:[]),
         ...(managedResearch?[continuationSourceGuidance]:[])]:[]),
       ...(adaptiveLoop?['Start with the current instruction in a lightweight agent loop. At each cycle answer if sufficient, call an authorized tool for needed observations, or use agent_research_plan when task organization is useful. Respect an explicit user request to use Deep Research. When that choice is already clear, activate it promptly with the smallest useful discovery or preparation task; discovering coverage is executable research and can be delegated before the full plan is known. Do not perform a long discovery, data collection or environment inventory in the parent merely to prepare a complete plan. Independent work and known downstream dependencies can be appended or declared once justified. An ordinary answer or short local edit still needs no plan. Tool count, file uploads and session labels do not decide escalation. Before organization you may use native and granted gateway tools directly. After an accepted plan, use the isolated task execution contracts. Reuse exact Host observation references as explicitly selected source_refs; these are raw inputs, never accepted task results or Authority evidence.']:[])],
     skillsOverride: current => ({ ...current, skills: current.skills.filter(s => config.allowedSkills.includes(s.name)) }) });
   await loader.reload();
   const errors = [...loader.getExtensions().errors, ...loader.getSkills().diagnostics.filter(d => d.type === "collision")];
   if (errors.length) throw new Error("Native resources failed to load");
-  const modelRuntime = suppliedModelRuntime ?? await sdk.ModelRuntime.create({ authPath: `${process.env.PI_CODING_AGENT_DIR}/auth.json`,
+  const baseModelRuntime = suppliedModelRuntime ?? await sdk.ModelRuntime.create({ authPath: `${process.env.PI_CODING_AGENT_DIR}/auth.json`,
     modelsPath: `${process.env.PI_CODING_AGENT_DIR}/models.json`, allowModelNetwork: false });
+  let mainModelTurn=0,modelRequestPool;
+  if(config.researchRuntime?.deepResearch===false&&config.modelRequestPool){
+    const policy=JSON.parse(readFileSync(new URL('./model-request-pool-policy.json',import.meta.url),'utf8'));
+    if(JSON.stringify(canonical(policy))!==JSON.stringify(canonical(config.modelRequestPool)))throw new Error('Unregistered model request pool policy');
+    modelRequestPool=createModelRequestPool({runtime:baseModelRuntime,concurrency:policy.concurrency,
+      maxRequests:policy.max_requests,requestTimeoutMs:policy.request_timeout_ms,
+      emit:event=>hostEmit({type:'model_request_pool',schema:policy.schema,...event})});
+  }
+  const modelRuntime=modelRequestPool?.forChain('main',{kind:'main',getModelTurnNumber:()=>Math.max(1,mainModelTurn)})??baseModelRuntime;
   const model = modelRuntime.getModel("capstone-general", config.model);
   if (!model) throw new Error("Managed native model is unavailable");
   const nativeTools = createIsolatedNativeTools(sdk,process.cwd());
@@ -1342,19 +1352,26 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
         ...(record.result?{usage:record.result.usage??[],model_responses:record.result.model_responses??0,turns:record.result.turns??0}:{}),
         ...(record.response_ms===undefined?{}:{response_ms:record.response_ms,response_number:record.response_number})});
     };
-    llmPool=createLlmCallTools({policy,emit:notify,run:async(job,{signal,dependencyResults})=>{
+    llmPool=createLlmCallTools({policy,emit:notify,executionDeadlineOwnedByRequests:Boolean(modelRequestPool),run:async(job,{signal,dependencyResults})=>{
       let prompt;
       try{prompt=buildLlmCallPrompt(job.input,dependencyResults,policy)}catch{
         return {status:'failed',answer:'',usage:[],model_responses:0,turns:0,error:{code:'llm_pool_input_budget'}};
       }
       const cwd=join(process.cwd(),'.llm-calls',randomUUID());await mkdir(cwd,{recursive:true});
+      const chainId='analysis:'+createHash('sha256').update(job.id).digest('hex');
+      const childRuntime=modelRequestPool?.forChain(chainId,
+        {kind:'analysis',child_id:job.id,parent_tool_call_id:job.input.parentToolCallId,
+          title:job.input.instruction.replace(/[\x00-\x20\x7f]+/g,' ').trim().slice(0,120)||'Parallel analysis',getModelTurnNumber:()=>1})??modelRuntime;
       const runner=createManagedSubagents({maxTurns:1,graceTurns:1,
-        createChildSession:({signal})=>createPooledAnalysisSession(config,sdk,modelRuntime,{cwd,signal})});
-      const result=await runner.run({prompt,signal,onModelResponse:timing=>{
-        const record=llmPool.snapshot().jobs.find(record=>record.id===job.id);
-        if(record)notify({...record,input:job.input,...timing});
-      }});
+        createChildSession:({signal})=>createPooledAnalysisSession(config,sdk,childRuntime,{cwd,signal})});
+      let result;
+      try{result=await runner.run({prompt,signal,onModelResponse:timing=>{
+          const record=llmPool.snapshot().jobs.find(record=>record.id===job.id);
+          if(record)notify({...record,input:job.input,...timing});
+        }});
+      }finally{await modelRequestPool?.drainChain(chainId)}
       return {status:result.failure||result.aborted?'failed':'completed',answer:result.responseText,
+        ...(result.finish?.stop_reason==='length'?{answer_truncated:true}:{}),
         usage:result.usage??[],model_responses:result.modelResponses??0,turns:result.turns??0,
         ...(result.failure?{error:{code:modelFailureCode(result.failure)}}:{})};
     }});
@@ -1440,6 +1457,7 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
     ...toolOptions,
     sessionManager: sdk.SessionManager.inMemory() });
   const stopDiagnosisValidation=watchDiagnosisValidation(session,config);
+  const stopModelTurn=session.subscribe(event=>{if(event.type==='turn_start')mainModelTurn++});
   llmPool?.setCompletionSink(result=>session.sendCustomMessage({customType:'capstone-llm-pool-results',
     content:[{type:'text',text:JSON.stringify(result)}],display:false},{triggerTurn:false}));
   const stopPoolConsumption=llmPool?session.subscribe(event=>{
@@ -1483,8 +1501,9 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
     lines.close();
   } catch(error) {interruptDebugCapacity();throw error;}
   finally {
+    stopModelTurn();
     stopPoolConsumption();
-    await llmPool?.close();
+    try{await llmPool?.close()}finally{await modelRequestPool?.close()}
     try {await researchController?.close?.({reason:'Native parent session ended'});}
     finally {
     try {await session.extensionRunner?.emit?.({type:'session_shutdown',reason:'quit'});}

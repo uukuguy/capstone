@@ -21,6 +21,25 @@ function primaryProduct(items:ProductEntry[],threadId:string,workId:string|null|
       return rank(a)-rank(b)||productRefKey(a.ref).localeCompare(productRefKey(b.ref))
     })[0]
 }
+/** A readable running file is a preview opportunity, never an inferred primary delivery. */
+function runningPreviewProducts(items:ProductEntry[],threadId:string,workId:string|null|undefined,attemptId?:string){
+  if(!attemptId)return []
+  const media=new Set(['text/csv','text/tab-separated-values','text/plain','text/html','text/markdown','application/pdf','application/vnd.openxmlformats-officedocument.presentationml.presentation'])
+  return items.filter(item=>{
+    const name=typeof item.source.file_name==='string'?item.source.file_name:item.title
+    return item.ref.thread_id===threadId&&item.ref.work_id===workId&&item.ref.attempt_id===attemptId
+      &&item.ref.origin==='native_file'&&['running','completed'].includes(item.source_status)&&item.capabilities.read
+      &&typeof item.byte_size==='number'&&Number.isSafeInteger(item.byte_size)&&item.byte_size>0&&item.byte_size<=applicationCapacity('preview_bytes')
+      &&/\.(csv|tsv|html?|md|markdown|pdf|pptx)$/i.test(name)&&media.has(nativePreviewMedia(name,item.media_type))
+  }).sort((a,b)=>{
+    const rank=(entry:ProductEntry)=>/\.(pptx|pdf|html?|md|markdown)$/i.test(String(entry.source.file_name||entry.title))?0:1
+    return rank(a)-rank(b)||Date.parse(b.created_at)-Date.parse(a.created_at)
+  })
+}
+function materialVersion(entry:ProductEntry){
+  const host=typeof entry.source.host_artifact_id==='string'?entry.source.host_artifact_id.match(/^file-([a-f0-9]{16})-[a-f0-9]{64}$/)?.[1]:undefined
+  return JSON.stringify([entry.ref.thread_id,entry.ref.work_id,entry.ref.attempt_id,host??entry.source.file_name??entry.title,entry.ref.digest])
+}
 const statuses:Record<string,string>={completed:'已完成',partial:'部分结果',failed:'未完成',cancelled:'已取消',interrupted:'已中断',blocked:'未执行'}
 export const productSelectionReason=(reason:string|null)=>reason==='record_only'?'此项是执行记录，没有可引用的文件或分析结果。':reason==='input_capacity'?'此项超过本轮引用容量。':reason==='product_context_unsupported'?'当前执行链尚不支持此成果引用。':reason==='unsupported_media'?'当前执行链尚不能读取此文件格式。':'此项暂不可引用。'
 const productStatus=(entry:ProductEntry)=>entry.source_status==='running'?(entry.source.presentation_role==='primary'?'交付候选':'可用版本'):entry.source.delivery_status==='limited'?'有限交付 · 含未解决项':statuses[entry.source_status]||'状态未知'
@@ -28,13 +47,13 @@ function matches(entry:ProductEntry,request:ProductRequest){return request.ref?p
   :entry.ref.origin===request.origin&&entry.ref.attempt_id===request.attemptId&&(!request.artifactId||entry.source.artifact_id===request.artifactId)&&(!request.resultId||entry.source.result_id===request.resultId)}
 
 /** Read-only navigation over the host index. Viewing does not change Work or model context. */
-export default function ThreadProductsWorkspace({client,threadId,workId,revision,requested,primaryAttemptId,onPrimaryReady,onIndexLoaded,onReference,onLocate,onBrowse,onFocusElement,fallback}:{
+export default function ThreadProductsWorkspace({client,threadId,workId,revision,requested,primaryAttemptId,runningAttemptId,followAvailable=true,onPrimaryReady,onIndexLoaded,onReference,onLocate,onBrowse,onFocusElement,fallback}:{
   client:ProductClient;threadId:string;workId?:string|null;revision:number;requested?:ProductRequest
-  primaryAttemptId?:string;onPrimaryReady?:(entry:ProductEntry)=>void
+  primaryAttemptId?:string;runningAttemptId?:string;followAvailable?:boolean;onPrimaryReady?:(entry:ProductEntry)=>void
   onIndexLoaded?:(entries:readonly ProductEntry[])=>void
   onReference?:(entry:ProductEntry,excerpt?:{max_bytes:number})=>void;onAdopt?:(artifact:NativeArtifact)=>void;onLocate?:(attemptId:string)=>void;onInspect?:(attemptId:string)=>void
   fallback?:ReactNode
-  onBrowse?:()=>void
+  onBrowse?:(entry:ProductEntry)=>void
   onFocusElement?:(projection:ResultProjection,elementId:string)=>boolean|void
 }) {
   const [directoryOpen,setDirectoryOpen]=useSessionViewState<boolean|undefined>('products.directory-open',undefined)
@@ -50,8 +69,16 @@ export default function ThreadProductsWorkspace({client,threadId,workId,revision
   const requestedKey=JSON.stringify(requested||null)
   const consumedRequest=useRef('')
   const userSelected=useSessionViewRef('products.user-selected',false)
+  const isCurrentRef=(ref:ProductRef)=>ref.thread_id===threadId&&ref.work_id===workId&&ref.attempt_id===(runningAttemptId??primaryAttemptId)&&!!(runningAttemptId??primaryAttemptId)
+  const requestedCurrent=!!requested&&(requested.ref?isCurrentRef(requested.ref):requested.attemptId===(runningAttemptId??primaryAttemptId)&&!!(runningAttemptId??primaryAttemptId)&&(requested.workId===undefined||requested.workId===workId))
   const sessionUrls=useSessionObjectUrls()
   const primaryNotified=useRef(new Set<string>())
+  const followed=useSessionViewRef<{attemptId?:string;seen:string[]}>('products.followed-versions',{seen:[]})
+  useEffect(()=>{
+    if(runningAttemptId&&followed.current.attemptId!==runningAttemptId){
+      followed.current={attemptId:runningAttemptId,seen:[]};userSelected.current=false
+    }
+  },[runningAttemptId])
   const requestPending=!!requested&&consumedRequest.current!==requestedKey
   const current=directory.threadId===threadId?directory:undefined
   const view=!requestPending&&resolved?.entry.ref.thread_id===threadId&&selection&&productRefKey(resolved.entry.ref)===productRefKey(selection)?resolved:undefined
@@ -70,7 +97,8 @@ export default function ThreadProductsWorkspace({client,threadId,workId,revision
     try{
       let page=await client.productIndex(threadId,query,controller.signal)
       const loaded=[...page.products]
-      const seekPrimary=!!primaryAttemptId&&!!onPrimaryReady&&!requested&&!userSelected.current
+      const automaticAttemptId=primaryAttemptId??runningAttemptId
+      const seekPrimary=!!automaticAttemptId&&!!onPrimaryReady&&followAvailable&&(!requested||requestedCurrent&&consumedRequest.current===requestedKey)&&!userSelected.current&&(!!runningAttemptId||!primaryNotified.current.has(automaticAttemptId))
       const foundDocument=()=>{const item=primaryProduct(loaded,threadId,workId,primaryAttemptId);return !!item&&['text/html','application/pdf','application/vnd.openxmlformats-officedocument.presentationml.presentation','text/markdown'].includes(nativePreviewMedia(typeof item.source.file_name==='string'?item.source.file_name:item.title,item.media_type))}
       let scanned=1
       for(let scan=1;((requested&&!requested.ref&&!loaded.some(item=>matches(item,requested)))||(seekPrimary&&!foundDocument()))&&page.hasMore&&scan<applicationCapacity('artifact_initial_pages');scan++){
@@ -89,21 +117,25 @@ export default function ThreadProductsWorkspace({client,threadId,workId,revision
       onIndexLoaded?.(unique)
       if(requested&&consumedRequest.current!==requestedKey){
         const found=unique.find(item=>matches(item,requested))
-        if(found){consumedRequest.current=requestedKey;userSelected.current=true;setSelection(found.ref)}
-      }else if(!requested){
-        const primary=primaryAttemptId?primaryProduct(unique,threadId,workId,primaryAttemptId):undefined
+        if(found){consumedRequest.current=requestedKey;userSelected.current=!isCurrentRef(found.ref);setSelection(found.ref)}
+      }else if(!requested||requestedCurrent){
+        const available=runningPreviewProducts(unique,threadId,workId,runningAttemptId)
+        const unseen=available.filter(item=>!followed.current.seen.includes(materialVersion(item)))
+        const primary=runningAttemptId?(primaryProduct(unseen,threadId,workId,runningAttemptId)??unseen[0])
+          :primaryAttemptId?primaryProduct(unique,threadId,workId,primaryAttemptId):undefined
+        if(runningAttemptId)followed.current.seen=[...new Set([...followed.current.seen,...available.map(materialVersion)])]
         const featured=primary||unique.find(item=>item.ref.scope==='task')||unique.find(item=>item.source.presentation_role==='primary')
-        const openPrimary=!!primary&&seekPrimary&&!userSelected.current&&!primaryNotified.current.has(primaryAttemptId!)
+        const openPrimary=!!primary&&seekPrimary&&!userSelected.current&&(!!runningAttemptId||!primaryNotified.current.has(automaticAttemptId!))
         if(featured)setSelection(previous=>openPrimary?primary!.ref:previous?.thread_id===threadId?previous:featured.ref)
         if(primary&&openPrimary){
-          primaryNotified.current.add(primaryAttemptId!);onPrimaryReady?.(primary)
+          primaryNotified.current.add(automaticAttemptId!);onPrimaryReady?.(primary)
         }
       }
     }catch(cause){if(cause instanceof CapacityError&&cause.fatal){setFatalError(cause);return}rethrowDebugCapacity(cause);if(!controller.signal.aborted&&token===generation.current)setError(cause instanceof Error?cause.message:'成果目录暂不可用。')}
     finally{if(!controller.signal.aborted&&token===generation.current)setLoading(false)}
   }
-  useEffect(()=>{void load();return()=>{generation.current++;request.current?.abort()}},[client,threadId,workId,revision,retry,requestedKey,primaryAttemptId])
-  useEffect(()=>{if(requested?.ref?.thread_id===threadId){consumedRequest.current=requestedKey;userSelected.current=true;setSelection(requested.ref)}},[requestedKey,threadId])
+  useEffect(()=>{void load();return()=>{generation.current++;request.current?.abort()}},[client,threadId,workId,revision,retry,requestedKey,primaryAttemptId,runningAttemptId,followAvailable])
+  useEffect(()=>{if(requested?.ref?.thread_id===threadId){consumedRequest.current=requestedKey;userSelected.current=!isCurrentRef(requested.ref);setSelection(requested.ref)}},[requestedKey,threadId,workId,runningAttemptId,primaryAttemptId])
   const selectedKey=selection?.thread_id===threadId?productRefKey(selection):''
   useEffect(()=>{
     if(!selection||selection.thread_id!==threadId)return
@@ -131,7 +163,7 @@ export default function ThreadProductsWorkspace({client,threadId,workId,revision
       <div className="thread-products-directory-body">
       {!loading&&!current?.items.length&&!error&&<p>当前会话暂无产物。</p>}
       {groups.filter(group=>group.items.length).map(group=>{
-        const list=<ul>{group.items.map(item=><li key={productRefKey(item.ref)}><button type="button" aria-label={`查看：${item.title}`} aria-pressed={selection&&productRefKey(item.ref)===selectedKey} onClick={()=>{userSelected.current=true;onBrowse?.();setSelection(item.ref)}}><span>{item.title}</span><small>{item.ref.revision?`v${item.ref.revision} · `:''}{productStatus(item)}{item.ref.origin==='process_record'?' · 执行记录':''}</small></button></li>)}</ul>
+        const list=<ul>{group.items.map(item=><li key={productRefKey(item.ref)}><button type="button" aria-label={`查看：${item.title}`} aria-pressed={selection&&productRefKey(item.ref)===selectedKey} onClick={()=>{userSelected.current=!isCurrentRef(item.ref);onBrowse?.(item);setSelection(item.ref)}}><span>{item.title}</span><small>{item.ref.revision?`v${item.ref.revision} · `:''}{productStatus(item)}{item.ref.origin==='process_record'?' · 执行记录':''}</small></button></li>)}</ul>
         return group.collapsed?<details className="thread-product-secondary" key={group.label}><summary>{group.label}<small>{group.items.length}</small></summary>{list}</details>:<div className="thread-product-group" key={group.label}><h4>{group.label}<small>{group.items.length}</small></h4>{list}</div>
       })}
       {loading&&<p role="status">正在读取成果目录…</p>}{error&&<p role="alert">{error}<button type="button" onClick={()=>setRetry(value=>value+1)}>重试目录</button></p>}

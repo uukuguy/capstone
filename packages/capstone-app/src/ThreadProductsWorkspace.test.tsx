@@ -22,6 +22,88 @@ it('opens a running primary once and retains its version through incremental upd
 })
 const ref=parseProductRef({schema:'capstone-product-ref/1',thread_id:'thr_one',product_id:'record_one',origin:'process_record',scope:'instruction',event_seq:8,revision:null,digest:'a'.repeat(64),work_id:'work_current',attempt_id:'attempt_one',producer_attempt_id:null})
 const entry:ProductEntry={ref,title:'原分析未完成',media_type:null,byte_size:null,source_status:'failed',created_at:'2026-10-17T00:00:00Z',download_url:null,source:{instruction:'原分析未完成',attempt_id:'attempt_one',status:'failed',failure_code:'data_missing'},dependencies:[],presentation:{kind:'process_record'},capabilities:{read:true,select:false},selection_unavailable_reason:'record_only',historical_only:true}
+it('follows new usable running files without a manifest and ignores same-byte terminal recapture',async()=>{
+ const file:ProductEntry={...entry,ref:{...ref,origin:'native_file',product_id:'table'},title:'table.csv',media_type:'text/csv',byte_size:12,source_status:'running',source:{file_name:'table.csv'}}
+ const report:ProductEntry={...file,ref:{...file.ref,product_id:'report',digest:'b'.repeat(64)},title:'report.pptx',media_type:'application/vnd.openxmlformats-officedocument.presentationml.presentation',source_status:'running',source:{file_name:'report.pptx',host_artifact_id:`file-${'1'.repeat(16)}-${'b'.repeat(64)}`}}
+ const ready=vi.fn(),client={productIndex:vi.fn().mockResolvedValue({products:[file],hasMore:false,nextCursor:null}),resolveProduct:vi.fn(async(ref)=>({entry:ref.product_id==='table'?file:report,bytes:null,projection:null,record:null}))}
+ const props={client,threadId:'thr_one',workId:'work_current',primaryAttemptId:'attempt_one',onPrimaryReady:ready}
+ const rendered=render(<ThreadProductsWorkspace {...props} runningAttemptId="attempt_one" revision={1}/>)
+ await waitFor(()=>expect(ready).toHaveBeenCalledWith(file))
+ expect(await screen.findByRole('heading',{name:'table.csv'})).toBeTruthy()
+ expect(ready.mock.calls[0][0].source.presentation_role).toBeUndefined()
+ client.productIndex.mockResolvedValue({products:[report,file],hasMore:false,nextCursor:null})
+ rendered.rerender(<ThreadProductsWorkspace {...props} runningAttemptId="attempt_one" revision={2}/>)
+ await waitFor(()=>expect(client.productIndex).toHaveBeenCalledTimes(2))
+ await waitFor(()=>expect(ready).toHaveBeenCalledTimes(2));expect(await screen.findByRole('heading',{name:'report.pptx'})).toBeTruthy()
+ const terminal={...report,ref:{...report.ref,product_id:'terminal-public-id'},source_status:'completed',source:{...report.source,presentation_role:'primary'}}
+ client.productIndex.mockResolvedValue({products:[terminal,file],hasMore:false,nextCursor:null})
+ rendered.rerender(<ThreadProductsWorkspace {...props} revision={3}/>)
+ await waitFor(()=>expect(client.productIndex).toHaveBeenCalledTimes(3));expect(ready).toHaveBeenCalledTimes(2)
+ expect(client.resolveProduct.mock.calls.some(([ref])=>ref.product_id==='terminal-public-id')).toBe(false)
+ fireEvent.click(screen.getByText(/浏览产物/));fireEvent.click(screen.getByRole('button',{name:'查看：table.csv'}))
+ expect(await screen.findByRole('heading',{name:'table.csv'})).toBeTruthy()
+})
+it.each(['data.json','analysis.py','settings.yaml','run.log','notes.txt','book.xlsx','report.docx'])('does not automatically promote unsupported or non-reader file %s',async name=>{
+ const file:ProductEntry={...entry,ref:{...ref,origin:'native_file'},title:name,media_type:'text/plain',byte_size:12,source_status:'running',source:{file_name:name}}
+ const ready=vi.fn(),client={productIndex:vi.fn().mockResolvedValue({products:[file],hasMore:false,nextCursor:null}),resolveProduct:vi.fn().mockResolvedValue({entry:file,bytes:null,projection:null,record:null})}
+ render(<ThreadProductsWorkspace client={client} threadId="thr_one" workId="work_current" revision={1} primaryAttemptId="attempt_one" runningAttemptId="attempt_one" onPrimaryReady={ready}/>)
+ await waitFor(()=>expect(client.productIndex).toHaveBeenCalledTimes(1));expect(ready).not.toHaveBeenCalled()
+})
+it('preserves an explicit history selection until the next running instruction resets follow scope',async()=>{
+ const file:ProductEntry={...entry,ref:{...ref,origin:'native_file',product_id:'table'},title:'table.csv',media_type:'text/csv',byte_size:12,source_status:'running',source:{file_name:'table.csv'}}
+ const report:ProductEntry={...file,ref:{...file.ref,product_id:'report'},title:'report.html',media_type:'text/html',source:{file_name:'report.html'}}
+ const next:ProductEntry={...report,ref:{...report.ref,attempt_id:'attempt_two',product_id:'next'},title:'next.html',source:{file_name:'next.html'}}
+ const history={...file,ref:{...file.ref,attempt_id:'attempt_old',product_id:'history'},title:'history.csv',source:{file_name:'history.csv'}}
+ const ready=vi.fn(),client={productIndex:vi.fn().mockResolvedValue({products:[file,history],hasMore:false,nextCursor:null}),resolveProduct:vi.fn(async(ref)=>({entry:ref.product_id==='history'?history:ref.product_id==='table'?file:ref.product_id==='next'?next:report,bytes:null,projection:null,record:null}))}
+ const props={client,threadId:'thr_one',workId:'work_current',onPrimaryReady:ready}
+ const rendered=render(<ThreadProductsWorkspace {...props} primaryAttemptId="attempt_one" runningAttemptId="attempt_one" revision={1}/>)
+ await screen.findByRole('heading',{name:'table.csv'})
+ fireEvent.click(screen.getByText(/浏览产物/));fireEvent.click(screen.getByRole('button',{name:'查看：history.csv'}))
+ await screen.findByRole('heading',{name:'history.csv'})
+ client.productIndex.mockResolvedValue({products:[report,file],hasMore:false,nextCursor:null})
+ rendered.rerender(<ThreadProductsWorkspace {...props} primaryAttemptId="attempt_one" runningAttemptId="attempt_one" revision={2}/>)
+ await waitFor(()=>expect(client.productIndex).toHaveBeenCalledTimes(2));expect(ready).toHaveBeenCalledTimes(1)
+ expect(screen.getByRole('heading',{name:'history.csv'})).toBeTruthy()
+ client.productIndex.mockResolvedValue({products:[next,report,file],hasMore:false,nextCursor:null})
+ rendered.rerender(<ThreadProductsWorkspace {...props} primaryAttemptId="attempt_two" runningAttemptId="attempt_two" revision={3}/>)
+ await screen.findByRole('heading',{name:'next.html'});expect(ready).toHaveBeenCalledTimes(2)
+})
+it('keeps following current-instruction clicks and consumed current requests through a PPT and new digest',async()=>{
+ const file:ProductEntry={...entry,ref:{...ref,origin:'native_file',product_id:'table'},title:'table.csv',media_type:'text/csv',byte_size:12,source_status:'running',source:{file_name:'table.csv'}}
+ const report:ProductEntry={...file,ref:{...file.ref,product_id:'report',digest:'b'.repeat(64)},title:'report.pptx',media_type:'application/vnd.openxmlformats-officedocument.presentationml.presentation',source:{file_name:'report.pptx'}}
+ const next={...report,ref:{...report.ref,digest:'c'.repeat(64)}}
+ const ready=vi.fn(),client={productIndex:vi.fn().mockResolvedValue({products:[file],hasMore:false,nextCursor:null}),resolveProduct:vi.fn(async(ref)=>({entry:ref.digest===next.ref.digest?next:ref.product_id==='table'?file:report,bytes:null,projection:null,record:null}))}
+ const props={client,threadId:'thr_one',workId:'work_current',primaryAttemptId:'attempt_one',runningAttemptId:'attempt_one',onPrimaryReady:ready}
+ const rendered=render(<ThreadProductsWorkspace {...props} revision={1}/>)
+ await screen.findByRole('heading',{name:'table.csv'});fireEvent.click(screen.getByText(/浏览产物/));fireEvent.click(screen.getByRole('button',{name:'查看：table.csv'}))
+ rendered.rerender(<ThreadProductsWorkspace {...props} requested={{ref:file.ref,nonce:1}} revision={2}/>)
+ await waitFor(()=>expect(client.productIndex).toHaveBeenCalledTimes(2))
+ client.productIndex.mockResolvedValue({products:[report,file],hasMore:false,nextCursor:null})
+ rendered.rerender(<ThreadProductsWorkspace {...props} requested={{ref:file.ref,nonce:1}} revision={3}/>)
+ await screen.findByRole('heading',{name:'report.pptx'})
+ client.productIndex.mockResolvedValue({products:[next,file],hasMore:false,nextCursor:null})
+ rendered.rerender(<ThreadProductsWorkspace {...props} requested={{ref:file.ref,nonce:1}} revision={4}/>)
+ await waitFor(()=>expect(client.resolveProduct.mock.calls.some(([ref])=>ref.digest===next.ref.digest)).toBe(true))
+ expect(ready).toHaveBeenCalledTimes(3)
+})
+it('does not take over an explicit manual graph view when a new current report arrives',async()=>{
+ const file:ProductEntry={...entry,ref:{...ref,origin:'native_file',product_id:'table'},title:'table.csv',media_type:'text/csv',byte_size:12,source_status:'running',source:{file_name:'table.csv'}}
+ const report={...file,ref:{...file.ref,product_id:'report'},title:'report.html',media_type:'text/html',source:{file_name:'report.html'}}
+ const ready=vi.fn(),client={productIndex:vi.fn().mockResolvedValue({products:[file],hasMore:false,nextCursor:null}),resolveProduct:vi.fn().mockResolvedValue({entry:file,bytes:null,projection:null,record:null})}
+ const props={client,threadId:'thr_one',workId:'work_current',primaryAttemptId:'attempt_one',runningAttemptId:'attempt_one',onPrimaryReady:ready}
+ const rendered=render(<ThreadProductsWorkspace {...props} revision={1}/>)
+ await screen.findByRole('heading',{name:'table.csv'})
+ client.productIndex.mockResolvedValue({products:[report,file],hasMore:false,nextCursor:null})
+ rendered.rerender(<ThreadProductsWorkspace {...props} followAvailable={false} revision={2}/>)
+ await waitFor(()=>expect(client.productIndex).toHaveBeenCalledTimes(2));expect(ready).toHaveBeenCalledTimes(1)
+ expect(screen.getByRole('heading',{name:'table.csv'})).toBeTruthy()
+})
+it.each(['past-attempt','past-work','not-running','unknown-size','over-limit'])('requires exact active identity and bounded size for fallback: %s',async kind=>{
+ const file:ProductEntry={...entry,ref:{...ref,origin:'native_file',...(kind==='past-attempt'?{attempt_id:'past'}:{}),...(kind==='past-work'?{work_id:'past'}:{})},title:'table.csv',media_type:'text/csv',byte_size:kind==='unknown-size'?null:kind==='over-limit'?applicationCapacity('preview_bytes')+1:12,source_status:'running',source:{file_name:'table.csv'}}
+ const ready=vi.fn(),client={productIndex:vi.fn().mockResolvedValue({products:[file],hasMore:false,nextCursor:null}),resolveProduct:vi.fn().mockResolvedValue({entry:file,bytes:null,projection:null,record:null})}
+ render(<ThreadProductsWorkspace client={client} threadId="thr_one" workId="work_current" revision={1} primaryAttemptId="attempt_one" runningAttemptId={kind==='not-running'?undefined:'attempt_one'} onPrimaryReady={ready}/>)
+ await waitFor(()=>expect(client.productIndex).toHaveBeenCalledTimes(1));expect(ready).not.toHaveBeenCalled()
+})
 it('finds the current completed primary report beyond process pages and exposes its real files',async()=>{
   const report={...entry,ref:{...ref,origin:'native_file' as const,attempt_id:'attempt_current',product_id:'report'},title:'报告.html',media_type:'text/html',byte_size:10,source_status:'completed',source:{file_name:'报告.html',presentation_role:'primary'}}
   const metrics={...report,ref:{...report.ref,product_id:'metrics'},title:'指标.csv',media_type:'text/csv',source:{file_name:'指标.csv',presentation_role:'primary'}}

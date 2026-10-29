@@ -7,6 +7,19 @@ import researchFixture from './fixtures/nativeGraph-research.json'
 import resourceScope from './fixtures/nativeGraph-resource-scope.json'
 
 afterEach(()=>{cleanup();localStorage.clear()})
+it('shows the actual main request pool without optional analysis tools and uses dispatch timing',()=>{
+ const seed=tools[0]
+ const ev=(seq:number,type:string,payload:Record<string,unknown>):EventEnvelope=>({...seed,eventId:`dispatch-${seq}`,eventSeq:seq,eventType:type,occurredAt:`2026-10-29T00:00:0${seq}Z`,payload})
+ const request={type:'model_request_pool',schema:'capstone-model-request-pool/1',request_id:'request-1',chain_id:'main',kind:'main',model_turn_number:1,title:'LLM 1',depends_on:[],queued_at_ms:100}
+ const events=[seed,ev(1,'turn_route_selected',{source:'native_conversation'}),ev(2,'runtime_action',{phase:'started'}),
+  ev(3,'runtime_event',{native_type:'model_request_pool',model_request_pool:{...request,status:'queued'}}),
+  ev(4,'runtime_event',{native_type:'model_request_pool',model_request_pool:{...request,status:'completed',started_at_ms:800,finished_at_ms:900}}),
+  ev(5,'runtime_action',{phase:'response_completed',response_kind:'text'}),ev(6,'runtime_action',{phase:'completed'})]
+ const reader=read(events)
+ expect(reader.getByText(/模型请求池 · 已启动 1 · 运行\/释放 0 · 等待 0/)).toBeTruthy()
+ expect(reader.getByText(/LLM 1 次 · 累计 100ms/)).toBeTruthy()
+ expect(reader.queryByLabelText('模型请求等待队列')).toBeNull()
+})
 it('projects actual child calls under the owning submit and reports timing separately from the parent',()=>{
  const seed=tools[0]
  const ev=(seq:number,type:string,payload:Record<string,unknown>):EventEnvelope=>({...seed,eventId:`pool-${seq}`,eventSeq:seq,eventType:type,occurredAt:`2026-10-29T00:00:0${seq}Z`,payload})

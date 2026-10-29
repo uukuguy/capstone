@@ -2,6 +2,7 @@ import type { EventEnvelope } from './threadProtocol'
 import type { ProcessModelCall } from './ProcessCallTrace'
 import {isExecutionLifecycleStep} from './executionLifecycle'
 import {projectLlmPoolCalls} from './processLlmPool'
+import {projectModelRequestPool,requestExecutionMs} from './processModelRequestPool'
 
 /** Only public parent request boundaries. Diagnostic text is never reasoning copy. */
 export function projectProcessModelRequests(events: readonly EventEnvelope[], attemptId: string): ProcessModelCall[] {
@@ -88,6 +89,19 @@ export function projectProcessModelRequests(events: readonly EventEnvelope[], at
       const selected=poolCalls.filter(child=>call.toolCallIds?.includes(child.parentToolCallId))
       if(selected.length)call.poolCalls=selected
     }
+  }
+  const dispatches=projectModelRequestPool(events,attemptId)
+  for(const request of dispatches){
+    const owner=request.kind==='main'?calls.find(call=>!call.requestPoolOnly&&call.number===request.modelTurnNumber)
+      :calls.find(call=>request.parentToolCallId&&call.toolCallIds?.includes(request.parentToolCallId)&&(!call.poolCalls?.length||call.poolCalls.some(child=>child.id===request.childId&&child.parentToolCallId===request.parentToolCallId)))
+    request.association=owner?request.kind:'unassociated'
+    let target=owner??calls[0]
+    if(!target){target={id:'unassociated-model-requests',number:0,ms:0,settled:true,toolCallIds:[],requestPoolOnly:true};calls.push(target)}
+    target.requestPool=[...(target.requestPool??[]),request]
+  }
+  for(const call of calls){
+    const main=call.requestPool?.filter(request=>request.association==='main')
+    if(main?.length)call.ms=main.reduce((sum,request)=>sum+(requestExecutionMs(request)??0),0)
   }
   return calls
 }

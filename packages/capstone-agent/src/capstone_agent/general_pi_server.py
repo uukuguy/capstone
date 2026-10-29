@@ -176,6 +176,8 @@ class GeneralPiHost:
         self.capability['tool_composition'] = dict(COMPOSITION_POLICY)
         from .native_llm_pool import LLM_CALL_POOL_POLICY
         self.capability['llm_call_pool'] = dict(LLM_CALL_POOL_POLICY)
+        from .native_model_request_pool import MODEL_REQUEST_POOL_POLICY
+        self.capability['model_request_pool'] = dict(MODEL_REQUEST_POOL_POLICY)
         gateway = getattr(run_task, 'gateway', None)
         self.capability['data_gateway'] = (gateway.publication() if gateway else
             getattr(run_task, 'gateway_publication', {'available': False, 'reason': 'not_configured'}))
@@ -568,6 +570,10 @@ class GeneralPiHost:
             payload = project_runtime_action(event)
             if kind == 'llm_pool_call':
                 payload = {'llm_pool_call': _checked_llm_pool_call(event, request.native_context, self.capability, record)}
+            elif kind == 'model_request_pool':
+                from .native_model_request_pool import checked_model_request_pool
+                payload = {'model_request_pool': checked_model_request_pool(
+                    event, request.native_context, self.capability, record)}
             elif kind in {'delegation_child_started', 'delegation_child_tool', 'delegation_child_finished', 'delegation_child_response'}:
                 from .native_research_bridge import checked_branch_progress, read_json
                 if request.research_binding is None:
@@ -1097,6 +1103,9 @@ class NativeTaskRunner:
                 from .native_task_context import checked_native_context, resolve_research_policy
                 native = checked_native_context(request.native_context)
                 sdk_config['applicationPolicy'] = native['policy']
+                if native.get('deep_research') is False:
+                    from .native_model_request_pool import MODEL_REQUEST_POOL_POLICY
+                    sdk_config['modelRequestPool'] = dict(MODEL_REQUEST_POOL_POLICY)
                 if native.get('tool_composition'):
                     sdk_config['toolComposition'] = native['tool_composition']
                 if native.get('llm_call_pool'):
@@ -1667,7 +1676,7 @@ def main():
                 'pi_commit': lock['source']['commit'], 'config_revision': revision.hexdigest(),
                 'runtime_lock_sha256': sha256(Path('/opt/general/pi-runtime.lock.json').read_bytes()).hexdigest(),
                 'executor_revision': sha256(b''.join((Path(__file__).parent / name).read_bytes()
-                    for name in ('general_pi_server.py', 'general_pi_executor.py', 'general_pi_storage.py', 'general_pi_relay.py', 'native_network_policy.py', 'bounded_http_loop.py', 'pi_delegation.py', 'business_context.py', 'request_intent.py', 'native_task_context.py', 'workbench_llm_profiles.py', 'native_failure_origin.py', 'native_diagnosis.py', 'native_tool_composition.py', 'native_llm_pool.py', 'incremental_artifacts.py',
+                    for name in ('general_pi_server.py', 'general_pi_executor.py', 'general_pi_storage.py', 'general_pi_relay.py', 'native_network_policy.py', 'bounded_http_loop.py', 'pi_delegation.py', 'business_context.py', 'request_intent.py', 'native_task_context.py', 'workbench_llm_profiles.py', 'native_failure_origin.py', 'native_diagnosis.py', 'native_tool_composition.py', 'native_llm_pool.py', 'native_model_request_pool.py', 'incremental_artifacts.py',
                                  'native_resources.py', 'runtime_resources.py', 'resource_installation.py', 'general_pi_resource_seed.py', 'bounded_mcp.py', 'native_environment.py', 'data_gateway_mcp.py', 'data_gateway_relay.py', 'gateway_diagnostics.py', 'grid_source_topology.py', 'grid_electrical_view.py', 'resources/gateway-electrical-view-v1.schema.json', 'resources/gateway-electrical-view-v2.schema.json', 'resources/general-data-gateway.mjs',
                                  'progress.py', 'stream_progress.py', 'resource_manifest.py', 'native_resource_staging.py',
                                  'native_research_bridge.py', 'native_graph_context.py', 'native_graph_events.py',
@@ -1677,6 +1686,7 @@ def main():
                                  'resources/general-context.mjs', 'resources/general-sdk.mjs', 'resources/general-tool-discovery.mjs', 'resources/tool-result-context.mjs', 'resources/committed-delivery.mjs', 'resources/systematic-diagnosis.mjs', 'resources/general-mcp.mjs', 'resources/task-record-tools.mjs',
                                  'resources/tool-composition.mjs', 'resources/tool-composition-worker.mjs', 'resources/tool-composition-policy.json', 'resources/semantic-data-context.mjs',
                                  'resources/async-call-pool.mjs', 'resources/llm-call-tools.mjs', 'resources/llm-call-pool-policy.json',
+                                 'resources/model-request-pool.mjs', 'resources/model-request-pool-policy.json',
                                  'resources/enterprise-research-runtime.mjs', 'resources/enterprise-cycle-contract.mjs',
                                  'resources/enterprise-cycle-state.mjs', 'resources/enterprise-graph-contract.mjs',
                                  'resources/enterprise-graph-state.mjs', 'resources/enterprise-graph-runtime.mjs', 'resources/task-goal-state.mjs', 'resources/task-node-return.mjs', 'resources/research-context-window.mjs',

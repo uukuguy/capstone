@@ -15,7 +15,7 @@ export function buildLlmCallPrompt(input,dependencyResults,policy){
 }
 
 /** Explicit text-only reasoning. No model choice, business grants or retries. */
-export function createLlmCallTools({policy,run,emit=()=>{},signal,cwd=process.cwd()}){
+export function createLlmCallTools({policy,run,emit=()=>{},signal,cwd=process.cwd(),executionDeadlineOwnedByRequests=false}){
   if(!policy||policy.schema!=='capstone-llm-call-pool/1'||typeof run!=='function')throw new TypeError('Invalid LLM pool configuration');
   const inputs=new Map(),unread=new Map(),needsIntegration=new Set();
   let sink,delivery=Promise.resolve(),revision=0,closing=false;
@@ -61,7 +61,8 @@ export function createLlmCallTools({policy,run,emit=()=>{},signal,cwd=process.cw
           call.instruction.length+call.input.length>policy.max_input_chars)throw new TypeError('Invalid LLM input budget');
         const input={instruction:call.instruction,input:call.input};
         const attemptKey=createHash('sha256').update(JSON.stringify([input,call.depends_on??[]])).digest('hex');
-        return {id:call.id,input:{...input,parentToolCallId:_id},depends_on:call.depends_on??[],timeoutMs:policy.call_timeout_ms,attemptKey};
+        return {id:call.id,input:{...input,parentToolCallId:_id},depends_on:call.depends_on??[],
+          ...(executionDeadlineOwnedByRequests?{}:{timeoutMs:policy.call_timeout_ms}),attemptKey};
       });
       // Pool validates atomically before run's microtask can read these inputs.
       if(jobs.some(job=>inputs.has(job.id)))throw new TypeError('Invalid duplicate LLM call ID');
@@ -89,7 +90,14 @@ export function createLlmCallTools({policy,run,emit=()=>{},signal,cwd=process.cw
   return {tools,setCompletionSink:value=>{sink=value;void flush().catch(()=>{})},flush,
     acknowledge:ids=>{for(const id of ids)needsIntegration.delete(id)},
     async continuation(){
-      await flush().catch(()=>{});capture();const snapshot=state();
+      await flush().catch(()=>{});capture();
+      // The parent prompt has settled: its executable frontier is empty. Wait
+      // for real work rather than create another model request to poll status.
+      while(!closing&&!unread.size&&!needsIntegration.size&&state().jobs.some(job=>!finalStates.has(job.status))){
+        await pool.waitForCompletion({waitMs:policy.max_wait_ms});
+        await flush().catch(()=>{});capture();
+      }
+      const snapshot=state();
       if(!unread.size&&!needsIntegration.size&&!snapshot.jobs.some(job=>!finalStates.has(job.status)))return;
       return {actionId:'lightweight-llm-pool',checkpoint:{revision,needs_integration:[...needsIntegration]},
         prompt:'LLM pool work remains unresolved or uncollected. Continue independent work or use agent_llm_collect to receive actual results; explicitly cancel unnecessary jobs. Do not finalize with unseen answers. Current state: '+JSON.stringify(snapshot)};

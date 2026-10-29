@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createLlmCallTools,buildLlmCallPrompt} from '../../src/capstone_agent/resources/llm-call-tools.mjs';
+import {createModelRequestPool} from '../../src/capstone_agent/resources/model-request-pool.mjs';
 const policy={schema:'capstone-llm-call-pool/1',concurrency:2,max_jobs:12,max_input_chars:16000,max_output_chars:8000,call_timeout_ms:120000,max_wait_ms:30000};
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 const parse=result=>JSON.parse(result.content[0].text);
@@ -43,4 +44,39 @@ test('caller cannot select endpoints, extra capabilities or exceed text budgets'
   for(const calls of [[{id:'a',instruction:'x',input:'x',model:'other'}],[{id:'b',instruction:'x',input:'x'.repeat(16001)}]])
     await assert.rejects(pool.tools[0].execute('bad',{calls}),/Invalid|budget/);
   assert.equal(starts,0);await pool.close();
+});
+test('a shared request dispatcher owns execution deadlines so semantic jobs do not time out in its queue',async()=>{
+  let finish,signal;
+  const pool=createLlmCallTools({policy:{...policy,call_timeout_ms:1},executionDeadlineOwnedByRequests:true,
+    run:(_job,context)=>{signal=context.signal;return new Promise(resolve=>{finish=resolve})}});
+  await pool.tools[0].execute('s',{calls:[{id:'a',instruction:'Analyze',input:'Supplied data'}]});
+  await new Promise(resolve=>setTimeout(resolve,10));assert.equal(signal.aborted,false);
+  finish({status:'completed',answer:'Returned after request scheduling'});await tick();await pool.close();
+});
+test('cancelled consumers cannot release a semantic attempt before the actual provider drains',async()=>{
+  let release,calls=0;
+  const gate=new Promise(resolve=>{release=resolve});
+  const dispatcher=createModelRequestPool({runtime:{streamSimple(){calls++;return {
+    async *[Symbol.asyncIterator](){await gate},result:async()=>{await gate;return {role:'assistant',content:[],stopReason:'stop'}},
+  }}},concurrency:2,maxRequests:4,requestTimeoutMs:1});
+  const pool=createLlmCallTools({policy,executionDeadlineOwnedByRequests:true,run:async job=>{
+    const chain='analysis:'+job.id;
+    try{await dispatcher.forChain(chain,{kind:'analysis',child_id:job.id,parent_tool_call_id:'submit'}).streamSimple({},{}).result();return {status:'completed',answer:'Done'}}
+    catch{return {status:'failed',answer:''}}
+    finally{await dispatcher.drainChain(chain)}
+  }});
+  const input={instruction:'Analyze supplied observations',input:'Data'};
+  await pool.tools[0].execute('s',{calls:[{id:'one',...input}]});await new Promise(resolve=>setTimeout(resolve,10));
+  assert.equal(pool.snapshot().jobs[0].status,'running');
+  await assert.rejects(pool.tools[0].execute('repeat',{calls:[{id:'two',...input}]}),/duplicate/i);
+  assert.equal(calls,1);release();await tick();await pool.close();await dispatcher.close();
+});
+test('a settled main loop waits for a real result instead of requesting model polling',async()=>{
+  let release,resumed=false;
+  const pool=createLlmCallTools({policy,run:()=>new Promise(resolve=>{release=resolve})});
+  await pool.tools[0].execute('s',{calls:[{id:'a',instruction:'Analyze',input:'Facts'}]});await tick();
+  const continuation=pool.continuation().then(value=>{resumed=true;return value});
+  try{await tick();assert.equal(resumed,false);
+    release({status:'completed',answer:'Real result'});assert.ok(await continuation);
+  }finally{release({status:'completed',answer:'Real result'});await pool.close()}
 });

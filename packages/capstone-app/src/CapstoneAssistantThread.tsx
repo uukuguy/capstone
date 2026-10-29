@@ -22,6 +22,7 @@ import ExecutionGraphProcess, { graphTraceIssues, type GraphTraceFocus } from '.
 import ProcessCallTrace, { modelCallMs, type ProcessModelCall } from './ProcessCallTrace'
 import { projectProcessModelRequests } from './processModelRequests'
 import {summarizeLlmPoolCalls} from './processLlmPool'
+import {summarizeModelRequestPool,uniqueModelRequests} from './processModelRequestPool'
 import {isExecutionLifecycleStep} from './executionLifecycle'
 import {nativeGraphFocus} from './nativeGraphFocus'
 import ThinkingProcess,{projectInitialThinking,type InitialThinking} from './ThinkingProcess'
@@ -806,10 +807,13 @@ function AttemptActivity({ activities, modelRequests = [], initialThinking, nati
   const liveDuration = startedAt ? durationBetween(startedAt, new Date(now).toISOString()) : undefined
   const elapsed = running ? liveDuration : durationMs
   const hasProcess = Boolean(initialThinking) || running || modelRequests.length > 0 || !!startedAt || !!executionGraph || activities.length > 0 || progress.length > 0 || steps.length > 0 || lifecycleSteps.length > 0 || diagnostics.length > 0 || branches.length > 0
-  const modelMs = modelRequests.reduce((sum,call)=>sum+(call.finishedAt ? call.ms : running&&!call.settled ? modelCallMs(call,now) : 0),0)
-  const incompleteModelTime = modelRequests.some(call=>!call.finishedAt&&(!running||call.settled))
+  const parentModels=modelRequests.filter(call=>!call.requestPoolOnly)
+  const modelMs = parentModels.reduce((sum,call)=>sum+(call.finishedAt ? call.ms : running&&!call.settled ? modelCallMs(call,now) : 0),0)
+  const incompleteModelTime = parentModels.some(call=>!call.finishedAt&&(!running||call.settled))
   const pooled=modelRequests.flatMap(call=>call.poolCalls??[]),poolSummary=summarizeLlmPoolCalls(pooled)
-  const modelSummary = modelRequests.length > 0 ? <><span title="累计父模型响应区间，包含请求等待与生成；不含子调用，不等于整轮总耗时。"> · LLM {modelRequests.length} 次 · 累计 {incompleteModelTime?'≥ ':''}{formatDuration(modelMs)}</span>{pooled.length>0&&<span title="只累计子调用实际报告的模型响应；不含排队和依赖等待，不计入父模型耗时。"> · 子 LLM {poolSummary.responses??'—'} 次 · 响应累计 {poolSummary.responseMs===undefined?'未完整记录':formatDuration(poolSummary.responseMs)}</span>}</> : null
+  const actualRequests=uniqueModelRequests(modelRequests.flatMap(call=>call.requestPool??[])),requestSummary=summarizeModelRequestPool(actualRequests,now)
+  const parentRequestCount=actualRequests.length?actualRequests.filter(request=>request.kind==='main'&&request.startedAtMs!==undefined).length:parentModels.length
+  const modelSummary = modelRequests.length > 0 ? <>{parentModels.length>0&&<span title={actualRequests.length?'累计父模型实际请求执行区间，不含排队、依赖等待和子调用。':'累计父模型响应区间，包含请求等待与生成；不含子调用，不等于整轮总耗时。'}> · {actualRequests.length?'主 LLM':'LLM'} {parentRequestCount} 次 · 累计 {incompleteModelTime?'≥ ':''}{formatDuration(modelMs)}</span>}{!actualRequests.length&&pooled.length>0&&<span title="只累计子调用实际报告的模型响应；不含排队和依赖等待，不计入父模型耗时。"> · {poolSummary.maxConcurrency>1?'并行分析 · ':''}子 LLM {poolSummary.responses??'—'} 次{poolSummary.maxConcurrency>1?` · 峰值并发 ${poolSummary.maxConcurrency}`:''} · 响应累计 {poolSummary.responseMs===undefined?'未完整记录':formatDuration(poolSummary.responseMs)}</span>}{actualRequests.length>0&&<span title="来自实际模型请求状态；运行包含取消后尚未确认释放的请求。峰值只依据模型请求区间，不含工具并行。"> · 模型请求池 · 已启动 {requestSummary.started} · 运行/释放 {requestSummary.reserved} · 等待 {requestSummary.queued}{requestSummary.maxConcurrency>1?` · 并行分析 · 峰值并发 ${requestSummary.maxConcurrency}`:''} · 执行累计 {formatDuration(requestSummary.executionMs)}</span>}</> : null
   if (!hasProcess && !hasAuxiliary) return null
   const terminalLabel = phase === 'failed' ? '执行失败 ·' : phase === 'cancelled' ? '已取消 ·' : phase === 'interrupted' ? '已中断 ·' : '已完成'
   const terminalClass = phase === 'failed' || phase === 'interrupted' ? ` is-${phase}` : phase === 'cancelled' ? ' is-cancelled' : ''
