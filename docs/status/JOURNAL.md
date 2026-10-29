@@ -6381,3 +6381,7 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 2026-10-30: ad03a4b2 defaults to direct model execution; pools require explicit experiment because business speed benefit remains unproven.
 
 2026-10-30: Fix offline profile isolation and reader scroll restoration; backend2627, App1382 and client15 tests pass.
+
+2026-10-30: 030c1bf4 isolates offline profiles and preserves reader position; removes credential dependence and scroll restoration races.
+
+2026-10-30: Record final direct-loop continuation evidence; publish rejection fixtures atomically to match the host and avoid partial reads.

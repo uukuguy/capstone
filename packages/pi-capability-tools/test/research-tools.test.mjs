@@ -313,11 +313,13 @@ test("preserves the host rejection reason so the next update can repair it", asy
   const f = await fixture(t);
   const waiting = f.tools.get("agent_research_update").execute("tool-rejected", { expected_revision: 1, changes: { goal: "Updated goal" } });
   const input = await pending(f.root);
-  await writeFile(join(f.root, "receipts", input.name), JSON.stringify({
+  const receiptPath = join(f.root, "receipts", input.name);
+  await writeFile(receiptPath + ".tmp", JSON.stringify({
     schema_version: "capability-research-receipt/1.0", run_id: "run-1", turn_id: "turn-1", attempt_id: "attempt-1",
     request_id: input.request.request_id, request_sha256: createHash("sha256").update(input.raw).digest("hex"),
     status: "rejected", code: "research_goal_required", message: "The first research update requires changes.goal; no update was committed.",
   }));
+  await rename(receiptPath + ".tmp", receiptPath);
   const result = await waiting;
   assert.equal(result.isError, true);
   assert.equal(result.details.error.message, "The first research update requires changes.goal; no update was committed.");

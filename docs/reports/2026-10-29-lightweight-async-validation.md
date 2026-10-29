@@ -189,3 +189,39 @@ at this record's creation. No speed improvement is claimed.
 The [enterprise research discussion](../superpowers/specs/2026-10-30-enterprise-data-research-analysis.md)
 and [roadmap](../superpowers/plans/2026-10-30-enterprise-analysis-roadmap.md) record
 accepted future scope, including mandatory user acceptance of a result revision.
+
+## Direct default: live continuation verification
+
+The existing Vivaldi tab ran a new conversation, `thr_93d00e7f6c66c6cbeb45`,
+with DR off. The first instruction requested gateway instance and service
+metadata, then a CSV. It completed in 32.427 seconds: 12 model requests,
+20 tool calls and no pool events. The CSV appeared automatically in the right
+pane before completion. This is a functional check, not a speed comparison.
+
+The first follow-up exposed a real continuation defect. The producer's
+incremental descriptor said `running`; its final descriptor said `completed`.
+Reading the first historical descriptor rejected the frozen final reference.
+The final correction reads the exact frozen ledger receipt, including identity,
+status and presentation metadata, then verifies file bytes and hash. It does
+not weaken provenance checks or permit a model-provided replacement reference.
+
+After the correction, a follow-up kept three columns in 8.642 seconds.
+The final implementation, b0c4602c, then produced a two-column index in
+7.319 seconds: three model requests, two local tool calls, no gateway calls
+and no pool events. All eight data rows exactly matched the selected source
+projection. The source files remained intact. The right pane selected the new
+file; refresh restored the conversation and artifacts.
+
+Final CSV SHA-256:
+`d37e0c890ca03f807a04be7e42764ccd7a878db0d986391329e8864b2a544941`.
+Evidence: ignored `runs/direct-lightweight-20261030/`. Canonical rebuild
+verified API/worker image
+`066f2a5ea76a3f7eb3b414bd24dca877b23abe01db773d31aee307d276df8065`;
+scoped cleanup receipt `cache-maintenance-20261030-025827-3658.log`.
+
+Local checks after 030c1bf4: 2,627 backend tests passed, 189 skipped;
+1,382 App tests and 15 client tests passed; App build passed. The offline
+fixtures now use a non-credential test value instead of depending on the
+developer's real model key. Production availability checks remain in place.
+Required PR verification and actual dev entry-point alignment are still pending
+at this record's creation. The canonical version register owns their final state.
