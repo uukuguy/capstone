@@ -3,6 +3,19 @@ import {afterEach,beforeEach,expect,it,vi} from 'vitest'
 import {act,cleanup,fireEvent,render,screen,waitFor,within} from '@testing-library/react'
 import SessionNavigation,{SessionAdjacentControls} from './SessionNavigation'
 const items=['a','b','c'].map(threadId=>({threadId,modelId:null,implementationFamily:null,createdAt:'2026-10-24',archived:false,lastEventSeq:0,sessionTitle:{text:`会话${threadId}`,source:'user' as const,source_ref:null,revision:1}}))
+it('does not navigate after an archive response arrives in another workspace',async()=>{
+  window.history.replaceState({},'','/?workspace=A')
+  let finish!:()=>void
+  const actions={rename:vi.fn(async()=>{}),archive:vi.fn(()=>new Promise<void>(resolve=>{finish=resolve})),remove:vi.fn(async()=>{}),archived:vi.fn(async()=>({threads:[{...items[2],archived:true}],hasMore:false,nextBeforeThreadId:null}))}
+  render(<SessionNavigation items={items.slice(0,2)} currentId="b" actions={actions}/>)
+  fireEvent.click(screen.getByRole('button',{name:'已归档会话'}))
+  fireEvent.click(await screen.findByRole('link',{name:'会话c'}))
+  await waitFor(()=>expect(actions.archive).toHaveBeenCalled())
+  window.history.replaceState({},'','/?workspace=B')
+  await act(async()=>finish())
+  expect(new URLSearchParams(location.search).get('workspace')).toBe('B')
+  expect(new URLSearchParams(location.search).get('thread')).toBeNull()
+})
 beforeEach(()=>{
   vi.spyOn(HTMLElement.prototype,'clientHeight','get').mockReturnValue(200)
   vi.spyOn(HTMLElement.prototype,'scrollHeight','get').mockImplementation(function(this:HTMLElement){return this.querySelectorAll('a').length>=3?2000:200})

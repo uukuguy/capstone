@@ -5,6 +5,7 @@ import WorkspaceProducts, { type WorkspaceProductView } from './WorkspaceProduct
 import NetworkAccessLamp from './NetworkAccessLamp'
 import {readWorkspacePanels,saveWorkspacePanels} from './workspaceEntry'
 import {useSessionViewState,useSessionReadingPositions} from './workspaceSessionCache'
+import {currentWorkspaceName} from './workspaceName'
 
 /** Shared application frame. Controllers supply public state and capabilities. */
 export default function ThreadWorkspace({ preparation, sidebar, heading, children, loading = false,
@@ -102,9 +103,9 @@ export default function ThreadWorkspace({ preparation, sidebar, heading, childre
       {navigationOpen && <button className="workspace-navigation-backdrop" aria-label="关闭会话导航遮罩" tabIndex={-1} onClick={closeNavigation} />}
       <aside id={navigationPanelId} className="workspace-navigation" hidden={!navigationOpen} aria-label="工作空间导航">
         {navigationOpen && <button type="button" className="workspace-navigation-close" aria-label="收起会话导航" onClick={closeNavigation}><X size={18} aria-hidden="true" /></button>}
-        <div className="workspace-brand"><div><AppBrand /><NetworkAccessLamp /></div><span>WORKSPACE</span></div>
+        <div className="workspace-brand"><div><AppBrand /><NetworkAccessLamp /></div><span className="workspace-identity"><small>WORKSPACE</small><strong title={currentWorkspaceName()}>{currentWorkspaceName()}</strong></span></div>
         {sidebar}
-        <footer className="workspace-navfoot">{navigationFooter}<span>企业工作空间</span><WorkspaceBuildStatus /></footer>
+        <footer className="workspace-navfoot">{navigationFooter}<WorkspaceBuildStatus /></footer>
       </aside>
       {navigationOpen&&sidebar&&<div className="workspace-navigation-separator" role="separator" aria-label="调整会话栏宽度" aria-orientation="vertical" tabIndex={0}
         aria-valuemin={180} aria-valuemax={360} aria-valuenow={navigationWidth}

@@ -77,7 +77,7 @@ export default function SessionCleanup({items,storageKey,currentId,scopeLabel,re
   return <><button ref={anchor} type="button" className="session-cleanup-entry" aria-label="清理会话" aria-haspopup="dialog" aria-expanded={open} aria-controls={open?popupId:undefined} title="按创建时间清理会话" onClick={()=>open?close():void show()}><Trash2 size={14} aria-hidden="true"/><span>清理会话</span></button>
     {open&&createPortal(<div ref={popup} id={popupId} role="dialog" aria-label="清理会话" className="session-cleanup-popover" style={position}>
       <header><strong>清理会话</strong><button type="button" aria-label="关闭清理会话" onClick={()=>close()}><X size={14} aria-hidden="true"/></button></header>
-      <p className="session-cleanup-scope">{scopeLabel}{loading?' · 正在读取全部记录…':` · 共 ${inventory.length} 个会话`}</p>
+      <p className="session-cleanup-scope">{scopeLabel}{loading?' · 正在读取全部记录…':` · 共 ${inventory.length} 条`}</p>
       <label className="session-cleanup-age">创建于 <input aria-label="天数" type="number" min="1" max="36500" value={Number.isNaN(days)?'':days} disabled={busy||completed} onChange={event=>setDays(event.target.valueAsNumber)}/> 天前</label>
       <div className="session-cleanup-presets">{[7,30,90].map(value=><button type="button" key={value} aria-pressed={days===value} disabled={busy||completed} onClick={()=>setDays(value)}>{value} 天</button>)}</div>
       <p>置顶和当前会话已排除。删除后无法恢复。</p>

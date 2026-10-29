@@ -8,6 +8,7 @@ Pi, DSH, Domain Packs, or authority internals.
 from __future__ import annotations
 
 from .application_capacity import CapacityExceeded, limits, require_capacity
+from .workspace_scope import DEFAULT_WORKSPACE, workspace_name as normalize_workspace_name
 
 from .thread_input import admission_submission, freeze_activated_submission
 
@@ -386,7 +387,9 @@ class ThreadService(Protocol):
     def set_material_store(self, objects) -> None: ...
     """Persistence and admission operations required by the HTTP projection."""
 
-    def create_thread(self, snapshot: ThreadSnapshot) -> ThreadSnapshot: ...
+    def create_thread(self, snapshot: ThreadSnapshot, *, workspace_name: str = DEFAULT_WORKSPACE) -> ThreadSnapshot: ...
+
+    def require_workspace(self, thread_id: str, workspace_name: str = DEFAULT_WORKSPACE) -> None: ...
 
     def snapshot(self, thread_id: str) -> ThreadSnapshot: ...
 
@@ -402,7 +405,7 @@ class ThreadService(Protocol):
 
     def read_models(self, thread_id: str) -> dict[str, Any]: ...
 
-    def list_threads(self, *, before: str | None = None, limit: int = 20, archived: bool = False) -> dict[str, Any]: ...
+    def list_threads(self, *, before: str | None = None, limit: int = 20, archived: bool = False, workspace_name: str = DEFAULT_WORKSPACE) -> dict[str, Any]: ...
 
     def set_archived(self, thread_id: str, archived: bool) -> dict[str, Any]: ...
     def delete_thread(self, thread_id: str) -> None: ...
@@ -1133,8 +1136,10 @@ class InMemoryThreadService(NativeExecutionOwner):
         *,
         capability_catalog: ThreadCapabilityCatalog | None = None,
         model_catalog: ThreadModelCatalog | None = None,
+        workspace_name: str = DEFAULT_WORKSPACE,
     ) -> None:
         self._snapshot = snapshot
+        self._workspace_name = normalize_workspace_name(workspace_name)
         self._capability_catalog = capability_catalog
         self._model_catalog = model_catalog
         self._catalog_context: Mapping[str, object] | None = None
@@ -1159,18 +1164,28 @@ class InMemoryThreadService(NativeExecutionOwner):
         *,
         capability_catalog: ThreadCapabilityCatalog | None = None,
         model_catalog: ThreadModelCatalog | None = None,
+        workspace_name: str = DEFAULT_WORKSPACE,
     ) -> InMemoryThreadService:
         return cls(
             ThreadSnapshot.from_document(dict(document)),
             capability_catalog=capability_catalog,
             model_catalog=model_catalog,
+            workspace_name=workspace_name,
         )
 
-    def create_thread(self, snapshot: ThreadSnapshot) -> ThreadSnapshot:
+    def create_thread(self, snapshot: ThreadSnapshot, *, workspace_name: str = DEFAULT_WORKSPACE) -> ThreadSnapshot:
+        normalize_workspace_name(workspace_name)
         with self._lock:
             if snapshot.thread_id != self._snapshot.thread_id:
                 raise ValueError("in-memory service only contains its configured thread")
             raise ValueError("thread identity already exists")
+
+    def require_workspace(self, thread_id: str, workspace_name: str = DEFAULT_WORKSPACE) -> None:
+        name = normalize_workspace_name(workspace_name)
+        with self._lock:
+            self._check_thread(thread_id)
+            if self._workspace_name != name:
+                raise ThreadNotFound(thread_id)
 
     def set_capability_catalog(self, capability_catalog: ThreadCapabilityCatalog) -> None:
         if not callable(getattr(capability_catalog, "resolve", None)):
@@ -1239,8 +1254,13 @@ class InMemoryThreadService(NativeExecutionOwner):
                 return ()
             return (self._snapshot.thread_id,)
 
-    def list_threads(self, *, before: str | None = None, limit: int = 20, archived: bool = False) -> dict[str, Any]:
+    def list_threads(self, *, before: str | None = None, limit: int = 20, archived: bool = False, workspace_name: str = DEFAULT_WORKSPACE) -> dict[str, Any]:
         validate_limit(limit, limits.history_page_items)
+        name = normalize_workspace_name(workspace_name)
+        if name != self._workspace_name:
+            if before is not None:
+                raise ThreadNotFound(before)
+            return thread_list_page([], limit)
         if self._deleted:
             if before is not None:
                 raise ThreadNotFound(before)
@@ -2538,7 +2558,13 @@ class ThreadCreator:
         model_id: str | None = None,
         selection: ModelCapabilitySelection | None = None,
         *, model_free: bool = False, session_type: str | None = None,
+        workspace_name: str = DEFAULT_WORKSPACE,
     ) -> ThreadSnapshot:
+        name = normalize_workspace_name(workspace_name)
+        def store(snapshot: ThreadSnapshot) -> ThreadSnapshot:
+            # Preserve existing default callers that implement the original port.
+            return (self._service.create_thread(snapshot) if name == DEFAULT_WORKSPACE
+                    else self._service.create_thread(snapshot, workspace_name=name))
         names = {'grid-analysis':'电网分析与决策', 'enterprise-research':'企业研究与分析', 'general-chat':'通用聊天'}
         if session_type is not None and session_type not in names:
             raise ValueError('invalid session type')
@@ -2551,7 +2577,7 @@ class ThreadCreator:
             if model_id is not None or selection is not None:
                 raise ValueError('model-free Thread cannot select a model')
             token = secrets.token_hex(10)
-            return self._service.create_thread(ThreadSnapshot(
+            return store(ThreadSnapshot(
                 'thr_' + token, RunSnapshot('run_' + token, 'open'), None, None,
                 None, 0, 0, minimum_protocol_version=2, session_type=session_type, session_title=title))
         started = time.perf_counter()
@@ -2588,7 +2614,7 @@ class ThreadCreator:
             current_attempt=None, last_event_seq=0, base_event_seq=0,
             session_type=session_type, session_title=title,
         )
-        return self._service.create_thread(snapshot)
+        return store(snapshot)
 
 
 _THREAD_SCHEMA = """
@@ -2625,6 +2651,7 @@ ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS model_workspace jsonb;
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS model_workspace_migrated boolean NOT NULL DEFAULT false;
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS minimum_protocol_version integer NOT NULL DEFAULT 1;
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS works jsonb NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS workspace_name text NOT NULL DEFAULT 'enterprise';
 ALTER TABLE capstone_threads ALTER COLUMN model_context_id DROP NOT NULL;
 ALTER TABLE capstone_threads ALTER COLUMN model_id DROP NOT NULL;
 ALTER TABLE capstone_threads ALTER COLUMN model_revision DROP NOT NULL;
@@ -2632,6 +2659,7 @@ ALTER TABLE capstone_threads ALTER COLUMN implementation_family DROP NOT NULL;
 ALTER TABLE capstone_threads ALTER COLUMN selection_revision DROP NOT NULL;
 ALTER TABLE capstone_threads ALTER COLUMN active_grid_page_id DROP NOT NULL;
 CREATE INDEX IF NOT EXISTS capstone_threads_catalog_idx ON capstone_threads(archived, created_at DESC, thread_id DESC);
+CREATE INDEX IF NOT EXISTS capstone_threads_workspace_catalog_idx ON capstone_threads(workspace_name, archived, created_at DESC, thread_id DESC);
 CREATE TABLE IF NOT EXISTS capstone_thread_events (
     thread_id text NOT NULL REFERENCES capstone_threads(thread_id) ON DELETE CASCADE,
     event_seq integer NOT NULL CHECK (event_seq > 0),
@@ -2886,15 +2914,16 @@ class PostgresThreadService(NativeExecutionOwner):
                 if statement.strip():
                     connection.execute(statement)
 
-    def create_thread(self, snapshot: ThreadSnapshot) -> ThreadSnapshot:
+    def create_thread(self, snapshot: ThreadSnapshot, *, workspace_name: str = DEFAULT_WORKSPACE) -> ThreadSnapshot:
+        name = normalize_workspace_name(workspace_name)
         context = snapshot.active_model_context
         if context is None:
             with self._connect() as connection:
                 connection.execute('''INSERT INTO capstone_threads
-                    (thread_id, run_id, run_state, minimum_protocol_version, works, session_title, session_type)
-                    VALUES (%s, %s, %s, 2, %s, %s, %s)''',
+                    (thread_id, run_id, run_state, minimum_protocol_version, works, session_title, session_type, workspace_name)
+                    VALUES (%s, %s, %s, 2, %s, %s, %s, %s)''',
                     (snapshot.thread_id, snapshot.run.run_id, snapshot.run.state, Jsonb(list(snapshot.works)),
-                     None if snapshot.session_title is None else Jsonb(snapshot.session_title.to_document()), snapshot.session_type))
+                     None if snapshot.session_title is None else Jsonb(snapshot.session_title.to_document()), snapshot.session_type, name))
             return snapshot
         started = time.perf_counter()
         initial_diagram = None
@@ -2915,8 +2944,8 @@ class PostgresThreadService(NativeExecutionOwner):
                      implementation_family, selection_revision, enabled_profiles,
                      active_grid_page_id, current_attempt, pending_selection,
                      pending_model_switch, result_projections, application_state,
-                     base_event_seq, last_event_seq, runtime_mode)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                     base_event_seq, last_event_seq, runtime_mode, workspace_name)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                     (snapshot.thread_id, snapshot.run.run_id, snapshot.run.state,
                      context.id, context.model_id, context.model_revision,
                      context.implementation_family, context.selection_revision,
@@ -2928,7 +2957,7 @@ class PostgresThreadService(NativeExecutionOwner):
                      None if snapshot.pending_model_switch is None else Jsonb(snapshot.pending_model_switch.to_document()),
                      Jsonb([item.to_document() for item in snapshot.result_projections]),
                      None if snapshot.application_state is None else Jsonb(dict(snapshot.application_state)),
-                     snapshot.base_event_seq, snapshot.last_event_seq, snapshot.runtime_mode),
+                     snapshot.base_event_seq, snapshot.last_event_seq, snapshot.runtime_mode, name),
                 )
             except psycopg.errors.UniqueViolation:
                 raise ValueError("thread identity already exists") from None
@@ -2946,6 +2975,15 @@ class PostgresThreadService(NativeExecutionOwner):
                 connection.execute("UPDATE capstone_threads SET last_event_seq = %s WHERE thread_id = %s", (event.event_seq, snapshot.thread_id))
         record_thread_startup(snapshot.thread_id, 'database_write', started)
         return snapshot
+
+    def require_workspace(self, thread_id: str, workspace_name: str = DEFAULT_WORKSPACE) -> None:
+        name = normalize_workspace_name(workspace_name)
+        with self._connect() as connection:
+            row = connection.execute(
+                'SELECT 1 FROM capstone_threads WHERE thread_id = %s AND workspace_name = %s',
+                (thread_id, name)).fetchone()
+        if row is None:
+            raise ThreadNotFound(thread_id)
 
     def snapshot(self, thread_id: str) -> ThreadSnapshot:
         self.interrupt_expired_attempts()
@@ -3049,13 +3087,14 @@ class PostgresThreadService(NativeExecutionOwner):
             ).fetchall()
         return tuple(row["thread_id"] for row in rows)
 
-    def list_threads(self, *, before: str | None = None, limit: int = 20, archived: bool = False) -> dict[str, Any]:
+    def list_threads(self, *, before: str | None = None, limit: int = 20, archived: bool = False, workspace_name: str = DEFAULT_WORKSPACE) -> dict[str, Any]:
         validate_limit(limit, limits.history_page_items)
+        name = normalize_workspace_name(workspace_name)
         with self._connect() as connection:
             cursor = None
             if before is not None:
                 cursor = connection.execute(
-                    "SELECT created_at, thread_id FROM capstone_threads WHERE thread_id = %s", (before,),
+                    "SELECT created_at, thread_id FROM capstone_threads WHERE thread_id = %s AND workspace_name = %s", (before, name),
                 ).fetchone()
                 if cursor is None:
                     raise ThreadNotFound(before)
@@ -3065,10 +3104,10 @@ class PostgresThreadService(NativeExecutionOwner):
                      (SELECT occurred_at FROM capstone_thread_events
                       WHERE thread_id = capstone_threads.thread_id AND event_seq = capstone_threads.last_event_seq)
                    END AS updated_at
-                   FROM capstone_threads WHERE archived = %s
+                   FROM capstone_threads WHERE archived = %s AND workspace_name = %s
                    AND (%s::timestamptz IS NULL OR (created_at, thread_id) < (%s, %s))
                    ORDER BY created_at DESC, thread_id DESC LIMIT %s""",
-                (archived, None if cursor is None else cursor["created_at"],
+                (archived, name, None if cursor is None else cursor["created_at"],
                  None if cursor is None else cursor["created_at"],
                  None if cursor is None else cursor["thread_id"], limit + 1),
             ).fetchall()

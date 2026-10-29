@@ -6346,3 +6346,10 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - Code files use lazy Lowlight3.3.0 AST highlighting, language selection, line numbers and bounded rendering. Preview warnings no longer conflate reference admission with image/code/PPT rendering.
 - TypeScript and93focused App tests passed; scoped reviews closed pin corruption/unmount findings. Vivaldi anchored preview seen in /tmp/session-cleanup-anchored-preview.json. Full-screen cross-format visual check and canonical combined rebuild remain pending.
 - New accepted URL workspace implementation is active: authority_import owns backend scope guard/schema/creator tests; root owns frontend context/URL/cache. Do not report current enterprise URL as named-space isolation.
+- d0091470 — Added guarded cleanup and stable Artifacts/code previews to support user-controlled session and output browsing.
+
+### 2026-10-29 — URL workspace candidate
+- Left sidebar now displays the URL workspace name. Transport freezes the name; named requests require a matching backend echo. Catalog, drafts and retained navigation use separate namespaces. Missing thread opens the entry screen without creating a record.
+- Backend scopes list/cursor/create and all thread resource access. Existing records migrate to enterprise. This is shared URL naming, not account authentication; global MCP connection identity stays deployment-wide.
+- Reproduced and fixed three asynchronous navigation/catalog races. App focused checks:91 passed in7.04s; backend workspace checks:54 passed in1.14s; TypeScript/build passed. Real migration, Vivaldi acceptance and dev integration remain pending. User-owned task-1-report.md is excluded.
+- After UI acceptance, return to lightweight-chain execution diagnosis using the saved full summer-study run; do not claim the prior timing difference as performance acceptance.

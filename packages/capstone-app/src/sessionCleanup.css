@@ -24,3 +24,11 @@
 .thread-session-navigation .session-navigation-scroll h2.session-section-heading:first-child { margin-top: 3px; }
 .session-section-heading > svg { flex: none; color: #b3cbbb; stroke-width: 1.6; }
 .session-section-heading::after { content: ''; flex: 1; height: 1px; margin-left: 2px; background: #496254; }
+.thread-session-navigation .session-navigation-scroll h2.session-section-heading:has(.lucide-pin) { color: #efcf8a; }
+.thread-session-navigation .session-navigation-scroll h2.session-section-heading:has(.lucide-history) { color: #a3dcc9; }
+.thread-session-navigation .session-navigation-scroll h2.session-section-heading:has(.lucide-archive) { color: #b7ccef; }
+.session-section-heading > svg { color: inherit; }
+.session-section-heading::after { background: currentColor; opacity: .3; }
+.workspace-brand .workspace-identity { display: flex; align-items: baseline; gap: 9px; min-width: 0; letter-spacing: normal; }
+.workspace-identity > small { flex: none; font-size: 9px; letter-spacing: 1.8px; color: #a6b8ac; }
+.workspace-identity > strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 500; color: #e0ebe3; }

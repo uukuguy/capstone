@@ -3,6 +3,21 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import ThreadLiveEntry from './ThreadLiveEntry'
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); sessionStorage.clear(); window.history.replaceState({}, '', '/') })
+it('returns to workspace selection when same-space navigation removes the thread parameter',async()=>{
+  const snapshot={schema:'capstone-thread-snapshot/2',thread_id:'thr_a',run:{run_id:'run_a',state:'open'},active_model_context:null,active_grid_page_id:null,current_attempt:null,last_event_seq:0,base_event_seq:0,minimum_protocol_version:2,selected_model_context_id:null,task_context:null,works:[]}
+  const response=(body:unknown)=>new Response(JSON.stringify(body),{headers:{'Capstone-Thread-Version':'2'}})
+  const fetcher=vi.fn(async(url:string|URL)=>{
+    if(String(url).endsWith('/thread-access'))return response({schema:'capstone-thread-access/1',mode:'open'})
+    if(String(url).includes('/threads?'))return response({schema:'capstone-thread-list/1',threads:[],has_more:false,next_before_thread_id:null})
+    return readFallback(url,snapshot)||response(snapshot)
+  })
+  vi.stubGlobal('fetch',fetcher)
+  window.history.replaceState({},'','/?workspace=enterprise&thread=thr_a')
+  render(<ThreadLiveEntry threadId="thr_a" presentation="workspace"/>)
+  await waitFor(()=>expect(fetcher.mock.calls.some(call=>String(call[0]).endsWith('/thr_a'))).toBe(true))
+  window.history.pushState({},'','/?workspace=enterprise');fireEvent.popState(window)
+  expect(await screen.findByRole('heading',{name:'新建任务会话'})).toBeTruthy()
+})
 
 function readFallback(url: string | URL, snapshot: { last_event_seq: number }) {
   const parsed = new URL(String(url), 'http://localhost')

@@ -13,6 +13,7 @@ import {transferResource,parseStoredResources} from './resourceUploads'
 import {parseCapacityFailure} from './capacityFailure'
 import {parseGatewayConnectionStatus} from './threadInput'
 import type {WorkspaceConnections} from './workspaceConnections'
+import {currentWorkspaceName,normalizeWorkspaceName} from './workspaceName'
 
 const THREAD_VERSION_HEADER = 'Capstone-Thread-Version'
 const THREAD_VERSION = '1'
@@ -98,6 +99,8 @@ async function verifiedFileBytes(response:Response,size:number,digest:string,key
 
 /** HTTP adapter for the negotiated Thread API; payload parsing remains in the client. */
 export class HttpThreadTransport implements ThreadTransport {
+  readonly workspaceName:string
+  private get workspaceHeaders():Record<string,string>{return this.workspaceName==='enterprise'?{}:{'Capstone-Workspace':encodeURIComponent(this.workspaceName)}}
   readonly workspaceConnectionsScope:object
   readonly connectionState: ThreadTransportState = 'live'
   private readonly base: string
@@ -106,6 +109,12 @@ export class HttpThreadTransport implements ThreadTransport {
   // before adding a custom header that older cross-origin servers cannot allow.
   // Never retry a write to discover protocol support.
   private versionAdvertised = false
+  private async checkWorkspace(response:Response){
+    if(this.workspaceName==='enterprise'||!response.ok)return
+    let matches=false
+    try{const echoed=response.headers.get('Capstone-Workspace');matches=echoed!==null&&normalizeWorkspaceName(decodeURIComponent(echoed))===this.workspaceName}catch{/* Reject an absent or malformed response scope. */}
+    if(!matches){await response.body?.cancel().catch(()=>undefined);throw new ThreadTransportError(409,'服务端尚未确认当前工作空间，请更新后端后重试。')}
+  }
 
   async workspaceConnections():Promise<WorkspaceConnections> {
     const value=await this.request('/api/v1/workspace/connections') as WorkspaceConnections
@@ -119,6 +128,7 @@ export class HttpThreadTransport implements ThreadTransport {
     private readonly fetcher: typeof fetch = fetch,
     resourcePath = '/api/v1/threads',
     private readonly protocolVersion: '1' | '2' = '1',
+    workspaceName = currentWorkspaceName(),
   ) {
     // Browser fetch requires its Window receiver, including direct file reads.
     this.fetcher = fetcher.bind(globalThis)
@@ -126,6 +136,7 @@ export class HttpThreadTransport implements ThreadTransport {
     if (this.base && !/^https?:\/\/[^/]+$/.test(this.base)) throw new Error('API 地址无效')
     if (!/^\/[^?]+$/.test(resourcePath)) throw new Error('Thread 资源路径无效')
     this.resourcePath = resourcePath.replace(/\/$/, '')
+    this.workspaceName=normalizeWorkspaceName(workspaceName)
     this.workspaceConnectionsScope=workspaceScope(this.base,this.token)
   }
 
@@ -135,12 +146,14 @@ export class HttpThreadTransport implements ThreadTransport {
       ...init,
       credentials: 'omit', cache: 'no-store',
       headers: {
+        ...this.workspaceHeaders,
         ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
         ...(init.body ? { 'Content-Type': 'application/json' } : {}),
         ...init.headers,
         ...(threadVersion && (this.versionAdvertised || this.protocolVersion === '2') ? { [THREAD_VERSION_HEADER]: this.protocolVersion } : {}),
       },
     }, this.fetcher)
+    if(path===this.resourcePath||path.startsWith(this.resourcePath+'/'))await this.checkWorkspace(response)
     if(threadVersion)await checkResponseVersion(response, this.protocolVersion)
     if(response.status===204)return undefined
     if(threadVersion)this.versionAdvertised = response.ok && response.headers.get(THREAD_VERSION_HEADER) === this.protocolVersion
@@ -159,9 +172,10 @@ export class HttpThreadTransport implements ThreadTransport {
   private async streamRequest(path: string, signal?: AbortSignal): Promise<Response> {
     const response = await fetchWithReadRetry(this.base + path, {
       signal, credentials: 'omit', cache: 'no-store',
-      headers: { ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
+      headers: { ...this.workspaceHeaders, ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
         ...(this.versionAdvertised || this.protocolVersion === '2' ? { [THREAD_VERSION_HEADER]: this.protocolVersion } : {}) },
     }, this.fetcher)
+    await this.checkWorkspace(response)
     await checkResponseVersion(response, this.protocolVersion)
     this.versionAdvertised = response.ok && response.headers.get(THREAD_VERSION_HEADER) === this.protocolVersion
     if (!response.ok) {
@@ -218,7 +232,7 @@ export class HttpThreadTransport implements ThreadTransport {
     catch (cause) {
       if (this.protocolVersion !== '1' || !isThreadVersionError(cause)) throw cause
       // A mixed list needs v2, but the selected v1 conversation must keep its own protocol.
-      return new HttpThreadTransport(this.base, this.token, this.fetcher, this.resourcePath, '2')
+      return new HttpThreadTransport(this.base, this.token, this.fetcher, this.resourcePath, '2',this.workspaceName)
         .listThreads(archived, before, signal)
     }
   }
@@ -226,19 +240,19 @@ export class HttpThreadTransport implements ThreadTransport {
   async archiveThread(threadId: string, archived: boolean, signal?: AbortSignal):Promise<ThreadDescriptor> {
     try{return parseThreadDescriptor(await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/archive`, {
       method: 'POST', signal, body: JSON.stringify({ archived }),
-    }))}catch(error){if(this.protocolVersion==='2'||!isThreadVersionError(error))throw error;return new HttpThreadTransport(this.base,this.token,this.fetcher,this.resourcePath,'2').archiveThread(threadId,archived,signal)}
+    }))}catch(error){if(this.protocolVersion==='2'||!isThreadVersionError(error))throw error;return new HttpThreadTransport(this.base,this.token,this.fetcher,this.resourcePath,'2',this.workspaceName).archiveThread(threadId,archived,signal)}
   }
 
   async deleteThread(threadId:string,signal?:AbortSignal):Promise<void> {
     try{await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}`,{method:'DELETE',signal})}
-    catch(error){if(this.protocolVersion==='2'||!isThreadVersionError(error))throw error;await new HttpThreadTransport(this.base,this.token,this.fetcher,this.resourcePath,'2').deleteThread(threadId,signal)}
+    catch(error){if(this.protocolVersion==='2'||!isThreadVersionError(error))throw error;await new HttpThreadTransport(this.base,this.token,this.fetcher,this.resourcePath,'2',this.workspaceName).deleteThread(threadId,signal)}
   }
 
   async getSessionManagementSnapshot(threadId:string):Promise<{run:{run_id:string};session_title?:{revision:number}}> {
     let value:unknown
     try{value=await this.getSnapshot(threadId)}catch(error){
       if(!isThreadVersionError(error))throw error
-      value=await new HttpThreadTransport(this.base,this.token,this.fetcher,this.resourcePath,'2').getSnapshot(threadId)
+      value=await new HttpThreadTransport(this.base,this.token,this.fetcher,this.resourcePath,'2',this.workspaceName).getSnapshot(threadId)
     }
     const row=value as {run?:{run_id?:unknown};session_title?:{revision:number}}
     if(typeof row?.run?.run_id!=='string')throw new Error('会话信息暂不可用')
@@ -305,13 +319,15 @@ export class HttpThreadTransport implements ThreadTransport {
   }
   async readNativeArtifact(artifact:NativeArtifact,signal?:AbortSignal):Promise<Uint8Array> {
     const item=parseNativeArtifact(artifact,artifact.thread_id,artifact.attempt_id)
-    const response=await this.fetcher(this.base+item.download_url,{signal,credentials:'omit',cache:'no-store',headers:{...(this.token?{Authorization:`Bearer ${this.token}`} : {}),'Capstone-Thread-Version':this.protocolVersion}})
+    const response=await this.fetcher(this.base+item.download_url,{signal,credentials:'omit',cache:'no-store',headers:{...this.workspaceHeaders,...(this.token?{Authorization:`Bearer ${this.token}`} : {}),'Capstone-Thread-Version':this.protocolVersion}})
+    await this.checkWorkspace(response)
     return verifiedFileBytes(response,item.size_bytes,item.sha256)
   }
 
   async readDeliveryFile(threadId:string,artifactId:string,revision:number,size:number,digest:string,signal?:AbortSignal):Promise<Uint8Array> {
     if(!/^delivery_[a-f0-9]{32}$/.test(artifactId)||!Number.isSafeInteger(revision)||revision<1)throw new Error('交付版本无效')
-    const response=await this.fetcher(`${this.base}${this.resourcePath}/${encodeURIComponent(threadId)}/deliveries/${artifactId}/revisions/${revision}/content`,{signal,credentials:'omit',cache:'no-store',headers:{...(this.token?{Authorization:`Bearer ${this.token}`} : {}),'Capstone-Thread-Version':this.protocolVersion}})
+    const response=await this.fetcher(`${this.base}${this.resourcePath}/${encodeURIComponent(threadId)}/deliveries/${artifactId}/revisions/${revision}/content`,{signal,credentials:'omit',cache:'no-store',headers:{...this.workspaceHeaders,...(this.token?{Authorization:`Bearer ${this.token}`} : {}),'Capstone-Thread-Version':this.protocolVersion}})
+    await this.checkWorkspace(response)
     return verifiedFileBytes(response,size,digest,'delivery_file_bytes')
   }
 
@@ -323,8 +339,9 @@ export class HttpThreadTransport implements ThreadTransport {
     return this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/deliveries`,{method:'POST',body:JSON.stringify(request),headers:{'Idempotency-Key':String(request.idempotency_key)}})
   }
   async readDeliveryContent(threadId:string,artifactId:string,revision:number,signal?:AbortSignal):Promise<string> {
-    const response=await this.fetcher(`${this.base}${this.resourcePath}/${encodeURIComponent(threadId)}/deliveries/${encodeURIComponent(artifactId)}/revisions/${revision}/content`,{signal,credentials:'omit',cache:'no-store',headers:{...(this.token?{Authorization:`Bearer ${this.token}`} : {}),'Capstone-Thread-Version':this.protocolVersion}})
+    const response=await this.fetcher(`${this.base}${this.resourcePath}/${encodeURIComponent(threadId)}/deliveries/${encodeURIComponent(artifactId)}/revisions/${revision}/content`,{signal,credentials:'omit',cache:'no-store',headers:{...this.workspaceHeaders,...(this.token?{Authorization:`Bearer ${this.token}`} : {}),'Capstone-Thread-Version':this.protocolVersion}})
     if(!response.ok)throw new Error('交付文件暂时无法读取')
+    await this.checkWorkspace(response)
     const content=await boundedResponseText(response,'delivery_file_bytes')
     return content
   }
@@ -365,7 +382,7 @@ export class HttpThreadTransport implements ThreadTransport {
   }
 
   renameSession(threadId:string,runId:string,revision:number,text:string,commandId:string,idempotencyKey:string):Promise<unknown> {
-    const transport=new HttpThreadTransport(this.base,this.token,this.fetcher,this.resourcePath,'2')
+    const transport=new HttpThreadTransport(this.base,this.token,this.fetcher,this.resourcePath,'2',this.workspaceName)
     return transport.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/commands`,{method:'POST',headers:{'Idempotency-Key':idempotencyKey},body:JSON.stringify({schema:'capstone-command/2',thread_id:threadId,run_id:runId,command_id:commandId,idempotency_key:idempotencyKey,kind:'rename_session',target:{kind:'session_title',id:threadId,expected_revision:revision},payload:{text}})})
   }
 

@@ -14,6 +14,7 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
+from urllib.parse import quote
 from collections.abc import Callable, Iterator, Mapping
 
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Query, Request
@@ -31,6 +32,7 @@ from capstone_agent.session import WorkerRegistry, WorkerSession, WorkerSpec
 from capstone_agent.thread_application import ThreadApplicationAssembly
 from capstone_agent.thread_streams import ThreadStreamBudget
 from capstone_agent.thread_protocol import ThreadProtocolError
+from capstone_agent.workspace_scope import DEFAULT_WORKSPACE, WORKSPACE_HEADER, workspace_header
 from capstone_agent.thread_service import (
     ThreadCreator,
     ThreadExecutionError,
@@ -184,7 +186,21 @@ def create_host_app(
                 response = JSONResponse({"error": "unauthorized"}, status_code=401)
             else:
                 request.state.public_demo = demo_authorized
-                if versioned_resource and not demo_authorized and thread_version not in {'1', '2'}:
+                scope_error = None
+                try:
+                    request.state.workspace_name = workspace_header(request.headers.get(WORKSPACE_HEADER))
+                    # Check every Thread child route before version probing or
+                    # parsing a body, including streaming and file endpoints.
+                    parts = request.url.path.split('/')
+                    if thread_resource and not demo_authorized and len(parts) >= 5 and parts[4] and thread_service is not None:
+                        await run_in_threadpool(thread_service.require_workspace, parts[4], request.state.workspace_name)
+                except ThreadNotFound:
+                    scope_error = JSONResponse({'detail': 'thread not found'}, status_code=404)
+                except ValueError:
+                    scope_error = JSONResponse({'error': 'invalid_workspace'}, status_code=422)
+                if scope_error is not None:
+                    response = scope_error
+                elif versioned_resource and not demo_authorized and thread_version not in {'1', '2'}:
                     response = JSONResponse({'error': 'unsupported_thread_version',
                                              'supported_versions': [1, 2]}, status_code=406)
                 else:
@@ -200,6 +216,11 @@ def create_host_app(
                                 if upgrade else await call_next(request))
         response.headers["Cache-Control"] = "no-store"
         response.headers["X-Content-Type-Options"] = "nosniff"
+        if thread_resource:
+            response.headers.append('Vary', WORKSPACE_HEADER)
+            selected_workspace = getattr(request.state, 'workspace_name', None)
+            if selected_workspace is not None:
+                response.headers[WORKSPACE_HEADER] = quote(selected_workspace, safe='')
         if versioned_resource:
             response.headers.append('Vary', 'Capstone-Thread-Version')
             if thread_version in {'1', '2'}:
@@ -207,12 +228,12 @@ def create_host_app(
         if origin is not None:
             response.headers["Access-Control-Allow-Origin"] = origin
             response.headers.append("Vary", "Origin")
-            response.headers["Access-Control-Allow-Methods"] = "GET, POST, DELETE, OPTIONS"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
             response.headers["Access-Control-Allow-Headers"] = (
-                "Authorization, Content-Type, Idempotency-Key, Capstone-Thread-Version"
+                "Authorization, Content-Type, Idempotency-Key, Capstone-Thread-Version, Capstone-Workspace"
             )
             if thread_resource:
-                response.headers['Access-Control-Expose-Headers'] = 'Capstone-Thread-Version'
+                response.headers['Access-Control-Expose-Headers'] = 'Capstone-Thread-Version, Capstone-Workspace'
         return response
 
     def get_session(session_id: str, request: Request) -> SessionRecord:
@@ -349,7 +370,8 @@ def create_host_app(
             from .application_capacity import require_capacity
             require_capacity('history_page_items', limit, phase='thread_list')
             try:
-                page = thread_service.list_threads(before=before, limit=limit, archived=archived)
+                page = thread_service.list_threads(before=before, limit=limit, archived=archived,
+                                                   workspace_name=request.state.workspace_name)
                 if request.headers.get('Capstone-Thread-Version', '1') == '1' and any(
                         row.get('minimum_protocol_version', 1) > 1 for row in page['threads']):
                     return JSONResponse({'error': 'protocol_upgrade_required', 'minimum_protocol_version': 2}, status_code=409)
@@ -450,11 +472,13 @@ def create_host_app(
                         raise ThreadProtocolError("thread creation model_id is invalid")
                     started = time.perf_counter()
                     model_free = request.headers.get('Capstone-Thread-Version', '1') == '2' and model_id is None
+                    workspace = ({} if request.state.workspace_name == DEFAULT_WORKSPACE
+                                 else {'workspace_name': request.state.workspace_name})
                     if session_type is not None:
-                        snapshot = await run_in_threadpool(thread_creator.create, model_id, model_free=model_free, session_type=session_type)
+                        snapshot = await run_in_threadpool(thread_creator.create, model_id, model_free=model_free, session_type=session_type, **workspace)
                     else:
-                        snapshot = (await run_in_threadpool(thread_creator.create, model_free=True) if model_free
-                                    else await run_in_threadpool(thread_creator.create, model_id))
+                        snapshot = (await run_in_threadpool(thread_creator.create, model_free=True, **workspace) if model_free
+                                    else await run_in_threadpool(thread_creator.create, model_id, **workspace))
                     duration = record_thread_startup(snapshot.thread_id, 'thread_create', started)
                     response.headers['Server-Timing'] = f'thread_create;dur={duration:.3f}'
                     # Start the existing preparation as the response is sent. Task

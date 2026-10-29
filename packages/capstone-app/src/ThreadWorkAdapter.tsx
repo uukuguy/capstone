@@ -1,3 +1,4 @@
+import {isWorkspaceActive} from './workspaceName'
 import {applicationCapacity,rethrowDebugCapacity} from './applicationCapacity'
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { MessageNotSentError } from '@assistant-ui/react'
@@ -282,9 +283,9 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
     writing.current = true; setBusy(true); setError(null)
     try {
       const next = parseWorkSnapshot(await transport.createWorkThread())
-      if (!mounted.current) return
+      if (!mounted.current||!isWorkspaceActive(transport.workspaceName)) return
       const url = new URL(window.location.href)
-      url.searchParams.set('workspace', 'enterprise'); url.searchParams.set('thread', next.threadId)
+      url.searchParams.set('workspace', transport.workspaceName); url.searchParams.set('thread', next.threadId)
       window.history.pushState({}, '', url); onNavigate(next.threadId)
     } catch (cause) { setError(cause instanceof Error ? cause.message : '创建失败，请重试。') }
     finally { writing.current = false; setBusy(false) }
@@ -296,6 +297,7 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
     try {
       const next=parseWorkSnapshot(await transport.createSession({session_type:'enterprise-research'}))
       createdId=next.threadId
+      if(!mounted.current||!isWorkspaceActive(transport.workspaceName))return
       const material={schema:'capstone-grid-source-observation/1',purpose:'frozen_source_observation',
         source_id:view.page.source_id,view_ref:view.page.view_ref,scope:view.page.scope,
         selection:view.page.selection,source_snapshot:view.page.source_snapshot,provenance:view.page.provenance,
@@ -308,9 +310,10 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
         record_sample_only:true,sample_limit_per_kind:50,nodes:view.nodes.slice(0,50),edges:view.edges.slice(0,50),
         limitations:['This source display is not a calculation model.','Record samples cannot establish rankings or full connectivity.']}
       await transport.uploadThreadMaterial(next.threadId,new File([JSON.stringify(material,null,2)],'grid-source-observation.json',{type:'application/json'}))
+      if(!mounted.current||!isWorkspaceActive(transport.workspaceName))return
       const text=`${question}\n\n请依据所附 grid-source-observation.json 的冻结来源摘要回答；区分完整视图总数与抽样对象，说明源质量缺口，不推断未提供的潮流或电气连通性。`
       sessionStorage.setItem(`${namespace}.${next.threadId}.work-draft`,JSON.stringify({selected:'new',drafts:{new:text}}))
-      const url=new URL(window.location.href);url.searchParams.set('workspace','enterprise');url.searchParams.set('thread',next.threadId)
+      const url=new URL(window.location.href);url.searchParams.set('workspace',transport.workspaceName);url.searchParams.set('thread',next.threadId)
       setProductsOpen(false);setResourceView('products')
       window.history.pushState({},'',url);onNavigate(next.threadId)
     } catch(cause) {

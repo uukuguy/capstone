@@ -6,6 +6,7 @@ import SessionCleanup from './SessionCleanup'
 import {navigateSession,sessionName,orderSessions,useSessionPins,type SessionNavItem} from './sessionNavigationState'
 import type {SessionManagementActions} from './sessionManagement'
 import type {ThreadListPage} from './threadManagement'
+import {currentWorkspaceName,isWorkspaceActive} from './workspaceName'
 export {navigateSession,sessionName,type SessionNavItem} from './sessionNavigationState'
 
 export function SessionAdjacentControls({items,currentId,storageKey}: {items:readonly SessionNavItem[];currentId?:string;storageKey?:string}) {
@@ -24,7 +25,9 @@ export default function SessionNavigation({items,currentId,storageKey='workspace
   const [menu,setMenu]=useState<{item:SessionNavItem;x:number;y:number}>(),[editing,setEditing]=useState<string>()
   const [archiveView,setArchiveView]=useState(false),[archived,setArchived]=useState<ThreadListPage>(),[loading,setLoading]=useState(false)
   const archiveRequest=useRef(0)
-  useEffect(()=>()=>{archiveRequest.current++},[])
+  const workspace=useRef(currentWorkspaceName()),mounted=useRef(true)
+  const mayUpdate=()=>mounted.current&&isWorkspaceActive(workspace.current)
+  useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;archiveRequest.current++}},[])
   const [removed,setRemoved]=useState<string[]>([]),[names,setNames]=useState<Record<string,string>>({}),[deleting,setDeleting]=useState<SessionNavItem>(),[busy,setBusy]=useState(false),[error,setError]=useState('')
   const [reopened,setReopened]=useState<SessionNavItem[]>([])
   useEffect(()=>{if(reopened.some(item=>items.some(existing=>existing.threadId===item.threadId)))setReopened(previous=>previous.filter(item=>!items.some(existing=>existing.threadId===item.threadId)))},[items,reopened])
@@ -90,7 +93,7 @@ export default function SessionNavigation({items,currentId,storageKey='workspace
     setLoading(true);setError('')
     try{
       const page=await actions.archived(before)
-      if(request!==archiveRequest.current)return
+      if(request!==archiveRequest.current||!mayUpdate())return
       setArchived(previous=>before?{...page,threads:[...(previous?.threads??[]),...page.threads]}:page)
     }catch{if(request===archiveRequest.current)setError('归档会话暂时无法读取')}
     finally{if(request===archiveRequest.current)setLoading(false)}
@@ -102,14 +105,14 @@ export default function SessionNavigation({items,currentId,storageKey='workspace
     setBusy(true);setLoading(false);setError('')
     try{
       await actions.archive(item.threadId,false)
-      if(request!==archiveRequest.current)return
+      if(request!==archiveRequest.current||!mayUpdate())return
       setReopened(previous=>[{...item,archived:false},...previous.filter(value=>value.threadId!==item.threadId)])
       setRemoved(previous=>previous.filter(id=>id!==item.threadId));setArchiveView(false);setMenu(undefined)
       navigateSession(item.threadId)
     }catch{if(request===archiveRequest.current)setError('会话恢复失败，请重试。')}
     finally{setBusy(false)}
   }
-  async function archive(item:SessionNavItem,value:boolean){if(!actions||busy)return;setBusy(true);setMenu(undefined);setError('');try{await actions.archive(item.threadId,value);setRemoved(previous=>[...previous,item.threadId]);if(item.threadId===currentId&&value)navigateSession(displayed.find(other=>other.threadId!==item.threadId)?.threadId??'new')}catch{setError('操作未完成；运行中的会话需先停止。')}finally{setBusy(false)}}
+  async function archive(item:SessionNavItem,value:boolean){if(!actions||busy)return;setBusy(true);setMenu(undefined);setError('');try{await actions.archive(item.threadId,value);if(!mayUpdate())return;setRemoved(previous=>[...previous,item.threadId]);if(item.threadId===currentId&&value)navigateSession(displayed.find(other=>other.threadId!==item.threadId)?.threadId??'new')}catch{setError('操作未完成；运行中的会话需先停止。')}finally{setBusy(false)}}
   const rows=(values:SessionNavItem[])=>values.map(item=><SessionRow key={item.threadId} item={item} current={item.threadId===currentId} editing={editing===item.threadId} onEdit={()=>setEditing(previous=>previous===item.threadId?undefined:item.threadId)}
     onActivate={()=>void openSession(item)}
     onRename={actions?async text=>{await actions.rename(item.threadId,text);setNames(previous=>({...previous,[item.threadId]:text}));setEditing(undefined)}:undefined}
@@ -124,7 +127,7 @@ export default function SessionNavigation({items,currentId,storageKey='workspace
     </div>
     {error&&<p role="alert">{error}</p>}
     {actions&&<div className="session-navigation-actions"><button type="button" className="session-archive-entry" onClick={()=>{setArchiveView(value=>!value);setRemoved([]);if(!archiveView)void loadArchive();else{archiveRequest.current++;setLoading(false);setError('')}}}><Archive size={14}/>{archiveView?'返回最近会话':'已归档会话'}</button>
-      <SessionCleanup key={archiveView?'archived':'recent'} items={displayed} currentId={currentId} storageKey={storageKey} scopeLabel={archiveView?'归档会话':'最近会话'} remove={actions.remove} loadItems={actions.history?signal=>actions.history!(archiveView,signal):undefined} onRemoved={ids=>setRemoved(previous=>[...new Set([...previous,...ids])])}/>
+      <SessionCleanup key={archiveView?'archived':'recent'} items={displayed} currentId={currentId} storageKey={storageKey} scopeLabel={archiveView?'归档记录':'未归档记录'} remove={actions.remove} loadItems={actions.history?signal=>actions.history!(archiveView,signal):undefined} onRemoved={ids=>setRemoved(previous=>[...new Set([...previous,...ids])])}/>
     </div>}
     {menu&&createPortal(<div ref={menuElement} className="session-context-menu" role="menu" aria-label="会话操作" style={{left:menu.x,top:menu.y}}>
       <button role="menuitem" disabled={!actions} onClick={()=>{setEditing(menu.item.threadId);setMenu(undefined)}}><Pencil size={14}/>改名</button>
@@ -136,7 +139,7 @@ export default function SessionNavigation({items,currentId,storageKey='workspace
       if(event.key==='Escape'&&!busy){event.preventDefault();setDeleting(undefined)}
       if(event.key==='Tab'){const buttons=[...event.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')];if(!buttons.length){event.preventDefault();return}const first=buttons[0],last=buttons.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus()}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus()}}
     }}>
-      <h3 id="session-delete-title">删除会话？</h3><p>{sessionName(deleting)}</p><p>会话及对话记录将被删除，无法恢复。已生成文件按存储保留规则处理。</p><div><button autoFocus disabled={busy} onClick={()=>setDeleting(undefined)}>取消</button><button className="is-destructive" disabled={busy} onClick={()=>{if(!actions)return;setBusy(true);setError('');void actions.remove(deleting.threadId).then(()=>{setRemoved(previous=>[...previous,deleting.threadId]);setDeleting(undefined);if(deleting.threadId===currentId)navigateSession(displayed.find(other=>other.threadId!==deleting.threadId)?.threadId??'new')}).catch(()=>setError('删除未完成；运行中的会话需先停止。')).finally(()=>setBusy(false))}}>{busy?'删除中…':'删除'}</button></div>{error&&<p role="alert">{error}</p>}
+      <h3 id="session-delete-title">删除会话？</h3><p>{sessionName(deleting)}</p><p>会话及对话记录将被删除，无法恢复。已生成文件按存储保留规则处理。</p><div><button autoFocus disabled={busy} onClick={()=>setDeleting(undefined)}>取消</button><button className="is-destructive" disabled={busy} onClick={()=>{if(!actions)return;setBusy(true);setError('');void actions.remove(deleting.threadId).then(()=>{if(!mayUpdate())return;setRemoved(previous=>[...previous,deleting.threadId]);setDeleting(undefined);if(deleting.threadId===currentId)navigateSession(displayed.find(other=>other.threadId!==deleting.threadId)?.threadId??'new')}).catch(()=>setError('删除未完成；运行中的会话需先停止。')).finally(()=>setBusy(false))}}>{busy?'删除中…':'删除'}</button></div>{error&&<p role="alert">{error}</p>}
     </div></div>,document.body)}
   </div>
 }

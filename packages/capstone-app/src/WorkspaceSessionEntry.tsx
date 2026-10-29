@@ -7,6 +7,7 @@ import {storageNamespace} from './threadSessionState'
 import ThreadWorkspace from './ThreadWorkspace'
 import {HttpThreadTransport,ThreadTransportError} from './threadHttpTransport'
 import {readThreadAccess} from './threadAccess'
+import {currentWorkspaceName} from './workspaceName'
 
 export default function WorkspaceSessionEntry({onCreated,compact=false}:{onCreated:(id:string)=>void;compact?:boolean}) {
   const [error,setError]=useState('')
@@ -19,6 +20,7 @@ export default function WorkspaceSessionEntry({onCreated,compact=false}:{onCreat
   const mounted=useRef(false)
   useEffect(()=>{mounted.current=true;return()=>{mounted.current=false}},[])
   const origin=import.meta.env.VITE_API_ORIGIN||''
+  const workspaceName=currentWorkspaceName()
   const namespace=storageNamespace(origin),[sessions,setSessions]=useSessionCatalog(namespace)
   useEffect(()=>{
     const controller=new AbortController()
@@ -26,7 +28,7 @@ export default function WorkspaceSessionEntry({onCreated,compact=false}:{onCreat
     void readThreadAccess(origin,controller.signal).then(access=>{
       if(access==='operator'&&!token){setNeedsToken(true);return}
       const auth=access==='open'?'':token
-      const sessionTransport=new HttpThreadTransport(origin,auth)
+      const sessionTransport=new HttpThreadTransport(origin,auth,fetch,'/api/v1/threads','1',workspaceName)
       setTransport(sessionTransport)
       if(!compact) {
         void sessionTransport.listThreads(false,undefined,controller.signal).then(page=>{
@@ -43,7 +45,7 @@ export default function WorkspaceSessionEntry({onCreated,compact=false}:{onCreat
     const version='2'
     let body:{schema?:string;thread_id?:string}
     try {
-      body=await new HttpThreadTransport(origin,creationToken,fetch,'/api/v1/threads',version).createSession(selection) as typeof body
+      body=await new HttpThreadTransport(origin,creationToken,fetch,'/api/v1/threads',version,workspaceName).createSession(selection) as typeof body
     } catch(cause) {
       if(mounted.current&&creationToken&&cause instanceof ThreadTransportError&&cause.status===401){
         sessionStorage.removeItem('capstone.thread.operatorToken')
