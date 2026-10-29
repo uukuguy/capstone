@@ -1,5 +1,5 @@
-"""Check that development shortcuts never hide product or release changes."""
-from tools.ci_scope import classify, check_document_links
+"""Specialized gate selection; final ownership routing is tested separately."""
+from tools.ci_scope import _scoped_gate as classify, check_document_links
 import pytest
 from pathlib import Path
 import os

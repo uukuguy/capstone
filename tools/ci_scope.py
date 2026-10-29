@@ -16,7 +16,8 @@ DOC_FILES = {"README.md", "README.zh-CN.md", "AGENTS.md", "CLAUDE.md",
              "tools/render_project_overview.py"}
 GOVERNANCE_FILES = {".github/workflows/verify.yml", "tools/ci_scope.py",
                     "configs/development/issue-automation.json",
-                    "tools/tests/test_ci_scope.py", "tools/tests/test_verification_targets.py"}
+                    "tools/tests/test_ci_scope.py", "tools/tests/test_ci_workbench_scope.py",
+                    "tools/tests/test_verification_targets.py"}
 
 # Assembly and native-runtime contracts have bounded cross-package gates.
 # Authority protocols, solvers and unknown dependencies still require product.
@@ -294,7 +295,7 @@ def runtime_dependency_diff(paths: list[str], base: str, head: str) -> bool:
     return True
 
 
-def classify(paths: list[str], *, target: str = "dev", release: bool = False,
+def _scoped_gate(paths: list[str], *, target: str = "dev", release: bool = False,
              runtime_dependencies: bool = False, source_topology: bool = False) -> str:
     if target == "main" or release:
         return "release"
@@ -357,6 +358,64 @@ def classify(paths: list[str], *, target: str = "dev", release: bool = False,
     if shared_agent:
         return "shared-agent"
     return "governance" if governance else "docs"
+
+
+def _app_path(path: str) -> bool:
+    location = PurePosixPath(path)
+    if path.startswith('packages/capstone-app/public/') and location.name.startswith('LICENSE'):
+        return True
+    return (path.startswith(('packages/capstone-app/src/', 'packages/capstone-app/public/'))
+            and location.suffix in {'.ts', '.tsx', '.css', '.json', '.svg', '.png', '.html', '.woff2'}
+            or path in {'packages/capstone-app/' + name for name in
+                        ('package.json', 'package-lock.json', 'vite.config.ts', 'tsconfig.json',
+                         'tsconfig.app.json', 'tsconfig.node.json', 'index.html')})
+
+
+def _control_path(path: str) -> bool:
+    return (path in DOC_FILES | GOVERNANCE_FILES or path.startswith(('docs/', 'tools/project_overview/'))
+            or path.startswith('.superpowers/sdd/') and path.endswith('.md'))
+
+
+def _workbench_path(path: str) -> bool:
+    # Full owning suites cover new modules too. Authority bridges, dependency
+    # manifests and unrelated Kernel changes deliberately remain outside.
+    if path.endswith('/kernel_pi_session.py'):
+        return False
+    location = PurePosixPath(path)
+    if _app_path(path) or _control_path(path):
+        return True
+    if path.startswith(('packages/capstone-agent/src/capstone_agent/',
+                        'packages/capstone-agent/tests/',
+                        'packages/enterprise-research-domain-pack/src/',
+                        'packages/enterprise-research-domain-pack/tests/',
+                        'packages/pi-capability-tools/src/', 'packages/pi-capability-tools/test/')):
+        return location.suffix in {'.py', '.mjs', '.json', '.md'}
+    if path.startswith('packages/capability-agent-kernel/tests/'):
+        return location.suffix == '.py'
+    return path in ADAPTIVE_KERNEL_FILES | {
+        'packages/capability-agent-kernel/src/capability_agent/runtime/step_events.py',
+        'compose.yaml', 'deploy/local.env.example', 'deploy/general-pi.Dockerfile',
+        'deploy/launch_host_runtime.py', 'configs/runtime/data-gateway.json',
+        'configs/runtime/workbench-llm-profiles.json', 'tools/native_report.py',
+        'tools/native_analysis_smoke.py', 'tools/tests/test_host_runtime_contract.py',
+        'tools/tests/test_image_layer_order.py', 'tools/tests/test_native_presentation.py',
+        'tools/tests/test_native_report.py',
+    }
+
+
+def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
+             runtime_dependencies: bool = False, source_topology: bool = False) -> str:
+    if target == 'main' or release:
+        return 'release'
+    if not paths or any('..' in PurePosixPath(path).parts for path in paths):
+        return 'product'
+    if any(_app_path(path) for path in paths) and all(_app_path(path) or _control_path(path) for path in paths):
+        return 'app'
+    gate = _scoped_gate(paths, target=target, release=release,
+                        runtime_dependencies=runtime_dependencies, source_topology=source_topology)
+    if gate == 'product' and all(_workbench_path(path) for path in paths):
+        return 'workbench'
+    return gate
 
 
 def main() -> None:
