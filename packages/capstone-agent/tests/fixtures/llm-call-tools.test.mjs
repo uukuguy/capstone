@@ -80,3 +80,17 @@ test('a settled main loop waits for a real result instead of requesting model po
     release({status:'completed',answer:'Real result'});assert.ok(await continuation);
   }finally{release({status:'completed',answer:'Real result'});await pool.close()}
 });
+test('delivered answers can be collected again by ID without another model call',async()=>{
+  let calls=0;const pool=createLlmCallTools({policy,run:async()=>{calls++;return {status:'completed',answer:'Saved answer'}}});
+  pool.setCompletionSink(async()=>{});
+  await pool.tools[0].execute('s',{calls:[{id:'a',instruction:'Analyze',input:'Facts'}]});
+  await tick();await pool.flush();pool.acknowledge(['a']);
+  for(let i=0;i<2;i++){
+    const value=parse(await pool.tools[1].execute('read',{ids:['a']}));
+    assert.equal(value.results[0].result.answer,'Saved answer');
+    assert.equal(value.wait_reason,'saved_results');
+  }
+  assert.equal(calls,1);
+  await assert.rejects(pool.tools[1].execute('bad',{ids:['unknown']}),/Unknown/);
+  await pool.close();
+});

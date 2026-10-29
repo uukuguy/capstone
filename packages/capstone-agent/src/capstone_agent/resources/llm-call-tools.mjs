@@ -72,11 +72,19 @@ export function createLlmCallTools({policy,run,emit=()=>{},signal,cwd=process.cw
     }
   },{
     name:llmCallToolNames[1],label:'接收并行分析',
-    description:'Collect actual returned analysis results and current queued/running/cancelling states. Set wait_ms only when no independent work remains. A collection wait timeout is not a model failure and must not cause a duplicate retry. Completed results may already have arrived in the conversation asynchronously.',
-    parameters:{type:'object',additionalProperties:false,properties:{wait_ms:{type:'integer',minimum:0,maximum:policy.max_wait_ms}}},
+    description:'Collect actual returned analysis results and current queued/running/cancelling states. Completed results may already have arrived asynchronously: pass their job ids to read the saved answers again, instead of repeating analysis. Set wait_ms only when no independent work remains. A collection wait timeout is not a model failure and must not cause a duplicate retry.',
+    parameters:{type:'object',additionalProperties:false,properties:{wait_ms:{type:'integer',minimum:0,maximum:policy.max_wait_ms},ids:{type:'array',minItems:1,maxItems:policy.max_jobs,uniqueItems:true,items:{type:'string',minLength:1,maxLength:128}}}},
     async execute(_id,args,callSignal){
-      if(!exact(args,['wait_ms'])||!Number.isSafeInteger(args.wait_ms??0)||(args.wait_ms??0)<0||(args.wait_ms??0)>policy.max_wait_ms)throw new TypeError('Invalid LLM collection wait');
+      if(!exact(args,['wait_ms','ids'])||!Number.isSafeInteger(args.wait_ms??0)||(args.wait_ms??0)<0||(args.wait_ms??0)>policy.max_wait_ms)throw new TypeError('Invalid LLM collection wait');
+      if(args.ids!==undefined&&(!Array.isArray(args.ids)||!args.ids.length||args.ids.length>policy.max_jobs||new Set(args.ids).size!==args.ids.length||args.ids.some(id=>typeof id!=='string'||!id.length||id.length>128)))throw new TypeError('Invalid LLM collection IDs');
       callSignal?.throwIfAborted();await delivery.catch(()=>{});capture();let reason='snapshot';
+      if(args.ids){
+        const records=pool.snapshot().jobs;
+        if(args.ids.some(id=>!records.some(record=>record.id===id)))throw new TypeError('Unknown LLM collection ID');
+        const results=records.filter(record=>args.ids.includes(record.id)&&finalStates.has(record.status));
+        for(const record of results)unread.delete(record.id);
+        return reply({...status(),results,wait_reason:'saved_results'});
+      }
       if(!unread.size&&args.wait_ms){reason=(await pool.waitForCompletion({signal:callSignal,waitMs:args.wait_ms})).reason;capture()}
       const results=[...unread.values()];unread.clear();
       return reply({...status(),results,wait_reason:reason});

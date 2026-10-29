@@ -93,3 +93,30 @@ capacity reservation and immutable artifacts across later failure.
 Independent review closed blocking live transfer, unbounded capture close and
 unbounded assembled dependency context findings. No cloud/demo/main deployment
 or dev integration acceptance is claimed.
+# Actual request dispatcher trial — 2026-10-30
+
+Existing Vivaldi tab, new thread `thr_5a6451c5b3e073de3301`, DeepSeek Flash,
+DR off. Actual dispatch records show 25 requests: 20 main and 5 analysis calls.
+Peak actual concurrency was 2. Both original independent analyses completed;
+the dependent summary started after both returned. CSV was published during
+execution. The right pane automatically selected the generated PPTX while the
+attempt was still running; a screenshot confirms its rendered first slide.
+Final PPTX was downloaded: 38,185 bytes, three slides, valid ZIP, SHA-256
+`43d7a0d670c24039769844de6127cb3ff280f68152a0149f8e67f7639ba5d03b`.
+Evidence is in ignored `runs/request-pool-20261030/`.
+
+This is functional verification, not speed acceptance. The model repeated two
+analyses after collecting an empty unread list, although their answers had
+already been delivered asynchronously. Collection now supports explicit job
+IDs to read saved results again without another model request. The regression
+failed before the change and passed after it; 23 Node and 25 Python tests pass.
+This correction needs rebuild and live verification. Repeated report revisions
+to meet an exact three-page request also increased this trial's model count.
+
+The first rebuild hit Docker's 128-layer limit. Combining related COPY steps
+reduced the executor image to 122 layers. Failed Compose creation left unused
+Created containers; only those containers were removed, without volume removal.
+The canonical rebuild then passed readiness and API/worker image equality,
+image `477cb2f3fd0223c028fd6dc046a9a2f498a305219a312a84c6e2f686bf191fef`.
+Scoped cleanup receipt: `cache-maintenance-20261029-235818-41621.log`.
+

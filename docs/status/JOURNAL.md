@@ -6371,3 +6371,5 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 41bb19f2 — Corrected frozen artifact labels after live validation so earlier versions do not falsely remain in progress.
 
 2026-10-29: Route lightweight SDK calls through dependency-aware request pool; verify queue UI, artifact follow, and reusable PPTX helper.
+
+2026-10-30: 5b2dbab2 dispatch trial verified peak two; fix saved-result rereads and Docker layer limit. Live correction check pending.
