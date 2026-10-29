@@ -16,8 +16,8 @@ it('shows the actual main request pool without optional analysis tools and uses 
   ev(4,'runtime_event',{native_type:'model_request_pool',model_request_pool:{...request,status:'completed',started_at_ms:800,finished_at_ms:900}}),
   ev(5,'runtime_action',{phase:'response_completed',response_kind:'text'}),ev(6,'runtime_action',{phase:'completed'})]
  const reader=read(events)
- expect(reader.getByText(/模型请求池 · 已启动 1 · 运行\/释放 0 · 等待 0/)).toBeTruthy()
  expect(reader.getByText(/LLM 1 次 · 累计 100ms/)).toBeTruthy()
+ expect(reader.queryByText(/运行\/释放|等待 0|执行累计/)).toBeNull()
  expect(reader.queryByLabelText('模型请求等待队列')).toBeNull()
 })
 it('projects actual child calls under the owning submit and reports timing separately from the parent',()=>{

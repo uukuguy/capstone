@@ -110,7 +110,7 @@ analyses after collecting an empty unread list, although their answers had
 already been delivered asynchronously. Collection now supports explicit job
 IDs to read saved results again without another model request. The regression
 failed before the change and passed after it; 23 Node and 25 Python tests pass.
-This correction needs rebuild and live verification. Repeated report revisions
+The correction was rebuilt and verified in a second live trial below. Repeated report revisions
 to meet an exact three-page request also increased this trial's model count.
 
 The first rebuild hit Docker's 128-layer limit. Combining related COPY steps
@@ -120,3 +120,12 @@ The canonical rebuild then passed readiness and API/worker image equality,
 image `477cb2f3fd0223c028fd6dc046a9a2f498a305219a312a84c6e2f686bf191fef`.
 Scoped cleanup receipt: `cache-maintenance-20261029-235818-41621.log`.
 
+Second Vivaldi trial: `thr_3ee477748b1cbc964ace`, 21.979 seconds, six main
+requests and exactly three analysis requests, peak two. All three completed.
+Repeated explicit-ID collection returned saved answers without resubmission.
+This smaller trial omitted PPT generation; its time is not a speed comparison
+with the first trial or the summer study. Evidence:
+`runs/request-pool-reread-20261030/`. Current backend image:
+`bf9e3f4e26ea5e07fbb25a9359421365b53fba49fd850bf42c42b5a0698c3d13`;
+canonical rebuild and scoped cleanup passed, receipt
+`cache-maintenance-20261030-001357-75675.log`.

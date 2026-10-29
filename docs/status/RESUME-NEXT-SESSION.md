@@ -2,6 +2,17 @@
 
 ## Async execution continuation — current priority
 
+2026-10-30 verified update: 5b2dbab2 implemented actual request dispatch;
+40fdeb28 fixes saved-answer rereads and the Docker layer limit. Canonical local
+runtime is bf9e3f4e, API/worker identity and cleanup passed. Vivaldi new thread
+thr_3ee477748b1cbc964ace completed in21.979s, six main + three analysis requests,
+peak two, no repeated analysis. Explicit IDs reread actual saved answers.
+Earlier PPT trial thr_5a6451c5b3e073de3301 verified automatic pane switching and
+three-slide PPTX download. Its repeated analysis led to the reread correction.
+App header now shows compact total LLM count/time/peak with nonzero queue counts.
+UI31 tests and TypeScript pass. Same-prompt summer performance remains pending.
+Dev integration and cloud deployment remain pending; preserve root control dirt.
+
 Latest boundary: actual SDK request dispatcher and App queue are implemented.
 All lightweight model requests use the shared two-slot pool. Pending requests
 stay at the bottom; started requests enter the trace and open their details.
