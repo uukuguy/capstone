@@ -1,5 +1,31 @@
 # Live Session Checkpoint
 
+## 2026-10-29 current boundary
+
+UI changes committed at d0091470, named workspace at b860f172, explicit
+threadless entry correction at020f3e16. Canonical rebuild now serves020f3e16,
+image10440cf9bdb2c905af8e47b22de6d6a3b33ca45fd3af8244a31a5e3a6ec95f7f.
+Scoped cleanup receipt: cache-maintenance-20261029-101715-90502.log.
+App91 focused tests, backend54 workspace tests, entry20 tests and TypeScript
+passed. Vivaldi confirms URL workspace label, threadless entry without automatic
+creation, retained Artifacts directory in full-screen PPT and after CSV selection.
+Original960 thread IDs checksum remains2ccf15eff70345aa75560df77b1eb1e2;
+one earlier browser test created an empty record in Grid-Research. No user deletion.
+Cross-space known ID returns404; named list/header echo verified. Dev integration
+and canonical control graph alignment remain pending; do not claim deployment.
+
+User explicitly prioritizes lightweight execution optimization after UI closure.
+The full saved summer-study run has77 model calls: discovery/data1–62 cost
+181.647 model seconds, analysis/report63–76 cost141.999, final77 cost4.961.
+There are22 shell invocations inspecting JSON in the discovery/data phase.
+Next inspect generic result summaries and why stable tool composition was not
+used. Also investigate changing tool menus and rolling preview projection as
+separate cache-prefix hypotheses. Do not remove semantic checks or hardcode the
+summer-study path. Detailed per-model tool path is in ignored
+runs/light-rerun-20261029/model-tool-path.json. No new performance fix accepted.
+
+Older checkpoint follows for recovery context.
+
 Updated: 2026-10-28. Tool composition implemented/local trials complete; PR71 integration active. No final handoff requested.
 
 ## Active implementation
