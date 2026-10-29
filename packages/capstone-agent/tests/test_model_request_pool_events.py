@@ -138,6 +138,7 @@ def test_actual_host_publishes_main_dispatch_without_semantic_tool_grants(tmp_pa
         for row in [event(), event('running', started_at_ms=110),
                     event('completed', started_at_ms=110, finished_at_ms=120)]:emit(row)
         return 'Answer', {}
+    run.experimental_llm_pool = True
     host = GeneralPiHost(root=tmp_path, identity={'engine':'pi'}, run_task=run)
     assert host.capability['model_request_pool'] == MODEL_REQUEST_POOL_POLICY
     request = PiTaskRequest('dispatch', 'attempt-a', 'direct', 'Explain', (), (), host.identity, 2,

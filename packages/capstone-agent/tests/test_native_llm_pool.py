@@ -15,6 +15,20 @@ POLICY = {'schema': 'capstone-llm-call-pool/1', 'concurrency': 2, 'max_jobs': 12
 TOOLS = {'agent_llm_submit', 'agent_llm_collect', 'agent_llm_cancel'}
 
 
+@pytest.mark.parametrize('enabled', [None, False, True])
+def test_host_only_publishes_pools_for_explicit_experiment(tmp_path, enabled):
+    from capstone_agent.general_pi_server import GeneralPiHost
+    from capstone_agent.native_tool_composition import COMPOSITION_POLICY
+    def run(*args, **kwargs):
+        pass
+    if enabled is not None:
+        run.experimental_llm_pool = enabled
+    host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'}, run_task=run)
+    assert ('llm_call_pool' in host.capability) is (enabled is True)
+    assert ('model_request_pool' in host.capability) is (enabled is True)
+    assert host.capability['tool_composition'] == COMPOSITION_POLICY
+
+
 def binding(profile='enterprise-research', publication=True):
     executor = native_executor()
     if publication:

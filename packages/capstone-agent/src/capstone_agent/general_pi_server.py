@@ -174,10 +174,11 @@ class GeneralPiHost:
         self.capability['systematic_diagnosis'] = dict(DIAGNOSIS_POLICY)
         from .native_tool_composition import COMPOSITION_POLICY
         self.capability['tool_composition'] = dict(COMPOSITION_POLICY)
-        from .native_llm_pool import LLM_CALL_POOL_POLICY
-        self.capability['llm_call_pool'] = dict(LLM_CALL_POOL_POLICY)
-        from .native_model_request_pool import MODEL_REQUEST_POOL_POLICY
-        self.capability['model_request_pool'] = dict(MODEL_REQUEST_POOL_POLICY)
+        if getattr(run_task, 'experimental_llm_pool', False) is True:
+            from .native_llm_pool import LLM_CALL_POOL_POLICY
+            self.capability['llm_call_pool'] = dict(LLM_CALL_POOL_POLICY)
+            from .native_model_request_pool import MODEL_REQUEST_POOL_POLICY
+            self.capability['model_request_pool'] = dict(MODEL_REQUEST_POOL_POLICY)
         gateway = getattr(run_task, 'gateway', None)
         self.capability['data_gateway'] = (gateway.publication() if gateway else
             getattr(run_task, 'gateway_publication', {'available': False, 'reason': 'not_configured'}))
@@ -990,12 +991,14 @@ class GeneralPiHost:
 class NativeTaskRunner:
     """Pi uses a task UID; host secrets remain in a different root process."""
     def __init__(self, *, root: Path, config_root: Path, command: tuple[str, ...],
-                 model: str, relay_origin: str, network_policy=None, gateway=None, llm_profiles=None) -> None:
+                 model: str, relay_origin: str, network_policy=None, gateway=None, llm_profiles=None,
+                 experimental_llm_pool: bool = False) -> None:
         if os.geteuid() != 0 or os.name != 'posix':
             raise RuntimeError('General Pi requires its isolated Linux container')
         self.root, self.config_root, self.command = root, config_root, command
         self.model, self.relay_origin = model, relay_origin
         self.llm_profiles = llm_profiles
+        self.experimental_llm_pool = experimental_llm_pool is True
         self.task_llm_profiles = {}
         from .native_environment import environment_context
         self.environment_context = environment_context()
@@ -1103,12 +1106,12 @@ class NativeTaskRunner:
                 from .native_task_context import checked_native_context, resolve_research_policy
                 native = checked_native_context(request.native_context)
                 sdk_config['applicationPolicy'] = native['policy']
-                if native.get('deep_research') is False:
+                if self.experimental_llm_pool and native.get('deep_research') is False:
                     from .native_model_request_pool import MODEL_REQUEST_POOL_POLICY
                     sdk_config['modelRequestPool'] = dict(MODEL_REQUEST_POOL_POLICY)
                 if native.get('tool_composition'):
                     sdk_config['toolComposition'] = native['tool_composition']
-                if native.get('llm_call_pool'):
+                if self.experimental_llm_pool and native.get('deep_research') is False and native.get('llm_call_pool'):
                     sdk_config['llmCallPool'] = native['llm_call_pool']
                 if native.get('systematic_diagnosis'):
                     diagnosis = self._diagnosis_provider(request, workspace, uid)
@@ -1697,7 +1700,8 @@ def main():
                         for path in sorted((Path(__file__).parent / 'resources' / directory).rglob('*.mjs')))).hexdigest()}
     runner = NativeTaskRunner(root=root, config_root=config,
         command=('node', '/opt/pi/packages/coding-agent/dist/cli.js'), model=identity['model'],
-        relay_origin=f'http://127.0.0.1:{port}', network_policy=network_policy, gateway=gateway, llm_profiles=llm_profiles)
+        relay_origin=f'http://127.0.0.1:{port}', network_policy=network_policy, gateway=gateway, llm_profiles=llm_profiles,
+        experimental_llm_pool=os.environ.get('CAPSTONE_EXPERIMENTAL_LLM_POOL', '0') == '1')
     runner.gateway_publication = gateway_publication
     host = GeneralPiHost(root=root, identity=identity, run_task=runner)
     host.record_network_policy('startup_default', network_policy.state())

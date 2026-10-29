@@ -133,7 +133,8 @@ def test_child_diagnosis_observation_uses_exact_host_publication_and_grant(
 
 @pytest.mark.parametrize('version', ['1.12.0', '1.13.0', '1.14.0', '1.15.0', '1.16.0', '1.17.0', '1.18.0', '1.19.0', '1.20.0'])
 @pytest.mark.parametrize('choice', [None, False, True])
-def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted_attempt_origin(tmp_path, monkeypatch, version, choice):
+@pytest.mark.parametrize('experimental_llm_pool', [False, True])
+def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted_attempt_origin(tmp_path, monkeypatch, version, choice, experimental_llm_pool):
     if choice is not None and version != '1.20.0':
         pytest.skip('Explicit UI control is verified against the current publication')
     import json
@@ -165,6 +166,10 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     native['llm_selection'] = registry.freeze('intranet-dsv4-18804')
     if choice is not None:
         native['deep_research'] = choice
+    if experimental_llm_pool and choice is False:
+        from capstone_agent.native_llm_pool import LLM_CALL_POOL_POLICY, LLM_CALL_POOL_TOOLS
+        native['llm_call_pool'] = dict(LLM_CALL_POOL_POLICY)
+        native['policy']['allowed_tools'].extend(LLM_CALL_POOL_TOOLS)
     binding, task, _, _ = graph_fixture()
     binding['graph_work_edition'] = 'capstone-graph-work/1'
     captured = []
@@ -180,7 +185,8 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     root = tmp_path / 'private'
     (root / 'receipts').mkdir(parents=True)
     runner = module.NativeTaskRunner(root=root, config_root=tmp_path, command=('node', '/opt/pi/dist/cli.js'),
-        model='fixture', relay_origin='http://127.0.0.1:8790', llm_profiles=registry)
+        model='fixture', relay_origin='http://127.0.0.1:8790', llm_profiles=registry,
+        experimental_llm_pool=experimental_llm_pool)
     # Exercise the checked-in settings through the actual publication overlay,
     # rather than constructing researchRuntime flags only inside a fixture.
     settings_path = Path(__file__).resolve().parents[3] / 'configs/runtime/general-pi/settings.json'
@@ -203,6 +209,8 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
         runner(request, lambda: False, lambda _: None)
     assert task not in runner.task_llm_profiles
     actual = captured[0]['researchRuntime']
+    assert ('modelRequestPool' in captured[0]) is (experimental_llm_pool and choice is False)
+    assert ('llmCallPool' in captured[0]) is (experimental_llm_pool and choice is False)
     gateway_context = next(item['content'] for item in captured[0]['contextFiles'] if item['path'] == 'registered-production-data')
     assert gateway_bindings == [(task, binding['attempt_id'], {'data_gateway_discover_network_models'})]
     catalog = captured[0]['dataGateway']['catalog']
