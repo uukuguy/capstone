@@ -23,7 +23,7 @@ function primaryProduct(items:ProductEntry[],threadId:string,workId:string|null|
 }
 const statuses:Record<string,string>={completed:'已完成',partial:'部分结果',failed:'未完成',cancelled:'已取消',interrupted:'已中断',blocked:'未执行'}
 export const productSelectionReason=(reason:string|null)=>reason==='record_only'?'此项是执行记录，没有可引用的文件或分析结果。':reason==='input_capacity'?'此项超过本轮引用容量。':reason==='product_context_unsupported'?'当前执行链尚不支持此成果引用。':reason==='unsupported_media'?'当前执行链尚不能读取此文件格式。':'此项暂不可引用。'
-const productStatus=(entry:ProductEntry)=>entry.source_status==='running'?'可用版本 · 生成中':entry.source.delivery_status==='limited'?'有限交付 · 含未解决项':statuses[entry.source_status]||'状态未知'
+const productStatus=(entry:ProductEntry)=>entry.source_status==='running'?(entry.source.presentation_role==='primary'?'交付候选':'可用版本'):entry.source.delivery_status==='limited'?'有限交付 · 含未解决项':statuses[entry.source_status]||'状态未知'
 function matches(entry:ProductEntry,request:ProductRequest){return request.ref?productRefKey(entry.ref)===productRefKey(request.ref)
   :entry.ref.origin===request.origin&&entry.ref.attempt_id===request.attemptId&&(!request.artifactId||entry.source.artifact_id===request.artifactId)&&(!request.resultId||entry.source.result_id===request.resultId)}
 

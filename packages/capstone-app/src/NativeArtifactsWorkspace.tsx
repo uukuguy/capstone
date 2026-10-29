@@ -17,7 +17,7 @@ type FileClient={
 type Selection={threadId:string;attemptId:string;artifactId:string;requestKey:string}
 type Preview={key:string;status:'loading'|'ready'|'error';url?:string;text?:string;textUnavailable?:boolean}
 const fileKey=(file:NativeArtifact)=>`${file.thread_id}:${file.attempt_id}:${file.artifact_id}`
-const statusNames:Record<string,string>={running:'可用版本 · 生成中',completed:'已完成',failed:'未完成',cancelled:'已取消',interrupted:'已中断',blocked:'未执行'}
+const statusNames:Record<string,string>={running:'可用版本',completed:'已完成',failed:'未完成',cancelled:'已取消',interrupted:'已中断',blocked:'未执行'}
 
 /** A filename fallback affects only the isolated preview, never the stored descriptor. */
 export function nativePreviewMedia(name:string,media:string|null|undefined){

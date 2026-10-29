@@ -7,17 +7,18 @@ import {parseProductRef,type ProductEntry} from './threadProducts'
 afterEach(()=>{cleanup();vi.unstubAllGlobals()})
 it('opens a running primary once and retains its version through incremental updates',async()=>{
  const first:ProductEntry={...entry,ref:{...ref,origin:'native_file',product_id:'report'},title:'草稿.md',media_type:'text/markdown',source_status:'running',source:{file_name:'草稿.md',presentation_role:'primary'}}
- const next={...first,ref:{...first.ref,digest:'b'.repeat(64)}}
+ const next={...first,source_status:'completed',ref:{...first.ref,digest:'b'.repeat(64)}}
  const ready=vi.fn(),client={productIndex:vi.fn().mockResolvedValue({products:[first],hasMore:false,nextCursor:null}),resolveProduct:vi.fn(async(ref)=>({entry:ref.digest===first.ref.digest?first:next,bytes:null,projection:null,record:null}))}
  const props={client,threadId:'thr_one',workId:'work_current',primaryAttemptId:'attempt_one',onPrimaryReady:ready}
  const rendered=render(<ThreadProductsWorkspace {...props} revision={1}/>)
  await waitFor(()=>expect(ready).toHaveBeenCalledTimes(1))
- expect((await screen.findAllByText('可用版本 · 生成中')).length).toBeGreaterThan(0)
+ expect((await screen.findAllByText('交付候选')).length).toBeGreaterThan(0)
  client.productIndex.mockResolvedValue({products:[next],hasMore:false,nextCursor:null})
  rendered.rerender(<ThreadProductsWorkspace {...props} revision={2}/>)
  await waitFor(()=>expect(client.productIndex).toHaveBeenCalledTimes(2))
  expect(ready).toHaveBeenCalledTimes(1)
  expect(client.resolveProduct.mock.calls.some(([ref])=>ref.digest===next.ref.digest)).toBe(false)
+ expect(screen.queryByText(/生成中/)).toBeNull()
 })
 const ref=parseProductRef({schema:'capstone-product-ref/1',thread_id:'thr_one',product_id:'record_one',origin:'process_record',scope:'instruction',event_seq:8,revision:null,digest:'a'.repeat(64),work_id:'work_current',attempt_id:'attempt_one',producer_attempt_id:null})
 const entry:ProductEntry={ref,title:'原分析未完成',media_type:null,byte_size:null,source_status:'failed',created_at:'2026-10-17T00:00:00Z',download_url:null,source:{instruction:'原分析未完成',attempt_id:'attempt_one',status:'failed',failure_code:'data_missing'},dependencies:[],presentation:{kind:'process_record'},capabilities:{read:true,select:false},selection_unavailable_reason:'record_only',historical_only:true}
