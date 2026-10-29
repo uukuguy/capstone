@@ -2,6 +2,14 @@
 
 ## Incremental task organization candidate
 
+2026-10-30 decision: the default lightweight loop uses the direct model runtime.
+The request and text-analysis pools remain opt-in experiments, disabled unless
+the backend sets `CAPSTONE_EXPERIMENTAL_LLM_POOL=1`. They do not establish a
+performance benefit. Tool concurrency, artifact streaming and model timing do
+not depend on these pools. The question-led enterprise research mode is an
+accepted design, not an implemented release; see the
+[discussion record](../superpowers/specs/2026-10-30-enterprise-data-research-analysis.md).
+
 The lightweight instruction-local model request pool is invocation scheduling,
 not a second research task ledger or DR mode. Main and admitted text-analysis
 sessions share a finite request queue. Same-context requests wait for their

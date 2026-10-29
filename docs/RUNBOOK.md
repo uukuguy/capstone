@@ -9,6 +9,15 @@ established grid compatibility and evidence contracts.
 - Python 3.12 或更高版本与 `uv`
 - Node.js 22.19 或更高版本与 `npm`
 
+### 轻量执行与 LLM 池实验
+
+轻量任务默认直接使用模型运行时，保留独立工具并发、LLM/工具计时和产物即时发布。
+`CAPSTONE_EXPERIMENTAL_LLM_POOL` 默认 `0`；仅在服务端设置为 `1` 时发布并启用
+模型请求池及独立文本分析工具。此项是研发实验，不是性能保证，也不改变 DR 选择。
+本地在受保护的 `deploy/local.env` 中配置，然后执行 `make capstone-local-rebuild`。
+关闭实验后，新指令使用重新发现的能力；历史执行记录保留。不要在任务运行中切换。
+普通使用保持关闭，性能结论见[实测记录](reports/2026-10-29-lightweight-async-validation.md)。
+
 ## 初始化
 
 在仓库根目录执行：

@@ -172,3 +172,20 @@ with the first trial or the summer study. Evidence:
 `bf9e3f4e26ea5e07fbb25a9359421365b53fba49fd850bf42c42b5a0698c3d13`;
 canonical rebuild and scoped cleanup passed, receipt
 `cache-maintenance-20261030-001357-75675.log`.
+# 2026-10-30 closeout decision
+
+The user accepted simplifying the default path. The request and independent
+analysis pools are now gated by the backend `CAPSTONE_EXPERIMENTAL_LLM_POOL=1`
+experiment. Default is off. Tool composition, incremental artifacts and normal
+model timing remain enabled. Existing pool records remain readable.
+
+The scoped default/opt-in and actual SDK tests passed: 220 passed, 32 skipped
+in 5.45s. The direct SDK fixture writes a CSV and returns an answer without pool
+tools, pool guidance or pool events; ordinary model timing boundaries remain.
+Localhost tests require `NO_PROXY=localhost,127.0.0.1` in this workstation's
+proxy environment. Canonical rebuild, live check and dev integration are pending
+at this record's creation. No speed improvement is claimed.
+
+The [enterprise research discussion](../superpowers/specs/2026-10-30-enterprise-data-research-analysis.md)
+and [roadmap](../superpowers/plans/2026-10-30-enterprise-analysis-roadmap.md) record
+accepted future scope, including mandatory user acceptance of a result revision.

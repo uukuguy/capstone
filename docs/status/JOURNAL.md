@@ -6377,3 +6377,5 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 2026-10-30: 40fdeb28 live reread passed: 21.979s, six main and three child requests, peak two, no duplicate analyses.
 
 2026-10-30: Summer repeat delivered14-slide PPTX/CSV in511.863s;81main calls,no analysis parallelism. Performance acceptance failed; evidence retained.
+
+2026-10-30: ad03a4b2 defaults to direct model execution; pools require explicit experiment because business speed benefit remains unproven.

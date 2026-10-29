@@ -1,5 +1,20 @@
 # Live Session Checkpoint
 
+## 2026-10-30 closeout and dev integration — current priority
+
+User approved disabling default LLM pools and integrating completed work into dev.
+ad03a4b2 makes both pools opt-in via CAPSTONE_EXPERIMENTAL_LLM_POOL=1.
+Scoped220 passed32skipped; App58 passed; global types and doctor passed.
+Canonical rebuild and Vivaldi direct-loop check are next, then PR71's required gate
+and dev integration. Preserve unrelated `.superpowers/sdd/task-1-report.md`.
+Root dev has five dirty control documents; preserve their content and recovery
+before updating dev. No cloud/demo/main deployment authorized by this integration.
+The enterprise data research analysis discussion and roadmap are accepted design,
+not implementation: question-led navigation, AI guidance, valuable process products,
+local exploration and mandatory user acceptance of a specific result revision.
+
+The following checkpoints are historical and do not override this decision.
+
 ## Async execution continuation — current priority
 
 Full summer request-pool repeat finished: threadthr_f934d8b0481c8e7d0790,
