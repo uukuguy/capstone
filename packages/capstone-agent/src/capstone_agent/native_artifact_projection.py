@@ -121,7 +121,7 @@ def _project_artifact_document(claim, document, *, expected_parent_attempt_id=No
     return artifacts
 
 
-def native_artifact_page(service, thread_id, attempt_id, *, after=0):
+def native_artifact_page(service, thread_id, attempt_id, *, after=0, include_presentation=True):
     """Read one bounded existing Attempt-record page, with the same cursor."""
     _id(thread_id); _id(attempt_id)
     page = service.read_attempt_records(thread_id, attempt_id, after=after, limit=128)
@@ -137,7 +137,8 @@ def native_artifact_page(service, thread_id, attempt_id, *, after=0):
                 or item['download_url'] != _url(thread_id, attempt_id, item['artifact_id'])):
             raise ValueError('native file ledger ownership changed')
         from .native_product_roles import presentation_for_artifact
-        artifacts.append(presentation_for_artifact(item, getattr(service, '_material_objects', None), presentation_cache))
+        artifacts.append(presentation_for_artifact(item, getattr(service, '_material_objects', None), presentation_cache)
+                         if include_presentation else item)
     return {'schema': 'capstone-process-artifacts/1', 'thread_id': thread_id, 'attempt_id': attempt_id,
             'artifacts': artifacts, 'has_more': page['has_more'], 'next_after': page['next_after']}
 
@@ -185,13 +186,17 @@ def retain_native_artifact(objects, executor, item, *, check=lambda:None):
     return data
 
 
-def read_native_artifact(service, executor, thread_id, attempt_id, artifact_id, *, objects=None):
+def read_native_artifact(service, executor, thread_id, attempt_id, artifact_id, *, objects=None, expected_descriptor=None):
     """Authorize against durable process ownership before private host access."""
     _id(artifact_id)
     after = 0
     while True:
-        page = native_artifact_page(service, thread_id, attempt_id, after=after)
-        item = next((item for item in page['artifacts'] if item['artifact_id'] == artifact_id), None)
+        page = native_artifact_page(service, thread_id, attempt_id, after=after,
+                                    include_presentation=expected_descriptor is None)
+        # Continuations freeze a specific trusted ledger receipt. Earlier live
+        # receipts and later presentation enrichment must not replace that view.
+        item = next((item for item in page['artifacts'] if item['artifact_id'] == artifact_id
+                     and (expected_descriptor is None or dict(item) == dict(expected_descriptor))), None)
         if item is not None:
             if objects is None:
                 objects = getattr(service, '_material_objects', None)

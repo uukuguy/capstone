@@ -87,6 +87,9 @@ def test_terminal_work_files_remain_available_beyond_inline_material_slots(chat_
         if incremental:
             store.append_runtime_event(claim, event_type='native_artifact_published',
                 payload={'artifact': {**source, 'source_status': 'running'}})
+            # A producer may declare presentation only after saving the bytes.
+            if source['file_name'] == 'metrics.csv':
+                source = {**source, 'presentation_role': 'primary'}
         store.append_runtime_event(claim, event_type='native_artifact_published', payload={'artifact': source})
     store.finish_attempt(claim, phase=phase, payload={'error_code': 'fixture_interrupted'} if phase != 'completed' else {'answer': 'Files saved'})
     work = store.snapshot(thread_id).works[0]
@@ -117,6 +120,10 @@ def test_terminal_work_files_remain_available_beyond_inline_material_slots(chat_
     if incremental and not large_automatic and phase == 'completed':
         from capstone_agent import native_artifact_projection
         original = native_artifact_projection.read_native_artifact
+        selected = dict(resumed.submission['_continuation_artifacts'][0])
+        with pytest.raises(KeyError, match='native file not found'):
+            original(store, executor, thread_id, selected['attempt_id'], selected['artifact_id'],
+                expected_descriptor={**selected, 'presentation_role': 'unpublished'})
         for field, changed in [('task_id', 'foreign-task'), ('host_artifact_id', 'foreign-file'),
                                ('sha256', '0' * 64)]:
             def tampered(*args, field=field, changed=changed, **kwargs):

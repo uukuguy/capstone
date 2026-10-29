@@ -57,17 +57,11 @@ def resource_reader_for(service, claim):
         from .native_artifact_projection import read_native_artifact
         try:
             descriptor, data = read_native_artifact(service, getattr(service, '_native_executor', None),
-                claim.thread_id, source['attempt_id'], source['artifact_id'])
+                claim.thread_id, source['attempt_id'], source['artifact_id'], expected_descriptor=source)
         except OSError:
             from .thread_materials import _adopted_file_bytes
             data = _adopted_file_bytes(service, service.snapshot(claim.thread_id), source, None)
             descriptor = source
-        # The ledger can first expose the same immutable bytes while their
-        # producer is running. Continuation selection uses its terminal receipt.
-        # Only that lifecycle transition may differ; ownership and bytes may not.
-        if (descriptor.get('source_status') == 'running'
-                and source.get('source_status') in {'completed', 'failed', 'cancelled'}):
-            descriptor = {**descriptor, 'source_status': source['source_status']}
         if (dict(descriptor) != dict(source) or artifact_resource(descriptor) != canonical or len(data) != canonical['size_bytes']
                 or sha256(data).hexdigest() != canonical['sha256']):
             raise ValueError('continuation artifact content identity changed')
