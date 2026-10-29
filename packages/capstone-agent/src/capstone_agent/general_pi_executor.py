@@ -60,6 +60,18 @@ class _NativeUsage:
             if kind == 'enterprise_graph_child_finished':
                 self.results.setdefault(identity, [{key: event[key] for key in
                     ('status', 'usage', 'model_responses', 'turns') if key in event}])
+        elif kind == 'llm_pool_call':
+            parent, child = event.get('parent_tool_call_id'), event.get('child_id')
+            if not isinstance(parent, str) or not parent or not isinstance(child, str) or not child:
+                return
+            identity = ('llm_pool', parent, child)
+            if event.get('status') in {'running', 'cancelling', 'completed', 'failed', 'cancelled', 'blocked'}:
+                self.started.add(identity)
+            if event.get('status') in {'completed', 'failed', 'cancelled', 'blocked'}:
+                result = {key: event[key] for key in ('status', 'usage', 'model_responses', 'turns') if key in event}
+                if 'started_at_ms' not in event:
+                    result.update(error={'code': 'child_not_started'}, model_responses=0, turns=0)
+                self.results.setdefault(identity, [result])
         elif kind in {'tool_execution_start', 'tool_execution_end'} and event.get('toolName') == 'agent_delegate':
             identity = event.get('toolCallId')
             if not isinstance(identity, str) or not identity:
@@ -115,7 +127,27 @@ class _NativeUsage:
         return result
 
 
-def collect_artifacts(workspace: Path, task_id: str, parent_attempt_id: str, *, presentation=None) -> list[dict]:
+def open_workspace_file(workspace: Path, relative: Path):
+    """Open a file below the task directory without following any symlink."""
+    if relative.is_absolute() or not relative.parts or any(part in {'.', '..'} for part in relative.parts):
+        raise ValueError('General Pi file path is invalid')
+    descriptors = [os.open(workspace, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)]
+    try:
+        for part in relative.parts[:-1]:
+            descriptors.append(os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=descriptors[-1]))
+        fd = os.open(relative.parts[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=descriptors[-1])
+        return os.fdopen(fd, 'rb')
+    finally:
+        for descriptor in reversed(descriptors):
+            os.close(descriptor)
+
+
+def file_stamp(info):
+    return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+
+
+def collect_artifacts(workspace: Path, task_id: str, parent_attempt_id: str, *, presentation=None,
+                      unchanged=None, fingerprints=None, check=lambda:None) -> list[dict]:
     """Snapshot finite regular task files. Private runtime input is excluded."""
     artifacts = []
     from .native_product_roles import read_product_roles, ROLES, publishable_product_path, file_artifact_id
@@ -128,9 +160,11 @@ def collect_artifacts(workspace: Path, task_id: str, parent_attempt_id: str, *, 
                         else 'reproduction' if roles.get(path) == 'reproduction' else 'support')
                  for path, item in selected.items()}
     def order(path):
+        check()
         role = roles.get(path.relative_to(workspace).as_posix())
         return (ROLES.index(role) if role in ROLES else len(ROLES), str(path))
     for path in sorted(workspace.rglob('*'), key=order):
+        check()
         relative = path.relative_to(workspace)
         if (not publishable_product_path(relative)
                 or any(part.is_symlink() for part in [path, *path.parents] if part != workspace.parent)
@@ -139,8 +173,27 @@ def collect_artifacts(workspace: Path, task_id: str, parent_attempt_id: str, *, 
         mode = path.lstat()
         if not stat.S_ISREG(mode.st_mode):
             continue
+        signature = (file_stamp(mode), roles.get(str(relative)))
+        if presentation is None and unchanged is not None and unchanged.get(str(relative)) == signature:
+            continue
         require_capacity('artifact_file_bytes', mode.st_size, 'collect_products')
-        digest = sha256(path.read_bytes()).hexdigest()
+        with open_workspace_file(workspace, relative) as source:
+            before = os.fstat(source.fileno())
+            if not stat.S_ISREG(before.st_mode):
+                raise OSError('General Pi work product is not a regular file')
+            require_capacity('artifact_file_bytes', before.st_size, 'collect_products')
+            actual, count = sha256(), 0
+            while chunk := source.read(1024 * 1024):
+                check()
+                count += len(chunk)
+                require_capacity('artifact_file_bytes', count, 'collect_products')
+                actual.update(chunk)
+            mode = os.fstat(source.fileno())
+            if file_stamp(before) != file_stamp(mode) or count != mode.st_size:
+                raise OSError('General Pi work product changed during capture')
+            digest = actual.hexdigest()
+        if fingerprints is not None:
+            fingerprints[str(relative)] = (file_stamp(mode), roles.get(str(relative)))
         metadata = {}
         if presentation is not None:
             declared = selected.get(str(relative))
@@ -404,7 +457,7 @@ class GeneralPiProcess:
                 if not isinstance(event, dict):
                     raise ValueError('General Pi event is invalid')
                 if (event.get('type') in {'message_end', 'turn_end', 'agent_end',
-                                        'enterprise_graph_child_started', 'enterprise_graph_child_finished'}
+                                        'enterprise_graph_child_started', 'enterprise_graph_child_finished', 'llm_pool_call'}
                         or event.get('type') in {'tool_execution_start', 'tool_execution_end'}
                         and event.get('toolName') == 'agent_delegate'):
                     accounting.observe(event)
@@ -481,7 +534,7 @@ class GeneralPiProcess:
                                          'systematic_diagnosis_request', 'enterprise_graph_context_request', 'enterprise_graph_tool_binding', 'enterprise_graph_tool_failure',
                                          'enterprise_graph_child_started', 'enterprise_graph_child_tool',
                                          'enterprise_graph_child_response_started', 'enterprise_graph_child_response', 'enterprise_graph_child_finished', 'delegation_child_started',
-                                         'delegation_child_tool', 'delegation_child_finished', 'delegation_child_response'}:
+                                         'delegation_child_tool', 'delegation_child_finished', 'delegation_child_response', 'llm_pool_call'}:
                     if event.get('type') == 'tool_execution_end' and event.get('toolName') == 'agent_research_finish':
                         details = event.get('result', {}).get('details', {})
                         committed_delivery = (details.get('result', {}).get('delivery')

@@ -177,7 +177,7 @@ def public_document(value):
 def checked_native_context(value):
     value = public_document(value)
     fields = {'policy', 'selected_task_records', 'selected_task_source', 'records_truncated'}
-    if (not isinstance(value, dict) or not fields <= set(value) or set(value) - fields - {'materials', 'material_notices', 'resource_manifests', 'resource_origins', 'graph_work', 'systematic_diagnosis', 'tool_composition', 'deep_research', 'llm_selection'}
+    if (not isinstance(value, dict) or not fields <= set(value) or set(value) - fields - {'materials', 'material_notices', 'resource_manifests', 'resource_origins', 'graph_work', 'systematic_diagnosis', 'tool_composition', 'llm_call_pool', 'deep_research', 'llm_selection'}
             or type(value['records_truncated']) is not bool
             or not isinstance(value['selected_task_records'], list) or len(value['selected_task_records']) > 64):
         raise ValueError('native task context is invalid')
@@ -256,6 +256,11 @@ def checked_native_context(value):
     if ((composition is not None and composition != COMPOSITION_POLICY)
             or set(policy['allowed_tools']) & set(COMPOSITION_TOOLS) and composition != COMPOSITION_POLICY):
         raise ValueError('native composition policy is not registered')
+    from .native_llm_pool import LLM_CALL_POOL_TOOLS, registered_llm_call_pool
+    pool = value.get('llm_call_pool')
+    if (('llm_call_pool' in value and not registered_llm_call_pool(pool))
+            or set(policy['allowed_tools']) & set(LLM_CALL_POOL_TOOLS) and not registered_llm_call_pool(pool)):
+        raise ValueError('native LLM call pool policy is not registered')
     diagnosis = value.get('systematic_diagnosis')
     if ((diagnosis is not None and diagnosis != DIAGNOSIS_POLICY)
             or set(policy['allowed_tools']) & set(DIAGNOSIS_TOOLS) and diagnosis != DIAGNOSIS_POLICY):
@@ -315,6 +320,12 @@ def native_context_for(claim, binding):
     if composition:
         tools.update(COMPOSITION_TOOLS)
     submission = claim.submission or {}
+    from .native_llm_pool import LLM_CALL_POOL_POLICY, LLM_CALL_POOL_TOOLS, registered_llm_call_pool
+    llm_pool = (binding['application_profile']['profile_id'] == 'enterprise-research'
+                and submission.get('deep_research') is False
+                and registered_llm_call_pool(public_document(binding['capability'].get('llm_call_pool'))))
+    if llm_pool:
+        tools.update(LLM_CALL_POOL_TOOLS)
     if submission.get('input', {}).get('kind') == 'skill_invocation':
         selected = next((item for item in binding['capability']['resource_profiles']['delegated_pi']['resources']
                          if item['id'] == submission['input']['skill_id'] and item['kind'] == 'skill'), None)
@@ -357,6 +368,7 @@ def native_context_for(claim, binding):
         **({'llm_selection': submission['llm_selection']} if 'llm_selection' in submission else {}),
         **({'systematic_diagnosis': DIAGNOSIS_POLICY} if diagnosis == DIAGNOSIS_POLICY else {}),
         **({'tool_composition': COMPOSITION_POLICY} if composition else {}),
+        **({'llm_call_pool': LLM_CALL_POOL_POLICY} if llm_pool else {}),
         **({'materials': materials} if materials else {}),
         **({'resource_manifests': public_document(submission['_resource_manifests'])} if submission.get('_resource_manifests') else {}),
         **({'resource_origins': origins} if origins else {}),

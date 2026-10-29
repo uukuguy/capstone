@@ -324,7 +324,7 @@ it('opens the completed primary file and leaves later updates under user control
   fireEvent.click(second)
   await screen.findByRole('heading',{name:'second.md'})
 })
-it('waits for the terminal index to prefer the report when a primary CSV is published first',async()=>{
+it('opens the first running primary and preserves it when a later report and terminal arrive',async()=>{
   vi.stubGlobal('crypto',webcrypto)
   vi.stubGlobal('URL',class extends URL {static createObjectURL=vi.fn(()=> 'blob:live-report');static revokeObjectURL=vi.fn()})
   const server=authority({native:true})
@@ -334,14 +334,16 @@ it('waits for the terminal index to prefer the report when a primary CSV is publ
   await waitFor(()=>expect((screen.getByRole('button',{name:'发送'}) as HTMLButtonElement).disabled).toBe(false))
   fireEvent.click(screen.getByRole('button',{name:'发送'}))
   await waitFor(()=>expect(server.commands).toHaveLength(1))
+  await act(async()=>server.started())
   await act(async()=>server.publishFile('key_metrics.csv','primary'))
   await screen.findByRole('button',{name:'打开指令文件：key_metrics.csv'})
-  expect(screen.queryByRole('complementary',{name:'Artifacts'})).toBeNull()
+  await screen.findByRole('complementary',{name:'Artifacts'})
+  await screen.findByRole('heading',{name:'key_metrics.csv'})
   await act(async()=>server.publishFile('report.html','primary'))
   await act(async()=>server.finish())
   await screen.findByRole('complementary',{name:'Artifacts'})
-  await screen.findByRole('heading',{name:'report.html'})
-  expect(screen.queryByRole('heading',{name:'key_metrics.csv'})).toBeNull()
+  await screen.findByRole('heading',{name:'key_metrics.csv'})
+  expect(screen.queryByRole('heading',{name:'report.html'})).toBeNull()
 })
 it('preserves an explicit CSV selection when the report arrives and the attempt completes',async()=>{
   vi.stubGlobal('crypto',webcrypto)

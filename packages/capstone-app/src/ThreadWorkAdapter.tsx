@@ -509,7 +509,7 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
       })
       setIndexedArtifacts(previous=>JSON.stringify(previous)===JSON.stringify(files)?previous:files)
     }}
-    primaryAttemptId={selectedWork?.status==='completed'?selectedWork.latestAttemptId||undefined:undefined}
+    primaryAttemptId={selectedWork&&['running','completed'].includes(selectedWork.status)?selectedWork.latestAttemptId||undefined:undefined}
     onPrimaryReady={entry=>{
       const attempt=entry.ref.attempt_id
       if(!attempt||completedArtifactOpened.current.has(attempt)||(productsOpen&&artifactOpened.current)||instructionViewRef.current.manual&&instructionViewRef.current.attemptId===latestInstructionAttempt)return

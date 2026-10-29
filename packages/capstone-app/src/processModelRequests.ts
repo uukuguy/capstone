@@ -1,6 +1,7 @@
 import type { EventEnvelope } from './threadProtocol'
 import type { ProcessModelCall } from './ProcessCallTrace'
 import {isExecutionLifecycleStep} from './executionLifecycle'
+import {projectLlmPoolCalls} from './processLlmPool'
 
 /** Only public parent request boundaries. Diagnostic text is never reasoning copy. */
 export function projectProcessModelRequests(events: readonly EventEnvelope[], attemptId: string): ProcessModelCall[] {
@@ -79,6 +80,13 @@ export function projectProcessModelRequests(events: readonly EventEnvelope[], at
       }
       pending = undefined
       turn = undefined
+    }
+  }
+  if(native){
+    const poolCalls=projectLlmPoolCalls(events,attemptId)
+    for(const call of calls){
+      const selected=poolCalls.filter(child=>call.toolCallIds?.includes(child.parentToolCallId))
+      if(selected.length)call.poolCalls=selected
     }
   }
   return calls

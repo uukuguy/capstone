@@ -7,6 +7,21 @@ import researchFixture from './fixtures/nativeGraph-research.json'
 import resourceScope from './fixtures/nativeGraph-resource-scope.json'
 
 afterEach(()=>{cleanup();localStorage.clear()})
+it('projects actual child calls under the owning submit and reports timing separately from the parent',()=>{
+ const seed=tools[0]
+ const ev=(seq:number,type:string,payload:Record<string,unknown>):EventEnvelope=>({...seed,eventId:`pool-${seq}`,eventSeq:seq,eventType:type,occurredAt:`2026-10-29T00:00:0${seq}Z`,payload})
+ const child={type:'llm_pool_call',schema:'capstone-llm-call-pool/1',parent_tool_call_id:'submit',child_id:'child',title:'独立核对',queued_at_ms:100}
+ const events=[seed,ev(1,'turn_route_selected',{source:'native_conversation'}),ev(2,'runtime_action',{phase:'started'}),ev(3,'runtime_action',{phase:'response_completed',response_kind:'tools'}),
+  ev(4,'runtime_event',{native_type:'tool_execution_start',task_id:'task',tool_call_id:'submit',tool_name:'agent_llm_submit'}),
+  ev(5,'runtime_event',{native_type:'llm_pool_call',llm_pool_call:{...child,status:'queued'}}),
+  ev(6,'runtime_event',{native_type:'llm_pool_call',llm_pool_call:{...child,status:'running',started_at_ms:200,response_number:1,response_ms:45}}),
+  ev(7,'runtime_event',{native_type:'llm_pool_call',llm_pool_call:{...child,status:'completed',started_at_ms:200,finished_at_ms:900,model_responses:1}}),
+  ev(8,'runtime_event',{native_type:'tool_execution_end',task_id:'task',tool_call_id:'submit',tool_name:'agent_llm_submit'}),ev(9,'runtime_action',{phase:'completed'})]
+ const reader=read(events)
+ expect(reader.getByText('独立核对')).toBeTruthy()
+ expect(reader.getByText(/LLM 1 次 · 累计 1.0s/)).toBeTruthy()
+ expect(reader.getByText(/子 LLM 1 次 · 响应累计/)).toBeTruthy()
+})
 const tools=toolsFixture.map(parseEventEnvelope),research=researchFixture.map(parseEventEnvelope)
 const props={disabled:false,isRunning:false,activity:[],onSend:async()=>{},onCancel:async()=>{}}
 function read(events:EventEnvelope[]) {

@@ -60,3 +60,7 @@
 .capstone-chat-activity-attached > summary .capstone-process-controls button:disabled { opacity: .4; background: transparent; cursor: default; }
 .capstone-chat-activity-attached > summary .capstone-process-controls button:disabled > svg { color: inherit; }
 .capstone-parallel-group { width: fit-content; max-width: 100%; padding: 0 0 0 5px; margin: 1px 0; border-left: 1px solid #c7d8cf; }
+.capstone-call-pool ul { list-style: none; margin: 4px 0; padding: 0 0 0 8px; border-left: 1px solid #c7d8cf; }
+.capstone-call-pool li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 3px 0; }
+.capstone-call-pool li > span:first-child { overflow-wrap: anywhere; }
+.capstone-call-pool li > :not(:first-child) { color: var(--trace-muted, #64748b); white-space: nowrap; }

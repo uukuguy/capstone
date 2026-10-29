@@ -35,6 +35,31 @@ def _url(thread_id, attempt_id, artifact_id):
 def project_native_artifacts(claim, result, *, expected_parent_attempt_id=None):
     """Bind host file identities to the accepted Attempt, never promote delivery."""
     document = result.to_document()
+    return _project_artifact_document(claim, document, expected_parent_attempt_id=expected_parent_attempt_id)
+
+
+def project_native_artifact_capture(claim, request, event):
+    """A running capture is an available version, not a terminal task result."""
+    expected = {'type', 'schema', 'task_id', 'parent_attempt_id', 'executor_identity', 'artifact'}
+    if (not isinstance(event, dict) or set(event) - {'event_id'} != expected
+            or event.get('type') != 'native_artifact_captured'
+            or event.get('schema') != 'capstone-pi-artifact-capture/1'
+            or event['task_id'] != request.task_id or event['parent_attempt_id'] != request.parent_attempt_id
+            or event['executor_identity'] != request.to_document()['executor_identity']):
+        raise ValueError('native capture task identity changed')
+    artifact = event['artifact']
+    if (not isinstance(artifact, dict)
+            or set(artifact) != {'artifact_id','task_id','parent_attempt_id','kind','metadata'}
+            or artifact.get('kind') != 'workspace_file'
+            or not isinstance(artifact.get('metadata'), dict)
+            or set(artifact['metadata']) - {'path','sha256','size_bytes','presentation_role'}):
+        raise ValueError('native capture file descriptor is invalid')
+    return _project_artifact_document(claim, {'task_id':event['task_id'],
+        'parent_attempt_id':event['parent_attempt_id'], 'executor_identity':event['executor_identity'],
+        'status':'running', 'artifacts':[artifact]}, expected_parent_attempt_id=request.parent_attempt_id)
+
+
+def _project_artifact_document(claim, document, *, expected_parent_attempt_id=None):
     if not document['artifacts']:
         return []
     parent = claim.attempt.attempt_id
@@ -138,9 +163,11 @@ def _saved_artifact(objects, item):
     return _verified_bytes(item, data)
 
 
-def retain_native_artifact(objects, executor, item):
+def retain_native_artifact(objects, executor, item, *, check=lambda:None):
     """Keep exact process bytes in the host store without promoting delivery."""
+    check()
     saved = _saved_artifact(objects, item)
+    check()
     if saved is not None:
         return saved
     if executor is None:
@@ -150,8 +177,10 @@ def retain_native_artifact(objects, executor, item):
     # determine a saved file's identity, not the current executor revision.
     data = _verified_bytes(item, executor.read_artifact(item['task_id'], item['host_artifact_id'],
         expected_sha256=item['sha256'], expected_size=item['size_bytes']))
+    check()
     if objects is not None:
         objects.put(artifact_object_key(item), data, item['media_type'])
+        check()
         _verified_bytes(item, objects.get(artifact_object_key(item), limits.artifact_file_bytes))
     return data
 

@@ -96,7 +96,8 @@ export async function runManagedSession(session, prompt, options) {
     if (event.type === 'turn_end') {
       turnCount++;
       options.onTurnEnd?.(turnCount);
-      if (options.maxTurns != null) {
+      // A settled final response needs no extra model turn to say it is final.
+      if (options.maxTurns != null && !['stop','length','error','aborted'].includes(event.message?.stopReason)) {
         if (!softLimitReached && turnCount >= options.maxTurns) {
           softLimitReached = true;
           session.steer('You have reached your turn limit. Wrap up immediately — provide your final answer now.');

@@ -27,6 +27,92 @@ from .bounded_http_loop import run_http
 from .application_capacity import limits, initialize_capacity, current_capacity, CapacityExceeded, observe_capacity
 
 
+def _checked_llm_pool_call(event, native, capability, record):
+    """Admit only bounded presentation events from this task's observed submit calls."""
+    from .native_llm_pool import LLM_CALL_POOL_POLICY, registered_llm_call_pool
+    from .native_task_context import public_document
+    native = public_document(native)
+    native_policy = native.get('policy') if isinstance(native, dict) else None
+    if (not isinstance(native, dict) or not registered_llm_call_pool(native.get('llm_call_pool'))
+            or not registered_llm_call_pool(capability.get('llm_call_pool'))
+            or not isinstance(native_policy, dict)
+            or 'agent_llm_submit' not in native_policy.get('allowed_tools', ())):
+        raise ValueError('LLM pool event has no application grant')
+    required = {'type', 'schema', 'parent_tool_call_id', 'child_id', 'title', 'status', 'queued_at_ms'}
+    optional = {'started_at_ms', 'finished_at_ms', 'cancel_reason', 'response_ms', 'response_number',
+                'usage', 'model_responses', 'turns'}
+    statuses = {'queued', 'waiting_dependencies', 'running', 'cancelling', 'completed', 'failed', 'cancelled', 'blocked'}
+    terminals = {'completed', 'failed', 'cancelled', 'blocked'}
+    def count(value):
+        return type(value) is int and 0 <= value <= 9007199254740991
+    def text(value, maximum):
+        return (isinstance(value, str) and 0 < len(value) <= maximum and bool(value.strip())
+                and all(ord(char) >= 32 and ord(char) != 127 for char in value))
+    if (not isinstance(event, dict) or not required <= set(event) or set(event) - required - optional
+            or event['type'] != 'llm_pool_call' or event['schema'] != LLM_CALL_POOL_POLICY['schema']
+            or not text(event['parent_tool_call_id'], 128) or not text(event['child_id'], 128)
+            or not text(event['title'], 120) or event['status'] not in statuses
+            or not count(event['queued_at_ms'])
+            or event['parent_tool_call_id'] not in record.get('llm_pool_submit_calls', set())):
+        raise ValueError('LLM pool event is invalid')
+    for key in ('started_at_ms', 'finished_at_ms', 'response_number', 'model_responses', 'turns'):
+        if key in event and not count(event[key]):
+            raise ValueError('LLM pool event count is invalid')
+    if ('response_ms' in event and (type(event['response_ms']) not in (int, float)
+            or not math.isfinite(event['response_ms']) or event['response_ms'] < 0)
+            or 'cancel_reason' in event and event['cancel_reason'] not in {'timeout', 'cancelled', 'closed', 'parent_cancelled'}):
+        raise ValueError('LLM pool event timing is invalid')
+    start, finish = event.get('started_at_ms'), event.get('finished_at_ms')
+    if ((start is not None and start < event['queued_at_ms'])
+            or finish is not None and finish < (start if start is not None else event['queued_at_ms'])
+            or (event['status'] in terminals) != (finish is not None)
+            or event['status'] == 'completed' and start is None):
+        raise ValueError('LLM pool event lifecycle timing is invalid')
+    if event['status'] not in terminals and {'usage', 'model_responses', 'turns'} & set(event):
+        raise ValueError('LLM pool usage preceded its terminal receipt')
+    if 'usage' in event:
+        rows = event['usage']
+        if not isinstance(rows, list) or len(rows) > 128:
+            raise ValueError('LLM pool usage is invalid')
+        for row in rows:
+            if not isinstance(row, dict) or set(row) - {'input', 'output', 'cacheRead', 'cacheWrite', 'totalTokens', 'cost'}:
+                raise ValueError('LLM pool usage is invalid')
+            for key, value in row.items():
+                if key != 'cost':
+                    valid = value is None or count(value)
+                elif isinstance(value, dict):
+                    valid = (not set(value) - {'input', 'output', 'cacheRead', 'cacheWrite', 'total'}
+                        and all(type(v) in (int, float) and math.isfinite(v) and v >= 0 for v in value.values()))
+                else:
+                    valid = value is None or type(value) in (int, float) and math.isfinite(value) and value >= 0
+                if not valid:
+                    raise ValueError('LLM pool usage is invalid')
+    bindings = record.setdefault('llm_pool_bindings', {})
+    previous = bindings.get(event['child_id'])
+    transitions = {'queued': {'queued', 'waiting_dependencies', 'running', 'cancelled', 'blocked'},
+        'waiting_dependencies': {'waiting_dependencies', 'queued', 'running', 'cancelled', 'blocked'},
+        'running': {'running', 'cancelling', 'completed', 'failed', 'cancelled'},
+        'cancelling': {'cancelling', 'cancelled', 'failed'}}
+    if previous is None:
+        if len(bindings) >= LLM_CALL_POOL_POLICY['max_jobs'] or event['status'] not in {'queued', 'waiting_dependencies'}:
+            raise ValueError('LLM pool event was not queued')
+    else:
+        if any(event[key] != previous[key] for key in ('parent_tool_call_id', 'child_id', 'title', 'queued_at_ms')):
+            raise ValueError('LLM pool child identity changed')
+        if previous['status'] in terminals:
+            if event != previous:
+                raise ValueError('LLM pool terminal changed')
+        elif event['status'] not in transitions[previous['status']]:
+            raise ValueError('LLM pool status transition is invalid')
+        if ('started_at_ms' in previous and start != previous['started_at_ms']
+                or 'cancel_reason' in previous and event.get('cancel_reason') != previous['cancel_reason']
+                or 'response_number' in event and event['response_number'] < previous.get('response_number', 0)):
+            raise ValueError('LLM pool response identity changed')
+    checked = json.loads(json.dumps(event, allow_nan=False))
+    bindings[event['child_id']] = checked
+    return checked
+
+
 def _adaptive_agent_loop(request):
     from .native_task_context import resolve_research_policy
     native = request.native_context
@@ -88,6 +174,8 @@ class GeneralPiHost:
         self.capability['systematic_diagnosis'] = dict(DIAGNOSIS_POLICY)
         from .native_tool_composition import COMPOSITION_POLICY
         self.capability['tool_composition'] = dict(COMPOSITION_POLICY)
+        from .native_llm_pool import LLM_CALL_POOL_POLICY
+        self.capability['llm_call_pool'] = dict(LLM_CALL_POOL_POLICY)
         gateway = getattr(run_task, 'gateway', None)
         self.capability['data_gateway'] = (gateway.publication() if gateway else
             getattr(run_task, 'gateway_publication', {'available': False, 'reason': 'not_configured'}))
@@ -190,6 +278,10 @@ class GeneralPiHost:
             if (native.get('tool_composition') == COMPOSITION_POLICY
                     and self.capability.get('tool_composition') == COMPOSITION_POLICY):
                 published.update(COMPOSITION_TOOLS)
+            from .native_llm_pool import LLM_CALL_POOL_TOOLS, registered_llm_call_pool
+            if (registered_llm_call_pool(native.get('llm_call_pool'))
+                    and registered_llm_call_pool(self.capability.get('llm_call_pool'))):
+                published.update(LLM_CALL_POOL_TOOLS)
             if not set(native['policy']['allowed_tools']) <= published:
                 raise ValueError('native application requested an unpublished tool')
         with self._lock:
@@ -210,7 +302,7 @@ class GeneralPiHost:
                         'executor_identity': self.identity, 'status': 'failed',
                         'answer': ('Result retention expired; task was not repeated.' if saved.get('expired')
                                    else 'Previous execution outcome is unknown; the task was not repeated.'),
-                        'sources': [], 'artifacts': [], 'usage': {}}
+                        'sources': [], 'artifacts': self.storage.captured_artifacts(request.task_id), 'usage': {}}
                 result = PiTaskResult.from_document(saved['result'], request)
                 self._tasks[request.task_id] = {'request': request, 'status': result.status,
                     'events': [], 'result': result.to_document(), 'cancel': threading.Event()}
@@ -329,19 +421,25 @@ class GeneralPiHost:
         discovery_sources = ({'agent_tool_search', 'agent_tool_load'}.intersection(native['policy']['allowed_tools'])
             if native is not None else set())
         from .native_tool_composition import COMPOSITION_POLICY, COMPOSITION_TOOLS
-        composition_sources = (set(COMPOSITION_TOOLS).intersection(native['policy']['allowed_tools'])
+        composition_sources = (set[str](COMPOSITION_TOOLS).intersection(native['policy']['allowed_tools'])
             if native is not None and native.get('tool_composition') == COMPOSITION_POLICY
             and self.capability.get('tool_composition') == COMPOSITION_POLICY else set())
+        from .native_llm_pool import LLM_CALL_POOL_TOOLS, registered_llm_call_pool
+        if (native is not None and registered_llm_call_pool(native.get('llm_call_pool'))
+                and registered_llm_call_pool(self.capability.get('llm_call_pool'))):
+            composition_sources.update(set(LLM_CALL_POOL_TOOLS).intersection(native['policy']['allowed_tools']))
         from .data_gateway_relay import gateway_discovery_tools
         discovery_sources.update(gateway_discovery_tools(native, self.capability.get('data_gateway', {}),
             gateway_available=getattr(self._run, 'gateway', None) is not None))
         def cancelled():
             return record['cancel'].is_set() or time.monotonic() - started >= request.timeout_seconds
-        def publish(payload):
+        def publish(payload, *, check=lambda:None):
             # Assign the transport sequence only after text coalescing. The
             # receiver still persists each event before acknowledging its page.
             while not cancelled():
+                check()
                 with self._lock:
+                    check()
                     if len(record['events']) < limits.event_buffer_count and len(json.dumps(record['events']).encode()) < limits.event_buffer_bytes:
                         sequence = record.get('event_sequence', 0) + 1
                         record['events'].append({'event_id': 'event-' + str(sequence), **payload})
@@ -352,6 +450,10 @@ class GeneralPiHost:
         from .stream_progress import TextDeltaBuffer
         text_buffer = TextDeltaBuffer(lambda text: publish({'type': 'assistant_delta', 'text': text}))
         thinking_buffer = TextDeltaBuffer(lambda text: publish({'type': 'assistant_thinking_delta', 'text': text}))
+        from .incremental_artifacts import IncrementalArtifacts
+        incremental = IncrementalArtifacts(workspace=self.root / 'tasks' / request.task_id,
+            request=request, identity=self.identity, storage=self.storage,
+            publish=lambda payload:publish(payload, check=incremental.check))
         def capture_direct_observation(call_id, tool_name, result, *, is_error=False):
             context = record.get('graph_context')
             if (not adaptive or native is None or context is None or direct_calls.get(call_id) != tool_name
@@ -464,7 +566,9 @@ class GeneralPiHost:
             except ModuleNotFoundError:
                 from capability_agent.runtime.step_events import project_runtime_action
             payload = project_runtime_action(event)
-            if kind in {'delegation_child_started', 'delegation_child_tool', 'delegation_child_finished', 'delegation_child_response'}:
+            if kind == 'llm_pool_call':
+                payload = {'llm_pool_call': _checked_llm_pool_call(event, request.native_context, self.capability, record)}
+            elif kind in {'delegation_child_started', 'delegation_child_tool', 'delegation_child_finished', 'delegation_child_response'}:
                 from .native_research_bridge import checked_branch_progress, read_json
                 if request.research_binding is None:
                     raise ValueError('research branch requires an accepted owner')
@@ -552,6 +656,14 @@ class GeneralPiHost:
                     direct_calls[call_id] = tool_name
                 if kind == 'tool_execution_start' and event.get('toolName') == 'agent_delegate':
                     record.setdefault('delegate_calls', set()).add(payload['tool_call_id'])
+                if kind == 'tool_execution_start' and event.get('toolName') == 'agent_llm_submit':
+                    from .application_capacity import require_capacity
+                    call_id = event.get('toolCallId')
+                    if not isinstance(call_id, str) or not call_id or len(call_id) > 128:
+                        raise ValueError('LLM pool submit identity is invalid')
+                    calls = record.setdefault('llm_pool_submit_calls', set())
+                    require_capacity('event_buffer_count', len(calls) + (call_id not in calls), 'llm_pool_submit')
+                    calls.add(call_id)
                 from capstone_agent.progress import project_native_tool_activity
                 if request.research_binding is not None and request.research_binding.get('graph_schema') == 'capstone-enterprise-graph/2':
                     from .native_graph_events import project_graph_tool_activity
@@ -692,6 +804,8 @@ class GeneralPiHost:
                     text_buffer.flush()
                     thinking_buffer.flush()
                     publish(payload)
+            if kind == 'tool_execution_end' or kind == 'enterprise_graph_child_tool' and event.get('activity') == 'end':
+                incremental.trigger()
         status, answer, usage = 'completed', '', {}
         public_failure = None
         try:
@@ -779,6 +893,8 @@ class GeneralPiHost:
                                     json.dumps(failure).encode())
             except (OSError, CapacityExceeded):
                 pass  # Keep the original failure; initial replay guard remains.
+        finally:
+            incremental.close()
         if cancelled():
             status = 'cancelled' if record['cancel'].is_set() else 'failed'
             answer = ''
@@ -983,6 +1099,8 @@ class NativeTaskRunner:
                 sdk_config['applicationPolicy'] = native['policy']
                 if native.get('tool_composition'):
                     sdk_config['toolComposition'] = native['tool_composition']
+                if native.get('llm_call_pool'):
+                    sdk_config['llmCallPool'] = native['llm_call_pool']
                 if native.get('systematic_diagnosis'):
                     diagnosis = self._diagnosis_provider(request, workspace, uid)
                     sdk_config['diagnosisContextPath'] = str(diagnosis.root)
@@ -1549,7 +1667,7 @@ def main():
                 'pi_commit': lock['source']['commit'], 'config_revision': revision.hexdigest(),
                 'runtime_lock_sha256': sha256(Path('/opt/general/pi-runtime.lock.json').read_bytes()).hexdigest(),
                 'executor_revision': sha256(b''.join((Path(__file__).parent / name).read_bytes()
-                    for name in ('general_pi_server.py', 'general_pi_executor.py', 'general_pi_storage.py', 'general_pi_relay.py', 'native_network_policy.py', 'bounded_http_loop.py', 'pi_delegation.py', 'business_context.py', 'request_intent.py', 'native_task_context.py', 'workbench_llm_profiles.py', 'native_failure_origin.py', 'native_diagnosis.py', 'native_tool_composition.py',
+                    for name in ('general_pi_server.py', 'general_pi_executor.py', 'general_pi_storage.py', 'general_pi_relay.py', 'native_network_policy.py', 'bounded_http_loop.py', 'pi_delegation.py', 'business_context.py', 'request_intent.py', 'native_task_context.py', 'workbench_llm_profiles.py', 'native_failure_origin.py', 'native_diagnosis.py', 'native_tool_composition.py', 'native_llm_pool.py', 'incremental_artifacts.py',
                                  'native_resources.py', 'runtime_resources.py', 'resource_installation.py', 'general_pi_resource_seed.py', 'bounded_mcp.py', 'native_environment.py', 'data_gateway_mcp.py', 'data_gateway_relay.py', 'gateway_diagnostics.py', 'grid_source_topology.py', 'grid_electrical_view.py', 'resources/gateway-electrical-view-v1.schema.json', 'resources/gateway-electrical-view-v2.schema.json', 'resources/general-data-gateway.mjs',
                                  'progress.py', 'stream_progress.py', 'resource_manifest.py', 'native_resource_staging.py',
                                  'native_research_bridge.py', 'native_graph_context.py', 'native_graph_events.py',
@@ -1558,6 +1676,7 @@ def main():
                                  'resources/research-tools.mjs', 'resources/execution-guidance.mjs', 'resources/model-request-capture.mjs',
                                  'resources/general-context.mjs', 'resources/general-sdk.mjs', 'resources/general-tool-discovery.mjs', 'resources/tool-result-context.mjs', 'resources/committed-delivery.mjs', 'resources/systematic-diagnosis.mjs', 'resources/general-mcp.mjs', 'resources/task-record-tools.mjs',
                                  'resources/tool-composition.mjs', 'resources/tool-composition-worker.mjs', 'resources/tool-composition-policy.json', 'resources/semantic-data-context.mjs',
+                                 'resources/async-call-pool.mjs', 'resources/llm-call-tools.mjs', 'resources/llm-call-pool-policy.json',
                                  'resources/enterprise-research-runtime.mjs', 'resources/enterprise-cycle-contract.mjs',
                                  'resources/enterprise-cycle-state.mjs', 'resources/enterprise-graph-contract.mjs',
                                  'resources/enterprise-graph-state.mjs', 'resources/enterprise-graph-runtime.mjs', 'resources/task-goal-state.mjs', 'resources/task-node-return.mjs', 'resources/research-context-window.mjs',

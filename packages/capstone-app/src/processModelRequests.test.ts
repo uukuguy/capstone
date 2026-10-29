@@ -3,6 +3,15 @@ import {projectProcessModelRequests} from './processModelRequests'
 import type {EventEnvelope} from './threadProtocol'
 
 const boundary=(seq:number,phase:string,responseKind?:string):EventEnvelope=>({eventId:`e${seq}`,eventSeq:seq,eventVersion:1,eventType:'runtime_action',threadId:'thread',runId:'run',attemptId:'attempt',visibility:'public',occurredAt:`2026-10-25T12:00:0${seq}Z`,payload:{phase,...(responseKind?{response_kind:responseKind}:{})}})
+it('attaches pool calls through exact submit ownership without moving them into a subsequent parent request',()=>{
+ const native={...boundary(0,'route'),eventType:'turn_route_selected',payload:{source:'native_conversation'}}
+ const submit={...boundary(3,'tool'),eventType:'runtime_event',payload:{native_type:'tool_execution_start',tool_call_id:'submit',tool_name:'agent_llm_submit'}}
+ const child={...boundary(7,'child'),eventType:'runtime_event',payload:{native_type:'llm_pool_call',llm_pool_call:{type:'llm_pool_call',schema:'capstone-llm-call-pool/1',parent_tool_call_id:'submit',child_id:'child',title:'检查',status:'running',queued_at_ms:1,started_at_ms:2}}}
+ const calls=projectProcessModelRequests([native,boundary(1,'started'),boundary(2,'response_completed','tools'),submit,boundary(4,'started'),boundary(5,'response_completed','text'),child],'attempt')
+ expect(calls[0].poolCalls?.[0].id).toBe('child');expect(calls[1].poolCalls).toBeUndefined()
+ const [unbound]=projectProcessModelRequests([native,submit,boundary(4,'started'),boundary(5,'response_completed','text'),child],'attempt')
+ expect(unbound.poolCalls).toBeUndefined()
+})
 
 it('distinguishes a recorded text-only response from missing tool ownership metadata',()=>{
   const calls=projectProcessModelRequests([boundary(1,'started'),boundary(2,'response_completed','text'),boundary(3,'started'),boundary(4,'response_completed','tools')],'attempt')

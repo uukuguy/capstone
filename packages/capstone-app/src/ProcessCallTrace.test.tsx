@@ -4,6 +4,17 @@ import { cleanup, render, screen, within } from '@testing-library/react'
 import ProcessCallTrace, { callTraceIssues } from './ProcessCallTrace'
 
 afterEach(cleanup)
+it('shows lightweight children under the submit tool with separate actual totals',()=>{
+ render(<ProcessCallTrace compact expandedTools models={[{id:'m',number:1,ms:100,toolCallIds:['submit'],poolCalls:[
+  {id:'a',parentToolCallId:'submit',title:'核对指标',status:'completed',queuedAtMs:100,responseCount:1,responseMs:45},
+  {id:'b',parentToolCallId:'submit',title:'整理表达',status:'waiting_dependencies',queuedAtMs:100,responseCount:0},
+  {id:'c',parentToolCallId:'submit',title:'补充说明',status:'cancelling',queuedAtMs:100,responseCount:0},
+ ]}]} tools={[{id:'submit',name:'agent_llm_submit',status:'completed'}]}/> )
+ expect(screen.getByLabelText('轻量子 LLM 调用')).toBeVisible()
+ expect(screen.getByText('核对指标')).toBeVisible();expect(screen.getByText('等待依赖')).toBeVisible();expect(screen.getByText('取消中')).toBeVisible()
+ expect(screen.getByText(/子 LLM 响应 1 次/)).toBeVisible()
+ expect(screen.queryByText(/Deep Research/)).toBeNull()
+})
 it('opens current lightweight tool details and collapses them when the next LLM response starts',()=>{
   const models=[{id:'m1',number:1,ms:100,toolCallIds:['a']},{id:'m2',number:2,ms:100,toolCallIds:['b']}]
   const tools=[{id:'a',name:'Old tool',status:'completed' as const},{id:'b',name:'Current tool',status:'running' as const}]

@@ -1095,14 +1095,14 @@ def test_partial_persistence_keeps_verified_saved_descriptors(tmp_path, monkeypa
     workspace.mkdir()
     (workspace / 'a.txt').write_text('first')
     (workspace / 'b.txt').write_text('second')
-    original = storage._write
+    original = storage.artifact_file
     calls = []
-    def write(path, data):
+    def write(task_id, path, artifact, **kwargs):
         calls.append(path)
         if len(calls) == 2:
             raise OSError('storage unavailable')
-        original(path, data)
-    monkeypatch.setattr(storage, '_write', write)
+        original(task_id, path, artifact, **kwargs)
+    monkeypatch.setattr(storage, 'artifact_file', write)
     with pytest.raises(OSError) as failure:
         storage.artifacts('task', workspace, collect_artifacts(workspace, 'task', 'attempt'))
     assert [item['metadata']['path'] for item in failure.value.saved_artifacts] == ['a.txt']

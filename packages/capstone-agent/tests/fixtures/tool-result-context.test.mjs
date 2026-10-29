@@ -6,6 +6,21 @@ import {join} from 'node:path';
 import {createHash} from 'node:crypto';
 import {boundToolResult,restoreToolResult} from '../../src/capstone_agent/resources/tool-result-context.mjs';
 
+test('a bounded structure index exposes nested row shape even when verbose metadata consumes the preview',async()=>{
+  const cwd=await mkdtemp(join(tmpdir(),'observation-shape-'));
+  try{
+    const value={...Object.fromEntries(Array.from({length:18},(_,i)=>['metadata_'+i,'x'.repeat(500)])),
+      data:{rows:Array.from({length:200},(_,i)=>({object_ref:'id_'+i,time:'2025-07-01',value:i})),unit:'MW'}};
+    const body=JSON.stringify({structuredContent:value});
+    const result=await boundToolResult({content:[{type:'text',text:body}]},{cwd,toolName:'source',callId:'shape'});
+    const envelope=JSON.parse(result.content[0].text);
+    const rows=envelope.structure.containers.find(entry=>entry.pointer==='/data/rows');
+    assert.equal(rows.length,200);assert.deepEqual(rows.item_keys,['object_ref','time','value']);
+    assert.ok(JSON.stringify(result.content).length<=6000);
+    assert.equal(await readFile(envelope.full_result.path,'utf8'),body);
+  }finally{await rm(cwd,{recursive:true,force:true})}
+});
+
 test('large gateway data stays complete on disk and exact at the host while model content is bounded',async()=>{
   const cwd=await mkdtemp(join(tmpdir(),'bounded-observation-'));
   try{

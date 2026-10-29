@@ -3,8 +3,9 @@ import { AlertTriangle, ChevronRight, Check, CircleX, CircleDashed, LoaderCircle
 import { toolExecutionMs } from './processTiming'
 import './processCallTrace.css'
 import ThinkingProcess from './ThinkingProcess'
+import {summarizeLlmPoolCalls,type ProcessLlmPoolCall} from './processLlmPool'
 
-export type ProcessModelCall = { id: string; number: number; ms: number; label?: string; intent?: string; thinking?: string; thinkingStartedAt?: string; thinkingEndedAt?: string; thinkingSettled?: boolean; sequenceId?: string; settled?: boolean; startedAt?: string; finishedAt?: string; toolAssociation?: 'turn'; toolCallIds?: readonly string[]; stopReason?: string; errorCode?: string; errorStatus?: number; usage?: Record<string, unknown>; responseText?: string; toolRequests?: readonly { id: string; name: string; operation?: string }[] }
+export type ProcessModelCall = { id: string; number: number; ms: number; poolCalls?:readonly ProcessLlmPoolCall[]; label?: string; intent?: string; thinking?: string; thinkingStartedAt?: string; thinkingEndedAt?: string; thinkingSettled?: boolean; sequenceId?: string; settled?: boolean; startedAt?: string; finishedAt?: string; toolAssociation?: 'turn'; toolCallIds?: readonly string[]; stopReason?: string; errorCode?: string; errorStatus?: number; usage?: Record<string, unknown>; responseText?: string; toolRequests?: readonly { id: string; name: string; operation?: string }[] }
 const modelErrors:Record<string,string>={model_context_limit:'上下文超限',model_rate_limit:'请求限流',model_authentication:'模型认证失败',model_transport:'模型连接异常',model_output_invalid:'模型输出格式异常',model_output_rejected:'模型输出被拒绝',model_turn_incomplete:'原因未记录'}
 export type ProcessToolCall = { id: string; name: string; status: 'running' | 'completed' | 'failed' | 'cancelled'; startedAt?: string; finishedAt?: string; durationMs?: number; executionMs?: number; operation?: string; origin?: 'model' | 'parent' | 'system' | 'unknown' }
 export type ProcessTraceFocus = { modelId: string; revision: number }
@@ -98,6 +99,17 @@ export default function ProcessCallTrace({ models, tools, now, active = true, co
     return groups
   }
   const latestModelId=models.at(-1)?.id
+  const poolCalls=models.flatMap(model=>model.poolCalls??[])
+  const renderPool=(parentId:string)=>{
+    const children=poolCalls.filter(call=>call.parentToolCallId===parentId)
+    if(!children.length)return null
+    const summary=summarizeLlmPoolCalls(children)
+    const labels={queued:'排队中',waiting_dependencies:'等待依赖',running:'执行中',cancelling:'取消中',completed:'已完成',failed:'未完成',cancelled:'已停止',blocked:'依赖未完成'}
+    return <section className="capstone-call-pool" aria-label="轻量子 LLM 调用">
+      <p>子 LLM 响应 {summary.responses??'—'} 次 · 响应累计 {summary.responseMs===undefined?'未完整记录':time(summary.responseMs)}</p>
+      <ul>{children.map(call=><li key={call.id}><span title={call.title}>{call.title}</span><span>{labels[call.status]}</span><small>响应 {call.responseMs===undefined?'—':time(call.responseMs)}</small></li>)}</ul>
+    </section>
+  }
   const renderTool = (tool: ProcessToolCall, independent = false) => <details key={tool.id} className="capstone-call-tool" open={expandedTools||Boolean(compact&&active&&latestModelId&&owners.get(tool.id)?.length===1&&owners.get(tool.id)?.[0]===latestModelId)}>
     <summary><ChevronRight aria-hidden="true" /><strong title={tool.name}>{tool.name}</strong>
       {independent && <small>{tool.origin === 'system' ? '系统动作' : tool.origin === 'parent' ? '主链调用' : '未关联'}</small>}
@@ -109,6 +121,7 @@ export default function ProcessCallTrace({ models, tools, now, active = true, co
       <p>工具执行 {tool.executionMs === undefined ? '—' : time(tool.executionMs)} · 记录区间 {tool.durationMs === undefined ? '—' : time(timed(tool).durationMs!)}</p>
       {independent && tool.origin !== 'system' && <p>{tool.origin === 'parent' ? '由主链发起，不属于本任务的 LLM 轮次。' : '记录未提供对应的 LLM 调用标识。'}</p>}
       {tool.operation && <p className="capstone-call-operation">{tool.operation}</p>}
+      {tool.name==='agent_llm_submit'&&renderPool(tool.id)}
       {renderToolDetails?.(tool)}
     </div>
   </details>

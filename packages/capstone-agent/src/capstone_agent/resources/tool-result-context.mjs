@@ -22,6 +22,35 @@ function preview(value,depth,items,chars){
     ...(entries.length>items?{preview_omitted_keys:entries.length-items}:{})};
 }
 
+// Structural facts only: no inferred units, semantics or source quality verdicts.
+function structureIndex(value){
+  const keys=object=>Object.keys(object).filter(key=>key.length<=64).slice(0,8);
+  const summary={type:Array.isArray(value)?'array':value===null?'null':typeof value,
+    ...(value&&typeof value==='object'&&!Array.isArray(value)?{keys:keys(value)}:{}),containers:[],partial:false};
+  const queue=[{value,pointer:'',depth:0}];let visited=0;
+  while(queue.length&&visited++<128){
+    const item=queue.shift(),object=item.value;
+    if(!object||typeof object!=='object')continue;
+    const record={pointer:item.pointer,type:Array.isArray(object)?'array':'object',
+      ...(Array.isArray(object)?{length:object.length,...(object[0]&&typeof object[0]==='object'&&!Array.isArray(object[0])?{item_keys:keys(object[0])}:{})}:{keys:keys(object)})};
+    if(item.pointer||Array.isArray(object)){
+      if(JSON.stringify({...summary,containers:[...summary.containers,record]}).length>900){summary.partial=true;continue}
+      summary.containers.push(record);
+    }
+    // Array rows are represented by their actual first-row keys, not expanded.
+    if(Array.isArray(object))continue;
+    if(item.depth>=4){summary.partial=true;continue}
+    const entries=Object.entries(object);if(entries.length>128)summary.partial=true;
+    for(const [key,child] of entries.slice(0,128)){
+      if(!child||typeof child!=='object')continue;
+      const pointer=item.pointer+'/'+key.replaceAll('~','~0').replaceAll('/','~1');
+      if(pointer.length<=256)queue.push({value:child,pointer,depth:item.depth+1});else summary.partial=true;
+    }
+  }
+  if(queue.length)summary.partial=true;
+  return summary;
+}
+
 export async function boundToolResult(result,{cwd=process.cwd(),toolName,callId,maxChars=6000}={}){
   if(!Number.isSafeInteger(maxChars)||maxChars<1500)throw new Error('Invalid tool result context budget');
   if(JSON.stringify(result.content??[]).length<=maxChars)return result;
@@ -48,11 +77,16 @@ export async function boundToolResult(result,{cwd=process.cwd(),toolName,callId,
   issuedObservationRefs.add(referenceKey(fullResult));
   const envelope={preview_truncated:true,
     full_result:fullResult,
+    structure:structureIndex(source),
     instruction:'This is an incomplete preview. The exact original result is saved in the task directory. Read bounded sections or analyze the file with code; do not repeat the query to recover omitted rows. For independent analyses and deliverables, organize tasks when needed. This file is a source observation, not Authority evidence.'};
   let content;
   for(const [depth,items,chars] of [[6,12,400],[5,6,240],[4,3,160],[2,2,80],[0,8,80]]){
     content=[{type:'text',text:JSON.stringify({...envelope,preview:preview(source,depth,items,chars)})}];
     if(JSON.stringify(content).length<=maxChars)break;
+  }
+  if(JSON.stringify(content).length>maxChars){
+    const small=JSON.parse(content[0].text);small.structure={type:small.structure.type,partial:true};
+    content=[{type:'text',text:JSON.stringify(small)}];
   }
   if(JSON.stringify(content).length>maxChars)throw new Error('Tool result reference exceeds context budget');
   return {...result,content,[originalResult]:result};
