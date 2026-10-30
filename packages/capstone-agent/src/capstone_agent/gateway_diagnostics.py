@@ -17,6 +17,18 @@ def checked_diagnostics(value):
         raise ValueError('gateway_diagnostics_context_invalid')
     return {key: diagnostic_id(value[key]) for key in FIELDS}
 
+
+def research_diagnostics(binding, attempt_id):
+    """Use the admitted Work identity, never the ephemeral executor task ID."""
+    if not isinstance(binding, dict) or not isinstance(binding.get('cycle_owner'), dict):
+        return None
+    from hashlib import sha256
+    work_id = diagnostic_id(binding['cycle_owner'].get('work_id'))
+    run_id = diagnostic_id(attempt_id)
+    trace_id = sha256(('gateway-run:' + work_id + ':' + run_id).encode()).hexdigest()[:32]
+    return checked_diagnostics({'task_id': work_id, 'run_id': run_id,
+        'trace_id': trace_id, 'parent_span_id': 'attempt:' + trace_id})
+
 def response_diagnostics(result):
     content = result.get('structuredContent', {})
     provenance = content.get('provenance', {}) if isinstance(content, dict) else {}

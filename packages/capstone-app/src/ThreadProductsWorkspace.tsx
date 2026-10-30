@@ -4,7 +4,7 @@ import {ArrowDownToLine,ArrowUpRight,LocateFixed,ListTree} from 'lucide-react'
 import {ResultProjectionCard} from './CapstoneAssistantThread'
 import {NativeFileContent,nativePreviewMedia} from './NativeArtifactsWorkspace'
 import type {NativeArtifact} from './nativeArtifacts'
-import {productRefKey,type ProductEntry,type ProductIndex,type ProductQuery,type ProductRef,type ProductResolution} from './threadProducts'
+import {latestProductVersions,productRefKey,type ProductEntry,type ProductIndex,type ProductQuery,type ProductRef,type ProductResolution} from './threadProducts'
 import './threadProducts.css'
 import type {ResultProjection} from './threadProtocol'
 import {useSessionViewState,useSessionViewRef,useSessionObjectUrls,sessionObjectUrl} from './workspaceSessionCache'
@@ -149,11 +149,13 @@ export default function ThreadProductsWorkspace({client,threadId,workId,revision
     return()=>{if(!sessionUrls)URL.revokeObjectURL(url)}
   },[view])
   let text:string|undefined,textUnavailable=false
+  const versions=latestProductVersions(current?.items||[])
   const groups=[
-    {label:'任务交付',items:current?.items.filter(item=>item.ref.scope==='task')||[],collapsed:false},
-    {label:'主要产物',items:current?.items.filter(item=>item.ref.scope==='instruction'&&item.source.presentation_role==='primary')||[],collapsed:false},
-    {label:'支撑图表与数据',items:current?.items.filter(item=>item.ref.scope==='instruction'&&item.source.presentation_role==='support')||[],collapsed:true},
-    {label:'过程产物与记录',items:current?.items.filter(item=>item.ref.scope==='instruction'&&!['primary','support'].includes(String(item.source.presentation_role)))||[],collapsed:true},
+    {label:'任务交付',items:versions.latest.filter(item=>item.ref.scope==='task'),collapsed:false},
+    {label:'主要产物',items:versions.latest.filter(item=>item.ref.scope==='instruction'&&item.source.presentation_role==='primary'),collapsed:false},
+    {label:'支撑图表与数据',items:versions.latest.filter(item=>item.ref.scope==='instruction'&&item.source.presentation_role==='support'),collapsed:true},
+    {label:'过程产物与记录',items:versions.latest.filter(item=>item.ref.scope==='instruction'&&!['primary','support'].includes(String(item.source.presentation_role))),collapsed:true},
+    {label:'历史版本',items:versions.history,collapsed:true},
   ]
   if(view?.bytes)observeCapacity(view.bytes.byteLength,'preview_bytes','product.preview')
   if(view?.bytes&&view.bytes.byteLength<=applicationCapacity('preview_bytes')&&(previewMedia.startsWith('text/')||previewMedia==='application/json')){try{text=new TextDecoder('utf-8',{fatal:true}).decode(view.bytes)}catch{textUnavailable=true}}

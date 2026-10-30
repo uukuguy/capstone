@@ -1124,7 +1124,11 @@ class NativeTaskRunner:
                     sdk_config['applicationPolicy'] = {**native['policy'], 'allowed_tools': sorted({
                         *native['policy']['allowed_tools'], *gateway_discovery_tools(native,
                             self.gateway.publication(), gateway_available=True)})}
-                    self.gateway.bind(request.task_id, request.parent_attempt_id, admitted_gateway)
+                    from .gateway_diagnostics import research_diagnostics
+                    self.gateway.bind(request.task_id, request.parent_attempt_id, admitted_gateway,
+                        diagnostics=research_diagnostics(
+                            None if request.research_binding is None else request.to_document()['research_binding'],
+                            request.parent_attempt_id))
                     task_catalog = self.gateway.publication()['catalog']
                     # This is a menu projection, not a new accepted catalog.
                     # Receipts retain the full host catalog revision and exact tool hashes.

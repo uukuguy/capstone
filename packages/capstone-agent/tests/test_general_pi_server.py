@@ -197,7 +197,7 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     runner.environment_context = 'HOST VERIFIED ENVIRONMENT: offline libraries and report renderer'
     gateway_bindings = []
     runner.gateway = SimpleNamespace(publication=lambda: gateway_publication,
-        bind=lambda *args: gateway_bindings.append(args), revoke=lambda *_: None)
+        bind=lambda *args, **kwargs: gateway_bindings.append(args), revoke=lambda *_: None)
     ready = threading.Event()
     ready.set()
     runner.bind_research_reader(lambda _: SimpleNamespace(root=tmp_path / 'channel', ready=ready))
