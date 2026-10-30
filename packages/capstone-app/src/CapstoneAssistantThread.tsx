@@ -1266,7 +1266,7 @@ export default function CapstoneAssistantThread({ nativeArtifactProjections, pro
   const allMessages = useMemo(() => {
     const rows=bindInstructionAttachments(projectedMessages ? [...projectedMessages] : projectSystemNotices(projectAssistantMessages(events, instructionModels), events, systemNotices, historyAtLatest),inputCatalog?.stored_resources||[])
     if(!submittingThinking||events.some(event=>event.eventType==='command_accepted'&&event.eventSeq>submittingThinking.afterSeq&&payloadText(event,true)===submittingThinking.text))return rows
-    return [...rows,{id:submittingThinking.id,role:'assistant' as const,content:'',status:{type:'running' as const},metadata:{custom:{source:'optimistic-submit',initialThinking:{text:'',phase:'queued',handedOff:false,startedAt:submittingThinking.at} satisfies InitialThinking,stepStorageKey:submittingThinking.id}}}]
+    return [...rows,{id:`user-${submittingThinking.id}`,role:'user' as const,content:submittingThinking.text,metadata:{custom:{source:'optimistic-submit'}}},{id:submittingThinking.id,role:'assistant' as const,content:'',status:{type:'running' as const},metadata:{custom:{source:'optimistic-submit',initialThinking:{text:'',phase:'queued',handedOff:false,startedAt:submittingThinking.at} satisfies InitialThinking,stepStorageKey:submittingThinking.id}}}]
   }, [projectedMessages, events, instructionModels, systemNotices, historyAtLatest,submittingThinking,inputCatalog?.stored_resources])
   const firstPublicEventSeq = useMemo(() => events.reduce((first, event) => event.visibility === 'public' ? Math.min(first, event.eventSeq) : first, Number.POSITIVE_INFINITY), [events])
   const [foldState, setFoldState] = useSessionViewState<{ thread: string | undefined; ids: string[] }>('conversation.folds',{ thread: storageKey, ids: [] })
@@ -1624,6 +1624,16 @@ export default function CapstoneAssistantThread({ nativeArtifactProjections, pro
     },
     onCancel,
   })
+  useEffect(() => {
+    const stop = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented || event.repeat || event.isComposing || !isRunning || !canCancel || cancelDisabled) return
+      if (document.querySelector('[role="dialog"], [role="menu"], [role="listbox"]')) return
+      event.preventDefault()
+      void onCancel().catch(() => { /* The command owner retains recovery feedback. */ })
+    }
+    document.addEventListener('keydown', stop)
+    return () => document.removeEventListener('keydown', stop)
+  }, [isRunning, canCancel, cancelDisabled, onCancel])
   useEffect(() => {
     if (initialDraft) runtime.thread.composer.setText(initialDraft)
   }, [runtime, initialDraft])

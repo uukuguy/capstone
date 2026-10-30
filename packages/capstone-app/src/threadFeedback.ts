@@ -1,6 +1,26 @@
 /** Reader-facing recovery text for bounded service codes; never expose raw exceptions. */
+function diagnosticSummary(text: string): string {
+  if (!text.trim().startsWith('{')) return text
+  try {
+    let value: unknown = JSON.parse(text)
+    for (let depth = 0; depth < 8; depth++) {
+      if (typeof value === 'string') {
+        if (value.trim().startsWith('{')) { value = JSON.parse(value); continue }
+        return value.slice(0, 500)
+      }
+      if (!value || typeof value !== 'object' || Array.isArray(value)) break
+      const record = value as Record<string, unknown>
+      const gap = Array.isArray(record.gaps) ? record.gaps[0] : undefined
+      const content = Array.isArray(record.content) ? record.content.find(item => item && typeof item === 'object' && typeof item.text === 'string')?.text : undefined
+      value = record.summary ?? record.message ?? record.detail ?? record.error ?? gap ?? content
+    }
+  } catch { /* The original diagnostic remains available in the process record. */ }
+  return '工具返回错误；请展开原始诊断查看详情。'
+}
+
 export function toolFailureReason(failure?: { code?: string; message?: string; summary?: string }): string | undefined {
-  if (failure?.summary) return failure.summary
+  if (failure?.summary) return diagnosticSummary(failure.summary)
+  if (failure?.message?.trim().startsWith('{')) return diagnosticSummary(failure.message)
   if (failure?.message && /[\u3400-\u9fff]/.test(failure.message)) return failure.message
   const reasons: Record<string, string> = {
     result_field_unavailable: '查询字段不存在；此记录未保存具体字段。',
@@ -30,6 +50,7 @@ export function toolFailureCopy(code?: string): string {
 
 export function commandRejectionCopy(code?: string): string {
   const messages: Record<string, string> = {
+    revision_conflict: '任务已更新，本次请求未执行。输入内容已保留，请同步最新状态后重试。',
     stale_event_seq: '页面状态已变化，本次指令未发送。请等待同步完成后重试，输入内容已保留。',
     context_change_pending: '模型或能力正在切换，请等待完成后再发送。',
     worker_unavailable: '所选模型的服务尚未就绪，请稍后重试或选择其他模型。',

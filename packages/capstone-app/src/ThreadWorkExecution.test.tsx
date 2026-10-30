@@ -11,7 +11,7 @@ import type { WorkCommand } from './threadWorkProtocol'
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); sessionStorage.clear(); localStorage.clear(); window.history.replaceState({}, '', '/') })
 
 /** In-memory HTTP authority fixture. It never invokes a Provider or simulator. */
-function authority({ lostStart = false, lostCancel = false, lostMessage=false, rejectMessage=false, modelFree = false, existingWork = false, native = false, nativeAvailable=true,legacySaved=false,modelControls=false } = {}) {
+function authority({ lostStart = false, lostCancel = false, lostMessage=false, rejectMessage=false, rejectionCode='product_context_unavailable', modelFree = false, existingWork = false, native = false, nativeAvailable=true,legacySaved=false,modelControls=false } = {}) {
   const model = { id: 'ctx_one', model_id: 'ieee39', model_revision: `revision:sha256:${'c'.repeat(64)}`, implementation_family: 'pandapower', selection_revision: 'sel_one' }
   const context = { binding: { thread_id: 'thr_work', work_id: 'work_one', research_id: 'research-one' }, goal_revision: 1,
     snapshot_id: 'task_one', model_contexts: modelFree||native ? [] : [model], resource_refs: [] }
@@ -130,7 +130,7 @@ function authority({ lostStart = false, lostCancel = false, lostMessage=false, r
         const accepted = append('model_workspace_changed',{kind:command.kind})
         return response({schema:'capstone-command-receipt/1',command_id:command.command_id,idempotency_key:command.idempotency_key,thread_id:'thr_work',status:'accepted',accepted_event_seq:accepted,target:{kind:'model_workspace',id:'thr_work',expected_revision:accepted}})
       }
-      if (command.kind === 'send_message' && rejectMessage) return response({schema:'capstone-command-receipt/1',command_id:command.command_id,idempotency_key:command.idempotency_key,thread_id:'thr_work',run_id:'run_work',status:'rejected',rejection:'product_context_unavailable'})
+      if (command.kind === 'send_message' && rejectMessage) return response({schema:'capstone-command-receipt/1',command_id:command.command_id,idempotency_key:command.idempotency_key,thread_id:'thr_work',run_id:'run_work',status:'rejected',rejection:rejectionCode})
       if (command.kind === 'work_message') { upgraded = true; saved = true }
       if (command.kind === 'send_message') {saved=true;work.messages.push(String(command.payload.text));work.goal=String(command.payload.text)}
       if (command.kind === 'start_work'||command.kind === 'send_message') {
@@ -183,6 +183,19 @@ it('retains the draft and rejection notice when a selected product cannot be adm
   fireEvent.click(screen.getByRole('button',{name:'发送'}))
   await screen.findByText('引用的成果暂时无法加入本轮资料。指令未执行，请检查引用后重试。')
   await waitFor(()=>expect((screen.getByRole('textbox',{name:'Thread 指令'}) as HTMLTextAreaElement).value).toBe('请修改报告'))
+})
+it('retains the instruction and reports that a revision-conflicting request did not execute',async()=>{
+  const server=authority({native:true,rejectMessage:true,rejectionCode:'revision_conflict'})
+  vi.stubGlobal('fetch',server.fetcher)
+  render(<ThreadWorkAdapter transport={new HttpThreadTransport('','',server.fetcher,'/api/v1/threads','2')} threadId="thr_work" namespace="revision-conflict" recoveryOnly />)
+  const input=await screen.findByRole('textbox',{name:'Thread 指令'})
+  fireEvent.change(input,{target:{value:'保留这条指令'}})
+  await waitFor(()=>expect((screen.getByRole('button',{name:'发送'}) as HTMLButtonElement).disabled).toBe(false))
+  fireEvent.click(screen.getByRole('button',{name:'发送'}))
+  await screen.findByText(/任务已更新，本次请求未执行/)
+  expect((screen.getByRole('textbox',{name:'Thread 指令'}) as HTMLTextAreaElement).value).toBe('保留这条指令')
+  expect(server.commands).toHaveLength(1)
+  expect(screen.queryByRole('region',{name:'思考状态'})).toBeNull()
 })
 
 it('sends a native instruction directly through the shared composer and resumes the same Work after completion',async()=>{
@@ -276,8 +289,12 @@ it('keeps native stop on the real Attempt and blocks new sends when host executi
   fireEvent.change(await screen.findByRole('textbox',{name:'Thread 指令'}),{target:{value:'开始讨论'}})
   await waitFor(()=>expect((screen.getByRole('button',{name:'发送'}) as HTMLButtonElement).disabled).toBe(false))
   fireEvent.click(screen.getByRole('button',{name:'发送'}))
-  fireEvent.click(await screen.findByRole('button',{name:'停止任务'}))
+  await screen.findByRole('button',{name:'停止任务'})
+  fireEvent.keyDown(document,{key:'Escape'})
   await waitFor(()=>expect(server.commands.at(-1)?.kind).toBe('cancel_work'))
+  await act(async()=>server.finish(true))
+  await screen.findByText('任务已停止。')
+  expect(screen.queryByText('停止请求已接收，正在等待实际执行停止。')).toBeNull()
 })
 
 it('references an actual process ledger item in the next native submission',async()=>{
