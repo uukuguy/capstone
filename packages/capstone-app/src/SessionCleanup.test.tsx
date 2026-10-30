@@ -6,6 +6,16 @@ import {readSessionHistory} from './sessionManagement'
 afterEach(()=>{cleanup();localStorage.clear()})
 const old={threadId:'old',modelId:null,createdAt:'2020-01-01T00:00:00Z',sessionTitle:{text:'旧分析',source:'automatic' as const,revision:1,source_ref:'test'}}
 const pinned={...old,threadId:'pinned',sessionTitle:{...old.sessionTitle,text:'置顶分析'}}
+it('does not delete when legacy pin protection cannot be recovered',async()=>{
+  const origin='capstone.thread.http%3A%2F%2Flocalhost%3A5173.'
+  localStorage.setItem(`capstone.session-pins:${origin}old-tab`,'not-json')
+  const remove=vi.fn()
+  render(<SessionCleanup items={[old]} storageKey={`${origin}new-tab`} scopeLabel="最近会话" remove={remove} onRemoved={()=>{}}/> )
+  fireEvent.click(screen.getByRole('button',{name:'清理会话'}))
+  fireEvent.click(screen.getByRole('button',{name:'删除 1 个会话'}))
+  await waitFor(()=>expect(screen.getByRole('status').textContent).toContain('保留 1'))
+  expect(remove).not.toHaveBeenCalled()
+})
 it('shows an active lookup status until history is ready',async()=>{
   let finish!:(items:typeof old[])=>void
   render(<SessionCleanup items={[]} storageKey="loading" scopeLabel="最近会话" remove={vi.fn()} onRemoved={()=>{}} loadItems={()=>new Promise(resolve=>{finish=resolve})}/> )

@@ -25,7 +25,9 @@ export function readSessionPins(storageKey='workspace'):string[]|undefined {
       for(let i=0;i<localStorage.length;i++){
         const old=localStorage.key(i)
         if(!old?.startsWith('capstone.session-pins:')||durablePinScope(old.slice('capstone.session-pins:'.length))!==scope)continue
-        try{const value:unknown=JSON.parse(localStorage.getItem(old)??'[]');if(Array.isArray(value))value.forEach(id=>{if(typeof id==='string')recovered.add(id)})}catch{/* Preserve other saved records. */}
+        const value:unknown=JSON.parse(localStorage.getItem(old)??'[]')
+        if(!Array.isArray(value)||!value.every(id=>typeof id==='string'))return undefined
+        value.forEach(id=>recovered.add(id))
       }
       text=JSON.stringify([...recovered]);localStorage.setItem(key,text)
     }

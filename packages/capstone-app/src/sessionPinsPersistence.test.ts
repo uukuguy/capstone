@@ -9,3 +9,11 @@ it('recovers pins from earlier tabs and keeps workspaces separate',()=>{
   expect(readSessionPins(`${origin}new-tab`)).toEqual(['a','b'])
   expect(readSessionPins(`${origin}new-tab.workspace.grid`)).toEqual(['grid'])
 })
+it('preserves unknown pin protection when a legacy record is corrupt',()=>{
+  for(const value of ['not-json','{}','["a",7]']){
+    localStorage.clear()
+    localStorage.setItem(`capstone.session-pins:${origin}old-tab`,value)
+    expect(readSessionPins(`${origin}new-tab`)).toBeUndefined()
+    expect(localStorage.length).toBe(1)
+  }
+})
