@@ -1,6 +1,6 @@
 # Gateway dynamic binding implementation plan
 
-Status: direction approved; adapter wire contract requires gateway agreement.
+Status: direction and returned-action contract approved; implementation active.
 
 **Goal:** retain generic efficient execution while obtaining concrete operations
 from each current gateway connection.
@@ -23,10 +23,21 @@ Execution and presentation consume validated bindings and versioned result contr
 - [x] Reconnect, read initialization, call discovery and inspect tools/list.
 - [x] Confirm tools expose safety annotations and a toolset tag, but no unambiguous
   machine-readable operation-role binding for automatic view handlers.
-- [ ] Agree how discovery identifies supported operation semantics, input/output
-  contracts, continuation actions, source/provider identity and revision.
-- [ ] Obtain an actual published example. Field names remain unspecified until
-  the gateway owns and publishes them; this plan does not establish a wire schema.
+- [x] Agree the existing returned-action contract; no semantic role registry.
+- [x] Verify live preparing/running/succeeded/read, inspection, build, full artifact
+  download, pagination, drilldown and reference rejection. Evidence remains in the
+  root checkout under `runs/gateway-next-action-20261031/`.
+
+The model selects the initial business call from fresh discovery and exact
+contracts. Continuations use only the current `data.next_action` or
+`provenance.agent_guidance.next_actions`. Pending tasks honor
+`poll_after_seconds` and `not_before_seconds`. Successful inspection has no next
+action; failed tasks carry `data.error` and no next action. Task state and view
+state are separate: a direct view has `state=ready`; read actions come from
+`data.streams.*.read` or guidance. Result handlers recognize supported versioned
+payload schemas, never business tool names. Existing model discovery response
+supplies concrete `electrical_views` call bindings. Reuse those bindings without
+inventing tool names, operation-role metadata or a second scheduler.
 
 Evidence: `runs/gateway-selection-20261031/binding-audit-{0,1,2}.json`.
 
@@ -35,7 +46,7 @@ Evidence: `runs/gateway-selection-20261031/binding-audit-{0,1,2}.json`.
 Files: `data_gateway_mcp.py`, `data_gateway_relay.py`, adapter-focused tests.
 
 - [ ] Add tests with arbitrary provider IDs and renamed business operations.
-- [ ] Build immutable, connection-scoped bindings from the agreed publication.
+- [ ] Build immutable, connection-scoped bindings from actual discovered results.
 - [ ] Keep exact invocation names/schemas/hashes in adapter-owned bindings.
 - [ ] Reject ambiguity and unsupported contracts explicitly; do not select first.
 - [ ] Test reconnection, provider changes, revoked grants and contract drift.
@@ -56,7 +67,7 @@ Files: `resources/gateway-tool-use.mjs`, `general-tool-discovery.mjs`,
 Files: `grid_source_topology.py`, `grid_electrical_view.py`, `general_pi_server.py`,
 `delegated_runtime.py`, `pi_delegation.py` and focused presentation/receipt tests.
 
-- [ ] Use adapter-produced bindings for open/read/job/continuation operations.
+- [ ] Use discovered bindings and returned actions for open/read/job continuation.
 - [ ] Dispatch by supported versioned result contracts, not invocation names.
 - [ ] Keep verified source descriptors, revision binding and cross-task rejection.
 - [ ] Test renamed tools, unknown result contracts, forged descriptors, paging,
@@ -72,7 +83,8 @@ Files: `grid_source_topology.py`, `grid_electrical_view.py`, `general_pi_server.
 
 ## Current limits
 
-No product implementation is changed by this plan. The earlier Beijing CSV retry
+The earlier Beijing CSV retry
 passed through send_message; it proves the current execution entry works, not
-that fixed view bindings or toolset policy have been removed. Task 1 wire-contract
-agreement is required before implementing automatic presentation bindings.
+that fixed view bindings or toolset policy have been removed. Live tool-renaming
+and a second actual gateway instance remain distinct acceptance gaps; local tests
+must exercise arbitrary business names and instance-bound references.

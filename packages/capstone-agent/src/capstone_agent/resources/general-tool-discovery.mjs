@@ -1,6 +1,6 @@
 import {createHash} from 'node:crypto';
 import {boundToolResult} from './tool-result-context.mjs';
-import {checkGatewayToolUse,gatewayToolGroup,gatewayToolAccess,gatewayToolUseGuidance,advancedExplorationSchema,gatewayToolUseNotice} from './gateway-tool-use.mjs';
+import {gatewayToolGroup,gatewayToolAccess,gatewayToolUseGuidance} from './gateway-tool-use.mjs';
 
 export const discoveryToolNames=['agent_tool_search','agent_tool_load'];
 const reply=value=>({content:[{type:'text',text:JSON.stringify(value)}]});
@@ -18,11 +18,7 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
     return [tool.name,{tool,publication,hash:contractHashes[tool.name]??
       createHash('sha256').update(JSON.stringify(publication)).digest('hex')}];
   }));
-  const names=[...entries.keys()].sort((a,b)=>{
-    const rank=name=>gatewayToolAccess(entries.get(name).publication)==='advanced_exploration'?1:0;
-    return rank(a)-rank(b)||(a<b?-1:a>b?1:0);
-  });
-  const publicationCatalog={tools:Object.fromEntries([...entries].map(([name,entry])=>[name,entry.publication]))};
+  const names=[...entries.keys()].sort();
   const groups=new Map();
   for(const name of names){
     const publication=entries.get(name).publication,id=gatewayToolGroup(publication);
@@ -35,7 +31,7 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
     return [...new Set([...existingNames.filter(name=>!allNames.has(name)),...discoveryToolNames])];
   }
   const search={name:'agent_tool_search',label:'Search admitted tools',
-    description:'Search the task-granted published tool index. Results include published toolset membership; optionally filter by a returned toolset ID. Prefer business operations and their combinations. Advanced exploration supplements uncovered operations. Load selected exact contracts for the next model turn.',
+    description:'Search the task-granted published tool index. Results include published toolset membership; optionally filter by a returned toolset ID. Follow selection and provider rules returned by current gateway discovery. Load selected exact contracts for the next model turn.',
     parameters:{type:'object',properties:{query:{type:'string',maxLength:256},toolset:{type:'string',minLength:1,maxLength:128},offset:{type:'integer',minimum:0}},required:['query'],additionalProperties:false},
     async execute(_id,args,signal){
       check(signal);
@@ -57,23 +53,21 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
           guidance:'This task publication is unchanged. Reuse these results and load the needed exact contracts. Change search terms or page only to investigate a different capability; a repeated search cannot refresh tools.'}}:{})});
     }};
   const load={name:'agent_tool_load',label:'Load admitted tools',
-    description:'Select a bounded replacement set of task-granted tools. Activation takes effect at the next model turn; do not invoke selected tools in this same call batch. Published schemas stay exact. Advanced exploration requires an uncovered-operation explanation or a recorded suspected tool defect. Use an empty list to unload.',
-    parameters:{type:'object',properties:{names:{type:'array',items:{type:'string'},uniqueItems:true,maxItems:maxActiveTools},advanced_exploration:advancedExplorationSchema},required:['names'],additionalProperties:false},
+    description:'Select a bounded replacement set of task-granted tools. Activation takes effect at the next model turn; do not invoke selected tools in this same call batch. Published schemas stay exact. Use an empty list to unload.',
+    parameters:{type:'object',properties:{names:{type:'array',items:{type:'string'},uniqueItems:true,maxItems:maxActiveTools}},required:['names'],additionalProperties:false},
     async execute(_id,args,signal){
       check(signal);
       if(!Array.isArray(args.names)||args.names.some(name=>typeof name!=='string'||!entries.has(name)))
         throw new Error('Requested tool is not admitted for this task');
       const selected=[...new Set(args.names)];
       if(selected.length>maxActiveTools)throw new Error('Tool activation count capacity exceeded');
-      const use=checkGatewayToolUse(selected,publicationCatalog,args.advanced_exploration,useLedger);
-      if(!use.allowed)return {...reply(use.error),isError:true};
       const contracts=selected.map(name=>({name,contract_sha256:entries.get(name).hash,publication:entries.get(name).publication}));
       if(JSON.stringify(contracts).length>maxActiveSchemaChars)throw new Error('Tool activation schema capacity exceeded; select fewer tools');
       pending=selected;
       // Input schemas enter the next model menu; full output contracts are
       // available here without injecting the rest of the catalog.
-      return boundToolResult({...reply({activation:'next_turn',selection_guidance:gatewayToolUseGuidance,...(use.declaration?{advanced_exploration:use.declaration}:{}),tools:contracts.map(({name,contract_sha256,publication})=>({name,contract_sha256,
-        ...('outputSchema' in publication?{outputSchema:publication.outputSchema}:{})}))}),details:gatewayToolUseNotice(use.declaration)},
+      return boundToolResult({...reply({activation:'next_turn',selection_guidance:gatewayToolUseGuidance,tools:contracts.map(({name,contract_sha256,publication})=>({name,contract_sha256,
+        ...('outputSchema' in publication?{outputSchema:publication.outputSchema}:{})}))})},
         {cwd,toolName:'agent_tool_load',callId:_id});
     }};
   function close(){closed=true;active.clear();searched.clear();pending=undefined;}

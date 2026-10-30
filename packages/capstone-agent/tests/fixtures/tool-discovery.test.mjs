@@ -29,22 +29,22 @@ test('search pages contain only granted bounded published summaries',async()=>{
   assert.equal(last.tools.length,3);assert.ok(!last.tools.some(t=>t.name==='source_19'));
 });
 
-test('group discovery keeps business operations ahead of advanced exploration without hiding SQL',async()=>{
- const publications={advanced_first:{description:'Data query',inputSchema:{type:'object'},_meta:{'data-gateway/toolset':'readonly_sql'}},
-  statistics_last:{description:'Data query',inputSchema:{type:'object'},_meta:{'data-gateway/toolset':'operation'}}};
- const tools=Object.entries(publications).map(([name,p])=>({name,parameters:p.inputSchema,execute:async()=>({content:[]})}));
- const c=createToolDiscovery({tools,publications,admittedNames:Object.keys(publications)});
- const search=c.tools[0],load=c.tools[1];
- const result=JSON.parse((await search.execute('all',{query:'Data'})).content[0].text);
- assert.deepEqual(result.tools.map(t=>t.name),['statistics_last','advanced_first']);
- assert.equal(result.tools[1].access,'advanced_exploration');
- assert.deepEqual(result.toolsets.map(g=>g.id),['operation','readonly_sql']);
- const group=JSON.parse((await search.execute('group',{query:'',toolset:'operation'})).content[0].text);
- assert.deepEqual(group.tools.map(t=>t.name),['statistics_last']);
- const rejected=await load.execute('no-gap',{names:['advanced_first']});
- assert.equal(rejected.isError,true);assert.equal(JSON.parse(rejected.content[0].text).code,'advanced_exploration_requires_basis');
- const accepted=JSON.parse((await load.execute('gap',{names:['advanced_first'],advanced_exploration:{reason:'capability_gap',detail:'An unpublished relation is required.'}})).content[0].text);
- assert.equal(accepted.activation,'next_turn');assert.equal(accepted.advanced_exploration.detail,'An unpublished relation is required.');
+test('arbitrary toolset labels have no client ordering or activation gate',async()=>{
+ for(const group of ['readonly_sql','renamed_relation']){
+  const publications={alpha:{description:'Data query',inputSchema:{type:'object'},_meta:{'data-gateway/toolset':group}},
+   zeta:{description:'Data query',inputSchema:{type:'object'},_meta:{'data-gateway/toolset':'renamed_operation'}}};
+  const tools=Object.entries(publications).map(([name,p])=>({name,parameters:p.inputSchema,execute:async()=>({content:[]})}));
+  const c=createToolDiscovery({tools,publications,admittedNames:Object.keys(publications)});
+  const result=JSON.parse((await c.tools[0].execute('all',{query:'Data'})).content[0].text);
+  assert.deepEqual(result.tools.map(t=>t.name),['alpha','zeta']);
+  assert.equal(result.tools[0].access,'published_operation');
+  const filtered=JSON.parse((await c.tools[0].execute('group',{query:'',toolset:group})).content[0].text);
+  assert.deepEqual(filtered.tools.map(t=>t.name),['alpha']);
+  const accepted=await c.tools[1].execute('load',{names:['alpha']});
+  assert.notEqual(accepted.isError,true);
+  assert.equal(JSON.parse(accepted.content[0].text).activation,'next_turn');
+  assert.deepEqual(c.admittedTools[0].parameters,publications.alpha.inputSchema);
+ }
 });
 
 test('selection guidance reaches both discovery and direct activation without banning generic tools',async()=>{
@@ -55,8 +55,8 @@ test('selection guidance reaches both discovery and direct activation without ba
  const search=JSON.parse((await c.tools[0].execute('find',{query:''})).content[0].text);
  const load=JSON.parse((await c.tools[1].execute('load',{names:['renamed_table_reader']})).content[0].text);
  assert.equal(load.selection_guidance,search.selection_guidance);
- assert.match(load.selection_guidance,/Structured table queries/);
- assert.match(load.selection_guidance,/One unavailable tool/);
+ assert.match(load.selection_guidance,/current discovery/);
+ assert.match(load.selection_guidance,/provider/);
  assert.match(load.selection_guidance,/validate one bounded call/);
  assert.equal(load.activation,'next_turn');
  assert.deepEqual(c.admittedTools.map(tool=>tool.name).sort(),Object.keys(publications).sort());
