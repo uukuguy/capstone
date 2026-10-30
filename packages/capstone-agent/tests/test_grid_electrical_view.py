@@ -8,6 +8,103 @@ V2 = 'gateway-electrical-view/2'
 V2_STREAMS = STREAMS + ('summary_nodes', 'summary_edges')
 
 
+def test_renamed_manifest_read_action_runs_with_exact_published_arguments():
+    from capstone_agent.data_gateway_views import GatewayViewBindings
+    from capstone_agent.grid_electrical_view import ElectricalViewProvider
+    gateway = Gateway()
+    name = 'data_gateway_reader_release_7'
+    gateway.catalog['tools'][name] = {'inputSchema': {'type': 'object'},
+        'annotations': {'readOnlyHint': True, 'destructiveHint': False}}
+    gateway.catalog['tool_hashes'][name] = 'renamed-schema-hash'
+    gateway.view_bindings = GatewayViewBindings()
+    value = manifest()
+    for entry in value['streams'].values():
+        entry['read']['tool'] = 'reader_release_7'
+    gateway.view_bindings.observe('selected_by_model', {},
+        {'structuredContent': {'status': 'ok', 'data': value}}, gateway.catalog)
+    gateway.data = page()
+    result = asyncio.run(ElectricalViewProvider(gateway).read({'view_ref': 'view-one', 'stream': 'devices'}))
+    assert result['model_revision'] == 'revision-one'
+    assert gateway.calls == [(name, {'view_ref': 'view-one', 'stream': 'devices'})]
+
+
+def test_unobserved_view_request_does_not_probe_any_business_tool():
+    from capstone_agent.grid_electrical_view import ElectricalViewError, ElectricalViewProvider
+    gateway = Gateway()
+    gateway.view_bindings = None
+    with pytest.raises(ElectricalViewError, match='grid_electrical_unavailable'):
+        asyncio.run(ElectricalViewProvider(gateway).open({'model_ref': 'model:one'}))
+    assert gateway.calls == []
+
+
+def test_direct_failed_poll_evicts_the_observed_action():
+    from capstone_agent.data_gateway_views import GatewayViewBindings
+    from capstone_agent.grid_electrical_view import ElectricalViewError, ElectricalViewProvider
+    gateway = Gateway()
+    gateway.view_bindings = GatewayViewBindings()
+    arguments = {'job_ref': 'failed-job'}
+    action = {'tool': 'get_network_model_job', 'arguments': arguments}
+    gateway.view_bindings.observe('selected', {}, {'structuredContent': {'status': 'ok',
+        'data': {'next_action': action}}}, gateway.catalog)
+    gateway.error = {'status': 'error', 'data': {'next_action': action}, 'gaps': []}
+    with pytest.raises(ElectricalViewError):
+        asyncio.run(ElectricalViewProvider(gateway).job(arguments))
+    assert gateway.view_bindings.action(arguments) is None
+
+
+def test_real_bindings_support_app_open_read_and_pinned_restore_without_invented_arguments():
+    from capstone_agent.data_gateway_views import GatewayViewBindings
+    from capstone_agent.grid_electrical_view import ElectricalViewProvider, ElectricalViewError
+    gateway = Gateway()
+    gateway.view_bindings = GatewayViewBindings()
+    discovery = {'count': 0, 'scopes': [], 'electrical_views': {'schema': 'gateway-electrical-view/1',
+        'open_tool': 'open_network_model_view',
+        'source_grid_models': [{'model_ref': 'model:one', 'open_arguments': {'model_ref': 'model:one'}}]}}
+    gateway.view_bindings.observe('model_selected', {}, {'structuredContent': {'status': 'ok', 'data': discovery}}, gateway.catalog)
+    provider = ElectricalViewProvider(gateway)
+    asyncio.run(provider.open({'model_ref': 'model:one', 'representation': 'source_node_breaker',
+        'view_schema': 'gateway-electrical-view/1'}))
+    assert gateway.calls[-1][1] == {'model_ref': 'model:one'}
+    gateway.data = page()
+    asyncio.run(provider.read({'view_ref': 'view-one', 'stream': 'devices', 'limit': 500}))
+    assert gateway.calls[-1][1] == {'view_ref': 'view-one', 'stream': 'devices'}
+    pinned = {'model_ref': 'model:one', 'representation': 'source_node_breaker',
+        'view_schema': 'gateway-electrical-view/1', 'expected_model_revision': 'revision-one',
+        'selection_ref': 'selection-one'}
+    before = len(gateway.calls)
+    restored = asyncio.run(ElectricalViewProvider(gateway).open(pinned))
+    assert restored['view_ref'] == 'view-one'
+    assert len(gateway.calls) == before
+    with pytest.raises(ElectricalViewError):
+        asyncio.run(provider.open({**pinned, 'expected_model_revision': 'wrong'}))
+    assert len(gateway.calls) == before
+
+
+def test_descriptor_derived_selection_defaults_restore_the_observed_frozen_view():
+    from capstone_agent.data_gateway_views import GatewayViewBindings
+    from capstone_agent.grid_electrical_view import electrical_descriptor, ElectricalViewProvider, ElectricalViewError
+    gateway = Gateway()
+    gateway.view_bindings = GatewayViewBindings()
+    original = {'model_ref': 'model:one'}
+    value = v2_manifest()
+    gateway.view_bindings.observe('selected_by_model', original,
+        {'structuredContent': {'status': 'ok', 'data': value}}, gateway.catalog)
+    descriptor = electrical_descriptor(value, original)
+    assert descriptor is not None
+    assert descriptor['selection_profile'] == 'station'
+    assert descriptor['boundary_policy'] == 'retain_external_stub'
+    # ElectricalModelWorkspace.requestTarget builds this pinned reopen query.
+    pinned = {key: descriptor[key] for key in ('model_ref', 'representation', 'selection_ref',
+        'view_schema', 'selection_profile', 'boundary_policy')}
+    pinned['expected_model_revision'] = descriptor['model_revision']
+    restored = asyncio.run(ElectricalViewProvider(gateway).open(pinned))
+    assert restored['view_ref'] == descriptor['view_ref']
+    assert gateway.calls == []
+    with pytest.raises(ElectricalViewError):
+        asyncio.run(ElectricalViewProvider(gateway).open({**pinned, 'selection_profile': 'other'}))
+    assert gateway.calls == []
+
+
 def manifest(**changes):
     return {'schema': 'gateway-electrical-view/1', 'state': 'ready', 'model_ref': 'model:one',
         'model_revision': 'revision-one', 'view_ref': 'view-one', 'selection_ref': 'selection-one',
@@ -25,6 +122,30 @@ def page(stream='devices', **changes):
         'returned_count': 1, 'total_count': 1, 'next_cursor': None, 'complete': True, **changes}
 
 
+class PublishedViewActions:
+    """Provider-unit fixture. Each request has an explicit published action.
+
+    The real observation cache is covered by the renamed integration tests.
+    """
+    def __init__(self, gateway):
+        self.gateway = gateway
+
+    def discovery(self):
+        return deepcopy(self.gateway.data)
+
+    def action(self, arguments):
+        if 'stream' in arguments:
+            tool = 'read_network_model_view'
+        elif 'job_ref' in arguments:
+            tool = 'get_network_model_job'
+        else:
+            tool = 'open_network_model_view'
+        return {'tool': tool, 'arguments': deepcopy(arguments)}
+
+    def observe(self, *args):
+        pass
+
+
 class Gateway:
     def __init__(self):
         self.catalog = {'revision': 'catalog-one', 'tools': {}, 'tool_hashes': {}}
@@ -38,6 +159,7 @@ class Gateway:
         self.calls = []
         self.data = manifest()
         self.error = None
+        self.view_bindings = PublishedViewActions(self)
 
     async def call(self, name, arguments, catalog):
         self.calls.append((name, deepcopy(arguments)))
@@ -173,7 +295,7 @@ def test_source_grid_catalog_retains_only_the_published_human_name_without_extra
     assert projected['name'] == source_model['name']
     assert projected['model_ref'] == 'opaque:returned-grid'
     assert 'Authorization' not in projected
-    assert gateway.calls == [('data_gateway_discover_network_models', {'detail': False})]
+    assert gateway.calls == []  # Projection reuses the model-selected observation.
 
 
 def test_manifest_and_descriptor_retain_published_name_without_deriving_from_model_identity():
@@ -356,7 +478,7 @@ def test_only_discovered_model_references_are_projected_without_synthesis():
     result = asyncio.run(ElectricalViewProvider(gateway).models())
     assert result['scopes'][0]['model_ref'] == 'registered:actual'
     assert 'password' not in result['scopes'][0]
-    assert gateway.calls == [('data_gateway_discover_network_models', {'detail': False})]
+    assert gateway.calls == []  # Projection reuses the model-selected observation.
 
 
 def test_ready_descriptor_is_exact_and_rejects_raw_unvalidated_graph():
@@ -458,16 +580,11 @@ def test_only_pre_call_publication_change_gets_one_compatible_protected_refresh(
         return {'structuredContent': {'status': 'ok', 'data': manifest()}}
     gateway.prepare = prepare; gateway.call = call
     provider = ElectricalViewProvider(gateway)
-    if incompatible:
-        with pytest.raises(ElectricalViewError) as caught:
-            asyncio.run(provider.open({'model_ref': 'model:one'}))
-        assert caught.value.code == 'gateway_publication_changed'
-        assert len(calls) == 1
-    else:
-        assert asyncio.run(provider.open({'model_ref': 'model:one'}))['state'] == 'ready'
-        assert calls[-1][1]['view_schema'] == 'gateway-electrical-view/1'
-        assert len(calls) == 2
-    assert len(refreshes) == 1
+    with pytest.raises(ElectricalViewError) as caught:
+        asyncio.run(provider.open({'model_ref': 'model:one'}))
+    assert caught.value.code == 'gateway_publication_changed'
+    assert len(calls) == 1
+    assert refreshes == []
     assert gateway.catalog == original  # Running research task grants do not change.
 
 
@@ -485,16 +602,17 @@ def test_concurrent_protected_calls_share_refresh_but_do_not_retry_transport_fai
         return {'structuredContent': {'status': 'ok', 'data': manifest()}}
     gateway.prepare = prepare; gateway.call = call; provider = ElectricalViewProvider(gateway)
     async def concurrent():
-        return await asyncio.gather(provider.open({'model_ref': 'model:one'}), provider.open({'model_ref': 'model:one'}))
-    assert len(asyncio.run(concurrent())) == 2
-    assert len(refreshes) == 1 and len(calls) == 4
+        return await asyncio.gather(provider.open({'model_ref': 'model:one'}), provider.open({'model_ref': 'model:one'}), return_exceptions=True)
+    results = asyncio.run(concurrent())
+    assert all(isinstance(result, ElectricalViewError) for result in results)
+    assert len(refreshes) == 0 and len(calls) == 2
     calls.clear()
     async def failure(*args):
         calls.append(True); raise GatewayError('gateway_timeout')
     gateway.call = failure
     with pytest.raises(ElectricalViewError):
         asyncio.run(provider.open({'model_ref': 'model:one'}))
-    assert len(calls) == 1 and len(refreshes) == 1
+    assert len(calls) == 1 and len(refreshes) == 0
 
 
 @pytest.mark.parametrize('change', ['required_argument', 'unsupported_v1', 'destructive', 'changed_existing_type'])
@@ -536,5 +654,5 @@ def test_a_second_publication_change_stops_without_repeated_catalog_or_tool_prob
     with pytest.raises(ElectricalViewError) as raised:
         asyncio.run(ElectricalViewProvider(gateway).open({'model_ref': 'model:one'}))
     assert raised.value.code == 'gateway_publication_changed'
-    assert len(calls) == 2 and len(refreshes) == 1
+    assert len(calls) == 1 and len(refreshes) == 0
 

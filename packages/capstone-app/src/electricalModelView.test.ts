@@ -3,6 +3,26 @@ import {ELECTRICAL_DETAIL_STREAMS,ELECTRICAL_SUMMARY_STREAMS,loadElectricalModel
 import {electricalRecords,electricalManifest,electricalPage,electricalOverviewRecords,electricalOverviewManifest} from './electricalModelFixtures'
 
 describe('frozen electrical record loading',()=>{
+  it.each([201,1000])('accepts %s validated records when the returned action uses its own page size',async size=>{
+    const records=electricalRecords()
+    records.groups=Array.from({length:size+1},(_,index)=>({...records.groups[0],id:`group-${index}`}))
+    const manifest=electricalManifest(records,null)
+    const read=vi.fn(async request=>electricalPage(manifest,records,{...request,limit:size}))
+    const view=await loadElectricalModelView(manifest,read,{mode:'groups',pageSize:200})
+    expect(view.records.groups).toEqual(records.groups)
+    expect(read).toHaveBeenCalledTimes(2)
+    expect(read.mock.calls[0][0].limit).toBe(200)
+    expect(read.mock.calls[1][0].cursor).toBe(`cursor:groups:${size}`)
+  })
+  it.each(['over_bound','wrong_count'])('rejects %s pages even when the gateway action controls page size',async kind=>{
+    const records=electricalRecords(),size=kind==='over_bound'?1001:201
+    records.groups=Array.from({length:size},(_,index)=>({...records.groups[0],id:`group-${index}`}))
+    const manifest=electricalManifest(records,null)
+    await expect(loadElectricalModelView(manifest,async request=>{
+      const page=electricalPage(manifest,records,{...request,limit:size})
+      return kind==='wrong_count'?{...page,returned_count:size-1}:page
+    },{mode:'groups',pageSize:200})).rejects.toThrow('invalid_page_counts')
+  })
   it('reads only root groups, without downloading full devices or connections',async()=>{
     const records=electricalRecords(),manifest=electricalManifest(records,null);manifest.streams.devices.total_count=1000000
     const read=vi.fn(async request=>electricalPage(manifest,records,request))

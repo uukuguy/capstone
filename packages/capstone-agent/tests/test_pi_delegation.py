@@ -390,7 +390,7 @@ def test_http_event_stream_keeps_checked_electrical_presentation_descriptor(serv
     request = PiTaskRequest.from_document(request_document())
     descriptor = electrical_descriptor(v2_manifest() if version == 2 else manifest())
     event = {'event_id': 'event-1', 'type': event_type,
-        'tool_name': 'data_gateway_open_network_model_view', 'tool_call_id': 'open-one',
+        'tool_name': 'data_gateway_renamed_view', 'tool_call_id': 'open-one',
         'is_error': False, 'source_view': descriptor}
     if event_type == 'enterprise_graph_child_tool':event['activity'] = 'end'
     state['response'] = {'status': 'completed', 'events': [event], 'event_cursor': 1,
@@ -409,7 +409,7 @@ def test_http_event_descriptor_exception_does_not_admit_protected_metadata(servi
     origin, state = service
     request = PiTaskRequest.from_document(request_document())
     event = {'event_id': 'event-1', 'type': 'tool_execution_end',
-        'tool_name': 'data_gateway_open_network_model_view', 'tool_call_id': 'open-one',
+        'tool_name': 'data_gateway_renamed_view', 'tool_call_id': 'open-one',
         'source_view': electrical_descriptor(v2_manifest())}
     if mutation == 'event_revision':event['model_revision'] = 'forged'
     elif mutation == 'extra_credentials':event['source_view']['credentials'] = {'api_key': 'private'}
@@ -428,7 +428,7 @@ def test_electrical_presentation_revision_remains_forbidden_in_generic_pi_json()
     from capstone_agent.grid_electrical_view import electrical_descriptor
     from capstone_agent.pi_delegation import _json_document
     from test_grid_electrical_view import v2_manifest
-    event = {'type': 'tool_execution_end', 'tool_name': 'data_gateway_open_network_model_view',
+    event = {'type': 'tool_execution_end', 'tool_name': 'data_gateway_renamed_view',
         'tool_call_id': 'open-one', 'source_view': electrical_descriptor(v2_manifest())}
     with pytest.raises(ValueError, match='protected fields'):
         _json_document(event)

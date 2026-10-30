@@ -147,7 +147,7 @@ def test_frozen_electrical_api_crosses_both_auth_boundaries_and_preserves_typed_
         server.shutdown(); server.server_close(); thread.join(timeout=2)
 
 
-def test_concurrent_native_http_threads_coalesce_protected_publication_refresh(tmp_path):
+def test_concurrent_native_http_reads_do_not_replay_changed_operation(tmp_path):
     import asyncio
     from concurrent.futures import ThreadPoolExecutor
     from copy import deepcopy
@@ -156,11 +156,15 @@ def test_concurrent_native_http_threads_coalesce_protected_publication_refresh(t
     from test_grid_electrical_view import Gateway as ElectricalGateway, manifest
     gateway = ElectricalGateway(); original = deepcopy(gateway.catalog); fresh = deepcopy(original)
     fresh['revision'] = 'new-publication'; refreshes = []
+    calls = []
+    gateway.view_bindings.discovery = lambda: {'count': 0, 'scopes': [],
+        'electrical_views': {'schema': 'gateway-electrical-view/1', 'targets': ['model', 'station', 'device']}}
     async def prepare():
         refreshes.append(True)
         await asyncio.sleep(.05)
         return fresh
     async def call(name, arguments, catalog):
+        calls.append(name)
         if catalog['revision'] == original['revision']:
             await asyncio.sleep(.02)
             raise GatewayError('gateway_publication_changed')
@@ -178,7 +182,8 @@ def test_concurrent_native_http_threads_coalesce_protected_publication_refresh(t
     try:
         with ThreadPoolExecutor(max_workers=2) as pool:
             responses = list(pool.map(query, ('models', 'open')))
-        assert [response.status_code for response in responses] == [200, 200]
-        assert len(refreshes) == 1 and gateway.catalog == original
+        assert [response.status_code for response in responses] == [200, 409]
+        assert refreshes == [] and gateway.catalog == original
+        assert len(calls) == 1
     finally:
         server.shutdown(); server.server_close(); thread.join(timeout=2)

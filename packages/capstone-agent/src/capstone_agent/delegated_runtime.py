@@ -277,13 +277,14 @@ class DelegatedRuntime:
             model_progress = isinstance(model_request_pool, Mapping)
             source_view = None
             if (kind == 'tool_execution_end' or kind == 'enterprise_graph_child_tool' and event.get('activity') == 'end'):
-                if (tool_name in {'data_gateway_get_network_topology_view', 'data_gateway_open_network_model_view'} and isinstance(tool_call_id, str)
+                if (isinstance(tool_name, str) and tool_name.startswith('data_gateway_') and isinstance(tool_call_id, str)
                         and tool_call_id and event.get('is_error') is not True
                         and event.get('task_id', task_id) == task_id
                         and event.get('attempt_id', parent) == parent):
                     from .grid_source_topology import checked_source_view_request, GridSourceError
                     try:
-                        if tool_name == 'data_gateway_open_network_model_view':
+                        candidate = event.get('source_view')
+                        if isinstance(candidate, Mapping) and candidate.get('schema') == 'capstone-electrical-view-request/1':
                             from .grid_electrical_view import checked_electrical_descriptor
                             source_view = checked_electrical_descriptor(event.get('source_view'))
                         else:

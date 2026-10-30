@@ -58,6 +58,8 @@ def gateway_discovery_tools(native_context, publication, *, gateway_available):
 class DataGatewayAccess:
     def __init__(self, client, catalog):
         self.client, self.catalog = client, deepcopy(catalog)
+        from .data_gateway_views import GatewayViewBindings
+        self.view_bindings = GatewayViewBindings()
         self._tasks = {}
         self._lock = RLock()
 
@@ -170,6 +172,7 @@ class DataGatewayAccess:
             'arguments_sha256': fingerprint(arguments), 'output_sha256': sha256(body.encode()).hexdigest()}
         response = {'result_json': body, 'is_error': result.get('isError') is True, 'observation': observation}
         require_capacity('mcp_frame_bytes', len(encode(response)), 'gateway_envelope')
+        self.view_bindings.observe(name, arguments, result, self.catalog)
         with self._lock:
             if self._tasks.get(task_id) is not record:
                 raise GatewayError('gateway_task_not_admitted')

@@ -257,9 +257,9 @@ def test_validated_source_view_survives_public_attempt_persistence_only_in_its_t
         'scope_name':'North','level':None,'selected_object_id':None,'view_ref':'view-one',
         'source_snapshot':{'metadata_snapshot':'snapshot-one','source_instance':'fixture-source'},
         'voltage_min_kv':330,'display_grouping_only':False}
-    tool = 'data_gateway_get_network_topology_view'
+    tool = 'data_gateway_renamed_topology'
     if electrical:
-        tool = 'data_gateway_open_network_model_view'
+        tool = 'data_gateway_renamed_view'
         hint = {'schema':'capstone-electrical-view-request/1','source_id':'data-gateway',
             'model_ref':'grid:test','model_revision':'revision-one','view_ref':'view-one',
             'selection_ref':'selection-one','source_snapshot_ref':'snapshot-one',

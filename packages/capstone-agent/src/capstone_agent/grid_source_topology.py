@@ -19,7 +19,6 @@ REQUEST_BYTES = 16 * 1024
 PAGE_BYTES = 4 * 1024 * 1024
 EXCHANGE_SECONDS = 45
 LEVELS = {'region', 'station', 'equipment'}
-TOOLS = {'discover_region_scopes', 'resolve_region_scope', 'get_network_topology_view'}
 
 
 class GridSourceError(ValueError):
@@ -353,17 +352,16 @@ class GridSourceProvider:
         self.gateway = gateway
 
     def _available(self):
-        if self.gateway is None:
+        bindings = getattr(self.gateway, 'view_bindings', None)
+        action = bindings.action({}) if bindings is not None else None
+        if action is None:
             return False
         catalog = self.gateway.catalog
-        for tool in TOOLS:
-            name = 'data_gateway_' + tool
-            schema = catalog.get('tools', {}).get(name, {})
-            annotations = schema.get('annotations', {})
-            if (annotations.get('readOnlyHint') is not True or annotations.get('destructiveHint') is not False
-                    or not isinstance(catalog.get('tool_hashes', {}).get(name), str)):
-                return False
-        return True
+        tool = action['tool']
+        name = tool if tool in catalog.get('tools', {}) else 'data_gateway_' + tool
+        annotations = catalog.get('tools', {}).get(name, {}).get('annotations', {})
+        return (annotations.get('readOnlyHint') is True and annotations.get('destructiveHint') is False
+                and isinstance(catalog.get('tool_hashes', {}).get(name), str))
 
     def catalog(self):
         available = self._available()
@@ -373,23 +371,40 @@ class GridSourceProvider:
             'levels': [None, 'region', 'station', 'equipment'], 'page_limit': PAGE_LIMIT,
             'display_only': True}]}
 
-    async def _call(self, tool, arguments):
-        if tool not in TOOLS or not self._available():
+    async def _call(self, arguments):
+        bindings = getattr(self.gateway, 'view_bindings', None)
+        if bindings is None:
+            raise GridSourceError('grid_source_unavailable')
+        action = bindings.action(arguments)
+        if action is None:
+            raise GridSourceError('grid_source_unavailable')
+        catalog = self.gateway.catalog
+        tool = action['tool']
+        name = tool if tool in catalog.get('tools', {}) else 'data_gateway_' + tool
+        published = catalog.get('tools', {}).get(name, {})
+        annotations = published.get('annotations', {})
+        if (annotations.get('readOnlyHint') is not True or annotations.get('destructiveHint') is not False
+                or not isinstance(catalog.get('tool_hashes', {}).get(name), str)):
             raise GridSourceError('grid_source_unavailable')
         try:
             async with asyncio.timeout(EXCHANGE_SECONDS):
-                value = await self.gateway.client.call('data_gateway_' + tool, arguments, self.gateway.catalog)
+                value = await self.gateway.client.call(name, deepcopy(action['arguments']), catalog)
             content = value.get('structuredContent')
+            if isinstance(content, dict) and (value.get('isError') or content.get('status') not in {'ok', 'partial'}):
+                bindings.observe(tool, action['arguments'], value, catalog)
             if value.get('isError') or not isinstance(content, dict) or content.get('status') not in {'ok', 'partial'}:
                 raise GridSourceError('grid_source_observation_unavailable')
-            return deepcopy(content)
+            bindings.observe(tool, action['arguments'], value, catalog)
+            result = deepcopy(content)
+            result['_tool_schema_sha256'] = catalog['tool_hashes'][name]
+            return result
         except GridSourceError:
             raise
         except (GatewayError, TimeoutError, OSError, ValueError, TypeError):
             raise GridSourceError('grid_source_observation_unavailable') from None
 
     async def scopes(self):
-        content = await self._call('discover_region_scopes', {})
+        content = await self._call({})
         data = content.get('data')
         if isinstance(data, dict) and 'regions' in data and 'groups' in data:
             definitions, scopes = _scope_definitions(data)
@@ -413,15 +428,15 @@ class GridSourceProvider:
             scope = _text(document['scope'])
         except GridSourceError:
             raise GridSourceError('grid_source_request_invalid') from None
-        content = await self._call('resolve_region_scope', {'scope': scope})
+        content = await self._call({'scope': scope})
         return {'schema': 'capstone-grid-source-scope/1', 'source_id': SOURCE_ID,
                 'status': content['status'], 'scope': _scope(content.get('data')),
                 'gaps': _gaps(content.get('gaps', []))}
 
     async def topology(self, document):
         request = checked_topology_request(document)
-        content = await self._call('get_network_topology_view', request)
+        content = await self._call(request)
         catalog = self.gateway.catalog
         return topology_page(content.get('data'), request, catalog_revision=catalog['revision'],
-            tool_schema_sha256=catalog['tool_hashes']['data_gateway_get_network_topology_view'],
+            tool_schema_sha256=content['_tool_schema_sha256'],
             status=content['status'], gaps=content.get('gaps', []), provenance=content.get('provenance', {}))

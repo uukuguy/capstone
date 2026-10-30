@@ -5,6 +5,44 @@ from copy import deepcopy
 import pytest
 
 
+def test_direct_source_failed_response_evicts_poll_without_ingesting_actions():
+    from capstone_agent.data_gateway_views import GatewayViewBindings
+    from capstone_agent.grid_source_topology import GridSourceError, GridSourceProvider
+    gateway = Gateway()
+    name = 'data_gateway_poll_revision_9'
+    gateway.catalog['tools'][name] = {'inputSchema': {'type': 'object'},
+        'annotations': {'readOnlyHint': True, 'destructiveHint': False}}
+    gateway.catalog['tool_hashes'][name] = 'poll-schema'
+    gateway.view_bindings = GatewayViewBindings()
+    arguments = {'job_ref': 'failed-job'}
+    action = {'tool': 'poll_revision_9', 'arguments': arguments}
+    gateway.view_bindings.observe('selected', {}, {'structuredContent': {'status': 'ok',
+        'data': {'next_action': action}}}, gateway.catalog)
+    async def failure(*args):
+        return {'isError': True, 'structuredContent': {'status': 'error', 'data': {'next_action': action}}}
+    gateway.call = failure
+    with pytest.raises(GridSourceError):
+        asyncio.run(GridSourceProvider(gateway)._call(arguments))
+    assert gateway.view_bindings.action(arguments) is None
+
+
+def test_renamed_topology_action_uses_published_arguments_and_schema_receipt():
+    from capstone_agent.data_gateway_views import GatewayViewBindings
+    from capstone_agent.grid_source_topology import GridSourceProvider, checked_topology_request
+    gateway = Gateway()
+    name = 'data_gateway_diagram_revision_8'
+    gateway.catalog['tools'][name] = {'inputSchema': {'type': 'object'},
+        'annotations': {'readOnlyHint': True, 'destructiveHint': False}}
+    gateway.catalog['tool_hashes'][name] = 'new-diagram-schema'
+    arguments = checked_topology_request({'scope_id': 'north', 'limit': 3})
+    gateway.view_bindings = GatewayViewBindings()
+    gateway.view_bindings.observe('model_selected', {}, {'structuredContent': {'status': 'ok',
+        'data': {'next_action': {'tool': 'diagram_revision_8', 'arguments': arguments}}}}, gateway.catalog)
+    result = asyncio.run(GridSourceProvider(gateway).topology({'scope_id': 'north', 'limit': 3}))
+    assert result['tool_schema_sha256'] == 'new-diagram-schema'
+    assert gateway.calls[0][:2] == (name, arguments)
+
+
 def topology_data():
     return {'view_ref': 'view-one', 'source_instance': 'fixture-source',
         'scope': {'scope_id': 'north', 'name': 'North', 'definition_version': 'v1',
@@ -21,6 +59,17 @@ def topology_data():
         'boundary_object_ids': ['station:3'], 'source_gaps': ['switch_positions_unverified'], 'gaps': []}
 
 
+class PublishedSourceActions:
+    """Provider-unit publication fixture; real cache routes have separate tests."""
+    def action(self, arguments):
+        tool = ('get_network_topology_view' if 'scope_id' in arguments else
+                'resolve_region_scope' if 'scope' in arguments else 'discover_region_scopes')
+        return {'tool': tool, 'arguments': deepcopy(arguments)}
+
+    def observe(self, *args):
+        pass
+
+
 class Gateway:
     def __init__(self):
         self.catalog = {'revision': 'catalog-one', 'tools': {}, 'tool_hashes': {}}
@@ -28,6 +77,7 @@ class Gateway:
             name = 'data_gateway_' + tool
             self.catalog['tools'][name] = {'annotations': {'readOnlyHint': True, 'destructiveHint': False}}
             self.catalog['tool_hashes'][name] = 'schema-' + tool
+        self.view_bindings = PublishedSourceActions()
         self.client = self
         self.calls = []
         self.data = topology_data()
@@ -126,7 +176,8 @@ def test_provider_does_not_admit_missing_or_mutating_publications():
     gateway = Gateway()
     gateway.catalog['tools']['data_gateway_get_network_topology_view']['annotations']['destructiveHint'] = True
     provider = GridSourceProvider(gateway)
-    assert provider.catalog()['sources'][0]['available'] is False
+    # The independent published scope action remains available.
+    assert provider.catalog()['sources'][0]['available'] is True
     with pytest.raises(GridSourceError, match='^grid_source_unavailable$'):
         asyncio.run(provider.topology({'scope_id': 'north'}))
     assert gateway.calls == []

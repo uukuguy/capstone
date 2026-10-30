@@ -61,6 +61,36 @@ def request():
     return {'call_id': 'call-1', 'name': 'data_gateway_discover_data_capabilities', 'arguments': {}}
 
 
+def test_only_admitted_successful_observations_reach_connection_bindings():
+    resource = access()
+    observed = []
+    resource.view_bindings = SimpleNamespace(observe=lambda *args: observed.append(args))
+    response = asyncio.run(resource.call('task-1', request()))
+    assert len(observed) == 1
+    name, arguments, result, catalog = observed[0]
+    assert name == request()['name'] and arguments == {}
+    assert result['structuredContent']['status'] == 'partial'
+    assert catalog == resource.catalog
+    assert response['observation']['tool'] == name
+    with pytest.raises(GatewayError):
+        asyncio.run(resource.call('task-1', dict(request(), call_id='bad', name='ungranted')))
+    assert len(observed) == 1
+
+
+def test_validated_failure_reaches_bindings_without_becoming_success():
+    resource = access()
+    observed = []
+    resource.view_bindings = SimpleNamespace(observe=lambda *args: observed.append(args))
+    async def upstream(name, arguments, catalog):
+        return {'isError': False, 'structuredContent': {'status': 'error',
+            'data': {'state': 'failed', 'error': {'reason': 'invalid_revision'}}}}
+    resource.client.call = upstream
+    response = asyncio.run(resource.call('task-1', request()))
+    assert len(observed) == 1
+    assert observed[0][2]['structuredContent']['data']['state'] == 'failed'
+    assert response['observation']['tool'] == request()['name']
+
+
 @pytest.mark.parametrize('failed_open', [False, True])
 def test_preparation_jobs_require_an_issued_open_in_the_same_task(failed_open):
     resource = access(['data_gateway_open_network_model_view', 'data_gateway_get_network_model_job'])

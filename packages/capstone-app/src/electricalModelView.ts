@@ -124,7 +124,9 @@ export async function loadElectricalModelView(manifest:ElectricalViewReady,read:
       abort();if(++pages>maxPages)fail('page_budget_exceeded')
       const value=await read({view_ref:ready.view_ref,stream,limit:pageSize,...(cursor?{cursor}:{})},options.signal);abort();const page=parseElectricalViewPage(value)
       for(const field of ['schema','model_ref','model_revision','view_ref','source_snapshot_ref','selection_ref'] as const)if(page[field]!==ready[field])fail('frozen_baseline_mismatch')
-      if(page.stream!==stream||page.total_count!==ready.streams[stream]!.total_count||page.returned_count>pageSize)fail('stream_manifest_mismatch')
+      // The published gateway action controls page size. The parser enforces
+      // the 1000-record bound; pageSize is only the client's preference.
+      if(page.stream!==stream||page.total_count!==ready.streams[stream]!.total_count)fail('stream_manifest_mismatch')
       for(const record of page.records){if(ids.has(record.id))fail('duplicate_record');ids.add(record.id);(records[stream] as RecordBase[]).push(record)}
       if(ids.size>page.total_count||page.complete&&ids.size!==page.total_count||!page.complete&&(!page.returned_count||ids.size>=page.total_count))fail('incomplete_stream')
       if(page.next_cursor!==null){if(cursors.has(page.next_cursor))fail('cursor_cycle');cursors.add(page.next_cursor)}
