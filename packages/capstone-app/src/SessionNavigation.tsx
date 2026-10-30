@@ -30,8 +30,20 @@ export default function SessionNavigation({items,currentId,storageKey='workspace
   useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;archiveRequest.current++}},[])
   const [removed,setRemoved]=useState<string[]>([]),[names,setNames]=useState<Record<string,string>>({}),[deleting,setDeleting]=useState<SessionNavItem>(),[busy,setBusy]=useState(false),[error,setError]=useState('')
   const [reopened,setReopened]=useState<SessionNavItem[]>([])
+  const [olderPins,setOlderPins]=useState<SessionNavItem[]>([])
+  const historyLoader=useRef(actions?.history);historyLoader.current=actions?.history
+  const missingPins=JSON.stringify(pins.filter(id=>!items.some(item=>item.threadId===id)))
+  useEffect(()=>{
+    const wanted:string[]=JSON.parse(missingPins),load=historyLoader.current
+    if(!wanted.length||!load)return
+    const controller=new AbortController()
+    void load(false,controller.signal).then(records=>{
+      if(!controller.signal.aborted&&mayUpdate())setOlderPins(records.filter(item=>wanted.includes(item.threadId)&&!item.archived))
+    }).catch(()=>{if(!controller.signal.aborted&&mayUpdate())setError('置顶会话暂时无法读取，请刷新重试。')})
+    return()=>controller.abort()
+  },[missingPins,storageKey,Boolean(actions?.history)])
   useEffect(()=>{if(reopened.some(item=>items.some(existing=>existing.threadId===item.threadId)))setReopened(previous=>previous.filter(item=>!items.some(existing=>existing.threadId===item.threadId)))},[items,reopened])
-  const recent=[...reopened.filter(item=>!items.some(existing=>existing.threadId===item.threadId)),...items]
+  const recent=[...olderPins.filter(item=>pins.includes(item.threadId)&&!items.some(existing=>existing.threadId===item.threadId)&&!reopened.some(existing=>existing.threadId===item.threadId)),...reopened.filter(item=>!items.some(existing=>existing.threadId===item.threadId)),...items]
   const displayed=(archiveView?archived?.threads??[]:orderSessions(recent,pins)).filter(item=>!removed.includes(item.threadId)).map(item=>names[item.threadId]?{...item,sessionTitle:{text:names[item.threadId],source:'user' as const,revision:item.sessionTitle?.revision??0,source_ref:null}}:item)
   const scrollKey=`capstone.session-navigation.scroll:${storageKey}:${archiveView?'archived':'active'}`
   useLayoutEffect(()=>{

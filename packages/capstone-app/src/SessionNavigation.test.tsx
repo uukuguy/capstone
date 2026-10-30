@@ -3,6 +3,13 @@ import {afterEach,beforeEach,expect,it,vi} from 'vitest'
 import {act,cleanup,fireEvent,render,screen,waitFor,within} from '@testing-library/react'
 import SessionNavigation,{SessionAdjacentControls} from './SessionNavigation'
 const items=['a','b','c'].map(threadId=>({threadId,modelId:null,implementationFamily:null,createdAt:'2026-10-24',archived:false,lastEventSeq:0,sessionTitle:{text:`会话${threadId}`,source:'user' as const,source_ref:null,revision:1}}))
+it('restores pinned sessions outside the recent page',async()=>{
+  localStorage.setItem('capstone.session-pins:older',JSON.stringify(['c']))
+  const history=vi.fn(async()=>items)
+  render(<SessionNavigation items={items.slice(0,1)} storageKey="older" actions={{rename:vi.fn(),archive:vi.fn(),remove:vi.fn(),archived:vi.fn(),history}}/>)
+  expect(await screen.findByRole('link',{name:'会话c'})).toBeTruthy()
+  expect(screen.queryByRole('link',{name:'会话b'})).toBeNull()
+})
 it('does not navigate after an archive response arrives in another workspace',async()=>{
   window.history.replaceState({},'','/?workspace=A')
   let finish!:()=>void

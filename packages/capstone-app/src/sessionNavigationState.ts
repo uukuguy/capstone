@@ -11,11 +11,29 @@ export function navigateSession(id:string){
   url.searchParams.set('workspace',currentWorkspaceName());url.searchParams.set('thread',id);url.searchParams.delete('thread-fixture')
   window.history.pushState({},'',url);window.dispatchEvent(new PopStateEvent('popstate'))
 }
+function durablePinScope(storageKey:string){
+  if(!storageKey.startsWith('capstone.thread.'))return storageKey
+  const boundary=storageKey.indexOf('.workspace.'),base=boundary<0?storageKey:storageKey.slice(0,boundary)
+  return `${base.slice(0,base.lastIndexOf('.'))}${boundary<0?'.workspace.enterprise':storageKey.slice(boundary)}`
+}
 export function readSessionPins(storageKey='workspace'):string[]|undefined {
-  try{const value:unknown=JSON.parse(localStorage.getItem(`capstone.session-pins:${storageKey}`)??'[]');return Array.isArray(value)&&value.every(id=>typeof id==='string')?value:undefined}catch{return undefined}
+  try{
+    const scope=durablePinScope(storageKey),key=`capstone.session-pins:${scope}`
+    let text=localStorage.getItem(key)
+    if(text===null&&scope!==storageKey){
+      const recovered=new Set<string>()
+      for(let i=0;i<localStorage.length;i++){
+        const old=localStorage.key(i)
+        if(!old?.startsWith('capstone.session-pins:')||durablePinScope(old.slice('capstone.session-pins:'.length))!==scope)continue
+        try{const value:unknown=JSON.parse(localStorage.getItem(old)??'[]');if(Array.isArray(value))value.forEach(id=>{if(typeof id==='string')recovered.add(id)})}catch{/* Preserve other saved records. */}
+      }
+      text=JSON.stringify([...recovered]);localStorage.setItem(key,text)
+    }
+    const value:unknown=JSON.parse(text??'[]');return Array.isArray(value)&&value.every(id=>typeof id==='string')?value:undefined
+  }catch{return undefined}
 }
 export function useSessionPins(storageKey='workspace'){
-  const key=`capstone.session-pins:${storageKey}`
+  const key=`capstone.session-pins:${durablePinScope(storageKey)}`
   const read=()=>readSessionPins(storageKey)??[]
   const [pins,setPins]=useState(read)
   useEffect(()=>{
