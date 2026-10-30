@@ -3,6 +3,13 @@ import {afterEach,beforeEach,expect,it,vi} from 'vitest'
 import {act,cleanup,fireEvent,render,screen,waitFor,within} from '@testing-library/react'
 import SessionNavigation,{SessionAdjacentControls} from './SessionNavigation'
 const items=['a','b','c'].map(threadId=>({threadId,modelId:null,implementationFamily:null,createdAt:'2026-10-24',archived:false,lastEventSeq:0,sessionTitle:{text:`会话${threadId}`,source:'user' as const,source_ref:null,revision:1}}))
+it('anchors deletion confirmation beside its menu instead of the screen center',()=>{
+  render(<SessionNavigation items={items} actions={{rename:vi.fn(),archive:vi.fn(),remove:vi.fn(),archived:vi.fn()}}/>)
+  fireEvent.contextMenu(screen.getByRole('link',{name:'会话a'}),{clientX:160,clientY:120})
+  fireEvent.click(screen.getByRole('menuitem',{name:'删除'}))
+  expect(screen.getByRole('alertdialog').style.left).toBe('160px')
+  expect(screen.getByRole('alertdialog').style.top).toBe('120px')
+})
 it('offers a hover delete action for archived sessions and requires confirmation',async()=>{
   const actions={rename:vi.fn(),archive:vi.fn(),remove:vi.fn(async()=>{}),archived:vi.fn(async()=>({threads:[{...items[2],archived:true}],hasMore:false,nextBeforeThreadId:null}))}
   render(<SessionNavigation items={items.slice(0,1)} actions={actions}/>)

@@ -29,6 +29,15 @@ export default function SessionNavigation({items,currentId,storageKey='workspace
   const mayUpdate=()=>mounted.current&&isWorkspaceActive(workspace.current)
   useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;archiveRequest.current++}},[])
   const [removed,setRemoved]=useState<string[]>([]),[names,setNames]=useState<Record<string,string>>({}),[deleting,setDeleting]=useState<SessionNavItem>(),[busy,setBusy]=useState(false),[error,setError]=useState('')
+  const deleteDialog=useRef<HTMLDivElement>(null)
+  const [deleteAnchor,setDeleteAnchor]=useState({left:8,top:8})
+  const [deletePosition,setDeletePosition]=useState(deleteAnchor)
+  useLayoutEffect(()=>{
+    if(!deleting)return
+    const place=()=>{const rect=deleteDialog.current?.getBoundingClientRect();if(rect)setDeletePosition({left:Math.max(8,Math.min(deleteAnchor.left,window.innerWidth-rect.width-8)),top:Math.max(8,Math.min(deleteAnchor.top,window.innerHeight-rect.height-8))})}
+    place();window.addEventListener('resize',place)
+    return()=>window.removeEventListener('resize',place)
+  },[deleting,deleteAnchor,error])
   const [reopened,setReopened]=useState<SessionNavItem[]>([])
   const [olderPins,setOlderPins]=useState<SessionNavItem[]>([])
   const historyLoader=useRef(actions?.history);historyLoader.current=actions?.history
@@ -126,7 +135,7 @@ export default function SessionNavigation({items,currentId,storageKey='workspace
   }
   async function archive(item:SessionNavItem,value:boolean){if(!actions||busy)return;setBusy(true);setMenu(undefined);setError('');try{await actions.archive(item.threadId,value);if(!mayUpdate())return;setRemoved(previous=>[...previous,item.threadId]);if(item.threadId===currentId&&value)navigateSession(displayed.find(other=>other.threadId!==item.threadId)?.threadId??'new')}catch{setError('操作未完成；运行中的会话需先停止。')}finally{setBusy(false)}}
   const rows=(values:SessionNavItem[])=>values.map(item=><SessionRow key={item.threadId} item={item} current={item.threadId===currentId} editing={editing===item.threadId} onEdit={()=>setEditing(previous=>previous===item.threadId?undefined:item.threadId)}
-    onDelete={actions&&archiveView?()=>{setDeleting(item);setError('')}:undefined}
+    onDelete={actions&&archiveView?(x,y)=>{setDeleteAnchor({left:x,top:y});setDeleting(item);setError('')}:undefined}
     onActivate={()=>void openSession(item)}
     onRename={actions?async text=>{await actions.rename(item.threadId,text);setNames(previous=>({...previous,[item.threadId]:text}));setEditing(undefined)}:undefined}
     onMenu={(x,y)=>{setMenu({item,x:Math.max(8,Math.min(x,window.innerWidth-190)),y:Math.max(8,Math.min(y,window.innerHeight-200))});setError('')}} onClose={actions&&!archiveView?()=>void archive(item,true):undefined}/>)
@@ -146,9 +155,9 @@ export default function SessionNavigation({items,currentId,storageKey='workspace
       <button role="menuitem" disabled={!actions} onClick={()=>{setEditing(menu.item.threadId);setMenu(undefined)}}><Pencil size={14}/>改名</button>
       {!archiveView&&<button role="menuitem" onClick={()=>{toggle(menu.item.threadId);setMenu(undefined)}}><Pin size={14}/>{pins.includes(menu.item.threadId)?'取消置顶':'置顶'}</button>}
       <button role="menuitem" disabled={!actions||busy} onClick={()=>void archive(menu.item,!archiveView)}>{archiveView?<Archive size={14}/>:<X size={13}/>}<span>{archiveView?'恢复会话':'关闭并归档'}</span></button>
-      <button role="menuitem" className="is-destructive" disabled={!actions||busy} onClick={()=>{setDeleting(menu.item);setMenu(undefined)}}><Trash2 size={14}/>删除</button>
+      <button role="menuitem" className="is-destructive" disabled={!actions||busy} onClick={()=>{setDeleteAnchor({left:menu.x,top:menu.y});setDeleting(menu.item);setMenu(undefined)}}><Trash2 size={14}/>删除</button>
     </div>,document.body)}
-    {deleting&&createPortal(<div className="session-delete-backdrop"><div className="session-delete-dialog" role="alertdialog" aria-modal="true" aria-labelledby="session-delete-title" onKeyDown={event=>{
+    {deleting&&createPortal(<div className="session-delete-backdrop" onPointerDown={event=>{if(event.target===event.currentTarget&&!busy)setDeleting(undefined)}}><div ref={deleteDialog} style={deletePosition} className="session-delete-dialog" role="alertdialog" aria-modal="true" aria-labelledby="session-delete-title" onKeyDown={event=>{
       if(event.key==='Escape'&&!busy){event.preventDefault();setDeleting(undefined)}
       if(event.key==='Tab'){const buttons=[...event.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')];if(!buttons.length){event.preventDefault();return}const first=buttons[0],last=buttons.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus()}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus()}}
     }}>
