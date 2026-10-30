@@ -6454,3 +6454,35 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - Decouple execution events from bounded state synchronization; release hidden tab subscriptions to prevent silent display stalls [235062ef].
 
 - Guide business composition before generic queries; document provider-owned semantics and joint validation without fixed tool routes [030f3602].
+
+- Record completed trials and outstanding UI work so gateway discussion resumes from verified facts [ad72c353].
+
+## 2026-10-31
+
+- Add protected global gateway registration and controls so the workspace can discover and switch known instances [91ead461].
+
+- Bound gateway checks, restore selected resources and guard commits so slow probes do not replace active task sources [39721662].
+
+- Separate gateway inspection from switching with compact global controls and protected credentials [8ad13077].
+
+- Restore durable workspace pins and older pinned records so tab changes cannot hide important sessions [34634386].
+
+- Verify full-history cleanup excludes recovered pinned sessions so saved work remains protected [eb9bde6f].
+
+- Show active cleanup lookup feedback and disable deletion until history arrives, avoiding an unexplained empty preview [1ea1f045].
+
+- 02:46 User confirmed final handoff; retain gateway integration, cleanup visual acceptance and business-tool validation as next-session work.
+
+- 02:52 Add archived-row hover deletion with confirmation; 38 session/workspace tests and type checks passed [90a6f32e].
+
+- 02:57 Match close-and-archive menu icon to the hover action; 28 navigation tests passed [b35a95b6].
+
+- 02:58 Focus delete confirmation for Enter activation; 28 navigation tests and type checks passed [d5c6befa].
+
+- 03:00 Anchor compact deletion confirmation near its trigger; preserve keyboard actions and viewport bounds; 39 tests passed [f9d59de9].
+
+- 03:04 User approved refreshed final handoff including archived deletion, keyboard confirmation and anchored popup; visual acceptance remains pending.
+
+- 03:13 Preserve unknown legacy pin protection so corrupted migration cannot enable batch deletion; regression tests passed [3a6c638e].
+
+- 03:13 Integration checks passed: App1409, backend227 with32 skipped, types and doctor; localhost tests require proxy bypass.

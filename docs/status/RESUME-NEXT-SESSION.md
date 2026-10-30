@@ -1,19 +1,103 @@
 # Live Session Checkpoint
 
-> Updated: 2026-10-31. Session remains active; this is not a final handoff.
+> Updated: 2026-10-31 03:13. Session remains active — not a final handoff. User requested integration into dev.
 
-Branch `fix/lightweight-tool-contract-handling`, PR76 targets dev. Latest product commits: `235062ef` (execution stream/state synchronization) and `030f3602` (business composition guidance and gateway discussion). Earlier `4fb40ba1`, `fe93eff4`, `4b5f6f8a` remain included. Integration into dev and control-graph refresh are pending; no cloud/demo/main deployment.
+## 当前状态
 
-Current user priority: discuss a robust tool-selection solution with data-gateway. Client guarantees business tools and legal combinations first, flexible lower-level tools only when necessary. Provider owns tool semantics, applicability and alternatives. Do not hardcode a three-tool sequence or assume any particular toolset exists. Deliverable: `docs/reports/2026-10-31-gateway-tool-selection-discussion.md`. This is a proposal, not a confirmed new gateway contract. Do not change the sibling gateway repository or send messages on the user's behalf.
+- 分支：feat/gateway-instance-picker，产品HEAD：3a6c638e。
+- 产品修改均已提交；分支尚未推送、未建PR、未合并。
+- PR76已合并至远端dev：085b948f；本地dev仍落后。
+- JOURNAL.md和RESUME-NEXT-SESSION.md有未提交修改。
+- 无云端、demo或main部署。
 
-Current gateway is explicitly **本地联调18001**, instance `3db5bb96-2c27-4d97-8584-346bc4a18656`. Protected local config selects its container endpoint. Preserve authentication; never print it. User requires existing Vivaldi tabs only; create sessions inside the App. Current window186490, helper `/tmp/request-pool-ui.py`; observe fresh IDs after browser restart. Keyboard navigation needs `--restore-window`. Do not append URLs or create tabs.
+## 已完成
 
-Local-development18003 full trial: thread `thr_8315f978b0c989151142`, Work `work_8a6ab92bf436d9a9cd0d`, attempt `attempt_38f43f3804d5b78c`; backend8m15,66models141tools, no native SQL. Frontend stayed initial thinking beyond19minutes; in-page refresh restored results. Original browser request failure was not captured: historic root cause remains unproven.
+网关：
+- 全局实例列表、添加、异步连通检测、明确切换。
+- 点击实例只查看详情，点击“使用此网关”才切换。
+- 后端持久保存选择，启动优先恢复上次选择。
+- 连通检测3秒；添加和切换验证5秒；失败保留原选择。
 
-Stream regression reproduced: pending snapshot refresh blocks subsequent SSE events while connection remains live. Fixed with background refresh, existing15-second status budget including catch-up, explicit sync warning, fatal/resync classification and hidden-tab release.41focusedApp tests and build passed; earlier70trace/entry tests passed. Current real18001 trial displayed LLM/tool events normally and user confirmed it. Remaining UI work: move top initial Thinking under first LLM; implement/test Stop/ESC and compact conflict handling; replace raw JSON error blocks with concise summaries. Do not claim these fixed.
+会话：
+- 置顶按应用地址和workspace保存，恢复旧标签页记录。
+- 补读最近列表首批之外的置顶会话。
+- 置顶是同一会话的特殊状态，不是独立记录。
+- 清理时显示动态查找状态，完成前禁用删除。
+- 批量清理排除置顶和当前会话。
+- 归档会话增加悬浮垃圾桶。
+- 悬浮×和右键“关闭并归档”图标一致。
+- 删除确认默认聚焦“删除”，回车确认，Esc取消。
+- 删除确认改为触发位置附近的小浮窗，并限制屏幕边界。
 
-Local-integration18001 full trial completed: thread `thr_19ac11e5a4521e9d7303`, Work `work_c0dd63438dc491ae02ad`, attempt `attempt_4b0983e11ab31b54`;2026-10-30 23:19:39—23:29:51 (~612s),99responses253tools.154execute_data_query calls,53failed including6query_timeout. No semantic series/statistics/weather tools tried despite68published tools. One find_operation_data reported unconfigured datasets, not all business services unavailable. PPTX/CSV/charts saved; no business-quality acceptance. Evidence `runs/local-integration-summer-20261030/`; discussion contains six timeout request IDs, no SQL text. Do not equate all failures with timeouts or all generic queries with waste.
+最新提交：
+90a6f32e 归档会话悬浮删除
+b35a95b6 关闭并归档图标统一
+d5c6befa 删除确认默认焦点
+f9d59de9 删除确认浮窗定位
 
-Guidance draft reaches server context, search, direct load and current reasoning policy: semantic fit first; generic structured queries also fallback; scoped unavailability; bounded pilot before batching; stop shared contract errors; evidence-based corrections after timeout, else retain gap. Tools stay available; no extra model reviewer, mandatory discovery sequence or name-based routing.15Node and22server tests passed (32skipped); independent review found no material issue. Real short probe `/tmp/gateway-business-selection-probe.txt` was **not submitted** because user shifted to gateway discussion. Guidance tests do not establish behavior acceptance.
+## 已核实的行为
 
-Canonical rebuild image `7dc76f7f93195f8412ea4f816504e1fa9bbfeff9b792262cf71f0f04e14116db`, log `/tmp/capstone-tool-selection-rebuild.log`; cleanup receipt `.capstone-agent/cache-maintenance-20261031-000259-31671.log`. Build preceded final commit identity; do not invent exact deployed-commit acceptance. Doctor/diff checks passed. Preserve unrelated `.worktrees/electrical-diagrams/.superpowers/sdd/task-1-report.md` and all runtime data. Baseline503s comparison is in `docs/reports/2026-10-30-repaired-light-chain-performance.md`; no stable speedup claim.
+- 清理仅作用于当前workspace。
+- 普通列表清理不包含归档记录；归档列表中的清理会删除归档记录。
+- 没有自动归档；×执行关闭并归档，不是删除。
+- 释放内存缓存不会归档。
+- 未执行真实批量删除。
+
+## 验证和运行
+
+- 最新39项导航/工作区测试及类型检查通过。
+- 此前网关后端230项、持久化恢复21项测试通过。
+- 原置顶会话已在现有Vivaldi标签页恢复显示。
+- 清理查找动画和删除浮窗仍待浏览器视觉验收。
+
+本机重建已通过，API/worker同镜像：
+a6b409c1678265fff1cafba8ab99737d90ebd147d76c43309d49d6db51cfd91a
+
+日志：/tmp/gateway-pins-final-rebuild.log
+清理收据：
+.capstone-agent/cache-maintenance-20261031-023414-82525.log
+
+后续App交互修改由Vite提供，发生在该重建之后。
+
+当前网关保持本地联调18001。
+实测切换18003约299ms，远端失败约5029ms且保留原选择，
+恢复18001约352ms。重启后选择保持。
+证据：runs/gateway-instance-picker-20261031/api-checks.json
+
+## 下一步
+
+1. 推送分支，建立至dev的PR，等待必需macOS开发门禁，通过后合并；用户已授权。
+2. 复用现有Vivaldi标签页，验收清理动画、删除浮窗和键盘操作。整理提交状态文档。
+3. 合并后同步实际dev，更新版本登记和控制图并检查。
+4. 回到业务工具组合策略的真实任务验证。
+
+合并前复测：App全量1409项及构建通过；后端227项通过、32项跳过，26.29秒；doctor及check-types通过。
+首轮本机HTTP测试受代理影响返回502，NO_PROXY=127.0.0.1,localhost后通过，未修改产品网络策略。
+独立评审唯一Important为旧置顶损坏迁移削弱删除保护，3a6c638e修复；新增回归先红后绿，46相关测试通过。复核待回执。
+
+## 主线未完成
+
+工具选择讨论：
+docs/reports/2026-10-31-gateway-tool-selection-discussion.md
+
+优先业务工具及合法组合，必要时使用通用底层工具。
+不写死工具名称和固定调用顺序；不修改同级data-gateway。
+该讨论尚非网关确认契约。
+
+此前迎峰度夏完整任务约612秒：
+99次模型请求、253次工具调用；
+154次execute_data_query，53次失败，其中6次超时。
+已有PPTX、CSV和图表，未完成业务质量验收。
+证据：runs/local-integration-summer-20261030/
+
+其它待办：首个Thinking归属、Stop/ESC立即停止、
+紧凑冲突提示、错误JSON摘要。不得声称已修复。
+
+## 恢复约束
+
+- 保持本地联调18001；研发服务器当前不可用。
+- 已知实例另有18003、18005及192.168.72.63远程联调。
+- 不输出认证，不新建浏览器标签页。
+- 保留运行数据和无关工作树修改。
+- 控制图和INDEX存在历史滞后，收口时处理。
+- 不扩展为重型CI。
