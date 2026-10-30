@@ -8,6 +8,7 @@ import {WorkspaceGatewayStatus,SessionConnectionStatus} from './WorkspaceConnect
 import {resultProjectionHistoryText} from './threadSystemNotices'
 import CapstoneAssistantThread, { projectAssistantActivity } from './CapstoneAssistantThread'
 import { commandKey } from './commandKey'
+import { commandRejectionCopy } from './threadFeedback'
 import { buildWorkCommand, buildStartWorkCommand, buildCancelWorkCommand, buildSendMessageCommand, parseStoredWorkCommand, parseWorkSnapshot, type WorkCommand } from './threadWorkProtocol'
 import { HttpThreadTransport } from './threadHttpTransport'
 import type { ThreadListPage } from './threadManagement'
@@ -345,7 +346,10 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
     try {
       const receipt = await store.dispatch(command)
       if (!mounted.current) return
-      if (receipt.status === 'rejected') throw new CommandRejectedError(receipt.rejection === 'revision_conflict' ? '任务已更新，请核对最新内容后再次提交。' : receipt.rejection === 'product_context_unavailable' ? '引用的成果暂时无法加入本轮资料。指令未执行，请检查引用后重试。' : `未保存：${receipt.rejection || '请求被拒绝'}`)
+      if (receipt.status === 'rejected') {
+        if (receipt.rejection === 'revision_conflict') await store.refreshWorkSnapshot().catch(() => undefined)
+        throw new CommandRejectedError(receipt.rejection === 'product_context_unavailable' ? '引用的成果暂时无法加入本轮资料。指令未执行，请检查引用后重试。' : commandRejectionCopy(receipt.rejection))
+      }
       if (receipt.status !== 'accepted') throw new Error('操作结果待确认，请重试原请求。')
       if(command.kind==='send_message'){
         const payload=command.payload as {text:string}&Partial<InputSubmission>

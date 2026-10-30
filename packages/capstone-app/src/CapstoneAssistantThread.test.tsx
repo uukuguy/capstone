@@ -7,6 +7,25 @@ import directExecutionLifecycle from './fixtures/directExecutionLifecycle.json'
 import {parseEventEnvelope} from './threadProtocol'
 
 afterEach(() => { cleanup(); localStorage.clear(); sessionStorage.clear() })
+it('stops with Escape and respects disabled cancellation',async()=>{
+  const onCancel=vi.fn().mockResolvedValue(undefined)
+  const props={events:[],disabled:false,isRunning:true,activity:[],onSend:async()=>{},onCancel}
+  const view=render(<CapstoneAssistantThread {...props}/>)
+  fireEvent.keyDown(document,{key:'Escape'})
+  await waitFor(()=>expect(onCancel).toHaveBeenCalledTimes(1))
+  view.rerender(<CapstoneAssistantThread {...props} cancelDisabled/>)
+  fireEvent.keyDown(document,{key:'Escape'})
+  expect(onCancel).toHaveBeenCalledTimes(1)
+})
+it('leaves Escape to an open dialog and ignores held Escape',()=>{
+  const onCancel=vi.fn().mockResolvedValue(undefined)
+  render(<CapstoneAssistantThread events={[]} disabled={false} isRunning activity={[]} onSend={async()=>{}} onCancel={onCancel}/>)
+  fireEvent.keyDown(document,{key:'Escape',repeat:true})
+  const dialog=document.createElement('div');dialog.setAttribute('role','dialog');document.body.append(dialog)
+  fireEvent.keyDown(document,{key:'Escape'})
+  dialog.remove()
+  expect(onCancel).not.toHaveBeenCalled()
+})
 it('shows a live brand indicator only for the actual live session connection',()=>{
   const props={events:[],disabled:false,isRunning:false,activity:[],onSend:async()=>{},onCancel:async()=>{}}
   const view=render(<CapstoneAssistantThread {...props} connectionState="live"/>)

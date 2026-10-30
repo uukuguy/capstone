@@ -55,11 +55,21 @@ it.each([false,true])('keeps thinking before the answer during streaming and aft
 it('shows thinking during submit before any accepted or started event',async()=>{
   let finish!:()=>void
   const onSend=vi.fn(()=>new Promise<void>(resolve=>{finish=resolve}))
-  render(<CapstoneAssistantThread {...props} isRunning={false} events={[]} onSend={onSend}/>)
+  const view=render(<CapstoneAssistantThread {...props} isRunning={false} events={[]} onSend={onSend}/>)
   fireEvent.change(screen.getByRole('textbox',{name:'Thread 指令'}),{target:{value:'Current instruction'}})
   fireEvent.click(screen.getByRole('button',{name:'发送指令'}))
   expect((await screen.findByRole('region',{name:'思考状态'})).textContent).toContain('Thinking…')
+  const instruction=screen.getByLabelText('用户指令')
+  expect(instruction.textContent).toContain('Current instruction')
+  expect(instruction.compareDocumentPosition(screen.getByRole('region',{name:'思考状态'}))&Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  view.rerender(<CapstoneAssistantThread {...props} events={[accepted,started,delta]} onSend={onSend}/>)
+  expect(screen.getAllByLabelText('用户指令')).toHaveLength(1)
+  expect(screen.getAllByRole('region',{name:'思考状态'})).toHaveLength(1)
   await act(async()=>finish())
+  view.unmount()
+  render(<CapstoneAssistantThread {...props} events={[accepted,started,delta]}/>)
+  expect(screen.getAllByLabelText('用户指令')).toHaveLength(1)
+  expect(screen.getByRole('region',{name:'思考状态'}).textContent).toContain('Actual public thought.')
 })
 it('shows queued thinking from acceptance before attempt_started',()=>{
   render(<CapstoneAssistantThread {...props} events={[accepted]}/>)
