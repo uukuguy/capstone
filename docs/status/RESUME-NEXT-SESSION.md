@@ -1,104 +1,38 @@
 # Live Session Checkpoint
 
-> Updated: 2026-10-31 03:34. Session remains active — not a final handoff. User requested dev integration and focused non-release CI.
+> Updated: 2026-10-31 05:15. **Session remains active — not a final handoff.**
 
-## 当前状态
+## Current work
 
-- 功能PR77已合入dev f8ba44bd；受检f6b4e120的macOS41113507626通过14分44秒。
-- 当前收口分支chore/gateway-control-ci-closeout，基于合并后dev。用户明确要求非发布只做专项测试。
-- AGENTS已写入规则；gateway-controls路由只测网关与直接消费者，部署文件须精确内容准入；未知/Kernel/Authority变更扩大范围。
-- 治理216通过2跳过；原专项后端380通过41跳过28.68秒，补充消费者90项通过3.21秒。独立评审关闭部署准入Important。
-- JOURNAL.md和RESUME-NEXT-SESSION.md有未提交修改。
-- 无云端、demo或main部署。
+User approved four conversation repairs. Delete confirmation passed user manual
+acceptance; do not repeat it or delete user sessions.
 
-## 已完成
+Branch fix/conversation-small-items-20261031, implementation 8b2bd3b9:
+pending instruction precedes its Thinking; global Escape uses cancellation;
+revision conflicts preserve drafts and refresh state; JSON errors unwrap MCP
+content and gateway gaps. 172 focused App checks and type checking passed.
+An extra adapter test now sends Escape; its result is pending.
 
-网关：
-- 全局实例列表、添加、异步连通检测、明确切换。
-- 点击实例只查看详情，点击“使用此网关”才切换。
-- 后端持久保存选择，启动优先恢复上次选择。
-- 连通检测3秒；添加和切换验证5秒；失败保留原选择。
+Canonical rebuild: /tmp/capstone-small-rebuild.log. Vivaldi reuses the actual
+Capstone tab. A new empty enterprise session contains a stop-test draft, not sent.
+Wait for readiness, then test actual cancellation, short follow-up and refresh.
 
-会话：
-- 置顶按应用地址和workspace保存，恢复旧标签页记录。
-- 补读最近列表首批之外的置顶会话。
-- 置顶是同一会话的特殊状态，不是独立记录。
-- 清理时显示动态查找状态，完成前禁用删除。
-- 批量清理排除置顶和当前会话。
-- 归档会话增加悬浮垃圾桶。
-- 悬浮×和右键“关闭并归档”图标一致。
-- 删除确认默认聚焦“删除”，回车确认，Esc取消。
-- 删除确认改为触发位置附近的小浮窗，并限制屏幕边界。
+## Immediate next action
 
-最新提交：
-90a6f32e 归档会话悬浮删除
-b35a95b6 关闭并归档图标统一
-d5c6befa 删除确认默认焦点
-f9d59de9 删除确认浮窗定位
+Finish local rebuild and live checks; focused dev PR, merge, return root to dev,
+refresh and inspect the control graph in the actual dev checkout.
 
-## 已核实的行为
+## Preserve
 
-- 清理仅作用于当前workspace。
-- 普通列表清理不包含归档记录；归档列表中的清理会删除归档记录。
-- 没有自动归档；×执行关闭并归档，不是删除。
-- 释放内存缓存不会归档。
-- 未执行真实批量删除。
-
-## 验证和运行
-
-- 最新39项导航/工作区测试及类型检查通过。
-- 此前网关后端230项、持久化恢复21项测试通过。
-- 原置顶会话已在现有Vivaldi标签页恢复显示。
-- 清理查找动画和删除浮窗仍待浏览器视觉验收。
-
-本机重建已通过，API/worker同镜像：
-a6b409c1678265fff1cafba8ab99737d90ebd147d76c43309d49d6db51cfd91a
-
-日志：/tmp/gateway-pins-final-rebuild.log
-清理收据：
-.capstone-agent/cache-maintenance-20261031-023414-82525.log
-
-后续App交互修改由Vite提供，发生在该重建之后。
-
-当前网关保持本地联调18001。
-实测切换18003约299ms，远端失败约5029ms且保留原选择，
-恢复18001约352ms。重启后选择保持。
-证据：runs/gateway-instance-picker-20261031/api-checks.json
-
-## 下一步
-
-1. 推送分支，建立至dev的PR，等待必需macOS开发门禁，通过后合并；用户已授权。
-2. 复用现有Vivaldi标签页，验收清理动画、删除浮窗和键盘操作。整理提交状态文档。
-3. 合并后同步实际dev，更新版本登记和控制图并检查。
-4. 回到业务工具组合策略的真实任务验证。
-
-合并前复测：App全量1409项及构建通过；后端227项通过、32项跳过，26.29秒；doctor及check-types通过。
-首轮本机HTTP测试受代理影响返回502，NO_PROXY=127.0.0.1,localhost后通过，未修改产品网络策略。
-独立评审唯一Important为旧置顶损坏迁移削弱删除保护，3a6c638e修复；新增回归先红后绿，46相关测试通过。复核待回执。
-
-## 主线未完成
-
-工具选择讨论：
-docs/reports/2026-10-31-gateway-tool-selection-discussion.md
-
-优先业务工具及合法组合，必要时使用通用底层工具。
-不写死工具名称和固定调用顺序；不修改同级data-gateway。
-该讨论尚非网关确认契约。
-
-此前迎峰度夏完整任务约612秒：
-99次模型请求、253次工具调用；
-154次execute_data_query，53次失败，其中6次超时。
-已有PPTX、CSV和图表，未完成业务质量验收。
-证据：runs/local-integration-summer-20261030/
-
-其它待办：首个Thinking归属、Stop/ESC立即停止、
-紧凑冲突提示、错误JSON摘要。不得声称已修复。
-
-## 恢复约束
-
-- 保持本地联调18001；研发服务器当前不可用。
-- 已知实例另有18003、18005及192.168.72.63远程联调。
-- 不输出认证，不新建浏览器标签页。
-- 保留运行数据和无关工作树修改。
-- 控制图和INDEX存在历史滞后，收口时处理。
-- 不扩展为重型CI。
+- Pre-existing dirty JOURNAL, RESUME, VERSION and HTML were deliberate PR78 final
+  snapshots; preserve their facts. No cleanup of user data or other worktrees.
+- dev/origin-dev baseline c01a81f2; PR77 f8ba44bd and PR78 c01a81f2 already closed.
+- Cloud/demo/main unchanged. Only focused macOS CI; no release gate.
+- Local gateway is local integration18001; credentials stay protected backend-only.
+- Prior verified backend image39911ad3. No backend semantics changed.
+- Summer receipts: runs/local-integration-summer-20261030/. Business quality is
+  unaccepted. Tool selection remains a proposal in
+  docs/reports/2026-10-31-gateway-tool-selection-discussion.md.
+- Enterprise data research analysis mode is unimplemented. Do not change sibling
+  data-gateway. Bypass proxies for localhost; existing GitHub proxy127.0.0.1:7897
+  may be used without changing global configuration.

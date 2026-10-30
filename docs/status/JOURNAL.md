@@ -6498,3 +6498,18 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 03:34 User requires focused non-release checks in AGENTS; add bounded gateway-controls route with deployment-content guards and direct consumers.
 
 - 03:36 Enforce focused non-release checks in AGENTS and register gateway-controls; reviewed guards preserve broader unknown boundaries [7b23d20d].
+
+- 03:38 Align merged gateway register and control graph with verified sources [0fea95fc].
+
+- 03:38 Open governance-only PR78 for focused CI policy and control closeout; PR77 feature branch cleanup is authorized.
+
+- 04:25 Merge PR78 as c01a81f2 after governance-only CI passed2m17s; actual root dev matches origin; feature branch closed.
+
+- 04:44 User confirmed final handoff: dev integration complete; focused CI required; resume real gateway business-tool validation next.
+
+- 05:13 User accepts deletion-popover manual verification; repair Thinking ownership, Escape stop, revision conflicts and JSON summaries.
+- 05:13 Four focused App files passed 170 checks; nested gateway-error regression added; canonical local rebuild is running.
+- 05:14 Bind pending Thinking to instructions and clarify stopping/conflicts/JSON errors; 172 focused checks and types pass [8b2bd3b9].
+- 05:15 Verify page Escape reaches active Work cancellation; 22 adapter checks pass [d8b13d02].
+- 05:18 Confirm terminal stop notice after real Escape cancellation; same-thread follow-up and refresh pass; 22 adapter checks pass [d89248e0].
+- 05:18 App1419 checks and build pass; first canonical rebuild/image701ab042 and scoped cleanup pass; final notice rebuild running.

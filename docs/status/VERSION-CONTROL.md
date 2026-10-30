@@ -1,6 +1,14 @@
 # 多线版本控制
 
-当前集成边界（2026-10-31）：PR77已合入dev f8ba44bd，受检f6b4e120的macOS41113507626通过14分44秒。用户要求非发布合并仅做专项测试，AGENTS与gateway-controls专项路由在独立chore分支收口，不重复全套工作台门禁。
+2026-10-31 会话小项修复：`fix/conversation-small-items-20261031` 的 `8b2bd3b9`
+补齐提交期指令与Thinking归属、页面ESC停止、版本冲突反馈与同步、JSON错误摘要。
+172项专项、App1419项及构建通过；删除浮窗由用户确认手工验收通过。
+补修d89248e0停止后的终态提示，22项适配器复测及类型通过。
+规范本地重建及定向清理通过（镜像701ab042）；真实ESC取消、同会话续发和刷新恢复通过。
+最终提示修复重建及dev PR集成待完成。dev仍为c01a81f2，云端/demo/main未变。
+[专项报告](../reports/2026-10-31-conversation-small-items.md)。
+
+当前集成边界（2026-10-31）：PR77功能已合入f8ba44bd；PR78的AGENTS规则与gateway-controls专项路由已合入c01a81f2，实际根工作树已切回dev并与远端一致。PR78治理专项CI41122209605通过2分17秒；此前PR77宽门禁41113507626通过14分44秒，不再作为网关管理改动的默认范围。未进行云端或demo发布。
 全局网关支持详情先查看、显式切换、受保护持久化及启动恢复；健康检测3秒、完整准入5秒。置顶跨标签页恢复、清理保护和动态反馈、归档悬浮删除与贴近触发点的确认浮窗已实现。
 本地App1409项及构建、后端227项（32跳过）、doctor与类型检查通过；最后删除保护修复46项通过并经独立复核。原置顶和清理查找动态提示已在现有Vivaldi标签页核对，删除浮窗视觉验收保留。
 当前local-dev已从候选f6b4e120规范重建，API/worker同镜像39911ad3faa809c645dceecd4d295d096ef1b1a06c986ba7d1f706e3e260a625；App产品字节同3a6c638e、由Vite提供。ready与项目定向清理通过，本地联调18001选择保持。不是云发布，也不是完整研究任务质量接受。
@@ -792,7 +800,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 职责 | 当前状态 | 下一步 |
 | --- | --- | --- | --- |
-| dev | 共同基座与企业工作台集成 | 当前HEADf8ba44bd，PR76/77已合入 | 非发布只做专项测试；收口CI范围与状态记录，不运行发布门禁 |
+| dev | 共同基座与企业工作台集成 | 当前HEADc01a81f2，PR76/77/78已合入 | 非发布只做专项测试；研究质量与业务工具组合另验，不运行发布门禁 |
 | feat/business-analysis | 企业研究与分析 | 应用分支仅准备；实际研究能力在dev共享工作台推进 | 保留350.524秒/ 41轮质量基线；不另建研究调度或聊天应用 |
 | feat/model-decision | 电网分析与决策 | 00a8cd85已在local-dev验证；PR #53已合入f5eda4e4 | 成熟对话、真实历史与拓扑已接通；无模型与通用成果继续按协议推进 |
 
@@ -1019,7 +1027,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | thinking-source | 已验证本地运行来源 | dev · 原feat/streamed-thinking | 当前任务目标来自本轮图/进度，保留目标仅属研究记录；79源码核对通过 | 内容0dcbd466；镜像6c6c8b956ebf/native11c0da509403；真实新任务123秒为正确性而非性能验收 |
 | grid-scale-merge | 主要代码集成里程碑 | dev | PR64整合10W+源图与精确指令视图；原生模型退出、拒绝诊断和原参数回放通过 | 固定78f81e66；受检44e8eca2，macOS7分31秒、主5173和真实华北交付通过 |
 | grid-scale-source | 已合入并本地验收 | dev · 原feat/grid-scale-view | 华北10W+源元素与站点分区；精确逐指令视图、模型退出和有界拒绝诊断 | 华北连续任务、五文件、57/56图及主5173通过；模型构建缺口保留，无云发布 |
-| dev-head | 当前研发位置 | dev | 当前HEADf8ba44bd，PR76/77已合入；研究模式尚未实现 | 非发布合并只做专项测试；四环境保持隔离 |
+| dev-head | 当前研发位置 | dev | 当前HEADc01a81f2，PR76/77/78已合入；研究模式尚未实现 | PR78专项门禁通过2分17秒；四环境保持隔离 |
 | workspace-integration | 已集成源码 | dev | 运行支持与会话阅读状态已合入；产品源固定e8bfb5ae | PR #56及dev必需门禁通过；额外发布检查已取消 |
 | workspace-merge | 主要分支合入 | dev | PR #56合入已验收工作空间；合并树等于产品e8bfb5ae | dev必需门禁通过，非发布，不更新cloud/demo |
 | workspace-app-source | 已验证App来源 | fix/workspace-reading-type → dev | 会话导航、缓存与阅读状态；置顶恢复和Esc取消编辑修正 | 942App/构建/实页通过，已随PR #56合入dev |
@@ -1050,6 +1058,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 编号 | 工作包 | 来源 | 目标 | 状态 | 交付范围 |
 | --- | --- | --- | --- | --- | --- |
+| 78 | shared-agent | chore/gateway-control-ci-closeout | dev | MERGED | c01a81f2；受检0fea95fc的治理专项41122209605通过2分17秒，AGENTS非发布专项规则、网关定向范围与部署内容保护 |
 | 77 | shared-agent | feat/gateway-instance-picker | dev | MERGED | f8ba44bd；受检f6b4e120的macOS41113507626通过14分44秒，全局网关选择、持久置顶、清理保护与会话删除交互 |
 | 76 | shared-agent | fix/lightweight-tool-contract-handling | dev | MERGED | 085b948f；事件流隔离和工具组合指导；不等于完整迎峰度夏质量接受 |
 | 71 | shared-agent | feat/provincial-electrical-view | dev | MERGED | 3d65914d，CI40942245365通过40m47s；统一工作台、渐进图与轻量直连集成 |
