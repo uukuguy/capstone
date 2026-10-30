@@ -15,7 +15,7 @@ from a local button click.
   input remains, synchronize before retry. Test rejection feedback.
 - [x] Extract bounded human-readable messages from JSON tool failures while
   retaining raw diagnostics. Test nested and malformed values.
-- [ ] Run affected App tests and type checks; rebuild local runtime, inspect the
+- [x] Run affected App tests and type checks; rebuild local runtime, inspect the
   real App, and record evidence. Integrate through a focused dev PR.
 
 Files: CapstoneAssistantThread.tsx, ThreadWorkAdapter.tsx, threadFeedback.ts,
