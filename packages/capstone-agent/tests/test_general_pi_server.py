@@ -232,6 +232,9 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     assert 'For an inventory request' in gateway_context
     assert 'leading index prefix the tool reports' in gateway_context
     assert 'Compose published data_gateway_ tools' in gateway_context
+    assert 'Structured table queries are also a fallback' in gateway_context
+    assert 'One unavailable tool does not make other business tools unavailable' in gateway_context
+    assert 'validate one bounded call and its business status' in gateway_context
     assert 'native SQL as advanced exploration' in gateway_context
     assert 'suspected tool defect' in gateway_context
     assert 'actual observation reference' in gateway_context

@@ -18,7 +18,14 @@ export function gatewayToolGroup(publication){
 export function gatewayToolAccess(publication){
   return advancedToolsets.has(gatewayToolGroup(publication))?'advanced_exploration':'published_operation';
 }
-export const gatewayToolUseGuidance='Use published business operations and their legal combinations first. Advanced exploration may cover an operation they do not express, or bypass a suspected tool defect that prevents a reliable result. Record that defect with the tool, observation reference and explanation; do not blindly repeat it. Normal missing data, invalid arguments, pagination or response limits alone are not defects: follow the contract. A contradictory contract or unusable documented path may be reported as a defect. Declarations are agent reports, not verified diagnoses or new permissions. Do not add a separate reasoning or approval call.';
+export const gatewayToolUseGuidance=[
+  'Choose tools by the required business operation and published semantics, not by familiarity with a generic query schema. Use applicable business tools and legal combinations first; reuse known contracts without repeating discovery.',
+  'Structured table queries and native SQL are fallback paths when business tools cannot express the necessary operation or an observed suspected tool defect blocks it. Explain the uncovered operation or retain the failing tool and actual observation reference; do not invent a diagnosis.',
+  'One unavailable tool does not make other business tools unavailable. Inspect the stated scope and relevant alternatives; a dataset-search failure does not establish that object, series, statistics or weather access is unavailable. Do not probe every tool or force a fixed discovery sequence.',
+  'Read exact input contracts and returned guidance. Correct invalid arguments before retrying. After a timeout, change the access path or selection using published evidence; merely changing a limit or fanning out equivalent queries is not progress. If no justified correction is available, keep the gap and continue other useful work.',
+  'Before batching a new query shape, validate one bounded call and its business status. Batch only independent calls with validated arguments; stop that batch on a shared contract error rather than repeat it for every object. Missing data, pagination and limits alone are not defects.',
+  'Declarations are agent reports, not verified diagnoses or new permissions. Make these choices in the current reasoning loop, without a separate approval or review model call.',
+].join(' ');
 export const advancedExplorationSchema={type:'object',properties:{reason:{type:'string',enum:['capability_gap','tool_defect']},
   detail:{type:'string',minLength:1,maxLength:1000},tool_issue:{type:'object',properties:{tool:{type:'string',minLength:1,maxLength:256},observation_ref:{type:'string',minLength:1,maxLength:512}},required:['tool','observation_ref'],additionalProperties:false}},
   required:['reason','detail'],additionalProperties:false,description:'Explain the uncovered operation, or report the suspected tool defect and an actual observation reference. No separate approval or model call is needed.'};

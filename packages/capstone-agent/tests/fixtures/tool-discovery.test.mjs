@@ -47,6 +47,21 @@ test('group discovery keeps business operations ahead of advanced exploration wi
  assert.equal(accepted.activation,'next_turn');assert.equal(accepted.advanced_exploration.detail,'An unpublished relation is required.');
 });
 
+test('selection guidance reaches both discovery and direct activation without banning generic tools',async()=>{
+ const publications={renamed_operation:{description:'Compute a business statistic',inputSchema:{type:'object'}},
+  renamed_table_reader:{description:'Query a discovered table',inputSchema:{type:'object'}}};
+ const tools=Object.entries(publications).map(([name,p])=>({name,parameters:p.inputSchema,execute:async()=>({content:[]})}));
+ const c=createToolDiscovery({tools,publications,admittedNames:Object.keys(publications)});
+ const search=JSON.parse((await c.tools[0].execute('find',{query:''})).content[0].text);
+ const load=JSON.parse((await c.tools[1].execute('load',{names:['renamed_table_reader']})).content[0].text);
+ assert.equal(load.selection_guidance,search.selection_guidance);
+ assert.match(load.selection_guidance,/Structured table queries/);
+ assert.match(load.selection_guidance,/One unavailable tool/);
+ assert.match(load.selection_guidance,/validate one bounded call/);
+ assert.equal(load.activation,'next_turn');
+ assert.deepEqual(c.admittedTools.map(tool=>tool.name).sort(),Object.keys(publications).sort());
+});
+
 test('activation is atomic and takes effect only at the next loop boundary',async()=>{
   const {controller:c,calls}=fixture();
   const hooks=new Map();let active=c.initialToolNames(['read','source_0','source_19']);
