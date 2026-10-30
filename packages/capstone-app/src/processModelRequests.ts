@@ -10,6 +10,7 @@ export function projectProcessModelRequests(events: readonly EventEnvelope[], at
   let pending: ProcessModelCall | undefined
   let turn: ProcessModelCall | undefined
   let openingText=''
+  let retryOwner:ProcessModelCall|undefined
   const thinkingEvents=new Set<string>()
   const native = events.some(event=>event.attemptId===attemptId&&event.visibility==='public'&&['turn_route_selected','turn_plan_created'].includes(event.eventType)&&event.payload.source==='native_conversation')
   for (const event of events) {
@@ -36,6 +37,8 @@ export function projectProcessModelRequests(events: readonly EventEnvelope[], at
         if(['attempt_cancelled','attempt_interrupted'].includes(event.eventType))pending.stopReason = 'aborted'
         pending.settled = true
       }
+      if(retryOwner?.retry)retryOwner.retry.finished=true
+      retryOwner=undefined
       pending = undefined
       turn = undefined
       continue
@@ -47,6 +50,20 @@ export function projectProcessModelRequests(events: readonly EventEnvelope[], at
     if (event.eventType !== 'runtime_action') continue
     const step=event.payload.task_step
     if (step && typeof step === 'object' && 'id' in step && typeof step.id === 'string' && isExecutionLifecycleStep(step.id)) continue
+    if(event.payload.phase==='retry_started'){
+      const attempt=event.payload.retry_attempt,maximum=event.payload.retry_maximum,delay=event.payload.retry_delay_ms
+      if(typeof attempt==='number'&&Number.isInteger(attempt)&&attempt>=1&&attempt<=16&&typeof maximum==='number'&&Number.isInteger(maximum)&&maximum>=attempt&&maximum<=16&&typeof delay==='number'&&Number.isFinite(delay)&&delay>=0&&delay<=3600000){
+        if(retryOwner?.retry){retryOwner.retry.success=false;retryOwner.retry.finished=true}
+        retryOwner=calls.at(-1)
+        if(retryOwner)retryOwner.retry={attempt,maximum,delayMs:delay}
+      }
+      continue
+    }
+    if(event.payload.phase==='retry_completed'){
+      if(retryOwner?.retry&&retryOwner.retry.attempt===event.payload.retry_attempt&&typeof event.payload.retry_success==='boolean'){retryOwner.retry.success=event.payload.retry_success;retryOwner.retry.finished=true}
+      retryOwner=undefined
+      continue
+    }
     if (event.payload.phase === 'started') {
       if(pending)pending.settled=true
       pending = { id: event.eventId, number: calls.length + 1, ms: 0, startedAt: event.occurredAt }

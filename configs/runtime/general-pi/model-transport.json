@@ -1,0 +1,7 @@
+{
+  "schema": "capstone-model-transport/1",
+  "connect_seconds": 15,
+  "read_idle_seconds": 90,
+  "write_seconds": 30,
+  "pool_seconds": 15
+}

@@ -557,3 +557,14 @@ def test_rpc_sanitizes_capture_fatal_stderr(tmp_path: Path) -> None:
         client.stop()
         trace.close()
     assert "topsecret" not in str(captured.value)
+
+
+def test_retry_runtime_projection_is_bounded_and_drops_raw_errors():
+    from capability_agent.runtime.step_events import project_runtime_action
+    event={'type':'auto_retry_start','attempt':1,'maxAttempts':2,'delayMs':1000,'errorMessage':'PRIVATE'}
+    value=project_runtime_action(event)
+    assert value=={'type':'runtime_action','phase':'retry_started','retry_attempt':1,'retry_maximum':2,'retry_delay_ms':1000}
+    assert 'PRIVATE' not in str(value)
+    assert project_runtime_action({**event,'delayMs':float('nan')}) is None
+    assert project_runtime_action({**event,'attempt':True}) is None
+    assert project_runtime_action({'type':'auto_retry_end','attempt':1,'success':False,'finalError':'PRIVATE'})=={'type':'runtime_action','phase':'retry_completed','retry_attempt':1,'retry_success':False}

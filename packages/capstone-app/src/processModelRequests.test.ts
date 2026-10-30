@@ -79,3 +79,20 @@ it('does not bind a tool to the old turn after an unmatched response boundary',(
   const [call]=projectProcessModelRequests([native,boundary(1,'started'),boundary(2,'response_completed','tools'),boundary(4,'response_completed','tools'),tool],'attempt')
   expect(call.toolCallIds).toEqual([])
 })
+it('binds explicit retry lifecycle to the failed request without inferring replay',()=>{
+ const error=boundary(2,'response_completed','error')
+ const start={...boundary(3,'retry_started'),payload:{phase:'retry_started',retry_attempt:1,retry_maximum:2,retry_delay_ms:1000}}
+ const finish={...boundary(6,'retry_completed'),payload:{phase:'retry_completed',retry_attempt:1,retry_success:true}}
+ const calls=projectProcessModelRequests([boundary(1,'started'),error,start,boundary(4,'started'),boundary(5,'response_completed','text'),finish],'attempt')
+ expect(calls[0].retry).toEqual({attempt:1,maximum:2,delayMs:1000,success:true,finished:true})
+ expect(calls[1].retry).toBeUndefined()
+ expect(calls).toHaveLength(2)
+})
+
+it.each([true,false])('settles both retry rows when a second retry finishes (%s)',success=>{
+ const retry=(seq:number,attempt:number)=>({...boundary(seq,'retry_started'),payload:{phase:'retry_started',retry_attempt:attempt,retry_maximum:2,retry_delay_ms:1000}})
+ const end={...boundary(8,'retry_completed'),payload:{phase:'retry_completed',retry_attempt:2,retry_success:success}}
+ const calls=projectProcessModelRequests([boundary(1,'started'),boundary(2,'response_completed','error'),retry(3,1),boundary(4,'started'),boundary(5,'response_completed','error'),retry(6,2),boundary(7,'started'),end],'attempt')
+ expect(calls[0].retry).toMatchObject({attempt:1,success:false,finished:true})
+ expect(calls[1].retry).toMatchObject({attempt:2,success,finished:true})
+})
