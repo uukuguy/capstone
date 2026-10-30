@@ -1,6 +1,8 @@
 // The host supplies this task-bound relay and catalog. Upstream credentials
 // and endpoint selectors are never tool parameters or native task inputs.
 import {boundToolResult} from './tool-result-context.mjs';
+import {createHash} from 'node:crypto';
+import {gatewayUseLedger} from './gateway-tool-use.mjs';
 const publicErrors=new Set(['gateway_arguments_invalid','gateway_request_invalid',
   'gateway_tool_not_admitted','gateway_task_not_admitted','gateway_call_already_started',
   'gateway_publication_changed','gateway_authentication_failed','gateway_connection_failed',
@@ -50,6 +52,9 @@ export function createDataGatewayTools(config,{fetchImpl=globalThis.fetch,cwd=co
           receipt.task_id!==gateway.taskId||receipt.tool_call_id!==callId||receipt.tool!==name||
           receipt.catalog_revision!==gateway.catalog.revision||
           receipt.tool_schema_sha256!==gateway.catalog.tool_hashes[name])throw new Error('gateway receipt identity changed');
+      const ledger=gatewayUseLedger(config);
+      ledger.record(name,callId);
+      if(typeof config.researchTaskId==='string')ledger.record(name,'native-observation:'+config.researchTaskId+':'+createHash('sha256').update(callId).digest('hex'));
       return boundToolResult({content:[{type:'text',text:value.result_json}],details:receipt,isError:value.is_error===true},
         {cwd,toolName:name,callId});
     }

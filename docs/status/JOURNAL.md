@@ -6438,3 +6438,19 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 2026-10-30: actual-dev bb2cd895 canonical rebuild ready, all backend roles imagec6913a6e; scoped cleanup receipt191753-98818. No cloud release.
 
 2026-10-30: repaired lightweight full task thr_b7a062c5dc877f90e181 / attempt_6884567e3b86dd63 completed503.127s,68model responses178tool starts,115correlated gateway requests. Model376.355s/tool union102.485s/other24.288s. PPT16slides7images downloaded SHA verified. Diagnostic report records script errors, false live trace gaps and gateway SQL/cache hotspots; not a new performance or quality acceptance.
+
+2026-10-30: 2d0acbd0 records full-run timings and gateway hotspots to separate measured chain defects from speculative causes.
+
+## 2026-10-30
+
+- 19:47 Full-run diagnosis separates measured chain defects and gateway hotspots [2d0acbd0].
+
+- 20:13 Clarify observation pointers and inactive tools; retain per-call usage/retry metrics for LLM optimization [4fb40ba1].
+
+- 21:10 Prefer published gateway operations; retain witnessed defect fallback and visible warnings without extra LLM review [fe93eff4].
+
+- 21:34 Normalize parent graph failure summaries after App build exposed an object/string mismatch [4b5f6f8a].
+
+- Decouple execution events from bounded state synchronization; release hidden tab subscriptions to prevent silent display stalls [235062ef].
+
+- Guide business composition before generic queries; document provider-owned semantics and joint validation without fixed tool routes [030f3602].

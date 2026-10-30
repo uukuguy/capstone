@@ -31,6 +31,38 @@ function transport(extra: Partial<ThreadTransport> = {}): ThreadTransport {
       next_event_seq: after, has_more: false, events: [] }), sendCommand: vi.fn(), ...extra }
 }
 
+it('keeps consuming execution events while an authority snapshot read is pending',async()=>{
+  let reads=0
+  const rows=[event(1),{...event(2),event_type:'runtime_action',payload:{phase:'started'}}]
+  const store=new ThreadProjectionStore(new CapstoneThreadClient(transport({
+    getSnapshot:async()=>++reads===1?{...workSnapshot(),works:[work()]}:new Promise(()=>{}),
+    streamEvents:async function*(){for(const row of rows)yield parseEventEnvelope(row)},
+  })),undefined,{protocolVersion:'2'})
+  await store.load('thr_work')
+  void store.consumeEvents()
+  await vi.waitFor(()=>expect(store.state.eventSeq).toBe(2),{timeout:100})
+  expect(store.publicEvents.some(row=>row.eventType==='runtime_action')).toBe(true)
+})
+
+it('bounds snapshot synchronization including a pending event catch-up',async()=>{
+  const deadline=new AbortController()
+  const timeout=vi.spyOn(AbortSignal,'timeout').mockReturnValue(deadline.signal)
+  let reads=0,catchUpSignal:AbortSignal|null|undefined
+  const store=new ThreadProjectionStore(new CapstoneThreadClient(transport({
+    getSnapshot:async()=>({...workSnapshot(),last_event_seq:++reads===1?0:1,works:[work()]}),
+    readEvents:async(_id,_after,signal)=>{catchUpSignal=signal;return new Promise((_,reject)=>signal?.addEventListener('abort',()=>reject(signal.reason),{once:true}))},
+  })),undefined,{protocolVersion:'2'})
+  try{
+    await store.load('thr_work')
+    const refresh=store.refreshWorkSnapshot()
+    const rejected=expect(refresh).rejects.toThrow('status deadline')
+    await vi.waitFor(()=>expect(catchUpSignal).toBe(deadline.signal))
+    deadline.abort(new Error('status deadline'))
+    await rejected
+    expect(timeout).toHaveBeenCalled()
+  }finally{timeout.mockRestore()}
+})
+
 it('uses the same event store for v2 snapshots, stream deduplication and live Work status', async () => {
   const stream = event(1)
   let live = false

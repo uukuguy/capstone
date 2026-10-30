@@ -7,6 +7,7 @@ import {prepareDeliveryReview,reviewChildPrompt} from './delivery-review.mjs';
 import {createManagedSubagents} from './managed-subagents.mjs';
 import {createDataGatewayTools} from './general-data-gateway.mjs';
 import {createToolDiscovery,discoveryToolNames} from './general-tool-discovery.mjs';
+import {gatewayUseLedger} from './gateway-tool-use.mjs';
 import {createTaskNodeReturn} from './task-node-return.mjs';
 import {restoreToolResult,configureObservationHistory} from './tool-result-context.mjs';
 import {createToolCompositionTool,compositionPolicy} from './tool-composition.mjs';
@@ -389,7 +390,7 @@ export function createGatewayToolDiscovery(config) {
   if(!Array.isArray(admittedNames)||discoveryToolNames.some(name=>!admittedNames.includes(name)))
     throw new Error('Application did not authorize task tool discovery');
   return createToolDiscovery({tools:createDataGatewayTools(config),publications:config.dataGateway.catalog.tools,
-    contractHashes:config.dataGateway.catalog.tool_hashes,admittedNames,cwd:config.toolResultCwd});
+    contractHashes:config.dataGateway.catalog.tool_hashes,admittedNames,cwd:config.toolResultCwd,useLedger:gatewayUseLedger(config)});
 }
 
 export function applicationToolOptions(config, nativeTools, research=()=>undefined, discovery=createGatewayToolDiscovery(config), graphBinding) {
@@ -435,7 +436,7 @@ export function applicationToolOptions(config, nativeTools, research=()=>undefin
     if(graphBinding)nested=graphChildTools(config,nested,graphBinding);
     const selected=new Map(nested.map(tool=>[tool.name,tool]));
     customTools.push(wrap(createToolCompositionTool({policy:compositionPolicy,
-      cwd:config.toolResultCwd??process.cwd(),catalog:config.dataGateway.catalog,
+      cwd:config.toolResultCwd??process.cwd(),catalog:config.dataGateway.catalog,useLedger:gatewayUseLedger(config),
       scope:{task_id:config.researchTaskId,attempt_id:config.researchAttemptId},deadlineAt:config.deadlineAt,
       allowedInputs:(graphBinding?graphSelectedSources(config,graphBinding.action):config.deliveryReviewSources??[]).map(s=>s.path),restore:restoreToolResult,
       async invoke(name,args,{callId,signal}){

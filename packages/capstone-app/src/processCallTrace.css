@@ -64,3 +64,9 @@
 .capstone-call-pool li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 3px 0; }
 .capstone-call-pool li > span:first-child { overflow-wrap: anywhere; }
 .capstone-call-pool li > :not(:first-child) { color: var(--trace-muted, #64748b); white-space: nowrap; }
+.capstone-call-tool-entry { min-width: 0; max-width: 100%; }
+.capstone-call-notice { display: flex; align-items: baseline; gap: 5px; margin: 2px 0 5px 17px; padding: 3px 7px; border-left: 2px solid; border-radius: 0 3px 3px 0; max-width: 80ch; font-size: inherit; line-height: 1.45; }
+.capstone-call-notice svg { flex: none; width: 12px; height: 12px; align-self: flex-start; margin-top: 2px; }
+.capstone-call-notice span { overflow-wrap: anywhere; }
+.capstone-call-notice.is-error { color: #873b2d; background: #fff3ef; border-color: #bf614b; }
+.capstone-call-notice.is-warning { color: #795514; background: #fff8e8; border-color: #bc8c35; }

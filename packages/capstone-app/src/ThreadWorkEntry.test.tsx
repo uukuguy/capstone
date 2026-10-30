@@ -3,6 +3,29 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import ThreadLiveEntry from './ThreadLiveEntry'
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); sessionStorage.clear(); window.history.replaceState({}, '', '/') })
+it('releases the Work event subscription in a hidden browser tab and catches up on return',async()=>{
+  const snapshot={schema:'capstone-thread-snapshot/2',thread_id:'thr_a',run:{run_id:'run_a',state:'open'},active_model_context:null,active_grid_page_id:null,current_attempt:null,last_event_seq:0,base_event_seq:0,minimum_protocol_version:2,selected_model_context_id:null,task_context:null,works:[]}
+  const streams:AbortSignal[]=[]
+  const response=(body:unknown)=>new Response(JSON.stringify(body),{headers:{'Capstone-Thread-Version':'2'}})
+  vi.spyOn(document,'visibilityState','get').mockReturnValue('visible')
+  const fetcher=vi.fn(async(url:string|URL,init?:RequestInit)=>{
+    if(String(url).endsWith('/thread-access'))return response({schema:'capstone-thread-access/1',mode:'open'})
+    if(String(url).includes('/threads?'))return response({schema:'capstone-thread-list/1',threads:[],has_more:false,next_before_thread_id:null})
+    if(String(url).includes('/events/stream')){streams.push(init!.signal!);return new Response(new ReadableStream(),{headers:{'Capstone-Thread-Version':'2'}})}
+    return readFallback(url,snapshot)||response(snapshot)
+  })
+  vi.stubGlobal('fetch',fetcher)
+  render(<ThreadLiveEntry threadId="thr_a" mode="work"/>)
+  await waitFor(()=>expect(streams).toHaveLength(1))
+  vi.spyOn(document,'visibilityState','get').mockReturnValue('hidden')
+  fireEvent(document,new Event('visibilitychange'))
+  await waitFor(()=>expect(streams[0].aborted).toBe(true))
+  vi.spyOn(document,'visibilityState','get').mockReturnValue('visible')
+  fireEvent(document,new Event('visibilitychange'))
+  await waitFor(()=>expect(streams).toHaveLength(2))
+  expect(streams[1].aborted).toBe(false)
+  vi.restoreAllMocks()
+})
 it('returns to workspace selection when same-space navigation removes the thread parameter',async()=>{
   const snapshot={schema:'capstone-thread-snapshot/2',thread_id:'thr_a',run:{run_id:'run_a',state:'open'},active_model_context:null,active_grid_page_id:null,current_attempt:null,last_event_seq:0,base_event_seq:0,minimum_protocol_version:2,selected_model_context_id:null,task_context:null,works:[]}
   const response=(body:unknown)=>new Response(JSON.stringify(body),{headers:{'Capstone-Thread-Version':'2'}})

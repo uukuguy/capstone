@@ -81,6 +81,12 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
   const client=useMemo(()=>new CapstoneThreadClient(transport),[transport])
   const store = useMemo(() => preparedStore??new ThreadProjectionStore(client, commandStorageKey, { protocolVersion: '2' }), [client, commandStorageKey,preparedStore])
   const [projection, setProjection] = useState(store.state)
+  const [pageVisible,setPageVisible]=useState(()=>document.visibilityState!=='hidden')
+  useEffect(()=>{
+    const changed=()=>setPageVisible(document.visibilityState!=='hidden')
+    document.addEventListener('visibilitychange',changed)
+    return()=>document.removeEventListener('visibilitychange',changed)
+  },[])
   const snapshot = projection.workSnapshot
   const professional = snapshot
     ? snapshot.modelContext && projection.snapshot &&
@@ -245,6 +251,7 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
   }, [transport, currentId,listReload,snapshot?.sessionTitle?.revision])
   useEffect(() => {
     if (currentId === 'new') return
+    if(!pageVisible)return
     let live = true
     const controller = new AbortController()
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -258,7 +265,7 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
           if(!controller.signal.aborted)setNotice('部分历史正文暂未读取完成，刷新会话可重试。')
         })
         if(artifactBaseline.current===null)artifactBaseline.current=store.state.eventSeq
-        await store.catchUp()
+        await store.catchUp(false,controller.signal)
         if (!live) return
         setConnectionError(undefined)
         setConnectionRecovering(false)
@@ -272,7 +279,7 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
     }
     void connect()
     return () => { live = false; controller.abort(); if (timer) clearTimeout(timer); unsubscribe(); store.dispose() }
-  }, [store, currentId, reload])
+  }, [store, currentId, reload,pageVisible])
   function selectWork(target: string) {
     if (pending || writing.current) return
     persist(target); setSelected(target); setInitialText(drafts.current[target] || '')
@@ -569,7 +576,7 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
       onOpenHistoricalModel={(modelId,revision)=>void changeModel('open_model',{model_id:modelId,model_revision:revision})}/>
   </>:null
   return <ThreadWorkspace sessionKey={currentId} conversationOnly subtitle="企业任务工作台"
-    headerActions={<SessionConnectionStatus state={projection.connection} error={connectionError} recovering={connectionRecovering} pending={!!pending}/>}
+    headerActions={<SessionConnectionStatus state={projection.connection} error={connectionError||projection.synchronizationError} recovering={connectionRecovering} pending={!!pending}/>}
     navigationFooter={<WorkspaceGatewayStatus transport={transport}/>}
     resourcePanel={nativeChat?(client.supportsProductIndex?productsPanel:client.supportsProcessProducts?processPanel:undefined):undefined}
     resourceViews={nativeChat?client.supportsProductIndex?[...(formalModelPanel?[{id:'model',label:'电气拓扑',content:formalModelPanel,description:'注册计算模型的母线与支路；来源和修订保持实际绑定。'}]:[]),{id:'products',label:'Artifacts',content:productsPanel,description:'任务交付与指令产物，保留真实来源和版本。'},...(resourceView==='source-topology'?[{id:'source-topology',label:'电网图',content:resourceView==='source-topology'&&productsOpen?(requestedSourceView?.schema==='capstone-grid-source-view-request/1'?<><button onClick={browseElectricalModels}>浏览电网模型目录</button><GridSourceWorkspace key={requestedSourceView.scope_id} transport={transport} onQuestion={prepareSourceQuestion} requestedView={requestedSourceView} requestNonce={instructionView.requestNonce} onManualNavigate={markManualView}/></>:<ElectricalModelWorkspace storageKey={`${namespace}.${currentId}.electrical-view`} transport={transport} requestedView={requestedSourceView} requestNonce={instructionView.requestNonce} onManualNavigate={markManualView}/>):null,description:'源拓扑、显示分组与来源质量。'}]:[]),...(selectedDeliveryFile?[{id:'deliveries',label:'采用为任务交付',content:<TaskDeliveriesWorkspace client={client} threadId={currentId} revision={terminalRevision} requestedArtifact={selectedDeliveryFile} onPublished={()=>{setResourceView('products');window.dispatchEvent(new Event('capstone-session-renamed'))}}/>}]:[])]:[{id:'process-products',label:'过程制品',content:processPanel,description:'指令执行结果与未完成记录，保留原始归属。'},

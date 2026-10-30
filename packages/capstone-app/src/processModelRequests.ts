@@ -71,6 +71,14 @@ export function projectProcessModelRequests(events: readonly EventEnvelope[], at
       turn=pending
       openingText=''
     } else if (event.payload.phase === 'response_completed' && pending) {
+      const usage=event.payload.usage
+      if(usage&&typeof usage==='object'&&!Array.isArray(usage)){
+        const values=usage as Record<string,unknown>
+        const counts=Object.fromEntries(['input','output','cacheRead','cacheWrite','totalTokens']
+          .filter(key=>typeof values[key]==='number'&&Number.isSafeInteger(values[key])&&Number(values[key])>=0&&Number(values[key])<=100_000_000)
+          .map(key=>[key,values[key]]))
+        if(Object.keys(counts).length)pending.usage=counts
+      }
       // The host explicitly distinguishes text-only responses from tool requests.
       if(event.payload.response_kind==='text')pending.toolCallIds=[]
       if(native&&event.payload.response_kind==='tools'){

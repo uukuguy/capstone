@@ -9,14 +9,14 @@ import RequestPoolQueue,{RequestPoolExecutions} from './RequestPoolQueue'
 
 export type ProcessModelCall = { retry?:{attempt:number;maximum?:number;delayMs?:number;success?:boolean;finished?:boolean}; id: string; number: number; ms: number; requestPool?:readonly ProcessModelRequest[];requestPoolOnly?:boolean;poolCalls?:readonly ProcessLlmPoolCall[]; label?: string; intent?: string; thinking?: string; thinkingStartedAt?: string; thinkingEndedAt?: string; thinkingSettled?: boolean; sequenceId?: string; settled?: boolean; startedAt?: string; finishedAt?: string; toolAssociation?: 'turn'; toolCallIds?: readonly string[]; stopReason?: string; errorCode?: string; errorStatus?: number; usage?: Record<string, unknown>; responseText?: string; toolRequests?: readonly { id: string; name: string; operation?: string }[] }
 const modelErrors:Record<string,string>={model_context_limit:'上下文超限',model_rate_limit:'请求限流',model_authentication:'模型认证失败',model_transport:'模型连接异常',model_output_invalid:'模型输出格式异常',model_output_rejected:'模型输出被拒绝',model_turn_incomplete:'原因未记录'}
-export type ProcessToolCall = { id: string; name: string; status: 'running' | 'completed' | 'failed' | 'cancelled'; startedAt?: string; finishedAt?: string; durationMs?: number; executionMs?: number; operation?: string; origin?: 'model' | 'parent' | 'system' | 'unknown' }
+export type ProcessToolCall = { id: string; name: string; status: 'running' | 'completed' | 'failed' | 'cancelled'; startedAt?: string; finishedAt?: string; durationMs?: number; executionMs?: number; operation?: string; warning?: string; failure?: string; origin?: 'model' | 'parent' | 'system' | 'unknown' }
 export type ProcessTraceFocus = { modelId: string; revision: number }
 export function callTraceIssues(models: readonly ProcessModelCall[], tools: readonly ProcessToolCall[], active = true) {
   return models.flatMap(model => {
-    if (active && !model.settled && !models.some(next => next.sequenceId === model.sequenceId && next.number > model.number)) return []
+    if (active && !models.some(next => next.sequenceId === model.sequenceId && next.number > model.number)) return []
     const missingToolIds = [...new Set(model.toolCallIds ?? [])].filter(id => {
       const tool = tools.find(item => item.id === id)
-      return !tool || tool.status === 'running'
+      return !tool || (!active && tool.status === 'running')
     })
     return missingToolIds.length ? [{ modelId: model.id, number: model.number, missingToolIds }] : []
   })
@@ -119,7 +119,7 @@ export default function ProcessCallTrace({ models, tools, now, active = true, co
       <ul>{children.map(call=><li key={call.id}><span title={call.title}>{call.title}</span><span>{labels[call.status]}</span><small>响应 {call.responseMs===undefined?'—':time(call.responseMs)}</small></li>)}</ul>
     </section>
   }
-  const renderTool = (tool: ProcessToolCall, independent = false) => <details key={tool.id} className="capstone-call-tool" open={expandedTools||Boolean(active&&dispatches.some(request=>request.parentToolCallId===tool.id&&['running','cancelling'].includes(request.status)))||Boolean(compact&&active&&latestModelId&&owners.get(tool.id)?.length===1&&owners.get(tool.id)?.[0]===latestModelId)}>
+  const renderTool = (tool: ProcessToolCall, independent = false) => <div key={tool.id} className="capstone-call-tool-entry"><details className="capstone-call-tool" open={expandedTools||Boolean(active&&dispatches.some(request=>request.parentToolCallId===tool.id&&['running','cancelling'].includes(request.status)))||Boolean(compact&&active&&latestModelId&&owners.get(tool.id)?.length===1&&owners.get(tool.id)?.[0]===latestModelId)}>
     <summary><ChevronRight aria-hidden="true" /><strong title={tool.name}>{tool.name}</strong>
       {independent && <small>{tool.origin === 'system' ? '系统动作' : tool.origin === 'parent' ? '主链调用' : '未关联'}</small>}
       <span className="capstone-call-duration" data-latency={latencyGrade(tool.executionMs??timed(tool).durationMs,'tool').level} title={`${tool.executionMs === undefined ? '调用记录区间' : '工具执行耗时'} · ${latencyGrade(tool.executionMs??timed(tool).durationMs,'tool').label}`}>{tool.executionMs === undefined && timed(tool).durationMs === undefined ? '耗时未记录' : toolTime(tool.executionMs ?? timed(tool).durationMs!)}</span>
@@ -134,6 +134,9 @@ export default function ProcessCallTrace({ models, tools, now, active = true, co
       {renderToolDetails?.(tool)}
     </div>
   </details>
+    {tool.status==='failed'&&<p className="capstone-call-notice is-error" role="status"><CircleX aria-hidden="true"/><span>{tool.failure||'工具执行失败，展开查看返回详情'}</span></p>}
+    {tool.warning&&<p className="capstone-call-notice is-warning" role="status"><AlertTriangle aria-hidden="true"/><span>{tool.warning}</span></p>}
+  </div>
   const timestamp = (value?: string) => { const parsed = Date.parse(value ?? ''); return Number.isFinite(parsed) ? parsed : Infinity }
   const entries = [
     ...models.filter(model=>{

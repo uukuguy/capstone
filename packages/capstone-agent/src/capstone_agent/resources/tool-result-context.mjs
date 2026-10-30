@@ -73,19 +73,21 @@ export async function boundToolResult(result,{cwd=process.cwd(),toolName,callId,
   }
   const structured=value?.structuredContent;
   const source=structured&&typeof structured==='object'&&Object.keys(structured).length?structured:value;
+  const basePointer=extension==='json'?(source===value?'':'/structuredContent'):null;
   const fullResult={path,sha256:digest(body),size_bytes:Buffer.byteLength(body),tool:toolName,call_id:callId};
   issuedObservationRefs.add(referenceKey(fullResult));
   const envelope={preview_truncated:true,
     full_result:fullResult,
-    structure:structureIndex(source),
-    instruction:'This is an incomplete preview. The exact original result is saved in the task directory. Read bounded sections or analyze the file with code; do not repeat the query to recover omitted rows. For independent analyses and deliverables, organize tasks when needed. This file is a source observation, not Authority evidence.'};
+    preview_pointer:basePointer,
+    structure:{...structureIndex(source),base_pointer:basePointer},
+    instruction:'Saved file retains original wrapper and bytes. preview_pointer selects its value; structure pointers are relative to structure.base_pointer (empty=JSON root, null=plain text). Use actual pointers, not guessed fields. Reuse this file for omitted rows. Source observation, not Authority evidence.'};
   let content;
   for(const [depth,items,chars] of [[6,12,400],[5,6,240],[4,3,160],[2,2,80],[0,8,80]]){
     content=[{type:'text',text:JSON.stringify({...envelope,preview:preview(source,depth,items,chars)})}];
     if(JSON.stringify(content).length<=maxChars)break;
   }
   if(JSON.stringify(content).length>maxChars){
-    const small=JSON.parse(content[0].text);small.structure={type:small.structure.type,partial:true};
+    const small=JSON.parse(content[0].text);small.structure={type:small.structure.type,base_pointer:basePointer,partial:true};
     content=[{type:'text',text:JSON.stringify(small)}];
   }
   if(JSON.stringify(content).length>maxChars)throw new Error('Tool result reference exceeds context budget');

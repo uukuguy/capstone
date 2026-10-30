@@ -21,7 +21,7 @@ export type GraphResult = {
   method: Record<string, string>; supersedes: string[]; recompute_reason: { kind: string; refs: string[]; diagnostic?: string } | null;
 }
 export type ExecutionGraphSnapshot = { schema: string; graph_ref: string; graph_revision: number; goal: string; output_mode: string; model_revision_reason: string | null; nodes: GraphNode[]; actions: GraphAction[]; results: GraphResult[] }
-export type GraphTool = { id: string; name: string; status: 'running' | 'completed' | 'failed'; startedAt?: string; finishedAt?: string; durationMs?: number; executionMs?: number; operation?: string; output?: string; actionId?: string; actionKind?: string; origin?: 'parent'; returnLimitations?: {count:number;notes:string[]} }
+export type GraphTool = { id: string; name: string; status: 'running' | 'completed' | 'failed'; startedAt?: string; finishedAt?: string; durationMs?: number; executionMs?: number; operation?: string; output?: string; warning?: string; failure?: string; actionId?: string; actionKind?: string; origin?: 'parent'; returnLimitations?: {count:number;notes:string[]} }
 export type GraphResponse = { number: number; ms: number; usage?: RecordValue; startedAt?: string; finishedAt?: string; toolCallIds?: string[]; stopReason?: string; responseText?: string; toolRequests?: { id: string; name: string; operation?: string }[] }
 export type GraphExecution = { action: GraphAction; node: GraphNode; tools: GraphTool[]; responses: GraphResponse[]; nativeStatus?: string; resultSummary?: string; startedAt?: string; finishedAt?: string; durationMs?: number; executionStartedAt?: string; executionFinishedAt?: string; executionIntervalMs?: number; modelResponseCount?: number; turnCount?: number }
 export type GraphParentResponse = { id: string; startedAt: string; finishedAt: string; ms: number; kind: string; errorCode?:string; errorStatus?:number }
@@ -206,6 +206,8 @@ export function projectExecutionGraph(events: readonly EventEnvelope[], attemptI
     t.status = error === true || t.status === 'failed' ? 'failed' : t.finishedAt ? 'completed' : 'running'
     t.durationMs = elapsed(t.startedAt, t.finishedAt)
     if (object(detail)) { if (typeof detail.operation === 'string') t.operation = detail.operation; if (typeof detail.output_excerpt === 'string') t.output = detail.output_excerpt }
+    if (object(detail)&&typeof detail.warning==='string')t.warning=detail.warning.slice(0,241)
+    if(error===true&&t.output)t.failure=t.output
   }
   for (const event of eligible) {
     if (event.threadId !== output.owner.thread_id) continue

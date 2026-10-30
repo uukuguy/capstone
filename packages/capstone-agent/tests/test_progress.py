@@ -3,6 +3,24 @@ from __future__ import annotations
 import pytest
 
 
+def test_advanced_exploration_notice_is_visible_and_sanitized_without_replacing_original_result():
+    from capstone_agent.progress import project_native_tool_activity
+    result = {'content': [{'type': 'text', 'text': '{"result":"unchanged"}'}],
+              'details': {'execution_notice': {'code': 'suspected_tool_defect',
+                          'summary': 'Valid request failed; secret=hidden-value'}}}
+    activity = project_native_tool_activity({'result': result})
+    assert '疑似工具缺陷' in activity['warning']
+    assert 'hidden-value' not in activity['warning']
+    assert result['content'][0]['text'] == '{"result":"unchanged"}'
+
+
+def test_exploration_selection_notice_is_kept_before_a_tool_can_be_cancelled():
+    from capstone_agent.progress import project_native_tool_activity
+    activity = project_native_tool_activity({'args': {'advanced_exploration': {
+        'reason': 'tool_defect', 'detail': 'The documented request failed.'}}})
+    assert activity['warning'].startswith('申请高级数据探索：')
+
+
 @pytest.mark.parametrize('reason', [
     'TypeError: keys must be str, int, float, bool or None, not tuple\nCommand exited with code 1',
     'Requested operation could not read the selected file. Exit status: 2',

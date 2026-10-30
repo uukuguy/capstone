@@ -29,6 +29,39 @@ test('search pages contain only granted bounded published summaries',async()=>{
   assert.equal(last.tools.length,3);assert.ok(!last.tools.some(t=>t.name==='source_19'));
 });
 
+test('group discovery keeps business operations ahead of advanced exploration without hiding SQL',async()=>{
+ const publications={advanced_first:{description:'Data query',inputSchema:{type:'object'},_meta:{'data-gateway/toolset':'readonly_sql'}},
+  statistics_last:{description:'Data query',inputSchema:{type:'object'},_meta:{'data-gateway/toolset':'operation'}}};
+ const tools=Object.entries(publications).map(([name,p])=>({name,parameters:p.inputSchema,execute:async()=>({content:[]})}));
+ const c=createToolDiscovery({tools,publications,admittedNames:Object.keys(publications)});
+ const search=c.tools[0],load=c.tools[1];
+ const result=JSON.parse((await search.execute('all',{query:'Data'})).content[0].text);
+ assert.deepEqual(result.tools.map(t=>t.name),['statistics_last','advanced_first']);
+ assert.equal(result.tools[1].access,'advanced_exploration');
+ assert.deepEqual(result.toolsets.map(g=>g.id),['operation','readonly_sql']);
+ const group=JSON.parse((await search.execute('group',{query:'',toolset:'operation'})).content[0].text);
+ assert.deepEqual(group.tools.map(t=>t.name),['statistics_last']);
+ const rejected=await load.execute('no-gap',{names:['advanced_first']});
+ assert.equal(rejected.isError,true);assert.equal(JSON.parse(rejected.content[0].text).code,'advanced_exploration_requires_basis');
+ const accepted=JSON.parse((await load.execute('gap',{names:['advanced_first'],advanced_exploration:{reason:'capability_gap',detail:'An unpublished relation is required.'}})).content[0].text);
+ assert.equal(accepted.activation,'next_turn');assert.equal(accepted.advanced_exploration.detail,'An unpublished relation is required.');
+});
+
+test('selection guidance reaches both discovery and direct activation without banning generic tools',async()=>{
+ const publications={renamed_operation:{description:'Compute a business statistic',inputSchema:{type:'object'}},
+  renamed_table_reader:{description:'Query a discovered table',inputSchema:{type:'object'}}};
+ const tools=Object.entries(publications).map(([name,p])=>({name,parameters:p.inputSchema,execute:async()=>({content:[]})}));
+ const c=createToolDiscovery({tools,publications,admittedNames:Object.keys(publications)});
+ const search=JSON.parse((await c.tools[0].execute('find',{query:''})).content[0].text);
+ const load=JSON.parse((await c.tools[1].execute('load',{names:['renamed_table_reader']})).content[0].text);
+ assert.equal(load.selection_guidance,search.selection_guidance);
+ assert.match(load.selection_guidance,/Structured table queries/);
+ assert.match(load.selection_guidance,/One unavailable tool/);
+ assert.match(load.selection_guidance,/validate one bounded call/);
+ assert.equal(load.activation,'next_turn');
+ assert.deepEqual(c.admittedTools.map(tool=>tool.name).sort(),Object.keys(publications).sort());
+});
+
 test('activation is atomic and takes effect only at the next loop boundary',async()=>{
   const {controller:c,calls}=fixture();
   const hooks=new Map();let active=c.initialToolNames(['read','source_0','source_19']);
@@ -46,6 +79,23 @@ test('activation is atomic and takes effect only at the next loop boundary',asyn
   await assert.rejects(first.execute('old',{}),/not active/);
   hooks.get('session_shutdown')();
   await assert.rejects(load.execute('stopped',{names:['source_1']}),/closed/);
+});
+
+test('inactive tool errors explain replacement menus without changing receipts or grants',async()=>{
+  const {controller:c,calls}=fixture();const hooks=new Map();let active=c.initialToolNames(['read']);
+  c.configure({on:(name,fn)=>hooks.set(name,fn),getActiveTools:()=>active,setActiveTools:names=>{active=names;}});
+  await c.tools[1].execute('first',{names:['source_0']});hooks.get('turn_end')();
+  await c.tools[1].execute('replace',{names:['source_1']});hooks.get('turn_end')();
+  const message={role:'toolResult',toolName:'source_0',isError:true,content:[{type:'text',text:'Tool source_0 not found'}]};
+  const outsider={...message,toolName:'source_19',content:[{type:'text',text:'Tool source_19 not found'}]};
+  const before=JSON.stringify(message);
+  const result=hooks.get('context')({messages:[message,outsider]});
+  assert.equal(JSON.stringify(message),before);assert.equal(result.messages[1],outsider);
+  const recovery=JSON.parse(result.messages[0].content[1].text);
+  assert.equal(recovery.code,'tool_not_active');assert.deepEqual(recovery.active_tools,['source_1']);
+  assert.equal(recovery.recovery.tool,'agent_tool_load');assert.deepEqual(recovery.recovery.arguments,{names:['source_0']});
+  assert.equal(recovery.recovery.activation,'next_turn');assert.equal(calls(),0);
+  assert.equal(hooks.get('context')({messages:result.messages}),undefined);
 });
 
 test('selected complete contracts must fit explicit count and schema budgets',async()=>{
@@ -98,7 +148,7 @@ for(const mode of ['parent','managed-child'])test('actual pinned SDK '+mode+' lo
   const dir=await mkdtemp(join(mode==='parent'?tmpdir():new URL('../../../../.grid-agent/runtime/',import.meta.url).pathname,'tool-discovery-sdk-'));
   const previousAgentDir=process.env.PI_CODING_AGENT_DIR;
   process.env.PI_CODING_AGENT_DIR=dir;
-  const calls=[],menus=[],errors=[],observations=[];
+  const calls=[],menus=[],errors=[],observations=[],recoveries=[];
   const resultBody=JSON.stringify({structuredContent:{status:'partial',data:{unit:'MW',
     points:Array.from({length:5000},(_,i)=>({time:i,value:i+.5}))}}});
   const server=createServer(async(req,res)=>{
@@ -125,12 +175,16 @@ for(const mode of ['parent','managed-child'])test('actual pinned SDK '+mode+' lo
   const runtime={getModel:()=>model,hasConfiguredAuth:()=>true,getAuth:async()=>({auth:{apiKey:'offline-fixture'}}),isUsingOAuth:()=>false,
     streamSimple(_model,context){
       menus.push(context.tools.map(t=>({name:t.name,parameters:t.parameters})));
+      recoveries.push(...context.messages.filter(message=>message.role==='toolResult'&&
+        message.content?.some(part=>part.type==='text'&&part.text.includes('"code":"tool_not_active"'))));
       const batches=[
         [{name:'agent_tool_search',arguments:{query:'searchable',offset:0}}],
         [{name:'agent_tool_load',arguments:{names:['data_gateway_source_0']}},
           {name:'data_gateway_source_0',arguments:{query:'too early'}}],
         [{name:'data_gateway_source_0',arguments:{query:'current'}}],
-        [{name:'agent_tool_load',arguments:{names:['data_gateway_source_29']}}]];
+        [{name:'agent_tool_load',arguments:{names:['data_gateway_source_29']}}],
+        [{name:'agent_tool_load',arguments:{names:[]}}],
+        [{name:'data_gateway_source_0',arguments:{query:'old menu'}}]];
       const batch=batches[index++];
       const message={role:'assistant',content:batch?batch.map((call,i)=>({type:'toolCall',id:'call-'+index+'-'+i,...call})):
         [{type:'text',text:'Observed partial result.'}],api:model.api,provider:model.provider,model:model.id,timestamp:Date.now(),
@@ -156,6 +210,7 @@ for(const mode of ['parent','managed-child'])test('actual pinned SDK '+mode+' lo
       observations.push(host.rpcEvent(event));});
     await session.prompt('Read a published source.');
     assert.deepEqual(errors,[]);assert.equal(calls.length,1);assert.equal(calls[0].arguments.query,'current');
+    assert.ok(recoveries.length>0,'The real SDK model context must explain an inactive published tool');
     assert.deepEqual(menus[0].map(t=>t.name),['agent_tool_search','agent_tool_load']);
     assert.deepEqual(menus[1],menus[0]);
     assert.deepEqual(menus[2].find(t=>t.name==='data_gateway_source_0').parameters,publications.data_gateway_source_0.inputSchema);

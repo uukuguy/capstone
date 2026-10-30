@@ -238,6 +238,23 @@ def normalize_runtime_event(
     payload: dict[str, object]
     if event_type == "runtime_action":
         payload = {key: event[key] for key in ("phase", "response_kind") if isinstance(event.get(key), str)}
+        usage = event.get('usage')
+        if event.get('phase') == 'response_completed' and isinstance(usage, Mapping):
+            counts = {key: usage[key] for key in ('input', 'output', 'cacheRead', 'cacheWrite', 'totalTokens')
+                      if type(usage.get(key)) is int and 0 <= usage[key] <= 100_000_000}
+            if counts:
+                payload['usage'] = counts
+        retry_attempt = event.get('retry_attempt')
+        if type(retry_attempt) is int and 1 <= retry_attempt <= 16:
+            if event.get('phase') == 'retry_started':
+                maximum, delay = event.get('retry_maximum'), event.get('retry_delay_ms')
+                if (type(maximum) is int and retry_attempt <= maximum <= 16
+                    and isinstance(delay, (int, float)) and not isinstance(delay, bool) and 0 <= delay <= 3_600_000):
+                    payload.update(retry_attempt=retry_attempt, retry_maximum=maximum, retry_delay_ms=delay)
+            elif event.get('phase') == 'retry_completed':
+                payload['retry_attempt'] = retry_attempt
+                if type(event.get('retry_success')) is bool:
+                    payload['retry_success'] = event['retry_success']
         if event.get('error_code') in {'model_context_limit', 'model_rate_limit', 'model_authentication',
                                       'model_transport', 'model_output_invalid', 'model_output_rejected', 'model_turn_incomplete'}:
             payload['error_code'] = event['error_code']

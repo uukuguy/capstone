@@ -92,6 +92,7 @@ export type ChatActivity = {
   failure?: { code?: string; message?: string; summary?: string }
   operation?: string
   outputExcerpt?: string
+  warning?: string
 }
 
 const TOOL_LABELS: Record<string, string> = {
@@ -153,7 +154,9 @@ function nativeToolActivity(event:EventEnvelope) {
   const operation=typeof activity?.operation==='string'?activity.operation.slice(0,241):undefined
   const rawOutput=typeof activity?.output_excerpt==='string'?activity.output_excerpt:undefined
   const outputExcerpt=rawOutput&&/(?:api[_ -]?key|access[_ -]?token|refresh[_ -]?token|authorization|password|secret)["']?\s*[:=]/i.test(rawOutput)?'输出包含受保护配置或凭据信息，已隐藏。':rawOutput?.slice(0,601)
-  return {id:`native:${JSON.stringify([event.threadId,event.attemptId,task,call])}`,name,phase,failed,operation,outputExcerpt}
+  const rawWarning=typeof activity?.warning==='string'?activity.warning:undefined
+  const warning=rawWarning&&/(?:api[_ -]?key|access[_ -]?token|refresh[_ -]?token|authorization|password|secret)["']?\s*[:=]/i.test(rawWarning)?'警告包含受保护信息，已隐藏。':rawWarning?.slice(0,241)
+  return {id:`native:${JSON.stringify([event.threadId,event.attemptId,task,call])}`,name,phase,failed,operation,outputExcerpt,warning}
 }
 
 export function projectAssistantActivity(events: readonly EventEnvelope[]): ChatActivity[] {
@@ -168,7 +171,7 @@ export function projectAssistantActivity(events: readonly EventEnvelope[]): Chat
         taskStepId:typeof event.payload.task_step_id==='string'?event.payload.task_step_id:previous?.taskStepId,
         taskStepNumber:typeof event.payload.task_step_number==='number'?event.payload.task_step_number:previous?.taskStepNumber,
         stepToolNumber:typeof event.payload.step_tool_number==='number'?event.payload.step_tool_number:previous?.stepToolNumber,
-        operation:native.operation||previous?.operation,outputExcerpt:native.outputExcerpt||previous?.outputExcerpt,
+        operation:native.operation||previous?.operation,outputExcerpt:native.outputExcerpt||previous?.outputExcerpt,warning:native.warning||previous?.warning,
         ...(native.failed&&native.outputExcerpt?{failure:{summary:native.outputExcerpt}}:previous?.failure?{failure:previous.failure}:{}),
         status:native.failed||previous?.status==='failed'?'failed':finishedAt?'completed':native.phase,
         ...(startedAt?{startedAt}:{}),...(finishedAt?{finishedAt}:{}),
@@ -822,7 +825,7 @@ function AttemptActivity({ activities, modelRequests = [], initialThinking, nati
     {lifecycleSteps.map(step=><p className="capstone-task-goal" key={step.id}><span>{step.title}</span> · {step.status === 'running' ? running ? '进行中' : '结束状态未记录' : step.status === 'completed' ? '已结束' : step.status === 'cancelled' ? '已停止' : step.status === 'failed' ? '失败' : '受限'} · <span>{step.durationMs === undefined ? '耗时未记录' : formatDuration(step.durationMs)}</span></p>)}
   </details>
   const graphProcess = (expandedResearch = false) => executionGraph && <><ExecutionGraphProcess attemptStartedAt={startedAt} attemptDurationMs={durationMs} overallTools={toolActivities.map(activity=>({...activity,id:callId(activity),name:activity.source,
-    status:activity.status==='cancelled'?'failed':activity.status,origin:'parent' as const}))} traceFocus={traceFocus} graph={executionGraph} storageKey={expandedResearch ? `${stepStorageKey}:reader` : stepStorageKey} attemptPhase={phase} expandedResearch={expandedResearch} showFoldControls={expandedResearch} foldCommand={expandedResearch ? undefined : foldCommand} onFoldChange={expandedResearch ? undefined : reportFold} now={running ? now : undefined} />
+    failure:toolFailureReason(activity.failure)||activity.failure?.summary,status:activity.status==='cancelled'?'failed':activity.status,origin:'parent' as const}))} traceFocus={traceFocus} graph={executionGraph} storageKey={expandedResearch ? `${stepStorageKey}:reader` : stepStorageKey} attemptPhase={phase} expandedResearch={expandedResearch} showFoldControls={expandedResearch} foldCommand={expandedResearch ? undefined : foldCommand} onFoldChange={expandedResearch ? undefined : reportFold} now={running ? now : undefined} />
     {graphUnassignedTools.length > 0 && <details className="capstone-graph-control-tools"><summary>图控制与未归属工具 · {graphUnassignedTools.length} 次</summary>{graphUnassignedTools.map(activity => {
       const control = executionGraph.controlCalls.find(control => control.callId === callId(activity))
       return <div key={activity.id}>{control ? <p>图控制 · <code>{control.graphRef}</code> · 检查点 v{control.checkpoint.revision}</p> : <p>未记录确切图版本关联</p>}<ActivityItems activities={[activity]} /></div>
@@ -842,7 +845,7 @@ function AttemptActivity({ activities, modelRequests = [], initialThinking, nati
       </section>
       <details className="capstone-native-tool-calls"><summary>任务组织记录</summary>{graphProcess(expandedResearch)}</details>
     </>
-    if (focus === 'tools') return <section aria-label="工具调用过程">{modelRequests.length > 0 ? <ProcessCallTrace compact expandedThinking={expandedResearch} expandedTools={expandedResearch?readerToolsOpen:inlineToolsOpen} models={modelRequests} tools={toolActivities.map(activity=>({id:callId(activity),name:activity.label,status:activity.status,startedAt:activity.startedAt,finishedAt:activity.finishedAt,durationMs:activity.durationMs,operation:activity.operation}))} now={running ? now : undefined} active={running} renderToolDetails={tool=>{
+    if (focus === 'tools') return <section aria-label="工具调用过程">{modelRequests.length > 0 ? <ProcessCallTrace compact expandedThinking={expandedResearch} expandedTools={expandedResearch?readerToolsOpen:inlineToolsOpen} models={modelRequests} tools={toolActivities.map(activity=>({id:callId(activity),name:activity.label,status:activity.status,startedAt:activity.startedAt,finishedAt:activity.finishedAt,durationMs:activity.durationMs,operation:activity.operation,warning:activity.warning,failure:toolFailureReason(activity.failure)||activity.failure?.summary}))} now={running ? now : undefined} active={running} renderToolDetails={tool=>{
       const activity=toolActivities.find(item=>callId(item)===tool.id)
       return <>{activity?.failure&&<p className="capstone-tool-failure-line">{toolFailureReason(activity.failure)||toolFailureCopy(activity.failure.code)}</p>}{activity?.outputExcerpt&&<p className="capstone-tool-operation">{activity.outputExcerpt}</p>}</>
     }}/> : <ActivityItems activities={toolActivities} />}
