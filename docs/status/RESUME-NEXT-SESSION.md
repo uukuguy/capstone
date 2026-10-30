@@ -1,44 +1,33 @@
 # Live Session Checkpoint
 
-> Updated: 2026-10-31 05:15. **Session remains active — not a final handoff.**
+> Updated: 2026-10-31 07:55. Session remains active — not a final handoff.
 
-## Current work
+## Active gateway binding work
 
-User approved four conversation repairs. Delete confirmation passed user manual
-acceptance; do not repeat it or delete user sessions.
+PR81 merged as `61ec56c6`; actual root dev matches origin/dev. Slim macOS
+CI41145432600 passed3m33s on40c4c2e4. Root canonical rebuild and scoped cleanup
+passed: API/three workers image989226e8, App productd9e24798 clean. Directory
+CSV5rows completed62.29s and view completed81.51s; saved products/hashes and
+refreshed snapshots passed. Actual App pinned ready-view restore/read189records
+passed. Feature branch closed; worktree retained on docs/gateway-dynamic-closeout.
+Control/report docs are being integrated through a docs PR; preserve current dirty
+root state until synchronized. No cloud/demo changes.
 
-PR79 merged as25da0ae7; root dev fast-forwarded. Implementation8b2bd3b9/d89248e0:
-pending instruction precedes its Thinking; global Escape uses cancellation;
-revision conflicts preserve drafts and refresh state; JSON errors unwrap MCP
-content and gateway gaps. 172 focused App checks and type checking passed.
-An extra adapter test sends Escape and confirms the final stopped notice;
-all22 adapter tests passed. App1419 tests, build and doctor passed.
+Directory performance is NOT accepted:20model responses53.27s, gateway calls
+about1.19s;4searches/3loads/8scripts and one load-name correction. Do not hardcode
+Beijing/provider/tool names to optimize. Future lightweight business validation
+should be observable in the already-open Capstone browser tab; the two tasks above
+were API submissions before this user preference. Do not repeat them merely to
+make them visible. User visual view acceptance and live renamed/second-instance
+trials remain unverified. Immediate task: close the docs/control PR and verify
+actual dev graph; later performance work is a separate scoped next slice.
 
-Canonical rebuild: /tmp/capstone-small-rebuild.log. Vivaldi reuses the actual
-Capstone tab. A new empty enterprise session contains a stop-test draft, not sent.
-Actual thread thr_78654f76240fe97ce61a passed Escape cancellation, same-thread
-follow-up (answer5,2.4s) and refresh recovery. Final canonical rebuild passed
-ready, image identity160e55be and scoped cleanup. PR79 App gate41130366065 passed
-4m1s. Actual root Vite identity: productd89248e0, repository25da0ae7, dirty=false.
+## Recovery references
 
-## Immediate next action
-
-Finish documentation-only control closeout, return root to dev and inspect its
-graph. Then resume real gateway business-tool combination validation. All four
-small repairs are complete; delete confirmation passed user manual acceptance.
-
-## Preserve
-
-- Pre-existing dirty JOURNAL, RESUME, VERSION and HTML were deliberate PR78 final
-  snapshots; preserve their facts. No cleanup of user data or other worktrees.
-- PR77 f8ba44bd, PR78 c01a81f2 and PR79 25da0ae7 are already merged.
-- Recovery stash a0ca3ffd2d38e8279f3d0dff03eb81596e210389 is retained and applied.
-- Cloud/demo/main unchanged. Only focused macOS CI; no release gate.
-- Local gateway is local integration18001; credentials stay protected backend-only.
-- Prior verified backend image39911ad3. No backend semantics changed.
-- Summer receipts: runs/local-integration-summer-20261030/. Business quality is
-  unaccepted. Tool selection remains a proposal in
-  docs/reports/2026-10-31-gateway-tool-selection-discussion.md.
-- Enterprise data research analysis mode is unimplemented. Do not change sibling
-  data-gateway. Bypass proxies for localhost; existing GitHub proxy127.0.0.1:7897
-  may be used without changing global configuration.
+- Canonical worklist: docs/superpowers/plans/2026-10-16-enterprise-unified-execution.md.
+- Binding plan: docs/superpowers/plans/2026-10-31-gateway-dynamic-binding.md.
+- Verification: docs/reports/2026-10-31-gateway-dynamic-bindings.md.
+- Evidence: runs/gateway-dynamic-product-20261031/ and runs/gateway-next-action-20261031/.
+- Preserve user data, other worktrees and retained stash a0ca3ffd2d38e8279f3d0dff03eb81596e210389.
+- No sibling data-gateway edits; credentials remain protected backend state.
+- Ordinary dev checks stay focused; release acceptance is not requested.

@@ -1,5 +1,35 @@
 # docs/status INDEX
 
+Current integration2026-10-31: [PR81](https://github.com/uukuguy/capstone/pull/81)
+merged as61ec56c6; actual root dev and origin/dev match. Final40c4c2e4 passed
+slim CI41145432600 in3m33s; prior d9 CI41144188892 passed4m2s.
+Slim CI: Python627 passed/35 skipped in86.63s, App41 and JS35 passed;
+governance229 passed/2 skipped in4.84s. Earlier
+54.29s checks covered778 Python/41 skipped and remain a separate wider receipt.
+Canonical local rebuild passed exit0, readiness200, healthy API/worker/PyPSA/native
+on image989226e8c78d9c38111a722c22275f94feef6a8e9a754bba6537f10527f30e11.
+App product revisiond9e24798244ca919dfb50cf09f2e926d5d4edf1e differs from repository
+61ec56c6; dirty=false. Scoped cleanup passed. Only local-dev changed; other stages stay unchanged.
+Directory taskthr_e7821b65e9b793665f98/attempt_fbabd51e4c871ebb completed in62.29s:
+CSV5 rows, all downloaded artifact SHA checks and refresh restore passed.
+View trialthr_807ed824f046e4e03a5e/attempt_580c4d414aa92e8d completed81.51s;
+artifact SHA checks, refreshed snapshots, pinned-revision App open and189/189 read passed.
+This is local protocol/task acceptance, not human browser rendering acceptance.
+Performance remains unaccepted: directory62.29s included20 model responses/53.27s,
+gateway1.19s,4 searches/3 loads/8 bash calls. Reduce generic execution rounds as a separate nonblocking gap.
+Future lightweight business trials must start in the already-open visible Capstone tab.
+[Final report](../reports/2026-10-31-gateway-dynamic-bindings.md).
+Feature branch is verified and merged; local and remote branches are closed.
+The worktree is retained on docs/gateway-dynamic-closeout; PR81 preserves source40c4c2e4.
+No cloud/demo release, human-rendering or performance acceptance is claimed.
+Earlier closeout entries below are historical.
+
+Annotated milestone tag milestone-conversation-controls-20261031-06117a6e is
+pushed at06117a6e; local verification only, not cloud/demo release acceptance.
+
+Final 2026-10-31 repair closeout: PR79 and PR80 merged; actual root dev06117a6e.
+All four conversation repairs and scoped validation are complete. Cloud/demo unchanged.
+
 2026-10-31: conversation controls repair `8b2bd3b9` is on
 `fix/conversation-small-items-20261031`; 172 focused checks and types pass.
 Both canonical local rebuilds and real Escape/follow-up/refresh validation passed;
