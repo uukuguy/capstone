@@ -1812,6 +1812,17 @@ describe('CapstoneAssistantThread', () => {
     expect(activities[0]).toMatchObject({ status: 'failed', label: '打开模型上下文', source: 'grid · context.open' })
   })
 
+  it('retains a public native exploration warning after later successful tool events',()=>{
+    const native=(seq:number,phase:string,activity:Record<string,unknown>)=>event('runtime_event',seq,
+      {task_id:'task-native',tool_name:'agent_tools_execute',tool_call_id:'call-explore',native_type:phase,activity},'attempt_1')
+    const items=projectAssistantActivity([
+      native(1,'tool_execution_start',{}),
+      native(2,'tool_execution_end',{warning:'疑似工具缺陷，转入高级探索',output_excerpt:'completed'}),
+      native(3,'tool_execution_end',{output_excerpt:'later receipt'}),
+    ])
+    expect(items[0]).toMatchObject({status:'completed',warning:'疑似工具缺陷，转入高级探索'})
+  })
+
   it('does not label an old answer with the newly selected model', () => {
     const terminal = { ...event('attempt_completed', 1, { answer: '旧模型结果。', evidence_refs: ['evidence:old'], admission: { mode: 'authority_backed', assurance: 'lineage_verified' } }, 'attempt_old'), modelContextId: 'ctx_old' }
     render(<CapstoneAssistantThread events={[terminal]} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}}

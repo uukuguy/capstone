@@ -40,6 +40,9 @@ def project_native_tool_activity(event: Mapping) -> dict[str, str]:
     receipt: dict[str, str] = {}
     arguments = event.get("args")
     if isinstance(arguments, Mapping):
+        exploration = arguments.get('advanced_exploration')
+        if isinstance(exploration, Mapping) and exploration.get('reason') in ('capability_gap', 'tool_defect') and isinstance(exploration.get('detail'), str):
+            receipt['warning'] = _summary('申请高级数据探索：' + exploration['detail'], 240)
         for key in ("purpose", "command", "path", "file_path"):
             value = arguments.get(key)
             if isinstance(value, str) and value.strip():
@@ -47,6 +50,14 @@ def project_native_tool_activity(event: Mapping) -> dict[str, str]:
                 break
     result = event.get("result")
     if isinstance(result, Mapping):
+        details = result.get('details')
+        notice = details.get('execution_notice') if isinstance(details, Mapping) else None
+        if isinstance(notice, Mapping) and isinstance(notice.get('summary'), str):
+            code = notice.get('code')
+            prefix = {'suspected_tool_defect': '疑似工具缺陷，转入高级探索：',
+                      'advanced_exploration': '使用高级数据探索：'}.get(code) if isinstance(code, str) else None
+            if prefix:
+                receipt['warning'] = _summary(prefix + notice['summary'], 240)
         content = result.get("content")
         if isinstance(content, list):
             failed = event.get('isError') is True or event.get('is_error') is True

@@ -4,6 +4,18 @@ import { cleanup, render, screen, within } from '@testing-library/react'
 import ProcessCallTrace, { callTraceIssues } from './ProcessCallTrace'
 
 afterEach(cleanup)
+
+it('keeps important tool errors and warnings visible outside collapsed details after later success',()=>{
+ const models=[{id:'m1',number:1,ms:1000,settled:true,toolCallIds:['failed']},
+  {id:'m2',number:2,ms:500,settled:true,toolCallIds:['fallback']}];
+ const tools=[{id:'failed',name:'business',status:'failed' as const,failure:'合法参数返回了不一致引用'},
+  {id:'fallback',name:'advanced',status:'completed' as const,warning:'疑似工具缺陷，转入高级探索'}];
+ render(<ProcessCallTrace compact active={false} models={models} tools={tools} />);
+ expect(screen.getByText('合法参数返回了不一致引用')).toBeVisible();
+ expect(screen.getByText('疑似工具缺陷，转入高级探索')).toBeVisible();
+ expect(screen.getByText('合法参数返回了不一致引用').closest('details')).toBeNull();
+ expect(screen.getByText('疑似工具缺陷，转入高级探索').closest('details')).toBeNull();
+});
 it('moves actual main requests out of the bottom queue only at dispatch and excludes queue time',()=>{
  const queued={id:'request-1',chainId:'main',kind:'main' as const,modelTurnNumber:1,title:'主链请求',dependsOn:[],status:'queued' as const,queuedAtMs:100,association:'main' as const}
  const model={id:'m',number:1,ms:0,startedAt:'1970-01-01T00:00:00.100Z',requestPool:[queued]}

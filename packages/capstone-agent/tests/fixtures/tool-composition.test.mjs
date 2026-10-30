@@ -7,6 +7,26 @@ import {createToolCompositionTool,compositionPolicy} from '../../src/capstone_ag
 import {rpcEvent} from '../../src/capstone_agent/resources/general-sdk.mjs';
 
 const catalog={revision:'catalog',tools:{data_gateway_read:{name:'read',inputSchema:{type:'object'},description:'Read selected data'}},tool_hashes:{data_gateway_read:'a'.repeat(64)}};
+
+test('composition cannot bypass the advanced exploration capability-gap declaration',()=>fixture(async cwd=>{
+ const selected={...catalog,tools:{...catalog.tools,data_gateway_uncovered:{inputSchema:{type:'object'},_meta:{'data-gateway/toolset':'readonly_sql'}}}};
+ let calls=0;const t=tool(cwd,async()=>{calls++;return native({});},{catalog:selected});
+ const input={tools:['data_gateway_uncovered'],program:"return await tools.call('data_gateway_uncovered',{});"};
+ const denied=await t.execute('without-gap',input);assert.equal(denied.isError,true);assert.equal(calls,0);
+ assert.match(denied.content[0].text,/advanced_exploration_requires_basis/);
+ const accepted=await t.execute('with-gap',{...input,advanced_exploration:{reason:'capability_gap',detail:'The required relation has no published business operation.'}});
+ assert.equal(accepted.isError,false);assert.equal(calls,1);
+ assert.equal(JSON.parse(accepted.content[0].text).advanced_exploration.detail,'The required relation has no published business operation.');
+}));
+
+test('advanced exploration notices survive a program failure after its selected tool executes',()=>fixture(async cwd=>{
+ const selected={...catalog,tools:{...catalog.tools,data_gateway_uncovered:{inputSchema:{type:'object'},_meta:{'data-gateway/toolset':'readonly_sql'}}}};
+ let calls=0;
+ const result=await tool(cwd,async()=>{calls++;return native({});},{catalog:selected}).execute('fails-after-call',{
+  tools:['data_gateway_uncovered'],advanced_exploration:{reason:'capability_gap',detail:'A necessary relation has no published operation.'},
+  program:"await tools.call('data_gateway_uncovered',{}); throw Error('processing failed');"});
+ assert.equal(calls,1);assert.equal(result.isError,true);assert.equal(result.details.execution_notice.code,'advanced_exploration');
+}));
 test('repeated resource timeouts stop queued calls without inventing source observations',()=>fixture(async cwd=>{
   let issued=0;
   const t=tool(cwd,async()=>{issued++;await new Promise(r=>setTimeout(r,5));return {content:[{type:'text',text:JSON.stringify({structuredContent:{status:'error',data:null,gaps:[{reason:'query_timeout'}]}})}]};});

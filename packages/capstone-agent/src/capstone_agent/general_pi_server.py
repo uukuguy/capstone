@@ -1150,6 +1150,15 @@ class NativeTaskRunner:
                         'Use agent_tool_search to find authorized tools and agent_tool_load to activate their exact schemas for the next model turn. '
                         'For an inventory request, use summary/default arguments and answer from the returned list; do not expand into unrelated investigations or operations. '
                         'Use the current published tool descriptions and schemas to determine prerequisites and valid combinations; do not assume a fixed discovery or execution sequence. '
+                        'Compose published data_gateway_ tools for almost all business data access. The gateway writes those queries and handles their performance. '
+                        'Use native SQL as advanced exploration only when no admitted tool expresses the necessary operation, or a documented suspected tool defect prevents a reliable result. '
+                        'For a suspected defect, retain the actual observation reference and describe why the published valid path cannot complete the operation; do not blindly retry or certify an unverified diagnosis. '
+                        'When a tool description or result states connected indexes, limits, plans, or gaps, follow that statement. '
+                        'Use only a leading index prefix the tool reports; do not apply functions to indexed columns or skip earlier index columns. '
+                        'A plan line that starts with SCAN and also says USING INDEX still uses an index. '
+                        'If an error names a parameter and its published maximum, raise that parameter up to the maximum or narrow the selection. '
+                        'Do not treat a smaller value as the only correction, and do not repeat an unchanged expensive call. '
+                        'Do not copy instance-specific indexes or limits into application code. '
                         'Follow returned references and conditional next steps only when needed for the current instruction and admitted by the task grant. '
                         'Keep reads and follow-up calls bounded. Do not poll without a bounded wait or retry failed operations automatically. '
                         'Refresh source data only when the current instruction requests it. Captured content may lack verified source transaction consistency. '
@@ -1691,7 +1700,7 @@ def main():
                                  'application_capacity.py', 'resources/application-capacity.json', 'resources/runtime-limits.mjs',
                                  'resources/research-tools.mjs', 'resources/execution-guidance.mjs', 'resources/model-request-capture.mjs',
                                  'resources/general-context.mjs', 'resources/general-sdk.mjs', 'resources/general-tool-discovery.mjs', 'resources/tool-result-context.mjs', 'resources/committed-delivery.mjs', 'resources/systematic-diagnosis.mjs', 'resources/general-mcp.mjs', 'resources/task-record-tools.mjs',
-                                 'resources/tool-composition.mjs', 'resources/tool-composition-worker.mjs', 'resources/tool-composition-policy.json', 'resources/semantic-data-context.mjs',
+                                 'resources/tool-composition.mjs', 'resources/tool-composition-worker.mjs', 'resources/tool-composition-policy.json', 'resources/semantic-data-context.mjs', 'resources/gateway-tool-use.mjs',
                                  'resources/async-call-pool.mjs', 'resources/llm-call-tools.mjs', 'resources/llm-call-pool-policy.json',
                                  'resources/model-request-pool.mjs', 'resources/model-request-pool-policy.json',
                                  'resources/enterprise-research-runtime.mjs', 'resources/enterprise-cycle-contract.mjs',

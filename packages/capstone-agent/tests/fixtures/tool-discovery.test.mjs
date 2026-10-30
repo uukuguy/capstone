@@ -29,6 +29,24 @@ test('search pages contain only granted bounded published summaries',async()=>{
   assert.equal(last.tools.length,3);assert.ok(!last.tools.some(t=>t.name==='source_19'));
 });
 
+test('group discovery keeps business operations ahead of advanced exploration without hiding SQL',async()=>{
+ const publications={advanced_first:{description:'Data query',inputSchema:{type:'object'},_meta:{'data-gateway/toolset':'readonly_sql'}},
+  statistics_last:{description:'Data query',inputSchema:{type:'object'},_meta:{'data-gateway/toolset':'operation'}}};
+ const tools=Object.entries(publications).map(([name,p])=>({name,parameters:p.inputSchema,execute:async()=>({content:[]})}));
+ const c=createToolDiscovery({tools,publications,admittedNames:Object.keys(publications)});
+ const search=c.tools[0],load=c.tools[1];
+ const result=JSON.parse((await search.execute('all',{query:'Data'})).content[0].text);
+ assert.deepEqual(result.tools.map(t=>t.name),['statistics_last','advanced_first']);
+ assert.equal(result.tools[1].access,'advanced_exploration');
+ assert.deepEqual(result.toolsets.map(g=>g.id),['operation','readonly_sql']);
+ const group=JSON.parse((await search.execute('group',{query:'',toolset:'operation'})).content[0].text);
+ assert.deepEqual(group.tools.map(t=>t.name),['statistics_last']);
+ const rejected=await load.execute('no-gap',{names:['advanced_first']});
+ assert.equal(rejected.isError,true);assert.equal(JSON.parse(rejected.content[0].text).code,'advanced_exploration_requires_basis');
+ const accepted=JSON.parse((await load.execute('gap',{names:['advanced_first'],advanced_exploration:{reason:'capability_gap',detail:'An unpublished relation is required.'}})).content[0].text);
+ assert.equal(accepted.activation,'next_turn');assert.equal(accepted.advanced_exploration.detail,'An unpublished relation is required.');
+});
+
 test('activation is atomic and takes effect only at the next loop boundary',async()=>{
   const {controller:c,calls}=fixture();
   const hooks=new Map();let active=c.initialToolNames(['read','source_0','source_19']);

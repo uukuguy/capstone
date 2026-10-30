@@ -318,7 +318,7 @@ class DelegatedRuntime:
                 **{key: event[key] for key in ('task_step', 'task_steps', 'task_step_id', 'task_step_number',
                     'step_tool_number', 'task_step_error', 'runtime_step_tracking') if key in event},
                 **({'activity': {key: value[:limit] for key, limit in
-                    (('operation', 241), ('output_excerpt', 601))
+                    (('operation', 241), ('output_excerpt', 601), ('warning', 241))
                     if isinstance((value := cast(Mapping, event.get('activity')).get(key)), str)}}
                     if isinstance(event.get('activity'), Mapping) else {}),
                 **({'is_error': event['is_error']} if type(event.get('is_error')) is bool else {})},

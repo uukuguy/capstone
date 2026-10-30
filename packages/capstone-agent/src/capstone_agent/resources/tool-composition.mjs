@@ -3,22 +3,27 @@ import {readFileSync} from 'node:fs';
 import {randomUUID,createHash} from 'node:crypto';
 import {saveSemanticContext,loadSemanticContext} from './semantic-data-context.mjs';
 import {boundToolResult} from './tool-result-context.mjs';
+import {checkGatewayToolUse,advancedExplorationSchema,gatewayToolUseNotice} from './gateway-tool-use.mjs';
 export const compositionPolicy=Object.freeze(JSON.parse(readFileSync(new URL('./tool-composition-policy.json',import.meta.url),'utf8')));
 const canonical=(v)=>Array.isArray(v)?v.map(canonical):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])):v;
-export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,invoke,scope,deadlineAt=Infinity,allowedInputs=[],restore=async x=>x,onProgress=()=>{}}){
+export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,invoke,scope,useLedger,deadlineAt=Infinity,allowedInputs=[],restore=async x=>x,onProgress=()=>{}}){
   // Session-local issued observations survive program calls, never task grants.
   // A different DR node must receive an explicit saved context package.
   const records=new Map();
   return {name:'agent_tools_execute',label:'组合工具与计算',description:'Run an async JavaScript program in the isolated task workspace. Select admitted gateway tools explicitly. Use Promise.all for independent calls and pass results directly to dependent calls. tools.call(name,args) returns {ref,ok,status,data,provenance,gaps,value}; tools.describe(name) returns its exact contract. python(code,data) runs Python with JSON stdin. saveContext(name,{bindings,datasets}) preserves observed source fields with call refs and JSON pointers, declared values, and unknown fields. loadContext(path) reuses a saved package. Return a compact summary; retain source data in packages. No automatic retries. Source packages are observations, not Authority evidence.',
-    parameters:{type:'object',properties:{program:{type:'string',description:"Async program body. Example: const r=await tools.call(name,args); const saved=await saveContext('shared',{bindings:{unit:{call:r.ref,pointer:'/data/unit'},method:{value:'mean'},missing:{unknown:true,reason:'not provided'}},datasets:[{name:'load',call:r.ref,pointer:'/data/rows'}]}); return saved; Use actual returned fields in pointers. loadContext(saved.path) returns bindings with basis/value and datasets keyed by name with data/status/provenance/gaps. Plain binding values are declared metadata, never verified facts. Actual call refs remain usable by later programs in this instruction/session; different tasks need explicit saved packages. Large returns are saved automatically; return selected fields to reduce model context."},tools:{type:'array',items:{type:'string'}},purpose:{type:'string'},concurrency:{type:'integer',minimum:1,maximum:policy.concurrency},max_calls:{type:'integer',minimum:1,maximum:policy.max_calls},timeout_ms:{type:'integer',minimum:1,maximum:policy.max_program_ms}},required:['program','tools'],additionalProperties:false},
+    parameters:{type:'object',properties:{program:{type:'string',description:"Async program body. Example: const r=await tools.call(name,args); const saved=await saveContext('shared',{bindings:{unit:{call:r.ref,pointer:'/data/unit'},method:{value:'mean'},missing:{unknown:true,reason:'not provided'}},datasets:[{name:'load',call:r.ref,pointer:'/data/rows'}]}); return saved; Use actual returned fields in pointers. loadContext(saved.path) returns bindings with basis/value and datasets keyed by name with data/status/provenance/gaps. Plain binding values are declared metadata, never verified facts. Actual call refs remain usable by later programs in this instruction/session; different tasks need explicit saved packages. Large returns are saved automatically; return selected fields to reduce model context."},tools:{type:'array',items:{type:'string'}},purpose:{type:'string'},advanced_exploration:advancedExplorationSchema,concurrency:{type:'integer',minimum:1,maximum:policy.concurrency},max_calls:{type:'integer',minimum:1,maximum:policy.max_calls},timeout_ms:{type:'integer',minimum:1,maximum:policy.max_program_ms}},required:['program','tools'],additionalProperties:false},
     async execute(callId,input,signal){
       signal?.throwIfAborted();
-      const failure=error=>({isError:true,content:[{type:'text',text:String(error.message??error)}]});
+      let declaration;
+      const failure=error=>({isError:true,content:[{type:'text',text:String(error.message??error)}],details:gatewayToolUseNotice(declaration)});
       let child,timer;const abort=new AbortController(),queue=[],operations=new Set(),resourceFailures=new Map(),blocked=new Map();let active=0,calls=0,requests=0,skipped=0,finished=false;
       const stop=()=>{abort.abort(Error('Composition stopped'));for(const reject of queue.splice(0))reject();if(child?.pid){try{process.kill(-child.pid,'SIGKILL');}catch{child.kill('SIGKILL');}}};
       try{
         if(typeof input.program!=='string'||input.program.length>policy.code_chars)throw Error('Program code budget exceeded');
         if(!Array.isArray(input.tools)||input.tools.some(name=>!Object.hasOwn(catalog.tools,name)||!name.startsWith('data_gateway_')))throw Error('Unknown or ungranted selected tool');
+        const use=checkGatewayToolUse(input.tools,catalog,input.advanced_exploration,useLedger);
+        if(!use.allowed)return {isError:true,content:[{type:'text',text:JSON.stringify(use.error)}]};
+        declaration=use.declaration;
         const limit=input.max_calls??policy.max_calls,concurrency=input.concurrency??policy.concurrency;
         if(!Number.isInteger(limit)||limit<1||limit>policy.max_calls||!Number.isInteger(concurrency)||concurrency<1||concurrency>policy.concurrency)throw Error('Invalid composition limits');
         const timeout=Math.min(input.timeout_ms??policy.max_program_ms,policy.max_program_ms,deadlineAt-Date.now());
@@ -55,6 +60,7 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
                   let raw;try{raw=JSON.parse(native.content.find(c=>c.type==='text')?.text??'null');}catch{raw={text:native.content};}
                   const observed=raw?.structuredContent??raw;
                   const ref=`program-call:${run}:${message.id}`;
+                  if(native.details?.kind==='external_gateway_observation')useLedger?.record(message.name,ref);
                   const ok=native.isError!==true&&!['error','failed','denied'].includes(observed?.status);
                   const timeout=!ok&&Array.isArray(observed?.gaps)&&observed.gaps.some(g=>/^(?:query_timeout|timeout|resource_exhausted|rate_limit)$/.test(g?.reason??''));
                   const count=timeout?(resourceFailures.get(failureKey)??0)+1:0;
@@ -77,8 +83,9 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
           });
           child.send({kind:'start',program:input.program,schemas,outputBytes:policy.output_bytes});
         });
-        const text=JSON.stringify({result:result??null,calls,skipped_calls:skipped,limited_conditions:[...blocked.values()]});
-        const bounded=await boundToolResult({isError:false,content:[{type:'text',text}],details:{kind:policy.schema,calls}},
+        const text=JSON.stringify({result:result??null,calls,skipped_calls:skipped,limited_conditions:[...blocked.values()],
+          ...(use.declaration?{advanced_exploration:use.declaration}:{})});
+        const bounded=await boundToolResult({isError:false,content:[{type:'text',text}],details:{kind:policy.schema,calls,...gatewayToolUseNotice(use.declaration)}},
           {cwd,toolName:'agent_tools_execute',callId,maxChars:policy.output_bytes});
         // Unlike gateway receipts, the program return has no host requirement
         // to inline original bytes. Keep the saved-file reference bounded even
