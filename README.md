@@ -40,6 +40,8 @@ Enterprise research can use a configured production-data MCP gateway to discover
 data, query registered services, save sourced reports and continue from retained
 products. Credentials stay in the protected host. See the
 [connection runbook](docs/RUNBOOK.md#企业生产数据-mcp).
+The sidebar gateway picker supports instance details, explicit switching, adding
+connections, and asynchronous connectivity checks.
 
 The design follows four principles:
 

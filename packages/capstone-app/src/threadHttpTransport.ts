@@ -13,6 +13,8 @@ import {transferResource,parseStoredResources} from './resourceUploads'
 import {parseCapacityFailure} from './capacityFailure'
 import {parseGatewayConnectionStatus} from './threadInput'
 import type {WorkspaceConnections} from './workspaceConnections'
+import type {GatewayConnectionInput} from './gatewayConnectionTypes'
+import {parseGatewayConnections,parseGatewayProbe} from './gatewayConnectionProtocol'
 import {currentWorkspaceName,normalizeWorkspaceName} from './workspaceName'
 
 const THREAD_VERSION_HEADER = 'Capstone-Thread-Version'
@@ -121,6 +123,23 @@ export class HttpThreadTransport implements ThreadTransport {
     if(!value||value.schema!=='capstone-workspace-connections/1')throw new Error('工作台连接信息无效')
     return {schema:value.schema,...(value.data_gateway===undefined?{}:{data_gateway:parseGatewayConnectionStatus(value.data_gateway)})}
   }
+
+  private async gatewayRequest(action?:string,body?:unknown){
+    const signal=AbortSignal.timeout(applicationCapacity('ui_network_status_timeout_ms')*(action?2:1))
+    try{return await this.request('/api/v1/workspace/gateways'+(action?'/'+action:''),action?{method:'POST',body:JSON.stringify(body??{}),signal}:{signal})}
+    catch(error){
+      if(error instanceof ThreadTransportError&&error.body&&typeof error.body==='object'&&'detail' in error.body){
+        const detail=error.body.detail
+        if(detail&&typeof detail==='object'&&'message' in detail&&typeof detail.message==='string'&&detail.message.length<=256)throw new Error(detail.message)
+      }
+      throw error
+    }
+  }
+  async gatewayConnections(){return parseGatewayConnections(await this.gatewayRequest())}
+  async refreshGatewayConnections(){return parseGatewayConnections(await this.gatewayRequest('refresh'))}
+  async selectGatewayConnection(id:string){return parseGatewayConnections(await this.gatewayRequest('select',{id}))}
+  async probeGatewayConnection(input:GatewayConnectionInput){return parseGatewayProbe(await this.gatewayRequest('probe',input))}
+  async addGatewayConnection(input:GatewayConnectionInput){return parseGatewayConnections(await this.gatewayRequest('add',input))}
 
   constructor(
     baseUrl: string,
