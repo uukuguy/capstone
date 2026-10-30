@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import nullcontext
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from datetime import datetime, timezone
@@ -16,6 +17,9 @@ from uuid import uuid4
 
 from .data_gateway_mcp import DataGatewayMcp, GatewayError, checked_instance_identity, identity_text, public_failure
 from .data_gateway_relay import DataGatewayAccess
+
+HEALTH_TIMEOUT_SECONDS = 3
+ADMISSION_TIMEOUT_SECONDS = 5
 
 
 def _url(value):
@@ -42,7 +46,7 @@ class GatewayConnectionRegistry:
     """Synchronous admission API; health refresh runs outside request execution.
 
     Host callers serialize routing changes against active tasks. Admission methods
-    may take up to 15 seconds and belong in the HTTP thread pool.
+    allow five seconds for a full catalog and belong in the HTTP thread pool.
     """
 
     def __init__(self, root: Path, policy: dict, *, seeds: list[dict] | None = None,
@@ -92,15 +96,25 @@ class GatewayConnectionRegistry:
                 item = deepcopy(seed)
                 item['connection']['url'] = _url(item['connection']['url'])
                 self._check_entry(item)
-                if item['id'] not in ids and item['connection']['url'] not in urls:
+                entries = self._document['entries']
+                if any(existing['id'] != item['id'] and existing['connection']['url'] == item['connection']['url'] for existing in entries):
+                    raise GatewayError('gateway_connection_duplicate')
+                previous = next((index for index, existing in enumerate(entries) if existing['id'] == item['id']), None)
+                if previous is not None:
+                    urls.discard(entries[previous]['connection']['url'])
+                    entries[previous] = item
+                    urls.add(item['connection']['url'])
+                else:
                     self._document['entries'].append(item)
                     ids.add(item['id'])
                     urls.add(item['connection']['url'])
             if len(ids) > 128:
                 raise ValueError()
             self._persist(self._document)
-        except Exception:
+        except Exception as error:
             self._executor.shutdown(wait=False, cancel_futures=True)
+            if isinstance(error, GatewayError) and str(error) == 'gateway_connection_duplicate':
+                raise GatewayError('gateway_connection_duplicate') from None
             raise GatewayError('gateway_registry_unavailable') from None
 
     @staticmethod
@@ -213,7 +227,7 @@ class GatewayConnectionRegistry:
         try:
             client = self._client(config)
             async def prepare():
-                return await asyncio.wait_for(client.prepare(), 15)
+                return await asyncio.wait_for(client.prepare(), ADMISSION_TIMEOUT_SECONDS)
             return DataGatewayAccess(client, asyncio.run(prepare()))
         except Exception as error:
             if client is not None:
@@ -268,7 +282,7 @@ class GatewayConnectionRegistry:
                 raise GatewayError('gateway_registry_unavailable') from None
             self._document = document
 
-    def select(self, identifier):
+    def select(self, identifier, *, commit_guard=None):
         with self._mutation:
             self._ensure_open()
             with self._lock:
@@ -278,10 +292,14 @@ class GatewayConnectionRegistry:
                 config = deepcopy(item['connection'])
             access = self._prepare(config)
             try:
-                with self._lock:
-                    self._commit(lambda doc: doc.update(selected_id=identifier))
-                    self._access = access
-                    self._health[identifier] = self._connected(access.publication()['identity'])
+                with commit_guard() if commit_guard is not None else nullcontext():
+                    with self._lock:
+                        self._commit(lambda doc: doc.update(selected_id=identifier))
+                        previous = self._access
+                        self._access = access
+                        self._health[identifier] = self._connected(access.publication()['identity'])
+                    if previous is not None:
+                        self._release_client(previous.client)
             except Exception:
                 self._release_client(access.client)
                 raise
@@ -312,7 +330,22 @@ class GatewayConnectionRegistry:
                     if instance is not None:
                         catalog['instance'] = instance
                     return DataGatewayAccess(client, catalog).publication()['identity']
-            state = self._connected(asyncio.run(asyncio.wait_for(initialize(), 15)))
+            state = self._connected(asyncio.run(asyncio.wait_for(initialize(), HEALTH_TIMEOUT_SECONDS)))
+            with self._lock:
+                recover = (not self._closed and self._document.get('selected_id') == item['id']
+                           and self._access is None)
+            if recover:
+                recovered = self._prepare(item['connection'])
+                retained = False
+                try:
+                    with self._lock:
+                        if not self._closed and self._document.get('selected_id') == item['id'] and self._access is None:
+                            self._access = recovered
+                            retained = True
+                            state = self._connected(recovered.publication()['identity'])
+                finally:
+                    if not retained:
+                        self._release_client(recovered.client)
         except Exception as error:
             state = {'status': 'disconnected', 'checked_at': datetime.now(timezone.utc).isoformat(),
                      'error': public_failure(error, 'gateway_connection_failed')}

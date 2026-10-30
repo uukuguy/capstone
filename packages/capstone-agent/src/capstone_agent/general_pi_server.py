@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from contextlib import contextmanager
 from hashlib import sha256
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import asyncio
@@ -1373,31 +1374,47 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
     from .data_gateway_mcp import GatewayError
     electrical_provider = ElectricalViewProvider(getattr(runner or host._run, 'gateway', None))
 
-    def gateway_control(action=None, document=None):
+    def apply_gateway_access(target, access):
         nonlocal source_provider, electrical_provider
+        publication = access.publication()
+        setattr(target, 'gateway', access)
+        setattr(target, 'gateway_publication', publication)
+        host.capability['data_gateway'] = publication
+        source_provider = GridSourceProvider(access)
+        electrical_provider = ElectricalViewProvider(access)
+
+    def gateway_control(action=None, document=None):
         target = runner or host._run
         registry = getattr(target, 'gateway_registry', None)
         if registry is None:
             raise GatewayError('gateway_registry_unavailable')
         if action is None:
+            # Health recovery prepares in the background. Apply it without a
+            # network request here and never replace an active task's source.
+            with host._lock:
+                access = registry.current_access
+                if (access is not None and access is not getattr(target, 'gateway', None)
+                        and not any(item['status'] in {'queued', 'running'} for item in host._tasks.values())):
+                    apply_gateway_access(target, access)
             return registry.snapshot()
         if action == 'select':
             if not isinstance(document, dict) or set(document) != {'id'} or not isinstance(document['id'], str):
                 raise GatewayError('gateway_connection_input_invalid')
             with host._lock:
-                if registry.snapshot().get('selected_id') == document['id']:
+                if registry.snapshot().get('selected_id') == document['id'] and registry.current_access is not None:
                     return registry.snapshot()
                 if any(item['status'] in {'queued', 'running'} for item in host._tasks.values()):
                     raise GatewayError('gateway_connections_busy')
-                result = registry.select(document['id'])
-                access = registry.current_access
-                publication = access.publication()
-                setattr(target, 'gateway', access)
-                setattr(target, 'gateway_publication', publication)
-                host.capability['data_gateway'] = publication
-                source_provider = GridSourceProvider(access)
-                electrical_provider = ElectricalViewProvider(access)
-                return result
+            @contextmanager
+            def commit_guard():
+                with host._lock:
+                    if any(item['status'] in {'queued', 'running'} for item in host._tasks.values()):
+                        raise GatewayError('gateway_connections_busy')
+                    yield
+                    apply_gateway_access(target, registry.current_access)
+            # MCP validation does not hold the execution ledger lock. If a task
+            # starts meanwhile, the guarded commit retains its original source.
+            return registry.select(document['id'], commit_guard=commit_guard)
         if action == 'refresh' and document == {}:
             return registry.refresh()
         if action in {'probe', 'add'}:
@@ -1446,6 +1463,7 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 if self.path == '/gateway-connections':
                     return self.send_json(200, gateway_control())
                 if self.path == '/gateway-publication':
+                    gateway_control()
                     return self.send_json(200, host.capability['data_gateway'])
                 if self.path == '/grid-sources':
                     return self.send_json(200, source_provider.catalog())

@@ -1,5 +1,5 @@
 import asyncio
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, contextmanager
 import json
 import stat
 import threading
@@ -63,6 +63,23 @@ def registry(tmp_path):
 
 def entry(url='http://localhost:18001/mcp'):
     return {'url': url, 'token': TOKEN, 'name': 'User label'}
+
+
+def test_task_start_during_candidate_prepare_can_reject_commit_without_losing_selection(registry):
+    first = registry.add(entry())['entries'][0]['id']
+    second = registry.add(entry('http://other.example/mcp'))['entries'][1]['id']
+    registry.select(first)
+    original = registry.current_access
+    paths = set(registry._paths)
+    @contextmanager
+    def task_guard():
+        raise GatewayError('gateway_connections_busy')
+        yield
+    with pytest.raises(GatewayError, match='gateway_connections_busy'):
+        registry.select(second, commit_guard=task_guard)
+    assert registry.current_access is original
+    assert registry.snapshot()['selected_id'] == first
+    assert registry._paths == paths
 
 
 def test_persistent_selection_and_private_public_projection(registry):
@@ -236,6 +253,150 @@ def test_close_skips_queued_health_probes(tmp_path):
         time.sleep(.001)
     item.close()
     assert len(started) <= 3
+
+
+def test_protected_seed_rotates_same_id_preserving_selection_and_custom_entries(tmp_path):
+    from capstone_agent.gateway_connections import GatewayConnectionRegistry
+    def seed(token, label):
+        return {'id': 'local', 'label': label, 'connection': {
+            'transport': 'streamable-http', 'url': 'http://localhost:18001/mcp',
+            'headers': {'Authorization': 'Bearer ' + token}}}
+    previous = GatewayConnectionRegistry(tmp_path, POLICY, seeds=[seed(TOKEN, 'Before')], client_factory=Client)
+    previous.select('local')
+    custom = previous.add(entry('http://custom.example/mcp'))['entries'][1]
+    previous.close()
+    rotated = GatewayConnectionRegistry(tmp_path, POLICY, seeds=[seed('rotated-private-token', 'After')], client_factory=Client)
+    try:
+        rotated.prepare_selected()
+        assert rotated.current_access.client.config['headers']['Authorization'] == 'Bearer rotated-private-token'
+        assert rotated.snapshot()['selected_id'] == 'local'
+        assert rotated.snapshot()['entries'][0]['label'] == 'After'
+        assert rotated.snapshot()['entries'][1]['id'] == custom['id']
+        assert rotated.snapshot()['entries'][1]['url'] == custom['url']
+    finally:
+        rotated.close()
+    with pytest.raises(GatewayError, match='gateway_connection_duplicate'):
+        GatewayConnectionRegistry(tmp_path, POLICY, seeds=[{**seed(TOKEN, 'Conflict'), 'id': 'other'}], client_factory=Client)
+
+
+def test_selected_startup_outage_recovers_in_background_once(tmp_path):
+    from capstone_agent.gateway_connections import GatewayConnectionRegistry
+    previous = GatewayConnectionRegistry(tmp_path, POLICY, client_factory=Client)
+    selected = previous.add(entry())['entries'][0]['id']
+    previous.select(selected)
+    previous.close()
+    restored = GatewayConnectionRegistry(tmp_path, POLICY, client_factory=Client)
+    try:
+        Client.fail_prepare = True
+        with pytest.raises(GatewayError):
+            restored.prepare_selected()
+        assert restored.current_access is None
+        revision = restored.snapshot()['revision']
+        restored.refresh()
+        deadline = time.monotonic() + 2
+        while restored.snapshot()['checking'] and time.monotonic() < deadline:
+            time.sleep(.005)
+        assert restored.current_access is None
+        failed = restored.snapshot()['entries'][0]
+        assert failed['status'] == 'disconnected'
+        assert failed['error'] == 'gateway_connection_failed'
+        assert TOKEN not in json.dumps(failed)
+        Client.fail_prepare = False
+        prepares = Client.prepares
+        restored.refresh()
+        deadline = time.monotonic() + 2
+        while restored.snapshot()['checking'] and time.monotonic() < deadline:
+            time.sleep(.005)
+        assert restored.current_access is not None
+        assert restored.current_access.catalog['revision'] == 'r1'
+        assert Client.prepares == prepares + 1
+        assert restored.snapshot()['revision'] == revision
+        restored.refresh()
+        while restored.snapshot()['checking'] and time.monotonic() < deadline:
+            time.sleep(.005)
+        assert Client.prepares == prepares + 1
+        retained = restored.current_access
+        @asynccontextmanager
+        async def unavailable(client):
+            raise RuntimeError(TOKEN)
+            yield
+        original = Client.connect
+        Client.connect = unavailable
+        try:
+            restored.refresh()
+            while restored.snapshot()['checking'] and time.monotonic() < deadline:
+                time.sleep(.005)
+            assert restored.current_access is retained
+        finally:
+            Client.connect = original
+    finally:
+        Client.fail_prepare = False
+        restored.close()
+
+
+def test_background_recovery_cannot_replace_new_selection_and_releases_candidate(tmp_path):
+    from capstone_agent.gateway_connections import GatewayConnectionRegistry
+    initial = GatewayConnectionRegistry(tmp_path, POLICY, client_factory=Client)
+    first = initial.add(entry())['entries'][0]['id']
+    second = initial.add(entry('http://localhost:18003/mcp'))['entries'][1]['id']
+    initial.select(first)
+    initial.close()
+    gate, started = threading.Event(), threading.Event()
+    class Recovering(Client):
+        async def prepare(self):
+            if ':18001/' in self.config['url']:
+                started.set()
+                while not gate.is_set():
+                    await asyncio.sleep(.005)
+            return await super().prepare()
+    restored = GatewayConnectionRegistry(tmp_path, POLICY, client_factory=Recovering)
+    try:
+        restored.refresh()
+        assert started.wait(1)
+        assert restored.snapshot()['checking']
+        restored.select(second)
+        revision = restored.snapshot()['revision']
+        retained = restored.current_access
+        gate.set()
+        deadline = time.monotonic() + 2
+        while restored.snapshot()['checking'] and time.monotonic() < deadline:
+            time.sleep(.005)
+        assert restored.current_access is retained
+        assert restored.snapshot()['selected_id'] == second
+        assert restored.snapshot()['revision'] == revision
+        assert len(list(tmp_path.glob('.connection-*'))) == 1
+    finally:
+        gate.set()
+        restored.close()
+
+
+def test_health_and_admission_timeouts_are_bounded_and_sanitized(registry, monkeypatch):
+    import capstone_agent.gateway_connections as module
+    assert module.HEALTH_TIMEOUT_SECONDS == 3
+    assert module.ADMISSION_TIMEOUT_SECONDS == 5
+    registry.add(entry())
+    monkeypatch.setattr(module, 'HEALTH_TIMEOUT_SECONDS', .01)
+    monkeypatch.setattr(module, 'ADMISSION_TIMEOUT_SECONDS', .01)
+    @asynccontextmanager
+    async def hanging_connect(client):
+        await asyncio.Event().wait()
+        yield
+    monkeypatch.setattr(Client, 'connect', hanging_connect)
+    registry.refresh()
+    deadline = time.monotonic() + 1
+    while registry.snapshot()['checking'] and time.monotonic() < deadline:
+        time.sleep(.005)
+    assert not registry.snapshot()['checking']
+    record = registry.snapshot()['entries'][0]
+    assert record['status'] == 'disconnected'
+    assert record['error'] == 'gateway_timeout'
+    async def hanging_prepare(client):
+        await asyncio.Event().wait()
+    monkeypatch.setattr(Client, 'prepare', hanging_prepare)
+    before = time.monotonic()
+    with pytest.raises(GatewayError, match='^gateway_timeout$'):
+        registry.probe(entry('http://other.example/mcp'))
+    assert time.monotonic() - before < 1
 
 
 @pytest.mark.parametrize('url', ['http://x/?token=secret', 'http://user:secret@x', 'file:///tmp/a', 'http://x/#a'])

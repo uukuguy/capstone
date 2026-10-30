@@ -766,9 +766,11 @@ def test_gateway_controls_refresh_actual_publication_and_preserve_active_task_so
         def snapshot(self):
             return {'schema': 'capstone-gateway-connections/1', 'revision': 1,
                     'selected_id': self.selected, 'entries': [], 'checking': False}
-        def select(self, identifier):
-            self.selected = identifier
-            self.current_access = Access(identifier)
+        def select(self, identifier, *, commit_guard=None):
+            from contextlib import nullcontext
+            with commit_guard() if commit_guard is not None else nullcontext():
+                self.selected = identifier
+                self.current_access = Access(identifier)
             return self.snapshot()
         def refresh(self):
             return {**self.snapshot(), 'checking': True}
@@ -800,6 +802,16 @@ def test_gateway_controls_refresh_actual_publication_and_preserve_active_task_so
         assert runner.gateway.name == 'second'
         assert client.capability['data_gateway']['identity']['instance_name'] == 'second'
         assert client.control_gateway_connections('refresh', {})['checking'] is True
+        # A selected service may recover after startup failed. Health prepares
+        # its access independently; publication applies only when idle.
+        runner.gateway = None
+        host.capability['data_gateway'] = {'available': False, 'reason': 'gateway_timeout'}
+        runner.gateway_registry.current_access = Access('recovered')
+        host._tasks['active'] = {'status': 'running'}
+        assert client.capability['data_gateway']['available'] is False
+        host._tasks.pop('active')
+        assert client.capability['data_gateway']['identity']['instance_name'] == 'recovered'
+        assert runner.gateway.name == 'recovered'
     finally:
         server.shutdown()
         server.server_close()
