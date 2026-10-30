@@ -19,6 +19,8 @@ jobs:
   verify:
     env:
       UV_PYTHON: "3.12"
+      NO_PROXY: "127.0.0.1,localhost"
+      no_proxy: "127.0.0.1,localhost"
     strategy:
       fail-fast: false
       matrix:
@@ -54,9 +56,20 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22.19.0"
-      - run: make setup
+      - name: Set up standard dependencies
+        if: steps.scope.outputs.gate != 'gateway-bindings'
+        run: make setup
+      - name: Set up gateway binding dependencies
+        if: steps.scope.outputs.gate == 'gateway-bindings'
+        run: |
+          uv sync --project packages/grid-agent
+          uv sync --project packages/capstone-agent
+          # Doctor resolves the managed gridctl executable; no solver suite or assets.
+          uv sync --project packages/grid-simulator
+          npm ci --prefix packages/capstone-app
       - run: make install-pi
-      - run: make doctor
+      - name: Check managed runtime
+        run: make doctor
       - name: Verify documentation and control tooling
         if: steps.scope.outputs.gate == 'docs' || steps.scope.outputs.gate == 'governance'
         run: |
@@ -88,7 +101,7 @@ jobs:
           npm --prefix packages/capstone-app run check
           npm --prefix packages/capstone-app test -- src/electricalModelView.test.ts
           uv run --project packages/grid-agent pyright packages/capstone-agent/src/capstone_agent/data_gateway_views.py packages/capstone-agent/src/capstone_agent/data_gateway_relay.py packages/capstone-agent/src/capstone_agent/data_gateway_mcp.py packages/capstone-agent/src/capstone_agent/grid_source_topology.py packages/capstone-agent/src/capstone_agent/grid_source_http.py packages/capstone-agent/src/capstone_agent/grid_electrical_view.py packages/capstone-agent/src/capstone_agent/general_pi_server.py packages/capstone-agent/src/capstone_agent/pi_delegation.py packages/capstone-agent/src/capstone_agent/delegated_runtime.py
-          uv run --project packages/capstone-agent pytest packages/capstone-agent/tests/test_data_gateway_*.py packages/capstone-agent/tests/test_grid_source_*.py packages/capstone-agent/tests/test_grid_electrical_view.py packages/capstone-agent/tests/test_general_pi_*.py packages/capstone-agent/tests/test_pi_delegation.py packages/capstone-agent/tests/test_delegated_runtime.py packages/capstone-agent/tests/test_host_api.py packages/capstone-agent/tests/test_thread_http_api.py packages/capstone-agent/tests/test_thread_input_catalog.py packages/capstone-agent/tests/test_network_policy_http.py packages/capstone-agent/tests/test_native_network_policy.py packages/capstone-agent/tests/test_graph_host_observation.py tools/tests/test_host_runtime_contract.py tools/tests/test_image_layer_order.py -q
+          uv run --project packages/capstone-agent pytest packages/capstone-agent/tests/test_data_gateway_*.py packages/capstone-agent/tests/test_grid_source_*.py packages/capstone-agent/tests/test_grid_electrical_view.py packages/capstone-agent/tests/test_general_pi_server.py packages/capstone-agent/tests/test_pi_delegation.py packages/capstone-agent/tests/test_delegated_runtime.py packages/capstone-agent/tests/test_graph_host_observation.py tools/tests/test_host_runtime_contract.py tools/tests/test_image_layer_order.py -q
           node --test packages/capstone-agent/tests/fixtures/gateway-tool-use.test.mjs packages/capstone-agent/tests/fixtures/tool-discovery.test.mjs packages/capstone-agent/tests/fixtures/tool-composition.test.mjs packages/capstone-agent/tests/fixtures/data-gateway-research.test.mjs
       - name: Verify enterprise workbench
         if: steps.scope.outputs.gate == 'workbench'

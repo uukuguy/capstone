@@ -170,7 +170,10 @@ def test_verify_workflow_installs_pinned_uv_and_declares_release_matrix() -> Non
     assert "astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d" in workflow
     assert 'node-version: "22.19.0"' in workflow
     for command in ("make setup", "make install-pi", "make doctor"):
-        assert f"- run: {command}" in workflow
+        assert f"run: {command}" in workflow
+    standard = workflow.split('- name: Set up standard dependencies', 1)[1].split('- name:', 1)[0]
+    assert "if: steps.scope.outputs.gate != 'gateway-bindings'" in standard
+    assert 'run: make setup' in standard
     assert 'run: make check-pr' in workflow
     assert 'run: make check-release' in workflow
     assert 'branches: [dev, main]' in workflow

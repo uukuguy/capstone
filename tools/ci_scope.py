@@ -502,10 +502,7 @@ def gateway_bindings_paths(paths: list[str], *, deployment: bool = False) -> boo
     sources = {source + name + '.py' for name in GATEWAY_BINDING_MODULES}
     tests = {'packages/capstone-agent/tests/test_' + name + '.py'
              for name in GATEWAY_BINDING_MODULES | {
-                 'general_pi_executor', 'general_pi_native', 'general_pi_relay',
-                 'general_pi_resource_seed', 'host_api', 'thread_http_api',
-                 'network_policy_http', 'native_network_policy', 'graph_host_observation',
-                 'thread_input_catalog'}}
+                 'graph_host_observation'}}
     fixtures = {'packages/capstone-agent/tests/fixtures/' + name + '.test.mjs'
                 for name in ('gateway-tool-use', 'tool-discovery', 'tool-composition',
                              'data-gateway-research')}

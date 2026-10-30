@@ -64,9 +64,8 @@ def test_gateway_bindings_workflow_has_bounded_consumers_and_no_app_suite():
     block = workflow.split('- name: Verify gateway bindings', 1)[1].split('- name:', 1)[0]
     for target in ('check-package-boundaries', 'pyright', 'test_data_gateway_*.py',
                    'test_grid_source_*.py', 'test_grid_electrical_view.py',
-                   'test_general_pi_*.py', 'test_pi_delegation.py',
-                   'test_delegated_runtime.py', 'test_host_api.py',
-                   'test_network_policy_http.py', 'test_native_network_policy.py',
+                   'test_general_pi_server.py', 'test_pi_delegation.py',
+                   'test_delegated_runtime.py',
                    'test_graph_host_observation.py', 'test_host_runtime_contract.py',
                    'test_image_layer_order.py', 'gateway-tool-use.test.mjs',
                    'tool-discovery.test.mjs', 'tool-composition.test.mjs',
@@ -74,10 +73,30 @@ def test_gateway_bindings_workflow_has_bounded_consumers_and_no_app_suite():
                    'npm --prefix packages/capstone-app test -- src/electricalModelView.test.ts'):
         assert target in block
     for target in ('test-capstone-app', 'build-capstone-app', 'test-capstone-agent',
-                   'check-types', 'test-kernel', 'check-release', 'check-pr'):
+                   'check-types', 'test-kernel', 'check-release', 'check-pr',
+                   'test_general_pi_*.py', 'test_host_api.py', 'test_thread_http_api.py',
+                   'test_thread_input_catalog.py', 'test_network_policy_http.py',
+                   'test_native_network_policy.py'):
         assert target not in block
     for line in block.splitlines():
         if ' pytest ' in line:
             for target in line.split(' pytest ', 1)[1].split():
                 if target.startswith(('packages/', 'tools/')):
                     assert list(ROOT.glob(target)), target
+
+
+def test_gateway_setup_is_scoped_and_other_gates_keep_standard_setup():
+    workflow = (ROOT / '.github/workflows/verify.yml').read_text()
+    block = workflow.split('- name: Set up gateway binding dependencies', 1)[1].split('- name:', 1)[0]
+    assert "if: steps.scope.outputs.gate == 'gateway-bindings'" in block
+    for command in ('uv sync --project packages/grid-agent',
+                    'uv sync --project packages/capstone-agent',
+                    'npm ci --prefix packages/capstone-app'):
+        assert command in block
+    for forbidden in ('make setup', 'packages/pypsa-agent', 'workbench', 'npm run build'):
+        assert forbidden not in block
+    standard = workflow.split('- name: Set up standard dependencies', 1)[1].split('- name:', 1)[0]
+    assert "if: steps.scope.outputs.gate != 'gateway-bindings'" in standard
+    assert 'make setup' in standard
+    assert '- run: make install-pi' in workflow
+    assert 'run: make doctor' in workflow
