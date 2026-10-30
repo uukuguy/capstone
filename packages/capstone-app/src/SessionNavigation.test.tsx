@@ -9,6 +9,7 @@ it('offers a hover delete action for archived sessions and requires confirmation
   fireEvent.click(screen.getByRole('button',{name:'已归档会话'}))
   fireEvent.click(await screen.findByRole('button',{name:'删除会话：会话c'}))
   expect(actions.remove).not.toHaveBeenCalled()
+  expect(document.activeElement).toBe(within(screen.getByRole('alertdialog')).getByRole('button',{name:'删除'}))
   fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button',{name:'删除'}))
   await waitFor(()=>expect(actions.remove).toHaveBeenCalledWith('c'))
   expect(actions.archive).not.toHaveBeenCalled()
