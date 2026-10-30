@@ -193,6 +193,16 @@ counts, prices, limits, versions, or deployment state here.
   `release=true` merely to merge a development branch or obtain extra platform
   checks. Full release verification is for an explicit release or baseline task.
 
+- Non-release operations, including development branch merges, PR closeout,
+  documentation and control-state updates, run only focused checks for the
+  changed behavior and its direct consumers. Do not default to full workbench,
+  full repository, professional solver, or dual-platform suites for these
+  operations. CI must select this focused scope automatically; a change that
+  lacks a focused route needs a scoped route, not an automatic release-sized
+  gate. Broader development checks need a concrete cross-boundary risk and a
+  recorded reason. Keep ordinary development CI on macOS; reserve full macOS
+  and Linux acceptance for an explicit product release or baseline verification.
+
 - Keep project control bidirectionally aligned. Changes to implementation, branches,
   PRs, validation or deployment update `docs/status/VERSION-CONTROL.md` and its
   generated `PROJECT-OVERVIEW.html`. Decisions made through the control graph

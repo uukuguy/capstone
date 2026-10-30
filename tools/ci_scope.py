@@ -17,7 +17,7 @@ DOC_FILES = {"README.md", "README.zh-CN.md", "AGENTS.md", "CLAUDE.md",
 GOVERNANCE_FILES = {".github/workflows/verify.yml", "tools/ci_scope.py",
                     "configs/development/issue-automation.json",
                     "tools/tests/test_ci_scope.py", "tools/tests/test_ci_workbench_scope.py",
-                    "tools/tests/test_verification_targets.py"}
+                    "tools/tests/test_verification_targets.py", "tools/tests/test_ci_gateway_controls.py"}
 
 # Assembly and native-runtime contracts have bounded cross-package gates.
 # Authority protocols, solvers and unknown dependencies still require product.
@@ -404,14 +404,73 @@ def _workbench_path(path: str) -> bool:
     }
 
 
+def gateway_deployment_document(path: str, old: str, new: str) -> bool:
+    if path == 'compose.yaml':
+        anchor = '      CAPSTONE_DATA_GATEWAY_CONNECTION_FILE: ${CAPSTONE_DATA_GATEWAY_CONNECTION_FILE:-}\n'
+        additions = ['      CAPSTONE_GATEWAY_LOOPBACK_HOST: ${CAPSTONE_GATEWAY_LOOPBACK_HOST:-host.docker.internal}\n']
+    elif path == 'deploy/general-pi.Dockerfile':
+        anchor = 'COPY packages/capstone-agent/src/capstone_agent/data_gateway_relay.py capstone_agent/data_gateway_relay.py\n'
+        additions = ['COPY packages/capstone-agent/src/capstone_agent/' + name + '.py capstone_agent/' + name + '.py\n'
+                     for name in ('gateway_connections', 'gateway_connections_runtime')]
+    else:
+        return False
+    def normalize(text):
+        if text.count(anchor) != 1:
+            raise ValueError('missing deployment anchor')
+        block = anchor
+        for line in additions:
+            if text.count(line) > 1:
+                raise ValueError('duplicate deployment entry')
+            if line in text:
+                block += line
+        if block not in text:
+            raise ValueError('gateway additions outside registered location')
+        return text.replace(block, anchor, 1)
+    try:
+        return normalize(old) == normalize(new)
+    except ValueError:
+        return False
+
+
+def gateway_deployment_diff(paths: list[str], base: str, head: str) -> bool:
+    for path in set(paths) & {'compose.yaml', 'deploy/general-pi.Dockerfile'}:
+        try:
+            old, new = [subprocess.check_output(['git', 'show', f'{revision}:{path}'], text=True)
+                        for revision in (base, head)]
+            if not gateway_deployment_document(path, old, new):
+                return False
+        except (subprocess.CalledProcessError, OSError):
+            return False
+    return True
+
+
+def gateway_controls_paths(paths: list[str], *, deployment: bool = False) -> bool:
+    """Bound gateway administration to its own modules and direct host consumers."""
+    modules = {'gateway_connections', 'gateway_connections_http', 'gateway_connections_runtime'}
+    source = 'packages/capstone-agent/src/capstone_agent/'
+    if not any(path == source + name + '.py' for name in modules for path in paths):
+        return False
+    sources = {source + name + '.py' for name in modules | {'general_pi_server', 'host_api', 'pi_delegation'}}
+    tests = {'packages/capstone-agent/tests/test_' + name + '.py' for name in modules | {
+        'general_pi_server', 'general_pi_native', 'pi_delegation', 'host_api',
+        'thread_http_api', 'network_policy_http', 'native_network_policy'}}
+    deployments = {'compose.yaml', 'deploy/general-pi.Dockerfile'} if deployment else set()
+    tests |= {'tools/tests/test_host_runtime_contract.py', 'tools/tests/test_image_layer_order.py'}
+    return all(_app_path(path) or _control_path(path) or path in sources | tests | deployments
+               for path in paths)
+
+
 def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
-             runtime_dependencies: bool = False, source_topology: bool = False) -> str:
+             runtime_dependencies: bool = False, source_topology: bool = False,
+             gateway_deployment: bool = False) -> str:
     if target == 'main' or release:
         return 'release'
     if not paths or any('..' in PurePosixPath(path).parts for path in paths):
         return 'product'
     if any(_app_path(path) for path in paths) and all(_app_path(path) or _control_path(path) for path in paths):
         return 'app'
+    if gateway_controls_paths(paths, deployment=gateway_deployment):
+        return 'gateway-controls'
     gate = _scoped_gate(paths, target=target, release=release,
                         runtime_dependencies=runtime_dependencies, source_topology=source_topology)
     if gate == 'product' and all(_workbench_path(path) for path in paths):
@@ -436,6 +495,7 @@ def main() -> None:
         print("Changed Markdown file links passed")
     else:
         print(classify(paths, target=args.target, release=args.release,
+                       gateway_deployment=gateway_deployment_diff(paths, args.base, args.head),
                        runtime_dependencies=runtime_dependency_diff(paths, args.base, args.head),
                        source_topology=source_topology_diff(paths, args.base, args.head)))
 

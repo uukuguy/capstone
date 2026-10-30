@@ -6486,3 +6486,15 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 03:13 Preserve unknown legacy pin protection so corrupted migration cannot enable batch deletion; regression tests passed [3a6c638e].
 
 - 03:13 Integration checks passed: App1409, backend227 with32 skipped, types and doctor; localhost tests require proxy bypass.
+
+- 03:14 Record verified gateway integration boundary for recovery [f6b4e120].
+
+- 03:14 Open PR77 to dev; independent reviewer closed the pin migration safety finding; required macOS gate pending.
+
+- 03:23 Canonical candidate rebuild passed readiness, image identity39911ad3 and scoped cleanup; selected local-integration persisted; Vivaldi lookup spinner confirmed.
+
+- 03:29 Merge PR77 into dev f8ba44bd after required macOS41113507626 passed14m44s; full workbench gate was disproportionate.
+
+- 03:34 User requires focused non-release checks in AGENTS; add bounded gateway-controls route with deployment-content guards and direct consumers.
+
+- 03:36 Enforce focused non-release checks in AGENTS and register gateway-controls; reviewed guards preserve broader unknown boundaries [7b23d20d].
