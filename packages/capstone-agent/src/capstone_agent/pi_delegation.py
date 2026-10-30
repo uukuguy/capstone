@@ -420,7 +420,20 @@ class HttpGeneralPiExecutor:
 
     @property
     def capability(self):
+        current = cast(Mapping, self._capability)
+        if current.get('gateway_connections') is True:
+            publication = self._call('GET', '/gateway-publication', timeout=3, total_timeout=5)
+            self._capability = _freeze({**current, 'data_gateway': publication})
         return self._capability
+
+    def gateway_connections(self):
+        return self._call('GET', '/gateway-connections', timeout=3, total_timeout=5)
+
+    def control_gateway_connections(self, action, document):
+        if action not in {'refresh', 'probe', 'add', 'select'}:
+            raise ValueError('invalid gateway control')
+        return self._call('POST', '/gateway-connections/' + action, document=document,
+                          timeout=18, total_timeout=20)
 
     def network_policy(self):
         return self._call('GET', '/network-policy', timeout=2, total_timeout=3)
@@ -521,6 +534,12 @@ class HttpGeneralPiExecutor:
                                  'grid_source_response_invalid', 'grid_source_observation_unavailable'}
                         from .grid_electrical_view import ERRORS as electrical_errors
                         known.update(electrical_errors)
+                        known.update({'gateway_connections_busy', 'gateway_registry_unavailable',
+                            'gateway_connection_input_invalid', 'gateway_authentication_failed',
+                            'gateway_connection_duplicate', 'gateway_connection_not_found', 'gateway_registry_full',
+                            'gateway_registry_closed', 'gateway_timeout', 'gateway_transport_failed',
+                            'gateway_endpoint_rejected', 'gateway_connection_failed', 'gateway_catalog_invalid',
+                            'gateway_catalog_unavailable'})
                         raise PiHTTPFailure(response.status_code, error if isinstance(error, str) and error in known else 'unrecognized_response')
                     response.raise_for_status()
             checkpoint()
