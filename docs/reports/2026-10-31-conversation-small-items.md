@@ -28,7 +28,9 @@ acceptance. No session deletion was performed.
   This is scoped control verification, not grid/research business acceptance.
 - First canonical rebuild passed readiness and API/worker image identity
   `701ab0425999cdcf2bb2ed23d4c116b7dbd65fee7cc0753df1030663bddaf5d5`;
-  scoped cache maintenance completed. Final notice-only rebuild is pending.
+  scoped cache maintenance completed. Final notice-only canonical rebuild passed
+  readiness, API/worker identity and scoped cleanup with image
+  `160e55be7a2c2c28e83fb612603c862454a96209756dd381a60f849cfb1d41bc`.
 
 Local evidence: `runs/conversation-small-items-20261031/`.
 Logs: `/tmp/capstone-small-tests.log`, `/tmp/capstone-small-app-all.log`,
@@ -36,6 +38,7 @@ Logs: `/tmp/capstone-small-tests.log`, `/tmp/capstone-small-app-all.log`,
 
 ## Delivery boundary
 
-Implementation is on `fix/conversation-small-items-20261031`; dev PR integration
-and final actual-dev control-graph inspection remain pending. Cloud, demo and
-main are unchanged. No release gate is required.
+PR79 merged as `25da0ae7` after App-only macOS41130366065 passed in4m1s.
+Actual root dev was fast-forwarded to that merge; the repair branch is a merged
+source. Cloud, demo and main are unchanged. No release gate was run.
+Final control-state integration is a separate documentation change.

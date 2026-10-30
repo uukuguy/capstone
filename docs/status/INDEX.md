@@ -2,8 +2,8 @@
 
 2026-10-31: conversation controls repair `8b2bd3b9` is on
 `fix/conversation-small-items-20261031`; 172 focused checks and types pass.
-First local rebuild and real Escape/follow-up/refresh validation passed; final
-notice-only rebuild and PR integration remain pending. Delete confirmation passed
+Both canonical local rebuilds and real Escape/follow-up/refresh validation passed;
+PR79 merged as25da0ae7 after focused App CI passed4m1s. Delete confirmation passed
 user manual acceptance. See the [repair plan](../superpowers/plans/2026-10-31-conversation-small-items.md).
 
 2026-10-30: execution-chain fixes integrated into dev; see [repair receipt](../reports/2026-10-30-execution-chain-repair.md) and [gateway handoff](../reports/2026-10-30-data-gateway-joint-diagnosis-handoff.md). Research mode remains planned; current focus is gateway and general execution validation. Older notes below are historical.

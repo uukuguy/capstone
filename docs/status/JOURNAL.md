@@ -6513,3 +6513,6 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 05:15 Verify page Escape reaches active Work cancellation; 22 adapter checks pass [d8b13d02].
 - 05:18 Confirm terminal stop notice after real Escape cancellation; same-thread follow-up and refresh pass; 22 adapter checks pass [d89248e0].
 - 05:18 App1419 checks and build pass; first canonical rebuild/image701ab042 and scoped cleanup pass; final notice rebuild running.
+- 05:20 Record scoped repair evidence and active recovery checkpoint; doctor, task references and symlink checks pass [8edc9059].
+- 05:21 Open PR79 to dev; App-only macOS gate41130366065 pending; final canonical rebuild ready with image160e55be.
+- 05:29 Merge PR79 as25da0ae7 after App-only CI passed4m1s; root dev fast-forwarded; recovery stash a0ca3ffd retained.
