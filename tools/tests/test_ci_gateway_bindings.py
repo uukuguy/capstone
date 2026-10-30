@@ -7,6 +7,14 @@ from tools.ci_scope import classify
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = 'packages/capstone-agent/src/capstone_agent/'
+
+
+def test_workflow_environment_has_no_case_insensitive_duplicate_keys():
+    import re
+    text = (ROOT / '.github/workflows/verify.yml').read_text()
+    block = text.split('    env:\n', 1)[1].split('    strategy:', 1)[0]
+    names = re.findall(r'^      ([A-Za-z_][A-Za-z0-9_]*):', block, re.MULTILINE)
+    assert len(names) == len({name.casefold() for name in names})
 CHANGES = [SOURCE + name + '.py' for name in (
     'data_gateway_relay', 'data_gateway_views', 'grid_source_topology',
     'grid_electrical_view', 'general_pi_server', 'pi_delegation', 'delegated_runtime',
