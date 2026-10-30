@@ -639,7 +639,7 @@ test('real SDK entry point registers graph tools without a manual delegate grant
     async reload(){for(const factory of this.options.extensionFactories)factory({registerTool:tool=>registry.set(tool.name,tool),on(){}});}
     getExtensions(){return {errors:[],extensions:[]};}getSkills(){return {skills:[],diagnostics:[]};}
   };
-  sdk.createAgentSession=async options=>({session:{async bindExtensions(){},setActiveToolsByName(names){observed.active=names;},getActiveToolNames(){return observed.active;},
+  sdk.createAgentSession=async options=>({session:{subscribe(){return ()=>{};},async bindExtensions(){},setActiveToolsByName(names){observed.active=names;},getActiveToolNames(){return observed.active;},
     extensionRunner:{async emit(){observed.shutdown=true;}},dispose(){observed.disposed=true;}}});
   const config={researchTaskId:'task',researchAttemptId:'attempt',researchOwner:{thread_id:'T',work_id:'W',research_id:'research',goal_revision:1},
     model:'fake',extensions:[],allowedSkills:[],contextFiles:[],settings:{},graphContextPath:context,researchChannelPath:channel,inventoryOnly:true,
