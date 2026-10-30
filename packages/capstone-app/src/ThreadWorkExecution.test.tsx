@@ -289,7 +289,8 @@ it('keeps native stop on the real Attempt and blocks new sends when host executi
   fireEvent.change(await screen.findByRole('textbox',{name:'Thread 指令'}),{target:{value:'开始讨论'}})
   await waitFor(()=>expect((screen.getByRole('button',{name:'发送'}) as HTMLButtonElement).disabled).toBe(false))
   fireEvent.click(screen.getByRole('button',{name:'发送'}))
-  fireEvent.click(await screen.findByRole('button',{name:'停止任务'}))
+  await screen.findByRole('button',{name:'停止任务'})
+  fireEvent.keyDown(document,{key:'Escape'})
   await waitFor(()=>expect(server.commands.at(-1)?.kind).toBe('cancel_work'))
 })
 
