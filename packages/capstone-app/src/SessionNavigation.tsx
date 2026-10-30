@@ -1,6 +1,6 @@
 import {useEffect,useLayoutEffect,useRef,useState} from 'react'
 import {createPortal} from 'react-dom'
-import {Archive,ChevronLeft,ChevronRight,History,Pin,Pencil,Trash2} from 'lucide-react'
+import {Archive,ChevronLeft,ChevronRight,History,Pin,Pencil,Trash2,X} from 'lucide-react'
 import SessionRow from './SessionRow'
 import SessionCleanup from './SessionCleanup'
 import {navigateSession,sessionName,orderSessions,useSessionPins,type SessionNavItem} from './sessionNavigationState'
@@ -145,7 +145,7 @@ export default function SessionNavigation({items,currentId,storageKey='workspace
     {menu&&createPortal(<div ref={menuElement} className="session-context-menu" role="menu" aria-label="会话操作" style={{left:menu.x,top:menu.y}}>
       <button role="menuitem" disabled={!actions} onClick={()=>{setEditing(menu.item.threadId);setMenu(undefined)}}><Pencil size={14}/>改名</button>
       {!archiveView&&<button role="menuitem" onClick={()=>{toggle(menu.item.threadId);setMenu(undefined)}}><Pin size={14}/>{pins.includes(menu.item.threadId)?'取消置顶':'置顶'}</button>}
-      <button role="menuitem" disabled={!actions||busy} onClick={()=>void archive(menu.item,!archiveView)}><Archive size={14}/>{archiveView?'恢复会话':'关闭并归档'}</button>
+      <button role="menuitem" disabled={!actions||busy} onClick={()=>void archive(menu.item,!archiveView)}>{archiveView?<Archive size={14}/>:<X size={13}/>}<span>{archiveView?'恢复会话':'关闭并归档'}</span></button>
       <button role="menuitem" className="is-destructive" disabled={!actions||busy} onClick={()=>{setDeleting(menu.item);setMenu(undefined)}}><Trash2 size={14}/>删除</button>
     </div>,document.body)}
     {deleting&&createPortal(<div className="session-delete-backdrop"><div className="session-delete-dialog" role="alertdialog" aria-modal="true" aria-labelledby="session-delete-title" onKeyDown={event=>{
