@@ -1,5 +1,15 @@
 # docs/status INDEX
 
+2026-10-30: execution-chain fixes integrated into dev; see [repair receipt](../reports/2026-10-30-execution-chain-repair.md) and [gateway handoff](../reports/2026-10-30-data-gateway-joint-diagnosis-handoff.md). Research mode remains planned; current focus is gateway and general execution validation. Older notes below are historical.
+
+Earlier 2026-10-30 priority (completed integration): close lightweight execution work and integrate PR71
+into dev. LLM pools are opt-in experiments; ordinary execution stays direct.
+The [enterprise data research analysis discussion](../superpowers/specs/2026-10-30-enterprise-data-research-analysis.md)
+and [roadmap](../superpowers/plans/2026-10-30-enterprise-analysis-roadmap.md) record
+accepted future design, including explicit user acceptance of result revisions.
+See VERSION-CONTROL.md and PROJECT-OVERVIEW.html for actual integration/deployment
+state. The following October27 notes are historical, not the active priority.
+
 Latest user priority: finish the non-diagram gateway work first. Diagram v2,
 provincial drilldown and location work are paused. The user reports Beijing gateway
 work complete; Capstone integration remains pending. Power-flow terminal integration
@@ -7,14 +17,19 @@ stays deferred. The [provincial scope/cache handoff](../superpowers/specs/2026-1
 is a retained follow-up, not active delivery. Visible business checks use new
 conversations in the existing Vivaldi Capstone tab.
 
-Current boundary (2026-10-27): [PR69](https://github.com/uukuguy/capstone/pull/69)
-merged as bcd1a5ad1d51b8ade53a305a5498ca6d557a2c7b; actual root dev has fast-forwarded.
+Final live snapshot (2026-10-27): [PR70](https://github.com/uukuguy/capstone/pull/70)
+merged as f1e6e9fda332d324c4f6778a5325ee56c513f0cf. Documentation CI40416427472
+passed in 1m35s. Actual root dev and the retained feature worktree are at f1;
+remote feature/docs branches are closed. [PR69](https://github.com/uukuguy/capstone/pull/69)
+at bcd1a5ad1d51b8ade53a305a5498ca6d557a2c7b remains the fixed product-integration baseline.
+VERSION/INDEX/HTML remain uncommitted final merge-identity snapshot/checkpoint residue
+to avoid a self-commit cycle; canonical content is already integrated by PR70.
 Required CI40409319046 passed on 519bf75f in 27m16s. The feature branch is closed
 for development as a merged source; its worktree and recovery references remain.
 Runtime stays ed0c5ff2; fixed business acceptance stays 214c2e23. The actual-dev App
 entry is verified: feature Vite PID54072 stopped; root make capstone-app-dev launched
-PID92924 on port5173. lsof confirms ROOT/packages/capstone-app as cwd, checkout
-bcd1a5ad. API readiness is 200; refreshing the existing Vivaldi thread restored CSV
+PID92924 on port5173. lsof confirms ROOT/packages/capstone-app as cwd; entry was
+checked at bcd1a5ad and the checkout is now f1e6e9fd. API readiness is 200; refreshing the existing Vivaldi thread restored CSV
 downloads and products. Effective local-dev content remains ed0c5ff2 because
 localBuildIdentity excludes document/test changes. Root documents are restored; the earlier
 scoped stash reference remains in outputs/control-recovery-20261027/stash-ref.txt.

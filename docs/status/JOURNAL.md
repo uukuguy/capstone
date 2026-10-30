@@ -5955,10 +5955,33 @@ Prior closeout receipts preserved verbatim from the root checkout:
 
 - 2026-10-27 `bcd1a5ad`: Merge PR69 after macOS40409319046 passed27m16s;actual dev fast-forwarded with recovery stash preserved.
 
+- 2026-10-27 `ec06f2d3`: Align merged gateway acceptance,actual-dev entry and control graph;record provincial readiness without graph acceptance.
+
+- 2026-10-27 `f1e6e9fd`: Merge PR70 after95-second docs gate;root and retained feature aligned;post-merge snapshot/checkpoint retained to avoid self-commit cycle.
+
 - 2026-10-27 `be6985af`: Scope Beijing topology delivery with interactive overview,background pages and independent conversation.
 
 - 2026-10-27 `42372304`: Admit protectedv2 summaries/inheritedchildren;53focusedchecks andlive-capture replay pass.
 
+2026-10-30: bfe55afe local request-pool trial passed; canonical register and graph updated. Dev integration and full summer performance remain pending.
+
+2026-10-30: 9e4143ee records full summer trial:511.863s,81main/0analysis,14-slide PPTX and CSV delivered; performance failed.
+
+2026-10-30: ad03a4b2 defaults to direct model execution; pools require explicit experiment because business speed benefit remains unproven.
+
+2026-10-30: cf52cb4f records question-led enterprise analysis and mandatory user acceptance; preserves future scope separately from implemented execution.
+
+2026-10-30: 00049515 preserves immutable artifact reuse across producer completion; fixes live continuation rejection without weakening source checks.
+
+2026-10-30: Direct-loop Vivaldi rounds passed32.427/8.642s; CSV projection and refresh verified, no pools, no repeated gateway reads on continuation.
+
+2026-10-30: b0c4602c matches frozen ledger receipts exactly; handles late presentation updates while preserving full provenance checks.
+
+2026-10-30: 030c1bf4 isolates offline profiles and preserves reader position; fixes CI assumptions without weakening production availability checks.
+
+2026-10-30: Final receipt reuse passed live in7.319s,3LLM/2tools/0pool; two-column CSV matches all eight source rows.
+
+2026-10-30: dc5ecd9e publishes rejection fixtures atomically and records live continuation evidence; prevents flaky partial receipt reads.
 - 2026-10-27 `8936e1a8`: Decode v2 electrical summaries and preserve endpoint identities so provincial overviews render without invented connectivity.
 
 - 2026-10-27 `b92202dd`: Preserve verified electrical descriptor metadata so replay retains source schema, root selection and actual parent identity.
@@ -6385,3 +6408,31 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 2026-10-30: 030c1bf4 isolates offline profiles and preserves reader position; removes credential dependence and scroll restoration races.
 
 2026-10-30: Record final direct-loop continuation evidence; publish rejection fixtures atomically to match the host and avoid partial reads.
+
+2026-10-30: PR71 merged3d65914d after40m47s CI; actual dev rebuild and scoped cleanup passed, preserving runtime data.
+
+2026-10-30: ba926e2d bounds App/workbench CI by ownership;145routing tests pass, avoiding unrelated solver suites.
+
+2026-10-30: f339f182 runs presentation tests in pinned overlay Python;23pass without adding native dependencies to all gates.
+
+2026-10-30: Refactored development gateway summer trial completed653.895s;16-slide PPTX/CSV downloaded,86models131tools; performance remains unaccepted.
+
+2026-10-30: 76c671ee binds trusted gateway diagnostics, groups file lineage and shows post-error continuation;110backend/49App checks pass.
+
+2026-10-30: 937f90f1 classifies stream termination and advises repeated discovery reuse;13Python/9Node checks preserve valid exploration.
+
+2026-10-30: 83f46bf4 synchronizes verified CI policy from dev; gateway correction PR prepared for scoped integration.
+
+2026-10-30: Independent chart inspection rejects revised chart:2024series absent and annotation overlaps legend despite model self-check.
+
+2026-10-30: e164951b bounds network idle, exposes retries and isolates reads;184affected/32App/26Kernel/10Node checks and types pass.
+
+2026-10-30: d6a6146c separates deadline/dedup tests and applies macOS single-child fixture;188checks pass without changing production cleanup.
+
+2026-10-30: f5fbbf67 aligns SDK stub and existing Pack targets;527Node/114consumer/146scope checks pass, preventing stale gate failures.
+
+2026-10-30: a8cad7db budgets receipt/replay fault injection independently of latency gates;8cases pass, production deadlines unchanged.
+
+2026-10-30: PR73 candidate a8cad7db passed required CI41044673717 (14m00s); merged bb2cd895 and actual root dev fast-forwarded. Canonical merged-source rebuild started. Control and reports preserve original SQL retest not_run and report visual rejection; no cloud/demo/main release.
+
+2026-10-30: actual-dev bb2cd895 canonical rebuild ready, all backend roles imagec6913a6e; scoped cleanup receipt191753-98818. No cloud release.
