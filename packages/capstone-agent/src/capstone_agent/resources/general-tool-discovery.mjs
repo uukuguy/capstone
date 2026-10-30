@@ -70,6 +70,20 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
       return tool.execute(...args);
     }})),
     configure(pi){
+      pi.on('context',event=>{
+        let changed=false;
+        const messages=event.messages.map(message=>{
+          const name=message.toolName;
+          if(message.role!=='toolResult'||message.isError!==true||!entries.has(name)||active.has(name)||
+            !message.content?.some(part=>part.type==='text'&&part.text===`Tool ${name} not found`))return message;
+          const text=JSON.stringify({code:'tool_not_active',tool:name,publication_changed:false,
+            active_tools:[...active],recovery:{tool:'agent_tool_load',arguments:{names:[name]},activation:'next_turn'},
+            guidance:'The tool is granted but absent from the current active menu. Loading replaces that menu; select the other tools needed for this work in the same bounded load. Wait for the next turn before calling them. Do not repeat discovery or the inactive call to refresh the publication.'});
+          if(message.content.some(part=>part.type==='text'&&part.text===text))return message;
+          changed=true;return {...message,content:[...message.content,{type:'text',text}]};
+        });
+        return changed?{messages}:undefined;
+      });
       pi.on('before_agent_start',event=>({systemPrompt:(event.systemPrompt??'')+
         '\nUse agent_tool_search for task-granted tool summaries and agent_tool_load for exact selected contracts; loaded tools become callable on the next model turn.'}));
       pi.on('turn_end',()=>{

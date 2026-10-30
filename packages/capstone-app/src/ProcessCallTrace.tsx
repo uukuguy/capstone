@@ -13,10 +13,10 @@ export type ProcessToolCall = { id: string; name: string; status: 'running' | 'c
 export type ProcessTraceFocus = { modelId: string; revision: number }
 export function callTraceIssues(models: readonly ProcessModelCall[], tools: readonly ProcessToolCall[], active = true) {
   return models.flatMap(model => {
-    if (active && !model.settled && !models.some(next => next.sequenceId === model.sequenceId && next.number > model.number)) return []
+    if (active && !models.some(next => next.sequenceId === model.sequenceId && next.number > model.number)) return []
     const missingToolIds = [...new Set(model.toolCallIds ?? [])].filter(id => {
       const tool = tools.find(item => item.id === id)
-      return !tool || tool.status === 'running'
+      return !tool || (!active && tool.status === 'running')
     })
     return missingToolIds.length ? [{ modelId: model.id, number: model.number, missingToolIds }] : []
   })

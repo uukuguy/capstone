@@ -3,6 +3,14 @@ import {projectProcessModelRequests} from './processModelRequests'
 import {modelCallMs} from './ProcessCallTrace'
 import type {EventEnvelope} from './threadProtocol'
 
+it('keeps bounded token counts with the exact response instead of dropping LLM cost evidence',()=>{
+ const completed={...boundary(2,'response_completed','tools'),payload:{phase:'response_completed',response_kind:'tools',
+  usage:{input:8000,output:400,cacheRead:5000,cacheWrite:0,totalTokens:13400,cost:{total:99},secret:'hidden'}}};
+ const calls=projectProcessModelRequests([boundary(1,'started'),completed,boundary(3,'started')],'attempt');
+ expect(calls[0].usage).toEqual({input:8000,output:400,cacheRead:5000,cacheWrite:0,totalTokens:13400});
+ expect(calls[1].usage).toBeUndefined();
+});
+
 const boundary=(seq:number,phase:string,responseKind?:string):EventEnvelope=>({eventId:`e${seq}`,eventSeq:seq,eventVersion:1,eventType:'runtime_action',threadId:'thread',runId:'run',attemptId:'attempt',visibility:'public',occurredAt:`2026-10-25T12:00:0${seq}Z`,payload:{phase,...(responseKind?{response_kind:responseKind}:{})}})
 it('binds main dispatch by authoritative SDK turn and excludes queue age from parent timing',()=>{
  const native={...boundary(0,'route'),eventType:'turn_route_selected',payload:{source:'native_conversation'}}

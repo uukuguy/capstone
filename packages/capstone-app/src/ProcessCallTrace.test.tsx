@@ -186,3 +186,14 @@ it('shows continuation after an error without claiming a retry or erasing the fa
  expect(screen.getByText(/模型连接异常.*后续模型调用已开始/)).toBeVisible()
  expect(screen.getByText('300.0s')).toBeVisible()
 })
+
+it('does not flag announced or running tools after the model response finishes',()=>{
+ const model={id:'m1',number:1,ms:1000,settled:true,toolCallIds:['tool']};
+ expect(callTraceIssues([model],[],true)).toEqual([]);
+ const running={id:'tool',name:'query',status:'running' as const};
+ expect(callTraceIssues([model],[running],true)).toEqual([]);
+ const next={id:'m2',number:2,ms:0,startedAt:'2026-10-30T00:00:02Z'};
+ expect(callTraceIssues([model,next],[running],true)).toEqual([]);
+ expect(callTraceIssues([model,next],[],true)).toMatchObject([{missingToolIds:['tool']}]);
+ expect(callTraceIssues([model],[running],false)).toMatchObject([{missingToolIds:['tool']}]);
+});

@@ -1,6 +1,43 @@
 from __future__ import annotations
 
 
+def test_model_usage_survives_kernel_and_public_harness_projection():
+    from capability_agent.runtime.step_events import project_runtime_action
+    from capstone_agent.harness import normalize_runtime_event
+    event = project_runtime_action({'type': 'message_end', 'message': {
+        'role': 'assistant', 'content': [], 'usage': {
+            'input': 8000, 'output': 400, 'cacheRead': 5000, 'cacheWrite': 0,
+            'totalTokens': 13400, 'cost': {'total': 99}, 'secret': 'hidden'},
+    }})
+    payload = normalize_runtime_event(event, runtime_mode='capstone')['payload']
+    assert payload['usage'] == {'input': 8000, 'output': 400, 'cacheRead': 5000,
+                               'cacheWrite': 0, 'totalTokens': 13400}
+
+
+def test_retry_lifecycle_survives_kernel_and_public_harness_projection():
+    from capability_agent.runtime.step_events import project_runtime_action
+    from capstone_agent.harness import normalize_runtime_event
+    started = project_runtime_action({'type': 'auto_retry_start', 'attempt': 1,
+                                    'maxAttempts': 2, 'delayMs': 1500})
+    payload = normalize_runtime_event(started, runtime_mode='capstone')['payload']
+    assert payload['retry_attempt'] == 1
+    assert payload['retry_maximum'] == 2
+    assert payload['retry_delay_ms'] == 1500
+    ended = project_runtime_action({'type': 'auto_retry_end', 'attempt': 1, 'success': True})
+    assert normalize_runtime_event(ended, runtime_mode='capstone')['payload']['retry_success'] is True
+
+
+def test_public_model_metrics_discard_untrusted_and_invalid_fields():
+    from capstone_agent.harness import normalize_runtime_event
+    payload = normalize_runtime_event({'type': 'runtime_action', 'phase': 'response_completed',
+        'usage': {'input': True, 'output': -1, 'cacheRead': float('inf'),
+                  'cacheWrite': 0, 'totalTokens': 100_000_001, 'secret': 'hidden'},
+        'retry_attempt': True, 'retry_maximum': 200, 'retry_delay_ms': float('nan'),
+        'retry_success': 'yes'}, runtime_mode='capstone')['payload']
+    assert payload['usage'] == {'cacheWrite': 0}
+    assert not any(key.startswith('retry_') for key in payload)
+
+
 def test_task_progress_receipt_is_public_text_not_calculation_evidence():
     from capstone_agent.harness import normalize_runtime_event
     record = {"kind": "observation", "text": "已取得计算结果，准备核对约束。", "refs": ["result:one"]}

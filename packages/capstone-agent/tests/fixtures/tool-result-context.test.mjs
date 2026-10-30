@@ -14,6 +14,7 @@ test('a bounded structure index exposes nested row shape even when verbose metad
     const body=JSON.stringify({structuredContent:value});
     const result=await boundToolResult({content:[{type:'text',text:body}]},{cwd,toolName:'source',callId:'shape'});
     const envelope=JSON.parse(result.content[0].text);
+    assert.equal(envelope.structure.base_pointer,'/structuredContent');
     const rows=envelope.structure.containers.find(entry=>entry.pointer==='/data/rows');
     assert.equal(rows.length,200);assert.deepEqual(rows.item_keys,['object_ref','time','value']);
     assert.ok(JSON.stringify(result.content).length<=6000);
@@ -34,6 +35,9 @@ test('large gateway data stays complete on disk and exact at the host while mode
     assert.equal(projected.full_result.sha256,createHash('sha256').update(body).digest('hex'));
     assert.equal(await readFile(projected.full_result.path,'utf8'),body);
     assert.equal(projected.preview.data.unit,'MW');
+    assert.equal(projected.preview_pointer,'/structuredContent');
+    const saved=JSON.parse(await readFile(projected.full_result.path,'utf8'));
+    assert.deepEqual(saved.structuredContent.data.unit,projected.preview.data.unit);
     const observed={...result,content:[...result.content,{type:'text',text:'Host observation reference: source-exact'}],
       details:{...result.details,native_research_source:{source_ref:'source-exact'}}};
     const restored=restoreToolResult(observed);
