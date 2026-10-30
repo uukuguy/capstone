@@ -7,7 +7,7 @@ import type { ModelWorkspace, OpenedModel } from './threadModelWorkspace'
 import { readPendingCommands, writePendingCommands } from './threadSessionState'
 import { parseWorkSnapshot, type WorkSnapshot } from './threadWorkProtocol'
 import type { AnyThreadCommand } from './threadClient'
-import { ThreadTransportError } from './threadHttpTransport'
+import { ThreadTransportError,isThreadVersionError } from './threadHttpTransport'
 import { ResultProjectionDelivery } from './resultProjectionDelivery'
 import {
   CapstoneThreadClient, type ThreadCommand, type ThreadTransport, type ThreadTransportState,
@@ -48,6 +48,7 @@ export type ThreadNetworkTask = {
 
 export type ThreadProjectionState = {
   connection: ThreadConnection
+  synchronizationError?: string
   snapshot: ThreadSnapshot | null
   workSnapshot?: WorkSnapshot | null
   eventSeq: number
@@ -572,7 +573,7 @@ export class ThreadProjectionStore {
     }
   }
 
-  async catchUp(): Promise<EventPage> {
+  async catchUp(waitForSnapshot = true,signal?:AbortSignal): Promise<EventPage> {
     const generation = this.loadGeneration
     if (this.current.resyncRequired || this.current.connection === 'resync_required') {
       throw new Error('thread is resync_required')
@@ -580,13 +581,16 @@ export class ThreadProjectionStore {
     const snapshot = this.ledger
     if (!snapshot) throw new Error('thread snapshot is not loaded')
     try {
-      const page = await this.client.readAfter(snapshot.threadId, this.current.eventSeq)
+      const page = await this.client.readAfter(snapshot.threadId, this.current.eventSeq,signal)
       if (generation !== this.loadGeneration) return page
       if (page.threadId !== snapshot.threadId) throw new Error('event page thread does not match snapshot')
       this.applyPage(page)
       if(!this.current.resyncRequired)this.current={...this.current,connection:'live'}
       this.notify()
-      if (this.options.protocolVersion === '2' && page.events.some(event => WORK_REFRESH_EVENTS.has(event.eventType))) await this.refreshWorkSnapshot()
+      if (this.options.protocolVersion === '2' && page.events.some(event => WORK_REFRESH_EVENTS.has(event.eventType))) {
+        if(waitForSnapshot)await this.refreshWorkSnapshot()
+        else this.refreshWorkInBackground()
+      }
       return page
     } catch (error) {
       rethrowDebugCapacity(error)
@@ -603,12 +607,12 @@ export class ThreadProjectionStore {
     }
   }
 
-  async catchUpThrough(eventSeq: number): Promise<void> {
+  async catchUpThrough(eventSeq: number,signal?:AbortSignal): Promise<void> {
     const generation = this.loadGeneration
     let more = true
     while (more || this.current.eventSeq < eventSeq) {
       const previous = this.current.eventSeq
-      const page = await this.catchUp()
+      const page = await this.catchUp(true,signal)
       if (generation !== this.loadGeneration) throw new Error('thread projection changed during synchronization')
       more = page.hasMore
       if (this.current.eventSeq === previous && (more || this.current.eventSeq < eventSeq)) {
@@ -644,19 +648,31 @@ export class ThreadProjectionStore {
   }
 
   /** Event-driven authority refresh, also used after the first v2 write to a v1 Thread. */
+  private refreshWorkInBackground():void {
+    const generation=this.loadGeneration
+    void this.refreshWorkSnapshot().catch(error=>{
+      if(generation!==this.loadGeneration)return
+      const resync=requiresResync(error),fatal=error instanceof CapacityError||isThreadVersionError(error)
+      this.current={...this.current,...(resync?{connection:'resync_required' as const,resyncRequired:true}:fatal?{connection:'offline' as const}:{}),
+        synchronizationError:fatal||resync?'会话状态校验失败，请刷新会话后重试。':'会话状态同步异常。请刷新会话状态。'}
+      this.notify()
+    })
+  }
+
   async refreshWorkSnapshot(): Promise<void> {
     if (this.options.protocolVersion !== '2' || !this.ledger || this.refreshingWorkSnapshot === this.loadGeneration) return
     const generation = this.loadGeneration
     const threadId = this.ledger.threadId
     this.refreshingWorkSnapshot = generation
+    const deadline=AbortSignal.timeout(applicationCapacity('ui_network_status_timeout_ms'))
     try {
       for (let read = 0; read < 3; read++) {
-        const representation = await this.client.loadWork(threadId)
+        const representation = await this.client.loadWork(threadId,deadline)
         if (generation !== this.loadGeneration || !('works' in representation)) return
-        if (representation.lastEventSeq > this.current.eventSeq) await this.catchUpThrough(representation.lastEventSeq)
+        if (representation.lastEventSeq > this.current.eventSeq) await this.catchUpThrough(representation.lastEventSeq,deadline)
         if (generation !== this.loadGeneration) return
         if (representation.lastEventSeq !== this.current.eventSeq) continue
-        this.current = { ...this.current, workSnapshot: representation,
+        this.current = { ...this.current, synchronizationError:undefined,workSnapshot: representation,
           snapshot: representation.professionalSnapshot ?? null }
         this.notify()
         return
@@ -702,7 +718,7 @@ export class ThreadProjectionStore {
         if (generation !== this.loadGeneration) return
         const previousSeq = this.current.eventSeq
         this.applyEvent(event)
-        if (this.options.protocolVersion === '2' && event.eventSeq > previousSeq && WORK_REFRESH_EVENTS.has(event.eventType)) await this.refreshWorkSnapshot()
+        if (this.options.protocolVersion === '2' && event.eventSeq > previousSeq && WORK_REFRESH_EVENTS.has(event.eventType)) this.refreshWorkInBackground()
         if (this.options.protocolVersion !== '2' && ['model_workspace_changed', 'model_context_activated', 'model_context_reopened', 'model_context_reverted', 'attempt_completed', 'attempt_failed', 'attempt_cancelled', 'attempt_interrupted'].includes(event.eventType)) await this.refreshModels()
       }
       if (signal && !signal.aborted && generation === this.loadGeneration) throw new Error('实时连接已关闭，正在恢复。')
