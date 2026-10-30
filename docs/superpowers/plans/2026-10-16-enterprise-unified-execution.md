@@ -1,5 +1,11 @@
 # Unified Enterprise Execution Implementation Plan
 
+2026-10-31当前切片：按用户确认的边界移除网关业务工具名、提供方名和工具集名的
+执行分支。具体实例由当前发现结果及返回动作取得；任务状态与ready视图分开处理。
+见[动态绑定设计](../specs/2026-10-31-gateway-dynamic-bindings-design.md)和
+[实施计划](2026-10-31-gateway-dynamic-binding.md)。网关协议实测通过；Capstone
+改造在隔离分支验证中，尚未合入或部署，不关闭企业研究分析模式的独立交付。
+
 2026-10-30收口：用户批准默认轻量链直接调用模型，LLM请求池与独立分析池仅留显式
 实验；工具并行、计时、制品即时发布保留。ad03a4b2已实现，定向220通过32跳过，
 App58通过，类型与doctor通过；真实本地重建验证和PR71合入dev仍待完成。

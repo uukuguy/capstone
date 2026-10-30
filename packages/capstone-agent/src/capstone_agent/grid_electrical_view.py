@@ -12,6 +12,7 @@ import json
 import hashlib
 import re
 import threading
+from typing import NoReturn
 
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import ValidationError
@@ -59,7 +60,7 @@ class ElectricalViewError(ValueError):
         return {'code': self.code, 'retryable': self.retryable, 'recovery_action': self.recovery_action}
 
 
-def _invalid():
+def _invalid() -> NoReturn:
     raise ElectricalViewError('grid_electrical_response_invalid')
 
 
@@ -262,9 +263,12 @@ def checked_manifest(value):
         if not isinstance(entry, dict):
             _invalid()
         total = _count(entry.get('total_count'))
-        expected = {'tool': 'read_network_model_view', 'arguments': {'view_ref': value['view_ref'], 'stream': stream}}
-        if entry.get('read') != expected:
+        expected = entry.get('read')
+        if (not isinstance(expected, dict) or not isinstance(expected.get('arguments'), dict)
+                or expected['arguments'].get('view_ref') != value['view_ref']
+                or expected['arguments'].get('stream') != stream):
             _invalid()
+        _text(expected.get('tool'))
         streams[stream] = {'total_count': total, 'read': expected}
     result = _pick(value, ('schema', 'state', *IDENTITY, 'view_ref', 'representation', 'target', 'artifact_ref',
                            'frozen_at', 'expires_at', 'issue_count', 'readiness', 'readiness_scope',
@@ -414,40 +418,42 @@ class ElectricalViewProvider:
             while len(self._views) > 256:
                 self._views.popitem(last=False)
 
-    async def _call(self, tool, arguments):
-        if self.gateway is None:
+    async def _call(self, arguments, original=None, *, read=False, open_view=False):
+        bindings = getattr(self.gateway, 'view_bindings', None)
+        if bindings is None:
             raise ElectricalViewError('grid_electrical_unavailable')
-        name = 'data_gateway_' + tool
-        catalog = self._catalog
-        published = catalog.get('tools', {}).get(name, {})
-        annotations = published.get('annotations', {})
-        if (annotations.get('destructiveHint') is not False or
-            annotations.get('readOnlyHint') is not (tool != 'open_network_model_view') or
-            not isinstance(published.get('inputSchema'), dict) or
-            not isinstance(catalog.get('tool_hashes', {}).get(name), str)):
+        action = bindings.action(arguments)
+        if action is None and original is not None:
+            action = bindings.action(original)
+        if action is None and (read or open_view):
+            match = getattr(bindings, 'view_action', None)
+            action = match(arguments, read=read) if match is not None else None
+        if action is None:
+            raise ElectricalViewError('grid_electrical_unavailable')
+        tool = action['tool']
+        name = tool if tool in self._catalog.get('tools', {}) else 'data_gateway_' + tool
+        published = self._catalog.get('tools', {}).get(name, {})
+        if (published.get('annotations', {}).get('destructiveHint') is not False
+                or not isinstance(published.get('inputSchema'), dict)
+                or not isinstance(self._catalog.get('tool_hashes', {}).get(name), str)):
             raise ElectricalViewError('grid_electrical_unavailable')
         try:
+            validate_gateway_schema(published['inputSchema'], action['arguments'])
             async with asyncio.timeout(EXCHANGE_SECONDS):
-                try:
-                    response = await self._invoke(tool, arguments, catalog)
-                except GatewayError as error:
-                    if str(error) != 'gateway_publication_changed':
-                        raise
-                    catalog = await self._refresh_catalog(catalog)
-                    # Only this pre-call rejection permits one rediscovery.
-                    # Transport errors and actual tool failures never replay.
-                    response = await self._invoke(tool, arguments, catalog)
+                response = await self.gateway.client.call(name, deepcopy(action['arguments']), self._catalog)
             _bounded(response)
             content = response.get('structuredContent')
             if not isinstance(content, dict):
                 _invalid()
             if response.get('isError') or content.get('status') not in {'ok', 'partial'}:
+                bindings.observe(tool, action['arguments'], response, self._catalog)
                 gaps = content.get('gaps')
                 code = gaps[0].get('reason') if isinstance(gaps, list) and gaps and isinstance(gaps[0], dict) else None
                 raise ElectricalViewError(code)
             data = content.get('data')
             if not isinstance(data, dict):
                 _invalid()
+            bindings.observe(tool, action['arguments'], response, self._catalog)
             return data
         except ElectricalViewError:
             raise
@@ -458,69 +464,11 @@ class ElectricalViewProvider:
         except (TimeoutError, OSError, ValueError, TypeError, KeyError, AttributeError):
             raise ElectricalViewError('grid_electrical_observation_unavailable') from None
 
-    async def _invoke(self, tool, arguments, catalog):
-        arguments = deepcopy(arguments)
-        properties = catalog['tools']['data_gateway_' + tool]['inputSchema'].get('properties', {})
-        if tool == 'open_network_model_view' and not arguments.get('parent_view_ref'):
-            if 'view_schema' in properties:
-                arguments.setdefault('view_schema', SCHEMA)
-                validate_gateway_schema(properties['view_schema'], arguments['view_schema'])
-            elif arguments.get('view_schema') == SCHEMA_V2:
-                raise ElectricalViewError('grid_electrical_unavailable')
-        return await self.gateway.client.call('data_gateway_' + tool, arguments, catalog)
-
-    @staticmethod
-    def _compatible_catalog(previous, current):
-        """Permit the published optional version selector and stream extension.
-
-        All existing request fields, required fields and effect annotations
-        remain exact. The frozen response is still checked against v1 locally.
-        """
-        try:
-            for tool in ('discover_network_models', 'open_network_model_view', 'read_network_model_view', 'get_network_model_job'):
-                name = 'data_gateway_' + tool
-                before, after = previous['tools'][name], current['tools'][name]
-                if (after.get('annotations', {}).get('destructiveHint') is not False or
-                    after['annotations'].get('readOnlyHint') is not (tool != 'open_network_model_view') or
-                    not isinstance(current['tool_hashes'][name], str)):
-                    return False
-                old, new = before['inputSchema'], after['inputSchema']
-                if {k: v for k, v in old.items() if k != 'properties'} != {k: v for k, v in new.items() if k != 'properties'}:
-                    return False
-                old_props, new_props = old.get('properties', {}), new.get('properties', {})
-                added = set(new_props) - set(old_props)
-                if added - ({'view_schema'} if tool == 'open_network_model_view' else set()) or set(old_props) - set(new_props):
-                    return False
-                for key, original in old_props.items():
-                    candidate = new_props[key]
-                    if tool == 'read_network_model_view' and key == 'stream':
-                        if (not set(original.get('enum', [])) <= set(candidate.get('enum', [])) or
-                            {k: v for k, v in original.items() if k != 'enum'} != {k: v for k, v in candidate.items() if k != 'enum'}):
-                            return False
-                    elif key == 'view_schema' and tool == 'open_network_model_view':
-                        # The explicit v1 request must remain valid even when
-                        # a newer publication changes its optional default.
-                        validate_gateway_schema(candidate, SCHEMA)
-                    elif original != candidate:
-                        return False
-                if 'view_schema' in new_props:
-                    validate_gateway_schema(new_props['view_schema'], SCHEMA)
-            return True
-        except Exception:
-            return False
-
-    async def _refresh_catalog(self, rejected):
-        async with self._refresh_lock:
-            if self._catalog['revision'] != rejected['revision']:
-                return self._catalog
-            current = await self.gateway.client.prepare()
-            if not self._compatible_catalog(rejected, current):
-                raise ElectricalViewError('gateway_publication_changed')
-            self._catalog = deepcopy(current)
-            return self._catalog
-
     async def models(self):
-        value = await self._call('discover_network_models', {'detail': False})
+        bindings = getattr(self.gateway, 'view_bindings', None)
+        value = bindings.discovery() if bindings is not None else None
+        if value is None:
+            raise ElectricalViewError('grid_electrical_unavailable')
         scopes = value.get('scopes')
         if not isinstance(scopes, list) or len(scopes) > 1000 or value.get('count') != len(scopes):
             _invalid()
@@ -631,7 +579,11 @@ class ElectricalViewProvider:
             with self._lock:
                 parent = deepcopy(self._views.get(request['parent_view_ref']))
             expected_schema = parent['schema'] if parent else None
-        value = await self._call('open_network_model_view', request)
+        bindings = getattr(self.gateway, 'view_bindings', None)
+        restore = getattr(bindings, 'restore', None)
+        value = restore(request) if restore is not None else None
+        if value is None:
+            value = await self._call(request, document, open_view=True)
         if value.get('model_ref') != request['model_ref']:
             _invalid()
         if expected_schema is not None and value.get('schema') != expected_schema:
@@ -639,11 +591,13 @@ class ElectricalViewProvider:
         if value.get('state') == 'preparing':
             _validate_view(value)
             _text(value.get('preparation_ref'))
+            if 'poll_after_seconds' in value:
+                _count(value['poll_after_seconds'])
             with self._lock:
                 self._jobs[value['preparation_ref']] = request['model_ref']
                 while len(self._jobs) > 256:
                     self._jobs.popitem(last=False)
-            return _pick(value, ('schema', 'state', 'model_ref', 'preparation_ref'))
+            return _pick(value, ('schema', 'state', 'model_ref', 'preparation_ref', 'poll_after_seconds'))
         result = checked_manifest(value)
         if result['representation'] != request['representation']:
             _invalid()
@@ -668,7 +622,7 @@ class ElectricalViewProvider:
                 _invalid()
             if cursor_scope and cursor_scope != (request['view_ref'], request['stream']):
                 raise ElectricalViewError('invalid_cursor')
-        value = await self._call('read_network_model_view', request)
+        value = await self._call(request, document, read=True)
         _validate_view(value)
         for key in (*IDENTITY, 'view_ref'):
             _text(value.get(key))
@@ -676,7 +630,7 @@ class ElectricalViewProvider:
             _invalid()
         records = value['records']
         total = _count(value['total_count'])
-        if len(records) != value['returned_count'] or len(records) > request['limit'] or len(records) > total:
+        if len(records) != value['returned_count'] or len(records) > 1000 or len(records) > total:
             _invalid()
         if len({item['id'] for item in records}) != len(records):
             _invalid()
@@ -712,7 +666,7 @@ class ElectricalViewProvider:
 
     async def job(self, document):
         request = checked_electrical_request('job', document)
-        value = await self._call('get_network_model_job', request)
+        value = await self._call(request, document)
         if value.get('job_ref') != request['job_ref'] or value.get('task_type') != 'view_preparation' or value.get('state') not in {'queued', 'running', 'succeeded', 'failed'}:
             _invalid()
         _text(value.get('model_ref'))
@@ -722,7 +676,9 @@ class ElectricalViewProvider:
             _invalid()
         if value['state'] == 'succeeded':
             _text(value.get('view_ref')); _text(value.get('model_revision'))
-        result = _pick(value, ('job_ref', 'task_type', 'model_ref', 'state', 'stage', 'view_ref', 'model_revision', 'created_at', 'completed_at', 'expires_at'))
+        if value['state'] in {'queued', 'running'} and 'poll_after_seconds' in value:
+            _count(value['poll_after_seconds'])
+        result = _pick(value, ('job_ref', 'task_type', 'model_ref', 'state', 'stage', 'view_ref', 'model_revision', 'created_at', 'completed_at', 'expires_at', 'poll_after_seconds'))
         if value['state'] == 'failed':
             failure = value.get('error')
             reason = failure.get('reason') if isinstance(failure, dict) else None

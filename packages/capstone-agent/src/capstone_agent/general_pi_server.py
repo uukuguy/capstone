@@ -122,7 +122,7 @@ def _adaptive_agent_loop(request):
 
 
 def _electrical_view_from_verified_result(result, arguments):
-    """Project a ready open response only after exact gateway receipt admission."""
+    """Project a typed ready manifest after exact gateway receipt admission."""
     from .grid_electrical_view import electrical_descriptor
     try:
         text = result['content'][0]['text']
@@ -134,20 +134,20 @@ def _electrical_view_from_verified_result(result, arguments):
             return None
         data = content['data']
         scope = arguments.get('scope')
-        if arguments.get('model_ref') is None:
-            if (not isinstance(scope, dict) or set(scope) != {'source_instance', 'object_type', 'object_id'}
+        if scope is not None:
+            if (arguments.get('model_ref') is not None or not isinstance(scope, dict) or set(scope) != {'source_instance', 'object_type', 'object_id'}
                     or scope.get('object_type') != 'grid'
                     or any(not isinstance(item, str) or not item or len(item) > 256
                            or any(ord(char) < 32 for char in item) for item in scope.values())
                     or arguments.get('parent_view_ref') is not None):
                 return None
-        elif scope is not None or data.get('model_ref') != arguments['model_ref']:
+        elif arguments.get('model_ref') is not None and data.get('model_ref') != arguments['model_ref']:
             return None
         if (data.get('state') != 'ready'
-                or data.get('representation') != arguments.get('representation', 'source_node_breaker')
-                or data.get('target') != arguments.get('target')):
+                or arguments.get('representation') is not None and data.get('representation') != arguments['representation']
+                or 'target' in arguments and data.get('target') != arguments['target']):
             return None
-        for argument, field in [('expected_model_revision', 'model_revision'), ('selection_ref', 'selection_ref'),
+        for argument, field in [('view_ref', 'view_ref'), ('expected_model_revision', 'model_revision'), ('selection_ref', 'selection_ref'),
                                 ('artifact_ref', 'artifact_ref')]:
             if arguments.get(argument) is not None and arguments[argument] != data.get(field):
                 return None
@@ -788,7 +788,8 @@ class GeneralPiHost:
                     payload = {'type': 'assistant_thinking_delta', 'text': change['delta']}
             if (payload is not None and (kind == 'tool_execution_end'
                     or kind == 'enterprise_graph_child_tool' and event.get('activity') == 'end')
-                    and payload.get('tool_name') in {'data_gateway_get_network_topology_view', 'data_gateway_open_network_model_view'}
+                    and isinstance(payload.get('tool_name'), str)
+                    and payload['tool_name'].startswith('data_gateway_')
                     and payload.get('is_error') is not True):
                 # Verification is mandatory even when the observation capture
                 # budget is full. Only the optional display projection can fail
@@ -796,9 +797,8 @@ class GeneralPiHost:
                 result = event.get('result', {})
                 arguments = self.verify_gateway_observation(request, payload['tool_call_id'], payload['tool_name'], result,
                     include_arguments=True)
-                if payload['tool_name'] == 'data_gateway_open_network_model_view':
-                    source_view = _electrical_view_from_verified_result(result, arguments)
-                else:
+                source_view = _electrical_view_from_verified_result(result, arguments)
+                if source_view is None:
                     from .grid_source_topology import source_view_from_gateway_result
                     source_view = source_view_from_gateway_result(result, arguments)
                 if source_view is not None:
@@ -1168,7 +1168,9 @@ class NativeTaskRunner:
                         'Do not treat a smaller value as the only correction, and do not repeat an unchanged expensive call. '
                         'Do not copy instance-specific indexes or limits into application code. '
                         'Follow returned references and conditional next steps only when needed for the current instruction and admitted by the task grant. '
-                        'Keep reads and follow-up calls bounded. Do not poll without a bounded wait or retry failed operations automatically. '
+                        'Read fresh runtime.contracts for task and view states. Task states preparing, queued, running, succeeded and failed are distinct from ready views. '
+                        'Follow only actual data.next_action or provenance.agent_guidance.next_actions returned for this task; ready views publish reads in streams.*.read. '
+                        'Before polling, wait at least the maximum returned poll_after_seconds and not_before_seconds. Keep reads and follow-up calls bounded; do not retry failed operations automatically. '
                         'Refresh source data only when the current instruction requests it. Captured content may lack verified source transaction consistency. '
                         'Preserve returned status, provenance, source identity, version, time coverage, units, quality, completeness and gaps. '
                         'Check published input/output and composition conditions before combining results; do not infer compatibility from similar names. '
@@ -1770,7 +1772,7 @@ def main():
                 'runtime_lock_sha256': sha256(Path('/opt/general/pi-runtime.lock.json').read_bytes()).hexdigest(),
                 'executor_revision': sha256(b''.join((Path(__file__).parent / name).read_bytes()
                     for name in ('general_pi_server.py', 'general_pi_executor.py', 'general_pi_storage.py', 'general_pi_relay.py', 'native_network_policy.py', 'bounded_http_loop.py', 'pi_delegation.py', 'business_context.py', 'request_intent.py', 'native_task_context.py', 'workbench_llm_profiles.py', 'native_failure_origin.py', 'native_diagnosis.py', 'native_tool_composition.py', 'native_llm_pool.py', 'native_model_request_pool.py', 'incremental_artifacts.py',
-                                 'native_resources.py', 'runtime_resources.py', 'resource_installation.py', 'general_pi_resource_seed.py', 'bounded_mcp.py', 'native_environment.py', 'data_gateway_mcp.py', 'data_gateway_relay.py', 'gateway_connections.py', 'gateway_connections_runtime.py', 'gateway_diagnostics.py', 'grid_source_topology.py', 'grid_electrical_view.py', 'resources/gateway-electrical-view-v1.schema.json', 'resources/gateway-electrical-view-v2.schema.json', 'resources/general-data-gateway.mjs',
+                                 'native_resources.py', 'runtime_resources.py', 'resource_installation.py', 'general_pi_resource_seed.py', 'bounded_mcp.py', 'native_environment.py', 'data_gateway_mcp.py', 'data_gateway_relay.py', 'data_gateway_views.py', 'gateway_connections.py', 'gateway_connections_runtime.py', 'gateway_diagnostics.py', 'grid_source_topology.py', 'grid_electrical_view.py', 'resources/gateway-electrical-view-v1.schema.json', 'resources/gateway-electrical-view-v2.schema.json', 'resources/general-data-gateway.mjs',
                                  'progress.py', 'stream_progress.py', 'resource_manifest.py', 'native_resource_staging.py',
                                  'native_research_bridge.py', 'native_graph_context.py', 'native_graph_events.py',
                                  'native_product_roles.py', 'continuation_resources.py', 'resources/general-research.mjs', 'resources/research-guidance.mjs',

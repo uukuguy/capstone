@@ -924,7 +924,8 @@ def test_sources_reference_actual_host_observed_tool_results(tmp_path):
 
 
 @pytest.mark.parametrize('mode',['valid','unpresentable','forged'])
-def test_gateway_source_hint_requires_host_receipt_even_after_capture_budget(tmp_path,monkeypatch,mode):
+@pytest.mark.parametrize('electrical', [False, True])
+def test_gateway_source_hint_requires_host_receipt_even_after_capture_budget(tmp_path,monkeypatch,mode,electrical):
     import asyncio
     from capstone_agent.data_gateway_relay import DataGatewayAccess
     from capstone_agent.general_pi_server import GeneralPiHost
@@ -936,16 +937,25 @@ def test_gateway_source_hint_requires_host_receipt_even_after_capture_budget(tmp
             return 0 if name=='context_references' else getattr(original,name)
     monkeypatch.setattr(server_module,'limits',NoCapture())
     client=Gateway()
-    if mode=='unpresentable':client.data['next_node_offset']=0
+    client.catalog['tools']['data_gateway_renamed_view']=client.catalog['tools'].pop('data_gateway_get_network_topology_view')
+    client.catalog['tool_hashes']['data_gateway_renamed_view']=client.catalog['tool_hashes'].pop('data_gateway_get_network_topology_view')
+    arguments={'scope_id':'north','level':'region'}
+    if electrical:
+        from test_grid_electrical_view import v2_manifest
+        client.data=v2_manifest()
+        arguments={'model_ref':'model:one','view_schema':'gateway-electrical-view/2'}
+    if mode=='unpresentable':
+        if electrical:client.data['state']='preparing'
+        else:client.data['next_node_offset']=0
     gateway=DataGatewayAccess(client,client.catalog)
     class Runner:
         def __call__(self,request,cancelled,emit):
-            gateway.bind(request.task_id,request.parent_attempt_id, {'data_gateway_get_network_topology_view'})
+            gateway.bind(request.task_id,request.parent_attempt_id, {'data_gateway_renamed_view'})
             response=asyncio.run(gateway.call(request.task_id,{'call_id':'view-one',
-                'name':'data_gateway_get_network_topology_view','arguments':{'scope_id':'north','level':'region'}}))
+                'name':'data_gateway_renamed_view','arguments':arguments}))
             details=response['observation']
             if mode=='forged':details={**details,'output_sha256':'forged'}
-            emit({'type':'tool_execution_end','toolName':'data_gateway_get_network_topology_view',
+            emit({'type':'tool_execution_end','toolName':'data_gateway_renamed_view',
                 'toolCallId':'view-one','isError':False,'result':{
                     'content':[{'type':'text','text':response['result_json']}],'details':details}})
             return 'Answer',{}
@@ -960,8 +970,9 @@ def test_gateway_source_hint_requires_host_receipt_even_after_capture_budget(tmp
     hints=[event['source_view'] for event in saved['events'] if 'source_view' in event]
     assert len(hints)==(1 if mode=='valid' else 0)
     if hints:
-        assert hints[0]['schema']=='capstone-grid-source-view-request/1'
-        assert hints[0]['scope_name']=='North'
+        assert hints[0]['schema']==('capstone-electrical-view-request/1' if electrical else 'capstone-grid-source-view-request/1')
+        if electrical:assert hints[0]['model_revision']=='revision-one'
+        else:assert hints[0]['scope_name']=='North'
         assert 'nodes' not in hints[0]
 
 
@@ -981,6 +992,10 @@ def test_verified_electrical_descriptor_keeps_v2_open_arguments():
         return {'content': [{'text': json.dumps({'structuredContent': {'status': 'ok', 'data': data}})}]}
     root = _electrical_view_from_verified_result(result(v2_manifest()), {
         'model_ref': 'model:one', 'view_schema': 'gateway-electrical-view/2', 'selection_profile': 'station'})
+    # A returned poll/read action can publish the same ready manifest with
+    # view identity arguments, without repeating the original open selectors.
+    assert _electrical_view_from_verified_result(result(v2_manifest()), {'job_ref': 'job-one'}) is not None
+    assert _electrical_view_from_verified_result(result(v2_manifest()), {'view_ref': 'changed'}) is None
     assert root['view_schema'] == 'gateway-electrical-view/2'
     assert root['selection_profile'] == 'station'
     child = _electrical_view_from_verified_result(result(v2_manifest(view_ref='child', target='station-one')), {

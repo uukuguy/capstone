@@ -19,6 +19,7 @@ jobs:
   verify:
     env:
       UV_PYTHON: "3.12"
+      NO_PROXY: "127.0.0.1,localhost"
     strategy:
       fail-fast: false
       matrix:
@@ -43,7 +44,7 @@ jobs:
           else
             gate=$(python3 tools/ci_scope.py --base "$BASE_SHA" --head "$HEAD_SHA" --target "$TARGET_BRANCH")
           fi
-          case "$gate" in docs|governance|app|gateway-controls|workbench|shared-agent|adaptive-agent|conversation-runtime|source-topology|foundation|native-runtime|product|release) ;; *) exit 1 ;; esac
+          case "$gate" in docs|governance|app|gateway-controls|gateway-bindings|workbench|shared-agent|adaptive-agent|conversation-runtime|source-topology|foundation|native-runtime|product|release) ;; *) exit 1 ;; esac
           echo "gate=$gate" >> "$GITHUB_OUTPUT"
       # Pinned per https://github.com/astral-sh/setup-uv (v10.0.1).
       - name: Install uv
@@ -54,9 +55,20 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22.19.0"
-      - run: make setup
+      - name: Set up standard dependencies
+        if: steps.scope.outputs.gate != 'gateway-bindings'
+        run: make setup
+      - name: Set up gateway binding dependencies
+        if: steps.scope.outputs.gate == 'gateway-bindings'
+        run: |
+          uv sync --project packages/grid-agent
+          uv sync --project packages/capstone-agent
+          # Doctor resolves the managed gridctl executable; no solver suite or assets.
+          uv sync --project packages/grid-simulator
+          npm ci --prefix packages/capstone-app
       - run: make install-pi
-      - run: make doctor
+      - name: Check managed runtime
+        run: make doctor
       - name: Verify documentation and control tooling
         if: steps.scope.outputs.gate == 'docs' || steps.scope.outputs.gate == 'governance'
         run: |
@@ -69,7 +81,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Verify governance contracts
         if: steps.scope.outputs.gate != 'docs'
-        run: PYTHONPATH=. uv run --project packages/grid-agent python -m pytest tools/tests/test_ci_scope.py tools/tests/test_ci_workbench_scope.py tools/tests/test_ci_gateway_controls.py tools/tests/test_verification_targets.py tools/tests/test_issue_automation*.py -q
+        run: PYTHONPATH=. uv run --project packages/grid-agent python -m pytest tools/tests/test_ci_scope.py tools/tests/test_ci_workbench_scope.py tools/tests/test_ci_gateway_controls.py tools/tests/test_ci_gateway_bindings.py tools/tests/test_verification_targets.py tools/tests/test_issue_automation*.py -q
       - name: Verify App only
         if: steps.scope.outputs.gate == 'app'
         timeout-minutes: 5
@@ -80,6 +92,16 @@ jobs:
         run: |
           make check-package-boundaries check-types test-capstone-app build-capstone-app
           uv run --project packages/capstone-agent pytest packages/capstone-agent/tests/test_gateway_connections*.py packages/capstone-agent/tests/test_general_pi_server.py packages/capstone-agent/tests/test_general_pi_native.py packages/capstone-agent/tests/test_pi_delegation.py packages/capstone-agent/tests/test_host_api.py packages/capstone-agent/tests/test_thread_http_api.py packages/capstone-agent/tests/test_network_policy_http.py packages/capstone-agent/tests/test_native_network_policy.py packages/capstone-agent/tests/test_grid_source_http.py packages/capstone-agent/tests/test_grid_electrical_view.py packages/capstone-agent/tests/test_thread_input_catalog.py tools/tests/test_host_runtime_contract.py tools/tests/test_image_layer_order.py -q
+      - name: Verify gateway bindings
+        if: steps.scope.outputs.gate == 'gateway-bindings'
+        timeout-minutes: 5
+        run: |
+          make check-package-boundaries
+          npm --prefix packages/capstone-app run check
+          npm --prefix packages/capstone-app test -- src/electricalModelView.test.ts
+          uv run --project packages/grid-agent pyright packages/capstone-agent/src/capstone_agent/data_gateway_views.py packages/capstone-agent/src/capstone_agent/data_gateway_relay.py packages/capstone-agent/src/capstone_agent/data_gateway_mcp.py packages/capstone-agent/src/capstone_agent/grid_source_topology.py packages/capstone-agent/src/capstone_agent/grid_source_http.py packages/capstone-agent/src/capstone_agent/grid_electrical_view.py packages/capstone-agent/src/capstone_agent/general_pi_server.py packages/capstone-agent/src/capstone_agent/pi_delegation.py packages/capstone-agent/src/capstone_agent/delegated_runtime.py
+          uv run --project packages/capstone-agent pytest packages/capstone-agent/tests/test_data_gateway_*.py packages/capstone-agent/tests/test_grid_source_*.py packages/capstone-agent/tests/test_grid_electrical_view.py packages/capstone-agent/tests/test_general_pi_server.py packages/capstone-agent/tests/test_pi_delegation.py packages/capstone-agent/tests/test_delegated_runtime.py packages/capstone-agent/tests/test_graph_host_observation.py tools/tests/test_host_runtime_contract.py tools/tests/test_image_layer_order.py -q
+          node --test packages/capstone-agent/tests/fixtures/gateway-tool-use.test.mjs packages/capstone-agent/tests/fixtures/tool-discovery.test.mjs packages/capstone-agent/tests/fixtures/tool-composition.test.mjs packages/capstone-agent/tests/fixtures/data-gateway-research.test.mjs
       - name: Verify enterprise workbench
         if: steps.scope.outputs.gate == 'workbench'
         timeout-minutes: 15

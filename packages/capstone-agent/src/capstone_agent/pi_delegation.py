@@ -83,14 +83,16 @@ def _json_document(value: object, *, native_events: bool = False) -> dict:
             protected = set(item) & _FORBIDDEN
             if protected and not (presentation and protected == {'model_revision'}):
                 raise ValueError("Pi JSON contains protected fields")
-            # Only the fixed presentation descriptor on a native gateway end
+            # Only the typed presentation descriptor on a native gateway end
             # event may carry a source model revision. This is not an Authority
             # binding, result or evidence grant. Keep generic task JSON closed.
             event_position = native_events and (not path or len(path) == 2 and path[0] == 'events' and type(path[1]) is int)
             gateway_end = (item.get('type') == 'tool_execution_end' or
                 item.get('type') == 'enterprise_graph_child_tool' and item.get('activity') == 'end')
             electrical_view = (event_position and gateway_end
-                and item.get('tool_name') == 'data_gateway_open_network_model_view'
+                and isinstance(item.get('tool_name'), str) and item['tool_name'].startswith('data_gateway_')
+                and isinstance(item.get('source_view'), Mapping)
+                and item['source_view'].get('schema') == 'capstone-electrical-view-request/1'
                 and isinstance(item.get('tool_call_id'), str) and bool(item['tool_call_id'])
                 and item.get('is_error') is not True)
             result = {}
