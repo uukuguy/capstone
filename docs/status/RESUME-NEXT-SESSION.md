@@ -1,12 +1,13 @@
 # Live Session Checkpoint
 
-> Updated: 2026-10-31 03:13. Session remains active — not a final handoff. User requested integration into dev.
+> Updated: 2026-10-31 03:34. Session remains active — not a final handoff. User requested dev integration and focused non-release CI.
 
 ## 当前状态
 
-- 分支：feat/gateway-instance-picker，产品HEAD：3a6c638e。
-- 产品修改均已提交；分支尚未推送、未建PR、未合并。
-- PR76已合并至远端dev：085b948f；本地dev仍落后。
+- 功能PR77已合入dev f8ba44bd；受检f6b4e120的macOS41113507626通过14分44秒。
+- 当前收口分支chore/gateway-control-ci-closeout，基于合并后dev。用户明确要求非发布只做专项测试。
+- AGENTS已写入规则；gateway-controls路由只测网关与直接消费者，部署文件须精确内容准入；未知/Kernel/Authority变更扩大范围。
+- 治理216通过2跳过；原专项后端380通过41跳过28.68秒，补充消费者90项通过3.21秒。独立评审关闭部署准入Important。
 - JOURNAL.md和RESUME-NEXT-SESSION.md有未提交修改。
 - 无云端、demo或main部署。
 
