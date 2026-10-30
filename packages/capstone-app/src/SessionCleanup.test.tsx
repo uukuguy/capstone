@@ -6,6 +6,16 @@ import {readSessionHistory} from './sessionManagement'
 afterEach(()=>{cleanup();localStorage.clear()})
 const old={threadId:'old',modelId:null,createdAt:'2020-01-01T00:00:00Z',sessionTitle:{text:'旧分析',source:'automatic' as const,revision:1,source_ref:'test'}}
 const pinned={...old,threadId:'pinned',sessionTitle:{...old.sessionTitle,text:'置顶分析'}}
+it('shows an active lookup status until history is ready',async()=>{
+  let finish!:(items:typeof old[])=>void
+  render(<SessionCleanup items={[]} storageKey="loading" scopeLabel="最近会话" remove={vi.fn()} onRemoved={()=>{}} loadItems={()=>new Promise(resolve=>{finish=resolve})}/> )
+  fireEvent.click(screen.getByRole('button',{name:'清理会话'}))
+  expect(screen.getByRole('status').textContent).toContain('正在查找可清理会话')
+  expect(screen.getByRole('button',{name:'查找中…'}).hasAttribute('disabled')).toBe(true)
+  await act(async()=>finish([old]))
+  expect(screen.queryByText('正在查找可清理会话…')).toBeNull()
+  expect(screen.getByRole('button',{name:'删除 1 个会话'}).hasAttribute('disabled')).toBe(false)
+})
 it('protects pins recovered from a previous browser tab during full-history cleanup',async()=>{
   const origin='capstone.thread.http%3A%2F%2Flocalhost%3A5173.'
   localStorage.setItem(`capstone.session-pins:${origin}old-tab`,JSON.stringify(['pinned']))
