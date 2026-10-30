@@ -2986,7 +2986,7 @@ class PostgresThreadService(NativeExecutionOwner):
             raise ThreadNotFound(thread_id)
 
     def snapshot(self, thread_id: str) -> ThreadSnapshot:
-        self.interrupt_expired_attempts()
+        self._interrupt_expired_attempts(thread_id)
         from .session_title_backfill import ensure_session_title
         ensure_session_title(self, thread_id)
         with self._connect() as connection:
@@ -4244,12 +4244,17 @@ class PostgresThreadService(NativeExecutionOwner):
         return self.rollback_context_if_preparation_failed(claim, error_code=error_code)
 
     def interrupt_expired_attempts(self) -> int:
+        return self._interrupt_expired_attempts()
+
+    def _interrupt_expired_attempts(self, thread_id: str | None = None) -> int:
         interrupted = 0
         with self._connect() as connection:
             rows = connection.execute(
                 """SELECT * FROM capstone_thread_attempts
                    WHERE phase = 'running' AND lease_deadline <= clock_timestamp()
-                   ORDER BY lease_deadline, attempt_id FOR UPDATE SKIP LOCKED""",
+                """ + (" AND thread_id = %s" if thread_id is not None else "") +
+                " ORDER BY lease_deadline, attempt_id FOR UPDATE SKIP LOCKED",
+                (thread_id,) if thread_id is not None else (),
             ).fetchall()
             for attempt in rows:
                 thread = connection.execute(

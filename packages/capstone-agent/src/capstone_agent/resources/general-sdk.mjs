@@ -505,6 +505,8 @@ function modelFailureCode(message) {
 }
 
 export function rpcEvent(event) {
+  if(event.type==='auto_retry_start')return {type:event.type,attempt:event.attempt,maxAttempts:event.maxAttempts,delayMs:event.delayMs,errorCode:modelFailureCode(event.errorMessage)};
+  if(event.type==='auto_retry_end')return {type:event.type,attempt:event.attempt,success:event.success};
   if(event.type==='tool_execution_end')event={...event,result:restoreToolResult(event.result)};
   if (["turn_start", "turn_end", "message_start", "tool_execution_update"].includes(event.type)) {
     // The SDK keeps messages and tool observations in its model session.

@@ -209,7 +209,7 @@ def create_host_app(
                         parts = request.url.path.split('/')
                         if len(parts) >= 5 and parts[4] and not (request.method == 'POST' and parts[-1] == 'commands'):
                             try:
-                                upgrade = thread_service.snapshot(parts[4]).minimum_protocol_version > 1
+                                upgrade = (await asyncio.to_thread(thread_service.snapshot, parts[4])).minimum_protocol_version > 1
                             except ThreadNotFound:
                                 pass
                     response = (JSONResponse({'error': 'protocol_upgrade_required', 'minimum_protocol_version': 2}, status_code=409)
@@ -691,7 +691,7 @@ def create_host_app(
                                        follow: Annotated[bool, Query()] = False):
             require_private_thread(request)
             try:
-                initial_page = thread_service.read_events(thread_id, after,
+                initial_page = await asyncio.to_thread(thread_service.read_events, thread_id, after,
                     protocol_version=int(request.headers.get('Capstone-Thread-Version', '1')))
             except ThreadProtocolUpgradeRequired:
                 return JSONResponse({'error': 'protocol_upgrade_required', 'minimum_protocol_version': 2}, status_code=409)

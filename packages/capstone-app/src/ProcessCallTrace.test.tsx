@@ -180,3 +180,9 @@ it('flags only settled missing records and shows concise call purpose and token 
   expect(screen.getByText(/write.*report.md/)).toBeVisible()
   expect(screen.getByText('整理已有结论，写入报告。')).toBeVisible()
 })
+
+it('shows continuation after an error without claiming a retry or erasing the failed call',()=>{
+ render(<ProcessCallTrace compact models={[{id:'failed',number:1,ms:300000,settled:true,stopReason:'error',errorCode:'model_transport'},{id:'next',number:2,ms:0,startedAt:'2026-10-30T00:00:00Z'}]} tools={[]} />)
+ expect(screen.getByText(/模型连接异常.*后续模型调用已开始/)).toBeVisible()
+ expect(screen.getByText('300.0s')).toBeVisible()
+})

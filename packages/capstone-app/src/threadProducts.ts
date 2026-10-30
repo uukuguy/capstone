@@ -8,6 +8,19 @@ export type ProductEntry={ref:ProductRef;title:string;media_type:string|null;byt
 export type ProductIndex={products:ProductEntry[];hasMore:boolean;nextCursor:string|null}
 export type ProductResolution={entry:ProductEntry;bytes:Uint8Array|null;projection:ResultProjection|null;record:Record<string,unknown>|null}
 export type ProductQuery={cursor?:string;workId?:string|null}
+/** Group only proven host file lineage, never titles or basenames. */
+export function latestProductVersions(items:ProductEntry[]){
+  const newest=new Map<string,ProductEntry>()
+  const key=(item:ProductEntry)=>{
+    const host=item.source.host_artifact_id,digest=item.ref.digest
+    return item.ref.origin==='native_file'&&typeof host==='string'&&host.endsWith('-'+digest)
+      ?JSON.stringify([item.ref.thread_id,item.source.task_id,host.slice(0,-digest.length-1)])
+      :productRefKey(item.ref)
+  }
+  for(const item of items){const id=key(item),prior=newest.get(id);if(!prior||item.ref.event_seq>prior.ref.event_seq)newest.set(id,item)}
+  const selected=new Set([...newest.values()])
+  return {latest:items.filter(item=>selected.has(item)),history:items.filter(item=>!selected.has(item))}
+}
 const origins=new Set(['native_file','task_delivery','domain_result','process_record'])
 const hash=/^[a-f0-9]{64}$/
 const identity=(value:unknown):value is string=>typeof value==='string'&&/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/.test(value)

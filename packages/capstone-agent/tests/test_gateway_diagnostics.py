@@ -5,6 +5,17 @@ from test_data_gateway_relay import access,request
 
 CONTEXT={'task_id':'study-1','run_id':'revision-2','trace_id':'trace-2','parent_span_id':'step-3'}
 
+def test_admitted_work_is_stable_across_revision_runs():
+    from capstone_agent.gateway_diagnostics import research_diagnostics
+    binding={'cycle_owner':{'work_id':'work-study'}}
+    first=research_diagnostics(binding,'attempt-1')
+    second=research_diagnostics(binding,'attempt-2')
+    assert first['task_id']==second['task_id']=='work-study'
+    assert first['run_id']!=second['run_id']
+    assert first['trace_id']!=second['trace_id']
+    assert research_diagnostics(binding,'attempt-1')==first
+    assert research_diagnostics(None,'attempt-1') is None
+
 def test_client_injects_meta_without_changing_business_arguments(tmp_path):
     client,session=gateway(tmp_path)
     original=session.call_tool

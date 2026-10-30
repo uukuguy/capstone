@@ -55,7 +55,7 @@ def test_workbench_workflow_covers_owned_consumers_without_full_solvers():
     block = text.split('- name: Verify enterprise workbench', 1)[1].split('- name:', 1)[0]
     for target in ('test-capstone-agent', 'test-kernel', 'test-capstone-app',
                    'build-capstone-app', 'test-capstone-client', 'test-registered-workers',
-                   'test-generic-tools', 'packages/enterprise-research-domain-pack/tests',
+                   'test-generic-tools', 'test_enterprise_research_pack.py', 'test_research_policy_compatibility.py',
                    'test_host_runtime_contract.py', 'test_native_presentation.py',
                    'test_hosted.py', 'test_hosted_thread.py'):
         assert target in block
@@ -64,3 +64,14 @@ def test_workbench_workflow_covers_owned_consumers_without_full_solvers():
     app = text.split('- name: Verify App only', 1)[1].split('- name:', 1)[0]
     assert 'test-capstone-app' in app and 'build-capstone-app' in app
     assert 'test-capstone-agent' not in app and 'check-types' not in app
+
+
+def test_workbench_pytest_targets_exist():
+    text=(ROOT/'.github/workflows/verify.yml').read_text()
+    block=text.split('- name: Verify enterprise workbench',1)[1].split('- name:',1)[0]
+    for line in block.splitlines():
+        if ' pytest ' not in line:
+            continue
+        for token in line.split(' pytest ',1)[1].split():
+            if token.startswith(('packages/','tools/')):
+                assert list(ROOT.glob(token)),f'Missing workbench test target: {token}'

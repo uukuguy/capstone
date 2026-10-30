@@ -5,6 +5,20 @@ import re
 
 def project_runtime_action(event: Mapping[str, Any]) -> dict[str, Any] | None:
     """Project native turn boundaries without exposing messages or private reasoning."""
+    kind = event.get('type')
+    if kind in {'auto_retry_start', 'auto_retry_end'}:
+        attempt = event.get('attempt')
+        if type(attempt) is not int or not 1 <= attempt <= 16:
+            return None
+        value: dict[str, Any] = {'type': 'runtime_action', 'phase': 'retry_started' if kind == 'auto_retry_start' else 'retry_completed', 'retry_attempt': attempt}
+        if kind == 'auto_retry_start':
+            maximum, delay = event.get('maxAttempts'), event.get('delayMs')
+            if type(maximum) is not int or not attempt <= maximum <= 16 or not isinstance(delay, (int, float)) or isinstance(delay, bool) or not 0 <= delay <= 3_600_000:
+                return None
+            value.update(retry_maximum=maximum, retry_delay_ms=delay)
+        elif type(event.get('success')) is bool:
+            value['retry_success'] = event['success']
+        return value
     if event.get("type") in {"turn_start", "turn_end"}:
         return {"type": "runtime_action", "phase": "started" if event["type"] == "turn_start" else "completed"}
     if event.get("type") == "message_end":

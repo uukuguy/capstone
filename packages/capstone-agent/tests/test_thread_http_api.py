@@ -648,3 +648,33 @@ def test_thread_rejects_non_json_command_payload_as_protocol_error() -> None:
     import pytest
     with pytest.raises(ThreadProtocolError, match="not JSON"):
         service.submit_command(command)
+
+
+@pytest.mark.parametrize('stage', ['snapshot', 'read_events'])
+def test_slow_initial_thread_read_does_not_block_async_health(monkeypatch, stage):
+    import asyncio
+    import time
+    import httpx
+    service = _service()
+    entered, release = threading.Event(), threading.Event()
+    original = getattr(service, stage)
+    def slow(*args, **kwargs):
+        entered.set()
+        release.wait(2)
+        return original(*args, **kwargs)
+    monkeypatch.setattr(service, stage, slow)
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=_app(service)),base_url='http://localhost') as client:
+            timer=threading.Timer(1,release.set);timer.start()
+            began=time.monotonic()
+            pending=asyncio.create_task(client.get('/api/v1/threads/thr_demo_39/events/stream',headers={**_auth(),'Capstone-Thread-Version':'1' if stage=='snapshot' else '2'}))
+            try:
+                assert await asyncio.to_thread(entered.wait,.5)
+                assert time.monotonic()-began<.5
+                started=time.monotonic()
+                response=await client.get('/health/ready',headers=_auth())
+                assert response.status_code==200
+                assert time.monotonic()-started<.5
+            finally:
+                release.set();timer.cancel();await pending
+    asyncio.run(run())

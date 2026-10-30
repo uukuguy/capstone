@@ -14,6 +14,27 @@ from .bounded_http_loop import write_http
 
 _LOG = logging.getLogger(__name__)
 
+
+def model_transport_timeout(policy=None):
+    """Network silence budget; progressing streams retain the task deadline."""
+    if policy is None:
+        from pathlib import Path
+        candidates = [Path('/opt/general/config/model-transport.json')]
+        candidates.extend(root / 'configs/runtime/general-pi/model-transport.json'
+                          for root in Path(__file__).resolve().parents)
+        path = next((path for path in candidates if path.is_file()), None)
+        if path is None:
+            raise ValueError('Model transport policy is not installed')
+        policy = json.loads(path.read_text())
+    fields = {'connect_seconds', 'read_idle_seconds', 'write_seconds', 'pool_seconds'}
+    if (not isinstance(policy, dict) or set(policy) != fields | {'schema'}
+            or policy['schema'] != 'capstone-model-transport/1'
+            or any(type(policy[key]) not in (int, float) or not math.isfinite(policy[key])
+                   or not 0 < policy[key] <= 3600 for key in fields)):
+        raise ValueError('Invalid model transport policy')
+    return httpx.Timeout(connect=policy['connect_seconds'], read=policy['read_idle_seconds'],
+                         write=policy['write_seconds'], pool=policy['pool_seconds'])
+
 from .application_capacity import limits, current_capacity, CapacityExceeded
 
 
@@ -57,6 +78,15 @@ class StreamDiagnostics:
 
     def summary(self):
         return {'stream_done': self.done, 'finish_reason': self.finish_reason}
+
+    def failure_code(self):
+        if self.finish_reason == 'network_error':
+            return 'stream_network_error'
+        if self.finish_reason == 'content_filter':
+            return 'stream_content_filtered'
+        if not self.done and self.finish_reason is None:
+            return 'stream_incomplete'
+        return None
 
 
 @dataclass(eq=False)
@@ -147,7 +177,7 @@ async def forward_provider(handler, lease: RelayLease, upstream: str, body: byte
     started, total, status = time.monotonic(), 0, None
     stream, diagnostics, failure = False, StreamDiagnostics(), None
     try:
-        async with httpx.AsyncClient(timeout=None, trust_env=False) as client, client.stream(
+        async with httpx.AsyncClient(timeout=model_transport_timeout(), trust_env=False) as client, client.stream(
             'POST', upstream.rstrip('/') + '/chat/completions', content=body,
             headers={'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key}) as response:
             status = response.status_code
@@ -185,6 +215,8 @@ async def forward_provider(handler, lease: RelayLease, upstream: str, body: byte
         failure = failure or ('cancelled' if lease.cancelled.is_set() else type(error).__name__)
         raise
     finally:
+        if stream and failure is None:
+            failure = diagnostics.failure_code()
         if failure or (status is not None and status >= 400) or (stream and (
                 not diagnostics.done or diagnostics.finish_reason in {'network_error', 'content_filter'})):
             # Only bounded protocol metadata crosses the operator log boundary.

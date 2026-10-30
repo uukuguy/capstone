@@ -256,3 +256,64 @@ def test_downstream_writer_does_not_block_other_exchange_deadlines():
         await asyncio.sleep(0.01)
         return 'available'
     assert run_http(other()) == 'available'
+
+
+def test_stream_failure_classifies_protocol_state_without_a_time_heuristic():
+    from capstone_agent.general_pi_relay import StreamDiagnostics
+    trace = StreamDiagnostics()
+    assert trace.failure_code() == 'stream_incomplete'
+    trace.feed(b'data: {"choices":[{"finish_reason":"stop"}]}\n\n')
+    assert trace.failure_code() is None
+    trace.feed(b'data: {"choices":[{"finish_reason":"network_error"}]}\n\n')
+    assert trace.failure_code() == 'stream_network_error'
+
+
+def test_model_transport_policy_bounds_network_idle_not_total_generation():
+    from capstone_agent.general_pi_relay import model_transport_timeout
+    timeout = model_transport_timeout()
+    assert timeout.connect == 15 and timeout.read == 90
+    assert timeout.write == 30 and timeout.pool == 15
+    policy = {'schema':'capstone-model-transport/1','connect_seconds':.1,
+              'read_idle_seconds':.2,'write_seconds':.3,'pool_seconds':.4}
+    assert model_transport_timeout(policy).read == .2
+    for value in (None, 0, -1, True, float('inf'), 3601):
+        with pytest.raises(ValueError):
+            model_transport_timeout({**policy,'read_idle_seconds':value})
+
+
+@pytest.mark.parametrize('progressing', [False, True])
+def test_actual_network_idle_budget_releases_stall_but_allows_long_progress(tmp_path, monkeypatch, progressing):
+    import capstone_agent.general_pi_relay as module
+    from capstone_agent.general_pi_server import GeneralPiHost, make_server
+    monkeypatch.setattr(module, 'model_transport_timeout', lambda: httpx.Timeout(0.2))
+    finish = Event()
+    payload = b'data: {"choices":[{"delta":{"content":"x"}}]}\n\n'
+    class Upstream(BaseHTTPRequestHandler):
+        def log_message(self, *args): pass
+        def do_POST(self):
+            self.rfile.read(int(self.headers['Content-Length']))
+            self.send_response(200); self.send_header('Content-Type','text/event-stream'); self.end_headers()
+            try:
+                self.wfile.write(payload); self.wfile.flush()
+                if progressing:
+                    for _ in range(8):
+                        time.sleep(.04); self.wfile.write(payload); self.wfile.flush()
+                    self.wfile.write(b'data: [DONE]\n\n'); self.wfile.flush()
+                else:
+                    finish.wait(3)
+            except OSError: pass
+    upstream = ThreadingHTTPServer(('127.0.0.1',0),Upstream)
+    relay = module.ProviderRelay(); relay.register('task','grant',time.monotonic()+5)
+    host = GeneralPiHost(root=tmp_path,identity={'engine':'pi'},run_task=lambda *_: ('unused',{}))
+    server = make_server(host,control_token='control',address=('127.0.0.1',0),
+        runner=SimpleNamespace(relay=relay,model='fixture'),upstream=f'http://127.0.0.1:{upstream.server_port}',provider_key='fixture-only')
+    for item in (server,upstream): Thread(target=item.serve_forever,daemon=True).start()
+    try:
+        result=httpx.post(f'http://127.0.0.1:{server.server_port}/provider/task/chat/completions',json={'model':'fixture','stream':True},headers={'Authorization':'Bearer grant'},timeout=2)
+        assert (b'[DONE]' in result.content) is progressing
+        deadline=time.monotonic()+1
+        while relay.active and time.monotonic()<deadline: time.sleep(.01)
+        assert not relay.active
+    finally:
+        finish.set();relay.revoke('task')
+        for item in (server,upstream):item.shutdown();item.server_close()
