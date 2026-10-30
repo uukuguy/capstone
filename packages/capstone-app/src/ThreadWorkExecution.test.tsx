@@ -292,6 +292,9 @@ it('keeps native stop on the real Attempt and blocks new sends when host executi
   await screen.findByRole('button',{name:'停止任务'})
   fireEvent.keyDown(document,{key:'Escape'})
   await waitFor(()=>expect(server.commands.at(-1)?.kind).toBe('cancel_work'))
+  await act(async()=>server.finish(true))
+  await screen.findByText('任务已停止。')
+  expect(screen.queryByText('停止请求已接收，正在等待实际执行停止。')).toBeNull()
 })
 
 it('references an actual process ledger item in the next native submission',async()=>{
