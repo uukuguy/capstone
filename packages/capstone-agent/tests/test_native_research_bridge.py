@@ -608,7 +608,7 @@ def test_protected_http_research_bridge_commits_during_native_task_and_replays_t
         raw = json.dumps({'request_id': 'request-live', 'expected_revision': 0,
             'changes': {'goal': 'Check uploaded facts'}}) + '\n'
         (mirror.root / 'requests/request-live.json').write_text(raw)
-        deadline = time.monotonic() + 2
+        deadline = time.monotonic() + request.timeout_seconds
         while not (mirror.root / 'receipts/request-live.json').exists():
             assert not cancelled() and time.monotonic() < deadline
             time.sleep(.01)
@@ -643,10 +643,12 @@ def test_protected_http_research_bridge_commits_during_native_task_and_replays_t
         executor = CheckedExecutor('http://127.0.0.1:' + str(server.server_port),
             control_token='test-private', identity=host.identity, capability=host.capability, poll_interval_seconds=.01)
         request = PiTaskRequest('research-task', 'attempt_bridge', 'delegated', 'Check', (), (),
-            host.identity, 3, business_context=BusinessContext.empty('workspace', 0),
+            host.identity, 10, business_context=BusinessContext.empty('workspace', 0),
             resource_profile={'profile_id': 'delegated_pi', 'revision': 'test'},
             input={'kind': 'text', 'text': 'Check'}, research_binding=bridge.binding)
-        control = NodeControl(lambda: None, time.monotonic() + 5)
+        # This is a receipt/replay test with multiple injected .4s round trips,
+        # not a latency gate. Keep the parent budget beyond the child deadline.
+        control = NodeControl(lambda: None, time.monotonic() + 15)
         result = executor.execute_with_research(request, control, lambda _: None, bridge)
         assert result.answer == 'Checked facts'
         assert owner.controller.read().revision == 1
