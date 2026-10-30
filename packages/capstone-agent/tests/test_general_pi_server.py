@@ -341,7 +341,7 @@ def test_host_assess_review_requires_reviewed_profile(tmp_path, version, variant
         assert result['result']['failure']['code'] == 'native_research_branch_invalid'
 
 
-def test_no_progress_rpc_failure_retains_actual_files_and_safe_public_reason(tmp_path):
+def test_no_progress_rpc_failure_retains_actual_files_and_safe_public_reason(tmp_path, native_single_child_cleanup):
     import json
     import sys
     from capstone_agent.general_pi_executor import GeneralPiProcess

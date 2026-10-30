@@ -473,8 +473,7 @@ def test_request_budget_cancels_and_deduplicates_events(service):
     with pytest.raises(TimeoutError):
         executor(origin).execute(PiTaskRequest.from_document(document),
                                  NodeControl(lambda: None, time.monotonic() + 2), events.append)
-    assert len(events) == 1
-    assert state["polls"] > 1
+    assert len(events) <= 1  # Deadline may arrive before the first poll on a loaded host.
     assert state["cancelled"] == ["/tasks/task-1"]
 
 
@@ -636,3 +635,18 @@ def test_cancel_total_budget_includes_dripped_response_headers(service):
     with pytest.raises((TimeoutError, RuntimeError)):
         executor(origin).cancel("task-1")
     assert time.monotonic() - start < 0.75
+
+
+def test_repeated_status_events_are_deduplicated_before_parent_cancellation(service):
+    origin,state=service
+    state['running']=True
+    events=[]
+    def check():
+        if state['polls']>=3:
+            raise TimeoutError('controlled parent deadline')
+    with pytest.raises(TimeoutError):
+        executor(origin).execute(PiTaskRequest.from_document(request_document()),NodeControl(check,time.monotonic()+5),events.append)
+    assert state['polls']>=3
+    assert len(events)==1
+    assert events[0]['event_id']=='e1'
+    assert state['cancelled']==['/tasks/task-1']
