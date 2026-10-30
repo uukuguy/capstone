@@ -3,6 +3,17 @@ import {afterEach,beforeEach,expect,it,vi} from 'vitest'
 import {act,cleanup,fireEvent,render,screen,waitFor,within} from '@testing-library/react'
 import SessionNavigation,{SessionAdjacentControls} from './SessionNavigation'
 const items=['a','b','c'].map(threadId=>({threadId,modelId:null,implementationFamily:null,createdAt:'2026-10-24',archived:false,lastEventSeq:0,sessionTitle:{text:`会话${threadId}`,source:'user' as const,source_ref:null,revision:1}}))
+it('offers a hover delete action for archived sessions and requires confirmation',async()=>{
+  const actions={rename:vi.fn(),archive:vi.fn(),remove:vi.fn(async()=>{}),archived:vi.fn(async()=>({threads:[{...items[2],archived:true}],hasMore:false,nextBeforeThreadId:null}))}
+  render(<SessionNavigation items={items.slice(0,1)} actions={actions}/>)
+  fireEvent.click(screen.getByRole('button',{name:'已归档会话'}))
+  fireEvent.click(await screen.findByRole('button',{name:'删除会话：会话c'}))
+  expect(actions.remove).not.toHaveBeenCalled()
+  fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button',{name:'删除'}))
+  await waitFor(()=>expect(actions.remove).toHaveBeenCalledWith('c'))
+  expect(actions.archive).not.toHaveBeenCalled()
+  await waitFor(()=>expect(screen.queryByRole('link',{name:'会话c'})).toBeNull())
+})
 it('restores pinned sessions outside the recent page',async()=>{
   localStorage.setItem('capstone.session-pins:older',JSON.stringify(['c']))
   const history=vi.fn(async()=>items)

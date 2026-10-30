@@ -126,6 +126,7 @@ export default function SessionNavigation({items,currentId,storageKey='workspace
   }
   async function archive(item:SessionNavItem,value:boolean){if(!actions||busy)return;setBusy(true);setMenu(undefined);setError('');try{await actions.archive(item.threadId,value);if(!mayUpdate())return;setRemoved(previous=>[...previous,item.threadId]);if(item.threadId===currentId&&value)navigateSession(displayed.find(other=>other.threadId!==item.threadId)?.threadId??'new')}catch{setError('操作未完成；运行中的会话需先停止。')}finally{setBusy(false)}}
   const rows=(values:SessionNavItem[])=>values.map(item=><SessionRow key={item.threadId} item={item} current={item.threadId===currentId} editing={editing===item.threadId} onEdit={()=>setEditing(previous=>previous===item.threadId?undefined:item.threadId)}
+    onDelete={actions&&archiveView?()=>{setDeleting(item);setError('')}:undefined}
     onActivate={()=>void openSession(item)}
     onRename={actions?async text=>{await actions.rename(item.threadId,text);setNames(previous=>({...previous,[item.threadId]:text}));setEditing(undefined)}:undefined}
     onMenu={(x,y)=>{setMenu({item,x:Math.max(8,Math.min(x,window.innerWidth-190)),y:Math.max(8,Math.min(y,window.innerHeight-200))});setError('')}} onClose={actions&&!archiveView?()=>void archive(item,true):undefined}/>)
