@@ -1,6 +1,6 @@
 import {useEffect,useLayoutEffect,useRef,useState} from 'react'
 import {createPortal} from 'react-dom'
-import {Archive,ChevronLeft,ChevronRight,History,Pin,Pencil,Trash2} from 'lucide-react'
+import {Archive,ChevronLeft,ChevronRight,History,Pin,Pencil,Trash2,X} from 'lucide-react'
 import SessionRow from './SessionRow'
 import SessionCleanup from './SessionCleanup'
 import {navigateSession,sessionName,orderSessions,useSessionPins,type SessionNavItem} from './sessionNavigationState'
@@ -29,9 +29,30 @@ export default function SessionNavigation({items,currentId,storageKey='workspace
   const mayUpdate=()=>mounted.current&&isWorkspaceActive(workspace.current)
   useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;archiveRequest.current++}},[])
   const [removed,setRemoved]=useState<string[]>([]),[names,setNames]=useState<Record<string,string>>({}),[deleting,setDeleting]=useState<SessionNavItem>(),[busy,setBusy]=useState(false),[error,setError]=useState('')
+  const deleteDialog=useRef<HTMLDivElement>(null)
+  const [deleteAnchor,setDeleteAnchor]=useState({left:8,top:8})
+  const [deletePosition,setDeletePosition]=useState(deleteAnchor)
+  useLayoutEffect(()=>{
+    if(!deleting)return
+    const place=()=>{const rect=deleteDialog.current?.getBoundingClientRect();if(rect)setDeletePosition({left:Math.max(8,Math.min(deleteAnchor.left,window.innerWidth-rect.width-8)),top:Math.max(8,Math.min(deleteAnchor.top,window.innerHeight-rect.height-8))})}
+    place();window.addEventListener('resize',place)
+    return()=>window.removeEventListener('resize',place)
+  },[deleting,deleteAnchor,error])
   const [reopened,setReopened]=useState<SessionNavItem[]>([])
+  const [olderPins,setOlderPins]=useState<SessionNavItem[]>([])
+  const historyLoader=useRef(actions?.history);historyLoader.current=actions?.history
+  const missingPins=JSON.stringify(pins.filter(id=>!items.some(item=>item.threadId===id)))
+  useEffect(()=>{
+    const wanted:string[]=JSON.parse(missingPins),load=historyLoader.current
+    if(!wanted.length||!load)return
+    const controller=new AbortController()
+    void load(false,controller.signal).then(records=>{
+      if(!controller.signal.aborted&&mayUpdate())setOlderPins(records.filter(item=>wanted.includes(item.threadId)&&!item.archived))
+    }).catch(()=>{if(!controller.signal.aborted&&mayUpdate())setError('置顶会话暂时无法读取，请刷新重试。')})
+    return()=>controller.abort()
+  },[missingPins,storageKey,Boolean(actions?.history)])
   useEffect(()=>{if(reopened.some(item=>items.some(existing=>existing.threadId===item.threadId)))setReopened(previous=>previous.filter(item=>!items.some(existing=>existing.threadId===item.threadId)))},[items,reopened])
-  const recent=[...reopened.filter(item=>!items.some(existing=>existing.threadId===item.threadId)),...items]
+  const recent=[...olderPins.filter(item=>pins.includes(item.threadId)&&!items.some(existing=>existing.threadId===item.threadId)&&!reopened.some(existing=>existing.threadId===item.threadId)),...reopened.filter(item=>!items.some(existing=>existing.threadId===item.threadId)),...items]
   const displayed=(archiveView?archived?.threads??[]:orderSessions(recent,pins)).filter(item=>!removed.includes(item.threadId)).map(item=>names[item.threadId]?{...item,sessionTitle:{text:names[item.threadId],source:'user' as const,revision:item.sessionTitle?.revision??0,source_ref:null}}:item)
   const scrollKey=`capstone.session-navigation.scroll:${storageKey}:${archiveView?'archived':'active'}`
   useLayoutEffect(()=>{
@@ -114,6 +135,7 @@ export default function SessionNavigation({items,currentId,storageKey='workspace
   }
   async function archive(item:SessionNavItem,value:boolean){if(!actions||busy)return;setBusy(true);setMenu(undefined);setError('');try{await actions.archive(item.threadId,value);if(!mayUpdate())return;setRemoved(previous=>[...previous,item.threadId]);if(item.threadId===currentId&&value)navigateSession(displayed.find(other=>other.threadId!==item.threadId)?.threadId??'new')}catch{setError('操作未完成；运行中的会话需先停止。')}finally{setBusy(false)}}
   const rows=(values:SessionNavItem[])=>values.map(item=><SessionRow key={item.threadId} item={item} current={item.threadId===currentId} editing={editing===item.threadId} onEdit={()=>setEditing(previous=>previous===item.threadId?undefined:item.threadId)}
+    onDelete={actions&&archiveView?(x,y)=>{setDeleteAnchor({left:x,top:y});setDeleting(item);setError('')}:undefined}
     onActivate={()=>void openSession(item)}
     onRename={actions?async text=>{await actions.rename(item.threadId,text);setNames(previous=>({...previous,[item.threadId]:text}));setEditing(undefined)}:undefined}
     onMenu={(x,y)=>{setMenu({item,x:Math.max(8,Math.min(x,window.innerWidth-190)),y:Math.max(8,Math.min(y,window.innerHeight-200))});setError('')}} onClose={actions&&!archiveView?()=>void archive(item,true):undefined}/>)
@@ -132,14 +154,14 @@ export default function SessionNavigation({items,currentId,storageKey='workspace
     {menu&&createPortal(<div ref={menuElement} className="session-context-menu" role="menu" aria-label="会话操作" style={{left:menu.x,top:menu.y}}>
       <button role="menuitem" disabled={!actions} onClick={()=>{setEditing(menu.item.threadId);setMenu(undefined)}}><Pencil size={14}/>改名</button>
       {!archiveView&&<button role="menuitem" onClick={()=>{toggle(menu.item.threadId);setMenu(undefined)}}><Pin size={14}/>{pins.includes(menu.item.threadId)?'取消置顶':'置顶'}</button>}
-      <button role="menuitem" disabled={!actions||busy} onClick={()=>void archive(menu.item,!archiveView)}><Archive size={14}/>{archiveView?'恢复会话':'关闭并归档'}</button>
-      <button role="menuitem" className="is-destructive" disabled={!actions||busy} onClick={()=>{setDeleting(menu.item);setMenu(undefined)}}><Trash2 size={14}/>删除</button>
+      <button role="menuitem" disabled={!actions||busy} onClick={()=>void archive(menu.item,!archiveView)}>{archiveView?<Archive size={14}/>:<X size={13}/>}<span>{archiveView?'恢复会话':'关闭并归档'}</span></button>
+      <button role="menuitem" className="is-destructive" disabled={!actions||busy} onClick={()=>{setDeleteAnchor({left:menu.x,top:menu.y});setDeleting(menu.item);setMenu(undefined)}}><Trash2 size={14}/>删除</button>
     </div>,document.body)}
-    {deleting&&createPortal(<div className="session-delete-backdrop"><div className="session-delete-dialog" role="alertdialog" aria-modal="true" aria-labelledby="session-delete-title" onKeyDown={event=>{
+    {deleting&&createPortal(<div className="session-delete-backdrop" onPointerDown={event=>{if(event.target===event.currentTarget&&!busy)setDeleting(undefined)}}><div ref={deleteDialog} style={deletePosition} className="session-delete-dialog" role="alertdialog" aria-modal="true" aria-labelledby="session-delete-title" onKeyDown={event=>{
       if(event.key==='Escape'&&!busy){event.preventDefault();setDeleting(undefined)}
       if(event.key==='Tab'){const buttons=[...event.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')];if(!buttons.length){event.preventDefault();return}const first=buttons[0],last=buttons.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus()}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus()}}
     }}>
-      <h3 id="session-delete-title">删除会话？</h3><p>{sessionName(deleting)}</p><p>会话及对话记录将被删除，无法恢复。已生成文件按存储保留规则处理。</p><div><button autoFocus disabled={busy} onClick={()=>setDeleting(undefined)}>取消</button><button className="is-destructive" disabled={busy} onClick={()=>{if(!actions)return;setBusy(true);setError('');void actions.remove(deleting.threadId).then(()=>{if(!mayUpdate())return;setRemoved(previous=>[...previous,deleting.threadId]);setDeleting(undefined);if(deleting.threadId===currentId)navigateSession(displayed.find(other=>other.threadId!==deleting.threadId)?.threadId??'new')}).catch(()=>setError('删除未完成；运行中的会话需先停止。')).finally(()=>setBusy(false))}}>{busy?'删除中…':'删除'}</button></div>{error&&<p role="alert">{error}</p>}
+      <h3 id="session-delete-title">删除会话？</h3><p>{sessionName(deleting)}</p><p>会话及对话记录将被删除，无法恢复。已生成文件按存储保留规则处理。</p><div><button disabled={busy} onClick={()=>setDeleting(undefined)}>取消</button><button autoFocus className="is-destructive" disabled={busy} onClick={()=>{if(!actions)return;setBusy(true);setError('');void actions.remove(deleting.threadId).then(()=>{if(!mayUpdate())return;setRemoved(previous=>[...previous,deleting.threadId]);setDeleting(undefined);if(deleting.threadId===currentId)navigateSession(displayed.find(other=>other.threadId!==deleting.threadId)?.threadId??'new')}).catch(()=>setError('删除未完成；运行中的会话需先停止。')).finally(()=>setBusy(false))}}>{busy?'删除中…':'删除'}</button></div>{error&&<p role="alert">{error}</p>}
     </div></div>,document.body)}
   </div>
 }

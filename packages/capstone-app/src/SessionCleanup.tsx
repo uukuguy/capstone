@@ -1,6 +1,6 @@
 import {useEffect,useId,useLayoutEffect,useRef,useState} from 'react'
 import {createPortal} from 'react-dom'
-import {Trash2,X} from 'lucide-react'
+import {LoaderCircle,Trash2,X} from 'lucide-react'
 import {readSessionPins,sessionName,useSessionPins,type SessionNavItem} from './sessionNavigationState'
 import './sessionCleanup.css'
 
@@ -77,14 +77,15 @@ export default function SessionCleanup({items,storageKey,currentId,scopeLabel,re
   return <><button ref={anchor} type="button" className="session-cleanup-entry" aria-label="清理会话" aria-haspopup="dialog" aria-expanded={open} aria-controls={open?popupId:undefined} title="按创建时间清理会话" onClick={()=>open?close():void show()}><Trash2 size={14} aria-hidden="true"/><span>清理会话</span></button>
     {open&&createPortal(<div ref={popup} id={popupId} role="dialog" aria-label="清理会话" className="session-cleanup-popover" style={position}>
       <header><strong>清理会话</strong><button type="button" aria-label="关闭清理会话" onClick={()=>close()}><X size={14} aria-hidden="true"/></button></header>
-      <p className="session-cleanup-scope">{scopeLabel}{loading?' · 正在读取全部记录…':` · 共 ${inventory.length} 条`}</p>
+      <p className="session-cleanup-scope">{scopeLabel}{loading?'':` · 共 ${inventory.length} 条`}</p>
       <label className="session-cleanup-age">创建于 <input aria-label="天数" type="number" min="1" max="36500" value={Number.isNaN(days)?'':days} disabled={busy||completed} onChange={event=>setDays(event.target.valueAsNumber)}/> 天前</label>
       <div className="session-cleanup-presets">{[7,30,90].map(value=><button type="button" key={value} aria-pressed={days===value} disabled={busy||completed} onClick={()=>setDays(value)}>{value} 天</button>)}</div>
       <p>置顶和当前会话已排除。删除后无法恢复。</p>
       {loadError&&<p role="alert">{loadError}</p>}
+      {loading&&<div className="session-cleanup-loading" role="status" aria-live="polite"><LoaderCircle size={15} aria-hidden="true"/><span>正在查找可清理会话…</span></div>}
       {!completed&&!loading&&!loadError&&<><p>{candidates.length} 个会话将被删除</p><ul className="session-cleanup-preview">{candidates.map(item=><li key={item.threadId}><span>{sessionName(item)}</span><time>{new Date(item.createdAt!).toLocaleDateString('zh-CN')}</time></li>)}</ul></>}
       {result&&<p role="status">{result}</p>}
-      <div className="session-cleanup-actions"><button type="button" onClick={()=>close()}>{busy?'停止':completed?'关闭':'取消'}</button>{!completed&&<button type="button" className="session-cleanup-confirm" disabled={busy||!candidates.length} onClick={()=>void clear()}>{busy?`删除中 ${progress.done}/${progress.total}`:`删除 ${candidates.length} 个会话`}</button>}</div>
+      <div className="session-cleanup-actions"><button type="button" onClick={()=>close()}>{busy?'停止':completed?'关闭':'取消'}</button>{!completed&&<button type="button" className="session-cleanup-confirm" disabled={loading||busy||!candidates.length} onClick={()=>void clear()}>{loading?'查找中…':busy?`删除中 ${progress.done}/${progress.total}`:`删除 ${candidates.length} 个会话`}</button>}</div>
     </div>,document.body)}
   </>
 }

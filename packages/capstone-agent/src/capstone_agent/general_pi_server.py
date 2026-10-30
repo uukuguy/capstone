@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from contextlib import contextmanager
 from hashlib import sha256
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import asyncio
@@ -182,6 +183,8 @@ class GeneralPiHost:
         gateway = getattr(run_task, 'gateway', None)
         self.capability['data_gateway'] = (gateway.publication() if gateway else
             getattr(run_task, 'gateway_publication', {'available': False, 'reason': 'not_configured'}))
+        if getattr(run_task, 'gateway_registry', None) is not None:
+            self.capability['gateway_connections'] = True
         from .native_task_context import research_policy_capabilities
         self.capability['research_policy_profiles'] = research_policy_capabilities()
         self._max_tasks, self._max_records = max_tasks, max_records
@@ -1004,6 +1007,7 @@ class NativeTaskRunner:
         self.environment_context = environment_context()
         self.network_policy = network_policy
         self.gateway = gateway
+        self.gateway_registry: object | None = None
         self.gateway_publication = gateway.publication() if gateway else {'available': False, 'reason': 'not_configured'}
         self._lock = threading.Lock()
         self.relay = ProviderRelay()
@@ -1367,7 +1371,56 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
     from .grid_source_topology import GridSourceProvider, GridSourceError, REQUEST_BYTES
     source_provider = GridSourceProvider(getattr(runner or host._run, 'gateway', None))
     from .grid_electrical_view import ElectricalViewProvider, ElectricalViewError
+    from .data_gateway_mcp import GatewayError
     electrical_provider = ElectricalViewProvider(getattr(runner or host._run, 'gateway', None))
+
+    def apply_gateway_access(target, access):
+        nonlocal source_provider, electrical_provider
+        publication = access.publication()
+        setattr(target, 'gateway', access)
+        setattr(target, 'gateway_publication', publication)
+        host.capability['data_gateway'] = publication
+        source_provider = GridSourceProvider(access)
+        electrical_provider = ElectricalViewProvider(access)
+
+    def gateway_control(action=None, document=None):
+        target = runner or host._run
+        registry = getattr(target, 'gateway_registry', None)
+        if registry is None:
+            raise GatewayError('gateway_registry_unavailable')
+        if action is None:
+            # Health recovery prepares in the background. Apply it without a
+            # network request here and never replace an active task's source.
+            with host._lock:
+                access = registry.current_access
+                if (access is not None and access is not getattr(target, 'gateway', None)
+                        and not any(item['status'] in {'queued', 'running'} for item in host._tasks.values())):
+                    apply_gateway_access(target, access)
+            return registry.snapshot()
+        if action == 'select':
+            if not isinstance(document, dict) or set(document) != {'id'} or not isinstance(document['id'], str):
+                raise GatewayError('gateway_connection_input_invalid')
+            with host._lock:
+                if registry.snapshot().get('selected_id') == document['id'] and registry.current_access is not None:
+                    return registry.snapshot()
+                if any(item['status'] in {'queued', 'running'} for item in host._tasks.values()):
+                    raise GatewayError('gateway_connections_busy')
+            @contextmanager
+            def commit_guard():
+                with host._lock:
+                    if any(item['status'] in {'queued', 'running'} for item in host._tasks.values()):
+                        raise GatewayError('gateway_connections_busy')
+                    yield
+                    apply_gateway_access(target, registry.current_access)
+            # MCP validation does not hold the execution ledger lock. If a task
+            # starts meanwhile, the guarded commit retains its original source.
+            return registry.select(document['id'], commit_guard=commit_guard)
+        if action == 'refresh' and document == {}:
+            return registry.refresh()
+        if action in {'probe', 'add'}:
+            return getattr(registry, action)(document)
+        raise GatewayError('gateway_connection_input_invalid')
+
     class Handler(BaseHTTPRequestHandler):
         def setup(self):
             super().setup()
@@ -1407,6 +1460,11 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
             if not self.authorized():
                 return self.send_json(401, {'error': 'unauthorized'})
             try:
+                if self.path == '/gateway-connections':
+                    return self.send_json(200, gateway_control())
+                if self.path == '/gateway-publication':
+                    gateway_control()
+                    return self.send_json(200, host.capability['data_gateway'])
                 if self.path == '/grid-sources':
                     return self.send_json(200, source_provider.catalog())
                 if self.path == '/grid-sources/data-gateway/electrical/models':
@@ -1489,6 +1547,19 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                     operation = (source_provider.topology if self.path.endswith('/topology')
                                  else source_provider.resolve_scope)
                     return self.send_json(200, run_http(operation(document)))
+                if self.path.startswith('/gateway-connections/'):
+                    if not 0 < length <= 16384:
+                        raise GatewayError('gateway_connection_input_invalid')
+                    try:
+                        document = json.loads(self.rfile.read(length))
+                    except (ValueError, UnicodeDecodeError):
+                        raise GatewayError('gateway_connection_input_invalid') from None
+                    try:
+                        result = gateway_control(self.path.removeprefix('/gateway-connections/'), document)
+                    except GatewayError as error:
+                        status = 409 if str(error) == 'gateway_connections_busy' else 503 if str(error) == 'gateway_registry_unavailable' else 400
+                        return self.send_json(status, {'error': str(error)})
+                    return self.send_json(200, result)
                 if self.path == '/network-policy':
                     if network_policy is None:
                         return self.send_json(503, {'error': 'network_policy_unavailable'})
@@ -1680,9 +1751,11 @@ def main():
         internal_endpoints=tuple(InternalEndpoint(**item) for item in endpoints))
     # No task (including resource inventory) may start before enforcement.
     network_policy.start()
-    from .data_gateway_relay import load_container_gateway
-    gateway, gateway_publication = load_container_gateway(
-        os.environ.get('CAPSTONE_DATA_GATEWAY_CONNECTION_FILE'), config.parent / 'data-gateway.json')
+    from .gateway_connections_runtime import load_gateway_connections
+    gateway_registry, gateway, gateway_publication = load_gateway_connections(
+        os.environ.get('CAPSTONE_DATA_GATEWAY_CONNECTION_FILE'), config.parent / 'data-gateway.json',
+        root / 'profiles/data-gateways',
+        transport_host=os.environ.get('CAPSTONE_GATEWAY_LOOPBACK_HOST') or None)
     # Accepted native configuration belongs to its role profile. Engine and
     # fixed dispatch changes remain bound by executor_revision below.
     revision = sha256(b'capstone-general-sdk/2:isolated-uid:fixed-relay:fixed-mcp'
@@ -1697,7 +1770,7 @@ def main():
                 'runtime_lock_sha256': sha256(Path('/opt/general/pi-runtime.lock.json').read_bytes()).hexdigest(),
                 'executor_revision': sha256(b''.join((Path(__file__).parent / name).read_bytes()
                     for name in ('general_pi_server.py', 'general_pi_executor.py', 'general_pi_storage.py', 'general_pi_relay.py', 'native_network_policy.py', 'bounded_http_loop.py', 'pi_delegation.py', 'business_context.py', 'request_intent.py', 'native_task_context.py', 'workbench_llm_profiles.py', 'native_failure_origin.py', 'native_diagnosis.py', 'native_tool_composition.py', 'native_llm_pool.py', 'native_model_request_pool.py', 'incremental_artifacts.py',
-                                 'native_resources.py', 'runtime_resources.py', 'resource_installation.py', 'general_pi_resource_seed.py', 'bounded_mcp.py', 'native_environment.py', 'data_gateway_mcp.py', 'data_gateway_relay.py', 'gateway_diagnostics.py', 'grid_source_topology.py', 'grid_electrical_view.py', 'resources/gateway-electrical-view-v1.schema.json', 'resources/gateway-electrical-view-v2.schema.json', 'resources/general-data-gateway.mjs',
+                                 'native_resources.py', 'runtime_resources.py', 'resource_installation.py', 'general_pi_resource_seed.py', 'bounded_mcp.py', 'native_environment.py', 'data_gateway_mcp.py', 'data_gateway_relay.py', 'gateway_connections.py', 'gateway_connections_runtime.py', 'gateway_diagnostics.py', 'grid_source_topology.py', 'grid_electrical_view.py', 'resources/gateway-electrical-view-v1.schema.json', 'resources/gateway-electrical-view-v2.schema.json', 'resources/general-data-gateway.mjs',
                                  'progress.py', 'stream_progress.py', 'resource_manifest.py', 'native_resource_staging.py',
                                  'native_research_bridge.py', 'native_graph_context.py', 'native_graph_events.py',
                                  'native_product_roles.py', 'continuation_resources.py', 'resources/general-research.mjs', 'resources/research-guidance.mjs',
@@ -1720,6 +1793,7 @@ def main():
         relay_origin=f'http://127.0.0.1:{port}', network_policy=network_policy, gateway=gateway, llm_profiles=llm_profiles,
         experimental_llm_pool=os.environ.get('CAPSTONE_EXPERIMENTAL_LLM_POOL', '0') == '1')
     runner.gateway_publication = gateway_publication
+    runner.gateway_registry = gateway_registry
     host = GeneralPiHost(root=root, identity=identity, run_task=runner)
     host.record_network_policy('startup_default', network_policy.state())
     host.capability['native_tools'] = runner.verify_tools(identity)
@@ -1728,7 +1802,11 @@ def main():
     server = make_server(host, control_token=os.environ['CAPSTONE_GENERAL_CONTROL_TOKEN'],
         address=('0.0.0.0', port), runner=runner, upstream=provider['base_url'], provider_key=key,
         network_policy=network_policy)
-    server.serve_forever()
+    try:
+        server.serve_forever()
+    finally:
+        if gateway_registry is not None:
+            gateway_registry.close()
 
 
 if __name__ == '__main__':

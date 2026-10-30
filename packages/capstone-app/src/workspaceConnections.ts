@@ -34,8 +34,8 @@ export function useWorkspaceConnections(transport:Transport){
   useEffect(()=>{
     if(!current.snapshot().loaded)void current.load()
     const refresh=()=>{void current.load()}
-    window.addEventListener('focus',refresh);window.addEventListener('online',refresh)
-    return()=>{window.removeEventListener('focus',refresh);window.removeEventListener('online',refresh)}
+    window.addEventListener('focus',refresh);window.addEventListener('online',refresh);window.addEventListener('capstone-gateway-changed',refresh)
+    return()=>{window.removeEventListener('focus',refresh);window.removeEventListener('online',refresh);window.removeEventListener('capstone-gateway-changed',refresh)}
   },[current])
   return {...state,refresh:current.load}
 }

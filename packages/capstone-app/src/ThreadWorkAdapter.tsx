@@ -140,6 +140,11 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
   const [inputCatalog,setInputCatalog]=useState<InputCatalog>()
   const [catalogLoading,setCatalogLoading]=useState(false)
   const [catalogReload,setCatalogReload]=useState(0)
+  useEffect(()=>{
+    const changed=()=>setCatalogReload(value=>value+1)
+    window.addEventListener('capstone-gateway-changed',changed)
+    return()=>window.removeEventListener('capstone-gateway-changed',changed)
+  },[])
   const [uploadBusy,setUploadBusy]=useState(false)
   const [attachments,setAttachments]=useState<StoredResource[]>([])
   const [attachmentsLoading,setAttachmentsLoading]=useState(true)

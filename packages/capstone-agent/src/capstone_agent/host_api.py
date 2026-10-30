@@ -162,7 +162,8 @@ def create_host_app(
         request.state.public_demo = False
         thread_resource = (request.url.path == '/api/v1/threads'
                            or request.url.path.startswith('/api/v1/threads/'))
-        versioned_resource = thread_resource or request.url.path == '/api/v1/workspace/connections'
+        versioned_resource = (thread_resource or request.url.path == '/api/v1/workspace/connections'
+                              or request.url.path.startswith('/api/v1/workspace/gateways'))
         thread_version = request.headers.get('Capstone-Thread-Version', '1')
         if request.url.path != "/health/ready" and request.url.hostname not in allowed_hosts:
             return JSONResponse({"error": "invalid_host"}, status_code=400)
@@ -343,6 +344,9 @@ def create_host_app(
         from .network_policy_http import register_network_policy_routes
         register_network_policy_routes(app, executor_provider=lambda: native_artifact_executor,
                                        authorize=require_private_thread)
+        from .gateway_connections_http import register_gateway_connection_routes
+        register_gateway_connection_routes(app, executor_provider=lambda: native_artifact_executor,
+                                           authorize=require_private_thread)
 
         from .grid_source_http import register_grid_source_routes
         register_grid_source_routes(app, executor_provider=lambda: native_artifact_executor,

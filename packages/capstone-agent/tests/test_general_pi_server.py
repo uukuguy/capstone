@@ -750,6 +750,74 @@ def test_network_control_requires_host_credential_and_returns_applied_state(tmp_
         thread.join(timeout=2)
 
 
+def test_gateway_controls_refresh_actual_publication_and_preserve_active_task_source(tmp_path):
+    from capstone_agent.general_pi_server import GeneralPiHost, make_server
+
+    class Access:
+        catalog = {'tools': {}, 'revision': 'one'}
+        def __init__(self, name):
+            self.name = name
+        def publication(self):
+            return {'available': True, 'catalog': self.catalog, 'identity': {'instance_name': self.name}}
+
+    class Registry:
+        current_access = Access('first')
+        selected = 'first'
+        def snapshot(self):
+            return {'schema': 'capstone-gateway-connections/1', 'revision': 1,
+                    'selected_id': self.selected, 'entries': [], 'checking': False}
+        def select(self, identifier, *, commit_guard=None):
+            from contextlib import nullcontext
+            with commit_guard() if commit_guard is not None else nullcontext():
+                self.selected = identifier
+                self.current_access = Access(identifier)
+            return self.snapshot()
+        def refresh(self):
+            return {**self.snapshot(), 'checking': True}
+
+    class Runner:
+        gateway_registry = Registry()
+        gateway = gateway_registry.current_access
+        def __call__(self, *_):
+            return 'Answer', {}
+
+    runner = Runner()
+    host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi', 'config_revision': 'test'}, run_task=runner)
+    server = make_server(host, control_token='host-secret', address=('127.0.0.1', 0))
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    origin = f'http://127.0.0.1:{server.server_port}'
+    headers = {'Authorization': 'Bearer host-secret'}
+    try:
+        assert httpx.get(origin + '/gateway-connections').status_code == 401
+        assert httpx.get(origin + '/gateway-connections', headers=headers).status_code == 200
+        client = HttpGeneralPiExecutor(origin, identity=host.identity, capability=host.capability, control_token='host-secret')
+        assert client.capability['data_gateway']['identity']['instance_name'] == 'first'
+        host._tasks['active'] = {'status': 'running'}
+        assert httpx.post(origin + '/gateway-connections/select', headers=headers, json={'id': 'second'}).status_code == 409
+        assert runner.gateway.name == 'first'
+        host._tasks.pop('active')
+        response = client.control_gateway_connections('select', {'id': 'second'})
+        assert response['selected_id'] == 'second'
+        assert runner.gateway.name == 'second'
+        assert client.capability['data_gateway']['identity']['instance_name'] == 'second'
+        assert client.control_gateway_connections('refresh', {})['checking'] is True
+        # A selected service may recover after startup failed. Health prepares
+        # its access independently; publication applies only when idle.
+        runner.gateway = None
+        host.capability['data_gateway'] = {'available': False, 'reason': 'gateway_timeout'}
+        runner.gateway_registry.current_access = Access('recovered')
+        host._tasks['active'] = {'status': 'running'}
+        assert client.capability['data_gateway']['available'] is False
+        host._tasks.pop('active')
+        assert client.capability['data_gateway']['identity']['instance_name'] == 'recovered'
+        assert runner.gateway.name == 'recovered'
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+
 def test_cancel_service_stops_child_and_duplicate_tasks_do_not_repeat_actions(tmp_path):
     from capstone_agent.general_pi_server import GeneralPiHost
     calls = []

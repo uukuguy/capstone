@@ -1481,9 +1481,9 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .session-context-menu button:hover,.session-context-menu button:focus-visible{background:#edf3ef;outline:none}
 .session-context-menu button:disabled{opacity:.4;cursor:default}
 .session-context-menu .is-destructive,.session-delete-dialog .is-destructive{color:#9a4b3b}
-.session-delete-backdrop{position:fixed;inset:0;z-index:1350;background:#142a2433;display:grid;place-items:center;padding:20px}
-.session-delete-dialog{width:min(380px,100%);padding:22px;border:1px solid #d7e0da;border-radius:10px;background:#fff;color:#29443a;font-size:13px;box-shadow:0 12px 40px #16372b22}
-.session-delete-dialog h3{font-size:16px;margin:0 0 12px}
+.session-delete-backdrop{position:fixed;inset:0;z-index:1350;background:transparent}
+.session-delete-dialog{position:fixed;box-sizing:border-box;width:min(300px,calc(100vw - 16px));max-height:calc(100dvh - 16px);overflow:auto;padding:14px;border:1px solid #d7e0da;border-radius:10px;background:#fff;color:#29443a;font-size:12px;box-shadow:0 8px 28px #16372b22}
+.session-delete-dialog h3{font-size:13px;margin:0 0 8px}
 .session-delete-dialog p{line-height:1.65;overflow-wrap:anywhere}
 .session-delete-dialog>div{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}
 .session-delete-dialog button{padding:6px 12px;border:1px solid #d7e0da;border-radius:5px;background:white;font:inherit;cursor:pointer}

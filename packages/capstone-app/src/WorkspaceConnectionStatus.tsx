@@ -1,12 +1,16 @@
 import GatewayStatus from './GatewayStatus'
 import {useWorkspaceConnections} from './workspaceConnections'
+import {useGatewayConnections} from './gatewayConnectionsStore'
 import type {HttpThreadTransport} from './threadHttpTransport'
 import './WorkspaceConnectionStatus.css'
 
 export function WorkspaceGatewayStatus({transport}:{transport:HttpThreadTransport}){
   const connection=useWorkspaceConnections(transport)
+  const instances=useGatewayConnections(transport)
   return <div className="workspace-connections-slot" aria-label="工作台数据网关">
-    {connection.data?.data_gateway?<GatewayStatus gateway={connection.data.data_gateway} notice={connection.error} onRefresh={()=>void connection.refresh()}/>:connection.error?<details className="workspace-connection-status"><summary>网关信息待确认</summary><div>{connection.error}<button type="button" onClick={()=>void connection.refresh()}>重试读取</button></div></details>:connection.loading?<span>读取网关信息…</span>:null}
+    {instances.data||connection.data?.data_gateway?<GatewayStatus gateway={connection.data?.data_gateway} connections={instances.data} notice={instances.error||connection.error}
+      onSelect={instances.select} onRefreshAll={instances.refresh} onProbe={instances.probe} onAdd={instances.add}
+      onRefresh={instances.data?undefined:()=>void connection.refresh()}/>:connection.error?<details className="workspace-connection-status"><summary>网关信息待确认</summary><div>{connection.error}<button type="button" onClick={()=>void connection.refresh()}>重试读取</button></div></details>:connection.loading?<span>读取网关信息…</span>:null}
   </div>
 }
 

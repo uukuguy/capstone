@@ -6,6 +6,10 @@
 .session-cleanup-popover > header strong { font-size: 12px; font-weight: 600; }
 .session-cleanup-popover > header button { display: grid; place-items: center; padding: 3px; border: 0; background: transparent; color: var(--muted); cursor: pointer; }
 .session-cleanup-scope { margin-top: 0; color: var(--muted); }
+.session-cleanup-loading { display: flex; align-items: center; gap: 8px; min-height: 60px; color: var(--muted); }
+.session-cleanup-loading svg { flex: none; color: var(--accent); animation: session-cleanup-spin 1s linear infinite; }
+@keyframes session-cleanup-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .session-cleanup-loading svg { animation: none; } }
 .session-cleanup-age { display: flex; align-items: center; gap: 8px; }
 .session-cleanup-age input { width: 72px; font: inherit; padding: 5px 7px; border: 1px solid var(--line); border-radius: 5px; }
 .session-cleanup-presets { display: flex; gap: 6px; margin: 8px 0 12px; }
