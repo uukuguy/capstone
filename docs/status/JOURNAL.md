@@ -6436,3 +6436,5 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 2026-10-30: PR73 candidate a8cad7db passed required CI41044673717 (14m00s); merged bb2cd895 and actual root dev fast-forwarded. Canonical merged-source rebuild started. Control and reports preserve original SQL retest not_run and report visual rejection; no cloud/demo/main release.
 
 2026-10-30: actual-dev bb2cd895 canonical rebuild ready, all backend roles imagec6913a6e; scoped cleanup receipt191753-98818. No cloud release.
+
+2026-10-30: repaired lightweight full task thr_b7a062c5dc877f90e181 / attempt_6884567e3b86dd63 completed503.127s,68model responses178tool starts,115correlated gateway requests. Model376.355s/tool union102.485s/other24.288s. PPT16slides7images downloaded SHA verified. Diagnostic report records script errors, false live trace gaps and gateway SQL/cache hotspots; not a new performance or quality acceptance.
