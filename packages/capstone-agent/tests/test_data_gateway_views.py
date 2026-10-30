@@ -101,3 +101,24 @@ def test_app_pagination_hint_keeps_exact_cursor_and_rejects_ambiguous_calls():
     bindings.observe('reader', {}, {'structuredContent': {'status': 'ok', 'data': {
         'next_action': {'tool': 'renamed_open', 'arguments': arguments}}}}, catalog())
     assert bindings.view_action({**arguments, 'limit': 500}, read=True) is None
+
+
+def test_mirrored_stream_and_guidance_actions_deduplicate_by_invocation():
+    bindings = GatewayViewBindings()
+    action = {'tool': 'brand_new_reader', 'arguments': {'view_ref': 'v', 'stream': 'devices'}}
+    bindings.observe('selected', {}, {'structuredContent': {'status': 'ok', 'data': {
+        'state': 'ready', 'streams': {'devices': {'read': action}}},
+        'provenance': {'agent_guidance': {'next_actions': [
+            {**action, 'purpose': 'read_default_stream'}]}}}}, catalog())
+    assert bindings.action(action['arguments']) == action
+    assert bindings.view_action({**action['arguments'], 'limit': 500}, read=True) == action
+
+
+def test_mirrored_poll_next_action_and_guidance_are_one_invocation():
+    bindings = GatewayViewBindings()
+    action = {'tool': 'renamed_poll', 'arguments': {'job_ref': 'j'}}
+    bindings.observe('selected', {}, {'structuredContent': {'status': 'ok', 'data': {
+        'state': 'preparing', 'next_action': action},
+        'provenance': {'agent_guidance': {'next_actions': [
+            {**action, 'purpose': 'suggested_by_result', 'not_before_seconds': 2}]}}}}, catalog())
+    assert bindings.action(action['arguments']) == action

@@ -149,10 +149,13 @@ class GatewayViewBindings:
                     validate_gateway_schema(published['inputSchema'], action['arguments'])
                 except (ValueError, ValidationError):
                     continue
+                # Guidance can mirror a stream or next action with a purpose
+                # or timing hint. These describe the same invocation.
+                invocation = {'tool': action['tool'], 'arguments': action['arguments']}
                 bucket = self._actions.setdefault(self._key(action['arguments']), [])
                 # Two distinct actions suffice to reject ambiguity. Retaining
                 # further alternatives cannot make that request selectable.
-                if action not in bucket and len(bucket) < 2:
-                    bucket.append(deepcopy(action))
+                if invocation not in bucket and len(bucket) < 2:
+                    bucket.append(deepcopy(invocation))
             while len(self._actions) > 2048:
                 self._actions.popitem(last=False)
