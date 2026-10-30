@@ -6,6 +6,16 @@ import {readSessionHistory} from './sessionManagement'
 afterEach(()=>{cleanup();localStorage.clear()})
 const old={threadId:'old',modelId:null,createdAt:'2020-01-01T00:00:00Z',sessionTitle:{text:'旧分析',source:'automatic' as const,revision:1,source_ref:'test'}}
 const pinned={...old,threadId:'pinned',sessionTitle:{...old.sessionTitle,text:'置顶分析'}}
+it('protects pins recovered from a previous browser tab during full-history cleanup',async()=>{
+  const origin='capstone.thread.http%3A%2F%2Flocalhost%3A5173.'
+  localStorage.setItem(`capstone.session-pins:${origin}old-tab`,JSON.stringify(['pinned']))
+  const remove=vi.fn().mockResolvedValue(undefined)
+  render(<SessionCleanup items={[]} storageKey={`${origin}new-tab`} scopeLabel="最近会话" remove={remove} onRemoved={()=>{}} loadItems={async()=>[old,pinned]}/> )
+  fireEvent.click(screen.getByRole('button',{name:'清理会话'}))
+  fireEvent.click(await screen.findByRole('button',{name:'删除 1 个会话'}))
+  await waitFor(()=>expect(remove).toHaveBeenCalledWith('old'))
+  expect(remove).toHaveBeenCalledTimes(1)
+})
 it('selects dated records only, excluding pins, the current conversation, and duplicate identities',()=>{
   const now=Date.parse('2026-10-29T00:00:00Z')
   expect(cleanupCandidates([old,pinned,{...old,threadId:'current'},{...old,threadId:'missing',createdAt:undefined},old],['pinned'],30,now,'current').map(x=>x.threadId)).toEqual(['old'])
