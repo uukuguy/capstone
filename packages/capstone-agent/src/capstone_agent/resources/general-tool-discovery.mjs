@@ -19,6 +19,7 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
   }));
   const names=[...entries.keys()].sort();
   let active=new Set(),pending,closed=false;
+  const searched=new Set();
   function check(signal){signal?.throwIfAborted();if(closed)throw new Error('Tool discovery task is closed');}
   function initialToolNames(existingNames){
     return [...new Set([...existingNames.filter(name=>!allNames.has(name)),...discoveryToolNames])];
@@ -34,9 +35,14 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
       const matches=names.filter(name=>{const text=(name+' '+(entries.get(name).publication.description??'')).toLowerCase();
         return terms.every(term=>text.includes(term));});
       const selected=matches.slice(offset,offset+pageSize);
+      const searchKey=JSON.stringify([terms,offset]),repeated=searched.has(searchKey);
+      if(searched.size>=64&&!repeated)searched.delete(searched.values().next().value);
+      searched.add(searchKey);
       return reply({tools:selected.map(name=>({name,description:String(entries.get(name).publication.description??name).slice(0,maxSummaryChars),
         contract_sha256:entries.get(name).hash})),total:matches.length,
-        next_offset:offset+selected.length<matches.length?offset+selected.length:null});
+        next_offset:offset+selected.length<matches.length?offset+selected.length:null,
+        ...(repeated?{discovery_feedback:{repeated_query:true,publication_changed:false,
+          guidance:'This task publication is unchanged. Reuse these results and load the needed exact contracts. Change search terms or page only to investigate a different capability; a repeated search cannot refresh tools.'}}:{})});
     }};
   const load={name:'agent_tool_load',label:'Load admitted tools',
     description:'Select a bounded replacement set of task-granted tools. Activation takes effect at the next model turn; do not invoke selected tools in this same call batch. Published schemas are kept exact. Use an empty list to unload them.',
@@ -56,7 +62,7 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
         ...('outputSchema' in publication?{outputSchema:publication.outputSchema}:{})}))}),
         {cwd,toolName:'agent_tool_load',callId:_id});
     }};
-  function close(){closed=true;active.clear();pending=undefined;}
+  function close(){closed=true;active.clear();searched.clear();pending=undefined;}
   return {tools:[search,load],initialToolNames,close,
     admittedTools:[...entries.values()].map(({tool})=>tool),
     guardedTools:[...entries].map(([name,{tool}])=>({...tool,async execute(...args){

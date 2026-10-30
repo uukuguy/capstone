@@ -174,3 +174,13 @@ for(const mode of ['parent','managed-child'])test('actual pinned SDK '+mode+' lo
   }finally{if(owned)await owned.close();else session?.dispose();await new Promise(resolve=>server.close(resolve));await rm(dir,{recursive:true,force:true});
     if(previousAgentDir===undefined)delete process.env.PI_CODING_AGENT_DIR;else process.env.PI_CODING_AGENT_DIR=previousAgentDir;}
 });
+
+test('repeated searches advise reuse without blocking changed exploration or pagination',async()=>{
+ const {controller:c}=fixture();const search=c.tools.find(t=>t.name==='agent_tool_search');
+ const run=async(query,offset=0)=>JSON.parse((await search.execute('search',{query,offset})).content[0].text);
+ const first=await run('source');assert.equal(first.discovery_feedback,undefined);
+ const repeated=await run('source');assert.deepEqual(repeated.tools,first.tools);assert.equal(repeated.discovery_feedback.repeated_query,true);
+ assert.equal((await run('source',8)).discovery_feedback,undefined);
+ assert.equal((await run('missing')).discovery_feedback,undefined);
+ assert.equal((await run('missing')).discovery_feedback.publication_changed,false);
+});

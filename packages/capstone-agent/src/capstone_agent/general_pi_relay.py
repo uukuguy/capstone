@@ -58,6 +58,15 @@ class StreamDiagnostics:
     def summary(self):
         return {'stream_done': self.done, 'finish_reason': self.finish_reason}
 
+    def failure_code(self):
+        if self.finish_reason == 'network_error':
+            return 'stream_network_error'
+        if self.finish_reason == 'content_filter':
+            return 'stream_content_filtered'
+        if not self.done and self.finish_reason is None:
+            return 'stream_incomplete'
+        return None
+
 
 @dataclass(eq=False)
 class RelayLease:
@@ -185,6 +194,8 @@ async def forward_provider(handler, lease: RelayLease, upstream: str, body: byte
         failure = failure or ('cancelled' if lease.cancelled.is_set() else type(error).__name__)
         raise
     finally:
+        if stream and failure is None:
+            failure = diagnostics.failure_code()
         if failure or (status is not None and status >= 400) or (stream and (
                 not diagnostics.done or diagnostics.finish_reason in {'network_error', 'content_filter'})):
             # Only bounded protocol metadata crosses the operator log boundary.

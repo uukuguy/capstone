@@ -256,3 +256,13 @@ def test_downstream_writer_does_not_block_other_exchange_deadlines():
         await asyncio.sleep(0.01)
         return 'available'
     assert run_http(other()) == 'available'
+
+
+def test_stream_failure_classifies_protocol_state_without_a_time_heuristic():
+    from capstone_agent.general_pi_relay import StreamDiagnostics
+    trace = StreamDiagnostics()
+    assert trace.failure_code() == 'stream_incomplete'
+    trace.feed(b'data: {"choices":[{"finish_reason":"stop"}]}\n\n')
+    assert trace.failure_code() is None
+    trace.feed(b'data: {"choices":[{"finish_reason":"network_error"}]}\n\n')
+    assert trace.failure_code() == 'stream_network_error'
