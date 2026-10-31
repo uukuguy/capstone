@@ -16,8 +16,10 @@ export function createDataGatewayTools(config,{fetchImpl=globalThis.fetch,cwd=co
   const gateway=config.dataGateway;
   if(!gateway)return [];
   let stopped;
-  function failure(code,stop=false){
-    const message=code+'; do not retry this call'+(stop?
+  function failure(code,stop=false,validation=[]){
+    const types=new Set(['null','boolean','object','array','string','integer','number']);
+    const details=Array.isArray(validation)?validation.slice(0,8).filter(item=>item&&typeof item.path==='string'&&item.path.length<=256&&typeof item.rule==='string'&&item.rule.length<=64&&types.has(item.actual_type)).map(item=>({path:item.path,rule:item.rule,actual_type:item.actual_type,...(types.has(item.expected)?{expected:item.expected}:{})})):[];
+    const message=code+'; do not retry this call'+(details.length?'; not executed; correct arguments using the exact contract: '+JSON.stringify(details):'')+(stop?
       ' or probe other gateway tools in this task. Report this failure only; gateway-wide availability is unverified.':'');
     if(stop)stopped=message;
     return new Error(message);
@@ -41,11 +43,11 @@ export function createDataGatewayTools(config,{fetchImpl=globalThis.fetch,cwd=co
         throw failure('gateway_connection_failed',true);
       }
       if(!response.ok){
-        let code;
-        try{code=(await response.json()).error;}catch{}
+        let code,validation;
+        try{const body=await response.json();code=body.error;validation=body.validation_errors;}catch{}
         signal?.throwIfAborted();
         if(!publicErrors.has(code))code='gateway_request_failed';
-        throw failure(code,resourceErrors.has(code)||response.status>=500);
+        throw failure(code,resourceErrors.has(code)||response.status>=500,code==='gateway_arguments_invalid'?validation:[]);
       }
       const value=await response.json(),receipt=value.observation;
       if(typeof value.result_json!=='string'||receipt?.kind!=='external_gateway_observation'||

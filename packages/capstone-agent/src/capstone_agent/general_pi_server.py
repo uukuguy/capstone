@@ -1668,7 +1668,8 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                         return await gateway.call(task_id, document)
                 self.send_json(200, run_http(forward()))
             except GatewayError as error:
-                self.send_json(400, {'error': str(error)})
+                self.send_json(400, {'error': str(error), **({'executed': False,
+                    'validation_errors': error.validation_errors} if error.validation_errors else {})})
             except CapacityExceeded as error:
                 if error.mode == 'debug':
                     host.interrupt_capacity(task_id, error)

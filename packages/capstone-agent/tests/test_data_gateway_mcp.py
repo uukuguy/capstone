@@ -120,6 +120,18 @@ def test_catalog_omits_secrets_and_unapproved_tools(tmp_path):
     assert 'gateway.test' not in json.dumps(catalog)
 
 
+def test_argument_validation_reports_path_and_types_without_values(tmp_path):
+    client, session = gateway(tmp_path)
+    session.tools[0].value['inputSchema'] = {'type':'object','properties':{
+        'selection':{'anyOf':[{'type':'string'},{'type':'object','additionalProperties':{'type':'string'}}]}},'required':['selection']}
+    catalog = asyncio.run(client.prepare())
+    with pytest.raises(GatewayError, match='gateway_arguments_invalid') as error:
+        asyncio.run(client.call('data_gateway_discover_data_capabilities',{'selection':{'nested':{'password':'secret-canary'}}},catalog))
+    assert error.value.validation_errors[0] == {'path':'/selection/nested','rule':'type','expected':'string','actual_type':'object'}
+    assert 'secret-canary' not in json.dumps(error.value.validation_errors)
+    assert session.calls == []
+
+
 def test_call_validates_and_preserves_partial_source(tmp_path):
     client, session = gateway(tmp_path)
     catalog = asyncio.run(client.prepare())

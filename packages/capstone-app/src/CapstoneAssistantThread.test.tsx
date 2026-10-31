@@ -371,6 +371,13 @@ describe('CapstoneAssistantThread', () => {
     expect(projected[1].operation).toBeUndefined()
     expect(projected[1].outputExcerpt).toBeUndefined()
   })
+  it('labels composed execution with its recorded purpose across start and failure',()=>{
+    const events=[
+      event('runtime_event',1,{task_id:'pi_one',native_type:'tool_execution_start',tool_name:'agent_tools_execute',tool_call_id:'one',activity:{operation:'读取目录并保存 CSV'}},'attempt_one'),
+      event('runtime_event',2,{task_id:'pi_one',native_type:'tool_execution_end',tool_name:'agent_tools_execute',tool_call_id:'one',is_error:true,activity:{output_excerpt:'参数类型不符'}},'attempt_one'),
+    ]
+    expect(projectAssistantActivity(events)[0]).toMatchObject({label:'读取目录并保存 CSV',status:'failed',source:'pi · agent_tools_execute'})
+  })
   it('does not claim zero calls when restored history has no public tool records',()=>{
     const events=[event('attempt_started',1,{},'legacy_native'),event('attempt_completed',3,{answer:'文件已保存',task_steps:[{id:'prepare',number:1,title:'准备',status:'completed'}]},'legacy_native')]
     render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async()=>{}} onCancel={async()=>{}}/>)

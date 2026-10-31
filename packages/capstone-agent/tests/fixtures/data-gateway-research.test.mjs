@@ -33,6 +33,16 @@ function config(){return {deadlineAt:Date.now()+10000,applicationPolicy:{allowed
     catalog:{revision:'a'.repeat(64),tool_hashes:{data_gateway_discover_data_capabilities:'b'.repeat(64)},
       tools:{data_gateway_discover_data_capabilities:{name:'discover_data_capabilities',description:'Discover data',inputSchema:{type:'object',properties:{}}}}}}};}
 
+test('local validation failures identify schema paths without exposing other response fields',async()=>{
+ const tool=createDataGatewayTools(config(),{fetchImpl:async()=>({ok:false,status:400,json:async()=>({
+  error:'gateway_arguments_invalid',executed:false,private:'secret-canary',validation_errors:[
+   {path:'/selection/nested',rule:'type',expected:'string',actual_type:'object',private:'secret-canary'}]})})})[0];
+ await assert.rejects(tool.execute('bad',{}),error=>{
+  assert.match(error.message,/\/selection\/nested/);assert.match(error.message,/expected.*string/);
+  assert.match(error.message,/not executed/);assert.doesNotMatch(error.message,/secret-canary/);return true;
+ });
+});
+
 test('gateway tools transmit fixed task grants and preserve the full partial result',async()=>{
  const c=config(),requests=[];
  const tools=createDataGatewayTools(c,{fetchImpl:async(url,options)=>{

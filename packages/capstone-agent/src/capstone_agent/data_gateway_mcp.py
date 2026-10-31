@@ -65,9 +65,35 @@ _PUBLIC_GATEWAY_ERRORS = TASK_STOP_ERRORS | {'gateway_arguments_invalid', 'gatew
 
 class GatewayError(ValueError):
     """A public error code, without upstream exception text."""
-    def __init__(self, code, request_id=None):
+    def __init__(self, code, request_id=None, *, validation_errors=None):
         super().__init__(code)
         self.request_id = request_id if identity_text(request_id) else None
+        self.validation_errors = validation_errors or []
+
+
+def argument_validation_details(error):
+    """Expose bounded schema locations and types, never argument values."""
+    pending, leaves = [error], []
+    for _ in range(32):
+        if not pending:
+            break
+        item = pending.pop()
+        if item.context:
+            pending.extend(item.context[:8])
+        else:
+            leaves.append(item)
+    result = []
+    for item in sorted(leaves, key=lambda item: len(item.absolute_path), reverse=True)[:8]:
+        path = '/' + '/'.join(str(part).replace('~', '~0').replace('/', '~1') for part in item.absolute_path)
+        value = item.instance
+        actual = ('null' if value is None else 'boolean' if isinstance(value, bool) else
+                  'object' if isinstance(value, dict) else 'array' if isinstance(value, list) else
+                  'string' if isinstance(value, str) else 'integer' if isinstance(value, int) else 'number')
+        detail = {'path': path[:256], 'rule': str(item.validator)[:64], 'actual_type': actual}
+        if item.validator == 'type':
+            detail['expected'] = item.validator_value
+        result.append(detail)
+    return result
 
 
 def encode(value):
@@ -352,8 +378,10 @@ class DataGatewayMcp:
                     arguments = {**arguments, 'tool_name': published['name']}
             try:
                 validate(schema['inputSchema'], arguments)
-            except Exception:
-                raise GatewayError('gateway_arguments_invalid') from None
+            except Exception as error:
+                from jsonschema.exceptions import ValidationError
+                details = argument_validation_details(error) if isinstance(error, ValidationError) else []
+                raise GatewayError('gateway_arguments_invalid', validation_errors=details) from None
             async with asyncio.timeout(limits.mcp_tool_seconds):
                 async with self.connect() as session:
                     expected_instance = catalog.get('instance', {}).get('instance_id')
