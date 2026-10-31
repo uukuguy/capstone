@@ -148,9 +148,21 @@ test('activation is atomic and takes effect only at the next loop boundary',asyn
   await assert.rejects(load.execute('forged',{names:['source_1','source_19']}),/not admitted/);
   hooks.get('turn_end')();assert.ok(active.includes('source_0'));assert.ok(!active.includes('source_1'));
   await load.execute('replace',{names:['source_1']});hooks.get('turn_end')();
-  await assert.rejects(first.execute('old',{}),/not active/);
+  await first.execute('old',{});
+  assert.equal(calls(),2);assert.ok(active.includes('source_0'));assert.ok(active.includes('source_1'));
   hooks.get('session_shutdown')();
   await assert.rejects(load.execute('stopped',{names:['source_1']}),/closed/);
+});
+
+test('restoring a previously loaded tool never exceeds activation capacity',async()=>{
+ for(const limits of [{maxActiveTools:1},{maxActiveSchemaChars:1200}]){
+ const {controller:c,calls}=fixture(limits);const hooks=new Map();let active=[];
+ c.configure({on:(n,f)=>hooks.set(n,f),getActiveTools:()=>active,setActiveTools:n=>active=n});
+ await c.tools[1].execute('first',{names:['source_0']});hooks.get('turn_end')();
+ await c.tools[1].execute('replace',{names:['source_1']});hooks.get('turn_end')();
+ await assert.rejects(c.guardedTools.find(t=>t.name==='source_0').execute('blocked',{}),/capacity/);
+ assert.equal(calls(),0);assert.deepEqual(active,['agent_tool_search','agent_tool_load','source_1']);
+ }
 });
 
 test('inactive tool errors explain replacement menus without changing receipts or grants',async()=>{
@@ -220,7 +232,7 @@ for(const mode of ['parent','managed-child'])test('actual pinned SDK '+mode+' in
   const dir=await mkdtemp(join(mode==='parent'?tmpdir():new URL('../../../../.grid-agent/runtime/',import.meta.url).pathname,'tool-discovery-sdk-'));
   const previousAgentDir=process.env.PI_CODING_AGENT_DIR;
   process.env.PI_CODING_AGENT_DIR=dir;
-  const calls=[],menus=[],errors=[],observations=[],recoveries=[];
+  const calls=[],menus=[],errors=[],observations=[],recoveries=[],capturedMenus=[];
   const resultBody=JSON.stringify({structuredContent:{status:'partial',data:{unit:'MW',
     points:Array.from({length:5000},(_,i)=>({time:i,value:i+.5}))}}});
   const server=createServer(async(req,res)=>{
@@ -256,6 +268,7 @@ for(const mode of ['parent','managed-child'])test('actual pinned SDK '+mode+' in
         [{name:'data_gateway_source_0',arguments:{query:'current'}}],
         [{name:'agent_tool_load',arguments:{names:['source_29']}}],
         [{name:'agent_tool_load',arguments:{names:[]}}],
+        [{name:'data_gateway_source_0',arguments:{}}],
         [{name:'data_gateway_source_0',arguments:{query:'old menu'}}]];
       const batch=batches[index++];
       const message={role:'assistant',content:batch?batch.map((call,i)=>({type:'toolCall',id:'call-'+index+'-'+i,...call})):
@@ -272,16 +285,17 @@ for(const mode of ['parent','managed-child'])test('actual pinned SDK '+mode+' in
     const settingsManager=sdk.SettingsManager.inMemory({compaction:{enabled:false}});
     const loader=new sdk.DefaultResourceLoader({cwd:dir,agentDir:dir,settingsManager,noExtensions:true,noSkills:true,
       noPromptTemplates:true,noThemes:true,noContextFiles:true,agentsFilesOverride:()=>({agentsFiles:[]}),
-      extensionFactories:[pi=>discovery.configure(pi)]});await loader.reload();
+      extensionFactories:[pi=>{discovery.configure(pi);pi.on('before_model_request',e=>capturedMenus.push(e.context.tools.map(t=>t.name)));}]});await loader.reload();
     ({session}=await sdk.createAgentSession({cwd:dir,agentDir:dir,modelRuntime:runtime,model,resourceLoader:loader,
       settingsManager,sessionManager:sdk.SessionManager.inMemory(),...host.applicationToolOptions(config,[],undefined,discovery)}));
     await session.bindExtensions({onError:error=>errors.push(error)});
     session.setActiveToolsByName(discovery.initialToolNames(config.applicationPolicy.allowed_tools));
+    discovery.installSession(session);
     }
     session.subscribe(event=>{if(event.type==='tool_execution_end'&&event.toolName==='data_gateway_source_0'&&!event.isError)
       observations.push(host.rpcEvent(event));});
     await session.prompt('Read a published source.');
-    assert.deepEqual(errors,[]);assert.equal(calls.length,2);assert.equal(calls[0].arguments.query,'startup');assert.equal(calls[1].arguments.query,'current');
+    assert.deepEqual(errors,[]);assert.equal(calls.length,3);assert.equal(calls[0].arguments.query,'startup');assert.equal(calls[1].arguments.query,'current');assert.equal(calls[2].arguments.query,'old menu');
     assert.ok(recoveries.length>0,'The real SDK model context must explain an inactive published tool');
     assert.deepEqual(menus[0].map(t=>t.name),['agent_tool_search','agent_tool_load','data_gateway_source_28']);
     assert.deepEqual(menus[1],menus[0]);
@@ -289,10 +303,13 @@ for(const mode of ['parent','managed-child'])test('actual pinned SDK '+mode+' in
     assert.ok(menus.every(menu=>menu.length<=4));
     assert.ok(menus.every(menu=>menu.some(t=>t.name==='data_gateway_source_28')));
     assert.ok(menus.every(menu=>!menu.some(t=>t.name==='data_gateway_source_29')));
+    if(mode==='parent')assert.deepEqual(capturedMenus,menus.map(menu=>menu.map(t=>t.name)),
+      'Canonical model-request capture must see the same bounded menu sent to the provider');
     const results=session.messages.filter(m=>m.role==='toolResult');
     assert.ok(results.some(m=>m.toolName==='agent_tool_load'&&m.isError));
     assert.ok(results.some(m=>m.toolName==='data_gateway_source_0'&&m.isError));
-    assert.equal(results.filter(m=>m.toolName==='data_gateway_source_0'&&!m.isError).length,1);
+    assert.equal(results.filter(m=>m.toolName==='data_gateway_source_0'&&!m.isError).length,2);
+    assert.ok(results.every(m=>!m.content?.some(p=>p.type==='text'&&/^Tool .* not found$/.test(p.text))));
     const result=results.find(m=>m.toolName==='data_gateway_source_0'&&!m.isError);
     assert.ok(JSON.stringify(result.content).length<=6000,'The actual model history must not contain all data rows');
     const reference=JSON.parse(result.content[0].text).full_result;

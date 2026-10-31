@@ -753,6 +753,7 @@ export async function createManagedChildSession(config, sdk, modelRuntime,
     signal?.throwIfAborted();
     await session.bindExtensions({onError: () => {throw new Error('Managed child extension failed');}});
     session.setActiveToolsByName(discovery?discovery.initialToolNames(childConfig.applicationPolicy.allowed_tools):childConfig.applicationPolicy.allowed_tools);
+    discovery?.installSession(session);
     signal?.throwIfAborted();
     return {session, close};
   } catch(error) {const fatal=debugFailure;await close();throw fatal??error;}
@@ -1485,6 +1486,7 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
       const allowed=config.applicationPolicy.allowed_tools.filter(name=>applicationToolAdmission(config,name).accepted);
       session.setActiveToolsByName(discovery?discovery.initialToolNames(allowed).filter(name=>
         applicationToolAdmission(config,name).accepted):allowed);
+      discovery?.installSession(session);
     }
     const skills = loader.getSkills().skills.map(s => ({ name: s.name,
       sha256: createHash("sha256").update(readFileSync(s.filePath)).digest("hex") }));

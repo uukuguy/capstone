@@ -38,6 +38,8 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
     if(id){const group=groups.get(id)??{id,tool_count:0,access:gatewayToolAccess(publication)};group.tool_count++;groups.set(id,group);}
   }
   let active=new Set(initial),pending,closed=false;
+  const learned=new Set(initial);
+  let publishActivation,installedSession,restoreStream;
   const searched=new Set();
   function check(signal){signal?.throwIfAborted();if(closed)throw new Error('Tool discovery task is closed');}
   function initialToolNames(existingNames){
@@ -66,7 +68,7 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
           guidance:'This task publication is unchanged. Reuse these results and load the needed exact contracts. Change search terms or page only to investigate a different capability; a repeated search cannot refresh tools.'}}:{})});
     }};
   const load={name:'agent_tool_load',label:'Load admitted tools',
-    description:'Select a bounded replacement set of on-demand task-granted tools. Already active registered entry tools remain available and share capacity. Activation takes effect at the next model turn; do not invoke newly selected tools in this same call batch. Published schemas stay exact. Use an empty list to unload on-demand tools.',
+    description:'Select a bounded replacement set of on-demand task-granted tools. Already active registered entry tools remain available and share capacity. Activation takes effect at the next model turn; do not invoke newly selected tools in this same call batch. Previously loaded contracts may be restored on later calls within the same capacity limits. Published schemas stay exact. Use an empty list to unload on-demand tools.',
     parameters:{type:'object',properties:{names:{type:'array',items:{type:'string'},uniqueItems:true,maxItems:maxActiveTools}},required:['names'],additionalProperties:false},
     async execute(_id,args,signal){
       check(signal);
@@ -82,14 +84,49 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
         ...('outputSchema' in publication?{outputSchema:publication.outputSchema}:{})}))})},
         {cwd,toolName:'agent_tool_load',callId:_id});
     }};
-  function close(){closed=true;active.clear();searched.clear();pending=undefined;}
-  return {tools:[search,load],initialToolNames,close,
+  function installSession(session){
+    if(installedSession===session)return;
+    if(installedSession)throw new Error('Tool discovery belongs to another session');
+    check();
+    installedSession=session;
+    const visible=[...new Set([...initialToolNames(session.getActiveToolNames()),...active])];
+    // Keep SDK dispatch definitions for granted tools without sending their
+    // schemas to the model. Every definition still has the activation guard.
+    session.setActiveToolsByName([...new Set([...visible,...entries.keys()])]);
+    const dispatch=session.agent.state.tools.slice();
+    publishActivation=()=>{
+      session.setActiveToolsByName([...new Set([...initialToolNames(session.getActiveToolNames()),...active])]);
+      session.agent.state.tools=dispatch;
+    };
+    const original=session.agent.streamFunction;
+    const projected=(model,context,options)=>original(model,{...context,
+      tools:context.tools?.filter(tool=>!allNames.has(tool.name)||active.has(tool.name))},options);
+    session.agent.streamFunction=projected;
+    restoreStream=()=>{if(session.agent.streamFunction===projected)session.agent.streamFunction=original;};
+    publishActivation();
+  }
+  function close(){closed=true;active.clear();learned.clear();searched.clear();pending=undefined;restoreStream?.();}
+  return {tools:[search,load],initialToolNames,installSession,close,
     admittedTools:[...entries.values()].map(({tool})=>tool),
     guardedTools:[...entries].map(([name,{tool}])=>({...tool,async execute(...args){
-      check(args[2]);if(!active.has(name))throw new Error('Requested tool is not active; load it and wait for the next model turn');
+      check(args[2]);
+      if(!active.has(name)){
+        if(!learned.has(name))throw new Error(JSON.stringify({code:'tool_not_active',tool:name,
+          message:'Tool is not active; load its exact contract and wait for the next model turn.',
+          executed:false,recovery:{tool:'agent_tool_load',arguments:{names:[name]},activation:'next_turn'}}));
+        const restored=[...new Set([...active,name])];
+        // Restore a previously learned contract only within the same budgets.
+        // A failed SDK lookup has not executed a remote call, so this is not a retry.
+        try{checkedContracts(restored);}
+        catch(error){throw new Error(JSON.stringify({code:'tool_activation_capacity',tool:name,
+          message:error.message,executed:false,
+          recovery:{tool:'agent_tool_load',arguments:{names:[name]},activation:'next_turn'}}));}
+        active=new Set(restored);publishActivation?.();
+      }
       return tool.execute(...args);
     }})),
     configure(pi){
+      publishActivation=()=>pi.setActiveTools([...new Set([...initialToolNames(pi.getActiveTools()),...active])]);
       pi.on('context',event=>{
         let changed=false;
         const messages=event.messages.map(message=>{
@@ -111,7 +148,8 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
       pi.on('turn_end',()=>{
         if(closed||!pending)return;
         active=new Set(pending);pending=undefined;
-        pi.setActiveTools([...new Set([...initialToolNames(pi.getActiveTools()),...active])]);
+        for(const name of active)learned.add(name);
+        publishActivation();
       });
       pi.on('session_shutdown',close);
     }};
