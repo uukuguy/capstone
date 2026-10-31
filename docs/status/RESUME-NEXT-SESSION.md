@@ -4,6 +4,30 @@
 
 ## Immediate work
 
+LATEST SOURCE452af789, on local dev only. App entry9ff89084 restores last selected
+active thread in an explicitly named workspace, then newest active thread, then
+creates one only if history is empty. Normal bare root now creates a short
+空间-xxxxxxxx workspace in URL before mounting. Legacy thread-only links stay
+compatible; no thread migration.38 focused route checks pass. Report:
+docs/reports/2026-10-31-workspace-entry-recovery.md.
+User's LLM07 error in thr_5bd702a75df2e3de832e/attempt_62f03f49855f2a37 is
+one nested composition failure: scope.object_ref is an object but the schema
+requires flat string values. No MCP call occurred. Model later flattened it and
+continued. Adapter/relay/native wrapper now retain bounded path/type diagnostics
+without argument values. App composed rows use recorded operation as label.
+99Python,26JS,145App checks and types pass. Evidence/report:
+docs/reports/2026-10-31-gateway-argument-diagnosis.md.
+Canonical rebuild passed: /tmp/capstone-entry-diagnostics-rebuild.log.
+API/all workers image4a9002eed974;scoped cleanup complete. Existing browser
+verified saved-session restore, renamed historical operation row, and bare-root
+creation of 空间-b239d9bf/thr_57a1254e28950cdd0877 with composer. Then restored
+the user's thr_5bd702a75df2e3de832e in the same tab. No business query rerun.
+Screenshots/state: runs/workspace-entry-20261031/. Do not open/close tabs.
+Current Vivaldi window
+205699,pid14758; use fresh snapshots. Input-method dialog/focus errors previously
+blocked automation; do not act on stale element indexes. No CI/push/cloud.
+Previous source checkpoints below are historical.
+
 LATEST SOURCE381b9be0 implements lightweight publication refresh. Stash5a205ae7
 was applied and its metadata prototype completed. New sessions/instructions and
 manual panel reload check instance_id plus root contract_updated_at. Unchanged

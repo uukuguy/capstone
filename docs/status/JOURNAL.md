@@ -6606,3 +6606,7 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 13:39 Reuse existing browser tabs for all future checks;close the newly created tab and persist the user preference in AGENTS.
 - 13:39 Record refresh recovery and browser tab reuse so subsequent sessions preserve validation scope and user context [4183913d].
 - 13:42 Final local imagecada852ca ready;source hashes match;application contract reload98.37ms succeeds;no browser acceptance claimed;no CI.
+- 13:42 Record verified local refresh and exact runtime identity to support recovery without repeating business trials [728d7c8a].
+- 14:02 Restore saved/recent sessions and create short workspace names to replace the empty root entry [9ff89084].
+- 14:07 Explain rejected argument paths and display recorded execution purposes so one nested failure is understandable [452af789].
+- 14:11 Image4a9002ee ready;API/all workers match;existing browser restores saved thread and creates short workspace with composer;cleanup complete;no CI.

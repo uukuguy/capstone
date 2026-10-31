@@ -20,3 +20,10 @@ Verification: 38 focused App checks passed in 3.70 seconds; TypeScript checks
 passed. These cover entry routing, explicit creation, saved selection, pagination,
 empty history, failed reads, concurrent navigation, and short workspace names.
 No CI or cloud deployment was requested or started.
+
+Real browser verification reused the existing Vivaldi tab. Opening
+`?workspace=enterprise` restored `thr_5bd702a75df2e3de832e`. Opening the bare root
+created `空间-b239d9bf` and one empty session, `thr_57a1254e28950cdd0877`, with
+the existing composer. The tab was then returned to the user's directory export
+session. No business query was submitted. Screenshots and state are saved under
+`runs/workspace-entry-20261031/`.

@@ -29,3 +29,11 @@ Verification: 99 focused adapter/relay tests, 26 JavaScript gateway/composition
 tests, and 145 App tests passed. TypeScript checks passed. Tests prove that a
 nested type failure is rejected without an upstream call and that diagnostic
 values exclude secret canaries. No CI or cloud deployment was started.
+
+Canonical local rebuild passed. API and all workers use the same image
+`4a9002eed974cdf6deec048e807a0263dc5004afa982ff3c389d5383027582d2`.
+The scoped cleanup receipt is
+`.capstone-agent/cache-maintenance-20261031-141041-53925.log`.
+In the existing browser, the historical 131 ms row now reads
+`读取北京电网前5个变电站对象并查看返回字段`. Its recorded failure remains visible;
+displaying a clearer label does not rewrite the execution history.
