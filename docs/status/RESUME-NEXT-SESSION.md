@@ -1,33 +1,39 @@
 # Live Session Checkpoint
 
-> Updated: 2026-10-31 07:55. Session remains active — not a final handoff.
+> Updated: 2026-10-31 08:29. Session remains active — not a final handoff.
 
-## Active gateway binding work
+## Immediate work
 
-PR81 merged as `61ec56c6`; actual root dev matches origin/dev. Slim macOS
-CI41145432600 passed3m33s on40c4c2e4. Root canonical rebuild and scoped cleanup
-passed: API/three workers image989226e8, App productd9e24798 clean. Directory
-CSV5rows completed62.29s and view completed81.51s; saved products/hashes and
-refreshed snapshots passed. Actual App pinned ready-view restore/read189records
-passed. Feature branch closed; worktree retained on docs/gateway-dynamic-closeout.
-Control/report docs are being integrated through a docs PR; preserve current dirty
-root state until synchronized. No cloud/demo changes.
+User found startup mismatch in visible Vivaldi CSV trial: gateway discovery did
+not happen until LLM5 after repeated searches. Follow-up code committed565802f9
+in `.worktrees/gateway-dynamic`, branch `fix/gateway-entry-startup`; not pushed or
+integrated yet. MCP adapter alone identifies agreed gateway entry names;
+admitted entries activate first-turn and persist across bounded business menu
+loads.159Python checks/14real-SDK fixtures/types pass; independent review has no
+Critical/Important findings. CI remains existing bounded gateway gate; exact SDK
+line-only exception prevents unrelated SDK changes entering that route.
 
-Directory performance is NOT accepted:20model responses53.27s, gateway calls
-about1.19s;4searches/3loads/8scripts and one load-name correction. Do not hardcode
-Beijing/provider/tool names to optimize. Future lightweight business validation
-should be observable in the already-open Capstone browser tab; the two tasks above
-were API submissions before this user preference. Do not repeat them merely to
-make them visible. User visual view acceptance and live renamed/second-instance
-trials remain unverified. Immediate task: close the docs/control PR and verify
-actual dev graph; later performance work is a separate scoped next slice.
+Next: include root control snapshot in the same source PR, push once, use required
+macOS gate, merge to dev, canonical local rebuild, then verify in the existing
+Vivaldi Capstone tab that first model turn calls the discovery entry without
+bootstrap searches. Do not submit through API. Current visible thread is
+thr_92098ce0f8f797425bca; CSV in Downloads/beijing_substations_5.csv has5rows.
 
-## Recovery references
+## Accepted baseline
 
-- Canonical worklist: docs/superpowers/plans/2026-10-16-enterprise-unified-execution.md.
-- Binding plan: docs/superpowers/plans/2026-10-31-gateway-dynamic-binding.md.
-- Verification: docs/reports/2026-10-31-gateway-dynamic-bindings.md.
-- Evidence: runs/gateway-dynamic-product-20261031/ and runs/gateway-next-action-20261031/.
-- Preserve user data, other worktrees and retained stash a0ca3ffd2d38e8279f3d0dff03eb81596e210389.
-- No sibling data-gateway edits; credentials remain protected backend state.
-- Ordinary dev checks stay focused; release acceptance is not requested.
+PR81 source and PR82 control merged; actual dev/origin/dev c282dc8f. Both merged
+branches closed; detached worktree retained before creating startup fix branch.
+Local runtime source61ec56c6, effective productd9e24798 clean; image989226e8,
+API/threeworkers healthy. Canonical rebuild and scoped cache cleanup passed.
+Directory and view API trials passed; actual protected App view restore/read189
+passed. Visible browser CSV then completed52.7s and download5rows verified.
+Performance remains unaccepted: earlier directory20modelresponses53.27s versus
+~1.19s total gateway time; current visible run24LLM/27tools. No fixed sample flow.
+
+## Recovery
+
+Preserve root dirty control snapshots and stash adeb326b26ecf26cba82dd665ac1d81e2b5590b7.
+Earlier stash a0ca3ffd2d38e8279f3d0dff03eb81596e210389 remains retained.
+No cloud/demo changes, no sibling gateway edits, credentials backend protected.
+Evidence: runs/gateway-dynamic-product-20261031/ and runs/gateway-next-action-20261031/.
+Future lightweight business trials run in the already-open visible Capstone tab.
