@@ -13,7 +13,7 @@ describe('Thread fixture entry point', () => {
     sessionStorage.removeItem('capstone.thread.operatorToken')
     render(<App />)
     expect(await screen.findByRole('heading', { name: '新建任务会话' })).toBeTruthy()
-    expect(new URLSearchParams(window.location.search).get('workspace')).toBe('enterprise')
+    expect(new URLSearchParams(window.location.search).get('workspace')).toMatch(/^空间-[a-f0-9]{8}$/)
     expect(screen.queryByText('案例库')).toBeNull()
   })
   it('opens the fixture workspace without bootstrapping the legacy Case API', async () => {

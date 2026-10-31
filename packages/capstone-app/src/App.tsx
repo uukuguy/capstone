@@ -6,7 +6,7 @@ import { NetworkView } from './NetworkView'
 import { PageHeader } from './AppHeader'
 import ThreadFixtureApp from './ThreadFixtureApp'
 import ThreadLiveEntry from './ThreadLiveEntry'
-import {currentWorkspaceName} from './workspaceName'
+import {currentWorkspaceName,ensureWorkspaceLocation} from './workspaceName'
 import type { ThreadUiFixtureId } from './threadUiFixtures'
 import { parseNetworkDiagram } from './networkValidation'
 import { ensureCreateKey, forgetRun, readRun, readSelection,
@@ -766,10 +766,11 @@ export default function App({ clientFactory = defaultClientFactory }: Props) {
   let workspaceName='enterprise',workspaceError=''
   try{workspaceName=currentWorkspaceName()}catch(error){workspaceError=error instanceof Error?error.message:'工作空间名称无效'}
   const liveThreadRoute=params?.get('thread')||'new'
-  useEffect(()=>{if(defaultWorkspace){const url=new URL(window.location.href);url.searchParams.set('workspace','enterprise');window.history.replaceState({},'',url)}},[defaultWorkspace])
+  useEffect(()=>{if(defaultWorkspace){ensureWorkspaceLocation();refreshLocation(value=>value+1)}},[defaultWorkspace])
   useEffect(()=>{document.title=enterpriseWorkspace ? 'Capstone · 企业工作台' : 'Capstone · 电网分析工作台'},[enterpriseWorkspace])
   const fixtureRoute = params?.get('thread-fixture')
   if(workspaceError)return <main role="alert">{workspaceError}</main>
+  if(defaultWorkspace)return <main role="status">正在创建工作空间…</main>
   const fixtureIds = new Set<ThreadUiFixtureId>(['idle-ieee39', 'historical-live-attempt', 'resync-required', 'interrupted-attempt'])
   if (fixtureRoute && fixtureIds.has(fixtureRoute as ThreadUiFixtureId)) {
     const workspace=!!params?.has('workspace')

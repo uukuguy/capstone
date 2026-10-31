@@ -1,9 +1,22 @@
 import {afterEach,expect,it,vi} from 'vitest'
-import {currentWorkspaceName,normalizeWorkspaceName,workspaceThreadUrl} from './workspaceName'
+import {currentWorkspaceName,normalizeWorkspaceName,workspaceThreadUrl,ensureWorkspaceLocation} from './workspaceName'
 import {storageNamespace} from './threadSessionState'
 import {HttpThreadTransport} from './threadHttpTransport'
 import {sessionManagement} from './sessionManagement'
 afterEach(()=>window.history.replaceState({},'','/'))
+it('assigns a short workspace once and keeps it stable on refresh',()=>{
+  window.history.replaceState({},'','/')
+  const first=ensureWorkspaceLocation()
+  expect(first).toMatch(/^空间-[a-f0-9]{8}$/)
+  expect(ensureWorkspaceLocation()).toBe(first)
+  expect(currentWorkspaceName()).toBe(first)
+  window.history.replaceState({},'','/')
+  expect(ensureWorkspaceLocation()).not.toBe(first)
+})
+it('preserves an explicitly named workspace',()=>{
+  window.history.replaceState({},'','/?workspace=A')
+  expect(ensureWorkspaceLocation()).toBe('A')
+})
 it('normalizes named URLs and preserves their space in thread links and caches',()=>{
   window.history.replaceState({},'','/?workspace='+encodeURIComponent(' 华北研究 '))
   expect(currentWorkspaceName()).toBe('华北研究')
