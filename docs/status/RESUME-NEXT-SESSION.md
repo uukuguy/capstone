@@ -4,6 +4,133 @@
 
 ## Immediate work
 
+LATEST VERIFIED PRODUCTd3c69284. Third rebuild ready507734c3db946f25b4e187c3c05a8e73704693e2fb2cc715659034a40e363dc7,
+API/all three workers same digest;cleanup receipt150516-65148. Browser resend in
+the SAME B session completed: attempt_f9537dca11df2156,50.8s,17LLM,34tools.
+FinalCSV5rows SHA2a27e4a7735dcfbb51b5d5bc8be5ba74d5708ee1ca57eaeb76d81f8907adee3f.
+One LLM nested-scope error surfaced twice (child+composition), corrected; don't
+claim zeroerrors or performance acceptance. Frozen submission verifiedreadonlySQL:
+connectiondevelopment,instance9afa2e62-3914-47a9-aa71-c6e13be743d9,catalog
+00e0a0bc98f8714fbfffdca978998e76e5fe20b039c93d1c0ce80c2aeb73cc1e.
+After B completion switching to A is disabled;original A remainslockedlocal-integration.
+Browser has been returned to A thr_5bd702a75df2e3de832e and footer本地联调 confirmed.
+No new/closed tabs. Evidence runs/session-gateway-binding-20261031/ includes
+completed-attempt.json,binding-receipt.json,downloaded.csv,artifactversions,
+locked-select.json409,A/B state+screenshots. Failed299ms attempt preserved.
+Report docs/reports/2026-10-31-session-gateway-binding.md created.
+VERSION-CONTROL updated current package/source/local-dev;other3 deployments kept.
+Generator,doctor,changed links/symlink and diff checks pass. Control graph's main
+deployment reference now uses clear inter-column corridors instead of crossing
+right-side cards. Historical source label corrected;actual source edge and layout
+verified in existing control tab. NEXT: commit task-owned documentation,refresh
+actualdevHEAD graph once(no endless selfhash loop),then return to existing App A.
+Current GitHEADd3c69284,origin/dev196e865a,localahead19 beforedoccommit. No CI/push/PR/cloud.
+All implementation and requested behavior actually verified. Existing control and
+App tabs are reused;no tabs created/closed. Earlier failure checkpoints below historical.
+
+LATEST SOURCEd3c69284 fixes second actual integration gate in intent_runtime.
+3b610b66 rebuilt ready82df96d2+cleanup. Original pending retry accepted in B
+thr_57a1254e28950cdd0877, attempt_4d9ffa6bf1774e44 failed runtime_configuration_invalid
+after299ms, BEFORE model/task/tool calls. Evidence:
+runs/session-gateway-binding-20261031/failed-attempt.json.
+Cause: IntentRuntimeFactory._check_general_configuration compared frozen B's
+entire data_gateway capability (and new session-binding marker) to current global
+A. It now excludes task-scoped data_gateway alongside resource_profiles; exact
+executor identity,timeout,all other capabilities remain strict. Protected host
+still enforces frozen instance and catalog revision. New red/green regression
+also proves identity/operation drift rejected.28 local checks pass/3skip,0.32s.
+THIRD canonical rebuild RUNNING /tmp/capstone-session-gateway-runtime-rebuild.log,
+execsession74026. Do not change source mid-build. No CI/push/cloud.
+Current Vivaldi tab205699 remains B; failed record retained, no business effects.
+Native chat has no standalone start/retry button once pending request accepted;
+after rebuild, resend same CSV instruction through existing composer as new
+instruction to execute (user-authorized validation, never hidden API task).
+Session now locked to B, metadata GET confirms lockedtrue/development and original
+A stilllocked/local-integration. Capture actual business result and instance
+from saved submission, then restore original A URL. Need real runtime success,
+do not claim acceptance from unit tests. Root selection/session metadata guards
+already proven browser+API409. API public projection now availabletrue corrected.
+Potential control work: VERSION-CONTROL/PROJECT-OVERVIEW remain stale from08:33;
+user AGENTS requires canonical update after material boundary. Generator
+tools/render_project_overview.py; tables: 功能包前沿,全景关键提交,Git节点展示规范,环境台账;
+dev-head dynamic node exists. Add exact runtime source node for finald3 if accepted,
+update actual dev/origin divergence and local-dev exact image/source, leave other
+three environments intact; use ui-ux-pro-max and existing-browser graph check,
+then restore user's App tab. No CI needed, do not push. Existing metadata examples
+still mention historical sources; mark new entry authoritative, don't erasehistory.
+
+LATEST SOURCE3b610b66 fixes actual admission failure found while validating72f4a464.
+First rebuild9cba688d ready and cleanup done. Browser verified old A footer
+本地联调 locked, inspected B switch button disabled, direct select POST409
+gateway_session_locked. Existing empty test session
+空间-b239d9bf/thr_57a1254e28950cdd0877 switched through browser to development
+(instance9afa2e62-3914-47a9-aa71-c6e13be743d9,18003), while original/default A
+stayed local-integration3db5bb96... . User can see same Vivaldi tab205699.
+Submitted one visible CSV instruction in B; API500 before transaction commit.
+Snapshot confirmed last_event_seq0 and works[]; NO business request/task occurred.
+Cause: session_binding included UI identity.endpoint, prohibited in native JSON.
+3b610b66 now copies only connection_id,instance_id,locked into execution context;
+ledger retains public display identity. Per-thread API availability projection
+also corrected. New regression failed before fix and passed after.21focused
+checks pass/2skip;8actual PostgreSQL checks pass. Real preflight against running
+Pi resource publication and B MCP catalog passes full binding_for_session1.20.
+Preflight /tmp/capstone-binding-preflight.py reads B token from private container
+registry in memory, never prints/writes credentials; A connection token does not
+authenticate B (do not reuse it). No business call in preflight.
+SECOND/final canonical rebuild RUNNING:
+/tmp/capstone-session-gateway-final-rebuild.log,exec session54436.
+NEXT: await readiness/cleanup; current browser B has pending original instruction
+and retry UI after500. Verify still no committed work before repeating, then use
+existing Retry (same idempotency key) after rebuild. Never hidden API task submits,
+never new/close browser tabs. Original A URL to restore after real B trial:
+http://127.0.0.1:5173/?workspace=enterprise&thread=thr_5bd702a75df2e3de832e .
+Receipts runs/session-gateway-binding-20261031/ include locked-select.json409 and
+per-thread gateway snapshots. Current source must pass actual execution before
+completion; if another blocker appears diagnose+fix, do not claim accepted.
+No CI/push/cloud authorized. Earlier detailed design/implementation below.
+
+LATEST SOURCE72f4a464 implements approved one-instance-per-conversation binding.
+Only empty conversations can select another registered connection. First accepted
+instruction locks gateway_binding JSONB in the same PostgreSQL row transaction;
+rejected instructions remain unlocked. Drafts do not count. InMemory parity.
+Old sessions derive binding from first attempt's saved native publication.
+Missing historical instance does not inherit today's default. Thread-level
+GET /threads/{id}/gateways, POST /select and /reload return own selected_id, locked
+and public bound identity. API enforces lock even if UI bypassed. ContextVar scopes
+publication into admission without mutating shared native binding. frozen
+native_context.gateway_binding carries connection_id,instance_id,catalog_revision.
+Registry access_for/publication_for cache protected clients without changing
+default. Runner task_gateways routes calls, receipts and cleanup per task; exact
+known catalog revision retained. Existing instance ID mismatch checks remain.
+Sidebar hook scope is per thread; ThreadWorkAdapter passes immediate lock after
+message submission. Instance inspection remains possible; switch button disabled
+when locked and note says to create another conversation. Source/model display
+transport forThread uses /threads/{id}/grid-sources; server resolves own instance
+through private source dispatcher. Input catalog uses bound publication too.
+No business tool/provider names added. Accepted spec:
+docs/superpowers/specs/2026-10-31-session-gateway-binding.md.
+213 backend checks pass/34 skipped (root-only profile variants);34 App checks and
+types pass.7 actual PostgreSQL tests pass incl restart and concurrent select/send.
+DB test used a new isolated schema and removed only that schema; user data kept.
+Runner script /tmp/capstone-gateway-postgres-test.py reads container config without
+printing credentials, uses OrbStack direct container IP (Postgres not published).
+NO_PROXY=127.0.0.1,localhost needed for local HTTP pytest fixtures (otherwise local
+proxy returns502). Test logs /tmp/capstone-session-gateway-final-tests.log and
+/tmp/capstone-session-gateway-app.log. Canonical rebuild RUNNING:
+/tmp/capstone-session-gateway-rebuild.log, exec session77396.
+NEXT: verify rebuild/readiness/source+cleanup; existing Vivaldi window205699
+at user's thr_5bd702a75df2e3de832e; use fresh snapshots, never new/close tabs.
+Verify old A footer locked and selection409; switch to existing empty test session
+workspace 空间-b239d9bf/threadthr_57a1254e28950cdd0877, choose development instance
+from actual menu (18003) without changing default, run one visible CSV request if
+needed for actual runtime proof, inspect receipts for correct instance, then return
+to original A and verify footer follows it. Empty test session may have changed:
+check API metadata before use. User has authorized real model/browser trials;
+do not submit hidden API business tasks. API metadata checks are allowed.
+Watch for integration gaps in new private source action or frozen native context.
+Do not claim acceptance before real checks. No CI/push/cloud authorized.
+Prior source checkpoints below are historical.
+
 LATEST SOURCE452af789, on local dev only. App entry9ff89084 restores last selected
 active thread in an explicitly named workspace, then newest active thread, then
 creates one only if history is empty. Normal bare root now creates a short

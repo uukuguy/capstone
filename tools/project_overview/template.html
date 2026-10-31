@@ -179,9 +179,11 @@ function draw(){
  graphStages.forEach(e=>{
   const source=sourceNode(e),target=el('environment-node-'+e.name),anchor=el('commit-'+source.id),a=rect(anchor),b=rect(target),x1=a.x+a.w+4,y1=a.y+a.h/2,x2=b.x-4,y2=b.y+b.h/2,mid=(x1+x2)/2;
   // A branch deployment must cross above the main spine, not through its cards.
-  const d=a.x+a.w<mainX
-   ? 'M '+(a.x+a.w*.75)+' '+(a.y-4)+' V 4 H '+(stageX-14)+' V '+y2+' H '+x2
-   : 'M '+x1+' '+y1+' C '+mid+' '+y1+' '+mid+' '+y2+' '+x2+' '+y2,style=edgeStyles.reference;
+  const d=hasRight&&Math.abs(a.x-mainX)<1
+   ? 'M '+x1+' '+y1+' H '+(rightX-18)+' V 4 H '+(stageX-14)+' V '+y2+' H '+x2
+   : a.x+a.w<mainX
+     ? 'M '+(a.x+a.w*.75)+' '+(a.y-4)+' V 4 H '+(stageX-14)+' V '+y2+' H '+x2
+     : 'M '+x1+' '+y1+' C '+mid+' '+y1+' '+mid+' '+y2+' '+x2+' '+y2,style=edgeStyles.reference;
   svg.insertAdjacentHTML('beforeend','<path data-kind="reference" data-from="'+anchor.id+'" data-to="'+target.id+'" data-source="'+source.id+'" data-source-sha="'+source.sha+'" data-deployment="'+e.name+'" d="'+d+'" fill="none" stroke="'+style.color+'" stroke-width="'+style.width+'" stroke-dasharray="4 3" marker-end="url(#arrow-reference)"/>');
  });
  fitGraph();

@@ -596,12 +596,12 @@ dev默认开发集成主线和main发布主线均启用轻量保护：PR与两�
 
 | File | Purpose |
 | --- | --- |
-| [项目推进控制全景](PROJECT-OVERVIEW.html) | 2026-10-21：部署9836/8c12，小任务已交付但严格提案链失败，补原child完成前反馈；复用Vivaldi已有页面。 |
+| [项目推进控制全景](PROJECT-OVERVIEW.html) | 2026-10-31：local-dev精确来源d3c69284；会话实例绑定与双实例CSV验证，实际HEAD动态展示；未推送或启动CI。 |
 | [线上到本地的功能范围核对](DEPLOYMENT-FUNCTION-SCOPE.md) | 功能与分支归属；近期需求遗漏核对和统一前端命令设计范围；现用执行账本仍必要，旧存储优化实验归档。 |
 | [Git 分支清理记录](GIT-BRANCH-CLEANUP.md) | PR #6/#9/#10/#11合并后关闭分支名；本地目录、精确归档引用和日志保留；旧存储及R0实验未提交记录保留。 |
 | `CURRENT-STATE.md` | Structural project snapshot. |
 | [_archive/2026-10-26-pre-grid-source-state.txt](_archive/2026-10-26-pre-grid-source-state.txt) | Exact previous snapshot, including historical session transcripts; original relative links use docs/status as their base. |
-| [多线版本控制](VERSION-CONTROL.md) | 2026-10-21：旧完整653.118秒未交付；新小任务199.794秒确切复用成立，P/A提案手工兜底不计通过，完整比较暂停。 |
+| [多线版本控制](VERSION-CONTROL.md) | 2026-10-31：本地产品d3c69284已验证，origin/dev196e865a；其余三环境不变，CI必须先获同意。 |
 | [完整回答与结果复用修复验收](../reviews/2026-10-12-answer-and-result-reuse.md) | 原始三轮专项的Authority/工具/浏览器独立核对与逐阶段耗时；整体另验，历史失败不删除。 |
 | [GitHub Issues 与后台 AI 修复设计](../superpowers/specs/2026-10-10-github-issue-automation-design.md) | 已授权命令驱动实施：截图/短句反馈，默认 cloud-demo；当前 AI 会话中文处理，定时/无人值守与额外模型调用延期。 |
 | [GitHub Issue automation plan](../superpowers/plans/2026-10-10-github-issue-automation.md) | 命令驱动工具已合入 main；小石 App 和独立发布已核对，后续准备 PR 待集成；无无人值守或额外模型调用。 |

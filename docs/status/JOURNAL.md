@@ -6610,3 +6610,9 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 14:02 Restore saved/recent sessions and create short workspace names to replace the empty root entry [9ff89084].
 - 14:07 Explain rejected argument paths and display recorded execution purposes so one nested failure is understandable [452af789].
 - 14:11 Image4a9002ee ready;API/all workers match;existing browser restores saved thread and creates short workspace with composer;cleanup complete;no CI.
+- 14:12 Record actual browser entry recovery and verified runtime so follow-up work preserves the user's session [4719a736].
+- 14:41 Bind conversations, sidebar and source displays to one instance;lock first admission atomically to prevent cross-session gateway drift [72f4a464].
+- 14:50 Keep public display fields outside native binding to satisfy protected-field admission;correct projected availability [3b610b66].
+- 15:00 Compare frozen task gateways separately from defaults to prevent valid bound sessions failing runtime preparation [d3c69284].
+- 15:10 Runtime507734c3 ready;B completes50.8s/17LLM/34tools,CSV5rows/hash verified;A/B identities and sidebar locks stay distinct;no CI.
+- 15:26 Align canonical register,runbook and control view;verify source edges avoid cards,doctor and changed links pass;other deployments unchanged.
