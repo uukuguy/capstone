@@ -390,6 +390,7 @@ export function createGatewayToolDiscovery(config) {
   if(!Array.isArray(admittedNames)||discoveryToolNames.some(name=>!admittedNames.includes(name)))
     throw new Error('Application did not authorize task tool discovery');
   return createToolDiscovery({tools:createDataGatewayTools(config),publications:config.dataGateway.catalog.tools,
+    initialNames:config.dataGateway.catalog.entry_tools??[],
     contractHashes:config.dataGateway.catalog.tool_hashes,admittedNames,cwd:config.toolResultCwd,useLedger:gatewayUseLedger(config)});
 }
 

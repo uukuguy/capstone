@@ -151,6 +151,7 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
         'data_gateway_discover_network_models': 'hash-one', 'data_gateway_other': 'hash-two'}, 'tools': {
         'data_gateway_discover_network_models': {'name': 'discover_network_models'},
         'data_gateway_other': {'name': 'other'}}}}
+    gateway_publication['catalog']['entry_tools'] = ['data_gateway_discover_network_models', 'data_gateway_other']
     executor.capability = {**executor.capability, 'research_bridge_schemas': ['capstone-research-bridge/1'],
         'research_graph_schemas': ['capstone-enterprise-graph/2'], 'research_policy_profiles': research_policy_capabilities(),
         'data_gateway': gateway_publication, 'tool_composition': COMPOSITION_POLICY,
@@ -215,6 +216,7 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     assert gateway_bindings == [(task, binding['attempt_id'], {'data_gateway_discover_network_models'})]
     catalog = captured[0]['dataGateway']['catalog']
     assert captured[0]['dataGateway']['onDemandTools'] is True
+    assert catalog['entry_tools'] == ['data_gateway_discover_network_models']
     guidance = next(item['content'] for item in captured[0]['contextFiles'] if item['path'] == 'registered-data-gateway-guidance')
     assert 'SERVICE_GUIDANCE_SENTINEL' in guidance
     assert 'data_gateway_' in guidance

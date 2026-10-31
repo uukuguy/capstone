@@ -7,7 +7,7 @@ const reply=value=>({content:[{type:'text',text:JSON.stringify(value)}]});
 
 // This is a task-local index of an already admitted publication. Search and
 // activation cannot refresh a catalog or extend the host's grant.
-export function createToolDiscovery({tools,publications,contractHashes={},admittedNames,cwd,useLedger,
+export function createToolDiscovery({tools,publications,contractHashes={},admittedNames,cwd,useLedger,initialNames=[],
   maxActiveTools=8,maxActiveSchemaChars=24000,pageSize=8,maxSummaryChars=240}={}) {
   for(const limit of [maxActiveTools,maxActiveSchemaChars,pageSize,maxSummaryChars])
     if(!Number.isSafeInteger(limit)||limit<=0)throw new Error('Invalid tool discovery capacity');
@@ -18,17 +18,27 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
     return [tool.name,{tool,publication,hash:contractHashes[tool.name]??
       createHash('sha256').update(JSON.stringify(publication)).digest('hex')}];
   }));
+  if(!Array.isArray(initialNames)||initialNames.some(name=>typeof name!=='string'))
+    throw new Error('Invalid initial tool names');
+  const initial=[...new Set(initialNames.filter(name=>entries.has(name)))];
+  function checkedContracts(selected){
+    if(selected.length>maxActiveTools)throw new Error('Tool activation count capacity exceeded');
+    const contracts=selected.map(name=>({name,contract_sha256:entries.get(name).hash,publication:entries.get(name).publication}));
+    if(JSON.stringify(contracts).length>maxActiveSchemaChars)throw new Error('Tool activation schema capacity exceeded; select fewer tools');
+    return contracts;
+  }
+  checkedContracts(initial);
   const names=[...entries.keys()].sort();
   const groups=new Map();
   for(const name of names){
     const publication=entries.get(name).publication,id=gatewayToolGroup(publication);
     if(id){const group=groups.get(id)??{id,tool_count:0,access:gatewayToolAccess(publication)};group.tool_count++;groups.set(id,group);}
   }
-  let active=new Set(),pending,closed=false;
+  let active=new Set(initial),pending,closed=false;
   const searched=new Set();
   function check(signal){signal?.throwIfAborted();if(closed)throw new Error('Tool discovery task is closed');}
   function initialToolNames(existingNames){
-    return [...new Set([...existingNames.filter(name=>!allNames.has(name)),...discoveryToolNames])];
+    return [...new Set([...existingNames.filter(name=>!allNames.has(name)),...discoveryToolNames,...initial])];
   }
   const search={name:'agent_tool_search',label:'Search admitted tools',
     description:'Search the task-granted published tool index. Results include published toolset membership; optionally filter by a returned toolset ID. Follow selection and provider rules returned by current gateway discovery. Load selected exact contracts for the next model turn.',
@@ -53,16 +63,14 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
           guidance:'This task publication is unchanged. Reuse these results and load the needed exact contracts. Change search terms or page only to investigate a different capability; a repeated search cannot refresh tools.'}}:{})});
     }};
   const load={name:'agent_tool_load',label:'Load admitted tools',
-    description:'Select a bounded replacement set of task-granted tools. Activation takes effect at the next model turn; do not invoke selected tools in this same call batch. Published schemas stay exact. Use an empty list to unload.',
+    description:'Select a bounded replacement set of on-demand task-granted tools. Already active registered entry tools remain available and share capacity. Activation takes effect at the next model turn; do not invoke newly selected tools in this same call batch. Published schemas stay exact. Use an empty list to unload on-demand tools.',
     parameters:{type:'object',properties:{names:{type:'array',items:{type:'string'},uniqueItems:true,maxItems:maxActiveTools}},required:['names'],additionalProperties:false},
     async execute(_id,args,signal){
       check(signal);
       if(!Array.isArray(args.names)||args.names.some(name=>typeof name!=='string'||!entries.has(name)))
         throw new Error('Requested tool is not admitted for this task');
-      const selected=[...new Set(args.names)];
-      if(selected.length>maxActiveTools)throw new Error('Tool activation count capacity exceeded');
-      const contracts=selected.map(name=>({name,contract_sha256:entries.get(name).hash,publication:entries.get(name).publication}));
-      if(JSON.stringify(contracts).length>maxActiveSchemaChars)throw new Error('Tool activation schema capacity exceeded; select fewer tools');
+      const selected=[...new Set([...initial,...args.names])];
+      const contracts=checkedContracts(selected);
       pending=selected;
       // Input schemas enter the next model menu; full output contracts are
       // available here without injecting the rest of the catalog.
@@ -93,11 +101,12 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
         return changed?{messages}:undefined;
       });
       pi.on('before_agent_start',event=>({systemPrompt:(event.systemPrompt??'')+
-        '\nUse agent_tool_search for task-granted tool summaries and agent_tool_load for exact selected contracts; loaded tools become callable on the next model turn. '+gatewayToolUseGuidance}));
+        (initial.length?'\nRegistered entry tools are already active: '+JSON.stringify(initial)+'. Follow their registered initialization first; read their current discovery and exact contracts before selecting business operations. ':'\n')+
+        'Use agent_tool_search for on-demand task-granted tool summaries and agent_tool_load for exact selected contracts; newly loaded tools become callable on the next model turn. Registered entry tools remain available across loads. '+gatewayToolUseGuidance}));
       pi.on('turn_end',()=>{
         if(closed||!pending)return;
         active=new Set(pending);pending=undefined;
-        pi.setActiveTools([...initialToolNames(pi.getActiveTools()),...active]);
+        pi.setActiveTools([...new Set([...initialToolNames(pi.getActiveTools()),...active])]);
       });
       pi.on('session_shutdown',close);
     }};

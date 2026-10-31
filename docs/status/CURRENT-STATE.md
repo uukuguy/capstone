@@ -23,8 +23,9 @@ Authorities own models, revisions, numerical results and evidence.
 
 Native Pi runs general tasks in isolated workspaces. Its source observations do
 not become simulator evidence. Published gateway tools use protected backend
-configuration and fixed contracts. Browsers receive bounded projections and
-never receive gateway or Provider credentials.
+configuration and published contracts. Gateway entry points are adapter-owned;
+business calls use current discovery and returned actions. Browsers receive bounded
+projections and never receive gateway or Provider credentials.
 
 Grid source views retain raw equipment identity, source relationships, selection
 rules, snapshots and gaps. Display partitions are not electrical equivalents.

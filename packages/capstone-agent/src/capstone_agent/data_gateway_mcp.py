@@ -21,6 +21,8 @@ from .application_capacity import limits, require_capacity, CapacityExceeded
 
 _TOOL_NAME = re.compile(r'[a-z][a-z0-9_]{0,49}')
 _INSTRUCTIONS_BYTES = 16384
+# Agreed service entry points. Business operations never belong in this list.
+_GATEWAY_ENTRY_POINTS = ('discover_gateway', 'describe_gateway_contract')
 
 def identity_text(value):
     return isinstance(value, str) and 0 < len(value) <= 256 and not any(ord(c) < 32 or ord(c) == 127 for c in value)
@@ -240,6 +242,8 @@ class DataGatewayMcp:
         value = {'resource_id': self.policy['resource_id'], 'tools': schemas,
                  'tool_hashes': {n: fingerprint(s) for n, s in schemas.items()}}
         if tool_name is None:
+            value['entry_tools'] = [self.policy['namespace'] + entry for entry in _GATEWAY_ENTRY_POINTS
+                                    if self.policy['namespace'] + entry in schemas]
             value['instructions'] = instructions
             if instance is not None:
                 value['instance'] = instance

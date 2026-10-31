@@ -18,6 +18,31 @@ function fixture(options={}) {
   return {controller:createToolDiscovery({tools,publications,admittedNames:Object.keys(publications).slice(0,19),...options}),calls:()=>calls};
 }
 
+test('admitted initial tools are callable immediately and survive replacement',async()=>{
+  const {controller:c,calls}=fixture({initialNames:['source_0','source_19','missing']});
+  const hooks=new Map();let active=c.initialToolNames(['read']);
+  c.configure({on:(name,fn)=>hooks.set(name,fn),getActiveTools:()=>active,setActiveTools:names=>{active=names;}});
+  assert.deepEqual(active,['read','agent_tool_search','agent_tool_load','source_0']);
+  await c.guardedTools.find(t=>t.name==='source_0').execute('startup',{});
+  assert.equal(calls(),1);
+  await c.tools[1].execute('replace',{names:['source_1']});hooks.get('turn_end')();
+  assert.ok(active.includes('source_0'));assert.ok(active.includes('source_1'));
+  await c.tools[1].execute('clear',{names:[]});hooks.get('turn_end')();
+  assert.ok(active.includes('source_0'));assert.ok(!active.includes('source_1'));
+  assert.match(hooks.get('before_agent_start')({}).systemPrompt,/already active/);
+});
+
+test('initial tool contracts share activation capacity with dynamic selections',async()=>{
+  assert.throws(()=>fixture({initialNames:['source_0','source_1'],maxActiveTools:1}),/capacity/);
+  assert.throws(()=>fixture({initialNames:['source_0'],maxActiveSchemaChars:100}),/capacity/);
+  assert.throws(()=>fixture({initialNames:'source_0'}),/initial/i);
+  const {controller:c}=fixture({initialNames:['source_0'],maxActiveTools:1});
+  await assert.rejects(c.tools[1].execute('overflow',{names:['source_1']}),/capacity/);
+  await c.tools[1].execute('same',{names:['source_0']});
+  const {controller:bounded}=fixture({initialNames:['source_0'],maxActiveSchemaChars:1500});
+  await assert.rejects(bounded.tools[1].execute('schema-overflow',{names:['source_1']}),/schema capacity/);
+});
+
 test('search pages contain only granted bounded published summaries',async()=>{
   const {controller:c}=fixture();
   const search=c.tools.find(t=>t.name==='agent_tool_search');
@@ -141,7 +166,7 @@ test('accepted research handoff closes pending direct activation before the boun
   await assert.rejects(c.tools[0].execute('closed',{query:''}),/closed/);
 });
 
-for(const mode of ['parent','managed-child'])test('actual pinned SDK '+mode+' loads an exact granted gateway contract then invokes once on the next turn',async()=>{
+for(const mode of ['parent','managed-child'])test('actual pinned SDK '+mode+' invokes an admitted entry on its first turn and loads other exact contracts on demand',async()=>{
   assert.equal(typeof host.createGatewayToolDiscovery,'function');
   const sdk=await import('../../../../.grid-agent/runtime/pi/source/packages/coding-agent/dist/index.js');
   const ai=await import('../../../../.grid-agent/runtime/pi/source/packages/ai/dist/index.js');
@@ -167,7 +192,7 @@ for(const mode of ['parent','managed-child'])test('actual pinned SDK '+mode+' lo
     deadlineAt:Date.now()+10000,applicationPolicy:{allowed_tools:[...['agent_tool_search','agent_tool_load'],
     ...Object.keys(publications).slice(0,29)]},dataGateway:{onDemandTools:true,
     url:'http://127.0.0.1:'+server.address().port,grant:'task-only-fixture',taskId:'task-sdk',
-    catalog:{revision:'revision',tools:publications,tool_hashes:Object.fromEntries(Object.keys(publications).map((name,i)=>[name,'hash-'+i]))}}};
+    catalog:{revision:'revision',tools:publications,entry_tools:['data_gateway_source_28','data_gateway_source_29'],tool_hashes:Object.fromEntries(Object.keys(publications).map((name,i)=>[name,'hash-'+i]))}}};
   const discovery=host.createGatewayToolDiscovery(config);
   const model={id:'fixture',name:'Fixture',provider:'capstone-general',api:'openai-completions',baseUrl:'http://127.0.0.1:1',
     reasoning:false,input:['text'],contextWindow:32000,maxTokens:1024,cost:{input:0,output:0,cacheRead:0,cacheWrite:0}};
@@ -178,7 +203,7 @@ for(const mode of ['parent','managed-child'])test('actual pinned SDK '+mode+' lo
       recoveries.push(...context.messages.filter(message=>message.role==='toolResult'&&
         message.content?.some(part=>part.type==='text'&&part.text.includes('"code":"tool_not_active"'))));
       const batches=[
-        [{name:'agent_tool_search',arguments:{query:'searchable',offset:0}}],
+        [{name:'data_gateway_source_28',arguments:{query:'startup'}}],
         [{name:'agent_tool_load',arguments:{names:['data_gateway_source_0']}},
           {name:'data_gateway_source_0',arguments:{query:'too early'}}],
         [{name:'data_gateway_source_0',arguments:{query:'current'}}],
@@ -194,7 +219,7 @@ for(const mode of ['parent','managed-child'])test('actual pinned SDK '+mode+' lo
   let session,owned;
   try{
     if(mode==='managed-child') {
-      owned=await host.createManagedChildSession(config,sdk,runtime,{cwd:dir,toolNames:['data_gateway_source_0']});
+      owned=await host.createManagedChildSession(config,sdk,runtime,{cwd:dir,toolNames:['data_gateway_source_0','data_gateway_source_28']});
       session=owned.session;
     }else{
     const settingsManager=sdk.SettingsManager.inMemory({compaction:{enabled:false}});
@@ -209,12 +234,13 @@ for(const mode of ['parent','managed-child'])test('actual pinned SDK '+mode+' lo
     session.subscribe(event=>{if(event.type==='tool_execution_end'&&event.toolName==='data_gateway_source_0'&&!event.isError)
       observations.push(host.rpcEvent(event));});
     await session.prompt('Read a published source.');
-    assert.deepEqual(errors,[]);assert.equal(calls.length,1);assert.equal(calls[0].arguments.query,'current');
+    assert.deepEqual(errors,[]);assert.equal(calls.length,2);assert.equal(calls[0].arguments.query,'startup');assert.equal(calls[1].arguments.query,'current');
     assert.ok(recoveries.length>0,'The real SDK model context must explain an inactive published tool');
-    assert.deepEqual(menus[0].map(t=>t.name),['agent_tool_search','agent_tool_load']);
+    assert.deepEqual(menus[0].map(t=>t.name),['agent_tool_search','agent_tool_load','data_gateway_source_28']);
     assert.deepEqual(menus[1],menus[0]);
     assert.deepEqual(menus[2].find(t=>t.name==='data_gateway_source_0').parameters,publications.data_gateway_source_0.inputSchema);
-    assert.ok(menus.every(menu=>menu.length<=3));
+    assert.ok(menus.every(menu=>menu.length<=4));
+    assert.ok(menus.every(menu=>menu.some(t=>t.name==='data_gateway_source_28')));
     assert.ok(menus.every(menu=>!menu.some(t=>t.name==='data_gateway_source_29')));
     const results=session.messages.filter(m=>m.role==='toolResult');
     assert.ok(results.some(m=>m.toolName==='agent_tool_load'&&m.isError));

@@ -1,7 +1,27 @@
 # docs/status INDEX
 
+Active startup repair2026-10-31: fix/gateway-entry-startup at565802f9, based on actual devc282dc8f.
+User feedback: four searches preceded discovery on the fifth model response.
+The candidate activates admitted gateway entry tools on the first turn; business tools stay on demand.
+159 Python passed/32 skipped,14 JS, real SDK and types passed; independent review clear.
+Not pushed, no PR, not integrated or deployed. This startup repair is active; generic-round reduction remains a separate gap.
+Visible52.7s trial CSVbeijing_substations_5.csv preview/download5 rows passed, without speed acceptance.
+Runtime productd9e24798/source61ec56c6/image989226e8 and other deployments remain unchanged.
+Future trials use the already-open visible Capstone tab. Earlier integrated source82 records follow.
+
+Final actual-dev snapshot2026-10-31: [PR82](https://github.com/uukuguy/capstone/pull/82)
+merged c282dc8f; actual root dev and origin/dev match. Docs CI41147685192 passed2m42s.
+PR81 runtime productd9e24798/image989226e8 and the other three deployments stay unchanged.
+Nine prior root snapshots remain in stash adeb326b26ecf26cba82dd665ac1d81e2b5590b7.
+VERSION/INDEX/HTML remain an explicit uncommitted final HEAD snapshot, avoiding a self-hash cycle.
+Product branch is closed; docs closeout branch is merged and closed locally and remotely; retained worktree is detached at origin/devc282.
+Visible Vivaldi taskthr_92098ce0f8f797425bca completed52.7s with27 tools and24 model responses/48.2s.
+beijing_substations_5.csv preview and download are visible; the parent retains download/screenshot receipts.
+Performance gap remains; no business reruns here.
+Earlier product integration receipts follow.
+
 Current integration2026-10-31: [PR81](https://github.com/uukuguy/capstone/pull/81)
-merged as61ec56c6; actual root dev and origin/dev match. Final40c4c2e4 passed
+merged as61ec56c6; current HEAD advanced to c282dc8f via PR82. Final40c4c2e4 passed
 slim CI41145432600 in3m33s; prior d9 CI41144188892 passed4m2s.
 Slim CI: Python627 passed/35 skipped in86.63s, App41 and JS35 passed;
 governance229 passed/2 skipped in4.84s. Earlier

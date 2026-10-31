@@ -6561,3 +6561,12 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 07:51 User directs future lightweight business trials through existing visible Capstone browser tab; retain visible execution and products.
 
 - 07:54 View task completes81.51s; App pinned open/read189records restore pass; verified merged feature branch closed, worktree retained.
+
+- 07:59 Commit gateway control/report closeout with exact local source and performance gap; docs integration pending [74b35669].
+
+- 08:05 Merge docsPR82 asc282dc8f after docsCI2m42s; root synced; visible Vivaldi CSV task submitted in newthr_92098ce0f8f797425bca.
+
+- 08:29 Visible browser CSV completes52.7s/24LLM/27tools; downloaded5rows; user identifies gateway discovery delayed untilLLM5.
+- 08:29 Activate admitted gateway entries first-turn;159Python/14SDK tests and types pass; independent review clear [565802f9].
+
+- 08:39 Live publication provides two admitted initial entries;3774schema chars within24000budget; generic first-turn menu includes both.

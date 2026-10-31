@@ -81,7 +81,20 @@ Files: `grid_source_topology.py`, `grid_electrical_view.py`, `general_pi_server.
 - [x] Rebuild using make capstone-local-rebuild and finish scoped cache cleanup.
 - [x] Reconnect and run a real directory-to-CSV case and a supported view case.
 - [x] Verify saved products, restored conversation, source identity and receipts.
-- [ ] Update canonical status/control records, review and integrate through dev PR.
+- [x] Update canonical status/control records, review and integrate through dev PR.
+
+## Startup follow-up from visible trial
+
+The user's visible CSV trial completed in52.7s but first called gateway discovery
+at LLM5. The initial active menu exposed only search/load, so the gateway entry
+itself needed discovery. This contradicts the agreed initialization sequence.
+
+Follow-up565802f9 makes safely admitted adapter-designated gateway entries active
+from the first model turn. Only the MCP adapter knows the agreed entry names;
+business tools remain dynamically loaded. Task/child grants and combined count
+and schema budgets remain enforced.159Python checks and14SDK fixtures/types pass.
+Integration and visible first-turn verification are pending, on the same bounded
+gateway development gate; no new full workbench or release gate.
 
 ## Current limits
 
