@@ -41,3 +41,27 @@ change. It does not refresh changed gateway contracts or relax drift checks.
 The independent contract-reload/new-session prototype is preserved in stash
 `5a205ae7f7a1ad4d21943e0dd99657d090dd6d1f`. It is not part of this change or its
 deployment. Its lightweight timestamp/check contract still needs gateway input.
+
+## Rebuilt runtime and visible trial
+
+Source `9bba7449` passed the canonical local rebuild, readiness and scoped cache
+maintenance. API and workers share image
+`21dc558dc9098428b0aa684b750f67d57be1cfb063aa7957cac28d3fe6b35730`.
+
+The visible browser submitted the unchanged five-substation CSV question in
+`thr_ccc50b5efbdde3f64fc6` / `attempt_04ed87db65489b45`. It completed in43.6s,
+with20model responses and29tool calls. No `Tool ... not found` result occurred.
+The download has exactly five rows; SHA-256:
+`09844baf004b0dd084724ec097027587a6660f373db02cf84902f8532e878a66`.
+The runtime chose a source-backed relationship lookup route; no fixed expected
+object list or tool sequence was introduced by this repair.
+
+Three other errors occurred and recovered: contract lookup incorrectly passed a
+tool name as `operation`; one shell command inspected a missing private-input
+directory; one temporary jq expression had a syntax error. These are not marked
+fixed or hidden by this change. The exact unload/restore case is proven by the
+deterministic parent/child SDK checks above; this browser task checks the normal
+real model, gateway and saved-product path.
+
+Evidence: `runs/gateway-activation-recovery-20261031/browser-records.json`,
+`browser-completed.png` and `downloaded.csv`. No CI was started.
