@@ -67,8 +67,11 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
     parameters:{type:'object',properties:{names:{type:'array',items:{type:'string'},uniqueItems:true,maxItems:maxActiveTools}},required:['names'],additionalProperties:false},
     async execute(_id,args,signal){
       check(signal);
-      if(!Array.isArray(args.names)||args.names.some(name=>typeof name!=='string'||!entries.has(name)))
-        throw new Error('Requested tool is not admitted for this task');
+      if(!Array.isArray(args.names)||args.names.some(name=>typeof name!=='string'))
+        throw new Error('Tool selection names must be an array of strings');
+      const rejected=args.names.filter(name=>!entries.has(name));
+      if(rejected.length)
+        throw new Error('Requested tool is not admitted for this task: '+JSON.stringify(rejected.slice(0,maxActiveTools).map(name=>name.slice(0,128)))+'. Use exact names from this task publication. No tools were activated.');
       const selected=[...new Set([...initial,...args.names])];
       const contracts=checkedContracts(selected);
       pending=selected;

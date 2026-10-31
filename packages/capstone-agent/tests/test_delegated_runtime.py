@@ -311,6 +311,32 @@ def test_native_worker_persists_shared_steps_without_promoting_tools_to_authorit
     assert not result.result_refs and not result.evidence_refs
 
 
+def test_native_worker_persists_selection_input_through_task_completion():
+    from capstone_agent.progress import project_native_tool_activity
+
+    class SelectionExecutor(Executor):
+        def execute(self, request, control, on_event):
+            on_event({'type': 'tool_execution_start', 'tool_name': 'agent_tool_load',
+                'tool_call_id': 'selection-call', 'activity': project_native_tool_activity({
+                    'args': {'names': ['remote_unknown'], 'api_key': 'private-value'}})})
+            on_event({'type': 'tool_execution_end', 'tool_name': 'agent_tool_load',
+                'tool_call_id': 'selection-call', 'is_error': True,
+                'activity': {'output_excerpt': 'Requested tool is not admitted: remote_unknown'}})
+            return PiTaskResult(request.task_id, request.parent_attempt_id, self.identity,
+                                'completed', '说明限制', (), (), {})
+
+    service, current = claim()
+    result = run(service, current, factory(SelectionExecutor(), Recognizer([goal('one')])))
+    assert result.status == 'completed'
+    saved = service.read_events(current.thread_id, 0).events
+    calls = [e for e in saved if e.payload.get('tool_call_id') == 'selection-call']
+    assert len(calls) == 2
+    assert 'remote_unknown' in calls[0].payload['activity']['input_excerpt']
+    assert 'private-value' not in str(calls)
+    assert calls[1].payload['is_error'] is True
+    assert calls[0].attempt_id == calls[1].attempt_id == current.attempt.attempt_id
+
+
 @pytest.mark.parametrize('prior_narrative', [False, True, 'inspect'])
 @pytest.mark.parametrize('profile_version', ['1.2.0'])
 def test_committed_cycle_steps_are_public_and_keep_partial_outcome(prior_narrative, profile_version, tmp_path):

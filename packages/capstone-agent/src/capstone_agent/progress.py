@@ -5,6 +5,8 @@
 from __future__ import annotations
 
 import re
+import json
+from itertools import islice
 from collections.abc import Mapping, Sequence
 
 
@@ -35,11 +37,43 @@ def _summary(value: object, limit: int = 200) -> str:
     return compact if len(compact) <= limit else compact[:limit] + "…"
 
 
+def _input_excerpt(arguments: Mapping) -> str:
+    """Retain bounded call diagnostics, without credentials or file bodies."""
+    def safe(value, depth=0):
+        if depth > 5:
+            return '[TRUNCATED]'
+        if isinstance(value, Mapping):
+            result = {}
+            for key, item in islice(value.items(), 32):
+                key = str(key)
+                normalized = re.sub(r'[^a-z0-9]', '', key.lower())
+                if any(word in normalized for word in ('password', 'secret', 'token', 'apikey', 'authorization', 'cookie', 'credential')) or normalized == 'headers':
+                    result[key[:128]] = '[REDACTED]'
+                elif normalized in {'content', 'body', 'data', 'base64', 'code', 'text', 'prompt', 'instruction'}:
+                    result[key[:128]] = '[OMITTED BODY]'
+                else:
+                    result[_redact_text(key[:128])] = safe(item, depth + 1)
+            if len(value) > 32:
+                result['[TRUNCATED]'] = 'additional fields omitted'
+            return result
+        if isinstance(value, (list, tuple)):
+            return [safe(item, depth + 1) for item in value[:32]] + (['[TRUNCATED]'] if len(value) > 32 else [])
+        if isinstance(value, str):
+            text = _redact_text(value)
+            return text[:1024] + ('[TRUNCATED]' if len(text) > 1024 else '')
+        if value is None or isinstance(value, (bool, int, float)):
+            return value
+        return '[OMITTED VALUE]'
+    text = json.dumps(safe(arguments), ensure_ascii=False, separators=(',', ':'))
+    return text if len(text) <= 4000 else text[:3989] + '[TRUNCATED]'
+
+
 def project_native_tool_activity(event: Mapping) -> dict[str, str]:
     """Bound native activity text at the executor boundary; omit raw frames."""
     receipt: dict[str, str] = {}
     arguments = event.get("args")
     if isinstance(arguments, Mapping):
+        receipt['input_excerpt'] = _input_excerpt(arguments)
         exploration = arguments.get('advanced_exploration')
         if isinstance(exploration, Mapping) and exploration.get('reason') in ('capability_gap', 'tool_defect') and isinstance(exploration.get('detail'), str):
             receipt['warning'] = _summary('申请高级数据探索：' + exploration['detail'], 240)

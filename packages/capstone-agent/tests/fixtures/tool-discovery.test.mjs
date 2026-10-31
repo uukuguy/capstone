@@ -18,6 +18,14 @@ function fixture(options={}) {
   return {controller:createToolDiscovery({tools,publications,admittedNames:Object.keys(publications).slice(0,19),...options}),calls:()=>calls};
 }
 
+test('rejected selection names are explicit and do not activate any tool',async()=>{
+  const {controller:c,calls}=fixture();
+  await assert.rejects(c.tools[1].execute('bad',{names:['source_0','missing','source_19']}),
+    /not admitted.*missing.*source_19/);
+  await assert.rejects(c.guardedTools.find(t=>t.name==='source_0').execute('still-inactive',{}),/not active/);
+  assert.equal(calls(),0);
+});
+
 test('admitted initial tools are callable immediately and survive replacement',async()=>{
   const {controller:c,calls}=fixture({initialNames:['source_0','source_19','missing']});
   const hooks=new Map();let active=c.initialToolNames(['read']);

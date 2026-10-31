@@ -21,7 +21,7 @@ def _public_text(value, private_roots):
 def public_graph_activity(activity, private_roots=()):
     public = {}
     for key, value in activity.items():
-        if key not in {'operation', 'output_excerpt', 'warning'} or not isinstance(value, str):
+        if key not in {'operation', 'input_excerpt', 'output_excerpt', 'warning'} or not isinstance(value, str):
             continue
         # Binary output remains in the original observation, never a JSONB preview.
         # Preserve normal whitespace and existing ANSI display semantics.
