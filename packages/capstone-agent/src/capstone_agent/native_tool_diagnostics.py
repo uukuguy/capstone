@@ -1,6 +1,7 @@
 """Extract small public diagnostics before truncating native MCP envelopes."""
 from collections.abc import Mapping
 import json
+import re
 
 
 def structured_tool_diagnostic(result: Mapping) -> str | None:
@@ -37,8 +38,23 @@ def structured_tool_diagnostic(result: Mapping) -> str | None:
                     provenance.get('request_id') if isinstance(provenance, Mapping) else None)
                 if isinstance(request_id, str):
                     parts.append('request_id=' + request_id[:100])
-                if isinstance(value.get('executed'), bool):
-                    parts.append('executed=' + str(value['executed']).lower())
+                # New gateway diagnostics may put these fields in a gap scope.
+                # Presence is authoritative: an error alone says nothing about effects.
+                scopes = [detail, scope if isinstance(scope, Mapping) else {}, value]
+                executed = next((item['executed'] for item in scopes if isinstance(item.get('executed'), bool)), None)
+                if executed is not None:
+                    parts.append('executed=' + str(executed).lower())
+                rejected = next((item['rejected_value'] for item in scopes if 'rejected_value' in item), None)
+                if isinstance(rejected, (str, int, float, bool)):
+                    protected = re.search(r'(?i)token|password|secret|authorization|api[_ -]?key', str(path))
+                    parts.append('rejected_value=' + ('[REDACTED]' if protected else str(rejected)[:80]))
+                source = next((item.get('legal_values_source', item.get('allowed_values_source')) for item in scopes
+                               if 'legal_values_source' in item or 'allowed_values_source' in item), None)
+                if isinstance(source, str):
+                    parts.append('legal_values_source=' + source[:120])
+                suggestion = next((item.get('suggestion') for item in scopes if isinstance(item.get('suggestion'), str)), None)
+                if suggestion and not re.search(r'(?i)token|password|secret|authorization|api[_ -]?key', str(path)):
+                    parts.append('suggestion=' + suggestion[:120])
                 return '；'.join(parts)
             structured = value.get('structuredContent')
             if isinstance(structured, Mapping) and structured:

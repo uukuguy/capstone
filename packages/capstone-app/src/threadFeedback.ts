@@ -1,13 +1,18 @@
 /** Reader-facing recovery text for bounded service codes; never expose raw exceptions. */
 function diagnosticSummary(text: string): string {
   if (!text.trim().startsWith('{')) return text
+    .replace(/(^|；)executed=false(?=；|$)/g,'$1未执行（executed=false）')
+    .replace(/(^|；)executed=true(?=；|$)/g,'$1已执行（executed=true）')
+    .replace(/(^|；)rejected_value=/g,'$1拒绝值=')
+    .replace(/(^|；)legal_values_source=/g,'$1合法值来源=')
+    .replace(/(^|；)suggestion=/g,'$1纠正建议=')
   try {
     let value: unknown = JSON.parse(text)
     const locations: string[] = []
     for (let depth = 0; depth < 8; depth++) {
       if (typeof value === 'string') {
         if (value.trim().startsWith('{')) { value = JSON.parse(value); continue }
-        return [value.slice(0, 400), ...locations].join('；').slice(0, 600)
+        return [...new Set([value.slice(0, 400), ...locations])].join('；').slice(0, 600)
       }
       if (!value || typeof value !== 'object' || Array.isArray(value)) break
       const record = value as Record<string, unknown>
@@ -19,8 +24,22 @@ function diagnosticSummary(text: string): string {
       const requestId = record.provenance && typeof record.provenance === 'object'
         ? (record.provenance as Record<string, unknown>).request_id : record.request_id
       if (typeof requestId === 'string') locations.push(`request_id=${requestId.slice(0, 100)}`)
-      const path = gap?.path ?? gap?.scope?.path
+      const detail = gap && typeof gap === 'object' ? gap : record.error && typeof record.error === 'object' ? record.error : {}
+      const scope = detail.scope && typeof detail.scope === 'object' ? detail.scope : {}
+      const path = detail.path ?? scope.path ?? record.path
       if (typeof path === 'string') locations.unshift(`path=${path.slice(0, 100)}`)
+      const fields=[detail,scope,record]
+      const execution=fields.find(item=>typeof item.executed==='boolean')?.executed
+      if(execution!==undefined)locations.push(execution?'已执行（executed=true）':'未执行（executed=false）')
+      const rejected=fields.find(item=>Object.hasOwn(item,'rejected_value'))?.rejected_value
+      if(['string','number','boolean'].includes(typeof rejected)){
+        const protectedValue=/(?:token|password|secret|authorization|api[_ -]?key)/i.test(String(path))
+        locations.push(`拒绝值=${protectedValue?'[REDACTED]':String(rejected).slice(0,80)}`)
+      }
+      const source=fields.map(item=>item.legal_values_source??item.allowed_values_source).find(item=>typeof item==='string')
+      if(typeof source==='string')locations.push(`合法值来源=${source.slice(0,120)}`)
+      const suggestion=fields.map(item=>item.suggestion).find(item=>typeof item==='string')
+      if(typeof suggestion==='string'&&!/(?:token|password|secret|authorization|api[_ -]?key)/i.test(String(path)))locations.push(`纠正建议=${suggestion.slice(0,120)}`)
       const content = Array.isArray(record.content) ? record.content.find(item => item && typeof item === 'object' && typeof item.text === 'string')?.text : undefined
       value = record.summary ?? record.message ?? record.detail ?? record.error ?? gap ?? content
     }

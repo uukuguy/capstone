@@ -3,6 +3,41 @@ from __future__ import annotations
 import pytest
 
 
+def test_gateway_rejection_retains_scope_details_and_explicit_execution_state():
+    from capstone_agent.progress import project_native_tool_activity
+    body = {'status': 'error', 'gaps': [{'reason': 'invalid_arguments',
+        'message': '排序字段无效', 'scope': {'path': '/order_by/0', 'rejected_value': '-DATE',
+        'legal_values_source': 'columns[].name', 'suggestion': '使用原字段名，不加倒序前缀',
+        'examples': [['DATE', 'STAT_TYPE']], 'executed': False}}],
+        'provenance': {'request_id': 'rejected-sort-request'}}
+    output = project_native_tool_activity({'isError': True, 'result': {'structuredContent': body}})['output_excerpt']
+    for expected in ('/order_by/0', '-DATE', 'columns[].name', 'executed=false', 'rejected-sort-request', '使用原字段名'):
+        assert expected in output
+
+
+@pytest.mark.parametrize('executed', [True, False, None])
+def test_gateway_execution_state_is_never_inferred_from_error_status(executed):
+    from capstone_agent.progress import project_native_tool_activity
+    gap = {'reason': 'query_rejected', 'message': 'Query rejected'}
+    if executed is not None:
+        gap['executed'] = executed
+    output = project_native_tool_activity({'isError': True, 'result': {'structuredContent': {
+        'status': 'error', 'gaps': [gap]}}})['output_excerpt']
+    assert ('executed=' in output) is (executed is not None)
+    if executed is not None:
+        assert f'executed={str(executed).lower()}' in output
+
+
+def test_gateway_rejection_does_not_echo_a_secret_rejected_value():
+    from capstone_agent.progress import project_native_tool_activity
+    output = project_native_tool_activity({'isError': True, 'result': {'structuredContent': {
+        'status': 'error', 'gaps': [{'reason': 'invalid_arguments', 'message': '参数无效',
+        'path': '/access_token', 'rejected_value': 'private-canary', 'executed': False}]}}})['output_excerpt']
+    assert 'private-canary' not in output
+    assert '/access_token' in output
+    assert 'executed=false' in output
+
+
 def test_nested_gateway_error_summary_keeps_reason_location_and_request_before_bounding():
     import json
     from capstone_agent.progress import project_native_tool_activity

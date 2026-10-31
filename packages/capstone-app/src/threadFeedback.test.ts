@@ -2,6 +2,25 @@ import { describe, expect, it } from 'vitest'
 import { commandRejectionCopy, toolFailureReason } from './threadFeedback'
 
 describe('recorded tool failure reasons', () => {
+  it('labels preserved backend diagnostic fields for the reader',()=>{
+    const summary=toolFailureReason({summary:'排序字段无效；path=/order_by/0；executed=false；rejected_value=-DATE；legal_values_source=columns[].name；suggestion=使用原字段名'})!
+    for(const expected of ['未执行','拒绝值=-DATE','合法值来源=columns[].name','纠正建议=使用原字段名'])expect(summary).toContain(expected)
+  })
+  it('shows rejected values, legal-value sources and explicit non-execution from a gap scope',()=>{
+    const message=JSON.stringify({structuredContent:{status:'error',gaps:[{reason:'invalid_arguments',message:'排序字段无效',scope:{path:'/order_by/0',rejected_value:'-DATE',legal_values_source:'columns[].name',suggestion:'使用原字段名，不加倒序前缀',executed:false}}],provenance:{request_id:'rejected-sort-request'}}})
+    const summary=toolFailureReason({summary:message})!
+    for(const expected of ['排序字段无效','/order_by/0','-DATE','columns[].name','未执行','rejected-sort-request','使用原字段名'])expect(summary).toContain(expected)
+  })
+  it('does not imply an error was unexecuted when the gateway did not say so',()=>{
+    const summary=toolFailureReason({summary:JSON.stringify({status:'error',gaps:[{reason:'invalid_arguments',message:'参数无效'}]})})!
+    expect(summary).not.toContain('未执行')
+  })
+  it('does not expose a rejected credential value in a diagnostic',()=>{
+    const summary=toolFailureReason({summary:JSON.stringify({status:'error',gaps:[{reason:'invalid_arguments',message:'参数无效',path:'/access_token',rejected_value:'private-canary',executed:false}]})})!
+    expect(summary).not.toContain('private-canary')
+    expect(summary).toContain('/access_token')
+    expect(summary).toContain('未执行')
+  })
   it('summarizes nested JSON errors instead of showing the JSON envelope',()=>{
     expect(toolFailureReason({message:JSON.stringify({error:{code:'query_failed',message:'字段不存在'},trace:'internal'})})).toBe('字段不存在')
   })
