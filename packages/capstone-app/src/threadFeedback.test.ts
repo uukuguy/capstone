@@ -2,6 +2,12 @@ import { describe, expect, it } from 'vitest'
 import { commandRejectionCopy, toolFailureReason } from './threadFeedback'
 
 describe('recorded tool failure reasons', () => {
+  it('shows the indexed failed subquery and preserves its parent request', () => {
+    const summary=toolFailureReason({summary:JSON.stringify({status:'error',provenance:{request_id:'parent'},gaps:[{message:'See subquery',scope:{query_index:1}}],data:[{result:{status:'error',error:{message:'wrong child'}}},{result:{status:'error',gaps:[{reason:'ambiguous_data_source',message:'Select source_id explicitly'}]}}]})})!
+    expect(summary).toContain('Select source_id explicitly')
+    expect(summary).toContain('parent')
+    expect(summary).not.toContain('wrong child')
+  })
   it('labels preserved backend diagnostic fields for the reader',()=>{
     const summary=toolFailureReason({summary:'排序字段无效；path=/order_by/0；executed=false；rejected_value=-DATE；legal_values_source=columns[].name；suggestion=使用原字段名'})!
     for(const expected of ['未执行','拒绝值=-DATE','合法值来源=columns[].name','纠正建议=使用原字段名'])expect(summary).toContain(expected)

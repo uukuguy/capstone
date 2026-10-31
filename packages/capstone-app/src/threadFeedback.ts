@@ -26,6 +26,14 @@ function diagnosticSummary(text: string): string {
       if (typeof requestId === 'string') locations.push(`request_id=${requestId.slice(0, 100)}`)
       const detail = gap && typeof gap === 'object' ? gap : record.error && typeof record.error === 'object' ? record.error : {}
       const scope = detail.scope && typeof detail.scope === 'object' ? detail.scope : {}
+      const index = scope.query_index
+      if (Number.isInteger(index) && Array.isArray(record.data) && index >= 0 && index < record.data.length) {
+        const child = record.data[index]?.result
+        if (child && typeof child === 'object' && child.status === 'error' && (child.gaps?.length || child.error)) {
+          value = child
+          continue
+        }
+      }
       const path = detail.path ?? scope.path ?? record.path
       if (typeof path === 'string') locations.unshift(`path=${path.slice(0, 100)}`)
       const fields=[detail,scope,record]
