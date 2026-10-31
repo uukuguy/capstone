@@ -6516,3 +6516,48 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 05:20 Record scoped repair evidence and active recovery checkpoint; doctor, task references and symlink checks pass [8edc9059].
 - 05:21 Open PR79 to dev; App-only macOS gate41130366065 pending; final canonical rebuild ready with image160e55be.
 - 05:29 Merge PR79 as25da0ae7 after App-only CI passed4m1s; root dev fast-forwarded; recovery stash a0ca3ffd retained.
+- 05:33 Record final runtime sources and merged repair control; graph source edges, width and card overlap checks pass [a38cf26a].
+- 05:36 PR80 documentation-only macOS41132036282 passed2m3s; no release or solver suites ran.
+- 05:37 Merge PR80 as06117a6e; actual root dev matches origin; retain final state snapshots without self-hash commits.
+- 05:40 Final actual-dev graph06117a6e browser checks pass; both merged task branches closed; ready and exact App product identity confirmed.
+- 05:44 Create and push annotated milestone-conversation-controls-20261031-06117a6e at verified dev06117a6e; excludes uncommitted snapshots and cloud/demo acceptance.
+- 05:51 User confirmed final handoff; preserve milestone and snapshots; next session resumes real gateway business-tool validation.
+
+- 05:58 Gateway discovery rules match; Capstone Beijing CSV trial fails runtime_failed before tools; evidence runs/gateway-selection-20261031/.
+
+- 06:07 Correction: current send_message trial completes Beijing CSV; five rows and artifact hash verified; prior probe used legacy Work commands.
+- 06:07 Audit finds fixed gateway business names in view providers/event handling and readonly_sql policy; report runs/gateway-selection-20261031/hardcode-audit.md.
+
+- 06:13 Plan gateway-discovered bindings; wire-contract agreement prevents name guessing; local-only documentation commit [d0e78b9b].
+
+- 06:45 Fresh gateway returned-action view chain passes preparing/running/succeeded/read; pending wait and versioned drilldown present; product refactor remains pending.
+
+- 06:48 Gateway continuation suite passes inspection/build, 101-block hash, full pagination and negative references; ready-state clarification prepared.
+
+- 06:55 Fresh discovery confirms task/view state distinction; ready-state feedback closed; no tested gateway defect remains.
+
+- 07:09 Remove fixed gateway toolset gates; discovery owns provider policy; isolated branch commit [020760be].
+
+- 07:15 Bind views/events to observed actions and typed receipts; App pagination/restoration tests pass; depends on020760be [ec778a2b].
+
+- 07:18 Focused gateway gate passes54.29s:778Python/41App/35JS; add bounded CI route to avoid release-sized checks [74ca720b].
+
+- 07:23 Deduplicate mirrored actions by invocation; fresh real adapter opens/reads/restores189-node Beijing view;133 checks pass [d9e24798].
+
+- 07:28 User requires light CI; narrow gateway Python consumers and scoped setup; no full workbench/solver suites.
+
+- 07:33 Slim gateway CI removes unrelated setup/tests;627Python35skip,41App,35JS pass; proxy-only failures confirmed by focused rerun.
+
+- 07:33 Commit slim gateway CI to reduce setup and unrelated consumer scope; localhost proxy bypass fixed [d3d7f41e].
+
+- 07:36 Slim workflow rejected before jobs due case-insensitive duplicate env keys; regression test and single declaration fix [40c4c2e4].
+
+- 07:41 Merge PR81 as61ec56c6 after slim macOS CI41145432600 passed3m33s; root dev fast-forwarded; canonical rebuild running.
+
+- 07:45 Root61ec56c6 canonical rebuild ready; API/three workers share989226e8; App productd9e24798 clean; real directory trial started.
+
+- 07:47 Actual dev directory task completes62.29s; CSV5rows/download hashes/refresh restore pass; separate view task running.
+
+- 07:51 User directs future lightweight business trials through existing visible Capstone browser tab; retain visible execution and products.
+
+- 07:54 View task completes81.51s; App pinned open/read189records restore pass; verified merged feature branch closed, worktree retained.

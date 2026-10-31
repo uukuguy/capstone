@@ -1,5 +1,34 @@
 # 多线版本控制
 
+当前合入边界（2026-10-31）：[PR81](https://github.com/uukuguy/capstone/pull/81)
+已合入 `61ec56c6`，实际根dev与origin/dev一致。最终受检来源 `40c4c2e4`，
+精简专项CI `41145432600` 通过3分33秒；前轮 `d9e24798` 来源CI `41144188892` 通过4分2秒。
+最终精简CI中Python627通过/35跳过（86.63秒）、App41及JS35通过；治理229通过/2跳过（4.84秒）。
+早期候选54.29秒的
+Python778通过/41跳过、App41及JS35记录保留为较宽检查，不混同最终精简门禁。
+实现020760be、消费者ec778a2b及后续回执修正均已合入；独立复核无Important。
+根dev规范 `make capstone-local-rebuild` 已完成exit0，ready200；API、worker、PyPSA及native角色健康，
+同镜像989226e8c78d9c38111a722c22275f94feef6a8e9a754bba6537f10527f30e11；generalPi独立镜像健康。
+local-dev仓库来源61ec56c6，App有效产品来源d9e24798244ca919dfb50cf09f2e926d5d4edf1e，dirty=false。
+定向清理exit0，收据.capstone-agent/cache-maintenance-20261031-074504-52484.log，
+重建日志/tmp/capstone-gateway-dynamic-rebuild.log。真实目录任务thr_e7821b65e9b793665f98 /
+attempt_fbabd51e4c871ebb已完成62.29秒，CSV5行、全部下载工件SHA匹配及刷新恢复通过。
+视图任务thr_807ed824f046e4e03a5e / attempt_580c4d414aa92e8d完成81.51秒；下载工件SHA及刷新快照恢复通过。
+已捕获1个宿主回执验证的来源描述符，受保护App /electrical/open固定revision恢复同一ready视图，
+/electrical/read返回189/189。以上为本地协议及真实任务接受，不等于人工浏览器渲染接受。
+证据runs/gateway-dynamic-product-20261031/view-summary.json、app-view-restored.json、app-view-read.json。
+性能未接受：目录62.29秒中20次模型响应53.27秒、网关总计1.19秒、搜索4/加载3/bash8；
+通用执行回合削减作为独立非阻塞缺口，不再重跑本轮业务。后续轻量业务试验须在已打开可见Capstone标签页提交。
+[合入及本地接受报告](../reports/2026-10-31-gateway-dynamic-bindings.md)。其他三个环境来源未变。
+功能分支 `refactor/gateway-dynamic-bindings` 已验证合入，本地及远端分支已关闭；工作树转docs/gateway-dynamic-closeout保留。以下记录为历史。
+
+里程碑标签：`milestone-conversation-controls-20261031-06117a6e`已创建并推送，
+指向06117a6e；注释记录专项CI与本地真实验收，仅标记已提交源码，不包含未提交控制快照，非云端/demo发布标签。
+
+最终收口（2026-10-31）：PR80文档专项41132036282通过2分3秒，合并06117a6e。
+实际根dev与origin/dev一致06117a6e；本轮代码与文档分支已合入，待清理合并分支引用。
+产品修复和真实验收保持PR79记录；无云端、demo或main发布。
+
 2026-10-31 会话小项修复：`fix/conversation-small-items-20261031` 的 `8b2bd3b9`
 补齐提交期指令与Thinking归属、页面ESC停止、版本冲突反馈与同步、JSON错误摘要。
 172项专项、App1419项及构建通过；删除浮窗由用户确认手工验收通过。
@@ -802,7 +831,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 职责 | 当前状态 | 下一步 |
 | --- | --- | --- | --- |
-| dev | 共同基座与企业工作台集成 | 当前HEAD25da0ae7，PR79会话修复已合入 | 非发布只做专项测试；研究质量与业务工具组合另验，不运行发布门禁 |
+| dev | 共同基座与企业工作台集成 | 实际dev及origin/dev61ec56c6，PR81已合入 | 精简CI及规范重建ready、同镜像和清理通过；本地协议与真实任务通过；人工渲染和性能未接受 |
 | feat/business-analysis | 企业研究与分析 | 应用分支仅准备；实际研究能力在dev共享工作台推进 | 保留350.524秒/ 41轮质量基线；不另建研究调度或聊天应用 |
 | feat/model-decision | 电网分析与决策 | 00a8cd85已在local-dev验证；PR #53已合入f5eda4e4 | 成熟对话、真实历史与拓扑已接通；无模型与通用成果继续按协议推进 |
 
@@ -821,7 +850,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | answers | 回退与选择性补回 | 2 | 已合入dev，业务缺陷保留 | c3业务链；独立LLM路由；三动作小窗；普通轻量无工具回答；正式消息与过程隔离 | dev | 路由可靠性与现存业务缺陷单列；研究按已适配计划推进 | main c3b78bc | 用户批准收口；不恢复任务编译；无凭据装配修正bc08169 | PR #14双平台通过并合入6ff7094；506项同源及两次完整集成通过；新真实复验一轮普通误分，保留失败，未称整体通过 |
 | business-analysis | 企业研究与分析 | 1 | 分支已创建，准备中 | 企业资源、分析成果、图表与报告视图 | feat/business-analysis | A1准备；等待相应基座闭环后实施 | dev6c0b0ae7创建来源 | 无独立业务代码；沿共同协议推进 | 未实施、未验收、未部署；阶段需可运行前端供人工观察 |
 | model-decision | 电网分析与决策 | 2 | PR69产品/PR70控制均已合入，远端分支关闭 | 动态准入、初始化指导、task菜单与成果保存 | dev | 当前HEAD f1e6e9fd，产品基线bcd1a5ad，运行ed0c5ff2，业务验收214c2e23；图形后续暂停 | dev9d691624 / PR68 | 214c非图业务验收及成果恢复保留，工作树恢复引用保留 | 产品CI40409319046通过27分16秒，文档CI40416427472通过1分35秒；潮流终端集成延后 |
-| shared-agent | 共同智能体基座 | 3 | PR76/77/79已合入dev | 轻量直连、业务工具组合、网关选择、会话管理与控制补齐 | dev | 研究模式及报告质量另验 | PR71统一工作台 | Thinking归属、ESC停止与终态确认；冲突保留草稿及JSON摘要 | PR79专项门禁4分1秒通过；实际dev入口、真实取消/续发/刷新通过，无云发布 |
+| shared-agent | 共同智能体基座 | 3 | PR81已合入dev，本地重建通过 | 动态网关结果及续接绑定、有界视图消费 | dev | 目录及视图真实任务、固定版本恢复和189/189协议读取通过；渲染及性能接受不在本次声明；分支已验证合入，本地及远端分支已关闭 | PR80集成06117a6e | 实现020760be、消费者ec778a2b及回执修正已随61ec56c6合入；保留任务授权及宿主回执 | 最终40c4c2e4精简CI41145432600通过3分33秒；627Python/35跳过、41App、35JS，独立复核无Important；local-dev重建及真实任务协议验证通过，非人工渲染或性能接受 |
 | enterprise-analysis | 企业数据研究分析模式 | 0 | 讨论结论已记录，尚未实现 | 问题导航、AI主动引导、局部探索、报告修订与用户明确接受版本 | cf52cb4f | 按已接受路线先实现问题状态、导航及多轮引导；不新增默认调度池 | 现有统一工作台与直接轻量循环 | 过程产物与研究结论分开；目标属于研究任务；无证据不等于问题不成立 | [讨论](../superpowers/specs/2026-10-30-enterprise-data-research-analysis.md)及[路线图](../superpowers/plans/2026-10-30-enterprise-analysis-roadmap.md)；模式验收待实施 |
 | conversation-maintenance | 智能体对话应用维护 | 1 | 阶段已发布，维护范围已明确 | 接收适用的共同修复和增强，保留现有对话体验 | main | 按实际修复形成小版本，不强制采用企业新工作台 | main cf72393b；原用户包未替换 | 与企业入口共同验证受影响共享行为；保留将来对话场景演进空间 | 发布基线已验收；新增共享增强尚未实现或发布 |
 | pi | 企业自主执行 | 3 | 基础能力已合入dev | Capstone长程组织配合Pi原生生态，统一机制待实施 | dev | 先推进共同基座Task 1；分别验收企业研究与分析、电网分析与决策，再验证组合任务 | 已保留专业链路与原生资源 | PR #31合入db167184；统一循环、无模型v2协议和新工作台仍待实现 | CI38865540607双平台通过；local-dev规范重建与同源检查通过，不代表新设计完成 |
@@ -900,6 +929,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | gateway-picker-runtime | f6b4e120 | feature | 网关实例 · 本地重建来源 | 本地ready、同镜像和清理通过 | 后端网关注册与恢复、3秒健康和5秒准入；App由Vite提供同一候选的产品内容，不冒充研究质量接受 | shared-agent |
 | enterprise-composition-head | bb2cd895 | main | dev · 企业工作台执行链集成 | PR73已合入，原门禁通过 | 网关任务关联与宿主版本历史；网络静默预算、显式重试和会话读隔离。研究模式仍为设计 | shared-agent |
 | enterprise-composition-runtime | e164951b | feature | 执行链修复 · 本地验证来源 | ready、同镜像与清理通过；定向复测未猜测历史SQL | 原任务截止和取消保留；无业务任务特例，模型自检不等于研究验收 | shared-agent |
+| gateway-dynamic-runtime | d9e24798 | feature | 通用网关绑定 · 本地有效产品来源 | local-dev规范重建通过，目录及视图协议、真实任务通过，渲染和性能未接受 | 结果及续接动作动态绑定，保留任务授权和宿主回执；仓库61ec56c6重建、App产品d9e24798，来源不混同。[实施计划](../superpowers/plans/2026-10-31-gateway-dynamic-binding.md) | shared-agent |
 | dev-head | dev | main | dev · 当前研发位置 | 当前 Git HEAD，验收见对应里程碑 | 动态绑定实际 dev 并连接真实祖先；不将 HEAD 当作部署或业务接受。[当前状态](CURRENT-STATE.md) | shared-agent |
 | unified-agent-active | ce185a14 | feature | Deep Research · 历史后端产品字节来源 | ready及清理通过，已随PR67合入 | 历史产品来源ce185a14，API/worker镜像180c53ffb617、native1b8533cf1b06；清理195305-28422，与dev32d72c28产品相同，当前运行另见ed0节点。[验证记录](../reviews/2026-10-26-adaptive-agent-loop.md) | shared-agent |
 | gateway-failure-merge | f397fbef | main | dev · 网关目录与失败诊断 | PR66 已合入，固定里程碑 | 网关目录、范围约束与失败诊断修复。[当前状态](CURRENT-STATE.md) | shared-agent |
@@ -1033,7 +1063,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | thinking-source | 已验证本地运行来源 | dev · 原feat/streamed-thinking | 当前任务目标来自本轮图/进度，保留目标仅属研究记录；79源码核对通过 | 内容0dcbd466；镜像6c6c8b956ebf/native11c0da509403；真实新任务123秒为正确性而非性能验收 |
 | grid-scale-merge | 主要代码集成里程碑 | dev | PR64整合10W+源图与精确指令视图；原生模型退出、拒绝诊断和原参数回放通过 | 固定78f81e66；受检44e8eca2，macOS7分31秒、主5173和真实华北交付通过 |
 | grid-scale-source | 已合入并本地验收 | dev · 原feat/grid-scale-view | 华北10W+源元素与站点分区；精确逐指令视图、模型退出和有界拒绝诊断 | 华北连续任务、五文件、57/56图及主5173通过；模型构建缺口保留，无云发布 |
-| dev-head | 当前研发位置 | dev | 当前HEAD25da0ae7，PR79会话修复已合入；研究模式尚未实现 | PR79专项门禁通过4分1秒；四环境保持隔离 |
+| gateway-dynamic-runtime | 当前local-dev有效产品来源 | dev · 原refactor/gateway-dynamic-bindings | 通用网关结果和续接动作绑定，任务授权与回执保留；有界视图读取支持返回页大小 | 根dev61ec56c6规范重建exit0、ready200、同镜像989226e8与清理通过；App产品d9e24798、dirty=false，目录及视图协议、真实任务通过，渲染和性能未接受 |
+| dev-head | 当前研发位置 | dev | 实际dev和origin/dev一致61ec56c6，PR81已合入；通用网关结果及续接绑定、回执与有界视图读取 | 最终40c4c2e4精简CI3分33秒通过；local-dev规范重建通过，仓库61ec56c6与产品d9e24798分记，目录及视图协议、真实任务通过，渲染和性能未接受 |
 | workspace-integration | 已集成源码 | dev | 运行支持与会话阅读状态已合入；产品源固定e8bfb5ae | PR #56及dev必需门禁通过；额外发布检查已取消 |
 | workspace-merge | 主要分支合入 | dev | PR #56合入已验收工作空间；合并树等于产品e8bfb5ae | dev必需门禁通过，非发布，不更新cloud/demo |
 | workspace-app-source | 已验证App来源 | fix/workspace-reading-type → dev | 会话导航、缓存与阅读状态；置顶恢复和Esc取消编辑修正 | 942App/构建/实页通过，已随PR #56合入dev |
@@ -1064,6 +1095,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 编号 | 工作包 | 来源 | 目标 | 状态 | 交付范围 |
 | --- | --- | --- | --- | --- | --- |
+| 81 | shared-agent | refactor/gateway-dynamic-bindings | dev | MERGED | 合并61ec56c6；最终40c4c2e4精简CI41145432600通过3分33秒，前轮d9e24798来源CI41144188892通过4分2秒；local-dev规范重建及清理通过，目录及视图协议、真实任务通过，渲染和性能未接受，功能分支已验证合入，本地及远端分支已关闭 |
 | 78 | shared-agent | chore/gateway-control-ci-closeout | dev | MERGED | c01a81f2；受检0fea95fc的治理专项41122209605通过2分17秒，AGENTS非发布专项规则、网关定向范围与部署内容保护 |
 | 77 | shared-agent | feat/gateway-instance-picker | dev | MERGED | f8ba44bd；受检f6b4e120的macOS41113507626通过14分44秒，全局网关选择、持久置顶、清理保护与会话删除交互 |
 | 76 | shared-agent | fix/lightweight-tool-contract-handling | dev | MERGED | 085b948f；事件流隔离和工具组合指导；不等于完整迎峰度夏质量接受 |
@@ -1113,12 +1145,15 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 ## 全部分支进展
 
+分支refactor/gateway-dynamic-bindings最终受检40c4c2e4，PR81已合入61ec56c6；精简CI及local-dev规范重建通过，目录及视图协议、真实任务通过，渲染和性能未接受。分支已验证合入，本地及远端分支已关闭；不声明人工渲染或性能接受。
+
 当前实际dev HEAD为f1e6e9fd，PR70控制收口已合入，文档CI通过1分35秒。PR69固定产品基线bcd1a5ad及其CI通过记录保留。远端功能/文档分支关闭，保留工作树已快进f1，运行ed0c5ff2与业务验收214c2e23不变。
 
 此表给现存分支分类；展示时与实际 Git heads 核对，未知分支显示待登记。archive 是保留的实现或资料，不等于四条永久开发主线。
 
 | 分支 | 类型 | 关键进展 | 下一步 | 功能包 |
 | --- | --- | --- | --- | --- |
+| refactor/gateway-dynamic-bindings（本地与远端已关闭） | 已验证合入，本地及远端分支已关闭 | 40c4c2e4通过精简CI，PR81合入61ec56c6；local-dev规范重建通过，目录及视图协议、真实任务通过，渲染和性能未接受 | 本地协议及真实任务通过，分支已实际关闭，工作树转docs/gateway-dynamic-closeout保留；不声明人工渲染或性能接受 | shared-agent |
 | feat/unified-agent-loop | 已合入来源 | de648f58 经 PR67 合入 32d72c28；必需 macOS CI 通过 | 保留恢复引用；不再作为活跃候选，cloud/demo 不变 | shared-agent |
 | feat/purpose-electrical-diagrams | 已合入来源 | f9010be5 经 PR68 合入 9d691624，必需 CI 通过 | 保留恢复引用，不再作为活跃候选 | model-decision |
 | feat/gateway-electrical-views | 已合入来源，关闭开发 | 受检HEAD519bf75f经PR69合入bcd1a5ad，CI40409319046通过27分16秒；运行ed0c5ff2，业务验收214c2e23 | 保留工作树与恢复引用；图形v2/省级下钻/定位暂停，北京网关对接待做，潮流终端集成延后 | model-decision |
@@ -1140,7 +1175,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | feat/application-pack-selection（已关闭） | 共同基座按需装配已合入来源 | 20226bf0实现、cb08ef92限定CI；PR #46合入9eb84a34 | native/authority准备通过；生产Profile/v2前端及持续执行待实现 | shared-agent |
 | feat/work-attempt-binding | 正常对话基座研发 | 本地c9e57152；PR #50仍为旧来源草稿；native源码已保存 | RPC父链及23项真实PG通过；前端、真实Provider及部署另验；非应用交付 | 研发macOS；发布保留双平台 |
 | feat/thread-work-context（已关闭） | 共同基座Work账本已合入来源 | e58ef9a4实现与复用修正；PR #48合入d86cc4ef | v2/无模型任务保存入口；生产Claim/Profile与持续执行仍待实现 | shared-agent |
-| dev | 默认开发集成主线 | 当前HEAD f1e6e9fd，PR70已合入；PR69固定产品基线bcd1a5ad，实际dev App入口及成果恢复通过 | 产品与文档CI均通过；运行ed0c、业务验收214c分开记录，图形后续暂停，cloud/demo/main不变 | shared-agent |
+| dev | 默认开发集成主线 | 实际dev与origin/dev61ec56c6，PR81已合入 | 精简CI及本地规范重建通过；仅local-dev已更新，目录及视图协议、真实任务通过，渲染和性能未接受、分支已关闭 | shared-agent |
 | docs/dev-baseline-control | 收口状态同步 | 从接受的dev50d8ebc建立；登记B2标签、分支关闭与研究实施起点 | 仅文档和控制图，轻量检查后集成dev | main |
 | feat/research-model | 起点与依赖已适配 | 2b0b0a5；精确祖先dev6ff7094；设计及推进计划排除撤回的编译/覆盖/预热依赖；本工作区运行时准备与doctor通过 | R1尚无代码；按R1–R5及真实依赖路径验收，不将旧R0实验当作本分支成果 | research |
 | recovery/autonomous-agent-merged-faa6af9 | 已合并分支的本地恢复引用 | 原feat/autonomous-agent已通过PR #18合入dev faa6af9；保留2b6ae7b与原工作树全部未提交文档和运行数据；远端已合并分支关闭 | 非在研分支；后续从dev推进，科学与交互验收仍开放 | autonomous |
@@ -1263,7 +1298,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | 后端重建检出 `d8b13d02`；App产品 `d89248e0`，根工作树Vite入口 | 规范重建ready、API/worker镜像160e55be7a2c2c28e83fb612603c862454a96209756dd381a60f849cfb1d41bc；定向清理通过；后端源码未变 | 本地联调18001保持；用户确认删除浮窗手工通过；真实ESC取消、同会话2.4秒续发与刷新恢复通过；不是云发布或研究质量接受 |
+| local-dev | 根dev重建检出 `61ec56c6`；App产品 d9e24798244ca919dfb50cf09f2e926d5d4edf1e，repositoryRevision61ec56c6、dirty=false | 规范重建exit0及ready200；API/worker/PyPSA/native同镜像989226e8c78d9c38111a722c22275f94feef6a8e9a754bba6537f10527f30e11、健康；generalPi独立镜像健康 | 定向清理exit0，.capstone-agent/cache-maintenance-20261031-074504-52484.log；重建/tmp/capstone-gateway-dynamic-rebuild.log；目录thr_e7821b65e9b793665f98/attempt_fbabd51e4c871ebb完成62.29秒、CSV5行、下载SHA及刷新恢复通过；视图thr_807ed824f046e4e03a5e/attempt_580c4d414aa92e8d完成81.51秒，下载SHA/刷新及固定revision恢复、读取189/189通过；非人工渲染或性能接受 |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |
 | cloud-dev | `24d9a32`，开发试用候选；已推送标签cloud-dev-20261013-1045-24d9a32 | 用户授权的基本功能检查通过：四角色SUCCESS、API就绪、前端来源与真实中文对话；非正式发布或科学解释验收 | App https://capstone-app-production-83ef.up.railway.app/；[部署记录](../reviews/2026-10-13-cloud-dev-autonomous-trial.md)；demo不变 |
 | cloud-demo | App/API/两worker `faa6af9` | 四角色SUCCESS；三后端身份与dev本地529文件验收一致，安装工件与受检候选一致；三用例九轮、报告证据回放通过；local-demo已同源验收；正式标签demo-20261014-2028-faa6af9已推送 | App https://capstone-app-production-975e.up.railway.app/；上一正式标签demo-20261014-0744-bd2a200；双平台完整发布38554987581通过；cloud-dev不动 |

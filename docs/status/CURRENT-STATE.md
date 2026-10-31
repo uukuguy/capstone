@@ -62,6 +62,8 @@ transcripts previously mixed into this snapshot are preserved byte-for-byte in
 - [Enterprise design](../superpowers/specs/2026-10-15-enterprise-design-final.md), [UI contract](../superpowers/specs/2026-10-15-enterprise-task-ui-design.md), [grid view contract](../superpowers/specs/2026-10-25-grid-topology-view-requirements.md).
 - `packages/capstone-agent/src/capstone_agent/thread_service.py` and `thread_work.py`: persistent instruction/Work state.
 - `general_pi_server.py`, `delegated_runtime.py`: isolated execution, source admission and public events.
+- `data_gateway_views.py`: connection-scoped bindings from admitted returned actions;
+  typed presentation does not branch on gateway business tool names.
 - `grid_source_topology.py`, `grid_source_http.py`: typed protected source projections.
 - `packages/capstone-app/src/ThreadWorkAdapter.tsx`, `threadProjectionStore.ts`, `threadViewRouting.ts`: conversation state and instruction views.
 - `GridSourceWorkspace.tsx`, `networkScene.worker.ts`, `networkSceneIndex.ts`: source navigation and bounded large diagrams.

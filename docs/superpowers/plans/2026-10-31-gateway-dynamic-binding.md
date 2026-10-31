@@ -1,6 +1,8 @@
 # Gateway dynamic binding implementation plan
 
-Status: direction and returned-action contract approved; implementation active.
+Status: implementation merged by PR81; local protocol/task verification passed.
+Human view rendering, performance and live renamed/second-instance trials remain
+separate limits. See the [verification report](../../reports/2026-10-31-gateway-dynamic-bindings.md).
 
 **Goal:** retain generic efficient execution while obtaining concrete operations
 from each current gateway connection.
@@ -45,40 +47,40 @@ Evidence: `runs/gateway-selection-20261031/binding-audit-{0,1,2}.json`.
 
 Files: `data_gateway_mcp.py`, `data_gateway_relay.py`, adapter-focused tests.
 
-- [ ] Add tests with arbitrary provider IDs and renamed business operations.
-- [ ] Build immutable, connection-scoped bindings from actual discovered results.
-- [ ] Keep exact invocation names/schemas/hashes in adapter-owned bindings.
-- [ ] Reject ambiguity and unsupported contracts explicitly; do not select first.
-- [ ] Test reconnection, provider changes, revoked grants and contract drift.
+- [x] Add tests with arbitrary provider IDs and renamed business operations.
+- [x] Build connection-scoped bindings from actual discovered results.
+- [x] Keep exact invocation names/schemas/hashes in adapter-owned bindings.
+- [x] Reject ambiguity and unsupported contracts explicitly; do not select first.
+- [x] Test current-catalog invalidation, revoked grants and contract drift locally.
 
 ## Task 3: generic execution policy
 
 Files: `resources/gateway-tool-use.mjs`, `general-tool-discovery.mjs`,
 `tool-composition.mjs`, their direct consumers and focused JS tests.
 
-- [ ] Replace the fixed readonly_sql classification and global fallback policy
+- [x] Replace the fixed readonly_sql classification and global fallback policy
   with current provider selection metadata supplied through the adapter.
-- [ ] Retain bounded search/load, observation receipts and protected execution.
-- [ ] Test identical behavior after toolset, provider and business-tool renaming.
-- [ ] Verify business/provider_global/provider_fallback ordering follows discovery.
+- [x] Retain bounded search/load, observation receipts and protected execution.
+- [x] Test identical behavior after toolset, provider and business-tool renaming.
+- [x] Verify business/provider_global/provider_fallback guidance follows discovery.
 
 ## Task 4: typed presentation without operation-name branches
 
 Files: `grid_source_topology.py`, `grid_electrical_view.py`, `general_pi_server.py`,
 `delegated_runtime.py`, `pi_delegation.py` and focused presentation/receipt tests.
 
-- [ ] Use discovered bindings and returned actions for open/read/job continuation.
-- [ ] Dispatch by supported versioned result contracts, not invocation names.
-- [ ] Keep verified source descriptors, revision binding and cross-task rejection.
-- [ ] Test renamed tools, unknown result contracts, forged descriptors, paging,
+- [x] Use discovered bindings and returned actions for open/read/job continuation.
+- [x] Dispatch by supported versioned result contracts, not invocation names.
+- [x] Keep verified source descriptors, revision binding and cross-task rejection.
+- [x] Test renamed tools, unknown result contracts, forged descriptors, paging,
   asynchronous jobs and cancelled/expired operations.
 
 ## Task 5: real acceptance and integration
 
-- [ ] Use focused macOS checks and direct-consumer checks; no release suite.
-- [ ] Rebuild using make capstone-local-rebuild and finish scoped cache cleanup.
-- [ ] Reconnect and run a real directory-to-CSV case and a supported view case.
-- [ ] Verify saved products, restored conversation, source identity and receipts.
+- [x] Use focused macOS checks and direct-consumer checks; no release suite.
+- [x] Rebuild using make capstone-local-rebuild and finish scoped cache cleanup.
+- [x] Reconnect and run a real directory-to-CSV case and a supported view case.
+- [x] Verify saved products, restored conversation, source identity and receipts.
 - [ ] Update canonical status/control records, review and integrate through dev PR.
 
 ## Current limits
