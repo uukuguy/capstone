@@ -1,8 +1,214 @@
 # Live Session Checkpoint
 
-> Updated: 2026-10-31 08:29. Session remains active — not a final handoff.
+> Updated: 2026-10-31. Session remains active — not a final handoff.
 
 ## Immediate work
+
+LATEST SOURCE381b9be0 implements lightweight publication refresh. Stash5a205ae7
+was applied and its metadata prototype completed. New sessions/instructions and
+manual panel reload check instance_id plus root contract_updated_at. Unchanged
+catalogs require no listing or full contract. Changes require a coherent fresh
+catalog; failures disable future gateway grants and keep request_id. Existing task
+catalogs remain frozen.178 focused backend checks,12 App checks and types pass.
+Real gateway check21ms, exact instance3db5bb96-2c27-4d97-8584-346bc4a18656,
+stamp2026-10-31T13:19:56.304991+08:00. Canonical rebuild in progress:
+/tmp/capstone-contract-check-rebuild.log. Verify final container source includes
+381b9be0 (source changed during first build); rerun canonical rebuild if needed.
+Browser panel/runtime verification pending. No CI/push/cloud deployment.
+Prior source and acceptance below are historical, not the current HEAD.
+
+LATEST VERIFIED SOURCE9bba7449, report/actual dev HEADae63eac6 (local only, not pushed): user explicitly requests fixing
+Capstone's Tool-not-found after menu replacement. Common discovery now installs
+a task-granted SDK dispatch registry, projects only active schemas into actual
+model requests before canonical capture, and restores previously loaded frozen
+contracts within count/schema budgets. Never-loaded tools return structured
+tool_not_active; capacity errors return executed=false and a replacement-load
+action. No SQL name/route is hardcoded. App admission, SDK argument validation,
+gateway receipt checks and scope shutdown remain enforced. Actual pinned SDK
+parent and child tests prove one dispatch of a restored call, no missing-tool
+error, invalid-argument rejection, bounded model menus and matching request capture.
+44JS checks pass,22host checks pass/32skip. Canonical local rebuild passed,
+image21dc558d; scoped cache cleanup completed. Log:
+/tmp/capstone-activation-recovery-rebuild.log. Visible browser trial in
+thr_ccc50b5efbdde3f64fc6/attempt_04ed87db65489b45 completed43.6s/20LLM/29tools,
+zero Tool-not-found errors. Download verified5CSV rows, SHA256:
+09844baf004b0dd084724ec097027587a6660f373db02cf84902f8532e878a66.
+Three unrelated errors remain (wrong contract operation parameter, missing-input
+directory shell probe, temporary jq syntax), recovered; do not claim all calls
+error-free. Actual unload/restore is proven by pinned SDK parent/child tests;
+browser checks normal real model/gateway/product flow. Evidence:
+runs/gateway-activation-recovery-20261031/. No CI, push or PR authorized.
+
+The separate metadata-refresh/new-session prototype is now safely STASHED:
+5a205ae7f7a1ad4d21943e0dd99657d090dd6d1f. It must not enter this deployment.
+Root only has pending journal/checkpoint edits. Do not drop or blindly pop stash.
+User asked for a request to data-gateway: timestamp in contract plus a dedicated
+lightweight gateway check. Draft was delivered, no final field/name returned yet.
+New-session/manual/continuing-instruction metadata refresh remains incomplete.
+Prior independent MCP probe read new scope enum, but UI health refresh and
+same-selected select do NOT refresh cached product contracts. Do not repeat the
+earlier incorrect claim that select was a full reconnect.
+Report:docs/reports/2026-10-31-tool-activation-recovery.md.
+
+### Preserved metadata unit notes (historical; code is in stash)
+
+ACTIVE UNCOMMITTED UNIT supersedes older completed notes: user requests automatic
+contract updates for new sessions and continuing instructions, without full
+catalog download per instruction. User now asks for a concrete gateway request:
+timestamp in contract plus a dedicated lightweight gateway-level check tool.
+No final field/name contract has been published yet; do not invent business
+routes or declare fast version checking implemented. Compose the request now.
+
+Task-owned pending paths: agent data_gateway_relay.py, gateway_connections.py,
+gateway_connections_http.py, general_pi_server.py, host_api.py, pi_delegation.py;
+tests test_data_gateway_relay.py, test_gateway_connections.py,
+test_gateway_connections_http.py, test_thread_http_api.py; App GatewayStatus.tsx
+and test, WorkspaceConnectionStatus.tsx, gatewayConnectionProtocol.ts,
+gatewayConnectionTypes.ts, gatewayConnectionsStore.ts, threadHttpTransport.ts.
+Reason uncommitted: shared reload/new-session/frozen-grant implementation in
+progress; lightweight checker contract awaits gateway. Source/runtime remain
+06743c84 (HEAD0de47a73 docs). No rebuild, push or CI for this pending unit.
+Current UI prototype has 16focused tests passing; initial type check found a
+missing hook return field, now patched; rerun types. Backend reload-focused5
+checks pass. Full set earlier failed4health tests because identity-only catalog
+had no revision; constructor now handles that, full rerun still needed.
+
+Critical discoveries: the UI refresh only probes initialize/health; same-selected
+select is also a NO-OP in gateway_control. The earlier API select did NOT refresh
+the product catalog. Independent MCP probe DID read the new scope enum. Preserve
+that correction. New scope contract evidence:runs/gateway-scope-contract-20261031/.
+Latest user stale sessionthr_c3dc17b49f2dd07657b5 errors saved there: SQL loaded
+seq341, unloaded by seq476, then called seq559; schema drift affects other calls.
+Do not bypass drift guards. Request-only control reload is implemented in working
+tree; DataGatewayAccess binds frozen per-task catalogs and future publication.
+API create attempts reload and does not block unrelated conversations if gateway
+is down. Existing-new-instruction path and timestamp optimization not finished.
+
+Async question asked gateway timestamp location; user suggests contract carries
+timestamp and lightweight dedicated check. Draft minimal no-argument gateway
+check returning instance_id and contract_updated_at; same timestamp in discovery
+and describe, only publish changes update it, not queried_at. No business access,
+no full schema generation in check, same-instance comparison and frozen active
+tasks. Prefer no new generic version registry or per-business string routing.
+
+### Earlier completed boundaries (historical)
+
+Latest source06743c84, report/actual dev HEAD0de47a73 (local only, not pushed): user reports unrelated news
+question starts gateway discovery. Original attempt_498412ffebfca7d0 in
+thr_2d39b11287be34f8aec3 confirms model knew the service was grid-oriented but
+checked anyway. Root cause: unconditional "Follow their registered initialization
+first" prompt plus unscoped service instructions. No host automatic call existed.
+Now availability remains first-turn; model chooses tools/skills using current
+instruction/context/descriptions/grants, then service startup rules apply only
+after relevance selection. No keyword router, no new topic-specific code, no
+external-network permission change. AGENTS records the selection boundary.
+106Python and36JS checks pass (20rechecked after final wording).
+Canonical rebuild passed, image7f5fa703; scoped cleanup done. Log:
+/tmp/capstone-context-selection-rebuild.log. Visible news continuation in our
+grid thread92b158ca/attempt_bc318ca7856b77bf completed8.8s/oneLLM/zero tools.
+User's latest thread remains unchanged. Model reported the existing external
+lookup limitation; no current news retrieval was claimed. No CI.
+User then points to LLM06's102ms scope failure in the prior grid instruction:
+actual input scope="北京", request160dc47c1c2446df96770367abfe8722. It remains
+a semantic unsupported-scope failure, not a name alias. Fresh reconnect, init,
+discovery and contract lookupf8b9438256b6407c96d342cc23f5447f confirm scope only
+has type:string. Concrete gateway enum feedback is in the new report; do not
+hardcode Beijing or a business dictionary in Capstone. No gateway edits made.
+Report:docs/reports/2026-10-31-gateway-context-selection.md.
+Evidence:runs/gateway-context-selection-20261031/international-records.json.
+
+### Prior audit checkpoint (historical)
+
+Latest sourcea3ab3b4e, report/actual dev HEAD16f5a297 (local only, not pushed): five-session audit confirms
+composition aliases were still broken. New neutral tool-identity.mjs is shared
+by loader, composition selection, parent dispatch and worker call/describe.
+SDK passes actual admitted names into composition; selected grants, collisions,
+budgets and receipts remain enforced.136Python/33JS checks pass; three original
+failed composition programs pass mock name replays. No business data replay.
+Report: docs/reports/2026-10-31-five-session-tool-audit.md.
+Evidence: runs/gateway-five-session-audit-20261031/ (five raw event records,
+summary.json, composition-replays.json).13failure events represent12operations;
+one child/parent failure is repeated in public records. Other failures are
+invalid Beijing business scope, unsupported contract operation, wrong scope
+shape, an inactive direct tool call, and temporary Python NameError.
+Canonical rebuild passed, image168f16f2; scoped cleanup complete. Log:
+/tmp/capstone-shared-identity-rebuild.log. Rebuilt isolated worker passes source
+selection, describe and canonical dispatch using a mock source.
+Visible browser trialthr_92b158ca824ba8f1d6fe/attempt_3381beb95896818a completes
+36.7s/16LLM/18tools, no naming errors. GUI CSV download has5rows,
+SHA2565c5ace366953ae14cb82d2fcac208e95d93e422a4de0ac2a3a0473e2f0b9f5f1.
+One semantic failure remains: scope="北京" is not a supported business scope;
+request160dc47c1c2446df96770367abfe8722. Recovery then completes the directory task.
+This browser run used direct calls; composition is covered by original-program
+mock replays and actual SDK/worker checks. Original five user sessions preserved.
+Report includes a concrete gateway suggestion to publish actual scope/operation
+enums, without Capstone maintaining business value tables. No gateway edit made.
+Do not claim all historical errors were name errors or all future calls are fixed.
+CI is prohibited without explicit consent. Control graph/register synchronization
+remains pending; current code is locally committed and not pushed.
+
+### Earlier checkpoints (historical)
+
+Latest correction7ef87600 (local dev, not pushed): generic agent_tool_load accepts
+source publication names and registered names through an index of task-admitted
+entries. No fixed prefix or business names. Unknown names fail, ambiguous
+identities fail atomically, duplicate identities share capacity. Exact three
+reported names pass with the current real catalog after reconnect/discovery.
+125Python/17SDK checks pass, including real SDK parent/child loads by source name.
+Upstream graph activity projection caused{}inputs; it now passes all argument
+fields through bounded credential masking, with private paths masked before
+clipping. Unit coverage includes that upstream filter and saved-event forwarding.
+Canonical rebuild ready, imagea8811451; scoped cleanup done. Log:
+/tmp/capstone-loader-normalization-rebuild.log. Rebuilt native runtime verifies
+source-name activation and selection-input projection with credential masking.
+Do not start CI, push or create PRs without explicit CI consent.
+
+Latest browser acceptance (09:35): thr_8d266507141b96031e84 /
+attempt_175763db8cb5e70d completes32.7s,14LLM/20tools. CSV download has exactly5rows,
+sha2564e58e82dfd7084272b5fe7bc042f3127d27a28449f029dc69187e062fd3526a1.
+All four contract lookups succeed. Discovery is called twice: first correctly,
+second is a model selection mistake (it intended scope resolution). One business
+failure: resolve_region_scope({scope:"北京"}) rejects unknown business scope;
+input confirmed by original receipt hash81428cf8de3e8c981efbb9e95cdea3acd691f3a0c6436c4d497b3e1d41552873.
+Recovery through grid object lookup and regional directory succeeds.
+IMPORTANT: new input_excerpt is{} for custom tools, but retains bash commands.
+The full logging fix is therefore not accepted; investigate upstream argument
+projection, not just saved-event forwarding. Do not claim this gap fixed.
+Evidence: runs/gateway-dynamic-product-20261031/rerun-records.json,
+browser-normalization-rerun.png, rerun-downloaded.csv. User is watching the
+visible Vivaldi execution. No CI or additional business trial was started.
+
+Latest boundary supersedes the candidate instructions below: PR83 merged as
+196e865a; actual dev now has local-only diagnostics83d2ded8, contract-target
+normalizationc80e6cb0, and policyee947f0c. No push or CI
+is authorized. AGENTS requires explicit user consent before any CI, including
+automatic CI from pushes/PRs/merges. Root journal and this checkpoint remain
+uncommitted active-session recovery files; retained worktree docs/ci-consent-policy has local-only d1653424
+(the CI policy is now also committed on actual dev in ee947f0c).
+
+The new diagnostics retain bounded/redacted activity.input_excerpt through saved
+thread events; rejected activation lists unmatched names.230Python/15SDK local
+checks pass. Canonical rebuild passed; API/workers sharede578225; scoped cleanup
+completed. Log/tmp/capstone-call-records-rebuild.log. Runtime input masking checked.
+No new business trial was submitted. User has run a subsequent task in the visible
+thread; preserve it. The two describe errors in attempt_c0a46ca298fe91d8 are
+proven by original receipt hashes to use tool_name=data_gateway_list_region_objects;
+tool_name=list_region_objects succeeds. Adapter now converts exact registered
+targets through this connection's accepted catalog;89adapter/relay checks pass.
+Real reconnect/discovery/prefixed describe succeeds, request2e5d0ddd29544dc6b2ed02500d75eb75.
+Only agreed gateway entry protocol is fixed; no business names or prefix slicing.
+Canonical rebuild ready, image29ac083e; scoped cleanup done. Log:
+/tmp/capstone-name-normalization-rebuild.log. Actual rebuilt native runtime
+reconnect/discover/prefixed describe passes, request5461b15b4a4441b6a3357d953a673860.
+Broader model recovery behavior has not been changed. Report:
+docs/reports/2026-10-31-lightweight-tool-diagnostics.md.
+
+Startup first-turn browser verification passed on thr_fce15d08b820aadb1072,
+attempt_7545a9343917b291:33.6s/14LLM/19tools, CSV saved. First call is discovery.
+Control graph/register still need final local status synchronization; do not
+start CI or an integration PR for this without explicit consent.
+
+### Previous startup checkpoint (historical)
 
 User found startup mismatch in visible Vivaldi CSV trial: gateway discovery did
 not happen until LLM5 after repeated searches. Follow-up code committed565802f9

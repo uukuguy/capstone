@@ -6570,3 +6570,37 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 08:29 Activate admitted gateway entries first-turn;159Python/14SDK tests and types pass; independent review clear [565802f9].
 
 - 08:39 Live publication provides two admitted initial entries;3774schema chars within24000budget; generic first-turn menu includes both.
+
+- 08:40 Record startup correction and active branch in actual-dev control; same bounded sourcePR integration planned [2b34060d].
+
+- 08:42 Open PR83 for first-turn gateway startup; same bounded macOS gate pending, no extra workflow or suite expansion.
+
+- 08:52 User requires explicit consent before any CI; AGENTS updated locally; merge CI lightweight only; no further CI authorized.
+
+- 09:01 CI consent rule saved in rootAGENTS and local-only docsbranch commit; no push or CI [d1653424].
+- 09:01 Startup local rebuild ready image d62bde12; visible browser first model calls discover_gateway; task completes33.6s/14LLM/19tools.
+
+- 09:30 Retain bounded native inputs for post-task diagnosis;230Python/15SDK checks pass; no CI [83d2ded8].
+- 09:30 Receipt hashes prove two failed contract lookups used Capstone-prefixed target names; original-name lookup succeeds.
+- 09:18 Timestamp correction: the preceding two diagnostics entries were recorded at09:18, not09:30.
+- 09:19 Diagnostics rebuild ready;API/workers sharede578225;runtime input masking verified;scoped cleanup completed;no CI.
+- 09:25 Normalize contract lookup through connection catalog;89checks and real reconnect pass;no business names encoded [c80e6cb0].
+- 09:25 Record CI-consent and deterministic-code rules so future work cannot delegate mechanical guarantees to prompts [ee947f0c].
+- 09:29 Normalization rebuild ready29ac083e;runtime reconnect/discover/describe succeeds5461b15b4a4441b6a3357d953a673860;scoped cleanup done;no CI.
+- 09:35 Browser rerun32.7s/14LLM/20tools;CSV5rows downloaded;contracts pass;one redundant discovery and invalid Beijing scope remain.
+- 09:35 Diagnostic gap persists: custom tool inputs serialize as{};bash inputs survive. Do not claim full input-record acceptance.
+- 09:54 Resolve source/registered names from admitted publication;fix upstream argument filter;125Python/17SDK checks pass [7ef87600].
+- 09:58 Rebuild readya8811451;runtime alias activation and masked selection-input projection pass;scoped cleanup done;no CI.
+- 10:18 Audit five sessions;unify loader/composition/call/describe identity resolution;136Python/33JS checks and three program replays pass [a3ab3b4e].
+- 10:30 Record per-session causes and real browser verification so residual semantic errors remain explicit [16f5a297].
+- 10:30 Rebuild ready168f16f2;browser36.7s/16LLM/18tools savesCSV5rows;no naming errors;one invalid business scope remains;no CI.
+- 11:00 Scope service initialization after contextual tool selection;remove global service-first prompt bias;106Python/36JS checks pass [06743c84].
+- 11:14 Record real context-switch verification and exact gateway scope-contract feedback for follow-up [0de47a73].
+- 11:14 Rebuild ready7f5fa703;news continuation8.8s/oneLLM/zero tools;scope contract remainsstring after fresh discovery;no CI.
+- 13:05 Preserve contract-refresh prototype in stash5a205ae7;gateway lightweight timestamp/check definition remains pending.
+- 13:05 Separate SDK dispatch from bounded model menu;restore learned tools within capacity to prevent false missing errors [9bba7449].
+- 13:15 Record rebuilt SDK activation recovery and visible saved-product verification for task closeout [ae63eac6].
+- 13:15 Runtime21dc558d ready;browser43.6s/20LLM/29tools savesCSV5rows;zero not-found errors;three unrelated errors retained;no CI.
+- 13:38 Check gateway publication before admission;reuse unchanged catalogs and preserve frozen task contracts to prevent stale calls [381b9be0].
+- 13:38 Real application reload succeeds108.6ms;API/worker497c05fb ready;final rebuild aligns two adapter guards added during build. No CI.
+- 13:39 Reuse existing browser tabs for all future checks;close the newly created tab and persist the user preference in AGENTS.

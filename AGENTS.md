@@ -196,6 +196,8 @@ counts, prices, limits, versions, or deployment state here.
   `main` holds accepted release baselines; release PRs target main and run full
   verification. Hotfixes start from the actual accepted deployment tag and flow
   back to dev. Do not rewrite shared history.
+- Browser verification reuses an existing Capstone tab. Do not create a new tab
+  for each test; preserve other open tabs and the user's browser context.
 
 - **CI requires explicit user approval before every run.** Before starting CI,
   state why it is needed, its check scope and its expected duration, then wait
