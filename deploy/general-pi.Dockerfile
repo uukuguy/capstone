@@ -125,6 +125,7 @@ COPY packages/capstone-agent/src/capstone_agent/resources/tool-composition-worke
 COPY packages/capstone-agent/src/capstone_agent/resources/tool-composition-policy.json capstone_agent/resources/tool-composition-policy.json
 COPY packages/capstone-agent/src/capstone_agent/resources/semantic-data-context.mjs capstone_agent/resources/semantic-data-context.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/general-tool-discovery.mjs capstone_agent/resources/general-tool-discovery.mjs
+COPY packages/capstone-agent/src/capstone_agent/resources/tool-identity.mjs capstone_agent/resources/tool-identity.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/gateway-tool-use.mjs capstone_agent/resources/gateway-tool-use.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/systematic-diagnosis.mjs capstone_agent/resources/systematic-diagnosis.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/enterprise-research-runtime.mjs capstone_agent/resources/enterprise-research-runtime.mjs

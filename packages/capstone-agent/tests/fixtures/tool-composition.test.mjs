@@ -8,6 +8,55 @@ import {rpcEvent} from '../../src/capstone_agent/resources/general-sdk.mjs';
 
 const catalog={revision:'catalog',tools:{data_gateway_read:{name:'read',inputSchema:{type:'object'},description:'Read selected data'}},tool_hashes:{data_gateway_read:'a'.repeat(64)}};
 
+test('selection, program calls and describe share source and registration identities',()=>fixture(async cwd=>{
+  const actual={revision:'identity',tools:{transport_alpha:{name:'source_alpha',inputSchema:{type:'object'},description:'Alpha'},
+    transport_beta:{name:'source_beta',inputSchema:{type:'object'},description:'Beta'}}};
+  for(const selected of ['source_alpha','transport_alpha']){
+    const issued=[];
+    const result=await tool(cwd,async name=>{issued.push(name);return native({n:issued.length});},{catalog:actual}).execute('aliases',{
+      tools:[selected,'source_alpha'],program:`
+        if(tools.describe('source_alpha').name!=='source_alpha')throw Error('Source contract lost');
+        if(tools.describe('transport_alpha').name!=='source_alpha')throw Error('Registered contract lost');
+        await tools.call('source_alpha',{});return await tools.call('transport_alpha',{});`});
+    assert.equal(result.isError,false,JSON.stringify(result));
+    assert.deepEqual(issued,['transport_alpha','transport_alpha']);
+  }
+}));
+
+test('source identities cannot bypass selected or task-admitted tool grants',()=>fixture(async cwd=>{
+  const actual={tools:{transport_alpha:{name:'source_alpha',inputSchema:{type:'object'}},
+    transport_beta:{name:'source_beta',inputSchema:{type:'object'}}}};
+  let calls=0;
+  const t=tool(cwd,async()=>{calls++;return native({});},{catalog:actual,admittedNames:['transport_alpha']});
+  for(const input of [
+    {tools:['source_beta'],program:'return 1;'},
+    {tools:['source_alpha'],program:"return tools.describe('source_beta');"},
+    {tools:['source_alpha'],program:"return await tools.call('source_beta',{});"}]){
+    const r=await t.execute('deny',input);assert.equal(r.isError,true,JSON.stringify(r));
+  }
+  assert.equal(calls,0);
+}));
+
+test('ambiguous source selection fails before any composition call',()=>fixture(async cwd=>{
+ const actual={tools:{transport_alpha:{name:'same',inputSchema:{type:'object'}},transport_beta:{name:'same',inputSchema:{type:'object'}}}};
+ let calls=0;
+ const result=await tool(cwd,async()=>{calls++;return native({});},{catalog:actual}).execute('ambiguous',{
+  tools:['same'],program:"return await tools.call('same',{});"});
+ assert.equal(result.isError,true);assert.match(result.content[0].text,/ambiguous/i);assert.equal(calls,0);
+}));
+
+test('switching source and registered names cannot reset repeated-resource failure limits',()=>fixture(async cwd=>{
+ let issued=0;
+ const t=tool(cwd,async name=>{assert.equal(name,'data_gateway_read');issued++;return {
+  content:[{type:'text',text:JSON.stringify({structuredContent:{status:'error',gaps:[{reason:'query_timeout'}]}})}]};});
+ const result=await t.execute('same-resource',{tools:['read'],program:`
+  const out=[];for(let i=0;i<8;i++)out.push(await tools.call(i%2?'read':'data_gateway_read',{}));return out;`});
+ assert.equal(result.isError,false,JSON.stringify(result));
+ const body=JSON.parse(result.content[0].text);
+ assert.equal(issued,compositionPolicy.consecutive_resource_failures);
+ assert.equal(body.skipped_calls,8-issued);
+}));
+
 test('composition admits any granted tool without a toolset-specific declaration',()=>fixture(async cwd=>{
  for(const group of ['readonly_sql','renamed_relation']){
   const selected={...catalog,tools:{...catalog.tools,renamed_action:{inputSchema:{type:'object'},_meta:{'data-gateway/toolset':group}}}};

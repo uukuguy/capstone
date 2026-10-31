@@ -437,7 +437,7 @@ export function applicationToolOptions(config, nativeTools, research=()=>undefin
     if(graphBinding)nested=graphChildTools(config,nested,graphBinding);
     const selected=new Map(nested.map(tool=>[tool.name,tool]));
     customTools.push(wrap(createToolCompositionTool({policy:compositionPolicy,
-      cwd:config.toolResultCwd??process.cwd(),catalog:config.dataGateway.catalog,useLedger:gatewayUseLedger(config),
+      cwd:config.toolResultCwd??process.cwd(),catalog:config.dataGateway.catalog,admittedNames:[...selected.keys()],useLedger:gatewayUseLedger(config),
       scope:{task_id:config.researchTaskId,attempt_id:config.researchAttemptId},deadlineAt:config.deadlineAt,
       allowedInputs:(graphBinding?graphSelectedSources(config,graphBinding.action):config.deliveryReviewSources??[]).map(s=>s.path),restore:restoreToolResult,
       async invoke(name,args,{callId,signal}){

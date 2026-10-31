@@ -1,10 +1,13 @@
 import {spawn} from 'node:child_process';
+import {createToolIdentityResolver} from './tool-identity.mjs';
 let seq=0;const pending=new Map();
 const request=(kind,args)=>new Promise((resolve,reject)=>{const id=++seq;pending.set(id,{resolve,reject});process.send({kind,id,...args});});
 process.on('message',async message=>{
   if(message.kind==='reply'){const p=pending.get(message.id);if(p){pending.delete(message.id);message.error?p.reject(Error(message.error)):p.resolve(message.value);}return;}
   if(message.kind!=='start')return;
-  const tools={call:(name,args)=>request('call',{name,args}),describe:name=>message.schemas[name]};
+  const identities=createToolIdentityResolver(message.schemas);
+  const tools={call:(name,args)=>request('call',{name:identities.resolve(name),args}),
+    describe:name=>message.schemas[identities.resolve(name)]};
   const python=(code,data)=>new Promise((resolve,reject)=>{
     const child=spawn('python3',['-c',code],{stdio:['pipe','pipe','pipe']});let output='',error='';
     child.stdout.on('data',b=>{output+=b;if(Buffer.byteLength(output)>message.outputBytes){child.kill();reject(Error('Python output budget exceeded'));}});

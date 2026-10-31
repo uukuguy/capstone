@@ -4,12 +4,14 @@ import {randomUUID,createHash} from 'node:crypto';
 import {saveSemanticContext,loadSemanticContext} from './semantic-data-context.mjs';
 import {boundToolResult} from './tool-result-context.mjs';
 import {gatewayToolUseGuidance} from './gateway-tool-use.mjs';
+import {createToolIdentityResolver} from './tool-identity.mjs';
 export const compositionPolicy=Object.freeze(JSON.parse(readFileSync(new URL('./tool-composition-policy.json',import.meta.url),'utf8')));
 const canonical=(v)=>Array.isArray(v)?v.map(canonical):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])):v;
-export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,invoke,scope,useLedger,deadlineAt=Infinity,allowedInputs=[],restore=async x=>x,onProgress=()=>{}}){
+export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,admittedNames=Object.keys(catalog.tools),invoke,scope,useLedger,deadlineAt=Infinity,allowedInputs=[],restore=async x=>x,onProgress=()=>{}}){
   // Session-local issued observations survive program calls, never task grants.
   // A different DR node must receive an explicit saved context package.
   const records=new Map();
+  const identities=createToolIdentityResolver(catalog.tools,admittedNames);
   return {name:'agent_tools_execute',label:'组合工具与计算',description:'Run an async JavaScript program in the isolated task workspace. Select admitted gateway tools explicitly. Use Promise.all for independent calls and pass results directly to dependent calls. tools.call(name,args) returns {ref,ok,status,data,provenance,gaps,value}; tools.describe(name) returns its exact contract. python(code,data) runs Python with JSON stdin. saveContext(name,{bindings,datasets}) preserves observed source fields with call refs and JSON pointers, declared values, and unknown fields. loadContext(path) reuses a saved package. Return a compact summary; retain source data in packages. No automatic retries. Source packages are observations, not Authority evidence. '+gatewayToolUseGuidance,
     parameters:{type:'object',properties:{program:{type:'string',description:"Async program body. Example: const r=await tools.call(name,args); const saved=await saveContext('shared',{bindings:{unit:{call:r.ref,pointer:'/data/unit'},method:{value:'mean'},missing:{unknown:true,reason:'not provided'}},datasets:[{name:'load',call:r.ref,pointer:'/data/rows'}]}); return saved; Use actual returned fields in pointers. loadContext(saved.path) returns bindings with basis/value and datasets keyed by name with data/status/provenance/gaps. Plain binding values are declared metadata, never verified facts. Actual call refs remain usable by later programs in this instruction/session; different tasks need explicit saved packages. Large returns are saved automatically; return selected fields to reduce model context."},tools:{type:'array',items:{type:'string'}},purpose:{type:'string'},concurrency:{type:'integer',minimum:1,maximum:policy.concurrency},max_calls:{type:'integer',minimum:1,maximum:policy.max_calls},timeout_ms:{type:'integer',minimum:1,maximum:policy.max_program_ms}},required:['program','tools'],additionalProperties:false},
     async execute(callId,input,signal){
@@ -19,12 +21,13 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
       const stop=()=>{abort.abort(Error('Composition stopped'));for(const reject of queue.splice(0))reject();if(child?.pid){try{process.kill(-child.pid,'SIGKILL');}catch{child.kill('SIGKILL');}}};
       try{
         if(typeof input.program!=='string'||input.program.length>policy.code_chars)throw Error('Program code budget exceeded');
-        if(!Array.isArray(input.tools)||input.tools.some(name=>!Object.hasOwn(catalog.tools,name)))throw Error('Unknown or ungranted selected tool');
+        const selected=[...new Set(identities.resolveMany(input.tools))];
         const limit=input.max_calls??policy.max_calls,concurrency=input.concurrency??policy.concurrency;
         if(!Number.isInteger(limit)||limit<1||limit>policy.max_calls||!Number.isInteger(concurrency)||concurrency<1||concurrency>policy.concurrency)throw Error('Invalid composition limits');
         const timeout=Math.min(input.timeout_ms??policy.max_program_ms,policy.max_program_ms,deadlineAt-Date.now());
         if(!Number.isFinite(timeout)||timeout<=0)throw Error('Composition timeout');
-        const run=randomUUID(),schemas=Object.fromEntries(input.tools.map(name=>[name,catalog.tools[name]]));
+        const run=randomUUID(),schemas=Object.fromEntries(selected.map(name=>[name,catalog.tools[name]]));
+        const programIdentities=createToolIdentityResolver(schemas);
         const env=Object.fromEntries(['PATH','LANG','LC_ALL','TMPDIR'].filter(k=>process.env[k]).map(k=>[k,process.env[k]]));
         child=fork(new URL('./tool-composition-worker.mjs',import.meta.url),[],{cwd,env,detached:true,execArgv:[`--max-old-space-size=${policy.worker_memory_mb}`],stdio:['ignore','ignore','ignore','ipc']});
         const result=await new Promise((resolve,reject)=>{
@@ -41,7 +44,7 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
             let value,error;
             try{
               if(message.kind==='call'){
-                if(!Object.hasOwn(schemas,message.name))throw Error('Tool not selected for this program');
+                message={...message,name:programIdentities.resolve(message.name)};
                 if(++requests>limit)throw Error('Composition call budget exceeded');
                 const argumentsHash=createHash('sha256').update(JSON.stringify(canonical(message.args))).digest('hex');
                 const failureKey=message.name+':'+argumentsHash;

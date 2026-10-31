@@ -1,6 +1,7 @@
 import {createHash} from 'node:crypto';
 import {boundToolResult} from './tool-result-context.mjs';
 import {gatewayToolGroup,gatewayToolAccess,gatewayToolUseGuidance} from './gateway-tool-use.mjs';
+import {createToolIdentityResolver} from './tool-identity.mjs';
 
 export const discoveryToolNames=['agent_tool_search','agent_tool_load'];
 const reply=value=>({content:[{type:'text',text:JSON.stringify(value)}]});
@@ -18,16 +19,8 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
     return [tool.name,{tool,publication,hash:contractHashes[tool.name]??
       createHash('sha256').update(JSON.stringify(publication)).digest('hex')}];
   }));
-  // Both identities come from the frozen, task-admitted publication. This is
-  // not a prefix rule and cannot make an ungranted tool available.
-  const identities=new Map();
-  for(const [registered,{publication}] of entries){
-    for(const identity of new Set([registered,publication.name])){
-      if(typeof identity!=='string'||!identity.length||identity.length>256)continue;
-      const candidates=identities.get(identity)??new Set();
-      candidates.add(registered);identities.set(identity,candidates);
-    }
-  }
+  const identities=createToolIdentityResolver(Object.fromEntries(
+    [...entries].map(([name,entry])=>[name,entry.publication])));
   if(!Array.isArray(initialNames)||initialNames.some(name=>typeof name!=='string'))
     throw new Error('Invalid initial tool names');
   const initial=[...new Set(initialNames.filter(name=>entries.has(name)))];
@@ -77,15 +70,9 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
     parameters:{type:'object',properties:{names:{type:'array',items:{type:'string'},uniqueItems:true,maxItems:maxActiveTools}},required:['names'],additionalProperties:false},
     async execute(_id,args,signal){
       check(signal);
-      if(!Array.isArray(args.names)||args.names.some(name=>typeof name!=='string'))
-        throw new Error('Tool selection names must be an array of strings');
-      const ambiguous=args.names.filter(name=>(identities.get(name)?.size??0)>1);
-      if(ambiguous.length)
-        throw new Error('Requested tool name is ambiguous in this task publication: '+JSON.stringify(ambiguous.slice(0,maxActiveTools).map(name=>name.slice(0,128)))+'. No tools were activated.');
-      const rejected=args.names.filter(name=>!identities.has(name));
-      if(rejected.length)
-        throw new Error('Requested tool is not admitted for this task: '+JSON.stringify(rejected.slice(0,maxActiveTools).map(name=>name.slice(0,128)))+'. Use exact names from this task publication. No tools were activated.');
-      const resolved=args.names.map(name=>[...identities.get(name)][0]);
+      let resolved;
+      try{resolved=identities.resolveMany(args.names);}
+      catch(error){throw new Error(error.message+'. No tools were activated.');}
       const selected=[...new Set([...initial,...resolved])];
       const contracts=checkedContracts(selected);
       pending=selected;
