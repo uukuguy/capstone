@@ -835,9 +835,6 @@ function AttemptActivity({ activities, modelRequests = [], initialThinking, nati
   const terminalClass = phase === 'failed' || phase === 'interrupted' ? ` is-${phase}` : phase === 'cancelled' ? ' is-cancelled' : ''
   const lastWork = !running && !open && ['failed', 'interrupted', 'cancelled'].includes(phase ?? '')
     ? progress.filter(item => item.kind !== 'goal').at(-1) : undefined
-  const lifecycleDetails = lifecycleSteps.length > 0 && <details className="capstone-native-tool-calls"><summary>运行阶段与计时</summary>
-    {lifecycleSteps.map(step=><p className="capstone-task-goal" key={step.id}><span>{step.title}</span> · {step.status === 'running' ? running ? '进行中' : '结束状态未记录' : step.status === 'completed' ? '已结束' : step.status === 'cancelled' ? '已停止' : step.status === 'failed' ? '失败' : '受限'} · <span>{step.durationMs === undefined ? '耗时未记录' : formatDuration(step.durationMs)}</span></p>)}
-  </details>
   const graphProcess = (expandedResearch = false) => executionGraph && <><ExecutionGraphProcess attemptStartedAt={startedAt} attemptDurationMs={durationMs} overallTools={toolActivities.map(activity=>({...activity,id:callId(activity),name:activity.source,
     failure:toolFailureReason(activity.failure)||activity.failure?.summary,status:activity.status==='cancelled'?'failed':activity.status,origin:'parent' as const}))} traceFocus={traceFocus} graph={executionGraph} storageKey={expandedResearch ? `${stepStorageKey}:reader` : stepStorageKey} attemptPhase={phase} expandedResearch={expandedResearch} showFoldControls={expandedResearch} foldCommand={expandedResearch ? undefined : foldCommand} onFoldChange={expandedResearch ? undefined : reportFold} now={running ? now : undefined} />
     {graphUnassignedTools.length > 0 && <details className="capstone-graph-control-tools"><summary>图控制与未归属工具 · {graphUnassignedTools.length} 次</summary>{graphUnassignedTools.map(activity => {
@@ -848,7 +845,6 @@ function AttemptActivity({ activities, modelRequests = [], initialThinking, nati
     if (focus === 'thinking') return <>
       {modelRequests.length > 0 && <ProcessCallTrace models={modelRequests} tools={[]} now={running ? now : undefined} active={running} />}
       {running&&modelRequests.length===0&&<p role="status">准备执行本轮指令…</p>}
-      {lifecycleDetails}
     </>
     if (focus === 'tools' && executionGraph) return <>
       <section aria-label="工具调用过程">
@@ -864,7 +860,6 @@ function AttemptActivity({ activities, modelRequests = [], initialThinking, nati
       const activity=toolActivities.find(item=>callId(item)===tool.id)
       return <>{activity?.failure&&<p className="capstone-tool-failure-line">{toolFailureReason(activity.failure)||toolFailureCopy(activity.failure.code)}</p>}{activity?.outputExcerpt&&<p className="capstone-tool-operation">{activity.outputExcerpt}</p>}</>
     }}/> : <ActivityItems activities={toolActivities} />}
-      {lifecycleDetails}
     </section>
     if (executionGraph) return graphProcess(expandedResearch)
     const readerTools = (items: ChatActivity[]) => <>
@@ -888,7 +883,7 @@ function AttemptActivity({ activities, modelRequests = [], initialThinking, nati
         toolMs={stepId => toolExecutionMs(toolActivities.filter(item => item.taskStepId === stepId))}
         renderProgress={stepId => <><TaskProgressItems items={progress.filter(item => item.stepId === stepId && item.phase !== 'started' && !(item.kind === 'goal' && item.text === taskGoal))} />{toolActivities.filter(item => item.taskStepId === stepId && item.status === 'failed').map(item => <StepErrorDetails key={item.id} label={`${item.label}：调用失败`} reason={item.failure?.summary || item.failure?.message || '未记录具体原因，可展开工具明细查看。'} />)}</>}
         renderTools={stepId => <ActivityItems activities={toolActivities.filter(item => item.taskStepId === stepId)} />} /> :
-      <div key={entry.id} title="未归属任务步骤">{expandedResearch ? readerTools(entry.activity ? [entry.activity] : []) : <ActivityItems activities={entry.activity ? [entry.activity] : []} />}</div>)}{lifecycleDetails}</>
+      <div key={entry.id} title="未归属任务步骤">{expandedResearch ? readerTools(entry.activity ? [entry.activity] : []) : <ActivityItems activities={entry.activity ? [entry.activity] : []} />}</div>)}</>
   }
   return <>{reading && <AnswerDetailSheet title="执行过程" showAnswerLabel={false} headerActions={focus==='tools'&&toolCount>0?toolControls(true):undefined} answerLabel={goalText ? goalText.slice(0, 80) : '当前指令'} className="capstone-process-reader" onClose={closeReader} metadata={<span className="capstone-process-reader-status">{running ? '执行中' : phase === 'failed' ? '执行失败' : phase === 'cancelled' ? '已取消' : phase === 'interrupted' ? '已中断' : phase === 'completed' ? '已完成' : '执行状态未记录'}{toolCount>0?` · ${toolCount} 次工具调用`:''}{modelSummary}{elapsed === undefined ? '' : ` · 总耗时 ${formatDuration(elapsed)}`}</span>}>
     <div ref={readerContent} className="capstone-chat-activity-frame">
@@ -1637,7 +1632,7 @@ export default function CapstoneAssistantThread({ nativeArtifactProjections, pro
         try {
         if (composerMode === 'text') {
           await onSend('automatic', text.trim())
-          if(!historyAtLatest)onReturnLatest?.()
+          returnToLatest()
           return
         }
         const sent = inputDraft
@@ -1645,7 +1640,7 @@ export default function CapstoneAssistantThread({ nativeArtifactProjections, pro
         if(runtimeMode==='capstone'||metadata.llm_profile_id!==undefined||inputDraft.skill||inputDraft.literal||inputDraft.context.include_refs.length||inputDraft.context.exclude_refs.length||inputDraft.material_refs!==undefined||inputDraft.context_product_refs!==undefined)await onSend('automatic', text.trim(), metadata)
         else await onSend('automatic',text.trim())
         setInputDraft(current => current === sent ? {...emptyInputDraft(runtimeMode),llm_profile_id:metadata.llm_profile_id,...(sent.material_refs===undefined?{}:{material_refs:sent.material_refs})} : current)
-        if(!historyAtLatest)onReturnLatest?.()
+        returnToLatest()
         } finally { setSubmittingThinking(current=>current?.id===submissionId?undefined:current) }
       }
     },

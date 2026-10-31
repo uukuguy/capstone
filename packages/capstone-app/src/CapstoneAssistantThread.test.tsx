@@ -131,7 +131,7 @@ describe('CapstoneAssistantThread', () => {
     expect(reader.queryByRole('region',{name:'思考状态'})).toBeNull()
     expect(reader.getAllByRole('group',{name:/LLM 调用/})).toHaveLength(1)
     expect(reader.queryByLabelText('任务步骤')).toBeNull()
-    expect(reader.getByText('运行阶段与计时').closest('details')?.open).toBe(false)
+    expect(reader.queryByText('运行阶段与计时')).toBeNull()
     fireEvent.keyDown(screen.getByRole('dialog',{name:'执行过程'}),{key:'Escape'})
     const toolEvent=event('runtime_event',35,{native_type:'tool_execution_end',task_id:'task',tool_call_id:'read',tool_name:'read',task_step_id:'task-execution',activity:{operation:'Read a registered source'}},events[0].attemptId)
     rerender(<CapstoneAssistantThread {...props} events={[...events.slice(0,-1),toolEvent,events.at(-1)!]} />)
@@ -605,7 +605,7 @@ describe('CapstoneAssistantThread', () => {
     expect(screen.getByLabelText('中断前的工作记录').textContent).toContain('已生成图表，正在组装报告。')
     expect(screen.queryByText('报告已完成')).toBeNull()
   })
-  it('shows host preparation and terminal timing even before any tool call', () => {
+  it('keeps host lifecycle timings out of the execution window footer', () => {
     const preparation = { id: 'task-preparation', number: 1, title: '任务准备', status: 'running' }
     const events = [event('attempt_started', 1, { task_step: preparation }, 'stages'),
       event('attempt_completed', 2, { answer: '任务已结束。', task_steps: [{ ...preparation, status: 'completed', duration_ms: 7000 }, { id: 'closing', number: 2, title: '核验与结果整理', status: 'completed', duration_ms: 2000 }] }, 'stages')]
@@ -613,9 +613,9 @@ describe('CapstoneAssistantThread', () => {
     const button = screen.getByRole('button', { name: '查看执行过程' }) as HTMLButtonElement
     expect(button.disabled).toBe(false)
     fireEvent.click(button)
-    expect(screen.getByText('任务准备')).toBeTruthy()
+    expect(screen.queryByText('任务准备')).toBeNull()
     expect(screen.getByText('核验与结果整理')).toBeTruthy()
-    expect(screen.getByText('7.0s')).toBeTruthy()
+    expect(screen.queryByText('运行阶段与计时')).toBeNull()
   })
   it('keeps fold controls in the summary and disables them from actual step state', () => {
     const events = [event('attempt_started', 1, {}, 'fold'),

@@ -17,9 +17,12 @@ test('reference open reads only an exact admitted reference and keeps source ide
   let names=[];while(!names.length){names=(await readdir(join(root,'requests'))).filter(name=>name.endsWith('.json'));await new Promise(r=>setTimeout(r,1));}
   assert.deepEqual(JSON.parse(await readFile(join(root,'requests',names[0]),'utf8')),{resource_id:resource.resource_id});
   const path=join(config.resourceInputRoot,'resources',resource.resource_id,resource.file_name);
+  await mkdir(join(config.resourceInputRoot,'resources',resource.resource_id),{recursive:true});
+  await writeFile(path,'source bytes');
   await writeFile(join(root,'responses',names[0]),JSON.stringify({ok:true,resource:Object.fromEntries(Object.entries(resource).reverse()),path}));
   const result=await pending;
   assert.equal(result.isError,undefined);assert.equal(result.details.result.path,path);
+  assert.equal(result.details.result.preview.text,'source bytes');
   assert.equal(config.deliveryReviewSources[0].sha256,resource.sha256);
  }finally{await rm(root,{recursive:true,force:true});}
 });
