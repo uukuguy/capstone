@@ -18,6 +18,39 @@ function fixture(options={}) {
   return {controller:createToolDiscovery({tools,publications,admittedNames:Object.keys(publications).slice(0,19),...options}),calls:()=>calls};
 }
 
+test('large granted catalogs support default256 and configured1024 without a hidden24k limit',async()=>{
+  for(const count of [256,1024]){
+    const publications=Object.fromEntries(Array.from({length:count},(_,i)=>[`registered_${i}`,{
+      name:`original_${i}`,description:'x'.repeat(100),inputSchema:{type:'object'},
+      outputSchema:{type:'object',description:'y'.repeat(300)}}]));
+    const tools=Object.keys(publications).map(name=>({name,execute:async()=>({content:[]})}));
+    const cwd=await mkdtemp(join(tmpdir(),'large-discovery-'));
+    try{
+      const c=createToolDiscovery({tools,publications,admittedNames:Object.keys(publications),cwd,
+        ...(count===1024?{maxActiveTools:1024}:{}),initialNames:['registered_0','registered_1']});
+      const result=await c.tools[1].execute('large',{names:Object.keys(publications)});
+      assert.notEqual(result.isError,true);
+      assert.equal(c.tools[1].parameters.properties.names.maxItems,count);
+    }finally{await rm(cwd,{recursive:true,force:true});}
+  }
+});
+
+test('load count errors and discovery explain actual count, retained entries and remaining capacity',async()=>{
+  const {controller:c}=fixture({initialNames:['source_0','source_1'],maxActiveTools:3});
+  const search=JSON.parse((await c.tools[0].execute('capacity',{query:''})).content[0].text);
+  assert.deepEqual(search.capacity,{max_tools:3,entry_tools:2,selectable_tools:1});
+  await assert.rejects(c.tools[1].execute('overflow',{names:['source_2','source_3']}),/actual=4.*limit=3.*entry_tools=2.*selectable_tools=1/);
+});
+
+test('SDK discovery uses the application capacity snapshot instead of module defaults',()=>{
+  const tools=Object.fromEntries(Array.from({length:4},(_,i)=>[`registered_${i}`,{
+    name:`source_${i}`,description:'A source',inputSchema:{type:'object'}}]));
+  const config={dataGateway:{onDemandTools:true,catalog:{tools,entry_tools:['registered_0']}},
+    applicationPolicy:{allowed_tools:['agent_tool_search','agent_tool_load',...Object.keys(tools)]},
+    runtimeLimits:{tool_active_count:1024,tool_schema_chars:1000000,tool_search_page_items:10,tool_summary_chars:500}};
+  assert.equal(host.createGatewayToolDiscovery(config).tools[1].parameters.properties.names.maxItems,1024);
+});
+
 test('rejected selection names are explicit and do not activate any tool',async()=>{
   const {controller:c,calls}=fixture();
   await assert.rejects(c.tools[1].execute('bad',{names:['source_0','missing','source_19']}),
@@ -86,12 +119,12 @@ test('initial tool contracts share activation capacity with dynamic selections',
   const {controller:c}=fixture({initialNames:['source_0'],maxActiveTools:1});
   await assert.rejects(c.tools[1].execute('overflow',{names:['source_1']}),/capacity/);
   await c.tools[1].execute('same',{names:['source_0']});
-  const {controller:bounded}=fixture({initialNames:['source_0'],maxActiveSchemaChars:1500});
+  const {controller:bounded}=fixture({initialNames:['source_0'],maxActiveSchemaChars:1200});
   await assert.rejects(bounded.tools[1].execute('schema-overflow',{names:['source_1']}),/schema capacity/);
 });
 
 test('search pages contain only granted bounded published summaries',async()=>{
-  const {controller:c}=fixture();
+  const {controller:c}=fixture({pageSize:8,maxSummaryChars:240});
   const search=c.tools.find(t=>t.name==='agent_tool_search');
   const result=JSON.parse((await search.execute('search',{query:'source',offset:0})).content[0].text);
   assert.equal(result.tools.length,8);assert.equal(result.next_offset,8);

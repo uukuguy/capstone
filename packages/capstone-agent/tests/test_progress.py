@@ -3,6 +3,33 @@ from __future__ import annotations
 import pytest
 
 
+def test_nested_gateway_error_summary_keeps_reason_location_and_request_before_bounding():
+    import json
+    from capstone_agent.progress import project_native_tool_activity
+    body = {'status': 'error', 'data': {'unrelated': 'x' * 9000},
+            'gaps': [{'reason': 'invalid_arguments', 'message': 'Unknown source field',
+                      'scope': {'path': '/order_by/0'}}], 'provenance': {
+                          'request_id': 'request-123', 'agent_guidance': {'explanation': 'y' * 9000}}}
+    result = {'content': [{'type': 'text', 'text': json.dumps({'structuredContent': body})}]}
+    before = json.dumps(result)
+    output = project_native_tool_activity({'isError': True, 'result': result})['output_excerpt']
+    assert 'Unknown source field' in output
+    assert 'invalid_arguments' in output
+    assert '/order_by/0' in output
+    assert 'request-123' in output
+    assert len(output) <= 600
+    assert json.dumps(result) == before
+
+
+def test_structured_gateway_error_without_text_content_is_visible():
+    from capstone_agent.progress import project_native_tool_activity
+    output = project_native_tool_activity({'isError': True, 'result': {'structuredContent': {
+        'status': 'error', 'error': {'code': 'not_readable', 'message': 'Declared metadata only'},
+        'provenance': {'request_id': 'request-structured'}}}})['output_excerpt']
+    assert 'Declared metadata only' in output
+    assert 'request-structured' in output
+
+
 def test_advanced_exploration_notice_is_visible_and_sanitized_without_replacing_original_result():
     from capstone_agent.progress import project_native_tool_activity
     result = {'content': [{'type': 'text', 'text': '{"result":"unchanged"}'}],

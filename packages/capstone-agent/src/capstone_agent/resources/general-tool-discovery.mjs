@@ -1,15 +1,18 @@
 import {createHash} from 'node:crypto';
+import {readFileSync} from 'node:fs';
 import {boundToolResult} from './tool-result-context.mjs';
 import {gatewayToolGroup,gatewayToolAccess,gatewayToolUseGuidance} from './gateway-tool-use.mjs';
 import {createToolIdentityResolver} from './tool-identity.mjs';
 
 export const discoveryToolNames=['agent_tool_search','agent_tool_load'];
 const reply=value=>({content:[{type:'text',text:JSON.stringify(value)}]});
+const defaults=JSON.parse(readFileSync(new URL('./application-capacity.json',import.meta.url),'utf8')).limits;
 
 // This is a task-local index of an already admitted publication. Search and
 // activation cannot refresh a catalog or extend the host's grant.
 export function createToolDiscovery({tools,publications,contractHashes={},admittedNames,cwd,useLedger,initialNames=[],
-  maxActiveTools=8,maxActiveSchemaChars=24000,pageSize=8,maxSummaryChars=240}={}) {
+  maxActiveTools=defaults.tool_active_count,maxActiveSchemaChars=defaults.tool_schema_chars,
+  pageSize=defaults.tool_search_page_items,maxSummaryChars=defaults.tool_summary_chars}={}) {
   for(const limit of [maxActiveTools,maxActiveSchemaChars,pageSize,maxSummaryChars])
     if(!Number.isSafeInteger(limit)||limit<=0)throw new Error('Invalid tool discovery capacity');
   const grants=new Set(admittedNames),allNames=new Set(tools.map(tool=>tool.name));
@@ -24,10 +27,15 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
   if(!Array.isArray(initialNames)||initialNames.some(name=>typeof name!=='string'))
     throw new Error('Invalid initial tool names');
   const initial=[...new Set(initialNames.filter(name=>entries.has(name)))];
+  const capacity={max_tools:maxActiveTools,entry_tools:initial.length,selectable_tools:Math.max(0,maxActiveTools-initial.length)};
   function checkedContracts(selected){
-    if(selected.length>maxActiveTools)throw new Error('Tool activation count capacity exceeded');
+    if(selected.length>maxActiveTools)throw new Error(`Tool activation count capacity exceeded: actual=${selected.length}; limit=${maxActiveTools}; entry_tools=${initial.length}; selectable_tools=${capacity.selectable_tools}. Select a smaller replacement set; no tools were activated.`);
     const contracts=selected.map(name=>({name,contract_sha256:entries.get(name).hash,publication:entries.get(name).publication}));
-    if(JSON.stringify(contracts).length>maxActiveSchemaChars)throw new Error('Tool activation schema capacity exceeded; select fewer tools');
+    // Only input contracts enter the model menu; output schemas stay in the
+    // saved load result, without consuming input schema capacity.
+    const actual=JSON.stringify(selected.map(name=>{const t=entries.get(name).tool;
+      return {name,description:t.description??entries.get(name).publication.description,parameters:t.parameters??entries.get(name).publication.inputSchema};})).length;
+    if(actual>maxActiveSchemaChars)throw new Error(`Tool activation schema capacity exceeded: actual=${actual}; limit=${maxActiveSchemaChars}; unit=characters. Select fewer input contracts; no tools were activated.`);
     return contracts;
   }
   checkedContracts(initial);
@@ -60,7 +68,7 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
       const searchKey=JSON.stringify([terms,offset,args.toolset??null]),repeated=searched.has(searchKey);
       if(searched.size>=64&&!repeated)searched.delete(searched.values().next().value);
       searched.add(searchKey);
-      return reply({toolsets:[...groups.values()],selection_guidance:gatewayToolUseGuidance,
+      return reply({capacity,toolsets:[...groups.values()],selection_guidance:gatewayToolUseGuidance,
         tools:selected.map(name=>({name,toolset:gatewayToolGroup(entries.get(name).publication),access:gatewayToolAccess(entries.get(name).publication),description:String(entries.get(name).publication.description??name).slice(0,maxSummaryChars),
         contract_sha256:entries.get(name).hash})),total:matches.length,
         next_offset:offset+selected.length<matches.length?offset+selected.length:null,
@@ -68,7 +76,7 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
           guidance:'This task publication is unchanged. Reuse these results and load the needed exact contracts. Change search terms or page only to investigate a different capability; a repeated search cannot refresh tools.'}}:{})});
     }};
   const load={name:'agent_tool_load',label:'Load admitted tools',
-    description:'Select a bounded replacement set of on-demand task-granted tools. Already active registered entry tools remain available and share capacity. Activation takes effect at the next model turn; do not invoke newly selected tools in this same call batch. Previously loaded contracts may be restored on later calls within the same capacity limits. Published schemas stay exact. Use an empty list to unload on-demand tools.',
+    description:`Select a bounded replacement set of on-demand task-granted tools. Capacity: ${maxActiveTools} total, ${initial.length} retained entry tools, ${capacity.selectable_tools} additional distinct tools. Already active registered entry tools remain available and share capacity. Activation takes effect at the next model turn; do not invoke newly selected tools in this same call batch. Previously loaded contracts may be restored on later calls within the same capacity limits. Published schemas stay exact. Use an empty list to unload on-demand tools.`,
     parameters:{type:'object',properties:{names:{type:'array',items:{type:'string'},uniqueItems:true,maxItems:maxActiveTools}},required:['names'],additionalProperties:false},
     async execute(_id,args,signal){
       check(signal);

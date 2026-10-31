@@ -7,6 +7,13 @@ import {saveSemanticContext,loadSemanticContext} from '../../src/capstone_agent/
 const scope={task_id:'task',attempt_id:'attempt'};
 const records=new Map([['observed',{ref:'observed',ok:true,value:{status:'partial',data:{unit:'MW',rows:[{n:5}]},provenance:{source_instance:'one',data_revision:'v1'},gaps:[{reason:'missing_day'}]},receipt:{kind:'external_gateway_observation',output_sha256:'a'.repeat(64),native_research_source:{source_ref:'native-observation:actual'}}}]]);
 const spec={bindings:{unit:{call:'observed',pointer:'/data/unit'},meaning:{value:'load proxy'},aggregation:{unknown:true,reason:'not established'}},datasets:[{name:'load',call:'observed',pointer:'/data/rows'}]};
+test('dataset validation points to missing call and preserves usable observations',()=>fixture(async cwd=>{
+  await assert.rejects(saveSemanticContext({cwd,name:'bad',scope,records,spec:{datasets:[{name:'rows',value:[1]}]}}),/datasets\/0\/call.*required/);
+  await assert.rejects(saveSemanticContext({cwd,name:'bad',scope,records,spec:{datasets:[{name:'rows',call:'forged'}]}}),/datasets\/0\/call.*Unknown observation reference/);
+  assert.equal(records.get('observed').value.data.rows[0].n,5);
+  const saved=await saveSemanticContext({cwd,name:'recovered',scope,records,spec});
+  assert.equal((await loadSemanticContext({cwd,path:saved.path})).datasets.load.data[0].n,5);
+}));
 async function fixture(run){const cwd=await mkdtemp(join(tmpdir(),'semantic-context-'));try{await run(cwd);}finally{await rm(cwd,{recursive:true,force:true});}}
 test('package derives source fields, retains partial provenance, and keeps declared/unknown meaning distinct',()=>fixture(async cwd=>{
   const saved=await saveSemanticContext({cwd,name:'shared',spec,records,scope});

@@ -8,6 +8,51 @@ import {rpcEvent} from '../../src/capstone_agent/resources/general-sdk.mjs';
 
 const catalog={revision:'catalog',tools:{data_gateway_read:{name:'read',inputSchema:{type:'object'},description:'Read selected data'}},tool_hashes:{data_gateway_read:'a'.repeat(64)}};
 
+test('follow copies an observed action exactly and rechecks selected task identities',()=>fixture(async cwd=>{
+  const actual={tools:{random_submit:{name:'submit',inputSchema:{type:'object'}},random_read:{name:'read_action',inputSchema:{type:'object'}}}};
+  const args={opaque_ref:'instance-only',field_names:['EXACT_Column'],cursor:'opaque:cursor',revision:'r2'};
+  const issued=[];
+  const t=tool(cwd,async(name,input)=>{issued.push([name,input]);return name==='random_submit'
+    ?native({next_action:{tool:'read_action',arguments:args}}):native({done:true});},{catalog:actual});
+  const result=await t.execute('follow',{tools:['submit','read_action'],program:`
+    const r=await tools.call('submit',{});
+    r.data.next_action.arguments.field_names[0]='WRONG';
+    return await tools.follow(r.ref,'/data/next_action');`});
+  assert.equal(result.isError,false);assert.deepEqual(issued,[['random_submit',{}],['random_read',args]]);
+  const denied=await t.execute('denied',{tools:['submit'],program:`const r=await tools.call('submit',{});return await tools.follow(r.ref,'/data/next_action');`});
+  assert.equal(denied.isError,true);assert.equal(issued.filter(([n])=>n==='random_read').length,1);
+}));
+
+test('save failure exposes completed observation references and recovers without reading again',()=>fixture(async cwd=>{
+  let calls=0;const t=tool(cwd,async()=>{calls++;return native({rows:[{n:5}]});});
+  const failed=await t.execute('bad-save',{tools:['read'],program:`const r=await tools.call('read',{});await saveContext('rows',{datasets:[{name:'rows',value:r.data.rows}]});`});
+  assert.equal(failed.isError,true);
+  const diagnostic=JSON.parse(failed.content[0].text);
+  assert.match(diagnostic.message,/datasets\/0\/call/);
+  assert.equal(diagnostic.completed_calls.length,1);
+  const ref=diagnostic.completed_calls[0].ref;
+  const recovered=await t.execute('recover',{tools:[],program:`return await saveContext('rows',{datasets:[{name:'rows',call:${JSON.stringify(ref)},pointer:'/data/rows'}]});`});
+  assert.equal(recovered.isError,false);assert.equal(calls,1);
+}));
+
+test('follow rejects unknown references and cannot call an unobserved action',()=>fixture(async cwd=>{
+  let calls=0;const t=tool(cwd,async()=>{calls++;return native({});});
+  const r=await t.execute('forged-action',{tools:['read'],program:`return await tools.follow('forged','/data/next_action');`});
+  assert.equal(r.isError,true);assert.match(r.content[0].text,/Unknown observation reference/);assert.equal(calls,0);
+}));
+
+test('follow honors returned wait and rejects actions from failed observations',()=>fixture(async cwd=>{
+  const issued=[];
+  const t=tool(cwd,async(_name,args)=>{issued.push(Date.now());return args.fail
+    ?{isError:true,content:[{type:'text',text:JSON.stringify({structuredContent:{status:'error',data:{next_action:{tool:'read',arguments:{}}}}})}]}
+    :native({poll_after_seconds:0.04,next_action:{tool:'read',arguments:{done:true}}});});
+  const result=await t.execute('wait',{tools:['read'],program:`const r=await tools.call('read',{});return tools.follow(r.ref,'/data/next_action');`});
+  assert.equal(result.isError,false);assert.ok(issued[1]-issued[0]>=35);
+  const denied=await t.execute('failed-source',{tools:['read'],program:`const r=await tools.call('read',{fail:true});return tools.follow(r.ref,'/data/next_action');`});
+  assert.equal(denied.isError,true);assert.match(denied.content[0].text,/not a successful observation/);
+  assert.equal(issued.length,3);
+}));
+
 test('selection, program calls and describe share source and registration identities',()=>fixture(async cwd=>{
   const actual={revision:'identity',tools:{transport_alpha:{name:'source_alpha',inputSchema:{type:'object'},description:'Alpha'},
     transport_beta:{name:'source_beta',inputSchema:{type:'object'},description:'Beta'}}};

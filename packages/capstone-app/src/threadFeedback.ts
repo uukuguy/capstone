@@ -3,19 +3,29 @@ function diagnosticSummary(text: string): string {
   if (!text.trim().startsWith('{')) return text
   try {
     let value: unknown = JSON.parse(text)
+    const locations: string[] = []
     for (let depth = 0; depth < 8; depth++) {
       if (typeof value === 'string') {
         if (value.trim().startsWith('{')) { value = JSON.parse(value); continue }
-        return value.slice(0, 500)
+        return [value.slice(0, 400), ...locations].join('；').slice(0, 600)
       }
       if (!value || typeof value !== 'object' || Array.isArray(value)) break
       const record = value as Record<string, unknown>
+      if (record.structuredContent && typeof record.structuredContent === 'object') {
+        value = record.structuredContent
+        continue
+      }
       const gap = Array.isArray(record.gaps) ? record.gaps[0] : undefined
+      const requestId = record.provenance && typeof record.provenance === 'object'
+        ? (record.provenance as Record<string, unknown>).request_id : record.request_id
+      if (typeof requestId === 'string') locations.push(`request_id=${requestId.slice(0, 100)}`)
+      const path = gap?.path ?? gap?.scope?.path
+      if (typeof path === 'string') locations.unshift(`path=${path.slice(0, 100)}`)
       const content = Array.isArray(record.content) ? record.content.find(item => item && typeof item === 'object' && typeof item.text === 'string')?.text : undefined
       value = record.summary ?? record.message ?? record.detail ?? record.error ?? gap ?? content
     }
   } catch { /* The original diagnostic remains available in the process record. */ }
-  return '工具返回错误；请展开原始诊断查看详情。'
+  return '诊断摘要不完整或格式不可识别；请查看保存的原始响应。'
 }
 
 export function toolFailureReason(failure?: { code?: string; message?: string; summary?: string }): string | undefined {

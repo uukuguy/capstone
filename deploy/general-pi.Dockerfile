@@ -100,6 +100,7 @@ COPY packages/capstone-agent/src/capstone_agent/resources/graph-work-policy-1.16
 COPY packages/capstone-agent/src/capstone_agent/task_planning_policy.py capstone_agent/task_planning_policy.py
 COPY packages/capstone-agent/src/capstone_agent/resources/task-planning-policy-*.md capstone_agent/resources/
 COPY packages/capstone-agent/src/capstone_agent/progress.py capstone_agent/progress.py
+COPY packages/capstone-agent/src/capstone_agent/native_tool_diagnostics.py capstone_agent/native_tool_diagnostics.py
 COPY packages/capstone-agent/src/capstone_agent/stream_progress.py capstone_agent/stream_progress.py
 COPY packages/capstone-agent/src/capstone_agent/resource_manifest.py capstone_agent/resource_manifest.py
 COPY packages/capstone-agent/src/capstone_agent/continuation_resources.py capstone_agent/continuation_resources.py
@@ -124,6 +125,7 @@ COPY packages/capstone-agent/src/capstone_agent/resources/tool-composition.mjs c
 COPY packages/capstone-agent/src/capstone_agent/resources/tool-composition-worker.mjs capstone_agent/resources/tool-composition-worker.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/tool-composition-policy.json capstone_agent/resources/tool-composition-policy.json
 COPY packages/capstone-agent/src/capstone_agent/resources/semantic-data-context.mjs capstone_agent/resources/semantic-data-context.mjs
+COPY packages/capstone-agent/src/capstone_agent/resources/observed-action.mjs capstone_agent/resources/observed-action.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/general-tool-discovery.mjs capstone_agent/resources/general-tool-discovery.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/tool-identity.mjs capstone_agent/resources/tool-identity.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/gateway-tool-use.mjs capstone_agent/resources/gateway-tool-use.mjs

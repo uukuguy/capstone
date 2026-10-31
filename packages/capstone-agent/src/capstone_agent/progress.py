@@ -120,6 +120,18 @@ def project_native_tool_activity(event: Mapping, *, text_filter=lambda text: tex
                         else compact[:100] + ' … ' + compact[-497:])
                 else:
                     receipt['output_excerpt'] = _summary(output, 600)
+    if isinstance(result, Mapping) and (event.get('isError') is True or event.get('is_error') is True):
+        from .native_tool_diagnostics import structured_tool_diagnostic
+        diagnostic = structured_tool_diagnostic(result)
+        if diagnostic:
+            # Inspect the complete envelope for protected fields before selecting
+            # a small diagnostic. Original model/host observations stay unchanged.
+            protected = re.search(
+                r'(?i)(?:api[_ -]?key|access[_ -]?token|refresh[_ -]?token|authorization|password|secret)["\x27]?\s*[:=]',
+                json.dumps(result, ensure_ascii=False),
+            )
+            receipt['output_excerpt'] = ('输出包含受保护配置或凭据信息，已隐藏。' if protected
+                else _summary(text_filter(diagnostic), 599))
     return receipt
 
 

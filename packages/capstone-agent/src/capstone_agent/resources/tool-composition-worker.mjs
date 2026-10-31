@@ -7,6 +7,7 @@ process.on('message',async message=>{
   if(message.kind!=='start')return;
   const identities=createToolIdentityResolver(message.schemas);
   const tools={call:(name,args)=>request('call',{name:identities.resolve(name),args}),
+    follow:(ref,pointer)=>request('follow',{ref,pointer}),
     describe:name=>message.schemas[identities.resolve(name)]};
   const python=(code,data)=>new Promise((resolve,reject)=>{
     const child=spawn('python3',['-c',code],{stdio:['pipe','pipe','pipe']});let output='',error='';

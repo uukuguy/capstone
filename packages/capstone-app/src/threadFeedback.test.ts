@@ -10,11 +10,17 @@ describe('recorded tool failure reasons', () => {
     expect(commandRejectionCopy('revision_conflict')).toContain('输入内容已保留')
   })
   it.each(['{"detail":','{"detail":{"unexpected":true}}'])('keeps malformed or unrecognized JSON out of the summary: %s',message=>{
-    expect(toolFailureReason({message})).toBe('工具返回错误；请展开原始诊断查看详情。')
+    expect(toolFailureReason({message})).toBe('诊断摘要不完整或格式不可识别；请查看保存的原始响应。')
   })
   it('unwraps MCP content and gateway gaps',()=>{
     const message=JSON.stringify({content:[{type:'text',text:JSON.stringify({status:'error',gaps:[{reason:'query_timeout',message:'Database query exceeded the time budget'}]})}]})
     expect(toolFailureReason({message})).toBe('Database query exceeded the time budget')
+  })
+  it('reads structured MCP errors and preserves their request identifier',()=>{
+    const message=JSON.stringify({structuredContent:{status:'error',gaps:[{reason:'invalid_arguments',message:'Unknown source field',scope:{path:'/order_by/0'}}],provenance:{request_id:'request-123'}}})
+    expect(toolFailureReason({summary:message})).toContain('Unknown source field')
+    expect(toolFailureReason({summary:message})).toContain('/order_by/0')
+    expect(toolFailureReason({summary:message})).toContain('request-123')
   })
   it('renders a legacy English diagnostic with a Chinese category reason', () => {
     expect(toolFailureReason({ code: 'analysis_prerequisite_missing', message: 'Missing model inputs' }))

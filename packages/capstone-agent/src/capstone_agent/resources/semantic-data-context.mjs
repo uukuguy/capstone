@@ -31,6 +31,17 @@ function pointer(value,path=''){
 }
 export async function saveSemanticContext({cwd,name,spec,records,scope}){
   if(!/^[a-zA-Z0-9_-]{1,80}$/.test(name))throw Error('Invalid context name');
+  if(!spec||typeof spec!=='object'||Array.isArray(spec))throw Error('/spec: expected an object');
+  if(spec.datasets!==undefined&&!Array.isArray(spec.datasets))throw Error('/datasets: expected an array');
+  for(const [i,d] of (spec.datasets??[]).entries()){
+    const path=`/datasets/${i}`;
+    if(!d||typeof d!=='object'||Array.isArray(d))throw Error(`${path}: expected an object`);
+    if(typeof d.name!=='string'||!d.name)throw Error(`${path}/name: required nonempty string`);
+    if(typeof d.call!=='string'||!d.call)throw Error(`${path}/call: required observation reference; use the ref returned by tools.call, not inline value`);
+    if(!records.has(d.call))throw Error(`${path}/call: Unknown observation reference; reuse a ref from this task`);
+    if(d.pointer!==undefined&&(typeof d.pointer!=='string'||(d.pointer!==''&&!d.pointer.startsWith('/'))))
+      throw Error(`${path}/pointer: expected a JSON pointer`);
+  }
   const selected=new Map(),gaps=[];
   const observe=ref=>{const record=records.get(ref);if(!record)throw Error('Unknown observation reference');selected.set(ref,record);return record;};
   const bindings=Object.fromEntries(Object.entries(spec.bindings??{}).map(([key,b])=>{
