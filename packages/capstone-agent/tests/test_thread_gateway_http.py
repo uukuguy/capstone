@@ -32,6 +32,7 @@ def test_session_selection_does_not_change_default_and_lock_cannot_be_bypassed()
         assert selected.status_code == 200
         assert selected.json()['selected_id'] == 'two'
         assert selected.json()['locked'] is False
+        assert next(item for item in selected.json()['entries'] if item['id']=='two')['identity']['available'] is True
         assert executor.default == 'one'
         assert service.submit_gateway_command(message(thread), publication('two','instance-two')).status == 'accepted'
         locked = client.get(base).json()

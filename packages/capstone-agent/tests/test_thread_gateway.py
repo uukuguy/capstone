@@ -27,6 +27,17 @@ def test_locked_thread_with_no_gateway_does_not_gain_default_gateway():
     assert prepare_admission(None, saved, publication())[2] == 'gateway_instance_changed'
 
 
+def test_public_display_address_stays_in_ledger_not_native_execution_context():
+    from capstone_agent.pi_delegation import _json_document
+    value = publication()
+    value['identity']['display_address'] = 'registered.example:18001'
+    bound, state, error = prepare_admission({'capability': {}}, None, value)
+    assert error is None
+    assert state['identity']['endpoint'] == 'registered.example:18001'
+    _json_document(bound['capability'])
+    assert set(bound['capability']['data_gateway']['session_binding']) == {'connection_id','instance_id','locked'}
+
+
 def empty_service():
     from capstone_agent.thread_service import InMemoryThreadService, ThreadCreator
     class Store:

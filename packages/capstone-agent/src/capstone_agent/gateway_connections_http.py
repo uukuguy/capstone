@@ -184,7 +184,7 @@ def register_gateway_connection_routes(app, *, executor_provider, authorize, thr
             value['selected_id'] = selected
             for item in value['entries']:
                 if item['id'] == selected:
-                    item['identity'] = _identity(publication['identity'])
+                    item['identity'] = _identity({**publication['identity'], 'available': publication.get('available') is True})
                     if not publication.get('available'):
                         item.update(status='disconnected', error='gateway_bound_instance_unavailable')
         value['locked'] = bool(saved and saved['locked'])

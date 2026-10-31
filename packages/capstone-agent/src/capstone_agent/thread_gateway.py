@@ -33,7 +33,7 @@ def prepare_admission(binding, saved, publication):
         return None, saved, 'gateway_instance_changed'
     value = deepcopy(binding)
     if value is not None:
-        publication['session_binding'] = selected
+        publication['session_binding'] = {key: selected[key] for key in ('connection_id', 'instance_id', 'locked')}
         value['capability']['data_gateway'] = publication
     return value, selected, None
 
