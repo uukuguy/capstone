@@ -164,6 +164,10 @@ export default function ProcessCallTrace({ models, tools, now, active = true, co
     const issue = issues.find(item => item.modelId === model.id)
     const usage = model.usage, inputParts = [count(usage?.input), count(usage?.cacheRead), count(usage?.cacheWrite)]
     const input = inputParts.every(value => value !== undefined) ? inputParts.reduce<number>((sum, value) => sum + value!, 0) : undefined
+    const tokenSummary = usage && <span className="capstone-call-tokens" title="输入包含 SDK 单独报告的缓存读取/写入 token；未报告的值保持未知。">
+      <span>输入 {tokens(input)}</span><span>输出 {tokens(count(usage.output))}</span>
+      {count(usage.cacheRead) !== undefined && Number(usage.cacheRead) > 0 && <span>缓存 {tokens(count(usage.cacheRead))}</span>}<span>token</span>
+    </span>
     const requests = model.toolRequests ?? selected.map(tool => ({ id: tool.id, name: tool.name, operation: tool.operation }))
     return <li key={entry.id}><section role="group" aria-label={model.label ?? `LLM 调用 ${model.number}`} className="capstone-call-round" data-record-gap={issue ? true : undefined}
       tabIndex={-1} ref={element => { if (element) roundElements.current.set(model.id, element); else roundElements.current.delete(model.id) }}>
@@ -174,12 +178,9 @@ export default function ProcessCallTrace({ models, tools, now, active = true, co
         {model.retry&&<span>模型重试 {model.retry.attempt}{model.retry.maximum?`/${model.retry.maximum}`:''}{model.retry.success===true?' · 已完成':model.retry.success===false?' · 未成功':model.retry.finished?' · 结果未记录':models.some(next=>next.number>model.number&&next.startedAt)?' · 已发起':` · 计划等待 ${((model.retry.delayMs??0)/1000).toFixed(1)}s`}</span>}
         {model.stopReason==='error'&&model.errorCode&&Object.hasOwn(modelErrors,model.errorCode)&&<span>{modelErrors[model.errorCode]}{typeof model.errorStatus==='number'&&Number.isInteger(model.errorStatus)&&model.errorStatus>=400&&model.errorStatus<=599?` · HTTP ${model.errorStatus}`:''}{models.some(next=>next.number>model.number&&next.startedAt)?' · 后续模型调用已开始':''}</span>}
         {!compact&&!running && <small title={model.toolAssociation==='turn'?'依据同一 SDK 执行轮次中的实际工具调用记录归组。':undefined}>{!linked ? '工具关联未记录' : !model.toolCallIds!.length ? '未调用工具' : `${model.toolAssociation==='turn'?'本轮工具':'工具'} ${model.toolCallIds!.length}次${toolMs === undefined || model.toolAssociation==='turn' ? '' : ` · 活动区间 ${time(toolMs)}`}`}</small>}
+        {!model.thinking&&tokenSummary}
       </div>
-      {model.thinking&&<ThinkingProcess kind="call" expanded={expandedThinking} storageKey={`model-thinking:${model.id}`} now={now} thinking={{text:model.thinking,startedAt:model.thinkingStartedAt,endedAt:running&&!model.thinkingSettled?undefined:model.thinkingEndedAt,handedOff:!running||model.thinkingSettled===true,phase:running&&!model.thinkingSettled?'running':'completed'}}/>}
-      {usage && <div className="capstone-call-tokens" title="输入包含 SDK 单独报告的缓存读取/写入 token；未报告的值保持未知。">
-        <span>输入 {tokens(input)}</span><span>输出 {tokens(count(usage.output))}</span>
-        {count(usage.cacheRead) !== undefined && Number(usage.cacheRead) > 0 && <span>缓存 {tokens(count(usage.cacheRead))}</span>}<span>token</span>
-      </div>}
+      {model.thinking&&<ThinkingProcess kind="call" expanded={expandedThinking} trailing={tokenSummary} storageKey={`model-thinking:${model.id}`} now={now} thinking={{text:model.thinking,startedAt:model.thinkingStartedAt,endedAt:running&&!model.thinkingSettled?undefined:model.thinkingEndedAt,handedOff:!running||model.thinkingSettled===true,phase:running&&!model.thinkingSettled?'running':'completed'}}/>}
       {!compact&&model.toolAssociation!=='turn'&&requests.length > 0 && <p className="capstone-call-intent" title={requests.map(item => `${item.name}${item.operation ? ' · ' + item.operation : ''}`).join('；')}>发起工具：{requests.map(item => `${item.name}${item.operation ? ' · ' + operationExcerpt(item.name, item.operation) : ''}`).join('；')}</p>}
       {responseText && <p className="capstone-call-response" title={responseText}>{responseText.length > 240 ? responseText.slice(0,240) + '…' : responseText}</p>}
       {issue && <div className="capstone-call-gap"><p role="status"><AlertTriangle aria-hidden="true" />工具记录缺失 · {issue.missingToolIds.length}项</p>

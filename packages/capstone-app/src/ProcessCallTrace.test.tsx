@@ -5,6 +5,14 @@ import ProcessCallTrace, { callTraceIssues } from './ProcessCallTrace'
 
 afterEach(cleanup)
 
+it('places usage at the end of the thinking header instead of a separate row',()=>{
+ render(<ProcessCallTrace active={false} models={[{id:'m',number:1,ms:1000,thinking:'已核对输入',usage:{input:1385,output:240,cacheRead:16000,cacheWrite:0}}]} tools={[]}/>)
+ const usage=screen.getByText('输入 17,385')
+ expect(usage.closest('.capstone-thinking-heading')).not.toBeNull()
+ expect(within(usage.closest('.capstone-thinking-heading')!).getByRole('button',{name:'展开本轮思考'})).toBeVisible()
+ expect(usage.closest('.capstone-call-round')?.querySelector(':scope > .capstone-call-tokens')).toBeNull()
+})
+
 it('shows recorded tool purpose in the collapsed title and child response intent after the LLM label',()=>{
  render(<ProcessCallTrace compact active={false}
    models={[{id:'child',number:1,ms:12000,toolCallIds:['combine'],responseText:'// 核对十月指标覆盖范围\n下一段回复'}]}

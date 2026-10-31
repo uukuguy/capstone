@@ -22,3 +22,4 @@
 @keyframes capstone-thinking-shimmer { 0%, 100% { opacity: .65; } 50% { opacity: 1; } }
 @media (pointer: coarse) { .capstone-thinking-trigger { min-height: 44px; } }
 @media (prefers-reduced-motion: reduce) { .capstone-thinking-process.is-active .capstone-thinking-label { animation: none; } .capstone-thinking-trigger svg { transition: none; } }
+.capstone-thinking-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; }

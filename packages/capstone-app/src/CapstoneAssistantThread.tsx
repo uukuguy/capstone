@@ -1296,12 +1296,15 @@ export default function CapstoneAssistantThread({ nativeArtifactProjections, pro
     if(!latest?.attemptId||latest.eventSeq<=terminalCursor.current.seq)return
     terminalCursor.current.seq=latest.eventSeq
     setFinishedAttempt({id:latest.attemptId,sequence:latest.eventSeq})
-    alignedInstruction.current=undefined
     requestAnimationFrame(()=>{
       const viewport=viewportRef.current
       const answer=[...viewport?.querySelectorAll<HTMLElement>('[aria-label="智能体回答"]')??[]].find(node=>node.dataset.attemptId===latest.attemptId)
       const instruction=answer&&[...viewport?.querySelectorAll<HTMLElement>('[aria-label="用户指令"]')??[]].filter(node=>Boolean(node.compareDocumentPosition(answer)&Node.DOCUMENT_POSITION_FOLLOWING)).at(-1)
-      instruction?.scrollIntoView({block:'start',behavior:'smooth'})
+      if(!viewport||!instruction)return
+      const bounds=viewport.getBoundingClientRect(),question=instruction.getBoundingClientRect()
+      if(question.top>=bounds.top&&question.bottom<=bounds.bottom)return
+      const target=viewport.scrollTop+question.top-bounds.top-8
+      viewport.scrollTop=Math.max(0,Math.min(target,Math.max(0,viewport.scrollHeight-viewport.clientHeight)))
     })
   },[events,storageKey])
   useLayoutEffect(() => {
