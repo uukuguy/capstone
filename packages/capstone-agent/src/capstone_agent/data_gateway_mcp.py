@@ -275,6 +275,16 @@ class DataGatewayMcp:
                 raise GatewayError('gateway_tool_not_admitted')
             require_capacity('mcp_frame_bytes', len(encode(arguments)), 'gateway_arguments')
             schema = catalog['tools'][name]
+            # The adapter owns transport names. Contract lookup parameters use
+            # source names from this connection, never a guessed prefix strip.
+            if schema['name'] == 'describe_gateway_contract':
+                target = arguments.get('tool_name')
+                published = catalog['tools'].get(target) if isinstance(target, str) else None
+                if published is not None:
+                    if (target != published['name'] and any(
+                            item['name'] == target for item in catalog['tools'].values())):
+                        raise GatewayError('gateway_arguments_invalid')
+                    arguments = {**arguments, 'tool_name': published['name']}
             try:
                 validate(schema['inputSchema'], arguments)
             except Exception:

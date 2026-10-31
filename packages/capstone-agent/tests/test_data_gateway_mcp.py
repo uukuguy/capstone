@@ -341,6 +341,54 @@ def test_only_admitted_gateway_entries_are_initial_tools(tmp_path):
     assert catalog['entry_tools'] == ['data_gateway_discover_gateway']
 
 
+@pytest.mark.parametrize('target', ['previously_unknown_action', 'data_gateway_previously_unknown_action'])
+def test_contract_lookup_normalizes_target_from_current_catalog(tmp_path, target):
+    client, session = dynamic_gateway(tmp_path)
+    tool = Tool('describe_gateway_contract')
+    tool.value.update(annotations=dict(SAFE_EFFECTS), inputSchema={
+        'type': 'object', 'properties': {'tool_name': {'type': 'string'}},
+        'required': ['tool_name'], 'additionalProperties': False})
+    session.tools.append(tool)
+    catalog = asyncio.run(client.prepare())
+    arguments = {'tool_name': target}
+    asyncio.run(client.call('data_gateway_describe_gateway_contract', arguments, catalog))
+    assert session.calls == [('describe_gateway_contract', {'tool_name': 'previously_unknown_action'})]
+    assert arguments == {'tool_name': target}
+
+
+def test_contract_lookup_does_not_strip_unregistered_prefixes(tmp_path):
+    client, session = dynamic_gateway(tmp_path)
+    tool = Tool('describe_gateway_contract')
+    tool.value.update(annotations=dict(SAFE_EFFECTS), inputSchema={'type': 'object'})
+    session.tools.append(tool)
+    catalog = asyncio.run(client.prepare())
+    args = {'tool_name': 'data_gateway_unpublished', 'other': 'data_gateway_previously_unknown_action'}
+    asyncio.run(client.call('data_gateway_describe_gateway_contract', args, catalog))
+    assert session.calls[-1] == ('describe_gateway_contract', args)
+
+
+def test_business_tool_arguments_are_not_namespace_rewritten(tmp_path):
+    client, session = dynamic_gateway(tmp_path)
+    session.tools[0].value['inputSchema'] = {'type': 'object'}
+    catalog = asyncio.run(client.prepare())
+    args = {'tool_name': 'data_gateway_build_network_model'}
+    asyncio.run(client.call('data_gateway_previously_unknown_action', args, catalog))
+    assert session.calls[-1] == ('previously_unknown_action', args)
+
+
+def test_contract_lookup_rejects_ambiguous_source_and_transport_names(tmp_path):
+    client, session = dynamic_gateway(tmp_path)
+    for name in ('data_gateway_previously_unknown_action', 'describe_gateway_contract'):
+        tool = Tool(name)
+        tool.value.update(annotations=dict(SAFE_EFFECTS), inputSchema={'type': 'object'})
+        session.tools.append(tool)
+    catalog = asyncio.run(client.prepare())
+    with pytest.raises(GatewayError, match='gateway_arguments_invalid'):
+        asyncio.run(client.call('data_gateway_describe_gateway_contract',
+            {'tool_name': 'data_gateway_previously_unknown_action'}, catalog))
+    assert session.calls == []
+
+
 def test_dynamic_trusted_service_admits_new_read_and_closed_non_destructive_tools(tmp_path):
     client, session = dynamic_gateway(tmp_path)
     catalog = asyncio.run(client.prepare())
