@@ -1,5 +1,100 @@
 # 给 data-gateway：新疆10月消纳率会话协查
 
+## 网关核对回复：修正待实例重载
+
+后续实测：已重新初始化连接并先读取说明，再调用 discover_gateway、check_gateway_contract
+和完整 describe_gateway_contract。三者发布时间一致，更新为
+`2026-10-31T21:46:14.480376+08:00`，实例标识未变。
+runtime.unknown_arguments 已声明未知顶层参数在处理前拒绝且不改写执行；
+runtime.ambiguous_source 已声明外层复制失败子缺口并保留 query_index。
+Capstone workspace 网关缓存 reload 成功。证据位于
+`runs/gateway-publication-after-reload-20261031/`。这是契约验证，未重放业务查询。
+
+以下为网关维护者提供的核对结果，尚未由 Capstone 重连验证。当前进程发布时间仍为
+`2026-10-31T16:43:18.790290+08:00`。重载后只比较 `check_gateway_contract`
+返回的实例标识和 `contract_updated_at`，变更后刷新后续任务契约；历史任务保持冻结。
+
+- 请求 `28e25923db3c481696a4dc0f76470498` 同时匹配来源 `0021430000`、`0021990100`，各 696 行，均在同一张 2025 年表中。字典没有来源名称，不能据行数或编号代选。发现路径为 `list_object_metrics`（复制已有 object_ref，measurement_id=11032001），再用返回的 metric_ref 和原窗口调用 `discover_metric_sources`，确认来源后将 source_id 传入所选序列工具。这些名称只记录当次契约，不写入执行路由。
+- 本次月缓存未命中，失败结果没有写入。缓存保存原始采样月份，键含请求 source_id、映射及其时区、对象、测点、库身份和数据文件身份。分辨率及统计量不在键中，与缓存原始采样的用途一致，不能据此认定缺陷。重载后外层 gap 将直接返回 ambiguous_data_source 及已有恢复说明。
+- 请求 `244a32a501b04bed9f2b47eff8dd9ea6` 的计划为覆盖索引全表扫描加临时 B 树，在 sqlite 的 20 秒预算处中断。后续请求应按已发现对象和时间范围收窄，或动态选择已发布的序列/统计工具。不得原样重试或提高预算。
+- 重载后 orderBy 将在执行前被拒绝，路径为 /orderBy，明确未执行，并建议唯一近似参数 order_by；合法名称来自 input_schema.properties。当前进程仍会忽略该额外字段。网关称其匹配规则判为编辑距离 1；Capstone 不复制或重新推导该匹配算法，不自动改写执行。
+
+Capstone 尚待修复的独立问题：通用错误摘要需要展示失败子结果中的具体原因，不能只显示外层占位说明。网关将原因提升到外层不能代替客户端的通用修复。
+本次仅更新核对结论，没有重放冻结任务或新疆业务查询。
+
+## 新增协查：统计查询的数据源选择与缓存
+
+入口：`http://127.0.0.1:18001/mcp`。实例：`3db5bb96-2c27-4d97-8584-346bc4a18656`。
+以下依据已保存的调用记录分析，没有重放业务查询，也没有清理缓存。
+
+### 204ms 的统计错误
+
+工具：`query_database_series`。request_id：`28e25923db3c481696a4dc0f76470498`。
+
+```json
+{"mapping":"grid.minute","object_id":"0101430000","measurement_id":"11032001","start_time":"2025-06-15T00:00:00+08:00","end_time":"2025-08-16T00:00:00+08:00","resolution":"day","statistics":["max","mean","min"]}
+```
+
+外层 gaps 是 `query_error / See this subquery result for details`。
+实际子错误位于 `data[0].result.gaps[0]`：
+
+```json
+{"reason":"ambiguous_data_source","message":"Multiple data sources match; select source_id explicitly","data_ref":"database.b40bf1bf6aff56af1942e2bf","scope":{}}
+```
+
+返回 `source_id:null`，`calculation.cache_mode="use"`，`cache_hits=0`。
+目前可以确认数据源选择存在歧义，不能据此确认统计缓存故障，也不能排除数据源目录或元数据缓存过期。
+
+请网关侧按该 request_id 核对：
+
+1. 哪些 source_id 同时匹配？它们是替代数据源、按时间分区的数据源，还是重复注册？请提供现有发现工具的调用参数，供客户端取得合法候选及选择依据。
+2. 统计缓存键是否包含已解析的数据源身份和影响结果的版本、时间区间、时区、分辨率、统计参数？来源改变或目录更新时，旧缓存是否仍被复用？这是待查项，不是已确认故障。
+3. 是否缓存过来源歧义或失败结果？若是，失效条件是什么？本次 cache_hits=0 的统计范围是否包含来源解析或元数据缓存？
+4. 请将具体子错误及恢复方法传到外层 gaps 或已有 agent_guidance，避免外层只有“看子查询详情”。来源不唯一时，不要求网关猜选，也不要求新增语义注册。
+
+Capstone 侧同样有展示缺陷：摘要只取了外层错误，漏掉子错误。客户端需通用地展开失败子结果，保留 request_id；不按本工具名添加特例。
+
+### 20s 数据库超时
+
+工具：`execute_data_query`。request_id：`244a32a501b04bed9f2b47eff8dd9ea6`。
+
+```json
+{"request":{"table":"SG_DATACENTER.SG_CON_PWRGRID_H1_MEA_2024","columns":["t.MEAS_TYPE"],"filters":[{"field":"t.MEAS_TYPE","op":"eq","value":"11032001"}],"group_by":["t.MEAS_TYPE"],"aggregates":[{"op":"count","field":"*","as":"n"},{"op":"count_distinct","field":"t.ID","as":"ids"},{"op":"min","field":"t.CREATE_TIME","as":"t0"},{"op":"max","field":"t.CREATE_TIME","as":"t1"}],"limit":5}}
+```
+
+网关返回 `query_timeout`，driver 为 sqlite，source_instance 为 local-business-copy。
+该请求没有时间范围，含 count_distinct；limit=5 不限制聚合前的扫描量。
+请检查生成 SQL、执行计划、索引使用和数据库时间预算。统计缓存是否相关需结合网关记录判断。
+Capstone 没有触发传输超时；调用方也需依据计划收窄查询，不应原样重试或直接提高预算。
+
+## 追加协作请求：未知参数要返回可纠正的诊断
+
+用户已确认：希望参数错误返回具体原因和最可能的纠正方法。当前回复中
+“orderBy 会被丢掉，其余参数继续执行”仍可能造成请求意图被改变。
+请在执行前识别这类未知参数并返回富诊断，不静默丢弃、不自行改写后执行。
+这不要求新增业务语义注册体系，也不要求增加错误名称别名。
+
+具体例子：调用当次发布的记录读取工具时，把 `order_by` 写成 `orderBy`。
+请指出 `/orderBy`、原错误名称、合法参数名来自该工具 inputSchema.properties，
+并明确 `executed:false`。保留现有唯一建议条件：大小写不同，或编辑距离恰好为1且只有一个候选。
+`orderBy` 若不符合该条件，就给合法参数来源，不强称它唯一对应 `order_by`。
+多个候选时说明没有唯一改法，保留候选给客户端选择。表名和字段名同样由网关权威核对，
+只因目录搜索不完整而没找到时，不能断言不存在。
+
+可沿用现有 gaps 及 scope，不增加新的入口。下面只是客户端已支持的最小诊断形状示例，
+实际字段以双方确认的输出契约为准：
+
+```json
+{"status":"error","gaps":[{"reason":"unknown_argument","message":"未知参数 orderBy",
+"scope":{"path":"/orderBy","rejected_value":"orderBy",
+"legal_values_source":"inputSchema.properties","suggestion":"请核对该工具原契约的合法参数名；没有满足条件的唯一改法时不自动更名",
+"executed":false}}],"provenance":{"request_id":"example-request"}}
+```
+
+Capstone 本次补齐 gap/scope 中执行状态、拒绝值、合法值来源和纠正建议的展示。
+建议只是诊断，不表示已经改写执行。已发出的任务和数据观察继续冻结；不为验证该示例
+重放新疆查询。此请求尚未发送到外部服务。
+
 ## 网关回复与重新连接核对（18:48）
 
 已读取网关修正回复，重新连接并阅读初始化说明，随后调用发现、轻量检查及完整契约入口。

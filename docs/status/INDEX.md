@@ -1,5 +1,15 @@
 # docs/status INDEX
 
+Current local sourcebec075c3: reference-first startup and on-demand protected reads;
+first model wait1.273s,total2.8s in the existing tab. See VERSION-CONTROL,
+RESUME and the updated [implementation report](../reports/2026-10-31-latest-session-tool-errors.md).
+
+App ad9078ef: blank-scroll recovery and concise call records;214 focused tests/types
+and existing-tab trial verified. See VERSION-CONTROL and live RESUME for limits.
+
+UI correction2e44b89a: completion preserves an already-visible instruction and
+inlines token usage;151 focused tests/types pass. See VERSION-CONTROL and RESUME.
+
 Latest verified work2026-10-31: backend6de15939/App4c7e56bf implement deterministic returned actions,
 configurable tool capacity, readable diagnostics, public response intent and
 completion focus. Local ready and same-image checks plus real short-task UI closeout pass; no CI/push/PR/cloud changes.

@@ -54,3 +54,19 @@ Files: progress.py; tests/test_progress.py; capstone-app/src/threadFeedback.ts a
 - [x] Show recorded operation in every tool summary, preserving tool identity in details/secondary text.
 - [x] Place purpose directly after LLM label; restore red slow-duration styling with scoped selectors.
 - [x] Run46 affected App checks and TypeScript checking; browser verification pending rebuild.
+
+## Reference-first continuation (user decision, 2026-10-31)
+
+Ordinary instructions retain immutable historical file references, not eagerly copied
+file bodies. Start the first model with the reference catalog. A generic admitted
+resource-open tool requests exactly one frozen resource through the existing task
+control/polling and chunked staging transport. Only that selected resource is read
+and materialized in protected task inputs. No endpoint/path or credentials are
+model arguments; no business names or query routing enter this mechanism.
+
+- [x] Add failing tests for zero historical body reads at admission/startup and exact on-demand resource selection.
+- [x] Preserve immutable manifests/origins; remove automatic historical inline bodies.
+- [x] Add bounded task-local resource request/receipt port and model-facing open tool.
+- [x] Handle selected reads through existing worker resource reader and verified chunk transport.
+- [x] Keep natural process-window growth and terminal-only folding; distinguish preparation from LLM work.
+- [x] Run focused checks, rebuild local source, verify existing-tab startup and selected read without business replay. A second scoped rebuild includes the subsequent preview/footer correction.

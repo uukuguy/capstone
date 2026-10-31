@@ -6626,3 +6626,19 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - Contain first thinking and bind completion to rendered instruction order because accepted commands can precede attempt creation [26f083d2].
 - Close process views through terminal-controlled state to prevent native toggle races and missed fast-task completion [4c7e56bf].
 - Final local image113b791d ready;API/allworkers equal;App4c7e56bf real2.3second no-tool trial folds current process and keeps instruction visible;no CI.
+- Record verified invocation,process behavior and deployment identities so recovery preserves evidence and pending gateway cooperation [65212819].
+- Verify graphHEAD65212819 and deployed sources in existing browser;return to App with current instruction visible and process collapsed.
+- Preserve visible instructions on completion and inline token usage to avoid unnecessary scrolling and extra rows [2e44b89a].
+- Prevent padding-only scrolling, retain routing identity and show concise purposes so execution records remain readable [ad9078ef].
+- Existing-tab attempt_be53b13782000bbd: instruction visible during/after execution;right-pane fullscreen restore shows content;214 focused tests/types pass;no CI.
+- Reconnected gateway publication16:43:18;refreshed future contracts through App reload;preserved frozen work and avoided Xinjiang query replay.
+- Record gateway reply and publication refresh so later work preserves frozen tasks and correct diagnostic interpretation [8e35055a].
+- Preserve rejection details and correction suggestions before truncation so users can fix calls without guessing execution state [d45999ed].
+- Restore natural conversation growth and remove forced instruction pinning because sends must not clear the reading viewport [7eb2582b].
+- Traced24-second startup to eager history staging:32 inline artifacts plus23 streamed resources;user selected reference-first, on-demand reads.
+- Start turns with immutable file references and acquire only selected resources to remove history-size-dependent startup copying [14eb1cc4].
+- Add bounded reference previews and remove redundant lifecycle footer to avoid path transcription and unnecessary execution-window clutter [bec075c3].
+- Same-tab9aa184: firstLLM1.273s,total2.800s,54refs/zeroinline/zerotools;selected-read2d33089 opens one source;no gateway business replay or CI.
+- Surface indexed failed subquery diagnostics while preserving request identifiers; focused tests pass, runtime rebuild pending [2e40b605].
+- Show saved-version timestamps beside product names; type check and existing-browser visual check passed [1425e245].
+- Gateway publication 21:46:14 verified; local rebuild ready, live nested diagnostics checked, scoped cache maintenance completed; no business replay.

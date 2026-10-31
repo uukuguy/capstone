@@ -14,6 +14,13 @@ before truncation; explicit response intent is separate from answer text and
 thinking. The owning [invocation design](../superpowers/specs/2026-10-31-deterministic-tool-invocation-design.md)
 keeps business names and availability rules in the connected gateway contract.
 
+Continuing instructions carry immutable historical file references instead of
+copying every prior product into a new sandbox. A task-local host port admits
+only frozen resource identities. An explicit reference read uses the existing
+chunked transport and verifies ownership, version and digest before exposing
+bounded text or a protected read-only input. Historical files never become
+current Authority evidence merely by being referenced.
+
 The shared workspace keeps one conversation and composer. An instruction owns
 its goal and resources; a session does not impose a permanent business goal.
 Explicit targets win, related follow-ups can inherit, and unrelated requests
