@@ -339,7 +339,12 @@ class DelegatedRuntime:
         self._active_task = task_id
         try:
             manifests = resources.get('native_context', {}).get('resource_manifests', ())
-            if manifests:
+            lazy = getattr(self._executor, 'execute_with_resource_references', None)
+            if manifests and callable(lazy):
+                if self._claim.resource_reader is None:
+                    raise HarnessRuntimeConfigurationError('resource acquisition transport is unavailable')
+                result = lazy(request, control, native, self._claim.resource_reader, self._research_bridge)
+            elif manifests:
                 stage = getattr(self._executor, 'stage_resources', None)
                 if not callable(stage) or self._claim.resource_reader is None:
                     raise HarnessRuntimeConfigurationError('resource acquisition transport is unavailable')
@@ -348,7 +353,9 @@ class DelegatedRuntime:
                     stage_events(task_id, manifests, self._claim.resource_reader, control, native)
                 else:
                     stage(task_id, manifests, self._claim.resource_reader, control)
-            if self._research_bridge is None:
+            if manifests and callable(lazy):
+                pass  # The ordinary task started with references; reads occur on demand.
+            elif self._research_bridge is None:
                 result = self._executor.execute(request, control, native)
             else:
                 execute = getattr(self._executor, 'execute_with_research', None)

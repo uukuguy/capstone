@@ -769,7 +769,10 @@ class HttpGeneralPiExecutor:
     def execute_with_research(self, request, control, on_event, bridge):
         return self._execute(request, control, on_event, bridge)
 
-    def _execute(self, request, control, on_event, bridge):
+    def execute_with_resource_references(self, request, control, on_event, reader, bridge=None):
+        return self._execute(request, control, on_event, bridge, resource_reader=reader)
+
+    def _execute(self, request, control, on_event, bridge, *, resource_reader=None):
         if (request.research_binding is None) != (bridge is None):
             raise ValueError('research task requires its bound controller')
         if request.executor_identity != self.identity:
@@ -874,8 +877,19 @@ class HttpGeneralPiExecutor:
                                       timeout=self._exchange_timeout)
                 checkpoint()
                 paged = 'event_cursor' in response
+                requested_resources = response.pop('resource_requests', [])
                 if set(response) != ({"status", "events", "result", "event_cursor"} if paged else {"status", "events", "result"}) or not isinstance(response["events"], list):
                     raise ValueError("Pi task status fields are invalid")
+                if not isinstance(requested_resources,list):
+                    raise ValueError('resource request list is invalid')
+                if requested_resources:
+                    if resource_reader is None:
+                        raise ValueError('resource reader is unavailable')
+                    admitted={item['resource_id']:_json_document(item) for item in
+                              (request.native_context or {}).get('resource_manifests', ())}
+                    if (len(requested_resources)>len(admitted) or any(not isinstance(item,dict)
+                            or admitted.get(item.get('resource_id'))!=item for item in requested_resources)):
+                        raise ValueError('requested resource is outside the frozen task grant')
                 if len(response["events"]) > limits.event_buffer_count:
                     raise ValueError("Pi events exceed bounds")
                 cursor = event_cursor
@@ -908,6 +922,15 @@ class HttpGeneralPiExecutor:
                 if paged:
                     event_cursor = cursor
                     seen_events.clear()
+                for resource in requested_resources:
+                    try:
+                        self.stage_resources(request.task_id, [resource], resource_reader, control, on_event=on_event)
+                    except (OSError,ValueError) as error:
+                        from .application_capacity import CapacityExceeded
+                        if isinstance(error,(PiHTTPFailure,CapacityExceeded,InterruptedError,TimeoutError)):raise
+                        exchange('POST','/inputs',operation='resource_unavailable',document={
+                            'task_id':request.task_id,'resource':resource,'operation':'unavailable'},
+                            timeout=self._exchange_timeout,research_transport=True)
                 status = response["status"]
                 if not isinstance(status, str):
                     raise ValueError("Pi task status is invalid")

@@ -277,6 +277,8 @@ class GeneralPiHost:
                 published.update(ALL_ENTERPRISE_RESEARCH_TOOLS)
             if native['selected_task_records']:
                 published.add('agent_task_records_read')
+            if native.get('resource_manifests'):
+                published.add('agent_resource_open')
             from .native_diagnosis import DIAGNOSIS_POLICY, DIAGNOSIS_TOOLS
             if native.get('systematic_diagnosis') == DIAGNOSIS_POLICY:
                 published.update(DIAGNOSIS_TOOLS)
@@ -975,6 +977,10 @@ class GeneralPiHost:
                 item['events'] = [event for event in item['events']
                                   if int(event['event_id'].removeprefix('event-')) > after]
             document = {key: item[key] for key in ('status', 'events', 'result')}
+            references=getattr(self._run,'task_resource_references',{}).get(task_id)
+            if references is not None:
+                requested=references.pending()
+                if requested:document['resource_requests']=requested
             if after is not None:
                 document['event_cursor'] = item.get('event_sequence', 0)
             return json.loads(json.dumps(document))
@@ -1003,6 +1009,7 @@ class NativeTaskRunner:
         self.llm_profiles = llm_profiles
         self.experimental_llm_pool = experimental_llm_pool is True
         self.task_llm_profiles = {}
+        self.task_resource_references = {}
         self.task_gateways = {}
         from .native_environment import environment_context
         self.environment_context = environment_context()
@@ -1208,11 +1215,18 @@ class NativeTaskRunner:
                     *(f"resource:{item['resource_id']}:{item['version']}:{item['sha256']}"
                       for item in native.get('resource_manifests', [])),
                 })
-                origins = {item['resource_id']: item for item in native.get('resource_origins', [])}
-                sdk_config['selectedResourceFiles'] = [{**resource,
-                    'source_path':str(self._resource_staging.source(request.task_id, resource)),
-                    **({'source_artifact': origins[resource['resource_id']]} if resource['resource_id'] in origins else {})}
-                    for resource in native.get('resource_manifests', [])]
+                references=native.get('resource_manifests', [])
+                if references:
+                    from .native_resource_references import NativeResourceReferences
+                    port=NativeResourceReferences(self.root/'tasks'/'.resource-references'/request.task_id,
+                        inputs,request.task_id,references,self._resource_staging,uid,uid)
+                    self.task_resource_references[request.task_id]=port
+                    sdk_config.update(resourceReferences=references,resourceOrigins=native.get('resource_origins',[]),resourceReferencePath=str(port.root),resourceInputRoot=str(inputs))
+                    sdk_config.setdefault('contextFiles',[]).append({'path':'resource-reference-catalog',
+                        'content':'Authorized immutable resource references. No source bytes were read or staged. '
+                        'Use agent_resource_open with an exact resource_id only when needed for the current instruction. '
+                        'The returned path contains the original bytes, not reconstructed history. '
+                        'References are historical sources, not current Authority evidence. '+json.dumps(references,ensure_ascii=False)})
                 if native.get('material_notices'):
                     sdk_config.setdefault('contextFiles', []).append({'path': 'session-material-status',
                         'content': 'These user-supplied file names were not staged; do not claim to have read them: '
@@ -1344,6 +1358,8 @@ class NativeTaskRunner:
                 with self._lock:
                     self.relay.revoke(request.task_id)
                     self.task_llm_profiles.pop(request.task_id, None)
+                    port=self.task_resource_references.pop(request.task_id,None)
+                    if port is not None:shutil.rmtree(port.root,ignore_errors=True)
                 gateway = self.task_gateways.pop(request.task_id, None)
                 if gateway:
                     gateway.revoke(request.task_id)
@@ -1837,12 +1853,12 @@ def main():
                 'executor_revision': sha256(b''.join((Path(__file__).parent / name).read_bytes()
                     for name in ('general_pi_server.py', 'general_pi_executor.py', 'general_pi_storage.py', 'general_pi_relay.py', 'native_network_policy.py', 'bounded_http_loop.py', 'pi_delegation.py', 'business_context.py', 'request_intent.py', 'native_task_context.py', 'workbench_llm_profiles.py', 'native_failure_origin.py', 'native_diagnosis.py', 'native_tool_composition.py', 'native_llm_pool.py', 'native_model_request_pool.py', 'incremental_artifacts.py',
                                  'native_resources.py', 'runtime_resources.py', 'resource_installation.py', 'general_pi_resource_seed.py', 'bounded_mcp.py', 'native_environment.py', 'data_gateway_mcp.py', 'data_gateway_relay.py', 'data_gateway_views.py', 'gateway_connections.py', 'gateway_connections_runtime.py', 'gateway_diagnostics.py', 'grid_source_topology.py', 'grid_electrical_view.py', 'resources/gateway-electrical-view-v1.schema.json', 'resources/gateway-electrical-view-v2.schema.json', 'resources/general-data-gateway.mjs',
-                                 'progress.py', 'native_tool_diagnostics.py', 'stream_progress.py', 'resource_manifest.py', 'native_resource_staging.py',
+                                 'progress.py', 'native_tool_diagnostics.py', 'stream_progress.py', 'resource_manifest.py', 'native_resource_staging.py', 'native_resource_references.py',
                                  'native_research_bridge.py', 'native_graph_context.py', 'native_graph_events.py',
                                  'native_product_roles.py', 'continuation_resources.py', 'resources/general-research.mjs', 'resources/research-guidance.mjs',
                                  'application_capacity.py', 'resources/application-capacity.json', 'resources/runtime-limits.mjs',
                                  'resources/research-tools.mjs', 'resources/execution-guidance.mjs', 'resources/model-request-capture.mjs',
-                                 'resources/general-context.mjs', 'resources/general-sdk.mjs', 'resources/general-tool-discovery.mjs', 'resources/tool-result-context.mjs', 'resources/committed-delivery.mjs', 'resources/systematic-diagnosis.mjs', 'resources/general-mcp.mjs', 'resources/task-record-tools.mjs',
+                                 'resources/general-context.mjs', 'resources/general-sdk.mjs', 'resources/general-tool-discovery.mjs', 'resources/tool-result-context.mjs', 'resources/committed-delivery.mjs', 'resources/systematic-diagnosis.mjs', 'resources/general-mcp.mjs', 'resources/task-record-tools.mjs', 'resources/resource-reference-tools.mjs',
                                  'resources/tool-composition.mjs', 'resources/tool-composition-worker.mjs', 'resources/observed-action.mjs', 'resources/tool-identity.mjs', 'resources/tool-composition-policy.json', 'resources/semantic-data-context.mjs', 'resources/gateway-tool-use.mjs',
                                  'resources/async-call-pool.mjs', 'resources/llm-call-tools.mjs', 'resources/llm-call-pool-policy.json',
                                  'resources/model-request-pool.mjs', 'resources/model-request-pool-policy.json',

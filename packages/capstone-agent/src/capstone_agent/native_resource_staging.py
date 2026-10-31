@@ -14,6 +14,9 @@ from .application_capacity import limits
 
 CHUNK_BYTES = 4 * 1024**2
 
+class ResourceUnavailable(ValueError):
+    pass
+
 
 class NativeResourceStaging:
     def __init__(self, root: Path, *, max_file_bytes=None,
@@ -75,6 +78,9 @@ class NativeResourceStaging:
             ready = directory / 'ready'
             received = list(range(count)) if ready.exists() else sorted(int(p.stem) for p in directory.glob('*.part'))
             operation = value['operation']
+            if operation == 'unavailable':
+                (directory/'unavailable').write_text('resource_unavailable')
+                return {'resource_id':resource['resource_id'],'available':False}
             if operation == 'status':
                 return {'resource_id': resource['resource_id'], 'chunk_bytes': limits.upload_chunk_bytes, 'received_parts': received}
             if operation == 'part':
@@ -124,6 +130,8 @@ class NativeResourceStaging:
         resource = checked_resource(value)
         directory = self._directory(task_id, resource)
         with self.lock:
+            if (directory/'unavailable').is_file():
+                raise ResourceUnavailable('resource is unavailable')
             if (not (directory / 'ready').is_file()
                     or json.loads((directory / 'manifest.json').read_text()) != resource
                     or (directory / 'content').stat().st_size != resource['size_bytes']):

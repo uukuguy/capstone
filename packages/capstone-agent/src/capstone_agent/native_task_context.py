@@ -358,6 +358,8 @@ def native_context_for(claim, binding):
         tools.add('agent_task_records_read')
     from .continuation_resources import artifact_origin
     origins = [artifact_origin(public_document(item)) for item in submission.get('_continuation_artifacts', [])]
+    if submission.get('_resource_manifests'):
+        tools.add('agent_resource_open')
     work = {}
     if entry and entry.work_edition:
         if not isinstance(getattr(claim, 'started_at', None), str):

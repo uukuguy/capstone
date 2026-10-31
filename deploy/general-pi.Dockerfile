@@ -76,7 +76,7 @@ COPY packages/capstone-agent/src/capstone_agent/grid_source_topology.py capstone
 COPY packages/capstone-agent/src/capstone_agent/grid_electrical_view.py capstone_agent/grid_electrical_view.py
 COPY packages/capstone-agent/src/capstone_agent/resources/gateway-electrical-view-v1.schema.json capstone_agent/resources/gateway-electrical-view-v1.schema.json
 COPY packages/capstone-agent/src/capstone_agent/resources/gateway-electrical-view-v2.schema.json capstone_agent/resources/gateway-electrical-view-v2.schema.json
-COPY packages/capstone-agent/src/capstone_agent/resources/general-data-gateway.mjs capstone_agent/resources/general-data-gateway.mjs
+COPY packages/capstone-agent/src/capstone_agent/resources/general-data-gateway.mjs packages/capstone-agent/src/capstone_agent/resources/resource-reference-tools.mjs capstone_agent/resources/
 COPY packages/capstone-agent/src/capstone_agent/resources/tool-result-context.mjs capstone_agent/resources/tool-result-context.mjs
 COPY packages/capstone-agent/src/capstone_agent/incremental_artifacts.py \
      packages/capstone-agent/src/capstone_agent/native_llm_pool.py \
@@ -104,7 +104,7 @@ COPY packages/capstone-agent/src/capstone_agent/progress.py \
      packages/capstone-agent/src/capstone_agent/stream_progress.py \
      packages/capstone-agent/src/capstone_agent/resource_manifest.py \
      packages/capstone-agent/src/capstone_agent/continuation_resources.py capstone_agent/
-COPY packages/capstone-agent/src/capstone_agent/native_resource_staging.py capstone_agent/native_resource_staging.py
+COPY packages/capstone-agent/src/capstone_agent/native_resource_staging.py packages/capstone-agent/src/capstone_agent/native_resource_references.py capstone_agent/
 COPY packages/capstone-agent/src/capstone_agent/native_document_types.py capstone_agent/native_document_types.py
 COPY packages/capstone-agent/src/capstone_agent/native_product_roles.py capstone_agent/native_product_roles.py
 COPY packages/capstone-agent/src/capstone_agent/native_research_bridge.py capstone_agent/native_research_bridge.py

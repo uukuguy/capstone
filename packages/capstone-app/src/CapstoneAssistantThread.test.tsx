@@ -7,6 +7,11 @@ import directExecutionLifecycle from './fixtures/directExecutionLifecycle.json'
 import {parseEventEnvelope} from './threadProtocol'
 
 afterEach(() => { cleanup(); localStorage.clear(); sessionStorage.clear() })
+it('labels work before the first model request as preparation rather than thinking',()=>{
+ const events=[event('command_accepted',1,{kind:'send_auto',payload:{text:'今天的国际要闻'}},'preparing'),event('attempt_started',2,{},'preparing')]
+ render(<CapstoneAssistantThread events={events} disabled={false} isRunning activity={[]} onSend={async()=>{}} onCancel={async()=>{}}/>)
+ expect(document.querySelector('.capstone-chat-activity-attached > summary')?.textContent).toContain('准备执行')
+})
 it.each([false,true])('recovers a blank padding viewport after layout restore without moving visible content (visible=%s)',visible=>{
  const viewport=document.createElement('div'),message=document.createElement('article')
  message.dataset.messageId='last';viewport.append(message)

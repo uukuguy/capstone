@@ -231,32 +231,10 @@ def freeze_material_submission(service, snapshot, payload, submission, *, connec
         return submission, 'material_unavailable'
     notices, deferred = [], []
     if not payload.get('context_product_refs'):
-        from .native_artifact_projection import read_native_artifact
         for source in _process_files(service, snapshot, work_id, payload.get('source_attempt_id'), connection):
-            # Choose the transport before admission. A resource reference does
-            # not consume inline bytes; large continuation files are expected.
-            if (payload.get('material_refs') == [] or len(frozen) >= limits.inline_material_count
-                    or sum(item['size_bytes'] for item in frozen) + source['size_bytes'] > limits.inline_material_bytes
-                    or PurePosixPath(source['file_name']).suffix.lower() not in TYPES):
-                if source['size_bytes'] > 0:
-                    deferred.append(source)
-                continue
-            try:
-                try:
-                    descriptor, data = read_native_artifact(service, service._native_executor, snapshot.thread_id,
-                                                           source['attempt_id'], source['artifact_id'])
-                except Exception:
-                    data = _adopted_file_bytes(service, snapshot, source, connection)
-                    descriptor = source
-                data.decode('utf-8')
-            except Exception:
-                notices.append(source['file_name'] + ': not staged; original file is unavailable')
-                continue
-            frozen.append({'schema': 'capstone-thread-material/1', 'thread_id': snapshot.thread_id,
-                'material_id': 'material_' + sha256(source['artifact_id'].encode()).hexdigest()[:32],
-                'file_name': source['file_name'], 'display_name': source['file_name'],
-                'sha256': source['sha256'], 'size_bytes': len(data), 'media_type': source['media_type'],
-                'source_artifact': descriptor, 'content_base64': base64.b64encode(data).decode('ascii')})
+            # History supplies exact immutable references, never implicit file bodies.
+            if source['size_bytes'] > 0:
+                deferred.append(source)
     from .thread_resources import ResourceUploads
     from .resource_manifest import checked_resource
     states = ResourceUploads(service, service._material_objects).resource_states(snapshot.thread_id, connection)
