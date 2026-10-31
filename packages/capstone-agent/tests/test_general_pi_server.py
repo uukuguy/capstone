@@ -219,6 +219,9 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     assert catalog['entry_tools'] == ['data_gateway_discover_network_models']
     guidance = next(item['content'] for item in captured[0]['contextFiles'] if item['path'] == 'registered-data-gateway-guidance')
     assert 'SERVICE_GUIDANCE_SENTINEL' in guidance
+    assert 'only after selecting this service as relevant' in guidance
+    assert 'do not determine which service to select' in guidance
+    assert 'Do not query this service merely because another capability is unavailable' in gateway_context
     assert 'data_gateway_' in guidance
     assert {'agent_tool_search', 'agent_tool_load'} <= set(captured[0]['applicationPolicy']['allowed_tools'])
     assert set(catalog['tools']) == {'data_gateway_discover_network_models'}

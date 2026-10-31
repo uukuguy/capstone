@@ -68,6 +68,17 @@ test('admitted initial tools are callable immediately and survive replacement',a
   assert.match(hooks.get('before_agent_start')({}).systemPrompt,/already active/);
 });
 
+test('available entries do not impose a service-first workflow on the current instruction',()=>{
+  const {controller:c}=fixture({initialNames:['source_0']});const hooks=new Map();
+  c.configure({on:(name,fn)=>hooks.set(name,fn)});
+  const prompt=hooks.get('before_agent_start')({systemPrompt:'CURRENT_INSTRUCTION_CONTEXT'}).systemPrompt;
+  assert.ok(prompt.startsWith('CURRENT_INSTRUCTION_CONTEXT'));
+  assert.match(prompt,/Choose tools and skills for the current instruction/);
+  assert.match(prompt,/Availability does not require a call/);
+  assert.match(prompt,/Only after selecting this service as relevant/);
+  assert.doesNotMatch(prompt,/Follow their registered initialization first/);
+});
+
 test('initial tool contracts share activation capacity with dynamic selections',async()=>{
   assert.throws(()=>fixture({initialNames:['source_0','source_1'],maxActiveTools:1}),/capacity/);
   assert.throws(()=>fixture({initialNames:['source_0'],maxActiveSchemaChars:100}),/capacity/);

@@ -174,6 +174,12 @@ counts, prices, limits, versions, or deployment state here.
   and analysis with the model; do not encode business tool or provider names.
   Agreed gateway entry names and their protocol adaptation belong only in the
   data-gateway MCP adapter. Test deterministic guarantees at that boundary.
+- Capability availability must not impose a fixed first action. The model selects
+  relevant tools and skills from the current instruction, accepted context,
+  descriptions and grants. Apply a service's initialization sequence only after
+  selecting that service as relevant. Previous use of a service does not make it
+  relevant to a new instruction. Do not add keyword-based topic routing to enforce
+  this selection.
 - Enterprise application work follows the accepted
   [design baseline](docs/superpowers/specs/2026-10-15-enterprise-design-final.md),
   [UI contract](docs/superpowers/specs/2026-10-15-enterprise-task-ui-design.md),

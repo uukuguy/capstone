@@ -16,7 +16,8 @@ export function gatewayToolGroup(publication){
 // Compatibility projection: names do not imply an access class.
 export function gatewayToolAccess(){return 'published_operation';}
 export const gatewayToolUseGuidance=[
- 'Read the current discovery response and follow its provider, selection, preference and fallback rules. Reuse known exact contracts without repeating discovery. Do not infer policy from tool, provider or toolset names.',
+ 'The following service rules apply only when this service is relevant to the current instruction.',
+ 'When the current instruction requires this service, read its current discovery response and follow its provider, selection, preference and fallback rules. Reuse known exact contracts without repeating discovery. Do not infer policy from tool, provider or toolset names.',
  'Compose ordinary synchronous operations from exact published contracts. Pass observed results to dependent calls; batch independent calls only with validated arguments. Follow returned guidance and preserve actual observation references.',
  'Before batching a new call shape, validate one bounded call and its returned status. Correct invalid arguments before retrying. Stop a batch on a shared contract error. If no supported correction is available, retain the gap and continue other useful work.',
  'Discovery guidance is not authorization. Use only task-granted tools within current bounds. Do not invent tool defects or infer that other providers or operations are unavailable from one failed call.',

@@ -105,8 +105,9 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
         return changed?{messages}:undefined;
       });
       pi.on('before_agent_start',event=>({systemPrompt:(event.systemPrompt??'')+
-        (initial.length?'\nRegistered entry tools are already active: '+JSON.stringify(initial)+'. Follow their registered initialization first; read their current discovery and exact contracts before selecting business operations. ':'\n')+
-        'Use agent_tool_search for on-demand task-granted tool summaries and agent_tool_load for exact selected contracts; newly loaded tools become callable on the next model turn. Registered entry tools remain available across loads. '+gatewayToolUseGuidance}));
+        '\nChoose tools and skills for the current instruction from its context, published descriptions and task grants. '+
+        (initial.length?'Registered entry tools are already active: '+JSON.stringify(initial)+'. Availability does not require a call. Only after selecting this service as relevant, follow its initialization and discovery contract before its business operations. ':'')+
+        'For on-demand tools of a capability you selected, use agent_tool_search for task-granted summaries and agent_tool_load for exact contracts; newly loaded tools become callable on the next model turn. Registered entry tools remain available across loads. '+gatewayToolUseGuidance}));
       pi.on('turn_end',()=>{
         if(closed||!pending)return;
         active=new Set(pending);pending=undefined;
