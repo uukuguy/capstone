@@ -326,6 +326,21 @@ def dynamic_gateway(tmp_path):
     return DataGatewayMcp(legacy.connection_path, DYNAMIC_POLICY, connect=legacy.connect), session
 
 
+def test_only_admitted_gateway_entries_are_initial_tools(tmp_path):
+    client, session = dynamic_gateway(tmp_path)
+    for name in ('discover_gateway', 'describe_gateway_contract', 'discover_business_services'):
+        tool = Tool(name)
+        tool.value['annotations'] = dict(SAFE_EFFECTS)
+        session.tools.append(tool)
+    catalog = asyncio.run(client.prepare())
+    assert catalog['entry_tools'] == ['data_gateway_discover_gateway', 'data_gateway_describe_gateway_contract']
+    assert 'data_gateway_previously_unknown_action' not in catalog['entry_tools']
+    assert 'data_gateway_discover_business_services' not in catalog['entry_tools']
+    session.tools[-2].value['annotations']['destructiveHint'] = True
+    catalog = asyncio.run(client.prepare())
+    assert catalog['entry_tools'] == ['data_gateway_discover_gateway']
+
+
 def test_dynamic_trusted_service_admits_new_read_and_closed_non_destructive_tools(tmp_path):
     client, session = dynamic_gateway(tmp_path)
     catalog = asyncio.run(client.prepare())

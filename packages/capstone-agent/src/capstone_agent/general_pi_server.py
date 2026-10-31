@@ -1137,6 +1137,7 @@ class NativeTaskRunner:
                     # This is a menu projection, not a new accepted catalog.
                     # Receipts retain the full host catalog revision and exact tool hashes.
                     task_catalog = {**task_catalog,
+                        'entry_tools': [name for name in task_catalog.get('entry_tools', ()) if name in admitted_gateway],
                         'tools': {name: task_catalog['tools'][name] for name in sorted(admitted_gateway)},
                         'tool_hashes': {name: task_catalog['tool_hashes'][name] for name in sorted(admitted_gateway)}}
                     sdk_config['dataGateway'] = {'url': self.relay_origin + '/data-gateway/' + request.task_id,

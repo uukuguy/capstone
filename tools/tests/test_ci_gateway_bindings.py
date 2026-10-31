@@ -65,6 +65,46 @@ def test_docker_addition_needs_exact_diff_validation():
     assert classify(paths, gateway_bindings_deployment=True) == 'gateway-bindings'
 
 
+def test_startup_binding_is_the_only_allowed_sdk_diff():
+    from tools.ci_scope import gateway_bindings_startup_document
+    anchor = '  return createToolDiscovery({tools:createDataGatewayTools(config),publications:config.dataGateway.catalog.tools,\n'
+    addition = '    initialNames:config.dataGateway.catalog.entry_tools??[],\n'
+    old = 'export function createGatewayToolDiscovery(config) {\n' + anchor + '    admittedNames});\n}\n'
+    new = old.replace(anchor, anchor + addition)
+    assert gateway_bindings_startup_document(old, new)
+    assert not gateway_bindings_startup_document(old, new + addition)
+    assert not gateway_bindings_startup_document(old, new.replace('admittedNames', 'ungrantedNames'))
+    assert not gateway_bindings_startup_document(old, addition + old)
+    assert not gateway_bindings_startup_document(new, old)
+    assert not gateway_bindings_startup_document(new, new)
+
+
+def test_sdk_startup_scope_requires_separate_proof_and_preserves_release():
+    paths = [*CHANGES, SOURCE + 'resources/general-sdk.mjs']
+    assert classify(paths) != 'gateway-bindings'
+    assert classify(paths, gateway_bindings_startup=True) == 'gateway-bindings'
+    assert classify(paths, gateway_bindings_startup=True, target='main') == 'release'
+    assert classify(paths, gateway_bindings_startup=True, release=True) == 'release'
+    assert classify([*paths, 'deploy/general-pi.Dockerfile'], gateway_bindings_startup=True) != 'gateway-bindings'
+
+
+def test_sdk_startup_proof_uses_both_git_revisions(monkeypatch):
+    from tools.ci_scope import gateway_bindings_startup_diff
+    anchor = '  return createToolDiscovery({tools:createDataGatewayTools(config),publications:config.dataGateway.catalog.tools,\n'
+    old = 'export function createGatewayToolDiscovery(config) {\n' + anchor + '    admittedNames});\n}\n'
+    new = old.replace(anchor, anchor + '    initialNames:config.dataGateway.catalog.entry_tools??[],\n')
+    calls = []
+    def show(command, **kwargs):
+        calls.append(command)
+        return old if command[-1].startswith('base:') else new
+    monkeypatch.setattr('tools.ci_scope.subprocess.check_output', show)
+    path = SOURCE + 'resources/general-sdk.mjs'
+    assert gateway_bindings_startup_diff([path], 'base', 'head')
+    assert [call[-1] for call in calls] == ['base:' + path, 'head:' + path]
+    new += 'unrelated();\n'
+    assert not gateway_bindings_startup_diff([path], 'base', 'head')
+
+
 def test_gateway_bindings_workflow_has_bounded_consumers_and_no_app_suite():
     workflow = (ROOT / '.github/workflows/verify.yml').read_text()
     assert 'gateway-bindings|' in workflow

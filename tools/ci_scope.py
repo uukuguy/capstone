@@ -491,9 +491,34 @@ def gateway_bindings_deployment_diff(paths: list[str], base: str, head: str) -> 
         return False
 
 
-def gateway_bindings_paths(paths: list[str], *, deployment: bool = False) -> bool:
+def gateway_bindings_startup_document(old: str, new: str) -> bool:
+    """Admit only the catalog entry binding at the existing discovery call."""
+    anchor = ('  return createToolDiscovery({tools:createDataGatewayTools(config),'
+              'publications:config.dataGateway.catalog.tools,\n')
+    addition = '    initialNames:config.dataGateway.catalog.entry_tools??[],\n'
+    return (old.count(anchor) == new.count(anchor) == 1
+            and old.count(addition) == 0 and new.count(addition) == 1
+            and anchor + addition in new
+            and old == new.replace(addition, '', 1))
+
+
+def gateway_bindings_startup_diff(paths: list[str], base: str, head: str) -> bool:
+    path = 'packages/capstone-agent/src/capstone_agent/resources/general-sdk.mjs'
+    if path not in paths:
+        return False
+    try:
+        old, new = [subprocess.check_output(['git', 'show', f'{revision}:{path}'], text=True)
+                    for revision in (base, head)]
+        return gateway_bindings_startup_document(old, new)
+    except (subprocess.CalledProcessError, OSError):
+        return False
+
+
+def gateway_bindings_paths(paths: list[str], *, deployment: bool = False, startup: bool = False) -> bool:
     source = 'packages/capstone-agent/src/capstone_agent/'
     resources = {source + 'resources/' + name + '.mjs' for name in GATEWAY_BINDING_RESOURCES}
+    if startup:
+        resources.add(source + 'resources/general-sdk.mjs')
     anchors = {source + 'data_gateway_views.py'} | {
         source + 'resources/' + name + '.mjs' for name in (
             'gateway-tool-use', 'general-tool-discovery', 'tool-composition')}
@@ -517,14 +542,15 @@ def gateway_bindings_paths(paths: list[str], *, deployment: bool = False) -> boo
 
 def classify(paths: list[str], *, target: str = 'dev', release: bool = False,
              runtime_dependencies: bool = False, source_topology: bool = False,
-             gateway_deployment: bool = False, gateway_bindings_deployment: bool = False) -> str:
+             gateway_deployment: bool = False, gateway_bindings_deployment: bool = False,
+             gateway_bindings_startup: bool = False) -> str:
     if target == 'main' or release:
         return 'release'
     if not paths or any('..' in PurePosixPath(path).parts for path in paths):
         return 'product'
     if any(_app_path(path) for path in paths) and all(_app_path(path) or _control_path(path) for path in paths):
         return 'app'
-    if gateway_bindings_paths(paths, deployment=gateway_bindings_deployment):
+    if gateway_bindings_paths(paths, deployment=gateway_bindings_deployment, startup=gateway_bindings_startup):
         return 'gateway-bindings'
     if gateway_controls_paths(paths, deployment=gateway_deployment):
         return 'gateway-controls'
@@ -552,6 +578,7 @@ def main() -> None:
         print("Changed Markdown file links passed")
     else:
         print(classify(paths, target=args.target, release=args.release,
+                       gateway_bindings_startup=gateway_bindings_startup_diff(paths, args.base, args.head),
                        gateway_bindings_deployment=gateway_bindings_deployment_diff(paths, args.base, args.head),
                        gateway_deployment=gateway_deployment_diff(paths, args.base, args.head),
                        runtime_dependencies=runtime_dependency_diff(paths, args.base, args.head),
