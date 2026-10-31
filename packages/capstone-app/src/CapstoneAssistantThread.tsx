@@ -2,7 +2,7 @@ import ResearchProgressSummary from './ResearchProgressSummary'
 import {applicationCapacity,observeCapacity} from './applicationCapacity'
 import {capacityFailureNotice} from './capacityFailure'
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode,type RefObject } from 'react'
-import {useSessionViewState,useSessionViewRef,useHasSavedSessionPosition} from './workspaceSessionCache'
+import {useSessionViewState,useHasSavedSessionPosition} from './workspaceSessionCache'
 import { createPortal } from 'react-dom'
 import ProductReferenceChips,{type ProductReferenceReader} from './ProductReferenceChips'
 import {productRefKey,parseContextProductRefs,type ContextProductRef} from './threadProducts'
@@ -1302,8 +1302,6 @@ export default function CapstoneAssistantThread({ nativeArtifactProjections, pro
   const savedPosition=useHasSavedSessionPosition('conversation')
   const [restoringSessionPosition,setRestoringSessionPosition]=useState(savedPosition)
   useLayoutEffect(()=>{if(savedPosition)setRestoringSessionPosition(true)},[savedPosition])
-  const alignedInstruction=useSessionViewRef<string|undefined>('conversation.aligned-instruction',undefined)
-  const latestInstructionId = allMessages.filter(message => message.role === 'user').at(-1)?.id
   const terminals=events.filter(event=>event.visibility==='public'&&['attempt_completed','attempt_failed','attempt_cancelled','attempt_interrupted'].includes(event.eventType))
   const terminalCursor=useRef({key:storageKey,seq:Math.max(0,...terminals.map(event=>event.eventSeq))})
   const [finishedAttempt,setFinishedAttempt]=useState<{id:string;sequence:number}>()
@@ -1324,41 +1322,6 @@ export default function CapstoneAssistantThread({ nativeArtifactProjections, pro
       viewport.scrollTop=Math.max(0,Math.min(target,Math.max(0,viewport.scrollHeight-viewport.clientHeight)))
     })
   },[events,storageKey])
-  useLayoutEffect(() => {
-    if ((!isRunning&&!submittingThinking)||alignedInstruction.current===latestInstructionId) return
-    const viewport = viewportRef.current
-    if (!viewport) return
-    let aligned = false
-    let reserved = false
-    let frame = 0
-    const align = () => {
-      if (aligned) return
-      const instruction = Array.from(viewport.querySelectorAll<HTMLElement>('.is-user[data-message-id]'))
-        .find(node => node.dataset.messageId === latestInstructionId)
-      if (!instruction || viewport.clientHeight === 0) return
-      const view = viewport.getBoundingClientRect()
-      const question = instruction.getBoundingClientRect()
-      const desired = Math.max(0, viewport.scrollTop + question.top - view.top - 8)
-      const missing = desired - Math.max(0, viewport.scrollHeight - viewport.clientHeight)
-      if (missing > 1 && !reserved) {
-        reserved = true
-        setReadingTailSpace(space => space + missing)
-        schedule()
-        return
-      }
-      const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-      if (typeof viewport.scrollTo === 'function' && !reducedMotion) viewport.scrollTo({ top: desired, behavior: 'instant' })
-      else viewport.scrollTop = desired
-      aligned = true
-      alignedInstruction.current=latestInstructionId
-      observer.disconnect()
-    }
-    const schedule = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(align) }
-    const observer = new MutationObserver(schedule)
-    observer.observe(viewport, { childList: true, subtree: true })
-    schedule()
-    return () => { observer.disconnect(); cancelAnimationFrame(frame) }
-  }, [isRunning, Boolean(submittingThinking), latestInstructionId])
   const [readingLayoutChanging, setReadingLayoutChanging] = useState(false)
   const [readingTailSpace, setReadingTailSpace] = useSessionViewState('conversation.tail-space',0)
   // Saved padding must never create an entire empty viewport after a resize.
@@ -1666,6 +1629,8 @@ export default function CapstoneAssistantThread({ nativeArtifactProjections, pro
     onNew: async (message) => {
       const text = messageText(message)
       if (text.trim()) {
+        setRestoringSessionPosition(false)
+        setReadingTailSpace(0)
         const submissionId=`assistant-submitting-${++submitSequence.current}`
         setSubmittingThinking({id:submissionId,text:text.trim(),afterSeq:Math.max(0,...events.map(event=>event.eventSeq)),at:new Date().toISOString()})
         try {
@@ -1729,7 +1694,7 @@ export default function CapstoneAssistantThread({ nativeArtifactProjections, pro
           {messages.length === 0 && (emptyState ?? <EmptyThreadState disabled={disabled} />)}
           <ThreadPrimitive.Messages components={{ Message: ThreadChatMessage }} />
           {readingTailSpace > 0 && <div aria-hidden="true" style={{ height: readingTailSpace, flexShrink: 0 }} />}
-        </div> : <ThreadPrimitive.Viewport ref={viewportRef} data-reading-key="conversation" className="capstone-chat-viewport" autoScroll={false} scrollToBottomOnInitialize={false} scrollToBottomOnRunStart={false} onWheel={cancelLatestScrollIntent} onTouchStart={cancelLatestScrollIntent} onKeyDown={cancelLatestScrollIntentForKey}>
+        </div> : <ThreadPrimitive.Viewport ref={viewportRef} data-reading-key="conversation" className="capstone-chat-viewport" autoScroll={!restoringSessionPosition&&!readingLayoutChanging&&!locatingInstruction} scrollToBottomOnInitialize={false} scrollToBottomOnRunStart={false} onWheel={cancelLatestScrollIntent} onTouchStart={cancelLatestScrollIntent} onKeyDown={cancelLatestScrollIntentForKey}>
           {messages.length === 0 && (emptyState ?? <EmptyThreadState disabled={disabled} />)}
           <ThreadPrimitive.Messages components={{ Message: ThreadChatMessage }} />
           {readingTailSpace > 0 && <div aria-hidden="true" style={{ height: readingTailSpace, flexShrink: 0 }} />}

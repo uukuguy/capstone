@@ -643,7 +643,7 @@ describe('CapstoneAssistantThread', () => {
     expect(screen.getByRole('button', { name: '折叠步骤：生成回复' }).getAttribute('aria-expanded')).toBe('true')
     expect(expand.disabled).toBe(true)
   })
-  it('positions a new running instruction near the top even when it was already visible', async () => {
+  it('lets a visible running instruction move naturally without forcing top alignment or reserving space', async () => {
     const scroll = vi.spyOn(HTMLElement.prototype, 'scrollTo')
     const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
       const viewport = document.querySelector('.capstone-chat-viewport')
@@ -655,7 +655,9 @@ describe('CapstoneAssistantThread', () => {
       render(<CapstoneAssistantThread events={events} activity={[]} disabled={false} isRunning onSend={async()=>{}} onCancel={async()=>{}} />)
       const viewport = document.querySelector('.capstone-chat-viewport') as HTMLElement
       Object.defineProperties(viewport, {clientHeight:{configurable:true,value:500},scrollHeight:{configurable:true,value:800}})
-      await waitFor(() => expect(scroll).toHaveBeenCalledWith({ top: 292, behavior: 'instant' }))
+      await act(async()=>{await new Promise(resolve=>setTimeout(resolve,30))})
+      expect(scroll).not.toHaveBeenCalledWith({top:292,behavior:'instant'})
+      expect(viewport.querySelector('[aria-hidden="true"][style*="flex-shrink"]')).toBeNull()
     } finally { rect.mockRestore(); scroll.mockRestore() }
   })
   it('keeps both running process views readable when the bottom of the message has little space', async () => {
