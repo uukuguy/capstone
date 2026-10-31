@@ -1095,6 +1095,18 @@ class NativeExecutionOwner:
     def set_material_store(self, objects) -> None:
         self._material_objects = objects
 
+    def refresh_native_gateway_publication(self) -> None:
+        """Update the admission template, never an accepted attempt's binding."""
+        from collections.abc import Mapping
+        from .delegated_runtime import json_document
+        if self._native_binding is None:
+            return
+        capability = getattr(self._native_executor, 'capability', {})
+        if isinstance(capability, Mapping) and 'data_gateway' in capability:
+            binding = json.loads(json.dumps(self._native_binding))
+            binding['capability']['data_gateway'] = json_document(capability['data_gateway'])
+            self._native_binding = binding
+
     def native_resource_profiles(self) -> dict:
         return {} if self._native_binding is None else json.loads(json.dumps(
             self._native_binding['capability']['resource_profiles']))

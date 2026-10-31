@@ -65,6 +65,24 @@ def entry(url='http://localhost:18001/mcp'):
     return {'url': url, 'token': TOKEN, 'name': 'User label'}
 
 
+def test_contract_reload_is_distinct_from_health_and_keeps_selected_access(registry):
+    identifier = registry.add(entry())['entries'][0]['id']
+    registry.select(identifier)
+    original = registry.current_access
+    before = Client.prepares
+    refreshed = registry.reload_contract()
+    assert Client.prepares == before + 1
+    assert registry.current_access is original
+    assert refreshed['selected_id'] == identifier
+    assert refreshed['entries'][0]['contract']['available'] is True
+    Client.fail_prepare = True
+    with pytest.raises(GatewayError):
+        registry.reload_contract()
+    assert registry.current_access is original
+    assert original.publication()['available'] is False
+    assert registry.snapshot()['entries'][0]['contract']['available'] is False
+
+
 def test_task_start_during_candidate_prepare_can_reject_commit_without_losing_selection(registry):
     first = registry.add(entry())['entries'][0]['id']
     second = registry.add(entry('http://other.example/mcp'))['entries'][1]['id']

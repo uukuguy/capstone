@@ -59,13 +59,13 @@ def test_all_routes_authorized_and_project_only_public_metadata(client):
     assert SECRET not in client.get(BASE).text
     public = client.get(BASE).json()
     assert public['entries'][0]['identity'] == {'available': True, 'server_name': 'Actual', 'endpoint': 'localhost:18001'}
-    for action, data in [('refresh', {}), ('select', {'id': 'local'}),
+    for action, data in [('refresh', {}), ('reload', {}), ('select', {'id': 'local'}),
                          ('probe', {'url': 'http://localhost:18001/mcp', 'token': SECRET}),
                          ('add', {'url': 'http://localhost:18001/mcp', 'name': 'Local'})]:
         assert client.post(BASE + '/' + action, json=data).status_code == 200
         assert client.post(BASE + '/' + action, headers={'Authorization': ''}, json=data).status_code == 403
     assert client.get(BASE, headers={'Authorization': ''}).status_code == 403
-    assert len(executor.calls) == 4
+    assert len(executor.calls) == 5
 
 
 @pytest.mark.parametrize('action,data', [('refresh', {'token': SECRET}), ('select', {'id': 1}),

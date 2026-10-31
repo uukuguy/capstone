@@ -12,6 +12,7 @@ from .thread_input_catalog import public_gateway_identity
 
 
 _ERRORS = {
+    'contract_publication_unavailable': (503, '网关契约发布时间暂不可用，请稍后再试。'),
     'gateway_connections_busy': (409, '有任务正在执行，请结束后切换网关。'),
     'gateway_connection_busy': (409, '有任务正在执行，请结束后切换网关。'),
     'gateway_connection_input_invalid': (400, '请检查网关地址、名称和令牌。'),
@@ -86,6 +87,17 @@ def _snapshot(value):
             entry['checked_at'] = checked_at
         if 'error' in item:
             entry['error'] = item['error'] if isinstance(item['error'], str) and item['error'] in _ERRORS else 'gateway_connections_unavailable'
+        if 'contract' in item:
+            contract = item['contract']
+            if not isinstance(contract, dict) or type(contract.get('available')) is not bool:
+                raise ValueError()
+            entry['contract'] = {'available': contract['available'],
+                'revision': _text(contract.get('revision'), 128),
+                'checked_at': _text(contract.get('checked_at'), 64)}
+            if not contract['available']:
+                entry['contract']['reason'] = contract.get('reason') if contract.get('reason') in _ERRORS else 'gateway_connections_unavailable'
+                if contract.get('request_id') is not None:
+                    entry['contract']['request_id'] = _text(contract['request_id'])
         entries.append(entry)
     result = {'schema': value['schema'], 'revision': value['revision'], 'checking': value['checking'], 'entries': entries}
     if 'selected_id' in value:
@@ -121,8 +133,8 @@ def register_gateway_connection_routes(app, *, executor_provider, authorize):
             data.extend(part)
         try:
             value = json.loads(data)
-            allowed = set() if action == 'refresh' else {'id'} if action == 'select' else {'url', 'token', 'name'}
-            required = set() if action == 'refresh' else {'id'} if action == 'select' else {'url'}
+            allowed = set() if action in {'refresh', 'reload'} else {'id'} if action == 'select' else {'url', 'token', 'name'}
+            required = set() if action in {'refresh', 'reload'} else {'id'} if action == 'select' else {'url'}
             if not isinstance(value, dict) or set(value) - allowed or not required <= set(value):
                 raise ValueError()
             for key, item in value.items():
@@ -146,5 +158,5 @@ def register_gateway_connection_routes(app, *, executor_provider, authorize):
         app.add_api_route('/api/v1/workspace/gateways/' + action, control, methods=['POST'],
                           name='gateway_connections_' + action)
 
-    for action in ('refresh', 'probe', 'add', 'select'):
+    for action in ('refresh', 'reload', 'probe', 'add', 'select'):
         register(action)

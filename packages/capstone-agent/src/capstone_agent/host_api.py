@@ -475,6 +475,16 @@ def create_host_app(
                     ):
                         raise ThreadProtocolError("thread creation model_id is invalid")
                     started = time.perf_counter()
+                    refresh_contract = getattr(native_artifact_executor, 'refresh_gateway_contract', None)
+                    if callable(refresh_contract):
+                        try:
+                            await run_in_threadpool(refresh_contract)
+                            response.headers['Capstone-Gateway-Contract'] = 'current'
+                        except Exception:
+                            # A missing service must not block an unrelated
+                            # conversation. The executor marks future grants
+                            # unavailable instead of offering a stale catalog.
+                            response.headers['Capstone-Gateway-Contract'] = 'unavailable'
                     model_free = request.headers.get('Capstone-Thread-Version', '1') == '2' and model_id is None
                     workspace = ({} if request.state.workspace_name == DEFAULT_WORKSPACE
                                  else {'workspace_name': request.state.workspace_name})
@@ -675,6 +685,16 @@ def create_host_app(
                     }
                     else thread_service
                 )
+                if isinstance(kind, str) and kind in {'start_work', 'send_message', 'send_auto', 'send_ordinary', 'send_professional'}:
+                    refresh_contract = getattr(native_artifact_executor, 'refresh_gateway_contract', None)
+                    if callable(refresh_contract):
+                        try:
+                            await run_in_threadpool(refresh_contract)
+                        except Exception:
+                            pass  # The gateway publication records failure; unrelated work can proceed.
+                        refresh_binding = getattr(service, 'refresh_native_gateway_publication', None)
+                        if callable(refresh_binding):
+                            await run_in_threadpool(refresh_binding)
                 receipt = service.submit_command(command)
                 if receipt.rejection == 'protocol_upgrade_required':
                     return JSONResponse({'error': 'protocol_upgrade_required', 'minimum_protocol_version': 2}, status_code=409)

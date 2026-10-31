@@ -137,6 +137,7 @@ export class HttpThreadTransport implements ThreadTransport {
   }
   async gatewayConnections(){return parseGatewayConnections(await this.gatewayRequest())}
   async refreshGatewayConnections(){return parseGatewayConnections(await this.gatewayRequest('refresh'))}
+  async refreshGatewayContract(){return parseGatewayConnections(await this.gatewayRequest('reload'))}
   async selectGatewayConnection(id:string){return parseGatewayConnections(await this.gatewayRequest('select',{id}))}
   async probeGatewayConnection(input:GatewayConnectionInput){return parseGatewayProbe(await this.gatewayRequest('probe',input))}
   async addGatewayConnection(input:GatewayConnectionInput){return parseGatewayConnections(await this.gatewayRequest('add',input))}

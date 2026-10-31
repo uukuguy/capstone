@@ -16,6 +16,21 @@ from capstone_agent.thread_service import InMemoryThreadService, PostgresThreadS
 from capstone_agent.thread_catalog import CompositeThreadModelCatalog, ThreadModelCatalogEntry
 
 
+def test_gateway_refresh_replaces_only_future_admission_template():
+    from types import SimpleNamespace, MappingProxyType
+    from capstone_agent.thread_service import NativeExecutionOwner
+    owner = NativeExecutionOwner()
+    frozen = {'capability': {'data_gateway': {'available': True, 'catalog': {'revision': 'old'}},
+                              'resource_profiles': {'kept': {}}}}
+    owner._native_binding = frozen
+    owner._native_executor = SimpleNamespace(capability=MappingProxyType({
+        'data_gateway': MappingProxyType({'available': False, 'reason': 'contract_publication_unavailable'})}))
+    owner.refresh_native_gateway_publication()
+    assert frozen['capability']['data_gateway']['catalog']['revision'] == 'old'
+    assert owner._native_binding['capability']['data_gateway']['available'] is False
+    assert owner._native_binding['capability']['resource_profiles'] == {'kept': {}}
+
+
 @pytest.mark.parametrize('version', ['0', '99', '1, 2', ''])
 def test_unsupported_thread_version_does_not_mutate_commands(version):
     service = _service()
@@ -147,6 +162,31 @@ def test_thread_creation_does_not_block_the_api_event_loop():
     assert response.status_code == 201
     assert len(creation_threads) == 1
     assert creation_threads[0] not in loop_threads
+
+
+@pytest.mark.parametrize('failed', [False, True])
+def test_new_thread_refreshes_contract_before_creation_without_blocking_unrelated_conversation(failed):
+    service = _service()
+    calls = []
+    class Executor:
+        capability = {}
+        def refresh_gateway_contract(self):
+            calls.append('contract')
+            if failed:
+                raise RuntimeError('private-upstream-detail')
+    class Creator:
+        def create(self, model_id):
+            calls.append('create')
+            return service.snapshot('thr_demo_39')
+    app = create_host_app(_Ledger(), WorkerRegistry(()), operator_token='hosted-secret',
+        allowed_hosts={'localhost'}, allowed_origins={'http://localhost:5173'},
+        thread_service=service, thread_creator=Creator(), native_artifact_executor=Executor())
+    with TestClient(app, base_url='http://localhost') as client:
+        response = client.post('/api/v1/threads', json={'model_id':'ieee39'}, headers=_auth())
+    assert response.status_code == 201
+    assert calls == ['contract', 'create']
+    assert response.headers['Capstone-Gateway-Contract'] == ('unavailable' if failed else 'current')
+    assert 'private-upstream-detail' not in response.text
 
 
 def test_thread_creation_sends_response_before_model_preparation():

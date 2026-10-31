@@ -14,12 +14,13 @@ class Client:
                 'structuredContent': {'status': 'partial', 'gaps': ['missing'], 'provenance': {'id': 'actual'}}}
 
 
-def access(extra_tools=()):
+def access(extra_tools=(), schemas=None):
     catalog = {'revision': 'a' * 64, 'tools': {'data_gateway_discover_data_capabilities': {}},
                'tool_hashes': {'data_gateway_discover_data_capabilities': 'b' * 64}}
     for tool in extra_tools:
         catalog['tools'][tool] = {}
         catalog['tool_hashes'][tool] = 'd' * 64
+    catalog['tools'].update(schemas or {})
     resource = DataGatewayAccess(Client(), catalog)
     resource.bind('task-1', 'attempt-1', set(catalog['tools']))
     return resource
@@ -61,6 +62,46 @@ def request():
     return {'call_id': 'call-1', 'name': 'data_gateway_discover_data_capabilities', 'arguments': {}}
 
 
+def test_contract_reload_updates_future_bindings_and_preserves_bound_catalog():
+    resource = access()
+    old = deepcopy(resource.catalog)
+    new = deepcopy(old)
+    new['revision'] = 'c' * 64
+    new['tool_hashes'][request()['name']] = 'd' * 64
+    seen = []
+
+    async def prepare():
+        return new
+
+    async def upstream(name, arguments, catalog):
+        seen.append(deepcopy(catalog))
+        return await Client().call(name, arguments, catalog)
+
+    resource.client.prepare = prepare
+    resource.client.call = upstream
+    asyncio.run(resource.reload_contract())
+    resource.bind('new-task', 'new-attempt', {request()['name']})
+    older = asyncio.run(resource.call('task-1', request()))
+    newer = asyncio.run(resource.call('new-task', request()))
+    assert seen == [old, new]
+    assert older['observation']['catalog_revision'] == old['revision']
+    assert newer['observation']['catalog_revision'] == new['revision']
+    assert resource.verify('task-1', 'call-1', request()['name'], older['observation'], older['result_json'])
+
+
+def test_failed_reload_does_not_offer_stale_contract_to_new_tasks():
+    resource = access()
+    async def prepare():
+        raise GatewayError('gateway_connection_failed')
+    resource.client.prepare = prepare
+    with pytest.raises(GatewayError, match='gateway_connection_failed'):
+        asyncio.run(resource.reload_contract())
+    assert resource.publication()['available'] is False
+    with pytest.raises(GatewayError):
+        resource.bind('new-task', 'new-attempt', {request()['name']})
+    assert asyncio.run(resource.call('task-1', request()))['observation']['catalog_revision'] == 'a' * 64
+
+
 def test_only_admitted_successful_observations_reach_connection_bindings():
     resource = access()
     observed = []
@@ -93,9 +134,9 @@ def test_validated_failure_reaches_bindings_without_becoming_success():
 
 @pytest.mark.parametrize('failed_open', [False, True])
 def test_preparation_jobs_require_an_issued_open_in_the_same_task(failed_open):
-    resource = access(['data_gateway_open_network_model_view', 'data_gateway_get_network_model_job'])
-    resource.catalog['tools']['data_gateway_get_network_model_job'] = {
-        'inputSchema': {'type': 'object', 'properties': {'job_ref': {'type': 'string'}}, 'required': ['job_ref']}}
+    resource = access(['data_gateway_open_network_model_view', 'data_gateway_get_network_model_job'],
+        schemas={'data_gateway_get_network_model_job': {
+        'inputSchema': {'type': 'object', 'properties': {'job_ref': {'type': 'string'}}, 'required': ['job_ref']}}})
     calls = []
     async def upstream(name, arguments, catalog):
         calls.append(name)
@@ -131,9 +172,8 @@ def test_preparation_jobs_require_an_issued_open_in_the_same_task(failed_open):
     ('data_gateway_start_export', 'data_gateway_export_status')])
 @pytest.mark.parametrize('field', ['job_ref', 'preparation_ref'])
 def test_generic_operation_refs_are_task_owned(producer, reader, field):
-    resource = access([producer, reader])
-    resource.catalog['tools'][reader] = {'inputSchema': {
-        'type': 'object', 'properties': {'job_ref': {'type': 'string'}}, 'required': ['job_ref']}}
+    resource = access([producer, reader], schemas={reader: {'inputSchema': {
+        'type': 'object', 'properties': {'job_ref': {'type': 'string'}}, 'required': ['job_ref']}}})
     calls = []
     async def upstream(name, arguments, catalog):
         calls.append(name)

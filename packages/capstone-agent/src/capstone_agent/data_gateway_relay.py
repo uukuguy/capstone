@@ -9,6 +9,7 @@ import stat
 import time
 from uuid import uuid4
 from threading import RLock
+from datetime import datetime, timezone
 
 from .application_capacity import limits, require_capacity, CapacityExceeded
 from .data_gateway_mcp import GatewayError, TASK_STOP_ERRORS, encode, fingerprint
@@ -62,28 +63,60 @@ class DataGatewayAccess:
         self.view_bindings = GatewayViewBindings()
         self._tasks = {}
         self._lock = RLock()
+        self._catalogs = ({self.catalog['revision']: deepcopy(self.catalog)} if 'revision' in self.catalog else {})
+        self.contract_error = None
+        self.contract_request_id = None
+        self.contract_checked_at = datetime.now(timezone.utc).isoformat()
+
+    async def reload_contract(self):
+        """Refresh future grants; existing task receipts keep their catalog."""
+        try:
+            refresh = getattr(self.client, 'refresh_catalog', None)
+            catalog = await refresh(self.catalog) if refresh else await self.client.prepare()
+            with self._lock:
+                self.catalog = deepcopy(catalog)
+                self._catalogs[catalog['revision']] = deepcopy(catalog)
+                self.contract_error = None
+                self.contract_request_id = None
+                self.contract_checked_at = datetime.now(timezone.utc).isoformat()
+        except BaseException as error:
+            with self._lock:
+                self.contract_error = (str(error) if isinstance(error, GatewayError)
+                    else 'gateway_timeout' if isinstance(error, asyncio.CancelledError) else 'gateway_connection_failed')
+                self.contract_request_id = getattr(error, 'request_id', None)
+                self.contract_checked_at = datetime.now(timezone.utc).isoformat()
+            raise
+        return self.publication()
 
     def publication(self):
         from .data_gateway_mcp import identity_text, checked_instance_identity
+        with self._lock:
+            catalog, error = deepcopy(self.catalog), self.contract_error
         identity = self.client.public_identity() if hasattr(self.client, 'public_identity') else {}
-        server = self.catalog.get('server_info', {})
+        server = catalog.get('server_info', {})
         identity.update({target: server[source] for source, target in (('name', 'server_name'), ('version', 'server_version')) if identity_text(server.get(source))})
-        instance = checked_instance_identity(self.catalog.get('instance'))
+        instance = checked_instance_identity(catalog.get('instance'))
         if instance is not None:
             identity.update({key: instance[key] for key in ('instance_id', 'instance_name', 'offline')})
             identity.update(environment_label=instance['environment']['label'], data_source_label=instance['data_source']['label'])
-        return {'available': True, 'catalog': deepcopy(self.catalog), 'identity': identity}
+        return ({'available': False, 'reason': error, 'identity': identity,
+                 **({'request_id': self.contract_request_id} if self.contract_request_id else {})} if error else
+                {'available': True, 'catalog': catalog, 'identity': identity})
 
-    def bind(self, task_id, attempt_id, allowed_tools, *, diagnostics=None):
+    def bind(self, task_id, attempt_id, allowed_tools, *, diagnostics=None, catalog=None):
         from .gateway_diagnostics import checked_diagnostics
         context = checked_diagnostics(diagnostics)
-        if (not isinstance(allowed_tools, (set, frozenset, list, tuple))
-                or any(not isinstance(name, str) or name not in self.catalog['tools'] for name in allowed_tools)):
-            raise GatewayError('gateway_tool_not_admitted')
         with self._lock:
+            if self.contract_error:
+                raise GatewayError(self.contract_error)
+            catalog = self.catalog if catalog is None else catalog
+            if (self._catalogs.get(catalog.get('revision')) != catalog
+                    or not isinstance(allowed_tools, (set, frozenset, list, tuple))
+                    or any(not isinstance(name, str) or name not in catalog['tools'] for name in allowed_tools)):
+                raise GatewayError('gateway_tool_not_admitted')
             if task_id in self._tasks:
                 raise GatewayError('gateway_task_already_bound')
-            self._tasks[task_id] = {'attempt_id': attempt_id, 'allowed_tools': frozenset(allowed_tools),
+            self._tasks[task_id] = {'attempt_id': attempt_id, 'catalog': deepcopy(catalog), 'allowed_tools': frozenset(allowed_tools),
                                     'started': set(), 'issued': {}, 'diagnostics': context, 'diagnostic_calls': []}
 
     def revoke(self, task_id):
@@ -99,16 +132,18 @@ class DataGatewayAccess:
                 or not isinstance(document.get('call_id'), str)
                 or not re.fullmatch(r'[A-Za-z0-9_.:-]{1,256}', document['call_id'])
                 or not isinstance(document.get('name'), str)
-                or document['name'] not in self.catalog['tools']
                 or not isinstance(document['arguments'], dict)):
             raise GatewayError('gateway_request_invalid')
         call_id, name = document['call_id'], document['name']
-        properties = self.catalog['tools'][name].get('inputSchema', {}).get('properties', {})
-        consumes_job = 'job_ref' in properties or 'job_ref' in document['arguments']
         with self._lock:
             record = self._tasks.get(task_id)
             if record is None:
                 raise GatewayError('gateway_task_not_admitted')
+            catalog = record['catalog']
+            if name not in catalog['tools']:
+                raise GatewayError('gateway_request_invalid')
+            properties = catalog['tools'][name].get('inputSchema', {}).get('properties', {})
+            consumes_job = 'job_ref' in properties or 'job_ref' in document['arguments']
             if name not in record['allowed_tools']:
                 raise GatewayError('gateway_tool_not_admitted')
             context = override if override is not None else record['diagnostics']
@@ -132,7 +167,7 @@ class DataGatewayAccess:
         arguments = deepcopy(document['arguments'])
         started = time.monotonic()
         try:
-            result = await self.client.call(name, deepcopy(arguments), self.catalog,
+            result = await self.client.call(name, deepcopy(arguments), catalog,
                 **({'diagnostics': context} if context is not None else {}))
             with self._lock:
                 span.update(response_diagnostics(result))
@@ -168,11 +203,11 @@ class DataGatewayAccess:
         body = encode(result).decode()
         observation = {'kind': 'external_gateway_observation', 'task_id': task_id,
             'parent_attempt_id': record['attempt_id'], 'tool_call_id': call_id, 'tool': name,
-            'catalog_revision': self.catalog['revision'], 'tool_schema_sha256': self.catalog['tool_hashes'][name],
+            'catalog_revision': catalog['revision'], 'tool_schema_sha256': catalog['tool_hashes'][name],
             'arguments_sha256': fingerprint(arguments), 'output_sha256': sha256(body.encode()).hexdigest()}
         response = {'result_json': body, 'is_error': result.get('isError') is True, 'observation': observation}
         require_capacity('mcp_frame_bytes', len(encode(response)), 'gateway_envelope')
-        self.view_bindings.observe(name, arguments, result, self.catalog)
+        self.view_bindings.observe(name, arguments, result, catalog)
         with self._lock:
             if self._tasks.get(task_id) is not record:
                 raise GatewayError('gateway_task_not_admitted')

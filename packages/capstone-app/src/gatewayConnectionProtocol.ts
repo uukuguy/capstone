@@ -14,7 +14,11 @@ export function parseGatewayConnections(value:unknown):GatewayConnections{
   const entries:GatewayConnectionEntry[]=item.entries.map(value=>{
     const row=record(value)
     if(!['unknown','checking','connected','disconnected'].includes(String(row.status)))throw new Error('网关状态无效')
+    const contract=row.contract===undefined?undefined:record(row.contract)
+    if(contract&&typeof contract.available!=='boolean')throw new Error('网关契约状态无效')
     return {id:text(row.id),label:text(row.label),url:address(row.url),status:row.status as GatewayConnectionEntry['status'],
+      ...(contract?{contract:{available:contract.available as boolean,revision:text(contract.revision),checked_at:text(contract.checked_at),
+        ...(contract.reason===undefined?{}:{reason:text(contract.reason)})}}:{}),
       ...(row.checked_at===undefined?{}:{checked_at:text(row.checked_at)}),...(row.error===undefined?{}:{error:text(row.error)}),
       ...(row.identity===undefined?{}:{identity:parseGatewayConnectionStatus(row.identity)})}
   })

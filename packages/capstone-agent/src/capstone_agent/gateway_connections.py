@@ -163,6 +163,15 @@ class GatewayConnectionRegistry:
                       'checking': any(item.get('status') == 'checking' for item in self._health.values())}
             if self._document.get('selected_id') is not None:
                 result['selected_id'] = self._document['selected_id']
+                if self._access is not None:
+                    selected = next(item for item in result['entries'] if item['id'] == result['selected_id'])
+                    selected['contract'] = {'available': self._access.contract_error is None,
+                        'revision': self._access.catalog['revision'],
+                        'checked_at': self._access.contract_checked_at}
+                    if self._access.contract_error:
+                        selected['contract']['reason'] = self._access.contract_error
+                        if self._access.contract_request_id:
+                            selected['contract']['request_id'] = self._access.contract_request_id
             return result
 
     def _input(self, value):
@@ -309,6 +318,29 @@ class GatewayConnectionRegistry:
         with self._lock:
             selected = self._document.get('selected_id')
         return self.select(selected) if selected is not None else self.snapshot()
+
+    def reload_contract(self):
+        """Reconnect the selected service without replacing active task grants."""
+        with self._mutation:
+            self._ensure_open()
+            with self._lock:
+                selected = self._document.get('selected_id')
+                if selected is None:
+                    return self.snapshot()
+                access = self._access
+                config = deepcopy(next(item['connection'] for item in self._document['entries'] if item['id'] == selected))
+            try:
+                if access is None:
+                    access = self._prepare(config)
+                    with self._lock:
+                        self._access = access
+                else:
+                    asyncio.run(asyncio.wait_for(access.reload_contract(), ADMISSION_TIMEOUT_SECONDS))
+                with self._lock:
+                    self._health[selected] = self._connected(access.publication()['identity'])
+            except Exception as error:
+                raise GatewayError(public_failure(error, 'gateway_connection_failed')) from None
+            return self.snapshot()
 
     @staticmethod
     def _connected(identity):

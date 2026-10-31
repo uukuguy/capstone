@@ -432,10 +432,14 @@ class HttpGeneralPiExecutor:
         return self._call('GET', '/gateway-connections', timeout=3, total_timeout=5)
 
     def control_gateway_connections(self, action, document):
-        if action not in {'refresh', 'probe', 'add', 'select'}:
+        if action not in {'refresh', 'reload', 'probe', 'add', 'select'}:
             raise ValueError('invalid gateway control')
         return self._call('POST', '/gateway-connections/' + action, document=document,
                           timeout=18, total_timeout=20)
+
+    def refresh_gateway_contract(self):
+        if cast(Mapping, self._capability).get('gateway_connections') is True:
+            return self.control_gateway_connections('reload', {})
 
     def network_policy(self):
         return self._call('GET', '/network-policy', timeout=2, total_timeout=3)

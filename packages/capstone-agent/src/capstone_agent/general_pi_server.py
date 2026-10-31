@@ -1093,9 +1093,10 @@ class NativeTaskRunner:
                 sdk_config['runtimeEnvironment'] = self.environment_context
                 sdk_config.setdefault('contextFiles', []).append({
                     'path': 'verified-programming-environment', 'content': self.environment_context})
-            if not self.gateway_publication.get('available'):
+            gateway_publication = self.gateway.publication() if self.gateway else self.gateway_publication
+            if not gateway_publication.get('available'):
                 from .data_gateway_mcp import TASK_STOP_ERRORS
-                reason = self.gateway_publication.get('reason')
+                reason = gateway_publication.get('reason')
                 if reason not in TASK_STOP_ERRORS | {'not_configured', 'gateway_private_mount_invalid'}:
                     reason = 'gateway_unavailable'
                 sdk_config.setdefault('contextFiles', []).append({
@@ -1121,19 +1122,19 @@ class NativeTaskRunner:
                     diagnosis = self._diagnosis_provider(request, workspace, uid)
                     sdk_config['diagnosisContextPath'] = str(diagnosis.root)
                 from .data_gateway_relay import research_gateway_tools
-                gateway_tools = research_gateway_tools(native, self.gateway.publication() if self.gateway else {})
+                gateway_tools = research_gateway_tools(native, gateway_publication)
                 admitted_gateway = gateway_tools.intersection(native['policy']['allowed_tools'])
                 if admitted_gateway and self.gateway is not None:
                     from .data_gateway_relay import gateway_discovery_tools
                     sdk_config['applicationPolicy'] = {**native['policy'], 'allowed_tools': sorted({
                         *native['policy']['allowed_tools'], *gateway_discovery_tools(native,
-                            self.gateway.publication(), gateway_available=True)})}
+                            gateway_publication, gateway_available=True)})}
                     from .gateway_diagnostics import research_diagnostics
-                    self.gateway.bind(request.task_id, request.parent_attempt_id, admitted_gateway,
+                    task_catalog = gateway_publication['catalog']
+                    self.gateway.bind(request.task_id, request.parent_attempt_id, admitted_gateway, catalog=task_catalog,
                         diagnostics=research_diagnostics(
                             None if request.research_binding is None else request.to_document()['research_binding'],
                             request.parent_attempt_id))
-                    task_catalog = self.gateway.publication()['catalog']
                     # This is a menu projection, not a new accepted catalog.
                     # Receipts retain the full host catalog revision and exact tool hashes.
                     task_catalog = {**task_catalog,
@@ -1426,6 +1427,20 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
             return registry.select(document['id'], commit_guard=commit_guard)
         if action == 'refresh' and document == {}:
             return registry.refresh()
+        if action == 'reload' and document == {}:
+            try:
+                result = registry.reload_contract()
+            finally:
+                access = registry.current_access
+                if access is not None:
+                    if access is getattr(target, 'gateway', None):
+                        publication = access.publication()
+                        target.gateway_publication = publication
+                        host.capability['data_gateway'] = publication
+                    else:
+                        with host._lock:
+                            apply_gateway_access(target, access)
+            return result
         if action in {'probe', 'add'}:
             return getattr(registry, action)(document)
         raise GatewayError('gateway_connection_input_invalid')
