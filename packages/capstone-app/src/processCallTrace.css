@@ -25,7 +25,7 @@
 .capstone-call-trace .capstone-call-tool > summary { min-height: 0; padding: 0; line-height: 1.45; color: var(--trace-text); }
 .capstone-call-tool > summary { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; cursor: pointer; list-style: none; }
 .capstone-call-batch .capstone-call-tool > summary { flex-wrap: nowrap; }
-.capstone-call-batch .capstone-call-tool > summary > strong { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.capstone-call-tool > summary > strong { flex: 0 1 auto; max-width: min(60ch, 55%); min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .capstone-call-batch .capstone-call-tool > summary > span, .capstone-call-batch .capstone-call-tool > summary > small { flex: none; white-space: nowrap; }
 .capstone-call-tool > summary::-webkit-details-marker { display: none; }
 .capstone-call-tool > summary::marker { content: ''; }

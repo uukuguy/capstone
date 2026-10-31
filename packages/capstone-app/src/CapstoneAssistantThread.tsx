@@ -21,6 +21,7 @@ import TaskStepProcess, { RecordedResult, StepErrorDetails, projectTaskSteps, Re
 import ExecutionGraphProcess, { graphTraceIssues, type GraphTraceFocus } from './ExecutionGraphProcess'
 import ProcessCallTrace, { modelCallMs, type ProcessModelCall } from './ProcessCallTrace'
 import { projectProcessModelRequests } from './processModelRequests'
+import {scriptOpeningIntent} from './executionIntent'
 import {summarizeLlmPoolCalls} from './processLlmPool'
 import {summarizeModelRequestPool,uniqueModelRequests} from './processModelRequestPool'
 import {isExecutionLifecycleStep} from './executionLifecycle'
@@ -152,7 +153,16 @@ function nativeToolActivity(event:EventEnvelope) {
     activity=object(metadata.activity)
   }
   if(!text(task)||!text(call)||!text(name))return
-  const operation=typeof activity?.operation==='string'?activity.operation.slice(0,241):undefined
+  let operation=typeof activity?.operation==='string'?activity.operation.slice(0,241):undefined
+  if(name==='bash'&&typeof activity?.input_excerpt==='string'){
+    try{
+      const input=JSON.parse(activity.input_excerpt)
+      if(typeof input?.command==='string'){
+        const purpose=scriptOpeningIntent(input.command)
+        if(purpose)operation=`# ${purpose}\n${operation??''}`
+      }
+    }catch{/* A bounded input excerpt can end before its JSON closes. */}
+  }
   const rawOutput=typeof activity?.output_excerpt==='string'?activity.output_excerpt:undefined
   const outputExcerpt=rawOutput&&/(?:api[_ -]?key|access[_ -]?token|refresh[_ -]?token|authorization|password|secret)["']?\s*[:=]/i.test(rawOutput)?'输出包含受保护配置或凭据信息，已隐藏。':rawOutput?.slice(0,601)
   const rawWarning=typeof activity?.warning==='string'?activity.warning:undefined
@@ -1246,6 +1256,13 @@ export type CapstoneAssistantThreadProps = {
 /** Assistant-ui is the presentation runtime; Capstone projection remains authoritative. */
 type AnswerDetailSelection = { messageId: string; panel: 'result' | 'evidence' } | undefined
 const AnswerDetailContext = createContext<{ selected: AnswerDetailSelection; select: (selection: AnswerDetailSelection) => void }>({selected:undefined, select:()=>{}})
+
+export function restoreVisibleConversation(viewport:HTMLElement){
+  const last=[...viewport.querySelectorAll<HTMLElement>('[data-message-id]')].at(-1)
+  if(!last||!viewport.clientHeight)return
+  const top=viewport.getBoundingClientRect().top,bottom=last.getBoundingClientRect().bottom
+  if(bottom<top+40)viewport.scrollTop=Math.max(0,viewport.scrollTop+bottom-top-80)
+}
 const SystemActionContext = createContext<CapstoneAssistantThreadProps['onSystemAction']>(undefined)
 
 export default function CapstoneAssistantThread({ nativeArtifactProjections, productReferenceReader,requestedProductReference,projectedMessages, emptyState, runtimeStatus, connectionState, resultHistoryNotice, composerMode = 'contextual', composerLabel, composerPlaceholder, sendLabel, initialText, onDraftChange, lockDraft, canCancel = true, cancelLabel, cancelDisabled, readOnly = false, onReadAttemptRecords, events, runtimeMode = 'capstone', systemNotices = [], onSystemAction, disabled, isRunning, acceptedDraft, activity, onSend, onCancel, onRegenerate, onFollowup, canRerunCompleted = !disabled, modelSummary, instructionModels, composerControls, contextTriggerRef, onRemoveMaterial, showActivity = true, caseExecution, caseCatalog = [], caseStartDisabledReason, caseConnection = 'live', onCaseAction, onCaseStart, resultProjections = [], onOpenResultProduct, onOpenTaskResults, onOpenNativeArtifact, onOpenAnswerDetail, onFocusElement, selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork, storageKey, hasOlderHistory = false, historyLoading = false, onLoadOlder, historyAtLatest = true, onReturnLatest, instructionLocation, inputCatalog, inputCatalogLoading, onRefreshInputCatalog, inputControlsDisabled, onBeforeInputChange, onBeforeSend }: CapstoneAssistantThreadProps) {
@@ -1308,7 +1325,7 @@ export default function CapstoneAssistantThread({ nativeArtifactProjections, pro
     })
   },[events,storageKey])
   useLayoutEffect(() => {
-    if (!isRunning||alignedInstruction.current===latestInstructionId) return
+    if ((!isRunning&&!submittingThinking)||alignedInstruction.current===latestInstructionId) return
     const viewport = viewportRef.current
     if (!viewport) return
     let aligned = false
@@ -1330,7 +1347,7 @@ export default function CapstoneAssistantThread({ nativeArtifactProjections, pro
         return
       }
       const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-      if (typeof viewport.scrollTo === 'function' && !reducedMotion) viewport.scrollTo({ top: desired, behavior: 'smooth' })
+      if (typeof viewport.scrollTo === 'function' && !reducedMotion) viewport.scrollTo({ top: desired, behavior: 'instant' })
       else viewport.scrollTop = desired
       aligned = true
       alignedInstruction.current=latestInstructionId
@@ -1341,9 +1358,27 @@ export default function CapstoneAssistantThread({ nativeArtifactProjections, pro
     observer.observe(viewport, { childList: true, subtree: true })
     schedule()
     return () => { observer.disconnect(); cancelAnimationFrame(frame) }
-  }, [isRunning, latestInstructionId])
+  }, [isRunning, Boolean(submittingThinking), latestInstructionId])
   const [readingLayoutChanging, setReadingLayoutChanging] = useState(false)
   const [readingTailSpace, setReadingTailSpace] = useSessionViewState('conversation.tail-space',0)
+  // Saved padding must never create an entire empty viewport after a resize.
+  useLayoutEffect(()=>{
+    const viewport=viewportRef.current
+    if(!viewport)return
+    let frame=0
+    const repair=()=>{
+      if(!viewport.clientHeight)return
+      setReadingTailSpace(space=>Math.min(space,Math.max(0,viewport.clientHeight-80)))
+      cancelAnimationFrame(frame)
+      frame=requestAnimationFrame(()=>{
+        restoreVisibleConversation(viewport)
+      })
+    }
+    const observer=typeof ResizeObserver==='undefined'?undefined:new ResizeObserver(repair)
+    observer?.observe(viewport)
+    repair()
+    return()=>{observer?.disconnect();cancelAnimationFrame(frame)}
+  },[storageKey,readingTailSpace])
   type ReadingAnchor = { id: string; top: number; control?: HTMLButtonElement; instructionId?: string; element?: HTMLElement }
   const scrollAnchor = useRef<ReadingAnchor | null>(null)
   const historyAnchor = useRef<ReadingAnchor | null>(null)
@@ -1636,7 +1671,7 @@ export default function CapstoneAssistantThread({ nativeArtifactProjections, pro
         try {
         if (composerMode === 'text') {
           await onSend('automatic', text.trim())
-          returnToLatest()
+          if(!historyAtLatest)onReturnLatest?.()
           return
         }
         const sent = inputDraft
@@ -1644,7 +1679,7 @@ export default function CapstoneAssistantThread({ nativeArtifactProjections, pro
         if(runtimeMode==='capstone'||metadata.llm_profile_id!==undefined||inputDraft.skill||inputDraft.literal||inputDraft.context.include_refs.length||inputDraft.context.exclude_refs.length||inputDraft.material_refs!==undefined||inputDraft.context_product_refs!==undefined)await onSend('automatic', text.trim(), metadata)
         else await onSend('automatic',text.trim())
         setInputDraft(current => current === sent ? {...emptyInputDraft(runtimeMode),llm_profile_id:metadata.llm_profile_id,...(sent.material_refs===undefined?{}:{material_refs:sent.material_refs})} : current)
-        returnToLatest()
+        if(!historyAtLatest)onReturnLatest?.()
         } finally { setSubmittingThinking(current=>current?.id===submissionId?undefined:current) }
       }
     },
@@ -1694,7 +1729,7 @@ export default function CapstoneAssistantThread({ nativeArtifactProjections, pro
           {messages.length === 0 && (emptyState ?? <EmptyThreadState disabled={disabled} />)}
           <ThreadPrimitive.Messages components={{ Message: ThreadChatMessage }} />
           {readingTailSpace > 0 && <div aria-hidden="true" style={{ height: readingTailSpace, flexShrink: 0 }} />}
-        </div> : <ThreadPrimitive.Viewport ref={viewportRef} data-reading-key="conversation" className="capstone-chat-viewport" autoScroll={!restoringSessionPosition && !isRunning && !readingLayoutChanging && !locatingInstruction} scrollToBottomOnInitialize={false} scrollToBottomOnRunStart={false} onWheel={cancelLatestScrollIntent} onTouchStart={cancelLatestScrollIntent} onKeyDown={cancelLatestScrollIntentForKey}>
+        </div> : <ThreadPrimitive.Viewport ref={viewportRef} data-reading-key="conversation" className="capstone-chat-viewport" autoScroll={false} scrollToBottomOnInitialize={false} scrollToBottomOnRunStart={false} onWheel={cancelLatestScrollIntent} onTouchStart={cancelLatestScrollIntent} onKeyDown={cancelLatestScrollIntentForKey}>
           {messages.length === 0 && (emptyState ?? <EmptyThreadState disabled={disabled} />)}
           <ThreadPrimitive.Messages components={{ Message: ThreadChatMessage }} />
           {readingTailSpace > 0 && <div aria-hidden="true" style={{ height: readingTailSpace, flexShrink: 0 }} />}

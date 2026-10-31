@@ -351,6 +351,7 @@ export class ThreadProjectionStore {
     for(const event of events)if(event.visibility==='public'&&[
       'command_accepted','attempt_started','attempt_completed','attempt_failed',
       'attempt_cancelled','attempt_interrupted','native_artifact_published',
+      'turn_route_selected','turn_plan_created',
     ].includes(event.eventType))this.conversationArchive.set(event.eventSeq,event)
   }
 

@@ -1,12 +1,22 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import CapstoneAssistantThread, { projectAssistantActivity, projectAssistantMessages } from './CapstoneAssistantThread'
+import CapstoneAssistantThread, { projectAssistantActivity, projectAssistantMessages,restoreVisibleConversation } from './CapstoneAssistantThread'
 import type { EventEnvelope, ResultProjection } from './threadProtocol'
 import {parseProductRef} from './threadProducts'
 import directExecutionLifecycle from './fixtures/directExecutionLifecycle.json'
 import {parseEventEnvelope} from './threadProtocol'
 
 afterEach(() => { cleanup(); localStorage.clear(); sessionStorage.clear() })
+it.each([false,true])('recovers a blank padding viewport after layout restore without moving visible content (visible=%s)',visible=>{
+ const viewport=document.createElement('div'),message=document.createElement('article')
+ message.dataset.messageId='last';viewport.append(message)
+ Object.defineProperty(viewport,'clientHeight',{value:500})
+ viewport.scrollTop=1000
+ viewport.getBoundingClientRect=()=>({top:100} as DOMRect)
+ message.getBoundingClientRect=()=>({bottom:visible?300:-200} as DOMRect)
+ restoreVisibleConversation(viewport)
+ expect(viewport.scrollTop).toBe(visible?1000:620)
+})
 it('keeps first thinking inside its LLM record and removes the purpose comment from the answer',()=>{
  const events=[event('command_accepted',1,{kind:'send_auto',payload:{text:'直接确认'}},'first_thinking'),event('attempt_started',2,{},'first_thinking'),
  event('runtime_action',3,{phase:'started',runtime_mode:'capstone'},'first_thinking'),
@@ -645,7 +655,7 @@ describe('CapstoneAssistantThread', () => {
       render(<CapstoneAssistantThread events={events} activity={[]} disabled={false} isRunning onSend={async()=>{}} onCancel={async()=>{}} />)
       const viewport = document.querySelector('.capstone-chat-viewport') as HTMLElement
       Object.defineProperties(viewport, {clientHeight:{configurable:true,value:500},scrollHeight:{configurable:true,value:800}})
-      await waitFor(() => expect(scroll).toHaveBeenCalledWith({ top: 292, behavior: 'smooth' }))
+      await waitFor(() => expect(scroll).toHaveBeenCalledWith({ top: 292, behavior: 'instant' }))
     } finally { rect.mockRestore(); scroll.mockRestore() }
   })
   it('keeps both running process views readable when the bottom of the message has little space', async () => {

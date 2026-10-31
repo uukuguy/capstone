@@ -67,6 +67,19 @@ it('restores conversation bodies beyond the raw event window without dropping re
   expect(store.conversationEvents).toHaveLength(8)
 })
 
+it('retains native routing identity beyond the raw window for exact tool grouping',async()=>{
+ initializeApplicationCapacity({schema:'capstone-capacity-profile/1',mode:'normal',limits:{event_buffer_count:2}})
+ const events=[conversationalEvent(1,'turn_route_selected',0,{route:'ordinary',source:'native_conversation'}),
+  conversationalEvent(2,'runtime_action',0,{phase:'started',runtime_mode:'capstone'}),
+  conversationalEvent(3,'runtime_action',0,{phase:'response_completed',runtime_mode:'capstone',response_kind:'tools'}),
+  conversationalEvent(4,'runtime_event',0,{native_type:'tool_execution_start',tool_call_id:'observed-call'})]
+ const fixture={...idleFixture,snapshot:{...idleFixture.snapshot,last_event_seq:4}}
+ const store=new ThreadProjectionStore(new CapstoneThreadClient({...createFixtureTransport(fixture),readHistory:pagedHistory(events,2)}))
+ await store.load('thr_demo_39');await store.restoreConversationHistory()
+ expect(store.publicEvents.length).toBeLessThanOrEqual(2)
+ expect(store.conversationEvents.some(event=>event.eventType==='turn_route_selected'&&event.payload.source==='native_conversation')).toBe(true)
+})
+
 it('loads durable model membership independently of the legacy snapshot', async () => {
   const model = { entry_id: 'mdl_ieee39', model_id: context.model_id, model_revision: context.model_revision,
     implementation_family: context.implementation_family, authority_model_ref: 'gridctl:ieee39', display_name: 'IEEE-39', diagram_provider_id: 'gridctl', last_active_seq: 0 }

@@ -5,6 +5,18 @@ import ProcessCallTrace, { callTraceIssues } from './ProcessCallTrace'
 
 afterEach(cleanup)
 
+it('shows the recorded script purpose after its LLM and keeps source out of the tool title',()=>{
+ const operation="cat > analysis.py <<'EOF'\n# 汇总区域负荷并保存图表\nimport pandas as pd\nEOF"
+ render(<ProcessCallTrace compact active={false} models={[{id:'m',number:1,ms:100,toolCallIds:['t']}]} tools={[{id:'t',name:'bash',status:'completed',operation,durationMs:315}]}/>)
+ const group=screen.getByRole('group',{name:'LLM 调用 1'})
+ expect(group.querySelector('.capstone-call-purpose')).toHaveTextContent('汇总区域负荷并保存图表')
+ const summary=group.querySelector('.capstone-call-tool > summary')!
+ expect(summary).toHaveTextContent('汇总区域负荷并保存图表')
+ expect(summary).not.toHaveTextContent('import pandas')
+ expect(summary).toHaveTextContent('315ms')
+ expect(group.querySelector('.capstone-call-operation')?.textContent).toBe(operation)
+})
+
 it('places usage at the end of the thinking header instead of a separate row',()=>{
  render(<ProcessCallTrace active={false} models={[{id:'m',number:1,ms:1000,thinking:'已核对输入',usage:{input:1385,output:240,cacheRead:16000,cacheWrite:0}}]} tools={[]}/>)
  const usage=screen.getByText('输入 17,385')
@@ -136,7 +148,7 @@ it('explains a classified model failure without exposing unknown error text',()=
 it('shows the actual shell action instead of its workspace prefix and retains the full command', () => {
   const operation = 'cd /var/lib/general-pi/tasks/private-workspace && python3 analyze_prices.py --monthly'
   render(<ProcessCallTrace models={[{id:'m',number:1,ms:100,toolCallIds:[],toolRequests:[{id:'t',name:'bash',operation}]}]} tools={[]} />)
-  const intent = screen.getByText('发起工具：bash · python3 analyze_prices.py --monthly')
+  const intent = screen.getByText('发起工具：bash · 执行脚本')
   expect(intent).toHaveAttribute('title', `bash · ${operation}`)
 })
 
@@ -164,7 +176,7 @@ it('keeps zero-tool responses and nests only exact declared tool IDs', () => {
   expect(within(first).queryByText('write')).toBeNull()
   expect(within(screen.getByRole('group', { name: 'LLM 调用 2' })).getByText('未调用工具')).toBeVisible()
   expect(within(screen.getByRole('group', { name: 'LLM 调用 3' })).getByText('write')).toBeVisible()
-  expect(screen.getByText('未关联')).toBeVisible()
+  expect(screen.queryByText('未关联')).toBeNull()
   expect(screen.getByText('系统动作')).toBeVisible()
 })
 
@@ -173,7 +185,7 @@ it('does not infer historical tool ownership from adjacent timestamps', () => {
     tools={[{ id:'old-tool',name:'read',status:'completed',startedAt:'2026-10-24T00:00:02Z' }]} />)
   expect(within(screen.getByRole('group',{name:'LLM 调用 1'})).queryByText('read')).toBeNull()
   expect(screen.getByText('工具关联未记录')).toBeVisible()
-  expect(screen.getByText('未关联')).toBeVisible()
+  expect(screen.queryByText('未关联')).toBeNull()
 })
 
 it('updates an active request duration and stops claiming live execution at termination', () => {
@@ -194,7 +206,7 @@ it('does not attach a tool claimed by more than one response', () => {
     {id:'m2',number:2,ms:1,toolCallIds:['ambiguous']},
   ]} tools={[{id:'ambiguous',name:'read',status:'completed'}]} />)
   for(const n of [1,2])expect(within(screen.getByRole('group',{name:`LLM 调用 ${n}`})).queryByText('read')).toBeNull()
-  expect(screen.getByText('未关联')).toBeVisible()
+  expect(screen.queryByText('未关联')).toBeNull()
 })
 
 it('flags only settled missing records and shows concise call purpose and token information', () => {
