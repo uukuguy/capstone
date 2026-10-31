@@ -26,6 +26,34 @@ test('rejected selection names are explicit and do not activate any tool',async(
   assert.equal(calls(),0);
 });
 
+test('load resolves published names to admitted registration names without a prefix convention',async()=>{
+  const publications={'transport_random':{name:'source_random',inputSchema:{type:'object'}},
+    'other_transport':{name:'other_source',inputSchema:{type:'object'}}};
+  const tools=Object.keys(publications).map(name=>({name,execute:async()=>({content:[]})}));
+  const c=createToolDiscovery({tools,publications,admittedNames:['transport_random']});
+  const hooks=new Map();let active=[];
+  c.configure({on:(n,f)=>hooks.set(n,f),getActiveTools:()=>active,setActiveTools:n=>active=n});
+  const args={names:['source_random','transport_random']};
+  const result=JSON.parse((await c.tools[1].execute('load',args)).content[0].text);
+  assert.deepEqual(result.tools.map(t=>t.name),['transport_random']);
+  assert.deepEqual(args.names,['source_random','transport_random']);
+  hooks.get('turn_end')();
+  assert.ok(active.includes('transport_random'));
+  await c.guardedTools[0].execute('run',{});
+  await assert.rejects(c.tools[1].execute('denied',{names:['other_source']}),/not admitted/);
+});
+
+test('ambiguous published names reject the complete activation atomically',async()=>{
+  for(const collision of [false,true]){
+    const publications={one:{name:collision?'two':'shared',inputSchema:{type:'object'}},
+      two:{name:collision?'original_two':'shared',inputSchema:{type:'object'}}};
+    const tools=Object.keys(publications).map(name=>({name,execute:async()=>({content:[]})}));
+    const c=createToolDiscovery({tools,publications,admittedNames:['one','two']});
+    await assert.rejects(c.tools[1].execute('load',{names:['one',collision?'two':'shared']}),/ambiguous/i);
+    await assert.rejects(c.guardedTools[0].execute('run',{}),/not active/);
+  }
+});
+
 test('admitted initial tools are callable immediately and survive replacement',async()=>{
   const {controller:c,calls}=fixture({initialNames:['source_0','source_19','missing']});
   const hooks=new Map();let active=c.initialToolNames(['read']);
@@ -212,10 +240,10 @@ for(const mode of ['parent','managed-child'])test('actual pinned SDK '+mode+' in
         message.content?.some(part=>part.type==='text'&&part.text.includes('"code":"tool_not_active"'))));
       const batches=[
         [{name:'data_gateway_source_28',arguments:{query:'startup'}}],
-        [{name:'agent_tool_load',arguments:{names:['data_gateway_source_0']}},
+        [{name:'agent_tool_load',arguments:{names:['source_0']}},
           {name:'data_gateway_source_0',arguments:{query:'too early'}}],
         [{name:'data_gateway_source_0',arguments:{query:'current'}}],
-        [{name:'agent_tool_load',arguments:{names:['data_gateway_source_29']}}],
+        [{name:'agent_tool_load',arguments:{names:['source_29']}}],
         [{name:'agent_tool_load',arguments:{names:[]}}],
         [{name:'data_gateway_source_0',arguments:{query:'old menu'}}]];
       const batch=batches[index++];

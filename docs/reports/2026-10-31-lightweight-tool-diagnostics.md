@@ -58,3 +58,32 @@ discovery, then successfully described the same incident target using its
 Capstone name. Gateway request ID: `2e5d0ddd29544dc6b2ed02500d75eb75`.
 Receipt: `runs/gateway-dynamic-product-20261031/contract-name-normalization.json`.
 This protocol check calls no business data tool. No CI was started.
+
+## Tool activation and input projection follow-up
+
+Browser rerun completed in32.7seconds (14model responses,20tool calls). The saved
+CSV download has five rows; SHA-256:
+`4e58e82dfd7084272b5fe7bc042f3127d27a28449f029dc69187e062fd3526a1`.
+Contract lookups passed. A second discovery was an unnecessary model selection.
+`resolve_region_scope` rejected `scope="北京"` because it is not a published
+business scope; the task then used the grid object reference successfully.
+
+The browser check also found that the graph activity projection retained only
+command/path arguments before the common diagnostic projection. It now sends
+all argument fields through the shared bounded/redacted projection and masks
+private paths before clipping. The previous forwarding-only test did not cover
+this filter and was insufficient for complete input-record acceptance.
+
+`agent_tool_load` now resolves both registered and source publication names using
+only the frozen, task-admitted entries. It applies no namespace-string rule and
+does not admit new tools. Ambiguous identities reject the entire selection;
+aliases of the same tool share one activation and its existing capacity budget.
+The response records requested-to-registered name resolutions. Generic fixture
+names have no shared prefix. Real pinned SDK parent and child sessions load by
+source name while ungranted aliases still fail.
+
+125focused Python checks and17discovery/SDK checks pass. After reconnecting,
+reading initialization instructions and discovery, the current real catalog
+successfully resolves the exact three source names in the reported load error.
+This is a catalog/activation check; no business data tool is executed.
+Receipt: `runs/gateway-dynamic-product-20261031/loader-name-regression.json`.

@@ -37,7 +37,7 @@ def _summary(value: object, limit: int = 200) -> str:
     return compact if len(compact) <= limit else compact[:limit] + "…"
 
 
-def _input_excerpt(arguments: Mapping) -> str:
+def _input_excerpt(arguments: Mapping, text_filter) -> str:
     """Retain bounded call diagnostics, without credentials or file bodies."""
     def safe(value, depth=0):
         if depth > 5:
@@ -52,14 +52,14 @@ def _input_excerpt(arguments: Mapping) -> str:
                 elif normalized in {'content', 'body', 'data', 'base64', 'code', 'text', 'prompt', 'instruction'}:
                     result[key[:128]] = '[OMITTED BODY]'
                 else:
-                    result[_redact_text(key[:128])] = safe(item, depth + 1)
+                    result[_redact_text(text_filter(key)[:128])] = safe(item, depth + 1)
             if len(value) > 32:
                 result['[TRUNCATED]'] = 'additional fields omitted'
             return result
         if isinstance(value, (list, tuple)):
             return [safe(item, depth + 1) for item in value[:32]] + (['[TRUNCATED]'] if len(value) > 32 else [])
         if isinstance(value, str):
-            text = _redact_text(value)
+            text = _redact_text(text_filter(value))
             return text[:1024] + ('[TRUNCATED]' if len(text) > 1024 else '')
         if value is None or isinstance(value, (bool, int, float)):
             return value
@@ -68,19 +68,19 @@ def _input_excerpt(arguments: Mapping) -> str:
     return text if len(text) <= 4000 else text[:3989] + '[TRUNCATED]'
 
 
-def project_native_tool_activity(event: Mapping) -> dict[str, str]:
+def project_native_tool_activity(event: Mapping, *, text_filter=lambda text: text) -> dict[str, str]:
     """Bound native activity text at the executor boundary; omit raw frames."""
     receipt: dict[str, str] = {}
     arguments = event.get("args")
     if isinstance(arguments, Mapping):
-        receipt['input_excerpt'] = _input_excerpt(arguments)
+        receipt['input_excerpt'] = _input_excerpt(arguments, text_filter)
         exploration = arguments.get('advanced_exploration')
         if isinstance(exploration, Mapping) and exploration.get('reason') in ('capability_gap', 'tool_defect') and isinstance(exploration.get('detail'), str):
-            receipt['warning'] = _summary('申请高级数据探索：' + exploration['detail'], 240)
+            receipt['warning'] = _summary('申请高级数据探索：' + text_filter(exploration['detail']), 240)
         for key in ("purpose", "command", "path", "file_path"):
             value = arguments.get(key)
             if isinstance(value, str) and value.strip():
-                receipt["operation"] = _summary(value, 240)
+                receipt["operation"] = _summary(text_filter(value), 240)
                 break
     result = event.get("result")
     if isinstance(result, Mapping):
