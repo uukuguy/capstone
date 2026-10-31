@@ -11,10 +11,13 @@ catalogs require no listing or full contract. Changes require a coherent fresh
 catalog; failures disable future gateway grants and keep request_id. Existing task
 catalogs remain frozen.178 focused backend checks,12 App checks and types pass.
 Real gateway check21ms, exact instance3db5bb96-2c27-4d97-8584-346bc4a18656,
-stamp2026-10-31T13:19:56.304991+08:00. Canonical rebuild in progress:
-/tmp/capstone-contract-check-rebuild.log. Verify final container source includes
-381b9be0 (source changed during first build); rerun canonical rebuild if needed.
-Browser panel/runtime verification pending. No CI/push/cloud deployment.
+stamp2026-10-31T13:19:56.304991+08:00. Final canonical rebuild ready:
+/tmp/capstone-contract-final-rebuild.log, API/workers imagecada852ca21a.
+Built adapter/thread-service file hashes match current source. Real application
+reload98.37ms succeeds; receipt runs/gateway-contract-check-20261031/application-reload.json.
+App types and panel checks pass; no visual browser acceptance claimed. Reuse an
+existing Capstone tab: never create a new tab for each check. No CI/push/cloud
+deployment. Canonical control-graph reconciliation remains pending.
 Prior source and acceptance below are historical, not the current HEAD.
 
 LATEST VERIFIED SOURCE9bba7449, report/actual dev HEADae63eac6 (local only, not pushed): user explicitly requests fixing

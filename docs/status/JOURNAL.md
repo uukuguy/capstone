@@ -6604,3 +6604,5 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 13:38 Check gateway publication before admission;reuse unchanged catalogs and preserve frozen task contracts to prevent stale calls [381b9be0].
 - 13:38 Real application reload succeeds108.6ms;API/worker497c05fb ready;final rebuild aligns two adapter guards added during build. No CI.
 - 13:39 Reuse existing browser tabs for all future checks;close the newly created tab and persist the user preference in AGENTS.
+- 13:39 Record refresh recovery and browser tab reuse so subsequent sessions preserve validation scope and user context [4183913d].
+- 13:42 Final local imagecada852ca ready;source hashes match;application contract reload98.37ms succeeds;no browser acceptance claimed;no CI.

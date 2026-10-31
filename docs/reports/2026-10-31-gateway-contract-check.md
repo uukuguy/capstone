@@ -25,5 +25,9 @@ instance `3db5bb96-2c27-4d97-8584-346bc4a18656` and publication
 task snapshots have local contract tests; the real gateway publication was not
 changed for those tests.
 
-No CI, push, cloud deployment, or release was started. Local runtime rebuild and
-browser verification are recorded in the session journal when complete.
+Final local rebuild passed with API/worker image `cada852ca21a`. Built adapter
+and thread-service file hashes match source. Application contract reload passed
+in 98.37 milliseconds. Receipt:
+`runs/gateway-contract-check-20261031/application-reload.json`.
+No visual browser acceptance is claimed. No CI, push, cloud deployment, or release
+was started.
