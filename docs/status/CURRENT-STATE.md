@@ -8,6 +8,12 @@ worklist is [unified execution](../superpowers/plans/2026-10-16-enterprise-unifi
 The current themes are continuing conversations, instruction-scoped resources,
 bounded diagnosis, source data access and large grid views.
 
+Shared tool execution retains host-observed actions and source references instead
+of requiring copied business identifiers. Public error summaries are extracted
+before truncation; explicit response intent is separate from answer text and
+thinking. The owning [invocation design](../superpowers/specs/2026-10-31-deterministic-tool-invocation-design.md)
+keeps business names and availability rules in the connected gateway contract.
+
 The shared workspace keeps one conversation and composer. An instruction owns
 its goal and resources; a session does not impose a permanent business goal.
 Explicit targets win, related follow-ups can inherit, and unrelated requests

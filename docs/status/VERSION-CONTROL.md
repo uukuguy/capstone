@@ -1,6 +1,10 @@
 # 多线版本控制
 
-当前有效边界（2026-10-31）：本地产品d3c69284实现会话实例绑定、首指令原子锁定、左栏与执行取源一致；
+当前有效边界（2026-10-31）：后端6de15939、App4c7e56bf补齐动态工具容量、返回动作保真、结构化诊断、
+公开LLM目的、操作标题、耗时标红、首轮Thinking归位及结束折叠/定位指令。专项及类型通过；本地ready与同镜像通过，真实2.3秒无工具短任务收尾通过。
+未推送、未创建PR、未启动CI；三个其他部署不变。[逐条诊断与实施记录](../reports/2026-10-31-latest-session-tool-errors.md)。
+
+前次已验证边界（2026-10-31）：本地产品d3c69284实现会话实例绑定、首指令原子锁定、左栏与执行取源一致；
 联调A与研发B真实浏览器隔离验证、CSV5行下载哈希通过。实际记录HEAD由控制图动态解析，origin/dev仍为196e865a；
 本地提交未推送、未创建PR、未启动CI，三个其他部署不变。新实例及工具名均来自当次发布，不固化为执行规则。
 [本次验证及已修复失败](../reports/2026-10-31-session-gateway-binding.md)。以下旧“当前”记录保留为历史边界。
@@ -856,7 +860,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 职责 | 当前状态 | 下一步 |
 | --- | --- | --- | --- |
-| dev | 共同基座与企业工作台集成 | 本地产品d3c69284已验证；origin/dev196e865a，未推送 | 后续按用户指令推进；任何CI先征得明确同意，未做云端或demo发布 |
+| dev | 共同基座与企业工作台集成 | 后端6de15939、App4c7e56bf，本地及现有标签页专项通过；origin/dev196e865a | 按用户反馈推进；任何CI先征得明确同意，未做云端或demo发布 |
 | feat/business-analysis | 企业研究与分析 | 应用分支仅准备；实际研究能力在dev共享工作台推进 | 保留350.524秒/ 41轮质量基线；不另建研究调度或聊天应用 |
 | feat/model-decision | 电网分析与决策 | 00a8cd85已在local-dev验证；PR #53已合入f5eda4e4 | 成熟对话、真实历史与拓扑已接通；无模型与通用成果继续按协议推进 |
 
@@ -875,7 +879,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | answers | 回退与选择性补回 | 2 | 已合入dev，业务缺陷保留 | c3业务链；独立LLM路由；三动作小窗；普通轻量无工具回答；正式消息与过程隔离 | dev | 路由可靠性与现存业务缺陷单列；研究按已适配计划推进 | main c3b78bc | 用户批准收口；不恢复任务编译；无凭据装配修正bc08169 | PR #14双平台通过并合入6ff7094；506项同源及两次完整集成通过；新真实复验一轮普通误分，保留失败，未称整体通过 |
 | business-analysis | 企业研究与分析 | 1 | 分支已创建，准备中 | 企业资源、分析成果、图表与报告视图 | feat/business-analysis | A1准备；等待相应基座闭环后实施 | dev6c0b0ae7创建来源 | 无独立业务代码；沿共同协议推进 | 未实施、未验收、未部署；阶段需可运行前端供人工观察 |
 | model-decision | 电网分析与决策 | 2 | PR69产品/PR70控制均已合入，远端分支关闭 | 动态准入、初始化指导、task菜单与成果保存 | dev | 当前HEAD f1e6e9fd，产品基线bcd1a5ad，运行ed0c5ff2，业务验收214c2e23；图形后续暂停 | dev9d691624 / PR68 | 214c非图业务验收及成果恢复保留，工作树恢复引用保留 | 产品CI40409319046通过27分16秒，文档CI40416427472通过1分35秒；潮流终端集成延后 |
-| shared-agent | 共同智能体基座 | 3 | 本地实现及真实业务验证通过；未推送 | 会话绑定实例，首指令原子锁定；左栏、模型视图和执行统一取源 | dev d3c69284 | 按用户指令推进；CI需明确同意 | origin/dev196e865a | 通用工具名解析、轻量契约检查、会话来源冻结及明确诊断 | 专项通过；可见双实例及50.8秒CSV5行通过，历史参数错误保留。[验证报告](../reports/2026-10-31-session-gateway-binding.md) |
+| shared-agent | 共同智能体基座 | 3 | 本地专项及可见短任务通过；未推送 | 动态容量、返回动作与来源校验、可读诊断及执行过程展示 | 后端6de15939、App4c7e56bf | 按具体业务反馈推进；CI需明确同意 | origin/dev196e865a | 会话取源、256默认容量、公开目的、窗内首轮Thinking、耗时标红与收尾定位 | 专项及类型通过；真实错误五份投影、无工具短任务收尾通过；非新业务取数验收。[诊断与实施](../reports/2026-10-31-latest-session-tool-errors.md) |
 | enterprise-analysis | 企业数据研究分析模式 | 0 | 讨论结论已记录，尚未实现 | 问题导航、AI主动引导、局部探索、报告修订与用户明确接受版本 | cf52cb4f | 按已接受路线先实现问题状态、导航及多轮引导；不新增默认调度池 | 现有统一工作台与直接轻量循环 | 过程产物与研究结论分开；目标属于研究任务；无证据不等于问题不成立 | [讨论](../superpowers/specs/2026-10-30-enterprise-data-research-analysis.md)及[路线图](../superpowers/plans/2026-10-30-enterprise-analysis-roadmap.md)；模式验收待实施 |
 | conversation-maintenance | 智能体对话应用维护 | 1 | 阶段已发布，维护范围已明确 | 接收适用的共同修复和增强，保留现有对话体验 | main | 按实际修复形成小版本，不强制采用企业新工作台 | main cf72393b；原用户包未替换 | 与企业入口共同验证受影响共享行为；保留将来对话场景演进空间 | 发布基线已验收；新增共享增强尚未实现或发布 |
 | pi | 企业自主执行 | 3 | 基础能力已合入dev | Capstone长程组织配合Pi原生生态，统一机制待实施 | dev | 先推进共同基座Task 1；分别验收企业研究与分析、电网分析与决策，再验证组合任务 | 已保留专业链路与原生资源 | PR #31合入db167184；统一循环、无模型v2协议和新工作台仍待实现 | CI38865540607双平台通过；local-dev规范重建与同源检查通过，不代表新设计完成 |
@@ -946,6 +950,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
+| tool-invocation-runtime | 6de15939 | main | dev · 确定调用与过程记录来源 | 本地同镜像与专项通过；App增量4c7e56bf可见验证通过，无CI | 动态容量、观察动作保真、来源校验和可读诊断；公开目的；App首轮Thinking与终态折叠定位。[验证记录](../reports/2026-10-31-latest-session-tool-errors.md) | shared-agent |
+| process-presentation-runtime | 4c7e56bf | main | dev · 执行过程与收尾展示来源 | 127组件检查与现有标签页真实短任务通过，无CI | 首轮Thinking归入LLM；回答隐藏目的注释，受控终态折叠并定位指令。[验证记录](../reports/2026-10-31-latest-session-tool-errors.md) | shared-agent |
 | session-gateway-runtime | d3c69284 | main | dev · 会话网关实例绑定来源 | 本地真实双实例、锁定及CSV5行通过，未推送 | 首指令原子锁定实例，左栏与实际取源一致；动态契约及运行配置按任务快照校验。[验证报告](../reports/2026-10-31-session-gateway-binding.md) | shared-agent |
 | conversation-controls | d89248e0 | feature | 会话控制补齐 · 产品来源 | App1419项与实际续发恢复通过，PR79已合入 | Thinking归属、ESC停止、版本冲突和JSON摘要；终态提示22项复测通过。[专项报告](../reports/2026-10-31-conversation-small-items.md) | shared-agent |
 | conversation-runtime | d8b13d02 | feature | 会话控制 · 本地重建来源 | 规范ready、同镜像160e55be与清理通过 | 检出d8b13d02启动重建；后端源码未变；App最终提示产品来源d89248e0由根Vite提供 | shared-agent |
@@ -1090,7 +1096,9 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | grid-scale-merge | 主要代码集成里程碑 | dev | PR64整合10W+源图与精确指令视图；原生模型退出、拒绝诊断和原参数回放通过 | 固定78f81e66；受检44e8eca2，macOS7分31秒、主5173和真实华北交付通过 |
 | grid-scale-source | 已合入并本地验收 | dev · 原feat/grid-scale-view | 华北10W+源元素与站点分区；精确逐指令视图、模型退出和有界拒绝诊断 | 华北连续任务、五文件、57/56图及主5173通过；模型构建缺口保留，无云发布 |
 | gateway-dynamic-runtime | 历史通用网关本地来源 | dev · 原refactor/gateway-dynamic-bindings | 通用网关结果和续接动作绑定，任务授权与回执保留；有界视图读取支持返回页大小 | 根dev61ec56c6规范重建exit0、ready200、同镜像989226e8与清理通过；App产品d9e24798、dirty=false，目录及视图协议、真实任务通过，渲染和性能未接受 |
-| dev-head | 当前研发位置 | dev | 会话实例绑定与左栏锁定；轻量契约检查与动态工具准入 | 本地业务已验证，记录HEAD动态展示；origin/dev仍196e865a，未启动CI或推送 |
+| dev-head | 当前研发位置 | dev | 动态调用及执行目的；首轮Thinking归位、耗时标红和终态折叠定位 | 后端6de15939、App4c7e56bf本地及可见短任务通过；origin/dev196e865a，无CI或推送 |
+| tool-invocation-runtime | 确定调用与执行记录来源 | dev | 256默认工具容量与返回动作保真；公开首行目的与结束折叠定位 | 专项检查通过；运行及浏览器状态见验证记录；不冒充新业务验收 |
+| process-presentation-runtime | 本地App展示来源 | dev | 首轮Thinking与目的归入对应LLM；受控终态折叠并定位指令 | 127组件及类型通过；真实短任务2.3秒、零工具调用收尾通过 |
 | session-gateway-runtime | 会话网关本地实现来源 | dev | 首指令原子锁定实例；左栏、资源与执行按会话取源 | 本地双实例与CSV5行通过，模型参数错误已恢复；未推送或云端部署 |
 | workspace-integration | 已集成源码 | dev | 运行支持与会话阅读状态已合入；产品源固定e8bfb5ae | PR #56及dev必需门禁通过；额外发布检查已取消 |
 | workspace-merge | 主要分支合入 | dev | PR #56合入已验收工作空间；合并树等于产品e8bfb5ae | dev必需门禁通过，非发布，不更新cloud/demo |
@@ -1205,7 +1213,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | feat/application-pack-selection（已关闭） | 共同基座按需装配已合入来源 | 20226bf0实现、cb08ef92限定CI；PR #46合入9eb84a34 | native/authority准备通过；生产Profile/v2前端及持续执行待实现 | shared-agent |
 | feat/work-attempt-binding | 正常对话基座研发 | 本地c9e57152；PR #50仍为旧来源草稿；native源码已保存 | RPC父链及23项真实PG通过；前端、真实Provider及部署另验；非应用交付 | 研发macOS；发布保留双平台 |
 | feat/thread-work-context（已关闭） | 共同基座Work账本已合入来源 | e58ef9a4实现与复用修正；PR #48合入d86cc4ef | v2/无模型任务保存入口；生产Claim/Profile与持续执行仍待实现 | shared-agent |
-| dev | 默认开发集成主线 | 实际HEAD动态显示；本地产品d3c69284，origin/dev196e865a | 会话绑定、原子锁定和真实双实例CSV通过；本地领先，未推送或创建PR | shared-agent |
+| dev | 默认开发集成主线 | 实际HEAD动态显示；后端6de15939/App4c7e56bf，origin/dev196e865a | 动态调用、过程展示及真实短任务收尾通过；本地领先，无推送/PR/CI | shared-agent |
 | docs/dev-baseline-control | 收口状态同步 | 从接受的dev50d8ebc建立；登记B2标签、分支关闭与研究实施起点 | 仅文档和控制图，轻量检查后集成dev | main |
 | feat/research-model | 起点与依赖已适配 | 2b0b0a5；精确祖先dev6ff7094；设计及推进计划排除撤回的编译/覆盖/预热依赖；本工作区运行时准备与doctor通过 | R1尚无代码；按R1–R5及真实依赖路径验收，不将旧R0实验当作本分支成果 | research |
 | recovery/autonomous-agent-merged-faa6af9 | 已合并分支的本地恢复引用 | 原feat/autonomous-agent已通过PR #18合入dev faa6af9；保留2b6ae7b与原工作树全部未提交文档和运行数据；远端已合并分支关闭 | 非在研分支；后续从dev推进，科学与交互验收仍开放 | autonomous |
@@ -1328,7 +1336,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | 精确实现来源 `d3c69284e52e55fa1beb88d3d0b993261a52525d`；记录HEAD另行动态展示 | 规范重建ready200；API及三worker同镜像507734c3db946f25b4e187c3c05a8e73704693e2fb2cc715659034a40e363dc7，健康；generalPi独立镜像健康 | 定向清理通过，.capstone-agent/cache-maintenance-20261031-150516-65148.log；可见双实例绑定、锁定及CSV5行通过，初期失败和恢复记录保留，不宣称零错误或性能接受。[验证报告](../reports/2026-10-31-session-gateway-binding.md) |
+| local-dev | 后端精确实现 `6de15939b450b499861b127a07d89e43abf5f0c2`；Vite App增量4c7e56bf；记录HEAD另行动态展示 | 规范重建ready200；API及三worker同镜像113b791d14ff4ac2d46775cb1c6af0abfb581cd83ce49ac7edff10a74ef30dad，关键模块哈希匹配；generalPi121层健康 | 定向清理170032-16032通过；现有标签页首轮Thinking与目的归位、终态折叠和指令可见通过；短任务一个模型响应且无工具调用，非新业务验收。[验证报告](../reports/2026-10-31-latest-session-tool-errors.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |
 | cloud-dev | `24d9a32`，开发试用候选；已推送标签cloud-dev-20261013-1045-24d9a32 | 用户授权的基本功能检查通过：四角色SUCCESS、API就绪、前端来源与真实中文对话；非正式发布或科学解释验收 | App https://capstone-app-production-83ef.up.railway.app/；[部署记录](../reviews/2026-10-13-cloud-dev-autonomous-trial.md)；demo不变 |
 | cloud-demo | App/API/两worker `faa6af9` | 四角色SUCCESS；三后端身份与dev本地529文件验收一致，安装工件与受检候选一致；三用例九轮、报告证据回放通过；local-demo已同源验收；正式标签demo-20261014-2028-faa6af9已推送 | App https://capstone-app-production-975e.up.railway.app/；上一正式标签demo-20261014-0744-bd2a200；双平台完整发布38554987581通过；cloud-dev不动 |

@@ -6616,3 +6616,13 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 15:00 Compare frozen task gateways separately from defaults to prevent valid bound sessions failing runtime preparation [d3c69284].
 - 15:10 Runtime507734c3 ready;B completes50.8s/17LLM/34tools,CSV5rows/hash verified;A/B identities and sidebar locks stay distinct;no CI.
 - 15:26 Align canonical register,runbook and control view;verify source edges avoid cards,doctor and changed links pass;other deployments unchanged.
+- 15:27 Record verified session-source behavior and exact local deployment so future work preserves per-conversation instance ownership [f567c3d1].
+- 15:32 Final graph shows actualf567c3d1 and deployed sourced3c69284;source route avoids cards;existing AppA restored;small state receipts intentionally uncommitted.
+- Latest-session audit: inspected1945events and66saved observations;identified7failures in Xinjiang curve attempt_cc63f76830bcf82d. Preserved full errors and gateway discovery;wrote per-call analysis and gateway coordination draft. No business replay,source modification,rebuild or CI. UI diagnostic extraction,loader capacity reporting and saveContext validation remain unimplemented fixes.
+- Raise configurable tool capacity, preserve observed actions and expose diagnostics to prevent avoidable execution errors [37274f7f].
+- Consolidate executor COPY layers to avoid Docker overlay depth129 blocking local container recreation [0cf09788].
+- Show tool operations and response intent in all traces;restore red slow-call styling for readable execution records [b51a4524].
+- Persist safe public response intent and collapse completed process windows to restore instruction focus [6de15939].
+- Contain first thinking and bind completion to rendered instruction order because accepted commands can precede attempt creation [26f083d2].
+- Close process views through terminal-controlled state to prevent native toggle races and missed fast-task completion [4c7e56bf].
+- Final local image113b791d ready;API/allworkers equal;App4c7e56bf real2.3second no-tool trial folds current process and keeps instruction visible;no CI.

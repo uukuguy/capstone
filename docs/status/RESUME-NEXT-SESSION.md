@@ -4,6 +4,78 @@
 
 ## Immediate work
 
+VERIFIED: backend6de15939;App4c7e56bf (includes26f083d2). Dynamic tool capacity256
+configurable1024, input-only contract budget, host-observed action copying, dataset
+reference validation/recovery and pre-truncation diagnostics implemented. Public
+response_intent survives history refresh. First Thinking is inside its actualLLM
+record;purpose comments stay out of answer/copy. Tool operation titles and red
+latency styles restored. Terminal cursor signals controlled answer state, syncs
+native details and scrolls to the preceding instruction;accepted v2 commands may
+have no attemptID. Earlier DOM-only/active-state fixes were insufficient;don'trevert.
+App component127 checks and types pass. Native/discovery50 and Python40+fingerprint
+checks passed earlier;5 saved real gateway errors project readable reason/requestID.
+Actual final attempt76f26b4ced3d0a24:1model,0tools,2.3seconds;current process collapsed,
+instruction visible and no Thinking outside. Existing App tabthr_0e188fb1d1a5d7e24e51.
+Backend image113b791d14ff4ac2d46775cb1c6af0abfb581cd83ce49ac7edff10a74ef30dad,
+API/allworkers equal,ready200,source hashes match;general-pi121layers. Canonical
+rebuild/cleanup170032-16032 complete. PureApp followups use existingVite. Evidence
+runs/tool-invocation-validation-20261031/ and reports2026-10-31-latest-session-tool-errors.md.
+Gateway coordination draft ready,not sent externally:unknown sort-field path,
+declared-only vsphysical rejection,revision scope and target-month data availability.
+No CI,push,PR or cloud/demo change. Remaining:finish control snapshot/browser check
+and documentation commit;preserve final generated snapshot as small receipt if needed.
+
+## Earlier checkpoints (superseded; do not repeat builds)
+
+CURRENT SOURCE6de15939, IMPLEMENTATION37274f7f: configurable256tool capacity, input-only schema budget,
+search32/summary1024, tools.follow(ref,pointer) copies host-observed action arguments,
+honors waits and existing task grants; save validation/recovery refs and structured
+MCP diagnostics. Source commit includes explicit general-pi Docker COPY and executor
+fingerprint entries for both new helpers.100 focused local tests/typecheck passed;
+five historical real errors produce readable reason/request_id. No CI/push/PR.
+First build failed recreating general-pi: image129layers exceeds Docker overlay
+limit; old general-pi remainshealthy.0cf09788 groups two COPY clusters to121layers.
+Second rebuild built121layers but Compose recreation failed name conflicts and
+stopped old dependencies. Restored exact old postgres/objects/general-pi containers
+with docker start;removed only3Created placeholders658af740c9dc/e87d312de543/efd135145769,
+never-started task-owned replacements,no volumes deleted. Third canonical rebuild
+RUNNING log/tmp/capstone-deterministic-invocation-rebuild-final.log. No source edits.
+b51a4524 addresses user trace feedback: generic operation title;shared first-line
+response comment parser incl graph child response_text;purpose after LLM label;
+red latency styles.46Appchecks+types pass, no newmodelcalls to generate intent.
+Next: verify rebuild readiness/digests/cleanup, existing-browser smoke, updatecontrol.
+Third rebuild passed: image9560b3839fd3acdb8d847c7134d345f873b37f4a122816178522c7bb6ea7c9ef,
+API/allworkers equal;general-pi121layers;ready200;scoped cleanup163814-71581.
+User added tool purpose/LLM purpose/slow red/finish-collapse focus requirements.
+6de15939 fixes privacy-history seam: first-line comment was diagnostic-only and
+filtered from public history. Backend now persists safe response_intent on public
+response completion;frontend retains safe metadata before diagnostic eviction and
+graph/direct paths reuse it. End transition closes only current process and shows
+its instruction;manual historical re-open staysopen.95focused App+4Python+types pass.
+Final canonical rebuild RUNNING exec session output tool ID; log
+/tmp/capstone-invocation-purpose-rebuild.log. Source frozen. No extra code changes.
+Existing browser App was changed by user tothr_0e188fb1d1a5d7e24e51;do not switch back
+or create tabs. AppleScript JS disabled;do not enable browser preference.
+Gateway cooperation draft includes exact five request IDs and pending revision-scope,
+sorting-field path and declared-only handling. No outbound message sent.
+Independent review tool failed twice with unavailable model; inline diff reviewed.
+The following audit remains historical context; its pending Capstone fixes are now
+implemented in37274f7f, pending runtime verification.
+
+Latest user request: diagnose each tool error in newest session. Read-only audit
+of thr_d4f80602b2954e7b107e / attempt_cc63f76830bcf82d completed. Seven failures:
+load 7+2 entry tools >8; two model-altered table names missing D; two declared-only
+tables sent to physical schema tool instead of returned describe_data_table;
+one unknown field likely order_by -DATE (gateway confirmation pending); saveContext
+dataset omitted call after successful989row read. Full private observations retained
+under runs/latest-tool-audit-20261031; report and gateway coordination draft in
+docs/reports/2026-10-31-{latest-session-tool-errors,data-gateway-error-coordination}.md.
+Critical UI cause: progress.py truncates nested error JSON before extraction;
+threadFeedback.ts cannot parse it and emits generic diagnostic text. Fix not yet
+implemented. Gateway discovered revision120ece51 differs from error guidance432ded43;
+ask version-scope semantics, do not assert publication drift. No replay/build/CI.
+Do not confuse this audit with the completed gateway binding implementation below.
+
 LATEST VERIFIED PRODUCTd3c69284. Third rebuild ready507734c3db946f25b4e187c3c05a8e73704693e2fb2cc715659034a40e363dc7,
 API/all three workers same digest;cleanup receipt150516-65148. Browser resend in
 the SAME B session completed: attempt_f9537dca11df2156,50.8s,17LLM,34tools.
@@ -24,7 +96,11 @@ deployment reference now uses clear inter-column corridors instead of crossing
 right-side cards. Historical source label corrected;actual source edge and layout
 verified in existing control tab. NEXT: commit task-owned documentation,refresh
 actualdevHEAD graph once(no endless selfhash loop),then return to existing App A.
-Current GitHEADd3c69284,origin/dev196e865a,localahead19 beforedoccommit. No CI/push/PR/cloud.
+Docs committed f567c3d1;actual dev HEAD node f567c3d1 and source d3c69284 verified
+in regenerated graph/browser. Original App A tab restored. This task is complete;
+await next user instruction. No CI/push/PR/cloud. Runtime remains d3c69284/image507734c3.
+Small uncommitted paths: PROJECT-OVERVIEW.html reflects final docs HEAD;JOURNAL
+and this checkpoint retain final receipts. Keep them to avoid a self-hash loop.
 All implementation and requested behavior actually verified. Existing control and
 App tabs are reused;no tabs created/closed. Earlier failure checkpoints below historical.
 

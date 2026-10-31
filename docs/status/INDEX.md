@@ -1,5 +1,10 @@
 # docs/status INDEX
 
+Latest verified work2026-10-31: backend6de15939/App4c7e56bf implement deterministic returned actions,
+configurable tool capacity, readable diagnostics, public response intent and
+completion focus. Local ready and same-image checks plus real short-task UI closeout pass; no CI/push/PR/cloud changes.
+See JOURNAL and RESUME-NEXT-SESSION for exact recovery. Entries below are history.
+
 Active startup repair2026-10-31: fix/gateway-entry-startup at565802f9, based on actual devc282dc8f.
 User feedback: four searches preceded discovery on the fifth model response.
 The candidate activates admitted gateway entry tools on the first turn; business tools stay on demand.
