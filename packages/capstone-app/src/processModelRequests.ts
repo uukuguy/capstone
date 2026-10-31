@@ -66,11 +66,13 @@ export function projectProcessModelRequests(events: readonly EventEnvelope[], at
     }
     if (event.payload.phase === 'started') {
       if(pending)pending.settled=true
-      pending = { id: event.eventId, number: calls.length + 1, ms: 0, startedAt: event.occurredAt }
+      pending = { id: event.eventId, number: calls.length + 1, ms: 0, startedAt: event.occurredAt,
+        ...(typeof event.payload.response_intent==='string'?{intent:event.payload.response_intent.slice(0,160)}:{}) }
       calls.push(pending)
       turn=pending
       openingText=''
     } else if (event.payload.phase === 'response_completed' && pending) {
+      if(typeof event.payload.response_intent==='string')pending.intent=event.payload.response_intent.slice(0,160)
       if(typeof event.payload.response_text==='string')pending.intent??=responseOpeningIntent(event.payload.response_text)
       const usage=event.payload.usage
       if(usage&&typeof usage==='object'&&!Array.isArray(usage)){

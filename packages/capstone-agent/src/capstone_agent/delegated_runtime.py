@@ -227,10 +227,14 @@ class DelegatedRuntime:
         stream_text = self._direct or (self._decision is not None
             and len(self._decision.to_document()['goals']) == 1)
         transfers = self._incremental_artifact_transfers(on_event, control)
+        opening_text = ''
 
         def native(event):
+            nonlocal opening_text
             control.checkpoint()
             kind = event.get('type', event.get('event', 'unknown'))
+            if kind == 'runtime_action' and event.get('phase') == 'started':
+                opening_text = ''
             if kind == 'native_artifact_captured':
                 self._publish_captured_artifact(event, request, transfers)
                 return
@@ -249,6 +253,8 @@ class DelegatedRuntime:
             update = event.get('assistantMessageEvent')
             if isinstance(update, Mapping) and update.get('type') == 'text_delta':
                 delta = update.get('delta')
+            if isinstance(delta, str):
+                opening_text = (opening_text + delta)[:512]
             if stream_text and isinstance(delta, str):
                 # The text event is the replay record. A second metadata-only
                 # event for the same chunk carries no additional observation.
@@ -259,6 +265,11 @@ class DelegatedRuntime:
             event = steps.annotate(event)
             if event.get('type') == 'runtime_action':
                 from .harness import normalize_runtime_event
+                if event.get('phase') == 'response_completed':
+                    from .progress import public_response_intent
+                    intent = public_response_intent(opening_text)
+                    if intent:
+                        event = {**event, 'response_intent': intent}
                 on_event(normalize_runtime_event(event, runtime_mode=self.runtime_mode))
                 return
             # General tools are host observations. They never become semantic

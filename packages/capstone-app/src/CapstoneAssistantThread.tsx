@@ -712,6 +712,8 @@ function AttemptActivity({ activities, modelRequests = [], initialThinking, nati
   const progress = executionGraph ? [] : legacyProgress
   const diagnostics = executionGraph ? [] : legacyDiagnostics
   const [reading, setReading] = useState(false)
+  const wasRunning=useRef(running)
+  useEffect(()=>{if(wasRunning.current&&!running)setReading(false);wasRunning.current=running},[running])
   const [inlineToolsOpen,setInlineToolsOpen]=useState(false),[readerToolsOpen,setReaderToolsOpen]=useState(true)
   const [disclosureStates,setDisclosureStates]=useState([{canExpand:false,canCollapse:false},{canExpand:false,canCollapse:false}])
   const embeddedScroll = useRef(0)
@@ -1277,6 +1279,25 @@ export default function CapstoneAssistantThread({ nativeArtifactProjections, pro
   useLayoutEffect(()=>{if(savedPosition)setRestoringSessionPosition(true)},[savedPosition])
   const alignedInstruction=useSessionViewRef<string|undefined>('conversation.aligned-instruction',undefined)
   const latestInstructionId = allMessages.filter(message => message.role === 'user').at(-1)?.id
+  const previouslyRunning=useRef(isRunning)
+  useEffect(()=>{
+    const finished=previouslyRunning.current&&!isRunning
+    previouslyRunning.current=isRunning
+    if(!finished)return
+    const viewport=viewportRef.current
+    const instruction=viewport?.querySelectorAll<HTMLElement>('[aria-label="用户指令"]').item(
+      (viewport?.querySelectorAll('[aria-label="用户指令"]').length??0)-1)
+    if(!instruction)return
+    for(const answer of viewport?.querySelectorAll<HTMLElement>('[aria-label="智能体回答"]')??[]){
+      if(answer.dataset.attemptId!==instruction.dataset.attemptId)continue
+      for(const details of answer.querySelectorAll<HTMLDetailsElement>('details.capstone-chat-activity-attached')){
+        details.open=false
+        details.dispatchEvent(new Event('toggle'))
+      }
+    }
+    const frame=requestAnimationFrame(()=>instruction.scrollIntoView({block:'start',behavior:'smooth'}))
+    return ()=>cancelAnimationFrame(frame)
+  },[isRunning,latestInstructionId])
   useLayoutEffect(() => {
     if (!isRunning||alignedInstruction.current===latestInstructionId) return
     const viewport = viewportRef.current

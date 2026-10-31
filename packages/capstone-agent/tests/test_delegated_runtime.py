@@ -291,6 +291,7 @@ def test_native_worker_persists_shared_steps_without_promoting_tools_to_authorit
     class SteppedExecutor(Executor):
         def execute(self, request, control, on_event):
             on_event({'type': 'runtime_action', 'phase': 'started'})
+            on_event({'type': 'assistant_delta', 'text': '// 核对模型范围\nPRIVATE BODY'})
             on_event({'type': 'runtime_action', 'phase': 'response_completed', 'response_kind': 'tools'})
             on_event({'type': 'tool_execution_start', 'tool_name': 'bash', 'tool_call_id': 'read'})
             on_event({'type': 'tool_execution_end', 'tool_name': 'bash', 'tool_call_id': 'read', 'is_error': True})
@@ -304,6 +305,9 @@ def test_native_worker_persists_shared_steps_without_promoting_tools_to_authorit
     result = run(service, current, factory(SteppedExecutor(), Recognizer([goal('one')])))
     assert result.status == 'completed'
     saved = service.read_events(current.thread_id, 0).events
+    purposes = [e.payload.get('response_intent') for e in saved if e.event_type == 'runtime_action' and e.payload.get('phase') == 'response_completed']
+    assert purposes[0] == '核对模型范围'
+    assert not any('PRIVATE BODY' in str(e.payload) for e in saved if e.visibility == 'public')
     calls = [e.payload for e in saved if e.payload.get('tool_call_id') == 'read']
     assert len(calls) == 2 and calls[0]['task_step_id'] == calls[1]['task_step_id']
     steps = [e.payload['task_step'] for e in saved if e.event_type == 'runtime_action' and 'task_step' in e.payload]

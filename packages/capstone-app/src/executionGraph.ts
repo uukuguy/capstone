@@ -1,4 +1,5 @@
 import type { EventEnvelope } from './threadProtocol'
+import {projectProcessModelRequests} from './processModelRequests'
 
 type RecordValue = Record<string, unknown>
 export type GraphOwner = { thread_id: string; work_id: string; research_id: string; goal_revision: number }
@@ -24,14 +25,14 @@ export type ExecutionGraphSnapshot = { schema: string; graph_ref: string; graph_
 export type GraphTool = { id: string; name: string; status: 'running' | 'completed' | 'failed'; startedAt?: string; finishedAt?: string; durationMs?: number; executionMs?: number; operation?: string; output?: string; warning?: string; failure?: string; actionId?: string; actionKind?: string; origin?: 'parent'; returnLimitations?: {count:number;notes:string[]} }
 export type GraphResponse = { number: number; ms: number; usage?: RecordValue; startedAt?: string; finishedAt?: string; toolCallIds?: string[]; stopReason?: string; responseText?: string; toolRequests?: { id: string; name: string; operation?: string }[] }
 export type GraphExecution = { action: GraphAction; node: GraphNode; tools: GraphTool[]; responses: GraphResponse[]; nativeStatus?: string; resultSummary?: string; startedAt?: string; finishedAt?: string; durationMs?: number; executionStartedAt?: string; executionFinishedAt?: string; executionIntervalMs?: number; modelResponseCount?: number; turnCount?: number }
-export type GraphParentResponse = { id: string; startedAt: string; finishedAt: string; ms: number; kind: string; errorCode?:string; errorStatus?:number }
+export type GraphParentResponse = { id: string; startedAt: string; finishedAt: string; ms: number; kind: string; intent?:string; errorCode?:string; errorStatus?:number }
 export type ExecutionGraph = {
   owner: GraphOwner; taskId: string; current: ExecutionGraphSnapshot;
   checkpoints: { checkpoint: GraphCheckpoint; graph: ExecutionGraphSnapshot }[];
   revisions: { graph: ExecutionGraphSnapshot; occurredAt: string }[];
   executions: GraphExecution[];
   parentResponses?: GraphParentResponse[];
-  parentPendingResponse?: {id: string; startedAt: string};
+  parentPendingResponse?: {id: string; startedAt: string; intent?:string};
   controlCalls: { callId: string; name: string; checkpoint: GraphCheckpoint; graphRef: string; actionId?: string; stepId?: string }[];
   controlEvents: { id: string; checkpoint: GraphCheckpoint; graphRef: string; kind: string; summary?: string }[];
 }
@@ -261,6 +262,7 @@ export function projectExecutionGraph(events: readonly EventEnvelope[], attemptI
   // These are attempt-level observations. They do not establish node ownership.
   const parentResponses: GraphParentResponse[] = [], seen = new Set<string>()
   const starts = new Map<string, EventEnvelope>()
+  const intents=new Map(projectProcessModelRequests(events,attemptId).map(call=>[call.id,call.intent]))
   for (const event of [...events].sort((a, b) => a.eventSeq - b.eventSeq)) {
     if (seen.has(event.eventId) || event.visibility !== 'public' || event.eventType !== 'runtime_action' ||
       event.threadId !== output.owner.thread_id || event.attemptId !== attemptId || event.payload.runtime_mode !== 'capstone') continue
@@ -274,6 +276,7 @@ export function projectExecutionGraph(events: readonly EventEnvelope[], attemptI
       starts.delete(key)
       if (start && ms !== undefined && enumValue(p.response_kind, ['tools', 'text', 'error'])) {
         parentResponses.push({ id: event.eventId, startedAt: start.occurredAt, finishedAt: event.occurredAt, ms, kind: p.response_kind,
+          ...(intents.get(start.eventId)?{intent:intents.get(start.eventId)}:{}),
           ...(typeof p.error_code==='string'&&/^[a-z][a-z0-9_]{0,127}$/.test(p.error_code)?{errorCode:p.error_code}:{}),
           ...(typeof p.error_status==='number'&&Number.isInteger(p.error_status)&&p.error_status>=400&&p.error_status<=599?{errorStatus:p.error_status}:{}) })
       }
@@ -281,6 +284,6 @@ export function projectExecutionGraph(events: readonly EventEnvelope[], attemptI
   }
   output.parentResponses = parentResponses
   const pending=[...starts.values()].at(-1)
-  if(pending) output.parentPendingResponse={id:pending.eventId,startedAt:pending.occurredAt}
+  if(pending) output.parentPendingResponse={id:pending.eventId,startedAt:pending.occurredAt,intent:intents.get(pending.eventId)}
   return output
 }

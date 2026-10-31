@@ -9,6 +9,7 @@ import { parseWorkSnapshot, type WorkSnapshot } from './threadWorkProtocol'
 import type { AnyThreadCommand } from './threadClient'
 import { ThreadTransportError,isThreadVersionError } from './threadHttpTransport'
 import { ResultProjectionDelivery } from './resultProjectionDelivery'
+import {ResponseIntentProjection} from './responseIntentProjection'
 import {
   CapstoneThreadClient, type ThreadCommand, type ThreadTransport, type ThreadTransportState,
 } from './threadClient'
@@ -334,8 +335,12 @@ export class ThreadProjectionStore {
   }
 
   get publicEvents(): readonly EventEnvelope[] {
-    return this.eventLog.filter((event) => event.visibility === 'public')
+    return this.eventLog.filter((event) => event.visibility === 'public').map(event=>{
+      const intent=this.responseIntents.intent(event.eventId)
+      return intent?{...event,payload:{...event.payload,response_intent:intent}}:event
+    })
   }
+  private readonly responseIntents=new ResponseIntentProjection()
 
   /** Message bodies outlive the bounded tool/token event window. */
   get conversationEvents(): readonly EventEnvelope[] {
@@ -387,6 +392,7 @@ export class ThreadProjectionStore {
   }
 
   private trimHistory(keepLatest: boolean): void {
+    this.responseIntents.observe(this.eventLog)
     this.retainConversation(this.eventLog)
     let bytes = 0
     for (const event of this.eventLog) {
@@ -456,7 +462,7 @@ export class ThreadProjectionStore {
   async load(threadId: string): Promise<void> {
     const generation = ++this.loadGeneration
     const sameThread = this.loadedThreadId === threadId
-    if(!sameThread){this.conversationArchive.clear();this.conversationHistoryComplete=false}
+    if(!sameThread){this.conversationArchive.clear();this.conversationHistoryComplete=false;this.responseIntents.clear()}
     const previousView = this.loadedThreadId === threadId ? this.current.viewedGridPageId : null
     this.current = {
       ...this.current,

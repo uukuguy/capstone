@@ -7,6 +7,20 @@ import directExecutionLifecycle from './fixtures/directExecutionLifecycle.json'
 import {parseEventEnvelope} from './threadProtocol'
 
 afterEach(() => { cleanup(); localStorage.clear(); sessionStorage.clear() })
+it('collapses the finished process once and scrolls its instruction into view',async()=>{
+ const events=[event('command_accepted',1,{kind:'send_auto',payload:{text:'本轮指令'}},'finish_focus'),event('attempt_started',2,{},'finish_focus'),event('tool_started',3,{tool_name:'query',tool_call_id:'one'},'finish_focus')]
+ const props={disabled:false,isRunning:true,onSend:async()=>{},onCancel:async()=>{}}
+ const view=render(<CapstoneAssistantThread {...props} events={events} activity={projectAssistantActivity(events)}/>)
+ fireEvent.click(view.container.querySelector('.capstone-chat-activity-attached > summary')!)
+ expect(view.container.querySelector<HTMLDetailsElement>('.capstone-chat-activity-attached')?.open).toBe(true)
+ const instruction=screen.getByLabelText('用户指令'),scroll=vi.fn();instruction.scrollIntoView=scroll
+ const ended=[...events,event('attempt_completed',4,{answer:'完成'},'finish_focus')]
+ view.rerender(<CapstoneAssistantThread {...props} isRunning={false} events={ended} activity={projectAssistantActivity(ended)}/>)
+ await waitFor(()=>expect(view.container.querySelector<HTMLDetailsElement>('.capstone-chat-activity-attached')?.open).toBe(false))
+ await waitFor(()=>expect(scroll).toHaveBeenCalled())
+ fireEvent.click(screen.getByRole('button',{name:'查看执行过程'}))
+ expect(view.container.querySelector<HTMLDetailsElement>('.capstone-chat-activity-attached')?.open).toBe(true)
+})
 it('stops with Escape and respects disabled cancellation',async()=>{
   const onCancel=vi.fn().mockResolvedValue(undefined)
   const props={events:[],disabled:false,isRunning:true,activity:[],onSend:async()=>{},onCancel}

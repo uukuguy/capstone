@@ -62,6 +62,10 @@ it('restores response purpose from a recorded response text when stream deltas a
  const [call]=projectProcessModelRequests([boundary(1,'started'),end],'attempt')
  expect(call.intent).toBe('检查字段可用性')
 })
+it('uses persisted public response intent when history contains no diagnostic deltas',()=>{
+ const end=boundary(2,'response_completed','tools');end.payload.response_intent='核对字段与来源'
+ expect(projectProcessModelRequests([boundary(1,'started'),end],'attempt')[0].intent).toBe('核对字段与来源')
+})
 it('keeps public thinking within its actual request and does not aggregate later rounds',()=>{
   const thought=(seq:number,text:string):EventEnvelope=>({...boundary(seq,'thought'),eventType:'assistant_thinking_delta',payload:{text}})
   const first=thought(2,'First thought. ')

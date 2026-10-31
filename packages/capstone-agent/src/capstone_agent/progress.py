@@ -37,6 +37,16 @@ def _summary(value: object, limit: int = 200) -> str:
     return compact if len(compact) <= limit else compact[:limit] + "…"
 
 
+def public_response_intent(text: str) -> str | None:
+    line = text.split('\n', 1)[0].strip()
+    if not line.startswith('//'):
+        return None
+    value = line[2:].strip()
+    if not value or _redact_text(value) != value:
+        return None
+    return _summary(value, 159)
+
+
 def _input_excerpt(arguments: Mapping, text_filter) -> str:
     """Retain bounded call diagnostics, without credentials or file bodies."""
     def safe(value, depth=0):
