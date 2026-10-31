@@ -60,6 +60,7 @@ const AnswerReadingContext = createContext<{
   toggle: (id: string, control: HTMLButtonElement) => void
   restoreAnchor: (id: string) => void
   preserveControl: (id: string, element: HTMLElement) => void
+  finishedAttempt?: {id:string;sequence:number}
 }>({ collapsed: new Set(), toggle: () => {}, restoreAnchor: () => {}, preserveControl: () => {} })
 
 const ChatMessageContext = createContext<Parameters<typeof ChatMessage>[0] | null>(null)
@@ -741,7 +742,7 @@ function AttemptActivity({ activities, modelRequests = [], initialThinking, nati
   const graphUnassignedTools = toolActivities.filter(activity => !graphToolIds.has(callId(activity)))
   const toolCount = executionGraph ? graphToolIds.size + graphUnassignedTools.length : toolActivities.length
   const focus = selectedGraphFocus === 'tools' && !executionGraph ? (toolCount > 0 ? 'tools' : 'thinking') : executionGraph && selectedGraphFocus ? selectedGraphFocus : executionGraph || steps.length > 0 || branches.length > 0 ? 'tasks' : toolCount > 0 ? 'tools' : 'thinking'
-  const followLightweight=running&&(selectedGraphFocus==='tools'||focus==='thinking')
+  const followLightweight=running&&!['completed','failed','cancelled','interrupted'].includes(phase??'')&&(selectedGraphFocus==='tools'||focus==='thinking')
   const processOpen=open||followLightweight
   const processViewport = useRef<HTMLDivElement>(null)
   useLayoutEffect(()=>{
@@ -974,7 +975,7 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
   const role = useAuiState((state) => state.message.role)
   const content = useAuiState((state) => state.message.content)
   const id = useAuiState((state) => state.message.id)
-  const { restoreAnchor, preserveControl } = useContext(AnswerReadingContext)
+  const { restoreAnchor, preserveControl,finishedAttempt } = useContext(AnswerReadingContext)
   const footerRef = useRef<HTMLDivElement>(null)
   useLayoutEffect(() => restoreAnchor(id), [id, restoreAnchor])
   const status = useAuiState((state) => state.message.status)
@@ -1031,6 +1032,12 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
   const [pendingResultId, setPendingResultId] = useState<string | null>(null)
   const terminalWithoutText = role === 'assistant' && !hasText && status?.type !== 'running'
   const toggleActivity = () => togglePanel('process')
+  useEffect(()=>{
+    if(role==='assistant'&&finishedAttempt?.id===attemptId){
+      setActivityOpen(false);setProcessPanel(null)
+      if(activityRef.current)activityRef.current.open=false
+    }
+  },[finishedAttempt?.sequence,attemptId,role])
   const messageState = status?.type === 'running' ? 'running' : typeof custom?.terminalPhase === 'string' ? custom.terminalPhase : status?.type
   const retryable = ['failed', 'cancelled', 'interrupted'].includes(String(custom?.terminalPhase)) ||
     (custom?.terminalPhase === 'completed' && canRerunCompleted && instruction?.trim() &&
@@ -1280,36 +1287,23 @@ export default function CapstoneAssistantThread({ nativeArtifactProjections, pro
   useLayoutEffect(()=>{if(savedPosition)setRestoringSessionPosition(true)},[savedPosition])
   const alignedInstruction=useSessionViewRef<string|undefined>('conversation.aligned-instruction',undefined)
   const latestInstructionId = allMessages.filter(message => message.role === 'user').at(-1)?.id
-  const visualRunning=isRunning||Boolean(submittingThinking)
-  const previouslyRunning=useRef(visualRunning)
-  const completionPending=useRef(visualRunning)
-  const runningBoundary=useRef(Math.max(0,...events.map(event=>event.eventSeq)))
+  const terminals=events.filter(event=>event.visibility==='public'&&['attempt_completed','attempt_failed','attempt_cancelled','attempt_interrupted'].includes(event.eventType))
+  const terminalCursor=useRef({key:storageKey,seq:Math.max(0,...terminals.map(event=>event.eventSeq))})
+  const [finishedAttempt,setFinishedAttempt]=useState<{id:string;sequence:number}>()
   useEffect(()=>{
-    if(visualRunning&&!previouslyRunning.current){completionPending.current=true;runningBoundary.current=Math.max(0,...events.map(event=>event.eventSeq))}
-    const finished=completionPending.current&&!visualRunning&&events.some(event=>
-      event.eventSeq>runningBoundary.current&&['attempt_completed','attempt_failed','attempt_cancelled','attempt_interrupted'].includes(event.eventType))
-    previouslyRunning.current=visualRunning
-    if(!finished)return
-    completionPending.current=false
+    const latest=terminals.reduce<EventEnvelope|undefined>((last,event)=>!last||event.eventSeq>last.eventSeq?event:last,undefined)
+    if(terminalCursor.current.key!==storageKey){terminalCursor.current={key:storageKey,seq:latest?.eventSeq??0};setFinishedAttempt(undefined);return}
+    if(!latest?.attemptId||latest.eventSeq<=terminalCursor.current.seq)return
+    terminalCursor.current.seq=latest.eventSeq
+    setFinishedAttempt({id:latest.attemptId,sequence:latest.eventSeq})
     alignedInstruction.current=undefined
-    const viewport=viewportRef.current
-    const instruction=viewport?.querySelectorAll<HTMLElement>('[aria-label="用户指令"]').item(
-      (viewport?.querySelectorAll('[aria-label="用户指令"]').length??0)-1)
-    if(!instruction)return
-    for(const answer of viewport?.querySelectorAll<HTMLElement>('[aria-label="智能体回答"]')??[]){
-      // A v2 accepted instruction precedes attempt creation and can have no
-      // attempt ID. Bind this UI action by its exact rendered message order.
-      if(!(instruction.compareDocumentPosition(answer)&Node.DOCUMENT_POSITION_FOLLOWING))continue
-      for(const details of answer.querySelectorAll<HTMLDetailsElement>('details.capstone-chat-activity-attached')){
-        details.open=false
-        details.dispatchEvent(new Event('toggle'))
-      }
-    }
     requestAnimationFrame(()=>{
-      const current=viewport?.querySelectorAll<HTMLElement>('[aria-label="用户指令"]')
-      if(viewport?.isConnected&&current?.item(current.length-1)===instruction)instruction.scrollIntoView({block:'start',behavior:'smooth'})
+      const viewport=viewportRef.current
+      const answer=[...viewport?.querySelectorAll<HTMLElement>('[aria-label="智能体回答"]')??[]].find(node=>node.dataset.attemptId===latest.attemptId)
+      const instruction=answer&&[...viewport?.querySelectorAll<HTMLElement>('[aria-label="用户指令"]')??[]].filter(node=>Boolean(node.compareDocumentPosition(answer)&Node.DOCUMENT_POSITION_FOLLOWING)).at(-1)
+      instruction?.scrollIntoView({block:'start',behavior:'smooth'})
     })
-  },[visualRunning,latestInstructionId,events])
+  },[events,storageKey])
   useLayoutEffect(() => {
     if (!isRunning||alignedInstruction.current===latestInstructionId) return
     const viewport = viewportRef.current
@@ -1675,7 +1669,7 @@ export default function CapstoneAssistantThread({ nativeArtifactProjections, pro
     <AnswerDetailContext.Provider value={{selected:answerDetail, select:selection=>{setAnswerDetail(selection);if(selection)onOpenAnswerDetail?.()}}}>
     <SystemActionContext.Provider value={onSystemAction}>
     <AttemptRecordsContext.Provider value={onReadAttemptRecords}>
-    <AnswerReadingContext.Provider value={{ collapsed: collapsedAnswers, toggle: toggleAnswer, restoreAnchor: restoreReadingAnchor, preserveControl }}>
+    <AnswerReadingContext.Provider value={{ collapsed: collapsedAnswers, toggle: toggleAnswer, restoreAnchor: restoreReadingAnchor, preserveControl,finishedAttempt }}>
     <ChatMessageContext.Provider value={{ selectedNetworkAttempt, networkAttemptIds, onShowNetwork, onRegenerate: isRunning ? undefined : onRegenerate, onFollowup: isRunning ? undefined : onFollowup, canRerunCompleted, modelSummary, showActivity, resultProjections, onFocusElement, onOpenResultProduct, onOpenTaskResults, nativeArtifacts, onOpenNativeArtifact }}>
     <div className="capstone-assistant-thread" data-testid="assistant-ui-chat" onClickCapture={event => {
       const summary = event.target instanceof Element ? event.target.closest('summary') : null
