@@ -7,8 +7,21 @@ import directExecutionLifecycle from './fixtures/directExecutionLifecycle.json'
 import {parseEventEnvelope} from './threadProtocol'
 
 afterEach(() => { cleanup(); localStorage.clear(); sessionStorage.clear() })
+it('keeps first thinking inside its LLM record and removes the purpose comment from the answer',()=>{
+ const events=[event('command_accepted',1,{kind:'send_auto',payload:{text:'直接确认'}},'first_thinking'),event('attempt_started',2,{},'first_thinking'),
+ event('runtime_action',3,{phase:'started',runtime_mode:'capstone'},'first_thinking'),
+ event('assistant_thinking_delta',4,{text:'核对回复要求'},'first_thinking'),
+ event('runtime_action',5,{phase:'response_completed',runtime_mode:'capstone',response_kind:'text',response_intent:'确认完成'},'first_thinking'),
+ event('attempt_completed',6,{answer:'// 确认完成\n验证完成'},'first_thinking')]
+ render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async()=>{}} onCancel={async()=>{}}/>)
+ expect(screen.queryByRole('button',{name:'展开初始思考'})).toBeNull()
+ expect(screen.queryByText('// 确认完成')).toBeNull()
+ expect(screen.getByText('验证完成')).toBeTruthy()
+ fireEvent.click(screen.getByRole('button',{name:'查看执行过程'}))
+ expect(within(screen.getByRole('group',{name:'LLM 调用 1'})).getByText('确认完成')).toBeTruthy()
+})
 it('collapses the finished process once and scrolls its instruction into view',async()=>{
- const events=[event('command_accepted',1,{kind:'send_auto',payload:{text:'本轮指令'}},'finish_focus'),event('attempt_started',2,{},'finish_focus'),event('tool_started',3,{tool_name:'query',tool_call_id:'one'},'finish_focus')]
+ const events=[event('command_accepted',1,{kind:'send_auto',payload:{text:'本轮指令'}}),event('attempt_started',2,{},'finish_focus'),event('tool_started',3,{tool_name:'query',tool_call_id:'one'},'finish_focus')]
  const props={disabled:false,isRunning:true,onSend:async()=>{},onCancel:async()=>{}}
  const view=render(<CapstoneAssistantThread {...props} events={events} activity={projectAssistantActivity(events)}/>)
  fireEvent.click(view.container.querySelector('.capstone-chat-activity-attached > summary')!)
@@ -94,7 +107,7 @@ describe('CapstoneAssistantThread', () => {
     const {rerender}=render(<CapstoneAssistantThread {...props} events={events} />)
     fireEvent.click(screen.getByRole('button',{name:'放大阅读执行过程'}))
     let reader=within(screen.getByRole('dialog',{name:'执行过程'}))
-    expect(reader.getByRole('region',{name:'思考状态'})).toBeTruthy()
+    expect(reader.queryByRole('region',{name:'思考状态'})).toBeNull()
     expect(reader.getAllByRole('group',{name:/LLM 调用/})).toHaveLength(1)
     expect(reader.queryByLabelText('任务步骤')).toBeNull()
     expect(reader.getByText('运行阶段与计时').closest('details')?.open).toBe(false)
@@ -113,10 +126,11 @@ describe('CapstoneAssistantThread', () => {
     expect(reader.getByLabelText('任务步骤')).toBeTruthy()
     expect(reader.getByText('Recorded business review')).toBeTruthy()
   })
-  it('shows public thinking status before the first task or tool exists', () => {
+  it('keeps preparation inside the process window before a model call exists', () => {
     const events=[event('command_accepted',1,{kind:'send_auto',payload:{text:'分析资料'}},'startup'),event('attempt_started',2,{},'startup')]
     render(<CapstoneAssistantThread events={events} activity={projectAssistantActivity(events)} disabled={false} isRunning={true} onSend={async()=>{}} onCancel={async()=>{}} />)
-    expect(screen.getByRole('region',{name:'思考状态'}).textContent).toContain('Thinking…')
+    expect(screen.queryByRole('region',{name:'思考状态'})).toBeNull()
+    expect(screen.getByText('准备执行本轮指令…').closest('details')?.open).toBe(true)
     expect(screen.queryByText('当前记录未提供公开思考摘要。')).toBeNull()
     expect(screen.queryByText('正在准备输入、规划和调度首个任务。')).toBeNull()
   })
@@ -126,12 +140,12 @@ describe('CapstoneAssistantThread', () => {
       event('runtime_action', 3, {phase:'response_completed'}, 'mixed', '2026-09-30T00:00:03Z')]
     const props = {disabled:false,isRunning:true,activity:[],onSend:async()=>{},onCancel:async()=>{}}
     const {rerender,unmount} = render(<CapstoneAssistantThread {...props} events={start} />)
-    expect(screen.getByRole('region',{name:'思考状态'}).textContent).toContain('Thinking…')
+    expect(screen.queryByRole('region',{name:'思考状态'})).toBeNull()
     expect(screen.getByRole('group',{name:'LLM 调用 1'}).textContent).toContain('2.0s')
     const toolEvents = [...start, event('runtime_event',4,{native_type:'tool_execution_start',task_id:'task',tool_call_id:'call',tool_name:'read',activity:{operation:'Read registered source'}},'mixed')]
     rerender(<CapstoneAssistantThread {...props} events={toolEvents} />)
     const tools = screen.getByRole('region',{name:'工具调用过程'})
-    expect(within(tools).getByText('Read registered source')).toBeTruthy()
+    expect(within(tools).getByText('Read registered source',{selector:'strong'})).toBeTruthy()
     expect(tools.closest('details')).toBeNull()
     expect(screen.queryByRole('region',{name:'思考状态'})).toBeNull()
     const taskEvents = [...toolEvents,event('runtime_event',5,{task_step:{id:'check',number:1,title:'Compare source coverage',status:'running'}},'mixed')]
@@ -1688,7 +1702,7 @@ describe('CapstoneAssistantThread', () => {
     fireEvent(details, new Event('toggle'))
     const completed = [...next, event('attempt_completed', 10, { answer: '执行完成。' }, 'running_activity')]
     rerender(<CapstoneAssistantThread {...props} isRunning={false} events={completed} activity={projectAssistantActivity(completed)} />)
-    expect(details.open).toBe(true)
+    expect(details.open).toBe(false)
     expect(screen.queryByLabelText('执行过程预览')).toBeNull()
     expect(details.querySelectorAll('.capstone-chat-activity-item')).toHaveLength(4)
   })

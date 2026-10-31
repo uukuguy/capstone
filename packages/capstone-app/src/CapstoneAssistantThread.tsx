@@ -25,7 +25,7 @@ import {summarizeLlmPoolCalls} from './processLlmPool'
 import {summarizeModelRequestPool,uniqueModelRequests} from './processModelRequestPool'
 import {isExecutionLifecycleStep} from './executionLifecycle'
 import {nativeGraphFocus} from './nativeGraphFocus'
-import ThinkingProcess,{projectInitialThinking,type InitialThinking} from './ThinkingProcess'
+import {projectInitialThinking,type InitialThinking} from './ThinkingProcess'
 import { projectExecutionGraph, type ExecutionGraph } from './executionGraph'
 import ResultExplorer from './ResultExplorer'
 import { taskResultCollections, type TaskResultCollection } from './taskResultCollections'
@@ -741,7 +741,7 @@ function AttemptActivity({ activities, modelRequests = [], initialThinking, nati
   const graphUnassignedTools = toolActivities.filter(activity => !graphToolIds.has(callId(activity)))
   const toolCount = executionGraph ? graphToolIds.size + graphUnassignedTools.length : toolActivities.length
   const focus = selectedGraphFocus === 'tools' && !executionGraph ? (toolCount > 0 ? 'tools' : 'thinking') : executionGraph && selectedGraphFocus ? selectedGraphFocus : executionGraph || steps.length > 0 || branches.length > 0 ? 'tasks' : toolCount > 0 ? 'tools' : 'thinking'
-  const followLightweight=running&&focus==='tools'&&selectedGraphFocus==='tools'
+  const followLightweight=running&&(selectedGraphFocus==='tools'||focus==='thinking')
   const processOpen=open||followLightweight
   const processViewport = useRef<HTMLDivElement>(null)
   useLayoutEffect(()=>{
@@ -835,6 +835,7 @@ function AttemptActivity({ activities, modelRequests = [], initialThinking, nati
   const process = (expandedResearch = false) => {
     if (focus === 'thinking') return <>
       {modelRequests.length > 0 && <ProcessCallTrace models={modelRequests} tools={[]} now={running ? now : undefined} active={running} />}
+      {running&&modelRequests.length===0&&<p role="status">准备执行本轮指令…</p>}
       {lifecycleDetails}
     </>
     if (focus === 'tools' && executionGraph) return <>
@@ -879,7 +880,6 @@ function AttemptActivity({ activities, modelRequests = [], initialThinking, nati
   }
   return <>{reading && <AnswerDetailSheet title="执行过程" showAnswerLabel={false} headerActions={focus==='tools'&&toolCount>0?toolControls(true):undefined} answerLabel={goalText ? goalText.slice(0, 80) : '当前指令'} className="capstone-process-reader" onClose={closeReader} metadata={<span className="capstone-process-reader-status">{running ? '执行中' : phase === 'failed' ? '执行失败' : phase === 'cancelled' ? '已取消' : phase === 'interrupted' ? '已中断' : phase === 'completed' ? '已完成' : '执行状态未记录'}{toolCount>0?` · ${toolCount} 次工具调用`:''}{modelSummary}{elapsed === undefined ? '' : ` · 总耗时 ${formatDuration(elapsed)}`}</span>}>
     <div ref={readerContent} className="capstone-chat-activity-frame">
-      {initialThinking&&<ThinkingProcess thinking={initialThinking} storageKey={stepStorageKey} now={now} expanded/>}
       {steps.length > 1 && <nav className="capstone-process-directory" aria-label="任务步骤目录">{steps.map(step => <button type="button" key={step.id} title={step.title} onClick={() => {
         const node = [...(readerContent.current?.querySelectorAll<HTMLElement>('[data-step-id]') ?? [])].find(node => node.dataset.stepId === step.id)
         node?.scrollIntoView({ block: 'start', behavior: 'smooth' })
@@ -980,8 +980,10 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
   const status = useAuiState((state) => state.message.status)
   const custom = useAuiState((state) => state.message.metadata?.custom) as Record<string, unknown> | undefined
   const author = custom?.runtimeMode === 'pi_reference' ? 'Pi' : 'CAPSTONE'
-  const hasText = messageText({ content }).trim().length > 0
-  const text = messageText({ content })
+  const rawText=messageText({content})
+  const text=role==='assistant'&&rawText.split(/\r?\n/,1)[0].trim().startsWith('//')
+    ?rawText.split(/\r?\n/).slice(1).join('\n').trimStart():rawText
+  const hasText = text.trim().length > 0
   const attemptId = typeof custom?.attemptId==='string'?custom.attemptId:id.replace(/^assistant-/, '')
   const attemptResultProjections = resultProjections?.filter((item) => item.attemptId === attemptId) ?? []
   const attemptFiles=nativeArtifacts.filter(file=>file.attempt_id===attemptId)
@@ -1041,7 +1043,6 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
   const terminalNotice = typeof custom?.terminalNotice === 'string' ? custom.terminalNotice : undefined
   const completedAnswer = !terminalNotice && hasText && role === 'assistant' && status?.type === 'complete'
   return <MessagePrimitive.Root data-message-id={id} data-attempt-id={attemptId} data-run-phase={role==='assistant'?(status?.type==='running'?'running':typeof custom?.terminalPhase==='string'?custom.terminalPhase:undefined):undefined} data-run-duration-ms={role==='assistant'?durationMs:undefined} data-run-started-at={role==='assistant'?startedAt:undefined} tabIndex={-1} aria-label={role === 'user' ? '用户指令' : '智能体回答'} className={`capstone-chat-message is-${role}${messageState ? ` is-${messageState}` : ''}`}>
-    {role==='assistant'&&Boolean(custom?.initialThinking)&&<ThinkingProcess thinking={custom?.initialThinking as InitialThinking} storageKey={typeof custom?.stepStorageKey==='string'?custom.stepStorageKey:attemptId}/>}
     <div className="capstone-chat-body">
       {role==='user'&&Array.isArray(custom?.instructionFiles)&&<InstructionAttachments files={custom.instructionFiles as InstructionFile[]}/>}
       {!completedAnswer && <span className="capstone-chat-role">{role === 'user' ? '你' : author}</span>}
@@ -1053,7 +1054,7 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
         {typeof custom?.partialText === 'string' && custom.partialText && <MarkdownMessage>{custom.partialText}</MarkdownMessage>}
         <ThreadSystemNotice tone={custom?.terminalPhase === 'failed' ? 'error' : 'info'}><MarkdownMessage>{terminalNotice}</MarkdownMessage></ThreadSystemNotice>
       </> : completedAnswer ? <FoldableAnswer id={id} text={text} author={author} finishedAt={finishedAt} /> : hasText
-        ? <MessagePrimitive.Parts components={{ Text: role === 'assistant' ? () => <MessagePartPrimitive.Text smooth={false} render={<MarkdownMessage />} /> : () => <MessagePartPrimitive.Text smooth={false} component="p" /> }} />
+        ? role==='assistant'?<MarkdownMessage>{text}</MarkdownMessage>:<MessagePrimitive.Parts components={{Text:()=> <MessagePartPrimitive.Text smooth={false} component="p" />}}/>
         : role === 'assistant' && <span className={`capstone-chat-placeholder${terminalWithoutText ? ' is-terminal' : ''}`}>{terminalWithoutText ? 'Attempt 已结束，暂无可显示的回答。' : '正在生成回答…'}</span>}
     </div>
     {completedAnswer && onOpenTaskResults && <div className="capstone-result-products">{taskResultCollections(attemptResultProjections, attemptId).map(collection => <button key={collection.id} type="button" className="capstone-result-product" onClick={() => onOpenTaskResults(collection)} aria-label={`打开${collection.title}`}><Activity aria-hidden="true" /><span><strong>{collection.title}</strong><small>本次指令 · {collection.results.length} 项分析结果</small></span><span aria-hidden="true">↗</span></button>)}</div>}
@@ -1279,25 +1280,36 @@ export default function CapstoneAssistantThread({ nativeArtifactProjections, pro
   useLayoutEffect(()=>{if(savedPosition)setRestoringSessionPosition(true)},[savedPosition])
   const alignedInstruction=useSessionViewRef<string|undefined>('conversation.aligned-instruction',undefined)
   const latestInstructionId = allMessages.filter(message => message.role === 'user').at(-1)?.id
-  const previouslyRunning=useRef(isRunning)
+  const visualRunning=isRunning||Boolean(submittingThinking)
+  const previouslyRunning=useRef(visualRunning)
+  const completionPending=useRef(visualRunning)
+  const runningBoundary=useRef(Math.max(0,...events.map(event=>event.eventSeq)))
   useEffect(()=>{
-    const finished=previouslyRunning.current&&!isRunning
-    previouslyRunning.current=isRunning
+    if(visualRunning&&!previouslyRunning.current){completionPending.current=true;runningBoundary.current=Math.max(0,...events.map(event=>event.eventSeq))}
+    const finished=completionPending.current&&!visualRunning&&events.some(event=>
+      event.eventSeq>runningBoundary.current&&['attempt_completed','attempt_failed','attempt_cancelled','attempt_interrupted'].includes(event.eventType))
+    previouslyRunning.current=visualRunning
     if(!finished)return
+    completionPending.current=false
+    alignedInstruction.current=undefined
     const viewport=viewportRef.current
     const instruction=viewport?.querySelectorAll<HTMLElement>('[aria-label="用户指令"]').item(
       (viewport?.querySelectorAll('[aria-label="用户指令"]').length??0)-1)
     if(!instruction)return
     for(const answer of viewport?.querySelectorAll<HTMLElement>('[aria-label="智能体回答"]')??[]){
-      if(answer.dataset.attemptId!==instruction.dataset.attemptId)continue
+      // A v2 accepted instruction precedes attempt creation and can have no
+      // attempt ID. Bind this UI action by its exact rendered message order.
+      if(!(instruction.compareDocumentPosition(answer)&Node.DOCUMENT_POSITION_FOLLOWING))continue
       for(const details of answer.querySelectorAll<HTMLDetailsElement>('details.capstone-chat-activity-attached')){
         details.open=false
         details.dispatchEvent(new Event('toggle'))
       }
     }
-    const frame=requestAnimationFrame(()=>instruction.scrollIntoView({block:'start',behavior:'smooth'}))
-    return ()=>cancelAnimationFrame(frame)
-  },[isRunning,latestInstructionId])
+    requestAnimationFrame(()=>{
+      const current=viewport?.querySelectorAll<HTMLElement>('[aria-label="用户指令"]')
+      if(viewport?.isConnected&&current?.item(current.length-1)===instruction)instruction.scrollIntoView({block:'start',behavior:'smooth'})
+    })
+  },[visualRunning,latestInstructionId,events])
   useLayoutEffect(() => {
     if (!isRunning||alignedInstruction.current===latestInstructionId) return
     const viewport = viewportRef.current
