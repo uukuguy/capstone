@@ -5,6 +5,16 @@ import ProcessCallTrace, { callTraceIssues } from './ProcessCallTrace'
 
 afterEach(cleanup)
 
+it('shows recorded tool purpose in the collapsed title and child response intent after the LLM label',()=>{
+ render(<ProcessCallTrace compact active={false}
+   models={[{id:'child',number:1,ms:12000,toolCallIds:['combine'],responseText:'// 核对十月指标覆盖范围\n下一段回复'}]}
+   tools={[{id:'combine',name:'dynamic_composition',operation:'核对已发现指标的有效样本数',status:'completed',durationMs:6000}]} />)
+ const purpose=screen.getByText('核对已发现指标的有效样本数',{selector:'strong'})
+ expect(purpose.closest('summary')).not.toBeNull()
+ expect(screen.getByText('核对十月指标覆盖范围',{selector:'.capstone-call-purpose'})).toBeVisible()
+ expect(screen.getByText('12.0s')).toHaveAttribute('data-latency','noticeable')
+});
+
 it('keeps important tool errors and warnings visible outside collapsed details after later success',()=>{
  const models=[{id:'m1',number:1,ms:1000,settled:true,toolCallIds:['failed']},
   {id:'m2',number:2,ms:500,settled:true,toolCallIds:['fallback']}];

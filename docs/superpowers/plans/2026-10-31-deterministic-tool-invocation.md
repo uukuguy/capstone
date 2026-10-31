@@ -46,3 +46,11 @@ Files: progress.py; tests/test_progress.py; capstone-app/src/threadFeedback.ts a
 - [ ] Rebuild local source through make capstone-local-rebuild, verify readiness/source identity and scoped cleanup.
 - [ ] Reuse existing browser tab for smoke verification; do not replay failed business reads implicitly.
 - [ ] Update reports, recovery state and control register with implemented/verified limits and pending gateway coordination.
+
+## User-requested trace display restoration
+
+- [x] Reproduce missing tool purpose in collapsed summaries and missing child-response first-line intent.
+- [x] Reuse one first-line-comment parser for streamed parent responses and recorded response text.
+- [x] Show recorded operation in every tool summary, preserving tool identity in details/secondary text.
+- [x] Place purpose directly after LLM label; restore red slow-duration styling with scoped selectors.
+- [x] Run46 affected App checks and TypeScript checking; browser verification pending rebuild.

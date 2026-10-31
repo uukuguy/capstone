@@ -17,9 +17,9 @@
 .capstone-process-trace-warning:focus-visible { outline: 2px solid #b18132; outline-offset: 2px; }
 .capstone-call-model small, .capstone-call-tool small, .capstone-call-pending { color: var(--graph-muted, #647d76); font-size: 10px; }
 .capstone-call-duration { font-variant-numeric: tabular-nums; white-space: nowrap; }
-.capstone-call-duration[data-latency="noticeable"] { color: #8c650f; font-weight: 500; }
-.capstone-call-duration[data-latency="slow"] { color: #ac4e1c; font-weight: 500; }
-.capstone-call-duration[data-latency="very-slow"] { color: #a3333a; font-weight: 600; }
+.capstone-call-trace .capstone-call-duration[data-latency="noticeable"] { color: #b4232c; font-weight: 500; }
+.capstone-call-trace .capstone-call-duration[data-latency="slow"] { color: #b4232c; font-weight: 600; }
+.capstone-call-trace .capstone-call-duration[data-latency="very-slow"] { color: #8f1720; font-weight: 600; }
 .capstone-call-batch { margin: 1px 0 0 14px; }
 .capstone-call-tool { margin: 0; padding: 1px 0; border: 0; }
 .capstone-call-trace .capstone-call-tool > summary { min-height: 0; padding: 0; line-height: 1.45; color: var(--trace-text); }

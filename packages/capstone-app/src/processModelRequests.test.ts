@@ -57,6 +57,11 @@ it('uses only the response first-line action comment and keeps reasoning out of 
   expect(calls[0].intent).toBe('核对指标口径')
   expect(calls[1].intent).toBeUndefined()
 })
+it('restores response purpose from a recorded response text when stream deltas are unavailable',()=>{
+ const end=boundary(2,'response_completed','tools');end.payload.response_text='// 检查字段可用性\n调用工具'
+ const [call]=projectProcessModelRequests([boundary(1,'started'),end],'attempt')
+ expect(call.intent).toBe('检查字段可用性')
+})
 it('keeps public thinking within its actual request and does not aggregate later rounds',()=>{
   const thought=(seq:number,text:string):EventEnvelope=>({...boundary(seq,'thought'),eventType:'assistant_thinking_delta',payload:{text}})
   const first=thought(2,'First thought. ')

@@ -3,6 +3,7 @@ import type { ProcessModelCall } from './ProcessCallTrace'
 import {isExecutionLifecycleStep} from './executionLifecycle'
 import {projectLlmPoolCalls} from './processLlmPool'
 import {projectModelRequestPool,requestExecutionMs} from './processModelRequestPool'
+import {responseOpeningIntent} from './executionIntent'
 
 /** Only public parent request boundaries. Diagnostic text is never reasoning copy. */
 export function projectProcessModelRequests(events: readonly EventEnvelope[], attemptId: string): ProcessModelCall[] {
@@ -27,8 +28,7 @@ export function projectProcessModelRequests(events: readonly EventEnvelope[], at
     if(pending&&event.eventType==='assistant_process_delta'&&typeof event.payload.text==='string'){
       if(pending.thinking)pending.thinkingSettled=true
       openingText=(openingText+event.payload.text).slice(0,512)
-      const line=openingText.split(/\r?\n/)[0].trim()
-      if(line.startsWith('//'))pending.intent=line.slice(2).trim().slice(0,160)
+      pending.intent=responseOpeningIntent(openingText)
       continue
     }
     if(event.visibility!=='public')continue
@@ -71,6 +71,7 @@ export function projectProcessModelRequests(events: readonly EventEnvelope[], at
       turn=pending
       openingText=''
     } else if (event.payload.phase === 'response_completed' && pending) {
+      if(typeof event.payload.response_text==='string')pending.intent??=responseOpeningIntent(event.payload.response_text)
       const usage=event.payload.usage
       if(usage&&typeof usage==='object'&&!Array.isArray(usage)){
         const values=usage as Record<string,unknown>
