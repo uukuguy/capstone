@@ -13,6 +13,7 @@
 .thread-products-directory li > button { display: grid; gap: 3px; width: 100%; padding: 8px; border: 0; border-radius: 4px; background: transparent; text-align: left; color: inherit; font: inherit; overflow-wrap: anywhere; cursor: pointer; }
 .thread-products-directory li > button:hover,.thread-products-directory li > button[aria-pressed="true"] { background: #eef2ec; }
 .thread-products-directory small,.thread-product-history-note { color: #66716b; font-size: 11px; }
+.thread-products-directory time { display: inline-block; margin-left: 6px; color: #66716b; font-size: 11px; font-weight: normal; white-space: nowrap; }
 .thread-product-actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 12px; }
 .thread-products-workspace button:not(li > button),.thread-product-actions a { padding: 4px 8px; border: 1px solid #dce2da; border-radius: 4px; background: #fff; color: #385547; font: inherit; text-decoration: none; cursor: pointer; }
 .thread-products-workspace button:disabled { opacity: .55; cursor: default; }
