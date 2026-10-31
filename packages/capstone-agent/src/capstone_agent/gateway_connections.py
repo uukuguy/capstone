@@ -61,6 +61,7 @@ class GatewayConnectionRegistry:
         self._stop = Event()
         self._closed = False
         self._access = None
+        self._accesses = {}
         self._health = {}
         self._batch = None
         self._periodic = None
@@ -153,6 +154,42 @@ class GatewayConnectionRegistry:
     def current_access(self):
         with self._lock:
             return self._access
+
+    def access_for(self, connection_id=None, instance_id=None, *, refresh=False):
+        """Resolve a session source without changing the default connection."""
+        with self._mutation:
+            self._ensure_open()
+            with self._lock:
+                if connection_id is None and instance_id is not None:
+                    connection_id = next((key for key, value in self._health.items()
+                        if value.get('identity', {}).get('instance_id') == instance_id), None)
+                    if connection_id is None:
+                        raise GatewayError('gateway_bound_instance_unavailable')
+                identifier = connection_id or self._document.get('selected_id')
+                item = next((entry for entry in self._document['entries'] if entry['id'] == identifier), None)
+                if item is None:
+                    raise GatewayError('gateway_connection_not_found')
+                access = (self._access if identifier == self._document.get('selected_id') else None) or self._accesses.get(identifier)
+                config = deepcopy(item['connection'])
+            if access is None:
+                access = self._prepare(config)
+            elif refresh:
+                asyncio.run(asyncio.wait_for(access.reload_contract(), ADMISSION_TIMEOUT_SECONDS))
+            with self._lock:
+                self._accesses[identifier] = access
+                self._health[identifier] = self._connected(access.publication()['identity'])
+            if instance_id is not None and access.publication()['identity'].get('instance_id') != instance_id:
+                raise GatewayError('gateway_instance_changed')
+            return identifier, access
+
+    def publication_for(self, binding=None, *, refresh=False):
+        if binding is not None and binding.get('locked') and not binding.get('instance_id'):
+            return {'available': False, 'reason': 'not_configured'}
+        if binding is None and self._document.get('selected_id') is None:
+            return {'available': False, 'reason': 'not_configured'}
+        identifier, access = self.access_for((binding or {}).get('connection_id'),
+            (binding or {}).get('instance_id') if (binding or {}).get('locked') else None, refresh=refresh)
+        return {**access.publication(), 'connection_id': identifier}
 
     def snapshot(self):
         with self._lock:
@@ -306,9 +343,9 @@ class GatewayConnectionRegistry:
                         self._commit(lambda doc: doc.update(selected_id=identifier))
                         previous = self._access
                         self._access = access
+                        self._accesses[identifier] = access
                         self._health[identifier] = self._connected(access.publication()['identity'])
-                    if previous is not None:
-                        self._release_client(previous.client)
+                    # Earlier tasks and sessions retain their protected client.
             except Exception:
                 self._release_client(access.client)
                 raise

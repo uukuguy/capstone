@@ -8,6 +8,18 @@ afterEach(cleanup)
 
 const connections={schema:'capstone-gateway-connections/1' as const,revision:1,selected_id:'a',checking:false,entries:[{id:'a',label:'当前实例',url:'http://one.test:8000/mcp',status:'connected' as const},{id:'b',label:'另一个实例',url:'https://two.test/mcp',status:'unknown' as const}]}
 
+it('locks selection for a nonempty conversation and restores selection for an empty one',()=>{
+ const select=vi.fn()
+ const {rerender}=render(<GatewayStatus connections={{...connections,locked:true}} onSelect={select}/>);
+ fireEvent.click(screen.getByRole('button',{name:/数据网关：/}));
+ fireEvent.click(screen.getByRole('button',{name:/另一个实例/}));
+ expect(screen.getByText('本会话已绑定网关；使用其他实例请新建会话。')).toBeTruthy();
+ expect(screen.getByRole('button',{name:'使用此网关'})).toBeDisabled();
+ fireEvent.click(screen.getByRole('button',{name:'使用此网关'}));expect(select).not.toHaveBeenCalled();
+ rerender(<GatewayStatus connections={{...connections,locked:false}} onSelect={select}/>);
+ expect(screen.getByRole('button',{name:'使用此网关'})).not.toBeDisabled();
+})
+
 it('updates current tool contracts separately from connection health',async()=>{
  const reload=vi.fn().mockResolvedValue(undefined),health=vi.fn();
  render(<GatewayStatus connections={connections} onRefreshContract={reload} onRefreshAll={health}/>);

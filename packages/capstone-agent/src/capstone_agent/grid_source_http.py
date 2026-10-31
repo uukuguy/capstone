@@ -10,8 +10,16 @@ from .pi_delegation import PiHTTPFailure
 from .grid_electrical_view import ElectricalViewError, checked_electrical_request
 
 
-def register_grid_source_routes(app, *, executor_provider, authorize):
-    async def electrical_invoke(operation, document=None):
+def register_grid_source_routes(app, *, executor_provider, authorize, thread_service=None):
+    def session_binding(request):
+        thread_id = request.path_params.get('thread_id') if request is not None else None
+        if thread_id is None:
+            return None
+        saved = thread_service.read_thread_gateway(thread_id)
+        publication = executor_provider().thread_gateway_publication(saved)
+        return {'connection_id': publication.get('connection_id'), 'instance_id': publication.get('identity', {}).get('instance_id')}
+
+    async def electrical_invoke(operation, document=None, *, request=None):
         if operation != 'models':
             try:
                 document = checked_electrical_request(operation, document)
@@ -22,7 +30,9 @@ def register_grid_source_routes(app, *, executor_provider, authorize):
             error = ElectricalViewError('grid_electrical_unavailable')
             raise HTTPException(error.status, error.detail())
         try:
-            result = await run_in_threadpool(method, *([] if document is None else [document]))
+            binding = await run_in_threadpool(session_binding, request)
+            result = (await run_in_threadpool(executor_provider().session_grid_source, binding, 'electrical_'+operation, document)
+                      if binding is not None else await run_in_threadpool(method, *([] if document is None else [document])))
             if not isinstance(result, dict) or len(json.dumps(result, allow_nan=False).encode()) > PAGE_BYTES:
                 raise ValueError()
             return result
@@ -35,13 +45,15 @@ def register_grid_source_routes(app, *, executor_provider, authorize):
             error = ElectricalViewError('grid_electrical_observation_unavailable')
             raise HTTPException(error.status, error.detail()) from None
 
-    async def invoke(name, *arguments):
+    async def invoke(name, *arguments, request=None):
         executor = executor_provider()
         method = getattr(executor, name, None)
         if not callable(method):
             raise HTTPException(503, 'grid_source_unavailable')
         try:
-            result = await run_in_threadpool(method, *arguments)
+            binding = await run_in_threadpool(session_binding, request)
+            result = (await run_in_threadpool(executor.session_grid_source, binding, name.removeprefix('grid_source_'), arguments[0] if arguments else None)
+                      if binding is not None else await run_in_threadpool(method, *arguments))
             if not isinstance(result, dict) or len(json.dumps(result, allow_nan=False).encode()) > PAGE_BYTES:
                 raise ValueError()
             return result
@@ -76,17 +88,17 @@ def register_grid_source_routes(app, *, executor_provider, authorize):
     @app.get('/api/v1/grid-sources')
     async def catalog(request: Request):
         authorize(request)
-        return await invoke('grid_source_catalog')
+        return await invoke('grid_source_catalog', request=request)
 
     @app.get('/api/v1/grid-sources/data-gateway/scopes')
     async def scopes(request: Request):
         authorize(request)
-        return await invoke('grid_source_scopes')
+        return await invoke('grid_source_scopes', request=request)
 
     @app.post('/api/v1/grid-sources/data-gateway/resolve-scope')
     async def resolve(request: Request):
         authorize(request)
-        return await invoke('grid_source_resolve_scope', await body(request))
+        return await invoke('grid_source_resolve_scope', await body(request), request=request)
 
     @app.post('/api/v1/grid-sources/data-gateway/topology')
     async def topology(request: Request):
@@ -95,24 +107,30 @@ def register_grid_source_routes(app, *, executor_provider, authorize):
             document = checked_topology_request(await body(request))
         except GridSourceError:
             raise HTTPException(400, 'grid_source_request_invalid') from None
-        return await invoke('grid_source_topology', document)
+        return await invoke('grid_source_topology', document, request=request)
 
     @app.get('/api/v1/grid-sources/data-gateway/electrical/models')
     async def electrical_models(request: Request):
         authorize(request)
-        return await electrical_invoke('models')
+        return await electrical_invoke('models', request=request)
 
     @app.post('/api/v1/grid-sources/data-gateway/electrical/open')
     async def electrical_open(request: Request):
         authorize(request)
-        return await electrical_invoke('open', await electrical_body(request))
+        return await electrical_invoke('open', await electrical_body(request), request=request)
 
     @app.post('/api/v1/grid-sources/data-gateway/electrical/read')
     async def electrical_read(request: Request):
         authorize(request)
-        return await electrical_invoke('read', await electrical_body(request))
+        return await electrical_invoke('read', await electrical_body(request), request=request)
 
     @app.post('/api/v1/grid-sources/data-gateway/electrical/job')
     async def electrical_job(request: Request):
         authorize(request)
-        return await electrical_invoke('job', await electrical_body(request))
+        return await electrical_invoke('job', await electrical_body(request), request=request)
+
+    if thread_service is not None:
+        for route in list(app.routes):
+            if getattr(route, 'path', '').startswith('/api/v1/grid-sources'):
+                app.add_api_route(route.path.replace('/api/v1/grid-sources', '/api/v1/threads/{thread_id}/grid-sources', 1),
+                                  route.endpoint, methods=list(route.methods), name='session_'+route.name)

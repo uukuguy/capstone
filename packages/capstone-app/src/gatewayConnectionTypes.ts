@@ -11,4 +11,5 @@ export type GatewayConnectionEntry = {
 export type GatewayConnections = {
   schema:'capstone-gateway-connections/1';revision:number
   selected_id?:string;entries:GatewayConnectionEntry[];checking:boolean
+  locked?:boolean;bound_instance?:GatewayConnectionStatus
 }

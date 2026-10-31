@@ -4,6 +4,17 @@ import {storageNamespace} from './threadSessionState'
 import {HttpThreadTransport} from './threadHttpTransport'
 import {sessionManagement} from './sessionManagement'
 afterEach(()=>window.history.replaceState({},'','/'))
+it('binds model display transport to a session without changing the parent transport',async()=>{
+  const fetcher=vi.fn<typeof fetch>().mockImplementation(async()=>Response.json({}))
+  const base=new HttpThreadTransport('','',fetcher,'/api/v1/threads','2','enterprise')
+  await base.forThread('thr_a').electricalModels()
+  await base.forThread('thr_b').electricalModels()
+  await base.electricalModels()
+  expect(fetcher.mock.calls.map(call=>call[0])).toEqual([
+    '/api/v1/threads/thr_a/grid-sources/data-gateway/electrical/models',
+    '/api/v1/threads/thr_b/grid-sources/data-gateway/electrical/models',
+    '/api/v1/grid-sources/data-gateway/electrical/models'])
+})
 it('assigns a short workspace once and keeps it stable on refresh',()=>{
   window.history.replaceState({},'','/')
   const first=ensureWorkspaceLocation()

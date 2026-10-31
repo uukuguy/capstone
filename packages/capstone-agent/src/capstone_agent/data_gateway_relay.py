@@ -119,6 +119,13 @@ class DataGatewayAccess:
             self._tasks[task_id] = {'attempt_id': attempt_id, 'catalog': deepcopy(catalog), 'allowed_tools': frozenset(allowed_tools),
                                     'started': set(), 'issued': {}, 'diagnostics': context, 'diagnostic_calls': []}
 
+    def frozen_catalog(self, revision):
+        with self._lock:
+            catalog = self._catalogs.get(revision)
+            if catalog is None:
+                raise GatewayError('gateway_publication_changed')
+            return deepcopy(catalog)
+
     def revoke(self, task_id):
         with self._lock:
             self._tasks.pop(task_id, None)

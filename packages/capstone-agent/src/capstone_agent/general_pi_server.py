@@ -332,7 +332,7 @@ class GeneralPiHost:
         self.storage.save(request.to_document(), result)
 
     def verify_gateway_observation(self, request, call_id, name, result, *, include_arguments=False):
-        gateway = getattr(self._run, 'gateway', None)
+        gateway = getattr(self._run, 'task_gateways', {}).get(request.task_id, getattr(self._run, 'gateway', None))
         details = result.get('details', {})
         content = result.get('content', [])
         if (gateway is None or not content or content[0].get('type') != 'text'
@@ -1003,6 +1003,7 @@ class NativeTaskRunner:
         self.llm_profiles = llm_profiles
         self.experimental_llm_pool = experimental_llm_pool is True
         self.task_llm_profiles = {}
+        self.task_gateways = {}
         from .native_environment import environment_context
         self.environment_context = environment_context()
         self.network_policy = network_policy
@@ -1093,7 +1094,20 @@ class NativeTaskRunner:
                 sdk_config['runtimeEnvironment'] = self.environment_context
                 sdk_config.setdefault('contextFiles', []).append({
                     'path': 'verified-programming-environment', 'content': self.environment_context})
-            gateway_publication = self.gateway.publication() if self.gateway else self.gateway_publication
+            task_gateway = self.gateway
+            frozen_gateway = (document.get('native_context') or {}).get('gateway_binding')
+            if frozen_gateway is not None:
+                if frozen_gateway['catalog_revision'] is None:
+                    task_gateway = None
+                else:
+                    if self.gateway_registry is None:
+                        raise ValueError('gateway_bound_instance_unavailable')
+                    _, task_gateway = self.gateway_registry.access_for(frozen_gateway['connection_id'], frozen_gateway['instance_id'])
+            self.task_gateways[request.task_id] = task_gateway
+            gateway_publication = task_gateway.publication() if task_gateway else (self.gateway_publication if frozen_gateway is None else {'available': False, 'reason': 'not_configured'})
+            if frozen_gateway is not None and frozen_gateway['catalog_revision'] is not None:
+                catalog = task_gateway.frozen_catalog(frozen_gateway['catalog_revision'])
+                gateway_publication = {**gateway_publication, 'catalog': catalog}
             if not gateway_publication.get('available'):
                 from .data_gateway_mcp import TASK_STOP_ERRORS
                 reason = gateway_publication.get('reason')
@@ -1124,14 +1138,14 @@ class NativeTaskRunner:
                 from .data_gateway_relay import research_gateway_tools
                 gateway_tools = research_gateway_tools(native, gateway_publication)
                 admitted_gateway = gateway_tools.intersection(native['policy']['allowed_tools'])
-                if admitted_gateway and self.gateway is not None:
+                if admitted_gateway and task_gateway is not None:
                     from .data_gateway_relay import gateway_discovery_tools
                     sdk_config['applicationPolicy'] = {**native['policy'], 'allowed_tools': sorted({
                         *native['policy']['allowed_tools'], *gateway_discovery_tools(native,
                             gateway_publication, gateway_available=True)})}
                     from .gateway_diagnostics import research_diagnostics
                     task_catalog = gateway_publication['catalog']
-                    self.gateway.bind(request.task_id, request.parent_attempt_id, admitted_gateway, catalog=task_catalog,
+                    task_gateway.bind(request.task_id, request.parent_attempt_id, admitted_gateway, catalog=task_catalog,
                         diagnostics=research_diagnostics(
                             None if request.research_binding is None else request.to_document()['research_binding'],
                             request.parent_attempt_id))
@@ -1330,8 +1344,9 @@ class NativeTaskRunner:
                 with self._lock:
                     self.relay.revoke(request.task_id)
                     self.task_llm_profiles.pop(request.task_id, None)
-                if self.gateway:
-                    self.gateway.revoke(request.task_id)
+                gateway = self.task_gateways.pop(request.task_id, None)
+                if gateway:
+                    gateway.revoke(request.task_id)
                 shutil.rmtree(inputs, ignore_errors=True)
                 if hasattr(self, '_resource_staging'):
                     self._resource_staging.remove(request.task_id)
@@ -1383,6 +1398,7 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
     from .grid_electrical_view import ElectricalViewProvider, ElectricalViewError
     from .data_gateway_mcp import GatewayError
     electrical_provider = ElectricalViewProvider(getattr(runner or host._run, 'gateway', None))
+    session_source_providers = {}
 
     def apply_gateway_access(target, access):
         nonlocal source_provider, electrical_provider
@@ -1398,6 +1414,29 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
         registry = getattr(target, 'gateway_registry', None)
         if registry is None:
             raise GatewayError('gateway_registry_unavailable')
+        if action == 'source':
+            if not isinstance(document, dict) or set(document) != {'binding', 'operation', 'arguments'}:
+                raise GatewayError('gateway_connection_input_invalid')
+            binding = document['binding']
+            if not isinstance(binding, dict) or not binding.get('instance_id'):
+                raise GatewayError('gateway_bound_instance_unavailable')
+            _, access = registry.access_for(binding.get('connection_id'), binding['instance_id'])
+            with host._lock:
+                providers = session_source_providers.setdefault(access, (GridSourceProvider(access), ElectricalViewProvider(access)))
+            operations = {'catalog': providers[0].catalog, 'scopes': providers[0].scopes,
+                'resolve_scope': providers[0].resolve_scope, 'topology': providers[0].topology,
+                'electrical_models': providers[1].models, 'electrical_open': providers[1].open,
+                'electrical_read': providers[1].read, 'electrical_job': providers[1].job}
+            operation = operations.get(document['operation'])
+            if operation is None:
+                raise GatewayError('gateway_connection_input_invalid')
+            result = operation() if document['arguments'] is None else operation(document['arguments'])
+            import inspect
+            return run_http(result) if inspect.isawaitable(result) else result
+        if action == 'publication':
+            if not isinstance(document, dict) or set(document) - {'binding', 'refresh'}:
+                raise GatewayError('gateway_connection_input_invalid')
+            return registry.publication_for(document.get('binding'), refresh=document.get('refresh') is True)
         if action is None:
             # Health recovery prepares in the background. Apply it without a
             # network request here and never replace an active task's source.
@@ -1583,6 +1622,8 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                     except GatewayError as error:
                         status = 409 if str(error) == 'gateway_connections_busy' else 503 if str(error) == 'gateway_registry_unavailable' else 400
                         return self.send_json(status, {'error': str(error)})
+                    except (GridSourceError, ElectricalViewError) as error:
+                        return self.send_json(getattr(error, 'status', 503), {'error': str(error)})
                     return self.send_json(200, result)
                 if self.path == '/network-policy':
                     if network_policy is None:
@@ -1640,7 +1681,7 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
 
         def relay_data_gateway(self):
             from .data_gateway_mcp import GatewayError
-            gateway = getattr(runner, 'gateway', None)
+            gateway = getattr(runner, 'task_gateways', {}).get(self.path.split('/')[-1], getattr(runner, 'gateway', None))
             parts = self.path.split('/')
             if runner is None or gateway is None or len(parts) != 3 or not parts[2]:
                 return self.send_json(404, {'error': 'gateway_unavailable'})

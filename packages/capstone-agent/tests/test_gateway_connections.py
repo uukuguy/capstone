@@ -65,6 +65,23 @@ def entry(url='http://localhost:18001/mcp'):
     return {'url': url, 'token': TOKEN, 'name': 'User label'}
 
 
+def test_session_access_does_not_change_default_or_dispose_prior_client(registry):
+    first = registry.add(entry())['entries'][0]['id']
+    second = registry.add(entry('http://other.example/mcp'))['entries'][1]['id']
+    registry.select(first)
+    original = registry.current_access
+    identifier, other = registry.access_for(second)
+    assert identifier == second and other is not original
+    assert registry.snapshot()['selected_id'] == first
+    assert registry.current_access is original
+    before = Client.prepares
+    assert registry.access_for(second)[1] is other
+    assert Client.prepares == before
+    path = original.client.path
+    registry.select(second)
+    assert path.exists()
+
+
 def test_contract_reload_is_distinct_from_health_and_keeps_selected_access(registry):
     identifier = registry.add(entry())['entries'][0]['id']
     registry.select(identifier)

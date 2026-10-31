@@ -12,6 +12,9 @@ from .thread_input_catalog import public_gateway_identity
 
 
 _ERRORS = {
+    'gateway_session_locked': (409, '本会话已绑定网关；使用其他实例请新建会话。'),
+    'gateway_instance_changed': (409, '网关实例标识已变化；本会话不会自动接用其他实例。'),
+    'gateway_bound_instance_unavailable': (503, '本会话绑定的网关实例暂不可用。'),
     'contract_publication_unavailable': (503, '网关契约发布时间暂不可用，请稍后再试。'),
     'gateway_connections_busy': (409, '有任务正在执行，请结束后切换网关。'),
     'gateway_connection_busy': (409, '有任务正在执行，请结束后切换网关。'),
@@ -107,7 +110,7 @@ def _snapshot(value):
     return result
 
 
-def register_gateway_connection_routes(app, *, executor_provider, authorize):
+def register_gateway_connection_routes(app, *, executor_provider, authorize, thread_service=None):
     async def invoke(action=None, document=None):
         try:
             def native():
@@ -160,3 +163,69 @@ def register_gateway_connection_routes(app, *, executor_provider, authorize):
 
     for action in ('refresh', 'reload', 'probe', 'add', 'select'):
         register(action)
+
+    if thread_service is None:
+        return
+
+    def session_snapshot(thread_id, *, refresh=False):
+        saved = thread_service.read_thread_gateway(thread_id)
+        executor = executor_provider()
+        value = _snapshot(executor.gateway_connections())
+        try:
+            publication = executor.thread_gateway_publication(saved, refresh=refresh)
+        except PiHTTPFailure:
+            if not saved or refresh:
+                raise
+            publication = {'available': False, 'connection_id': saved.get('connection_id'),
+                           'identity': saved.get('identity', {'instance_id': saved.get('instance_id')})}
+        selected = publication.get('connection_id')
+        value.pop('selected_id', None)
+        if selected is not None:
+            value['selected_id'] = selected
+            for item in value['entries']:
+                if item['id'] == selected:
+                    item['identity'] = _identity(publication['identity'])
+                    if not publication.get('available'):
+                        item.update(status='disconnected', error='gateway_bound_instance_unavailable')
+        value['locked'] = bool(saved and saved['locked'])
+        if saved and saved.get('identity'):
+            value['bound_instance'] = _identity(saved['identity'])
+        return value
+
+    @app.get('/api/v1/threads/{thread_id}/gateways')
+    async def get_thread_gateways(thread_id: str, request: Request):
+        authorize(request)
+        try:
+            return await run_in_threadpool(session_snapshot, thread_id)
+        except PiHTTPFailure as error:
+            raise _failure(error.diagnostic.get('protocol_code')) from None
+
+    @app.post('/api/v1/threads/{thread_id}/gateways/select')
+    async def select_thread_gateway(thread_id: str, request: Request):
+        authorize(request)
+        document = await body(request, 'select')
+        def select():
+            from .thread_gateway import publication_binding
+            from .thread_protocol import ThreadProtocolError
+            saved = thread_service.read_thread_gateway(thread_id)
+            if saved and saved['locked']:
+                raise _failure('gateway_session_locked')
+            publication = executor_provider().thread_gateway_publication({'connection_id': document['id'], 'locked': False}, refresh=True)
+            try:
+                thread_service.select_thread_gateway(thread_id, publication_binding(publication))
+            except ThreadProtocolError:
+                raise _failure('gateway_session_locked') from None
+            return session_snapshot(thread_id)
+        try:
+            return await run_in_threadpool(select)
+        except PiHTTPFailure as error:
+            raise _failure(error.diagnostic.get('protocol_code')) from None
+
+    @app.post('/api/v1/threads/{thread_id}/gateways/reload')
+    async def reload_thread_gateway(thread_id: str, request: Request):
+        authorize(request)
+        await body(request, 'reload')
+        try:
+            return await run_in_threadpool(session_snapshot, thread_id, refresh=True)
+        except PiHTTPFailure as error:
+            raise _failure(error.diagnostic.get('protocol_code')) from None
