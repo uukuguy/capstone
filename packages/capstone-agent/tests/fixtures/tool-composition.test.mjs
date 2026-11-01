@@ -9,6 +9,17 @@ import {boundToolResult} from '../../src/capstone_agent/resources/tool-result-co
 
 const catalog={revision:'catalog',tools:{data_gateway_read:{name:'read',inputSchema:{type:'object'},description:'Read selected data'}},tool_hashes:{data_gateway_read:'a'.repeat(64)}};
 
+test('read diagnostics locate a failed field and successful results remain directly reusable',()=>fixture(async cwd=>{
+ let calls=0;const t=tool(cwd,async()=>{calls++;return native({rows:[{n:5}]});});
+ const first=await t.execute('first',{tools:['read'],program:`return (await tools.call('read',{})).ref;`});
+ const ref=JSON.parse(first.content[0].text).result;
+ const failed=await t.execute('wrong',{tools:[],program:`return tools.read(${JSON.stringify(ref)},'/data/missing');`});
+ assert.equal(failed.isError,true);assert.match(failed.content[0].text,/available_keys.*rows/);
+ assert.match(failed.content[0].text,/\/data/);
+ const good=await t.execute('reuse',{tools:[],program:`return (await tools.read(${JSON.stringify(ref)},'/data/rows'))[0].n;`});
+ assert.equal(JSON.parse(good.content[0].text).result,5);assert.equal(calls,1);
+}));
+
 test('direct saved discovery can be paged without another upstream call',()=>fixture(async cwd=>{
  const rows=Array.from({length:500},(_,i)=>({id:i,text:'x'.repeat(100)}));
  const saved=await boundToolResult({content:[{type:'text',text:JSON.stringify({data:{rows}})}]},

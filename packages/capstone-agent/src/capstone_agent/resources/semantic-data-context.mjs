@@ -1,6 +1,7 @@
 import {readFile,writeFile,mkdir,realpath,rename,lstat} from 'node:fs/promises';
 import {resolve,join,sep,relative} from 'node:path';
 import {createHash,randomUUID} from 'node:crypto';
+import {observationPointer as pointer,ObservationPointerError as MissingSourceField} from './observed-action.mjs';
 const manifestUpdates=new Map();
 async function appendProduct(cwd,product){
   const key=await realpath(cwd),previous=manifestUpdates.get(key)??Promise.resolve();
@@ -20,15 +21,6 @@ async function appendProduct(cwd,product){
 }
 const canonical=v=>Array.isArray(v)?v.map(canonical):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])):v;
 const digest=v=>createHash('sha256').update(JSON.stringify(canonical(v))).digest('hex');
-class MissingSourceField extends Error {}
-function pointer(value,path=''){
-  if(path==='')return value;
-  if(!path.startsWith('/'))throw Error('Invalid source pointer');
-  for(const key of path.slice(1).split('/').map(k=>k.replace(/~1/g,'/').replace(/~0/g,'~'))){
-    if(value===null||typeof value!=='object'||!Object.hasOwn(value,key))throw new MissingSourceField('Missing source pointer field');
-    value=value[key];
-  }return value;
-}
 export async function saveSemanticContext({cwd,name,spec,records,scope}){
   if(!/^[a-zA-Z0-9_-]{1,80}$/.test(name))throw Error('Invalid context name');
   if(!spec||typeof spec!=='object'||Array.isArray(spec))throw Error('/spec: expected an object');
@@ -61,7 +53,13 @@ export async function saveSemanticContext({cwd,name,spec,records,scope}){
     // Shorthand metadata is usable, but never promoted to an observed fact.
     return [key,{basis:'declared',value:b}];
   }));
-  const datasets=(spec.datasets??[]).map(d=>{const r=observe(d.call);pointer(r.value,d.pointer);return {name:d.name,ref:d.call,pointer:d.pointer??''};});
+  const datasets=(spec.datasets??[]).map((d,i)=>{
+    const r=observe(d.call);
+    try{pointer(r.value,d.pointer);}catch(error){
+      throw Error(`/datasets/${i}/pointer: source ${JSON.stringify(d.call.slice(0,256))}; ${error.message}`);
+    }
+    return {name:d.name,ref:d.call,pointer:d.pointer??''};
+  });
   if(new Set(datasets.map(d=>d.name)).size!==datasets.length)throw Error('Duplicate dataset name');
   const document={schema:'capstone-semantic-data/1',authority_evidence:false,scope,bindings,datasets,gaps,
     observations:[...selected.values()].map(r=>({...r,sha256:digest(r.value)}))};

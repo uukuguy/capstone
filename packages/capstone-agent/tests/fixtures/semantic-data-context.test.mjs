@@ -15,6 +15,17 @@ test('dataset validation points to missing call and preserves usable observation
   assert.equal((await loadSemanticContext({cwd,path:saved.path})).datasets.load.data[0].n,5);
 }));
 async function fixture(run){const cwd=await mkdtemp(join(tmpdir(),'semantic-context-'));try{await run(cwd);}finally{await rm(cwd,{recursive:true,force:true});}}
+test('dataset pointer failures identify the dataset and retained source without exposing values',()=>fixture(async cwd=>{
+  const sources=new Map([['ok',{ref:'ok',value:{data:{rows:[{secret:'private'}]}}}],['failed',{ref:'failed',value:{status:'error',data:null,gaps:[]}}]]);
+  await assert.rejects(saveSemanticContext({cwd,name:'mixed',scope,records:sources,spec:{datasets:[
+    {name:'good',call:'ok',pointer:'/data/rows'}, {name:'bad',call:'failed',pointer:'/data/rows'}]} }),error=>{
+    assert.match(error.message,/\/datasets\/1\/pointer/);
+    assert.match(error.message,/failed/);assert.match(error.message,/\/data/);assert.match(error.message,/null/);
+    assert.doesNotMatch(error.message,/private/);return true;
+  });
+  const saved=await saveSemanticContext({cwd,name:'good',scope,records:sources,spec:{datasets:[{name:'good',call:'ok',pointer:'/data/rows'}]}});
+  assert.equal((await loadSemanticContext({cwd,path:saved.path})).datasets.good.data[0].secret,'private');
+}));
 test('package derives source fields, retains partial provenance, and keeps declared/unknown meaning distinct',()=>fixture(async cwd=>{
   const saved=await saveSemanticContext({cwd,name:'shared',spec,records,scope});
   const context=await loadSemanticContext({cwd,path:saved.path});
