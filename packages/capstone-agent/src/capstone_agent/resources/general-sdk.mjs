@@ -1528,6 +1528,17 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
   }
 }
 
+export function sdkFailureDiagnostic(error) {
+  const root=new URL('./',import.meta.url).href,origin=[];
+  for(const frame of String(error?.stack??'').split('\n').slice(1,24)){
+    const start=frame.indexOf(root);
+    if(start<0)continue;
+    const match=frame.slice(start+root.length).match(/^([A-Za-z0-9_-]+\.mjs):(\d{1,7}):(\d{1,7})\)?$/);
+    if(match)origin.push({module:match[1],line:Number(match[2]),column:Number(match[3])});
+  }
+  return {exception_type:['Error','TypeError','RangeError','ReferenceError','SyntaxError'].includes(error?.name)?error.name:'Error',origin:origin.slice(-8)};
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch(error => {
     const known = new Set(['capacity_exceeded','research_capacity_exceeded','invalid_research_runtime','invalid_phase',
@@ -1539,7 +1550,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       ? {dimension:raw.dimension,actual:raw.actual,limit:raw.limit,
         ...(typeof raw.phase==='string'&&/^[A-Za-z0-9_.:-]{1,128}$/.test(raw.phase)?{phase:raw.phase}:{}),
         ...(raw.mode==='debug'?{mode:'debug'}:{})} : undefined;
-    process.stdout.write(JSON.stringify({type:'response',success:false,...(code?{code}:{}),...(capacity?{capacity}:{}),
+    process.stdout.write(JSON.stringify({type:'response',success:false,diagnostic:sdkFailureDiagnostic(error),...(code?{code}:{}),...(capacity?{capacity}:{}),
       ...(code==='continuation_no_progress'?{phase:'continuation',message:new ManagedContinuationStalledError().message}:{})})+'\n');
     process.exitCode = 1;
   });

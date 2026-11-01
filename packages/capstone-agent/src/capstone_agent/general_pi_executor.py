@@ -511,7 +511,20 @@ class GeneralPiProcess:
                         'research_checkpoint_rejected','research_update_not_confirmed','research_deadline',
                         'continuation_no_progress','task_goal_blocked'}:
                         raise RuntimeError(event['code'])
-                    raise RuntimeError('General Pi rejected request')
+                    error = RuntimeError('General Pi rejected request')
+                    diagnostic = event.get('diagnostic')
+                    if isinstance(diagnostic, dict) and diagnostic.get('exception_type') in {
+                            'Error', 'TypeError', 'RangeError', 'ReferenceError', 'SyntaxError'}:
+                        frames = diagnostic.get('origin')
+                        if isinstance(frames, list):
+                            error.sdk_diagnostic = {'exception_type': diagnostic['exception_type'], 'origin': [
+                                {key: frame[key] for key in ('module', 'line', 'column')}
+                                for frame in frames[:8] if isinstance(frame, dict)
+                                and isinstance(frame.get('module'), str)
+                                and re.fullmatch(r'[A-Za-z0-9_-]+\.mjs', frame['module'])
+                                and all(type(frame.get(key)) is int and 0 < frame[key] < 10_000_000
+                                        for key in ('line', 'column'))]}
+                    raise error
                 if event.get('type') == 'agent_end':
                     if event.get('success') is False and event.get('code') == 'continuation_no_progress':
                         raise RuntimeError('continuation_no_progress')

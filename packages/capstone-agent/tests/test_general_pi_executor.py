@@ -301,7 +301,9 @@ def test_native_child_missing_token_field_does_not_claim_complete_usage():
 def test_native_failure_retains_observed_usage_for_host_terminal_receipt(tmp_path):
     from capstone_agent.general_pi_executor import GeneralPiProcess
     frames = [{'type': 'message_end', 'message': {'role': 'assistant', 'usage': {'input': 4, 'output': 2}}},
-              {'type': 'response', 'success': False}]
+              {'type': 'response', 'success': False, 'diagnostic': {
+                  'exception_type': 'TypeError', 'origin': [{'module': 'general-sdk.mjs', 'line': 42, 'column': 7}],
+                  'message': 'SECRET_ARGUMENT'}}]
     script = tmp_path / 'failed_usage.py'
     script.write_text('import sys\nsys.stdin.readline()\n' + '\n'.join('print(' + repr(json.dumps(e)) + ',flush=True)' for e in frames))
     process = GeneralPiProcess((sys.executable, str(script)), {'PATH': '/usr/bin'}, tmp_path)
@@ -310,6 +312,8 @@ def test_native_failure_retains_observed_usage_for_host_terminal_receipt(tmp_pat
     assert raised.value.saved_usage['parent_input'] == 4
     assert raised.value.saved_usage['parent_model_responses'] == 1
     assert raised.value.saved_usage['usage_complete'] is False
+    assert raised.value.sdk_diagnostic == {'exception_type': 'TypeError',
+        'origin': [{'module': 'general-sdk.mjs', 'line': 42, 'column': 7}]}
 
 
 @pytest.mark.parametrize('answer_limit,succeeds', [(100_000, True), (89_999, False)])

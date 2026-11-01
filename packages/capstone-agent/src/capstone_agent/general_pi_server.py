@@ -856,6 +856,8 @@ class GeneralPiHost:
             origin = native_failure_origin(error)
             if origin:
                 failure['origin'] = origin
+            if getattr(error, 'sdk_diagnostic', None):
+                failure['sdk_diagnostic'] = error.sdk_diagnostic
             # Only fixed runtime messages map to private codes. Never persist
             # arbitrary exception text from tools, providers or user files.
             reason = {'General Pi frame exceeds bounds': 'rpc_frame_too_large',
