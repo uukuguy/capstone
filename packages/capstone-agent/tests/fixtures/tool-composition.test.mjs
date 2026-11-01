@@ -5,8 +5,24 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createToolCompositionTool,compositionPolicy} from '../../src/capstone_agent/resources/tool-composition.mjs';
 import {rpcEvent} from '../../src/capstone_agent/resources/general-sdk.mjs';
+import {boundToolResult} from '../../src/capstone_agent/resources/tool-result-context.mjs';
 
 const catalog={revision:'catalog',tools:{data_gateway_read:{name:'read',inputSchema:{type:'object'},description:'Read selected data'}},tool_hashes:{data_gateway_read:'a'.repeat(64)}};
+
+test('direct saved discovery can be paged without another upstream call',()=>fixture(async cwd=>{
+ const rows=Array.from({length:500},(_,i)=>({id:i,text:'x'.repeat(100)}));
+ const saved=await boundToolResult({content:[{type:'text',text:JSON.stringify({data:{rows}})}]},
+  {cwd,toolName:'dynamic_discovery',callId:'discovery'});
+ const ref=JSON.parse(saved.content[0].text).full_result;
+ const t=tool(cwd,async()=>assert.fail('must reuse the observation'));
+ const result=await t.execute('page',{tools:['read'],program:`return await tools.read(${JSON.stringify(ref)},'/data/rows',{offset:498,limit:10});`});
+ assert.equal(result.isError,false,JSON.stringify(result));
+ assert.deepEqual(JSON.parse(result.content[0].text).result,{items:rows.slice(498),offset:498,total_items:500,next_offset:null});
+ const tooWide=await t.execute('wide',{tools:['read'],program:`return await tools.read(${JSON.stringify(ref)},'/data/rows');`});
+ assert.equal(tooWide.isError,true);assert.match(tooWide.content[0].text,/read budget/);
+ const invalid=await t.execute('bad',{tools:['read'],program:`return await tools.read(${JSON.stringify(ref)},'/data/rows',{offset:-1,limit:10});`});
+ assert.equal(invalid.isError,true);assert.match(invalid.content[0].text,/page/);
+}));
 
 test('compaction transport exposes lifecycle without summary or raw errors',()=>{
  assert.deepEqual(rpcEvent({type:'compaction_start',reason:'threshold',messages:['PRIVATE']}),{type:'compaction_start',reason:'threshold'});

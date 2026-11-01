@@ -11,7 +11,7 @@ process.on('message',async message=>{
       const plan=await request('preflight',{calls});
       return Promise.all(Array.from({length:plan.count},(_,index)=>request('call',{batchRef:plan.ref,index})));
     },
-    read:(ref,pointer)=>request('read',{ref,pointer}),
+    read:(ref,pointer,page)=>request('read',{ref,pointer,page}),
     follow:(ref,pointer)=>request('follow',{ref,pointer}),
     describe:name=>message.schemas[identities.resolve(name)]};
   const python=(code,data)=>new Promise((resolve,reject)=>{

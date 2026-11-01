@@ -1,6 +1,8 @@
 import {createHash} from 'node:crypto';
-import {mkdir,lstat,readFile,realpath,writeFile} from 'node:fs/promises';
-import {join} from 'node:path';
+import {mkdir,lstat,open,readFile,realpath,writeFile} from 'node:fs/promises';
+import {constants} from 'node:fs';
+import {join,dirname} from 'node:path';
+import {readObservation} from './observed-action.mjs';
 
 // Symbols survive native result wrappers, but never enter JSON, model messages
 // or public metadata. Only the host event projection reads this original.
@@ -8,6 +10,28 @@ const originalResult=Symbol('capstoneOriginalToolResult');
 const issuedObservationRefs=new Set();
 const referenceKey=ref=>JSON.stringify([ref.path,ref.sha256,ref.size_bytes,ref.tool,ref.call_id]);
 const digest=value=>createHash('sha256').update(value).digest('hex');
+export async function readSavedObservation(ref,pointer,{cwd}){
+  if(!ref||typeof ref!=='object'||!issuedObservationRefs.has(referenceKey(ref)))
+    throw Error('Unknown saved observation reference');
+  const root=await realpath(cwd),directory=join(root,'.observations');
+  if(dirname(ref.path)!==directory||await realpath(directory)!==directory)
+    throw Error('Observation does not belong to this workspace');
+  const handle=await open(ref.path,constants.O_RDONLY|constants.O_NOFOLLOW|constants.O_NONBLOCK);
+  try{
+    const info=await handle.stat();
+    if(!info.isFile()||info.size!==ref.size_bytes)throw Error('Saved observation identity changed');
+    const body=Buffer.alloc(ref.size_bytes);let position=0;
+    while(position<body.length){
+      const {bytesRead}=await handle.read(body,position,body.length-position,position);
+      if(!bytesRead)break;
+      position+=bytesRead;
+    }
+    const extra=await handle.read(Buffer.alloc(1),0,1,position);
+    if(position!==ref.size_bytes||extra.bytesRead||digest(body)!==ref.sha256)throw Error('Saved observation identity changed');
+    const value=ref.path.endsWith('.json')?JSON.parse(body.toString('utf8')):body.toString('utf8');
+    return readObservation(new Map([['saved',{value}]]),'saved',pointer);
+  }finally{await handle.close();}
+}
 function preview(value,depth,items,chars){
   if(typeof value==='string')return value.length<=chars?value:value.slice(0,chars)+'… [read full result]';
   if(value===null||typeof value!=='object')return value;
@@ -80,7 +104,7 @@ export async function boundToolResult(result,{cwd=process.cwd(),toolName,callId,
     full_result:fullResult,
     preview_pointer:basePointer,
     structure:{...structureIndex(source),base_pointer:basePointer},
-    instruction:'Saved file retains original wrapper and bytes. preview_pointer selects its value; structure pointers are relative to structure.base_pointer (empty=JSON root, null=plain text). Use actual pointers, not guessed fields. Reuse this file for omitted rows. Source observation, not Authority evidence.'};
+    instruction:'Original bytes saved. Pointers are relative to structure.base_pointer (empty=JSON root, null=text). In agent_tools_execute use tools.read(full_result,pointer); arrays accept a third argument {offset,limit}, returning items,total_items,next_offset. Reuse observed pointers without another query. Source observation, not Authority evidence.'};
   let content;
   for(const [depth,items,chars] of [[6,12,400],[5,6,240],[4,3,160],[2,2,80],[0,8,80]]){
     content=[{type:'text',text:JSON.stringify({...envelope,preview:preview(source,depth,items,chars)})}];

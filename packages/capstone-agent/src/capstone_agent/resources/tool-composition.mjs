@@ -2,7 +2,7 @@ import {fork} from 'node:child_process';
 import {readFileSync} from 'node:fs';
 import {randomUUID,createHash} from 'node:crypto';
 import {saveSemanticContext,loadSemanticContext} from './semantic-data-context.mjs';
-import {boundToolResult} from './tool-result-context.mjs';
+import {boundToolResult,readSavedObservation} from './tool-result-context.mjs';
 import {gatewayToolUseGuidance} from './gateway-tool-use.mjs';
 import {createToolIdentityResolver} from './tool-identity.mjs';
 import {observedAction,readObservation} from './observed-action.mjs';
@@ -118,7 +118,16 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
                   }
                 }finally{active--;queue.shift()?.();}
               }else if(message.kind==='read'){
-                value=readObservation(records,message.ref,message.pointer);
+                value=typeof message.ref==='string'?readObservation(records,message.ref,message.pointer):
+                  await readSavedObservation(message.ref,message.pointer,{cwd});
+                if(message.page!==undefined){
+                  const page=message.page;
+                  if(!page||typeof page!=='object'||Array.isArray(page)||Object.keys(page).some(k=>!['offset','limit'].includes(k))||
+                      !Number.isSafeInteger(page.offset)||page.offset<0||!Number.isSafeInteger(page.limit)||page.limit<1||!Array.isArray(value))
+                    throw Error('/page: expected {offset:nonnegative integer,limit:positive integer} for an array');
+                  const end=Math.min(value.length,page.offset+page.limit);
+                  value={items:value.slice(page.offset,end),offset:page.offset,total_items:value.length,next_offset:end<value.length?end:null};
+                }
                 if(Buffer.byteLength(JSON.stringify(value))>policy.output_bytes)
                   throw Error('/pointer: Selected observation exceeds the read budget; select a narrower field or use saveContext for datasets');
               }else if(message.kind==='save')value=await saveSemanticContext({cwd,name:message.name,spec:message.spec,records,scope});

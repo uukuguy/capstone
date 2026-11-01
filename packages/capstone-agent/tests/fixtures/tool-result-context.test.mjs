@@ -1,10 +1,27 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,readFile,readdir,rm,symlink} from 'node:fs/promises';
+import {mkdtemp,readFile,readdir,rm,symlink,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createHash} from 'node:crypto';
-import {boundToolResult,restoreToolResult} from '../../src/capstone_agent/resources/tool-result-context.mjs';
+import {boundToolResult,restoreToolResult,readSavedObservation} from '../../src/capstone_agent/resources/tool-result-context.mjs';
+
+test('issued saved observations support exact reads and reject forged or cross-workspace references',async()=>{
+ const cwd=await mkdtemp(join(tmpdir(),'observation-read-')),other=await mkdtemp(join(tmpdir(),'observation-other-'));
+ try{
+  const body=JSON.stringify({data:{rows:Array.from({length:200},(_,i)=>({id:i,text:'x'.repeat(100)}))}});
+  const bounded=await boundToolResult({content:[{type:'text',text:body}]},{cwd,toolName:'dynamic',callId:'saved'});
+  const ref=JSON.parse(bounded.content[0].text).full_result;
+  assert.deepEqual(await readSavedObservation(ref,'/data/rows/7',{cwd}),{id:7,text:'x'.repeat(100)});
+  await assert.rejects(readSavedObservation({...ref,sha256:'0'.repeat(64)},'/data',{cwd}),/reference/);
+  await assert.rejects(readSavedObservation(ref,'/data',{cwd:other}),/workspace/);
+  await writeFile(ref.path,body.replace('"id":0','"id":9'));
+  await assert.rejects(readSavedObservation(ref,'/data',{cwd}),/identity changed/);
+  await rm(ref.path);await writeFile(join(other,'value.json'),body);
+  await symlink(join(other,'value.json'),ref.path);
+  await assert.rejects(readSavedObservation(ref,'/data',{cwd}));
+ }finally{await rm(cwd,{recursive:true,force:true});await rm(other,{recursive:true,force:true});}
+});
 
 test('a bounded structure index exposes nested row shape even when verbose metadata consumes the preview',async()=>{
   const cwd=await mkdtemp(join(tmpdir(),'observation-shape-'));
