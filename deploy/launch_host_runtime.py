@@ -123,7 +123,9 @@ def wait_for_workers(contract, environment, *, probe=None, clock=time.monotonic,
             raise RuntimeContractError("CAPSTONE_FAMILY_HEALTH_URLS")
         endpoints[family] = origin.rstrip("/") + "/health"
     settings = contract["startup"]
-    if set(endpoints) != set(settings["required_families"]) | set(settings.get("optional_families", ())):
+    required = set(settings["required_families"])
+    allowed = required | set(settings.get("optional_families", ()))
+    if not required <= set(endpoints) <= allowed:
         raise RuntimeContractError("CAPSTONE_FAMILY_HEALTH_URLS")
 
     def http_probe(url):

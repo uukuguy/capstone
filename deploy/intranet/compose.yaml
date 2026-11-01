@@ -9,6 +9,8 @@ services:
     environment:
       CAPSTONE_ALLOWED_HOSTS: ${CAPSTONE_ALLOWED_HOSTS:-localhost,127.0.0.1,api}
       CAPSTONE_ALLOWED_ORIGINS: ${CAPSTONE_APP_ORIGIN:?Set the browser origin}
+      CAPSTONE_WORKER_WAKE_URL: http://worker-native:8766
+      CAPSTONE_FAMILY_HEALTH_URLS: native=http://worker-native:8766
   worker:
     profiles: [professional]
   worker-pypsa:
