@@ -6659,3 +6659,10 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - Verified running/completed compaction in an existing browser tab; rebuilt df138a2d with readiness, image parity and scoped cleanup; no CI.
 - Recorded compaction display acceptance and refreshed the inspected control graph; historical tasks remain unchanged [4f03e2a2].
 - Reconnected gateway and verified unchanged contract timestamp; live concurrency remains four; service updates are independent of contract publication.
+- Reconciled gateway cache findings and fresh connection evidence without replaying historical queries or asserting unverified performance gains [85978196].
+- Emphasized LLM call purposes with existing strong typography; diff check passes, no CI or business execution [bd3917c1].
+- Added model-specific context and compaction policies; 78 focused checks passed; runtime rebuild remains pending [52edcf53].
+- Reproduced summer-task UI undercount: buffer eviction reduced 71 model calls and 159 tool calls to 60 and 140.
+- Unified observation pointer diagnostics to enable result reuse; 38 focused checks passed without upstream calls [a45bd3c8].
+- Fixed runtime profile-loader package identity after rebuild exposed relative-import failure; focused launcher regression passed [67650a8e].
+- Rebuilt67650a8e: readiness and image parity pass; scoped cleanup complete; inspected updated control graph in existing tab, then restored selection.

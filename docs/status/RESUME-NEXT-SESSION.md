@@ -4,6 +4,55 @@
 
 ## Immediate work
 
+Runtime recovery complete:67650a8e canonical rebuild ready200, API and all workers
+image871526f12cfec5fda325e069dc72e0151d4b2f85d37200a4c47f0e4eb89dc290.
+Scoped cleanup143442-66711 completed. Earlier pending/failed build notes below are
+historical. No CI or historical business replay. Control graph was regenerated and
+inspected in existing tab29; previous tab30 restored. No new browser tab was created.
+
+User priority: lightweight executor main path; defer business content and UI-count
+discussion. PPT layout quality is a secondary item, not the active task.
+Source a45bd3c8 unifies read/save pointer diagnostics, including dataset index,
+source ref, parent type and bounded keys. Explains direct read return shape and
+issued read handles. 38 local Node checks passed; no upstream calls or CI.
+Current runtime rebuild for this and52edcf53 is pending/in progress; do not claim
+deployed until readiness and image parity complete. Four exact duplicate SQL calls
+confirmed by saved argument hashes after result recovery failed. Large queries with
+matching truncated input previews are NOT proven duplicates. Full evidence under
+runs/summer-session-audit-20261101-new/observations and gateway-followup.json.
+Longest individual gateway call4.58s; model generation dominates. Batch schema
+preflight and reference usability remain main-chain follow-up items.
+First rebuild failed: launch_host_runtime loaded workbench_llm_profiles without
+package identity; the new context-policy relative import then failed. Fixed in
+67650a8e; focused native-launcher regression passed. Canonical rebuild retry log:
+/tmp/capstone-reference-rebuild-retry.log, exec session81552. General Pi live pointer
+recovery passed with no upstream call, but API readiness still needs confirmation.
+Do not leave the runtime in this failed-start state. Pending report:
+docs/reports/2026-11-01-lightweight-execution-recovery.md. Control graph/register
+refresh remains pending after runtime recovery. Preserve prior audit draft.
+
+Active checkpoint: source52edcf53 adds configurable per-profile context budgets.
+DeepSeek Flash profiles use1048576 context,32768 output,65536 compaction reserve;
+Qwen3.8-27B uses262144 context,32768 output/reserve. Keep recent20000 for both.
+78 focused Python checks passed. This source has NOT been rebuilt into local runtime.
+Official metadata supports these approximate windows; intranet probes were unavailable.
+No CI. Preserve existing frozen task selections and do not replay historical requests.
+
+New summer audit: threadthr_52217df00e65ff16be59, work_53f7da1d73674ab2ff0e,
+attempt_3e66dab639f817b9. Evidence: runs/summer-session-audit-20261101-new/records.json,
+tool-summary.json and errors.json. Full ledger has4748 events,71 model responses,
+159 tool calls and18 error results. Runtime592.860s; paired model wall time466.629s.
+User screenshot60/140 is reproduced exactly by ThreadProjectionStore's4096-event
+eviction:3643 public thinking deltas displace initial structural calls. This is a
+frontend undercount, not a different task or duplicate ledger. Fix remains pending.
+Do not merely raise the buffer; whole-attempt statistics must not depend on the
+display window. Preserve bounded memory and public thinking presentation.
+Current inspection considered authoritative server summary versus retained metrics;
+no implementation selected yet. Continue error classification using full ledger.
+Errors include unsupported params, repeated unreadable2023 table, incorrect saved
+reference namespace/pointer, invalid generated SQL and local report script failures.
+Do not claim these are gateway cache faults. Gateway coordination needs raw evidence.
+
 Gateway cache/lock update reported; fresh initialize/discover/check at13:43 confirms
 same instance and publication10:43:16.267212. Receipt runs/gateway-cache-diagnostics-20261101,
 check requesta2b38e279b0344278a3fa7ac0330f2e1. Runtime concurrency4 verified. Contract timestamp

@@ -1,5 +1,9 @@
 # docs/status INDEX
 
+Local67650a8e restores runtime startup and deploys shared observation recovery diagnostics
+and model context policies. Focused checks and readiness pass; no CI or historical replay.
+See [main-path diagnosis](../reports/2026-11-01-lightweight-execution-recovery.md).
+
 App df138a2d displays lightweight compaction records without extra model counts.
 49 focused checks, types, existing-tab synthetic preview and local readiness pass.
 
