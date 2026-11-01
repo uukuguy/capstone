@@ -12,6 +12,13 @@ import {useSessionViewState,useSessionViewRef,useSessionObjectUrls,sessionObject
 
 type ProductClient={productIndex:(threadId:string,query?:ProductQuery,signal?:AbortSignal)=>Promise<ProductIndex>;resolveProduct:(ref:ProductRef,signal?:AbortSignal)=>Promise<ProductResolution>}
 export type ProductRequest={ref?:ProductRef;origin?:ProductRef['origin'];attemptId?:string;artifactId?:string;resultId?:string;workId?:string|null;nonce?:number}
+function newestFirst(a:ProductEntry,b:ProductEntry){
+  return (Date.parse(b.created_at)||0)-(Date.parse(a.created_at)||0)||b.ref.event_seq-a.ref.event_seq
+}
+function defaultProduct(items:ProductEntry[],attemptId?:string){
+  const available=items.filter(item=>item.ref.origin!=='process_record'&&(!attemptId||item.ref.attempt_id===attemptId)).sort(newestFirst)
+  return available.find(item=>item.source.presentation_role==='primary')??available.find(item=>item.ref.scope==='task')??available[0]
+}
 /** Host-bound available primary files from the exact instruction may open once. */
 function primaryProduct(items:ProductEntry[],threadId:string,workId:string|null|undefined,attemptId?:string){
   const mediaOrder=['text/html','application/pdf','application/vnd.openxmlformats-officedocument.presentationml.presentation','text/markdown','text/plain','image/svg+xml','text/csv','application/json']
@@ -83,9 +90,11 @@ export default function ThreadProductsWorkspace({client,threadId,workId,revision
   },[runningAttemptId])
   const scopeKey=instructionScope?.attemptId
   const previousScope=useRef<string|undefined>(undefined)
+  const scopeDefaultPending=useRef(false)
   useEffect(()=>{
     if(previousScope.current===scopeKey)return
     previousScope.current=scopeKey
+    scopeDefaultPending.current=true
     setSelection(undefined);setResolved(undefined);setDirectoryOpen(true);userSelected.current=false
   },[scopeKey])
   const requestPending=!!requested&&consumedRequest.current!==requestedKey
@@ -133,9 +142,13 @@ export default function ThreadProductsWorkspace({client,threadId,workId,revision
         const primary=runningAttemptId?(primaryProduct(unseen,threadId,workId,runningAttemptId)??unseen[0])
           :primaryAttemptId?primaryProduct(unique,threadId,workId,primaryAttemptId):undefined
         if(runningAttemptId)followed.current.seen=[...new Set([...followed.current.seen,...available.map(materialVersion)])]
-        const featured=instructionScope?unique.find(item=>item.ref.attempt_id===instructionScope.attemptId&&item.ref.origin!=='process_record'):(primary||unique.find(item=>item.ref.scope==='task')||unique.find(item=>item.source.presentation_role==='primary'))
+        const featured=defaultProduct(unique,instructionScope?.attemptId)
         const openPrimary=!!primary&&seekPrimary&&!userSelected.current&&(!!runningAttemptId||!primaryNotified.current.has(automaticAttemptId!))
-        if(featured)setSelection(previous=>openPrimary?primary!.ref:previous?.thread_id===threadId?previous:featured.ref)
+        if(featured){
+          const resetDefault=scopeDefaultPending.current
+          scopeDefaultPending.current=false
+          setSelection(previous=>resetDefault?featured.ref:openPrimary?primary!.ref:previous?.thread_id===threadId?previous:featured.ref)
+        }
         if(primary&&openPrimary){
           primaryNotified.current.add(automaticAttemptId!);onPrimaryReady?.(primary)
         }
