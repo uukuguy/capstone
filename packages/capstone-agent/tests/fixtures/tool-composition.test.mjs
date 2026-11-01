@@ -6,8 +6,63 @@ import {join} from 'node:path';
 import {createToolCompositionTool,compositionPolicy} from '../../src/capstone_agent/resources/tool-composition.mjs';
 import {rpcEvent} from '../../src/capstone_agent/resources/general-sdk.mjs';
 import {boundToolResult} from '../../src/capstone_agent/resources/tool-result-context.mjs';
+import {createGatewayUseLedger} from '../../src/capstone_agent/resources/gateway-tool-use.mjs';
+import {createHash} from 'node:crypto';
 
 const catalog={revision:'catalog',tools:{data_gateway_read:{name:'read',inputSchema:{type:'object'},description:'Read selected data'}},tool_hashes:{data_gateway_read:'a'.repeat(64)}};
+
+test('35 successful reads are reused after local processing failure and outer native reference exposes the manifest',()=>fixture(async cwd=>{
+ const declared=structuredClone(catalog);declared.tools.data_gateway_read.annotations={readOnlyHint:true,idempotentHint:true};
+ const ledger=createGatewayUseLedger();let count=0;
+ const t=tool(cwd,async(_name,args)=>{count++;return native({rows:[{n:args.n}]});},{catalog:declared,useLedger:ledger});
+ const plan=`Array.from({length:35},(_,n)=>({tool:'read',arguments:{n}}))`;
+ const failed=await t.execute('processing',{tools:['read'],program:`await tools.batch(${plan});throw Error('local table mapping failed');`});
+ assert.equal(failed.isError,true);assert.equal(count,35);
+ const repaired=await t.execute('repair',{tools:['read'],program:`return (await tools.batch(${plan})).map(r=>r.data.rows[0].n);`});
+ const result=JSON.parse(repaired.content[0].text);assert.equal(result.calls,0);assert.equal(result.reused_call_count,35);assert.equal(count,35);
+ const outer='native-observation:task:'+createHash('sha256').update('repair').digest('hex');
+ const read=await t.execute('inspect',{tools:[],program:`return tools.read(${JSON.stringify(outer)},'/completed_calls',{offset:0,limit:2});`});
+ assert.equal(read.isError,false,JSON.stringify(read));assert.equal(JSON.parse(read.content[0].text).result.total_items,35);assert.equal(count,35);
+}));
+
+test('failed explicit refresh invalidates the older reusable snapshot and batches retain the refresh reason',()=>fixture(async cwd=>{
+ const declared=structuredClone(catalog);declared.tools.data_gateway_read.annotations={readOnlyHint:true,idempotentHint:true};let count=0;
+ const t=tool(cwd,async()=>{count++;return count===2?{isError:true,content:[{type:'text',text:JSON.stringify({status:'error'})}]}:native({n:count});},{catalog:declared});
+ await t.execute('first',{tools:['read'],program:`return tools.call('read',{});`});
+ const refresh=await t.execute('refresh',{tools:['read'],program:`return tools.batch([{tool:'read',arguments:{}}],{refresh_reason:'New source version requested'});`});
+ assert.equal(JSON.parse(refresh.content[0].text).completed_calls[0].refresh_reason,'New source version requested');
+ const next=await t.execute('next',{tools:['read'],program:`return tools.call('read',{});`});
+ assert.equal(count,3);assert.equal(JSON.parse(next.content[0].text).result.data.n,3);
+}));
+
+test('successful readonly observations survive processing failures and repeated batches reuse exact references',()=>fixture(async cwd=>{
+ let count=0;
+ const declared=structuredClone(catalog);declared.tools.data_gateway_read.annotations={readOnlyHint:true,idempotentHint:true};
+ const t=tool(cwd,async(_name,args)=>{count++;await new Promise(r=>setTimeout(r,5));return native({rows:[{n:args.n}]});},{catalog:declared});
+ const program=`return tools.batch([{tool:'read',arguments:{n:1}},{tool:'read',arguments:{n:1}},{tool:'read',arguments:{n:2}}]);`;
+ const first=await t.execute('first',{tools:['read'],program:program.replace('return tools.batch','await tools.batch')+`throw Error('local processing failed');`});
+ assert.equal(first.isError,true);assert.equal(count,2);
+ const second=await t.execute('second',{tools:['read'],program});
+ const body=JSON.parse(second.content[0].text);assert.equal(second.isError,false,JSON.stringify(second));
+ assert.equal(count,2);assert.equal(body.calls,0);assert.equal(body.reused_call_count,3);
+ assert.equal(body.completed_calls.length,3);assert.equal(body.result[0].ref,body.result[1].ref);
+ assert.equal(body.result[0].reused,true);assert.ok(body.result[0].observed_at);
+ const refreshed=await t.execute('refresh',{tools:['read'],program:`return tools.call('read',{n:1},{refresh_reason:'Check changed source after user update'});`});
+ assert.equal(refreshed.isError,false,JSON.stringify(refreshed));assert.equal(count,3);
+ const changed=await t.execute('changed',{tools:['read'],program:`return tools.call('read',{n:3});`});
+ assert.equal(changed.isError,false);assert.equal(count,4);
+}));
+
+test('reuse does not include unknown semantics or failed reads; returned actions always refresh',()=>fixture(async cwd=>{
+ let count=0;const declared=structuredClone(catalog);declared.tools.data_gateway_read.annotations={readOnlyHint:true,idempotentHint:true};
+ const t=tool(cwd,async()=>{count++;return count===1?{isError:true,content:[{type:'text',text:JSON.stringify({status:'error'})}]}:native({next:{tool:'read',arguments:{}}});},{catalog:declared});
+ const r=await t.execute('follow',{tools:['read'],program:`await tools.call('read',{});const r=await tools.call('read',{});return tools.follow(r.ref,'/data/next');`});
+ assert.equal(r.isError,false,JSON.stringify(r));assert.equal(count,3);
+ const unknown=tool(cwd,async()=>{count++;return native({});});
+ await unknown.execute('unknown',{tools:['read'],program:`await tools.call('read',{});return tools.call('read',{});`});assert.equal(count,5);
+ const invalid=await t.execute('invalid',{tools:['read'],program:`return tools.batch([{tool:'read',arguments:{}}],{refresh_reason:''});`});
+ assert.equal(invalid.isError,true);assert.equal(count,5);
+}));
 
 test('batch checks every frozen argument before execution and preserves reservation on rejection',()=>fixture(async cwd=>{
  let calls=0,checked=[];

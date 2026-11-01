@@ -2,17 +2,25 @@ import {fork} from 'node:child_process';
 import {readFileSync} from 'node:fs';
 import {randomUUID,createHash} from 'node:crypto';
 import {saveSemanticContext,loadSemanticContext} from './semantic-data-context.mjs';
-import {boundToolResult,readSavedObservation,structureIndex,resolveTaskObservation} from './tool-result-context.mjs';
+import {boundToolResult,savedToolObservation,readSavedObservation,structureIndex,resolveTaskObservation} from './tool-result-context.mjs';
 import {gatewayToolUseGuidance} from './gateway-tool-use.mjs';
 import {createToolIdentityResolver} from './tool-identity.mjs';
 import {observedAction,readObservation} from './observed-action.mjs';
 import {setTimeout as wait} from 'node:timers/promises';
 export const compositionPolicy=Object.freeze(JSON.parse(readFileSync(new URL('./tool-composition-policy.json',import.meta.url),'utf8')));
 const canonical=(v)=>Array.isArray(v)?v.map(canonical):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])):v;
+function refreshReason(options){
+  if(options===undefined)return undefined;
+  if(!options||typeof options!=='object'||Array.isArray(options)||Object.keys(options).some(k=>k!=='refresh_reason')||
+      typeof options.refresh_reason!=='string'||!options.refresh_reason.trim()||options.refresh_reason.length>512)
+    throw Error('/options: expected {refresh_reason:nonempty string up to 512 characters}');
+  return options.refresh_reason;
+}
 export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,admittedNames=Object.keys(catalog.tools),invoke,validateCalls,scope,useLedger,deadlineAt=Infinity,allowedInputs=[],restore=async x=>x,onProgress=()=>{}}){
   // Session-local issued observations survive program calls, never task grants.
   // A different DR node must receive an explicit saved context package.
   const records=new Map();
+  const successfulRequests=new Map(),inFlight=new Map();
   const resolveRecord=ref=>resolveTaskObservation(records,ref,{cwd,useLedger});
   const sourceRecords=async ref=>new Map([[ref,await resolveRecord(ref)]]);
   // Only explicit non-correctable, unexecuted rejections persist across programs.
@@ -25,14 +33,23 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
       signal?.throwIfAborted();
       const completedCalls=[];
       const batches=new Map();
+      const retainProgram=async(result)=>{
+        const bounded=await boundToolResult(result,{cwd,toolName:'agent_tools_execute',callId,maxChars:policy.output_bytes,retain:true});
+        const saved=savedToolObservation(bounded);
+        if(saved){
+          const observation={...saved,ok:result.isError!==true,observedAt:Date.now(),receipt:result.details??{}};
+          useLedger?.record('agent_tools_execute',callId,observation);
+          if(scope?.task_id)useLedger?.record('agent_tools_execute','native-observation:'+scope.task_id+':'+createHash('sha256').update(callId).digest('hex'),observation);
+        }
+        return {isError:bounded.isError,content:bounded.content,details:bounded.details};
+      };
       const failure=async error=>{
-        const bounded=await boundToolResult({isError:true,content:[{type:'text',text:completedCalls.length?JSON.stringify({
+        return retainProgram({isError:true,content:[{type:'text',text:completedCalls.length?JSON.stringify({
         code:'composition_failed',message:String(error.message??error),completed_calls:completedCalls,
         completed_call_count:completedCalls.length,recovery:'Completed calls were not rolled back. Reuse their observation refs in this task; do not repeat them implicitly.'
-      }):String(error.message??error)}]},{cwd,toolName:'agent_tools_execute',callId,maxChars:policy.output_bytes});
-        return {isError:true,content:bounded.content,details:bounded.details};
+      }):String(error.message??error)}]});
       };
-      let child,timer;const abort=new AbortController(),queue=[],operations=new Set(),resourceFailures=new Map(),blocked=new Map();let active=0,calls=0,requests=0,skipped=0,finished=false;
+      let child,timer;const abort=new AbortController(),queue=[],operations=new Set(),resourceFailures=new Map(),blocked=new Map();let active=0,calls=0,requests=0,skipped=0,reused=0,finished=false;
       const stop=()=>{abort.abort(Error('Composition stopped'));for(const reject of queue.splice(0))reject();if(child?.pid){try{process.kill(-child.pid,'SIGKILL');}catch{child.kill('SIGKILL');}}};
       try{
         if(typeof input.program!=='string'||input.program.length>policy.code_chars)throw Error('Program code budget exceeded');
@@ -59,6 +76,7 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
             let value,error;
             try{
               if(message.kind==='preflight'){
+                const reason=refreshReason(message.options);
                 const plan=message.calls,errors=[];
                 if(!Array.isArray(plan)||!plan.length||plan.length>limit-requests)
                   throw Error(`Batch preflight: expected 1..${limit-requests} calls; no calls from this batch executed`);
@@ -67,7 +85,7 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
                     if(!item||typeof item!=='object'||Object.keys(item).some(k=>!['tool','arguments'].includes(k))||
                         !item.arguments||typeof item.arguments!=='object'||Array.isArray(item.arguments))
                       throw Error('expected {tool,arguments:object}');
-                    return {name:programIdentities.resolve(item.tool),args:structuredClone(item.arguments)};
+                    return {name:programIdentities.resolve(item.tool),args:structuredClone(item.arguments),options:reason?{refresh_reason:reason}:undefined};
                   }catch(e){errors.push({index,message:String(e.message??e)});return null;}
                 });
                 if(errors.length)throw Error('Batch preflight: no calls from this batch executed; '+JSON.stringify(errors));
@@ -83,7 +101,7 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
               if(message.kind==='follow'){
                 const action=observedAction(await sourceRecords(message.ref),message.ref,message.pointer);
                 // No replacement arguments cross the worker boundary.
-                message={...message,kind:'call',...action};
+                message={...message,kind:'call',...action,options:{refresh_reason:'Follow the exact returned action at its scheduled time'}};
               }
               if(message.kind==='call'){
                 if(message.batchRef!==undefined){
@@ -97,10 +115,20 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
                 }
                 const argumentsHash=createHash('sha256').update(JSON.stringify(canonical(message.args))).digest('hex');
                 const failureKey=message.name+':'+argumentsHash;
+                const reason=refreshReason(message.options),annotations=schemas[message.name]?.annotations;
+                const reusable=annotations?.readOnlyHint===true&&annotations?.idempotentHint===true&&annotations?.destructiveHint!==true;
                 if(active>=concurrency)await new Promise((resolve,reject)=>queue.push(()=>abort.signal.aborted?reject(abort.signal.reason):resolve()));
                 abort.signal.throwIfAborted();active++;
+                let release;
                 try{
-                  if(rejectedRequests.has(failureKey)){
+                  while(reusable&&inFlight.has(failureKey))await inFlight.get(failureKey);
+                  abort.signal.throwIfAborted();
+                  const previous=reusable&&!reason?successfulRequests.get(failureKey):undefined;
+                  if(previous){
+                    const record=records.get(previous);
+                    reused++;completedCalls.push({ref:previous,tool:message.name,ok:true,reused:true});
+                    value={...record.value,ref:previous,ok:true,value:record.value,reused:true,observed_at:new Date(record.observedAt).toISOString()};
+                  }else if(rejectedRequests.has(failureKey)){
                     const previous=rejectedRequests.get(failureKey);
                     skipped++;value={ref:null,ok:false,status:'not_executed',data:null,
                       previous_call:previous.ref,gaps:previous.gaps,
@@ -108,6 +136,8 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
                   }else if(blocked.has(failureKey)){
                     skipped++;value={ref:null,ok:false,status:'not_executed',data:null,gaps:[{reason:'repeated_resource_failure',tool:message.name,arguments_sha256:argumentsHash,scope:'unchanged_inputs'}],value:null};
                   }else{
+                  if(reusable&&reason)successfulRequests.delete(failureKey);
+                  if(reusable&&!inFlight.has(failureKey))inFlight.set(failureKey,new Promise(resolve=>{release=()=>{inFlight.delete(failureKey);resolve();};}));
                   calls++;
                   if(message.waitMs)await wait(message.waitMs,undefined,{signal:abort.signal});
                   const nestedId=`${callId}:${run}:${message.id}`,native=await restore(await invoke(message.name,message.args,{callId:nestedId,signal:abort.signal}));
@@ -121,12 +151,13 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
                   resourceFailures.set(failureKey,count);
                   if(count>=policy.consecutive_resource_failures)blocked.set(failureKey,{tool:message.name,arguments_sha256:argumentsHash,scope:'unchanged_inputs'});
                   records.set(ref,{ref,ok,value:observed,receipt:native.details??{},observedAt:Date.now()});
+                  if(reusable&&ok&&observed?.status==='ok')successfulRequests.set(failureKey,ref);
                   if(!ok&&Array.isArray(observed?.gaps)&&observed.gaps.some(g=>g?.scope?.executed===false&&g.scope.correctable===false))
                     rejectedRequests.set(failureKey,{ref,gaps:structuredClone(observed.gaps)});
-                  completedCalls.push({ref,tool:message.name,ok});
+                  completedCalls.push({ref,tool:message.name,ok,...(reason?{refresh_reason:reason}:{})});
                   value={ref,ok,...(observed&&typeof observed==='object'?observed:{}),value:observed};
                   }
-                }finally{active--;queue.shift()?.();}
+                }finally{release?.();active--;queue.shift()?.();}
               }else if(message.kind==='read'||message.kind==='inspect'){
                 value=typeof message.ref==='string'?readObservation(await sourceRecords(message.ref),message.ref,message.pointer):
                   await readSavedObservation(message.ref,message.pointer,{cwd});
@@ -156,14 +187,12 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
           child.send({kind:'start',program:input.program,schemas,outputBytes:policy.output_bytes});
         });
         const failedCalls=completedCalls.filter(call=>!call.ok);
-        const text=JSON.stringify({result:result??null,calls,skipped_calls:skipped,
+        const text=JSON.stringify({result:result??null,calls,skipped_calls:skipped,reused_call_count:reused,completed_calls:completedCalls,
           failed_call_count:failedCalls.length,failed_calls:failedCalls,limited_conditions:[...blocked.values()]});
-        const bounded=await boundToolResult({isError:false,content:[{type:'text',text}],details:{kind:policy.schema,calls}},
-          {cwd,toolName:'agent_tools_execute',callId,maxChars:policy.output_bytes});
         // Unlike gateway receipts, the program return has no host requirement
         // to inline original bytes. Keep the saved-file reference bounded even
         // when rpcEvent restores real upstream gateway observations.
-        return {isError:bounded.isError,content:bounded.content,details:bounded.details};
+        return retainProgram({isError:false,content:[{type:'text',text}],details:{kind:policy.schema,calls,reused_call_count:reused}});
       }catch(error){
         stop();await Promise.allSettled([...operations]);
         if(signal?.aborted)throw signal.reason??error;

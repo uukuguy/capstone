@@ -6,9 +6,9 @@ process.on('message',async message=>{
   if(message.kind==='reply'){const p=pending.get(message.id);if(p){pending.delete(message.id);message.error?p.reject(Error(message.error)):p.resolve(message.value);}return;}
   if(message.kind!=='start')return;
   const identities=createToolIdentityResolver(message.schemas);
-  const tools={call:(name,args)=>request('call',{name:identities.resolve(name),args}),
-    batch:async calls=>{
-      const plan=await request('preflight',{calls});
+  const tools={call:(name,args,options)=>request('call',{name:identities.resolve(name),args,options}),
+    batch:async (calls,options)=>{
+      const plan=await request('preflight',{calls,options});
       return Promise.all(Array.from({length:plan.count},(_,index)=>request('call',{batchRef:plan.ref,index})));
     },
     read:(ref,pointer,page)=>request('read',{ref,pointer,page}),
