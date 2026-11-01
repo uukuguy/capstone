@@ -4,6 +4,45 @@
 
 ## Immediate work
 
+Source 9da60bfa forwards Pi compaction start/end through native transport and public
+application records, with reason, state, duration and retry indication. It does not
+increment business model calls or expose summaries. Four focused Python checks and
+the SDK projection check passed. Historical 16.1s gap remains unproven.
+Source 356b0e64 permits exact saved full_result references in tools.read with bounded
+array paging; checks reject forged, modified, symlinked and foreign references.
+35 Node checks passed. Scope guidance avoids blanket catalog retrieval; no fixed
+business names or count limits added. Canonical rebuild ready200; API/workers share
+image eb6819fbcb9b57b35be2577a788e345bfa94cf655765503205bbd0b955a9edc6.
+Live container paging and isolated compaction projection passed with zero upstream
+calls. Log /tmp/capstone-compaction-rebuild.log; scoped cleanup completed, receipt
+cache-maintenance-20261101-131524-317.log. No CI or replay.
+Frontend-specific compaction presentation has not been added; the application now
+receives public runtime_event payload.runtime_phase records. No historical backfill.
+
+Source f10e7979 adds tools.batch capacity/admission reservation and capstone-report
+--check-only. PPTX block errors aggregate before output. 26 Node and 42 report
+checks passed. Batch per-call schemas still validated at invocation, not transactionally.
+Canonical rebuild completed: /tmp/capstone-preflight-rebuild.log; ready passed.
+Live batch preflight and report check-only verified with synthetic inputs, no gateway calls.
+Backend image 9d3bf917d27d8d978204a30cdf893c7f536c779de7fbd4bc32e2d902c055ea77.
+Cleanup receipt cache-maintenance-20261101-105852-77679.log. No business replay or CI.
+
+Active execution-chain improvement: source c9a64f05 adds bounded tools.read(ref,pointer)
+and task-local suppression of exact requests explicitly rejected with executed=false,
+correctable=false. Failed observation reference remains available; transient errors
+and changed arguments are not permanently blocked. 23 Node checks passed.
+Report help and table diagnostics improved in 15b09a80; 17 report checks passed.
+Canonical rebuild completed: /tmp/capstone-execution-chain-rebuild.log; ready passed.
+Backend image 1ee25787bab95e1f71ff786d1f8ba5c32072bce59dedcbf8b0a6e73fc836f0ba.
+Live executor synthetic check passed for cross-program rejection and observation reads.
+Cleanup receipt cache-maintenance-20261101-104720-52595.log. No business replay.
+Gateway publication 2026-11-01T10:43:16.267212+08:00 verified and cache refreshed.
+Remaining scope: direct discovery file-reference reading, whole-batch business-schema
+validation, cross-tool recovery and purpose coverage. Capacity/admission batch preflight
+and independent PPTX block-error aggregation are delivered by f10e7979 above.
+Audit: docs/reports/2026-11-01-summer-session-audit.md. Prioritize execution effectiveness,
+not historical artifact rewriting; no CI or business replay.
+
 Source commit 2e40b605 fixes indexed failed-subquery summaries in backend and App.
 Focused verification: 29 Python tests, 14 App tests, TypeScript check passed.
 Canonical local rebuild completed; readiness passed. Backend image:

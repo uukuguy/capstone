@@ -6642,3 +6642,15 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - Surface indexed failed subquery diagnostics while preserving request identifiers; focused tests pass, runtime rebuild pending [2e40b605].
 - Show saved-version timestamps beside product names; type check and existing-browser visual check passed [1425e245].
 - Gateway publication 21:46:14 verified; local rebuild ready, live nested diagnostics checked, scoped cache maintenance completed; no business replay.
+
+## 2026-11-01
+- Reconcile gateway validation, deployment receipts and recovery instructions to prevent obsolete task replay [14404b87].
+- Reuse observed fields and retain explicit non-correctable rejections across programs; 23 focused tests pass [c9a64f05].
+- Explain report pagination and locate invalid table columns to reduce speculative rendering; 17 focused checks pass [15b09a80].
+- Verified gateway publication 10:43:16; rebuilt local services, checked live observation reuse, refreshed cache; no CI or business replay.
+- Preflight batch capacity/admission and collect report block errors without writing products; 68 focused checks pass [f10e7979].
+- Local f10e7979 rebuild ready; live batch rejection and non-writing report checks passed, scoped cleanup completed; no business replay.
+- Audit all 71 model and 208 tool calls; prioritize scope reduction and observation reuse, document gateway questions [122c031f].
+- Forward Pi compaction lifecycle and duration to public application records without inflating model calls; focused checks pass [9da60bfa].
+- Reuse saved discovery references with bounded paging and scope guidance to reduce redundant reads; 35 Node checks pass [356b0e64].
+- Rebuilt local 356b0e64; readiness, image parity and live reference/event checks passed; scoped cleanup finished without CI or business replay.

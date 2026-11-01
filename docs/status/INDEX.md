@@ -1,5 +1,9 @@
 # docs/status INDEX
 
+2026-11-01 local source356b0e64: public Pi compaction lifecycle and bounded saved
+observation reuse. Ready, same-image and focused checks pass; no CI or business replay.
+See VERSION-CONTROL, live RESUME and the [execution audit](../reports/2026-11-01-execution-efficiency-audit.md).
+
 Current local sourcebec075c3: reference-first startup and on-demand protected reads;
 first model wait1.273s,total2.8s in the existing tab. See VERSION-CONTROL,
 RESUME and the updated [implementation report](../reports/2026-10-31-latest-session-tool-errors.md).
