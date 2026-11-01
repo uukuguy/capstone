@@ -296,6 +296,10 @@ def test_native_worker_persists_shared_steps_without_promoting_tools_to_authorit
             on_event({'type': 'tool_execution_start', 'tool_name': 'bash', 'tool_call_id': 'read'})
             on_event({'type': 'tool_execution_end', 'tool_name': 'bash', 'tool_call_id': 'read', 'is_error': True})
             on_event({'type': 'runtime_action', 'phase': 'completed'})
+            on_event({'type': 'runtime_phase', 'runtime_phase': {'name': 'context_compaction',
+                'state': 'started', 'reason': 'threshold', 'summary': 'PRIVATE COMPACTION'}})
+            on_event({'type': 'runtime_phase', 'runtime_phase': {'name': 'context_compaction',
+                'state': 'completed', 'reason': 'threshold', 'elapsed_ms': 16081, 'will_retry': False}})
             on_event({'type': 'runtime_action', 'phase': 'started'})
             on_event({'type': 'runtime_action', 'phase': 'response_completed', 'response_kind': 'text'})
             on_event({'type': 'runtime_action', 'phase': 'completed'})
@@ -307,6 +311,11 @@ def test_native_worker_persists_shared_steps_without_promoting_tools_to_authorit
     saved = service.read_events(current.thread_id, 0).events
     purposes = [e.payload.get('response_intent') for e in saved if e.event_type == 'runtime_action' and e.payload.get('phase') == 'response_completed']
     assert purposes[0] == '核对模型范围'
+    phases = [e for e in saved if e.payload.get('native_type') == 'runtime_phase']
+    assert len(phases) == 2 and all(e.visibility == 'public' for e in phases)
+    assert phases[-1].payload['runtime_phase']['elapsed_ms'] == 16081
+    assert 'PRIVATE COMPACTION' not in str([e.payload for e in phases])
+    assert len(purposes) == 2
     assert not any('PRIVATE BODY' in str(e.payload) for e in saved if e.visibility == 'public')
     calls = [e.payload for e in saved if e.payload.get('tool_call_id') == 'read']
     assert len(calls) == 2 and calls[0]['task_step_id'] == calls[1]['task_step_id']

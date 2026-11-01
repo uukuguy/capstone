@@ -564,7 +564,9 @@ class GeneralPiHost:
                 'parent_attempt_id': request.parent_attempt_id, 'kind': 'native_tool_observation',
                 'metadata': {'tool_name': tool_name, 'tool_call_id': call_id,
                     'output_sha256': digest, **provenance, 'action_id': action_id, 'status': status}})
+        compaction_started = None
         def emit(event):
+            nonlocal compaction_started
             # Public transport uses bounded receipts, never raw native frames.
             kind = event.get('type')
             # The isolated image includes this exact dependency-free Kernel
@@ -574,6 +576,12 @@ class GeneralPiHost:
             except ModuleNotFoundError:
                 from capability_agent.runtime.step_events import project_runtime_action
             payload = project_runtime_action(event)
+            if payload is not None and payload.get('type') == 'runtime_phase':
+                if kind == 'compaction_start':
+                    compaction_started = time.monotonic()
+                elif compaction_started is not None:
+                    payload['runtime_phase']['elapsed_ms'] = round((time.monotonic() - compaction_started) * 1000)
+                    compaction_started = None
             if kind == 'llm_pool_call':
                 payload = {'llm_pool_call': _checked_llm_pool_call(event, request.native_context, self.capability, record)}
             elif kind == 'model_request_pool':

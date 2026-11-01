@@ -428,6 +428,26 @@ def test_isolated_runtime_projection_needs_only_python_standard_library():
     subprocess.run([sys.executable, '-I', '-S', '-c', code, str(source)], check=True)
 
 
+def test_compaction_lifecycle_survives_host_without_becoming_model_turn(tmp_path):
+    from capstone_agent.general_pi_server import GeneralPiHost
+    def run(request, cancelled, emit):
+        emit({'type': 'compaction_start', 'reason': 'threshold', 'private': 'PRIVATE'})
+        emit({'type': 'compaction_end', 'reason': 'threshold', 'status': 'completed',
+              'willRetry': False, 'result': {'summary': 'PRIVATE'}})
+        return 'Answer', {}
+    host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'}, run_task=run)
+    request = PiTaskRequest('compact', 'attempt', 'direct', 'Explain', (), (), host.identity, 2)
+    host.submit(request)
+    deadline = time.monotonic() + 2
+    while host.read(request.task_id)['status'] == 'running' and time.monotonic() < deadline:
+        time.sleep(.01)
+    events = host.read(request.task_id)['events']
+    assert [event['type'] for event in events] == ['runtime_phase', 'runtime_phase']
+    assert [event['runtime_phase']['state'] for event in events] == ['started', 'completed']
+    assert events[-1]['runtime_phase']['elapsed_ms'] >= 0
+    assert 'PRIVATE' not in str(events)
+
+
 def test_native_turn_boundaries_survive_bounded_host_projection(tmp_path):
     from capstone_agent.general_pi_server import GeneralPiHost
     def run(request, cancelled, emit):

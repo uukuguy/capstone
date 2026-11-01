@@ -8,6 +8,13 @@ import {rpcEvent} from '../../src/capstone_agent/resources/general-sdk.mjs';
 
 const catalog={revision:'catalog',tools:{data_gateway_read:{name:'read',inputSchema:{type:'object'},description:'Read selected data'}},tool_hashes:{data_gateway_read:'a'.repeat(64)}};
 
+test('compaction transport exposes lifecycle without summary or raw errors',()=>{
+ assert.deepEqual(rpcEvent({type:'compaction_start',reason:'threshold',messages:['PRIVATE']}),{type:'compaction_start',reason:'threshold'});
+ for(const [extra,status] of [[{result:{summary:'PRIVATE'}},'completed'],[{aborted:true},'cancelled'],[{errorMessage:'PRIVATE'},'failed'],[{},'skipped']]){
+  assert.deepEqual(rpcEvent({type:'compaction_end',reason:'overflow',willRetry:true,...extra}),{type:'compaction_end',reason:'overflow',status,willRetry:true});
+ }
+});
+
 test('batch preflight rejects capacity and unselected tools before any call',()=>fixture(async cwd=>{
  let issued=0;const t=tool(cwd,async()=>{issued++;return native({});});
  for(const [max_calls,program] of [

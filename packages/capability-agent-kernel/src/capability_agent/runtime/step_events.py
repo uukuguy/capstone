@@ -6,6 +6,17 @@ import re
 def project_runtime_action(event: Mapping[str, Any]) -> dict[str, Any] | None:
     """Project native turn boundaries without exposing messages or private reasoning."""
     kind = event.get('type')
+    if kind in {'compaction_start', 'compaction_end'}:
+        reason = event.get('reason')
+        if reason not in {'manual', 'threshold', 'overflow', 'unknown'}:
+            return None
+        phase = {'name': 'context_compaction', 'reason': reason,
+                 'state': 'started' if kind == 'compaction_start' else event.get('status')}
+        if phase['state'] not in {'started', 'completed', 'cancelled', 'failed', 'skipped'}:
+            return None
+        if kind == 'compaction_end':
+            phase['will_retry'] = event.get('willRetry') is True
+        return {'type': 'runtime_phase', 'runtime_phase': phase}
     if kind in {'auto_retry_start', 'auto_retry_end'}:
         attempt = event.get('attempt')
         if type(attempt) is not int or not 1 <= attempt <= 16:

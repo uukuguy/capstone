@@ -103,6 +103,24 @@ def test_process_inventory_matches_the_explicit_organization_role(tmp_path, extr
         process.stop()
 
 
+def test_process_forwards_compaction_boundaries(tmp_path, single_child_cleanup):
+    from capstone_agent.general_pi_executor import GeneralPiProcess
+    frames = [{'type': 'compaction_start', 'reason': 'threshold'},
+              {'type': 'compaction_end', 'reason': 'threshold', 'status': 'completed', 'willRetry': False},
+              {'type': 'agent_end', 'messages': [{'role': 'assistant', 'stopReason': 'stop',
+                'content': [{'type': 'text', 'text': 'Done'}]}]}]
+    script = tmp_path / 'compact.py'
+    script.write_text('import sys\nsys.stdin.readline()\n' + ''.join(
+        'print(' + repr(json.dumps(frame)) + ',flush=True)\n' for frame in frames))
+    process = GeneralPiProcess((sys.executable, str(script)), {'PATH': '/usr/bin'}, tmp_path)
+    observed = []
+    try:
+        process.run('task', timeout=5, cancelled=lambda: False, on_event=observed.append)
+        assert observed == frames[:2]
+    finally:
+        process.stop()
+
+
 def test_native_no_progress_response_keeps_safe_reason_without_raw_message(tmp_path):
     from capstone_agent.general_pi_executor import GeneralPiProcess
     script = tmp_path / 'no_progress.py'
