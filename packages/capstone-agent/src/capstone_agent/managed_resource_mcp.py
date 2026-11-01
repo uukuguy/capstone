@@ -107,6 +107,7 @@ class ManagedMcpSession:
             validator.validate(arguments)
         except Exception:
             raise ManagedMcpError('resource_arguments_invalid', stage='admission') from None
+        self.check_access()
         # Once dispatched, a timeout/disconnect has an unknown effect. Never auto-retry.
         try:
             async with asyncio.timeout(limits.mcp_tool_seconds):

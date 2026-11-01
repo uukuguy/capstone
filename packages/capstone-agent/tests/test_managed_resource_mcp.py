@@ -96,6 +96,28 @@ def test_call_failure_is_unknown_and_not_retried():
     asyncio.run(run())
 
 
+def test_permission_revoked_during_discovery_prevents_dispatch():
+    async def run():
+        allowed = True
+        remote = Session()
+        def check():
+            if not allowed:
+                raise PermissionError('revoked')
+        client = connection(remote, check)
+        catalog = await client.discover()
+        original = remote.list_tools
+        async def revoke(**kwargs):
+            nonlocal allowed
+            result = await original(**kwargs)
+            allowed = False
+            return result
+        remote.list_tools = revoke
+        with pytest.raises(PermissionError):
+            await client.call('any.published-method', {'value': 1}, expected_revision=catalog['revision'])
+        assert remote.calls == []
+    asyncio.run(run())
+
+
 @pytest.mark.parametrize('url', ['file:///tmp/server', 'https://user:secret@host/mcp',
                                  'https://host/mcp?token=secret', 'https://host:99999/mcp', 'http://host/ bad'])
 def test_endpoint_rejects_credentials_and_unsupported_addresses(url):
