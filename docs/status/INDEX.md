@@ -1,5 +1,12 @@
 # docs/status INDEX
 
+2026-11-01: [Native worker session concurrency](KNOWN-ISSUES.md#native-worker-session-concurrency--2026-11-01)
+is recorded for later work; no concurrency change in this deployment repair.
+
+Intranet deployment is ready at http://192.168.72.63:5173/. Default dsv4 and
+intranet gateway passed a 32.9-second CSV task with zero errors. Research is disabled.
+See [deployment receipt](../reports/2026-11-01-intranet-deployment.md).
+
 Unified main-path correction `2b347fc6` shares successful reads across direct and
 composed calls, validates source tables before publication, and preserves model
 network diagnostics. Focused checks, rebuild and 26-second live validation pass:

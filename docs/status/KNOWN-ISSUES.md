@@ -1,5 +1,17 @@
 # Known issues and deferred work
 
+## Native worker session concurrency — 2026-11-01
+
+Deferred at the user's request: one native worker executes one attempt at a time.
+Other sessions queue until that execution ends. This is not a one-session limit
+on the whole application. The intranet deployment currently has one native worker.
+Observed: the user's summer PPT attempt `attempt_3727b79a52ad2334` occupied it;
+the diagnostic attempt `attempt_7ba21eadca159af6` remained accepted and unleased.
+The diagnostic request was cancelled without interrupting the user's PPT task.
+The queued UI said “正在生成回答”, which did not describe the actual queue state.
+Future work: bounded cross-session scheduling with isolation, cancellation and
+accurate queue status. Do not increase concurrency as part of this deployment fix.
+
 ## Recovered dev baseline — 2026-10-12
 
 PR #14 merged exact dual-CI candidate bc08169 into dev6ff7094.

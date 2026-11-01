@@ -6702,3 +6702,12 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 2026-11-01 054b27a6: Preserve artifact and upload hash checks on HTTP origins using a tested digest fallback.
 
 - 2026-11-01: Intranet browser session and CSV preview pass; access60ms; dsv4 and gateway defaults visible; no CI.
+
+- 2026-11-01 62e1d75b: Record deployed identities and verified browser recovery; preserve the remaining control-graph refresh checkpoint.
+
+- 2026-11-01: User deferred native worker cross-session concurrency; record queue evidence and preserve the active PPT task.
+
+- 2026-11-01: Shared presentation/runtime correction: dark PPT cover, teal table headers, server-clock elapsed timing, honest progress-registration diagnostics, purpose fallbacks, explicit answer-body boundary. Focused checks: App 167, agent 45, PPT 25 passed; types passed. PPT rendered through App preview library; evidence runs/presentation-fix-20261101. Deployment pending; no CI. Missing model purpose comments and zero chart blocks were confirmed in saved intranet task; business completeness is not certified.
+- 2026-11-01: 7ea289f2 fixes shared PPT styling and execution presentation; deployment validation remains pending.
+- 2026-11-01: 7ea289f2 deployed locally and intranet; same executor/report bytes, healthy services, 5.895s Chinese short task and browser passed.
+- 2026-11-01: Deployment register and graph include intranet source7ea289f2; browser layout inspected; doctor, symlink and diff checks passed.

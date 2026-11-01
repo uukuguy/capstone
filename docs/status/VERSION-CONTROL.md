@@ -1,5 +1,11 @@
 # 多线版本控制
 
+2026-11-01 共享呈现修正 `7ea289f2` 已用于本机和内网：PPT主题、服务端时钟计时、
+进度登记诊断、LLM目的补充显示和明确的正文边界。167项App、45项agent、25项PPT检查通过。
+内网短任务5.9秒、1次LLM、0工具，中文正文及浏览器展示通过。无CI，无历史业务重放。
+旧协议无正文标记时仍保留原文；此次短任务未证明模型始终遵循正文标记。
+图表业务完整性仍需可比数据，不以配色或短任务验收替代。[部署记录](../reports/2026-11-01-intranet-deployment.md)。
+
 2026-11-01 统一轻量链修正2b347fc6：直调与组合共享任务内成功观察，批量预检、
 结构化结果读取、带来源清单的类型校验CSV和模型网络故障诊断形成公共链路。
 73项Node与94项Python/worker定向检查通过；规范重建ready及同镜像通过。
@@ -1000,6 +1006,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
+| intranet-runtime | 815d17f1 | main | dev · 内网执行来源 | 内网真实任务通过 | 离线部署；缺省内网模型和网关。[部署记录](../reports/2026-11-01-intranet-deployment.md) | shared-agent |
+| intranet-app | bf1cd421 | main | dev · 内网界面来源 | 专项及本机可见验证通过 | 深度研究禁用并置灰；独立存储镜像 | shared-agent |
 | nested-diagnostics | 2e40b605 | main | dev · 子查询诊断来源 | 专项与本地运行验证通过 | 通用子错误提取，保留请求编号；原始结果不改写 | shared-agent |
 | tool-invocation-runtime | 6de15939 | main | dev · 确定调用与过程记录来源 | 本地同镜像与专项通过；App增量4c7e56bf可见验证通过，无CI | 动态容量、观察动作保真、来源校验和可读诊断；公开目的；App首轮Thinking与终态折叠定位。[验证记录](../reports/2026-10-31-latest-session-tool-errors.md) | shared-agent |
 | reference-first-runtime | bec075c3 | main | dev · 引用优先与启动性能来源 | 本地专项、ready/同镜像与现有标签页通过；无CI | 不可变引用与按需只读，首轮1.273秒；自然过程展示与可纠正诊断。[验证](../reports/2026-10-31-latest-session-tool-errors.md) | shared-agent |
@@ -1149,6 +1157,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | grid-scale-source | 已合入并本地验收 | dev · 原feat/grid-scale-view | 华北10W+源元素与站点分区；精确逐指令视图、模型退出和有界拒绝诊断 | 华北连续任务、五文件、57/56图及主5173通过；模型构建缺口保留，无云发布 |
 | gateway-dynamic-runtime | 历史通用网关本地来源 | dev · 原refactor/gateway-dynamic-bindings | 通用网关结果和续接动作绑定，任务授权与回执保留；有界视图读取支持返回页大小 | 根dev61ec56c6规范重建exit0、ready200、同镜像989226e8与清理通过；App产品d9e24798、dirty=false，目录及视图协议、真实任务通过，渲染和性能未接受 |
 | dev-head | 当前研发位置 | dev | 直调与组合共享观察复用及恢复；统一预检、结构读取和类型校验产物 | 2b347fc6同源重建及26秒实测通过；7次LLM/8工具/零错误，CSV哈希通过；完整业务规划效率未验收；无CI |
+| intranet-runtime | 内网执行部署 | dev | 离线部署；内网模型和网关缺省配置 | ready及同镜像通过；32.9秒CSV实测零错误 |
+| intranet-app | 深度研究禁用 | dev | 共享输入控件置灰；旧草稿不能开启 | 155项专项及类型通过；本机可见验证通过 |
 | tool-invocation-runtime | 确定调用与执行记录来源 | dev | 256默认工具容量与返回动作保真；公开首行目的与结束折叠定位 | 专项检查通过；运行及浏览器状态见验证记录；不冒充新业务验收 |
 | process-presentation-runtime | 本地App展示来源 | dev | 首轮Thinking与目的归入对应LLM；受控终态折叠并定位指令 | 127组件及类型通过；真实短任务2.3秒、零工具调用收尾通过 |
 | nested-diagnostics | 当前本地后端来源 | dev | 失败子查询原因可读；保留原始结果与请求编号 | 43项诊断专项及类型通过；本地ready与执行器验证通过，无CI |
@@ -1390,7 +1400,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | 构建 `2b347fc6`；后端有效产品 `2b347fc6`；App `c00bfb15` | ready200；API/worker镜像f96b8e7fb2fbf0c56c152916cc84dd0760d44d2e0984a8873d4335caa603aeeb | 73项Node及94项Python/worker通过；真实26秒7次LLM/8工具/零错误；复用、刷新、CSV哈希通过；清理180419-53195完成；无CI；完整业务效率未验收 |
+| local-dev | 构建 `7ea289f2`；共享呈现源码 `7ea289f2` | ready通过；API/worker同镜像1be4fbda8a3db000df717ae1e163b73447ff76d8bf238c95ad004f1a29b1fa3a | 定向检查及PPT预览通过；清理195735-86660完成；无CI |
+| intranet-dev | 共享增量源码 `7ea289f2`；基础后端815d17f1及146f35b0 | 四服务healthy；API/worker同镜像58f78932b1b5a0a0a151a5d6f631beac9a14a4cf2b07dc06491377fa9d4f4b72 | App http://192.168.72.63:5173/；5.9秒中文短任务及浏览器通过；[部署记录](../reports/2026-11-01-intranet-deployment.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |
 | cloud-dev | `24d9a32`，开发试用候选；已推送标签cloud-dev-20261013-1045-24d9a32 | 用户授权的基本功能检查通过：四角色SUCCESS、API就绪、前端来源与真实中文对话；非正式发布或科学解释验收 | App https://capstone-app-production-83ef.up.railway.app/；[部署记录](../reviews/2026-10-13-cloud-dev-autonomous-trial.md)；demo不变 |
 | cloud-demo | App/API/两worker `faa6af9` | 四角色SUCCESS；三后端身份与dev本地529文件验收一致，安装工件与受检候选一致；三用例九轮、报告证据回放通过；local-demo已同源验收；正式标签demo-20261014-2028-faa6af9已推送 | App https://capstone-app-production-975e.up.railway.app/；上一正式标签demo-20261014-0744-bd2a200；双平台完整发布38554987581通过；cloud-dev不动 |

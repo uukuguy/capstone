@@ -1,28 +1,34 @@
 # Live Session Checkpoint
 
-Updated 2026-11-01. Intranet deployment is operational.
+Updated 2026-11-01 20:00. Active correction, not final acceptance.
 
-Entry: http://192.168.72.63:5173/. Backend/native source815d17f1, App bf1cd421.
-Default model dsv4 at192.168.72.69:18804; gateway 内网联调 at192.168.72.63:18001.
-Shared 深度研究 is disabled and grey; stale drafts cannot activate it.
-API/native-worker same image2efd4737331dcadefdbddc9368f4b96cc004e389c12f01c1adaee4410837f8ad.
-Ready and real metadata CSV task passed32.9s,5LLM,4tools,0errors; artifact hash passed.
-Thread thr_5558ffe853f7d0a7da77, attempt attempt_5b7684ca548d8974.
-Evidence runs/intranet-deploy-20261101/. Do not repeat.
-Remote /home/dmdba/capstone-intranet, project capstone-intranet; independent data.
-CentOS7 needs empty nft table created before executor's first atomic policy update.
-This is in deployment command only. No host firewall changes.
-155App checks, types,2legacy draft checks passed. No CI/push/PR/merge.
-Local bf1 rebuild ready, imagee926f2631b5c4eb6d5c6113f39c79ab3913d9968a2c3677d6d38f4733d3fa643.
-Remote optional professional solver workers remain off. Cloud/demo unchanged.
-Preserve unrelated docs/reports/2026-11-01-summer-session-audit.md.
-Browser closeout passed: final App054b27a6; backend815d17f1 plus146f35b0 launcher.
-API/native imagef5d9158fce352440588ba2bab9e3c0c13424538c2734ea92f5af2c58a6ff5a2b.
-HTTP UUID/hash compatibility fixed; native-only preparation now60ms.
-Visible session, dsv4, 内网联调 and CSV preview verified. No replay.
-Control graph/docs candidate contains initial deployment source; final source rows need
-refresh before claiming graph alignment. Do not delay user access for this bookkeeping.
-Local dev API remainsbf1cd421; App source hot-loaded; no local rebuild for HTTP fixes yet.
+Shared correction commit `7ea289f2`: PPT theme; API-clock elapsed time;
+queued wording; step-registration diagnosis; purpose fallbacks; explicit final
+answer body. Focused App 167 / agent 45 / PPT 25 passed; types passed.
+Local canonical rebuild ready, backend image
+`1be4fbda8a3db000df717ae1e163b73447ff76d8bf238c95ad004f1a29b1fa3a`.
+Cleanup receipt `.capstone-agent/cache-maintenance-20261101-195735-86660.log`.
+Remote incremental images tagged 7ea289f2 active; all four services healthy.
+API/worker image58f78932b1b5a0a0a151a5d6f631beac9a14a4cf2b07dc06491377fa9d4f4b72.
+Short dsv4 task5.895s,1LLM,0tools,Chinese answer and browser passed.
+Changed executor/report files match local and intranet byte-for-byte.
+Logs `/tmp/capstone-presentation-remote-up.log`; task verification script
+`/tmp/capstone-presentation-trial.py`, evidence `runs/presentation-fix-20261101/`.
+No CI, no summer replay, no new visible tab. Do not claim full chart/business
+acceptance: previous model created zero figure blocks. Prompt now distinguishes
+failed retrieval from absent data and requires supported comparisons.
+Answer boundary is explicit; legacy unmarked text is preserved, not heuristically
+stripped. Real exact-output task had no preamble but omitted markers; do not claim all
+English-prefix cases are prevented.
+
+Intranet entry http://192.168.72.63:5173; SSH dmdba, dir
+/home/dmdba/capstone-intranet. Single worker serializes tasks; user asked to record
+only. Existing user task finished. Remote clock is ~327 seconds behind browser;
+this explains inflated live elapsed. All 123 executor source hashes were equal
+before correction; gateway misuse was reproduced locally with dsv4, not a proven
+deployment mismatch. Saved audit `runs/intranet-deploy-20261101/summer-final-records.json`.
+Control register and graph now record the intranet deployment and source. Preserve unrelated
+`docs/reports/2026-11-01-summer-session-audit.md`.
 
 ## Main path remains separate
 

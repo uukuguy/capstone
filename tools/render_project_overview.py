@@ -114,7 +114,7 @@ def snapshot(probe_local: bool, probe_cloud: bool = False) -> dict:
         stage = dict(name=name, revision=revision.group() if revision else "未记录",
                      source=source_text, state=state, detail=detail,
                      observed=False, origin=None, coherent=coherent, app_revision=None)
-        public_url = re.search(r"https://[a-z0-9.-]+/", detail)
+        public_url = re.search(r"https?://[a-z0-9.-]+(?::[0-9]+)?/", detail)
         if public_url:
             stage["origin"] = public_url.group()
         if probe_cloud and name in {"cloud-dev", "cloud-demo"} and stage["origin"]:
@@ -151,8 +151,11 @@ def snapshot(probe_local: bool, probe_cloud: bool = False) -> dict:
                 except (OSError, ValueError):
                     pass  # A stopped local service leaves a clearly labelled recorded version.
         environments.append(stage)
-    if {stage["name"] for stage in environments} != {"local-dev", "local-demo", "cloud-dev", "cloud-demo"}:
-        raise ValueError("Expected four registered environments")
+    stage_names = [stage["name"] for stage in environments]
+    if (not {"local-dev", "local-demo", "cloud-dev", "cloud-demo"}.issubset(stage_names)
+            or len(stage_names) != len(set(stage_names))
+            or any(not re.fullmatch(r"[a-z][a-z0-9-]*", name) for name in stage_names)):
+        raise ValueError("Expected the baseline environments and unique registered stage names")
     main = git("rev-parse", "refs/heads/main")
     live = next(package for package in packages if package["id"] == "live")
     live["source"] = next(stage["revision"] for stage in environments if stage["name"] == "cloud-demo")

@@ -68,3 +68,24 @@ Its base is815d17f1 plus the146f35b0 launcher patch, with regenerated catalog sn
 Final App source054b27a6. Existing Vivaldi tab shows the restored session, dsv4,
 内网联调 and disabled research control. Browser CSV preview passes with hashes enabled.
 Screenshot: runs/intranet-deploy-20261101/http-browser.png. No new business replay.
+
+## Shared presentation correction — 7ea289f2
+
+Both local and intranet now include the shared PPT theme, clock-domain correction,
+progress-registration diagnostics and model-purpose fallback. Answer presentation
+extracts an explicit body when the model supplies its boundary; unmarked legacy
+text is retained. This is not a guarantee against all model-authored preambles.
+The saved summer deck contained no figure blocks. Styling does not create missing
+business evidence. No historical task or original artifact was overwritten.
+
+Focused checks: App167, agent45, PPT25; types pass. Real intranet dsv4 task
+`thr_572b4a3d70b78bc84c06` / `attempt_4cb5164c6791bac2` finished in5.895s,
+1model call,0tools, final answer `验证完成`. Browser showed the bold fallback
+`整理回答`,2.1s model time and5.9s total. Model omitted the action comment and
+answer markers in this exact-output task. Evidence: `runs/presentation-fix-20261101/`.
+
+API/native worker image:58f78932b1b5a0a0a151a5d6f631beac9a14a4cf2b07dc06491377fa9d4f4b72.
+Native executor:7a3259b0e545e1e64ed87f9f856f2126ecc14a7213fd368ad82789ec009a6b6b.
+App:07691b798e3d34ee90f0faecfef4fb23caf291478fd9e4b362cc350ee72926be.
+All four services healthy. No CI. No full summer replay. Concurrency remains one
+native task per worker, recorded separately at the user's request.
