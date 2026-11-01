@@ -7,6 +7,20 @@ import directExecutionLifecycle from './fixtures/directExecutionLifecycle.json'
 import {parseEventEnvelope} from './threadProtocol'
 
 afterEach(() => { cleanup(); localStorage.clear(); sessionStorage.clear() })
+it('shows public compaction records inside the process window and preserves LLM count on replay',()=>{
+ const events=[event('attempt_started',1,{},'compact'),
+  event('runtime_action',2,{phase:'started'},'compact','2026-11-01T00:00:01Z'),
+  event('runtime_action',3,{phase:'response_completed'},'compact','2026-11-01T00:00:02Z'),
+  event('runtime_event',4,{native_type:'runtime_phase',task_id:'native',runtime_phase:{name:'context_compaction',state:'started',reason:'threshold'}},'compact','2026-11-01T00:00:03Z'),
+  event('runtime_event',5,{native_type:'runtime_phase',task_id:'native',runtime_phase:{name:'context_compaction',state:'completed',reason:'threshold',elapsed_ms:16081,will_retry:false}},'compact','2026-11-01T00:00:19Z'),
+  event('attempt_completed',6,{answer:'完成'},'compact','2026-11-01T00:00:20Z')]
+ render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async()=>{}} onCancel={async()=>{}}/>)
+ expect(document.querySelector('.capstone-chat-activity-attached > summary')?.textContent).toContain('LLM 1 次')
+ fireEvent.click(screen.getByRole('button',{name:'查看执行过程'}))
+ const row=screen.getByLabelText('上下文压缩')
+ expect(row.textContent).toContain('16.1s');expect(row.textContent).toContain('已完成')
+ expect(row.closest('.capstone-chat-activity-attached')).not.toBeNull()
+})
 it('labels work before the first model request as preparation rather than thinking',()=>{
  const events=[event('command_accepted',1,{kind:'send_auto',payload:{text:'今天的国际要闻'}},'preparing'),event('attempt_started',2,{},'preparing')]
  render(<CapstoneAssistantThread events={events} disabled={false} isRunning activity={[]} onSend={async()=>{}} onCancel={async()=>{}}/>)

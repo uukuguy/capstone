@@ -3,6 +3,23 @@ import '@testing-library/jest-dom/vitest'
 import { cleanup, render, screen, within } from '@testing-library/react'
 import ProcessCallTrace, { callTraceIssues } from './ProcessCallTrace'
 
+it('shows compaction between model calls without an extra model round and stops incomplete timers',()=>{
+ const phases=[{id:'compact',reason:'threshold' as const,state:'started' as const,startedAt:'2026-11-01T00:00:02Z'}]
+ const models=[{id:'one',number:1,ms:1000,startedAt:'2026-11-01T00:00:00Z'},
+  {id:'two',number:2,ms:1000,startedAt:'2026-11-01T00:00:20Z'}]
+ const view=render(<ProcessCallTrace models={models} tools={[]} compactions={phases} active now={Date.parse('2026-11-01T00:00:04Z')}/> )
+ expect(screen.getByText('正在压缩上下文')).toBeInTheDocument()
+ const rows=screen.getByRole('list',{name:'模型与工具调用过程'}).children
+ expect(rows).toHaveLength(3);expect(rows[1]).toHaveTextContent('2.0s')
+ expect(screen.queryByText('LLM 03')).not.toBeInTheDocument()
+ view.rerender(<ProcessCallTrace models={models} tools={[]} compactions={phases} active={false}/> )
+ expect(screen.getByLabelText('上下文压缩')).toHaveTextContent('未完整记录')
+ expect(screen.getByLabelText('上下文压缩')).toHaveTextContent('耗时未记录')
+ view.rerender(<ProcessCallTrace models={models} tools={[]} compactions={[{...phases[0],state:'completed',elapsedMs:16081,finishedAt:'2026-11-01T00:00:18Z'}]} active={false}/> )
+ expect(screen.getByLabelText('上下文压缩')).toHaveTextContent('16.1s')
+ expect(screen.getByLabelText('上下文压缩')).toHaveTextContent('已完成')
+})
+
 afterEach(cleanup)
 
 it('shows the recorded script purpose after its LLM and keeps source out of the tool title',()=>{

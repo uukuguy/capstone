@@ -19,6 +19,7 @@ import ResearchEvidence, { parseResearchSnapshot, type ResearchSnapshot } from '
 import { projectTaskProgress, projectTaskStepDiagnostics, projectResearchBranches, type TaskProgress, type TaskStepDiagnostic, type ResearchBranch } from './taskProgress'
 import TaskStepProcess, { RecordedResult, StepErrorDetails, projectTaskSteps, ResearchBranchItems, readStepOpen, saveStepOpen, toolExecutionMs, type StepFoldCommand, type TaskStep } from './TaskStepProcess'
 import ExecutionGraphProcess, { graphTraceIssues, type GraphTraceFocus } from './ExecutionGraphProcess'
+import {projectProcessCompactions,type ProcessCompaction} from './processCompactions'
 import ProcessCallTrace, { modelCallMs, type ProcessModelCall } from './ProcessCallTrace'
 import { projectProcessModelRequests } from './processModelRequests'
 import {scriptOpeningIntent} from './executionIntent'
@@ -536,6 +537,7 @@ export function projectAssistantMessages(events: readonly EventEnvelope[], instr
     const executionGraph = attemptId ? projectExecutionGraph(events, attemptId) : undefined
     const researchGoal=executionGraph?.current.goal??taskProgress.find(item=>item.kind==='goal')?.text
     const modelRequests = attemptId ? projectProcessModelRequests(events, attemptId) : []
+    const compactions = attemptId ? projectProcessCompactions(events, attemptId) : []
     const firstCheckpoint=executionGraph?.checkpoints[0]?.checkpoint.ref
     const organizationEvent=attemptId?events.find(event=>{
       if(event.attemptId!==attemptId||event.visibility!=='public')return false
@@ -552,7 +554,7 @@ export function projectAssistantMessages(events: readonly EventEnvelope[], instr
     }):undefined
     const initialProjection=attemptId?projectInitialThinking(events,attemptId,executionEvent?.eventSeq,organizationEvent?.eventSeq??Infinity):undefined
     const initialThinking=nativeAttempts.has(attemptId)&&initialProjection?.handedOff&&modelRequests.some(call=>call.thinking)?undefined:initialProjection
-    const withMetadata = { ...message, metadata: { custom: { ...custom, activities, modelRequests, initialThinking, nativeGraphFocus: nativeGraphFocus(executionGraph) ?? (nativeAttempts.has(attemptId) ? 'tools' : undefined), runtimeMode, acceptedContext, failureResults, researchGoal, retainedResearchGoal, researchSnapshot, toolExecutions, taskProgress, taskSteps, stepDiagnostics, researchBranches, executionGraph, stepStorageKey: `${events[0]?.threadId ?? ''}:${attemptId ?? ''}` } } }
+    const withMetadata = { ...message, metadata: { custom: { ...custom, activities, modelRequests, compactions, initialThinking, nativeGraphFocus: nativeGraphFocus(executionGraph) ?? (nativeAttempts.has(attemptId) ? 'tools' : undefined), runtimeMode, acceptedContext, failureResults, researchGoal, retainedResearchGoal, researchSnapshot, toolExecutions, taskProgress, taskSteps, stepDiagnostics, researchBranches, executionGraph, stepStorageKey: `${events[0]?.threadId ?? ''}:${attemptId ?? ''}` } } }
     return typeof message.content === 'string'
       ? { ...withMetadata, content: [{ type: 'text' as const, text: message.content }] }
       : withMetadata
@@ -717,7 +719,7 @@ function TaskProgressItems({ items }: { items: readonly TaskProgress[] }) {
   </section>)}</div>
 }
 
-function AttemptActivity({ activities, modelRequests = [], initialThinking, nativeGraphFocus: selectedGraphFocus, executionGraph, diagnostics: legacyDiagnostics = [], branches: legacyBranches = [], progress: legacyProgress = [], steps: legacySteps = [], stepStorageKey = '', goal, running, phase, open, onOpenChange, startedAt, durationMs, detailsRef, auxiliary, hasAuxiliary = false }: { activities: ChatActivity[]; modelRequests?: ProcessModelCall[]; initialThinking?: InitialThinking; nativeGraphFocus?: 'tools' | 'tasks'; executionGraph?: ExecutionGraph; diagnostics?: readonly TaskStepDiagnostic[]; branches?: readonly ResearchBranch[]; progress?: readonly TaskProgress[]; steps?: readonly TaskStep[]; stepStorageKey?: string; goal?: string; running: boolean; phase?: string; open: boolean; onOpenChange: (open: boolean) => void; startedAt?: string; durationMs?: number; detailsRef: React.RefObject<HTMLDetailsElement | null>; auxiliary?: ReactNode; hasAuxiliary?: boolean }) {
+function AttemptActivity({ activities, modelRequests = [], compactions = [], initialThinking, nativeGraphFocus: selectedGraphFocus, executionGraph, diagnostics: legacyDiagnostics = [], branches: legacyBranches = [], progress: legacyProgress = [], steps: legacySteps = [], stepStorageKey = '', goal, running, phase, open, onOpenChange, startedAt, durationMs, detailsRef, auxiliary, hasAuxiliary = false }: { activities: ChatActivity[]; modelRequests?: ProcessModelCall[]; compactions?: ProcessCompaction[]; initialThinking?: InitialThinking; nativeGraphFocus?: 'tools' | 'tasks'; executionGraph?: ExecutionGraph; diagnostics?: readonly TaskStepDiagnostic[]; branches?: readonly ResearchBranch[]; progress?: readonly TaskProgress[]; steps?: readonly TaskStep[]; stepStorageKey?: string; goal?: string; running: boolean; phase?: string; open: boolean; onOpenChange: (open: boolean) => void; startedAt?: string; durationMs?: number; detailsRef: React.RefObject<HTMLDetailsElement | null>; auxiliary?: ReactNode; hasAuxiliary?: boolean }) {
   const steps = executionGraph ? [] : legacySteps.filter(step=>!isExecutionLifecycleStep(step.id))
   const lifecycleSteps = executionGraph ? [] : legacySteps.filter(step=>isExecutionLifecycleStep(step.id))
   const branches = executionGraph ? [] : legacyBranches
@@ -823,7 +825,7 @@ function AttemptActivity({ activities, modelRequests = [], initialThinking, nati
   }, [running])
   const liveDuration = startedAt ? durationBetween(startedAt, new Date(now).toISOString()) : undefined
   const elapsed = running ? liveDuration : durationMs
-  const hasProcess = Boolean(initialThinking) || running || modelRequests.length > 0 || !!startedAt || !!executionGraph || activities.length > 0 || progress.length > 0 || steps.length > 0 || lifecycleSteps.length > 0 || diagnostics.length > 0 || branches.length > 0
+  const hasProcess = compactions.length > 0 || Boolean(initialThinking) || running || modelRequests.length > 0 || !!startedAt || !!executionGraph || activities.length > 0 || progress.length > 0 || steps.length > 0 || lifecycleSteps.length > 0 || diagnostics.length > 0 || branches.length > 0
   const parentModels=modelRequests.filter(call=>!call.requestPoolOnly)
   const modelMs = parentModels.reduce((sum,call)=>sum+(call.finishedAt ? call.ms : running&&!call.settled ? modelCallMs(call,now) : 0),0)
   const incompleteModelTime = parentModels.some(call=>!call.finishedAt&&(!running||call.settled))
@@ -843,8 +845,8 @@ function AttemptActivity({ activities, modelRequests = [], initialThinking, nati
     })}</details>}</>
   const process = (expandedResearch = false) => {
     if (focus === 'thinking') return <>
-      {modelRequests.length > 0 && <ProcessCallTrace models={modelRequests} tools={[]} now={running ? now : undefined} active={running} />}
-      {running&&modelRequests.length===0&&<p role="status">准备执行本轮指令…</p>}
+      {(modelRequests.length > 0 || compactions.length > 0) && <ProcessCallTrace compactions={compactions} models={modelRequests} tools={[]} now={running ? now : undefined} active={running} />}
+      {running&&modelRequests.length===0&&compactions.length===0&&<p role="status">准备执行本轮指令…</p>}
     </>
     if (focus === 'tools' && executionGraph) return <>
       <section aria-label="工具调用过程">
@@ -856,7 +858,7 @@ function AttemptActivity({ activities, modelRequests = [], initialThinking, nati
       </section>
       <details className="capstone-native-tool-calls"><summary>任务组织记录</summary>{graphProcess(expandedResearch)}</details>
     </>
-    if (focus === 'tools') return <section aria-label="工具调用过程">{modelRequests.length > 0 ? <ProcessCallTrace compact expandedThinking={expandedResearch} expandedTools={expandedResearch?readerToolsOpen:inlineToolsOpen} models={modelRequests} tools={toolActivities.map(activity=>({id:callId(activity),name:activity.label,status:activity.status,startedAt:activity.startedAt,finishedAt:activity.finishedAt,durationMs:activity.durationMs,operation:activity.operation,warning:activity.warning,failure:toolFailureReason(activity.failure)||activity.failure?.summary}))} now={running ? now : undefined} active={running} renderToolDetails={tool=>{
+    if (focus === 'tools') return <section aria-label="工具调用过程">{modelRequests.length > 0 || compactions.length > 0 ? <ProcessCallTrace compactions={compactions} compact expandedThinking={expandedResearch} expandedTools={expandedResearch?readerToolsOpen:inlineToolsOpen} models={modelRequests} tools={toolActivities.map(activity=>({id:callId(activity),name:activity.label,status:activity.status,startedAt:activity.startedAt,finishedAt:activity.finishedAt,durationMs:activity.durationMs,operation:activity.operation,warning:activity.warning,failure:toolFailureReason(activity.failure)||activity.failure?.summary}))} now={running ? now : undefined} active={running} renderToolDetails={tool=>{
       const activity=toolActivities.find(item=>callId(item)===tool.id)
       return <>{activity?.failure&&<p className="capstone-tool-failure-line">{toolFailureReason(activity.failure)||toolFailureCopy(activity.failure.code)}</p>}{activity?.outputExcerpt&&<p className="capstone-tool-operation">{activity.outputExcerpt}</p>}</>
     }}/> : <ActivityItems activities={toolActivities} />}
@@ -1087,7 +1089,7 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
       {typeof custom?.modelId === 'string' && <span className="capstone-instruction-model">{instructionModelName(custom.modelId)}</span>}
       {typeof custom?.sentAt === 'string' && Number.isFinite(Date.parse(custom.sentAt)) && <InstructionTime value={custom.sentAt} />}
     </div>}
-    {role === 'assistant' && (showActivity || status?.type === 'running' || hasAuxiliary) && <AttemptActivity activities={activities} modelRequests={Array.isArray(custom?.modelRequests) ? custom.modelRequests as ProcessModelCall[] : []} initialThinking={custom?.initialThinking as InitialThinking|undefined} nativeGraphFocus={custom?.nativeGraphFocus === 'tools' || custom?.nativeGraphFocus === 'tasks' ? custom.nativeGraphFocus : undefined} executionGraph={custom?.executionGraph as ExecutionGraph | undefined} diagnostics={Array.isArray(custom?.stepDiagnostics) ? custom.stepDiagnostics as TaskStepDiagnostic[] : []} branches={Array.isArray(custom?.researchBranches) ? custom.researchBranches as ResearchBranch[] : []} steps={Array.isArray(custom?.taskSteps) ? custom.taskSteps as TaskStep[] : []} stepStorageKey={typeof custom?.stepStorageKey === 'string' ? custom.stepStorageKey : attemptId} progress={Array.isArray(custom?.taskProgress) ? custom.taskProgress as TaskProgress[] : []} goal={typeof custom?.researchGoal === 'string' ? custom.researchGoal : undefined} phase={typeof custom?.terminalPhase === 'string' ? custom.terminalPhase : undefined} running={status?.type === 'running'} open={activityOpen} onOpenChange={(open) => { if (open) selectPanel('process'); else if (activePanel === 'process') selectPanel(null) }} startedAt={startedAt} durationMs={durationMs} detailsRef={activityRef} hasAuxiliary={hasAuxiliary} auxiliary={<>
+    {role === 'assistant' && (showActivity || status?.type === 'running' || hasAuxiliary) && <AttemptActivity activities={activities} compactions={Array.isArray(custom?.compactions) ? custom.compactions as ProcessCompaction[] : []} modelRequests={Array.isArray(custom?.modelRequests) ? custom.modelRequests as ProcessModelCall[] : []} initialThinking={custom?.initialThinking as InitialThinking|undefined} nativeGraphFocus={custom?.nativeGraphFocus === 'tools' || custom?.nativeGraphFocus === 'tasks' ? custom.nativeGraphFocus : undefined} executionGraph={custom?.executionGraph as ExecutionGraph | undefined} diagnostics={Array.isArray(custom?.stepDiagnostics) ? custom.stepDiagnostics as TaskStepDiagnostic[] : []} branches={Array.isArray(custom?.researchBranches) ? custom.researchBranches as ResearchBranch[] : []} steps={Array.isArray(custom?.taskSteps) ? custom.taskSteps as TaskStep[] : []} stepStorageKey={typeof custom?.stepStorageKey === 'string' ? custom.stepStorageKey : attemptId} progress={Array.isArray(custom?.taskProgress) ? custom.taskProgress as TaskProgress[] : []} goal={typeof custom?.researchGoal === 'string' ? custom.researchGoal : undefined} phase={typeof custom?.terminalPhase === 'string' ? custom.terminalPhase : undefined} running={status?.type === 'running'} open={activityOpen} onOpenChange={(open) => { if (open) selectPanel('process'); else if (activePanel === 'process') selectPanel(null) }} startedAt={startedAt} durationMs={durationMs} detailsRef={activityRef} hasAuxiliary={hasAuxiliary} auxiliary={<>
       <AcceptedContextDetails value={custom?.acceptedContext} />
       {readRecords && <AttemptRecordPanel key={attemptId} attemptId={attemptId} read={readRecords} />}
       <ResearchEvidence snapshot={parseResearchSnapshot(custom?.researchSnapshot)} />

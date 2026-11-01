@@ -7,6 +7,7 @@ import {summarizeLlmPoolCalls,type ProcessLlmPoolCall} from './processLlmPool'
 import {requestExecutionMs,uniqueModelRequests,type ProcessModelRequest} from './processModelRequestPool'
 import RequestPoolQueue,{RequestPoolExecutions} from './RequestPoolQueue'
 import {responseOpeningIntent,scriptOpeningIntent} from './executionIntent'
+import {compactionDuration,type ProcessCompaction} from './processCompactions'
 
 export type ProcessModelCall = { retry?:{attempt:number;maximum?:number;delayMs?:number;success?:boolean;finished?:boolean}; id: string; number: number; ms: number; requestPool?:readonly ProcessModelRequest[];requestPoolOnly?:boolean;poolCalls?:readonly ProcessLlmPoolCall[]; label?: string; intent?: string; thinking?: string; thinkingStartedAt?: string; thinkingEndedAt?: string; thinkingSettled?: boolean; sequenceId?: string; settled?: boolean; startedAt?: string; finishedAt?: string; toolAssociation?: 'turn'; toolCallIds?: readonly string[]; stopReason?: string; errorCode?: string; errorStatus?: number; usage?: Record<string, unknown>; responseText?: string; toolRequests?: readonly { id: string; name: string; operation?: string }[] }
 const modelErrors:Record<string,string>={model_context_limit:'上下文超限',model_rate_limit:'请求限流',model_authentication:'模型认证失败',model_transport:'模型连接异常',model_output_invalid:'模型输出格式异常',model_output_rejected:'模型输出被拒绝',model_turn_incomplete:'原因未记录'}
@@ -51,8 +52,9 @@ export function modelCallMs(call: Omit<ProcessModelCall, 'id'>, now?: number): n
 }
 
 /** Neutral presentation: adapters supply admitted identities, never inferred causality. */
-export default function ProcessCallTrace({ models, tools, now, active = true, compact = false, expandedTools = false, expandedThinking = false, renderToolDetails, focusRequest }: {
+export default function ProcessCallTrace({ models, tools, compactions = [], now, active = true, compact = false, expandedTools = false, expandedThinking = false, renderToolDetails, focusRequest }: {
   models: readonly ProcessModelCall[]; tools: readonly ProcessToolCall[]; now?: number; active?: boolean;
+  compactions?:readonly ProcessCompaction[];
   renderToolDetails?: (tool: ProcessToolCall) => ReactNode;
   focusRequest?: ProcessTraceFocus;
   compact?: boolean;
@@ -130,16 +132,27 @@ export default function ProcessCallTrace({ models, tools, now, active = true, co
     {tool.warning&&<p className="capstone-call-notice is-warning" role="status"><AlertTriangle aria-hidden="true"/><span>{tool.warning}</span></p>}
   </div>
   const timestamp = (value?: string) => { const parsed = Date.parse(value ?? ''); return Number.isFinite(parsed) ? parsed : Infinity }
-  const entries = [
+  const entries: {id:string;at?:string;model?:ProcessModelCall;tool?:ProcessToolCall;compaction?:ProcessCompaction}[] = [
     ...models.filter(model=>{
       if(model.requestPoolOnly)return false
       const main=model.requestPool?.filter(request=>request.association==='main')??[]
       return !main.length||main.some(request=>request.startedAtMs!==undefined)||main.every(request=>['completed','failed','cancelled','blocked'].includes(request.status))
     }).map(model => ({ id: `model:${model.id}`, at: model.startedAt ?? model.finishedAt, model, tool: undefined as ProcessToolCall | undefined })),
     ...tools.filter(tool => !models.some(model => owned(tool, model))).map(tool => ({ id: `tool:${tool.id}`, at: tool.startedAt, model: undefined as ProcessModelCall | undefined, tool })),
+    ...compactions.map(compaction=>({id:`compaction:${compaction.id}`,at:compaction.startedAt??compaction.finishedAt,compaction})),
   ].sort((a, b) => timestamp(a.at) - timestamp(b.at))
   if (!entries.length&&!dispatches.length&&!hasQueue) return <p>尚未收到调用记录。</p>
   return <ol className={`capstone-call-trace${compact?' is-compact':''}`} aria-label="模型与工具调用过程">{entries.map(entry => {
+    if(entry.compaction){
+      const phase=entry.compaction,duration=compactionDuration(phase,active,now),running=phase.state==='started'&&active
+      const reason={manual:'手动触发',threshold:'上下文达到压缩阈值',overflow:'上下文超限',unknown:'原因未记录'}[phase.reason]
+      const status=phase.state==='started'?(running?'进行中':'未完整记录'):{completed:'已完成',cancelled:'已取消',failed:'失败',skipped:'已跳过'}[phase.state]
+      return <li key={entry.id}><div className="capstone-call-model" role={running?'status':undefined} aria-label="上下文压缩">
+        <strong>{running?'正在压缩上下文':'上下文压缩'}</strong><span className="capstone-call-purpose">{reason}</span>
+        <span className="capstone-call-duration">{duration===undefined?'耗时未记录':time(duration)}</span><span>{status}</span>
+        {phase.willRetry&&<small>将重试模型请求</small>}
+      </div></li>
+    }
     if (entry.tool) return <li key={entry.id}>{renderTool(entry.tool, true)}</li>
     const model = entry.model!, selected = tools.filter(tool => owned(tool, model)), toolMs = toolExecutionMs(selected.map(timed))
     const explicitOperations=(model.toolRequests??selected).flatMap(tool=>tool.operation?.trim()&&!(tool.name==='bash'&&operationExcerpt(tool.name,tool.operation)==='执行脚本')?[operationExcerpt(tool.name,tool.operation)]:[])
