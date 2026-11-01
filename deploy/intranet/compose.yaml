@@ -1,5 +1,9 @@
 # Overlay on the repository Compose contract. Keep storage in this project only.
 services:
+  postgres:
+    image: ${CAPSTONE_POSTGRES_IMAGE:?Set the exact database image}
+  objects:
+    image: ${CAPSTONE_OBJECTS_IMAGE:?Set the exact object-store image}
   api:
     image: ${CAPSTONE_BACKEND_IMAGE:?Set the exact intranet image}
     environment:
