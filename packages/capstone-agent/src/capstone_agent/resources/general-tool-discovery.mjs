@@ -54,29 +54,39 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
     return [...new Set([...existingNames.filter(name=>!allNames.has(name)),...discoveryToolNames,...initial])];
   }
   const search={name:'agent_tool_search',label:'Search admitted tools',
-    description:'Search the task-granted published tool index. Results include published toolset membership; optionally filter by a returned toolset ID. Follow selection and provider rules returned by current gateway discovery. Load selected exact contracts for the next model turn.',
+    description:'Search the task-granted published tool index only when the required tool is not already known. Results report activation and published toolset membership; optionally filter by a returned toolset ID. Exact published names take priority. If no tool matches all keywords, return the bounded best partial matches, marked partial_terms; these are candidates, not a semantic selection. Already active tools need no load. For composition, select known granted names and inspect tools.describe(name) without loading them into the direct-call menu. Follow current service selection and provider rules.',
     parameters:{type:'object',properties:{query:{type:'string',maxLength:256},toolset:{type:'string',minLength:1,maxLength:128},offset:{type:'integer',minimum:0}},required:['query'],additionalProperties:false},
     async execute(_id,args,signal){
       check(signal);
       if(typeof args.query!=='string'||args.query.length>256||!Number.isSafeInteger(args.offset??0)||(args.offset??0)<0)
         throw new Error('Invalid tool search arguments');
       if(args.toolset!==undefined&&(typeof args.toolset!=='string'||!args.toolset.length||args.toolset.length>128))throw new Error('Invalid toolset filter');
-      const terms=args.query.toLowerCase().split(/\s+/).filter(Boolean),offset=args.offset??0;
-      const matches=names.filter(name=>{const text=(name+' '+(entries.get(name).publication.description??'')).toLowerCase();
-        return (args.toolset===undefined||gatewayToolGroup(entries.get(name).publication)===args.toolset)&&terms.every(term=>text.includes(term));});
+      const query=args.query.trim().toLowerCase(),terms=[...new Set(query.split(/\s+/).filter(Boolean))],offset=args.offset??0;
+      const candidates=names.filter(name=>args.toolset===undefined||gatewayToolGroup(entries.get(name).publication)===args.toolset);
+      const matched=new Map(candidates.map(name=>{
+        const p=entries.get(name).publication,text=(name+' '+(p.name??'')+' '+(p.description??'')).toLowerCase();
+        return [name,terms.filter(term=>text.includes(term))];
+      }));
+      const exact=query?candidates.filter(name=>[name,entries.get(name).publication.name].some(value=>typeof value==='string'&&value.toLowerCase()===query)):[];
+      let mode=exact.length?'exact_name':'all_terms';
+      let matches=exact.length?exact:candidates.filter(name=>matched.get(name).length===terms.length);
+      if(!matches.length&&terms.length){
+        const best=Math.max(0,...candidates.map(name=>matched.get(name).length));
+        if(best){mode='partial_terms';matches=candidates.filter(name=>matched.get(name).length===best);}
+      }
       const selected=matches.slice(offset,offset+pageSize);
       const searchKey=JSON.stringify([terms,offset,args.toolset??null]),repeated=searched.has(searchKey);
       if(searched.size>=64&&!repeated)searched.delete(searched.values().next().value);
       searched.add(searchKey);
-      return reply({capacity,toolsets:[...groups.values()],selection_guidance:gatewayToolUseGuidance,
-        tools:selected.map(name=>({name,toolset:gatewayToolGroup(entries.get(name).publication),access:gatewayToolAccess(entries.get(name).publication),description:String(entries.get(name).publication.description??name).slice(0,maxSummaryChars),
+      return reply({capacity,match_mode:mode,active_entry_tools:initial,toolsets:[...groups.values()],selection_guidance:gatewayToolUseGuidance,
+        tools:selected.map(name=>({name,active:active.has(name),matched_terms:matched.get(name),toolset:gatewayToolGroup(entries.get(name).publication),access:gatewayToolAccess(entries.get(name).publication),description:String(entries.get(name).publication.description??name).slice(0,maxSummaryChars),
         contract_sha256:entries.get(name).hash})),total:matches.length,
         next_offset:offset+selected.length<matches.length?offset+selected.length:null,
         ...(repeated?{discovery_feedback:{repeated_query:true,publication_changed:false,
           guidance:'This task publication is unchanged. Reuse these results and load the needed exact contracts. Change search terms or page only to investigate a different capability; a repeated search cannot refresh tools.'}}:{})});
     }};
   const load={name:'agent_tool_load',label:'Load admitted tools',
-    description:`Select a bounded replacement set of on-demand task-granted tools. Capacity: ${maxActiveTools} total, ${initial.length} retained entry tools, ${capacity.selectable_tools} additional distinct tools. Already active registered entry tools remain available and share capacity. Activation takes effect at the next model turn; do not invoke newly selected tools in this same call batch. Previously loaded contracts may be restored on later calls within the same capacity limits. Published schemas stay exact. Use an empty list to unload on-demand tools.`,
+    description:`Select a bounded replacement set for direct model tool calls. Skip loading tools already active, or tools used only inside a composition program; composition accepts selected granted names and exposes tools.describe(name). Capacity: ${maxActiveTools} total, ${initial.length} retained entry tools, ${capacity.selectable_tools} additional distinct tools. Already active registered entry tools remain available and share capacity. Activation takes effect at the next model turn; do not invoke newly selected tools in this same call batch. Previously loaded contracts may be restored on later calls within the same capacity limits. Published schemas stay exact. Use an empty list to unload on-demand tools.`,
     parameters:{type:'object',properties:{names:{type:'array',items:{type:'string'},uniqueItems:true,maxItems:maxActiveTools}},required:['names'],additionalProperties:false},
     async execute(_id,args,signal){
       check(signal);
@@ -152,7 +162,7 @@ export function createToolDiscovery({tools,publications,contractHashes={},admitt
       pi.on('before_agent_start',event=>({systemPrompt:(event.systemPrompt??'')+
         '\nChoose tools and skills for the current instruction from its context, published descriptions and task grants. '+
         (initial.length?'Registered entry tools are already active: '+JSON.stringify(initial)+'. Availability does not require a call. Only after selecting this service as relevant, follow its initialization and discovery contract before its business operations. ':'')+
-        'For on-demand tools of a capability you selected, use agent_tool_search for task-granted summaries and agent_tool_load for exact contracts; newly loaded tools become callable on the next model turn. Registered entry tools remain available across loads. '+gatewayToolUseGuidance}));
+        'Search only when the needed tool is not known from the current menu or observed publication. Do not search an already known exact name just to confirm it. Load inactive tools only for direct model calls; newly loaded tools become callable on the next model turn. Composition programs select granted names independently of menu activation and inspect their exact contracts with tools.describe(name). Registered entry tools remain available across loads. '+gatewayToolUseGuidance}));
       pi.on('turn_end',()=>{
         if(closed||!pending)return;
         active=new Set(pending);pending=undefined;

@@ -18,6 +18,43 @@ function fixture(options={}) {
   return {controller:createToolDiscovery({tools,publications,admittedNames:Object.keys(publications).slice(0,19),...options}),calls:()=>calls};
 }
 
+test('search returns bounded best partial matches and current activation without changing grants',async()=>{
+  const publications={entry:{name:'published_entry',description:'Discover service catalog',inputSchema:{type:'object'}},
+    check:{name:'published_check',description:'Check service contract time',inputSchema:{type:'object'}},
+    hidden:{name:'private_check',description:'Discover service contract check',inputSchema:{type:'object'}}};
+  let calls=0;
+  const c=createToolDiscovery({publications,tools:Object.keys(publications).map(name=>({name,execute:async()=>{calls++;}})),
+    admittedNames:['entry','check'],initialNames:['entry'],pageSize:1});
+  const hooks=new Map();c.configure({on:(name,fn)=>hooks.set(name,fn),getActiveTools:()=>[],setActiveTools:()=>{}});
+  const search=async query=>JSON.parse((await c.tools[0].execute('find',{query})).content[0].text);
+  const partial=await search('service discover contract check');
+  assert.equal(partial.match_mode,'partial_terms');
+  assert.deepEqual(partial.tools.map(t=>t.name),['check']);
+  assert.deepEqual(partial.tools[0].matched_terms,['service','contract','check']);
+  assert.equal(partial.tools[0].active,false);
+  assert.deepEqual(partial.active_entry_tools,['entry']);
+  assert.equal((await search('published_entry')).tools[0].active,true);
+  assert.equal((await search('published_entry')).match_mode,'exact_name');
+  assert.equal((await search('unrelated')).total,0);
+  await c.tools[1].execute('load',{names:['check']});
+  assert.equal((await search('published_check')).tools[0].active,false);
+  hooks.get('turn_end')();
+  assert.equal((await search('published_check')).tools[0].active,true);
+  assert.equal(calls,0);
+});
+
+test('partial matching preserves toolset filters and bounded pagination',async()=>{
+  const publications=Object.fromEntries(['a','b','c'].map((name,i)=>[name,{name:'published_'+name,
+    description:'check contract',_meta:{'data-gateway/toolset':i<2?'one':'two'},inputSchema:{type:'object'}}]));
+  const c=createToolDiscovery({publications,tools:Object.keys(publications).map(name=>({name})),
+    admittedNames:Object.keys(publications),pageSize:1});
+  const search=async offset=>JSON.parse((await c.tools[0].execute('find',{query:'check contract missing',toolset:'one',offset})).content[0].text);
+  const first=await search(0),second=await search(1);
+  assert.equal(first.match_mode,'partial_terms');assert.equal(first.total,2);
+  assert.deepEqual(first.tools.map(t=>t.name),['a']);assert.equal(first.next_offset,1);
+  assert.deepEqual(second.tools.map(t=>t.name),['b']);assert.equal(second.next_offset,null);
+});
+
 test('large granted catalogs support default256 and configured1024 without a hidden24k limit',async()=>{
   for(const count of [256,1024]){
     const publications=Object.fromEntries(Array.from({length:count},(_,i)=>[`registered_${i}`,{
