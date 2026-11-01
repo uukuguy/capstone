@@ -6721,3 +6721,6 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 2026-11-01: Saved-time ordering, browser display and historical directory verified; local9cf4677d ready, scoped cleanup232349-17334 complete; remote unchanged.
 - 2026-11-01: eb402923 orders restored versions by ledger time and records local verification; no intranet deployment or CI.
 - 2026-11-01: 2ca06418 scopes products by instruction, opens them once at execution start, and preserves manual browsing choices.
+- 2026-11-02: 72fae165 records local instruction-product verification and recovery state; intranet deployment remains deferred.
+- 2026-11-02: 43c31e3a selects the newest primary on scope changes, preventing scripts or older reports from becoming default previews.
+- 2026-11-02: 6470c554 restores copy as the first answer action, matching the instruction toolbar.

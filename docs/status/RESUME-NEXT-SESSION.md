@@ -1,5 +1,12 @@
 # Live Session Checkpoint
 
+`43c31e3a` changes scope-switch defaults to the newest primary by saved time.
+Manual version selection survives directory updates.53 focused tests and types passed.
+`6470c554` puts copy first in answer actions;133 component checks passed.
+Local rebuild ready: `/tmp/capstone-latest-primary-rebuild.log`.
+API/worker image `286db9663be85944bb8b643ffa170ae23dfa4970baa9e684dad1b9cedce7df2b`; App `6470c554`.
+Scoped cleanup receipt: `.capstone-agent/cache-maintenance-20261102-001753-45814.log`.
+
 Instruction products implemented in `2ca06418`: paired instruction/answer actions,
 stable persisted numbering, scoped directory and all-products toggle. Execution start
 opens its scope once; manual choices are preserved. Focused checks, types and browser
