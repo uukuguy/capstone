@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {csvMarkdown} from './csvMarkdown'
 import type {NativeArtifact,NativeArtifactPage} from './nativeArtifacts'
+import {nativeArtifactSavedTime} from './nativeArtifacts'
 import './nativeArtifacts.css'
 import PptxPreview from './PptxPreview'
 import {codeLanguage} from './codeLanguage'
@@ -159,7 +160,7 @@ export default function NativeArtifactsWorkspace({client,threadId,attemptIds,rev
   return <section className="native-artifacts-workspace" aria-label="指令文件">
     <header><h3>指令文件</h3><p>执行中实际生成并保存的文件，保留各次执行的归属。</p></header>
     {files.length>0&&<ul className="native-artifact-list" aria-label="已保存文件">{files.map(file=><li key={fileKey(file)}><button type="button" aria-label={file.file_name} aria-pressed={fileKey(file)===chosenKey} title={attemptLabels?.[file.attempt_id]||file.file_name}
-      onClick={()=>setSelection({threadId,attemptId:file.attempt_id,artifactId:file.artifact_id,requestKey})}><span>{file.file_name}</span><small>{statusNames[file.source_status]||'执行记录'} · {Math.ceil(file.size_bytes/1024)} KB</small>{attemptLabels?.[file.attempt_id]&&<small className="native-artifact-origin">{attemptLabels[file.attempt_id]}</small>}</button></li>)}</ul>}
+      onClick={()=>setSelection({threadId,attemptId:file.attempt_id,artifactId:file.artifact_id,requestKey})}><span>{file.file_name}</span><small><time dateTime={file.saved_at}>{nativeArtifactSavedTime(file)}</time></small><small>{statusNames[file.source_status]||'执行记录'} · {Math.ceil(file.size_bytes/1024)} KB</small>{attemptLabels?.[file.attempt_id]&&<small className="native-artifact-origin">{attemptLabels[file.attempt_id]}</small>}</button></li>)}</ul>}
     {!loading&&!files.length&&!directoryError&&<p>尚无已保存的指令文件。</p>}
     {directoryError&&<p role="alert">部分文件目录暂时无法读取，已加载文件仍可查看。</p>}
     {loading&&<p role="status">正在读取指令文件…</p>}

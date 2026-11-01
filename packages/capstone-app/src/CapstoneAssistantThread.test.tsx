@@ -500,7 +500,7 @@ describe('CapstoneAssistantThread', () => {
     expect(files).toHaveLength(1)
     expect(files[0].closest('.capstone-chat-message')?.textContent).toContain('附有文件的回答')
     fireEvent.click(files[0])
-    expect(open).toHaveBeenCalledWith(artifact)
+    expect(open).toHaveBeenCalledWith({...artifact,saved_at:'2026-09-30T00:00:00Z'})
   })
   it('keeps intermediate results available for inspection without final-product links', () => {
     const result: ResultProjection = {resultId:'r',resultRef:'result:r',evidenceRefs:[],threadId:'thr_demo',runId:'run_demo',turnId:'turn_one',attemptId:'one',modelContextId:'ctx',modelId:'ieee39',modelRevision:'7',source:{capabilityId:'powerflow.ac',domainPackId:'grid',implementationFamily:'pandapower'},status:'completed',summary:[{metricId:'loss',label:'有功损耗',value:1}],tables:[],elementRefs:[]}

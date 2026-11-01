@@ -137,8 +137,9 @@ def native_artifact_page(service, thread_id, attempt_id, *, after=0, include_pre
                 or item['download_url'] != _url(thread_id, attempt_id, item['artifact_id'])):
             raise ValueError('native file ledger ownership changed')
         from .native_product_roles import presentation_for_artifact
-        artifacts.append(presentation_for_artifact(item, getattr(service, '_material_objects', None), presentation_cache)
-                         if include_presentation else item)
+        projected = (presentation_for_artifact(item, getattr(service, '_material_objects', None), presentation_cache)
+                     if include_presentation else item)
+        artifacts.append({**projected, 'saved_at': event['occurred_at']})
     return {'schema': 'capstone-process-artifacts/1', 'thread_id': thread_id, 'attempt_id': attempt_id,
             'artifacts': artifacts, 'has_more': page['has_more'], 'next_after': page['next_after']}
 

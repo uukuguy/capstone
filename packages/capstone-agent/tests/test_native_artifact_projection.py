@@ -47,7 +47,7 @@ def test_native_file_bytes_cross_real_protected_host_and_thread_route(tmp_path):
         assert descriptor['media_type'] == 'text/markdown'
         assert 'path' not in descriptor
         event = {'event_type': 'native_artifact_published', 'visibility': 'public', 'thread_id': 'thr_files',
-            'attempt_id': 'attempt_files', 'payload': {'artifact': descriptor}}
+            'attempt_id': 'attempt_files', 'occurred_at': '2026-11-01T15:00:01Z', 'payload': {'artifact': descriptor}}
         class Records:
             def read_attempt_records(self, thread_id, attempt_id, **kwargs):
                 assert (thread_id, attempt_id) == ('thr_files', 'attempt_files')
@@ -66,7 +66,7 @@ def test_native_file_bytes_cross_real_protected_host_and_thread_route(tmp_path):
         assert response.headers['x-content-type-options'] == 'nosniff'
         assert client.get(url.replace(descriptor['artifact_id'], 'file-missing'), headers={'authorization': 'Bearer operator'}).status_code == 404
         listed = client.get('/api/v1/threads/thr_files/attempts/attempt_files/artifacts', headers={'authorization': 'Bearer operator'})
-        assert listed.json()['artifacts'] == [descriptor]
+        assert listed.json()['artifacts'] == [{**descriptor, 'saved_at': event['occurred_at']}]
         (host.storage.root / 'artifacts' / result.task_id / descriptor['host_artifact_id']).write_bytes(b'tampered')
         assert client.get(url, headers={'authorization': 'Bearer operator'}).status_code == 410
     finally:

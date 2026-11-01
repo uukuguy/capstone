@@ -1,5 +1,5 @@
 import {FileCheck2} from 'lucide-react'
-import {groupNativeArtifacts,nativeArtifactVersions,type NativeArtifact} from './nativeArtifacts'
+import {groupNativeArtifacts,nativeArtifactVersions,nativeArtifactSavedTime,type NativeArtifact} from './nativeArtifacts'
 
 /** Uses persisted purposes. A primary output is not automatically accepted delivery. */
 export default function InstructionFiles({files,onOpen}:{files:NativeArtifact[];onOpen:(file:NativeArtifact)=>void}) {
@@ -8,7 +8,7 @@ export default function InstructionFiles({files,onOpen}:{files:NativeArtifact[];
   const limited=files.some(file=>file.delivery_status==='limited')
   const limitations=[...new Set(files.flatMap(file=>file.delivery_limitations||[]))]
   const singleDocument=versions.length===1&&groups.other.length===1&&['text/html','application/pdf'].includes(groups.other[0].media_type)
-  const card=(file:NativeArtifact,label:string)=><button key={file.artifact_id} type="button" className="capstone-result-product" aria-label={`打开指令文件：${file.file_name}${label.startsWith('历史版本')?` · ${label}`:''}`} onClick={()=>onOpen(file)}><FileCheck2 aria-hidden="true"/><span><strong>{file.file_name}</strong><small>{label} · {Math.ceil(file.size_bytes/1024)} KB</small></span><span aria-hidden="true">↗</span></button>
+  const card=(file:NativeArtifact,label:string)=><button key={file.artifact_id} type="button" className="capstone-result-product" aria-label={`打开指令文件：${file.file_name}${label.startsWith('历史版本')?` · ${label}`:''}`} onClick={()=>onOpen(file)}><FileCheck2 aria-hidden="true"/><span><strong>{file.file_name}</strong><small><time dateTime={file.saved_at}>{nativeArtifactSavedTime(file)}</time></small><small>{label} · {Math.ceil(file.size_bytes/1024)} KB</small></span><span aria-hidden="true">↗</span></button>
   const cards=(items:NativeArtifact[],label:string)=><div className="capstone-result-products">{items.map(file=>{
     const history=versions.find(item=>item.latest===file)!.history
     return <div key={`${file.task_id}:${file.artifact_id}`}>
