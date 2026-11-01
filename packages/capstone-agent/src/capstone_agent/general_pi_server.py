@@ -1330,7 +1330,8 @@ class NativeTaskRunner:
                 config_root=self.config_root, model=profile['model'] if profile else self.model,
                 relay_url=self.relay_origin + '/provider/' + request.task_id, relay_token=grant,
                 context_extension=Path(__file__).parent / 'resources' / 'general-context.mjs',
-                sdk_config=sdk_config, **launch_options)
+                sdk_config=sdk_config, context_policy=profile.get('context_policy') if profile else None,
+                **launch_options)
             for path in [workspace, *workspace.rglob('*')]:
                 os.chown(path, uid, uid)
             for path in [inputs, *inputs.rglob('*')]:

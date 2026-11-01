@@ -178,6 +178,7 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
         pass
     def launch(**kwargs):
         assert kwargs['model'] == 'dsv4'
+        assert kwargs['context_policy']['context_window_tokens'] == 1048576
         assert runner.task_llm_profiles[task]['base_url'] == 'http://192.168.72.69:18804/v1'
         captured.append(json.loads(json.dumps(kwargs['sdk_config'])))
         raise Captured()

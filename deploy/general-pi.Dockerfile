@@ -55,6 +55,7 @@ RUN python tools/native_analysis_smoke.py
 
 # Volatile executor and research source.
 COPY packages/capstone-agent/src/capstone_agent/application_capacity.py capstone_agent/application_capacity.py
+COPY packages/capstone-agent/src/capstone_agent/model_context_policy.py capstone_agent/model_context_policy.py
 COPY configs/runtime/application-capacity.json capstone_agent/resources/application-capacity.json
 COPY packages/capstone-agent/src/capstone_agent/pi_delegation.py capstone_agent/pi_delegation.py
 COPY packages/capstone-agent/src/capstone_agent/business_context.py capstone_agent/business_context.py

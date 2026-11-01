@@ -634,6 +634,23 @@ make trajectory PORT=8765
 
 ## LLM 配置与 Pi RPC 路径
 
+工作台原生 Pi 的上下文预算由应用层
+`configs/runtime/workbench-llm-profiles.json` 的各模型 `context_policy` 配置。
+可用 `CAPSTONE_WORKBENCH_LLM_PROFILES` 指定部署配置文件。四个字段为
+`context_window_tokens`、`max_output_tokens`、`compaction_reserve_tokens`、
+`compaction_keep_recent_tokens`；超过“窗口减预留”时自动压缩。
+预留须不少于输出预算且小于窗口，近期保留量须小于触发阈值。
+没有显式策略的自定义模型沿用应用容量默认值及 Pi 压缩设置。
+策略参与模型配置版本校验，新指令按选中的模型生成独立的 Pi 模型与压缩设置，
+不修改其他模型的全局容量，也不替换历史任务的冻结选择。
+
+2026-11-01 依据[DeepSeek 官方模型接口](https://api-docs.deepseek.com/api/list-models/)
+和实际 `/models` 返回，Flash 配置为1,048,576窗口、65,536预留，触发阈值983,040。
+Qwen3.8-27B按[官方模型卡](https://huggingface.co/Qwen/Qwen3.8-27B)的原生262,144窗口，
+配置32,768预留，触发阈值229,376。两者输出预算均为32,768、近期保留20,000。
+内网端点未连通；按用户允许的近似配置采用上述规格，服务别名不改写。
+如果部署实际窗口较小，在相应模型配置中调整，不改通用执行代码。
+
 配置写在仓库根目录的 `.env`：它已被 Git 忽略。先复制模板，再只填写一个实际使用的密钥：
 
 ```sh

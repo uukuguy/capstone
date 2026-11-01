@@ -393,6 +393,37 @@ def test_real_sdk_parallel_image_reads_fit_runtime_frames_without_losing_model_i
     assert all('binary omitted' in str(event['result']) for event in reads)
 
 
+@pytest.mark.parametrize('sdk_mode', [True, False])
+@pytest.mark.parametrize('window,reserve', [(1048576, 65536), (262144, 32768)])
+def test_application_context_policy_reaches_native_model_and_compaction_settings(tmp_path, sdk_mode, window, reserve):
+    from capstone_agent.general_pi_executor import native_pi_launch
+    from capstone_agent.application_capacity import limits
+    original = limits.model_context_tokens
+    config = tmp_path / 'config'
+    config.mkdir()
+    (config / 'settings.json').write_text('{"retry":{"enabled":true}}')
+    policy = {'context_window_tokens': window, 'max_output_tokens': 32768,
+        'compaction_reserve_tokens': reserve, 'compaction_keep_recent_tokens': 20000}
+    sdk = {'settings': {'retry': {'enabled': True}}} if sdk_mode else None
+    workspace = tmp_path / 'task'
+    argv, _ = native_pi_launch(command=('node', '/opt/pi/cli.js'), workspace=workspace,
+        config_root=config, model='any-registered-model', relay_url='http://127.0.0.1/relay',
+        relay_token='fixture-only', context_extension=Path('/opt/context.mjs'), sdk_config=sdk,
+        context_policy=policy)
+    model = json.loads((workspace / '.agent/models.json').read_text())['providers']['capstone-general']['models'][0]
+    assert (model['contextWindow'], model['maxTokens']) == (window, 32768)
+    if sdk_mode:
+        payload = json.loads(Path(argv[2]).read_text())
+        settings = payload['settings']
+        assert payload['runtimeLimits']['model_context_tokens'] == window
+        assert 'compaction' not in sdk['settings']
+    else:
+        settings = json.loads((workspace / '.agent/settings.json').read_text())
+    assert settings['compaction'] == {'enabled': True, 'reserveTokens': reserve, 'keepRecentTokens': 20000}
+    assert settings['retry']['enabled'] is True
+    assert limits.model_context_tokens == original
+
+
 def test_native_launch_keeps_general_tools_and_native_discovery(tmp_path):
     from capstone_agent.general_pi_executor import native_pi_launch
     config = tmp_path / 'config'
