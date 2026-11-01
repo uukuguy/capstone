@@ -79,7 +79,7 @@ export function groupNativeArtifacts(files:readonly NativeArtifact[]) {
   }
 }
 
-/** Publication order is chronological. Host identity binds the relative path;
+/** Host identity binds the relative path;
  * public identity also includes bytes and cannot identify a version family. */
 export function nativeArtifactVersions(files:readonly NativeArtifact[]) {
   const families=new Map<string,Map<string,NativeArtifact>>()
@@ -90,7 +90,8 @@ export function nativeArtifactVersions(files:readonly NativeArtifact[]) {
     versions.set(file.artifact_id,file);families.set(key,versions)
   }
   return [...families.values()].map(versions=>{
-    const ordered=[...versions.values()]
+    // Live events and restored directory pages can arrive in different orders.
+    const ordered=[...versions.values()].sort((a,b)=>(a.saved_at?Date.parse(a.saved_at):0)-(b.saved_at?Date.parse(b.saved_at):0))
     return {latest:ordered[ordered.length-1],history:ordered.slice(0,-1).reverse()}
   })
 }

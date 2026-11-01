@@ -1,6 +1,18 @@
 # Live Session Checkpoint
 
-Updated 2026-11-01 23:00. Active PDF preview correction.
+Updated 2026-11-01 23:13. Artifact version display correction.
+
+Commitaa1cd3e8 groups instruction output cards by task/attempt/host path identity.
+Latest version shown, older versions preserved behind closed history. No filename
+heuristics or cross-task merging.150 focused checks and types passed.
+Browser grouping check passed. User then requested timestamps:5830be18 adds saved_at
+from ledger event time to both output cards and file directory; original files unchanged.
+162 App checks,13 API checks passed;1 integration test skipped;types passed.
+Timestamp browser fixture and persisted historical directory passed. Local rebuild ready,
+API/worker image9cf4677d9ae9667fe86974247e07c28b5b240981daba7fb35960f64082f8f85f.
+Cleanup receipt232349-17334. Latest selected by saved_at even after mixed-order hydration.
+19 additional order/helper checks passed; no remote deployment.
+Remote disconnected; do not deploy. Evidence runs/artifact-versions-fix-20261101/.
 
 User reports intranet server disconnected; do not deploy remotely.
 Commit2800da79 fixes PDF sandbox rejection and application/octet-stream filename

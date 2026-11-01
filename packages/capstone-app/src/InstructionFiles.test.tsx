@@ -29,6 +29,10 @@ it('does not collapse same names from different paths, tasks or attempts',()=>{
   const files=[file('b'),file('c','d'),file('d','a','another'),{...file('e'),attempt_id:'another'}]
   expect(nativeArtifactVersions(files)).toHaveLength(4)
 })
+it('selects the newest saved version even when restored pages arrive after live events',()=>{
+  const old=file('b'),latest=file('c')
+  expect(nativeArtifactVersions([latest,old])[0]).toEqual({latest,history:[old]})
+})
 it('does not guess version identity for legacy files without host path identity',()=>{
   expect(nativeArtifactVersions([file('b'),file('c')].map(({host_artifact_id,...item})=>item))).toHaveLength(2)
 })

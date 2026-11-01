@@ -1,5 +1,10 @@
 # 多线版本控制
 
+2026-11-01 产物版本展示 `aa1cd3e8`：回答下同一任务、同一路径的文件只展示最新版，旧版折叠保留。
+不按文件名猜测，不合并不同任务或路径。150项定向检查与类型检查通过；浏览器验证一张主要输出、四个历史版本。
+追加 `5830be18`：每个版本显示真实保存时间，精确到秒；回答卡片与右栏一致。
+162项App、13项API检查通过（1项跳过），类型及浏览器展示通过。研发服务器断开，本轮仅本机更新，无CI。
+
 2026-11-01 PDF预览修正 `2800da79`：浏览器PDF阅读器不再被iframe沙箱阻断，通用二进制PDF按后缀识别。
 仅接受已校验Blob；HTML继续隔离。17项定向检查、类型检查与13页PDF实际组件预览通过。
 研发服务器断开，本轮仅本机更新，不做远程部署，不启动CI。
@@ -1010,6 +1015,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
+| artifact-time-runtime | 5830be18 | main | dev · 产物保存时间 | 本机运行通过 | 文件版本收拢；真实保存时间；旧目录兼容 | shared-agent |
 | presentation-runtime | 7ea289f2 | main | dev · 共享呈现部署来源 | 本机和内网运行通过 | PPT主题、计时校准、调用目的与进度诊断。[部署记录](../reports/2026-11-01-intranet-deployment.md) | shared-agent |
 | intranet-runtime | 815d17f1 | main | dev · 内网执行来源 | 内网真实任务通过 | 离线部署；缺省内网模型和网关。[部署记录](../reports/2026-11-01-intranet-deployment.md) | shared-agent |
 | intranet-app | bf1cd421 | main | dev · 内网界面来源 | 专项及本机可见验证通过 | 深度研究禁用并置灰；独立存储镜像 | shared-agent |
@@ -1162,6 +1168,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | grid-scale-source | 已合入并本地验收 | dev · 原feat/grid-scale-view | 华北10W+源元素与站点分区；精确逐指令视图、模型退出和有界拒绝诊断 | 华北连续任务、五文件、57/56图及主5173通过；模型构建缺口保留，无云发布 |
 | gateway-dynamic-runtime | 历史通用网关本地来源 | dev · 原refactor/gateway-dynamic-bindings | 通用网关结果和续接动作绑定，任务授权与回执保留；有界视图读取支持返回页大小 | 根dev61ec56c6规范重建exit0、ready200、同镜像989226e8与清理通过；App产品d9e24798、dirty=false，目录及视图协议、真实任务通过，渲染和性能未接受 |
 | dev-head | 当前研发位置 | dev | 直调与组合共享观察复用及恢复；统一预检、结构读取和类型校验产物 | 2b347fc6同源重建及26秒实测通过；7次LLM/8工具/零错误，CSV哈希通过；完整业务规划效率未验收；无CI |
+| artifact-time-runtime | 产物版本与时间 | dev | 同路径多版本收拢；事件与目录提供真实保存时间 | 定向检查、浏览器与历史文件接口通过；无CI |
 | presentation-runtime | 共享呈现修正 | dev | PPT主题与计时校准；执行目的与进度诊断 | 定向检查及内网5.9秒短任务通过；非业务完整性验收 |
 | intranet-runtime | 内网执行部署 | dev | 离线部署；内网模型和网关缺省配置 | ready及同镜像通过；32.9秒CSV实测零错误 |
 | intranet-app | 深度研究禁用 | dev | 共享输入控件置灰；旧草稿不能开启 | 155项专项及类型通过；本机可见验证通过 |
@@ -1406,7 +1413,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | 构建 `7ea289f2`；共享呈现源码 `7ea289f2` | ready通过；API/worker同镜像1be4fbda8a3db000df717ae1e163b73447ff76d8bf238c95ad004f1a29b1fa3a | 定向检查及PPT预览通过；清理195735-86660完成；无CI |
+| local-dev | 构建 `5830be18`；App另含按保存时间排序 | ready通过；API/worker同镜像9cf4677d9ae9667fe86974247e07c28b5b240981daba7fb35960f64082f8f85f | 162项App、13项API检查；历史文件目录与浏览器通过；清理232349-17334完成；无CI |
 | intranet-dev | 共享增量源码 `7ea289f2`；基础后端815d17f1及146f35b0 | 四服务healthy；API/worker同镜像58f78932b1b5a0a0a151a5d6f631beac9a14a4cf2b07dc06491377fa9d4f4b72 | App http://192.168.72.63:5173/；5.9秒中文短任务及浏览器通过；[部署记录](../reports/2026-11-01-intranet-deployment.md) |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |
 | cloud-dev | `24d9a32`，开发试用候选；已推送标签cloud-dev-20261013-1045-24d9a32 | 用户授权的基本功能检查通过：四角色SUCCESS、API就绪、前端来源与真实中文对话；非正式发布或科学解释验收 | App https://capstone-app-production-83ef.up.railway.app/；[部署记录](../reviews/2026-10-13-cloud-dev-autonomous-trial.md)；demo不变 |

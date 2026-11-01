@@ -6715,3 +6715,7 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 2026-11-01: 2800da79 restores PDF previews: browser sandbox blocked viewer; generic PDF MIME fallback added. Seventeen focused checks passed.
 - 2026-11-01: PDF component browser check renders13-page document; HTML sandbox remains. Intranet disconnected; remote deployment deferred.
 - 2026-11-01: PDF fix local rebuild ready; backend unchanged1be4fbda; scoped cache maintenance230249-59432 completed. Remote remains unchanged.
+- 2026-11-01: 4f9675d5 records verified local PDF correction and defers intranet deployment while disconnected.
+- 2026-11-01: aa1cd3e8 groups output revisions by task and host path identity, showing latest cards with expandable history.150 checks passed.
+- 2026-11-01: 5830be18 projects ledger save timestamps into output cards and file lists, distinguishing versions without renaming stored files.
+- 2026-11-01: Saved-time ordering, browser display and historical directory verified; local9cf4677d ready, scoped cleanup232349-17334 complete; remote unchanged.
