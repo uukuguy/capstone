@@ -370,7 +370,12 @@ def render_presentation(spec_path, output):
                     if (not isinstance(columns,list) or not 1<=len(columns)<=8
                             or any(not isinstance(name,str) or name not in header for name in columns)
                             or len(set(columns))!=len(columns)):
-                        raise ReportError('select 1..8 unique existing CSV columns for the slide')
+                        raise ReportError('select 1..8 unique existing CSV columns for the slide', diagnostic={
+                            'code': 'invalid_table_columns', 'path': location+'.columns',
+                            'source': block['csv'], 'allowed_columns': header[:128],
+                            'allowed_columns_truncated': len(header)>128,
+                            'maximum_columns': 8, 'output_written': False,
+                            'recovery': 'Select explicit unique columns from the saved CSV header; split wide tables into separate blocks.'})
                     indices=[header.index(name) for name in columns]
                     rows=[]
                     for row in reader:
@@ -458,7 +463,7 @@ def render_presentation(spec_path, output):
 def main():
     parser = argparse.ArgumentParser(description='Render report HTML or content-only PPTX JSON with literal text, exact CSV values and saved figures. HTML supports safe SVG/PNG/JPEG; PPTX supports PNG/JPEG. Workspace paths only; no raw HTML, scripts or network resources.')
     parser.add_argument('--version', action='version', version='capstone-report ' + VERSION)
-    parser.add_argument('--spec', required=True, help='HTML: capstone-report/1 title, sections[{id,title,blocks}]. PPTX: capstone-presentation/1 title, subtitle?, slides[{title,blocks,source_notes?:[text]}]. Blocks: paragraph(text), bullets(items), table(csv,columns?,caption?,max_rows required for PPTX), figure(path,caption).')
+    parser.add_argument('--spec', required=True, help='HTML: capstone-report/1 title, sections[{id,title,blocks}]. PPTX: capstone-presentation/1 title, subtitle?, slides[{title,blocks,source_notes?:[text]}]. Blocks: paragraph(text), bullets(items), table(csv,columns?,caption?,max_rows required for PPTX), figure(path,caption). PPTX tables require 1..8 unique existing CSV columns; specify columns for wider sources. A cover is added. Figures and tables use separate pages; text and tables paginate automatically, so content records are not final slide counts. Read the successful JSON receipt for actual counts. On failure no output is written; do not inspect an old or missing output as a new result.')
     parser.add_argument('--output', required=True, help='HTML or .pptx output within the current workspace; parent directory must exist.')
     args = parser.parse_args()
     try:
