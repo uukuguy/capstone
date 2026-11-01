@@ -86,6 +86,57 @@ def request():
     return {'call_id': 'call-1', 'name': 'data_gateway_discover_data_capabilities', 'arguments': {}}
 
 
+def test_direct_and_composed_requests_share_task_read_reuse_with_verified_receipts():
+    schema = {'inputSchema': {'type': 'object'}, 'annotations': {'readOnlyHint': True, 'idempotentHint': True}}
+    resource = access(schemas={request()['name']: schema})
+    calls = []
+    async def upstream(name, arguments, catalog):
+        calls.append(arguments)
+        await asyncio.sleep(.01)
+        return {'structuredContent': {'status': 'ok', 'data': {'n': len(calls)}}}
+    resource.client.call = upstream
+    async def run():
+        a, b = await asyncio.gather(resource.call('task-1', request()),
+                                   resource.call('task-1', dict(request(), call_id='composed:1')))
+        assert len(calls) == 1
+        assert b['observation']['reused_from'] == a['observation']['tool_call_id']
+        assert a['result_json'] == b['result_json']
+        assert resource.verify('task-1', 'composed:1', request()['name'], b['observation'], b['result_json'])
+        fresh = await resource.call('task-1', dict(request(), call_id='refresh',
+            observation_policy={'refresh_reason': 'User requested current source'}))
+        assert len(calls) == 2 and 'reused_from' not in fresh['observation']
+        resource.bind('other', 'other-attempt', {request()['name']})
+        await resource.call('other', request())
+        assert len(calls) == 3
+    asyncio.run(run())
+
+
+def test_task_read_reuse_preserves_live_polling_failed_reads_and_refresh_recovery():
+    schema = {'inputSchema': {'type': 'object'}, 'annotations': {'readOnlyHint': True, 'idempotentHint': True}}
+    resource = access(schemas={request()['name']: schema})
+    calls = []
+    async def upstream(name, arguments, catalog):
+        calls.append(arguments)
+        return {'structuredContent': {'status': 'error' if len(calls) == 2 else 'ok', 'data': {'job_ref': arguments.get('job_ref')}}}
+    resource.client.call = upstream
+    async def run():
+        await resource.call('task-1', request())
+        await resource.call('task-1', dict(request(), call_id='refresh', observation_policy={'refresh_reason':'Source changed'}))
+        await resource.call('task-1', dict(request(), call_id='after-failure'))
+        assert len(calls) == 3
+        with pytest.raises(GatewayError, match='gateway_request_invalid'):
+            await resource.call('task-1', dict(request(), call_id='bad', observation_policy={'refresh_reason':''}))
+        with pytest.raises(GatewayError, match='gateway_call_already_started'):
+            await resource.call('task-1', request())
+        assert len(calls) == 3
+        resource._tasks['task-1']['catalog']['tools'][request()['name']]['inputSchema']['properties'] = {'job_ref':{'type':'string'}}
+        resource._tasks['task-1']['operation_refs'] = {'issued-job'}
+        for i in range(2):
+            await resource.call('task-1', dict(request(), call_id=f'poll-{i}', arguments={'job_ref':'issued-job'}))
+        assert len(calls) == 5
+    asyncio.run(run())
+
+
 def test_contract_reload_updates_future_bindings_and_preserves_bound_catalog():
     resource = access()
     old = deepcopy(resource.catalog)

@@ -887,6 +887,10 @@ class GeneralPiHost:
                 failure['reason_code'] = str(error)
             if isinstance(error, OSError) and type(error.errno) is int:
                 failure['errno'] = error.errno
+            provider_failure = getattr(error, 'provider_failure', None)
+            if failure.get('reason_code') in {'model_turn_incomplete', 'model_transport', 'rpc_process_ended'} and provider_failure in {
+                    'model_read_timeout', 'model_connection_failed', 'model_transport'}:
+                failure['reason_code'] = provider_failure
             public_failure = {'code': {
                 'runtime_dependency_missing': 'native_runtime_dependency_missing',
                 'research_branch_invalid': 'native_research_branch_invalid',
@@ -895,6 +899,8 @@ class GeneralPiHost:
                 'model_rate_limit': 'native_model_rate_limit',
                 'model_authentication': 'native_model_authentication',
                 'model_transport': 'native_transport_failed',
+                'model_read_timeout': 'native_model_read_timeout',
+                'model_connection_failed': 'native_model_connection_failed',
                 'model_output_invalid': 'native_model_output_invalid',
                 'model_output_rejected': 'native_model_output_rejected',
                 'model_turn_incomplete': 'native_model_turn_incomplete',
@@ -1363,6 +1369,9 @@ class NativeTaskRunner:
         except Exception as error:
             if process is not None:
                 setattr(error, 'saved_usage', process.usage)
+            provider_failure = self.relay.failure_reason(request.task_id)
+            if provider_failure:
+                setattr(error, 'provider_failure', provider_failure)
             raise
         finally:
             try:
@@ -1877,7 +1886,7 @@ def main():
                                  'application_capacity.py', 'resources/application-capacity.json', 'resources/runtime-limits.mjs',
                                  'resources/research-tools.mjs', 'resources/execution-guidance.mjs', 'resources/model-request-capture.mjs',
                                  'resources/general-context.mjs', 'resources/general-sdk.mjs', 'resources/general-tool-discovery.mjs', 'resources/tool-result-context.mjs', 'resources/committed-delivery.mjs', 'resources/systematic-diagnosis.mjs', 'resources/general-mcp.mjs', 'resources/task-record-tools.mjs', 'resources/resource-reference-tools.mjs',
-                                 'resources/tool-composition.mjs', 'resources/tool-composition-worker.mjs', 'resources/observed-action.mjs', 'resources/tool-identity.mjs', 'resources/tool-composition-policy.json', 'resources/semantic-data-context.mjs', 'resources/gateway-tool-use.mjs',
+                                 'resources/tool-composition.mjs', 'resources/tool-composition-worker.mjs', 'resources/observed-action.mjs', 'resources/tool-identity.mjs', 'resources/tool-composition-policy.json', 'resources/semantic-data-context.mjs', 'resources/observation-data.mjs', 'resources/gateway-tool-use.mjs',
                                  'resources/async-call-pool.mjs', 'resources/llm-call-tools.mjs', 'resources/llm-call-pool-policy.json',
                                  'resources/model-request-pool.mjs', 'resources/model-request-pool-policy.json',
                                  'resources/enterprise-research-runtime.mjs', 'resources/enterprise-cycle-contract.mjs',

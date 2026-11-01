@@ -652,6 +652,21 @@ def test_native_failure_reason_survives_host_result_and_restart(tmp_path, error,
     assert restarted.read(request.task_id)['result']['failure'] == result['failure']
 
 
+def test_host_prefers_recorded_model_connection_failure_over_incomplete_turn(tmp_path):
+    from capstone_agent.general_pi_server import GeneralPiHost
+    def fail(*args):
+        error = RuntimeError('General Pi did not complete')
+        error.provider_failure = 'model_connection_failed'
+        raise error
+    host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'}, run_task=fail)
+    request = PiTaskRequest('network-failure-task', 'attempt', 'direct', 'Explain', (), (), host.identity, 2)
+    host.submit(request)
+    deadline = time.monotonic() + 2
+    while host.read(request.task_id)['status'] == 'running' and time.monotonic() < deadline:
+        time.sleep(.01)
+    assert host.read(request.task_id)['result']['failure']['code'] == 'native_model_connection_failed'
+
+
 def test_v2_service_advertises_support_and_retains_public_context(tmp_path):
     from capstone_agent.business_context import BusinessContext
     from capstone_agent.general_pi_server import GeneralPiHost

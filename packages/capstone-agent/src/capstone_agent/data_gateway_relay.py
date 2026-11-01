@@ -9,6 +9,7 @@ import stat
 import time
 from uuid import uuid4
 from threading import RLock
+from concurrent.futures import Future
 from datetime import datetime, timezone
 
 from .application_capacity import limits, require_capacity, CapacityExceeded
@@ -165,6 +166,59 @@ class DataGatewayAccess:
                     'valid': not errors, 'errors': errors, 'executed': False}
 
     async def call(self, task_id, document, *, diagnostics=None, retry_of=None):
+        """One task-local reuse boundary for direct and composed readonly calls."""
+        if not isinstance(document, dict):
+            raise GatewayError('gateway_request_invalid')
+        policy = document.get('observation_policy')
+        if policy is not None and (not isinstance(policy, dict) or set(policy) != {'refresh_reason'}
+                or not isinstance(policy['refresh_reason'], str) or not policy['refresh_reason'].strip()
+                or len(policy['refresh_reason']) > 512):
+            raise GatewayError('gateway_request_invalid')
+        base = {k: v for k, v in document.items() if k != 'observation_policy'}
+        with self._lock:
+            record = self._tasks.get(task_id)
+            tool = record['catalog']['tools'].get(base.get('name'), {}) if record and isinstance(base.get('name'), str) else {}
+            hints = tool.get('annotations') or {}
+            reusable = (hints.get('readOnlyHint') is True and hints.get('idempotentHint') is True
+                        and hints.get('destructiveHint') is not True)
+            # Operation polling is live even when directly invoked. These are
+            # adapter-owned protocol references, not business tool names.
+            if isinstance(base.get('arguments'), dict) and any(k in base['arguments'] for k in ('job_ref', 'preparation_ref')):
+                reusable = False
+        if not reusable:
+            return await self._call(task_id, base, diagnostics=diagnostics, retry_of=retry_of)
+        key = fingerprint({'name': base.get('name'), 'arguments': base.get('arguments')})
+        while True:
+            with self._lock:
+                if self._tasks.get(task_id) is not record:
+                    raise GatewayError('gateway_task_not_admitted')
+                pending = record.setdefault('read_pending', {})
+                previous = pending.get(key)
+                if previous is None:
+                    pending[key] = owned = Future()
+                    break
+            await asyncio.shield(asyncio.wrap_future(previous))
+        try:
+            with self._lock:
+                saved = record.setdefault('read_observations', {})
+                cached = None if policy else saved.get(key)
+                if policy:
+                    saved.pop(key, None)
+            response = await self._call(task_id, base, diagnostics=diagnostics, retry_of=retry_of,
+                                        reused=cached, refresh_reason=policy['refresh_reason'] if policy else None)
+            payload = json.loads(response['result_json'])
+            structured = payload.get('structuredContent')
+            if payload.get('isError') is not True and isinstance(structured, dict) and structured.get('status') == 'ok':
+                with self._lock:
+                    if self._tasks.get(task_id) is record:
+                        saved[key] = deepcopy(response)
+            return response
+        finally:
+            with self._lock:
+                pending.pop(key, None)
+                owned.set_result(None)
+
+    async def _call(self, task_id, document, *, diagnostics=None, retry_of=None, reused=None, refresh_reason=None):
         from .gateway_diagnostics import checked_diagnostics, diagnostic_id, response_diagnostics
         override = checked_diagnostics(diagnostics)
         if retry_of is not None:
@@ -208,13 +262,18 @@ class DataGatewayAccess:
         arguments = deepcopy(document['arguments'])
         started = time.monotonic()
         try:
-            result = await self.client.call(name, deepcopy(arguments), catalog,
-                **({'diagnostics': context} if context is not None else {}))
+            if reused is not None:
+                result = json.loads(reused['result_json'])
+            else:
+                result = await self.client.call(name, deepcopy(arguments), catalog,
+                    **({'diagnostics': context} if context is not None else {}))
             with self._lock:
                 span.update(response_diagnostics(result))
                 body = result.get('structuredContent', {})
                 failed = result.get('isError') is True or isinstance(body, dict) and body.get('status') in {'error', 'failed'}
-                span['status'] = 'business_error' if failed else 'received'
+                span['status'] = 'reused' if reused else 'business_error' if failed else 'received'
+                if reused:
+                    span['reused_from'] = reused['observation'].get('reused_from', reused['observation']['tool_call_id'])
         except asyncio.CancelledError:
             with self._lock:
                 span['status'] = 'cancelled'
@@ -245,7 +304,10 @@ class DataGatewayAccess:
         observation = {'kind': 'external_gateway_observation', 'task_id': task_id,
             'parent_attempt_id': record['attempt_id'], 'tool_call_id': call_id, 'tool': name,
             'catalog_revision': catalog['revision'], 'tool_schema_sha256': catalog['tool_hashes'][name],
-            'arguments_sha256': fingerprint(arguments), 'output_sha256': sha256(body.encode()).hexdigest()}
+            'arguments_sha256': fingerprint(arguments), 'output_sha256': sha256(body.encode()).hexdigest(),
+            'observed_at': reused['observation']['observed_at'] if reused else datetime.now(timezone.utc).isoformat(),
+            **({'reused_from': reused['observation'].get('reused_from', reused['observation']['tool_call_id'])} if reused else {}),
+            **({'refresh_reason': refresh_reason} if refresh_reason else {})}
         response = {'result_json': body, 'is_error': result.get('isError') is True, 'observation': observation}
         require_capacity('mcp_frame_bytes', len(encode(response)), 'gateway_envelope')
         self.view_bindings.observe(name, arguments, result, catalog)

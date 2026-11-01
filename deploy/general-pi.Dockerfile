@@ -126,6 +126,7 @@ COPY packages/capstone-agent/src/capstone_agent/resources/tool-composition.mjs \
      packages/capstone-agent/src/capstone_agent/resources/tool-composition-worker.mjs \
      packages/capstone-agent/src/capstone_agent/resources/tool-composition-policy.json \
      packages/capstone-agent/src/capstone_agent/resources/semantic-data-context.mjs \
+     packages/capstone-agent/src/capstone_agent/resources/observation-data.mjs \
      packages/capstone-agent/src/capstone_agent/resources/observed-action.mjs capstone_agent/resources/
 COPY packages/capstone-agent/src/capstone_agent/resources/general-tool-discovery.mjs capstone_agent/resources/general-tool-discovery.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/tool-identity.mjs capstone_agent/resources/tool-identity.mjs

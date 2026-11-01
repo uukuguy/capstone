@@ -99,6 +99,8 @@ class RelayLease:
     released: Event = field(default_factory=Event)
     loop: asyncio.AbstractEventLoop | None = None
     task: asyncio.Task | None = None
+    provider_observed: bool = False
+    provider_failure: str | None = None
 
     def abort(self):
         self.cancelled.set()
@@ -123,6 +125,7 @@ class ProviderRelay:
         self.grants: dict[str, str] = {}
         self.deadlines: dict[str, float] = {}
         self.active: set[RelayLease] = set()
+        self.provider_failures: dict[str, str] = {}
         self.lock = RLock()
 
     def register(self, task_id, grant, deadline):
@@ -130,6 +133,7 @@ class ProviderRelay:
             raise ValueError('Provider relay grant is invalid')
         with self.lock:
             self.grants[task_id], self.deadlines[task_id] = grant, deadline
+            self.provider_failures.pop(task_id, None)
 
     def acquire(self, task_id, grant, downstream):
         with self.lock:
@@ -159,11 +163,21 @@ class ProviderRelay:
         lease.released.set()
         with self.lock:
             self.active.discard(lease)
+            if lease.provider_observed and lease.task_id in self.grants:
+                if lease.provider_failure:
+                    self.provider_failures[lease.task_id] = lease.provider_failure
+                else:
+                    self.provider_failures.pop(lease.task_id, None)
+
+    def failure_reason(self, task_id):
+        with self.lock:
+            return self.provider_failures.get(task_id)
 
     def revoke(self, task_id):
         with self.lock:
             self.grants.pop(task_id, None)
             self.deadlines.pop(task_id, None)
+            self.provider_failures.pop(task_id, None)
             leases = [item for item in self.active if item.task_id == task_id]
         for lease in leases:
             lease.abort()
@@ -172,6 +186,7 @@ class ProviderRelay:
 async def forward_provider(handler, lease: RelayLease, upstream: str, body: bytes, key: str):
     """Cancellation closes the httpx stream even while headers are incomplete."""
     lease.loop, lease.task = asyncio.get_running_loop(), asyncio.current_task()
+    lease.provider_observed = True
     if lease.cancelled.is_set():
         raise asyncio.CancelledError()
     started, total, status = time.monotonic(), 0, None
@@ -217,6 +232,10 @@ async def forward_provider(handler, lease: RelayLease, upstream: str, body: byte
     finally:
         if stream and failure is None:
             failure = diagnostics.failure_code()
+        lease.provider_failure = ('model_read_timeout' if failure == 'ReadTimeout' else
+            'model_connection_failed' if failure in {'ConnectError', 'ConnectTimeout', 'ProxyError'} else
+            'model_transport' if failure in {'ReadError', 'WriteError', 'WriteTimeout', 'RemoteProtocolError',
+                                           'stream_network_error', 'stream_incomplete'} else None)
         if failure or (status is not None and status >= 400) or (stream and (
                 not diagnostics.done or diagnostics.finish_reason in {'network_error', 'content_filter'})):
             # Only bounded protocol metadata crosses the operator log boundary.

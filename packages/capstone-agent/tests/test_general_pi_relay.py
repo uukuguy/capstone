@@ -314,6 +314,7 @@ def test_actual_network_idle_budget_releases_stall_but_allows_long_progress(tmp_
         deadline=time.monotonic()+1
         while relay.active and time.monotonic()<deadline: time.sleep(.01)
         assert not relay.active
+        assert relay.failure_reason('task') == (None if progressing else 'model_read_timeout')
     finally:
         finish.set();relay.revoke('task')
         for item in (server,upstream):item.shutdown();item.server_close()

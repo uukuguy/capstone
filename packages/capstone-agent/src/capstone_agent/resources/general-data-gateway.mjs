@@ -3,6 +3,10 @@
 import {boundToolResult,savedToolObservation} from './tool-result-context.mjs';
 import {createHash} from 'node:crypto';
 import {gatewayUseLedger} from './gateway-tool-use.mjs';
+export const gatewayInvocationOptions=Symbol('gatewayInvocationOptions');
+export const reusableGatewayRead=(schema,args)=>schema?.annotations?.readOnlyHint===true&&
+  schema?.annotations?.idempotentHint===true&&schema?.annotations?.destructiveHint!==true&&
+  !['job_ref','preparation_ref'].some(key=>Object.hasOwn(args??{},key));
 const publicErrors=new Set(['gateway_arguments_invalid','gateway_request_invalid',
   'gateway_tool_not_admitted','gateway_task_not_admitted','gateway_call_already_started',
   'gateway_publication_changed','gateway_authentication_failed','gateway_connection_failed',
@@ -44,7 +48,8 @@ export function createDataGatewayTools(config,{fetchImpl=globalThis.fetch,cwd=co
   }
   return Object.entries(gateway.catalog.tools).map(([name,schema])=>({
     name,label:name,description:schema.description??name,parameters:schema.inputSchema,
-    async execute(callId,args,signal){
+    async execute(callId,args,signal,_onUpdate,context){
+      const observationPolicy=context?.[gatewayInvocationOptions];
       signal?.throwIfAborted();
       if(stopped)throw new Error(stopped);
       const remaining=Math.min(1800000,config.deadlineAt-Date.now());
@@ -54,7 +59,7 @@ export function createDataGatewayTools(config,{fetchImpl=globalThis.fetch,cwd=co
       try{
         response=await fetchImpl(gateway.url,{method:'POST',
           headers:{'Content-Type':'application/json',Authorization:'Bearer '+gateway.grant},
-          body:JSON.stringify({call_id:callId,name,arguments:args}),
+          body:JSON.stringify({call_id:callId,name,arguments:args,...(observationPolicy?{observation_policy:observationPolicy}:{})}),
           signal:signal?AbortSignal.any([signal,deadline]):deadline});
       }catch(error){
         signal?.throwIfAborted();
@@ -74,16 +79,17 @@ export function createDataGatewayTools(config,{fetchImpl=globalThis.fetch,cwd=co
           receipt.tool_schema_sha256!==gateway.catalog.tool_hashes[name])throw new Error('gateway receipt identity changed');
       const ledger=gatewayUseLedger(config);
       const result=await boundToolResult({content:[{type:'text',text:value.result_json}],details:receipt,isError:value.is_error===true},
-        {cwd,toolName:name,callId,retain:true});
+        {cwd,toolName:name,callId,storageCallId:receipt.reused_from??callId,retain:true});
       const saved=savedToolObservation(result);
       let raw;try{raw=JSON.parse(value.result_json);}catch{}
       const source=raw?.structuredContent??raw;
-      const observation=saved&&{...saved,receipt,observedAt:Date.now(),
+      const observation=saved&&{...saved,receipt,observedAt:receipt.observed_at?Date.parse(receipt.observed_at):Date.now(),
         ok:value.is_error!==true&&!['error','failed','denied'].includes(source?.status)};
       ledger.record(name,callId,observation);
       if(typeof config.researchTaskId==='string')ledger.record(name,'native-observation:'+config.researchTaskId+':'+createHash('sha256').update(callId).digest('hex'),observation);
       if(saved)result.content=[...result.content,{type:'text',text:JSON.stringify({observation_ref:callId,
-        base_pointer:'',instruction:'Task-issued observation reference. Composition tools.read and tools.inspect expose the structured result at the root, as tools.call does. Use exact returned fields. The full_result file object keeps its own saved-file paths. Reuse this result; no source call is needed.'})}];
+        ...(receipt.reused_from?{reused:true,original_observation_ref:receipt.reused_from,observed_at:receipt.observed_at}:{}),
+        base_pointer:'',instruction:'Task-issued observation reference. Composition tools.read and tools.inspect expose the structured result at the root, as tools.call and full_result reads do. Use exact returned fields. Reuse this result; no source call is needed.'})}];
       return result;
     }
   }));

@@ -11,6 +11,8 @@ process.on('message',async message=>{
       const plan=await request('preflight',{calls,options});
       return Promise.all(Array.from({length:plan.count},(_,index)=>request('call',{batchRef:plan.ref,index})));
     },
+    plan:(calls,options)=>request('plan',{calls,options}),
+    table:spec=>request('table',{spec}),
     read:(ref,pointer,page)=>request('read',{ref,pointer,page}),
     inspect:(ref,pointer='')=>request('inspect',{ref,pointer}),
     follow:(ref,pointer)=>request('follow',{ref,pointer}),

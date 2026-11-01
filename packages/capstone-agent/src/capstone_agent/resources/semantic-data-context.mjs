@@ -3,7 +3,7 @@ import {resolve,join,sep,relative} from 'node:path';
 import {createHash,randomUUID} from 'node:crypto';
 import {observationRecordPointer as pointer,ObservationPointerError as MissingSourceField} from './observed-action.mjs';
 const manifestUpdates=new Map();
-async function appendProduct(cwd,product){
+export async function appendProduct(cwd,product){
   const key=await realpath(cwd),previous=manifestUpdates.get(key)??Promise.resolve();
   const update=previous.catch(()=>{}).then(async()=>{
     const manifestPath=join(key,'.capstone-products.json');let manifest={schema:'capstone-workspace-products/1',products:[]};

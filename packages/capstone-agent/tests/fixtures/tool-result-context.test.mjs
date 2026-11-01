@@ -6,6 +6,30 @@ import {join} from 'node:path';
 import {createHash} from 'node:crypto';
 import {boundToolResult,restoreToolResult,readSavedObservation} from '../../src/capstone_agent/resources/tool-result-context.mjs';
 
+test('saved-file handles expose the same structured root and retain exact legacy pointers',async()=>{
+ const cwd=await mkdtemp(join(tmpdir(),'observation-root-'));
+ try{
+  const value={status:'ok',data:{rows:Array.from({length:100},(_,i)=>({n:i,text:'x'.repeat(100)}))}};
+  const result=await boundToolResult({content:[{type:'text',text:JSON.stringify({structuredContent:value})}]},{cwd,toolName:'dynamic',callId:'root'});
+  const ref=JSON.parse(result.content[0].text).full_result;
+  assert.equal((await readSavedObservation(ref,'',{cwd})).status,'ok');
+  assert.equal(await readSavedObservation(ref,'/data/rows/4/n',{cwd}),4);
+  assert.equal(await readSavedObservation(ref,'/structuredContent/data/rows/4/n',{cwd}),4);
+  await assert.rejects(readSavedObservation({...ref,base_pointer:''},'',{cwd}),/reference/);
+ }finally{await rm(cwd,{recursive:true,force:true});}
+});
+
+test('reused observations share immutable bytes while keeping each host call identity',async()=>{
+ const cwd=await mkdtemp(join(tmpdir(),'observation-reuse-'));
+ try{
+  const native={content:[{type:'text',text:JSON.stringify({data:{rows:['x'.repeat(9000)]}})}]};
+  const a=JSON.parse((await boundToolResult(native,{cwd,toolName:'source',callId:'first'})).content[0].text).full_result;
+  const b=JSON.parse((await boundToolResult(native,{cwd,toolName:'source',callId:'second',storageCallId:'first'})).content[0].text).full_result;
+  assert.equal(a.path,b.path);assert.equal(b.call_id,'second');assert.equal((await readdir(join(cwd,'.observations'))).length,1);
+  assert.equal((await readSavedObservation(b,'/data/rows',{cwd}))[0].length,9000);
+ }finally{await rm(cwd,{recursive:true,force:true});}
+});
+
 test('issued saved observations support exact reads and reject forged or cross-workspace references',async()=>{
  const cwd=await mkdtemp(join(tmpdir(),'observation-read-')),other=await mkdtemp(join(tmpdir(),'observation-other-'));
  try{

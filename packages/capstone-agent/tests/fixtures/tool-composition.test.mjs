@@ -11,6 +11,27 @@ import {createHash} from 'node:crypto';
 
 const catalog={revision:'catalog',tools:{data_gateway_read:{name:'read',inputSchema:{type:'object'},description:'Read selected data'}},tool_hashes:{data_gateway_read:'a'.repeat(64)}};
 
+test('one pipeline plans exact calls, reuses observations, validates mappings and publishes only valid tables',()=>fixture(async cwd=>{
+ const declared=structuredClone(catalog);declared.tools.data_gateway_read.annotations={readOnlyHint:true,idempotentHint:true};let count=0;
+ const t=tool(cwd,async()=>{count++;return native({rows:[{day:'2025-06-15',reading:4}]});},{catalog:declared});
+ const plan=[{tool:'read',arguments:{}}];
+ const first=await t.execute('pipeline',{tools:['read'],program:`
+ const plan=await tools.plan(${JSON.stringify(plan)},{purpose:'Compare observed rows',output:'comparison table',basis_refs:[]});
+ const [r]=await tools.batch(${JSON.stringify(plan)});
+ try{await tools.table({name:'comparison',sources:[{ref:r.ref,pointer:'/data/rows'}],columns:[{name:'value',pointer:'/missing',type:'number'}]});}catch(e){return {plan,ref:r.ref,error:JSON.parse(e.message)};}`});
+ const initial=JSON.parse(first.content[0].text).result;assert.equal(count,1);assert.equal(initial.plan.requested_calls,1);
+ assert.equal(initial.error.code,'dataset_validation_failed');assert.equal(initial.error.published,false);
+ const next=await t.execute('repair',{tools:['read'],program:`
+ const plan=await tools.plan(${JSON.stringify(plan)},{purpose:'Repair mapping from prior source',output:'comparison table',basis_refs:[${JSON.stringify(initial.ref)}]});
+ const [r]=await tools.batch(${JSON.stringify(plan)});
+ const saved=await tools.table({name:'comparison',sources:[{ref:r.ref,pointer:'/data/rows'}],columns:[{name:'value',pointer:'/reading',type:'number'}]});return {plan,saved};`});
+ const result=JSON.parse(next.content[0].text);assert.equal(next.isError,false,JSON.stringify(next));assert.equal(count,1);
+ assert.equal(result.result.plan.existing_observations[0].ref,initial.ref);
+ assert.match(await readFile(result.result.saved.path,'utf8'),/value\n4/);
+ const bad=await t.execute('foreign-plan',{tools:['read'],program:`return tools.plan(${JSON.stringify(plan)},{purpose:'Read',output:'table',basis_refs:['foreign']});`});
+ assert.equal(bad.isError,true);assert.equal(count,1);
+}));
+
 test('35 successful reads are reused after local processing failure and outer native reference exposes the manifest',()=>fixture(async cwd=>{
  const declared=structuredClone(catalog);declared.tools.data_gateway_read.annotations={readOnlyHint:true,idempotentHint:true};
  const ledger=createGatewayUseLedger();let count=0;

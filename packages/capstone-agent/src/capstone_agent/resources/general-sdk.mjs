@@ -5,7 +5,7 @@ import { createInterface } from "node:readline";
 import {checkCapacity,runtimeLimits as resolveLimits,onDebugCapacityExceeded} from './runtime-limits.mjs';
 import {prepareDeliveryReview,reviewChildPrompt} from './delivery-review.mjs';
 import {createManagedSubagents} from './managed-subagents.mjs';
-import {createDataGatewayTools,validateGatewayBatch} from './general-data-gateway.mjs';
+import {createDataGatewayTools,validateGatewayBatch,gatewayInvocationOptions,reusableGatewayRead} from './general-data-gateway.mjs';
 import {createResourceReferenceTools} from './resource-reference-tools.mjs';
 import {createToolDiscovery,discoveryToolNames} from './general-tool-discovery.mjs';
 import {gatewayUseLedger} from './gateway-tool-use.mjs';
@@ -442,13 +442,14 @@ export function applicationToolOptions(config, nativeTools, research=()=>undefin
     customTools.push(wrap(createToolCompositionTool({policy:compositionPolicy,
       cwd:config.toolResultCwd??process.cwd(),catalog:config.dataGateway.catalog,admittedNames:[...selected.keys()],useLedger:gatewayUseLedger(config),
       scope:{task_id:config.researchTaskId,attempt_id:config.researchAttemptId},deadlineAt:config.deadlineAt,
+      reuseEligible:reusableGatewayRead,
       allowedInputs:(graphBinding?graphSelectedSources(config,graphBinding.action):config.deliveryReviewSources??[]).map(s=>s.path),restore:restoreToolResult,
       validateCalls:(calls,{signal})=>validateGatewayBatch(config,calls,{signal}),
-      async invoke(name,args,{callId,signal}){
+      async invoke(name,args,{callId,signal,refresh_reason}){
         const tool=selected.get(name);if(!tool)throw Error('Composition tool is not admitted');
         if(!graphBinding)hostEmit(rpcEvent({type:'tool_execution_start',toolName:name,toolCallId:callId,args}));
         try{
-          const result=await tool.execute(callId,args,signal);
+          const result=await tool.execute(callId,args,signal,undefined,refresh_reason?{[gatewayInvocationOptions]:{refresh_reason}}:undefined);
           if(!graphBinding)hostEmit(rpcEvent({type:'tool_execution_end',toolName:name,toolCallId:callId,result,isError:result.isError===true}));
           return result;
         }catch(error){
