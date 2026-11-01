@@ -1,5 +1,8 @@
 # docs/status INDEX
 
+App df138a2d displays lightweight compaction records without extra model counts.
+49 focused checks, types, existing-tab synthetic preview and local readiness pass.
+
 2026-11-01 local source356b0e64: public Pi compaction lifecycle and bounded saved
 observation reuse. Ready, same-image and focused checks pass; no CI or business replay.
 See VERSION-CONTROL, live RESUME and the [execution audit](../reports/2026-11-01-execution-efficiency-audit.md).

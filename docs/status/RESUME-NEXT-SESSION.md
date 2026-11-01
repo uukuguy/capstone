@@ -4,6 +4,20 @@
 
 ## Immediate work
 
+App df138a2d adds chronological compaction rows to the ordinary lightweight call
+trace, including live duration, terminal outcome and incomplete-record handling.
+49 focused App checks and types pass. Existing control tab temporarily displayed
+synthetic running/completed records, then its original URL and active tab were restored.
+Canonical rebuild ready200, image acc0df49b5b60b9e81702ace1c9358ee2ab06600f27a7cffea3cde3ae0750438;
+scoped cleanup receipt cache-maintenance-20261101-133042-43157.log.
+No CI or historical task replay. Parent graph-specific views are not changed.
+
+Documentation boundary dd31e938 records this verification. Graph snapshot shows tested
+source356b0e64 before its own documentation commit; existing control tab was inspected
+and the prior active tab restored. Pending local paths are JOURNAL.md and this recovery
+checkpoint, plus the prior untracked docs/reports/2026-11-01-summer-session-audit.md;
+that earlier audit draft is preserved, not removed or represented as newly verified.
+
 Source 9da60bfa forwards Pi compaction start/end through native transport and public
 application records, with reason, state, duration and retry indication. It does not
 increment business model calls or expose summaries. Four focused Python checks and

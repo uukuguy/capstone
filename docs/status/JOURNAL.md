@@ -6654,3 +6654,6 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - Forward Pi compaction lifecycle and duration to public application records without inflating model calls; focused checks pass [9da60bfa].
 - Reuse saved discovery references with bounded paging and scope guidance to reduce redundant reads; 35 Node checks pass [356b0e64].
 - Rebuilt local 356b0e64; readiness, image parity and live reference/event checks passed; scoped cleanup finished without CI or business replay.
+- Recorded compaction and observation validation; refreshed control graph and inspected existing browser tab without opening tabs [dd31e938].
+- Show compaction lifecycle within call records without inflating model counts; 49 focused App checks and types pass [df138a2d].
+- Verified running/completed compaction in an existing browser tab; rebuilt df138a2d with readiness, image parity and scoped cleanup; no CI.
