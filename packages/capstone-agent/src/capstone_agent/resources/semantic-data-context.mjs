@@ -1,7 +1,7 @@
 import {readFile,writeFile,mkdir,realpath,rename,lstat} from 'node:fs/promises';
 import {resolve,join,sep,relative} from 'node:path';
 import {createHash,randomUUID} from 'node:crypto';
-import {observationPointer as pointer,ObservationPointerError as MissingSourceField} from './observed-action.mjs';
+import {observationRecordPointer as pointer,ObservationPointerError as MissingSourceField} from './observed-action.mjs';
 const manifestUpdates=new Map();
 async function appendProduct(cwd,product){
   const key=await realpath(cwd),previous=manifestUpdates.get(key)??Promise.resolve();
@@ -48,7 +48,7 @@ export async function saveSemanticContext({cwd,name,spec,records,scope,resolveRe
     if(b&&typeof b==='object'){
       if(b.call){
         const record=observe(b.call);
-        try{return [key,{basis:'observed',value:pointer(record.value,b.pointer),ref:b.call,pointer:b.pointer??''}];}
+        try{return [key,{basis:'observed',value:pointer(record,b.pointer),ref:b.call,pointer:b.pointer??''}];}
         catch(error){
           if(!(error instanceof MissingSourceField))throw error;
           const gap={binding:key,reason:'source_field_missing',ref:b.call,pointer:b.pointer};gaps.push(gap);
@@ -63,7 +63,7 @@ export async function saveSemanticContext({cwd,name,spec,records,scope,resolveRe
   }));
   const datasets=(spec.datasets??[]).map((d,i)=>{
     const r=observe(d.call);
-    try{pointer(r.value,d.pointer);}catch(error){
+    try{pointer(r,d.pointer);}catch(error){
       throw Error(`/datasets/${i}/pointer: source ${JSON.stringify(d.call.slice(0,256))}; ${error.message}`);
     }
     return {name:d.name,ref:d.call,pointer:d.pointer??''};
@@ -90,5 +90,5 @@ export async function loadSemanticContext({cwd,path,allowedInputs=[]}){
   if(document.schema!=='capstone-semantic-data/1'||digest(body)!==sha256)throw Error('Context digest changed');
   const observations=new Map(document.observations.map(r=>{if(digest(r.value)!==r.sha256)throw Error('Observation hash changed');return [r.ref,r];}));
   return {schema:document.schema,authority_evidence:false,bindings:document.bindings,gaps:document.gaps??[],
-    datasets:Object.fromEntries(document.datasets.map(d=>{const r=observations.get(d.ref);if(!r)throw Error('Missing observation reference');return [d.name,{data:pointer(r.value,d.pointer),status:r.value.status,provenance:r.value.provenance,gaps:r.value.gaps,receipt:r.receipt}];}))};
+    datasets:Object.fromEntries(document.datasets.map(d=>{const r=observations.get(d.ref);if(!r)throw Error('Missing observation reference');return [d.name,{data:pointer(r,d.pointer),status:r.value.status,provenance:r.value.provenance,gaps:r.value.gaps,receipt:r.receipt}];}))};
 }

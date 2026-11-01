@@ -18,10 +18,15 @@ export function observationPointer(value,path=''){
   }
   return value;
 }
+export function observationRecordPointer(record,path=''){
+  const prefix=record.envelope_pointer;
+  if(prefix&&typeof path==='string'&&(path===prefix||path.startsWith(prefix+'/')))path=path.slice(prefix.length);
+  return observationPointer(record.value,path);
+}
 export function readObservation(records,ref,path){
   const record=records.get(ref);
   if(!record)throw Error('/ref: Unknown observation reference; use an exact task-issued observation_ref, tools.call/completed_calls ref or full_result object. Call/source identifiers work only when issued and retained by this task; do not reconstruct them or use another task\'s references.');
-  return structuredClone(observationPointer(record.value,path));
+  return structuredClone(observationRecordPointer(record,path));
 }
 export function observedAction(records,ref,path){
   const record=records.get(ref);

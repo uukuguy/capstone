@@ -83,7 +83,7 @@ export function createDataGatewayTools(config,{fetchImpl=globalThis.fetch,cwd=co
       ledger.record(name,callId,observation);
       if(typeof config.researchTaskId==='string')ledger.record(name,'native-observation:'+config.researchTaskId+':'+createHash('sha256').update(callId).digest('hex'),observation);
       if(saved)result.content=[...result.content,{type:'text',text:JSON.stringify({observation_ref:callId,
-        base_pointer:saved.base_pointer,instruction:'Task-issued observation reference. In composition use tools.read or tools.inspect with this reference and exact JSON pointers relative to the saved root. Reuse this result; no source call is needed.'})}];
+        base_pointer:'',instruction:'Task-issued observation reference. Composition tools.read and tools.inspect expose the structured result at the root, as tools.call does. Use exact returned fields. The full_result file object keeps its own saved-file paths. Reuse this result; no source call is needed.'})}];
       return result;
     }
   }));

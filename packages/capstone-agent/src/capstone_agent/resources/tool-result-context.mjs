@@ -39,7 +39,8 @@ export async function resolveTaskObservation(records,ref,{cwd,useLedger}){
   const saved=useLedger?.resolve(ref);
   if(!saved)return;
   return {ref,ok:saved.ok,observedAt:saved.observedAt,receipt:saved.receipt,
-    value:await readSavedObservation(saved.reference,'',{cwd})};
+    envelope_pointer:saved.base_pointer??'',
+    value:await readSavedObservation(saved.reference,saved.base_pointer??'',{cwd})};
 }
 function preview(value,depth,items,chars){
   if(typeof value==='string')return value.length<=chars?value:value.slice(0,chars)+'… [read full result]';

@@ -27,10 +27,11 @@ for(const padding of [0,10000])test(`direct task observation references support 
   const direct=await source.execute('direct-1',{});
   const ref='native-observation:task-1:'+createHash('sha256').update('direct-1').digest('hex');
   const composed=options.customTools.find(t=>t.name==='agent_tools_execute');
-  const program=`const ref=${JSON.stringify(ref)};const n=await tools.read(ref,'/structuredContent/data/n');const index=await tools.inspect(ref,'/structuredContent/data');const saved=await saveContext('direct',{bindings:{n:{call:ref,pointer:'/structuredContent/data/n'}},datasets:[{name:'rows',call:ref,pointer:'/structuredContent/data/rows'}]});return {n,index,loaded:await loadContext(saved.path)};`;
+  const program=`const ref=${JSON.stringify(ref)};const n=await tools.read(ref,'/data/n');const legacy=await tools.read(ref,'/structuredContent/data/n');const root=await tools.read(ref,'');const index=await tools.inspect(ref,'/data');const saved=await saveContext('direct',{bindings:{n:{call:ref,pointer:'/data/n'}},datasets:[{name:'rows',call:ref,pointer:'/structuredContent/data/rows'}]});return {n,legacy,status:root.status,index,loaded:await loadContext(saved.path)};`;
   const result=await composed.execute('reuse',{tools:[],program},new AbortController().signal);
   assert.equal(result.isError,false,JSON.stringify(result));
   const output=JSON.parse(result.content[0].text);assert.equal(output.calls,0);assert.equal(output.result.n,4);
+  assert.equal(output.result.legacy,4);assert.equal(output.result.status,'ok');
   assert.deepEqual(output.result.loaded.datasets.rows.data,[{n:4}]);assert.equal(calls,1);
   const followed=await composed.execute('follow',{tools:['discover_data_capabilities'],program:`return tools.follow('direct-1','/structuredContent/data/next_action');`},new AbortController().signal);
   assert.equal(followed.isError,false,JSON.stringify(followed));assert.equal(calls,2);
