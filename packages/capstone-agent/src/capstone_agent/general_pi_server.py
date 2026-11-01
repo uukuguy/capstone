@@ -1855,7 +1855,9 @@ def main():
                       + current_capacity().fingerprint.encode())
     from .native_environment import environment_context
     revision.update((environment_context() or '').encode())
-    revision.update(json.dumps(gateway_publication, sort_keys=True).encode())
+    # Gateway publications can change independently of the executor, including
+    # between service restarts. Each task binds its gateway catalog separately;
+    # mutable discovery metadata must not invalidate the executor identity.
     lock = json.loads(Path('/opt/general/pi-runtime.lock.json').read_bytes())
     identity = {'engine': 'pi', 'model': provider['model'],
                 'provider': provider['provider'],

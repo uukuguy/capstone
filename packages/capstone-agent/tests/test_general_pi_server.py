@@ -9,6 +9,52 @@ from capstone_agent.pi_delegation import PiTaskRequest, HttpGeneralPiExecutor
 from capstone_agent.request_intent import NodeControl
 
 
+def test_executor_identity_is_independent_of_mutable_gateway_publication(monkeypatch):
+    import json
+    from types import SimpleNamespace
+    from capstone_agent import general_pi_server as module
+    from capstone_agent import gateway_connections_runtime, native_environment, native_network_policy, workbench_llm_profiles
+
+    class CapturedIdentity(Exception):
+        pass
+
+    identities = []
+    publication = {'available': True, 'catalog': {'revision': 'first'}}
+    environment = ['stable runtime']
+    original_read = Path.read_bytes
+
+    def read(path):
+        if str(path) == '/opt/general/pi-runtime.lock.json':
+            return json.dumps({'source': {'commit': 'fixture'}}).encode()
+        return original_read(path)
+
+    def capture(**kwargs):
+        identities.append(kwargs['identity'])
+        raise CapturedIdentity()
+
+    monkeypatch.setenv('CAPSTONE_GENERAL_SANDBOX', 'container')
+    monkeypatch.setenv('CAPSTONE_NATIVE_INTERNAL_ENDPOINTS', '[]')
+    monkeypatch.setattr(Path, 'read_bytes', read)
+    monkeypatch.setattr(workbench_llm_profiles, 'ProfileRegistry', lambda: SimpleNamespace(
+        freeze=lambda: {}, resolve=lambda _: {'model': 'fixture', 'provider': 'fixture', 'key': 'fixture', 'base_url': ''}))
+    monkeypatch.setattr(native_network_policy, 'NativeNetworkPolicy', lambda **_: SimpleNamespace(start=lambda: None))
+    monkeypatch.setattr(gateway_connections_runtime, 'load_gateway_connections', lambda *a, **k: (None, None, publication))
+    monkeypatch.setattr(native_environment, 'environment_context', lambda: environment[0])
+    monkeypatch.setattr(module, 'NativeTaskRunner', lambda **_: SimpleNamespace())
+    monkeypatch.setattr(module, 'GeneralPiHost', capture)
+
+    with pytest.raises(CapturedIdentity):
+        module.main()
+    publication.update(available=False, catalog={'revision': 'second', 'name': 'renamed'})
+    with pytest.raises(CapturedIdentity):
+        module.main()
+    assert identities[0] == identities[1]
+    environment[0] = 'changed runtime'
+    with pytest.raises(CapturedIdentity):
+        module.main()
+    assert identities[2]['config_revision'] != identities[1]['config_revision']
+
+
 @pytest.mark.parametrize('publication,grant,accepted', [(True, True, True), (False, True, False), ('changed', True, False), (True, False, False)])
 def test_composition_observation_requires_exact_capability_and_child_grant(tmp_path, monkeypatch, publication, grant, accepted):
     from dataclasses import replace
