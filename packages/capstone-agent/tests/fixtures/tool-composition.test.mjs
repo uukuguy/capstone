@@ -8,6 +8,38 @@ import {rpcEvent} from '../../src/capstone_agent/resources/general-sdk.mjs';
 
 const catalog={revision:'catalog',tools:{data_gateway_read:{name:'read',inputSchema:{type:'object'},description:'Read selected data'}},tool_hashes:{data_gateway_read:'a'.repeat(64)}};
 
+test('explicit non-correctable rejection survives programs and retains its source',()=>fixture(async cwd=>{
+ let issued=0;
+ const t=tool(cwd,async()=>{issued++;return {isError:true,content:[{type:'text',text:JSON.stringify({status:'error',gaps:[{reason:'unavailable',scope:{executed:false,correctable:false}}]})}]};});
+ const input={tools:['read'],program:`return await tools.call('read',{ref:'opaque'});`};
+ const first=JSON.parse((await t.execute('first',input)).content[0].text);
+ const second=JSON.parse((await t.execute('second',input)).content[0].text);
+ assert.equal(issued,1);
+ assert.equal(second.result.status,'not_executed');
+ assert.equal(second.result.previous_call,first.result.ref);
+ assert.equal(second.result.ref,null);
+ await t.execute('changed',{...input,program:`return await tools.call('read',{ref:'different'});`});
+ assert.equal(issued,2);
+}));
+
+test('later programs read exact saved fields without another upstream call',()=>fixture(async cwd=>{
+ let issued=0;const t=tool(cwd,async()=>{issued++;return native({rows:[{name:'Exact',n:5}]});});
+ const first=JSON.parse((await t.execute('first',{tools:['read'],program:`return (await tools.call('read',{})).ref;`})).content[0].text);
+ const second=await t.execute('reuse',{tools:[],program:`return await tools.read(${JSON.stringify(first.result)},'/data/rows/0');`});
+ assert.equal(second.isError,false,JSON.stringify(second));
+ assert.deepEqual(JSON.parse(second.content[0].text).result,{name:'Exact',n:5});assert.equal(issued,1);
+ const denied=await t.execute('unknown',{tools:[],program:`return await tools.read('invented','/data');`});
+ assert.equal(denied.isError,true);
+}));
+
+test('unknown effects and correctable errors do not become permanent rejections',()=>fixture(async cwd=>{
+ for(const scope of [{correctable:false},{executed:true,correctable:false},{executed:false,correctable:true}]){
+  let issued=0;const t=tool(cwd,async()=>{issued++;return {isError:true,content:[{type:'text',text:JSON.stringify({status:'error',gaps:[{reason:'rejected',scope}]})}]};});
+  for(let i=0;i<2;i++)await t.execute(String(i),{tools:['read'],program:`return await tools.call('read',{});`});
+  assert.equal(issued,2);
+ }
+}));
+
 test('follow copies an observed action exactly and rechecks selected task identities',()=>fixture(async cwd=>{
   const actual={tools:{random_submit:{name:'submit',inputSchema:{type:'object'}},random_read:{name:'read_action',inputSchema:{type:'object'}}}};
   const args={opaque_ref:'instance-only',field_names:['EXACT_Column'],cursor:'opaque:cursor',revision:'r2'};

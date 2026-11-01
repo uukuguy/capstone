@@ -5,7 +5,7 @@ import {saveSemanticContext,loadSemanticContext} from './semantic-data-context.m
 import {boundToolResult} from './tool-result-context.mjs';
 import {gatewayToolUseGuidance} from './gateway-tool-use.mjs';
 import {createToolIdentityResolver} from './tool-identity.mjs';
-import {observedAction} from './observed-action.mjs';
+import {observedAction,readObservation} from './observed-action.mjs';
 import {setTimeout as wait} from 'node:timers/promises';
 export const compositionPolicy=Object.freeze(JSON.parse(readFileSync(new URL('./tool-composition-policy.json',import.meta.url),'utf8')));
 const canonical=(v)=>Array.isArray(v)?v.map(canonical):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])):v;
@@ -13,8 +13,11 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
   // Session-local issued observations survive program calls, never task grants.
   // A different DR node must receive an explicit saved context package.
   const records=new Map();
+  // Only explicit non-correctable, unexecuted rejections persist across programs.
+  // Transient timeouts retain their existing per-program policy.
+  const rejectedRequests=new Map();
   const identities=createToolIdentityResolver(catalog.tools,admittedNames);
-  return {name:'agent_tools_execute',label:'执行多步数据处理',description:'Run an async JavaScript program in the isolated task workspace. Select admitted gateway tools explicitly. Use Promise.all for independent calls and pass results directly to dependent calls. tools.call(name,args) returns {ref,ok,status,data,provenance,gaps,value}; tools.describe(name) returns its exact contract. tools.follow(ref,pointer) executes an action copied from a successful host observation at that JSON pointer, preserving exact tool names and arguments. Select its target tool in tools first. Prefer follow for returned actions instead of retyping identifiers; it honors returned waits and uses the same grant/schema checks. python(code,data) runs Python with JSON stdin. saveContext(name,{bindings,datasets}) preserves observed source fields with call refs and JSON pointers, declared values, and unknown fields. loadContext(path) reuses a saved package. Return a compact summary; retain source data in packages. No automatic retries. Failed programs return completed_calls references when calls already finished; reuse them rather than reading again. Source packages are observations, not Authority evidence. '+gatewayToolUseGuidance,
+  return {name:'agent_tools_execute',label:'执行多步数据处理',description:'Run an async JavaScript program in the isolated task workspace. Select admitted gateway tools explicitly. Use Promise.all for independent calls and pass results directly to dependent calls. tools.call(name,args) returns {ref,ok,status,data,provenance,gaps,value}; tools.describe(name) returns its exact contract. tools.follow(ref,pointer) executes an action copied from a successful host observation at that JSON pointer, preserving exact tool names and arguments. Select its target tool in tools first. Prefer follow for returned actions instead of retyping identifiers; it honors returned waits and uses the same grant/schema checks. python(code,data) runs Python with JSON stdin. saveContext(name,{bindings,datasets}) preserves observed source fields with call refs and JSON pointers, declared values, and unknown fields. loadContext(path) reuses a saved package. Return a compact summary; retain source data in packages. No automatic retries. Failed programs return completed_calls references when calls already finished; reuse them rather than reading again. Source packages are observations, not Authority evidence. tools.read(ref,pointer) reads a bounded exact field from a previous observation, including failed results, without another upstream call. For blocked repeats inspect previous_call; do not recreate an unchanged rejected request. '+`Limits for this instance: max_calls=${policy.max_calls}, concurrency=${policy.concurrency}, program_chars=${policy.code_chars}. Plan batches within these limits before writing a long program. `+gatewayToolUseGuidance,
     parameters:{type:'object',properties:{program:{type:'string',description:"Async program body. Example: const r=await tools.call(name,args); const saved=await saveContext('shared',{bindings:{unit:{call:r.ref,pointer:'/data/unit'},method:{value:'mean'},missing:{unknown:true,reason:'not provided'}},datasets:[{name:'load',call:r.ref,pointer:'/data/rows'}]}); return saved; Use actual returned fields in pointers. loadContext(saved.path) returns bindings with basis/value and datasets keyed by name with data/status/provenance/gaps. Plain binding values are declared metadata, never verified facts. Actual call refs remain usable by later programs in this instruction/session; different tasks need explicit saved packages. Large returns are saved automatically; return selected fields to reduce model context."},tools:{type:'array',items:{type:'string'}},purpose:{type:'string'},concurrency:{type:'integer',minimum:1,maximum:policy.concurrency},max_calls:{type:'integer',minimum:1,maximum:policy.max_calls},timeout_ms:{type:'integer',minimum:1,maximum:policy.max_program_ms}},required:['program','tools'],additionalProperties:false},
     async execute(callId,input,signal){
       signal?.throwIfAborted();
@@ -62,7 +65,12 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
                 if(active>=concurrency)await new Promise((resolve,reject)=>queue.push(()=>abort.signal.aborted?reject(abort.signal.reason):resolve()));
                 abort.signal.throwIfAborted();active++;
                 try{
-                  if(blocked.has(failureKey)){
+                  if(rejectedRequests.has(failureKey)){
+                    const previous=rejectedRequests.get(failureKey);
+                    skipped++;value={ref:null,ok:false,status:'not_executed',data:null,
+                      previous_call:previous.ref,gaps:previous.gaps,
+                      recovery:'This exact request was already rejected as unexecuted and non-correctable. Inspect the previous observation; no new upstream call was made.',value:null};
+                  }else if(blocked.has(failureKey)){
                     skipped++;value={ref:null,ok:false,status:'not_executed',data:null,gaps:[{reason:'repeated_resource_failure',tool:message.name,arguments_sha256:argumentsHash,scope:'unchanged_inputs'}],value:null};
                   }else{
                   calls++;
@@ -78,10 +86,16 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
                   resourceFailures.set(failureKey,count);
                   if(count>=policy.consecutive_resource_failures)blocked.set(failureKey,{tool:message.name,arguments_sha256:argumentsHash,scope:'unchanged_inputs'});
                   records.set(ref,{ref,ok,value:observed,receipt:native.details??{},observedAt:Date.now()});
+                  if(!ok&&Array.isArray(observed?.gaps)&&observed.gaps.some(g=>g?.scope?.executed===false&&g.scope.correctable===false))
+                    rejectedRequests.set(failureKey,{ref,gaps:structuredClone(observed.gaps)});
                   completedCalls.push({ref,tool:message.name,ok});
                   value={ref,ok,...(observed&&typeof observed==='object'?observed:{}),value:observed};
                   }
                 }finally{active--;queue.shift()?.();}
+              }else if(message.kind==='read'){
+                value=readObservation(records,message.ref,message.pointer);
+                if(Buffer.byteLength(JSON.stringify(value))>policy.output_bytes)
+                  throw Error('/pointer: Selected observation exceeds the read budget; select a narrower field or use saveContext for datasets');
               }else if(message.kind==='save')value=await saveSemanticContext({cwd,name:message.name,spec:message.spec,records,scope});
               else if(message.kind==='load')value=await loadSemanticContext({cwd,path:message.path,allowedInputs});
               else if(message.kind==='print'){value=undefined;onProgress(String(message.text).slice(0,policy.output_bytes));}
