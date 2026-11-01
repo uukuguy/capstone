@@ -1,0 +1,70 @@
+# Intranet development deployment
+
+The user authorized a separate Capstone development installation on
+`dmdba@192.168.72.63`. Its default gateway is `内网联调` at port 18001, and its
+default model is the registered intranet dsv4 profile at 192.168.72.69:18804.
+The shared App toolbar now displays `深度研究` as a disabled, grey control, with
+no hover highlight and a not-allowed cursor. Restored drafts cannot enable it.
+The underlying research implementation remains available for future development;
+this change does not replay, cancel or rewrite historical tasks.
+
+## Isolation and sources
+
+The installation uses `/home/dmdba/capstone-intranet`, Compose project
+`capstone-intranet`, separate PostgreSQL/object-store/runtime volumes, and fresh
+operator/control/storage secrets. Only the explicitly selected gateway credential
+is carried into a protected mount. No local task history or commercial model key
+is copied. Gateway, Kubernetes and the existing PostgreSQL service are unchanged.
+
+Backend/native source is `815d17f15a0d2c91243f9da9f26ccf0dfc767323`. The App includes
+the later disabled-style correction `bf1cd421`. Backend API and native worker must
+run the same image. The App uses a same-origin proxy, so its bundle has no secrets.
+The default installation starts the enterprise/native path; professional solver
+workers are optional and require separate provider configuration.
+
+This host has CentOS 7, kernel 3.10 and Docker 26.1.4. It cannot fetch public images.
+Linux amd64 images are built locally and transferred with checksums. The existing
+proxy-enabled BuildKit builder is used; both CLI token retrieval and build steps
+need their existing proxy settings. No server DNS or global Docker configuration
+was changed. On this kernel, a first transaction that creates, flushes and populates
+the nftables table fails with ENOENT. Each rule and subsequent atomic updates work.
+The intranet startup command therefore creates the empty table before invoking
+the unchanged resource-seed/executor entry point. Closed/open/closed rule updates
+were verified in a disposable container network namespace; normal task admission
+still waits for complete policy installation. No host firewall rules were changed.
+The prepared App is built in the exported repository layout because
+its capacity module imports the repository-owned configuration.
+
+## Verification
+
+155 focused App checks passed in 7.54 seconds; types passed. Two focused checks
+also verified that an old `deep_research=true` draft submits with the option off.
+The existing browser tab showed the disabled grey control. No CI was started.
+The canonical local rebuild is ready with backend image
+`e926f2631b5c4eb6d5c6113f39c79ab3913d9968a2c3677d6d38f4733d3fa643`;
+cleanup receipt is `.capstone-agent/cache-maintenance-20261101-183028-20516.log`.
+
+Fresh gateway initialization and catalog loading succeeded with 55 published tools.
+The dsv4 model-list endpoint confirms availability and a 1,048,576-token context.
+The remote App and `/health/ready` return 200. API and native worker use the same
+image `2efd4737331dcadefdbddc9368f4b96cc004e389c12f01c1adaee4410837f8ad`.
+The default-model metadata export completed in 32.900 seconds: five model calls,
+four tool calls, zero errors and no repeated requests. The generated providers.csv
+was downloaded and its hash verified. First model start took 3.413 seconds.
+Thread: `thr_5558ffe853f7d0a7da77`; attempt: `attempt_5b7684ca548d8974`.
+Receipts: `runs/intranet-deploy-20261101/`. Entry: http://192.168.72.63:5173/.
+This validates the enterprise/native path, not optional professional workers.
+
+## Browser closeout
+
+Initial HTTP deployment exposed two secure-context assumptions: UUID generation
+and SHA-256. Commits15259421 and054b27a6 use shared HTTP-compatible implementations;
+file integrity checks remain mandatory. Nine digest/transport checks and types pass.
+Commit146f35b0 allows omitted optional worker families. The intranet API now checks
+only the enabled native worker; thread-access returns200 in0.060 seconds.
+API/native-worker final image is
+`f5d9158fce352440588ba2bab9e3c0c13424538c2734ea92f5af2c58a6ff5a2b`.
+Its base is815d17f1 plus the146f35b0 launcher patch, with regenerated catalog snapshot.
+Final App source054b27a6. Existing Vivaldi tab shows the restored session, dsv4,
+内网联调 and disabled research control. Browser CSV preview passes with hashes enabled.
+Screenshot: runs/intranet-deploy-20261101/http-browser.png. No new business replay.

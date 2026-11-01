@@ -6689,3 +6689,16 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - Rebuilt2b347fc6 with matching API/worker images; started one metadata-only unified pipeline trial in the existing browser tab.
 - Unified live trial completed26.0s: seven model responses, eight tools, zero errors; shared reuse, refresh and typed CSV verified.
 - Updated unified-pipeline evidence and control graph; checked source edges, existing browser preview, links, doctor and clean diffs.
+- Recorded unified live verification and limits [677363c1]; this receipt remains unstaged to avoid a self-referencing documentation cycle.
+- Prepared isolated intranet deployment and disabled shared deep-research controls, including stale drafts;155 focused App checks passed [815d17f1].
+- Added visible disabled research styling and exact offline storage-image bindings for the intranet deployment [bf1cd421].
+- Built amd64 intranet backend/native815d17f1 and Appbf1cd421; local style rebuild and stale-draft checks passed.
+- Verified remote archive hash; fixed CentOS7 first-table transaction ordering through deployment startup, preserving complete task isolation.
+
+- 2026-11-01 15259421: Fix HTTP-origin UUID generation and legacy-kernel startup so intranet sessions can open.
+
+- 2026-11-01 146f35b0: Admit omitted optional worker families; prevent intranet startup from waiting for disabled services.
+
+- 2026-11-01 054b27a6: Preserve artifact and upload hash checks on HTTP origins using a tested digest fallback.
+
+- 2026-11-01: Intranet browser session and CSV preview pass; access60ms; dsv4 and gateway defaults visible; no CI.
