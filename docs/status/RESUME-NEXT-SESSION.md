@@ -1,5 +1,14 @@
 # Live Session Checkpoint
 
+Instruction products implemented in `2ca06418`: paired instruction/answer actions,
+stable persisted numbering, scoped directory and all-products toggle. Execution start
+opens its scope once; manual choices are preserved. Focused checks, types and browser
+component verification passed. Evidence: `runs/instruction-products-20261101/`.
+Canonical local rebuild ready; log `/tmp/capstone-instruction-products-rebuild.log`.
+API/worker retain identical backend image `9cf4677d`; App source is `2ca06418`.
+Scoped cleanup receipt: `.capstone-agent/cache-maintenance-20261102-000230-5077.log`.
+No CI, remote deployment or business replay. Preserve unrelated untracked summer audit.
+
 Updated 2026-11-01 23:13. Artifact version display correction.
 
 Commitaa1cd3e8 groups instruction output cards by task/attempt/host path identity.
