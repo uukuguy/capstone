@@ -17,6 +17,8 @@ services:
     profiles: [professional]
   general-pi:
     image: ${CAPSTONE_GENERAL_IMAGE:?Set the exact native executor image}
+    environment:
+      CAPSTONE_RESOURCE_PERMISSION_PROFILE: ${CAPSTONE_INTRANET_RESOURCE_PERMISSION_PROFILE:-intranet}
     extra_hosts: ["host.docker.internal:host-gateway"]
     # CentOS 7 needs the table to exist before the first atomic rule replacement.
     # No task starts until the normal executor has applied its complete policy.
