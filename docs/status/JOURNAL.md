@@ -6657,3 +6657,5 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - Recorded compaction and observation validation; refreshed control graph and inspected existing browser tab without opening tabs [dd31e938].
 - Show compaction lifecycle within call records without inflating model counts; 49 focused App checks and types pass [df138a2d].
 - Verified running/completed compaction in an existing browser tab; rebuilt df138a2d with readiness, image parity and scoped cleanup; no CI.
+- Recorded compaction display acceptance and refreshed the inspected control graph; historical tasks remain unchanged [4f03e2a2].
+- Reconnected gateway and verified unchanged contract timestamp; live concurrency remains four; service updates are independent of contract publication.

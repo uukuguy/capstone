@@ -4,6 +4,18 @@
 
 ## Immediate work
 
+Gateway cache/lock update reported; fresh initialize/discover/check at13:43 confirms
+same instance and publication10:43:16.267212. Receipt runs/gateway-cache-diagnostics-20261101,
+check requesta2b38e279b0344278a3fa7ac0330f2e1. Runtime concurrency4 verified. Contract timestamp
+is not a service version; adapter reconnects per invocation and reuses unchanged contracts.
+Gateway reports56 tests and retained-overlap reuse regression; not independently replayed here.
+Historical entry disappearance remains unexplained. Prioritize object/window scope and saved
+observations; small aggregate output does not imply cheap scans. No new code/deployment/CI.
+
+Latest documentation boundary4f03e2a2; tested/deployed productdf138a2d. Updated graph
+was inspected in its existing tab, which was restored afterward. Synthetic preview
+files were removed; screenshots remain under runs/compaction-ui-20261101. No new tabs.
+
 App df138a2d adds chronological compaction rows to the ordinary lightweight call
 trace, including live duration, terminal outcome and incomplete-record handling.
 49 focused App checks and types pass. Existing control tab temporarily displayed
