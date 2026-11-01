@@ -6674,3 +6674,10 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - Separated per-model budgets from frozen task transport capacity to prevent SDK binding rejection; 55 focused checks passed [3e9c8c8e].
 - Rebuilt3e9c8c8e; real metadata task completed40.7s without tool errors; second composition reused references with zero gateway calls.
 - Refreshed and inspected the existing control graph tab; preserved user browser focus and historical task evidence.
+- Recorded verified startup and batch-reference acceptance; retained this journal entry unstaged to avoid a self-referencing commit cycle [b10e3fa6].
+- Added bounded partial search, activation facts and composition-specific guidance to reduce redundant discovery; 71 focused checks passed [b8ae7ba1].
+- Unified task-issued direct observation references for composition reuse; integrity and task isolation checks passed without repeated gateway calls [898f0134].
+- Normalized direct observation roots and preserved saved-path compatibility; 64 focused checks passed without upstream retries [0db2803a].
+- Rebuilt0db2803a; fresh metadata task completed21.9s with four model responses, four tools, zero errors and no repeated retrieval.
+- Reconnected gateway publication16:34:18; preserved frozen tasks and prepared exact selector-error coordination evidence without hardcoded routing.
+- Updated control register and inspected the existing graph tab; restored browser focus and preserved unrelated audit draft.

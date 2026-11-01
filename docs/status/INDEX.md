@@ -1,5 +1,11 @@
 # docs/status INDEX
 
+Local0db2803a unifies task observation references and structured roots; b8ae7ba1
+reduces redundant tool discovery. Fresh metadata task:21.9s,4 model responses,
+4 tools,zero errors or repeated retrievals. Artifact hash and local image parity
+verified. Full summer business acceptance remains pending; no CI or replay.
+See [selector coordination](../reports/2026-11-01-gateway-selector-followup.md).
+
 Local3e9c8c8e fixes executor identity and model-budget binding startup failures.
 Real metadata validation completed40.7s:7 model responses,11 tools,zero errors;
 second composition reused references with no gateway call. Ready/image parity and

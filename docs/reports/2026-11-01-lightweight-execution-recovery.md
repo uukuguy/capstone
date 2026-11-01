@@ -123,7 +123,95 @@ three times and performed discovery before the explicitly requested batch. Those
 extra metadata steps remain a planning-efficiency finding; no provider-specific
 route or mandatory first business tool was added to suppress them.
 
-## Gateway coordination
+## Discovery efficiency correction
+
+Review of the actual search inputs found that the first multi-keyword search
+matched no tool under the old all-terms rule. Two exact-name searches followed.
+Search/load descriptions also implied a mandatory search-and-activation sequence,
+although composition already accepts task-granted tools without menu activation.
+The second discovery partly followed the validation prompt itself, which explicitly
+requested a fresh discovery/check batch after reading gateway guidance. It is not
+evidence that every duplicate gateway call should be cached or blocked.
+
+Commit `b8ae7ba1` prioritizes exact published identities; when no all-terms match
+exists it returns only the best partial matches with an explicit match_mode and
+matched_terms. Filters, pagination, task grants and exact schemas stay enforced.
+Results expose activation state and retained entry names. Guidance distinguishes
+unknown-tool search, direct-call activation and composition contract inspection.
+Schema preflight does not require an extra probe request. No business name,
+provider-specific route or mandatory service-first selection was added.
+68 focused Node checks and3 runner checks passed. The rebuilt continuing-session
+task used discovery and check once each, no search/load calls and no tool errors.
+An empty-session trial then exposed a separate failure, described below. The full
+summer task has not been replayed.
+
+## Direct observation reference correction
+
+Fresh attempt `attempt_b060716daed5ce43`, thread `thr_83c63dbb83f18073dc19`, called
+discovery and check once each. It made no search/load calls, but composition rejected
+the host-issued native-observation reference from the preceding direct discovery.
+The model recovered through the saved file without repeating either gateway call.
+Evidence: `runs/lightweight-discovery-20261101/fresh-records.json`.
+
+Commit `898f0134` closes this direct-call/composition boundary. Validated direct
+results, including small ones, retain immutable observation files. The task ledger
+registers the actual call ID and host-issued source alias with that file identity.
+One resolver serves composition read, inspect, follow and semantic context saves.
+Pointers preserve the original saved JSON root; responses expose observation_ref
+and base_pointer. No name reconstruction, guessed paths or remote retry is used.
+Unknown and cross-task aliases are rejected. File size/hash and workspace checks
+remain enforced. Failed observations cannot authorize follow-up actions.
+
+86 focused Node and34 relay checks passed, including real SDK wrappers, small/large
+direct observations, zero-call read/save reuse, exact returned-action following,
+cross-task rejection and altered-file rejection. Two final focused cases also
+verified failed-source follow rejection. The rebuilt empty-session trial
+`attempt_f27ce0c18e08e7aa` exposed a second boundary issue: direct references kept
+the MCP envelope while composition references exposed its structured result.
+It also used an unregistered free-text concept selector. Neither recovered trial
+is counted as error-free acceptance.
+
+Commit `0db2803a` normalizes direct references to the structured result root.
+One record-aware pointer resolver serves read, inspect, follow and saved contexts.
+The recorded transport prefix remains accepted for existing pointers; explicit
+full_result file objects retain their raw saved-file paths. No business field is
+guessed or renamed.64 focused checks passed, including small/large results,
+both pointer forms, saved-context reload, failed sources and identity rejection.
+
+The gateway was reconnected and now publishes
+`2026-11-01T16:34:18.989104+08:00`. Discovery, full contract and check agree.
+The concept list exists in discovery, but the parameter schema does not identify
+its source or enumerate values. The model's invented selector is invalid; the
+current string schema cannot reject it before the call. A narrow
+[gateway coordination note](2026-11-01-gateway-selector-followup.md) contains the
+exact input and response. It does not ask for a new semantic registry.
+
+## Final short-path acceptance
+
+Local source `0db2803a`, image
+`f56538f8b2f355038bdaeb1f8e7714fd6e3b82a178aa9daf4ba6fd0da0028713`,
+passed readiness and API/worker identity checks. Scoped cleanup receipt:
+`.capstone-agent/cache-maintenance-20261101-164236-92101.log`.
+
+Fresh thread `thr_ecb9987a715958b77bf7`, attempt `attempt_7fe8e93e4f9f9d45`,
+completed in21.885s. First model start was1.017s after attempt start.
+There were4 model responses and4 tool executions, with no tool errors:
+one discovery, one contract check, one composition and one bash artifact write.
+There were no search/load calls or repeated gateway requests. The model used
+the local frozen schema and saved discovery file. This real trial validates the
+main path; opaque-reference root compatibility is covered by the focused tests,
+not asserted as a model-selected path in this trial.
+
+The2269-byte JSON product was downloaded and checked against SHA256
+`1dbf1c106fe51cbe36f99153bd8fe3df22ce3fecddd5dcc0ed0af866191d322f`.
+It records the correct instance, one primary provider, and matching publication
+timestamps. Evidence: `runs/lightweight-normalized-reference-20261101/`.
+The existing validation browser tab was reused. No CI, push, historical snapshot
+change or business replay occurred. The next acceptance step is the full summer
+task, to measure business planning and retrieval counts; this short trial cannot
+establish those results.
+
+## Earlier source-table coordination
 
 The two source-table rejections returned empty `scope` objects and generic
 `invalid_arguments` guidance. Request IDs are
