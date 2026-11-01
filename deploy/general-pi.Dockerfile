@@ -60,6 +60,7 @@ COPY configs/runtime/application-capacity.json capstone_agent/resources/applicat
 COPY packages/capstone-agent/src/capstone_agent/pi_delegation.py capstone_agent/pi_delegation.py
 COPY packages/capstone-agent/src/capstone_agent/business_context.py capstone_agent/business_context.py
 COPY packages/capstone-agent/src/capstone_agent/general_pi_executor.py capstone_agent/general_pi_executor.py
+COPY packages/capstone-agent/src/capstone_agent/answer_presentation.py capstone_agent/answer_presentation.py
 COPY packages/capstone-agent/src/capstone_agent/native_network_policy.py capstone_agent/native_network_policy.py
 COPY packages/capstone-agent/src/capstone_agent/native_environment.py capstone_agent/native_environment.py
 COPY packages/capstone-agent/src/capstone_agent/general_pi_server.py capstone_agent/general_pi_server.py

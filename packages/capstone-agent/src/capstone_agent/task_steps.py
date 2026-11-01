@@ -71,7 +71,11 @@ class TaskStepTracker:
                 self.steps[identity]["completion_requested"] = True
                 self._finish_if_ready(identity)
             elif identity != self.active or phase not in {"updated", "started"}:
-                output["task_step_error"] = "Step transition was not applied; the existing step was retained."
+                output["task_step_error"] = (
+                    f"进度登记未更新：步骤 {identity} 尚未开始，不能标记为 {phase}。已执行工具和已保存产物不受影响。"
+                    if identity not in self.steps else
+                    f"进度登记未更新：步骤 {identity} 不是当前活动步骤，或不接受 {phase} 转换。已执行工具和已保存产物不受影响。"
+                )
             if identity in self.steps:
                 output["task_step"] = self._public(identity)
             return output

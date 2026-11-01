@@ -64,6 +64,8 @@ def test_real_pptx_has_exact_csv_strings_image_notes_and_source_hashes(tmp_path)
     assert output.read_bytes().startswith(b'PK')
     deck=Presentation(output)
     assert len(deck.slides)>=4
+    assert str(deck.slides[0].background.fill.fore_color.rgb) == '172B3B'
+    assert str(deck.slides[1].background.fill.fore_color.rgb) == 'F3F7F7'
     text=deck_text(deck)
     assert all(item in text for item in ['001.2300','12.50%','未记录','Source dataset revision r1','<script>'])
     assert sum(shape.shape_type==13 for slide in deck.slides for shape in slide.shapes)==1

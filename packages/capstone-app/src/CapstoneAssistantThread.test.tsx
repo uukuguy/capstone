@@ -368,7 +368,7 @@ describe('CapstoneAssistantThread', () => {
       event('runtime_event', 5, { task_step_error: 'Step transition was not applied; the existing step was retained.' }, 'branches'),
       event('attempt_failed', 6, { error_code: 'research_cycle_no_progress' }, 'branches')]
     const { container } = render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
-    expect(screen.getByRole('status').textContent).toContain('步骤未推进')
+    expect(screen.getByRole('status').textContent).toContain('进度登记未更新')
     fireEvent.click(screen.getByRole('button', { name: '查看执行过程' }))
     const objective = screen.getByText('解释异常差异').closest('.capstone-business-step-record')!
     expect(within(objective as HTMLElement).getAllByText('缺数解释不足').length).toBeGreaterThan(0)

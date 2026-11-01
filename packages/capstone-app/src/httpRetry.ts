@@ -1,4 +1,5 @@
 import {applicationCapacity} from './applicationCapacity'
+import {observeServerClock} from './serverClock'
 
 function waitForRetry(ms: number, signal?: AbortSignal | null): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -17,6 +18,7 @@ export async function fetchWithReadRetry(url: string, init: RequestInit = {}, fe
   for (let attempt = 0; attempt < attempts; attempt++) {
     init.signal?.throwIfAborted()
     let response: Response
+    const started = performance.now()
     try { response = await fetcher.call(globalThis, url, init) }
     catch (cause) {
       if (!read || attempt + 1 === attempts || !(cause instanceof TypeError)) throw cause
@@ -28,6 +30,9 @@ export async function fetchWithReadRetry(url: string, init: RequestInit = {}, fe
       await waitForRetry(Math.min(applicationCapacity('ui_read_retry_base_ms') * 2 ** attempt, applicationCapacity('ui_read_retry_max_ms')), init.signal)
       continue
     }
+    const configuredOrigin = import.meta.env.VITE_API_ORIGIN || window.location.origin
+    if (new URL(url, window.location.href).origin === new URL(configuredOrigin).origin && response.ok)
+      observeServerClock(response.headers.get('Date'), started, performance.now())
     return response
   }
   throw new Error('读取请求未完成')

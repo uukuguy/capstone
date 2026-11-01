@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from .answer_presentation import public_answer
 import base64
 from hashlib import sha256
 import os
@@ -551,6 +552,7 @@ class GeneralPiProcess:
                     self.usage['native_tools'] = self.tools
                     answer = ''.join(part.get('text', '') for part in assistants[-1].get('content', [])
                                      if part.get('type') == 'text')
+                    answer = public_answer(answer)
                     if not answer.strip():
                         raise ValueError('General Pi answer is invalid')
                     require_capacity('answer_bytes', len(answer.encode('utf-8')), 'native_answer')

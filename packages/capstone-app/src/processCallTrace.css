@@ -70,3 +70,5 @@
 .capstone-call-notice span { overflow-wrap: anywhere; }
 .capstone-call-notice.is-error { color: #873b2d; background: #fff3ef; border-color: #bf614b; }
 .capstone-call-notice.is-warning { color: #795514; background: #fff8e8; border-color: #bc8c35; }
+
+.capstone-call-model strong.capstone-call-purpose { font-weight: 600; }

@@ -273,6 +273,14 @@ def render_presentation(spec_path, output, *, check_only=False):
         deck.slide_width, deck.slide_height = Inches(13.333), Inches(7.5)
         font = 'Noto Sans CJK SC'
         ink, teal, muted = RGBColor(23,43,59), RGBColor(33,119,120), RGBColor(82,103,116)
+        from pptx.enum.shapes import MSO_SHAPE
+        paper, white = RGBColor(243,247,247), RGBColor(255,255,255)
+
+        def panel(slide, x, y, width, height, color):
+            shape = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(x), Inches(y), Inches(width), Inches(height))
+            shape.fill.solid()
+            shape.fill.fore_color.rgb = color
+            shape.line.fill.background()
         footers, image_bytes, figures, tables, table_rows = [], 0, 0, 0, 0
 
         def literal(value, field, maximum):
@@ -312,11 +320,18 @@ def render_presentation(spec_path, output, *, check_only=False):
             if len(deck.slides) >= 120:
                 raise ReportError('presentation exceeds the 120 rendered-slide budget; prepare a smaller content spec')
             slide = deck.slides.add_slide(deck.slide_layouts[6])
+            slide.background.fill.solid()
+            slide.background.fill.fore_color.rgb = ink if cover else paper
+            if cover:
+                panel(slide,0,0,.18,7.5,teal)
+                panel(slide,.8,5.95,1.2,.08,RGBColor(98,194,182))
+            else:
+                panel(slide,0,0,13.333,.09,teal)
             lines = wrap(literal(title, 'slide title', 160), 38 if cover else 52)
             if len(lines) > (4 if cover else 2):
                 raise ReportError('slide title is too long for its fixed layout')
             textbox(slide,.8,1.3 if cover else .35,11.7,2.3 if cover else .95,
-                    lines,34 if cover else 27,teal,True)
+                    lines,34 if cover else 27,white if cover else ink,True)
             if notes:
                 slide.notes_slide.notes_text_frame.text = '\n'.join(notes)
             footers.append((slide,notes))
@@ -326,7 +341,7 @@ def render_presentation(spec_path, output, *, check_only=False):
         if 'subtitle' in spec:
             lines = wrap(literal(spec['subtitle'], 'subtitle', 500),84)
             if len(lines)>6:raise ReportError('subtitle is too long for the cover layout')
-            textbox(cover,.8,4,11.7,2,lines,18,muted)
+            textbox(cover,.8,4,11.7,1.8,lines,18,RGBColor(199,219,221))
 
         block_errors = []
         for index, content in enumerate(spec['slides']):
@@ -426,13 +441,15 @@ def render_presentation(spec_path, output, *, check_only=False):
                                 for column,value in enumerate(values):
                                     cell=table.cell(row_number,column)
                                     cell.text=value
+                                    cell.fill.solid()
+                                    cell.fill.fore_color.rgb=teal if row_number==0 else (paper if row_number%2==0 else white)
                                     cell.margin_left=cell.margin_right=Inches(.06)
                                     cell.margin_top=cell.margin_bottom=Inches(.03)
                                     cell.text_frame.word_wrap=True
                                     for paragraph in cell.text_frame.paragraphs:
                                         paragraph.font.name,paragraph.font.size=font,Pt(12)
                                         paragraph.font.bold=row_number==0
-                                        paragraph.font.color.rgb=teal if row_number==0 else ink
+                                        paragraph.font.color.rgb=white if row_number==0 else ink
                             tables+=1
                         table_rows+=len(rows)
                     elif kind == 'figure':
@@ -476,7 +493,7 @@ def render_presentation(spec_path, output, *, check_only=False):
                 'code': 'presentation_invalid', 'errors': block_errors, 'output_written': False})
         for number,(slide,notes) in enumerate(footers,1):
             if notes:textbox(slide,.8,6.85,10.7,.4,wrap(' · '.join(notes),140),10,muted)
-            textbox(slide,11.8,7.0,.7,.25,[f'{number}/{len(deck.slides)}'],10,muted)
+            textbox(slide,11.8,7.0,.7,.25,[f'{number}/{len(deck.slides)}'],10,RGBColor(199,219,221) if number==1 else muted)
         stream=io.BytesIO();deck.save(stream)
         if stream.tell()>64*1024*1024:raise ReportError('PPTX exceeds the 64 MiB output processing budget')
         if not check_only:

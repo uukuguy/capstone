@@ -1,3 +1,4 @@
+import {serverNow} from './serverClock'
 import ResearchProgressSummary from './ResearchProgressSummary'
 import {applicationCapacity,observeCapacity} from './applicationCapacity'
 import {capacityFailureNotice} from './capacityFailure'
@@ -628,10 +629,10 @@ function ChatActions({ evidenceOpen = false, onShowEvidence, onShowNetwork, role
 }
 
 function RunDuration({ startedAt, durationMs, running }: { startedAt?: string; durationMs?: number; running: boolean }) {
-  const [now, setNow] = useState(() => Date.now())
+  const [now, setNow] = useState(() => serverNow())
   useEffect(() => {
     if (!running) return undefined
-    const timer = window.setInterval(() => setNow(Date.now()), 1000)
+    const timer = window.setInterval(() => setNow(serverNow()), 1000)
     return () => window.clearInterval(timer)
   }, [running])
   const liveDuration = startedAt ? durationBetween(startedAt, new Date(now).toISOString()) : undefined
@@ -817,10 +818,10 @@ function AttemptActivity({ activities, modelRequests = [], compactions = [], ini
     setStepOpenStates(previous => ({ ...previous, ...updates }))
     setFoldCommand(previous => ({ open: value, revision: (previous?.revision ?? 0) + 1 }))
   }
-  const [now, setNow] = useState(() => Date.now())
+  const [now, setNow] = useState(() => serverNow())
   useEffect(() => {
     if (!running) return undefined
-    const timer = window.setInterval(() => setNow(Date.now()), 1000)
+    const timer = window.setInterval(() => setNow(serverNow()), 1000)
     return () => window.clearInterval(timer)
   }, [running])
   const liveDuration = startedAt ? durationBetween(startedAt, new Date(now).toISOString()) : undefined
@@ -894,13 +895,13 @@ function AttemptActivity({ activities, modelRequests = [], compactions = [], ini
         node?.scrollIntoView({ block: 'start', behavior: 'smooth' })
       }}>{String(step.number).padStart(2, '0')} {step.title}</button>)}</nav>}
       {goalText && <p className="capstone-task-goal">{goalText}</p>}
-      {diagnostics.map(item => <StepErrorDetails key={item.id} label="步骤未推进" reason={item.text} />)}
+      {diagnostics.map(item => <StepErrorDetails key={item.id} label="进度登记未更新" reason={item.text} />)}
       <TaskProgressItems items={progress.filter(item => !item.stepId && item.kind !== 'goal')} />
       {process(true)}
       {branches.some(branch => !steps.some(step => step.id === branch.parentStepId)) && <ResearchBranchItems expandedResearch branches={branches.filter(branch => !steps.some(step => step.id === branch.parentStepId))} storageKey={`${stepStorageKey}:reader`} />}
       {hasAuxiliary && <aside className="capstone-process-auxiliary">{auxiliary}</aside>}
     </div>
-  </AnswerDetailSheet>}{!hasProcess ? <button type="button" className="capstone-process-auxiliary-entry" aria-label="放大阅读执行过程" title="查看任务资料与记录" onClick={openReader}><Maximize2 aria-hidden="true" />任务资料与记录</button> : <div className={`capstone-chat-activity-frame${running ? ' is-running' : ' is-settled'}`} aria-busy={running}>{branches.some(branch => !steps.some(step => step.id === branch.parentStepId)) && <div aria-label="父步骤未在当前记录中的子分支"><ResearchBranchItems branches={branches.filter(branch => !steps.some(step => step.id === branch.parentStepId))} storageKey={stepStorageKey} /></div>}{diagnostics.map(item => <StepErrorDetails key={item.id} label="步骤未推进" reason={item.text} />)}<details ref={detailsRef} className={`capstone-chat-activity capstone-chat-activity-attached${terminalClass}`} open={processOpen} onToggle={event=>{if(followLightweight&&!event.currentTarget.open){event.currentTarget.open=true;return}onOpenChange(event.currentTarget.open)}}>
+  </AnswerDetailSheet>}{!hasProcess ? <button type="button" className="capstone-process-auxiliary-entry" aria-label="放大阅读执行过程" title="查看任务资料与记录" onClick={openReader}><Maximize2 aria-hidden="true" />任务资料与记录</button> : <div className={`capstone-chat-activity-frame${running ? ' is-running' : ' is-settled'}`} aria-busy={running}>{branches.some(branch => !steps.some(step => step.id === branch.parentStepId)) && <div aria-label="父步骤未在当前记录中的子分支"><ResearchBranchItems branches={branches.filter(branch => !steps.some(step => step.id === branch.parentStepId))} storageKey={stepStorageKey} /></div>}{diagnostics.map(item => <StepErrorDetails key={item.id} label="进度登记未更新" reason={item.text} />)}<details ref={detailsRef} className={`capstone-chat-activity capstone-chat-activity-attached${terminalClass}`} open={processOpen} onToggle={event=>{if(followLightweight&&!event.currentTarget.open){event.currentTarget.open=true;return}onOpenChange(event.currentTarget.open)}}>
     <summary><Activity aria-hidden="true" /><span title={toolCount===0?'当前记录未提供可核对的工具调用数量，可查看执行过程。':undefined}>{running ? '正在执行' : terminalLabel} {focus === 'thinking' ? (running&&parentModels.length===0?'准备执行':'思考状态') : <>{focus === 'tasks' && foldSteps.length > 0 ? `${foldSteps.length} 个任务步骤 · ` : ''}{toolCount>0?`${toolCount} 次工具调用`:'工具调用数未记录'}</>}{modelSummary}{elapsed === undefined ? '' : ` · 总耗时 ${formatDuration(elapsed)}`}</span>{traceIssues.length > 0 && <button type="button" className="capstone-process-trace-warning" aria-label="定位工具记录缺失" onClick={event => { event.preventDefault(); event.stopPropagation(); openReader(); setTraceFocus(previous => ({ ...traceIssues[0], revision: (previous?.revision ?? 0) + 1 })) }}><AlertTriangle aria-hidden="true" />工具记录缺失 · {traceIssues.reduce((sum, issue) => sum + issue.missingToolIds.length, 0)}项</button>}{!open && <small>查看执行过程</small>}<span className="capstone-process-toolbar">{processOpen&&focus==='tools'&&toolCount>0&&toolControls(false)}{open && focus === 'tasks' && foldSteps.length > 0 && <span className="capstone-process-controls" role="group" aria-label="步骤显示"><button type="button" aria-label="展开步骤" title="展开全部步骤" disabled={foldSteps.every(step => isStepOpen(step.id))} onClick={event => { event.preventDefault(); event.stopPropagation(); foldAll(true) }}><ChevronsUpDown aria-hidden="true" /></button><button type="button" aria-label="折叠步骤" title="折叠全部步骤" disabled={foldSteps.every(step => !isStepOpen(step.id))} onClick={event => { event.preventDefault(); event.stopPropagation(); foldAll(false) }}><ChevronsDownUp aria-hidden="true" /></button></span>}<button type="button" className="capstone-process-enlarge" title="放大阅读执行过程" aria-label="放大阅读执行过程" onClick={event => { event.preventDefault(); event.stopPropagation(); openReader() }}><Maximize2 aria-hidden="true" /></button></span></summary>
     {(!running || processOpen) && <div ref={processViewport} onScroll={observeProcessScroll} className="capstone-complete-process">{goalText && <p className="capstone-task-goal">{goalText}</p>}<TaskProgressItems items={progress.filter(item => !item.stepId && item.kind !== 'goal')} />{process()}</div>}
   </details>{executionGraph&&<ResearchProgressSummary nodes={executionGraph.current.nodes} limitations={[...progress.filter(item=>item.kind==='limitation').map(item=>item.text),...executionGraph.executions.flatMap(item=>item.tools.flatMap(tool=>tool.returnLimitations?.notes??[]))]} running={running}/ >}{lastWork && <div className="capstone-chat-activity-preview" aria-label="中断前的工作记录"><p className="capstone-task-goal">中断前的工作记录（不代表任务已完成）</p><TaskProgressItems items={[lastWork]} /></div>}{running && !processOpen && !executionGraph && <div ref={processViewport} onScroll={observeProcessScroll} className="capstone-chat-activity-preview" aria-label="执行过程预览">{goalText && <p className="capstone-task-goal">{goalText}</p>}<TaskProgressItems items={progress.filter(item => !item.stepId && item.kind !== 'goal')} />{process()}</div>}</div>}</>
@@ -1070,7 +1071,7 @@ function ChatMessage({ selectedNetworkAttempt, networkAttemptIds = [], onShowNet
         <ThreadSystemNotice tone={custom?.terminalPhase === 'failed' ? 'error' : 'info'}><MarkdownMessage>{terminalNotice}</MarkdownMessage></ThreadSystemNotice>
       </> : completedAnswer ? <FoldableAnswer id={id} text={text} author={author} finishedAt={finishedAt} /> : hasText
         ? role==='assistant'?<MarkdownMessage>{text}</MarkdownMessage>:<MessagePrimitive.Parts components={{Text:()=> <MessagePartPrimitive.Text smooth={false} component="p" />}}/>
-        : role === 'assistant' && <span className={`capstone-chat-placeholder${terminalWithoutText ? ' is-terminal' : ''}`}>{terminalWithoutText ? 'Attempt 已结束，暂无可显示的回答。' : '正在生成回答…'}</span>}
+        : role === 'assistant' && <span className={`capstone-chat-placeholder${terminalWithoutText ? ' is-terminal' : ''}`}>{terminalWithoutText ? 'Attempt 已结束，暂无可显示的回答。' : (custom?.initialThinking as InitialThinking|undefined)?.phase==='queued'?'等待执行…':'正在生成回答…'}</span>}
     </div>
     {completedAnswer && onOpenTaskResults && <div className="capstone-result-products">{taskResultCollections(attemptResultProjections, attemptId).map(collection => <button key={collection.id} type="button" className="capstone-result-product" onClick={() => onOpenTaskResults(collection)} aria-label={`打开${collection.title}`}><Activity aria-hidden="true" /><span><strong>{collection.title}</strong><small>本次指令 · {collection.results.length} 项分析结果</small></span><span aria-hidden="true">↗</span></button>)}</div>}
     {role==='assistant'&&onOpenNativeArtifact&&attemptFiles.length>0&&<InstructionFiles files={attemptFiles} onOpen={onOpenNativeArtifact}/>}
