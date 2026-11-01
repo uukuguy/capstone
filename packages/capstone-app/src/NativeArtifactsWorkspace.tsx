@@ -5,6 +5,7 @@ import remarkGfm from 'remark-gfm'
 import {csvMarkdown} from './csvMarkdown'
 import type {NativeArtifact,NativeArtifactPage} from './nativeArtifacts'
 import {nativeArtifactSavedTime} from './nativeArtifacts'
+import {instructionProductLabel,type InstructionProductScope} from './instructionProducts'
 import './nativeArtifacts.css'
 import PptxPreview from './PptxPreview'
 import {codeLanguage} from './codeLanguage'
@@ -68,11 +69,12 @@ export function NativeFileContent({name,media,url,text,textUnavailable,previewSi
 }
 
 /** An authenticated reader supplies verified bytes. This view never executes or promotes files. */
-export default function NativeArtifactsWorkspace({client,threadId,attemptIds,revision,requestedArtifact,attemptLabels,onAdopt}: {
+export default function NativeArtifactsWorkspace({client,threadId,attemptIds,revision,requestedArtifact,attemptLabels,onAdopt,instructionScope,onClearInstructionScope}: {
   client:FileClient;threadId:string;attemptIds:readonly string[];revision:number
   requestedArtifact?:{attemptId:string;artifactId:string;nonce?:number}
   attemptLabels?:Readonly<Record<string,string>>
   onAdopt?:(artifact:NativeArtifact)=>void
+  instructionScope?:InstructionProductScope;onClearInstructionScope?:()=>void
 }) {
   const [directory,setDirectory]=useState<{thread:string;files:NativeArtifact[]}>({thread:threadId,files:[]})
   const [selection,setSelection]=useSessionViewState<Selection|undefined>('files.selection',undefined)
@@ -91,8 +93,8 @@ export default function NativeArtifactsWorkspace({client,threadId,attemptIds,rev
   clientRef.current=client
   const requestKey=JSON.stringify(requestedArtifact||null)
   const attemptsKey=JSON.stringify([...new Set([...attemptIds,...(requestedArtifact?[requestedArtifact.attemptId]:[])])])
-  const files=directory.thread===threadId?directory.files:[]
-  const target=selection?.threadId===threadId&&selection.requestKey===requestKey?selection:requestedArtifact
+  const files=directory.thread===threadId?directory.files.filter(file=>!instructionScope||file.attempt_id===instructionScope.attemptId):[]
+  const target=selection?.threadId===threadId&&selection.requestKey===requestKey&&(!instructionScope||selection.attemptId===instructionScope.attemptId)?selection:requestedArtifact
   const chosen=target?files.find(file=>target.attemptId===file.attempt_id&&target.artifactId===file.artifact_id):files[0]
   const chosenKey=chosen?fileKey(chosen):undefined
 
@@ -158,7 +160,7 @@ export default function NativeArtifactsWorkspace({client,threadId,attemptIds,rev
   const currentPreview=preview?.key===chosenKey?preview:undefined
   if(fatalError)return <p role="alert">{fatalError.message}</p>
   return <section className="native-artifacts-workspace" aria-label="指令文件">
-    <header><h3>指令文件</h3><p>执行中实际生成并保存的文件，保留各次执行的归属。</p></header>
+    <header><h3>{instructionScope?`${instructionProductLabel(instructionScope)} · ${instructionScope.text}`:'指令文件'}</h3>{instructionScope&&<button type="button" onClick={onClearInstructionScope}>全部制品</button>}<p>执行中实际生成并保存的文件，保留各次执行的归属。</p></header>
     {files.length>0&&<ul className="native-artifact-list" aria-label="已保存文件">{files.map(file=><li key={fileKey(file)}><button type="button" aria-label={file.file_name} aria-pressed={fileKey(file)===chosenKey} title={attemptLabels?.[file.attempt_id]||file.file_name}
       onClick={()=>setSelection({threadId,attemptId:file.attempt_id,artifactId:file.artifact_id,requestKey})}><span>{file.file_name}</span><small><time dateTime={file.saved_at}>{nativeArtifactSavedTime(file)}</time></small><small>{statusNames[file.source_status]||'执行记录'} · {Math.ceil(file.size_bytes/1024)} KB</small>{attemptLabels?.[file.attempt_id]&&<small className="native-artifact-origin">{attemptLabels[file.attempt_id]}</small>}</button></li>)}</ul>}
     {!loading&&!files.length&&!directoryError&&<p>尚无已保存的指令文件。</p>}

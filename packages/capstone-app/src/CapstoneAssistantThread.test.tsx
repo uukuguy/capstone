@@ -491,6 +491,16 @@ describe('CapstoneAssistantThread', () => {
     expect(projectAssistantActivity([started,ended,observation,retry])).toMatchObject([{label:'read',status:'failed',finishedAt:ended.occurredAt,durationMs:1000},{label:'read',status:'running'}])
     expect(projectAssistantActivity([{...observation,payload:{...observation.payload,reference:{kind:'native_tool_observation',task_id:'pi_live',parent_attempt_id:'other_attempt',metadata:{tool_name:'read',tool_call_id:'call_live'}}}}])).toEqual([])
   })
+  it('opens the same numbered instruction products from both message toolbars',()=>{
+    const open=vi.fn()
+    const rows=[event('command_accepted',1,{kind:'send_auto',payload:{text:'生成第一份报告'}},'one'),event('attempt_completed',2,{answer:'第一份完成'},'one'),event('command_accepted',3,{kind:'send_auto',payload:{text:'生成第二份报告'}},'two'),event('attempt_completed',4,{answer:'第二份完成'},'two')]
+    render(<CapstoneAssistantThread events={rows} onOpenInstructionProducts={open} disabled={false} isRunning={false} activity={[]} onSend={async()=>{}} onCancel={async()=>{}} />)
+    const actions=screen.getAllByRole('button',{name:'查看指令 02的制品'})
+    expect(actions).toHaveLength(2)
+    for(const action of actions)fireEvent.click(action)
+    expect(open).toHaveBeenNthCalledWith(1,{attemptId:'two',number:2,text:'生成第二份报告'})
+    expect(open).toHaveBeenNthCalledWith(2,{attemptId:'two',number:2,text:'生成第二份报告'})
+  })
   it('shows a persisted instruction file only beneath its owning answer',()=>{
     const digest='a'.repeat(64),artifactId=`file-${'b'.repeat(16)}-${digest}`
     const artifact={schema:'capstone-process-artifact/1',scope:'instruction',thread_id:'thr_demo',run_id:'run_demo',turn_id:'turn_one',attempt_id:'one',work_id:null,task_snapshot_id:null,goal_revision:null,task_id:'native_one',artifact_id:artifactId,executor_identity_sha256:'c'.repeat(64),source_status:'completed',file_name:'已保存说明.md',media_type:'text/markdown',sha256:digest,size_bytes:12,download_url:`/api/v1/threads/thr_demo/attempts/one/artifacts/${artifactId}`}

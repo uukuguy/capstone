@@ -346,6 +346,9 @@ export class ThreadProjectionStore {
   get conversationEvents(): readonly EventEnvelope[] {
     return mergeHistoryEvents([...this.conversationArchive.values()],this.publicEvents)
   }
+  get conversationHistoryReady(): boolean {
+    return !this.client.supportsHistory||this.conversationHistoryComplete
+  }
 
   private retainConversation(events:readonly EventEnvelope[]):void {
     for(const event of events)if(event.visibility==='public'&&[
@@ -364,7 +367,7 @@ export class ThreadProjectionStore {
       if(signal?.aborted||generation!==this.loadGeneration)return
       this.retainConversation(page.events)
       this.notify()
-      if(!page.hasMore){this.conversationHistoryComplete=true;return}
+      if(!page.hasMore){this.conversationHistoryComplete=true;this.notify();return}
       if(page.nextBeforeEventSeq>=cursor)throw new Error('历史消息游标未前进')
       cursor=page.nextBeforeEventSeq
     }
