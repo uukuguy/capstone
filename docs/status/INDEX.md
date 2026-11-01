@@ -1,5 +1,11 @@
 # docs/status INDEX
 
+Local3e9c8c8e fixes executor identity and model-budget binding startup failures.
+Real metadata validation completed40.7s:7 model responses,11 tools,zero errors;
+second composition reused references with no gateway call. Ready/image parity and
+artifact hash verified. No CI or historical business replay. Planning redundancy
+remains separate from mechanism acceptance; see the main-path diagnosis below.
+
 Local67650a8e restores runtime startup and deploys shared observation recovery diagnostics
 and model context policies. Focused checks and readiness pass; no CI or historical replay.
 See [main-path diagnosis](../reports/2026-11-01-lightweight-execution-recovery.md).

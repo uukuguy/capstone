@@ -58,20 +58,70 @@ It also fixes the model-profile loader package identity found during the first
 rebuild. Scoped cache cleanup completed. No historical business request was replayed;
 reduced model/tool counts are not yet a measured acceptance result.
 
-## Next execution work
+## Follow-up implementation and acceptance
 
-- Make whole-batch schema preflight use the same frozen contract and validation
-  semantics as ordinary invocation; do not add business-name routing or silently
-  drop parameters. Independent calls already in flight cannot be rolled back.
-- Improve direct saved-result access so structure inspection does not require
-  repeated shell/model turns. Keep references scoped and reads bounded.
-- Review failure receipts: `completed_calls.slice(-8)` hides earlier handles
-  for larger failed programs. Preserve a bounded, retrievable complete manifest
-  rather than encouraging re-execution. This limit was not the cause of the
-  seven-call failure in this attempt.
-- Keep program completion separate from nested tool success. A program that
-  intentionally handles a failed call may succeed, but its returned observation
-  summary must preserve that failure for the next decision.
+Commit `1253ae06` implements these four changes:
+
+- Whole-batch preflight uses the task's frozen schema and the same validator as
+  ordinary invocation. Invalid batches make no upstream calls and do not consume
+  reservations. Already running independent calls cannot be rolled back.
+- `tools.inspect` provides bounded saved-result structure inspection. `tools.read`
+  keeps its direct return shape and uses existing scoped references.
+- Failure receipts retain every completed-call handle. Large manifests spill to
+  saved storage for bounded paging. They no longer retain only the last eight.
+- Successful programs report nested failure counts and references separately.
+
+53 focused Node and34 Python checks passed, including the protected HTTP relay,
+deep schema rejection, concurrent capacity reservation and large-manifest recovery.
+The canonical rebuild passed readiness and image parity. This is mechanism
+verification, not proof that a new business task uses fewer calls.
+
+A new metadata-only validation then failed at task admission before any LLM or
+tool call. The worker supplied executor config revision `e49c27a1`; after restart
+the executor supplied `00a0512a`, with the same executable source revision. Startup
+had hashed mutable gateway publication into executor identity. Commit `cad400bb`
+removes that coupling; per-task gateway binding and catalog validation remain.
+A startup regression reproduces the original failure and checks stable identity
+across gateway publication changes while runtime changes still alter identity.
+142 focused host/relay checks passed,32 environment-dependent cases skipped,6.9s.
+The cad400bb rebuild passed readiness and image parity. Task admission then passed,
+but the SDK rejected initialization before any model/tool call. The model-context
+change had also overwritten the SDK's transport capacity snapshot. Research and
+history bindings retained the application snapshot, so their strict capacity
+equality checks failed. Commit `3e9c8c8e` keeps these contracts separate: selected
+model budgets remain in models.json and compaction settings, while runtimeLimits
+still matches the task bindings. All55 focused executor checks passed in2.48s.
+Commit `d2ea0fd7` also retains bounded SDK module/line and exception-type diagnostics
+in private failure receipts; exception text, parameters and external paths are
+excluded. One Node and two Python focused checks passed.
+The final canonical rebuild3e9c8c8e passed readiness and API/worker image parity
+(`6695620c1d567f43379dc2f09db7263a162175b85877cb6c9a4a4be15f039c48`).
+Scoped cleanup155253-99654 completed.
+Failure evidence: `runs/lightweight-batch-20261101/page1.json` and
+`validation-page1.json`. Neither failure reached a gateway business call.
+
+## Real-model validation
+
+Attempt `attempt_1d4ae7f8970f548d` completed in40.705s; first model start was0.999s
+after attempt start. It used7 model responses and11 tool calls, with zero tool
+errors. Four calls reached gateway metadata tools: discovery twice, one contract
+description and one lightweight contract check. The other calls were three tool
+searches, one tool load, two composition programs and one local JSON check.
+
+The first composition used tools.batch for discovery and contract check, then
+tools.inspect and field extraction. The second composition reused both returned
+program-call references via tools.read; its host receipt reports calls=0 and
+failed_call_count=0. No business data, SQL or historical query was executed.
+The final4642-byte JSON artifact was downloaded through the App API and its SHA256
+verified (`cc70514bb2dc10b738a01d5310ff9aa70209c72c6396e8f78734c2ff4ca54083`).
+Evidence: `runs/lightweight-batch-20261101/final-records.json` and
+`gateway_ref_reuse_verification.json`.
+
+This validates startup, real batch execution and reference-only reuse. It does
+not establish optimal task planning or business performance. The model searched
+three times and performed discovery before the explicitly requested batch. Those
+extra metadata steps remain a planning-efficiency finding; no provider-specific
+route or mandatory first business tool was added to suppress them.
 
 ## Gateway coordination
 

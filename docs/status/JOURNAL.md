@@ -6666,3 +6666,11 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - Unified observation pointer diagnostics to enable result reuse; 38 focused checks passed without upstream calls [a45bd3c8].
 - Fixed runtime profile-loader package identity after rebuild exposed relative-import failure; focused launcher regression passed [67650a8e].
 - Rebuilt67650a8e: readiness and image parity pass; scoped cleanup complete; inspected updated control graph in existing tab, then restored selection.
+- Recorded main-path recovery diagnosis and verified local deployment; preserved unfinished batch work and prior audit draft [404562aa].
+- Added frozen-schema batch preflight, complete recovery manifests and bounded inspection; 53 Node and 34 Python checks passed [1253ae06].
+- Preserved configured gateway labels over reported instance names; 13 focused App checks passed; renamed private intranet connection [c00bfb15].
+- Separated dynamic gateway publication from executor identity to prevent restart admission failures; 142 focused checks passed [cad400bb].
+- Retained bounded SDK failure locations for startup diagnosis without recording exception values; three focused checks passed [d2ea0fd7].
+- Separated per-model budgets from frozen task transport capacity to prevent SDK binding rejection; 55 focused checks passed [3e9c8c8e].
+- Rebuilt3e9c8c8e; real metadata task completed40.7s without tool errors; second composition reused references with zero gateway calls.
+- Refreshed and inspected the existing control graph tab; preserved user browser focus and historical task evidence.
