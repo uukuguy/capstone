@@ -33,7 +33,7 @@ export default function GatewayStatus({gateway,notice,onRefresh,connections,onSe
   const inspected=connections?.entries.find(entry=>entry.id===inspectedId)??selected
   gateway=connections?(selected?.identity??connections.bound_instance??{available:selected?.status==='connected',...(selected?{endpoint:address(selected.url)}:{})}):gateway!
   const unavailable=connections?selected?.status==='disconnected':!gateway.available
-  const label=selected?.identity?.instance_name||selected?.label||gateway.instance_name||gateway.endpoint||gateway.server_name||(gateway.connection_name&&gateway.connection_name.length<=20?gateway.connection_name:undefined)||'数据网关'
+  const label=selected?.label||selected?.identity?.instance_name||gateway.instance_name||gateway.endpoint||gateway.server_name||(gateway.connection_name&&gateway.connection_name.length<=20?gateway.connection_name:undefined)||'数据网关'
   const failure=(cause:unknown,fallback:string)=>{
     const message=cause instanceof Error?cause.message:''
     return message&&message.length<=256&&(!input.token||!message.includes(input.token))&&!/(?:authorization|password|api[_ -]?key|token)\s*[:=]/i.test(message)?message:fallback
@@ -69,7 +69,7 @@ export default function GatewayStatus({gateway,notice,onRefresh,connections,onSe
       {selected.contract&&<p role="status">{selected.contract.available?'契约已更新':'契约更新失败'} · {checkedTime(selected.contract.checked_at)}</p>}
     </div>}
     {connections&&<><div className="gateway-connection-list">{connections.entries.map(entry=><button type="button" key={entry.id} className={`gateway-connection${entry.id===inspectedId?' is-inspected':''}`} aria-pressed={entry.id===connections.selected_id} onClick={()=>{setInspectedId(entry.id);if(inspection.current)inspection.current.open=true}}>
-      <span className="gateway-connection-copy"><strong>{entry.identity?.instance_name||entry.label}</strong><small>{address(entry.url)}</small></span><span className={`gateway-connection-state is-${entry.status}`}><i aria-hidden="true"/>{selecting===entry.id?'切换中':statusLabels[entry.status]}</span>{entry.id===connections.selected_id&&<Check size={14} aria-label="当前连接"/>}
+      <span className="gateway-connection-copy"><strong>{entry.label||entry.identity?.instance_name}</strong><small>{address(entry.url)}</small></span><span className={`gateway-connection-state is-${entry.status}`}><i aria-hidden="true"/>{selecting===entry.id?'切换中':statusLabels[entry.status]}</span>{entry.id===connections.selected_id&&<Check size={14} aria-label="当前连接"/>}
     </button>)}</div>{!connections.entries.length&&<p>尚未添加网关</p>}
     {onProbe&&onAdd&&!adding&&<button type="button" className="gateway-add-button" disabled={saving} onClick={()=>{setAdding(true);setError('')}}><Plus size={14}/>添加网关</button>}
     {adding&&<form className="gateway-add-form" onSubmit={event=>{event.preventDefault();void testConnection()}}>
@@ -81,7 +81,7 @@ export default function GatewayStatus({gateway,notice,onRefresh,connections,onSe
     </form>}</>}
     {error&&<p role="alert">{error}</p>}
     {connections?<details ref={inspection} className="gateway-instance-details" key={inspectedId??'initial'} open={inspectedId!==undefined}><summary>实例详情</summary>
-      {inspected&&<div className="gateway-inspector-heading"><strong>{inspected.identity?.instance_name||inspected.label}</strong><button className="gateway-use-button" type="button" disabled={connections.locked||!onSelect||Boolean(selecting)||inspected.id===connections.selected_id} onClick={()=>void select(inspected.id)}>{inspected.id===connections.selected_id?'当前使用':selecting===inspected.id?'切换中…':'使用此网关'}</button></div>}
+      {inspected&&<div className="gateway-inspector-heading"><strong>{inspected.label||inspected.identity?.instance_name}</strong><button className="gateway-use-button" type="button" disabled={connections.locked||!onSelect||Boolean(selecting)||inspected.id===connections.selected_id} onClick={()=>void select(inspected.id)}>{inspected.id===connections.selected_id?'当前使用':selecting===inspected.id?'切换中…':'使用此网关'}</button></div>}
       {details}
       {technicalFields.length>0&&<details className="gateway-technical-details"><summary>更多连接信息</summary><dl>{technicalFields.map(([name,value])=><div className="gateway-status-row" key={name}><dt>{name}</dt><dd>{value}</dd></div>)}</dl></details>}
     </details>:details}
