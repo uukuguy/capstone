@@ -1,6 +1,14 @@
 # Live Session Checkpoint
 
-Updated 2026-11-01 20:00. Active correction, not final acceptance.
+Updated 2026-11-01 23:00. Active PDF preview correction.
+
+User reports intranet server disconnected; do not deploy remotely.
+Commit2800da79 fixes PDF sandbox rejection and application/octet-stream filename
+fallback. Browser reproduced restricted-frame failure versus normal13-page view.
+17 focused App/transport tests and types passed; actual component browser preview
+and canonical local rebuild passed. Same backend image1be4fbda; App2800da79.
+Scoped cleanup receipt cache-maintenance-20261101-230249-59432.log. Evidence runs/pdf-preview-fix-20261101;
+log /tmp/capstone-pdf-rebuild.log. No CI, no business task replay.
 
 Shared correction commit `7ea289f2`: PPT theme; API-clock elapsed time;
 queued wording; step-registration diagnosis; purpose fallbacks; explicit final

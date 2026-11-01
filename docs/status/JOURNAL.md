@@ -6711,3 +6711,7 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 2026-11-01: 7ea289f2 fixes shared PPT styling and execution presentation; deployment validation remains pending.
 - 2026-11-01: 7ea289f2 deployed locally and intranet; same executor/report bytes, healthy services, 5.895s Chinese short task and browser passed.
 - 2026-11-01: Deployment register and graph include intranet source7ea289f2; browser layout inspected; doctor, symlink and diff checks passed.
+- 2026-11-01: 7dd20f9a records intranet deployment, focused validation, remaining model-output limits and the serialized-worker constraint.
+- 2026-11-01: 2800da79 restores PDF previews: browser sandbox blocked viewer; generic PDF MIME fallback added. Seventeen focused checks passed.
+- 2026-11-01: PDF component browser check renders13-page document; HTML sandbox remains. Intranet disconnected; remote deployment deferred.
+- 2026-11-01: PDF fix local rebuild ready; backend unchanged1be4fbda; scoped cache maintenance230249-59432 completed. Remote remains unchanged.
