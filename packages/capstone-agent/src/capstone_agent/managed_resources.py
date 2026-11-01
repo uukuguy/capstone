@@ -103,6 +103,8 @@ class ManagedResourceStore:
         if record is None:
             raise KeyError('resource_version_not_found')
         metadata = parse_verified(json.loads(record['metadata'])).to_dict()
+        if content_digest(metadata) != selected:
+            raise ResourceStateError('resource_version_corrupt')
         return {'resource_id': row['id'], 'version': selected, 'installed': bool(row['installed']), 'enabled': bool(row['enabled']), **metadata}
 
     def begin_install(self, principal: ResourcePrincipal, workspace: str, request_id: str,
@@ -159,10 +161,14 @@ class ManagedResourceStore:
             return result
 
     def fail_operation(self, principal, workspace, request_id, diagnostic_code):
+        """Internal terminal receipt, permitted after management revocation.
+
+        Only the trusted original subject can close its pending operation. This
+        path cannot publish a version or change an installed resource binding.
+        """
         identifier(diagnostic_code)
         with self._transaction() as db:
             row = self._operation(db, workspace, request_id, principal)
-            self._authorize(principal, workspace, row['action'])
             if row['status'] == 'pending':
                 db.execute("UPDATE operations SET status='failed',diagnostic=? WHERE workspace=? AND request=?", (diagnostic_code, workspace, request_id))
             return self._operation_dict(self._operation(db, workspace, request_id, principal))

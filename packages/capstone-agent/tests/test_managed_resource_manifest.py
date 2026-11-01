@@ -67,3 +67,15 @@ def test_manifest_rejects_extra_secret_fields_and_wrong_digest(store):
 def test_remote_has_no_package_and_only_secret_reference():
     receipt = VerifiedResource('mcp_remote', SourceIdentity('http://127.0.0.1:18001/mcp', 'contract-v1'), 'sha256:' + 'a' * 64, '', RuntimeSpec(secret_refs=('secret:SERVICE_TOKEN',)))
     assert receipt.to_dict()['runtime']['secret_refs'] == ['secret:SERVICE_TOKEN']
+
+
+def test_publication_requires_separate_application_receipt(store):
+    install(store)
+    store.set_preinstall_draft(P, 'w', 'demo', 'sample')
+    manifest = store.publish_preinstall(P, 'w', 'demo')
+    assert store.preinstall_status(P, 'w', 'demo') == {
+        'draft_version': manifest['version'], 'published': True,
+        'deployed': False, 'application_receipt': None,
+    }
+    store.record_preinstall_application(P, 'w', 'demo', manifest['version'], 'deployment-123')
+    assert store.preinstall_status(P, 'w', 'demo')['application_receipt'] == 'deployment-123'

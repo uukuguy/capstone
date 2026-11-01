@@ -54,8 +54,9 @@ def test_denied_operation_leaves_no_metadata_and_revocation_blocks_publish(store
     policy.write_text(original.replace('"allow"', '"deny"'))
     with pytest.raises(ResourcePermissionDenied):
         store.publish_verified(P, 'w', 'pending', verified())
+    assert store.fail_operation(P, 'w', 'pending', 'permission_revoked')['status'] == 'failed'
     policy.write_text(original)
-    assert store.operation(P, 'w', 'pending')['status'] == 'pending'
+    assert store.operation(P, 'w', 'pending')['status'] == 'failed'
     assert store.list_resources(P, 'w') == []
 
 
@@ -131,4 +132,16 @@ def test_installed_unavailable_resource_cannot_run(store):
     receipt = VerifiedResource('mcp_remote', SourceIdentity('http://localhost/mcp', 'v1'), 'sha256:' + 'd' * 64, '', RuntimeSpec(), False, ('disconnected',))
     assert install(store, receipt=receipt)['available'] is False
     with pytest.raises(ResourceStateError):
+        store.require_use(P, 'w', 'sample')
+
+
+def test_valid_but_modified_version_metadata_fails_closed(store):
+    import sqlite3
+    install(store)
+    with sqlite3.connect(store.database) as db:
+        row = db.execute('SELECT metadata FROM versions').fetchone()
+        metadata = json.loads(row[0])
+        metadata['source']['revision'] = 'changed'
+        db.execute('UPDATE versions SET metadata=?', (json.dumps(metadata),))
+    with pytest.raises(ResourceStateError, match='version_corrupt'):
         store.require_use(P, 'w', 'sample')
