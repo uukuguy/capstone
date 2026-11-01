@@ -44,6 +44,30 @@ def test_task_grant_rejects_catalog_tool_outside_frozen_subset():
     assert response['observation']['catalog_revision'] == resource.catalog['revision']
 
 
+def test_batch_validation_uses_frozen_schema_without_calls_or_argument_changes():
+    schema = {'type': 'object', 'properties': {'rows': {'type': 'array', 'items': {
+        'type': 'object', 'properties': {'n': {'type': 'integer', 'minimum': 1}},
+        'required': ['n'], 'additionalProperties': False}}}, 'required': ['rows'],
+        'additionalProperties': False}
+    resource = access(['dynamic_read'], {'dynamic_read': {'inputSchema': schema}})
+    calls = [{'name': 'dynamic_read', 'arguments': {'rows': [{'n': 2}]}},
+             {'name': 'dynamic_read', 'arguments': {'rows': [{'n': '2'}]}},
+             {'name': 'dynamic_read', 'arguments': {'rows': [], 'extra': True}}]
+    original = deepcopy(calls)
+    result = resource.validate_batch('task-1', calls)
+    assert result['valid'] is False
+    assert [e['index'] for e in result['errors']] == [1, 2]
+    assert result['errors'][0]['validation_errors'][0]['path'] == '/rows/0/n'
+    assert calls == original
+    assert resource._tasks['task-1']['started'] == set()
+    resource.bind('restricted', 'attempt-2', [])
+    assert resource.validate_batch('restricted', calls[:1])['errors'][0]['code'] == 'gateway_tool_not_admitted'
+    resource.catalog['tools']['dynamic_read']['inputSchema'] = {'type': 'null'}
+    assert resource.validate_batch('task-1', calls[:1])['valid'] is True
+    with pytest.raises(GatewayError, match='gateway_task_not_admitted'):
+        resource.validate_batch('absent', calls)
+
+
 @pytest.mark.parametrize('allowed', [None, 'data_gateway_other', {'missing'}, {1}])
 def test_task_binding_rejects_invalid_tool_grants(allowed):
     resource = access()
@@ -403,9 +427,8 @@ def test_actual_sdk_child_calls_protected_http_relay_and_has_host_receipt(tmp_pa
     import time
     from capstone_agent.general_pi_server import GeneralPiHost, make_server
     from capstone_agent.general_pi_relay import ProviderRelay
-    resource = access()
-    schema = {'name': 'discover_data_capabilities', 'inputSchema': {'type': 'object', 'properties': {}}}
-    resource.catalog['tools']['data_gateway_discover_data_capabilities'] = schema
+    schema = {'name': 'discover_data_capabilities', 'inputSchema': {'type': 'object', 'properties': {}, 'additionalProperties': False}}
+    resource = access(schemas={'data_gateway_discover_data_capabilities': schema})
     relay = ProviderRelay()
     runner = SimpleNamespace(gateway=resource, relay=relay)
     host = GeneralPiHost(root=tmp_path / 'host', identity={'engine': 'pi'}, run_task=lambda *_: ('', {}))
@@ -425,6 +448,7 @@ def test_actual_sdk_child_calls_protected_http_relay_and_has_host_receipt(tmp_pa
         value = json.loads(process.stdout)
         event = value['event']
         assert value['turns'] == 2
+        assert len(resource._tasks['task-1']['started']) == 1
         assert resource.verify('task-1', event['tool_call_id'], event['tool_name'],
                                event['result']['details'], event['result']['content'][0]['text'])
         assert value['receipt']['ref'] == event['result']['details']['native_research_source']['source_ref']

@@ -14,14 +14,16 @@ test('registered composition reaches actual application wrapper and calls admitt
   c.applicationPolicy.allowed_tools.push('bash','write','agent_tools_execute','agent_tool_search','agent_tool_load');c.dataGateway.onDemandTools=true;
   globalThis.fetch=async(url,options)=>{
    const body=JSON.parse(options.body);requests.push(body);
+   if(body.operation==='validate_batch')return {ok:true,json:async()=>({schema:'capstone-gateway-preflight/1',catalog_revision:c.dataGateway.catalog.revision,valid:true,errors:[],executed:false})};
    return {ok:true,json:async()=>({result_json:JSON.stringify({structuredContent:{status:'ok',data:{n:4}}}),observation:{
     kind:'external_gateway_observation',tool_call_id:body.call_id,task_id:'task-1',tool:body.name,
     catalog_revision:c.dataGateway.catalog.revision,tool_schema_sha256:'b'.repeat(64)}})};
   };
   const composed=applicationToolOptions(c,[]).customTools.find(t=>t.name==='agent_tools_execute');
   assert.ok(composed);
-  const result=await composed.execute('program',{tools:['data_gateway_discover_data_capabilities'],program:`const a=await tools.call('data_gateway_discover_data_capabilities',{});return a.data.n;`},new AbortController().signal);
-  assert.equal(result.isError,false,JSON.stringify(result));assert.match(result.content[0].text,/"result":4/);assert.equal(requests.length,1);
+  const result=await composed.execute('program',{tools:['data_gateway_discover_data_capabilities'],program:`const [a]=await tools.batch([{tool:'data_gateway_discover_data_capabilities',arguments:{}}]);return a.data.n;`},new AbortController().signal);
+  assert.equal(result.isError,false,JSON.stringify(result));assert.match(result.content[0].text,/"result":4/);assert.equal(requests.length,2);
+  assert.equal(requests[0].operation,'validate_batch');assert.equal(requests[1].name,'data_gateway_discover_data_capabilities');
   delete c.toolComposition;assert.equal(applicationToolOptions(c,[]).customTools.some(t=>t.name==='agent_tools_execute'),false);
   c.toolComposition=compositionPolicy;c.applicationPolicy.allowed_tools=c.applicationPolicy.allowed_tools.filter(n=>n!=='bash');
   assert.equal(applicationToolOptions(c,[]).customTools.some(t=>t.name==='agent_tools_execute'),false);

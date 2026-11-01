@@ -12,6 +12,24 @@ const resourceErrors=new Set(['gateway_authentication_failed',
   'gateway_connection_failed','gateway_call_failed_no_retry','gateway_timeout','gateway_transport_failed','gateway_catalog_invalid',
   'gateway_catalog_unavailable','gateway_unavailable','gateway_task_not_admitted','unauthorized']);
 
+export async function validateGatewayBatch(config,calls,{signal,fetchImpl=globalThis.fetch}={}){
+  const gateway=config.dataGateway;
+  if(!gateway)throw Error('Batch preflight unavailable; no calls executed');
+  const remaining=Math.min(1800000,config.deadlineAt-Date.now());
+  if(remaining<=0)throw Error('gateway task deadline exceeded');
+  const deadline=AbortSignal.timeout(Math.ceil(remaining));
+  const response=await fetchImpl(gateway.url,{method:'POST',
+    headers:{'Content-Type':'application/json',Authorization:'Bearer '+gateway.grant},
+    body:JSON.stringify({operation:'validate_batch',calls}),
+    signal:signal?AbortSignal.any([signal,deadline]):deadline});
+  const result=await response.json();
+  if(!response.ok)throw Error('Batch preflight failed; no calls executed; '+(publicErrors.has(result.error)?result.error:'gateway_request_failed'));
+  if(result.schema!=='capstone-gateway-preflight/1'||result.catalog_revision!==gateway.catalog.revision||
+      result.executed!==false||typeof result.valid!=='boolean'||!Array.isArray(result.errors)||
+      result.valid!==(result.errors.length===0))throw Error('Batch preflight receipt identity changed; no calls executed');
+  if(!result.valid)throw Error('Batch preflight rejected; no calls executed; '+JSON.stringify(result.errors));
+}
+
 export function createDataGatewayTools(config,{fetchImpl=globalThis.fetch,cwd=config.toolResultCwd}={}) {
   const gateway=config.dataGateway;
   if(!gateway)return [];

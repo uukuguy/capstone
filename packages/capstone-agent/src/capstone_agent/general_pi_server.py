@@ -1731,6 +1731,8 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                     if lease.cancelled.is_set():
                         raise asyncio.CancelledError()
                     async with asyncio.timeout(max(.001, lease.deadline - time.monotonic())):
+                        if isinstance(document, dict) and set(document) == {'operation', 'calls'} and document['operation'] == 'validate_batch':
+                            return gateway.validate_batch(task_id, document['calls'])
                         return await gateway.call(task_id, document)
                 self.send_json(200, run_http(forward()))
             except GatewayError as error:

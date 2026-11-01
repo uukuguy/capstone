@@ -2,14 +2,14 @@ import {fork} from 'node:child_process';
 import {readFileSync} from 'node:fs';
 import {randomUUID,createHash} from 'node:crypto';
 import {saveSemanticContext,loadSemanticContext} from './semantic-data-context.mjs';
-import {boundToolResult,readSavedObservation} from './tool-result-context.mjs';
+import {boundToolResult,readSavedObservation,structureIndex} from './tool-result-context.mjs';
 import {gatewayToolUseGuidance} from './gateway-tool-use.mjs';
 import {createToolIdentityResolver} from './tool-identity.mjs';
 import {observedAction,readObservation} from './observed-action.mjs';
 import {setTimeout as wait} from 'node:timers/promises';
 export const compositionPolicy=Object.freeze(JSON.parse(readFileSync(new URL('./tool-composition-policy.json',import.meta.url),'utf8')));
 const canonical=(v)=>Array.isArray(v)?v.map(canonical):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])):v;
-export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,admittedNames=Object.keys(catalog.tools),invoke,scope,useLedger,deadlineAt=Infinity,allowedInputs=[],restore=async x=>x,onProgress=()=>{}}){
+export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,admittedNames=Object.keys(catalog.tools),invoke,validateCalls,scope,useLedger,deadlineAt=Infinity,allowedInputs=[],restore=async x=>x,onProgress=()=>{}}){
   // Session-local issued observations survive program calls, never task grants.
   // A different DR node must receive an explicit saved context package.
   const records=new Map();
@@ -17,16 +17,19 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
   // Transient timeouts retain their existing per-program policy.
   const rejectedRequests=new Map();
   const identities=createToolIdentityResolver(catalog.tools,admittedNames);
-  return {name:'agent_tools_execute',label:'执行多步数据处理',description:'Run an async JavaScript program in the isolated task workspace. Select admitted gateway tools explicitly. For a known independent call list use tools.batch([{tool,arguments},...]): the host checks the whole batch against remaining capacity and selected tool identities before any call, reserves capacity, and runs it with bounded concurrency in input order. Per-call argument validation still applies; batch execution is not transactional. Use tools.call for dependent calls. tools.call(name,args) returns {ref,ok,status,data,provenance,gaps,value}; tools.describe(name) returns its exact contract. tools.follow(ref,pointer) executes an action copied from a successful host observation at that JSON pointer, preserving exact tool names and arguments. Select its target tool in tools first. Prefer follow for returned actions instead of retyping identifiers; it honors returned waits and uses the same grant/schema checks. python(code,data) runs Python with JSON stdin. saveContext(name,{bindings,datasets}) preserves observed source fields with call refs and JSON pointers, declared values, and unknown fields. loadContext(path) reuses a saved package. Return a compact summary; retain source data in packages. No automatic retries. Failed programs return completed_calls references when calls already finished; reuse them rather than reading again. Source packages are observations, not Authority evidence. tools.read(ref,pointer) reads a bounded exact field from a previous observation, including failed results, without another upstream call. For blocked repeats inspect previous_call; do not recreate an unchanged rejected request. '+`Limits for this instance: max_calls=${policy.max_calls}, concurrency=${policy.concurrency}, program_chars=${policy.code_chars}. Plan batches within these limits before writing a long program. `+gatewayToolUseGuidance,
+  return {name:'agent_tools_execute',label:'执行多步数据处理',description:'Run an async JavaScript program in the isolated task workspace. Select admitted gateway tools explicitly. For a known independent call list use tools.batch([{tool,arguments},...]): the host checks the whole batch against remaining capacity, selected tool identities and frozen input schemas before any call, reserves capacity, and runs it with bounded concurrency in input order. Any invalid input rejects the entire batch before invocation. Per-call validation still applies; batch execution is not transactional. Use tools.call for dependent calls. tools.call(name,args) returns {ref,ok,status,data,provenance,gaps,value}; tools.describe(name) returns its exact contract. tools.follow(ref,pointer) executes an action copied from a successful host observation at that JSON pointer, preserving exact tool names and arguments. Select its target tool in tools first. Prefer follow for returned actions instead of retyping identifiers; it honors returned waits and uses the same grant/schema checks. python(code,data) runs Python with JSON stdin. saveContext(name,{bindings,datasets}) preserves observed source fields with call refs and JSON pointers, declared values, and unknown fields. loadContext(path) reuses a saved package. Return a compact summary; retain source data in packages. No automatic retries. Failed programs retain all completed_calls references; large manifests have an issued full_result readable with tools.read(full_result,"/completed_calls",{offset,limit}). Reuse completed results rather than reading again. A successful program also reports failed_call_count and failed_calls; do not confuse program completion with business success. Source packages are observations, not Authority evidence. tools.inspect(ref,pointer="") returns a bounded structure index without data values; use it and read in the same program instead of extra shell/model turns. tools.read returns the selected field directly, not a value wrapper; with an array page {offset,limit} it returns {items,total_items,next_offset,offset}. tools.read(ref,pointer) reads a bounded exact field from a previous observation, including failed results, without another upstream call. For blocked repeats inspect previous_call; do not recreate an unchanged rejected request. '+`Limits for this instance: max_calls=${policy.max_calls}, concurrency=${policy.concurrency}, program_chars=${policy.code_chars}. Plan batches within these limits before writing a long program. `+gatewayToolUseGuidance,
     parameters:{type:'object',properties:{program:{type:'string',description:"Async program body. Example: const r=await tools.call(name,args); const saved=await saveContext('shared',{bindings:{unit:{call:r.ref,pointer:'/data/unit'},method:{value:'mean'},missing:{unknown:true,reason:'not provided'}},datasets:[{name:'load',call:r.ref,pointer:'/data/rows'}]}); return saved; Use actual returned fields in pointers. loadContext(saved.path) returns bindings with basis/value and datasets keyed by name with data/status/provenance/gaps. Plain binding values are declared metadata, never verified facts. Actual call refs remain usable by later programs in this instruction/session; different tasks need explicit saved packages. Large returns are saved automatically; return selected fields to reduce model context."},tools:{type:'array',items:{type:'string'}},purpose:{type:'string'},concurrency:{type:'integer',minimum:1,maximum:policy.concurrency},max_calls:{type:'integer',minimum:1,maximum:policy.max_calls},timeout_ms:{type:'integer',minimum:1,maximum:policy.max_program_ms}},required:['program','tools'],additionalProperties:false},
     async execute(callId,input,signal){
       signal?.throwIfAborted();
       const completedCalls=[];
       const batches=new Map();
-      const failure=error=>({isError:true,content:[{type:'text',text:completedCalls.length?JSON.stringify({
-        code:'composition_failed',message:String(error.message??error),completed_calls:completedCalls.slice(-8),
+      const failure=async error=>{
+        const bounded=await boundToolResult({isError:true,content:[{type:'text',text:completedCalls.length?JSON.stringify({
+        code:'composition_failed',message:String(error.message??error),completed_calls:completedCalls,
         completed_call_count:completedCalls.length,recovery:'Completed calls were not rolled back. Reuse their observation refs in this task; do not repeat them implicitly.'
-      }):String(error.message??error)}]});
+      }):String(error.message??error)}]},{cwd,toolName:'agent_tools_execute',callId,maxChars:policy.output_bytes});
+        return {isError:true,content:bounded.content,details:bounded.details};
+      };
       let child,timer;const abort=new AbortController(),queue=[],operations=new Set(),resourceFailures=new Map(),blocked=new Map();let active=0,calls=0,requests=0,skipped=0,finished=false;
       const stop=()=>{abort.abort(Error('Composition stopped'));for(const reject of queue.splice(0))reject();if(child?.pid){try{process.kill(-child.pid,'SIGKILL');}catch{child.kill('SIGKILL');}}};
       try{
@@ -66,6 +69,11 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
                   }catch(e){errors.push({index,message:String(e.message??e)});return null;}
                 });
                 if(errors.length)throw Error('Batch preflight: no calls from this batch executed; '+JSON.stringify(errors));
+                if(typeof validateCalls!=='function')throw Error('Batch argument validator unavailable; no calls from this batch executed');
+                await validateCalls(prepared.map(item=>({name:item.name,arguments:item.args})),{signal:abort.signal});
+                abort.signal.throwIfAborted();
+                // Another concurrent preflight can reserve while validation awaits.
+                if(prepared.length>limit-requests)throw Error('Batch preflight: remaining capacity changed; no calls from this batch executed');
                 // Reserve the entire batch before releasing a single call.
                 requests+=prepared.length;
                 const ref=randomUUID();batches.set(ref,prepared);value={ref,count:prepared.length};
@@ -117,9 +125,10 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
                   value={ref,ok,...(observed&&typeof observed==='object'?observed:{}),value:observed};
                   }
                 }finally{active--;queue.shift()?.();}
-              }else if(message.kind==='read'){
+              }else if(message.kind==='read'||message.kind==='inspect'){
                 value=typeof message.ref==='string'?readObservation(records,message.ref,message.pointer):
                   await readSavedObservation(message.ref,message.pointer,{cwd});
+                if(message.kind==='inspect')value=structureIndex(value);
                 if(message.page!==undefined){
                   const page=message.page;
                   if(!page||typeof page!=='object'||Array.isArray(page)||Object.keys(page).some(k=>!['offset','limit'].includes(k))||
@@ -144,14 +153,20 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
           });
           child.send({kind:'start',program:input.program,schemas,outputBytes:policy.output_bytes});
         });
-        const text=JSON.stringify({result:result??null,calls,skipped_calls:skipped,limited_conditions:[...blocked.values()]});
+        const failedCalls=completedCalls.filter(call=>!call.ok);
+        const text=JSON.stringify({result:result??null,calls,skipped_calls:skipped,
+          failed_call_count:failedCalls.length,failed_calls:failedCalls,limited_conditions:[...blocked.values()]});
         const bounded=await boundToolResult({isError:false,content:[{type:'text',text}],details:{kind:policy.schema,calls}},
           {cwd,toolName:'agent_tools_execute',callId,maxChars:policy.output_bytes});
         // Unlike gateway receipts, the program return has no host requirement
         // to inline original bytes. Keep the saved-file reference bounded even
         // when rpcEvent restores real upstream gateway observations.
         return {isError:bounded.isError,content:bounded.content,details:bounded.details};
-      }catch(error){if(signal?.aborted)throw signal.reason??error;return failure(error);}
+      }catch(error){
+        stop();await Promise.allSettled([...operations]);
+        if(signal?.aborted)throw signal.reason??error;
+        return await failure(error);
+      }
       finally{clearTimeout(timer);stop();await Promise.allSettled([...operations]);}
     }};
 }

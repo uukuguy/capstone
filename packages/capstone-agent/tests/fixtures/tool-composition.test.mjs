@@ -9,6 +9,57 @@ import {boundToolResult} from '../../src/capstone_agent/resources/tool-result-co
 
 const catalog={revision:'catalog',tools:{data_gateway_read:{name:'read',inputSchema:{type:'object'},description:'Read selected data'}},tool_hashes:{data_gateway_read:'a'.repeat(64)}};
 
+test('batch checks every frozen argument before execution and preserves reservation on rejection',()=>fixture(async cwd=>{
+ let calls=0,checked=[];
+ const t=tool(cwd,async()=>{calls++;return native({n:1});},{validateCalls:async plan=>{
+  checked.push(plan);if(plan.some(x=>typeof x.arguments.n!=='number'))throw Error('/calls/1/arguments/n: integer required');
+ }});
+ const result=await t.execute('validate',{tools:['read'],max_calls:2,program:`
+ try{await tools.batch([{tool:'read',arguments:{n:1}},{tool:'read',arguments:{n:'2'}}]);}catch(e){print(e.message);}
+ return tools.batch([{tool:'read',arguments:{n:1}},{tool:'read',arguments:{n:2}}]);`});
+ assert.equal(result.isError,false,JSON.stringify(result));assert.equal(calls,2);assert.equal(checked.length,2);
+ assert.equal(checked[0][0].name,'data_gateway_read');assert.equal(checked[0][1].arguments.n,'2');
+}));
+
+test('batch fails closed without validation and concurrent preflights cannot oversubscribe capacity',()=>fixture(async cwd=>{
+ let calls=0;
+ const unavailable=tool(cwd,async()=>{calls++;return native({});},{validateCalls:undefined});
+ const rejected=await unavailable.execute('missing-validator',{tools:['read'],program:`return tools.batch([{tool:'read',arguments:{}}]);`});
+ assert.equal(rejected.isError,true);assert.equal(calls,0);
+ const t=tool(cwd,async()=>{calls++;return native({});},{validateCalls:async()=>new Promise(resolve=>setTimeout(resolve,10))});
+ const result=await t.execute('race',{tools:['read'],max_calls:2,program:`const plan=[{tool:'read',arguments:{}},{tool:'read',arguments:{}}];return Promise.allSettled([tools.batch(plan),tools.batch(plan)]);`});
+ assert.equal(result.isError,false,JSON.stringify(result));assert.equal(calls,2);
+ assert.deepEqual(JSON.parse(result.content[0].text).result.map(r=>r.status).sort(),['fulfilled','rejected']);
+}));
+
+test('failed programs retain all completed handles and recover the earliest result without upstream calls',()=>fixture(async cwd=>{
+ let calls=0;const t=tool(cwd,async()=>native({n:++calls}));
+ const result=await t.execute('many',{tools:['read'],program:`for(let i=0;i<12;i++)await tools.call('read',{});throw Error('save failed');`});
+ assert.equal(result.isError,true);const failure=JSON.parse(result.content[0].text);
+ assert.equal(failure.completed_calls.length,12);assert.equal(failure.completed_call_count,12);
+ const ref=failure.completed_calls[0].ref;
+ const reused=await t.execute('recover',{tools:[],program:`return tools.read(${JSON.stringify(ref)},'/data/n');`});
+ assert.equal(JSON.parse(reused.content[0].text).result,1);assert.equal(calls,12);
+}));
+
+test('inspection exposes bounded structure, and failed nested calls remain visible on program success',()=>fixture(async cwd=>{
+ let calls=0;const t=tool(cwd,async()=>{calls++;return {isError:true,content:[{type:'text',text:JSON.stringify({status:'error',data:null,gaps:[{reason:'blocked'}]})}]};});
+ const result=await t.execute('inspect',{tools:['read'],program:`const r=await tools.call('read',{});return tools.inspect(r.ref);`});
+ const body=JSON.parse(result.content[0].text);
+ assert.equal(result.isError,false);assert.equal(body.failed_call_count,1);assert.equal(body.failed_calls.length,1);
+ assert.equal(body.result.type,'object');assert.ok(body.result.keys.includes('data'));assert.equal(calls,1);
+}));
+
+test('large failure manifests are paged from an issued saved reference without repeating any call',()=>fixture(async cwd=>{
+ let calls=0;const t=tool(cwd,async()=>native({n:++calls}),{policy:{...compositionPolicy,output_bytes:1500}});
+ const result=await t.execute('large-failure',{tools:['read'],program:`for(let i=0;i<20;i++)await tools.call('read',{});throw Error('later failure');`});
+ const body=JSON.parse(result.content[0].text);assert.equal(result.isError,true);assert.ok(body.full_result);
+ const page=await t.execute('manifest',{tools:[],program:`return tools.read(${JSON.stringify(body.full_result)},'/completed_calls',{offset:0,limit:2});`});
+ const recovered=JSON.parse(page.content[0].text).result;
+ assert.equal(recovered.total_items,20);assert.equal(recovered.next_offset,2);assert.equal(recovered.items.length,2);
+ assert.equal(calls,20);
+}));
+
 test('read diagnostics locate a failed field and successful results remain directly reusable',()=>fixture(async cwd=>{
  let calls=0;const t=tool(cwd,async()=>{calls++;return native({rows:[{n:5}]});});
  const first=await t.execute('first',{tools:['read'],program:`return (await tools.call('read',{})).ref;`});
@@ -239,7 +290,7 @@ test('a resource failure limit leaves independent tools and partial quality resu
   assert.ok(body.result.good.every(r=>r.ok&&r.status==='partial'&&r.ref));
 }));
 async function fixture(run){const cwd=await mkdtemp(join(tmpdir(),'tool-composition-'));try{await run(cwd);}finally{await rm(cwd,{recursive:true,force:true});}}
-function tool(cwd,invoke,extras={}){return createToolCompositionTool({policy:compositionPolicy,cwd,catalog,invoke,scope:{task_id:'task',attempt_id:'attempt'},deadlineAt:Date.now()+10000,...extras});}
+function tool(cwd,invoke,extras={}){return createToolCompositionTool({policy:compositionPolicy,cwd,catalog,invoke,validateCalls:async()=>{},scope:{task_id:'task',attempt_id:'attempt'},deadlineAt:Date.now()+10000,...extras});}
 function value(result){assert.equal(result.isError,true,JSON.stringify(result));}
 
 test('one real program overlaps independent calls then passes observed data to a dependent call',()=>fixture(async cwd=>{

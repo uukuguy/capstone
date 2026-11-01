@@ -12,6 +12,7 @@ process.on('message',async message=>{
       return Promise.all(Array.from({length:plan.count},(_,index)=>request('call',{batchRef:plan.ref,index})));
     },
     read:(ref,pointer,page)=>request('read',{ref,pointer,page}),
+    inspect:(ref,pointer='')=>request('inspect',{ref,pointer}),
     follow:(ref,pointer)=>request('follow',{ref,pointer}),
     describe:name=>message.schemas[identities.resolve(name)]};
   const python=(code,data)=>new Promise((resolve,reject)=>{

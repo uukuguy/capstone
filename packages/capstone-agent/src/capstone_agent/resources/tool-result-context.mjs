@@ -47,7 +47,7 @@ function preview(value,depth,items,chars){
 }
 
 // Structural facts only: no inferred units, semantics or source quality verdicts.
-function structureIndex(value){
+export function structureIndex(value){
   const keys=object=>Object.keys(object).filter(key=>key.length<=64).slice(0,8);
   const summary={type:Array.isArray(value)?'array':value===null?'null':typeof value,
     ...(value&&typeof value==='object'&&!Array.isArray(value)?{keys:keys(value)}:{}),containers:[],partial:false};

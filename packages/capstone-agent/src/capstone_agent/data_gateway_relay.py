@@ -130,6 +130,40 @@ class DataGatewayAccess:
         with self._lock:
             self._tasks.pop(task_id, None)
 
+    def validate_batch(self, task_id, calls):
+        """Check the frozen task contract without connecting or consuming call IDs."""
+        from .data_gateway_mcp import validate, argument_validation_details
+        from jsonschema.exceptions import ValidationError
+        if not isinstance(calls, list) or not calls:
+            raise GatewayError('gateway_request_invalid')
+        require_capacity('mcp_call_count', len(calls), 'gateway_batch_preflight')
+        with self._lock:
+            record = self._tasks.get(task_id)
+            if record is None:
+                raise GatewayError('gateway_task_not_admitted')
+            if record.get('failure'):
+                raise GatewayError(record['failure'])
+            catalog, allowed = record['catalog'], record['allowed_tools']
+            errors = []
+            for index, item in enumerate(calls):
+                if (not isinstance(item, dict) or set(item) != {'name', 'arguments'}
+                        or not isinstance(item['name'], str) or not isinstance(item['arguments'], dict)):
+                    errors.append({'index': index, 'code': 'gateway_request_invalid'})
+                    continue
+                name = item['name']
+                if name not in allowed or name not in catalog['tools']:
+                    errors.append({'index': index, 'code': 'gateway_tool_not_admitted'})
+                    continue
+                try:
+                    validate(catalog['tools'][name]['inputSchema'], item['arguments'])
+                except ValidationError as error:
+                    errors.append({'index': index, 'code': 'gateway_arguments_invalid',
+                                   'validation_errors': argument_validation_details(error)})
+                except Exception:
+                    errors.append({'index': index, 'code': 'gateway_catalog_invalid'})
+            return {'schema': 'capstone-gateway-preflight/1', 'catalog_revision': catalog['revision'],
+                    'valid': not errors, 'errors': errors, 'executed': False}
+
     async def call(self, task_id, document, *, diagnostics=None, retry_of=None):
         from .gateway_diagnostics import checked_diagnostics, diagnostic_id, response_diagnostics
         override = checked_diagnostics(diagnostics)
