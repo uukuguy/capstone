@@ -1328,6 +1328,9 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .thread-resource-panel .capstone-result-table { font-variant-numeric: tabular-nums; }
 .capstone-result-products { display: grid; gap: 6px; margin: 10px 0; }
 .capstone-result-products:empty { display: none; }
+.capstone-instruction-files .capstone-result-products details { margin-top: 4px; }
+.capstone-instruction-files .capstone-result-products summary { cursor: pointer; color: #627771; padding: 4px 0; }
+.capstone-instruction-files .capstone-result-products details .capstone-result-product { margin-top: 6px; }
 .capstone-instruction-files > details { margin: 6px 0; }
 .capstone-instruction-files { font-size: 11px; line-height: 1.6; }
 .capstone-instruction-files > p { margin: 6px 0; font-size: 11px; line-height: 1.6; font-weight: 400; color: #627771; }

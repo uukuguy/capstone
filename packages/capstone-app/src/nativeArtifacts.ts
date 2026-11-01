@@ -76,3 +76,19 @@ export function groupNativeArtifacts(files:readonly NativeArtifact[]) {
     other:files.filter(file=>!file.presentation_role),
   }
 }
+
+/** Publication order is chronological. Host identity binds the relative path;
+ * public identity also includes bytes and cannot identify a version family. */
+export function nativeArtifactVersions(files:readonly NativeArtifact[]) {
+  const families=new Map<string,Map<string,NativeArtifact>>()
+  for(const file of files){
+    const path=file.host_artifact_id?.match(/^file-([a-f0-9]{16})-[a-f0-9]{64}$/)?.[1]
+    const key=JSON.stringify([file.thread_id,file.attempt_id,file.task_id,path??file.artifact_id])
+    const versions=families.get(key)??new Map<string,NativeArtifact>()
+    versions.set(file.artifact_id,file);families.set(key,versions)
+  }
+  return [...families.values()].map(versions=>{
+    const ordered=[...versions.values()]
+    return {latest:ordered[ordered.length-1],history:ordered.slice(0,-1).reverse()}
+  })
+}
