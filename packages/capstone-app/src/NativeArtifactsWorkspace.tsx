@@ -27,6 +27,7 @@ export function nativePreviewMedia(name:string,media:string|null|undefined){
   if(/\.html?$/i.test(name))return 'text/html'
   if(/\.svg$/i.test(name))return 'image/svg+xml'
   if(/\.pptx$/i.test(name))return 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+  if(/\.pdf$/i.test(name))return 'application/pdf'
   if(/\.csv$/i.test(name))return 'text/csv'
   if(/\.(md|markdown)$/i.test(name))return 'text/markdown'
   if(/\.txt$/i.test(name))return 'text/plain'
@@ -58,7 +59,9 @@ export function NativeFileContent({name,media,url,text,textUnavailable,previewSi
     :text!==undefined&&codeLanguage(name,media)?<Suspense fallback={<p>正在渲染代码…</p>}><CodePreview key={name} name={name} text={text}/></Suspense>
     :text!==undefined?<pre>{text}</pre>
     :media.startsWith('image/')?<img src={url} alt={name}/>
-    :media==='application/pdf'?<iframe src={url} title={`PDF 预览：${name}`} sandbox="" referrerPolicy="no-referrer"/>
+    // The browser PDF viewer is blocked by an iframe sandbox. Its source must
+    // remain a local Blob built from authenticated, integrity-checked bytes.
+    :media==='application/pdf'?(url?.startsWith('blob:')?<iframe src={url} title={`PDF 预览：${name}`} referrerPolicy="no-referrer"/>:<p>PDF 预览暂不可用，可下载后查看。</p>)
     :media==='application/vnd.openxmlformats-officedocument.presentationml.presentation'?<PptxPreview key={url} name={name} url={url}/>
     :<p>此文件格式没有内置预览，可下载后查看。</p>}</div>
 }
