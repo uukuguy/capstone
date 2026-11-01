@@ -1,5 +1,14 @@
 # docs/status INDEX
 
+Unified main-path correction `2b347fc6` shares successful reads across direct and
+composed calls, validates source tables before publication, and preserves model
+network diagnostics. Focused checks, rebuild and 26-second live validation pass:
+7 model responses, 8 tool executions, zero errors; reuse/refresh and CSV hashes verified.
+The authorized summer rerun ended during confirmed network loss; full business
+acceptance is not passed. No CI or automatic replay.
+See [unified pipeline](../reports/2026-11-01-unified-observation-pipeline.md) and
+[rerun diagnosis](../reports/2026-11-01-summer-rerun-reuse.md). Earlier entries follow.
+
 Local0db2803a unifies task observation references and structured roots; b8ae7ba1
 reduces redundant tool discovery. Fresh metadata task:21.9s,4 model responses,
 4 tools,zero errors or repeated retrievals. Artifact hash and local image parity

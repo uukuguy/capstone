@@ -6681,3 +6681,11 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - Rebuilt0db2803a; fresh metadata task completed21.9s with four model responses, four tools, zero errors and no repeated retrieval.
 - Reconnected gateway publication16:34:18; preserved frozen tasks and prepared exact selector-error coordination evidence without hardcoded routing.
 - Updated control register and inspected the existing graph tab; restored browser focus and preserved unrelated audit draft.
+- Recorded main-path acceptance and gateway followup [4f9976c6]; this journal receipt remains unstaged to avoid a self-referencing documentation cycle.
+- Started one user-authorized summer rerun in a fresh session; reused the browser tab and preserved the exact baseline instruction.
+- Summer rerun ended during confirmed network loss; saved162 sequence calls,37 exact sequence repeats and eight tool errors.
+- Reused declared readonly successful observations within instructions; retained manifests and explicit refresh to prevent repeated source reads [8f9f59d5].
+- Unified observation reuse, typed table preparation and network diagnostics to repair processing without repeating source reads [2b347fc6].
+- Rebuilt2b347fc6 with matching API/worker images; started one metadata-only unified pipeline trial in the existing browser tab.
+- Unified live trial completed26.0s: seven model responses, eight tools, zero errors; shared reuse, refresh and typed CSV verified.
+- Updated unified-pipeline evidence and control graph; checked source edges, existing browser preview, links, doctor and clean diffs.

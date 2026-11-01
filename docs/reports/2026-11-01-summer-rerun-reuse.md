@@ -16,6 +16,14 @@ a network outage. This termination is separate from earlier planning/reuse defec
 No final PPT was delivered. Intermediate workspace files are referenced in the
 saved execution record; they are not accepted final products.
 
+The eight tool errors were: an unregistered outer composition reference; array
+paging applied to a non-array field; a source-discovery sample limit; an ambiguous
+data source requiring source_id; a local Python input missing next_offset; an
+observation read over the byte budget; an invented truncated field; and a Python
+date operation on NaT. Only the first is the outer-reference defect corrected here.
+The other errors retain their exact inputs and outputs in errors.json. Do not
+attribute these pre-outage failures to the network interruption.
+
 ## Why162 sequence calls were excessive
 
 | Group | Calls |

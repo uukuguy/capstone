@@ -52,11 +52,44 @@ claiming all possible generated scripts are correct.
 
 ## Verification
 
-73 focused Node checks passed in2.9s.94 focused Python/worker checks passed in13.4s.
+73 focused Node checks passed in 2.9 seconds. 94 focused Python/worker checks passed in 13.4 seconds.
 Additional targeted host checks verified persisted model connection-failure codes.
 The new regression joins planning, a real worker call, failed mapping, observation
-reuse and successful CSV preparation. Other checks cover35-call recovery, concurrent
+reuse and successful CSV preparation. Other checks cover 35-call recovery, concurrent
 direct/composed reuse, refresh, polling, task isolation, malformed policy,
 immutable file roots, invalid dates, missing fields and output-directory links.
-The live source is not yet accepted until the canonical rebuild and a short real
-metadata-only pipeline trial finish. No CI or automatic summer replay is used.
+The canonical rebuild of `2b347fc6` completed. API and workers share image
+`f96b8e7fb2fbf0c56c152916cc84dd0760d44d2e0984a8873d4335caa603aeeb`.
+Scoped cleanup receipt: `.capstone-agent/cache-maintenance-20261101-180419-53195.log`.
+No CI or automatic summer replay was used.
+
+## Real metadata trial
+
+Thread `thr_06440e24643ca2748769`, work `work_7f30351c628edbf7ab39`, attempt
+`attempt_696255a1871bc668` completed in 26.030 seconds. First model start was
+1.037 seconds after attempt start. It used 7 model responses and 8 tool executions
+(6 top-level, 2 nested), with no tool errors. Evidence is saved under
+`runs/unified-pipeline-validation-20261101/`.
+
+The model selected the published contract-check tool. Its direct read and later
+batch read have the same original request ID `aca0471f51844a178bb06841ab1aed37`;
+the host reports the batch call as reused. Explicit refresh produced request ID
+`5cac253737aa40a592d11b85514c79d5`. Thus the three logical checks made two upstream
+reads. Publication remained `2026-11-01T16:34:18.989104+08:00` in the same instance.
+Names are evidence from this publication, not permanent execution rules.
+
+One composition performed plan, batch, refresh, inspect, read and typed table
+preparation. The CSV has one provider row, 82 bytes, SHA256
+`a4dc85d1e5b2aefd5a850ddcf3a54485a4233cfb8dc05b78adc2c3201e8930c7`.
+The 665-byte source manifest and both CSV copies were downloaded and hash-checked.
+The model made one successful shell call to copy/mark the primary artifact; it did
+not use shell to discover source JSON paths. The existing browser tab showed the
+completed execution and the CSV preview. No new tab was opened.
+
+The model's custom intermediate summary still guessed some optional helper fields
+and reported nulls; the host's completed-call manifest supplied the actual reuse
+metadata for the final answer. This trial proves shared execution and typed export,
+not that arbitrary model-written summaries are fully validated. Plan availability
+currently lists composition-local observations; direct observations can still be
+reused at the shared relay. Business scope selection and full summer-task retrieval
+counts remain unaccepted; the short trial does not certify those outcomes.
