@@ -612,7 +612,7 @@ function ChatActions({ evidenceOpen = false, onShowEvidence, onShowNetwork, role
   }
   return <>
   <div className="capstone-chat-actions" aria-label="回答操作">
-    {productAction}<IconAction label={copied ? '已复制' : '复制回答'} onClick={() => void copy()}>{copied ? <Check /> : <Copy />}</IconAction>
+    <IconAction label={copied ? '已复制' : '复制回答'} onClick={() => void copy()}>{copied ? <Check /> : <Copy />}</IconAction>{productAction}
     {onShowNetwork && <IconAction label="查看此指令电网图" onClick={onShowNetwork}><Network /></IconAction>}
     {resultAvailable && onShowResult && <IconAction label="查看计算结果" expanded={resultOpen} onClick={onShowResult}><Activity /></IconAction>}
     {evidenceAvailable && onShowEvidence && <IconAction label="查看推演证据" description={researchSnapshot && evidenceState !== 'available' ? '查看已保存的研究判断与工作记录' : failures.length > 0 && evidenceState !== 'available' ? '查看已保存的执行或核验失败记录' : evidenceStateCopy[evidenceState]} evidenceState={evidenceState} expanded={evidenceOpen} onClick={onShowEvidence}><FileCheck2 /></IconAction>}
