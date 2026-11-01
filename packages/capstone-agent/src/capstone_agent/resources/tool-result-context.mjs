@@ -7,6 +7,8 @@ import {readObservation} from './observed-action.mjs';
 // Symbols survive native result wrappers, but never enter JSON, model messages
 // or public metadata. Only the host event projection reads this original.
 const originalResult=Symbol('capstoneOriginalToolResult');
+const savedResult=Symbol('capstoneSavedToolObservation');
+export const savedToolObservation=result=>structuredClone(result?.[savedResult]);
 const issuedObservationRefs=new Set();
 const referenceKey=ref=>JSON.stringify([ref.path,ref.sha256,ref.size_bytes,ref.tool,ref.call_id]);
 const digest=value=>createHash('sha256').update(value).digest('hex');
@@ -31,6 +33,13 @@ export async function readSavedObservation(ref,pointer,{cwd}){
     const value=ref.path.endsWith('.json')?JSON.parse(body.toString('utf8')):body.toString('utf8');
     return readObservation(new Map([['saved',{value}]]),'saved',pointer);
   }finally{await handle.close();}
+}
+export async function resolveTaskObservation(records,ref,{cwd,useLedger}){
+  if(records.has(ref))return records.get(ref);
+  const saved=useLedger?.resolve(ref);
+  if(!saved)return;
+  return {ref,ok:saved.ok,observedAt:saved.observedAt,receipt:saved.receipt,
+    value:await readSavedObservation(saved.reference,'',{cwd})};
 }
 function preview(value,depth,items,chars){
   if(typeof value==='string')return value.length<=chars?value:value.slice(0,chars)+'… [read full result]';
@@ -75,9 +84,10 @@ export function structureIndex(value){
   return summary;
 }
 
-export async function boundToolResult(result,{cwd=process.cwd(),toolName,callId,maxChars=6000}={}){
+export async function boundToolResult(result,{cwd=process.cwd(),toolName,callId,maxChars=6000,retain=false}={}){
   if(!Number.isSafeInteger(maxChars)||maxChars<1500)throw new Error('Invalid tool result context budget');
-  if(JSON.stringify(result.content??[]).length<=maxChars)return result;
+  const needsPreview=JSON.stringify(result.content??[]).length>maxChars;
+  if(!needsPreview&&!retain)return result;
   const body=(result.content??[]).filter(part=>part.type==='text').map(part=>part.text).join('\n');
   // Non-text observations have their own native image handling.
   if(!body||result.content.some(part=>part.type!=='text'))return result;
@@ -100,6 +110,8 @@ export async function boundToolResult(result,{cwd=process.cwd(),toolName,callId,
   const basePointer=extension==='json'?(source===value?'':'/structuredContent'):null;
   const fullResult={path,sha256:digest(body),size_bytes:Buffer.byteLength(body),tool:toolName,call_id:callId};
   issuedObservationRefs.add(referenceKey(fullResult));
+  const saved={reference:fullResult,base_pointer:basePointer};
+  if(!needsPreview)return {...result,[savedResult]:saved};
   const envelope={preview_truncated:true,
     full_result:fullResult,
     preview_pointer:basePointer,
@@ -115,7 +127,7 @@ export async function boundToolResult(result,{cwd=process.cwd(),toolName,callId,
     content=[{type:'text',text:JSON.stringify(small)}];
   }
   if(JSON.stringify(content).length>maxChars)throw new Error('Tool result reference exceeds context budget');
-  return {...result,content,[originalResult]:result};
+  return {...result,content,[originalResult]:result,[savedResult]:saved};
 }
 
 export function restoreToolResult(result){

@@ -2,7 +2,7 @@ import {fork} from 'node:child_process';
 import {readFileSync} from 'node:fs';
 import {randomUUID,createHash} from 'node:crypto';
 import {saveSemanticContext,loadSemanticContext} from './semantic-data-context.mjs';
-import {boundToolResult,readSavedObservation,structureIndex} from './tool-result-context.mjs';
+import {boundToolResult,readSavedObservation,structureIndex,resolveTaskObservation} from './tool-result-context.mjs';
 import {gatewayToolUseGuidance} from './gateway-tool-use.mjs';
 import {createToolIdentityResolver} from './tool-identity.mjs';
 import {observedAction,readObservation} from './observed-action.mjs';
@@ -13,6 +13,8 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
   // Session-local issued observations survive program calls, never task grants.
   // A different DR node must receive an explicit saved context package.
   const records=new Map();
+  const resolveRecord=ref=>resolveTaskObservation(records,ref,{cwd,useLedger});
+  const sourceRecords=async ref=>new Map([[ref,await resolveRecord(ref)]]);
   // Only explicit non-correctable, unexecuted rejections persist across programs.
   // Transient timeouts retain their existing per-program policy.
   const rejectedRequests=new Map();
@@ -79,7 +81,7 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
                 const ref=randomUUID();batches.set(ref,prepared);value={ref,count:prepared.length};
               }else{
               if(message.kind==='follow'){
-                const action=observedAction(records,message.ref,message.pointer);
+                const action=observedAction(await sourceRecords(message.ref),message.ref,message.pointer);
                 // No replacement arguments cross the worker boundary.
                 message={...message,kind:'call',...action};
               }
@@ -126,7 +128,7 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
                   }
                 }finally{active--;queue.shift()?.();}
               }else if(message.kind==='read'||message.kind==='inspect'){
-                value=typeof message.ref==='string'?readObservation(records,message.ref,message.pointer):
+                value=typeof message.ref==='string'?readObservation(await sourceRecords(message.ref),message.ref,message.pointer):
                   await readSavedObservation(message.ref,message.pointer,{cwd});
                 if(message.kind==='inspect')value=structureIndex(value);
                 if(message.page!==undefined){
@@ -139,7 +141,7 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
                 }
                 if(Buffer.byteLength(JSON.stringify(value))>policy.output_bytes)
                   throw Error('/pointer: Selected observation exceeds the read budget; select a narrower field or use saveContext for datasets');
-              }else if(message.kind==='save')value=await saveSemanticContext({cwd,name:message.name,spec:message.spec,records,scope});
+              }else if(message.kind==='save')value=await saveSemanticContext({cwd,name:message.name,spec:message.spec,records,scope,resolveRecord});
               else if(message.kind==='load')value=await loadSemanticContext({cwd,path:message.path,allowedInputs});
               else if(message.kind==='print'){value=undefined;onProgress(String(message.text).slice(0,policy.output_bytes));}
               else throw Error('Unknown composition request');

@@ -1,11 +1,51 @@
-import test from 'node:test';
+import test,{after} from 'node:test';
 import assert from 'node:assert/strict';
 import {createDataGatewayTools} from '../../src/capstone_agent/resources/general-data-gateway.mjs';
 import {applicationToolOptions} from '../../src/capstone_agent/resources/general-sdk.mjs';
 import {compositionPolicy} from '../../src/capstone_agent/resources/tool-composition.mjs';
-import {mkdtemp,rm} from 'node:fs/promises';
+import {savedToolObservation} from '../../src/capstone_agent/resources/tool-result-context.mjs';
+import {mkdtemp,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
+import {createHash} from 'node:crypto';
+const suiteCwd=await mkdtemp(join(tmpdir(),'gateway-research-'));
+after(()=>rm(suiteCwd,{recursive:true,force:true}));
+
+for(const padding of [0,10000])test(`direct task observation references support read inspect save without another call (padding=${padding})`,async()=>{
+ const cwd=await mkdtemp(join(tmpdir(),'direct-observation-')),previous=globalThis.fetch;let calls=0;
+ try{
+  const c=config();c.toolResultCwd=cwd;c.toolComposition=compositionPolicy;c.researchTaskId='task-1';
+  c.applicationPolicy.allowed_tools.push('bash','write','agent_tools_execute');
+  globalThis.fetch=async(_url,options)=>{
+   calls++;const body=JSON.parse(options.body);
+   return {ok:true,json:async()=>({result_json:JSON.stringify({structuredContent:{status:body.call_id==='direct-error'?'error':'ok',data:{n:4,rows:[{n:4}],padding:'x'.repeat(padding),
+    next_action:{tool:'discover_data_capabilities',arguments:{}}}}}),observation:{
+    kind:'external_gateway_observation',tool_call_id:body.call_id,task_id:'task-1',tool:body.name,
+    catalog_revision:c.dataGateway.catalog.revision,tool_schema_sha256:'b'.repeat(64)}})};
+  };
+  const options=applicationToolOptions(c,[]),source=options.customTools.find(t=>t.name==='data_gateway_discover_data_capabilities');
+  const direct=await source.execute('direct-1',{});
+  const ref='native-observation:task-1:'+createHash('sha256').update('direct-1').digest('hex');
+  const composed=options.customTools.find(t=>t.name==='agent_tools_execute');
+  const program=`const ref=${JSON.stringify(ref)};const n=await tools.read(ref,'/structuredContent/data/n');const index=await tools.inspect(ref,'/structuredContent/data');const saved=await saveContext('direct',{bindings:{n:{call:ref,pointer:'/structuredContent/data/n'}},datasets:[{name:'rows',call:ref,pointer:'/structuredContent/data/rows'}]});return {n,index,loaded:await loadContext(saved.path)};`;
+  const result=await composed.execute('reuse',{tools:[],program},new AbortController().signal);
+  assert.equal(result.isError,false,JSON.stringify(result));
+  const output=JSON.parse(result.content[0].text);assert.equal(output.calls,0);assert.equal(output.result.n,4);
+  assert.deepEqual(output.result.loaded.datasets.rows.data,[{n:4}]);assert.equal(calls,1);
+  const followed=await composed.execute('follow',{tools:['discover_data_capabilities'],program:`return tools.follow('direct-1','/structuredContent/data/next_action');`},new AbortController().signal);
+  assert.equal(followed.isError,false,JSON.stringify(followed));assert.equal(calls,2);
+  const foreign={...c};
+  const denied=await applicationToolOptions(foreign,[]).customTools.find(t=>t.name==='agent_tools_execute').execute('foreign',{tools:[],program:`return tools.read(${JSON.stringify(ref)},'');`},new AbortController().signal);
+  assert.equal(denied.isError,true);assert.equal(calls,2);
+  await writeFile(savedToolObservation(direct).reference.path,'tampered');
+  const changed=await composed.execute('changed',{tools:[],program:`return tools.read(${JSON.stringify(ref)},'');`},new AbortController().signal);
+  assert.equal(changed.isError,true);assert.match(changed.content[0].text,/Saved observation identity changed/);
+  assert.equal(calls,2);
+  await source.execute('direct-error',{});
+  const failedSource=await composed.execute('failed-source',{tools:['discover_data_capabilities'],program:`return tools.follow('direct-error','/structuredContent/data/next_action');`},new AbortController().signal);
+  assert.equal(failedSource.isError,true);assert.match(failedSource.content[0].text,/not a successful observation/);assert.equal(calls,3);
+ }finally{globalThis.fetch=previous;await rm(cwd,{recursive:true,force:true});}
+});
 
 test('registered composition reaches actual application wrapper and calls admitted gateway without active menu load',async()=>{
  const cwd=await mkdtemp(join(tmpdir(),'composition-sdk-')),previous=globalThis.fetch,requests=[];
@@ -30,7 +70,7 @@ test('registered composition reaches actual application wrapper and calls admitt
  }finally{globalThis.fetch=previous;await rm(cwd,{recursive:true,force:true});}
 });
 
-function config(){return {deadlineAt:Date.now()+10000,applicationPolicy:{allowed_tools:['data_gateway_discover_data_capabilities']},
+function config(){return {toolResultCwd:suiteCwd,deadlineAt:Date.now()+10000,applicationPolicy:{allowed_tools:['data_gateway_discover_data_capabilities']},
   dataGateway:{url:'http://127.0.0.1:8790/data-gateway/task-1',grant:'task-grant',taskId:'task-1',
     catalog:{revision:'a'.repeat(64),tool_hashes:{data_gateway_discover_data_capabilities:'b'.repeat(64)},
       tools:{data_gateway_discover_data_capabilities:{name:'discover_data_capabilities',description:'Discover data',inputSchema:{type:'object',properties:{}}}}}}};}

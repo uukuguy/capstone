@@ -1,6 +1,6 @@
 // The host supplies this task-bound relay and catalog. Upstream credentials
 // and endpoint selectors are never tool parameters or native task inputs.
-import {boundToolResult} from './tool-result-context.mjs';
+import {boundToolResult,savedToolObservation} from './tool-result-context.mjs';
 import {createHash} from 'node:crypto';
 import {gatewayUseLedger} from './gateway-tool-use.mjs';
 const publicErrors=new Set(['gateway_arguments_invalid','gateway_request_invalid',
@@ -73,10 +73,18 @@ export function createDataGatewayTools(config,{fetchImpl=globalThis.fetch,cwd=co
           receipt.catalog_revision!==gateway.catalog.revision||
           receipt.tool_schema_sha256!==gateway.catalog.tool_hashes[name])throw new Error('gateway receipt identity changed');
       const ledger=gatewayUseLedger(config);
-      ledger.record(name,callId);
-      if(typeof config.researchTaskId==='string')ledger.record(name,'native-observation:'+config.researchTaskId+':'+createHash('sha256').update(callId).digest('hex'));
-      return boundToolResult({content:[{type:'text',text:value.result_json}],details:receipt,isError:value.is_error===true},
-        {cwd,toolName:name,callId});
+      const result=await boundToolResult({content:[{type:'text',text:value.result_json}],details:receipt,isError:value.is_error===true},
+        {cwd,toolName:name,callId,retain:true});
+      const saved=savedToolObservation(result);
+      let raw;try{raw=JSON.parse(value.result_json);}catch{}
+      const source=raw?.structuredContent??raw;
+      const observation=saved&&{...saved,receipt,observedAt:Date.now(),
+        ok:value.is_error!==true&&!['error','failed','denied'].includes(source?.status)};
+      ledger.record(name,callId,observation);
+      if(typeof config.researchTaskId==='string')ledger.record(name,'native-observation:'+config.researchTaskId+':'+createHash('sha256').update(callId).digest('hex'),observation);
+      if(saved)result.content=[...result.content,{type:'text',text:JSON.stringify({observation_ref:callId,
+        base_pointer:saved.base_pointer,instruction:'Task-issued observation reference. In composition use tools.read or tools.inspect with this reference and exact JSON pointers relative to the saved root. Reuse this result; no source call is needed.'})}];
+      return result;
     }
   }));
 }

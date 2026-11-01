@@ -20,7 +20,7 @@ export function observationPointer(value,path=''){
 }
 export function readObservation(records,ref,path){
   const record=records.get(ref);
-  if(!record)throw Error('/ref: Unknown observation reference; use the exact ref from tools.call or completed_calls, or the issued full_result object for a saved result. A provenance source identifier is not a read handle.');
+  if(!record)throw Error('/ref: Unknown observation reference; use an exact task-issued observation_ref, tools.call/completed_calls ref or full_result object. Call/source identifiers work only when issued and retained by this task; do not reconstruct them or use another task\'s references.');
   return structuredClone(observationPointer(record.value,path));
 }
 export function observedAction(records,ref,path){
@@ -30,7 +30,8 @@ export function observedAction(records,ref,path){
   const value=readObservation(records,ref,path);
   if(!value||typeof value!=='object'||typeof value.tool!=='string'||!value.arguments||
       typeof value.arguments!=='object'||Array.isArray(value.arguments))throw Error('/pointer: expected an observed action with tool and arguments');
-  const waits=[value.not_before_seconds,record.value?.data?.poll_after_seconds].filter(v=>v!==undefined);
+  const source=record.value?.structuredContent??record.value;
+  const waits=[value.not_before_seconds,source?.data?.poll_after_seconds].filter(v=>v!==undefined);
   if(waits.some(v=>typeof v!=='number'||!Number.isFinite(v)||v<0))throw Error('/pointer: invalid returned wait duration');
   return {name:value.tool,args:structuredClone(value.arguments),
     waitMs:Math.max(0,(record.observedAt??Date.now())+Math.max(0,...waits)*1000-Date.now())};

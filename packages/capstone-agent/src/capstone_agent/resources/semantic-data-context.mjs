@@ -21,10 +21,18 @@ async function appendProduct(cwd,product){
 }
 const canonical=v=>Array.isArray(v)?v.map(canonical):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])):v;
 const digest=v=>createHash('sha256').update(JSON.stringify(canonical(v))).digest('hex');
-export async function saveSemanticContext({cwd,name,spec,records,scope}){
+export async function saveSemanticContext({cwd,name,spec,records,scope,resolveRecord}){
   if(!/^[a-zA-Z0-9_-]{1,80}$/.test(name))throw Error('Invalid context name');
   if(!spec||typeof spec!=='object'||Array.isArray(spec))throw Error('/spec: expected an object');
   if(spec.datasets!==undefined&&!Array.isArray(spec.datasets))throw Error('/datasets: expected an array');
+  if(resolveRecord){
+    records=new Map(records);
+    const refs=[...(spec.datasets??[]).map(item=>item?.call),...Object.values(spec.bindings??{}).map(item=>item?.call)];
+    for(const ref of new Set(refs.filter(ref=>typeof ref==='string'&&ref))){
+      if(records.has(ref))continue;
+      const record=await resolveRecord(ref);if(record)records.set(ref,record);
+    }
+  }
   for(const [i,d] of (spec.datasets??[]).entries()){
     const path=`/datasets/${i}`;
     if(!d||typeof d!=='object'||Array.isArray(d))throw Error(`${path}: expected an object`);

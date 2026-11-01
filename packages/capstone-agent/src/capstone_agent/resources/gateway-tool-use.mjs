@@ -2,8 +2,15 @@
 const ledgers=new WeakMap();
 export function createGatewayUseLedger(){
   const observations=new Map();
-  return {record(tool,ref){if(typeof tool==='string'&&typeof ref==='string'&&ref)observations.set(ref,tool);},
-    has(tool,ref){return observations.get(ref)===tool;}};
+  return {record(tool,ref,observation){
+      if(typeof tool!=='string'||typeof ref!=='string'||!ref)return;
+      const old=observations.get(ref);
+      if(old&&(old.tool!==tool||observation&&old.observation&&
+          old.observation.reference.sha256!==observation.reference.sha256))throw Error('Observation reference identity changed');
+      observations.set(ref,{tool,observation:old?.observation??(observation?structuredClone(observation):undefined)});
+    },
+    has(tool,ref){return observations.get(ref)?.tool===tool;},
+    resolve(ref){return structuredClone(observations.get(ref)?.observation);}};
 }
 export function gatewayUseLedger(config){
   if(!ledgers.has(config))ledgers.set(config,createGatewayUseLedger());
@@ -21,6 +28,7 @@ export const gatewayToolUseGuidance=[
  'Compose ordinary synchronous operations from exact published contracts. Pass observed results to dependent calls; batch independent calls only with validated arguments. Follow returned guidance and preserve actual observation references.',
  'Before expanding a retrieval, relate each selected object, time window and resolution to a requested comparison or output. A discovered catalog is not a requirement to retrieve every entry. Use published overview or aggregate capabilities when they can establish coverage; then retrieve detail for the selected scope. Keep any needed baseline or event windows explicit.',
  'Reuse saved observations for inspection, calculations and product construction. Saving or inspecting an existing result does not require repeating its source query. Read bounded fields or array pages by their issued references instead of copying whole results into model context.',
+ 'Direct calls return observation_ref and base_pointer. Composition read, inspect and saveContext can use that task-issued call/source reference, with exact JSON pointers relative to the saved root; base_pointer identifies where structured data starts. Reuse returned identifiers unchanged. References not issued by this task are unavailable, even if their text looks valid.',
  'For unfamiliar business semantics, validate one bounded call and its returned status before expanding retrieval; reuse an existing successful observation when it establishes the same shape and scope. Do not execute a probe merely to check input schema: composition tools.describe reads the frozen contract and batch preflight validates all arguments before invocation. Correct invalid arguments before retrying. Stop a batch on a shared contract error. If no supported correction is available, retain the gap and continue other useful work.',
  'Discovery guidance is not authorization. Use only task-granted tools within current bounds. Do not invent tool defects or infer that other providers or operations are unavailable from one failed call.',
 ].join(' ');
