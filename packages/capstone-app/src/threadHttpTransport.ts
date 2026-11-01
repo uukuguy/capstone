@@ -1,3 +1,4 @@
+import {sha256Hex} from './browserDigest'
 import {applicationCapacity,assertCapacity,exceedsCapacity,CapacityError,type CapacityKey} from './applicationCapacity'
 import { parseEventEnvelope, type EventEnvelope } from './threadProtocol'
 import { parseGridSourcePage, parseGridSourceScopes, type GridSourceQuery } from './gridSource'
@@ -94,7 +95,7 @@ async function verifiedFileBytes(response:Response,size:number,digest:string,key
   if(total!==size)throw new Error('文件不完整')
   const bytes=new Uint8Array(total);let offset=0
   for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length}
-  const actual=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),value=>value.toString(16).padStart(2,'0')).join('')
+  const actual=await sha256Hex(bytes)
   if(actual!==digest)throw new Error('文件校验失败')
   return bytes
 }
