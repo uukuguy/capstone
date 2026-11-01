@@ -17,11 +17,12 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
   // Transient timeouts retain their existing per-program policy.
   const rejectedRequests=new Map();
   const identities=createToolIdentityResolver(catalog.tools,admittedNames);
-  return {name:'agent_tools_execute',label:'执行多步数据处理',description:'Run an async JavaScript program in the isolated task workspace. Select admitted gateway tools explicitly. Use Promise.all for independent calls and pass results directly to dependent calls. tools.call(name,args) returns {ref,ok,status,data,provenance,gaps,value}; tools.describe(name) returns its exact contract. tools.follow(ref,pointer) executes an action copied from a successful host observation at that JSON pointer, preserving exact tool names and arguments. Select its target tool in tools first. Prefer follow for returned actions instead of retyping identifiers; it honors returned waits and uses the same grant/schema checks. python(code,data) runs Python with JSON stdin. saveContext(name,{bindings,datasets}) preserves observed source fields with call refs and JSON pointers, declared values, and unknown fields. loadContext(path) reuses a saved package. Return a compact summary; retain source data in packages. No automatic retries. Failed programs return completed_calls references when calls already finished; reuse them rather than reading again. Source packages are observations, not Authority evidence. tools.read(ref,pointer) reads a bounded exact field from a previous observation, including failed results, without another upstream call. For blocked repeats inspect previous_call; do not recreate an unchanged rejected request. '+`Limits for this instance: max_calls=${policy.max_calls}, concurrency=${policy.concurrency}, program_chars=${policy.code_chars}. Plan batches within these limits before writing a long program. `+gatewayToolUseGuidance,
+  return {name:'agent_tools_execute',label:'执行多步数据处理',description:'Run an async JavaScript program in the isolated task workspace. Select admitted gateway tools explicitly. For a known independent call list use tools.batch([{tool,arguments},...]): the host checks the whole batch against remaining capacity and selected tool identities before any call, reserves capacity, and runs it with bounded concurrency in input order. Per-call argument validation still applies; batch execution is not transactional. Use tools.call for dependent calls. tools.call(name,args) returns {ref,ok,status,data,provenance,gaps,value}; tools.describe(name) returns its exact contract. tools.follow(ref,pointer) executes an action copied from a successful host observation at that JSON pointer, preserving exact tool names and arguments. Select its target tool in tools first. Prefer follow for returned actions instead of retyping identifiers; it honors returned waits and uses the same grant/schema checks. python(code,data) runs Python with JSON stdin. saveContext(name,{bindings,datasets}) preserves observed source fields with call refs and JSON pointers, declared values, and unknown fields. loadContext(path) reuses a saved package. Return a compact summary; retain source data in packages. No automatic retries. Failed programs return completed_calls references when calls already finished; reuse them rather than reading again. Source packages are observations, not Authority evidence. tools.read(ref,pointer) reads a bounded exact field from a previous observation, including failed results, without another upstream call. For blocked repeats inspect previous_call; do not recreate an unchanged rejected request. '+`Limits for this instance: max_calls=${policy.max_calls}, concurrency=${policy.concurrency}, program_chars=${policy.code_chars}. Plan batches within these limits before writing a long program. `+gatewayToolUseGuidance,
     parameters:{type:'object',properties:{program:{type:'string',description:"Async program body. Example: const r=await tools.call(name,args); const saved=await saveContext('shared',{bindings:{unit:{call:r.ref,pointer:'/data/unit'},method:{value:'mean'},missing:{unknown:true,reason:'not provided'}},datasets:[{name:'load',call:r.ref,pointer:'/data/rows'}]}); return saved; Use actual returned fields in pointers. loadContext(saved.path) returns bindings with basis/value and datasets keyed by name with data/status/provenance/gaps. Plain binding values are declared metadata, never verified facts. Actual call refs remain usable by later programs in this instruction/session; different tasks need explicit saved packages. Large returns are saved automatically; return selected fields to reduce model context."},tools:{type:'array',items:{type:'string'}},purpose:{type:'string'},concurrency:{type:'integer',minimum:1,maximum:policy.concurrency},max_calls:{type:'integer',minimum:1,maximum:policy.max_calls},timeout_ms:{type:'integer',minimum:1,maximum:policy.max_program_ms}},required:['program','tools'],additionalProperties:false},
     async execute(callId,input,signal){
       signal?.throwIfAborted();
       const completedCalls=[];
+      const batches=new Map();
       const failure=error=>({isError:true,content:[{type:'text',text:completedCalls.length?JSON.stringify({
         code:'composition_failed',message:String(error.message??error),completed_calls:completedCalls.slice(-8),
         completed_call_count:completedCalls.length,recovery:'Completed calls were not rolled back. Reuse their observation refs in this task; do not repeat them implicitly.'
@@ -52,14 +53,38 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
             if(message.kind==='failed'){settle(undefined,Error(message.error));return;}
             let value,error;
             try{
+              if(message.kind==='preflight'){
+                const plan=message.calls,errors=[];
+                if(!Array.isArray(plan)||!plan.length||plan.length>limit-requests)
+                  throw Error(`Batch preflight: expected 1..${limit-requests} calls; no calls from this batch executed`);
+                const prepared=plan.map((item,index)=>{
+                  try{
+                    if(!item||typeof item!=='object'||Object.keys(item).some(k=>!['tool','arguments'].includes(k))||
+                        !item.arguments||typeof item.arguments!=='object'||Array.isArray(item.arguments))
+                      throw Error('expected {tool,arguments:object}');
+                    return {name:programIdentities.resolve(item.tool),args:structuredClone(item.arguments)};
+                  }catch(e){errors.push({index,message:String(e.message??e)});return null;}
+                });
+                if(errors.length)throw Error('Batch preflight: no calls from this batch executed; '+JSON.stringify(errors));
+                // Reserve the entire batch before releasing a single call.
+                requests+=prepared.length;
+                const ref=randomUUID();batches.set(ref,prepared);value={ref,count:prepared.length};
+              }else{
               if(message.kind==='follow'){
                 const action=observedAction(records,message.ref,message.pointer);
                 // No replacement arguments cross the worker boundary.
                 message={...message,kind:'call',...action};
               }
               if(message.kind==='call'){
-                message={...message,name:programIdentities.resolve(message.name)};
-                if(++requests>limit)throw Error('Composition call budget exceeded');
+                if(message.batchRef!==undefined){
+                  const batch=batches.get(message.batchRef),item=Number.isInteger(message.index)?batch?.[message.index]:null;
+                  if(!item)throw Error('Unknown or consumed batch call');
+                  batch[message.index]=null;
+                  message={...message,...item};
+                }else{
+                  message={...message,name:programIdentities.resolve(message.name)};
+                  if(++requests>limit)throw Error('Composition call budget exceeded');
+                }
                 const argumentsHash=createHash('sha256').update(JSON.stringify(canonical(message.args))).digest('hex');
                 const failureKey=message.name+':'+argumentsHash;
                 if(active>=concurrency)await new Promise((resolve,reject)=>queue.push(()=>abort.signal.aborted?reject(abort.signal.reason):resolve()));
@@ -100,6 +125,7 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
               else if(message.kind==='load')value=await loadSemanticContext({cwd,path:message.path,allowedInputs});
               else if(message.kind==='print'){value=undefined;onProgress(String(message.text).slice(0,policy.output_bytes));}
               else throw Error('Unknown composition request');
+              }
             }catch(e){error=String(e.message??e);}
             if(!finished&&child.connected)child.send({kind:'reply',id:message.id,value,error});
           };

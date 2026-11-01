@@ -8,6 +8,36 @@ import {rpcEvent} from '../../src/capstone_agent/resources/general-sdk.mjs';
 
 const catalog={revision:'catalog',tools:{data_gateway_read:{name:'read',inputSchema:{type:'object'},description:'Read selected data'}},tool_hashes:{data_gateway_read:'a'.repeat(64)}};
 
+test('batch preflight rejects capacity and unselected tools before any call',()=>fixture(async cwd=>{
+ let issued=0;const t=tool(cwd,async()=>{issued++;return native({});});
+ for(const [max_calls,program] of [
+  [1,`return await tools.batch([{tool:'read',arguments:{}},{tool:'read',arguments:{}}]);`],
+  [2,`return await tools.batch([{tool:'read',arguments:{}},{tool:'unknown',arguments:{}}]);`]]){
+  const result=await t.execute('reject',{tools:['read'],max_calls,program});
+  assert.equal(result.isError,true);assert.match(result.content[0].text,/preflight/);
+ }
+ assert.equal(issued,0);
+}));
+
+test('batch capacity includes earlier calls and rejection consumes no reserved capacity',()=>fixture(async cwd=>{
+ let issued=0;const t=tool(cwd,async()=>{issued++;return native({});});
+ const result=await t.execute('remaining',{tools:['read'],max_calls:2,program:`
+ await tools.call('read',{});
+ try{await tools.batch([{tool:'read',arguments:{}},{tool:'read',arguments:{}}]);throw Error('should reject');}
+ catch(e){if(!e.message.includes('preflight'))throw e;}
+ return await tools.batch([{tool:'read',arguments:{}}]);`});
+ assert.equal(result.isError,false,JSON.stringify(result));assert.equal(issued,2);
+}));
+
+test('batch reserves capacity, preserves argument order and uses normal observation refs',()=>fixture(async cwd=>{
+ const issued=[];const t=tool(cwd,async(_n,args)=>{issued.push(args);return native(args);});
+ const result=await t.execute('batch',{tools:['read'],max_calls:2,program:`
+ const out=await tools.batch([{tool:'read',arguments:{n:1}},{tool:'read',arguments:{n:2}}]);
+ return {values:out.map(x=>x.data.n),read:await tools.read(out[1].ref,'/data/n')};`});
+ assert.equal(result.isError,false,JSON.stringify(result));
+ assert.deepEqual(JSON.parse(result.content[0].text).result,{values:[1,2],read:2});assert.equal(issued.length,2);
+}));
+
 test('explicit non-correctable rejection survives programs and retains its source',()=>fixture(async cwd=>{
  let issued=0;
  const t=tool(cwd,async()=>{issued++;return {isError:true,content:[{type:'text',text:JSON.stringify({status:'error',gaps:[{reason:'unavailable',scope:{executed:false,correctable:false}}]})}]};});

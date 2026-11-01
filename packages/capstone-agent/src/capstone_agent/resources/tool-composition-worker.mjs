@@ -7,6 +7,10 @@ process.on('message',async message=>{
   if(message.kind!=='start')return;
   const identities=createToolIdentityResolver(message.schemas);
   const tools={call:(name,args)=>request('call',{name:identities.resolve(name),args}),
+    batch:async calls=>{
+      const plan=await request('preflight',{calls});
+      return Promise.all(Array.from({length:plan.count},(_,index)=>request('call',{batchRef:plan.ref,index})));
+    },
     read:(ref,pointer)=>request('read',{ref,pointer}),
     follow:(ref,pointer)=>request('follow',{ref,pointer}),
     describe:name=>message.schemas[identities.resolve(name)]};
