@@ -68,7 +68,7 @@ def select_runtime(root: Path, environment: dict[str, str], command: str):
         # Use the same registry as submission admission and the isolated relay.
         # Professional family providers retain their separate configuration.
         import importlib.util
-        module_spec = importlib.util.spec_from_file_location("workbench_llm_profiles",
+        module_spec = importlib.util.spec_from_file_location("capstone_agent.workbench_llm_profiles",
             root / "packages/capstone-agent/src/capstone_agent/workbench_llm_profiles.py")
         module = importlib.util.module_from_spec(module_spec)
         module_spec.loader.exec_module(module)
