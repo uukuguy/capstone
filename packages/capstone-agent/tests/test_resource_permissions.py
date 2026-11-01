@@ -26,6 +26,7 @@ def test_local_all_actions_and_intranet_use_only():
     intranet = ResourcePermissions(DEFAULT_POLICY, 'intranet')
     assert local.allowed_actions(PRINCIPAL, 'workspace') == sorted(RESOURCE_ACTIONS)
     assert intranet.allowed_actions(PRINCIPAL, 'workspace') == ['resources.use']
+    assert local.require(PRINCIPAL, 'workspace', 'resources.use') != intranet.require(PRINCIPAL, 'workspace', 'resources.use')
     for action in RESOURCE_ACTIONS - {'resources.use'}:
         with pytest.raises(ResourcePermissionDenied, match='resource_permission_denied'):
             intranet.require(PRINCIPAL, 'workspace', action)

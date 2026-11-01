@@ -78,7 +78,7 @@ class ResourcePermissions:
                             raise ValueError('invalid constraint')
             if not isinstance(self.profile, str) or self.profile not in profiles:
                 raise ValueError('unknown profile')
-            canonical = json.dumps(policy, sort_keys=True, separators=(',', ':'),
+            canonical = json.dumps({'profile': self.profile, 'policy': policy}, sort_keys=True, separators=(',', ':'),
                                    ensure_ascii=True).encode('utf-8')
             return profiles[self.profile]['rules'], 'sha256:' + hashlib.sha256(canonical).hexdigest()
         except (OSError, UnicodeError, ValueError, TypeError, RecursionError):
