@@ -419,7 +419,10 @@ def test_application_context_policy_reaches_native_model_and_compaction_settings
     if sdk_mode:
         payload = json.loads(Path(argv[2]).read_text())
         settings = payload['settings']
-        assert payload['runtimeLimits']['model_context_tokens'] == window
+        # Research/history bindings use the application's capacity snapshot.
+        # Model selection must not change that independent transport contract.
+        from capstone_agent.application_capacity import current_capacity
+        assert payload['runtimeLimits'] == dict(current_capacity().values)
         assert 'compaction' not in sdk['settings']
     else:
         settings = json.loads((workspace / '.agent/settings.json').read_text())

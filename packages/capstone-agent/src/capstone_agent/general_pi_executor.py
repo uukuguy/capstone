@@ -270,7 +270,8 @@ def native_pi_launch(*, command: tuple[str, ...], workspace: Path, config_root: 
         sdk_values['deliveryReviewSources'] = []
         from .application_capacity import current_capacity
         sdk_values['runtimeLimits'] = dict(current_capacity().values)
-        sdk_values['runtimeLimits'].update(model_context_tokens=context_tokens, model_output_tokens=output_tokens)
+        # Keep the task's transport snapshot identical to research/history
+        # bindings. Per-model budgets belong to models.json and SDK settings.
         sdk_values['runtimeLimitMode'] = current_capacity().mode
         # A task can replace paths inside its writable output directory. Keep
         # accepted inputs under the root-owned parent instead.
