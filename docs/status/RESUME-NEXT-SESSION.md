@@ -1,5 +1,9 @@
 # Live Session Checkpoint
 
+Accepted design: `docs/superpowers/specs/2026-11-02-managed-resource-installation-design.md`.
+Installations persist; no temporary mode. Resource management uses one permission gate,
+explicitly allowed in development and configurable later. Implementation has not started.
+
 `43c31e3a` changes scope-switch defaults to the newest primary by saved time.
 Manual version selection survives directory updates.53 focused tests and types passed.
 `6470c554` puts copy first in answer actions;133 component checks passed.

@@ -6724,3 +6724,4 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 2026-11-02: 72fae165 records local instruction-product verification and recovery state; intranet deployment remains deferred.
 - 2026-11-02: 43c31e3a selects the newest primary on scope changes, preventing scripts or older reports from becoming default previews.
 - 2026-11-02: 6470c554 restores copy as the first answer action, matching the instruction toolbar.
+- 2026-11-02: 32a98bba records verified preview defaults, toolbar order, and local rebuild receipt for recovery.
