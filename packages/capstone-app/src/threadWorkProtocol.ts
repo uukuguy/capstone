@@ -126,7 +126,7 @@ export function buildSendMessageCommand(threadId: string, runId: string, command
   const command: WorkCommand = {...buildWorkCommand(threadId, runId, commandId, idempotencyKey, workId, expectedRevision, text), kind: 'send_message'}
   if (submission) {
     if(submission.llm_profile_id!==undefined&&!validLlmProfileId(submission.llm_profile_id))throw new ThreadProtocolError('LLM 选择无效')
-    if(submission.deep_research!==undefined&&typeof submission.deep_research!=='boolean')throw new ThreadProtocolError('深度思考选项无效')
+    if(submission.deep_research!==undefined&&typeof submission.deep_research!=='boolean')throw new ThreadProtocolError('深度研究选项无效')
     const input = object(submission.input)
     const choice = object(submission.context_selection)
     if (input.text !== text || !['text', 'skill_invocation'].includes(String(input.kind))

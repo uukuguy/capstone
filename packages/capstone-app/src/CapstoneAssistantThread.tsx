@@ -1284,7 +1284,7 @@ export default function CapstoneAssistantThread({ nativeArtifactProjections, pro
       setInputDraft(current=>({...current,context_product_refs:exists?items.map(item=>productRefKey(item.ref)===productRefKey(selection.ref)?selection:item):[...items,selection]}))
     }catch{setProductReferenceError('成果引用无效，请重新选择。')}
   },[requestedProductReference?.nonce])
-  const activeInput = { ...inputDraft, llm_profile_id:inputDraft.llm_profile_id??inputCatalog?.llm_profiles?.default_profile_id, mode: runtimeMode,deep_research:runtimeMode==='capstone'?inputDraft.deep_research??false:undefined }
+  const activeInput = { ...inputDraft, llm_profile_id:inputDraft.llm_profile_id??inputCatalog?.llm_profiles?.default_profile_id, mode: runtimeMode,deep_research:runtimeMode==='capstone'?false:undefined }
   useEffect(() => { if(restoredInput.error&&inputDraft===restoredInput.draft)return; try{writeInputDraft(storageKey, activeInput)}catch(error){setProductReferenceError(error instanceof Error?error.message:'输入草稿暂时无法保存。')} }, [storageKey, inputDraft, runtimeMode,activeInput.llm_profile_id])
   const [submittingThinking,setSubmittingThinking]=useState<{id:string;text:string;afterSeq:number;at:string}>()
   const submitSequence=useRef(0)
