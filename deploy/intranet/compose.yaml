@@ -16,6 +16,9 @@ services:
   general-pi:
     image: ${CAPSTONE_GENERAL_IMAGE:?Set the exact native executor image}
     extra_hosts: ["host.docker.internal:host-gateway"]
+    # CentOS 7 needs the table to exist before the first atomic rule replacement.
+    # No task starts until the normal executor has applied its complete policy.
+    command: [/bin/sh, -ec, "nft add table inet capstone_tasks; exec python -m capstone_agent.general_pi_resource_seed"]
   app:
     image: ${CAPSTONE_APP_IMAGE:?Set the exact App image}
     restart: unless-stopped

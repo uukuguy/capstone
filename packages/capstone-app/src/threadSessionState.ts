@@ -1,3 +1,4 @@
+import {randomUuid} from './commandKey'
 import {applicationCapacity,assertCapacity,exceedsCapacity,CapacityError,rethrowDebugCapacity} from './applicationCapacity'
 import { buildThreadCommand, type ThreadCommand } from './threadClient'
 import type { AnyThreadCommand } from './threadClient'
@@ -60,14 +61,14 @@ export function storageNamespace(origin: string,workspace=currentWorkspaceName()
   let session = ''
   try { session = sessionStorage.getItem(namespaceKey) || '' } catch { /* memory fallback */ }
   if (!session) {
-    session = crypto.randomUUID()
+    session = randomUuid()
     try { sessionStorage.setItem(namespaceKey, session) } catch { /* memory fallback */ }
   }
   return `capstone.thread.${encodeURIComponent(origin || window.location.origin)}.${session}${workspace==='enterprise'?'':`.workspace.${encodeURIComponent(workspace)}`}`
 }
 
 export function rotateStorageNamespace(): void {
-  try { sessionStorage.setItem('capstone.thread.storageSession', crypto.randomUUID()) } catch { /* memory fallback */ }
+  try { sessionStorage.setItem('capstone.thread.storageSession', randomUuid()) } catch { /* memory fallback */ }
   window.dispatchEvent(new Event('capstone-thread-access-changed'))
 }
 

@@ -1,8 +1,9 @@
+import {randomUuid} from './commandKey'
 export const defaultWorkspaceName='enterprise'
 export function ensureWorkspaceLocation(){
   const url=new URL(window.location.href)
   if(!url.searchParams.has('workspace')){
-    url.searchParams.set('workspace',`空间-${crypto.randomUUID().slice(0,8)}`)
+    url.searchParams.set('workspace',`空间-${randomUuid().slice(0,8)}`)
     window.history.replaceState({},'',url)
   }
   return currentWorkspaceName()
