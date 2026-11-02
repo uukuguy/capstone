@@ -6751,3 +6751,11 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 2026-11-02: 70c42dab deployed; nonprivileged reports and durable model purpose pass; summer audit retains timings, benchmark and gateway requests.
 - 2026-11-02: 54e33dbf preserves summer execution comparison, measured model speeds, verified fixes and gateway investigation inputs.
 - 2026-11-02: Capacity recovery and pre-call disclosure pass focused checks; relay queues, optional MCP budget and debug recovery replace task-aborting limits.
+- 2026-11-02: 4d57c083 separates relay scheduling from task budgets and publishes effective limits to prevent valid-task aborts.
+- 2026-11-02: Local4d57c083 rebuild ready; intranet images built, rollout deferred until main-chain fixes complete, per user instruction.
+
+- 2026-11-02 3cc6a263 preserves multi-turn file identity and failure origins; missing LLM purposes remain blank.
+- 2026-11-02 f4d66542 records recoverable resource-storage faults instead of hiding their origins.
+- 2026-11-02 b4df210b separates model boundaries from host stages to preserve LLM visibility during failure tracking.
+
+- 2026-11-02: Welcome cards show current session gateway and selected LLM; focused App checks pass; browser unavailable.

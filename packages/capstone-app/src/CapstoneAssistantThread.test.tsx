@@ -112,9 +112,11 @@ it('keeps catalog LLM choices per session and across sends while DR resets',asyn
   const props={events:[],disabled:false,isRunning:false,activity:[],onSend,onCancel:async()=>{},inputCatalog:catalog}
   const {rerender}=render(<CapstoneAssistantThread key="one" {...props} storageKey="llm-session-one"/>)
   expect(screen.getByRole('button',{name:'后端 LLM'}).textContent).toContain('Commercial')
+  expect(within(screen.getByRole('region',{name:'当前会话连接'})).getByText('flash')).toBeTruthy()
   fireEvent.click(screen.getByRole('button',{name:'后端 LLM'}))
   expect((screen.getByRole('menuitemradio',{name:/Custom.*未配置/}) as HTMLButtonElement).disabled).toBe(true)
   fireEvent.click(screen.getByRole('menuitemradio',{name:/Intranet/}))
+  expect(within(screen.getByRole('region',{name:'当前会话连接'})).getByText('dsv4')).toBeTruthy()
   fireEvent.click(screen.getByRole('button',{name:'深度研究'}))
   fireEvent.change(screen.getByRole('textbox',{name:'Thread 指令'}),{target:{value:'first'}})
   fireEvent.keyDown(screen.getByRole('textbox',{name:'Thread 指令'}),{key:'Enter',code:'Enter'})

@@ -26,7 +26,7 @@ import type {ContextProductRef} from './threadProducts'
 import AnswerDetailSheet from './AnswerDetailSheet'
 import AttemptRecordPanel from './AttemptRecordPanel'
 import SessionNewPopover from './SessionNewPopover'
-import type {InputCatalog,InputSubmission} from './threadInput'
+import type {InputCatalog,InputSubmission,GatewayConnectionStatus} from './threadInput'
 import {sessionTypeNames} from './SessionEntry'
 import ProcessProductWorkspace from './ProcessProductWorkspace'
 import type {ProcessProduct} from './processProducts'
@@ -141,6 +141,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   const recovery=recoveryOnly&&!nativeChat
   const materialRevision=Math.max(0,...store.publicEvents.filter(event=>['material_uploaded','material_removed'].includes(event.eventType)).map(event=>event.eventSeq))
   const [inputCatalog,setInputCatalog]=useState<InputCatalog>()
+  const [welcomeGateway,setWelcomeGateway]=useState<GatewayConnectionStatus>()
   const [catalogLoading,setCatalogLoading]=useState(false)
   const [catalogReload,setCatalogReload]=useState(0)
   useEffect(()=>{
@@ -600,7 +601,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
   </>:null
   return <ThreadWorkspace sessionKey={currentId} conversationOnly subtitle="企业任务工作台"
     headerActions={<SessionConnectionStatus state={projection.connection} error={connectionError||projection.synchronizationError} recovering={connectionRecovering} pending={!!pending}/>}
-    navigationFooter={<WorkspaceGatewayStatus transport={transport} threadId={currentId} locked={Boolean(snapshot?.works.some(work=>work.messages.length>0))}/>}
+    navigationFooter={<WorkspaceGatewayStatus transport={transport} threadId={currentId} onConnection={setWelcomeGateway} locked={Boolean(snapshot?.works.some(work=>work.messages.length>0))}/>}
     resourcePanel={nativeChat?(client.supportsProductIndex?productsPanel:client.supportsProcessProducts?processPanel:undefined):undefined}
     resourceViews={nativeChat?client.supportsProductIndex?[...(formalModelPanel?[{id:'model',label:'电气拓扑',content:formalModelPanel,description:'注册计算模型的母线与支路；来源和修订保持实际绑定。'}]:[]),{id:'products',label:'Artifacts',content:productsPanel,description:'任务交付与指令产物，保留真实来源和版本。'},...(resourceView==='source-topology'?[{id:'source-topology',label:'电网图',content:resourceView==='source-topology'&&productsOpen?(requestedSourceView?.schema==='capstone-grid-source-view-request/1'?<><button onClick={browseElectricalModels}>浏览电网模型目录</button><GridSourceWorkspace key={requestedSourceView.scope_id} transport={transport} onQuestion={prepareSourceQuestion} requestedView={requestedSourceView} requestNonce={instructionView.requestNonce} onManualNavigate={markManualView}/></>:<ElectricalModelWorkspace storageKey={`${namespace}.${currentId}.electrical-view`} transport={transport} requestedView={requestedSourceView} requestNonce={instructionView.requestNonce} onManualNavigate={markManualView}/>):null,description:'源拓扑、显示分组与来源质量。'}]:[]),...(selectedDeliveryFile?[{id:'deliveries',label:'采用为任务交付',content:<TaskDeliveriesWorkspace client={client} threadId={currentId} revision={terminalRevision} requestedArtifact={selectedDeliveryFile} onPublished={()=>{setResourceView('products');window.dispatchEvent(new Event('capstone-session-renamed'))}}/>}]:[])]:[{id:'process-products',label:'过程制品',content:processPanel,description:'指令执行结果与未完成记录，保留原始归属。'},
       {id:'native-files',label:'指令文件',content:<NativeArtifactsWorkspace client={client} threadId={currentId} attemptIds={instructionProductScope?[instructionProductScope.attemptId]:nativeAttemptIds} instructionScope={instructionProductScope} onClearInstructionScope={()=>{markManualView();setInstructionProductScope(undefined);setRequestedArtifact(undefined)}} revision={terminalRevision} requestedArtifact={requestedArtifact} attemptLabels={attemptLabels} onAdopt={file=>{markManualView();setSelectedDeliveryFile(file);setResourceView('deliveries');setProductsOpen(true)}}/>,description:'本轮执行生成并保存的真实文件。'},
@@ -666,6 +667,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         }}/>{processReference&&<span className="process-reference" title={processReference.instruction}>引用：{processReference.instruction.slice(0,36)}<button type="button" aria-label="移除指令引用" onClick={()=>setProcessReference(undefined)}>×</button></span>}<ThreadSettingsMenu>{historyActions}</ThreadSettingsMenu></>:undefined}
       onRemoveMaterial={nativeChat?async id=>{const result=await client.removeThreadMaterial(currentId,id) as {removed?:string};if(result?.removed!==id)throw new Error('资料尚未移除。');setCatalogReload(value=>value+1)}:undefined}
       inputCatalog={inputCatalog} inputCatalogLoading={catalogLoading} onRefreshInputCatalog={()=>setCatalogReload(value=>value+1)} inputControlsDisabled={busy||active||!!pending||uploadBusy}
+      welcomeGateway={welcomeGateway}
       sendLabel={viewingLegacy?'确认原保存请求':nativeChat?pendingMessage?'重试发送':'发送':pendingMessage ? '重试保存' : '保存任务'} initialText={initialText} onDraftChange={onDraftChange}
       storageKey={liveConversation?`${key}.conversation`:`${key}.${selected}`} disabled={((recovery||viewingLegacy) && !pendingMessage) || (nativeChat&&!conversationExecutionAvailable&&!pendingMessage) || busy || uploadBusy || (!snapshot && !professional) || ((!nativeChat||!pendingMessage)&&(!!currentAttempt||active)) || (!!pendingCommand && !pendingMessage) || projection.connection !== 'live'} lockDraft={!!pendingMessage}
       isRunning={active} canCancel={canStop}

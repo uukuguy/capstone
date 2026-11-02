@@ -1,13 +1,30 @@
 # Live Session Checkpoint
 
+2026-11-02 active multi-turn integrity repair: see
+`docs/reports/2026-11-02-multiturn-execution-integrity.md`.
+Intranet Thread thr_52b7e926ea630d064f77 has three parent failures after historical
+resource opens. Frozen descriptor lacks saved_at; enriched listing adds it.
+Shared matching now preserves legacy display compatibility and immutable identity;
+typed missing historical resource returns a recoverable tool receipt. Preparation
+tracking now recognizes native model/tool events; execution failures are not user
+cancellations. Safe chained failure origins, rollback/partial-admission diagnostics,
+and unsettled tool IDs are retained. LLM purpose fallback removed: missing stays blank.
+Intranet stays 70c42dab; NO rollout until this batch is verified. No CI. Commits 3cc6a263/f4d66542/b4df210b pass focused checks. Canonical rebuild succeeded with matching API/worker image61aa2b1e; isolated PostgreSQL four-turn continuation passed, including continuation after a failed business round. Live-model acceptance and exception-boundary audit remain open. Research server is unavailable; do not attempt remote connections or deployment. Do not replay the summer query.
+
+Welcome page now shows current session gateway and selected LLM using existing connection state. App134+33 focused checks and TypeScript pass. Browser unavailable; visual acceptance remains open. Canonical local rebuild passed with matching API/worker image833051c6 and scoped cache cleanup; receipt /tmp/capstone-welcome-rebuild.log.
+
 2026-11-02 capacity correction: see docs/reports/2026-11-02-capacity-recovery-audit.md.
 Relay model/gateway slots separated; gateway concurrency four queues 28 calls in
 normal/debug. MCP total budget defaults to unlimited; positive budgets remain.
 Soft recovery works in debug; safe preflight returns exact bounds without revoking
 the task. All model-visible effective bounds are injected before the first call;
 full 171-dimension contract is task-local. Python279 passed/34 skipped; App116,
-types, SDK9 and gatewayJS13 passed. No CI or summer replay. Rebuild/deployment
-pending at this checkpoint. Large-product streaming, durable receipt/history
+types, SDK9 and gatewayJS13 passed. No CI or summer replay. 4d57c083 canonical
+local rebuild is ready; backend b0c546f4/native3315fc64; scoped cleanup receipt
+.capstone-agent/cache-maintenance-20261102-192640-94609.log. Intranet images
+4d57c083 are built but NOT deployed. User requires finishing this batch of main
+execution-chain fixes before one intranet rollout; do not deploy incrementally.
+Saved bundle: .capstone-agent/intranet-capacity-4d57c083/. Large-product streaming, durable receipt/history
 paging and sizing reviews remain open; do not claim all defaults validated.
 
 2026-11-02 summer chain audit: docs/reports/2026-11-02-intranet-summer-chain-audit.md.

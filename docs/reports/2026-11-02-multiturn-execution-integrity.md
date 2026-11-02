@@ -46,13 +46,20 @@ traceback, so the historical exception cannot be proved from a saved stack.
 
 The combined focused Python run passed 271 checks; 28 PostgreSQL-dependent cases
 were skipped because no test database URL was supplied. The App's three focused
-files passed 44 checks; TypeScript passed. Subsequent diagnostic changes passed
-their direct consumers (198 and 84 checks). A final combined rerun is required
-after the last edits. Pytest also reports pre-existing temporary-directory cleanup
-warnings; these are not execution test failures.
+files passed 44 checks; TypeScript passed. Host/executor direct consumers passed
+174 checks, with 32 cases skipped. Three local HTTP checks required bypassing the
+host proxy; all three passed on rerun. No CI was started.
 
-This is not whole-chain acceptance. Local canonical rebuild, durable-store
-multi-turn verification and a short live continuation remain required. The full
-summer request must not be replayed just to verify historical-file transport.
-Review of other exception boundaries remains active. No CI was started. Intranet
-services remain unchanged until the agreed batch is fixed and verified together.
+The canonical local rebuild succeeded after b4df210b. API and worker use the same
+image, sha256:61aa2b1e7aa030732ed11d48523a65ec50a2b902fb519a578a4f8d1c5ce81664.
+An isolated PostgreSQL check completed four turns: create a file, read its frozen
+reference, record a failed business round, then read the historical file again.
+Each terminal outcome released the current attempt. This check uses a deterministic
+executor with real ledger and resource storage; it does not establish live-model
+acceptance. Its dedicated database was removed after the check.
+
+A short live continuation and review of other exception boundaries remain open.
+The full summer request must not be replayed to verify historical-file transport.
+The research server is unavailable. No further remote connections or deployment
+will run until it is restored. Intranet services remain unchanged until the
+agreed batch is fixed and verified together.
