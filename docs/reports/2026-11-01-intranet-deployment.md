@@ -89,3 +89,35 @@ Native executor:7a3259b0e545e1e64ed87f9f856f2126ecc14a7213fd368ad82789ec009a6b6b
 App:07691b798e3d34ee90f0faecfef4fb23caf291478fd9e4b362cc350ee72926be.
 All four services healthy. No CI. No full summer replay. Concurrency remains one
 native task per worker, recorded separately at the user's request.
+
+## Current update — 601b5909 (2026-11-02)
+
+Source `601b590951d934b3065a4dc32c51dd199a826bec` is now active on the same
+intranet installation. Default model: `Qwen3.8-Flash-Next`,
+`http://192.168.72.69:8013/v1`; models discovery reports262144 context tokens.
+API, native worker and executor all select the intranet preset. Gateway remains
+`内网联调`. Public App bundle contains the exact source identity.
+
+No dependency pins changed. Source layers were built on the verified intranet
+images; backend packages/configs/tools and the App were refreshed from the exact
+Git snapshot. The native base reached Docker's layer limit, so its filesystem
+was flattened with its environment, working directory and startup command
+preserved before adding current files. Original images remain available.
+Runtime configuration and both Compose files have `.before-601b5909` rollback
+snapshots under `/home/dmdba/capstone-intranet`; secrets were retained there.
+No volumes were removed, and no task was active at the switch.
+
+All four application services are healthy; `/health/ready` passes. API and worker
+share image `1a04d3fbc7e3968473d6de1637bbe6091033d4951aaf3057a1488baccd07b460`.
+Native image: `d4f55584814d9981b0e3d6086a9e1e913b53d4bc2465232ba0955f4617887995`.
+App image: `53278c310819119911faf2c359cad3c920bf4c2b455be88a0995039587484e9c`.
+A new session selected Qwen automatically and created deployment-check.csv in
+24.8 seconds, with one tool call and no tool errors. The17-byte downloaded CSV
+matched its saved SHA256. Thread `thr_7e1eb68384073e55f217`,
+attempt `attempt_75db5a50c924b67f`; receipts in
+`runs/intranet-update-20261102-601b5909/`. Browser connection was unavailable;
+visual acceptance was not performed. No CI or historical business replay.
+
+Canonical local rebuild also passed with API/worker image `9d1aac231841012645367cb39991b75ee3209146cc2b359fd07ee61e5354f495`;
+scoped cleanup receipt: `.capstone-agent/cache-maintenance-20261102-153322-97910.log`.
+Managed-installation runtime/API/UI integration remains pending.

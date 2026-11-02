@@ -811,3 +811,5 @@ dev默认开发集成主线和main发布主线均启用轻量保护：PR与两�
 Milestone update (2026-11-02): VERSION-CONTROL records PR84/85, focused CI and annotated intranet source tag.
 
 Model configuration update (2026-11-02): VERSION-CONTROL records Qwen3.8-Flash-Next registration and intranet defaults; not deployed.
+
+Intranet deployment update (2026-11-02): VERSION-CONTROL records active source601b5909 and the verified Qwen CSV task.

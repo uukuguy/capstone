@@ -2,7 +2,10 @@
 
 Qwen3.8-Flash-Next registered at192.168.72.69:8013/v1, intranet default.
 Models endpoint reports262144 context;28 focused tests pass,1 skips; local/intranet
-Compose preset resolution passes. No rebuild/deployment or CI for this change.
+Compose preset resolution passes. Canonical local rebuild and intranet deployment
+completed for601b5909; four services healthy, Qwen CSV task24.8s/one tool/no errors,
+download SHA256 verified. Browser unavailable; no visual acceptance. No CI.
+Rollback configs: /home/dmdba/capstone-intranet/*.before-601b5909.
 
 
 2026-11-02 milestone closeout: user selected current dev as the milestone scope.
@@ -59,9 +62,9 @@ Timestamp browser fixture and persisted historical directory passed. Local rebui
 API/worker image9cf4677d9ae9667fe86974247e07c28b5b240981daba7fb35960f64082f8f85f.
 Cleanup receipt232349-17334. Latest selected by saved_at even after mixed-order hydration.
 19 additional order/helper checks passed; no remote deployment.
-Remote disconnected; do not deploy. Evidence runs/artifact-versions-fix-20261101/.
+Historical disconnected-server constraint was superseded by the authorized2026-11-02 deployment. Evidence runs/artifact-versions-fix-20261101/.
 
-User reports intranet server disconnected; do not deploy remotely.
+Earlier server disconnection was resolved on2026-11-02; deployment601b5909 is active.
 Commit2800da79 fixes PDF sandbox rejection and application/octet-stream filename
 fallback. Browser reproduced restricted-frame failure versus normal13-page view.
 17 focused App/transport tests and types passed; actual component browser preview
