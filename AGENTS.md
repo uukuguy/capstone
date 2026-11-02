@@ -70,7 +70,7 @@ before changing deployment, release, or environment behavior.
   update local-demo with ordinary development builds or make the local versions
   equal solely for convenience. Preserve existing data during source realignment.
 - Cloud-development validation covers readiness, App health, registered cases,
-  Provider behavior when separately authorized, reports, evidence replay, and
+  Provider behavior, reports, evidence replay, and
   API/worker identity before promotion. Failed releases roll back to the last
   verified user-trial revision.
 - After every cloud-dev deployment passes its required validation, create and
@@ -117,6 +117,14 @@ before changing deployment, release, or environment behavior.
 
 ## Public Contracts and Runtime State
 
+- Enterprise resources must support GB-scale and larger files by design.
+  Keep upload/storage quotas separate from processing and model-context budgets.
+  Use durable versioned resource references and bounded, on-demand access; do not
+  make full-file base64 task payloads or current small-file limits the architecture.
+  Phased delivery must record unimplemented requirements, not weaken them.
+  The owning contract and acceptance gates are in
+  `docs/superpowers/specs/2026-10-15-enterprise-design-final.md`, section 9.
+
 - The pandapower compatibility `run`, `analysis`, and `report` paths write
   exactly one stdout JSON object containing `question_id` and `answer_output`.
   Progress, tool events, warnings, and diagnostics go to stderr. The generic
@@ -158,15 +166,71 @@ counts, prices, limits, versions, or deployment state here.
 
 ## Working in This Repository
 
+- Enforce mechanically decidable behavior in code, not through an LLM's
+  interpretation of prompts. This includes namespace conversion, schema and
+  permission checks, reference ownership, version checks, pagination boundaries,
+  and explicit asynchronous continuation instructions. Derive these operations
+  from the current admitted contracts and responses. Keep business interpretation
+  and analysis with the model; do not encode business tool or provider names.
+  Agreed gateway entry names and their protocol adaptation belong only in the
+  data-gateway MCP adapter. Test deterministic guarantees at that boundary.
+- Capability availability must not impose a fixed first action. The model selects
+  relevant tools and skills from the current instruction, accepted context,
+  descriptions and grants. Apply a service's initialization sequence only after
+  selecting that service as relevant. Previous use of a service does not make it
+  relevant to a new instruction. Do not add keyword-based topic routing to enforce
+  this selection.
+- Enterprise application work follows the accepted
+  [design baseline](docs/superpowers/specs/2026-10-15-enterprise-design-final.md),
+  [UI contract](docs/superpowers/specs/2026-10-15-enterprise-task-ui-design.md),
+  and [workspace prototype](docs/design/enterprise-workspace-prototype.html).
+  Build the enterprise workspace from that design and reuse the existing
+  conversation components and interaction details. Do not replace them with
+  a separate message list, composer, or simplified task-record application.
+  A partial backend milestone does not authorize a new UI design. Keep the
+  released conversation application and enterprise application distinct while
+  sharing presentation and execution mechanisms. Check runtime screenshots
+  against the accepted design before claiming frontend acceptance.
 - `dev` is the default development integration branch. Feature, fix, docs and
   chore PRs target dev. Experiments enter dev only as scoped reviewed work.
   `main` holds accepted release baselines; release PRs target main and run full
   verification. Hotfixes start from the actual accepted deployment tag and flow
   back to dev. Do not rewrite shared history.
+- Browser verification reuses an existing Capstone tab. Do not create a new tab
+  for each test; preserve other open tabs and the user's browser context.
+
+- **CI requires explicit user approval before every run.** Before starting CI,
+  state why it is needed, its check scope and its expected duration, then wait
+  for the user's explicit agreement. Without that agreement, CI is prohibited.
+  Instructions to continue, test, fix, commit, push or merge do not grant CI
+  approval. Do not dispatch a workflow or perform a push, PR update or merge
+  that will automatically start CI until this approval is given. Prepare the
+  change and run focused local checks first. Ordinary development, debugging,
+  validation, browser trials and documentation updates use local checks, not CI.
+  An approved branch-merge CI run must be lightweight and cover only the changed
+  behavior and direct consumers. Full suites and dual-platform CI are reserved
+  for an explicitly approved version release. Do not expand an approved scope
+  or start another CI run without new approval.
 - Current project control and canonical worklists live on dev. Main copies are
-  release snapshots. Both permanent branches require PRs and Linux/macOS
-  checks, with zero mandatory approvals and no force push or deletion. Record
+  release snapshots. Both permanent branches require PRs, with zero mandatory
+  approvals and no force push or deletion. Dev and ordinary feature PRs use
+  macOS checks during development; main and explicit release verification
+  require macOS and Linux checks. Record
   any administrator emergency bypass. Branch heads do not imply deployment.
+- Ordinary dev branch integration is not release acceptance. Use the affected
+  local checks and dev's required PR gate. Do not run `check-release` or dispatch
+  `release=true` merely to merge a development branch or obtain extra platform
+  checks. Full release verification is for an explicit release or baseline task.
+
+- Non-release operations, including development branch merges, PR closeout,
+  documentation and control-state updates, run only focused checks for the
+  changed behavior and its direct consumers. Do not default to full workbench,
+  full repository, professional solver, or dual-platform suites for these
+  operations. Approved CI must select this focused scope; a change that
+  lacks a focused route needs a scoped route, not an automatic release-sized
+  gate. Broader development checks need a concrete cross-boundary risk and a
+  recorded reason. Keep ordinary development CI on macOS; reserve full macOS
+  and Linux acceptance for an explicit product release or baseline verification.
 
 - Keep project control bidirectionally aligned. Changes to implementation, branches,
   PRs, validation or deployment update `docs/status/VERSION-CONTROL.md` and its
@@ -179,6 +243,25 @@ counts, prices, limits, versions, or deployment state here.
   actual research branches. The dev spine retains important cloud deployments
   and major branch merges. Move ordinary edits and interim candidates into
   history details; do not label paused plans or archived references as active.
+
+- The development control graph and its canonical register are owned by `dev`.
+  Update and integrate them into `dev`; a feature-branch copy or screenshot alone
+  is not a completed control update. Main contains only a release snapshot.
+  At each major development boundary, record implementation, verification, merge
+  and deployment state before reporting completion. After a PR merge and dependent
+  branch synchronization, refresh the graph in the actual dev checkout and inspect
+  that page. Show current branch HEADs explicitly, even when ordinary control
+  commits are omitted from the milestone graph. Keep those HEADs distinct from
+  product milestones and exact deployed source revisions. The generated snapshot
+  must include a real graph node and verified ancestry edges when the user requests
+  a specific commit as a node; a HEAD badge or explanatory text is not a substitute.
+  For an authorized correction, implement and verify the fix before closing the
+  task; analysis or an apology alone does not complete the request.
+  The generated snapshot
+  records its generation time; do not create an endless commit cycle merely to
+  embed the snapshot's own commit hash.
+  Apply these controls as standing instructions without asking the user to repeat
+  them or repeatedly restating them in progress updates.
 
 - Use [the project control overview](docs/status/PROJECT-OVERVIEW.html) as the
   shared development and release alignment view. Maintain its canonical
@@ -199,6 +282,13 @@ counts, prices, limits, versions, or deployment state here.
   Prefer a wide layout that shows the full overview without internal scrolling
   on desktop. Preserve readable node content and accurate edge attachment when
   re-layout or scaling changes the graph.
+  The actual dev HEAD must also have a visible Git node, not only a top-card
+  badge. Keep explicitly requested commit nodes as fixed milestones. Resolve the
+  current-head node at generation time and deduplicate it when a fixed node has
+  the same commit, so control-only merges do not repeatedly disappear from the graph.
+  Prefer shared-foundation and application research nodes to the right of dev,
+  while balancing card height, deployment cards and whitespace across both sides.
+  Overall visual balance takes priority over a rigid left/right category rule.
 
 - Keep secondary architecture research in the
   [Capstone core capability evolution notebook](docs/superpowers/specs/2026-10-07-capstone-core-evolution-discussion.md)
@@ -211,6 +301,16 @@ counts, prices, limits, versions, or deployment state here.
   proposed designs, accepted decisions, and verified behavior.
 - Preserve unrelated tracked and untracked user work. Stage only task-owned
   paths. Do not delete or migrate existing main-worktree `var/` data.
+- At each coherent implementation or verification boundary, inspect Git status
+  and diffs. Separate completed task changes, deferred work, unrelated work and
+  runtime scratch. Commit verified task-owned changes promptly with explicit
+  dependencies and a reviewable scope; do not carry large uncommitted batches
+  across work boundaries or defer this sorting until merge time. If work must
+  remain uncommitted, record its exact paths, reason and recovery reference
+  before starting another unit. Update the journal and recovery state at the
+  same boundary. Before integration, check ahead/behind state, dirty and
+  untracked files, and unmerged dependencies. Never use bulk staging to hide
+  unclear ownership.
 - Prefer `rg` and `rg --files` for discovery. Use `apply_patch` for text edits
   and explicit non-destructive commands for filesystem operations.
 - Keep `README.md` and `README.zh-CN.md` aligned when shared product facts,
@@ -225,6 +325,16 @@ counts, prices, limits, versions, or deployment state here.
   regressions. Do not copy ignored authentication state from another worktree.
 
 ### Local rebuild and deployment
+
+- After each local build and its validation/use, clean this project's unused
+  images and build cache with the scoped `deploy/cleanup_local_build_cache.py`
+  helper. This is a standing maintenance step, not a new service or global prune.
+  Preserve every image referenced by any running or stopped container, other
+  projects, persistent volumes and user data. The canonical rebuild performs
+  scoped maintenance after readiness; if `CAPSTONE_LOCAL_CACHE_CLEANUP=0` is used
+  temporarily, the operator must run the helper with `--apply` after validation/use
+  ends and any existing cleanup is stopped. Do not expand cleanup beyond proven
+  project ownership or use forced image removal/implicit parent pruning.
 
 When local API, worker, or App source changes, use the checked-in rebuild
 entrypoint instead of starting Compose with an old image:
@@ -257,6 +367,14 @@ be refreshed or reset before starting a new case.
 
 ## Verification
 
+During early development, keep CI proportional to the changed layer and its
+consumers. Use the scoped development gates in the lifecycle document; do not
+run every professional application suite for an isolated agent/App edit.
+Use macOS for daily development verification. Preserve macOS and Linux support
+and full dual-platform release acceptance before Linux user trial.
+Record measured gate duration and investigate timeouts instead of treating an
+unfinished check as passed.
+
 Run the smallest focused check for the changed behavior, then the repository
 gates needed for its scope. Supported offline gates are:
 
@@ -271,6 +389,16 @@ Use the full gates for integration or release claims; a focused App or
 documentation change does not itself justify repeating every suite.
 Documentation-only changes require link and symlink checks,
 `git diff --check`, and `make doctor`. `make validate-provider PROVIDER=<id> [MODEL=<id>]`
-is optional, may be billed, and requires explicit authorization.
+is optional and may be billed. The user has authorized model/Provider access for
+development, integration, debugging and verification without repeated permission
+requests (2026-10-17). Run the real model checks needed for the task. Keep the
+existing credential protection and deployment boundaries. Acceptance must use real
+model responses, tool execution and saved products; offline fixtures do not replace
+real verification. Stop and report clearly abnormal calls, runaway retries or
+abnormal consumption rather than requesting approval for routine checks.
+At this early development stage, prioritize a working real task-session path:
+submit, execute tools, view products, continue, and restore after refresh.
+Fix execution blockers first. Track non-blocking polish and completeness gaps
+separately; do not make them new gates for local trial.
 Every change must preserve the supported Capstone output contracts, authority
 boundaries, and current-run evidence rules.

@@ -1,0 +1,1 @@
+{"schema":"capstone-model-request-pool/1","concurrency":2,"max_requests":256,"request_timeout_ms":120000}

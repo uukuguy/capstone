@@ -108,27 +108,6 @@ export default function ThreadModelPane({ snapshot, viewedPage, activePage, grid
   const historicalIsOpen = workingPages?.some(page => page.model.modelId === viewedContext?.modelId &&
     page.model.modelRevision === viewedContext?.modelRevision && page.model.implementationFamily === viewedContext?.implementationFamily)
   return <section className="thread-model-pane" aria-label="电网模型区">
-    <section className="thread-model-intro" aria-label="CAPSTONE 框架介绍">
-      <div className="capstone-intro-art notranslate" translate="no">
-        <img src="/capstone-science-hero.png" alt="工业专业框架与 AI 智能体应用的连接示意" />
-        <div className="capstone-intro-overlay">
-          <div className="capstone-intro-main">
-            <span className="capstone-intro-kicker">电网科学AI <span> / SCIENTIFIC AI FOR THE GRID</span></span>
-            <strong>从专业仿真<br />到智能推演</strong>
-            <div className="capstone-intro-frameworks"><span>pandapower</span><span>PyPSA</span></div>
-            <div className="capstone-intro-disciplines" aria-label="电网科学AI模型方向">
-              <span><b>神经算子</b>DeepONet · FNO</span>
-              <span><b>动力学模型</b>Neural-DAE · Koopman</span>
-              <span><b>物理图网络</b>GraphGPS · PI-GNN</span>
-            </div>
-          </div>
-          <span className="capstone-intro-principles">CAPABILITY / EVIDENCE / CONTROL</span>
-        </div>
-      </div>
-      <div className="thread-intro-copy">
-        <p>CAPSTONE 为电网科学AI提供应用底座：把 pandapower、PyPSA 等科学计算工具封装为统一的领域能力，由智能体组织任务、权威系统完成计算。每一步的结果与证据随运行留存，形成可复用、可核查的分析过程。智能体对话围绕当前电网模型连续开展工作：用自然语言打开模型、提出问题和组织分析，通过回答下方的操作查看对应电网图、执行过程和证据。</p>
-      </div>
-    </section>
       {!workingPages && pages.length > 1 && <details className="thread-model-history"><summary>模型历史 · {pages.length - 1}</summary>
         <div className="thread-page-tabs" aria-label="电网模型分页">
           {pages.map((pageId) => <PageButton key={pageId} active={viewedPage === pageId} historical={pageId !== activePage}

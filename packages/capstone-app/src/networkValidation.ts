@@ -1,5 +1,5 @@
+import {applicationCapacity,observeCapacity} from './applicationCapacity'
 import type { NetworkDiagram, NetworkView } from './types'
-import { MAX_NETWORK_BUSES, MAX_NETWORK_BRANCHES } from './networkLimits'
 
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -24,8 +24,8 @@ function parseDiagramView(raw: Record<string, unknown>, ordinal: number,
       !['geographic', 'schematic'].includes(String(diagram.coordinate_system)) ||
       !/^topology:sha256:[a-f0-9]{64}$/.test(String(diagram.fingerprint)) ||
       !/^diagram:sha256:[a-f0-9]{64}$/.test(String(diagram.ref)) ||
-      !Array.isArray(diagram.buses) || diagram.buses.length < 1 || diagram.buses.length > MAX_NETWORK_BUSES ||
-      !Array.isArray(diagram.branches) || diagram.branches.length > MAX_NETWORK_BRANCHES ||
+      !Array.isArray(diagram.buses) || diagram.buses.length < 1 || observeCapacity(diagram.buses.length,'ui_network_buses','network.buses') ||
+      !Array.isArray(diagram.branches) || observeCapacity(diagram.branches.length,'ui_network_branches','network.branches') ||
       layer.schema !== 'capstone-network-layer/1.0' || layer.ordinal !== ordinal ||
       layer.diagram_ref !== diagram.ref || layer.model_revision !== diagram.model.revision) return null
   const busIds = new Set<string>()
@@ -50,7 +50,7 @@ function parseDiagramView(raw: Record<string, unknown>, ordinal: number,
   }
   const allIds = new Set([...busIds, ...branchIds])
   if (diagram.disconnections !== undefined) {
-    if (!Array.isArray(diagram.disconnections) || diagram.disconnections.length > MAX_NETWORK_BRANCHES) return null
+    if (!Array.isArray(diagram.disconnections) || diagram.disconnections.length > applicationCapacity('ui_network_branches')) return null
     const seen = new Set<string>()
     for (const entry of diagram.disconnections) {
       if (!record(entry) || !text(entry.id) || !branchIds.has(entry.id) || seen.has(entry.id) ||
@@ -74,18 +74,18 @@ function parseDiagramView(raw: Record<string, unknown>, ordinal: number,
         (annotations.scene.case_ref !== undefined && !text(annotations.scene.case_ref))) return null
     for (const kind of ['states', 'regions']) {
       const entries = annotations[kind]
-      if (!Array.isArray(entries) || entries.length > MAX_NETWORK_BUSES) return null
+      if (!Array.isArray(entries) || observeCapacity(entries.length,'ui_network_buses','network.entries')) return null
       const allowed = kind === 'regions' ? busIds : allIds
       for (const entry of entries) {
         if (!record(entry) || !text(entry.label) || !text(entry.source_ref) ||
             !admittedRefs.includes(entry.source_ref) || !Array.isArray(entry.ids) ||
-            !entry.ids.length || entry.ids.length > MAX_NETWORK_BRANCHES ||
+            !entry.ids.length || entry.ids.length > applicationCapacity('ui_network_branches') ||
             new Set(entry.ids).size !== entry.ids.length ||
             entry.ids.some((id) => typeof id !== 'string' || !allowed.has(id)) ||
             kind === 'states' && !['disconnected', 'warning', 'unresolved'].includes(String(entry.style)) ||
             kind === 'regions' && entry.emphasis !== undefined && typeof entry.emphasis !== 'boolean') return null
         if (kind === 'states' && entry.markers !== undefined) {
-          if (!Array.isArray(entry.markers) || entry.markers.length > Math.min(MAX_NETWORK_BRANCHES, 2 * entry.ids.length)) return null
+          if (!Array.isArray(entry.markers) || entry.markers.length > Math.min(applicationCapacity('ui_network_branches'), 2 * entry.ids.length)) return null
           const seen = new Set<string>()
           for (const marker of entry.markers) {
             if (!record(marker) || !text(marker.id) || !text(marker.bus_id) || !text(marker.label) ||
@@ -100,13 +100,13 @@ function parseDiagramView(raw: Record<string, unknown>, ordinal: number,
   }
   for (const key of ['focus_ids', 'next_focus_ids']) {
     const focus = layer[key]
-    if (!Array.isArray(focus) || focus.length > 20 || new Set(focus).size !== focus.length ||
+    if (!Array.isArray(focus) || focus.length > applicationCapacity('ui_result_element_count') || new Set(focus).size !== focus.length ||
         focus.some((id) => !allIds.has(String(id)))) return null
   }
   if (layer.overlay !== null) {
     const overlay = layer.overlay
     if (!record(overlay) || !text(overlay.source_ref) || !admittedRefs.includes(overlay.source_ref) ||
-        !Array.isArray(overlay.values) || overlay.values.length < 1 || overlay.values.length > MAX_NETWORK_BRANCHES ||
+        !Array.isArray(overlay.values) || overlay.values.length < 1 || overlay.values.length > applicationCapacity('ui_network_branches') ||
         !((overlay.metric === 'loading_percent' && overlay.unit === '%') ||
           (overlay.metric === 'voltage_pu' && overlay.unit === 'p.u.'))) return null
     const allowed = overlay.metric === 'voltage_pu' ? busIds : lineIds
@@ -127,8 +127,8 @@ export function parseNetworkView(raw: unknown, ordinal: number, admittedRefs: st
   if (!record(raw) || raw.schema !== 'capstone-network-view/1.0' || raw.ordinal !== ordinal ||
       !record(raw.model) || !text(raw.model.id) || !text(raw.model.revision) || !text(raw.model.source) ||
       !['provided-unverified', 'schematic-required'].includes(String(raw.coordinate_status)) ||
-      !Array.isArray(raw.buses) || raw.buses.length < 1 || raw.buses.length > 50 ||
-      !Array.isArray(raw.branches) || raw.branches.length > 100 ||
+      !Array.isArray(raw.buses) || raw.buses.length < 1 || observeCapacity(raw.buses.length,'ui_network_buses','network.buses') ||
+      !Array.isArray(raw.branches) || observeCapacity(raw.branches.length,'ui_network_branches','network.branches') ||
       !record(raw.omitted) || !Number.isSafeInteger(raw.omitted.buses) || !Number.isSafeInteger(raw.omitted.branches) ||
       Number(raw.omitted.buses) < 0 || Number(raw.omitted.branches) < 0) return null
 
@@ -151,13 +151,13 @@ export function parseNetworkView(raw: unknown, ordinal: number, admittedRefs: st
   const allIds = new Set([...busIds, ...branchIds])
   for (const key of ['focus_ids', 'next_focus_ids']) {
     const focus = raw[key]
-    if (!Array.isArray(focus) || focus.length > 20 || new Set(focus).size !== focus.length ||
+    if (!Array.isArray(focus) || focus.length > applicationCapacity('ui_result_element_count') || new Set(focus).size !== focus.length ||
         focus.some((id) => !allIds.has(String(id)))) return null
   }
   if (raw.overlay !== null) {
     const overlay = raw.overlay
     if (!record(overlay) || !text(overlay.source_ref) || !admittedRefs.includes(overlay.source_ref) ||
-        !Array.isArray(overlay.values) || overlay.values.length < 1 || overlay.values.length > 100 ||
+        !Array.isArray(overlay.values) || overlay.values.length < 1 || overlay.values.length > applicationCapacity('ui_result_overlay_count') ||
         !((overlay.metric === 'loading_percent' && overlay.unit === '%') ||
           (overlay.metric === 'voltage_pu' && overlay.unit === 'p.u.'))) return null
     const allowed = overlay.metric === 'voltage_pu' ? busIds : lineIds

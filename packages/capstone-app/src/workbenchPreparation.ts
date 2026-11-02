@@ -1,3 +1,4 @@
+import {exceedsCapacity} from './applicationCapacity'
 import { fetchWithReadRetry } from './httpRetry'
 
 export type PreparationStatus = 'waiting' | 'preparing' | 'ready' | 'failed'
@@ -22,7 +23,7 @@ export async function prepareWorkbench(origin: string, signal: AbortSignal,
       const part = await reader.read()
       if (part.done) break
       bytes += part.value.byteLength
-      if (bytes > 64 * 1024) throw new Error('准备状态超过允许大小')
+      if (exceedsCapacity(bytes,'event_bytes')) throw new Error('准备状态超过允许大小')
       buffer += decoder.decode(part.value, { stream: true })
       let boundary: number
       while ((boundary = buffer.indexOf('\n')) >= 0) {
@@ -40,7 +41,7 @@ export async function prepareWorkbench(origin: string, signal: AbortSignal,
         const status = frame.status as PreparationStatus
         if (frame.component !== 'workbench') {
           states.set(frame.component, status)
-          if (states.size > 16) throw new Error('准备状态超过允许大小')
+          if (exceedsCapacity(states.size,'ui_preparation_states')) throw new Error('准备状态超过允许大小')
           update({ component: frame.component, status })
         }
         if (status === 'failed') throw new Error('部分服务暂未就绪，请重试。')

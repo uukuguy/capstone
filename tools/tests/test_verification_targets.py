@@ -5,11 +5,61 @@ import json
 import os
 import subprocess
 import tomllib
+import pytest
 from pathlib import Path
 from pathlib import PurePosixPath
 
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_adaptive_agent_gate_keeps_full_owned_suites_without_professional_solvers():
+    workflow = (ROOT / '.github/workflows/verify.yml').read_text()
+    assert 'adaptive-agent|' in workflow
+    block = workflow.split('      - name: Verify adaptive agent consumers\n', 1)[1].split('      - name:', 1)[0]
+    assert "if: steps.scope.outputs.gate == 'adaptive-agent'" in block
+    assert 'timeout-minutes: 15' in block
+    for expected in ('check-package-boundaries', 'check-types', 'test-capstone-agent', 'test-kernel',
+                     'test-capstone-app', 'build-capstone-app', 'test-capstone-client', 'test-registered-workers',
+                     'node --test packages/capstone-agent/tests/*.test.mjs packages/capstone-agent/tests/fixtures/*.test.mjs',
+                     'node --test packages/pi-capability-tools/test/*.test.mjs',
+                     'pytest packages/capstone-agent/tests/test_graph_research_publication.py packages/capstone-agent/tests/test_research_policy_compatibility.py packages/capstone-agent/tests/test_adaptive_agent_profile.py -q'):
+        assert expected in block
+    for line in block.splitlines():
+        if ' pytest ' not in line:
+            continue
+        for target in line.split(' pytest ', 1)[1].split():
+            if target.startswith('packages/'):
+                assert list(ROOT.glob(target)), f'Adaptive gate test path does not exist: {target}'
+    for forbidden in ('make check-pr', 'make check-release', 'test-domain-package', 'test-local-rebuild',
+                      'packages/grid-agent/tests', 'packages/grid-simulator/tests', 'packages/pypsa-agent/tests',
+                      'packages/pandapower-domain-pack/tests', 'test_user_local_installer.py'):
+        assert forbidden not in block
+
+
+def test_source_topology_gate_covers_direct_consumers_without_solver_or_release_suites():
+    workflow = (ROOT / '.github/workflows/verify.yml').read_text()
+    assert 'source-topology|' in workflow
+    block = workflow.split('      - name: Verify source topology consumers\n', 1)[1].split('      - name:', 1)[0]
+    assert "if: steps.scope.outputs.gate == 'source-topology'" in block
+    assert 'timeout-minutes: 10' in block
+    for expected in ('check-package-boundaries', 'check-types', 'test-capstone-app', 'build-capstone-app',
+                     'test-capstone-client', 'test_grid_source_*.py', 'test_pi_delegation.py',
+                     'test_general_pi_*.py', 'test_host*.py', 'test_thread*.py',
+                     'test_data_gateway_*.py', 'test_network_policy_http.py', 'test_native_network_policy.py',
+                     'test_enterprise_normal_chat.py', 'test_native_session_profile.py',
+                     'test_harness.py', 'test_delegated_runtime.py',
+                     'test_graph_host_observation.py',
+                     'node --test packages/capstone-agent/tests/*.test.mjs packages/capstone-agent/tests/fixtures/*.test.mjs',
+                     'tools/tests/test_image_layer_order.py', 'tools/tests/test_host_runtime_contract.py'):
+        assert expected in block
+    for forbidden in ('test-capstone-agent', 'test-kernel', 'test-registered-workers', 'test-domain-package',
+                      'test-local-rebuild', 'test-inventory-pi', 'test-pi-capture-runtime',
+                      'packages/grid-agent/tests', 'packages/grid-simulator/tests', 'packages/pypsa-agent/tests',
+                      'make check-pr', 'make check-release', 'test_user_local_installer.py'):
+        assert forbidden not in block
+    foundation = workflow.split('      - name: Verify shared foundation assembly\n', 1)[1].split('      - name:', 1)[0]
+    assert 'source-topology' not in foundation
 
 
 def _dry_run(target: str) -> str:
@@ -34,6 +84,9 @@ def test_offline_aggregate_covers_all_packages_without_grid_e2e() -> None:
         "tools/tests/test_verification_targets.py",
         "tools/tests/test_runtime_risk_exception.py",
         "tools/tests/test_projection_benchmark.py",
+        "tools/tests/test_local_build_cache_cleanup.py",
+        "tools/tests/test_image_layer_order.py",
+        "tools/tests/test_native_report.py",
     ):
         assert expected in output
     assert "pytest packages/grid-agent/tests/e2e -q" not in output
@@ -103,12 +156,12 @@ def test_child_failure_propagates_from_aggregate(tmp_path: Path) -> None:
 def test_verify_workflow_installs_pinned_uv_and_declares_release_matrix() -> None:
     workflow = (ROOT / ".github/workflows/verify.yml").read_text(encoding="utf-8")
 
-    assert 'os: [ubuntu-latest, macos-latest]' in workflow
+    assert 'os: ${{ fromJSON(' in workflow
     assert 'UV_PYTHON: "3.12"' in workflow
     assert 'python-version: "3.12"' in workflow
     assert 'matrix.python' not in workflow
     policy = json.loads((ROOT / "configs/development/issue-automation.json").read_text())
-    expected_jobs = ("verify (ubuntu-latest)", "verify (macos-latest)")
+    expected_jobs = ("verify (macos-latest)",)
     defaults = json.loads(subprocess.check_output([
         "python3", "-c", "import json; from tools.issue_automation.policy import Policy; print(json.dumps(Policy().required_ci))",
     ], cwd=ROOT, text=True))
@@ -117,11 +170,36 @@ def test_verify_workflow_installs_pinned_uv_and_declares_release_matrix() -> Non
     assert "astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d" in workflow
     assert 'node-version: "22.19.0"' in workflow
     for command in ("make setup", "make install-pi", "make doctor"):
-        assert f"- run: {command}" in workflow
+        assert f"run: {command}" in workflow
+    standard = workflow.split('- name: Set up standard dependencies', 1)[1].split('- name:', 1)[0]
+    assert "if: steps.scope.outputs.gate != 'gateway-bindings'" in standard
+    assert 'run: make setup' in standard
     assert 'run: make check-pr' in workflow
     assert 'run: make check-release' in workflow
     assert 'branches: [dev, main]' in workflow
     assert "github.event_name == 'workflow_dispatch' && inputs.release" in workflow
+
+
+@pytest.mark.parametrize("event,base,ref,release,expected", [
+    ("pull_request", "dev", "51/merge", False, ["macos-latest"]),
+    ("pull_request", "main", "51/merge", False, ["ubuntu-latest", "macos-latest"]),
+    ("push", "", "dev", False, ["macos-latest"]),
+    ("push", "", "main", False, ["ubuntu-latest", "macos-latest"]),
+    ("workflow_dispatch", "", "dev", False, ["macos-latest"]),
+    ("workflow_dispatch", "", "feature/example", True, ["ubuntu-latest", "macos-latest"]),
+    ("workflow_dispatch", "", "main", False, ["ubuntu-latest", "macos-latest"]),
+])
+def test_verify_runner_matrix_matches_development_and_release_context(event, base, ref, release, expected):
+    workflow = (ROOT / ".github/workflows/verify.yml").read_text()
+    matrix = next(line.strip() for line in workflow.splitlines() if line.strip().startswith("os:"))
+    expression = matrix.removeprefix("os: ${{ ").removesuffix(" }}")
+    for name, value in {"github.event_name": event, "github.base_ref": base,
+                        "github.ref_name": ref, "inputs.release": release}.items():
+        expression = expression.replace(name, repr(value))
+    expression = expression.replace("&&", " and ").replace("||", " or ")
+    # Evaluate the workflow's boolean/JSON subset with no builtins.
+    assert eval(expression, {"__builtins__": {}, "fromJSON": json.loads}) == expected
+    assert 'if [ "$TARGET_BRANCH" = "main" ] || [ "$RELEASE_CHECK" = "true" ]; then\n            gate=release' in workflow
 
 
 def test_pr_checks_formal_worker_without_legacy_cli_or_packaging() -> None:
@@ -134,6 +212,68 @@ def test_pr_checks_formal_worker_without_legacy_cli_or_packaging() -> None:
     for retired_or_release_only in ("pytest packages/grid-agent/tests/e2e -q", "test_package_artifacts.sh",
                                     "test_source_setup.sh", "validation/run.py"):
         assert retired_or_release_only not in output
+
+
+def test_shared_agent_ci_checks_dependencies_with_a_time_budget() -> None:
+    workflow = (ROOT / ".github/workflows/verify.yml").read_text()
+    block = workflow.split("      - name: Verify shared agent dependencies\n", 1)[1].split("      - name:", 1)[0]
+    assert "if: steps.scope.outputs.gate == 'shared-agent'" in block
+    assert "timeout-minutes: 15" in block
+    for target in ("check-package-boundaries", "check-types", "test-capstone-agent",
+                   "test-kernel", "test-capstone-app", "build-capstone-app", "test-capstone-client",
+                   "test-registered-workers"):
+        assert target in block
+    assert "make check-pr" not in block
+
+
+def test_foundation_ci_keeps_professional_adapters_and_time_budget() -> None:
+    workflow = (ROOT / '.github/workflows/verify.yml').read_text()
+    block = workflow.split('      - name: Verify shared foundation assembly\n', 1)[1].split('      - name:', 1)[0]
+    assert "if: steps.scope.outputs.gate == 'foundation' || steps.scope.outputs.gate == 'native-runtime'" in block
+    assert 'timeout-minutes: 15' in block
+    for expected in ('test-kernel', 'test-capstone-agent', 'test-registered-workers',
+                     'test-domain-package', 'packages/pypsa-agent/tests', 'test-capstone-app', 'check-types',
+                     'test_thread_model_diagram.py', 'test_hosted_runtime_warmup.py',
+                     'test_generic_entrypoint.py', 'test_composition.py', 'test_hosted_thread.py',
+                     'test_application_conformance.py', 'test_multi_binding_application.py'):
+        assert expected in block
+
+
+def test_native_runtime_ci_checks_mcp_and_deployment_consumers():
+    workflow = (ROOT / '.github/workflows/verify.yml').read_text()
+    block = workflow.split('      - name: Verify native runtime consumers\n', 1)[1].split('      - name:', 1)[0]
+    assert "if: steps.scope.outputs.gate == 'native-runtime'" in block
+    assert 'timeout-minutes: 10' in block
+    for expected in ('test-local-rebuild', 'test-inventory-pi', 'test-pi-capture-runtime',
+                     'test_powermcp_audit.py', 'fixtures/*.test.mjs'):
+        assert expected in block
+    assert 'make check-pr' not in block
+    assert 'make check-release' not in block
+
+
+def test_conversation_runtime_ci_excludes_unchanged_professional_suites():
+    workflow = (ROOT / '.github/workflows/verify.yml').read_text()
+    assert 'conversation-runtime|' in workflow
+    block = workflow.split('      - name: Verify conversation runtime consumers\n', 1)[1].split('      - name:', 1)[0]
+    assert "if: steps.scope.outputs.gate == 'conversation-runtime'" in block
+    assert 'timeout-minutes: 10' in block
+    for expected in ('check-package-boundaries', 'check-types',
+                     'test-capstone-app', 'build-capstone-app', 'test-capstone-client',
+                     'tests/test_general_pi_*.py', 'tests/test_harness.py', 'tests/test_delegated_runtime.py',
+                     'tests/test_thread_http_api.py', 'tests/test_thread_work.py', 'tests/test_thread_worker.py',
+                     'tests/test_enterprise_normal_chat.py', 'tests/test_attempt_research.py',
+                     'tests/test_native_diagnosis.py', 'tests/test_thread_work_execution.py',
+                     'node --test packages/capstone-agent/tests/*.test.mjs packages/capstone-agent/tests/fixtures/*.test.mjs',
+                     'tools/tests/test_image_layer_order.py', 'tools/tests/test_host_runtime_contract.py'):
+        assert expected in block
+    for forbidden in ('test-capstone-agent', 'test-kernel', 'test-domain-package', 'test-registered-workers', 'test-local-rebuild',
+                      'test-inventory-pi', 'test-pi-capture-runtime', 'make check-pr', 'make check-release',
+                      'packages/grid-agent/tests', 'packages/grid-simulator/tests', 'packages/pypsa-agent/tests',
+                      'packages/pandapower-domain-pack/tests', 'packages/inventory-domain-pack/tests',
+                      'test_package_artifacts.sh', 'test_source_setup.sh', 'test_user_local_installer.py'):
+        assert forbidden not in block
+    foundation = workflow.split('      - name: Verify shared foundation assembly\n', 1)[1].split('      - name:', 1)[0]
+    assert 'conversation-runtime' not in foundation
 
 
 def test_iteration_requires_explicit_scope_and_propagates_failure(tmp_path: Path) -> None:

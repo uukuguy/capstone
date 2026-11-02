@@ -1,0 +1,6 @@
+{
+  "schema": "capstone-data-gateway/2",
+  "resource_id": "data-gateway",
+  "namespace": "data_gateway_",
+  "admission": "trusted-service-safe-effects"
+}

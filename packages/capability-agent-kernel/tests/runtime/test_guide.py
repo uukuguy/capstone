@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from pathlib import Path
 
 import pytest
+from capability_agent.runtime.capacity import CapacityExceeded
 
 from capability_agent.tools.guide import (
     GuideMaterializationError,
@@ -63,6 +64,18 @@ class _IndexedProvider:
                     "text": text,
                 }
         raise KeyError(resource_id)
+
+
+def test_guide_capacity_is_selected_at_initialization_and_failure_is_precise(tmp_path):
+    provider = _Provider(text='x' * 300000)
+    workspace = tmp_path / 'binding'
+    workspace.mkdir()
+    materialize_guide_provider(provider, workspace=workspace, guide_root_path=workspace/'guides',
+        guide_index_path=workspace/'index.json', runtime_limits={'guide_document_bytes':400000})
+    from capability_agent.runtime.capacity import CapacityExceeded
+    with pytest.raises(CapacityExceeded, match='guide_document_bytes.*300000.*100'):
+        materialize_guide_provider(provider, workspace=workspace, guide_root_path=workspace/'other',
+            guide_index_path=workspace/'other.json', runtime_limits={'guide_document_bytes':100})
 
 
 def test_materialize_guide_provider_publishes_binding_owned_snapshot(
@@ -194,12 +207,13 @@ def test_materialize_guide_provider_rejects_too_many_resources(
         for index in range(65)
     )
 
-    with pytest.raises(GuideMaterializationError, match="resource count"):
+    with pytest.raises(CapacityExceeded, match='guide_resource_count'):
         materialize_guide_provider(
             _IndexedProvider(documents),
             workspace=tmp_path / "binding",
             guide_root_path=tmp_path / "binding" / "guides",
             guide_index_path=tmp_path / "binding" / "guide-index.json",
+            runtime_limits={'guide_resource_count':64},
         )
 
 
@@ -207,21 +221,23 @@ def test_materialize_guide_provider_rejects_oversized_document_and_title(
     tmp_path: Path,
 ) -> None:
     oversized = "# Guide\n" + "x" * (256 * 1024)
-    with pytest.raises(GuideMaterializationError, match="document size"):
+    with pytest.raises(CapacityExceeded, match='guide_document_bytes'):
         materialize_guide_provider(
             _IndexedProvider((("overview", "Guide", oversized),)),
             workspace=tmp_path / "large-document",
             guide_root_path=tmp_path / "large-document" / "guides",
             guide_index_path=tmp_path / "large-document" / "guide-index.json",
+            runtime_limits={'guide_document_bytes':256*1024},
         )
 
     long_title = "T" * 257
-    with pytest.raises(GuideMaterializationError, match="title"):
+    with pytest.raises(CapacityExceeded, match='guide_title_chars'):
         materialize_guide_provider(
             _IndexedProvider((("overview", long_title, "# Guide\n"),)),
             workspace=tmp_path / "large-title",
             guide_root_path=tmp_path / "large-title" / "guides",
             guide_index_path=tmp_path / "large-title" / "guide-index.json",
+            runtime_limits={'guide_title_chars':256},
         )
 
 
@@ -234,10 +250,11 @@ def test_materialize_guide_provider_rejects_oversized_total(
         for index in range(6)
     )
 
-    with pytest.raises(GuideMaterializationError, match="total"):
+    with pytest.raises(CapacityExceeded, match='guide_total_bytes'):
         materialize_guide_provider(
             _IndexedProvider(documents),
             workspace=tmp_path / "binding",
             guide_root_path=tmp_path / "binding" / "guides",
             guide_index_path=tmp_path / "binding" / "guide-index.json",
+            runtime_limits={'guide_total_bytes':1024*1024},
         )

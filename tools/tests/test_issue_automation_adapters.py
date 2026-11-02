@@ -92,10 +92,26 @@ def test_required_ci_rejects_one_failed_or_missing_matrix_job():
     assert github.checks(sha) == {expected_jobs[0]: True, expected_jobs[1]: False}
     rows[:] = rows[:1]
     assert github.checks(sha) == {expected_jobs[0]: True, expected_jobs[1]: False}
-    rows[:] = [{"name": name, "status": "completed", "conclusion": "success", "head_sha": sha, "app": {"slug": "github-actions", "owner": {"login": "github"}}, "check_suite": {"id": 1}} for name in Policy().required_ci]
+    rows[:] = [{"name": name, "status": "completed", "conclusion": "success", "head_sha": sha, "app": {"slug": "github-actions", "owner": {"login": "github"}}, "check_suite": {"id": 1}} for name in expected_jobs]
     assert all(github.checks(sha).values())
     rows[-1]["app"]["slug"] = "other-app"
     assert not all(github.checks(sha).values())
+
+
+@pytest.mark.parametrize("target,release,expected", [
+    ("dev", False, {"verify (macos-latest)": True}),
+    ("main", False, {"verify (ubuntu-latest)": False, "verify (macos-latest)": True}),
+    (None, False, {"verify (ubuntu-latest)": False, "verify (macos-latest)": True}),
+    ("feature/unknown", False, {"verify (ubuntu-latest)": False, "verify (macos-latest)": True}),
+    ("dev", True, {"verify (ubuntu-latest)": False, "verify (macos-latest)": True}),
+])
+def test_ci_requirements_keep_main_release_and_unknown_context_on_both_platforms(target, release, expected):
+    sha = "a" * 40
+    rows = [{"name": "verify (macos-latest)", "status": "completed", "conclusion": "success",
+             "head_sha": sha, "app": {"slug": "github-actions", "owner": {"login": "github"}},
+             "check_suite": {"id": 1}}]
+    github = GitHub(Policy(), api=lambda *args: {"check_runs": rows})
+    assert github.checks(sha, target_branch=target, release=release) == expected
 
 
 def test_raw_image_authorization_is_exact_and_redirects_fail():

@@ -1,6 +1,63 @@
 /** Reader-facing recovery text for bounded service codes; never expose raw exceptions. */
+function diagnosticSummary(text: string): string {
+  if (!text.trim().startsWith('{')) return text
+    .replace(/(^|；)executed=false(?=；|$)/g,'$1未执行（executed=false）')
+    .replace(/(^|；)executed=true(?=；|$)/g,'$1已执行（executed=true）')
+    .replace(/(^|；)rejected_value=/g,'$1拒绝值=')
+    .replace(/(^|；)legal_values_source=/g,'$1合法值来源=')
+    .replace(/(^|；)suggestion=/g,'$1纠正建议=')
+  try {
+    let value: unknown = JSON.parse(text)
+    const locations: string[] = []
+    for (let depth = 0; depth < 8; depth++) {
+      if (typeof value === 'string') {
+        if (value.trim().startsWith('{')) { value = JSON.parse(value); continue }
+        return [...new Set([value.slice(0, 400), ...locations])].join('；').slice(0, 600)
+      }
+      if (!value || typeof value !== 'object' || Array.isArray(value)) break
+      const record = value as Record<string, unknown>
+      if (record.structuredContent && typeof record.structuredContent === 'object') {
+        value = record.structuredContent
+        continue
+      }
+      const gap = Array.isArray(record.gaps) ? record.gaps[0] : undefined
+      const requestId = record.provenance && typeof record.provenance === 'object'
+        ? (record.provenance as Record<string, unknown>).request_id : record.request_id
+      if (typeof requestId === 'string') locations.push(`request_id=${requestId.slice(0, 100)}`)
+      const detail = gap && typeof gap === 'object' ? gap : record.error && typeof record.error === 'object' ? record.error : {}
+      const scope = detail.scope && typeof detail.scope === 'object' ? detail.scope : {}
+      const index = scope.query_index
+      if (Number.isInteger(index) && Array.isArray(record.data) && index >= 0 && index < record.data.length) {
+        const child = record.data[index]?.result
+        if (child && typeof child === 'object' && child.status === 'error' && (child.gaps?.length || child.error)) {
+          value = child
+          continue
+        }
+      }
+      const path = detail.path ?? scope.path ?? record.path
+      if (typeof path === 'string') locations.unshift(`path=${path.slice(0, 100)}`)
+      const fields=[detail,scope,record]
+      const execution=fields.find(item=>typeof item.executed==='boolean')?.executed
+      if(execution!==undefined)locations.push(execution?'已执行（executed=true）':'未执行（executed=false）')
+      const rejected=fields.find(item=>Object.hasOwn(item,'rejected_value'))?.rejected_value
+      if(['string','number','boolean'].includes(typeof rejected)){
+        const protectedValue=/(?:token|password|secret|authorization|api[_ -]?key)/i.test(String(path))
+        locations.push(`拒绝值=${protectedValue?'[REDACTED]':String(rejected).slice(0,80)}`)
+      }
+      const source=fields.map(item=>item.legal_values_source??item.allowed_values_source).find(item=>typeof item==='string')
+      if(typeof source==='string')locations.push(`合法值来源=${source.slice(0,120)}`)
+      const suggestion=fields.map(item=>item.suggestion).find(item=>typeof item==='string')
+      if(typeof suggestion==='string'&&!/(?:token|password|secret|authorization|api[_ -]?key)/i.test(String(path)))locations.push(`纠正建议=${suggestion.slice(0,120)}`)
+      const content = Array.isArray(record.content) ? record.content.find(item => item && typeof item === 'object' && typeof item.text === 'string')?.text : undefined
+      value = record.summary ?? record.message ?? record.detail ?? record.error ?? gap ?? content
+    }
+  } catch { /* The original diagnostic remains available in the process record. */ }
+  return '诊断摘要不完整或格式不可识别；请查看保存的原始响应。'
+}
+
 export function toolFailureReason(failure?: { code?: string; message?: string; summary?: string }): string | undefined {
-  if (failure?.summary) return failure.summary
+  if (failure?.summary) return diagnosticSummary(failure.summary)
+  if (failure?.message?.trim().startsWith('{')) return diagnosticSummary(failure.message)
   if (failure?.message && /[\u3400-\u9fff]/.test(failure.message)) return failure.message
   const reasons: Record<string, string> = {
     result_field_unavailable: '查询字段不存在；此记录未保存具体字段。',
@@ -30,6 +87,7 @@ export function toolFailureCopy(code?: string): string {
 
 export function commandRejectionCopy(code?: string): string {
   const messages: Record<string, string> = {
+    revision_conflict: '任务已更新，本次请求未执行。输入内容已保留，请同步最新状态后重试。',
     stale_event_seq: '页面状态已变化，本次指令未发送。请等待同步完成后重试，输入内容已保留。',
     context_change_pending: '模型或能力正在切换，请等待完成后再发送。',
     worker_unavailable: '所选模型的服务尚未就绪，请稍后重试或选择其他模型。',

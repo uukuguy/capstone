@@ -7,7 +7,7 @@
     "produces_state": ["pypsa-model.inspection"], "invalidates_state": [],
     "result_kind": "pypsa-model.inspection", "projector": "pypsa-model-revision-v1"
   },
-  "purpose": "Inspect bounded component counts, load demand, and snapshot count of one current-run model revision.",
+  "purpose": "Inspect bounded component counts, effective load demand ranges across snapshots, and snapshot count of one current-run model revision. load_p_set_mw is static defaults only; time-series values override it. Use load_demand_summary_mw and retain missing-snapshot and omitted-load counts.",
   "applies_to": ["network model inspection"],
   "not_for": ["solver outcomes", "raw component tables"],
   "input_schema": {

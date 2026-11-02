@@ -12,6 +12,7 @@ import tempfile
 import uuid
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
+from capability_agent.runtime.capacity import runtime_limits,observe_capacity
 
 from capability_agent.runtime.lock import (
     PiCommand,
@@ -281,7 +282,10 @@ def _sanitize_command_detail(value: object) -> str:
         return "provider reported an invalid diagnostic"
     detail = _COMMAND_SECRET_ASSIGNMENT.sub(r"\1=[REDACTED]", value)
     detail = _COMMAND_BEARER.sub(r"\1[REDACTED]", detail)
-    return detail.strip()[:500]
+    detail=detail.strip()
+    limits=runtime_limits()
+    observe_capacity('diagnostic_text_chars',len(detail),limits=limits,unit='characters',phase='installer_diagnostic')
+    return detail[:limits['diagnostic_text_chars']]
 
 
 __all__ = ["PiRuntimeInstaller", "PiRuntimeInstallerError"]

@@ -1,0 +1,1 @@
+{"schema":"capstone-llm-call-pool/1","concurrency":2,"max_jobs":12,"max_input_chars":16000,"max_output_chars":8000,"call_timeout_ms":120000,"max_wait_ms":30000}

@@ -34,6 +34,31 @@ def receipt(channel, request_id="update-1"):
     return json.loads((channel.receipts_path / f"{request_id}.json").read_text())
 
 
+def test_debug_capacity_escapes_channel_without_writing_rejection_or_committing(channel, monkeypatch):
+    import capability_agent.runtime.capacity as capacity
+    pump, _ = channel
+    monkeypatch.setattr(capacity, '_mode', 'debug')
+    pump.runtime_limits = {**pump.runtime_limits, 'research_goal_chars': 2}
+    publish(pump, goal='Oversized')
+    with pytest.raises(capacity.CapacityExceeded):
+        pump.drain()
+    assert pump.controller.read() is None
+    assert not (pump.receipts_path / 'update-1.json').exists()
+
+
+def test_debug_validation_diagnostic_capacity_escapes_without_silent_shortening(channel, monkeypatch):
+    import capability_agent.runtime.capacity as capacity
+    pump, _ = channel
+    monkeypatch.setattr(capacity, '_mode', 'debug')
+    pump.runtime_limits = {**pump.runtime_limits, 'diagnostic_error_count': 1}
+    (pump.requests_path / 'bad.json').write_text(json.dumps({'request_id':'bad',
+        'expected_revision':0,'changes':{'unexpected1':True,'unexpected2':True}}))
+    with pytest.raises(capacity.CapacityExceeded) as caught:
+        pump.drain()
+    assert caught.value.dimension == 'diagnostic_error_count'
+    assert not (pump.receipts_path / 'bad.json').exists()
+
+
 def test_missing_initial_goal_is_rejected_and_can_be_repaired_without_uncertain_commit(channel):
     pump, _ = channel
     path = pump.requests_path / "missing-goal.json"
@@ -63,6 +88,45 @@ def test_channel_publishes_view_before_success_receipt(channel):
     assert view["attempt_id"] == "attempt-1"
 
 
+def test_checkpoint_replays_unchanged_history_once(channel, monkeypatch):
+    import capability_agent.application.context_store as module
+    pump, _ = channel
+    original = module.reduce_context
+    historical_turns = []
+
+    def counted(state, draft):
+        if draft.event_type == 'turn.started':
+            historical_turns.append(draft.turn_id)
+        return original(state, draft)
+
+    monkeypatch.setattr(module, 'reduce_context', counted)
+    publish(pump)
+    pump.drain()
+    assert receipt(pump)['status'] == 'committed'
+    assert historical_turns == ['turn-1']
+    publish(pump, request_id='update-2', revision=1, goal='Continue')
+    pump.drain()
+    assert receipt(pump, 'update-2')['status'] == 'committed'
+    assert historical_turns == ['turn-1', 'turn-1']
+
+
+def test_checkpoint_detects_ledger_change_between_lookup_and_update(channel, monkeypatch):
+    pump, _ = channel
+    original = pump.controller.preview
+    path = pump.controller.store.workspace.context_events_path
+
+    def corrupt_after_preview(document):
+        candidate = original(document)
+        path.write_bytes(path.read_bytes().replace(b'turn.started', b'turn.invalid'))
+        return candidate
+
+    monkeypatch.setattr(pump.controller, 'preview', corrupt_after_preview)
+    publish(pump)
+    pump.drain()
+    assert receipt(pump)['status'] == 'not_confirmed'
+    assert pump.controller.read() is None
+
+
 def test_note_overwrite_is_a_definite_rejection_and_later_update_can_commit(channel):
     pump, _ = channel
     initial = {"request_id": "initial", "expected_revision": 0,
@@ -85,9 +149,10 @@ def test_note_overwrite_is_a_definite_rejection_and_later_update_can_commit(chan
 
 def test_cumulative_research_capacity_rejects_without_losing_existing_records(channel):
     pump, _ = channel
+    maximum=pump.runtime_limits['research_note_count']
     initial = {"request_id": "full", "expected_revision": 0,
         "changes": {"goal": "Study", "notes": [
-            {"note_id": f"note-{i}", "text": f"Observation {i}"} for i in range(64)]}}
+            {"note_id": f"note-{i}", "text": f"Observation {i}"} for i in range(maximum)]}}
     (pump.requests_path / "full.json").write_text(json.dumps(initial))
     pump.drain()
     extra = {"request_id": "extra", "expected_revision": 1,
@@ -95,8 +160,8 @@ def test_cumulative_research_capacity_rejects_without_losing_existing_records(ch
     (pump.requests_path / "extra.json").write_text(json.dumps(extra))
     pump.drain()
     assert receipt(pump, "extra")["status"] == "rejected"
-    assert receipt(pump, "extra")["code"] == "research_state_update_rejected"
-    assert len(pump.controller.read().notes) == 64
+    assert receipt(pump, "extra")["code"] == "capacity_exceeded"
+    assert len(pump.controller.read().notes) == maximum
     publish(pump, request_id="continue", revision=1, goal="Continue study")
     pump.drain()
     assert receipt(pump, "continue")["status"] == "committed"
@@ -111,7 +176,7 @@ def test_channel_publishes_host_bound_tool_contract_without_caller_identity(chan
     assert set(schema["properties"]) == {"expected_revision", "changes"}
     assert schema["additionalProperties"] is False
     assert "ResearchChanges" in schema["$defs"]
-    assert binding["read_tool_schema"]["properties"]["limit"]["maximum"] == 8
+    assert binding["read_tool_schema"]["properties"]["limit"]["maximum"] == pump.runtime_limits['research_page_records']
 
 
 def test_lost_receipt_is_regenerated_without_second_update(channel):

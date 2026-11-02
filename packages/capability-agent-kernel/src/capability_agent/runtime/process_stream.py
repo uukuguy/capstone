@@ -2,11 +2,13 @@
 from collections.abc import Callable
 import time
 from typing import Any
+from capability_agent.runtime.capacity import runtime_limits as resolve_limits
 
 
 class ProcessStream:
-    def __init__(self, publish: Callable[[dict[str, Any]], None], interval: float) -> None:
+    def __init__(self, publish: Callable[[dict[str, Any]], None], interval: float, *, runtime_limits=None) -> None:
         self.publish = publish
+        self.runtime_limits=resolve_limits(runtime_limits)
         self.interval = interval
         self.fragments: list[dict[str, object]] = []
         self.correlation: str | None = None
@@ -28,14 +30,15 @@ class ProcessStream:
             self.publish(payload)
             return
         correlation = payload.get("correlation_id")
-        if self.fragments and (correlation != self.correlation or self.characters + len(text) > 16_384):
+        limits=self.runtime_limits
+        if self.fragments and (correlation != self.correlation or self.characters + len(text) > limits['rpc_frame_bytes']):
             self.flush()
         if not self.fragments:
             self.deadline = time.perf_counter() + self.interval
             self.correlation = correlation
         self.fragments.append({"text": text, "native_ordinal": ordinal, "received_seconds": received})
         self.characters += len(text)
-        if self.characters >= 16_384 or len(self.fragments) >= 256:
+        if self.characters >= limits['rpc_frame_bytes'] or len(self.fragments) >= limits['rpc_batch_requests']:
             self.flush()
         else:
             self.flush_due()

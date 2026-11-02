@@ -6,6 +6,7 @@ import os
 import shutil
 import stat
 import sys
+import tempfile
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -23,9 +24,11 @@ _EXECUTABLE = "pypsamodelctl.exe" if os.name == "nt" else "pypsamodelctl"
 class PreparedModelEndpoint:
     executor: ModelctlExecutor
     metadata: Mapping[str, object]
+    launcher_directory: tempfile.TemporaryDirectory[str]
     closed: bool = False
 
     def close(self) -> None:
+        self.launcher_directory.cleanup()
         self.closed = True
 
 
@@ -43,46 +46,51 @@ class ModelRuntimeProvisioner:
         if root.is_symlink():
             raise ValueError("PyPSA binding workspace is unsafe")
         root.mkdir(parents=True, exist_ok=True, mode=0o700)
-        bin_dir = root / "bin"
-        bin_dir.mkdir(mode=0o700)
-        target = bin_dir / _EXECUTABLE
-        source_fd = os.open(source, os.O_RDONLY | os.O_NOFOLLOW)
+        # Keep retained Authority data; each live endpoint owns its launcher.
+        launcher_directory = tempfile.TemporaryDirectory(prefix="bin-", dir=root)
         try:
-            mode = os.fstat(source_fd).st_mode
-            if not stat.S_ISREG(mode) or not mode & 0o111:
-                raise ValueError("installed pypsamodelctl is invalid")
-            target_fd = os.open(
-                target, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
-                0o700,
-            )
+            bin_dir = Path(launcher_directory.name)
+            target = bin_dir / _EXECUTABLE
+            source_fd = os.open(source, os.O_RDONLY | os.O_NOFOLLOW)
             try:
-                while chunk := os.read(source_fd, 64 * 1024):
-                    pending = memoryview(chunk)
-                    while pending:
-                        count = os.write(target_fd, pending)
-                        if count <= 0:
-                            raise OSError("pypsamodelctl copy made no progress")
-                        pending = pending[count:]
-                os.fchmod(target_fd, 0o700)
+                mode = os.fstat(source_fd).st_mode
+                if not stat.S_ISREG(mode) or not mode & 0o111:
+                    raise ValueError("installed pypsamodelctl is invalid")
+                target_fd = os.open(
+                    target, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                    0o700,
+                )
+                try:
+                    while chunk := os.read(source_fd, 64 * 1024):
+                        pending = memoryview(chunk)
+                        while pending:
+                            count = os.write(target_fd, pending)
+                            if count <= 0:
+                                raise OSError("pypsamodelctl copy made no progress")
+                            pending = pending[count:]
+                    os.fchmod(target_fd, 0o700)
+                finally:
+                    os.close(target_fd)
             finally:
-                os.close(target_fd)
-        finally:
-            os.close(source_fd)
-        environment = sanitize_environment()
-        executor = ModelctlExecutor(
-            executable=target, workspace=root, environment=environment,
-            timeout_seconds=180.0,
-        )
-        return PreparedModelEndpoint(executor, {
-            "binding_id": binding.binding_id,
-            "executable": _EXECUTABLE,
-            "executable_args": (
-                "request", "--workspace", str(root), "--run-id", executor.run_id,
-            ),
-            "search_path": (str(bin_dir),),
-            "timeout_seconds": executor.timeout_seconds,
-            "environment": environment,
-        })
+                os.close(source_fd)
+            environment = sanitize_environment()
+            executor = ModelctlExecutor(
+                executable=target, workspace=root, environment=environment,
+                timeout_seconds=180.0,
+            )
+            return PreparedModelEndpoint(executor, {
+                "binding_id": binding.binding_id,
+                "executable": _EXECUTABLE,
+                "executable_args": (
+                    "request", "--workspace", str(root), "--run-id", executor.run_id,
+                ),
+                "search_path": (str(bin_dir),),
+                "timeout_seconds": executor.timeout_seconds,
+                "environment": environment,
+            }, launcher_directory=launcher_directory)
+        except BaseException:
+            launcher_directory.cleanup()
+            raise
 
     def _executable(self) -> Path:
         candidate = self.executable or Path(sys.executable).parent / _EXECUTABLE

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Literal
 
 from capability_agent.domain.authority import ArtifactAuthority
 from capability_agent.domain.answer_admission import AnswerAdmissionPolicy
@@ -10,7 +11,7 @@ from capability_agent.domain.acceptance import DomainAcceptanceProfile
 from capability_agent.domain.contracts import CapabilityContractSource
 from capability_agent.domain.execution import CapabilityExecutor
 from capability_agent.domain.guide import GuideProvider
-from capability_agent.domain.manifest import DomainManifest
+from capability_agent.domain.manifest import DomainManifest, PackManifest
 from capability_agent.domain.output import DomainOutputContract
 from capability_agent.domain.policy import AnswerEvidencePolicy, DomainPolicyProvider
 from capability_agent.domain.presentation import PresentationProvider
@@ -27,6 +28,7 @@ ToolDescriptionBuilder = Callable[[dict[str, object]], str]
 
 @dataclass(frozen=True, slots=True)
 class DomainRuntimeProfile:
+    execution_kind: Literal["authority"] = field(default="authority", init=False)
     manifest: DomainManifest
     contract_source: CapabilityContractSource
     executor_factory: ExecutorFactory
@@ -47,6 +49,7 @@ class DomainRuntimeProfile:
 
     def missing_application_components(self) -> tuple[str, ...]:
         names = (
+            "contract_source", "executor_factory", "projector_registry", "authority_factory",
             "provisioner",
             "state_adapter",
             "answer_policy",
@@ -88,3 +91,48 @@ class DomainRuntimeProfile:
         allowed = required | {"offline_information"}
         if capabilities is None or not required.issubset(capabilities) or not capabilities.issubset(allowed):
             raise ValueError("domain answer admission capabilities are invalid")
+
+
+@dataclass(frozen=True, slots=True)
+class NativeExecutionConfig:
+    """Select a host-owned resource profile and native result contract, not an endpoint."""
+
+    resource_profile_id: str
+    result_contract: str
+    required_resources: tuple[str, ...] = ()
+    kind: Literal["native"] = field(default="native", init=False)
+
+    def __post_init__(self) -> None:
+        if any(not isinstance(value, str) or not value.strip()
+               for value in (self.resource_profile_id, self.result_contract)):
+            raise ValueError("native resource profile and result contract are required")
+        if (not isinstance(self.required_resources, tuple)
+                or any(not isinstance(value, str) or not value.strip() for value in self.required_resources)
+                or len(set(self.required_resources)) != len(self.required_resources)):
+            raise ValueError("native resource requirements are invalid")
+
+
+@dataclass(frozen=True, slots=True)
+class NativeDomainRuntimeProfile:
+    manifest: PackManifest
+    execution: NativeExecutionConfig
+    policy_provider: DomainPolicyProvider
+    guide_provider: GuideProvider
+    execution_kind: Literal["native"] = field(default="native", init=False)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.manifest, PackManifest) or not isinstance(self.execution, NativeExecutionConfig):
+            raise ValueError("native pack declaration is invalid")
+
+    def missing_application_components(self) -> tuple[str, ...]:
+        return tuple(name for name in ("policy_provider", "guide_provider") if getattr(self, name) is None)
+
+
+DomainPackProfile = DomainRuntimeProfile | NativeDomainRuntimeProfile
+
+
+def require_authority_profile(profile: DomainPackProfile) -> DomainRuntimeProfile:
+    """Narrow a registered profile at an authority-only application boundary."""
+    if isinstance(profile, NativeDomainRuntimeProfile):
+        raise ValueError("this application entry point requires an authority profile")
+    return profile

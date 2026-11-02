@@ -1,11 +1,192 @@
-"""Check that development shortcuts never hide product or release changes."""
-from tools.ci_scope import classify, check_document_links
+"""Specialized gate selection; final ownership routing is tested separately."""
+from tools.ci_scope import _scoped_gate as classify, check_document_links
 import pytest
 from pathlib import Path
 import os
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[2]
+
+ADAPTIVE_PATHS = [
+    'packages/capability-agent-kernel/src/capability_agent/application/context_store.py',
+    'packages/capability-agent-kernel/src/capability_agent/runtime/research_channel.py',
+    'packages/capability-agent-kernel/tests/runtime/test_research_channel.py',
+    'packages/capstone-agent/src/capstone_agent/native_conversation.py',
+    'packages/capstone-agent/src/capstone_agent/general_pi_server.py',
+    'packages/capstone-agent/src/capstone_agent/resources/general-sdk.mjs',
+    'packages/capstone-agent/src/capstone_agent/resources/task-planning-policy-1.6.md',
+    'packages/capstone-agent/tests/test_adaptive_agent_profile.py',
+    'packages/capstone-agent/tests/fixtures/graph-context-client.test.mjs',
+    'packages/capstone-app/src/SessionEntry.tsx',
+    'packages/enterprise-research-domain-pack/src/enterprise_research/__init__.py',
+    'packages/enterprise-research-domain-pack/src/enterprise_research/resources/versions/1.16.0/system-policy.md',
+    'packages/enterprise-research-domain-pack/tests/test_profile.py',
+    'tools/ci_scope.py', 'docs/RUNBOOK.md',
+]
+
+
+def test_adaptive_agent_selects_complete_owned_consumers_and_keeps_release_gate():
+    assert classify(ADAPTIVE_PATHS) == 'adaptive-agent'
+    assert classify(ADAPTIVE_PATHS, target='main') == 'release'
+    assert classify(ADAPTIVE_PATHS, release=True) == 'release'
+
+
+@pytest.mark.parametrize('extra', [
+    'packages/capability-agent-kernel/src/capability_agent/runtime/environment.py',
+    'packages/capability-agent-kernel/src/capability_agent/domain/authority.py',
+    'packages/capability-agent-kernel/src/capability_agent/application/composition.py',
+    'packages/enterprise-research-domain-pack/src/enterprise_research/new_executor.py',
+    'packages/enterprise-research-domain-pack/pyproject.toml',
+    'packages/capstone-agent/src/capstone_agent/new_provider.py',
+    'packages/capstone-agent/src/capstone_agent/pi_delegation.py',
+    'packages/capstone-agent/src/capstone_agent/resources/unknown.md',
+    'packages/grid-simulator/src/grid_simulator/solver.py',
+    'packages/grid-agent/src/grid_agent/authority.py',
+    'packages/pypsa-agent/src/pypsa_agent/solver.py',
+    'packages/capstone-agent/pyproject.toml', 'packages/grid-agent/uv.lock',
+    'packages/capstone-app/package-lock.json', 'compose.yaml',
+    'configs/runtime/data-gateway.json', 'deploy/general-pi.Dockerfile',
+    'Makefile', 'unknown.file', '../docs/escape.md',
+])
+def test_adaptive_agent_does_not_narrow_unknown_or_wider_changes(extra):
+    assert classify([*ADAPTIVE_PATHS, extra]) == 'product'
+
+
+def test_only_registered_kernel_research_modules_enter_adaptive_gate():
+    for path in ADAPTIVE_PATHS[:2]:
+        assert classify([path]) == 'adaptive-agent'
+
+SOURCE_PATHS = [
+    'packages/capstone-agent/src/capstone_agent/grid_source_topology.py',
+    'packages/capstone-agent/src/capstone_agent/grid_source_http.py',
+    'packages/capstone-agent/src/capstone_agent/host_api.py',
+    'packages/capstone-agent/src/capstone_agent/pi_delegation.py',
+    'packages/capstone-agent/src/capstone_agent/general_pi_server.py',
+    'packages/capstone-agent/src/capstone_agent/resources/general-context.mjs',
+    'packages/capstone-agent/tests/test_grid_source_topology.py',
+    'packages/capstone-agent/tests/test_grid_source_http.py',
+    'packages/capstone-agent/tests/test_general_pi_native.py',
+    'deploy/general-pi.Dockerfile', 'configs/runtime/data-gateway.json',
+    'packages/capstone-app/src/NetworkView.tsx', 'tools/ci_scope.py',
+]
+
+
+def test_source_topology_requires_verified_content_and_exact_covered_paths():
+    assert classify(SOURCE_PATHS) == 'product'
+    assert classify(SOURCE_PATHS, source_topology=True) == 'source-topology'
+    assert classify(SOURCE_PATHS, source_topology=True, target='main') == 'release'
+    assert classify(SOURCE_PATHS, source_topology=True, release=True) == 'release'
+    for extra in ('packages/capstone-agent/src/capstone_agent/kernel_pi_session.py',
+                  'packages/capstone-agent/src/capstone_agent/new_provider.py',
+                  'packages/capstone-agent/tests/test_new_provider.py',
+                  'packages/capability-agent-kernel/src/capability_agent/application/composition.py',
+                  'packages/grid-simulator/src/grid_simulator/solver.py',
+                  'packages/grid-agent/src/grid_agent/authority.py',
+                  'packages/capstone-agent/pyproject.toml', 'packages/grid-agent/uv.lock',
+                  'packages/capstone-app/package-lock.json', 'compose.yaml', 'unknown.file'):
+        assert classify(SOURCE_PATHS + [extra], source_topology=True) == 'product'
+
+
+def test_source_view_handoff_registers_its_exact_forwarder_and_graph_consumer():
+    paths=SOURCE_PATHS+['packages/capstone-agent/src/capstone_agent/delegated_runtime.py',
+        'packages/capstone-agent/src/capstone_agent/data_gateway_relay.py',
+        'packages/capstone-agent/tests/test_data_gateway_relay.py',
+        'packages/capstone-agent/tests/test_delegated_runtime.py',
+        'packages/capstone-agent/tests/test_graph_host_observation.py']
+    assert classify(paths,source_topology=True)=='source-topology'
+    assert classify(paths+['packages/capstone-agent/src/capstone_agent/unknown_forwarder.py'],
+                    source_topology=True)=='product'
+
+
+def test_source_workspace_controls_have_complete_thread_consumers():
+    paths=SOURCE_PATHS+['packages/capstone-agent/src/capstone_agent/thread_model_workspace.py',
+        'packages/capstone-agent/src/capstone_agent/thread_service.py',
+        'packages/capstone-agent/tests/test_thread_model_workspace.py']
+    assert classify(paths,source_topology=True)=='source-topology'
+    workflow=(ROOT/'.github/workflows/verify.yml').read_text()
+    gate=workflow.split('- name: Verify source topology consumers',1)[1].split('- name:',1)[0]
+    assert 'tests/test_thread*.py' in gate
+    assert 'tests/test_host*.py' in gate
+    assert 'tests/test_data_gateway_*.py' in gate
+    assert 'test-capstone-app' in gate
+    assert classify(paths+['packages/capstone-agent/src/capstone_agent/thread_worker.py'],source_topology=True)=='product'
+    assert classify(paths,source_topology=True,target='main')=='release'
+
+
+def test_gateway_readonly_inventory_and_transport_have_named_consumers():
+    paths = ['packages/capstone-agent/src/capstone_agent/data_gateway_mcp.py',
+             'packages/capstone-agent/src/capstone_agent/data_gateway_relay.py',
+             'packages/capstone-agent/src/capstone_agent/resources/general-data-gateway.mjs',
+             'packages/capstone-agent/tests/fixtures/data-gateway-research.test.mjs',
+             'packages/capstone-agent/tests/test_data_gateway_mcp.py',
+             'packages/capstone-agent/tests/test_data_gateway_relay.py',
+             'configs/runtime/data-gateway.json']
+    assert classify(paths, source_topology=True) == 'source-topology'
+    assert classify(paths + ['packages/grid-agent/src/grid_agent/authority.py'], source_topology=True) == 'product'
+    from tools.ci_scope import source_gateway_document
+    old = {'allowed_tools': ['discover_data_capabilities']}
+    assert source_gateway_document(old, {'allowed_tools': [*old['allowed_tools'], 'discover_network_models']})
+    assert not source_gateway_document(old, {'allowed_tools': [*old['allowed_tools'], 'build_network_model']})
+
+
+def test_source_transport_guard_preserves_all_legacy_behavior():
+    from tools.ci_scope import source_transport_document, SOURCE_CONTROL_METHODS
+    old = 'class HttpGeneralPiExecutor:\n    def _call(self):\n        known={"invalid_task"}\n        return "legacy"\n'
+    new = old + SOURCE_CONTROL_METHODS
+    assert source_transport_document(old, new)
+    assert not source_transport_document(old, new.replace('return "legacy"', 'return "changed"'))
+    assert not source_transport_document(old, new.replace("'/grid-sources'", "'/tasks'"))
+    assert not source_transport_document(old, new.replace('total_timeout=3', 'total_timeout=300'))
+    assert not source_transport_document(old, new + '\n    def bypass(self): return self._call("POST", "/tasks")\n')
+    codes = ', '.join(repr(code) for code in ('invalid_task', 'grid_source_unavailable',
+        'grid_source_request_invalid', 'grid_source_view_changed', 'grid_source_response_invalid',
+        'grid_source_observation_unavailable'))
+    candidate = new.replace('{"invalid_task"}', '{' + codes + '}')
+    assert source_transport_document(old, candidate)
+    assert not source_transport_document(old, candidate.replace("'invalid_task', ", ''))
+    assert not source_transport_document(old, candidate.replace("'invalid_task'", "'new_unknown_code'"))
+    assert not source_transport_document(old, 'not Python!')
+
+
+def test_source_policy_guard_allows_only_one_readonly_tool_addition():
+    from copy import deepcopy
+    from tools.ci_scope import source_gateway_document
+    old = {'schema': 'capstone-data-gateway/1', 'allowed_tools': ['discover_data_capabilities']}
+    new = deepcopy(old)
+    new['allowed_tools'].append('get_network_topology_view')
+    assert source_gateway_document(old, new)
+    for forbidden in ('build_network_model', 'query_database_sql', 'caller_selected_tool'):
+        changed = deepcopy(new)
+        changed['allowed_tools'].append(forbidden)
+        assert not source_gateway_document(old, changed)
+    new['namespace'] = 'changed'
+    assert not source_gateway_document(old, new)
+
+
+def test_source_diff_fails_closed_if_critical_base_is_unavailable(monkeypatch):
+    from tools.ci_scope import source_topology_diff
+    def missing(*args, **kwargs):
+        raise subprocess.CalledProcessError(128, args[0])
+    monkeypatch.setattr(subprocess, 'check_output', missing)
+    assert not source_topology_diff(SOURCE_PATHS, 'base', 'head')
+
+
+def test_source_diff_and_classifier_reject_legacy_transport_edits_alongside_approved_additions(monkeypatch):
+    from tools.ci_scope import source_topology_diff, SOURCE_CONTROL_METHODS
+    old = 'class HttpGeneralPiExecutor:\n    def _call(self):\n        return "legacy"\n'
+    documents = {'base': old, 'head': old + SOURCE_CONTROL_METHODS}
+    def git_show(arguments, **kwargs):
+        assert arguments[:2] == ['git', 'show']
+        return documents[arguments[2].split(':', 1)[0]]
+    monkeypatch.setattr(subprocess, 'check_output', git_show)
+    paths = ['packages/capstone-agent/src/capstone_agent/grid_source_http.py',
+             'packages/capstone-agent/src/capstone_agent/pi_delegation.py']
+    approved = source_topology_diff(paths, 'base', 'head')
+    assert approved and classify(paths, source_topology=approved) == 'source-topology'
+    documents['head'] = documents['head'].replace('return "legacy"', 'return "changed task semantics"')
+    approved = source_topology_diff(paths, 'base', 'head')
+    assert not approved
+    assert classify(paths, source_topology=approved) == 'product'
 
 
 def test_documentation_and_overview_changes():
@@ -19,6 +200,14 @@ def test_governance_changes_require_gate_tests():
     assert classify(["tools/issue_automation/cli.py", "tools/tests/test_issue_automation_cli.py"]) == "governance"
 
 
+def test_issue_automation_policy_uses_its_governance_gate():
+    paths = ["configs/development/issue-automation.json", "tools/issue_automation/policy.py"]
+    assert classify(paths) == "governance"
+    assert classify(paths, target="main") == "release"
+    assert classify(paths, release=True) == "release"
+    assert classify(paths + ["configs/runtime/agent-resources.json"]) == "product"
+
+
 def test_product_and_unknown_paths_fail_closed():
     for path in ["packages/capstone-agent/src/server.py", "Makefile", "uv.lock",
                  ".github/workflows/deploy.yml", "tools/unregistered_tool.py",
@@ -30,6 +219,167 @@ def test_product_and_unknown_paths_fail_closed():
 def test_main_and_explicit_release_always_use_complete_gate():
     assert classify(["README.md"], target="main") == "release"
     assert classify(["README.md"], release=True) == "release"
+
+
+def test_shared_agent_python_changes_select_dependency_regression():
+    paths = ["packages/capstone-agent/src/capstone_agent/harness.py",
+             "packages/capstone-agent/tests/test_enterprise_context.py",
+             "docs/status/CURRENT-STATE.md"]
+    assert classify(paths) == "shared-agent"
+    assert classify(paths, target="main") == "release"
+    assert classify(paths, release=True) == "release"
+
+
+@pytest.mark.parametrize("extra", [
+    "packages/capstone-agent/pyproject.toml",
+    "packages/capstone-agent/uv.lock",
+    "packages/capstone-agent/src/capstone_agent/kernel_pi_session.py",
+    "packages/capstone-agent/src/capstone_agent/pi_delegation.py",
+    "packages/capability-agent-kernel/src/capability_agent/core.py",
+    "packages/pypsa-domain-pack/src/solver.py",
+    "deploy/Dockerfile",
+    "Makefile",
+    "packages/capstone-agent/src/../pyproject.toml",
+])
+def test_shared_agent_mixed_runtime_or_unknown_change_expands_gate(extra):
+    assert classify(["packages/capstone-agent/src/capstone_agent/harness.py", extra]) == "product"
+
+
+def test_shared_agent_and_governance_keep_product_regression():
+    assert classify(["packages/capstone-agent/src/capstone_agent/harness.py",
+                     "tools/ci_scope.py"]) == "shared-agent"
+
+
+def test_native_runtime_has_bounded_consumer_regression():
+    paths = ['packages/capstone-agent/src/capstone_agent/general_pi_server.py',
+             'packages/capstone-agent/src/capstone_agent/resources/general-sdk.mjs',
+             'packages/capstone-agent/tests/fixtures/data-gateway-research.test.mjs',
+             'configs/runtime/data-gateway.json', 'compose.yaml', 'deploy/general-pi.Dockerfile']
+    assert classify(paths) == 'native-runtime'
+    assert classify(paths + ['packages/grid-simulator/src/grid_simulator/powermcp_sidecar.py']) == 'native-runtime'
+    assert classify(paths + ['packages/pypsa-agent/src/pypsa_agent/worker.py']) == 'native-runtime'
+    assert classify(paths, target='main') == 'release'
+    assert classify(paths, release=True) == 'release'
+    for extra in ['packages/grid-simulator/src/grid_simulator/solver.py',
+                  'packages/capstone-agent/src/capstone_agent/pi_delegation.py',
+                  'packages/grid-agent/uv.lock', 'deploy/Dockerfile', 'Makefile']:
+        assert classify(paths + [extra]) == 'product'
+
+
+@pytest.mark.parametrize('path', [
+    'packages/capstone-agent/src/capstone_agent/general_pi_server.py',
+    'packages/capstone-agent/src/capstone_agent/general_pi_executor.py',
+    'packages/capstone-agent/src/capstone_agent/resources/general-sdk.mjs',
+    'packages/capstone-agent/src/capstone_agent/resources/application-capacity.json',
+    'packages/capstone-agent/tests/fixtures/systematic-diagnosis.test.mjs',
+    'packages/capstone-agent/tests/fixtures/case.json',
+    'packages/capstone-agent/tests/general-sdk-shell.test.mjs',
+    'packages/capstone-agent/tests/general-sdk-capacity.test.mjs',
+    'packages/capstone-agent/tests/managed-subagents-sdk.test.mjs',
+    'packages/capstone-agent/tests/delivery-review-sdk.test.mjs',
+    'packages/capstone-agent/tests/research-guidance.test.mjs',
+    'deploy/general-pi.Dockerfile',
+    'packages/pi-capability-tools/src/research-tools.mjs',
+    'packages/pi-capability-tools/src/research-context-window.mjs',
+])
+def test_conversation_runtime_uses_affected_consumer_gate(path):
+    assert classify([path]) == 'conversation-runtime'
+    mixed = [path, 'packages/capstone-agent/src/capstone_agent/thread_work.py',
+             'packages/capstone-agent/tests/test_native_diagnosis.py',
+             'packages/capstone-app/src/ThreadWorkAdapter.tsx',
+             'packages/capstone-app/src/fixtures/nativeGraph-tools.json', 'tools/ci_scope.py', 'docs/RUNBOOK.md']
+    assert classify(mixed) == 'conversation-runtime'
+    assert classify(mixed, target='main') == 'release'
+    assert classify(mixed, release=True) == 'release'
+
+
+def test_conversation_resources_do_not_narrow_uncovered_backend_changes():
+    paths=['packages/capstone-agent/src/capstone_agent/resources/general-context.mjs',
+           'packages/capstone-agent/src/capstone_agent/uncovered_new_service.py']
+    assert classify(paths)=='product'
+
+
+@pytest.mark.parametrize('extra', [
+    'compose.yaml', 'configs/runtime/data-gateway.json',
+    'packages/grid-simulator/src/grid_simulator/powermcp_sidecar.py',
+    'packages/capability-agent-kernel/src/capability_agent/application/composition.py',
+])
+def test_conversation_mixed_foundation_or_native_infrastructure_widens(extra):
+    assert classify(['packages/capstone-agent/src/capstone_agent/resources/general-sdk.mjs', extra]) == 'native-runtime'
+
+
+@pytest.mark.parametrize('extra', [
+    'packages/grid-agent/src/grid_agent/authority.py',
+    'packages/grid-simulator/src/grid_simulator/solver.py',
+    'packages/pypsa-agent/src/pypsa_agent/solver.py',
+    'packages/pypsa-domain-pack/src/solver.py',
+    'packages/capstone-agent/src/capstone_agent/kernel_pi_session.py',
+    'packages/capstone-agent/src/capstone_agent/pi_delegation.py',
+    'packages/capstone-agent/pyproject.toml', 'packages/grid-agent/uv.lock',
+    'packages/capstone-app/package-lock.json', 'packages/capstone-app/src/unknown.json',
+    'packages/pi-capability-tools/src/new-professional-tools.mjs',
+    'packages/pi-capability-tools/package.json', 'deploy/Dockerfile', 'Makefile', 'unknown.file',
+    'packages/capstone-agent/tests/unregistered/test-professional.test.mjs',
+])
+def test_conversation_unknown_professional_or_dependency_change_still_requires_product(extra):
+    assert classify(['packages/capstone-agent/src/capstone_agent/resources/general-sdk.mjs', extra]) == 'product'
+
+
+def test_conversation_does_not_bypass_verified_mcp_dependency_consumer_gate():
+    assert classify(['packages/capstone-agent/src/capstone_agent/resources/general-sdk.mjs',
+                     'packages/capstone-agent/pyproject.toml'], runtime_dependencies=True) == 'native-runtime'
+
+
+def test_runtime_dependency_scope_checks_content_not_only_path():
+    from tools.ci_scope import runtime_dependency_document
+    from copy import deepcopy
+    path = 'packages/capstone-agent/pyproject.toml'
+    old = {'project': {'dependencies': ['httpx>=0.28,<1']}}
+    new = deepcopy(old)
+    new['project']['dependencies'].append('mcp>=1.30,<2')
+    assert runtime_dependency_document(path, old, new)
+    new['project']['dependencies'].append('pandapower==3.5')
+    assert not runtime_dependency_document(path, old, new)
+    assert not runtime_dependency_document('packages/grid-agent/pyproject.toml', old, new)
+    old = {'version': 1, 'package': [
+        {'name': 'capstone-agent', 'dependencies': [{'name': 'httpx'}]},
+        {'name': 'pandapower', 'version': '3.4.0'}]}
+    new = deepcopy(old)
+    new['package'][0]['dependencies'].append({'name': 'mcp'})
+    new['package'].append({'name': 'mcp', 'version': '1.30.0'})
+    assert runtime_dependency_document('packages/grid-agent/uv.lock', old, new)
+    new['package'][1]['version'] = '3.5.0'
+    assert not runtime_dependency_document('packages/grid-agent/uv.lock', old, new)
+
+
+def test_verified_runtime_dependency_diff_still_cannot_hide_unknown_source():
+    paths = ['packages/capstone-agent/pyproject.toml', 'packages/grid-agent/uv.lock']
+    assert classify(paths, runtime_dependencies=True) == 'native-runtime'
+    assert classify(paths + ['packages/grid-simulator/src/grid_simulator/solver.py'],
+                    runtime_dependencies=True) == 'product'
+
+
+def test_foundation_assembly_has_an_explicit_dependency_gate():
+    from tools.ci_scope import FOUNDATION_FILES
+    for path in FOUNDATION_FILES:
+        assert classify([path, 'tools/ci_scope.py']) == 'foundation'
+    paths = ['packages/capability-agent-kernel/tests/application/test_pack_selection.py',
+             'packages/capstone-agent/src/capstone_agent/application.py']
+    assert classify(paths) == 'foundation'
+    assert classify(paths, target='main') == 'release'
+    for extra in ['packages/capability-agent-kernel/src/capability_agent/runtime/environment.py',
+                  'packages/capability-agent-kernel/src/capability_agent/domain/authority.py',
+                  'packages/grid-agent/src/grid_agent/new_executor.py',
+                  'packages/pypsa-domain-pack/src/solver.py', 'Makefile']:
+        assert classify(paths + [extra]) == 'product'
+
+
+def test_app_source_and_shared_agent_use_the_same_contract_gate():
+    app = "packages/capstone-app/src/threadProtocol.ts"
+    assert classify([app]) == "shared-agent"
+    assert classify([app, "packages/capstone-agent/src/capstone_agent/thread_protocol.py"]) == "shared-agent"
+    assert classify([app, "packages/capstone-app/package-lock.json"]) == "product"
+    assert classify([app, "packages/capstone-app/vite.config.ts"]) == "product"
 
 
 def workflow_scope_script():

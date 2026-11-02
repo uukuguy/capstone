@@ -54,8 +54,8 @@ def normalize_thread_network_projection(
     if not isinstance(model, Mapping):
         return None
     if (
-        model.get("id") != claim.model_context.model_id
-        or model.get("revision") != claim.model_context.model_revision
+        model.get("id") != claim.professional_context.model_id
+        or model.get("revision") != claim.professional_context.model_revision
     ):
         return None
     return {

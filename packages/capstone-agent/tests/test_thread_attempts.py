@@ -101,7 +101,11 @@ def _command(command_id: str = "cmd_attempt_001") -> dict[str, object]:
     }
 
 
-def test_large_diagrams_have_bound_model_identity_and_byte_paged_replay() -> None:
+def test_large_diagrams_have_bound_model_identity_and_byte_paged_replay(request) -> None:
+    from capstone_agent.application_capacity import CapacityExceeded, current_capacity, initialize_capacity
+    previous = current_capacity()
+    request.addfinalizer(lambda: initialize_capacity(previous))
+    initialize_capacity({'event_bytes': 65536, 'event_page_bytes': 4 * 1024 * 1024 + 65536})
     service = _service()
     service.submit_command(_command())
     claim = service.claim_attempt("worker", lease_seconds=120)
@@ -115,7 +119,7 @@ def test_large_diagrams_have_bound_model_identity_and_byte_paged_replay() -> Non
     })
     for _ in range(3):
         service.append_runtime_event(claim, event_type="network_diagram", payload={"diagram": diagram})
-    with pytest.raises(ThreadProtocolError, match="too large"):
+    with pytest.raises(CapacityExceeded, match="event_bytes"):
         service.append_runtime_event(claim, event_type="assistant_delta", payload={"text": "x" * 65537})
     foreign = {**diagram, "model": {**diagram["model"], "id": "foreign"}}
     foreign.pop("ref"); foreign.pop("fingerprint")
@@ -675,14 +679,15 @@ def test_attempt_lease_is_required_for_append_and_finish() -> None:
 
 
 def test_runtime_event_payload_is_bounded_before_persistence() -> None:
+    from capstone_agent.application_capacity import CapacityExceeded, limits
     service = _service()
     service.submit_command(_command())
     claim = service.claim_attempt("thread-worker", lease_seconds=30)
     assert claim is not None
 
-    with pytest.raises(ValueError, match="too large"):
+    with pytest.raises(CapacityExceeded, match="event_bytes"):
         service.append_runtime_event(
-            claim, event_type="assistant_message_update", payload={"text": "x" * 70_000},
+            claim, event_type="assistant_message_update", payload={"text": "x" * limits.event_bytes},
         )
 
 

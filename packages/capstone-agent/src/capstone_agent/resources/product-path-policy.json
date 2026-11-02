@@ -1,0 +1,7 @@
+{
+  "schema": "capstone-product-paths/1",
+  "exclude_hidden_parts": true,
+  "excluded_parts": ["__pycache__"],
+  "excluded_suffixes": [".pyc", ".pyo"],
+  "excluded_roots": ["context.json", "AGENTS.md", "CLAUDE.md"]
+}

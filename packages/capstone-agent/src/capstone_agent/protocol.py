@@ -7,11 +7,11 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from .network_diagram import MAX_DIAGRAM_BYTES
+from .application_capacity import limits, require_capacity
 
 
 SCHEMA = "capstone-worker/1.0"
-MAX_FRAME_BYTES = MAX_DIAGRAM_BYTES + 65_536
+MAX_FRAME_BYTES = limits.control_document_bytes
 _SESSION_ID = re.compile(r"^[a-z][a-z0-9-]{0,63}$")
 _FIELDS = frozenset({"schema", "session_id", "sequence", "kind", "payload"})
 _PAYLOAD_FIELDS = {
@@ -168,14 +168,12 @@ class Frame:
         }
         encoded = (json.dumps(document, ensure_ascii=False, allow_nan=False,
                               separators=(",", ":")) + "\n").encode("utf-8")
-        if len(encoded) > MAX_FRAME_BYTES:
-            raise ProtocolError("frame exceeds size limit")
+        require_capacity('control_document_bytes', len(encoded), phase='worker_frame')
         return encoded
 
     @classmethod
     def from_line(cls, raw: bytes, *, expected_sequence: int | None = None) -> Frame:
-        if len(raw) > MAX_FRAME_BYTES:
-            raise ProtocolError("frame exceeds size limit")
+        require_capacity('control_document_bytes', len(raw), phase='worker_frame')
         if not raw.endswith(b"\n"):
             raise ProtocolError("frame must end with newline")
         try:

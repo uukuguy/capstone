@@ -1,0 +1,15 @@
+{
+  "repository": "https://github.com/timaliev/pi-deep-research",
+  "commit": "3470ed76411886338b525f32c3d6778e22e2bab4",
+  "files": {
+    "state-machine.ts": "d8270bc983a0fb44f7de8b67e55ee189b24e6eed9f6d37695d6ef043ad614338",
+    "research-round.ts": "ed2b5e628a74d7e08cfa095a7ad51848dab094b54c52b12cae9a15ec7f5bca66",
+    "concurrency.ts": "2307332b3fb2f14dc19dc7f33435d7f6fcf373fbca358023759b211237f777bf",
+    "ids.ts": "089098bfa523c6f10d6f6bb6793387b146ca58be96da07eadb38d052a060b9c8",
+    "logger.ts": "8068a98d115eacac9b59525cf6f2bf0e62c4ce6fe253a84df89f65f1efb118b8",
+    "profile-resolver.ts": "f28771d20d5e5f228d803f484079715e2071f12d4d52aebc4267b99c7ab84021",
+    "report-styles.ts": "b68d22d015ee261c1f8f224253ccb718747962509dd1a0d5251fa6a0a9e9a966",
+    "research-draft.ts": "ca8197d61fe38aa5e1ac78a1be4de749f95e8ed7cc25b71b42f84928d76990b9",
+    "search-queue.ts": "745bdc0b1e86e72d9889fd9427b4464b7e8edf8e3dbd660007a07411ba6f1c99"
+  }
+}

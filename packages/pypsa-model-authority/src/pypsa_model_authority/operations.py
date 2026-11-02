@@ -126,6 +126,24 @@ def execute(
             raise ModelCapabilityError("invalid_model_ref", str(exc)) from exc
         except (ValueError, KeyError, TypeError) as exc:
             raise ModelCapabilityError("invalid_model_ref", "model reference failed integrity verification") from exc
+        selected_loads = network.loads.p_set
+        if revision.get("schema") == "pypsa-model-revision/1.1":
+            selected_loads = selected_loads.head(10)
+        demand_summary = {}
+        for name, static_value in selected_loads.items():
+            dynamic = name in network.loads_t.p_set.columns
+            demand_values = (
+                network.loads_t.p_set[name].reindex(network.snapshots).tolist()
+                if dynamic else [static_value] * len(network.snapshots)
+            )
+            finite = [number for item in demand_values if (number := _optional_finite(item)) is not None]
+            demand_summary[str(name)] = {
+                "basis": "time_series" if dynamic else "static",
+                "minimum": min(finite) if finite else None,
+                "maximum": max(finite) if finite else None,
+                "valid_snapshot_count": len(finite),
+                "missing_snapshot_count": len(demand_values) - len(finite),
+            }
         details = {
             "component_counts": {
                 "Bus": len(network.buses), "Load": len(network.loads),
@@ -136,13 +154,9 @@ def execute(
                 **({"StorageUnit": len(network.storage_units)} if len(network.storage_units) else {}),
                 **({"Transformer": len(network.transformers)} if len(network.transformers) else {}),
             },
-            "load_p_set_mw": {
-                str(name): float(value) for name, value in (
-                    network.loads.p_set.head(10).items()
-                    if revision.get("schema") == "pypsa-model-revision/1.1"
-                    else network.loads.p_set.items()
-                )
-            },
+            "load_p_set_mw": {str(name): float(value) for name, value in selected_loads.items()},
+            "load_p_set_basis": "static_defaults_only; time_series_override",
+            "load_demand_summary_mw": demand_summary,
             "snapshot_count": len(network.snapshots),
         }
         if revision.get("schema") == "pypsa-model-revision/1.1":

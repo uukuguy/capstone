@@ -8,6 +8,7 @@ from typing import Any, Protocol
 from pydantic import Field
 
 from capability_agent.trajectory.events import StrictFrozenModel
+from capability_agent.runtime.capacity import runtime_limits as resolve_limits,check_capacity
 
 
 class ReferenceVerifier(Protocol):
@@ -17,10 +18,10 @@ class ReferenceVerifier(Protocol):
 
 
 class AnswerClaim(StrictFrozenModel):
-    statement: str = Field(min_length=1, max_length=1000)
-    category: str = Field(min_length=1, max_length=100)
-    result_refs: tuple[str, ...] = Field(default=(), max_length=20)
-    evidence_refs: tuple[str, ...] = Field(default=(), max_length=20)
+    statement: str = Field(min_length=1)
+    category: str = Field(min_length=1)
+    result_refs: tuple[str, ...] = ()
+    evidence_refs: tuple[str, ...] = ()
 
 
 class AnswerSubmission(StrictFrozenModel):
@@ -28,12 +29,12 @@ class AnswerSubmission(StrictFrozenModel):
     answer_output: str = Field(min_length=1)
     result_refs: tuple[str, ...]
     claim_evidence_refs: tuple[str, ...]
-    claims: tuple[AnswerClaim, ...] = Field(max_length=50)
+    claims: tuple[AnswerClaim, ...]
     # Binding identity is part of the generic submission contract.  The
     # application controller supplies one binding-specific submission to each
     # domain policy, so a domain policy never has to infer ownership from an
     # opaque reference string.
-    referenced_bindings: tuple[str, ...] = Field(default=(), max_length=50)
+    referenced_bindings: tuple[str, ...] = ()
 
 
 class AnswerReferencePolicy(Protocol):
@@ -88,9 +89,19 @@ def validate_submission(
     allowed_refs: Set[str],
     *,
     reference_policy: AnswerReferencePolicy | None = None,
+    runtime_limits=None,
 ) -> AnswerSubmission:
     """Validate a complete submission using injected reference semantics."""
     submission = AnswerSubmission.model_validate(draft)
+    limits=resolve_limits(runtime_limits)
+    check_capacity(limits,'research_claim_count',len(submission.claims),unit='claims',phase='answer_admission')
+    for references in (submission.result_refs,submission.claim_evidence_refs,submission.referenced_bindings):
+        check_capacity(limits,'context_references',len(references),unit='references',phase='answer_admission')
+    for claim in submission.claims:
+        for text in (claim.statement,claim.category):
+            check_capacity(limits,'research_text_chars',len(text),unit='characters',phase='answer_admission')
+        for references in (claim.result_refs,claim.evidence_refs):
+            check_capacity(limits,'context_references',len(references),unit='references',phase='answer_admission')
     policy = reference_policy or NeutralAnswerReferencePolicy()
     policy.validate_submission(submission)
     for claim in submission.claims:

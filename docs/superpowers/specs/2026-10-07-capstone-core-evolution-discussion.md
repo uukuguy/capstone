@@ -1,8 +1,232 @@
 # Capstone 核心能力演进讨论笔记
 
+## 2026-10-30：企业数据研究分析与轻量链收口（用户接受）
+
+AI 主持问题驱动的多轮研究，用户保留局部探索、纠偏及最终接受的权利。
+研究导航图以问题为节点，以有证据的回答、部分回答、证据不足或前提不成立
+为研究结果；过程产物无论问题是否解决均保留。最终任务结果必须由用户明确
+确认接受，绑定具体版本；AI 完成执行不等于用户接受。
+详见[完整讨论记录](2026-10-30-enterprise-data-research-analysis.md)和
+[实施路线图](../plans/2026-10-30-enterprise-analysis-roadmap.md)。这是后续模式设计，尚未实现。
+
+当前轻量链决定保留工具并行、制品即时发布与计时；通用 LLM 请求池和独立分析池
+退出默认路径，仅留受控实验。约480秒到512秒的完整测试不支持性能提升结论；
+独立分析调用均为零，小测试只证明机制可运行。后续优先减少重复探索、工具错误
+和报告重写，不继续扩大默认调度复杂度。此项运行配置变更与后续研究模式分开验收。
+
+## 2026-10-28：内网 ChatGPT for Grid 首期重点（用户方向）
+
+用户提出以生产数据探索、多轮交互分析、报告生成和交互修订为首期重点。
+每轮指令及时交付有价值的阶段成果，供用户继续判断和迭代；分析缺口与非关键
+质量检查记录后放行，不要求单轮达到完整研究终稿。保持适度基本检查，尽量避免
+字段、单位、窗口、图表及文件可打开性等低级错误。保留已完成成果，局部失败
+应支持局部恢复，避免整链重新取数。权限、来源真实、实际执行状态和必要持久化
+仍是硬边界；专业计算结论继续遵守Authority证据合同。
+这项方向指导当前轻量链回归及失败交付修复，不把现有失败重标为成功，也不代表
+已完成新的产品范围或云端验收。
+
+## 2026-10-28：共享工具组合与语义包（用户批准，已实现并本地验证）
+
+已发布中立原生能力 `capstone-tool-composition/1`，由应用按真实 native 与网关授权
+选择 `agent_tools_execute`。轻量链与DR执行节点共享；DR组织者保留组织职责。
+独立调用可并行，后续调用可直接使用结果，Python可在同一受隔离工作区完成计算。
+程序不持有网关地址和认证，每次调用仍走宿主原契约、授权、调用身份和来源回执。
+没有写死电网、指标、年份、SQL流程或网关组合顺序。尚未实施MCP连接池。
+
+`capstone-semantic-data/1`保存真实调用的观察、哈希与回执；JSON pointer提取字段
+才标observed，直接注记标declared，缺少可选字段标unknown并记录缺口。引用伪造、
+哈希变化和越权路径仍拒绝。不同节点通过既有成果槽和只读输入显式交接，不使用
+全会话永久业务目标或跨任务隐式数据池。上下游仍需判断对象、来源、时间和单位
+是否可比；包不认证业务结论，也不成为Authority证据。
+
+实测：两次相同北京一周负荷/气温任务均交付HTML，程序最多组合7/8次真实调用。
+DR资料准备→报告两节点完成，报告节点网关调用为0；后续普通指令实际用loadContext
+加载重命名后的包，网关调用也为0。60项Node、133项受影响Python检查通过；独立
+审查发现并修复并发清单丢项。详见[验证报告](../../reports/2026-10-28-tool-composition-validation.md)。
+
+收益边界：组合与复用已可用，但尚未证明整题明显提速。此次较小DR任务仍有
+51次模型响应、231秒总耗时，真实工具占用仅8.47秒；模型的契约理解、可选字段
+探测及原生脚本修正仍占主要时间。缺失字段的整包拒绝已改为记录unknown。
+后续性能工作应量测实际模型决策/重复工作，不能把已有并发能力或MCP连接复用
+单独当作整题提速证明。完整“迎峰度夏PPT”同口径复测与CI/dev整合状态分别记录。
+
+## 2026-10-28：企业研究的工具并行与程序组合（评估，未实施）
+
+同题迎峰度夏实测：轻量383.658秒、65次模型响应/88工具；DR843.856秒、
+10主+147子响应/204工具。详见[对照报告](../../reports/2026-10-27-summer-lightweight-dr-comparison.md)。
+进一步逐轮计数：轻量24轮双工具、40轮单工具、1轮无工具；DR子任务30轮双工具、
+5轮三工具、5轮四工具、101轮单工具、6轮无工具。并发能力已实际使用，不能把
+请求多归因于不支持批量。Pi默认并行执行一条响应的独立toolCall，DR调度器已支持就绪任务并行。
+
+源码检查还发现：工具加载是下一轮生效的“替换工作集”，上限8项；多个加载调用
+不能当作增量并行加载，已加载工具可被后一次替换。对照中出现Tool not found与重载。
+MCP客户端每个调用新建连接、initialize并读取tools/list核对当前工具契约；中继采用
+线程服务器，授权账本锁不覆盖远程await，没有发现强制把所有网关调用串行化的全局锁。
+本次未单独测量握手、目录核对、数据库计算的时长，连接复用收益待量测。
+
+候选方向（待用户确定实现范围）：
+
+1. 两种模式共享一套任务授权的工具组合执行能力。模型在需要理解和选择时推理；
+   参数和方法已知后，由程序执行独立调用并发、依赖结果传递、分页、有限重试、
+   本地聚合和保存；新语义/方法选择再回模型。优先复用已有Pi批量和本地连续程序能力。
+   现有bash不能任意直连网关，程序调用需经宿主的既有task grant、Schema与逐调用回执，
+   不给脚本连接地址、凭据或任意HTTP能力，不另建DR目标/审批链。
+2. 最小准备产出可消费的语义绑定与数据引用：对象、指标定义、单位、来源选择、
+   窗口、粒度、版本、聚合方式和缺口。避免把完整目录调查当成研究前置；DR分支
+   共用绑定与选定的只读输入，避免各自猜指标、跨源混合和重复取数。
+3. 改善动态工具工作集的可预测性及契约复用，保留原工具Schema和授予范围；
+   可考虑有界增量加载、显式卸载或等价的已发现契约调用接口。不是给模型塞全量工具。
+   元数据契约修订不能充当源数据版本。只在明确匹配的来源/版本/窗口/单位条件下
+   复用数据；缺少数据快照保证时复用已选定的观察，不声称新查询跨时刻一致。
+4. 网关已发布的语义组合能力优先，缺少时再组合合法基础工具；具体名字与路径
+   从MCP发现，不在Capstone写死某题SQL、年份、区域或工具流程。
+5. 程序组合内保留每个调用的开始/结束、来源、错误和取消，界面按业务阶段汇总。
+   参数已知的一组查询能并发，并不意味着无限并发扫描数据库；并发按连接/后端能力有界。
+
+建议优先验证“少往返的工具工作集/程序组合 + 共享语义数据引用”，随后再优化连接复用。
+验收继续用同题与相同授权，比较模型往返、重复调用、语义一致性、产物质量与总时长；
+不以固定轮数或估计速度作拒绝门禁。本条记录分析与建议，没有发布新工具或改运行策略。
+
+## 2026-10-25：持续业务协作、节点校核差异与基础诊断
+
+用户明确企业工作台类似coding agent for enterprise：基于真实数据完成真实业务任务，
+用户多轮控制方向、关键评判与信息补充，智能体承担数据、规划、计算及专业输出。
+研究任务依靠多轮逐步对齐，质量节点默认记录缺口放行，允许合理重试；电网任务依据
+客观专业契约严格交接，但同样避免长时间重试。政策按节点能力确定，不按会话标签一刀切。
+该要求已纳入[总设计](2026-10-15-enterprise-design-final.md)及规范实施清单。
+
+用户建议systematic-debugging内置基础工具。候选适配为持久的证据、假设、最小验证和
+重试理由记录，结合有界恢复；不能把研究缺口变成强制拒绝，也不能放过无效计算结果。
+具体工具及过程视图见[待审草案](2026-10-25-unified-conversation-diagnostics-design.md)。
+尚未实施、验证或部署，不宣称现有会话执行已统一。
+
+## 2026-10-25：统一会话方向与真实生产数据研究优先
+
+用户进一步要求绘图组件支持大型电网，并允许要求网关按展示尺度提供元件。
+真实华北模型已按330kV筛选，仍有14,017源节点/4,346开关/878可导出线路。
+拟采用区域、厂站、设备三级视图；分组是显示投影，不是开关归并或电气等值。
+前端仍需大图渲染与实测，不能以输入上限冒充性能验收。
+详见[大图与网关视图要求](2026-10-25-grid-topology-view-requirements.md)。未实施。
+
+用户确认保留十万以上节点绘图思路，合适时再实施：WebGL批量绘图，HTML/SVG承担
+少量交互层，结合Worker布局、空间索引、视口裁剪和缩放分级。优先评估Sigma.js与
+Graphology，未选定依赖或完成性能验收。当前继续生产数据研究接入，不启动绘图迁移。
+
+用户同意统一多轮会话方向：同一推演组织链路按任务组合研究、电网计算和数据访问能力，
+不要求用户预先选定能力上限。原“普通聊天”更准确地指LLM直接问答及非专业工具执行。
+当前代码仍按session_type选择执行绑定，不能把过程展示正常当作整合已完成。
+
+交付顺序已确认：先使enterprise-research通过data-gateway探索、获取生产数据并完成真实
+研究、报告和追问恢复，再处理统一入口与模型/计算集成。网关负责其后端管理和切换，
+Capstone不增加副本/生产库分类或切换流程，仅消费MCP能力与结果，保留来源和质量。
+领域工具可由共同框架组合，但Domain Pack/Authority归属和证据接纳边界继续保留。
+
+用户随后通知模型服务完成并授权小范围测试。真实HTTP MCP发现47工具；华北范围
+pandapower JSON与PyPSA NetCDF两格式的分块下载、整包哈希和SDK加载已通过。
+当前交付是源节点拓扑，power_flow_ready=false，严格潮流请求按契约拒绝。
+这不是Capstone自主模型消费或电气计算验收。该测试不改变研究数据接入优先级。
+
+方案与执行草案：[接入契约](2026-10-25-enterprise-data-gateway-design.md)、
+[实施计划](../plans/2026-10-25-enterprise-data-gateway.md)。
+证据：[模型客户端复验](../../reviews/2026-10-25-data-gateway-model-probe.md)。
+远程MCP适配、宿主凭据隔离、研究节点工具发布及来源接纳尚未实现，待书面契约审阅。
+
+## 2026-10-24：连续执行意图已实现，完整性能待复验
+
+用户同意研究结论并要求采用有明确价值的部分。已落地只读产物的名称/类型/大小/槽位元数据、
+精确报告来源错误、节点内连续程序指导，以及组织层避免仅为内部读/写/格式化阶段另建任务的规则。
+首次结果提交的额外说明字段不再触发SDK重做；这些字段不覆盖宿主身份、范围或证据引用。
+真实报告实验215.132秒、2节点19次响应，输出37,722Token，仍有中间稿与重复转写成本。
+随后单意图真实实验48.998秒、1节点7次响应，核心生成/运行/核对确在同一bash调用内，
+原CSV全部单元格保持一致；仍有2次重复检查与1次已被R3修复的附加字段拒绝。
+R3加强成功后收口，227后端/218JS/116运行源码检查通过，本地已更新。
+不把这些不同输入实验当成146秒完整基线通过，不声称专业应用已接入原生代码执行。
+见[实现与验证](../../reviews/2026-10-24-cohesive-node-execution.md)。
+
+
+## 2026-10-24：节点内判断边界与程序组合（研究建议，尚未实施）
+
+用户要求深度研究碎片化脚本链，先逐轮核查报告节点31次调用。
+已完成[逐轮研究](../../reviews/2026-10-24-report-call-granularity.md)：31轮模型188.746秒，
+节点192.272秒，38声明工具/37执行记录；8轮已有双工具，故不是Pi缺少批量执行。
+15–22轮渲染与排错35.278秒，23–28轮分散检查/编辑/清理21.128秒。
+输入从含缓存7695增长到78586tokens。匿名只读句柄缺少文件语义、图片能力不匹配、
+渲染器丢失具体错误，以及把数据依赖当推理依赖，共同增加了模型往返。
+离线实验证明现有渲染器支持中文图路径；缺文件产生历史相同笼统错误。
+
+候选方向：模型在需理解新信息处判断，程序执行其间已知顺序/分支/循环；
+优先复用现有Pi与bash，完善输入可消费性和工具精确诊断，再验证连续程序指导。
+不加逐工具LLM审查器，不强制固定轮数，不新增任务拒绝/质量重做，不扩展专业会话权限。
+语义任务仍独立上下文、只读输入和显式返回；节点内程序组合不另建任务池。
+参考MCP代码执行、Programmatic Tool Calling、LLMCompiler及固定Pi源码，
+但不绑定托管执行服务，不照搬外部基准速度。下一实验应固定上游输入，仅验证报告节点，
+再顺序全链对照146秒基线。此次无运行策略修改、完整模型重跑或部署。
+
+2026-10-23补充：用户要求一轮 LLM 使用多个工具以减少往返。已核实 Pi0.84.4 agent-loop
+收集一条 assistant message 的全部 toolCall，默认并行执行，收齐全部 toolResult 后进入下一轮；
+executionMode=sequential 的工具会使该批按顺序执行，但不会因此每个工具增加一次模型调用。
+Capstone runSettledPrompt 等待 session.prompt 完整结束，不在每个 tool end 后另起 prompt。
+171926 实测65次child响应：1次后接2个工具、59次后接1个、5次无后续工具。现有批量能力
+已被实际使用，但比例很低；不能把这次工具/LLM接近1:1归因于SDK不支持批处理。
+候选优化：模型一次声明参数已知且互不依赖的工具；结果相关的读后决策、同文件写改和
+控制账本依赖操作保持顺序。每个工具保留独立事件、结果身份、错误和取消语义。优先验证
+现有机制与指导/接口是否阻碍批量使用，再决定是否需新增通用batch工具；不先重复实现Pi循环。
+
+
+## 2026-10-23：LLM 会话与请求并发（候选方案）
+
+用户提出：节点内调用暂时难以减少时，是否可由 Capstone 底层 LLM 会话池并行调用，或复用 Pi 已有能力。
+已核实本地 Pi 0.84.4：createAgentSession 创建独立上下文，SessionManager 管理历史；同会话运行期间
+追加 prompt 会排队或拒绝直接重入。Capstone 已为各节点创建独立会话并共享 ModelRuntime，图调度器
+支持多个就绪任务；此次顺序诊断显式配置 concurrency=1。它们不是跨会话、跨 Provider 的全局请求池。
+
+候选建议：保留任务池与依赖调度，在共享 Kernel 运行 SPI 约定 LLM 请求调度能力，由已注册 Provider
+适配器完成调用。每个请求只在实际模型请求期间占用额度；工具执行等待不占 LLM 槽位。同一上下文
+单写者，不同任务上下文隔离。按 Provider/模型和应用授权范围限制并发，公平排队，分别记录排队、
+首响应和生成时间。进程间部署时需要共同的额度所有权机制，不能用每个 worker 的局部计数冒充全局。
+不把业务语义下沉 Kernel，不合并不同任务的消息历史，不把底层请求池当作语义任务规划器。
+
+它能重叠独立会话，不能让依赖前一工具结果的下一请求提前执行，也不能减少无效分析或协议重试。
+优先复用 Pi 的独立 session 与现有图调度，避免再造完整 agent runtime。具体新模块尚未实施；后续
+验证须分别测现有三并发实际请求重叠、Provider 限制与请求排队，不能先宣称增加池就能接近146秒。
+依据：[Pi0.84.4 SDK](https://github.com/earendil-works/pi/blob/v0.84.4/packages/coding-agent/docs/sdk.md)，
+本地 general-sdk.mjs 的 createManagedChildSession、enterprise-graph-runtime.mjs 的 pump。
+
+
+2026-10-22当前校准：规划策略属于共享执行层，应用/Pack仅适配授权能力、来源、领域约束与交付。App1.13/Pack1.11先验证研究入口，电网/复杂聊天未接通。原始请求235939三路并行64.165秒，但218.375秒按failure收口、无报告，不通过146秒（145.914727秒）基线。步骤号和标题行计量已修订，282项App检查/类型通过；独立复审未完成，无Git/cloud/demo变更。以ROOT最新RESUME和编排修复记录为恢复入口，不继续采用旧263.896秒口径。
+
 > 建立：2026-10-07。更新：2026-10-07。
 > 状态：备用讨论与研究；当前不是主线。由用户主动发起，或在特别重要的时机提醒。具体方案的采纳状态见各条记录。
 ## 阅读与维护方式
+
+2026-10-16已接受：共同智能体基座同时服务对话应用与企业自主执行；共同修复与增强
+验证两个应用受影响入口，按应用分别发布。企业执行分“业务分析与报告”和“模型分析与决策”
+两类可组合形态，Demo1/Demo2仅是实例。共同机制不强制重型交互，简单对话无需研究图或文件成果。
+推进采用共同基座、对话维护、企业执行三个工作包，均沿dev；实现与发布状态单列。
+此决定已写入[定稿](2026-10-15-enterprise-design-final.md)及[活动计划](../plans/2026-10-16-enterprise-unified-execution.md)，不代表新能力完成。
+
+2026-10-16持续推进：用户指出历史过严校核导致业务停摆。已接受限制按行动/依赖/声明生效，
+缺资料不妨碍发现、unknown不妨碍无关工作、检查建议不升级硬要求。权限、当前运行证据和
+必要持久化不放宽；实现须测试局部失败后的真实推进。见[审查](../../reviews/2026-10-16-enterprise-progress-constraints-review.md)。
+
+2026-10-16边界纠正：用户明确Demo1/Demo2只是实例，任务是以现有框架构建通用自主组织能力。
+输入通过中性资源信封与原生内容契约接入，不建设Capstone指标库。视图应可注册扩展，
+框架门禁不绑定新增示例专业能力，简单回答不强制任务编译或文件成果。
+详见[边界审查](../../reviews/2026-10-16-enterprise-scenario-boundary-review.md)；实施契约仍在修订。
+
+2026-10-16定稿：用户要求同时保留已跑通业务资产并实现统一长程自主组织。
+[定稿v1](2026-10-15-enterprise-design-final.md)明确复用与泛化边界，取消平行Work控制面；
+既有专业执行器与前端视图保留，按普通/专业选择不同组织链的分支最终退出。
+设计语义/状态/SDK接缝/合成数据检查与真实运行验收分别记录。
+
+2026-10-15完整性评审反馈：主要方向成立，但单循环SDK接缝、资源运输、快照基数、恢复预算、
+交付准入、前端状态和验收资产仍有缺口。已给出[具体解决设计](2026-10-15-enterprise-design-closure.md)，
+细分方案已定义与测试已关闭，不宣称整体设计或真实Demo完成。
+
+2026-10-15设计反馈：统一任务框架已用Demo1报告/图表、Demo2场景/候选/验证两类原型具体化。
+Demo2以合成场景检查局部通过与整体验证的区别、约束变化后的旧结果失效；这些是交互验证，
+没有新增专业事实或运行证据。详见[界面设计](2026-10-15-enterprise-task-ui-design.md)与
+[执行契约](2026-10-15-enterprise-execution-contracts.md)。
 
 这份笔记是 Capstone 核心能力演进研究的备用入口。当前主线是补齐已有智能体对话设计与实施方案。本文的开放问题不自动成为下一任务。
 
@@ -16,6 +240,38 @@
 
 ## 用户已明确的方向
 
+2026-10-23修正：每条指令推进一轮研究，结果是否满足要求由用户判断，后续轮次可继续修改。
+内部检查不构成精准指令验收，不因分析不完整或引用问题自动整项重做。保留真实成果、显式说明
+不足，组织引擎可选择有限交付；权限、来源版本、必要持久化及Authority证据真实性仍强制。
+该决定修正下文2026-10-21的child自动反馈重写及后续完整交付硬门槛；新本地候选使用
+共享规划1.5/App1.18/Pack1.15，135JS/137宿主检查通过，真实多轮与完整性能仍待验收。
+见[增量设计](2026-10-22-incremental-task-pool-design.md)和[修复记录](../../reviews/2026-10-23-lightweight-task-nodes.md)。
+
+2026-10-22实施反馈补充：共享1.2/App1.15使用不变Pack1.12，给探查增加决策停止条件。
+新指导确已送达模型，162项Python/构建及67项运行源码检查通过；原始133622仍用176.03秒，
+只执行126.85秒资料核定任务，无后续并行或报告。规划契约仍要求完整质量统计与两份资料清单，
+子任务大体照约执行。因此不能把新提示词视为范围控制已解决；下一门槛先做有界规划契约验证。
+完整报告及146秒并行性能未验收。新增语义规划审查仅是待研究方案，未由本实验实现或验收。
+
+2026-10-22实施反馈：用户已确认统一独立任务与增量规划机制。共享规划1.1/App1.14/Pack1.12
+本地候选把执行交给独立上下文，主链只组织和接纳返回；新模式追加任务由宿主保留旧定义，
+不要求LLM重交长定义。真实小闭环先声明一个任务，37.1秒接纳结果，48.1秒才追加综合，
+最终3行文件完成交付。该结果只验证协议贯通；完整报告、146秒并行性能和每节点OS隔离未验收。
+见[设计](2026-10-22-incremental-task-pool-design.md)和[验证](../../reviews/2026-10-22-incremental-task-pool.md)。
+
+2026-10-21整链修复授权：用户明确三分支耗时/模型工作放大是机制崩溃，要求“完成贯通整条链”。
+源码与实测已确认节点输出槽/检查未传入、独立程序循环重复公共工作、父级结果重组及明确拒绝误作未知恢复。
+修复执行[完整契约](2026-10-21-graph-execution-chain-repair.md)及[活动清单](../plans/2026-10-21-graph-execution-chain-repair.md)，
+保持模型推演和语义判断、宿主机械准入/调度及不可变消费版本；当前处于实现，未完成真实交付/性能验收。
+实现反馈112412：真实字节复用与短摘要交付成立，完整提案链仍因P/A拒绝后父级手工兜底失败。
+已接受在原child session结束前反馈确定的提案错误，合法零额外prompt，不重开任务、不自动补证据；
+任何纠正重存新增不可变版本，未知请求不换身份。该补充待实现/独立复核和真实验证，不记为已验收行为。
+进一步实测：同child反馈源码复核/部署后，120512正常契约路径成立；121539全父级图仍653.573秒取消未交付。
+父producer的record先settlement后准入重复了同类生命周期错误；已接受完整record纯预演早于真实settlement，
+保持历史重放和部分结果，拒绝时原行动不丢失。该修复在实现；分析/报告工作放大须另行定量，不以一处缺陷解释全部。
+
+2026-10-21执行反馈已确认：模型推演步骤、分支与汇合并记录编排图，宿主只忠实调度与记录；不能生成host-ready替代目标或写死业务阶段。执行过程须展示真实路径和每步工具/结果。首次读取计算结果留在任务上下文，后续按引用消费；任何重算都新增不可变版本，保留旧版本和消费绑定。详见[定稿补充](2026-10-15-enterprise-design-final.md)及[活动修正](../plans/2026-10-16-enterprise-unified-execution.md)。当前三路试验证明单目标并发，不代表多步骤图执行、结果复用或性能验收完成。
+
 1. **专业对话是一条需要持续发展的产品线。** 用户通过对话熟悉智能体驱动的底层科学计算工具，了解能力并完成一次性常规工作。应继续向专业、易用、强大发展。
 2. **复杂分析的自主推进属于更高阶能力。** 不能把它生硬地加入现有对话模式。其交互、任务组织和运行方式需要结合实际工作继续讨论。
 3. **Capstone 需要逐步对接实际电网工作。** 用户举出的工作包括全网一次接线的潮流计算、电网运行方式分析、全网 N-1 运行实验。目标是承担原先需要大量人力和时间的工作。
@@ -26,6 +282,31 @@
 这些方向明确了产品与框架问题，尚未确定所有接入机制、任务协议、界面和实现顺序。
 
 ## 当前讨论位置
+
+用户确认统一全页面宽度的AI界面：对话为主、动态artifacts、多会话管理，可有任务约束。Demo1和Demo2采用统一框架下的不同工作视图。详见[界面契约](2026-10-15-enterprise-task-ui-design.md)及[交互原型](../../design/enterprise-workspace-prototype.html)；原型不代表运行能力。
+
+最新确认：Demo1由通用执行完成，电力数据、口径与方法经原生资源提供，不新增专用Pack或Capstone业务接口。彩虹解释、当日新闻和Demo1使用同一主链路，按需要增加工具、研究状态和产物；不以普通/专业分类器分路。详见[案例评审](../../reviews/2026-10-15-demo1-general-execution-review.md)。
+
+2026-10-15用户重新开启Pi方向：Pi分支本身承载Capstone的一类使用场景。
+以通用智能体资源结合Capstone既有长程推理与自主组织能力，支持企业通用级应用。
+“通用”相对于Capstone现有Domain Pack领域能力而言，不表示没有业务知识。
+国调中心月度分析报告只是说明性例子，不是本轮选定应用、实施任务或验收集。
+先对齐Pi分支到dev f209fb1，再讨论通用资源与同一自主组织循环的接法。
+不把现有独立Pi委派执行误写为已经完整共享研究循环；具体机制仍待讨论。
+
+已确认方向：通用执行能力由Pi底层智能体生态与Capstone长程自主推理组织能力共同形成。
+ApplicationProfile是应用拥有的业务能力组合与使能单位，可组合多个DomainBinding/Pack。
+同一任务可按授权使用多个Profile；Pack之间不自发共享状态，Capstone统一组织协作。
+前端以能力组、任务和成果呈现；使能与模型选择分离是目标设计，尚未实现。
+Domain Pack统一企业接入治理，直接复用skills/MCP，不逐个重写工具。
+基础Pack支持已有资源能够完成的企业流程；专业Pack保留专业语义及Authority契约。
+数据平台与专业计算由所属系统负责。工具可用不等于任务条件充分。
+此前“Domain Pack可选”及绕过Pack的路线已被否定，不再作为候选。
+
+详细草案见[Pi企业自主执行设计](2026-10-15-pi-enterprise-execution-design.md)。
+统一循环、任务身份、资源授权及恢复契约尚未实施或验收。
+源码确认AttemptResearch、AttemptClaim和Thread仍耦合模型上下文；
+原生Pi执行和研究路径尚未共享完整组织循环。下一步按无模型任务纵向闭环推进。
 
 备用议题包括“持续接入能力”及统一电网模型体系。用户于2026-10-07主动要求评估完整模型体系，随后明确将其作为高级能力延期，现在不实施；本笔记仍不决定当前交付顺序。
 
@@ -117,9 +398,14 @@ Skill 与 Domain Pack 的关系、Skill 是否携带脚本、脚本由谁执行�
 
 ## 开放问题
 
+2026-11-02 用户确认 Skills/MCP 安装方向：统一持久安装，不提供临时/永久选项；
+资源管理统一经过权限判定，本机默认放开，内网部署默认收紧；通过部署配置选择，不能根据客户端IP判断。
+用户随后确认将已验证资源加入版本化预安装清单，清单发布与部署分别记录。
+详见[持久安装设计](2026-11-02-managed-resource-installation-design.md)。此为设计决定，尚未实现。
+
 | 编号 | 问题 | 当前状态 |
 | --- | --- | --- |
-| Q01 | 持续接入的第一阶段：由开发者或专业人员安装注册，智能体发现组合；还是同时支持智能体执行中发现缺口并发起能力接入？ | 待讨论；可以分阶段组合，尚未选择 |
+| Q01 | 持续接入的第一阶段：由开发者或专业人员安装注册，智能体发现组合；还是同时支持智能体执行中发现缺口并发起能力接入？ | 2026-11-02已确认工作台与对话可发起受权限控制的持久安装；统一管理服务执行，尚未实现 |
 | Q02 | 专业对话当前最重要的使用障碍是什么，如何评价专业、易用、强大？ | 待结合具体使用过程讨论 |
 | Q03 | 首个实际业务工作选哪个，其真实输入、人工流程、交付物和验收标准是什么？ | 三个工作锚点已提出，未选首项 |
 | Q04 | 知识、Skill、专业工具与现有 Domain Pack 如何组合和分工？ | 已有初步区分，接入单位与契约未定 |
@@ -224,3 +510,37 @@ PR #28已合入dev f300d1f。应用按每个已验证结果解析其模型修订
 区域三轮及补充交流校验验证了上述运行链路；回答中仍出现一处差值算术笔误，说明
 运行、证据和文字准确性须分别验收。此记录是实施反馈，不新增研究工作包。
 详见[限定验证报告](../../reviews/2026-10-15-pypsa-runtime-followup-verification.md)。
+
+## Explicit source selection for model graph nodes (2026-10-21)
+
+The real graph smoke completed but did not pass result-reuse acceptance: a result-only consumer still read an original file already read by another node. The child loader advertised all task sources to every node. Model intent must therefore declare each node's raw source refs, including an explicit empty selection for a consumer of retained results. Validate each selection against the graph/application grants and freeze its source versions with the action. Child context contains only selected raw-source manifests and exact upstream result handles. A node that needs another existing result returns a precise missing-input condition; the parent revises the graph to consume that retained version. Source changes use the existing explicit revision/recomputation contract and never mutate old versions.
+
+Graph-specific execution guidance distinguishes the host-bound assignment from untrusted source contents. Filtering model context is not a per-node filesystem sandbox: the shared task UID and native bash remain. Acceptance must inspect actual reads and exact bindings, not infer isolation from prompt filtering or the task-UID immutability test. Real timing must distinguish native child execution from parent record/assessment and include actual parent plus child model responses. The smoke proves A/B overlap and C release before B assessment; it does not prove C/B native overlap.
+
+Implementation and real acceptance remain open. The focused source-scope brief is in ignored operator evidence; final requirements remain owned here and by the enterprise design.
+
+## Graph context reuse: stable unchanged versions (2026-10-21)
+
+Accepted implementation correction: graph research summaries and private parent
+input maps must retain a stable durable-history boundary when their exact content
+and action identity are unchanged. Both current hooks move these messages to the
+new tail each turn. Pinned SDK wire probes confirm this movement, not a measured
+Provider cache or latency effect. Fresh graph state and input/action versions must
+still replace stale content; compaction and missing boundaries rebuild placement.
+Keep assistant/tool-result groups intact, fixed summary-before-map ordering and
+the exact prepared-request/action guards. This is an application execution-context
+repair, with no domain semantics in Kernel, public tool or authority change. Parent
+task scratch access remains distinct from explicit immutable version consumption;
+a prompt map does not establish per-read filesystem isolation.
+
+
+## Accepted parallel planning and lifecycle refinement — 2026-10-24
+
+Independent useful outcomes with no result dependency should be submitted in one evidence-supported batch. Shared read-only inputs alone do not justify merging. Genuine coupled interpretation or substantial repeated computation can justify one cohesive task. Keep incremental planning and no fixed branch count. Three actual branches were observed after discovery in the original report request,336.512660s versus544.609189s sequential and412.363329s with two branches. These are variable model executions, not isolated concurrency experiments;145.914727s remains unmet.
+
+Process presentation includes Task startup and Task finalization as special lifecycle nodes outside business numbering and the scheduler. Their main requests, tools and elapsed time are visible. Generated scripts carry a short action comment without a label; the native preview extracts intent before truncating long workspace paths.
+
+A reproduced controller conflict forced initialization after a direct answer with no graph. Idle/no accepted work now permits direct completion; existing graphs still require honest settlement. One real enterprise direct response completed in4.182780s/one model request/no graph/no tools. One isolated operation need not become a discovery/analysis/check chain. A separate graph-free native execution path is not implemented. Startup of the complex report was12.3s, mostly10.9s model planning; tail62.3s includes5 model requests/33.6s and an unresolved16.6s pre-request gap. See [review](../../reviews/2026-10-24-parallel-outcome-planning.md).
+
+
+2026-10-24 user baseline update: current three-branch parallel338s/59tools, two-branch parallel412.4s/56tools, sequential544.6s/67tools.146s is archived old-version evidence, not a current performance gate. Keep raw measurements separate from these accepted comparison labels.

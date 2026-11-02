@@ -1,0 +1,258 @@
+import { afterEach, expect, it } from 'vitest'
+import '@testing-library/jest-dom/vitest'
+import { cleanup, render, screen, within } from '@testing-library/react'
+import ProcessCallTrace, { callTraceIssues } from './ProcessCallTrace'
+
+it('shows compaction between model calls without an extra model round and stops incomplete timers',()=>{
+ const phases=[{id:'compact',reason:'threshold' as const,state:'started' as const,startedAt:'2026-11-01T00:00:02Z'}]
+ const models=[{id:'one',number:1,ms:1000,startedAt:'2026-11-01T00:00:00Z'},
+  {id:'two',number:2,ms:1000,startedAt:'2026-11-01T00:00:20Z'}]
+ const view=render(<ProcessCallTrace models={models} tools={[]} compactions={phases} active now={Date.parse('2026-11-01T00:00:04Z')}/> )
+ expect(screen.getByText('正在压缩上下文')).toBeInTheDocument()
+ const rows=screen.getByRole('list',{name:'模型与工具调用过程'}).children
+ expect(rows).toHaveLength(3);expect(rows[1]).toHaveTextContent('2.0s')
+ expect(screen.queryByText('LLM 03')).not.toBeInTheDocument()
+ view.rerender(<ProcessCallTrace models={models} tools={[]} compactions={phases} active={false}/> )
+ expect(screen.getByLabelText('上下文压缩')).toHaveTextContent('未完整记录')
+ expect(screen.getByLabelText('上下文压缩')).toHaveTextContent('耗时未记录')
+ view.rerender(<ProcessCallTrace models={models} tools={[]} compactions={[{...phases[0],state:'completed',elapsedMs:16081,finishedAt:'2026-11-01T00:00:18Z'}]} active={false}/> )
+ expect(screen.getByLabelText('上下文压缩')).toHaveTextContent('16.1s')
+ expect(screen.getByLabelText('上下文压缩')).toHaveTextContent('已完成')
+})
+
+afterEach(cleanup)
+
+it('shows the recorded script purpose after its LLM and keeps source out of the tool title',()=>{
+ const operation="cat > analysis.py <<'EOF'\n# 汇总区域负荷并保存图表\nimport pandas as pd\nEOF"
+ render(<ProcessCallTrace compact active={false} models={[{id:'m',number:1,ms:100,toolCallIds:['t']}]} tools={[{id:'t',name:'bash',status:'completed',operation,durationMs:315}]}/>)
+ const group=screen.getByRole('group',{name:'LLM 调用 1'})
+ expect(group.querySelector('.capstone-call-purpose')).toHaveTextContent('汇总区域负荷并保存图表')
+ const summary=group.querySelector('.capstone-call-tool > summary')!
+ expect(summary).toHaveTextContent('汇总区域负荷并保存图表')
+ expect(summary).not.toHaveTextContent('import pandas')
+ expect(summary).toHaveTextContent('315ms')
+ expect(group.querySelector('.capstone-call-operation')?.textContent).toBe(operation)
+})
+
+it('places usage at the end of the thinking header instead of a separate row',()=>{
+ render(<ProcessCallTrace active={false} models={[{id:'m',number:1,ms:1000,thinking:'已核对输入',usage:{input:1385,output:240,cacheRead:16000,cacheWrite:0}}]} tools={[]}/>)
+ const usage=screen.getByText('输入 17,385')
+ expect(usage.closest('.capstone-thinking-heading')).not.toBeNull()
+ expect(within(usage.closest('.capstone-thinking-heading')!).getByRole('button',{name:'展开本轮思考'})).toBeVisible()
+ expect(usage.closest('.capstone-call-round')?.querySelector(':scope > .capstone-call-tokens')).toBeNull()
+})
+
+it('shows recorded tool purpose in the collapsed title and child response intent after the LLM label',()=>{
+ render(<ProcessCallTrace compact active={false}
+   models={[{id:'child',number:1,ms:12000,toolCallIds:['combine'],responseText:'// 核对十月指标覆盖范围\n下一段回复'}]}
+   tools={[{id:'combine',name:'dynamic_composition',operation:'核对已发现指标的有效样本数',status:'completed',durationMs:6000}]} />)
+ const purpose=screen.getByText('核对已发现指标的有效样本数',{selector:'strong'})
+ expect(purpose.closest('summary')).not.toBeNull()
+ expect(screen.getByText('核对十月指标覆盖范围',{selector:'.capstone-call-purpose'})).toBeVisible()
+ expect(screen.getByText('12.0s')).toHaveAttribute('data-latency','noticeable')
+});
+
+it('keeps important tool errors and warnings visible outside collapsed details after later success',()=>{
+ const models=[{id:'m1',number:1,ms:1000,settled:true,toolCallIds:['failed']},
+  {id:'m2',number:2,ms:500,settled:true,toolCallIds:['fallback']}];
+ const tools=[{id:'failed',name:'business',status:'failed' as const,failure:'合法参数返回了不一致引用'},
+  {id:'fallback',name:'advanced',status:'completed' as const,warning:'疑似工具缺陷，转入高级探索'}];
+ render(<ProcessCallTrace compact active={false} models={models} tools={tools} />);
+ expect(screen.getByText('合法参数返回了不一致引用')).toBeVisible();
+ expect(screen.getByText('疑似工具缺陷，转入高级探索')).toBeVisible();
+ expect(screen.getByText('合法参数返回了不一致引用').closest('details')).toBeNull();
+ expect(screen.getByText('疑似工具缺陷，转入高级探索').closest('details')).toBeNull();
+});
+it('moves actual main requests out of the bottom queue only at dispatch and excludes queue time',()=>{
+ const queued={id:'request-1',chainId:'main',kind:'main' as const,modelTurnNumber:1,title:'主链请求',dependsOn:[],status:'queued' as const,queuedAtMs:100,association:'main' as const}
+ const model={id:'m',number:1,ms:0,startedAt:'1970-01-01T00:00:00.100Z',requestPool:[queued]}
+ const view=render(<ProcessCallTrace compact models={[model]} tools={[]} active now={900}/>)
+ expect(screen.queryByRole('group',{name:'LLM 调用 1'})).toBeNull();expect(screen.getByLabelText('模型请求等待队列')).toBeVisible()
+ expect(screen.queryByLabelText('进行中')).toBeNull()
+ view.rerender(<ProcessCallTrace compact models={[{...model,requestPool:[{...queued,status:'running',startedAtMs:800}]}]} tools={[]} active now={900}/>)
+ expect(screen.queryByLabelText('模型请求等待队列')).toBeNull()
+ expect(screen.getAllByText('0.1s').length).toBeGreaterThan(0)
+ expect(document.querySelector<HTMLDetailsElement>('.capstone-model-request')!.open).toBe(true)
+})
+it('shows queued cancellation as an unexecuted diagnostic without a fabricated response duration',()=>{
+ render(<ProcessCallTrace compact models={[{id:'m',number:1,ms:0,startedAt:'1970-01-01T00:00:00.100Z',requestPool:[{id:'request-1',chainId:'main',kind:'main',modelTurnNumber:1,dependsOn:[],status:'cancelled',queuedAtMs:100,finishedAtMs:200,association:'main'}]}]} tools={[]} active={false}/>)
+ expect(screen.getByRole('group',{name:'LLM 调用 1'})).toBeTruthy()
+ expect(screen.getByText('未执行')).toBeTruthy();expect(screen.getByLabelText('已停止')).toBeTruthy()
+ expect(screen.queryByText('0.0s')).toBeNull();expect(screen.queryByLabelText('模型请求等待队列')).toBeNull()
+})
+it('keeps a previously executed failed request visible while its same-turn retry waits',()=>{
+ const request={id:'request-1',chainId:'main',kind:'main' as const,modelTurnNumber:1,dependsOn:[],status:'failed' as const,queuedAtMs:100,startedAtMs:200,finishedAtMs:300,association:'main' as const}
+ render(<ProcessCallTrace compact models={[{id:'m',number:1,ms:100,startedAt:'1970-01-01T00:00:00.100Z',requestPool:[request,{...request,id:'request-2',status:'queued',dependsOn:['request-1'],queuedAtMs:350,startedAtMs:undefined,finishedAtMs:undefined}]}]} tools={[]} active now={500}/>)
+ expect(screen.getByRole('group',{name:'LLM 调用 1'})).toBeTruthy()
+ expect(screen.getByLabelText('模型请求等待队列')).toBeTruthy();expect(screen.getByText('请求失败')).toBeTruthy()
+})
+it('keeps started requests without a known parent distinct instead of inventing a model node',()=>{
+ render(<ProcessCallTrace models={[{id:'carrier',number:0,ms:0,requestPoolOnly:true,requestPool:[{id:'request-1',chainId:'main',kind:'main',dependsOn:[],status:'completed',queuedAtMs:100,startedAtMs:200,finishedAtMs:300,association:'unassociated'}]}]} tools={[]}/>)
+ expect(screen.getByLabelText('未关联模型请求')).toBeTruthy()
+ expect(screen.queryByRole('group',{name:'LLM 调用 0'})).toBeNull()
+})
+it('shows lightweight children under the submit tool with separate actual totals',()=>{
+ render(<ProcessCallTrace compact expandedTools models={[{id:'m',number:1,ms:100,toolCallIds:['submit'],poolCalls:[
+  {id:'a',parentToolCallId:'submit',title:'核对指标',status:'completed',queuedAtMs:100,responseCount:1,responseMs:45},
+  {id:'b',parentToolCallId:'submit',title:'整理表达',status:'waiting_dependencies',queuedAtMs:100,responseCount:0},
+  {id:'c',parentToolCallId:'submit',title:'补充说明',status:'cancelling',queuedAtMs:100,responseCount:0},
+ ]}]} tools={[{id:'submit',name:'agent_llm_submit',status:'completed'}]}/> )
+ expect(screen.getByLabelText('轻量子 LLM 调用')).toBeVisible()
+ expect(screen.getByText('核对指标')).toBeVisible();expect(screen.getByText('等待依赖')).toBeVisible();expect(screen.getByText('取消中')).toBeVisible()
+ expect(screen.getByText(/子 LLM 响应 1 次/)).toBeVisible()
+ expect(screen.queryByText(/Deep Research/)).toBeNull()
+})
+it('opens current lightweight tool details and collapses them when the next LLM response starts',()=>{
+  const models=[{id:'m1',number:1,ms:100,toolCallIds:['a']},{id:'m2',number:2,ms:100,toolCallIds:['b']}]
+  const tools=[{id:'a',name:'Old tool',status:'completed' as const},{id:'b',name:'Current tool',status:'running' as const}]
+  const view=render(<ProcessCallTrace compact active models={models} tools={tools}/>)
+  expect(screen.getByText('Old tool').closest('details')).not.toHaveAttribute('open')
+  expect(screen.getByText('Current tool').closest('details')).toHaveAttribute('open')
+  view.rerender(<ProcessCallTrace compact active models={[...models,{id:'m3',number:3,ms:0,startedAt:'2026-10-29T00:00:03Z'}]} tools={tools}/>)
+  expect(screen.getByText('Current tool').closest('details')).not.toHaveAttribute('open')
+  expect(screen.getByText('LLM 01')).toBeVisible()
+  expect(screen.getByText('LLM 02')).toBeVisible()
+})
+it('uses compact glyphs and outlines actual parallel tools without repeated status text',()=>{
+  render(<ProcessCallTrace compact models={[{id:'m',number:1,ms:1200,toolCallIds:['a','b']}]} tools={[
+    {id:'a',name:'Read A',status:'completed',startedAt:'2026-10-29T00:00:00Z',durationMs:500},
+    {id:'b',name:'Read B',status:'completed',startedAt:'2026-10-29T00:00:00.100Z',durationMs:200},
+  ]}/>)
+  expect(screen.getByRole('img',{name:'已返回'})).toBeTruthy()
+  expect(screen.getAllByRole('img',{name:'完成'})).toHaveLength(2)
+  expect(screen.getByText('LLM 01')).toBeTruthy()
+  expect(screen.queryByText('已返回')).toBeNull()
+  expect(screen.queryByText('并行调用')).toBeNull()
+  expect(screen.getByRole('group',{name:'并行工具调用 · 2 项'})).toBeTruthy()
+})
+
+it('grades model and tool latency separately and updates a live request grade',()=>{
+  const models=[{id:'m',number:1,ms:0,startedAt:'2026-10-29T00:00:00Z',toolCallIds:['t']}]
+  const tools=[{id:'t',name:'Query',status:'completed' as const,durationMs:6000}]
+  const view=render(<ProcessCallTrace models={models} tools={tools} now={Date.parse('2026-10-29T00:00:12Z')}/>)
+  expect(screen.getByText('12.0s')).toHaveAttribute('data-latency','noticeable')
+  expect(within(screen.getByText('Query').closest('summary')!).getByText('6.0s')).toHaveAttribute('data-latency','slow')
+  view.rerender(<ProcessCallTrace models={models} tools={tools} now={Date.parse('2026-10-29T00:01:01Z')}/>)
+  expect(screen.getByText('61.0s')).toHaveAttribute('data-latency','very-slow')
+  expect(screen.getByText('61.0s').getAttribute('title')).toContain('明显偏长')
+})
+
+it('keeps tool cancellation distinct from a tool failure',()=>{
+  render(<ProcessCallTrace models={[{id:'m',number:1,ms:100,toolCallIds:['cancelled']}]} tools={[{id:'cancelled',name:'Stopped query',status:'cancelled',durationMs:100}]}/>)
+  expect(screen.getByText('已停止')).toBeVisible()
+  expect(screen.queryByText('失败')).toBeNull()
+})
+
+it('marks overlapping tools only inside the same response and keeps each tool collapsed',()=>{
+  render(<ProcessCallTrace models={[{id:'m1',number:1,ms:100,toolCallIds:['a','b']},{id:'m2',number:2,ms:100,toolCallIds:['c']}]} tools={[
+    {id:'a',name:'read A',status:'completed',startedAt:'2026-10-29T00:00:00Z',durationMs:500},
+    {id:'b',name:'read B',status:'completed',startedAt:'2026-10-29T00:00:00.100Z',durationMs:200},
+    {id:'c',name:'read C',status:'completed',startedAt:'2026-10-29T00:00:00.100Z',durationMs:200},
+  ]}/>)
+  expect(within(screen.getByRole('group',{name:'LLM 调用 1'})).getAllByText('并行调用')).toHaveLength(2)
+  expect(within(screen.getByRole('group',{name:'LLM 调用 2'})).queryByText('并行调用')).toBeNull()
+  expect(screen.getByText('read A').closest('details')).not.toHaveAttribute('open')
+  expect(within(screen.getByText('read A').closest('summary')!).getByText('500ms')).toBeVisible()
+})
+
+it('explains a classified model failure without exposing unknown error text',()=>{
+  render(<ProcessCallTrace models={[{id:'error',number:1,ms:100,stopReason:'error',errorCode:'model_context_limit',errorStatus:400},
+    {id:'unknown',number:2,ms:100,stopReason:'error',errorCode:'private-provider-text'}]} tools={[]} />)
+  expect(screen.getByText('上下文超限 · HTTP 400')).toBeVisible()
+  expect(screen.queryByText('private-provider-text')).toBeNull()
+})
+
+it('shows the actual shell action instead of its workspace prefix and retains the full command', () => {
+  const operation = 'cd /var/lib/general-pi/tasks/private-workspace && python3 analyze_prices.py --monthly'
+  render(<ProcessCallTrace models={[{id:'m',number:1,ms:100,toolCallIds:[],toolRequests:[{id:'t',name:'bash',operation}]}]} tools={[]} />)
+  const intent = screen.getByText('发起工具：bash · 执行脚本')
+  expect(intent).toHaveAttribute('title', `bash · ${operation}`)
+})
+
+it('uses a leading script comment as the action summary without an added label', () => {
+  const operation = "cd '/private/task workspace' && python3 - <<'PY'\n# 计算各省月度负电价频次，保存汇总表\nimport pandas as pd\nprint('done')\nPY"
+  render(<ProcessCallTrace models={[{id:'m',number:1,ms:100,toolCallIds:[],toolRequests:[{id:'t',name:'bash',operation}]}]} tools={[]} />)
+  expect(screen.getByText('发起工具：bash · 计算各省月度负电价频次，保存汇总表')).toHaveAttribute('title', `bash · ${operation}`)
+})
+
+it('keeps zero-tool responses and nests only exact declared tool IDs', () => {
+  render(<ProcessCallTrace models={[
+    { id: 'm1', number: 1, ms: 500, toolCallIds: ['a', 'b'] },
+    { id: 'm2', number: 2, ms: 200, toolCallIds: [] },
+    { id: 'm3', number: 3, ms: 300, toolCallIds: ['c'] },
+  ]} tools={[
+    { id: 'c', name: 'write', status: 'completed' },
+    { id: 'b', name: 'read B', status: 'completed' },
+    { id: 'a', name: 'read A', status: 'completed' },
+    { id: 'orphan', name: 'legacy tool', status: 'completed' },
+    { id: 'host', name: '保存产物', status: 'completed', origin: 'system' },
+  ]} />)
+  const first=screen.getByRole('group', { name: 'LLM 调用 1' })
+  expect(within(first).getByText('read A')).toBeVisible()
+  expect(within(first).getByText('read B')).toBeVisible()
+  expect(within(first).queryByText('write')).toBeNull()
+  expect(within(screen.getByRole('group', { name: 'LLM 调用 2' })).getByText('未调用工具')).toBeVisible()
+  expect(within(screen.getByRole('group', { name: 'LLM 调用 3' })).getByText('write')).toBeVisible()
+  expect(screen.queryByText('未关联')).toBeNull()
+  expect(screen.getByText('系统动作')).toBeVisible()
+})
+
+it('does not infer historical tool ownership from adjacent timestamps', () => {
+  render(<ProcessCallTrace models={[{ id:'old',number:1,ms:100,finishedAt:'2026-10-24T00:00:01Z' }]}
+    tools={[{ id:'old-tool',name:'read',status:'completed',startedAt:'2026-10-24T00:00:02Z' }]} />)
+  expect(within(screen.getByRole('group',{name:'LLM 调用 1'})).queryByText('read')).toBeNull()
+  expect(screen.getByText('工具关联未记录')).toBeVisible()
+  expect(screen.queryByText('未关联')).toBeNull()
+})
+
+it('updates an active request duration and stops claiming live execution at termination', () => {
+  const models=[{id:'live',number:1,ms:0,startedAt:'2026-10-24T00:00:00Z'}]
+  const view=render(<ProcessCallTrace models={models} tools={[]} now={Date.parse('2026-10-24T00:00:02Z')} />)
+  expect(screen.getByText('2.0s')).toBeVisible()
+  expect(screen.getByText('进行中')).toBeVisible()
+  view.rerender(<ProcessCallTrace models={models} tools={[]} now={Date.parse('2026-10-24T00:00:04Z')} />)
+  expect(screen.getByText('4.0s')).toBeVisible()
+  view.rerender(<ProcessCallTrace models={models} tools={[]} active={false} />)
+  expect(screen.queryByText('进行中')).toBeNull()
+  expect(screen.getByText('未完整记录')).toBeVisible()
+})
+
+it('does not attach a tool claimed by more than one response', () => {
+  render(<ProcessCallTrace models={[
+    {id:'m1',number:1,ms:1,toolCallIds:['ambiguous']},
+    {id:'m2',number:2,ms:1,toolCallIds:['ambiguous']},
+  ]} tools={[{id:'ambiguous',name:'read',status:'completed'}]} />)
+  for(const n of [1,2])expect(within(screen.getByRole('group',{name:`LLM 调用 ${n}`})).queryByText('read')).toBeNull()
+  expect(screen.queryByText('未关联')).toBeNull()
+})
+
+it('flags only settled missing records and shows concise call purpose and token information', () => {
+  const models=[{id:'m1',number:1,ms:1200,toolCallIds:['missing'],toolRequests:[{id:'missing',name:'write',operation:'report.md'}],
+    responseText:'整理已有结论，写入报告。',usage:{input:80,cacheRead:20,cacheWrite:0,output:12}}]
+  expect(callTraceIssues(models,[],true)).toEqual([])
+  expect(callTraceIssues(models,[],false)).toMatchObject([{modelId:'m1',number:1,missingToolIds:['missing']}])
+  expect(callTraceIssues([...models,{id:'m2',number:2,ms:0,startedAt:'2026-10-24T00:00:01Z'}],[],true)).toHaveLength(1)
+  render(<ProcessCallTrace models={models} tools={[]} active={false} />)
+  expect(screen.getByText('工具记录缺失 · 1项')).toBeVisible()
+  expect(screen.getByText(/输入 100/)).toBeVisible()
+  expect(screen.getByText(/输出 12/)).toBeVisible()
+  expect(screen.getByText(/write.*report.md/)).toBeVisible()
+  expect(screen.getByText('整理已有结论，写入报告。')).toBeVisible()
+})
+
+it('shows continuation after an error without claiming a retry or erasing the failed call',()=>{
+ render(<ProcessCallTrace compact models={[{id:'failed',number:1,ms:300000,settled:true,stopReason:'error',errorCode:'model_transport'},{id:'next',number:2,ms:0,startedAt:'2026-10-30T00:00:00Z'}]} tools={[]} />)
+ expect(screen.getByText(/模型连接异常.*后续模型调用已开始/)).toBeVisible()
+ expect(screen.getByText('300.0s')).toBeVisible()
+})
+
+it('does not flag announced or running tools after the model response finishes',()=>{
+ const model={id:'m1',number:1,ms:1000,settled:true,toolCallIds:['tool']};
+ expect(callTraceIssues([model],[],true)).toEqual([]);
+ const running={id:'tool',name:'query',status:'running' as const};
+ expect(callTraceIssues([model],[running],true)).toEqual([]);
+ const next={id:'m2',number:2,ms:0,startedAt:'2026-10-30T00:00:02Z'};
+ expect(callTraceIssues([model,next],[running],true)).toEqual([]);
+ expect(callTraceIssues([model,next],[],true)).toMatchObject([{missingToolIds:['tool']}]);
+ expect(callTraceIssues([model],[running],false)).toMatchObject([{missingToolIds:['tool']}]);
+});

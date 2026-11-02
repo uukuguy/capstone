@@ -97,7 +97,8 @@ def test_research_tools_are_opt_in_core_contracts_without_domain_ownership():
     schema = tools["agent_research_update"].input_schema
     assert set(schema["properties"]) == {"expected_revision", "changes"}
     assert "$defs" in schema
-    assert tools["agent_research_read"].input_schema["properties"]["limit"]["maximum"] == 8
+    from capability_agent.runtime.capacity import runtime_limits
+    assert tools["agent_research_read"].input_schema["properties"]["limit"]["maximum"] == runtime_limits()['research_page_records']
     assert "receipt" in tools["agent_research_read"].input_schema["properties"]["section"]["enum"]
 
 

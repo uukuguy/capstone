@@ -203,22 +203,16 @@ def test_submission_accepts_opaque_reference_names() -> None:
 
 
 def test_claim_and_submission_bounds_are_closed() -> None:
-    with pytest.raises(ValidationError, match="at most 1000 characters"):
-        AnswerClaim(
-            statement="x" * 1001,
-            category="inventory_observation",
-        )
+    from capability_agent.runtime.capacity import CapacityExceeded
+    with pytest.raises(CapacityExceeded,match='research_text_chars.*1001.*1000'):
+        validate_submission(submission_draft(claims=[{'statement':'x'*1001,'category':'observation'}]),
+            RecordingVerifier(),set(),runtime_limits={'research_text_chars':1000})
+    with pytest.raises(CapacityExceeded,match='context_references.*21.*20'):
+        validate_submission(submission_draft(claims=[{'statement':'bounded refs','category':'observation',
+            'result_refs':[f'result:sha256:{index:064x}' for index in range(21)]}]),
+            RecordingVerifier(),set(),runtime_limits={'context_references':20})
 
-    with pytest.raises(ValidationError, match="at most 20 items"):
-        AnswerClaim(
-            statement="bounded refs",
-            category="inventory_observation",
-            result_refs=tuple(
-                f"result:sha256:{index:064x}" for index in range(21)
-            ),
-        )
-
-    with pytest.raises(ValidationError, match="at most 50 items"):
+    with pytest.raises(CapacityExceeded, match='research_claim_count.*51.*50'):
         validate_submission(
             submission_draft(
                 result_refs=[],
@@ -235,4 +229,5 @@ def test_claim_and_submission_bounds_are_closed() -> None:
             ),
             RecordingVerifier(),
             set(),
+            runtime_limits={'research_claim_count':50},
         )

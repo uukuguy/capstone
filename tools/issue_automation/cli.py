@@ -198,7 +198,7 @@ def execute(args):
             tag = github.acceptance_tag(args.tag) if args.tag else None
             contains = bool(tag and pr.get("merged") and github.contains_commit(tag.get("source_sha"), pr.get("merge_commit_sha")))
             result = release_status(pr, tag, receipt, args.environment, contains_merge=contains)
-            result["ci"] = github.checks(pr["head"]["sha"])
+            result["ci"] = github.checks(pr["head"]["sha"], target_branch=pr.get("base", {}).get("ref"))
             return result
         raise ValueError("Unsupported command")
     finally:

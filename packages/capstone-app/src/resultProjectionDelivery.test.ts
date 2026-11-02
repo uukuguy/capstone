@@ -1,3 +1,5 @@
+import {afterEach} from 'vitest'
+import {initializeApplicationCapacity,CapacityError} from './applicationCapacity'
 import { describe, expect, it } from 'vitest'
 import { ResultProjectionDelivery } from './resultProjectionDelivery'
 import type { EventEnvelope } from './threadProtocol'
@@ -57,10 +59,13 @@ describe('result delivery', () => {
   })
 
   it('accepts at most 4000 Unicode code points per part, including astral characters', () => {
+    initializeApplicationCapacity({ui_result_part_chars:4000})
     const delivery = new ResultProjectionDelivery()
     delivery.accept(event('result_projection_part', { result_id: 'result_1', parts: 2, part_index: 0, data: '🔬'.repeat(4000) }))
     expect(() => delivery.accept(event('result_projection_part', {
       result_id: 'result_1', parts: 2, part_index: 1, data: '🔬'.repeat(4001),
-    }))).toThrow('invalid')
+    }))).toThrow(CapacityError)
   })
 })
+
+afterEach(()=>initializeApplicationCapacity())

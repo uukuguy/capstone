@@ -1,5 +1,9 @@
 # Business Workspace and Agent Resources Implementation Plan
 
+当前组织：原Pi分支成果正在验证收口dev，后续称企业自主执行研发；本文件保留资源实现历史。
+新工作遵循[统一执行计划](2026-10-16-enterprise-unified-execution.md)，示例不构成固定业务流程或两类视图枚举。
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use subagent-driven-development to implement this plan task-by-task. Steps use checkbox syntax for tracking.
 
 **Goal:** Deliver shared business context, usable native skills/MCP resources in all three Pi roles, and useful input commands.
@@ -11,6 +15,20 @@
 **Approved spec:** [Design](../specs/2026-10-09-business-workspace-agent-resources-design.md), approved by the user on 2026-10-09. The user also selected PowerSkills pandapower and PowerMCP as actual integration samples and requires direct Harness enhancement to be assessed and implemented where compatible.
 
 ## Global Constraints
+
+Current direction, 2026-10-15: baseline alignment is complete at 98e7d0e.
+The accepted direction combines native Pi skills/MCP with Capstone long-horizon
+autonomous organization. Domain Packs govern access; reuse native resources.
+Data platforms and professional authorities keep their responsibilities.
+The [runtime design](../specs/2026-10-15-pi-enterprise-execution-design.md) is a draft.
+Next slice: workspace ApplicationProfile enablement, a no-grid-model task,
+native execution and frontend artifacts. Then add evidence-driven revision,
+recovery and explicit cross-profile/Pack handoff. One application delivery
+contract combines outputs; profiles do not each own the final task answer.
+Tasks 8–9 retain historical scope, not the new execution roadmap.
+New PRs target dev. Demo1 is a general-execution acceptance case, not a bespoke
+application. Knowledge answers, live retrieval and enterprise analysis share one
+main loop with adaptive depth. Do not add Demo-specific data or metric APIs.
 
 Current execution correction, 2026-10-11: this package belongs to
 `feat/pi-skills-integration` in `.worktrees/pi-skills-integration` (331f71c before

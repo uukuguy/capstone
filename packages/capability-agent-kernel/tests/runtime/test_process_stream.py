@@ -17,7 +17,7 @@ def test_failed_commit_is_not_replayed_during_cleanup():
 
 def test_large_text_batches_preserve_every_character_and_fragment():
     stored = []
-    stream = ProcessStream(stored.append, .1)
+    stream = ProcessStream(stored.append, .1,runtime_limits={'rpc_frame_bytes':16384})
     for ordinal, text in enumerate(['前' * 10000, '后' * 8000]):
         stream.emit({'type': 'assistant_process_delta', 'text': text}, ordinal=ordinal, received=ordinal)
     stream.flush()

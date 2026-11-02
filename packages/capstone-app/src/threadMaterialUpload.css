@@ -1,0 +1,31 @@
+.thread-material-upload { display: contents; }
+.thread-draft-attachments { display: flex; flex: 0 0 100%; gap: 8px; flex-wrap: wrap; order: -1; padding: 4px 0 8px; max-height: 160px; overflow-y: auto; }
+.thread-draft-attachment { display: inline-flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid #dce5df; border-radius: 8px; background: #f7faf8; min-width: 0; max-width: 280px; }
+.thread-draft-attachment > svg { width: 18px; height: 18px; flex-shrink: 0; color: #54766b; }
+.thread-draft-attachment > span { min-width: 0; }
+.thread-draft-attachment strong { display: block; font-size: 13px; font-weight: 500; line-height: 1.4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.thread-draft-attachment small { display: block; font-size: 12px; line-height: 1.4; color: #6b7c74; }
+.thread-draft-attachment button { display: inline-flex; padding: 4px; border: 0; border-radius: 4px; background: transparent; color: #54766b; cursor: pointer; }
+.thread-draft-attachment button:hover { background: #e5eee8; }
+.thread-draft-attachment button svg { width: 16px; height: 16px; }
+.thread-skill-count { display: inline-flex; align-items: center; justify-content: center; min-width: 17px; height: 17px; border-radius: 9px; background: #e0eee7; font-size: 11px; }
+.thread-skill-selection { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; padding: 8px 0; }
+.thread-skill-selection button { display: inline-flex; align-items: center; gap: 4px; }
+.thread-skill-selection svg { width: 14px; height: 14px; }
+.thread-material-upload .thread-material-drop-hint[role="status"] { position: fixed; z-index: 60; left: 50%; bottom: 140px; transform: translateX(-50%); max-width: calc(100vw - 48px); padding: 14px 22px; border: 1px dashed #287a6d; border-radius: 8px; background: #f0f8f4; color: #245b47; font-size: 13px; line-height: 1.5; pointer-events: none; box-shadow: 0 4px 16px #22352e14; }
+.thread-material-upload-button { display: inline-flex; align-items: center; gap: 4px; border: 0; background: transparent; color: #66716b; font: inherit; font-size: 10px; padding: 5px 6px; border-radius: 4px; cursor: pointer; }
+.thread-material-upload-button svg { width: 13px; height: 13px; }
+.thread-material-upload-button:hover { color: #245b47; background: #edf2eb; }
+.thread-material-upload-button:disabled { opacity: .5; cursor: default; }
+.thread-material-upload-button:focus-visible { outline: 2px solid #245b47; outline-offset: 2px; }
+.thread-material-upload > [role="status"],.thread-material-upload > [role="alert"] { flex-basis: 100%; font-size: 10px; line-height: 1.5; overflow-wrap: anywhere; }
+.thread-material-upload > [role="status"] { color: #66716b; }
+.thread-material-upload > [role="alert"] { color: #9a4b31; }
+.thread-material-choices { padding: 12px 0 0; margin: 12px 0 0; border: 0; border-top: 1px solid #dde1d9; }
+.thread-material-choices legend { padding-top: 12px; font-size: 11px; font-weight: 600; }
+.thread-material-choices .thread-context-item { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.thread-material-choices label { display: inline-flex; flex: 1; align-items: center; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
+.thread-material-choices label small { flex-shrink: 0; white-space: nowrap; }
+.thread-material-choices input[type="checkbox"] { accent-color: #245b47; flex: 0 0 14px; width: 14px; height: 14px; margin: 0; }
+.thread-material-choices button { padding: 5px 8px; border: 1px solid #dde1d9; border-radius: 4px; background: #fff; color: #66716b; font: inherit; cursor: pointer; }
+.thread-material-choices :focus-visible { outline: 2px solid #245b47; outline-offset: 2px; }

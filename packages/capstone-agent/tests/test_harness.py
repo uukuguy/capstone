@@ -1,6 +1,43 @@
 from __future__ import annotations
 
 
+def test_model_usage_survives_kernel_and_public_harness_projection():
+    from capability_agent.runtime.step_events import project_runtime_action
+    from capstone_agent.harness import normalize_runtime_event
+    event = project_runtime_action({'type': 'message_end', 'message': {
+        'role': 'assistant', 'content': [], 'usage': {
+            'input': 8000, 'output': 400, 'cacheRead': 5000, 'cacheWrite': 0,
+            'totalTokens': 13400, 'cost': {'total': 99}, 'secret': 'hidden'},
+    }})
+    payload = normalize_runtime_event(event, runtime_mode='capstone')['payload']
+    assert payload['usage'] == {'input': 8000, 'output': 400, 'cacheRead': 5000,
+                               'cacheWrite': 0, 'totalTokens': 13400}
+
+
+def test_retry_lifecycle_survives_kernel_and_public_harness_projection():
+    from capability_agent.runtime.step_events import project_runtime_action
+    from capstone_agent.harness import normalize_runtime_event
+    started = project_runtime_action({'type': 'auto_retry_start', 'attempt': 1,
+                                    'maxAttempts': 2, 'delayMs': 1500})
+    payload = normalize_runtime_event(started, runtime_mode='capstone')['payload']
+    assert payload['retry_attempt'] == 1
+    assert payload['retry_maximum'] == 2
+    assert payload['retry_delay_ms'] == 1500
+    ended = project_runtime_action({'type': 'auto_retry_end', 'attempt': 1, 'success': True})
+    assert normalize_runtime_event(ended, runtime_mode='capstone')['payload']['retry_success'] is True
+
+
+def test_public_model_metrics_discard_untrusted_and_invalid_fields():
+    from capstone_agent.harness import normalize_runtime_event
+    payload = normalize_runtime_event({'type': 'runtime_action', 'phase': 'response_completed',
+        'usage': {'input': True, 'output': -1, 'cacheRead': float('inf'),
+                  'cacheWrite': 0, 'totalTokens': 100_000_001, 'secret': 'hidden'},
+        'retry_attempt': True, 'retry_maximum': 200, 'retry_delay_ms': float('nan'),
+        'retry_success': 'yes'}, runtime_mode='capstone')['payload']
+    assert payload['usage'] == {'cacheWrite': 0}
+    assert not any(key.startswith('retry_') for key in payload)
+
+
 def test_task_progress_receipt_is_public_text_not_calculation_evidence():
     from capstone_agent.harness import normalize_runtime_event
     record = {"kind": "observation", "text": "已取得计算结果，准备核对约束。", "refs": ["result:one"]}
@@ -28,6 +65,21 @@ def test_historical_record_receipt_is_visible_without_admitting_nested_evidence(
 import pytest
 import json
 
+
+def test_public_thinking_normalization_has_no_answer_or_authority_metadata():
+    event = normalize_runtime_event({'type': 'assistant_thinking_delta', 'text': 'Check available inputs.',
+        'task_id': 'native-task', 'result_refs': ['forged-result'], 'evidence_refs': ['forged-evidence'],
+        'signature': 'PRIVATE', 'thinking': 'PRIVATE', 'trace_sequence': 1, 'trace_correlation_id': 'PRIVATE'}, runtime_mode='capstone')
+    assert event['event_type'] == 'assistant_thinking_delta'
+    assert event['visibility'] == 'public'
+    assert event['payload'] == {'text': 'Check available inputs.', 'task_id': 'native-task'}
+
+
+@pytest.mark.parametrize('text', [None, {'thinking': 'PRIVATE'}, 'x' * 4097])
+def test_public_thinking_normalization_rejects_non_text_and_oversized_chunks(text):
+    with pytest.raises(ValueError):
+        normalize_runtime_event({'type': 'assistant_thinking_delta', 'text': text}, runtime_mode='capstone')
+
 from capstone_agent.harness import (
     AdmittedAttemptAnswer,
     CapstoneHarness,
@@ -44,7 +96,7 @@ from capstone_agent.kernel_pi_session import _build_kernel_admission
 from capstone_agent.thread_worker import run_pending_attempt
 
 
-def test_incomplete_catalog_stream_commits_the_complete_application_answer():
+def test_catalog_text_without_catalog_intent_keeps_the_model_answer():
     service = _thread_service()
     service.set_catalog_context({"models": [
         {"model_id": "model-first", "display_name": "First", "implementation_family": "pypsa"},
@@ -68,15 +120,16 @@ def test_incomplete_catalog_stream_commits_the_complete_application_answer():
     result = run_pending_attempt(
         service, lambda claim: HarnessPiClient(session, admission=_build_kernel_admission(())),
         worker_id="catalog-worker",
+        turn_router=DefaultTurnRouter(decision_router=FakeDecisionRouter("ordinary")),
     )
     assert result is not None and result.status == "completed" and session.stopped
     events = service.read_events("thr_harness", 0).events
     assert [event.event_seq for event in events] == list(range(1, len(events) + 1))
     terminal = events[-1]
     assert terminal.event_type == "attempt_completed"
-    assert "model-first" in terminal.payload["answer"] and "model-second" in terminal.payload["answer"]
+    assert terminal.payload["answer"] == "有两个模型：model-first。"
     assert terminal.payload["result_refs"] == terminal.payload["evidence_refs"] == []
-    assert terminal.payload["admission"]["assurance"] == "deterministic_information"
+    assert terminal.payload["admission"]["assurance"] == "general_knowledge"
 
 
 class _PiSession:
@@ -346,7 +399,7 @@ def test_normalizer_preserves_bounded_tool_provenance_and_evidence_refs() -> Non
             "capability_key": {"binding_id": "grid", "capability_id": "powerflow"},
             "projector_id": "pandapower.powerflow",
             "result": {"details": {"result_kind": "powerflow", "secret": "drop"}},
-            "evidence_refs": ["evidence:sha256:" + "a" * 64, "x" * 10000],
+            "evidence_refs": ["evidence:sha256:" + "a" * 64, "x" * 512],
         },
         runtime_mode="capstone",
     )
@@ -463,13 +516,42 @@ def test_harness_attempt_runner_persists_runtime_events_and_terminal_answer() ->
     assert result.answer == "answer"
     assert service.snapshot("thr_harness").current_attempt is None
     records = service.read_events("thr_harness", 0).events
-    assert records[-1].event_type == "attempt_completed"
+    terminal = next(item for item in reversed(records) if item.event_type == "attempt_completed")
     started = next(item for item in records if item.event_type == 'attempt_started')
     assert claim.started_at == started.occurred_at
     assert started.payload['task_step']['title'] == '任务准备'
-    assert records[-1].payload['task_steps'][0]['title'] == '核验与结果整理'
-    assert records[-1].payload['task_steps'][0]['status'] == 'completed'
-    assert records[-1].payload['task_steps'][0]['duration_ms'] >= 0
+    assert terminal.payload['task_steps'][0]['title'] == '核验与结果整理'
+    assert terminal.payload['task_steps'][0]['status'] == 'completed'
+    assert terminal.payload['task_steps'][0]['duration_ms'] >= 0
+
+
+def test_executor_component_failure_is_actionable_without_fake_verification():
+    service = _thread_service()
+    service.submit_command({
+        'schema': 'capstone-command/1', 'command_id': 'cmd_component_failure',
+        'idempotency_key': 'idem_component_failure', 'thread_id': 'thr_harness',
+        'run_id': 'run_harness', 'kind': 'send_ordinary', 'expected_event_seq': 0,
+        'payload': {'text': 'hello'},
+    })
+    claim = service.claim_attempt('worker', lease_seconds=30)
+    assert claim is not None
+
+    class FailedRuntime(_ProtocolRuntime):
+        def prompt(self, question, *, on_event, **kwargs):
+            on_event({'event_type': 'runtime_event', 'runtime_mode': 'capstone',
+                'visibility': 'public', 'payload': {'child_status': 'failed',
+                    'failure_code': 'native_runtime_dependency_missing'}})
+            raise RuntimeError('PRIVATE environment detail')
+
+    result = HarnessAttemptRunner(service, FailedRuntime()).run(claim)
+    assert result.status == 'failed'
+    assert '缺少必需的运行组件' in result.answer
+    assert '无需修改任务指令或重新上传资料' in result.answer
+    assert 'PRIVATE' not in result.answer
+    events = service.read_events('thr_harness', 0).events
+    steps = [step for event in events for step in event.payload.get('task_steps', [])]
+    assert all(step['title'] != '核验与结果整理' for step in steps)
+    assert events[-1].payload['task_steps'][0]['finish_reason'] == 'interrupted'
 
 
 def test_harness_attempt_runner_persists_network_events_before_terminal_answer() -> None:
@@ -673,14 +755,24 @@ def test_professional_model_observation_admission_is_accepted_without_evidence()
     session = _ObservationSession()
     result = HarnessAttemptRunner(
         service, HarnessPiClient(session, admission=session.admit_attempt),
+        turn_router=DefaultTurnRouter(decision_router=FakeDecisionRouter("professional")),
     ).run(claim)
 
     assert result.status == "completed"
     assert result.error_code is None
 
 
-@pytest.mark.parametrize("large", [False, True])
-def test_application_admission_persists_bounded_result_projection(large) -> None:
+def test_normalizer_rejects_oversized_reference_instead_of_forging_a_shorter_identity():
+    with pytest.raises(ValueError, match='identity'):
+        normalize_runtime_event({'type': 'tool_result', 'evidence_refs': ['x' * 10000]}, runtime_mode='capstone')
+
+
+@pytest.mark.parametrize('large', [False, True])
+def test_application_admission_persists_bounded_result_projection(large, request) -> None:
+    from capstone_agent.application_capacity import current_capacity, initialize_capacity
+    previous = current_capacity()
+    request.addfinalizer(lambda: initialize_capacity(previous))
+    initialize_capacity({'event_bytes': 65536})
     service = _thread_service()
     service.submit_command({
         "schema": "capstone-command/1", "command_id": "cmd_harness_projection",
@@ -785,6 +877,44 @@ def test_harness_pi_heartbeat_renews_attempt_lease() -> None:
         ), lease_seconds=30,
     ).run(claim)
     assert result.status == "completed"
+
+
+def test_dense_heartbeats_do_not_renew_per_token_and_still_observe_cancellation(monkeypatch):
+    import capstone_agent.harness as module
+    now = [100.0]
+    monkeypatch.setattr(module, 'monotonic', lambda: now[0], raising=False)
+    service = _thread_service()
+    service.submit_command({
+        'schema': 'capstone-command/1', 'command_id': 'cmd_dense_heartbeat',
+        'idempotency_key': 'idem_dense_heartbeat', 'thread_id': 'thr_harness',
+        'run_id': 'run_harness', 'kind': 'send_ordinary', 'expected_event_seq': 0,
+        'payload': {'text': 'hello'},
+    })
+    claim = service.claim_attempt('worker', lease_seconds=30)
+    renew = service.renew_attempt
+    reads = {'renew': 0, 'cancel': 0}
+    cancelled = [False]
+    def renew_counted(*args):
+        reads['renew'] += 1
+        return renew(*args)
+    def cancel_counted(*args):
+        reads['cancel'] += 1
+        return cancelled[0]
+    monkeypatch.setattr(service, 'renew_attempt', renew_counted)
+    monkeypatch.setattr(service, 'cancel_requested', cancel_counted)
+    class Session(_PiSession):
+        def prompt_and_wait(self, question, **kwargs):
+            before = dict(reads)
+            for _ in range(1000):
+                kwargs['on_heartbeat']()
+            assert reads['renew'] == before['renew']
+            assert reads['cancel'] - before['cancel'] <= 1
+            cancelled[0] = True
+            now[0] += .101
+            kwargs['on_heartbeat']()
+            raise AssertionError('Cancellation must stop the runtime')
+    result = HarnessAttemptRunner(service, HarnessPiClient(Session())).run(claim)
+    assert result.status == 'cancelled'
 
 
 def test_professional_route_delivers_admitted_limited_answer() -> None:

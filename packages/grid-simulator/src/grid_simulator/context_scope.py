@@ -21,7 +21,7 @@ def require_context_scope(workspace: Path, store: ContextStore, capability: str,
     if not isinstance(scope, dict) or set(scope) != {"schema", "root_context_ref"} or scope["schema"] != "grid-context-scope/1":
         raise ValueError("context scope is invalid")
     root = store.require(scope["root_context_ref"])
-    if capability == "model.create":
+    if capability in {"model.create", "model.artifact.import"}:
         raise ValueError("new independent models are outside the selected context scope")
     if capability == "context.open" and arguments.get("model_id") != root.model_id:
         raise ValueError("model is outside the selected context scope")

@@ -26,14 +26,18 @@ def test_legacy_imports_are_exact_compatibility_aliases() -> None:
     assert LegacyGuideIndex is GuideIndex
 
 
-def test_legacy_catalog_loader_uses_installed_domain_resources(tmp_path) -> None:
+def test_legacy_catalog_loader_uses_installed_domain_resources(
+    tmp_path, capability_documents: tuple[dict[str, object], ...]
+) -> None:
     from grid_agent.tools.catalog import load_packaged_capability_documents
 
     fake_root = tmp_path / "not-a-repository"
     fake_root.mkdir()
     documents = load_packaged_capability_documents(fake_root)
 
-    assert len(documents) == 30
+    assert {document["id"] for document in documents} == {
+        document["id"] for document in capability_documents
+    }
     assert {document["id"] for document in documents} >= {
         "environment.describe",
         "analysis.run",

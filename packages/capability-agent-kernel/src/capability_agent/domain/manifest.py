@@ -16,6 +16,22 @@ class DomainManifestError(ValueError):
 
 
 @dataclass(frozen=True, slots=True)
+class PackManifest:
+    """Identity shared by native and authority-backed capability packs."""
+
+    domain_id: str
+    version: str
+    display_name: str
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.domain_id, str) or not _ID.fullmatch(self.domain_id):
+            raise DomainManifestError("domain_id is invalid")
+        if any(not isinstance(value, str) or not value.strip()
+               for value in (self.version, self.display_name)):
+            raise DomainManifestError("version and display_name are required")
+
+
+@dataclass(frozen=True, slots=True)
 class DomainManifest:
     domain_id: str
     version: str
@@ -30,10 +46,7 @@ class DomainManifest:
     guide_root: Path
 
     def __post_init__(self) -> None:
-        if not _ID.fullmatch(self.domain_id):
-            raise DomainManifestError("domain_id is invalid")
-        if not self.version.strip() or not self.display_name.strip():
-            raise DomainManifestError("version and display_name are required")
+        PackManifest(self.domain_id, self.version, self.display_name)
         if not _PROTOCOL.fullmatch(self.protocol):
             raise DomainManifestError("protocol is invalid")
         if not self.protocol_version.strip():

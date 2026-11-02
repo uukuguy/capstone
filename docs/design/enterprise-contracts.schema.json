@@ -1,0 +1,1087 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:capstone:enterprise-design:1",
+  "$defs": {
+    "command": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "schema": {
+              "const": "capstone-command/1"
+            },
+            "command_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "target_kind": {
+              "const": "work"
+            },
+            "target_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "expected_revision": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "kind": {
+              "const": "message"
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "resource_refs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              },
+              "required": [
+                "text",
+                "resource_refs"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "schema",
+            "command_id",
+            "target_kind",
+            "target_id",
+            "expected_revision",
+            "kind",
+            "payload"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schema": {
+              "const": "capstone-command/1"
+            },
+            "command_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "target_kind": {
+              "const": "work"
+            },
+            "target_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "expected_revision": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "kind": {
+              "const": "goal.revise"
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "resource_refs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              },
+              "required": [
+                "text",
+                "resource_refs"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "schema",
+            "command_id",
+            "target_kind",
+            "target_id",
+            "expected_revision",
+            "kind",
+            "payload"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schema": {
+              "const": "capstone-command/1"
+            },
+            "command_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "target_kind": {
+              "const": "work"
+            },
+            "target_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "expected_revision": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "kind": {
+              "const": "input.respond"
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "request_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "expected_goal_revision": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "response": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "resource_refs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              },
+              "required": [
+                "request_id",
+                "expected_goal_revision",
+                "response",
+                "resource_refs"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "schema",
+            "command_id",
+            "target_kind",
+            "target_id",
+            "expected_revision",
+            "kind",
+            "payload"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schema": {
+              "const": "capstone-command/1"
+            },
+            "command_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "target_kind": {
+              "const": "work"
+            },
+            "target_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "expected_revision": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "kind": {
+              "const": "pause"
+            },
+            "payload": {
+              "type": "object",
+              "properties": {},
+              "required": [],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "schema",
+            "command_id",
+            "target_kind",
+            "target_id",
+            "expected_revision",
+            "kind",
+            "payload"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schema": {
+              "const": "capstone-command/1"
+            },
+            "command_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "target_kind": {
+              "const": "work"
+            },
+            "target_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "expected_revision": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "kind": {
+              "const": "resume"
+            },
+            "payload": {
+              "type": "object",
+              "properties": {},
+              "required": [],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "schema",
+            "command_id",
+            "target_kind",
+            "target_id",
+            "expected_revision",
+            "kind",
+            "payload"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schema": {
+              "const": "capstone-command/1"
+            },
+            "command_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "target_kind": {
+              "const": "work"
+            },
+            "target_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "expected_revision": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "kind": {
+              "const": "cancel"
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "reason": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "reason"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "schema",
+            "command_id",
+            "target_kind",
+            "target_id",
+            "expected_revision",
+            "kind",
+            "payload"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schema": {
+              "const": "capstone-command/1"
+            },
+            "command_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "target_kind": {
+              "const": "work"
+            },
+            "target_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "expected_revision": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "kind": {
+              "const": "action.resolve"
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "action_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "outcome": {
+                  "enum": [
+                    "confirmed_succeeded",
+                    "confirmed_failed",
+                    "confirmed_not_executed"
+                  ]
+                },
+                "confirmation_ref": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "action_id",
+                "outcome",
+                "confirmation_ref"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "schema",
+            "command_id",
+            "target_kind",
+            "target_id",
+            "expected_revision",
+            "kind",
+            "payload"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schema": {
+              "const": "capstone-command/1"
+            },
+            "command_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "target_kind": {
+              "const": "work"
+            },
+            "target_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "expected_revision": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "kind": {
+              "const": "budget.increase"
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "policy_ref": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "policy_ref"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "schema",
+            "command_id",
+            "target_kind",
+            "target_id",
+            "expected_revision",
+            "kind",
+            "payload"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schema": {
+              "const": "capstone-command/1"
+            },
+            "command_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "target_kind": {
+              "const": "thread"
+            },
+            "target_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "expected_revision": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "kind": {
+              "const": "thread.rename"
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120
+                }
+              },
+              "required": [
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "schema",
+            "command_id",
+            "target_kind",
+            "target_id",
+            "expected_revision",
+            "kind",
+            "payload"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schema": {
+              "const": "capstone-command/1"
+            },
+            "command_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "target_kind": {
+              "const": "thread"
+            },
+            "target_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "expected_revision": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "kind": {
+              "const": "thread.archive"
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "archived": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "archived"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "schema",
+            "command_id",
+            "target_kind",
+            "target_id",
+            "expected_revision",
+            "kind",
+            "payload"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schema": {
+              "const": "capstone-command/1"
+            },
+            "command_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "target_kind": {
+              "const": "workspace"
+            },
+            "target_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "expected_revision": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "kind": {
+              "const": "workspace.configure"
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "profile_refs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "resource_grant_refs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              },
+              "required": [
+                "profile_refs",
+                "resource_grant_refs"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "schema",
+            "command_id",
+            "target_kind",
+            "target_id",
+            "expected_revision",
+            "kind",
+            "payload"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "work": {
+      "type": "object",
+      "properties": {
+        "work_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "thread_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "workspace_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "goal_revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "state": {
+          "enum": [
+            "queued",
+            "running",
+            "waiting_input",
+            "paused",
+            "partial",
+            "completed",
+            "failed",
+            "cancelled"
+          ]
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "last_sequence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "active_attempt_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "active_snapshot_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "pending_command_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "unresolved_action_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "artifact_revision_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "input_request_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "required": [
+        "work_id",
+        "thread_id",
+        "workspace_id",
+        "revision",
+        "goal_revision",
+        "state",
+        "reason",
+        "last_sequence",
+        "active_attempt_id",
+        "active_snapshot_id",
+        "pending_command_ids",
+        "unresolved_action_ids",
+        "artifact_revision_refs",
+        "input_request_refs"
+      ],
+      "additionalProperties": false
+    },
+    "resource": {
+      "type": "object",
+      "properties": {
+        "resource_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "workspace_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_kind": {
+          "enum": [
+            "mcp",
+            "file",
+            "upload",
+            "authority_projection",
+            "skill"
+          ]
+        },
+        "source_locator": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "observed_at": {
+          "type": "string",
+          "minLength": 1
+        },
+        "content_digest": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "media_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "byte_size": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "access_scope_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "allowed_operations": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "read",
+              "copy",
+              "derive"
+            ]
+          }
+        },
+        "availability": {
+          "enum": [
+            "ready",
+            "pending",
+            "denied",
+            "missing",
+            "expired"
+          ]
+        },
+        "capture_mode": {
+          "enum": [
+            "frozen",
+            "versioned",
+            "mutable"
+          ]
+        },
+        "completeness": {
+          "enum": [
+            "complete",
+            "partial",
+            "unknown"
+          ]
+        }
+      },
+      "required": [
+        "resource_id",
+        "workspace_id",
+        "source_kind",
+        "source_locator",
+        "version",
+        "observed_at",
+        "content_digest",
+        "media_type",
+        "byte_size",
+        "access_scope_ref",
+        "allowed_operations",
+        "availability",
+        "capture_mode",
+        "completeness"
+      ],
+      "additionalProperties": false
+    },
+    "artifact": {
+      "type": "object",
+      "properties": {
+        "artifact_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "work_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "enum": [
+            "document",
+            "table",
+            "chart",
+            "code",
+            "model_view",
+            "file"
+          ]
+        },
+        "media_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "byte_size": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "content_digest": {
+          "type": "string",
+          "minLength": 1
+        },
+        "producer_action_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "input_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "validation_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "availability": {
+          "enum": [
+            "ready",
+            "missing",
+            "denied",
+            "expired"
+          ]
+        },
+        "validity": {
+          "enum": [
+            "current",
+            "stale",
+            "unknown"
+          ]
+        }
+      },
+      "required": [
+        "artifact_id",
+        "revision",
+        "work_id",
+        "title",
+        "kind",
+        "media_type",
+        "byte_size",
+        "content_digest",
+        "producer_action_id",
+        "input_refs",
+        "validation_refs",
+        "availability",
+        "validity"
+      ],
+      "additionalProperties": false
+    },
+    "validation": {
+      "type": "object",
+      "properties": {
+        "check_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "checker_kind": {
+          "enum": [
+            "deterministic",
+            "authority",
+            "model_review",
+            "human"
+          ]
+        },
+        "checker_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "input_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "scope": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "passed",
+            "failed",
+            "unknown",
+            "not_applicable"
+          ]
+        },
+        "finding_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "execution_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "occurred_at": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "check_id",
+        "checker_kind",
+        "checker_version",
+        "input_refs",
+        "scope",
+        "status",
+        "finding_refs",
+        "execution_ref",
+        "occurred_at"
+      ],
+      "additionalProperties": false
+    },
+    "receipt": {
+      "type": "object",
+      "properties": {
+        "command_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "accepted",
+            "applied",
+            "rejected"
+          ]
+        },
+        "accepted_revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "applied_revision": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "error_code": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "retryable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "command_id",
+        "status",
+        "accepted_revision",
+        "applied_revision",
+        "error_code",
+        "retryable"
+      ],
+      "additionalProperties": false
+    },
+    "event": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": "capstone-work-event/1"
+        },
+        "work_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "work_revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "attempt_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "execution_snapshot_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "type": {
+          "enum": [
+            "work.state_changed",
+            "goal.revised",
+            "resource.observed",
+            "action.updated",
+            "finding.recorded",
+            "finding.revised",
+            "input.requested",
+            "artifact.revision_published",
+            "artifact.validity_changed",
+            "command.applied",
+            "message.published"
+          ]
+        },
+        "occurred_at": {
+          "type": "string",
+          "minLength": 1
+        },
+        "payload": {
+          "type": "object",
+          "properties": {
+            "projection_refs": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "required": [
+            "projection_refs"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schema",
+        "work_id",
+        "sequence",
+        "work_revision",
+        "attempt_id",
+        "execution_snapshot_id",
+        "type",
+        "occurred_at",
+        "payload"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

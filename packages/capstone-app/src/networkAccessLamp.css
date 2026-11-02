@@ -1,0 +1,11 @@
+.network-access-control { position: relative; display: inline-flex; margin-left: auto; }
+.network-access-lamp { display: inline-grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 50%; background: transparent; cursor: pointer; }
+.network-access-lamp > span { width: 7px; height: 7px; border-radius: 50%; background: #8a9991; box-shadow: 0 0 0 3px rgb(138 153 145 / 10%); transition: background-color 150ms, box-shadow 150ms; }
+.network-access-lamp[data-state="on"] > span { background: #60cbb7; box-shadow: 0 0 0 3px rgb(96 203 183 / 12%); }
+.network-access-lamp[data-state="unknown"] > span { background: transparent; border: 1px solid #a6b4ad; box-shadow: none; }
+.network-access-lamp:hover { background: rgb(255 255 255 / 6%); }
+.network-access-lamp:focus-visible { outline: 2px solid #60cbb7; outline-offset: 2px; }
+.network-access-lamp:disabled { cursor: wait; }
+.network-access-error { position: absolute; z-index: 20; top: 100%; right: 0; width: 180px; padding: 8px 10px; border: 1px solid #61776a; border-radius: 6px; background: #20332b; color: #edf2ee; font-size: 12px; line-height: 1.5; }
+@media (pointer: coarse) { .network-access-lamp { width: 44px; height: 44px; } }
+@media (prefers-reduced-motion: reduce) { .network-access-lamp > span { transition: none; } }

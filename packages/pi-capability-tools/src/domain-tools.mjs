@@ -15,11 +15,12 @@ import { lstat, open, readFile } from "node:fs/promises";
 
 import { configureModelRequestCapture } from "./model-request-capture.mjs";
 import { configureResearchTools, RESEARCH_TOOL_NAMES } from "./research-tools.mjs";
+import { configureExecutionGuidance } from "./execution-guidance.mjs";
 import { isCorrelatedResponse, runProcessCapability } from "./process-transport.mjs";
+import { runtimeLimits, runtimeLimitMode, CapacityExceeded, DEFAULT_RUNTIME_LIMITS,checkCapacity,sameRuntimeLimits } from './runtime-limits.mjs';
 
 const { O_DIRECTORY, O_NOFOLLOW, O_RDONLY } = constants;
 const RUNTIME_DESCRIPTOR_ENV = "CAPABILITY_AGENT_RUNTIME_DESCRIPTOR";
-const MAX_RUNTIME_DESCRIPTOR_BYTES = 1_048_576;
 
 const LEGACY_DESCRIPTOR_KEYS = new Set([
   "protocol",
@@ -43,7 +44,7 @@ const LEGACY_DESCRIPTOR_KEYS = new Set([
   "trajectoryAcksPath",
   "piRuntime",
 ]);
-const RUNTIME_V1_KEYS = new Set(["schema", "application", "core", "domains"]);
+const RUNTIME_V1_KEYS = new Set(["schema", "application", "core", "domains", "runtime_limits", "runtime_limit_mode"]);
 const APPLICATION_KEYS = new Set(["applicationId", "runId", "workspacePath", "referenceHandoffsPath", "piRuntime"]);
 const CORE_KEYS = new Set([
   "researchChannelPath",
@@ -99,12 +100,8 @@ const RESOURCE_ID_PATTERN = /^[a-z0-9][a-z0-9-]+$/;
 const ENCODED_SEPARATOR_PATTERN = /%(?:2f|5c)/i;
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const DEFAULT_TRANSPORT_LIMITS = Object.freeze({
-  timeoutMs: 60_000,
-  maxOutputBytes: 1_048_576,
-});
-const MAX_TRANSPORT_LIMITS = Object.freeze({
-  timeoutMs: 120_000,
-  maxOutputBytes: 4_194_304,
+  timeoutMs: DEFAULT_RUNTIME_LIMITS.tool_timeout_seconds * 1000,
+  maxOutputBytes: DEFAULT_RUNTIME_LIMITS.tool_observation_bytes,
 });
 const LEGACY_RUNTIME_DESCRIPTORS = new WeakSet();
 const SELECTED_BINDING_RUNTIMES = new WeakSet();
@@ -385,6 +382,9 @@ function validateRuntimeV1(value, options = {}) {
     application: Object.freeze(application),
     core: Object.freeze(core),
     domains: Object.freeze(domains),
+    ...(value.runtime_limits === undefined && value.runtime_limit_mode === undefined ? {} : {
+      runtime_limits:runtimeLimits(value.runtime_limits,{mode:value.runtime_limit_mode??'normal'})}),
+    ...(value.runtime_limit_mode === undefined ? {} : {runtime_limit_mode:value.runtime_limit_mode}),
   });
   return runtime;
 }
@@ -511,15 +511,19 @@ function isModelRoutingField(key) {
   );
 }
 
-export function withExecutionPurpose(tool) {
+export function withExecutionPurpose(tool,{runtimeLimits:overrides,runtimeLimitMode:mode}={}) {
+  const limits=runtimeLimits(overrides,{mode:mode??runtimeLimitMode(overrides)});
   const schema = tool.parameters;
   if (schema.properties?.execution_purpose) throw new TypeError("execution_purpose is reserved for agent records");
   return defineTool({ ...tool,
     description: `${tool.description} Include execution_purpose: one short objective for the current batch, in the user's language. Repeat that exact objective across calls in the batch. Do not restate the whole task, describe only this tool, list parameters, or report observations here. This is a public agent record, not a verified result.`,
     parameters: Type.Unsafe({ ...schema, properties: { ...schema.properties,
-      execution_purpose: { type: "string", minLength: 1, maxLength: 120,
+      execution_purpose: { type: "string", minLength: 1,
+        ...(runtimeLimitMode(limits)==='debug'?{}:{maxLength:limits.research_progress_chars}),
         description: "Short objective for this batch. Repeat the same text across this batch's calls. Use a short action phrase; omit whole-task goals, parameters and observations." } } }),
     async execute(id, params, ...rest) {
+      if(typeof params.execution_purpose==='string')checkCapacity(limits,'research_progress_chars',
+        Array.from(params.execution_purpose).length,'characters','execution_purpose');
       const { execution_purpose: _purpose, ...argumentsOnly } = params;
       return tool.execute(id, argumentsOnly, ...rest);
     },
@@ -634,6 +638,13 @@ function injectApplicationHandoff(runtime, capability, params) {
  */
 export function createDomainToolsExtension(descriptor, options = {}) {
   const validated = validateRuntimeDescriptor(descriptor);
+  if(validated.runtime_limits !== undefined && options.runtimeLimits !== undefined && !sameRuntimeLimits(validated.runtime_limits,options.runtimeLimits)) {
+    throw new TypeError('descriptor runtime_limits differ from initialized tool limits');
+  }
+  if(options.runtimeLimitMode!==undefined&&validated.runtime_limit_mode!==undefined&&options.runtimeLimitMode!==validated.runtime_limit_mode)
+    throw new TypeError('descriptor runtime_limit_mode differs from initialized tool mode');
+  const limits = runtimeLimits(options.runtimeLimits ?? validated.runtime_limits,
+    {mode:options.runtimeLimitMode??validated.runtime_limit_mode??runtimeLimitMode(options.runtimeLimits??validated.runtime_limits)});
   const runtimes = validated.domains.map((domain) => selectedBindingRuntimeForDomain(validated, domain));
   if (
     !isPlainObject(options) ||
@@ -674,8 +685,9 @@ export function createDomainToolsExtension(descriptor, options = {}) {
       return { runtime, paths, catalog, guide };
     });
     const corePaths = groups[0].paths;
+    configureExecutionGuidance(pi);
     if (corePaths.researchChannelPath !== undefined) {
-      configureResearchTools(pi, corePaths.researchChannelPath);
+      configureResearchTools(pi, corePaths.researchChannelPath, {runtimeLimits:limits});
     }
     if (
       corePaths.trajectoryRequestsPath !== undefined &&
@@ -698,8 +710,9 @@ export function createDomainToolsExtension(descriptor, options = {}) {
         if (contract.name === runtime.decisionToolName) {
           continue;
         }
-        const tool = buildTool(runtime, contract, (payload) => runCapability(payload, runtime, selectedNames));
-        pi.registerTool(corePaths.researchChannelPath !== undefined ? withExecutionPurpose(tool) : tool);
+        const tool = buildTool(runtime, contract, (payload) => runCapability(payload, runtime, selectedNames,
+          {timeoutMs:limits.tool_timeout_seconds * 1000,maxOutputBytes:limits.tool_observation_bytes,runtimeLimitMode:runtimeLimitMode(limits)}));
+        pi.registerTool(corePaths.researchChannelPath !== undefined ? withExecutionPurpose(tool,{runtimeLimits:limits}) : tool);
       }
       pi.registerTool(guide);
     }
@@ -708,7 +721,7 @@ export function createDomainToolsExtension(descriptor, options = {}) {
     }
     if (corePaths.trajectoryAllowedRefsPath !== undefined && corePaths.activeTurnPath !== undefined) {
       pi.registerTool(
-        createRecordDecisionTool(validated.core.decisionToolName, corePaths.trajectoryAllowedRefsPath, corePaths.activeTurnPath),
+        createRecordDecisionTool(validated.core.decisionToolName, corePaths.trajectoryAllowedRefsPath, corePaths.activeTurnPath,limits),
       );
     }
   };
@@ -721,7 +734,7 @@ export function createDomainToolsExtension(descriptor, options = {}) {
  * canonicalized before a no-follow read of the descriptor leaf, so a swapped
  * or symlinked descriptor cannot silently redirect startup.
  */
-export default function domainToolsExtension(pi) {
+export default function domainToolsExtension(pi,options={}) {
   const configuredPath = process.env[RUNTIME_DESCRIPTOR_ENV];
   if (typeof configuredPath !== "string" || configuredPath.length === 0) {
     throw new Error(`${RUNTIME_DESCRIPTOR_ENV} must name a descriptor file`);
@@ -730,11 +743,12 @@ export default function domainToolsExtension(pi) {
     throw new Error(`${RUNTIME_DESCRIPTOR_ENV} must be an absolute path`);
   }
 
-  const descriptor = readRuntimeDescriptor(configuredPath);
-  return createDomainToolsExtension(descriptor)(pi);
+  const descriptor = readRuntimeDescriptor(configuredPath,options);
+  return createDomainToolsExtension(descriptor,options)(pi);
 }
 
-function readRuntimeDescriptor(configuredPath) {
+export function readRuntimeDescriptor(configuredPath,{runtimeLimits:overrides,runtimeLimitMode:mode}={}) {
+  const limits=runtimeLimits(overrides,{mode:mode??runtimeLimitMode(overrides)});
   let parentPath;
   try {
     parentPath = realpathSync(dirname(configuredPath));
@@ -750,9 +764,11 @@ function readRuntimeDescriptor(configuredPath) {
     startupRead = readBoundFileSync(
       parentPath,
       descriptorPath,
-      MAX_RUNTIME_DESCRIPTOR_BYTES,
+      limits.control_document_bytes,
+      limits,
     );
   } catch (error) {
+    if(error instanceof CapacityExceeded&&error.mode==='debug')throw error;
     throw new Error(
       `${RUNTIME_DESCRIPTOR_ENV} could not be read safely: ${error.message}`,
     );
@@ -827,7 +843,9 @@ export function sanitizeEnvironment(env, selectedNames = []) {
 export function runCapability(payload, descriptor, selectedNames = [], transportLimits = undefined) {
   const runtime = selectedBindingRuntime(descriptor);
   validateExecutableArgumentPaths(runtime);
-  const limits = validateTransportLimits(transportLimits);
+  const policy = runtimeLimits(runtime.runtime_limits);
+  const limits = validateTransportLimits(transportLimits ?? {
+    timeoutMs:policy.tool_timeout_seconds * 1000,maxOutputBytes:policy.tool_observation_bytes,runtimeLimitMode:runtimeLimitMode(policy)});
   const environment = sanitizeEnvironment(
     process.env, [...selectedSecretNames(process.env), ...selectedNames],
   );
@@ -883,17 +901,21 @@ function validateTransportLimits(value) {
     throw new TypeError("transport limits must be a plain object");
   }
   for (const key of Reflect.ownKeys(value)) {
-    if (key !== "timeoutMs" && key !== "maxOutputBytes") {
+    if (key !== "timeoutMs" && key !== "maxOutputBytes" && key !== 'runtimeLimitMode') {
       throw new TypeError(`transport limits contain an unknown field: ${String(key)}`);
     }
   }
   const limits = {};
   for (const key of ["timeoutMs", "maxOutputBytes"]) {
     const selected = value[key] ?? DEFAULT_TRANSPORT_LIMITS[key];
-    if (!Number.isSafeInteger(selected) || selected < 1 || selected > MAX_TRANSPORT_LIMITS[key]) {
-      throw new TypeError(`transport limit ${key} must be between 1 and ${MAX_TRANSPORT_LIMITS[key]}`);
+    if (!Number.isSafeInteger(selected) || selected < 1 || (key === 'timeoutMs' && selected > 2147483647)) {
+      throw new TypeError(`transport limit ${key} must be a positive exact integer within platform timer bounds`);
     }
     limits[key] = selected;
+  }
+  if(value.runtimeLimitMode!==undefined){
+    if(!['normal','debug'].includes(value.runtimeLimitMode))throw new TypeError('invalid runtime limit mode');
+    limits.runtimeLimitMode=value.runtimeLimitMode;
   }
   return Object.freeze(limits);
 }
@@ -1078,7 +1100,7 @@ function validateGuideIndex(value, descriptor, expectedRoot) {
   });
 }
 
-function readBoundFileSync(rootPath, filePath, maxBytes) {
+function readBoundFileSync(rootPath, filePath, maxBytes, capacityLimits) {
   const root = resolve(rootPath);
   const candidate = resolve(filePath);
   const segments = safeRelativeSegments(root, candidate, "guide index");
@@ -1106,11 +1128,13 @@ function readBoundFileSync(rootPath, filePath, maxBytes) {
       throw new Error("guide index is not a regular file");
     }
     if (maxBytes !== undefined && before.size > BigInt(maxBytes)) {
-      throw new Error(`bound file exceeds ${maxBytes} byte limit`);
+      throw new CapacityExceeded({control_document_bytes:maxBytes},'control_document_bytes',Number(before.size),'bytes','descriptor_read',
+        {mode:runtimeLimitMode(capacityLimits)});
     }
     const content = readFileSync(descriptor);
     if (maxBytes !== undefined && content.byteLength > maxBytes) {
-      throw new Error(`bound file exceeds ${maxBytes} byte limit`);
+      throw new CapacityExceeded({control_document_bytes:maxBytes},'control_document_bytes',content.byteLength,'bytes','descriptor_read',
+        {mode:runtimeLimitMode(capacityLimits)});
     }
     const after = fstatSync(descriptor, { bigint: true });
     verifySyncBindings(bindings);
@@ -1248,22 +1272,24 @@ function createAnalysisContextTool(toolName, analysisContextViewPath) {
   });
 }
 
-function createRecordDecisionTool(toolName, allowedRefsPath, activeTurnPath) {
+function createRecordDecisionTool(toolName, allowedRefsPath, activeTurnPath,limits=runtimeLimits()) {
   return defineTool({
     name: toolName,
     label: toolName,
     description: "Declare bounded agent intent. This is not simulator truth and creates no evidence.",
     parameters: Type.Object(
       {
-        intent: Type.String({ minLength: 1, maxLength: 500 }),
-        decision: Type.String({ minLength: 1, maxLength: 500 }),
-        next_action: Type.String({ minLength: 1, maxLength: 500 }),
-        refs: Type.Array(Type.String({ minLength: 1 }), { maxItems: 20 }),
+        intent: Type.String({ minLength: 1, ...(runtimeLimitMode(limits)==='debug'?{}:{maxLength:limits.decision_text_chars}) }),
+        decision: Type.String({ minLength: 1, ...(runtimeLimitMode(limits)==='debug'?{}:{maxLength:limits.decision_text_chars}) }),
+        next_action: Type.String({ minLength: 1, ...(runtimeLimitMode(limits)==='debug'?{}:{maxLength:limits.decision_text_chars}) }),
+        refs: Type.Array(Type.String({ minLength: 1 }), runtimeLimitMode(limits)==='debug'?{}:{maxItems:limits.decision_references}),
       },
       { additionalProperties: false },
     ),
     async execute(_id, params) {
-      const invalid = decisionValidationError(params);
+      let invalid;
+      try { invalid=decisionValidationError(params,limits); }
+      catch(error) { if(error.mode==='debug')throw error;if(error.capacity)return toolError(error.capacity,toolName); throw error; }
       if (invalid !== undefined) {
         return toolError(
           { code: "invalid_decision", phase: "validate", message: invalid },
@@ -1469,6 +1495,7 @@ function selectedBindingRuntime(value) {
 function selectedBindingRuntimeForDomain(runtime, domain) {
   const selected = Object.freeze({
     ...domain,
+    ...(runtime.runtime_limits === undefined ? {} : {runtime_limits:runtime.runtime_limits}),
     applicationWorkspacePath: runtime.application.workspacePath ?? domain.workspacePath,
     toolNamePrefix: toolPrefixFromGuideName(domain.guideToolName),
     contextToolName: runtime.core.contextToolName,
@@ -1764,23 +1791,23 @@ async function readActiveTurn(path) {
   };
 }
 
-function decisionValidationError(params) {
+function decisionValidationError(params,limits=runtimeLimits()) {
   for (const name of ["intent", "decision", "next_action"]) {
     if (
       typeof params?.[name] !== "string" ||
-      params[name].length < 1 ||
-      params[name].length > 500
+      params[name].length < 1
     ) {
-      return `${name} must contain 1 to 500 characters`;
+      return `${name} must contain non-empty text`;
     }
+    checkCapacity(limits,'decision_text_chars',Array.from(params[name]).length,'characters','decision');
   }
   if (
     !Array.isArray(params?.refs) ||
-    params.refs.length > 20 ||
     !params.refs.every((reference) => typeof reference === "string" && reference.length > 0)
   ) {
-    return "refs must contain at most 20 non-empty strings";
+    return 'refs must contain non-empty strings';
   }
+  checkCapacity(limits,'decision_references',params.refs.length,'references','decision');
   return undefined;
 }
 

@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode, type RefObject } from 'react'
 import ThreadSettingsMenu, { useCloseThreadSettings } from './ThreadSettingsMenu'
 import type { ThreadCatalog, ThreadCatalogProfile } from './threadCatalog'
 import type { ProfileReference } from './threadProtocol'
@@ -8,6 +8,7 @@ function profileKey(profile: ProfileReference): string {
 }
 
 export type ThreadControlsProps = {
+  triggerRef?: RefObject<HTMLButtonElement | null>
   catalog: ThreadCatalog | null
   selectedProfiles: ProfileReference[]
   pendingModel: string | undefined
@@ -54,10 +55,10 @@ function GridToolSelection({ profiles, selectedProfiles, disabled, onSave }: {
   </div>
 }
 
-export default function ThreadControls({ catalog, selectedProfiles, pendingModel, disabled, historyActions, onProfileSelection, onResetWork, resetDisabled }: ThreadControlsProps) {
+export default function ThreadControls({ catalog, selectedProfiles, pendingModel, disabled, historyActions, onProfileSelection, onResetWork, resetDisabled, triggerRef }: ThreadControlsProps) {
   const profiles = catalog?.profiles || []
   return <div className="thread-compact-controls" aria-label="Thread 紧凑控制">
-    <ThreadSettingsMenu>
+    <ThreadSettingsMenu triggerRef={triggerRef}>
       {historyActions}
       {profiles.length > 0 && <GridToolSelection profiles={profiles} selectedProfiles={selectedProfiles}
         disabled={disabled} onSave={onProfileSelection} />}

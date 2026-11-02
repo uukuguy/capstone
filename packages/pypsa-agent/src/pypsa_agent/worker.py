@@ -116,7 +116,7 @@ def _prepare(values: Mapping[str, object], observer) -> PreparedWorker:
                      if item["id"] == case_id and item["status"] == "runnable"), None)
         if case is None:
             raise ValueError("PyPSA case is not registered")
-        handoff = ReferenceHandoffService(profile, workspace, store, prepared.bindings)
+        handoff = ReferenceHandoffService(profile, workspace, store, prepared.authority_bindings)
         providers: list[CaseProvider] = []
         committed_refs: dict[int, tuple[str, ...]] = {}
         calls_by_ordinal: dict[int, list[dict[str, object]]] = {}
@@ -213,7 +213,7 @@ def _prepare(values: Mapping[str, object], observer) -> PreparedWorker:
             if not isinstance(model_ref, str):
                 return None
             dispatch = provider.results.get("operations.dispatch")
-            executor = prepared.bindings["source"].endpoint.executor
+            executor = prepared.authority_bindings["source"].endpoint.executor
 
             class CachedDiagramExecutor:
                 def invoke(self, capability: str, arguments: dict[str, object]) -> dict[str, object]:
@@ -254,7 +254,7 @@ def _prepare(values: Mapping[str, object], observer) -> PreparedWorker:
             raise ValueError("model is invalid")
         runtime_environment = load_runtime_environment(ROOT)
 
-        handoff = ReferenceHandoffService(profile, workspace, store, prepared.bindings)
+        handoff = ReferenceHandoffService(profile, workspace, store, prepared.authority_bindings)
         handoffs: dict[str, dict[str, object]] = {}
         handoff_index = workspace.core_path / "reference-handoffs.json"
         calls_by_ordinal: dict[int, list[dict[str, object]]] = {}

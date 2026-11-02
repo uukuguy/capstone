@@ -43,8 +43,8 @@ class PyPSAThreadNetworkProjectionProvider:
     ) -> Mapping[str, object] | None:
         del result_refs, evidence_refs, tool_events
         if (
-            claim.model_context.model_id != self._model_id
-            or claim.model_context.model_revision != self._model_revision
+            claim.professional_context.model_id != self._model_id
+            or claim.professional_context.model_revision != self._model_revision
         ):
             raise ValueError("PyPSA topology context does not match Attempt")
         topology = self._executor.invoke(

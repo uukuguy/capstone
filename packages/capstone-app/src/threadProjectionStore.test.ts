@@ -1,9 +1,12 @@
+import {afterEach} from 'vitest'
+import {initializeApplicationCapacity} from './applicationCapacity'
 import { describe, expect, it, vi } from 'vitest'
 import { CapstoneThreadClient, type ThreadCommand, type ThreadTransport } from './threadClient'
 import { createFixtureTransport, instructionOrdinal, ThreadProjectionStore } from './threadProjectionStore'
 import { sampleDiagramView } from './networkFixture'
 import { historyContexts, historyFixture, historyWorkspace } from './threadHistory.test-support'
 import { parseEventEnvelope } from './threadProtocol'
+import { ThreadTransportError } from './threadHttpTransport'
 
 const context = {
   id: 'ctx_ieee39_7', model_id: 'ieee39', model_revision: '7',
@@ -49,6 +52,33 @@ function pagedHistory(events: Record<string, unknown>[], pageSize: number) {
     }
   })
 }
+
+it('restores conversation bodies beyond the raw event window without dropping recent records',async()=>{
+  initializeApplicationCapacity({schema:'capstone-capacity-profile/1',mode:'normal',limits:{event_buffer_count:2}})
+  const events=Array.from({length:8},(_,index)=>conversationalEvent(index+1,index%2===0?'command_accepted':'attempt_completed',Math.floor(index/2),index%2===0?{kind:'send_auto',payload:{text:`问题${index}`}}:{answer:`回答${index}`}))
+  const fixture={...idleFixture,snapshot:{...idleFixture.snapshot,last_event_seq:8}}
+  const store=new ThreadProjectionStore(new CapstoneThreadClient({...createFixtureTransport(fixture),readHistory:pagedHistory(events,2)}))
+  await store.load('thr_demo_39')
+  await store.restoreConversationHistory()
+  expect(store.publicEvents.length).toBeLessThanOrEqual(2)
+  expect(store.conversationEvents.map(event=>event.eventSeq)).toEqual([1,2,3,4,5,6,7,8])
+  expect(store.state.eventSeq).toBe(8)
+  await store.restoreConversationHistory()
+  expect(store.conversationEvents).toHaveLength(8)
+})
+
+it('retains native routing identity beyond the raw window for exact tool grouping',async()=>{
+ initializeApplicationCapacity({schema:'capstone-capacity-profile/1',mode:'normal',limits:{event_buffer_count:2}})
+ const events=[conversationalEvent(1,'turn_route_selected',0,{route:'ordinary',source:'native_conversation'}),
+  conversationalEvent(2,'runtime_action',0,{phase:'started',runtime_mode:'capstone'}),
+  conversationalEvent(3,'runtime_action',0,{phase:'response_completed',runtime_mode:'capstone',response_kind:'tools'}),
+  conversationalEvent(4,'runtime_event',0,{native_type:'tool_execution_start',tool_call_id:'observed-call'})]
+ const fixture={...idleFixture,snapshot:{...idleFixture.snapshot,last_event_seq:4}}
+ const store=new ThreadProjectionStore(new CapstoneThreadClient({...createFixtureTransport(fixture),readHistory:pagedHistory(events,2)}))
+ await store.load('thr_demo_39');await store.restoreConversationHistory()
+ expect(store.publicEvents.length).toBeLessThanOrEqual(2)
+ expect(store.conversationEvents.some(event=>event.eventType==='turn_route_selected'&&event.payload.source==='native_conversation')).toBe(true)
+})
 
 it('loads durable model membership independently of the legacy snapshot', async () => {
   const model = { entry_id: 'mdl_ieee39', model_id: context.model_id, model_revision: context.model_revision,
@@ -376,6 +406,7 @@ it('keeps public task actions when diagnostic deltas exceed the local event budg
 })
 
 it('bounds a continuing stream and treats clean EOF as a reconnect without changing the live cursor', async () => {
+  initializeApplicationCapacity({event_buffer_count:1024})
   const store = new ThreadProjectionStore(new CapstoneThreadClient({
     ...createFixtureTransport(idleFixture),
     streamEvents: async function* () {
@@ -393,6 +424,39 @@ it('bounds a continuing stream and treats clean EOF as a reconnect without chang
   expect(store.publicEvents[0].eventSeq).toBe(77)
   expect(store.state.hasOlderHistory).toBe(true)
   expect(store.state.connection).toBe('reconnecting')
+})
+it('trims the recoverable history window in debug mode and consumes later events',async()=>{
+  initializeApplicationCapacity({schema:'capstone-capacity-profile/1',mode:'debug',limits:{event_buffer_count:2}})
+  let emitted=0
+  const store=new ThreadProjectionStore(new CapstoneThreadClient({
+    ...createFixtureTransport(idleFixture),
+    streamEvents:async function*(){
+      for(let seq=1;seq<=4;seq++){
+        emitted++
+        yield {eventId:`evt_${seq}`,eventSeq:seq,eventType:'assistant_text_delta',eventVersion:1,threadId:'thr_demo_39',runId:'run_001',occurredAt:'2026-10-06T00:00:00Z',visibility:'public' as const,payload:{text:`message ${seq}`}}
+      }
+    },
+  }))
+  await store.load('thr_demo_39')
+  await expect(store.consumeEvents(new AbortController().signal)).rejects.toThrow('实时连接已关闭')
+  expect(emitted).toBe(4)
+  expect(store.publicEvents.map(event=>event.eventSeq)).toEqual([3,4])
+  expect(store.state.eventSeq).toBe(4)
+  expect(store.state.hasOlderHistory).toBe(true)
+  expect(store.state.connection).toBe('reconnecting')
+})
+it('trims by retained history bytes in debug mode without dropping the latest event cursor',async()=>{
+  const event=(seq:number)=>({eventId:`evt_${seq}`,eventSeq:seq,eventType:'assistant_text_delta',eventVersion:1,
+    threadId:'thr_demo_39',runId:'run_001',occurredAt:'2026-10-06T00:00:00Z',visibility:'public' as const,payload:{text:'x'.repeat(150)}})
+  const size=new TextEncoder().encode(JSON.stringify(event(1))).byteLength
+  initializeApplicationCapacity({schema:'capstone-capacity-profile/1',mode:'debug',limits:{event_buffer_count:10,event_buffer_bytes:size*2+4}})
+  const store=new ThreadProjectionStore(new CapstoneThreadClient({...createFixtureTransport(idleFixture),
+    streamEvents:async function*(){for(let seq=1;seq<=4;seq++)yield event(seq)}}))
+  await store.load('thr_demo_39')
+  await expect(store.consumeEvents(new AbortController().signal)).rejects.toThrow('实时连接已关闭')
+  expect(store.publicEvents.map(item=>item.eventSeq)).toEqual([3,4])
+  expect(store.state.eventSeq).toBe(4)
+  expect(store.state.hasOlderHistory).toBe(true)
 })
 
 const historicalFixture = {
@@ -438,6 +502,44 @@ const dynamicLayer = {
   model_revision: '7',
 }
 
+it.each(['valid', 'wrong-context', 'wrong-revision', 'private', 'missing-flag'] as const)(
+  'clears only an explicit matching last-model close before snapshot refresh: %s', async variant => {
+    const events = [
+      { ...conversationalEvent(1, 'network_diagram', 1), payload: { diagram: dynamicDiagram } },
+      { ...conversationalEvent(2, 'network_layer', 1), payload: { ordinal: 1, layer: dynamicLayer } },
+    ]
+    const fixture = { ...idleFixture, snapshot: { ...idleFixture.snapshot,
+      schema: 'capstone-thread-snapshot/2', minimum_protocol_version: 2,
+      selected_model_context_id: context.id, session_type: 'enterprise-research', works: [], task_context: null,
+      last_event_seq: 2 }, events: { ...idleFixture.events, next_event_seq: 2, events } }
+    const close = parseEventEnvelope({ event_id: 'evt_close', event_seq: 3, event_type: 'model_workspace_changed',
+      event_version: 1, thread_id: 'thr_demo_39', run_id: 'run_001',
+      occurred_at: '2026-10-26T00:00:00Z', visibility: variant === 'private' ? 'diagnostic' : 'public',
+      payload: { model_context_cleared: variant !== 'missing-flag', current_model_name: null,
+        previous_context: { ...context, ...(variant === 'wrong-context' ? { id: 'ctx_other' } : {}),
+          ...(variant === 'wrong-revision' ? { model_revision: '8' } : {}) } } })
+    const store = new ThreadProjectionStore(new CapstoneThreadClient({ ...createFixtureTransport(fixture),
+      streamEvents: async function* () { yield close },
+    }), undefined, { protocolVersion: '2' })
+    await store.load('thr_demo_39')
+    const historicalView = store.state.gridPages[0].networkView
+    expect(historicalView).toBeTruthy()
+    vi.spyOn(store, 'refreshWorkSnapshot').mockResolvedValue(undefined)
+    await store.consumeEvents()
+    expect(store.state.eventSeq).toBe(3)
+    expect(store.state.workSnapshot?.modelContext?.id ?? null).toBe(variant === 'valid' ? null : context.id)
+    expect(store.state.snapshot?.activeModelContext.id ?? null).toBe(variant === 'valid' ? null : context.id)
+    if (variant === 'valid') {
+      expect(store.state.workSnapshot?.selectedModelContextId).toBeNull()
+      expect(store.state.workSnapshot?.toDocument().active_grid_page_id).toBeNull()
+      expect(store.state.networkView).toBeNull()
+      expect(store.state.viewedGridPageId).toBeNull()
+      expect(store.state.gridPages[0].networkView).toBe(historicalView)
+      store.viewGridPage(store.state.gridPages[0].pageId)
+      expect(store.state.gridPages[0].context.id).toBe(context.id)
+    }
+  })
+
 it('shares immutable geometry between repeated instructions while retaining every event and task', async () => {
   const events = [1, 2, 3, 4].map((seq) => ({
     event_id: `evt_${seq}`, event_seq: seq,
@@ -452,6 +554,7 @@ it('shares immutable geometry between repeated instructions while retaining ever
   await store.load('thr_demo_39')
   expect(store.publicEvents).toHaveLength(4)
   expect(store.networkTasks).toHaveLength(2)
+  expect(store.networkTasks.every(task=>task.presentationSource==='admitted_layer')).toBe(true)
   expect(store.networkTasks[0].view.diagram).toBe(store.networkTasks[1].view.diagram)
   const diagrams = store.publicEvents.filter((event) => event.eventType === 'network_diagram')
   expect(diagrams[0].payload.diagram).toBe(diagrams[1].payload.diagram)
@@ -465,7 +568,38 @@ function command(): ThreadCommand {
   }
 }
 
+it('preserves the unresolved exact request when the pending receipt budget is full',async()=>{
+  initializeApplicationCapacity({receipt_count:1})
+  const sendCommand=vi.fn().mockRejectedValue(new TypeError('response lost'))
+  const store=new ThreadProjectionStore(new CapstoneThreadClient({...createFixtureTransport(idleFixture),sendCommand}))
+  await store.load('thr_demo_39')
+  const first=command()
+  await expect(store.dispatch(first)).rejects.toThrow('response lost')
+  await store.load('thr_demo_39')
+  await expect(store.dispatch({...first,command_id:'cmd_other',idempotency_key:'idem_other'})).rejects.toThrow('previous command receipt is unresolved')
+  expect(store.state.pendingCommands.map(item=>item.command)).toEqual([first])
+  expect(sendCommand).toHaveBeenCalledTimes(1)
+})
+
 describe('ThreadProjectionStore', () => {
+  it('preserves the loaded snapshot and cursor when a newer server requires an upgrade', async () => {
+    let reads = 0
+    const sendCommand = vi.fn()
+    const store = new ThreadProjectionStore(new CapstoneThreadClient({
+      ...createFixtureTransport(idleFixture), sendCommand,
+      getSnapshot: async () => {
+        if (++reads === 1) return idleFixture.snapshot
+        throw new ThreadTransportError(409, '版本不兼容', { error: 'protocol_upgrade_required' })
+      },
+    }))
+    await store.load('thr_demo_39')
+    const snapshot = store.state.snapshot
+    const cursor = store.state.eventSeq
+    await expect(store.load('thr_demo_39')).rejects.toThrow('版本')
+    expect(store.state.snapshot).toBe(snapshot)
+    expect(store.state.eventSeq).toBe(cursor)
+    expect(sendCommand).not.toHaveBeenCalled()
+  })
   it('keeps the same Thread snapshot visible while reconnecting', async () => {
     let finish!: (value: unknown) => void
     let loads = 0
@@ -702,14 +836,17 @@ describe('ThreadProjectionStore', () => {
       expect(contextId).toBe(historical.id)
       return { schema: 'capstone-thread-network-events/1', thread_id: 'thr_demo_39', model_context_id: historical.id,
         model_context: historical, events: [{ event_id: 'evt_closed_diagram', event_seq: 1, event_type: 'network_diagram', event_version: 1,
-          thread_id: 'thr_demo_39', run_id: 'run_001', model_context_id: historical.id, occurred_at: '2026-10-08T00:00:00Z', visibility: 'public', payload: { diagram } }] }
+          thread_id: 'thr_demo_39', run_id: 'run_001', model_context_id: historical.id, occurred_at: '2026-10-08T00:00:00Z', visibility: 'public', payload: { diagram } },
+          { event_id:'evt_unrelated_later',event_seq:99,event_type:'attempt_completed',event_version:1,
+            thread_id:'thr_demo_39',run_id:'run_001',model_context_id:historical.id,attempt_id:'attempt_unrelated',occurred_at:'2026-10-08T00:00:02Z',visibility:'public',payload:{} }] }
     })
     const store = new ThreadProjectionStore(new CapstoneThreadClient({ ...createFixtureTransport(idleFixture), readNetworkEvents }))
     await store.load('thr_demo_39')
     const pageId = await store.restoreHistoricalNetwork(historical.id, 'attempt_closed')
     expect(pageId).toBe(`page_${historical.id}`)
-    expect(store.state.snapshot?.toDocument()).toEqual(snapshotBefore)
+    expect(store.state.snapshot?.toDocument()).toEqual({ ...snapshotBefore, runtime_mode: 'capstone' })
     expect(store.networkTasks.find((task) => task.attemptId === 'attempt_closed')?.view.diagram.model.revision).toBe(historical.model_revision)
+    expect(store.networkTasks.find(task=>task.attemptId==='attempt_closed')).toMatchObject({eventSeq:1,presentationSource:'historical_baseline'})
     expect(store.state.pendingCommands).toEqual([])
   })
 
@@ -1080,6 +1217,10 @@ describe('ThreadProjectionStore', () => {
     await expect(store.consumeEvents()).rejects.toThrow('socket closed')
     expect(store.state.connection).toBe('reconnecting')
     expect(store.state.resyncRequired).toBe(false)
+    const snapshot=store.state.snapshot
+    await store.catchUp()
+    expect(store.state.connection).toBe('live')
+    expect(store.state.snapshot).toBe(snapshot)
   })
 
   it('projects a model context switch and clears its staged state', async () => {
@@ -1127,3 +1268,5 @@ describe('ThreadProjectionStore', () => {
       .toBe('explicit_reopen')
   })
 })
+
+afterEach(()=>initializeApplicationCapacity())

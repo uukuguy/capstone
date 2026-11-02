@@ -16,6 +16,79 @@ from capstone_agent.thread_service import InMemoryThreadService, PostgresThreadS
 from capstone_agent.thread_catalog import CompositeThreadModelCatalog, ThreadModelCatalogEntry
 
 
+def test_gateway_refresh_replaces_only_future_admission_template():
+    from types import SimpleNamespace, MappingProxyType
+    from capstone_agent.thread_service import NativeExecutionOwner
+    owner = NativeExecutionOwner()
+    frozen = {'capability': {'data_gateway': {'available': True, 'catalog': {'revision': 'old'}},
+                              'resource_profiles': {'kept': {}}}}
+    owner._native_binding = frozen
+    owner._native_executor = SimpleNamespace(capability=MappingProxyType({
+        'data_gateway': MappingProxyType({'available': False, 'reason': 'contract_publication_unavailable'})}))
+    owner.refresh_native_gateway_publication()
+    assert frozen['capability']['data_gateway']['catalog']['revision'] == 'old'
+    assert owner._native_binding['capability']['data_gateway']['available'] is False
+    assert owner._native_binding['capability']['resource_profiles'] == {'kept': {}}
+
+
+@pytest.mark.parametrize('version', ['0', '99', '1, 2', ''])
+def test_unsupported_thread_version_does_not_mutate_commands(version):
+    service = _service()
+    before = service.snapshot('thr_demo_39').to_document()
+    with TestClient(_app(service), base_url='http://localhost') as client:
+        command = ThreadCommandFactory('thr_demo_39').switch_runtime(
+            'pi_reference', expected_event_seq=0, command_id='cmd_version', idempotency_key='idem_version')
+        response = client.post('/api/v1/threads/thr_demo_39/commands',
+            json=command, headers={**_auth(), 'Capstone-Thread-Version': version})
+    assert response.status_code == 406
+    assert response.json() == {'error': 'unsupported_thread_version', 'supported_versions': [1, 2]}
+    assert service.snapshot('thr_demo_39').to_document() == before
+
+
+@pytest.mark.parametrize('headers', [{}, {'Capstone-Thread-Version': '1'}])
+def test_thread_version_echo_and_cors_cover_snapshot_and_events(headers):
+    with TestClient(_app(_service()), base_url='http://localhost') as client:
+        for path in ['/api/v1/threads/thr_demo_39',
+                     '/api/v1/threads/thr_demo_39/events?after=0',
+                     '/api/v1/threads/thr_demo_39/events/stream?after=0']:
+            response = client.get(path, headers={**_auth(), **headers})
+            assert response.status_code == 200
+            assert response.headers['Capstone-Thread-Version'] == '1'
+            assert {'origin', 'capstone-thread-version'} <= {
+                part.strip().lower() for part in response.headers['Vary'].split(',')}
+            assert 'capstone-thread-version' in response.headers['Access-Control-Expose-Headers'].lower()
+
+
+def test_version_preflight_and_auth_order():
+    with TestClient(_app(_service()), base_url='http://localhost') as client:
+        response = client.options('/api/v1/threads', headers={
+            'Origin': 'http://localhost:5173',
+            'Access-Control-Request-Method': 'POST',
+            'Access-Control-Request-Headers': 'capstone-thread-version'})
+        assert response.status_code == 204
+        assert 'capstone-thread-version' in response.headers['Access-Control-Allow-Headers'].lower()
+        unauthorized = client.get('/api/v1/threads/thr_demo_39',
+            headers={'Capstone-Thread-Version': '2'})
+        assert unauthorized.status_code == 401
+        assert client.get('/health/ready', headers={'Capstone-Thread-Version': '2'}).status_code == 200
+
+
+def test_unsupported_version_does_not_create_or_prepare_a_thread():
+    calls = []
+    class Creator:
+        def create(self, model_id):
+            calls.append('create')
+            return _service().snapshot('thr_demo_39')
+    app = create_host_app(_Ledger(), WorkerRegistry(()), operator_token='hosted-secret',
+        allowed_hosts={'localhost'}, allowed_origins={'http://localhost:5173'},
+        thread_service=_service(), thread_creator=Creator(),
+        prepare_model=lambda *args: calls.append('prepare'))
+    with TestClient(app, base_url='http://localhost') as client:
+        assert client.post('/api/v1/threads', json={},
+            headers={**_auth(), 'Capstone-Thread-Version': '99'}).status_code == 406
+    assert calls == []
+
+
 class _ModelCatalog:
     default_model_id = "ieee39"
 
@@ -91,6 +164,31 @@ def test_thread_creation_does_not_block_the_api_event_loop():
     assert creation_threads[0] not in loop_threads
 
 
+@pytest.mark.parametrize('failed', [False, True])
+def test_new_thread_refreshes_contract_before_creation_without_blocking_unrelated_conversation(failed):
+    service = _service()
+    calls = []
+    class Executor:
+        capability = {}
+        def refresh_gateway_contract(self):
+            calls.append('contract')
+            if failed:
+                raise RuntimeError('private-upstream-detail')
+    class Creator:
+        def create(self, model_id):
+            calls.append('create')
+            return service.snapshot('thr_demo_39')
+    app = create_host_app(_Ledger(), WorkerRegistry(()), operator_token='hosted-secret',
+        allowed_hosts={'localhost'}, allowed_origins={'http://localhost:5173'},
+        thread_service=service, thread_creator=Creator(), native_artifact_executor=Executor())
+    with TestClient(app, base_url='http://localhost') as client:
+        response = client.post('/api/v1/threads', json={'model_id':'ieee39'}, headers=_auth())
+    assert response.status_code == 201
+    assert calls == ['contract', 'create']
+    assert response.headers['Capstone-Gateway-Contract'] == ('unavailable' if failed else 'current')
+    assert 'private-upstream-detail' not in response.text
+
+
 def test_thread_creation_sends_response_before_model_preparation():
     service = _service()
     response_sent = threading.Event()
@@ -159,6 +257,23 @@ def _auth() -> dict[str, str]:
     return {"Authorization": "Bearer hosted-secret", "Origin": "http://localhost:5173"}
 
 
+def test_http_runtime_switch_replay_and_active_work_conflict():
+    service = _service()
+    factory = ThreadCommandFactory("thr_demo_39")
+    switch = factory.switch_runtime("pi_reference", expected_event_seq=0, command_id="cmd_mode", idempotency_key="idem_mode")
+    with TestClient(_app(service), base_url="http://localhost") as client:
+        path = "/api/v1/threads/thr_demo_39/commands"
+        accepted = client.post(path, headers=_auth(), json=switch)
+        assert accepted.status_code == 202
+        assert accepted.json()["status"] == "accepted"
+        assert client.post(path, headers=_auth(), json=switch).json() == accepted.json()
+        snapshot = service.snapshot("thr_demo_39").to_document()
+        assert snapshot["runtime_mode"] == "pi_reference"
+        service.submit_command(factory.send_auto("hello", expected_event_seq=snapshot["last_event_seq"], command_id="cmd_send", idempotency_key="idem_send"))
+        blocked = factory.switch_runtime("capstone", expected_event_seq=service.snapshot("thr_demo_39").last_event_seq, command_id="cmd_blocked", idempotency_key="idem_blocked")
+        assert client.post(path, headers=_auth(), json=blocked).json()["rejection"] == "attempt_in_progress"
+
+
 def test_opened_model_projection_uses_the_private_thread_boundary():
     service = _service()
     with TestClient(_app(service), base_url="http://localhost") as client:
@@ -171,6 +286,19 @@ def test_opened_model_projection_uses_the_private_thread_boundary():
     assert len(workspace["models"]) == 1
     assert workspace["models"][0]["model_id"] == "ieee39"
     assert workspace["current_entry_id"] == workspace["models"][0]["entry_id"]
+
+
+def test_model_free_conversation_exposes_empty_private_workspace_for_first_selection():
+    from dataclasses import replace
+    service = InMemoryThreadService(replace(_service().snapshot('thr_demo_39'),
+        active_model_context=None, active_grid_page_id=None, minimum_protocol_version=2))
+    with TestClient(_app(service), base_url='http://localhost') as client:
+        path = '/api/v1/threads/thr_demo_39/models'
+        assert client.get(path, headers={'Capstone-Thread-Version': '2'}).status_code == 401
+        response = client.get(path, headers={**_auth(), 'Capstone-Thread-Version': '2'})
+    assert response.status_code == 200
+    assert response.json()['models'] == []
+    assert response.json()['current_entry_id'] is None
 
 
 @pytest.mark.parametrize("kind", ["switch_model", "reopen_model_context"])
@@ -560,3 +688,33 @@ def test_thread_rejects_non_json_command_payload_as_protocol_error() -> None:
     import pytest
     with pytest.raises(ThreadProtocolError, match="not JSON"):
         service.submit_command(command)
+
+
+@pytest.mark.parametrize('stage', ['snapshot', 'read_events'])
+def test_slow_initial_thread_read_does_not_block_async_health(monkeypatch, stage):
+    import asyncio
+    import time
+    import httpx
+    service = _service()
+    entered, release = threading.Event(), threading.Event()
+    original = getattr(service, stage)
+    def slow(*args, **kwargs):
+        entered.set()
+        release.wait(2)
+        return original(*args, **kwargs)
+    monkeypatch.setattr(service, stage, slow)
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=_app(service)),base_url='http://localhost') as client:
+            timer=threading.Timer(1,release.set);timer.start()
+            began=time.monotonic()
+            pending=asyncio.create_task(client.get('/api/v1/threads/thr_demo_39/events/stream',headers={**_auth(),'Capstone-Thread-Version':'1' if stage=='snapshot' else '2'}))
+            try:
+                assert await asyncio.to_thread(entered.wait,.5)
+                assert time.monotonic()-began<.5
+                started=time.monotonic()
+                response=await client.get('/health/ready',headers=_auth())
+                assert response.status_code==200
+                assert time.monotonic()-started<.5
+            finally:
+                release.set();timer.cancel();await pending
+    asyncio.run(run())

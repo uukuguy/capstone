@@ -1,3 +1,4 @@
+import {applicationCapacity} from './applicationCapacity'
 import { describe, expect, it, vi } from 'vitest'
 import { HttpThreadTransport, ThreadTransportError } from './threadHttpTransport'
 import { MAX_THREAD_JSON_BYTES } from './networkLimits'
@@ -10,6 +11,96 @@ const command = {
 }
 
 describe('HttpThreadTransport', () => {
+  it('reads global connections using the selected API origin authentication and protocol',async()=>{
+    const body={schema:'capstone-workspace-connections/1',data_gateway:{available:true,instance_name:'真实实例',endpoint:'gateway.test:8000'}}
+    const fetcher=vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify(body),{headers:{'Capstone-Thread-Version':'2'}}))
+    const transport=new HttpThreadTransport('https://api.example','operator',fetcher,'/api/v1/threads','2')
+    expect(await transport.workspaceConnections()).toEqual(body)
+    expect(fetcher.mock.calls[0][0]).toBe('https://api.example/api/v1/workspace/connections')
+    expect(new Headers(fetcher.mock.calls[0][1]?.headers).get('Authorization')).toBe('Bearer operator')
+    expect(new Headers(fetcher.mock.calls[0][1]?.headers).get('Capstone-Thread-Version')).toBe('2')
+  })
+  it('accepts an empty successful delete response without treating it as invalid JSON',async()=>{
+    const fetcher=vi.fn<typeof fetch>().mockResolvedValue(new Response(null,{status:204}))
+    const transport=new HttpThreadTransport('','',fetcher)
+    await expect(transport.deleteThread('thr_disposable')).resolves.toBeUndefined()
+    expect(fetcher.mock.calls[0][1]?.method).toBe('DELETE')
+  })
+  it('uploads a CSV larger than the obsolete client limit using published material limits', async () => {
+    const fetcher=vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify({limits:{max_file_bytes:8*1024*1024,supported_extensions:['.csv']}})))
+      .mockResolvedValueOnce(new Response('{}'))
+    const transport=new HttpThreadTransport('', '', fetcher)
+    const file=new File(['x'.repeat(600*1024)],'prices.csv')
+    await transport.uploadThreadMaterial('thr_demo_39',file)
+    expect(fetcher.mock.calls[1][1]?.body).toBe(file)
+    expect(fetcher.mock.calls[1][1]?.method).toBe('POST')
+  })
+  it('reads mixed-version lists without upgrading the current conversation transport', async () => {
+    const page = {schema:'capstone-thread-list/1',threads:[{thread_id:'thr_work',model_id:null,
+      implementation_family:null,minimum_protocol_version:2,created_at:'2026-10-17T00:00:00Z',archived:false,last_event_seq:2}],has_more:false,next_before_thread_id:null}
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify({error:'protocol_upgrade_required'}),{status:409}))
+      .mockResolvedValueOnce(new Response(JSON.stringify(page),{headers:{'Capstone-Thread-Version':'2'}}))
+      .mockResolvedValueOnce(new Response('{}',{headers:{'Capstone-Thread-Version':'1'}}))
+      .mockResolvedValueOnce(new Response('{}',{headers:{'Capstone-Thread-Version':'1'}}))
+    const transport = new HttpThreadTransport('', '', fetcher)
+    expect((await transport.listThreads()).threads[0].minimumProtocolVersion).toBe(2)
+    await transport.getSnapshot('thr_demo_39')
+    await transport.sendCommand(command)
+    expect(new Headers(fetcher.mock.calls[1][1]?.headers).get('Capstone-Thread-Version')).toBe('2')
+    expect(new Headers(fetcher.mock.calls[3][1]?.headers).get('Capstone-Thread-Version')).toBe('1')
+    expect(fetcher.mock.calls.filter(([,init])=>init?.method==='POST')).toHaveLength(1)
+  })
+
+  it('declares the supported version for JSON commands and SSE', async () => {
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response('{}', { headers: { 'Capstone-Thread-Version': '1' } }))
+      .mockResolvedValueOnce(new Response('{}', { headers: { 'Capstone-Thread-Version': '1' } }))
+      .mockResolvedValueOnce(new Response(''))
+    const transport = new HttpThreadTransport('', '', fetcher)
+    await transport.getSnapshot('thr_demo_39')
+    await transport.sendCommand(command)
+    for await (const _event of transport.streamEvents('thr_demo_39', 0)) { /* empty stream */ }
+    expect(new Headers(fetcher.mock.calls[0][1]?.headers).has('Capstone-Thread-Version')).toBe(false)
+    for (const [, init] of fetcher.mock.calls.slice(1)) {
+      expect(new Headers(init?.headers).get('Capstone-Thread-Version')).toBe('1')
+    }
+  })
+
+  it('keeps legacy CORS requests free of unadvertised headers and never resends a write', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async (_url, init) => {
+      if (new Headers(init?.headers).has('Capstone-Thread-Version')) throw new TypeError('Legacy CORS preflight denied')
+      return new Response('{}')
+    })
+    const transport = new HttpThreadTransport('https://legacy.example', '', fetcher)
+    await transport.getSnapshot('thr_demo_39')
+    await transport.sendCommand(command)
+    expect(fetcher).toHaveBeenCalledTimes(2)
+  })
+
+  it.each(['json', 'stream'])('rejects a mismatched %s response before reading its body', async (kind) => {
+    const cancel = vi.fn()
+    const body = new ReadableStream({ cancel })
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(body, {
+      headers: { 'Capstone-Thread-Version': '2' },
+    }))
+    const transport = new HttpThreadTransport('', '', fetcher)
+    const result = kind === 'json' ? transport.getSnapshot('thr_demo_39')
+      : transport.streamEvents('thr_demo_39', 0).next()
+    await expect(result).rejects.toMatchObject({
+      status: 409, body: { error: 'thread_version_mismatch' },
+    })
+    expect(cancel).toHaveBeenCalledOnce()
+    expect(fetcher).toHaveBeenCalledOnce()
+  })
+
+  it.each(['unsupported_thread_version', 'protocol_upgrade_required'])('explains %s without a generic service failure', async (error) => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ error }), { status: 409 }))
+    const transport = new HttpThreadTransport('', '', fetcher)
+    await expect(transport.getSnapshot('thr_demo_39')).rejects.toThrow(/版本/)
+  })
+
   it('reads only the selected task record page without submitting a command', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
       schema: 'capstone-attempt-records/1', thread_id: 'thr_1', attempt_id: 'attempt_1',
@@ -19,7 +110,7 @@ describe('HttpThreadTransport', () => {
     const page = await transport.readAttemptRecords('thr_1', 'attempt_1', 7)
     expect(page.instruction).toBe('Original task')
     expect(fetcher).toHaveBeenCalledOnce()
-    expect(fetcher.mock.calls[0][0]).toBe('/api/v1/threads/thr_1/attempts/attempt_1/records?after=7&limit=32')
+    expect(fetcher.mock.calls[0][0]).toBe(`/api/v1/threads/thr_1/attempts/attempt_1/records?after=7&limit=${applicationCapacity('native_record_count')}`)
     expect(fetcher.mock.calls[0][1]?.body).toBeUndefined()
   })
   it('bounds each SSE frame rather than a chunk containing multiple complete diagrams', async () => {
@@ -39,7 +130,7 @@ describe('HttpThreadTransport', () => {
     for await (const event of transport.streamEvents('thr_demo_39', 0)) sequences.push(event.eventSeq)
     expect(sequences).toEqual([1, 2])
     const oversized = new HttpThreadTransport('', '', vi.fn<typeof fetch>().mockResolvedValue(new Response('x'.repeat(MAX_THREAD_JSON_BYTES + 1))))
-    await expect(oversized.getSnapshot('thr_demo_39')).rejects.toThrow('超过允许大小')
+    await expect(oversized.getSnapshot('thr_demo_39')).rejects.toThrow(/event_page_bytes/)
   })
   it('reads a snapshot and event page through the configured Thread resource', async () => {
     const fetcher = vi.fn<typeof fetch>()

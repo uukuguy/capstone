@@ -1,0 +1,7 @@
+{
+  "source_refs": ["resource:resource_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:1:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"],
+  "source_versions": [{
+    "ref": "resource:resource_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:1:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "revision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  }]
+}

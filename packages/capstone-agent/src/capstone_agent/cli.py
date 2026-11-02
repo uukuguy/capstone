@@ -215,7 +215,7 @@ def main(
                     (entry.model_id, entry.display_name, entry.available, entry.unavailable_reason)
                     for entry in catalog.models
                 )
-                active_model_id = snapshot.active_model_context.model_id
+                active_model_id = snapshot.professional_context.model_id
                 if not any(model_id == active_model_id for model_id, *_ in model_options):
                     model_options = (*model_options, (active_model_id, active_model_id))
                 run_tui_session(
@@ -249,6 +249,13 @@ def main(
             artifacts = build_artifacts(settings, ledger)
             thread_service = PostgresThreadService(settings.database_url)
             thread_service.initialize()
+            thread_service.set_material_store(artifacts.store)
+            native_executor = None
+            if args.command == 'serve-hosted' and os.environ.get('CAPSTONE_GENERAL_EXECUTOR_ORIGIN'):
+                from .general_executor_composition import configured_general_executor
+                native_executor = configured_general_executor(os.environ)
+                if native_executor is not None:
+                    thread_service.set_native_executor(native_executor)
             if thread_application is not None:
                 # Workers need the same application-owned catalog context as
                 # the API so a family-specific runtime can answer cross-family
@@ -256,6 +263,13 @@ def main(
                 thread_application.thread_creator(thread_service)
             if args.command == "serve-hosted":
                 import uvicorn
+                if thread_application is not None and thread_application.resource_profiles is None:
+                    from .thread_input_catalog import RemoteResourceCatalog, catalog_provider
+                    remote_resources = RemoteResourceCatalog(os.environ.get('CAPSTONE_FAMILY_HEALTH_URLS', ''), settings.operator_token)
+                    thread_service.set_input_catalog_provider(catalog_provider(thread_service,
+                        lambda snapshot: (thread_service.native_resource_profiles()
+                            if snapshot.active_model_context is None else remote_resources(snapshot)),
+                        family_available=thread_service.is_family_available))
 
                 wake_worker = configured_worker_wake(settings.worker_wake_url,
                     os.environ.get('CAPSTONE_FAMILY_HEALTH_URLS', ''), settings.operator_token)
@@ -276,6 +290,7 @@ def main(
                         os.environ.get('CAPSTONE_FAMILY_HEALTH_URLS', ''), settings.operator_token),
                     validation_status=build_validation_status(os.environ),
                     thread_service=thread_service,
+                    native_artifact_executor=native_executor,
                     thread_creator=(
                         thread_application.thread_creator(thread_service)
                         if thread_application is not None
@@ -332,7 +347,7 @@ def main(
                         snapshot = thread_service.snapshot(thread_id)
                         if snapshot.run.state != 'open' or thread_service.is_archived(thread_id):
                             raise RuntimeError('thread is not open')
-                        if settings.thread_family is not None and snapshot.active_model_context.implementation_family != settings.thread_family:
+                        if settings.thread_family is not None and snapshot.professional_context.implementation_family != settings.thread_family:
                             raise RuntimeError('model family does not match worker')
                         record_thread_startup(thread_id, 'model_snapshot', started)
                         prepare = getattr(thread_runtime_factory, 'prepare_model', None)
@@ -350,6 +365,8 @@ def main(
                                 additional_wake_events=(thread_wake,) if thread_wake is not None else (),
                                 runtime_mode=runtime_mode,
                                 implementation_family=settings.thread_family,
+                                input_catalog=thread_service.input_catalog,
+                                thread_family=lambda thread_id: thread_service.snapshot(thread_id).professional_context.implementation_family,
                                 prepare_model=prepare_thread_model,
                                 resource_status=(thread_application.capability_context_owner.resource_counts
                                     if thread_application is not None and thread_application.capability_context_owner is not None else None),

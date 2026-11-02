@@ -26,6 +26,7 @@ python3 tools/check_protected_paths.py
 
 uv build --project packages/capability-agent-kernel --out-dir "$artifact_dir"
 uv build --project packages/capstone-model-capability-spi --out-dir "$artifact_dir"
+uv build --project packages/enterprise-research-domain-pack --out-dir "$artifact_dir"
 uv build --project packages/capstone-agent --out-dir "$artifact_dir"
 uv build --project packages/grid-simulator --out-dir "$artifact_dir"
 uv build --project packages/pandapower-domain-pack --out-dir "$artifact_dir"
@@ -58,6 +59,7 @@ PY
 npm pack --prefix "$grid_pack_dir" "$grid_pack_dir" --pack-destination "$artifact_dir" >/dev/null
 
 python_wheels=(
+  "$artifact_dir"/enterprise_research_domain_pack-*.whl
   "$artifact_dir"/capability_agent_kernel-*.whl
   "$artifact_dir"/capstone_model_capability_spi-*.whl
   "$artifact_dir"/capstone_agent-*.whl
@@ -68,6 +70,7 @@ python_wheels=(
   "$artifact_dir"/grid_agent-*.whl
 )
 pypsa_wheels=(
+  "$artifact_dir"/enterprise_research_domain_pack-*.whl
   "$artifact_dir"/capability_agent_kernel-*.whl
   "$artifact_dir"/capstone_model_capability_spi-*.whl
   "$artifact_dir"/capstone_agent-*.whl
@@ -79,8 +82,8 @@ pypsa_wheels=(
   "$artifact_dir"/pypsa_agent-*.whl
 )
 
-if [ "${#python_wheels[@]}" -ne 8 ] || [ "${#pypsa_wheels[@]}" -ne 9 ]; then
-  echo "expected eight grid/reference and nine PyPSA wheel inputs" >&2
+if [ "${#python_wheels[@]}" -ne 9 ] || [ "${#pypsa_wheels[@]}" -ne 10 ]; then
+  echo "expected nine grid/reference and ten PyPSA wheel inputs" >&2
   exit 1
 fi
 for wheel in "${python_wheels[@]}" "${pypsa_wheels[@]}"; do
@@ -95,6 +98,17 @@ uv pip install --python "$venv_dir/bin/python" "${python_wheels[@]}"
 uv venv "$pypsa_venv_dir" >/dev/null
 uv pip install --python "$pypsa_venv_dir/bin/python" "${pypsa_wheels[@]}"
 "$venv_dir/bin/python" -c 'import capstone_agent.application, grid_agent.application.composition'
+"$venv_dir/bin/python" - <<'PY'
+from pathlib import Path
+from capstone_agent.pi_intent import default_config_root
+import capstone_agent
+
+root = default_config_root()
+assert root.is_relative_to(Path(capstone_agent.__file__).parent), root
+for name in ('SYSTEM.md', 'APPEND_SYSTEM.md', 'INTENT.md', 'settings.json'):
+    assert (root / name).read_text(encoding='utf-8').strip(), name
+print('installed-pi-configuration: ok')
+PY
 "$pypsa_venv_dir/bin/python" -c 'from pypsa_agent.registry import build_trusted_application_registry; assert build_trusted_application_registry().resolve("pypsa-business-cases")'
 
 smoke_file="$run_dir/installed_smoke.py"
@@ -445,7 +459,9 @@ await writeFile(
 );
 process.env.CAPABILITY_AGENT_RUNTIME_DESCRIPTOR = descriptorPath;
 const registered = [];
-extension({ registerTool: (tool) => registered.push(tool) });
+const subscribed = new Set();
+extension({ on: (event) => subscribed.add(event), registerTool: (tool) => registered.push(tool) });
+if (!subscribed.has('before_agent_start')) throw new Error('installed execution guidance is missing');
 const names = registered.map((tool) => tool.name).sort();
 if (JSON.stringify(names) !== JSON.stringify(["grid_environment_describe", "grid_guide_open"])) {
   throw new Error(`installed extension registration mismatch: ${JSON.stringify(names)}`);

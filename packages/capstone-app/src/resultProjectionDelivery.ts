@@ -1,7 +1,6 @@
+import {applicationCapacity,assertCapacity} from './applicationCapacity'
 import { parseResultProjection, type EventEnvelope } from './threadProtocol'
 
-const MAX_BYTES = 8 * 1024 * 1024
-const MAX_PARTS = Math.ceil(MAX_BYTES / 4000)
 
 type Parts = { event: EventEnvelope; count: number; data: string[] }
 
@@ -18,15 +17,17 @@ export class ResultProjectionDelivery {
   accept(event: EventEnvelope): void {
     if (event.eventType !== 'result_projection_part') return
     const { result_id: id, part_index: index, parts: count, data } = event.payload
+    if(typeof count==='number')assertCapacity(count,'ui_result_part_count','projection.parts')
+    if(typeof data==='string')assertCapacity(Array.from(data).length,'ui_result_part_chars','projection.parts')
     if (typeof id !== 'string' || !/^[a-zA-Z0-9_.:-]{1,128}$/.test(id) || !event.attemptId || !Number.isInteger(index) || !Number.isInteger(count) ||
-      typeof index !== 'number' || typeof count !== 'number' || count < 1 || count > MAX_PARTS ||
-      typeof data !== 'string' || !data || Array.from(data).length > 4000) throw new Error('result projection part is invalid')
+      typeof index !== 'number' || typeof count !== 'number' || count < 1 || count > applicationCapacity('ui_result_part_count') ||
+      typeof data !== 'string' || !data || Array.from(data).length > applicationCapacity('ui_result_part_chars')) throw new Error('result projection part is invalid')
     const key = `${event.attemptId}:${id}`
     const entry = this.entries.get(key) ?? { event, count, data: [] }
     if (count !== entry.count || index !== entry.data.length || index >= count ||
       !sameAttempt(entry.event, event)) throw new Error('result projection parts do not match')
     const size = new TextEncoder().encode(data).byteLength
-    if (this.bytes + size > MAX_BYTES) throw new Error('result projection parts exceed the size limit')
+    assertCapacity(this.bytes+size,'product_bytes','projection.parts')
     entry.data.push(data)
     this.entries.set(key, entry)
     this.bytes += size
@@ -37,7 +38,7 @@ export class ResultProjectionDelivery {
     if (manifest === undefined) return undefined
     const admission = event.payload.admission as Record<string, unknown> | undefined
     if (!['attempt_completed', 'attempt_failed'].includes(event.eventType) || !Array.isArray(manifest) ||
-      manifest.length > 64 || admission?.mode !== 'authority_backed' || admission.assurance !== 'lineage_verified') {
+      manifest.length > applicationCapacity('ui_result_projection_count') || admission?.mode !== 'authority_backed' || admission.assurance !== 'lineage_verified') {
       throw new Error('result projection manifest is invalid')
     }
     const ids = new Set<string>()

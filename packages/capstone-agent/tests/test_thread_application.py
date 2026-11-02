@@ -82,6 +82,9 @@ class _CreatorService:
     def __init__(self) -> None:
         self.snapshot = None
 
+    def set_material_store(self, store):
+        self.material_store = store
+
     def create_thread(self, snapshot):
         self.snapshot = snapshot
         return snapshot
@@ -443,6 +446,22 @@ def test_prepared_application_factory_does_not_start_session_after_preparation_f
     with pytest.raises(RuntimeError, match="session setup failed"):
         factory(claim)
     assert called == [True]
+    owner.close()
+
+
+def test_empty_selection_skips_domain_network_projection_and_releases_context():
+    owner, adapter = _prepared_owner()
+    def projection(claim, context):
+        pytest.fail("Empty selection must not prepare a Domain Pack projection")
+    runtime = PreparedApplicationPiRuntimeFactory(
+        owner, lambda claim, context: _Session(), network_projection_factory=projection,
+    )(_claim())
+    assert not runtime.network_projection_enabled
+    assert adapter.contexts == []
+    runtime.start()
+    assert runtime.prompt("hello", on_event=lambda event: None) == "answer"
+    runtime.stop()
+    assert owner.resource_counts()["active"] == 0
     owner.close()
 
 

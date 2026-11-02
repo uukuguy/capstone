@@ -1,3 +1,4 @@
+import {applicationCapacity} from './applicationCapacity'
 import { useState } from 'react'
 import type { AttemptRecords } from './attemptRecords'
 import type { EventEnvelope } from './threadProtocol'
@@ -32,7 +33,7 @@ export default function AttemptRecordPanel({ attemptId, read }: { attemptId: str
       const events = page.events.filter(visibleRecord)
       // Skip internal-only pages without requiring a click for each stream frame page.
       // Bound each user action to eight requests; the next cursor remains available.
-      for (let requests = 1; requests < 8 && page.hasMore && events.length === 0 && page.nextAfter > cursor; requests++) {
+      for (let requests = 1; requests < applicationCapacity('artifact_initial_pages') && page.hasMore && events.length === 0 && page.nextAfter > cursor; requests++) {
         cursor = page.nextAfter
         try {
           page = await read(attemptId, cursor)
@@ -57,6 +58,7 @@ export default function AttemptRecordPanel({ attemptId, read }: { attemptId: str
         <small>事件 {event.eventSeq} · {event.occurredAt}</small>
       </li>)}</ol>
       <p>已读取到事件 {records.nextAfter}。{records.hasMore ? '还有后续记录。' : '记录读取完毕。'}</p>
+      {!records.hasMore && !records.instruction.trim() && !records.modelContext && records.events.length === 0 && <p>此任务没有可读的原始指令、模型或执行记录。</p>}
     </>}
     {error && <p role="alert">任务记录暂时无法读取。已读内容保留，请重试。</p>}
     {(!records || records.hasMore) && <button type="button" disabled={loading} onClick={() => void load()}>

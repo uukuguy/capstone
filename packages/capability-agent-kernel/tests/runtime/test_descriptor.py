@@ -16,6 +16,16 @@ from capability_agent.runtime.descriptor import (
 )
 
 
+def test_runtime_capacity_mode_is_explicit_validated_and_matches_composite(tmp_path):
+    first=_binding_descriptor(tmp_path,'first',runtime_limits={'tool_observation_bytes':1024},runtime_limit_mode='debug')
+    assert first.as_json()['runtime_limit_mode']=='debug'
+    second=_binding_descriptor(tmp_path,'second',runtime_limits={'tool_observation_bytes':1024},runtime_limit_mode='normal')
+    with pytest.raises(RuntimeDescriptorError,match='mode'):
+        CompositeRuntimeDescriptor((first,second)).as_json()
+    with pytest.raises(RuntimeDescriptorError,match='mode'):
+        _binding_descriptor(tmp_path,'invalid',runtime_limit_mode='silent')
+
+
 def _binding_descriptor(
     tmp_path: Path, binding_id: str, **overrides: object
 ) -> RuntimeDescriptor:

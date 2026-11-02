@@ -21,10 +21,11 @@ def store(tmp_path):
     return store
 
 
-def controller(store, *, turn="turn-1", refs=()):
+def controller(store, *, turn="turn-1", refs=(), runtime_limits=None):
     return ResearchController(
         store, research_id="research-1", turn_id=turn,
         admit_reference=lambda ref: ref in refs,
+        runtime_limits=runtime_limits,
     )
 
 
@@ -121,11 +122,14 @@ def test_claim_revision_keeps_prior_statement_in_event_history(store):
 
 
 def test_duplicate_claim_ids_and_oversized_input_are_rejected(store):
-    research = controller(store)
+    research = controller(store,runtime_limits={'research_goal_chars':4000})
     claim = {"claim_id": "claim-1", "statement": "Hypothesis"}
-    for changes in ({"claims": [claim, claim]}, {"goal": "x" * 4001}, {}):
+    for changes in ({"claims": [claim, claim]}, {}):
         with pytest.raises(ContextStoreError, match="invalid research update"):
             research.update({"request_id": "bad", "expected_revision": 0, "changes": changes})
+    from capability_agent.runtime.capacity import CapacityExceeded
+    with pytest.raises(CapacityExceeded,match='research_goal_chars.*4001.*4000'):
+        research.update({'request_id':'too-large','expected_revision':0,'changes':{'goal':'x'*4001}})
     assert research.read() is None
 
 

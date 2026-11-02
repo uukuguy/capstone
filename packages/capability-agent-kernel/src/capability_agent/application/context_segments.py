@@ -20,6 +20,7 @@ from pydantic import ValidationError
 from capability_agent._safe_files import open_bound_parent
 from capability_agent.application.context_models import ContextEvent, PORTABLE_ID_PATTERN
 from capability_agent.trajectory.canonical import canonical_json_bytes
+from capability_agent.runtime.capacity import runtime_limits,check_capacity,observe_capacity,CapacityExceeded
 
 
 MARKER_SCHEMA = "application-context-storage/1.0"
@@ -174,7 +175,10 @@ def decode_document(raw: bytes, *, max_bytes: int) -> dict[str, object]:
 
     if not isinstance(max_bytes, int) or isinstance(max_bytes, bool) or max_bytes < 1:
         raise SegmentStorageError("segmented document limit is invalid")
-    if not isinstance(raw, bytes) or len(raw) > max_bytes:
+    if not isinstance(raw, bytes):
+        raise SegmentStorageError("segmented document is invalid")
+    if observe_capacity('context_segment_bytes',len(raw),limits={'context_segment_bytes':max_bytes},
+                        unit='bytes',phase='context_document_read'):
         raise SegmentStorageError("segmented document is invalid")
     try:
         text = raw.decode("utf-8", errors="strict")
@@ -231,8 +235,7 @@ def encode_segment(
     if previous is None and (segment.start_revision != 1 or segment.previous_segment_sha256 is not None):
         raise SegmentStorageError("context segment is invalid")
     raw = canonical_json_bytes(segment.document())
-    if len(raw) > SEGMENT_MAX_BYTES:
-        raise SegmentStorageError("context segment is invalid")
+    check_capacity(runtime_limits(),'context_segment_bytes',len(raw),unit='bytes',phase='context_segment_write')
     return segment, raw, sha256(raw).hexdigest()
 
 
@@ -240,7 +243,7 @@ def decode_segment(raw: bytes, *, expected_sha256: str) -> ContextSegment:
     """Decode a canonical segment whose bytes match its content-address name."""
 
     expected = _hex64(expected_sha256)
-    document = decode_document(raw, max_bytes=SEGMENT_MAX_BYTES)
+    document = decode_document(raw, max_bytes=runtime_limits()['context_segment_bytes'])
     if sha256(raw).hexdigest() != expected:
         raise SegmentStorageError("context segment is invalid")
     return ContextSegment.from_document(document)
@@ -264,10 +267,10 @@ def read_chain(entry_path: Path) -> tuple[SegmentManifest, tuple[ContextEvent, .
     if not (marker_exists and manifest_exists and segments_exists):
         raise SegmentStorageError("segmented storage is inconsistent")
     _require_directory(segments_path)
-    if _read_path(entry, max_bytes=MARKER_MAX_BYTES, mutable=False) != b"":
+    if _read_path(entry, max_bytes=runtime_limits()['context_manifest_bytes'], mutable=False) != b"":
         raise SegmentStorageError("segmented storage is inconsistent")
-    marker = StorageMarker.from_document(_read_document(marker_path, MARKER_MAX_BYTES, mutable=False))
-    manifest = SegmentManifest.from_document(_read_document(manifest_path, MANIFEST_MAX_BYTES, mutable=True))
+    marker = StorageMarker.from_document(_read_document(marker_path, runtime_limits()['context_marker_bytes'], mutable=False))
+    manifest = SegmentManifest.from_document(_read_document(manifest_path, runtime_limits()['context_manifest_bytes'], mutable=True))
     if marker.run_id != manifest.run_id:
         raise SegmentStorageError("segmented storage is inconsistent")
     current = manifest.head_segment_sha256
@@ -277,7 +280,7 @@ def read_chain(entry_path: Path) -> tuple[SegmentManifest, tuple[ContextEvent, .
         if current in seen:
             raise SegmentStorageError("context segment chain is invalid")
         seen.add(current)
-        raw = _read_path(segments_path / f"{current}.json", max_bytes=SEGMENT_MAX_BYTES, mutable=False)
+        raw = _read_path(segments_path / f"{current}.json", max_bytes=runtime_limits()['context_segment_bytes'], mutable=False)
         segment = decode_segment(raw, expected_sha256=current)
         records.append((current, segment))
         if segment.run_id != manifest.run_id:
@@ -328,6 +331,11 @@ def _read_path(path: Path, *, max_bytes: int, mutable: bool) -> bytes:
                 before = os.fstat(descriptor)
                 if not stat.S_ISREG(before.st_mode):
                     raise OSError("not regular")
+                dimension = ('context_marker_bytes' if path.name == 'context-storage.json' else
+                             'context_manifest_bytes' if path.name in {'context-manifest.json','context-events.jsonl'} else
+                             'context_segment_bytes')
+                if observe_capacity(dimension,before.st_size,limits={dimension:max_bytes},unit='bytes',phase='context_document_read'):
+                    raise OSError('capacity exceeded')
                 chunks: list[bytes] = []
                 remaining = max_bytes + 1
                 while remaining:
@@ -338,7 +346,7 @@ def _read_path(path: Path, *, max_bytes: int, mutable: bool) -> bytes:
                     remaining -= len(chunk)
                 raw = b"".join(chunks)
                 after = os.fstat(descriptor)
-                if len(raw) > max_bytes:
+                if observe_capacity(dimension,len(raw),limits={dimension:max_bytes},unit='bytes',phase='context_document_read'):
                     raise OSError("changed")
                 named = os.stat(name, dir_fd=parent, follow_symlinks=False)
                 if mutable:
@@ -366,6 +374,8 @@ def _read_path(path: Path, *, max_bytes: int, mutable: bool) -> bytes:
                 return raw
             finally:
                 os.close(descriptor)
+    except CapacityExceeded:
+        raise
     except (OSError, ValueError, TypeError):
         raise SegmentStorageError("segmented storage cannot be read") from None
 

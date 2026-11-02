@@ -1,0 +1,10 @@
+{
+  "repository": "https://github.com/anthropics/knowledge-work-plugins",
+  "commit": "33eeda1e8fd856455b05479d13a0f85b5f803744",
+  "upstream_directory": "data",
+  "files": {
+    "skills/explore-data/SKILL.md": "af7590fa616360259da712b5ede5f79b817beb854c47a465f95774354988e8a2",
+    "CONNECTORS.md": "79de0e9613ef7870e773b6dcdcb7d50f4bff2c0574c14ab5e0aeb29014dcec7b",
+    "LICENSE": "a6946284993aeec75c7d75906064b66210c46051e562077efb30eb6dcfe72e26"
+  }
+}

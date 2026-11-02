@@ -15,9 +15,9 @@ from .thread_catalog import ThreadCatalogProjection
 from .thread_protocol import CaseExecutionSnapshot, CommandReceipt, EventPage, ThreadProtocolError, ThreadSnapshot
 
 
-from .network_diagram import MAX_THREAD_JSON_BYTES
+from .application_capacity import CapacityExceeded, limits, require_capacity
 
-MAX_JSON_BYTES = MAX_THREAD_JSON_BYTES
+MAX_JSON_BYTES = limits.control_document_bytes
 
 
 class ThreadHttpError(RuntimeError):
@@ -40,14 +40,26 @@ def _origin(value: str) -> str:
     return value.rstrip("/")
 
 
+def _check_size(actual: int, phase: str) -> None:
+    try:
+        require_capacity('control_document_bytes', actual, phase=phase)
+    except CapacityExceeded as error:
+        raise ThreadHttpError(413, 'Thread JSON exceeds application capacity', {'detail': error.to_document()}) from error
+
+
 def _decode(status_code: int, is_success: bool, content: bytes) -> Any:
-    if len(content) > MAX_JSON_BYTES:
-        raise ThreadHttpError(status_code, "Thread response exceeds the bounded JSON limit")
+    _check_size(len(content), 'http_response')
     try:
         body = json.loads(content)
     except (json.JSONDecodeError, ValueError) as error:
         raise ThreadHttpError(status_code, "Thread response is not JSON") from error
     if not is_success:
+        if isinstance(body, dict) and isinstance(body.get('detail'), dict) and body['detail'].get('code') == 'capacity_exceeded':
+            raise ThreadHttpError(status_code, 'Thread request exceeds application capacity', body)
+        if isinstance(body, dict) and isinstance(body.get('error'), str) and body['error'] in {
+            'unsupported_thread_version', 'protocol_upgrade_required',
+        }:
+            raise ThreadHttpError(status_code, 'Thread protocol version is incompatible; update the client', body)
         raise ThreadHttpError(status_code, f"Thread request failed ({status_code})", body)
     return body
 
@@ -61,8 +73,11 @@ class HttpThreadSession:
     client: httpx.Client | None = None
     thread_id: str | None = None
     run_id: str | None = None
+    protocol_version: int = 1
 
     def __post_init__(self) -> None:
+        if type(self.protocol_version) is not int or self.protocol_version not in {1, 2}:
+            raise ValueError('unsupported Thread protocol version')
         self.api_origin = _origin(self.api_origin)
         if not isinstance(self.operator_token, str) or not self.operator_token:
             raise ValueError("operator_token is required")
@@ -88,19 +103,22 @@ class HttpThreadSession:
         extra_headers = kwargs.pop("headers", None)
         if extra_headers:
             headers.update(extra_headers)
+        headers['Capstone-Thread-Version'] = str(self.protocol_version)
         if json_body is not None:
             try:
                 request_size = len(json.dumps(json_body, ensure_ascii=False, allow_nan=False).encode())
             except (TypeError, ValueError) as error:
                 raise ThreadHttpError(400, "Thread request JSON is invalid") from error
-            if request_size > MAX_JSON_BYTES:
-                raise ThreadHttpError(413, "Thread request exceeds the bounded JSON limit")
+            _check_size(request_size, 'http_request')
         with self.client.stream(method, f"{self.api_origin}{path}", headers=headers, json=json_body, **kwargs) as response:
+            compatible_versions = {None, '1'} if self.protocol_version == 1 else {'2'}
+            if response.is_success and response.headers.get('Capstone-Thread-Version') not in compatible_versions:
+                raise ThreadHttpError(409, 'Thread protocol version is incompatible; update the client',
+                                      {'error': 'thread_version_mismatch'})
             content = bytearray()
             for chunk in response.iter_bytes():
                 content.extend(chunk)
-                if len(content) > MAX_JSON_BYTES:
-                    raise ThreadHttpError(response.status_code, "Thread response exceeds the bounded JSON limit")
+                _check_size(len(content), 'http_response')
             return _decode(response.status_code, response.is_success, bytes(content))
 
     def create(self, model_id: str | None = None) -> ThreadSnapshot:
@@ -160,14 +178,24 @@ class HttpThreadSession:
     def command(
         self, kind: str, payload: dict[str, Any], *, expected_event_seq: int | None = None,
         command_id: str | None = None, idempotency_key: str | None = None,
+        target: dict[str, Any] | None = None,
     ) -> CommandReceipt:
         thread_id, run_id = self._require_identity()
-        if expected_event_seq is None:
-            expected_event_seq = self.snapshot().last_event_seq
         command_id = command_id or f"cmd_{uuid.uuid4().hex[:20]}"
         idempotency_key = idempotency_key or f"idem_{uuid.uuid4().hex[:20]}"
-        factory = ThreadCommandFactory(thread_id, run_id)
-        command = factory._command(kind, dict(payload), expected_event_seq=expected_event_seq, command_id=command_id, idempotency_key=idempotency_key)
+        if self.protocol_version == 2:
+            if target is None or expected_event_seq is not None:
+                raise ValueError('protocol 2 commands require an object target and no event CAS')
+            command = {'schema': 'capstone-command/2', 'command_id': command_id,
+                'idempotency_key': idempotency_key, 'thread_id': thread_id, 'run_id': run_id,
+                'kind': kind, 'payload': dict(payload), 'target': dict(target)}
+        else:
+            if target is not None:
+                raise ValueError('protocol 1 commands do not accept an object target')
+            if expected_event_seq is None:
+                expected_event_seq = self.snapshot().last_event_seq
+            factory = ThreadCommandFactory(thread_id, run_id)
+            command = factory._command(kind, dict(payload), expected_event_seq=expected_event_seq, command_id=command_id, idempotency_key=idempotency_key)
         document = self._request("POST", f"/api/v1/threads/{thread_id}/commands", json_body=command, headers={"Idempotency-Key": idempotency_key})
         receipt = CommandReceipt.from_document(document)
         if receipt.command_id != command_id or receipt.idempotency_key != idempotency_key or receipt.thread_id != thread_id or receipt.run_id != run_id:

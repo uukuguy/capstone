@@ -63,7 +63,7 @@ class Policy:
     max_context_bytes: int = 240000
     attachment_hosts: tuple = ("github.com", "user-images.githubusercontent.com")
     attachment_urls: tuple = ()
-    required_ci: tuple = ("verify (ubuntu-latest)", "verify (macos-latest)")
+    required_ci: tuple = ("verify (macos-latest)",)
     check_profile: str = "app-and-backend"
     publisher_login: str = "capstone-xiaoshi[bot]"
     publisher_app_id: int = 0
@@ -71,6 +71,12 @@ class Policy:
     publisher_jwt_env: str = "CAPSTONE_ISSUE_GITHUB_APP_JWT"
     publisher_private_key_path: str = ".capstone-agent/issue-automation/app-private-key.pem"
     display_name: str = "小石 · Capstone AI"
+
+    def ci_requirements(self, *, target_branch=None, release=False):
+        """Apply development checks only with an explicit dev target."""
+        if target_branch == "dev" and not release:
+            return self.required_ci
+        return tuple(dict.fromkeys(("verify (ubuntu-latest)", "verify (macos-latest)", *self.required_ci)))
 
     def validate(self):
         url = urlsplit(self.endpoint)

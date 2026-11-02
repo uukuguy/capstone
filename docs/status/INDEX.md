@@ -1,5 +1,518 @@
 # docs/status INDEX
 
+2026-11-01: [Native worker session concurrency](KNOWN-ISSUES.md#native-worker-session-concurrency--2026-11-01)
+is recorded for later work; no concurrency change in this deployment repair.
+
+Intranet deployment is ready at http://192.168.72.63:5173/. Default dsv4 and
+intranet gateway passed a 32.9-second CSV task with zero errors. Research is disabled.
+See [deployment receipt](../reports/2026-11-01-intranet-deployment.md).
+
+Unified main-path correction `2b347fc6` shares successful reads across direct and
+composed calls, validates source tables before publication, and preserves model
+network diagnostics. Focused checks, rebuild and 26-second live validation pass:
+7 model responses, 8 tool executions, zero errors; reuse/refresh and CSV hashes verified.
+The authorized summer rerun ended during confirmed network loss; full business
+acceptance is not passed. No CI or automatic replay.
+See [unified pipeline](../reports/2026-11-01-unified-observation-pipeline.md) and
+[rerun diagnosis](../reports/2026-11-01-summer-rerun-reuse.md). Earlier entries follow.
+
+Local0db2803a unifies task observation references and structured roots; b8ae7ba1
+reduces redundant tool discovery. Fresh metadata task:21.9s,4 model responses,
+4 tools,zero errors or repeated retrievals. Artifact hash and local image parity
+verified. Full summer business acceptance remains pending; no CI or replay.
+See [selector coordination](../reports/2026-11-01-gateway-selector-followup.md).
+
+Local3e9c8c8e fixes executor identity and model-budget binding startup failures.
+Real metadata validation completed40.7s:7 model responses,11 tools,zero errors;
+second composition reused references with no gateway call. Ready/image parity and
+artifact hash verified. No CI or historical business replay. Planning redundancy
+remains separate from mechanism acceptance; see the main-path diagnosis below.
+
+Local67650a8e restores runtime startup and deploys shared observation recovery diagnostics
+and model context policies. Focused checks and readiness pass; no CI or historical replay.
+See [main-path diagnosis](../reports/2026-11-01-lightweight-execution-recovery.md).
+
+App df138a2d displays lightweight compaction records without extra model counts.
+49 focused checks, types, existing-tab synthetic preview and local readiness pass.
+
+2026-11-01 local source356b0e64: public Pi compaction lifecycle and bounded saved
+observation reuse. Ready, same-image and focused checks pass; no CI or business replay.
+See VERSION-CONTROL, live RESUME and the [execution audit](../reports/2026-11-01-execution-efficiency-audit.md).
+
+Current local sourcebec075c3: reference-first startup and on-demand protected reads;
+first model wait1.273s,total2.8s in the existing tab. See VERSION-CONTROL,
+RESUME and the updated [implementation report](../reports/2026-10-31-latest-session-tool-errors.md).
+
+App ad9078ef: blank-scroll recovery and concise call records;214 focused tests/types
+and existing-tab trial verified. See VERSION-CONTROL and live RESUME for limits.
+
+UI correction2e44b89a: completion preserves an already-visible instruction and
+inlines token usage;151 focused tests/types pass. See VERSION-CONTROL and RESUME.
+
+Latest verified work2026-10-31: backend6de15939/App4c7e56bf implement deterministic returned actions,
+configurable tool capacity, readable diagnostics, public response intent and
+completion focus. Local ready and same-image checks plus real short-task UI closeout pass; no CI/push/PR/cloud changes.
+See JOURNAL and RESUME-NEXT-SESSION for exact recovery. Entries below are history.
+
+Active startup repair2026-10-31: fix/gateway-entry-startup at565802f9, based on actual devc282dc8f.
+User feedback: four searches preceded discovery on the fifth model response.
+The candidate activates admitted gateway entry tools on the first turn; business tools stay on demand.
+159 Python passed/32 skipped,14 JS, real SDK and types passed; independent review clear.
+Not pushed, no PR, not integrated or deployed. This startup repair is active; generic-round reduction remains a separate gap.
+Visible52.7s trial CSVbeijing_substations_5.csv preview/download5 rows passed, without speed acceptance.
+Runtime productd9e24798/source61ec56c6/image989226e8 and other deployments remain unchanged.
+Future trials use the already-open visible Capstone tab. Earlier integrated source82 records follow.
+
+Final actual-dev snapshot2026-10-31: [PR82](https://github.com/uukuguy/capstone/pull/82)
+merged c282dc8f; actual root dev and origin/dev match. Docs CI41147685192 passed2m42s.
+PR81 runtime productd9e24798/image989226e8 and the other three deployments stay unchanged.
+Nine prior root snapshots remain in stash adeb326b26ecf26cba82dd665ac1d81e2b5590b7.
+VERSION/INDEX/HTML remain an explicit uncommitted final HEAD snapshot, avoiding a self-hash cycle.
+Product branch is closed; docs closeout branch is merged and closed locally and remotely; retained worktree is detached at origin/devc282.
+Visible Vivaldi taskthr_92098ce0f8f797425bca completed52.7s with27 tools and24 model responses/48.2s.
+beijing_substations_5.csv preview and download are visible; the parent retains download/screenshot receipts.
+Performance gap remains; no business reruns here.
+Earlier product integration receipts follow.
+
+Current integration2026-10-31: [PR81](https://github.com/uukuguy/capstone/pull/81)
+merged as61ec56c6; current HEAD advanced to c282dc8f via PR82. Final40c4c2e4 passed
+slim CI41145432600 in3m33s; prior d9 CI41144188892 passed4m2s.
+Slim CI: Python627 passed/35 skipped in86.63s, App41 and JS35 passed;
+governance229 passed/2 skipped in4.84s. Earlier
+54.29s checks covered778 Python/41 skipped and remain a separate wider receipt.
+Canonical local rebuild passed exit0, readiness200, healthy API/worker/PyPSA/native
+on image989226e8c78d9c38111a722c22275f94feef6a8e9a754bba6537f10527f30e11.
+App product revisiond9e24798244ca919dfb50cf09f2e926d5d4edf1e differs from repository
+61ec56c6; dirty=false. Scoped cleanup passed. Only local-dev changed; other stages stay unchanged.
+Directory taskthr_e7821b65e9b793665f98/attempt_fbabd51e4c871ebb completed in62.29s:
+CSV5 rows, all downloaded artifact SHA checks and refresh restore passed.
+View trialthr_807ed824f046e4e03a5e/attempt_580c4d414aa92e8d completed81.51s;
+artifact SHA checks, refreshed snapshots, pinned-revision App open and189/189 read passed.
+This is local protocol/task acceptance, not human browser rendering acceptance.
+Performance remains unaccepted: directory62.29s included20 model responses/53.27s,
+gateway1.19s,4 searches/3 loads/8 bash calls. Reduce generic execution rounds as a separate nonblocking gap.
+Future lightweight business trials must start in the already-open visible Capstone tab.
+[Final report](../reports/2026-10-31-gateway-dynamic-bindings.md).
+Feature branch is verified and merged; local and remote branches are closed.
+The worktree is retained on docs/gateway-dynamic-closeout; PR81 preserves source40c4c2e4.
+No cloud/demo release, human-rendering or performance acceptance is claimed.
+Earlier closeout entries below are historical.
+
+Annotated milestone tag milestone-conversation-controls-20261031-06117a6e is
+pushed at06117a6e; local verification only, not cloud/demo release acceptance.
+
+Final 2026-10-31 repair closeout: PR79 and PR80 merged; actual root dev06117a6e.
+All four conversation repairs and scoped validation are complete. Cloud/demo unchanged.
+
+2026-10-31: conversation controls repair `8b2bd3b9` is on
+`fix/conversation-small-items-20261031`; 172 focused checks and types pass.
+Both canonical local rebuilds and real Escape/follow-up/refresh validation passed;
+PR79 merged as25da0ae7 after focused App CI passed4m1s. Delete confirmation passed
+user manual acceptance. See the [repair plan](../superpowers/plans/2026-10-31-conversation-small-items.md).
+
+2026-10-30: execution-chain fixes integrated into dev; see [repair receipt](../reports/2026-10-30-execution-chain-repair.md) and [gateway handoff](../reports/2026-10-30-data-gateway-joint-diagnosis-handoff.md). Research mode remains planned; current focus is gateway and general execution validation. Older notes below are historical.
+
+Earlier 2026-10-30 priority (completed integration): close lightweight execution work and integrate PR71
+into dev. LLM pools are opt-in experiments; ordinary execution stays direct.
+The [enterprise data research analysis discussion](../superpowers/specs/2026-10-30-enterprise-data-research-analysis.md)
+and [roadmap](../superpowers/plans/2026-10-30-enterprise-analysis-roadmap.md) record
+accepted future design, including explicit user acceptance of result revisions.
+See VERSION-CONTROL.md and PROJECT-OVERVIEW.html for actual integration/deployment
+state. The following October27 notes are historical, not the active priority.
+
+Latest user priority: finish the non-diagram gateway work first. Diagram v2,
+provincial drilldown and location work are paused. The user reports Beijing gateway
+work complete; Capstone integration remains pending. Power-flow terminal integration
+stays deferred. The [provincial scope/cache handoff](../superpowers/specs/2026-10-27-provincial-topology-cache-gateway-handoff.md)
+is a retained follow-up, not active delivery. Visible business checks use new
+conversations in the existing Vivaldi Capstone tab.
+
+Final live snapshot (2026-10-27): [PR70](https://github.com/uukuguy/capstone/pull/70)
+merged as f1e6e9fda332d324c4f6778a5325ee56c513f0cf. Documentation CI40416427472
+passed in 1m35s. Actual root dev and the retained feature worktree are at f1;
+remote feature/docs branches are closed. [PR69](https://github.com/uukuguy/capstone/pull/69)
+at bcd1a5ad1d51b8ade53a305a5498ca6d557a2c7b remains the fixed product-integration baseline.
+VERSION/INDEX/HTML remain uncommitted final merge-identity snapshot/checkpoint residue
+to avoid a self-commit cycle; canonical content is already integrated by PR70.
+Required CI40409319046 passed on 519bf75f in 27m16s. The feature branch is closed
+for development as a merged source; its worktree and recovery references remain.
+Runtime stays ed0c5ff2; fixed business acceptance stays 214c2e23. The actual-dev App
+entry is verified: feature Vite PID54072 stopped; root make capstone-app-dev launched
+PID92924 on port5173. lsof confirms ROOT/packages/capstone-app as cwd; entry was
+checked at bcd1a5ad and the checkout is now f1e6e9fd. API readiness is 200; refreshing the existing Vivaldi thread restored CSV
+downloads and products. Effective local-dev content remains ed0c5ff2 because
+localBuildIdentity excludes document/test changes. Root documents are restored; the earlier
+scoped stash reference remains in outputs/control-recovery-20261027/stash-ref.txt.
+Initial CI40396162810 failed type checks in 3m28s; 4c70736e fixed both nullable
+values (Pyright zero errors, 47 broker tests in 0.20s). CI40398582352 then failed
+on the missing model.artifact.import guide; ed0c5ff2 fixed guides and stale contract
+assumptions (39 passed). CI40402480242 failed on an old simulator discovery set;
+e913c450 updated simulator/Pack expectations (59+2 passed). CI40405274111 failed
+on a flaky backpressure test after 24m15s. Fix 519bf75f uses an Event and controlled
+deadline instead of sleep(0.2); 46 file checks and ten repeated six-case runs passed.
+The local full agent suite passed 2331 with 147 skipped in 144.92s; Pack passed 145
+in 1.17s. Model-capability, local-rebuild and generic-tools checks passed. These
+local checks remain distinct from the passed required PR gate.
+Direct Git access first timed out; the earlier successful push used
+the existing system proxy at 127.0.0.1:7897 without changing global configuration.
+Dynamic admission (7507ce58), relay (869c482c),
+initialization guidance (11e91972) and menus (1d953595) are deployed.
+The canonical ed0c5ff2 rebuild passed; API and all three workers share image
+sha256:cad1795d62599748f79190968b7877f96d2e43070fe36e61ac77261056651aa6.
+All roles, including native, are healthy with zero restarts; scoped cleanup is complete.
+Existing Vivaldi thread thr_260fbf7ddde61dd0dd89 retained all products after the
+rebuild and refresh. No business calls were repeated. The earlier c470 image at
+214c2e23 supplied the following fixed business acceptance evidence.
+Vivaldi checks passed: ten scopes in 21s with three tools/four model requests;
+five correct Beijing samples in 54.7s; same-conversation statistics/CSV in 61s,
+mean 6021.43852. Product-role guidance and the misplaced output manifest were fixed
+by 60468ba0/214c2e23. The final real retest took 76s/four tools: CSV is the main
+product, statistics notes support it, and both restore after refresh without another
+gateway query. Independent review has no Important/Critical findings; 13 Python
+and seven JS focused checks passed. Timing still varies; this is not a claim of
+complete performance optimization. Cloud/demo/main are unchanged.
+The earlier 214c control graph passed Vivaldi source-edge and text/card checks.
+This refresh generates the actual ROOT dev graph once, showing bcd1a5ad as a real
+node and retaining the ed0c runtime and fixed 214c business-acceptance nodes.
+The coordinator will check the new layout and source edges in Vivaldi; that check
+is pending. See [the self-description and workbench report](../reviews/2026-10-27-mcp-self-discovery.md).
+
+Previous boundary (historical): dev was 9d691624 after PR68 merged.
+Required macOS CI 40339429930 passed on f9010be5 in 12m31s. Root fast-forward
+preserved dirty documents through retained stash 159959f08cec3753d6e5f2f47f75419073a1906c.
+The active branch feat/gateway-electrical-views has fix HEAD 3c7ace95, with broker
+fix e0cc9552. Report commit 407184fe records real MCP self-description
+trials: all 54 detailed tool schemas matched in 2.398s; a fresh enterprise context
+made 20 calls and gave evidence-bounded analysis. A fresh grid context made
+19 calls, including a 40s inspection timeout; the model view remained preparing.
+An alternative directory path found eight busbars, two transformers and 14 lines.
+These trials do not establish deployed Capstone Provider or workbench acceptance.
+Minor issues are deferred. The main recommendation is bounded, diagnosable
+continuation for long operations; the timeout alone does not prove a gateway defect.
+Capstone still blocks eight published tools in its static list, including
+discover_gateway and describe_gateway_contract, and discards initialize instructions.
+Source commits d3a8f1a6 menus, 8fd7e93f Authority, c45af505 broker and 1d953595
+host menus are not deployed. Three Important Authority findings—dtype, switch
+references and demo quality binding—have fixes implemented. Independent review
+passed in 5.49s: the original three reproductions and omitted boolean columns
+were rejected without creating context; grant flags matched exactly. No Important
+findings remain in that scope. This is source review, not deployed acceptance.
+Authority focused tests passed 83 in 28.30s; broker tests passed 47 in 1.05s.
+Actual East reimport retained demo=true/real=false. The subsequent AC solve did
+not converge and saved result 8ccd295c; this is not calculation success. C is not complete.
+See [the self-description trial report](../reviews/2026-10-27-mcp-self-discovery.md).
+Earlier source checks, which do not validate all the new changes:
+Source checks: root 171 passed after a NO_PROXY recheck of two proxy failures (1.94s);
+agent 221 passed in 23s and JS eight passed in 0.3s. A separate 55-test
+MCP/electrical provider check passed in 3.97s. Historical gateway release05 published
+52 tools and seven models. The current menu lists ten models; this does not establish new self-description acceptance.
+New API and three-worker image:
+2a8f632b154f5068b013c3de7e3d67008d04c32ff5dd53f6d4b053603122d64c, from 9e01f5dc.
+Native image is unchanged. The canonical rebuild exited 2 on a native inventory
+generic RPC rejection. One automatic restart restored native health. The root
+agent started the already-created API/workers. At 2026-10-26 23:56:58, ready was
+200 and API/three workers were healthy with the same image; native was healthy,
+with one restart.
+Do not count this as canonical exit 0. The earlier 838 build (image prefix 5be)
+passed. Protected North/East eight streams/pages/reopen checks passed on the prior
+image. Source-only catalog metadata preparation took about 440 seconds, a recorded
+performance issue; no solve ran. New real B validation and final UI checks remain
+pending. C is incomplete because the Authority import interface is not connected.
+Second-build scoped cleanup exited 0; receipt:
+outputs/electrical-integration-20261026/gateway-self-description/cleanup-receipt.json.
+HTML is generated once for the 3c7ace95 boundary. Runtime remains 9e01f5dc;
+new source is not rebuilt or deployed. Other deployments,
+main and PR states are unchanged.
+
+Previous boundary: dev was 32d72c28 after PR67 merged normally
+at 13:18:09Z. Required macOS CI 40327531795 passed on de648f58.
+Earlier CI 40322509147 had one continuation fixture failure (2183 passed,
+147 skipped); 40325864702 had a no-progress failure. Their intermittent root
+cause is unconfirmed. Diagnostics remain; the record does not claim a fix.
+The product diff from ce185 to 32d72c28 was empty. This was development integration,
+not full analytical acceptance. Commits271d752c,2b67b2e3,6f61185f and1321831d
+cover ledger replay, unified entry, adaptive execution and the type guard.
+
+Historical runtime, superseded by the new candidate: the 429d3a35 build had
+product bytes matching ce185a14. API and all three workers used image
+03c1721293d1919ee43159cc159230373f815d091f16381b183e45e4cd11db5f;
+native image is1b8533cf1b060fdda697f18b88a848803cc5fec787dd5d2e7537bfcabf0a7774.
+The canonical rebuild exited 1 because native resource seeding exceeded its
+120-second health window. Native became healthy after about three minutes.
+An explicit start of the already-created API/workers restored all five roles;
+ready 200 and API/worker image identity passed. Scoped cleanup passed, recorded
+in .worktrees/electrical-diagrams/.capstone-agent/cache-maintenance-electrical-20261026.log.
+This was a recovered rebuild, not a canonical exit-0 result. App 5173 serves
+the active implementation worktree; its new rebuild and live check are pending.
+Root dev 32d72c28 was checked earlier at PID 22505.
+Real inventory attempt36e273a93479fde7 took12.542486s against91.583562s:
+one gateway call, seven scopes, no graph or child task.
+Deep Research activation passed one real delayed-upgrade check: attempt
+4f3af7f303878605 in thread034c8790449839d745ee took98.652914s.
+One gateway call was reused by three tasks without a duplicate query.
+The4538-byte report b808554812adaebf-grid_model_scope_notes.md and task view
+were inspected in Vivaldi. This is scoped evidence, not full acceptance.
+Delivery was limited: one observation association was not admitted and remains
+unverified text, without a whole-task retry. The downloaded report hash is
+9dfcfa8c2c79891084a8b78bdba96e104907d28a22644b4e639c3f4006f924fc.
+Earlier candidatee320142d added worker publication tests:15 passed.
+Product sourcece185a14 follows20ae9445 and a73f9470. It limits menu handoff to
+isolated organizers; task executors retain ordinary tools.22 focused SDK checks
+pass. The ce185 rebuild is ready. Required CI passed after scope selection was
+corrected. Earlier intermittent failures remain recorded. Stop/follow-up checks passed:
+0e6afeba cancelled the running tool, then cbef9eff answered only5.
+See [the adaptive-loop record](../reviews/2026-10-26-adaptive-agent-loop.md).
+The1321831d guard passes Pyright with zero errors.
+Deep Research starts inactive but available;
+the agent can activate it at any cycle. Cloud, demo and main are unchanged.
+The canonical [control graph](PROJECT-OVERVIEW.html) was regenerated.
+Browser layout and edge inspection remain pending while the user is typing.
+
+The merged branch feat/purpose-electrical-diagrams reached f9010be5, based on
+9843692c. Commits 0f5c4f6b, 9370ae9e and 429d3a35 add scope discovery,
+electrical projection/layout and workspace wiring; e337c6d8 refines routing,
+and afeedbba applies instruction views over saved source navigation.
+It merged dev in 0a5ab4d6; d988033b records the gateway response, and 6db7e673
+fixes scope titles. PR68 merged it into dev 9d691624 after required CI passed.
+Vivaldi displayed the real 57-node/56-connection station in the earlier checks.
+The gateway's new publication is being connected by feat/gateway-electrical-views;
+offline checks do not establish live acceptance or completion of C.
+
+The user accepted generic grid model layers by purpose: overview, electrical,
+powerflow and optimization. This is a design decision, not an implementation
+claim or a North China special case. The data-gateway owner implements its own
+model capabilities; Capstone supplies the application handoff contract.
+See the [purpose-aware grid model handoff](../superpowers/specs/2026-10-26-purpose-grid-model-gateway-handoff.md).
+
+Previous delivery (2026-10-26): code PR64 merged as78f81e66 and control PR65
+merged as actual dev2c957c1c after
+scoped macOS40232655933 passed. North source rendering, model release, native
+business delivery and exact source replay passed; actual App5173 restores the
+57-node/56-connection Chaoyang view and opens saved products. See
+[source/scale verification](../reviews/2026-10-26-grid-scale-source.md).
+Hardware120k/239300 cases and actual North52625/48319 full source load passed.
+Same-Thread business follow-up saved five verified files; the original failed
+execution remains recorded. Esc no longer hides navigation. Vivaldi reused its
+existing tab; product16aa9b82 is integrated, not a cloud release. The North model
+build returned explicit quality/construction gaps and no numerical result.
+Credentials and user data remain protected. Cloud/demo/main are unchanged.
+
+Historical boundary before this implementation:
+
+Earlier boundary (2026-10-26): PR62 merged as `364aa6e9`; actual root dev was
+fast-forwarded and App5173 now serves that checkout. Content revision0dcbd466,
+backend/native source byte checks, readiness and scoped cleanup passed. The
+accepted source80c11e10 passed scoped macOS40220567507 and independent review.
+See [Thinking/task-state verification](../reviews/2026-10-26-streamed-thinking.md).
+There is no session-wide business goal; targets belong to actual organized tasks.
+
+Next authorized delivery is the complete100k+ topology implementation and real
+North China source-view/question verification. Its
+[owning baseline](../superpowers/specs/2026-10-25-grid-topology-view-requirements.md)
+now records the gateway1.30 publication and successful source reads. The large
+renderer is not implemented yet. Credentials remain only in ignored protected
+operator authentication state. Cloud/demo/main/user-local are unchanged.
+The [implementation plan](../superpowers/plans/2026-10-26-grid-scale-view.md)
+owns the active renderer, source API, workspace integration and real acceptance.
+Resource relevance is determined per instruction; the focused native policy
+change7e079c91 is verified locally but not yet rebuilt or integrated.
+
+Final snapshot (2026-10-25): actual ROOT dev HEAD is `77109781`.
+[PR #61](https://github.com/uukuguy/capstone/pull/61) merged at 14:50:56 UTC;
+documentation CI40203874616 passed in 83 s. Closeout is complete. PR60 commit
+`6f9ca536` remains the fixed code milestone, not the current HEAD. App content
+stays at `afe173cf`; its repository position is now 77109781. Feature/control
+branches are historical merged sources. VERSION-CONTROL.md, INDEX.md and
+PROJECT-OVERVIEW.html remain uncommitted final snapshots to avoid a self-hash
+cycle. No further commit, PR, build or model rerun is required for this snapshot.
+
+Post-merge check note (2026-10-25): automatic dev push run 40202723488 failed
+the old `test_pi_delegation::test_request_budget_cancels_and_deduplicates_events`:
+its 0.08 s budget expired before the first event, while the assertion expected one.
+The merged 6f9ca536 tree exactly matches passed PR source 9367fc2b (empty Git diff).
+PR60 acceptance is unchanged. This is a non-blocking test-stability follow-up;
+no production change or broad rerun is planned. See the
+[review record](../reviews/2026-10-25-unified-conversation-diagnostics.md).
+
+Unified conversation and diagnosis (2026-10-25):
+[PR #60](https://github.com/uukuguy/capstone/pull/60) merged as `6f9ca536` at
+14:32:29 UTC. This is the code milestone; current dev HEAD is 77109781. Tested source
+`9367fc2b` passed macOS run 40201683198 in 8 m 11 s; the affected-parts step
+took 6 m 14 s. It did not run unchanged full professional suites.
+The earlier broad product run 40198028306 was cancelled at 17 m 11 s as
+overscoped. Scoped run 40200263790 passed backend checks (2,069 passed,
+146 skipped), but had one old App SSE readiness-test failure (957 passed).
+Test-only fix 9367fc2b reproduced it with 100 ms replay delay, then passed
+8 focused tests in 3.51 s before the successful final CI run.
+Runtime source remains `afe173cf`: all 84 file hashes match merged dev `6f9ca536`,
+so no duplicate backend rebuild or paid model run is required. Root App5173
+reports content revision afe173cf and current repositoryRevision 77109781. The same
+Thread/Work restores grid evidence, the current answer, IEEE39 selection and the
+normal composer. Readiness and scoped cache cleanup pass; only the owned Vite
+process was restarted. Control metadata was accepted through PR61.
+Model handoff,
+actual process focus and durable bounded diagnosis are implemented. Initial
+checks passed: 2,170 backend tests (2 skipped), 658 Kernel, 144 Pack, 15 client
+and 3 registered checks. The final tool-focus UI `f86465fa` passed 958 App tests.
+User Stop→new-instruction feedback exposed retained pending input. `bad830c7`
+supersedes it for new instructions and keeps explicit retries exact; six regression
+cases failed first, then passed within 74 related memory/PostgreSQL checks.
+`00fb086d` adds a one-shot diagnosis report without IDs/begin/finish, with scoped
+3-correction and 2-ignored-repeat limits shared by parent/child execution. Published
+historical policies retain exact replay. The 107 Python and 26 Node checks and Pyright pass.
+Real replay on 00fb still replanned the stopped task with the new task.
+`bd386585` labels the retained Work goal as background; `48fe84e1` keeps terminal
+status in native history. `afe173cf` skips the diagnosis watcher when no grant
+exists. Its two SDK regressions failed first, then passed. The full native SDK
+suite passed 367 tests in 16.96 s; backend passed 2,207 tests with 2 skips in 148.34 s.
+The same real Work completed direct answer in 16.203 s, tool products in 70.620 s,
+production-data research in 207.959 s and registered IEEE39 calculation in 26.4 s.
+Saved CSV/README, sample statistics and Authority-admitted projection/evidence
+were checked. These are separate results, not full acceptance. Source 816 fixed
+the empty-workspace HTTP and child diagnosis observation allowlist. Its diagnosis
+run was cancelled after about 226 s and 19 invalid metadata retries; three process
+products remain. The new simpler report and Stop fix still need real acceptance.
+Current source afe uses image 012d101db1fd across API/three workers and native
+aa1b86ffa8b7. All 84 exact source hashes and readiness pass; cache receipt
+211057-30406.log is saved. The fresh stopped-task/new-process test passed in
+89.073 s on Thread thr_832dff3c85e0259ed969, Work work_dd109ea8c398b5776426.
+Its graph contains only inspect-processes; the answer states that the old CSV
+task was cancelled and was not resumed. PID/name CSV and notes are saved, and
+browser refresh restores products and the normal composer. The 89 s duration
+for this simple task remains a non-blocking optimization gap. Diagnosis recovery
+attempt_c943fed923157cdd passed in 178.175 s (about 88 s queued and 90 s executing).
+It reused saved diagnosis/probe state without recalculating the CSV, saved one
+host report with zero rejections, and retained reported_only/advisory/retain_gap.
+The 3,545-byte 诊断恢复说明.md has SHA256
+023fc091a4c56d92a9b7aa66b61a7b17e0bd1fc9ffab3fcaf5a61581d6fad34d;
+host state was checked. Local validation and PR60 integration are complete for
+this slice. Actual-dev entry verification and control PR61 closeout have passed.
+Prior failed runs remain recorded.
+Root App5173 is the verified dev entry. Candidate App5174 is not needed to prove
+the merged entry. Cloud-dev and both demo sources remain unchanged.
+See [the control graph](PROJECT-OVERVIEW.html),
+[verification record](../reviews/2026-10-25-unified-conversation-diagnostics.md),
+[design](../superpowers/specs/2026-10-25-unified-conversation-diagnostics-design.md)
+and [plan](../superpowers/plans/2026-10-25-unified-conversation-diagnostics.md).
+
+Gateway integration focus (2026-10-25): VERSION-CONTROL.md and
+PROJECT-OVERVIEW.html include design0d20a8f2, runtime22e61786 and PR58 merge48da021b.
+[Real model acceptance](../reviews/2026-10-25-enterprise-data-gateway.md) records
+research/follow-up, source values, protected mounts and browser recovery.
+Required dev checks/integration passed. Model delivery remains topology only.
+PR58 uses a bounded native-runtime development gate after the user's CI scope
+correction; CI40172250793 passed in16m09s. Lifecycle and acceptance records
+describe the retained consumers; full release gates are separate.
+
+2026-10-24：[会话阅读状态与缓存验证](../reviews/2026-10-24-session-view-cache.md)记录内存LRU、磁盘阅读状态、冷/热切换验收；[缓存契约](../superpowers/specs/2026-10-24-session-view-cache.md)说明自动释放与业务归档的区别。
+
+2026-10-24 22:52：中断恢复后的界面复验见[工作空间记录](../reviews/2026-10-24-workspace-navigation.md)；927App/类型/doctor、真实归档分页和本地规范重建通过。当前合并状态见[版本台账](VERSION-CONTROL.md)，下一集成边界见[恢复记录](RESUME-NEXT-SESSION.md)。
+
+2026-10-22当前校准：规划策略属于共享执行层，应用/Pack仅适配授权能力、来源、领域约束与交付。App1.13/Pack1.11先验证研究入口，电网/复杂聊天未接通。原始请求235939三路并行64.165秒，但218.375秒按failure收口、无报告，不通过146秒（145.914727秒）基线。步骤号和标题行计量已修订，282项App检查/类型通过；独立复审未完成，无Git/cloud/demo变更。以ROOT最新RESUME和编排修复记录为恢复入口，不继续采用旧263.896秒口径。
+
+- 2026-10-21：149秒为当前基线；已找回17:30记录，21:45误跑不计并行验收。执行图计量显示已修复，280项相关测试/类型通过，规范重建ready；规划过度合并仍开放。见[编排修复记录](../reviews/2026-10-20-subtask-orchestration-repair.md)。
+
+- 2026-10-21：[企业研究应用与编排恢复](../reviews/2026-10-20-subtask-orchestration-repair.md)：新版自主有界执行与limited输入独立复核通过，R1/R2关闭；209JS/190Python通过、1可选PG跳过，规范本地重建中。142026于379.306秒取消无交付。[整链计划](../superpowers/plans/2026-10-21-graph-execution-chain-repair.md)仍待原业务指令自主规划、真实并行及可用交付验收，技术提示探针不算正式验收。
+
+- [应用容量审计与修复](../reviews/2026-10-18-application-capacity-audit.md)：当前交付前置工作；统一初始化配置、明确容量失败及制品保留。关联[实施计划](../superpowers/plans/2026-10-18-application-capacity.md)。实际重建与真实研究交付仍待验收。
+
+- [研究长链路效率与断流诊断](../reviews/2026-10-18-research-round-efficiency.md)：当前活跃验证；真实Provider复现4MiB转发截断、跨轮文件复用修复与上下文/构建流量核对。验收状态以版本登记和恢复记录为准。
+
+2026-10-18 03:32：真实浏览器在独立企业研究会话上传1,077,936,128字节文件，56%暂停、刷新后重选原文件续传完成；服务端SHA与本地一致，刷新后上下文目录可见资源v1。上传入口已接分片进度/暂停/续传/取消，25项相关测试和类型检查通过。规范重建91d65912478d ready。当前只完成存储与恢复；按资源引用接入隔离执行器及按需分析仍待实现，不计GB分析验收。未提交、未合dev，其他环境不变。
+
+2026-10-18 03:10：顶部导航与会话标题合并，统一研究会话状态栏；输入工具合为一行，历史整理收入设置。1440/768浏览器检查无横向溢出，工具栏28px；类型检查及110+29项相关测试通过。资源协议已实现分片、恢复、取消与哈希校验，真实HTTP+PostgreSQL+临时磁盘完成1,077,936,128字节上传及重启恢复（19.19秒，峰值RSS441810944字节）；40项后端检查通过。尚未接通GB浏览器上传及智能体按需读取，不能计完整资源验收。增量未提交、未合dev，云端和用户环境不变。
+
+- 2026-10-18 02:01：[研究交付记录](../reviews/2026-10-18-research-autonomous-delivery.md)：真实界面上传和自然继续请求产出独立HTML报告，7图6表；指令预览真实状态/耗时已接入，持续修订与GB资源验收仍开放。
+
+- 2026-10-18 01:50：[正式设计§9](../superpowers/specs/2026-10-15-enterprise-design-final.md#9-企业文件资源与任务上下文2026-10-18-用户确认)固化GB级及更大文件、存储与上下文分离、恢复及独立验收要求；[研究交付记录](../reviews/2026-10-18-research-autonomous-delivery.md)区分真实界面上传、初轮失败及自然反馈续跑，不能以小样例降低设计要求。
+
+- 2026-10-18 01:22：[研究自主交付](../reviews/2026-10-18-research-autonomous-delivery.md)：按用户确认撤回此前报告代表自主验收的解释；研究Pack方法、成果用途契约和Pi进展漏投影已修复，真实原始请求验收待进行。
+
+- 2026-10-18 00:45：[15分钟样例真实验证](../reviews/2026-10-18-enterprise-research-15min.md)：真实分析、引用校订与任务交付通过；6图13表、359条指标，122项独立核对通过；完整输入与审核工作簿一致。
+
+- 2026-10-18 00:00：[Demo1真实验证](../reviews/2026-10-17-enterprise-research-demo1-live.md)：修订报告61天核对通过；任务交付v1重建后恢复和真实后续引用完成。长分析600秒截止，仍待正常收尾。local-dev镜像d39d3ac86bb2，未合dev或更新云端。
+
+- 2026-10-17 23:40：[Demo1相近样例真实验证](../reviews/2026-10-17-enterprise-research-demo1-live.md)记录四份合成输入、真实报告与图表、62项数值核对及续跑故障。单文件审核样例已提供；完整分析续跑尚未通过，正在本地验证。此记录补充基础小文件闭环，不能用前一项成功替代复杂任务验收。
+
+- 2026-10-17 22:30：[企业研究真实续写验证](../reviews/2026-10-17-enterprise-research-live-continuation.md)记录任务交付v1→修订v2→刷新引用→新摘要闭环。镜像bdae9325a9fb已ready；基础链路真实通过，电网循环内Pi委托仍待接入。
+
+- 2026-10-17 20:55：VERSION-CONTROL记录持续会话候选与Pi启动修复联调；界面视口恢复、资料和交付离线检查已验证，完整本地任务验收待完成。
+
+- 2026-10-17：核心主线调整为过程制品、显式引用和按需任务级交付。model-decision工作区已将新计算集合标为process_output，旧集合仅按指令级读取；33项后端、18项前端及类型检查通过。完整交付账本、失败制品和跨Work引用仍待实现，未集成部署。
+
+- 2026-10-17 18:53：标题链路工作区增量已接入服务端rename_session命令、独立标题修订、PG列与快照/列表及前端解析事件；52项后端（含独立PG）和71项前端检查、类型检查通过。未提交/集成/部署；编辑UI、自动命名调度与创建预设待实施。
+
+- 2026-10-17：持续会话标题状态转换已在 feat/work-attempt-binding 工作区实现，8项单测通过；尚未接入会话账本、命令或界面，未提交、未集成、未部署。用户手动命名接管及晚到自动候选保护已覆盖。
+
+- 2026-10-17：[持续工作会话设计](../superpowers/specs/2026-10-17-continuous-work-session.md)与[实施计划](../superpowers/plans/2026-10-17-continuous-work-session.md)已按用户确认更新。对象先行、目标可演进、过程制品含失败、两层自主推演；新增能力尚未实现，不改变已记录部署来源。
+
+- 2026-10-17 17:48：工作台候选15980389已登记到[版本控制](VERSION-CONTROL.md)与推进图；任务结果分组与诊断分层已实现，规范本地重建进行中。专业任务/通用聊天入口、主要工作对象及左栏顶部重设计已确认，尚未实现，不计为已交付。
+
+- 2026-10-17 15:52: PR #53已合入dev `f5eda4e4`。IEEE39为主要验收线，PyPSA限一个用户样例。local-dev `4120e57b`规范重建与同源检查通过；PyPSA旧会话及需求口径已复验，IEEE39负荷变化计算通过但发电机归属解释仍有错误；PR #54检查中。[验证记录](../reviews/2026-10-17-shared-dialogue-adaptation.md)保留失败证据与实际范围。
+
+- 2026-10-17: PyPSA附加真实试验发现静态负荷误读；effc9ccd已在Authority/Pack修正，126项回归及类型/评审通过，规范重建复验中。推进图新增精确修复来源，未把原错误回答计为通过。
+
+- 2026-10-17: 用户授权后，local-dev共享工作台完成普通问答、IEEE39潮流及结果追问三轮真实对话，结果自动展开与刷新恢复通过。c9e57152无模型后端另已离线验证，未部署；PR #53完整CI第2次运行中。
+
+- 2026-10-17: local-dev已规范重建`00a8cd85`，API与双worker各1153文件同源；570项App、88项真实PG及历史/结果/拓扑/新建入口通过。PR #53检查中，完整新回答验收另列；推进图部署边已指向精确来源。
+
+- 2026-10-17: `6f1c3412`按原型修正工作台层级并保留成熟对话；569项App、构建与独立复审通过，静态浏览器检查覆盖1440/1280/390/1920；实际入口与业务验收仍待核验。[验证记录](../reviews/2026-10-17-shared-dialogue-adaptation.md)。
+
+- 2026-10-17: [架构功能校准](../reviews/2026-10-17-enterprise-design-alignment.md)区分已复用资产、过渡偏离与未实现项。本地应用候选b703e37b进入推进图；8685d46b布局被否决，按定稿原型修正中，未合入dev或部署。
+
+- 2026-10-17: 研发先复用成熟电网对话并回归原样例；不是普通/研究/电网模式硬切换。Harness统一自主组织，回复动作按真实产物呈现。`feat/model-decision`已启动共享界面适配，native后端改动保留待续、RPC父链未验收。
+
+- 2026-10-17: PR #52已将正常对话交付标准合入dev `45913f1c`；公共对话能力完整复用，原应用专用控件按Profile适配。[推进图](PROJECT-OVERVIEW.html)已对齐三线HEAD与实际部署，应用实现仍在研发。
+
+- 2026-10-17: 用户撤回简化对话区验收；[正常对话实施计划](../superpowers/plans/2026-10-17-enterprise-normal-conversation.md)要求新任务即会话、Profile预配置、统一发送执行及完整成熟对话功能。PR #50草稿，内部后端资产保留；macOS研发规则已由PR #51合入dev a8caeff2。
+
+- 2026-10-17: [统一实施计划](../superpowers/plans/2026-10-16-enterprise-unified-execution.md)当前切片为[Work绑定真实Attempt与研究状态](../reviews/2026-10-17-work-attempt-binding.md)；feat/work-attempt-binding开发中，运行与集成状态仍以已验收来源为准。
+
+- 2026-10-17: [设计定稿](../superpowers/specs/2026-10-15-enterprise-design-final.md)记录`enterprise-research`/`grid-analysis`命名、内网缺省与可选联网增强；[三线计划](../superpowers/plans/2026-10-16-three-line-delivery.md)保留现有分支映射。
+
+- 2026-10-16: [Work账本与无模型入口](../reviews/2026-10-16-thread-work-ledger.md)候选35e014df：同一账本、对象CAS、幂等恢复及旧专业历史视图；独立前端已撤掉并按既定设计复用修正；PR48双平台通过，已合入dev d86cc4ef，持续执行未接通。
+
+- 2026-10-16: [Pack按需准备](../reviews/2026-10-16-application-pack-selection.md)经PR #46合入9eb84a34；双平台foundation检查通过，local-dev来源20226bf0同源；推进图区分实现、集成及部署。
+
+- 2026-10-16: [Thread版本协商](../reviews/2026-10-16-thread-version-negotiation.md)经PR #44合入32f18d24：双平台短CI通过，local-dev来源a2efb791同源及浏览器检查通过；保留旧跨域服务、会话和草稿，v2及无模型入口仍待实施。
+
+- 2026-10-16: 推进图补充977601f9固定节点；dev实际HEAD动态入图，同提交合并显示，避免只有顶部HEAD而无图节点。
+
+- 2026-10-16: [Task 2研究归属切片](../reviews/2026-10-16-work-research-identity.md)：Work身份独立于模型；组件实现与生产协议/前端接入范围分开记录；开发CI依赖范围及实测耗时单列。
+
+- 2026-10-16: d4600ddc作为实际研发控制节点进入dev主轴，按Git祖先关系连接d8fe6e27；顶部HEAD标识不能替代用户要求的图节点。
+
+- 2026-10-16: 推进图区分当前分支HEAD、历史控制合并34cf695e和最近产品集成节点d8fe6e27，避免将历史节点标为当前开发位置。
+
+- 2026-10-16: 推进图三线卡片新增实际分支HEAD；合并及同步分支后重新生成，当前控制接受点34cf695e明确可见。
+
+- [main/dev收口](../superpowers/specs/2026-10-16-main-dev-convergence.md)：对话应用进入发布维护，企业自主执行收口dev；Pi分支待验证合入，未发生部署。
+
+- [协议决定](../superpowers/specs/2026-10-16-enterprise-protocol-decisions.md)与[前置基线](../reviews/2026-10-16-enterprise-protocol-baseline.md)：v2迁移、答复生效及检查来源已细化；既有43项测试及离线探针通过，完整执行桥仍待实现验证。
+
+- [持续推进约束审查](../reviews/2026-10-16-enterprise-progress-constraints-review.md)：缺资料可启动发现、unknown按依赖隔离、附件局部提交；明确权限/专业证据/必要持久化边界仍保留。
+
+- [场景边界审查](../reviews/2026-10-16-enterprise-scenario-boundary-review.md)：示例不转成框架业务职责；已修订设计与计划，协议迁移、状态及检查来源已有设计决定，运行验证仍开放。
+- [架构基线v1](../superpowers/specs/2026-10-15-enterprise-design-final.md)与[实施计划](../superpowers/plans/2026-10-16-enterprise-unified-execution.md)：统一自主组织、复用既有业务资产；实施契约修订中，生产验证开放。
+
+- [企业设计完整性评审](../reviews/2026-10-15-enterprise-design-readiness-review.md)：保留首次R1–R7发现，并记录定稿补充及设计检查；生产验证仍开放。
+
+- [Demo2已有拓扑来源](../design/ieee39-recorded-topology.md)：IEEE-39已记录电气拓扑，复用现有组件布局/符号；不与合成方案数据绑定。
+
+- Demo2原型补充：候选切换、影响图表、验证依据与旧结果失效交互已检查；合成数据和真实专业证据明确分离，详见[界面契约](../superpowers/specs/2026-10-15-enterprise-task-ui-design.md)。
+
+- [执行与成果契约](../superpowers/specs/2026-10-15-enterprise-execution-contracts.md)：通用任务协议、恢复和版本关系；Demo1专业图表的数据、复现、报告级导出与独立检查要求。设计未实现。
+
+- [企业任务界面契约](../superpowers/specs/2026-10-15-enterprise-task-ui-design.md)与[交互原型](../design/enterprise-workspace-prototype.html)：统一全宽多会话框架，Demo1报告与Demo2模型/决策视图；桌面及手机交互检查，未接运行服务。
+
+- [Demo1通用执行评审](../reviews/2026-10-15-demo1-general-execution-review.md)：通用链路与外部专业资源，已列SPI、数据处理、产物和恢复缺口及验收矩阵；未实测。
+
+- [Pi企业自主执行设计](../superpowers/specs/2026-10-15-pi-enterprise-execution-design.md)：方向已确认；ApplicationProfile使能、多Pack协作、自主推演、前端与恢复契约草案，未实现。
+
+- [Pi新dev基线适配](../reviews/2026-10-15-pi-dev-baseline-adaptation.md)：98e7d0e接入f209fb1，保留原生资源与自主研究；本地检查与复查通过，未合入dev或部署。已确认统一Pack治理与Pi生态结合长程组织，尚未实施。
+
+2026-10-15控制核对：dev及App5173已为f209fb1，PR #29双平台通过；packages与f300无差异，后端保留f300已验证来源。版本台账及生成图同步当前来源、PR与已关闭分支；e2原交付包和其他环境不变。
+
 当前工作：PyPSA派生结果投影和AC调度输入两项修复已实现、独立审查及针对性检查通过。精确候选c638e0992e49d300e760e89d07aff63ef6eca1c5在Apple ARM宿主的Linux AMD64模拟环境完成原区域三轮及补充AC-only第4轮；没有重新dispatch，5个operations投影completed且模型修订/证据正确。南部机组第3时段增量9.999984503 MW，最大AC残差约0.00004649 MW，小于0.01 MW。PR #28的Linux/macOS required CI run38723131332全部通过，已正常合入f300d1f375ef20af005840a60af47b5e33ea62e8；root dev已快进，packages与受检c638完全一致，local-dev规范重建exit0、ready通过；API与双worker同镜像6c616058e643，各1060个受管后端文件SHA256等同f300；镜像源码标签仍development，未将该标签冒称精确提交；App5173为f300、dirty=false；候选已停止，数据保留。回答文字仍有“+5应为+7.5”的算术问题；source-modeling投影仍未实现，不称所有回答或所有Pack通过。e2交付包不含这两项新runtime修复，原包和校验值不变。见[报告](../reviews/2026-10-15-pypsa-runtime-followup-verification.md)和[计划](../superpowers/plans/2026-10-15-pypsa-runtime-followup.md)。
 
 2026-10-15更新离线包已交付：精确源码e2eaee2403cb6d780b3f7564da86e0d083890673，根runs/user-local-offline/capstone-delivery-e2eaee2含归档、同名.sha256及README.md三文件；归档1368607944字节，SHA256为9d7c3b215b9c45631bf3142aaad8f8066ba43831380b43b2ccf8146ee1eebfe7。新README默认pandapower IEEE39，PyPSA清单在末尾可选说明；旧7c已撤回、不可交付，证据目录及原校验值保留。新包12项内部SHA与源码检查通过，runtime packages相对28020aa无差异，可复用已记录的handoff/dispatch限定实测证据；29377单次新安装及ready检查通过，六角色均linux/amd64，API与双worker同e2源码镜像；检查后正常停止并保留数据。本轮按用户要求不重跑全量测试或Provider；公开投影与AC第3时段一致性两项仍开放，不声称完整业务验收。
@@ -137,11 +650,12 @@ dev默认开发集成主线和main发布主线均启用轻量保护：PR与两�
 
 | File | Purpose |
 | --- | --- |
-| [项目推进控制全景](PROJECT-OVERVIEW.html) | 每次更新调用 ui-ux-pro-max 并重新排版验收；默认一屏，图标与标题同排，四环境绑定实际来源；demo 紧急修复直连已验收主线来源。Pi 包含业务数据共享，已合并分支退出主图。 |
+| [项目推进控制全景](PROJECT-OVERVIEW.html) | 2026-10-31：local-dev精确来源d3c69284；会话实例绑定与双实例CSV验证，实际HEAD动态展示；未推送或启动CI。 |
 | [线上到本地的功能范围核对](DEPLOYMENT-FUNCTION-SCOPE.md) | 功能与分支归属；近期需求遗漏核对和统一前端命令设计范围；现用执行账本仍必要，旧存储优化实验归档。 |
 | [Git 分支清理记录](GIT-BRANCH-CLEANUP.md) | PR #6/#9/#10/#11合并后关闭分支名；本地目录、精确归档引用和日志保留；旧存储及R0实验未提交记录保留。 |
 | `CURRENT-STATE.md` | Structural project snapshot. |
-| [多线版本控制](VERSION-CONTROL.md) | 用户批准PR14合入dev为新开发基线并对齐两实验分支；local-dev6ff7094同源，首次新专项失败与单项重试通过分别保留；精确CI通过，PR13已撤回，demo及云端未变。 |
+| [_archive/2026-10-26-pre-grid-source-state.txt](_archive/2026-10-26-pre-grid-source-state.txt) | Exact previous snapshot, including historical session transcripts; original relative links use docs/status as their base. |
+| [多线版本控制](VERSION-CONTROL.md) | 2026-10-31：本地产品d3c69284已验证，origin/dev196e865a；其余三环境不变，CI必须先获同意。 |
 | [完整回答与结果复用修复验收](../reviews/2026-10-12-answer-and-result-reuse.md) | 原始三轮专项的Authority/工具/浏览器独立核对与逐阶段耗时；整体另验，历史失败不删除。 |
 | [GitHub Issues 与后台 AI 修复设计](../superpowers/specs/2026-10-10-github-issue-automation-design.md) | 已授权命令驱动实施：截图/短句反馈，默认 cloud-demo；当前 AI 会话中文处理，定时/无人值守与额外模型调用延期。 |
 | [GitHub Issue automation plan](../superpowers/plans/2026-10-10-github-issue-automation.md) | 命令驱动工具已合入 main；小石 App 和独立发布已核对，后续准备 PR 待集成；无无人值守或额外模型调用。 |
@@ -195,7 +709,8 @@ dev默认开发集成主线和main发布主线均启用轻量保护：PR与两�
 | File | Purpose |
 | --- | --- |
 | [Ordinary conversation local verification](../reviews/2026-10-08-ordinary-conversation-local-verification.md) | Empty-tool Capstone session, exact selection, loopback Pi RPC, real local capability prompt, current-source rebuild and complete offline release gate; external Provider and remote acceptance not tested. |
-| [Capstone conversation completion](../superpowers/plans/2026-10-07-capstone-conversation-completion.md) | Active delivery worklist for gaps in the approved Thread/Harness/Web conversation contracts; CONV-01 covers one-time history folding and individual toggles. |
+| [Conversation delivery and maintenance](../superpowers/plans/2026-10-07-capstone-conversation-completion.md) | Phase-complete application release and maintenance history; no near-term major upgrade is scheduled. |
+| [Enterprise execution worklist](../superpowers/plans/2026-10-16-enterprise-unified-execution.md) | Active dev research and implementation plan; retains working business assets and generalizes one autonomous organization mechanism. |
 | [Opened grid models and current model](../superpowers/specs/2026-10-08-thread-open-models-design.md) | CONV-06 approved design: persistent nonempty model collection, current pointer, compact control and atomic close; locally implemented and verified. |
 | [Opened models local verification](../reviews/2026-10-08-thread-opened-models-local-verification.md) | Durable model controls, closed-model historical replay, zero-tool access and instruction timestamps/grouping; independent review and cloud acceptance pending. |
 | [Model work resume](../superpowers/specs/2026-10-08-thread-model-work-resume-design.md) | Approved continuation rule: stable member identities, saved per-model Context, separate historical views and restored camera; supersedes fresh Context on every switch. |
@@ -274,3 +789,21 @@ dev默认开发集成主线和main发布主线均启用轻量保护：PR与两�
 | File | State | Purpose |
 | --- | --- | --- |
 | [USER-LOCAL-VERSIONS.tsv](USER-LOCAL-VERSIONS.tsv) | 🟢 active | 已验证公开安装版本；完整Git、固定安装地址及SHA256，最新在前 |
+
+- 2026-10-16: PR #30已合入main cf72393b，发布范围f209fb1；PR #31已合入dev db167184，双平台检查通过，原分支关闭。
+
+- 2026-10-16: local-dev验证来源abf2f797，PR #31已通过并合入dev；[收口验证](../reviews/2026-10-16-main-dev-convergence-verification.md)记录源码、数据保留及边界。
+
+- 2026-10-16: 推进图修复发布/合入来源交叉，恢复有Git依据的dev主线；清理研发候选旧措辞。
+
+- 2026-10-16: 已接受共同基座同时支持对话与企业执行；[定稿](../superpowers/specs/2026-10-15-enterprise-design-final.md)和[计划](../superpowers/plans/2026-10-16-enterprise-unified-execution.md)新增三工作包及双入口适用验收，台账与图同步。
+
+- 2026-10-16: [三线阶段计划](../superpowers/plans/2026-10-16-three-line-delivery.md)：两条应用分支已创建，基座尚不足，dev先形成可人工观察的前端闭环；应用线准备后按依赖启动。
+
+- 2026-10-16: [共同执行Task 1基线](../reviews/2026-10-16-shared-execution-baseline.md)：执行接缝及真实SDK测试已实现；生产装配和前端闭环待实现，应用分支仍准备中。
+
+- 2026-10-16: 推进图共同基座节点优先位于dev右侧，整组居中，以两侧节点、部署卡片和留白均衡为准；local-dev来源更新为已验证62f44366，PR #36双平台通过并合入dev d8fe6e27。
+
+2026-11-01 PDF预览：VERSION-CONTROL记录2800da79本机修复，RESUME记录内网断开、待部署；JOURNAL保留复现与检查证据。
+
+2026-11-01 产物历史版本：VERSION-CONTROL与RESUME记录aa1cd3e8本机展示修正；旧文件内容及归属不变。

@@ -33,6 +33,19 @@ def test_native_response_usage_keeps_only_bounded_token_counts():
     assert 'private' not in json.dumps(result)
 
 
+def test_native_error_boundary_keeps_machine_code_and_status_without_error_text():
+    from capability_agent.runtime.step_events import project_runtime_action
+    event = {'type': 'message_end', 'message': {'role': 'assistant', 'stopReason': 'error',
+        'errorCode': 'model_context_limit', 'errorStatus': 400, 'errorMessage': 'private-provider-text', 'content': []}}
+    result = project_runtime_action(event)
+    assert result['error_code'] == 'model_context_limit'
+    assert result['error_status'] == 400
+    assert 'private-provider-text' not in json.dumps(result)
+    event['message'].update(errorCode='secret=private', errorStatus=True)
+    result = project_runtime_action(event)
+    assert 'error_code' not in result and 'error_status' not in result
+
+
 @dataclass(frozen=True)
 class _Workspace:
     root_path: Path
@@ -481,7 +494,10 @@ def test_rpc_rejects_invalid_utf8_stdout_without_decode_details(tmp_path: Path) 
     assert "UnicodeDecodeError" not in str(captured.value)
 
 
-def test_rpc_sanitizes_secret_in_response_error(tmp_path: Path) -> None:
+@pytest.mark.parametrize('limit_mode',['normal','debug'])
+def test_rpc_sanitizes_secret_in_response_error(tmp_path: Path, monkeypatch, limit_mode) -> None:
+    import capability_agent.runtime.capacity as capacity
+    monkeypatch.setattr(capacity,'_mode',limit_mode)
     script = tmp_path / "error-provider.py"
     script.write_text(
         "import json\n"
@@ -497,16 +513,21 @@ def test_rpc_sanitizes_secret_in_response_error(tmp_path: Path) -> None:
         _Workspace(workspace),
         trace,
         secret_values={"topsecret"},
+        runtime_limits={'diagnostic_text_chars':5} if limit_mode=='debug' else None,
     )
 
     client.start()
     try:
-        with pytest.raises(PiProtocolError, match="preflight failed") as captured:
+        with pytest.raises(capacity.CapacityExceeded if limit_mode=='debug' else PiProtocolError) as captured:
             client.prompt_and_wait("question")
     finally:
         client.stop()
         trace.close()
     assert "topsecret" not in str(captured.value)
+    if limit_mode=='debug':
+        assert captured.value.dimension=='diagnostic_text_chars'
+    else:
+        assert 'preflight failed' in str(captured.value)
 
 
 def test_rpc_sanitizes_capture_fatal_stderr(tmp_path: Path) -> None:
@@ -536,3 +557,14 @@ def test_rpc_sanitizes_capture_fatal_stderr(tmp_path: Path) -> None:
         client.stop()
         trace.close()
     assert "topsecret" not in str(captured.value)
+
+
+def test_retry_runtime_projection_is_bounded_and_drops_raw_errors():
+    from capability_agent.runtime.step_events import project_runtime_action
+    event={'type':'auto_retry_start','attempt':1,'maxAttempts':2,'delayMs':1000,'errorMessage':'PRIVATE'}
+    value=project_runtime_action(event)
+    assert value=={'type':'runtime_action','phase':'retry_started','retry_attempt':1,'retry_maximum':2,'retry_delay_ms':1000}
+    assert 'PRIVATE' not in str(value)
+    assert project_runtime_action({**event,'delayMs':float('nan')}) is None
+    assert project_runtime_action({**event,'attempt':True}) is None
+    assert project_runtime_action({'type':'auto_retry_end','attempt':1,'success':False,'finalError':'PRIVATE'})=={'type':'runtime_action','phase':'retry_completed','retry_attempt':1,'retry_success':False}

@@ -165,7 +165,8 @@ def _build_runtime_host(
             candidates=(Path("packages/pi-capability-tools"),),
         ),
     ).resolve()
-    manifest = profile.domains[0].profile.manifest
+    from capability_agent.domain.profile import require_authority_profile
+    manifest = require_authority_profile(profile.domains[0].profile).manifest
     return RuntimeHost(
         command=command,
         project_pi_dir=project_paths.pi_agent_dir,

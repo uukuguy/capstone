@@ -55,6 +55,28 @@ def _command(thread_id: str) -> dict[str, object]:
     }
 
 
+def test_postgres_runtime_switch_persists_and_retry_keeps_mode(postgres_thread_service):
+    service, thread_id = postgres_thread_service
+    service.create_thread(_snapshot(thread_id))
+    def submit(kind, payload, name):
+        command = {**_command(thread_id), "kind": kind, "payload": payload,
+                   "command_id": name, "idempotency_key": "idem_" + name,
+                   "expected_event_seq": service.snapshot(thread_id).last_event_seq}
+        receipt = service.submit_command(command)
+        assert service.submit_command(command) == receipt
+        return receipt
+    assert submit("switch_runtime", {"runtime_mode": "pi_reference"}, "cmd_direct").status == "accepted"
+    assert service.snapshot(thread_id).runtime_mode == "pi_reference"
+    assert submit("send_auto", {"text": "hello"}, "cmd_send").status == "accepted"
+    assert submit("switch_runtime", {"runtime_mode": "capstone"}, "cmd_blocked").rejection == "attempt_in_progress"
+    claim = service.claim_attempt("runtime-test", lease_seconds=30)
+    assert claim.attempt.runtime_mode == "pi_reference"
+    service.finish_attempt(claim, phase="failed", payload={"error_code": "test_failure"})
+    assert submit("switch_runtime", {"runtime_mode": "capstone"}, "cmd_back").status == "accepted"
+    assert submit("retry_new_attempt", {"attempt_id": claim.attempt.attempt_id}, "cmd_retry").status == "accepted"
+    retried = service.claim_attempt("runtime-test", lease_seconds=30)
+    assert retried.attempt.runtime_mode == "pi_reference"
+    assert retried.instruction == "hello"
 def test_postgres_claim_restores_persisted_research_generation(postgres_thread_service):
     service, thread_id = postgres_thread_service
     snapshot = _snapshot(thread_id)
@@ -155,6 +177,8 @@ def test_attempt_records_keep_failed_and_diagnostic_events_in_original_context(p
     assert terminal["has_more"] is False
 
 
+
+
 class _ToolsCatalog:
     def resolve(self, model, selection=None):
         if selection is None:
@@ -188,6 +212,44 @@ def test_postgres_claim_preparation_preserves_a_full_lease(postgres_thread_servi
     claim = service.claim_attempt("slow-catalog-worker", lease_seconds=1)
     assert claim is not None
     assert service.renew_attempt(claim, lease_seconds=1)
+
+
+@pytest.mark.parametrize("reader", ["_selected_task_from_postgres", "_previous_instruction_from_postgres"])
+def test_postgres_claim_finishes_slow_history_reads_before_minting_lease(
+    postgres_thread_service, monkeypatch, reader,
+) -> None:
+    import time
+    import capstone_agent.thread_service as thread_service
+
+    service, thread_id = postgres_thread_service
+    service.create_thread(_snapshot(thread_id))
+    service.submit_command(_command(thread_id))
+    original = getattr(thread_service, reader)
+    reads = []
+
+    def slow_read(connection, *args, **kwargs):
+        lease = connection.execute(
+            "SELECT phase, lease_deadline FROM capstone_thread_attempts WHERE thread_id=%s",
+            (thread_id,),
+        ).fetchone()
+        assert lease == {"phase": "accepted", "lease_deadline": None}
+        time.sleep(1.2)
+        reads.append(reader)
+        return original(connection, *args, **kwargs)
+
+    monkeypatch.setattr(thread_service, reader, slow_read)
+    claim = service.claim_attempt("slow-history-worker", lease_seconds=1)
+    assert claim is not None
+    assert reads == [reader]
+    assert service.renew_attempt(claim, lease_seconds=1)
+
+    # Preparation must not change the strict rejection of an expired lease.
+    with psycopg.connect(service.dsn) as connection:
+        connection.execute(
+            "UPDATE capstone_thread_attempts SET lease_deadline=clock_timestamp()-interval '1 second' WHERE attempt_id=%s",
+            (claim.attempt.attempt_id,),
+        )
+    assert not service.renew_attempt(claim, lease_seconds=1)
 
 
 @pytest.mark.parametrize("switch", [False, True])
@@ -411,7 +473,11 @@ def test_postgres_thread_store_leases_and_completes_one_attempt(
 
 
 @pytest.mark.parametrize("rollback", [False, True])
-def test_large_result_delivery_is_atomic_and_survives_restart(postgres_thread_service, monkeypatch, rollback):
+def test_large_result_delivery_is_atomic_and_survives_restart(postgres_thread_service, monkeypatch, rollback, request):
+    from capstone_agent.application_capacity import current_capacity, initialize_capacity
+    previous = current_capacity()
+    request.addfinalizer(lambda: initialize_capacity(previous))
+    initialize_capacity({'event_bytes': 65536})
     service, thread_id = postgres_thread_service
     revision = "revision:sha256:" + "a" * 64
     snapshot = _snapshot(thread_id).to_document()

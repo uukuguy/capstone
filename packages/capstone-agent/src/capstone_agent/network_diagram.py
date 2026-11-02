@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from .application_capacity import limits, require_capacity
+
 import hashlib
 import json
 import math
@@ -10,12 +12,12 @@ from collections.abc import Mapping
 from typing import Any
 
 
-MAX_DIAGRAM_BYTES = 4 * 1024 * 1024
-MAX_BUSES = 10_000
-MAX_BRANCHES = 20_000
+MAX_DIAGRAM_BYTES = limits.control_document_bytes
+MAX_BUSES = limits.ui_network_buses
+MAX_BRANCHES = limits.ui_network_branches
 # One complete diagram plus bounded event and page envelopes.
-MAX_EVENT_PAGE_BYTES = MAX_DIAGRAM_BYTES + 64 * 1024
-MAX_THREAD_JSON_BYTES = MAX_EVENT_PAGE_BYTES + 64 * 1024
+MAX_EVENT_PAGE_BYTES = limits.event_page_bytes
+MAX_THREAD_JSON_BYTES = limits.control_document_bytes
 _KINDS = frozenset({"line", "link", "transformer", "trafo", "trafo3w"})
 _METRICS = {"loading_percent": "%", "voltage_pu": "p.u."}
 
@@ -44,6 +46,12 @@ def _number(value: object, *, nullable: bool = False) -> float | None:
     return number
 
 
+def _label(value: object) -> str:
+    if isinstance(value, str):
+        require_capacity('ui_result_text_chars', len(value), phase='network_diagram')
+    return _text(value, limits.ui_result_text_chars)
+
+
 def _digest(value: object) -> str:
     encoded = json.dumps(value, ensure_ascii=False, allow_nan=False,
                          sort_keys=True, separators=(",", ":")).encode("utf-8")
@@ -69,8 +77,12 @@ def normalize_network_diagram(value: object) -> dict[str, Any]:
         raise ValueError("network coordinate system is invalid")
     raw_buses = source["buses"]
     raw_branches = source["branches"]
-    if (not isinstance(raw_buses, list) or not 1 <= len(raw_buses) <= MAX_BUSES
-            or not isinstance(raw_branches, list) or len(raw_branches) > MAX_BRANCHES):
+    if isinstance(raw_buses, list):
+        require_capacity('ui_network_buses', len(raw_buses), phase='network_diagram')
+    if isinstance(raw_branches, list):
+        require_capacity('ui_network_branches', len(raw_branches), phase='network_diagram')
+    if (not isinstance(raw_buses, list) or not 1 <= len(raw_buses) <= limits.ui_network_buses
+            or not isinstance(raw_branches, list) or len(raw_branches) > limits.ui_network_branches):
         raise ValueError("network diagram component count is invalid")
     buses = []
     bus_ids: set[str] = set()
@@ -89,7 +101,7 @@ def normalize_network_diagram(value: object) -> dict[str, Any]:
             x is None or y is None or not -180 <= x <= 180 or not -90 <= y <= 90
         ):
             raise ValueError("geographic network bus is invalid")
-        buses.append({"id": identifier, "label": _text(bus["label"]),
+        buses.append({"id": identifier, "label": _label(bus["label"]),
                       "x": x, "y": y, "vn_kv": nominal})
     branches = []
     branch_ids: set[str] = set()
@@ -103,7 +115,7 @@ def normalize_network_diagram(value: object) -> dict[str, Any]:
                 or source_id not in bus_ids or target_id not in bus_ids):
             raise ValueError("network branch is invalid")
         branch_ids.add(identifier)
-        branches.append({"id": identifier, "kind": kind, "label": _text(branch["label"]),
+        branches.append({"id": identifier, "kind": kind, "label": _label(branch["label"]),
                          "from_bus": source_id, "to_bus": target_id})
     geometry = {"coordinate_system": coordinate_system, "buses": buses, "branches": branches}
     fingerprint = "topology:sha256:" + _digest(geometry)
@@ -114,7 +126,7 @@ def normalize_network_diagram(value: object) -> dict[str, Any]:
     }
     if "disconnections" in source:
         entries = source["disconnections"]
-        if not isinstance(entries, list) or len(entries) > MAX_BRANCHES:
+        if not isinstance(entries, list) or len(entries) > limits.ui_network_branches:
             raise ValueError("network disconnections are invalid")
         selected = []
         seen: set[str] = set()
@@ -133,19 +145,21 @@ def normalize_network_diagram(value: object) -> dict[str, Any]:
                 bus = _text(marker["bus_id"])
                 if bus not in ends[identifier]:
                     raise ValueError("network switch terminal is invalid")
-                normalized_markers.append({"bus_id": bus, "label": _text(marker["label"])})
+                normalized_markers.append({"bus_id": bus, "label": _label(marker["label"])})
             normalized_entry = {"id": identifier, "markers": normalized_markers}
             if "style" in entry:
                 if entry["style"] not in {"disconnected", "unresolved"}:
                     raise ValueError("network disconnection style is invalid")
                 normalized_entry["style"] = entry["style"]
             if "label" in entry:
-                normalized_entry["label"] = _text(entry["label"])
+                normalized_entry["label"] = _label(entry["label"])
             selected.append(normalized_entry)
         normalized["disconnections"] = selected
     if published and (source["fingerprint"] != fingerprint or source["ref"] != reference):
         raise ValueError("network diagram identity is invalid")
-    if len(json.dumps(normalized, ensure_ascii=False, allow_nan=False).encode("utf-8")) > MAX_DIAGRAM_BYTES:
+    require_capacity('control_document_bytes', len(json.dumps(normalized, ensure_ascii=False, allow_nan=False).encode('utf-8')),
+                     phase='network_diagram')
+    if len(json.dumps(normalized, ensure_ascii=False, allow_nan=False).encode("utf-8")) > limits.control_document_bytes:
         raise ValueError("network diagram exceeds size limit")
     return normalized
 
@@ -177,7 +191,7 @@ def normalize_network_layer(
 
     def focus(key: str) -> list[str]:
         raw = source[key]
-        if (not isinstance(raw, list) or len(raw) > 20
+        if (not isinstance(raw, list) or len(raw) > limits.diagram_categories
                 or any(not isinstance(item, str) or item not in ids for item in raw)
                 or len(raw) != len(set(raw))):
             raise ValueError("network focus IDs are invalid")
@@ -192,7 +206,7 @@ def normalize_network_layer(
                 or admitted_refs is not None and reference not in admitted_refs):
             raise ValueError("network overlay reference or metric is invalid")
         values = raw["values"]
-        if not isinstance(values, list) or not 1 <= len(values) <= MAX_BRANCHES:
+        if not isinstance(values, list) or not 1 <= len(values) <= limits.ui_network_branches:
             raise ValueError("network overlay count is invalid")
         allowed = buses if metric == "voltage_pu" else lines
         seen: set[str] = set()
@@ -233,7 +247,7 @@ def _normalize_annotations(
     raw_scene = source["scene"]
     optional_scene = {"case_ref"} if isinstance(raw_scene, Mapping) and "case_ref" in raw_scene else set()
     scene = _record(raw_scene, {"label", "context_ref", "model_revision", "source_ref"} | optional_scene)
-    normalized_scene = {"label": _text(scene["label"]),
+    normalized_scene = {"label": _label(scene["label"]),
                         "context_ref": _text(scene["context_ref"], 2048),
                         "model_revision": _text(scene["model_revision"], 2048),
                         "source_ref": reference(scene["source_ref"])}
@@ -242,7 +256,7 @@ def _normalize_annotations(
     collections: dict[str, list[dict[str, Any]]] = {}
     for kind in ("states", "regions"):
         entries = source[kind]
-        if not isinstance(entries, list) or len(entries) > MAX_BUSES:
+        if not isinstance(entries, list) or len(entries) > limits.ui_network_buses:
             raise ValueError("network annotation count is invalid")
         normalized_entries = []
         for raw in entries:
@@ -251,11 +265,11 @@ def _normalize_annotations(
             entry = _record(raw, {"label", "ids", "source_ref"} | ({"style"} if kind == "states" else set()) | optional)
             members = entry["ids"]
             allowed = buses if kind == "regions" else ids
-            if (not isinstance(members, list) or not 1 <= len(members) <= MAX_BRANCHES
+            if (not isinstance(members, list) or not 1 <= len(members) <= limits.ui_network_branches
                     or any(not isinstance(item, str) or item not in allowed for item in members)
                     or len(members) != len(set(members))):
                 raise ValueError("network annotation component membership is invalid")
-            item = {"label": _text(entry["label"]), "ids": list(members),
+            item = {"label": _label(entry["label"]), "ids": list(members),
                     "source_ref": reference(entry["source_ref"])}
             if kind == "states":
                 style = entry["style"]
@@ -264,7 +278,7 @@ def _normalize_annotations(
                 item["style"] = style
                 if "markers" in entry:
                     markers = entry["markers"]
-                    if not isinstance(markers, list) or len(markers) > min(MAX_BRANCHES, 2 * len(members)):
+                    if not isinstance(markers, list) or len(markers) > min(limits.ui_network_branches, 2 * len(members)):
                         raise ValueError("network state marker count is invalid")
                     selected_markers = []
                     seen_markers: set[tuple[str, str]] = set()
@@ -274,7 +288,7 @@ def _normalize_annotations(
                         if key[0] not in members or key[1] not in buses or key in seen_markers:
                             raise ValueError("network state marker membership is invalid")
                         seen_markers.add(key)
-                        selected_markers.append({"id": key[0], "bus_id": key[1], "label": _text(data["label"])})
+                        selected_markers.append({"id": key[0], "bus_id": key[1], "label": _label(data["label"])})
                     item["markers"] = selected_markers
             elif "emphasis" in entry:
                 if type(entry["emphasis"]) is not bool:

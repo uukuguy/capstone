@@ -1,5 +1,71 @@
 # Capstone Agent Framework
 
+## Incremental task organization candidate
+
+2026-10-30 decision: the default lightweight loop uses the direct model runtime.
+The request and text-analysis pools remain opt-in experiments, disabled unless
+the backend sets `CAPSTONE_EXPERIMENTAL_LLM_POOL=1`. They do not establish a
+performance benefit. Tool concurrency, artifact streaming and model timing do
+not depend on these pools. The question-led enterprise research mode is an
+accepted design, not an implemented release; see the
+[discussion record](../superpowers/specs/2026-10-30-enterprise-data-research-analysis.md).
+
+The lightweight instruction-local model request pool is invocation scheduling,
+not a second research task ledger or DR mode. Main and admitted text-analysis
+sessions share a finite request queue. Same-context requests wait for their
+predecessor to return; independent contexts may run within the selected limit.
+Queue admission grants no tools, sources, model endpoints or Authority evidence.
+Cancellation retains reservations until actual provider cleanup is confirmed.
+Public queue/start/return events distinguish waiting from model execution.
+See the [asynchronous execution design](../superpowers/specs/2026-10-29-lightweight-async-execution-design.md).
+
+Research-turn clarification (2026-10-23): each instruction advances a continuing
+conversation. The user judges analytical adequacy; internal assessment records
+actual support and limitations. Imperfect analysis can be delivered as explicitly
+limited results and revised in later turns. It must not trigger automatic whole-task
+repetition. Permissions, source/version identity, file safety, required persistence
+and Authority evidence remain enforced. App1.18/Pack1.15/shared policy1.5 is a local
+candidate for this rule; real two-turn and full performance acceptance are pending.
+
+The accepted organization model separates planning/acceptance from execution.
+Every executable task has an independent context and explicit selected inputs and
+returns. The engine submits the next evidence-supported task or batch, accepts
+actual results and decides the next work or whole-goal completion. An empty pool
+is not completion. The existing graph ledger and scheduler own the task pool.
+See the [incremental design](../superpowers/specs/2026-10-22-incremental-task-pool-design.md)
+and [verification](../reviews/2026-10-22-incremental-task-pool.md).
+The local Application1.14/Pack1.12 candidate passed a small real protocol check;
+full report, parallel performance and other application adapters are not accepted.
+Separate model contexts do not establish per-node OS filesystem isolation.
+
+2026-10-22当前校准：规划策略属于共享执行层，应用/Pack仅适配授权能力、来源、领域约束与交付。App1.13/Pack1.11先验证研究入口，电网/复杂聊天未接通。原始请求235939三路并行64.165秒，但218.375秒按failure收口、无报告，不通过146秒（145.914727秒）基线。步骤号和标题行计量已修订，282项App检查/类型通过；独立复审未完成，无Git/cloud/demo变更。以ROOT最新RESUME和编排修复记录为恢复入口，不继续采用旧263.896秒口径。
+
+## Enterprise execution design track
+
+The [v1 design baseline](../superpowers/specs/2026-10-15-enterprise-design-final.md)
+preserves the working Thread service, worker, research controller, evidence storage,
+professional runtimes and views. It generalizes their model-bound seams into one
+autonomous organization mechanism. It does not create a parallel command/event ledger
+or keep separate general and professional orchestration as the final architecture.
+Runtime integration and acceptance remain implementation gates.
+Demo1 and Demo2 are examples, not applications required by this track. The agent
+accepts versioned, authorized resources with their native contracts. Business
+metrics stay in external resources or the owning professional Pack. View types
+are extensible, and new example-specific solver capabilities are separate work.
+See the [boundary review](../reviews/2026-10-16-enterprise-scenario-boundary-review.md).
+
+The accepted conceptual direction uses ApplicationProfile as the application-owned,
+versioned business capability group and enablement unit. A profile composes Domain
+Bindings; each binding selects a Domain Pack. One Capstone task can organize
+capabilities from multiple enabled profiles under explicit application grants.
+ApplicationProfile remains within the Application ownership layer.
+
+The [enterprise execution design](../superpowers/specs/2026-10-15-pi-enterprise-execution-design.md)
+defines the proposed workspace configuration, task snapshots, Pi-native execution,
+cross-profile cooperation and frontend contract. These are target contracts, not
+implemented guarantees. The runtime descriptions below retain their current scope,
+including model-bound profile selection and isolated general Pi execution.
+
 ## Standalone intent routing after rollback
 
 The current local recovery candidate restores pre-closure business execution.
@@ -39,6 +105,66 @@ endpoints, or undeclared capability aliases to a professional Domain Pack sessio
 does not make a domain-specific output envelope a Kernel requirement.
 
 ### General Pi task delegation
+
+The continuing-conversation development path retains one Thread/Work while its
+instructions use direct answers, authorized native work and explicitly selected
+registered models. A stopped instruction remains history and may be retried
+explicitly. A new conversation instruction supersedes its old pending input;
+the framework must not concatenate the stopped request into new executable work.
+Terminal history retains its status and identity in model context. A retained
+Work goal is background; it does not silently add obligations to a new turn.
+The conversation has no session-wide "current business goal". A goal belongs
+to a concrete organized task or its admitted plan, not to every message in the
+Thread. Ordinary answers and temporary tool instructions need no business-goal
+banner. Later instructions may continue or adjust a referenced task; the retained
+Work storage anchor is not an implicit instruction to resume it.
+Resource scope also belongs to each instruction. An upload or an open grid is
+a contextual cue for the next instruction, not a permanent conversation target.
+An explicit file or grid reference takes precedence. A clear continuation may
+reuse the referenced task's resources and accepted results. An unrelated new
+instruction starts its own scope. When several plausible targets would change
+the result, ask a short clarification rather than silently choose one. Stopping
+a task preserves its history and resources; it does not authorize its execution
+under the next instruction.
+Historical user and assistant messages retain their source roles and original
+text inside a read-only reference packet. They are not replayed as the new
+executor's own assistant trajectory. Only this task's live messages form that
+trajectory. Historical instructions, status and factual claims do not
+establish current execution or live environment facts. Research summaries carry
+an immutable attempt/turn identity and an explicit research-bookkeeping scope,
+including in compact recovery windows. An idle research cycle describes that
+controller only; it is not an observation of operating-system processes or other
+attempts. A new accepted instruction is fresh authorization within existing
+grants even when it repeats a terminal request.
+The native execution host supplies a separate current-task status snapshot with
+its native task ID, parent Attempt ID, capture time and bounded scope. It does
+not claim to enumerate other tasks or operating-system processes. Missing
+observations are unknown, not zero. Research-cycle status cannot replace this
+host execution snapshot; neither snapshot grants new tools or Authority access.
+For continuing native tasks, retained research memory is read on demand while
+the current research controller is unstarted. Automatic research context begins
+only after the current controller has accepted organization or execution state.
+The request guard verifies that an idle context has not become active between
+context preparation and the model request. Existing research state is preserved;
+neither a fresh instruction nor an idle view silently clears it.
+Process emphasis follows actual execution: initial thinking, direct tool calls,
+or admitted task organization. Task organization selects task steps regardless
+of uploaded resources. Host lifecycle timing and unadmitted graph text do not
+establish task planning or completed analysis.
+
+Systematic diagnosis is an application-owned native foundation capability with
+an on-demand method guide and host-persisted reported records. Ordinary use is
+a single report of the issue, observed outcome and next action; manual IDs,
+hashes and probe reservation are not required. Scoped correction and repetition
+budgets permit useful independent work and limited delivery. Known field errors
+receive bounded correction guidance; unknown required persistence remains fatal.
+Diagnostic records cannot grant tools, certify their own findings or become
+Authority evidence. Research quality findings remain advisory gaps; professional
+calculations retain their Pack and Authority contracts. See the
+[design](../superpowers/specs/2026-10-25-unified-conversation-diagnostics-design.md)
+and [acceptance record](../reviews/2026-10-25-unified-conversation-diagnostics.md)
+for the implemented scope and verification limits. These local development changes
+do not establish cloud or user-trial deployment.
 
 The application can delegate general goals to a separate native Pi executor.
 Capstone mode first uses a model-based intent node to select goals and dependencies.
@@ -130,6 +256,23 @@ contracts. A binding names its domain payload and tool namespace, keeps
 credentials scoped, and denies cross-domain data sharing. Domain Packs
 communicate with an authority through their declared executor/protocol instead
 of importing its implementation into the Kernel.
+
+Profile preparation now distinguishes authority and native configurations.
+`DomainRuntimeProfile` retains the professional authority contracts.
+`NativeDomainRuntimeProfile` declares a `PackManifest`, resource profile,
+result contract, policy and guides without a model or substitute authority.
+The same `ApplicationProfile`, `DomainBinding` and `DomainRegistry` select both.
+`prepare_application(required_binding_ids=...)` prepares only the requested
+bindings while retaining the full profile and its reference grants. An empty
+selection starts no resources. Unknown bindings fail before credential issuance.
+
+Native preparation uses an application-supplied `NativeBindingPreparer` and
+returns an immutable `NativePreparationReceipt`. Capstone's Pi adapter checks
+the registered executor's published resource profile and load receipt. It does
+not interpret business metrics or execute a model during preparation. Native
+observations remain distinct from authority results. The current authority
+runner rejects selected native bindings before starting resources; native
+continuous execution and model-free Thread integration remain planned work.
 
 ### Imports, calls, and evidence are different relationships
 

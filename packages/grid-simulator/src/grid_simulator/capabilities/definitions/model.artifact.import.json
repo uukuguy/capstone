@@ -1,0 +1,174 @@
+{
+  "id": "model.artifact.import",
+  "version": "1.0",
+  "package": "grid_simulator",
+  "tool_name": "grid_model_artifact_import",
+  "availability": "published",
+  "title": "Admit a granted native model artifact",
+  "purpose": "Admit a task-bound host-staged pandapower model and exact native element mapping. The application must issue input_ref. Import receipts prove admission only, not calculation success.",
+  "applies_to": [
+    "admit an application-selected model"
+  ],
+  "not_for": [
+    "caller files or URLs",
+    "calculation"
+  ],
+  "terms": {
+    "en": [
+      "import model artifact"
+    ],
+    "zh": [
+      "导入模型"
+    ]
+  },
+  "input_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "input_ref"
+    ],
+    "properties": {
+      "input_ref": {
+        "type": "string",
+        "pattern": "^input:sha256:[0-9a-f]{64}$"
+      }
+    }
+  },
+  "output_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "context_ref",
+      "revision_ref",
+      "model_id",
+      "model",
+      "engine",
+      "engine_version",
+      "pandapower_version",
+      "import_receipt_ref",
+      "mapping_ref",
+      "artifact_ref",
+      "model_revision",
+      "scenario_revision",
+      "map_sha256",
+      "demo_only",
+      "power_flow_ready",
+      "real_power_flow_ready"
+    ],
+    "properties": {
+      "context_ref": {
+        "type": "string",
+        "minLength": 1
+      },
+      "revision_ref": {
+        "type": "string",
+        "minLength": 1
+      },
+      "model_id": {
+        "type": "string",
+        "minLength": 1
+      },
+      "model": {
+        "type": "string",
+        "minLength": 1
+      },
+      "engine": {
+        "type": "string",
+        "minLength": 1
+      },
+      "engine_version": {
+        "type": "string",
+        "minLength": 1
+      },
+      "pandapower_version": {
+        "type": "string",
+        "minLength": 1
+      },
+      "import_receipt_ref": {
+        "type": "string",
+        "minLength": 1
+      },
+      "mapping_ref": {
+        "type": "string",
+        "minLength": 1
+      },
+      "artifact_ref": {
+        "type": "string",
+        "minLength": 1
+      },
+      "model_revision": {
+        "type": "string",
+        "minLength": 1
+      },
+      "scenario_revision": {
+        "type": "string",
+        "minLength": 1
+      },
+      "map_sha256": {
+        "type": "string",
+        "minLength": 1
+      },
+      "demo_only": {
+        "type": "boolean"
+      },
+      "power_flow_ready": {
+        "type": "boolean"
+      },
+      "real_power_flow_ready": {
+        "type": "boolean"
+      }
+    }
+  },
+  "requires": [],
+  "consumes": [
+    "model.input.grant"
+  ],
+  "produces": [
+    "network.context",
+    "network.metadata",
+    "model.import.receipt"
+  ],
+  "common_next": [
+    "context.get",
+    "model.dataset.describe",
+    "analysis.powerflow.ac.run"
+  ],
+  "errors": [
+    "model_import_rejected",
+    "persist_failed"
+  ],
+  "recovery": {
+    "model_import_rejected": [
+      "ask the application for a valid input grant"
+    ],
+    "persist_failed": [
+      "check private workspace storage"
+    ]
+  },
+  "context_effect": {
+    "requires_state": [],
+    "consumes_state": [
+      "model.catalog"
+    ],
+    "produces_state": [
+      "model.active"
+    ],
+    "invalidates_state": [
+      "model.active"
+    ],
+    "result_kind": null,
+    "projector": "model-context-v1"
+  },
+  "state_effect": "creates_context",
+  "evidence_required": true,
+  "risk": "read_only_model",
+  "pandapower": {
+    "version": "3.4.0",
+    "operation": "fixed data-only split table import",
+    "limitations": [
+      "integer indices only",
+      "bounded native model processing; upload storage quotas are separate",
+      "no external objects or controllers"
+    ]
+  }
+}

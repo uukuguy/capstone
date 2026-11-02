@@ -9,6 +9,15 @@ established grid compatibility and evidence contracts.
 - Python 3.12 或更高版本与 `uv`
 - Node.js 22.19 或更高版本与 `npm`
 
+### 轻量执行与 LLM 池实验
+
+轻量任务默认直接使用模型运行时，保留独立工具并发、LLM/工具计时和产物即时发布。
+`CAPSTONE_EXPERIMENTAL_LLM_POOL` 默认 `0`；仅在服务端设置为 `1` 时发布并启用
+模型请求池及独立文本分析工具。此项是研发实验，不是性能保证，也不改变 DR 选择。
+本地在受保护的 `deploy/local.env` 中配置，然后执行 `make capstone-local-rebuild`。
+关闭实验后，新指令使用重新发现的能力；历史执行记录保留。不要在任务运行中切换。
+普通使用保持关闭，性能结论见[实测记录](reports/2026-10-29-lightweight-async-validation.md)。
+
 ## 初始化
 
 在仓库根目录执行：
@@ -246,6 +255,60 @@ AGENTS、skills 和 extensions，加载有限的共享历史、公共业务投�
 read/write/edit/bash 在独立 UID 和工作区中运行；宿主凭据通过可撤销 relay grant 隔离。
 角色资源由版本化配置准备；任务不能自行安装依赖。
 
+基础 Python、CLI、依赖锁、构建检查及环境收据见[原生隔离编程环境](architecture/capstone-native-programming-environment.md)。
+
+### 企业生产数据 MCP
+
+enterprise-research 可按应用授权使用 data-gateway 的远程工具。设置
+`CAPSTONE_DATA_GATEWAY_CONFIG_DIR` 为运维连接目录，设置
+`CAPSTONE_DATA_GATEWAY_CONNECTION_FILE=/run/capstone-private/data-gateway/connection.json`。
+目录只读挂载至 general-pi，连接文件须为0600，包含 Streamable HTTP URL及Bearer头。
+挂载位于镜像原生文件系统的0700宿主专用父目录下；不能仅依赖挂载文件的权限位，
+部分宿主文件共享环境不会按任务UID执行其权限。验收须真实降权并尝试打开，不能只查mode。
+凭据不进入App、模型上下文或原生任务环境；任务仅获得可撤销的本地宿主代理授权。
+不要把连接文件提交到Git或作为研究附件上传。
+
+本机研发的网关连接不绑定易变的局域网IP。宿主机可用
+`http://127.0.0.1:18001/mcp`。本地Compose通过
+`CAPSTONE_GATEWAY_LOOPBACK_HOST=host.docker.internal`把网关登记中的回环地址
+转换为容器访问宿主机的地址；界面仍显示原登记地址。此转换不修改其它服务地址。
+直接在宿主机运行时不设置该变量。研发服务器使用该环境的固定IP或固定服务名。
+地址由用户或运维登记，不由智能体自行选择。
+
+左栏“数据网关”浮窗显示当前会话的实例，并列出已知连接供查看。
+只有空会话可以点“使用此网关”更换自己的实例；输入草稿不算提交。
+首次有效指令与实例锁定在同一事务中保存，之后前端禁用切换，后端也拒绝切换。
+切换会话时，左栏实例及切换权限跟随会话。更改默认连接不影响已有会话，切换失败保留原选择。
+实例不可用时明确报错，不自动接用其他实例；需要其他实例时新建会话。
+同一实例可以更新契约，已执行任务保留冻结目录与回执，模型视图和实际取数使用同一会话来源。
+刷新图标异步检查全部实例；连通检测和目录验证的期限分别由
+`gateway_connections.py`中的`HEALTH_TIMEOUT_SECONDS`与`ADMISSION_TIMEOUT_SECONDS`管理。
+连通状态仅说明MCP连接检查结果，不证明业务数据齐全；数据离线标志单独显示。
+
+“添加网关”接受URL和必要的认证令牌。先测试连接，再保存。MCP可发现实例身份、环境、
+数据源标签和工具契约，不能发现认证秘密或服务端私有配置。地址若已登记，可复用后端
+保存的认证；新地址缺少认证时需用户提供。同一已发现实例的地址别名不会重复登记。
+令牌只在提交时经过前端内存，不写浏览器存储或公开列表。
+
+连接登记与默认选择保存在general-pi的私有持久目录`profiles/data-gateways/registry.json`，目录0700、
+文件0600。会话的实例标识和锁定状态保存在Thread数据库，不保存认证令牌。
+连接挂载目录中的`connection.json`仍支持旧安装的首次引导；也可放置0600的
+`instances.json`，其`schema`为`capstone-gateway-seeds/1`，可含`selected_id`；
+`entries`数组的每项含`id`、`label`和沿用原连接格式的`connection`对象。
+这些文件属于受保护配置，不能提交Git。受保护种子按稳定ID更新认证和标签；已保存的
+选择及用户新增项保留。服务暂时不可达时保留登记，后台恢复实际连接，而非只更新状态点。
+
+`configs/runtime/data-gateway.json`声明准入策略。启动时发现实际schema并绑定执行器身份，
+任务只调用已接纳的`data_gateway_`工具，研究子节点沿用同一目录与来源回执校验。
+网关管理其数据后端，Capstone不增加数据库切换或副本选择流程。未配置时保持原研究
+能力；已配置但连接失败时明确标记不可用，不回退合成数据或宣称生产数据访问成功。
+新指令用轻量检查比较实例标识和契约发布时间；未变化复用目录，变化后更新后续任务。
+检查失败不能当作未变化。工具schema变化不改变在途任务契约，也不改变会话绑定的实例。
+模型工具是否可用以当前发布、权限和工具契约为准。登记范围不代表已生成或可计算模型。
+超时、连接、认证或目录变更会停止本次任务的后续网关探测，下一条用户指令
+可以重新检查；失败报告保留具体错误类型，不推断整个网关宕机。
+更改源码或配置后使用规范本地重建入口。
+
 ### 共享背景与角色资源
 
 `/skills` 打开资源选择器，显示来源、版本、可用状态与实际执行角色。
@@ -283,9 +346,7 @@ Harness 使用领域能力包原创适配指南，将结构检查映射到既有
 
 执行器将工具观察和文件产物保存为外部任务记录，不将其视为电网结果或证据。
 文件字节先校验并保存，才提交成功；私有控制端支持按任务和产物 ID 读取。
-当前 App 尚无产物下载入口。默认保留内容 24 小时，私有存储限 64 MiB，最多 4096 个
-收据或去重墓碑；启动和请求时清理到期内容。容量满时拒绝新任务，不能靠删除墓碑重做未知副作用。
-终态释放任务工作区；原生 token/cache 用量保留，费用标为未知，不能用合成的零价格估算真实费用。
+App 提供生成文件的预览与下载。容量和保留期限由[应用容量配置](../configs/runtime/application-capacity.json)管理；使用[初始化说明](architecture/capstone-application-capacity.md)统一设置 API、worker、执行器和前端。容量满时明确报告实际值与上限，不能靠删除墓碑重做未知副作用。保存成功后释放任务工作区；保存失败保留文件、已验证元数据和工作目录，按正常保留期限清理。原生 token/cache 用量保留，费用标为未知，不能用合成的零价格估算真实费用。
 
 离线真实 Pi 检查需要先构建本地 general-pi 镜像，再运行：
 
@@ -296,7 +357,7 @@ CAPSTONE_GENERAL_NATIVE_TESTS=1 uv run --project packages/capstone-agent pytest 
 该检查只调用 loopback 假 Provider。它验证工具、隔离、取消和产物，不能证明真实新闻检索质量。
 真实 Provider 的回答验收仍按单独授权进行。
 
-App 根路径 `/` 默认进入智能体对话页；已有 `?thread=<id>` 链接继续打开对应 Thread。App 先读取 `/api/v1/thread-access`：`CAPSTONE_THREAD_OPEN_ACCESS=true` 时直接进入工作台，不输入或保存浏览器令牌。本地 Compose 默认开启；cloud-dev 在本地验收后显式开启。设为 `false` 时保留原 operator token 入口。该接口只返回访问模式，不返回操作员或 Provider 密钥。创建 Thread 后把其 ID 写入当前 URL，刷新时恢复同一 Thread。模型目录只提交“打开 模型 ID 电网模型”，拓扑由模型状态投影同步。已完成回答可重新提交原指令作为新的 Turn，保留原回答；失败回答沿用原 Turn 的重试 Attempt。原登记案例页移到 `/old`，下面的公开案例说明均指该页面；案例受限凭证不会授予智能体 Provider 权限。
+App 根路径 `/` 默认进入智能体对话页；已有 `?thread=<id>` 链接继续打开对应 Thread。App 先读取 `/api/v1/thread-access`：`CAPSTONE_THREAD_OPEN_ACCESS=true` 时直接进入工作台，不输入或保存浏览器令牌。本地 Compose 默认开启；cloud-dev 在本地验收后显式开启。设为 `false` 时保留原 operator token 入口。该接口返回访问模式和安全的有效容量快照，不返回操作员或 Provider 密钥。创建 Thread 后把其 ID 写入当前 URL，刷新时恢复同一 Thread。模型目录只提交“打开 模型 ID 电网模型”，拓扑由模型状态投影同步。已完成回答可重新提交原指令作为新的 Turn，保留原回答；失败回答沿用原 Turn 的重试 Attempt。原登记案例页移到 `/old`，下面的公开案例说明均指该页面；案例受限凭证不会授予智能体 Provider 权限。
 
 对话区的小型「新建对话」创建独立 Thread，不取消原有后台任务。用户系统、历史会话列表、归档恢复界面和 LLM 会话命名暂缓，后续计划记录在[会话管理计划](superpowers/plans/2026-10-06-thread-session-management.md#current-scope-2026-10-06-1124)。当前 App 只管理已连接的 Thread；既有消息、结果和证据仍保留。
 
@@ -304,11 +365,11 @@ App 根路径 `/` 默认进入智能体对话页；已有 `?thread=<id>` 链接�
 
 Thread 是持久记录，不为每个打开的对话预留 worker。执行资源按 Attempt 分配；租约控制执行权。一个可见页面保持一个事件订阅；切走 Thread、关闭页面或切到后台时关闭订阅，返回时补读事件。空闲订阅逐步降低查询频率，最长间隔 2 秒，每 15 秒发送心跳；每次数据库操作后释放连接。旧 `/old` 会话的容量和闲置回收仍由兼容 host 管理。
 
-临时网络或服务更新中断连接时，App 自动重连，重试间隔为 1、2、4、8、15 秒，上限 15 秒；认证或永久请求错误不持续重试。重连恢复快照和事件光标。未知提交结果只核对原始命令及幂等键，不生成重复指令；已失败或中断的 AI 执行仍需用户明确重试。当前浏览器会话保存每个 Thread 的草稿和最多一个待确认命令，按 API 原点和认证会话隔离；草稿上限 16000 字符，待确认命令上限 64 KiB。浏览器禁止存储时保留内存草稿，但整页刷新无法保证恢复。
+临时网络或服务更新中断连接时，App 自动重连，重试间隔为 1、2、4、8、15 秒，上限 15 秒；认证或永久请求错误不持续重试。重连恢复快照和事件光标。未知提交结果只核对原始命令及幂等键，不生成重复指令；已失败或中断的 AI 执行仍需用户明确重试。当前浏览器会话保存每个 Thread 的草稿和最多一个待确认命令，按 API 原点和认证会话隔离；草稿和待确认命令使用应用初始化容量；超额明确报告，不静默截断或覆盖原草稿。浏览器禁止存储时保留内存草稿，但整页刷新无法保证恢复。
 
-消息首次打开只读最近一页，点击小型文字入口「查看之前的对话」读取当前 Thread 的较早内容，点击「返回最新对话」回到最新内容。页面最多显示 50 条消息，浏览器事件缓存上限为 1024 条或 8 MiB；单条事件仍受 API 的事件大小限制。当前电网视图通过同一 Model Context 的受限源事件投影恢复，不从旧模型借用图或证据。这些限制不删除服务端历史，也不改变 Kernel 的模型上下文或当前运行证据准入。
+消息首次打开只读最近一页，点击小型文字入口「查看之前的对话」读取当前 Thread 的较早内容，点击「返回最新对话」回到最新内容。消息窗口和浏览器事件缓存使用应用初始化容量；单条事件仍受 API 的事件大小限制。当前电网视图通过同一 Model Context 的受限源事件投影恢复，不从旧模型借用图或证据。这些限制不删除服务端历史，也不改变 Kernel 的模型上下文或当前运行证据准入。
 
-模型目录在打开前检查完整拓扑的可用性；超出容量、拓扑数据无效或模型服务未就绪的选项显示原因并禁用，服务端也拒绝这些切换。指令拒绝、执行失败和拓扑不可用均显示原因、下一步操作及安全诊断代码；输入草稿和已完成回答保留。当前完整操作视图的上限为 10,000 个母线、20,000 条支路和 4 MiB，不截断模型。较大事件按字节分页，刷新仍恢复完整底图；普通事件仍受 64 KiB 限制。
+模型目录在打开前检查完整拓扑的可用性；超出容量、拓扑数据无效或模型服务未就绪的选项显示原因并禁用，服务端也拒绝这些切换。指令拒绝、执行失败和拓扑不可用均显示原因、下一步操作及安全诊断代码；输入草稿和已完成回答保留。完整操作视图的母线、支路、投影和事件容量使用同一应用初始化配置，不截断模型。较大事件按有效字节配额分页，刷新仍恢复完整底图。
 
 独立的 `packages/capstone-app/` 是公开访问操作台，当前开放已登记的三轮 Provider 案例。顶部电力科学AI主题图展示专业框架与科学计算模型，图下短文介绍 CAPSTONE 的领域能力与运行机制。目录浏览和打开案例不调用 Provider；选择案例即显示登记模型全图。点击「执行指令 1」会创建 `mode: "provider"` 会话并直接提交首条指令，后续可逐条提交，也可点击「自动完成」让同一会话按序提交剩余指令、等待每轮已提交答案和对应电网图层后继续，并在结束时生成报告；图层不可用时按有界等待继续。「停止自动执行」只停止后续步骤，已接受的当前指令会正常完成，并显示暂停说明。切换案例时，当前标签页保留各案例最近一次会话、完成步骤选择和仍在运行的自动流程；完成后可从分析过程标题旁点击「重置案例」回到初始状态，重新选择逐步执行或自动完成，不改变其他案例的当前状态。报告生成后显示在中栏分析流程底部；右栏查看运行状态与当前运行准入证据。页面加载与刷新时自动向 API 领取访问凭证并进入工作台，不持久化凭证；同一标签页的会话编号和创建防重复键保存在 `sessionStorage`，刷新后恢复各案例最近运行与所选案例。明确重置后才开始新一轮，断网重试不会重复创建会话；刷新不会恢复正在执行的自动提交循环，已提交的步骤仍可查看或手动继续。页面调用相同的 `/api/v1` 接口，不关心 API/worker 所在平台。报告与当前运行准入证据由 API 从私有工件存储读取，浏览器不直接访问 bucket 或本地运行目录。
 
@@ -339,6 +400,63 @@ PID/日志；设置 `CAPSTONE_START_APP=0` 可跳过。需要同时刷新基础�
 `CAPSTONE_LOCAL_PULL=1`。脚本会先校验本机 `.grid-agent/runtime/pypsa-models`
 中的六个固定模型，并将它们放入本地构建上下文，因此本地重构不会重复下载模型。
 重构后刷新浏览器，已有会话需要重置后才会开始新运行。
+
+构建依赖需要代理时，可设置 `CAPSTONE_LOCAL_BUILD_PROXY` 为构建容器可访问的
+代理地址，例如 `http://host.docker.internal:7897`。该值仅传给镜像构建，
+不写入镜像运行环境，也不改变应用的联网授权。容器内的 `127.0.0.1` 不是宿主机。
+
+#### Local Capstone build-cache maintenance
+
+Standing rule: after every local build and its validation/use, clean Capstone's
+unused images/cache while preserving all container-referenced images and user
+volumes/data. Do not add a background service or broaden cleanup automatically.
+If this build uses `CAPSTONE_LOCAL_CACHE_CLEANUP=0` because a manual cleanup was
+already active, the operator must run the scoped helper with `--apply` once
+validation/use ends and the other cleanup has stopped.
+
+After all readiness, image-identity and App checks pass, the canonical rebuild
+runs scoped maintenance. It removes only untagged, digest-free images with the
+exact Compose project label `capstone` that no running or stopped container
+references. Its image inventory includes intermediate images (`--all`). It
+reinspects tags and references before removal, never forces image removal and
+uses `--no-prune` to preserve unselected parent images. Other projects, tagged
+images, container data and volumes remain.
+
+Build-cache ownership requires a direct explicit Capstone package/module/CLI
+build command in each selected record. Parent or child relationships never
+transfer ownership: another project can inherit a Capstone intermediate layer.
+Generic base/apt/WORKDIR records and unknown ancestors or descendants remain.
+Shared and non-reclaimable records are
+excluded. The helper reads dynamic Buildx JSON IDs, uses one anchored ID filter,
+and verifies that filter with a read-only `du` query before pruning. No global
+image/system/builder prune or volume cleanup is used. Buildx budget accounting
+can include the builder's other cache, but deletion remains restricted to the
+verified IDs; protected/unknown cache can prevent reaching the target.
+
+Operator shell environment overrides (also accepted as helper CLI arguments):
+
+| Environment | Default | Meaning |
+| --- | --- | --- |
+| `CAPSTONE_LOCAL_CACHE_MAX_USED_SPACE` | `40GB` | Buildx cache retention target |
+| `CAPSTONE_LOCAL_CACHE_RESERVED_SPACE` | `20GB` | Buildx cache reserve; positive and no greater than target |
+| `CAPSTONE_LOCAL_CACHE_BUILDER` | current selected builder | Explicit Buildx builder to inspect and maintain |
+| `CAPSTONE_LOCAL_CACHE_CLEANUP` | `1` | Set `0` to skip post-rebuild maintenance, for example while an operator prune already runs |
+
+These are operator environment settings; the helper does not read credential
+files. Start with a dry run, which performs no deletion:
+
+```sh
+python3 deploy/cleanup_local_build_cache.py
+# Explicit application of that scope after inspection:
+python3 deploy/cleanup_local_build_cache.py --apply
+```
+
+The rebuild writes a unique receipt under `.capstone-agent/cache-maintenance-*`.
+Maintenance failure prints a visible warning and preserves successful deployment
+status. An apply-only nonblocking per-user lock prevents two helpers across
+worktrees from pruning concurrently. It cannot detect an unrelated manual prune;
+use `CAPSTONE_LOCAL_CACHE_CLEANUP=0` during that operation. Do not retag images or
+change builders concurrently with maintenance. There is no background service.
 
 本地重建和 `make capstone-app-dev` 显式选择 `local-dev`；本地演示重建入口
 `make capstone-demo-local-rebuild` 选择 `local-demo`。直接运行 Vite 时可设置
@@ -516,6 +634,23 @@ make trajectory PORT=8765
 
 ## LLM 配置与 Pi RPC 路径
 
+工作台原生 Pi 的上下文预算由应用层
+`configs/runtime/workbench-llm-profiles.json` 的各模型 `context_policy` 配置。
+可用 `CAPSTONE_WORKBENCH_LLM_PROFILES` 指定部署配置文件。四个字段为
+`context_window_tokens`、`max_output_tokens`、`compaction_reserve_tokens`、
+`compaction_keep_recent_tokens`；超过“窗口减预留”时自动压缩。
+预留须不少于输出预算且小于窗口，近期保留量须小于触发阈值。
+没有显式策略的自定义模型沿用应用容量默认值及 Pi 压缩设置。
+策略参与模型配置版本校验，新指令按选中的模型生成独立的 Pi 模型与压缩设置，
+不修改其他模型的全局容量，也不替换历史任务的冻结选择。
+
+2026-11-01 依据[DeepSeek 官方模型接口](https://api-docs.deepseek.com/api/list-models/)
+和实际 `/models` 返回，Flash 配置为1,048,576窗口、65,536预留，触发阈值983,040。
+Qwen3.8-27B按[官方模型卡](https://huggingface.co/Qwen/Qwen3.8-27B)的原生262,144窗口，
+配置32,768预留，触发阈值229,376。两者输出预算均为32,768、近期保留20,000。
+内网端点未连通；按用户允许的近似配置采用上述规格，服务别名不改写。
+如果部署实际窗口较小，在相应模型配置中调整，不改通用执行代码。
+
 配置写在仓库根目录的 `.env`：它已被 Git 忽略。先复制模板，再只填写一个实际使用的密钥：
 
 ```sh
@@ -687,3 +822,11 @@ python3 -m tools.issue_automation.cli create \
 ```
 
 修复依次执行 `triage`、`begin`、`record-verification`、`complete`，由当前 AI 会话传入判断、有限源码选择和完整文件替换。工具固定记录输入、政策、源码及候选身份，独立检查原始版本的复现与候选通过情况，然后发布 draft PR。缺少受信检查或准备好的隔离镜像时不发布；不把配置缺项当作用户问题根因。两套真实入口及云发布仍按生命周期另行验证。
+
+## 模型请求网络预算
+
+`configs/runtime/general-pi/model-transport.json` 定义连接、读取静默、写入和连接池等待预算。
+默认分别为15、90、30、15秒。读取预算限制单次等待网络数据的时间，不是模型生成总时长；
+持续输出可以超过90秒，整项任务仍受原任务截止和取消控制。不同部署可调整该版本化配置，
+不能用模型请求参数绕过。网络超时不自动重放工具或重跑整个任务，已有产物与来源继续保留。
+流缺少正常结束、上游网络错误、内容过滤分别记录；HTTP200本身不代表模型请求成功。

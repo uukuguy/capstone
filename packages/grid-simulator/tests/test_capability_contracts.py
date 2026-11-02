@@ -23,6 +23,7 @@ EXPECTED_IDS = (
     "context.open",
     "environment.describe",
     "evidence.get",
+    "model.artifact.import",
     "model.constraints.describe",
     "model.create",
     "model.creator.describe",
@@ -49,7 +50,7 @@ def test_contract_root_exposes_packaged_definitions() -> None:
     root = contract_root()
     documents = sorted(root.glob("*.json"), key=lambda path: path.name)
 
-    assert len(documents) == 30
+    assert len(documents) == 31
     assert all(path.is_file() for path in documents)
 
 

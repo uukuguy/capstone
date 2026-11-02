@@ -1,0 +1,647 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:data-gateway:electrical-view:2",
+  "title": "MCP Result.data electrical view contract",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/preparing"
+    },
+    {
+      "$ref": "#/$defs/manifest"
+    },
+    {
+      "$ref": "#/$defs/page"
+    }
+  ],
+  "$defs": {
+    "device": {
+      "type": "object",
+      "required": [
+        "id",
+        "kind"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "element_key": {
+          "type": [
+            "string",
+            "integer"
+          ]
+        },
+        "source_refs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "port": {
+      "type": "object",
+      "required": [
+        "id",
+        "device_id",
+        "identity_origin",
+        "role"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "device_id": {
+          "type": "string"
+        },
+        "identity_origin": {
+          "enum": [
+            "source_terminal",
+            "derived_incidence",
+            "native_model"
+          ]
+        },
+        "role": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sequence": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "source_slot": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "node": {
+      "type": "object",
+      "required": [
+        "id",
+        "kind"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "connectivity_node",
+            "calculation_bus"
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "connection": {
+      "type": "object",
+      "required": [
+        "id",
+        "port_id",
+        "connectivity_node_id",
+        "kind"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "port_id": {
+          "type": "string"
+        },
+        "connectivity_node_id": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "source_connection",
+            "native_model_endpoint"
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "relation": {
+      "type": "object",
+      "required": [
+        "id",
+        "parent_id",
+        "child_id",
+        "kind",
+        "child_stream",
+        "electrical_connection"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "parent_id": {
+          "type": "string"
+        },
+        "child_id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "child_stream": {
+          "enum": [
+            "devices",
+            "ports"
+          ]
+        },
+        "electrical_connection": {
+          "const": false
+        }
+      },
+      "additionalProperties": true
+    },
+    "group": {
+      "type": "object",
+      "required": [
+        "id",
+        "kind",
+        "member_count",
+        "expand_target"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "station"
+        },
+        "member_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "expand_target": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "boundary": {
+      "type": "object",
+      "required": [
+        "id",
+        "port_id",
+        "device_id",
+        "reason"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "port_id": {
+          "type": "string"
+        },
+        "device_id": {
+          "type": "string"
+        },
+        "reason": {
+          "enum": [
+            "outside_partition",
+            "ownership_unknown"
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "issue": {
+      "type": "object",
+      "required": [
+        "id",
+        "code",
+        "subject_ref"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "code": {
+          "type": "string"
+        },
+        "subject_ref": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "preparing": {
+      "type": "object",
+      "required": [
+        "schema",
+        "state",
+        "model_ref",
+        "preparation_ref"
+      ],
+      "properties": {
+        "schema": {
+          "const": "gateway-electrical-view/2"
+        },
+        "state": {
+          "const": "preparing"
+        },
+        "model_ref": {
+          "type": "string"
+        },
+        "preparation_ref": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "manifest": {
+      "type": "object",
+      "required": [
+        "schema",
+        "state",
+        "model_ref",
+        "model_revision",
+        "view_ref",
+        "representation",
+        "streams",
+        "capture"
+      ],
+      "properties": {
+        "schema": {
+          "const": "gateway-electrical-view/2"
+        },
+        "state": {
+          "const": "ready"
+        },
+        "model_ref": {
+          "type": "string"
+        },
+        "model_revision": {
+          "type": "string"
+        },
+        "view_ref": {
+          "type": "string"
+        },
+        "representation": {
+          "const": "source_node_breaker"
+        },
+        "streams": {
+          "type": "object",
+          "required": [
+            "devices",
+            "ports",
+            "connectivity_nodes",
+            "connections",
+            "device_relations",
+            "groups",
+            "boundaries",
+            "issues",
+            "summary_nodes",
+            "summary_edges"
+          ]
+        },
+        "capture": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": true
+    },
+    "page": {
+      "type": "object",
+      "required": [
+        "schema",
+        "model_ref",
+        "model_revision",
+        "view_ref",
+        "stream",
+        "records",
+        "returned_count",
+        "total_count",
+        "next_cursor",
+        "complete"
+      ],
+      "properties": {
+        "schema": {
+          "const": "gateway-electrical-view/2"
+        },
+        "model_ref": {
+          "type": "string"
+        },
+        "model_revision": {
+          "type": "string"
+        },
+        "view_ref": {
+          "type": "string"
+        },
+        "stream": {
+          "enum": [
+            "devices",
+            "ports",
+            "connectivity_nodes",
+            "connections",
+            "device_relations",
+            "groups",
+            "boundaries",
+            "issues",
+            "summary_nodes",
+            "summary_edges"
+          ]
+        },
+        "records": {
+          "type": "array"
+        },
+        "returned_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "total_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "next_cursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "complete": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "stream": {
+                "const": "devices"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "records": {
+                "items": {
+                  "$ref": "#/$defs/device"
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "stream": {
+                "const": "ports"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "records": {
+                "items": {
+                  "$ref": "#/$defs/port"
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "stream": {
+                "const": "connectivity_nodes"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "records": {
+                "items": {
+                  "$ref": "#/$defs/node"
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "stream": {
+                "const": "connections"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "records": {
+                "items": {
+                  "$ref": "#/$defs/connection"
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "stream": {
+                "const": "device_relations"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "records": {
+                "items": {
+                  "$ref": "#/$defs/relation"
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "stream": {
+                "const": "groups"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "records": {
+                "items": {
+                  "$ref": "#/$defs/group"
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "stream": {
+                "const": "boundaries"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "records": {
+                "items": {
+                  "$ref": "#/$defs/boundary"
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "stream": {
+                "const": "issues"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "records": {
+                "items": {
+                  "$ref": "#/$defs/issue"
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "stream": {
+                "const": "summary_nodes"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "records": {
+                "items": {
+                  "$ref": "#/$defs/summary_node"
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "stream": {
+                "const": "summary_edges"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "records": {
+                "items": {
+                  "$ref": "#/$defs/summary_edge"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "summary_node": {
+      "type": "object",
+      "required": [
+        "id",
+        "group_kind",
+        "expand_target",
+        "electrical_equivalent"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "group_kind": {
+          "enum": [
+            "grid",
+            "station",
+            "external_or_unresolved",
+            "unresolved"
+          ]
+        },
+        "expand_target": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "electrical_equivalent": {
+          "const": false
+        }
+      },
+      "additionalProperties": true
+    },
+    "summary_edge": {
+      "type": "object",
+      "required": [
+        "id",
+        "source_id",
+        "target_id",
+        "relation_kind",
+        "member_count",
+        "expand_target",
+        "electrical_equivalent",
+        "electrical_connectivity_verified"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "source_id": {
+          "type": "string"
+        },
+        "target_id": {
+          "type": "string"
+        },
+        "relation_kind": {
+          "const": "source_ac_line_station_endpoints"
+        },
+        "member_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "expand_target": {
+          "type": "string"
+        },
+        "electrical_equivalent": {
+          "const": false
+        },
+        "electrical_connectivity_verified": {
+          "const": false
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

@@ -131,6 +131,7 @@ def test_load_federated_catalog_documents_uses_fixed_family_exporters(monkeypatc
 
 
 def test_load_federated_catalog_documents_rejects_failed_or_oversized_export(monkeypatch, tmp_path) -> None:
+    from capstone_agent.application_capacity import CapacityExceeded, limits
     class FailedProcess:
         returncode = 1
         def __init__(self, *args, **kwargs): pass
@@ -145,10 +146,10 @@ def test_load_federated_catalog_documents_rejects_failed_or_oversized_export(mon
 
     class OversizedProcess(FailedProcess):
         returncode = 0
-        def __init__(self, *args, **kwargs): kwargs["stdout"].write(b"x" * (512 * 1024 + 1))
+        def __init__(self, *args, **kwargs): kwargs["stdout"].write(b"x" * (limits.control_document_bytes + 1))
 
     monkeypatch.setattr("capstone_agent.federated_hosted.subprocess.Popen", OversizedProcess)
-    with pytest.raises(RuntimeError, match="too large"):
+    with pytest.raises(CapacityExceeded, match="control_document_bytes"):
         load_federated_catalog_documents(tmp_path)
 
 
@@ -160,7 +161,8 @@ def test_catalog_export_timeout_stops_the_authority_process(monkeypatch, tmp_pat
             self.stopped = False
 
         def communicate(self, timeout=None):
-            assert timeout == 120
+            from capstone_agent.application_capacity import limits
+            assert timeout == limits.tool_timeout_seconds
             raise subprocess.TimeoutExpired("registered-exporter", timeout)
 
         def poll(self):

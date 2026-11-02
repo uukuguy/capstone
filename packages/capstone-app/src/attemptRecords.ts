@@ -1,3 +1,4 @@
+import {exceedsCapacity} from './applicationCapacity'
 import { parseContext, parseEventEnvelope, type EventEnvelope, type ModelContextSnapshot } from './threadProtocol'
 
 export interface AttemptRecords {
@@ -17,8 +18,8 @@ export function parseAttemptRecords(value: unknown, threadId: string, attemptId:
   if (page.schema !== 'capstone-attempt-records/1' || page.thread_id !== threadId || page.attempt_id !== attemptId) {
     throw new Error('任务记录身份不一致')
   }
-  if (typeof page.instruction !== 'string' || page.instruction.length > 64_000 ||
-      !Array.isArray(page.events) || page.events.length > 128 || typeof page.has_more !== 'boolean' ||
+  if (typeof page.instruction !== 'string' || exceedsCapacity(page.instruction.length,'input_text_chars') ||
+      !Array.isArray(page.events) || exceedsCapacity(page.events.length,'native_record_count') || typeof page.has_more !== 'boolean' ||
       !Number.isSafeInteger(after) || after < 0 || !Number.isSafeInteger(page.next_after)) throw new Error('任务记录分页无效')
   const modelContext = page.model_context === null ? null : parseContext(page.model_context)
   const events = page.events.map(parseEventEnvelope)

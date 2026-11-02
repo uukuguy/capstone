@@ -53,7 +53,7 @@ def test_parse_answer_bundle_rejects_missing_answer_but_does_not_block_text() ->
 def test_parse_answer_bundle_rejects_empty_or_oversized_summary() -> None:
     empty = parse_answer_bundle('{"answer":"正式回答。","summary":"  "}')
     oversized = parse_answer_bundle(
-        '{"answer":"正式回答。","summary":"' + ('摘要' * 111) + '"}'
+        '{"answer":"正式回答。","summary":"' + ('摘要' * 111) + '"}',runtime_limits={'answer_summary_chars':220}
     )
 
     assert empty.summary is None

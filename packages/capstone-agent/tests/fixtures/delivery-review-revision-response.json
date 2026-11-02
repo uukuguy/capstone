@@ -1,0 +1,8 @@
+{
+  "source": {
+    "id": "review-v2",
+    "title": "复核修正后报告（表 1 计数、图数、晚高峰口径、关键指标月度覆盖）"
+  },
+  "status": "completed",
+  "answer": "{\"summary\":\"仅对当前产品文本做文本级复核：report.html、key_metrics.csv、out/tables/t1.csv、t2.csv、t4.csv、t8.csv、src/charts.py、src/build_report.py；并对照 README.md 与 spot-prices.csv、interprovincial-flows.csv、renewable-generation.csv 的前段摘录。上一轮7项已逐项查看：缺失字段分列、6张省级图与图题、A_TO_B 0.21个百分点、检修窗口起止、晚间18–22小时标签说明在文本上大多已改正；但仍发现下述实质性不一致。未做完整原始CSV重算。\",\"findings\":[{\"severity\":\"blocking\",\"path\":\"report.html\",\"description\":\"第三节图3说明称“9月增量主要来自丙省与乙省，甲省增量较小”。但 out/tables/t2.csv 的负价时段数为：甲省 8月39→9月55（+16），乙省 39→49（+10），丙省 8→35（+27）。甲省增量大于乙省，是第二大增量，不能称“较小”；增量排序应为丙>甲>乙。\"},{\"severity\":\"warning\",\"path\":\"report.html\",\"description\":\"第六节图7说明称“右图显示价格恰在同一时段下探并出现负值”，其中“同一时段”指前句的“12–17时”。这与第三节“负价全部出现在11–15时”及逐小时分布（11时14、12时56、13时64、14时73、15时18）矛盾：16–17时不在负价小时清单内。应把“12–17时处于低位”和“负值仅出现在11–15时”分开表述。\"},{\"severity\":\"warning\",\"path\":\"key_metrics.csv\",\"description\":\"通道指标仍未全部覆盖8月、9月与全期：\\\"外送通道,≥95% 限额的时段数,个,—,—,81.0\\\" 与 \\\"外送通道,实际潮流越限时段数,个,—,—,0.0\\\" 两行的8月、9月列均为空，只有全期值；而正文/表4已给出A_TO_B 39个、B_TO_C 42个及对应检修窗口，上一轮“通道指标只有全期值”的问题未完全改正。\"}],\"not_checked\":[\"report.html 的图片内部像素、实际渲染坐标轴、图例位置与视觉排版未检查；仅能读取文本投影。\",\"未能验证 report.html 是否为可双击直接打开的单文件HTML，也未检查图片是否真正内嵌。\",\"spot-prices.csv、interprovincial-flows.csv、renewable-generation.csv 仅提供前段摘录，未提供完整原始CSV；无法独立重算全期行数、缺失分布、负价日期、检修窗口、相关系数、限发事件与MAE/MAPE。\",\"out/tables/t3.csv、t5.csv、t6.csv、t7.csv 及 data/ 中间结果未在给定产品清单中提供，只能核对 report.html 中已渲染的表格文本。\",\"report.html 附录提到的 src/analysis.py 未随包提供，无法核查分析脚本与正文数字的完整对应关系。\",\"关键指标表中仅全期填写的其他行（如负价时段内限发占比、MAE、MAPE）未逐月核验其月度可计算性。\"],\"scope\":\"text_level_only\"}"
+}

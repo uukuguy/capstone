@@ -181,6 +181,24 @@ class CaseExecutionService:
         document["cases"] = cases
         return document
 
+    def input_availability(self, thread_id: str) -> dict[str, object]:
+        """Project the registered application Case executor's admission state."""
+        snapshot = self.thread_service.snapshot(thread_id)
+        execution = _execution_from_snapshot(snapshot)
+        reason = None
+        if snapshot.runtime_mode != 'capstone':
+            reason = 'case_requires_capstone_runtime'
+        elif snapshot.run.state != 'open' or snapshot.current_attempt is not None:
+            reason = 'thread_busy'
+        elif execution is not None and execution.status in _ACTIVE_STATUSES:
+            reason = 'case_execution_active'
+        elif not any(snapshot.professional_context.model_id in definition.model_ids
+                     for definition in self._case_catalog._definitions.values()):
+            reason = 'case_model_mismatch'
+        elif not self.thread_service.is_family_available(snapshot.professional_context.implementation_family):
+            reason = 'family_unavailable'
+        return {'available': reason is None, 'reason': reason}
+
     def reconcile(self, thread_id: str) -> CaseExecution | None:
         """Consume committed Attempt terminal events and advance one Case step.
 
@@ -205,7 +223,7 @@ class CaseExecutionService:
         if definition.case_revision != execution.case_revision:
             return self._block(snapshot, execution, "case_revision_mismatch")
         context = execution.context
-        active = snapshot.active_model_context
+        active = snapshot.professional_context
         if (
             context.model_context_id != active.id
             or context.model_id != active.model_id
@@ -641,6 +659,8 @@ class CaseExecutionService:
             snapshot = self.thread_service.snapshot(command["thread_id"])
         except ThreadNotFound:
             raise
+        if snapshot.minimum_protocol_version > 1:
+            return snapshot, self._reject(command, 'protocol_upgrade_required')
         if command["run_id"] is not None and command["run_id"] != snapshot.run.run_id:
             return snapshot, self._reject(command, "run_mismatch")
         if command["expected_event_seq"] != snapshot.last_event_seq:
@@ -688,13 +708,15 @@ class CaseExecutionService:
         snapshot, rejection = self._snapshot_or_rejection(command)
         if rejection is not None:
             return rejection
+        if snapshot.runtime_mode != "capstone":
+            return self._reject(command, "case_requires_capstone_runtime")
         try:
             definition = self._case_catalog.get(case_id, case_version)
         except LookupError:
             return self._reject(command, "case_not_found")
         if strategy_id != "sequential_batch":
             return self._reject(command, "strategy_not_supported")
-        if snapshot.active_model_context.model_id not in definition.model_ids:
+        if snapshot.professional_context.model_id not in definition.model_ids:
             return self._reject(command, "case_model_mismatch")
         if snapshot.current_attempt is not None:
             return self._reject(command, "thread_busy")
@@ -703,10 +725,10 @@ class CaseExecutionService:
             return self._reject(command, "case_execution_active")
 
         context = PinnedCaseContext(
-            model_context_id=snapshot.active_model_context.id,
-            model_id=snapshot.active_model_context.model_id,
-            model_revision=snapshot.active_model_context.model_revision,
-            selection_revision=snapshot.active_model_context.selection_revision,
+            model_context_id=snapshot.professional_context.id,
+            model_id=snapshot.professional_context.model_id,
+            model_revision=snapshot.professional_context.model_revision,
+            selection_revision=snapshot.professional_context.selection_revision,
         )
         execution = SequentialBatchExecutor(definition).create_execution(
             definition,

@@ -1,0 +1,34 @@
+{
+  "schema": "capstone-external-acceptance-design/1",
+  "data_class": "synthetic_external_fixture_not_real_business",
+  "start": "2026-08-01",
+  "end_exclusive": "2026-10-01",
+  "timezone": "Asia/Shanghai",
+  "resolution_minutes": 15,
+  "pattern_columns": ["price_CNY_per_MWh", "actual_export_MW", "available_export_limit_MW", "verified_available_renewable_MW", "actual_renewable_MW"],
+  "patterns": {
+    "A": [[-50,40,100,100,70],[-10,80,100,80,60],[20,60,100,90,80],[0,50,100,70,70]],
+    "B": [[-50,30,60,60,50],[30,70,100,90,80],[-2,20,40,40,30],[10,80,100,100,90]]
+  },
+  "definitions": {
+    "floor": "Both synthetic regions have a fixed published floor of -50 CNY/MWh; equality defines floor events.",
+    "channel": "One distinct outward channel per region, positive export, no shared-channel double counting. Event utilization is capacity-time weighted.",
+    "renewable": "Synthetic verified available generation and actual generation; official fixture definition is actual energy / available energy. This is a supplied fixture convention, not a universal enterprise statistic.",
+    "missing": "No missing rows in complete case. Missing-availability variant must not make a curtailment claim."
+  },
+  "expected": {
+    "rows": 11712,
+    "regions": {
+      "A": {"floor_rate": 0.25, "negative_hours": 732, "event_channel_utilization": 0.6, "event_renewable_utilization": 0.7222222222222222},
+      "B": {"floor_rate": 0.25, "negative_hours": 732, "event_channel_utilization": 0.5, "event_renewable_utilization": 0.8}
+    }
+  },
+  "delivery": ["report with current references and limitations", "appropriate professional figures", "underlying data and code/spec", "readable standalone exports"],
+  "variants": ["rename tools and columns", "page size 37 with interrupted transfer", "remove available renewable series", "conflicting dated definitions", "revise one input and invalidate descendants", "kill worker after action dispatch", "revoke resource grant"],
+  "demo2": {
+    "prerequisite": "Registered Authority supplies a revision-pinned model, consistent state and supported optimization plus independent AC validation.",
+    "required_receipts": ["model_revision", "snapshot_ref", "contingency_revision", "candidate_revision", "constraint_revision", "solver_status", "validation_run_ref", "voltage_and_thermal_coverage", "objective_and_optimality_scope"],
+    "assertions": ["all required checks refer to the selected candidate", "infeasible is distinct from failure", "nonconvergence is not a valid zero-violation result", "constraint change invalidates dependent results", "no automatic dispatch"],
+    "unsupported_policy": "Disable unsupported capability; do not substitute generic code or synthetic evidence."
+  }
+}

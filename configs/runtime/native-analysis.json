@@ -1,0 +1,240 @@
+{
+  "schema": "capstone-native-analysis/1",
+  "python_version": "3.12",
+  "constraints_source": "configs/runtime/power-samples.lock.json",
+  "packages": [
+    {
+      "requirement": "numpy",
+      "module": "numpy",
+      "category": "data"
+    },
+    {
+      "requirement": "pandas",
+      "module": "pandas",
+      "category": "data"
+    },
+    {
+      "requirement": "scipy",
+      "module": "scipy",
+      "category": "statistics"
+    },
+    {
+      "requirement": "statsmodels",
+      "module": "statsmodels.api",
+      "category": "statistics"
+    },
+    {
+      "requirement": "scikit-learn",
+      "module": "sklearn",
+      "category": "statistics"
+    },
+    {
+      "requirement": "matplotlib",
+      "module": "matplotlib",
+      "category": "plots"
+    },
+    {
+      "requirement": "seaborn",
+      "module": "seaborn",
+      "category": "plots"
+    },
+    {
+      "requirement": "plotly",
+      "module": "plotly",
+      "category": "plots"
+    },
+    {
+      "requirement": "Pillow",
+      "module": "PIL",
+      "category": "images"
+    },
+    {
+      "requirement": "openpyxl",
+      "module": "openpyxl",
+      "category": "excel"
+    },
+    {
+      "requirement": "xlsxwriter",
+      "module": "xlsxwriter",
+      "category": "excel"
+    },
+    {
+      "requirement": "pyarrow",
+      "module": "pyarrow",
+      "category": "parquet"
+    },
+    {
+      "requirement": "duckdb",
+      "module": "duckdb",
+      "category": "sql"
+    },
+    {
+      "requirement": "pypdf",
+      "module": "pypdf",
+      "category": "documents"
+    },
+    {
+      "requirement": "pdfplumber",
+      "module": "pdfplumber",
+      "category": "documents"
+    },
+    {
+      "requirement": "python-docx",
+      "module": "docx",
+      "category": "documents"
+    },
+    {
+      "requirement": "python-pptx",
+      "module": "pptx",
+      "category": "documents"
+    },
+    {
+      "requirement": "beautifulsoup4",
+      "module": "bs4",
+      "category": "html"
+    },
+    {
+      "requirement": "lxml==6.1.3",
+      "module": "lxml",
+      "category": "html"
+    },
+    {
+      "requirement": "Jinja2",
+      "module": "jinja2",
+      "category": "html"
+    },
+    {
+      "requirement": "requests",
+      "module": "requests",
+      "category": "http"
+    },
+    {
+      "requirement": "httpx==0.28.1",
+      "module": "httpx",
+      "category": "http"
+    },
+    {
+      "requirement": "PyYAML",
+      "module": "yaml",
+      "category": "text"
+    },
+    {
+      "requirement": "tabulate",
+      "module": "tabulate",
+      "category": "text"
+    }
+  ],
+  "apt_packages": [
+    "ripgrep",
+    "jq",
+    "unzip",
+    "zip",
+    "poppler-utils",
+    "fonts-noto-cjk"
+  ],
+  "commands": [
+    {
+      "name": "capstone-report",
+      "version_args": ["--version"],
+      "version_pattern": "capstone-report ([0-9.]+)"
+    },
+    {
+      "name": "rg",
+      "version_args": [
+        "--version"
+      ],
+      "version_pattern": "ripgrep ([0-9.]+)"
+    },
+    {
+      "name": "jq",
+      "version_args": [
+        "--version"
+      ],
+      "version_pattern": "jq-([0-9.]+)"
+    },
+    {
+      "name": "unzip",
+      "version_args": [
+        "-v"
+      ],
+      "version_pattern": "UnZip ([0-9.]+)"
+    },
+    {
+      "name": "zip",
+      "version_args": [
+        "-v"
+      ],
+      "version_pattern": "Zip ([0-9.]+)"
+    },
+    {
+      "name": "pdftotext",
+      "version_args": [
+        "-v"
+      ],
+      "version_pattern": "version ([0-9.]+)"
+    },
+    {
+      "name": "pdftoppm",
+      "version_args": [
+        "-v"
+      ],
+      "version_pattern": "version ([0-9.]+)"
+    },
+    {
+      "name": "git",
+      "version_args": [
+        "--version"
+      ],
+      "version_pattern": "git version ([0-9.]+)"
+    },
+    {
+      "name": "curl",
+      "version_args": [
+        "--version"
+      ],
+      "version_pattern": "curl ([0-9.]+)"
+    },
+    {
+      "name": "node",
+      "version_args": [
+        "--version"
+      ],
+      "version_pattern": "v([0-9.]+)"
+    },
+    {
+      "name": "npm",
+      "version_args": [
+        "--version"
+      ],
+      "version_pattern": "([0-9]+\\.[0-9]+\\.[0-9]+)"
+    },
+    {
+      "name": "npx",
+      "version_args": [
+        "--version"
+      ],
+      "version_pattern": "([0-9]+\\.[0-9]+\\.[0-9]+)"
+    },
+    {
+      "name": "uv",
+      "version_args": [
+        "--version"
+      ],
+      "version_pattern": "uv ([0-9.]+)"
+    },
+    {
+      "name": "tsc",
+      "version_args": [
+        "--version"
+      ],
+      "version_pattern": "Version ([0-9.]+)"
+    },
+    {
+      "name": "tsx",
+      "version_args": [
+        "--version"
+      ],
+      "version_pattern": "tsx v([0-9.]+)"
+    }
+  ]
+}

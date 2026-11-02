@@ -217,7 +217,14 @@ def test_legacy_runtime_paths_are_absent() -> None:
     legacy_operation_access = "request" + "." + "operation"
     legacy_query = "grid" + "_query"
     assert legacy_request_class not in source
-    assert legacy_operation_access not in source
+    # The removed simulator request field is not a ban on independent App RPCs.
+    simulator_source = "\n".join(
+        path.read_text(encoding="utf-8")
+        for package in ("grid-agent", "grid-simulator", "pi-grid-tools")
+        for path in (ROOT / "packages" / package / "src").rglob("*.*")
+        if path.suffix in {".py", ".mjs", ".json"}
+    )
+    assert legacy_operation_access not in simulator_source
     assert legacy_query not in source
 
 

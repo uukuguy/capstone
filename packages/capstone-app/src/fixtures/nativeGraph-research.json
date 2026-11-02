@@ -1,0 +1,491 @@
+[
+  {
+    "event_id": "evt_f143f29ba749302a",
+    "event_seq": 150,
+    "event_type": "attempt_started",
+    "event_version": 1,
+    "thread_id": "thr_d9576805d1efeab634b3",
+    "run_id": "run_d9576805d1efeab634b3",
+    "occurred_at": "2026-10-25T11:58:45.635367Z",
+    "visibility": "public",
+    "turn_id": "turn_b4d403c866657de6",
+    "attempt_id": "attempt_50d61c5190efe529",
+    "payload": {
+      "task_step": {
+        "id": "task-preparation",
+        "title": "任务准备",
+        "number": 1,
+        "status": "running"
+      }
+    }
+  },
+  {
+    "event_id": "evt_17e4e193975e4e3e",
+    "event_seq": 152,
+    "event_type": "turn_plan_created",
+    "event_version": 1,
+    "thread_id": "thr_d9576805d1efeab634b3",
+    "run_id": "run_d9576805d1efeab634b3",
+    "occurred_at": "2026-10-25T11:58:45.794947Z",
+    "visibility": "public",
+    "turn_id": "turn_b4d403c866657de6",
+    "attempt_id": "attempt_50d61c5190efe529",
+    "payload": {
+      "source": "native_conversation",
+      "plan_revision": "turn-native-conversation-v1",
+      "accepted_context": {
+        "objects": [],
+        "materials": [],
+        "truncated": false,
+        "full_model_tables": false
+      }
+    }
+  },
+  {
+    "event_id": "evt_dd8bbf7e343080ed",
+    "event_seq": 159,
+    "event_type": "runtime_event",
+    "event_version": 1,
+    "thread_id": "thr_d9576805d1efeab634b3",
+    "run_id": "run_d9576805d1efeab634b3",
+    "occurred_at": "2026-10-25T11:59:04.508997Z",
+    "visibility": "public",
+    "turn_id": "turn_b4d403c866657de6",
+    "attempt_id": "attempt_50d61c5190efe529",
+    "payload": {
+      "task_id": "pi-4e68a729a837ef351927dbfabb8daac7c215511f542d6966f2bdb55abcdc5b05",
+      "native_type": "enterprise_graph_progress",
+      "research_graph": {
+        "type": "enterprise_graph_progress",
+        "graph": {
+          "goal": "Recorded fixture text",
+          "nodes": [
+            {
+              "id": "gw-beijing-gen-5min",
+              "mode": "execute",
+              "phase": "ready",
+              "checks": [],
+              "inputs": [],
+              "outputs": [
+                {
+                  "kind": "observation",
+                  "slot": "object_metric_source",
+                  "description": "北京电网发电有功的确切数据对象、指标名称、单位、来源标识、时间分辨率与时区定义，以及最接近候选对象的比对说明"
+                },
+                {
+                  "kind": "observation",
+                  "slot": "window_samples_and_mean",
+                  "description": "2024-01-01 00:00–00:05（北京时间）窗口实际返回的前 5 个采样点（原始时间戳与数值）及其算术均值、样本数、覆盖范围、查询指纹与质量缺口"
+                },
+                {
+                  "kind": "artifact",
+                  "slot": "samples_csv",
+                  "description": "采样 CSV：序号、原始时间戳、数值、单位、对象/指标标识、来源标识（均值如需单列须明确标注为计算值）"
+                },
+                {
+                  "kind": "artifact",
+                  "slot": "brief_summary_md",
+                  "description": "简短中文摘要 markdown：对象/指标/单位/来源、窗口与样本数、5 点数值、均值、时间分辨率、来源与查询指纹、质量缺口与限制"
+                }
+              ],
+              "purpose": "Recorded fixture text",
+              "execution": "delegated",
+              "questions": [
+                "Recorded fixture requirement 1",
+                "Recorded fixture requirement 2",
+                "Recorded fixture requirement 3",
+                "Recorded fixture requirement 4"
+              ],
+              "blocked_by": [],
+              "depends_on": [],
+              "supersedes": [],
+              "instruction": "Recorded fixture text",
+              "source_refs": [],
+              "wait_reason": null,
+              "stale_reason": null,
+              "applicability": "current",
+              "input_targets": [],
+              "definition_ref": "node:9a2562b38cd532598b45ee028ee422823677d132f6d0b396ab3f50a5544fd99f",
+              "input_bindings": [],
+              "settled_status": null,
+              "output_bindings": [],
+              "assess_action_id": null,
+              "expected_outputs": [
+                "Recorded fixture requirement 1",
+                "Recorded fixture requirement 2",
+                "Recorded fixture requirement 3",
+                "Recorded fixture requirement 4"
+              ],
+              "recompute_reason": null,
+              "execute_action_id": null,
+              "dependency_targets": [],
+              "execution_revision": 1,
+              "selected_source_versions": []
+            }
+          ],
+          "schema": "capstone-enterprise-graph/2",
+          "actions": [],
+          "results": [],
+          "graph_ref": "graph:be8c6462d71c45971464f952eae4439b4f96ed1a80aee83d23e7c592502a85a1",
+          "output_mode": "files",
+          "graph_revision": 1,
+          "model_revision_reason": null
+        },
+        "owner": {
+          "work_id": "work_fea9ff10d260368869f8",
+          "thread_id": "thr_d9576805d1efeab634b3",
+          "research_id": "research-24fe38b46d7c6a8f73ed",
+          "goal_revision": 1
+        },
+        "events": [
+          {
+            "kind": "graph_committed",
+            "nodes": [
+              {
+                "id": "gw-beijing-gen-5min",
+                "mode": "execute",
+                "checks": [],
+                "inputs": [],
+                "outputs": [
+                  {
+                    "kind": "observation",
+                    "slot": "object_metric_source",
+                    "description": "北京电网发电有功的确切数据对象、指标名称、单位、来源标识、时间分辨率与时区定义，以及最接近候选对象的比对说明"
+                  },
+                  {
+                    "kind": "observation",
+                    "slot": "window_samples_and_mean",
+                    "description": "2024-01-01 00:00–00:05（北京时间）窗口实际返回的前 5 个采样点（原始时间戳与数值）及其算术均值、样本数、覆盖范围、查询指纹与质量缺口"
+                  },
+                  {
+                    "kind": "artifact",
+                    "slot": "samples_csv",
+                    "description": "采样 CSV：序号、原始时间戳、数值、单位、对象/指标标识、来源标识（均值如需单列须明确标注为计算值）"
+                  },
+                  {
+                    "kind": "artifact",
+                    "slot": "brief_summary_md",
+                    "description": "简短中文摘要 markdown：对象/指标/单位/来源、窗口与样本数、5 点数值、均值、时间分辨率、来源与查询指纹、质量缺口与限制"
+                  }
+                ],
+                "purpose": "Recorded fixture text",
+                "execution": "delegated",
+                "questions": [
+                  "Recorded fixture requirement 1",
+                  "Recorded fixture requirement 2",
+                  "Recorded fixture requirement 3",
+                  "Recorded fixture requirement 4"
+                ],
+                "depends_on": [],
+                "instruction": "Recorded fixture text",
+                "source_refs": [],
+                "expected_outputs": [
+                  "Recorded fixture requirement 1",
+                  "Recorded fixture requirement 2",
+                  "Recorded fixture requirement 3",
+                  "Recorded fixture requirement 4"
+                ]
+              }
+            ],
+            "graph_ref": "graph:be8c6462d71c45971464f952eae4439b4f96ed1a80aee83d23e7c592502a85a1",
+            "graph_revision": 1,
+            "previous_graph_ref": null,
+            "model_revision_reason": null
+          }
+        ],
+        "control": {
+          "tool_name": "agent_research_plan",
+          "tool_call_id": "call_00_ogrxbfZV96Y46u17gjOf0924"
+        },
+        "task_id": "pi-4e68a729a837ef351927dbfabb8daac7c215511f542d6966f2bdb55abcdc5b05",
+        "attempt_id": "attempt_50d61c5190efe529",
+        "checkpoint": {
+          "ref": "runtime.checkpoint.264b46694e3e19ab6ea6.8ddba8417945d84e30d0f864",
+          "revision": 9
+        }
+      }
+    }
+  },
+  {
+    "event_id": "evt_4a4c7f8c95675163",
+    "event_seq": 161,
+    "event_type": "runtime_event",
+    "event_version": 1,
+    "thread_id": "thr_d9576805d1efeab634b3",
+    "run_id": "run_d9576805d1efeab634b3",
+    "occurred_at": "2026-10-25T11:59:04.764417Z",
+    "visibility": "public",
+    "turn_id": "turn_b4d403c866657de6",
+    "attempt_id": "attempt_50d61c5190efe529",
+    "payload": {
+      "task_id": "pi-4e68a729a837ef351927dbfabb8daac7c215511f542d6966f2bdb55abcdc5b05",
+      "native_type": "enterprise_graph_progress",
+      "research_graph": {
+        "type": "enterprise_graph_progress",
+        "graph": {
+          "goal": "Recorded fixture text",
+          "nodes": [
+            {
+              "id": "gw-beijing-gen-5min",
+              "mode": "execute",
+              "phase": "executing",
+              "checks": [],
+              "inputs": [],
+              "outputs": [
+                {
+                  "kind": "observation",
+                  "slot": "object_metric_source",
+                  "description": "北京电网发电有功的确切数据对象、指标名称、单位、来源标识、时间分辨率与时区定义，以及最接近候选对象的比对说明"
+                },
+                {
+                  "kind": "observation",
+                  "slot": "window_samples_and_mean",
+                  "description": "2024-01-01 00:00–00:05（北京时间）窗口实际返回的前 5 个采样点（原始时间戳与数值）及其算术均值、样本数、覆盖范围、查询指纹与质量缺口"
+                },
+                {
+                  "kind": "artifact",
+                  "slot": "samples_csv",
+                  "description": "采样 CSV：序号、原始时间戳、数值、单位、对象/指标标识、来源标识（均值如需单列须明确标注为计算值）"
+                },
+                {
+                  "kind": "artifact",
+                  "slot": "brief_summary_md",
+                  "description": "简短中文摘要 markdown：对象/指标/单位/来源、窗口与样本数、5 点数值、均值、时间分辨率、来源与查询指纹、质量缺口与限制"
+                }
+              ],
+              "purpose": "Recorded fixture text",
+              "execution": "delegated",
+              "questions": [
+                "Recorded fixture requirement 1",
+                "Recorded fixture requirement 2",
+                "Recorded fixture requirement 3",
+                "Recorded fixture requirement 4"
+              ],
+              "blocked_by": [],
+              "depends_on": [],
+              "supersedes": [],
+              "instruction": "Recorded fixture text",
+              "source_refs": [],
+              "wait_reason": null,
+              "stale_reason": null,
+              "applicability": "current",
+              "input_targets": [],
+              "definition_ref": "node:9a2562b38cd532598b45ee028ee422823677d132f6d0b396ab3f50a5544fd99f",
+              "input_bindings": [],
+              "settled_status": null,
+              "output_bindings": [],
+              "assess_action_id": null,
+              "expected_outputs": [
+                "Recorded fixture requirement 1",
+                "Recorded fixture requirement 2",
+                "Recorded fixture requirement 3",
+                "Recorded fixture requirement 4"
+              ],
+              "recompute_reason": null,
+              "execute_action_id": "action:06a282be1ae1de16e8a2457fbf4adf842d14255c19b8c9e69383c8960aa445e1",
+              "dependency_targets": [],
+              "execution_revision": 1,
+              "selected_source_versions": []
+            }
+          ],
+          "schema": "capstone-enterprise-graph/2",
+          "actions": [
+            {
+              "id": "action:06a282be1ae1de16e8a2457fbf4adf842d14255c19b8c9e69383c8960aa445e1",
+              "kind": "execute",
+              "owner": {
+                "work_id": "work_fea9ff10d260368869f8",
+                "thread_id": "thr_d9576805d1efeab634b3",
+                "research_id": "research-24fe38b46d7c6a8f73ed",
+                "goal_revision": 1
+              },
+              "step_id": "gw-beijing-gen-5min",
+              "graph_ref": "graph:be8c6462d71c45971464f952eae4439b4f96ed1a80aee83d23e7c592502a85a1",
+              "attempt_id": "attempt_50d61c5190efe529",
+              "source_refs": [],
+              "definition_ref": "node:9a2562b38cd532598b45ee028ee422823677d132f6d0b396ab3f50a5544fd99f",
+              "graph_revision": 1,
+              "input_bindings": [],
+              "source_versions": [],
+              "execution_revision": 1
+            }
+          ],
+          "results": [],
+          "graph_ref": "graph:be8c6462d71c45971464f952eae4439b4f96ed1a80aee83d23e7c592502a85a1",
+          "output_mode": "files",
+          "graph_revision": 1,
+          "model_revision_reason": null
+        },
+        "owner": {
+          "work_id": "work_fea9ff10d260368869f8",
+          "thread_id": "thr_d9576805d1efeab634b3",
+          "research_id": "research-24fe38b46d7c6a8f73ed",
+          "goal_revision": 1
+        },
+        "events": [
+          {
+            "kind": "node_started",
+            "step_id": "gw-beijing-gen-5min",
+            "action_id": "action:06a282be1ae1de16e8a2457fbf4adf842d14255c19b8c9e69383c8960aa445e1",
+            "graph_ref": "graph:be8c6462d71c45971464f952eae4439b4f96ed1a80aee83d23e7c592502a85a1",
+            "input_bindings": [],
+            "settled_status": null,
+            "execution_revision": 1
+          }
+        ],
+        "task_id": "pi-4e68a729a837ef351927dbfabb8daac7c215511f542d6966f2bdb55abcdc5b05",
+        "action_id": "action:06a282be1ae1de16e8a2457fbf4adf842d14255c19b8c9e69383c8960aa445e1",
+        "attempt_id": "attempt_50d61c5190efe529",
+        "checkpoint": {
+          "ref": "runtime.checkpoint.264b46694e3e19ab6ea6.7c7418a1d92a87adac995575",
+          "revision": 10
+        }
+      }
+    }
+  },
+  {
+    "event_id": "evt_e66cde7d34143930",
+    "event_seq": 174,
+    "event_type": "runtime_event",
+    "event_version": 1,
+    "thread_id": "thr_d9576805d1efeab634b3",
+    "run_id": "run_d9576805d1efeab634b3",
+    "occurred_at": "2026-10-25T11:59:09.418211Z",
+    "visibility": "public",
+    "turn_id": "turn_b4d403c866657de6",
+    "attempt_id": "attempt_50d61c5190efe529",
+    "payload": {
+      "task_id": "pi-4e68a729a837ef351927dbfabb8daac7c215511f542d6966f2bdb55abcdc5b05",
+      "tool_name": "data_gateway_discover_data_capabilities",
+      "native_type": "enterprise_graph_tool_binding",
+      "tool_call_id": "graph-child:5e913aac28623c9a17d5e108dfd223a2d282d284214e45989378e1cda18ef82e",
+      "research_graph_event": {
+        "type": "enterprise_graph_tool_binding",
+        "owner": {
+          "work_id": "work_fea9ff10d260368869f8",
+          "thread_id": "thr_d9576805d1efeab634b3",
+          "research_id": "research-24fe38b46d7c6a8f73ed",
+          "goal_revision": 1
+        },
+        "step_id": "gw-beijing-gen-5min",
+        "task_id": "pi-4e68a729a837ef351927dbfabb8daac7c215511f542d6966f2bdb55abcdc5b05",
+        "action_id": "action:06a282be1ae1de16e8a2457fbf4adf842d14255c19b8c9e69383c8960aa445e1",
+        "tool_name": "data_gateway_discover_data_capabilities",
+        "attempt_id": "attempt_50d61c5190efe529",
+        "checkpoint": {
+          "ref": "runtime.checkpoint.264b46694e3e19ab6ea6.7c7418a1d92a87adac995575",
+          "revision": 10
+        },
+        "tool_call_id": "graph-child:5e913aac28623c9a17d5e108dfd223a2d282d284214e45989378e1cda18ef82e"
+      }
+    }
+  },
+  {
+    "event_id": "evt_52d457bccd535bb9",
+    "event_seq": 175,
+    "event_type": "runtime_event",
+    "event_version": 1,
+    "thread_id": "thr_d9576805d1efeab634b3",
+    "run_id": "run_d9576805d1efeab634b3",
+    "occurred_at": "2026-10-25T11:59:09.429440Z",
+    "visibility": "public",
+    "turn_id": "turn_b4d403c866657de6",
+    "attempt_id": "attempt_50d61c5190efe529",
+    "payload": {
+      "task_id": "pi-4e68a729a837ef351927dbfabb8daac7c215511f542d6966f2bdb55abcdc5b05",
+      "tool_name": "data_gateway_discover_data_capabilities",
+      "native_type": "enterprise_graph_child_tool",
+      "tool_call_id": "graph-child:5e913aac28623c9a17d5e108dfd223a2d282d284214e45989378e1cda18ef82e",
+      "research_graph_event": {
+        "type": "enterprise_graph_child_tool",
+        "owner": {
+          "work_id": "work_fea9ff10d260368869f8",
+          "thread_id": "thr_d9576805d1efeab634b3",
+          "research_id": "research-24fe38b46d7c6a8f73ed",
+          "goal_revision": 1
+        },
+        "step_id": "gw-beijing-gen-5min",
+        "task_id": "pi-4e68a729a837ef351927dbfabb8daac7c215511f542d6966f2bdb55abcdc5b05",
+        "activity": "start",
+        "child_id": "gw-beijing-gen-5min",
+        "action_id": "action:06a282be1ae1de16e8a2457fbf4adf842d14255c19b8c9e69383c8960aa445e1",
+        "tool_name": "data_gateway_discover_data_capabilities",
+        "attempt_id": "attempt_50d61c5190efe529",
+        "checkpoint": {
+          "ref": "runtime.checkpoint.264b46694e3e19ab6ea6.7c7418a1d92a87adac995575",
+          "revision": 10
+        },
+        "tool_call_id": "graph-child:5e913aac28623c9a17d5e108dfd223a2d282d284214e45989378e1cda18ef82e"
+      }
+    }
+  },
+  {
+    "event_id": "evt_4621e90fa471bcf8",
+    "event_seq": 181,
+    "event_type": "runtime_event",
+    "event_version": 1,
+    "thread_id": "thr_d9576805d1efeab634b3",
+    "run_id": "run_d9576805d1efeab634b3",
+    "occurred_at": "2026-10-25T11:59:09.818854Z",
+    "visibility": "public",
+    "turn_id": "turn_b4d403c866657de6",
+    "attempt_id": "attempt_50d61c5190efe529",
+    "payload": {
+      "task_id": "pi-4e68a729a837ef351927dbfabb8daac7c215511f542d6966f2bdb55abcdc5b05",
+      "is_error": false,
+      "tool_name": "data_gateway_discover_data_capabilities",
+      "native_type": "enterprise_graph_child_tool",
+      "tool_call_id": "graph-child:5e913aac28623c9a17d5e108dfd223a2d282d284214e45989378e1cda18ef82e",
+      "research_graph_event": {
+        "type": "enterprise_graph_child_tool",
+        "owner": {
+          "work_id": "work_fea9ff10d260368869f8",
+          "thread_id": "thr_d9576805d1efeab634b3",
+          "research_id": "research-24fe38b46d7c6a8f73ed",
+          "goal_revision": 1
+        },
+        "step_id": "gw-beijing-gen-5min",
+        "task_id": "pi-4e68a729a837ef351927dbfabb8daac7c215511f542d6966f2bdb55abcdc5b05",
+        "activity": "end",
+        "child_id": "gw-beijing-gen-5min",
+        "is_error": false,
+        "action_id": "action:06a282be1ae1de16e8a2457fbf4adf842d14255c19b8c9e69383c8960aa445e1",
+        "tool_name": "data_gateway_discover_data_capabilities",
+        "attempt_id": "attempt_50d61c5190efe529",
+        "checkpoint": {
+          "ref": "runtime.checkpoint.264b46694e3e19ab6ea6.7c7418a1d92a87adac995575",
+          "revision": 10
+        },
+        "execution_ms": 352.49586199999976,
+        "tool_call_id": "graph-child:5e913aac28623c9a17d5e108dfd223a2d282d284214e45989378e1cda18ef82e",
+        "tool_activity": {
+          "output_excerpt": "Recorded fixture text"
+        }
+      }
+    }
+  },
+  {
+    "event_id": "evt_00a5f1606cd3d2fd",
+    "event_seq": 355,
+    "event_type": "attempt_completed",
+    "event_version": 1,
+    "thread_id": "thr_d9576805d1efeab634b3",
+    "run_id": "run_d9576805d1efeab634b3",
+    "occurred_at": "2026-10-25T12:02:12.624682Z",
+    "visibility": "public",
+    "turn_id": "turn_b4d403c866657de6",
+    "attempt_id": "attempt_50d61c5190efe529",
+    "payload": {
+      "answer": "Recorded fixture answer",
+      "task_steps": [
+        {
+          "id": "task-finalization-3",
+          "title": "核验与结果整理",
+          "number": 3,
+          "status": "completed",
+          "duration_ms": 11
+        }
+      ]
+    }
+  }
+]

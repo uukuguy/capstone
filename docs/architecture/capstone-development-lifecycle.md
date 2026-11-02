@@ -43,8 +43,18 @@ release verification. Hotfixes start from the actual accepted deployment tag;
 accepted fixes flow to main and back to dev. A successful merge is not a
 deployment receipt. Branch pushes do not automatically promote user trial.
 
-Both dev and main require the existing Linux/macOS Actions checks, PRs and zero
-mandatory approvals; force push and deletion are blocked. Administrator emergency
+The phase-complete conversation application is maintained as a main release baseline.
+Enterprise autonomous execution advances on dev after the Pi experiment is integrated.
+Pi names the underlying executor ecosystem, not a permanent application delivery branch.
+Open focused research branches when needed and return accepted changes to dev. Future
+conversation-oriented development remains possible without maintaining a second permanent
+development branch. Release scope and exact delivered artifacts remain distinct from dev progress.
+
+Both dev and main require PRs and zero mandatory approvals; force push and deletion
+are blocked. During development, dev requires `verify (macos-latest)`; ordinary
+feature PRs also run on macOS. Main requires both `verify (macos-latest)` and
+`verify (ubuntu-latest)`. Linux remains a supported user-trial platform and must
+pass full release verification before delivery. Administrator emergency
 bypass remains available and must be recorded if used. Local-dev normally follows
 a recorded dev source, with explicit temporary feature candidates allowed.
 Cloud-dev validates selected development sources. Local-demo and cloud-demo
@@ -93,19 +103,96 @@ the relevant Python tests and its application entry smoke check. Do not repeat
 all offline, E2E, packaging and release checks after each edit. Local API, worker
 or App changes still use the canonical local rebuild before deployment claims.
 
-Dev PRs and pushes select documentation, bounded governance contracts or
-`make check-pr` on Linux and macOS. Unknown paths require product regression;
+During early product development, an ordinary edit must not trigger hours of
+unrelated verification. Select checks for the changed behavior and its direct
+consumers. Reuse recorded successful checks when source and relevant contracts
+have not changed. Do not repeat the same full suites at every local, PR and
+control-document boundary. Record elapsed time and narrow an incorrectly selected
+gate instead of waiting indefinitely. Complete release and cross-platform checks
+remain explicit baseline/release work.
+
+The conversation-runtime gate covers native conversation/context/diagnosis
+resources, the native executor image, and the explicitly registered shared
+research-context mirrors. It checks the named affected backend modules and their
+HTTP, Work, worker and research-status consumers rather than collecting the whole
+agent suite. The source allowlist and named tests must agree; an uncovered backend
+module mixed into a conversation change selects the wider product gate. It also checks App/build, client contracts,
+native SDK fixtures, types/boundaries and targeted native image contracts. It does
+not run unchanged solver, Pack, Kernel, deployment-installer or full professional
+application suites. Its selected step has a10-minute ceiling; this ceiling is a
+failure bound, not a target duration. A mixed change to foundation composition,
+Authority, solver or unknown dependencies still selects its owning wider scope.
+
+The source-topology gate checks the fixed application source-display provider,
+its protected transport adapters, and their direct consumers. Its exact source
+and test allowlist includes backend HTTP/Thread/native/gateway consumers, App
+tests/build, client contracts, native fixtures, types/boundaries and targeted
+image contracts. The allowlist also registers model workspace controls and Thread service state:
+the same gate runs the complete Thread and host consumer suites, including
+last-model release, active-task guards and professional-model retention.
+Transport qualification compares Python ASTs: only the named
+source-forwarding methods and public source error codes may be added; any change
+to existing transport behavior still selects product verification. Gateway policy
+qualification permits only the exact read-only topology and model-inventory
+allowlist additions. The MCP adapter, task relay and SDK gateway wrapper are
+registered with their existing gateway, native, host and Thread consumers.
+Model inspection, build or artifact permissions still select the wider gate. Unknown,
+foundation, Authority and dependency changes retain their wider gates. The
+selected step has a10-minute failure ceiling, not an expected duration. Record
+its actual CI duration. This gate does not run unrelated professional solvers,
+registered workers, Kernel, Pack or release-installer suites.
+
+The adaptive-agent gate covers the named lightweight-loop and research adapters,
+versioned research policy assets, and the two registered Kernel research ledger
+and channel modules. It runs the complete agent, registered-worker, Kernel, App,
+client and research Pack checks, plus native SDK fixtures and types/boundaries.
+Its15-minute ceiling is a failure bound. Exact source registration is required;
+unknown Kernel, Authority, solver, runtime and dependency changes cannot use this
+scope. This avoids unrelated professional solver suites for research-loop work.
+
+Dev PRs and pushes select documentation, bounded governance contracts, source-topology, conversation-runtime, adaptive-agent, shared-agent,
+foundation or native-runtime dependency regression, or `make check-pr` on macOS. Python source/tests
+under capstone-agent and TypeScript/TSX/CSS under capstone-app/src use the shared-agent
+gate: package boundaries, global type checks, complete agent and Kernel suites,
+App tests/build and client tests. This includes registered worker regression.
+The selected test step has a15-minute limit; timeout fails the check. Its duration
+must be measured in CI, not assumed from local timing. An explicit file allowlist
+in `tools/ci_scope.py` selects foundation checks for Kernel profile/composition
+and their professional application adapters. This gate retains the shared-agent
+checks, the pandapower Pack, the complete PyPSA application suite, inventory
+conformance/multi-binding tests and the hosted/Thread/diagram adapter tests.
+It also has a 15-minute step limit. It does not cover arbitrary Kernel changes.
+The wider native-runtime gate covers protected MCP gateway configuration,
+Compose wiring, the MCP sidecar and changes combined with foundation assembly.
+It retains the foundation gate, then checks deployment contracts, native inventory
+delegation, both capture wrappers, PowerMCP audit contracts and all native SDK test
+fixtures. Its additional step has a 10-minute budget. This avoids running unrelated
+solver suites for a host transport edit. MCP dependency updates qualify only when
+semantic comparisons of the manifests and downstream lock files show no other
+dependency changes; a solver change hidden in a lock still expands the gate.
+Changes to professional delegation contracts, Domain Packs, other Authority code,
+other Kernel code, unrecognised dependencies/build files or
+unknown paths still require the broader product gate. Mixed changes select the
+broader gate. Documentation/governance changes cannot hide product changes.
+Unknown paths require product regression;
 main PRs and pushes run `make check-release`. Feature
 branch pushes do not run a second copy of the PR workflow. New revisions cancel
 obsolete automatic runs for the same event and ref. The PR gate checks formal
 applications, Authorities, Domain Packs, Kernel, App and registered workers.
 It excludes the old grid CLI suite, full validation suites and distribution
-installation checks. The required CI job names remain unchanged.
+installation checks. Daily development runs only `verify (macos-latest)` to keep
+iteration short. The job names remain stable when Linux is included for release.
 
 Baseline and release acceptance explicitly run `make check-release` on both
 platforms through the `verify` workflow with `release=true`. A successful PR gate
 does not prove baseline or release acceptance. Existing deployment verification
 and exact source/image promotion requirements still apply.
+
+Issue automation uses the trusted development policy's macOS CI requirement only
+when the actual PR target is dev. Main, explicit release checks and missing or
+unknown target context require both macOS and Linux; a macOS-only result cannot
+pass those checks. The PR target comes from GitHub's PR response, not the local
+policy reference or a caller's deployment label.
 
 The application no longer requires compatibility with the `grid-agent` CLI.
 Its package still holds runtime modules used by the formal pandapower worker.

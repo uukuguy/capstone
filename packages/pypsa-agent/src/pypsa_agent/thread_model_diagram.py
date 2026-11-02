@@ -1,6 +1,7 @@
 """Registered model browsing through the fixed PyPSA Authority contract."""
 
 from pathlib import Path
+from capability_agent.domain.profile import require_authority_profile
 from tempfile import TemporaryDirectory
 from capstone_agent.application import EmptyCredentialBroker
 
@@ -14,7 +15,7 @@ def model_diagram(model_id: str, revision: str) -> dict[str, object]:
     if RegisteredPyPSAThreadCatalog().resolve(model_id).model_revision != revision:
         raise ValueError("exact registered model revision is unavailable")
     binding = next(binding for binding in build_profile().domains if binding.binding_id == "source")
-    provisioner = binding.profile.provisioner
+    provisioner = require_authority_profile(binding.profile).provisioner
     if provisioner is None:
         raise RuntimeError("model diagram provisioner is unavailable")
     with TemporaryDirectory(prefix="capstone-pypsa-view-") as directory:

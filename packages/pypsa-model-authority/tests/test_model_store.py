@@ -45,6 +45,26 @@ def test_open_derive_and_inspect_real_network_without_mutating_parent(tmp_path: 
     assert inspected["load_p_set_mw"] == {"demand": 55.0}
 
 
+@pytest.mark.parametrize("catalog_id,load_id,minimum,maximum", [
+    ("regional-six-bus", "central-demand", 20.0, 30.0),
+    ("unit-commitment", "demand", 20.0, 60.0),
+    ("two-bus", "demand", 40.0, 40.0),
+])
+def test_inspection_reports_effective_demand_not_static_series_placeholder(
+    tmp_path: Path, catalog_id: str, load_id: str, minimum: float, maximum: float,
+) -> None:
+    _, execute, _ = _authority()
+    opened = execute("model.open", {"catalog_id": catalog_id}, tmp_path, run_id="inspection")
+    inspected = execute("model.inspect", {"model_ref": opened["model_ref"]}, tmp_path, run_id="inspection")
+    summary = inspected["load_demand_summary_mw"][load_id]
+    assert summary["minimum"] == minimum
+    assert summary["maximum"] == maximum
+    assert summary["basis"] == ("time_series" if minimum != maximum else "static")
+    assert summary["valid_snapshot_count"] == inspected["snapshot_count"]
+    assert summary["missing_snapshot_count"] == 0
+    assert inspected["load_p_set_basis"] == "static_defaults_only; time_series_override"
+
+
 def test_current_run_and_document_digest_are_required(tmp_path: Path) -> None:
     ModelCapabilityError, execute, ModelStore = _authority()
     root = tmp_path / "authority"

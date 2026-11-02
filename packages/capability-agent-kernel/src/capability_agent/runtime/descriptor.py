@@ -11,6 +11,7 @@ from hashlib import sha256
 from pathlib import Path
 import re
 from typing import Mapping
+from capability_agent.runtime.capacity import runtime_limits as resolve_limits
 
 
 RUNTIME_DESCRIPTOR_SCHEMA = "capability-agent-runtime/1.0"
@@ -96,11 +97,17 @@ class RuntimeDescriptor:
     trajectory_allowed_refs_path: Path | None = None
     trajectory_acks_path: Path | None = None
     research_channel_path: Path | None = None
+    runtime_limits: Mapping[str, int] | None = None
+    runtime_limit_mode: str | None = None
     extra: Mapping[str, object] = field(default_factory=dict, repr=False)
 
     schema: str = RUNTIME_DESCRIPTOR_SCHEMA
 
     def __post_init__(self) -> None:
+        if self.runtime_limit_mode is not None and self.runtime_limit_mode not in {'normal','debug'}:
+            raise RuntimeDescriptorError('runtime limit mode must be normal or debug')
+        if self.runtime_limits is not None:
+            object.__setattr__(self, 'runtime_limits', resolve_limits(self.runtime_limits))
         if self.schema != RUNTIME_DESCRIPTOR_SCHEMA:
             raise RuntimeDescriptorError("unsupported runtime descriptor schema")
         _portable_identifier(self.binding_id, "binding_id")
@@ -244,6 +251,8 @@ class RuntimeDescriptor:
             "application": self._application_json(),
             "core": self._core_json(),
             "domains": [domain],
+            **({'runtime_limits': dict(self.runtime_limits)} if self.runtime_limits is not None else {}),
+            **({'runtime_limit_mode': self.runtime_limit_mode} if self.runtime_limit_mode is not None else {}),
         }
 
     def _application_json(self) -> dict[str, object]:
@@ -357,6 +366,10 @@ class CompositeRuntimeDescriptor:
         guide_names: set[str] = set()
         prefixes: set[str] = set()
         for descriptor in self.domains:
+            if descriptor.runtime_limits != self.domains[0].runtime_limits:
+                raise RuntimeDescriptorError('composite runtime_limits must match')
+            if (descriptor.runtime_limit_mode or 'normal') != (self.domains[0].runtime_limit_mode or 'normal'):
+                raise RuntimeDescriptorError('composite runtime limit modes must match')
             domain = descriptor._domain_json()
             member_core = descriptor._core_json()
             if descriptor._application_json() != application:
@@ -382,6 +395,8 @@ class CompositeRuntimeDescriptor:
             "application": application,
             "core": core,
             "domains": serialized_domains,
+            **({'runtime_limits': dict(self.domains[0].runtime_limits)} if self.domains[0].runtime_limits is not None else {}),
+            **({'runtime_limit_mode': self.domains[0].runtime_limit_mode} if self.domains[0].runtime_limit_mode is not None else {}),
         }
 
 
@@ -451,6 +466,8 @@ def descriptor_from_endpoint(
     trajectory_acks_path: Path | None = None,
     research_channel_path: Path | None = None,
     reference_handoffs_path: Path | None = None,
+    runtime_limits: Mapping[str, int] | None = None,
+    runtime_limit_mode: str | None = None,
 ) -> RuntimeDescriptor:
     """Convert only controller-owned endpoint metadata into a descriptor."""
 
@@ -513,6 +530,8 @@ def descriptor_from_endpoint(
         trajectory_allowed_refs_path=trajectory_allowed_refs_path,
         trajectory_acks_path=trajectory_acks_path,
         research_channel_path=research_channel_path,
+        runtime_limits=runtime_limits,
+        runtime_limit_mode=runtime_limit_mode,
     )
 
 

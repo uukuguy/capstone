@@ -58,3 +58,25 @@ def test_projection_uses_domain_state_delta_model() -> None:
     )
 
     assert delta.model_dump()["model"]["model_id"] == "case9"
+
+
+def test_import_projection_preserves_imported_origin_without_source_field() -> None:
+    profile = build_pandapower_profile()
+    invocation = VerifiedInvocation(
+        capability="model.artifact.import",
+        projector_id="model-context-v1",
+        result_kind=None,
+        result={
+            "context_ref": "context:sha256:abc",
+            "revision_ref": "revision:sha256:def",
+            "model": "grid:east",
+        },
+        arguments={"input_ref": "input:sha256:abc"},
+        turn_id="turn-import",
+        result_paths={},
+        active_revision_ref=None,
+    )
+
+    delta = profile.projector_registry.require("model-context-v1").project(invocation)
+
+    assert delta.model_dump()["model"]["source"] == "imported"

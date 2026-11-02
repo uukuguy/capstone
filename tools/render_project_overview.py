@@ -114,7 +114,7 @@ def snapshot(probe_local: bool, probe_cloud: bool = False) -> dict:
         stage = dict(name=name, revision=revision.group() if revision else "未记录",
                      source=source_text, state=state, detail=detail,
                      observed=False, origin=None, coherent=coherent, app_revision=None)
-        public_url = re.search(r"https://[a-z0-9.-]+/", detail)
+        public_url = re.search(r"https?://[a-z0-9.-]+(?::[0-9]+)?/", detail)
         if public_url:
             stage["origin"] = public_url.group()
         if probe_cloud and name in {"cloud-dev", "cloud-demo"} and stage["origin"]:
@@ -151,8 +151,11 @@ def snapshot(probe_local: bool, probe_cloud: bool = False) -> dict:
                 except (OSError, ValueError):
                     pass  # A stopped local service leaves a clearly labelled recorded version.
         environments.append(stage)
-    if {stage["name"] for stage in environments} != {"local-dev", "local-demo", "cloud-dev", "cloud-demo"}:
-        raise ValueError("Expected four registered environments")
+    stage_names = [stage["name"] for stage in environments]
+    if (not {"local-dev", "local-demo", "cloud-dev", "cloud-demo"}.issubset(stage_names)
+            or len(stage_names) != len(set(stage_names))
+            or any(not re.fullmatch(r"[a-z][a-z0-9-]*", name) for name in stage_names)):
+        raise ValueError("Expected the baseline environments and unique registered stage names")
     main = git("rev-parse", "refs/heads/main")
     live = next(package for package in packages if package["id"] == "live")
     live["source"] = next(stage["revision"] for stage in environments if stage["name"] == "cloud-demo")
@@ -184,6 +187,11 @@ def snapshot(probe_local: bool, probe_cloud: bool = False) -> dict:
         presentations[identity] = dict(role=role, branch=branch, changes=changes, status=status)
     for node in nodes:
         node["presentation"] = presentations.get(node["id"])
+    # Show dev HEAD as a graph node, not only a badge. A fixed milestone at
+    # that exact commit takes its place to avoid duplicate cards.
+    fixed_shas = {node["sha"] for node in nodes if node["id"] != "dev-head"}
+    nodes = [node for node in nodes
+             if node["id"] != "dev-head" or node["sha"] not in fixed_shas]
     for stage in environments:
         source = next(node for node in nodes if node["sha"].startswith(stage["revision"]))
         if source["presentation"] is None:
@@ -215,6 +223,25 @@ def snapshot(probe_local: bool, probe_cloud: bool = False) -> dict:
     edges = sorted((a, b) for a, b in relations
                    if not any((a, c) in relations and (c, b) in relations
                               for c in (n["id"] for n in nodes)))
+    # A merge's first-parent spine must remain visible even when its feature
+    # parent also descends from the previous mainline node.
+    by_sha = {node["sha"]: node for node in nodes if node.get("presentation")}
+    for node in nodes:
+        if node["lane"] != "main" or node["release_point"] or not node.get("presentation"):
+            continue
+        for sha in git("rev-list", "--first-parent", node["sha"]).splitlines()[1:]:
+            parent = by_sha.get(sha)
+            if parent and parent["lane"] == "main" and not parent["release_point"]:
+                intermediate = any(
+                    other["lane"] == "main" and not other["release_point"]
+                    and (parent["id"], other["id"]) in relations
+                    and (other["id"], node["id"]) in relations
+                    for other in by_sha.values()
+                )
+                if not intermediate:
+                    edges.append((parent["id"], node["id"]))
+                break
+    edges = sorted(set(edges))
     proposals = [dict(title=plain(row[0]), gap=plain(row[1]), record=plain(row[2]))
                  for row in table(register, "提出但未实施")]
     package_details = []
@@ -260,6 +287,8 @@ def snapshot(probe_local: bool, probe_cloud: bool = False) -> dict:
                 discussion=[dict(zip(("id", "kind", "status", "title", "description"), map(plain, row)))
                             for row in table(register, "自主智能体演进讨论")],
                 environment_pairs=environment_pairs,
+                development_lines=[dict(zip(("branch", "role", "status", "next"), map(plain, row)))
+                                   for row in table(register, "三线研发组织")],
                 branches=branches,
                 prs=prs,
                 register="docs/status/VERSION-CONTROL.md",

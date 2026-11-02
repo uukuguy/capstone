@@ -245,6 +245,8 @@ def test_container_cli_missing_key_reports_only_the_required_variable(tmp_path):
     environment = os.environ.copy()
     environment.pop('DEEPSEEK_API_KEY', None)
     environment.pop('OPENAI_API_KEY', None)
+    environment.pop('GRID_AGENT_LLM_MODEL', None)
+    environment.pop('GRID_AGENT_LLM_PROVIDER', None)
     environment.update(CAPSTONE_PUBLIC_PROVIDER='openai', CAPSTONE_PUBLIC_MODEL='gpt-5.5')
     result = subprocess.run([os.sys.executable, str(ROOT / 'deploy/dev_trial_runtime.py'), 'check',
                              '--manifest', str(document)], env=environment, capture_output=True, text=True)

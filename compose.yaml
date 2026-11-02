@@ -2,6 +2,10 @@ name: capstone
 
 x-host-environment: &host-environment
   CAPSTONE_RUNTIME_PROFILE: ${CAPSTONE_RUNTIME_PROFILE-capstone-workbench-v1}
+  CAPSTONE_WORKBENCH_PRESET: ${CAPSTONE_WORKBENCH_PRESET:-local}
+  OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+  OPENAI_MODEL: ${OPENAI_MODEL:-}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
   CAPSTONE_AUTONOMOUS_RESEARCH: ${CAPSTONE_AUTONOMOUS_RESEARCH:-0}
   DATABASE_URL: postgresql://capstone:${POSTGRES_PASSWORD:?Set deploy/local.env}@postgres:5432/capstone
   CAPSTONE_OPERATOR_TOKEN: ${CAPSTONE_OPERATOR_TOKEN:?Set deploy/local.env}
@@ -12,23 +16,28 @@ x-host-environment: &host-environment
   CAPSTONE_DEPLOYMENT_STAGE: ${CAPSTONE_DEPLOYMENT_STAGE:-local}
   CAPSTONE_PUBLIC_PROVIDER: ${CAPSTONE_PUBLIC_PROVIDER:?Set deploy/local.env}
   CAPSTONE_PUBLIC_MODEL: ${CAPSTONE_PUBLIC_MODEL:?Set deploy/local.env}
+  CAPSTONE_GENERAL_EXECUTOR_ORIGIN: http://general-pi:8790
+  CAPSTONE_GENERAL_CONTROL_TOKEN: ${CAPSTONE_GENERAL_CONTROL_TOKEN:?Set deploy/local.env}
   CAPSTONE_ENABLE_NETWORK_STEP_LINK: ${CAPSTONE_ENABLE_NETWORK_STEP_LINK:-false}
   DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
   CAPSTONE_SESSION_IDLE_SECONDS: ${CAPSTONE_SESSION_IDLE_SECONDS:-60}
   # Model context retention comes from configs/runtime/host-runtime-v1.json.
   # The launcher rejects conflicting environment values.
-  CAPSTONE_THREAD_ATTEMPT_TIMEOUT_SECONDS: ${CAPSTONE_THREAD_ATTEMPT_TIMEOUT_SECONDS:-600}
+  CAPSTONE_THREAD_ATTEMPT_TIMEOUT_SECONDS: ${CAPSTONE_THREAD_ATTEMPT_TIMEOUT_SECONDS:-1800}
+  CAPSTONE_CAPACITY_JSON: ${CAPSTONE_CAPACITY_JSON:-}
+  CAPSTONE_CAPACITY_MODE: ${CAPSTONE_CAPACITY_MODE:-normal}
+  CAPSTONE_ENTERPRISE_RESEARCH_TIMEOUT_SECONDS: ${CAPSTONE_ENTERPRISE_RESEARCH_TIMEOUT_SECONDS:-}
   CAPSTONE_RECOGNITION_PROVIDER: ${CAPSTONE_RECOGNITION_PROVIDER:-}
   CAPSTONE_RECOGNITION_MODEL: ${CAPSTONE_RECOGNITION_MODEL:-}
   CAPSTONE_RECOGNITION_BASE_URL: ${CAPSTONE_RECOGNITION_BASE_URL:-}
   CAPSTONE_RECOGNITION_API_KEY_ENV: ${CAPSTONE_RECOGNITION_API_KEY_ENV:-}
   CAPSTONE_RECOGNITION_THINKING_LEVEL: ${CAPSTONE_RECOGNITION_THINKING_LEVEL:-off}
   CAPSTONE_RECOGNITION_TIMEOUT_SECONDS: ${CAPSTONE_RECOGNITION_TIMEOUT_SECONDS:-60}
-  CAPSTONE_THREAD_MAX_STREAMS: ${CAPSTONE_THREAD_MAX_STREAMS:-32}
-  CAPSTONE_THREAD_STREAMS_PER_THREAD: ${CAPSTONE_THREAD_STREAMS_PER_THREAD:-2}
+  CAPSTONE_THREAD_MAX_STREAMS: ${CAPSTONE_THREAD_MAX_STREAMS:-}
+  CAPSTONE_THREAD_STREAMS_PER_THREAD: ${CAPSTONE_THREAD_STREAMS_PER_THREAD:-}
   CAPSTONE_WORKER_MAX_SESSIONS: ${CAPSTONE_WORKER_MAX_SESSIONS:-8}
   CAPSTONE_WORKER_WAKE_URL: http://worker:8766
-  CAPSTONE_FAMILY_HEALTH_URLS: pandapower=http://worker:8766,pypsa=http://worker-pypsa:8766
+  CAPSTONE_FAMILY_HEALTH_URLS: native=http://worker-native:8766,pandapower=http://worker:8766,pypsa=http://worker-pypsa:8766
   CAPSTONE_FEDERATED_CATALOG_CONTEXT: ${CAPSTONE_FEDERATED_CATALOG_CONTEXT:-true}
   CAPSTONE_ALLOWED_HOSTS: localhost,127.0.0.1,api
   CAPSTONE_ALLOWED_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
@@ -50,6 +59,8 @@ x-host-service: &host-service
       condition: service_healthy
     objects-init:
       condition: service_completed_successfully
+    general-pi:
+      condition: service_healthy
 
 services:
   postgres:
@@ -93,6 +104,7 @@ services:
 
   api:
     <<: *host-service
+    networks: [default, general-pi]
     volumes:
       - api-runs:/app/runs
     command: [api]
@@ -101,9 +113,7 @@ services:
         condition: service_healthy
       objects-init:
         condition: service_completed_successfully
-      worker:
-        condition: service_healthy
-      worker-pypsa:
+      worker-native:
         condition: service_healthy
     ports:
       - 127.0.0.1:${CAPSTONE_API_PORT:-8767}:8766
@@ -122,6 +132,7 @@ services:
       CAPSTONE_HOSTED_APPLICATION: pandapower
       CAPSTONE_THREAD_FAMILY: pandapower
     command: [worker]
+    networks: [default, general-pi]
     healthcheck:
       test: [CMD, python, -c, "from urllib.request import urlopen; urlopen('http://127.0.0.1:8766/health', timeout=3).close()"]
       interval: 10s
@@ -138,15 +149,98 @@ services:
       CAPSTONE_THREAD_FAMILY: pypsa
       CAPSTONE_WORKER_WAKE_URL: http://worker-pypsa:8766
     command: [worker]
+    networks: [default, general-pi]
     healthcheck:
       test: [CMD, python, -c, "from urllib.request import urlopen; urlopen('http://127.0.0.1:8766/health', timeout=3).close()"]
       interval: 10s
       timeout: 5s
       retries: 12
 
+  worker-native:
+    <<: *host-service
+    volumes:
+      - worker-native-runs:/app/runs
+    environment:
+      <<: *host-environment
+      CAPSTONE_HOSTED_APPLICATION: native
+      CAPSTONE_THREAD_FAMILY: native
+      CAPSTONE_WORKER_WAKE_URL: http://worker-native:8766
+    command: [worker]
+    networks: [default, general-pi]
+    healthcheck:
+      test: [CMD, python, -c, "from urllib.request import urlopen; urlopen('http://127.0.0.1:8766/health', timeout=3).close()"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  general-pi:
+    image: capstone-general-pi:local
+    build:
+      context: .
+      dockerfile: deploy/general-pi.Dockerfile
+      args:
+        CAPSTONE_BACKEND_IMAGE: ${CAPSTONE_BACKEND_IMAGE:-capstone-backend:local}
+    restart: unless-stopped
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [SETUID, SETGID, CHOWN, DAC_OVERRIDE, KILL, NET_ADMIN]
+    security_opt: [no-new-privileges:true]
+    mem_limit: ${CAPSTONE_NATIVE_MEMORY_LIMIT:-2g}
+    pids_limit: ${CAPSTONE_NATIVE_PIDS_LIMIT:-512}
+    networks: [general-pi]
+    environment:
+      CAPSTONE_WORKBENCH_PRESET: ${CAPSTONE_WORKBENCH_PRESET:-local}
+      CAPSTONE_RESOURCE_PERMISSION_PROFILE: ${CAPSTONE_RESOURCE_PERMISSION_PROFILE:-local}
+      CAPSTONE_RESOURCE_POLICY_FILE: ${CAPSTONE_RESOURCE_POLICY_FILE:-/opt/general/configs/runtime/resource-permissions.json}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
+      CAPSTONE_PUBLIC_PROVIDER: ${CAPSTONE_PUBLIC_PROVIDER:?Set deploy/local.env}
+      CAPSTONE_PUBLIC_MODEL: ${CAPSTONE_PUBLIC_MODEL:?Set deploy/local.env}
+      CAPSTONE_GENERAL_CONTROL_TOKEN: ${CAPSTONE_GENERAL_CONTROL_TOKEN:?Set deploy/local.env}
+      CAPSTONE_NATIVE_INTERNAL_ENDPOINTS: ${CAPSTONE_NATIVE_INTERNAL_ENDPOINTS:-[]}
+      CAPSTONE_EXPERIMENTAL_LLM_POOL: ${CAPSTONE_EXPERIMENTAL_LLM_POOL:-0}
+      CAPSTONE_DATA_GATEWAY_CONNECTION_FILE: ${CAPSTONE_DATA_GATEWAY_CONNECTION_FILE:-}
+      CAPSTONE_GATEWAY_LOOPBACK_HOST: ${CAPSTONE_GATEWAY_LOOPBACK_HOST:-host.docker.internal}
+      CAPSTONE_CAPACITY_JSON: ${CAPSTONE_CAPACITY_JSON:-}
+      CAPSTONE_CAPACITY_MODE: ${CAPSTONE_CAPACITY_MODE:-normal}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+    volumes:
+      - general-pi-receipts:/var/lib/general-pi/receipts
+      - general-pi-inputs:/var/lib/general-pi/inputs
+      - general-pi-profiles:/var/lib/general-pi/profiles
+      - type: bind
+        source: ${CAPSTONE_DATA_GATEWAY_CONFIG_DIR:-./.capstone-agent/data-gateway}
+        target: /run/capstone-private/data-gateway
+        read_only: true
+      - type: volume
+        source: general-pi-resources
+        target: /opt/general/.grid-agent/runtime
+        volume:
+          nocopy: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=${CAPSTONE_NATIVE_TMP_SIZE:-512m}
+      - /var/lib/general-pi/tasks:rw,nosuid,size=${CAPSTONE_NATIVE_WORKSPACE_SIZE:-4g},mode=0711
+    healthcheck:
+      test: [CMD, python, -c, "from urllib.request import urlopen; urlopen('http://127.0.0.1:8790/health/ready', timeout=3).close()"]
+      start_period: 5m
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+networks:
+  general-pi:
+
 volumes:
   postgres-data:
   object-data:
+  worker-native-runs:
+  general-pi-receipts:
+  general-pi-inputs:
+  general-pi-profiles:
+  general-pi-resources:
   api-runs:
   worker-runs:
   worker-pypsa-runs:

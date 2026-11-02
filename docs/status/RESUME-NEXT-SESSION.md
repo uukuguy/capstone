@@ -1,113 +1,127 @@
 # Live Session Checkpoint
 
-> Updated: 2026-10-15. Active work; not a final handoff.
+2026-11-02 milestone closeout: user selected current dev as the milestone scope.
+All implementation commits are already on local dev. PR84 merged into remote dev at a0ab3d10 after scoped CI41395958065 passed.
+PR85 main CI41396086929 passed81 tests but failed historical formatting.
+Local corrections are prepared; pushing requires explicit CI retry approval.
+Main merge and annotated tag remain pending. Current workflow forces full dual-platform
+release checks for main; adjust to the agreed lightweight merge scope before triggering it.
+Intranet deployment remains 7ea289f2; current dev is not deployed there.
 
-## Live operations
 
-- Both fixes passed focused regressions and independent review. Commits:
-  b580f93 AC setpoints/supported scope; c638e0992e49d300e760e89d07aff63ef6eca1c5
-  per-result model revision. Both are pushed.
-- PR28 merged normally as f300d1f375ef20af005840a60af47b5e33ea62e8.
-  Required Linux/macOS run38723131332 passed. Root dev fast-forwarded; canonical
-  local rebuild passed (log .capstone-agent/pr28-dev-local-rebuild-proxy.log).
-  API and both workers share image6c616058e643; 1060 tracked backend files per
-  role match clean f300 source. App5173 reports f300, dirty=false; readiness passed.
-- Owned fresh candidate `capstone-regional-residual-check`, origin29375, is
-  tested backendc638e09 and Appe2. All backend roles shared one AMD64 image.
-  Root controls it with `.capstone-agent/regional_residual_candidate.py`.
-  Preserve the older stopped28020 candidate/project/data separately.
-- Completed `.capstone-agent/verify_regional_integration_candidate.py`;
-  fresh Threadthr_552d053d489c612a9389, receipt
-  `.capstone-agent/regional-residual-integration-c638e09.json` and sibling raw directory.
-  Original three turns plus one AC-only turn passed runtime checks: objectives
-  1300/1900, five completed operations projections, actual AC schedule consistency.
-  Candidate stopped; zero running containers, data retained. Do not resend.
-  Answer text has one arithmetic error (+5 instead of +7.5 MW); raw results are
-  correct. Source-modeling UI projections remain outside this fix.
-- Product source is frozen. Keep pending acceptance/control documents off PR28
-  while its product gate runs; on docs/pypsa-runtime-acceptance, publish these records
-  with a separate docs-only PR so full product CI is not restarted for receipts.
+Accepted design: `docs/superpowers/specs/2026-11-02-managed-resource-installation-design.md`.
+Installations persist; no temporary mode. Resource management uses one permission gate.
+Local defaults allow application actions; intranet defaults restrict management actions.
+Preinstall promotion is approved. Core implementation is committed; runtime/API/UI integration remains incomplete.
 
-## Current instruction and scope
+Active implementation now follows `docs/superpowers/plans/2026-11-02-managed-resource-installation.md`.
+Permission core fdc55904/74ed2f39 passes14 tests and independent review; deployment defaults ef05b7b9
+pass synthetic Compose resolution (not deployed). Durable store cb3f98f6/49b3bb25 passes28 tests and review.
+MCP transport d129b49c passes real local stdio verification;12 focused tests after revocation-race fix.
+Installer c0774749 is committed and verified;
+root owns MCP transport and remaining runtime/API/UI/deployment integration. No CI, no remote access.
+Installation is not yet available through the workbench. Do not claim full delivery or deployed permissions.
 
-User requests fixing the remaining problems on `fix/user-local-network-view`,
-then merging normally into `dev`. Active worktree is
-`.worktrees/dev-trial-deployment`; pre-follow-up source anchor is5e3627a.
-The two defects are later-turn PyPSA result projections and AC validation of a
-saved dispatch. Plan: [PyPSA follow-up](../superpowers/plans/2026-10-15-pypsa-runtime-followup.md).
+`43c31e3a` changes scope-switch defaults to the newest primary by saved time.
+Manual version selection survives directory updates.53 focused tests and types passed.
+`6470c554` puts copy first in answer actions;133 component checks passed.
+Local rebuild ready: `/tmp/capstone-latest-primary-rebuild.log`.
+API/worker image `286db9663be85944bb8b643ffa170ae23dfa4970baa9e684dad1b9cedce7df2b`; App `6470c554`.
+Scoped cleanup receipt: `.capstone-agent/cache-maintenance-20261102-001753-45814.log`.
 
-Do not repeat offline release suites. Run focused regressions and one targeted
-original regional conversation with the already authorized DeepSeek OPENAI_*
-configuration. Required dev PR Linux/macOS checks still apply. No bypass.
+Instruction products implemented in `2ca06418`: paired instruction/answer actions,
+stable persisted numbering, scoped directory and all-products toggle. Execution start
+opens its scope once; manual choices are preserved. Focused checks, types and browser
+component verification passed. Evidence: `runs/instruction-products-20261101/`.
+Canonical local rebuild ready; log `/tmp/capstone-instruction-products-rebuild.log`.
+API/worker retain identical backend image `9cf4677d`; App source is `2ca06418`.
+Scoped cleanup receipt: `.capstone-agent/cache-maintenance-20261102-000230-5077.log`.
+No CI, remote deployment or business replay. Preserve unrelated untracked summer audit.
 
-## Implementation owners and design
+Updated 2026-11-01 23:13. Artifact version display correction.
 
-- offline_review_supported owns application preparation/session projection,
-  PyPSA model binding and related tests. A neutral optional revision resolver
-  validates every result's own authorized model lineage/revision. Each result
-  is projected against its actual verified context, preserving Pack equality
-  and existing host-only verified-context admission. No PyPSA imports enter
-  the framework Kernel. Baseline catalog revision must remain unchanged.
-- offline_provider owns Authority power_operations, its tests and the AC
-  contract/guide scope. PyPSA1.3.0 reads generators_t.p_set; writing computed
-  generators_t.p was overwritten. Apply saved schedules to input p_set.
-  Verify actual non-slack outputs, third-snapshot backup increment and slack
-  loss balance. Fail explicitly for unsupported scheduled Store/StorageUnit/
-  Link/Process components instead of claiming to verify unsaved schedules.
-- Root owns planning, control documents, candidate runtime, review, PR/merge
-  and canonical dev checkout integration. Workers do not commit concurrently.
+Commitaa1cd3e8 groups instruction output cards by task/attempt/host path identity.
+Latest version shown, older versions preserved behind closed history. No filename
+heuristics or cross-task merging.150 focused checks and types passed.
+Browser grouping check passed. User then requested timestamps:5830be18 adds saved_at
+from ledger event time to both output cards and file directory; original files unchanged.
+162 App checks,13 API checks passed;1 integration test skipped;types passed.
+Timestamp browser fixture and persisted historical directory passed. Local rebuild ready,
+API/worker image9cf4677d9ae9667fe86974247e07c28b5b240981daba7fb35960f64082f8f85f.
+Cleanup receipt232349-17334. Latest selected by saved_at even after mixed-order hydration.
+19 additional order/helper checks passed; no remote deployment.
+Remote disconnected; do not deploy. Evidence runs/artifact-versions-fix-20261101/.
 
-## Immutable delivery and graph
+User reports intranet server disconnected; do not deploy remotely.
+Commit2800da79 fixes PDF sandbox rejection and application/octet-stream filename
+fallback. Browser reproduced restricted-frame failure versus normal13-page view.
+17 focused App/transport tests and types passed; actual component browser preview
+and canonical local rebuild passed. Same backend image1be4fbda; App2800da79.
+Scoped cleanup receipt cache-maintenance-20261101-230249-59432.log. Evidence runs/pdf-preview-fix-20261101;
+log /tmp/capstone-pdf-rebuild.log. No CI, no business task replay.
 
-Current user package is sourcee2eaee2403cb6d780b3f7564da86e0d083890673,
-root `runs/user-local-offline/capstone-delivery-e2eaee2`, three files.
-Archive bytes1368607944; SHA256
-9d7c3b215b9c45631bf3142aaad8f8066ba43831380b43b2ccf8146ee1eebfe7.
-Single install/readiness and six AMD64 roles passed; instance29377 is stopped.
-Runtime packages matched tested28020aa. Preserve the delivered artifact unchanged.
-No new package was requested by the current fix-and-merge instruction.
+Shared correction commit `7ea289f2`: PPT theme; API-clock elapsed time;
+queued wording; step-registration diagnosis; purpose fallbacks; explicit final
+answer body. Focused App 167 / agent 45 / PPT 25 passed; types passed.
+Local canonical rebuild ready, backend image
+`1be4fbda8a3db000df717ae1e163b73447ff76d8bf238c95ad004f1a29b1fa3a`.
+Cleanup receipt `.capstone-agent/cache-maintenance-20261101-195735-86660.log`.
+Remote incremental images tagged 7ea289f2 active; all four services healthy.
+API/worker image58f78932b1b5a0a0a151a5d6f631beac9a14a4cf2b07dc06491377fa9d4f4b72.
+Short dsv4 task5.895s,1LLM,0tools,Chinese answer and browser passed.
+Changed executor/report files match local and intranet byte-for-byte.
+Logs `/tmp/capstone-presentation-remote-up.log`; task verification script
+`/tmp/capstone-presentation-trial.py`, evidence `runs/presentation-fix-20261101/`.
+No CI, no summer replay, no new visible tab. Do not claim full chart/business
+acceptance: previous model created zero figure blocks. Prompt now distinguishes
+failed retrieval from absent data and requires supported comparisons.
+Answer boundary is explicit; legacy unmarked text is preserved, not heuristically
+stripped. Real exact-output task had no preamble but omitted markers; do not claim all
+English-prefix cases are prevented.
 
-7c19766 is withdrawn and not deliverable. Evidence is retained at root
-`runs/user-local-offline/capstone-withdrawn-7c19766`; original files/hash remain.
-Do not restore or distribute the old delivery directory.
+Intranet entry http://192.168.72.63:5173; SSH dmdba, dir
+/home/dmdba/capstone-intranet. Single worker serializes tasks; user asked to record
+only. Existing user task finished. Remote clock is ~327 seconds behind browser;
+this explains inflated live elapsed. All 123 executor source hashes were equal
+before correction; gateway misuse was reproduced locally with dsv4, not a proven
+deployment mismatch. Saved audit `runs/intranet-deploy-20261101/summer-final-records.json`.
+Control register and graph now record the intranet deployment and source. Preserve unrelated
+`docs/reports/2026-11-01-summer-session-audit.md`.
 
-The graph has12 important nodes. e2 is an independent visible delivery focus,
-with README/archive/SHA/report links. Withdrawn7c and documentation606 belong
-in history, not separate nodes. Update graph and canonical register at phase
-boundaries; check both worktree and root entry points. Source/verification/
-merge/deployment states must remain distinct.
+## Main path remains separate
 
-## Prior verified evidence
+## Current work
 
-- Graph scene/camera fixes61a418d:106 backend and109 App tests plus browser checks.
-- Shared handoff fix28020aa:16 contracts/82 checks, independent review.
-- Original three-turn AMD64 OPENAI candidate28020aa: baseline/growth dispatch
-  optimal1300/1900 and both AC calls converged. Actual projection failure and
-  AC schedule inconsistency remain evidence for the present regressions.
-- Raw ignored evidence: `.capstone-agent/regional-handoff-candidate-live.json`
-  and its sibling directory of records/snapshots/verified Authority documents.
-  Candidate29375 is stopped with data retained. Operator checker interpreter
-  error was separated from the successful first dispatch; never resend it.
-- README1–9 actually ran on7c;10–12 were not run. Full generator N1 study/ranking
-  remains unverified. Do not turn request completion into full business acceptance.
+User requested one unified correction, not separate business-tool patches.
+Dev implementation `2b347fc6` combines task-local direct/composed successful-read
+reuse, exact retrieval preflight, normalized observation access, typed CSV
+preparation and model network-failure diagnostics. No business names or routes
+were added. Concurrency remains 4. See
+[implementation report](../reports/2026-11-01-unified-observation-pipeline.md).
 
-## Integration and data preservation
+73 focused Node checks and 94 focused Python/worker checks passed. Additional
+host checks passed. No CI. Canonical rebuild passed readiness and image parity:
+`f96b8e7fb2fbf0c56c152916cc84dd0760d44d2e0984a8873d4335caa603aeeb`.
+Cleanup receipt: `.capstone-agent/cache-maintenance-20261101-180419-53195.log`.
+Short real trial `thr_06440e24643ca2748769` / `attempt_696255a1871bc668` completed
+26.030 seconds, 7 model responses, 8 tools, zero errors. Direct/composed reuse,
+explicit refresh and typed CSV/source manifest passed; downloads verified.
+Evidence: `runs/unified-pipeline-validation-20261101/`. Existing browser tab reused.
+Control graph, source edges and deployment card inspected in the existing browser
+tab; local document links, symlink, doctor and diff checks passed. Business scope
+and full-task read-count efficiency are not certified by this metadata trial.
+Next work must use the saved diagnosis; do not claim full summer-task acceptance.
+Do not repeat the full summer task automatically.
 
-PR27 merged as37529ef. PR28 passed both required jobs and merged as
-f300d1f375ef20af005840a60af47b5e33ea62e8. Root dev fast-forwarded and completed
-canonical rebuild with data retained. The original pending root controls are
-preserved in stash `recovery: root control copies before PR28 integration`;
-newer receipts are on docs/pypsa-runtime-acceptance. Do not apply stale copies
-onto newer accepted control records. Keep this recovery reference.
+## Prior results and limits
 
-Next: finish the separate documentation/governance PR, wait its required checks,
-merge normally, fast-forward root dev without rebuilding unchanged product code,
-and close the merged fix/docs branches while preserving worktree operator data.
-Runtime local-dev source stays f300; a later documentation merge is a separate
-Git state. Do not claim runtime follows that later docs-only revision.
+The authorized summer rerun ended after 589.524 seconds during confirmed network
+loss: 58 model responses, 282 tools, 8 tool errors. Its 162 sequence calls included
+37 identical extra reads; 35 repeated a successful batch to repair local extraction.
+Evidence: `runs/summer-rerun-20261101/`; thread `thr_4201a737211f31836047`.
+This is not accepted business delivery. Scope selection remains model judgement.
 
-Existing19173 installation is user data and remains untouched. local-dev previously
-runsb7e68dd; local-demo/cloud-demo remainfaa6af9, cloud-dev24d9a32. No cloud/demo
-or Ubuntu VM validation/deployment is authorized by this task. Do not change them.
-Keep credentials in environment/private ignored state; never log values or copy
-ignored authentication state into a fresh worktree.
+The intermediate `8f9f59d5` runtime passed reuse/refresh mechanics in a 36.085-second
+metadata trial, but had 3 shell exploration errors. The unified pipeline addresses
+that access/preparation path. Evidence: `runs/read-reuse-validation-20261101/`.
+Current browser validation tab: `thr_06440e24643ca2748769` on 127.0.0.1:5173.

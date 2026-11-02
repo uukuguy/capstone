@@ -12,6 +12,7 @@ from hashlib import sha256
 from pathlib import Path
 
 from capability_agent._safe_files import read_bound_regular_path, write_bound_text
+from capability_agent.runtime.capacity import runtime_limits as resolve_limits, check_capacity
 
 
 _RESOURCE_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]+$")
@@ -19,11 +20,6 @@ _ENCODED_SEPARATOR_PATTERN = re.compile(r"%(?:2f|5c)", re.IGNORECASE)
 _SHA256_PATTERN = re.compile(r"^[a-f0-9]{64}$")
 _SCHEMA_ID_PATTERN = re.compile(r"^[a-z][a-z0-9-]*$")
 _DEFAULT_SCHEMA_ID = "capability-guide-index"
-# Keep model-facing guide snapshots bounded before any bytes are published.
-_MAX_GUIDE_RESOURCES = 64
-_MAX_GUIDE_DOCUMENT_BYTES = 256 * 1024
-_MAX_GUIDE_TOTAL_BYTES = 1024 * 1024
-_MAX_GUIDE_TITLE_CHARS = 256
 
 
 class GuideNotFound(KeyError):
@@ -124,6 +120,7 @@ def materialize_guide_provider(
     guide_index_path: Path,
     protocol: str | None = None,
     reuse_existing: bool = False,
+    runtime_limits=None,
 ) -> Path:
     """Publish a provider's allowlisted documents into a binding snapshot.
 
@@ -146,7 +143,7 @@ def materialize_guide_provider(
         _assert_absent(root, "guide snapshot root")
         _assert_absent(index_path, "guide index")
 
-    documents = _load_provider_documents(provider)
+    documents = _load_provider_documents(provider, resolve_limits(runtime_limits))
     schema_id = _resolve_schema_id(protocol)
     payload_resources: dict[str, str] = {}
     materialized: list[tuple[Path, bytes]] = []
@@ -222,6 +219,7 @@ def materialize_guide_provider(
 
 def _load_provider_documents(
     provider: object,
+    limits,
 ) -> tuple[tuple[str, str, str, str], ...]:
     load = getattr(provider, "load", None)
     open_resource = getattr(provider, "open", None)
@@ -235,8 +233,7 @@ def _load_provider_documents(
         raise GuideMaterializationError("guide provider index could not be loaded") from None
     if not isinstance(raw_index, (tuple, list)):
         raise GuideMaterializationError("guide provider index must be a sequence")
-    if len(raw_index) > _MAX_GUIDE_RESOURCES:
-        raise GuideMaterializationError("guide provider resource count exceeds limit")
+    check_capacity(limits, 'guide_resource_count', len(raw_index), unit='resources', phase='guide_prepare')
 
     documents: list[tuple[str, str, str, str]] = []
     seen: set[str] = set()
@@ -254,8 +251,7 @@ def _load_provider_documents(
             raise GuideMaterializationError("guide provider index contains duplicate resource IDs")
         if type(title) is not str or not title:
             raise GuideMaterializationError("guide provider title must be non-empty text")
-        if len(title) > _MAX_GUIDE_TITLE_CHARS:
-            raise GuideMaterializationError("guide provider title exceeds limit")
+        check_capacity(limits, 'guide_title_chars', len(title), unit='characters', phase='guide_prepare')
         if type(digest) is not str or _SHA256_PATTERN.fullmatch(digest) is None:
             raise GuideMaterializationError("guide provider digest is invalid")
         seen.add(resource_id)
@@ -279,15 +275,12 @@ def _load_provider_documents(
             or type(text) is not str
         ):
             raise GuideMaterializationError("guide provider document does not match its index")
-        if len(opened_title) > _MAX_GUIDE_TITLE_CHARS:
-            raise GuideMaterializationError("guide provider title exceeds limit")
+        check_capacity(limits, 'guide_title_chars', len(opened_title), unit='characters', phase='guide_prepare')
         encoded_text = text.encode("utf-8")
         document_bytes = len(encoded_text)
-        if document_bytes > _MAX_GUIDE_DOCUMENT_BYTES:
-            raise GuideMaterializationError("guide provider document size exceeds limit")
+        check_capacity(limits, 'guide_document_bytes', document_bytes, unit='bytes', phase='guide_prepare')
         total_bytes += document_bytes
-        if total_bytes > _MAX_GUIDE_TOTAL_BYTES:
-            raise GuideMaterializationError("guide provider total size exceeds limit")
+        check_capacity(limits, 'guide_total_bytes', total_bytes, unit='bytes', phase='guide_prepare')
         if sha256(encoded_text).hexdigest() != digest:
             raise GuideMaterializationError("guide provider document digest does not match its index")
         documents.append((resource_id, title, digest, text))

@@ -10,9 +10,7 @@
     "CAPSTONE_SESSION_IDLE_SECONDS": "60",
     "CAPSTONE_THREAD_CONTEXT_LIMIT": "1024",
     "CAPSTONE_THREAD_CONTEXT_IDLE_SECONDS": "0",
-    "CAPSTONE_THREAD_ATTEMPT_TIMEOUT_SECONDS": "600",
-    "CAPSTONE_THREAD_MAX_STREAMS": "32",
-    "CAPSTONE_THREAD_STREAMS_PER_THREAD": "2",
+    "CAPSTONE_THREAD_ATTEMPT_TIMEOUT_SECONDS": "1800",
     "CAPSTONE_PYPSA_MODEL_LIBRARY_DIR": "/opt/capstone-models"
   },
   "roles": {
@@ -21,6 +19,12 @@
       "project": "capstone-agent",
       "module": "capstone_agent.federated_hosted",
       "environment": {"CAPSTONE_THREAD_OPEN_ACCESS": "true"}
+    },
+    "native": {
+      "application": "native",
+      "project": "capstone-agent",
+      "module": "capstone_agent.native_hosted_worker",
+      "environment": {}
     },
     "pandapower": {
       "application": "pandapower",
@@ -38,7 +42,8 @@
     }
   },
   "startup": {
-    "required_families": ["pandapower", "pypsa"],
+    "required_families": ["native"],
+    "optional_families": ["pandapower", "pypsa"],
     "timeout_seconds": 180,
     "probe_timeout_seconds": 2,
     "retry_seconds": 1
@@ -50,5 +55,5 @@
     "CAPSTONE_ALLOWED_ORIGINS", "CAPSTONE_FAMILY_HEALTH_URLS",
     "CAPSTONE_WORKER_WAKE_URL", "CAPSTONE_DEPLOYMENT_STAGE"
   ],
-  "performance_environment": ["PORT", "CAPSTONE_WORKER_MAX_SESSIONS"]
+  "performance_environment": ["PORT", "CAPSTONE_WORKER_MAX_SESSIONS", "CAPSTONE_THREAD_MAX_STREAMS", "CAPSTONE_THREAD_STREAMS_PER_THREAD"]
 }

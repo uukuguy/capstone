@@ -1,11 +1,9 @@
+import {applicationCapacity} from './applicationCapacity'
 import type {
   Catalog, CommittedTurn, CreatedSession, NetworkDiagram, NetworkStory, NetworkView, SessionEvent, SessionStatus,
 } from './types'
 import { fetchWithReadRetry } from './httpRetry'
 
-const MAX_RESPONSE_BYTES = 2 * 1024 * 1024 + 128 * 1024
-const MAX_EVENT_BYTES = 2 * 1024 * 1024 + 128 * 1024
-const VIEW_ATTEMPTS = 8
 
 function waitForView(ms: number, signal?: AbortSignal | null): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -39,7 +37,7 @@ async function boundedText(response: Response): Promise<string> {
     const { done, value } = await reader.read()
     if (done) break
     bytes += value.byteLength
-    if (bytes > MAX_RESPONSE_BYTES) {
+    if (bytes > applicationCapacity('event_page_bytes')) {
       await reader.cancel()
       throw new Error('响应超过允许大小')
     }
@@ -153,26 +151,26 @@ export class CapstoneClient {
       throw new Error('电网视图步骤无效')
     }
     const path = `/api/v1/sessions/${encodeURIComponent(sessionId)}/network?ordinal=${ordinal}`
-    for (let attempt = 0; attempt < VIEW_ATTEMPTS; attempt += 1) {
+    for (let attempt = 0; attempt < applicationCapacity('ui_read_attempts'); attempt += 1) {
       try {
         return await this.json(path, { signal })
       } catch (cause) {
         const retryable = cause instanceof ApiError && cause.status === 404
-        if (!retryable || attempt + 1 === VIEW_ATTEMPTS) throw cause
-        await waitForView(Math.min(300 * 2 ** attempt, 1500), signal)
+        if (!retryable || attempt + 1 === applicationCapacity('ui_read_attempts')) throw cause
+        await waitForView(Math.min(applicationCapacity('ui_read_retry_base_ms') * 2 ** attempt, applicationCapacity('ui_read_retry_max_ms')), signal)
       }
     }
     throw new Error('电网视图读取未完成')
   }
 
   async networkStory(sessionId: string, signal?: AbortSignal): Promise<NetworkStory> {
-    for (let attempt = 0; attempt < VIEW_ATTEMPTS; attempt += 1) {
+    for (let attempt = 0; attempt < applicationCapacity('ui_read_attempts'); attempt += 1) {
       try {
         return await this.json(`/api/v1/sessions/${encodeURIComponent(sessionId)}/network-story`, { signal })
       } catch (cause) {
         const retryable = cause instanceof ApiError && cause.status === 409
-        if (!retryable || attempt + 1 === VIEW_ATTEMPTS) throw cause
-        await waitForView(Math.min(300 * 2 ** attempt, 1500), signal)
+        if (!retryable || attempt + 1 === applicationCapacity('ui_read_attempts')) throw cause
+        await waitForView(Math.min(applicationCapacity('ui_read_retry_base_ms') * 2 ** attempt, applicationCapacity('ui_read_retry_max_ms')), signal)
       }
     }
     throw new Error('电气拓扑故事读取未完成')
@@ -198,7 +196,7 @@ export class CapstoneClient {
         const { done, value } = await reader.read()
         if (done) break
         buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n')
-        if (buffer.length > MAX_EVENT_BYTES) throw new Error('事件帧超过允许大小')
+        if (buffer.length > applicationCapacity('event_bytes')) throw new Error('事件帧超过允许大小')
         let boundary: number
         while ((boundary = buffer.indexOf('\n\n')) !== -1) {
           const frame = buffer.slice(0, boundary)

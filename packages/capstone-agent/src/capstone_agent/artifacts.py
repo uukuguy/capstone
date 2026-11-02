@@ -13,9 +13,11 @@ from capstone_agent.ledger import ArtifactRecord, Ledger
 
 
 MAX_ARTIFACT_BYTES = 2_000_000
+from .application_capacity import limits
 
 
 class ObjectStore(Protocol):
+    def delete(self, key: str) -> None: ...
     def put(self, key: str, content: bytes, mime: str) -> None: ...
 
     def get(self, key: str, limit: int) -> bytes: ...
@@ -32,6 +34,9 @@ class MemoryObjectStore:
 
     def get(self, key: str, limit: int) -> bytes:
         return self.contents[key][:limit + 1]
+
+    def delete(self, key: str) -> None:
+        self.contents.pop(key, None)
 
 
 class S3ObjectStore:
@@ -50,6 +55,9 @@ class S3ObjectStore:
     def put(self, key: str, content: bytes, mime: str) -> None:
         self.client.put_object(Bucket=self.bucket, Key=key, Body=content,
                                ContentType=mime)
+
+    def delete(self, key: str) -> None:
+        self.client.delete_object(Bucket=self.bucket, Key=key)
 
     def get(self, key: str, limit: int) -> bytes:
         body = self.client.get_object(Bucket=self.bucket, Key=key)["Body"]
@@ -77,6 +85,13 @@ class GCSObjectStore:
     def get(self, key: str, limit: int) -> bytes:
         return self.bucket.blob(key).download_as_bytes(start=0, end=limit)
 
+    def delete(self, key: str) -> None:
+        from google.api_core.exceptions import NotFound
+        try:
+            self.bucket.blob(key).delete()
+        except NotFound:
+            pass
+
 
 class ArtifactService:
     def __init__(self, ledger: Ledger, store: ObjectStore, runs_root: Path) -> None:
@@ -86,7 +101,7 @@ class ArtifactService:
 
     def _save(self, session_id: str, kind: str, ref: str | None,
               content: bytes, mime: str) -> None:
-        if len(content) > MAX_ARTIFACT_BYTES:
+        if len(content) > limits.delivery_file_bytes:
             raise ValueError("artifact exceeds size limit")
         session = self.ledger.get_session(session_id)
         if session is None or session.run_id is None:
@@ -102,7 +117,7 @@ class ArtifactService:
         record = self.ledger.get_artifact(session_id, kind, ref)
         if record is None:
             return None
-        content = self.store.get(record.object_key, MAX_ARTIFACT_BYTES)
+        content = self.store.get(record.object_key, limits.delivery_file_bytes)
         if (len(content) != record.byte_count
                 or hashlib.sha256(content).hexdigest() != record.sha256):
             raise ValueError("artifact integrity check failed")
@@ -131,8 +146,8 @@ class ArtifactService:
         if not resolved.is_relative_to(run_dir) or not resolved.is_file():
             raise ValueError("report is outside current run")
         with resolved.open("rb") as stream:
-            content = stream.read(MAX_ARTIFACT_BYTES + 1)
-        if len(content) > MAX_ARTIFACT_BYTES:
+            content = stream.read(limits.delivery_file_bytes + 1)
+        if len(content) > limits.delivery_file_bytes:
             raise ValueError("artifact exceeds size limit")
         public_text = re.sub(r"\[([^\]\n]+)\]\([^)\n]+\)", r"\1", content.decode("utf-8"))
         self._save(session_id, "report", None, public_text.encode("utf-8"),

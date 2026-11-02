@@ -18,6 +18,9 @@ def test_pagination_survives_public_roundtrip_without_losing_preview():
 @pytest.mark.parametrize("change", [{"manifest_ref": "https://untrusted.example/data"}, {"page_size": 129},
                                    {"total_rows": True}, {"total_rows": 0}, {"endpoint": "private"}])
 def test_invalid_pagination_is_rejected(change):
+    from capstone_agent.application_capacity import limits
+    if 'page_size' in change:
+        change = {'page_size': limits.ui_result_row_count + 1}
     value = document()
     value["pagination"].update(change)
     with pytest.raises(ValueError):

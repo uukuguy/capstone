@@ -6,7 +6,8 @@ import json
 import os
 import stat
 import secrets
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Iterator, Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from hashlib import sha256
 from pathlib import Path
@@ -61,6 +62,8 @@ class ApplicationContextStore:
         )
         self._append_lock = RLock()
         self._unavailable = False
+        self._research_replay_scope = False
+        self._research_replay: tuple[bytes, tuple[ApplicationContext, tuple[ContextEvent, ...]]] | None = None
 
     @property
     def workspace(self) -> ApplicationWorkspace:
@@ -132,6 +135,21 @@ class ApplicationContextStore:
             committed = self.find_research_update(draft)
             return committed if committed is not None else self.append(draft)
 
+    @contextmanager
+    def research_transaction(self) -> Iterator[None]:
+        """Share verified replay within one request, under the append lock.
+
+        Each lookup still reads the ledger and compares exact bytes. Changes
+        on disk require a fresh replay, even within this short-lived scope.
+        """
+        with self._append_lock:
+            previous = self._research_replay_scope, self._research_replay
+            self._research_replay_scope, self._research_replay = True, None
+            try:
+                yield
+            finally:
+                self._research_replay_scope, self._research_replay = previous
+
     def find_research_update(self, draft: ContextEventDraft) -> ContextEvent | None:
         """Resolve a committed request without applying a new transition."""
         if draft.event_type != "research.updated":
@@ -139,7 +157,15 @@ class ApplicationContextStore:
         with self._append_lock:
             if self._unavailable:
                 raise ContextStoreError("context store is unavailable")
-            replayed, events = self.replay_events(self.workspace)
+            if self._research_replay_scope:
+                raw = _read_regular_bytes(self.workspace.context_events_path, label="context ledger")
+                retained = self._research_replay
+                if retained is None or retained[0] != raw:
+                    retained = (raw, self._replay_bytes(raw))
+                    self._research_replay = retained
+                replayed, events = retained[1]
+            else:
+                replayed, events = self.replay_events(self.workspace)
             if replayed != self.snapshot:
                 raise ContextStoreError("research ledger does not match the current context")
             for event in events:
@@ -352,6 +378,10 @@ class ApplicationContextStore:
             raw_bytes = _read_regular_bytes(path, label="context ledger")
         except ContextStoreError:
             raise
+        return cls._replay_bytes(raw_bytes)
+
+    @classmethod
+    def _replay_bytes(cls, raw_bytes: bytes) -> tuple[ApplicationContext, tuple[ContextEvent, ...]]:
         if not raw_bytes:
             raise ContextStoreError("context ledger is empty")
         if not raw_bytes.endswith(b"\n"):

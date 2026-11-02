@@ -46,12 +46,13 @@ def test_case_projection_rejects_unknown_or_malformed_public_fields() -> None:
 
 
 def test_case_projection_bounds_duration_and_case_text() -> None:
+    from capstone_agent.application_capacity import CapacityExceeded, limits
     document = fixture("running")
-    document["steps"][0]["duration_ms"] = 86_400_001
-    with pytest.raises(ThreadProtocolError):
+    document["steps"][0]["duration_ms"] = limits.ui_case_duration_ms + 1
+    with pytest.raises(CapacityExceeded, match='ui_case_duration_ms'):
         CaseExecutionSnapshot.from_document(document)
 
     document = fixture("running")
-    document["display_name"] = "x" * 257
-    with pytest.raises(ThreadProtocolError):
+    document["display_name"] = "x" * (limits.ui_case_text_chars + 1)
+    with pytest.raises(CapacityExceeded, match='ui_case_text_chars'):
         CaseExecutionSnapshot.from_document(document)

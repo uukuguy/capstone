@@ -1,5 +1,131 @@
 from __future__ import annotations
 
+import pytest
+
+
+def test_gateway_rejection_retains_scope_details_and_explicit_execution_state():
+    from capstone_agent.progress import project_native_tool_activity
+    body = {'status': 'error', 'gaps': [{'reason': 'invalid_arguments',
+        'message': '排序字段无效', 'scope': {'path': '/order_by/0', 'rejected_value': '-DATE',
+        'legal_values_source': 'columns[].name', 'suggestion': '使用原字段名，不加倒序前缀',
+        'examples': [['DATE', 'STAT_TYPE']], 'executed': False}}],
+        'provenance': {'request_id': 'rejected-sort-request'}}
+    output = project_native_tool_activity({'isError': True, 'result': {'structuredContent': body}})['output_excerpt']
+    for expected in ('/order_by/0', '-DATE', 'columns[].name', 'executed=false', 'rejected-sort-request', '使用原字段名'):
+        assert expected in output
+
+
+@pytest.mark.parametrize('executed', [True, False, None])
+def test_gateway_execution_state_is_never_inferred_from_error_status(executed):
+    from capstone_agent.progress import project_native_tool_activity
+    gap = {'reason': 'query_rejected', 'message': 'Query rejected'}
+    if executed is not None:
+        gap['executed'] = executed
+    output = project_native_tool_activity({'isError': True, 'result': {'structuredContent': {
+        'status': 'error', 'gaps': [gap]}}})['output_excerpt']
+    assert ('executed=' in output) is (executed is not None)
+    if executed is not None:
+        assert f'executed={str(executed).lower()}' in output
+
+
+def test_gateway_rejection_does_not_echo_a_secret_rejected_value():
+    from capstone_agent.progress import project_native_tool_activity
+    output = project_native_tool_activity({'isError': True, 'result': {'structuredContent': {
+        'status': 'error', 'gaps': [{'reason': 'invalid_arguments', 'message': '参数无效',
+        'path': '/access_token', 'rejected_value': 'private-canary', 'executed': False}]}}})['output_excerpt']
+    assert 'private-canary' not in output
+    assert '/access_token' in output
+    assert 'executed=false' in output
+
+
+def test_nested_gateway_error_summary_keeps_reason_location_and_request_before_bounding():
+    import json
+    from capstone_agent.progress import project_native_tool_activity
+    body = {'status': 'error', 'data': {'unrelated': 'x' * 9000},
+            'gaps': [{'reason': 'invalid_arguments', 'message': 'Unknown source field',
+                      'scope': {'path': '/order_by/0'}}], 'provenance': {
+                          'request_id': 'request-123', 'agent_guidance': {'explanation': 'y' * 9000}}}
+    result = {'content': [{'type': 'text', 'text': json.dumps({'structuredContent': body})}]}
+    before = json.dumps(result)
+    output = project_native_tool_activity({'isError': True, 'result': result})['output_excerpt']
+    assert 'Unknown source field' in output
+    assert 'invalid_arguments' in output
+    assert '/order_by/0' in output
+    assert 'request-123' in output
+    assert len(output) <= 600
+    assert json.dumps(result) == before
+
+
+def test_structured_gateway_error_without_text_content_is_visible():
+    from capstone_agent.progress import project_native_tool_activity
+    output = project_native_tool_activity({'isError': True, 'result': {'structuredContent': {
+        'status': 'error', 'error': {'code': 'not_readable', 'message': 'Declared metadata only'},
+        'provenance': {'request_id': 'request-structured'}}}})['output_excerpt']
+    assert 'Declared metadata only' in output
+    assert 'request-structured' in output
+
+
+def test_advanced_exploration_notice_is_visible_and_sanitized_without_replacing_original_result():
+    from capstone_agent.progress import project_native_tool_activity
+    result = {'content': [{'type': 'text', 'text': '{"result":"unchanged"}'}],
+              'details': {'execution_notice': {'code': 'suspected_tool_defect',
+                          'summary': 'Valid request failed; secret=hidden-value'}}}
+    activity = project_native_tool_activity({'result': result})
+    assert '疑似工具缺陷' in activity['warning']
+    assert 'hidden-value' not in activity['warning']
+    assert result['content'][0]['text'] == '{"result":"unchanged"}'
+
+
+def test_exploration_selection_notice_is_kept_before_a_tool_can_be_cancelled():
+    from capstone_agent.progress import project_native_tool_activity
+    activity = project_native_tool_activity({'args': {'advanced_exploration': {
+        'reason': 'tool_defect', 'detail': 'The documented request failed.'}}})
+    assert activity['warning'].startswith('申请高级数据探索：')
+
+
+@pytest.mark.parametrize('reason', [
+    'TypeError: keys must be str, int, float, bool or None, not tuple\nCommand exited with code 1',
+    'Requested operation could not read the selected file. Exit status: 2',
+])
+def test_failed_native_activity_keeps_long_output_tail_and_operation(reason):
+    from capstone_agent.progress import project_native_tool_activity
+    text = 'Report table columns\n' + 'ordinary data row\n' * 1000 + reason
+    event = {'type': 'tool_execution_end', 'isError': True,
+        'args': {'command': 'python work/analyze.py'},
+        'result': {'content': [{'type': 'text', 'text': text}]}}
+    activity = project_native_tool_activity(event)
+    assert reason.replace('\n', ' ') in activity['output_excerpt']
+    assert activity['output_excerpt'].startswith('Report table columns')
+    assert activity['operation'] == 'python work/analyze.py'
+    assert len(activity['output_excerpt']) <= 600
+    assert event['result']['content'][0]['text'] == text, 'model result must not change'
+
+
+def test_short_failed_native_activity_is_preserved_without_fabricated_exit_status():
+    from capstone_agent.progress import project_native_tool_activity
+    activity = project_native_tool_activity({'isError': True,
+        'result': {'content': [{'type': 'text', 'text': 'Cannot read the selected file.'}]}})
+    assert activity['output_excerpt'] == 'Cannot read the selected file.'
+
+
+def test_successful_native_activity_keeps_existing_head_excerpt_despite_error_words():
+    from capstone_agent.progress import project_native_tool_activity
+    activity = project_native_tool_activity({'isError': False,
+        'result': {'content': [{'type': 'text', 'text': 'ordinary row ' * 1000 + 'Traceback example only'}]}})
+    assert activity['output_excerpt'].startswith('ordinary row ')
+    assert 'Traceback' not in activity['output_excerpt']
+    assert activity['output_excerpt'].endswith('…')
+
+
+@pytest.mark.parametrize('secret', ['api_key=private-value', 'Authorization: Bearer private-value', 'password="private-value"'])
+def test_failed_native_activity_checks_secrets_before_selecting_tail(secret):
+    from capstone_agent.progress import project_native_tool_activity
+    activity = project_native_tool_activity({'isError': True,
+        'args': {'command': 'python analyze.py --api_key=operation-private'},
+        'result': {'content': [{'type': 'text', 'text': 'row ' * 1000 + secret + '\nFailure at exit 1'}]}})
+    assert activity['output_excerpt'] == '输出包含受保护配置或凭据信息，已隐藏。'
+    assert 'private' not in str(activity)
+
 
 def test_tool_failure_summary_uses_only_structured_field_and_parameter_names():
     from capstone_agent.progress import project_tool_failure

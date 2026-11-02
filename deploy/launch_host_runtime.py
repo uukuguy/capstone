@@ -34,12 +34,23 @@ def select_runtime(root: Path, environment: dict[str, str], command: str):
     application = environment.get("CAPSTONE_HOSTED_APPLICATION", "")
     if command == "api" and application == "capstone":
         role = "api"
-    elif command == "worker" and application in {"pandapower", "pypsa"}:
+    elif command == "worker" and application in {"pandapower", "pypsa", "native"}:
         role = application
     else:
         raise RuntimeContractError("CAPSTONE_HOSTED_APPLICATION/command")
+    if role not in contract['roles']:
+        raise RuntimeContractError("CAPSTONE_HOSTED_APPLICATION/command")
     spec = contract["roles"][role]
     selected = dict(environment)
+    # Compose forwards empty optional overrides. Capacity defaults belong to
+    # the application profile, not this host-role contract. Keep only valid
+    # explicit legacy overrides; never install another copy of the defaults.
+    for key in ('CAPSTONE_THREAD_MAX_STREAMS', 'CAPSTONE_THREAD_STREAMS_PER_THREAD'):
+        value = selected.get(key)
+        if not value:
+            selected.pop(key, None)
+        elif not (value.isascii() and value.isdecimal()) or int(value) < 1:
+            raise RuntimeContractError(key)
     research_mode = selected.get("CAPSTONE_AUTONOMOUS_RESEARCH", "0")
     if research_mode not in {"0", "1"}:
         raise RuntimeContractError("CAPSTONE_AUTONOMOUS_RESEARCH")
@@ -53,6 +64,26 @@ def select_runtime(root: Path, environment: dict[str, str], command: str):
     for key in selected:
         if key.startswith(("GRID_AGENT_LLM_", "CAPABILITY_AGENT_LLM_")) or key == "GRID_AGENT_PI_COMMAND":
             raise RuntimeContractError(key)
+    if contract["profile"] == "capstone-workbench-v1" and role in {"api", "native"}:
+        # Use the same registry as submission admission and the isolated relay.
+        # Professional family providers retain their separate configuration.
+        import importlib.util
+        module_spec = importlib.util.spec_from_file_location("capstone_agent.workbench_llm_profiles",
+            root / "packages/capstone-agent/src/capstone_agent/workbench_llm_profiles.py")
+        module = importlib.util.module_from_spec(module_spec)
+        module_spec.loader.exec_module(module)
+        try:
+            registry = module.ProfileRegistry(root / "configs/runtime/workbench-llm-profiles.json", environment=selected)
+            profile = registry._resolved(registry.default)
+            if role == "native":
+                registry.freeze()
+        except ValueError:
+            raise RuntimeContractError("CAPSTONE_WORKBENCH_PRESET") from None
+        selected.update(CAPSTONE_WORKBENCH_PRESET=selected.get("CAPSTONE_WORKBENCH_PRESET", "local"),
+                        CAPSTONE_PUBLIC_PROVIDER=profile["provider"], CAPSTONE_PUBLIC_MODEL=profile["model"])
+        if role == "native":
+            selected["CAPSTONE_THREAD_FAMILY"] = "native"
+        return contract, role, spec, selected
     providers = json.loads((root / "configs/llm-providers.json").read_text())["providers"]
     selection = contract.get("provider_selection")
     if selection:
@@ -80,7 +111,7 @@ def select_runtime(root: Path, environment: dict[str, str], command: str):
         value = selected.get(credential_name, "").strip()
         if not value or value.startswith(("replace-", "<")):
             raise RuntimeContractError(credential_name)
-        selected["CAPSTONE_THREAD_FAMILY"] = spec["family"]
+        selected["CAPSTONE_THREAD_FAMILY"] = spec.get("family", "native")
     return contract, role, spec, selected
 
 
@@ -92,7 +123,9 @@ def wait_for_workers(contract, environment, *, probe=None, clock=time.monotonic,
             raise RuntimeContractError("CAPSTONE_FAMILY_HEALTH_URLS")
         endpoints[family] = origin.rstrip("/") + "/health"
     settings = contract["startup"]
-    if set(endpoints) != set(settings["required_families"]):
+    required = set(settings["required_families"])
+    allowed = required | set(settings.get("optional_families", ()))
+    if not required <= set(endpoints) <= allowed:
         raise RuntimeContractError("CAPSTONE_FAMILY_HEALTH_URLS")
 
     def http_probe(url):

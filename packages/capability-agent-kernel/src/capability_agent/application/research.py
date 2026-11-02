@@ -10,17 +10,21 @@ from pydantic import ValidationError
 from capability_agent.application.context_models import ContextEvent, ContextEventDraft
 from capability_agent.application.context_store import ApplicationContextStore, ContextStoreError
 from capability_agent.application.research_models import ResearchReceipt, ResearchState, ResearchUpdate
+from capability_agent.runtime.capacity import runtime_limits as resolve_limits
+from capability_agent.application.research_models import _check_research_capacity
+from capability_agent.application.context_reducer import reduce_context, ContextTransitionError
 
 
 class ResearchController:
     """The host binds identities and reference admission, never the model."""
 
     def __init__(self, store: ApplicationContextStore, *, research_id: str, turn_id: str,
-                 admit_reference: Callable[[str], bool]) -> None:
+                 admit_reference: Callable[[str], bool], runtime_limits=None) -> None:
         self.store = store
         self.research_id = research_id
         self.turn_id = turn_id
         self.admit_reference = admit_reference
+        self.runtime_limits = resolve_limits(runtime_limits)
 
     def read(self) -> ResearchState | None:
         state = self.store.snapshot.core.research
@@ -33,6 +37,12 @@ class ResearchController:
         for ref in update.changes.references():
             if not self.admit_reference(ref):
                 raise ContextStoreError("research reference is not admitted")
+        try:
+            candidate = reduce_context(self.store.snapshot, draft)
+        except ContextTransitionError:
+            candidate = None  # The store owns CAS/retry/transition diagnostics.
+        if candidate is not None and candidate.core.research is not None:
+            _check_research_capacity(candidate.core.research.model_dump(), self.runtime_limits)
         return self._receipt(self.store.append_research_update(draft))
 
     def lookup_receipt(self, request: Mapping[str, Any]) -> ResearchReceipt | None:
@@ -41,9 +51,18 @@ class ResearchController:
         event = self.store.find_research_update(draft)
         return self._receipt(event) if event is not None else None
 
+    def preview(self, request: Mapping[str, Any]) -> ResearchState:
+        """Project with the existing reducer before a bounded response commits."""
+        _, draft = self._draft(request)
+        state=reduce_context(self.store.snapshot,draft).core.research
+        assert state is not None
+        return state
+
     def _draft(self, request: Mapping[str, Any]) -> tuple[ResearchUpdate, ContextEventDraft]:
+        if isinstance(request,Mapping):
+            _check_research_capacity(request.get('changes',{}),self.runtime_limits)
         try:
-            update = ResearchUpdate.model_validate(request)
+            update = ResearchUpdate.model_validate(request, context={'runtime_limits': self.runtime_limits})
         except (TypeError, ValueError, ValidationError):
             raise ContextStoreError("invalid research update") from None
         return update, ContextEventDraft(

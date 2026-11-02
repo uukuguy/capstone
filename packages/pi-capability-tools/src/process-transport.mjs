@@ -1,8 +1,10 @@
 import { spawn } from "node:child_process";
+import {CapacityExceeded} from './runtime-limits.mjs';
 
 /** Execute one already validated, fixed authority process request. */
 export function runProcessCapability(payload, runtime, limits, environment) {
-  return new Promise((resolveResponse) => {
+  return new Promise((resolveResponse,rejectResponse) => {
+    const started=Date.now();
     const child = spawn(runtime.executable, runtime.executableArgs, {
       env: environment,
       stdio: ["pipe", "pipe", "pipe"],
@@ -19,14 +21,24 @@ export function runProcessCapability(payload, runtime, limits, environment) {
       clearTimeout(timer);
       resolveResponse(response);
     };
-    const stopWithError = (code, message) => {
+    const stopWithError = (code, message,capacity={}) => {
+      if(settled)return;
       child.kill("SIGKILL");
-      finish(transportError(payload.request_id, runtime, message, code));
+      if(limits.runtimeLimitMode==='debug'&&capacity.dimension){
+        settled=true;clearTimeout(timer);
+        rejectResponse(new CapacityExceeded({[capacity.dimension]:capacity.limit},capacity.dimension,
+          capacity.actual,capacity.unit,'execute',{mode:'debug'}));
+        return;
+      }
+      const response=transportError(payload.request_id, runtime, message, code);
+      response.error={...response.error,...capacity};
+      finish(response);
     };
     const timer = setTimeout(() => {
       stopWithError(
         "capability_transport_timeout",
         `capability executable exceeded ${limits.timeoutMs}ms transport timeout`,
+        {dimension:'tool_timeout_seconds',actual:(Date.now()-started)/1000,limit:limits.timeoutMs/1000,unit:'seconds',retryable:false},
       );
     }, limits.timeoutMs);
     child.stdout.on("data", (chunk) => {
@@ -36,6 +48,7 @@ export function runProcessCapability(payload, runtime, limits, environment) {
         stopWithError(
           "capability_transport_output_limit",
           `capability executable exceeded ${limits.maxOutputBytes} transport output bytes`,
+          {dimension:'tool_observation_bytes',actual:stdoutBytes+stderrBytes,limit:limits.maxOutputBytes,unit:'bytes',retryable:false},
         );
         return;
       }
@@ -48,6 +61,7 @@ export function runProcessCapability(payload, runtime, limits, environment) {
         stopWithError(
           "capability_transport_output_limit",
           `capability executable exceeded ${limits.maxOutputBytes} transport output bytes`,
+          {dimension:'tool_observation_bytes',actual:stdoutBytes+stderrBytes,limit:limits.maxOutputBytes,unit:'bytes',retryable:false},
         );
       }
     });

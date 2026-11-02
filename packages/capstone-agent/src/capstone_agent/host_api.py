@@ -14,6 +14,7 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
+from urllib.parse import quote
 from collections.abc import Callable, Iterator, Mapping
 
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Query, Request
@@ -31,10 +32,12 @@ from capstone_agent.session import WorkerRegistry, WorkerSession, WorkerSpec
 from capstone_agent.thread_application import ThreadApplicationAssembly
 from capstone_agent.thread_streams import ThreadStreamBudget
 from capstone_agent.thread_protocol import ThreadProtocolError
+from capstone_agent.workspace_scope import DEFAULT_WORKSPACE, WORKSPACE_HEADER, workspace_header
 from capstone_agent.thread_service import (
     ThreadCreator,
     ThreadExecutionError,
     ThreadNotFound,
+    ThreadProtocolUpgradeRequired,
     ThreadResyncRequired,
     ThreadService,
 )
@@ -68,7 +71,12 @@ def create_host_app(
     thread_application: ThreadApplicationAssembly | None = None,
     case_service: CaseExecutionService | None = None,
     validation_status: Callable[[], Mapping[str, object]] | None = None,
+    native_artifact_executor=None,
+    capacity_profile=None,
 ) -> FastAPI:
+    from .application_capacity import initialize_capacity, current_capacity, limits, CapacityExceeded
+    if capacity_profile is not None:
+        initialize_capacity(capacity_profile)
     if len(operator_token) < 8 or not allowed_hosts or not allowed_origins:
         raise ValueError("host access configuration is invalid")
     if thread_application is not None:
@@ -106,7 +114,10 @@ def create_host_app(
             if family is None:
                 if thread_service is None:
                     return
-                family = thread_service.snapshot(thread_id).active_model_context.implementation_family
+                context = thread_service.snapshot(thread_id).active_model_context
+                if context is None:
+                    return
+                family = context.implementation_family
             if not prepare_model(thread_id, family):
                 logging.getLogger(__name__).warning('Model preparation incomplete for thread %s', thread_id)
         except Exception:
@@ -139,13 +150,21 @@ def create_host_app(
 
     app = FastAPI(title="capstone-agent", docs_url=None, redoc_url=None,
                   openapi_url=None, lifespan=lifespan)
+    @app.exception_handler(CapacityExceeded)
+    async def capacity_error(_request, error):
+        return JSONResponse(status_code=413, content={'detail': error.to_document()})
     app.add_middleware(ThreadStreamBudget,
-                       max_streams=int(os.environ.get('CAPSTONE_THREAD_MAX_STREAMS', '32')),
-                       per_thread=int(os.environ.get('CAPSTONE_THREAD_STREAMS_PER_THREAD', '2')))
+                       max_streams=int(os.environ.get('CAPSTONE_THREAD_MAX_STREAMS') or str(limits.thread_stream_count)),
+                       per_thread=int(os.environ.get('CAPSTONE_THREAD_STREAMS_PER_THREAD') or str(limits.thread_streams_per_thread)))
 
     @app.middleware("http")
     async def access(request: Request, call_next):
         request.state.public_demo = False
+        thread_resource = (request.url.path == '/api/v1/threads'
+                           or request.url.path.startswith('/api/v1/threads/'))
+        versioned_resource = (thread_resource or request.url.path == '/api/v1/workspace/connections'
+                              or request.url.path.startswith('/api/v1/workspace/gateways'))
+        thread_version = request.headers.get('Capstone-Thread-Version', '1')
         if request.url.path != "/health/ready" and request.url.hostname not in allowed_hosts:
             return JSONResponse({"error": "invalid_host"}, status_code=400)
         origin = request.headers.get("origin")
@@ -153,7 +172,7 @@ def create_host_app(
             return JSONResponse({"error": "invalid_origin"}, status_code=403)
         if request.method == "OPTIONS" and origin is not None:
             response = Response(status_code=204)
-        elif request.url.path in {"/health/ready", "/api/v1/thread-access", "/api/v1/workbench-preparation"} or (
+        elif request.url.path in {"/health/ready", "/api/v1/runtime-capacity", "/api/v1/thread-access", "/api/v1/workbench-preparation"} or (
             public_demo and request.url.path == "/api/v1/demo-credential"
         ):
             response = await call_next(request)
@@ -168,16 +187,54 @@ def create_host_app(
                 response = JSONResponse({"error": "unauthorized"}, status_code=401)
             else:
                 request.state.public_demo = demo_authorized
-                response = await call_next(request)
+                scope_error = None
+                try:
+                    request.state.workspace_name = workspace_header(request.headers.get(WORKSPACE_HEADER))
+                    # Check every Thread child route before version probing or
+                    # parsing a body, including streaming and file endpoints.
+                    parts = request.url.path.split('/')
+                    if thread_resource and not demo_authorized and len(parts) >= 5 and parts[4] and thread_service is not None:
+                        await run_in_threadpool(thread_service.require_workspace, parts[4], request.state.workspace_name)
+                except ThreadNotFound:
+                    scope_error = JSONResponse({'detail': 'thread not found'}, status_code=404)
+                except ValueError:
+                    scope_error = JSONResponse({'error': 'invalid_workspace'}, status_code=422)
+                if scope_error is not None:
+                    response = scope_error
+                elif versioned_resource and not demo_authorized and thread_version not in {'1', '2'}:
+                    response = JSONResponse({'error': 'unsupported_thread_version',
+                                             'supported_versions': [1, 2]}, status_code=406)
+                else:
+                    upgrade = False
+                    if thread_resource and not demo_authorized and thread_version == '1' and thread_service is not None:
+                        parts = request.url.path.split('/')
+                        if len(parts) >= 5 and parts[4] and not (request.method == 'POST' and parts[-1] == 'commands'):
+                            try:
+                                upgrade = (await asyncio.to_thread(thread_service.snapshot, parts[4])).minimum_protocol_version > 1
+                            except ThreadNotFound:
+                                pass
+                    response = (JSONResponse({'error': 'protocol_upgrade_required', 'minimum_protocol_version': 2}, status_code=409)
+                                if upgrade else await call_next(request))
         response.headers["Cache-Control"] = "no-store"
         response.headers["X-Content-Type-Options"] = "nosniff"
+        if thread_resource:
+            response.headers.append('Vary', WORKSPACE_HEADER)
+            selected_workspace = getattr(request.state, 'workspace_name', None)
+            if selected_workspace is not None:
+                response.headers[WORKSPACE_HEADER] = quote(selected_workspace, safe='')
+        if versioned_resource:
+            response.headers.append('Vary', 'Capstone-Thread-Version')
+            if thread_version in {'1', '2'}:
+                response.headers['Capstone-Thread-Version'] = thread_version
         if origin is not None:
             response.headers["Access-Control-Allow-Origin"] = origin
-            response.headers["Vary"] = "Origin"
-            response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+            response.headers.append("Vary", "Origin")
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
             response.headers["Access-Control-Allow-Headers"] = (
-                "Authorization, Content-Type, Idempotency-Key"
+                "Authorization, Content-Type, Idempotency-Key, Capstone-Thread-Version, Capstone-Workspace"
             )
+            if thread_resource:
+                response.headers['Access-Control-Expose-Headers'] = 'Capstone-Thread-Version, Capstone-Workspace'
         return response
 
     def get_session(session_id: str, request: Request) -> SessionRecord:
@@ -203,6 +260,10 @@ def create_host_app(
             pass
         raise HTTPException(503, "database unavailable")
 
+    @app.get("/api/v1/runtime-capacity")
+    def get_runtime_capacity():
+        return current_capacity().to_document()
+
     @app.get("/api/v1/thread-access")
     def get_thread_access():
         # Keep cold-start waiting at the page entry, before any command UI is
@@ -214,7 +275,8 @@ def create_host_app(
         except (OSError, TimeoutError):
             raise HTTPException(503, "workbench is preparing") from None
         return {"schema": "capstone-thread-access/1",
-                "mode": "open" if thread_open_access else "operator"}
+                "mode": "open" if thread_open_access else "operator",
+                "capacity": current_capacity().to_document()}
 
     @app.get("/api/v1/workbench-preparation")
     def prepare_workbench():
@@ -270,18 +332,69 @@ def create_host_app(
             if request.state.public_demo:
                 raise HTTPException(404, "thread not found")
 
+        @app.get('/api/v1/workspace/connections')
+        def workspace_connections(request: Request):
+            require_private_thread(request)
+            from .thread_input_catalog import public_gateway_identity
+            publication = getattr(native_artifact_executor, 'capability', {}).get('data_gateway')
+            identity = public_gateway_identity(publication)
+            return {'schema': 'capstone-workspace-connections/1',
+                    **({'data_gateway': identity} if identity is not None else {})}
+
+        from .network_policy_http import register_network_policy_routes
+        register_network_policy_routes(app, executor_provider=lambda: native_artifact_executor,
+                                       authorize=require_private_thread)
+        from .gateway_connections_http import register_gateway_connection_routes
+        register_gateway_connection_routes(app, executor_provider=lambda: native_artifact_executor,
+                                           authorize=require_private_thread, thread_service=thread_service)
+
+        from .grid_source_http import register_grid_source_routes
+        register_grid_source_routes(app, executor_provider=lambda: native_artifact_executor,
+                                    authorize=require_private_thread, thread_service=thread_service)
+
+        from .native_artifact_projection import register_native_artifact_routes
+        register_native_artifact_routes(app, service=thread_service,
+            executor_provider=lambda: native_artifact_executor, authorize=require_private_thread)
+        from .thread_materials import register_material_routes
+        material_objects = None if artifacts is None else artifacts.store
+        thread_service.set_material_store(material_objects)
+        register_material_routes(app, service=thread_service, objects=material_objects, authorize=require_private_thread)
+        from .thread_resource_http import register_resource_routes
+        register_resource_routes(app, service=thread_service, objects=material_objects, authorize=require_private_thread)
+        from .thread_products import register_product_routes
+        register_product_routes(app, service=thread_service, objects=material_objects,
+            executor_provider=lambda: native_artifact_executor, authorize=require_private_thread)
+
         @app.get("/api/v1/threads")
         def list_threads(request: Request,
                          before: Annotated[str | None, Query(max_length=64)] = None,
-                         limit: Annotated[int, Query(ge=1, le=50)] = 20,
+                         limit: Annotated[int, Query(ge=1)] = 20,
                          archived: bool = False):
             require_private_thread(request)
+            from .application_capacity import require_capacity
+            require_capacity('history_page_items', limit, phase='thread_list')
             try:
-                return thread_service.list_threads(before=before, limit=limit, archived=archived)
+                page = thread_service.list_threads(before=before, limit=limit, archived=archived,
+                                                   workspace_name=request.state.workspace_name)
+                if request.headers.get('Capstone-Thread-Version', '1') == '1' and any(
+                        row.get('minimum_protocol_version', 1) > 1 for row in page['threads']):
+                    return JSONResponse({'error': 'protocol_upgrade_required', 'minimum_protocol_version': 2}, status_code=409)
+                return page
             except ThreadNotFound:
                 raise HTTPException(404, "thread cursor not found") from None
             except ThreadProtocolError as error:
                 raise HTTPException(422, str(error)) from None
+
+        @app.delete('/api/v1/threads/{thread_id}', status_code=204)
+        def delete_thread(thread_id: str, request: Request):
+            require_private_thread(request)
+            try:
+                thread_service.delete_thread(thread_id)
+            except ThreadNotFound:
+                raise HTTPException(404, 'thread not found') from None
+            except ThreadExecutionError:
+                raise HTTPException(409, 'thread has active work') from None
+            return Response(status_code=204)
 
         @app.post("/api/v1/threads/{thread_id}/archive")
         async def archive_thread(thread_id: str, request: Request):
@@ -324,8 +437,10 @@ def create_host_app(
         @app.get("/api/v1/threads/{thread_id}/history")
         def get_thread_history(thread_id: str, request: Request,
                                before: Annotated[int | None, Query(ge=1)] = None,
-                               limit: Annotated[int, Query(ge=1, le=256)] = 128):
+                               limit: Annotated[int, Query(ge=1)] = 128):
             require_private_thread(request)
+            from .application_capacity import require_capacity
+            require_capacity('history_page_items', limit, phase='thread_history')
             try:
                 return thread_service.read_history(thread_id, before=before, limit=limit)
             except ThreadNotFound:
@@ -334,6 +449,11 @@ def create_host_app(
                 raise HTTPException(422, str(error)) from None
 
         if thread_creator is not None:
+            @app.get('/api/v1/thread-catalog')
+            def session_entry_catalog(request: Request):
+                require_private_thread(request)
+                return thread_creator.entry_catalog()
+
             @app.post("/api/v1/threads", status_code=201)
             async def create_thread(request: Request, background_tasks: BackgroundTasks, response: Response):
                 require_private_thread(request)
@@ -341,24 +461,45 @@ def create_host_app(
                     body = await request.json()
                     if not isinstance(body, dict):
                         raise ThreadProtocolError("thread creation must be an object")
-                    unknown = set(body) - {"model_id"}
+                    unknown = set(body) - {"model_id", "session_type"}
                     if unknown:
                         raise ThreadProtocolError(
                             "thread creation has unknown field: " + ", ".join(sorted(unknown)),
                         )
                     model_id = body.get("model_id")
+                    session_type = body.get('session_type')
+                    if session_type is not None and session_type not in {'grid-analysis', 'enterprise-research', 'general-chat'}:
+                        raise ThreadProtocolError('invalid session type')
                     if model_id is not None and (
                         not isinstance(model_id, str) or not model_id
                     ):
                         raise ThreadProtocolError("thread creation model_id is invalid")
                     started = time.perf_counter()
-                    snapshot = await run_in_threadpool(thread_creator.create, model_id)
+                    refresh_contract = getattr(native_artifact_executor, 'refresh_gateway_contract', None)
+                    if callable(refresh_contract):
+                        try:
+                            await run_in_threadpool(refresh_contract)
+                            response.headers['Capstone-Gateway-Contract'] = 'current'
+                        except Exception:
+                            # A missing service must not block an unrelated
+                            # conversation. The executor marks future grants
+                            # unavailable instead of offering a stale catalog.
+                            response.headers['Capstone-Gateway-Contract'] = 'unavailable'
+                    model_free = request.headers.get('Capstone-Thread-Version', '1') == '2' and model_id is None
+                    workspace = ({} if request.state.workspace_name == DEFAULT_WORKSPACE
+                                 else {'workspace_name': request.state.workspace_name})
+                    if session_type is not None:
+                        snapshot = await run_in_threadpool(thread_creator.create, model_id, model_free=model_free, session_type=session_type, **workspace)
+                    else:
+                        snapshot = (await run_in_threadpool(thread_creator.create, model_free=True, **workspace) if model_free
+                                    else await run_in_threadpool(thread_creator.create, model_id, **workspace))
                     duration = record_thread_startup(snapshot.thread_id, 'thread_create', started)
                     response.headers['Server-Timing'] = f'thread_create;dur={duration:.3f}'
                     # Start the existing preparation as the response is sent. Task
                     # acquisition still prepares or reuses the same locked context.
-                    background_tasks.add_task(request_model_preparation, snapshot.thread_id,
-                                              snapshot.active_model_context.implementation_family)
+                    if snapshot.active_model_context is not None:
+                        background_tasks.add_task(request_model_preparation, snapshot.thread_id,
+                                                  snapshot.active_model_context.implementation_family)
                     return snapshot.to_document()
                 except ThreadProtocolError as error:
                     raise HTTPException(422, str(error)) from None
@@ -369,7 +510,10 @@ def create_host_app(
         def get_thread_snapshot(thread_id: str, request: Request):
             require_private_thread(request)
             try:
-                return thread_service.snapshot(thread_id).to_document()
+                snapshot = thread_service.snapshot(thread_id)
+                if snapshot.minimum_protocol_version > int(request.headers.get('Capstone-Thread-Version', '1')):
+                    return JSONResponse({'error': 'protocol_upgrade_required', 'minimum_protocol_version': 2}, status_code=409)
+                return snapshot.to_document()
             except ThreadNotFound:
                 raise HTTPException(404, "thread not found") from None
 
@@ -377,7 +521,7 @@ def create_host_app(
         def get_thread_catalog(thread_id: str, request: Request):
             require_private_thread(request)
             try:
-                if case_service is not None:
+                if case_service is not None and thread_service.snapshot(thread_id).active_model_context is not None:
                     return case_service.catalog(thread_id)
                 return thread_service.catalog(thread_id)
             except ThreadNotFound:
@@ -391,11 +535,106 @@ def create_host_app(
             except ThreadNotFound:
                 raise HTTPException(404, "thread not found") from None
 
+        @app.get('/api/v1/threads/{thread_id}/input-catalog')
+        def get_input_catalog(thread_id: str, request: Request):
+            require_private_thread(request)
+            try:
+                from .thread_input_catalog import with_case_availability, public_input_catalog
+                publication = getattr(native_artifact_executor, 'capability', {}).get('data_gateway')
+                reader = getattr(native_artifact_executor, 'thread_gateway_publication', None)
+                if callable(reader):
+                    saved = thread_service.read_thread_gateway(thread_id)
+                    try:
+                        publication = reader(saved)
+                    except Exception:
+                        publication = {'available': False, 'identity': (saved or {}).get('identity', {})}
+                document = public_input_catalog(thread_service.input_catalog(thread_id), gateway_publication=publication)
+                return with_case_availability(document, case_service.input_availability(thread_id)) if case_service is not None else document
+            except ThreadNotFound:
+                raise HTTPException(404, 'thread not found') from None
+            except RuntimeError:
+                raise HTTPException(503, 'input catalog unavailable') from None
+        @app.get('/api/v1/threads/{thread_id}/products')
+        def get_process_products(thread_id: str, request: Request,
+                                 before: Annotated[int | None, Query(ge=1)] = None,
+                                 limit: Annotated[int, Query(ge=1)] = 32):
+            require_private_thread(request)
+            from .application_capacity import require_capacity
+            require_capacity('history_page_items', limit, phase='process_products')
+            from .process_products import process_product_page
+            try:
+                return process_product_page(thread_service, thread_id, before=before, limit=limit)
+            except ThreadNotFound:
+                raise HTTPException(404, 'thread products not found') from None
+            except ThreadProtocolError:
+                raise HTTPException(422, 'product cursor is invalid') from None
+
+        # Explicit task delivery uses the same authenticated Thread and ledger.
+        @app.get('/api/v1/threads/{thread_id}/deliveries')
+        def get_deliveries(thread_id: str, request: Request,
+                           before: Annotated[int | None, Query(ge=1)] = None,
+                           limit: Annotated[int, Query(ge=1)] = 32):
+            require_private_thread(request)
+            from .application_capacity import require_capacity
+            require_capacity('product_page_items', limit, phase='deliveries')
+            from .thread_deliveries import delivery_page
+            try:
+                return delivery_page(thread_service, thread_id, before=before, limit=limit)
+            except ThreadNotFound:
+                raise HTTPException(404, 'thread not found') from None
+
+        @app.post('/api/v1/threads/{thread_id}/deliveries')
+        async def post_delivery(thread_id: str, request: Request):
+            require_private_thread(request)
+            if artifacts is None:
+                raise HTTPException(503, 'delivery storage unavailable')
+            from .thread_deliveries import publish_delivery
+            try:
+                body = await request.body()
+                if len(body) > 32768:
+                    raise ValueError('delivery request exceeds bounds')
+                document = json.loads(body)
+                receipt = await run_in_threadpool(publish_delivery, thread_service,
+                                                artifacts.store, thread_id, document,
+                                                native_artifact_executor=native_artifact_executor)
+                return JSONResponse(receipt.to_document(), status_code=201 if receipt.status == 'accepted' else 409)
+            except KeyError:
+                raise HTTPException(404, 'thread not found') from None
+            except (ValueError, TypeError, UnicodeError):
+                raise HTTPException(422, 'invalid or unavailable delivery request') from None
+            except OSError:
+                raise HTTPException(503, 'delivery content could not be stored') from None
+
+        @app.get('/api/v1/threads/{thread_id}/deliveries/{artifact_id}/revisions/{revision}/content')
+        def get_delivery_content(thread_id: str, artifact_id: str, revision: int, request: Request):
+            require_private_thread(request)
+            if artifacts is None:
+                raise HTTPException(503, 'delivery storage unavailable')
+            from .thread_deliveries import read_delivery_content, delivery_metadata
+            from urllib.parse import quote
+            try:
+                metadata = delivery_metadata(thread_service, thread_id, artifact_id, revision)
+                content = read_delivery_content(thread_service, artifacts.store, thread_id, artifact_id, revision)
+            except KeyError:
+                raise HTTPException(404, 'delivery revision not found') from None
+            except ValueError:
+                raise HTTPException(502, 'delivery content failed verification') from None
+            except OSError:
+                raise HTTPException(503, 'delivery content unavailable') from None
+            disposition = ("attachment; filename*=UTF-8''" + quote(metadata['file_name'], safe='')
+                           if metadata['format'] == 'native-file' else f'attachment; filename="{artifact_id}-r{revision}.md"')
+            return Response(content, media_type=metadata['media_type'], headers={
+                'Content-Disposition': disposition,
+                'Content-Security-Policy': "default-src 'none'; sandbox",
+            })
+
         @app.get("/api/v1/threads/{thread_id}/attempts/{attempt_id}/records")
         def get_attempt_records(thread_id: str, attempt_id: str, request: Request,
                                 after: Annotated[int, Query(ge=0)] = 0,
-                                limit: Annotated[int, Query(ge=1, le=128)] = 32):
+                                limit: Annotated[int, Query(ge=1)] = 32):
             require_private_thread(request)
+            from .application_capacity import require_capacity
+            require_capacity('history_page_items', limit, phase='attempt_records')
             try:
                 return thread_service.read_attempt_records(thread_id, attempt_id, after=after, limit=limit)
             except ThreadNotFound:
@@ -408,7 +647,10 @@ def create_host_app(
                               after: Annotated[int, Query(ge=0)] = 0):
             require_private_thread(request)
             try:
-                return thread_service.read_events(thread_id, after).to_document()
+                return thread_service.read_events(thread_id, after,
+                    protocol_version=int(request.headers.get('Capstone-Thread-Version', '1'))).to_document()
+            except ThreadProtocolUpgradeRequired:
+                return JSONResponse({'error': 'protocol_upgrade_required', 'minimum_protocol_version': 2}, status_code=409)
             except ThreadNotFound:
                 raise HTTPException(404, "thread not found") from None
             except ThreadResyncRequired as error:
@@ -430,6 +672,9 @@ def create_host_app(
                     raise ThreadProtocolError("command must be an object")
                 if command.get("thread_id") != thread_id:
                     raise ThreadProtocolError("command.thread_id does not match route")
+                version = request.headers.get('Capstone-Thread-Version', '1')
+                if command.get('schema') == 'capstone-command/2' and version != '2':
+                    raise ThreadProtocolError('command version does not match negotiated version')
                 if idempotency_key is not None and command.get("idempotency_key") != idempotency_key:
                     raise HTTPException(400, "Idempotency-Key does not match command")
                 kind = command.get("kind")
@@ -447,11 +692,34 @@ def create_host_app(
                     }
                     else thread_service
                 )
-                receipt = service.submit_command(command)
+                scoped_gateway = None
+                if isinstance(kind, str) and kind in {'start_work', 'send_message', 'work_message', 'send_auto', 'send_ordinary', 'send_professional'}:
+                    scoped_reader = getattr(native_artifact_executor, 'thread_gateway_publication', None)
+                    if callable(scoped_reader) and hasattr(service, 'read_thread_gateway'):
+                        saved = await run_in_threadpool(service.read_thread_gateway, thread_id)
+                        try:
+                            scoped_gateway = await run_in_threadpool(scoped_reader, saved, refresh=True)
+                        except Exception:
+                            raise HTTPException(409, {'code': 'gateway_bound_instance_unavailable',
+                                'message': '本会话绑定的网关实例暂不可用，未切换到其他实例。'}) from None
+                    refresh_contract = getattr(native_artifact_executor, 'refresh_gateway_contract', None)
+                    if scoped_gateway is None and callable(refresh_contract):
+                        try:
+                            await run_in_threadpool(refresh_contract)
+                        except Exception:
+                            pass  # The gateway publication records failure; unrelated work can proceed.
+                        refresh_binding = getattr(service, 'refresh_native_gateway_publication', None)
+                        if callable(refresh_binding):
+                            await run_in_threadpool(refresh_binding)
+                receipt = (await run_in_threadpool(service.submit_gateway_command, command, scoped_gateway)
+                           if scoped_gateway is not None else service.submit_command(command))
+                if receipt.rejection == 'protocol_upgrade_required':
+                    return JSONResponse({'error': 'protocol_upgrade_required', 'minimum_protocol_version': 2}, status_code=409)
                 if receipt.status == 'accepted':
                     if kind in {'open_model', 'activate_model', 'switch_model', 'reopen_model_context'}:
                         await run_in_threadpool(request_model_preparation, thread_id)
-                    background_tasks.add_task(request_worker, thread_id, force=True)
+                    if command.get('schema') != 'capstone-command/2' or kind in {'start_work', 'send_message'}:
+                        background_tasks.add_task(request_worker, thread_id, force=True)
                 return receipt.to_document()
             except ThreadNotFound:
                 raise HTTPException(404, "thread not found") from None
@@ -464,7 +732,10 @@ def create_host_app(
                                        follow: Annotated[bool, Query()] = False):
             require_private_thread(request)
             try:
-                initial_page = thread_service.read_events(thread_id, after)
+                initial_page = await asyncio.to_thread(thread_service.read_events, thread_id, after,
+                    protocol_version=int(request.headers.get('Capstone-Thread-Version', '1')))
+            except ThreadProtocolUpgradeRequired:
+                return JSONResponse({'error': 'protocol_upgrade_required', 'minimum_protocol_version': 2}, status_code=409)
             except ThreadNotFound:
                 raise HTTPException(404, "thread not found") from None
             except ThreadResyncRequired as error:
@@ -484,7 +755,11 @@ def create_host_app(
                 while True:
                     if not first_page:
                         try:
-                            page = await asyncio.to_thread(thread_service.read_events, thread_id, cursor)
+                            page = await asyncio.to_thread(thread_service.read_events, thread_id, cursor,
+                                protocol_version=int(request.headers.get('Capstone-Thread-Version', '1')))
+                        except ThreadProtocolUpgradeRequired:
+                            yield 'event: protocol_upgrade_required\ndata: {"error":"protocol_upgrade_required","minimum_protocol_version":2}\n\n'
+                            return
                         except ThreadNotFound:
                             return
                         except ThreadResyncRequired as error:

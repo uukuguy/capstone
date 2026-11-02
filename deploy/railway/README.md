@@ -43,6 +43,13 @@ same origin. The build rejects missing or mismatched receipts. Verify the header
 environment and commit against the deployed stage before acceptance.
 The tracked `development` marker lets local Vite read Git directly.
 
+Match each App upload to its existing build root. Cloud-dev selects
+`packages/capstone-app` as its service root, so upload the full release archive.
+Demo has no service root override, so upload the archive's
+`packages/capstone-app` directory. Both use the App Dockerfile. Upload backend
+services from the full archive root. Check the candidate image and actual App
+page before acceptance; do not assume the two stages share build-root settings.
+
 Set `CAPSTONE_THREAD_OPEN_ACCESS=true` on the cloud-development API after local
 App verification. The App reads `/api/v1/thread-access` and opens directly,
 with no login and no browser token. Provider keys remain on the backend workers.

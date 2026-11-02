@@ -1,8 +1,12 @@
 """Bounded operator messages for application-neutral semantic events."""
 
+# Layer-cache marker: this comment changes source identity only.
+
 from __future__ import annotations
 
 import re
+import json
+from itertools import islice
 from collections.abc import Mapping, Sequence
 
 
@@ -10,6 +14,9 @@ _REFERENCE = re.compile(r"\b[a-z][a-z0-9_-]*:(?:[a-z0-9_.-]+:)?sha256:[0-9a-f]{6
 _INPUT_FIELDS = ("model_id", "model", "network", "dataset", "operation", "case_id", "element", "index", "limit")
 _RESULT_FIELDS = ("model", "dataset", "operation", "status", "converged", "row_count", "returned_row_count", "total_active_loss")
 _SECRET_TEXT = (
+    re.compile(
+        r"""(?i)["']?(?:api[_ -]?key|access[_ -]?token|refresh[_ -]?token|password|secret)["']?\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,;}]+)"""
+    ),
     re.compile(r"\bAuthorization\s*:\s*Bearer\s+[^\s,;，；。)）]+", re.IGNORECASE),
     re.compile(
         r"\b(?:access[_ -]?token|refresh[_ -]?token|api[_ -]?key|secret|password)"
@@ -28,6 +35,114 @@ def _redact_text(value: str) -> str:
 def _summary(value: object, limit: int = 200) -> str:
     compact = " ".join(_REFERENCE.sub("[引用]", _redact_text(str(value))).split())
     return compact if len(compact) <= limit else compact[:limit] + "…"
+
+
+def public_response_intent(text: str) -> str | None:
+    line = text.split('\n', 1)[0].strip()
+    if not line.startswith('//'):
+        return None
+    value = line[2:].strip()
+    if not value or _redact_text(value) != value:
+        return None
+    return _summary(value, 159)
+
+
+def _input_excerpt(arguments: Mapping, text_filter) -> str:
+    """Retain bounded call diagnostics, without credentials or file bodies."""
+    def safe(value, depth=0):
+        if depth > 5:
+            return '[TRUNCATED]'
+        if isinstance(value, Mapping):
+            result = {}
+            for key, item in islice(value.items(), 32):
+                key = str(key)
+                normalized = re.sub(r'[^a-z0-9]', '', key.lower())
+                if any(word in normalized for word in ('password', 'secret', 'token', 'apikey', 'authorization', 'cookie', 'credential')) or normalized == 'headers':
+                    result[key[:128]] = '[REDACTED]'
+                elif normalized in {'content', 'body', 'data', 'base64', 'code', 'text', 'prompt', 'instruction'}:
+                    result[key[:128]] = '[OMITTED BODY]'
+                else:
+                    result[_redact_text(text_filter(key)[:128])] = safe(item, depth + 1)
+            if len(value) > 32:
+                result['[TRUNCATED]'] = 'additional fields omitted'
+            return result
+        if isinstance(value, (list, tuple)):
+            return [safe(item, depth + 1) for item in value[:32]] + (['[TRUNCATED]'] if len(value) > 32 else [])
+        if isinstance(value, str):
+            text = _redact_text(text_filter(value))
+            return text[:1024] + ('[TRUNCATED]' if len(text) > 1024 else '')
+        if value is None or isinstance(value, (bool, int, float)):
+            return value
+        return '[OMITTED VALUE]'
+    text = json.dumps(safe(arguments), ensure_ascii=False, separators=(',', ':'))
+    return text if len(text) <= 4000 else text[:3989] + '[TRUNCATED]'
+
+
+def project_native_tool_activity(event: Mapping, *, text_filter=lambda text: text) -> dict[str, str]:
+    """Bound native activity text at the executor boundary; omit raw frames."""
+    receipt: dict[str, str] = {}
+    arguments = event.get("args")
+    if isinstance(arguments, Mapping):
+        receipt['input_excerpt'] = _input_excerpt(arguments, text_filter)
+        exploration = arguments.get('advanced_exploration')
+        if isinstance(exploration, Mapping) and exploration.get('reason') in ('capability_gap', 'tool_defect') and isinstance(exploration.get('detail'), str):
+            receipt['warning'] = _summary('申请高级数据探索：' + text_filter(exploration['detail']), 240)
+        for key in ("purpose", "command", "path", "file_path"):
+            value = arguments.get(key)
+            if isinstance(value, str) and value.strip():
+                receipt["operation"] = _summary(text_filter(value), 240)
+                break
+    result = event.get("result")
+    if isinstance(result, Mapping):
+        details = result.get('details')
+        notice = details.get('execution_notice') if isinstance(details, Mapping) else None
+        if isinstance(notice, Mapping) and isinstance(notice.get('summary'), str):
+            code = notice.get('code')
+            prefix = {'suspected_tool_defect': '疑似工具缺陷，转入高级探索：',
+                      'advanced_exploration': '使用高级数据探索：'}.get(code) if isinstance(code, str) else None
+            if prefix:
+                receipt['warning'] = _summary(prefix + notice['summary'], 240)
+        content = result.get("content")
+        if isinstance(content, list):
+            failed = event.get('isError') is True or event.get('is_error') is True
+            snippets = [
+                block["text"] if failed else block["text"][:2000]
+                for block in (content if failed else content[:8])
+                if isinstance(block, Mapping) and block.get("type") == "text"
+                and isinstance(block.get("text"), str)
+            ]
+            if snippets:
+                output = " ".join(snippets)
+                protected = re.search(
+                    r'(?i)(?:api[_ -]?key|access[_ -]?token|refresh[_ -]?token|authorization|password|secret)["\x27]?\s*[:=]',
+                    output,
+                )
+                if protected:
+                    receipt['output_excerpt'] = '输出包含受保护配置或凭据信息，已隐藏。'
+                elif failed:
+                    # The model keeps the original tool result. Only this
+                    # public observation changes: a long table must not hide
+                    # the actual failure and exit status at its end. Select
+                    # after sanitizing the complete text, never by guessing
+                    # success from exception words in otherwise valid output.
+                    compact = ' '.join(_REFERENCE.sub('[引用]', _redact_text(output)).split())
+                    receipt['output_excerpt'] = (compact if len(compact) <= 600
+                        else compact[:100] + ' … ' + compact[-497:])
+                else:
+                    receipt['output_excerpt'] = _summary(output, 600)
+    if isinstance(result, Mapping) and (event.get('isError') is True or event.get('is_error') is True):
+        from .native_tool_diagnostics import structured_tool_diagnostic
+        diagnostic = structured_tool_diagnostic(result)
+        if diagnostic:
+            # Inspect the complete envelope for protected fields before selecting
+            # a small diagnostic. Original model/host observations stay unchanged.
+            protected = re.search(
+                r'(?i)(?:api[_ -]?key|access[_ -]?token|refresh[_ -]?token|authorization|password|secret)["\x27]?\s*[:=]',
+                json.dumps(result, ensure_ascii=False),
+            )
+            receipt['output_excerpt'] = ('输出包含受保护配置或凭据信息，已隐藏。' if protected
+                else _summary(text_filter(diagnostic), 599))
+    return receipt
 
 
 def project_tool_failure(value: object) -> dict[str, str]:

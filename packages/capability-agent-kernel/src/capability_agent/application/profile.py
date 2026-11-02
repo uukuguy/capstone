@@ -10,7 +10,7 @@ from typing import Protocol
 from capability_agent.application.errors import ApplicationConfigurationError
 from capability_agent.application.manifest import ApplicationManifest
 from capability_agent.application.output import OutputRenderer
-from capability_agent.domain.profile import DomainRuntimeProfile
+from capability_agent.domain.profile import DomainPackProfile
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,7 +76,7 @@ class AcceptanceProfile(Protocol):
 class DomainBinding:
     binding_id: str
     tool_namespace: str
-    profile: DomainRuntimeProfile
+    profile: DomainPackProfile
     credential_scope: CredentialScope
     sharing_policy: DataSharingPolicy
 

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from .application_capacity import limits, require_capacity
+
 import hashlib
 import json
 import secrets
@@ -13,10 +15,28 @@ from .network_diagram import normalize_network_diagram
 from .thread_protocol import ModelContextSnapshot, ThreadProtocolError, ThreadSnapshot
 
 MODEL_COMMANDS = frozenset({"open_model", "activate_model", "close_model"})
-MAX_OPEN_MODELS = 64
-MAX_WORKSPACE_BYTES = 64 * 1024
+MAX_OPEN_MODELS = limits.open_models
+MAX_WORKSPACE_BYTES = limits.ui_model_workspace_bytes
 _ENTRY_FIELDS = {"entry_id", "model_id", "model_revision", "implementation_family",
                  "authority_model_ref", "display_name", "diagram_provider_id", "last_active_seq"}
+
+
+def parse_workspace_command(command: Mapping[str, Any]) -> dict[str, Any]:
+    """Adapt a v2 workspace target to the existing cursor-checked model control."""
+    fields = {'schema', 'command_id', 'idempotency_key', 'thread_id', 'run_id', 'kind', 'payload', 'target'}
+    target = command.get('target')
+    if (set(command) - fields or fields - {'run_id'} - set(command)
+            or command.get('kind') not in MODEL_COMMANDS
+            or not isinstance(target, dict)
+            or set(target) != {'kind', 'id', 'expected_revision'}
+            or target['kind'] != 'model_workspace' or target['id'] != command['thread_id']):
+        raise ThreadProtocolError('invalid model workspace target')
+    from .thread_service import InMemoryThreadService
+    # Keep payload validation and command identity in the established path. The
+    # caller hashes the original wire bytes, so retries cannot change envelopes.
+    adapted = {key: value for key, value in command.items() if key != 'target'}
+    return InMemoryThreadService._parse_command({**adapted, 'schema': 'capstone-command/1',
+        'expected_event_seq': target['expected_revision']})
 
 
 def model_entry(context: Any, seq: int, metadata: Any = None) -> dict[str, Any]:
@@ -37,7 +57,9 @@ def validate_workspace(value: Any) -> dict[str, Any]:
     if not isinstance(value, dict) or set(value) != {"models", "current_entry_id"}:
         raise ThreadProtocolError("model workspace is invalid")
     models = value["models"]
-    if not isinstance(models, list) or not 1 <= len(models) <= MAX_OPEN_MODELS:
+    if isinstance(models, list):
+        require_capacity('open_models', len(models), phase='model_workspace')
+    if not isinstance(models, list) or not 0 <= len(models) <= limits.open_models:
         raise ThreadProtocolError("model workspace size is invalid")
     identifiers = set()
     identities = set()
@@ -70,10 +92,12 @@ def validate_workspace(value: Any) -> dict[str, Any]:
             if context.id in context_bindings and context_bindings[context.id] != identity:
                 raise ThreadProtocolError("model work context identity is reused")
             context_bindings[context.id] = identity
-    if value["current_entry_id"] not in identifiers:
+    if (models and value['current_entry_id'] not in identifiers
+            or not models and value['current_entry_id'] is not None):
         raise ThreadProtocolError("current model is not open")
     encoded = json.dumps(value, ensure_ascii=False, allow_nan=False)
-    if len(encoded.encode()) > MAX_WORKSPACE_BYTES:
+    require_capacity('ui_model_workspace_bytes', len(encoded.encode()), phase='model_workspace')
+    if len(encoded.encode()) > limits.ui_model_workspace_bytes:
         raise ThreadProtocolError("model workspace is too large")
     return json.loads(encoded)
 
@@ -82,6 +106,11 @@ def synchronize_workspace(value: Any, snapshot: ThreadSnapshot, catalog: Any = N
     """Migrate an active-only Thread and mirror legacy activation or rollback."""
     context = snapshot.active_model_context
     workspace = validate_workspace(value) if value is not None else None
+    if context is None:
+        # A continuing conversation can start without a scientific model. An
+        # empty workspace is real state, not a fabricated default model grant.
+        return workspace if workspace is not None else validate_workspace({
+            'models': [], 'current_entry_id': None})
     entry = model_entry(context, snapshot.last_event_seq)
     existing = next((item for item in workspace["models"] if item["entry_id"] == entry["entry_id"]), None) if workspace is not None else None
     if workspace is not None and workspace["current_entry_id"] == entry["entry_id"]:
@@ -128,7 +157,7 @@ def migrate_workspace(value: Any, snapshot: ThreadSnapshot, contexts: list[tuple
     for seq, document in sorted(contexts, key=lambda item: item[0], reverse=True):
         context = ModelContextSnapshot.from_document(document)
         entry = model_entry(context, seq)
-        if entry["entry_id"] in identifiers or len(workspace["models"]) >= MAX_OPEN_MODELS:
+        if entry["entry_id"] in identifiers or len(workspace["models"]) >= limits.open_models:
             continue
         metadata = None
         if catalog is not None:
@@ -140,7 +169,7 @@ def migrate_workspace(value: Any, snapshot: ThreadSnapshot, contexts: list[tuple
         if entry["display_name"] in closed_names:
             continue
         candidate = {**workspace, "models": [*workspace["models"], entry]}
-        if len(json.dumps(candidate, ensure_ascii=False).encode()) > MAX_WORKSPACE_BYTES:
+        if len(json.dumps(candidate, ensure_ascii=False).encode()) > limits.ui_model_workspace_bytes:
             continue
         workspace = candidate
         identifiers.add(entry["entry_id"])
@@ -158,7 +187,7 @@ def workspace_projection(workspace: dict[str, Any], snapshot: ThreadSnapshot, bl
 
 def workspace_has_capacity(workspace: dict[str, Any], target: Any) -> bool:
     identity = model_entry(target, 0)["entry_id"]
-    return len(workspace["models"]) < MAX_OPEN_MODELS or any(item["entry_id"] == identity for item in workspace["models"])
+    return len(workspace["models"]) < limits.open_models or any(item["entry_id"] == identity for item in workspace["models"])
 
 
 @dataclass(frozen=True)
@@ -168,14 +197,18 @@ class WorkspaceChange:
     diagram: Mapping[str, Any] | None = None
     changed: bool = True
     resumed: bool = False
+    clear_context: bool = False
 
 
 def workspace_outcome(command: Mapping[str, Any], before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
-    current = next(item for item in after["models"] if item["entry_id"] == after["current_entry_id"])
-    payload = {"command_id": command["command_id"], "kind": command["kind"], "current_model_name": current["display_name"]}
+    current = next((item for item in after["models"] if item["entry_id"] == after["current_entry_id"]), None)
+    payload = {"command_id": command["command_id"], "kind": command["kind"],
+               "current_model_name": None if current is None else current["display_name"]}
     if command["kind"] == "close_model":
         closed = next(item for item in before["models"] if item["entry_id"] == command["payload"]["entry_id"])
         payload["closed_model_name"] = closed["display_name"]
+        if current is None:
+            payload.update(model_context_cleared=True, previous_context=closed.get('work_context'))
     return payload
 
 
@@ -208,7 +241,7 @@ def prepare_workspace_change(snapshot: ThreadSnapshot, workspace: dict[str, Any]
         existing = next((item for item in state["models"] if item["entry_id"] == target["entry_id"]), None)
         if existing is not None:
             target = existing
-        elif len(state["models"]) >= MAX_OPEN_MODELS:
+        elif len(state["models"]) >= limits.open_models:
             return None, "opened_model_limit"
         else:
             state["models"].append(target)
@@ -218,6 +251,9 @@ def prepare_workspace_change(snapshot: ThreadSnapshot, workspace: dict[str, Any]
             return None, "model_not_open"
         if kind == "close_model":
             if len(state["models"]) == 1:
+                if (snapshot.minimum_protocol_version == 2
+                        and snapshot.session_type in {'enterprise-research', 'general-chat'}):
+                    return WorkspaceChange({'models': [], 'current_entry_id': None}, clear_context=True), None
                 return None, "last_model_required"
             state["models"] = [item for item in state["models"] if item["entry_id"] != target["entry_id"]]
             if target["entry_id"] != state["current_entry_id"]:

@@ -21,6 +21,36 @@ def test_candidate_hosted_entry_skips_classifier_construction(monkeypatch, tmp_p
         assembly.capability_context_owner.close()
 
 
+def test_research_hosted_entry_keeps_direct_pi_out_of_authority_runtime(monkeypatch, tmp_path):
+    from capstone_agent.thread_service import InMemoryThreadService, ThreadCreator
+    from capstone_agent.thread_worker import run_pending_attempt
+    monkeypatch.setenv('CAPSTONE_AUTONOMOUS_RESEARCH', '1')
+    monkeypatch.setenv('CAPSTONE_RUNS_ROOT', str(tmp_path))
+    monkeypatch.delenv('CAPSTONE_GENERAL_EXECUTOR_ORIGIN', raising=False)
+    monkeypatch.delenv('CAPSTONE_THREAD_VALIDATION', raising=False)
+    assembly = build_registered_pandapower_thread_application()
+    class CreatorStore:
+        def create_thread(self, snapshot):
+            return snapshot
+    snapshot = ThreadCreator(CreatorStore(), assembly.catalog, assembly.capability_catalog).create()
+    service = InMemoryThreadService(snapshot, capability_catalog=assembly.capability_catalog, model_catalog=assembly.catalog)
+    def submit(kind, payload, name):
+        return service.submit_command({'schema': 'capstone-command/1', 'command_id': name,
+            'idempotency_key': name, 'thread_id': snapshot.thread_id, 'run_id': snapshot.run.run_id,
+            'expected_event_seq': service.snapshot(snapshot.thread_id).last_event_seq,
+            'kind': kind, 'payload': payload})
+    try:
+        assert submit('switch_runtime', {'runtime_mode': 'pi_reference'}, 'cmd_switch').status == 'accepted'
+        assert submit('send_auto', {'text': 'Write a document'}, 'cmd_send').status == 'accepted'
+        monkeypatch.setattr(assembly.runtime_factory, '_business',
+            lambda _: (_ for _ in ()).throw(AssertionError('Authority runtime must not execute')))
+        result = run_pending_attempt(service, assembly.runtime_factory, worker_id='role-test')
+        assert result.status == 'failed' and result.error_code == 'runtime_configuration_invalid'
+        assert not result.result_refs and not result.evidence_refs
+    finally:
+        assembly.capability_context_owner.close()
+
+
 def test_provider_configuration_failure_keeps_prepared_context_and_safe_code(monkeypatch, tmp_path):
     import json
     from capstone_agent.thread_service import InMemoryThreadService, ThreadCreator

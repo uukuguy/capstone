@@ -11,14 +11,15 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 import json
+from time import monotonic
 from typing import Protocol, cast
 
 from .attempt_lease import AttemptLeaseRenewal
-from .reference_limits import MAX_ATTEMPT_REFERENCES, ReferenceCapacityExceeded
-from .result_projection import MAX_RESULT_PROJECTIONS, MAX_RESULT_PROJECTION_BYTES
+from .reference_limits import ReferenceCapacityExceeded
+from .application_capacity import CapacityExceeded, limits, require_capacity, current_capacity
 from .progress import project_tool_failure
 from .thread_service import AttemptClaim, ThreadExecutionService, _terminal_result_projections
-from .failure_delivery import recorded_failure_summary, retained_result_summary
+from .failure_delivery import NATIVE_FAILURE_REASONS, recorded_failure_summary, retained_result_summary, native_transport_summary
 from .execution_stages import ExecutionStages, preparation_seconds
 from .thread_network import (
     ThreadNetworkProjectionProvider,
@@ -49,8 +50,9 @@ class AdmittedAttemptAnswer:
     result_projections: tuple[Mapping[str, object], ...] = ()
 
     def __post_init__(self) -> None:
-        if not isinstance(self.answer, str) or not self.answer.strip() or len(self.answer) > 64_000:
+        if not isinstance(self.answer, str) or not self.answer.strip():
             raise ValueError("admitted answer is invalid")
+        require_capacity('answer_bytes', len(self.answer.encode('utf-8')), phase='answer_admission')
         if (self.mode, self.assurance) not in {
             ("authority_backed", "lineage_verified"),
             ("offline_information", "deterministic_information"),
@@ -61,20 +63,23 @@ class AdmittedAttemptAnswer:
             raise ValueError("answer admission assurance is invalid")
         for name in ("result_refs", "evidence_refs"):
             refs = getattr(self, name)
-            if isinstance(refs, tuple) and len(refs) > MAX_ATTEMPT_REFERENCES:
-                raise ReferenceCapacityExceeded("admitted reference capacity exceeded")
+            if isinstance(refs, tuple):
+                require_capacity('context_references', len(refs), phase='answer_admission')
             if not isinstance(refs, tuple) or any(
                 not isinstance(ref, str) or not ref or len(ref) > 512 for ref in refs
             ) or len(set(refs)) != len(refs):
                 raise ValueError("admitted references are invalid")
-        if not isinstance(self.diagnostic_codes, tuple) or len(self.diagnostic_codes) > 64 or any(
+        if isinstance(self.diagnostic_codes, tuple):
+            require_capacity('context_references', len(self.diagnostic_codes), phase='answer_admission')
+        if not isinstance(self.diagnostic_codes, tuple) or any(
             not isinstance(code, str) or not code or len(code) > 256
             for code in self.diagnostic_codes
         ) or len(set(self.diagnostic_codes)) != len(self.diagnostic_codes):
             raise ValueError("admission diagnostic codes are invalid")
+        if isinstance(self.result_projections, tuple):
+            require_capacity('ui_result_projection_count', len(self.result_projections), phase='answer_admission')
         if (
             not isinstance(self.result_projections, tuple)
-            or len(self.result_projections) > MAX_RESULT_PROJECTIONS
             or any(not isinstance(item, Mapping) for item in self.result_projections)
         ):
             raise ValueError("admitted result projections are invalid")
@@ -85,12 +90,27 @@ class AdmittedAttemptAnswer:
             ).encode("utf-8")
         except (TypeError, ValueError):
             raise ValueError("admitted result projections are not JSON") from None
-        if len(encoded_projections) > MAX_RESULT_PROJECTION_BYTES:
-            raise ValueError("admitted result projections are too large")
+        require_capacity('product_bytes', len(encoded_projections), phase='answer_admission')
         if self.mode == "authority_backed" and not self.evidence_refs:
             raise ValueError("authority-backed admission requires evidence")
         if self.mode == "offline_information" and (self.result_refs or self.evidence_refs):
             raise ValueError("offline admission must not create run evidence")
+
+
+@dataclass(frozen=True, slots=True)
+class AdmittedPartialGoalAnswer(AdmittedAttemptAnswer):
+    """Trusted scheduler receipt: general work finished; business never started."""
+
+    completed_general_goal_ids: tuple[str, ...] = ()
+    unexecuted_business_goal_ids: tuple[str, ...] = ()
+
+    def __post_init__(self):
+        super(AdmittedPartialGoalAnswer, self).__post_init__()
+        if (self.mode != 'limited' or self.result_refs or self.evidence_refs
+            or not self.completed_general_goal_ids or not self.unexecuted_business_goal_ids
+            or any(not isinstance(identity, str) or not identity for identity in
+                   (*self.completed_general_goal_ids, *self.unexecuted_business_goal_ids))):
+            raise ValueError('partial goal admission is invalid')
 
 
 class HarnessRuntimeUnavailable(RuntimeError):
@@ -99,6 +119,19 @@ class HarnessRuntimeUnavailable(RuntimeError):
 
 class HarnessRuntimeConfigurationError(RuntimeError):
     """Application runtime settings are invalid; prepared model resources remain valid."""
+
+
+def terminal_payload_for_admission(admission: AdmittedAttemptAnswer, *, answer: str | None = None) -> dict[str, object]:
+    """One payload projection shared by answer rendering and Thread persistence."""
+    assurance: dict[str, object] = {'mode': admission.mode, 'assurance': admission.assurance}
+    if admission.diagnostic_codes:
+        assurance['diagnostic_codes'] = list(admission.diagnostic_codes)
+    payload: dict[str, object] = {'answer': admission.answer if answer is None else answer,
+        'result_refs': list(admission.result_refs), 'evidence_refs': list(admission.evidence_refs),
+        'admission': assurance}
+    if admission.result_projections:
+        payload['result_projections'] = [dict(item) for item in admission.result_projections]
+    return payload
 
 
 @dataclass(frozen=True, slots=True)
@@ -178,6 +211,7 @@ _EVENT_TYPES = {
     "research_state": ("research_state_updated", "public"),
     "text_delta": ("assistant_process_delta", "diagnostic"),
     "assistant_process_delta": ("assistant_process_delta", "diagnostic"),
+    "assistant_thinking_delta": ("assistant_thinking_delta", "public"),
     "message_update": ("assistant_process_update", "diagnostic"),
     "message_end": ("assistant_process_end", "diagnostic"),
     "tool_execution_start": ("tool_started", "public"),
@@ -204,24 +238,61 @@ def normalize_runtime_event(
     payload: dict[str, object]
     if event_type == "runtime_action":
         payload = {key: event[key] for key in ("phase", "response_kind") if isinstance(event.get(key), str)}
+        if event.get('phase') == 'response_completed' and isinstance(event.get('response_intent'), str):
+            from .progress import public_response_intent
+            intent = public_response_intent('// ' + event['response_intent'])
+            if intent:
+                payload['response_intent'] = intent
+        usage = event.get('usage')
+        if event.get('phase') == 'response_completed' and isinstance(usage, Mapping):
+            counts = {key: usage[key] for key in ('input', 'output', 'cacheRead', 'cacheWrite', 'totalTokens')
+                      if type(usage.get(key)) is int and 0 <= usage[key] <= 100_000_000}
+            if counts:
+                payload['usage'] = counts
+        retry_attempt = event.get('retry_attempt')
+        if type(retry_attempt) is int and 1 <= retry_attempt <= 16:
+            if event.get('phase') == 'retry_started':
+                maximum, delay = event.get('retry_maximum'), event.get('retry_delay_ms')
+                if (type(maximum) is int and retry_attempt <= maximum <= 16
+                    and isinstance(delay, (int, float)) and not isinstance(delay, bool) and 0 <= delay <= 3_600_000):
+                    payload.update(retry_attempt=retry_attempt, retry_maximum=maximum, retry_delay_ms=delay)
+            elif event.get('phase') == 'retry_completed':
+                payload['retry_attempt'] = retry_attempt
+                if type(event.get('retry_success')) is bool:
+                    payload['retry_success'] = event['retry_success']
+        if event.get('error_code') in {'model_context_limit', 'model_rate_limit', 'model_authentication',
+                                      'model_transport', 'model_output_invalid', 'model_output_rejected', 'model_turn_incomplete'}:
+            payload['error_code'] = event['error_code']
+        error_status = event.get('error_status')
+        if isinstance(error_status, int) and 400 <= error_status <= 599:
+            payload['error_status'] = error_status
         step = event.get("task_step")
         if isinstance(step, Mapping):
             payload["task_step"] = dict(step)
     elif event_type == "research_step_resumed":
         budget = event.get("budget_seconds")
-        if event.get("reason") != "model_step_budget" or isinstance(budget, bool) or not isinstance(budget, (int, float)) or not 0 < budget <= 3600:
+        if event.get("reason") != "model_step_budget" or isinstance(budget, bool) or not isinstance(budget, (int, float)) or not 0 < budget <= max(limits.execution_seconds, limits.research_execution_seconds):
             raise ValueError("invalid research step budget event")
         payload = {"reason": "model_step_budget", "budget_seconds": budget}
     elif event_type == "research_state_updated":
         from .thread_protocol import ModelContextSnapshot
-        context = ModelContextSnapshot.from_document(event.get("baseline_model_context"))
+        from .enterprise_context import TaskContext
         identity, goal, revision = event.get("research_id"), event.get("goal"), event.get("research_revision")
         if (not isinstance(identity, str) or not 0 < len(identity) <= 128
-            or not isinstance(goal, str) or not 0 < len(goal) <= 4000
+            or not isinstance(goal, str) or not 0 < len(goal) <= limits.input_text_chars
             or type(revision) is not int or revision < 1):
             raise ValueError("invalid research projection")
-        payload = {"research_id": identity, "research_revision": revision, "goal": goal,
-                   "baseline_model_context": context.to_document()}
+        payload = {"research_id": identity, "research_revision": revision, "goal": goal}
+        if "task_context" in event:
+            if "baseline_model_context" in event:
+                raise ValueError("research projection mixes work and legacy contexts")
+            task_context = TaskContext.from_document(event["task_context"])
+            if task_context.binding.research_id != identity:
+                raise ValueError("work research identity does not match projection")
+            payload["task_context"] = task_context.to_document()
+        else:
+            context = ModelContextSnapshot.from_document(event.get("baseline_model_context"))
+            payload["baseline_model_context"] = context.to_document()
         if "research_snapshot" in event:
             from capability_agent.application.research_models import ResearchState
             state = ResearchState.model_validate(event["research_snapshot"])
@@ -230,15 +301,28 @@ def normalize_runtime_event(
             payload["research_snapshot"] = state.model_dump(mode="json")
             if "current_note_ids" in event:
                 note_ids = event["current_note_ids"]
-                if (not isinstance(note_ids, list) or len(note_ids) > 64
+                if (not isinstance(note_ids, list) or len(note_ids) > limits.research_note_count
                     or any(not isinstance(note_id, str) for note_id in note_ids)
                     or len(set(note_ids)) != len(note_ids)
                     or not set(note_ids).issubset({note.note_id for note in state.notes})):
                     raise ValueError("invalid current research note identities")
                 payload["current_note_ids"] = note_ids
+    elif event_type == "assistant_thinking_delta":
+        text = event.get('text')
+        if not isinstance(text, str) or not text or len(text) > 4096:
+            raise ValueError('thinking delta must contain bounded display text')
+        require_capacity('event_bytes', len(text.encode('utf-8')), phase='thinking_delta')
+        payload = {'text': text}
+        if 'task_id' in event:
+            task_id = event['task_id']
+            if not isinstance(task_id, str):
+                raise ValueError('thinking task identity is invalid')
+            payload['task_id'] = _identity_text(task_id, 256)
     elif event_type == "assistant_process_delta":
         text = event.get("text")
-        payload = {"text": text[:16_384]} if isinstance(text, str) else {}
+        if isinstance(text, str):
+            require_capacity('tool_observation_bytes', len(text.encode('utf-8')), phase='process_delta')
+        payload = {'text': text} if isinstance(text, str) else {}
     elif event_type in {"tool_started", "tool_completed"}:
         payload = _tool_payload(event)
     elif event_type == "runtime_event":
@@ -247,7 +331,7 @@ def normalize_runtime_event(
         payload = _small_runtime_payload(event)
     sequence = event.get("trace_sequence")
     correlation = event.get("trace_correlation_id")
-    if type(sequence) is int and sequence > 0 and isinstance(correlation, str) and 0 < len(correlation) <= 128:
+    if event_type != 'assistant_thinking_delta' and type(sequence) is int and sequence > 0 and isinstance(correlation, str) and 0 < len(correlation) <= 128:
         payload["trace_sequence"] = sequence
         payload["trace_correlation_id"] = correlation
     return {
@@ -256,6 +340,12 @@ def normalize_runtime_event(
         "visibility": visibility,
         "payload": payload,
     }
+
+
+def _identity_text(value: str, maximum: int = 512) -> str:
+    if not value or len(value) > maximum or any(ord(char) < 32 for char in value):
+        raise ValueError('runtime identity is invalid')
+    return value
 
 
 def _tool_payload(event: Mapping[str, object]) -> dict[str, object]:
@@ -270,7 +360,7 @@ def _tool_payload(event: Mapping[str, object]) -> dict[str, object]:
     ):
         value = event.get(source)
         if isinstance(value, str) and value and target not in payload:
-            payload[target] = value[:256]
+            payload[target] = _identity_text(value, 256)
     details = _tool_details(event)
     # Parameters come from the validated semantic-tool receipt, not native args
     # or model process messages. Do not expose general executor arguments.
@@ -291,7 +381,7 @@ def _tool_payload(event: Mapping[str, object]) -> dict[str, object]:
     ):
         value = event.get(source, details.get(source))
         if isinstance(value, str) and value:
-            payload[target] = value[:512]
+            payload[target] = _identity_text(value)
     capability_key = event.get("capability_key", details.get("capability_key"))
     if isinstance(capability_key, Mapping):
         for source, target in (
@@ -300,27 +390,28 @@ def _tool_payload(event: Mapping[str, object]) -> dict[str, object]:
         ):
             value = capability_key.get(source)
             if isinstance(value, str) and value and target not in payload:
-                payload[target] = value[:256]
+                payload[target] = _identity_text(value, 256)
     refs = event.get("evidence_refs", details.get("evidence_refs"))
     if isinstance(refs, (list, tuple)):
-        bounded = [ref[:512] for ref in refs if isinstance(ref, str) and ref]
+        bounded = [_identity_text(ref) for ref in refs if isinstance(ref, str) and ref]
         if bounded:
             payload["evidence_refs"] = bounded
     result_refs = event.get("result_refs", details.get("result_refs"))
     if isinstance(result_refs, (list, tuple)):
         bounded_results = [
-            ref[:512] for ref in result_refs if isinstance(ref, str) and ref
+            _identity_text(ref) for ref in result_refs if isinstance(ref, str) and ref
         ]
         if bounded_results:
             payload["result_refs"] = bounded_results
     result_ref = event.get("result_ref", details.get("result_ref"))
     if isinstance(result_ref, str) and result_ref and "result_refs" not in payload:
-        payload["result_refs"] = [result_ref[:512]]
+        payload["result_refs"] = [_identity_text(result_ref)]
     # Native Pi tools retain authority output in details.result. Preserve only
     # bounded references and identity, never the raw authority document.
     result = details.get("result")
     if ok is True and payload.get("capability") == "agent_task_progress":
         from capability_agent.application.research_models import TaskProgress
+        _precheck_task_progress(result)
         try:
             progress = TaskProgress.model_validate(result)
         except ValueError:
@@ -353,7 +444,7 @@ def _tool_payload(event: Mapping[str, object]) -> dict[str, object]:
         if isinstance(result.get("result_ref"), str):
             references.append(result["result_ref"])
         if references:
-            payload["result_refs"] = list(dict.fromkeys(ref[:512] for ref in references))
+            payload["result_refs"] = list(dict.fromkeys(_identity_text(ref) for ref in references))
         for identity in (event, details, result):
             for source, target in (
                 ("context_ref", "context_ref"), ("model_ref", "model_ref"),
@@ -579,6 +670,10 @@ class HarnessAttemptRunner:
         self._result_refs: list[str] = []
         self._evidence_refs: list[str] = []
         self._tool_events: list[Mapping[str, object]] = []
+        self._runtime_failure_code: str | None = None
+        self._runtime_transport_detail = ''
+        self._runtime_timeout_seconds: float | None = None
+        self._runtime_capacity_failure: dict[str, object] | None = None
         self._stages = ExecutionStages()
 
     def run(self, claim: AttemptClaim) -> HarnessAttemptResult:
@@ -593,17 +688,29 @@ class HarnessAttemptRunner:
         self._result_refs.clear()
         self._evidence_refs.clear()
         self._tool_events.clear()
+        self._runtime_failure_code = None
+        self._runtime_transport_detail = ''
+        self._runtime_timeout_seconds = None
+        self._runtime_capacity_failure = None
         plan: TurnPlan | None = claim.turn_plan
         recovery_attempted = False
         terminal_commit_started = False
+        next_cancel_check = 0.0
 
         def persist(event: Mapping[str, object]) -> None:
             lease.check()
             self._persist_event(claim, event)
 
         def heartbeat() -> None:
+            nonlocal next_cancel_check
             lease.check()
-            self._renew_lease(claim)
+            # AttemptLeaseRenewal owns the background renewal. Dense token
+            # callbacks need a local ownership check, not another lease write.
+            now = monotonic()
+            if now >= next_cancel_check:
+                if self._service.cancel_requested(claim):
+                    raise _AttemptCancelled
+                next_cancel_check = now + .1
 
         try:
             lease.check()
@@ -629,8 +736,9 @@ class HarnessAttemptRunner:
             if self._service.cancel_requested(claim):
                 raise _AttemptCancelled
             lease.check()
-            if not isinstance(answer, str) or not answer.strip() or len(answer) > 64_000:
+            if not isinstance(answer, str) or not answer.strip():
                 raise TypeError("runtime answer is invalid")
+            require_capacity('answer_bytes', len(answer.encode('utf-8')), phase='runtime_answer')
             candidate = None
             for correction in range(2):
                 try:
@@ -661,8 +769,9 @@ class HarnessAttemptRunner:
                     except Exception:
                         raise _AttemptAdmissionError("answer_recovery_unavailable") from None
                     heartbeat()
-                    if not isinstance(answer, str) or not answer.strip() or len(answer) > 64_000:
+                    if not isinstance(answer, str) or not answer.strip():
                         raise _AttemptAdmissionError("answer_admission_invalid")
+                    require_capacity('answer_bytes', len(answer.encode('utf-8')), phase='recovery_answer')
             result_refs = () if candidate is None else candidate.result_refs
             evidence_refs = () if candidate is None else candidate.evidence_refs
             result_projections = () if candidate is None else candidate.result_projections
@@ -681,6 +790,8 @@ class HarnessAttemptRunner:
             }
             if result_projections:
                 terminal_payload["result_projections"] = [dict(item) for item in result_projections]
+            if candidate is not None:
+                terminal_payload = terminal_payload_for_admission(candidate)
             if plan is not None and plan.shadow_decision is not None:
                 shadow_payload: dict[str, object] = {"status": "pending"}
                 if plan.shadow_decision.done():
@@ -739,9 +850,18 @@ class HarnessAttemptRunner:
             return HarnessAttemptResult(
                 "completed", admitted_answer, None, result_refs, evidence_refs, admission,
             )
+        except CapacityExceeded as error:
+            if terminal_commit_started:
+                raise
+            lease.check()
+            return self._deliver_failure(claim, 'capacity_exceeded', 'execution', recovery_attempted, lease.check,
+                                         capacity=error)
         except _AttemptAdmissionError as error:
             lease.check()
             return self._deliver_failure(claim, error.code, "answer_check", recovery_attempted, lease.check)
+        except HarnessRuntimeConfigurationError:
+            lease.check()
+            return self._deliver_failure(claim, 'runtime_configuration_invalid', 'preparation', recovery_attempted, lease.check)
         except _AttemptCancelled:
             answer = "已按你的要求停止本次任务。已记录的执行过程仍保留，未完成的分析不作为结论。"
             self._finish_cancelled(claim, answer)
@@ -768,6 +888,8 @@ class HarnessAttemptRunner:
             try:
                 candidate = admit(claim, answer, tuple(self._result_refs),
                                   tuple(self._evidence_refs), tuple(self._tool_events))
+            except CapacityExceeded:
+                raise
             except ReferenceCapacityExceeded:
                 raise _AttemptAdmissionError("answer_reference_capacity_exceeded") from None
             except Exception:
@@ -840,6 +962,19 @@ class HarnessAttemptRunner:
         _extend_refs(self._evidence_refs, payload.get("evidence_refs"))
         if event_type == "tool_completed":
             self._tool_events.append(dict(payload))
+        if event_type == 'runtime_event' and payload.get('child_status') == 'failed':
+            failure = _capacity_failure(payload.get('failure'))
+            if failure is not None:
+                self._runtime_capacity_failure = failure
+                self._runtime_failure_code = str(failure['code'])
+        if (event_type == 'runtime_event' and payload.get('child_status') == 'failed'
+                and isinstance(payload.get('failure_code'), str)
+                and payload['failure_code'] in NATIVE_FAILURE_REASONS):
+            self._runtime_failure_code = payload['failure_code']
+            self._runtime_transport_detail = native_transport_summary(payload.get('transport_failure'))
+            timeout = payload.get('timeout_seconds')
+            if isinstance(timeout, (int, float)) and not isinstance(timeout, bool) and 0 < timeout < float('inf'):
+                self._runtime_timeout_seconds = timeout
 
     def _begin_finalization(self, claim: AttemptClaim) -> None:
         event = self._stages.begin_finalization()
@@ -854,9 +989,8 @@ class HarnessAttemptRunner:
 
     def _finish_cancelled(self, claim: AttemptClaim, answer: str) -> None:
         try:
-            self._begin_finalization(claim)
             self._service.finish_attempt(
-                claim, phase="cancelled", payload={"error_code": "attempt_cancelled", "answer": answer, "task_steps": self._stages.finish()},
+                claim, phase="cancelled", payload={"error_code": "attempt_cancelled", "answer": answer, "task_steps": self._stages.finish(interrupted=True)},
             )
         except Exception as exc:
             raise RuntimeError("attempt terminal persistence failed") from exc
@@ -864,21 +998,37 @@ class HarnessAttemptRunner:
     def _deliver_failure(
         self, claim: AttemptClaim, code: str, stage: str, recovery_attempted: bool,
         check_lease: Callable[[], None],
+        *, capacity: CapacityExceeded | None = None,
     ) -> HarnessAttemptResult:
+        if code == 'runtime_failed' and self._runtime_failure_code is not None:
+            code = self._runtime_failure_code
         # This text describes execution state only. Numerical findings still
         # require the application's normal authority and evidence admission.
-        self._begin_finalization(claim)
         answer = (
             "本次任务未能完成。正式回答未通过核验，尚不能据此作出结论。"
             if stage == "answer_check" else
-            "本次任务未能完成。执行中断，尚不能给出完整结论。"
+            "本次任务未能完成。" + NATIVE_FAILURE_REASONS.get(code,
+                "执行中断，系统未记录具体原因，尚不能给出完整结论。")
         )
         if stage == "routing":
             answer = "本次未能启动任务处理，尚未执行计算。请求处理服务暂时不可用，请稍后重试。"
+        if code in {'native_executor_http_rejected', 'native_transport_timeout'}:
+            answer += self._runtime_transport_detail
         if code == "answer_reference_capacity_exceeded":
             answer = "本次任务产生的结果与证据数量超过单次回答的处理容量，未能汇总全部结论。计算记录仍保留，数量限制不表示这些计算失败。"
+        failure = self._runtime_capacity_failure
+        if capacity is not None:
+            failure = {'code': 'capacity_exceeded', 'phase': capacity.phase or stage,
+                       'capacity': capacity.to_document()}
+        if failure is not None:
+            answer = '本轮执行达到当前运行容量限制，未能全部完成。已保存的内容可在后续消息中继续使用。'
+            detail = failure.get('capacity')
+            if isinstance(detail, Mapping) and detail.get('dimension') == 'context_references':
+                answer += '结果与证据的数量限制不表示这些计算失败。'
         if recovery_attempted:
             answer += "已尝试纠正回答，但未能形成通过核验的最终结论。"
+        if code in {'native_task_deadline', 'native_deadline_exceeded'} and self._runtime_timeout_seconds is not None:
+            answer += f"本轮生效的执行时限为 {self._runtime_timeout_seconds:g} 秒，由应用执行配置确定。"
         answer += "已记录的执行过程仍保留。"
         candidate = self._admit_partial_results(claim, answer, check_lease)
         results = () if candidate is None else candidate.result_refs
@@ -895,6 +1045,8 @@ class HarnessAttemptRunner:
                         "stage": stage,
                         "recovery": "attempted" if recovery_attempted else "unavailable"},
         }
+        if failure is not None:
+            payload['failure'] = failure
         if admission is not None:
             payload["admission"] = admission
         if candidate is not None and candidate.result_projections:
@@ -907,7 +1059,7 @@ class HarnessAttemptRunner:
         answer += recorded_failure_summary(self._tool_events)
         payload["answer"] = answer
         check_lease()
-        payload['task_steps'] = self._stages.finish()
+        payload['task_steps'] = self._stages.finish(interrupted=True)
         self._service.finish_attempt(claim, phase="failed", payload=payload)
         return HarnessAttemptResult("failed", answer, code, results, evidence, admission)
 
@@ -1016,7 +1168,46 @@ def _extend_refs(target: list[str], value: object) -> None:
         return
     for reference in value:
         if isinstance(reference, str) and reference and reference not in target:
-            target.append(reference[:512])
+            require_capacity('context_references', len(target) + 1, phase='runtime_references')
+            target.append(_identity_text(reference))
+
+
+def _precheck_task_progress(value):
+    if current_capacity().mode != 'debug':
+        return
+    from capability_agent.application.research_models import precheck_research_capacity
+    from capability_agent.runtime.capacity import CapacityExceeded as KernelCapacityExceeded
+    try:
+        precheck_research_capacity(value,kind='progress')
+    except KernelCapacityExceeded as error:
+        raise CapacityExceeded(error.dimension,error.actual,error.limit,error.phase,mode='debug') from None
+
+
+def _capacity_failure(value: object) -> dict[str, object] | None:
+    """Copy only bounded structured capacity facts, never executor exception text."""
+    if not isinstance(value, Mapping) or value.get('code') not in {'capacity_exceeded', 'native_capacity_exceeded'}:
+        return None
+    phase, detail = value.get('phase'), value.get('capacity')
+    debug_fields={'mode','fatal','effective','source','location'} if isinstance(detail,Mapping) and detail.get('mode')=='debug' else set()
+    if (not isinstance(phase, str) or not 0 < len(phase) <= 128
+            or any(ord(char) < 32 for char in phase) or not isinstance(detail, Mapping)
+            or set(detail)-debug_fields != {'code', 'dimension', 'actual', 'limit', 'phase', 'unit', 'retryable'}):
+        return None
+    if debug_fields and (detail.get('fatal') is not True or detail.get('effective')!=detail['limit']
+            or detail.get('source')!='application_capacity' or detail.get('location')!=detail['phase']):
+        return None
+    dimension, inner_phase = detail.get('dimension'), detail.get('phase')
+    if (detail.get('code') != 'capacity_exceeded' or not isinstance(dimension, str)
+            or not 0 < len(dimension) <= 128 or not dimension.replace('_', '').isalnum()
+            or type(detail.get('actual')) is not int or not 0 <= detail['actual'] <= 9007199254740991
+            or type(detail.get('limit')) is not int or not 0 <= detail['limit'] <= 9007199254740991
+            or detail['actual'] <= detail['limit']
+            or (inner_phase is not None and (not isinstance(inner_phase, str) or len(inner_phase) > 128
+                                            or any(ord(char) < 32 for char in inner_phase)))
+            or detail.get('unit') not in {'bytes', 'seconds', 'items', 'chars', 'tokens', 'milliseconds'}
+            or detail.get('retryable') is not False):
+        return None
+    return {'code': value['code'], 'phase': phase, 'capacity': dict(detail)}
 
 
 __all__ = [
