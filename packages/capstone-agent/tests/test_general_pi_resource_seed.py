@@ -158,3 +158,17 @@ def test_python_derived_bytecode_is_not_a_retained_resource(tmp_path):
     (cache / 'derived.pyc').write_bytes(b'derived-cache')
     retain_seed(source, retained)
     assert not (retained / 'python/python-fixed/lib/__pycache__').exists()
+
+
+def test_native_cleanup_helper_is_in_image_and_importable(tmp_path):
+    project = Path(__file__).parents[3]
+    image = (project / 'deploy/general-pi.Dockerfile').read_text()
+    for module in ('runtime_cleanup', 'native_failure_origin'):
+        assert f'capstone_agent/{module}.py capstone_agent/{module}.py' in image
+    package = tmp_path / 'capstone_agent'
+    package.mkdir()
+    (package / '__init__.py').touch()
+    for module in ('runtime_cleanup', 'native_failure_origin'):
+        shutil.copyfile(project / f'packages/capstone-agent/src/capstone_agent/{module}.py', package / f'{module}.py')
+    subprocess.run([sys.executable, '-c', 'from capstone_agent.runtime_cleanup import run_runtime_cleanup'],
+                   cwd=tmp_path, check=True)

@@ -180,3 +180,5 @@ CMD ["python", "-m", "capstone_agent.general_pi_resource_seed"]
 COPY packages/capstone-agent/src/capstone_agent/workbench_llm_profiles.py capstone_agent/workbench_llm_profiles.py
 COPY configs/runtime/workbench-llm-profiles.json configs/runtime/workbench-llm-profiles.json
 COPY packages/capstone-agent/src/capstone_agent/native_failure_origin.py capstone_agent/native_failure_origin.py
+
+COPY packages/capstone-agent/src/capstone_agent/runtime_cleanup.py capstone_agent/runtime_cleanup.py
