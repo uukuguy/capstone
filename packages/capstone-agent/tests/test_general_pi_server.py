@@ -1323,3 +1323,21 @@ def test_partial_persistence_keeps_verified_saved_descriptors(tmp_path, monkeypa
     with pytest.raises(OSError) as failure:
         storage.artifacts('task', workspace, collect_artifacts(workspace, 'task', 'attempt'))
     assert [item['metadata']['path'] for item in failure.value.saved_artifacts] == ['a.txt']
+
+
+def test_runner_failure_is_not_replaced_by_concurrent_cancellation(tmp_path):
+    from capstone_agent.general_pi_server import GeneralPiHost
+    def run(request, cancelled, emit):
+        host.cancel(request.task_id)
+        raise ValueError('model_output_invalid')
+    host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'}, run_task=run)
+    request = PiTaskRequest.from_document({'schema': 'capstone-pi-task/1', 'task_id': 't1',
+        'parent_attempt_id': 'a1', 'entrypoint': 'direct', 'instruction': 'Explain', 'messages': [],
+        'dependency_results': [], 'executor_identity': host.identity, 'timeout_seconds': 2})
+    host.submit(request)
+    deadline = time.monotonic() + 2
+    while host.read('t1')['status'] == 'running' and time.monotonic() < deadline:
+        time.sleep(.01)
+    result = host.read('t1')['result']
+    assert result['status'] == 'failed'
+    assert result['failure']['code'] == 'native_model_output_invalid'

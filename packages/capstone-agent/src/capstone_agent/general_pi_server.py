@@ -825,6 +825,7 @@ class GeneralPiHost:
                 incremental.trigger()
         status, answer, usage = 'completed', '', {}
         public_failure = None
+        runner_failed = False
         try:
             if request.research_binding is not None:
                 mirror = self.research_mirror(request.task_id)
@@ -843,6 +844,7 @@ class GeneralPiHost:
             if status == 'failed':
                 public_failure = {'code': 'native_execution_error', 'phase': 'execution'}
         except Exception as error:
+            runner_failed = True
             usage = getattr(error, 'saved_usage', usage)
             status = 'failed'
             # Private receipt only: no error message, traceback, arguments or
@@ -923,7 +925,7 @@ class GeneralPiHost:
                     native_failure_origin(receipt_error))
         finally:
             incremental.close()
-        if cancelled():
+        if cancelled() and not runner_failed:
             status = 'cancelled' if record['cancel'].is_set() else 'failed'
             answer = ''
             public_failure = ({'code': 'native_task_deadline', 'phase': 'execution'}
