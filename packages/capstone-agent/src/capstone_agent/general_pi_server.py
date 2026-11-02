@@ -1404,21 +1404,22 @@ class NativeTaskRunner:
                 setattr(error, 'provider_failure', provider_failure)
             raise
         finally:
+            from .runtime_cleanup import run_runtime_cleanup
             try:
                 if process is not None:
-                    process.stop()
+                    run_runtime_cleanup(process.stop, operation='native_process_stop')
             finally:
                 with self._lock:
-                    self.relay.revoke(request.task_id)
+                    run_runtime_cleanup(lambda: self.relay.revoke(request.task_id), operation='relay_revoke')
                     self.task_llm_profiles.pop(request.task_id, None)
                     port=self.task_resource_references.pop(request.task_id,None)
                     if port is not None:shutil.rmtree(port.root,ignore_errors=True)
                 gateway = self.task_gateways.pop(request.task_id, None)
                 if gateway:
-                    gateway.revoke(request.task_id)
+                    run_runtime_cleanup(lambda: gateway.revoke(request.task_id), operation='gateway_revoke')
                 shutil.rmtree(inputs, ignore_errors=True)
                 if hasattr(self, '_resource_staging'):
-                    self._resource_staging.remove(request.task_id)
+                    run_runtime_cleanup(lambda: self._resource_staging.remove(request.task_id), operation='resource_staging_remove')
 
     def verify_tools(self, identity):
         task_id = 'readiness-' + secrets.token_hex(8)

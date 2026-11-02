@@ -123,7 +123,11 @@ class DelegatedRuntime:
                 self._network_projection_refs) if value is not None else None
             self.network_projection_failure_code = ('projection_invalid' if value is not None
                 else getattr(runtime, 'network_projection_failure_code', 'projection_unavailable'))
-        except Exception:
+        except Exception as error:
+            import logging
+            from .native_failure_origin import native_failure_origin
+            logging.getLogger(__name__).warning('Network projection failed; exception_type=%s; origin=%s',
+                type(error).__name__, native_failure_origin(error))
             self._network_projection = None
             self.network_projection_failure_code = 'projection_source_unavailable'
 
@@ -398,7 +402,10 @@ class DelegatedRuntime:
                 if retained is not None:
                     retained = PiTaskResult.from_document(retained.to_document(), request)
                     self._publish_artifacts(retained, request, on_event)
-            except Exception:
+            except Exception as cleanup_error:
+                import logging
+                logging.getLogger(__name__).warning('Child cancellation failed; exception_type=%s; origin=%s',
+                    type(cleanup_error).__name__, native_failure_origin(cleanup_error))
                 cancelled = False
                 error.add_note('Child cancellation was not confirmed; task state is unknown')
             self._emit(on_event, {'task_id': task_id, 'goal_id': goal['goal_id'],
@@ -424,8 +431,10 @@ class DelegatedRuntime:
         document = result.to_document()
         try:
             self._publish_artifacts(result, request, on_event, control)
-        except Exception:
-            self._emit(on_event, {'task_id': task_id, 'goal_id': goal['goal_id'],
+        except Exception as error:
+            from .native_failure_origin import native_failure_origin
+            self._emit(on_event, {'failure_origin': native_failure_origin(error),
+                'task_id': task_id, 'goal_id': goal['goal_id'],
                 'parent_attempt_id': parent, 'child_status': 'failed',
                 'failure_code': 'native_artifact_persistence_failed',
                 'executor_status': result.status})
@@ -607,8 +616,11 @@ class DelegatedRuntime:
             self._capture_network_projection(runtime, scoped, admitted, events)
             return 'completed', admitted.answer
         finally:
-            runtime.stop()
-            self._active = None
+            from .runtime_cleanup import run_runtime_cleanup
+            try:
+                run_runtime_cleanup(runtime.stop, operation='business_runtime_stop')
+            finally:
+                self._active = None
 
     def prompt(self, question, *, on_event, correlation_id=None, on_heartbeat=None):
         del question, correlation_id

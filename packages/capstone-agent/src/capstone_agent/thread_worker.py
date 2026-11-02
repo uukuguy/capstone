@@ -280,7 +280,8 @@ def serve_thread_attempts(
     finally:
         close = getattr(runtime_factory, 'close', None)
         if callable(close):
-            close()
+            from .runtime_cleanup import run_runtime_cleanup
+            run_runtime_cleanup(close, operation='worker_factory_close')
 
 
 __all__ = ["RuntimeFactory", "run_pending_attempt", "serve_thread_attempts"]

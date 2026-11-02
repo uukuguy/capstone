@@ -957,7 +957,12 @@ class HttpGeneralPiExecutor:
                 original = sys.exception()
                 try:
                     self.cancel(request.task_id)
-                except Exception:
+                except Exception as cleanup_error:
+                    import logging
+                    from .native_failure_origin import native_failure_origin
+                    logging.getLogger(__name__).warning(
+                        'Pi cancellation failed; exception_type=%s; origin=%s',
+                        type(cleanup_error).__name__, native_failure_origin(cleanup_error))
                     if original is None:
                         raise
                     original.add_note("Pi cancellation was not confirmed; remote task state is unknown")

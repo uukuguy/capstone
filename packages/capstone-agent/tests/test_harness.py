@@ -578,7 +578,7 @@ def test_harness_attempt_runner_persists_network_events_before_terminal_answer()
     assert event_types[-3:] == ["network_diagram", "network_layer", "attempt_completed"]
 
 
-def test_network_provider_failure_keeps_attempt_completed_and_emits_unavailable() -> None:
+def test_network_provider_failure_keeps_attempt_completed_and_emits_unavailable(caplog) -> None:
     service = _thread_service()
     service.submit_command({
         "schema": "capstone-command/1", "command_id": "cmd_harness_network_failure",
@@ -600,6 +600,8 @@ def test_network_provider_failure_keeps_attempt_completed_and_emits_unavailable(
     events = service.read_events("thr_harness", 0).events
     assert events[-2].event_type == "network_layer_unavailable"
     assert events[-2].payload == {"ordinal": 1, "code": "projection_source_unavailable"}
+    assert "Network projection failed" in caplog.text
+    assert "authority unavailable" not in caplog.text
     assert events[-1].event_type == "attempt_completed"
 
 

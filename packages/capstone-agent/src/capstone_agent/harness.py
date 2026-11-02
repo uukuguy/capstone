@@ -543,7 +543,10 @@ class HarnessPiClient:
         except NetworkProjectionUnavailable as error:
             self.network_projection_failure_code = error.code
             return None
-        except Exception:
+        except Exception as error:
+            from .native_failure_origin import native_failure_origin
+            logging.getLogger(__name__).warning('Network projection failed; exception_type=%s; origin=%s',
+                type(error).__name__, native_failure_origin(error))
             self.network_projection_failure_code = "projection_source_unavailable"
             return None
         normalized = normalize_thread_network_projection(
@@ -616,7 +619,8 @@ class HarnessPiClient:
             self._session.stop()
         finally:
             if callback is not None:
-                callback()
+                from .runtime_cleanup import run_runtime_cleanup
+                run_runtime_cleanup(callback, operation='session_stop_callback')
 
 
 class HarnessDSHClient:
