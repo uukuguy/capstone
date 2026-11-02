@@ -1343,3 +1343,35 @@ def test_runner_failure_is_not_replaced_by_concurrent_cancellation(tmp_path):
     result = host.read('t1')['result']
     assert result['status'] == 'failed'
     assert result['failure']['code'] == 'native_model_output_invalid'
+
+
+def test_terminal_receipt_failure_settles_and_prevents_replay(tmp_path, monkeypatch, caplog):
+    from capstone_agent.general_pi_server import GeneralPiHost
+    calls = []
+    def run(request, *_):
+        calls.append(request.task_id)
+        workspace = tmp_path / 'tasks' / request.task_id
+        workspace.mkdir(parents=True)
+        (workspace / 'product.txt').write_text('Retain this product')
+        return 'Done', {}
+    host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'}, run_task=run)
+    original_save = host.storage.save
+    def save(request, result):
+        if result is not None:
+            raise OSError('private receipt path and credentials')
+        return original_save(request, result)
+    monkeypatch.setattr(host.storage, 'save', save)
+    request = PiTaskRequest.from_document({'schema': 'capstone-pi-task/1', 'task_id': 't1',
+        'parent_attempt_id': 'a1', 'entrypoint': 'direct', 'instruction': 'Explain', 'messages': [],
+        'dependency_results': [], 'executor_identity': host.identity, 'timeout_seconds': 2})
+    host.submit(request)
+    deadline = time.monotonic() + 2
+    while host.read('t1')['status'] == 'running' and time.monotonic() < deadline:
+        time.sleep(.01)
+    assert host.read('t1')['result']['failure']['code'] == 'native_artifact_persistence_failed'
+    assert (tmp_path / 'tasks/t1/product.txt').read_text() == 'Retain this product'
+    assert 'Native terminal failure receipt persistence failed' in caplog.text
+    assert 'private receipt path and credentials' not in caplog.text
+    restarted = GeneralPiHost(root=tmp_path, identity=host.identity, run_task=run)
+    restarted.submit(request)
+    assert calls == ['t1']

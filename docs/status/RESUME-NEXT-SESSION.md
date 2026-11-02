@@ -1,5 +1,12 @@
 # Live Session Checkpoint
 
+2026-11-02 terminal audit: cbec0d59 preserves runner errors during concurrent cancellation;
+187a8ca8 logs double persistence failures safely. Host114 passed/32 skipped;
+restart probe confirms failed terminal settlement, retained workspace and no replay.
+Local rebuild receipt /tmp/capstone-persistence-rebuild.log. Next: incremental capture
+errors currently have no diagnostic consumer; inspect and fix without converting
+recoverable live-writer races into task aborts. No CI; research server offline.
+
 2026-11-02 active multi-turn integrity repair: see
 `docs/reports/2026-11-02-multiturn-execution-integrity.md`.
 Intranet Thread thr_52b7e926ea630d064f77 has three parent failures after historical

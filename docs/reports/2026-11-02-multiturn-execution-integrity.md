@@ -63,3 +63,16 @@ The full summer request must not be replayed to verify historical-file transport
 The research server is unavailable. No further remote connections or deployment
 will run until it is restored. Intranet services remain unchanged until the
 agreed batch is fixed and verified together.
+
+## Terminal fault precedence and receipt recovery
+
+cbec0d59 prevents concurrent cancellation from replacing a classified runner
+failure. 187a8ca8 logs both the initial result persistence fault and a subsequent
+failure-receipt persistence fault using safe source coordinates and exception
+classes, without private error messages. The host suite now passes 114 checks
+(32 skipped), including a double persistence-failure case that verifies terminal
+settlement, workspace preservation and no replay after host restart.
+
+Further review found incremental capture retains only an exception class in an
+internal field that no consumer reads. Final capture remains mandatory, but this
+intermediate diagnostic gap is still open; do not claim the audit is complete.
