@@ -6742,3 +6742,5 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 2026-11-02: PR86 merged1b3760cd after19s macOS CI41398901567; local and remote dev match; accepted main is ancestor.
 - 2026-11-02: Registered Qwen3.8-Flash-Next8013 as intranet default;28 checks passed; models endpoint confirms262144 context; deployment pending.
 - 2026-11-02: 601b5909 deploys Qwen-default intranet images; readiness, shared backend identity and24.8s CSV download passed; browser unavailable.
+- 2026-11-02: e5dba4b2 records active601b5909 intranet images, verified Qwen task and retained rollback configuration.
+- 2026-11-02: Delay automatic artifact-panel opening until a product arrives;23 execution checks and types pass.

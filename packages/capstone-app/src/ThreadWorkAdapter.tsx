@@ -498,7 +498,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
     autoProductScope.current=attempt
     setInstructionProductScope(scope);setRequestedProduct(undefined);setRequestedArtifact(undefined)
     saveInstructionView({...instructionViewRef.current,attemptId:attempt,manual:false,automatic:'products'})
-    setResourceView(client.supportsProductIndex?'products':'native-files');setProductsOpen(true)
+    setResourceView(client.supportsProductIndex?'products':'native-files')
   },[selectedWork?.status,selectedWork?.latestAttemptId,conversation.events.length,currentId,store.conversationHistoryReady])
   function openArtifact(file:NativeArtifact,manual=true) {
     if(manual){markManualView();setInstructionProductScope(undefined)}
