@@ -1,9 +1,24 @@
 # Live Session Checkpoint
 
+2026-11-02 milestone closeout: user selected current dev as the milestone scope.
+All implementation commits are already on local dev. Remote integration, tag publication
+and main PR remain pending explicit CI approval. Current workflow forces full dual-platform
+release checks for main; adjust to the agreed lightweight merge scope before triggering it.
+Intranet deployment remains 7ea289f2; current dev is not deployed there.
+
+
 Accepted design: `docs/superpowers/specs/2026-11-02-managed-resource-installation-design.md`.
 Installations persist; no temporary mode. Resource management uses one permission gate.
 Local defaults allow application actions; intranet defaults restrict management actions.
-Preinstall promotion is approved. Implementation planning is in progress; no runtime changes yet.
+Preinstall promotion is approved. Core implementation is committed; runtime/API/UI integration remains incomplete.
+
+Active implementation now follows `docs/superpowers/plans/2026-11-02-managed-resource-installation.md`.
+Permission core fdc55904/74ed2f39 passes14 tests and independent review; deployment defaults ef05b7b9
+pass synthetic Compose resolution (not deployed). Durable store cb3f98f6/49b3bb25 passes28 tests and review.
+MCP transport d129b49c passes real local stdio verification;12 focused tests after revocation-race fix.
+Installer c0774749 is committed and verified;
+root owns MCP transport and remaining runtime/API/UI/deployment integration. No CI, no remote access.
+Installation is not yet available through the workbench. Do not claim full delivery or deployed permissions.
 
 `43c31e3a` changes scope-switch defaults to the newest primary by saved time.
 Manual version selection survives directory updates.53 focused tests and types passed.

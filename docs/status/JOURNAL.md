@@ -6726,3 +6726,10 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 2026-11-02: 6470c554 restores copy as the first answer action, matching the instruction toolbar.
 - 2026-11-02: 32a98bba records verified preview defaults, toolbar order, and local rebuild receipt for recovery.
 - 2026-11-02: b0fe07df records persistent installation and configurable permissions; preinstall promotion remains proposed, with no runtime changes.
+- 2026-11-02: 1d173bd6 plans managed installation and approved preinstall promotion with separate local and intranet defaults.
+- 2026-11-02: fdc55904 adds resource permission evaluation; local allows known actions, intranet restricts management;14 focused checks passed.
+- 2026-11-02: 74ed2f39 binds permission revisions to deployment profile; focused checks and independent review passed.
+- 2026-11-02: ef05b7b9 selects local-open and intranet-restricted policies explicitly; synthetic Compose resolution passed without deployment.
+- 2026-11-02: cb3f98f6 adds durable resource versions and preinstall snapshots;49b3bb25 preserves revoked-operation failures and detects metadata corruption.
+- 2026-11-02: d129b49c/c46fc2c0 verify generic MCP transport and permission rechecks; c0774749 adds verified persistent installation.
+- 2026-11-02: User selected current dev milestone; remote merge and tag pending CI approval; intranet deployment remains7ea289f2.
