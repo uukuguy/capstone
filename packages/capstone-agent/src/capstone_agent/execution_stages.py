@@ -99,7 +99,10 @@ class ExecutionStages:
             previous = self._open_unframed_execution()
             if previous is not None:
                 payload['task_steps'] = self._merge_previous(payload.get('task_steps'), previous)
-            if self.active == 'task-execution':
+            # Model boundaries remain model boundaries. Attaching the host
+            # execution-stage ID would make consumers classify them as host
+            # lifecycle events and hide the LLM call.
+            if self.active == 'task-execution' and event_type != 'runtime_action':
                 payload['task_step'] = self._public(self.active)
                 payload['task_step_id'] = self.active
                 payload['task_step_number'] = self.steps[self.active]['number']

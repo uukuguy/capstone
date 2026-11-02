@@ -16,7 +16,11 @@ def test_unframed_native_execution_and_failure_are_not_cancelled_preparation(eve
     payload = stages.annotate(event)['payload']
     assert payload['task_steps'][0]['id'] == 'task-preparation'
     assert payload['task_steps'][0]['duration_ms'] == 2000
-    assert payload['task_step']['id'] == 'task-execution'
+    assert stages.active == 'task-execution'
+    if event['event_type'] == 'runtime_action':
+        assert 'task_step' not in payload
+    else:
+        assert payload['task_step']['id'] == 'task-execution'
     now[0] = 8
     terminal, = stages.finish(failed=True)
     assert terminal['status'] == 'failed'
