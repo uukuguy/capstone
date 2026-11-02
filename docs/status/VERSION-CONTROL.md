@@ -1,5 +1,9 @@
 # 多线版本控制
 
+2026-11-02 内网默认模型配置更新为 `Qwen3.8-Flash-Next`（192.168.72.69:8013/v1）。
+服务 models 接口确认262144上下文；28项定向检查通过、1项跳过，local/intranet Compose默认值核对通过。
+API/worker/executor统一使用intranet preset；尚未重建或部署，运行来源保持原记录。
+
 ## 2026-11-02 development milestone closeout
 
 The user selected current dev as the milestone, including the resource-management

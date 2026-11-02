@@ -7,6 +7,7 @@ services:
   api:
     image: ${CAPSTONE_BACKEND_IMAGE:?Set the exact intranet image}
     environment:
+      CAPSTONE_WORKBENCH_PRESET: ${CAPSTONE_WORKBENCH_PRESET:-intranet}
       CAPSTONE_ALLOWED_HOSTS: ${CAPSTONE_ALLOWED_HOSTS:-localhost,127.0.0.1,api}
       CAPSTONE_ALLOWED_ORIGINS: ${CAPSTONE_APP_ORIGIN:?Set the browser origin}
       CAPSTONE_WORKER_WAKE_URL: http://worker-native:8766
@@ -15,9 +16,13 @@ services:
     profiles: [professional]
   worker-pypsa:
     profiles: [professional]
+  worker-native:
+    environment:
+      CAPSTONE_WORKBENCH_PRESET: ${CAPSTONE_WORKBENCH_PRESET:-intranet}
   general-pi:
     image: ${CAPSTONE_GENERAL_IMAGE:?Set the exact native executor image}
     environment:
+      CAPSTONE_WORKBENCH_PRESET: ${CAPSTONE_WORKBENCH_PRESET:-intranet}
       CAPSTONE_RESOURCE_PERMISSION_PROFILE: ${CAPSTONE_INTRANET_RESOURCE_PERMISSION_PROFILE:-intranet}
     extra_hosts: ["host.docker.internal:host-gateway"]
     # CentOS 7 needs the table to exist before the first atomic rule replacement.

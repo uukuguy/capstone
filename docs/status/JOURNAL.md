@@ -6738,3 +6738,6 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 2026-11-02: cffcac42 preserves CSV field values; format gate now distinguishes raw CSV evidence from source formatting.
 - 2026-11-02: bdab3c02 preserves raw CSV evidence; scoped CI41396861782 passed; PR85 merged d4b59a0f and milestone tag published.
 - 2026-11-02: 98073128 returns accepted main milestone to local dev; remote formatting/control return remains pending approved integration.
+- 2026-11-02: 759ecc6e records accepted main merge, annotated tag and local-only dev return for accurate recovery.
+- 2026-11-02: PR86 merged1b3760cd after19s macOS CI41398901567; local and remote dev match; accepted main is ancestor.
+- 2026-11-02: Registered Qwen3.8-Flash-Next8013 as intranet default;28 checks passed; models endpoint confirms262144 context; deployment pending.
