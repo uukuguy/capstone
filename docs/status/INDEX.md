@@ -1,5 +1,8 @@
 # docs/status INDEX
 
+2026-11-02: [版本台账](VERSION-CONTROL.md)及[总览](PROJECT-OVERVIEW.html)更新本机执行链修复与四轮验收；内网保持70c42dab。
+
+
 2026-11-01: [Native worker session concurrency](KNOWN-ISSUES.md#native-worker-session-concurrency--2026-11-01)
 is recorded for later work; no concurrency change in this deployment repair.
 

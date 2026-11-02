@@ -6759,3 +6759,23 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 2026-11-02 b4df210b separates model boundaries from host stages to preserve LLM visibility during failure tracking.
 
 - 2026-11-02: Welcome cards show current session gateway and selected LLM; focused App checks pass; browser unavailable.
+
+- 2026-11-02 fa379b5e shows current gateway and selected model on welcome cards without extra connection probes.
+
+- 2026-11-02: Runner failures retain original codes during cancellation; host regression suite113 passed,32 skipped.
+
+- 2026-11-02 cbec0d59 preserves runner failure codes when cancellation races with error finalization.
+
+- 2026-11-02 187a8ca8 records primary and secondary persistence failures safely; host checks113 passed,32 skipped.
+
+- 2026-11-02 a71ef66e verifies double storage failure settles safely and prevents replay after restart.
+
+- 2026-11-02 2eb26aa1 exposes recoverable live artifact faults without leaking messages or logging normal cancellation;129 checks passed.
+
+- 2026-11-02 8c875af2 retains safe origins for worker cleanup faults;27 checks passed; live-model continuation remains pending.
+
+- 2026-11-02 c438fca6 preserves primary faults across cleanup and logs cancellation/projection faults;352 checks passed,32 skipped; rebuild deferred.
+
+- 2026-11-02 4306a7e9 packages cleanup helper after native startup exposed missing image dependency;10 focused checks passed.
+
+- 2026-11-02 8293a4d4 fixes image layer limit; unified rebuild and four real-model continuation rounds pass; scoped cleanup releases11.6GB.
