@@ -87,3 +87,30 @@ def test_completed_mcp_result_survives_policy_revocation_after_dispatch(context,
     result=resource_task_action(service,P,'w','call',{'resource_id':'remote','version':item['version'],
         'name':'one','arguments':{},'catalog_revision':catalog['revision']},inputs=tmp_path)
     assert result['result']['content'][0]['text']=='completed'
+
+
+def test_skill_copy_closed_before_publication_leaves_no_admitted_partial(context,tmp_path):
+    engine=installer(context);store,_,_=context
+    item=engine.install(P,'w','install','example',request())['result']
+    service=ManagedResourceService(store,engine)
+    calls=iter([True,False]);service.task_is_open=lambda _:next(calls)
+    inputs=tmp_path/'inputs';inputs.mkdir()
+    with pytest.raises(ValueError,match='resource_task_closed'):
+        resource_task_action(service,P,'w','load_skill',{'resource_id':'example','version':item['version']},inputs=inputs,task_id='task')
+    assert list(inputs.iterdir())==[]
+
+
+def test_removed_input_directory_is_not_recreated_during_publication(context,tmp_path):
+    import shutil
+    engine=installer(context);store,_,_=context
+    item=engine.install(P,'w','install','example',request())['result']
+    service=ManagedResourceService(store,engine)
+    inputs=tmp_path/'inputs';inputs.mkdir();calls=[]
+    def open_task(_):
+        calls.append(True)
+        if len(calls)==2:shutil.rmtree(inputs)
+        return True
+    service.task_is_open=open_task
+    with pytest.raises(FileNotFoundError):
+        resource_task_action(service,P,'w','load_skill',{'resource_id':'example','version':item['version']},inputs=inputs,task_id='task')
+    assert not inputs.exists()

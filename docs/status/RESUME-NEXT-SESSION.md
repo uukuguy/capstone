@@ -1,5 +1,22 @@
 # Live Session Checkpoint
 
+3b25c089 implements installation API/runtime/UI; follow-up now adds persistent
+per-task/resource/version MCP sessions and closes cleanup races. Explicit
+active_tasks registration fences late handlers, relay revoked before shutdown.
+Skill materialization uses private disk-backed staging and original input dir FD;
+no symlink expansion, partial publication or deleted-directory resurrection.
+Managed tasks now use existing disk-backed inputs volume for readonly inputs;
+runner.task_resource_inputs provides exact path, no task-supplied path/workspace.
+Scratch uses inputs/.managed-installers; persistent package store remains0700.
+Model tool schema includes only currently permitted operations; backend rechecks.
+Targeted tests422 passed/37 skipped before last refinements; newest focused lifecycle
+14 tests and JS6 pass. App15 tests/types passing; no feature rebuild yet.
+Next: finish consolidated checks, commit source follow-up, one canonical rebuild and
+run prepared .capstone-agent/verify_managed_resources.py in isolated native container.
+Acceptance script updated for stateful local MCP calls and exact source/version use.
+No external network, CI or remote deployment authorized for this acceptance.
+
+
 2026-11-03 active Skills/MCP installation implementation. Approved design/plan:
 docs/superpowers/{specs/2026-11-02-managed-resource-installation-design.md,plans/2026-11-02-managed-resource-installation.md}.
 Added managed_resource_service/http/dispatch/runtime/probe/task.py, private durable

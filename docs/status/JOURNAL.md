@@ -6787,3 +6787,5 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 2026-11-03: Existing Vivaldi visually verifies overview source nodes and deployment edges; welcome cards already confirmed; no new tabs.
 
 - 2026-11-03 8f1415fc aligns overview summaries and records Vivaldi visual checks using existing tabs.
+
+- 2026-11-03 3b25c089 connects persistent installation, protected workspace/task adapters and UI; source checks pass; runtime acceptance pending.

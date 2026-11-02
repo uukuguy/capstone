@@ -13,6 +13,8 @@ def test_protected_control_and_task_scopes_share_the_same_service(context,tmp_pa
     host=GeneralPiHost(root=tmp_path/'host',identity={'engine':'test'},run_task=lambda *_:('ok',{}))
     relay=ProviderRelay()
     runner=SimpleNamespace(root=tmp_path/'host',managed_resource_service=ManagedResourceService(engine.store,engine),relay=relay)
+    runner.managed_resource_service.task_is_open=lambda task:True
+    runner.task_resource_inputs={'one':tmp_path/'inputs'}
     host._tasks['one']={'request':SimpleNamespace(managed_workspace='trusted')}
     relay.register('one','task-grant',time.monotonic()+10)
     server=make_server(host,control_token='control',address=('127.0.0.1',0),runner=runner)

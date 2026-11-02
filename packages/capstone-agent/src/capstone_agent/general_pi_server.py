@@ -1038,6 +1038,7 @@ class NativeTaskRunner:
         self.experimental_llm_pool = experimental_llm_pool is True
         self.task_llm_profiles = {}
         self.task_resource_references = {}
+        self.task_resource_inputs = {}
         self.task_gateways = {}
         from .native_environment import environment_context
         self.environment_context = environment_context()
@@ -1089,7 +1090,8 @@ class NativeTaskRunner:
             if profile is not None:
                 self.task_llm_profiles[request.task_id] = profile
         workspace = task_workspace(self.root / 'tasks', request.task_id)
-        inputs = workspace.parent / ('.inputs-' + workspace.name)
+        inputs = task_workspace(self.root/'inputs',request.task_id) if request.managed_workspace is not None else workspace.parent / ('.inputs-' + workspace.name)
+        self.task_resource_inputs[request.task_id]=inputs
         process = None
         try:
             role = 'direct_pi' if request.entrypoint == 'direct' else 'delegated_pi'
@@ -1176,10 +1178,15 @@ class NativeTaskRunner:
                 native = checked_native_context(request.native_context)
                 sdk_config['applicationPolicy'] = native['policy']
                 if request.managed_workspace is not None and getattr(self,'managed_resource_service',None) is not None:
-                    sdk_config['managedResources']={'url':self.relay_origin+'/managed-resource-tasks/'+request.task_id,
-                        'grant':grant}
-                    sdk_config['applicationPolicy']={**sdk_config['applicationPolicy'],'allowed_tools':sorted({
-                        *sdk_config['applicationPolicy']['allowed_tools'],'agent_managed_resource'})}
+                    from .resource_permissions import ResourcePrincipal
+                    actions=self.managed_resource_service.store.permissions.allowed_actions(
+                        ResourcePrincipal('workspace:'+request.managed_workspace,()),request.managed_workspace)
+                    if actions:
+                        self.managed_resource_service.open_task(request.task_id)
+                        sdk_config['managedResources']={'url':self.relay_origin+'/managed-resource-tasks/'+request.task_id,
+                            'grant':grant,'allowed_actions':actions}
+                        sdk_config['applicationPolicy']={**sdk_config['applicationPolicy'],'allowed_tools':sorted({
+                            *sdk_config['applicationPolicy']['allowed_tools'],'agent_managed_resource'})}
 
                 if self.experimental_llm_pool and native.get('deep_research') is False:
                     from .native_model_request_pool import MODEL_REQUEST_POOL_POLICY
@@ -1366,7 +1373,7 @@ class NativeTaskRunner:
                 if document['research_binding'].get('graph_schema') == 'capstone-enterprise-graph/2':
                     context_host = self._graph_context_provider(request, workspace, uid)
                     sdk_config['graphContextPath'] = str(context_host.root)
-            launch_options = {}
+            launch_options = {'input_directory':inputs} if request.managed_workspace is not None else {}
             if sdk_config.get('selectedResourceFiles'):
                 inputs = task_workspace(self.root / 'inputs', request.task_id)
                 launch_options['input_directory'] = inputs
@@ -1412,20 +1419,28 @@ class NativeTaskRunner:
         finally:
             from .runtime_cleanup import run_runtime_cleanup
             try:
-                if process is not None:
-                    run_runtime_cleanup(process.stop, operation='native_process_stop')
+                try:
+                    run_runtime_cleanup(lambda:self.relay.revoke(request.task_id),operation='relay_revoke')
+                finally:
+                    try:
+                        if process is not None:
+                            run_runtime_cleanup(process.stop,operation='native_process_stop')
+                    finally:
+                        managed=getattr(self,'managed_resource_service',None)
+                        if managed is not None:
+                            run_runtime_cleanup(lambda:managed.close_task(request.task_id),operation='managed_resource_sessions_close')
             finally:
                 with self._lock:
-                    run_runtime_cleanup(lambda: self.relay.revoke(request.task_id), operation='relay_revoke')
-                    self.task_llm_profiles.pop(request.task_id, None)
+                    self.task_llm_profiles.pop(request.task_id,None)
+                    self.task_resource_inputs.pop(request.task_id,None)
                     port=self.task_resource_references.pop(request.task_id,None)
                     if port is not None:shutil.rmtree(port.root,ignore_errors=True)
-                gateway = self.task_gateways.pop(request.task_id, None)
+                gateway=self.task_gateways.pop(request.task_id,None)
                 if gateway:
-                    run_runtime_cleanup(lambda: gateway.revoke(request.task_id), operation='gateway_revoke')
-                shutil.rmtree(inputs, ignore_errors=True)
-                if hasattr(self, '_resource_staging'):
-                    run_runtime_cleanup(lambda: self._resource_staging.remove(request.task_id), operation='resource_staging_remove')
+                    run_runtime_cleanup(lambda:gateway.revoke(request.task_id),operation='gateway_revoke')
+                shutil.rmtree(inputs,ignore_errors=True)
+                if hasattr(self,'_resource_staging'):
+                    run_runtime_cleanup(lambda:self._resource_staging.remove(request.task_id),operation='resource_staging_remove')
 
     def verify_tools(self, identity):
         task_id = 'readiness-' + secrets.token_hex(8)
@@ -1789,10 +1804,15 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 if not isinstance(body,dict) or set(body)!={'operation','document'}:
                     return self.send_json(400,{'error':'resource_request_fields_invalid'})
                 service=runner.managed_resource_service
+                if not service.task_is_open(task_id):
+                    return self.send_json(403,{'error':'resource_task_closed','executed':False})
+                inputs=runner.task_resource_inputs.get(task_id)
+                if inputs is None:
+                    return self.send_json(403,{'error':'resource_task_closed','executed':False})
                 class TaskService:
                     def invoke(self,principal,workspace,operation,document):
                         return resource_task_action(service,principal,workspace,operation,document,
-                            inputs=runner.root/'tasks'/('.inputs-'+task_id), deadline=lease.deadline)
+                            inputs=inputs, deadline=lease.deadline, task_id=task_id)
                 result=dispatch_resource_request(TaskService(),{
                     'workspace':request.managed_workspace,**body})
                 return self.send_json(200,result)
@@ -1973,7 +1993,7 @@ def main():
                 'pi_commit': lock['source']['commit'], 'config_revision': revision.hexdigest(),
                 'runtime_lock_sha256': sha256(Path('/opt/general/pi-runtime.lock.json').read_bytes()).hexdigest(),
                 'executor_revision': sha256(b''.join((Path(__file__).parent / name).read_bytes()
-                    for name in ('general_pi_server.py', 'general_pi_executor.py', 'general_pi_storage.py', 'general_pi_relay.py', 'native_network_policy.py', 'bounded_http_loop.py', 'pi_delegation.py', 'business_context.py', 'request_intent.py', 'native_task_context.py', 'workbench_llm_profiles.py', 'native_failure_origin.py', 'runtime_cleanup.py', 'resource_permissions.py', 'managed_resources.py', 'managed_resource_manifest.py', 'managed_resource_installation.py', 'managed_resource_service.py', 'managed_resource_dispatch.py', 'managed_resource_runtime.py', 'managed_resource_mcp.py', 'managed_resource_task.py', 'managed_resource_probe.py', 'native_diagnosis.py', 'native_tool_composition.py', 'native_llm_pool.py', 'native_model_request_pool.py', 'incremental_artifacts.py',
+                    for name in ('general_pi_server.py', 'general_pi_executor.py', 'general_pi_storage.py', 'general_pi_relay.py', 'native_network_policy.py', 'bounded_http_loop.py', 'pi_delegation.py', 'business_context.py', 'request_intent.py', 'native_task_context.py', 'workbench_llm_profiles.py', 'native_failure_origin.py', 'runtime_cleanup.py', 'resource_permissions.py', 'managed_resources.py', 'managed_resource_manifest.py', 'managed_resource_installation.py', 'managed_resource_service.py', 'managed_resource_dispatch.py', 'managed_resource_runtime.py', 'managed_resource_mcp.py', 'managed_resource_task.py', 'managed_resource_probe.py', 'managed_resource_session.py', 'native_diagnosis.py', 'native_tool_composition.py', 'native_llm_pool.py', 'native_model_request_pool.py', 'incremental_artifacts.py',
                                  'native_resources.py', 'runtime_resources.py', 'resource_installation.py', 'general_pi_resource_seed.py', 'bounded_mcp.py', 'native_environment.py', 'data_gateway_mcp.py', 'data_gateway_relay.py', 'data_gateway_views.py', 'gateway_connections.py', 'gateway_connections_runtime.py', 'gateway_diagnostics.py', 'grid_source_topology.py', 'grid_electrical_view.py', 'resources/gateway-electrical-view-v1.schema.json', 'resources/gateway-electrical-view-v2.schema.json', 'resources/general-data-gateway.mjs',
                                  'progress.py', 'answer_presentation.py', 'native_tool_diagnostics.py', 'stream_progress.py', 'resource_manifest.py', 'native_resource_staging.py', 'native_resource_references.py',
                                  'native_research_bridge.py', 'native_graph_context.py', 'native_graph_events.py',

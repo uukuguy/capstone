@@ -1,4 +1,4 @@
-import {useEffect,useState} from 'react'
+import {useEffect,useState,useRef} from 'react'
 import {Package,X} from 'lucide-react'
 import './ManagedResourcesPanel.css'
 
@@ -6,11 +6,13 @@ type Resource={resource_id:string;version:string;kind:string;installed:boolean;e
 type Catalog={resources:Resource[];allowed_actions:string[];revision:string}
 type Transport={listManagedResources:()=>Promise<unknown>;manageResource:(operation:string,document:Record<string,unknown>)=>Promise<unknown>}
 export default function ManagedResourcesPanel({transport}:{transport:Transport}){
+  const panelRef=useRef<HTMLElement>(null)
   const [open,setOpen]=useState(false),[catalog,setCatalog]=useState<Catalog>(),[error,setError]=useState(''),[busy,setBusy]=useState(false)
   const [kind,setKind]=useState('skill'),[source,setSource]=useState(''),[revision,setRevision]=useState(''),[name,setName]=useState(''),[directory,setDirectory]=useState(''),[entry,setEntry]=useState('')
   const [receipt,setReceipt]=useState<Record<string,unknown>>()
   const [loaded,setLoaded]=useState(false)
   const [updating,setUpdating]=useState<Resource>()
+  useEffect(()=>{if(!open)return;const previous=document.activeElement;panelRef.current?.querySelector<HTMLButtonElement>('button')?.focus();return()=>{if(previous instanceof HTMLElement)previous.focus()}},[open])
   const allowed=(action:string)=>catalog?.allowed_actions.includes(`resources.${action}`)===true
   async function refresh(){try{setCatalog(await transport.listManagedResources() as Catalog)}finally{setLoaded(true)}}
   useEffect(()=>{if(open)void refresh().catch(e=>setError(e instanceof Error?e.message:'资源列表读取失败'))},[open,transport])
@@ -22,7 +24,16 @@ export default function ManagedResourcesPanel({transport}:{transport:Transport})
     finally{setBusy(false)}
   }
   return <><button type="button" className="thread-settings-item" onClick={()=>setOpen(true)}><Package aria-hidden="true"/>Skills / MCP 管理</button>
-    {open&&<section className="managed-resources-panel" role="dialog" aria-modal="true" aria-label="Skills 与 MCP 管理">
+    {open&&<section ref={panelRef} className="managed-resources-panel" onKeyDown={event=>{
+      if(event.key==='Escape'){event.stopPropagation();setOpen(false)}
+      if(event.key==='Tab'){
+        const targets=panelRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]),input:not([disabled]),select:not([disabled]),summary')
+        if(!targets?.length)return
+        const first=targets[0],last=targets[targets.length-1]
+        if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus()}
+        else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus()}
+      }
+    }} role="dialog" aria-modal="true" aria-label="Skills 与 MCP 管理">
       <header><div><h2>Skills 与 MCP</h2><p>安装后持久保存，在当前工作空间使用。</p></div><button type="button" aria-label="关闭资源管理" onClick={()=>setOpen(false)}><X aria-hidden="true"/></button></header>
       {error&&<p role="alert">{error}</p>}
       {!catalog?<p>{loaded?'资源尚未读取。':'正在读取资源…'}{loaded&&<button type="button" onClick={()=>{setError('');void refresh().catch(e=>setError(e instanceof Error?e.message:'资源列表读取失败'))}}>重试读取</button>}</p>:<>
