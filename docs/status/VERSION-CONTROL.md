@@ -1,5 +1,16 @@
 # 多线版本控制
 
+## 2026-11-02 development milestone closeout
+
+The user selected current dev as the milestone, including the resource-management
+foundation. Intranet deployment remains `7ea289f2`; this milestone does not claim
+that newer dev is deployed. Resource permissions, version store, MCP transport and
+installation lifecycle pass 81 focused tests. Runtime/API/UI installation integration
+remains pending. User approved lightweight merge CI on 2026-11-02. The explicit milestone/ PR route uses focused checks bounded to six minutes
+per platform. Ordinary verification routing remains intact. Push events no longer
+start duplicate checks after an approved PR merge.
+Remote dev/main integration and annotated tag are pending verification receipts.
+
 2026-11-02 已确认[Skills/MCP 持久安装设计](../superpowers/specs/2026-11-02-managed-resource-installation-design.md)：
 安装默认持久保存，本机资源管理权限显式放开，内网部署默认收紧。预安装清单已获确认。
 [实施计划](../superpowers/plans/2026-11-02-managed-resource-installation.md)从统一权限接口开始；尚未接通安装功能，部署不变。

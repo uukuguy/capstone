@@ -2,8 +2,6 @@ name: verify
 
 on:
   pull_request:
-  push:
-    branches: [dev, main]
   workflow_dispatch:
     inputs:
       release:
@@ -17,6 +15,36 @@ concurrency:
 
 jobs:
   verify:
+    if: ${{ github.event_name == 'pull_request' && startsWith(github.head_ref, 'milestone/') }}
+    timeout-minutes: 6
+    strategy:
+      matrix:
+        os: ${{ fromJSON((github.base_ref == 'main' || github.ref_name == 'main') && '["ubuntu-latest","macos-latest"]' || '["macos-latest"]') }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install focused test dependencies
+        run: python -m pip install 'pytest>=9,<10' 'mcp>=1.30,<2' 'jsonschema>=4.26,<5'
+      - name: Verify milestone direct consumers
+        env:
+          PYTHONPATH: packages/capstone-agent/src:packages/capability-agent-kernel/src
+        run: |
+          test "$(readlink CLAUDE.md)" = AGENTS.md
+          python -m pytest packages/capstone-agent/tests/test_resource_permissions.py packages/capstone-agent/tests/test_managed_resource_manifest.py packages/capstone-agent/tests/test_managed_resources.py packages/capstone-agent/tests/test_managed_resource_mcp.py packages/capstone-agent/tests/test_managed_resource_installation.py -q --basetemp="${{ runner.temp }}/resource-tests"
+      - name: Check merge whitespace
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: git diff --check "$BASE_SHA" "$HEAD_SHA"
+
+  scoped_verify:
+    name: verify (${{ matrix.os }})
+    if: ${{ (github.event_name == 'workflow_dispatch') || (github.event_name == 'pull_request' && !startsWith(github.head_ref, 'milestone/')) }}
     env:
       UV_PYTHON: "3.12"
       NO_PROXY: "127.0.0.1,localhost"

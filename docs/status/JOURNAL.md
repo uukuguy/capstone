@@ -6733,3 +6733,4 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 2026-11-02: cb3f98f6 adds durable resource versions and preinstall snapshots;49b3bb25 preserves revoked-operation failures and detects metadata corruption.
 - 2026-11-02: d129b49c/c46fc2c0 verify generic MCP transport and permission rechecks; c0774749 adds verified persistent installation.
 - 2026-11-02: User selected current dev milestone; remote merge and tag pending CI approval; intranet deployment remains7ea289f2.
+- 2026-11-02: 7b754fd7 checkpoints selected dev milestone; user approved lightweight integration CI;81 focused resource checks passed.
