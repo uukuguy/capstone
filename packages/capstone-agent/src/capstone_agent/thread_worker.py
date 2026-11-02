@@ -180,8 +180,10 @@ def _close_prepared_runtime(runtime: HarnessRuntime | None) -> None:
     if runtime is not None:
         try:
             runtime.stop()
-        except Exception:
-            _LOG.warning("Prepared runtime cleanup failed")
+        except Exception as error:
+            from .native_failure_origin import native_failure_origin
+            _LOG.warning("Prepared runtime cleanup failed; exception_type=%s; origin=%s",
+                         type(error).__name__, native_failure_origin(error))
 
 
 def _preparation_failure(service: ThreadExecutionService, claim: AttemptClaim, code: str,
@@ -233,8 +235,10 @@ def serve_thread_attempts(
                 if callable(sweep):
                     try:
                         sweep()
-                    except Exception:
-                        _LOG.warning('Thread idle resource cleanup failed; retrying')
+                    except Exception as error:
+                        from .native_failure_origin import native_failure_origin
+                        _LOG.warning('Thread idle resource cleanup failed; exception_type=%s; origin=%s; retrying',
+                                     type(error).__name__, native_failure_origin(error))
                         stop.wait(1)
                         continue
                 if not wake_event.wait(timeout=1):
