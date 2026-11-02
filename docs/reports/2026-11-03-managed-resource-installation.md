@@ -1,7 +1,11 @@
 # Skills/MCP installation verification
 
-Source: `f92b3202`, following `3b25c089`. This is a local feature milestone,
-not complete acceptance of the full installation design.
+Final source candidate: `6b28807a`, following `16f29d35`, `f92b3202` and `3b25c089`.
+Final API/worker image: `9abfcd9c65cd99da113d8aa2356cfcab0640440eb3a96561b5d4bfb683ea3ff6`.
+Final native image: `a1978dffa301de7b9723139e83acdd74e896ab2654c88ab515d9773cd9f74f72`.
+Final model list task: `thr_f15b5f9a52b2c6e3dd9c`, completed7.2s and returned actual operation contracts.
+Core installation was first accepted at f92b3202. The dependency/binding/bundle batch
+was then verified at16f29d35; final contract-image verification passed.
 
 The workbench Settings menu now exposes Skills/MCP management. Installation,
 enable/disable, update, uninstall and preinstall draft/publication use the same
@@ -39,15 +43,46 @@ Evidence is under ignored `runs/managed-resources-20261103/`. No CI, push,
 remote deployment or historical business replay occurred. Scoped image/cache
 maintenance completed after rebuild; user data and existing volumes remain.
 
-Remaining work in the accepted design:
+Completion batch:
 
-- Isolated dependency environments, protected credential binding and offline
-  preinstall bundle application. These currently return explicit unsupported or
-  unavailable diagnostics; they do not report success.
-- Exact-version preinstall membership presentation after resource updates.
-- Workbench recovery controls for pending operation receipts.
-- Real-model installation and same-instruction use, beyond the verified actual
-  installer/runtime checks and model list operation.
+- 460 direct backend consumer checks passed,37 environment checks skipped (29.06s).
+  After the final operation-contract addition,170 resource checks and6SDK tests
+  passed. These suites overlap; their counts are not added together.
+- 51 App tests and TypeScript passed. Pending installation can be queried by its
+  original request ID; uncertain installation cannot be submitted again from the
+  panel. After browser reload, a saved request ID can be entered explicitly.
+- Preinstall membership now matches the exact installed version. Updating a
+  resource does not relabel its old published pin as the current version.
+- Real binary Python wheel installation, dependency import and protected MCP
+  startup passed. The wheel came from a controlled in-container HTTP fixture.
+- Real locked npm installation and Node MCP import passed. A test lifecycle script
+  remained unexecuted. No external registry was contacted.
+- Protected bindings rotate on later calls; revoked scope is rejected before
+  dispatch. Binding files and values are excluded from packages and manifests.
+- Real offline bundle import restored the exact resource version, its vendored
+  dependencies and separately bound target credentials. The fixture registry was
+  stopped and external access disabled before import. The operator export CLI passed.
+- Parameter schemas are now returned by the list operation before selection and
+  enforced by the same backend contract. The model need not guess runtime fields.
+
+Supported scope and limits:
+
+- Git acquisition uses an exact HTTP(S) commit. Credential binding currently covers
+  runtime MCP headers/environment; it does not implement private Git authentication.
+- Dependency installation supports root exact Python requirements and npm lockfiles.
+  Python source builds, undeclared transitive resolution, npm lifecycle scripts,
+  workspaces and unsupported lock formats fail explicitly.
+- Skill load returns the private dependency environment for its scripts. It does
+  not change the task's global interpreter environment.
+- Offline bundle application explicitly targets a workspace; new workspaces are
+  not automatically provisioned. Publishing a workbench draft
+  does not update other deployments. The standalone offline operator command
+  refuses remote acquisition; live remote MCP requires network-enabled verification.
+- Multi-resource application is sequential. On partial failure, earlier verified
+  installs remain; no successful application receipt is written.
+- Model routing was verified with a real list operation. Same-instruction
+  install-and-use is covered through the actual installer/runtime path, but has
+  not been verified as an end-to-end model conversation.
 
 Store schema 2 is additive and preserves schema 1 records. Old schema 1 executors
 cannot open schema 2; this milestone does not claim rollback compatibility.

@@ -6795,3 +6795,9 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 2026-11-03 f92b3202 — Verified actual Skill/MCP/Git installation, replacement-container persistence, model entry and Vivaldi management; remaining design scope recorded.
 
 - 2026-11-03 2caee426 — Record core installation acceptance and exact deployment sources; continue dependency, secret and offline bundle implementation.
+
+- 2026-11-03 16f29d35 — Add protected bindings, isolated dependencies, offline bundles and pending recovery; source checks460 backend/51App pass.
+
+- 2026-11-03 6b28807a — Publish and enforce operation contracts before selection;170 resource checks and6 SDK checks pass.
+
+- 2026-11-03 6b28807a — Final runtime accepts dependencies, binding revocation, offline restore, API contracts and7.2s model list; no CI/remote deployment.

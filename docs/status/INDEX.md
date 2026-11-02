@@ -1,6 +1,6 @@
 # docs/status INDEX
 
-2026-11-03: Skills/MCP安装核心路径本机验证通过；[报告](../reports/2026-11-03-managed-resource-installation.md)列明未完成范围。
+2026-11-03: Skills/MCP安装、受管依赖、凭据与离线包本机验证通过；[报告](../reports/2026-11-03-managed-resource-installation.md)列明未完成范围。
 
 2026-11-03: 现有Vivaldi已核对欢迎页和总览的运行来源节点、部署连线；开发摘要同步本轮四轮恢复验收。
 
