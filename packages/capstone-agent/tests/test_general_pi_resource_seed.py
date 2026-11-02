@@ -164,7 +164,7 @@ def test_native_cleanup_helper_is_in_image_and_importable(tmp_path):
     project = Path(__file__).parents[3]
     image = (project / 'deploy/general-pi.Dockerfile').read_text()
     for module in ('runtime_cleanup', 'native_failure_origin'):
-        assert f'capstone_agent/{module}.py capstone_agent/{module}.py' in image
+        assert project / f'packages/capstone-agent/src/capstone_agent/{module}.py' in {source for source, _ in image_copy_files(project)}
     package = tmp_path / 'capstone_agent'
     package.mkdir()
     (package / '__init__.py').touch()

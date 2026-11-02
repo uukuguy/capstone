@@ -1,11 +1,35 @@
 # Live Session Checkpoint
 
+2026-11-02 execution-integrity batch locally accepted. Report:
+docs/reports/2026-11-02-multiturn-execution-integrity.md. Main orchestration audit
+and fixes completed;462 focused checks passed/33 skipped plus10 image/helper checks.
+Unified rebuild passed: API/worker b79f2055; native helper packaged with combined COPY
+to remain below Docker layer limit. Live four-round model test passed: generate CSV,
+read frozen historical bytes, handle deliberate exit3, read again. HTTP snapshot
+restored before each round; browser UI refresh not visually accepted. Isolated
+PostgreSQL four rounds also prove continuation after failed business terminal.
+No CI or intranet rollout. Server remains offline by user instruction.
+Docker cleanup released about11.6GB build cache; keep volumes and running services.
+Next: align version-control register/graph, and deploy one verified bundle only when
+research server returns. Do not replay summer query for transport acceptance.
+
+
+User requires whole-audit completion before ONE rebuild/acceptance run. Do not rebuild per fix.
+Previous rebuild8c875af2 completed; c438fca6 is source-only,352 focused checks passed/32 skipped.
+Shared runtime_cleanup preserves primary exceptions while recording cleanup faults; cleanup-only
+failure still propagates. Cancellation and projection failures now log safe origins.
+Remaining: finish reviewing 103 exception sites inventoried in /tmp/capstone-exception-inventory.txt,
+resource/terminal-path audit, then consolidated rebuild and short real-model multi-turn acceptance.
+No CI, no remote connection/deployment. Do not claim overall completion.
+
+
 2026-11-02 terminal audit: cbec0d59 preserves runner errors during concurrent cancellation;
 187a8ca8 logs double persistence failures safely. Host114 passed/32 skipped;
 restart probe confirms failed terminal settlement, retained workspace and no replay.
-Local rebuild receipt /tmp/capstone-persistence-rebuild.log. Next: incremental capture
-errors currently have no diagnostic consumer; inspect and fix without converting
-recoverable live-writer races into task aborts. No CI; research server offline.
+Local rebuild receipt /tmp/capstone-persistence-rebuild.log. 2eb26aa1 adds safe incremental capture/transfer fault logs; normal close stays quiet,
+next-trigger recovery and single-attempt transfers preserved.129 checks passed/32 skipped.
+Rebuild in progress: /tmp/capstone-live-artifact-rebuild.log.
+Next: remaining exception boundaries and short real-model multi-turn acceptance. No CI; research server offline.
 
 2026-11-02 active multi-turn integrity repair: see
 `docs/reports/2026-11-02-multiturn-execution-integrity.md`.

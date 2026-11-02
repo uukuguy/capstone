@@ -76,3 +76,45 @@ settlement, workspace preservation and no replay after host restart.
 Further review found incremental capture retains only an exception class in an
 internal field that no consumer reads. Final capture remains mandatory, but this
 intermediate diagnostic gap is still open; do not claim the audit is complete.
+
+## Consolidated exception-boundary review
+
+Reviewed the main orchestration boundaries in thread_worker, harness,
+delegated_runtime, pi_delegation, general_pi_server, continuation_resources,
+and both incremental artifact workers. The inventory contains 103 catch sites.
+Input rejection, typed transport recovery, reference integrity rejection and
+unknown-outcome replay fences remain enforced. They are not converted into
+successful business outcomes. c438fca6 adds shared cleanup handling: an active
+execution exception remains primary; a secondary cleanup exception is logged
+with safe coordinates. Cleanup failure without an active execution exception
+still propagates. Session callbacks, business runtime stop, native process stop,
+relay/gateway revocation and worker-factory close use this handling.
+
+Cancellation failures and unexpected optional projection failures now retain
+safe diagnostic origins. Normal optional absence remains optional; no retry or
+fabricated success was added. Consolidated focused checks passed 462 cases,
+with 33 skipped. Unified rebuild and a bounded live-model four-turn check are
+in progress; these tests alone do not establish live acceptance.
+
+## Local integrated acceptance
+
+Unified rebuild passed with API/worker image
+sha256:b79f2055b1aa9c4cfc2eb1c6920e1ffd760ee39e512a0d0e2fdb637d7ec28f7c.
+Rebuild exposed and fixed a missing runtime_cleanup image COPY and the native
+image layer limit; adjacent helper copies now share one layer. Isolated image
+imports pass. Docker replacement debris was removed without removing volumes.
+
+Live model thread thr_c2778f7072c571b40524 completed four HTTP command rounds:
+1. Create verify.csv containing alpha,7 (6.2 seconds).
+2. Read the admitted historical resource and confirm 7 (8.2 seconds).
+3. Execute one deliberate bash exit3 and explain the failed tool outcome (8.2 seconds).
+4. Read the same historical resource after that failed tool and confirm 7 (8.2 seconds).
+Every round completed and released current_attempt. Each next command reloaded
+the HTTP snapshot. This verifies API restore, not visual browser refresh. Saved
+records are under runs/execution-integrity-20261102/live-multiturn. The separate
+isolated PostgreSQL test covers continuation after a failed business terminal.
+No summer business query, remote deployment or CI was run.
+
+Scoped Docker cache maintenance reduced build-cache size from109.6GB to98.01GB.
+Images, persistent volumes and running environments were preserved. Many orphan
+historical validation volumes remain intentionally retained pending data review.
