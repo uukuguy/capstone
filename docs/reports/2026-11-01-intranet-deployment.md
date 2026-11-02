@@ -130,3 +130,27 @@ it when a product is available. Manual scope changes remain respected.
 23 execution regression checks and types passed. API readiness and the served
 App revision pass; backend/native remain601b5909. No task replay or CI.
 Rollback: runtime.env.before-app-939a4d74. Browser unavailable in this session.
+
+## Summer audit corrections — 70c42dab
+
+API, worker, native executor and App now use source70c42dab. Report CLI was
+non-executable in the prior intranet source overlay. Its source now records
+executable mode, and direct invocation is tested. A standalone image check
+under UID10001 generated HTML and PPT without a network or business inputs.
+Opening-purpose parsing now tolerates leading blank stream chunks, preserves
+the explicit first comment, and never infers purpose from reasoning.
+44 focused App and44 Python/report checks plus types pass. A real new Qwen
+short task completed; its persisted response_completed includes
+response_intent=核对目的留存. Historical business requests were not replayed.
+
+All four application services are healthy. API/worker share image
+53d6ddbeac92b8801418e550cf8832c9e1f29c894da42341265b10494ca96e71.
+Native image222caba11f2056a0db8a238ed9bcdf79e4911e3c5683c34174588d8221dc05d1;
+App imagebf1f670ede68d6485ac550c86840ec53312d202ee254a152036de881358f8446.
+Rollback environment: runtime.env.before-audit-70c42dab. Browser unavailable;
+no visual acceptance claimed. Canonical local rebuild passed; API/worker image
+ee32e807805b58323c49867541194a686c6dc2ea8d495f3ec7cb41d3fac0a313.
+Scoped cleanup receipt: cache-maintenance-20261102-164014-90285.log. No CI.
+See2026-11-02-intranet-summer-chain-audit.md for measured timings, limitations
+and gateway investigation inputs. General planning and context optimizations
+remain pending; these two corrections do not claim to solve all chain issues.

@@ -815,3 +815,5 @@ Model configuration update (2026-11-02): VERSION-CONTROL records Qwen3.8-Flash-N
 Intranet deployment update (2026-11-02): VERSION-CONTROL records active source601b5909 and the verified Qwen CSV task.
 
 App timing update (2026-11-02): VERSION-CONTROL records intranet App939a4d74 and delayed artifact-panel opening.
+
+Summer chain audit (2026-11-02): VERSION-CONTROL records70c42dab rollout, measured comparison and gateway handoff in docs/reports/2026-11-02-intranet-summer-chain-audit.md.

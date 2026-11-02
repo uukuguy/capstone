@@ -1,5 +1,10 @@
 # 多线版本控制
 
+2026-11-02 [内网迎峰度夏链路审计](../reports/2026-11-02-intranet-summer-chain-audit.md)：两次均63次LLM，Qwen输出80109token、dsv4输出31457token；未发生上下文压缩。
+70c42dab修复前导空行导致目的说明丢失，并修复报告CLI执行权限；44项App、44项Python检查及类型通过。
+本机规范重建与内网更新通过，非特权UID生成HTML/PPT、新Qwen任务目的说明持久保存通过。
+网关气象错误与长窗超时已有协查参数；通用取数预检、观察复用、产物构建前置检查尚待实施。无CI。
+
 2026-11-02 前端939a4d74恢复制品到达后再展开右栏，23项执行回归与类型通过。
 内网App已更新且ready；后端/执行器保持601b5909。无CI，未做浏览器视觉验收。
 
@@ -1457,7 +1462,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
 | local-dev | App `6470c554`；后端源码未变 | ready通过；API/worker同镜像286db9663be85944bb8b643ffa170ae23dfa4970baa9e684dad1b9cedce7df2b | 53项制品联动、133项回答组件与类型通过；浏览器最新主要制品及复制优先通过；无CI |
-| intranet-dev | App `939a4d74`；后端/执行器 `601b5909`；Qwen3.8-Flash-Next默认 | 四应用服务healthy；API/worker同镜像1a04d3fbc7e3968473d6de1637bbe6091033d4951aaf3057a1488baccd07b460 | App http://192.168.72.63:5173/；24.8秒CSV真实任务及下载哈希通过；浏览器不可用；[部署记录](../reports/2026-11-01-intranet-deployment.md) |
+| intranet-dev | API/worker/native/App `70c42dab`；Qwen3.8-Flash-Next默认 | 四应用服务healthy；API/worker同镜像53d6ddbe；目的留存及UID10001报告生成通过 | App http://192.168.72.63:5173/；[审计](../reports/2026-11-02-intranet-summer-chain-audit.md)；未重跑业务/未做视觉验收 |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |
 | cloud-dev | `24d9a32`，开发试用候选；已推送标签cloud-dev-20261013-1045-24d9a32 | 用户授权的基本功能检查通过：四角色SUCCESS、API就绪、前端来源与真实中文对话；非正式发布或科学解释验收 | App https://capstone-app-production-83ef.up.railway.app/；[部署记录](../reviews/2026-10-13-cloud-dev-autonomous-trial.md)；demo不变 |
 | cloud-demo | App/API/两worker `faa6af9` | 四角色SUCCESS；三后端身份与dev本地529文件验收一致，安装工件与受检候选一致；三用例九轮、报告证据回放通过；local-demo已同源验收；正式标签demo-20261014-2028-faa6af9已推送 | App https://capstone-app-production-975e.up.railway.app/；上一正式标签demo-20261014-0744-bd2a200；双平台完整发布38554987581通过；cloud-dev不动 |

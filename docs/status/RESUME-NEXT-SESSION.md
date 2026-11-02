@@ -1,5 +1,17 @@
 # Live Session Checkpoint
 
+2026-11-02 summer chain audit: docs/reports/2026-11-02-intranet-summer-chain-audit.md.
+Both63LLM; Qwen22m49s/80109output tokens/195tool events versus dsv4
+15m22s/31457output/74tool events. Actual PPTs verified: Qwen16pages/6pictures/3tables;
+dsv4 11page data-availability assessment/0pictures/2tables. Prompts differ.
+70c42dab fixes blank-prefix explicit purpose retention and report executable mode;
+44App+44Python tests, types, canonical rebuild and intranet rollout pass.
+UID10001 directly generated HTML/PPT; new Qwen saved response_intent survives completion.
+Gateway weather errors and long-window timeout have saved parameters/request IDs in audit.
+Generic batch preflight, observation reuse and construction checks remain pending.
+No business replay or CI; browser unavailable. Original installation feature remains incomplete.
+
+
 App939a4d74 delays right-panel auto-open until a generated primary product arrives.
 23 execution tests and types pass; intranet App updated and API ready;
 backend/native remain601b5909. Browser unavailable; no CI.
