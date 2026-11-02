@@ -1,5 +1,10 @@
 # Live Session Checkpoint
 
+App939a4d74 delays right-panel auto-open until a generated primary product arrives.
+23 execution tests and types pass; intranet App updated and API ready;
+backend/native remain601b5909. Browser unavailable; no CI.
+
+
 Qwen3.8-Flash-Next registered at192.168.72.69:8013/v1, intranet default.
 Models endpoint reports262144 context;28 focused tests pass,1 skips; local/intranet
 Compose preset resolution passes. Canonical local rebuild and intranet deployment

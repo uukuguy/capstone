@@ -6744,3 +6744,5 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 2026-11-02: 601b5909 deploys Qwen-default intranet images; readiness, shared backend identity and24.8s CSV download passed; browser unavailable.
 - 2026-11-02: e5dba4b2 records active601b5909 intranet images, verified Qwen task and retained rollback configuration.
 - 2026-11-02: Delay automatic artifact-panel opening until a product arrives;23 execution checks and types pass.
+- 2026-11-02: 939a4d74 delays panel opening until products arrive;23 checks pass; intranet App updated without restarting backend.
+- 2026-11-02: Canonical local rebuild for939a4d74 passed; backend image9d1aac23 unchanged; scoped cleanup receipt155454-34538 retained.

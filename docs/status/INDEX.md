@@ -813,3 +813,5 @@ Milestone update (2026-11-02): VERSION-CONTROL records PR84/85, focused CI and a
 Model configuration update (2026-11-02): VERSION-CONTROL records Qwen3.8-Flash-Next registration and intranet defaults; not deployed.
 
 Intranet deployment update (2026-11-02): VERSION-CONTROL records active source601b5909 and the verified Qwen CSV task.
+
+App timing update (2026-11-02): VERSION-CONTROL records intranet App939a4d74 and delayed artifact-panel opening.

@@ -121,3 +121,12 @@ visual acceptance was not performed. No CI or historical business replay.
 Canonical local rebuild also passed with API/worker image `9d1aac231841012645367cb39991b75ee3209146cc2b359fd07ee61e5354f495`;
 scoped cleanup receipt: `.capstone-agent/cache-maintenance-20261102-153322-97910.log`.
 Managed-installation runtime/API/UI integration remains pending.
+
+## Artifact panel timing — App939a4d74
+
+The intranet App now serves939a4d74. Starting an instruction selects its product
+scope without opening the right panel. The existing primary-product event opens
+it when a product is available. Manual scope changes remain respected.
+23 execution regression checks and types passed. API readiness and the served
+App revision pass; backend/native remain601b5909. No task replay or CI.
+Rollback: runtime.env.before-app-939a4d74. Browser unavailable in this session.
