@@ -23,6 +23,27 @@ def claim():
             binding=SimpleNamespace(work_id='work_files', thread_id='thr_files')))
 
 
+@pytest.mark.parametrize('change,accepted', [({}, True), ({'saved_at': 'saved'}, True),
+    ({'saved_at': 'changed'}, False), ({'sha256': 'changed'}, False),
+    ({'attempt_id': 'foreign'}, False), ({'reference': 'changed'}, False)])
+def test_frozen_descriptor_allows_only_missing_display_timestamp(monkeypatch, change, accepted):
+    import capstone_agent.native_artifact_projection as module
+    artifact_id = 'file-' + 'a' * 16 + '-' + 'b' * 64
+    frozen = {'artifact_id': artifact_id, 'sha256': 'digest', 'attempt_id': 'attempt', 'reference': 'original'}
+    expected = {**frozen, **change}
+    monkeypatch.setattr(module, 'native_artifact_page', lambda *args, **kwargs: {
+        'artifacts': [{**frozen, 'saved_at': 'saved'}], 'has_more': False, 'next_after': 1})
+    reads = []
+    monkeypatch.setattr(module, 'retain_native_artifact', lambda *args: reads.append(args) or b'original')
+    if accepted:
+        assert module.read_native_artifact(object(), None, 'thread', 'attempt', artifact_id,
+                                          expected_descriptor=expected)[1] == b'original'
+    else:
+        with pytest.raises(KeyError):
+            module.read_native_artifact(object(), None, 'thread', 'attempt', artifact_id, expected_descriptor=expected)
+        assert not reads
+
+
 def test_native_file_bytes_cross_real_protected_host_and_thread_route(tmp_path):
     data = b'# Real generated report\n\nA saved answer.\n'
     def generate(request, *_):

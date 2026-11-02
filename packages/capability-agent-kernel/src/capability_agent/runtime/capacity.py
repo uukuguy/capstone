@@ -22,13 +22,17 @@ _mode = 'normal'
 
 
 def runtime_limits(overrides: Mapping[str, int] | None = None) -> Mapping[str, int]:
-    result = dict(_initialized)
+    return _resolve_runtime_limits(_initialized, overrides)
+
+
+def _resolve_runtime_limits(base, overrides):
+    result = dict(base)
     if overrides is not None:
         if not isinstance(overrides, Mapping):
             raise ValueError('runtime_limits must be a mapping')
         for name, value in overrides.items():
             if (not isinstance(name, str) or type(value) is not int
-                    or value < (0 if name == 'provider_stream_bytes' else 1) or value > 2**53 - 1):
+                    or value < (0 if name in {'provider_stream_bytes', 'mcp_call_count'} else 1) or value > 2**53 - 1):
                 raise ValueError(f'invalid runtime capacity: {name}')
             result[name] = value
     return MappingProxyType(result)
@@ -43,7 +47,9 @@ def initialize_runtime_limits(overrides: Mapping[str,int] | None = None, *, mode
     global _initialized, _mode
     if mode not in {'normal', 'debug'}:
         raise ValueError('runtime limit mode must be normal or debug')
-    resolved=runtime_limits(overrides)
+    # A new application selection starts from defaults, never a previous
+    # application's partial overrides. Match JavaScript initialization.
+    resolved = _resolve_runtime_limits(DEFAULT_RUNTIME_LIMITS, overrides)
     _initialized, _mode=resolved, mode
     return _initialized
 
@@ -65,15 +71,13 @@ class CapacityExceeded(ValueError):
 
 
 def check_capacity(limits: Mapping[str, int], dimension: str, actual: int, *, unit: str, phase: str) -> None:
-    if actual > limits[dimension]:
+    if actual > limits[dimension] and not (dimension in {'provider_stream_bytes', 'mcp_call_count'} and limits[dimension] == 0):
         raise CapacityExceeded(dimension, actual, limits[dimension], unit=unit, phase=phase)
 
 
 def observe_capacity(dimension: str, actual: int, *, phase: str | None = None,
                      unit: str = 'items', limits: Mapping[str, int] | None = None) -> bool:
-    """Observe a soft boundary; debug interrupts before any recovery or omission."""
+    """Observe soft pressure in either mode; hard boundaries use check_capacity."""
     selected = runtime_limits() if limits is None else limits
-    exceeded = actual > selected[dimension]
-    if exceeded and runtime_limit_mode() == 'debug':
-        check_capacity(selected, dimension, actual, unit=unit, phase=phase or 'capacity')
+    exceeded = actual > selected[dimension] and not (dimension in {'provider_stream_bytes', 'mcp_call_count'} and selected[dimension] == 0)
     return exceeded

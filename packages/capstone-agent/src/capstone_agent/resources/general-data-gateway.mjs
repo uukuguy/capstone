@@ -27,7 +27,15 @@ export async function validateGatewayBatch(config,calls,{signal,fetchImpl=global
     body:JSON.stringify({operation:'validate_batch',calls}),
     signal:signal?AbortSignal.any([signal,deadline]):deadline});
   const result=await response.json();
-  if(!response.ok)throw Error('Batch preflight failed; no calls executed; '+(publicErrors.has(result.error)?result.error:'gateway_request_failed'));
+  if(!response.ok){
+    const capacity=result.capacity;
+    const bounds=result.error==='capacity_exceeded'&&result.executed===false&&
+      capacity?.dimension==='rpc_batch_requests'&&Number.isSafeInteger(capacity.actual)&&
+      Number.isSafeInteger(capacity.limit)&&capacity.limit>0?
+      `; rpc_batch_requests: actual=${capacity.actual}, limit=${capacity.limit}; split into smaller batches and validate again`:'';
+    throw Error('Batch preflight failed; no calls executed; '+
+      (publicErrors.has(result.error)?result.error:'gateway_request_failed')+bounds);
+  }
   if(result.schema!=='capstone-gateway-preflight/1'||result.catalog_revision!==gateway.catalog.revision||
       result.executed!==false||typeof result.valid!=='boolean'||!Array.isArray(result.errors)||
       result.valid!==(result.errors.length===0))throw Error('Batch preflight receipt identity changed; no calls executed');

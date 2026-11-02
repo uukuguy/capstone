@@ -22,6 +22,20 @@ def test_initialization_changes_already_imported_consumers():
         selected.values['artifact_file_bytes'] = 1
 
 
+def test_mcp_total_call_budget_is_optional_and_positive_budget_is_exact():
+    initialize_capacity({'mcp_call_count': 0})
+    from capstone_agent.application_capacity import observe_capacity
+    assert observe_capacity('mcp_call_count', 1025) is False
+    for count in range(1, 1026):
+        require_capacity('mcp_call_count', count, 'mcp_call')
+    initialize_capacity({'mcp_call_count': 2})
+    require_capacity('mcp_call_count', 2, 'mcp_call')
+    with pytest.raises(CapacityExceeded) as caught:
+        require_capacity('mcp_call_count', 3, 'mcp_call')
+    assert caught.value.dimension == 'mcp_call_count'
+    assert caught.value.limit == 2
+
+
 @pytest.mark.parametrize('override', [{'unknown': 1}, {'artifact_count': True},
     {'artifact_count': 0}, {'artifact_count': -1}, {'artifact_count': 1.5}])
 def test_rejects_invalid_initialization(override):
@@ -46,7 +60,7 @@ def test_capacity_error_has_safe_actual_and_configured_values():
     require_capacity('provider_stream_bytes', 100_000_000)
 
 
-def test_debug_mode_interrupts_soft_exceedance_and_is_fingerprinted():
+def test_debug_mode_preserves_soft_recovery_and_hard_limits_and_is_fingerprinted():
     from capstone_agent.application_capacity import observe_capacity
     normal = initialize_capacity({'artifact_count': 2})
     assert observe_capacity('artifact_count', 3, 'publication') is True
@@ -54,8 +68,9 @@ def test_debug_mode_interrupts_soft_exceedance_and_is_fingerprinted():
     assert debug.mode == 'debug'
     assert debug.fingerprint != normal.fingerprint
     assert debug.to_document()['mode'] == 'debug'
+    assert observe_capacity('artifact_count', 3, 'publication') is True
     with pytest.raises(CapacityExceeded) as caught:
-        observe_capacity('artifact_count', 3, 'publication')
+        require_capacity('artifact_count', 3, 'publication')
     assert caught.value.to_document()['fatal'] is True
     assert caught.value.to_document()['mode'] == 'debug'
 

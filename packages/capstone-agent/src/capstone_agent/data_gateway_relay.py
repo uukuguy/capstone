@@ -137,7 +137,7 @@ class DataGatewayAccess:
         from jsonschema.exceptions import ValidationError
         if not isinstance(calls, list) or not calls:
             raise GatewayError('gateway_request_invalid')
-        require_capacity('mcp_call_count', len(calls), 'gateway_batch_preflight')
+        require_capacity('rpc_batch_requests', len(calls), 'gateway_batch_preflight')
         with self._lock:
             record = self._tasks.get(task_id)
             if record is None:

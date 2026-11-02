@@ -187,6 +187,15 @@ def retain_native_artifact(objects, executor, item, *, check=lambda:None):
     return data
 
 
+def _matches_frozen_descriptor(item, expected):
+    actual = dict(item)
+    # Older ledger descriptors predate this display timestamp. All ownership,
+    # reference and byte-identity fields must still match the frozen receipt.
+    if 'saved_at' not in expected:
+        actual.pop('saved_at', None)
+    return actual == dict(expected)
+
+
 def read_native_artifact(service, executor, thread_id, attempt_id, artifact_id, *, objects=None, expected_descriptor=None):
     """Authorize against durable process ownership before private host access."""
     _id(artifact_id)
@@ -197,7 +206,7 @@ def read_native_artifact(service, executor, thread_id, attempt_id, artifact_id, 
         # Continuations freeze a specific trusted ledger receipt. Earlier live
         # receipts and later presentation enrichment must not replace that view.
         item = next((item for item in page['artifacts'] if item['artifact_id'] == artifact_id
-                     and (expected_descriptor is None or dict(item) == dict(expected_descriptor))), None)
+                     and (expected_descriptor is None or _matches_frozen_descriptor(item, expected_descriptor))), None)
         if item is not None:
             if objects is None:
                 objects = getattr(service, '_material_objects', None)

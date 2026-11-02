@@ -6749,3 +6749,5 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 2026-11-02: ebd12744 records939a4d74 local/intranet App rollout and verified artifact-panel timing.
 - 2026-11-02: Summer audit reproduces blank-prefix intent loss and non-executable report CLI;44 App and44 Python checks pass after fixes.
 - 2026-11-02: 70c42dab deployed; nonprivileged reports and durable model purpose pass; summer audit retains timings, benchmark and gateway requests.
+- 2026-11-02: 54e33dbf preserves summer execution comparison, measured model speeds, verified fixes and gateway investigation inputs.
+- 2026-11-02: Capacity recovery and pre-call disclosure pass focused checks; relay queues, optional MCP budget and debug recovery replace task-aborting limits.

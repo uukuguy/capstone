@@ -355,9 +355,6 @@ class GeneralPiHost:
 
     def _make_room(self):
         if len(self._tasks) >= self._max_records:
-            if current_capacity().mode == 'debug':
-                raise CapacityExceeded('native_record_count', len(self._tasks) + 1, self._max_records,
-                                       'native_record_admission', mode='debug')
             completed = next((key for key, item in self._tasks.items()
                               if item['status'] not in {'queued', 'running'}), None)
             if completed is None:
@@ -1117,6 +1114,21 @@ class NativeTaskRunner:
                 sdk_config['runtimeEnvironment'] = self.environment_context
                 sdk_config.setdefault('contextFiles', []).append({
                     'path': 'verified-programming-environment', 'content': self.environment_context})
+            from .capacity_contract import capacity_contract, capacity_model_guidance
+            selected_context = profile.get('context_policy') if profile else None
+            task_capacity = capacity_contract(context_policy=selected_context)
+            task_capacity['execution'] = {
+                'timeout_seconds': request.timeout_seconds, 'deadline_at_ms': sdk_config['deadlineAt'],
+                'source': 'accepted_task_request'}
+            sdk_config.setdefault('contextFiles', []).append({
+                'path': 'effective-runtime-capacity',
+                'content': capacity_model_guidance(context_policy=selected_context)
+                    + '\nAccepted task deadline: ' + str(request.timeout_seconds) + ' seconds; deadline_at_ms='
+                    + str(sdk_config['deadlineAt'])
+                    + '. Exact units, protections and recovery notes are in .runtime-capacity.json. '
+                    'Read the relevant fields before selecting large calls or files. This file is '
+                    'informational; editing it does not change host-enforced limits. '
+                    'Tool JSON schemas and published composition limits also apply before execution.'})
             task_gateway = self.gateway
             frozen_gateway = (document.get('native_context') or {}).get('gateway_binding')
             if frozen_gateway is not None:
@@ -1343,6 +1355,9 @@ class NativeTaskRunner:
                 context_extension=Path(__file__).parent / 'resources' / 'general-context.mjs',
                 sdk_config=sdk_config, context_policy=profile.get('context_policy') if profile else None,
                 **launch_options)
+            capacity_path = workspace / '.runtime-capacity.json'
+            capacity_path.write_text(json.dumps(task_capacity, ensure_ascii=False, indent=2))
+            capacity_path.chmod(0o444)
             for path in [workspace, *workspace.rglob('*')]:
                 os.chown(path, uid, uid)
             for path in [inputs, *inputs.rglob('*')]:
@@ -1727,7 +1742,7 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
             task_id = parts[2]
             grant = self.headers.get('Authorization', '').removeprefix('Bearer ')
             try:
-                lease = runner.relay.acquire(task_id, grant, self.connection)
+                lease = runner.relay.acquire(task_id, grant, self.connection, channel='gateway')
             except PermissionError:
                 return self.send_json(401, {'error': 'unauthorized'})
             except CapacityExceeded as error:
@@ -1735,17 +1750,20 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                     host.interrupt_capacity(task_id, error)
                     runner.relay.revoke(task_id)
                 return self.send_json(503, {'error': 'capacity_exceeded', 'capacity': error.to_document()})
+            preflight = False
             try:
                 length = int(self.headers.get('Content-Length', '0'))
                 if not 0 < length <= limits.mcp_frame_bytes:
                     raise GatewayError('gateway_request_invalid')
                 document = json.loads(self.rfile.read(length))
+                preflight = (isinstance(document, dict) and set(document) == {'operation', 'calls'}
+                             and document['operation'] == 'validate_batch')
                 async def forward():
                     lease.loop, lease.task = asyncio.get_running_loop(), asyncio.current_task()
                     if lease.cancelled.is_set():
                         raise asyncio.CancelledError()
                     async with asyncio.timeout(max(.001, lease.deadline - time.monotonic())):
-                        if isinstance(document, dict) and set(document) == {'operation', 'calls'} and document['operation'] == 'validate_batch':
+                        if preflight:
                             return gateway.validate_batch(task_id, document['calls'])
                         return await gateway.call(task_id, document)
                 self.send_json(200, run_http(forward()))
@@ -1753,6 +1771,11 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 self.send_json(400, {'error': str(error), **({'executed': False,
                     'validation_errors': error.validation_errors} if error.validation_errors else {})})
             except CapacityExceeded as error:
+                if preflight:
+                    # No gateway call was started. Let the model correct this batch.
+                    return self.send_json(400, {'error': 'capacity_exceeded', 'executed': False,
+                        'capacity': {**error.to_document(), 'fatal': False},
+                        'recovery': 'Split calls into batches within the declared limit, then validate again.'})
                 if error.mode == 'debug':
                     host.interrupt_capacity(task_id, error)
                     runner.relay.revoke(task_id)
@@ -1869,6 +1892,8 @@ def main():
                       + current_capacity().fingerprint.encode())
     from .native_environment import environment_context
     revision.update((environment_context() or '').encode())
+    from .capacity_contract import load_capacity_policy
+    revision.update(json.dumps(load_capacity_policy(), sort_keys=True, separators=(',', ':')).encode())
     # Gateway publications can change independently of the executor, including
     # between service restarts. Each task binds its gateway catalog separately;
     # mutable discovery metadata must not invalidate the executor identity.
@@ -1883,7 +1908,7 @@ def main():
                                  'progress.py', 'answer_presentation.py', 'native_tool_diagnostics.py', 'stream_progress.py', 'resource_manifest.py', 'native_resource_staging.py', 'native_resource_references.py',
                                  'native_research_bridge.py', 'native_graph_context.py', 'native_graph_events.py',
                                  'native_product_roles.py', 'continuation_resources.py', 'resources/general-research.mjs', 'resources/research-guidance.mjs',
-                                 'application_capacity.py', 'resources/application-capacity.json', 'resources/runtime-limits.mjs',
+                                 'application_capacity.py', 'capacity_contract.py', 'resources/application-capacity.json', 'resources/runtime-limits.mjs',
                                  'resources/research-tools.mjs', 'resources/execution-guidance.mjs', 'resources/model-request-capture.mjs',
                                  'resources/general-context.mjs', 'resources/general-sdk.mjs', 'resources/general-tool-discovery.mjs', 'resources/tool-result-context.mjs', 'resources/committed-delivery.mjs', 'resources/systematic-diagnosis.mjs', 'resources/general-mcp.mjs', 'resources/task-record-tools.mjs', 'resources/resource-reference-tools.mjs',
                                  'resources/tool-composition.mjs', 'resources/tool-composition-worker.mjs', 'resources/observed-action.mjs', 'resources/tool-identity.mjs', 'resources/tool-composition-policy.json', 'resources/semantic-data-context.mjs', 'resources/observation-data.mjs', 'resources/gateway-tool-use.mjs',

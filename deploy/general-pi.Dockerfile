@@ -65,6 +65,8 @@ COPY packages/capstone-agent/src/capstone_agent/native_network_policy.py capston
 COPY packages/capstone-agent/src/capstone_agent/native_environment.py capstone_agent/native_environment.py
 COPY packages/capstone-agent/src/capstone_agent/general_pi_server.py capstone_agent/general_pi_server.py
 COPY packages/capstone-agent/src/capstone_agent/resource_permissions.py capstone_agent/resource_permissions.py
+COPY packages/capstone-agent/src/capstone_agent/capacity_contract.py capstone_agent/capacity_contract.py
+COPY configs/runtime/capacity-policy.json configs/runtime/capacity-policy.json
 COPY configs/runtime/resource-permissions.json configs/runtime/resource-permissions.json
 COPY packages/capability-agent-kernel/src/capability_agent/runtime/step_events.py capstone_runtime_events.py
 COPY packages/capstone-agent/src/capstone_agent/general_pi_storage.py capstone_agent/general_pi_storage.py

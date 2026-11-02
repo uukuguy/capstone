@@ -172,32 +172,19 @@ export function createIsolatedNativeTools(sdk,cwd){
   return sdk.createCodingTools(cwd,{bash:{commandPrefix:'set -o pipefail'}});
 }
 
-// The SDK normally catches tool errors and asks the model to repair them.
-// Debug capacity is a task interruption, including when it occurs in a child.
-const debugSessions=new Map(),debugRuntimes=new Map();
-let debugFailure;
-function interruptDebugCapacity(){if(debugFailure)throw debugFailure;}
-function bindDebugCapacityAbort(session,runtime,mode,recoverCapacity=false){
-  // Cohesive tasks report local capacity failures through their result contract.
-  // They must never register the legacy process-wide abort listener.
-  if(mode!=='debug'||recoverCapacity)return ()=>{};
-  let state=debugRuntimes.get(runtime);
-  if(!state){
-    const original=runtime.streamSimple;
-    const guarded=function(...args){interruptDebugCapacity();return original.apply(this,args);};
-    state={original,guarded,count:0};debugRuntimes.set(runtime,state);runtime.streamSimple=guarded;
-  }
-  state.count++;
-  const unsubscribe=onDebugCapacityExceeded(error=>{
-    debugFailure??=error;
-    for(const active of debugSessions.keys())Promise.resolve(active.abort()).catch(()=>{});
+// Per-call capacity errors stay in the SDK repair loop. Debug adds bounded
+// diagnostics; it must not cancel sibling sessions or replace model transport.
+let debugDiagnosticUsers=0,releaseDebugDiagnostics;
+function bindDebugCapacityDiagnostics(mode){
+  if(mode!=='debug')return ()=>{};
+  if(debugDiagnosticUsers++===0)releaseDebugDiagnostics=onDebugCapacityExceeded(error=>{
+    const text=value=>typeof value==='string'?value.slice(0,128):undefined;
+    process.stderr.write(JSON.stringify({type:'capacity_diagnostic',code:'capacity_exceeded',mode:'debug',
+      dimension:text(error.dimension),actual:error.actual,limit:error.limit,
+      unit:text(error.unit),phase:text(error.phase)})+'\n');
   });
-  debugSessions.set(session,true);
-  return ()=>{
-    unsubscribe();debugSessions.delete(session);
-    if(--state.count===0){if(runtime.streamSimple===state.guarded)runtime.streamSimple=state.original;debugRuntimes.delete(runtime);}
-    if(debugSessions.size===0)debugFailure=undefined;
-  };
+  let released=false;
+  return ()=>{if(released)return;released=true;if(--debugDiagnosticUsers===0){releaseDebugDiagnostics();releaseDebugDiagnostics=undefined;}};
 }
 
 // One protected process executes one accepted native task. File-based extensions
@@ -349,7 +336,6 @@ export function guardToolExecution(tool, admit) {
   const toolName = tool.name;
   const execute = tool.execute.bind(tool);
   return { ...tool, async execute(toolCallId, params, signal, onUpdate, ...context) {
-    interruptDebugCapacity();
     signal?.throwIfAborted();
     const args = freezeArguments(structuredClone(params));
     const decision = await admit({ toolName, toolCallId, args }, signal);
@@ -360,7 +346,6 @@ export function guardToolExecution(tool, admit) {
       throw new Error(typeof decision?.reason === "string" && decision.reason.trim()
         ? decision.reason : "Host did not admit this tool action");
     }
-    interruptDebugCapacity();
     return execute(toolCallId, structuredClone(args), signal, onUpdate, ...context);
   } };
 }
@@ -589,10 +574,8 @@ export async function runSettledPrompt(session, input, skillName, emit, continua
     let next = input;
     const completedMessages = [];
     while (true) {
-      interruptDebugCapacity();
       const observedStart=observedAssistants.length;
       await promptInput(session, next, skillName);
-      interruptDebugCapacity();
       if (!terminal) throw new Error("Native session did not publish completion");
       if(control.failure?.()){
         const failure=control.failure();
@@ -634,8 +617,7 @@ export async function runSettledPrompt(session, input, skillName, emit, continua
     terminal = {...terminal, messages: completedMessages.map((message, index) =>
       index === completedMessages.length - 1 ? message : {...message, content:[]})};
     emit(terminal);
-  } catch(error) {interruptDebugCapacity();throw error;}
-  finally { unsubscribe(); }
+  } finally { unsubscribe(); }
 }
 
 // Factory supplied to the pinned subagent runner. Child sessions reuse the
@@ -754,7 +736,7 @@ export async function createManagedChildSession(config, sdk, modelRuntime,
       activity:'end',tool_name:event.toolName,tool_call_id:scoped,is_error:true,
       result:rpcEvent(event).result??{content:[{type:'text',text:'The SDK reported failure before native tool entry.'}],details:{}}});
   }):undefined;
-  const releaseDebug=bindDebugCapacityAbort(session,modelRuntime,config.runtimeLimitMode,config.researchRuntime?.lightweightTaskNodes===true);
+  const releaseDebug=bindDebugCapacityDiagnostics(config.runtimeLimitMode);
   let closed = false;
   const close = async () => {
     if (closed) return;
@@ -769,7 +751,7 @@ export async function createManagedChildSession(config, sdk, modelRuntime,
     discovery?.installSession(session);
     signal?.throwIfAborted();
     return {session, close};
-  } catch(error) {const fatal=debugFailure;await close();throw fatal??error;}
+  } catch(error) {await close();throw error;}
 }
 
 async function childProductSelections(cwd,config,taskReturn){
@@ -1492,7 +1474,7 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
     }
     llmPool.acknowledge(ids);
   }):()=>{};
-  const releaseDebug=bindDebugCapacityAbort(session,modelRuntime,config.runtimeLimitMode,config.researchRuntime?.lightweightTaskNodes===true);
+  const releaseDebug=bindDebugCapacityDiagnostics(config.runtimeLimitMode);
   try {
     await session.bindExtensions({ onError: () => { throw new Error("Native extension failed"); } });
     if (config.applicationPolicy) {
@@ -1518,8 +1500,7 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
       break;
     }
     lines.close();
-  } catch(error) {interruptDebugCapacity();throw error;}
-  finally {
+  } finally {
     stopModelTurn();
     stopPoolConsumption();
     try{await llmPool?.close()}finally{await modelRequestPool?.close()}

@@ -1,5 +1,15 @@
 # Live Session Checkpoint
 
+2026-11-02 capacity correction: see docs/reports/2026-11-02-capacity-recovery-audit.md.
+Relay model/gateway slots separated; gateway concurrency four queues 28 calls in
+normal/debug. MCP total budget defaults to unlimited; positive budgets remain.
+Soft recovery works in debug; safe preflight returns exact bounds without revoking
+the task. All model-visible effective bounds are injected before the first call;
+full 171-dimension contract is task-local. Python279 passed/34 skipped; App116,
+types, SDK9 and gatewayJS13 passed. No CI or summer replay. Rebuild/deployment
+pending at this checkpoint. Large-product streaming, durable receipt/history
+paging and sizing reviews remain open; do not claim all defaults validated.
+
 2026-11-02 summer chain audit: docs/reports/2026-11-02-intranet-summer-chain-audit.md.
 Both63LLM; Qwen22m49s/80109output tokens/195tool events versus dsv4
 15m22s/31457output/74tool events. Actual PPTs verified: Qwen16pages/6pictures/3tables;

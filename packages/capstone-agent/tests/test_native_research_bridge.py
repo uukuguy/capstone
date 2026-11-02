@@ -184,6 +184,7 @@ def test_child_diagnostics_are_projected_without_raw_frames_or_secrets(tmp_path)
              'result': {'content': [{'type': 'text', 'text': 'ModuleNotFoundError: scipy'}]}}
     projected = checked_branch_progress(event, **kwargs)
     assert projected['tool_activity'] == {'operation': 'python analysis.py',
+                                         'input_excerpt': '{"command":"python analysis.py"}',
                                          'output_excerpt': 'ModuleNotFoundError: scipy'}
     assert 'args' not in projected and 'result' not in projected
     event['result']['content'][0]['text'] = 'api_key=private-value'
@@ -705,7 +706,8 @@ def test_real_sdk_research_updates_reach_next_model_request_and_original_files(t
             *('material:' + item['material_id'] + ':' + item['sha256']
               for item in accepted.get('selectedTaskMaterials', [])),
             *(f"resource:{item['resource_id']}:{item['version']}:{item['sha256']}"
-              for item in accepted.get('selectedResourceFiles', []))}
+              for item in [*accepted.get('resourceReferences', []),
+                           *accepted.get('selectedResourceFiles', [])])}
         argv, env = launch(**kwargs)
         return (node, str(fixture), argv[-1], str(Path(module.__file__).parent / 'resources/general-sdk.mjs')), env
     monkeypatch.setattr(module, 'native_pi_launch', offline_launch)
@@ -788,3 +790,12 @@ def test_real_sdk_research_updates_reach_next_model_request_and_original_files(t
     finally:
         server.shutdown()
         server.server_close()
+
+
+def test_bridge_accepts_optional_mcp_budget_and_preserves_other_positive_limits():
+    from capstone_agent.native_research_bridge import _limits
+    assert _limits({'runtime_limits': {'mcp_call_count': 0}})['mcp_call_count'] == 0
+    assert _limits({'runtime_limits': {'mcp_call_count': 2}})['mcp_call_count'] == 2
+    for override in ({'mcp_call_count': -1}, {'rpc_batch_requests': 0}, {'artifact_count': 0}):
+        with pytest.raises(ValueError, match='runtime_limits'):
+            _limits({'runtime_limits': override})
