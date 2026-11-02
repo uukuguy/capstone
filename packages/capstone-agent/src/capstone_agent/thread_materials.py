@@ -111,7 +111,11 @@ def upload_material(service, objects, thread_id, filename, data):
         key = _key(thread_id, item)
         try:
             existing = objects.get(key, limits.inline_material_bytes)
-        except Exception:
+        except Exception as error:
+            import logging
+            from .native_failure_origin import native_failure_origin
+            logging.getLogger(__name__).warning('Material lookup failed before durable write; origin=%s',
+                native_failure_origin(error))
             existing = None
         if existing is None:
             objects.put(key, data, item['media_type'])
@@ -205,7 +209,11 @@ def _adopted_file_bytes(service, snapshot, source, connection, *, objects=None):
             data = objects.get(delivery_key(snapshot.thread_id, delivery), limits.artifact_file_bytes)
             if len(data) == source['size_bytes'] and sha256(data).hexdigest() == source['sha256']:
                 return data
-        except Exception:
+        except Exception as error:
+            import logging
+            from .native_failure_origin import native_failure_origin
+            logging.getLogger(__name__).warning('Adopted artifact read failed; artifact_id=%s; origin=%s',
+                source['artifact_id'], native_failure_origin(error))
             continue
     raise OSError('no verified durable adoption is available')
 
@@ -229,7 +237,11 @@ def freeze_material_submission(service, snapshot, payload, submission, *, connec
             frozen.append({**item, 'content_base64': base64.b64encode(data).decode('ascii')})
     except CapacityExceeded:
         raise
-    except Exception:
+    except Exception as error:
+        import logging
+        from .native_failure_origin import native_failure_origin
+        logging.getLogger(__name__).warning('Material submission preparation failed; origin=%s',
+            native_failure_origin(error))
         return submission, 'material_unavailable'
     notices, deferred = [], []
     if not payload.get('context_product_refs'):

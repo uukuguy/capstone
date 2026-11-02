@@ -164,7 +164,11 @@ def _saved_artifact(objects, item):
         return None
     try:
         data = objects.get(artifact_object_key(item), limits.artifact_file_bytes)
-    except Exception:
+    except Exception as error:
+        import logging
+        from .native_failure_origin import native_failure_origin
+        logging.getLogger(__name__).warning('Durable artifact lookup failed; artifact_id=%s; origin=%s',
+            item['artifact_id'], native_failure_origin(error))
         return None
     return _verified_bytes(item, data)
 
