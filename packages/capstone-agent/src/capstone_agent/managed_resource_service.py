@@ -19,6 +19,11 @@ class ManagedResourceService:
             raise TypeError('trusted_resource_principal_required')
         if not isinstance(operation,str):
             raise ValueError('resource_operation_unknown')
+        from .managed_resource_contract import operation_contracts
+        from jsonschema import Draft202012Validator
+        contract=operation_contracts().get(operation)
+        if contract is not None and not Draft202012Validator(contract).is_valid(document):
+            raise ValueError('resource_request_fields_invalid')
         store = self.store
         if operation == 'list':
             self._fields(document)
@@ -27,6 +32,7 @@ class ManagedResourceService:
                        for item in store.list_resources(principal, workspace)]
             from .application_capacity import limits
             return {'schema': 'capstone-managed-resources/1', 'resources': entries,
+                    'operation_contracts':operation_contracts(),
                     'installation_limits': {'package_files':self.installer.max_files,
                         'package_bytes':self.installer.max_bytes,'skill_metadata_bytes':limits.native_context_bytes,
                         'acquisition_seconds':limits.mcp_initialize_seconds},

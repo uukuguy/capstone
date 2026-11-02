@@ -23,6 +23,22 @@ def test_list_is_workspace_scoped_and_declares_permissions(tmp_path):
     assert result['revision'].startswith('sha256:')
 
 
+def test_published_install_contract_is_enforced_before_adapter(tmp_path):
+    from jsonschema import Draft202012Validator
+    app=service(tmp_path)
+    contract=app.invoke(P,'workspace','list',{})['operation_contracts']['install']
+    request={'request_id':'one','resource_id':'sample','request':{'kind':'mcp_local',
+        'source':{'locator':'https://example.org/repo','revision':'a'*40},
+        'runtime':{'entrypoint':'server.py','secret_refs':['secret:api']},
+        'dependencies':['example==1.0']}}
+    assert Draft202012Validator(contract).is_valid(request)
+    request['request']['runtime']['entryPoint']=request['request']['runtime'].pop('entrypoint')
+    assert not Draft202012Validator(contract).is_valid(request)
+    with pytest.raises(ValueError,match='resource_request_fields_invalid'):
+        app.invoke(P,'workspace','install',request)
+    app.installer.install.assert_not_called()
+
+
 @pytest.mark.parametrize('operation,body',[
     ('list',{'roles':['admin']}), ('state',{'resource_id':'one','enabled':True,'expected_version':'x','principal':'admin'}),
     ('install',{'request_id':'one','resource_id':'one','request':{},'workspace':'other'}),
