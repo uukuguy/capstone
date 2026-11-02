@@ -296,10 +296,15 @@ class ManagedResourceStore:
         self._authorize(principal, workspace, 'resources.use')
         result = {}
         with self._transaction() as db:
-            for row in db.execute('SELECT profile,id FROM drafts WHERE workspace=?', (workspace,)):
-                result.setdefault(row['id'], {'drafts': [], 'published': []})['drafts'].append(row['profile'])
+            current = {row['id']: row['current'] for row in db.execute(
+                'SELECT id,current FROM resources WHERE workspace=? AND installed=1', (workspace,))}
+            for row in db.execute('SELECT profile,id,entry FROM drafts WHERE workspace=? ORDER BY profile', (workspace,)):
+                if json.loads(row['entry'])['version'] == current.get(row['id']):
+                    result.setdefault(row['id'], {'drafts': [], 'published': []})['drafts'].append(row['profile'])
             for row in db.execute('SELECT profile,manifest FROM manifests WHERE workspace=?', (workspace,)):
                 for entry in json.loads(row['manifest'])['entries']:
+                    if entry['version'] != current.get(entry['resource_id']):
+                        continue
                     value = result.setdefault(entry['resource_id'], {'drafts': [], 'published': []})
                     if row['profile'] not in value['published']:
                         value['published'].append(row['profile'])

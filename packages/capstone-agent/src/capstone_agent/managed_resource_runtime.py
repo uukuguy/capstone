@@ -9,6 +9,7 @@ import sys
 import tempfile
 import time
 import threading
+from contextvars import ContextVar
 
 from .application_capacity import limits
 from .managed_resource_installation import ManagedResourceInstaller, PinnedGitFetcher, InstallationError
@@ -22,6 +23,20 @@ def create_managed_resource_service(root, *, network_policy, environment):
     policy = ResourcePermissions(Path(environment.get('CAPSTONE_RESOURCE_POLICY_FILE', '/opt/general/configs/runtime/resource-permissions.json')),
                                  environment.get('CAPSTONE_RESOURCE_PERMISSION_PROFILE', ''))
     store = ManagedResourceStore(Path(root), policy)
+    from .managed_resource_secrets import ProtectedResourceBindings, ResourceBindingError
+    from .managed_resource_manifest import content_digest
+    bindings = ProtectedResourceBindings(environment.get('CAPSTONE_RESOURCE_SECRET_BINDINGS_FILE') or None)
+    binding_scope = ContextVar('managed_resource_binding_scope', default=None)
+    binding_snapshot = ContextVar('managed_resource_binding_snapshot', default=None)
+
+    def resolve_bindings(secret_refs):
+        if not secret_refs:return {'environment':{},'headers':{}}
+        snapshot=binding_snapshot.get()
+        if snapshot is not None and snapshot[0]==tuple(secret_refs) and snapshot[1]==binding_scope.get():return snapshot[2]
+        scope=binding_scope.get()
+        if scope is None:raise InstallationError('resource_secret_binding_scope_invalid')
+        try:return bindings.resolve(secret_refs,**scope)
+        except ResourceBindingError as error:raise InstallationError(error.code) from error
     store.root.chmod(0o700)
     work_root = store.root.parent / 'inputs' / '.managed-installers'
     work_root.mkdir(mode=0o711, parents=True, exist_ok=True)
@@ -70,8 +85,7 @@ def create_managed_resource_service(root, *, network_policy, environment):
         temporary.cleanup()
 
     def prepare_execution(argv, cwd, secret_refs, *, input_document=None, package=None):
-        if secret_refs:
-            raise InstallationError('resource_secret_binding_unavailable')
+        protected = resolve_bindings(secret_refs)
         if os.geteuid() != 0:
             raise InstallationError('resource_installer_isolation_required')
         cwd = Path(cwd)
@@ -89,6 +103,7 @@ def create_managed_resource_service(root, *, network_policy, environment):
             home = private / 'home'
             home.mkdir()
             document = None if input_document is None else dict(input_document)
+            if document is not None:document['protected']=protected
             if package is not None:
                 shutil.copytree(package, private / 'package', symlinks=True)
                 document['package'] = str(private / 'package')
@@ -99,12 +114,13 @@ def create_managed_resource_service(root, *, network_policy, environment):
             arguments = ['/usr/bin/setpriv', f'--reuid={uid}', f'--regid={uid}', '--clear-groups', '--no-new-privs', command, *argv[1:]]
             child_environment = {'PATH': '/usr/local/bin:/usr/bin:/bin', 'HOME': str(home), 'TMPDIR': str(home),
                 'LANG': 'C.UTF-8', 'PYTHONPATH': '/opt/general', 'GIT_TERMINAL_PROMPT': '0', 'PYTHONDONTWRITEBYTECODE': '1'}
+            child_environment.update(protected['environment'])
             return temporary, execution, arguments, child_environment, document, uid
         except BaseException:
             temporary.cleanup()
             raise
 
-    def runner(argv, cwd, secret_refs, *, input_document=None, timeout=None, package=None):
+    def runner(argv, cwd, secret_refs, *, input_document=None, timeout=None, package=None, sync_output=False):
         temporary, execution, arguments, child_environment, document, uid = prepare_execution(
             argv,cwd,secret_refs,input_document=input_document,package=package)
         try:
@@ -120,7 +136,7 @@ def create_managed_resource_service(root, *, network_policy, environment):
                 if document is not None and document.get('call') is not None:
                     raise ManagedMcpError('resource_call_outcome_unknown',stage='execution',executed=None)
                 raise InstallationError('resource_installer_command_failed')
-            if argv[0]=='git':
+            if argv[0]=='git' or sync_output:
                 shutil.rmtree(cwd)
                 shutil.copytree(execution,cwd,symlinks=True)
             return result.stdout
@@ -160,8 +176,18 @@ console.log(JSON.stringify({skills:result.skills.map(s=>({name:s.name,descriptio
         return probe({'kind': 'mcp_local', 'source': {}, 'runtime': asdict(runtime), 'call': None},
                      runtime.secret_refs, package=package)
 
+    from .managed_resource_dependencies import IsolatedDependencyInstaller, runtime_compatibility
+    dependencies = IsolatedDependencyInstaller(runner,
+        check_network=lambda: network(None), compatibility=runtime_compatibility())
     installer = ManagedResourceInstaller(store, fetch_git=PinnedGitFetcher(runner), verify_skill=skill,
-        probe_local=local, probe_remote=remote, check_network=network)
+        probe_local=local, probe_remote=remote, check_network=network, install_dependencies=dependencies)
+    install = installer.install
+    def scoped_install(principal,workspace,request_id,resource_id,request,expected_version=None,**options):
+        token=binding_scope.set({'workspace':workspace,'resource_id':resource_id,
+            'source_locator':request.source.locator,'kind':request.kind})
+        try:return install(principal,workspace,request_id,resource_id,request,expected_version,**options)
+        finally:binding_scope.reset(token)
+    installer.install=scoped_install
     service = ManagedResourceService(store, installer)
 
     sessions={}
@@ -174,7 +200,7 @@ console.log(JSON.stringify({skills:result.skills.map(s=>({name:s.name,descriptio
     def task_is_open(task_id):
         with session_lock:return task_id in active_tasks
 
-    def invoke_mcp(item, arguments, *, deadline=None, session_key=None):
+    def invoke_mcp_inner(item, arguments, *, deadline=None, session_key=None):
         package = store.root / item['package_ref'] if item['package_ref'] else None
         timeout = limits.mcp_initialize_seconds+limits.mcp_catalog_seconds+(limits.mcp_tool_seconds if arguments is not None else 0)
         if deadline is not None:
@@ -186,7 +212,7 @@ console.log(JSON.stringify({skills:result.skills.map(s=>({name:s.name,descriptio
             if package is not None and installer._digest(package)!='sha256:'+package.name:
                 raise InstallationError('resource_package_corrupt')
             return probe(document,item['runtime']['secret_refs'],package=package,timeout=timeout)
-        key=(session_key,item['resource_id'],item['version'])
+        key=(session_key,item['resource_id'],item['version'],content_digest(resolve_bindings(item['runtime']['secret_refs'])))
         from .managed_resource_session import ManagedResourceSession
         stale=None
         with session_lock:
@@ -237,5 +263,16 @@ console.log(JSON.stringify({skills:result.skills.map(s=>({name:s.name,descriptio
     service.task_is_open=task_is_open
     service.close_task=close_task
 
+    def invoke_mcp(item, arguments, *, deadline=None, session_key=None,workspace=None):
+        token=binding_scope.set({'workspace':workspace,'resource_id':item['resource_id'],
+            'source_locator':item['source']['locator'],'kind':item['kind']})
+        snapshot_token=None
+        try:
+            refs=item['runtime']['secret_refs']
+            snapshot_token=binding_snapshot.set((tuple(refs),binding_scope.get(),resolve_bindings(refs)))
+            return invoke_mcp_inner(item,arguments,deadline=deadline,session_key=session_key)
+        finally:
+            if snapshot_token is not None:binding_snapshot.reset(snapshot_token)
+            binding_scope.reset(token)
     service.invoke_mcp = invoke_mcp
     return service

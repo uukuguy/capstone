@@ -13,6 +13,17 @@ Existing Vivaldi panel visually verified (window239221); no new tabs/Chrome.
 Report: docs/reports/2026-11-03-managed-resource-installation.md.
 Evidence: runs/managed-resources-20261103/; no CI/push/remote deployment.
 
+Active next batch (not rebuilt): root fixed exact-version preinstall membership;36 tests pass.
+capacity_inventory_audit implemented pending operation recovery UI;19tests/types pass,
+now owns new managed_resource_bundle.py/tests ONLY. Needs root installer.install_prebuilt
+seam (expected_resource/publication before publish). capacity_contract delivered
+managed_resource_dependencies.py/tests (24pass), now owns managed_resource_secrets.py/tests.
+Root owns integration: runtime sync_output=True, dependency env in probe not helper,
+Skill returned dependency runtime; trusted secret scope and protected values channel;
+installer prebuilt verification without downloads, then operator CLI.
+No additional rebuild until coherent source batch complete. Source changes are uncommitted;
+previous accepted image f92b3202 remains current. Latest docs commit2caee426.
+
 Next coherent batch before another rebuild:
 1. Exact-version preinstall membership and pending operation recovery UI.
 2. Isolated dependency installation and protected secret-reference binding.

@@ -58,3 +58,40 @@ The workbench Settings menu offers Skills/MCP management. A Git source must use
 an exact commit. Remote MCP discovers and pins the actual publication. Installed,
 enabled and load-verified states are separate. Preinstall draft/publication changes
 do not update another deployment. Referenced package versions remain after uninstall.
+
+Locked dependency installation supports root `requirements.txt` with exact Python
+pins and npm lockfiles. Python uses binary wheels and does not resolve undeclared
+transitive dependencies; npm lifecycle scripts are disabled. Unsupported formats
+fail explicitly. Local MCP receives its private dependency environment. Skill load
+returns the environment required to run its bundled Python scripts; it does not
+change the task's system Python packages.
+
+For authenticated resources, set `CAPSTONE_RESOURCE_SECRET_BINDINGS_FILE` to a
+protected file inside the existing private policy mount. Its schema is
+`capstone-managed-resource-bindings/1`. Each `secret:reference` binds exactly one
+workspace, resource ID, source URL and resource kind. Header/environment values
+come from separate absolute protected files. Both the configuration and value
+files must be owned by the executor UID, have no group/world access, and use no
+symlink path components. Never put secret values in resource requests or manifests.
+Remote MCP receives selected headers; local MCP receives selected environment
+values. Missing or mismatched bindings fail before connection. Rotated bindings
+apply to later calls without changing historical receipts.
+
+After publishing a preinstall manifest, an authorized executor operator can export
+the exact packages for offline deployment:
+
+```sh
+python -m capstone_agent.managed_resource_bundle export /private-output/resources.tar --workspace enterprise
+python -m capstone_agent.managed_resource_bundle apply /private-input/resources.tar --workspace enterprise
+```
+
+These commands run inside the protected native executor, with its permission
+configuration and mounted operator input/output directories. The intranet default
+still denies management; an operator must explicitly configure the required grants.
+The standalone command does not change the running firewall and does not permit
+remote acquisition. Remote MCP still requires live target verification through a
+network-enabled runtime. Bundle files contain references, never credential values;
+bind credentials separately at the destination. Package ABI compatibility and real
+loading are checked again. Existing resource overrides require an explicit JSON
+map passed with `--expected-versions`. A partial multi-resource application retains
+earlier verified installs and records no successful deployment receipt.

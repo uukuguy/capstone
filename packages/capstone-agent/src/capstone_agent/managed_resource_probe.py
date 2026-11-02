@@ -10,13 +10,15 @@ from .managed_resource_mcp import remote_mcp_session, local_mcp_session, Managed
 
 def context(document):
     if document['kind']=='mcp_remote':
-        return remote_mcp_session(document['source']['locator'],headers={},check_access=lambda:None)
+        return remote_mcp_session(document['source']['locator'],headers=document.get('protected',{}).get('headers',{}),check_access=lambda:None)
     package=Path(document['package']);runtime=document['runtime'];entry=package/runtime['entrypoint']
     interpreter={'.py':'python3','.mjs':'node','.js':'node','.cjs':'node'}.get(entry.suffix)
     command=shutil.which(interpreter) if interpreter else str(entry)
     if not command:raise ManagedMcpError('resource_runtime_unavailable',stage='launch',executed=False)
+    from .managed_resource_dependencies import dependency_environment, runtime_compatibility
     return local_mcp_session(command,([str(entry)] if interpreter else [])+runtime['arguments'],
-        cwd=package,environment={},uid=None,check_access=lambda:None)
+        cwd=package,environment={**dependency_environment(package,runtime_compatibility()),
+            **document.get('protected',{}).get('environment',{})},uid=None,check_access=lambda:None)
 
 
 async def exchange(session,call):

@@ -6793,3 +6793,5 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 2026-11-03 f92b3202 — Preserve MCP session state and fence resource cleanup; 451 backend, 47 App and 6 SDK checks passed.
 
 - 2026-11-03 f92b3202 — Verified actual Skill/MCP/Git installation, replacement-container persistence, model entry and Vivaldi management; remaining design scope recorded.
+
+- 2026-11-03 2caee426 — Record core installation acceptance and exact deployment sources; continue dependency, secret and offline bundle implementation.

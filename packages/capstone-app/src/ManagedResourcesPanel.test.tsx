@@ -8,7 +8,8 @@ const resource={resource_id:'research-tools',version:'v1',kind:'skill',installed
   available:false,diagnostics:['connection unavailable'],source:{locator:'https://example.test/repo',revision:'a'.repeat(40)}}
 function transport(actions:string[]=[],resources:(typeof resource&{preinstall?:{drafts:string[];published:string[]};installation?:{subdirectory:string;runtime?:{entrypoint:string}}})[]=[resource]){
   return {listManagedResources:vi.fn().mockResolvedValue({revision:'catalog-1',allowed_actions:actions.map(a=>`resources.${a}`),resources}),
-    manageResource:vi.fn().mockResolvedValue({status:'installed',available:false})}
+    manageResource:vi.fn().mockResolvedValue({status:'installed',available:false}),
+    readManagedResourceOperation:vi.fn().mockResolvedValue({status:'pending'})}
 }
 async function open(client:ReturnType<typeof transport>){
   render(<ManagedResourcesPanel transport={client}/> )
@@ -205,4 +206,60 @@ it('restores validated update metadata and uses the refreshed version after succ
   fireEvent.click(screen.getByRole('button',{name:'更新并校验'}))
   await waitFor(()=>expect(client.manageResource).toHaveBeenLastCalledWith('install',expect.objectContaining({expected_version:'v2',
     request:expect.objectContaining({subdirectory:'skills/pinned',runtime:{entrypoint:'server.mjs'}})})))
+})
+
+it('retains an install request before disconnect and recovers by lookup without replay',async()=>{
+  const client=transport(['install'])
+  client.manageResource.mockRejectedValue(new Error('connection lost'))
+  await installForm(client,'mcp_remote')
+  fireEvent.click(screen.getByRole('button',{name:'安装并校验'}))
+  expect(await screen.findByRole('alert')).toHaveTextContent('connection lost')
+  const requestId=client.manageResource.mock.calls[0][1].request_id
+  expect(screen.getByLabelText('查询请求编号')).toHaveValue(requestId)
+  expect(screen.getByRole('button',{name:'安装并校验'})).toBeDisabled()
+  client.readManagedResourceOperation.mockResolvedValue({request_id:requestId,status:'succeeded'})
+  fireEvent.click(screen.getByRole('button',{name:'查询原操作'}))
+  await waitFor(()=>expect(client.readManagedResourceOperation).toHaveBeenCalledWith(requestId))
+  await waitFor(()=>expect(screen.getByRole('button',{name:'安装并校验'})).not.toBeDisabled())
+  expect(client.manageResource).toHaveBeenCalledTimes(1)
+})
+
+it('looks up pending operations explicitly and retains unknown status on read failure',async()=>{
+  const client=transport(['install'])
+  client.manageResource.mockResolvedValue({request_id:'pending-request',status:'pending'})
+  await installForm(client,'mcp_remote')
+  fireEvent.click(screen.getByRole('button',{name:'安装并校验'}))
+  await screen.findByText(/操作尚未确认完成/)
+  expect(client.readManagedResourceOperation).not.toHaveBeenCalled()
+  client.readManagedResourceOperation.mockRejectedValue(new Error('lookup unavailable'))
+  fireEvent.click(screen.getByRole('button',{name:'查询原操作'}))
+  expect(await screen.findByRole('alert')).toHaveTextContent('lookup unavailable')
+  expect(screen.getByRole('button',{name:'安装并校验'})).toBeDisabled()
+  expect(client.manageResource).toHaveBeenCalledTimes(1)
+})
+
+it('can query a saved request id without install permission or a new install',async()=>{
+  const client=transport(['use'])
+  await open(client)
+  fireEvent.change(screen.getByLabelText('查询请求编号'),{target:{value:'saved-request'}})
+  fireEvent.click(screen.getByRole('button',{name:'查询原操作'}))
+  await waitFor(()=>expect(client.readManagedResourceOperation).toHaveBeenCalledWith('saved-request'))
+  expect(client.manageResource).not.toHaveBeenCalled()
+})
+
+it('shows the original request id while dispatch is pending and retains it after closing',async()=>{
+  const client=transport(['install'])
+  let resolve!:(value:unknown)=>void
+  client.manageResource.mockImplementation(()=>new Promise(done=>{resolve=done}))
+  await installForm(client,'mcp_remote')
+  fireEvent.click(screen.getByRole('button',{name:'安装并校验'}))
+  const requestId=client.manageResource.mock.calls[0][1].request_id
+  expect(screen.getByLabelText('查询请求编号')).toHaveValue(requestId)
+  fireEvent.click(screen.getByRole('button',{name:'关闭资源管理'}))
+  fireEvent.click(screen.getByRole('button',{name:'Skills / MCP 管理'}))
+  expect(screen.getByLabelText('查询请求编号')).toHaveValue(requestId)
+  expect(client.manageResource).toHaveBeenCalledTimes(1)
+  resolve({request_id:requestId,status:'pending'})
+  await waitFor(()=>expect(screen.getByRole('button',{name:'查询原操作'})).not.toBeDisabled())
+  expect(client.readManagedResourceOperation).not.toHaveBeenCalled()
 })

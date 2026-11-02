@@ -120,11 +120,14 @@ class ManagedResourceInstaller:
         self.max_bytes = max_bytes
 
     def install(self, principal, workspace, request_id, resource_id, request,
-                expected_version=None):
+                expected_version=None, *, _prebuilt=None):
         if not isinstance(request, InstallRequest):
             raise TypeError('parsed_install_request_required')
+        identity = request.to_dict()
+        if _prebuilt is not None:
+            identity = {**identity, 'prebuilt': content_digest(_prebuilt[1:])}
         operation = self.store.begin_install(principal, workspace, request_id,
-                                             resource_id, request.to_dict(), expected_version)
+                                             resource_id, identity, expected_version)
         if operation['status'] != 'pending':
             return operation
         # Persistent, exclusive claim across processes, without task scheduling.
@@ -153,7 +156,10 @@ class ManagedResourceInstaller:
                 staging = self.store.root / 'staging'
                 staging.mkdir(exist_ok=True)
                 stage = Path(tempfile.mkdtemp(prefix='install-', dir=staging))
-                verified = self._package(request, stage)
+                verified = self._package(request, stage, prebuilt=_prebuilt[0] if _prebuilt else None)
+            if _prebuilt is not None:
+                if verified.to_dict() != _prebuilt[1] or self.publication(verified.digest) != _prebuilt[2]:
+                    raise InstallationError('resource_preinstall_verification_mismatch')
             self._authorize(principal, workspace, operation)
             result = self.store.publish_verified(principal, workspace, request_id, verified, install_request=request)
         except ResourcePermissionDenied:
@@ -169,6 +175,18 @@ class ManagedResourceInstaller:
                 if resource_lock is not None:
                     resource_lock.close()
         return {**operation, 'status': 'succeeded', 'result': result}
+
+    def install_prebuilt(self, principal, workspace, request_id, resource_id, request,
+                         package_path, expected_resource, publication, expected_version=None):
+        """Trusted deployment adapter. Frozen metadata is comparison, never authority."""
+        from .managed_resource_manifest import parse_verified
+        frozen = parse_verified(expected_resource)
+        if frozen.source != request.source or frozen.runtime != request.runtime or frozen.kind != request.kind:
+            raise InstallationError('resource_preinstall_verification_mismatch')
+        if request.kind != 'mcp_remote' and package_path is None:
+            raise InstallationError('resource_preinstall_package_missing')
+        return self.install(principal, workspace, request_id, resource_id, request,
+            expected_version, _prebuilt=(package_path, frozen.to_dict(), publication))
 
     def _authorize(self, principal, workspace, operation):
         self.store.permissions.require(principal, workspace, operation['action'])
@@ -326,11 +344,19 @@ class ManagedResourceInstaller:
             raise InstallationError('resource_declaration_limit')
         return data.decode('utf-8')
 
-    def _package(self, request, stage):
-        acquired = self._acquire(request, stage)
+    def _package(self, request, stage, *, prebuilt=None):
+        acquired = Path(prebuilt) if prebuilt is not None else self._acquire(request, stage)
         package = stage / 'package'
         self._snapshot(acquired, package)
-        self._dependencies(package, request)
+        if prebuilt is None:
+            self._dependencies(package, request)
+        else:
+            from .managed_resource_dependencies import dependency_environment, runtime_compatibility, RECEIPT
+            if not (package / RECEIPT).exists():
+                # Validate declarations without granting a network installer.
+                verifier = ManagedResourceInstaller(self.store, check_network=lambda source:None)
+                verifier._dependencies(package, request)
+            dependency_environment(package, runtime_compatibility())
         before = self._digest(package)
         if request.kind == 'skill':
             if self.verify_skill is None:

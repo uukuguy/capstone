@@ -62,6 +62,10 @@ def resource_task_action(service,principal,workspace,operation,document,*,inputs
             os.close(descriptor)
         result={'skills':[{'name':s['name'],'description':s['description'],'path':str(target/s['path'])}
                           for s in publication['skills']]}
+        from .managed_resource_dependencies import dependency_environment, runtime_compatibility
+        environment=dependency_environment(target,runtime_compatibility())
+        if environment:
+            result['runtime']={'command':'python3','environment':environment}
     else:
         if operation=='load_skill':raise ValueError('resource_operation_kind_invalid')
         invoke=getattr(service,'invoke_mcp',None)
@@ -73,7 +77,7 @@ def resource_task_action(service,principal,workspace,operation,document,*,inputs
             if call['catalog_revision']!=publication['catalog']['revision']:
                 from .managed_resource_mcp import ManagedMcpError
                 raise ManagedMcpError('resource_contract_changed',stage='admission',executed=False)
-        result=invoke(item,call,deadline=deadline,session_key=task_id)
+        result=invoke(item,call,deadline=deadline,session_key=task_id,workspace=workspace)
         if operation=='discover' and result.get('revision')!=publication['catalog']['revision']:
             from .managed_resource_mcp import ManagedMcpError
             raise ManagedMcpError('resource_contract_changed',stage='admission',executed=False)
