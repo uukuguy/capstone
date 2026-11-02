@@ -807,3 +807,5 @@ dev默认开发集成主线和main发布主线均启用轻量保护：PR与两�
 2026-11-01 PDF预览：VERSION-CONTROL记录2800da79本机修复，RESUME记录内网断开、待部署；JOURNAL保留复现与检查证据。
 
 2026-11-01 产物历史版本：VERSION-CONTROL与RESUME记录aa1cd3e8本机展示修正；旧文件内容及归属不变。
+
+Milestone update (2026-11-02): VERSION-CONTROL records PR84/85, focused CI and annotated intranet source tag.

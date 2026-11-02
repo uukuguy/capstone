@@ -6736,3 +6736,5 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 2026-11-02: 7b754fd7 checkpoints selected dev milestone; user approved lightweight integration CI;81 focused resource checks passed.
 - 2026-11-02: PR84 merged a0ab3d10 after scoped CI success; PR85 passed81 tests, failed formatting;6d8b6732 prepares correction.
 - 2026-11-02: cffcac42 preserves CSV field values; format gate now distinguishes raw CSV evidence from source formatting.
+- 2026-11-02: bdab3c02 preserves raw CSV evidence; scoped CI41396861782 passed; PR85 merged d4b59a0f and milestone tag published.
+- 2026-11-02: 98073128 returns accepted main milestone to local dev; remote formatting/control return remains pending approved integration.
