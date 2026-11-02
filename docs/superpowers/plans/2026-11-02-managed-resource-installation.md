@@ -100,5 +100,5 @@ RESOURCE_ACTIONS = frozenset({
 
 ## Execution status
 
-- Permission/store/installer foundations are implemented and focused-tested. Workspace API, protected transport, isolated acquisition/probes, task-scoped load/call and workbench controls are implemented; consolidated source checks are passing. Unified rebuild and real container acceptance are next.
+- Permission/store/installer foundations, workspace API, protected transport, isolated acquisition/probes, task-scoped load/call and workbench controls are implemented. Unified local rebuild, real Skill/MCP and pinned Git acquisition, replacement-container offline recovery, model list operation and existing Vivaldi panel checks passed. See [verification](../../reports/2026-11-03-managed-resource-installation.md).
 - Preinstall draft/publication exists; full offline bundle application, dependency environments and protected secret binding remain incomplete. Do not claim those complete. No CI or remote deployment.

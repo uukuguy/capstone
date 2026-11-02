@@ -6789,3 +6789,7 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 2026-11-03 8f1415fc aligns overview summaries and records Vivaldi visual checks using existing tabs.
 
 - 2026-11-03 3b25c089 connects persistent installation, protected workspace/task adapters and UI; source checks pass; runtime acceptance pending.
+
+- 2026-11-03 f92b3202 — Preserve MCP session state and fence resource cleanup; 451 backend, 47 App and 6 SDK checks passed.
+
+- 2026-11-03 f92b3202 — Verified actual Skill/MCP/Git installation, replacement-container persistence, model entry and Vivaldi management; remaining design scope recorded.

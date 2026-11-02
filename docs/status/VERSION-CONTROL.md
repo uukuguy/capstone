@@ -1,5 +1,9 @@
 # 多线版本控制
 
+2026-11-03 Skills/MCP安装链路f92b3202已进入本机：[验证报告](../reports/2026-11-03-managed-resource-installation.md)。
+451项后端、47项App、6项SDK检查及类型检查通过；真实Skill/MCP、固定Git提交获取、替换容器离线恢复通过。
+工作台真实模型列表调用6.2秒完成；现有Vivaldi管理页可见。依赖环境、凭据绑定及离线预装包仍待完成。无CI/远端部署。
+
 2026-11-02 执行链完整性修复已在本机验证：[排查与验收](../reports/2026-11-02-multiturn-execution-integrity.md)。
 容量契约4d57c083、多轮资源身份与诊断3cc6a263起的修复、共用异常清理c438fca6及镜像修正8293a4d4已进入本机。
 462项定向检查通过、33项环境跳过；镜像/helper检查10项通过。真实模型四轮完成文件生成、历史引用读取、失败工具处理和继续读取。
@@ -976,7 +980,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 职责 | 当前状态 | 下一步 |
 | --- | --- | --- | --- |
-| dev | 共同基座与企业工作台集成 | 执行链完整性修复8293a4d4；异常来源保留、多轮资源恢复；真实四轮继续通过 | 本批未推送/PR/CI；内网70c42dab及其他部署不变 |
+| dev | 共同基座与企业工作台集成 | Skills/MCP安装f92b3202本机验证；权限、持久恢复和真实加载通过；依赖/凭据/离线预装尚未完成 | 本批未推送/PR/CI；内网70c42dab及其他部署不变 |
 | feat/business-analysis | 企业研究与分析 | 应用分支仅准备；实际研究能力在dev共享工作台推进 | 保留350.524秒/ 41轮质量基线；不另建研究调度或聊天应用 |
 | feat/model-decision | 电网分析与决策 | 00a8cd85已在local-dev验证；PR #53已合入f5eda4e4 | 成熟对话、真实历史与拓扑已接通；无模型与通用成果继续按协议推进 |
 
@@ -1066,6 +1070,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
+| managed-installation-runtime | f92b3202 | main | dev · Skills/MCP持久安装 | 本机核心路径通过 | 工作台及对话入口、隔离安装、版本与连接持久化。[验证](../reports/2026-11-03-managed-resource-installation.md) | shared-agent |
 | intranet-summer-runtime | 70c42dab | main | dev · 内网运行来源 | 内网历史验证通过 | 目的留存与报告运行权限。[审计](../reports/2026-11-02-intranet-summer-chain-audit.md) | shared-agent |
 | execution-integrity-runtime | 8293a4d4 | main | dev · 执行链完整性修复 | 本机四轮验证通过 | 原始错误保留、冻结资源恢复、容量契约及镜像修正。[验收](../reports/2026-11-02-multiturn-execution-integrity.md) | shared-agent |
 | artifact-time-runtime | 5830be18 | main | dev · 产物保存时间 | 本机运行通过 | 文件版本收拢；真实保存时间；旧目录兼容 | shared-agent |
@@ -1183,6 +1188,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
+| managed-installation-runtime | 当前本机验收 | dev | Skills/MCP隔离安装和任务内使用；持久版本恢复及统一权限 | 核心路径通过，完整设计未完成 |
 | intranet-summer-runtime | 内网部署来源 | dev | 调用目的持久留存；非特权报告生成 | 内网历史验收，当前离线 |
 | execution-integrity-runtime | 当前本机验收 | dev | 原始异常与诊断保留；多轮资源恢复及失败后继续 | 本机验证通过，内网未更新 |
 | conversation-controls | 已合入会话修复来源 | 原fix/conversation-small-items-20261031 | 提交期指令与Thinking关联、ESC停止和终态确认；版本冲突保留输入、JSON/MCP错误摘要 | App1419及构建通过，22适配器复测通过；真实取消、续发及刷新通过，PR79已合 |
@@ -1472,7 +1478,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | 执行链及镜像修复 `8293a4d4`；欢迎页fa379b5e | ready通过；API/worker同镜像b79f2055b1aa9c4cfc2eb1c6920e1ffd760ee39e512a0d0e2fdb637d7ec28f7c | 462项定向检查及真实模型四轮恢复通过；[验收](../reports/2026-11-02-multiturn-execution-integrity.md)；浏览器视觉未验收；无CI |
+| local-dev | Skills/MCP安装 `f92b3202` | ready通过；API/worker同镜像e94e4362d2973eb02b689ab41744606cb6eed7e39e9a3f48131c8099ac106c5f | 真实安装/调用、容器替换恢复、模型入口及Vivaldi管理页通过；[验证](../reports/2026-11-03-managed-resource-installation.md)；完整安装设计未完成；无CI |
 | intranet-dev | API/worker/native/App `70c42dab`；Qwen3.8-Flash-Next默认 | 四应用服务healthy；API/worker同镜像53d6ddbe；目的留存及UID10001报告生成通过 | App http://192.168.72.63:5173/；[审计](../reports/2026-11-02-intranet-summer-chain-audit.md)；未重跑业务/未做视觉验收 |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |
 | cloud-dev | `24d9a32`，开发试用候选；已推送标签cloud-dev-20261013-1045-24d9a32 | 用户授权的基本功能检查通过：四角色SUCCESS、API就绪、前端来源与真实中文对话；非正式发布或科学解释验收 | App https://capstone-app-production-83ef.up.railway.app/；[部署记录](../reviews/2026-10-13-cloud-dev-autonomous-trial.md)；demo不变 |
