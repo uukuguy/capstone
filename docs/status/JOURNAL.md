@@ -6779,3 +6779,9 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 2026-11-02 4306a7e9 packages cleanup helper after native startup exposed missing image dependency;10 focused checks passed.
 
 - 2026-11-02 8293a4d4 fixes image layer limit; unified rebuild and four real-model continuation rounds pass; scoped cleanup releases11.6GB.
+
+- 2026-11-02 87966cb5 aligns runtime sources and local chain acceptance; overview generated, links/doctor pass; visual check unavailable.
+
+- 2026-11-03: Existing Vivaldi confirms welcome gateway/model cards; no new tabs; later app disappeared before graph inspection.
+
+- 2026-11-03: Existing Vivaldi visually verifies overview source nodes and deployment edges; welcome cards already confirmed; no new tabs.

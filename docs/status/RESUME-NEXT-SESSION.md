@@ -1,5 +1,19 @@
 # Live Session Checkpoint
 
+Vivaldi restored (pid61110/window239221): existing project overview tab selected
+through AppleScript active-tab index after AX tab click only focused without selecting.
+Welcome cards and overview runtime nodes/deployment edges now visually verified.
+Top development summary and generated HEAD aligned; final graph refresh pending. No Chrome/new tabs.
+
+
+Vivaldi GUI path works via orca computer (com.vivaldi.Vivaldi). Existing local
+welcome tab visually verified gateway 本机联调/127.0.0.1:18001 and deepseek-flash,
+matching sidebar/composer. No Chrome or new tabs. During graph-tab selection
+Vivaldi became app_not_found and disappeared from list-apps; no restart attempted.
+Graph visual acceptance remains pending. Do not call the browser itself unavailable
+merely because the browser-client connector has no connection.
+
+
 2026-11-02 execution-integrity batch locally accepted. Report:
 docs/reports/2026-11-02-multiturn-execution-integrity.md. Main orchestration audit
 and fixes completed;462 focused checks passed/33 skipped plus10 image/helper checks.
@@ -10,8 +24,9 @@ restored before each round; browser UI refresh not visually accepted. Isolated
 PostgreSQL four rounds also prove continuation after failed business terminal.
 No CI or intranet rollout. Server remains offline by user instruction.
 Docker cleanup released about11.6GB build cache; keep volumes and running services.
-Next: align version-control register/graph, and deploy one verified bundle only when
-research server returns. Do not replay summer query for transport acceptance.
+87966cb5 aligns version register and generated overview; links, current-head/source
+nodes, symlink and doctor checks pass. Browser unavailable; graph visual acceptance pending.
+Next: deploy one verified bundle only when research server returns. Do not replay summer query for transport acceptance.
 
 
 User requires whole-audit completion before ONE rebuild/acceptance run. Do not rebuild per fix.

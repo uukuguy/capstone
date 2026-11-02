@@ -1,5 +1,8 @@
 # docs/status INDEX
 
+2026-11-03: 现有Vivaldi已核对欢迎页和总览的运行来源节点、部署连线；开发摘要同步本轮四轮恢复验收。
+
+
 2026-11-02: [版本台账](VERSION-CONTROL.md)及[总览](PROJECT-OVERVIEW.html)更新本机执行链修复与四轮验收；内网保持70c42dab。
 
 
