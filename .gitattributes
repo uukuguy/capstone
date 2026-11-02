@@ -1,0 +1,3 @@
+
+# Evidence CSV exports retain source line endings and text-field spaces.
+docs/reports/*.csv whitespace=-blank-at-eol,cr-at-eol
