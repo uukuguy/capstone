@@ -1237,7 +1237,7 @@ def test_record_cache_evicts_completed_records_and_keeps_durable_receipts(tmp_pa
     assert host._tasks == {'active': {'status': 'running'}}
 
 
-def test_artifact_persistence_failure_settles_failed_and_preserves_workspace(tmp_path, monkeypatch):
+def test_artifact_persistence_failure_settles_failed_and_preserves_workspace(tmp_path, monkeypatch, caplog):
     from capstone_agent.general_pi_server import GeneralPiHost
     def run(request, *_):
         workspace = tmp_path / 'tasks' / request.task_id
@@ -1258,6 +1258,8 @@ def test_artifact_persistence_failure_settles_failed_and_preserves_workspace(tmp
     assert host.read('t1')['status'] == 'failed'
     assert (tmp_path / 'tasks/t1/product.txt').read_text() == 'Product'
     assert host.storage.load('t1')['result']['status'] == 'failed'
+    assert 'Native result persistence failed' in caplog.text
+    assert 'Private storage unavailable' not in caplog.text
 
 
 def test_products_over_eight_megabytes_use_the_configured_storage_quota(tmp_path):

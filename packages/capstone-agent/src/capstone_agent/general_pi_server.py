@@ -967,6 +967,11 @@ class GeneralPiHost:
             self._save(request, result)
             persisted = True
         except (OSError, ValueError, TypeError) as error:
+            import logging
+            from .native_failure_origin import native_failure_origin
+            logging.getLogger(__name__).error(
+                'Native result persistence failed; task_id=%s; exception_type=%s; origin=%s',
+                request.task_id, type(error).__name__, native_failure_origin(error))
             result = {'schema': 'capstone-pi-task-result/2', 'task_id': request.task_id,
                 'parent_attempt_id': request.parent_attempt_id, 'executor_identity': self.identity,
                 'status': 'failed', 'answer': '', 'sources': [],
@@ -978,8 +983,13 @@ class GeneralPiHost:
                                      'capacity': cause.to_document()}
             try:
                 self._save(request, result)
-            except (OSError, CapacityExceeded):
-                pass  # Initial accepted receipt remains an unknown-outcome replay guard.
+            except (OSError, CapacityExceeded) as receipt_error:
+                # Initial acceptance still guards against replay of unknown effects.
+                logging.getLogger(__name__).error(
+                    'Native terminal failure receipt persistence failed; task_id=%s; '
+                    'exception_type=%s; original_origin=%s; persistence_origin=%s',
+                    request.task_id, type(receipt_error).__name__,
+                    native_failure_origin(error), native_failure_origin(receipt_error))
         finally:
             if persisted:
                 shutil.rmtree(workspace, ignore_errors=True)
