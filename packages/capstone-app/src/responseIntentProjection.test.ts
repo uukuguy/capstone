@@ -18,3 +18,12 @@ it('does not guess from prose or publish protected comment values',()=>{
   expect(p.intent('e1')).toBeUndefined()
  }
 })
+it('retains the opening comment after leading blank streaming chunks and diagnostic eviction',()=>{
+ const p=new ResponseIntentProjection(),start=row(1,'runtime_action',{phase:'started'})
+ p.observe([start,row(2,'assistant_process_delta',{text:'\n\n'},'diagnostic')])
+ const chunks=[start,row(2,'assistant_process_delta',{text:'\n\n'},'diagnostic'),row(3,'assistant_process_delta',{text:'// 汇总'},'diagnostic'),row(4,'assistant_process_delta',{text:'指标\nPRIVATE BODY'},'diagnostic')]
+ p.observe(chunks)
+ expect(p.intent('e1')).toBe('汇总指标')
+ p.observe([start,row(5,'runtime_action',{phase:'response_completed'})])
+ expect(p.intent('e1')).toBe('汇总指标')
+})

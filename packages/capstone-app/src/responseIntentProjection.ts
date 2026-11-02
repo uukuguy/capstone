@@ -21,9 +21,11 @@ export class ResponseIntentProjection {
       }else if(event.eventType==='assistant_process_delta'&&typeof event.payload.text==='string'){
         const id=active.get(key),row=id?this.rows.get(id):undefined
         if(row&&!row.closed&&event.eventSeq>row.lastSeq){
-          row.text=(row.text+event.payload.text).slice(0,512).split(/\r?\n/,1)[0]
+          const buffered=(row.text+event.payload.text).slice(0,512)
+          const opening=buffered.trimStart()
+          row.text=opening?opening.split(/\r?\n/,1)[0]:buffered
           row.lastSeq=event.eventSeq
-          row.closed=/[\r\n]/.test(event.payload.text)||row.text.length>=512
+          row.closed=/[\r\n]/.test(opening)||buffered.length>=512
         }
       }
     }

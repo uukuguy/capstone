@@ -38,7 +38,7 @@ def _summary(value: object, limit: int = 200) -> str:
 
 
 def public_response_intent(text: str) -> str | None:
-    line = text.split('\n', 1)[0].strip()
+    line = text.lstrip().split('\n', 1)[0].strip()
     if not line.startswith('//'):
         return None
     value = line[2:].strip()

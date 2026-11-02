@@ -6746,3 +6746,5 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 2026-11-02: Delay automatic artifact-panel opening until a product arrives;23 execution checks and types pass.
 - 2026-11-02: 939a4d74 delays panel opening until products arrive;23 checks pass; intranet App updated without restarting backend.
 - 2026-11-02: Canonical local rebuild for939a4d74 passed; backend image9d1aac23 unchanged; scoped cleanup receipt155454-34538 retained.
+- 2026-11-02: ebd12744 records939a4d74 local/intranet App rollout and verified artifact-panel timing.
+- 2026-11-02: Summer audit reproduces blank-prefix intent loss and non-executable report CLI;44 App and44 Python checks pass after fixes.
