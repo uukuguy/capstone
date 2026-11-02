@@ -1,5 +1,8 @@
 """One coalesced file capture worker per active native task; no timer polling."""
+import logging
 from threading import Condition, Event, Thread
+
+from .native_failure_origin import native_failure_origin
 
 from .general_pi_executor import collect_artifacts
 
@@ -61,3 +64,7 @@ class IncrementalArtifacts:
                 # A live writer can race a capture. Keep prior committed versions;
                 # the next tool completion can try again. Final capture is mandatory.
                 self.error = type(error).__name__
+                if not (isinstance(error, InterruptedError) and self.cancel.is_set()):
+                    logging.getLogger(__name__).warning(
+                        'Incremental artifact capture failed; task_id=%s; exception_type=%s; origin=%s',
+                        self.request.task_id, type(error).__name__, native_failure_origin(error))
