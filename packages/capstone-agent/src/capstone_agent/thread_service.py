@@ -679,6 +679,7 @@ class AttemptClaim:
     resource_reader: Any = None
     started_at: str | None = None
     task_context: TaskContext | None = None
+    workspace_name: str = DEFAULT_WORKSPACE
 
     @property
     def professional_context(self) -> ModelContextSnapshot:
@@ -687,6 +688,7 @@ class AttemptClaim:
         return self.model_context
 
     def __post_init__(self) -> None:
+        normalize_workspace_name(self.workspace_name)
         if self.task_context is not None:
             from .enterprise_context import TaskContext
             if (not isinstance(self.task_context, TaskContext)
@@ -1930,7 +1932,7 @@ class InMemoryThreadService(NativeExecutionOwner):
                         event_id="evt_" + secrets.token_hex(8),
                         event_seq=self._snapshot.last_event_seq + offset,
                         event_type=application_event.event_type, event_version=1,
-                        thread_id=self._snapshot.thread_id, run_id=self._snapshot.run.run_id,
+                        thread_id=self._snapshot.thread_id, run_id=self._snapshot.run.run_id, workspace_name=self._workspace_name,
                         turn_id=None, attempt_id=None,
                         model_context_id=self._snapshot.professional_context.id,
                         selection_revision=self._snapshot.professional_context.selection_revision,
@@ -4105,7 +4107,7 @@ class PostgresThreadService(NativeExecutionOwner):
                 event_type="attempt_started", payload={"attempt_id": running.attempt_id, "task_step": preparation_step(), **work_payload},
             )
             claim = AttemptClaim(
-                thread_id=thread["thread_id"], run_id=thread["run_id"], attempt=running,
+                thread_id=thread["thread_id"], run_id=thread["run_id"], attempt=running, workspace_name=thread["workspace_name"],
                 kind=attempt_row["kind"], instruction=attempt_row["instruction"],
                 model_context_id=thread["model_context_id"],
                 selection_revision=thread["selection_revision"], lease_token=token,

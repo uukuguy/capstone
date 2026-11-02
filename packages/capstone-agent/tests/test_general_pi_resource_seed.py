@@ -172,3 +172,14 @@ def test_native_cleanup_helper_is_in_image_and_importable(tmp_path):
         shutil.copyfile(project / f'packages/capstone-agent/src/capstone_agent/{module}.py', package / f'{module}.py')
     subprocess.run([sys.executable, '-c', 'from capstone_agent.runtime_cleanup import run_runtime_cleanup'],
                    cwd=tmp_path, check=True)
+
+
+def test_managed_resource_image_contains_relative_dependency_closure():
+    import ast
+    project=Path(__file__).parents[3]
+    copied={source.name for source,_ in image_copy_files(project) if source.suffix=='.py'}
+    for source in (project/'packages/capstone-agent/src/capstone_agent').glob('managed_resource*.py'):
+        assert source.name in copied
+        for node in ast.walk(ast.parse(source.read_text())):
+            if isinstance(node,ast.ImportFrom) and node.level==1 and node.module:
+                assert node.module.split('.')[0]+'.py' in copied,(source.name,node.module)

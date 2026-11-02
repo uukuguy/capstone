@@ -187,6 +187,7 @@ class PiTaskRequest:
     input: Mapping | None = field(default=None, kw_only=True)
     native_context: Mapping | None = field(default=None, kw_only=True)
     research_binding: Mapping | None = field(default=None, kw_only=True)
+    managed_workspace: str | None = field(default=None, kw_only=True)
 
     def __post_init__(self):
         document = _json_document({name: getattr(self, name) for name in _TASK_V1_FIELDS})
@@ -247,6 +248,12 @@ class PiTaskRequest:
             if binding['attempt_id'] != self.parent_attempt_id:
                 raise ValueError('research producer identity changed')
             object.__setattr__(self, 'research_binding', _freeze(binding))
+        if self.managed_workspace is not None:
+            from .workspace_scope import workspace_name
+            if self.business_context is None or self.native_context is None:
+                raise ValueError('managed resources require native v2 context')
+            if workspace_name(self.managed_workspace) != self.managed_workspace:
+                raise ValueError('invalid managed workspace')
         # Include the schema and every v2 field in the total transport budget.
         self.to_document()
 
@@ -259,7 +266,7 @@ class PiTaskRequest:
             document = _json_document(document)
             _fields(document, _TASK_V1_FIELDS, schema)
         elif schema == 'capstone-pi-task/2':
-            optional = tuple(key for key in ('native_context', 'research_binding') if key in document)
+            optional = tuple(key for key in ('native_context', 'research_binding', 'managed_workspace') if key in document)
             _fields(document, _TASK_V1_FIELDS + _TASK_V2_FIELDS + optional, schema)
             base = _json_document({key: document[key] for key in _TASK_V1_FIELDS})
             document = {'schema': schema, **base, **{key: document[key] for key in _TASK_V2_FIELDS + optional}}
@@ -278,6 +285,8 @@ class PiTaskRequest:
         if self.native_context is not None:
             from .native_task_context import checked_native_context
             document['native_context'] = checked_native_context(self.native_context)
+        if self.managed_workspace is not None:
+            document['managed_workspace'] = self.managed_workspace
         if self.research_binding is not None:
             document['research_binding'] = _json_document(self.research_binding)
         byte_limit = limits.native_task_bytes if self.native_context is not None else limits.control_document_bytes
@@ -450,6 +459,32 @@ class HttpGeneralPiExecutor:
             document={'binding': binding, 'operation': operation, 'arguments': document},
             timeout=EXCHANGE_SECONDS + 2, total_timeout=EXCHANGE_SECONDS + 3,
             electrical_transport=operation.startswith('electrical_'))
+
+    def managed_resources(self, workspace, operation, document):
+        from .managed_resources import ResourceConflict, ResourceStateError
+        from .resource_permissions import ResourcePermissionDenied
+        result = self._call('POST', '/managed-resources',
+            document={'workspace': workspace, 'operation': operation, 'document': document},
+            timeout=limits.mcp_tool_seconds, total_timeout=limits.mcp_tool_seconds)
+        if not isinstance(result, dict) or type(result.get('ok')) is not bool:
+            raise ValueError('resource_response_invalid')
+        if result['ok']:
+            return result['result']
+        code = result.get('code')
+        if not isinstance(code, str) or not re.fullmatch(r'[a-z][a-z0-9_]{0,95}', code):
+            raise ValueError('resource_response_invalid')
+        kind = result.get('kind')
+        if kind == 'runtime':
+            from .managed_resource_mcp import ManagedMcpError
+            stage=result.get('stage')
+            if stage not in {'admission','discovery','launch','execution'} or result.get('executed') not in {True,False,None}:
+                raise ValueError('resource_response_invalid')
+            raise ManagedMcpError(code,stage=stage,executed=result.get('executed'))
+        error = {'permission': ResourcePermissionDenied, 'conflict': ResourceConflict,
+                 'state': ResourceStateError, 'missing': KeyError, 'input': ValueError}.get(kind)
+        if error is None:
+            raise ValueError('resource_response_invalid')
+        raise error(code)
 
     def network_policy(self):
         return self._call('GET', '/network-policy', timeout=2, total_timeout=3)

@@ -6785,3 +6785,5 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 2026-11-03: Existing Vivaldi confirms welcome gateway/model cards; no new tabs; later app disappeared before graph inspection.
 
 - 2026-11-03: Existing Vivaldi visually verifies overview source nodes and deployment edges; welcome cards already confirmed; no new tabs.
+
+- 2026-11-03 8f1415fc aligns overview summaries and records Vivaldi visual checks using existing tabs.

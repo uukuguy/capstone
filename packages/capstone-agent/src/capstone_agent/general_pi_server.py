@@ -1111,7 +1111,7 @@ class NativeTaskRunner:
                           'context': context,
                           'deadlineAt': int((time.time() + request.timeout_seconds) * 1000),
                           'adapter_sha256': sha256(b''.join((Path(__file__).parent / name).read_bytes()
-                              for name in ('bounded_mcp.py', 'resources/general-sdk.mjs', 'resources/general-mcp.mjs'))).hexdigest()}
+                              for name in ('bounded_mcp.py', 'resources/general-sdk.mjs', 'resources/general-mcp.mjs', 'resources/managed-resource-tools.mjs'))).hexdigest()}
             if self.resources is not None:
                 accepted = document.get('resource_profile', {
                     'profile_id': role, 'revision': self.resources.profiles[role].revision})
@@ -1175,6 +1175,12 @@ class NativeTaskRunner:
                 from .native_task_context import checked_native_context, resolve_research_policy
                 native = checked_native_context(request.native_context)
                 sdk_config['applicationPolicy'] = native['policy']
+                if request.managed_workspace is not None and getattr(self,'managed_resource_service',None) is not None:
+                    sdk_config['managedResources']={'url':self.relay_origin+'/managed-resource-tasks/'+request.task_id,
+                        'grant':grant}
+                    sdk_config['applicationPolicy']={**sdk_config['applicationPolicy'],'allowed_tools':sorted({
+                        *sdk_config['applicationPolicy']['allowed_tools'],'agent_managed_resource'})}
+
                 if self.experimental_llm_pool and native.get('deep_research') is False:
                     from .native_model_request_pool import MODEL_REQUEST_POOL_POLICY
                     sdk_config['modelRequestPool'] = dict(MODEL_REQUEST_POOL_POLICY)
@@ -1191,7 +1197,7 @@ class NativeTaskRunner:
                 if admitted_gateway and task_gateway is not None:
                     from .data_gateway_relay import gateway_discovery_tools
                     sdk_config['applicationPolicy'] = {**native['policy'], 'allowed_tools': sorted({
-                        *native['policy']['allowed_tools'], *gateway_discovery_tools(native,
+                        *sdk_config['applicationPolicy']['allowed_tools'], *gateway_discovery_tools(native,
                             gateway_publication, gateway_available=True)})}
                     from .gateway_diagnostics import research_diagnostics
                     task_catalog = gateway_publication['catalog']
@@ -1448,7 +1454,7 @@ class NativeTaskRunner:
             try:
                 inventory = self(request, lambda: False, lambda _: None, inventory_only=True)[1]['inventory']
                 if inventory['adapter_sha256'] != sha256(b''.join((Path(__file__).parent / name).read_bytes()
-                        for name in ('bounded_mcp.py', 'resources/general-sdk.mjs', 'resources/general-mcp.mjs'))).hexdigest():
+                        for name in ('bounded_mcp.py', 'resources/general-sdk.mjs', 'resources/general-mcp.mjs', 'resources/managed-resource-tools.mjs'))).hexdigest():
                     raise ValueError('native adapter publication changed')
                 profile = self.resources.confirm_loaded(role, inventory)
                 result[role] = {**profile.to_document(),
@@ -1648,6 +1654,8 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 self.send_json(404, {'error': 'task_not_found'})
 
         def do_POST(self):
+            if self.path.startswith('/managed-resource-tasks/'):
+                return self.relay_managed_resources()
             if self.path.startswith('/data-gateway/'):
                 return self.relay_data_gateway()
             if self.path.startswith('/provider/'):
@@ -1657,6 +1665,15 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
             try:
                 length = int(self.headers.get('Content-Length', '0'))
                 parts = self.path.split('/')
+                if self.path == '/managed-resources':
+                    from .managed_resource_dispatch import dispatch_resource_request
+                    if not 0 < length <= limits.control_document_bytes:
+                        return self.send_json(413, {'error': 'resource_request_too_large'})
+                    service = getattr(runner, 'managed_resource_service', None)
+                    if service is None:
+                        return self.send_json(503, {'error': 'resource_management_unavailable'})
+                    document = json.loads(self.rfile.read(length))
+                    return self.send_json(200, dispatch_resource_request(service, document))
                 electrical_routes = {f'/grid-sources/data-gateway/electrical/{name}': getattr(electrical_provider, name)
                                      for name in ('open', 'read', 'job')}
                 if self.path in electrical_routes:
@@ -1748,6 +1765,43 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 self.send_json(400, {'error': 'invalid_task'})
             except (RuntimeError, OSError):
                 self.send_json(503, {'error': 'executor_capacity'})
+
+        def relay_managed_resources(self):
+            from .managed_resource_dispatch import dispatch_resource_request
+            from .managed_resource_task import resource_task_action
+            from .resource_permissions import ResourcePrincipal
+            if runner is None or getattr(runner,'managed_resource_service',None) is None:
+                return self.send_json(503,{'error':'resource_management_unavailable','executed':False})
+            task_id=self.path.removeprefix('/managed-resource-tasks/')
+            grant=self.headers.get('Authorization','').removeprefix('Bearer ')
+            lease=None
+            try:
+                lease=runner.relay.acquire(task_id,grant,self.connection,channel='gateway')
+                with host._lock:
+                    record=host._tasks.get(task_id)
+                    request=None if record is None else record['request']
+                if request is None or request.managed_workspace is None:
+                    return self.send_json(403,{'error':'resource_task_scope_missing'})
+                length=int(self.headers.get('Content-Length','0'))
+                if not 0<length<=limits.control_document_bytes:
+                    return self.send_json(413,{'error':'resource_request_too_large'})
+                body=json.loads(self.rfile.read(length))
+                if not isinstance(body,dict) or set(body)!={'operation','document'}:
+                    return self.send_json(400,{'error':'resource_request_fields_invalid'})
+                service=runner.managed_resource_service
+                class TaskService:
+                    def invoke(self,principal,workspace,operation,document):
+                        return resource_task_action(service,principal,workspace,operation,document,
+                            inputs=runner.root/'tasks'/('.inputs-'+task_id), deadline=lease.deadline)
+                result=dispatch_resource_request(TaskService(),{
+                    'workspace':request.managed_workspace,**body})
+                return self.send_json(200,result)
+            except PermissionError:
+                return self.send_json(403,{'error':'resource_permission_denied'})
+            except (ValueError,KeyError):
+                return self.send_json(400,{'error':'resource_request_rejected'})
+            finally:
+                if lease is not None:runner.relay.release(lease)
 
         def relay_data_gateway(self):
             from .data_gateway_mcp import GatewayError
@@ -1919,7 +1973,7 @@ def main():
                 'pi_commit': lock['source']['commit'], 'config_revision': revision.hexdigest(),
                 'runtime_lock_sha256': sha256(Path('/opt/general/pi-runtime.lock.json').read_bytes()).hexdigest(),
                 'executor_revision': sha256(b''.join((Path(__file__).parent / name).read_bytes()
-                    for name in ('general_pi_server.py', 'general_pi_executor.py', 'general_pi_storage.py', 'general_pi_relay.py', 'native_network_policy.py', 'bounded_http_loop.py', 'pi_delegation.py', 'business_context.py', 'request_intent.py', 'native_task_context.py', 'workbench_llm_profiles.py', 'native_failure_origin.py', 'native_diagnosis.py', 'native_tool_composition.py', 'native_llm_pool.py', 'native_model_request_pool.py', 'incremental_artifacts.py',
+                    for name in ('general_pi_server.py', 'general_pi_executor.py', 'general_pi_storage.py', 'general_pi_relay.py', 'native_network_policy.py', 'bounded_http_loop.py', 'pi_delegation.py', 'business_context.py', 'request_intent.py', 'native_task_context.py', 'workbench_llm_profiles.py', 'native_failure_origin.py', 'runtime_cleanup.py', 'resource_permissions.py', 'managed_resources.py', 'managed_resource_manifest.py', 'managed_resource_installation.py', 'managed_resource_service.py', 'managed_resource_dispatch.py', 'managed_resource_runtime.py', 'managed_resource_mcp.py', 'managed_resource_task.py', 'managed_resource_probe.py', 'native_diagnosis.py', 'native_tool_composition.py', 'native_llm_pool.py', 'native_model_request_pool.py', 'incremental_artifacts.py',
                                  'native_resources.py', 'runtime_resources.py', 'resource_installation.py', 'general_pi_resource_seed.py', 'bounded_mcp.py', 'native_environment.py', 'data_gateway_mcp.py', 'data_gateway_relay.py', 'data_gateway_views.py', 'gateway_connections.py', 'gateway_connections_runtime.py', 'gateway_diagnostics.py', 'grid_source_topology.py', 'grid_electrical_view.py', 'resources/gateway-electrical-view-v1.schema.json', 'resources/gateway-electrical-view-v2.schema.json', 'resources/general-data-gateway.mjs',
                                  'progress.py', 'answer_presentation.py', 'native_tool_diagnostics.py', 'stream_progress.py', 'resource_manifest.py', 'native_resource_staging.py', 'native_resource_references.py',
                                  'native_research_bridge.py', 'native_graph_context.py', 'native_graph_events.py',
@@ -1945,6 +1999,9 @@ def main():
     runner.gateway_publication = gateway_publication
     runner.gateway_registry = gateway_registry
     host = GeneralPiHost(root=root, identity=identity, run_task=runner)
+    from .managed_resource_runtime import create_managed_resource_service
+    runner.managed_resource_service = create_managed_resource_service(
+        root / 'managed-resources', network_policy=network_policy, environment=os.environ)
     host.record_network_policy('startup_default', network_policy.state())
     host.capability['native_tools'] = runner.verify_tools(identity)
     host.capability['native_builtin_tools'] = runner.builtin_tools

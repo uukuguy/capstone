@@ -1,3 +1,4 @@
+import ManagedResourcesPanel from './ManagedResourcesPanel'
 import {instructionProductScopesFromEvents,type InstructionProductScope} from './instructionProducts'
 import {isWorkspaceActive} from './workspaceName'
 import {applicationCapacity,rethrowDebugCapacity} from './applicationCapacity'
@@ -664,7 +665,7 @@ function WorkThreadSession({ transport: baseTransport, threadId: currentId, name
         attachments={attachments} onResourceUploaded={()=>setAttachmentReload(value=>value+1)} onRemoveAttachment={async id=>{
           await transport.cancelResourceUpload(currentId,id.replace('resource_','upload_'))
           setAttachments(files=>files.filter(file=>file.resource_id!==id))
-        }}/>{processReference&&<span className="process-reference" title={processReference.instruction}>引用：{processReference.instruction.slice(0,36)}<button type="button" aria-label="移除指令引用" onClick={()=>setProcessReference(undefined)}>×</button></span>}<ThreadSettingsMenu>{historyActions}</ThreadSettingsMenu></>:undefined}
+        }}/>{processReference&&<span className="process-reference" title={processReference.instruction}>引用：{processReference.instruction.slice(0,36)}<button type="button" aria-label="移除指令引用" onClick={()=>setProcessReference(undefined)}>×</button></span>}<ThreadSettingsMenu>{historyActions}<ManagedResourcesPanel transport={transport}/></ThreadSettingsMenu></>:undefined}
       onRemoveMaterial={nativeChat?async id=>{const result=await client.removeThreadMaterial(currentId,id) as {removed?:string};if(result?.removed!==id)throw new Error('资料尚未移除。');setCatalogReload(value=>value+1)}:undefined}
       inputCatalog={inputCatalog} inputCatalogLoading={catalogLoading} onRefreshInputCatalog={()=>setCatalogReload(value=>value+1)} inputControlsDisabled={busy||active||!!pending||uploadBusy}
       welcomeGateway={welcomeGateway}

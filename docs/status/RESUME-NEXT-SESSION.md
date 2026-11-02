@@ -1,5 +1,31 @@
 # Live Session Checkpoint
 
+2026-11-03 active Skills/MCP installation implementation. Approved design/plan:
+docs/superpowers/{specs/2026-11-02-managed-resource-installation-design.md,plans/2026-11-02-managed-resource-installation.md}.
+Added managed_resource_service/http/dispatch/runtime/probe/task.py, private durable
+managed-resources volume, workspace-bound PiTaskRequest.managed_workspace from
+AttemptClaim.workspace_name, generic agent_managed_resource SDK tool and workbench
+Settings panel. Policy remains local-open/intranet-use-only; private directory-mounted
+policy is seeded once by deploy/prepare_resource_policy.py (never overwrite revocation).
+Installer/probe UID>=2**31 disjoint from task UIDs; store0700; untrusted work executes
+only in private per-operation copies under tasks/.managed-installers. No root HTTP
+probe, no shared package ownership, no direct persistent-store task reads. MCP error
+IPC retains stage/executed=None and uses accepted task deadline. Skill copies use
+lock, link-preserving bounded hash validation and atomic publication. Resource-call
+result is retained if use policy is revoked after dispatch; later calls deny.
+Store schema2 additively migrates v1 to retain parsed non-secret install spec for
+updates; old schema1 executors cannot open schema2 (no rollback compatibility claim).
+Source checks440 passed/37 skipped plus additional task/security/transport/image
+checks; App15 tests and types passed. No CI/remote/deployment yet for this feature.
+Next: commit current coherent source unit; unified canonical rebuild; run ignored
+.capstone-agent/verify_managed_resources.py in a separate network-none native container
+with NET_ADMIN,SETUID,SETGID,CHOWN,DAC_OVERRIDE caps (test no secrets, no gateway/model).
+Review/fix acceptance failures; no incremental rebuild until source unit ready.
+Dependency environments, protected secret binding and offline preinstall bundle
+application remain incomplete. Do not claim whole installation feature complete.
+Research server remains offline. Preserve unrelated summer-session-audit.md.
+
+
 Vivaldi restored (pid61110/window239221): existing project overview tab selected
 through AppleScript active-tab index after AX tab click only focused without selecting.
 Welcome cards and overview runtime nodes/deployment edges now visually verified.

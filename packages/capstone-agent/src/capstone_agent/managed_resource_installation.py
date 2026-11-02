@@ -24,6 +24,7 @@ from .managed_resource_manifest import (
     relative_path,
 )
 from .resource_permissions import ResourcePermissionDenied
+from .managed_resource_mcp import ManagedMcpError
 
 
 class InstallationError(ValueError):
@@ -154,11 +155,11 @@ class ManagedResourceInstaller:
                 stage = Path(tempfile.mkdtemp(prefix='install-', dir=staging))
                 verified = self._package(request, stage)
             self._authorize(principal, workspace, operation)
-            result = self.store.publish_verified(principal, workspace, request_id, verified)
+            result = self.store.publish_verified(principal, workspace, request_id, verified, install_request=request)
         except ResourcePermissionDenied:
             return self.store.fail_operation(principal, workspace, request_id, 'resource_permission_revoked')
         except Exception as error:
-            code = str(error) if isinstance(error, InstallationError) and re.fullmatch(r'resource_[a-z_]{1,80}', str(error)) else 'resource_installation_failed'
+            code = str(error) if isinstance(error, (InstallationError, ManagedMcpError)) and re.fullmatch(r'resource_[a-z_]{1,80}', str(error)) else 'resource_installation_failed'
             return self.store.fail_operation(principal, workspace, request_id, code)
         finally:
             try:

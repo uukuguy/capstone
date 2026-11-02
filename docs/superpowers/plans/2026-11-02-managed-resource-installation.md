@@ -100,5 +100,5 @@ RESOURCE_ACTIONS = frozenset({
 
 ## Execution status
 
-- Plan prepared; Task 1 starts first. Remaining tasks depend on its authorization contract.
-- The preinstall design is approved. No resource installation, publication or remote deployment has yet occurred.
+- Permission/store/installer foundations are implemented and focused-tested. Workspace API, protected transport, isolated acquisition/probes, task-scoped load/call and workbench controls are implemented; consolidated source checks are passing. Unified rebuild and real container acceptance are next.
+- Preinstall draft/publication exists; full offline bundle application, dependency environments and protected secret binding remain incomplete. Do not claim those complete. No CI or remote deployment.

@@ -145,3 +145,14 @@ def test_valid_but_modified_version_metadata_fails_closed(store):
         db.execute('UPDATE versions SET metadata=?', (json.dumps(metadata),))
     with pytest.raises(ResourceStateError, match='version_corrupt'):
         store.require_use(P, 'w', 'sample')
+
+
+def test_v1_migration_retains_existing_versions_and_bindings(store):
+    item=install(store)
+    with store._transaction() as database:
+        database.execute('DROP TABLE installation_specs')
+        database.execute('PRAGMA user_version = 1')
+    reopened=ManagedResourceStore(store.root,store.permissions)
+    assert reopened.require_use(P,'w','sample')==item
+    with reopened._transaction() as database:
+        assert database.execute('PRAGMA user_version').fetchone()[0]==2

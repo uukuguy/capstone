@@ -217,6 +217,7 @@ class DelegatedRuntime:
             instruction, tuple(messages), tuple(self._general_results[identity].to_document()
                 for identity in dependencies if identity in self._general_results),
             frozen['identity'], frozen['timeout_seconds'],
+            managed_workspace=self._claim.workspace_name if resources.get('native_context') and task_fields else None,
             native_context=resources.get('native_context'),
             research_binding=None if self._research_bridge is None else self._research_bridge.binding,
             **task_fields)

@@ -35,3 +35,26 @@ Start or update with the saved project name and private environment file. Never
 use `down -v`. Retain the previous image/source receipt for rollback. Scope any
 build-cache cleanup to Capstone-owned images; preserve images referenced by any
 container and all gateway/Kubernetes resources on the host.
+
+## Persistent Skills and MCP
+
+Installed packages and receipts use the separate `managed-resources` volume.
+Do not delete it on update. Local Compose selects the `local` permission profile;
+the intranet overlay selects `intranet`, which permits use and denies management.
+Resource installation does not grant network access or business authority.
+
+Before first startup, initialize the private, directory-mounted policy:
+
+```sh
+python3 deploy/prepare_resource_policy.py --directory .capstone-agent/resource-policy
+```
+
+Set `CAPSTONE_RESOURCE_POLICY_DIR` for a different deployment-owned policy directory.
+The helper preserves an existing policy. Each later operation rereads this file;
+operators can revoke actions without rebuilding the image. Keep the directory
+private. Never copy provider credentials into resource packages or manifests.
+
+The workbench Settings menu offers Skills/MCP management. A Git source must use
+an exact commit. Remote MCP discovers and pins the actual publication. Installed,
+enabled and load-verified states are separate. Preinstall draft/publication changes
+do not update another deployment. Referenced package versions remain after uninstall.

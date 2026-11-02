@@ -34,13 +34,14 @@ class ManagedResourceStore:
         try:
             with self._transaction() as db:
                 version = db.execute('PRAGMA user_version').fetchone()[0]
-                if version not in (0, 1):
+                if version not in (0, 1, 2):
                     raise ResourceStateError('unsupported_resource_schema')
                 db.execute('CREATE TABLE IF NOT EXISTS resources (workspace TEXT, id TEXT, current TEXT, enabled INTEGER NOT NULL, installed INTEGER NOT NULL, PRIMARY KEY(workspace,id))')
                 db.execute('CREATE TABLE IF NOT EXISTS versions (workspace TEXT, id TEXT, version TEXT, metadata TEXT NOT NULL, PRIMARY KEY(workspace,id,version))')
                 db.execute('CREATE TABLE IF NOT EXISTS operations (workspace TEXT, request TEXT, subject TEXT NOT NULL, resource TEXT NOT NULL, expected TEXT, action TEXT NOT NULL, payload TEXT NOT NULL, policy TEXT NOT NULL, status TEXT NOT NULL, result TEXT, diagnostic TEXT, PRIMARY KEY(workspace,request))')
                 db.execute('CREATE TABLE IF NOT EXISTS drafts (workspace TEXT, profile TEXT, id TEXT, entry TEXT NOT NULL, PRIMARY KEY(workspace,profile,id))')
                 db.execute('CREATE TABLE IF NOT EXISTS manifests (workspace TEXT, profile TEXT, version TEXT, manifest TEXT NOT NULL, PRIMARY KEY(workspace,profile,version))')
+                db.execute('CREATE TABLE IF NOT EXISTS installation_specs (workspace TEXT,id TEXT,version TEXT,spec TEXT NOT NULL,PRIMARY KEY(workspace,id,version))')
                 db.execute('CREATE TABLE IF NOT EXISTS applications (workspace TEXT, profile TEXT, version TEXT, receipt TEXT NOT NULL, PRIMARY KEY(workspace,profile,version))')
                 for table, fields in {
                     'resources': 'workspace,id,current,enabled,installed',
@@ -49,9 +50,10 @@ class ManagedResourceStore:
                     'drafts': 'workspace,profile,id,entry',
                     'manifests': 'workspace,profile,version,manifest',
                     'applications': 'workspace,profile,version,receipt',
+                    'installation_specs': 'workspace,id,version,spec',
                 }.items():
                     db.execute(f'SELECT {fields} FROM {table} LIMIT 0')
-                db.execute('PRAGMA user_version = 1')
+                db.execute('PRAGMA user_version = 2')
                 if db.execute('PRAGMA quick_check').fetchone()[0] != 'ok':
                     raise ResourceStateError('resource_database_corrupt')
         except sqlite3.Error:
@@ -105,7 +107,10 @@ class ManagedResourceStore:
         metadata = parse_verified(json.loads(record['metadata'])).to_dict()
         if content_digest(metadata) != selected:
             raise ResourceStateError('resource_version_corrupt')
-        return {'resource_id': row['id'], 'version': selected, 'installed': bool(row['installed']), 'enabled': bool(row['enabled']), **metadata}
+        spec=db.execute('SELECT spec FROM installation_specs WHERE workspace=? AND id=? AND version=?',
+                        (row['workspace'],row['id'],selected)).fetchone()
+        return {'resource_id': row['id'], 'version': selected, 'installed': bool(row['installed']), 'enabled': bool(row['enabled']),
+                **metadata, **({'installation':json.loads(spec[0])} if spec is not None else {})}
 
     def begin_install(self, principal: ResourcePrincipal, workspace: str, request_id: str,
                       resource_id: str, payload: dict, expected_version: str | None = None) -> dict:
@@ -131,10 +136,13 @@ class ManagedResourceStore:
             return self._operation_dict(self._operation(db, workspace, request_id, principal))
 
     def publish_verified(self, principal: ResourcePrincipal, workspace: str,
-                         request_id: str, verified: VerifiedResource) -> dict:
+                         request_id: str, verified: VerifiedResource, *, install_request=None) -> dict:
         """Internal only: the trusted installer must verify bytes and load first."""
         if not isinstance(verified, VerifiedResource):
             raise TypeError('internal_verifier_receipt_required')
+        from .managed_resource_installation import InstallRequest
+        if install_request is not None and not isinstance(install_request,InstallRequest):
+            raise TypeError('parsed_install_request_required')
         metadata = verified.to_dict()
         version = content_digest(metadata)
         with self._transaction() as db:
@@ -156,6 +164,9 @@ class ManagedResourceStore:
             enabled = row['enabled'] if row and row['installed'] else 1
             db.execute('INSERT OR IGNORE INTO versions VALUES (?,?,?,?)', (workspace, resource_id, version, canonical(metadata)))
             db.execute('INSERT INTO resources VALUES (?,?,?,?,1) ON CONFLICT(workspace,id) DO UPDATE SET current=excluded.current,enabled=excluded.enabled,installed=1', (workspace, resource_id, version, enabled))
+            if install_request is not None:
+                db.execute('INSERT OR IGNORE INTO installation_specs VALUES (?,?,?,?)',
+                    (workspace,resource_id,version,canonical(install_request.to_dict())))
             result = self._catalog_item(db, self._resource(db, workspace, resource_id))
             db.execute("UPDATE operations SET status='succeeded',result=? WHERE workspace=? AND request=?", (canonical(result), workspace, request_id))
             return result
@@ -279,3 +290,17 @@ class ManagedResourceStore:
             published = bool(db.execute('SELECT 1 FROM manifests WHERE workspace=? AND profile=? AND version=?', (workspace, profile, manifest['version'])).fetchone())
             row = db.execute('SELECT receipt FROM applications WHERE workspace=? AND profile=? AND version=?', (workspace, profile, manifest['version'])).fetchone()
         return {'draft_version': manifest['version'], 'published': published, 'deployed': row is not None, 'application_receipt': row[0] if row else None}
+
+    def preinstall_memberships(self, principal, workspace):
+        """Read-only presentation metadata; publication does not imply deployment."""
+        self._authorize(principal, workspace, 'resources.use')
+        result = {}
+        with self._transaction() as db:
+            for row in db.execute('SELECT profile,id FROM drafts WHERE workspace=?', (workspace,)):
+                result.setdefault(row['id'], {'drafts': [], 'published': []})['drafts'].append(row['profile'])
+            for row in db.execute('SELECT profile,manifest FROM manifests WHERE workspace=?', (workspace,)):
+                for entry in json.loads(row['manifest'])['entries']:
+                    value = result.setdefault(entry['resource_id'], {'drafts': [], 'published': []})
+                    if row['profile'] not in value['published']:
+                        value['published'].append(row['profile'])
+        return result
