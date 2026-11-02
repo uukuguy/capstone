@@ -928,6 +928,13 @@ class HttpGeneralPiExecutor:
                     except (OSError,ValueError) as error:
                         from .application_capacity import CapacityExceeded
                         if isinstance(error,(PiHTTPFailure,CapacityExceeded,InterruptedError,TimeoutError)):raise
+                        from .native_failure_origin import native_failure_origin
+                        from .continuation_resources import ContinuationResourceUnavailable
+                        on_event({'type': 'resource_read_failed', 'resource_failure': {
+                            'resource_id': resource['resource_id'],
+                            'code': 'historical_resource_unavailable' if isinstance(error, ContinuationResourceUnavailable)
+                                else 'resource_read_failed' if isinstance(error, OSError) else 'resource_identity_rejected',
+                            'failure_origin': native_failure_origin(error)}})
                         exchange('POST','/inputs',operation='resource_unavailable',document={
                             'task_id':request.task_id,'resource':resource,'operation':'unavailable'},
                             timeout=self._exchange_timeout,research_transport=True)

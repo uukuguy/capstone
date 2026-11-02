@@ -16,6 +16,10 @@ MEDIA = {**TEXT_DOCUMENT_TYPES, '.pdf': 'application/pdf', '.png': 'image/png',
 from .application_capacity import limits, require_capacity
 
 
+class NativeArtifactNotFound(KeyError):
+    """No artifact matches the admitted ledger receipt."""
+
+
 def _identity_digest(identity):
     from .native_task_context import public_document
     return sha256(json.dumps(public_document(identity), sort_keys=True, separators=(',', ':'),
@@ -213,7 +217,7 @@ def read_native_artifact(service, executor, thread_id, attempt_id, artifact_id, 
             data = retain_native_artifact(objects, executor, item)
             return item, data
         if not page['has_more']:
-            raise KeyError('native file not found in this Attempt')
+            raise NativeArtifactNotFound('native file not found in this Attempt')
         if page['next_after'] <= after:
             raise ValueError('native file records made no progress')
         after = page['next_after']

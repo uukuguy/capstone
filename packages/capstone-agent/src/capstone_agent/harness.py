@@ -11,6 +11,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 import json
+import logging
 from time import monotonic
 from typing import Protocol, cast
 
@@ -672,6 +673,7 @@ class HarnessAttemptRunner:
         self._tool_events: list[Mapping[str, object]] = []
         self._runtime_failure_code: str | None = None
         self._runtime_transport_detail = ''
+        self._runtime_failure_origin: list[dict] = []
         self._runtime_timeout_seconds: float | None = None
         self._runtime_capacity_failure: dict[str, object] | None = None
         self._stages = ExecutionStages()
@@ -690,6 +692,7 @@ class HarnessAttemptRunner:
         self._tool_events.clear()
         self._runtime_failure_code = None
         self._runtime_transport_detail = ''
+        self._runtime_failure_origin = []
         self._runtime_timeout_seconds = None
         self._runtime_capacity_failure = None
         plan: TurnPlan | None = claim.turn_plan
@@ -766,8 +769,8 @@ class HarnessAttemptRunner:
                         )
                     except _AttemptCancelled:
                         raise
-                    except Exception:
-                        raise _AttemptAdmissionError("answer_recovery_unavailable") from None
+                    except Exception as error:
+                        raise _AttemptAdmissionError("answer_recovery_unavailable") from error
                     heartbeat()
                     if not isinstance(answer, str) or not answer.strip():
                         raise _AttemptAdmissionError("answer_admission_invalid")
@@ -798,8 +801,9 @@ class HarnessAttemptRunner:
                     try:
                         shadow = plan.shadow_decision.result()
                         shadow_payload = {"status": "completed", "route": shadow.route, "source": shadow.source}
-                    except Exception:
-                        shadow_payload = {"status": "unavailable"}
+                    except Exception as error:
+                        from .native_failure_origin import native_failure_origin
+                        shadow_payload = {"status": "unavailable", "failure_origin": native_failure_origin(error)}
                 self._service.append_runtime_event(claim, event_type="turn_router_shadow", payload=shadow_payload, visibility="diagnostic")
             if admission is not None:
                 terminal_payload["admission"] = admission
@@ -857,27 +861,34 @@ class HarnessAttemptRunner:
             return self._deliver_failure(claim, 'capacity_exceeded', 'execution', recovery_attempted, lease.check,
                                          capacity=error)
         except _AttemptAdmissionError as error:
+            from .native_failure_origin import native_failure_origin
+            self._runtime_failure_origin = native_failure_origin(error)
             lease.check()
             return self._deliver_failure(claim, error.code, "answer_check", recovery_attempted, lease.check)
-        except HarnessRuntimeConfigurationError:
+        except HarnessRuntimeConfigurationError as error:
+            from .native_failure_origin import native_failure_origin
+            self._runtime_failure_origin = native_failure_origin(error)
             lease.check()
             return self._deliver_failure(claim, 'runtime_configuration_invalid', 'preparation', recovery_attempted, lease.check)
         except _AttemptCancelled:
             answer = "已按你的要求停止本次任务。已记录的执行过程仍保留，未完成的分析不作为结论。"
             self._finish_cancelled(claim, answer)
             return HarnessAttemptResult("cancelled", answer, "attempt_cancelled")
-        except Exception:
+        except Exception as error:
             if terminal_commit_started:
                 # The write may have committed. Never replace an uncertain
                 # successful terminal write with a second, failed outcome.
                 raise
+            from .native_failure_origin import native_failure_origin
+            self._runtime_failure_origin = self._runtime_failure_origin or native_failure_origin(error)
             lease.check()
             return self._deliver_failure(claim, "runtime_failed", "execution", recovery_attempted, lease.check)
         finally:
             try:
                 self._runtime.stop()
-            except Exception:
-                pass
+            except Exception as error:
+                from .native_failure_origin import native_failure_origin
+                logging.getLogger(__name__).warning('Runtime cleanup failed; origin=%s', native_failure_origin(error))
 
     def _admit_answer(
         self, claim: AttemptClaim, plan: TurnPlan | None, answer: str,
@@ -890,10 +901,10 @@ class HarnessAttemptRunner:
                                   tuple(self._evidence_refs), tuple(self._tool_events))
             except CapacityExceeded:
                 raise
-            except ReferenceCapacityExceeded:
-                raise _AttemptAdmissionError("answer_reference_capacity_exceeded") from None
-            except Exception:
-                raise _AttemptAdmissionError("answer_admission_failed") from None
+            except ReferenceCapacityExceeded as error:
+                raise _AttemptAdmissionError("answer_reference_capacity_exceeded") from error
+            except Exception as error:
+                raise _AttemptAdmissionError("answer_admission_failed") from error
         if candidate is not None and not isinstance(candidate, AdmittedAttemptAnswer):
             raise _AttemptAdmissionError("answer_admission_invalid")
         if candidate is not None and (
@@ -972,6 +983,8 @@ class HarnessAttemptRunner:
                 and payload['failure_code'] in NATIVE_FAILURE_REASONS):
             self._runtime_failure_code = payload['failure_code']
             self._runtime_transport_detail = native_transport_summary(payload.get('transport_failure'))
+            from .native_failure_origin import checked_failure_origin
+            self._runtime_failure_origin = checked_failure_origin(payload.get('failure_origin'))
             timeout = payload.get('timeout_seconds')
             if isinstance(timeout, (int, float)) and not isinstance(timeout, bool) and 0 < timeout < float('inf'):
                 self._runtime_timeout_seconds = timeout
@@ -1047,6 +1060,10 @@ class HarnessAttemptRunner:
         }
         if failure is not None:
             payload['failure'] = failure
+        if self._runtime_failure_origin:
+            payload['failure_origin'] = self._runtime_failure_origin
+            origin = self._runtime_failure_origin[-1]
+            answer += f" 系统故障定位：{origin['module']}.{origin['function']}:{origin['line']}。"
         if admission is not None:
             payload["admission"] = admission
         if candidate is not None and candidate.result_projections:
@@ -1059,7 +1076,7 @@ class HarnessAttemptRunner:
         answer += recorded_failure_summary(self._tool_events)
         payload["answer"] = answer
         check_lease()
-        payload['task_steps'] = self._stages.finish(interrupted=True)
+        payload['task_steps'] = self._stages.finish(failed=True)
         self._service.finish_attempt(claim, phase="failed", payload=payload)
         return HarnessAttemptResult("failed", answer, code, results, evidence, admission)
 
@@ -1104,8 +1121,11 @@ class HarnessAttemptRunner:
                     and set(checked.result_refs).issubset(results)
                     and set(checked.evidence_refs).issubset(evidence)):
                     return checked
-            except Exception:
-                pass
+            except Exception as error:
+                from .native_failure_origin import native_failure_origin
+                self._service.append_runtime_event(claim, event_type='runtime_event', visibility='diagnostic',
+                    payload={'operation': 'partial_result_admission', 'status': 'failed',
+                        'failure_origin': native_failure_origin(error)})
             return None
 
         candidate = checked_group(tuple(self._result_refs), tuple(self._evidence_refs))

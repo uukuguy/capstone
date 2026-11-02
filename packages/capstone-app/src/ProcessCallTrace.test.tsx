@@ -22,11 +22,11 @@ it('shows compaction between model calls without an extra model round and stops 
 
 afterEach(cleanup)
 
-it('shows the recorded script purpose after its LLM and keeps source out of the tool title',()=>{
+it('leaves missing LLM purpose blank and keeps the recorded script purpose on its tool',()=>{
  const operation="cat > analysis.py <<'EOF'\n# 汇总区域负荷并保存图表\nimport pandas as pd\nEOF"
  render(<ProcessCallTrace compact active={false} models={[{id:'m',number:1,ms:100,toolCallIds:['t']}]} tools={[{id:'t',name:'bash',status:'completed',operation,durationMs:315}]}/>)
  const group=screen.getByRole('group',{name:'LLM 调用 1'})
- expect(group.querySelector('.capstone-call-purpose')).toHaveTextContent('汇总区域负荷并保存图表')
+ expect(group.querySelector('.capstone-call-purpose')).toBeNull()
  const summary=group.querySelector('.capstone-call-tool > summary')!
  expect(summary).toHaveTextContent('汇总区域负荷并保存图表')
  expect(summary).not.toHaveTextContent('import pandas')

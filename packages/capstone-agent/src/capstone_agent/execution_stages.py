@@ -90,7 +90,12 @@ class ExecutionStages:
         payload = dict(original)
         if isinstance(payload.get('task_steps'), list):
             payload['task_steps'] = self._record_batch(payload['task_steps'])
-        if event.get('event_type') in {'tool_started', 'tool_completed'} and 'task_step' not in payload:
+        event_type = event.get('event_type')
+        execution_observed = (event_type in {'tool_started', 'tool_completed'}
+            or (event_type == 'runtime_action' and payload.get('phase') in {'started', 'response_completed'})
+            or (event_type == 'runtime_event' and payload.get('native_type') in
+                {'tool_execution_start', 'tool_execution_end'}))
+        if execution_observed and 'task_step' not in payload:
             previous = self._open_unframed_execution()
             if previous is not None:
                 payload['task_steps'] = self._merge_previous(payload.get('task_steps'), previous)
@@ -136,8 +141,8 @@ class ExecutionStages:
         return {'event_type': 'runtime_action', 'runtime_mode': 'capstone', 'visibility': 'public',
             'payload': {'phase': 'started', 'task_steps': ([preparation] if preparation is not None else []) + [previous], 'task_step': self._public(identity)}}
 
-    def finish(self, *, interrupted: bool = False) -> list[dict[str, object]]:
-        if interrupted and self.steps[self.active]['status'] == 'running':
-            self.steps[self.active]['finish_reason'] = 'interrupted'
-            self.steps[self.active]['status'] = 'cancelled'
+    def finish(self, *, interrupted: bool = False, failed: bool = False) -> list[dict[str, object]]:
+        if (interrupted or failed) and self.steps[self.active]['status'] == 'running':
+            self.steps[self.active]['finish_reason'] = 'error' if failed else 'interrupted'
+            self.steps[self.active]['status'] = 'failed' if failed else 'cancelled'
         return [self._close()]

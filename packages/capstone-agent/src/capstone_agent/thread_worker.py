@@ -105,7 +105,7 @@ def _run_claimed_attempt(
             if error_code == 'intent_recognition_failed':
                 payload['message'] = '本次请求暂时未能处理，请重试。会话和模型选择已保留。'
             lease.check()
-            return _preparation_failure(service, claim, error_code)
+            return _preparation_failure(service, claim, error_code, error=error)
         service.append_runtime_event(claim, event_type="turn_plan_created", payload=plan.to_payload())
         service.append_runtime_event(
             claim, event_type="turn_route_fallback" if plan.fallback else "turn_route_selected",
@@ -146,15 +146,16 @@ def _run_claimed_attempt(
                         raise RuntimeError("attempt record cursor did not advance")
                     cursor = page["next_after"]
             bind_guard(active, terminal_phase)
-    except HarnessRuntimeConfigurationError:
+    except HarnessRuntimeConfigurationError as error:
         _close_prepared_runtime(runtime)
         error_code = "runtime_configuration_invalid"
         lease.check()
-        return _preparation_failure(service, claim, error_code)
-    except Exception:
+        return _preparation_failure(service, claim, error_code, error=error)
+    except Exception as error:
         _close_prepared_runtime(runtime)
         lease.check()
         error_code = "runtime_unavailable"
+        rollback_error = None
         if getattr(runtime_factory, "rollback_selection_on_failure", False):
             error_code = "capability_context_preparation_failed"
             try:
@@ -167,9 +168,9 @@ def _run_claimed_attempt(
                     service.rollback_selection_if_preparation_failed(
                         claim, error_code=error_code,
                     )
-            except Exception:
-                pass
-        return _preparation_failure(service, claim, error_code)
+            except Exception as secondary:
+                rollback_error = secondary
+        return _preparation_failure(service, claim, error_code, error=error, rollback_error=rollback_error)
     return HarnessAttemptRunner(
         service, runtime, lease_seconds=lease_seconds, turn_router=router, lease=lease,
     ).run(claim)
@@ -183,14 +184,19 @@ def _close_prepared_runtime(runtime: HarnessRuntime | None) -> None:
             _LOG.warning("Prepared runtime cleanup failed")
 
 
-def _preparation_failure(service: ThreadExecutionService, claim: AttemptClaim, code: str) -> HarnessAttemptResult:
+def _preparation_failure(service: ThreadExecutionService, claim: AttemptClaim, code: str,
+                         *, error: Exception | None = None, rollback_error: Exception | None = None) -> HarnessAttemptResult:
     from .execution_stages import ExecutionStages, preparation_seconds
+    from .native_failure_origin import native_failure_origin
     stages = ExecutionStages(preparation_seconds=preparation_seconds(claim.started_at))
     answer = "本次任务未能开始执行。运行准备未完成，因此没有生成新的计算结论。此前已完成的回答和记录仍保留。"
     service.finish_attempt(claim, phase="failed", payload={
         "answer": answer, "error_code": code, "result_refs": [], "evidence_refs": [],
         "outcome": {"status": "blocked", "stage": "preparation", "recovery": "unavailable"},
-        "task_steps": stages.finish(),
+        "task_steps": stages.finish(failed=True),
+        **({'failure_origin': native_failure_origin(error)} if error is not None else {}),
+        **({'recovery_failure': {'operation': 'rollback_selection',
+            'failure_origin': native_failure_origin(rollback_error)}} if rollback_error is not None else {}),
     })
     return HarnessAttemptResult("failed", answer, code)
 
@@ -254,10 +260,12 @@ def serve_thread_attempts(
                 )
                 if case_service is not None:
                     case_service.reconcile_active()
-            except Exception:
+            except Exception as error:
                 # A lost claim or unavailable ledger must not kill the polling
                 # thread. The ledger fences late writes and expires stale claims.
-                _LOG.warning("Thread worker iteration failed; retrying after poll interval")
+                from .native_failure_origin import native_failure_origin
+                _LOG.warning("Thread worker iteration failed; origin=%s; retrying after poll interval",
+                             native_failure_origin(error))
                 stop.wait(poll_seconds)
                 continue
             if result is None:

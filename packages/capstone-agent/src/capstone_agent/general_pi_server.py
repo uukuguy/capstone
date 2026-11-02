@@ -916,8 +916,11 @@ class GeneralPiHost:
             try:
                 self.storage._write(self.storage.root / 'failures' / (request.task_id + '.json'),
                                     json.dumps(failure).encode())
-            except (OSError, CapacityExceeded):
-                pass  # Keep the original failure; initial replay guard remains.
+            except (OSError, CapacityExceeded) as receipt_error:
+                import logging
+                logging.getLogger(__name__).error('Native failure receipt persistence failed; task_id=%s; '
+                    'original_origin=%s; persistence_origin=%s', request.task_id, origin,
+                    native_failure_origin(receipt_error))
         finally:
             incremental.close()
         if cancelled():

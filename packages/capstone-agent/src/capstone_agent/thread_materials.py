@@ -191,11 +191,13 @@ def _adopted_file_bytes(service, snapshot, source, connection, *, objects=None):
             ORDER BY event_seq DESC''', (snapshot.thread_id, source['attempt_id'], source['artifact_id']))
         deliveries = (row['delivery'] for row in rows)
     from .thread_deliveries import _key as delivery_key
+    from .native_artifact_projection import _matches_frozen_descriptor
     objects = service._material_objects if objects is None else objects
     for delivery in deliveries:
         if (delivery.get('format') != 'native-file' or delivery.get('scope') != 'task'
                 or delivery.get('thread_id') != snapshot.thread_id or delivery.get('work_id') != source['work_id']
-                or delivery.get('source_artifact') != source
+                or not isinstance(delivery.get('source_artifact'), dict)
+                or not _matches_frozen_descriptor(delivery['source_artifact'], source)
                 or delivery.get('byte_size') != source['size_bytes']
                 or delivery.get('content_digest') != source['sha256']):
             continue

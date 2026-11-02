@@ -551,7 +551,8 @@ def test_executor_component_failure_is_actionable_without_fake_verification():
     events = service.read_events('thr_harness', 0).events
     steps = [step for event in events for step in event.payload.get('task_steps', [])]
     assert all(step['title'] != '核验与结果整理' for step in steps)
-    assert events[-1].payload['task_steps'][0]['finish_reason'] == 'interrupted'
+    assert events[-1].payload['task_steps'][0]['finish_reason'] == 'error'
+    assert events[-1].payload['task_steps'][0]['status'] == 'failed'
 
 
 def test_harness_attempt_runner_persists_network_events_before_terminal_answer() -> None:
