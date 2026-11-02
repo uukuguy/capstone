@@ -9,7 +9,14 @@ installation lifecycle pass 81 focused tests. Runtime/API/UI installation integr
 remains pending. User approved lightweight merge CI on 2026-11-02. The explicit milestone/ PR route uses focused checks bounded to six minutes
 per platform. Ordinary verification routing remains intact. Push events no longer
 start duplicate checks after an approved PR merge.
-Remote dev/main integration and annotated tag are pending verification receipts.
+Dev PR [84](https://github.com/uukuguy/capstone/pull/84) merged as `a0ab3d10`.
+Main PR [85](https://github.com/uukuguy/capstone/pull/85) merged as `d4b59a0f`.
+Focused CI [41396861782](https://github.com/uukuguy/capstone/actions/runs/41396861782)
+passed: macOS16s, Linux20s,81 tests each. The first main attempt failed only historical
+CSV/EOF formatting; the CSV export bytes are preserved by a scoped attributes rule.
+Annotated tag `milestone-intranet-20261102-d4b59a0f` points to exact main merge source.
+Local dev includes the accepted main tree; final formatting/control return is local,
+not a remote dev merge claim. No further CI was started.
 
 2026-11-02 已确认[Skills/MCP 持久安装设计](../superpowers/specs/2026-11-02-managed-resource-installation-design.md)：
 安装默认持久保存，本机资源管理权限显式放开，内网部署默认收紧。预安装清单已获确认。

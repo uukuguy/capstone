@@ -1,8 +1,13 @@
 # Live Session Checkpoint
 
 2026-11-02 milestone closeout: user selected current dev as the milestone scope.
-All implementation commits are already on local dev. Remote integration, tag publication
-and main PR remain pending explicit CI approval. Current workflow forces full dual-platform
+All implementation commits are already on local dev. PR84 merged into remote dev at a0ab3d10 after scoped CI41395958065 passed.
+PR85 main CI41396086929 passed81 tests but failed historical formatting.
+User approved retry; CI41396861782 passed on both platforms (16s/20s).
+PR85 merged main d4b59a0f; published annotated milestone-intranet-20261102-d4b59a0f.
+Local dev returned accepted main changes and records; these follow-up changes are not
+on remote dev. Preserve the milestone branch until remote dev return is completed.
+Do not start another CI without user approval. Current workflow forces full dual-platform
 release checks for main; adjust to the agreed lightweight merge scope before triggering it.
 Intranet deployment remains 7ea289f2; current dev is not deployed there.
 
