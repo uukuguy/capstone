@@ -227,10 +227,14 @@ class DelegatedRuntime:
         stream_text = self._direct or (self._decision is not None
             and len(self._decision.to_document()['goals']) == 1)
         transfers = self._incremental_artifact_transfers(on_event, control)
+        opening_text = ''
 
         def native(event):
+            nonlocal opening_text
             control.checkpoint()
             kind = event.get('type', event.get('event', 'unknown'))
+            if kind == 'runtime_action' and event.get('phase') == 'started':
+                opening_text = ''
             if kind == 'native_artifact_captured':
                 self._publish_captured_artifact(event, request, transfers)
                 return
@@ -249,6 +253,8 @@ class DelegatedRuntime:
             update = event.get('assistantMessageEvent')
             if isinstance(update, Mapping) and update.get('type') == 'text_delta':
                 delta = update.get('delta')
+            if isinstance(delta, str):
+                opening_text = (opening_text + delta)[:512]
             if stream_text and isinstance(delta, str):
                 # The text event is the replay record. A second metadata-only
                 # event for the same chunk carries no additional observation.
@@ -259,6 +265,11 @@ class DelegatedRuntime:
             event = steps.annotate(event)
             if event.get('type') == 'runtime_action':
                 from .harness import normalize_runtime_event
+                if event.get('phase') == 'response_completed':
+                    from .progress import public_response_intent
+                    intent = public_response_intent(opening_text)
+                    if intent:
+                        event = {**event, 'response_intent': intent}
                 on_event(normalize_runtime_event(event, runtime_mode=self.runtime_mode))
                 return
             # General tools are host observations. They never become semantic
@@ -275,6 +286,8 @@ class DelegatedRuntime:
             pool_progress = isinstance(llm_pool_call, Mapping)
             model_request_pool = event.get('model_request_pool')
             model_progress = isinstance(model_request_pool, Mapping)
+            runtime_phase = event.get('runtime_phase')
+            phase_progress = kind == 'runtime_phase' and isinstance(runtime_phase, Mapping)
             source_view = None
             if (kind == 'tool_execution_end' or kind == 'enterprise_graph_child_tool' and event.get('activity') == 'end'):
                 if (isinstance(tool_name, str) and tool_name.startswith('data_gateway_') and isinstance(tool_call_id, str)
@@ -294,6 +307,9 @@ class DelegatedRuntime:
             self._emit(on_event, {'task_id': task_id, 'goal_id': goal['goal_id'],
                 'native_type': 'model_request_pool' if model_progress else 'llm_pool_call' if pool_progress else kind if isinstance(kind, str) else 'unknown',
                 **({'model_request_pool':dict(model_request_pool)} if model_progress else {}),
+                **({'runtime_phase': {key: runtime_phase[key] for key in
+                    ('name', 'state', 'reason', 'elapsed_ms', 'will_retry') if key in runtime_phase}}
+                    if phase_progress else {}),
                 **({'llm_pool_call':dict(llm_pool_call)} if pool_progress else {}),
                 **({'transport': {key: value[:64] for key in ('operation', 'transport_phase')
                     if isinstance((value := event.get(key)), str)}} if kind in {'transport_interrupted', 'transport_restored'} else {}),
@@ -319,16 +335,21 @@ class DelegatedRuntime:
                 **{key: event[key] for key in ('task_step', 'task_steps', 'task_step_id', 'task_step_number',
                     'step_tool_number', 'task_step_error', 'runtime_step_tracking') if key in event},
                 **({'activity': {key: value[:limit] for key, limit in
-                    (('operation', 241), ('output_excerpt', 601), ('warning', 241))
+                    (('operation', 241), ('input_excerpt', 4000), ('output_excerpt', 601), ('warning', 241))
                     if isinstance((value := cast(Mapping, event.get('activity')).get(key)), str)}}
                     if isinstance(event.get('activity'), Mapping) else {}),
                 **({'is_error': event['is_error']} if type(event.get('is_error')) is bool else {})},
-                visibility='public' if public_tool or research_branch or research_graph_event or pool_progress or model_progress or kind in {
+                visibility='public' if public_tool or research_branch or research_graph_event or pool_progress or model_progress or phase_progress or kind in {
                     'enterprise_cycle_progress', 'enterprise_graph_progress'} else 'diagnostic')
         self._active_task = task_id
         try:
             manifests = resources.get('native_context', {}).get('resource_manifests', ())
-            if manifests:
+            lazy = getattr(self._executor, 'execute_with_resource_references', None)
+            if manifests and callable(lazy):
+                if self._claim.resource_reader is None:
+                    raise HarnessRuntimeConfigurationError('resource acquisition transport is unavailable')
+                result = lazy(request, control, native, self._claim.resource_reader, self._research_bridge)
+            elif manifests:
                 stage = getattr(self._executor, 'stage_resources', None)
                 if not callable(stage) or self._claim.resource_reader is None:
                     raise HarnessRuntimeConfigurationError('resource acquisition transport is unavailable')
@@ -337,7 +358,9 @@ class DelegatedRuntime:
                     stage_events(task_id, manifests, self._claim.resource_reader, control, native)
                 else:
                     stage(task_id, manifests, self._claim.resource_reader, control)
-            if self._research_bridge is None:
+            if manifests and callable(lazy):
+                pass  # The ordinary task started with references; reads occur on demand.
+            elif self._research_bridge is None:
                 result = self._executor.execute(request, control, native)
             else:
                 execute = getattr(self._executor, 'execute_with_research', None)

@@ -5,7 +5,8 @@ import { createInterface } from "node:readline";
 import {checkCapacity,runtimeLimits as resolveLimits,onDebugCapacityExceeded} from './runtime-limits.mjs';
 import {prepareDeliveryReview,reviewChildPrompt} from './delivery-review.mjs';
 import {createManagedSubagents} from './managed-subagents.mjs';
-import {createDataGatewayTools} from './general-data-gateway.mjs';
+import {createDataGatewayTools,validateGatewayBatch,gatewayInvocationOptions,reusableGatewayRead} from './general-data-gateway.mjs';
+import {createResourceReferenceTools} from './resource-reference-tools.mjs';
 import {createToolDiscovery,discoveryToolNames} from './general-tool-discovery.mjs';
 import {gatewayUseLedger} from './gateway-tool-use.mjs';
 import {createTaskNodeReturn} from './task-node-return.mjs';
@@ -21,6 +22,8 @@ const nativeShellGuidance='Native bash uses pipefail: an upstream pipeline failu
 const nativeBatchGuidance='Prefer the admitted tool contract\'s batch filters and server-side aggregation before expanding requests per object or time window. Select the smallest discovery that unlocks the next requested result. Reuse established source identities, definitions, units and coverage observations; save selected bindings and datasets for dependent work. Programming makes calls cheaper to organize, but does not justify a broader investigation. Use multiple tool calls in one model response when their arguments are already known and the operations are independent. The runtime collects the batch results before the next model turn. Batch independent reads of known paths, independent checks and writes to different files. Do not batch a read with a calculation that needs its unseen contents, a file write with its dependent execution, competing edits, or control operations that require references returned by another operation. Do not add tools merely to fill a batch. Treat repeated timeouts as a resource or query-shape problem: retain successful results and missing coverage, then narrow the necessary operation or deliver limited findings instead of expanding the same failing scan. ';
 const nativeExecutionGuidance='Within this native task, organize an action around a useful execution intent, not an individual file operation. '+
   'Begin the text of every response with one concise single-line // comment, in the user\'s language, stating the immediate action this response will perform. Put this before tool calls or the answer body. Use a concrete action, not private reasoning or a claim of success. Keep it under 60 characters where possible. Include it in this response; never add a separate model request or tool call for the comment. '+
+  'For the final reader-facing response, put only the answer in <capstone-answer>...</capstone-answer>, in the user language. Keep the action comment outside this boundary. Do not include self-directed analysis, planning or statements about preparing an answer inside it. This is presentation metadata, not a tool call. '+
+  'For a requested analytical presentation, separate available evidence, failed retrieval and unverified coverage. A timeout is not proof of absent data. Do not silently replace the requested analysis with a data-availability deck or treat it as complete fulfillment. Include charts from supported comparable observations where available; state specific missing comparisons, without inventing data. '+
   'When the user requests files, save a usable requested file from supported results and put remaining data or checking gaps inside it. Repairable script errors are a reason for a bounded local correction, not a reason to replace the requested delivery with a progress log or next-step plan. Returning to reasoning remains part of executing this instruction. Do not fabricate values to fill gaps. '+
   'Before calculations, inspect relevant types and comparison keys; check numeric conversion, join cardinality and empty subsets once rather than rebuilding an analysis after an invalid join. Leave total call counts and timings to the host execution record unless actual host measurements were supplied. '+
   'Use the exact host-staged input paths before probing an empty output directory. Staged sources stay read-only. To revise one, create a new writable file inside the task workspace with Python shutil.copyfile, which copies contents without source permissions. Plain cp and shutil.copy2 may preserve the read-only mode; if needed change only the workspace copy, never the admitted source. '+
@@ -390,6 +393,8 @@ export function createGatewayToolDiscovery(config) {
   if(!Array.isArray(admittedNames)||discoveryToolNames.some(name=>!admittedNames.includes(name)))
     throw new Error('Application did not authorize task tool discovery');
   return createToolDiscovery({tools:createDataGatewayTools(config),publications:config.dataGateway.catalog.tools,
+    maxActiveTools:config.runtimeLimits?.tool_active_count,maxActiveSchemaChars:config.runtimeLimits?.tool_schema_chars,
+    pageSize:config.runtimeLimits?.tool_search_page_items,maxSummaryChars:config.runtimeLimits?.tool_summary_chars,
     initialNames:config.dataGateway.catalog.entry_tools??[],
     contractHashes:config.dataGateway.catalog.tool_hashes,admittedNames,cwd:config.toolResultCwd,useLedger:gatewayUseLedger(config)});
 }
@@ -427,7 +432,7 @@ export function applicationToolOptions(config, nativeTools, research=()=>undefin
       return controller?await controller.completeTool(token,observed,{signal:args[1]}):observed;
     }};
   };
-  const customTools=[...nativeTools,...gatewayTools,...createDiagnosisTools(config)].map(wrap);
+  const customTools=[...nativeTools,...gatewayTools,...createDiagnosisTools(config),...createResourceReferenceTools(config)].map(wrap);
   if(JSON.stringify(canonical(config.toolComposition))===JSON.stringify(canonical(compositionPolicy))&&
       config.applicationPolicy.allowed_tools.includes('agent_tools_execute')&&config.dataGateway&&
       ['bash','write'].every(name=>config.applicationPolicy.allowed_tools.includes(name))){
@@ -437,14 +442,16 @@ export function applicationToolOptions(config, nativeTools, research=()=>undefin
     if(graphBinding)nested=graphChildTools(config,nested,graphBinding);
     const selected=new Map(nested.map(tool=>[tool.name,tool]));
     customTools.push(wrap(createToolCompositionTool({policy:compositionPolicy,
-      cwd:config.toolResultCwd??process.cwd(),catalog:config.dataGateway.catalog,useLedger:gatewayUseLedger(config),
+      cwd:config.toolResultCwd??process.cwd(),catalog:config.dataGateway.catalog,admittedNames:[...selected.keys()],useLedger:gatewayUseLedger(config),
       scope:{task_id:config.researchTaskId,attempt_id:config.researchAttemptId},deadlineAt:config.deadlineAt,
+      reuseEligible:reusableGatewayRead,
       allowedInputs:(graphBinding?graphSelectedSources(config,graphBinding.action):config.deliveryReviewSources??[]).map(s=>s.path),restore:restoreToolResult,
-      async invoke(name,args,{callId,signal}){
+      validateCalls:(calls,{signal})=>validateGatewayBatch(config,calls,{signal}),
+      async invoke(name,args,{callId,signal,refresh_reason}){
         const tool=selected.get(name);if(!tool)throw Error('Composition tool is not admitted');
         if(!graphBinding)hostEmit(rpcEvent({type:'tool_execution_start',toolName:name,toolCallId:callId,args}));
         try{
-          const result=await tool.execute(callId,args,signal);
+          const result=await tool.execute(callId,args,signal,undefined,refresh_reason?{[gatewayInvocationOptions]:{refresh_reason}}:undefined);
           if(!graphBinding)hostEmit(rpcEvent({type:'tool_execution_end',toolName:name,toolCallId:callId,result,isError:result.isError===true}));
           return result;
         }catch(error){
@@ -507,6 +514,12 @@ function modelFailureCode(message) {
 }
 
 export function rpcEvent(event) {
+  if(event.type==='compaction_start'||event.type==='compaction_end'){
+    const reason=['manual','threshold','overflow'].includes(event.reason)?event.reason:'unknown';
+    return {type:event.type,reason,...(event.type==='compaction_end'?{
+      status:event.aborted?'cancelled':event.errorMessage?'failed':event.result?'completed':'skipped',
+      willRetry:event.willRetry===true}: {})};
+  }
   if(event.type==='auto_retry_start')return {type:event.type,attempt:event.attempt,maxAttempts:event.maxAttempts,delayMs:event.delayMs,errorCode:modelFailureCode(event.errorMessage)};
   if(event.type==='auto_retry_end')return {type:event.type,attempt:event.attempt,success:event.success};
   if(event.type==='tool_execution_end')event={...event,result:restoreToolResult(event.result)};
@@ -753,6 +766,7 @@ export async function createManagedChildSession(config, sdk, modelRuntime,
     signal?.throwIfAborted();
     await session.bindExtensions({onError: () => {throw new Error('Managed child extension failed');}});
     session.setActiveToolsByName(discovery?discovery.initialToolNames(childConfig.applicationPolicy.allowed_tools):childConfig.applicationPolicy.allowed_tools);
+    discovery?.installSession(session);
     signal?.throwIfAborted();
     return {session, close};
   } catch(error) {const fatal=debugFailure;await close();throw fatal??error;}
@@ -1318,7 +1332,7 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
     appendSystemPromptOverride: () => [...(config.appendSystemPrompt??[]),
       ...(config.researchRuntime?.deepResearch===true?['The user explicitly selected Deep Research for this instruction. Start by admitting a task plan, then use independent executors and a committed delivery. Do not replace this selection with direct native work or a direct final answer.']:config.researchRuntime?.deepResearch===false?['Deep Research is off for this instruction. Use the ordinary reasoning and authorized tool loop. Do not activate task organization.']:[]),
       ...(!organizationOnly?[nativeShellGuidance,nativeBatchGuidance,nativeExecutionGuidance,savedProductGuidance,
-        'For large saved observations, inspect the supplied structure index and bounded preview first. Use actual observed field names. When authorized agent_tools_execute is available, select exact tool names and use tools.describe for contracts, tools.call for observations, Promise.all for independent calls and saveContext/loadContext for dependent work. A program can inspect returned structure and continue known dependent operations without a model round trip for every field. Return only the compact observations needed for a real decision. When calls differ only by already observed identifiers or windows, write one reusable function and map the explicit parameter list instead of generating many expanded copies of the same query or script. Do not guess semantics or expand queries merely because batching is available. Keep the bounded active tool set needed for the current cohesive work together; agent_tool_load replaces the set, so avoid swapping one tool at a time.',
+        'For large saved observations, inspect the supplied structure index and bounded preview first. Use actual observed field names. When authorized agent_tools_execute is available, select exact tool names and use tools.describe for contracts, tools.call for observations, tools.batch for a known independent call list with host contract preflight and saveContext/loadContext for dependent work. Use tools.inspect on an issued call ref or full_result object to inspect structure without fetching data again or using shell. A program can inspect returned structure and continue known dependent operations without a model round trip for every field. Return only the compact observations needed for a real decision. When calls differ only by already observed identifiers or windows, write one reusable function and map the explicit parameter list instead of generating many expanded copies of the same query or script. Do not guess semantics or expand queries merely because batching is available. Keep the bounded active tool set needed for the current cohesive work together; agent_tool_load replaces the set, so avoid swapping one tool at a time.',
         ...(config.llmCallPool&&config.researchRuntime?.deepResearch===false?[
           'Use agent_llm_submit for substantive independent analysis of explicit supplied text/observations. After a shared factual package is ready, identify independently answerable requested interpretation or report sections and submit them together when their necessary evidence fits the bounded input. It returns immediately; do useful independent program/render preparation while calls run. Actual completed answers arrive asynchronously as labelled observations. Use dependencies only when a later analysis needs a returned answer; do not add a separate synthesis child when the parent can integrate the available answers directly. Gateway reads and program transformations belong in agent_tools_execute, not text-only LLM calls. Collect when blocked, cancel unneeded calls explicitly, and integrate actual results before finalizing. Queue age and collection wait timeout do not prove model failure. Never resubmit an uncertain running/cancelling call or start an automatic retry. Do not parallelize tiny formatting choices or add independent reviews without a concrete need.']:[]),
         ...(managedResearch?[continuationSourceGuidance]:[])]:[]),
@@ -1485,6 +1499,7 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
       const allowed=config.applicationPolicy.allowed_tools.filter(name=>applicationToolAdmission(config,name).accepted);
       session.setActiveToolsByName(discovery?discovery.initialToolNames(allowed).filter(name=>
         applicationToolAdmission(config,name).accepted):allowed);
+      discovery?.installSession(session);
     }
     const skills = loader.getSkills().skills.map(s => ({ name: s.name,
       sha256: createHash("sha256").update(readFileSync(s.filePath)).digest("hex") }));
@@ -1516,6 +1531,17 @@ export async function runManagedSession(config, sdk, suppliedModelRuntime) {
   }
 }
 
+export function sdkFailureDiagnostic(error) {
+  const root=new URL('./',import.meta.url).href,origin=[];
+  for(const frame of String(error?.stack??'').split('\n').slice(1,24)){
+    const start=frame.indexOf(root);
+    if(start<0)continue;
+    const match=frame.slice(start+root.length).match(/^([A-Za-z0-9_-]+\.mjs):(\d{1,7}):(\d{1,7})\)?$/);
+    if(match)origin.push({module:match[1],line:Number(match[2]),column:Number(match[3])});
+  }
+  return {exception_type:['Error','TypeError','RangeError','ReferenceError','SyntaxError'].includes(error?.name)?error.name:'Error',origin:origin.slice(-8)};
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch(error => {
     const known = new Set(['capacity_exceeded','research_capacity_exceeded','invalid_research_runtime','invalid_phase',
@@ -1527,7 +1553,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       ? {dimension:raw.dimension,actual:raw.actual,limit:raw.limit,
         ...(typeof raw.phase==='string'&&/^[A-Za-z0-9_.:-]{1,128}$/.test(raw.phase)?{phase:raw.phase}:{}),
         ...(raw.mode==='debug'?{mode:'debug'}:{})} : undefined;
-    process.stdout.write(JSON.stringify({type:'response',success:false,...(code?{code}:{}),...(capacity?{capacity}:{}),
+    process.stdout.write(JSON.stringify({type:'response',success:false,diagnostic:sdkFailureDiagnostic(error),...(code?{code}:{}),...(capacity?{capacity}:{}),
       ...(code==='continuation_no_progress'?{phase:'continuation',message:new ManagedContinuationStalledError().message}:{})})+'\n');
     process.exitCode = 1;
   });

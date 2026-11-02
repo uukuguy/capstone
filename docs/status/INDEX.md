@@ -1,5 +1,59 @@
 # docs/status INDEX
 
+2026-11-01: [Native worker session concurrency](KNOWN-ISSUES.md#native-worker-session-concurrency--2026-11-01)
+is recorded for later work; no concurrency change in this deployment repair.
+
+Intranet deployment is ready at http://192.168.72.63:5173/. Default dsv4 and
+intranet gateway passed a 32.9-second CSV task with zero errors. Research is disabled.
+See [deployment receipt](../reports/2026-11-01-intranet-deployment.md).
+
+Unified main-path correction `2b347fc6` shares successful reads across direct and
+composed calls, validates source tables before publication, and preserves model
+network diagnostics. Focused checks, rebuild and 26-second live validation pass:
+7 model responses, 8 tool executions, zero errors; reuse/refresh and CSV hashes verified.
+The authorized summer rerun ended during confirmed network loss; full business
+acceptance is not passed. No CI or automatic replay.
+See [unified pipeline](../reports/2026-11-01-unified-observation-pipeline.md) and
+[rerun diagnosis](../reports/2026-11-01-summer-rerun-reuse.md). Earlier entries follow.
+
+Local0db2803a unifies task observation references and structured roots; b8ae7ba1
+reduces redundant tool discovery. Fresh metadata task:21.9s,4 model responses,
+4 tools,zero errors or repeated retrievals. Artifact hash and local image parity
+verified. Full summer business acceptance remains pending; no CI or replay.
+See [selector coordination](../reports/2026-11-01-gateway-selector-followup.md).
+
+Local3e9c8c8e fixes executor identity and model-budget binding startup failures.
+Real metadata validation completed40.7s:7 model responses,11 tools,zero errors;
+second composition reused references with no gateway call. Ready/image parity and
+artifact hash verified. No CI or historical business replay. Planning redundancy
+remains separate from mechanism acceptance; see the main-path diagnosis below.
+
+Local67650a8e restores runtime startup and deploys shared observation recovery diagnostics
+and model context policies. Focused checks and readiness pass; no CI or historical replay.
+See [main-path diagnosis](../reports/2026-11-01-lightweight-execution-recovery.md).
+
+App df138a2d displays lightweight compaction records without extra model counts.
+49 focused checks, types, existing-tab synthetic preview and local readiness pass.
+
+2026-11-01 local source356b0e64: public Pi compaction lifecycle and bounded saved
+observation reuse. Ready, same-image and focused checks pass; no CI or business replay.
+See VERSION-CONTROL, live RESUME and the [execution audit](../reports/2026-11-01-execution-efficiency-audit.md).
+
+Current local sourcebec075c3: reference-first startup and on-demand protected reads;
+first model wait1.273s,total2.8s in the existing tab. See VERSION-CONTROL,
+RESUME and the updated [implementation report](../reports/2026-10-31-latest-session-tool-errors.md).
+
+App ad9078ef: blank-scroll recovery and concise call records;214 focused tests/types
+and existing-tab trial verified. See VERSION-CONTROL and live RESUME for limits.
+
+UI correction2e44b89a: completion preserves an already-visible instruction and
+inlines token usage;151 focused tests/types pass. See VERSION-CONTROL and RESUME.
+
+Latest verified work2026-10-31: backend6de15939/App4c7e56bf implement deterministic returned actions,
+configurable tool capacity, readable diagnostics, public response intent and
+completion focus. Local ready and same-image checks plus real short-task UI closeout pass; no CI/push/PR/cloud changes.
+See JOURNAL and RESUME-NEXT-SESSION for exact recovery. Entries below are history.
+
 Active startup repair2026-10-31: fix/gateway-entry-startup at565802f9, based on actual devc282dc8f.
 User feedback: four searches preceded discovery on the fifth model response.
 The candidate activates admitted gateway entry tools on the first turn; business tools stay on demand.
@@ -596,12 +650,12 @@ dev默认开发集成主线和main发布主线均启用轻量保护：PR与两�
 
 | File | Purpose |
 | --- | --- |
-| [项目推进控制全景](PROJECT-OVERVIEW.html) | 2026-10-21：部署9836/8c12，小任务已交付但严格提案链失败，补原child完成前反馈；复用Vivaldi已有页面。 |
+| [项目推进控制全景](PROJECT-OVERVIEW.html) | 2026-10-31：local-dev精确来源d3c69284；会话实例绑定与双实例CSV验证，实际HEAD动态展示；未推送或启动CI。 |
 | [线上到本地的功能范围核对](DEPLOYMENT-FUNCTION-SCOPE.md) | 功能与分支归属；近期需求遗漏核对和统一前端命令设计范围；现用执行账本仍必要，旧存储优化实验归档。 |
 | [Git 分支清理记录](GIT-BRANCH-CLEANUP.md) | PR #6/#9/#10/#11合并后关闭分支名；本地目录、精确归档引用和日志保留；旧存储及R0实验未提交记录保留。 |
 | `CURRENT-STATE.md` | Structural project snapshot. |
 | [_archive/2026-10-26-pre-grid-source-state.txt](_archive/2026-10-26-pre-grid-source-state.txt) | Exact previous snapshot, including historical session transcripts; original relative links use docs/status as their base. |
-| [多线版本控制](VERSION-CONTROL.md) | 2026-10-21：旧完整653.118秒未交付；新小任务199.794秒确切复用成立，P/A提案手工兜底不计通过，完整比较暂停。 |
+| [多线版本控制](VERSION-CONTROL.md) | 2026-10-31：本地产品d3c69284已验证，origin/dev196e865a；其余三环境不变，CI必须先获同意。 |
 | [完整回答与结果复用修复验收](../reviews/2026-10-12-answer-and-result-reuse.md) | 原始三轮专项的Authority/工具/浏览器独立核对与逐阶段耗时；整体另验，历史失败不删除。 |
 | [GitHub Issues 与后台 AI 修复设计](../superpowers/specs/2026-10-10-github-issue-automation-design.md) | 已授权命令驱动实施：截图/短句反馈，默认 cloud-demo；当前 AI 会话中文处理，定时/无人值守与额外模型调用延期。 |
 | [GitHub Issue automation plan](../superpowers/plans/2026-10-10-github-issue-automation.md) | 命令驱动工具已合入 main；小石 App 和独立发布已核对，后续准备 PR 待集成；无无人值守或额外模型调用。 |
@@ -749,3 +803,7 @@ dev默认开发集成主线和main发布主线均启用轻量保护：PR与两�
 - 2026-10-16: [共同执行Task 1基线](../reviews/2026-10-16-shared-execution-baseline.md)：执行接缝及真实SDK测试已实现；生产装配和前端闭环待实现，应用分支仍准备中。
 
 - 2026-10-16: 推进图共同基座节点优先位于dev右侧，整组居中，以两侧节点、部署卡片和留白均衡为准；local-dev来源更新为已验证62f44366，PR #36双平台通过并合入dev d8fe6e27。
+
+2026-11-01 PDF预览：VERSION-CONTROL记录2800da79本机修复，RESUME记录内网断开、待部署；JOURNAL保留复现与检查证据。
+
+2026-11-01 产物历史版本：VERSION-CONTROL与RESUME记录aa1cd3e8本机展示修正；旧文件内容及归属不变。

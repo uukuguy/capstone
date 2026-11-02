@@ -100,9 +100,8 @@ class Workspace:
         self.sources[value] = digest
         return data
 
-    def write(self, value, data):
+    def output_target(self, value):
         parent, name = self.parent(value)
-        temporary = '.capstone-report-' + secrets.token_hex(16)
         try:
             if value in self.sources:
                 raise ReportError('output must not overwrite the spec or any source')
@@ -112,6 +111,19 @@ class Workspace:
                 info = None
             if info is not None and (not stat.S_ISREG(info.st_mode) or (info.st_dev, info.st_ino) in self.identities):
                 raise ReportError('output must not overwrite a source or symbolic link')
+            return parent, name
+        except Exception:
+            os.close(parent)
+            raise
+
+    def check_output(self, value):
+        parent, _ = self.output_target(value)
+        os.close(parent)
+
+    def write(self, value, data):
+        parent, name = self.output_target(value)
+        temporary = '.capstone-report-' + secrets.token_hex(16)
+        try:
             descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=parent)
             with os.fdopen(descriptor, 'wb') as stream:
                 stream.write(data)
@@ -157,9 +169,9 @@ def figure_data(path, data):
     return 'data:' + media + ';base64,' + base64.b64encode(data).decode('ascii')
 
 
-def render(spec_path, output):
+def render(spec_path, output, *, check_only=False):
     if Path(output).suffix.lower() == '.pptx':
-        return render_presentation(spec_path, output)
+        return render_presentation(spec_path, output, check_only=check_only)
     workspace = Workspace()
     try:
         spec = json.loads(workspace.read(spec_path))
@@ -229,14 +241,17 @@ def render(spec_path, output):
             '<title>' + title + '</title><style>' + CSS + '</style></head><body><main><header><h1>' + title + '</h1>' + subtitle + '</header>'
             '<nav aria-label="目录"><strong>目录</strong><ol>' + ''.join(navigation) + '</ol></nav>' + ''.join(sections)
             + '<footer>本文由保存的文字、CSV 与图片排版生成。排版及源文件绑定不表示已验证数值口径、图注或结论。</footer></main></body></html>')
-        workspace.write(output, html.encode('utf-8'))
+        if not check_only:
+            workspace.write(output, html.encode('utf-8'))
+        else:
+            workspace.check_output(output)
         return {'schema': 'capstone-report-receipt/1', 'output': output, 'sections': len(sections),
-            'figures': figures, 'source_sha256': workspace.sources}
+            'figures': figures, 'source_sha256': workspace.sources, 'output_written': not check_only}
     finally:
         os.close(workspace.root)
 
 
-def render_presentation(spec_path, output):
+def render_presentation(spec_path, output, *, check_only=False):
     """Lay out bounded saved content. Never calculate, interpret or execute it."""
     try:
         from PIL import Image
@@ -258,6 +273,14 @@ def render_presentation(spec_path, output):
         deck.slide_width, deck.slide_height = Inches(13.333), Inches(7.5)
         font = 'Noto Sans CJK SC'
         ink, teal, muted = RGBColor(23,43,59), RGBColor(33,119,120), RGBColor(82,103,116)
+        from pptx.enum.shapes import MSO_SHAPE
+        paper, white = RGBColor(243,247,247), RGBColor(255,255,255)
+
+        def panel(slide, x, y, width, height, color):
+            shape = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(x), Inches(y), Inches(width), Inches(height))
+            shape.fill.solid()
+            shape.fill.fore_color.rgb = color
+            shape.line.fill.background()
         footers, image_bytes, figures, tables, table_rows = [], 0, 0, 0, 0
 
         def literal(value, field, maximum):
@@ -297,11 +320,18 @@ def render_presentation(spec_path, output):
             if len(deck.slides) >= 120:
                 raise ReportError('presentation exceeds the 120 rendered-slide budget; prepare a smaller content spec')
             slide = deck.slides.add_slide(deck.slide_layouts[6])
+            slide.background.fill.solid()
+            slide.background.fill.fore_color.rgb = ink if cover else paper
+            if cover:
+                panel(slide,0,0,.18,7.5,teal)
+                panel(slide,.8,5.95,1.2,.08,RGBColor(98,194,182))
+            else:
+                panel(slide,0,0,13.333,.09,teal)
             lines = wrap(literal(title, 'slide title', 160), 38 if cover else 52)
             if len(lines) > (4 if cover else 2):
                 raise ReportError('slide title is too long for its fixed layout')
             textbox(slide,.8,1.3 if cover else .35,11.7,2.3 if cover else .95,
-                    lines,34 if cover else 27,teal,True)
+                    lines,34 if cover else 27,white if cover else ink,True)
             if notes:
                 slide.notes_slide.notes_text_frame.text = '\n'.join(notes)
             footers.append((slide,notes))
@@ -311,8 +341,9 @@ def render_presentation(spec_path, output):
         if 'subtitle' in spec:
             lines = wrap(literal(spec['subtitle'], 'subtitle', 500),84)
             if len(lines)>6:raise ReportError('subtitle is too long for the cover layout')
-            textbox(cover,.8,4,11.7,2,lines,18,muted)
+            textbox(cover,.8,4,11.7,1.8,lines,18,RGBColor(199,219,221))
 
+        block_errors = []
         for index, content in enumerate(spec['slides']):
             fields(content, ('title','blocks'), ('source_notes',))
             title = literal(content['title'],'slide title',160)
@@ -339,117 +370,139 @@ def render_presentation(spec_path, output):
                     pending.append(line)
 
             for block_index, block in enumerate(blocks):
-                if not isinstance(block,dict):raise ReportError('presentation blocks must be objects')
-                kind = block.get('type')
                 location = f'slides[{index}].blocks[{block_index}]'
-                if kind == 'paragraph':
-                    fields(block,('type','text'))
-                    append_lines(wrap(literal(block['text'],'paragraph',20000),74))
-                elif kind == 'bullets':
-                    fields(block,('type','items'))
-                    if not isinstance(block['items'],list) or not 1<=len(block['items'])<=100:
-                        raise ReportError('bullet items must contain 1..100 strings')
-                    for item in block['items']:
-                        lines=wrap(literal(item,'bullet',2000),70)
-                        append_lines(['• '+lines[0]]+['  '+line for line in lines[1:]])
-                elif kind == 'table':
-                    flush()
-                    fields(block,('type','csv','max_rows'),('columns','caption'))
-                    limit=block['max_rows']
-                    if type(limit) is not int or not 1<=limit<=1000:
-                        raise ReportError('table max_rows must be an integer within 1..1000')
-                    if not isinstance(block['csv'],str) or Path(block['csv']).suffix.lower()!='.csv':
-                        raise ReportError('table sources must be saved CSV files')
-                    data=workspace.read(block['csv'],location=location+'.csv',maximum=16*1024*1024)
-                    csv.field_size_limit(65536)
-                    reader=csv.reader(io.StringIO(data.decode('utf-8-sig'),newline=''),strict=True)
-                    header=next(reader,[])
-                    if not header or any(not name for name in header) or len(set(header))!=len(header):
-                        raise ReportError('CSV must have a nonempty unique header')
-                    columns=block.get('columns',header)
-                    if (not isinstance(columns,list) or not 1<=len(columns)<=8
-                            or any(not isinstance(name,str) or name not in header for name in columns)
-                            or len(set(columns))!=len(columns)):
-                        raise ReportError('select 1..8 unique existing CSV columns for the slide')
-                    indices=[header.index(name) for name in columns]
-                    rows=[]
-                    for row in reader:
-                        if len(rows)>=limit:raise ReportError('CSV exceeds explicit table max_rows; prepare a bounded display CSV')
-                        if len(row)!=len(header):raise ReportError('CSV row length does not match its header')
-                        rows.append([row[column] for column in indices])
-                    caption=literal(block['caption'],'table caption',240) if 'caption' in block else ''
-                    if len(wrap(caption,110))>2:raise ReportError('table caption exceeds its layout budget')
-                    unit_width=max(8,int(11.7*72/len(columns)/7))
-                    def height(row):
-                        if any(len(value)>2000 or any(ord(c)<32 and c!='\n' for c in value) for value in row):
-                            raise ReportError('CSV cell exceeds its literal text budget')
-                        return max(24, max(len(wrap(value,unit_width)) for value in row)*15+8)
-                    header_height=height(columns)
-                    if header_height>140:raise ReportError('CSV headers are too long for the table layout')
-                    pages, batch, used = [], [], header_height
-                    for row in rows:
-                        row_height=height(row)
-                        if row_height+header_height>330:raise ReportError('CSV cell cannot fit on one slide; prepare a compact display CSV')
-                        if used+row_height>330:
-                            pages.append(batch);batch=[];used=header_height
-                        batch.append((row,row_height));used+=row_height
-                    pages.append(batch)
-                    for batch in pages:
+                try:
+                    if not isinstance(block,dict):raise ReportError('presentation blocks must be objects')
+                    kind = block.get('type')
+                    if kind == 'paragraph':
+                        fields(block,('type','text'))
+                        append_lines(wrap(literal(block['text'],'paragraph',20000),74))
+                    elif kind == 'bullets':
+                        fields(block,('type','items'))
+                        if not isinstance(block['items'],list) or not 1<=len(block['items'])<=100:
+                            raise ReportError('bullet items must contain 1..100 strings')
+                        for item in block['items']:
+                            lines=wrap(literal(item,'bullet',2000),70)
+                            append_lines(['• '+lines[0]]+['  '+line for line in lines[1:]])
+                    elif kind == 'table':
+                        flush()
+                        fields(block,('type','csv','max_rows'),('columns','caption'))
+                        limit=block['max_rows']
+                        if type(limit) is not int or not 1<=limit<=1000:
+                            raise ReportError('table max_rows must be an integer within 1..1000')
+                        if not isinstance(block['csv'],str) or Path(block['csv']).suffix.lower()!='.csv':
+                            raise ReportError('table sources must be saved CSV files')
+                        data=workspace.read(block['csv'],location=location+'.csv',maximum=16*1024*1024)
+                        csv.field_size_limit(65536)
+                        reader=csv.reader(io.StringIO(data.decode('utf-8-sig'),newline=''),strict=True)
+                        header=next(reader,[])
+                        if not header or any(not name for name in header) or len(set(header))!=len(header):
+                            raise ReportError('CSV must have a nonempty unique header')
+                        columns=block.get('columns',header)
+                        if (not isinstance(columns,list) or not 1<=len(columns)<=8
+                                or any(not isinstance(name,str) or name not in header for name in columns)
+                                or len(set(columns))!=len(columns)):
+                            raise ReportError('select 1..8 unique existing CSV columns for the slide', diagnostic={
+                                'code': 'invalid_table_columns', 'path': location+'.columns',
+                                'source': block['csv'], 'allowed_columns': header[:128],
+                                'allowed_columns_truncated': len(header)>128,
+                                'maximum_columns': 8, 'output_written': False,
+                                'recovery': 'Select explicit unique columns from the saved CSV header; split wide tables into separate blocks.'})
+                        indices=[header.index(name) for name in columns]
+                        rows=[]
+                        for row in reader:
+                            if len(rows)>=limit:raise ReportError('CSV exceeds explicit table max_rows; prepare a bounded display CSV')
+                            if len(row)!=len(header):raise ReportError('CSV row length does not match its header')
+                            rows.append([row[column] for column in indices])
+                        caption=literal(block['caption'],'table caption',240) if 'caption' in block else ''
+                        if len(wrap(caption,110))>2:raise ReportError('table caption exceeds its layout budget')
+                        unit_width=max(8,int(11.7*72/len(columns)/7))
+                        def height(row):
+                            if any(len(value)>2000 or any(ord(c)<32 and c!='\n' for c in value) for value in row):
+                                raise ReportError('CSV cell exceeds its literal text budget')
+                            return max(24, max(len(wrap(value,unit_width)) for value in row)*15+8)
+                        header_height=height(columns)
+                        if header_height>140:raise ReportError('CSV headers are too long for the table layout')
+                        pages, batch, used = [], [], header_height
+                        for row in rows:
+                            row_height=height(row)
+                            if row_height+header_height>330:raise ReportError('CSV cell cannot fit on one slide; prepare a compact display CSV')
+                            if used+row_height>330:
+                                pages.append(batch);batch=[];used=header_height
+                            batch.append((row,row_height));used+=row_height
+                        pages.append(batch)
+                        for batch in pages:
+                            slide=page(title,notes);emitted=True
+                            if caption:textbox(slide,.8,1.4,11.7,.5,wrap(caption,110),12,muted)
+                            shape=slide.shapes.add_table(len(batch)+1,len(columns),Inches(.8),Inches(2),Inches(11.7),Pt(header_height+sum(h for _,h in batch)))
+                            table=shape.table
+                            for row_number,(values,row_height) in enumerate([(columns,header_height),*batch]):
+                                table.rows[row_number].height=Pt(row_height)
+                                for column,value in enumerate(values):
+                                    cell=table.cell(row_number,column)
+                                    cell.text=value
+                                    cell.fill.solid()
+                                    cell.fill.fore_color.rgb=teal if row_number==0 else (paper if row_number%2==0 else white)
+                                    cell.margin_left=cell.margin_right=Inches(.06)
+                                    cell.margin_top=cell.margin_bottom=Inches(.03)
+                                    cell.text_frame.word_wrap=True
+                                    for paragraph in cell.text_frame.paragraphs:
+                                        paragraph.font.name,paragraph.font.size=font,Pt(12)
+                                        paragraph.font.bold=row_number==0
+                                        paragraph.font.color.rgb=white if row_number==0 else ink
+                            tables+=1
+                        table_rows+=len(rows)
+                    elif kind == 'figure':
+                        flush();fields(block,('type','path','caption'))
+                        path=block['path']
+                        if not isinstance(path,str) or Path(path).suffix.lower() not in {'.png','.jpg','.jpeg'}:
+                            raise ReportError('PPTX figures must be saved PNG or JPEG files')
+                        data=workspace.read(path,location=location+'.path',maximum=8*1024*1024)
+                        image_bytes+=len(data)
+                        if image_bytes>32*1024*1024:raise ReportError('presentation figures exceed the 32 MiB processing budget')
+                        try:
+                            with Image.open(io.BytesIO(data)) as image:
+                                width,height=image.size
+                                if image.format not in {'PNG','JPEG'} or width*height>20000000 or not 1<=width<=20000 or not 1<=height<=20000:
+                                    raise ReportError('figure type or pixel budget is invalid')
+                                image.verify()
+                        except (OSError,ValueError,Image.DecompressionBombError):
+                            raise ReportError('figure is not a valid bounded PNG or JPEG') from None
+                        caption=wrap(literal(block['caption'],'figure caption',400),110)
+                        if len(caption)>4:raise ReportError('figure caption exceeds its layout budget')
                         slide=page(title,notes);emitted=True
-                        if caption:textbox(slide,.8,1.4,11.7,.5,wrap(caption,110),12,muted)
-                        shape=slide.shapes.add_table(len(batch)+1,len(columns),Inches(.8),Inches(2),Inches(11.7),Pt(header_height+sum(h for _,h in batch)))
-                        table=shape.table
-                        for row_number,(values,row_height) in enumerate([(columns,header_height),*batch]):
-                            table.rows[row_number].height=Pt(row_height)
-                            for column,value in enumerate(values):
-                                cell=table.cell(row_number,column)
-                                cell.text=value
-                                cell.margin_left=cell.margin_right=Inches(.06)
-                                cell.margin_top=cell.margin_bottom=Inches(.03)
-                                cell.text_frame.word_wrap=True
-                                for paragraph in cell.text_frame.paragraphs:
-                                    paragraph.font.name,paragraph.font.size=font,Pt(12)
-                                    paragraph.font.bold=row_number==0
-                                    paragraph.font.color.rgb=teal if row_number==0 else ink
-                        tables+=1
-                    table_rows+=len(rows)
-                elif kind == 'figure':
-                    flush();fields(block,('type','path','caption'))
-                    path=block['path']
-                    if not isinstance(path,str) or Path(path).suffix.lower() not in {'.png','.jpg','.jpeg'}:
-                        raise ReportError('PPTX figures must be saved PNG or JPEG files')
-                    data=workspace.read(path,location=location+'.path',maximum=8*1024*1024)
-                    image_bytes+=len(data)
-                    if image_bytes>32*1024*1024:raise ReportError('presentation figures exceed the 32 MiB processing budget')
-                    try:
-                        with Image.open(io.BytesIO(data)) as image:
-                            width,height=image.size
-                            if image.format not in {'PNG','JPEG'} or width*height>20000000 or not 1<=width<=20000 or not 1<=height<=20000:
-                                raise ReportError('figure type or pixel budget is invalid')
-                            image.verify()
-                    except (OSError,ValueError,Image.DecompressionBombError):
-                        raise ReportError('figure is not a valid bounded PNG or JPEG') from None
-                    caption=wrap(literal(block['caption'],'figure caption',400),110)
-                    if len(caption)>4:raise ReportError('figure caption exceeds its layout budget')
-                    slide=page(title,notes);emitted=True
-                    scale=min(11.7/width,4.3/height)
-                    image_width,image_height=width*scale,height*scale
-                    slide.shapes.add_picture(io.BytesIO(data),Inches(.8+(11.7-image_width)/2),Inches(1.45),
-                        width=Inches(image_width),height=Inches(image_height))
-                    textbox(slide,.8,5.9,11.7,.85,caption,12,muted)
-                    figures+=1
-                else:
-                    raise ReportError('unknown presentation block type')
+                        scale=min(11.7/width,4.3/height)
+                        image_width,image_height=width*scale,height*scale
+                        slide.shapes.add_picture(io.BytesIO(data),Inches(.8+(11.7-image_width)/2),Inches(1.45),
+                            width=Inches(image_width),height=Inches(image_height))
+                        textbox(slide,.8,5.9,11.7,.85,caption,12,muted)
+                        figures+=1
+                    else:
+                        raise ReportError('unknown presentation block type')
+                except (ReportError, ValueError, OSError, csv.Error) as error:
+                    block_errors.append({'location': location, 'message': str(error) if isinstance(error, ReportError) else 'Invalid or unreadable saved source',
+                        'diagnostic': getattr(error, 'diagnostic', None)})
+                    if len(block_errors) >= 64:
+                        raise ReportError('Presentation validation failed', diagnostic={
+                            'code': 'presentation_invalid', 'errors': block_errors,
+                            'output_written': False, 'remaining_blocks_unchecked': True}) from None
             flush()
             if not emitted:page(title,notes)
+        if block_errors:
+            raise ReportError('Presentation validation failed', diagnostic={
+                'code': 'presentation_invalid', 'errors': block_errors, 'output_written': False})
         for number,(slide,notes) in enumerate(footers,1):
             if notes:textbox(slide,.8,6.85,10.7,.4,wrap(' · '.join(notes),140),10,muted)
-            textbox(slide,11.8,7.0,.7,.25,[f'{number}/{len(deck.slides)}'],10,muted)
+            textbox(slide,11.8,7.0,.7,.25,[f'{number}/{len(deck.slides)}'],10,RGBColor(199,219,221) if number==1 else muted)
         stream=io.BytesIO();deck.save(stream)
         if stream.tell()>64*1024*1024:raise ReportError('PPTX exceeds the 64 MiB output processing budget')
-        workspace.write(output,stream.getvalue())
+        if not check_only:
+            workspace.write(output,stream.getvalue())
+        else:
+            workspace.check_output(output)
         return {'schema':'capstone-presentation-receipt/1','output':output,'slides':len(deck.slides),
             'figures':figures,'tables':tables,'table_rows':table_rows,'source_sha256':workspace.sources,
+            'output_written': not check_only,
             'interpretation':'none; layout and source binding do not verify facts or conclusions'}
     finally:
         os.close(workspace.root)
@@ -458,11 +511,12 @@ def render_presentation(spec_path, output):
 def main():
     parser = argparse.ArgumentParser(description='Render report HTML or content-only PPTX JSON with literal text, exact CSV values and saved figures. HTML supports safe SVG/PNG/JPEG; PPTX supports PNG/JPEG. Workspace paths only; no raw HTML, scripts or network resources.')
     parser.add_argument('--version', action='version', version='capstone-report ' + VERSION)
-    parser.add_argument('--spec', required=True, help='HTML: capstone-report/1 title, sections[{id,title,blocks}]. PPTX: capstone-presentation/1 title, subtitle?, slides[{title,blocks,source_notes?:[text]}]. Blocks: paragraph(text), bullets(items), table(csv,columns?,caption?,max_rows required for PPTX), figure(path,caption).')
+    parser.add_argument('--spec', required=True, help='HTML: capstone-report/1 title, sections[{id,title,blocks}]. PPTX: capstone-presentation/1 title, subtitle?, slides[{title,blocks,source_notes?:[text]}]. Blocks: paragraph(text), bullets(items), table(csv,columns?,caption?,max_rows required for PPTX), figure(path,caption). PPTX tables require 1..8 unique existing CSV columns; specify columns for wider sources. A cover is added. Figures and tables use separate pages; text and tables paginate automatically, so content records are not final slide counts. Read the successful JSON receipt for actual counts. On failure no output is written; do not inspect an old or missing output as a new result.')
     parser.add_argument('--output', required=True, help='HTML or .pptx output within the current workspace; parent directory must exist.')
+    parser.add_argument('--check-only', action='store_true', help='Validate saved sources and layout without writing output. Returns actual counts and source hashes; independent PPTX block errors are collected. Rendering rechecks sources when you later create the product.')
     args = parser.parse_args()
     try:
-        receipt = render(args.spec, args.output)
+        receipt = render(args.spec, args.output, check_only=args.check_only)
     except ReportError as error:
         print('capstone-report: ' + str(error), file=sys.stderr)
         if error.diagnostic:

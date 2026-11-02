@@ -1,8 +1,9 @@
 import {readFile,writeFile,mkdir,realpath,rename,lstat} from 'node:fs/promises';
 import {resolve,join,sep,relative} from 'node:path';
 import {createHash,randomUUID} from 'node:crypto';
+import {observationRecordPointer as pointer,ObservationPointerError as MissingSourceField} from './observed-action.mjs';
 const manifestUpdates=new Map();
-async function appendProduct(cwd,product){
+export async function appendProduct(cwd,product){
   const key=await realpath(cwd),previous=manifestUpdates.get(key)??Promise.resolve();
   const update=previous.catch(()=>{}).then(async()=>{
     const manifestPath=join(key,'.capstone-products.json');let manifest={schema:'capstone-workspace-products/1',products:[]};
@@ -20,24 +21,34 @@ async function appendProduct(cwd,product){
 }
 const canonical=v=>Array.isArray(v)?v.map(canonical):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])):v;
 const digest=v=>createHash('sha256').update(JSON.stringify(canonical(v))).digest('hex');
-class MissingSourceField extends Error {}
-function pointer(value,path=''){
-  if(path==='')return value;
-  if(!path.startsWith('/'))throw Error('Invalid source pointer');
-  for(const key of path.slice(1).split('/').map(k=>k.replace(/~1/g,'/').replace(/~0/g,'~'))){
-    if(value===null||typeof value!=='object'||!Object.hasOwn(value,key))throw new MissingSourceField('Missing source pointer field');
-    value=value[key];
-  }return value;
-}
-export async function saveSemanticContext({cwd,name,spec,records,scope}){
+export async function saveSemanticContext({cwd,name,spec,records,scope,resolveRecord}){
   if(!/^[a-zA-Z0-9_-]{1,80}$/.test(name))throw Error('Invalid context name');
+  if(!spec||typeof spec!=='object'||Array.isArray(spec))throw Error('/spec: expected an object');
+  if(spec.datasets!==undefined&&!Array.isArray(spec.datasets))throw Error('/datasets: expected an array');
+  if(resolveRecord){
+    records=new Map(records);
+    const refs=[...(spec.datasets??[]).map(item=>item?.call),...Object.values(spec.bindings??{}).map(item=>item?.call)];
+    for(const ref of new Set(refs.filter(ref=>typeof ref==='string'&&ref))){
+      if(records.has(ref))continue;
+      const record=await resolveRecord(ref);if(record)records.set(ref,record);
+    }
+  }
+  for(const [i,d] of (spec.datasets??[]).entries()){
+    const path=`/datasets/${i}`;
+    if(!d||typeof d!=='object'||Array.isArray(d))throw Error(`${path}: expected an object`);
+    if(typeof d.name!=='string'||!d.name)throw Error(`${path}/name: required nonempty string`);
+    if(typeof d.call!=='string'||!d.call)throw Error(`${path}/call: required observation reference; use the ref returned by tools.call, not inline value`);
+    if(!records.has(d.call))throw Error(`${path}/call: Unknown observation reference; reuse a ref from this task`);
+    if(d.pointer!==undefined&&(typeof d.pointer!=='string'||(d.pointer!==''&&!d.pointer.startsWith('/'))))
+      throw Error(`${path}/pointer: expected a JSON pointer`);
+  }
   const selected=new Map(),gaps=[];
   const observe=ref=>{const record=records.get(ref);if(!record)throw Error('Unknown observation reference');selected.set(ref,record);return record;};
   const bindings=Object.fromEntries(Object.entries(spec.bindings??{}).map(([key,b])=>{
     if(b&&typeof b==='object'){
       if(b.call){
         const record=observe(b.call);
-        try{return [key,{basis:'observed',value:pointer(record.value,b.pointer),ref:b.call,pointer:b.pointer??''}];}
+        try{return [key,{basis:'observed',value:pointer(record,b.pointer),ref:b.call,pointer:b.pointer??''}];}
         catch(error){
           if(!(error instanceof MissingSourceField))throw error;
           const gap={binding:key,reason:'source_field_missing',ref:b.call,pointer:b.pointer};gaps.push(gap);
@@ -50,7 +61,13 @@ export async function saveSemanticContext({cwd,name,spec,records,scope}){
     // Shorthand metadata is usable, but never promoted to an observed fact.
     return [key,{basis:'declared',value:b}];
   }));
-  const datasets=(spec.datasets??[]).map(d=>{const r=observe(d.call);pointer(r.value,d.pointer);return {name:d.name,ref:d.call,pointer:d.pointer??''};});
+  const datasets=(spec.datasets??[]).map((d,i)=>{
+    const r=observe(d.call);
+    try{pointer(r,d.pointer);}catch(error){
+      throw Error(`/datasets/${i}/pointer: source ${JSON.stringify(d.call.slice(0,256))}; ${error.message}`);
+    }
+    return {name:d.name,ref:d.call,pointer:d.pointer??''};
+  });
   if(new Set(datasets.map(d=>d.name)).size!==datasets.length)throw Error('Duplicate dataset name');
   const document={schema:'capstone-semantic-data/1',authority_evidence:false,scope,bindings,datasets,gaps,
     observations:[...selected.values()].map(r=>({...r,sha256:digest(r.value)}))};
@@ -73,5 +90,5 @@ export async function loadSemanticContext({cwd,path,allowedInputs=[]}){
   if(document.schema!=='capstone-semantic-data/1'||digest(body)!==sha256)throw Error('Context digest changed');
   const observations=new Map(document.observations.map(r=>{if(digest(r.value)!==r.sha256)throw Error('Observation hash changed');return [r.ref,r];}));
   return {schema:document.schema,authority_evidence:false,bindings:document.bindings,gaps:document.gaps??[],
-    datasets:Object.fromEntries(document.datasets.map(d=>{const r=observations.get(d.ref);if(!r)throw Error('Missing observation reference');return [d.name,{data:pointer(r.value,d.pointer),status:r.value.status,provenance:r.value.provenance,gaps:r.value.gaps,receipt:r.receipt}];}))};
+    datasets:Object.fromEntries(document.datasets.map(d=>{const r=observations.get(d.ref);if(!r)throw Error('Missing observation reference');return [d.name,{data:pointer(r,d.pointer),status:r.value.status,provenance:r.value.provenance,gaps:r.value.gaps,receipt:r.receipt}];}))};
 }

@@ -177,10 +177,16 @@ def public_document(value):
 def checked_native_context(value):
     value = public_document(value)
     fields = {'policy', 'selected_task_records', 'selected_task_source', 'records_truncated'}
-    if (not isinstance(value, dict) or not fields <= set(value) or set(value) - fields - {'materials', 'material_notices', 'resource_manifests', 'resource_origins', 'graph_work', 'systematic_diagnosis', 'tool_composition', 'llm_call_pool', 'deep_research', 'llm_selection'}
+    if (not isinstance(value, dict) or not fields <= set(value) or set(value) - fields - {'materials', 'material_notices', 'resource_manifests', 'resource_origins', 'graph_work', 'systematic_diagnosis', 'tool_composition', 'llm_call_pool', 'deep_research', 'llm_selection', 'gateway_binding'}
             or type(value['records_truncated']) is not bool
             or not isinstance(value['selected_task_records'], list) or len(value['selected_task_records']) > 64):
         raise ValueError('native task context is invalid')
+    if 'gateway_binding' in value:
+        gateway = value['gateway_binding']
+        if (not isinstance(gateway, dict) or set(gateway) != {'connection_id', 'instance_id', 'catalog_revision'}
+                or any(item is not None and (not isinstance(item, str) or not 0 < len(item) <= 256) for item in gateway.values())
+                or (gateway['catalog_revision'] is not None and not gateway['instance_id'])):
+            raise ValueError('native gateway binding is invalid')
     if 'llm_selection' in value:
         selection = value['llm_selection']
         if not isinstance(selection, dict) or set(selection) != {'profile_id', 'provider', 'model', 'profile_revision'} or any(not isinstance(v, str) or not v for v in selection.values()):
@@ -352,6 +358,8 @@ def native_context_for(claim, binding):
         tools.add('agent_task_records_read')
     from .continuation_resources import artifact_origin
     origins = [artifact_origin(public_document(item)) for item in submission.get('_continuation_artifacts', [])]
+    if submission.get('_resource_manifests'):
+        tools.add('agent_resource_open')
     work = {}
     if entry and entry.work_edition:
         if not isinstance(getattr(claim, 'started_at', None), str):
@@ -360,10 +368,18 @@ def native_context_for(claim, binding):
         if started.tzinfo is None:
             raise ValueError('graph work attempt start needs timezone')
         work = {'graph_work': {'edition': entry.work_edition, 'started_at_ms': int(started.timestamp() * 1000)}}
+    gateway = binding['capability'].get('data_gateway', {})
+    gateway_source = gateway.get('session_binding', {})
+    frozen_gateway = {'connection_id': gateway.get('connection_id') or gateway_source.get('connection_id'),
+        'instance_id': gateway.get('identity', {}).get('instance_id') or gateway_source.get('instance_id'),
+        'catalog_revision': gateway.get('catalog', {}).get('revision') if gateway.get('available') else None}
+    if frozen_gateway['instance_id'] is None:
+        frozen_gateway['catalog_revision'] = None
     return checked_native_context({'policy': {'schema': 'capstone-conversation-policy/1',
         'system_policy': profile.application_policy.load(), 'allowed_tools': sorted(tools),
         'external_lookup_enabled': False}, 'selected_task_records': pages,
         'selected_task_source': source, 'records_truncated': truncated, **work,
+        **({'gateway_binding': frozen_gateway} if gateway.get('session_binding') is not None or frozen_gateway['instance_id'] else {}),
         **({'deep_research': submission['deep_research']} if 'deep_research' in submission else {}),
         **({'llm_selection': submission['llm_selection']} if 'llm_selection' in submission else {}),
         **({'systematic_diagnosis': DIAGNOSIS_POLICY} if diagnosis == DIAGNOSIS_POLICY else {}),

@@ -14,12 +14,13 @@ class Client:
                 'structuredContent': {'status': 'partial', 'gaps': ['missing'], 'provenance': {'id': 'actual'}}}
 
 
-def access(extra_tools=()):
+def access(extra_tools=(), schemas=None):
     catalog = {'revision': 'a' * 64, 'tools': {'data_gateway_discover_data_capabilities': {}},
                'tool_hashes': {'data_gateway_discover_data_capabilities': 'b' * 64}}
     for tool in extra_tools:
         catalog['tools'][tool] = {}
         catalog['tool_hashes'][tool] = 'd' * 64
+    catalog['tools'].update(schemas or {})
     resource = DataGatewayAccess(Client(), catalog)
     resource.bind('task-1', 'attempt-1', set(catalog['tools']))
     return resource
@@ -43,6 +44,30 @@ def test_task_grant_rejects_catalog_tool_outside_frozen_subset():
     assert response['observation']['catalog_revision'] == resource.catalog['revision']
 
 
+def test_batch_validation_uses_frozen_schema_without_calls_or_argument_changes():
+    schema = {'type': 'object', 'properties': {'rows': {'type': 'array', 'items': {
+        'type': 'object', 'properties': {'n': {'type': 'integer', 'minimum': 1}},
+        'required': ['n'], 'additionalProperties': False}}}, 'required': ['rows'],
+        'additionalProperties': False}
+    resource = access(['dynamic_read'], {'dynamic_read': {'inputSchema': schema}})
+    calls = [{'name': 'dynamic_read', 'arguments': {'rows': [{'n': 2}]}},
+             {'name': 'dynamic_read', 'arguments': {'rows': [{'n': '2'}]}},
+             {'name': 'dynamic_read', 'arguments': {'rows': [], 'extra': True}}]
+    original = deepcopy(calls)
+    result = resource.validate_batch('task-1', calls)
+    assert result['valid'] is False
+    assert [e['index'] for e in result['errors']] == [1, 2]
+    assert result['errors'][0]['validation_errors'][0]['path'] == '/rows/0/n'
+    assert calls == original
+    assert resource._tasks['task-1']['started'] == set()
+    resource.bind('restricted', 'attempt-2', [])
+    assert resource.validate_batch('restricted', calls[:1])['errors'][0]['code'] == 'gateway_tool_not_admitted'
+    resource.catalog['tools']['dynamic_read']['inputSchema'] = {'type': 'null'}
+    assert resource.validate_batch('task-1', calls[:1])['valid'] is True
+    with pytest.raises(GatewayError, match='gateway_task_not_admitted'):
+        resource.validate_batch('absent', calls)
+
+
 @pytest.mark.parametrize('allowed', [None, 'data_gateway_other', {'missing'}, {1}])
 def test_task_binding_rejects_invalid_tool_grants(allowed):
     resource = access()
@@ -59,6 +84,97 @@ def test_empty_task_grant_does_not_inherit_catalog():
 
 def request():
     return {'call_id': 'call-1', 'name': 'data_gateway_discover_data_capabilities', 'arguments': {}}
+
+
+def test_direct_and_composed_requests_share_task_read_reuse_with_verified_receipts():
+    schema = {'inputSchema': {'type': 'object'}, 'annotations': {'readOnlyHint': True, 'idempotentHint': True}}
+    resource = access(schemas={request()['name']: schema})
+    calls = []
+    async def upstream(name, arguments, catalog):
+        calls.append(arguments)
+        await asyncio.sleep(.01)
+        return {'structuredContent': {'status': 'ok', 'data': {'n': len(calls)}}}
+    resource.client.call = upstream
+    async def run():
+        a, b = await asyncio.gather(resource.call('task-1', request()),
+                                   resource.call('task-1', dict(request(), call_id='composed:1')))
+        assert len(calls) == 1
+        assert b['observation']['reused_from'] == a['observation']['tool_call_id']
+        assert a['result_json'] == b['result_json']
+        assert resource.verify('task-1', 'composed:1', request()['name'], b['observation'], b['result_json'])
+        fresh = await resource.call('task-1', dict(request(), call_id='refresh',
+            observation_policy={'refresh_reason': 'User requested current source'}))
+        assert len(calls) == 2 and 'reused_from' not in fresh['observation']
+        resource.bind('other', 'other-attempt', {request()['name']})
+        await resource.call('other', request())
+        assert len(calls) == 3
+    asyncio.run(run())
+
+
+def test_task_read_reuse_preserves_live_polling_failed_reads_and_refresh_recovery():
+    schema = {'inputSchema': {'type': 'object'}, 'annotations': {'readOnlyHint': True, 'idempotentHint': True}}
+    resource = access(schemas={request()['name']: schema})
+    calls = []
+    async def upstream(name, arguments, catalog):
+        calls.append(arguments)
+        return {'structuredContent': {'status': 'error' if len(calls) == 2 else 'ok', 'data': {'job_ref': arguments.get('job_ref')}}}
+    resource.client.call = upstream
+    async def run():
+        await resource.call('task-1', request())
+        await resource.call('task-1', dict(request(), call_id='refresh', observation_policy={'refresh_reason':'Source changed'}))
+        await resource.call('task-1', dict(request(), call_id='after-failure'))
+        assert len(calls) == 3
+        with pytest.raises(GatewayError, match='gateway_request_invalid'):
+            await resource.call('task-1', dict(request(), call_id='bad', observation_policy={'refresh_reason':''}))
+        with pytest.raises(GatewayError, match='gateway_call_already_started'):
+            await resource.call('task-1', request())
+        assert len(calls) == 3
+        resource._tasks['task-1']['catalog']['tools'][request()['name']]['inputSchema']['properties'] = {'job_ref':{'type':'string'}}
+        resource._tasks['task-1']['operation_refs'] = {'issued-job'}
+        for i in range(2):
+            await resource.call('task-1', dict(request(), call_id=f'poll-{i}', arguments={'job_ref':'issued-job'}))
+        assert len(calls) == 5
+    asyncio.run(run())
+
+
+def test_contract_reload_updates_future_bindings_and_preserves_bound_catalog():
+    resource = access()
+    old = deepcopy(resource.catalog)
+    new = deepcopy(old)
+    new['revision'] = 'c' * 64
+    new['tool_hashes'][request()['name']] = 'd' * 64
+    seen = []
+
+    async def prepare():
+        return new
+
+    async def upstream(name, arguments, catalog):
+        seen.append(deepcopy(catalog))
+        return await Client().call(name, arguments, catalog)
+
+    resource.client.prepare = prepare
+    resource.client.call = upstream
+    asyncio.run(resource.reload_contract())
+    resource.bind('new-task', 'new-attempt', {request()['name']})
+    older = asyncio.run(resource.call('task-1', request()))
+    newer = asyncio.run(resource.call('new-task', request()))
+    assert seen == [old, new]
+    assert older['observation']['catalog_revision'] == old['revision']
+    assert newer['observation']['catalog_revision'] == new['revision']
+    assert resource.verify('task-1', 'call-1', request()['name'], older['observation'], older['result_json'])
+
+
+def test_failed_reload_does_not_offer_stale_contract_to_new_tasks():
+    resource = access()
+    async def prepare():
+        raise GatewayError('gateway_connection_failed')
+    resource.client.prepare = prepare
+    with pytest.raises(GatewayError, match='gateway_connection_failed'):
+        asyncio.run(resource.reload_contract())
+    assert resource.publication()['available'] is False
+    with pytest.raises(GatewayError):
+        resource.bind('new-task', 'new-attempt', {request()['name']})
+    assert asyncio.run(resource.call('task-1', request()))['observation']['catalog_revision'] == 'a' * 64
 
 
 def test_only_admitted_successful_observations_reach_connection_bindings():
@@ -93,9 +209,9 @@ def test_validated_failure_reaches_bindings_without_becoming_success():
 
 @pytest.mark.parametrize('failed_open', [False, True])
 def test_preparation_jobs_require_an_issued_open_in_the_same_task(failed_open):
-    resource = access(['data_gateway_open_network_model_view', 'data_gateway_get_network_model_job'])
-    resource.catalog['tools']['data_gateway_get_network_model_job'] = {
-        'inputSchema': {'type': 'object', 'properties': {'job_ref': {'type': 'string'}}, 'required': ['job_ref']}}
+    resource = access(['data_gateway_open_network_model_view', 'data_gateway_get_network_model_job'],
+        schemas={'data_gateway_get_network_model_job': {
+        'inputSchema': {'type': 'object', 'properties': {'job_ref': {'type': 'string'}}, 'required': ['job_ref']}}})
     calls = []
     async def upstream(name, arguments, catalog):
         calls.append(name)
@@ -131,9 +247,8 @@ def test_preparation_jobs_require_an_issued_open_in_the_same_task(failed_open):
     ('data_gateway_start_export', 'data_gateway_export_status')])
 @pytest.mark.parametrize('field', ['job_ref', 'preparation_ref'])
 def test_generic_operation_refs_are_task_owned(producer, reader, field):
-    resource = access([producer, reader])
-    resource.catalog['tools'][reader] = {'inputSchema': {
-        'type': 'object', 'properties': {'job_ref': {'type': 'string'}}, 'required': ['job_ref']}}
+    resource = access([producer, reader], schemas={reader: {'inputSchema': {
+        'type': 'object', 'properties': {'job_ref': {'type': 'string'}}, 'required': ['job_ref']}}})
     calls = []
     async def upstream(name, arguments, catalog):
         calls.append(name)
@@ -363,9 +478,8 @@ def test_actual_sdk_child_calls_protected_http_relay_and_has_host_receipt(tmp_pa
     import time
     from capstone_agent.general_pi_server import GeneralPiHost, make_server
     from capstone_agent.general_pi_relay import ProviderRelay
-    resource = access()
-    schema = {'name': 'discover_data_capabilities', 'inputSchema': {'type': 'object', 'properties': {}}}
-    resource.catalog['tools']['data_gateway_discover_data_capabilities'] = schema
+    schema = {'name': 'discover_data_capabilities', 'inputSchema': {'type': 'object', 'properties': {}, 'additionalProperties': False}}
+    resource = access(schemas={'data_gateway_discover_data_capabilities': schema})
     relay = ProviderRelay()
     runner = SimpleNamespace(gateway=resource, relay=relay)
     host = GeneralPiHost(root=tmp_path / 'host', identity={'engine': 'pi'}, run_task=lambda *_: ('', {}))
@@ -385,6 +499,7 @@ def test_actual_sdk_child_calls_protected_http_relay_and_has_host_receipt(tmp_pa
         value = json.loads(process.stdout)
         event = value['event']
         assert value['turns'] == 2
+        assert len(resource._tasks['task-1']['started']) == 1
         assert resource.verify('task-1', event['tool_call_id'], event['tool_name'],
                                event['result']['details'], event['result']['content'][0]['text'])
         assert value['receipt']['ref'] == event['result']['details']['native_research_source']['source_ref']

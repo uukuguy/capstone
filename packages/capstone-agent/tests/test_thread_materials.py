@@ -95,7 +95,7 @@ def test_terminal_work_files_remain_available_beyond_inline_material_slots(chat_
     work = store.snapshot(thread_id).works[0]
     assert store.submit_command(command(store, thread_id, 'send_message', 'resume_partial',
         work_id=work['work_id'], revision=work['revision'],
-        payload={'text': 'Please finish the report', **({} if large_automatic else {'material_refs': []})})).status == 'accepted'
+        payload={'text': 'Please finish the report'})).status == 'accepted'
     resumed = store.claim_attempt('materials', 30, 'native')
     assert resumed.submission['_materials'] == []
     assert len(resumed.submission['_continuation_artifacts']) == 7
@@ -312,11 +312,13 @@ def test_adopted_prior_file_survives_pi_expiry_without_trusting_corrupt_copy(cha
         work_id=work['work_id'], revision=work['revision'], payload={'text': 'Read the prior report and append a section'})).status == 'accepted'
     next_claim = store.claim_attempt('materials', 30, 'native')
     materials = next_claim.submission['_materials']
+    assert materials == []
+    assert next_claim.submission['_material_notices'] == []
+    from capstone_agent.continuation_resources import resource_reader_for
+    reader=resource_reader_for(store,next_claim)
+    resource,=next_claim.submission['_resource_manifests']
     if corrupt:
-        assert materials == []
-        assert next_claim.submission['_material_notices']
+        with pytest.raises(OSError,match='no verified durable adoption'):
+            b''.join(reader(resource))
     else:
-        assert len(materials) == 1
-        assert base64.b64decode(materials[0]['content_base64']) == data
-        assert materials[0]['source_artifact'] == source
-        assert next_claim.submission['_material_notices'] == []
+        assert b''.join(reader(resource))==data

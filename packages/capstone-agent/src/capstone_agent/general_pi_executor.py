@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from .answer_presentation import public_answer
 import base64
 from hashlib import sha256
 import os
@@ -223,10 +224,15 @@ def task_workspace(root: Path, task_id: str) -> Path:
 def native_pi_launch(*, command: tuple[str, ...], workspace: Path, config_root: Path,
                      model: str, relay_url: str, relay_token: str,
                      context_extension: Path, sdk_config: dict | None = None,
-                     input_directory: Path | None = None) -> tuple[tuple[str, ...], dict[str, str]]:
+                     input_directory: Path | None = None,
+                     context_policy: dict | None = None) -> tuple[tuple[str, ...], dict[str, str]]:
     """Load native managed config; no business launcher or developer HOME."""
     if not command or any(not isinstance(part, str) or not part for part in command):
         raise ValueError('General Pi command is invalid')
+    from .model_context_policy import checked_context_policy, compaction_settings
+    policy = checked_context_policy(context_policy) if context_policy is not None else None
+    context_tokens = policy['context_window_tokens'] if policy else limits.model_context_tokens
+    output_tokens = policy['max_output_tokens'] if policy else limits.model_output_tokens
     workspace.mkdir(mode=0o700, parents=True, exist_ok=False)
     agent = workspace / '.agent'
     agent.mkdir(mode=0o700)
@@ -243,11 +249,16 @@ def native_pi_launch(*, command: tuple[str, ...], workspace: Path, config_root: 
     models = {'providers': {'capstone-general': {
         'baseUrl': relay_url, 'api': 'openai-completions', 'apiKey': relay_token,
         'models': [{'id': model, 'name': model, 'reasoning': False, 'input': ['text'],
-                    'contextWindow': limits.model_context_tokens, 'maxTokens': limits.model_output_tokens,
+                    'contextWindow': context_tokens, 'maxTokens': output_tokens,
                     'cost': {'input': 0, 'output': 0, 'cacheRead': 0, 'cacheWrite': 0}}],
     }}}
     (agent / 'models.json').write_text(json.dumps(models))
     (agent / 'models.json').chmod(0o600)
+    if policy is not None and sdk_config is None:
+        settings_file = agent / 'settings.json'
+        settings = json.loads(settings_file.read_text()) if settings_file.exists() else {}
+        settings['compaction'] = {**settings.get('compaction', {}), **compaction_settings(policy)}
+        settings_file.write_text(json.dumps(settings))
     environment = {'PATH': '/usr/local/bin:/usr/bin:/bin', 'HOME': str(workspace),
                    'LANG': 'C.UTF-8', 'PI_CODING_AGENT_DIR': str(agent), 'PI_OFFLINE': '1'}
     argv = (*command, '--mode', 'rpc', '--provider', 'capstone-general', '--model', model,
@@ -260,12 +271,16 @@ def native_pi_launch(*, command: tuple[str, ...], workspace: Path, config_root: 
         sdk_values['deliveryReviewSources'] = []
         from .application_capacity import current_capacity
         sdk_values['runtimeLimits'] = dict(current_capacity().values)
+        # Keep the task's transport snapshot identical to research/history
+        # bindings. Per-model budgets belong to models.json and SDK settings.
         sdk_values['runtimeLimitMode'] = current_capacity().mode
         # A task can replace paths inside its writable output directory. Keep
         # accepted inputs under the root-owned parent instead.
         inputs = input_directory if input_directory is not None else workspace.parent / ('.inputs-' + workspace.name)
         inputs.mkdir(mode=0o755)
         settings = sdk_values.get('settings', {})
+        if policy is not None:
+            settings['compaction'] = {**settings.get('compaction', {}), **compaction_settings(policy)}
         for key in ('skills', 'extensions', 'packages', 'prompts', 'themes'):
             entries = []
             for index, entry in enumerate(settings.get(key, [])):
@@ -498,7 +513,20 @@ class GeneralPiProcess:
                         'research_checkpoint_rejected','research_update_not_confirmed','research_deadline',
                         'continuation_no_progress','task_goal_blocked'}:
                         raise RuntimeError(event['code'])
-                    raise RuntimeError('General Pi rejected request')
+                    error = RuntimeError('General Pi rejected request')
+                    diagnostic = event.get('diagnostic')
+                    if isinstance(diagnostic, dict) and diagnostic.get('exception_type') in {
+                            'Error', 'TypeError', 'RangeError', 'ReferenceError', 'SyntaxError'}:
+                        frames = diagnostic.get('origin')
+                        if isinstance(frames, list):
+                            error.sdk_diagnostic = {'exception_type': diagnostic['exception_type'], 'origin': [
+                                {key: frame[key] for key in ('module', 'line', 'column')}
+                                for frame in frames[:8] if isinstance(frame, dict)
+                                and isinstance(frame.get('module'), str)
+                                and re.fullmatch(r'[A-Za-z0-9_-]+\.mjs', frame['module'])
+                                and all(type(frame.get(key)) is int and 0 < frame[key] < 10_000_000
+                                        for key in ('line', 'column'))]}
+                    raise error
                 if event.get('type') == 'agent_end':
                     if event.get('success') is False and event.get('code') == 'continuation_no_progress':
                         raise RuntimeError('continuation_no_progress')
@@ -524,11 +552,13 @@ class GeneralPiProcess:
                     self.usage['native_tools'] = self.tools
                     answer = ''.join(part.get('text', '') for part in assistants[-1].get('content', [])
                                      if part.get('type') == 'text')
+                    answer = public_answer(answer)
                     if not answer.strip():
                         raise ValueError('General Pi answer is invalid')
                     require_capacity('answer_bytes', len(answer.encode('utf-8')), 'native_answer')
                     return answer
                 if event.get('type') in {'turn_start', 'turn_end', 'message_end', 'auto_retry_start', 'auto_retry_end',
+                                         'compaction_start', 'compaction_end',
                                          'tool_execution_start', 'tool_execution_end', 'message_update',
                                          'enterprise_cycle_progress', 'enterprise_graph_progress',
                                          'systematic_diagnosis_request', 'enterprise_graph_context_request', 'enterprise_graph_tool_binding', 'enterprise_graph_tool_failure',

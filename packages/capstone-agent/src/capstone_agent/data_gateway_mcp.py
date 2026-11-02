@@ -57,14 +57,43 @@ class InitializedGatewaySession:
 # instruction gets its own task state and can check the resource again.
 TASK_STOP_ERRORS = frozenset({'gateway_timeout', 'gateway_transport_failed',
     'gateway_authentication_failed', 'gateway_endpoint_rejected', 'gateway_connection_failed', 'gateway_call_failed_no_retry',
-    'gateway_catalog_invalid', 'gateway_catalog_unavailable'})
+    'gateway_catalog_invalid', 'gateway_catalog_unavailable', 'contract_publication_unavailable'})
 _PUBLIC_GATEWAY_ERRORS = TASK_STOP_ERRORS | {'gateway_arguments_invalid', 'gateway_output_invalid',
     'gateway_tool_not_admitted', 'gateway_policy_invalid', 'gateway_connection_config_invalid',
-    'gateway_publication_changed'}
+    'gateway_publication_changed', 'contract_publication_unavailable'}
 
 
 class GatewayError(ValueError):
     """A public error code, without upstream exception text."""
+    def __init__(self, code, request_id=None, *, validation_errors=None):
+        super().__init__(code)
+        self.request_id = request_id if identity_text(request_id) else None
+        self.validation_errors = validation_errors or []
+
+
+def argument_validation_details(error):
+    """Expose bounded schema locations and types, never argument values."""
+    pending, leaves = [error], []
+    for _ in range(32):
+        if not pending:
+            break
+        item = pending.pop()
+        if item.context:
+            pending.extend(item.context[:8])
+        else:
+            leaves.append(item)
+    result = []
+    for item in sorted(leaves, key=lambda item: len(item.absolute_path), reverse=True)[:8]:
+        path = '/' + '/'.join(str(part).replace('~', '~0').replace('/', '~1') for part in item.absolute_path)
+        value = item.instance
+        actual = ('null' if value is None else 'boolean' if isinstance(value, bool) else
+                  'object' if isinstance(value, dict) else 'array' if isinstance(value, list) else
+                  'string' if isinstance(value, str) else 'integer' if isinstance(value, int) else 'number')
+        detail = {'path': path[:256], 'rule': str(item.validator)[:64], 'actual_type': actual}
+        if item.validator == 'type':
+            detail['expected'] = item.validator_value
+        result.append(detail)
+    return result
 
 
 def encode(value):
@@ -252,11 +281,73 @@ class DataGatewayMcp:
         require_capacity('mcp_frame_bytes', len(encode(value)), 'gateway_catalog')
         return {**value, 'revision': fingerprint(value)}
 
+    async def _publication(self, connection, tool):
+        session = getattr(connection, 'session', connection)
+        response = await session.call_tool(tool, arguments={})
+        value = response.model_dump(mode='json', by_alias=True, exclude_none=True)
+        require_capacity('mcp_frame_bytes', len(encode(value)), 'gateway_contract')
+        body = value.get('structuredContent')
+        if not isinstance(body, dict):
+            try:
+                body = json.loads(next(item['text'] for item in value.get('content', []) if item.get('type') == 'text'))
+            except Exception:
+                raise GatewayError('gateway_catalog_invalid') from None
+        request_id = body.get('provenance', {}).get('request_id')
+        if value.get('isError') or body.get('status') == 'error':
+            raise GatewayError('contract_publication_unavailable', request_id)
+        data = body.get('data', {})
+        stamp = data.get('contract_updated_at')
+        from datetime import datetime
+        try:
+            if not isinstance(stamp, str) or datetime.fromisoformat(stamp).utcoffset() is None:
+                raise ValueError()
+        except (ValueError, TypeError):
+            raise GatewayError('gateway_catalog_invalid', request_id) from None
+        if tool == 'check_gateway_contract':
+            if set(data) != {'instance_id', 'contract_updated_at'} or not identity_text(data.get('instance_id')):
+                raise GatewayError('gateway_catalog_invalid', request_id)
+            return deepcopy(data)
+        return stamp
+
+    async def _prepare_connected(self, session):
+        catalog = await self._catalog(session)
+        if self.policy['namespace'] + 'check_gateway_contract' in catalog['tools']:
+            before = await self._publication(session, 'check_gateway_contract')
+            discovery = await self._publication(session, 'discover_gateway')
+            catalog = await self._catalog(session)
+            full = await self._publication(session, 'describe_gateway_contract')
+            after = await self._publication(session, 'check_gateway_contract')
+            instance = catalog.get('instance', {}).get('instance_id')
+            if (before != after or discovery != full or full != after['contract_updated_at']
+                    or (instance and instance != after['instance_id'])):
+                raise GatewayError('gateway_publication_changed')
+            catalog.pop('revision')
+            catalog['contract_publication'] = after
+            catalog['revision'] = fingerprint(catalog)
+        self._accepted[catalog['revision']] = deepcopy(catalog)
+        return deepcopy(catalog)
+
+    async def refresh_catalog(self, catalog):
+        if self._accepted.get(catalog.get('revision')) != catalog:
+            raise GatewayError('gateway_tool_not_admitted')
+        try:
+            async with asyncio.timeout(limits.mcp_catalog_seconds):
+                async with self.connect() as session:
+                    if 'contract_publication' in catalog:
+                        current = await self._publication(session, 'check_gateway_contract')
+                        if current == catalog['contract_publication']:
+                            return deepcopy(catalog)
+                    return await self._prepare_connected(session)
+        except GatewayError:
+            raise
+        except Exception as error:
+            raise GatewayError(public_failure(error, 'gateway_connection_failed')) from None
+
     async def prepare(self):
         try:
             async with asyncio.timeout(min(60, limits.mcp_initialize_seconds + limits.mcp_catalog_seconds)):
                 async with self.connect() as session:
-                    catalog = await self._catalog(session)
+                    catalog = await self._prepare_connected(session)
             self._accepted[catalog['revision']] = deepcopy(catalog)
             return deepcopy(catalog)
         except GatewayError:
@@ -275,12 +366,28 @@ class DataGatewayMcp:
                 raise GatewayError('gateway_tool_not_admitted')
             require_capacity('mcp_frame_bytes', len(encode(arguments)), 'gateway_arguments')
             schema = catalog['tools'][name]
+            # The adapter owns transport names. Contract lookup parameters use
+            # source names from this connection, never a guessed prefix strip.
+            if schema['name'] == 'describe_gateway_contract':
+                target = arguments.get('tool_name')
+                published = catalog['tools'].get(target) if isinstance(target, str) else None
+                if published is not None:
+                    if (target != published['name'] and any(
+                            item['name'] == target for item in catalog['tools'].values())):
+                        raise GatewayError('gateway_arguments_invalid')
+                    arguments = {**arguments, 'tool_name': published['name']}
             try:
                 validate(schema['inputSchema'], arguments)
-            except Exception:
-                raise GatewayError('gateway_arguments_invalid') from None
+            except Exception as error:
+                from jsonschema.exceptions import ValidationError
+                details = argument_validation_details(error) if isinstance(error, ValidationError) else []
+                raise GatewayError('gateway_arguments_invalid', validation_errors=details) from None
             async with asyncio.timeout(limits.mcp_tool_seconds):
                 async with self.connect() as session:
+                    expected_instance = catalog.get('instance', {}).get('instance_id')
+                    actual_instance = checked_instance_identity(getattr(session, 'instance_identity', None))
+                    if expected_instance and (not actual_instance or actual_instance['instance_id'] != expected_instance):
+                        raise GatewayError('gateway_publication_changed')
                     current = await self._catalog(session, tool_name=name)
                     # The caller's whole grant was checked above. Publication
                     # drift matters only for the exact tool being invoked.

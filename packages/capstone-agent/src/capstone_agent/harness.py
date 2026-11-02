@@ -238,6 +238,11 @@ def normalize_runtime_event(
     payload: dict[str, object]
     if event_type == "runtime_action":
         payload = {key: event[key] for key in ("phase", "response_kind") if isinstance(event.get(key), str)}
+        if event.get('phase') == 'response_completed' and isinstance(event.get('response_intent'), str):
+            from .progress import public_response_intent
+            intent = public_response_intent('// ' + event['response_intent'])
+            if intent:
+                payload['response_intent'] = intent
         usage = event.get('usage')
         if event.get('phase') == 'response_completed' and isinstance(usage, Mapping):
             counts = {key: usage[key] for key in ('input', 'output', 'cacheRead', 'cacheWrite', 'totalTokens')

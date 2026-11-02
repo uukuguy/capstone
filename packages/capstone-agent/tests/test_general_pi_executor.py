@@ -103,6 +103,24 @@ def test_process_inventory_matches_the_explicit_organization_role(tmp_path, extr
         process.stop()
 
 
+def test_process_forwards_compaction_boundaries(tmp_path, single_child_cleanup):
+    from capstone_agent.general_pi_executor import GeneralPiProcess
+    frames = [{'type': 'compaction_start', 'reason': 'threshold'},
+              {'type': 'compaction_end', 'reason': 'threshold', 'status': 'completed', 'willRetry': False},
+              {'type': 'agent_end', 'messages': [{'role': 'assistant', 'stopReason': 'stop',
+                'content': [{'type': 'text', 'text': 'Done'}]}]}]
+    script = tmp_path / 'compact.py'
+    script.write_text('import sys\nsys.stdin.readline()\n' + ''.join(
+        'print(' + repr(json.dumps(frame)) + ',flush=True)\n' for frame in frames))
+    process = GeneralPiProcess((sys.executable, str(script)), {'PATH': '/usr/bin'}, tmp_path)
+    observed = []
+    try:
+        process.run('task', timeout=5, cancelled=lambda: False, on_event=observed.append)
+        assert observed == frames[:2]
+    finally:
+        process.stop()
+
+
 def test_native_no_progress_response_keeps_safe_reason_without_raw_message(tmp_path):
     from capstone_agent.general_pi_executor import GeneralPiProcess
     script = tmp_path / 'no_progress.py'
@@ -283,7 +301,9 @@ def test_native_child_missing_token_field_does_not_claim_complete_usage():
 def test_native_failure_retains_observed_usage_for_host_terminal_receipt(tmp_path):
     from capstone_agent.general_pi_executor import GeneralPiProcess
     frames = [{'type': 'message_end', 'message': {'role': 'assistant', 'usage': {'input': 4, 'output': 2}}},
-              {'type': 'response', 'success': False}]
+              {'type': 'response', 'success': False, 'diagnostic': {
+                  'exception_type': 'TypeError', 'origin': [{'module': 'general-sdk.mjs', 'line': 42, 'column': 7}],
+                  'message': 'SECRET_ARGUMENT'}}]
     script = tmp_path / 'failed_usage.py'
     script.write_text('import sys\nsys.stdin.readline()\n' + '\n'.join('print(' + repr(json.dumps(e)) + ',flush=True)' for e in frames))
     process = GeneralPiProcess((sys.executable, str(script)), {'PATH': '/usr/bin'}, tmp_path)
@@ -292,6 +312,8 @@ def test_native_failure_retains_observed_usage_for_host_terminal_receipt(tmp_pat
     assert raised.value.saved_usage['parent_input'] == 4
     assert raised.value.saved_usage['parent_model_responses'] == 1
     assert raised.value.saved_usage['usage_complete'] is False
+    assert raised.value.sdk_diagnostic == {'exception_type': 'TypeError',
+        'origin': [{'module': 'general-sdk.mjs', 'line': 42, 'column': 7}]}
 
 
 @pytest.mark.parametrize('answer_limit,succeeds', [(100_000, True), (89_999, False)])
@@ -373,6 +395,40 @@ def test_real_sdk_parallel_image_reads_fit_runtime_frames_without_losing_model_i
     assert len(reads) == 2
     assert max(len(json.dumps(event).encode()) for event in events) < 262144
     assert all('binary omitted' in str(event['result']) for event in reads)
+
+
+@pytest.mark.parametrize('sdk_mode', [True, False])
+@pytest.mark.parametrize('window,reserve', [(1048576, 65536), (262144, 32768)])
+def test_application_context_policy_reaches_native_model_and_compaction_settings(tmp_path, sdk_mode, window, reserve):
+    from capstone_agent.general_pi_executor import native_pi_launch
+    from capstone_agent.application_capacity import limits
+    original = limits.model_context_tokens
+    config = tmp_path / 'config'
+    config.mkdir()
+    (config / 'settings.json').write_text('{"retry":{"enabled":true}}')
+    policy = {'context_window_tokens': window, 'max_output_tokens': 32768,
+        'compaction_reserve_tokens': reserve, 'compaction_keep_recent_tokens': 20000}
+    sdk = {'settings': {'retry': {'enabled': True}}} if sdk_mode else None
+    workspace = tmp_path / 'task'
+    argv, _ = native_pi_launch(command=('node', '/opt/pi/cli.js'), workspace=workspace,
+        config_root=config, model='any-registered-model', relay_url='http://127.0.0.1/relay',
+        relay_token='fixture-only', context_extension=Path('/opt/context.mjs'), sdk_config=sdk,
+        context_policy=policy)
+    model = json.loads((workspace / '.agent/models.json').read_text())['providers']['capstone-general']['models'][0]
+    assert (model['contextWindow'], model['maxTokens']) == (window, 32768)
+    if sdk_mode:
+        payload = json.loads(Path(argv[2]).read_text())
+        settings = payload['settings']
+        # Research/history bindings use the application's capacity snapshot.
+        # Model selection must not change that independent transport contract.
+        from capstone_agent.application_capacity import current_capacity
+        assert payload['runtimeLimits'] == dict(current_capacity().values)
+        assert 'compaction' not in sdk['settings']
+    else:
+        settings = json.loads((workspace / '.agent/settings.json').read_text())
+    assert settings['compaction'] == {'enabled': True, 'reserveTokens': reserve, 'keepRecentTokens': 20000}
+    assert settings['retry']['enabled'] is True
+    assert limits.model_context_tokens == original
 
 
 def test_native_launch_keeps_general_tools_and_native_discovery(tmp_path):

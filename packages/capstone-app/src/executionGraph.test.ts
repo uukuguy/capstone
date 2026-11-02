@@ -12,6 +12,12 @@ export const frame = (seq: number, type: string, step = 'A', extras = {}) => eve
 export const result = (ref = 'result:A:1', revision = 1) => ({ schema: 'capstone-task-result/1', result_ref: ref, producer: { step_id: 'A', action_id: revision === 1 ? 'action:A' : 'action:A2', execution_revision: revision, attempt_id: 'attempt' }, slot: 'answer', kind: 'observation', summary: 'Same bytes', scope: 'selected rows', consumed_results: [], source_versions: [{ ref: 'source:one', revision: 'v1' }], method: { ref: 'method:one', revision: 'v1', environment_unavailable: 'not supplied' }, supersedes: revision === 1 ? [] : ['result:A:1'], recompute_reason: revision === 1 ? null : { kind: 'discrepancy', refs: ['source:one'], diagnostic: 'Recheck' } })
 
 describe('exact execution graph projection', () => {
+  it('preserves first-line parent response intent when displayed through the graph trace',()=>{
+    const start={...event(2,{runtime_mode:'capstone',phase:'started'}),eventType:'runtime_action'}
+    const delta={...event(3,{text:'// 核对目录与物理表的可读范围\n'}),eventType:'assistant_process_delta'}
+    const end={...event(4,{runtime_mode:'capstone',phase:'response_completed',response_kind:'tools'}),eventType:'runtime_action'}
+    expect(projectExecutionGraph([progress(1),start,delta,end],'attempt')!.parentResponses?.[0]).toMatchObject({intent:'核对目录与物理表的可读范围'})
+  })
   it('retains model request starts and exact tool IDs across interleaved tasks and replay', () => {
     const rows = [progress(1),
       frame(2, 'enterprise_graph_child_response_started', 'A', { response_number: 1 }),

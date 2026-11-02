@@ -117,7 +117,7 @@ it('finds the current completed primary report beyond process pages and exposes 
   expect(screen.getByRole('button',{name:'查看：指标.csv'})).toBeTruthy()
 })
 it('keeps the manually opened directory visible while selecting successive products',async()=>{
-  const first={...entry,title:'报告一',source:{...entry.source,presentation_role:'primary'}}
+  const first={...entry,ref:{...ref,origin:'native_file' as const},title:'报告一',source:{...entry.source,presentation_role:'primary'}}
   const second={...first,title:'报告二',ref:{...first.ref,product_id:'second'}}
   const client={productIndex:vi.fn().mockResolvedValue({products:[first,second],hasMore:false,nextCursor:null}),resolveProduct:vi.fn(async(ref)=>({entry:ref.product_id===second.ref.product_id?second:first,bytes:null,projection:null,record:{}}))}
   render(<ThreadProductsWorkspace client={client} threadId="thr_one" workId="work_current" revision={1}/>)
@@ -214,4 +214,46 @@ it('ignores an old Thread resolution that finishes after navigation',async()=>{
   view.rerender(<ThreadProductsWorkspace client={client as never} threadId="thr_two" workId="work_new" revision={0}/>)
   await act(async()=>finish({entry,bytes:null,projection:null,record:entry.source}))
   expect(screen.queryByRole('heading',{name:'原分析未完成'})).toBeNull()
+})
+it('filters by instruction ownership and clears an unrelated preview when the scope changes',async()=>{
+ const own={...entry,ref:{...ref,origin:'native_file' as const},source:{...entry.source,presentation_role:'primary'}}
+ const other={...own,ref:{...own.ref,product_id:'other',attempt_id:'attempt_two'},title:'另一指令记录'}
+ const client={productIndex:vi.fn().mockResolvedValue({products:[own,other],hasMore:false,nextCursor:null}),resolveProduct:vi.fn(async(r)=>({entry:r.attempt_id==='attempt_one'?own:other,bytes:null,projection:null,record:null}))}
+ const clear=vi.fn(),props={client,threadId:'thr_one',revision:1,onClearInstructionScope:clear}
+ const view=render(<ThreadProductsWorkspace {...props} instructionScope={{attemptId:'attempt_one',number:8,text:'生成报告'}}/>)
+ await waitFor(()=>expect(client.productIndex).toHaveBeenCalled())
+ await screen.findByText('指令 08')
+ expect(view.container.querySelector('.thread-products-directory')?.textContent).toContain('原分析未完成')
+ expect(view.container.querySelector('.thread-products-directory')?.textContent).not.toContain('另一指令记录')
+ fireEvent.click(screen.getByRole('button',{name:'全部制品'}));expect(clear).toHaveBeenCalledOnce()
+ view.rerender(<ThreadProductsWorkspace {...props} instructionScope={{attemptId:'empty',number:9,text:'无输出'}}/>)
+ await screen.findByText('指令 09暂无生成制品。')
+ expect(screen.queryByRole('article',{name:'产物预览'})).toBeNull()
+ view.rerender(<ThreadProductsWorkspace {...props}/>)
+ await waitFor(()=>expect(view.container.querySelector('.thread-products-directory')?.textContent).toContain('另一指令记录'))
+})
+it('keeps an active empty instruction visibly scoped without showing other products',async()=>{
+ const client={productIndex:vi.fn().mockResolvedValue({products:[entry],hasMore:false,nextCursor:null}),resolveProduct:vi.fn()}
+ render(<ThreadProductsWorkspace client={client} threadId="thr_one" revision={1} runningAttemptId="active" instructionScope={{attemptId:'active',number:10,text:'正在生成报告'}}/>)
+ await screen.findByText('正在执行，制品生成后将在这里显示。')
+ expect(client.resolveProduct).not.toHaveBeenCalled()
+})
+it('opens the newest primary on scope changes, independent of directory order, and keeps manual choices',async()=>{
+ const file=(id:string,role:string,time:string,attempt='attempt_one'):ProductEntry=>({...entry,ref:{...ref,origin:'native_file',product_id:id,attempt_id:attempt},title:id,created_at:time,source:{presentation_role:role}})
+ const old=file('旧报告','primary','2026-11-01T09:00:00Z'),latest=file('最新报告','primary','2026-11-01T10:00:00Z')
+ const script=file('更新的脚本','supporting','2026-11-01T12:00:00Z'),other=file('另一指令最新报告','primary','2026-11-01T11:00:00Z','attempt_two')
+ const items=[script,old,other,latest]
+ const client={productIndex:vi.fn().mockResolvedValue({products:items,hasMore:false,nextCursor:null}),resolveProduct:vi.fn(async(r)=>({entry:items.find(item=>item.ref.product_id===r.product_id)!,bytes:null,projection:null,record:null}))}
+ const props={client,threadId:'thr_one',instructionScope:{attemptId:'attempt_one',number:1,text:'生成报告'}}
+ const view=render(<ThreadProductsWorkspace {...props} revision={1}/>)
+ await screen.findByRole('heading',{name:'最新报告'})
+ fireEvent.click(screen.getByRole('button',{name:'查看：旧报告'}))
+ await screen.findByRole('heading',{name:'旧报告'})
+ view.rerender(<ThreadProductsWorkspace {...props} revision={2}/>)
+ await waitFor(()=>expect(client.productIndex).toHaveBeenCalledTimes(2))
+ expect(screen.getByRole('heading',{name:'旧报告'})).toBeTruthy()
+ view.rerender(<ThreadProductsWorkspace {...props} instructionScope={undefined} revision={2}/>)
+ await screen.findByRole('heading',{name:'另一指令最新报告'})
+ view.rerender(<ThreadProductsWorkspace {...props} revision={2}/>)
+ await screen.findByRole('heading',{name:'最新报告'})
 })

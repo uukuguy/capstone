@@ -2,6 +2,32 @@ import pytest
 from capstone_agent.workbench_llm_profiles import ProfileRegistry
 
 
+def test_model_context_is_selected_per_profile_and_frozen_by_revision():
+    registry = ProfileRegistry(environment={'DEEPSEEK_API_KEY': 'private'})
+    selected = registry.freeze('commercial-deepseek-flash')
+    policy = registry.resolve(selected)['context_policy']
+    assert policy['context_window_tokens'] == 1048576
+    assert policy['context_window_tokens'] - policy['compaction_reserve_tokens'] == 983040
+    qwen = registry.resolve(registry.freeze('intranet-qwen-8011'))['context_policy']
+    assert qwen['context_window_tokens'] == 262144
+    assert qwen['context_window_tokens'] - qwen['compaction_reserve_tokens'] == 229376
+    public = registry.catalog()['profiles'][0]
+    assert public['context_policy'] == policy and 'private' not in str(public)
+    registry.profiles[selected['profile_id']]['context_policy'] = {**policy, 'context_window_tokens': 524288}
+    with pytest.raises(ValueError, match='Frozen workbench LLM profile changed'):
+        registry.resolve(selected)
+
+
+@pytest.mark.parametrize('field,value', [('context_window_tokens', True), ('max_output_tokens', -1),
+    ('compaction_reserve_tokens', 1048576), ('compaction_reserve_tokens', 1),
+    ('compaction_keep_recent_tokens', 1048576), ('unexpected', 5)])
+def test_invalid_context_policy_is_rejected_before_publication(field, value):
+    registry = ProfileRegistry(environment={'DEEPSEEK_API_KEY': 'private'})
+    registry.profiles['commercial-deepseek-flash']['context_policy'][field] = value
+    with pytest.raises(ValueError, match='context policy'):
+        registry.freeze('commercial-deepseek-flash')
+
+
 def test_defaults_and_public_catalog_hide_credentials():
     registry = ProfileRegistry(environment={'DEEPSEEK_API_KEY': 'private'})
     public = registry.catalog()

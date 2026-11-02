@@ -7,6 +7,7 @@ export type NativeArtifact={
   task_snapshot_id:string|null;goal_revision:number|null;task_id:string;artifact_id:string
   executor_identity_sha256:string;source_status:string;file_name:string;media_type:string
   producer_attempt_id?:string;host_artifact_id?:string
+  saved_at?:string
   presentation_role?:'primary'|'support'|'reproduction'
   delivery_status?:'limited'|'completed';delivery_limitations?:string[]
   sha256:string;size_bytes:number;download_url:string
@@ -23,6 +24,7 @@ function record(value:unknown):Record<string,unknown>{
 function identity(value:unknown):value is string{return typeof value==='string'&&id.test(value)}
 export function parseNativeArtifact(value:unknown,threadId:string,attemptId:string):NativeArtifact {
   const item=record(value)
+  if(item.saved_at!==undefined&&(typeof item.saved_at!=='string'||!Number.isFinite(Date.parse(item.saved_at))))throw new Error('文件保存时间无效')
   if(item.presentation_role!==undefined&&!['primary','support','reproduction'].includes(String(item.presentation_role)))throw new Error('成果用途无效')
   if(item.delivery_status!==undefined&&!['limited','completed'].includes(String(item.delivery_status)))throw new Error('交付状态无效')
   if(item.delivery_limitations!==undefined&&(!Array.isArray(item.delivery_limitations)||exceedsCapacity(item.delivery_limitations.length,'ui_delivery_support_count')
@@ -62,7 +64,7 @@ export function projectNativeArtifacts(events:readonly EventEnvelope[]):NativeAr
     try{
       const artifact=parseNativeArtifact(event.payload.artifact,event.threadId,event.attemptId)
       if(artifact.run_id!==event.runId||artifact.turn_id!==event.turnId)continue
-      files.set(`${artifact.attempt_id}:${artifact.artifact_id}`,artifact)
+      files.set(`${artifact.attempt_id}:${artifact.artifact_id}`,{...artifact,saved_at:event.occurredAt})
     }catch(error){rethrowDebugCapacity(error) /* Invalid or unowned descriptors cannot become file actions. */}
   }
   return [...files.values()]
@@ -75,4 +77,26 @@ export function groupNativeArtifacts(files:readonly NativeArtifact[]) {
     reproduction:files.filter(file=>file.presentation_role==='reproduction'),
     other:files.filter(file=>!file.presentation_role),
   }
+}
+
+/** Host identity binds the relative path;
+ * public identity also includes bytes and cannot identify a version family. */
+export function nativeArtifactVersions(files:readonly NativeArtifact[]) {
+  const families=new Map<string,Map<string,NativeArtifact>>()
+  for(const file of files){
+    const path=file.host_artifact_id?.match(/^file-([a-f0-9]{16})-[a-f0-9]{64}$/)?.[1]
+    const key=JSON.stringify([file.thread_id,file.attempt_id,file.task_id,path??file.artifact_id])
+    const versions=families.get(key)??new Map<string,NativeArtifact>()
+    versions.set(file.artifact_id,file);families.set(key,versions)
+  }
+  return [...families.values()].map(versions=>{
+    // Live events and restored directory pages can arrive in different orders.
+    const ordered=[...versions.values()].sort((a,b)=>(a.saved_at?Date.parse(a.saved_at):0)-(b.saved_at?Date.parse(b.saved_at):0))
+    return {latest:ordered[ordered.length-1],history:ordered.slice(0,-1).reverse()}
+  })
+}
+
+export function nativeArtifactSavedTime(file:NativeArtifact):string {
+  if(!file.saved_at||!Number.isFinite(Date.parse(file.saved_at)))return '保存时间未记录'
+  return new Date(file.saved_at).toLocaleString('zh-CN',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false})
 }

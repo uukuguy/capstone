@@ -1,11 +1,25 @@
 import {afterEach,expect,it,vi} from 'vitest'
 import {act,cleanup,fireEvent,render,screen,waitFor} from '@testing-library/react'
-import NativeArtifactsWorkspace,{htmlPreviewDocument} from './NativeArtifactsWorkspace'
+import NativeArtifactsWorkspace,{htmlPreviewDocument,NativeFileContent} from './NativeArtifactsWorkspace'
 import type {NativeArtifact} from './nativeArtifacts'
 import {initializeApplicationCapacity} from './applicationCapacity'
 
 afterEach(()=>{cleanup();vi.unstubAllGlobals();initializeApplicationCapacity()})
 const bytes=(text:string)=>new TextEncoder().encode(text)
+it.each(['application/pdf','application/octet-stream'])('opens verified PDF bytes with the browser viewer for %s',async(media)=>{
+  blobUrls()
+  const artifact={...file('report.PDF','%PDF-1.7'),media_type:media}
+  const client={nativeArtifacts:vi.fn().mockResolvedValue({artifacts:[artifact],hasMore:false,nextAfter:1}),nativeArtifact:vi.fn().mockResolvedValue(bytes('%PDF-1.7'))}
+  render(<NativeArtifactsWorkspace client={client} threadId="thr_one" attemptIds={['attempt_one']} revision={1}/>)
+  const viewer=await screen.findByTitle('PDF 预览：report.PDF')
+  expect(viewer.getAttribute('src')).toBe('blob:file-1')
+  expect(viewer.hasAttribute('sandbox')).toBe(false)
+  expect((URL.createObjectURL as ReturnType<typeof vi.fn>).mock.calls[0][0].type).toBe('application/pdf')
+})
+it('does not embed unverified remote PDF URLs',()=>{
+  render(<NativeFileContent name="report.pdf" media="application/pdf" url="https://example.com/report.pdf"/>)
+  expect(screen.queryByTitle('PDF 预览：report.pdf')).toBeNull()
+})
 function file(name:string,text:string,attempt='attempt_one',thread='thr_one'):NativeArtifact {
   const sha=(name==='one.md'?'a':'b').repeat(64)
   const artifact_id=`file-${'c'.repeat(16)}-${sha}`

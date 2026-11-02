@@ -1,3 +1,4 @@
+import {instructionProductScopesFromEvents,type InstructionProductScope} from './instructionProducts'
 import {isWorkspaceActive} from './workspaceName'
 import {applicationCapacity,rethrowDebugCapacity} from './applicationCapacity'
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
@@ -50,7 +51,7 @@ import {parseThreadDisplayRequest,selectThreadViewProposal,type ThreadDisplayReq
 
 const statusCopy: Record<string, string> = { ready: '已保存，待执行', queued: '已排队', running: '执行中', completed: '已完成', failed: '执行失败', cancelled: '已取消', interrupted: '执行已中断', blocked: '执行不可用' }
 class CommandRejectedError extends Error {}
-type InstructionViewState={attemptId:string|null;manual:boolean;appliedSeq:number;automatic:'source'|'model'|null;requestedSource?:ThreadDisplayRequest;requestNonce:number}
+type InstructionViewState={attemptId:string|null;manual:boolean;appliedSeq:number;automatic:'source'|'model'|'products'|null;requestedSource?:ThreadDisplayRequest;requestNonce:number}
 const reasonCopy: Record<string, string> = { execution_unavailable: '当前任务的执行能力尚未接通，仍可保存目标和资料。', model_context_required: '当前任务没有专业模型，仍可保存资料。', capability_required: '当前任务尚未启用执行所需的业务能力，仍可保存目标和资料。', attempt_in_progress: '当前会话已有任务正在执行。', case_execution_active: '当前会话已有案例正在执行。', case_context_locked: '当前案例正在使用任务上下文，请等待其完成。', context_change_pending: '任务上下文正在更新，请稍后重试。', thread_archived: '此会话已归档。', run_not_open: '当前运行已关闭。' }
 
 /** Data adapter for the existing workspace and assistant-ui presentation. */
@@ -71,11 +72,12 @@ export default function ThreadWorkAdapter({ transport, threadId, namespace, reco
   return <WorkThreadSession key={currentId} transport={transport} threadId={currentId} namespace={namespace} onNavigate={setCurrentId} recoveryOnly={recoveryOnly} sessions={sessions} setSessions={setSessions} preparedStore={currentId===threadId?preparedStore:undefined}/>
 }
 
-function WorkThreadSession({ transport, threadId: currentId, namespace, onNavigate, recoveryOnly,sessions,setSessions,preparedStore }: {
+function WorkThreadSession({ transport: baseTransport, threadId: currentId, namespace, onNavigate, recoveryOnly,sessions,setSessions,preparedStore }: {
   transport: HttpThreadTransport; threadId: string; namespace: string; onNavigate: (id: string) => void; recoveryOnly: boolean
   sessions:ThreadListPage|null;setSessions:Dispatch<SetStateAction<ThreadListPage|null>>
   preparedStore?:ThreadProjectionStore
 }) {
+  const transport=useMemo(()=>baseTransport.forThread(currentId),[baseTransport,currentId])
   const mounted = useRef(true)
   useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
   const commandStorageKey = `${namespace}.${currentId}`
@@ -157,6 +159,7 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
   const instructionViewRef=useRef(instructionView);instructionViewRef.current=instructionView
   const saveInstructionView=useCallback((value:InstructionViewState)=>{instructionViewRef.current=value;setInstructionView(value)},[setInstructionView])
   const [requestedProduct,setRequestedProduct]=useState<ProductRequest>()
+  const [instructionProductScope,setInstructionProductScope]=useSessionViewState<InstructionProductScope|undefined>('products.instruction-scope',undefined)
   const [requestedReference,setRequestedReference]=useState<{selection:ContextProductRef;nonce:number}>()
   const [inspectedProductAttempt,setInspectedProductAttempt]=useState<string>()
   const [requestedArtifact,setRequestedArtifact]=useState<{attemptId:string;artifactId:string;nonce:number}>()
@@ -467,7 +470,7 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
       setRequestedProduct(undefined)
       saveInstructionView(state)
     }
-    if(state.manual||!viewProposal||viewProposal.eventSeq<=state.appliedSeq)return
+    if(state.manual||state.automatic==='products'||!viewProposal||viewProposal.eventSeq<=state.appliedSeq)return
     if(viewProposal.kind==='source'){
       const identical=state.automatic==='source'&&JSON.stringify(state.requestedSource)===JSON.stringify(viewProposal.request)
       saveInstructionView({...state,appliedSeq:viewProposal.eventSeq,automatic:'source',requestedSource:viewProposal.request,requestNonce:state.requestNonce+(identical?0:1)})
@@ -486,8 +489,19 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
     return text?[[event.attemptId!,`${new Date(event.occurredAt).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false})} · ${text}`]]:[]
   }))
   const nativeAttemptIds=[...new Set([...nativeFiles.map(file=>file.attempt_id),...conversation.events.filter(event=>event.attemptId&&!event.modelContextId).map(event=>event.attemptId!),...(selectedWork?.conversationMode&&selectedWork.latestAttemptId?[selectedWork.latestAttemptId]:[])])]
+  const autoProductScope=useSessionViewRef<string|undefined>('products.auto-scope',undefined)
+  useEffect(()=>{
+    const attempt=selectedWork?.status==='running'?selectedWork.latestAttemptId:undefined
+    if(!attempt||!store.conversationHistoryReady||autoProductScope.current===attempt)return
+    const scope=instructionProductScopesFromEvents(store.conversationEvents).get(attempt)
+    if(!scope)return
+    autoProductScope.current=attempt
+    setInstructionProductScope(scope);setRequestedProduct(undefined);setRequestedArtifact(undefined)
+    saveInstructionView({...instructionViewRef.current,attemptId:attempt,manual:false,automatic:'products'})
+    setResourceView(client.supportsProductIndex?'products':'native-files');setProductsOpen(true)
+  },[selectedWork?.status,selectedWork?.latestAttemptId,conversation.events.length,currentId,store.conversationHistoryReady])
   function openArtifact(file:NativeArtifact,manual=true) {
-    if(manual)markManualView()
+    if(manual){markManualView();setInstructionProductScope(undefined)}
     artifactOpened.current=true
     setRequestedArtifact({attemptId:file.attempt_id,artifactId:file.artifact_id,nonce:Date.now()})
     setRequestedProduct({origin:'native_file',attemptId:file.attempt_id,artifactId:file.artifact_id,workId:file.work_id,nonce:Date.now()});setResourceView(client.supportsProductIndex?'products':'native-files');setProductsOpen(true)
@@ -516,8 +530,8 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
   const startReason = selectedWork?.startUnavailableReason || selectedWork?.blockedReason
   const terminalRevision=Math.max(0,...store.publicEvents.filter(event=>['attempt_completed','attempt_failed','attempt_cancelled','attempt_interrupted','native_artifact_published','delivery_published'].includes(event.eventType)).map(event=>event.eventSeq))
   const processPanel=<ProcessProductWorkspace client={client} threadId={currentId} revision={terminalRevision} onReference={setProcessReference} onLocate={attemptId=>void locateInstruction(attemptId)} />
-  const filesPanel=<NativeArtifactsWorkspace client={client} threadId={currentId} attemptIds={nativeAttemptIds} revision={terminalRevision} requestedArtifact={requestedArtifact} attemptLabels={attemptLabels} onAdopt={file=>{markManualView();setSelectedDeliveryFile(file);setResourceView('deliveries');setProductsOpen(true)}}/>
-  const productsPanel=<ThreadProductsWorkspace key={currentId} client={client} threadId={currentId} workId={selectedWork?.workId} revision={terminalRevision} requested={requestedProduct}
+  const filesPanel=<NativeArtifactsWorkspace client={client} threadId={currentId} attemptIds={instructionProductScope?[instructionProductScope.attemptId]:nativeAttemptIds} instructionScope={instructionProductScope} onClearInstructionScope={()=>{markManualView();setInstructionProductScope(undefined);setRequestedArtifact(undefined)}} revision={terminalRevision} requestedArtifact={requestedArtifact} attemptLabels={attemptLabels} onAdopt={file=>{markManualView();setSelectedDeliveryFile(file);setResourceView('deliveries');setProductsOpen(true)}}/>
+  const productsPanel=<ThreadProductsWorkspace key={currentId} client={client} threadId={currentId} workId={selectedWork?.workId} revision={terminalRevision} requested={requestedProduct} instructionScope={instructionProductScope} onClearInstructionScope={()=>{markManualView();setInstructionProductScope(undefined);setRequestedProduct(undefined)}}
     onIndexLoaded={entries=>{
       const files=entries.flatMap(entry=>{
         if(entry.ref.origin!=='native_file'||!entry.ref.attempt_id||entry.ref.thread_id!==currentId||entry.ref.work_id!==selectedWork?.workId)return []
@@ -586,10 +600,10 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
   </>:null
   return <ThreadWorkspace sessionKey={currentId} conversationOnly subtitle="企业任务工作台"
     headerActions={<SessionConnectionStatus state={projection.connection} error={connectionError||projection.synchronizationError} recovering={connectionRecovering} pending={!!pending}/>}
-    navigationFooter={<WorkspaceGatewayStatus transport={transport}/>}
+    navigationFooter={<WorkspaceGatewayStatus transport={transport} threadId={currentId} locked={Boolean(snapshot?.works.some(work=>work.messages.length>0))}/>}
     resourcePanel={nativeChat?(client.supportsProductIndex?productsPanel:client.supportsProcessProducts?processPanel:undefined):undefined}
     resourceViews={nativeChat?client.supportsProductIndex?[...(formalModelPanel?[{id:'model',label:'电气拓扑',content:formalModelPanel,description:'注册计算模型的母线与支路；来源和修订保持实际绑定。'}]:[]),{id:'products',label:'Artifacts',content:productsPanel,description:'任务交付与指令产物，保留真实来源和版本。'},...(resourceView==='source-topology'?[{id:'source-topology',label:'电网图',content:resourceView==='source-topology'&&productsOpen?(requestedSourceView?.schema==='capstone-grid-source-view-request/1'?<><button onClick={browseElectricalModels}>浏览电网模型目录</button><GridSourceWorkspace key={requestedSourceView.scope_id} transport={transport} onQuestion={prepareSourceQuestion} requestedView={requestedSourceView} requestNonce={instructionView.requestNonce} onManualNavigate={markManualView}/></>:<ElectricalModelWorkspace storageKey={`${namespace}.${currentId}.electrical-view`} transport={transport} requestedView={requestedSourceView} requestNonce={instructionView.requestNonce} onManualNavigate={markManualView}/>):null,description:'源拓扑、显示分组与来源质量。'}]:[]),...(selectedDeliveryFile?[{id:'deliveries',label:'采用为任务交付',content:<TaskDeliveriesWorkspace client={client} threadId={currentId} revision={terminalRevision} requestedArtifact={selectedDeliveryFile} onPublished={()=>{setResourceView('products');window.dispatchEvent(new Event('capstone-session-renamed'))}}/>}]:[])]:[{id:'process-products',label:'过程制品',content:processPanel,description:'指令执行结果与未完成记录，保留原始归属。'},
-      {id:'native-files',label:'指令文件',content:<NativeArtifactsWorkspace client={client} threadId={currentId} attemptIds={nativeAttemptIds} revision={terminalRevision} requestedArtifact={requestedArtifact} attemptLabels={attemptLabels} onAdopt={file=>{markManualView();setSelectedDeliveryFile(file);setResourceView('deliveries');setProductsOpen(true)}}/>,description:'本轮执行生成并保存的真实文件。'},
+      {id:'native-files',label:'指令文件',content:<NativeArtifactsWorkspace client={client} threadId={currentId} attemptIds={instructionProductScope?[instructionProductScope.attemptId]:nativeAttemptIds} instructionScope={instructionProductScope} onClearInstructionScope={()=>{markManualView();setInstructionProductScope(undefined);setRequestedArtifact(undefined)}} revision={terminalRevision} requestedArtifact={requestedArtifact} attemptLabels={attemptLabels} onAdopt={file=>{markManualView();setSelectedDeliveryFile(file);setResourceView('deliveries');setProductsOpen(true)}}/>,description:'本轮执行生成并保存的真实文件。'},
       {id:'deliveries',label:'任务交付',content:<TaskDeliveriesWorkspace client={client} threadId={currentId} revision={terminalRevision} requestedArtifact={selectedDeliveryFile} onPublished={()=>{setResourceView('deliveries');window.dispatchEvent(new Event('capstone-session-renamed'))}}/>,description:'按用户提出的交付要求组织和修订。'}]:undefined}
     selectedResourceView={resourceView} onResourceViewChange={selectResourceView}
     resourceLabel={resourceView==='model'?'电气拓扑':resourceView==='source-topology'?'电网图':resourceView==='products'?'Artifacts':resourceView==='native-files'?'指令文件':resourceView==='deliveries'?'任务交付':'过程制品'} resourcePanelOpen={productsOpen} onResourcePanelOpenChange={setResourcePanelOpen}
@@ -636,6 +650,8 @@ function WorkThreadSession({ transport, threadId: currentId, namespace, onNaviga
     {restoredKey === key && (snapshot || professional || currentId === 'new') && <CapstoneAssistantThread nativeArtifactProjections={indexedArtifacts} resultHistoryNotice={resultProjectionHistoryText(professional)} key={liveConversation?`${key}.conversation`:`${key}.${selected}`} events={conversation.events}
       productReferenceReader={(ref,signal)=>client.resolveProduct(ref,signal)} requestedProductReference={requestedReference?.selection.ref.thread_id===currentId?requestedReference:undefined}
       projectedMessages={conversation.messages} composerMode={liveConversation?undefined:'text'} composerLabel={viewingLegacy?'历史记录草稿':nativeChat?undefined:selected === 'new' ? '任务目标' : '补充任务资料'}
+      instructionProductScopes={store.conversationHistoryReady?instructionProductScopesFromEvents(store.conversationEvents):new Map()}
+      onOpenInstructionProducts={scope=>{markManualView();setInstructionProductScope(scope);setRequestedProduct(undefined);setRequestedArtifact(undefined);setResourceView(client.supportsProductIndex?'products':'native-files');setProductsOpen(true)}}
       onOpenNativeArtifact={nativeChat?openArtifact:undefined}
       composerPlaceholder={snapshot?.sessionType==='enterprise-research'?'提出研究问题，或上传资料开始分析…':snapshot?.sessionType==='general-chat'?'输入问题，或聊聊你的想法…':undefined}
       onOpenAnswerDetail={nativeChat?()=>setResourcePanelOpen(false):undefined}

@@ -23,7 +23,7 @@
 <nav aria-label="项目控制章节"><a class="discussion-nav" href="#overview-panel">版本与部署</a><a class="discussion-nav" href="#autonomous-discussion">自主智能体演进讨论 ↓</a></nav>
 <section class="panel" id="overview-panel"><div class="toolbar"><div><h2>功能推进与发布位置</h2><p class="legend">dev / main 中轴 · <span style="color:#426c60">━━ 主线</span> · <span style="color:#83639b">━━ 分支曲线</span> · <span style="color:#9a794f">┄┄ 部署来源引用</span> · <span class="commit-revision">Git提交</span> / <span class="deployment-revision">部署提交</span></p></div><div class="view-controls"><label class="density">间距 <input id="density" type="range" min="8" max="35" value="8" aria-label="调整功能树间距"></label><button id="fit-view" aria-pressed="false">全图预览</button></div></div>
 <h3>三线研发 · 基座先行，应用按依赖启动</h3><p class="muted">分支引用与阶段状态；初始同源不表示已有应用实现。功能阶段提供可运行前端供人工观察。</p><div class="development-lines" id="development-lines"></div>
-<div class="scroll" id="graph-frame"><div class="graph-canvas" id="graph-canvas"><div class="lanes"><span>纯 Pi / skills</span><b>dev / main 主轴</b><span>自主智能体 · Git 来源 → 四部署</span></div><div class="tree" id="tree"><svg class="edges" id="edges" aria-hidden="true"></svg><div id="commits"></div><div id="local-deployments"></div><article class="hotfix" id="hotfix"><h3>local-demo 紧急修复</h3><div id="hotfix-content"></div></article></div></div></div>
+<div class="scroll" id="graph-frame"><div class="graph-canvas" id="graph-canvas"><div class="lanes"><span>纯 Pi / skills</span><b>dev / main 主轴</b><span>自主智能体 · Git 来源 → 部署环境</span></div><div class="tree" id="tree"><svg class="edges" id="edges" aria-hidden="true"></svg><div id="commits"></div><div id="local-deployments"></div><article class="hotfix" id="hotfix"><h3>local-demo 紧急修复</h3><div id="hotfix-content"></div></article></div></div></div>
 <details class="graph-history"><summary>历史演进与来源记录</summary><div id="graph-history"></div></details><p class="gate">dev / main 均已保护：PR＋两平台 CI，0 人工审批；dev 按影响范围检查，main 发布集成完整验收。恢复开发基线6ff7094；B2为撤回增强的历史记录，整体业务与云发布未验收。</p></section>
 <section class="panel discussion" id="autonomous-discussion" aria-labelledby="discussion-title">
 <div class="discussion-heading"><h2 id="discussion-title">自主智能体演进讨论</h2><span class="badge">2026-10-12 · 首期实施，持续记录设计与验证</span></div>
@@ -77,7 +77,8 @@ el('discussion-organization').innerHTML=discussionRows('组织').map(discussionC
 el('discussion-scenarios').innerHTML=discussionRows('首版样例').map(discussionCard).join('');
 el('discussion-principles').innerHTML=discussionRows('原则').map(row=>`<li><strong>${esc(row.id)} · ${esc(row.title)}</strong>：${esc(row.description)}</li>`).join('');
 el('discussion-pending').innerHTML=discussionRows('待讨论').map(discussionCard).join('');
-const graphStages=['local-dev','cloud-demo','local-demo','cloud-dev'].map(name=>data.environments.find(e=>e.name===name));
+const stageOrder=['local-dev','cloud-demo','local-demo','cloud-dev'];
+const graphStages=[...stageOrder.map(name=>data.environments.find(e=>e.name===name)),...data.environments.filter(e=>!stageOrder.includes(e.name))];
 const sourceNode=e=>data.nodes.find(n=>n.sha.startsWith(e.revision)||e.revision.startsWith(n.sha));
 const graphNodes=data.nodes.filter(n=>n.presentation);
 const levels={};
@@ -96,11 +97,11 @@ return '<article id="commit-'+n.id+'" class="commit '+n.lane+(n.release_point?' 
 }).join('');
 el('graph-history').innerHTML=data.nodes.filter(n=>!graphNodes.includes(n)).map(n=>'<details class="history-entry"><summary>'+esc(n.title)+' · '+revision(n.sha)+' · '+esc(n.status)+'</summary><p>'+esc(n.changes)+'</p></details>').join('');
 
-const environmentRoles={'local-dev':'开发测试 / 发布验证','local-demo':'线上复现 / 紧急修复 / 发布验证','cloud-dev':'云端集成 / 发布前验证','cloud-demo':'用户试用 / 发布验收'};
-el('local-deployments').innerHTML=data.environments.map(e=>'<article class="environment-deployment '+(e.name.startsWith('local-')?'local-deployment':'cloud-deployment')+'" id="environment-node-'+e.name+'" style="position:absolute;z-index:1;background:#f4faf7;border:1px solid #b6d6c7;border-top:3px solid '+(e.name.endsWith('-dev')?'#517eaa':'#a77951')+';border-radius:5px;padding:8px">'+deployment(e)+'<p class="muted" style="font-size:10px;margin-top:6px">'+environmentRoles[e.name]+'</p></article>').join('');
+const environmentRoles={'local-dev':'开发测试 / 发布验证','local-demo':'线上复现 / 紧急修复 / 发布验证','cloud-dev':'云端集成 / 发布前验证','cloud-demo':'用户试用 / 发布验收','intranet-dev':'内网研发 / 网关与模型联调'};
+el('local-deployments').innerHTML=data.environments.map(e=>'<article class="environment-deployment '+(!e.name.startsWith('cloud-')?'local-deployment':'cloud-deployment')+'" id="environment-node-'+e.name+'" style="position:absolute;z-index:1;background:#f4faf7;border:1px solid #b6d6c7;border-top:3px solid '+(e.name.endsWith('-dev')?'#517eaa':'#a77951')+';border-radius:5px;padding:8px">'+deployment(e)+'<p class="muted" style="font-size:10px;margin-top:6px">'+(environmentRoles[e.name]||'已登记部署')+'</p></article>').join('');
 const researchNode=el('commit-research');if(researchNode){researchNode.querySelector('.source').innerHTML='feat/research-model · '+revision(data.nodes.find(n=>n.id==='research').sha);researchNode.querySelector('.next').textContent='新dev基线、依赖和恢复记录已适配；按R1–R5推进，R1尚无代码。R0仅保留历史参考。';}
 graphNodes.forEach(n=>el('commit-'+n.id).querySelector('h3').insertAdjacentHTML('afterbegin',icon(n.lane==='main'?'main':'branch')));
-data.environments.forEach(e=>el('deploy-'+e.name).querySelector('b').insertAdjacentHTML('afterbegin',icon(e.name.startsWith('local-')?'server':'cloud')));
+data.environments.forEach(e=>el('deploy-'+e.name).querySelector('b').insertAdjacentHTML('afterbegin',icon(!e.name.startsWith('cloud-')?'server':'cloud')));
 el('hotfix').querySelector('h3').insertAdjacentHTML('afterbegin',icon('branch'));
 const oldAnswerNode=el('commit-answer-old');if(oldAnswerNode){oldAnswerNode.classList.add('reference');oldAnswerNode.querySelector('.source').innerHTML='旧实现 · '+revision(data.nodes.find(n=>n.id==='answer-old').sha);oldAnswerNode.querySelector('.next').textContent='复用到新增强分支；旧实现未过产品验收，不直接合入或部署。';}
 el('hotfix-content').innerHTML=data.hotfix_branches.map(b=>'<p class="mono">'+esc(b)+'</p>').join('');
@@ -153,7 +154,7 @@ function draw(){
  const rightX=mainX+mainWidth+50,rightWidth=280;
  let mainBottom=8,branchBottom=8,rightBottom=8;
  mains.forEach(n=>{const node=el('commit-'+n.id);node.style.height='auto';place(node,mainX,mainBottom,mainWidth);mainBottom+=node.offsetHeight+gap;});
- graphStages.forEach(e=>{const stage=el('environment-node-'+e.name);stage.style.height='auto';if(!stage.dataset.ready){stage.innerHTML=deployment(e)+'<p class="muted">'+esc(environmentRoles[e.name])+'</p><details><summary>状态与验证记录</summary><p>'+esc(e.state)+'</p></details>';stage.querySelector('b').insertAdjacentHTML('afterbegin',icon(e.name.startsWith('local-')?'server':'cloud'));stage.dataset.ready='true';}});
+ graphStages.forEach(e=>{const stage=el('environment-node-'+e.name);stage.style.height='auto';if(!stage.dataset.ready){stage.innerHTML=deployment(e)+'<p class="muted">'+esc((environmentRoles[e.name]||'已登记部署'))+'</p><details><summary>状态与验证记录</summary><p>'+esc(e.state)+'</p></details>';stage.querySelector('b').insertAdjacentHTML('afterbegin',icon(!e.name.startsWith('cloud-')?'server':'cloud'));stage.dataset.ready='true';}});
  branches.forEach(n=>{const node=el('commit-'+n.id);node.style.height='auto';if(rightNode(n)){place(node,rightX,rightBottom,rightWidth);rightBottom+=node.offsetHeight+gap;}else{place(node,branchX,branchBottom,branchWidth);branchBottom+=node.offsetHeight+gap;}});
  let stageBottom=8;
  [...graphStages].sort((a,b)=>el('commit-'+sourceNode(a).id).offsetTop-el('commit-'+sourceNode(b).id).offsetTop).forEach(e=>{const stage=el('environment-node-'+e.name),source=el('commit-'+sourceNode(e).id);stageBottom=Math.max(stageBottom,source.offsetTop);place(stage,stageX,stageBottom,stageWidth);stageBottom+=stage.offsetHeight+12;});
@@ -179,9 +180,11 @@ function draw(){
  graphStages.forEach(e=>{
   const source=sourceNode(e),target=el('environment-node-'+e.name),anchor=el('commit-'+source.id),a=rect(anchor),b=rect(target),x1=a.x+a.w+4,y1=a.y+a.h/2,x2=b.x-4,y2=b.y+b.h/2,mid=(x1+x2)/2;
   // A branch deployment must cross above the main spine, not through its cards.
-  const d=a.x+a.w<mainX
-   ? 'M '+(a.x+a.w*.75)+' '+(a.y-4)+' V 4 H '+(stageX-14)+' V '+y2+' H '+x2
-   : 'M '+x1+' '+y1+' C '+mid+' '+y1+' '+mid+' '+y2+' '+x2+' '+y2,style=edgeStyles.reference;
+  const d=hasRight&&Math.abs(a.x-mainX)<1
+   ? 'M '+x1+' '+y1+' H '+(rightX-18)+' V 4 H '+(stageX-14)+' V '+y2+' H '+x2
+   : a.x+a.w<mainX
+     ? 'M '+(a.x+a.w*.75)+' '+(a.y-4)+' V 4 H '+(stageX-14)+' V '+y2+' H '+x2
+     : 'M '+x1+' '+y1+' C '+mid+' '+y1+' '+mid+' '+y2+' '+x2+' '+y2,style=edgeStyles.reference;
   svg.insertAdjacentHTML('beforeend','<path data-kind="reference" data-from="'+anchor.id+'" data-to="'+target.id+'" data-source="'+source.id+'" data-source-sha="'+source.sha+'" data-deployment="'+e.name+'" d="'+d+'" fill="none" stroke="'+style.color+'" stroke-width="'+style.width+'" stroke-dasharray="4 3" marker-end="url(#arrow-reference)"/>');
  });
  fitGraph();

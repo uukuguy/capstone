@@ -9,6 +9,52 @@ from capstone_agent.pi_delegation import PiTaskRequest, HttpGeneralPiExecutor
 from capstone_agent.request_intent import NodeControl
 
 
+def test_executor_identity_is_independent_of_mutable_gateway_publication(monkeypatch):
+    import json
+    from types import SimpleNamespace
+    from capstone_agent import general_pi_server as module
+    from capstone_agent import gateway_connections_runtime, native_environment, native_network_policy, workbench_llm_profiles
+
+    class CapturedIdentity(Exception):
+        pass
+
+    identities = []
+    publication = {'available': True, 'catalog': {'revision': 'first'}}
+    environment = ['stable runtime']
+    original_read = Path.read_bytes
+
+    def read(path):
+        if str(path) == '/opt/general/pi-runtime.lock.json':
+            return json.dumps({'source': {'commit': 'fixture'}}).encode()
+        return original_read(path)
+
+    def capture(**kwargs):
+        identities.append(kwargs['identity'])
+        raise CapturedIdentity()
+
+    monkeypatch.setenv('CAPSTONE_GENERAL_SANDBOX', 'container')
+    monkeypatch.setenv('CAPSTONE_NATIVE_INTERNAL_ENDPOINTS', '[]')
+    monkeypatch.setattr(Path, 'read_bytes', read)
+    monkeypatch.setattr(workbench_llm_profiles, 'ProfileRegistry', lambda: SimpleNamespace(
+        freeze=lambda: {}, resolve=lambda _: {'model': 'fixture', 'provider': 'fixture', 'key': 'fixture', 'base_url': ''}))
+    monkeypatch.setattr(native_network_policy, 'NativeNetworkPolicy', lambda **_: SimpleNamespace(start=lambda: None))
+    monkeypatch.setattr(gateway_connections_runtime, 'load_gateway_connections', lambda *a, **k: (None, None, publication))
+    monkeypatch.setattr(native_environment, 'environment_context', lambda: environment[0])
+    monkeypatch.setattr(module, 'NativeTaskRunner', lambda **_: SimpleNamespace())
+    monkeypatch.setattr(module, 'GeneralPiHost', capture)
+
+    with pytest.raises(CapturedIdentity):
+        module.main()
+    publication.update(available=False, catalog={'revision': 'second', 'name': 'renamed'})
+    with pytest.raises(CapturedIdentity):
+        module.main()
+    assert identities[0] == identities[1]
+    environment[0] = 'changed runtime'
+    with pytest.raises(CapturedIdentity):
+        module.main()
+    assert identities[2]['config_revision'] != identities[1]['config_revision']
+
+
 @pytest.mark.parametrize('publication,grant,accepted', [(True, True, True), (False, True, False), ('changed', True, False), (True, False, False)])
 def test_composition_observation_requires_exact_capability_and_child_grant(tmp_path, monkeypatch, publication, grant, accepted):
     from dataclasses import replace
@@ -178,6 +224,7 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
         pass
     def launch(**kwargs):
         assert kwargs['model'] == 'dsv4'
+        assert kwargs['context_policy']['context_window_tokens'] == 1048576
         assert runner.task_llm_profiles[task]['base_url'] == 'http://192.168.72.69:18804/v1'
         captured.append(json.loads(json.dumps(kwargs['sdk_config'])))
         raise Captured()
@@ -219,6 +266,9 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     assert catalog['entry_tools'] == ['data_gateway_discover_network_models']
     guidance = next(item['content'] for item in captured[0]['contextFiles'] if item['path'] == 'registered-data-gateway-guidance')
     assert 'SERVICE_GUIDANCE_SENTINEL' in guidance
+    assert 'only after selecting this service as relevant' in guidance
+    assert 'do not determine which service to select' in guidance
+    assert 'Do not query this service merely because another capability is unavailable' in gateway_context
     assert 'data_gateway_' in guidance
     assert {'agent_tool_search', 'agent_tool_load'} <= set(captured[0]['applicationPolicy']['allowed_tools'])
     assert set(catalog['tools']) == {'data_gateway_discover_network_models'}
@@ -236,7 +286,8 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     assert 'Compose published data_gateway_ tools' in gateway_context
     assert 'Structured table queries are also a fallback' in gateway_context
     assert 'One unavailable tool does not make other business tools unavailable' in gateway_context
-    assert 'validate one bounded call and its business status' in gateway_context
+    assert 'Do not issue a probe only to validate input schemas' in gateway_context
+    assert 'independently of menu activation' in gateway_context
     assert 'native SQL as advanced exploration' in gateway_context
     assert 'suspected tool defect' in gateway_context
     assert 'actual observation reference' in gateway_context
@@ -425,6 +476,26 @@ def test_isolated_runtime_projection_needs_only_python_standard_library():
     subprocess.run([sys.executable, '-I', '-S', '-c', code, str(source)], check=True)
 
 
+def test_compaction_lifecycle_survives_host_without_becoming_model_turn(tmp_path):
+    from capstone_agent.general_pi_server import GeneralPiHost
+    def run(request, cancelled, emit):
+        emit({'type': 'compaction_start', 'reason': 'threshold', 'private': 'PRIVATE'})
+        emit({'type': 'compaction_end', 'reason': 'threshold', 'status': 'completed',
+              'willRetry': False, 'result': {'summary': 'PRIVATE'}})
+        return 'Answer', {}
+    host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'}, run_task=run)
+    request = PiTaskRequest('compact', 'attempt', 'direct', 'Explain', (), (), host.identity, 2)
+    host.submit(request)
+    deadline = time.monotonic() + 2
+    while host.read(request.task_id)['status'] == 'running' and time.monotonic() < deadline:
+        time.sleep(.01)
+    events = host.read(request.task_id)['events']
+    assert [event['type'] for event in events] == ['runtime_phase', 'runtime_phase']
+    assert [event['runtime_phase']['state'] for event in events] == ['started', 'completed']
+    assert events[-1]['runtime_phase']['elapsed_ms'] >= 0
+    assert 'PRIVATE' not in str(events)
+
+
 def test_native_turn_boundaries_survive_bounded_host_projection(tmp_path):
     from capstone_agent.general_pi_server import GeneralPiHost
     def run(request, cancelled, emit):
@@ -579,6 +650,21 @@ def test_native_failure_reason_survives_host_result_and_restart(tmp_path, error,
         run_task=lambda *_: pytest.fail('Task repeated'))
     restarted.submit(request)
     assert restarted.read(request.task_id)['result']['failure'] == result['failure']
+
+
+def test_host_prefers_recorded_model_connection_failure_over_incomplete_turn(tmp_path):
+    from capstone_agent.general_pi_server import GeneralPiHost
+    def fail(*args):
+        error = RuntimeError('General Pi did not complete')
+        error.provider_failure = 'model_connection_failed'
+        raise error
+    host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'}, run_task=fail)
+    request = PiTaskRequest('network-failure-task', 'attempt', 'direct', 'Explain', (), (), host.identity, 2)
+    host.submit(request)
+    deadline = time.monotonic() + 2
+    while host.read(request.task_id)['status'] == 'running' and time.monotonic() < deadline:
+        time.sleep(.01)
+    assert host.read(request.task_id)['result']['failure']['code'] == 'native_model_connection_failed'
 
 
 def test_v2_service_advertises_support_and_retains_public_context(tmp_path):

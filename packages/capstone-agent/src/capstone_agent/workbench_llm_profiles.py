@@ -32,6 +32,9 @@ class ProfileRegistry:
         if profile_id not in self.profiles:
             raise ValueError('Unknown workbench LLM profile')
         p = self.profiles[profile_id]
+        if 'context_policy' in p:
+            from .model_context_policy import checked_context_policy
+            checked_context_policy(p['context_policy'])
         options = p.get('title_request_options', {})
         model = p.get('model') or self.environment.get(p.get('model_env', ''), '')
         url = p.get('base_url') or self.environment.get(p.get('base_url_env', ''), '')
@@ -45,7 +48,8 @@ class ProfileRegistry:
         return {**p, 'model': model, 'base_url': url, 'key': key or 'internal', 'available': available, 'profile_revision': revision, 'title_request_revision': title_revision}
 
     def catalog(self):
-        return {'default_profile_id': self.default, 'profiles': [{**{k: p[k] for k in ('id', 'label', 'model', 'available')}, 'icon': p.get('icon', 'server')}
+        return {'default_profile_id': self.default, 'profiles': [{**{k: p[k] for k in ('id', 'label', 'model', 'available')}, 'icon': p.get('icon', 'server'),
+                **({'context_policy': dict(p['context_policy'])} if 'context_policy' in p else {})}
                 for p in (self._resolved(i) for i in self.profiles)]}
 
     def freeze(self, profile_id=None):

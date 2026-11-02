@@ -5,6 +5,7 @@ import {createInterface} from 'node:readline';
 import {join,resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {createManagedChildSession} from '../../src/capstone_agent/resources/general-sdk.mjs';
+import {validateGatewayBatch} from '../../src/capstone_agent/resources/general-data-gateway.mjs';
 const lines=createInterface({input:process.stdin});
 const setup=await new Promise(done=>lines.once('line',line=>done(JSON.parse(line))));lines.close();
 const root=resolve('.grid-agent/runtime/pi/source/packages');
@@ -20,6 +21,9 @@ const config={researchTaskId:'task-1',model:'fixture',extensions:[],allowedSkill
  contextFiles:[{path:'registered-production-data',content:'Use application-authorized data_gateway_ tools for production data.'}],
  settings:{compaction:{enabled:false},packages:[],extensions:[],skills:[]},deadlineAt:Date.now()+15000,
  applicationPolicy:{allowed_tools:[name]},researchRuntime:{},dataGateway:setup.gateway};
+await validateGatewayBatch(config,[{name,arguments:{}}]);
+await assert.rejects(validateGatewayBatch(config,[{name,arguments:{}},{name,arguments:{unexpected:true}}]),/no calls executed.*additionalProperties/);
+await assert.rejects(validateGatewayBatch({...config,dataGateway:{...config.dataGateway,grant:'wrong'}},[{name,arguments:{}}]),/unauthorized/);
 const model={id:'fixture',name:'Fixture',provider:'capstone-general',api:'openai-completions',
  baseUrl:'http://127.0.0.1:1',reasoning:false,input:['text'],contextWindow:32000,maxTokens:1024,
  cost:{input:0,output:0,cacheRead:0,cacheWrite:0}};

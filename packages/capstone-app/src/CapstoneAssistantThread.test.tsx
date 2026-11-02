@@ -1,12 +1,74 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import CapstoneAssistantThread, { projectAssistantActivity, projectAssistantMessages } from './CapstoneAssistantThread'
+import CapstoneAssistantThread, { projectAssistantActivity, projectAssistantMessages,restoreVisibleConversation } from './CapstoneAssistantThread'
 import type { EventEnvelope, ResultProjection } from './threadProtocol'
 import {parseProductRef} from './threadProducts'
 import directExecutionLifecycle from './fixtures/directExecutionLifecycle.json'
 import {parseEventEnvelope} from './threadProtocol'
 
 afterEach(() => { cleanup(); localStorage.clear(); sessionStorage.clear() })
+it('shows public compaction records inside the process window and preserves LLM count on replay',()=>{
+ const events=[event('attempt_started',1,{},'compact'),
+  event('runtime_action',2,{phase:'started'},'compact','2026-11-01T00:00:01Z'),
+  event('runtime_action',3,{phase:'response_completed'},'compact','2026-11-01T00:00:02Z'),
+  event('runtime_event',4,{native_type:'runtime_phase',task_id:'native',runtime_phase:{name:'context_compaction',state:'started',reason:'threshold'}},'compact','2026-11-01T00:00:03Z'),
+  event('runtime_event',5,{native_type:'runtime_phase',task_id:'native',runtime_phase:{name:'context_compaction',state:'completed',reason:'threshold',elapsed_ms:16081,will_retry:false}},'compact','2026-11-01T00:00:19Z'),
+  event('attempt_completed',6,{answer:'完成'},'compact','2026-11-01T00:00:20Z')]
+ render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async()=>{}} onCancel={async()=>{}}/>)
+ expect(document.querySelector('.capstone-chat-activity-attached > summary')?.textContent).toContain('LLM 1 次')
+ fireEvent.click(screen.getByRole('button',{name:'查看执行过程'}))
+ const row=screen.getByLabelText('上下文压缩')
+ expect(row.textContent).toContain('16.1s');expect(row.textContent).toContain('已完成')
+ expect(row.closest('.capstone-chat-activity-attached')).not.toBeNull()
+})
+it('labels work before the first model request as preparation rather than thinking',()=>{
+ const events=[event('command_accepted',1,{kind:'send_auto',payload:{text:'今天的国际要闻'}},'preparing'),event('attempt_started',2,{},'preparing')]
+ render(<CapstoneAssistantThread events={events} disabled={false} isRunning activity={[]} onSend={async()=>{}} onCancel={async()=>{}}/>)
+ expect(document.querySelector('.capstone-chat-activity-attached > summary')?.textContent).toContain('准备执行')
+})
+it.each([false,true])('recovers a blank padding viewport after layout restore without moving visible content (visible=%s)',visible=>{
+ const viewport=document.createElement('div'),message=document.createElement('article')
+ message.dataset.messageId='last';viewport.append(message)
+ Object.defineProperty(viewport,'clientHeight',{value:500})
+ viewport.scrollTop=1000
+ viewport.getBoundingClientRect=()=>({top:100} as DOMRect)
+ message.getBoundingClientRect=()=>({bottom:visible?300:-200} as DOMRect)
+ restoreVisibleConversation(viewport)
+ expect(viewport.scrollTop).toBe(visible?1000:620)
+})
+it('keeps first thinking inside its LLM record and removes the purpose comment from the answer',()=>{
+ const events=[event('command_accepted',1,{kind:'send_auto',payload:{text:'直接确认'}},'first_thinking'),event('attempt_started',2,{},'first_thinking'),
+ event('runtime_action',3,{phase:'started',runtime_mode:'capstone'},'first_thinking'),
+ event('assistant_thinking_delta',4,{text:'核对回复要求'},'first_thinking'),
+ event('runtime_action',5,{phase:'response_completed',runtime_mode:'capstone',response_kind:'text',response_intent:'确认完成'},'first_thinking'),
+ event('attempt_completed',6,{answer:'// 确认完成\n验证完成'},'first_thinking')]
+ render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async()=>{}} onCancel={async()=>{}}/>)
+ expect(screen.queryByRole('button',{name:'展开初始思考'})).toBeNull()
+ expect(screen.queryByText('// 确认完成')).toBeNull()
+ expect(screen.getByText('验证完成')).toBeTruthy()
+ fireEvent.click(screen.getByRole('button',{name:'查看执行过程'}))
+ expect(within(screen.getByRole('group',{name:'LLM 调用 1'})).getByText('确认完成')).toBeTruthy()
+})
+it.each([false,true])('collapses the finished process and only moves an offscreen instruction (visible=%s)',async(visible)=>{
+ const events=[event('command_accepted',1,{kind:'send_auto',payload:{text:'本轮指令'}}),event('attempt_started',2,{},'finish_focus'),event('tool_started',3,{tool_name:'query',tool_call_id:'one'},'finish_focus')]
+ const props={disabled:false,isRunning:true,onSend:async()=>{},onCancel:async()=>{}}
+ const view=render(<CapstoneAssistantThread {...props} events={events} activity={projectAssistantActivity(events)}/>)
+ fireEvent.click(view.container.querySelector('.capstone-chat-activity-attached > summary')!)
+ expect(view.container.querySelector<HTMLDetailsElement>('.capstone-chat-activity-attached')?.open).toBe(true)
+ const instruction=screen.getByLabelText('用户指令'),scroll=vi.fn();instruction.scrollIntoView=scroll
+ const viewport=view.container.querySelector<HTMLElement>('.capstone-chat-viewport')!
+ Object.defineProperties(viewport,{clientHeight:{configurable:true,value:500},scrollHeight:{configurable:true,value:5000}})
+ viewport.scrollTop=800
+ viewport.getBoundingClientRect=()=>({top:0,bottom:500,left:0,right:800,width:800,height:500,x:0,y:0,toJSON:()=>({})})
+ instruction.getBoundingClientRect=()=>{const top=visible?20:600-viewport.scrollTop;return {top,bottom:top+40,left:0,right:800,width:800,height:40,x:0,y:top,toJSON:()=>({})}}
+ const ended=[...events,event('attempt_completed',4,{answer:'完成'},'finish_focus')]
+ view.rerender(<CapstoneAssistantThread {...props} isRunning={false} events={ended} activity={projectAssistantActivity(ended)}/>)
+ await waitFor(()=>expect(view.container.querySelector<HTMLDetailsElement>('.capstone-chat-activity-attached')?.open).toBe(false))
+ await waitFor(()=>expect(viewport.scrollTop).toBe(visible?800:592))
+ expect(scroll).not.toHaveBeenCalled()
+ fireEvent.click(screen.getByRole('button',{name:'查看执行过程'}))
+ expect(view.container.querySelector<HTMLDetailsElement>('.capstone-chat-activity-attached')?.open).toBe(true)
+})
 it('stops with Escape and respects disabled cancellation',async()=>{
   const onCancel=vi.fn().mockResolvedValue(undefined)
   const props={events:[],disabled:false,isRunning:true,activity:[],onSend:async()=>{},onCancel}
@@ -53,11 +115,11 @@ it('keeps catalog LLM choices per session and across sends while DR resets',asyn
   fireEvent.click(screen.getByRole('button',{name:'后端 LLM'}))
   expect((screen.getByRole('menuitemradio',{name:/Custom.*未配置/}) as HTMLButtonElement).disabled).toBe(true)
   fireEvent.click(screen.getByRole('menuitemradio',{name:/Intranet/}))
-  fireEvent.click(screen.getByRole('button',{name:'深度思考'}))
+  fireEvent.click(screen.getByRole('button',{name:'深度研究'}))
   fireEvent.change(screen.getByRole('textbox',{name:'Thread 指令'}),{target:{value:'first'}})
   fireEvent.keyDown(screen.getByRole('textbox',{name:'Thread 指令'}),{key:'Enter',code:'Enter'})
-  await waitFor(()=>expect(onSend).toHaveBeenCalledWith('automatic','first',expect.objectContaining({llm_profile_id:'internal',deep_research:true})))
-  await waitFor(()=>expect(screen.getByRole('button',{name:'深度思考'}).getAttribute('aria-pressed')).toBe('false'))
+  await waitFor(()=>expect(onSend).toHaveBeenCalledWith('automatic','first',expect.objectContaining({llm_profile_id:'internal',deep_research:false})))
+  await waitFor(()=>expect(screen.getByRole('button',{name:'深度研究'}).getAttribute('aria-pressed')).toBe('false'))
   expect(screen.getByRole('button',{name:'后端 LLM'}).textContent).toContain('Intranet')
   rerender(<CapstoneAssistantThread key="two" {...props} storageKey="llm-session-two"/>)
   expect(screen.getByRole('button',{name:'后端 LLM'}).textContent).toContain('Commercial')
@@ -80,10 +142,10 @@ describe('CapstoneAssistantThread', () => {
     const {rerender}=render(<CapstoneAssistantThread {...props} events={events} />)
     fireEvent.click(screen.getByRole('button',{name:'放大阅读执行过程'}))
     let reader=within(screen.getByRole('dialog',{name:'执行过程'}))
-    expect(reader.getByRole('region',{name:'思考状态'})).toBeTruthy()
+    expect(reader.queryByRole('region',{name:'思考状态'})).toBeNull()
     expect(reader.getAllByRole('group',{name:/LLM 调用/})).toHaveLength(1)
     expect(reader.queryByLabelText('任务步骤')).toBeNull()
-    expect(reader.getByText('运行阶段与计时').closest('details')?.open).toBe(false)
+    expect(reader.queryByText('运行阶段与计时')).toBeNull()
     fireEvent.keyDown(screen.getByRole('dialog',{name:'执行过程'}),{key:'Escape'})
     const toolEvent=event('runtime_event',35,{native_type:'tool_execution_end',task_id:'task',tool_call_id:'read',tool_name:'read',task_step_id:'task-execution',activity:{operation:'Read a registered source'}},events[0].attemptId)
     rerender(<CapstoneAssistantThread {...props} events={[...events.slice(0,-1),toolEvent,events.at(-1)!]} />)
@@ -99,10 +161,11 @@ describe('CapstoneAssistantThread', () => {
     expect(reader.getByLabelText('任务步骤')).toBeTruthy()
     expect(reader.getByText('Recorded business review')).toBeTruthy()
   })
-  it('shows public thinking status before the first task or tool exists', () => {
+  it('keeps preparation inside the process window before a model call exists', () => {
     const events=[event('command_accepted',1,{kind:'send_auto',payload:{text:'分析资料'}},'startup'),event('attempt_started',2,{},'startup')]
     render(<CapstoneAssistantThread events={events} activity={projectAssistantActivity(events)} disabled={false} isRunning={true} onSend={async()=>{}} onCancel={async()=>{}} />)
-    expect(screen.getByRole('region',{name:'思考状态'}).textContent).toContain('Thinking…')
+    expect(screen.queryByRole('region',{name:'思考状态'})).toBeNull()
+    expect(screen.getByText('准备执行本轮指令…').closest('details')?.open).toBe(true)
     expect(screen.queryByText('当前记录未提供公开思考摘要。')).toBeNull()
     expect(screen.queryByText('正在准备输入、规划和调度首个任务。')).toBeNull()
   })
@@ -112,12 +175,12 @@ describe('CapstoneAssistantThread', () => {
       event('runtime_action', 3, {phase:'response_completed'}, 'mixed', '2026-09-30T00:00:03Z')]
     const props = {disabled:false,isRunning:true,activity:[],onSend:async()=>{},onCancel:async()=>{}}
     const {rerender,unmount} = render(<CapstoneAssistantThread {...props} events={start} />)
-    expect(screen.getByRole('region',{name:'思考状态'}).textContent).toContain('Thinking…')
+    expect(screen.queryByRole('region',{name:'思考状态'})).toBeNull()
     expect(screen.getByRole('group',{name:'LLM 调用 1'}).textContent).toContain('2.0s')
     const toolEvents = [...start, event('runtime_event',4,{native_type:'tool_execution_start',task_id:'task',tool_call_id:'call',tool_name:'read',activity:{operation:'Read registered source'}},'mixed')]
     rerender(<CapstoneAssistantThread {...props} events={toolEvents} />)
     const tools = screen.getByRole('region',{name:'工具调用过程'})
-    expect(within(tools).getByText('Read registered source')).toBeTruthy()
+    expect(within(tools).getByText('Read registered source',{selector:'strong'})).toBeTruthy()
     expect(tools.closest('details')).toBeNull()
     expect(screen.queryByRole('region',{name:'思考状态'})).toBeNull()
     const taskEvents = [...toolEvents,event('runtime_event',5,{task_step:{id:'check',number:1,title:'Compare source coverage',status:'running'}},'mixed')]
@@ -305,7 +368,7 @@ describe('CapstoneAssistantThread', () => {
       event('runtime_event', 5, { task_step_error: 'Step transition was not applied; the existing step was retained.' }, 'branches'),
       event('attempt_failed', 6, { error_code: 'research_cycle_no_progress' }, 'branches')]
     const { container } = render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
-    expect(screen.getByRole('status').textContent).toContain('步骤未推进')
+    expect(screen.getByRole('status').textContent).toContain('进度登记未更新')
     fireEvent.click(screen.getByRole('button', { name: '查看执行过程' }))
     const objective = screen.getByText('解释异常差异').closest('.capstone-business-step-record')!
     expect(within(objective as HTMLElement).getAllByText('缺数解释不足').length).toBeGreaterThan(0)
@@ -371,6 +434,13 @@ describe('CapstoneAssistantThread', () => {
     expect(projected[1].operation).toBeUndefined()
     expect(projected[1].outputExcerpt).toBeUndefined()
   })
+  it('labels composed execution with its recorded purpose across start and failure',()=>{
+    const events=[
+      event('runtime_event',1,{task_id:'pi_one',native_type:'tool_execution_start',tool_name:'agent_tools_execute',tool_call_id:'one',activity:{operation:'读取目录并保存 CSV'}},'attempt_one'),
+      event('runtime_event',2,{task_id:'pi_one',native_type:'tool_execution_end',tool_name:'agent_tools_execute',tool_call_id:'one',is_error:true,activity:{output_excerpt:'参数类型不符'}},'attempt_one'),
+    ]
+    expect(projectAssistantActivity(events)[0]).toMatchObject({label:'读取目录并保存 CSV',status:'failed',source:'pi · agent_tools_execute'})
+  })
   it('does not claim zero calls when restored history has no public tool records',()=>{
     const events=[event('attempt_started',1,{},'legacy_native'),event('attempt_completed',3,{answer:'文件已保存',task_steps:[{id:'prepare',number:1,title:'准备',status:'completed'}]},'legacy_native')]
     render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async()=>{}} onCancel={async()=>{}}/>)
@@ -421,6 +491,16 @@ describe('CapstoneAssistantThread', () => {
     expect(projectAssistantActivity([started,ended,observation,retry])).toMatchObject([{label:'read',status:'failed',finishedAt:ended.occurredAt,durationMs:1000},{label:'read',status:'running'}])
     expect(projectAssistantActivity([{...observation,payload:{...observation.payload,reference:{kind:'native_tool_observation',task_id:'pi_live',parent_attempt_id:'other_attempt',metadata:{tool_name:'read',tool_call_id:'call_live'}}}}])).toEqual([])
   })
+  it('opens the same numbered instruction products from both message toolbars',()=>{
+    const open=vi.fn()
+    const rows=[event('command_accepted',1,{kind:'send_auto',payload:{text:'生成第一份报告'}},'one'),event('attempt_completed',2,{answer:'第一份完成'},'one'),event('command_accepted',3,{kind:'send_auto',payload:{text:'生成第二份报告'}},'two'),event('attempt_completed',4,{answer:'第二份完成'},'two')]
+    render(<CapstoneAssistantThread events={rows} onOpenInstructionProducts={open} disabled={false} isRunning={false} activity={[]} onSend={async()=>{}} onCancel={async()=>{}} />)
+    const actions=screen.getAllByRole('button',{name:'查看指令 02的制品'})
+    expect(actions).toHaveLength(2)
+    for(const action of actions)fireEvent.click(action)
+    expect(open).toHaveBeenNthCalledWith(1,{attemptId:'two',number:2,text:'生成第二份报告'})
+    expect(open).toHaveBeenNthCalledWith(2,{attemptId:'two',number:2,text:'生成第二份报告'})
+  })
   it('shows a persisted instruction file only beneath its owning answer',()=>{
     const digest='a'.repeat(64),artifactId=`file-${'b'.repeat(16)}-${digest}`
     const artifact={schema:'capstone-process-artifact/1',scope:'instruction',thread_id:'thr_demo',run_id:'run_demo',turn_id:'turn_one',attempt_id:'one',work_id:null,task_snapshot_id:null,goal_revision:null,task_id:'native_one',artifact_id:artifactId,executor_identity_sha256:'c'.repeat(64),source_status:'completed',file_name:'已保存说明.md',media_type:'text/markdown',sha256:digest,size_bytes:12,download_url:`/api/v1/threads/thr_demo/attempts/one/artifacts/${artifactId}`}
@@ -430,7 +510,7 @@ describe('CapstoneAssistantThread', () => {
     expect(files).toHaveLength(1)
     expect(files[0].closest('.capstone-chat-message')?.textContent).toContain('附有文件的回答')
     fireEvent.click(files[0])
-    expect(open).toHaveBeenCalledWith(artifact)
+    expect(open).toHaveBeenCalledWith({...artifact,saved_at:'2026-09-30T00:00:00Z'})
   })
   it('keeps intermediate results available for inspection without final-product links', () => {
     const result: ResultProjection = {resultId:'r',resultRef:'result:r',evidenceRefs:[],threadId:'thr_demo',runId:'run_demo',turnId:'turn_one',attemptId:'one',modelContextId:'ctx',modelId:'ieee39',modelRevision:'7',source:{capabilityId:'powerflow.ac',domainPackId:'grid',implementationFamily:'pandapower'},status:'completed',summary:[{metricId:'loss',label:'有功损耗',value:1}],tables:[],elementRefs:[]}
@@ -549,7 +629,7 @@ describe('CapstoneAssistantThread', () => {
     expect(screen.getByLabelText('中断前的工作记录').textContent).toContain('已生成图表，正在组装报告。')
     expect(screen.queryByText('报告已完成')).toBeNull()
   })
-  it('shows host preparation and terminal timing even before any tool call', () => {
+  it('keeps host lifecycle timings out of the execution window footer', () => {
     const preparation = { id: 'task-preparation', number: 1, title: '任务准备', status: 'running' }
     const events = [event('attempt_started', 1, { task_step: preparation }, 'stages'),
       event('attempt_completed', 2, { answer: '任务已结束。', task_steps: [{ ...preparation, status: 'completed', duration_ms: 7000 }, { id: 'closing', number: 2, title: '核验与结果整理', status: 'completed', duration_ms: 2000 }] }, 'stages')]
@@ -557,9 +637,9 @@ describe('CapstoneAssistantThread', () => {
     const button = screen.getByRole('button', { name: '查看执行过程' }) as HTMLButtonElement
     expect(button.disabled).toBe(false)
     fireEvent.click(button)
-    expect(screen.getByText('任务准备')).toBeTruthy()
+    expect(screen.queryByText('任务准备')).toBeNull()
     expect(screen.getByText('核验与结果整理')).toBeTruthy()
-    expect(screen.getByText('7.0s')).toBeTruthy()
+    expect(screen.queryByText('运行阶段与计时')).toBeNull()
   })
   it('keeps fold controls in the summary and disables them from actual step state', () => {
     const events = [event('attempt_started', 1, {}, 'fold'),
@@ -592,7 +672,7 @@ describe('CapstoneAssistantThread', () => {
     expect(screen.getByRole('button', { name: '折叠步骤：生成回复' }).getAttribute('aria-expanded')).toBe('true')
     expect(expand.disabled).toBe(true)
   })
-  it('positions a new running instruction near the top even when it was already visible', async () => {
+  it('lets a visible running instruction move naturally without forcing top alignment or reserving space', async () => {
     const scroll = vi.spyOn(HTMLElement.prototype, 'scrollTo')
     const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
       const viewport = document.querySelector('.capstone-chat-viewport')
@@ -604,7 +684,9 @@ describe('CapstoneAssistantThread', () => {
       render(<CapstoneAssistantThread events={events} activity={[]} disabled={false} isRunning onSend={async()=>{}} onCancel={async()=>{}} />)
       const viewport = document.querySelector('.capstone-chat-viewport') as HTMLElement
       Object.defineProperties(viewport, {clientHeight:{configurable:true,value:500},scrollHeight:{configurable:true,value:800}})
-      await waitFor(() => expect(scroll).toHaveBeenCalledWith({ top: 292, behavior: 'smooth' }))
+      await act(async()=>{await new Promise(resolve=>setTimeout(resolve,30))})
+      expect(scroll).not.toHaveBeenCalledWith({top:292,behavior:'instant'})
+      expect(viewport.querySelector('[aria-hidden="true"][style*="flex-shrink"]')).toBeNull()
     } finally { rect.mockRestore(); scroll.mockRestore() }
   })
   it('keeps both running process views readable when the bottom of the message has little space', async () => {
@@ -1667,7 +1749,7 @@ describe('CapstoneAssistantThread', () => {
     fireEvent(details, new Event('toggle'))
     const completed = [...next, event('attempt_completed', 10, { answer: '执行完成。' }, 'running_activity')]
     rerender(<CapstoneAssistantThread {...props} isRunning={false} events={completed} activity={projectAssistantActivity(completed)} />)
-    expect(details.open).toBe(true)
+    expect(details.open).toBe(false)
     expect(screen.queryByLabelText('执行过程预览')).toBeNull()
     expect(details.querySelectorAll('.capstone-chat-activity-item')).toHaveLength(4)
   })

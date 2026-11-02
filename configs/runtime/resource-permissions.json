@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "profiles": {
+    "local": {
+      "rules": [
+        {
+          "effect": "allow",
+          "actions": [
+            "resources.install",
+            "resources.enable",
+            "resources.disable",
+            "resources.update",
+            "resources.uninstall",
+            "resources.use",
+            "resources.preinstall.manage"
+          ]
+        }
+      ]
+    },
+    "intranet": {
+      "rules": [
+        {
+          "effect": "allow",
+          "actions": ["resources.use"]
+        }
+      ]
+    }
+  }
+}

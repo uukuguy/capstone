@@ -53,6 +53,64 @@ def gateway(tmp_path):
     return client, session
 
 
+def publication_gateway(tmp_path):
+    from types import SimpleNamespace
+    client, session = gateway(tmp_path)
+    names = ['discover_gateway', 'describe_gateway_contract', 'check_gateway_contract']
+    session.tools = [Tool(name) for name in names]
+    client.policy['allowed_tools'] = names
+    session.stamp = '2026-10-31T13:19:56.304991+08:00'
+    session.instance = 'fixture-instance'
+    session.failure = False
+    session.lists = 0
+    async def listing():
+        session.lists += 1
+        return SimpleNamespace(tools=session.tools, nextCursor=None)
+    async def calling(name, arguments):
+        session.calls.append((name, arguments))
+        data = {'contract_updated_at': session.stamp}
+        if name == 'check_gateway_contract':
+            data['instance_id'] = session.instance
+        body = {'status': 'error' if session.failure else 'success', 'data': data,
+                'provenance': {'request_id': 'contract-request'}}
+        return SimpleNamespace(model_dump=lambda **_: {'structuredContent': body, 'isError': session.failure})
+    session.list_tools, session.call_tool = listing, calling
+    return client, session
+
+
+def test_contract_check_unchanged_does_not_download_catalog(tmp_path):
+    client, session = publication_gateway(tmp_path)
+    catalog = asyncio.run(client.prepare())
+    session.calls.clear()
+    lists = session.lists
+    assert asyncio.run(client.refresh_catalog(catalog)) == catalog
+    assert session.calls == [('check_gateway_contract', {})]
+    assert session.lists == lists
+
+
+@pytest.mark.parametrize('change', ['stamp', 'instance'])
+def test_contract_check_change_fetches_future_snapshot(tmp_path, change):
+    client, session = publication_gateway(tmp_path)
+    catalog = asyncio.run(client.prepare())
+    if change == 'stamp':
+        session.stamp = '2026-10-31T14:19:56+08:00'
+    else:
+        session.instance = 'replacement-instance'
+    updated = asyncio.run(client.refresh_catalog(catalog))
+    assert updated['revision'] != catalog['revision']
+    assert client._accepted[catalog['revision']] == catalog
+    assert updated['contract_publication']['instance_id'] == session.instance
+
+
+def test_contract_check_failure_never_reuses_cache_and_keeps_request_id(tmp_path):
+    client, session = publication_gateway(tmp_path)
+    catalog = asyncio.run(client.prepare())
+    session.failure = True
+    with pytest.raises(GatewayError, match='contract_publication_unavailable') as error:
+        asyncio.run(client.refresh_catalog(catalog))
+    assert error.value.request_id == 'contract-request'
+
+
 def test_catalog_omits_secrets_and_unapproved_tools(tmp_path):
     client, _ = gateway(tmp_path)
     catalog = asyncio.run(client.prepare())
@@ -60,6 +118,18 @@ def test_catalog_omits_secrets_and_unapproved_tools(tmp_path):
     assert len(catalog['revision']) == 64
     assert 'secret-canary' not in json.dumps(catalog)
     assert 'gateway.test' not in json.dumps(catalog)
+
+
+def test_argument_validation_reports_path_and_types_without_values(tmp_path):
+    client, session = gateway(tmp_path)
+    session.tools[0].value['inputSchema'] = {'type':'object','properties':{
+        'selection':{'anyOf':[{'type':'string'},{'type':'object','additionalProperties':{'type':'string'}}]}},'required':['selection']}
+    catalog = asyncio.run(client.prepare())
+    with pytest.raises(GatewayError, match='gateway_arguments_invalid') as error:
+        asyncio.run(client.call('data_gateway_discover_data_capabilities',{'selection':{'nested':{'password':'secret-canary'}}},catalog))
+    assert error.value.validation_errors[0] == {'path':'/selection/nested','rule':'type','expected':'string','actual_type':'object'}
+    assert 'secret-canary' not in json.dumps(error.value.validation_errors)
+    assert session.calls == []
 
 
 def test_call_validates_and_preserves_partial_source(tmp_path):
@@ -326,6 +396,66 @@ def dynamic_gateway(tmp_path):
     return DataGatewayMcp(legacy.connection_path, DYNAMIC_POLICY, connect=legacy.connect), session
 
 
+def contract_gateway(tmp_path):
+    client, session = dynamic_gateway(tmp_path)
+    for name in ('discover_gateway', 'describe_gateway_contract', 'check_gateway_contract'):
+        tool = Tool(name)
+        tool.value['annotations'] = dict(SAFE_EFFECTS)
+        session.tools.append(tool)
+    session.stamp = '2026-10-31T13:19:56.304991+08:00'
+    session.check_failure = False
+    session.list_count = 0
+    original_list = session.list_tools
+    async def list_tools():
+        session.list_count += 1
+        return await original_list()
+    session.list_tools = list_tools
+    async def call_tool(name, arguments):
+        from types import SimpleNamespace
+        session.calls.append((name, arguments))
+        value = {'status':'ok','data':{'contract_updated_at':session.stamp},
+            'provenance':{'request_id':'contract-request'}}
+        if name == 'check_gateway_contract':
+            value['data']['instance_id'] = 'fixture-instance'
+            if session.check_failure:
+                value.update(status='error', data=None, gaps=[{'reason':'contract_publication_unavailable'}])
+        return SimpleNamespace(model_dump=lambda **_: {'isError':value['status']=='error', 'structuredContent':deepcopy(value)})
+    from copy import deepcopy
+    session.call_tool = call_tool
+    return client, session
+
+
+def test_lightweight_contract_check_reuses_catalog_without_listing_or_full_contract(tmp_path):
+    client, session = contract_gateway(tmp_path)
+    catalog = asyncio.run(client.prepare())
+    count = session.list_count
+    session.calls.clear()
+    assert asyncio.run(client.refresh_catalog(catalog)) == catalog
+    assert session.list_count == count
+    assert session.calls == [('check_gateway_contract', {})]
+
+
+def test_contract_timestamp_change_refetches_current_contract(tmp_path):
+    client, session = contract_gateway(tmp_path)
+    catalog = asyncio.run(client.prepare())
+    session.stamp = '2026-10-31T13:20:00+08:00'
+    session.tools[0].value['description'] = 'New published meaning'
+    count = session.list_count
+    updated = asyncio.run(client.refresh_catalog(catalog))
+    assert updated['revision'] != catalog['revision']
+    assert session.list_count > count
+    assert updated['contract_publication']['contract_updated_at'] == session.stamp
+
+
+def test_failed_contract_check_is_not_an_unchanged_result_and_preserves_request_id(tmp_path):
+    client, session = contract_gateway(tmp_path)
+    catalog = asyncio.run(client.prepare())
+    session.check_failure = True
+    with pytest.raises(GatewayError, match='contract_publication_unavailable') as failed:
+        asyncio.run(client.refresh_catalog(catalog))
+    assert failed.value.request_id == 'contract-request'
+
+
 def test_only_admitted_gateway_entries_are_initial_tools(tmp_path):
     client, session = dynamic_gateway(tmp_path)
     for name in ('discover_gateway', 'describe_gateway_contract', 'discover_business_services'):
@@ -339,6 +469,54 @@ def test_only_admitted_gateway_entries_are_initial_tools(tmp_path):
     session.tools[-2].value['annotations']['destructiveHint'] = True
     catalog = asyncio.run(client.prepare())
     assert catalog['entry_tools'] == ['data_gateway_discover_gateway']
+
+
+@pytest.mark.parametrize('target', ['previously_unknown_action', 'data_gateway_previously_unknown_action'])
+def test_contract_lookup_normalizes_target_from_current_catalog(tmp_path, target):
+    client, session = dynamic_gateway(tmp_path)
+    tool = Tool('describe_gateway_contract')
+    tool.value.update(annotations=dict(SAFE_EFFECTS), inputSchema={
+        'type': 'object', 'properties': {'tool_name': {'type': 'string'}},
+        'required': ['tool_name'], 'additionalProperties': False})
+    session.tools.append(tool)
+    catalog = asyncio.run(client.prepare())
+    arguments = {'tool_name': target}
+    asyncio.run(client.call('data_gateway_describe_gateway_contract', arguments, catalog))
+    assert session.calls == [('describe_gateway_contract', {'tool_name': 'previously_unknown_action'})]
+    assert arguments == {'tool_name': target}
+
+
+def test_contract_lookup_does_not_strip_unregistered_prefixes(tmp_path):
+    client, session = dynamic_gateway(tmp_path)
+    tool = Tool('describe_gateway_contract')
+    tool.value.update(annotations=dict(SAFE_EFFECTS), inputSchema={'type': 'object'})
+    session.tools.append(tool)
+    catalog = asyncio.run(client.prepare())
+    args = {'tool_name': 'data_gateway_unpublished', 'other': 'data_gateway_previously_unknown_action'}
+    asyncio.run(client.call('data_gateway_describe_gateway_contract', args, catalog))
+    assert session.calls[-1] == ('describe_gateway_contract', args)
+
+
+def test_business_tool_arguments_are_not_namespace_rewritten(tmp_path):
+    client, session = dynamic_gateway(tmp_path)
+    session.tools[0].value['inputSchema'] = {'type': 'object'}
+    catalog = asyncio.run(client.prepare())
+    args = {'tool_name': 'data_gateway_build_network_model'}
+    asyncio.run(client.call('data_gateway_previously_unknown_action', args, catalog))
+    assert session.calls[-1] == ('previously_unknown_action', args)
+
+
+def test_contract_lookup_rejects_ambiguous_source_and_transport_names(tmp_path):
+    client, session = dynamic_gateway(tmp_path)
+    for name in ('data_gateway_previously_unknown_action', 'describe_gateway_contract'):
+        tool = Tool(name)
+        tool.value.update(annotations=dict(SAFE_EFFECTS), inputSchema={'type': 'object'})
+        session.tools.append(tool)
+    catalog = asyncio.run(client.prepare())
+    with pytest.raises(GatewayError, match='gateway_arguments_invalid'):
+        asyncio.run(client.call('data_gateway_describe_gateway_contract',
+            {'tool_name': 'data_gateway_previously_unknown_action'}, catalog))
+    assert session.calls == []
 
 
 def test_dynamic_trusted_service_admits_new_read_and_closed_non_destructive_tools(tmp_path):

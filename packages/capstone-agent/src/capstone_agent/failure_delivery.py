@@ -33,6 +33,8 @@ NATIVE_FAILURE_REASONS = {
     'native_model_output_invalid': '模型服务返回了无法处理的结果，本轮未能正常收尾。',
     'native_model_output_rejected': '模型服务拒绝了本次回复，本轮未能完成交付。已保留此前的工作记录和文件。',
     'native_model_turn_incomplete': '模型回复未正常结束，本轮尚未完成交付。此前的工作记录和文件仍保留；系统未取得更具体的模型错误原因。',
+    'native_model_read_timeout': '模型回复在传输中等待超时，本轮未完成交付。已有工具结果和文件仍保留；请检查网络及模型服务连接。',
+    'native_model_connection_failed': '无法连接模型服务，本轮未完成交付。已有工具结果和文件仍保留；请检查网络及模型服务连接。',
 }
 
 

@@ -7,6 +7,29 @@ import sys
 from zipfile import ZipFile
 
 from PIL import Image
+
+def test_preflight_checks_without_replacing_existing_output(tmp_path):
+    spec={'schema':'capstone-presentation/1','title':'Check','slides':[{'title':'One','blocks':[{'type':'paragraph','text':'Text'}]}]}
+    (tmp_path/'spec.json').write_text(json.dumps(spec))
+    output=tmp_path/'existing.pptx';output.write_bytes(b'previous')
+    result=subprocess.run([sys.executable,str(SCRIPT),'--spec','spec.json','--output','existing.pptx','--check-only'],cwd=tmp_path,capture_output=True,text=True)
+    assert result.returncode==0,result.stderr
+    assert output.read_bytes()==b'previous'
+    assert json.loads(result.stdout)['output_written'] is False
+
+def test_reports_all_independent_block_errors_before_writing(tmp_path):
+    (tmp_path/'data.csv').write_text('name,value\na,1\n')
+    spec={'schema':'capstone-presentation/1','title':'Check','slides':[{'title':'One','blocks':[
+        {'type':'table','csv':'data.csv','columns':['missing'],'max_rows':5},
+        {'type':'figure','path':'missing.png','caption':'Missing'}]}]}
+    (tmp_path/'spec.json').write_text(json.dumps(spec))
+    result=subprocess.run([sys.executable,str(SCRIPT),'--spec','spec.json','--output','result.pptx'],cwd=tmp_path,capture_output=True,text=True)
+    assert result.returncode==2
+    detail=json.loads(result.stderr.splitlines()[-1])
+    assert len(detail['errors'])==2
+    assert detail['errors'][0]['location']=='slides[0].blocks[0]'
+    assert detail['errors'][1]['location']=='slides[0].blocks[1]'
+    assert not (tmp_path/'result.pptx').exists()
 from pptx import Presentation
 import pytest
 
@@ -41,6 +64,8 @@ def test_real_pptx_has_exact_csv_strings_image_notes_and_source_hashes(tmp_path)
     assert output.read_bytes().startswith(b'PK')
     deck=Presentation(output)
     assert len(deck.slides)>=4
+    assert str(deck.slides[0].background.fill.fore_color.rgb) == '172B3B'
+    assert str(deck.slides[1].background.fill.fore_color.rgb) == 'F3F7F7'
     text=deck_text(deck)
     assert all(item in text for item in ['001.2300','12.50%','未记录','Source dataset revision r1','<script>'])
     assert sum(shape.shape_type==13 for slide in deck.slides for shape in slide.shapes)==1

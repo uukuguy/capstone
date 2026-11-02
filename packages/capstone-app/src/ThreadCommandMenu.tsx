@@ -87,7 +87,7 @@ export default function ThreadCommandMenu({ children, catalog, loading, onRefres
   const inputTools = <div className="thread-input-tools">
       <LlmProfileMenu catalog={catalog?.llm_profiles} value={draft.llm_profile_id} disabled={disabled||loading} onChange={id=>{if(onBeforeChange?.()!==false)onChange({...draft,llm_profile_id:id})}}/>
 
-      {draft.mode==='capstone'&&<button disabled={disabled} type="button" className="thread-settings-trigger thread-deep-research-toggle" aria-label="深度思考" aria-pressed={draft.deep_research===true} title={draft.deep_research?'本条指令使用 Deep Research 任务组织；发送后恢复关闭':'开启后，本条指令使用 Deep Research 任务组织'} onClick={()=>{if(onBeforeChange?.()!==false)onChange({...draft,deep_research:!draft.deep_research})}}><Brain aria-hidden="true"/>深度思考</button>}
+      {draft.mode==='capstone'&&<button disabled type="button" className="thread-settings-trigger thread-deep-research-toggle" aria-label="深度研究" aria-pressed={false} title="深度研究暂未开放"><Brain aria-hidden="true"/>深度研究</button>}
     </div>
   return <div ref={root} className="thread-input-controls" style={panelHeight === undefined ? undefined : { '--thread-input-panel-space': `${panelHeight}px` } as CSSProperties} onCompositionStart={() => { composing.current = true }} onCompositionEnd={() => { composing.current = false }}
     onClickCapture={event => {

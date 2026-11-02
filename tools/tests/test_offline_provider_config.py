@@ -31,6 +31,13 @@ def environment(application):
             'OPENAI_API_KEY': 'test-only-key'}
 
 
+def test_native_launcher_loads_profile_context_policy_with_package_identity():
+    settings = dict(CAPSTONE_HOSTED_APPLICATION='native', CAPSTONE_DEPLOYMENT_STAGE='local',
+                    CAPSTONE_RUNTIME_PROFILE='capstone-workbench-v1', DEEPSEEK_API_KEY='test-only-key')
+    selected = RUNTIME.select_runtime(ROOT, settings, 'worker')[3]
+    assert selected['CAPSTONE_PUBLIC_MODEL']
+
+
 @pytest.mark.parametrize('application', ['pandapower', 'pypsa'])
 def test_aliases_reach_actual_worker_resolution(application):
     selected = RUNTIME.select_runtime(ROOT, environment(application), 'worker')[3]

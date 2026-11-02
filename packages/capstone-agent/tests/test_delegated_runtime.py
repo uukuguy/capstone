@@ -291,10 +291,15 @@ def test_native_worker_persists_shared_steps_without_promoting_tools_to_authorit
     class SteppedExecutor(Executor):
         def execute(self, request, control, on_event):
             on_event({'type': 'runtime_action', 'phase': 'started'})
+            on_event({'type': 'assistant_delta', 'text': '// 核对模型范围\nPRIVATE BODY'})
             on_event({'type': 'runtime_action', 'phase': 'response_completed', 'response_kind': 'tools'})
             on_event({'type': 'tool_execution_start', 'tool_name': 'bash', 'tool_call_id': 'read'})
             on_event({'type': 'tool_execution_end', 'tool_name': 'bash', 'tool_call_id': 'read', 'is_error': True})
             on_event({'type': 'runtime_action', 'phase': 'completed'})
+            on_event({'type': 'runtime_phase', 'runtime_phase': {'name': 'context_compaction',
+                'state': 'started', 'reason': 'threshold', 'summary': 'PRIVATE COMPACTION'}})
+            on_event({'type': 'runtime_phase', 'runtime_phase': {'name': 'context_compaction',
+                'state': 'completed', 'reason': 'threshold', 'elapsed_ms': 16081, 'will_retry': False}})
             on_event({'type': 'runtime_action', 'phase': 'started'})
             on_event({'type': 'runtime_action', 'phase': 'response_completed', 'response_kind': 'text'})
             on_event({'type': 'runtime_action', 'phase': 'completed'})
@@ -304,11 +309,45 @@ def test_native_worker_persists_shared_steps_without_promoting_tools_to_authorit
     result = run(service, current, factory(SteppedExecutor(), Recognizer([goal('one')])))
     assert result.status == 'completed'
     saved = service.read_events(current.thread_id, 0).events
+    purposes = [e.payload.get('response_intent') for e in saved if e.event_type == 'runtime_action' and e.payload.get('phase') == 'response_completed']
+    assert purposes[0] == '核对模型范围'
+    phases = [e for e in saved if e.payload.get('native_type') == 'runtime_phase']
+    assert len(phases) == 2 and all(e.visibility == 'public' for e in phases)
+    assert phases[-1].payload['runtime_phase']['elapsed_ms'] == 16081
+    assert 'PRIVATE COMPACTION' not in str([e.payload for e in phases])
+    assert len(purposes) == 2
+    assert not any('PRIVATE BODY' in str(e.payload) for e in saved if e.visibility == 'public')
     calls = [e.payload for e in saved if e.payload.get('tool_call_id') == 'read']
     assert len(calls) == 2 and calls[0]['task_step_id'] == calls[1]['task_step_id']
     steps = [e.payload['task_step'] for e in saved if e.event_type == 'runtime_action' and 'task_step' in e.payload]
     assert any(s.get('after_failed_steps') == [calls[0]['task_step_id']] for s in steps)
     assert not result.result_refs and not result.evidence_refs
+
+
+def test_native_worker_persists_selection_input_through_task_completion():
+    from capstone_agent.progress import project_native_tool_activity
+
+    class SelectionExecutor(Executor):
+        def execute(self, request, control, on_event):
+            on_event({'type': 'tool_execution_start', 'tool_name': 'agent_tool_load',
+                'tool_call_id': 'selection-call', 'activity': project_native_tool_activity({
+                    'args': {'names': ['remote_unknown'], 'api_key': 'private-value'}})})
+            on_event({'type': 'tool_execution_end', 'tool_name': 'agent_tool_load',
+                'tool_call_id': 'selection-call', 'is_error': True,
+                'activity': {'output_excerpt': 'Requested tool is not admitted: remote_unknown'}})
+            return PiTaskResult(request.task_id, request.parent_attempt_id, self.identity,
+                                'completed', '说明限制', (), (), {})
+
+    service, current = claim()
+    result = run(service, current, factory(SelectionExecutor(), Recognizer([goal('one')])))
+    assert result.status == 'completed'
+    saved = service.read_events(current.thread_id, 0).events
+    calls = [e for e in saved if e.payload.get('tool_call_id') == 'selection-call']
+    assert len(calls) == 2
+    assert 'remote_unknown' in calls[0].payload['activity']['input_excerpt']
+    assert 'private-value' not in str(calls)
+    assert calls[1].payload['is_error'] is True
+    assert calls[0].attempt_id == calls[1].attempt_id == current.attempt.attempt_id
 
 
 @pytest.mark.parametrize('prior_narrative', [False, True, 'inspect'])

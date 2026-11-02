@@ -53,7 +53,7 @@ export function buildInputSubmission(text: string, draft: InputDraft): InputSubm
   if (draft.material_refs !== undefined && !validMaterialRefs(draft.material_refs)) throw new Error('所选资料无效。')
   if (draft.skill && !skillCompatible(draft.skill, draft.mode)) throw new Error('所选技能与当前模式不兼容，请重新选择。')
   return { input: draft.skill ? { kind: 'skill_invocation', text, skill_id: draft.skill.id, skill_version: draft.skill.version } : { kind: 'text', text },
-    ...(draft.deep_research===undefined?{}:{deep_research:draft.deep_research}),
+    ...(draft.deep_research===undefined?{}:{deep_research:false}),
     ...(draft.llm_profile_id===undefined?{}:{llm_profile_id:draft.llm_profile_id}),
     ...(draft.skill ? { resource_profile: { profile_id: draft.skill.role, revision: draft.skill.revision } } : {}), context_selection: draft.context,
     ...(draft.material_refs === undefined ? {} : {material_refs: [...draft.material_refs]}),

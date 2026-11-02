@@ -9,6 +9,7 @@ import { parseWorkSnapshot, type WorkSnapshot } from './threadWorkProtocol'
 import type { AnyThreadCommand } from './threadClient'
 import { ThreadTransportError,isThreadVersionError } from './threadHttpTransport'
 import { ResultProjectionDelivery } from './resultProjectionDelivery'
+import {ResponseIntentProjection} from './responseIntentProjection'
 import {
   CapstoneThreadClient, type ThreadCommand, type ThreadTransport, type ThreadTransportState,
 } from './threadClient'
@@ -334,18 +335,26 @@ export class ThreadProjectionStore {
   }
 
   get publicEvents(): readonly EventEnvelope[] {
-    return this.eventLog.filter((event) => event.visibility === 'public')
+    return this.eventLog.filter((event) => event.visibility === 'public').map(event=>{
+      const intent=this.responseIntents.intent(event.eventId)
+      return intent?{...event,payload:{...event.payload,response_intent:intent}}:event
+    })
   }
+  private readonly responseIntents=new ResponseIntentProjection()
 
   /** Message bodies outlive the bounded tool/token event window. */
   get conversationEvents(): readonly EventEnvelope[] {
     return mergeHistoryEvents([...this.conversationArchive.values()],this.publicEvents)
+  }
+  get conversationHistoryReady(): boolean {
+    return !this.client.supportsHistory||this.conversationHistoryComplete
   }
 
   private retainConversation(events:readonly EventEnvelope[]):void {
     for(const event of events)if(event.visibility==='public'&&[
       'command_accepted','attempt_started','attempt_completed','attempt_failed',
       'attempt_cancelled','attempt_interrupted','native_artifact_published',
+      'turn_route_selected','turn_plan_created',
     ].includes(event.eventType))this.conversationArchive.set(event.eventSeq,event)
   }
 
@@ -358,7 +367,7 @@ export class ThreadProjectionStore {
       if(signal?.aborted||generation!==this.loadGeneration)return
       this.retainConversation(page.events)
       this.notify()
-      if(!page.hasMore){this.conversationHistoryComplete=true;return}
+      if(!page.hasMore){this.conversationHistoryComplete=true;this.notify();return}
       if(page.nextBeforeEventSeq>=cursor)throw new Error('历史消息游标未前进')
       cursor=page.nextBeforeEventSeq
     }
@@ -387,6 +396,7 @@ export class ThreadProjectionStore {
   }
 
   private trimHistory(keepLatest: boolean): void {
+    this.responseIntents.observe(this.eventLog)
     this.retainConversation(this.eventLog)
     let bytes = 0
     for (const event of this.eventLog) {
@@ -456,7 +466,7 @@ export class ThreadProjectionStore {
   async load(threadId: string): Promise<void> {
     const generation = ++this.loadGeneration
     const sameThread = this.loadedThreadId === threadId
-    if(!sameThread){this.conversationArchive.clear();this.conversationHistoryComplete=false}
+    if(!sameThread){this.conversationArchive.clear();this.conversationHistoryComplete=false;this.responseIntents.clear()}
     const previousView = this.loadedThreadId === threadId ? this.current.viewedGridPageId : null
     this.current = {
       ...this.current,

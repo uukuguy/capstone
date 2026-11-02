@@ -1,3 +1,4 @@
+import {sha256Hex} from './browserDigest'
 import {exceedsCapacity,assertCapacity} from './applicationCapacity'
 import {parseResultProjection,type ResultProjection} from './threadProtocol'
 
@@ -84,7 +85,7 @@ export async function parseProductResolution(value:unknown,ref:ProductRef):Promi
     assertCapacity(estimatedBytes,'product_bytes','product.resolve.bytes')
     const binary=atob(body.content_base64)
     bytes=Uint8Array.from(binary,char=>char.charCodeAt(0))
-    const digest=[...new Uint8Array(await crypto.subtle.digest('SHA-256',new Uint8Array(bytes).buffer))].map(byte=>byte.toString(16).padStart(2,'0')).join('')
+    const digest=await sha256Hex(bytes)
     if(bytes.byteLength!==entry.byte_size||digest!==ref.digest)throw new Error('成果文件校验失败')
   }
   const record=ref.origin==='process_record'?object(body.record):null

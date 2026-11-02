@@ -14,14 +14,20 @@ export function parseGatewayConnections(value:unknown):GatewayConnections{
   const entries:GatewayConnectionEntry[]=item.entries.map(value=>{
     const row=record(value)
     if(!['unknown','checking','connected','disconnected'].includes(String(row.status)))throw new Error('网关状态无效')
+    const contract=row.contract===undefined?undefined:record(row.contract)
+    if(contract&&typeof contract.available!=='boolean')throw new Error('网关契约状态无效')
     return {id:text(row.id),label:text(row.label),url:address(row.url),status:row.status as GatewayConnectionEntry['status'],
+      ...(contract?{contract:{available:contract.available as boolean,revision:text(contract.revision),checked_at:text(contract.checked_at),
+        ...(contract.reason===undefined?{}:{reason:text(contract.reason)})}}:{}),
       ...(row.checked_at===undefined?{}:{checked_at:text(row.checked_at)}),...(row.error===undefined?{}:{error:text(row.error)}),
       ...(row.identity===undefined?{}:{identity:parseGatewayConnectionStatus(row.identity)})}
   })
   if(new Set(entries.map(entry=>entry.id)).size!==entries.length)throw new Error('网关实例重复')
   const selected=item.selected_id===undefined?undefined:text(item.selected_id)
   if(selected&&!entries.some(entry=>entry.id===selected))throw new Error('所选网关不存在')
-  return {schema:'capstone-gateway-connections/1',revision:Number(item.revision),entries,checking:item.checking,...(selected?{selected_id:selected}:{})}
+  if(item.locked!==undefined&&typeof item.locked!=='boolean')throw new Error('会话网关锁定状态无效')
+  return {schema:'capstone-gateway-connections/1',revision:Number(item.revision),entries,checking:item.checking,...(selected?{selected_id:selected}:{}),
+    ...(item.locked===undefined?{}:{locked:item.locked}),...(item.bound_instance===undefined?{}:{bound_instance:parseGatewayConnectionStatus(item.bound_instance)})}
 }
 export function parseGatewayProbe(value:unknown):GatewayProbe{
   const item=record(value)

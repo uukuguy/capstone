@@ -375,6 +375,20 @@ def test_direct_saved_selection_survives_real_ledger_retry(backend):
         assert executor.requests[0].to_document() == executor.requests[1].to_document()
 
 
+def test_frozen_gateway_publication_is_not_compared_with_workspace_default():
+    from capstone_agent.intent_runtime import IntentRuntimeFactory
+    from capstone_agent.harness import HarnessRuntimeConfigurationError
+    current = {'identity': {'engine':'same'}, 'timeout_seconds':60,
+               'capability':{'operations':['answer'],'data_gateway':{'identity':{'instance_id':'default-a'}},'resource_profiles':{}}}
+    accepted = {**current,'capability':{**current['capability'],'data_gateway':{'identity':{'instance_id':'bound-b'}}}}
+    IntentRuntimeFactory._check_general_configuration(current, {'general_executor':accepted})
+    import pytest
+    with pytest.raises(HarnessRuntimeConfigurationError):
+        IntentRuntimeFactory._check_general_configuration({**current,'identity':{'engine':'changed'}},{'general_executor':accepted})
+    with pytest.raises(HarnessRuntimeConfigurationError):
+        IntentRuntimeFactory._check_general_configuration({**current,'capability':{**current['capability'],'operations':[]}},{'general_executor':accepted})
+
+
 def test_direct_legacy_frozen_input_keeps_exact_v1_recovery():
     from test_delegated_runtime import ContextSelector, Executor, factory
     service, current = claim()

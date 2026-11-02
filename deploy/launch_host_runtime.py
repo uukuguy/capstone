@@ -68,7 +68,7 @@ def select_runtime(root: Path, environment: dict[str, str], command: str):
         # Use the same registry as submission admission and the isolated relay.
         # Professional family providers retain their separate configuration.
         import importlib.util
-        module_spec = importlib.util.spec_from_file_location("workbench_llm_profiles",
+        module_spec = importlib.util.spec_from_file_location("capstone_agent.workbench_llm_profiles",
             root / "packages/capstone-agent/src/capstone_agent/workbench_llm_profiles.py")
         module = importlib.util.module_from_spec(module_spec)
         module_spec.loader.exec_module(module)
@@ -123,7 +123,9 @@ def wait_for_workers(contract, environment, *, probe=None, clock=time.monotonic,
             raise RuntimeContractError("CAPSTONE_FAMILY_HEALTH_URLS")
         endpoints[family] = origin.rstrip("/") + "/health"
     settings = contract["startup"]
-    if set(endpoints) != set(settings["required_families"]) | set(settings.get("optional_families", ())):
+    required = set(settings["required_families"])
+    allowed = required | set(settings.get("optional_families", ()))
+    if not required <= set(endpoints) <= allowed:
         raise RuntimeContractError("CAPSTONE_FAMILY_HEALTH_URLS")
 
     def http_probe(url):

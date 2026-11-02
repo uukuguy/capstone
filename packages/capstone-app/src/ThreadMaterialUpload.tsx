@@ -1,3 +1,4 @@
+import {randomUuid} from './commandKey'
 import {applicationCapacity,assertCapacity} from './applicationCapacity'
 import {useEffect,useRef,useState} from 'react'
 import {Paperclip, FileText, X} from 'lucide-react'
@@ -35,7 +36,7 @@ export default function ThreadMaterialUpload({threadId,upload,onUploaded,disable
         for(const file of files){
         if(resourceUpload){
           if(pendingResume&&(pendingResume.name!==file.name||pendingResume.size!==file.size||pendingResume.modified!==file.lastModified))throw new Error(`请重新选择 ${pendingResume.name} 以继续上传。`)
-          let receipt=pendingResume||{requestId:crypto.randomUUID(),name:file.name,size:file.size,modified:file.lastModified}
+          let receipt=pendingResume||{requestId:randomUuid(),name:file.name,size:file.size,modified:file.lastModified}
           setResume(receipt);saveUploadResume(threadId,receipt)
           await resourceUpload(file,{signal:controller.signal,requestId:receipt.requestId,uploadId:receipt.uploadId,draft:true,
             onSession:id=>{receipt={...receipt,uploadId:id};setResume(receipt);saveUploadResume(threadId,receipt)},

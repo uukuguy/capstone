@@ -1088,12 +1088,27 @@ def _work_send_input(snapshot, parsed, provider, capability_catalog):
     return _with_message_selection(snapshot, message, selection), submission, rejection
 
 
-class NativeExecutionOwner:
+from .thread_gateway import ThreadGatewayOwner, historical_binding
+
+
+class NativeExecutionOwner(ThreadGatewayOwner):
     _native_binding = None
     _material_objects = None
 
     def set_material_store(self, objects) -> None:
         self._material_objects = objects
+
+    def refresh_native_gateway_publication(self) -> None:
+        """Update the admission template, never an accepted attempt's binding."""
+        from collections.abc import Mapping
+        from .delegated_runtime import json_document
+        if self._native_binding is None:
+            return
+        capability = getattr(self._native_executor, 'capability', {})
+        if isinstance(capability, Mapping) and 'data_gateway' in capability:
+            binding = json.loads(json.dumps(self._native_binding))
+            binding['capability']['data_gateway'] = json_document(capability['data_gateway'])
+            self._native_binding = binding
 
     def native_resource_profiles(self) -> dict:
         return {} if self._native_binding is None else json.loads(json.dumps(
@@ -1149,6 +1164,7 @@ class InMemoryThreadService(NativeExecutionOwner):
         self._commands: dict[str, _StoredCommand] = {}
         self._command_ids: set[str] = set()
         self._attempts: dict[str, dict[str, Any]] = {}
+        self._gateway_binding = None
         self._cancel_requests: set[str] = set()
         self._lock = RLock()
         self._created_at = datetime.now(timezone.utc).isoformat()
@@ -1368,6 +1384,23 @@ class InMemoryThreadService(NativeExecutionOwner):
         self._command_ids.add(parsed['command_id'])
         return receipt
 
+    def read_thread_gateway(self, thread_id):
+        from copy import deepcopy
+        with self._lock:
+            self._check_thread(thread_id)
+            if self._gateway_binding is None and self._attempts:
+                self._gateway_binding = historical_binding(next(iter(self._attempts.values())).get('submission'))
+            return deepcopy(self._gateway_binding)
+
+    def select_thread_gateway(self, thread_id, binding):
+        from copy import deepcopy
+        with self._lock:
+            current = self.read_thread_gateway(thread_id)
+            if current and current['locked']:
+                raise ThreadProtocolError('gateway_session_locked')
+            self._gateway_binding = {**deepcopy(binding), 'locked': False}
+            return deepcopy(self._gateway_binding)
+
     def _submit_work_command(self, parsed, request_hash):
         from .native_conversation import binding_for_session
         from .thread_work import apply_work, create_attempt, project_work, execution_model
@@ -1381,6 +1414,9 @@ class InMemoryThreadService(NativeExecutionOwner):
                 submission, input_rejection = freeze_product_selection(self, prepared, parsed['payload'], submission)
         updated, rejection, work = apply_work(prepared, parsed, archived=self._archived)
         rejection = input_rejection or rejection
+        native_binding, gateway_state = self._native_binding, None
+        if rejection is None and parsed['kind'] in {'send_message', 'start_work', 'work_message'}:
+            native_binding, gateway_state, rejection = self.gateway_admission(self.read_thread_gateway(parsed['thread_id']))
         event_seq = None
         target = None
         attempt = task_context = None
@@ -1417,6 +1453,8 @@ class InMemoryThreadService(NativeExecutionOwner):
                 self._model_workspace = staged._model_workspace
         if rejection is None:
             assert work is not None
+            if gateway_state is not None:
+                self._gateway_binding = gateway_state
             self._snapshot = updated
             event = self._append_control_event(event_type='command.applied', event_version=2, payload={
                 'command_id': parsed['command_id'], 'work_id': work['work_id'], 'work': project_work(updated, work)})
@@ -1436,7 +1474,7 @@ class InMemoryThreadService(NativeExecutionOwner):
                     'attempt': attempt, 'kind': 'send_auto', 'instruction': instruction,
                     'lease_token': None, 'lease_deadline': None, 'model_context': updated.active_model_context,
                     'command_id': parsed['command_id'], 'conversation_context': conversation,
-                    'submission': ({**(submission or {}), '_native_execution': binding_for_session(self._native_binding, updated.session_type)}
+                    'submission': ({**(submission or {}), '_native_execution': binding_for_session(native_binding, updated.session_type)}
                         if updated.active_model_context is None else freeze_activated_submission(submission, updated.professional_context)),
                     'source_attempt_id': previous_id, 'task_context': task_context}
                 accepted = self._append_event(event_type='command_accepted', attempt=attempt, payload={
@@ -2652,6 +2690,7 @@ ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS model_workspace_migrated b
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS minimum_protocol_version integer NOT NULL DEFAULT 1;
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS works jsonb NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS workspace_name text NOT NULL DEFAULT 'enterprise';
+ALTER TABLE capstone_threads ADD COLUMN IF NOT EXISTS gateway_binding jsonb;
 ALTER TABLE capstone_threads ALTER COLUMN model_context_id DROP NOT NULL;
 ALTER TABLE capstone_threads ALTER COLUMN model_id DROP NOT NULL;
 ALTER TABLE capstone_threads ALTER COLUMN model_revision DROP NOT NULL;
@@ -2766,6 +2805,9 @@ class PostgresThreadService(NativeExecutionOwner):
                 submission, input_rejection = freeze_product_selection(self, prepared, parsed['payload'], submission, connection=connection)
         updated, rejection, work = apply_work(prepared, parsed, archived=thread['archived'])
         rejection = input_rejection or rejection
+        native_binding, gateway_state = self._native_binding, None
+        if rejection is None and parsed['kind'] in {'send_message', 'start_work', 'work_message'}:
+            native_binding, gateway_state, rejection = self.gateway_admission(self._thread_gateway_row(connection, thread))
         event_seq = None
         target = None
         attempt = task_context = None
@@ -2798,6 +2840,9 @@ class PostgresThreadService(NativeExecutionOwner):
                 updated, attempt, task_context, instruction = create_attempt(updated, work, turn_id=turn_id)
         if rejection is None:
             assert work is not None
+            if gateway_state is not None:
+                connection.execute('UPDATE capstone_threads SET gateway_binding=%s WHERE thread_id=%s',
+                                   (Jsonb(gateway_state), snapshot.thread_id))
             event_seq = updated.last_event_seq + 1
             event = EventEnvelope('evt_' + secrets.token_hex(8), event_seq, 'command.applied', 2,
                 snapshot.thread_id, snapshot.run.run_id, None, None,
@@ -2821,7 +2866,7 @@ class PostgresThreadService(NativeExecutionOwner):
                 from .native_conversation import binding_for_session
                 if updated.active_model_context is None:
                     assert self._native_binding is not None
-                submission = ({**(submission or {}), '_native_execution': binding_for_session(self._native_binding, snapshot.session_type)}
+                submission = ({**(submission or {}), '_native_execution': binding_for_session(native_binding, snapshot.session_type)}
                               if context is None else freeze_activated_submission(submission, context))
                 connection.execute("""INSERT INTO capstone_thread_attempts
                     (attempt_id,thread_id,run_id,turn_id,command_id,kind,instruction,model_context_id,
@@ -2857,6 +2902,34 @@ class PostgresThreadService(NativeExecutionOwner):
         return receipt
 
     """Durable Thread projection store kept separate from the legacy session ledger."""
+
+    @staticmethod
+    def _thread_gateway_row(connection, row):
+        if row.get('gateway_binding') is not None:
+            return row['gateway_binding']
+        first = connection.execute('SELECT submission_snapshot FROM capstone_thread_attempts WHERE thread_id=%s ORDER BY created_at,attempt_id LIMIT 1',
+                                   (row['thread_id'],)).fetchone()
+        return historical_binding(first['submission_snapshot']) if first else None
+
+    def read_thread_gateway(self, thread_id):
+        with self._connect() as connection:
+            row = connection.execute('SELECT * FROM capstone_threads WHERE thread_id=%s', (thread_id,)).fetchone()
+            if row is None:
+                raise ThreadNotFound(thread_id)
+            return self._thread_gateway_row(connection, row)
+
+    def select_thread_gateway(self, thread_id, binding):
+        from psycopg.types.json import Jsonb
+        with self._connect() as connection:
+            row = connection.execute('SELECT * FROM capstone_threads WHERE thread_id=%s FOR UPDATE', (thread_id,)).fetchone()
+            if row is None:
+                raise ThreadNotFound(thread_id)
+            current = self._thread_gateway_row(connection, row)
+            if current and current['locked']:
+                raise ThreadProtocolError('gateway_session_locked')
+            value = {**binding, 'locked': False}
+            connection.execute('UPDATE capstone_threads SET gateway_binding=%s WHERE thread_id=%s', (Jsonb(value), thread_id))
+            return value
 
     def set_input_catalog_provider(self, provider) -> None:
         self._input_catalog_provider = provider

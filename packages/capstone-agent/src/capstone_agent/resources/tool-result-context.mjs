@@ -1,13 +1,48 @@
 import {createHash} from 'node:crypto';
-import {mkdir,lstat,readFile,realpath,writeFile} from 'node:fs/promises';
-import {join} from 'node:path';
+import {mkdir,lstat,open,readFile,realpath,writeFile} from 'node:fs/promises';
+import {constants} from 'node:fs';
+import {join,dirname} from 'node:path';
+import {readObservation,observationPointer} from './observed-action.mjs';
 
 // Symbols survive native result wrappers, but never enter JSON, model messages
 // or public metadata. Only the host event projection reads this original.
 const originalResult=Symbol('capstoneOriginalToolResult');
+const savedResult=Symbol('capstoneSavedToolObservation');
+export const savedToolObservation=result=>structuredClone(result?.[savedResult]);
 const issuedObservationRefs=new Set();
-const referenceKey=ref=>JSON.stringify([ref.path,ref.sha256,ref.size_bytes,ref.tool,ref.call_id]);
+const referenceKey=ref=>JSON.stringify([ref.path,ref.sha256,ref.size_bytes,ref.tool,ref.call_id,ref.base_pointer]);
 const digest=value=>createHash('sha256').update(value).digest('hex');
+export async function readSavedObservation(ref,pointer,{cwd}){
+  if(!ref||typeof ref!=='object'||!issuedObservationRefs.has(referenceKey(ref)))
+    throw Error('Unknown saved observation reference');
+  const root=await realpath(cwd),directory=join(root,'.observations');
+  if(dirname(ref.path)!==directory||await realpath(directory)!==directory)
+    throw Error('Observation does not belong to this workspace');
+  const handle=await open(ref.path,constants.O_RDONLY|constants.O_NOFOLLOW|constants.O_NONBLOCK);
+  try{
+    const info=await handle.stat();
+    if(!info.isFile()||info.size!==ref.size_bytes)throw Error('Saved observation identity changed');
+    const body=Buffer.alloc(ref.size_bytes);let position=0;
+    while(position<body.length){
+      const {bytesRead}=await handle.read(body,position,body.length-position,position);
+      if(!bytesRead)break;
+      position+=bytesRead;
+    }
+    const extra=await handle.read(Buffer.alloc(1),0,1,position);
+    if(position!==ref.size_bytes||extra.bytesRead||digest(body)!==ref.sha256)throw Error('Saved observation identity changed');
+    const value=ref.path.endsWith('.json')?JSON.parse(body.toString('utf8')):body.toString('utf8');
+    const prefix=ref.base_pointer??'';
+    return readObservation(new Map([['saved',{value:observationPointer(value,prefix),envelope_pointer:prefix}]]),'saved',pointer);
+  }finally{await handle.close();}
+}
+export async function resolveTaskObservation(records,ref,{cwd,useLedger}){
+  if(records.has(ref))return records.get(ref);
+  const saved=useLedger?.resolve(ref);
+  if(!saved)return;
+  return {ref,ok:saved.ok,observedAt:saved.observedAt,receipt:saved.receipt,
+    envelope_pointer:saved.base_pointer??'',
+    value:await readSavedObservation(saved.reference,saved.base_pointer??'',{cwd})};
+}
 function preview(value,depth,items,chars){
   if(typeof value==='string')return value.length<=chars?value:value.slice(0,chars)+'… [read full result]';
   if(value===null||typeof value!=='object')return value;
@@ -23,7 +58,7 @@ function preview(value,depth,items,chars){
 }
 
 // Structural facts only: no inferred units, semantics or source quality verdicts.
-function structureIndex(value){
+export function structureIndex(value){
   const keys=object=>Object.keys(object).filter(key=>key.length<=64).slice(0,8);
   const summary={type:Array.isArray(value)?'array':value===null?'null':typeof value,
     ...(value&&typeof value==='object'&&!Array.isArray(value)?{keys:keys(value)}:{}),containers:[],partial:false};
@@ -51,9 +86,10 @@ function structureIndex(value){
   return summary;
 }
 
-export async function boundToolResult(result,{cwd=process.cwd(),toolName,callId,maxChars=6000}={}){
+export async function boundToolResult(result,{cwd=process.cwd(),toolName,callId,storageCallId=callId,maxChars=6000,retain=false}={}){
   if(!Number.isSafeInteger(maxChars)||maxChars<1500)throw new Error('Invalid tool result context budget');
-  if(JSON.stringify(result.content??[]).length<=maxChars)return result;
+  const needsPreview=JSON.stringify(result.content??[]).length>maxChars;
+  if(!needsPreview&&!retain)return result;
   const body=(result.content??[]).filter(part=>part.type==='text').map(part=>part.text).join('\n');
   // Non-text observations have their own native image handling.
   if(!body||result.content.some(part=>part.type!=='text'))return result;
@@ -63,7 +99,7 @@ export async function boundToolResult(result,{cwd=process.cwd(),toolName,callId,
   try{await mkdir(directory,{mode:0o700});}catch(error){if(error.code!=='EEXIST')throw error;}
   const info=await lstat(directory);
   if(!info.isDirectory()||info.isSymbolicLink())throw new Error('Tool observation directory is invalid');
-  const path=join(directory,digest(String(toolName)+'\0'+String(callId)+'\0'+body)+'.'+extension);
+  const path=join(directory,digest(String(toolName)+'\0'+String(storageCallId)+'\0'+body)+'.'+extension);
   try{await writeFile(path,body,{flag:'wx',mode:0o600});}
   catch(error){
     if(error.code!=='EEXIST')throw error;
@@ -74,13 +110,15 @@ export async function boundToolResult(result,{cwd=process.cwd(),toolName,callId,
   const structured=value?.structuredContent;
   const source=structured&&typeof structured==='object'&&Object.keys(structured).length?structured:value;
   const basePointer=extension==='json'?(source===value?'':'/structuredContent'):null;
-  const fullResult={path,sha256:digest(body),size_bytes:Buffer.byteLength(body),tool:toolName,call_id:callId};
+  const fullResult={path,sha256:digest(body),size_bytes:Buffer.byteLength(body),tool:toolName,call_id:callId,base_pointer:basePointer};
   issuedObservationRefs.add(referenceKey(fullResult));
+  const saved={reference:fullResult,base_pointer:basePointer};
+  if(!needsPreview)return {...result,[savedResult]:saved};
   const envelope={preview_truncated:true,
     full_result:fullResult,
     preview_pointer:basePointer,
     structure:{...structureIndex(source),base_pointer:basePointer},
-    instruction:'Saved file retains original wrapper and bytes. preview_pointer selects its value; structure pointers are relative to structure.base_pointer (empty=JSON root, null=plain text). Use actual pointers, not guessed fields. Reuse this file for omitted rows. Source observation, not Authority evidence.'};
+    instruction:'Use tools.inspect(full_result) and tools.read(full_result,pointer): structured data is at root. Legacy structure.base_pointer paths still work. Arrays accept {offset,limit}. Original file bytes keep the transport envelope; prefer these helpers over shell paths. Reuse this observation; not Authority evidence.'};
   let content;
   for(const [depth,items,chars] of [[6,12,400],[5,6,240],[4,3,160],[2,2,80],[0,8,80]]){
     content=[{type:'text',text:JSON.stringify({...envelope,preview:preview(source,depth,items,chars)})}];
@@ -91,7 +129,7 @@ export async function boundToolResult(result,{cwd=process.cwd(),toolName,callId,
     content=[{type:'text',text:JSON.stringify(small)}];
   }
   if(JSON.stringify(content).length>maxChars)throw new Error('Tool result reference exceeds context budget');
-  return {...result,content,[originalResult]:result};
+  return {...result,content,[originalResult]:result,[savedResult]:saved};
 }
 
 export function restoreToolResult(result){

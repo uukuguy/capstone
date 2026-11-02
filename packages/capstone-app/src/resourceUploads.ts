@@ -1,3 +1,4 @@
+import {sha256Hex} from './browserDigest'
 import {assertCapacity,exceedsCapacity} from './applicationCapacity'
 /** Bounded browser transfer. A stored resource is not yet processed task context. */
 export type ResourceUpload = {schema:'capstone-resource-upload/1';upload_id:string;file_name:string;size_bytes:number;chunk_bytes:number;state:string;received_parts:number[];part_sha256:Record<string,string>}
@@ -36,7 +37,7 @@ export async function transferResource(request:Request,path:string,file:File,opt
     signal?.throwIfAborted()
     const part=file.slice(offset,Math.min(file.size,offset+upload.chunk_bytes))
     const bytes=await part.arrayBuffer()
-    const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),x=>x.toString(16).padStart(2,'0')).join('')
+    const hash=await sha256Hex(bytes)
     signal?.throwIfAborted()
     if(upload.received_parts.includes(index)){
       if(upload.part_sha256[String(index)]!==hash)throw new Error('所选文件与已上传分片不一致，请选择原文件或重新开始')

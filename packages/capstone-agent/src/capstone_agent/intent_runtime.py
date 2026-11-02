@@ -397,8 +397,12 @@ class IntentRuntimeFactory:
                 raise HarnessRuntimeConfigurationError('general Pi configuration changed since original Attempt')
             # New catalog publication changes new acceptance. The host resolves
             # an old accepted revision against its retained private snapshot.
-            current_capability = {key: value for key, value in current['capability'].items() if key != 'resource_profiles'}
-            previous_capability = {key: value for key, value in previous['capability'].items() if key != 'resource_profiles'}
+            # Gateway publication belongs to the accepted conversation, not the
+            # workspace default. The protected host checks its frozen instance
+            # and catalog revision before admitting any call.
+            scoped = {'resource_profiles', 'data_gateway'}
+            current_capability = {key: value for key, value in current['capability'].items() if key not in scoped}
+            previous_capability = {key: value for key, value in previous['capability'].items() if key not in scoped}
             if current_capability != previous_capability:
                 raise HarnessRuntimeConfigurationError('general Pi configuration changed since original Attempt')
 

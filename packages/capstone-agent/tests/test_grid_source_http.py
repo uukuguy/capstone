@@ -8,6 +8,30 @@ import httpx
 from test_grid_source_topology import Gateway
 
 
+def test_session_source_read_uses_the_bound_instance_instead_of_the_default():
+    from capstone_agent.grid_source_http import register_grid_source_routes
+    calls = []
+    class Service:
+        def read_thread_gateway(self, thread):
+            assert thread == 'thr_bound'
+            return {'connection_id':'bound','instance_id':'bound-instance','locked':True}
+    class Executor:
+        def grid_source_scopes(self):
+            raise AssertionError('default source must not be used')
+        def thread_gateway_publication(self, saved):
+            assert saved['connection_id'] == 'bound'
+            return {'connection_id':'bound','identity':{'instance_id':'bound-instance'}}
+        def session_grid_source(self, binding, operation, document):
+            calls.append((binding,operation,document))
+            return {'scope':'bound-only'}
+    app = FastAPI()
+    register_grid_source_routes(app, executor_provider=Executor, authorize=lambda _:None, thread_service=Service())
+    with TestClient(app) as client:
+        response = client.get('/api/v1/threads/thr_bound/grid-sources/data-gateway/scopes')
+    assert response.status_code == 200 and response.json() == {'scope':'bound-only'}
+    assert calls == [({'connection_id':'bound','instance_id':'bound-instance'},'scopes',None)]
+
+
 def test_protected_host_executor_and_public_api_share_fixed_source_contract(tmp_path):
     from capstone_agent.general_pi_server import GeneralPiHost, make_server
     from capstone_agent.grid_source_http import register_grid_source_routes

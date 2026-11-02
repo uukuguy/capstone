@@ -151,6 +151,8 @@ def test_runtime_failure_delivers_a_persisted_reader_outcome_without_raw_errors(
     ('native_model_context_limit', '上下文容量不足'),
     ('native_model_output_rejected', '模型服务拒绝'),
     ('native_model_turn_incomplete', '模型回复未正常结束'),
+    ('native_model_read_timeout', '模型回复在传输中等待超时'),
+    ('native_model_connection_failed', '无法连接模型服务'),
 ])
 def test_native_failure_reason_reaches_saved_user_reply(code, reason):
     class FailedRuntime(HarnessPiClient):

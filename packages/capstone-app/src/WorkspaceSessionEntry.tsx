@@ -8,6 +8,7 @@ import ThreadWorkspace from './ThreadWorkspace'
 import {HttpThreadTransport,ThreadTransportError} from './threadHttpTransport'
 import {readThreadAccess} from './threadAccess'
 import {currentWorkspaceName,isWorkspaceActive} from './workspaceName'
+import {readLastWorkspaceThread,forgetWorkspaceThread} from './workspaceEntry'
 
 export default function WorkspaceSessionEntry({onCreated,compact=false}:{onCreated:(id:string)=>void;compact?:boolean}) {
   const [error,setError]=useState('')
@@ -25,19 +26,37 @@ export default function WorkspaceSessionEntry({onCreated,compact=false}:{onCreat
   useEffect(()=>{
     const controller=new AbortController()
     setReady(false);setError('')
-    void readThreadAccess(origin,controller.signal).then(access=>{
+    void readThreadAccess(origin,controller.signal).then(async access=>{
       if(access==='operator'&&!token){setNeedsToken(true);return}
       const auth=access==='open'?'':token
       const sessionTransport=new HttpThreadTransport(origin,auth,fetch,'/api/v1/threads','1',workspaceName)
       setTransport(sessionTransport)
-      if(!compact) {
+      if(!compact&&!new URLSearchParams(window.location.search).has('thread')) {
+        const saved=readLastWorkspaceThread(workspaceName),seen=new Set<string>()
+        let before:string|undefined,recent:string|undefined
+        while(!controller.signal.aborted) {
+          const page=await sessionTransport.listThreads(false,before,controller.signal)
+          if(controller.signal.aborted||!isWorkspaceActive(workspaceName)||new URLSearchParams(window.location.search).has('thread'))return
+          setSessions(previous=>mergeSessionPage(previous,page))
+          recent??=page.threads.find(item=>!item.archived)?.threadId
+          if(saved&&page.threads.some(item=>item.threadId===saved&&!item.archived)){navigateSession(saved);return}
+          if(!saved||!page.hasMore){
+            if(saved)forgetWorkspaceThread(saved,workspaceName)
+            if(recent){navigateSession(recent);return}
+            break
+          }
+          const next=page.nextBeforeThreadId
+          if(!next||seen.has(next))throw new Error('会话目录未完整读取，请重试。')
+          seen.add(next);before=next
+        }
+      } else if(!compact) {
         void sessionTransport.listThreads(false,undefined,controller.signal).then(page=>{
           if(!controller.signal.aborted)setSessions(previous=>mergeSessionPage(previous,page))
         }).catch(()=>{/* Existing history remains available if refresh fails. */})
       }
       if(controller.signal.aborted)return
       setTransport(sessionTransport);setCreationToken(auth);setReady(true)
-    }).catch(cause=>{if(!controller.signal.aborted)setError(cause instanceof Error?cause.message:'暂时无法连接，请重试。')})
+    }).catch(cause=>{if(!controller.signal.aborted)setError(cause instanceof Error&&cause.message?cause.message:'暂时无法连接，请重试。')})
     return()=>controller.abort()
   },[origin,token,retry,compact])
   async function create(selection:SessionCreation) {
@@ -58,7 +77,7 @@ export default function WorkspaceSessionEntry({onCreated,compact=false}:{onCreat
   }
   const content=needsToken&&!token?<form className="session-entry" onSubmit={event=>{event.preventDefault();const value=new FormData(event.currentTarget).get('token');if(typeof value==='string'&&value.trim()){sessionStorage.setItem('capstone.thread.operatorToken',value.trim());setToken(value.trim())}}}><label>Operator token<input name="token" type="password" autoComplete="off" required /></label><button type="submit">连接</button></form>
       :error?<div className="session-entry" role="alert"><p>{error}</p><button type="button" onClick={()=>setRetry(value=>value+1)}>重试连接</button></div>
-      :ready?<SessionEntry compact={compact} autoCreate={compact||new URLSearchParams(window.location.search).get('thread')==='new'} onCreate={create} />:<p role="status">正在连接会话服务…</p>
+      :ready?<SessionEntry compact={compact} onCreate={create} />:<p role="status">正在连接会话服务…</p>
   if(compact)return content
   return <ThreadWorkspace conversationOnly heading={<div className="thread-chat-heading"><h2>新建任务会话</h2></div>}
     sidebar={<nav className="thread-session-navigation" aria-label="任务会话"><button type="button" className="thread-session-new" onClick={()=>navigateSession('new')}>新建会话</button>

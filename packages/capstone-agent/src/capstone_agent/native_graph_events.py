@@ -21,7 +21,7 @@ def _public_text(value, private_roots):
 def public_graph_activity(activity, private_roots=()):
     public = {}
     for key, value in activity.items():
-        if key not in {'operation', 'output_excerpt', 'warning'} or not isinstance(value, str):
+        if key not in {'operation', 'input_excerpt', 'output_excerpt', 'warning'} or not isinstance(value, str):
             continue
         # Binary output remains in the original observation, never a JSONB preview.
         # Preserve normal whitespace and existing ANSI display semantics.
@@ -42,9 +42,9 @@ def project_graph_tool_activity(event, private_roots=()):
     from .progress import project_native_tool_activity
     arguments = event.get('args', {})
     result = event.get('result', {})
-    safe = {**event, 'args': {key: _public_text(value, private_roots)
-        for key, value in arguments.items() if key in {'command', 'path', 'file_path'} and isinstance(value, str)}
-        if isinstance(arguments, dict) else {}}
+    # The shared projection bounds and redacts all inputs. The final public
+    # projection below masks private roots in that bounded text as well.
+    safe = {**event, 'args': arguments if isinstance(arguments, dict) else {}}
     if isinstance(result, dict) and isinstance(result.get('content'), list):
         projected_result: dict = {'content': [{**block, 'text': _public_text(block['text'], private_roots)}
             for block in result['content'] if isinstance(block, dict) and block.get('type') == 'text'
@@ -53,7 +53,8 @@ def project_graph_tool_activity(event, private_roots=()):
         if isinstance(details, dict) and isinstance(details.get('execution_notice'), dict):
             projected_result['details'] = {'execution_notice': details['execution_notice']}
         safe['result'] = projected_result
-    return public_graph_activity(project_native_tool_activity(safe), private_roots)
+    return public_graph_activity(project_native_tool_activity(safe,
+        text_filter=lambda value: _public_text(value, private_roots)), private_roots)
 
 
 class NativeGraphEvents:

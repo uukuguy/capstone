@@ -346,11 +346,11 @@ def create_host_app(
                                        authorize=require_private_thread)
         from .gateway_connections_http import register_gateway_connection_routes
         register_gateway_connection_routes(app, executor_provider=lambda: native_artifact_executor,
-                                           authorize=require_private_thread)
+                                           authorize=require_private_thread, thread_service=thread_service)
 
         from .grid_source_http import register_grid_source_routes
         register_grid_source_routes(app, executor_provider=lambda: native_artifact_executor,
-                                    authorize=require_private_thread)
+                                    authorize=require_private_thread, thread_service=thread_service)
 
         from .native_artifact_projection import register_native_artifact_routes
         register_native_artifact_routes(app, service=thread_service,
@@ -475,6 +475,16 @@ def create_host_app(
                     ):
                         raise ThreadProtocolError("thread creation model_id is invalid")
                     started = time.perf_counter()
+                    refresh_contract = getattr(native_artifact_executor, 'refresh_gateway_contract', None)
+                    if callable(refresh_contract):
+                        try:
+                            await run_in_threadpool(refresh_contract)
+                            response.headers['Capstone-Gateway-Contract'] = 'current'
+                        except Exception:
+                            # A missing service must not block an unrelated
+                            # conversation. The executor marks future grants
+                            # unavailable instead of offering a stale catalog.
+                            response.headers['Capstone-Gateway-Contract'] = 'unavailable'
                     model_free = request.headers.get('Capstone-Thread-Version', '1') == '2' and model_id is None
                     workspace = ({} if request.state.workspace_name == DEFAULT_WORKSPACE
                                  else {'workspace_name': request.state.workspace_name})
@@ -531,6 +541,13 @@ def create_host_app(
             try:
                 from .thread_input_catalog import with_case_availability, public_input_catalog
                 publication = getattr(native_artifact_executor, 'capability', {}).get('data_gateway')
+                reader = getattr(native_artifact_executor, 'thread_gateway_publication', None)
+                if callable(reader):
+                    saved = thread_service.read_thread_gateway(thread_id)
+                    try:
+                        publication = reader(saved)
+                    except Exception:
+                        publication = {'available': False, 'identity': (saved or {}).get('identity', {})}
                 document = public_input_catalog(thread_service.input_catalog(thread_id), gateway_publication=publication)
                 return with_case_availability(document, case_service.input_availability(thread_id)) if case_service is not None else document
             except ThreadNotFound:
@@ -675,7 +692,27 @@ def create_host_app(
                     }
                     else thread_service
                 )
-                receipt = service.submit_command(command)
+                scoped_gateway = None
+                if isinstance(kind, str) and kind in {'start_work', 'send_message', 'work_message', 'send_auto', 'send_ordinary', 'send_professional'}:
+                    scoped_reader = getattr(native_artifact_executor, 'thread_gateway_publication', None)
+                    if callable(scoped_reader) and hasattr(service, 'read_thread_gateway'):
+                        saved = await run_in_threadpool(service.read_thread_gateway, thread_id)
+                        try:
+                            scoped_gateway = await run_in_threadpool(scoped_reader, saved, refresh=True)
+                        except Exception:
+                            raise HTTPException(409, {'code': 'gateway_bound_instance_unavailable',
+                                'message': '本会话绑定的网关实例暂不可用，未切换到其他实例。'}) from None
+                    refresh_contract = getattr(native_artifact_executor, 'refresh_gateway_contract', None)
+                    if scoped_gateway is None and callable(refresh_contract):
+                        try:
+                            await run_in_threadpool(refresh_contract)
+                        except Exception:
+                            pass  # The gateway publication records failure; unrelated work can proceed.
+                        refresh_binding = getattr(service, 'refresh_native_gateway_publication', None)
+                        if callable(refresh_binding):
+                            await run_in_threadpool(refresh_binding)
+                receipt = (await run_in_threadpool(service.submit_gateway_command, command, scoped_gateway)
+                           if scoped_gateway is not None else service.submit_command(command))
                 if receipt.rejection == 'protocol_upgrade_required':
                     return JSONResponse({'error': 'protocol_upgrade_required', 'minimum_protocol_version': 2}, status_code=409)
                 if receipt.status == 'accepted':

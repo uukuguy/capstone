@@ -2,7 +2,7 @@ import {useEffect,useSyncExternalStore} from 'react'
 import type {GatewayConnections,GatewayConnectionInput,GatewayProbe} from './gatewayConnectionTypes'
 
 type Transport={workspaceConnectionsScope?:object;gatewayConnections?:()=>Promise<GatewayConnections>;
-  refreshGatewayConnections?:()=>Promise<GatewayConnections>;selectGatewayConnection?:(id:string)=>Promise<GatewayConnections>;
+  refreshGatewayConnections?:()=>Promise<GatewayConnections>;refreshGatewayContract?:()=>Promise<GatewayConnections>;selectGatewayConnection?:(id:string)=>Promise<GatewayConnections>;
   probeGatewayConnection?:(input:GatewayConnectionInput)=>Promise<GatewayProbe>;addGatewayConnection?:(input:GatewayConnectionInput)=>Promise<GatewayConnections>}
 type State={data?:GatewayConnections;loading:boolean;loaded:boolean;error?:string}
 const stores=new WeakMap<object,ReturnType<typeof createStore>>()
@@ -48,6 +48,7 @@ function createStore(transport:Transport){
       return()=>{listeners.delete(listener);if(!listeners.size&&timer){clearInterval(timer);timer=undefined}}
     },
     refresh:()=>update(transport.refreshGatewayConnections?.bind(transport)),
+    refreshContract:()=>update(transport.refreshGatewayContract?.bind(transport),true),
     select:(id:string)=>update(transport.selectGatewayConnection?()=>transport.selectGatewayConnection!(id):undefined,true),
     add:(input:GatewayConnectionInput)=>update(transport.addGatewayConnection?()=>transport.addGatewayConnection!(input):undefined),
     probe:(input:GatewayConnectionInput)=>{
@@ -67,5 +68,5 @@ export function useGatewayConnections(transport:Transport){
     window.addEventListener('focus',refresh);window.addEventListener('online',refresh)
     return()=>{window.removeEventListener('focus',refresh);window.removeEventListener('online',refresh)}
   },[current])
-  return {...state,refresh:current.refresh,select:current.select,add:current.add,probe:current.probe}
+  return {...state,refresh:current.refresh,refreshContract:current.refreshContract,select:current.select,add:current.add,probe:current.probe}
 }

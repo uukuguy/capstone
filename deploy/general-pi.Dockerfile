@@ -55,13 +55,17 @@ RUN python tools/native_analysis_smoke.py
 
 # Volatile executor and research source.
 COPY packages/capstone-agent/src/capstone_agent/application_capacity.py capstone_agent/application_capacity.py
+COPY packages/capstone-agent/src/capstone_agent/model_context_policy.py capstone_agent/model_context_policy.py
 COPY configs/runtime/application-capacity.json capstone_agent/resources/application-capacity.json
 COPY packages/capstone-agent/src/capstone_agent/pi_delegation.py capstone_agent/pi_delegation.py
 COPY packages/capstone-agent/src/capstone_agent/business_context.py capstone_agent/business_context.py
 COPY packages/capstone-agent/src/capstone_agent/general_pi_executor.py capstone_agent/general_pi_executor.py
+COPY packages/capstone-agent/src/capstone_agent/answer_presentation.py capstone_agent/answer_presentation.py
 COPY packages/capstone-agent/src/capstone_agent/native_network_policy.py capstone_agent/native_network_policy.py
 COPY packages/capstone-agent/src/capstone_agent/native_environment.py capstone_agent/native_environment.py
 COPY packages/capstone-agent/src/capstone_agent/general_pi_server.py capstone_agent/general_pi_server.py
+COPY packages/capstone-agent/src/capstone_agent/resource_permissions.py capstone_agent/resource_permissions.py
+COPY configs/runtime/resource-permissions.json configs/runtime/resource-permissions.json
 COPY packages/capability-agent-kernel/src/capability_agent/runtime/step_events.py capstone_runtime_events.py
 COPY packages/capstone-agent/src/capstone_agent/general_pi_storage.py capstone_agent/general_pi_storage.py
 COPY packages/capstone-agent/src/capstone_agent/general_pi_relay.py capstone_agent/general_pi_relay.py
@@ -76,7 +80,7 @@ COPY packages/capstone-agent/src/capstone_agent/grid_source_topology.py capstone
 COPY packages/capstone-agent/src/capstone_agent/grid_electrical_view.py capstone_agent/grid_electrical_view.py
 COPY packages/capstone-agent/src/capstone_agent/resources/gateway-electrical-view-v1.schema.json capstone_agent/resources/gateway-electrical-view-v1.schema.json
 COPY packages/capstone-agent/src/capstone_agent/resources/gateway-electrical-view-v2.schema.json capstone_agent/resources/gateway-electrical-view-v2.schema.json
-COPY packages/capstone-agent/src/capstone_agent/resources/general-data-gateway.mjs capstone_agent/resources/general-data-gateway.mjs
+COPY packages/capstone-agent/src/capstone_agent/resources/general-data-gateway.mjs packages/capstone-agent/src/capstone_agent/resources/resource-reference-tools.mjs capstone_agent/resources/
 COPY packages/capstone-agent/src/capstone_agent/resources/tool-result-context.mjs capstone_agent/resources/tool-result-context.mjs
 COPY packages/capstone-agent/src/capstone_agent/incremental_artifacts.py \
      packages/capstone-agent/src/capstone_agent/native_llm_pool.py \
@@ -99,11 +103,12 @@ COPY packages/capstone-agent/src/capstone_agent/resources/graph-work-policy-1.12
 COPY packages/capstone-agent/src/capstone_agent/resources/graph-work-policy-1.16.json capstone_agent/resources/graph-work-policy-1.16.json
 COPY packages/capstone-agent/src/capstone_agent/task_planning_policy.py capstone_agent/task_planning_policy.py
 COPY packages/capstone-agent/src/capstone_agent/resources/task-planning-policy-*.md capstone_agent/resources/
-COPY packages/capstone-agent/src/capstone_agent/progress.py capstone_agent/progress.py
-COPY packages/capstone-agent/src/capstone_agent/stream_progress.py capstone_agent/stream_progress.py
-COPY packages/capstone-agent/src/capstone_agent/resource_manifest.py capstone_agent/resource_manifest.py
-COPY packages/capstone-agent/src/capstone_agent/continuation_resources.py capstone_agent/continuation_resources.py
-COPY packages/capstone-agent/src/capstone_agent/native_resource_staging.py capstone_agent/native_resource_staging.py
+COPY packages/capstone-agent/src/capstone_agent/progress.py \
+     packages/capstone-agent/src/capstone_agent/native_tool_diagnostics.py \
+     packages/capstone-agent/src/capstone_agent/stream_progress.py \
+     packages/capstone-agent/src/capstone_agent/resource_manifest.py \
+     packages/capstone-agent/src/capstone_agent/continuation_resources.py capstone_agent/
+COPY packages/capstone-agent/src/capstone_agent/native_resource_staging.py packages/capstone-agent/src/capstone_agent/native_resource_references.py capstone_agent/
 COPY packages/capstone-agent/src/capstone_agent/native_document_types.py capstone_agent/native_document_types.py
 COPY packages/capstone-agent/src/capstone_agent/native_product_roles.py capstone_agent/native_product_roles.py
 COPY packages/capstone-agent/src/capstone_agent/native_research_bridge.py capstone_agent/native_research_bridge.py
@@ -120,11 +125,14 @@ COPY packages/capstone-agent/src/capstone_agent/resources/research-guidance.mjs 
 COPY packages/pi-capability-tools/src/task-record-tools.mjs capstone_agent/resources/task-record-tools.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/general-context.mjs capstone_agent/resources/general-context.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/general-sdk.mjs capstone_agent/resources/general-sdk.mjs
-COPY packages/capstone-agent/src/capstone_agent/resources/tool-composition.mjs capstone_agent/resources/tool-composition.mjs
-COPY packages/capstone-agent/src/capstone_agent/resources/tool-composition-worker.mjs capstone_agent/resources/tool-composition-worker.mjs
-COPY packages/capstone-agent/src/capstone_agent/resources/tool-composition-policy.json capstone_agent/resources/tool-composition-policy.json
-COPY packages/capstone-agent/src/capstone_agent/resources/semantic-data-context.mjs capstone_agent/resources/semantic-data-context.mjs
+COPY packages/capstone-agent/src/capstone_agent/resources/tool-composition.mjs \
+     packages/capstone-agent/src/capstone_agent/resources/tool-composition-worker.mjs \
+     packages/capstone-agent/src/capstone_agent/resources/tool-composition-policy.json \
+     packages/capstone-agent/src/capstone_agent/resources/semantic-data-context.mjs \
+     packages/capstone-agent/src/capstone_agent/resources/observation-data.mjs \
+     packages/capstone-agent/src/capstone_agent/resources/observed-action.mjs capstone_agent/resources/
 COPY packages/capstone-agent/src/capstone_agent/resources/general-tool-discovery.mjs capstone_agent/resources/general-tool-discovery.mjs
+COPY packages/capstone-agent/src/capstone_agent/resources/tool-identity.mjs capstone_agent/resources/tool-identity.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/gateway-tool-use.mjs capstone_agent/resources/gateway-tool-use.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/systematic-diagnosis.mjs capstone_agent/resources/systematic-diagnosis.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/enterprise-research-runtime.mjs capstone_agent/resources/enterprise-research-runtime.mjs

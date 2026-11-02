@@ -275,9 +275,12 @@ enterprise-research 可按应用授权使用 data-gateway 的远程工具。设�
 直接在宿主机运行时不设置该变量。研发服务器使用该环境的固定IP或固定服务名。
 地址由用户或运维登记，不由智能体自行选择。
 
-左栏“数据网关”浮窗列出已知实例。点击行只查看详情；点“使用此网关”才切换全局连接。
-切换前验证实际MCP目录，失败保留原连接。正在执行的原生任务使用原数据源，不能在途中
-替换。切换确认后，后续指令从执行服务取得新的发布目录，保留会话与阅读状态。
+左栏“数据网关”浮窗显示当前会话的实例，并列出已知连接供查看。
+只有空会话可以点“使用此网关”更换自己的实例；输入草稿不算提交。
+首次有效指令与实例锁定在同一事务中保存，之后前端禁用切换，后端也拒绝切换。
+切换会话时，左栏实例及切换权限跟随会话。更改默认连接不影响已有会话，切换失败保留原选择。
+实例不可用时明确报错，不自动接用其他实例；需要其他实例时新建会话。
+同一实例可以更新契约，已执行任务保留冻结目录与回执，模型视图和实际取数使用同一会话来源。
 刷新图标异步检查全部实例；连通检测和目录验证的期限分别由
 `gateway_connections.py`中的`HEALTH_TIMEOUT_SECONDS`与`ADMISSION_TIMEOUT_SECONDS`管理。
 连通状态仅说明MCP连接检查结果，不证明业务数据齐全；数据离线标志单独显示。
@@ -287,18 +290,20 @@ enterprise-research 可按应用授权使用 data-gateway 的远程工具。设�
 保存的认证；新地址缺少认证时需用户提供。同一已发现实例的地址别名不会重复登记。
 令牌只在提交时经过前端内存，不写浏览器存储或公开列表。
 
-登记与选择保存在general-pi的私有持久目录`profiles/data-gateways/registry.json`，目录0700、
-文件0600。连接挂载目录中的`connection.json`仍支持旧安装的首次引导；也可放置0600的
+连接登记与默认选择保存在general-pi的私有持久目录`profiles/data-gateways/registry.json`，目录0700、
+文件0600。会话的实例标识和锁定状态保存在Thread数据库，不保存认证令牌。
+连接挂载目录中的`connection.json`仍支持旧安装的首次引导；也可放置0600的
 `instances.json`，其`schema`为`capstone-gateway-seeds/1`，可含`selected_id`；
 `entries`数组的每项含`id`、`label`和沿用原连接格式的`connection`对象。
 这些文件属于受保护配置，不能提交Git。受保护种子按稳定ID更新认证和标签；已保存的
 选择及用户新增项保留。服务暂时不可达时保留登记，后台恢复实际连接，而非只更新状态点。
 
-`configs/runtime/data-gateway.json`声明准入工具。启动时发现实际schema并绑定执行器身份，
+`configs/runtime/data-gateway.json`声明准入策略。启动时发现实际schema并绑定执行器身份，
 任务只调用已接纳的`data_gateway_`工具，研究子节点沿用同一目录与来源回执校验。
 网关管理其数据后端，Capstone不增加数据库切换或副本选择流程。未配置时保持原研究
 能力；已配置但连接失败时明确标记不可用，不回退合成数据或宣称生产数据访问成功。
-工具schema变化须刷新执行器能力并开始新任务，不改变在途任务契约。
+新指令用轻量检查比较实例标识和契约发布时间；未变化复用目录，变化后更新后续任务。
+检查失败不能当作未变化。工具schema变化不改变在途任务契约，也不改变会话绑定的实例。
 模型工具是否可用以当前发布、权限和工具契约为准。登记范围不代表已生成或可计算模型。
 超时、连接、认证或目录变更会停止本次任务的后续网关探测，下一条用户指令
 可以重新检查；失败报告保留具体错误类型，不推断整个网关宕机。
@@ -628,6 +633,23 @@ make trajectory PORT=8765
 服务仅提供 GET：`/api/runs`、`/api/runs/{analysis_id}`、`/api/runs/{analysis_id}/business`、`/api/runs/{analysis_id}/agent`、`/api/runs/{analysis_id}/context?at_sequence=N` 与 `/api/runs/{analysis_id}/artifacts/{artifact_ref}`。工件必须已在投影索引登记并在读取时重新校验摘要；任意路径、Pi 原始 sidecar、符号链接逃逸和未知引用都会被拒绝。响应固定为不可执行数据类型，并包含 CSP、`nosniff`、拒绝 frame、`no-referrer` 和 `no-store`；服务没有 CORS、写入路由或实时流。
 
 ## LLM 配置与 Pi RPC 路径
+
+工作台原生 Pi 的上下文预算由应用层
+`configs/runtime/workbench-llm-profiles.json` 的各模型 `context_policy` 配置。
+可用 `CAPSTONE_WORKBENCH_LLM_PROFILES` 指定部署配置文件。四个字段为
+`context_window_tokens`、`max_output_tokens`、`compaction_reserve_tokens`、
+`compaction_keep_recent_tokens`；超过“窗口减预留”时自动压缩。
+预留须不少于输出预算且小于窗口，近期保留量须小于触发阈值。
+没有显式策略的自定义模型沿用应用容量默认值及 Pi 压缩设置。
+策略参与模型配置版本校验，新指令按选中的模型生成独立的 Pi 模型与压缩设置，
+不修改其他模型的全局容量，也不替换历史任务的冻结选择。
+
+2026-11-01 依据[DeepSeek 官方模型接口](https://api-docs.deepseek.com/api/list-models/)
+和实际 `/models` 返回，Flash 配置为1,048,576窗口、65,536预留，触发阈值983,040。
+Qwen3.8-27B按[官方模型卡](https://huggingface.co/Qwen/Qwen3.8-27B)的原生262,144窗口，
+配置32,768预留，触发阈值229,376。两者输出预算均为32,768、近期保留20,000。
+内网端点未连通；按用户允许的近似配置采用上述规格，服务别名不改写。
+如果部署实际窗口较小，在相应模型配置中调整，不改通用执行代码。
 
 配置写在仓库根目录的 `.env`：它已被 Git 忽略。先复制模板，再只填写一个实际使用的密钥：
 

@@ -6,6 +6,8 @@ import ThinkingProcess from './ThinkingProcess'
 import {summarizeLlmPoolCalls,type ProcessLlmPoolCall} from './processLlmPool'
 import {requestExecutionMs,uniqueModelRequests,type ProcessModelRequest} from './processModelRequestPool'
 import RequestPoolQueue,{RequestPoolExecutions} from './RequestPoolQueue'
+import {responseOpeningIntent,scriptOpeningIntent} from './executionIntent'
+import {compactionDuration,type ProcessCompaction} from './processCompactions'
 
 export type ProcessModelCall = { retry?:{attempt:number;maximum?:number;delayMs?:number;success?:boolean;finished?:boolean}; id: string; number: number; ms: number; requestPool?:readonly ProcessModelRequest[];requestPoolOnly?:boolean;poolCalls?:readonly ProcessLlmPoolCall[]; label?: string; intent?: string; thinking?: string; thinkingStartedAt?: string; thinkingEndedAt?: string; thinkingSettled?: boolean; sequenceId?: string; settled?: boolean; startedAt?: string; finishedAt?: string; toolAssociation?: 'turn'; toolCallIds?: readonly string[]; stopReason?: string; errorCode?: string; errorStatus?: number; usage?: Record<string, unknown>; responseText?: string; toolRequests?: readonly { id: string; name: string; operation?: string }[] }
 const modelErrors:Record<string,string>={model_context_limit:'上下文超限',model_rate_limit:'请求限流',model_authentication:'模型认证失败',model_transport:'模型连接异常',model_output_invalid:'模型输出格式异常',model_output_rejected:'模型输出被拒绝',model_turn_incomplete:'原因未记录'}
@@ -38,18 +40,8 @@ function latencyGrade(ms: number | undefined, kind: 'model' | 'tool') {
     :{level:'normal',label:'常规耗时'}
 }
 function operationExcerpt(name: string, operation: string) {
-  // Presentation only: remove a simple leading workspace change, never execute it.
-  const action = name === 'bash' ? operation.replace(/^\s*cd\s+(?:'[^']*'|"[^"]*"|[^\s;&|]+)[ \t]*(?:&&|;|\r?\n)\s*/, '') : operation
-  // Only a leading shell/script comment is intent metadata; never infer a result.
-  const lines = action.split('\n')
-  const first = lines[0]?.trim() ?? ''
-  const comment = first.startsWith('#') && !first.startsWith('#!') ? first
-    : /<<-?\s*['"]?[\w]+['"]?\s*$/.test(first) ? lines[1]?.trim() : undefined
-  if (name === 'bash' && comment?.startsWith('#') && !comment.startsWith('#!')) {
-    const text = comment.replace(/^#+\s*/, '').trim()
-    if (text) return text.length > 120 ? text.slice(0, 120) + '…' : text
-  }
-  const compact = action.replace(/\s+/g, ' ').trim()
+  if(name==='bash')return scriptOpeningIntent(operation)??'执行脚本'
+  const compact = operation.replace(/\s+/g, ' ').trim()
   return compact.length > 120 ? compact.slice(0, 120) + '…' : compact
 }
 export function modelCallMs(call: Omit<ProcessModelCall, 'id'>, now?: number): number {
@@ -60,8 +52,9 @@ export function modelCallMs(call: Omit<ProcessModelCall, 'id'>, now?: number): n
 }
 
 /** Neutral presentation: adapters supply admitted identities, never inferred causality. */
-export default function ProcessCallTrace({ models, tools, now, active = true, compact = false, expandedTools = false, expandedThinking = false, renderToolDetails, focusRequest }: {
+export default function ProcessCallTrace({ models, tools, compactions = [], now, active = true, compact = false, expandedTools = false, expandedThinking = false, renderToolDetails, focusRequest }: {
   models: readonly ProcessModelCall[]; tools: readonly ProcessToolCall[]; now?: number; active?: boolean;
+  compactions?:readonly ProcessCompaction[];
   renderToolDetails?: (tool: ProcessToolCall) => ReactNode;
   focusRequest?: ProcessTraceFocus;
   compact?: boolean;
@@ -120,8 +113,9 @@ export default function ProcessCallTrace({ models, tools, now, active = true, co
     </section>
   }
   const renderTool = (tool: ProcessToolCall, independent = false) => <div key={tool.id} className="capstone-call-tool-entry"><details className="capstone-call-tool" open={expandedTools||Boolean(active&&dispatches.some(request=>request.parentToolCallId===tool.id&&['running','cancelling'].includes(request.status)))||Boolean(compact&&active&&latestModelId&&owners.get(tool.id)?.length===1&&owners.get(tool.id)?.[0]===latestModelId)}>
-    <summary><ChevronRight aria-hidden="true" /><strong title={tool.name}>{tool.name}</strong>
-      {independent && <small>{tool.origin === 'system' ? '系统动作' : tool.origin === 'parent' ? '主链调用' : '未关联'}</small>}
+    <summary><ChevronRight aria-hidden="true" /><strong title={tool.name}>{tool.operation?.trim()?operationExcerpt(tool.name,tool.operation):tool.name}</strong>
+      {tool.operation?.trim()&&operationExcerpt(tool.name,tool.operation)!==tool.name&&<small>{tool.name}</small>}
+      {independent && tool.origin && <small>{tool.origin === 'system' ? '系统动作' : tool.origin === 'parent' ? '主链调用' : null}</small>}
       <span className="capstone-call-duration" data-latency={latencyGrade(tool.executionMs??timed(tool).durationMs,'tool').level} title={`${tool.executionMs === undefined ? '调用记录区间' : '工具执行耗时'} · ${latencyGrade(tool.executionMs??timed(tool).durationMs,'tool').label}`}>{tool.executionMs === undefined && timed(tool).durationMs === undefined ? '耗时未记录' : toolTime(tool.executionMs ?? timed(tool).durationMs!)}</span>
       {compact?<CallGlyph label={tool.status==='completed'?'完成':tool.status==='failed'?'失败':tool.status==='cancelled'?'已停止':active?'执行中':'未完整记录'} kind={tool.status==='completed'?'done':tool.status==='failed'?'failed':tool.status==='cancelled'?'cancelled':active?'running':'unknown'}/>:<span>{tool.status === 'completed' ? '完成' : tool.status === 'failed' ? '失败' : tool.status === 'cancelled' ? '已停止' : active ? '执行中' : '未完整记录'}</span>}
       {!compact&&overlaps(tool)&&<small title="同一 LLM 轮次中，实际调用记录的时间区间有重叠。">并行调用</small>}
@@ -138,18 +132,32 @@ export default function ProcessCallTrace({ models, tools, now, active = true, co
     {tool.warning&&<p className="capstone-call-notice is-warning" role="status"><AlertTriangle aria-hidden="true"/><span>{tool.warning}</span></p>}
   </div>
   const timestamp = (value?: string) => { const parsed = Date.parse(value ?? ''); return Number.isFinite(parsed) ? parsed : Infinity }
-  const entries = [
+  const entries: {id:string;at?:string;model?:ProcessModelCall;tool?:ProcessToolCall;compaction?:ProcessCompaction}[] = [
     ...models.filter(model=>{
       if(model.requestPoolOnly)return false
       const main=model.requestPool?.filter(request=>request.association==='main')??[]
       return !main.length||main.some(request=>request.startedAtMs!==undefined)||main.every(request=>['completed','failed','cancelled','blocked'].includes(request.status))
     }).map(model => ({ id: `model:${model.id}`, at: model.startedAt ?? model.finishedAt, model, tool: undefined as ProcessToolCall | undefined })),
     ...tools.filter(tool => !models.some(model => owned(tool, model))).map(tool => ({ id: `tool:${tool.id}`, at: tool.startedAt, model: undefined as ProcessModelCall | undefined, tool })),
+    ...compactions.map(compaction=>({id:`compaction:${compaction.id}`,at:compaction.startedAt??compaction.finishedAt,compaction})),
   ].sort((a, b) => timestamp(a.at) - timestamp(b.at))
   if (!entries.length&&!dispatches.length&&!hasQueue) return <p>尚未收到调用记录。</p>
   return <ol className={`capstone-call-trace${compact?' is-compact':''}`} aria-label="模型与工具调用过程">{entries.map(entry => {
+    if(entry.compaction){
+      const phase=entry.compaction,duration=compactionDuration(phase,active,now),running=phase.state==='started'&&active
+      const reason={manual:'手动触发',threshold:'上下文达到压缩阈值',overflow:'上下文超限',unknown:'原因未记录'}[phase.reason]
+      const status=phase.state==='started'?(running?'进行中':'未完整记录'):{completed:'已完成',cancelled:'已取消',failed:'失败',skipped:'已跳过'}[phase.state]
+      return <li key={entry.id}><div className="capstone-call-model" role={running?'status':undefined} aria-label="上下文压缩">
+        <strong>{running?'正在压缩上下文':'上下文压缩'}</strong><span className="capstone-call-purpose">{reason}</span>
+        <span className="capstone-call-duration">{duration===undefined?'耗时未记录':time(duration)}</span><span>{status}</span>
+        {phase.willRetry&&<small>将重试模型请求</small>}
+      </div></li>
+    }
     if (entry.tool) return <li key={entry.id}>{renderTool(entry.tool, true)}</li>
     const model = entry.model!, selected = tools.filter(tool => owned(tool, model)), toolMs = toolExecutionMs(selected.map(timed))
+    const explicitOperations=(model.toolRequests??selected).flatMap(tool=>tool.operation?.trim()&&!(tool.name==='bash'&&operationExcerpt(tool.name,tool.operation)==='执行脚本')?[operationExcerpt(tool.name,tool.operation)]:[])
+    const intent=model.intent??responseOpeningIntent(model.responseText)??(explicitOperations.length?[...new Set(explicitOperations)].join('；').slice(0,160):selected.length?'调用 '+[...new Set(selected.map(tool=>tool.name))].join('、').slice(0,140):model.finishedAt?'整理回答':'生成响应')
+    const responseText=responseOpeningIntent(model.responseText)?model.responseText?.split(/\r?\n/).slice(1).join('\n').trim():model.responseText
     const mainDispatches=model.requestPool?.filter(request=>request.association==='main')??[]
     const unexecuted=mainDispatches.length>0&&mainDispatches.every(request=>request.startedAtMs===undefined)&&mainDispatches.every(request=>['completed','failed','cancelled','blocked'].includes(request.status))
     const unexecutedLabel=mainDispatches.some(request=>request.status==='cancelled')?'已停止':'未执行'
@@ -160,24 +168,25 @@ export default function ProcessCallTrace({ models, tools, now, active = true, co
     const issue = issues.find(item => item.modelId === model.id)
     const usage = model.usage, inputParts = [count(usage?.input), count(usage?.cacheRead), count(usage?.cacheWrite)]
     const input = inputParts.every(value => value !== undefined) ? inputParts.reduce<number>((sum, value) => sum + value!, 0) : undefined
+    const tokenSummary = usage && <span className="capstone-call-tokens" title="输入包含 SDK 单独报告的缓存读取/写入 token；未报告的值保持未知。">
+      <span>输入 {tokens(input)}</span><span>输出 {tokens(count(usage.output))}</span>
+      {count(usage.cacheRead) !== undefined && Number(usage.cacheRead) > 0 && <span>缓存 {tokens(count(usage.cacheRead))}</span>}<span>token</span>
+    </span>
     const requests = model.toolRequests ?? selected.map(tool => ({ id: tool.id, name: tool.name, operation: tool.operation }))
     return <li key={entry.id}><section role="group" aria-label={model.label ?? `LLM 调用 ${model.number}`} className="capstone-call-round" data-record-gap={issue ? true : undefined}
       tabIndex={-1} ref={element => { if (element) roundElements.current.set(model.id, element); else roundElements.current.delete(model.id) }}>
       <div className="capstone-call-model">{compact&&<span role="img" aria-label="LLM 调用" title="LLM 模型调用"><BrainCircuit className="capstone-call-model-icon" aria-hidden="true"/></span>}<strong title={`LLM 调用 ${model.number}`}>{model.label ?? `LLM ${String(model.number).padStart(2, '0')}`}</strong>
+        {intent&&<strong className="capstone-call-purpose" title={model.intent||responseOpeningIntent(model.responseText)?intent:`模型未提供目的说明；按实际调用显示：${intent}`}>{intent}</strong>}
         <span className="capstone-call-duration" data-latency={unexecuted?undefined:grade.level} title={unexecuted?'请求未实际启动':`LLM 响应 · ${grade.label}`}>{unexecuted?'未执行':waiting?'等待调度':pending && (!active || model.settled)&&!mainDispatches.length ? '耗时 —' : time(modelCallMs(model, running ? now : undefined))}</span>
-        {model.intent&&<span className="capstone-call-purpose" title={model.intent}>{model.intent}</span>}
         {unexecuted?<CallGlyph label={unexecutedLabel} kind={unexecutedLabel==='已停止'?'cancelled':'unknown'}/>:compact?<CallGlyph label={waiting?'排队中':model.stopReason==='error'?'错误响应':model.stopReason==='aborted'?'已中断':running?'进行中':pending?'未完整记录':model.stopReason==='length'?'输出截断':'已返回'} kind={model.stopReason==='error'?'failed':model.stopReason==='aborted'?'cancelled':running?'running':pending?'unknown':model.stopReason==='length'?'warning':'done'}/>:waiting?<span>排队中</span>:model.stopReason === 'error' ? <span>错误响应</span> : model.stopReason === 'aborted' ? <span>已中断</span> : running ? <span role="status">进行中</span> : pending ? <span>未完整记录</span> : model.stopReason === 'length' ? <span>输出截断</span> : <span>已返回</span>}
         {model.retry&&<span>模型重试 {model.retry.attempt}{model.retry.maximum?`/${model.retry.maximum}`:''}{model.retry.success===true?' · 已完成':model.retry.success===false?' · 未成功':model.retry.finished?' · 结果未记录':models.some(next=>next.number>model.number&&next.startedAt)?' · 已发起':` · 计划等待 ${((model.retry.delayMs??0)/1000).toFixed(1)}s`}</span>}
         {model.stopReason==='error'&&model.errorCode&&Object.hasOwn(modelErrors,model.errorCode)&&<span>{modelErrors[model.errorCode]}{typeof model.errorStatus==='number'&&Number.isInteger(model.errorStatus)&&model.errorStatus>=400&&model.errorStatus<=599?` · HTTP ${model.errorStatus}`:''}{models.some(next=>next.number>model.number&&next.startedAt)?' · 后续模型调用已开始':''}</span>}
         {!compact&&!running && <small title={model.toolAssociation==='turn'?'依据同一 SDK 执行轮次中的实际工具调用记录归组。':undefined}>{!linked ? '工具关联未记录' : !model.toolCallIds!.length ? '未调用工具' : `${model.toolAssociation==='turn'?'本轮工具':'工具'} ${model.toolCallIds!.length}次${toolMs === undefined || model.toolAssociation==='turn' ? '' : ` · 活动区间 ${time(toolMs)}`}`}</small>}
+        {!model.thinking&&tokenSummary}
       </div>
-      {model.thinking&&<ThinkingProcess kind="call" expanded={expandedThinking} storageKey={`model-thinking:${model.id}`} now={now} thinking={{text:model.thinking,startedAt:model.thinkingStartedAt,endedAt:running&&!model.thinkingSettled?undefined:model.thinkingEndedAt,handedOff:!running||model.thinkingSettled===true,phase:running&&!model.thinkingSettled?'running':'completed'}}/>}
-      {usage && <div className="capstone-call-tokens" title="输入包含 SDK 单独报告的缓存读取/写入 token；未报告的值保持未知。">
-        <span>输入 {tokens(input)}</span><span>输出 {tokens(count(usage.output))}</span>
-        {count(usage.cacheRead) !== undefined && Number(usage.cacheRead) > 0 && <span>缓存 {tokens(count(usage.cacheRead))}</span>}<span>token</span>
-      </div>}
+      {model.thinking&&<ThinkingProcess kind="call" expanded={expandedThinking} trailing={tokenSummary} storageKey={`model-thinking:${model.id}`} now={now} thinking={{text:model.thinking,startedAt:model.thinkingStartedAt,endedAt:running&&!model.thinkingSettled?undefined:model.thinkingEndedAt,handedOff:!running||model.thinkingSettled===true,phase:running&&!model.thinkingSettled?'running':'completed'}}/>}
       {!compact&&model.toolAssociation!=='turn'&&requests.length > 0 && <p className="capstone-call-intent" title={requests.map(item => `${item.name}${item.operation ? ' · ' + item.operation : ''}`).join('；')}>发起工具：{requests.map(item => `${item.name}${item.operation ? ' · ' + operationExcerpt(item.name, item.operation) : ''}`).join('；')}</p>}
-      {model.responseText && <p className="capstone-call-response" title={model.responseText}>{model.responseText.length > 240 ? model.responseText.slice(0,240) + '…' : model.responseText}</p>}
+      {responseText && <p className="capstone-call-response" title={responseText}>{responseText.length > 240 ? responseText.slice(0,240) + '…' : responseText}</p>}
       {issue && <div className="capstone-call-gap"><p role="status"><AlertTriangle aria-hidden="true" />工具记录缺失 · {issue.missingToolIds.length}项</p>
         <details><summary>缺失明细</summary><ul>{issue.missingToolIds.map(id => <li key={id}>
           <strong>{model.toolRequests?.find(item => item.id === id)?.name ?? '工具名称未记录'}</strong> · {tools.some(tool => tool.id === id) ? '缺少结果记录' : '缺少执行记录'}<code>{id}</code>

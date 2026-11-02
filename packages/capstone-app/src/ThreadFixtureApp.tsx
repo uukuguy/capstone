@@ -1,3 +1,4 @@
+import {instructionProductScopesFromEvents,type InstructionProductScope} from './instructionProducts'
 import {applicationCapacity} from './applicationCapacity'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {useSessionViewState} from './workspaceSessionCache'
@@ -81,6 +82,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   const topologyTrigger=useRef<HTMLButtonElement>(null)
   const productTrigger=useRef<HTMLButtonElement>(null)
   const [requestedProduct,setRequestedProduct]=useState<ProductRequest>()
+  const [instructionProductScope,setInstructionProductScope]=useSessionViewState<InstructionProductScope|undefined>('products.instruction-scope',undefined)
   const [requestedReference,setRequestedReference]=useState<{selection:ContextProductRef;nonce:number}>()
   const [inspectedProductAttempt,setInspectedProductAttempt]=useState<string>()
   const fileBaseline=useRef<{threadId:string;seq:number;opened:boolean}|undefined>(undefined)
@@ -88,6 +90,7 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
   const [selectedDeliveryFile,setSelectedDeliveryFile]=useState<NativeArtifact>()
   function openFile(file:NativeArtifact) {
     if(file.thread_id!==threadId)return
+    setInstructionProductScope(undefined)
     if(fileBaseline.current?.threadId===threadId)fileBaseline.current.opened=true
     setRequestedFile({threadId,attemptId:file.attempt_id,artifactId:file.artifact_id,nonce:Date.now()})
     setRequestedProduct({origin:'native_file',attemptId:file.attempt_id,artifactId:file.artifact_id,workId:file.work_id,nonce:Date.now()});setResourceView(client?.supportsProductIndex?'products':'native-files');setResourcePanelOpen(true)
@@ -810,6 +813,17 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
               return true
   }
 
+  const autoProductScope=useRef<string|undefined>(undefined)
+  useEffect(()=>{
+    const attempt=snapshot?.currentAttempt
+    const key=attempt?`${threadId}:${attempt.attemptId}`:''
+    if(!workspace||!client||!attempt||!ACTIVE_PHASES.has(attempt.phase)||autoProductScope.current===key)return
+    const scope=instructionProductScopesFromEvents(events).get(attempt.attemptId)
+    if(!scope)return
+    autoProductScope.current=key
+    setInstructionProductScope(scope);setRequestedProduct(undefined);setRequestedFile(undefined)
+    setResourceView(client.supportsProductIndex?'products':'native-files');setResourcePanelOpen(true)
+  },[threadId,snapshot?.currentAttempt?.attemptId,snapshot?.currentAttempt?.phase,events.length])
   const modelPane = snapshot && <>
           <ThreadModelPane snapshot={snapshot} viewedPage={viewedPage || activePage || 'page_ieee39'} activePage={activePage || 'page_ieee39'} isHistorical={isHistorical}
           workingPages={projection.modelWorkspace ? store.modelWorkingPages : undefined} cameraStorageKey={`${storageKey || snapshot.threadId}.network-cameras`}
@@ -829,19 +843,19 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
           modelBusy={!canConfigure}
           onOpenHistoricalModel={projection.modelWorkspace ? (modelId, revision) => { void changeModel('open_model', { model_id: modelId, model_revision: revision }).catch(() => addSystemNotice('历史模型无法打开，请重新连接。', 'error')) } : undefined} />
     </>
-  const productsPanel=client&&<ThreadProductsWorkspace key={threadId} client={client} threadId={threadId} workId={null} revision={Math.max(0,...events.filter(event=>['attempt_completed','attempt_failed','attempt_cancelled','attempt_interrupted','native_artifact_published','delivery_published'].includes(event.eventType)).map(event=>event.eventSeq))} requested={requestedProduct}
+  const productsPanel=client&&<ThreadProductsWorkspace key={threadId} client={client} threadId={threadId} workId={null} revision={Math.max(0,...events.filter(event=>['attempt_completed','attempt_failed','attempt_cancelled','attempt_interrupted','native_artifact_published','delivery_published'].includes(event.eventType)).map(event=>event.eventSeq))} requested={requestedProduct} instructionScope={instructionProductScope} onClearInstructionScope={()=>{setInstructionProductScope(undefined);setRequestedProduct(undefined)}}
     onReference={(entry,excerpt)=>setRequestedReference({selection:{ref:entry.ref,purpose:'historical-context',...(excerpt?{excerpt}:{})},nonce:Date.now()})}
     onAdopt={client.supportsDeliveries?file=>{setSelectedDeliveryFile(file);setResourceView('deliveries');setResourcePanelOpen(true)}:undefined}
     onLocate={attemptId=>{const generation=++taskReturnGeneration.current;void locateTaskInstruction(attemptId,()=>generation===taskReturnGeneration.current,generation).then(()=>setResourcePanelOpen(false)).catch(()=>setNotice('原指令暂时无法定位，请重试。'))}}
     onFocusElement={focusResultElement} onBrowse={()=>{if(fileBaseline.current?.threadId===threadId)fileBaseline.current.opened=true}} onInspect={setInspectedProductAttempt}
-    fallback={<><details open={requestedProduct?.origin==='native_file'}><summary>指令文件</summary><NativeArtifactsWorkspace client={client} threadId={threadId} attemptIds={nativeAttemptIds} revision={productRevision} requestedArtifact={requestedFile?.threadId===threadId?requestedFile:undefined} onAdopt={client.supportsDeliveries?file=>{setSelectedDeliveryFile(file);setResourceView('deliveries');setResourcePanelOpen(true)}:undefined}/></details>{product&&<ResultProjectionCard projection={product} onFocusElement={focusResultElement}/>}<details><summary>任务交付</summary><TaskDeliveriesWorkspace client={client} threadId={threadId} revision={productRevision}/></details><details><summary>过程记录</summary><ProcessProductWorkspace client={client} threadId={threadId} revision={productRevision} onReference={setProcessReference} onLocate={setSelectedNetworkAttempt}/></details></>}/>
+    fallback={<><details open={requestedProduct?.origin==='native_file'}><summary>指令文件</summary><NativeArtifactsWorkspace client={client} threadId={threadId} attemptIds={instructionProductScope?[instructionProductScope.attemptId]:nativeAttemptIds} instructionScope={instructionProductScope} onClearInstructionScope={()=>{setInstructionProductScope(undefined);setRequestedFile(undefined)}} revision={productRevision} requestedArtifact={requestedFile?.threadId===threadId?requestedFile:undefined} onAdopt={client.supportsDeliveries?file=>{setSelectedDeliveryFile(file);setResourceView('deliveries');setResourcePanelOpen(true)}:undefined}/></details>{product&&<ResultProjectionCard projection={product} onFocusElement={focusResultElement}/>}<details><summary>任务交付</summary><TaskDeliveriesWorkspace client={client} threadId={threadId} revision={productRevision}/></details><details><summary>过程记录</summary><ProcessProductWorkspace client={client} threadId={threadId} revision={productRevision} onReference={setProcessReference} onLocate={setSelectedNetworkAttempt}/></details></>}/>
   return <ThreadWorkspace sessionKey={threadId} loading={loading} ready={Boolean(snapshot)} conversationOnly={workspace} subtitle={workspace ? '企业工作台' : undefined}
     resourceToggleRef={resourceView==='model'?topologyTrigger:productTrigger}
     resourcePanel={workspace ? modelPane : undefined} resourceLabel={resourceView==='products'?'成果':resourceView==='native-files'?'指令文件':resourceView==='deliveries'?'任务交付':resourceView==='process-products'?'过程制品':taskResults && resourceView==='task-results' ? taskResults.title : product && resourceView==='result' ? '计算结果' : '电气拓扑'} resourcePanelOpen={resourcePanelOpen} onResourcePanelOpenChange={setResourcePanelOpen}
     selectedResourceView={resourceView} onResourceViewChange={setResourceView}
     resourceViews={workspace ? [{id:'model',label:'电气拓扑',content:modelPane,description:isHistorical ? '历史模型资源 · 保持原模型修订与只读边界' : '当前模型资源 · 计算状态以实际运行结果为准'},
       ...(client?.supportsProductIndex?[{id:'products',label:'成果',content:productsPanel,description:'任务交付与指令产物，保留真实来源和版本。'}]:[]),
-      ...(!client?.supportsProductIndex && client && nativeFiles.length ? [{id:'native-files',label:'指令文件',content:<NativeArtifactsWorkspace key={threadId} client={client} threadId={threadId} attemptIds={nativeAttemptIds} revision={productRevision} requestedArtifact={requestedFile?.threadId===threadId?requestedFile:undefined} onAdopt={client.supportsDeliveries?file=>{setSelectedDeliveryFile(file);setResourceView('deliveries');setResourcePanelOpen(true)}:undefined}/>}]:[]),
+      ...(!client?.supportsProductIndex && client && nativeFiles.length ? [{id:'native-files',label:'指令文件',content:<NativeArtifactsWorkspace key={threadId} client={client} threadId={threadId} attemptIds={instructionProductScope?[instructionProductScope.attemptId]:nativeAttemptIds} instructionScope={instructionProductScope} onClearInstructionScope={()=>{setInstructionProductScope(undefined);setRequestedFile(undefined)}} revision={productRevision} requestedArtifact={requestedFile?.threadId===threadId?requestedFile:undefined} onAdopt={client.supportsDeliveries?file=>{setSelectedDeliveryFile(file);setResourceView('deliveries');setResourcePanelOpen(true)}:undefined}/>}]:[]),
       ...(client?.supportsDeliveries && (!client.supportsProductIndex || selectedDeliveryFile?.thread_id===threadId) ? [{id:'deliveries',label:'任务交付',content:<TaskDeliveriesWorkspace key={threadId} client={client} threadId={threadId} revision={Math.max(0,...events.filter(event=>['attempt_completed','attempt_failed','attempt_cancelled','attempt_interrupted','delivery_published'].includes(event.eventType)).map(event=>event.eventSeq))} requestedArtifact={selectedDeliveryFile?.thread_id===threadId?selectedDeliveryFile:undefined} onPublished={()=>{void store.catchUp().then(sync)}} />}] : []),
       ...(!client?.supportsProductIndex && client?.supportsProcessProducts ? [{id:'process-products',label:'过程制品',content:<ProcessProductWorkspace key={threadId} client={client} threadId={threadId} revision={Math.max(0,...events.filter(event=>['attempt_completed','attempt_failed','attempt_cancelled','attempt_interrupted'].includes(event.eventType)).map(event=>event.eventSeq))} onReference={setProcessReference} onLocate={target=>{const generation=++taskReturnGeneration.current;void locateTaskInstruction(target,()=>generation===taskReturnGeneration.current,generation).catch(()=>setNotice('原指令暂时无法定位，请重试。'))}} />}] : []),
       ...(taskResults && taskResults.threadId === threadId ? [{id:'task-results',label:taskResults.title,description:'本次指令的分析结果 · 可按运行状态查看与核查',content:<TaskResultWorkspace key={taskResults.id} collection={taskResults} onFocusElement={focusResultElement} />}] : []),
@@ -858,10 +872,12 @@ export default function ThreadFixtureApp({ fixtureId, client, threadId: requeste
     {snapshot && <>
           <CapstoneAssistantThread resultHistoryNotice={resultProjectionHistoryText(snapshot)} emptyState={workspace ? <div className="workspace-conversation-empty"><span className="eyebrow">A SPACE FOR YOUR WORK</span><strong>从一个问题开始，<br />让工作逐步成形。</strong><p>提出目标，补充资料，或继续一项研究。</p></div> : undefined} storageKey={storageKey} hasOlderHistory={projection.hasOlderHistory} historyLoading={projection.historyLoading}
             productReferenceReader={client?(ref,signal)=>client.resolveProduct(ref,signal):undefined} requestedProductReference={requestedReference?.selection.ref.thread_id===threadId?requestedReference:undefined}
+            instructionProductScopes={instructionProductScopesFromEvents(events)}
+            onOpenInstructionProducts={workspace&&client?scope=>{setInstructionProductScope(scope);setRequestedProduct(undefined);setRequestedFile(undefined);setResourceView(client.supportsProductIndex?'products':'native-files');setResourcePanelOpen(true)}:undefined}
             onOpenNativeArtifact={workspace&&client?openFile:undefined}
             onOpenAnswerDetail={workspace ? ()=>setResourcePanelOpen(false) : undefined}
             onOpenTaskResults={workspace ? value=>{setTaskResults({...value,threadId});setResourceView('task-results');setResourcePanelOpen(true)} : undefined}
-            onOpenResultProduct={workspace ? result=>{setSelectedProduct(result.resultId);setRequestedProduct({origin:'domain_result',attemptId:result.attemptId,resultId:result.resultId,workId:null,nonce:Date.now()});setResourceView(client?.supportsProductIndex?'products':'result');setResourcePanelOpen(true)} : undefined}
+            onOpenResultProduct={workspace ? result=>{setInstructionProductScope(undefined);setSelectedProduct(result.resultId);setRequestedProduct({origin:'domain_result',attemptId:result.attemptId,resultId:result.resultId,workId:null,nonce:Date.now()});setResourceView(client?.supportsProductIndex?'products':'result');setResourcePanelOpen(true)} : undefined}
             onReadAttemptRecords={client?.supportsAttemptRecords ? (attemptId, after) => client.attemptRecords(threadId, attemptId, after) : undefined}
             systemNotices={systemState.thread === threadId ? systemState.items : []} onSystemAction={() => setReload((value) => value + 1)}
             historyAtLatest={projection.historyAtLatest} onReturnLatest={() => setReload((value) => value + 1)}

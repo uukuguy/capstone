@@ -1,13 +1,21 @@
 import {FileCheck2} from 'lucide-react'
-import {groupNativeArtifacts,type NativeArtifact} from './nativeArtifacts'
+import {groupNativeArtifacts,nativeArtifactVersions,nativeArtifactSavedTime,type NativeArtifact} from './nativeArtifacts'
 
 /** Uses persisted purposes. A primary output is not automatically accepted delivery. */
 export default function InstructionFiles({files,onOpen}:{files:NativeArtifact[];onOpen:(file:NativeArtifact)=>void}) {
-  const groups=groupNativeArtifacts(files)
+  const versions=nativeArtifactVersions(files)
+  const groups=groupNativeArtifacts(versions.map(item=>item.latest))
   const limited=files.some(file=>file.delivery_status==='limited')
   const limitations=[...new Set(files.flatMap(file=>file.delivery_limitations||[]))]
-  const singleDocument=files.length===1&&groups.other.length===1&&['text/html','application/pdf'].includes(files[0].media_type)
-  const cards=(items:NativeArtifact[],label:string)=><div className="capstone-result-products">{items.map(file=><button key={file.artifact_id} type="button" className="capstone-result-product" aria-label={`打开指令文件：${file.file_name}`} onClick={()=>onOpen(file)}><FileCheck2 aria-hidden="true"/><span><strong>{file.file_name}</strong><small>{label} · {Math.ceil(file.size_bytes/1024)} KB</small></span><span aria-hidden="true">↗</span></button>)}</div>
+  const singleDocument=versions.length===1&&groups.other.length===1&&['text/html','application/pdf'].includes(groups.other[0].media_type)
+  const card=(file:NativeArtifact,label:string)=><button key={file.artifact_id} type="button" className="capstone-result-product" aria-label={`打开指令文件：${file.file_name}${label.startsWith('历史版本')?` · ${label}`:''}`} onClick={()=>onOpen(file)}><FileCheck2 aria-hidden="true"/><span><strong>{file.file_name}</strong><small><time dateTime={file.saved_at}>{nativeArtifactSavedTime(file)}</time></small><small>{label} · {Math.ceil(file.size_bytes/1024)} KB</small></span><span aria-hidden="true">↗</span></button>
+  const cards=(items:NativeArtifact[],label:string)=><div className="capstone-result-products">{items.map(file=>{
+    const history=versions.find(item=>item.latest===file)!.history
+    return <div key={`${file.task_id}:${file.artifact_id}`}>
+      {card(file,history.length?`${label} · 最新版`:label)}
+      {history.length>0&&<details><summary>历史版本 · {history.length}</summary>{history.map((previous,index)=>card(previous,`历史版本 ${history.length-index}`))}</details>}
+    </div>
+  })}</div>
   return <div className="capstone-instruction-files">
     {limited&&<p role="status">有限交付 · 保留已知问题与未检查项</p>}
     {cards(groups.primary,'主要输出')}

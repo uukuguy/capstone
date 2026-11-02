@@ -166,6 +166,20 @@ counts, prices, limits, versions, or deployment state here.
 
 ## Working in This Repository
 
+- Enforce mechanically decidable behavior in code, not through an LLM's
+  interpretation of prompts. This includes namespace conversion, schema and
+  permission checks, reference ownership, version checks, pagination boundaries,
+  and explicit asynchronous continuation instructions. Derive these operations
+  from the current admitted contracts and responses. Keep business interpretation
+  and analysis with the model; do not encode business tool or provider names.
+  Agreed gateway entry names and their protocol adaptation belong only in the
+  data-gateway MCP adapter. Test deterministic guarantees at that boundary.
+- Capability availability must not impose a fixed first action. The model selects
+  relevant tools and skills from the current instruction, accepted context,
+  descriptions and grants. Apply a service's initialization sequence only after
+  selecting that service as relevant. Previous use of a service does not make it
+  relevant to a new instruction. Do not add keyword-based topic routing to enforce
+  this selection.
 - Enterprise application work follows the accepted
   [design baseline](docs/superpowers/specs/2026-10-15-enterprise-design-final.md),
   [UI contract](docs/superpowers/specs/2026-10-15-enterprise-task-ui-design.md),
@@ -182,6 +196,21 @@ counts, prices, limits, versions, or deployment state here.
   `main` holds accepted release baselines; release PRs target main and run full
   verification. Hotfixes start from the actual accepted deployment tag and flow
   back to dev. Do not rewrite shared history.
+- Browser verification reuses an existing Capstone tab. Do not create a new tab
+  for each test; preserve other open tabs and the user's browser context.
+
+- **CI requires explicit user approval before every run.** Before starting CI,
+  state why it is needed, its check scope and its expected duration, then wait
+  for the user's explicit agreement. Without that agreement, CI is prohibited.
+  Instructions to continue, test, fix, commit, push or merge do not grant CI
+  approval. Do not dispatch a workflow or perform a push, PR update or merge
+  that will automatically start CI until this approval is given. Prepare the
+  change and run focused local checks first. Ordinary development, debugging,
+  validation, browser trials and documentation updates use local checks, not CI.
+  An approved branch-merge CI run must be lightweight and cover only the changed
+  behavior and direct consumers. Full suites and dual-platform CI are reserved
+  for an explicitly approved version release. Do not expand an approved scope
+  or start another CI run without new approval.
 - Current project control and canonical worklists live on dev. Main copies are
   release snapshots. Both permanent branches require PRs, with zero mandatory
   approvals and no force push or deletion. Dev and ordinary feature PRs use
@@ -197,7 +226,7 @@ counts, prices, limits, versions, or deployment state here.
   documentation and control-state updates, run only focused checks for the
   changed behavior and its direct consumers. Do not default to full workbench,
   full repository, professional solver, or dual-platform suites for these
-  operations. CI must select this focused scope automatically; a change that
+  operations. Approved CI must select this focused scope; a change that
   lacks a focused route needs a scoped route, not an automatic release-sized
   gate. Broader development checks need a concrete cross-boundary risk and a
   recorded reason. Keep ordinary development CI on macOS; reserve full macOS

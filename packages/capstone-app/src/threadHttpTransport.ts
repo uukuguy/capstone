@@ -1,3 +1,4 @@
+import {sha256Hex} from './browserDigest'
 import {applicationCapacity,assertCapacity,exceedsCapacity,CapacityError,type CapacityKey} from './applicationCapacity'
 import { parseEventEnvelope, type EventEnvelope } from './threadProtocol'
 import { parseGridSourcePage, parseGridSourceScopes, type GridSourceQuery } from './gridSource'
@@ -94,7 +95,7 @@ async function verifiedFileBytes(response:Response,size:number,digest:string,key
   if(total!==size)throw new Error('文件不完整')
   const bytes=new Uint8Array(total);let offset=0
   for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length}
-  const actual=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),value=>value.toString(16).padStart(2,'0')).join('')
+  const actual=await sha256Hex(bytes)
   if(actual!==digest)throw new Error('文件校验失败')
   return bytes
 }
@@ -107,6 +108,13 @@ export class HttpThreadTransport implements ThreadTransport {
   readonly connectionState: ThreadTransportState = 'live'
   private readonly base: string
   private readonly resourcePath: string
+  private gridThreadId?:string
+  forThread(threadId:string){
+    const scoped=new HttpThreadTransport(this.base,this.token,this.fetcher,this.resourcePath,this.protocolVersion,this.workspaceName)
+    scoped.gridThreadId=threadId
+    return scoped
+  }
+  private get gridSourcePath(){return this.gridThreadId?`${this.resourcePath}/${encodeURIComponent(this.gridThreadId)}/grid-sources`:'/api/v1/grid-sources'}
   // Missing request headers mean v1. Wait for a visible server advertisement
   // before adding a custom header that older cross-origin servers cannot allow.
   // Never retry a write to discover protocol support.
@@ -137,7 +145,11 @@ export class HttpThreadTransport implements ThreadTransport {
   }
   async gatewayConnections(){return parseGatewayConnections(await this.gatewayRequest())}
   async refreshGatewayConnections(){return parseGatewayConnections(await this.gatewayRequest('refresh'))}
+  async refreshGatewayContract(){return parseGatewayConnections(await this.gatewayRequest('reload'))}
   async selectGatewayConnection(id:string){return parseGatewayConnections(await this.gatewayRequest('select',{id}))}
+  async threadGatewayConnections(threadId:string){return parseGatewayConnections(await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/gateways`))}
+  async selectThreadGatewayConnection(threadId:string,id:string){return parseGatewayConnections(await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/gateways/select`,{method:'POST',body:JSON.stringify({id})}))}
+  async refreshThreadGatewayContract(threadId:string){return parseGatewayConnections(await this.request(`${this.resourcePath}/${encodeURIComponent(threadId)}/gateways/reload`,{method:'POST',body:'{}'}))}
   async probeGatewayConnection(input:GatewayConnectionInput){return parseGatewayProbe(await this.gatewayRequest('probe',input))}
   async addGatewayConnection(input:GatewayConnectionInput){return parseGatewayConnections(await this.gatewayRequest('add',input))}
 
@@ -370,7 +382,7 @@ export class HttpThreadTransport implements ThreadTransport {
   }
 
   gridSourceScopes(signal?:AbortSignal) {
-    return this.request('/api/v1/grid-sources/data-gateway/scopes',{signal},4*1024*1024,'event_page_bytes',false)
+    return this.request(this.gridSourcePath+'/data-gateway/scopes',{signal},4*1024*1024,'event_page_bytes',false)
       .then(parseGridSourceScopes).catch(cause=>{
         if(cause instanceof ThreadTransportError)throw new Error('电网范围目录暂时无法读取。')
         throw cause
@@ -378,20 +390,20 @@ export class HttpThreadTransport implements ThreadTransport {
   }
 
   electricalModels(signal?:AbortSignal):Promise<unknown> {
-    return this.request('/api/v1/grid-sources/data-gateway/electrical/models',{signal},4*1024*1024,'event_page_bytes',false)
+    return this.request(this.gridSourcePath+'/data-gateway/electrical/models',{signal},4*1024*1024,'event_page_bytes',false)
   }
   electricalOpen(query:Record<string,unknown>,signal?:AbortSignal):Promise<unknown> {
-    return this.request('/api/v1/grid-sources/data-gateway/electrical/open',{method:'POST',signal,body:JSON.stringify(query)},4*1024*1024,'event_page_bytes',false)
+    return this.request(this.gridSourcePath+'/data-gateway/electrical/open',{method:'POST',signal,body:JSON.stringify(query)},4*1024*1024,'event_page_bytes',false)
   }
   electricalRead(query:{view_ref:string;stream:string;cursor?:string;limit?:number},signal?:AbortSignal):Promise<unknown> {
-    return this.request('/api/v1/grid-sources/data-gateway/electrical/read',{method:'POST',signal,body:JSON.stringify(query)},4*1024*1024,'event_page_bytes',false)
+    return this.request(this.gridSourcePath+'/data-gateway/electrical/read',{method:'POST',signal,body:JSON.stringify(query)},4*1024*1024,'event_page_bytes',false)
   }
   electricalJob(job_ref:string,signal?:AbortSignal):Promise<unknown> {
-    return this.request('/api/v1/grid-sources/data-gateway/electrical/job',{method:'POST',signal,body:JSON.stringify({job_ref})},4*1024*1024,'event_page_bytes',false)
+    return this.request(this.gridSourcePath+'/data-gateway/electrical/job',{method:'POST',signal,body:JSON.stringify({job_ref})},4*1024*1024,'event_page_bytes',false)
   }
 
   gridSourceTopology(query: GridSourceQuery, signal?: AbortSignal) {
-    return this.request('/api/v1/grid-sources/data-gateway/topology', {
+    return this.request(this.gridSourcePath+'/data-gateway/topology', {
       method:'POST', signal, body:JSON.stringify(query),
     },4*1024*1024,'event_page_bytes',false).then(parseGridSourcePage).catch(cause=>{
       if(cause instanceof ThreadTransportError)throw new Error(cause.status===409

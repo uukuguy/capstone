@@ -17,15 +17,15 @@
 .capstone-process-trace-warning:focus-visible { outline: 2px solid #b18132; outline-offset: 2px; }
 .capstone-call-model small, .capstone-call-tool small, .capstone-call-pending { color: var(--graph-muted, #647d76); font-size: 10px; }
 .capstone-call-duration { font-variant-numeric: tabular-nums; white-space: nowrap; }
-.capstone-call-duration[data-latency="noticeable"] { color: #8c650f; font-weight: 500; }
-.capstone-call-duration[data-latency="slow"] { color: #ac4e1c; font-weight: 500; }
-.capstone-call-duration[data-latency="very-slow"] { color: #a3333a; font-weight: 600; }
+.capstone-call-trace .capstone-call-duration[data-latency="noticeable"] { color: #b4232c; font-weight: 500; }
+.capstone-call-trace .capstone-call-duration[data-latency="slow"] { color: #b4232c; font-weight: 600; }
+.capstone-call-trace .capstone-call-duration[data-latency="very-slow"] { color: #8f1720; font-weight: 600; }
 .capstone-call-batch { margin: 1px 0 0 14px; }
 .capstone-call-tool { margin: 0; padding: 1px 0; border: 0; }
 .capstone-call-trace .capstone-call-tool > summary { min-height: 0; padding: 0; line-height: 1.45; color: var(--trace-text); }
 .capstone-call-tool > summary { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; cursor: pointer; list-style: none; }
 .capstone-call-batch .capstone-call-tool > summary { flex-wrap: nowrap; }
-.capstone-call-batch .capstone-call-tool > summary > strong { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.capstone-call-tool > summary > strong { flex: 0 1 auto; max-width: min(60ch, 55%); min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .capstone-call-batch .capstone-call-tool > summary > span, .capstone-call-batch .capstone-call-tool > summary > small { flex: none; white-space: nowrap; }
 .capstone-call-tool > summary::-webkit-details-marker { display: none; }
 .capstone-call-tool > summary::marker { content: ''; }
@@ -70,3 +70,5 @@
 .capstone-call-notice span { overflow-wrap: anywhere; }
 .capstone-call-notice.is-error { color: #873b2d; background: #fff3ef; border-color: #bf614b; }
 .capstone-call-notice.is-warning { color: #795514; background: #fff8e8; border-color: #bc8c35; }
+
+.capstone-call-model strong.capstone-call-purpose { font-weight: 600; }

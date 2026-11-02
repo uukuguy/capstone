@@ -1,4 +1,13 @@
+import {randomUuid} from './commandKey'
 export const defaultWorkspaceName='enterprise'
+export function ensureWorkspaceLocation(){
+  const url=new URL(window.location.href)
+  if(!url.searchParams.has('workspace')){
+    url.searchParams.set('workspace',`空间-${randomUuid().slice(0,8)}`)
+    window.history.replaceState({},'',url)
+  }
+  return currentWorkspaceName()
+}
 export function normalizeWorkspaceName(value:string){
   if(/[\p{Cc}\p{Cf}\p{Cs}]/u.test(value))throw new Error('工作空间名称无效')
   const name=value.trim().normalize('NFC')

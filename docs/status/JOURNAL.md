@@ -6570,3 +6570,167 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 08:29 Activate admitted gateway entries first-turn;159Python/14SDK tests and types pass; independent review clear [565802f9].
 
 - 08:39 Live publication provides two admitted initial entries;3774schema chars within24000budget; generic first-turn menu includes both.
+
+- 08:40 Record startup correction and active branch in actual-dev control; same bounded sourcePR integration planned [2b34060d].
+
+- 08:42 Open PR83 for first-turn gateway startup; same bounded macOS gate pending, no extra workflow or suite expansion.
+
+- 08:52 User requires explicit consent before any CI; AGENTS updated locally; merge CI lightweight only; no further CI authorized.
+
+- 09:01 CI consent rule saved in rootAGENTS and local-only docsbranch commit; no push or CI [d1653424].
+- 09:01 Startup local rebuild ready image d62bde12; visible browser first model calls discover_gateway; task completes33.6s/14LLM/19tools.
+
+- 09:30 Retain bounded native inputs for post-task diagnosis;230Python/15SDK checks pass; no CI [83d2ded8].
+- 09:30 Receipt hashes prove two failed contract lookups used Capstone-prefixed target names; original-name lookup succeeds.
+- 09:18 Timestamp correction: the preceding two diagnostics entries were recorded at09:18, not09:30.
+- 09:19 Diagnostics rebuild ready;API/workers sharede578225;runtime input masking verified;scoped cleanup completed;no CI.
+- 09:25 Normalize contract lookup through connection catalog;89checks and real reconnect pass;no business names encoded [c80e6cb0].
+- 09:25 Record CI-consent and deterministic-code rules so future work cannot delegate mechanical guarantees to prompts [ee947f0c].
+- 09:29 Normalization rebuild ready29ac083e;runtime reconnect/discover/describe succeeds5461b15b4a4441b6a3357d953a673860;scoped cleanup done;no CI.
+- 09:35 Browser rerun32.7s/14LLM/20tools;CSV5rows downloaded;contracts pass;one redundant discovery and invalid Beijing scope remain.
+- 09:35 Diagnostic gap persists: custom tool inputs serialize as{};bash inputs survive. Do not claim full input-record acceptance.
+- 09:54 Resolve source/registered names from admitted publication;fix upstream argument filter;125Python/17SDK checks pass [7ef87600].
+- 09:58 Rebuild readya8811451;runtime alias activation and masked selection-input projection pass;scoped cleanup done;no CI.
+- 10:18 Audit five sessions;unify loader/composition/call/describe identity resolution;136Python/33JS checks and three program replays pass [a3ab3b4e].
+- 10:30 Record per-session causes and real browser verification so residual semantic errors remain explicit [16f5a297].
+- 10:30 Rebuild ready168f16f2;browser36.7s/16LLM/18tools savesCSV5rows;no naming errors;one invalid business scope remains;no CI.
+- 11:00 Scope service initialization after contextual tool selection;remove global service-first prompt bias;106Python/36JS checks pass [06743c84].
+- 11:14 Record real context-switch verification and exact gateway scope-contract feedback for follow-up [0de47a73].
+- 11:14 Rebuild ready7f5fa703;news continuation8.8s/oneLLM/zero tools;scope contract remainsstring after fresh discovery;no CI.
+- 13:05 Preserve contract-refresh prototype in stash5a205ae7;gateway lightweight timestamp/check definition remains pending.
+- 13:05 Separate SDK dispatch from bounded model menu;restore learned tools within capacity to prevent false missing errors [9bba7449].
+- 13:15 Record rebuilt SDK activation recovery and visible saved-product verification for task closeout [ae63eac6].
+- 13:15 Runtime21dc558d ready;browser43.6s/20LLM/29tools savesCSV5rows;zero not-found errors;three unrelated errors retained;no CI.
+- 13:38 Check gateway publication before admission;reuse unchanged catalogs and preserve frozen task contracts to prevent stale calls [381b9be0].
+- 13:38 Real application reload succeeds108.6ms;API/worker497c05fb ready;final rebuild aligns two adapter guards added during build. No CI.
+- 13:39 Reuse existing browser tabs for all future checks;close the newly created tab and persist the user preference in AGENTS.
+- 13:39 Record refresh recovery and browser tab reuse so subsequent sessions preserve validation scope and user context [4183913d].
+- 13:42 Final local imagecada852ca ready;source hashes match;application contract reload98.37ms succeeds;no browser acceptance claimed;no CI.
+- 13:42 Record verified local refresh and exact runtime identity to support recovery without repeating business trials [728d7c8a].
+- 14:02 Restore saved/recent sessions and create short workspace names to replace the empty root entry [9ff89084].
+- 14:07 Explain rejected argument paths and display recorded execution purposes so one nested failure is understandable [452af789].
+- 14:11 Image4a9002ee ready;API/all workers match;existing browser restores saved thread and creates short workspace with composer;cleanup complete;no CI.
+- 14:12 Record actual browser entry recovery and verified runtime so follow-up work preserves the user's session [4719a736].
+- 14:41 Bind conversations, sidebar and source displays to one instance;lock first admission atomically to prevent cross-session gateway drift [72f4a464].
+- 14:50 Keep public display fields outside native binding to satisfy protected-field admission;correct projected availability [3b610b66].
+- 15:00 Compare frozen task gateways separately from defaults to prevent valid bound sessions failing runtime preparation [d3c69284].
+- 15:10 Runtime507734c3 ready;B completes50.8s/17LLM/34tools,CSV5rows/hash verified;A/B identities and sidebar locks stay distinct;no CI.
+- 15:26 Align canonical register,runbook and control view;verify source edges avoid cards,doctor and changed links pass;other deployments unchanged.
+- 15:27 Record verified session-source behavior and exact local deployment so future work preserves per-conversation instance ownership [f567c3d1].
+- 15:32 Final graph shows actualf567c3d1 and deployed sourced3c69284;source route avoids cards;existing AppA restored;small state receipts intentionally uncommitted.
+- Latest-session audit: inspected1945events and66saved observations;identified7failures in Xinjiang curve attempt_cc63f76830bcf82d. Preserved full errors and gateway discovery;wrote per-call analysis and gateway coordination draft. No business replay,source modification,rebuild or CI. UI diagnostic extraction,loader capacity reporting and saveContext validation remain unimplemented fixes.
+- Raise configurable tool capacity, preserve observed actions and expose diagnostics to prevent avoidable execution errors [37274f7f].
+- Consolidate executor COPY layers to avoid Docker overlay depth129 blocking local container recreation [0cf09788].
+- Show tool operations and response intent in all traces;restore red slow-call styling for readable execution records [b51a4524].
+- Persist safe public response intent and collapse completed process windows to restore instruction focus [6de15939].
+- Contain first thinking and bind completion to rendered instruction order because accepted commands can precede attempt creation [26f083d2].
+- Close process views through terminal-controlled state to prevent native toggle races and missed fast-task completion [4c7e56bf].
+- Final local image113b791d ready;API/allworkers equal;App4c7e56bf real2.3second no-tool trial folds current process and keeps instruction visible;no CI.
+- Record verified invocation,process behavior and deployment identities so recovery preserves evidence and pending gateway cooperation [65212819].
+- Verify graphHEAD65212819 and deployed sources in existing browser;return to App with current instruction visible and process collapsed.
+- Preserve visible instructions on completion and inline token usage to avoid unnecessary scrolling and extra rows [2e44b89a].
+- Prevent padding-only scrolling, retain routing identity and show concise purposes so execution records remain readable [ad9078ef].
+- Existing-tab attempt_be53b13782000bbd: instruction visible during/after execution;right-pane fullscreen restore shows content;214 focused tests/types pass;no CI.
+- Reconnected gateway publication16:43:18;refreshed future contracts through App reload;preserved frozen work and avoided Xinjiang query replay.
+- Record gateway reply and publication refresh so later work preserves frozen tasks and correct diagnostic interpretation [8e35055a].
+- Preserve rejection details and correction suggestions before truncation so users can fix calls without guessing execution state [d45999ed].
+- Restore natural conversation growth and remove forced instruction pinning because sends must not clear the reading viewport [7eb2582b].
+- Traced24-second startup to eager history staging:32 inline artifacts plus23 streamed resources;user selected reference-first, on-demand reads.
+- Start turns with immutable file references and acquire only selected resources to remove history-size-dependent startup copying [14eb1cc4].
+- Add bounded reference previews and remove redundant lifecycle footer to avoid path transcription and unnecessary execution-window clutter [bec075c3].
+- Same-tab9aa184: firstLLM1.273s,total2.800s,54refs/zeroinline/zerotools;selected-read2d33089 opens one source;no gateway business replay or CI.
+- Surface indexed failed subquery diagnostics while preserving request identifiers; focused tests pass, runtime rebuild pending [2e40b605].
+- Show saved-version timestamps beside product names; type check and existing-browser visual check passed [1425e245].
+- Gateway publication 21:46:14 verified; local rebuild ready, live nested diagnostics checked, scoped cache maintenance completed; no business replay.
+
+## 2026-11-01
+- Reconcile gateway validation, deployment receipts and recovery instructions to prevent obsolete task replay [14404b87].
+- Reuse observed fields and retain explicit non-correctable rejections across programs; 23 focused tests pass [c9a64f05].
+- Explain report pagination and locate invalid table columns to reduce speculative rendering; 17 focused checks pass [15b09a80].
+- Verified gateway publication 10:43:16; rebuilt local services, checked live observation reuse, refreshed cache; no CI or business replay.
+- Preflight batch capacity/admission and collect report block errors without writing products; 68 focused checks pass [f10e7979].
+- Local f10e7979 rebuild ready; live batch rejection and non-writing report checks passed, scoped cleanup completed; no business replay.
+- Audit all 71 model and 208 tool calls; prioritize scope reduction and observation reuse, document gateway questions [122c031f].
+- Forward Pi compaction lifecycle and duration to public application records without inflating model calls; focused checks pass [9da60bfa].
+- Reuse saved discovery references with bounded paging and scope guidance to reduce redundant reads; 35 Node checks pass [356b0e64].
+- Rebuilt local 356b0e64; readiness, image parity and live reference/event checks passed; scoped cleanup finished without CI or business replay.
+- Recorded compaction and observation validation; refreshed control graph and inspected existing browser tab without opening tabs [dd31e938].
+- Show compaction lifecycle within call records without inflating model counts; 49 focused App checks and types pass [df138a2d].
+- Verified running/completed compaction in an existing browser tab; rebuilt df138a2d with readiness, image parity and scoped cleanup; no CI.
+- Recorded compaction display acceptance and refreshed the inspected control graph; historical tasks remain unchanged [4f03e2a2].
+- Reconnected gateway and verified unchanged contract timestamp; live concurrency remains four; service updates are independent of contract publication.
+- Reconciled gateway cache findings and fresh connection evidence without replaying historical queries or asserting unverified performance gains [85978196].
+- Emphasized LLM call purposes with existing strong typography; diff check passes, no CI or business execution [bd3917c1].
+- Added model-specific context and compaction policies; 78 focused checks passed; runtime rebuild remains pending [52edcf53].
+- Reproduced summer-task UI undercount: buffer eviction reduced 71 model calls and 159 tool calls to 60 and 140.
+- Unified observation pointer diagnostics to enable result reuse; 38 focused checks passed without upstream calls [a45bd3c8].
+- Fixed runtime profile-loader package identity after rebuild exposed relative-import failure; focused launcher regression passed [67650a8e].
+- Rebuilt67650a8e: readiness and image parity pass; scoped cleanup complete; inspected updated control graph in existing tab, then restored selection.
+- Recorded main-path recovery diagnosis and verified local deployment; preserved unfinished batch work and prior audit draft [404562aa].
+- Added frozen-schema batch preflight, complete recovery manifests and bounded inspection; 53 Node and 34 Python checks passed [1253ae06].
+- Preserved configured gateway labels over reported instance names; 13 focused App checks passed; renamed private intranet connection [c00bfb15].
+- Separated dynamic gateway publication from executor identity to prevent restart admission failures; 142 focused checks passed [cad400bb].
+- Retained bounded SDK failure locations for startup diagnosis without recording exception values; three focused checks passed [d2ea0fd7].
+- Separated per-model budgets from frozen task transport capacity to prevent SDK binding rejection; 55 focused checks passed [3e9c8c8e].
+- Rebuilt3e9c8c8e; real metadata task completed40.7s without tool errors; second composition reused references with zero gateway calls.
+- Refreshed and inspected the existing control graph tab; preserved user browser focus and historical task evidence.
+- Recorded verified startup and batch-reference acceptance; retained this journal entry unstaged to avoid a self-referencing commit cycle [b10e3fa6].
+- Added bounded partial search, activation facts and composition-specific guidance to reduce redundant discovery; 71 focused checks passed [b8ae7ba1].
+- Unified task-issued direct observation references for composition reuse; integrity and task isolation checks passed without repeated gateway calls [898f0134].
+- Normalized direct observation roots and preserved saved-path compatibility; 64 focused checks passed without upstream retries [0db2803a].
+- Rebuilt0db2803a; fresh metadata task completed21.9s with four model responses, four tools, zero errors and no repeated retrieval.
+- Reconnected gateway publication16:34:18; preserved frozen tasks and prepared exact selector-error coordination evidence without hardcoded routing.
+- Updated control register and inspected the existing graph tab; restored browser focus and preserved unrelated audit draft.
+- Recorded main-path acceptance and gateway followup [4f9976c6]; this journal receipt remains unstaged to avoid a self-referencing documentation cycle.
+- Started one user-authorized summer rerun in a fresh session; reused the browser tab and preserved the exact baseline instruction.
+- Summer rerun ended during confirmed network loss; saved162 sequence calls,37 exact sequence repeats and eight tool errors.
+- Reused declared readonly successful observations within instructions; retained manifests and explicit refresh to prevent repeated source reads [8f9f59d5].
+- Unified observation reuse, typed table preparation and network diagnostics to repair processing without repeating source reads [2b347fc6].
+- Rebuilt2b347fc6 with matching API/worker images; started one metadata-only unified pipeline trial in the existing browser tab.
+- Unified live trial completed26.0s: seven model responses, eight tools, zero errors; shared reuse, refresh and typed CSV verified.
+- Updated unified-pipeline evidence and control graph; checked source edges, existing browser preview, links, doctor and clean diffs.
+- Recorded unified live verification and limits [677363c1]; this receipt remains unstaged to avoid a self-referencing documentation cycle.
+- Prepared isolated intranet deployment and disabled shared deep-research controls, including stale drafts;155 focused App checks passed [815d17f1].
+- Added visible disabled research styling and exact offline storage-image bindings for the intranet deployment [bf1cd421].
+- Built amd64 intranet backend/native815d17f1 and Appbf1cd421; local style rebuild and stale-draft checks passed.
+- Verified remote archive hash; fixed CentOS7 first-table transaction ordering through deployment startup, preserving complete task isolation.
+
+- 2026-11-01 15259421: Fix HTTP-origin UUID generation and legacy-kernel startup so intranet sessions can open.
+
+- 2026-11-01 146f35b0: Admit omitted optional worker families; prevent intranet startup from waiting for disabled services.
+
+- 2026-11-01 054b27a6: Preserve artifact and upload hash checks on HTTP origins using a tested digest fallback.
+
+- 2026-11-01: Intranet browser session and CSV preview pass; access60ms; dsv4 and gateway defaults visible; no CI.
+
+- 2026-11-01 62e1d75b: Record deployed identities and verified browser recovery; preserve the remaining control-graph refresh checkpoint.
+
+- 2026-11-01: User deferred native worker cross-session concurrency; record queue evidence and preserve the active PPT task.
+
+- 2026-11-01: Shared presentation/runtime correction: dark PPT cover, teal table headers, server-clock elapsed timing, honest progress-registration diagnostics, purpose fallbacks, explicit answer-body boundary. Focused checks: App 167, agent 45, PPT 25 passed; types passed. PPT rendered through App preview library; evidence runs/presentation-fix-20261101. Deployment pending; no CI. Missing model purpose comments and zero chart blocks were confirmed in saved intranet task; business completeness is not certified.
+- 2026-11-01: 7ea289f2 fixes shared PPT styling and execution presentation; deployment validation remains pending.
+- 2026-11-01: 7ea289f2 deployed locally and intranet; same executor/report bytes, healthy services, 5.895s Chinese short task and browser passed.
+- 2026-11-01: Deployment register and graph include intranet source7ea289f2; browser layout inspected; doctor, symlink and diff checks passed.
+- 2026-11-01: 7dd20f9a records intranet deployment, focused validation, remaining model-output limits and the serialized-worker constraint.
+- 2026-11-01: 2800da79 restores PDF previews: browser sandbox blocked viewer; generic PDF MIME fallback added. Seventeen focused checks passed.
+- 2026-11-01: PDF component browser check renders13-page document; HTML sandbox remains. Intranet disconnected; remote deployment deferred.
+- 2026-11-01: PDF fix local rebuild ready; backend unchanged1be4fbda; scoped cache maintenance230249-59432 completed. Remote remains unchanged.
+- 2026-11-01: 4f9675d5 records verified local PDF correction and defers intranet deployment while disconnected.
+- 2026-11-01: aa1cd3e8 groups output revisions by task and host path identity, showing latest cards with expandable history.150 checks passed.
+- 2026-11-01: 5830be18 projects ledger save timestamps into output cards and file lists, distinguishing versions without renaming stored files.
+- 2026-11-01: Saved-time ordering, browser display and historical directory verified; local9cf4677d ready, scoped cleanup232349-17334 complete; remote unchanged.
+- 2026-11-01: eb402923 orders restored versions by ledger time and records local verification; no intranet deployment or CI.
+- 2026-11-01: 2ca06418 scopes products by instruction, opens them once at execution start, and preserves manual browsing choices.
+- 2026-11-02: 72fae165 records local instruction-product verification and recovery state; intranet deployment remains deferred.
+- 2026-11-02: 43c31e3a selects the newest primary on scope changes, preventing scripts or older reports from becoming default previews.
+- 2026-11-02: 6470c554 restores copy as the first answer action, matching the instruction toolbar.
+- 2026-11-02: 32a98bba records verified preview defaults, toolbar order, and local rebuild receipt for recovery.
+- 2026-11-02: b0fe07df records persistent installation and configurable permissions; preinstall promotion remains proposed, with no runtime changes.
+- 2026-11-02: 1d173bd6 plans managed installation and approved preinstall promotion with separate local and intranet defaults.
+- 2026-11-02: fdc55904 adds resource permission evaluation; local allows known actions, intranet restricts management;14 focused checks passed.
+- 2026-11-02: 74ed2f39 binds permission revisions to deployment profile; focused checks and independent review passed.
+- 2026-11-02: ef05b7b9 selects local-open and intranet-restricted policies explicitly; synthetic Compose resolution passed without deployment.
+- 2026-11-02: cb3f98f6 adds durable resource versions and preinstall snapshots;49b3bb25 preserves revoked-operation failures and detects metadata corruption.
+- 2026-11-02: d129b49c/c46fc2c0 verify generic MCP transport and permission rechecks; c0774749 adds verified persistent installation.
+- 2026-11-02: User selected current dev milestone; remote merge and tag pending CI approval; intranet deployment remains7ea289f2.
+- 2026-11-02: 7b754fd7 checkpoints selected dev milestone; user approved lightweight integration CI;81 focused resource checks passed.
