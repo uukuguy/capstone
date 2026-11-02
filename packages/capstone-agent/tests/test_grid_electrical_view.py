@@ -655,4 +655,3 @@ def test_a_second_publication_change_stops_without_repeated_catalog_or_tool_prob
         asyncio.run(ElectricalViewProvider(gateway).open({'model_ref': 'model:one'}))
     assert raised.value.code == 'gateway_publication_changed'
     assert len(calls) == 1 and len(refreshes) == 0
-
