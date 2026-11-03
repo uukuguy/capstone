@@ -518,14 +518,14 @@ def test_rpc_sanitizes_secret_in_response_error(tmp_path: Path, monkeypatch, lim
 
     client.start()
     try:
-        with pytest.raises(capacity.CapacityExceeded if limit_mode=='debug' else PiProtocolError) as captured:
+        with pytest.raises(PiProtocolError) as captured:
             client.prompt_and_wait("question")
     finally:
         client.stop()
         trace.close()
     assert "topsecret" not in str(captured.value)
     if limit_mode=='debug':
-        assert captured.value.dimension=='diagnostic_text_chars'
+        assert str(captured.value).endswith('prefl')
     else:
         assert 'preflight failed' in str(captured.value)
 
