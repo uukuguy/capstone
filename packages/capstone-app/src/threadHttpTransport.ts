@@ -171,6 +171,22 @@ export class HttpThreadTransport implements ThreadTransport {
     this.workspaceConnectionsScope=workspaceScope(this.base,this.token)
   }
 
+  private async managedResourceRequest(path:string,init:RequestInit={}){
+    try{return await this.request(path,init)}catch(error){
+      if(error instanceof ThreadTransportError&&error.body&&typeof error.body==='object'&&'detail' in error.body){
+        const detail=error.body.detail
+        if(detail&&typeof detail==='object'&&'code' in detail&&typeof detail.code==='string'&&/^[a-z][a-z0-9_]{0,95}$/.test(detail.code)){
+          const effect='executed' in detail?(detail.executed===false?'；未执行':detail.executed===null?'；执行结果未知，请勿直接重试':''):''
+          throw new Error(`资源操作失败：${detail.code}${effect}`)
+        }
+      }
+      throw error
+    }
+  }
+  async listManagedResources(){return this.managedResourceRequest('/api/v1/managed-resources')}
+  async readManagedResourceOperation(requestId:string){return this.managedResourceRequest(`/api/v1/managed-resources/operations/${encodeURIComponent(requestId)}`)}
+  async manageResource(operation:string,document:Record<string,unknown>){return this.managedResourceRequest(`/api/v1/managed-resources/operations/${encodeURIComponent(operation)}`,{method:'POST',body:JSON.stringify(document)})}
+
   private async request(path: string, init: RequestInit = {}, maximumBytes=applicationCapacity('event_page_bytes'),capacityKey:CapacityKey='event_page_bytes',threadVersion=true): Promise<unknown> {
     if(typeof init.body==='string')assertCapacity(new TextEncoder().encode(init.body).byteLength,'command_bytes')
     const response = await fetchWithReadRetry(this.base + path, {

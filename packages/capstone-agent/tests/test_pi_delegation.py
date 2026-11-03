@@ -512,7 +512,7 @@ def test_control_token_stays_in_transport_header(service):
     assert "private-test-token" not in json.dumps(result.to_document())
 
 
-def test_cancellation_failure_keeps_original_parent_stop(service):
+def test_cancellation_failure_keeps_original_parent_stop(service, caplog):
     origin, state = service
     state["running"] = True
     client = executor(origin)
@@ -532,6 +532,8 @@ def test_cancellation_failure_keeps_original_parent_stop(service):
         client.execute(PiTaskRequest.from_document(request_document()),
                        NodeControl(check, time.monotonic() + 2), lambda _: None)
     assert any("unknown" in note for note in caught.value.__notes__)
+    assert "Pi cancellation failed" in caplog.text
+    assert "service unreachable" not in caplog.text
 
 
 def test_slow_response_obeys_parent_deadline(service):

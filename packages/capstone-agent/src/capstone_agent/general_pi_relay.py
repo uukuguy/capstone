@@ -6,7 +6,7 @@ import json
 import logging
 import secrets
 import socket
-from threading import Event, RLock, Thread
+from threading import Condition, Event, RLock, Thread
 import time
 
 import httpx
@@ -95,6 +95,7 @@ class RelayLease:
     grant: str
     deadline: float
     downstream: socket.socket
+    channel: str = 'provider'
     cancelled: Event = field(default_factory=Event)
     released: Event = field(default_factory=Event)
     loop: asyncio.AbstractEventLoop | None = None
@@ -116,17 +117,22 @@ class RelayLease:
 
 
 class ProviderRelay:
-    def __init__(self, *, max_requests=None, per_task=None):
+    def __init__(self, *, max_requests=None, per_task=None, gateway_requests=None, gateway_per_task=None):
         max_requests = limits.provider_relay_requests if max_requests is None else max_requests
         per_task = limits.provider_relay_task_requests if per_task is None else per_task
         if max_requests < 1 or per_task < 1:
             raise ValueError('Provider relay limits are invalid')
         self.max_requests, self.per_task = max_requests, per_task
+        self.gateway_requests = limits.gateway_relay_requests if gateway_requests is None else gateway_requests
+        self.gateway_per_task = limits.gateway_relay_task_requests if gateway_per_task is None else gateway_per_task
+        if self.gateway_requests < 1 or self.gateway_per_task < 1:
+            raise ValueError('Gateway relay concurrency is invalid')
         self.grants: dict[str, str] = {}
         self.deadlines: dict[str, float] = {}
         self.active: set[RelayLease] = set()
         self.provider_failures: dict[str, str] = {}
         self.lock = RLock()
+        self.available = Condition(self.lock)
 
     def register(self, task_id, grant, deadline):
         if not grant or not math.isfinite(deadline) or deadline <= time.monotonic():
@@ -134,20 +140,32 @@ class ProviderRelay:
         with self.lock:
             self.grants[task_id], self.deadlines[task_id] = grant, deadline
             self.provider_failures.pop(task_id, None)
+            self.available.notify_all()
 
-    def acquire(self, task_id, grant, downstream):
-        with self.lock:
-            accepted = self.grants.get(task_id)
-            deadline = self.deadlines.get(task_id, 0)
-            if not accepted or not secrets.compare_digest(accepted, grant) or deadline <= time.monotonic():
-                raise PermissionError('Provider relay grant is unavailable')
-            for dimension, actual, maximum in (
-                ('provider_relay_requests', len(self.active) + 1, self.max_requests),
-                ('provider_relay_task_requests', sum(item.task_id == task_id for item in self.active) + 1, self.per_task),
-            ):
-                if actual > maximum:
-                    raise CapacityExceeded(dimension, actual, maximum, 'provider_relay', mode=current_capacity().mode)
-            lease = RelayLease(task_id, grant, deadline, downstream)
+    def acquire(self, task_id, grant, downstream, *, channel='provider', wait=True):
+        if channel not in {'provider', 'gateway'}:
+            raise ValueError('Unknown relay channel')
+        with self.available:
+            while True:
+                accepted = self.grants.get(task_id)
+                deadline = self.deadlines.get(task_id, 0)
+                if not accepted or not secrets.compare_digest(accepted, grant) or deadline <= time.monotonic():
+                    raise PermissionError('Provider relay grant is unavailable')
+                active = [item for item in self.active if item.channel == channel]
+                maximum, per_task = ((self.max_requests, self.per_task) if channel == 'provider'
+                                    else (self.gateway_requests, self.gateway_per_task))
+                blocked = next(((dimension, actual, bound) for dimension, actual, bound in (
+                    (f'{channel}_relay_requests', len(active) + 1, maximum),
+                    (f'{channel}_relay_task_requests', sum(item.task_id == task_id for item in active) + 1, per_task),
+                ) if actual > bound), None)
+                if blocked is None:
+                    break
+                if not wait:
+                    raise CapacityExceeded(*blocked, 'relay_admission', mode=current_capacity().mode)
+                # This is resource scheduling, including in debug mode. The
+                # task grant/deadline stays authoritative while it waits.
+                self.available.wait(timeout=min(.1, max(.001, deadline-time.monotonic())))
+            lease = RelayLease(task_id, grant, deadline, downstream, channel=channel)
             self.active.add(lease)
         def watch():
             while not lease.released.wait(0.02):
@@ -168,6 +186,7 @@ class ProviderRelay:
                     self.provider_failures[lease.task_id] = lease.provider_failure
                 else:
                     self.provider_failures.pop(lease.task_id, None)
+            self.available.notify_all()
 
     def failure_reason(self, task_id):
         with self.lock:
@@ -179,6 +198,7 @@ class ProviderRelay:
             self.deadlines.pop(task_id, None)
             self.provider_failures.pop(task_id, None)
             leases = [item for item in self.active if item.task_id == task_id]
+            self.available.notify_all()
         for lease in leases:
             lease.abort()
 
@@ -226,6 +246,10 @@ async def forward_provider(handler, lease: RelayLease, upstream: str, body: byte
                     handler.wfile.write(data)
                     handler.wfile.flush()
                 await write_http(write)
+                if stream and diagnostics.done:
+                    # The protocol has finished even if the upstream retains
+                    # its TCP connection. Do not keep a completed slot busy.
+                    break
     except BaseException as error:
         failure = failure or ('cancelled' if lease.cancelled.is_set() else type(error).__name__)
         raise

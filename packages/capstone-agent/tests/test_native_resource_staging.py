@@ -211,8 +211,8 @@ def test_staging_hard_task_deadline_retains_safe_operation(tmp_path, monkeypatch
     assert caught.value.diagnostic == {'operation':'resource_status','transport_phase':'task_deadline'}
 
 
-def test_debug_staging_soft_window_interrupts_before_retry(monkeypatch):
-    from capstone_agent.application_capacity import initialize_capacity,current_capacity,CapacityExceeded
+def test_debug_staging_soft_window_retries_until_hard_deadline(monkeypatch):
+    from capstone_agent.application_capacity import initialize_capacity,current_capacity
     from capstone_agent.pi_delegation import HttpGeneralPiExecutor,PiTransportTimeout
     from capstone_agent.request_intent import NodeControl
     original=current_capacity();clock=[0.];calls=[];events=[]
@@ -223,18 +223,18 @@ def test_debug_staging_soft_window_interrupts_before_retry(monkeypatch):
     try:
         initialize_capacity({'native_staging_wait_seconds':1},mode='debug')
         monkeypatch.setattr('capstone_agent.pi_delegation.time.monotonic',lambda:clock[0])
+        monkeypatch.setattr('capstone_agent.pi_delegation.time.sleep',lambda seconds:clock.__setitem__(0,clock[0]+seconds))
         monkeypatch.setattr(executor,'_call',interrupted)
-        with pytest.raises(CapacityExceeded) as caught:
+        with pytest.raises(PiTransportTimeout) as caught:
             executor.stage_resources_with_events('task',[manifest(b'x')],lambda _:iter([b'x']),
-                NodeControl(lambda:None,100),events.append)
-        assert len(calls)==1 and events==[]
-        assert caught.value.to_document()['mode']=='debug'
-        assert caught.value.to_document()['actual']==3
-        assert caught.value.to_document()['phase']=='resource_status'
+                NodeControl(lambda:None,10),events.append)
+        assert len(calls)>1
+        assert events[0]['type']=='transport_interrupted'
+        assert caught.value.diagnostic == {'operation':'resource_status','transport_phase':'task_deadline'}
     finally:initialize_capacity(original)
 
 
-def test_debug_server_request_inactivity_returns_typed_capacity_without_model(tmp_path):
+def test_debug_server_request_inactivity_returns_timeout_without_model(tmp_path):
     import socket,threading,json
     from capstone_agent.application_capacity import initialize_capacity,current_capacity
     from capstone_agent.general_pi_server import GeneralPiHost,make_server
@@ -251,9 +251,7 @@ def test_debug_server_request_inactivity_returns_typed_capacity_without_model(tm
             while chunk:=client.recv(4096):data+=chunk
         headers,body=data.split(b'\r\n\r\n',1)
         assert b'408' in headers
-        detail=json.loads(body)['capacity']
-        assert detail['mode']=='debug' and detail['fatal'] is True
-        assert detail['dimension']=='native_server_wait_seconds' and detail['actual']>detail['limit']==1
+        assert json.loads(body)=={'error':'request_timeout'}
         assert host._tasks=={}
     finally:
         if server:server.shutdown();server.server_close()

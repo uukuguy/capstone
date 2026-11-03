@@ -24,29 +24,28 @@ def test_stream_diagnostics_retains_only_finish_metadata():
     assert trace.summary()['stream_done'] is True
 
 
-def test_relay_default_admits_parallel_children_and_debug_overflow_interrupts(tmp_path):
-    from capstone_agent.application_capacity import initialize_capacity, current_capacity, CapacityExceeded
+def test_debug_relay_queues_pressure_and_keeps_provider_and_gateway_slots_separate():
+    from capstone_agent.application_capacity import initialize_capacity, current_capacity
     from capstone_agent.general_pi_relay import ProviderRelay
-    from capstone_agent.general_pi_server import GeneralPiHost
-    from threading import Event
+    from concurrent.futures import ThreadPoolExecutor
     original = current_capacity()
     left, right = socket.socketpair()
     relay = None
     try:
         initialize_capacity(mode='debug')
-        relay = ProviderRelay()
-        relay.register('task', 'grant', time.monotonic() + 30)
-        leases = [relay.acquire('task', 'grant', left) for _ in range(3)]
-        assert len(leases) == 3
-        relay.per_task = 3
-        with pytest.raises(CapacityExceeded) as raised:
-            relay.acquire('task', 'grant', left)
-        assert raised.value.dimension == 'provider_relay_task_requests'
-        host = GeneralPiHost(root=tmp_path, identity={'engine':'pi'}, run_task=lambda *_: ('Done', {}))
-        host._tasks['task'] = {'cancel': Event()}
-        host.interrupt_capacity('task', raised.value)
-        assert host._tasks['task']['cancel'].is_set()
-        assert host._tasks['task']['capacity_failure']['fatal'] is True
+        relay = ProviderRelay(max_requests=1, per_task=1, gateway_requests=1, gateway_per_task=1)
+        relay.register('task', 'grant', time.monotonic()+5)
+        provider = relay.acquire('task', 'grant', left)
+        gateway = relay.acquire('task', 'grant', left, channel='gateway')
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            waiting = pool.submit(relay.acquire, 'task', 'grant', left, channel='gateway')
+            assert not waiting.done()
+            relay.release(gateway)
+            admitted = waiting.result(timeout=1)
+            assert not provider.cancelled.is_set()
+            assert admitted.channel == 'gateway'
+            relay.release(admitted)
+        relay.release(provider)
     finally:
         if relay is not None:
             relay.revoke('task')
@@ -66,11 +65,11 @@ def test_relay_grants_bound_concurrency_and_revoke_active_connections():
     try:
         lease = relay.acquire('one', 'grant-one', left)
         with pytest.raises(CapacityExceeded):
-            relay.acquire('one', 'grant-one', left)
+            relay.acquire('one', 'grant-one', left, wait=False)
         other = relay.acquire('two', 'grant-two', left)
         relay.register('three', 'grant-three', time.monotonic()+2)
         with pytest.raises(CapacityExceeded):
-            relay.acquire('three', 'grant-three', left)
+            relay.acquire('three', 'grant-three', left, wait=False)
         relay.revoke('one')
         assert lease.cancelled.is_set()
         assert right.recv(1) == b''
@@ -137,6 +136,43 @@ def test_relay_deadline_closes_slow_downstream_without_new_task_work():
         right.close()
 
 
+def test_sse_done_releases_permit_without_waiting_for_upstream_connection_close(tmp_path):
+    from capstone_agent.general_pi_relay import ProviderRelay
+    from capstone_agent.general_pi_server import GeneralPiHost, make_server
+    closed = Event()
+    class Upstream(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+        def do_POST(self):
+            self.rfile.read(int(self.headers['Content-Length']))
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/event-stream')
+            self.end_headers()
+            self.wfile.write(b'data: {"choices":[{"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n')
+            self.wfile.flush()
+            closed.wait(2)
+    upstream = ThreadingHTTPServer(('127.0.0.1', 0), Upstream)
+    relay = ProviderRelay(max_requests=1, per_task=1)
+    relay.register('task', 'grant', time.monotonic()+5)
+    host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'}, run_task=lambda *_: ('unused', {}))
+    server = make_server(host, control_token='control', address=('127.0.0.1', 0),
+        runner=SimpleNamespace(relay=relay, model='fixture'),
+        upstream=f'http://127.0.0.1:{upstream.server_port}', provider_key='fixture-only')
+    for item in (server, upstream):
+        Thread(target=item.serve_forever, daemon=True).start()
+    try:
+        for _ in range(2):
+            result = httpx.post(f'http://127.0.0.1:{server.server_port}/provider/task/chat/completions',
+                json={'model': 'fixture', 'stream': True}, headers={'Authorization': 'Bearer grant'},
+                timeout=.7, trust_env=False)
+            assert result.status_code == 200 and b'[DONE]' in result.content
+            assert not relay.active
+    finally:
+        closed.set(); relay.revoke('task')
+        for item in (server, upstream):
+            item.shutdown(); item.server_close()
+
+
 @pytest.mark.parametrize('stage', ['headers', 'body'])
 @pytest.mark.parametrize('ending', ['deadline', 'revoke'])
 def test_actual_relay_cancels_slow_headers_and_body_and_rejects_extra_requests(tmp_path, stage, ending):
@@ -187,10 +223,12 @@ def test_actual_relay_cancels_slow_headers_and_body_and_rejects_extra_requests(t
     client.start()
     try:
         assert started.wait(1)
-        extra = httpx.post(url, json={'model': 'fixture'}, headers=headers, timeout=1)
-        assert extra.status_code == 503
-        if ending == 'revoke':
-            relay.revoke('task')
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            queued = pool.submit(httpx.post, url, json={'model': 'fixture'}, headers=headers, timeout=2)
+            if ending == 'revoke':
+                relay.revoke('task')
+            assert queued.result(timeout=2).status_code == 401
         client.join(timeout=1)
         assert not client.is_alive()
         assert stopped.wait(0.5), 'Upstream exchange survived task termination'

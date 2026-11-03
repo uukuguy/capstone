@@ -1,5 +1,5 @@
 import {afterEach,expect,it,vi} from 'vitest'
-import {applicationCapacity,initializeApplicationCapacity,readRuntimeCapacity,CapacityError,observeCapacity} from './applicationCapacity'
+import {applicationCapacity,initializeApplicationCapacity,readRuntimeCapacity,CapacityError,observeCapacity,assertCapacity} from './applicationCapacity'
 import {projectNativeArtifacts} from './nativeArtifacts'
 import {readNetworkCamera} from './threadNetworkCamera'
 import {capacityFailureNotice,parseCapacityFailure} from './capacityFailure'
@@ -11,12 +11,19 @@ import {parseContextProductRefs} from './threadProducts'
 import {resultProjectionHistoryText} from './threadSystemNotices'
 
 afterEach(()=>{initializeApplicationCapacity();sessionStorage.clear();vi.unstubAllGlobals()})
-it('keeps normal soft limits observable and interrupts debug mode with exact provenance',()=>{
+it('accepts an optional zero MCP total budget and preserves positive budgets',()=>{
+  initializeApplicationCapacity({mcp_call_count:0})
+  expect(applicationCapacity('mcp_call_count')).toBe(0)
+  initializeApplicationCapacity({mcp_call_count:2})
+  expect(()=>assertCapacity(3,'mcp_call_count')).toThrow(CapacityError)
+})
+it('keeps soft limits observable in both modes and hard debug limits retain provenance',()=>{
   initializeApplicationCapacity({schema:'capstone-capacity-profile/1',mode:'normal',limits:{preview_bytes:4}})
   expect(observeCapacity(5,'preview_bytes','native-preview')).toBe(true)
   initializeApplicationCapacity({schema:'capstone-capacity-profile/1',mode:'debug',fingerprint:'test-profile',limits:{preview_bytes:4}})
   let failure:unknown
-  try{observeCapacity(5,'preview_bytes','native-preview')}catch(error){failure=error}
+  expect(observeCapacity(5,'preview_bytes','native-preview')).toBe(true)
+  try{assertCapacity(5,'preview_bytes','native-preview')}catch(error){failure=error}
   expect(failure).toBeInstanceOf(CapacityError)
   expect(failure).toMatchObject({dimension:'preview_bytes',actual:5,effective:4,mode:'debug',location:'native-preview',source:'test-profile'})
   expect((failure as Error).message).toContain('native-preview')
@@ -29,10 +36,10 @@ it('does not swallow debug capacity failures while projecting published file eve
   const artifact={schema:'capstone-process-artifact/1',scope:'instruction',thread_id:'thr_one',run_id:'run_one',turn_id:'turn_one',attempt_id:'attempt_one',work_id:'work_one',task_snapshot_id:'snapshot_one',goal_revision:1,task_id:'task_one',artifact_id:id,executor_identity_sha256:'d'.repeat(64),source_status:'completed',file_name:'report.html',media_type:'text/html',sha256:'a'.repeat(64),size_bytes:2,download_url:`/api/v1/threads/thr_one/attempts/attempt_one/artifacts/${id}`}
   expect(()=>projectNativeArtifacts([{visibility:'public',eventType:'native_artifact_published',threadId:'thr_one',runId:'run_one',turnId:'turn_one',attemptId:'attempt_one',payload:{artifact}}] as never)).toThrow(CapacityError)
 })
-it('interrupts debug camera eviction instead of silently restoring an empty view',()=>{
+it('recovers from an oversized debug camera cache with an empty view',()=>{
   initializeApplicationCapacity({schema:'capstone-capacity-profile/1',mode:'debug',limits:{ui_camera_storage_bytes:3}})
   sessionStorage.setItem('cameras',JSON.stringify({view:{x:0,y:0,width:1,height:1}}))
-  expect(()=>readNetworkCamera('cameras','view')).toThrow(CapacityError)
+  expect(readNetworkCamera('cameras','view')).toBeUndefined()
 })
 it('preserves exact public debug diagnostics and rejects untrusted extra failure fields',()=>{
   const capacity={code:'capacity_exceeded',dimension:'preview_bytes',actual:5,limit:4,unit:'bytes',phase:'artifact.preview',retryable:false,mode:'debug',fatal:true,effective:4,source:'application_capacity',location:'artifact.preview'}

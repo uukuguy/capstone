@@ -34,7 +34,12 @@ def test_defaults_and_public_catalog_hide_credentials():
     assert public['default_profile_id'] == 'commercial-deepseek-flash'
     assert 'private' not in str(public)
     assert 'base_url' not in str(public)
-    assert ProfileRegistry(environment={'CAPSTONE_WORKBENCH_PRESET': 'intranet'}).catalog()['default_profile_id'] == 'intranet-dsv4-18804'
+    intranet = ProfileRegistry(environment={'CAPSTONE_WORKBENCH_PRESET': 'intranet'})
+    assert intranet.catalog()['default_profile_id'] == 'intranet-qwen-flash-next-8013'
+    selected = intranet.resolve(intranet.freeze())
+    assert selected['model'] == 'Qwen3.8-Flash-Next'
+    assert selected['base_url'] == 'http://192.168.72.69:8013/v1'
+    assert selected['context_policy']['context_window_tokens'] == 262144
 
 
 def test_frozen_selection_rejects_changed_identity_and_unknown_profiles():
@@ -66,7 +71,7 @@ def test_default_submission_freezes_before_deployment_preset_changes(monkeypatch
     monkeypatch.setenv('CAPSTONE_WORKBENCH_PRESET', 'local')
     submitted = validate_submission({'text': 'hello'}, mode='capstone', objects=[])
     monkeypatch.setenv('CAPSTONE_WORKBENCH_PRESET', 'intranet')
-    assert ProfileRegistry().default == 'intranet-dsv4-18804'
+    assert ProfileRegistry().default == 'intranet-qwen-flash-next-8013'
     assert submitted['llm_selection']['profile_id'] == 'commercial-deepseek-flash'
     assert ProfileRegistry().resolve(submitted['llm_selection'])['model'] == 'deepseek-flash'
 

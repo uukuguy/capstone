@@ -74,19 +74,23 @@ def test_reference_request_cannot_expand_the_frozen_grant(tmp_path,change):
     assert list(staging.root.iterdir())==[]
 
 
-def test_worker_starts_with_references_then_reads_only_requested_resource(monkeypatch):
+@pytest.mark.parametrize('unavailable', [False, True])
+def test_worker_starts_with_references_then_reads_only_requested_resource(monkeypatch, unavailable):
     import time
     from types import SimpleNamespace
     from capstone_agent.pi_delegation import HttpGeneralPiExecutor,PiTaskResult
     from capstone_agent.request_intent import NodeControl
     executor=HttpGeneralPiExecutor('http://localhost:1',identity={'engine':'fixture'},capability={})
-    first,unused=resource(),resource(b'unrelated','b');reads=[];polls=0
+    first,unused=resource(),resource(b'unrelated','b');reads=[];polls=0;receipts=[]
     request=SimpleNamespace(task_id='task',parent_attempt_id='attempt',executor_identity=executor.identity,
         timeout_seconds=2,research_binding=None,native_context={'resource_manifests':[first,unused]},
         to_document=lambda:{'task_id':'task'})
     def call(method,path,**kwargs):
         nonlocal polls
         if method=='POST':
+            if path.endswith('/inputs'):
+                receipts.append(kwargs)
+                return {}
             assert path=='/tasks' and reads==[]
             return {'task_id':'task'}
         polls+=1
@@ -96,6 +100,11 @@ def test_worker_starts_with_references_then_reads_only_requested_resource(monkey
     executor.stage_resources=lambda task,refs,reader,*args,**kwargs:[b''.join(reader(item)) for item in refs]
     monkeypatch.setattr(PiTaskResult,'from_document',lambda *args:SimpleNamespace(status='completed'))
     def reader(item):
-        reads.append(item);yield b'original bytes'
+        reads.append(item)
+        if unavailable:
+            from capstone_agent.continuation_resources import ContinuationResourceUnavailable
+            raise ContinuationResourceUnavailable('historical resource reference is unavailable')
+        yield b'original bytes'
     executor.execute_with_resource_references(request,NodeControl(lambda:None,time.monotonic()+2),lambda _:None,reader)
     assert reads==[first] and polls==2
+    assert len(receipts) == int(unavailable)

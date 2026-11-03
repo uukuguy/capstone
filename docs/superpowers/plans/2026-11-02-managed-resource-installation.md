@@ -100,5 +100,5 @@ RESOURCE_ACTIONS = frozenset({
 
 ## Execution status
 
-- Plan prepared; Task 1 starts first. Remaining tasks depend on its authorization contract.
-- The preinstall design is approved. No resource installation, publication or remote deployment has yet occurred.
+- Permission/store/installer foundations, workspace API, protected transport, isolated acquisition/probes, task-scoped load/call and workbench controls are implemented. Unified local rebuild, real Skill/MCP and pinned Git acquisition, replacement-container offline recovery, model list operation and existing Vivaldi panel checks passed. See [verification](../../reports/2026-11-03-managed-resource-installation.md).
+- Dependency environments, protected runtime credential references, offline bundle export/apply, exact-version membership and pending-operation recovery are implemented. Real controlled Python/npm installation, credential rotation/revocation and offline target restoration passed. Final published-contract image revalidation passed. Supported formats and unverified end-to-end model installation are explicit in the verification report. No CI or remote deployment.

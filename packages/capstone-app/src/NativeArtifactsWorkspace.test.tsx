@@ -31,20 +31,29 @@ function blobUrls(){
   vi.stubGlobal('URL',class extends URL {static createObjectURL=vi.fn(()=>`blob:file-${++index}`);static revokeObjectURL=revoke})
   return revoke
 }
-it('hard-stops debug preview loading with the exact diagnostic and no fallback or retry',async()=>{
+it('keeps an oversized debug preview bounded and provides the full download',async()=>{
   initializeApplicationCapacity({schema:'capstone-capacity-profile/1',mode:'debug',limits:{preview_bytes:1}})
   blobUrls()
   const artifact=file('one.md','ab')
   const client={nativeArtifacts:vi.fn().mockResolvedValue({artifacts:[artifact],hasMore:false,nextAfter:1}),nativeArtifact:vi.fn().mockResolvedValue(bytes('ab'))}
   render(<NativeArtifactsWorkspace client={client} threadId="thr_one" attemptIds={['attempt_one']} revision={1}/>)
-  const alert=await screen.findByRole('alert')
-  expect(alert.textContent).toContain('preview_bytes')
-  expect(alert.textContent).toContain('actual=2')
-  expect(alert.textContent).toContain('effective=1')
-  expect(alert.textContent).toContain('artifact.preview')
-  expect(screen.queryByRole('link',{name:'下载文件'})).toBeNull()
+  await screen.findByText(/此文件超过内置预览容量/)
+  expect(screen.getByRole('link',{name:'下载文件'}).getAttribute('href')).toBe('blob:file-1')
+  expect(screen.queryByRole('alert')).toBeNull()
   expect(screen.queryByRole('button',{name:/重试/})).toBeNull()
   expect(client.nativeArtifact).toHaveBeenCalledTimes(1)
+})
+it('keeps debug artifact page continuation after the automatic scan window',async()=>{
+  initializeApplicationCapacity({schema:'capstone-capacity-profile/1',mode:'debug',limits:{artifact_initial_pages:1}})
+  blobUrls()
+  const artifact=file('one.md','# Saved')
+  const client={nativeArtifacts:vi.fn().mockResolvedValueOnce({artifacts:[],hasMore:true,nextAfter:7}).mockResolvedValue({artifacts:[artifact],hasMore:false,nextAfter:8}),nativeArtifact:vi.fn().mockResolvedValue(bytes('# Saved'))}
+  render(<NativeArtifactsWorkspace client={client} threadId="thr_one" attemptIds={['attempt_one']} revision={1}/>)
+  const more=await screen.findByRole('button',{name:'更多文件'})
+  fireEvent.click(more)
+  await screen.findByRole('heading',{name:'Saved'})
+  expect(client.nativeArtifacts.mock.calls[1][2]).toBe(7)
+  expect(screen.queryByRole('alert')).toBeNull()
 })
 it('reads past empty record pages and previews only actual verified bytes with a download',async()=>{
   blobUrls()

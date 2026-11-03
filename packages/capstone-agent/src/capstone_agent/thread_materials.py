@@ -111,7 +111,11 @@ def upload_material(service, objects, thread_id, filename, data):
         key = _key(thread_id, item)
         try:
             existing = objects.get(key, limits.inline_material_bytes)
-        except Exception:
+        except Exception as error:
+            import logging
+            from .native_failure_origin import native_failure_origin
+            logging.getLogger(__name__).warning('Material lookup failed before durable write; origin=%s',
+                native_failure_origin(error))
             existing = None
         if existing is None:
             objects.put(key, data, item['media_type'])
@@ -191,11 +195,13 @@ def _adopted_file_bytes(service, snapshot, source, connection, *, objects=None):
             ORDER BY event_seq DESC''', (snapshot.thread_id, source['attempt_id'], source['artifact_id']))
         deliveries = (row['delivery'] for row in rows)
     from .thread_deliveries import _key as delivery_key
+    from .native_artifact_projection import _matches_frozen_descriptor
     objects = service._material_objects if objects is None else objects
     for delivery in deliveries:
         if (delivery.get('format') != 'native-file' or delivery.get('scope') != 'task'
                 or delivery.get('thread_id') != snapshot.thread_id or delivery.get('work_id') != source['work_id']
-                or delivery.get('source_artifact') != source
+                or not isinstance(delivery.get('source_artifact'), dict)
+                or not _matches_frozen_descriptor(delivery['source_artifact'], source)
                 or delivery.get('byte_size') != source['size_bytes']
                 or delivery.get('content_digest') != source['sha256']):
             continue
@@ -203,7 +209,11 @@ def _adopted_file_bytes(service, snapshot, source, connection, *, objects=None):
             data = objects.get(delivery_key(snapshot.thread_id, delivery), limits.artifact_file_bytes)
             if len(data) == source['size_bytes'] and sha256(data).hexdigest() == source['sha256']:
                 return data
-        except Exception:
+        except Exception as error:
+            import logging
+            from .native_failure_origin import native_failure_origin
+            logging.getLogger(__name__).warning('Adopted artifact read failed; artifact_id=%s; origin=%s',
+                source['artifact_id'], native_failure_origin(error))
             continue
     raise OSError('no verified durable adoption is available')
 
@@ -227,7 +237,11 @@ def freeze_material_submission(service, snapshot, payload, submission, *, connec
             frozen.append({**item, 'content_base64': base64.b64encode(data).decode('ascii')})
     except CapacityExceeded:
         raise
-    except Exception:
+    except Exception as error:
+        import logging
+        from .native_failure_origin import native_failure_origin
+        logging.getLogger(__name__).warning('Material submission preparation failed; origin=%s',
+            native_failure_origin(error))
         return submission, 'material_unavailable'
     notices, deferred = [], []
     if not payload.get('context_product_refs'):

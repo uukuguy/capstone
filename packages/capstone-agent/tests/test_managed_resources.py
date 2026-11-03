@@ -145,3 +145,29 @@ def test_valid_but_modified_version_metadata_fails_closed(store):
         db.execute('UPDATE versions SET metadata=?', (json.dumps(metadata),))
     with pytest.raises(ResourceStateError, match='version_corrupt'):
         store.require_use(P, 'w', 'sample')
+
+
+def test_v1_migration_retains_existing_versions_and_bindings(store):
+    item=install(store)
+    with store._transaction() as database:
+        database.execute('DROP TABLE installation_specs')
+        database.execute('PRAGMA user_version = 1')
+    reopened=ManagedResourceStore(store.root,store.permissions)
+    assert reopened.require_use(P,'w','sample')==item
+    with reopened._transaction() as database:
+        assert database.execute('PRAGMA user_version').fetchone()[0]==2
+
+
+def test_preinstall_membership_matches_current_exact_version(store):
+    first = install(store)
+    store.set_preinstall_draft(P, 'w', 'default', 'sample')
+    old_manifest = store.publish_preinstall(P, 'w', 'default')
+    assert store.preinstall_memberships(P, 'w')['sample'] == {
+        'drafts': ['default'], 'published': ['default']}
+    second = install(store, 'update', verified('b'), first['version'])
+    assert 'sample' not in store.preinstall_memberships(P, 'w')
+    store.set_preinstall_draft(P, 'w', 'default', 'sample')
+    assert store.preinstall_memberships(P, 'w')['sample'] == {
+        'drafts': ['default'], 'published': []}
+    assert store.published_manifest(P, 'w', 'default', old_manifest['version'])['entries'][0]['version'] == first['version']
+    assert store.require_use(P, 'w', 'sample')['version'] == second['version']

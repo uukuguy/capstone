@@ -1,5 +1,8 @@
 """Optional live transfers never wait or retry on the native control channel."""
+import logging
 from collections import OrderedDict
+
+from .native_failure_origin import native_failure_origin
 from threading import Condition, Thread
 
 
@@ -47,3 +50,7 @@ class IncrementalArtifactTransfers:
             except Exception as error:
                 # A single best-effort live transfer; never retry until deadline.
                 self.error = type(error).__name__
+                if not (isinstance(error, InterruptedError) and self.closed):
+                    logging.getLogger(__name__).warning(
+                        'Incremental artifact transfer failed; exception_type=%s; origin=%s',
+                        type(error).__name__, native_failure_origin(error))

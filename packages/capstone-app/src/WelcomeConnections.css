@@ -1,0 +1,9 @@
+.welcome-connections { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; width:min(100%,560px); margin:0 auto 28px; padding:0 18px; box-sizing:border-box; }
+.welcome-connection-card { min-width:0; padding:16px 18px; text-align:left; border:1px solid #dce5df; border-radius:14px; background:linear-gradient(135deg,#f2f6f1,#fafbf8); box-shadow:0 2px 8px #243e2d04; }
+.welcome-connection-heading { display:flex; align-items:center; gap:7px; color:#536d60; font-size:11px; line-height:1.5; letter-spacing:.03em; }
+.welcome-connection-heading svg { width:14px; height:14px; flex-shrink:0; }
+.welcome-connection-state { margin-left:auto; white-space:nowrap; font-size:10px; color:#737d75; letter-spacing:0; }
+.welcome-connection-state[data-state="available"] { color:#326a57; }
+.welcome-connection-card>strong { display:block; margin-top:12px; color:#253f33; font-size:14px; font-weight:600; line-height:1.5; overflow-wrap:anywhere; }
+.welcome-connection-detail { display:block; margin-top:5px; color:#627366; font-size:11px; line-height:1.6; overflow-wrap:anywhere; }
+@media(max-width:520px) { .welcome-connections { grid-template-columns:minmax(0,1fr); gap:8px; max-width:360px; } .welcome-connection-card { padding:12px 15px; } .welcome-connection-card>strong { margin-top:8px; } }

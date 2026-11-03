@@ -102,7 +102,7 @@ def test_controller_can_process_controls_while_live_read_is_blocked_and_close_pr
     runtime._artifact_store.put.assert_not_called()
 
 
-def test_live_transfer_transport_failure_is_attempted_once_without_retry():
+def test_live_transfer_transport_failure_is_attempted_once_without_retry(caplog):
     from capstone_agent.incremental_artifact_transfers import IncrementalArtifactTransfers
     attempted = threading.Event()
     calls=[]
@@ -111,4 +111,37 @@ def test_live_transfer_transport_failure_is_attempted_once_without_retry():
     queue.submit({'artifact_id':'one','host_artifact_id':'file-path-one'})
     assert attempted.wait(1)
     queue.close()
+    queue.thread.join(1)
     assert calls==['attempt']
+    assert 'Incremental artifact transfer failed' in caplog.text
+    assert 'unavailable' not in caplog.text
+
+
+def test_capture_fault_is_diagnosable_and_next_trigger_can_recover(tmp_path, monkeypatch, caplog):
+    import capstone_agent.incremental_artifacts as module
+    failed, recovered = threading.Event(), threading.Event()
+    calls = []
+    def scan(*args, **kwargs):
+        calls.append(1)
+        if len(calls) == 1:
+            failed.set()
+            raise OSError('private host path and token')
+        recovered.set()
+        return []
+    monkeypatch.setattr(module, 'collect_artifacts', scan)
+    capture = IncrementalArtifacts(workspace=tmp_path, request=request(), identity={'engine':'pi'},
+        storage=MagicMock(), publish=MagicMock())
+    try:
+        capture.trigger()
+        assert failed.wait(1)
+        deadline = time.monotonic() + 1
+        while 'Incremental artifact capture failed' not in caplog.text and time.monotonic() < deadline:
+            time.sleep(.005)
+        assert capture.error == 'OSError'
+        assert 'Incremental artifact capture failed' in caplog.text
+        assert 'private host path and token' not in caplog.text
+        capture.trigger()
+        assert recovered.wait(1)
+    finally:
+        capture.close()
+        capture.thread.join(1)

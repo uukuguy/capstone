@@ -551,7 +551,8 @@ def test_executor_component_failure_is_actionable_without_fake_verification():
     events = service.read_events('thr_harness', 0).events
     steps = [step for event in events for step in event.payload.get('task_steps', [])]
     assert all(step['title'] != '核验与结果整理' for step in steps)
-    assert events[-1].payload['task_steps'][0]['finish_reason'] == 'interrupted'
+    assert events[-1].payload['task_steps'][0]['finish_reason'] == 'error'
+    assert events[-1].payload['task_steps'][0]['status'] == 'failed'
 
 
 def test_harness_attempt_runner_persists_network_events_before_terminal_answer() -> None:
@@ -577,7 +578,7 @@ def test_harness_attempt_runner_persists_network_events_before_terminal_answer()
     assert event_types[-3:] == ["network_diagram", "network_layer", "attempt_completed"]
 
 
-def test_network_provider_failure_keeps_attempt_completed_and_emits_unavailable() -> None:
+def test_network_provider_failure_keeps_attempt_completed_and_emits_unavailable(caplog) -> None:
     service = _thread_service()
     service.submit_command({
         "schema": "capstone-command/1", "command_id": "cmd_harness_network_failure",
@@ -599,6 +600,8 @@ def test_network_provider_failure_keeps_attempt_completed_and_emits_unavailable(
     events = service.read_events("thr_harness", 0).events
     assert events[-2].event_type == "network_layer_unavailable"
     assert events[-2].payload == {"ordinal": 1, "code": "projection_source_unavailable"}
+    assert "Network projection failed" in caplog.text
+    assert "authority unavailable" not in caplog.text
     assert events[-1].event_type == "attempt_completed"
 
 

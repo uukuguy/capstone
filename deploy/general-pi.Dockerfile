@@ -65,6 +65,8 @@ COPY packages/capstone-agent/src/capstone_agent/native_network_policy.py capston
 COPY packages/capstone-agent/src/capstone_agent/native_environment.py capstone_agent/native_environment.py
 COPY packages/capstone-agent/src/capstone_agent/general_pi_server.py capstone_agent/general_pi_server.py
 COPY packages/capstone-agent/src/capstone_agent/resource_permissions.py capstone_agent/resource_permissions.py
+COPY packages/capstone-agent/src/capstone_agent/capacity_contract.py capstone_agent/capacity_contract.py
+COPY configs/runtime/capacity-policy.json configs/runtime/capacity-policy.json
 COPY configs/runtime/resource-permissions.json configs/runtime/resource-permissions.json
 COPY packages/capability-agent-kernel/src/capability_agent/runtime/step_events.py capstone_runtime_events.py
 COPY packages/capstone-agent/src/capstone_agent/general_pi_storage.py capstone_agent/general_pi_storage.py
@@ -80,7 +82,7 @@ COPY packages/capstone-agent/src/capstone_agent/grid_source_topology.py capstone
 COPY packages/capstone-agent/src/capstone_agent/grid_electrical_view.py capstone_agent/grid_electrical_view.py
 COPY packages/capstone-agent/src/capstone_agent/resources/gateway-electrical-view-v1.schema.json capstone_agent/resources/gateway-electrical-view-v1.schema.json
 COPY packages/capstone-agent/src/capstone_agent/resources/gateway-electrical-view-v2.schema.json capstone_agent/resources/gateway-electrical-view-v2.schema.json
-COPY packages/capstone-agent/src/capstone_agent/resources/general-data-gateway.mjs packages/capstone-agent/src/capstone_agent/resources/resource-reference-tools.mjs capstone_agent/resources/
+COPY packages/capstone-agent/src/capstone_agent/resources/general-data-gateway.mjs packages/capstone-agent/src/capstone_agent/resources/resource-reference-tools.mjs packages/capstone-agent/src/capstone_agent/resources/managed-resource-tools.mjs capstone_agent/resources/
 COPY packages/capstone-agent/src/capstone_agent/resources/tool-result-context.mjs capstone_agent/resources/tool-result-context.mjs
 COPY packages/capstone-agent/src/capstone_agent/incremental_artifacts.py \
      packages/capstone-agent/src/capstone_agent/native_llm_pool.py \
@@ -177,4 +179,8 @@ CMD ["python", "-m", "capstone_agent.general_pi_resource_seed"]
 
 COPY packages/capstone-agent/src/capstone_agent/workbench_llm_profiles.py capstone_agent/workbench_llm_profiles.py
 COPY configs/runtime/workbench-llm-profiles.json configs/runtime/workbench-llm-profiles.json
-COPY packages/capstone-agent/src/capstone_agent/native_failure_origin.py capstone_agent/native_failure_origin.py
+COPY packages/capstone-agent/src/capstone_agent/native_failure_origin.py \
+     packages/capstone-agent/src/capstone_agent/runtime_cleanup.py \
+     packages/capstone-agent/src/capstone_agent/managed_resource*.py \
+     packages/capstone-agent/src/capstone_agent/resource_permissions.py \
+     packages/capstone-agent/src/capstone_agent/workspace_scope.py capstone_agent/

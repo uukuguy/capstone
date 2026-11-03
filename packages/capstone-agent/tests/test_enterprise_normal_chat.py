@@ -560,9 +560,13 @@ print(json.dumps({'type':'agent_end','messages':[{'role':'assistant','content':[
         assert content == b'Recovered SOURCE_SUFFIX'
         assert published['scope'] == 'instruction'
         versions = [event.payload['artifact'] for event in artifacts if event.payload['artifact']['file_name'] == 'table.csv']
-        assert versions[0]['sha256'] != versions[1]['sha256']
+        # Historical products are reference-first. This fixture reads the
+        # original facts, but never requests the previous CSV, so both outputs
+        # contain the same bytes and retain distinct attempt ownership.
+        assert versions[0]['sha256'] == versions[1]['sha256']
+        assert versions[0]['attempt_id'] != versions[1]['attempt_id']
         _, revised = read_native_artifact(store, executor, thread_id, versions[1]['attempt_id'], versions[1]['artifact_id'])
-        assert revised == b'item,value\nA,85\n'
+        assert revised == b'item,value\nA,84\n'
         assert configs[1]['applicationPolicy']['system_policy'] == ConversationPolicy().load()
         assert configs[1]['appendSystemPrompt'][-1] == ConversationPolicy().load()
         assert configs[1]['applicationPolicy']['external_lookup_enabled'] is False

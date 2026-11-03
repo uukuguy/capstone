@@ -38,7 +38,7 @@ def test_debug_upload_metadata_uses_effective_bound_before_parsing():
     assert caught.value.phase == 'resource.upload.metadata'
 
 
-def test_debug_continuation_detects_overflow_before_dropping_process_files():
+def test_debug_continuation_preserves_soft_bounded_file_recovery():
     initialize_capacity({'artifact_count': 2}, mode='debug')
     events = []
     for index in range(3):
@@ -46,10 +46,8 @@ def test_debug_continuation_detects_overflow_before_dropping_process_files():
         events.append(SimpleNamespace(event_type='native_artifact_published', thread_id='thr_one',
                                       attempt_id='attempt_one', payload=document['payload'], to_document=lambda value=document: value))
     service = SimpleNamespace(_events=events, _attempts={'attempt_one': {'attempt': SimpleNamespace(phase='completed')}})
-    with pytest.raises(CapacityExceeded) as caught:
-        _process_files(service, SimpleNamespace(thread_id='thr_one'), 'work_one', None, None)
-    assert caught.value.dimension == 'artifact_count'
-    assert caught.value.actual == 3
+    files = _process_files(service, SimpleNamespace(thread_id='thr_one'), 'work_one', None, None)
+    assert [item['file_name'] for item in files] == ['1.csv', '2.csv']
 
 
 def test_product_scan_uses_the_same_initialized_window_in_memory():

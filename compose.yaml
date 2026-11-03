@@ -3,6 +3,7 @@ name: capstone
 x-host-environment: &host-environment
   CAPSTONE_RUNTIME_PROFILE: ${CAPSTONE_RUNTIME_PROFILE-capstone-workbench-v1}
   CAPSTONE_WORKBENCH_PRESET: ${CAPSTONE_WORKBENCH_PRESET:-local}
+  CAPSTONE_RESOURCE_MANAGEMENT_ENABLED: ${CAPSTONE_RESOURCE_MANAGEMENT_ENABLED:-}
   OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
   OPENAI_MODEL: ${OPENAI_MODEL:-}
   OPENAI_API_KEY: ${OPENAI_API_KEY:-}
@@ -192,7 +193,9 @@ services:
     environment:
       CAPSTONE_WORKBENCH_PRESET: ${CAPSTONE_WORKBENCH_PRESET:-local}
       CAPSTONE_RESOURCE_PERMISSION_PROFILE: ${CAPSTONE_RESOURCE_PERMISSION_PROFILE:-local}
-      CAPSTONE_RESOURCE_POLICY_FILE: ${CAPSTONE_RESOURCE_POLICY_FILE:-/opt/general/configs/runtime/resource-permissions.json}
+      CAPSTONE_RESOURCE_MANAGEMENT_ENABLED: ${CAPSTONE_RESOURCE_MANAGEMENT_ENABLED:-}
+      CAPSTONE_RESOURCE_POLICY_FILE: ${CAPSTONE_RESOURCE_POLICY_FILE:-/run/capstone-private/resource-policy/resource-permissions.json}
+      CAPSTONE_RESOURCE_SECRET_BINDINGS_FILE: ${CAPSTONE_RESOURCE_SECRET_BINDINGS_FILE:-}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-}
       CAPSTONE_PUBLIC_PROVIDER: ${CAPSTONE_PUBLIC_PROVIDER:?Set deploy/local.env}
@@ -208,6 +211,11 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
     volumes:
+      - type: bind
+        source: ${CAPSTONE_RESOURCE_POLICY_DIR:-./.capstone-agent/resource-policy}
+        target: /run/capstone-private/resource-policy
+        read_only: true
+      - managed-resources:/var/lib/general-pi/managed-resources
       - general-pi-receipts:/var/lib/general-pi/receipts
       - general-pi-inputs:/var/lib/general-pi/inputs
       - general-pi-profiles:/var/lib/general-pi/profiles
@@ -237,6 +245,7 @@ volumes:
   postgres-data:
   object-data:
   worker-native-runs:
+  managed-resources:
   general-pi-receipts:
   general-pi-inputs:
   general-pi-profiles:

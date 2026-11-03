@@ -355,9 +355,6 @@ class GeneralPiHost:
 
     def _make_room(self):
         if len(self._tasks) >= self._max_records:
-            if current_capacity().mode == 'debug':
-                raise CapacityExceeded('native_record_count', len(self._tasks) + 1, self._max_records,
-                                       'native_record_admission', mode='debug')
             completed = next((key for key, item in self._tasks.items()
                               if item['status'] not in {'queued', 'running'}), None)
             if completed is None:
@@ -828,6 +825,7 @@ class GeneralPiHost:
                 incremental.trigger()
         status, answer, usage = 'completed', '', {}
         public_failure = None
+        runner_failed = False
         try:
             if request.research_binding is not None:
                 mirror = self.research_mirror(request.task_id)
@@ -846,6 +844,7 @@ class GeneralPiHost:
             if status == 'failed':
                 public_failure = {'code': 'native_execution_error', 'phase': 'execution'}
         except Exception as error:
+            runner_failed = True
             usage = getattr(error, 'saved_usage', usage)
             status = 'failed'
             # Private receipt only: no error message, traceback, arguments or
@@ -857,7 +856,7 @@ class GeneralPiHost:
             if origin:
                 failure['origin'] = origin
             if getattr(error, 'sdk_diagnostic', None):
-                failure['sdk_diagnostic'] = error.sdk_diagnostic
+                failure['sdk_diagnostic'] = getattr(error, 'sdk_diagnostic')
             # Only fixed runtime messages map to private codes. Never persist
             # arbitrary exception text from tools, providers or user files.
             reason = {'General Pi frame exceeds bounds': 'rpc_frame_too_large',
@@ -919,11 +918,14 @@ class GeneralPiHost:
             try:
                 self.storage._write(self.storage.root / 'failures' / (request.task_id + '.json'),
                                     json.dumps(failure).encode())
-            except (OSError, CapacityExceeded):
-                pass  # Keep the original failure; initial replay guard remains.
+            except (OSError, CapacityExceeded) as receipt_error:
+                import logging
+                logging.getLogger(__name__).error('Native failure receipt persistence failed; task_id=%s; '
+                    'original_origin=%s; persistence_origin=%s', request.task_id, origin,
+                    native_failure_origin(receipt_error))
         finally:
             incremental.close()
-        if cancelled():
+        if cancelled() and not runner_failed:
             status = 'cancelled' if record['cancel'].is_set() else 'failed'
             answer = ''
             public_failure = ({'code': 'native_task_deadline', 'phase': 'execution'}
@@ -965,6 +967,11 @@ class GeneralPiHost:
             self._save(request, result)
             persisted = True
         except (OSError, ValueError, TypeError) as error:
+            import logging
+            from .native_failure_origin import native_failure_origin
+            logging.getLogger(__name__).error(
+                'Native result persistence failed; task_id=%s; exception_type=%s; origin=%s',
+                request.task_id, type(error).__name__, native_failure_origin(error))
             result = {'schema': 'capstone-pi-task-result/2', 'task_id': request.task_id,
                 'parent_attempt_id': request.parent_attempt_id, 'executor_identity': self.identity,
                 'status': 'failed', 'answer': '', 'sources': [],
@@ -976,8 +983,13 @@ class GeneralPiHost:
                                      'capacity': cause.to_document()}
             try:
                 self._save(request, result)
-            except (OSError, CapacityExceeded):
-                pass  # Initial accepted receipt remains an unknown-outcome replay guard.
+            except (OSError, CapacityExceeded) as receipt_error:
+                # Initial acceptance still guards against replay of unknown effects.
+                logging.getLogger(__name__).error(
+                    'Native terminal failure receipt persistence failed; task_id=%s; '
+                    'exception_type=%s; original_origin=%s; persistence_origin=%s',
+                    request.task_id, type(receipt_error).__name__,
+                    native_failure_origin(error), native_failure_origin(receipt_error))
         finally:
             if persisted:
                 shutil.rmtree(workspace, ignore_errors=True)
@@ -1015,6 +1027,8 @@ class GeneralPiHost:
 
 class NativeTaskRunner:
     """Pi uses a task UID; host secrets remain in a different root process."""
+    from .managed_resource_service import ManagedResourceService
+    managed_resource_service: ManagedResourceService | None = None
     def __init__(self, *, root: Path, config_root: Path, command: tuple[str, ...],
                  model: str, relay_origin: str, network_policy=None, gateway=None, llm_profiles=None,
                  experimental_llm_pool: bool = False) -> None:
@@ -1026,12 +1040,14 @@ class NativeTaskRunner:
         self.experimental_llm_pool = experimental_llm_pool is True
         self.task_llm_profiles = {}
         self.task_resource_references = {}
+        self.task_resource_inputs = {}
         self.task_gateways = {}
         from .native_environment import environment_context
         self.environment_context = environment_context()
         self.network_policy = network_policy
         self.gateway = gateway
-        self.gateway_registry: object | None = None
+        from .gateway_connections import GatewayConnectionRegistry
+        self.gateway_registry: GatewayConnectionRegistry | None = None
         self.gateway_publication = gateway.publication() if gateway else {'available': False, 'reason': 'not_configured'}
         self._lock = threading.Lock()
         self.relay = ProviderRelay()
@@ -1077,7 +1093,8 @@ class NativeTaskRunner:
             if profile is not None:
                 self.task_llm_profiles[request.task_id] = profile
         workspace = task_workspace(self.root / 'tasks', request.task_id)
-        inputs = workspace.parent / ('.inputs-' + workspace.name)
+        inputs = task_workspace(self.root/'inputs',request.task_id) if request.managed_workspace is not None else workspace.parent / ('.inputs-' + workspace.name)
+        self.task_resource_inputs[request.task_id]=inputs
         process = None
         try:
             role = 'direct_pi' if request.entrypoint == 'direct' else 'delegated_pi'
@@ -1099,7 +1116,7 @@ class NativeTaskRunner:
                           'context': context,
                           'deadlineAt': int((time.time() + request.timeout_seconds) * 1000),
                           'adapter_sha256': sha256(b''.join((Path(__file__).parent / name).read_bytes()
-                              for name in ('bounded_mcp.py', 'resources/general-sdk.mjs', 'resources/general-mcp.mjs'))).hexdigest()}
+                              for name in ('bounded_mcp.py', 'resources/general-sdk.mjs', 'resources/general-mcp.mjs', 'resources/managed-resource-tools.mjs'))).hexdigest()}
             if self.resources is not None:
                 accepted = document.get('resource_profile', {
                     'profile_id': role, 'revision': self.resources.profiles[role].revision})
@@ -1117,6 +1134,21 @@ class NativeTaskRunner:
                 sdk_config['runtimeEnvironment'] = self.environment_context
                 sdk_config.setdefault('contextFiles', []).append({
                     'path': 'verified-programming-environment', 'content': self.environment_context})
+            from .capacity_contract import capacity_contract, capacity_model_guidance
+            selected_context = profile.get('context_policy') if profile else None
+            task_capacity = capacity_contract(context_policy=selected_context)
+            task_capacity['execution'] = {
+                'timeout_seconds': request.timeout_seconds, 'deadline_at_ms': sdk_config['deadlineAt'],
+                'source': 'accepted_task_request'}
+            sdk_config.setdefault('contextFiles', []).append({
+                'path': 'effective-runtime-capacity',
+                'content': capacity_model_guidance(context_policy=selected_context)
+                    + '\nAccepted task deadline: ' + str(request.timeout_seconds) + ' seconds; deadline_at_ms='
+                    + str(sdk_config['deadlineAt'])
+                    + '. Exact units, protections and recovery notes are in .runtime-capacity.json. '
+                    'Read the relevant fields before selecting large calls or files. This file is '
+                    'informational; editing it does not change host-enforced limits. '
+                    'Tool JSON schemas and published composition limits also apply before execution.'})
             task_gateway = self.gateway
             frozen_gateway = (document.get('native_context') or {}).get('gateway_binding')
             if frozen_gateway is not None:
@@ -1129,6 +1161,8 @@ class NativeTaskRunner:
             self.task_gateways[request.task_id] = task_gateway
             gateway_publication = task_gateway.publication() if task_gateway else (self.gateway_publication if frozen_gateway is None else {'available': False, 'reason': 'not_configured'})
             if frozen_gateway is not None and frozen_gateway['catalog_revision'] is not None:
+                if task_gateway is None:
+                    raise ValueError('gateway_bound_instance_unavailable')
                 catalog = task_gateway.frozen_catalog(frozen_gateway['catalog_revision'])
                 gateway_publication = {**gateway_publication, 'catalog': catalog}
             if not gateway_publication.get('available'):
@@ -1148,6 +1182,17 @@ class NativeTaskRunner:
                 from .native_task_context import checked_native_context, resolve_research_policy
                 native = checked_native_context(request.native_context)
                 sdk_config['applicationPolicy'] = native['policy']
+                if request.managed_workspace is not None and self.managed_resource_service is not None:
+                    from .resource_permissions import ResourcePrincipal
+                    actions=self.managed_resource_service.store.permissions.allowed_actions(
+                        ResourcePrincipal('workspace:'+request.managed_workspace,()),request.managed_workspace)
+                    if actions:
+                        self.managed_resource_service.open_task(request.task_id)
+                        sdk_config['managedResources']={'url':self.relay_origin+'/managed-resource-tasks/'+request.task_id,
+                            'grant':grant,'allowed_actions':actions}
+                        sdk_config['applicationPolicy']={**sdk_config['applicationPolicy'],'allowed_tools':sorted({
+                            *sdk_config['applicationPolicy']['allowed_tools'],'agent_managed_resource'})}
+
                 if self.experimental_llm_pool and native.get('deep_research') is False:
                     from .native_model_request_pool import MODEL_REQUEST_POOL_POLICY
                     sdk_config['modelRequestPool'] = dict(MODEL_REQUEST_POOL_POLICY)
@@ -1164,7 +1209,7 @@ class NativeTaskRunner:
                 if admitted_gateway and task_gateway is not None:
                     from .data_gateway_relay import gateway_discovery_tools
                     sdk_config['applicationPolicy'] = {**native['policy'], 'allowed_tools': sorted({
-                        *native['policy']['allowed_tools'], *gateway_discovery_tools(native,
+                        *sdk_config['applicationPolicy']['allowed_tools'], *gateway_discovery_tools(native,
                             gateway_publication, gateway_available=True)})}
                     from .gateway_diagnostics import research_diagnostics
                     task_catalog = gateway_publication['catalog']
@@ -1333,7 +1378,7 @@ class NativeTaskRunner:
                 if document['research_binding'].get('graph_schema') == 'capstone-enterprise-graph/2':
                     context_host = self._graph_context_provider(request, workspace, uid)
                     sdk_config['graphContextPath'] = str(context_host.root)
-            launch_options = {}
+            launch_options = {'input_directory':inputs} if request.managed_workspace is not None else {}
             if sdk_config.get('selectedResourceFiles'):
                 inputs = task_workspace(self.root / 'inputs', request.task_id)
                 launch_options['input_directory'] = inputs
@@ -1343,6 +1388,9 @@ class NativeTaskRunner:
                 context_extension=Path(__file__).parent / 'resources' / 'general-context.mjs',
                 sdk_config=sdk_config, context_policy=profile.get('context_policy') if profile else None,
                 **launch_options)
+            capacity_path = workspace / '.runtime-capacity.json'
+            capacity_path.write_text(json.dumps(task_capacity, ensure_ascii=False, indent=2))
+            capacity_path.chmod(0o444)
             for path in [workspace, *workspace.rglob('*')]:
                 os.chown(path, uid, uid)
             for path in [inputs, *inputs.rglob('*')]:
@@ -1374,21 +1422,30 @@ class NativeTaskRunner:
                 setattr(error, 'provider_failure', provider_failure)
             raise
         finally:
+            from .runtime_cleanup import run_runtime_cleanup
             try:
-                if process is not None:
-                    process.stop()
+                try:
+                    run_runtime_cleanup(lambda:self.relay.revoke(request.task_id),operation='relay_revoke')
+                finally:
+                    try:
+                        if process is not None:
+                            run_runtime_cleanup(process.stop,operation='native_process_stop')
+                    finally:
+                        managed=getattr(self,'managed_resource_service',None)
+                        if managed is not None:
+                            run_runtime_cleanup(lambda:managed.close_task(request.task_id),operation='managed_resource_sessions_close')
             finally:
                 with self._lock:
-                    self.relay.revoke(request.task_id)
-                    self.task_llm_profiles.pop(request.task_id, None)
+                    self.task_llm_profiles.pop(request.task_id,None)
+                    self.task_resource_inputs.pop(request.task_id,None)
                     port=self.task_resource_references.pop(request.task_id,None)
                     if port is not None:shutil.rmtree(port.root,ignore_errors=True)
-                gateway = self.task_gateways.pop(request.task_id, None)
+                gateway=self.task_gateways.pop(request.task_id,None)
                 if gateway:
-                    gateway.revoke(request.task_id)
-                shutil.rmtree(inputs, ignore_errors=True)
-                if hasattr(self, '_resource_staging'):
-                    self._resource_staging.remove(request.task_id)
+                    run_runtime_cleanup(lambda:gateway.revoke(request.task_id),operation='gateway_revoke')
+                shutil.rmtree(inputs,ignore_errors=True)
+                if hasattr(self,'_resource_staging'):
+                    run_runtime_cleanup(lambda:self._resource_staging.remove(request.task_id),operation='resource_staging_remove')
 
     def verify_tools(self, identity):
         task_id = 'readiness-' + secrets.token_hex(8)
@@ -1417,7 +1474,7 @@ class NativeTaskRunner:
             try:
                 inventory = self(request, lambda: False, lambda _: None, inventory_only=True)[1]['inventory']
                 if inventory['adapter_sha256'] != sha256(b''.join((Path(__file__).parent / name).read_bytes()
-                        for name in ('bounded_mcp.py', 'resources/general-sdk.mjs', 'resources/general-mcp.mjs'))).hexdigest():
+                        for name in ('bounded_mcp.py', 'resources/general-sdk.mjs', 'resources/general-mcp.mjs', 'resources/managed-resource-tools.mjs'))).hexdigest():
                     raise ValueError('native adapter publication changed')
                 profile = self.resources.confirm_loaded(role, inventory)
                 result[role] = {**profile.to_document(),
@@ -1513,7 +1570,7 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 if access is not None:
                     if access is getattr(target, 'gateway', None):
                         publication = access.publication()
-                        target.gateway_publication = publication
+                        setattr(target, 'gateway_publication', publication)
                         host.capability['data_gateway'] = publication
                     else:
                         with host._lock:
@@ -1617,6 +1674,8 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 self.send_json(404, {'error': 'task_not_found'})
 
         def do_POST(self):
+            if self.path.startswith('/managed-resource-tasks/'):
+                return self.relay_managed_resources()
             if self.path.startswith('/data-gateway/'):
                 return self.relay_data_gateway()
             if self.path.startswith('/provider/'):
@@ -1626,6 +1685,15 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
             try:
                 length = int(self.headers.get('Content-Length', '0'))
                 parts = self.path.split('/')
+                if self.path == '/managed-resources':
+                    from .managed_resource_dispatch import dispatch_resource_request
+                    if not 0 < length <= limits.control_document_bytes:
+                        return self.send_json(413, {'error': 'resource_request_too_large'})
+                    service = getattr(runner, 'managed_resource_service', None)
+                    if service is None:
+                        return self.send_json(503, {'error': 'resource_management_unavailable'})
+                    document = json.loads(self.rfile.read(length))
+                    return self.send_json(200, dispatch_resource_request(service, document))
                 electrical_routes = {f'/grid-sources/data-gateway/electrical/{name}': getattr(electrical_provider, name)
                                      for name in ('open', 'read', 'job')}
                 if self.path in electrical_routes:
@@ -1718,6 +1786,50 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
             except (RuntimeError, OSError):
                 self.send_json(503, {'error': 'executor_capacity'})
 
+        def relay_managed_resources(self):
+            from .managed_resource_dispatch import dispatch_resource_request
+            from .managed_resource_task import resource_task_action
+            from .resource_permissions import ResourcePrincipal
+            if runner is None or getattr(runner,'managed_resource_service',None) is None:
+                return self.send_json(503,{'error':'resource_management_unavailable','executed':False})
+            task_id=self.path.removeprefix('/managed-resource-tasks/')
+            grant=self.headers.get('Authorization','').removeprefix('Bearer ')
+            lease=None
+            try:
+                lease=runner.relay.acquire(task_id,grant,self.connection,channel='gateway')
+                with host._lock:
+                    record=host._tasks.get(task_id)
+                    request=None if record is None else record['request']
+                if request is None or request.managed_workspace is None:
+                    return self.send_json(403,{'error':'resource_task_scope_missing'})
+                length=int(self.headers.get('Content-Length','0'))
+                if not 0<length<=limits.control_document_bytes:
+                    return self.send_json(413,{'error':'resource_request_too_large'})
+                body=json.loads(self.rfile.read(length))
+                if not isinstance(body,dict) or set(body)!={'operation','document'}:
+                    return self.send_json(400,{'error':'resource_request_fields_invalid'})
+                service=runner.managed_resource_service
+                if service is None:
+                    return self.send_json(503,{'error':'resource_runtime_unavailable'})
+                if not service.task_is_open(task_id):
+                    return self.send_json(403,{'error':'resource_task_closed','executed':False})
+                inputs=runner.task_resource_inputs.get(task_id)
+                if inputs is None:
+                    return self.send_json(403,{'error':'resource_task_closed','executed':False})
+                class TaskService:
+                    def invoke(self,principal,workspace,operation,document):
+                        return resource_task_action(service,principal,workspace,operation,document,
+                            inputs=inputs, deadline=lease.deadline, task_id=task_id)
+                result=dispatch_resource_request(TaskService(),{
+                    'workspace':request.managed_workspace,**body})
+                return self.send_json(200,result)
+            except PermissionError:
+                return self.send_json(403,{'error':'resource_permission_denied'})
+            except (ValueError,KeyError):
+                return self.send_json(400,{'error':'resource_request_rejected'})
+            finally:
+                if lease is not None:runner.relay.release(lease)
+
         def relay_data_gateway(self):
             from .data_gateway_mcp import GatewayError
             gateway = getattr(runner, 'task_gateways', {}).get(self.path.split('/')[-1], getattr(runner, 'gateway', None))
@@ -1727,7 +1839,7 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
             task_id = parts[2]
             grant = self.headers.get('Authorization', '').removeprefix('Bearer ')
             try:
-                lease = runner.relay.acquire(task_id, grant, self.connection)
+                lease = runner.relay.acquire(task_id, grant, self.connection, channel='gateway')
             except PermissionError:
                 return self.send_json(401, {'error': 'unauthorized'})
             except CapacityExceeded as error:
@@ -1735,17 +1847,20 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                     host.interrupt_capacity(task_id, error)
                     runner.relay.revoke(task_id)
                 return self.send_json(503, {'error': 'capacity_exceeded', 'capacity': error.to_document()})
+            preflight = False
             try:
                 length = int(self.headers.get('Content-Length', '0'))
                 if not 0 < length <= limits.mcp_frame_bytes:
                     raise GatewayError('gateway_request_invalid')
                 document = json.loads(self.rfile.read(length))
+                preflight = (isinstance(document, dict) and set(document) == {'operation', 'calls'}
+                             and document['operation'] == 'validate_batch')
                 async def forward():
                     lease.loop, lease.task = asyncio.get_running_loop(), asyncio.current_task()
                     if lease.cancelled.is_set():
                         raise asyncio.CancelledError()
                     async with asyncio.timeout(max(.001, lease.deadline - time.monotonic())):
-                        if isinstance(document, dict) and set(document) == {'operation', 'calls'} and document['operation'] == 'validate_batch':
+                        if preflight:
                             return gateway.validate_batch(task_id, document['calls'])
                         return await gateway.call(task_id, document)
                 self.send_json(200, run_http(forward()))
@@ -1753,6 +1868,11 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 self.send_json(400, {'error': str(error), **({'executed': False,
                     'validation_errors': error.validation_errors} if error.validation_errors else {})})
             except CapacityExceeded as error:
+                if preflight:
+                    # No gateway call was started. Let the model correct this batch.
+                    return self.send_json(400, {'error': 'capacity_exceeded', 'executed': False,
+                        'capacity': {**error.to_document(), 'fatal': False},
+                        'recovery': 'Split calls into batches within the declared limit, then validate again.'})
                 if error.mode == 'debug':
                     host.interrupt_capacity(task_id, error)
                     runner.relay.revoke(task_id)
@@ -1869,6 +1989,8 @@ def main():
                       + current_capacity().fingerprint.encode())
     from .native_environment import environment_context
     revision.update((environment_context() or '').encode())
+    from .capacity_contract import load_capacity_policy
+    revision.update(json.dumps(load_capacity_policy(), sort_keys=True, separators=(',', ':')).encode())
     # Gateway publications can change independently of the executor, including
     # between service restarts. Each task binds its gateway catalog separately;
     # mutable discovery metadata must not invalidate the executor identity.
@@ -1878,12 +2000,12 @@ def main():
                 'pi_commit': lock['source']['commit'], 'config_revision': revision.hexdigest(),
                 'runtime_lock_sha256': sha256(Path('/opt/general/pi-runtime.lock.json').read_bytes()).hexdigest(),
                 'executor_revision': sha256(b''.join((Path(__file__).parent / name).read_bytes()
-                    for name in ('general_pi_server.py', 'general_pi_executor.py', 'general_pi_storage.py', 'general_pi_relay.py', 'native_network_policy.py', 'bounded_http_loop.py', 'pi_delegation.py', 'business_context.py', 'request_intent.py', 'native_task_context.py', 'workbench_llm_profiles.py', 'native_failure_origin.py', 'native_diagnosis.py', 'native_tool_composition.py', 'native_llm_pool.py', 'native_model_request_pool.py', 'incremental_artifacts.py',
+                    for name in ('general_pi_server.py', 'general_pi_executor.py', 'general_pi_storage.py', 'general_pi_relay.py', 'native_network_policy.py', 'bounded_http_loop.py', 'pi_delegation.py', 'business_context.py', 'request_intent.py', 'native_task_context.py', 'workbench_llm_profiles.py', 'native_failure_origin.py', 'runtime_cleanup.py', 'resource_permissions.py', 'managed_resources.py', 'managed_resource_manifest.py', 'managed_resource_installation.py', 'managed_resource_service.py', 'managed_resource_dispatch.py', 'managed_resource_runtime.py', 'managed_resource_mcp.py', 'managed_resource_task.py', 'managed_resource_probe.py', 'managed_resource_session.py', 'managed_resource_contract.py', 'managed_resource_dependencies.py', 'managed_resource_secrets.py', 'managed_resource_bundle.py', 'native_diagnosis.py', 'native_tool_composition.py', 'native_llm_pool.py', 'native_model_request_pool.py', 'incremental_artifacts.py',
                                  'native_resources.py', 'runtime_resources.py', 'resource_installation.py', 'general_pi_resource_seed.py', 'bounded_mcp.py', 'native_environment.py', 'data_gateway_mcp.py', 'data_gateway_relay.py', 'data_gateway_views.py', 'gateway_connections.py', 'gateway_connections_runtime.py', 'gateway_diagnostics.py', 'grid_source_topology.py', 'grid_electrical_view.py', 'resources/gateway-electrical-view-v1.schema.json', 'resources/gateway-electrical-view-v2.schema.json', 'resources/general-data-gateway.mjs',
                                  'progress.py', 'answer_presentation.py', 'native_tool_diagnostics.py', 'stream_progress.py', 'resource_manifest.py', 'native_resource_staging.py', 'native_resource_references.py',
                                  'native_research_bridge.py', 'native_graph_context.py', 'native_graph_events.py',
                                  'native_product_roles.py', 'continuation_resources.py', 'resources/general-research.mjs', 'resources/research-guidance.mjs',
-                                 'application_capacity.py', 'resources/application-capacity.json', 'resources/runtime-limits.mjs',
+                                 'application_capacity.py', 'capacity_contract.py', 'resources/application-capacity.json', 'resources/runtime-limits.mjs',
                                  'resources/research-tools.mjs', 'resources/execution-guidance.mjs', 'resources/model-request-capture.mjs',
                                  'resources/general-context.mjs', 'resources/general-sdk.mjs', 'resources/general-tool-discovery.mjs', 'resources/tool-result-context.mjs', 'resources/committed-delivery.mjs', 'resources/systematic-diagnosis.mjs', 'resources/general-mcp.mjs', 'resources/task-record-tools.mjs', 'resources/resource-reference-tools.mjs',
                                  'resources/tool-composition.mjs', 'resources/tool-composition-worker.mjs', 'resources/observed-action.mjs', 'resources/tool-identity.mjs', 'resources/tool-composition-policy.json', 'resources/semantic-data-context.mjs', 'resources/observation-data.mjs', 'resources/gateway-tool-use.mjs',
@@ -1904,6 +2026,9 @@ def main():
     runner.gateway_publication = gateway_publication
     runner.gateway_registry = gateway_registry
     host = GeneralPiHost(root=root, identity=identity, run_task=runner)
+    from .managed_resource_runtime import create_managed_resource_service
+    runner.managed_resource_service = create_managed_resource_service(
+        root / 'managed-resources', network_policy=network_policy, environment=os.environ)
     host.record_network_policy('startup_default', network_policy.state())
     host.capability['native_tools'] = runner.verify_tools(identity)
     host.capability['native_builtin_tools'] = runner.builtin_tools

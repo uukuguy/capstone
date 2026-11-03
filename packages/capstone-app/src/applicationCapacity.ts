@@ -29,7 +29,7 @@ export function initializeApplicationCapacity(value:unknown={}):CapacityProfile 
   const effective={...defaults.limits}
   for(const [key,value] of Object.entries(limits)){
     if(!Object.hasOwn(effective,key))throw new CapacityError(`未知应用容量：${key}`)
-    if(!Number.isSafeInteger(value)||(value as number)<(key==='provider_stream_bytes'?0:1))throw new CapacityError(`应用容量 ${key} 必须为${key==='provider_stream_bytes'?'非负':'正'}安全整数`)
+    if(!Number.isSafeInteger(value)||(value as number)<(['provider_stream_bytes','mcp_call_count'].includes(key)?0:1))throw new CapacityError(`应用容量 ${key} 必须为${['provider_stream_bytes','mcp_call_count'].includes(key)?'非负':'正'}安全整数`)
     effective[key as CapacityKey]=value as number
   }
   if(profile&&document.fingerprint!==undefined&&typeof document.fingerprint!=='string')throw new CapacityError('应用容量 fingerprint 无效')
@@ -40,12 +40,12 @@ export const applicationCapacity=(key:CapacityKey):number=>snapshot.limits[key]
 export const applicationCapacitySnapshot=():CapacityProfile=>snapshot
 export function assertCapacity(actual:number,key:CapacityKey,location='capacity-check'):void {
   const limit=applicationCapacity(key)
-  if(actual>limit&&!(key==='provider_stream_bytes'&&limit===0))throw new CapacityError(`超过应用容量 ${key}：当前 ${actual}，上限 ${limit}。`,key,limit,actual,location)
+  if(actual>limit&&!(['provider_stream_bytes','mcp_call_count'].includes(key)&&limit===0))throw new CapacityError(`超过应用容量 ${key}：当前 ${actual}，上限 ${limit}。`,key,limit,actual,location)
 }
-/** Soft windows remain usable in normal mode; debug interrupts before any loss. */
+/** Soft windows permit bounded recovery in both modes. Hard bounds use assertCapacity. */
 export function observeCapacity(actual:number,key:CapacityKey,location:string):boolean {
-  const exceeded=actual>applicationCapacity(key)
-  if(exceeded&&snapshot.mode==='debug')assertCapacity(actual,key,location)
+  const limit=applicationCapacity(key)
+  const exceeded=actual>limit&&!(['provider_stream_bytes','mcp_call_count'].includes(key)&&limit===0)
   return exceeded
 }
 export function rethrowDebugCapacity(error:unknown):void {if(error instanceof CapacityError&&error.mode==='debug')throw error}

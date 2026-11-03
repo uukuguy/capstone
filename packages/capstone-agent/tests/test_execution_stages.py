@@ -1,4 +1,31 @@
 from capstone_agent.execution_stages import ExecutionStages
+import pytest
+
+
+@pytest.mark.parametrize('event', [
+    {'event_type': 'runtime_action', 'payload': {'phase': 'started'}},
+    {'event_type': 'runtime_event', 'payload': {'native_type': 'tool_execution_start',
+        'tool_name': 'agent_resource_open'}},
+])
+def test_unframed_native_execution_and_failure_are_not_cancelled_preparation(event):
+    now = [0.0]
+    stages = ExecutionStages(clock=lambda: now[0])
+    now[0] = 2
+    stages.mark_execution_entry()
+    now[0] = 5
+    payload = stages.annotate(event)['payload']
+    assert payload['task_steps'][0]['id'] == 'task-preparation'
+    assert payload['task_steps'][0]['duration_ms'] == 2000
+    assert stages.active == 'task-execution'
+    if event['event_type'] == 'runtime_action':
+        assert 'task_step' not in payload
+    else:
+        assert payload['task_step']['id'] == 'task-execution'
+    now[0] = 8
+    terminal, = stages.finish(failed=True)
+    assert terminal['status'] == 'failed'
+    assert terminal['finish_reason'] == 'error'
+    assert terminal['duration_ms'] == 6000
 
 
 def test_finalization_does_not_confirm_an_unsettled_business_step():

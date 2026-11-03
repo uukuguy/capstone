@@ -958,7 +958,7 @@ def test_business_clarification_does_not_prepare_domain_or_invent_partial_succes
     assert result.result_refs == result.evidence_refs == ()
 
 
-def test_executor_failure_has_child_terminal_receipt_and_preserves_cancel_failure_cause():
+def test_executor_failure_has_child_terminal_receipt_and_preserves_cancel_failure_cause(caplog):
     service, current = claim()
     class Broken(Executor):
         def execute(self, request, control, on_event):
@@ -969,6 +969,8 @@ def test_executor_failure_has_child_terminal_receipt_and_preserves_cancel_failur
     assert result.status == 'completed'
     events = service.read_events(current.thread_id, 0).events
     assert any(e.payload.get('child_status') == 'failed' for e in events)
+    assert 'Child cancellation failed' in caplog.text
+    assert 'cancel unknown' not in caplog.text
 
 
 def test_large_source_metadata_is_saved_as_bounded_receipt():

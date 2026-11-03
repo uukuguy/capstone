@@ -11,6 +11,7 @@ cat > "$scratch/bin/docker" <<'SH'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$CAPSTONE_TEST_CALLS"
 case "$*" in
+  *' config --format json') printf '{"services":{"general-pi":{"volumes":[{"type":"bind","source":"%s","target":"/run/capstone-private/resource-policy","read_only":true}]}}}\n' "$CAPSTONE_TEST_POLICY_DIR" ;;
   *' port api 8766') printf '127.0.0.1:8767\n' ;;
   *' port app 5173') printf '127.0.0.1:5173\n' ;;
   *' ps -q api') printf 'api-container\n' ;;
@@ -43,6 +44,7 @@ chmod +x "$scratch/bin/docker" "$scratch/bin/curl" "$scratch/bin/uv"
 
 export CAPSTONE_TEST_CALLS="$scratch/calls"
 export CAPSTONE_TEST_STAGE_SCRIPT="$scratch/stage.py"
+export CAPSTONE_TEST_POLICY_DIR="$scratch/policy"
 export CAPSTONE_LOCAL_ENV_FILE="$scratch/local.env"
 PATH="$scratch/bin:$PATH" "$repo_root/deploy/rebuild_local.sh" > "$scratch/output"
 

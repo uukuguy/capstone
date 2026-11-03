@@ -1,6 +1,7 @@
 """Application-owned, durable conversation gateway identity."""
 from contextvars import ContextVar
 from copy import deepcopy
+from typing import Any, Callable
 
 admission_gateway = ContextVar('thread_gateway_publication', default=None)
 
@@ -39,6 +40,8 @@ def prepare_admission(binding, saved, publication):
 
 
 class ThreadGatewayOwner:
+    _native_binding: dict[str, Any] | None
+    submit_command: Callable
     def submit_gateway_command(self, command, publication):
         token = admission_gateway.set(publication)
         try:

@@ -89,3 +89,68 @@ Native executor:7a3259b0e545e1e64ed87f9f856f2126ecc14a7213fd368ad82789ec009a6b6b
 App:07691b798e3d34ee90f0faecfef4fb23caf291478fd9e4b362cc350ee72926be.
 All four services healthy. No CI. No full summer replay. Concurrency remains one
 native task per worker, recorded separately at the user's request.
+
+## Current update — 601b5909 (2026-11-02)
+
+Source `601b590951d934b3065a4dc32c51dd199a826bec` is now active on the same
+intranet installation. Default model: `Qwen3.8-Flash-Next`,
+`http://192.168.72.69:8013/v1`; models discovery reports262144 context tokens.
+API, native worker and executor all select the intranet preset. Gateway remains
+`内网联调`. Public App bundle contains the exact source identity.
+
+No dependency pins changed. Source layers were built on the verified intranet
+images; backend packages/configs/tools and the App were refreshed from the exact
+Git snapshot. The native base reached Docker's layer limit, so its filesystem
+was flattened with its environment, working directory and startup command
+preserved before adding current files. Original images remain available.
+Runtime configuration and both Compose files have `.before-601b5909` rollback
+snapshots under `/home/dmdba/capstone-intranet`; secrets were retained there.
+No volumes were removed, and no task was active at the switch.
+
+All four application services are healthy; `/health/ready` passes. API and worker
+share image `1a04d3fbc7e3968473d6de1637bbe6091033d4951aaf3057a1488baccd07b460`.
+Native image: `d4f55584814d9981b0e3d6086a9e1e913b53d4bc2465232ba0955f4617887995`.
+App image: `53278c310819119911faf2c359cad3c920bf4c2b455be88a0995039587484e9c`.
+A new session selected Qwen automatically and created deployment-check.csv in
+24.8 seconds, with one tool call and no tool errors. The17-byte downloaded CSV
+matched its saved SHA256. Thread `thr_7e1eb68384073e55f217`,
+attempt `attempt_75db5a50c924b67f`; receipts in
+`runs/intranet-update-20261102-601b5909/`. Browser connection was unavailable;
+visual acceptance was not performed. No CI or historical business replay.
+
+Canonical local rebuild also passed with API/worker image `9d1aac231841012645367cb39991b75ee3209146cc2b359fd07ee61e5354f495`;
+scoped cleanup receipt: `.capstone-agent/cache-maintenance-20261102-153322-97910.log`.
+Managed-installation runtime/API/UI integration remains pending.
+
+## Artifact panel timing — App939a4d74
+
+The intranet App now serves939a4d74. Starting an instruction selects its product
+scope without opening the right panel. The existing primary-product event opens
+it when a product is available. Manual scope changes remain respected.
+23 execution regression checks and types passed. API readiness and the served
+App revision pass; backend/native remain601b5909. No task replay or CI.
+Rollback: runtime.env.before-app-939a4d74. Browser unavailable in this session.
+
+## Summer audit corrections — 70c42dab
+
+API, worker, native executor and App now use source70c42dab. Report CLI was
+non-executable in the prior intranet source overlay. Its source now records
+executable mode, and direct invocation is tested. A standalone image check
+under UID10001 generated HTML and PPT without a network or business inputs.
+Opening-purpose parsing now tolerates leading blank stream chunks, preserves
+the explicit first comment, and never infers purpose from reasoning.
+44 focused App and44 Python/report checks plus types pass. A real new Qwen
+short task completed; its persisted response_completed includes
+response_intent=核对目的留存. Historical business requests were not replayed.
+
+All four application services are healthy. API/worker share image
+53d6ddbeac92b8801418e550cf8832c9e1f29c894da42341265b10494ca96e71.
+Native image222caba11f2056a0db8a238ed9bcdf79e4911e3c5683c34174588d8221dc05d1;
+App imagebf1f670ede68d6485ac550c86840ec53312d202ee254a152036de881358f8446.
+Rollback environment: runtime.env.before-audit-70c42dab. Browser unavailable;
+no visual acceptance claimed. Canonical local rebuild passed; API/worker image
+ee32e807805b58323c49867541194a686c6dc2ea8d495f3ec7cb41d3fac0a313.
+Scoped cleanup receipt: cache-maintenance-20261102-164014-90285.log. No CI.
+See2026-11-02-intranet-summer-chain-audit.md for measured timings, limitations
+and gateway investigation inputs. General planning and context optimizations
+remain pending; these two corrections do not claim to solve all chain issues.

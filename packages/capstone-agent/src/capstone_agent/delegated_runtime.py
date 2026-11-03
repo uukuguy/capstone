@@ -123,7 +123,11 @@ class DelegatedRuntime:
                 self._network_projection_refs) if value is not None else None
             self.network_projection_failure_code = ('projection_invalid' if value is not None
                 else getattr(runtime, 'network_projection_failure_code', 'projection_unavailable'))
-        except Exception:
+        except Exception as error:
+            import logging
+            from .native_failure_origin import native_failure_origin
+            logging.getLogger(__name__).warning('Network projection failed; exception_type=%s; origin=%s',
+                type(error).__name__, native_failure_origin(error))
             self._network_projection = None
             self.network_projection_failure_code = 'projection_source_unavailable'
 
@@ -213,6 +217,7 @@ class DelegatedRuntime:
             instruction, tuple(messages), tuple(self._general_results[identity].to_document()
                 for identity in dependencies if identity in self._general_results),
             frozen['identity'], frozen['timeout_seconds'],
+            managed_workspace=self._claim.workspace_name if resources.get('native_context') and task_fields else None,
             native_context=resources.get('native_context'),
             research_binding=None if self._research_bridge is None else self._research_bridge.binding,
             **task_fields)
@@ -228,6 +233,7 @@ class DelegatedRuntime:
             and len(self._decision.to_document()['goals']) == 1)
         transfers = self._incremental_artifact_transfers(on_event, control)
         opening_text = ''
+        pending_tools: dict[str, str] = {}
 
         def native(event):
             nonlocal opening_text
@@ -277,6 +283,11 @@ class DelegatedRuntime:
             kind = event.get('type', event.get('event', 'unknown'))
             tool_name = event.get('tool_name', event.get('toolName'))
             tool_call_id = event.get('tool_call_id', event.get('toolCallId'))
+            if isinstance(tool_call_id, str) and isinstance(tool_name, str):
+                if kind == 'tool_execution_start':
+                    pending_tools[tool_call_id] = tool_name
+                elif kind == 'tool_execution_end':
+                    pending_tools.pop(tool_call_id, None)
             public_tool = kind in {'tool_execution_start', 'tool_execution_end'} and (
                 isinstance(tool_name, str) and bool(tool_name) and isinstance(tool_call_id, str) and bool(tool_call_id))
             research_branch = kind in {'delegation_child_started', 'delegation_child_tool', 'delegation_child_finished', 'delegation_child_response'}
@@ -288,6 +299,18 @@ class DelegatedRuntime:
             model_progress = isinstance(model_request_pool, Mapping)
             runtime_phase = event.get('runtime_phase')
             phase_progress = kind == 'runtime_phase' and isinstance(runtime_phase, Mapping)
+            resource_failure = event.get('resource_failure')
+            if kind == 'resource_read_failed' and isinstance(resource_failure, Mapping):
+                from .native_failure_origin import checked_failure_origin
+                import re
+                resource_failure = ({'resource_id': resource_failure['resource_id'],
+                    'code': resource_failure['code'],
+                    'failure_origin': checked_failure_origin(resource_failure.get('failure_origin'))}
+                    if isinstance(resource_failure.get('resource_id'), str)
+                    and re.fullmatch(r'resource_[a-f0-9]{32}', resource_failure['resource_id'])
+                    and isinstance(resource_failure.get('code'), str)
+                    and resource_failure.get('code') in {'historical_resource_unavailable',
+                        'resource_read_failed', 'resource_identity_rejected'} else None)
             source_view = None
             if (kind == 'tool_execution_end' or kind == 'enterprise_graph_child_tool' and event.get('activity') == 'end'):
                 if (isinstance(tool_name, str) and tool_name.startswith('data_gateway_') and isinstance(tool_call_id, str)
@@ -307,9 +330,11 @@ class DelegatedRuntime:
             self._emit(on_event, {'task_id': task_id, 'goal_id': goal['goal_id'],
                 'native_type': 'model_request_pool' if model_progress else 'llm_pool_call' if pool_progress else kind if isinstance(kind, str) else 'unknown',
                 **({'model_request_pool':dict(model_request_pool)} if model_progress else {}),
-                **({'runtime_phase': {key: runtime_phase[key] for key in
-                    ('name', 'state', 'reason', 'elapsed_ms', 'will_retry') if key in runtime_phase}}
+                **({'runtime_phase': {key: cast(Mapping, runtime_phase)[key] for key in
+                    ('name', 'state', 'reason', 'elapsed_ms', 'will_retry') if key in cast(Mapping, runtime_phase)}}
                     if phase_progress else {}),
+                **({'resource_failure': dict(resource_failure)}
+                    if kind == 'resource_read_failed' and isinstance(resource_failure, Mapping) else {}),
                 **({'llm_pool_call':dict(llm_pool_call)} if pool_progress else {}),
                 **({'transport': {key: value[:64] for key in ('operation', 'transport_phase')
                     if isinstance((value := event.get(key)), str)}} if kind in {'transport_interrupted', 'transport_restored'} else {}),
@@ -342,13 +367,14 @@ class DelegatedRuntime:
                 visibility='public' if public_tool or research_branch or research_graph_event or pool_progress or model_progress or phase_progress or kind in {
                     'enterprise_cycle_progress', 'enterprise_graph_progress'} else 'diagnostic')
         self._active_task = task_id
+        result: PiTaskResult | None = None
         try:
             manifests = resources.get('native_context', {}).get('resource_manifests', ())
             lazy = getattr(self._executor, 'execute_with_resource_references', None)
             if manifests and callable(lazy):
                 if self._claim.resource_reader is None:
                     raise HarnessRuntimeConfigurationError('resource acquisition transport is unavailable')
-                result = lazy(request, control, native, self._claim.resource_reader, self._research_bridge)
+                result = cast(PiTaskResult, lazy(request, control, native, self._claim.resource_reader, self._research_bridge))
             elif manifests:
                 stage = getattr(self._executor, 'stage_resources', None)
                 if not callable(stage) or self._claim.resource_reader is None:
@@ -367,9 +393,12 @@ class DelegatedRuntime:
                 if not callable(execute):
                     raise HarnessRuntimeConfigurationError('research control transport is unavailable')
                 result = cast(PiTaskResult, execute(request, control, native, self._research_bridge))
+            if result is None:
+                raise HarnessRuntimeConfigurationError('task execution returned no result')
             result = PiTaskResult.from_document(result.to_document(), request)
             control.checkpoint()
         except BaseException as error:
+            from .native_failure_origin import native_failure_origin
             transfers.close()
             cancelled = True
             try:
@@ -377,12 +406,18 @@ class DelegatedRuntime:
                 if retained is not None:
                     retained = PiTaskResult.from_document(retained.to_document(), request)
                     self._publish_artifacts(retained, request, on_event)
-            except Exception:
+            except Exception as cleanup_error:
+                import logging
+                logging.getLogger(__name__).warning('Child cancellation failed; exception_type=%s; origin=%s',
+                    type(cleanup_error).__name__, native_failure_origin(cleanup_error))
                 cancelled = False
                 error.add_note('Child cancellation was not confirmed; task state is unknown')
             self._emit(on_event, {'task_id': task_id, 'goal_id': goal['goal_id'],
                 'parent_attempt_id': parent, 'child_status': 'cancelled' if isinstance(error, InterruptedError) else 'failed',
                 'cancellation_confirmed': cancelled, 'failure_code': child_failure_code(error),
+                'failure_origin': native_failure_origin(error),
+                'unsettled_tools': [{'tool_call_id': call, 'tool_name': name,
+                    'outcome': 'unknown'} for call, name in pending_tools.items()],
                 **({'transport_failure': dict(error.diagnostic)}
                    if isinstance(error, (PiHTTPFailure, PiTransportTimeout)) else {}),
                 **({'failure': {'code':'native_capacity_exceeded','phase':error.phase or 'execution',
@@ -400,8 +435,10 @@ class DelegatedRuntime:
         document = result.to_document()
         try:
             self._publish_artifacts(result, request, on_event, control)
-        except Exception:
-            self._emit(on_event, {'task_id': task_id, 'goal_id': goal['goal_id'],
+        except Exception as error:
+            from .native_failure_origin import native_failure_origin
+            self._emit(on_event, {'failure_origin': native_failure_origin(error),
+                'task_id': task_id, 'goal_id': goal['goal_id'],
                 'parent_attempt_id': parent, 'child_status': 'failed',
                 'failure_code': 'native_artifact_persistence_failed',
                 'executor_status': result.status})
@@ -583,8 +620,11 @@ class DelegatedRuntime:
             self._capture_network_projection(runtime, scoped, admitted, events)
             return 'completed', admitted.answer
         finally:
-            runtime.stop()
-            self._active = None
+            from .runtime_cleanup import run_runtime_cleanup
+            try:
+                run_runtime_cleanup(runtime.stop, operation='business_runtime_stop')
+            finally:
+                self._active = None
 
     def prompt(self, question, *, on_event, correlation_id=None, on_heartbeat=None):
         del question, correlation_id
@@ -628,6 +668,10 @@ class DelegatedRuntime:
                     if isinstance(error,CapacityExceeded) and error.mode=='debug':
                         raise
                     control.checkpoint()  # Parent cancellation and deadline stay fatal.
+                    from .native_failure_origin import native_failure_origin
+                    self._emit(on_event, {'goal_id': identity, 'goal_status': 'failed',
+                        'operation': goal['operation'], 'failure_code': child_failure_code(error),
+                        'failure_origin': native_failure_origin(error)})
                     status, answer = 'failed', 'A task failed. Its result is unavailable.'
             self._statuses[identity] = status
             if self._plan.source == 'native_conversation' and status != 'completed':

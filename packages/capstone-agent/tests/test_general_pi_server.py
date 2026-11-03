@@ -225,6 +225,11 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     def launch(**kwargs):
         assert kwargs['model'] == 'dsv4'
         assert kwargs['context_policy']['context_window_tokens'] == 1048576
+        capacity_guidance = next(item['content'] for item in kwargs['sdk_config']['contextFiles']
+                                 if item['path'] == 'effective-runtime-capacity')
+        assert 'model_context_tokens=1048576 tokens' in capacity_guidance
+        assert 'mcp_call_count=0 means no total-call ceiling' in capacity_guidance
+        assert '.runtime-capacity.json' in capacity_guidance
         assert runner.task_llm_profiles[task]['base_url'] == 'http://192.168.72.69:18804/v1'
         captured.append(json.loads(json.dumps(kwargs['sdk_config'])))
         raise Captured()
@@ -739,6 +744,10 @@ def test_native_runner_writes_business_context_as_private_data(tmp_path, monkeyp
     assert state['operating_system_processes_observed'] is False
     assert state['other_tasks_observed'] is False
     assert isinstance(state['observed_at_ms'], int)
+    capacity = json.loads((root / 'tasks' / request.task_id / '.runtime-capacity.json').read_text())
+    assert capacity['execution']['timeout_seconds'] == request.timeout_seconds
+    assert capacity['dimensions']['gateway_relay_task_requests']['effective'] == 4
+    assert capacity['dimensions']['mcp_call_count']['effective'] == 0
 
 
 @pytest.mark.parametrize('raw,tamper,completed', [
@@ -1195,7 +1204,10 @@ def test_retention_keeps_tombstone_and_cannot_repeat_expired_side_effect(tmp_pat
     assert 'not repeated' in host.read('t1')['result']['answer']
 
 
-def test_storage_quota_rejects_new_work_without_losing_saved_products(tmp_path):
+@pytest.mark.parametrize('mode', ['normal', 'debug'])
+def test_storage_quota_rejects_new_work_without_losing_saved_products(tmp_path, monkeypatch, mode):
+    import capstone_agent.application_capacity as capacity
+    monkeypatch.setattr(capacity, '_current', capacity._profile(mode=mode))
     from capstone_agent.general_pi_storage import GeneralPiStorage
     storage = GeneralPiStorage(tmp_path, max_bytes=1024, max_receipts=1)
     storage.save({'task_id': 'first'}, {'answer': 'kept'})
@@ -1208,7 +1220,24 @@ def test_storage_quota_rejects_new_work_without_losing_saved_products(tmp_path):
     assert storage.load('second') is None
 
 
-def test_artifact_persistence_failure_settles_failed_and_preserves_workspace(tmp_path, monkeypatch):
+@pytest.mark.parametrize('mode', ['normal', 'debug'])
+def test_record_cache_evicts_completed_records_and_keeps_durable_receipts(tmp_path, monkeypatch, mode):
+    import capstone_agent.application_capacity as capacity
+    from capstone_agent.general_pi_server import GeneralPiHost
+    monkeypatch.setattr(capacity, '_current', capacity._profile(mode=mode))
+    host = GeneralPiHost(root=tmp_path, identity={}, run_task=lambda *_: None, max_records=1)
+    host.storage.save({'task_id': 'completed'}, {'answer': 'kept'})
+    host._tasks['completed'] = {'status': 'completed'}
+    host._make_room()
+    assert host._tasks == {}
+    assert host.storage.load('completed')['result']['answer'] == 'kept'
+    host._tasks['active'] = {'status': 'running'}
+    with pytest.raises(capacity.CapacityExceeded, match='native_record_count'):
+        host._make_room()
+    assert host._tasks == {'active': {'status': 'running'}}
+
+
+def test_artifact_persistence_failure_settles_failed_and_preserves_workspace(tmp_path, monkeypatch, caplog):
     from capstone_agent.general_pi_server import GeneralPiHost
     def run(request, *_):
         workspace = tmp_path / 'tasks' / request.task_id
@@ -1229,6 +1258,8 @@ def test_artifact_persistence_failure_settles_failed_and_preserves_workspace(tmp
     assert host.read('t1')['status'] == 'failed'
     assert (tmp_path / 'tasks/t1/product.txt').read_text() == 'Product'
     assert host.storage.load('t1')['result']['status'] == 'failed'
+    assert 'Native result persistence failed' in caplog.text
+    assert 'Private storage unavailable' not in caplog.text
 
 
 def test_products_over_eight_megabytes_use_the_configured_storage_quota(tmp_path):
@@ -1294,3 +1325,53 @@ def test_partial_persistence_keeps_verified_saved_descriptors(tmp_path, monkeypa
     with pytest.raises(OSError) as failure:
         storage.artifacts('task', workspace, collect_artifacts(workspace, 'task', 'attempt'))
     assert [item['metadata']['path'] for item in failure.value.saved_artifacts] == ['a.txt']
+
+
+def test_runner_failure_is_not_replaced_by_concurrent_cancellation(tmp_path):
+    from capstone_agent.general_pi_server import GeneralPiHost
+    def run(request, cancelled, emit):
+        host.cancel(request.task_id)
+        raise ValueError('model_output_invalid')
+    host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'}, run_task=run)
+    request = PiTaskRequest.from_document({'schema': 'capstone-pi-task/1', 'task_id': 't1',
+        'parent_attempt_id': 'a1', 'entrypoint': 'direct', 'instruction': 'Explain', 'messages': [],
+        'dependency_results': [], 'executor_identity': host.identity, 'timeout_seconds': 2})
+    host.submit(request)
+    deadline = time.monotonic() + 2
+    while host.read('t1')['status'] == 'running' and time.monotonic() < deadline:
+        time.sleep(.01)
+    result = host.read('t1')['result']
+    assert result['status'] == 'failed'
+    assert result['failure']['code'] == 'native_model_output_invalid'
+
+
+def test_terminal_receipt_failure_settles_and_prevents_replay(tmp_path, monkeypatch, caplog):
+    from capstone_agent.general_pi_server import GeneralPiHost
+    calls = []
+    def run(request, *_):
+        calls.append(request.task_id)
+        workspace = tmp_path / 'tasks' / request.task_id
+        workspace.mkdir(parents=True)
+        (workspace / 'product.txt').write_text('Retain this product')
+        return 'Done', {}
+    host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'}, run_task=run)
+    original_save = host.storage.save
+    def save(request, result):
+        if result is not None:
+            raise OSError('private receipt path and credentials')
+        return original_save(request, result)
+    monkeypatch.setattr(host.storage, 'save', save)
+    request = PiTaskRequest.from_document({'schema': 'capstone-pi-task/1', 'task_id': 't1',
+        'parent_attempt_id': 'a1', 'entrypoint': 'direct', 'instruction': 'Explain', 'messages': [],
+        'dependency_results': [], 'executor_identity': host.identity, 'timeout_seconds': 2})
+    host.submit(request)
+    deadline = time.monotonic() + 2
+    while host.read('t1')['status'] == 'running' and time.monotonic() < deadline:
+        time.sleep(.01)
+    assert host.read('t1')['result']['failure']['code'] == 'native_artifact_persistence_failed'
+    assert (tmp_path / 'tasks/t1/product.txt').read_text() == 'Retain this product'
+    assert 'Native terminal failure receipt persistence failed' in caplog.text
+    assert 'private receipt path and credentials' not in caplog.text
+    restarted = GeneralPiHost(root=tmp_path, identity=host.identity, run_task=run)
+    restarted.submit(request)
+    assert calls == ['t1']
