@@ -7,6 +7,7 @@ import io
 import os
 from pathlib import Path
 import shutil
+import shlex
 import subprocess
 import tarfile
 from types import SimpleNamespace
@@ -354,11 +355,17 @@ def test_loader_selects_only_verified_daemon_ids_in_private_file(delivery, daemo
     (out / 'install-version.sh').write_text('''#!/bin/sh
 set -eu
 [ -f "$CAPSTONE_OFFLINE_IMAGE_SELECTION" ] && [ ! -L "$CAPSTONE_OFFLINE_IMAGE_SELECTION" ]
-[ "$(ls -l "$CAPSTONE_OFFLINE_IMAGE_SELECTION" | awk '{print $1}')" = '-rw-------' ]
+@PYTHON@ - <<'PY'
+import os, stat
+info = os.lstat(os.environ['CAPSTONE_OFFLINE_IMAGE_SELECTION'])
+assert stat.S_ISREG(info.st_mode)
+assert stat.S_IMODE(info.st_mode) == 0o600
+assert info.st_uid == os.getuid()
+PY
 cp "$CAPSTONE_OFFLINE_IMAGE_SELECTION" "$CAPTURE"
 printf '%s\\n' "$CAPSTONE_OFFLINE_IMAGE_SELECTION" > "$CAPTURE.path"
 printf 'install-ready\\n' >> "$CALLS"
-''')
+'''.replace('@PYTHON@', shlex.quote(os.sys.executable)))
     refresh_checksums(out)
     result = install(delivery)
     assert result.returncode == 0, result.stderr
