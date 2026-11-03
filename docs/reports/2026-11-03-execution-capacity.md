@@ -1,8 +1,10 @@
 # Execution recovery and native session capacity
 
-Implementation candidate: `b7dd440c2c72171d20819a7d257f50366e2decb0` on
-`feat/execution-capacity-20261103`, based on dev `f7d40163`.
-Not merged, not pushed, no CI run, no main or remote deployment change.
+Product source: `b7dd440c2c72171d20819a7d257f50366e2decb0`, merged through
+[PR91](https://github.com/uukuguy/capstone/pull/91) into dev
+`c3a0c472122b6b2ba10535007a8caab77c7259b1`. Local dev matches origin/dev.
+The local/remote feature branch and isolated worktree are closed. Main and remote
+deployments remain unchanged.
 User approved the [design](../superpowers/specs/2026-11-03-execution-reliability-and-session-capacity-design.md).
 
 ## Changes
@@ -36,7 +38,11 @@ improvement, not a measured overall business speedup.
 - App direct consumers:216 passed in6.97s; TypeScript check passed.
 - Focused Python types:0 errors. CI/governance contracts:131 passed.
 - Actual scope selector returns session-capacity; Markdown links, symlink and
-  whitespace checked locally. No GitHub Actions was started.
+  whitespace checked locally.
+- Approved [CI41624694112](https://github.com/uukuguy/capstone/actions/runs/41624694112)
+  passed in4m02s:353 selected Python tests/90 environment skips,216 App checks,
+  types and documentation. Local PostgreSQL checks cover the database cases
+  skipped on CI. The tested f8e23ab3 tree is identical to the merged dev tree.
 - Independent Codex CLI review of origin/dev..b7dd440c found no clear actionable
   regression by code inspection; reviewer did not run tests. Built-in reviewer
   spawning was unavailable. Receipt:/tmp/capstone-capacity-independent-review.log.
@@ -71,23 +77,33 @@ process card. The new label is covered by the component regression.
 
 ## Local deployment and limits
 
-Canonical rebuild from b7dd440c passes readiness and API/worker image equality:
+Before integration, canonical rebuild from b7dd440c passed readiness and API/worker image equality:
 421ce00d8fd821c7b3ca0157fccbf44127dc8fe8fad73c6f0cb92969114b86c8.
 Native image:dc430bffe525e9a028041976ac424818f141319bb2e5bbab02e99a32c73213ff.
 App build identity reports b7dd440c, local-dev, dirty=false at verification.
-This is a temporary local-dev feature candidate; actual dev remainsf7d40163.
+After integration, canonical rebuild from actual dev c3a0c472 passed readiness;
+API/worker image3bc47d1adf66c9e76308977db635e96f1678046ec8c555c170c21c9f1c8d3ce0.
+Native image remainsdc430bff. App reports productb7dd440c/repositoryc3a0c472;
+runtime source files are identical to the accepted product. Root entrypoint
+capacity checks8 pass, doctor passes, and all four saved artifacts download with
+their original hashes after the dev rebuild. Native slots2 are recorded in the
+ignored local.env; the library/deployment default remains1.
 Original named volumes, protected configuration and business data are retained.
 
 Two setup errors were corrected: the first image omitted the new helper COPY,
 and a test override selected an empty gateway mount. The final build includes
 the helper and reuses the original absolute auth directory from root local.env.
 No credentials were copied to this worktree. Scoped cache maintenance applied;
-last receipt:.capstone-agent/cache-maintenance-20261103-141803-13648.log in worktree.
+final dev receipt:.capstone-agent/cache-maintenance-20261103-191340-94372.log.
+Former worktree runtime snapshots/logs are preserved under
+.capstone-agent/recovery/execution-capacity-20261103-c3a0c472/.
+The premerge root control snapshot is retained as Git stashd23dafb19e2173fe0ed4c741f4fccba875872cd5;
+its missing journal events were appended to the actual dev journal.
 
 Mac sleep interrupted the first real trial and the final long UI trial. Wake
 timestamps match lease interruption; expired writers remain fenced. These
 trials are retained as failures and excluded from successful timing evidence.
-The final GUI check also returned macOS Accessibility permission_denied. Therefore
+The early GUI check also returned macOS Accessibility permission_denied.
 The GUI became accessible again at19:02. One bounded final check then passed:
 the corrected card and reply both show waiting, refresh retains that state,
 and queued cancellation immediately clears the attempt. The two other running
@@ -97,4 +113,5 @@ The earlier sleep-interrupted trials remain failures, not acceptance evidence.
 
 Research server remains disconnected and unprobed. Intranet25c71f85, main0b68c607,
 cloud and demo retain their prior sources. The user explicitly approved one
-macOS focused CI and dev integration after page verification. No full release acceptance is claimed.
+macOS focused CI and dev integration after page verification; both are complete.
+That authorization is consumed. No full release acceptance is claimed.
