@@ -6805,3 +6805,5 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 2026-11-03 ab175491 — Record supported installation acceptance, exact images and explicit limits; preserve final verification boundary.
 
 - 2026-11-03 — Implement intranet management disable switch across UI and executor; preserve resource use and local management.
+
+- 2026-11-03 216ce916 — Gate intranet resource management in UI and executor; focused checks pass, deployment remains unchanged.
