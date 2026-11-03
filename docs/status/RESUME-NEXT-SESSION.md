@@ -1,70 +1,61 @@
 # Live Session Checkpoint
 
-> Updated: 2026-11-03 19:32. Active lock-wake follow-up; do not treat the task as closed.
+> Updated: 2026-11-03 20:12. Conversation typography candidate checkpoint.
 
-## Active candidate and permission
+NEW user task: align instruction and formal-answer body with left session list.
+Candidate2148db14 is committed on fix/conversation-typography-20261103 in root.
+User screenshot exposed later workspace12px override in09391ff5; corrected
+body/table/code to13px, workspace headings about16/15/14px.151 App/type checks
+pass. Final canonical rebuild ready/same-image bc0ded4b and scoped cleanup
+pass; exact user enterprise screenshot-case browser verification passes.
+Local runtime candidate2148db14; dev remains7ad2529a.
+No CI approval yet for typography. Do not reuse PR92 approval or push a PR.
+Report:docs/reports/2026-11-03-conversation-typography.md.
+Prior post-merge control snapshots below are preserved and now include the new
+candidate's register/graph; production change ownership is the CSS commit only.
 
-PR91 implemented observation recovery, bounded native slots, queued cancellation
-and truthful UI. It merged into actual dev/origin-dev c3a0c472 after explicitly
-approved CI41624694112 passed4m02s and final live UI/refresh checks passed.
-That CI authorization is consumed.
+PR91 implements observation recovery, bounded native slots, immediate queued
+cancellation and consistent queued UI. PR92 fixes a reproduced lost wake when
+accepted thread rows unlock after SKIP LOCKED. Both are merged into actual
+dev/origin-dev 7ad2529a3626b2fec36577acbc83906195d19e63.
 
-Late deterministic audit found a lost wake when all matching accepted thread
-rows were locked: SKIP LOCKED returned None, then no second wake followed unlock.
-Real PostgreSQL regressions FAIL on c3a0c472 at capacities1/2.
-Follow-up fix8dd51d0b1745da3440a00267e4e7037717396a88 is committed locally on
-fix/capacity-lock-wake-20261103 in .worktrees/capacity-wake.
+The user separately approved each CI. PR91 CI41624694112 passed4m02s.
+PR92 CI41629449461 passed3m05s:355 Python/92 environment skips,216 App,
+types/docs; local100 worker/ledger checks include real PG capacities1/2.
+All CI approvals are consumed. Do not start another run without explicit approval.
+Tested eca9913d and merge7ad2529a trees are identical. Existing control-page
+browser verification passed before merge. No new model calls are needed.
 
-The user explicitly approves ONE new macOS session-capacity CI and dev merge
-after page verification. Publish this candidate and use that approval once.
-Source code is complete and reviewed; no new model calls are needed.
+Root canonical rebuild from7ad2529a passes readiness/image equality cad0d7ea;
+native pending-state reader installed;10 actual dev capacity checks and doctor
+pass. Four retained product bytes/hashes match. Scoped cache cleanup applies.
+Rebuild log:
+ /tmp/capstone-capacity-wake-root-rebuild.log
+Actual dev graph refresh and existing-tab browser inspection pass: visible
+7ad2529a node, merged source ancestry, exact local-dev edge and distinct
+unchanged remote deployments. Changed links, symlink and whitespace checks pass.
+This requested implementation and dev integration scope is complete.
+Follow-up report:docs/reports/2026-11-03-capacity-wake-followup.md.
+Original real model/CSV/queue UI evidence:runs/execution-capacity-20261103/.
+Sleep-interrupted trials are retained separately and do not prove speedup.
 
-## Correction and evidence
+Both implementation branches are closed after merge. Runtime recovery:
+.capstone-agent/recovery/capacity-wake-20261103-7ad2529a/runtime/
+and .capstone-agent/recovery/execution-capacity-20261103-c3a0c472/.
+Premerge control stash refs are recorded under runs/execution-capacity-20261103/
+pr92-control-stash.txt and root-control-stash.txt. Preserve these recovery refs;
+do not blindly pop older snapshots over current controls.
 
-InMemory/PostgreSQL services expose a read-only pending-state predicate with the
-same family eligibility as claims. Serial and parallel workers rescan after the
-existing interval only when matching accepted work remains. Empty queues still
-wait without SQL polling. No leases, task retries or business tool choices added.
+Final root changes record exact post-merge snapshots to avoid another CI or a
+self-hash commit loop: docs/reports/2026-11-03-capacity-wake-followup.md;
+docs/status/{INDEX,JOURNAL,KNOWN-ISSUES,PROJECT-OVERVIEW,RESUME-NEXT-SESSION,
+VERSION-CONTROL}.{md,html} as applicable; and
+docs/superpowers/plans/2026-10-16-enterprise-unified-execution.md.
+All production code is committed and merged.
+Unrelated docs/reports/2026-11-01-summer-session-audit.md remains untouched.
+Preserve root var, volumes and all authentication state.
 
-100 focused worker/ledger/cancellation checks with real isolated PostgreSQL pass
-in18.94s; types0 errors. Both real-PG capacity cases and pure-memory CI regressions
-now pass. Independent CLI review found no actionable defect by inspection; its
-own generic .venv test command did not run, correctly selected tests did.
-Report:docs/reports/2026-11-03-capacity-wake-followup.md.
-/tmp/capstone-capacity-wake-{final,types,review,rebuild}.log.
-Temporary PG container capstone-capacity-wake-test-pg removed after tests.
-
-## Current local runtime
-
-Local-dev backend is TEMPORARY candidate8dd51d0b; actual dev stillc3a0c472.
-Canonical rebuild ready, API/worker imagedcce6b252911cc1154d6bbd124de3295785550c63ece6f75bfb07398e5ebc261.
-Native imagedc430bff unchanged; App productb7dd440c/repositoryc3a0c472 unchanged.
-Native slots2 in root ignored local.env; default1 in source. Running worker has
-pending-state reader. No Provider calls were made for this follow-up.
-Use original root local.env, its absolute auth directory and root verified assets.
-No credentials copied. Preserve original root var and all named volumes.
-Candidate cache cleanup receipt:.capstone-agent/cache-maintenance-20261103-193120-37642.log.
-
-## Next actions
-
-1. Finish root/candidate control sync and pending-wake graph inspection.
-2. If the new CI approval arrives, publish final candidate, create dev PR and
-   run precisely the existing session-capacity gate once. Merge only on pass.
-3. Fast-forward actual root dev, canonical rebuild from root, verify original
-   artifacts and changed worker entrypoint, refresh actual dev graph and close branch.
-4. Preserve both passed and sleep-interrupted earlier model evidence. Do not
-   rerun models or broaden to full release/professional suites.
-
-## Preserved work
-
-Root has final PR91 control/report/plan snapshots; copy their owned updates into
-the follow-up delivery before publishing, preserving journal append-only order.
-Do not overwrite these with older candidate snapshots. Root graph/register now
-also show the follow-up source and temporary deployment.
-Unrelated docs/reports/2026-11-01-summer-session-audit.md stays untracked/unmodified.
-Original control stashd23dafb19e2173fe0ed4c741f4fccba875872cd5 is recovery only.
-Former PR91 worktree state preserved under
-.capstone-agent/recovery/execution-capacity-20261103-c3a0c472/.
-Real earlier CSV, event and UI evidence:root runs/execution-capacity-20261103/.
-Main0b68c607, intranet25c71f85 and cloud/demo unchanged. Research server disconnected;
-do not probe or deploy. No full release or business-query speedup claim.
+Main0b68c607, intranet25c71f85 and cloud/demo remain unchanged.
+Research server192.168.72.63 is disconnected: do not probe or deploy.
+Source default native capacity1; ignored root local.env currently selects2.
+No full release or general business-query speedup claim.

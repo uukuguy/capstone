@@ -1,6 +1,8 @@
 # docs/status INDEX
 
-19:32：PR91之后复现锁竞争漏唤醒；补修8dd51d0b本机100项真实PG/线程、类型与独立审查通过，本机已重建验证，待新的CI批准。[补修记录](../reports/2026-11-03-capacity-wake-followup.md)。dev仍c3a0c472，远端部署不变。
+20:14：[会话字号修正候选](../reports/2026-11-03-conversation-typography.md)2148db14修正初版遗漏的工作空间12px覆盖；正文/表格/行内代码统一13px，标题约16/15/14px；151项定向App、类型通过，用户截图同一会话复验及规范重建通过，未启动CI或合入dev。
+
+19:45：PR92已合入实际dev7ad2529a；独立批准的macOS CI41629449461用时3分05秒通过，355Python/92跳过、216App及类型/文档通过。本机100项真实PG/线程验证通过；[补修记录](../reports/2026-11-03-capacity-wake-followup.md)。远端部署不变。
 
 19:15：PR91合入dev c3a0c472；获批macOS定向CI4分02秒通过，最终页面复验通过。实际dev规范重建同镜像3bc47d1a，容量2；四份历史产物哈希保持。分支已关闭，main与内网/cloud/demo不变。[回执](../reports/2026-11-03-execution-capacity.md)。
 

@@ -46,3 +46,28 @@ applied; receipt:.capstone-agent/cache-maintenance-20261103-193120-37642.log
 in the candidate worktree. Temporary PostgreSQL container stopped and removed.
 Main/intranet/cloud/demo are unchanged. The approved CI covers the existing
 session-capacity route and its direct consumers; no release gate is authorized.
+
+## Dev integration
+
+The approved macOS CI41629449461 passes in3m05s:355 Python checks/92
+environment skips,216 App checks, focused types and changed-document links.
+Governance232 passes/2 skips overlaps that scope and is not added to its count.
+PR92 merged as7ad2529a3626b2fec36577acbc83906195d19e63. Actual root dev
+fast-forwards to that revision, identical to the tested eca9913d tree.
+The control page was inspected in the existing browser tab before merge.
+
+Actual dev canonical rebuild passes readiness; API/all workers share image
+cad0d7eaf3797c4931fb8f3731a65fb49bd2b2cad25d9145376df585cf47ba3e.
+Running native worker exposes the pending-state reader. Ten actual dev capacity
+checks and doctor pass. Four retained CSV downloads match original bytes/SHA-256.
+App /__capstone-build reports product8dd51d0b/repository7ad2529a, dirty=false;
+its product revision includes the backend fix, while presentation code is unchanged.
+Scoped cache cleanup applies, receipt:
+.capstone-agent/cache-maintenance-20261103-194636-75168.log.
+The merged local/remote branch and worktree are closed; runtime recovery stays
+under .capstone-agent/recovery/capacity-wake-20261103-7ad2529a/runtime/.
+Post-merge control snapshots remain task-owned local changes to record the actual
+merge/runtime/graph without starting another CI or embedding a snapshot's own hash.
+Actual dev overview regenerated without remote probes and inspected in the
+existing browser tab: current HEAD node, merged source edges and exact local-dev
+source are visible. Changed links, CLAUDE symlink and whitespace checks pass.
