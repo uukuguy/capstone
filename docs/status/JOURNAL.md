@@ -6890,3 +6890,5 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - Align instruction/answer body with13px session navigation and scale Markdown headings/tables for consistent reading [09391ff5].
 - Correct later workspace12px override and inline-code shrink after user screenshot exposes uneven typography [2148db14].
 - Final2148db14 rebuild ready/same-image bc0ded4b; cache cleanup and exact enterprise screenshot-case visual recheck pass; no CI approval yet.
+- Persist typography verification/control graph and prior dev recovery snapshots for scoped integration [a1b42cb1].
+- User explicitly requests typography CI and dev merge, accepting the pending macOS App-only scope; authorize one run.

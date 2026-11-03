@@ -1,61 +1,56 @@
 # Live Session Checkpoint
 
-> Updated: 2026-11-03 20:12. Conversation typography candidate checkpoint.
+> Updated: 2026-11-03 21:03 CST. 用户要求完成CI及合入dev，当前会话继续。
 
-NEW user task: align instruction and formal-answer body with left session list.
-Candidate2148db14 is committed on fix/conversation-typography-20261103 in root.
-User screenshot exposed later workspace12px override in09391ff5; corrected
-body/table/code to13px, workspace headings about16/15/14px.151 App/type checks
-pass. Final canonical rebuild ready/same-image bc0ded4b and scoped cleanup
-pass; exact user enterprise screenshot-case browser verification passes.
-Local runtime candidate2148db14; dev remains7ad2529a.
-No CI approval yet for typography. Do not reuse PR92 approval or push a PR.
-Report:docs/reports/2026-11-03-conversation-typography.md.
-Prior post-merge control snapshots below are preserved and now include the new
-candidate's register/graph; production change ownership is the CSS commit only.
+## 当前状态
 
-PR91 implements observation recovery, bounded native slots, immediate queued
-cancellation and consistent queued UI. PR92 fixes a reproduced lost wake when
-accepted thread rows unlock after SKIP LOCKED. Both are merged into actual
-dev/origin-dev 7ad2529a3626b2fec36577acbc83906195d19e63.
+- 当前分支：fix/conversation-typography-20261103。
+- HEAD：a1b42cb1；本地提交，未推送、无PR。
+- dev与origin/dev一致：7ad2529a。
+- 本机运行字号候选2148db14；main及远端部署未变更。
 
-The user separately approved each CI. PR91 CI41624694112 passed4m02s.
-PR92 CI41629449461 passed3m05s:355 Python/92 environment skips,216 App,
-types/docs; local100 worker/ledger checks include real PG capacities1/2.
-All CI approvals are consumed. Do not start another run without explicit approval.
-Tested eca9913d and merge7ad2529a trees are identical. Existing control-page
-browser verification passed before merge. No new model calls are needed.
+## 本轮交付
 
-Root canonical rebuild from7ad2529a passes readiness/image equality cad0d7ea;
-native pending-state reader installed;10 actual dev capacity checks and doctor
-pass. Four retained product bytes/hashes match. Scoped cache cleanup applies.
-Rebuild log:
- /tmp/capstone-capacity-wake-root-rebuild.log
-Actual dev graph refresh and existing-tab browser inspection pass: visible
-7ad2529a node, merged source ancestry, exact local-dev edge and distinct
-unchanged remote deployments. Changed links, symlink and whitespace checks pass.
-This requested implementation and dev integration scope is complete.
-Follow-up report:docs/reports/2026-11-03-capacity-wake-followup.md.
-Original real model/CSV/queue UI evidence:runs/execution-capacity-20261103/.
-Sleep-interrupted trials are retained separately and do not prove speedup.
+1. PR91/92已合入dev：
+   观察预算恢复、有界并发、排队立即取消、排队文案及锁释放后的调度恢复。
+   两次独立批准的macOS CI均通过，授权已使用完毕。
+2. 字号调整：
+   09391ff5建立共享字号；用户截图发现遗漏的工作空间12px覆盖。
+   2148db14修正覆盖，正文、表格、行内代码统一13px，
+   标题约16/15/14px。a1b42cb1记录验证及控制状态。
 
-Both implementation branches are closed after merge. Runtime recovery:
-.capstone-agent/recovery/capacity-wake-20261103-7ad2529a/runtime/
-and .capstone-agent/recovery/execution-capacity-20261103-c3a0c472/.
-Premerge control stash refs are recorded under runs/execution-capacity-20261103/
-pr92-control-stash.txt and root-control-stash.txt. Preserve these recovery refs;
-do not blindly pop older snapshots over current controls.
+## 验证
 
-Final root changes record exact post-merge snapshots to avoid another CI or a
-self-hash commit loop: docs/reports/2026-11-03-capacity-wake-followup.md;
-docs/status/{INDEX,JOURNAL,KNOWN-ISSUES,PROJECT-OVERVIEW,RESUME-NEXT-SESSION,
-VERSION-CONTROL}.{md,html} as applicable; and
-docs/superpowers/plans/2026-10-16-enterprise-unified-execution.md.
-All production code is committed and merged.
-Unrelated docs/reports/2026-11-01-summer-session-audit.md remains untouched.
-Preserve root var, volumes and all authentication state.
+- 151项相关App检查及TypeScript检查通过。
+- 用户截图中的同一会话已复验。
+- 规范重建ready，API/worker同镜像bc0ded4b。
+- 项目范围缓存清理完成。
+- 候选控制图已生成并检查；尚未集成至dev。
 
-Main0b68c607, intranet25c71f85 and cloud/demo remain unchanged.
-Research server192.168.72.63 is disconnected: do not probe or deploy.
-Source default native capacity1; ignored root local.env currently selects2.
-No full release or general business-query speedup claim.
+## 下一步
+
+1. 用户明确要求执行此前说明的macOS App CI及dev合并，授权一次运行。
+2. 创建dev PR并执行App测试/构建及治理门禁，通过后合入dev。
+3. 同步实际dev，验证入口并刷新其正式控制图。
+4. 本次授权仅限这一次CI；若失败需修正，不自动重跑。
+
+## 工作区与恢复
+
+- 未提交：docs/status/JOURNAL.md、
+  docs/status/RESUME-NEXT-SESSION.md。
+- 无关未跟踪文件：
+  docs/reports/2026-11-01-summer-session-audit.md。
+  保持不动。
+- 字号报告：
+  docs/reports/2026-11-03-conversation-typography.md。
+- PR91/92证据：
+  runs/execution-capacity-20261103/。
+- 旧控制stash及runtime恢复目录保留，不直接覆盖当前状态。
+- 保留所有var、卷和认证数据。
+
+## 避免重复
+
+- 不只修改前部CSS；工作空间后部规则曾覆盖正文大小。
+- 不复用PR91/92的CI授权。
+- 不重复模型验收或扩大为完整发布验证。
+- 研发服务器192.168.72.63已断开，不探测、不部署。
