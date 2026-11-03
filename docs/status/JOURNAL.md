@@ -6848,3 +6848,5 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 12:38 Replace fixture display-string check with lstat regular-file,0600 and owner checks;51 offline tests pass [d599331f].
 - 12:38 Extend focused gate to offline fixtures; isolated212 pass/3skip and21 workflow contracts pass; no CI/push [01732906].
 - 12:45 User explicitly approves one macOS focused CI and dev integration for offline fixture repair; main and deployments remain outside scope.
+- Accepted reliability/capacity design and isolated implementation plan preserve existing contracts; baseline45 focused tests pass [f0e8728e].
+- Read-budget recovery red/green: issued refs now return measured safe paging;39 Node and18 composition/report checks pass without upstream replay.

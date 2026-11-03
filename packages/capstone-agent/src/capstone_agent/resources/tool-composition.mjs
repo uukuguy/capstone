@@ -6,6 +6,7 @@ import {boundToolResult,savedToolObservation,readSavedObservation,structureIndex
 import {gatewayToolUseGuidance} from './gateway-tool-use.mjs';
 import {createToolIdentityResolver} from './tool-identity.mjs';
 import {observedAction,readObservation} from './observed-action.mjs';
+import {observationReadBudgetError} from './observation-read-budget.mjs';
 import {setTimeout as wait} from 'node:timers/promises';
 import {prepareObservationTable} from './observation-data.mjs';
 export const compositionPolicy=Object.freeze(JSON.parse(readFileSync(new URL('./tool-composition-policy.json',import.meta.url),'utf8')));
@@ -183,6 +184,7 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
                 value=typeof message.ref==='string'?readObservation(await sourceRecords(message.ref),message.ref,message.pointer):
                   await readSavedObservation(message.ref,message.pointer,{cwd});
                 if(message.kind==='inspect')value=structureIndex(value);
+                const selectedValue=value;
                 if(message.page!==undefined){
                   const page=message.page;
                   if(!page||typeof page!=='object'||Array.isArray(page)||Object.keys(page).some(k=>!['offset','limit'].includes(k))||
@@ -192,7 +194,8 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
                   value={items:value.slice(page.offset,end),offset:page.offset,total_items:value.length,next_offset:end<value.length?end:null};
                 }
                 if(Buffer.byteLength(JSON.stringify(value))>policy.output_bytes)
-                  throw Error('/pointer: Selected observation exceeds the read budget; select a narrower field or use saveContext for datasets');
+                  throw observationReadBudgetError(selectedValue,{ref:message.ref,pointer:message.pointer,
+                    maximumBytes:policy.output_bytes,page:message.page});
               }else if(message.kind==='table')value=await prepareObservationTable({cwd,spec:message.spec,resolveRecord});
               else if(message.kind==='save')value=await saveSemanticContext({cwd,name:message.name,spec:message.spec,records,scope,resolveRecord});
               else if(message.kind==='load')value=await loadSemanticContext({cwd,path:message.path,allowedInputs});

@@ -158,6 +158,17 @@ test('direct saved discovery can be paged without another upstream call',()=>fix
  assert.deepEqual(JSON.parse(result.content[0].text).result,{items:rows.slice(498),offset:498,total_items:500,next_offset:null});
  const tooWide=await t.execute('wide',{tools:['read'],program:`return await tools.read(${JSON.stringify(ref)},'/data/rows');`});
  assert.equal(tooWide.isError,true);assert.match(tooWide.content[0].text,/read budget/);
+ const recovery=await t.execute('recover-wide',{tools:[],program:`
+ try{await tools.read(${JSON.stringify(ref)},'/data/rows');throw Error('expected read budget');}
+ catch(error){const detail=JSON.parse(error.message);const action=detail.recovery;
+ const page=await tools.read(action.ref,action.pointer,action.page);
+ return {code:detail.code,page,maximum:detail.maximum_bytes};}`});
+ assert.equal(recovery.isError,false,JSON.stringify(recovery));
+ const repaired=JSON.parse(recovery.content[0].text).result;
+ assert.equal(repaired.code,'observation_read_budget_exceeded');
+ assert.ok(repaired.page.items.length>0&&repaired.page.items.length<rows.length);
+ assert.deepEqual(repaired.page.items,rows.slice(0,repaired.page.items.length));
+ assert.ok(Buffer.byteLength(JSON.stringify(repaired.page))<=repaired.maximum);
  const invalid=await t.execute('bad',{tools:['read'],program:`return await tools.read(${JSON.stringify(ref)},'/data/rows',{offset:-1,limit:10});`});
  assert.equal(invalid.isError,true);assert.match(invalid.content[0].text,/page/);
 }));
