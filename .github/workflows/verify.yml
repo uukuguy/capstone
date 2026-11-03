@@ -36,7 +36,7 @@ jobs:
           PYTHONPATH: packages/capstone-agent/src:packages/capability-agent-kernel/src
         run: |
           test "$(readlink CLAUDE.md)" = AGENTS.md
-          python -m pytest packages/capstone-agent/tests/test_resource_permissions.py packages/capstone-agent/tests/test_managed_resource_manifest.py packages/capstone-agent/tests/test_managed_resources.py packages/capstone-agent/tests/test_managed_resource_mcp.py packages/capstone-agent/tests/test_managed_resource_installation.py -q --basetemp="${{ runner.temp }}/resource-tests"
+          python -m pytest packages/capstone-agent/tests/test_resource_permissions.py packages/capstone-agent/tests/test_managed_resource_manifest.py packages/capstone-agent/tests/test_managed_resources.py packages/capstone-agent/tests/test_managed_resource_mcp.py packages/capstone-agent/tests/test_managed_resource_installation.py tools/tests/test_host_runtime_contract.py -q --basetemp="${{ runner.temp }}/resource-tests"
       - name: Check merge whitespace
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}

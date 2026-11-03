@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 
 import pytest
@@ -324,7 +325,9 @@ def test_intranet_native_preset_requires_no_commercial_credential():
     settings = environment('native') | {'CAPSTONE_WORKBENCH_PRESET': 'intranet'}
     settings.pop('DEEPSEEK_API_KEY')
     _, _, _, selected = RUNTIME.select_runtime(ROOT, settings, 'worker')
-    assert selected['CAPSTONE_PUBLIC_MODEL'] == 'dsv4'
+    profiles = json.loads((ROOT / 'configs/runtime/workbench-llm-profiles.json').read_text())
+    default = next(item for item in profiles['profiles'] if item['id'] == profiles['defaults']['intranet'])
+    assert selected['CAPSTONE_PUBLIC_MODEL'] == default['model']
     assert selected['CAPSTONE_WORKBENCH_PRESET'] == 'intranet'
 
 
