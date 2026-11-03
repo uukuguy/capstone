@@ -1,5 +1,9 @@
 # Intranet deployment acceptance
 
+Annotated acceptance tag `intranet-20261103-1206-25c71f85` is pushed at the exact
+runtime source. Its annotation records main/CI, image IDs, container identities
+and this receipt. It does not claim full release acceptance.
+
 Main PR88 merged as `0b68c6073c0440b2197dd4daa730127079e70b9b`.
 The user explicitly authorized a one-time scoped main gate. CI41574376803 passed
 macOS24s and Linux33s. This is not full release acceptance; the four existing

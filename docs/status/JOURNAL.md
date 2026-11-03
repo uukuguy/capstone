@@ -6838,3 +6838,5 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 12:05 User approved scoped main exception; CI41574376803 passed24s/33s, PR88 merged0b68c607; PR87 included automatically.
 - 12:05 Intranet25c71f85 healthy with matched API/worker images and management disabled; backups retained, temporary wrong-project containers stopped.
 - 12:05 Real24.3s/43.2s tasks, CSV28B/SHA and browser refresh pass; recoverable missing-file-command warning retained; dev-return CI remains authorized.
+- 12:06 Record intranet acceptance, exact images and source equivalence; retain full-release limits and prepare dev return [4fe1eb2f].
+- 12:06 Push intranet-20261103-1206-25c71f85 at exact deployed source with CI, image/container IDs and acceptance receipt.
