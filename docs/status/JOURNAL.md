@@ -6882,3 +6882,13 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - Late real-PG regression proves skipped-lock lost wake for capacities1/2; fix8dd51d0b passes100 checks/types/review. Candidate ready, no new CI approved.
 - Canonical8dd51d0b candidate rebuild ready/same-image dcce6b25; four earlier products retain hashes. Temporary PG removed; second CI question awaits reply.
 - User explicitly approves ONE follow-up macOS session-capacity CI and dev merge after page verification; main/deployments excluded.
+- Record follow-up evidence and approval for dev integration [eca9913d]; existing control page verifies candidate and deployment edges.
+- Approved macOS CI41629449461 passes3m05s:355 Python/92 skips,216 App,types/docs; PR92 merges7ad2529a, actual dev fast-forwards.
+- Actual dev canonical rebuild ready/same-image cad0d7ea;10 capacity checks/doctor and four retained product hashes pass; scoped cache cleanup applies.
+- Close merged PR92 branch/worktree; preserve runtime recovery and premerge control stash; main/intranet/cloud/demo and unrelated audit unchanged.
+- Actual dev graph regenerated without remote probes; existing browser tab verifies7ad2529a node, merged sources and exact local-dev edge; links/symlink/whitespace pass.
+- Align instruction/answer body with13px session navigation and scale Markdown headings/tables for consistent reading [09391ff5].
+- Correct later workspace12px override and inline-code shrink after user screenshot exposes uneven typography [2148db14].
+- Final2148db14 rebuild ready/same-image bc0ded4b; cache cleanup and exact enterprise screenshot-case visual recheck pass; no CI approval yet.
+- Persist typography verification/control graph and prior dev recovery snapshots for scoped integration [a1b42cb1].
+- User explicitly requests typography CI and dev merge, accepting the pending macOS App-only scope; authorize one run.

@@ -2,7 +2,7 @@
 
 2026-11-03锁竞争补修：PR91收口后，真实PG单/双槽位复现行锁释放后无新唤醒而停等。
 8dd51d0b增加匹配待执行状态确认，100项线程/租约检查及类型/独立审查通过，本机候选重建通过。
-补修在fix/capacity-lock-wake-20261103，待新的定向CI批准后合dev；
+补修经独立批准的macOS CI41629449461通过3分05秒，PR92合dev7ad2529a；
 不重复模型任务，不变更远端部署。见[补修回执](../../reports/2026-11-03-capacity-wake-followup.md)。
 
 2026-11-03用户优先选择执行可靠性与跨会话并发。按[已接受设计](../specs/2026-11-03-execution-reliability-and-session-capacity-design.md)

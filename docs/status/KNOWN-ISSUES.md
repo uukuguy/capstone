@@ -1,12 +1,13 @@
 # Known issues and deferred work
 
-## Pending work skipped by a busy thread lock — 2026-11-03
+## Resolved: pending work skipped by a busy thread lock — 2026-11-03
 
 Real PostgreSQL capacities1/2 reproduce a lost wake after SKIP LOCKED returns no
 claim while accepted work remains. Candidate8dd51d0b adds a read-only pending
 predicate and bounded rescan without polling an empty queue.100 focused checks,
-types, independent inspection and canonical candidate rebuild pass. Not merged;
-new CI approval is pending. See [follow-up](../reports/2026-11-03-capacity-wake-followup.md).
+types, independent inspection and canonical candidate rebuild pass. PR92 merged
+into dev7ad2529a after approved macOS CI41629449461 passed in3m05s
+(355 Python/92 skips,216 App,types/docs). See [follow-up](../reports/2026-11-03-capacity-wake-followup.md).
 
 ## User-local offline installer test failures — 2026-11-03
 

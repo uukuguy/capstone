@@ -1,70 +1,56 @@
 # Live Session Checkpoint
 
-> Updated: 2026-11-03 19:32. Active lock-wake follow-up; do not treat the task as closed.
+> Updated: 2026-11-03 21:03 CST. 用户要求完成CI及合入dev，当前会话继续。
 
-## Active candidate and permission
+## 当前状态
 
-PR91 implemented observation recovery, bounded native slots, queued cancellation
-and truthful UI. It merged into actual dev/origin-dev c3a0c472 after explicitly
-approved CI41624694112 passed4m02s and final live UI/refresh checks passed.
-That CI authorization is consumed.
+- 当前分支：fix/conversation-typography-20261103。
+- HEAD：a1b42cb1；本地提交，未推送、无PR。
+- dev与origin/dev一致：7ad2529a。
+- 本机运行字号候选2148db14；main及远端部署未变更。
 
-Late deterministic audit found a lost wake when all matching accepted thread
-rows were locked: SKIP LOCKED returned None, then no second wake followed unlock.
-Real PostgreSQL regressions FAIL on c3a0c472 at capacities1/2.
-Follow-up fix8dd51d0b1745da3440a00267e4e7037717396a88 is committed locally on
-fix/capacity-lock-wake-20261103 in .worktrees/capacity-wake.
+## 本轮交付
 
-The user explicitly approves ONE new macOS session-capacity CI and dev merge
-after page verification. Publish this candidate and use that approval once.
-Source code is complete and reviewed; no new model calls are needed.
+1. PR91/92已合入dev：
+   观察预算恢复、有界并发、排队立即取消、排队文案及锁释放后的调度恢复。
+   两次独立批准的macOS CI均通过，授权已使用完毕。
+2. 字号调整：
+   09391ff5建立共享字号；用户截图发现遗漏的工作空间12px覆盖。
+   2148db14修正覆盖，正文、表格、行内代码统一13px，
+   标题约16/15/14px。a1b42cb1记录验证及控制状态。
 
-## Correction and evidence
+## 验证
 
-InMemory/PostgreSQL services expose a read-only pending-state predicate with the
-same family eligibility as claims. Serial and parallel workers rescan after the
-existing interval only when matching accepted work remains. Empty queues still
-wait without SQL polling. No leases, task retries or business tool choices added.
+- 151项相关App检查及TypeScript检查通过。
+- 用户截图中的同一会话已复验。
+- 规范重建ready，API/worker同镜像bc0ded4b。
+- 项目范围缓存清理完成。
+- 候选控制图已生成并检查；尚未集成至dev。
 
-100 focused worker/ledger/cancellation checks with real isolated PostgreSQL pass
-in18.94s; types0 errors. Both real-PG capacity cases and pure-memory CI regressions
-now pass. Independent CLI review found no actionable defect by inspection; its
-own generic .venv test command did not run, correctly selected tests did.
-Report:docs/reports/2026-11-03-capacity-wake-followup.md.
-/tmp/capstone-capacity-wake-{final,types,review,rebuild}.log.
-Temporary PG container capstone-capacity-wake-test-pg removed after tests.
+## 下一步
 
-## Current local runtime
+1. 用户明确要求执行此前说明的macOS App CI及dev合并，授权一次运行。
+2. 创建dev PR并执行App测试/构建及治理门禁，通过后合入dev。
+3. 同步实际dev，验证入口并刷新其正式控制图。
+4. 本次授权仅限这一次CI；若失败需修正，不自动重跑。
 
-Local-dev backend is TEMPORARY candidate8dd51d0b; actual dev stillc3a0c472.
-Canonical rebuild ready, API/worker imagedcce6b252911cc1154d6bbd124de3295785550c63ece6f75bfb07398e5ebc261.
-Native imagedc430bff unchanged; App productb7dd440c/repositoryc3a0c472 unchanged.
-Native slots2 in root ignored local.env; default1 in source. Running worker has
-pending-state reader. No Provider calls were made for this follow-up.
-Use original root local.env, its absolute auth directory and root verified assets.
-No credentials copied. Preserve original root var and all named volumes.
-Candidate cache cleanup receipt:.capstone-agent/cache-maintenance-20261103-193120-37642.log.
+## 工作区与恢复
 
-## Next actions
+- 未提交：docs/status/JOURNAL.md、
+  docs/status/RESUME-NEXT-SESSION.md。
+- 无关未跟踪文件：
+  docs/reports/2026-11-01-summer-session-audit.md。
+  保持不动。
+- 字号报告：
+  docs/reports/2026-11-03-conversation-typography.md。
+- PR91/92证据：
+  runs/execution-capacity-20261103/。
+- 旧控制stash及runtime恢复目录保留，不直接覆盖当前状态。
+- 保留所有var、卷和认证数据。
 
-1. Finish root/candidate control sync and pending-wake graph inspection.
-2. If the new CI approval arrives, publish final candidate, create dev PR and
-   run precisely the existing session-capacity gate once. Merge only on pass.
-3. Fast-forward actual root dev, canonical rebuild from root, verify original
-   artifacts and changed worker entrypoint, refresh actual dev graph and close branch.
-4. Preserve both passed and sleep-interrupted earlier model evidence. Do not
-   rerun models or broaden to full release/professional suites.
+## 避免重复
 
-## Preserved work
-
-Root has final PR91 control/report/plan snapshots; copy their owned updates into
-the follow-up delivery before publishing, preserving journal append-only order.
-Do not overwrite these with older candidate snapshots. Root graph/register now
-also show the follow-up source and temporary deployment.
-Unrelated docs/reports/2026-11-01-summer-session-audit.md stays untracked/unmodified.
-Original control stashd23dafb19e2173fe0ed4c741f4fccba875872cd5 is recovery only.
-Former PR91 worktree state preserved under
-.capstone-agent/recovery/execution-capacity-20261103-c3a0c472/.
-Real earlier CSV, event and UI evidence:root runs/execution-capacity-20261103/.
-Main0b68c607, intranet25c71f85 and cloud/demo unchanged. Research server disconnected;
-do not probe or deploy. No full release or business-query speedup claim.
+- 不只修改前部CSS；工作空间后部规则曾覆盖正文大小。
+- 不复用PR91/92的CI授权。
+- 不重复模型验收或扩大为完整发布验证。
+- 研发服务器192.168.72.63已断开，不探测、不部署。
