@@ -1,5 +1,12 @@
 # 多线版本控制
 
+2026-11-03：标签 `milestone-managed-resources-20261103-771259a7` 已推送，固定源码771259a7。
+[main PR87](https://github.com/uukuguy/capstone/pull/87)待合并。
+用户批准的双平台完整发布CI [41563425683](https://github.com/uukuguy/capstone/actions/runs/41563425683)
+在治理检查失败：旧测试误取里程碑job的脚本和矩阵，PR分支过滤断言不匹配。
+修正9a3f75db已通过129项本地定向检查，尚未推送或再次启动CI。main和全部部署保持原来源。
+控制图已重新生成；现有Vivaldi控制标签切换遭AX错误，未完成本轮视觉验收。
+
 2026-11-03 `216ce916`：内网部署暂时禁用 Skills/MCP 管理。配置开关同时约束设置入口及执行器；已有资源使用权限保持。本机管理保持开放。26项后端检查通过/5跳过，50项App及类型检查通过；仅源码，未重建/部署，未启动CI。
 
 2026-11-03 Skills/MCP安装链路6b28807a已进入本机：[验证报告](../reports/2026-11-03-managed-resource-installation.md)。

@@ -1,5 +1,7 @@
 # docs/status INDEX
 
+2026-11-03：标签771259a7已推送；main PR87的首轮双平台CI治理检查失败，修正本地验证中，尚未合并。
+
 2026-11-03: 内网 Skills/MCP 管理禁用开关216ce916已完成定向检查；源码待部署，运行来源保持不变。
 
 2026-11-03: Skills/MCP安装、受管依赖、凭据与离线包本机验证通过；[报告](../reports/2026-11-03-managed-resource-installation.md)列明未完成范围。

@@ -6807,3 +6807,9 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 2026-11-03 — Implement intranet management disable switch across UI and executor; preserve resource use and local management.
 
 - 2026-11-03 216ce916 — Gate intranet resource management in UI and executor; focused checks pass, deployment remains unchanged.
+
+- 2026-11-03 771259a7 — Align source-only intranet management gate and verified graph; deployed environments unchanged.
+
+- 10:02 User approved PR87 macOS/Linux release CI41563425683; milestone-managed-resources-20261103-771259a7 pushed; merge pending.
+- 10:06 PR87 dual-platform governance failed; corrected job selection and PR filters;129 focused checks pass; retry requires new approval.
+- 10:07 Fix scoped workflow contract tests to unblock release governance;129 focused checks pass [9a3f75db].
