@@ -29,7 +29,7 @@ export function runtimeLimits(overrides, options={}) {
   if(!['normal','debug'].includes(mode))throw new TypeError('runtime limit mode must be normal or debug');
   const result = {...DEFAULT_RUNTIME_LIMITS};
   for (const [key,value] of Object.entries(overrides ?? {})) {
-    if (!Number.isSafeInteger(value) || value < (key === 'provider_stream_bytes' ? 0 : 1)) {
+    if (!Number.isSafeInteger(value) || value < (['provider_stream_bytes','mcp_call_count'].includes(key) ? 0 : 1)) {
       throw new TypeError(`invalid runtime capacity: ${key}`);
     }
     result[key]=value;
@@ -53,15 +53,14 @@ export class CapacityExceeded extends Error {
 
 export function checkCapacity(limits, dimension, actual, unit, phase) {
   requireDimension(limits,dimension);
-  if (actual > limits[dimension]) {
+  if (actual > limits[dimension] && !(['provider_stream_bytes','mcp_call_count'].includes(dimension)&&limits[dimension]===0)) {
     throw new CapacityExceeded(limits,dimension,actual,unit,phase);
   }
 }
 
 export function observeCapacity(limits,dimension,actual,unit,phase){
   requireDimension(limits,dimension);
-  const exceeded=actual>limits[dimension];
-  if(exceeded&&runtimeLimitMode(limits)==='debug')checkCapacity(limits,dimension,actual,unit,phase);
+  const exceeded=actual>limits[dimension]&&!(['provider_stream_bytes','mcp_call_count'].includes(dimension)&&limits[dimension]===0);
   return exceeded;
 }
 

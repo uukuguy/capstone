@@ -64,6 +64,7 @@ fi
 
 printf '%s\n' "==> Validating local Compose configuration"
 "${compose[@]}" config --quiet
+"${compose[@]}" config --format json | python3 "$repo_root/deploy/prepare_resource_policy.py" --compose-config-stdin
 
 build_options=()
 build_environment=(env)

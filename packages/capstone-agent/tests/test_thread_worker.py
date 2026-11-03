@@ -613,3 +613,15 @@ def test_model_preparation_failure_commits_valid_snapshot_and_original_attempt_l
     assert [event.event_type for event in events[-2:]] == ["model_context_reverted", "attempt_failed"]
     activated = next(event for event in events if event.event_type == "model_context_activated")
     assert events[-1].model_context_id == activated.model_context_id
+
+
+def test_prepared_cleanup_records_safe_failure_origin(caplog):
+    from capstone_agent.thread_worker import _close_prepared_runtime
+    class Runtime:
+        def stop(self):
+            raise OSError('private connection credential')
+    _close_prepared_runtime(Runtime())
+    assert 'Prepared runtime cleanup failed' in caplog.text
+    assert 'origin=' in caplog.text
+    assert 'exception_type=OSError' in caplog.text
+    assert 'private connection credential' not in caplog.text

@@ -6,6 +6,10 @@ import re
 from .resource_manifest import checked_resource
 
 
+class ContinuationResourceUnavailable(ValueError):
+    """A frozen historical file cannot be resolved; the task may continue."""
+
+
 def resource_id(thread_id, attempt_id, artifact_id):
     identity = json.dumps([thread_id, attempt_id, artifact_id], separators=(',', ':'))
     return 'resource_' + sha256(identity.encode()).hexdigest()[:32]
@@ -54,15 +58,17 @@ def resource_reader_for(service, claim):
         if (claim.task_context is None or source['thread_id'] != claim.thread_id
                 or source['work_id'] != claim.task_context.binding.work_id):
             raise ValueError('continuation artifact is outside this Work')
-        from .native_artifact_projection import read_native_artifact
+        from .native_artifact_projection import read_native_artifact, _matches_frozen_descriptor, NativeArtifactNotFound
         try:
             descriptor, data = read_native_artifact(service, getattr(service, '_native_executor', None),
                 claim.thread_id, source['attempt_id'], source['artifact_id'], expected_descriptor=source)
+        except NativeArtifactNotFound as error:
+            raise ContinuationResourceUnavailable('historical resource reference is unavailable') from error
         except OSError:
             from .thread_materials import _adopted_file_bytes
             data = _adopted_file_bytes(service, service.snapshot(claim.thread_id), source, None)
             descriptor = source
-        if (dict(descriptor) != dict(source) or artifact_resource(descriptor) != canonical or len(data) != canonical['size_bytes']
+        if (not _matches_frozen_descriptor(descriptor, source) or artifact_resource(descriptor) != canonical or len(data) != canonical['size_bytes']
                 or sha256(data).hexdigest() != canonical['sha256']):
             raise ValueError('continuation artifact content identity changed')
         from .native_resource_staging import CHUNK_BYTES

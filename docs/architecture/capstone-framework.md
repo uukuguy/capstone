@@ -337,6 +337,24 @@ capability must be declared by the Domain Pack and executable by its registered
 authority. Documentation alone never registers a model tool, and an
 implementation that is not published by the selected profile is not exposed.
 
+### Application capacity contract
+
+Each bound must identify the resource it protects, the abnormal condition it
+prevents, its scope and unit, and the recovery path. Numeric defaults belong to
+`configs/runtime/application-capacity.json`; policy metadata belongs to
+`configs/runtime/capacity-policy.json`. A configured value alone is not evidence
+that the value is adequate for valid workloads. Record sizing gaps explicitly.
+
+Before a model selects calls, the application supplies its effective limits,
+selected model context window and accepted task deadline. Host validation uses
+the same effective configuration. The model cannot authorize a larger budget.
+Concurrent relay requests wait for capacity; concurrency does not limit total
+calls. Pre-execution rejection states that no call ran and gives a correction.
+Soft read, context and cache windows use pagination, references, compaction or
+eviction in both normal and debug modes. Required persistence, ownership and
+replay checks remain hard boundaries. Storage quotas remain separate from
+processing and model-context budgets.
+
 ## Composite output protocol
 
 Explicit multi-binding assembly is supported: an `ApplicationProfile` selects

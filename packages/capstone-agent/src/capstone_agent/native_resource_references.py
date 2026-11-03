@@ -79,7 +79,11 @@ class NativeResourceReferences:
                 pending[resource['resource_id']]=resource;continue
             try:
                 target=self._materialize(resource,source)
-            except (OSError,ValueError):
+            except (OSError,ValueError) as error:
+                import logging
+                from .native_failure_origin import native_failure_origin
+                logging.getLogger(__name__).warning('Resource materialization failed; task_id=%s; resource_id=%s; origin=%s',
+                    self.task_id, resource['resource_id'], native_failure_origin(error))
                 self._reply(path.name,{'ok':False,'error':'resource_unavailable'});continue
             self._reply(path.name,{'ok':True,'resource':resource,'path':target})
         return list(pending.values())

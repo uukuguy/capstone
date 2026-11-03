@@ -86,6 +86,36 @@ def request():
     return {'call_id': 'call-1', 'name': 'data_gateway_discover_data_capabilities', 'arguments': {}}
 
 
+@pytest.mark.parametrize('budget', [0, 2])
+def test_sequential_calls_retain_receipts_with_optional_total_budget(budget):
+    from capstone_agent.application_capacity import CapacityExceeded, initialize_capacity
+    initialize_capacity({'mcp_call_count': budget})
+    try:
+        resource = access()
+        async def run():
+            for index in range(4 if budget == 0 else 2):
+                call_id = f'sequential-{index}'
+                result = await resource.call('task-1', dict(request(), call_id=call_id))
+                assert resource.verify('task-1', call_id, request()['name'], result['observation'], result['result_json'])
+            if budget:
+                with pytest.raises(CapacityExceeded):
+                    await resource.call('task-1', dict(request(), call_id='over-budget'))
+        asyncio.run(run())
+    finally:
+        initialize_capacity()
+
+
+def test_batch_remains_bounded_when_total_call_budget_is_disabled():
+    from capstone_agent.application_capacity import CapacityExceeded, initialize_capacity
+    initialize_capacity({'mcp_call_count': 0, 'rpc_batch_requests': 2})
+    try:
+        with pytest.raises(CapacityExceeded) as caught:
+            access().validate_batch('task-1', [dict(request(), call_id=f'batch-{i}') for i in range(3)])
+        assert caught.value.dimension == 'rpc_batch_requests'
+    finally:
+        initialize_capacity()
+
+
 def test_direct_and_composed_requests_share_task_read_reuse_with_verified_receipts():
     schema = {'inputSchema': {'type': 'object'}, 'annotations': {'readOnlyHint': True, 'idempotentHint': True}}
     resource = access(schemas={request()['name']: schema})

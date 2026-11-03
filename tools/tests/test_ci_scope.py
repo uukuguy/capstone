@@ -384,7 +384,8 @@ def test_app_source_and_shared_agent_use_the_same_contract_gate():
 
 def workflow_scope_script():
     workflow = (ROOT / ".github/workflows/verify.yml").read_text()
-    script = workflow.split("        run: |\n", 1)[1].split("      - name: Install uv", 1)[0]
+    scope = workflow.split("      - name: Select verification scope\n", 1)[1]
+    script = scope.split("        run: |\n", 1)[1].split("      # Pinned per", 1)[0]
     return "\n".join(line.removeprefix("          ") for line in script.splitlines())
 
 

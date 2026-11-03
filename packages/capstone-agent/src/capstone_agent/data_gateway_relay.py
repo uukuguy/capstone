@@ -137,7 +137,7 @@ class DataGatewayAccess:
         from jsonschema.exceptions import ValidationError
         if not isinstance(calls, list) or not calls:
             raise GatewayError('gateway_request_invalid')
-        require_capacity('mcp_call_count', len(calls), 'gateway_batch_preflight')
+        require_capacity('rpc_batch_requests', len(calls), 'gateway_batch_preflight')
         with self._lock:
             record = self._tasks.get(task_id)
             if record is None:
@@ -188,6 +188,8 @@ class DataGatewayAccess:
         if not reusable:
             return await self._call(task_id, base, diagnostics=diagnostics, retry_of=retry_of)
         key = fingerprint({'name': base.get('name'), 'arguments': base.get('arguments')})
+        if record is None:
+            raise GatewayError('gateway_task_not_admitted')
         while True:
             with self._lock:
                 if self._tasks.get(task_id) is not record:

@@ -3,6 +3,13 @@ from __future__ import annotations
 import pytest
 
 
+def test_opening_intent_allows_blank_prefix_without_using_reasoning_or_later_comments():
+    from capstone_agent.progress import public_response_intent
+    assert public_response_intent('\n\n// 汇总指标\n正文') == '汇总指标'
+    assert public_response_intent('\n分析正文\n// 不是开头说明') is None
+    assert public_response_intent('\n// password=private') is None
+
+
 def test_gateway_rejection_retains_scope_details_and_explicit_execution_state():
     from capstone_agent.progress import project_native_tool_activity
     body = {'status': 'error', 'gaps': [{'reason': 'invalid_arguments',

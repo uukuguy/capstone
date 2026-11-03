@@ -63,7 +63,7 @@ def _profile(overrides=None, *, mode=None) -> CapacityProfile:
             raise ValueError('capacity profile contains unknown limits')
         base.update(overrides)
     for key, value in base.items():
-        if type(value) is not int or value < (0 if key == 'provider_stream_bytes' else 1):
+        if type(value) is not int or value < (0 if key in {'provider_stream_bytes', 'mcp_call_count'} else 1):
             raise ValueError(f'capacity limit is invalid: {key}')
         # The same document is consumed by JavaScript without precision loss.
         if value > 9007199254740991:
@@ -144,14 +144,15 @@ limits = _Limits()
 
 def require_capacity(field: str, actual: int, phase: str | None = None) -> None:
     maximum = getattr(limits, field)
-    if actual > maximum and not (field == 'provider_stream_bytes' and maximum == 0):
+    if actual > maximum and not (field in {'provider_stream_bytes', 'mcp_call_count'} and maximum == 0):
         raise CapacityExceeded(field, actual, maximum, phase, mode=current_capacity().mode)
 
 
 def observe_capacity(field: str, actual: int, phase: str | None = None) -> bool:
-    """Report a soft exceedance; debug mode interrupts before recovery."""
+    """Report soft pressure in either mode so bounded recovery can run.
+
+    Use require_capacity for a hard admission or persistence boundary.
+    """
     maximum = getattr(limits, field)
-    exceeded = actual > maximum and not (field == 'provider_stream_bytes' and maximum == 0)
-    if exceeded and current_capacity().mode == 'debug':
-        raise CapacityExceeded(field, actual, maximum, phase, mode='debug')
+    exceeded = actual > maximum and not (field in {'provider_stream_bytes', 'mcp_call_count'} and maximum == 0)
     return exceeded

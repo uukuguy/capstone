@@ -1,6 +1,6 @@
 import test,{after} from 'node:test';
 import assert from 'node:assert/strict';
-import {createDataGatewayTools} from '../../src/capstone_agent/resources/general-data-gateway.mjs';
+import {createDataGatewayTools,validateGatewayBatch} from '../../src/capstone_agent/resources/general-data-gateway.mjs';
 import {applicationToolOptions} from '../../src/capstone_agent/resources/general-sdk.mjs';
 import {compositionPolicy} from '../../src/capstone_agent/resources/tool-composition.mjs';
 import {savedToolObservation} from '../../src/capstone_agent/resources/tool-result-context.mjs';
@@ -10,6 +10,17 @@ import {join} from 'node:path';
 import {createHash} from 'node:crypto';
 const suiteCwd=await mkdtemp(join(tmpdir(),'gateway-research-'));
 after(()=>rm(suiteCwd,{recursive:true,force:true}));
+
+test('batch capacity preflight exposes exact bounds and permits correction',async()=>{
+ const c=config();let attempts=0;
+ c.deadlineAt=Date.now()+10000;
+ const fetchImpl=async()=>({ok:++attempts>1,json:async()=>attempts===1?
+  {error:'capacity_exceeded',executed:false,capacity:{dimension:'rpc_batch_requests',actual:129,limit:128}}:
+  {schema:'capstone-gateway-preflight/1',catalog_revision:c.dataGateway.catalog.revision,executed:false,valid:true,errors:[]}});
+ await assert.rejects(validateGatewayBatch(c,Array(129).fill({}),{fetchImpl}),/actual=129, limit=128; split/);
+ await validateGatewayBatch(c,[{}],{fetchImpl});
+ assert.equal(attempts,2);
+});
 
 for(const padding of [0,10000])test(`direct task observation references support read inspect save without another call (padding=${padding})`,async()=>{
  const cwd=await mkdtemp(join(tmpdir(),'direct-observation-')),previous=globalThis.fetch;let calls=0;

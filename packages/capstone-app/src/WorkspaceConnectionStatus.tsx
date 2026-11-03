@@ -3,9 +3,11 @@ import {useMemo} from 'react'
 import {useWorkspaceConnections} from './workspaceConnections'
 import {useGatewayConnections} from './gatewayConnectionsStore'
 import type {HttpThreadTransport} from './threadHttpTransport'
+import type {GatewayConnectionStatus} from './threadInput'
+import {useEffect} from 'react'
 import './WorkspaceConnectionStatus.css'
 
-export function WorkspaceGatewayStatus({transport,threadId,locked=false}:{transport:HttpThreadTransport;threadId?:string;locked?:boolean}){
+export function WorkspaceGatewayStatus({transport,threadId,locked=false,onConnection}:{transport:HttpThreadTransport;threadId?:string;locked?:boolean;onConnection?:(gateway:GatewayConnectionStatus|undefined)=>void}){
   const connection=useWorkspaceConnections(transport)
   const scoped=useMemo(()=>!threadId?transport:{
     workspaceConnectionsScope:{},
@@ -16,6 +18,11 @@ export function WorkspaceGatewayStatus({transport,threadId,locked=false}:{transp
     probeGatewayConnection:transport.probeGatewayConnection.bind(transport),addGatewayConnection:transport.addGatewayConnection.bind(transport),
   },[transport,threadId])
   const instances=useGatewayConnections(scoped)
+  useEffect(()=>{
+    const selected=instances.data?.entries.find(entry=>entry.id===instances.data?.selected_id)
+    const identity=selected?.identity??instances.data?.bound_instance??(!threadId?connection.data?.data_gateway:undefined)
+    onConnection?.(selected?{...identity,instance_name:selected.label,endpoint:selected.url,available:selected.status==='connected'}:identity)
+  },[instances.data,connection.data,threadId,onConnection])
   return <div className="workspace-connections-slot" aria-label="工作台数据网关">
     {instances.data||(!threadId&&connection.data?.data_gateway)?<GatewayStatus gateway={threadId?undefined:connection.data?.data_gateway} connections={instances.data?{...instances.data,locked:locked||instances.data.locked}:undefined} notice={instances.error||(!threadId?connection.error:undefined)}
       onSelect={instances.select} onRefreshAll={instances.refresh} onRefreshContract={instances.refreshContract} onProbe={instances.probe} onAdd={instances.add}

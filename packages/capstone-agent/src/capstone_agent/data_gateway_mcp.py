@@ -317,6 +317,8 @@ class DataGatewayMcp:
             catalog = await self._catalog(session)
             full = await self._publication(session, 'describe_gateway_contract')
             after = await self._publication(session, 'check_gateway_contract')
+            if not isinstance(after, dict):
+                raise GatewayError('gateway_catalog_invalid')
             instance = catalog.get('instance', {}).get('instance_id')
             if (before != after or discovery != full or full != after['contract_updated_at']
                     or (instance and instance != after['instance_id'])):

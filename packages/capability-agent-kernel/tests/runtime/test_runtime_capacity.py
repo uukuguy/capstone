@@ -6,7 +6,21 @@ import shutil
 import pytest
 
 
-def test_debug_mode_raises_typed_soft_excess_without_changing_numeric_snapshots(monkeypatch):
+def test_new_selection_does_not_inherit_previous_partial_overrides(monkeypatch):
+    import capability_agent.runtime.capacity as capacity
+    monkeypatch.setattr(capacity, '_initialized', capacity.DEFAULT_RUNTIME_LIMITS)
+    monkeypatch.setattr(capacity, '_mode', 'normal')
+    first = capacity.initialize_runtime_limits({'guide_document_bytes': 17})
+    assert first['guide_document_bytes'] == 17
+    second = capacity.initialize_runtime_limits({'rpc_frame_bytes': 4096})
+    assert second['guide_document_bytes'] == capacity.DEFAULT_RUNTIME_LIMITS['guide_document_bytes']
+    assert second['rpc_frame_bytes'] == 4096
+    with pytest.raises(ValueError):
+        capacity.initialize_runtime_limits({'rpc_frame_bytes': 0})
+    assert capacity.runtime_limits()['rpc_frame_bytes'] == 4096
+
+
+def test_debug_mode_preserves_soft_recovery_and_hard_checks_without_changing_snapshots(monkeypatch):
     import capability_agent.runtime.capacity as capacity
     monkeypatch.setattr(capacity, '_initialized', capacity.DEFAULT_RUNTIME_LIMITS)
     monkeypatch.setattr(capacity, '_mode', 'normal', raising=False)
@@ -16,15 +30,16 @@ def test_debug_mode_raises_typed_soft_excess_without_changing_numeric_snapshots(
     capacity.initialize_runtime_limits({'answer_summary_chars': 5}, mode='debug')
     assert capacity.runtime_limit_mode() == 'debug'
     assert all(type(value) is int for value in capacity.runtime_limits().values())
+    assert capacity.observe_capacity('answer_summary_chars', 6, unit='characters', phase='summary') is True
     with pytest.raises(capacity.CapacityExceeded) as caught:
-        capacity.observe_capacity('answer_summary_chars', 6, unit='characters', phase='summary')
+        capacity.check_capacity(capacity.runtime_limits(), 'answer_summary_chars', 6, unit='characters', phase='summary')
     assert caught.value.document() == {'code': 'capacity_exceeded', 'dimension': 'answer_summary_chars',
         'actual': 6, 'limit': 5, 'unit': 'characters', 'phase': 'summary', 'retryable': False, 'mode': 'debug'}
     with pytest.raises(ValueError, match='mode'):
         capacity.initialize_runtime_limits(mode='silent')
 
 
-def test_debug_reporting_does_not_silently_shorten_text(monkeypatch):
+def test_debug_reporting_uses_bounded_summary(monkeypatch):
     import capability_agent.runtime.capacity as capacity
     from capability_agent.application.reporting import _bounded_text
     monkeypatch.setattr(capacity, '_initialized', capacity.DEFAULT_RUNTIME_LIMITS)
@@ -32,20 +47,17 @@ def test_debug_reporting_does_not_silently_shorten_text(monkeypatch):
     capacity.initialize_runtime_limits({'answer_summary_chars': 5}, mode='normal')
     assert _bounded_text('abcdef') == 'abcd…'
     capacity.initialize_runtime_limits({'answer_summary_chars': 5}, mode='debug')
-    with pytest.raises(capacity.CapacityExceeded):
-        _bounded_text('abcdef')
+    assert _bounded_text('abcdef') == 'abcd…'
 
 
-def test_debug_segment_size_escapes_sanitizing_file_reader(tmp_path, monkeypatch):
+def test_debug_segment_size_still_rejects_oversized_storage(tmp_path, monkeypatch):
     import capability_agent.runtime.capacity as capacity
-    from capability_agent.application.context_segments import _read_path
+    from capability_agent.application.context_segments import _read_path, SegmentStorageError
     monkeypatch.setattr(capacity, '_mode', 'debug')
     path=tmp_path/'context-manifest.json'
     path.write_bytes(b'1234')
-    with pytest.raises(capacity.CapacityExceeded) as caught:
+    with pytest.raises(SegmentStorageError):
         _read_path(path, max_bytes=3, mutable=False)
-    assert caught.value.dimension == 'context_manifest_bytes'
-    assert caught.value.actual == 4 and caught.value.limit == 3
 
 
 def test_debug_workload_schemas_defer_only_capacity_maxima_to_typed_prechecks(monkeypatch):

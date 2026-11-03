@@ -1,5 +1,16 @@
 # Known issues and deferred work
 
+## User-local offline installer test failures — 2026-11-03
+
+The full local rebuild target reports four failures in
+`tools/tests/test_user_local_offline.py::test_loader_selects_only_verified_daemon_ids_in_private_file`
+for config/manifest and keep-archive variants. The subprocess exits1 after image
+loading, without stderr. Its owning sources and tests match existing main;
+root cause remains unconfirmed. This is not the intranet Compose path, but full
+release acceptance remains blocked. See the main/intranet release preparation
+report and `runs/main-intranet-release-20261103/` evidence. Do not count the
+earlier shell-only rebuild check as the whole Make target.
+
 ## Native worker session concurrency — 2026-11-01
 
 Deferred at the user's request: one native worker executes one attempt at a time.

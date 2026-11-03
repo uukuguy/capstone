@@ -163,7 +163,8 @@ def create_host_app(
         thread_resource = (request.url.path == '/api/v1/threads'
                            or request.url.path.startswith('/api/v1/threads/'))
         versioned_resource = (thread_resource or request.url.path == '/api/v1/workspace/connections'
-                              or request.url.path.startswith('/api/v1/workspace/gateways'))
+                              or request.url.path.startswith('/api/v1/workspace/gateways')
+                              or request.url.path.startswith('/api/v1/managed-resources'))
         thread_version = request.headers.get('Capstone-Thread-Version', '1')
         if request.url.path != "/health/ready" and request.url.hostname not in allowed_hosts:
             return JSONResponse({"error": "invalid_host"}, status_code=400)
@@ -344,6 +345,9 @@ def create_host_app(
         from .network_policy_http import register_network_policy_routes
         register_network_policy_routes(app, executor_provider=lambda: native_artifact_executor,
                                        authorize=require_private_thread)
+        from .managed_resource_http import register_managed_resource_routes
+        register_managed_resource_routes(app, executor_provider=lambda: native_artifact_executor,
+                                         authorize=require_private_thread)
         from .gateway_connections_http import register_gateway_connection_routes
         register_gateway_connection_routes(app, executor_provider=lambda: native_artifact_executor,
                                            authorize=require_private_thread, thread_service=thread_service)
@@ -549,6 +553,8 @@ def create_host_app(
                     except Exception:
                         publication = {'available': False, 'identity': (saved or {}).get('identity', {})}
                 document = public_input_catalog(thread_service.input_catalog(thread_id), gateway_publication=publication)
+                from .resource_permissions import resource_management_enabled
+                document['resource_management']={'enabled':resource_management_enabled(os.environ)}
                 return with_case_availability(document, case_service.input_availability(thread_id)) if case_service is not None else document
             except ThreadNotFound:
                 raise HTTPException(404, 'thread not found') from None
@@ -696,7 +702,7 @@ def create_host_app(
                 if isinstance(kind, str) and kind in {'start_work', 'send_message', 'work_message', 'send_auto', 'send_ordinary', 'send_professional'}:
                     scoped_reader = getattr(native_artifact_executor, 'thread_gateway_publication', None)
                     if callable(scoped_reader) and hasattr(service, 'read_thread_gateway'):
-                        saved = await run_in_threadpool(service.read_thread_gateway, thread_id)
+                        saved = await run_in_threadpool(getattr(service, 'read_thread_gateway'), thread_id)
                         try:
                             scoped_gateway = await run_in_threadpool(scoped_reader, saved, refresh=True)
                         except Exception:
@@ -711,7 +717,7 @@ def create_host_app(
                         refresh_binding = getattr(service, 'refresh_native_gateway_publication', None)
                         if callable(refresh_binding):
                             await run_in_threadpool(refresh_binding)
-                receipt = (await run_in_threadpool(service.submit_gateway_command, command, scoped_gateway)
+                receipt = (await run_in_threadpool(getattr(service, 'submit_gateway_command'), command, scoped_gateway)
                            if scoped_gateway is not None else service.submit_command(command))
                 if receipt.rejection == 'protocol_upgrade_required':
                     return JSONResponse({'error': 'protocol_upgrade_required', 'minimum_protocol_version': 2}, status_code=409)

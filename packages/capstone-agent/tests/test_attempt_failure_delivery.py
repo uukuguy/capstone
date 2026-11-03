@@ -141,6 +141,26 @@ def test_runtime_failure_delivers_a_persisted_reader_outcome_without_raw_errors(
     assert "runtime_failed" not in result.answer
 
 
+def test_parent_runtime_failure_retains_source_coordinates_in_terminal_receipt():
+    origin = [{'module': 'capstone_agent.continuation_resources', 'function': 'read_resource', 'line': 66}]
+    class FailedRuntime(HarnessPiClient):
+        def prompt(self, question, *, on_event, **kwargs):
+            on_event({'event_type': 'runtime_action', 'runtime_mode': 'capstone',
+                'payload': {'phase': 'started'}})
+            on_event({'event_type': 'runtime_event', 'runtime_mode': 'capstone',
+                'payload': {'child_status': 'failed', 'failure_code': 'native_execution_error',
+                    'failure_origin': origin}})
+            raise RuntimeError('PRIVATE exception details')
+    service = _thread_service()
+    result = HarnessAttemptRunner(service, FailedRuntime(Session())).run(claim_attempt(service))
+    terminal = service.read_events('thr_harness', 0).events[-1]
+    assert terminal.payload['failure_origin'] == origin
+    assert 'read_resource:66' in result.answer
+    assert 'PRIVATE' not in result.answer
+    assert terminal.payload['task_steps'][0]['id'] == 'task-execution'
+    assert terminal.payload['task_steps'][0]['status'] == 'failed'
+
+
 @pytest.mark.parametrize('code,reason', [
     ('native_continuation_no_progress', '后续动作未产生新的工具执行或已保存的状态进展'),
     ('native_transport_timeout', '执行器连接超时'),

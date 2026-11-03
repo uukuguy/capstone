@@ -191,7 +191,8 @@ def test_verify_workflow_installs_pinned_uv_and_declares_release_matrix() -> Non
 ])
 def test_verify_runner_matrix_matches_development_and_release_context(event, base, ref, release, expected):
     workflow = (ROOT / ".github/workflows/verify.yml").read_text()
-    matrix = next(line.strip() for line in workflow.splitlines() if line.strip().startswith("os:"))
+    scoped = workflow.split("  scoped_verify:\n", 1)[1]
+    matrix = next(line.strip() for line in scoped.splitlines() if line.strip().startswith("os:"))
     expression = matrix.removeprefix("os: ${{ ").removesuffix(" }}")
     for name, value in {"github.event_name": event, "github.base_ref": base,
                         "github.ref_name": ref, "inputs.release": release}.items():

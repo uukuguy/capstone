@@ -1,5 +1,27 @@
 # docs/status INDEX
 
+内网验收标签`intranet-20261103-1206-25c71f85`已推送；main与运行来源见部署验收回执。
+
+2026-11-03：[内网部署验收](../reports/2026-11-03-intranet-release.md)：main PR88合入0b68c607，双平台定向例外门禁通过；内网25c71f85健康、管理禁用，两轮真实任务/下载SHA/浏览器刷新通过。全量发布缺口保留，dev回流进行中。
+
+2026-11-03：第四轮完整CI的macOS在旧默认模型断言失败；完整重建目标另有4项离线安装器失败，已记KNOWN-ISSUES与发布准备回执。定向main门禁例外待明确答复，内网未切换。
+
+2026-11-03：[main与内网发布准备回执](../reports/2026-11-03-main-intranet-release.md)记录三轮CI、修正及本机分段发布检查；main与内网仍待更新。
+
+2026-11-03：PR87第二轮CI类型失败已本地修复6c7722e8；完整本机发布检查运行中，内网更新已授权但待main合并。
+
+2026-11-03：标签771259a7已推送；main PR87的首轮双平台CI治理检查失败，修正本地验证中，尚未合并。
+
+2026-11-03: 内网 Skills/MCP 管理禁用开关216ce916已完成定向检查；源码待部署，运行来源保持不变。
+
+2026-11-03: Skills/MCP安装、受管依赖、凭据与离线包本机验证通过；[报告](../reports/2026-11-03-managed-resource-installation.md)列明未完成范围。
+
+2026-11-03: 现有Vivaldi已核对欢迎页和总览的运行来源节点、部署连线；开发摘要同步本轮四轮恢复验收。
+
+
+2026-11-02: [版本台账](VERSION-CONTROL.md)及[总览](PROJECT-OVERVIEW.html)更新本机执行链修复与四轮验收；内网保持70c42dab。
+
+
 2026-11-01: [Native worker session concurrency](KNOWN-ISSUES.md#native-worker-session-concurrency--2026-11-01)
 is recorded for later work; no concurrency change in this deployment repair.
 
@@ -809,3 +831,11 @@ dev默认开发集成主线和main发布主线均启用轻量保护：PR与两�
 2026-11-01 产物历史版本：VERSION-CONTROL与RESUME记录aa1cd3e8本机展示修正；旧文件内容及归属不变。
 
 Milestone update (2026-11-02): VERSION-CONTROL records PR84/85, focused CI and annotated intranet source tag.
+
+Model configuration update (2026-11-02): VERSION-CONTROL records Qwen3.8-Flash-Next registration and intranet defaults; not deployed.
+
+Intranet deployment update (2026-11-02): VERSION-CONTROL records active source601b5909 and the verified Qwen CSV task.
+
+App timing update (2026-11-02): VERSION-CONTROL records intranet App939a4d74 and delayed artifact-panel opening.
+
+Summer chain audit (2026-11-02): VERSION-CONTROL records70c42dab rollout, measured comparison and gateway handoff in docs/reports/2026-11-02-intranet-summer-chain-audit.md.

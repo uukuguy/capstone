@@ -6738,3 +6738,105 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 2026-11-02: cffcac42 preserves CSV field values; format gate now distinguishes raw CSV evidence from source formatting.
 - 2026-11-02: bdab3c02 preserves raw CSV evidence; scoped CI41396861782 passed; PR85 merged d4b59a0f and milestone tag published.
 - 2026-11-02: 98073128 returns accepted main milestone to local dev; remote formatting/control return remains pending approved integration.
+- 2026-11-02: 759ecc6e records accepted main merge, annotated tag and local-only dev return for accurate recovery.
+- 2026-11-02: PR86 merged1b3760cd after19s macOS CI41398901567; local and remote dev match; accepted main is ancestor.
+- 2026-11-02: Registered Qwen3.8-Flash-Next8013 as intranet default;28 checks passed; models endpoint confirms262144 context; deployment pending.
+- 2026-11-02: 601b5909 deploys Qwen-default intranet images; readiness, shared backend identity and24.8s CSV download passed; browser unavailable.
+- 2026-11-02: e5dba4b2 records active601b5909 intranet images, verified Qwen task and retained rollback configuration.
+- 2026-11-02: Delay automatic artifact-panel opening until a product arrives;23 execution checks and types pass.
+- 2026-11-02: 939a4d74 delays panel opening until products arrive;23 checks pass; intranet App updated without restarting backend.
+- 2026-11-02: Canonical local rebuild for939a4d74 passed; backend image9d1aac23 unchanged; scoped cleanup receipt155454-34538 retained.
+- 2026-11-02: ebd12744 records939a4d74 local/intranet App rollout and verified artifact-panel timing.
+- 2026-11-02: Summer audit reproduces blank-prefix intent loss and non-executable report CLI;44 App and44 Python checks pass after fixes.
+- 2026-11-02: 70c42dab deployed; nonprivileged reports and durable model purpose pass; summer audit retains timings, benchmark and gateway requests.
+- 2026-11-02: 54e33dbf preserves summer execution comparison, measured model speeds, verified fixes and gateway investigation inputs.
+- 2026-11-02: Capacity recovery and pre-call disclosure pass focused checks; relay queues, optional MCP budget and debug recovery replace task-aborting limits.
+- 2026-11-02: 4d57c083 separates relay scheduling from task budgets and publishes effective limits to prevent valid-task aborts.
+- 2026-11-02: Local4d57c083 rebuild ready; intranet images built, rollout deferred until main-chain fixes complete, per user instruction.
+
+- 2026-11-02 3cc6a263 preserves multi-turn file identity and failure origins; missing LLM purposes remain blank.
+- 2026-11-02 f4d66542 records recoverable resource-storage faults instead of hiding their origins.
+- 2026-11-02 b4df210b separates model boundaries from host stages to preserve LLM visibility during failure tracking.
+
+- 2026-11-02: Welcome cards show current session gateway and selected LLM; focused App checks pass; browser unavailable.
+
+- 2026-11-02 fa379b5e shows current gateway and selected model on welcome cards without extra connection probes.
+
+- 2026-11-02: Runner failures retain original codes during cancellation; host regression suite113 passed,32 skipped.
+
+- 2026-11-02 cbec0d59 preserves runner failure codes when cancellation races with error finalization.
+
+- 2026-11-02 187a8ca8 records primary and secondary persistence failures safely; host checks113 passed,32 skipped.
+
+- 2026-11-02 a71ef66e verifies double storage failure settles safely and prevents replay after restart.
+
+- 2026-11-02 2eb26aa1 exposes recoverable live artifact faults without leaking messages or logging normal cancellation;129 checks passed.
+
+- 2026-11-02 8c875af2 retains safe origins for worker cleanup faults;27 checks passed; live-model continuation remains pending.
+
+- 2026-11-02 c438fca6 preserves primary faults across cleanup and logs cancellation/projection faults;352 checks passed,32 skipped; rebuild deferred.
+
+- 2026-11-02 4306a7e9 packages cleanup helper after native startup exposed missing image dependency;10 focused checks passed.
+
+- 2026-11-02 8293a4d4 fixes image layer limit; unified rebuild and four real-model continuation rounds pass; scoped cleanup releases11.6GB.
+
+- 2026-11-02 87966cb5 aligns runtime sources and local chain acceptance; overview generated, links/doctor pass; visual check unavailable.
+
+- 2026-11-03: Existing Vivaldi confirms welcome gateway/model cards; no new tabs; later app disappeared before graph inspection.
+
+- 2026-11-03: Existing Vivaldi visually verifies overview source nodes and deployment edges; welcome cards already confirmed; no new tabs.
+
+- 2026-11-03 8f1415fc aligns overview summaries and records Vivaldi visual checks using existing tabs.
+
+- 2026-11-03 3b25c089 connects persistent installation, protected workspace/task adapters and UI; source checks pass; runtime acceptance pending.
+
+- 2026-11-03 f92b3202 — Preserve MCP session state and fence resource cleanup; 451 backend, 47 App and 6 SDK checks passed.
+
+- 2026-11-03 f92b3202 — Verified actual Skill/MCP/Git installation, replacement-container persistence, model entry and Vivaldi management; remaining design scope recorded.
+
+- 2026-11-03 2caee426 — Record core installation acceptance and exact deployment sources; continue dependency, secret and offline bundle implementation.
+
+- 2026-11-03 16f29d35 — Add protected bindings, isolated dependencies, offline bundles and pending recovery; source checks460 backend/51App pass.
+
+- 2026-11-03 6b28807a — Publish and enforce operation contracts before selection;170 resource checks and6 SDK checks pass.
+
+- 2026-11-03 6b28807a — Final runtime accepts dependencies, binding revocation, offline restore, API contracts and7.2s model list; no CI/remote deployment.
+
+- 2026-11-03 ab175491 — Record supported installation acceptance, exact images and explicit limits; preserve final verification boundary.
+
+- 2026-11-03 — Implement intranet management disable switch across UI and executor; preserve resource use and local management.
+
+- 2026-11-03 216ce916 — Gate intranet resource management in UI and executor; focused checks pass, deployment remains unchanged.
+
+- 2026-11-03 771259a7 — Align source-only intranet management gate and verified graph; deployed environments unchanged.
+
+- 10:02 User approved PR87 macOS/Linux release CI41563425683; milestone-managed-resources-20261103-771259a7 pushed; merge pending.
+- 10:06 PR87 dual-platform governance failed; corrected job selection and PR filters;129 focused checks pass; retry requires new approval.
+- 10:07 Fix scoped workflow contract tests to unblock release governance;129 focused checks pass [9a3f75db].
+- 10:09 Record failed PR87 gate and local repair for safe retry; generated graph awaits visual acceptance [76ba1aa9].
+- 10:20 Second approved release CI41564504216 failed on51 backend type errors; governance passed; main remains unmerged.
+- 10:20 Restore typed runtime contracts; zero type errors,354 focused and39 consumer checks pass; full local release running [6c7722e8].
+- 10:20 User authorized latest intranet deployment after main merge; SSH/sudo Docker confirmed, existing volumes and services retained.
+- 10:24 Record typed release repair and authorized intranet rollout; full local release remains active [0fbe7f56].
+- 10:32 Third approved CI not started: GitHub HTTP2 push failed; local release stopped for diagnosis, not passed.
+- 10:32 Local HTTP failures require loopback proxy exclusion; stale tests corrected for soft recovery and reference-first continuation.
+- 10:33 Align stale continuation tests with admitted recovery contracts; corrected original-source RPC test passes [263bad9f].
+- 10:47 Cancel third CI41566986778 after reproducing frozen-clock legacy test hang; no fourth CI approval yet.
+- 10:47 Backend full checks3016 passed/191 skipped; kernel663 passed; App migrated29 passed; remaining release checks and local rebuild active.
+- 10:47 Migrate stale release fixtures to bounded diagnostics and per-response thinking without changing product behavior [ee625f38].
+- 10:53 Local rebuild ready, API/worker imageb0402ca2 matches, App reachable; scoped cache maintenance completed.
+- 10:53 Simulator protected digest lagged accepted main tree6596fbba; aligned policy without changing simulator source.
+- 10:53 Pin protected simulator digest to already accepted main tree; protected-path check passes [3c923666].
+- 11:05 Record split release acceptance and inspected control sources; main and intranet remain pending [25c71f85].
+- 11:10 User approved fourth full release CI and later focused macOS dev-return CI; PR87 updated25c71f85, run41570458423 active.
+- 11:30 Prepare same-source amd64 images via existing proxy builder; native layer-limit workaround preserves OCI runtime config and passes22-capability smoke.
+- 11:40 Fourth CI macOS failed stale intranet model expectation; fixed from registered profile,161 isolated scoped checks pass.
+- 11:40 Correction: earlier split gate omitted rebuild target consumers; full target exposes four pre-existing offline installer test failures.
+- 11:40 Asked explicit scoped main-gate exception; no new CI started. Existing dev-return approval remains reserved.
+- 11:38 Correct preceding three event timestamps to11:38; model-default repair committeda8685cbf,161 isolated checks pass.
+- 11:44 Record corrected gate coverage, unresolved installer tests and staged images; scoped main exception remains unanswered [323c24a9].
+- 12:05 User approved scoped main exception; CI41574376803 passed24s/33s, PR88 merged0b68c607; PR87 included automatically.
+- 12:05 Intranet25c71f85 healthy with matched API/worker images and management disabled; backups retained, temporary wrong-project containers stopped.
+- 12:05 Real24.3s/43.2s tasks, CSV28B/SHA and browser refresh pass; recoverable missing-file-command warning retained; dev-return CI remains authorized.
+- 12:06 Record intranet acceptance, exact images and source equivalence; retain full-release limits and prepare dev return [4fe1eb2f].
+- 12:06 Push intranet-20261103-1206-25c71f85 at exact deployed source with CI, image/container IDs and acceptance receipt.

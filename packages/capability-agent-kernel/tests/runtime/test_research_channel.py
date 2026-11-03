@@ -46,17 +46,18 @@ def test_debug_capacity_escapes_channel_without_writing_rejection_or_committing(
     assert not (pump.receipts_path / 'update-1.json').exists()
 
 
-def test_debug_validation_diagnostic_capacity_escapes_without_silent_shortening(channel, monkeypatch):
+def test_debug_validation_diagnostic_capacity_returns_bounded_rejection(channel, monkeypatch):
     import capability_agent.runtime.capacity as capacity
     pump, _ = channel
     monkeypatch.setattr(capacity, '_mode', 'debug')
     pump.runtime_limits = {**pump.runtime_limits, 'diagnostic_error_count': 1}
     (pump.requests_path / 'bad.json').write_text(json.dumps({'request_id':'bad',
         'expected_revision':0,'changes':{'unexpected1':True,'unexpected2':True}}))
-    with pytest.raises(capacity.CapacityExceeded) as caught:
-        pump.drain()
-    assert caught.value.dimension == 'diagnostic_error_count'
-    assert not (pump.receipts_path / 'bad.json').exists()
+    pump.drain()
+    ack = receipt(pump, 'bad')
+    assert ack['status'] == 'rejected'
+    assert len(ack['validation_errors']) == 1
+    assert ack['validation_errors_truncated'] is True
 
 
 def test_missing_initial_goal_is_rejected_and_can_be_repaired_without_uncertain_commit(channel):

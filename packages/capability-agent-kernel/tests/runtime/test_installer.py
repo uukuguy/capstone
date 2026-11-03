@@ -9,7 +9,7 @@ from capability_agent.runtime.installer import PiRuntimeInstaller, PiRuntimeInst
 from capability_agent.runtime.lock import PiRuntimeLock
 
 
-def test_installer_diagnostic_uses_injected_limit_and_debug_escapes_command_failure(tmp_path, monkeypatch):
+def test_installer_diagnostic_uses_injected_limit_and_debug_preserves_command_failure(tmp_path, monkeypatch):
     import capability_agent.runtime.capacity as capacity
     from capability_agent.runtime.installer import _sanitize_command_detail
     monkeypatch.setattr(capacity,'_initialized',capacity.DEFAULT_RUNTIME_LIMITS)
@@ -20,9 +20,9 @@ def test_installer_diagnostic_uses_injected_limit_and_debug_escapes_command_fail
     def failed(*args,**kwargs):
         return subprocess.CompletedProcess(args[0],1,'','api_key=topsecret command failed')
     installer=PiRuntimeInstaller(PiRuntimeLock.load(),tmp_path/'pi',runner=failed)
-    with pytest.raises(capacity.CapacityExceeded) as caught:
+    with pytest.raises(PiRuntimeInstallerError) as caught:
         installer._run(['git','status'])
-    assert caught.value.dimension=='diagnostic_text_chars' and caught.value.mode=='debug'
+    assert str(caught.value).endswith('api_k')
     assert 'topsecret' not in str(caught.value)
 
 

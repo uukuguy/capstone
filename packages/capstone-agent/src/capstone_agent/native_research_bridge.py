@@ -55,7 +55,7 @@ def _limits(binding=None):
     values = _BridgeLimits(current_capacity().values, mode)
     selected=(binding or {}).get('runtime_limits',{})
     if not isinstance(selected,dict) or any(not isinstance(key,str) or type(value) is not int
-            or value < (0 if key=='provider_stream_bytes' else 1) or value > 2**53-1 for key,value in selected.items()):
+            or value < (0 if key in {'provider_stream_bytes', 'mcp_call_count'} else 1) or value > 2**53-1 for key,value in selected.items()):
         raise ValueError('research runtime_limits are invalid')
     values.update(selected)
     return values
