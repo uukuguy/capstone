@@ -723,7 +723,7 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .capstone-chat-markdown li { margin: 3px 0; }
 .capstone-chat-markdown a { color: #147a70; text-decoration: underline; text-underline-offset: 2px; }
 .capstone-chat-markdown blockquote { margin: 10px 0; padding: 7px 12px; border-left: 3px solid #8cc7b7; background: #f5faf7; color: #5c7771; }
-.capstone-chat-markdown code { padding: 2px 4px; border-radius: 4px; background: #eef4f1; color: #35665e; font: 0.9em/1.4 "SFMono-Regular", Consolas, monospace; }
+.capstone-chat-markdown code { padding: 2px 4px; border-radius: 4px; background: #eef4f1; color: #35665e; font: 1em/1.6 "SFMono-Regular", Consolas, monospace; }
 .capstone-chat-markdown pre { max-width: 100%; margin: 10px 0; padding: 11px 13px; overflow-x: auto; border-radius: 8px; background: #1f3435; color: #e5f4ef; }
 .capstone-chat-markdown pre code { padding: 0; background: transparent; color: inherit; }
 .capstone-chat-markdown table { width: 100%; margin: 10px 0; border-collapse: collapse; font-size: 13px; }
@@ -1128,7 +1128,7 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .capstone-result-explorer .capstone-result-table-scroll :is(th, td) { padding: 2px 5px; border-color: #dce4ec; }
 .capstone-result-explorer .capstone-result-table-scroll th { position: sticky; top: 0; z-index: 1; background: #f7f9fb; color: #415d74; }
 .capstone-result-explorer .capstone-result-element { min-height: 24px; }
-.capstone-chat-markdown table { font-size: 11px; line-height: 1.4; }
+.capstone-chat-markdown table { font-size: var(--conversation-font-size); line-height: 1.6; }
 .capstone-chat-markdown :is(th, td) { padding: 4px 6px; }
 @media (max-width: 600px) {
   .capstone-result-explorer { width: 100%; height: min(520px, 65vh); border-radius: 9px; }
@@ -1243,16 +1243,16 @@ button.reference-chip:hover { background: #d7eee0; color: #155f4f; }
 .thread-conversation-workspace .capstone-chat-body,
 .thread-conversation-workspace .capstone-chat-body p,
 .thread-conversation-workspace .capstone-chat-markdown,
-.thread-conversation-workspace .capstone-chat-message.is-user .capstone-chat-body { font-size: 12px; line-height: 1.6; }
+.thread-conversation-workspace .capstone-chat-message.is-user .capstone-chat-body { font-size: var(--conversation-font-size); line-height: 1.6; }
 .thread-conversation-workspace .capstone-chat-markdown :is(h1, h2, h3) { margin: 16px 0 6px; line-height: 1.45; font-weight: 600; letter-spacing: 0; }
-.thread-conversation-workspace .capstone-chat-markdown h1 { font-size: 16px; }
-.thread-conversation-workspace .capstone-chat-markdown h2 { font-size: 14px; }
-.thread-conversation-workspace .capstone-chat-markdown h3 { font-size: 13px; }
-.thread-conversation-workspace .capstone-chat-markdown :is(h4, h5, h6) { font-size: 13px; line-height: 1.45; font-weight: 600; margin: 12px 0 6px; }
+.thread-conversation-workspace .capstone-chat-markdown h1 { font-size: 1.23em; }
+.thread-conversation-workspace .capstone-chat-markdown h2 { font-size: 1.15em; }
+.thread-conversation-workspace .capstone-chat-markdown h3 { font-size: 1.08em; }
+.thread-conversation-workspace .capstone-chat-markdown :is(h4, h5, h6) { font-size: 1em; line-height: 1.45; font-weight: 600; margin: 12px 0 6px; }
 .thread-conversation-workspace .capstone-chat-markdown p { margin-bottom: 8px; }
 .thread-conversation-workspace .capstone-chat-markdown p:last-child { margin-bottom: 0; }
 .thread-conversation-workspace .capstone-chat-markdown strong { font-weight: 600; }
-.thread-conversation-workspace .capstone-chat-markdown table { font-size: 12px; line-height: 1.5; }
+.thread-conversation-workspace .capstone-chat-markdown table { font-size: 1em; line-height: 1.6; }
 .thread-conversation-workspace .capstone-chat-markdown :is(th, td) { padding: 6px 8px; }
 .thread-conversation-workspace .capstone-composer-root textarea { font-size: 12px; line-height: 1.55; }
 .thread-conversation-workspace .capstone-chat-message.is-user .capstone-chat-body { border-color: #dde1d9; background: #eaf0e8; }
