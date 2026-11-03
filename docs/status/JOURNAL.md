@@ -6813,3 +6813,7 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 10:02 User approved PR87 macOS/Linux release CI41563425683; milestone-managed-resources-20261103-771259a7 pushed; merge pending.
 - 10:06 PR87 dual-platform governance failed; corrected job selection and PR filters;129 focused checks pass; retry requires new approval.
 - 10:07 Fix scoped workflow contract tests to unblock release governance;129 focused checks pass [9a3f75db].
+- 10:09 Record failed PR87 gate and local repair for safe retry; generated graph awaits visual acceptance [76ba1aa9].
+- 10:20 Second approved release CI41564504216 failed on51 backend type errors; governance passed; main remains unmerged.
+- 10:20 Restore typed runtime contracts; zero type errors,354 focused and39 consumer checks pass; full local release running [6c7722e8].
+- 10:20 User authorized latest intranet deployment after main merge; SSH/sudo Docker confirmed, existing volumes and services retained.

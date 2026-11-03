@@ -11,4 +11,13 @@
 - Full model install-and-use conversation remains unverified. Preserve all installation scope limits in docs/reports/2026-11-03-managed-resource-installation.md.
 - Preserve unrelated untracked docs/reports/2026-11-01-summer-session-audit.md and all user data.
 
-Next action: obtain approval for one new PR87 macOS/Linux full release CI, then update its head to include9a3f75db; merge only after successful checks. Preserve tag identity.
+## Active continuation
+
+- Second CI41564504216 at76ba1aa9 passed governance, failed on51 backend type errors on both platforms.
+- Local fix6c7722e8 restores typed runtime contracts; types zero errors,354 focused/2 skipped and39 consumer tests pass (overlapping scopes).
+- Full local make check-release runs in exec session4099; log /tmp/capstone-pr87-local-release.log. Do not claim completion before exit.
+- Grid-agent completed997 passed/3 skipped in453.35s; aggregate continues into simulator. Treat this as partial evidence only.
+- User now authorizes latest intranet deployment after main merge. Server is reachable; SSH dmdba@192.168.72.63 and sudo -n docker work. Existing project /home/dmdba/capstone-intranet remains on70c42dab. Preserve all volumes, private configuration and other services.
+- No third CI approval yet. Do not push updated PR head until approved. Tag remains fixed.
+
+Next action: finish local release checks and prepare repairs, then obtain one new dual-platform release CI approval; merge main on success, rebuild locally and deploy exact verified source to intranet with management disabled.
