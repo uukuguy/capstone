@@ -12,8 +12,9 @@ observation, composition and reporting contracts. No second scheduler or cache.
 
 Current boundary: product b7dd440c.411 Python/216 App checks and types pass;
 real parallel tasks, continuation/download hashes and queued cancellation pass.
-Corrected-card live screenshot/refresh remains pending after sleep/AX failures.
-No CI, push or dev integration. See [receipt](../../reports/2026-11-03-execution-capacity.md).
+Corrected-card live screenshot/refresh passed after GUI recovery19:02; earlier
+sleep/AX failures retained. One macOS CI/dev integration is now explicitly approved,
+not yet run. See [receipt](../../reports/2026-11-03-execution-capacity.md).
 
 ## Constraints
 
@@ -57,7 +58,7 @@ message projection only where accepted/start/snapshot tests reproduce a defect.
 - [x] Expose native setting in native_hosted_worker and checked-in configuration
   contract, test invalid values and default1. Use2 only in local candidate config.
 - [x] Test real PostgreSQL claim races, same-thread exclusion and cancelled queue.
-- [ ] Reproduce accepted-only UI with live events and restored snapshot; preserve
+- [x] Reproduce accepted-only UI with live events and restored snapshot; preserve
   waiting until actual start, terminal cancellation and existing conversation UI.
 - [x] Run focused worker/native/App checks, type checks for changed modules, and
   commit verified implementation units with journal/checkpoint updates.
@@ -66,7 +67,7 @@ message projection only where accepted/start/snapshot tests reproduce a defect.
 
 - [x] Initialize isolated runtimes with make setup, make install-pi, make doctor.
 - [x] Canonical local rebuild; record temporary candidate source and preserve data.
-- [ ] Real model: three sessions, two running and one waiting, queued cancellation,
+- [x] Real model: three sessions, two running and one waiting, queued cancellation,
   continuation, product download and refresh. Record any unavailable dependency.
 - [ ] Measure comparable calls/rounds/time without promising speedup from fixtures.
 - [x] Run scoped cache maintenance after local build use.

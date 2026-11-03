@@ -7,9 +7,11 @@
 User approved execution reliability and concurrency/queue design.
 Product candidate b7dd440c on feat/execution-capacity-20261103 in
 .worktrees/execution-capacity. Actual root dev/origin-dev f7d40163;
-main0b68c607. No push, PR or CI was started. No new CI approval exists.
-An async question for one macOS focused CI (3–6min) is pending; merge only after
-the approved gate and final page verification. Elapsed time does not grant approval.
+main0b68c607. User explicitly approved ONE macOS session-capacity CI and dev
+integration after page verification. Final queued-card/refresh/cancellation
+verification PASSED at19:03; both running test tasks also cancelled and released.
+This approval is unused: publish the finalized candidate and start that one run.
+Merge only on success; do not ask again for this already approved run.
 
 Implementation: exact observation read-budget recovery; configurable native
 slots (library default1, local2); immediately terminal unleased cancellation;
@@ -27,9 +29,9 @@ focused session-capacity CI route. No business routing or automatic retry.
 - Followups47.36s/46.08s read original15B CSVs; four downloads match exact bytes/hash.
 - Waiting taskthr_1918434cbe41e1527980 cancels immediately without attempt_started;
   other tasks remain running. Running cancellation also completed.
-- Original queued browser screenshot exposed contradictory process-card wording;
-  corrected-card regression passes. Final corrected-card LIVE screenshot/refresh
-  acceptance is STILL PENDING: Mac sleep and AX permission_denied interrupted it.
+- Original queued screenshot exposed contradictory wording; correction tests pass.
+  Earlier sleep/AX failures remain recorded. GUI recovered19:02; final live
+  corrected-card/refresh/waiting cancellation passes. Evidence screenshots saved.
 - Do not claim overall business speedup, full summer replay or final UI acceptance.
 
 Read docs/reports/2026-11-03-execution-capacity.md and the accepted plan before proceeding.
@@ -54,12 +56,11 @@ No credentials were copied into the worktree; user data/named volumes retained.
 
 ## Next actions
 
-1. Finish control/report synchronization and inspect regenerated actual-dev graph
-   only if the existing GUI tab is accessible. Record an AX block, never infer pass.
-2. When graphical access is available, finish corrected queued-card/refresh
-   verification with bounded work. Preserve successful and sleep-interrupted receipts.
-3. Candidate is ready for review of its local changes; request separate approval
-   for one macOS session-capacity CI before any push/PR. UI gap remains explicit.
+1. Finalize control/report synchronization. Actual dev graph was generated and
+   checked in its existing browser tab; final page checks now pass as above.
+2. Preserve both successful and sleep-interrupted receipts. No more model tests needed.
+3. Publish final candidate and open dev PR with the ONE approved macOS
+   session-capacity CI. Approval scope includes direct consumers,216 App,types/docs.
 4. Merge dev only after approved focused gate and accepted local scope, then update
    actual dev graph and close branch. No main or remote deployment in this task.
 
@@ -71,7 +72,7 @@ download hashes, queued cancellation and sleep-interrupted evidence.
 Source commits:f0e8728e/e7d7fbc2/692fa36e/fcad0a76/7616f389/b7dd440c.
 Task-owned control/report/design/plan edits exist in root and candidate as recorded
 by git status. Preserve unrelated docs/reports/2026-11-01-summer-session-audit.md.
-No CI approval from an earlier task carries over.
+No further CI beyond this newly approved run is authorized.
 
 Research server remains disconnected: no probes.
 Intranet25c71f85 and its acceptance tag remain unchanged; cloud/demo unchanged.

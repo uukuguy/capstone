@@ -27,8 +27,8 @@ earlier shell-only rebuild check as the whole Make target.
 2026-11-03: user reactivated this work. Candidate b7dd440c implements bounded
 native slots (default1, local2), immediate unleased cancellation and consistent
 queued labels. Real parallel tasks, continuation CSV hashes and queued cancellation
-pass; final corrected-card browser/refresh acceptance remains pending after Mac
-sleep and Accessibility failures. Not merged or deployed to intranet.
+pass; final corrected-card browser/refresh acceptance passed after GUI recovery
+at19:02. Earlier Mac sleep/Accessibility failures retained. Not merged or deployed to intranet.
 See [receipt](../reports/2026-11-03-execution-capacity.md).
 
 Historical deferral: one native worker executes one attempt at a time.

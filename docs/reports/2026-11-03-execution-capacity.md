@@ -88,9 +88,13 @@ Mac sleep interrupted the first real trial and the final long UI trial. Wake
 timestamps match lease interruption; expired writers remain fenced. These
 trials are retained as failures and excluded from successful timing evidence.
 The final GUI check also returned macOS Accessibility permission_denied. Therefore
-**the corrected queued card's final live screenshot/refresh acceptance is pending**.
-No further model trials were started after this condition repeated.
+The GUI became accessible again at19:02. One bounded final check then passed:
+the corrected card and reply both show waiting, refresh retains that state,
+and queued cancellation immediately clears the attempt. The two other running
+test tasks were then cancelled and their slots released. Saved screenshots:
+runs/execution-capacity-20261103/queued-after-refresh.png and queued-cancelled-ui.png.
+The earlier sleep-interrupted trials remain failures, not acceptance evidence.
 
 Research server remains disconnected and unprobed. Intranet25c71f85, main0b68c607,
-cloud and demo retain their prior sources. Dev PR integration requires a newly
-approved macOS focused CI. No full release acceptance is claimed.
+cloud and demo retain their prior sources. The user explicitly approved one
+macOS focused CI and dev integration after page verification. No full release acceptance is claimed.

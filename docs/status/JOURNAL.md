@@ -6861,3 +6861,5 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - Browser queue text contradicts its process card; reproduce, align queued labels, and verify216 App checks plus types. Add thread-lock skip regression.
 - Commit consistent queued process labels and direct-consumer coverage [b7dd440c]. Final focused Python gate411 pass/32 skips, App216 pass; independent inspection finds no actionable regression.
 - Final UI trial interrupted by repeated Mac sleep and AX permission_denied; preserve failures and stop model repeats. Pending scoped CI question is not approval.
+- Persist candidate evidence and control state for recovery [12dfcb44].
+- GUI recovered19:02; queued labels/refresh/immediate cancellation pass; other running tests cancel and release. User approves one focused macOS CI/dev merge.
