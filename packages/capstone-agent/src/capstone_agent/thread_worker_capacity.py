@@ -10,7 +10,8 @@ _LOG = logging.getLogger(__name__)
 def serve_attempt_slots(run: Callable[[], object | None], *, capacity: int,
                         stop: Event, wake: Event | None, poll_seconds: float,
                         sweep: Callable[[], object] | None = None,
-                        reconcile: Callable[[], object] | None = None) -> None:
+                        reconcile: Callable[[], object] | None = None,
+                        pending: Callable[[], bool] | None = None) -> None:
     scan = True
     with ThreadPoolExecutor(max_workers=capacity, thread_name_prefix='capstone-attempt') as pool:
         active: set[Future[object | None]] = set()
@@ -20,22 +21,29 @@ def serve_attempt_slots(run: Callable[[], object | None], *, capacity: int,
                 scan = True
             finished = {future for future in active if future.done()}
             active -= finished
+            skipped = False
             for future in finished:
                 try:
                     if future.result() is not None:
                         scan = True
+                    else:
+                        skipped = True
                 except Exception:
                     # Do not expose exception text or stop unrelated attempts.
                     _LOG.warning('Thread execution slot failed; retrying after poll interval')
                     stop.wait(poll_seconds)
                     scan = True
             try:
+                if skipped and pending is not None and pending():
+                    scan = True
+                    stop.wait(poll_seconds)
                 if reconcile is not None:
                     reconcile()
                 if not active and sweep is not None:
                     sweep()
             except Exception:
                 _LOG.warning('Thread worker maintenance failed; retrying after poll interval')
+                scan = True
                 stop.wait(poll_seconds)
                 continue
             if stop.is_set():

@@ -1,6 +1,6 @@
 """Use an isolated PostgreSQL database, never an application data ledger."""
 from concurrent.futures import ThreadPoolExecutor
-from threading import Event, Thread
+from threading import Event, Lock, Thread
 
 import psycopg
 import pytest
@@ -83,12 +83,16 @@ def test_postgres_two_slots_leave_third_unleased_and_cancelled_queue_never_execu
 
 def test_postgres_competing_workers_claim_each_attempt_once(pending_threads):
     service, ids = pending_threads
+    assert service.has_pending_attempts('pandapower')
+    assert not service.has_pending_attempts('native')
+    assert not service.has_pending_attempts('pypsa')
     with ThreadPoolExecutor(max_workers=6) as pool:
         claims = list(pool.map(lambda i: service.claim_attempt(f'worker-{i}', 30), range(6)))
     admitted = [claim for claim in claims if claim is not None]
     assert len(admitted) == len(ids)
     assert {claim.thread_id for claim in admitted} == set(ids)
     assert len({claim.attempt.attempt_id for claim in admitted}) == len(ids)
+    assert not service.has_pending_attempts()
     for thread_id in ids:
         snapshot = service.snapshot(thread_id)
         duplicate = {**_capacity_command(thread_id), 'command_id': 'another', 'idempotency_key': 'another',
@@ -107,3 +111,48 @@ def test_claim_skips_a_thread_locked_by_an_admission_or_cancel_command(pending_t
             assert claims[-1] is None
         claim = service.claim_attempt('released-thread', 30)
         assert claim is not None and claim.thread_id == ids[0]
+
+
+@pytest.mark.parametrize('capacity', [1, 2])
+def test_worker_rechecks_known_pending_work_after_thread_lock_release(pending_threads, monkeypatch, capacity):
+    service, ids = pending_threads
+    stop, wake, skipped, completed = Event(), Event(), Event(), Event()
+    lock = Lock()
+    scans, finished = [], []
+    original = service.claim_attempt
+    def claim(*args, **kwargs):
+        result = original(*args, **kwargs)
+        if result is None:
+            with lock:
+                scans.append(True)
+                if len(scans) >= capacity:
+                    skipped.set()
+        return result
+    monkeypatch.setattr(service, 'claim_attempt', claim)
+    class Runtime:
+        def start(self):
+            pass
+        def prompt(self, question, *, on_event, correlation_id=None, on_heartbeat=None):
+            with lock:
+                finished.append(True)
+                if len(finished) == len(ids):
+                    completed.set()
+            return 'done'
+        def stop(self):
+            pass
+    worker = Thread(target=serve_thread_attempts, kwargs=dict(
+        service=service, runtime_factory=lambda _: Runtime(),
+        max_concurrent_attempts=capacity, wake_event=wake, stop_event=stop, poll_seconds=0.01))
+    try:
+        with psycopg.connect(service.dsn) as connection:
+            connection.execute('SELECT thread_id FROM capstone_threads WHERE thread_id=ANY(%s) FOR UPDATE', (ids,))
+            worker.start()
+            assert skipped.wait(3)
+            assert not finished
+        # No second wake: ordinary metadata writers do not send worker signals.
+        assert completed.wait(2), 'accepted work was stranded after thread lock release'
+    finally:
+        stop.set()
+        wake.set()
+        worker.join(5)
+    assert not worker.is_alive()

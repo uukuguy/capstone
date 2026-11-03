@@ -6863,3 +6863,22 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - Final UI trial interrupted by repeated Mac sleep and AX permission_denied; preserve failures and stop model repeats. Pending scoped CI question is not approval.
 - Persist candidate evidence and control state for recovery [12dfcb44].
 - GUI recovered19:02; queued labels/refresh/immediate cancellation pass; other running tests cancel and release. User approves one focused macOS CI/dev merge.
+- Post-merge audit reproduces skipped-lock lost wake in real PG capacities1/2. Add pending-state peek and bounded retry;100 focused checks/types pass.
+- Commit lock-wake recovery to keep accepted work progressing without repeated empty-queue polling [8dd51d0b].
+- Canonical candidate rebuild and four retained product hashes pass; no Provider calls; follow-up CI approval is pending.
+- 12:46 Record fixture diagnosis and approval with deployment recovery notes for safe dev integration [6d44b123].
+- 12:45 Approved macOS CI41579803266 passes212 tests/3 skips in13.06s; job33s. PR90 merges into dev [f7d40163].
+- 12:45 Fast-forward actual dev to origin/dev, close merged branch, retain main/deployment sources and disconnected-server boundary.
+- 12:46 Actual dev regression: four original permission cases pass in1.83s; dev and origin/dev bothf7d40163, main remains0b68c607.
+- 12:48 Regenerate actual dev control graph without probes; existing browser tab confirms HEAD, merged source and deployment separation. Links/symlink/whitespace pass.
+- User prioritizes execution reliability and cross-session capacity; inspect existing reuse/preflight and serial Thread worker; write proposed design for review.
+- User approves design; isolated feat/execution-capacity-20261103 delivers recovery e7d7fbc2, capacity692fa36e, packagingfcad0a76 and focused CI7616f389. No CI approval.
+- Product b7dd440c passes411 Python/216 App checks and awake parallel/CSV/queued-cancel trials; final new-label GUI acceptance blocked by sleep/AX. No CI.
+- GUI recovers; final queued labels/refresh/cancel pass, all tests released. Commitf8e23ab3 records approval; PR91 starts one approved CI41624694112.
+- PR91 merges c3a0c472 after approved CI41624694112 passes in4m02s;353 Python/90 skips,216 App,types/docs pass.
+- Actual dev fast-forwards to origin/dev c3a0c472; tested f8e23ab3 tree identical. Canonical root rebuild starts with native slots2.
+- Root dev rebuild passes ready/same-image3bc47d1a; doctor and8 entrypoint checks pass. Four retained artifact hashes survive rebuild.
+- Close merged feature branch/worktree; preserve runtime recovery directory and root control stash; unrelated summer audit remains untouched.
+- Late real-PG regression proves skipped-lock lost wake for capacities1/2; fix8dd51d0b passes100 checks/types/review. Candidate ready, no new CI approved.
+- Canonical8dd51d0b candidate rebuild ready/same-image dcce6b25; four earlier products retain hashes. Temporary PG removed; second CI question awaits reply.
+- User explicitly approves ONE follow-up macOS session-capacity CI and dev merge after page verification; main/deployments excluded.

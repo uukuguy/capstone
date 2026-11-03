@@ -1,5 +1,13 @@
 # Known issues and deferred work
 
+## Pending work skipped by a busy thread lock — 2026-11-03
+
+Real PostgreSQL capacities1/2 reproduce a lost wake after SKIP LOCKED returns no
+claim while accepted work remains. Candidate8dd51d0b adds a read-only pending
+predicate and bounded rescan without polling an empty queue.100 focused checks,
+types, independent inspection and canonical candidate rebuild pass. Not merged;
+new CI approval is pending. See [follow-up](../reports/2026-11-03-capacity-wake-followup.md).
+
 ## User-local offline installer test failures — 2026-11-03
 
 Fixed in dev through [PR90](https://github.com/uukuguy/capstone/pull/90), merge `f7d40163`. Commit `d599331f` replaces the fixture's
@@ -24,11 +32,13 @@ earlier shell-only rebuild check as the whole Make target.
 
 ## Native worker session concurrency — 2026-11-01
 
-2026-11-03: user reactivated this work. Candidate b7dd440c implements bounded
+2026-11-03: resolved in dev c3a0c472 through PR91, scoped CI41624694112 passed.
+Product b7dd440c implements bounded
 native slots (default1, local2), immediate unleased cancellation and consistent
 queued labels. Real parallel tasks, continuation CSV hashes and queued cancellation
 pass; final corrected-card browser/refresh acceptance passed after GUI recovery
-at19:02. Earlier Mac sleep/Accessibility failures retained. Not merged or deployed to intranet.
+at19:02. Actual dev rebuild and historical product hashes pass. Earlier Mac
+sleep/Accessibility failures retained. Intranet was not updated.
 See [receipt](../reports/2026-11-03-execution-capacity.md).
 
 Historical deferral: one native worker executes one attempt at a time.

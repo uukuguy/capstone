@@ -1957,6 +1957,18 @@ class InMemoryThreadService(NativeExecutionOwner):
             self._command_ids.add(parsed["command_id"])
             return receipt
 
+    def has_pending_attempts(self, implementation_family: str | None = None) -> bool:
+        """Read admission state without taking a claim or a thread-row lock."""
+        if implementation_family is not None and not _IDENTIFIER.fullmatch(implementation_family):
+            raise ValueError('implementation family is invalid')
+        with self._lock:
+            return any(record['attempt'].phase == 'accepted' and record['lease_token'] is None
+                and (implementation_family is None
+                     or record.get('model_context') is None and implementation_family == 'native'
+                     or record.get('model_context') is not None
+                     and record['model_context'].implementation_family == implementation_family)
+                for record in self._attempts.values())
+
     def claim_attempt(self, worker_id: str, lease_seconds: int, implementation_family: str | None = None) -> AttemptClaim | None:
         if not worker_id or lease_seconds < 1:
             raise ValueError("attempt worker lease is invalid")
@@ -4026,6 +4038,21 @@ class PostgresThreadService(NativeExecutionOwner):
                  parsed["command_id"], Jsonb(receipt.to_document())),
             )
             return receipt
+
+    def has_pending_attempts(self, implementation_family: str | None = None) -> bool:
+        """A skipped busy thread is still pending; an empty queue stays idle."""
+        if implementation_family is not None and not _IDENTIFIER.fullmatch(implementation_family):
+            raise ValueError('implementation family is invalid')
+        with self._connect() as connection:
+            row = connection.execute(
+                """SELECT EXISTS(SELECT 1 FROM capstone_thread_attempts
+                   WHERE phase = 'accepted' AND lease_token IS NULL
+                     AND (%s::text IS NULL OR model_context_snapshot->>'implementation_family' = %s::text
+                          OR (%s::text = 'native' AND model_context_snapshot IS NULL AND submission_snapshot ? '_native_execution')))
+                   AS pending""", (implementation_family, implementation_family, implementation_family),
+            ).fetchone()
+        assert row is not None
+        return bool(row['pending'])
 
     def _cancel_waiting_attempt(self, connection, thread_id: str) -> None:
         # Caller owns the thread row. Claims acquire that row first as well.

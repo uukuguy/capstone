@@ -228,6 +228,9 @@ def serve_thread_attempts(
     if type(max_concurrent_attempts) is not int or max_concurrent_attempts < 1:
         raise ValueError('thread worker capacity must be a positive integer')
     stop = stop_event or threading.Event()
+    def has_pending() -> bool:
+        reader = getattr(service, 'has_pending_attempts', None)
+        return bool(reader(implementation_family)) if callable(reader) else False
     idle = False
     try:
         if max_concurrent_attempts > 1:
@@ -240,6 +243,7 @@ def serve_thread_attempts(
                 capacity=max_concurrent_attempts, stop=stop, wake=wake_event,
                 poll_seconds=poll_seconds, sweep=getattr(runtime_factory, 'sweep_idle', None),
                 reconcile=case_service.reconcile_active if case_service is not None else None,
+                pending=has_pending,
             )
             return
         while not stop.is_set():
@@ -277,6 +281,7 @@ def serve_thread_attempts(
                     case_service=case_service,
                     implementation_family=implementation_family,
                 )
+                retry_pending = result is None and has_pending()
                 if case_service is not None:
                     case_service.reconcile_active()
             except Exception as error:
@@ -288,7 +293,7 @@ def serve_thread_attempts(
                 stop.wait(poll_seconds)
                 continue
             if result is None:
-                if wake_event is None:
+                if wake_event is None or retry_pending:
                     stop.wait(poll_seconds)
                 else:
                     idle = True

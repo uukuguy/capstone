@@ -10,11 +10,12 @@ observation, composition and reporting contracts. No second scheduler or cache.
 
 **Stack:** Python Thread worker/PostgreSQL, native JavaScript SDK, React App.
 
-Current boundary: product b7dd440c.411 Python/216 App checks and types pass;
+Completed boundary: PR91 merged dev c3a0c472, product b7dd440c.411 Python/216 App checks and types pass;
 real parallel tasks, continuation/download hashes and queued cancellation pass.
 Corrected-card live screenshot/refresh passed after GUI recovery19:02; earlier
-sleep/AX failures retained. One macOS CI/dev integration is now explicitly approved,
-not yet run. See [receipt](../../reports/2026-11-03-execution-capacity.md).
+sleep/AX failures retained. Approved macOS CI41624694112 passed in4m02s;
+actual dev rebuilt, original artifact hashes retained, branch closed.
+See [receipt](../../reports/2026-11-03-execution-capacity.md).
 
 ## Constraints
 
@@ -69,8 +70,8 @@ message projection only where accepted/start/snapshot tests reproduce a defect.
 - [x] Canonical local rebuild; record temporary candidate source and preserve data.
 - [x] Real model: three sessions, two running and one waiting, queued cancellation,
   continuation, product download and refresh. Record any unavailable dependency.
-- [ ] Measure comparable calls/rounds/time without promising speedup from fixtures.
+- [x] Measure comparable calls/rounds/time without promising speedup from fixtures.
 - [x] Run scoped cache maintenance after local build use.
-- [ ] Update canonical unified worklist, version register, graph and recovery.
-- [ ] Prepare reviewable dev PR; request one scoped CI approval only when ready.
+- [x] Update canonical unified worklist, version register, graph and recovery.
+- [x] Prepare reviewable dev PR; request one scoped CI approval only when ready.
   Merge accepted work into actual dev after its approved gate succeeds.

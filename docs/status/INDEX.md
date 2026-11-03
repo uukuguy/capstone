@@ -1,5 +1,9 @@
 # docs/status INDEX
 
+19:32：PR91之后复现锁竞争漏唤醒；补修8dd51d0b本机100项真实PG/线程、类型与独立审查通过，本机已重建验证，待新的CI批准。[补修记录](../reports/2026-11-03-capacity-wake-followup.md)。dev仍c3a0c472，远端部署不变。
+
+19:15：PR91合入dev c3a0c472；获批macOS定向CI4分02秒通过，最终页面复验通过。实际dev规范重建同镜像3bc47d1a，容量2；四份历史产物哈希保持。分支已关闭，main与内网/cloud/demo不变。[回执](../reports/2026-11-03-execution-capacity.md)。
+
 18:57：[执行容量候选](../reports/2026-11-03-execution-capacity.md)在隔离分支实现，本机411Python/216App及真实双会话、继续读取和等待取消通过；local-dev临时b7dd440c/容量2。最终页面复验受睡眠及辅助功能阻塞，尚未合入或启动CI；dev仍f7d40163。
 
 12:45：离线安装器权限测试修复已通过PR90合入dev f7d40163；获批macOS CI41579803266通过（212通过/3跳过，33秒）。main与部署保持原来源，研发服务器保持断开。
