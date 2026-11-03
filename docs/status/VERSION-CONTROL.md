@@ -1,5 +1,16 @@
 # 多线版本控制
 
+2026-11-03 12:38：本地候选`milestone/offline-selection-mode-20261103`（01732906）修复4项离线安装器测试误报。
+d599331f按真实文件状态校验普通文件、0600及所有者，避免macOS的ls权限后缀@；生产安装逻辑不变。
+51项离线测试通过8.52s；01732906补充既有定向门禁覆盖，隔离环境212通过/3跳过9.67s，工作流契约21通过。
+尚未推送、未创建PR、未启动CI；dev仍ef6effcb、main0b68c607，部署不变，研发服务器保持断开。
+
+用户随后明确确认研发服务器当前断开；停止远端探测。保留25c71f85已部署及验收通过的历史状态，当前离线不视为产品回归。
+
+2026-11-03 12:27：PR89已合dev ef6effcb，获批macOS定向CI41578091873通过27s；实际dev与origin/dev一致，main与origin/main均0b68c607。
+内网25c71f85此前两轮任务/产物/刷新验收通过并已标记；12:26最终复查SSH与HTTP均超时，当前主机及服务健康无法重新确认，不将旧验收当作实时可达证明。
+本次CI授权均已使用，无新CI运行；云端/demo未变。最终HEAD控制快照在实际dev工作区更新，不制造自引用提交循环。
+
 内网验收标签`intranet-20261103-1206-25c71f85`已推送到精确运行源25c71f85；原里程碑标签771259a7保持。
 
 2026-11-03 12:03：[内网部署验收](../reports/2026-11-03-intranet-release.md)。PR88已合main0b68c607；用户明确批准本次双平台定向门禁例外，CI41574376803的macOS24s/Linux33s通过。PR87因源码已包含而关闭为merged。
@@ -1014,7 +1025,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 职责 | 当前状态 | 下一步 |
 | --- | --- | --- | --- |
-| dev | 共同基座与企业工作台集成 | main0b68c607已接受本次定向门禁例外；内网25c71f85两轮验收通过 | dev回流与控制记录待获批定向CI；完整发布缺口保留 |
+| dev | 共同基座与企业工作台集成 | main与部署记录已通过PR89回流dev ef6effcb | 内网验收已完成但最终链路超时；完整发布缺口保留 |
 | feat/business-analysis | 企业研究与分析 | 应用分支仅准备；实际研究能力在dev共享工作台推进 | 保留350.524秒/ 41轮质量基线；不另建研究调度或聊天应用 |
 | feat/model-decision | 电网分析与决策 | 00a8cd85已在local-dev验证；PR #53已合入f5eda4e4 | 成熟对话、真实历史与拓扑已接通；无模型与通用成果继续按协议推进 |
 
@@ -1105,6 +1116,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
 | main-managed-resources | 0b68c607 | release | main · 资源管理定向合入 | 用户例外授权，双平台定向通过 | 持久安装与执行恢复纳入main；全量发布缺口单列。[部署验收](../reports/2026-11-03-intranet-release.md) | shared-agent |
+| offline-selection-fixture | 01732906 | feature | 离线安装器 · 权限测试修复 | 本地通过，未合入 | 以文件状态校验0600及所有者；扩展定向门禁覆盖，212项本机通过。[问题记录](KNOWN-ISSUES.md) | shared-agent |
 | intranet-managed-runtime | 25c71f85 | main | main · 内网实际运行源 | 内网两轮真实验收通过 | 资源安装与管理禁用开关；相同API/worker镜像、产物与刷新恢复。[部署验收](../reports/2026-11-03-intranet-release.md) | shared-agent |
 | release-local-validation | ee625f38 | main | dev · 发布门禁修复 | 本机分段发布检查通过 | 类型契约与旧测试迁移；规范重建及同镜像检查。[发布准备](../reports/2026-11-03-main-intranet-release.md) | shared-agent |
 | managed-resource-milestone | 771259a7 | main | dev · 资源管理里程碑标签 | 标签已推送，main待合 | 固定用户选定源码；内网管理禁用开关已实现，部署尚待更新。[发布准备](../reports/2026-11-03-main-intranet-release.md) | shared-agent |
@@ -1227,6 +1239,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
 | main-managed-resources | main本轮合并 | main | 资源管理与执行恢复合入；用户授权双平台定向门禁例外 | PR88合入0b68c607；全量发布缺口保留 |
+| offline-selection-fixture | 本地修复候选 | milestone/offline-selection-mode-20261103 | macOS权限显示误报修复；定向门禁覆盖离线安装器 | 51离线/212隔离/21契约通过；无CI、未推送或合入 |
 | intranet-managed-runtime | 内网实际运行来源 | main · 已合入运行源 | API/worker同镜像且管理禁用；两轮真实任务、产物与刷新恢复 | 实测通过，保留一次可恢复工具错误 |
 | release-local-validation | 当前本机运行来源 | dev | 类型契约与逐次思考测试迁移；API/worker规范重建与同镜像 | 本机分段验证；完整发布缺口保留 |
 | managed-resource-milestone | 固定标签里程碑 | dev | 持久安装与隔离依赖；内网管理入口与执行器禁用开关 | 标签固定；后续已按定向例外合main并部署内网 |
@@ -1272,7 +1285,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | grid-scale-merge | 主要代码集成里程碑 | dev | PR64整合10W+源图与精确指令视图；原生模型退出、拒绝诊断和原参数回放通过 | 固定78f81e66；受检44e8eca2，macOS7分31秒、主5173和真实华北交付通过 |
 | grid-scale-source | 已合入并本地验收 | dev · 原feat/grid-scale-view | 华北10W+源元素与站点分区；精确逐指令视图、模型退出和有界拒绝诊断 | 华北连续任务、五文件、57/56图及主5173通过；模型构建缺口保留，无云发布 |
 | gateway-dynamic-runtime | 历史通用网关本地来源 | dev · 原refactor/gateway-dynamic-bindings | 通用网关结果和续接动作绑定，任务授权与回执保留；有界视图读取支持返回页大小 | 根dev61ec56c6规范重建exit0、ready200、同镜像989226e8与清理通过；App产品d9e24798、dirty=false，目录及视图协议、真实任务通过，渲染和性能未接受 |
-| dev-head | 当前研发位置 | dev | 已接受main历史并更新内网；回流控制记录与验收回执 | 双平台定向main门禁通过；dev回流进行中 |
+| dev-head | 当前研发位置 | dev | main历史和部署验收已回流；实际dev与远端一致 | PR89获批macOS27s通过；最终内网链路超时，实时健康未知 |
 | artifact-time-runtime | 产物版本与时间 | dev | 同路径多版本收拢；事件与目录提供真实保存时间 | 定向检查、浏览器与历史文件接口通过；无CI |
 | instruction-products-runtime | 指令制品导航 | dev | 指令双入口与编号筛选；执行开始切换并保留手动选择 | 定向检查、类型与浏览器通过；本机ready，无CI |
 | product-default-runtime | 制品默认预览 | dev | 切换后展示最新主要制品；回答工具栏复制优先 | 53项制品联动、133项回答组件及浏览器通过；无CI |
@@ -1389,6 +1402,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | fix/user-local-network-view | 已合入运行修复来源 | c638受检，PR #28双平台CI通过后正常合入f300d1f；root dev已快进，packages一致 | local-dev规范重建及真实身份核验已通过；e2归档未升级，19173/demo/cloud不变；回答算术和source建模投影边界保留 | autonomous |
 | refs/archive/20261015/feat-dev-trial-deployment | 已合并实施恢复引用 | 380ede4受检，PR #22合入7832134；本地/远端实施分支已关闭；最终公开镜像/包及安装入口验收通过 | 保存原验收目录、私有状态与卷；用户业务试用待反馈 | dev-trial |
 | main | 已接受本轮main集成 | PR88合入0b68c607；双平台定向例外通过 | 内网运行源25c71f85；完整发布缺口与原交付包保留 | main |
+| milestone/offline-selection-mode-20261103 | 本地修复待合入 | 01732906；依赖d599331f权限测试修复 | 本机51离线/212隔离/21契约通过；待新的macOS定向CI批准，未推送 | shared-agent |
 | feat/work-research-identity（已关闭） | 共同基座Task 2已合入来源 | 055a335f组件实现及08556cc2 CI分层通过双平台检查；PR #41合入85b6706f | dev继续生产Profile/v2前端接入 | shared-agent |
 | feat/thread-version-negotiation（已关闭） | 共同基座协议准备已合入来源 | 2d3f86c6/a2efb791通过本地与双平台CI；PR #44合入32f18d24 | v1协商及升级恢复；v2/无模型入口未实现 | shared-agent |
 | feat/shared-execution-baseline（已关闭） | 共同基座Task 1已合入来源 | 62f44366执行接缝与711f06a8回执通过双平台CI，PR #36合入d8fe6e27 | dev继续Task 2；来源提交保留在合并历史 | shared-agent |
@@ -1521,7 +1535,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
 | local-dev | 后端 `ee625f38`；App `3c923666` | ready通过；API/worker同镜像b0402ca2，native cd364dbf | 内容标识9a1083e9；1339个包文件与候选核对，4个生成资源单列；规范重建及缓存维护通过；[回执](../reports/2026-11-03-main-intranet-release.md) |
-| intranet-dev | API/worker/native/App `25c71f85`；Qwen3.8-Flash-Next默认 | 四应用服务healthy；API/worker ba233b82，native5abc0e56，Appa0b7d4f9；管理禁用 | App http://192.168.72.63:5173/；两轮真实任务、CSV28B/SHA与浏览器刷新通过；[验收](../reports/2026-11-03-intranet-release.md)；非完整发布验收 |
+| intranet-dev | API/worker/native/App `25c71f85`；Qwen3.8-Flash-Next默认 | 验收时四角色healthy且管理禁用；12:26 SSH/HTTP均超时，实时健康未知 | App http://192.168.72.63:5173/；API/worker ba233b82，native5abc0e56，Appa0b7d4f9；两轮任务/CSV SHA/刷新[验收](../reports/2026-11-03-intranet-release.md)通过；非完整发布验收 |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |
 | cloud-dev | `24d9a32`，开发试用候选；已推送标签cloud-dev-20261013-1045-24d9a32 | 用户授权的基本功能检查通过：四角色SUCCESS、API就绪、前端来源与真实中文对话；非正式发布或科学解释验收 | App https://capstone-app-production-83ef.up.railway.app/；[部署记录](../reviews/2026-10-13-cloud-dev-autonomous-trial.md)；demo不变 |
 | cloud-demo | App/API/两worker `faa6af9` | 四角色SUCCESS；三后端身份与dev本地529文件验收一致，安装工件与受检候选一致；三用例九轮、报告证据回放通过；local-demo已同源验收；正式标签demo-20261014-2028-faa6af9已推送 | App https://capstone-app-production-975e.up.railway.app/；上一正式标签demo-20261014-0744-bd2a200；双平台完整发布38554987581通过；cloud-dev不动 |
