@@ -6852,3 +6852,5 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - Read-budget recovery red/green: issued refs now return measured safe paging;39 Node and18 composition/report checks pass without upstream replay.
 - Commit bounded recovery actions to prevent upstream replay after read-budget failures [e7d7fbc2].
 - PostgreSQL reproduces queued cancellation waiting for a worker; terminalize unleased cancellations under thread-first claim locking.132 ledger/worker tests pass.
+- Commit bounded native slots and immediate waiting cancellation; preserve running cleanup and source identity; focused types zero errors [692fa36e].
+- Native candidate rebuild exposes missing recovery-module COPY; add packaging regression and fix.161 consumer checks pass/32 platform skips.

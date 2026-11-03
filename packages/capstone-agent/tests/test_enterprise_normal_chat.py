@@ -153,7 +153,10 @@ def test_normal_conversation_stop_uses_existing_cancel_and_keeps_unconsumed_inpu
     factory = IntentRuntimeFactory(None, None, None, general_executor=executor)
     assert store.claim_attempt('professional', 30, 'pandapower') is None
     result = run_pending_attempt(store, factory, worker_id='native', implementation_family='native')
-    assert result.status == 'cancelled'
+    if phase == 'queued':
+        assert result is None and executor.requests == []
+    else:
+        assert result.status == 'cancelled'
     assert store.snapshot(thread_id).works[0]['messages'] == ['Continue explaining']
     assert store.snapshot(thread_id).works[0]['status'] == 'cancelled'
 
