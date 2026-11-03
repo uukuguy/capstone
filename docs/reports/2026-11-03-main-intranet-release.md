@@ -13,6 +13,9 @@ PR87 targets main. It is not merged. Intranet remains `70c42dab`.
 - `41566986778`: cancelled after a local run identified a frozen-clock legacy test
   that could never leave its retry wait. Each attempt had separate user approval.
 - Another CI run requires new approval. No failure has been bypassed.
+- Fourth approved full run `41570458423`: macOS passed backend/App checks,
+  then failed an obsolete `dsv4` default assertion in the rebuild target.
+  Remaining Linux work was cancelled after this confirmed failure.
 
 ## Repairs
 
@@ -37,7 +40,7 @@ Do not add counts from overlapping runs.
 - Kernel: 663 passed, 11.68 seconds.
 - App: 131 files and 1502 tests passed, 16.75 seconds. App types passed.
 - E2E: 39 passed, 133.72 seconds; registered workers: 3 passed, 58.12 seconds.
-- Simulator, tool, client, rebuild orchestration, verification target, Domain Pack,
+- Simulator, tool, client, rebuild shell orchestration, verification target, Domain Pack,
   inventory, PyPSA and workbench targets passed in the split release run.
 - Offline, scripted Pi and application validation passed; capability matrix 24/24.
 - Package artifact installation and fresh source setup passed.
@@ -54,6 +57,28 @@ Native image:
 `sha256:cd364dbf9b105eddb561437f80b1b2b321b8bb16e6020a7c6e858fb9e394761d`.
 Readiness and App reachability passed. Scoped cache maintenance completed.
 This is local validation, not intranet deployment acceptance.
+
+## Correction and outstanding full-gate limits
+
+The earlier split-run description omitted later commands inside
+`make test-local-rebuild`. Running that complete target exposed the stale default
+model assertion. It now reads the registered intranet default; 135 checks pass,
+3 skip, with 2 passing subtests. The following installer group reports 208 passes
+and four failures in `test_user_local_offline.py::test_loader_selects_only_verified_daemon_ids_in_private_file`.
+These tests and their owning installer sources do not differ from existing main.
+They remain unresolved; full release acceptance is not claimed.
+
+A prepared minimal milestone gate includes resource installation and host runtime
+contracts: 161 pass, 3 skip in an isolated dependency environment. It has not run
+in CI. The user was asked to choose a one-time scoped main-gate exception or a
+new full run. The previously approved focused dev-return run remains reserved.
+
+Linux amd64 candidate images are prepared from25c71f85. Backendba233b82,
+Appa0b7d4f9. The native exporter hit Docker layer depth; its rootfs was imported
+as one layer5abc0e56 with original public OCI runtime settings checked unchanged.
+Offline native smoke verifies22 capabilities,24 packages and15 commands.
+Rootfs, OCI configuration and import receipt remain under
+`.capstone-agent/main-intranet-25c71f85/`; no secrets are included.
 
 ## Pending sequence
 

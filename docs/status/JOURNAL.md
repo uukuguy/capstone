@@ -6827,3 +6827,10 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 10:53 Local rebuild ready, API/worker imageb0402ca2 matches, App reachable; scoped cache maintenance completed.
 - 10:53 Simulator protected digest lagged accepted main tree6596fbba; aligned policy without changing simulator source.
 - 10:53 Pin protected simulator digest to already accepted main tree; protected-path check passes [3c923666].
+- 11:05 Record split release acceptance and inspected control sources; main and intranet remain pending [25c71f85].
+- 11:10 User approved fourth full release CI and later focused macOS dev-return CI; PR87 updated25c71f85, run41570458423 active.
+- 11:30 Prepare same-source amd64 images via existing proxy builder; native layer-limit workaround preserves OCI runtime config and passes22-capability smoke.
+- 11:40 Fourth CI macOS failed stale intranet model expectation; fixed from registered profile,161 isolated scoped checks pass.
+- 11:40 Correction: earlier split gate omitted rebuild target consumers; full target exposes four pre-existing offline installer test failures.
+- 11:40 Asked explicit scoped main-gate exception; no new CI started. Existing dev-return approval remains reserved.
+- 11:38 Correct preceding three event timestamps to11:38; model-default repair committeda8685cbf,161 isolated checks pass.
