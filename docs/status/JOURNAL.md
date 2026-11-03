@@ -6859,3 +6859,5 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - Correct original auth mount; canonical readiness passes. Mac sleep13:25–14:05 invalidates first concurrency trial; preserve lease fencing and failure receipts.
 - Awake real model trial: two attempts54–55s overlap; two followups46–47s retain CSV hashes; queued cancellation is terminal without claim.
 - Browser queue text contradicts its process card; reproduce, align queued labels, and verify216 App checks plus types. Add thread-lock skip regression.
+- Commit consistent queued process labels and direct-consumer coverage [b7dd440c]. Final focused Python gate411 pass/32 skips, App216 pass; independent inspection finds no actionable regression.
+- Final UI trial interrupted by repeated Mac sleep and AX permission_denied; preserve failures and stop model repeats. Pending scoped CI question is not approval.

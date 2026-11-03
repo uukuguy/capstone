@@ -2,14 +2,15 @@
 
 ## User-local offline installer test failures — 2026-11-03
 
-Local candidate fixed; not yet merged. Commit `d599331f` replaces the fixture's
+Fixed in dev through [PR90](https://github.com/uukuguy/capstone/pull/90), merge `f7d40163`. Commit `d599331f` replaces the fixture's
 `ls -l` string comparison with `os.lstat`, regular-file, exact0600 and owner checks.
 The four failures were caused by macOS displaying extended attributes as a
 trailing `@` (`-rw-------@`); installer permissions were already correct.
 All51 offline-installer tests pass in8.52s. The isolated milestone gate including
 this file passes212 tests/3 skips in9.67s; workflow contracts21 pass.
-Candidate branch: `milestone/offline-selection-mode-20261103`, HEAD `01732906`.
-No CI, push, deployment or remote-server call was made for this follow-up.
+Approved macOS [CI41579803266](https://github.com/uukuguy/capstone/actions/runs/41579803266)
+passed212 tests/3 skips in13.06s; job duration33s. The merged branch was closed.
+Main and deployments remain unchanged. No remote-server call was made for this follow-up.
 The earlier failure account below is historical, not an unresolved diagnosis.
 
 The full local rebuild target reports four failures in
@@ -23,15 +24,22 @@ earlier shell-only rebuild check as the whole Make target.
 
 ## Native worker session concurrency — 2026-11-01
 
-Deferred at the user's request: one native worker executes one attempt at a time.
+2026-11-03: user reactivated this work. Candidate b7dd440c implements bounded
+native slots (default1, local2), immediate unleased cancellation and consistent
+queued labels. Real parallel tasks, continuation CSV hashes and queued cancellation
+pass; final corrected-card browser/refresh acceptance remains pending after Mac
+sleep and Accessibility failures. Not merged or deployed to intranet.
+See [receipt](../reports/2026-11-03-execution-capacity.md).
+
+Historical deferral: one native worker executes one attempt at a time.
 Other sessions queue until that execution ends. This is not a one-session limit
 on the whole application. The intranet deployment currently has one native worker.
 Observed: the user's summer PPT attempt `attempt_3727b79a52ad2334` occupied it;
 the diagnostic attempt `attempt_7ba21eadca159af6` remained accepted and unleased.
 The diagnostic request was cancelled without interrupting the user's PPT task.
 The queued UI said “正在生成回答”, which did not describe the actual queue state.
-Future work: bounded cross-session scheduling with isolation, cancellation and
-accurate queue status. Do not increase concurrency as part of this deployment fix.
+Distributed fairness/global quotas remain separate work. Intranet capacity is
+unchanged; its earlier deployment fix did not include this candidate.
 
 ## Recovered dev baseline — 2026-10-12
 
