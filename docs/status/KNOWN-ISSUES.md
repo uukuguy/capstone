@@ -2,6 +2,16 @@
 
 ## User-local offline installer test failures — 2026-11-03
 
+Local candidate fixed; not yet merged. Commit `d599331f` replaces the fixture's
+`ls -l` string comparison with `os.lstat`, regular-file, exact0600 and owner checks.
+The four failures were caused by macOS displaying extended attributes as a
+trailing `@` (`-rw-------@`); installer permissions were already correct.
+All51 offline-installer tests pass in8.52s. The isolated milestone gate including
+this file passes212 tests/3 skips in9.67s; workflow contracts21 pass.
+Candidate branch: `milestone/offline-selection-mode-20261103`, HEAD `01732906`.
+No CI, push, deployment or remote-server call was made for this follow-up.
+The earlier failure account below is historical, not an unresolved diagnosis.
+
 The full local rebuild target reports four failures in
 `tools/tests/test_user_local_offline.py::test_loader_selects_only_verified_daemon_ids_in_private_file`
 for config/manifest and keep-archive variants. The subprocess exits1 after image

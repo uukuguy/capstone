@@ -6840,3 +6840,11 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 12:05 Real24.3s/43.2s tasks, CSV28B/SHA and browser refresh pass; recoverable missing-file-command warning retained; dev-return CI remains authorized.
 - 12:06 Record intranet acceptance, exact images and source equivalence; retain full-release limits and prepare dev return [4fe1eb2f].
 - 12:06 Push intranet-20261103-1206-25c71f85 at exact deployed source with CI, image/container IDs and acceptance receipt.
+- 12:09 Commit deployment source graph and tag receipt for the approved dev-return PR [c57f4a73].
+- 12:27 PR89 mergedef6effcb after approved macOS CI41578091873 passed27s; actual dev fast-forwarded and matches origin/dev.
+- 12:27 Intranet deployment had passed real acceptance; latest SSH and HTTP probes time out, current host/service health cannot be reconfirmed.
+- 12:30 User confirms research server disconnected; stop remote probes, retain verified deployment and offline recovery references.
+- 12:38 Reproduce four installer fixture failures: macOS ls renders0600 as-rw-------@; installer permissions remain correct.
+- 12:38 Replace fixture display-string check with lstat regular-file,0600 and owner checks;51 offline tests pass [d599331f].
+- 12:38 Extend focused gate to offline fixtures; isolated212 pass/3skip and21 workflow contracts pass; no CI/push [01732906].
+- 12:45 User explicitly approves one macOS focused CI and dev integration for offline fixture repair; main and deployments remain outside scope.

@@ -1,5 +1,15 @@
 # Intranet deployment acceptance
 
+The user subsequently confirmed that the research server is disconnected.
+Remote probes stopped. This explains the final connectivity limit; no product
+failure is inferred. The verified deployment and rollback references remain valid.
+
+Final follow-up12:27: dev PR89 merged as `ef6effcb5847e718cf2df06606c394ef7d442c7d`
+after approved macOS CI41578091873 passed27s. At12:26 both SSH and HTTP probes to
+the intranet host timed out. The acceptance below records the successful earlier
+deployment; current host/service health could not be reconfirmed. No later rollout
+or rollback was attempted through the unavailable link.
+
 Annotated acceptance tag `intranet-20261103-1206-25c71f85` is pushed at the exact
 runtime source. Its annotation records main/CI, image IDs, container identities
 and this receipt. It does not claim full release acceptance.
