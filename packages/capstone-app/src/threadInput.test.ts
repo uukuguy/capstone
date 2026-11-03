@@ -3,6 +3,11 @@ import { parseInputCommand, buildInputSubmission, readInputDraft, writeInputDraf
 import {parseProductRef} from './threadProducts'
 
 describe('typed composer input', () => {
+  it('preserves the server deployment gate and rejects a non-boolean gate',()=>{
+    const base={schema:'capstone-thread-input-catalog/1',revision:'r',objects:[],materials:[],resource_profiles:{},operations:[]}
+    expect(parseInputCatalog({...base,resource_management:{enabled:false}}).resource_management?.enabled).toBe(false)
+    expect(()=>parseInputCatalog({...base,resource_management:{enabled:'false'}})).toThrow('资源管理配置无效')
+  })
   it('uses deployment catalog defaults and rejects missing or disabled saved profiles',()=>{
     const base={schema:'capstone-thread-input-catalog/1',revision:'r',objects:[],materials:[],resource_profiles:{},operations:[]}
     const catalog=parseInputCatalog({...base,llm_profiles:{default_profile_id:'intranet',profiles:[{id:'intranet',label:'Server default',model:'dsv4',available:true},{id:'custom',label:'Custom',model:'',available:false}]}})

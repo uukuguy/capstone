@@ -18,6 +18,14 @@ RESOURCE_ACTIONS = frozenset({
 })
 
 
+def resource_management_enabled(environment):
+    value=environment.get('CAPSTONE_RESOURCE_MANAGEMENT_ENABLED','').strip().lower()
+    if value in {'1','true'}:return True
+    if value in {'0','false'}:return False
+    if value:raise ValueError('invalid_resource_management_setting')
+    return environment.get('CAPSTONE_WORKBENCH_PRESET','local')=='local'
+
+
 @dataclass(frozen=True)
 class ResourcePrincipal:
     subject: str
@@ -47,9 +55,10 @@ def _unique_object(pairs: list[tuple[str, object]]) -> dict:
 
 
 class ResourcePermissions:
-    def __init__(self, path: Path, profile: str) -> None:
+    def __init__(self, path: Path, profile: str, *, management_enabled: bool = True) -> None:
         self.path = Path(path)
         self.profile = profile
+        self.management_enabled = management_enabled
 
     def _load(self) -> tuple[list[dict], str]:
         try:
@@ -111,6 +120,8 @@ class ResourcePermissions:
     def require(self, principal: ResourcePrincipal, workspace: str, action: str) -> str:
         if not isinstance(action, str) or action not in RESOURCE_ACTIONS:
             raise ResourcePermissionDenied('resource_action_unknown')
+        if action!='resources.use' and not self.management_enabled:
+            raise ResourcePermissionDenied('resource_management_disabled')
         rules, revision = self._load()
         if (not self._valid_context(principal, workspace)
                 or not self._allowed(rules, principal, workspace, action)):
@@ -125,4 +136,4 @@ class ResourcePermissions:
         if not self._valid_context(principal, workspace):
             return []
         return [action for action in sorted(RESOURCE_ACTIONS)
-                if self._allowed(rules, principal, workspace, action)]
+                if (self.management_enabled or action=='resources.use') and self._allowed(rules, principal, workspace, action)]

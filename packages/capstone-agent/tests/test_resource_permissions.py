@@ -15,6 +15,19 @@ PRINCIPAL = ResourcePrincipal('operator', ())
 DEFAULT_POLICY = Path(__file__).resolve().parents[3] / 'configs/runtime/resource-permissions.json'
 
 
+def test_deployment_switch_blocks_management_even_with_open_policy():
+    from capstone_agent.resource_permissions import resource_management_enabled
+    assert resource_management_enabled({'CAPSTONE_WORKBENCH_PRESET':'local'}) is True
+    assert resource_management_enabled({'CAPSTONE_WORKBENCH_PRESET':'intranet'}) is False
+    policy=ResourcePermissions(DEFAULT_POLICY,'local',management_enabled=False)
+    assert policy.allowed_actions(PRINCIPAL,'enterprise')==['resources.use']
+    policy.require(PRINCIPAL,'enterprise','resources.use')
+    for action in RESOURCE_ACTIONS-{'resources.use'}:
+        with pytest.raises(ResourcePermissionDenied,match='resource_management_disabled'):
+            policy.require(PRINCIPAL,'enterprise',action)
+    with pytest.raises(ValueError):resource_management_enabled({'CAPSTONE_RESOURCE_MANAGEMENT_ENABLED':'invalid'})
+
+
 def write_policy(tmp_path, rules):
     path = tmp_path / 'policy.json'
     path.write_text(json.dumps({'version': 1, 'profiles': {'test': {'rules': rules}}}))

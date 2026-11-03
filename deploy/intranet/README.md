@@ -41,6 +41,11 @@ container and all gateway/Kubernetes resources on the host.
 Installed packages and receipts use the separate `managed-resources` volume.
 Do not delete it on update. Local Compose selects the `local` permission profile;
 the intranet overlay selects `intranet`, which permits use and denies management.
+Skills/MCP management is temporarily disabled in intranet deployments. The settings
+entry is disabled, and API/model management actions are blocked by the executor.
+`CAPSTONE_INTRANET_RESOURCE_MANAGEMENT_ENABLED` defaults to `0` for both API and
+executor. Future enablement requires this deployment switch and policy grants;
+existing installed resources retain their use permissions. Local management stays enabled.
 Resource installation does not grant network access or business authority.
 
 Before first startup, initialize the private, directory-mounted policy:

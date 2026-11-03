@@ -6801,3 +6801,7 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 2026-11-03 6b28807a — Publish and enforce operation contracts before selection;170 resource checks and6 SDK checks pass.
 
 - 2026-11-03 6b28807a — Final runtime accepts dependencies, binding revocation, offline restore, API contracts and7.2s model list; no CI/remote deployment.
+
+- 2026-11-03 ab175491 — Record supported installation acceptance, exact images and explicit limits; preserve final verification boundary.
+
+- 2026-11-03 — Implement intranet management disable switch across UI and executor; preserve resource use and local management.

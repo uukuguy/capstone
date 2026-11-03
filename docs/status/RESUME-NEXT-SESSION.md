@@ -1,6 +1,14 @@
 # Live Session Checkpoint
 
-Updated: 2026-11-03. Skills/MCP installation supported scope is locally implemented
+Updated: 2026-11-03. User requested temporary disablement of Skills/MCP management
+for intranet deployment. Source adds deployment switch, disabled settings entry,
+API input-catalog flag and executor permission gate; resource use unchanged.
+Intranet overlay defaults switch0 for API/native; local remains enabled.
+Focused26 Python pass/5skip,50App pass and types pass. No CI/build/remote deployment.
+Research server remains offline. Next intranet rollout must include this batch.
+Current deployed local runtime still6b28807a; disabled-gate source not rebuilt.
+
+Skills/MCP installation supported scope is locally implemented
 and verified. Source6b28807a follows16f29d35, f92b3202 and3b25c089.
 
 Current local backend/API/worker image:

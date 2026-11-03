@@ -5,7 +5,7 @@ import './ManagedResourcesPanel.css'
 type Resource={resource_id:string;version:string;kind:string;installed:boolean;enabled:boolean;available:boolean;diagnostics:string[];source:{locator:string;revision:string};installation?:{subdirectory?:string;runtime?:{entrypoint?:string}};runtime?:{entrypoint?:string};preinstall?:{drafts:string[];published:string[]}}
 type Catalog={resources:Resource[];allowed_actions:string[];revision:string}
 type Transport={listManagedResources:()=>Promise<unknown>;manageResource:(operation:string,document:Record<string,unknown>)=>Promise<unknown>;readManagedResourceOperation:(requestId:string)=>Promise<unknown>}
-export default function ManagedResourcesPanel({transport}:{transport:Transport}){
+export default function ManagedResourcesPanel({transport,enabled=true}:{transport:Transport;enabled?:boolean}){
   const panelRef=useRef<HTMLElement>(null)
   const [open,setOpen]=useState(false),[catalog,setCatalog]=useState<Catalog>(),[error,setError]=useState(''),[busy,setBusy]=useState(false)
   const [kind,setKind]=useState('skill'),[source,setSource]=useState(''),[revision,setRevision]=useState(''),[name,setName]=useState(''),[directory,setDirectory]=useState(''),[entry,setEntry]=useState('')
@@ -36,8 +36,8 @@ export default function ManagedResourcesPanel({transport}:{transport:Transport})
     }catch(e){setError(e instanceof Error?e.message:'资源操作查询失败')}
     finally{setBusy(false)}
   }
-  return <><button type="button" className="thread-settings-item" onClick={()=>setOpen(true)}><Package aria-hidden="true"/>Skills / MCP 管理</button>
-    {open&&<section ref={panelRef} className="managed-resources-panel" onKeyDown={event=>{
+  return <><button type="button" className="thread-settings-item" disabled={!enabled} title={enabled?undefined:'当前部署暂未开放 Skills / MCP 管理'} onClick={()=>setOpen(true)}><Package aria-hidden="true"/>Skills / MCP 管理</button>
+    {open&&enabled&&<section ref={panelRef} className="managed-resources-panel" onKeyDown={event=>{
       if(event.key==='Escape'){event.stopPropagation();setOpen(false)}
       if(event.key==='Tab'){
         const targets=panelRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]),input:not([disabled]),select:not([disabled]),summary')

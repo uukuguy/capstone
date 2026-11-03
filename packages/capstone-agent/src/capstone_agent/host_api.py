@@ -553,6 +553,8 @@ def create_host_app(
                     except Exception:
                         publication = {'available': False, 'identity': (saved or {}).get('identity', {})}
                 document = public_input_catalog(thread_service.input_catalog(thread_id), gateway_publication=publication)
+                from .resource_permissions import resource_management_enabled
+                document['resource_management']={'enabled':resource_management_enabled(os.environ)}
                 return with_case_availability(document, case_service.input_availability(thread_id)) if case_service is not None else document
             except ThreadNotFound:
                 raise HTTPException(404, 'thread not found') from None

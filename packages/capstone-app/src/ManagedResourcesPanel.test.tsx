@@ -4,6 +4,18 @@ import {afterEach,expect,it,vi} from 'vitest'
 import ManagedResourcesPanel from './ManagedResourcesPanel'
 
 afterEach(cleanup)
+
+it('disables the deployment-gated entry without reading or changing resources',()=>{
+  const client=transport(['install','use'])
+  render(<ManagedResourcesPanel transport={client} enabled={false}/>)
+  const entry=screen.getByRole('button',{name:'Skills / MCP 管理'})
+  expect(entry).toBeDisabled()
+  expect(entry).toHaveAttribute('title','当前部署暂未开放 Skills / MCP 管理')
+  fireEvent.click(entry)
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  expect(client.listManagedResources).not.toHaveBeenCalled()
+  expect(client.manageResource).not.toHaveBeenCalled()
+})
 const resource={resource_id:'research-tools',version:'v1',kind:'skill',installed:true,enabled:true,
   available:false,diagnostics:['connection unavailable'],source:{locator:'https://example.test/repo',revision:'a'.repeat(40)}}
 function transport(actions:string[]=[],resources:(typeof resource&{preinstall?:{drafts:string[];published:string[]};installation?:{subdirectory:string;runtime?:{entrypoint:string}}})[]=[resource]){

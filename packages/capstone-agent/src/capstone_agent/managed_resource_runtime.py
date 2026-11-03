@@ -16,12 +16,13 @@ from .managed_resource_installation import ManagedResourceInstaller, PinnedGitFe
 from .managed_resource_service import ManagedResourceService
 from .managed_resources import ManagedResourceStore
 from .managed_resource_mcp import ManagedMcpError
-from .resource_permissions import ResourcePermissions
+from .resource_permissions import ResourcePermissions, resource_management_enabled
 
 
 def create_managed_resource_service(root, *, network_policy, environment):
     policy = ResourcePermissions(Path(environment.get('CAPSTONE_RESOURCE_POLICY_FILE', '/opt/general/configs/runtime/resource-permissions.json')),
-                                 environment.get('CAPSTONE_RESOURCE_PERMISSION_PROFILE', ''))
+                                 environment.get('CAPSTONE_RESOURCE_PERMISSION_PROFILE', ''),
+                                 management_enabled=resource_management_enabled(environment))
     store = ManagedResourceStore(Path(root), policy)
     from .managed_resource_secrets import ProtectedResourceBindings, ResourceBindingError
     from .managed_resource_manifest import content_digest

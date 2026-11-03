@@ -10,6 +10,7 @@ export type GatewayConnectionStatus={available:boolean;connection_name?:string;s
 export type InputDraft = { mode: RuntimeMode; llm_profile_id?:string; deep_research?:boolean; skill?: SkillChoice; context: ContextChoice; literal?: boolean; material_refs?: string[];context_product_refs?:ContextProductRef[] }
 export type InputSubmission = { llm_profile_id?:string; deep_research?:boolean; input: { kind: 'text' | 'skill_invocation'; text: string; skill_id?: string; skill_version?: string }; resource_profile?: { profile_id: SkillRole; revision: string }; context_selection: ContextChoice; material_refs?: string[];context_product_refs?:ContextProductRef[];attachment_refs?:string[] }
 export type InputCatalog = {
+  resource_management?:{enabled:boolean}
   data_gateway?:GatewayConnectionStatus
   llm_profiles?:{default_profile_id:string;profiles:{id:string;label:string;model:string;available:boolean;icon?:string}[]}
   stored_resources?:StoredResource[]
@@ -85,6 +86,7 @@ export function writeInputDraft(key: string | undefined, value: InputDraft): voi
 }
 export function parseInputCatalog(value: unknown): InputCatalog {
   const item = value as InputCatalog
+  if(item?.resource_management!==undefined&&typeof item.resource_management?.enabled!=='boolean')throw new Error('资源管理配置无效')
   if (!item || item.schema !== 'capstone-thread-input-catalog/1' || typeof item.revision !== 'string'
       || !Array.isArray(item.objects) || exceedsCapacity(item.objects.length,'resource_profile_items') || !Array.isArray(item.materials) || exceedsCapacity(item.materials.length,'inline_material_count')
       || !item.resource_profiles || !Array.isArray(item.operations)) throw new Error('输入目录无效')
