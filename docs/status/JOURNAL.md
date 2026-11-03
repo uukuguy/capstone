@@ -6850,3 +6850,5 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 12:45 User explicitly approves one macOS focused CI and dev integration for offline fixture repair; main and deployments remain outside scope.
 - Accepted reliability/capacity design and isolated implementation plan preserve existing contracts; baseline45 focused tests pass [f0e8728e].
 - Read-budget recovery red/green: issued refs now return measured safe paging;39 Node and18 composition/report checks pass without upstream replay.
+- Commit bounded recovery actions to prevent upstream replay after read-budget failures [e7d7fbc2].
+- PostgreSQL reproduces queued cancellation waiting for a worker; terminalize unleased cancellations under thread-first claim locking.132 ledger/worker tests pass.

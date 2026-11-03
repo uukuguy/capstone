@@ -1,5 +1,11 @@
 # Unified Enterprise Execution Implementation Plan
 
+2026-11-03用户优先选择执行可靠性与跨会话并发。按[已接受设计](../specs/2026-11-03-execution-reliability-and-session-capacity-design.md)
+及[实施计划](2026-11-03-execution-reliability-and-session-capacity.md)推进。
+复用已有批次预检、观察复用、表格与报告校验；补大观察预算失败的可执行恢复，
+以及native有界槽位和等待中立即取消。候选在feat/execution-capacity-20261103，
+本机定向检查进行中，真实模型/界面验收、dev合入和部署尚未完成；研发服务器保持断开。
+
 2026-10-31当前切片：按用户确认的边界移除网关业务工具名、提供方名和工具集名的
 执行分支。具体实例由当前发现结果及返回动作取得；任务状态与ready视图分开处理。
 见[动态绑定设计](../specs/2026-10-31-gateway-dynamic-bindings-design.md)、

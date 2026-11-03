@@ -215,6 +215,7 @@ def serve_thread_attempts(
     turn_router: TurnRouter | None = None,
     case_service: "CaseExecutionService | None" = None,
     implementation_family: str | None = None,
+    max_concurrent_attempts: int = 1,
 ) -> None:
     """Drain accepted Attempts after wake, or poll without a wake transport.
 
@@ -224,9 +225,23 @@ def serve_thread_attempts(
 
     if not worker_id or lease_seconds < 1 or poll_seconds <= 0:
         raise ValueError("thread worker configuration is invalid")
+    if type(max_concurrent_attempts) is not int or max_concurrent_attempts < 1:
+        raise ValueError('thread worker capacity must be a positive integer')
     stop = stop_event or threading.Event()
     idle = False
     try:
+        if max_concurrent_attempts > 1:
+            from .thread_worker_capacity import serve_attempt_slots
+            serve_attempt_slots(
+                lambda: run_pending_attempt(
+                    service, runtime_factory, worker_id=worker_id,
+                    lease_seconds=lease_seconds, turn_router=turn_router,
+                    case_service=case_service, implementation_family=implementation_family),
+                capacity=max_concurrent_attempts, stop=stop, wake=wake_event,
+                poll_seconds=poll_seconds, sweep=getattr(runtime_factory, 'sweep_idle', None),
+                reconcile=case_service.reconcile_active if case_service is not None else None,
+            )
+            return
         while not stop.is_set():
             if idle and wake_event is not None:
                 # Local cache expiry must still run while idle, but no ledger

@@ -5,6 +5,8 @@ host retains its existing private control and Provider transport boundaries.
 """
 import os
 import threading
+import re
+from collections.abc import Mapping
 from pathlib import Path
 
 from .general_executor_composition import configured_general_executor
@@ -12,6 +14,13 @@ from .intent_runtime import IntentRuntimeFactory
 from .thread_service import PostgresThreadService
 from .thread_worker import serve_thread_attempts
 from .worker_wake import create_wake_app
+
+
+def native_worker_capacity(environment: Mapping[str, str]) -> int:
+    value = environment.get('CAPSTONE_NATIVE_MAX_CONCURRENT_ATTEMPTS', '1')
+    if not re.fullmatch(r'[1-9][0-9]*', value):
+        raise ValueError('CAPSTONE_NATIVE_MAX_CONCURRENT_ATTEMPTS must be a positive integer')
+    return int(value)
 
 
 def native_runtime_factory(executor, *, research_root: Path | None = None,
@@ -36,6 +45,7 @@ def main() -> int:
     from .hosting import load_host_settings, build_artifacts
     from .ledger import Ledger
     settings = load_host_settings(os.environ)
+    capacity = native_worker_capacity(os.environ)
     executor = configured_general_executor(os.environ)
     if executor is None:
         raise RuntimeError('native conversation executor is not configured')
@@ -51,6 +61,7 @@ def main() -> int:
     scheduler = threading.Thread(target=serve_thread_attempts, kwargs={
         'service': service, 'runtime_factory': factory,
         'worker_id': 'capstone-native-worker', 'implementation_family': 'native',
+        'max_concurrent_attempts': capacity,
         'wake_event': wake, 'stop_event': stop}, daemon=True, name='capstone-native-worker')
     scheduler.start()
     try:

@@ -1,6 +1,7 @@
 # Execution reliability and session capacity
 
-Status: proposed for user review. No implementation or acceptance is claimed.
+Status: user approved on 2026-11-03. Implementation and acceptance are tracked in
+the [plan](../plans/2026-11-03-execution-reliability-and-session-capacity.md).
 
 ## Goal and evidence
 
