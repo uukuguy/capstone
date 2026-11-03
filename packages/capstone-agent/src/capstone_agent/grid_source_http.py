@@ -15,6 +15,8 @@ def register_grid_source_routes(app, *, executor_provider, authorize, thread_ser
         thread_id = request.path_params.get('thread_id') if request is not None else None
         if thread_id is None:
             return None
+        if thread_service is None:
+            raise HTTPException(503, 'thread_service_unavailable')
         saved = thread_service.read_thread_gateway(thread_id)
         publication = executor_provider().thread_gateway_publication(saved)
         return {'connection_id': publication.get('connection_id'), 'instance_id': publication.get('identity', {}).get('instance_id')}

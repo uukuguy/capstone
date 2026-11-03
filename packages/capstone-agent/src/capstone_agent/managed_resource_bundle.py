@@ -123,7 +123,10 @@ def _extract(service, bundle_path, root):
             if member.name == 'bundle.json':
                 if not member.isfile() or member.size > limits.control_document_bytes:
                     raise InstallationError('resource_bundle_metadata_limit')
-                document = json.loads(archive.extractfile(member).read(limits.control_document_bytes + 1))
+                reader = archive.extractfile(member)
+                if reader is None:
+                    raise InstallationError('resource_unsafe_path')
+                document = json.loads(reader.read(limits.control_document_bytes + 1))
                 continue
             parts = Path(member.name).parts
             if len(parts) < 3 or parts[0] != 'packages':
@@ -142,6 +145,8 @@ def _extract(service, bundle_path, root):
             elif member.isfile():
                 with target.open('xb') as writer:
                     reader = archive.extractfile(member)
+                    if reader is None:
+                        raise InstallationError('resource_unsafe_path')
                     while chunk := reader.read(1024 * 1024):
                         writer.write(chunk)
                 target.chmod(0o755 if member.mode & 0o111 else 0o644)

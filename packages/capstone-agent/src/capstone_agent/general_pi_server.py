@@ -856,7 +856,7 @@ class GeneralPiHost:
             if origin:
                 failure['origin'] = origin
             if getattr(error, 'sdk_diagnostic', None):
-                failure['sdk_diagnostic'] = error.sdk_diagnostic
+                failure['sdk_diagnostic'] = getattr(error, 'sdk_diagnostic')
             # Only fixed runtime messages map to private codes. Never persist
             # arbitrary exception text from tools, providers or user files.
             reason = {'General Pi frame exceeds bounds': 'rpc_frame_too_large',
@@ -1027,6 +1027,8 @@ class GeneralPiHost:
 
 class NativeTaskRunner:
     """Pi uses a task UID; host secrets remain in a different root process."""
+    from .managed_resource_service import ManagedResourceService
+    managed_resource_service: ManagedResourceService | None = None
     def __init__(self, *, root: Path, config_root: Path, command: tuple[str, ...],
                  model: str, relay_origin: str, network_policy=None, gateway=None, llm_profiles=None,
                  experimental_llm_pool: bool = False) -> None:
@@ -1044,7 +1046,8 @@ class NativeTaskRunner:
         self.environment_context = environment_context()
         self.network_policy = network_policy
         self.gateway = gateway
-        self.gateway_registry: object | None = None
+        from .gateway_connections import GatewayConnectionRegistry
+        self.gateway_registry: GatewayConnectionRegistry | None = None
         self.gateway_publication = gateway.publication() if gateway else {'available': False, 'reason': 'not_configured'}
         self._lock = threading.Lock()
         self.relay = ProviderRelay()
@@ -1158,6 +1161,8 @@ class NativeTaskRunner:
             self.task_gateways[request.task_id] = task_gateway
             gateway_publication = task_gateway.publication() if task_gateway else (self.gateway_publication if frozen_gateway is None else {'available': False, 'reason': 'not_configured'})
             if frozen_gateway is not None and frozen_gateway['catalog_revision'] is not None:
+                if task_gateway is None:
+                    raise ValueError('gateway_bound_instance_unavailable')
                 catalog = task_gateway.frozen_catalog(frozen_gateway['catalog_revision'])
                 gateway_publication = {**gateway_publication, 'catalog': catalog}
             if not gateway_publication.get('available'):
@@ -1177,7 +1182,7 @@ class NativeTaskRunner:
                 from .native_task_context import checked_native_context, resolve_research_policy
                 native = checked_native_context(request.native_context)
                 sdk_config['applicationPolicy'] = native['policy']
-                if request.managed_workspace is not None and getattr(self,'managed_resource_service',None) is not None:
+                if request.managed_workspace is not None and self.managed_resource_service is not None:
                     from .resource_permissions import ResourcePrincipal
                     actions=self.managed_resource_service.store.permissions.allowed_actions(
                         ResourcePrincipal('workspace:'+request.managed_workspace,()),request.managed_workspace)
@@ -1565,7 +1570,7 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 if access is not None:
                     if access is getattr(target, 'gateway', None):
                         publication = access.publication()
-                        target.gateway_publication = publication
+                        setattr(target, 'gateway_publication', publication)
                         host.capability['data_gateway'] = publication
                     else:
                         with host._lock:
@@ -1804,6 +1809,8 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 if not isinstance(body,dict) or set(body)!={'operation','document'}:
                     return self.send_json(400,{'error':'resource_request_fields_invalid'})
                 service=runner.managed_resource_service
+                if service is None:
+                    return self.send_json(503,{'error':'resource_runtime_unavailable'})
                 if not service.task_is_open(task_id):
                     return self.send_json(403,{'error':'resource_task_closed','executed':False})
                 inputs=runner.task_resource_inputs.get(task_id)

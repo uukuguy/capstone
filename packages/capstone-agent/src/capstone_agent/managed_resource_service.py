@@ -1,10 +1,15 @@
 """One application resource contract for UI and protected executor adapters."""
+from typing import Any, Callable
 from .managed_resource_installation import InstallRequest
 from .managed_resource_manifest import content_digest
 from .resource_permissions import ResourcePrincipal
 
 
 class ManagedResourceService:
+    open_task: Callable
+    task_is_open: Callable
+    close_task: Callable
+    invoke_mcp: Callable[..., dict[str, Any]]
     def __init__(self, store, installer):
         self.store, self.installer = store, installer
 

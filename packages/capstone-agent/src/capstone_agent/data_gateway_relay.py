@@ -188,6 +188,8 @@ class DataGatewayAccess:
         if not reusable:
             return await self._call(task_id, base, diagnostics=diagnostics, retry_of=retry_of)
         key = fingerprint({'name': base.get('name'), 'arguments': base.get('arguments')})
+        if record is None:
+            raise GatewayError('gateway_task_not_admitted')
         while True:
             with self._lock:
                 if self._tasks.get(task_id) is not record:

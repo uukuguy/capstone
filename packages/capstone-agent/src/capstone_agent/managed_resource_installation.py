@@ -397,6 +397,8 @@ class ManagedResourceInstaller:
             if not isinstance(skill, dict):
                 raise InstallationError('resource_skill_load_failed')
             path = skill.get('path', skill.get('filePath'))
+            if not isinstance(path, str):
+                raise InstallationError('resource_skill_load_failed')
             relative_path(path)
             if not (package / path).is_file() or not isinstance(skill.get('name'), str) or not skill['name']:
                 raise InstallationError('resource_skill_load_failed')

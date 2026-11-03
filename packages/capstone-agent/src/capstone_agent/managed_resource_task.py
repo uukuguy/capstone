@@ -3,11 +3,13 @@ import shutil
 import fcntl
 import tempfile
 import os
+from typing import Any
 from pathlib import Path
 from .managed_resource_manifest import content_digest
 
 
 def resource_task_action(service,principal,workspace,operation,document,*,inputs,deadline=None,task_id=None):
+    result: dict[str, Any]
     if operation not in {'discover','call','load_skill'}:
         return service.invoke(principal,workspace,operation,document)
     service._fields(document,('resource_id','version'),('name','arguments','catalog_revision'))
@@ -77,7 +79,10 @@ def resource_task_action(service,principal,workspace,operation,document,*,inputs
             if call['catalog_revision']!=publication['catalog']['revision']:
                 from .managed_resource_mcp import ManagedMcpError
                 raise ManagedMcpError('resource_contract_changed',stage='admission',executed=False)
-        result=invoke(item,call,deadline=deadline,session_key=task_id,workspace=workspace)
+        response=invoke(item,call,deadline=deadline,session_key=task_id,workspace=workspace)
+        if not isinstance(response, dict):
+            raise ValueError('resource_response_invalid')
+        result=response
         if operation=='discover' and result.get('revision')!=publication['catalog']['revision']:
             from .managed_resource_mcp import ManagedMcpError
             raise ManagedMcpError('resource_contract_changed',stage='admission',executed=False)

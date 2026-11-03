@@ -10,6 +10,7 @@ import tempfile
 import time
 import threading
 from contextvars import ContextVar
+from typing import Any
 
 from .application_capacity import limits
 from .managed_resource_installation import ManagedResourceInstaller, PinnedGitFetcher, InstallationError
@@ -27,8 +28,8 @@ def create_managed_resource_service(root, *, network_policy, environment):
     from .managed_resource_secrets import ProtectedResourceBindings, ResourceBindingError
     from .managed_resource_manifest import content_digest
     bindings = ProtectedResourceBindings(environment.get('CAPSTONE_RESOURCE_SECRET_BINDINGS_FILE') or None)
-    binding_scope = ContextVar('managed_resource_binding_scope', default=None)
-    binding_snapshot = ContextVar('managed_resource_binding_snapshot', default=None)
+    binding_scope: ContextVar[dict[str, Any] | None] = ContextVar('managed_resource_binding_scope', default=None)
+    binding_snapshot: ContextVar[tuple | None] = ContextVar('managed_resource_binding_snapshot', default=None)
 
     def resolve_bindings(secret_refs):
         if not secret_refs:return {'environment':{},'headers':{}}
@@ -106,6 +107,8 @@ def create_managed_resource_service(root, *, network_policy, environment):
             document = None if input_document is None else dict(input_document)
             if document is not None:document['protected']=protected
             if package is not None:
+                if document is None:
+                    raise InstallationError('resource_request_invalid')
                 shutil.copytree(package, private / 'package', symlinks=True)
                 document['package'] = str(private / 'package')
             for path in [private, *private.rglob('*')]:
@@ -248,6 +251,8 @@ console.log(JSON.stringify({skills:result.skills.map(s=>({name:s.name,descriptio
             if connection is not candidate:candidate.close()
             if not active:
                 raise ManagedMcpError('resource_task_closed',stage='admission',executed=False)
+        if connection is None:
+            raise ManagedMcpError('resource_task_closed',stage='admission',executed=False)
         return connection.exchange(arguments,deadline=min(deadline,time.monotonic()+timeout) if deadline is not None else time.monotonic()+timeout)
 
     def close_task(task_id):

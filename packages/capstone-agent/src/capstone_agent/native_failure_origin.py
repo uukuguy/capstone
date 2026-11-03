@@ -19,7 +19,7 @@ def checked_failure_origin(value: object) -> list[dict]:
     return result
 
 
-def native_failure_origin(error: BaseException) -> list[dict]:
+def native_failure_origin(error: BaseException | None) -> list[dict]:
     result = []
     seen = set()
     while error is not None and id(error) not in seen and len(seen) < 8:

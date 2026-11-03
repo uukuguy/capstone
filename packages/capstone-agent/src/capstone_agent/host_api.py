@@ -702,7 +702,7 @@ def create_host_app(
                 if isinstance(kind, str) and kind in {'start_work', 'send_message', 'work_message', 'send_auto', 'send_ordinary', 'send_professional'}:
                     scoped_reader = getattr(native_artifact_executor, 'thread_gateway_publication', None)
                     if callable(scoped_reader) and hasattr(service, 'read_thread_gateway'):
-                        saved = await run_in_threadpool(service.read_thread_gateway, thread_id)
+                        saved = await run_in_threadpool(getattr(service, 'read_thread_gateway'), thread_id)
                         try:
                             scoped_gateway = await run_in_threadpool(scoped_reader, saved, refresh=True)
                         except Exception:
@@ -717,7 +717,7 @@ def create_host_app(
                         refresh_binding = getattr(service, 'refresh_native_gateway_publication', None)
                         if callable(refresh_binding):
                             await run_in_threadpool(refresh_binding)
-                receipt = (await run_in_threadpool(service.submit_gateway_command, command, scoped_gateway)
+                receipt = (await run_in_threadpool(getattr(service, 'submit_gateway_command'), command, scoped_gateway)
                            if scoped_gateway is not None else service.submit_command(command))
                 if receipt.rejection == 'protocol_upgrade_required':
                     return JSONResponse({'error': 'protocol_upgrade_required', 'minimum_protocol_version': 2}, status_code=409)

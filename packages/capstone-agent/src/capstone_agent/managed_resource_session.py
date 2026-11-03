@@ -27,6 +27,7 @@ class ManagedResourceSession:
             raise
 
     def _write(self, value, deadline=None):
+        assert self.process.stdin is not None
         encoded=json.dumps(value,ensure_ascii=False).encode()+b'\n'
         if len(encoded)>limits.control_document_bytes:
             raise ManagedMcpError('resource_arguments_too_large',stage='admission',executed=False)
@@ -43,6 +44,7 @@ class ManagedResourceSession:
                 except BlockingIOError:continue
 
     def _read(self,deadline):
+        assert self.process.stdout is not None
         with selectors.DefaultSelector() as selector:
             selector.register(self.process.stdout,selectors.EVENT_READ)
             while True:
@@ -101,6 +103,6 @@ class ManagedResourceSession:
                     os.killpg(self.process.pid,signal.SIGKILL)
                     self.process.wait(timeout=2)
         finally:
-            self.process.stdin.close()
-            self.process.stdout.close()
+            if self.process.stdin is not None:self.process.stdin.close()
+            if self.process.stdout is not None:self.process.stdout.close()
             self.cleanup()

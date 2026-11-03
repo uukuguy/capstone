@@ -384,6 +384,8 @@ class ThreadProtocolUpgradeRequired(RuntimeError):
 
 
 class ThreadService(Protocol):
+    def read_thread_gateway(self, thread_id) -> dict | None: ...
+    def submit_gateway_command(self, command, publication) -> CommandReceipt: ...
     def set_material_store(self, objects) -> None: ...
     """Persistence and admission operations required by the HTTP projection."""
 
@@ -1932,7 +1934,7 @@ class InMemoryThreadService(NativeExecutionOwner):
                         event_id="evt_" + secrets.token_hex(8),
                         event_seq=self._snapshot.last_event_seq + offset,
                         event_type=application_event.event_type, event_version=1,
-                        thread_id=self._snapshot.thread_id, run_id=self._snapshot.run.run_id, workspace_name=self._workspace_name,
+                        thread_id=self._snapshot.thread_id, run_id=self._snapshot.run.run_id,
                         turn_id=None, attempt_id=None,
                         model_context_id=self._snapshot.professional_context.id,
                         selection_revision=self._snapshot.professional_context.selection_revision,

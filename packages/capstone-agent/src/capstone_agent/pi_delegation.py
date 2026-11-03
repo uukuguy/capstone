@@ -481,7 +481,7 @@ class HttpGeneralPiExecutor:
                 raise ValueError('resource_response_invalid')
             raise ManagedMcpError(code,stage=stage,executed=result.get('executed'))
         error = {'permission': ResourcePermissionDenied, 'conflict': ResourceConflict,
-                 'state': ResourceStateError, 'missing': KeyError, 'input': ValueError}.get(kind)
+                 'state': ResourceStateError, 'missing': KeyError, 'input': ValueError}.get(kind if isinstance(kind, str) else '')
         if error is None:
             raise ValueError('resource_response_invalid')
         raise error(code)

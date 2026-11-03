@@ -330,8 +330,8 @@ class DelegatedRuntime:
             self._emit(on_event, {'task_id': task_id, 'goal_id': goal['goal_id'],
                 'native_type': 'model_request_pool' if model_progress else 'llm_pool_call' if pool_progress else kind if isinstance(kind, str) else 'unknown',
                 **({'model_request_pool':dict(model_request_pool)} if model_progress else {}),
-                **({'runtime_phase': {key: runtime_phase[key] for key in
-                    ('name', 'state', 'reason', 'elapsed_ms', 'will_retry') if key in runtime_phase}}
+                **({'runtime_phase': {key: cast(Mapping, runtime_phase)[key] for key in
+                    ('name', 'state', 'reason', 'elapsed_ms', 'will_retry') if key in cast(Mapping, runtime_phase)}}
                     if phase_progress else {}),
                 **({'resource_failure': dict(resource_failure)}
                     if kind == 'resource_read_failed' and isinstance(resource_failure, Mapping) else {}),
@@ -367,13 +367,14 @@ class DelegatedRuntime:
                 visibility='public' if public_tool or research_branch or research_graph_event or pool_progress or model_progress or phase_progress or kind in {
                     'enterprise_cycle_progress', 'enterprise_graph_progress'} else 'diagnostic')
         self._active_task = task_id
+        result: PiTaskResult | None = None
         try:
             manifests = resources.get('native_context', {}).get('resource_manifests', ())
             lazy = getattr(self._executor, 'execute_with_resource_references', None)
             if manifests and callable(lazy):
                 if self._claim.resource_reader is None:
                     raise HarnessRuntimeConfigurationError('resource acquisition transport is unavailable')
-                result = lazy(request, control, native, self._claim.resource_reader, self._research_bridge)
+                result = cast(PiTaskResult, lazy(request, control, native, self._claim.resource_reader, self._research_bridge))
             elif manifests:
                 stage = getattr(self._executor, 'stage_resources', None)
                 if not callable(stage) or self._claim.resource_reader is None:
@@ -392,6 +393,8 @@ class DelegatedRuntime:
                 if not callable(execute):
                     raise HarnessRuntimeConfigurationError('research control transport is unavailable')
                 result = cast(PiTaskResult, execute(request, control, native, self._research_bridge))
+            if result is None:
+                raise HarnessRuntimeConfigurationError('task execution returned no result')
             result = PiTaskResult.from_document(result.to_document(), request)
             control.checkpoint()
         except BaseException as error:
