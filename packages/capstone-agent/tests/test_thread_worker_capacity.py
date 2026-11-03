@@ -61,6 +61,8 @@ def test_waiting_cancel_is_terminal_without_a_worker_claim():
     from test_thread_worker import _service, _submit
     service = _service()
     _submit(service)
+    assert service.has_pending_attempts('pandapower')
+    assert not service.has_pending_attempts('native')
     snapshot = service.snapshot('thr_worker')
     attempt = snapshot.current_attempt
     receipt = service.submit_command({
@@ -71,6 +73,7 @@ def test_waiting_cancel_is_terminal_without_a_worker_claim():
     assert receipt.status == 'accepted'
     assert service.snapshot(snapshot.thread_id).current_attempt is None
     assert service.claim_attempt('free-slot', 30) is None
+    assert not service.has_pending_attempts()
     assert [event.event_type for event in service.read_events(snapshot.thread_id, 0).events] == [
         'command_accepted', 'command_accepted', 'attempt_cancel_requested', 'attempt_cancelled']
 
@@ -82,6 +85,39 @@ def test_native_worker_capacity_defaults_to_one_and_validates_configuration():
     for value in ('0', '-1', '1.5', 'true', '', ' 2'):
         with pytest.raises(ValueError, match='CAPSTONE_NATIVE_MAX_CONCURRENT_ATTEMPTS'):
             native_worker_capacity({'CAPSTONE_NATIVE_MAX_CONCURRENT_ATTEMPTS': value})
+
+
+@pytest.mark.parametrize('capacity', [1, 2])
+def test_known_pending_attempt_is_retried_without_a_second_wake(monkeypatch, capacity):
+    import capstone_agent.thread_worker as module
+    from test_thread_worker import _service, _submit, _Runtime
+    service = _service()
+    _submit(service)
+    stop, wake, skipped, released, executed = Event(), Event(), Event(), Event(), Event()
+    original = module.run_pending_attempt
+    def run(*args, **kwargs):
+        if not released.is_set():
+            skipped.set()
+            return None
+        return original(*args, **kwargs)
+    class Runtime(_Runtime):
+        def prompt(self, question, **kwargs):
+            executed.set()
+            return 'done'
+    monkeypatch.setattr(module, 'run_pending_attempt', run)
+    worker = Thread(target=module.serve_thread_attempts, kwargs=dict(
+        service=service, runtime_factory=lambda _: Runtime(),
+        max_concurrent_attempts=capacity, wake_event=wake, stop_event=stop, poll_seconds=.01))
+    worker.start()
+    try:
+        assert skipped.wait(1)
+        released.set()
+        assert executed.wait(2)
+    finally:
+        stop.set()
+        wake.set()
+        worker.join(3)
+    assert not worker.is_alive()
 
 
 def test_concurrent_worker_recovers_from_slot_error_and_does_not_scan_idle_ledger(monkeypatch):

@@ -6863,3 +6863,4 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - Final UI trial interrupted by repeated Mac sleep and AX permission_denied; preserve failures and stop model repeats. Pending scoped CI question is not approval.
 - Persist candidate evidence and control state for recovery [12dfcb44].
 - GUI recovered19:02; queued labels/refresh/immediate cancellation pass; other running tests cancel and release. User approves one focused macOS CI/dev merge.
+- Post-merge audit reproduces skipped-lock lost wake in real PG capacities1/2. Add pending-state peek and bounded retry;100 focused checks/types pass.
