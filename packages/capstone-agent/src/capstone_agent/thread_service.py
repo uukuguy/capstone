@@ -1497,6 +1497,7 @@ class InMemoryThreadService(NativeExecutionOwner):
                              'work_id': work['work_id'], 'work': project_work(updated, work)})
                 self._snapshot = replace(self._snapshot, last_event_seq=requested.event_seq)
                 target.update(turn_id=current.turn_id, attempt_id=current.attempt_id)
+                self._cancel_waiting_attempt(current)
         receipt = self._receipt(parsed, status='rejected' if rejection else 'accepted',
             rejection=rejection, accepted_event_seq=event_seq, target=target)
         self._commands[parsed['idempotency_key']] = _StoredCommand(request_hash, receipt)
@@ -1639,6 +1640,7 @@ class InMemoryThreadService(NativeExecutionOwner):
                     )
                     self._snapshot = replace(self._snapshot, last_event_seq=requested.event_seq)
                     self._cancel_requests.add(target)
+                    self._cancel_waiting_attempt(current)
                     receipt = self._receipt(
                         parsed, status="accepted", accepted_event_seq=accepted.event_seq,
                         target={"turn_id": current.turn_id, "attempt_id": current.attempt_id},
@@ -2194,6 +2196,21 @@ class InMemoryThreadService(NativeExecutionOwner):
             )
             self._snapshot = replace(self._snapshot, last_event_seq=event.event_seq)
             return event
+
+    def _cancel_waiting_attempt(self, current: AttemptSnapshot) -> None:
+        record = self._attempts[current.attempt_id]
+        if record['attempt'].phase != 'accepted' or record['lease_token'] is not None:
+            return
+        from .thread_work import work_event_payload
+        terminal = replace(current, phase='cancelled')
+        updated, payload = work_event_payload(
+            replace(self._snapshot, current_attempt=None), record.get('task_context'),
+            current.attempt_id, 'cancelled')
+        event = self._append_event(event_type='attempt_cancelled', attempt=terminal,
+                                   payload=payload, context=record.get('model_context'))
+        record['attempt'] = terminal
+        self._cancel_requests.discard(current.attempt_id)
+        self._snapshot = replace(updated, last_event_seq=event.event_seq)
 
     def finish_attempt(
         self, claim: AttemptClaim, *, phase: str, payload: Mapping[str, Any],
@@ -2899,6 +2916,8 @@ class PostgresThreadService(NativeExecutionOwner):
             connection.execute('UPDATE capstone_threads SET minimum_protocol_version=2, works=%s, last_event_seq=%s, current_attempt=%s WHERE thread_id=%s',
                 (Jsonb(list(updated.works)), last_event_seq,
                  None if updated.current_attempt is None else Jsonb(updated.current_attempt.to_document()), snapshot.thread_id))
+            if parsed['kind'] == 'cancel_work':
+                self._cancel_waiting_attempt(connection, snapshot.thread_id)
         receipt = self._receipt({**parsed, 'run_id': snapshot.run.run_id}, status='rejected' if rejection else 'accepted', rejection=rejection,
             accepted_event_seq=event_seq, target=target)
         connection.execute('INSERT INTO capstone_thread_commands (thread_id,idempotency_key,request_hash,command_id,receipt) VALUES (%s,%s,%s,%s,%s)',
@@ -3524,6 +3543,7 @@ class PostgresThreadService(NativeExecutionOwner):
                         "UPDATE capstone_threads SET last_event_seq = %s WHERE thread_id = %s",
                         (requested.event_seq, snapshot.thread_id),
                     )
+                    self._cancel_waiting_attempt(connection, snapshot.thread_id)
                     receipt = self._receipt(
                         parsed, status="accepted", accepted_event_seq=accepted.event_seq,
                         target={"turn_id": current.turn_id, "attempt_id": current.attempt_id},
@@ -4007,6 +4027,33 @@ class PostgresThreadService(NativeExecutionOwner):
             )
             return receipt
 
+    def _cancel_waiting_attempt(self, connection, thread_id: str) -> None:
+        # Caller owns the thread row. Claims acquire that row first as well.
+        thread = connection.execute('SELECT * FROM capstone_threads WHERE thread_id=%s',
+                                    (thread_id,)).fetchone()
+        snapshot = self._snapshot_from_row(thread)
+        current = snapshot.current_attempt
+        if current is None or current.phase != 'accepted':
+            return
+        attempt = connection.execute(
+            "UPDATE capstone_thread_attempts SET phase='cancelled' WHERE attempt_id=%s "
+            "AND phase='accepted' AND lease_token IS NULL RETURNING *",
+            (current.attempt_id,)).fetchone()
+        if attempt is None:
+            return
+        from .enterprise_context import TaskContext
+        from .thread_work import work_event_payload
+        task_context = (TaskContext.from_document(attempt['task_context_snapshot'])
+                        if attempt.get('task_context_snapshot') is not None else None)
+        updated, payload = work_event_payload(replace(snapshot, current_attempt=None),
+            task_context, current.attempt_id, 'cancelled')
+        terminal = replace(current, phase='cancelled')
+        event = self._make_attempt_event(thread, terminal,
+            event_seq=thread['last_event_seq'] + 1, event_type='attempt_cancelled', payload=payload)
+        self._insert_event(connection, event)
+        connection.execute('UPDATE capstone_threads SET current_attempt=NULL, works=%s, last_event_seq=%s WHERE thread_id=%s',
+            (Jsonb(list(updated.works)), event.event_seq, thread_id))
+
     def claim_attempt(self, worker_id: str, lease_seconds: int, implementation_family: str | None = None) -> AttemptClaim | None:
         if not worker_id or lease_seconds < 1:
             raise ValueError("attempt worker lease is invalid")
@@ -4015,11 +4062,12 @@ class PostgresThreadService(NativeExecutionOwner):
         token = secrets.token_hex(16)
         with self._connect() as connection:
             row = connection.execute(
-                """SELECT attempt_id FROM capstone_thread_attempts
-                   WHERE phase = 'accepted' AND lease_token IS NULL
-                     AND (%s::text IS NULL OR model_context_snapshot->>'implementation_family' = %s::text
-                          OR (%s::text = 'native' AND model_context_snapshot IS NULL AND submission_snapshot ? '_native_execution'))
-                   ORDER BY created_at, attempt_id LIMIT 1 FOR UPDATE SKIP LOCKED""",
+                """SELECT a.attempt_id FROM capstone_thread_attempts a
+                   JOIN capstone_threads t ON t.thread_id = a.thread_id
+                   WHERE a.phase = 'accepted' AND a.lease_token IS NULL
+                     AND (%s::text IS NULL OR a.model_context_snapshot->>'implementation_family' = %s::text
+                          OR (%s::text = 'native' AND a.model_context_snapshot IS NULL AND a.submission_snapshot ? '_native_execution'))
+                   ORDER BY a.created_at, a.attempt_id LIMIT 1 FOR UPDATE OF t SKIP LOCKED""",
                 (implementation_family, implementation_family, implementation_family),
             ).fetchone()
             if row is None:
@@ -4029,6 +4077,8 @@ class PostgresThreadService(NativeExecutionOwner):
                 (row["attempt_id"],),
             ).fetchone()
             assert attempt_row is not None
+            if attempt_row['phase'] != 'accepted' or attempt_row['lease_token'] is not None:
+                return None
             thread = connection.execute(
                 "SELECT * FROM capstone_threads WHERE thread_id = %s FOR UPDATE",
                 (attempt_row["thread_id"],),

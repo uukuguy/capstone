@@ -74,6 +74,8 @@ it('shows thinking during submit before any accepted or started event',async()=>
 it('shows queued thinking from acceptance before attempt_started',()=>{
   render(<CapstoneAssistantThread {...props} events={[accepted]}/>)
   expect(screen.getByText('等待执行…')).toBeTruthy()
+  expect(screen.getByText(/排队中/)).toBeTruthy()
+  expect(screen.queryByText('准备执行本轮指令…')).toBeNull()
 })
 it('streams only public current-attempt thinking and keeps it out of the answer',()=>{
   const {rerender}=render(<CapstoneAssistantThread {...props} events={[accepted,started,delta]}/>)

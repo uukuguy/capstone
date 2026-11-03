@@ -215,10 +215,13 @@ def test_cancel_work_uses_existing_attempt_cancel_guard(phase):
     assert receipt.status == 'accepted'
     assert store.submit_command(cancel) == receipt
     after = store.snapshot('thr_work_exec').to_document()['works'][0]
-    assert after['cancel_requested'] and after['status'] == phase
-    claim = claim or store.claim_attempt('worker', 30)
-    assert store.cancel_requested(claim)
-    store.finish_attempt(claim, phase='cancelled', payload={})
+    if phase == 'running':
+        assert after['cancel_requested'] and after['status'] == phase
+        assert store.cancel_requested(claim)
+        store.finish_attempt(claim, phase='cancelled', payload={})
+    else:
+        assert after['status'] == 'cancelled' and after['cancel_requested'] is False
+        assert store.claim_attempt('worker', 30) is None
     terminal = store.snapshot('thr_work_exec').to_document()['works'][0]
     assert terminal['status'] == 'cancelled' and terminal['cancel_requested'] is False
 
@@ -392,14 +395,15 @@ def test_cancel_uses_same_ledger_in_both_adapters(execution_store, claimed):
     cancel = command(store, thread_id, 'cancel_work', 'cancel', work_id=work['work_id'], revision=work['revision'])
     accepted = store.submit_command(cancel)
     assert accepted.status == 'accepted' and store.submit_command(cancel) == accepted
-    assert store.snapshot(thread_id).works[0]['status'] != 'cancelled'
     if claimed:
+        assert store.snapshot(thread_id).works[0]['status'] != 'cancelled'
         assert store.cancel_requested(claim)
         store.finish_attempt(claim, phase='cancelled', payload={})
     else:
         def forbidden_runtime(claim):
             raise AssertionError('cancelled queued Work must not prepare resources or Provider')
-        assert run_pending_attempt(store, forbidden_runtime, worker_id='worker').status == 'cancelled'
+        assert store.snapshot(thread_id).works[0]['status'] == 'cancelled'
+        assert run_pending_attempt(store, forbidden_runtime, worker_id='worker') is None
     terminal = store.snapshot(thread_id).to_document()['works'][0]
     assert terminal['status'] == 'cancelled' and terminal['cancel_requested'] is False
     assert store.submit_command(cancel) == accepted

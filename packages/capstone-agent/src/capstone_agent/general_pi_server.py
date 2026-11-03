@@ -2008,7 +2008,7 @@ def main():
                                  'application_capacity.py', 'capacity_contract.py', 'resources/application-capacity.json', 'resources/runtime-limits.mjs',
                                  'resources/research-tools.mjs', 'resources/execution-guidance.mjs', 'resources/model-request-capture.mjs',
                                  'resources/general-context.mjs', 'resources/general-sdk.mjs', 'resources/general-tool-discovery.mjs', 'resources/tool-result-context.mjs', 'resources/committed-delivery.mjs', 'resources/systematic-diagnosis.mjs', 'resources/general-mcp.mjs', 'resources/task-record-tools.mjs', 'resources/resource-reference-tools.mjs',
-                                 'resources/tool-composition.mjs', 'resources/tool-composition-worker.mjs', 'resources/observed-action.mjs', 'resources/tool-identity.mjs', 'resources/tool-composition-policy.json', 'resources/semantic-data-context.mjs', 'resources/observation-data.mjs', 'resources/gateway-tool-use.mjs',
+                                 'resources/tool-composition.mjs', 'resources/tool-composition-worker.mjs', 'resources/observed-action.mjs', 'resources/observation-read-budget.mjs', 'resources/tool-identity.mjs', 'resources/tool-composition-policy.json', 'resources/semantic-data-context.mjs', 'resources/observation-data.mjs', 'resources/gateway-tool-use.mjs',
                                  'resources/async-call-pool.mjs', 'resources/llm-call-tools.mjs', 'resources/llm-call-pool-policy.json',
                                  'resources/model-request-pool.mjs', 'resources/model-request-pool-policy.json',
                                  'resources/enterprise-research-runtime.mjs', 'resources/enterprise-cycle-contract.mjs',

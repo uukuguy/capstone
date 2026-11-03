@@ -6848,3 +6848,18 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 12:38 Replace fixture display-string check with lstat regular-file,0600 and owner checks;51 offline tests pass [d599331f].
 - 12:38 Extend focused gate to offline fixtures; isolated212 pass/3skip and21 workflow contracts pass; no CI/push [01732906].
 - 12:45 User explicitly approves one macOS focused CI and dev integration for offline fixture repair; main and deployments remain outside scope.
+- Accepted reliability/capacity design and isolated implementation plan preserve existing contracts; baseline45 focused tests pass [f0e8728e].
+- Read-budget recovery red/green: issued refs now return measured safe paging;39 Node and18 composition/report checks pass without upstream replay.
+- Commit bounded recovery actions to prevent upstream replay after read-budget failures [e7d7fbc2].
+- PostgreSQL reproduces queued cancellation waiting for a worker; terminalize unleased cancellations under thread-first claim locking.132 ledger/worker tests pass.
+- Commit bounded native slots and immediate waiting cancellation; preserve running cleanup and source identity; focused types zero errors [692fa36e].
+- Native candidate rebuild exposes missing recovery-module COPY; add packaging regression and fix.161 consumer checks pass/32 platform skips.
+- Ship native recovery dependency and align queued-cancel consumer tests [fcad0a76]. Local candidate2-slot rebuild passes; real admission catches wrong test mount override.
+- Scoped route covers native capacity consumers without release suites; contract checks131 pass; no CI started [7616f389].
+- Correct original auth mount; canonical readiness passes. Mac sleep13:25–14:05 invalidates first concurrency trial; preserve lease fencing and failure receipts.
+- Awake real model trial: two attempts54–55s overlap; two followups46–47s retain CSV hashes; queued cancellation is terminal without claim.
+- Browser queue text contradicts its process card; reproduce, align queued labels, and verify216 App checks plus types. Add thread-lock skip regression.
+- Commit consistent queued process labels and direct-consumer coverage [b7dd440c]. Final focused Python gate411 pass/32 skips, App216 pass; independent inspection finds no actionable regression.
+- Final UI trial interrupted by repeated Mac sleep and AX permission_denied; preserve failures and stop model repeats. Pending scoped CI question is not approval.
+- Persist candidate evidence and control state for recovery [12dfcb44].
+- GUI recovered19:02; queued labels/refresh/immediate cancellation pass; other running tests cancel and release. User approves one focused macOS CI/dev merge.
