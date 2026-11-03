@@ -6817,3 +6817,13 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 10:20 Second approved release CI41564504216 failed on51 backend type errors; governance passed; main remains unmerged.
 - 10:20 Restore typed runtime contracts; zero type errors,354 focused and39 consumer checks pass; full local release running [6c7722e8].
 - 10:20 User authorized latest intranet deployment after main merge; SSH/sudo Docker confirmed, existing volumes and services retained.
+- 10:24 Record typed release repair and authorized intranet rollout; full local release remains active [0fbe7f56].
+- 10:32 Third approved CI not started: GitHub HTTP2 push failed; local release stopped for diagnosis, not passed.
+- 10:32 Local HTTP failures require loopback proxy exclusion; stale tests corrected for soft recovery and reference-first continuation.
+- 10:33 Align stale continuation tests with admitted recovery contracts; corrected original-source RPC test passes [263bad9f].
+- 10:47 Cancel third CI41566986778 after reproducing frozen-clock legacy test hang; no fourth CI approval yet.
+- 10:47 Backend full checks3016 passed/191 skipped; kernel663 passed; App migrated29 passed; remaining release checks and local rebuild active.
+- 10:47 Migrate stale release fixtures to bounded diagnostics and per-response thinking without changing product behavior [ee625f38].
+- 10:53 Local rebuild ready, API/worker imageb0402ca2 matches, App reachable; scoped cache maintenance completed.
+- 10:53 Simulator protected digest lagged accepted main tree6596fbba; aligned policy without changing simulator source.
+- 10:53 Pin protected simulator digest to already accepted main tree; protected-path check passes [3c923666].

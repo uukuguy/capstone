@@ -1,5 +1,11 @@
 # 多线版本控制
 
+2026-11-03：发布准备见[回执](../reports/2026-11-03-main-intranet-release.md)。
+263bad9f后第三轮CI41566986778已取消（本机确认旧测试冻结时钟停滞）。ee625f38迁移旧测试，3c923666同步现有main的simulator保护摘要。
+本机分段发布检查完成：agent3016通过/191跳过、App1502通过、Kernel663通过、E2E39通过；类型/安装包/源码安装通过，范围不累加。
+规范重建ready且API/worker同镜像b0402ca2，native cd364dbf；本机运行已更新，内网仍70c42dab。
+第四轮CI尚未批准；PR87仍未合并。用户已授权main合并后更新内网，管理功能保持禁用。
+
 2026-11-03：第二次获批的发布CI41564504216在双平台类型检查失败，治理检查通过。
 修正6c7722e8已在本机达到零类型错误；354项定向检查/2跳过及39项消费者检查通过（范围重叠）。
 本机完整发布门禁仍运行，grid-agent997通过/3跳过，453.35秒；不能称完整发布通过。
@@ -995,7 +1001,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 职责 | 当前状态 | 下一步 |
 | --- | --- | --- | --- |
-| dev | 共同基座与企业工作台集成 | Skills/MCP安装6b28807a本机验证；内网禁用管理开关216ce916源代码通过，待部署 | 本批未推送/PR/CI；内网70c42dab及其他部署不变 |
+| dev | 共同基座与企业工作台集成 | Skills/MCP安装及类型修复已本机重建；发布测试迁移完成 | PR87待合main；两轮CI失败、第三轮已取消；内网70c42dab保持 |
 | feat/business-analysis | 企业研究与分析 | 应用分支仅准备；实际研究能力在dev共享工作台推进 | 保留350.524秒/ 41轮质量基线；不另建研究调度或聊天应用 |
 | feat/model-decision | 电网分析与决策 | 00a8cd85已在local-dev验证；PR #53已合入f5eda4e4 | 成熟对话、真实历史与拓扑已接通；无模型与通用成果继续按协议推进 |
 
@@ -1085,6 +1091,8 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
+| release-local-validation | ee625f38 | main | dev · 发布门禁修复 | 本机分段发布检查通过 | 类型契约与旧测试迁移；规范重建及同镜像检查。[发布准备](../reports/2026-11-03-main-intranet-release.md) | shared-agent |
+| managed-resource-milestone | 771259a7 | main | dev · 资源管理里程碑标签 | 标签已推送，main待合 | 固定用户选定源码；内网管理禁用开关已实现，部署尚待更新。[发布准备](../reports/2026-11-03-main-intranet-release.md) | shared-agent |
 | managed-installation-runtime | 6b28807a | main | dev · Skills/MCP持久安装 | 本机支持范围通过 | 统一契约、隔离安装、依赖、凭据与离线包。[验证](../reports/2026-11-03-managed-resource-installation.md) | shared-agent |
 | intranet-summer-runtime | 70c42dab | main | dev · 内网运行来源 | 内网历史验证通过 | 目的留存与报告运行权限。[审计](../reports/2026-11-02-intranet-summer-chain-audit.md) | shared-agent |
 | execution-integrity-runtime | 8293a4d4 | main | dev · 执行链完整性修复 | 本机四轮验证通过 | 原始错误保留、冻结资源恢复、容量契约及镜像修正。[验收](../reports/2026-11-02-multiturn-execution-integrity.md) | shared-agent |
@@ -1203,7 +1211,9 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
-| managed-installation-runtime | 当前本机验收 | dev | Skills/MCP隔离安装及持久恢复；依赖、凭据与离线预装包 | 支持范围本机通过，内网未更新 |
+| release-local-validation | 当前本机运行来源 | dev | 类型契约与逐次思考测试迁移；API/worker规范重建与同镜像 | 本机分段发布检查通过，main与内网待更新 |
+| managed-resource-milestone | 固定标签里程碑 | dev | 持久安装与隔离依赖；内网管理入口与执行器禁用开关 | 标签已推送，发布CI尚未通过 |
+| managed-installation-runtime | 前次本机验收 | dev | Skills/MCP隔离安装及持久恢复；依赖、凭据与离线预装包 | 支持范围本机通过，内网未更新 |
 | intranet-summer-runtime | 内网部署来源 | dev | 调用目的持久留存；非特权报告生成 | 内网历史验收，当前离线 |
 | execution-integrity-runtime | 当前本机验收 | dev | 原始异常与诊断保留；多轮资源恢复及失败后继续 | 本机验证通过，内网未更新 |
 | conversation-controls | 已合入会话修复来源 | 原fix/conversation-small-items-20261031 | 提交期指令与Thinking关联、ESC停止和终态确认；版本冲突保留输入、JSON/MCP错误摘要 | App1419及构建通过，22适配器复测通过；真实取消、续发及刷新通过，PR79已合 |
@@ -1245,7 +1255,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 | grid-scale-merge | 主要代码集成里程碑 | dev | PR64整合10W+源图与精确指令视图；原生模型退出、拒绝诊断和原参数回放通过 | 固定78f81e66；受检44e8eca2，macOS7分31秒、主5173和真实华北交付通过 |
 | grid-scale-source | 已合入并本地验收 | dev · 原feat/grid-scale-view | 华北10W+源元素与站点分区；精确逐指令视图、模型退出和有界拒绝诊断 | 华北连续任务、五文件、57/56图及主5173通过；模型构建缺口保留，无云发布 |
 | gateway-dynamic-runtime | 历史通用网关本地来源 | dev · 原refactor/gateway-dynamic-bindings | 通用网关结果和续接动作绑定，任务授权与回执保留；有界视图读取支持返回页大小 | 根dev61ec56c6规范重建exit0、ready200、同镜像989226e8与清理通过；App产品d9e24798、dirty=false，目录及视图协议、真实任务通过，渲染和性能未接受 |
-| dev-head | 当前研发位置 | dev | 内网管理入口置灰；执行器管理开关与使用权限分离 | 26后端/50App及类型通过；源码待部署；无CI |
+| dev-head | 当前研发位置 | dev | 发布类型与旧测试修复；内网管理禁用开关待远端部署 | 本机分段发布检查与重建通过；PR87待合main；CI待新批准 |
 | artifact-time-runtime | 产物版本与时间 | dev | 同路径多版本收拢；事件与目录提供真实保存时间 | 定向检查、浏览器与历史文件接口通过；无CI |
 | instruction-products-runtime | 指令制品导航 | dev | 指令双入口与编号筛选；执行开始切换并保留手动选择 | 定向检查、类型与浏览器通过；本机ready，无CI |
 | product-default-runtime | 制品默认预览 | dev | 切换后展示最新主要制品；回答工具栏复制优先 | 53项制品联动、133项回答组件及浏览器通过；无CI |
@@ -1493,7 +1503,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | Skills/MCP安装 `6b28807a` | ready通过；API/worker同镜像9abfcd9c65cd99da113d8aa2356cfcab0640440eb3a96561b5d4bfb683ea3ff6 | 实际Python/npm、凭据轮换/撤销、离线包恢复、模型入口及Vivaldi管理页通过；[验证](../reports/2026-11-03-managed-resource-installation.md)列明支持格式；无CI |
+| local-dev | 后端 `ee625f38`；App `3c923666` | ready通过；API/worker同镜像b0402ca2，native cd364dbf | 内容标识9a1083e9；1339个包文件与候选核对，4个生成资源单列；规范重建及缓存维护通过；[回执](../reports/2026-11-03-main-intranet-release.md) |
 | intranet-dev | API/worker/native/App `70c42dab`；Qwen3.8-Flash-Next默认 | 四应用服务healthy；API/worker同镜像53d6ddbe；目的留存及UID10001报告生成通过 | App http://192.168.72.63:5173/；[审计](../reports/2026-11-02-intranet-summer-chain-audit.md)；未重跑业务/未做视觉验收 |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |
 | cloud-dev | `24d9a32`，开发试用候选；已推送标签cloud-dev-20261013-1045-24d9a32 | 用户授权的基本功能检查通过：四角色SUCCESS、API就绪、前端来源与真实中文对话；非正式发布或科学解释验收 | App https://capstone-app-production-83ef.up.railway.app/；[部署记录](../reviews/2026-10-13-cloud-dev-autonomous-trial.md)；demo不变 |
