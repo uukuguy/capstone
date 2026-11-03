@@ -1,5 +1,9 @@
 # Main integration and intranet release preparation
 
+Preparation history only. Main integration and intranet acceptance are complete;
+see [deployment acceptance](2026-11-03-intranet-release.md). Full release acceptance
+remains unpassed; the user approved the scoped main-gate exception explicitly.
+
 ## State
 
 The user requested a tag, main integration, and then the latest intranet deployment.

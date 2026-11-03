@@ -6834,3 +6834,7 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 11:40 Correction: earlier split gate omitted rebuild target consumers; full target exposes four pre-existing offline installer test failures.
 - 11:40 Asked explicit scoped main-gate exception; no new CI started. Existing dev-return approval remains reserved.
 - 11:38 Correct preceding three event timestamps to11:38; model-default repair committeda8685cbf,161 isolated checks pass.
+- 11:44 Record corrected gate coverage, unresolved installer tests and staged images; scoped main exception remains unanswered [323c24a9].
+- 12:05 User approved scoped main exception; CI41574376803 passed24s/33s, PR88 merged0b68c607; PR87 included automatically.
+- 12:05 Intranet25c71f85 healthy with matched API/worker images and management disabled; backups retained, temporary wrong-project containers stopped.
+- 12:05 Real24.3s/43.2s tasks, CSV28B/SHA and browser refresh pass; recoverable missing-file-command warning retained; dev-return CI remains authorized.
