@@ -550,7 +550,9 @@ SESSION_CAPACITY_FILES = {
         'test_thread_worker_capacity.py', 'test_thread_worker_postgres_capacity.py',
         'test_thread_work_execution.py', 'test_enterprise_normal_chat.py',
         'fixtures/tool-composition.test.mjs')
-} | {'tools/tests/test_image_layer_order.py', 'tools/tests/test_ci_session_capacity.py'}
+} | {'tools/tests/test_image_layer_order.py', 'tools/tests/test_ci_session_capacity.py',
+     'packages/capstone-app/src/CapstoneAssistantThread.tsx',
+     'packages/capstone-app/src/ThinkingProcess.test.tsx'}
 
 
 def session_capacity_deployment_document(path: str, old: str, new: str) -> bool:

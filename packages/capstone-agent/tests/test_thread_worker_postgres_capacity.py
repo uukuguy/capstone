@@ -94,3 +94,16 @@ def test_postgres_competing_workers_claim_each_attempt_once(pending_threads):
         duplicate = {**_capacity_command(thread_id), 'command_id': 'another', 'idempotency_key': 'another',
                      'expected_event_seq': snapshot.last_event_seq}
         assert service.submit_command(duplicate).status == 'rejected'
+
+
+def test_claim_skips_a_thread_locked_by_an_admission_or_cancel_command(pending_threads):
+    service, ids = pending_threads
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        with psycopg.connect(service.dsn) as connection:
+            connection.execute('SELECT thread_id FROM capstone_threads WHERE thread_id=%s FOR UPDATE', (ids[0],))
+            claims = [pool.submit(service.claim_attempt, 'unblocked-slot', 30).result(timeout=3)
+                      for _ in range(3)]
+            assert {claim.thread_id for claim in claims if claim is not None} == set(ids[1:])
+            assert claims[-1] is None
+        claim = service.claim_attempt('released-thread', 30)
+        assert claim is not None and claim.thread_id == ids[0]

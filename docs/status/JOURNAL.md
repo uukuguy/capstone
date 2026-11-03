@@ -6855,3 +6855,7 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - Commit bounded native slots and immediate waiting cancellation; preserve running cleanup and source identity; focused types zero errors [692fa36e].
 - Native candidate rebuild exposes missing recovery-module COPY; add packaging regression and fix.161 consumer checks pass/32 platform skips.
 - Ship native recovery dependency and align queued-cancel consumer tests [fcad0a76]. Local candidate2-slot rebuild passes; real admission catches wrong test mount override.
+- Scoped route covers native capacity consumers without release suites; contract checks131 pass; no CI started [7616f389].
+- Correct original auth mount; canonical readiness passes. Mac sleep13:25–14:05 invalidates first concurrency trial; preserve lease fencing and failure receipts.
+- Awake real model trial: two attempts54–55s overlap; two followups46–47s retain CSV hashes; queued cancellation is terminal without claim.
+- Browser queue text contradicts its process card; reproduce, align queued labels, and verify216 App checks plus types. Add thread-lock skip regression.

@@ -146,7 +146,8 @@ jobs:
         run: |
           uv run --project packages/grid-agent pyright packages/capstone-agent/src/capstone_agent/thread_worker.py packages/capstone-agent/src/capstone_agent/thread_worker_capacity.py packages/capstone-agent/src/capstone_agent/native_hosted_worker.py packages/capstone-agent/src/capstone_agent/thread_service.py
           uv run --project packages/capstone-agent python -m pytest packages/capstone-agent/tests/test_native_tool_composition.py packages/capstone-agent/tests/test_thread_worker.py packages/capstone-agent/tests/test_thread_worker_capacity.py packages/capstone-agent/tests/test_thread_worker_postgres_capacity.py packages/capstone-agent/tests/test_thread_attempts.py packages/capstone-agent/tests/test_thread_work_execution.py packages/capstone-agent/tests/test_thread_postgres.py packages/capstone-agent/tests/test_thread_http_api.py packages/capstone-agent/tests/test_enterprise_normal_chat.py packages/capstone-agent/tests/test_general_pi_executor.py packages/capstone-agent/tests/test_general_pi_server.py tools/tests/test_native_report.py tools/tests/test_image_layer_order.py tools/tests/test_ci_session_capacity.py -q
-          npm --prefix packages/capstone-app test -- src/ThinkingProcess.test.tsx src/threadWorkMessages.test.ts src/threadProjectionStore.test.ts
+          npm --prefix packages/capstone-app run check
+          npm --prefix packages/capstone-app test -- src/CapstoneAssistantThread.test.tsx src/ThinkingProcess.test.tsx src/threadWorkMessages.test.ts src/threadProjectionStore.test.ts
           python3 tools/ci_scope.py --base "$BASE_SHA" --head "$HEAD_SHA" --check-docs
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
