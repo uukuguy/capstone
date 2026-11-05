@@ -33,6 +33,17 @@ it('keeps Thinking visible while a model runs before any reasoning text arrives'
  expect(screen.queryByRole('region',{name:'LLM 思考'})).not.toBeInTheDocument()
 })
 
+it('shows supplied thinking batches after the waiting indicator and retains them when settled',()=>{
+ const model={id:'batch',number:1,ms:0,startedAt:'2026-11-05T00:00:00Z'}
+ const view=render(<ProcessCallTrace expandedThinking active models={[model]} tools={[]}/> )
+ view.rerender(<ProcessCallTrace expandedThinking active models={[{...model,thinking:'公开片段一\n公开片段二'}]} tools={[]}/> )
+ expect(screen.getByRole('region',{name:'LLM 思考'})).toHaveTextContent('公开片段一 公开片段二')
+ view.rerender(<ProcessCallTrace expandedThinking active={false} models={[{...model,settled:true,thinking:'公开片段一\n公开片段二'}]} tools={[]}/> )
+ const thinking=screen.getByRole('region',{name:'LLM 思考'})
+ expect(thinking).toHaveAttribute('aria-busy','false')
+ expect(thinking).toHaveTextContent('公开片段一 公开片段二')
+})
+
 it('does not repeat a promoted tool sentence on the tool row',()=>{
  render(<ProcessCallTrace compact active={false} models={[{id:'m',number:1,ms:100,toolCallIds:['t']}]} tools={[{id:'t',name:'agent_tools_execute',status:'completed',operation:'读取库存表清单与状态',durationMs:400}]}/>)
  const group=screen.getByRole('group',{name:'LLM 调用 1'})
