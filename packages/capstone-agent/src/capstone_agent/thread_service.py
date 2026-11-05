@@ -2356,6 +2356,17 @@ class InMemoryThreadService(NativeExecutionOwner):
                                        payload={'artifact': artifact}, context=context)
             self._snapshot = replace(self._snapshot, last_event_seq=event.event_seq)
 
+    def validate_preview_claim(self, thread_id: str, attempt_id: str, lease_token: str,
+                               workspace_name: str) -> None:
+        from types import SimpleNamespace
+        with self._lock:
+            self.require_workspace(thread_id, workspace_name)
+            claim = SimpleNamespace(thread_id=thread_id, lease_token=lease_token,
+                                    attempt=SimpleNamespace(attempt_id=attempt_id))
+            record = self._require_claim(claim)
+            if record['attempt'].phase != 'running' or attempt_id in self._cancel_requests:
+                raise ThreadExecutionError('preview attempt is inactive')
+
     def _require_claim(self, claim: AttemptClaim) -> dict[str, Any]:
         if claim.thread_id != self._snapshot.thread_id:
             raise ThreadExecutionError("attempt thread is invalid")
@@ -4428,6 +4439,24 @@ class PostgresThreadService(NativeExecutionOwner):
                 (claim.thread_id, claim.attempt.attempt_id),
             ).fetchone()
             return requested is not None
+
+    def validate_preview_claim(self, thread_id: str, attempt_id: str, lease_token: str,
+                               workspace_name: str) -> None:
+        name = normalize_workspace_name(workspace_name)
+        with self._connect() as connection:
+            active = connection.execute(
+                """SELECT 1 FROM capstone_thread_attempts a
+                   JOIN capstone_threads t ON t.thread_id = a.thread_id
+                   WHERE a.attempt_id = %s AND a.thread_id = %s AND a.lease_token = %s
+                     AND a.phase = 'running' AND a.lease_deadline > clock_timestamp()
+                     AND t.workspace_name = %s
+                     AND t.current_attempt->>'attempt_id' = a.attempt_id
+                     AND NOT EXISTS (SELECT 1 FROM capstone_thread_events e
+                         WHERE e.thread_id = a.thread_id AND e.attempt_id = a.attempt_id
+                           AND e.event_type = 'attempt_cancel_requested')""",
+                (attempt_id, thread_id, lease_token, name)).fetchone()
+            if active is None:
+                raise ThreadExecutionError('preview attempt is inactive')
 
     def rollback_context_if_preparation_failed(
         self, claim: AttemptClaim, *, error_code: str,

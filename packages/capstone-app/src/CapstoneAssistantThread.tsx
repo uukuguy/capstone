@@ -31,6 +31,7 @@ import {summarizeModelRequestPool,uniqueModelRequests} from './processModelReque
 import {isExecutionLifecycleStep} from './executionLifecycle'
 import {nativeGraphFocus} from './nativeGraphFocus'
 import {projectInitialThinking,type InitialThinking} from './ThinkingProcess'
+import type {ThinkingPreview} from './thinkingPreview'
 import { projectExecutionGraph, type ExecutionGraph } from './executionGraph'
 import ResultExplorer from './ResultExplorer'
 import { taskResultCollections, type TaskResultCollection } from './taskResultCollections'
@@ -362,7 +363,7 @@ function terminalContent(event: EventEnvelope): string {
   return '**本次 Attempt 已中断**\n\n可以查看执行过程，并在确认模型上下文后重新运行。'
 }
 
-export function projectAssistantMessages(events: readonly EventEnvelope[], instructionModels: readonly { contextId: string; modelId: string }[] = []): ThreadMessageLike[] {
+export function projectAssistantMessages(events: readonly EventEnvelope[], instructionModels: readonly { contextId: string; modelId: string }[] = [], previews:readonly ThinkingPreview[]=[]): ThreadMessageLike[] {
   const models = new Map(instructionModels.map(model => [model.contextId, model.modelId]))
   const runtimeModes = new Map<string, RuntimeMode>()
   const nativeAttempts = new Set(events.filter(event => ['native_conversation','pi','direct_pi'].includes(String(event.payload.source))).map(event => event.attemptId || event.turnId))
@@ -559,6 +560,17 @@ export function projectAssistantMessages(events: readonly EventEnvelope[], instr
       return Boolean(native&&native.name!=='agent_task_progress')
     }):undefined
     const initialProjection=attemptId?projectInitialThinking(events,attemptId,executionEvent?.eventSeq,organizationEvent?.eventSeq??Infinity):undefined
+    const activeCalls=modelRequests.filter(call=>!call.settled&&!call.thinkingSettled)
+    const call=activeCalls.length===1?activeCalls[0]:undefined
+    const callBoundary=call?events.find(event=>event.eventId===call.id):undefined
+    const previewText=previews.filter(preview=>preview.attempt_id===attemptId&&preview.thread_id===events[0]?.threadId&&
+      Object.entries(preview.payload??{}).every(([key,value])=>key==='runtime_mode'?value===runtimeMode:callBoundary?.payload[key]===value)&&
+      !events.some(event=>event.attemptId===attemptId&&(['attempt_completed','attempt_failed','attempt_cancelled','attempt_interrupted'].includes(event.eventType)||
+        (Array.isArray(event.payload.preview_batch_ids)&&event.payload.preview_batch_ids.includes(preview.batch_id))))).map(preview=>preview.text).join('')
+    if(previewText){
+      if(call)call.thinking=(call.thinking??'')+previewText
+      else if(initialProjection&&!initialProjection.handedOff)initialProjection.text+=previewText
+    }
     const initialThinking=nativeAttempts.has(attemptId)&&initialProjection?.handedOff&&modelRequests.some(call=>call.thinking)?undefined:initialProjection
     const withMetadata = { ...message, metadata: { custom: { ...custom, activities, modelRequests, compactions, initialThinking, nativeGraphFocus: nativeGraphFocus(executionGraph) ?? (nativeAttempts.has(attemptId) ? 'tools' : undefined), runtimeMode, acceptedContext, failureResults, researchGoal, retainedResearchGoal, researchSnapshot, toolExecutions, taskProgress, taskSteps, stepDiagnostics, researchBranches, executionGraph, stepStorageKey: `${events[0]?.threadId ?? ''}:${attemptId ?? ''}` } } }
     return typeof message.content === 'string'
@@ -1193,6 +1205,7 @@ function EmptyThreadState({ disabled }: { disabled: boolean }) {
 }
 
 export type CapstoneAssistantThreadProps = {
+  thinkingPreviews?:readonly ThinkingPreview[]
   /** Application projection of persisted messages; no synthetic runtime events. */
   productReferenceReader?:ProductReferenceReader
   requestedProductReference?:{selection:ContextProductRef;nonce:number}
@@ -1278,7 +1291,7 @@ export function restoreVisibleConversation(viewport:HTMLElement){
 }
 const SystemActionContext = createContext<CapstoneAssistantThreadProps['onSystemAction']>(undefined)
 
-export default function CapstoneAssistantThread({ nativeArtifactProjections, productReferenceReader,requestedProductReference,projectedMessages, emptyState, welcomeGateway, runtimeStatus, connectionState, resultHistoryNotice, composerMode = 'contextual', composerLabel, composerPlaceholder, sendLabel, initialText, onDraftChange, lockDraft, canCancel = true, cancelLabel, cancelDisabled, readOnly = false, onReadAttemptRecords, events, runtimeMode = 'capstone', systemNotices = [], onSystemAction, disabled, isRunning, acceptedDraft, activity, onSend, onCancel, onRegenerate, onFollowup, canRerunCompleted = !disabled, modelSummary, instructionModels, composerControls, contextTriggerRef, onRemoveMaterial, showActivity = true, caseExecution, caseCatalog = [], caseStartDisabledReason, caseConnection = 'live', onCaseAction, onCaseStart, resultProjections = [], onOpenResultProduct, onOpenTaskResults, onOpenNativeArtifact, onOpenInstructionProducts, instructionProductScopes:providedInstructionScopes, onOpenAnswerDetail, onFocusElement, selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork, storageKey, hasOlderHistory = false, historyLoading = false, onLoadOlder, historyAtLatest = true, onReturnLatest, instructionLocation, inputCatalog, inputCatalogLoading, onRefreshInputCatalog, inputControlsDisabled, onBeforeInputChange, onBeforeSend }: CapstoneAssistantThreadProps) {
+export default function CapstoneAssistantThread({ thinkingPreviews, nativeArtifactProjections, productReferenceReader,requestedProductReference,projectedMessages, emptyState, welcomeGateway, runtimeStatus, connectionState, resultHistoryNotice, composerMode = 'contextual', composerLabel, composerPlaceholder, sendLabel, initialText, onDraftChange, lockDraft, canCancel = true, cancelLabel, cancelDisabled, readOnly = false, onReadAttemptRecords, events, runtimeMode = 'capstone', systemNotices = [], onSystemAction, disabled, isRunning, acceptedDraft, activity, onSend, onCancel, onRegenerate, onFollowup, canRerunCompleted = !disabled, modelSummary, instructionModels, composerControls, contextTriggerRef, onRemoveMaterial, showActivity = true, caseExecution, caseCatalog = [], caseStartDisabledReason, caseConnection = 'live', onCaseAction, onCaseStart, resultProjections = [], onOpenResultProduct, onOpenTaskResults, onOpenNativeArtifact, onOpenInstructionProducts, instructionProductScopes:providedInstructionScopes, onOpenAnswerDetail, onFocusElement, selectedNetworkAttempt, networkAttemptIds = [], onShowNetwork, storageKey, hasOlderHistory = false, historyLoading = false, onLoadOlder, historyAtLatest = true, onReturnLatest, instructionLocation, inputCatalog, inputCatalogLoading, onRefreshInputCatalog, inputControlsDisabled, onBeforeInputChange, onBeforeSend }: CapstoneAssistantThreadProps) {
   const [answerDetail, setAnswerDetail] = useState<AnswerDetailSelection>()
   const nativeArtifacts=useMemo(()=>[...new Map([...projectNativeArtifacts(events),...(nativeArtifactProjections||[])].map(file=>[`${file.thread_id}:${file.attempt_id}:${file.artifact_id}`,file])).values()],[events,nativeArtifactProjections])
   const [restoredInput]=useState(()=>{try{return {draft:readInputDraft(storageKey)||emptyInputDraft(runtimeMode),error:''}}catch(error){return {draft:emptyInputDraft(runtimeMode),error:error instanceof Error?error.message:'输入草稿无法恢复。'}}})
@@ -1304,10 +1317,10 @@ export default function CapstoneAssistantThread({ nativeArtifactProjections, pro
   const [submittingThinking,setSubmittingThinking]=useState<{id:string;text:string;afterSeq:number;at:string}>()
   const submitSequence=useRef(0)
   const allMessages = useMemo(() => {
-    const rows=bindInstructionAttachments(projectedMessages ? [...projectedMessages] : projectSystemNotices(projectAssistantMessages(events, instructionModels), events, systemNotices, historyAtLatest),inputCatalog?.stored_resources||[])
+    const rows=bindInstructionAttachments(projectedMessages ? [...projectedMessages] : projectSystemNotices(projectAssistantMessages(events, instructionModels,thinkingPreviews), events, systemNotices, historyAtLatest),inputCatalog?.stored_resources||[])
     if(!submittingThinking||events.some(event=>event.eventType==='command_accepted'&&event.eventSeq>submittingThinking.afterSeq&&payloadText(event,true)===submittingThinking.text))return rows
     return [...rows,{id:`user-${submittingThinking.id}`,role:'user' as const,content:submittingThinking.text,metadata:{custom:{source:'optimistic-submit'}}},{id:submittingThinking.id,role:'assistant' as const,content:'',status:{type:'running' as const},metadata:{custom:{source:'optimistic-submit',initialThinking:{text:'',phase:'queued',handedOff:false,startedAt:submittingThinking.at} satisfies InitialThinking,stepStorageKey:submittingThinking.id}}}]
-  }, [projectedMessages, events, instructionModels, systemNotices, historyAtLatest,submittingThinking,inputCatalog?.stored_resources])
+  }, [thinkingPreviews, projectedMessages, events, instructionModels, systemNotices, historyAtLatest,submittingThinking,inputCatalog?.stored_resources])
   const firstPublicEventSeq = useMemo(() => events.reduce((first, event) => event.visibility === 'public' ? Math.min(first, event.eventSeq) : first, Number.POSITIVE_INFINITY), [events])
   const [foldState, setFoldState] = useSessionViewState<{ thread: string | undefined; ids: string[] }>('conversation.folds',{ thread: storageKey, ids: [] })
   const collapsedAnswers = new Set(foldState.thread === storageKey ? foldState.ids : [])

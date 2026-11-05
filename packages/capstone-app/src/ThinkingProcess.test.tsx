@@ -10,6 +10,20 @@ const accepted=event('command_accepted',1,{kind:'send_auto',payload:{text:'Curre
 const started=event('runtime_action',2,{phase:'started'})
 const delta=event('assistant_thinking_delta',3,{text:'Actual public thought. '})
 const props={disabled:false,isRunning:true,activity:[],onSend:async()=>{},onCancel:async()=>{}}
+it('shows provisional text in the existing thinking region then replaces it with canonical text',()=>{
+  const previews=[{thread_id:'thread',attempt_id:'thinking',batch_id:'batch',text:'Live preview.',created_at:started.occurredAt}]
+  const view=render(<CapstoneAssistantThread {...props} events={[accepted,started]} thinkingPreviews={previews}/>)
+  expect(screen.getByText('Live preview.')).toBeTruthy()
+  view.rerender(<CapstoneAssistantThread {...props} events={[accepted,started,event('assistant_thinking_delta',3,{text:'Live preview.',preview_batch_ids:['batch']})]} thinkingPreviews={previews}/>)
+  expect(screen.getAllByText('Live preview.')).toHaveLength(1)
+})
+it('does not attach task-scoped preview to a different active model request',()=>{
+  const previews=[{thread_id:'thread',attempt_id:'thinking',batch_id:'batch',text:'Other task thought',created_at:started.occurredAt,payload:{task_id:'other'}}]
+  const view=render(<CapstoneAssistantThread {...props} events={[accepted,event('runtime_action',2,{phase:'started',task_id:'current'})]} thinkingPreviews={previews}/>)
+  expect(screen.queryByText('Other task thought')).toBeNull()
+  view.rerender(<CapstoneAssistantThread {...props} events={[accepted,event('runtime_action',2,{phase:'started',task_id:'other'})]} thinkingPreviews={previews}/>)
+  expect(screen.getByText('Other task thought')).toBeTruthy()
+})
 it('opens bounded thinking in the enlarged reader and never appends a continuation transcript',()=>{
   render(<ThinkingProcess expanded storageKey="bounded-reader" thinking={{text:'Initial text.',continuationText:'Later round.',handedOff:true,phase:'completed'}}/>)
   expect(screen.getByRole('button',{name:'折叠初始思考'}).getAttribute('aria-expanded')).toBe('true')

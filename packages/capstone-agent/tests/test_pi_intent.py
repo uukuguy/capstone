@@ -303,6 +303,59 @@ def test_real_native_context_selector_emits_bound_public_decision(tmp_path):
         thread.join(timeout=2)
 
 
+def test_intent_tool_strict_sampling_preserves_schema_and_boolean_contract(tmp_path):
+    import shutil
+    import subprocess
+    sdk = Path(__file__).resolve().parents[3] / '.grid-agent/runtime/pi/source/packages/ai/dist/api/constrained-sampling.js'
+    node = shutil.which('node')
+    if not sdk.is_file() or node is None:
+        pytest.skip('Managed Pi runtime is not installed')
+    request = request_document()
+    projection = tmp_path / 'context.json'
+    projection.write_text(json.dumps({'messages': request['messages'],
+        'supplemental_context': {'request': request}}))
+    extension = Path(__file__).parents[1] / 'src/capstone_agent/resources/intent-decision.mjs'
+    result = subprocess.run([node, '--input-type=module', '-e', '''
+        const {default: register} = await import(process.argv[1]);
+        const sdk = await import(process.argv[2]);
+        let tool;
+        register({registerTool: value => { tool = value; }, on: () => {}});
+        const strict = sdk.resolveJsonSchemaStrictSampling(tool, true);
+        const parameters = sdk.getJsonSchemaToolParameters(tool, strict);
+        const unsupportedFallback = sdk.resolveJsonSchemaStrictSampling(tool, false) === undefined;
+        console.log(JSON.stringify({sampling: tool.constrainedSampling, strict,
+            original: tool.parameters, parameters, unsupportedFallback}));
+        ''', extension.as_uri(), sdk.as_uri()],
+        env={**os.environ, 'CAPSTONE_PI_CONTEXT_PATH': str(projection)},
+        capture_output=True, text=True, check=True)
+    output = json.loads(result.stdout)
+    assert output['sampling'] == {'type': 'json_schema', 'strict': 'prefer'}
+    assert output['strict'] is True and output['unsupportedFallback'] is True
+    original = output['original']
+    schema = output['parameters']
+    assert schema['additionalProperties'] is False
+    assert 'capability_refs' not in schema['properties']
+    goal = schema['properties']['goals']['items']
+    original_goal = original['properties']['goals']['items']
+    assert goal['properties'] == original_goal['properties']
+    assert set(goal['required']) == set(original_goal['required'])
+    assert goal['additionalProperties'] is False
+    assert 'uses_selected_skill' in goal['required']
+    assert goal['properties']['uses_selected_skill']['type'] == 'boolean'
+    from capstone_agent.request_intent import IntentDecision, IntentRequest
+    decision = decision_document()
+    decision['goals'][0]['uses_selected_skill'] = False
+    IntentDecision.from_document(decision, IntentRequest.from_document(request))
+    for invalid in (None, 0, 'false'):
+        decision['goals'][0]['uses_selected_skill'] = invalid
+        with pytest.raises(ValueError, match='boolean'):
+            IntentDecision.from_document(decision, IntentRequest.from_document(request))
+    request['selected_skill'] = {'profile_id': 'delegated_pi', 'revision': 'v1',
+        'skill_id': 'rewrite', 'skill_version': 'v1'}
+    decision['goals'][0]['uses_selected_skill'] = True
+    IntentDecision.from_document(decision, IntentRequest.from_document(request))
+
+
 def test_intent_tool_schema_limits_references_to_supplied_source_ids(tmp_path):
     import subprocess
     import shutil
@@ -602,6 +655,7 @@ def test_pinned_pi_loopback_loads_history_and_terminates_once_then_executes(tmp_
                 decision = decision_document()
                 decision.update(attempt_id=intent_request["attempt_id"], history_cutoff=intent_request["history_cutoff"])
                 decision['goals'][0]['instruction_excerpt'] = intent_request['instruction']
+                decision['goals'][0]['uses_selected_skill'] = False
                 decision['clarification_required'] = False
                 decision['goals'][0]['description'] = 'PRIVATE_DIAGNOSTIC unrelated capability inventory'
                 if history_present:

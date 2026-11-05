@@ -978,6 +978,10 @@ class HarnessAttemptRunner:
             raise ValueError("runtime event is invalid")
         if not isinstance(payload, Mapping):
             raise ValueError("runtime event payload is invalid")
+        thinking = getattr(self._service, 'append_thinking', None)
+        if event_type == 'assistant_thinking_delta' and visibility == 'public' and callable(thinking):
+            thinking(claim, {"runtime_mode": runtime_mode, **dict(payload)}, visibility)
+            return
         self._service.append_runtime_event(
             claim,
             event_type=event_type,

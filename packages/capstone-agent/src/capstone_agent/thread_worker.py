@@ -50,9 +50,26 @@ def run_pending_attempt(
     if claim is None:
         return None
     with AttemptLeaseRenewal(service, claim, lease_seconds) as lease:
-        return _run_claimed_attempt(
-            service, runtime_factory, claim, lease, lease_seconds, turn_router,
-        )
+        origin = os.environ.get('CAPSTONE_THINKING_PREVIEW_ORIGIN')
+        writer = None
+        if origin:
+            from .thinking_preview import ThinkingWriter, http_publisher
+            writer = ThinkingWriter(service, claim, http_publisher(
+                origin, os.environ.get('CAPSTONE_OPERATOR_TOKEN', ''), claim))
+        try:
+            return _run_claimed_attempt(
+                writer or service, runtime_factory, claim, lease, lease_seconds, turn_router,
+            )
+        except Exception:
+            if writer is not None and writer.error is not None:
+                # Use the original synchronous service: the failed writer cannot
+                # acknowledge a terminal result through its own flush barrier.
+                service.finish_attempt(claim, phase='failed', payload={
+                    'error_code': 'thinking_persistence_failed'})
+            raise
+        finally:
+            if writer is not None:
+                writer.close()
 
 
 def _run_claimed_attempt(
@@ -90,8 +107,12 @@ def _run_claimed_attempt(
                     text = event.get('text') if event.get('type') == 'assistant_thinking_delta' else None
                     if not isinstance(text, str) or not text:
                         return
-                    service.append_runtime_event(
-                        claim, event_type='assistant_thinking_delta', payload={'text': text[:4096]})
+                    thinking = getattr(service, 'append_thinking', None)
+                    if callable(thinking):
+                        thinking(claim, {'text': text[:4096]})
+                    else:
+                        service.append_runtime_event(
+                            claim, event_type='assistant_thinking_delta', payload={'text': text[:4096]})
                 control = NodeControl(check_intent, time.monotonic() + _INTENT_RECOGNITION_SECONDS, notice=notice)
                 if getattr(runtime_factory, 'supports_frozen_intent_decision', False):
                     plan = semantic(claim, control, service.freeze_attempt_input,

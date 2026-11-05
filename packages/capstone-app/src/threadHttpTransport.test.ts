@@ -11,6 +11,18 @@ const command = {
 }
 
 describe('HttpThreadTransport', () => {
+  it('delivers named thinking previews without advancing the durable stream cursor',async()=>{
+    const preview={thread_id:'thr_demo_39',attempt_id:'attempt_live',batch_id:'batch',text:'Live',created_at:'2026-11-05T00:00:00Z'}
+    const durable={event_id:'evt_1',event_seq:1,event_type:'assistant_thinking_delta',event_version:1,thread_id:preview.thread_id,attempt_id:preview.attempt_id,run_id:'run_001',occurred_at:preview.created_at,visibility:'public',payload:{text:'Live',preview_batch_ids:['batch']}}
+    const stream=`event: thinking_preview\ndata: ${JSON.stringify(preview)}\n\ndata: ${JSON.stringify(durable)}\n\n`
+    const transport=new HttpThreadTransport('','',vi.fn<typeof fetch>().mockResolvedValue(new Response(stream)))
+    const received=vi.fn(),events=[]
+    for await(const event of transport.streamEvents(preview.thread_id,0,undefined,received))events.push(event)
+    expect(received).toHaveBeenCalledWith(preview)
+    expect(events.map(event=>event.eventSeq)).toEqual([1])
+    const wrong=new HttpThreadTransport('','',vi.fn<typeof fetch>().mockResolvedValue(new Response(stream)))
+    await expect(wrong.streamEvents('thr_wrong',0,undefined,received).next()).rejects.toThrow('Thinking preview is invalid')
+  })
   it('reads global connections using the selected API origin authentication and protocol',async()=>{
     const body={schema:'capstone-workspace-connections/1',data_gateway:{available:true,instance_name:'真实实例',endpoint:'gateway.test:8000'}}
     const fetcher=vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify(body),{headers:{'Capstone-Thread-Version':'2'}}))

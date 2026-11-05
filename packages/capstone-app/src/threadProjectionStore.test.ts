@@ -31,6 +31,71 @@ const idleFixture = {
   },
 }
 
+it('keeps thinking previews outside history and reconciles durable and late batches',async()=>{
+  const preview={thread_id:'thr_demo_39',attempt_id:'attempt_0',batch_id:'batch_1',text:'Live thought',created_at:'2026-11-05T00:00:00Z'}
+  let deliver:((value:typeof preview)=>void)|undefined
+  let advance:((value:ReturnType<typeof parseEventEnvelope>)=>void)|undefined
+  let finish:(()=>void)|undefined
+  const store=new ThreadProjectionStore(new CapstoneThreadClient({...createFixtureTransport(idleFixture),
+    async *streamEvents(_id,_seq,_signal,onPreview){
+      deliver=onPreview
+      yield parseEventEnvelope(conversationalEvent(1,'attempt_started',0))
+      yield await new Promise<ReturnType<typeof parseEventEnvelope>>(resolve=>{advance=resolve})
+      await new Promise<void>(resolve=>{finish=resolve})
+    }}))
+  await store.load('thr_demo_39')
+  const consuming=store.consumeEvents()
+  await vi.waitFor(()=>expect(store.state.eventSeq).toBe(1))
+  deliver!({...preview,thread_id:'thr_wrong'})
+  expect(store.thinkingPreviews).toEqual([])
+  deliver!(preview)
+  expect(store.thinkingPreviews[0]?.text).toBe('Live thought')
+  expect(store.state.eventSeq).toBe(1)
+  expect(store.conversationEvents).toHaveLength(1)
+  advance!(parseEventEnvelope(conversationalEvent(2,'assistant_thinking_delta',0,{text:'Live thought',preview_batch_ids:['batch_1']})))
+  await vi.waitFor(()=>expect(store.state.eventSeq).toBe(2))
+  expect(store.thinkingPreviews).toEqual([])
+  deliver!(preview)
+  expect(store.thinkingPreviews).toEqual([])
+  expect(store.state.eventSeq).toBe(2)
+  finish!();await consuming
+})
+
+it('drops previews on disconnect and terminal events and rejects stale attempt previews',async()=>{
+  const preview={thread_id:'thr_demo_39',attempt_id:'attempt_0',batch_id:'batch_1',text:'Live thought',created_at:'2026-11-05T00:00:00Z'}
+  let deliver:((value:typeof preview)=>void)|undefined
+  let finish:(()=>void)|undefined
+  let terminal=false
+  const store=new ThreadProjectionStore(new CapstoneThreadClient({...createFixtureTransport(idleFixture),
+    async *streamEvents(_id,seq,_signal,onPreview){
+      deliver=onPreview
+      if(!seq)yield parseEventEnvelope(conversationalEvent(1,'attempt_started',0))
+      await new Promise<void>(resolve=>{finish=resolve})
+      if(terminal)yield parseEventEnvelope(conversationalEvent(2,'attempt_completed',0,{answer:'Done'}))
+      else throw new Error('Disconnected')
+    }}))
+  await store.load('thr_demo_39')
+  const first=store.consumeEvents().catch(error=>error)
+  await vi.waitFor(()=>expect(finish).toBeDefined())
+  deliver!(preview)
+  expect(store.thinkingPreviews).toHaveLength(1)
+  finish!();await first
+  expect(store.thinkingPreviews).toEqual([])
+  deliver!({...preview,batch_id:'late'})
+  expect(store.thinkingPreviews).toEqual([])
+  terminal=true;finish=undefined
+  const second=store.consumeEvents()
+  await vi.waitFor(()=>expect(finish).toBeDefined())
+  deliver!({...preview,attempt_id:'attempt_old'})
+  expect(store.thinkingPreviews).toEqual([])
+  deliver!(preview)
+  expect(store.thinkingPreviews).toHaveLength(1)
+  finish!();await second
+  expect(store.thinkingPreviews).toEqual([])
+  expect(store.state.eventSeq).toBe(2)
+  expect(store.conversationEvents.map(event=>event.eventType)).toEqual(['attempt_started','attempt_completed'])
+})
+
 function conversationalEvent(eventSeq: number, eventType: string, attemptIndex: number, payload: Record<string, unknown> = {}) {
   return {
     event_id: `evt_${eventSeq}`, event_seq: eventSeq, event_type: eventType, event_version: 1,
