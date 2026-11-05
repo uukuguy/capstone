@@ -21,6 +21,12 @@ The App serves its API through the same origin. Set `CAPSTONE_APP_ORIGIN` and
 Use `--no-build --pull never` when starting an offline image bundle. Professional
 solver workers are optional under the `professional` profile and need their own
 provider configuration. The default deployment starts the enterprise/native path.
+The intranet overlay leaves `CAPSTONE_DOMAIN_TOOL_ORIGINS` empty by default, so
+native tasks do not wait for optional solver workers that are not running.
+To use those workers, enable the `professional` profile and explicitly set
+`CAPSTONE_DOMAIN_TOOL_ORIGINS` in the private environment file to their worker
+origins. Enabling the profile alone does not grant a connection. The root local
+Compose configuration keeps its existing professional worker origins.
 
 For an offline x86_64 host, build Linux amd64 images from the recorded commit,
 save the backend, native executor, App, PostgreSQL and object-store images, and
