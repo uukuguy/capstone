@@ -18,6 +18,33 @@ def test_native_intent_policy_is_a_file_for_a_pack_manifest(tmp_path):
     assert path.read_text(encoding='utf-8') == profile.application_policy.load()
 
 
+def test_native_recognizer_binds_each_attempt_model_selection(tmp_path, monkeypatch):
+    from pathlib import Path
+    from capstone_agent import native_hosted_worker, runtime, pi_intent
+    from capstone_agent.request_intent import IntentEngineIdentity
+    from capstone_agent.workbench_llm_profiles import ProfileRegistry
+    root = Path(__file__).resolve().parents[3]
+    environment = {'CAPSTONE_RUNTIME_PROFILE': 'capstone-workbench-v1',
+        'CAPSTONE_WORKBENCH_PRESET': 'intranet', 'CAPSTONE_PUBLIC_PROVIDER': 'openai-compatible'}
+    monkeypatch.setattr(native_hosted_worker, 'application_root', lambda: root)
+    monkeypatch.setattr(runtime, 'build_runtime_host', lambda *args, **kwargs: None)
+
+    class Builder:
+        def __init__(self, *, resolved_llm, **kwargs):
+            self.identity = IntentEngineIdentity(engine='pi', model=resolved_llm.config.model,
+                config_revision='sha256:' + 'a' * 64)
+        def build_intent(self, request, control):
+            raise AssertionError('test must not start a model request')
+
+    monkeypatch.setattr(pi_intent, 'NativeConversationPiSessionBuilder', Builder)
+    factory = native_hosted_worker.build_native_unscoped_recognizer(tmp_path, environment)
+    registry = ProfileRegistry(environment=environment)
+    qwen = registry.freeze('intranet-qwen-flash-next-8013')
+    dsv4 = registry.freeze('intranet-dsv4-18804')
+    assert factory.for_attempt(SimpleNamespace(submission={'llm_selection': qwen})).identity.model == 'Qwen3.8-Flash-Next'
+    assert factory.for_attempt(SimpleNamespace(submission={'llm_selection': dsv4})).identity.model == 'dsv4'
+
+
 @pytest.mark.parametrize('profile,version,expected', [
     ('enterprise-research', '1.1.0', {'agent_research_cycle'}),
     ('enterprise-research', '1.2.0', {'agent_research_plan', 'agent_research_record', 'agent_research_assess'}),

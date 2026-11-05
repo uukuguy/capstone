@@ -77,13 +77,19 @@ def build_native_unscoped_recognizer(workspace_root: Path, environment=None):
     workspace = Path(workspace_root)
     host = build_runtime_host(root, profile, selected,
                               system_policy_path=native_intent_policy_path(profile, workspace))
-    llm = resolve_recognition_llm(root, selected, resolve_harness_llm(root, selected))
-
-    def factory():
+    def for_attempt(claim=None):
+        selection = None if claim is None else (claim.submission or {}).get('llm_selection')
+        llm = resolve_recognition_llm(root, selected,
+            resolve_harness_llm(root, selected, workbench_selection=selection))
         builder = NativeConversationPiSessionBuilder(
             runtime_host=host, resolved_llm=llm, workspace_root=workspace,
             base_environment=selected)
         return PiIntentRecognizer(builder.build_intent, builder.identity)
+
+    def factory():
+        return for_attempt()
+
+    factory.for_attempt = for_attempt
     factory()
     return factory
 

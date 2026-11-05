@@ -425,6 +425,10 @@ class IntentRuntimeFactory:
             if type(timeout) not in {int, float} or not math.isfinite(timeout) or timeout < 1:
                 raise ValueError('application task timeout is invalid')
 
+    def _recognizer_for_attempt(self, claim: AttemptClaim):
+        selected = getattr(self._recognizer, 'for_attempt', None)
+        return selected(claim) if callable(selected) else self._recognizer()
+
     def _general_resources(self, claim: AttemptClaim) -> dict | None:
         if self._general is _LEGACY or self._general is None:
             return None
@@ -482,7 +486,7 @@ class IntentRuntimeFactory:
                 or general['capability'].get('available') is not True):
                 raise HarnessRuntimeConfigurationError('general Pi executor is unavailable')
             return self._plan_direct(claim, control, freeze, freeze_decision, general)
-        recognizer = self._recognizer()
+        recognizer = self._recognizer_for_attempt(claim)
         identity = recognizer.identity.to_document()
         request_document = intent_request_for_claim(claim, None if general is None else general['capability']).to_document()
         visible_attempts = {message['attempt_id'] for message in request_document['messages']
@@ -658,7 +662,7 @@ class IntentRuntimeFactory:
                                    session_type=accepted['application_profile']['profile_id'])
         if accepted['identity'] != current['identity']:
             raise HarnessRuntimeConfigurationError('native conversation executor configuration changed')
-        recognizer = self._recognizer()
+        recognizer = self._recognizer_for_attempt(claim)
         identity = recognizer.identity.to_document()
         history = claim.conversation_context.to_document()
         submission = claim.submission or {}

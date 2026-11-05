@@ -6,7 +6,7 @@ from math import isfinite
 
 class TextDeltaBuffer:
     def __init__(self, emit: Callable[[str], None], *, clock=monotonic,
-                 interval_seconds: float = .05, max_chars: int = 1024):
+                 interval_seconds: float = 1.0, max_chars: int = 4096):
         if not isfinite(interval_seconds) or interval_seconds <= 0:
             raise ValueError('Text flush interval must be positive and finite')
         if type(max_chars) is not int or not 1 <= max_chars <= 4096:
@@ -17,6 +17,7 @@ class TextDeltaBuffer:
         self.max_chars = max_chars
         self.pending = ''
         self.last_sent: float | None = None
+        self.failed = False
 
     def push(self, text: str) -> None:
         while text:
@@ -28,7 +29,15 @@ class TextDeltaBuffer:
                 self.flush()
 
     def flush(self) -> None:
-        if self.pending:
-            text, self.pending = self.pending, ''
-            self.emit(text)
+        if self.pending and not self.failed:
+            try:
+                self.emit(self.pending)
+            except BaseException:
+                self.failed = True
+                raise
+            self.pending = ''
             self.last_sent = self.clock()
+
+    def flush_due(self) -> None:
+        if self.pending and (self.last_sent is None or self.clock() - self.last_sent >= self.interval):
+            self.flush()

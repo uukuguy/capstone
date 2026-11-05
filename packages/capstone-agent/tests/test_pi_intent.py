@@ -1,5 +1,53 @@
 from __future__ import annotations
 
+
+def test_intent_thinking_batches_before_durable_observer_and_flushes_before_decision():
+    from types import SimpleNamespace
+    from capstone_agent.pi_intent import _ConversationPiPromptSession
+    observed = []
+
+    class Client:
+        def set_thinking_level(self, level):
+            pass
+
+        def prompt_and_wait(self, question, **callbacks):
+            for _ in range(2000):
+                callbacks['on_event']({'type': 'message_update',
+                    'assistantMessageEvent': {'type': 'thinking_delta', 'delta': 'x'}})
+            callbacks['on_event']({'type': 'tool_execution_start'})
+            assert ''.join(e['text'] for e in observed) == 'x' * 2000
+            assert len(observed) < 20
+            callbacks['on_semantic_event']({'type': 'tool_result'}, 1)
+            return ''
+
+    session = _ConversationPiPromptSession(Client(), SimpleNamespace(close=lambda: None), intent=True)
+    session.prompt_and_wait('understand', on_semantic_event=observed.append,
+        correlation_id='attempt_test', on_heartbeat=lambda: None)
+    assert observed[-1]['type'] == 'tool_result'
+
+
+def test_intent_thinking_flush_failure_remains_fatal():
+    from types import SimpleNamespace
+    import pytest
+    from capstone_agent.pi_intent import _ConversationPiPromptSession
+
+    class Client:
+        def set_thinking_level(self, level):
+            pass
+
+        def prompt_and_wait(self, question, **callbacks):
+            callbacks['on_event']({'type': 'message_update',
+                'assistantMessageEvent': {'type': 'thinking_delta', 'delta': 'retained'}})
+            return ''
+
+    def fail(event):
+        raise OSError('durable event write failed')
+
+    session = _ConversationPiPromptSession(Client(), SimpleNamespace(close=lambda: None), intent=True)
+    with pytest.raises(OSError, match='durable event write failed'):
+        session.prompt_and_wait('understand', on_semantic_event=fail,
+            correlation_id='attempt_test', on_heartbeat=lambda: None)
+
 import json
 import os
 from pathlib import Path

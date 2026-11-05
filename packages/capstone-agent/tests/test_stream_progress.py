@@ -30,3 +30,30 @@ def test_elapsed_interval_flushes_accumulated_text_and_explicit_boundary_flushes
     buffer.push('d')
     buffer.flush()
     assert sent == ['a', 'bc', 'd']
+
+
+def test_default_buffer_coalesces_token_bursts_and_flushes_idle_progress():
+    now = [0.0]
+    sent = []
+    buffer = TextDeltaBuffer(sent.append, clock=lambda: now[0])
+    for _ in range(1000):
+        now[0] += .0005
+        buffer.push('片')
+    assert len(sent) <= 2
+    now[0] = 1.1
+    buffer.flush_due()
+    assert ''.join(sent) == '片' * 1000
+
+
+def test_failed_write_keeps_pending_text_and_propagates_failure():
+    import pytest
+    calls = []
+    def fail(text):
+        calls.append(text)
+        raise OSError('write failed')
+    buffer = TextDeltaBuffer(fail)
+    with pytest.raises(OSError, match='write failed'):
+        buffer.push('retained')
+    assert buffer.pending == 'retained'
+    buffer.flush()
+    assert calls == ['retained']

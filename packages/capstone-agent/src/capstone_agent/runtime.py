@@ -48,20 +48,22 @@ def load_runtime_environment(
     return merged
 
 
-def resolve_harness_llm(repo_root: Path, environment: dict[str, str]) -> ResolvedLLM:
+def resolve_harness_llm(repo_root: Path, environment: dict[str, str], *,
+                        workbench_selection: Mapping[str, str] | None = None) -> ResolvedLLM:
     """Resolve application-selected Harness Provider settings at one shared seam."""
 
     compatible_workbench = (environment.get("CAPSTONE_RUNTIME_PROFILE") == "capstone-workbench-v1"
-        and environment.get("CAPSTONE_PUBLIC_PROVIDER") == "openai-compatible"
-        and not environment.get("CAPABILITY_AGENT_LLM_PROVIDER"))
+        and (workbench_selection is not None or (
+            environment.get("CAPSTONE_PUBLIC_PROVIDER") == "openai-compatible"
+            and not environment.get("CAPABILITY_AGENT_LLM_PROVIDER"))))
     if compatible_workbench:
         from .workbench_llm_profiles import ProfileRegistry
         registry = ProfileRegistry(repo_root / "configs/runtime/workbench-llm-profiles.json", environment=environment)
-        profile = registry.resolve(registry.freeze())
+        profile = registry.resolve(workbench_selection if workbench_selection is not None else registry.freeze())
         environment = dict(environment)
-        environment.update(CAPABILITY_AGENT_LLM_PROVIDER="openai",
+        environment.update(CAPABILITY_AGENT_LLM_PROVIDER=("openai" if profile["provider"] == "openai-compatible" else profile["provider"]),
             CAPABILITY_AGENT_LLM_MODEL=profile["model"],
-            CAPABILITY_AGENT_LLM_BASE_URL="https://api.openai.com/v1",
+            CAPABILITY_AGENT_LLM_BASE_URL=("https://api.openai.com/v1" if profile["provider"] == "openai-compatible" else profile["base_url"]),
             CAPABILITY_AGENT_LLM_API_KEY_ENV="CAPSTONE_WORKBENCH_RESOLVED_KEY",
             CAPSTONE_WORKBENCH_RESOLVED_KEY=profile["key"])
     environment.setdefault(

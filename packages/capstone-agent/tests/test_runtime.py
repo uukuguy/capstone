@@ -20,6 +20,17 @@ def test_workbench_compatible_profile_resolves_without_commercial_credentials():
     assert resolved.config.compatibility_profile == "openai-completions"
 
 
+def test_workbench_resolution_uses_frozen_attempt_selection_instead_of_default():
+    from capstone_agent.workbench_llm_profiles import ProfileRegistry
+    root = Path(__file__).resolve().parents[3]
+    environment = {"CAPSTONE_RUNTIME_PROFILE": "capstone-workbench-v1",
+        "CAPSTONE_WORKBENCH_PRESET": "intranet", "CAPSTONE_PUBLIC_PROVIDER": "openai-compatible"}
+    selection = ProfileRegistry(environment=environment).freeze('intranet-dsv4-18804')
+    resolved = resolve_harness_llm(root, environment, workbench_selection=selection)
+    assert resolved.config.model == 'dsv4'
+    assert resolved.config.base_url == 'http://192.168.72.69:18804/v1'
+
+
 def test_harness_provider_resolution_classifies_configuration_without_raw_details(tmp_path: Path) -> None:
     (tmp_path / "configs").mkdir()
     catalog = Path(__file__).resolve().parents[3] / "configs/llm-providers.json"

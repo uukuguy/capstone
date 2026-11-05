@@ -356,18 +356,34 @@ class _ConversationPiPromptSession:
             # Keep a visible reasoning stream. Ordinary instructions use the
             # shorter budget; complex instructions raise it before the prompt.
             self._client.set_thinking_level(self._thinking_level)
+        from .stream_progress import TextDeltaBuffer
+        thinking = TextDeltaBuffer(lambda text: on_semantic_event({"type": "assistant_thinking_delta", "text": text}))
+
         def publish(event: Mapping[str, object]) -> None:
             # Same display stream the general executor records. Completed
             # thinking blocks and signatures stay out of the public row.
             change = event.get("assistantMessageEvent") if event.get("type") == "message_update" else None
             if (isinstance(change, Mapping) and change.get("type") == "thinking_delta"
                     and isinstance(change.get("delta"), str) and change["delta"]):
-                on_semantic_event({"type": "assistant_thinking_delta", "text": change["delta"][:4096]})
-        return self._client.prompt_and_wait(question,
-            on_event=publish,
-            on_semantic_event=lambda event, sequence: on_semantic_event(event),
-            correlation_id=correlation_id, on_heartbeat=on_heartbeat,
-            heartbeat_seconds=1.0, require_answer_text=not self._intent)
+                thinking.push(change["delta"])
+            else:
+                thinking.flush()
+
+        def heartbeat() -> None:
+            thinking.flush_due()
+            on_heartbeat()
+
+        def semantic(event, sequence) -> None:
+            thinking.flush()
+            on_semantic_event(event)
+
+        try:
+            return self._client.prompt_and_wait(question,
+                on_event=publish, on_semantic_event=semantic,
+                correlation_id=correlation_id, on_heartbeat=heartbeat,
+                heartbeat_seconds=1.0, require_answer_text=not self._intent)
+        finally:
+            thinking.flush()
 
     def stop(self) -> None:
         try:
