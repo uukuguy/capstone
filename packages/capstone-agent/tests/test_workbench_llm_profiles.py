@@ -153,3 +153,17 @@ def test_pre_split_execution_snapshot_remains_valid_for_unchanged_target():
     registry.environment['OTHER_KEY'] = 'fixture'
     with pytest.raises(ValueError):
         registry.resolve(legacy)
+
+
+def test_registered_default_reasoning_capability_is_typed_and_revision_bound():
+    registry = ProfileRegistry(environment={'CAPSTONE_WORKBENCH_PRESET': 'intranet'})
+    selected = registry.freeze()
+    assert registry.resolve(selected)['reasoning'] is True
+    registry.profiles[selected['profile_id']]['reasoning'] = False
+    assert registry.freeze()['profile_revision'] != selected['profile_revision']
+    with pytest.raises(ValueError, match='Frozen workbench'):
+        registry.resolve(selected)
+    for invalid in ('true', 1, None):
+        registry.profiles[selected['profile_id']]['reasoning'] = invalid
+        with pytest.raises(ValueError, match='reasoning'):
+            registry.freeze()

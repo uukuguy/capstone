@@ -28,9 +28,11 @@ def test_native_recognizer_binds_each_attempt_model_selection(tmp_path, monkeypa
         'CAPSTONE_WORKBENCH_PRESET': 'intranet', 'CAPSTONE_PUBLIC_PROVIDER': 'openai-compatible'}
     monkeypatch.setattr(native_hosted_worker, 'application_root', lambda: root)
     monkeypatch.setattr(runtime, 'build_runtime_host', lambda *args, **kwargs: None)
+    capabilities = []
 
     class Builder:
         def __init__(self, *, resolved_llm, **kwargs):
+            capabilities.append(kwargs.get('model_reasoning'))
             self.identity = IntentEngineIdentity(engine='pi', model=resolved_llm.config.model,
                 config_revision='sha256:' + 'a' * 64)
         def build_intent(self, request, control):
@@ -42,7 +44,17 @@ def test_native_recognizer_binds_each_attempt_model_selection(tmp_path, monkeypa
     qwen = registry.freeze('intranet-qwen-flash-next-8013')
     dsv4 = registry.freeze('intranet-dsv4-18804')
     assert factory.for_attempt(SimpleNamespace(submission={'llm_selection': qwen})).identity.model == 'Qwen3.8-Flash-Next'
+    assert capabilities[-1] is None
     assert factory.for_attempt(SimpleNamespace(submission={'llm_selection': dsv4})).identity.model == 'dsv4'
+    assert capabilities[-1] is True
+
+    environment.update(CAPSTONE_RECOGNITION_PROVIDER='openai',
+        CAPSTONE_RECOGNITION_MODEL='recognition-only',
+        CAPSTONE_RECOGNITION_BASE_URL='http://127.0.0.1:19999/v1',
+        CAPSTONE_RECOGNITION_API_KEY_ENV='RECOGNITION_TEST_KEY', RECOGNITION_TEST_KEY='test-only')
+    override = native_hosted_worker.build_native_unscoped_recognizer(tmp_path, environment)
+    assert override.for_attempt(SimpleNamespace(submission={'llm_selection': dsv4})).identity.model == 'recognition-only'
+    assert capabilities[-1] is None
 
 
 @pytest.mark.parametrize('profile,version,expected', [

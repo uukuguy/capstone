@@ -826,3 +826,145 @@ def test_pinned_pi_loopback_loads_history_and_terminates_once_then_executes(tmp_
         server.shutdown()
         server.server_close()
         thread.join(timeout=2)
+
+@pytest.mark.parametrize('reasoning', [True, False, None])
+def test_session_reasoning_only_patches_private_selected_model(tmp_path, reasoning):
+    from dataclasses import replace
+    from capability_agent.runtime.environment import RuntimePaths, build_pi_launch
+    from capstone_agent.pi_intent import NativeConversationPiSessionBuilder
+    from capability_agent.application.workspace import ApplicationWorkspace
+    host, llm = runtime_inputs(tmp_path)
+    llm = replace(llm, config=replace(llm.config, auth_kind='api_key_env',
+        compatibility_profile='openai-completions', field_sources={'base_url': 'process'}))
+    builder = NativeConversationPiSessionBuilder(runtime_host=host, resolved_llm=llm,
+        workspace_root=tmp_path / 'runs', model_reasoning=reasoning)
+    workspace = ApplicationWorkspace.create(tmp_path / 'runs')
+    paths = RuntimePaths(command=host.command, project_pi_dir=host.project_pi_dir,
+        session_dir=workspace.root / 'session', workspace=workspace.root)
+    launch = build_pi_launch(llm, paths, base_environment={})
+    configured = builder.apply_configuration(launch, workspace, 'attempt_1', intent=True)
+    path = Path(configured.environment['PI_CODING_AGENT_DIR']) / 'models.json'
+    model = json.loads(path.read_text())['providers']['fixture']['models'][0]
+    assert model.get('reasoning') is reasoning
+    assert ('reasoning' in model) == (reasoning is not None)
+    assert path.stat().st_mode & 0o777 == 0o600
+    assert not (host.project_pi_dir / 'models.json').exists()
+    default = NativeConversationPiSessionBuilder(runtime_host=host, resolved_llm=llm,
+        workspace_root=tmp_path / 'runs')
+    assert (builder.config_revision == default.config_revision) == (reasoning is None)
+
+@pytest.mark.parametrize('intent,effort', [(True, 'low'), (False, 'medium')])
+def test_private_reasoning_capability_reaches_real_sdk_and_thinking_observer(tmp_path, intent, effort):
+    import shutil
+    from dataclasses import replace
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    from threading import Thread
+    from capability_agent.runtime.lock import PiCommand, PiRuntimeIdentity
+    from capstone_agent.pi_intent import NativeConversationPiSessionBuilder
+    from capstone_agent.request_intent import IntentRequest, IntentDecision
+    cli = Path(__file__).resolve().parents[3] / '.grid-agent/runtime/pi/source/packages/coding-agent/dist/cli.js'
+    node = shutil.which('node')
+    if not cli.is_file() or node is None:
+        pytest.skip('Managed Pi runtime is not installed')
+    requests = []
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+        def do_POST(self):
+            requests.append(json.loads(self.rfile.read(int(self.headers['Content-Length']))))
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/event-stream')
+            self.end_headers()
+            for delta, finish in [({'role': 'assistant', 'reasoning_content': 'Observed fixture reasoning.'}, None),
+                    ({'content': 'Fixture answer.'}, None), ({}, 'stop')]:
+                chunk = {'id': 'fixture', 'object': 'chat.completion.chunk', 'created': 0,
+                    'model': 'fixture-model', 'choices': [{'index': 0, 'delta': delta, 'finish_reason': finish}]}
+                self.wfile.write(('data: ' + json.dumps(chunk) + '\n\n').encode())
+            self.wfile.write(b'data: [DONE]\n\n')
+            self.wfile.flush()
+    server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        command = PiCommand((node, str(cli)), PiRuntimeIdentity(path=cli, source='managed-fixture',
+            package_version='fixture', lock_sha256='fixture'))
+        host, llm = runtime_inputs(tmp_path, f'http://127.0.0.1:{server.server_port}/v1', command)
+        llm = replace(llm, config=replace(llm.config, auth_kind='api_key_env',
+            compatibility_profile='openai-completions', field_sources={'base_url': 'process'}))
+        builder = NativeConversationPiSessionBuilder(runtime_host=host, resolved_llm=llm,
+            workspace_root=tmp_path / 'runs', base_environment={'PATH': os.environ['PATH']}, model_reasoning=True)
+        request = IntentRequest.from_document(request_document())
+        session = (builder.build_intent(request, Control()) if intent else builder.build_execution(
+            SimpleNamespace(intent_request=request), IntentDecision.from_document(decision_document(), request)))
+        observed = []
+        try:
+            session.start()
+            session.set_thinking_level(effort)
+            session.prompt_and_wait('Reply once.', on_semantic_event=observed.append,
+                correlation_id='attempt_1', on_heartbeat=lambda: None)
+        finally:
+            session.stop()
+        assert len(requests) == 1
+        assert requests[0]['reasoning_effort'] == effort
+        assert ''.join(event['text'] for event in observed
+            if event['type'] == 'assistant_thinking_delta') == 'Observed fixture reasoning.'
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+@pytest.mark.parametrize('value', ['true', 1, {}, []])
+def test_session_reasoning_rejects_non_boolean_capability(tmp_path, value):
+    from capstone_agent.pi_intent import NativeConversationPiSessionBuilder
+    host, llm = runtime_inputs(tmp_path)
+    with pytest.raises(ValueError, match='boolean'):
+        NativeConversationPiSessionBuilder(runtime_host=host, resolved_llm=llm,
+            workspace_root=tmp_path / 'runs', model_reasoning=value)
+
+
+@pytest.mark.parametrize('reasoning', [True, False, None])
+def test_session_reasoning_preserves_shared_builtin_transport(tmp_path, reasoning):
+    from capability_agent.runtime.environment import PiLaunch
+    from capability_agent.application.workspace import ApplicationWorkspace
+    from capstone_agent.pi_intent import NativeConversationPiSessionBuilder
+    host, llm = runtime_inputs(tmp_path)
+    host.project_pi_dir.mkdir()
+    path = host.project_pi_dir / 'models.json'
+    original = json.dumps({'providers': {'fixture': {'models': [{'id': 'fixture-model'}]}}})
+    path.write_text(original)
+    builder = NativeConversationPiSessionBuilder(runtime_host=host, resolved_llm=llm,
+        workspace_root=tmp_path / 'runs', model_reasoning=reasoning)
+    workspace = ApplicationWorkspace.create(tmp_path / 'runs')
+    launch = PiLaunch(('pi',), {'PI_CODING_AGENT_DIR': str(host.project_pi_dir)})
+    if reasoning is None:
+        builder.apply_configuration(launch, workspace, 'attempt_1')
+    else:
+        with pytest.raises(ValueError, match='private'):
+            builder.apply_configuration(launch, workspace, 'attempt_1')
+    assert path.read_text() == original
+
+
+@pytest.mark.parametrize('case', ['missing', 'duplicate', 'symlink'])
+def test_session_reasoning_rejects_invalid_private_model_target(tmp_path, case):
+    from capability_agent.runtime.environment import PiLaunch
+    from capability_agent.application.workspace import ApplicationWorkspace
+    from capstone_agent.pi_intent import NativeConversationPiSessionBuilder
+    host, llm = runtime_inputs(tmp_path)
+    builder = NativeConversationPiSessionBuilder(runtime_host=host, resolved_llm=llm,
+        workspace_root=tmp_path / 'runs', model_reasoning=True)
+    workspace = ApplicationWorkspace.create(tmp_path / 'runs')
+    private = workspace.root / 'provider-config'
+    private.mkdir()
+    path = private / 'models.json'
+    models = [{'id': 'fixture-model'}] * (2 if case == 'duplicate' else 1)
+    if case == 'missing':
+        models = [{'id': 'different-model'}]
+    original = json.dumps({'providers': {'fixture': {'models': models}}})
+    target = tmp_path / 'outside.json' if case == 'symlink' else path
+    target.write_text(original)
+    if case == 'symlink':
+        path.symlink_to(target)
+    launch = PiLaunch(('pi',), {'PI_CODING_AGENT_DIR': str(private)})
+    with pytest.raises(ValueError):
+        builder.apply_configuration(launch, workspace, 'attempt_1')
+    assert target.read_text() == original

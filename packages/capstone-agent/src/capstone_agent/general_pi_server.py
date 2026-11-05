@@ -1411,6 +1411,7 @@ class NativeTaskRunner:
                 launch_options['input_directory'] = inputs
             argv, environment = native_pi_launch(command=self.command, workspace=workspace,
                 config_root=self.config_root, model=profile['model'] if profile else self.model,
+                model_reasoning=profile.get('reasoning', False) if profile else False,
                 relay_url=self.relay_origin + '/provider/' + request.task_id, relay_token=grant,
                 context_extension=Path(__file__).parent / 'resources' / 'general-context.mjs',
                 sdk_config=sdk_config, context_policy=profile.get('context_policy') if profile else None,

@@ -140,7 +140,10 @@ class NativeConversationPiSessionBuilder:
 
     def __init__(self, *, runtime_host: RuntimeHost, resolved_llm: ResolvedLLM,
                  workspace_root: Path, base_environment: Mapping[str, str] | None = None,
-                 config_root: Path | None = None) -> None:
+                 config_root: Path | None = None, model_reasoning: bool | None = None) -> None:
+        if model_reasoning is not None and type(model_reasoning) is not bool:
+            raise ValueError('Model reasoning capability must be a boolean')
+        self._model_reasoning = model_reasoning
         self._host = runtime_host
         self._llm = resolved_llm
         self._workspace_root = Path(workspace_root)
@@ -176,6 +179,7 @@ class NativeConversationPiSessionBuilder:
             digest.update(name.encode() + b'\0' + (Path(__file__).parent / name).read_bytes() + b'\0')
         digest.update(json.dumps({
             "provider": resolved_llm.config.provider, "model": resolved_llm.config.model,
+            "model_reasoning": model_reasoning,
             "base_url": resolved_llm.config.base_url, "pi_provider": resolved_llm.config.pi_provider,
             "compatibility_profile": resolved_llm.config.compatibility_profile,
             "public_headers": dict(resolved_llm.config.public_headers),
@@ -266,6 +270,24 @@ class NativeConversationPiSessionBuilder:
         """
         if (intent or context_selection) and domain_policy is not None:
             raise ValueError("Intent preparation cannot load a domain policy")
+        # Only the launch-owned override may change. Shared protected Provider
+        # configuration must retain its original content and permissions.
+        agent_dir = Path(launch.environment.get('PI_CODING_AGENT_DIR', self._host.project_pi_dir))
+        if self._model_reasoning is not None:
+            if agent_dir.resolve() == self._host.project_pi_dir.resolve():
+                raise ValueError('Model reasoning capability requires private Provider configuration')
+            agent_dir.resolve().relative_to(workspace.root.resolve())
+            model_path = agent_dir / 'models.json'
+            model_path.resolve().relative_to(workspace.root.resolve())
+            models = json.loads(model_path.read_text(encoding='utf-8'))
+            provider = models.get('providers', {}).get(self._llm.config.pi_provider, {})
+            matches = [model for model in provider.get('models', [])
+                       if model.get('id') == self._llm.config.model]
+            if len(matches) != 1:
+                raise ValueError('Model reasoning capability requires one exact private model target')
+            matches[0]['reasoning'] = self._model_reasoning
+            model_path.write_text(json.dumps(models), encoding='utf-8')
+            model_path.chmod(0o600)
         transport_config = self._host.project_pi_dir / "models.json"
         current_transport_sha256 = sha256(transport_config.read_bytes()).hexdigest() if transport_config.is_file() else None
         if current_transport_sha256 != self._transport_sha256:

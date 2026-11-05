@@ -224,6 +224,7 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
         pass
     def launch(**kwargs):
         assert kwargs['model'] == 'dsv4'
+        assert kwargs['model_reasoning'] is True
         assert kwargs['context_policy']['context_window_tokens'] == 1048576
         capacity_guidance = next(item['content'] for item in kwargs['sdk_config']['contextFiles']
                                  if item['path'] == 'effective-runtime-capacity')

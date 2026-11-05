@@ -79,11 +79,25 @@ def build_native_unscoped_recognizer(workspace_root: Path, environment=None):
                               system_policy_path=native_intent_policy_path(profile, workspace))
     def for_attempt(claim=None):
         selection = None if claim is None else (claim.submission or {}).get('llm_selection')
+        execution = resolve_harness_llm(root, selected, workbench_selection=selection)
         llm = resolve_recognition_llm(root, selected,
-            resolve_harness_llm(root, selected, workbench_selection=selection))
+            execution)
+        reasoning = None
+        if (selected.get('CAPSTONE_RUNTIME_PROFILE') == 'capstone-workbench-v1'
+                and (selection is not None or (
+                    selected.get('CAPSTONE_PUBLIC_PROVIDER') == 'openai-compatible'
+                    and not selected.get('CAPABILITY_AGENT_LLM_PROVIDER')))):
+            from .workbench_llm_profiles import ProfileRegistry
+            registry = ProfileRegistry(root / 'configs/runtime/workbench-llm-profiles.json', environment=selected)
+            registered = registry.resolve(selection if selection is not None else registry.freeze())
+            if (llm.config.provider == execution.config.provider
+                    and llm.config.pi_provider == execution.config.pi_provider
+                    and llm.config.model == registered['model']
+                    and llm.config.base_url.rstrip('/') == registered['base_url'].rstrip('/')):
+                reasoning = registered.get('reasoning')
         builder = NativeConversationPiSessionBuilder(
             runtime_host=host, resolved_llm=llm, workspace_root=workspace,
-            base_environment=selected)
+            base_environment=selected, model_reasoning=reasoning)
         return PiIntentRecognizer(builder.build_intent, builder.identity)
 
     def factory():

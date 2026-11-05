@@ -225,10 +225,13 @@ def native_pi_launch(*, command: tuple[str, ...], workspace: Path, config_root: 
                      model: str, relay_url: str, relay_token: str,
                      context_extension: Path, sdk_config: dict | None = None,
                      input_directory: Path | None = None,
-                     context_policy: dict | None = None) -> tuple[tuple[str, ...], dict[str, str]]:
+                     context_policy: dict | None = None,
+                     model_reasoning: bool = False) -> tuple[tuple[str, ...], dict[str, str]]:
     """Load native managed config; no business launcher or developer HOME."""
     if not command or any(not isinstance(part, str) or not part for part in command):
         raise ValueError('General Pi command is invalid')
+    if not isinstance(model_reasoning, bool):
+        raise ValueError('General Pi model reasoning capability must be boolean')
     from .model_context_policy import checked_context_policy, compaction_settings
     policy = checked_context_policy(context_policy) if context_policy is not None else None
     context_tokens = policy['context_window_tokens'] if policy else limits.model_context_tokens
@@ -248,7 +251,7 @@ def native_pi_launch(*, command: tuple[str, ...], workspace: Path, config_root: 
             shutil.copyfile(path, target)
     models = {'providers': {'capstone-general': {
         'baseUrl': relay_url, 'api': 'openai-completions', 'apiKey': relay_token,
-        'models': [{'id': model, 'name': model, 'reasoning': False, 'input': ['text'],
+        'models': [{'id': model, 'name': model, 'reasoning': model_reasoning, 'input': ['text'],
                     'contextWindow': context_tokens, 'maxTokens': output_tokens,
                     'cost': {'input': 0, 'output': 0, 'cacheRead': 0, 'cacheWrite': 0}}],
     }}}
