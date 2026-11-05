@@ -171,7 +171,7 @@ def test_governed_calculation_without_a_model_records_the_domain_gap(tmp_path):
         executor, research_root=tmp_path, recognizer_factory=lambda: gate, unscoped_intent=True),
         worker_id='native', implementation_family='native')
     assert result.status == 'completed', failed_detail(store)
-    assert gate.recognitions == 2
+    assert gate.recognitions == 1
     assert gate.requests[0]['messages'] == []
     assert gate.requests[-1]['mode_hint'] is None
     assert [request.instruction for request in executor.requests] == [INSTRUCTION]
@@ -216,7 +216,25 @@ def test_ordinary_instruction_stops_after_one_short_understanding(tmp_path):
     assert gate.levels == ['low']
     assert gate.requests[0]['messages'] == []
     assert gate.requests[0]['objects'] == []
-    assert gate.requests[0]['history_truncated'] is True
+    assert gate.requests[0]['history_truncated'] is False
+
+
+@pytest.mark.parametrize('deep_research,expected_level', [(False, 'low'), (True, 'medium')])
+def test_business_understanding_uses_the_full_frozen_request_exactly_once(deep_research, expected_level):
+    executor = governed_executor()
+    store = open_store(executor)
+    publish_domain(store, families=('pandapower', 'pypsa'))
+    submit(store)
+    claim = store.claim_attempt('native', 30, 'native')
+    claim = replace(claim, submission={**claim.submission, 'deep_research': deep_research})
+    gate = Gate([goal('calculation', 'business_execute', excerpt='复现病态11节点算例')])
+    factory = native_runtime_factory(executor, unscoped_intent=True, recognizer_factory=lambda: gate)
+    factory.plan_intent(claim, NodeControl(lambda: None, time.monotonic() + 30),
+        store.freeze_attempt_input, freeze_decision=store.freeze_attempt_decision)
+    assert gate.recognitions == 1
+    assert gate.thinking_level == expected_level
+    assert gate.requests == [store.freeze_attempt_input(claim)['request']]
+    assert {obj['object_id'] for obj in gate.requests[0]['objects']} == {'pandapower-case', 'pypsa-case'}
 
 
 def test_answer_decision_is_not_rewritten_by_instruction_words(tmp_path):
@@ -242,7 +260,7 @@ def test_installed_recognizer_does_not_treat_a_missing_model_as_an_ordinary_ques
         executor, research_root=tmp_path, recognizer_factory=lambda: gate, unscoped_intent=True),
         worker_id='native', implementation_family='native')
     assert result.status == 'completed', failed_detail(store)
-    assert gate.recognitions == 2
+    assert gate.recognitions == 1
     assert gate.requests[-1]['mode_hint'] is None
     assert [request.instruction for request in executor.requests] == [INSTRUCTION]
     assert UNSCOPED_DOMAIN_GAP not in result.answer
@@ -277,7 +295,7 @@ def test_saved_unscoped_decision_is_reused_without_a_second_recognition():
                                 freeze_decision=store.freeze_attempt_decision)
     second = factory.plan_intent(claim, control, store.freeze_attempt_input,
                                  freeze_decision=store.freeze_attempt_decision)
-    assert gate.recognitions == 2
+    assert gate.recognitions == 1
     assert first.source == second.source == 'fixture'
     assert second.intent_decision.to_document()['goals'][0]['operation'] == 'answer'
     assert second.intent_decision.to_document()['goals'][0]['capability_refs'] == ['general-pi']
@@ -365,7 +383,7 @@ def test_available_domain_calculation_is_released_then_replayed_once(tmp_path):
         business_factory=domain),
         worker_id='native', implementation_family='native')
     assert result.status == 'completed', failed_detail(store)
-    assert gate.recognitions == 2
+    assert gate.recognitions == 1
     assert domain.claims == []
     assert not store.has_pending_attempts('pandapower')
     assert [request.instruction for request in executor.requests] == [INSTRUCTION]
@@ -404,8 +422,7 @@ def test_unscoped_request_names_published_models_without_a_revision():
     control = NodeControl(lambda: None, time.monotonic() + 30)
     native_runtime_factory(executor, unscoped_intent=True, recognizer_factory=lambda: gate).plan_intent(
         claim, control, store.freeze_attempt_input, freeze_decision=store.freeze_attempt_decision)
-    assert gate.requests[0]['objects'] == []
-    assert gate.recognitions == 2
+    assert gate.recognitions == 1
     objects = {item['object_id']: item for item in gate.requests[-1]['objects']}
     assert set(objects) == {'pandapower-case', 'pypsa-case'}
     assert objects['pandapower-case']['implementation_family'] == 'pandapower'

@@ -257,15 +257,8 @@ def _general_contexts(request, decision, current_object_id=None) -> dict:
     return contexts
 
 
-_LIGHT_OPERATIONS = frozenset({'answer', 'rewrite', 'external_lookup'})
-
-
 def _heavy_instruction(claim: AttemptClaim) -> bool:
-    """User-selected work keeps the full understanding pass.
-
-    A direct message does not. Depth, a named skill, professional mode, or an
-    explicit object selection are choices the application already recorded.
-    """
+    """Choose reasoning depth from explicit controls; never discard context."""
     submission = claim.submission or {}
     if claim.kind == 'send_professional' or submission.get('deep_research') is True:
         return True
@@ -275,47 +268,6 @@ def _heavy_instruction(claim: AttemptClaim) -> bool:
     selection = submission.get('context_selection')
     refs = selection.get('include_refs') if isinstance(selection, Mapping) else None
     return isinstance(refs, list) and bool(refs)
-
-
-def _settled_without_business(document: Mapping) -> bool:
-    goals = document.get('goals')
-    if not isinstance(goals, list) or len(goals) != 1 or not isinstance(goals[0], Mapping):
-        return False
-    goal = goals[0]
-    refs = goal.get('capability_refs') or []
-    return (goal.get('operation') in _LIGHT_OPERATIONS
-            and not goal.get('depends_on') and not goal.get('object_refs')
-            and document.get('clarification_required') is not True
-            and goal.get('clarification_required') is not True
-            and all(ref == 'general-pi' for ref in refs))
-
-
-def _brief_capabilities(capabilities: list[dict]) -> list[dict]:
-    brief = []
-    for item in capabilities:
-        if not isinstance(item, Mapping) or not isinstance(item.get('capability_id'), str):
-            continue
-        entry = {key: item[key] for key in ('capability_id', 'enabled', 'available') if key in item}
-        display_name = item.get('display_name')
-        if isinstance(display_name, str) and display_name.strip():
-            entry['display_name'] = display_name[:256]
-        families = item.get('implementation_families')
-        if isinstance(families, list) and families:
-            entry['implementation_families'] = families
-        brief.append(entry)
-    return brief
-
-
-def _brief_intent_request(claim: AttemptClaim, history: Mapping, capabilities: list[dict]) -> IntentRequest:
-    return IntentRequest.from_document({
-        'schema': 'capstone-intent-request/1', 'thread_id': claim.thread_id,
-        'turn_id': claim.attempt.turn_id, 'attempt_id': claim.attempt.attempt_id,
-        'instruction_message_id': claim.attempt.attempt_id + ':user',
-        'instruction': claim.instruction, 'history_cutoff': history['history_cutoff'],
-        'history_truncated': True, 'messages': [], 'objects': [],
-        'capabilities': _brief_capabilities(capabilities),
-        'mode_hint': {'send_ordinary': 'ordinary', 'send_professional': 'professional'}.get(claim.kind),
-    })
 
 
 def _recognize(recognizer, request: IntentRequest, control: NodeControl, thinking_level: str):
@@ -701,14 +653,8 @@ class IntentRuntimeFactory:
         request = IntentRequest.from_document(request_doc)
         saved = None if freeze_decision is None else freeze_decision(claim, None)
         if saved is None:
-            decision = None
-            if not _heavy_instruction(claim):
-                brief = _brief_intent_request(claim, history, list(request_doc['capabilities']))
-                decision = _recognize(recognizer, brief, control, 'low')
-                if not _settled_without_business(decision.to_document()):
-                    decision = None
-            if decision is None:
-                decision = _recognize(recognizer, request, control, 'medium')
+            decision = _recognize(recognizer, request, control,
+                'medium' if _heavy_instruction(claim) else 'low')
         else:
             decision = IntentDecision.from_document(_rebind_decision(saved, claim.attempt.attempt_id), request)
         execute_here = getattr(self._business, 'domain_execution', True) is not False
