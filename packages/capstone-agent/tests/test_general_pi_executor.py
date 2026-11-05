@@ -25,7 +25,8 @@ def single_child_cleanup(monkeypatch):
     monkeypatch.setattr(GeneralPiProcess, 'stop', stop_fixture)
 
 
-def test_process_checks_display_idle_deadline_while_provider_is_quiet(tmp_path, single_child_cleanup):
+@pytest.mark.parametrize('diagnostic_fails', [False, True])
+def test_process_checks_display_idle_deadline_while_provider_is_quiet(tmp_path, single_child_cleanup, diagnostic_fails):
     from capstone_agent.general_pi_executor import GeneralPiProcess
     from capstone_agent.stream_progress import IdleFlushCallback
     script = tmp_path / 'quiet.py'
@@ -33,9 +34,16 @@ def test_process_checks_display_idle_deadline_while_provider_is_quiet(tmp_path, 
         'content': [{'type': 'text', 'text': 'Done'}]}]}
     script.write_text('import sys,time\nsys.stdin.readline()\ntime.sleep(.2)\nprint(' + repr(json.dumps(final)) + ',flush=True)\n')
     idle = []
+    started = []
+    def process_started():
+        started.append(process.process.pid)
+        if diagnostic_fails:
+            raise RuntimeError('Diagnostic sink unavailable')
     process = GeneralPiProcess((sys.executable, str(script)), {'PATH': '/usr/bin'}, tmp_path)
     process.run('task', timeout=5, cancelled=lambda: False,
-                on_event=IdleFlushCallback(lambda event: None, lambda: idle.append(time.monotonic())))
+                on_event=IdleFlushCallback(lambda event: None, lambda: idle.append(time.monotonic())),
+                on_process_started=process_started)
+    assert len(started) == 1
     assert len(idle) >= 2
 
 

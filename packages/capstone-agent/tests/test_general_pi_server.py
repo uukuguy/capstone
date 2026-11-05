@@ -266,6 +266,7 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     with pytest.raises(Captured):
         runner(request, lambda: False, lambda _: None)
     assert task not in runner.task_llm_profiles
+    assert runner.relay.timings == {}
     actual = captured[0]['researchRuntime']
     domain_status = next(item['content'] for item in captured[0]['contextFiles']
                          if item['path'] == 'unavailable-domain-tools')

@@ -402,7 +402,8 @@ class GeneralPiProcess:
         self.inventory: dict = {}
 
     def run(self, instruction: str, *, timeout: float, cancelled: Callable[[], bool],
-            on_event: Callable[[dict], None], inventory_only: bool = False) -> str:
+            on_event: Callable[[dict], None], inventory_only: bool = False,
+            on_process_started: Callable[[], None] | None = None) -> str:
         if timeout <= 0:
             raise ValueError('General Pi deadline is invalid')
         privilege = {} if self.uid is None else {'user': self.uid, 'group': self.uid, 'extra_groups': []}
@@ -410,6 +411,11 @@ class GeneralPiProcess:
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             start_new_session=True, **privilege)
         process = self.process
+        if on_process_started is not None:
+            try:
+                on_process_started()
+            except Exception:
+                pass  # Optional host diagnostics must not change task execution.
         frames: Queue[bytes | None | Exception] = Queue(maxsize=limits.native_rpc_queue_frames)
         stopped = Event()
 

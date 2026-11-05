@@ -58,6 +58,7 @@ COPY configs/runtime/resource-permissions.json configs/runtime/resource-permissi
 COPY packages/capability-agent-kernel/src/capability_agent/runtime/step_events.py capstone_runtime_events.py
 COPY packages/capstone-agent/src/capstone_agent/general_pi_storage.py capstone_agent/general_pi_storage.py
 COPY packages/capstone-agent/src/capstone_agent/general_pi_relay.py capstone_agent/general_pi_relay.py
+COPY packages/capstone-agent/src/capstone_agent/native_timing.py capstone_agent/native_timing.py
 COPY packages/capstone-agent/src/capstone_agent/data_gateway_mcp.py capstone_agent/data_gateway_mcp.py
 COPY packages/capstone-agent/src/capstone_agent/data_gateway_relay.py capstone_agent/data_gateway_relay.py
 COPY packages/capstone-agent/src/capstone_agent/domain_tool_client.py capstone_agent/domain_tool_client.py
