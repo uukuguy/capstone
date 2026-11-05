@@ -2,6 +2,16 @@
 
 ## Incremental task organization candidate
 
+2026-11-05 native entry correction: new default native conversations enter the
+execution model directly with accepted context, skills, service publications and
+Domain Pack tool grants. There is no separate intent-recognition model call.
+The execution model answers or selects authorized tools for the current request;
+complex planning is on demand. Local input freezing does not count as an LLM
+stage. Existing frozen intent decisions retain their recovery path, and explicit
+professional entry points retain their contracts. Permission, schema, ownership
+and evidence checks remain enforced at the tool boundaries. Generic service
+discovery must not be replaced by an application model-table projection.
+
 2026-10-30 decision: the default lightweight loop uses the direct model runtime.
 The request and text-analysis pools remain opt-in experiments, disabled unless
 the backend sets `CAPSTONE_EXPERIMENTAL_LLM_POOL=1`. They do not establish a

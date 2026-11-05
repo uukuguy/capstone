@@ -1283,6 +1283,19 @@ class NativeTaskRunner:
                 if request.domain_tools:
                     from .domain_tool_client import load_domain_tool_catalogs
                     domain_catalog, domain_routes, mounted_packs = load_domain_tool_catalogs(request.domain_tools)
+                    unavailable_packs = sorted({
+                        item['profile_id'] + '@' + item['profile_version']
+                        for item in request.domain_tools['profiles']
+                    } - set(mounted_packs))
+                    if unavailable_packs:
+                        sdk_config.setdefault('contextFiles', []).append({
+                            'path': 'unavailable-domain-tools',
+                            'content': ('Host-observed Domain Pack tool publication is unavailable for: '
+                                + ', '.join(unavailable_packs) + '. '
+                                'No tools from these packs were admitted for this execution. '
+                                'This connection state is not evidence that source data is absent. '
+                                'Continue with other admitted capabilities when sufficient; '
+                                'do not invent Domain Pack results.')})
                     if domain_catalog.get('tools'):
                         self.task_domain_routes[request.task_id] = domain_routes
                         sdk_config['applicationPolicy'] = {**sdk_config['applicationPolicy'], 'allowed_tools': sorted({

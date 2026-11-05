@@ -62,6 +62,31 @@ def test_worker_closes_prepared_runtime_if_research_recovery_cannot_be_verified(
     assert result.answer
 
 
+def test_local_context_preparation_does_not_emit_fake_llm_understanding_events() -> None:
+    from capstone_agent.turn_router import TurnPlan
+    service = _service()
+    _submit(service)
+
+    class Factory:
+        def intent_stage_label(self, claim):
+            return None
+
+        def plan_intent(self, claim, control, freeze):
+            return TurnPlan(claim.attempt.turn_id, claim.attempt.attempt_id,
+                            'ordinary', 'native_conversation', 'local-context-v1', None, {})
+
+        def __call__(self, claim):
+            return _Runtime()
+
+    result = run_pending_attempt(service, Factory(), worker_id='direct-context')
+    assert result.status == 'completed'
+    events = service.read_events('thr_worker', 0).events
+    assert any(event.event_type == 'turn_plan_created' for event in events)
+    assert not any(event.event_type == 'intent_started' for event in events)
+    assert not any(event.event_type == 'runtime_action' and
+                   event.payload.get('response_intent') == '理解当前指令' for event in events)
+
+
 def test_understanding_timeout_names_the_deadline_and_does_not_start_execution() -> None:
     service = _service()
     _submit(service)

@@ -408,6 +408,14 @@ class IntentRuntimeFactory:
     def rollback_selection_on_failure(self) -> bool:
         return bool(getattr(self._business, 'rollback_selection_on_failure', False))
 
+    def intent_stage_label(self, claim: AttemptClaim) -> str | None:
+        """Describe an independent model stage only when one is selected."""
+        domain = (claim.submission or {}).get('_domain_execution')
+        if claim.model_context is None:
+            if isinstance(domain, Mapping) or not self._unscoped_intent:
+                return None
+        return '理解当前指令'
+
     def plan_intent(self, claim: AttemptClaim, control: NodeControl,
                     freeze: Callable[[AttemptClaim, dict], dict], *,
                     freeze_decision: Callable[[AttemptClaim, dict | None], dict | None] | None = None) -> TurnPlan:
@@ -571,18 +579,30 @@ class IntentRuntimeFactory:
                    'application_profile': accepted['application_profile'],
                    'original_attempt_id': claim.attempt.attempt_id, 'timeout_seconds': self._timeout_for(claim)}
         resources = {'general_executor': general, 'submission': {key: value for key, value in (claim.submission or {}).items() if key != '_materials'},
-                     'application_catalog': None, 'prior_results': []}
+                     'application_catalog': claim.application_catalog, 'prior_results': []}
         from .native_task_context import native_context_for
         resources['native_context'] = native_context_for(claim, accepted)
         frozen = freeze(claim, {'request': request.to_document(), 'resources': resources})
+        if 'engine_identity' in frozen:
+            saved = None if freeze_decision is None else freeze_decision(claim, None)
+            if saved is None:
+                # An accepted legacy input must finish its original recognition.
+                return self._plan_unscoped_research_intent(claim, control, freeze, freeze_decision)
+            replay = self._replay_frozen_domain_execution(claim, control, freeze, freeze_decision)
+            # Legacy native decisions execute their admitted domain tools in the
+            # same native chain. They do not become a professional handoff.
+            return replace(replay, route='ordinary')
         if frozen['resources']['general_executor']['identity'] != current['identity']:
             raise HarnessRuntimeConfigurationError('native conversation configuration changed')
-        request = IntentRequest.from_document(frozen['request'])
+        request_doc = dict(frozen['request'])
+        request_doc['attempt_id'] = claim.attempt.attempt_id
+        request_doc['instruction_message_id'] = claim.attempt.attempt_id + ':user'
+        request = IntentRequest.from_document(request_doc)
         decision = IntentDecision.from_document({
             'schema': 'capstone-intent-decision/1', 'attempt_id': claim.attempt.attempt_id,
             'history_cutoff': request.to_document()['history_cutoff'], 'relationship': 'continuation',
             'goals': [{'goal_id': 'conversation', 'description': 'Reply to the current user input',
-                'operation': 'answer', 'message_refs': [item['message_id'] for item in history['messages']],
+                'operation': 'answer', 'message_refs': [item['message_id'] for item in request_doc['messages']],
                 'object_refs': request.to_document().get('context_selection', {}).get('include_refs', []),
                 'capability_refs': ['general-pi'], 'missing_requirements': [],
                 'depends_on': [], **({'uses_selected_skill': True} if 'selected_skill' in request.to_document() else {})}],
@@ -591,7 +611,7 @@ class IntentRuntimeFactory:
             saved = freeze_decision(claim, decision.to_document())
             if saved is None:
                 raise ValueError('native conversation decision was not saved')
-            decision = IntentDecision.from_document(saved, request)
+            decision = IntentDecision.from_document(_rebind_decision(saved, claim.attempt.attempt_id), request)
         resources = {**frozen['resources'], 'business_contexts': {
             'conversation': business_context_for(request, decision).to_document()}}
         control.checkpoint()

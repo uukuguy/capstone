@@ -104,7 +104,18 @@ def build_native_unscoped_recognizer(workspace_root: Path, environment=None):
         return for_attempt()
 
     factory.for_attempt = for_attempt
-    factory()
+    return factory
+
+
+def lazy_native_unscoped_recognizer(workspace_root: Path, environment=None):
+    """Load the legacy recognizer only when an accepted input requires it."""
+    def for_attempt(claim=None):
+        return build_native_unscoped_recognizer(workspace_root, environment).for_attempt(claim)
+
+    def factory():
+        return for_attempt()
+
+    factory.for_attempt = for_attempt
     return factory
 
 
@@ -126,8 +137,7 @@ def main() -> int:
     service.set_native_executor(executor)
     factory = native_runtime_factory(
         executor, research_root=settings.runs_root / 'native-research',
-        recognizer_factory=build_native_unscoped_recognizer(settings.runs_root / 'native-intent'),
-        unscoped_intent=True)
+        recognizer_factory=lazy_native_unscoped_recognizer(settings.runs_root / 'native-intent'))
     stop, wake = threading.Event(), threading.Event()
     scheduler = threading.Thread(target=serve_thread_attempts, kwargs={
         'service': service, 'runtime_factory': factory,

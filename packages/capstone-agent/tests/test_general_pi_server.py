@@ -235,6 +235,8 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
         captured.append(json.loads(json.dumps(kwargs['sdk_config'])))
         raise Captured()
     monkeypatch.setattr(module, 'native_pi_launch', launch)
+    from capstone_agent import domain_tool_client
+    monkeypatch.setattr(domain_tool_client, 'load_domain_tool_catalogs', lambda _: ({}, {}, []))
     monkeypatch.setattr(module.os, 'geteuid', lambda: 0)
     root = tmp_path / 'private'
     (root / 'receipts').mkdir(parents=True)
@@ -258,11 +260,19 @@ def test_selected_work_publication_reaches_actual_native_sdk_config_with_trusted
     runner.bind_graph_context_provider(lambda *_: SimpleNamespace(root=tmp_path / 'contexts'))
     request = PiTaskRequest(task, binding['attempt_id'], 'direct', 'Prepare the useful requested output', (), (), {'engine': 'pi'}, 1800,
         business_context=BusinessContext.empty('workspace', 0), resource_profile={'profile_id': 'direct_pi', 'revision': 'test'},
-        input={'kind': 'text', 'text': 'Prepare the useful requested output'}, native_context=native, research_binding=binding)
+        input={'kind': 'text', 'text': 'Prepare the useful requested output'}, native_context=native, research_binding=binding,
+        domain_tools={'schema': 'capstone-domain-tool-grant/1', 'profiles': [
+            {'profile_id': 'fixture-pack', 'profile_version': '1', 'implementation_family': 'fixture'}]})
     with pytest.raises(Captured):
         runner(request, lambda: False, lambda _: None)
     assert task not in runner.task_llm_profiles
     actual = captured[0]['researchRuntime']
+    domain_status = next(item['content'] for item in captured[0]['contextFiles']
+                         if item['path'] == 'unavailable-domain-tools')
+    assert 'fixture-pack@1' in domain_status
+    assert 'unavailable' in domain_status
+    assert 'not evidence that source data is absent' in domain_status
+    assert 'domainTools' not in captured[0]
     assert ('modelRequestPool' in captured[0]) is (experimental_llm_pool and choice is False)
     assert ('llmCallPool' in captured[0]) is (experimental_llm_pool and choice is False)
     gateway_context = next(item['content'] for item in captured[0]['contextFiles'] if item['path'] == 'registered-production-data')

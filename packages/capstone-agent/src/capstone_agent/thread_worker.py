@@ -96,13 +96,19 @@ def _run_claimed_attempt(
                 raise InterruptedError('intent cancelled')
         try:
             semantic = getattr(runtime_factory, 'plan_intent', None)
+            intent_label = None
             if callable(semantic):
                 if not router.ordinary_conversation_enabled:
                     raise DecisionUnavailable('ordinary_conversation_disabled')
-                service.append_runtime_event(claim, event_type='intent_started',
-                                             payload={'stage': 'understanding'})
-                service.append_runtime_event(claim, event_type='runtime_action', payload={
-                    'phase': 'started', 'response_intent': '理解当前指令'})
+                stage_label = getattr(runtime_factory, 'intent_stage_label', None)
+                intent_label = stage_label(claim) if callable(stage_label) else '理解当前指令'
+                if intent_label is not None:
+                    if not isinstance(intent_label, str) or not intent_label.strip():
+                        raise ValueError('intent stage label must be nonempty text or None')
+                    service.append_runtime_event(claim, event_type='intent_started',
+                                                 payload={'stage': 'understanding'})
+                    service.append_runtime_event(claim, event_type='runtime_action', payload={
+                        'phase': 'started', 'response_intent': intent_label})
                 def notice(event: Mapping[str, object]) -> None:
                     text = event.get('text') if event.get('type') == 'assistant_thinking_delta' else None
                     if not isinstance(text, str) or not text:
@@ -124,8 +130,9 @@ def _run_claimed_attempt(
                 plan = router.plan(routing_input_for_claim(claim))
             if not isinstance(plan, TurnPlan):
                 raise ValueError('intent node returned an invalid plan')
-            service.append_runtime_event(claim, event_type='runtime_action', payload={
-                'phase': 'response_completed', 'response_intent': '理解当前指令'})
+            if intent_label is not None:
+                service.append_runtime_event(claim, event_type='runtime_action', payload={
+                    'phase': 'response_completed', 'response_intent': intent_label})
         except InterruptedError:
             service.finish_attempt(claim, phase='cancelled', payload={})
             return HarnessAttemptResult('cancelled', None, None)

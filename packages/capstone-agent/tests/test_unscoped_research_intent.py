@@ -476,3 +476,112 @@ def test_answer_decision_stays_general_when_a_domain_capability_is_available(tmp
     assert domain.claims == []
     assert executor.requests[0].domain_tools['profiles'][0]['profile_id'] == 'pandapower-static-analysis'
     assert UNSCOPED_DOMAIN_GAP not in result.answer
+
+
+def test_default_direct_entry_replays_accepted_legacy_decision_without_loading_recognizer():
+    executor = governed_executor()
+    store = open_store(executor)
+    submit(store)
+    claim = store.claim_attempt('native', 30, 'native')
+    control = NodeControl(lambda: None, time.monotonic() + 30)
+    gate = Gate([goal('reply', 'answer')])
+    first = native_runtime_factory(executor, unscoped_intent=True,
+        recognizer_factory=lambda: gate).plan_intent(claim, control, store.freeze_attempt_input,
+            freeze_decision=store.freeze_attempt_decision)
+    def forbidden():
+        raise AssertionError('accepted legacy decisions must replay without another model setup')
+    replay = native_runtime_factory(executor, recognizer_factory=forbidden).plan_intent(
+        claim, control, store.freeze_attempt_input, freeze_decision=store.freeze_attempt_decision)
+    assert replay.source == first.source
+    assert replay.intent_request.to_document() == first.intent_request.to_document()
+    assert replay.intent_decision.to_document() == first.intent_decision.to_document()
+    assert replay.intent_resources == first.intent_resources
+
+
+def test_native_recognizer_initialization_is_lazy(tmp_path, monkeypatch):
+    from capstone_agent import native_hosted_worker
+    def forbidden(*args, **kwargs):
+        raise AssertionError('new native turns must not initialize recognition')
+    monkeypatch.setattr(native_hosted_worker, 'build_native_unscoped_recognizer', forbidden)
+    factory = native_hosted_worker.lazy_native_unscoped_recognizer(tmp_path)
+    assert callable(factory.for_attempt)
+
+
+@pytest.mark.parametrize('instruction', ['Explain this answer', 'List available gateway services',
+    'Run the registered power flow tool'])
+def test_default_native_entry_uses_one_direct_path_for_all_instructions(instruction):
+    executor = governed_executor()
+    store = open_store(executor)
+    publish_domain(store)
+    receipt = store.submit_command(command(store, 'thr_unscoped', 'send_message', 'direct',
+        payload={'text': instruction}))
+    assert receipt.status == 'accepted'
+    def forbidden():
+        raise AssertionError('direct native entry must not load a recognizer')
+    claim = store.claim_attempt('native', 30, 'native')
+    plan = native_runtime_factory(executor, recognizer_factory=forbidden).plan_intent(
+        claim, NodeControl(lambda: None, time.monotonic() + 30),
+        store.freeze_attempt_input, freeze_decision=store.freeze_attempt_decision)
+    assert plan.source == 'native_conversation'
+    assert plan.intent_request.to_document()['instruction'] == instruction
+    assert 'engine_identity' not in store.freeze_attempt_input(claim)
+    assert plan.intent_resources['submission'] == {key: value for key, value in claim.submission.items()
+        if key != '_materials'}
+    assert native_runtime_factory(executor).intent_stage_label(claim) is None
+
+
+def test_direct_retry_keeps_frozen_history_and_rebinds_attempt():
+    executor = governed_executor()
+    store = open_store(executor)
+    submit(store)
+    claim = store.claim_attempt('native', 30, 'native')
+    control = NodeControl(lambda: None, time.monotonic() + 30)
+    factory = native_runtime_factory(executor)
+    first = factory.plan_intent(claim, control, store.freeze_attempt_input,
+        freeze_decision=store.freeze_attempt_decision)
+    frozen = store.freeze_attempt_input(claim)
+    saved = first.intent_decision.to_document()
+    retry = replace(claim, attempt=replace(claim.attempt, attempt_id='attempt_retry'))
+    replay = factory.plan_intent(retry, control, lambda *_: frozen,
+        freeze_decision=lambda *_: saved)
+    assert replay.intent_request.to_document()['attempt_id'] == 'attempt_retry'
+    assert replay.intent_decision.to_document()['attempt_id'] == 'attempt_retry'
+    assert replay.intent_request.to_document()['messages'] == frozen['request']['messages']
+    assert replay.intent_resources['submission'] == frozen['resources']['submission']
+
+
+def test_default_native_execution_receives_admitted_domain_tool_grant():
+    executor = governed_executor()
+    store = open_store(executor)
+    publish_domain(store, families=('pandapower', 'pypsa'))
+    submit(store)
+    result = run_pending_attempt(store, native_runtime_factory(executor),
+        worker_id='native', implementation_family='native')
+    assert result.status == 'completed', failed_detail(store)
+    request = executor.requests[0]
+    assert request.to_document()['schema'] == 'capstone-pi-task/2'
+    assert request.domain_tools is not None
+    assert {item['implementation_family'] for item in request.domain_tools['profiles']} == {'pandapower', 'pypsa'}
+    assert request.dependency_results == ()
+
+
+def test_direct_native_retry_retains_frozen_domain_catalog():
+    from capstone_agent.domain_tool_grant import domain_tool_grant
+    executor = governed_executor()
+    store = open_store(executor)
+    publish_domain(store)
+    submit(store)
+    claim = store.claim_attempt('native', 30, 'native')
+    control = NodeControl(lambda: None, time.monotonic() + 30)
+    factory = native_runtime_factory(executor)
+    first = factory.plan_intent(claim, control, store.freeze_attempt_input,
+        freeze_decision=store.freeze_attempt_decision)
+    original = first.intent_resources['application_catalog']
+    assert domain_tool_grant(original)['profiles'][0]['implementation_family'] == 'pandapower'
+    frozen = store.freeze_attempt_input(claim)
+    retry = replace(claim, application_catalog={'schema': 'capstone-thread-catalog/1', 'models': [], 'profiles': []})
+    replay = factory.plan_intent(retry, control, lambda *_: frozen,
+        freeze_decision=lambda *_: first.intent_decision.to_document())
+    assert replay.intent_resources['application_catalog'] == original
+    assert domain_tool_grant(replay.intent_resources['application_catalog']) == domain_tool_grant(original)
+    assert replay.intent_resources['prior_results'] == []
