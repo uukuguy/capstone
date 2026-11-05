@@ -1,5 +1,7 @@
 # 多线版本控制
 
+2026-11-05：内网运行未合入dev的源码快照2b6dd8a3，四角色healthy，API/worker同镜像776c30a5。真实CSV验证因120秒理解超时失败，下载/继续/恢复尚未验收，不打验收标签。旧镜像与数据库备份保留；dev仍6c55e6ee，main/cloud不变，无CI。[部署回执](../reports/2026-11-05-intranet-deployment.md)。以下11月4日条目为历史来源。
+
 2026-11-04 16:44：内网 App 换为 c0cacc597a79，脚本 index-D6zsKizj.js。页面仍显示 intranet-dev · v0.1.0 · 6c55e6e，宽 HTML 表格在右栏内横向滚动。API/worker 与 native 未重建。上一张 App 保留为 6c55e6ee-before-table（ff9eb4569105）。11:41 起内网与本机页面统一显示仓库提交 6c55e6ee。本机页为 local-dev · v0.1.0 · 6c55e6e。API/worker d501f0602126同镜像，native单层e4eb33b6a105，四角色healthy。管理开关0，原生槽位1。线程thr_e62c227c65f77ecebe76，CSV 28字节，SHA 2768941343fc416a853150b53375eac4a42c7dc67705a728bde8e0d89446a300，继续读取与快照恢复通过。postgres/objects仍为20261101。空白页镜像与user-local页镜像分别保留为6c55e6ee-blank-version、6c55e6ee-user-local。验收标签仍指向首张App，不移动。main 0b68c607与cloud/demo不变。这不是完整发布验收。[回执](../reports/2026-11-04-intranet-deployment.md)。
 
 2026-11-03 21:11：PR93字号修正已合入实际dev6c55e6ee，受检3e8625f5文件树与合并树一致。

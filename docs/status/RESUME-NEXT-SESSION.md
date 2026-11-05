@@ -1,8 +1,12 @@
 # Live Session Checkpoint
 
-> Updated: 2026-11-05 09:25. Session remains active — not a final handoff.
+> Updated: 2026-11-05 10:00. Session remains active — not a final handoff.
 
 ## Active intranet update
+
+Deployment is complete but task acceptance failed:thread `thr_5a191f6f135269742038` ended with `intent_deadline_exceeded` at120 seconds. No CSV was produced; no continuation/restore pass and no acceptance tag. Four remote services remain healthy on2b6dd8a3; API/worker776c30a5 match. Receipt:`docs/reports/2026-11-05-intranet-deployment.md`. Next action is diagnose the saved recognition trace without automatic replay or deadline extension. Old6c55e6ee images and server backups remain. No branch integration,CI,cloud change or normal-index staging. Runtime repair files:runtime.py,test_runtime.py; test-only selector typing in CapstoneAssistantThread.test.tsx; these remain uncommitted with the preexisting mixed work. Recovery snapshot refs retain all source. Scoped cache cleanup completed. Browser tools unavailable,so no visual acceptance. The following paragraphs are operation history.
+
+Current runtime is fixed snapshot `2b6dd8a3c55ad8ef1a72db6c81f181ab9c5b560a`, recovery ref `refs/capstone/intranet-candidates/20261105-fixed`. All four roles healthy; API/worker image `776c30a5` matches. Initial73de5adb failed startup, rolled back, then fixed registry-to-recognizer adaptation with six passing runtime tests. Final backend layers rebake the exact-source catalog and fix uv cache ownership. Local canonical rebuild8eb5c353 is ready. Real verification thread `thr_5a191f6f135269742038` is running; next inspect `.capstone-agent/intranet-20261105/smoke.log`, finish receipt/tag/register/overview. No CI or cloud changes. Prior paragraph is initial candidate history.
 
 User authorizes latest intranet deployment. Source snapshot `73de5adb3aa6c87809de9a83748323c2e5845d0e` is a commit-tree object, not a dev branch commit; dev/index and mixed work remain intact. Staging and logs: `.capstone-agent/intranet-20261105/`. Local canonical rebuild ready, same API/worker image `df8dec8c`; doctor and131 backend checks pass. App types/build pass after staging shared config/type dependency;271 App checks pass, one diagnostic-history fixture fails. No CI or remote activation. Remote old services healthy and no running attempts. Next: finish amd64 images, transfer with hashes, back up and activate, run real product/continuation checks. Buildkit proxy enabled after direct Docker Hub timeouts; cache retained. Earlier handoff follows as context.
 

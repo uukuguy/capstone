@@ -39,7 +39,7 @@ function buildEnvironment(env: Record<string, string>, revision: string, develop
         development) {
       throw new Error('App environment receipt does not match its selected deployment')
     }
-    if (receipt.environment === 'local-dev' || receipt.environment === 'intranet-dev') {
+    if (receipt.environment === 'local-dev' || receipt.environment === 'intranet-dev' || receipt.environment === 'dky3-dev') {
       if (receipt.api_origin !== '' || (env.VITE_API_ORIGIN || '') !== '') {
         throw new Error('Local trial App requires a same-origin API')
       }

@@ -6909,3 +6909,7 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 09:25 User authorizes latest intranet update; protected working-tree snapshot 73de5adb retains dev HEAD and index.
 - 09:25 Focused backend checks:131 passed/28 skipped; App271 passed/1 invalid diagnostic-history fixture; source types/build and doctor pass.
 - 09:25 Local canonical rebuild ready with API/worker image df8dec8c; intranet idle; amd64 build retries through proxy, no activation yet.
+- 09:56 Initial73de5adb startup failed on workbench profile adaptation; rolled back; regression reproduced and six runtime checks pass after fix.
+- 09:56 Fixed snapshot2b6dd8a3 deployed; API/worker776c30a5 and all four roles healthy; catalog rebaked and cache ownership corrected.
+- 09:56 Local fixed rebuild8eb5c353 ready; intranet real CSV/continuation verification running in thr_5a191f6f135269742038; no CI.
+- 09:59 Intranet real verification fails intent_deadline_exceeded at120 seconds; no CSV,continuation or acceptance tag; healthy candidate retained for diagnosis.

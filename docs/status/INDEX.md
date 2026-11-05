@@ -1,5 +1,7 @@
 # docs/status INDEX
 
+2026-11-05：[内网更新](../reports/2026-11-05-intranet-deployment.md)运行2b6dd8a3，四角色健康；真实任务理解超时，未验收、无标签，旧版本可回退。
+
 16:44：内网 App 已换成 c0cacc597a79，脚本 index-D6zsKizj.js。页面仍是 intranet-dev · v0.1.0 · 6c55e6e，宽 HTML 表格在右栏内横向滚动。API/worker d501f0602126 与 native e4eb33b6a105 未重建。上一张 App 保留为 6c55e6ee-before-table。[回执](../reports/2026-11-04-intranet-deployment.md)。
 
 21:11：[PR93](https://github.com/uukuguy/capstone/pull/93)已合实际dev6c55e6ee；获批macOS CI41641127761用时5分06秒，1502项App测试/构建及治理通过。字号来源2148db14，main和远端部署不变。[证据](../reports/2026-11-03-conversation-typography.md)。

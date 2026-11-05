@@ -65,7 +65,7 @@ it('rejects cloud labels supplied as local runtime settings', () => {
   expect(() => identity('development')).toThrow()
 })
 
-it.each(['local-dev', 'intranet-dev'])('binds a static %s image to its exact source and same-origin API', environment => {
+it.each(['local-dev', 'intranet-dev', 'dky3-dev'])('binds a static %s image to its exact source and same-origin API', environment => {
   writeFileSync('build-environment.json', JSON.stringify({ ...receipt, environment, api_origin: '' }))
   expect(identity()).toEqual({ version: '0.1.0', revision, dirty: false, environment })
 })
