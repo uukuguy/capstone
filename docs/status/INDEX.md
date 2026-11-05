@@ -1,5 +1,7 @@
 # docs/status INDEX
 
+2026-11-06：[main/tag收口准备](../reports/2026-11-06-native-execution-closeout.md)隔离候选a8fbf683已修正类型/空路径、有界诊断缓存及TUI等待，后端3143/App1527/E2E39及本地发布范围分段验证通过，失败记录保留。先入dev再main，CI需逐次明确批准；未push/建PR/合并/tag，现有联调部署保持984131e3。
+
 2026-11-05：[真实任务补修](../reports/2026-11-05-batch-regression.md)984131e3已部署local-dev；6链×2页实际并发4、12次查询、0工具错误，CSV下载哈希和刷新通过。原任务59/31调用组仍串行已定位；[网关缺包协查](../reports/2026-11-05-data-gateway-runtime-assist.md)通知已入队，未收到回复。
 
 2026-11-05：[结构化工具批次](../reports/2026-11-05-structured-tool-batches.md)4ba17891已部署local-dev；141项/33环境跳过、11项新检查通过，真实模型两查询并发2及刷新恢复通过。同一组合会话共享最多4路，未知/写入独占。完整任务性能与归档后导出未接受；dev未合并，内网未更新。

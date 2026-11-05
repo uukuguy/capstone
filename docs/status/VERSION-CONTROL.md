@@ -1,5 +1,7 @@
 # 多线版本控制
 
+2026-11-06：用户授权收口、tag和main合并。已从7295d6d5回执建立隔离分支uukuguy/native-execution-release-20261106，代码a8fbf683包含49类型问题修正、有界诊断缓存及TUI状态等待；后端完整3143/197跳过、App完整1527通过、类型0错误，缓存独立复审无新发现；两次失败已修正；本地发布范围分段复验及独立安装通过；无单次干净aggregate回执，原失败不计通过。远端dev/main与本地一致，main为候选祖先；计划候选→dev→main，通过后在精确main合并提交打annotated milestone tag。尚无CI逐次批准，未push/创建PR/合并/tag；现有local-dev984、两内网367及cloud/demo保持。[收口准备](../reports/2026-11-06-native-execution-closeout.md)。
+
 2026-11-05：984131e3已部署local-dev，补齐独立分页链tools.map、稳定tool身份和helper同源契约；55Node/20Python通过、1环境跳过，1313运行输入一致。真实6链各2页，共12次查询最大并发4、查询区间1.5998秒、整轮40.9591秒、0工具错误，203字节CSV下载哈希及刷新通过。原任务42错误分为29网关/7组合/6bash；网关运行包缺grid_database已按用户授权通知，未收到回复，不声称原任务所有错误已修复。实际dev HEAD6c55e6ee未移动，无CI/合并，内网未联系。[补修回执](../reports/2026-11-05-batch-regression.md)。
 
 2026-11-05：结构化工具批次候选4ba17891已部署local-dev，全角色healthy且来源一致，私有配置未变。新增calls输入复用整批预检与结果引用，同一组合会话共享最多4路；未知/写入独占，取消与单项失败保留结果。141项通过/33环境跳过、11项新测试及固定Pi SDK参数验证通过。真实commercial模型采用calls，两次限量只读均成功且并发2，查询区间1.7953秒；整轮28.995秒，刷新恢复通过。会话归档后追加导出被拒，不重开或重查，不声明121次查询整体提速。dev HEAD6c55e6ee未移动，无CI/合并，两个内网未联系。[回执](../reports/2026-11-05-structured-tool-batches.md)。
@@ -1083,7 +1085,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 职责 | 当前状态 | 下一步 |
 | --- | --- | --- | --- |
-| dev | 共同基座与企业工作台集成 | dev HEAD6c55e6ee保持；local-dev试验984131e3，两内网最后确认367374aa加overlay255c8855，尚未合dev | 真实6链×2页并发4、0工具错误及CSV/刷新通过；网关缺包协查未回复 |
+| dev | 共同基座与企业工作台集成 | dev HEAD6c55e6ee；收口候选a8fbf683本地分段发布验证通过，待CI，local-dev运行984131e3，两内网最后确认367374aa加overlay255c8855 | 用户已授权tag/main；先入dev再main，CI未批准，现有部署保持 |
 | feat/business-analysis | 企业研究与分析 | 应用分支仅准备；实际研究能力在dev共享工作台推进 | 保留350.524秒/ 41轮质量基线；不另建研究调度或聊天应用 |
 | feat/model-decision | 电网分析与决策 | 00a8cd85已在local-dev验证；PR #53已合入f5eda4e4 | 成熟对话、真实历史与拓扑已接通；无模型与通用成果继续按协议推进 |
 
@@ -1173,6 +1175,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
+| native-closeout-20261106 | a8fbf683 | dev | native执行与Thinking·收口候选 | 类型0错误；后端3143、App1527、E2E39通过，打包/安装通过；CI未批准 | 归集Thinking/native/工具批次修正；补齐类型与空路径契约，尚未合并或打tag。[收口](../reports/2026-11-06-native-execution-closeout.md) | shared-agent |
 | batch-regression-20261105 | 984131e3 | dev | 独立分页链与helper契约·本地补修 | 55Node/20Python、1跳过；真实12查询并发4、0错误及CSV/刷新通过 | 有界独立分页链；稳定工具身份与helper契约，网关缺包另行协查。[回执](../reports/2026-11-05-batch-regression.md) | shared-agent |
 | structured-batches-20261105 | 4ba17891 | dev | 结构化工具批次·前次本地候选 | 两查询验证通过；真实复杂任务仍串行及多错，由984131e3补修 | 独立调用结构化提交；共享会话限流、逐项失败和结果引用保持。[回执](../reports/2026-11-05-structured-tool-batches.md) | shared-agent |
 | first-thinking-latency-20261105 | 7387ef7f | dev | 首Thinking诊断·前次本地候选 | 两组定向及复审沿用；本地普通会话3.1359秒与计时部分通过，DSV4首Thinking未验证 | 私有首Thinking阶段计时；单次绑定publication快照复用，普通实测1次GET，未声明DSV4性能改善。[候选回执](../reports/2026-11-05-first-thinking-latency.md) | shared-agent |
@@ -1314,6 +1317,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
+| native-closeout-20261106 | 当前收口候选 | uukuguy/native-execution-release-20261106（未合入dev/main） | 归集native与Thinking修正；补齐类型和空路径契约 | 本地发布范围分段通过；CI未批准，未合并/tag或部署 |
 | batch-regression-20261105 | local-dev本地补修来源 | refs/capstone/fixes/batch-regression-20261105（未合入dev） | 独立分页链有界并发；稳定工具身份与helper契约 | 已部署；真实12查询并发4、0工具错误及CSV/刷新通过，网关缺包待协查 |
 | structured-batches-20261105 | 前次本地批次来源 | refs/capstone/features/structured-batches-20261105（未合入dev） | 独立调用结构化提交；共享会话限流与逐项结果恢复 | 两查询通过；复杂任务仍有串行与调用错误，当前由984131e3补修 |
 | first-thinking-latency-20261105 | 前次本地诊断来源 | refs/capstone/fixes/first-thinking-latency-20261105（未合入dev） | 私有首Thinking阶段计时；单次绑定publication快照复用 | 普通会话3.1359秒，DSV4首Thinking与性能未接受；本地由4ba17891承接 |
