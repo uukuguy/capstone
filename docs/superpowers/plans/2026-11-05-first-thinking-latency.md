@@ -22,3 +22,10 @@ stage-local credentials, frozen models/resources and actual Authority boundaries
 5. Record exact deployed source/config, improvement and remaining model time in
    report/journal/baton/register/overview; inspect graph and save scoped recovery
    commits. No CI/push/merge or repeated broad/solver benchmark calls.
+
+Measured correction:63 executor_binding performs2 publication GETs (163.874ms)
+and no-model general_resources performs3 GETs (148.668ms). Capture once per binding,
+pass that snapshot to resource preparation while checking the real executor
+identity, and avoid reading then overwriting the no-model capability. The next
+binding must fetch again. No cross-task cache or permission relaxation. Count,
+freshness, validation and copy-isolation regressions precede this correction.

@@ -159,3 +159,36 @@ def test_old_graph_publication_does_not_silently_upgrade_general_chat():
     original = executor_binding(executor)
     assert binding_for_session(original, 'general-chat')['application_profile'] == {
         'profile_id': 'general-chat', 'profile_version': '1.0.0'}
+
+
+@pytest.mark.parametrize('operation', ['binding', 'general_resources'])
+def test_native_capability_snapshot_is_read_once_and_refreshed_per_call(operation):
+    from copy import deepcopy
+    from capstone_agent.native_hosted_worker import native_runtime_factory
+    source = native_executor()
+    class CountedHost:
+        identity = source.identity
+        reads = 0
+        @property
+        def capability(self):
+            self.reads += 1
+            return source.capability
+    host = CountedHost()
+    def bind():
+        if operation == 'binding':
+            return executor_binding(host)['capability']
+        claim = SimpleNamespace(model_context=None, submission=None,
+            attempt=SimpleNamespace(attempt_id='test-capability-snapshot'))
+        return native_runtime_factory(host)._general_resources(claim)['capability']
+    first = bind()
+    assert host.reads == 1
+    original = deepcopy(first)
+    source.capability['resource_profiles']['delegated_pi']['revision'] = 'd' * 64
+    source.capability['data_gateway'] = {'diagnostic_revision': 'second-publication'}
+    second = bind()
+    assert host.reads == 2
+    assert second['resource_profiles']['delegated_pi']['revision'] == 'd' * 64
+    assert second['data_gateway']['diagnostic_revision'] == 'second-publication'
+    second['resource_profiles']['delegated_pi']['revision'] = 'e' * 64
+    assert source.capability['resource_profiles']['delegated_pi']['revision'] == 'd' * 64
+    assert first == original

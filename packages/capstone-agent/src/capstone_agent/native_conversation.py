@@ -53,7 +53,7 @@ def executor_binding(executor, *, session_type: str | None = None, profile_versi
         scope_id = 'isolated'
         credentials: Mapping[str, str] = {}
     prepared = PiNativeBindingPreparer(executor).prepare(binding=binding, profile=binding.profile,
-        workspace=Path('.'), credentials=NativeCredentials())
+        workspace=Path('.'), credentials=NativeCredentials(), capability_snapshot=capability)
     if prepared.receipt.resource_revision != capability['resource_profiles']['delegated_pi']['revision']:
         raise ValueError('native resource preparation identity changed')
     prepared.close()
