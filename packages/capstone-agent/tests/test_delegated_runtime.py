@@ -293,6 +293,7 @@ def test_native_worker_persists_shared_steps_without_promoting_tools_to_authorit
     class SteppedExecutor(Executor):
         def execute(self, request, control, on_event):
             on_event({'type': 'runtime_action', 'phase': 'started'})
+            on_event({'type': 'assistant_thinking_delta', 'text': 'Supplied native thought'})
             on_event({'type': 'assistant_delta', 'text': '// 核对模型范围\nPRIVATE BODY'})
             on_event({'type': 'runtime_action', 'phase': 'response_completed', 'response_kind': 'tools'})
             on_event({'type': 'tool_execution_start', 'tool_name': 'bash', 'tool_call_id': 'read'})
@@ -318,6 +319,11 @@ def test_native_worker_persists_shared_steps_without_promoting_tools_to_authorit
     assert phases[-1].payload['runtime_phase']['elapsed_ms'] == 16081
     assert 'PRIVATE COMPACTION' not in str([e.payload for e in phases])
     assert len(purposes) == 2
+    thought = next(e for e in saved if e.event_type == 'assistant_thinking_delta')
+    opening = next(e for e in saved if e.event_type == 'runtime_action'
+                   and e.payload.get('phase') == 'started' and e.event_seq < thought.event_seq
+                   and e.payload.get('task_id'))
+    assert opening.payload['task_id'] == thought.payload['task_id']
     assert not any('PRIVATE BODY' in str(e.payload) for e in saved if e.visibility == 'public')
     calls = [e.payload for e in saved if e.payload.get('tool_call_id') == 'read']
     assert len(calls) == 2 and calls[0]['task_step_id'] == calls[1]['task_step_id']

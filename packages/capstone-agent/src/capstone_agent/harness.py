@@ -239,6 +239,11 @@ def normalize_runtime_event(
     payload: dict[str, object]
     if event_type == "runtime_action":
         payload = {key: event[key] for key in ("phase", "response_kind") if isinstance(event.get(key), str)}
+        if 'task_id' in event:
+            task_id = event['task_id']
+            if not isinstance(task_id, str) or not task_id or len(task_id) > 128:
+                raise ValueError('runtime task identity is invalid')
+            payload['task_id'] = task_id
         if event.get('phase') == 'response_completed' and isinstance(event.get('response_intent'), str):
             from .progress import public_response_intent
             intent = public_response_intent('// ' + str(event['response_intent']))

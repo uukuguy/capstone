@@ -19,6 +19,26 @@ def test_preview_intent_uses_short_idle_flush_deadline(monkeypatch):
     assert observed == [{'type': 'assistant_thinking_delta', 'text': 'actual thought'}]
 
 
+def test_preview_idle_flush_does_not_accelerate_control_polling(monkeypatch):
+    from capstone_agent import pi_intent
+    monkeypatch.setenv('CAPSTONE_THINKING_PREVIEW', '1')
+    now = [0.0]
+    monkeypatch.setattr(pi_intent.time, 'monotonic', lambda: now[0])
+    checks = []
+    class Client:
+        def set_thinking_level(self, level):
+            pass
+        def prompt_and_wait(self, question, **callbacks):
+            for tick in range(1, 21):
+                now[0] = tick * .075
+                callbacks['on_heartbeat']()
+            return ''
+    session = pi_intent._ConversationPiPromptSession(Client(), None, intent=True)
+    session.prompt_and_wait('understand', on_semantic_event=lambda event: None,
+        correlation_id='preview', on_heartbeat=lambda: checks.append(now[0]))
+    assert len(checks) == 1
+
+
 def test_intent_thinking_batches_before_durable_observer_and_flushes_before_decision():
     from types import SimpleNamespace
     from capstone_agent.pi_intent import _ConversationPiPromptSession

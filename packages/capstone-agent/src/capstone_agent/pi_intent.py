@@ -372,9 +372,15 @@ class _ConversationPiPromptSession:
             else:
                 thinking.flush()
 
+        last_control_heartbeat = time.monotonic()
+
         def heartbeat() -> None:
+            nonlocal last_control_heartbeat
             thinking.flush_due()
-            on_heartbeat()
+            now = time.monotonic()
+            if now - last_control_heartbeat >= 1.0:
+                on_heartbeat()
+                last_control_heartbeat = now
 
         def semantic(event, sequence) -> None:
             thinking.flush()

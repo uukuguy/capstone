@@ -295,7 +295,7 @@ class DelegatedRuntime:
                     intent = public_response_intent(opening_text)
                     if intent:
                         event = {**event, 'response_intent': intent}
-                on_event(normalize_runtime_event(event, runtime_mode=self.runtime_mode))
+                on_event(normalize_runtime_event({**event, 'task_id': task_id}, runtime_mode=self.runtime_mode))
                 return
             # General tools are host observations. They never become semantic
             # tool events and never contribute result/evidence references.
