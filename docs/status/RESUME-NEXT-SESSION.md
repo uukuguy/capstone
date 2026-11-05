@@ -1,6 +1,10 @@
-# Next-Session Handoff
+# Live Session Checkpoint
 
-> Updated: 2026-11-05 end of session.
+> Updated: 2026-11-05 09:25. Session remains active — not a final handoff.
+
+## Active intranet update
+
+User authorizes latest intranet deployment. Source snapshot `73de5adb3aa6c87809de9a83748323c2e5845d0e` is a commit-tree object, not a dev branch commit; dev/index and mixed work remain intact. Staging and logs: `.capstone-agent/intranet-20261105/`. Local canonical rebuild ready, same API/worker image `df8dec8c`; doctor and131 backend checks pass. App types/build pass after staging shared config/type dependency;271 App checks pass, one diagnostic-history fixture fails. No CI or remote activation. Remote old services healthy and no running attempts. Next: finish amd64 images, transfer with hashes, back up and activate, run real product/continuation checks. Buildkit proxy enabled after direct Docker Hub timeouts; cache retained. Earlier handoff follows as context.
 
 ## TL;DR
 

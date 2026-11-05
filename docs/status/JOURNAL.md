@@ -6904,3 +6904,8 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - 11:21 Replaced intranet App with sha256:a1955fb9c66b; page now carries source 6c55e6ee. Blank image kept as 6c55e6ee-blank-version.
 - 11:41 Unified the visible labels on source 6c55e6ee. Local page shows local-dev · v0.1.0 · 6c55e6e. Intranet page shows intranet-dev · v0.1.0 · 6c55e6e. Intranet App is sha256:ff9eb4569105, script index-oaLTgvHT.js. Previous App images stay tagged 6c55e6ee-user-local and 6c55e6ee-blank-version. API, worker, native and volumes were not recreated.
 - 16:44 Replaced intranet App with sha256:c0cacc597a79. Page script index-D6zsKizj.js keeps intranet-dev and scrolls wide HTML tables. Prior App kept as 6c55e6ee-before-table. API, worker, native and volumes were not recreated.
+
+## 2026-11-05
+- 09:25 User authorizes latest intranet update; protected working-tree snapshot 73de5adb retains dev HEAD and index.
+- 09:25 Focused backend checks:131 passed/28 skipped; App271 passed/1 invalid diagnostic-history fixture; source types/build and doctor pass.
+- 09:25 Local canonical rebuild ready with API/worker image df8dec8c; intranet idle; amd64 build retries through proxy, no activation yet.

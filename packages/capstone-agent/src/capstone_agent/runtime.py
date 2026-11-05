@@ -51,6 +51,19 @@ def load_runtime_environment(
 def resolve_harness_llm(repo_root: Path, environment: dict[str, str]) -> ResolvedLLM:
     """Resolve application-selected Harness Provider settings at one shared seam."""
 
+    compatible_workbench = (environment.get("CAPSTONE_RUNTIME_PROFILE") == "capstone-workbench-v1"
+        and environment.get("CAPSTONE_PUBLIC_PROVIDER") == "openai-compatible"
+        and not environment.get("CAPABILITY_AGENT_LLM_PROVIDER"))
+    if compatible_workbench:
+        from .workbench_llm_profiles import ProfileRegistry
+        registry = ProfileRegistry(repo_root / "configs/runtime/workbench-llm-profiles.json", environment=environment)
+        profile = registry.resolve(registry.freeze())
+        environment = dict(environment)
+        environment.update(CAPABILITY_AGENT_LLM_PROVIDER="openai",
+            CAPABILITY_AGENT_LLM_MODEL=profile["model"],
+            CAPABILITY_AGENT_LLM_BASE_URL="https://api.openai.com/v1",
+            CAPABILITY_AGENT_LLM_API_KEY_ENV="CAPSTONE_WORKBENCH_RESOLVED_KEY",
+            CAPSTONE_WORKBENCH_RESOLVED_KEY=profile["key"])
     environment.setdefault(
         "CAPABILITY_AGENT_LLM_PROVIDER",
         environment.get("CAPSTONE_PUBLIC_PROVIDER", "deepseek"),
@@ -66,7 +79,10 @@ def resolve_harness_llm(repo_root: Path, environment: dict[str, str]) -> Resolve
             environ=environment,
             env_file=repo_root / ".env",
         )
-        if (environment.get("CAPSTONE_RUNTIME_PROFILE") == "capstone-dev-trial-v1"
+        if compatible_workbench:
+            # The registered workbench profile owns private HTTP targets.
+            resolved = replace(resolved, config=replace(resolved.config, base_url=profile["base_url"]))
+        if ((environment.get("CAPSTONE_RUNTIME_PROFILE") == "capstone-dev-trial-v1" or compatible_workbench)
                 and resolved.config.provider == "openai"
                 and resolved.config.base_url.rstrip("/") != "https://api.openai.com/v1"):
             resolved = replace(resolved, config=replace(

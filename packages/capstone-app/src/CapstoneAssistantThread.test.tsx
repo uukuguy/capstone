@@ -1745,7 +1745,7 @@ describe('CapstoneAssistantThread', () => {
     ]
     render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={projectAssistantActivity(events)} onSend={async () => {}} onCancel={async () => {}} />)
     const first = screen.getByText('已打开模型。').closest('.capstone-chat-message')!
-    const details = first.querySelector('details.capstone-chat-activity-attached')!
+    const details = first.querySelector<HTMLDetailsElement>('details.capstone-chat-activity-attached')!
     const summary = details.querySelector('summary')!
     fireEvent.click(summary)
     expect(details.open).toBe(true)
@@ -1753,7 +1753,7 @@ describe('CapstoneAssistantThread', () => {
     expect(details.open).toBe(false)
     fireEvent.click(summary)
     expect(details.open).toBe(true)
-    expect(screen.getByText('潮流已完成。').closest('.capstone-chat-message')!.querySelector('details.capstone-chat-activity-attached')!.open).toBe(false)
+    expect(screen.getByText('潮流已完成。').closest('.capstone-chat-message')!.querySelector<HTMLDetailsElement>('details.capstone-chat-activity-attached')!.open).toBe(false)
   })
 
   it('shows up to ten latest running actions until opened and respects closing it as steps arrive', () => {
