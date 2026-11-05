@@ -42,7 +42,7 @@ export default function ThinkingProcess({thinking,storageKey,now=Date.now(),expa
   const start=Date.parse(thinking.startedAt??''),end=thinking.endedAt?Date.parse(thinking.endedAt):now
   const elapsed=Number.isFinite(start)&&Number.isFinite(end)&&end>=start?(end-start)/1000:undefined
   const status=thinking.phase==='failed'?'思考已停止（本轮失败）':thinking.phase==='cancelled'?'思考已取消':thinking.phase==='interrupted'?'思考已中断':
-    active?thinking.phase==='queued'?'等待执行…':'思考中…':elapsed===undefined?'已思考':`已思考 ${Math.round(elapsed)}秒`
+    active?thinking.phase==='queued'?'等待执行…':thinking.text?'思考中…':'模型处理中，尚未收到可显示的思考片段。':elapsed===undefined?'已思考':`已思考 ${Math.round(elapsed)}秒`
   const viewport=useRef<HTMLDivElement>(null),following=useRef(true)
   useLayoutEffect(()=>{
     if(active&&open&&following.current&&viewport.current)viewport.current.scrollTop=viewport.current.scrollHeight

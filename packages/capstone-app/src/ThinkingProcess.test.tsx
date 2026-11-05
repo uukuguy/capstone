@@ -123,7 +123,9 @@ it('never shows a missing-thinking placeholder alongside supplied 823-character 
 })
 it('uses one clickable muted trigger and no invented body while waiting for supplied text',()=>{
   render(<CapstoneAssistantThread {...props} events={[accepted,started]}/>)
-  expect(screen.queryByRole('region',{name:'LLM 思考'})).toBeNull()
+  const waiting=screen.getByRole('region',{name:'LLM 思考'})
+  expect(waiting.getAttribute('aria-busy')).toBe('true')
+  expect(waiting.querySelector('.capstone-thinking-copy')).toBeNull()
   expect(screen.queryByText('当前记录未提供公开思考摘要。')).toBeNull()
 })
 it('follows streamed text until the reader scrolls up and resumes only at the bottom',()=>{

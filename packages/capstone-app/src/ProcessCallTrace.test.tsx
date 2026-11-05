@@ -22,6 +22,17 @@ it('shows compaction between model calls without an extra model round and stops 
 
 afterEach(cleanup)
 
+it('keeps Thinking visible while a model runs before any reasoning text arrives',()=>{
+ const model={id:'waiting',number:1,ms:0,startedAt:'2026-11-05T00:00:00Z'}
+ const view=render(<ProcessCallTrace active models={[model]} tools={[]} now={Date.parse('2026-11-05T00:00:02Z')}/> )
+ const thinking=screen.getByRole('region',{name:'LLM 思考'})
+ expect(thinking).toHaveAttribute('aria-busy','true')
+ expect(within(thinking).getByText('Thinking…')).toBeVisible()
+ expect(thinking.querySelector('.capstone-thinking-copy')).toBeNull()
+ view.rerender(<ProcessCallTrace active models={[{...model,settled:true}]} tools={[]}/> )
+ expect(screen.queryByRole('region',{name:'LLM 思考'})).not.toBeInTheDocument()
+})
+
 it('does not repeat a promoted tool sentence on the tool row',()=>{
  render(<ProcessCallTrace compact active={false} models={[{id:'m',number:1,ms:100,toolCallIds:['t']}]} tools={[{id:'t',name:'agent_tools_execute',status:'completed',operation:'读取库存表清单与状态',durationMs:400}]}/>)
  const group=screen.getByRole('group',{name:'LLM 调用 1'})
