@@ -56,6 +56,14 @@ class AdmittedBusinessGoalDependency:
         return json.loads(self._document_json)
 
 
+DOMAIN_SCOPE_ID = 'domain-scope:none'
+
+
+def business_scope_id(claim: 'AttemptClaim') -> str:
+    """A no-model domain goal still needs one non-empty scope token."""
+    return claim.model_context_id or DOMAIN_SCOPE_ID
+
+
 def business_dependencies_for_claim(claim: 'AttemptClaim') -> list[dict]:
     """Admit only resolved source goals in the current model/profile scope."""
     plan = claim.turn_plan
@@ -76,7 +84,7 @@ def business_dependencies_for_claim(claim: 'AttemptClaim') -> list[dict]:
             raise ValueError('typed business dependency is required')
         document = value.to_document()
         if (document['attempt_id'] != claim.attempt.attempt_id or
-            document['model_context_id'] != claim.model_context_id or
+            document['model_context_id'] != business_scope_id(claim) or
             document['goal_id'] not in resolved or document['goal_id'] in seen or
             not set(document['capability_refs']).issubset(target_refs)):
             raise ValueError('business dependency is outside the current authorized scope')

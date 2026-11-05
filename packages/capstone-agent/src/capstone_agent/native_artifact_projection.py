@@ -42,6 +42,23 @@ def project_native_artifacts(claim, result, *, expected_parent_attempt_id=None):
     return _project_artifact_document(claim, document, expected_parent_attempt_id=expected_parent_attempt_id)
 
 
+def incomplete_capture_seals(artifacts):
+    """Close captures that were still running when the instruction ended.
+
+    The original running record stays in the ledger. The returned copies are
+    the terminal versions published by the instruction close.
+    """
+    latest = {}
+    for artifact in artifacts:
+        if not isinstance(artifact, dict):
+            continue
+        name = artifact.get('file_name')
+        if isinstance(name, str) and name:
+            latest[name] = artifact
+    return [{**artifact, 'source_status': 'incomplete'}
+            for artifact in latest.values() if artifact.get('source_status') == 'running']
+
+
 def project_native_artifact_capture(claim, request, event):
     """A running capture is an available version, not a terminal task result."""
     expected = {'type', 'schema', 'task_id', 'parent_attempt_id', 'executor_identity', 'artifact'}

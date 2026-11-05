@@ -19,7 +19,7 @@ type FileClient={
 type Selection={threadId:string;attemptId:string;artifactId:string;requestKey:string}
 type Preview={key:string;status:'loading'|'ready'|'error';url?:string;text?:string;textUnavailable?:boolean}
 const fileKey=(file:NativeArtifact)=>`${file.thread_id}:${file.attempt_id}:${file.artifact_id}`
-const statusNames:Record<string,string>={running:'可用版本',completed:'已完成',failed:'未完成',cancelled:'已取消',interrupted:'已中断',blocked:'未执行'}
+const statusNames:Record<string,string>={running:'可用版本',completed:'已完成',failed:'未完成',incomplete:'结束时未完成',cancelled:'已取消',interrupted:'已中断',blocked:'未执行'}
 
 /** A filename fallback affects only the isolated preview, never the stored descriptor. */
 export function nativePreviewMedia(name:string,media:string|null|undefined){
@@ -47,6 +47,16 @@ export function htmlPreviewDocument(text:string) {
     if(href?.startsWith('#')){link.setAttribute('href',`about:srcdoc${href}`);link.removeAttribute('target')}
   }
   document.head.insertAdjacentHTML('afterbegin',htmlPreviewPolicy+'<style>html{scroll-behavior:smooth}@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}</style>')
+  // A narrow preview must not crush every column into one character. Size the
+  // table to its text and scroll the extra width inside the document.
+  for(const table of [...document.querySelectorAll('table')]){
+    if(table.parentElement?.classList.contains('capstone-html-table-scroll'))continue
+    const wrap=document.createElement('div')
+    wrap.className='capstone-html-table-scroll'
+    table.before(wrap)
+    wrap.append(table)
+  }
+  document.head.insertAdjacentHTML('beforeend','<style>.capstone-html-table-scroll{max-width:100%;overflow-x:auto}.capstone-html-table-scroll table{width:max-content !important;min-width:100% !important;max-width:none !important;table-layout:auto !important}.capstone-html-table-scroll :is(th,td){white-space:nowrap !important;word-break:normal !important;overflow-wrap:normal !important}.capstone-html-table-scroll :is(th,td):is(:has(p),:has(br),:has(ul),:has(ol),:has(div)){white-space:normal !important;overflow-wrap:break-word !important;min-width:12em}</style>')
   return '<!doctype html>'+document.documentElement.outerHTML
 }
 

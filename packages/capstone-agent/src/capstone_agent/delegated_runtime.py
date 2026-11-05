@@ -11,11 +11,12 @@ from .application_capacity import CapacityExceeded, limits, observe_capacity
 
 from .harness import AdmittedAttemptAnswer, HarnessRuntime, terminal_payload_for_admission, HarnessRuntimeConfigurationError
 from .pi_delegation import GeneralPiExecutor, PiTaskRequest, PiTaskResult, PiHTTPFailure, PiTransportTimeout
-from .business_context import BusinessContext
+from .business_context import BusinessContext, unversioned_object_refs
 from .request_intent import IntentDecision, IntentRequest, NodeControl
 from .thread_service import AttemptClaim
 from .turn_router import TurnPlan
-from .business_goal_dependency import AdmittedBusinessGoalDependency, business_dependencies_for_claim
+from .business_goal_dependency import (AdmittedBusinessGoalDependency, business_dependencies_for_claim,
+                                       business_scope_id)
 from .thread_network import normalize_thread_network_projection
 
 BUSINESS_OPERATIONS = frozenset({'business_read', 'business_execute'})
@@ -49,6 +50,19 @@ def child_failure_code(error: BaseException) -> str:
     if isinstance(error, GoalReceiptPersistenceError):
         return 'native_receipt_persistence_failed'
     return 'native_execution_error'
+
+
+def _domain_runtime_block(claim, error: BaseException) -> str | None:
+    """A missing domain runtime is a recorded gap, not a failed general task."""
+    from .intent_runtime import DOMAIN_EXECUTOR_UNREGISTERED, DOMAIN_RUNTIME_REQUIRES_MODEL
+    text = str(error)
+    if text == 'professional execution is not registered on this worker':
+        gap = DOMAIN_EXECUTOR_UNREGISTERED
+    elif claim.model_context is None and text == 'professional attempt requires a model context':
+        gap = DOMAIN_RUNTIME_REQUIRES_MODEL
+    else:
+        return None
+    return 'Business task was not executed: prerequisites are not complete.\n' + gap
 
 
 def json_document(value):
@@ -90,6 +104,7 @@ class DelegatedRuntime:
         self._business_started: set[str] = set()
         self._statuses: dict[str, str] = {}
         self._research_bridge = None
+        self.pending_domain_handoff = None
 
     def bind_research(self, bridge):
         if self._research_bridge is not None:
@@ -213,6 +228,9 @@ class DelegatedRuntime:
                 raise HarnessRuntimeConfigurationError('general Pi task schema does not support required context')
         if selected_input is not None and 'input' not in task_fields:
             raise HarnessRuntimeConfigurationError('general Pi task schema does not support selected skill')
+        from .domain_tool_grant import domain_tool_grant
+        granted_tools = domain_tool_grant(
+            resources.get('application_catalog'), self._claim.model_context) if task_fields else None
         request = PiTaskRequest(task_id, parent, 'direct' if self._direct else 'delegated',
             instruction, tuple(messages), tuple(self._general_results[identity].to_document()
                 for identity in dependencies if identity in self._general_results),
@@ -220,6 +238,7 @@ class DelegatedRuntime:
             managed_workspace=self._claim.workspace_name if resources.get('native_context') and task_fields else None,
             native_context=resources.get('native_context'),
             research_binding=None if self._research_bridge is None else self._research_bridge.binding,
+            domain_tools=granted_tools,
             **task_fields)
         self._emit(on_event, {'task_id': task_id, 'goal_id': goal['goal_id'],
             'parent_attempt_id': parent, 'child_status': 'started',
@@ -579,6 +598,8 @@ class DelegatedRuntime:
         result_refs = [ref for item in admitted_dependencies for ref in item['admission']['result_refs']]
         evidence_refs = [ref for item in admitted_dependencies for ref in item['admission']['evidence_refs']]
 
+        lightweight = self._claim.model_context is None
+
         def emit(event):
             control.checkpoint()
             payload = event.get('payload', {})
@@ -586,12 +607,28 @@ class DelegatedRuntime:
                 events.append(payload)
             for key, collection in (('result_refs', result_refs), ('evidence_refs', evidence_refs)):
                 collection.extend(ref for ref in payload.get(key, ()) if isinstance(ref, str))
+            if lightweight:
+                return
             try:
                 on_event(event)
             except Exception as error:
                 raise GoalReceiptPersistenceError('business event could not be saved') from error
         control.checkpoint()
-        runtime = self._business(scoped)
+        try:
+            runtime = self._business(scoped)
+        except Exception as error:
+            blocked = _domain_runtime_block(self._claim, error)
+            if lightweight:
+                receipt = '电网计算这回没有交到 Domain Pack。报告仍由通用执行器继续写。'
+                on_event({'event_type': 'tool_completed', 'runtime_mode': self.runtime_mode,
+                          'visibility': 'public', 'payload': {
+                              'tool_name': 'domain_pack', 'goal_id': goal['goal_id'],
+                              'is_error': True, 'output_excerpt': receipt[:4000]}})
+                self._business_answers[goal['goal_id']] = receipt
+                return 'completed', receipt
+            if blocked is not None:
+                return 'blocked', blocked
+            raise
         self._active = runtime
         self._business_started.add(goal['goal_id'])
         try:
@@ -614,11 +651,23 @@ class DelegatedRuntime:
                 raise BusinessAdmissionError('business answer admission failed')
             self._business_admissions.append(admitted)
             self._business_answers[goal['goal_id']] = admitted.answer
+            if lightweight:
+                on_event({'event_type': 'tool_completed', 'runtime_mode': self.runtime_mode,
+                          'visibility': 'public', 'payload': {
+                              'tool_name': 'domain_pack', 'goal_id': goal['goal_id'],
+                              'result_refs': list(admitted.result_refs),
+                              'evidence_refs': list(admitted.evidence_refs),
+                              'output_excerpt': admitted.answer[:4000]}})
             self._business_dependencies[goal['goal_id']] = AdmittedBusinessGoalDependency(
-                self._claim.attempt.attempt_id, goal['goal_id'], self._claim.professional_context.id,
+                self._claim.attempt.attempt_id, goal['goal_id'], business_scope_id(self._claim),
                 tuple(goal['capability_refs']), admitted, tuple(events))
             self._capture_network_projection(runtime, scoped, admitted, events)
             return 'completed', admitted.answer
+        except Exception as error:
+            blocked = _domain_runtime_block(self._claim, error)
+            if blocked is not None:
+                return 'blocked', blocked
+            raise
         finally:
             from .runtime_cleanup import run_runtime_cleanup
             try:
@@ -628,6 +677,33 @@ class DelegatedRuntime:
 
     def prompt(self, question, *, on_event, correlation_id=None, on_heartbeat=None):
         del question, correlation_id
+        if self._resources.get('assemble_domain_report'):
+            from .domain_node_report import assemble_domain_report
+            node = str(self._resources.get('node_text') or '')
+            parent = str(self._resources.get('parent_text') or '')
+            if self._executor is not None and self._request is not None and self._decision is not None:
+                document = self._request.to_document()
+                general_goals = [item for item in self._decision.to_document()['goals']
+                                 if item['operation'] not in BUSINESS_OPERATIONS]
+                goal = dict(general_goals[0] if general_goals else {
+                    'goal_id': 'report', 'operation': 'answer', 'message_refs': []})
+                goal['instruction_excerpt'] = document['instruction']
+                goal['depends_on'] = ['domain-node']
+                self._business_answers['domain-node'] = node[:8000]
+                heartbeat = on_heartbeat or (lambda: None)
+                control = NodeControl(heartbeat, time.monotonic() + limits.delegation_task_seconds)
+                try:
+                    status, written = self._general_task(goal, ['domain-node'], control, on_event)
+                except (BusinessAdmissionError, GoalReceiptPersistenceError, HarnessRuntimeConfigurationError):
+                    raise
+                except Exception:
+                    status, written = 'failed', ''
+                if status == 'completed' and written:
+                    parent = written
+            return assemble_domain_report(
+                parent, node,
+                parent_title=str(self._resources.get('report_parent_title') or '任务说明'),
+                node_title=str(self._resources.get('report_node_title') or '领域计算'))
         heartbeat = on_heartbeat or (lambda: None)
         frozen = self._resources
         general = frozen['resources']['general_executor'] if self._direct else frozen.get('general_executor')
@@ -645,11 +721,34 @@ class DelegatedRuntime:
             identity = goal['goal_id']
             dependencies = goal.get('depends_on', list(prior))
             prior.append(identity)
-            if (self._decision is not None and self._decision.needs_clarification) or goal['missing_requirements'] or any(
+            if self._resources.get('domain_node_only') and goal['operation'] not in BUSINESS_OPERATIONS:
+                self._statuses[identity] = 'skipped'
+                self._emit(on_event, {'goal_id': identity, 'goal_status': 'skipped',
+                                      'operation': goal['operation']})
+                continue
+            if self._resources.get('defer_domain_goals'):
+                if goal['operation'] in BUSINESS_OPERATIONS and not goal['missing_requirements']:
+                    self._statuses[identity] = 'deferred'
+                    self._emit(on_event, {'goal_id': identity, 'goal_status': 'deferred',
+                                          'operation': goal['operation']})
+                    continue
+                if goal['operation'] not in BUSINESS_OPERATIONS and goal['operation'] != 'catalog_lookup':
+                    self._statuses[identity] = 'skipped'
+                    self._emit(on_event, {'goal_id': identity, 'goal_status': 'skipped',
+                                          'operation': goal['operation']})
+                    continue
+            unversioned = (self._request is not None and goal['operation'] not in BUSINESS_OPERATIONS
+                           and goal['operation'] != 'catalog_lookup'
+                           and unversioned_object_refs(self._request, goal))
+            if goal['missing_requirements'] or unversioned or any(
                 self._statuses.get(ref) != 'completed' for ref in dependencies
             ):
                 label = 'Business task' if goal['operation'] in BUSINESS_OPERATIONS else 'General task'
-                status, answer = 'blocked', f"{label} was not executed: prerequisites are not complete."
+                answer = f"{label} was not executed: prerequisites are not complete."
+                requirements = [item for item in goal.get('missing_requirements', ()) if isinstance(item, str) and item]
+                if requirements:
+                    answer = answer + '\n' + '\n'.join(requirements)
+                status = 'blocked'
             else:
                 try:
                     if goal['operation'] in BUSINESS_OPERATIONS:
@@ -661,7 +760,9 @@ class DelegatedRuntime:
                         status = 'completed' if answer is not None else 'capability_unavailable'
                         answer = answer or 'The application catalog is unavailable.'
                     else:
-                        status, answer = self._general_task(goal, dependencies, control, on_event)
+                        carried = [item for item in self._business_answers
+                                   if self._statuses.get(item) == 'completed' and item not in dependencies]
+                        status, answer = self._general_task(goal, [*dependencies, *carried], control, on_event)
                 except (BusinessAdmissionError, GoalReceiptPersistenceError, HarnessRuntimeConfigurationError):
                     raise
                 except Exception as error:
@@ -686,6 +787,19 @@ class DelegatedRuntime:
             if goal['operation'] in BUSINESS_OPERATIONS or status != 'completed':
                 protected.add(len(answers))
             answers.append(answer or 'A task requires clarification.')
+        family = self._resources.get('domain_node_family')
+        if self._resources.get('defer_domain_goals') and isinstance(family, str) and any(
+                status == 'deferred' for status in self._statuses.values()):
+            parent = '\n\n'.join(item for item in answers if item).strip()
+            self.pending_domain_handoff = {'implementation_family': family, 'role': 'node',
+                                           'parent_text': parent, 'node_text': ''}
+            return parent
+        if self._resources.get('domain_node_only'):
+            node = '\n\n'.join(item for item in answers if item).strip() or '领域计算没有形成回执。'
+            self.pending_domain_handoff = {
+                'implementation_family': 'native', 'role': 'report',
+                'parent_text': str(self._resources.get('parent_text') or ''), 'node_text': node}
+            return node
         if not any(status == 'completed' for status in self._statuses.values()):
             clarification = None if self._decision is None else self._decision.to_document()['clarification']
             if clarification:
@@ -745,6 +859,8 @@ class DelegatedRuntime:
 
     def admit_attempt(self, claim, answer, result_refs, evidence_refs, tool_events):
         del claim, tool_events
+        if self._resources.get('assemble_domain_report'):
+            return AdmittedAttemptAnswer(answer, 'limited', 'limited', diagnostic_codes=('domain_node_reported',))
         if self._business_admissions:
             refs = tuple(dict.fromkeys(ref for item in self._business_admissions for ref in item.result_refs))
             evidence = tuple(dict.fromkeys(ref for item in self._business_admissions for ref in item.evidence_refs))
@@ -767,12 +883,13 @@ class DelegatedRuntime:
                                            if goal['operation'] in BUSINESS_OPERATIONS]
         if business:
             completed = tuple(identity for identity, result in self._general_results.items() if result.status == 'completed')
-            if not completed and self._plan.route == 'ordinary':
-                return AdmittedAttemptAnswer(answer, 'limited', 'limited',
-                    diagnostic_codes=('business_goals_not_executed',))
-            return AdmittedPartialGoalAnswer(answer, 'limited', 'limited',
-                diagnostic_codes=('business_goals_not_executed',),
-                completed_general_goal_ids=completed, unexecuted_business_goal_ids=tuple(business))
+            pending = tuple(identity for identity in business if self._statuses.get(identity) != 'completed')
+            if completed and pending:
+                return AdmittedPartialGoalAnswer(answer, 'limited', 'limited',
+                    diagnostic_codes=('business_goals_not_executed',),
+                    completed_general_goal_ids=completed, unexecuted_business_goal_ids=pending)
+            return AdmittedAttemptAnswer(answer, 'limited', 'limited',
+                diagnostic_codes=('business_goals_not_executed',))
         if any(status != 'completed' for status in self._statuses.values()):
             return AdmittedAttemptAnswer(answer, 'limited', 'limited')
         return AdmittedAttemptAnswer(answer, 'offline_information', 'general_knowledge')

@@ -25,7 +25,7 @@ provider configuration. The default deployment starts the enterprise/native path
 For an offline x86_64 host, build Linux amd64 images from the recorded commit,
 save the backend, native executor, App, PostgreSQL and object-store images, and
 transfer them with checksums. Prepare the App from that exact source using
-`deploy/prepare_app_source.py` (same-origin `local-dev` identity), build its static
+`deploy/prepare_app_source.py` (same-origin `intranet-dev` identity), build its static
 files, then use `App.Dockerfile` here with the shared dev-trial `Caddyfile`.
 Keep the deployment receipt's host/stage separate from the App's development-lane
 label. Verify image identities, readiness, the default model and gateway, one real

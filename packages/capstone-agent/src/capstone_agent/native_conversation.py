@@ -57,9 +57,10 @@ def executor_binding(executor, *, session_type: str | None = None, profile_versi
     if prepared.receipt.resource_revision != capability['resource_profiles']['delegated_pi']['revision']:
         raise ValueError('native resource preparation identity changed')
     prepared.close()
-    # Optional retrieval is not an application grant merely because the host
-    # supports it. The base conversation has no external lookup permission.
-    capability['operations'] = [item for item in capability['operations'] if item in {'answer', 'rewrite'}]
+    # external_lookup stays a legal operation. The network switch, default off,
+    # blocks public egress. Closing it does not reject the operation.
+    capability['operations'] = [item for item in capability['operations']
+                                if item in {'answer', 'rewrite', 'external_lookup'}]
     result = {'schema': 'capstone-native-conversation/1',
             'application_profile': {'profile_id': profile.manifest.application_id,
                                     'profile_version': profile.manifest.version},

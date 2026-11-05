@@ -15,9 +15,10 @@ export function AppVersion({ build }: { build: AppBuildIdentity }) {
   const environment = build.environment === 'local-dev' && import.meta.env.PROD
     ? 'user-local'
     : build.environment ?? '环境未配置'
+  const source = build.repositoryRevision || build.revision
   return <span className="app-version" aria-label="App 版本"
-    title={`环境：${environment}；源代码版本：${build.revision || '本地开发'}${build.dirty ? '（含未提交修改）' : ''}`}>
-    {environment} · v{build.version} · {build.revision.slice(0, 7) || '开发版'}{build.dirty ? ' *' : ''}
+    title={`环境：${environment}；源代码版本：${source || '本地开发'}${build.dirty ? '（含未提交修改）' : ''}`}>
+    {environment} · v{build.version} · {source.slice(0, 7) || '开发版'}{build.dirty ? ' *' : ''}
   </span>
 }
 

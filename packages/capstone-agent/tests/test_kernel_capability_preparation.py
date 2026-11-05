@@ -159,3 +159,16 @@ def test_invalid_profile_fails_before_workspace_or_authority_allocation(tmp_path
 def test_authority_binding_only_accepts_opaque_content_references(reference):
     with pytest.raises(ValueError, match="reference"):
         AuthorityModelBinding("model", "model_1", _context().model_revision, "family", reference)
+
+
+def test_prepare_unbound_publishes_tools_without_opening_a_model(tmp_path, monkeypatch):
+    calls, _prepared = _install_preparation(monkeypatch, [])
+    binder_calls = []
+    preparer = KernelApplicationProfilePreparer(
+        workspace_root=tmp_path, model_binder=lambda *args: binder_calls.append(args),
+    )
+    prepared = preparer.prepare_unbound(_profile())
+    assert prepared.model_binding is None
+    assert binder_calls == []
+    assert calls and calls[0][0] is not None
+    prepared.close()

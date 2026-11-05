@@ -23,10 +23,10 @@ CSS = '''
 *{box-sizing:border-box}body{margin:0;line-height:1.75}main{max-width:1100px;margin:32px auto;background:white;padding:48px 56px;border:1px solid #d8e2e8;border-radius:12px}
 header{border-bottom:3px solid #217778;padding-bottom:24px;margin-bottom:28px}h1{font-size:2rem;line-height:1.35;margin:0 0 12px}h2{font-size:1.35rem;color:#175e61;margin:36px 0 16px}header p{color:#526774}
 nav{background:#f3f7f8;border:1px solid #d8e2e8;padding:16px 24px}nav a{color:#175e61;text-decoration:none}section{scroll-margin-top:24px}p{white-space:pre-wrap;overflow-wrap:anywhere}li{margin:6px 0}
-.table-wrap{overflow-x:auto;margin:24px 0}table{width:100%;border-collapse:collapse;font-size:.9rem}caption{text-align:left;font-weight:600;padding:0 0 10px}th,td{border:1px solid #d8e2e8;text-align:left;vertical-align:top;padding:9px 12px;white-space:pre-wrap;overflow-wrap:anywhere}th{background:#eaf2f3}tbody tr:nth-child(even){background:#f8fafb}
+.table-wrap{overflow-x:auto;margin:24px 0}table{width:max-content;min-width:100%;border-collapse:collapse;font-size:.9rem}caption{text-align:left;font-weight:600;padding:0 0 10px}th,td{border:1px solid #d8e2e8;text-align:left;vertical-align:top;padding:9px 12px;white-space:nowrap;overflow-wrap:normal;word-break:normal}th{background:#eaf2f3}tbody tr:nth-child(even){background:#f8fafb}
 figure{margin:28px 0;break-inside:avoid}figure img{display:block;max-width:100%;height:auto;margin:auto}figcaption{text-align:center;color:#526774;font-size:.92rem;margin-top:12px}footer{border-top:1px solid #d8e2e8;color:#526774;font-size:.8rem;margin-top:40px;padding-top:16px}
 @media(max-width:700px){main{margin:0;padding:24px 18px;border:0;border-radius:0}h1{font-size:1.7rem}}
-@media print{@page{size:A4;margin:18mm}body{background:white}main{max-width:none;margin:0;padding:0;border:0}nav{break-inside:avoid}h2,caption{break-after:avoid}thead{display:table-header-group}tr{break-inside:avoid}.table-wrap{overflow:visible}a{color:inherit;text-decoration:none}}
+@media print{@page{size:A4;margin:18mm}body{background:white}main{max-width:none;margin:0;padding:0;border:0}nav{break-inside:avoid}h2,caption{break-after:avoid}thead{display:table-header-group}tr{break-inside:avoid}.table-wrap{overflow:visible}table{width:100%;min-width:0}th,td{white-space:normal;overflow-wrap:break-word}a{color:inherit;text-decoration:none}}
 '''
 
 

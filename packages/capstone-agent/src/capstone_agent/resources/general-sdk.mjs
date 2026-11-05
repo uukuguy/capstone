@@ -6,6 +6,7 @@ import {checkCapacity,runtimeLimits as resolveLimits,onDebugCapacityExceeded} fr
 import {prepareDeliveryReview,reviewChildPrompt} from './delivery-review.mjs';
 import {createManagedSubagents} from './managed-subagents.mjs';
 import {createDataGatewayTools,validateGatewayBatch,gatewayInvocationOptions,reusableGatewayRead} from './general-data-gateway.mjs';
+import {createDomainTools} from './general-domain-tools.mjs';
 import {createResourceReferenceTools} from './resource-reference-tools.mjs';
 import {createManagedResourceTools} from './managed-resource-tools.mjs';
 import {createToolDiscovery,discoveryToolNames} from './general-tool-discovery.mjs';
@@ -418,7 +419,7 @@ export function applicationToolOptions(config, nativeTools, research=()=>undefin
       return controller?await controller.completeTool(token,observed,{signal:args[1]}):observed;
     }};
   };
-  const customTools=[...nativeTools,...gatewayTools,...createDiagnosisTools(config),...createResourceReferenceTools(config),...createManagedResourceTools(config)].map(wrap);
+  const customTools=[...nativeTools,...gatewayTools,...createDomainTools(config),...createDiagnosisTools(config),...createResourceReferenceTools(config),...createManagedResourceTools(config)].map(wrap);
   if(JSON.stringify(canonical(config.toolComposition))===JSON.stringify(canonical(compositionPolicy))&&
       config.applicationPolicy.allowed_tools.includes('agent_tools_execute')&&config.dataGateway&&
       ['bash','write'].every(name=>config.applicationPolicy.allowed_tools.includes(name))){

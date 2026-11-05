@@ -335,27 +335,34 @@ export class ThreadProjectionStore {
   }
 
   get publicEvents(): readonly EventEnvelope[] {
-    return this.eventLog.filter((event) => event.visibility === 'public').map(event=>{
-      const intent=this.responseIntents.intent(event.eventId)
-      return intent?{...event,payload:{...event.payload,response_intent:intent}}:event
-    })
+    return this.eventLog.filter((event) => event.visibility === 'public').map(event=>this.withIntent(event))
+  }
+  private withIntent(event: EventEnvelope): EventEnvelope {
+    const intent=this.responseIntents.intent(event.eventId)
+    return intent&&event.payload.response_intent===undefined?{...event,payload:{...event.payload,response_intent:intent}}:event
+  }
+  private refreshIntents(): void {
+    const events=[...this.conversationArchive.values(),...this.eventLog].sort((a,b)=>a.eventSeq-b.eventSeq)
+    this.responseIntents.observe(events)
   }
   private readonly responseIntents=new ResponseIntentProjection()
 
   /** Message bodies outlive the bounded tool/token event window. */
   get conversationEvents(): readonly EventEnvelope[] {
-    return mergeHistoryEvents([...this.conversationArchive.values()],this.publicEvents)
+    return mergeHistoryEvents([...this.conversationArchive.values()].map(event=>this.withIntent(event)),this.publicEvents)
   }
   get conversationHistoryReady(): boolean {
     return !this.client.supportsHistory||this.conversationHistoryComplete
   }
 
   private retainConversation(events:readonly EventEnvelope[]):void {
-    for(const event of events)if(event.visibility==='public'&&[
+    for(const event of events)if(event.eventType==='assistant_process_delta'||(event.visibility==='public'&&[
       'command_accepted','attempt_started','attempt_completed','attempt_failed',
       'attempt_cancelled','attempt_interrupted','native_artifact_published',
-      'turn_route_selected','turn_plan_created',
-    ].includes(event.eventType))this.conversationArchive.set(event.eventSeq,event)
+      'turn_route_selected','turn_plan_created','runtime_action','runtime_event',
+      'assistant_thinking_delta','assistant_process_delta',
+    ].includes(event.eventType)))this.conversationArchive.set(event.eventSeq,event)
+    this.refreshIntents()
   }
 
   async restoreConversationHistory(signal?:AbortSignal):Promise<void> {
@@ -396,7 +403,6 @@ export class ThreadProjectionStore {
   }
 
   private trimHistory(keepLatest: boolean): void {
-    this.responseIntents.observe(this.eventLog)
     this.retainConversation(this.eventLog)
     let bytes = 0
     for (const event of this.eventLog) {

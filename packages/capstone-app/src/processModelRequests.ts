@@ -13,7 +13,7 @@ export function projectProcessModelRequests(events: readonly EventEnvelope[], at
   let openingText=''
   let retryOwner:ProcessModelCall|undefined
   const thinkingEvents=new Set<string>()
-  const native = events.some(event=>event.attemptId===attemptId&&event.visibility==='public'&&['turn_route_selected','turn_plan_created'].includes(event.eventType)&&event.payload.source==='native_conversation')
+  const native = events.some(event=>event.attemptId===attemptId&&event.visibility==='public'&&['turn_route_selected','turn_plan_created'].includes(event.eventType)&&['native_conversation','pi','direct_pi'].includes(String(event.payload.source)))
   for (const event of events) {
     if (event.attemptId !== attemptId) continue
     if(pending&&event.visibility==='public'&&event.eventType==='assistant_thinking_delta'&&typeof event.payload.text==='string'){

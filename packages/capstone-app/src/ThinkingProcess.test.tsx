@@ -157,7 +157,7 @@ it('keeps a goal-only progress note secondary when direct bash execution starts'
   rerender(<CapstoneAssistantThread {...props} events={[accepted,goal,event('tool_started',4,{tool_name:'bash',tool_call_id:'bash-direct'})]}/>)
   expect(screen.queryByRole('region',{name:'LLM 思考'})).toBeNull()
   expect(screen.getByRole('region',{name:'工具调用过程'})).toBeTruthy()
-  expect(screen.getByText('Recorded goal without a task plan')).toBeTruthy()
+  expect(screen.queryByText('Recorded goal without a task plan')).toBeNull()
   expect(screen.queryByText('当前记录未提供任务计划。')).toBeNull()
 })
 it.each(['completed','failed','cancelled','interrupted'] as const)('auto-folds thinking at %s and permits manual reopening on replay',phase=>{

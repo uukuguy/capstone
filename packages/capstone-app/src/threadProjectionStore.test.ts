@@ -2,6 +2,7 @@ import {afterEach} from 'vitest'
 import {initializeApplicationCapacity} from './applicationCapacity'
 import { describe, expect, it, vi } from 'vitest'
 import { CapstoneThreadClient, type ThreadCommand, type ThreadTransport } from './threadClient'
+import { projectProcessModelRequests } from './processModelRequests'
 import { createFixtureTransport, instructionOrdinal, ThreadProjectionStore } from './threadProjectionStore'
 import { sampleDiagramView } from './networkFixture'
 import { historyContexts, historyFixture, historyWorkspace } from './threadHistory.test-support'
@@ -71,13 +72,18 @@ it('retains native routing identity beyond the raw window for exact tool groupin
  initializeApplicationCapacity({schema:'capstone-capacity-profile/1',mode:'normal',limits:{event_buffer_count:2}})
  const events=[conversationalEvent(1,'turn_route_selected',0,{route:'ordinary',source:'native_conversation'}),
   conversationalEvent(2,'runtime_action',0,{phase:'started',runtime_mode:'capstone'}),
-  conversationalEvent(3,'runtime_action',0,{phase:'response_completed',runtime_mode:'capstone',response_kind:'tools'}),
-  conversationalEvent(4,'runtime_event',0,{native_type:'tool_execution_start',tool_call_id:'observed-call'})]
- const fixture={...idleFixture,snapshot:{...idleFixture.snapshot,last_event_seq:4}}
+  conversationalEvent(3,'assistant_thinking_delta',0,{text:'先核对已保存的结果。'}),
+  conversationalEvent(4,'runtime_action',0,{phase:'response_completed',runtime_mode:'capstone',response_kind:'tools'}),
+  conversationalEvent(5,'runtime_event',0,{native_type:'tool_execution_start',tool_call_id:'observed-call',tool_name:'bash',task_id:'task'})]
+ const fixture={...idleFixture,snapshot:{...idleFixture.snapshot,last_event_seq:5}}
  const store=new ThreadProjectionStore(new CapstoneThreadClient({...createFixtureTransport(fixture),readHistory:pagedHistory(events,2)}))
  await store.load('thr_demo_39');await store.restoreConversationHistory()
  expect(store.publicEvents.length).toBeLessThanOrEqual(2)
- expect(store.conversationEvents.some(event=>event.eventType==='turn_route_selected'&&event.payload.source==='native_conversation')).toBe(true)
+ expect(store.conversationEvents.map(event=>event.eventType)).toEqual(['turn_route_selected','runtime_action','assistant_thinking_delta','runtime_action','runtime_event'])
+ const calls=projectProcessModelRequests(store.conversationEvents,'attempt_0')
+ expect(calls).toHaveLength(1)
+ expect(calls[0].toolCallIds).toEqual(['observed-call'])
+ expect(calls[0].thinking).toBe('先核对已保存的结果。')
 })
 
 it('loads durable model membership independently of the legacy snapshot', async () => {
@@ -379,6 +385,22 @@ it('recovers a lost model-control receipt with its original identity and one act
   expect(sendCommand).toHaveBeenCalledTimes(2)
   expect(store.publicEvents.filter((item) => item.eventType === 'model_context_activated')).toHaveLength(1)
   expect(store.state.snapshot?.currentAttempt).toBeNull()
+})
+
+it('restores a short model purpose from diagnostic opening text outside the live window',async()=>{
+  initializeApplicationCapacity({schema:'capstone-capacity-profile/1',mode:'normal',limits:{event_buffer_count:1}})
+  const events=[
+    conversationalEvent(1,'runtime_action',0,{phase:'started',runtime_mode:'capstone'}),
+    {...conversationalEvent(2,'assistant_process_delta',0,{text:'打开模型上下文\n后文'}),visibility:'diagnostic'},
+    conversationalEvent(3,'runtime_action',0,{phase:'response_completed',runtime_mode:'capstone',response_kind:'text'}),
+  ]
+  const fixture={...idleFixture,snapshot:{...idleFixture.snapshot,last_event_seq:3}}
+  const store=new ThreadProjectionStore(new CapstoneThreadClient({...createFixtureTransport(fixture),readHistory:pagedHistory(events,3)}))
+  await store.load('thr_demo_39')
+  await store.restoreConversationHistory()
+  const started=store.conversationEvents.find(event=>event.eventType==='runtime_action'&&event.payload.phase==='started')
+  expect(started?.payload.response_intent).toBe('打开模型上下文')
+  expect(projectProcessModelRequests(store.conversationEvents,'attempt_0')[0]?.intent).toBe('打开模型上下文')
 })
 
 it('keeps public task actions when diagnostic deltas exceed the local event budget', async () => {

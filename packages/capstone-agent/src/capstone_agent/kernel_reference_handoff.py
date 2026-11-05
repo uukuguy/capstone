@@ -20,6 +20,8 @@ class PreparedKernelReferenceHandoffs:
         self._prepared_refs: set[tuple[str, str]] = set()
         self._records: list[dict[str, str]] = []
         for profile in profiles:
+            if profile.model_binding is None:
+                continue
             source = profile.model_binding.binding_id
             grants = tuple(grant for grant in profile.profile.reference_grants
                 if grant.source_binding_id == source and grant.reference_kind == "model")

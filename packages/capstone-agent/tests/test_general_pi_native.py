@@ -257,9 +257,9 @@ if(!denied) throw new Error("readiness private file leak");
     script = f'''
 from pathlib import Path
 from capstone_agent.general_pi_server import GeneralPiHost,NativeTaskRunner,make_server
-from capstone_agent.general_pi_resource_seed import retain_seed
+from capstone_agent.general_pi_resource_seed import prepare_general_runtime
 import traceback
-retain_seed(Path('/opt/general/resource-seed'),Path('/opt/general/.grid-agent/runtime'))
+prepare_general_runtime()
 class FixtureRunner(NativeTaskRunner):
     def __call__(self,*args,**kwargs):
         try:
@@ -333,17 +333,7 @@ make_server(host,control_token='fixture-control',address=('0.0.0.0',8790),runner
             assert profile['load_receipt']['role'] == role
             assert set(profile['load_receipt']['tool_schema_hashes']) <= tools
         for role in ('direct_pi', 'delegated_pi'):
-            instruction = 'skill-mcp-verification'
-            request = PiTaskRequest('skill-' + role, 'attempt-skill', 'direct' if role == 'direct_pi' else 'delegated',
-                instruction, (), (), health['identity'], 60, business_context=BusinessContext.empty('workspace', 0),
-                resource_profile={'profile_id': role, 'revision': profiles[role]['revision']},
-                input={'kind': 'skill_invocation', 'text': instruction, 'skill_id': 'powerskills-pandapower',
-                       'skill_version': profiles[role]['resources'][0]['version']})
-            result = client.execute(request, NodeControl(lambda: None, time.monotonic()+60), lambda _: None)
-            assert result.status == 'completed', subprocess.run(['docker','logs',name], capture_output=True, text=True).stderr
-            assert result.answer == 'Skill and external MCP task complete.'
-            assert len(result.sources) == 4 and all(item['kind'] == 'external_mcp_observation' for item in result.sources)
-            assert result.artifacts == ()
+            assert not any(item['id'] == 'powerskills-pandapower' for item in profiles[role]['resources'])
         for marker in ('/skill:pandapower literal-input-verification', 'state-isolation-verification'):
             request = PiTaskRequest('text-' + str(len(calls)), 'attempt-text', 'direct', marker, (), (), health['identity'], 30,
                 business_context=BusinessContext.empty('workspace', 0),

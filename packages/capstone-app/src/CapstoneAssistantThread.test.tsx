@@ -21,6 +21,24 @@ it('shows public compaction records inside the process window and preserves LLM 
  expect(row.textContent).toContain('16.1s');expect(row.textContent).toContain('已完成')
  expect(row.closest('.capstone-chat-activity-attached')).not.toBeNull()
 })
+it('keeps a tool purpose on the LLM row and the tool name on the tool row',()=>{
+ const events=[
+  event('turn_route_selected',1,{source:'pi',route:'ordinary'},'purpose'),
+  event('runtime_action',2,{phase:'started',response_intent:'正在发现网关实际可见的数据集'},'purpose'),
+  event('runtime_action',3,{phase:'response_completed',response_kind:'tools',response_intent:'正在发现网关实际可见的数据集'},'purpose'),
+  event('runtime_event',4,{task_id:'task',native_type:'tool_execution_start',tool_name:'agent_tools_execute',tool_call_id:'call',activity:{operation:'对网关做一次能力与库存发现'}},'purpose'),
+  event('runtime_event',5,{task_id:'task',native_type:'tool_execution_end',tool_name:'agent_tools_execute',tool_call_id:'call'},'purpose'),
+  event('attempt_completed',6,{answer:'完成'},'purpose'),
+ ]
+ render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async()=>{}} onCancel={async()=>{}}/>)
+ fireEvent.click(screen.getByRole('button',{name:'查看执行过程'}))
+ const group=screen.getByRole('group',{name:'LLM 调用 1'})
+ expect(group.querySelector('.capstone-call-purpose')?.textContent).toContain('正在发现网关实际可见的数据集')
+ const summary=group.querySelector('.capstone-call-tool > summary')!
+ expect(summary.textContent).toContain('agent_tools_execute')
+ expect(summary.textContent).not.toContain('对网关做一次能力与库存发现')
+ expect(summary.textContent).not.toContain('执行多步数据处理')
+})
 it('labels work before the first model request as preparation rather than thinking',()=>{
  const events=[event('command_accepted',1,{kind:'send_auto',payload:{text:'今天的国际要闻'}},'preparing'),event('attempt_started',2,{},'preparing')]
  render(<CapstoneAssistantThread events={events} disabled={false} isRunning activity={[]} onSend={async()=>{}} onCancel={async()=>{}}/>)
@@ -370,7 +388,7 @@ describe('CapstoneAssistantThread', () => {
       event('runtime_event', 5, { task_step_error: 'Step transition was not applied; the existing step was retained.' }, 'branches'),
       event('attempt_failed', 6, { error_code: 'research_cycle_no_progress' }, 'branches')]
     const { container } = render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={[]} onSend={async () => {}} onCancel={async () => {}} />)
-    expect(screen.getByRole('status').textContent).toContain('进度登记未更新')
+    expect(screen.queryByText(/进度登记未更新/)).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: '查看执行过程' }))
     const objective = screen.getByText('解释异常差异').closest('.capstone-business-step-record')!
     expect(within(objective as HTMLElement).getAllByText('缺数解释不足').length).toBeGreaterThan(0)
@@ -1714,6 +1732,28 @@ describe('CapstoneAssistantThread', () => {
     fireEvent.click(within(first as HTMLElement).getByRole('button', { name: '查看执行过程' }))
     expect(first.querySelector('details')?.open).toBe(true)
     expect(second.querySelector('details')?.open).toBe(false)
+  })
+
+  it('keeps an earlier completed execution open when its summary is clicked again', () => {
+    const events = [
+      event('command_accepted', 1, { kind: 'send_auto', payload: { text: '打开模型' } }, 'attempt_1'),
+      event('tool_started', 2, { tool_name: 'grid_context_open', tool_call_id: 'call_a' }, 'attempt_1'),
+      event('tool_completed', 3, { tool_name: 'grid_context_open', tool_call_id: 'call_a', binding_id: 'grid', capability: 'context.open' }, 'attempt_1'),
+      event('attempt_completed', 4, { answer: '已打开模型。' }, 'attempt_1'),
+      event('command_accepted', 5, { kind: 'send_auto', payload: { text: '运行潮流' } }, 'attempt_2'),
+      event('attempt_completed', 6, { answer: '潮流已完成。' }, 'attempt_2'),
+    ]
+    render(<CapstoneAssistantThread events={events} disabled={false} isRunning={false} activity={projectAssistantActivity(events)} onSend={async () => {}} onCancel={async () => {}} />)
+    const first = screen.getByText('已打开模型。').closest('.capstone-chat-message')!
+    const details = first.querySelector('details.capstone-chat-activity-attached')!
+    const summary = details.querySelector('summary')!
+    fireEvent.click(summary)
+    expect(details.open).toBe(true)
+    fireEvent.click(summary)
+    expect(details.open).toBe(false)
+    fireEvent.click(summary)
+    expect(details.open).toBe(true)
+    expect(screen.getByText('潮流已完成。').closest('.capstone-chat-message')!.querySelector('details.capstone-chat-activity-attached')!.open).toBe(false)
   })
 
   it('shows up to ten latest running actions until opened and respects closing it as steps arrive', () => {

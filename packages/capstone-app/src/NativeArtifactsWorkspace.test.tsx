@@ -150,3 +150,15 @@ it('keeps report chapter links inside the isolated preview and preserves origina
   expect(parsed.querySelector('style')?.textContent).toContain('prefers-reduced-motion')
   expect(original).toContain('href="#section" target="_blank"')
 })
+it('scrolls wide html tables instead of breaking every character',()=>{
+  const original='<style>table{width:100%;table-layout:fixed}th,td{overflow-wrap:anywhere;white-space:pre-wrap}</style><p>说明</p><table><tr><th>迭代次数</th><td>7.33e-09</td></tr><tr><td><p>这段说明可以在单元格内换行。</p></td><td>0.9460</td></tr></table>'
+  const parsed=new DOMParser().parseFromString(htmlPreviewDocument(original),'text/html')
+  const wrap=parsed.querySelector('.capstone-html-table-scroll')
+  expect(wrap?.querySelector('table')).toBeTruthy()
+  expect(parsed.querySelector('p')?.parentElement?.className).not.toBe('capstone-html-table-scroll')
+  const previewStyle=[...parsed.querySelectorAll('style')].at(-1)?.textContent||''
+  expect(previewStyle).toContain('overflow-x:auto')
+  expect(previewStyle).toContain('white-space:nowrap')
+  expect(previewStyle).toContain('width:max-content')
+  expect(original).toContain('table-layout:fixed')
+})

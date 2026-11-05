@@ -1,7 +1,8 @@
-export type AppEnvironment = 'local-dev' | 'local-demo' | 'cloud-dev' | 'cloud-demo'
+export type AppEnvironment = 'local-dev' | 'local-demo' | 'intranet-dev' | 'cloud-dev' | 'cloud-demo'
 export interface AppBuildIdentity {
   version: string
   revision: string
+  repositoryRevision?: string
   dirty: boolean
   environment: AppEnvironment | null
 }
@@ -11,5 +12,6 @@ export function isAppBuildIdentity(value: unknown): value is AppBuildIdentity {
   const build = value as Record<string, unknown>
   return typeof build.version === 'string' && typeof build.revision === 'string' &&
     (build.revision === '' || /^[a-f0-9]{40}$/.test(build.revision)) && typeof build.dirty === 'boolean' &&
-    (build.environment === null || ['local-dev', 'local-demo', 'cloud-dev', 'cloud-demo'].includes(build.environment as string))
+    (build.repositoryRevision === undefined || (typeof build.repositoryRevision === 'string' && /^[a-f0-9]{40}$/.test(build.repositoryRevision))) &&
+    (build.environment === null || ['local-dev', 'local-demo', 'intranet-dev', 'cloud-dev', 'cloud-demo'].includes(build.environment as string))
 }

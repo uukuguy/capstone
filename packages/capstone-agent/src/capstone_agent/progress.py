@@ -39,12 +39,13 @@ def _summary(value: object, limit: int = 200) -> str:
 
 def public_response_intent(text: str) -> str | None:
     line = text.lstrip().split('\n', 1)[0].strip()
-    if not line.startswith('//'):
+    if line.startswith('//'):
+        line = line[2:].strip()
+    elif len(line) > 80 or line[:1] in '{[`' or line.startswith('```'):
         return None
-    value = line[2:].strip()
-    if not value or _redact_text(value) != value:
+    if not line or _redact_text(line) != line:
         return None
-    return _summary(value, 159)
+    return _summary(line, 159)
 
 
 def _input_excerpt(arguments: Mapping, text_filter) -> str:

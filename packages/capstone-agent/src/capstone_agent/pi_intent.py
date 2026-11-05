@@ -38,14 +38,24 @@ class PiIntentRecognizer:
             raise TypeError("intent engine identity is required")
         self._factory = prepared_session_factory
         self.identity = identity
+        self.thinking_level = "medium"
 
     def recognize(self, request: IntentRequest, control: NodeControl) -> IntentDecision:
         control.checkpoint()
         session = self._factory(request, control)
+        apply_thinking = getattr(session, "set_thinking_level", None)
+        if callable(apply_thinking):
+            apply_thinking(self.thinking_level)
         decisions: list[IntentDecision] = []
 
         def observe(event: Mapping[str, object]) -> None:
             control.checkpoint()
+            if event.get("type") == "assistant_thinking_delta":
+                notice = getattr(control, "notice", None)
+                text = event.get("text")
+                if callable(notice) and isinstance(text, str) and text:
+                    notice({"type": "assistant_thinking_delta", "text": text[:4096]})
+                return
             if event.get("type") != "tool_result":
                 return
             if event.get("capability") != "capstone.intent.decision" or event.get("ok") is not True:
@@ -330,13 +340,31 @@ class _RpcWorkspace:
 class _ConversationPiPromptSession:
     def __init__(self, client: PiRpcClient, trace: JsonlTraceWriter, *, intent: bool) -> None:
         self._client, self._trace, self._intent = client, trace, intent
+        self._thinking_level = "medium"
+
+    def set_thinking_level(self, level: str) -> None:
+        if level not in {"minimal", "low", "medium", "high", "xhigh"}:
+            raise ValueError("unsupported reasoning level")
+        self._thinking_level = level
 
     def start(self) -> None:
         self._client.start()
 
     def prompt_and_wait(self, question: str, *, on_semantic_event: Callable,
                         correlation_id: str | None, on_heartbeat: Callable) -> str:
+        if self._intent:
+            # Keep a visible reasoning stream. Ordinary instructions use the
+            # shorter budget; complex instructions raise it before the prompt.
+            self._client.set_thinking_level(self._thinking_level)
+        def publish(event: Mapping[str, object]) -> None:
+            # Same display stream the general executor records. Completed
+            # thinking blocks and signatures stay out of the public row.
+            change = event.get("assistantMessageEvent") if event.get("type") == "message_update" else None
+            if (isinstance(change, Mapping) and change.get("type") == "thinking_delta"
+                    and isinstance(change.get("delta"), str) and change["delta"]):
+                on_semantic_event({"type": "assistant_thinking_delta", "text": change["delta"][:4096]})
         return self._client.prompt_and_wait(question,
+            on_event=publish,
             on_semantic_event=lambda event, sequence: on_semantic_event(event),
             correlation_id=correlation_id, on_heartbeat=on_heartbeat,
             heartbeat_seconds=1.0, require_answer_text=not self._intent)

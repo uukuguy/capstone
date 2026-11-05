@@ -1,5 +1,9 @@
 # docs/status INDEX
 
+16:44：内网 App 已换成 c0cacc597a79，脚本 index-D6zsKizj.js。页面仍是 intranet-dev · v0.1.0 · 6c55e6e，宽 HTML 表格在右栏内横向滚动。API/worker d501f0602126 与 native e4eb33b6a105 未重建。上一张 App 保留为 6c55e6ee-before-table。[回执](../reports/2026-11-04-intranet-deployment.md)。
+
+21:11：[PR93](https://github.com/uukuguy/capstone/pull/93)已合实际dev6c55e6ee；获批macOS CI41641127761用时5分06秒，1502项App测试/构建及治理通过。字号来源2148db14，main和远端部署不变。[证据](../reports/2026-11-03-conversation-typography.md)。
+
 20:14：[会话字号修正候选](../reports/2026-11-03-conversation-typography.md)2148db14修正初版遗漏的工作空间12px覆盖；正文/表格/行内代码统一13px，标题约16/15/14px；151项定向App、类型通过，用户截图同一会话复验及规范重建通过，未启动CI或合入dev。
 
 19:45：PR92已合入实际dev7ad2529a；独立批准的macOS CI41629449461用时3分05秒通过，355Python/92跳过、216App及类型/文档通过。本机100项真实PG/线程验证通过；[补修记录](../reports/2026-11-03-capacity-wake-followup.md)。远端部署不变。

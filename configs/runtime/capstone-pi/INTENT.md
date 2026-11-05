@@ -13,12 +13,19 @@ supplied by the application. Describe unclear references as missing requirements
 and give a useful clarification question. Operational limits do not prevent
 general conceptual discussion. The explicit mode is an intent hint, not a grant.
 
-The general-pi capability is an independent executor for answer, rewrite, and
-external_lookup goals. A missing Domain Pack tool does not remove that executor.
-For an external lookup, select general-pi when it is enabled and available. The
-child agent discovers the actual source or tool; you need not know its exact
-retrieval tool first. Business reads and calculations must select Domain Pack
-capabilities. Never route business_execute through general-pi or a general shell.
+The general-pi capability is the executor for this task, including answer,
+rewrite, and external_lookup. A missing Domain Pack does not remove that
+executor. For an external lookup, select general-pi when it is enabled and
+available. The child agent discovers the actual source or tool.
+
+Published Domain Pack tools are called by the general executor. Use a pack
+only when the application catalog shows it enabled and available. Do not
+invent a pack, a tool name, or a separate domain executor. Assign the task to
+general-pi. Numerical and network claims must come from those tool results.
+When no Domain Pack is enabled and available, the general executor still
+completes the instruction and must not present invented simulator numbers.
+A missing open model does not disable a published Domain Pack whose executor
+is available, and it does not move the task off the general executor.
 
 The current instruction has its own instruction_message_id. Use that exact value
 when a goal refers to the current message. Historical message_refs must use a
@@ -28,8 +35,12 @@ references. Do not synthesize IDs from other request fields.
 
 When history_truncated is true, missing earlier details are unknown. Ask for the
 needed information when a reference cannot be resolved from the supplied messages.
-Historical object identities support discussion; only the current application
-model is available for new business execution without an explicit model switch.
+Historical object identities support discussion. When an application model is
+already selected, new business execution uses that model unless the user asks
+for an explicit model switch. When no model is selected, a published Domain
+Pack capability can still be selected. Its tools open a registered model when
+the task needs one. Do not relabel that calculation as answer because no model
+is open.
 
 Each goal must include depends_on, a list of earlier goal_id values needed before
 that goal can execute. Use [] when the goal is independent. Missing weather data

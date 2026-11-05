@@ -6892,3 +6892,15 @@ and visible real business verification pending. Unrelated task-1-report.md prese
 - Final2148db14 rebuild ready/same-image bc0ded4b; cache cleanup and exact enterprise screenshot-case visual recheck pass; no CI approval yet.
 - Persist typography verification/control graph and prior dev recovery snapshots for scoped integration [a1b42cb1].
 - User explicitly requests typography CI and dev merge, accepting the pending macOS App-only scope; authorize one run.
+- Record typography CI authorization and integration checkpoint [3e8625f5]; preserve premerge journal stash reference.
+- Approved macOS CI41641127761 passes5m06s:1502 App tests/build,232 governance/2 skips; PR93 merges6c55e6ee, actual dev fast-forwards.
+- Actual dev rebuild ready/same-image bc0ded4b, App product2148db14/repository6c55e6ee; doctor/cache cleanup pass, merged branch closed.
+- Actual dev graph/App browser inspection and four retained artifact hashes pass; links/symlink/whitespace pass; PR93 scope complete.
+
+## 2026-11-04
+- 10:20 Intranet deploy of dev 6c55e6ee started; server healthy on 25c71f85; volumes retained.
+- 10:53 Intranet 6c55e6ee accepted: ready, management 0, slots 1, CSV sha 2768941343fc416a, continuation and snapshot restore. Tag intranet-20261104-1053-6c55e6ee. Volumes and 25c71f85 images retained.
+- 11:01 Pushed intranet-20261104-1053-6c55e6ee; remote peel is 6c55e6eed7c7988ef14baa9959dd9cd65e6d410e. No CI run started.
+- 11:21 Replaced intranet App with sha256:a1955fb9c66b; page now carries source 6c55e6ee. Blank image kept as 6c55e6ee-blank-version.
+- 11:41 Unified the visible labels on source 6c55e6ee. Local page shows local-dev · v0.1.0 · 6c55e6e. Intranet page shows intranet-dev · v0.1.0 · 6c55e6e. Intranet App is sha256:ff9eb4569105, script index-oaLTgvHT.js. Previous App images stay tagged 6c55e6ee-user-local and 6c55e6ee-blank-version. API, worker, native and volumes were not recreated.
+- 16:44 Replaced intranet App with sha256:c0cacc597a79. Page script index-D6zsKizj.js keeps intranet-dev and scrolls wide HTML tables. Prior App kept as 6c55e6ee-before-table. API, worker, native and volumes were not recreated.

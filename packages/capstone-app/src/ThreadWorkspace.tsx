@@ -5,6 +5,7 @@ import WorkspaceProducts, { type WorkspaceProductView } from './WorkspaceProduct
 import NetworkAccessLamp from './NetworkAccessLamp'
 import {readWorkspacePanels,saveWorkspacePanels} from './workspaceEntry'
 import {useSessionViewState,useSessionReadingPositions} from './workspaceSessionCache'
+import {ResourceFullscreenContext} from './resourceFullscreen'
 import {currentWorkspaceName} from './workspaceName'
 
 /** Shared application frame. Controllers supply public state and capabilities. */
@@ -89,12 +90,12 @@ export default function ThreadWorkspace({ preparation, sidebar, heading, childre
           onPointerCancel={()=>{dragging.current=false}} />}
       {resourcePanel && <aside id={resourcePanelId} className="thread-resource-panel" hidden={!resourcePanelOpen} aria-label={resourceLabel}
         onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); closeResource() } }}>
-        <WorkspaceProducts views={resourceViews || [{id:'resource',label:resourceLabel,content:resourcePanel}]} selectedId={selectedResourceView} onSelect={onResourceViewChange}
+        <ResourceFullscreenContext.Provider value={expanded}><WorkspaceProducts views={resourceViews || [{id:'resource',label:resourceLabel,content:resourcePanel}]} selectedId={selectedResourceView} onSelect={onResourceViewChange}
           actions={<>
             <button type="button" className="workspace-product-icon thread-resource-expand" aria-label="恢复默认比例" title="恢复默认比例" onClick={()=>resize(60)}><RotateCcw aria-hidden="true" /></button>
             <button type="button" className="workspace-product-icon thread-resource-expand" aria-label={expanded ? '恢复左右布局' : '全屏'} title={expanded ? '恢复左右布局' : '全屏'} onClick={()=>setExpanded(value=>!value)}>{expanded ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}</button>
             <button type="button" className="workspace-product-icon" aria-label={`关闭${resourceLabel}`} title={`关闭${resourceLabel}`} onClick={closeResource}><X aria-hidden="true" /></button>
-          </>} />
+          </>} /></ResourceFullscreenContext.Provider>
       </aside>}
     </div> : null
   return <div ref={shell} style={{'--navigation-width':`${navigationWidth}px`}as CSSProperties} className={`thread-app-shell${conversationOnly ? ' thread-conversation-workspace' : ''}${navigationOpen ? ' is-navigation-open' : ''}${resourcePanel && resourcePanelOpen ? ' has-resource-panel' : ''}${expanded ? ' is-resource-expanded' : ''}`}>

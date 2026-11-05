@@ -148,9 +148,10 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
                     value={...record.value,ref:previous,ok:true,value:record.value,reused:true,observed_at:new Date(record.observedAt).toISOString()};
                   }else if(rejectedRequests.has(failureKey)){
                     const previous=rejectedRequests.get(failureKey);
+                    const refused=previous.gaps?.some(gap=>gap?.scope?.retry_same_request===false);
                     skipped++;value={ref:null,ok:false,status:'not_executed',data:null,
                       previous_call:previous.ref,gaps:previous.gaps,
-                      recovery:'This exact request was already rejected as unexecuted and non-correctable. Inspect the previous observation; no new upstream call was made.',value:null};
+                      recovery:refused?'This exact request was refused. scope.retry_same_request is false. Use scope.suggested_request when present, otherwise narrow by scope.fields in order. No upstream call was made.':'This exact request was already rejected as unexecuted and non-correctable. Inspect the previous observation; no new upstream call was made.',value:null};
                   }else if(blocked.has(failureKey)){
                     skipped++;value={ref:null,ok:false,status:'not_executed',data:null,gaps:[{reason:'repeated_resource_failure',tool:message.name,arguments_sha256:argumentsHash,scope:'unchanged_inputs'}],value:null};
                   }else{
@@ -173,10 +174,13 @@ export function createToolCompositionTool({policy=compositionPolicy,cwd,catalog,
                   const observedAt=native.details?.observed_at?Date.parse(native.details.observed_at):Date.now();
                   records.set(ref,{ref,ok,value:observed,receipt:native.details??{},observedAt});
                   if(reusable&&ok&&observed?.status==='ok')successfulRequests.set(failureKey,ref);
-                  if(!ok&&Array.isArray(observed?.gaps)&&observed.gaps.some(g=>g?.scope?.executed===false&&g.scope.correctable===false))
-                    rejectedRequests.set(failureKey,{ref,gaps:structuredClone(observed.gaps)});
+                  const gaps=Array.isArray(observed?.gaps)?observed.gaps:[];
+                  const refuseSame=!ok&&gaps.some(gap=>gap?.scope?.retry_same_request===false);
+                  if(!ok&&(refuseSame||gaps.some(gap=>gap?.scope?.executed===false&&gap.scope.correctable===false)))
+                    rejectedRequests.set(failureKey,{ref,gaps:structuredClone(gaps)});
                   completedCalls.push({ref,tool:message.name,ok,...(upstreamReuse?{reused:true,original_observation_ref:native.details.reused_from}:{}),...(reason?{refresh_reason:reason}:{})});
                   value={...(observed&&typeof observed==='object'?observed:{}),ref,ok,value:observed,
+                    ...(refuseSame?{recovery:'Do not send this request again. Follow scope.suggested_request when present, otherwise equality-constrain scope.fields in order before any time range. limit does not narrow the scan before an aggregate.'}:{}),
                     ...(upstreamReuse?{reused:true,original_observation_ref:native.details.reused_from,observed_at:native.details.observed_at}:{})};
                   }
                 }finally{release?.();active--;queue.shift()?.();}

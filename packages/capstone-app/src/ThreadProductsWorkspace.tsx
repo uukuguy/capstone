@@ -1,5 +1,5 @@
 import {applicationCapacity,observeCapacity,rethrowDebugCapacity,CapacityError} from './applicationCapacity'
-import {useEffect,useLayoutEffect,useRef,useState,type ReactNode} from 'react'
+import {useContext,useEffect,useLayoutEffect,useRef,useState,type ReactNode} from 'react'
 import {ArrowDownToLine,ArrowUpRight,LocateFixed,ListTree} from 'lucide-react'
 import {ResultProjectionCard} from './CapstoneAssistantThread'
 import {NativeFileContent,nativePreviewMedia} from './NativeArtifactsWorkspace'
@@ -9,6 +9,7 @@ import './threadProducts.css'
 import {instructionProductLabel,type InstructionProductScope} from './instructionProducts'
 import type {ResultProjection} from './threadProtocol'
 import {useSessionViewState,useSessionViewRef,useSessionObjectUrls,sessionObjectUrl} from './workspaceSessionCache'
+import {ResourceFullscreenContext} from './resourceFullscreen'
 
 type ProductClient={productIndex:(threadId:string,query?:ProductQuery,signal?:AbortSignal)=>Promise<ProductIndex>;resolveProduct:(ref:ProductRef,signal?:AbortSignal)=>Promise<ProductResolution>}
 export type ProductRequest={ref?:ProductRef;origin?:ProductRef['origin'];attemptId?:string;artifactId?:string;resultId?:string;workId?:string|null;nonce?:number}
@@ -48,7 +49,7 @@ function materialVersion(entry:ProductEntry){
   const host=typeof entry.source.host_artifact_id==='string'?entry.source.host_artifact_id.match(/^file-([a-f0-9]{16})-[a-f0-9]{64}$/)?.[1]:undefined
   return JSON.stringify([entry.ref.thread_id,entry.ref.work_id,entry.ref.attempt_id,host??entry.source.file_name??entry.title,entry.ref.digest])
 }
-const statuses:Record<string,string>={completed:'已完成',partial:'部分结果',failed:'未完成',cancelled:'已取消',interrupted:'已中断',blocked:'未执行'}
+const statuses:Record<string,string>={completed:'已完成',partial:'部分结果',failed:'未完成',incomplete:'结束时未完成',cancelled:'已取消',interrupted:'已中断',blocked:'未执行'}
 export const productSelectionReason=(reason:string|null)=>reason==='record_only'?'此项是执行记录，没有可引用的文件或分析结果。':reason==='input_capacity'?'此项超过本轮引用容量。':reason==='product_context_unsupported'?'当前执行链尚不支持此成果引用。':reason==='unsupported_media'?'当前执行链尚不能读取此文件格式。':'此项暂不可引用。'
 const productStatus=(entry:ProductEntry)=>entry.source_status==='running'?(entry.source.presentation_role==='primary'?'交付候选':'可用版本'):entry.source.delivery_status==='limited'?'有限交付 · 含未解决项':statuses[entry.source_status]||'状态未知'
 function matches(entry:ProductEntry,request:ProductRequest){return request.ref?productRefKey(entry.ref)===productRefKey(request.ref)
@@ -66,6 +67,12 @@ export default function ThreadProductsWorkspace({client,threadId,workId,revision
   onFocusElement?:(projection:ResultProjection,elementId:string)=>boolean|void
 }) {
   const [directoryOpen,setDirectoryOpen]=useSessionViewState<boolean|undefined>('products.directory-open',undefined)
+  const resourceFullscreen=useContext(ResourceFullscreenContext)
+  const collapsedForFullscreen=useRef(false)
+  useEffect(()=>{
+    if(resourceFullscreen&&!collapsedForFullscreen.current){collapsedForFullscreen.current=true;setDirectoryOpen(false)}
+    if(!resourceFullscreen)collapsedForFullscreen.current=false
+  },[resourceFullscreen])
   const [directory,setDirectory]=useState<{threadId:string;items:ProductEntry[];more:boolean;cursor:string|null}>({threadId,items:[],more:false,cursor:null})
   const [fatalError,setFatalError]=useState<CapacityError>()
   const [selection,setSelection]=useSessionViewState<ProductRef|undefined>('products.selection',undefined)
@@ -95,8 +102,8 @@ export default function ThreadProductsWorkspace({client,threadId,workId,revision
     if(previousScope.current===scopeKey)return
     previousScope.current=scopeKey
     scopeDefaultPending.current=true
-    setSelection(undefined);setResolved(undefined);setDirectoryOpen(true);userSelected.current=false
-  },[scopeKey])
+    setSelection(undefined);setResolved(undefined);setDirectoryOpen(!resourceFullscreen);userSelected.current=false
+  },[scopeKey,resourceFullscreen])
   const requestPending=!!requested&&consumedRequest.current!==requestedKey
   const current=directory.threadId===threadId?directory:undefined
   const view=(!instructionScope||resolved?.entry.ref.attempt_id===instructionScope.attemptId&&resolved.entry.ref.origin!=='process_record')&&!requestPending&&resolved?.entry.ref.thread_id===threadId&&selection&&productRefKey(resolved.entry.ref)===productRefKey(selection)?resolved:undefined

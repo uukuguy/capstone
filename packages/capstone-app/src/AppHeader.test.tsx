@@ -12,7 +12,7 @@ it('shows the build revision beside the product name', () => {
   expect(version.getAttribute('title')).toContain('源代码版本')
 })
 
-it.each<AppEnvironment | null>(['local-dev', 'local-demo', 'cloud-dev', 'cloud-demo', null])('shows explicit environment %s beside version and revision', environment => {
+it.each<AppEnvironment | null>(['local-dev', 'local-demo', 'intranet-dev', 'cloud-dev', 'cloud-demo', null])('shows explicit environment %s beside version and revision', environment => {
   render(<AppVersion build={{ version: '0.1.0', revision: 'a'.repeat(40), dirty: true, environment }} />)
   const version = screen.getByLabelText('App 版本')
   expect(version.textContent).toBe(`${environment ?? '环境未配置'} · v0.1.0 · aaaaaaa *`)
@@ -32,6 +32,17 @@ it('keeps the developer local-dev label in development', () => {
   vi.stubEnv('PROD', false)
   render(<AppVersion build={{ version: '0.1.0', revision: 'a'.repeat(40), dirty: false, environment: 'local-dev' }} />)
   expect(screen.getByLabelText('App 版本').textContent).toBe('local-dev · v0.1.0 · aaaaaaa')
+})
+
+it('shows the repository commit when the product commit differs', () => {
+  render(<AppVersion build={{ version: '0.1.0', revision: 'b'.repeat(40), repositoryRevision: 'c'.repeat(40), dirty: false, environment: 'local-dev' }} />)
+  expect(screen.getByLabelText('App 版本').textContent).toBe('local-dev · v0.1.0 · ccccccc')
+})
+
+it('keeps the intranet label on a packaged build', () => {
+  vi.stubEnv('PROD', true)
+  render(<AppVersion build={{ version: '0.1.0', revision: 'd'.repeat(40), dirty: false, environment: 'intranet-dev' }} />)
+  expect(screen.getByLabelText('App 版本').textContent).toBe('intranet-dev · v0.1.0 · ddddddd')
 })
 
 it('refreshes development environment and retains the label on focus', async () => {

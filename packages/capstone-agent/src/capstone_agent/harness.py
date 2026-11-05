@@ -742,6 +742,19 @@ class HarnessAttemptRunner:
             )
             if self._service.cancel_requested(claim):
                 raise _AttemptCancelled
+            handoff = getattr(self._runtime, 'pending_domain_handoff', None)
+            if isinstance(handoff, Mapping) and isinstance(handoff.get('implementation_family'), str):
+                release = getattr(self._service, 'release_attempt_for_domain', None)
+                if not callable(release):
+                    raise HarnessRuntimeConfigurationError('domain execution handoff is unavailable')
+                release(claim, handoff['implementation_family'], execution={
+                    'role': handoff.get('role'),
+                    'parent_text': handoff.get('parent_text') or '',
+                    'node_text': handoff.get('node_text') or '',
+                })
+                from .thread_worker import _wake_released_family
+                _wake_released_family(handoff['implementation_family'])
+                return HarnessAttemptResult('released', None, None)
             lease.check()
             if not isinstance(answer, str) or not answer.strip():
                 raise TypeError("runtime answer is invalid")

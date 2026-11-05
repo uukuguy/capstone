@@ -164,8 +164,10 @@ def test_unresolved_historical_general_goal_returns_blocked_or_clarification(cla
     assert accepted['goals'][0] == blocked
     result = run(service, current, selected)
     assert result.status == 'completed'
-    assert result.answer == (clarification or
-        'General task was not executed: prerequisites are not complete.')
+    expected = clarification or 'General task was not executed: prerequisites are not complete.'
+    if clarification is None:
+        expected += '\nThe historical model version is unavailable'
+    assert result.answer == expected
     assert result.result_refs == result.evidence_refs == ()
     assert executor.requests == []
     assert not any(event.payload.get('child_status') == 'started'
@@ -309,7 +311,7 @@ def test_native_worker_persists_shared_steps_without_promoting_tools_to_authorit
     result = run(service, current, factory(SteppedExecutor(), Recognizer([goal('one')])))
     assert result.status == 'completed'
     saved = service.read_events(current.thread_id, 0).events
-    purposes = [e.payload.get('response_intent') for e in saved if e.event_type == 'runtime_action' and e.payload.get('phase') == 'response_completed']
+    purposes = [e.payload.get('response_intent') for e in saved if e.event_type == 'runtime_action' and e.payload.get('phase') == 'response_completed' and e.payload.get('response_intent') != '理解当前指令']
     assert purposes[0] == '核对模型范围'
     phases = [e for e in saved if e.payload.get('native_type') == 'runtime_phase']
     assert len(phases) == 2 and all(e.visibility == 'public' for e in phases)
@@ -425,7 +427,7 @@ def test_committed_cycle_steps_are_public_and_keep_partial_outcome(prior_narrati
             assert event.payload['task_step'][key] == event.payload['research_cycle']['progress'][key]
     assert events[-1].payload['task_step']['result_summary'] == '部分时段资料缺失。'
     timings = [event for event in service.read_events(thread_id, 0).events
-        if event.event_type == 'runtime_action' and event.payload.get('phase') == 'response_completed']
+        if event.event_type == 'runtime_action' and event.payload.get('phase') == 'response_completed' and 'task_step' in event.payload]
     assert len(timings) == 1 and timings[0].visibility == 'public'
     measured = timings[0].payload['task_step']['response_ms']
     assert type(measured) is int and measured >= 0
@@ -1205,3 +1207,16 @@ def test_hosted_http_retry_replays_child_without_repeating_action(tmp_path):
         server.shutdown()
         server.server_close()
         thread.join(timeout=2)
+
+
+def test_missing_model_runtime_error_stays_a_recorded_domain_gap():
+    from capstone_agent.delegated_runtime import _domain_runtime_block
+    from capstone_agent.intent_runtime import DOMAIN_RUNTIME_REQUIRES_MODEL
+    text = _domain_runtime_block(
+        SimpleNamespace(model_context=None),
+        RuntimeError("professional attempt requires a model context"),
+    )
+    assert text == (
+        "Business task was not executed: prerequisites are not complete.\n"
+        + DOMAIN_RUNTIME_REQUIRES_MODEL
+    )

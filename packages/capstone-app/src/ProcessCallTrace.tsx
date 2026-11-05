@@ -44,6 +44,23 @@ function operationExcerpt(name: string, operation: string) {
   const compact = operation.replace(/\s+/g, ' ').trim()
   return compact.length > 120 ? compact.slice(0, 120) + '…' : compact
 }
+/** A one-line action sentence. Shell text without a comment is a command, not a purpose. */
+function purposeTitle(name: string, operation?: string): string | undefined {
+  const text = operation?.trim()
+  if (!text) return undefined
+  if (name === 'bash') return scriptOpeningIntent(text)
+  const line = text.split(/\r?\n/, 1)[0].replace(/\s+/g, ' ').trim()
+  if (!line || !/[\u4e00-\u9fff]/.test(line) || /^[{[`]|```/.test(line) || /(?:api[_ -]?key|access[_ -]?token|authorization|password|secret)["']?\s*[:=]/i.test(line)) return undefined
+  return line.length > 80 ? `${line.slice(0, 80)}…` : line
+}
+/** The model sometimes puts its one-line purpose on the tool instead of the LLM opening. */
+function omittedCallPurpose(requests: readonly { id: string; name: string; operation?: string }[]): { id: string; text: string } | undefined {
+  for (const item of requests) {
+    const text = purposeTitle(item.name, item.operation)
+    if (text) return { id: item.id, text }
+  }
+  return undefined
+}
 export function modelCallMs(call: Omit<ProcessModelCall, 'id'>, now?: number): number {
   const actual=call.requestPool?.filter(request=>request.association==='main')
   if(actual?.length)return actual.reduce((sum,request)=>sum+(requestExecutionMs(request,now)??0),0)
@@ -76,24 +93,42 @@ export default function ProcessCallTrace({ models, tools, compactions = [], now,
   const owned = (tool: ProcessToolCall, model: ProcessModelCall) => tool.origin !== 'system' && tool.origin !== 'parent' && owners.get(tool.id)?.length === 1 && owners.get(tool.id)![0] === model.id
   const timed = (tool: ProcessToolCall) => tool.status === 'running' && active && now !== undefined && tool.startedAt && now >= Date.parse(tool.startedAt)
     ? { ...tool, durationMs: now - Date.parse(tool.startedAt) } : tool
+  const span = (tool: ProcessToolCall) => {
+    const start = Date.parse(tool.startedAt ?? '')
+    if (!Number.isFinite(start)) return undefined
+    const recordedEnd = Date.parse(tool.finishedAt ?? '')
+    const duration = timed(tool).durationMs
+    const end = Number.isFinite(recordedEnd) ? recordedEnd : duration !== undefined && duration > 0 ? start + duration : undefined
+    if (end === undefined || end <= start) return undefined
+    return { start, end }
+  }
   const overlap = (tool: ProcessToolCall,other: ProcessToolCall) => {
     const owner=owners.get(tool.id),peer=owners.get(other.id)
     if(other.id===tool.id||owner?.length!==1||peer?.length!==1||owner[0]!==peer[0])return false
-    const start=Date.parse(tool.startedAt??''),otherStart=Date.parse(other.startedAt??'')
-    const duration=timed(tool).durationMs,otherDuration=timed(other).durationMs
-    return duration!==undefined&&otherDuration!==undefined&&duration>0&&otherDuration>0&&
-      Number.isFinite(start)&&Number.isFinite(otherStart)&&start<otherStart+otherDuration&&otherStart<start+duration
+    const left=span(tool),right=span(other)
+    if(!left||!right)return false
+    return left.start<right.end&&right.start<left.end
   }
   const overlaps = (tool: ProcessToolCall) => tools.some(other=>overlap(tool,other))
+  const parallelWallMs = (group: readonly ProcessToolCall[]) => {
+    const ranges = group.flatMap(tool => { const range = span(tool); return range ? [range] : [] })
+    if (!ranges.length) return undefined
+    return Math.max(...ranges.map(range => range.end)) - Math.min(...ranges.map(range => range.start))
+  }
   const parallelGroups=(items:readonly ProcessToolCall[])=>{
+    const ordered=[...items].sort((left,right)=>{
+      const start=(span(left)?.start??Number.POSITIVE_INFINITY)-(span(right)?.start??Number.POSITIVE_INFINITY)
+      return start||items.indexOf(left)-items.indexOf(right)
+    })
     const groups:ProcessToolCall[][]=[]
-    for(const tool of items){
-      const matching=groups.filter(group=>group.some(other=>overlap(tool,other)))
-      if(!matching.length){groups.push([tool]);continue}
-      const first=matching[0];first.push(tool)
-      for(const group of matching.slice(1)){first.push(...group);groups.splice(groups.indexOf(group),1)}
+    for(const tool of ordered){
+      const group=[...groups].reverse().find(existing=>existing.every(other=>overlap(tool,other)))
+      if(group)group.push(tool)
+      else groups.push([tool])
     }
-    return groups
+    const order=new Map(items.map((tool,index)=>[tool.id,index]))
+    return groups.map(group=>group.sort((left,right)=>(order.get(left.id)??0)-(order.get(right.id)??0)))
+      .sort((left,right)=>(order.get(left[0].id)??0)-(order.get(right[0].id)??0))
   }
   const latestModelId=models.filter(model=>!model.requestPoolOnly).at(-1)?.id
   const poolCalls=models.flatMap(model=>model.poolCalls??[])
@@ -112,9 +147,14 @@ export default function ProcessCallTrace({ models, tools, compactions = [], now,
       <ul>{children.map(call=><li key={call.id}><span title={call.title}>{call.title}</span><span>{labels[call.status]}</span><small>响应 {call.responseMs===undefined?'—':time(call.responseMs)}</small></li>)}</ul>
     </section>
   }
-  const renderTool = (tool: ProcessToolCall, independent = false) => <div key={tool.id} className="capstone-call-tool-entry"><details className="capstone-call-tool" open={expandedTools||Boolean(active&&dispatches.some(request=>request.parentToolCallId===tool.id&&['running','cancelling'].includes(request.status)))||Boolean(compact&&active&&latestModelId&&owners.get(tool.id)?.length===1&&owners.get(tool.id)?.[0]===latestModelId)}>
-    <summary><ChevronRight aria-hidden="true" /><strong title={tool.name}>{tool.operation?.trim()?operationExcerpt(tool.name,tool.operation):tool.name}</strong>
-      {tool.operation?.trim()&&operationExcerpt(tool.name,tool.operation)!==tool.name&&<small>{tool.name}</small>}
+  const renderTool = (tool: ProcessToolCall, independent = false) => {
+    const excerpt = tool.operation?.trim() ? operationExcerpt(tool.name, tool.operation) : tool.name
+    const sentence = independent ? undefined : purposeTitle(tool.name, tool.operation)
+    const title = sentence ? tool.name : excerpt
+    const purposeIsEntireOperation = !!sentence && !!tool.operation && sentence === tool.operation.replace(/\s+/g, ' ').trim()
+    return <div key={tool.id} className="capstone-call-tool-entry"><details className="capstone-call-tool" open={expandedTools||Boolean(active&&dispatches.some(request=>request.parentToolCallId===tool.id&&['running','cancelling'].includes(request.status)))||Boolean(compact&&active&&latestModelId&&owners.get(tool.id)?.length===1&&owners.get(tool.id)?.[0]===latestModelId)}>
+    <summary><ChevronRight aria-hidden="true" /><strong title={tool.name}>{title}</strong>
+      {!sentence && tool.operation?.trim() && excerpt !== tool.name && <small>{tool.name}</small>}
       {independent && tool.origin && <small>{tool.origin === 'system' ? '系统动作' : tool.origin === 'parent' ? '主链调用' : null}</small>}
       <span className="capstone-call-duration" data-latency={latencyGrade(tool.executionMs??timed(tool).durationMs,'tool').level} title={`${tool.executionMs === undefined ? '调用记录区间' : '工具执行耗时'} · ${latencyGrade(tool.executionMs??timed(tool).durationMs,'tool').label}`}>{tool.executionMs === undefined && timed(tool).durationMs === undefined ? '耗时未记录' : toolTime(tool.executionMs ?? timed(tool).durationMs!)}</span>
       {compact?<CallGlyph label={tool.status==='completed'?'完成':tool.status==='failed'?'失败':tool.status==='cancelled'?'已停止':active?'执行中':'未完整记录'} kind={tool.status==='completed'?'done':tool.status==='failed'?'failed':tool.status==='cancelled'?'cancelled':active?'running':'unknown'}/>:<span>{tool.status === 'completed' ? '完成' : tool.status === 'failed' ? '失败' : tool.status === 'cancelled' ? '已停止' : active ? '执行中' : '未完整记录'}</span>}
@@ -123,14 +163,15 @@ export default function ProcessCallTrace({ models, tools, compactions = [], now,
     <div className="capstone-call-tool-detail">
       <p>工具执行 {tool.executionMs === undefined ? '—' : time(tool.executionMs)} · 记录区间 {tool.durationMs === undefined ? '—' : time(timed(tool).durationMs!)}</p>
       {independent && tool.origin !== 'system' && <p>{tool.origin === 'parent' ? '由主链发起，不属于本任务的 LLM 轮次。' : '记录未提供对应的 LLM 调用标识。'}</p>}
-      {tool.operation && <p className="capstone-call-operation">{tool.operation}</p>}
+      {tool.operation && !purposeIsEntireOperation && <p className="capstone-call-operation">{tool.operation}</p>}
       {tool.name==='agent_llm_submit'&&renderPool(tool.id)}
       {renderToolDetails?.(tool)}
     </div>
   </details>
-    {tool.status==='failed'&&<p className="capstone-call-notice is-error" role="status"><CircleX aria-hidden="true"/><span>{tool.failure||'工具执行失败，展开查看返回详情'}</span></p>}
+    {tool.status==='failed'&&<p className="capstone-call-notice is-error" role="status"><CircleX aria-hidden="true"/><span>{tool.failure==='Composition stopped'?'同一组合已停止，这次调用被取消。':tool.failure||'工具执行失败，展开查看返回详情'}</span></p>}
     {tool.warning&&<p className="capstone-call-notice is-warning" role="status"><AlertTriangle aria-hidden="true"/><span>{tool.warning}</span></p>}
   </div>
+  }
   const timestamp = (value?: string) => { const parsed = Date.parse(value ?? ''); return Number.isFinite(parsed) ? parsed : Infinity }
   const entries: {id:string;at?:string;model?:ProcessModelCall;tool?:ProcessToolCall;compaction?:ProcessCompaction}[] = [
     ...models.filter(model=>{
@@ -155,7 +196,10 @@ export default function ProcessCallTrace({ models, tools, compactions = [], now,
     }
     if (entry.tool) return <li key={entry.id}>{renderTool(entry.tool, true)}</li>
     const model = entry.model!, selected = tools.filter(tool => owned(tool, model)), toolMs = toolExecutionMs(selected.map(timed))
-    const intent=model.intent?.trim()||responseOpeningIntent(model.responseText)
+    const requests = model.toolRequests ?? selected.map(tool => ({ id: tool.id, name: tool.name, operation: tool.operation }))
+    const ownPurpose=model.intent?.trim()||responseOpeningIntent(model.responseText)
+    const lifted=ownPurpose?undefined:omittedCallPurpose(requests)
+    const intent=ownPurpose||lifted?.text
     const responseText=responseOpeningIntent(model.responseText)?model.responseText?.split(/\r?\n/).slice(1).join('\n').trim():model.responseText
     const mainDispatches=model.requestPool?.filter(request=>request.association==='main')??[]
     const unexecuted=mainDispatches.length>0&&mainDispatches.every(request=>request.startedAtMs===undefined)&&mainDispatches.every(request=>['completed','failed','cancelled','blocked'].includes(request.status))
@@ -171,7 +215,6 @@ export default function ProcessCallTrace({ models, tools, compactions = [], now,
       <span>输入 {tokens(input)}</span><span>输出 {tokens(count(usage.output))}</span>
       {count(usage.cacheRead) !== undefined && Number(usage.cacheRead) > 0 && <span>缓存 {tokens(count(usage.cacheRead))}</span>}<span>token</span>
     </span>
-    const requests = model.toolRequests ?? selected.map(tool => ({ id: tool.id, name: tool.name, operation: tool.operation }))
     return <li key={entry.id}><section role="group" aria-label={model.label ?? `LLM 调用 ${model.number}`} className="capstone-call-round" data-record-gap={issue ? true : undefined}
       tabIndex={-1} ref={element => { if (element) roundElements.current.set(model.id, element); else roundElements.current.delete(model.id) }}>
       <div className="capstone-call-model">{compact&&<span role="img" aria-label="LLM 调用" title="LLM 模型调用"><BrainCircuit className="capstone-call-model-icon" aria-hidden="true"/></span>}<strong title={`LLM 调用 ${model.number}`}>{model.label ?? `LLM ${String(model.number).padStart(2, '0')}`}</strong>
@@ -183,14 +226,13 @@ export default function ProcessCallTrace({ models, tools, compactions = [], now,
         {!compact&&!running && <small title={model.toolAssociation==='turn'?'依据同一 SDK 执行轮次中的实际工具调用记录归组。':undefined}>{!linked ? '工具关联未记录' : !model.toolCallIds!.length ? '未调用工具' : `${model.toolAssociation==='turn'?'本轮工具':'工具'} ${model.toolCallIds!.length}次${toolMs === undefined || model.toolAssociation==='turn' ? '' : ` · 活动区间 ${time(toolMs)}`}`}</small>}
         {!model.thinking&&tokenSummary}
       </div>
-      {model.thinking&&<ThinkingProcess kind="call" expanded={expandedThinking} trailing={tokenSummary} storageKey={`model-thinking:${model.id}`} now={now} thinking={{text:model.thinking,startedAt:model.thinkingStartedAt,endedAt:running&&!model.thinkingSettled?undefined:model.thinkingEndedAt,handedOff:!running||model.thinkingSettled===true,phase:running&&!model.thinkingSettled?'running':'completed'}}/>}
-      {!compact&&model.toolAssociation!=='turn'&&requests.length > 0 && <p className="capstone-call-intent" title={requests.map(item => `${item.name}${item.operation ? ' · ' + item.operation : ''}`).join('；')}>发起工具：{requests.map(item => `${item.name}${item.operation ? ' · ' + operationExcerpt(item.name, item.operation) : ''}`).join('；')}</p>}
+      {!compact&&model.toolAssociation!=='turn'&&requests.length > 0 && <p className="capstone-call-intent" title={requests.map(item => `${item.name}${item.operation ? ' · ' + item.operation : ''}`).join('；')}>发起工具：{requests.map(item => `${item.name}${item.operation && !purposeTitle(item.name, item.operation) ? ' · ' + operationExcerpt(item.name, item.operation) : ''}`).join('；')}</p>}
       {responseText && <p className="capstone-call-response" title={responseText}>{responseText.length > 240 ? responseText.slice(0,240) + '…' : responseText}</p>}
       {issue && <div className="capstone-call-gap"><p role="status"><AlertTriangle aria-hidden="true" />工具记录缺失 · {issue.missingToolIds.length}项</p>
         <details><summary>缺失明细</summary><ul>{issue.missingToolIds.map(id => <li key={id}>
           <strong>{model.toolRequests?.find(item => item.id === id)?.name ?? '工具名称未记录'}</strong> · {tools.some(tool => tool.id === id) ? '缺少结果记录' : '缺少执行记录'}<code>{id}</code>
         </li>)}</ul></details></div>}
-      {selected.length > 0 && <div className="capstone-call-batch" aria-label="本轮工具调用">{compact?parallelGroups(selected).map(group=>group.length>1?<div key={group[0].id} className="capstone-parallel-group" role="group" aria-label={`并行工具调用 · ${group.length} 项`} title="这些调用属于同一轮，实际执行区间存在重叠。">{group.map(tool=>renderTool(tool))}</div>:renderTool(group[0])):selected.map(tool=>renderTool(tool))}</div>}
+      {(model.thinking||selected.length>0)&&<div className="capstone-call-nested">{model.thinking&&<ThinkingProcess kind="call" expanded={expandedThinking} trailing={tokenSummary} storageKey={`model-thinking:${model.id}`} now={now} thinking={{text:model.thinking,startedAt:model.thinkingStartedAt,endedAt:running&&!model.thinkingSettled?undefined:model.thinkingEndedAt,handedOff:!running||model.thinkingSettled===true,phase:running&&!model.thinkingSettled?'running':'completed'}}/>}{selected.length > 0 && <div className="capstone-call-batch" aria-label="本轮工具调用">{parallelGroups(selected).map(group=>{const wall=parallelWallMs(group);const shown=wall===undefined?undefined:toolTime(wall);const grade=latencyGrade(wall,'tool');const parallelLabel=`并行工具调用 · ${group.length} 项${shown?` · ${shown}`:''}`;return group.length>1?<div key={group[0].id} className="capstone-parallel-group" role="group" aria-label={parallelLabel} title="这组调用从最早开始到最晚结束的区间，不是各次耗时相加。"><p className="capstone-parallel-heading">并行工具调用 · {group.length} 项{shown&&<> · <span className="capstone-call-duration" data-latency={grade.level} title={`并行耗时 · ${grade.label}`}>{shown}</span></>}</p>{group.map(tool=>renderTool(tool))}</div>:renderTool(group[0])})}</div>}</div>}
       {!issue && linked && model.toolCallIds!.length > selected.length && <p className="capstone-call-pending">等待工具记录 · {model.toolCallIds!.length - selected.length}项</p>}
       {mainDispatches.length>0&&<RequestPoolExecutions requests={mainDispatches} active={active} now={now}/>}
     </section></li>

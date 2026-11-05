@@ -188,6 +188,7 @@ class PiTaskRequest:
     native_context: Mapping | None = field(default=None, kw_only=True)
     research_binding: Mapping | None = field(default=None, kw_only=True)
     managed_workspace: str | None = field(default=None, kw_only=True)
+    domain_tools: Mapping | None = field(default=None, kw_only=True)
 
     def __post_init__(self):
         document = _json_document({name: getattr(self, name) for name in _TASK_V1_FIELDS})
@@ -254,6 +255,11 @@ class PiTaskRequest:
                 raise ValueError('managed resources require native v2 context')
             if workspace_name(self.managed_workspace) != self.managed_workspace:
                 raise ValueError('invalid managed workspace')
+        if self.domain_tools is not None:
+            from .domain_tool_grant import checked_domain_tool_grant
+            if self.business_context is None:
+                raise ValueError('domain tools require typed Pi input')
+            object.__setattr__(self, 'domain_tools', _freeze(checked_domain_tool_grant(self.domain_tools)))
         # Include the schema and every v2 field in the total transport budget.
         self.to_document()
 
@@ -266,7 +272,7 @@ class PiTaskRequest:
             document = _json_document(document)
             _fields(document, _TASK_V1_FIELDS, schema)
         elif schema == 'capstone-pi-task/2':
-            optional = tuple(key for key in ('native_context', 'research_binding', 'managed_workspace') if key in document)
+            optional = tuple(key for key in ('native_context', 'research_binding', 'managed_workspace', 'domain_tools') if key in document)
             _fields(document, _TASK_V1_FIELDS + _TASK_V2_FIELDS + optional, schema)
             base = _json_document({key: document[key] for key in _TASK_V1_FIELDS})
             document = {'schema': schema, **base, **{key: document[key] for key in _TASK_V2_FIELDS + optional}}
@@ -289,6 +295,9 @@ class PiTaskRequest:
             document['managed_workspace'] = self.managed_workspace
         if self.research_binding is not None:
             document['research_binding'] = _json_document(self.research_binding)
+        if self.domain_tools is not None:
+            from .domain_tool_grant import checked_domain_tool_grant
+            document['domain_tools'] = checked_domain_tool_grant(self.domain_tools)
         byte_limit = limits.native_task_bytes if self.native_context is not None else limits.control_document_bytes
         if len(json.dumps(document, ensure_ascii=False, allow_nan=False).encode('utf-8')) > byte_limit:
             raise ValueError('Pi JSON exceeds byte bounds')

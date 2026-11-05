@@ -1042,6 +1042,7 @@ class NativeTaskRunner:
         self.task_resource_references = {}
         self.task_resource_inputs = {}
         self.task_gateways = {}
+        self.task_domain_routes = {}
         from .native_environment import environment_context
         self.environment_context = environment_context()
         self.network_policy = network_policy
@@ -1252,6 +1253,10 @@ class NativeTaskRunner:
                         'Before expanding unfamiliar business retrieval, establish its shape and status with a bounded observation; reuse an existing successful observation for the same shape and scope. '
                         'Do not issue a probe only to validate input schemas; batch preflight checks arguments before execution. Stop the batch on a shared contract error instead of repeating it for each object. '
                         'After a timeout, change the access path or selection only with a contract-backed reason; otherwise retain the gap and continue useful work. '
+                        'A query_timeout gap with scope.retry_same_request false must not be sent again. scope.executed true means the statement was cancelled during the scan. '
+                        'Follow scope.fields in order: equality-constrain the first field before later equality fields. Use a time field only after that leading equality, as a left-closed right-open range of one day or one series. '
+                        'A time range alone does not use the index, and limit does not reduce the scan before an aggregate. '
+                        'When scope.suggested_request is present, send that request instead of another full scan. Do not ask to raise the time budget. '
                         'Use native SQL as advanced exploration only when no admitted tool expresses the necessary operation, or a documented suspected tool defect prevents a reliable result. '
                         'For a suspected defect, retain the actual observation reference and describe why the published valid path cannot complete the operation; do not blindly retry or certify an unverified diagnosis. '
                         'When a tool description or result states connected indexes, limits, plans, or gaps, follow that statement. '
@@ -1272,6 +1277,25 @@ class NativeTaskRunner:
                         'Do not guess units, source IDs, joins, availability or missing values. '
                         'Save retrieved data and analysis as named task products when needed for subsequent analysis. '
                         'The gateway owns all backend selection. Only published tools in the current task grant are enabled. Gateway observations do not become registered Authority results or evidence without explicit admission.'})
+                if request.domain_tools:
+                    from .domain_tool_client import load_domain_tool_catalogs
+                    domain_catalog, domain_routes, mounted_packs = load_domain_tool_catalogs(request.domain_tools)
+                    if domain_catalog.get('tools'):
+                        self.task_domain_routes[request.task_id] = domain_routes
+                        sdk_config['applicationPolicy'] = {**sdk_config['applicationPolicy'], 'allowed_tools': sorted({
+                            *sdk_config['applicationPolicy']['allowed_tools'], *domain_catalog['tools']})}
+                        sdk_config['domainTools'] = {
+                            'url': self.relay_origin + '/domain-tools/' + request.task_id,
+                            'grant': grant, 'taskId': request.task_id, 'catalog': domain_catalog}
+                        sdk_config.setdefault('contextFiles', []).append({
+                            'path': 'published-domain-tools',
+                            'content': (
+                                'These tools are the published tools of the Domain Packs this application currently has available: '
+                                + ', '.join(mounted_packs) + '. '
+                                'Call one when the instruction needs that pack\'s result. Quote the returned fields. '
+                                'Do not calculate voltages, losses, rankings, topology, or contingency outcomes yourself. '
+                                'A failed or missing call is a limit. Continue the rest of the task and write the report. '
+                                'Do not invent a number the tool did not return.')})
                 sdk_config['selectedTaskRecords'] = native['selected_task_records']
                 sdk_config['selectedTaskMaterials'] = native.get('materials', [])
                 sdk_config['researchSources'] = sorted({
@@ -1678,6 +1702,8 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 return self.relay_managed_resources()
             if self.path.startswith('/data-gateway/'):
                 return self.relay_data_gateway()
+            if self.path.startswith('/domain-tools/'):
+                return self.relay_domain_tools()
             if self.path.startswith('/provider/'):
                 return self.relay_provider()
             if not self.authorized():
@@ -1829,6 +1855,48 @@ def make_server(host: GeneralPiHost, *, control_token: str, address: tuple[str, 
                 return self.send_json(400,{'error':'resource_request_rejected'})
             finally:
                 if lease is not None:runner.relay.release(lease)
+
+        def relay_domain_tools(self):
+            parts = self.path.split('/')
+            if runner is None or len(parts) != 3 or not parts[2]:
+                return self.send_json(404, {'error': 'domain_tool_unavailable'})
+            task_id = parts[2]
+            grant = self.headers.get('Authorization', '').removeprefix('Bearer ')
+            try:
+                lease = runner.relay.acquire(task_id, grant, self.connection, channel='gateway')
+            except PermissionError:
+                return self.send_json(401, {'error': 'unauthorized'})
+            except CapacityExceeded as error:
+                return self.send_json(503, {'error': 'capacity_exceeded', 'capacity': error.to_document()})
+            try:
+                length = int(self.headers.get('Content-Length', '0'))
+                if not 0 < length <= 65536:
+                    return self.send_json(413, {'error': 'domain_tool_request_invalid'})
+                document = json.loads(self.rfile.read(length))
+                if (not isinstance(document, dict) or set(document) != {'call_id', 'name', 'arguments'}
+                        or not isinstance(document.get('call_id'), str) or not document['call_id']
+                        or not isinstance(document.get('name'), str)
+                        or not isinstance(document.get('arguments'), dict)):
+                    return self.send_json(400, {'error': 'domain_tool_request_invalid'})
+                origin = getattr(runner, 'task_domain_routes', {}).get(task_id, {}).get(document['name'])
+                token = os.environ.get('CAPSTONE_OPERATOR_TOKEN', '')
+                if origin is None or not token:
+                    return self.send_json(404, {'error': 'domain_tool_unavailable'})
+                from .domain_tool_client import invoke_domain_tool
+                result = invoke_domain_tool(origin, token, {**document, 'task_id': task_id})
+                payload = result.get('result') if result.get('ok') is True else result.get('error')
+                if not isinstance(payload, dict):
+                    payload = {'message': 'domain tool call failed'}
+                text = json.dumps(payload, ensure_ascii=False)
+                if len(text.encode()) > 200000:
+                    text = text.encode()[:200000].decode('utf-8', errors='ignore')
+                return self.send_json(200, {
+                    'result_json': text, 'is_error': result.get('ok') is not True,
+                    'tool': document['name'], 'call_id': document['call_id']})
+            except (ValueError, OSError, TimeoutError):
+                return self.send_json(502, {'error': 'domain_tool_call_failed'})
+            finally:
+                runner.relay.release(lease)
 
         def relay_data_gateway(self):
             from .data_gateway_mcp import GatewayError

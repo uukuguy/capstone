@@ -62,6 +62,29 @@ def test_worker_closes_prepared_runtime_if_research_recovery_cannot_be_verified(
     assert result.answer
 
 
+def test_understanding_timeout_names_the_deadline_and_does_not_start_execution() -> None:
+    service = _service()
+    _submit(service)
+
+    class Factory:
+        def plan_intent(self, claim, control, freeze, freeze_decision=None):
+            raise TimeoutError('intent recognition deadline expired')
+
+        def __call__(self, claim):
+            raise AssertionError('execution must not start')
+
+    result = run_pending_attempt(service, Factory(), worker_id='understanding-timeout')
+    assert result.status == 'failed'
+    assert result.error_code == 'intent_deadline_exceeded'
+    assert result.answer is not None
+    assert result.answer.startswith('理解当前指令超时。120 秒内没有形成可执行的决策')
+    assert '运行准备未完成' not in result.answer
+    failed = service.read_events('thr_worker', 0).events[-1]
+    assert failed.event_type == 'attempt_failed'
+    assert failed.payload['error_code'] == 'intent_deadline_exceeded'
+    assert failed.payload['answer'] == result.answer
+
+
 def test_run_pending_attempt_claims_and_executes_without_http_affinity() -> None:
     service = _service()
     _submit(service)

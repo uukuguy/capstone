@@ -9,6 +9,15 @@ from capstone_agent.native_task_context import checked_native_context, native_co
 from test_enterprise_normal_chat import native_executor
 
 
+def test_native_intent_policy_is_a_file_for_a_pack_manifest(tmp_path):
+    from capstone_agent.native_hosted_worker import native_intent_policy_path
+    profile = resolve_native_profile('enterprise-research', '1.20.0')
+    assert not hasattr(profile.domains[0].profile.manifest, 'system_policy_path')
+    path = native_intent_policy_path(profile, tmp_path)
+    assert path.is_file()
+    assert path.read_text(encoding='utf-8') == profile.application_policy.load()
+
+
 @pytest.mark.parametrize('profile,version,expected', [
     ('enterprise-research', '1.1.0', {'agent_research_cycle'}),
     ('enterprise-research', '1.2.0', {'agent_research_plan', 'agent_research_record', 'agent_research_assess'}),

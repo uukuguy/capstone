@@ -65,9 +65,9 @@ it('rejects cloud labels supplied as local runtime settings', () => {
   expect(() => identity('development')).toThrow()
 })
 
-it('binds a static local-dev image to its exact source and same-origin API', () => {
-  writeFileSync('build-environment.json', JSON.stringify({ ...receipt, environment: 'local-dev', api_origin: '' }))
-  expect(identity()).toEqual({ version: '0.1.0', revision, dirty: false, environment: 'local-dev' })
+it.each(['local-dev', 'intranet-dev'])('binds a static %s image to its exact source and same-origin API', environment => {
+  writeFileSync('build-environment.json', JSON.stringify({ ...receipt, environment, api_origin: '' }))
+  expect(identity()).toEqual({ version: '0.1.0', revision, dirty: false, environment })
 })
 
 it.each(['https://api.example.com', 'http://localhost:5173'])('rejects local image origin %s', api_origin => {

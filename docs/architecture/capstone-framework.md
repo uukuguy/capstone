@@ -214,8 +214,9 @@ tool schema checks must succeed before a resource is ready. Accepted profile
 revisions and protected installations persist for retry; revocation or missing
 bytes fail explicitly. New tasks use the new configuration.
 
-Native Pi loads the pinned PowerSkills pandapower skill and ten bounded PowerMCP
-tools through the managed MCP extension. Harness uses an original Domain Pack
+The general executor roles `delegated_pi` and `direct_pi` do not publish the
+PowerSkills pandapower skill or PowerMCP. Grid numbers stay on the Domain Pack
+and its registered Authority. Harness uses an original Domain Pack
 adapter guide and the Authority-owned `analysis.run` operation
 `diagnostic.structural`. The Authority exports its current model snapshot and
 invokes PowerMCP `load_network` and `audit_network`; exact contracts, frozen

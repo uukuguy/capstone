@@ -24,19 +24,67 @@ def native_worker_capacity(environment: Mapping[str, str]) -> int:
 
 
 def native_runtime_factory(executor, *, research_root: Path | None = None,
-                           environment=None):
+                           environment=None, recognizer_factory=None,
+                           unscoped_intent: bool = False, business_factory=None):
     environment = os.environ if environment is None else environment
     from .application_capacity import limits
     research_timeout = environment.get('CAPSTONE_ENTERPRISE_RESEARCH_TIMEOUT_SECONDS')
     def unavailable(*args):
         raise RuntimeError('professional execution is not registered on this worker')
-    factory = IntentRuntimeFactory(unavailable, unavailable, unavailable,
+    unavailable.domain_execution = False
+    business = unavailable if business_factory is None else business_factory
+    factory = IntentRuntimeFactory(business, recognizer_factory or unavailable, unavailable,
                                    general_executor=executor,
                                    general_timeout_seconds=float(environment.get(
                                        'CAPSTONE_THREAD_ATTEMPT_TIMEOUT_SECONDS', str(limits.execution_seconds))),
                                    application_timeout_seconds={'enterprise-research': float(research_timeout)
-                                       if research_timeout else limits.research_execution_seconds})
+                                       if research_timeout else limits.research_execution_seconds},
+                                   unscoped_intent=unscoped_intent)
     factory.native_research_root = research_root
+    return factory
+
+
+def application_root() -> Path:
+    candidate = Path(__file__).resolve().parents[4]
+    if (candidate / 'configs' / 'runtime').is_dir():
+        return candidate
+    packaged = Path('/app')
+    if (packaged / 'configs' / 'runtime').is_dir():
+        return packaged
+    raise RuntimeError('native intent configuration root is unavailable')
+
+
+def native_intent_policy_path(profile, workspace: Path) -> Path:
+    """Persist the application policy. A native pack manifest has no policy file."""
+    text = profile.application_policy.load()
+    if not isinstance(text, str) or not text.strip():
+        raise RuntimeError('native intent policy is unavailable')
+    workspace = Path(workspace)
+    workspace.mkdir(parents=True, exist_ok=True)
+    path = workspace / 'system-policy.md'
+    path.write_text(text, encoding='utf-8')
+    return path
+
+
+def build_native_unscoped_recognizer(workspace_root: Path, environment=None):
+    """Build the in-process intent recognizer. Business execution stays unregistered."""
+    from .enterprise_application import resolve_native_profile
+    from .pi_intent import NativeConversationPiSessionBuilder, PiIntentRecognizer
+    from .runtime import build_runtime_host, load_runtime_environment, resolve_harness_llm, resolve_recognition_llm
+    root = application_root()
+    selected = load_runtime_environment(root, os.environ if environment is None else environment)
+    profile = resolve_native_profile('enterprise-research', '1.20.0')
+    workspace = Path(workspace_root)
+    host = build_runtime_host(root, profile, selected,
+                              system_policy_path=native_intent_policy_path(profile, workspace))
+    llm = resolve_recognition_llm(root, selected, resolve_harness_llm(root, selected))
+
+    def factory():
+        builder = NativeConversationPiSessionBuilder(
+            runtime_host=host, resolved_llm=llm, workspace_root=workspace,
+            base_environment=selected)
+        return PiIntentRecognizer(builder.build_intent, builder.identity)
+    factory()
     return factory
 
 
@@ -56,7 +104,10 @@ def main() -> int:
     setattr(service, '_title_summary_scheduler', title_scheduler)
     service.set_material_store(build_artifacts(settings, Ledger(settings.database_url)).store)
     service.set_native_executor(executor)
-    factory = native_runtime_factory(executor, research_root=settings.runs_root / 'native-research')
+    factory = native_runtime_factory(
+        executor, research_root=settings.runs_root / 'native-research',
+        recognizer_factory=build_native_unscoped_recognizer(settings.runs_root / 'native-intent'),
+        unscoped_intent=True)
     stop, wake = threading.Event(), threading.Event()
     scheduler = threading.Thread(target=serve_thread_attempts, kwargs={
         'service': service, 'runtime_factory': factory,

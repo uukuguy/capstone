@@ -61,6 +61,25 @@ class Session:
         self.stopped = True
 
 
+def test_recognizer_records_displayable_thinking_before_the_decision():
+    from capstone_agent.pi_intent import PiIntentRecognizer
+    from capstone_agent.request_intent import IntentRequest, IntentEngineIdentity
+    recorded = []
+    event = {"type": "tool_result", "capability": "capstone.intent.decision", "ok": True,
+             "result": decision_document()}
+    session = Session([
+        {"type": "assistant_thinking_delta", "text": "The instruction asks for a rewrite."},
+        {"type": "assistant_thinking_delta", "text": ""},
+        event,
+    ])
+    control = Control()
+    control.notice = recorded.append
+    recognizer = PiIntentRecognizer(lambda request, control: session,
+        IntentEngineIdentity(engine="pi", model="fixture", config_revision="fixture"))
+    recognizer.recognize(IntentRequest.from_document(request_document()), control)
+    assert recorded == [{"type": "assistant_thinking_delta", "text": "The instruction asks for a rewrite."}]
+
+
 def test_recognizer_uses_validated_terminating_tool_and_closes():
     from capstone_agent.pi_intent import PiIntentRecognizer
     from capstone_agent.request_intent import IntentRequest, IntentEngineIdentity

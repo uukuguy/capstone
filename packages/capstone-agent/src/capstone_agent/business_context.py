@@ -206,6 +206,21 @@ class BusinessContext:
         return json.loads(self._document_json)
 
 
+def unversioned_object_refs(request: IntentRequest, goal: dict) -> list[str]:
+    """Selected object identities that have no model revision.
+
+    A published catalog identity can be opened by a domain tool. It is not a
+    version-bound workspace object for a general projection.
+    """
+    if not isinstance(request, IntentRequest):
+        raise ValueError('business projection requires validated intent contracts')
+    objects = {item['object_id']: item for item in request.to_document()['objects']}
+    refs = goal.get('object_refs', ())
+    if not isinstance(refs, list):
+        return []
+    return [ref for ref in refs if isinstance(ref, str) and not objects.get(ref, {}).get('model_revision')]
+
+
 def business_context_for(request: IntentRequest, decision: IntentDecision, *,
                          goal_id: str | None = None, current_object_id: str | None = None) -> BusinessContext:
     """Select exact goal references; intent diagnostics never become instructions.

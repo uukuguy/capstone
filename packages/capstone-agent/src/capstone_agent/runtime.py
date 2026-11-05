@@ -97,6 +97,7 @@ def resolve_recognition_llm(repo_root: Path, environment: dict[str, str], execut
 
 def build_runtime_host(
     repo_root: Path, profile: object, environment: Mapping[str, str] | None = None,
+    *, system_policy_path: Path | None = None,
 ) -> RuntimeHost:
     """Resolve the existing pinned Pi assets for any registered application."""
 
@@ -119,6 +120,10 @@ def build_runtime_host(
         ),
     ).resolve()
     manifest = domains[0].profile.manifest
+    if system_policy_path is None:
+        system_policy_path = getattr(manifest, "system_policy_path", None)
+    if not isinstance(system_policy_path, Path):
+        raise ValueError("application system policy is unavailable")
     model_library_dir = runtime_environment.get("CAPSTONE_PYPSA_MODEL_LIBRARY_DIR")
     if not model_library_dir:
         model_library_dir = str(root / ".grid-agent/runtime/pypsa-models")
@@ -126,6 +131,6 @@ def build_runtime_host(
         command=command,
         project_pi_dir=root / ".grid-agent/auth/pi",
         extension_path=extension,
-        system_policy_path=manifest.system_policy_path,
+        system_policy_path=system_policy_path,
         extra_environment={"CAPSTONE_PYPSA_MODEL_LIBRARY_DIR": model_library_dir},
     )
