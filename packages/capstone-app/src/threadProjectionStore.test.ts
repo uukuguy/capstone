@@ -151,6 +151,26 @@ it('retains native routing identity beyond the raw window for exact tool groupin
  expect(calls[0].thinking).toBe('先核对已保存的结果。')
 })
 
+it('bounds archived diagnostic bytes while preserving conversation bodies',async()=>{
+ const budget=6000
+ initializeApplicationCapacity({schema:'capstone-capacity-profile/1',mode:'debug',limits:{event_buffer_count:2,event_buffer_bytes:budget}})
+ const events=[conversationalEvent(1,'command_accepted',0,{kind:'send_auto',payload:{text:'保留问题'}}),
+  conversationalEvent(2,'attempt_completed',0,{answer:'保留回答'}),
+  ...Array.from({length:40},(_,i)=>conversationalEvent(i+3,
+   ['runtime_action','runtime_event','assistant_thinking_delta'][i%3],0,
+   {text:'x'.repeat(500),phase:'started',native_type:'tool_execution_start',tool_name:'read'}))]
+ const fixture={...idleFixture,snapshot:{...idleFixture.snapshot,last_event_seq:42}}
+ const store=new ThreadProjectionStore(new CapstoneThreadClient({...createFixtureTransport(fixture),readHistory:pagedHistory(events,5)}))
+ await store.load('thr_demo_39');await store.restoreConversationHistory()
+ const diagnostics=store.conversationEvents.filter(e=>['runtime_action','runtime_event','assistant_thinking_delta'].includes(e.eventType))
+ expect(diagnostics.length).toBeLessThan(40)
+ expect(diagnostics.reduce((n,e)=>n+new TextEncoder().encode(JSON.stringify(e)).byteLength,0)).toBeLessThanOrEqual(budget)
+ expect(store.conversationEvents.some(e=>e.eventSeq===1)).toBe(true)
+ expect(store.conversationEvents.some(e=>e.eventSeq===2)).toBe(true)
+ expect(diagnostics.at(-1)?.eventSeq).toBe(42)
+ expect(store.state.eventSeq).toBe(42)
+})
+
 it('loads durable model membership independently of the legacy snapshot', async () => {
   const model = { entry_id: 'mdl_ieee39', model_id: context.model_id, model_revision: context.model_revision,
     implementation_family: context.implementation_family, authority_model_ref: 'gridctl:ieee39', display_name: 'IEEE-39', diagram_provider_id: 'gridctl', last_active_seq: 0 }
@@ -452,17 +472,19 @@ it('recovers a lost model-control receipt with its original identity and one act
   expect(store.state.snapshot?.currentAttempt).toBeNull()
 })
 
-it('restores a short model purpose from diagnostic opening text outside the live window',async()=>{
+it('keeps a short model purpose after live diagnostic opening text leaves the window',async()=>{
   initializeApplicationCapacity({schema:'capstone-capacity-profile/1',mode:'normal',limits:{event_buffer_count:1}})
   const events=[
     conversationalEvent(1,'runtime_action',0,{phase:'started',runtime_mode:'capstone'}),
     {...conversationalEvent(2,'assistant_process_delta',0,{text:'打开模型上下文\n后文'}),visibility:'diagnostic'},
     conversationalEvent(3,'runtime_action',0,{phase:'response_completed',runtime_mode:'capstone',response_kind:'text'}),
   ]
-  const fixture={...idleFixture,snapshot:{...idleFixture.snapshot,last_event_seq:3}}
-  const store=new ThreadProjectionStore(new CapstoneThreadClient({...createFixtureTransport(fixture),readHistory:pagedHistory(events,3)}))
+  // Diagnostic events arrive on the live stream, never the public history RPC.
+  const fixture={...idleFixture,snapshot:{...idleFixture.snapshot,last_event_seq:0}}
+  const store=new ThreadProjectionStore(new CapstoneThreadClient({...createFixtureTransport(fixture),
+    readHistory:pagedHistory([],3),streamEvents:async function*(){for(const event of events)yield parseEventEnvelope(event)}}))
   await store.load('thr_demo_39')
-  await store.restoreConversationHistory()
+  await expect(store.consumeEvents(new AbortController().signal)).rejects.toThrow('实时连接已关闭')
   const started=store.conversationEvents.find(event=>event.eventType==='runtime_action'&&event.payload.phase==='started')
   expect(started?.payload.response_intent).toBe('打开模型上下文')
   expect(projectProcessModelRequests(store.conversationEvents,'attempt_0')[0]?.intent).toBe('打开模型上下文')

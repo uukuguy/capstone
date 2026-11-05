@@ -42,7 +42,8 @@ def test_debug_continuation_preserves_soft_bounded_file_recovery():
     initialize_capacity({'artifact_count': 2}, mode='debug')
     events = []
     for index in range(3):
-        document = {'payload': {'artifact': {'file_name': f'{index}.csv', 'work_id': 'work_one'}}}
+        document = {'payload': {'artifact': {'file_name': f'{index}.csv', 'work_id': 'work_one',
+                                           'source_status': 'completed'}}}
         events.append(SimpleNamespace(event_type='native_artifact_published', thread_id='thr_one',
                                       attempt_id='attempt_one', payload=document['payload'], to_document=lambda value=document: value))
     service = SimpleNamespace(_events=events, _attempts={'attempt_one': {'attempt': SimpleNamespace(phase='completed')}})

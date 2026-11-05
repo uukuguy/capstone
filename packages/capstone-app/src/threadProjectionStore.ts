@@ -331,6 +331,11 @@ export class ThreadProjectionStore {
   private refreshingWorkSnapshot: number | null = null
   private readonly eventLog: EventEnvelope[] = []
   private readonly conversationArchive = new Map<number,EventEnvelope>()
+  // Diagnostic replay is recoverable from the ledger and has its own byte
+  // window. It must not turn the message archive into a second unbounded log.
+  private readonly conversationDiagnostics = new Map<number,EventEnvelope>()
+  private readonly conversationDiagnosticSizes = new Map<number,number>()
+  private conversationDiagnosticBytes = 0
   private conversationHistoryComplete = false
   private readonly resultDelivery = new ResultProjectionDelivery()
   private readonly networkDiagrams = new Map<string, NetworkDiagram>()
@@ -360,26 +365,45 @@ export class ThreadProjectionStore {
     return intent&&event.payload.response_intent===undefined?{...event,payload:{...event.payload,response_intent:intent}}:event
   }
   private refreshIntents(): void {
-    const events=[...this.conversationArchive.values(),...this.eventLog].sort((a,b)=>a.eventSeq-b.eventSeq)
+    const events=[...this.conversationArchive.values(),...this.conversationDiagnostics.values(),...this.eventLog]
+      .filter(event=>event.eventType==='runtime_action'||event.eventType==='assistant_process_delta')
+      .sort((a,b)=>a.eventSeq-b.eventSeq)
     this.responseIntents.observe(events)
   }
   private readonly responseIntents=new ResponseIntentProjection()
 
   /** Message bodies outlive the bounded tool/token event window. */
   get conversationEvents(): readonly EventEnvelope[] {
-    return mergeHistoryEvents([...this.conversationArchive.values()].map(event=>this.withIntent(event)),this.publicEvents)
+    return mergeHistoryEvents([...this.conversationArchive.values(),...this.conversationDiagnostics.values()].map(event=>this.withIntent(event)),this.publicEvents)
   }
   get conversationHistoryReady(): boolean {
     return !this.client.supportsHistory||this.conversationHistoryComplete
   }
 
   private retainConversation(events:readonly EventEnvelope[]):void {
-    for(const event of events)if(event.eventType==='assistant_process_delta'||(event.visibility==='public'&&[
-      'command_accepted','attempt_started','attempt_completed','attempt_failed',
-      'attempt_cancelled','attempt_interrupted','native_artifact_published',
-      'turn_route_selected','turn_plan_created','runtime_action','runtime_event',
-      'assistant_thinking_delta','assistant_process_delta',
-    ].includes(event.eventType)))this.conversationArchive.set(event.eventSeq,event)
+    for(const event of events){
+      if(event.visibility==='public'&&['runtime_action','runtime_event','assistant_thinking_delta'].includes(event.eventType)){
+        if(!this.conversationDiagnostics.has(event.eventSeq)){
+          const bytes=new TextEncoder().encode(JSON.stringify(event)).byteLength
+          this.conversationDiagnostics.set(event.eventSeq,event)
+          this.conversationDiagnosticSizes.set(event.eventSeq,bytes)
+          this.conversationDiagnosticBytes+=bytes
+        }
+      }else if(event.eventType==='assistant_process_delta'||(event.visibility==='public'&&[
+        'command_accepted','attempt_started','attempt_completed','attempt_failed',
+        'attempt_cancelled','attempt_interrupted','native_artifact_published',
+        'turn_route_selected','turn_plan_created',
+      ].includes(event.eventType)))this.conversationArchive.set(event.eventSeq,event)
+    }
+    const budget=applicationCapacity('event_buffer_bytes')
+    if(this.conversationDiagnosticBytes>budget){
+      for(const seq of [...this.conversationDiagnostics.keys()].sort((a,b)=>a-b)){
+        this.conversationDiagnosticBytes-=this.conversationDiagnosticSizes.get(seq)??0
+        this.conversationDiagnostics.delete(seq)
+        this.conversationDiagnosticSizes.delete(seq)
+        if(this.conversationDiagnosticBytes<=budget)break
+      }
+    }
     this.refreshIntents()
   }
 
@@ -491,7 +515,11 @@ export class ThreadProjectionStore {
     this.previews.clear()
     const generation = ++this.loadGeneration
     const sameThread = this.loadedThreadId === threadId
-    if(!sameThread){this.conversationArchive.clear();this.conversationHistoryComplete=false;this.responseIntents.clear()}
+    if(!sameThread){
+      this.conversationArchive.clear();this.conversationDiagnostics.clear()
+      this.conversationDiagnosticSizes.clear();this.conversationDiagnosticBytes=0
+      this.conversationHistoryComplete=false;this.responseIntents.clear()
+    }
     const previousView = this.loadedThreadId === threadId ? this.current.viewedGridPageId : null
     this.current = {
       ...this.current,
