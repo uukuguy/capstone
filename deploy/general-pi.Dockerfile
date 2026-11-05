@@ -119,6 +119,7 @@ COPY packages/capstone-agent/src/capstone_agent/resources/general-context.mjs ca
 COPY packages/capstone-agent/src/capstone_agent/resources/general-sdk.mjs capstone_agent/resources/general-sdk.mjs
 COPY packages/capstone-agent/src/capstone_agent/resources/tool-composition.mjs \
      packages/capstone-agent/src/capstone_agent/resources/tool-composition-worker.mjs \
+     packages/capstone-agent/src/capstone_agent/resources/tool-call-scheduler.mjs \
      packages/capstone-agent/src/capstone_agent/resources/tool-composition-policy.json \
      packages/capstone-agent/src/capstone_agent/resources/semantic-data-context.mjs \
      packages/capstone-agent/src/capstone_agent/resources/observation-data.mjs \

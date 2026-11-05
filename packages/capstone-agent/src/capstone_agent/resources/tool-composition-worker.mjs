@@ -25,6 +25,13 @@ process.on('message',async message=>{
     child.stdin.on('error',()=>{});child.stdin.end(JSON.stringify(data));
   });
   try{
+    if(message.calls){
+      const plan=await request('preflight',{calls:message.calls.map(({tool,arguments:args})=>({tool,arguments:args}))});
+      const settled=await Promise.allSettled(message.calls.map((_,index)=>request('call',{batchRef:plan.ref,index})));
+      const value=settled.map((out,index)=>({... (out.status==='fulfilled'?out.value:
+        {ok:false,ref:null,status:'error',execution_status:'unknown',error:String(out.reason?.message??out.reason)}),id:message.calls[index].id,index}));
+      process.send({kind:'done',value});return;
+    }
     const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;
     const value=await new AsyncFunction('tools','python','saveContext','loadContext','print',message.program)(tools,python,
       (name,spec)=>request('save',{name,spec}),path=>request('load',{path}),text=>request('print',{text:String(text)}));

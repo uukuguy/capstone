@@ -401,7 +401,7 @@ test('one real program overlaps independent calls then passes observed data to a
   const t=tool(cwd,async(name,args,{callId})=>{
     calls.push({name,args,callId});active++;peak=Math.max(peak,active);if(active===2)release();
     if(args.value<3)await ready;active--;return native({value:args.value});
-  });
+  },{catalog:{...catalog,tools:{data_gateway_read:{...catalog.tools.data_gateway_read,annotations:{readOnlyHint:true}}}}});
   const result=await t.execute('outer',{tools:['data_gateway_read'],program:`
     const [a,b]=await Promise.all([tools.call('data_gateway_read',{value:1}),tools.call('data_gateway_read',{value:2})]);
     const c=await tools.call('data_gateway_read',{value:a.data.value+b.data.value});
@@ -447,7 +447,7 @@ test('bounded concurrency assigns unique IDs to queued calls and drains them bef
   const ids=[];let active=0,peak=0;
   const result=await tool(cwd,async(_name,args,{callId})=>{
     ids.push(callId);active++;peak=Math.max(peak,active);await new Promise(resolve=>setTimeout(resolve,5));active--;return native(args);
-  }).execute('queue',{tools:['data_gateway_read'],concurrency:2,program:`return await Promise.all(Array.from({length:9},(_,i)=>tools.call('data_gateway_read',{i})));`},new AbortController().signal);
+  },{catalog:{...catalog,tools:{data_gateway_read:{...catalog.tools.data_gateway_read,annotations:{readOnlyHint:true}}}}}).execute('queue',{tools:['data_gateway_read'],concurrency:2,program:`return await Promise.all(Array.from({length:9},(_,i)=>tools.call('data_gateway_read',{i})));`},new AbortController().signal);
   assert.equal(result.isError,false);assert.equal(ids.length,9);assert.equal(new Set(ids).size,9);assert.equal(peak,2);assert.equal(active,0);
 }));
 test('large returns spill before delivery and later programs reuse actual session observations without querying again',()=>fixture(async cwd=>{
