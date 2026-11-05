@@ -36,8 +36,6 @@ leases until invocation settles. No new retries, adaptive concurrency or cache
 freshness changes. Preserve successful issued references and existing evidence rules.
 Record index and queue/start/end timing in composition receipts without source data.
 
-## Verification
-
 ## Real-task correction (2026-11-05)
 
 The bounded two-call trial did not establish adoption for independent paginated
@@ -62,6 +60,8 @@ Real task also revealed a separate local gateway installation missing grid_datab
 Owner received an authorized assistance notification and request IDs. Do not modify
 their dirty checkout or runtime. Gateway internal errors are not all attributed to
 one cause until owner checks the original exceptions.
+
+## Verification
 
 Test direct batches, whole-list rejection, duplicate IDs, input ambiguity, ordered
 results despite out-of-order completion, partial and transport failure, observation

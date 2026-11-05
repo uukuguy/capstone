@@ -1,5 +1,33 @@
 # 多线版本控制
 
+2026-11-05：984131e3已部署local-dev，补齐独立分页链tools.map、稳定tool身份和helper同源契约；55Node/20Python通过、1环境跳过，1313运行输入一致。真实6链各2页，共12次查询最大并发4、查询区间1.5998秒、整轮40.9591秒、0工具错误，203字节CSV下载哈希及刷新通过。原任务42错误分为29网关/7组合/6bash；网关运行包缺grid_database已按用户授权通知，未收到回复，不声称原任务所有错误已修复。实际dev HEAD6c55e6ee未移动，无CI/合并，内网未联系。[补修回执](../reports/2026-11-05-batch-regression.md)。
+
+2026-11-05：结构化工具批次候选4ba17891已部署local-dev，全角色healthy且来源一致，私有配置未变。新增calls输入复用整批预检与结果引用，同一组合会话共享最多4路；未知/写入独占，取消与单项失败保留结果。141项通过/33环境跳过、11项新测试及固定Pi SDK参数验证通过。真实commercial模型采用calls，两次限量只读均成功且并发2，查询区间1.7953秒；整轮28.995秒，刷新恢复通过。会话归档后追加导出被拒，不重开或重查，不声明121次查询整体提速。dev HEAD6c55e6ee未移动，无CI/合并，两个内网未联系。[回执](../reports/2026-11-05-structured-tool-batches.md)。
+
+2026-11-05：用户授权先在local-dev部署7387ef7f，已全角色healthy；两个内网仍为最后确认367374aa加overlay255c8855，未触碰。私有阶段计时304项/35跳过/27.46秒、绑定复用93项/22跳过/5.00秒及复审沿用，代码未再修改。真实普通会话使用commercial-deepseek-flash，3.1359秒完成“你好”，HTTP确认0.1637秒，1轮LLM、无前置理解与工具，刷新恢复通过；模型未输出Thinking（0条preview/0条durable），不计DSV4首Thinking验证或与其6.2秒比较。私有计时记录资源59.403毫秒、Popen70.391毫秒、request556.693毫秒、headers965.836毫秒、firstbytes976.483毫秒、firsttext1843.916毫秒；只读binding仅1次GET23.89毫秒、总39.566毫秒。本地候选部分验证通过，DSV4与内网真实验证未通过，不声明其性能改善；实际dev HEAD6c55e6ee保持，未合入dev，无CI。[候选回执](../reports/2026-11-05-first-thinking-latency.md)。
+
+2026-11-05：直接native入口来源367374aa已部署三套联调，314项定向通过、33项跳过、17.01秒，复审无阻断项。本地普通会话9.5574秒完成，首preview6.1139秒，无前置理解，刷新恢复通过。63网关任务96.3927秒完成，discover_gateway334毫秒，26条preview、7条durable，入口级目录回答与370字符恢复通过，不代表全部底层业务服务覆盖。独立overlay255c8855通过22项/1.62秒，63与三区仅general-pi排除未启动专业端点，运行源码及镜像仍367374aa。63配置后普通会话8.0752秒、首preview6.1726秒、8条preview/2条durable、1轮LLM、无工具及前置理解，显示与恢复通过；准备1.7879秒，之前网关准备18.2904秒。专业工具可达并保存ieee39_overview.json，但超180秒试验预算后由操作者取消，不计完整任务通过或性能接受。实际dev HEAD6c55e6ee未移动，候选未合入dev，无CI。[回执](../reports/2026-11-05-direct-native-entry.md)。
+
+2026-11-05：Thinking模型能力修正来源3a8eaf76完成470项定向检查、38项跳过，耗时42.59秒并通过复审。三套全角色同源；内网默认18804、本地默认及明确选择保持。63真实任务完成，运行页面可见76次更新，76条preview对应12条durable，首preview比durable早1.3011秒，刷新展开恢复976字符。本地Python工具调用完成，267.421秒，7条durable（4条native），刷新恢复225与364字符两段。仅Thinking显示验收通过；本地耗时明显慢，63原问题返回模型目录而非网关工具，性能和回答语义未通过。数据、网关、凭据保持独立，无CI/合并。
+
+2026-11-05 16:55：按用户要求，63/三区新会话缺省统一dsv4（18804），本地原默认保持。三套全角色同步bfb16344，公开App/目录、运行身份通过；两个不指定模型的真实请求均完成，提交profile为18804且理解引擎为dsv4。137项定向/9跳过通过，明确Qwen选择仍保留。后续优先在63联调，各环境数据/网关/凭据继续独立，无CI/合并。[默认模型回执](../reports/2026-11-05-default-dsv4.md)。
+
+2026-11-05 16:35：按用户要求，三区研发、63内网联调、本地联调的API/worker/native/App统一源码f34bb4d3，运行身份与公开App包均核对。63已真实生成并下载version-check.txt，9字节及哈希通过，网关保持connected/契约可用；旧数据表与备份哈希一致。本地以同源固定构建联调，保留后续恢复工作树Vite路径。后续优先在63联调，三套凭据/数据保持独立。无CI/合并/其他部署更新。[同版本回执](../reports/2026-11-05-development-version-alignment.md)。
+
+2026-11-05 16:06：用户明确选择取消当前任务后立即更新，正常取消确认后部署后台f34bb4d3/nativec446063c，App保持073860ca；API/worker同镜像c8414ced健康。显示75毫秒/256字符，数据库仍5秒/16KiB，并补齐host任务ID关联。344项定向/32跳过、复审与本地真实57批推送通过；三区真实74批推送对应3条正式Thinking，执行57批中位接收间隔46.4毫秒，刷新与原产物哈希保持。未宣称原病态任务整体提速。[修正记录](../reports/2026-11-05-smooth-thinking.md)。
+
+2026-11-05 15:32：三区后台/App更新073860ca，直接Thinking推送和5秒有界异步入库试验已开启；API/worker同镜像5acaa8e8、App9556e9cd健康，native与数据保持。Qwen真实5批推送全部对应2条正式事件，首批3.446秒早于正式6.966秒；真实帧组件重放无重复。dsv4正常完成但无思考文本。原三份产物哈希保持；127后台/106前端定向、类型、构建及本机规范重建通过，一项已复现基线失败单列。完整病态算例性能和视觉由用户复测，无CI/合并。[回执](../reports/2026-11-05-direct-thinking-preview.md)。
+
+2026-11-05 14:43：三区后台更新68bd1e07，API/worker同镜像f875656f健康；去掉业务任务重复理解，保留完整冻结上下文。用户103.7/13.0秒已对齐到两轮RPC；早先16.3/5.7只是直接探测，不能代表会话。新完整规划验证Qwen38.140/dsv423.165秒、一轮各一次，非UI时间及固定提速承诺。等用户任务结束、活动数为0后切换；App22be9e5c、nativecc50f8d8及数据保持。[回执](../reports/2026-11-05-single-pass-understanding.md)。
+
+2026-11-05 13:54：三区App更新22be9e5c/image992ea422，缺少思考文本时保留活动Thinking状态，66项定向/类型/构建通过；只重建App，后台cc50f8d8及进程不变。用户主动重试的算例已完成，三份产物下载哈希通过；数值结论未独立复核。[显示补修](../reports/2026-11-05-thinking-visibility.md)。
+
+2026-11-05 13:38：三区修复cc50f8d8已部署，API/worker同镜像a6ee8475、native2d13aca8健康。思考/正文合并写入，两模型理解随冻结选择；原失败指令的有界真实理解Qwen16.346秒、dsv45.734秒通过，思考写入10/0，最大队列延迟0.028/0.001秒。两模型简短真实任务和恢复通过；完整病态算例未重跑。源引用未合入dev，无CI；.63/main/cloud不变。[回执](../reports/2026-11-05-intent-backpressure.md)。
+
+2026-11-05 13:06：dky3-dev缺省网关“三区研发”已连接，契约available；新会话确认默认来源可用。凭据仅在受保护配置，未调用模型；真实产物验收仍待完成。[回执](../reports/2026-11-05-dky3-dev-deployment.md)。
+
+2026-11-05 12:58：三区研发已部署，入口 http://192.168.72.66:5173/ ，标签dky3-dev。后台2b6dd8a3、App c4466005；四角色健康，API/worker同镜像f1e74483。独立数据卷和新凭据；用户选择稍后在页面配置网关，任务提交因网关未配置被拒绝，未调用模型、不打验收标签。[三区回执](../reports/2026-11-05-dky3-dev-deployment.md)。
+
 2026-11-05：内网运行未合入dev的源码快照2b6dd8a3，四角色healthy，API/worker同镜像776c30a5。真实CSV验证因120秒理解超时失败，下载/继续/恢复尚未验收，不打验收标签。旧镜像与数据库备份保留；dev仍6c55e6ee，main/cloud不变，无CI。[部署回执](../reports/2026-11-05-intranet-deployment.md)。以下11月4日条目为历史来源。
 
 2026-11-04 16:44：内网 App 换为 c0cacc597a79，脚本 index-D6zsKizj.js。页面仍显示 intranet-dev · v0.1.0 · 6c55e6e，宽 HTML 表格在右栏内横向滚动。API/worker 与 native 未重建。上一张 App 保留为 6c55e6ee-before-table（ff9eb4569105）。11:41 起内网与本机页面统一显示仓库提交 6c55e6ee。本机页为 local-dev · v0.1.0 · 6c55e6e。API/worker d501f0602126同镜像，native单层e4eb33b6a105，四角色healthy。管理开关0，原生槽位1。线程thr_e62c227c65f77ecebe76，CSV 28字节，SHA 2768941343fc416a853150b53375eac4a42c7dc67705a728bde8e0d89446a300，继续读取与快照恢复通过。postgres/objects仍为20261101。空白页镜像与user-local页镜像分别保留为6c55e6ee-blank-version、6c55e6ee-user-local。验收标签仍指向首张App，不移动。main 0b68c607与cloud/demo不变。这不是完整发布验收。[回执](../reports/2026-11-04-intranet-deployment.md)。
@@ -1055,7 +1083,7 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 分支 | 职责 | 当前状态 | 下一步 |
 | --- | --- | --- | --- |
-| dev | 共同基座与企业工作台集成 | PR93会话字号已合入dev 6c55e6ee；内网运行源已切到同一提交 | macOS App CI5分06秒通过；PR91/92真实验收保留，内网6c55e6ee已验收 |
+| dev | 共同基座与企业工作台集成 | dev HEAD6c55e6ee保持；local-dev试验984131e3，两内网最后确认367374aa加overlay255c8855，尚未合dev | 真实6链×2页并发4、0工具错误及CSV/刷新通过；网关缺包协查未回复 |
 | feat/business-analysis | 企业研究与分析 | 应用分支仅准备；实际研究能力在dev共享工作台推进 | 保留350.524秒/ 41轮质量基线；不另建研究调度或聊天应用 |
 | feat/model-decision | 电网分析与决策 | 00a8cd85已在local-dev验证；PR #53已合入f5eda4e4 | 成熟对话、真实历史与拓扑已接通；无模型与通用成果继续按协议推进 |
 
@@ -1145,12 +1173,26 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 提交 | 通道 | 名称 | 状态 | 功能增量 | 功能包 |
 | --- | --- | --- | --- | --- | --- | --- |
+| batch-regression-20261105 | 984131e3 | dev | 独立分页链与helper契约·本地补修 | 55Node/20Python、1跳过；真实12查询并发4、0错误及CSV/刷新通过 | 有界独立分页链；稳定工具身份与helper契约，网关缺包另行协查。[回执](../reports/2026-11-05-batch-regression.md) | shared-agent |
+| structured-batches-20261105 | 4ba17891 | dev | 结构化工具批次·前次本地候选 | 两查询验证通过；真实复杂任务仍串行及多错，由984131e3补修 | 独立调用结构化提交；共享会话限流、逐项失败和结果引用保持。[回执](../reports/2026-11-05-structured-tool-batches.md) | shared-agent |
+| first-thinking-latency-20261105 | 7387ef7f | dev | 首Thinking诊断·前次本地候选 | 两组定向及复审沿用；本地普通会话3.1359秒与计时部分通过，DSV4首Thinking未验证 | 私有首Thinking阶段计时；单次绑定publication快照复用，普通实测1次GET，未声明DSV4性能改善。[候选回执](../reports/2026-11-05-first-thinking-latency.md) | shared-agent |
+| intranet-tool-origins-20261105 | 255c8855 | dev | 内网配置·未启用专业端点隔离 | 22项/1.62秒通过；两内网生效，63普通8.0752秒、准备1.7879秒 | 保留显式专业域源；缺省不继承未启动专业worker映射。[回执](../reports/2026-11-05-direct-native-entry.md) | shared-agent |
+| direct-native-entry-20261105 | 367374aa | dev | 直接native入口·内网运行来源 | 314项/33跳过、17.01秒及复审通过；普通与入口目录通过，专业超预算取消 | 移除前置理解轮次，由执行模型直接响应；专业工具与保存可达，完整任务和性能未接受。[回执](../reports/2026-11-05-direct-native-entry.md) | shared-agent |
+| thinking-capability-20261105 | 3a8eaf76 | dev | Thinking模型能力·三套联调历史来源 | 470项定向/38跳过、42.59秒及复审通过；真实Thinking显示通过，性能与回答语义未通过 | dsv4显式声明reasoning并传入理解与native；内网默认18804不变。[回执](../reports/2026-11-05-thinking-model-capability.md) | shared-agent |
+| default-dsv4-20261105 | bfb16344 | dev | 三套联调同版本·内网默认dsv4 | 三套已部署；137项定向/9跳过及两套真实默认请求通过 | 内网缺省18804；保留明确选择和本地默认。[回执](../reports/2026-11-05-default-dsv4.md) | shared-agent |
+| smooth-thinking-20261105 | f34bb4d3 | dev | 三套联调共同版本·Thinking修正 | 三套同源；344项定向/32跳过、真实工具/产物/组件通过 | 显示75毫秒小批次，保持数据库批量；补齐host任务ID。[同版本](../reports/2026-11-05-development-version-alignment.md) | shared-agent |
+| direct-thinking-20261105 | 073860ca | dev | 三区Thinking直接推送试验 | 已部署；真实推送/恢复/去重通过，完整任务待用户复测 | 临时推送、异步批量持久化、终态屏障；理解结构化生成。[回执](../reports/2026-11-05-direct-thinking-preview.md) | shared-agent |
+| single-pass-intent-20261105 | 68bd1e07 | dev | 三区完整上下文单轮理解 | 已部署；完整规划验证通过，会话性能待同口径复核 | 去掉重复调用，保留用户上下文与深度控制；纠正诊断与UI耗时混用。[回执](../reports/2026-11-05-single-pass-understanding.md) | shared-agent |
+| thinking-visibility-20261105 | 22be9e5c | dev | 三区Thinking等待状态补修 | App已部署；66项/类型/构建通过，视觉待复验 | 等待模型仍显示状态，真实片段保留；无虚构思考正文。[回执](../reports/2026-11-05-thinking-visibility.md) | shared-agent |
+| intent-backpressure-20261105 | cc50f8d8 | dev | 三区理解流与模型绑定修复 | 已部署；定向与真实理解/简短任务验证通过 | 有界成片写入，保留持久化失败；理解器绑定本条冻结模型。[回执](../reports/2026-11-05-intent-backpressure.md) | shared-agent |
+| intranet-source-20261105 | 2b6dd8a3 | dev | 内网后台源码快照 · 未合入dev | .63与三区已部署；任务验收未通过 | 受管理解流程、执行收口和已有研发改动；内网模型配置适配。[回执](../reports/2026-11-05-intranet-deployment.md) | shared-agent |
+| dky3-app-20261105 | c4466005 | dev | 三区App源码快照 · 未合入dev | 标签定向检查和生产构建通过；已部署 | 显式dky3-dev环境与同源API；独立三区安装。[回执](../reports/2026-11-05-dky3-dev-deployment.md) | shared-agent |
 | main-managed-resources | 0b68c607 | release | main · 资源管理定向合入 | 用户例外授权，双平台定向通过 | 持久安装与执行恢复纳入main；全量发布缺口单列。[部署验收](../reports/2026-11-03-intranet-release.md) | shared-agent |
 | offline-selection-fixture | 01732906 | feature | 离线安装器 · 权限测试修复 | PR90已合dev | 以文件状态校验0600及所有者；macOS定向CI212通过/3跳过。[问题记录](KNOWN-ISSUES.md) | shared-agent |
 | execution-capacity | b7dd440c | feature | 执行可靠性 · 会话容量 | PR91已合dev并本机验收 | 大观察按引用恢复；两槽位与等待取消、真实并行/产物/页面通过，定向CI4分02秒。[回执](../reports/2026-11-03-execution-capacity.md) | shared-agent |
 | capacity-wake-fix | 8dd51d0b | feature | 会话容量 · 锁释放后继续执行 | PR92已合入；定向CI通过 | 已接纳状态确认；锁释放后无新通知也能继续执行，100项定向/类型/审查通过。[证据](../reports/2026-11-03-capacity-wake-followup.md) | shared-agent |
 | conversation-type | 2148db14 | feature | 会话阅读 · 统一字号 | PR93已合dev；App CI通过 | 修正工作空间覆盖；指令/正文/行内代码/表格同为13px，标题约16/15/14px。[证据](../reports/2026-11-03-conversation-typography.md) | shared-agent |
-| intranet-managed-runtime | 6c55e6ee | main | dev · 内网当前运行源 | 真实CSV、继续与快照通过 | API/worker同镜像且管理禁用；槽位1，数据库与对象存储保留。[部署验收](../reports/2026-11-04-intranet-deployment.md) | shared-agent |
+| intranet-managed-runtime | 6c55e6ee | main | dev · 当前HEAD及历史内网基线 | dev HEAD未移动；内网367374aa，本地试验7387ef7f | 历史真实CSV、继续与快照通过；分支HEAD与运行源码分开。[部署验收](../reports/2026-11-04-intranet-deployment.md) | shared-agent |
 | intranet-runtime-25c71f85 | 25c71f85 | main | main · 前次内网运行源 | 2026-11-03验收通过，已由6c55e6ee承接 | 管理禁用与两轮真实任务；回滚镜像保留。[部署验收](../reports/2026-11-03-intranet-release.md) | shared-agent |
 | release-local-validation | ee625f38 | main | dev · 发布门禁修复 | 本机分段发布检查通过 | 类型契约与旧测试迁移；规范重建及同镜像检查。[发布准备](../reports/2026-11-03-main-intranet-release.md) | shared-agent |
 | managed-resource-milestone | 771259a7 | main | dev · 资源管理里程碑标签 | 标签已推送，main待合 | 固定用户选定源码；内网管理禁用开关已实现，部署尚待更新。[发布准备](../reports/2026-11-03-main-intranet-release.md) | shared-agent |
@@ -1272,12 +1314,26 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | ID | 全览角色 | 所属分支 | 功能摘要 | 展示状态 |
 | --- | --- | --- | --- | --- |
+| batch-regression-20261105 | local-dev本地补修来源 | refs/capstone/fixes/batch-regression-20261105（未合入dev） | 独立分页链有界并发；稳定工具身份与helper契约 | 已部署；真实12查询并发4、0工具错误及CSV/刷新通过，网关缺包待协查 |
+| structured-batches-20261105 | 前次本地批次来源 | refs/capstone/features/structured-batches-20261105（未合入dev） | 独立调用结构化提交；共享会话限流与逐项结果恢复 | 两查询通过；复杂任务仍有串行与调用错误，当前由984131e3补修 |
+| first-thinking-latency-20261105 | 前次本地诊断来源 | refs/capstone/fixes/first-thinking-latency-20261105（未合入dev） | 私有首Thinking阶段计时；单次绑定publication快照复用 | 普通会话3.1359秒，DSV4首Thinking与性能未接受；本地由4ba17891承接 |
+| intranet-tool-origins-20261105 | 内网独立配置修正来源 | refs/capstone/fixes/intranet-tool-origins-20261105（未合入dev） | 缺省排除未启动专业端点；保留显式域源配置 | 22项通过；63与三区生效，运行源码367374aa，63普通8.0752秒/准备1.7879秒 |
+| direct-native-entry-20261105 | 两内网最后确认运行来源 | refs/capstone/fixes/direct-native-entry-20261105（未合入dev） | 移除前置理解轮次并直接执行；专业工具与网关发现保持授权边界 | 原普通与网关入口目录通过；专业超预算取消，完整任务/性能未接受；本地试验7387ef7f |
+| thinking-capability-20261105 | 三套联调历史共同来源 | refs/capstone/fixes/thinking-capability-20261105（未合入dev） | dsv4显式声明Thinking能力；理解与native传递模型能力 | 470项与复审通过；Thinking显示通过，性能与回答语义未通过，当前由367374aa承接 |
+| default-dsv4-20261105 | 三套联调前次共同来源 | refs/capstone/fixes/default-dsv4-20261105（未合入dev） | 内网默认dsv4（18804）；明确选择和本地默认保持 | 原默认请求验收保留；当前由3a8eaf76承接 |
+| smooth-thinking-20261105 | 三套联调前次共同来源 | refs/capstone/fixes/smooth-thinking-20261105（未合入dev） | 单轮理解与冻结模型；Thinking短批次/后台批量及准确任务归属 | f34验收保留，当前由bfb16344承接；63真实产物与网关验证通过 |
+| direct-thinking-20261105 | 三区后台与App试验来源 | refs/capstone/experiments/direct-thinking-20261105（未合入dev） | 真实Thinking先推送，后台批量入库；保持正式游标和失败边界 | 定向与两模型简短会话通过；Qwen推送早于入库，整体性能待用户复测 |
+| single-pass-intent-20261105 | 三区后台单轮理解来源 | refs/capstone/fixes/single-pass-intent-20261105（未合入dev） | 完整冻结请求一次理解；计时分清诊断与会话 | 定向与真实完整规划通过；不作固定延迟/全面提速承诺 |
+| thinking-visibility-20261105 | 三区App显示补修来源 | refs/capstone/fixes/thinking-visibility-20261105（未合入dev） | 无文本时保留活动指示；收到与完成后保留真实片段 | 66项/类型/构建通过；仅App更新，未重启用户任务后端 |
+| intent-backpressure-20261105 | 三区后台修复精确来源 | refs/capstone/fixes/intent-backpressure-20261105（未合入dev） | 理解与执行文本共享缓冲；理解绑定冻结模型 | 106项与97消费者通过；两模型真实理解及简短任务恢复通过 |
+| intranet-source-20261105 | 内网后台精确来源 | refs/capstone/intranet-candidates/20261105-fixed | 受管理解与执行收口；内网模型注册适配 | .63和三区已部署健康；任务验收未通过，未合入dev |
+| dky3-app-20261105 | 三区App精确来源 | refs/capstone/dky3-dev-candidates/20261105 | 显式dky3-dev环境标签；独立实例与同源API | 定向检查和构建通过；缺省三区研发网关已连接 |
 | main-managed-resources | main本轮合并 | main | 资源管理与执行恢复合入；用户授权双平台定向门禁例外 | PR88合入0b68c607；全量发布缺口保留 |
 | offline-selection-fixture | 权限测试修复来源 | milestone/offline-selection-mode-20261103（已合并关闭） | macOS权限显示误报修复；定向门禁覆盖离线安装器 | PR90合入dev；macOS CI212通过/3跳过，33秒 |
 | execution-capacity | 已合入功能来源 | feat/execution-capacity-20261103（已关闭） | 观察恢复与有界会话；排队取消与一致文案 | PR91合dev；定向CI及真实并行/产物/页面通过 |
 | capacity-wake-fix | 已合入锁竞争唤醒补修来源 | fix/capacity-lock-wake-20261103（已合并关闭） | 确认匹配的待执行状态；无新通知时按原间隔重试 | 100项真实PG/线程与类型/审查通过；PR92及定向CI3分05秒通过 |
 | conversation-type | 已合入会话字号来源 | fix/conversation-typography-20261103（已关闭） | 指令/回答与左栏正文同为13px；标题/表格保持比例层级 | 本机151项/类型/页面通过；PR93及macOS App CI1502项/构建通过 |
-| intranet-managed-runtime | 当前dev与内网运行来源 | dev | API/worker同镜像且管理禁用；真实CSV、继续读取与快照恢复 | 2026-11-04验收通过，回滚镜像25c71f85保留 |
+| intranet-managed-runtime | 当前dev HEAD及历史内网源 | dev | 分支保持6c55e6ee；三套联调运行源按部署卡单列 | 历史CSV/继续/恢复验收保留，当前部署来源单列 |
 | intranet-runtime-25c71f85 | 前次内网运行来源 | main | 管理禁用与同镜像运行；两轮真实任务和刷新恢复 | 2026-11-03验收通过，现由6c55e6ee承接 |
 | release-local-validation | 当前本机运行来源 | dev | 类型契约与逐次思考测试迁移；API/worker规范重建与同镜像 | 本机分段验证；完整发布缺口保留 |
 | managed-resource-milestone | 固定标签里程碑 | dev | 持久安装与隔离依赖；内网管理入口与执行器禁用开关 | 标签固定；后续已按定向例外合main并部署内网 |
@@ -1581,8 +1637,9 @@ demo 的稳定子集由固定提交、配置和功能清单定义。不能靠复
 
 | 环境 | 最近记录的来源 | 状态 | 入口或证据 |
 | --- | --- | --- | --- |
-| local-dev | 后端 `6c55e6ee` dev；页面与该仓库提交相同，产品路径字段仍为2148db14 | 规范重建ready，同镜像bc0ded4b；native dc430bff；容量2 | 获批macOS CI1502项App/构建及治理通过；doctor通过，PR91/92原验收保留；[证据](../reports/2026-11-03-conversation-typography.md) |
-| intranet-dev | 内网运行源 `6c55e6ee` | 四角色healthy，管理0，槽位1；数据库与对象存储卷保留 | App http://192.168.72.63:5173/ 显示 intranet-dev · v0.1.0 · 6c55e6e，脚本 index-D6zsKizj.js；API/worker d501f0602126，native单层e4eb33b6a105，App c0cacc597a79；CSV 28字节、继续与快照[验收](../reports/2026-11-04-intranet-deployment.md)通过；非完整发布验收 |
+| local-dev | 全角色源码 `984131e3`；用户授权本地补修，实际dev HEAD6c55e6ee未移动 | API及所有worker同后台cb6678d6，native200f8447；固定源码Vite PID91545显示local-dev，全角色healthy，私有配置未变 | 6链×2页、12查询实际并发4、0工具错误；CSV203字节下载哈希及刷新通过。网关缺包另行协查，完整原任务未重跑 |
+| intranet-dev | 全角色源码 `367374aa`；独立overlay配置255c8855 | 四角色healthy；默认18804、reasoning已核对；旧数据/网关保持 | App http://192.168.72.63:5173/；后台eba295e5同镜像，nativec9d90199，App6378f982；网关入口目录与恢复通过，配置后普通8.0752秒/准备1.7879秒，显示恢复通过 |
+| dky3-dev | 全角色源码 `367374aa`；独立overlay配置255c8855 | 四角色healthy；内网默认18804保持；本轮未独立执行真实任务 | App http://192.168.72.66:5173/；后台423116ae同镜像，nativefe9b5f12，App01e3d41c；仅general-pi域源覆盖已生效，运行身份核对通过 |
 | local-demo | App/API/两worker `faa6af9` | 规范重建ready，三角色同镜像3a2d87862325，运行身份与已验证local-dev一致；六个原Thread及事件序号保留；三用例九轮及报告证据回放、旧Thread图与Composer通过 | 固定App http://127.0.0.1:15173/，API18767；App dirty=false；数据库、存储和原数据保留 |
 | cloud-dev | `24d9a32`，开发试用候选；已推送标签cloud-dev-20261013-1045-24d9a32 | 用户授权的基本功能检查通过：四角色SUCCESS、API就绪、前端来源与真实中文对话；非正式发布或科学解释验收 | App https://capstone-app-production-83ef.up.railway.app/；[部署记录](../reviews/2026-10-13-cloud-dev-autonomous-trial.md)；demo不变 |
 | cloud-demo | App/API/两worker `faa6af9` | 四角色SUCCESS；三后端身份与dev本地529文件验收一致，安装工件与受检候选一致；三用例九轮、报告证据回放通过；local-demo已同源验收；正式标签demo-20261014-2028-faa6af9已推送 | App https://capstone-app-production-975e.up.railway.app/；上一正式标签demo-20261014-0744-bd2a200；双平台完整发布38554987581通过；cloud-dev不动 |

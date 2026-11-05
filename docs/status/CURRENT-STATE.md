@@ -2,6 +2,10 @@
 
 ## Project snapshot
 
+Tool composition covers independent requests and dependent cursor chains with
+bounded session scheduling. Deployment and validation state belong to the session
+baton and [validation](../reports/2026-11-05-batch-regression.md).
+
 Capstone provides evidence-backed enterprise agents over registered business
 systems. The repository uses managed project control. The canonical delivery
 worklist is [unified execution](../superpowers/plans/2026-10-16-enterprise-unified-execution.md).
@@ -23,6 +27,16 @@ current Authority evidence merely by being referenced.
 
 The shared workspace keeps one conversation and composer. An instruction owns
 its goal and resources; a session does not impose a permanent business goal.
+New default native conversations send frozen context and admitted capabilities
+directly to execution, without a separate recognition model call. The execution
+model answers or selects authorized skills and tools. Existing frozen intent
+decisions retain their recovery path; explicit professional entries retain their
+contracts. Model selection remains frozen and reasoning follows recorded controls.
+三区正在试验独立Thinking临时推送与异步批量写入。临时片段不推进
+持久化游标；重连恢复、工具、产品和终态仍依赖正式事件。试验默认关闭，
+单API进程范围与验证见[回执](../reports/2026-11-05-direct-thinking-preview.md)。
+显示缓冲与数据库缓冲分开；执行调用边界和Thinking使用同一host任务ID，
+使前端能够准确归属临时片段。修正记录见[显示节奏](../reports/2026-11-05-smooth-thinking.md)。
 Explicit targets win, related follow-ups can inherit, and unrelated requests
 remain independent. Research node quality gaps support user judgement across
 turns; scientific calculations retain objective Domain Pack/Authority checks.
@@ -79,6 +93,7 @@ transcripts previously mixed into this snapshot are preserved byte-for-byte in
 - [Enterprise design](../superpowers/specs/2026-10-15-enterprise-design-final.md), [UI contract](../superpowers/specs/2026-10-15-enterprise-task-ui-design.md), [grid view contract](../superpowers/specs/2026-10-25-grid-topology-view-requirements.md).
 - `packages/capstone-agent/src/capstone_agent/thread_service.py` and `thread_work.py`: persistent instruction/Work state.
 - `general_pi_server.py`, `delegated_runtime.py`: isolated execution, source admission and public events.
+- `stream_progress.py`: bounded progress coalescing shared by understanding and native execution; durable event failures remain fatal.
 - `thread_worker_capacity.py`: bounded slot dispatch; `thread_service.py`: durable claims, waiting cancellation and ownership fences.
 - `data_gateway_views.py`: connection-scoped bindings from admitted returned actions;
   typed presentation does not branch on gateway business tool names.
@@ -87,3 +102,18 @@ transcripts previously mixed into this snapshot are preserved byte-for-byte in
 - `GridSourceWorkspace.tsx`, `networkScene.worker.ts`, `networkSceneIndex.ts`: source navigation and bounded large diagrams.
 - `packages/pandapower-domain-pack/`, `packages/pypsa-*-domain-pack/`, `packages/grid-simulator/`, `packages/pypsa-model-authority/`: professional semantics and registered Authorities.
 - [Evolution notebook](../superpowers/specs/2026-10-07-capstone-core-evolution-discussion.md): secondary research, separate from delivery.
+## Tool composition boundary
+
+The native composition tool accepts structured independent calls or an isolated
+processing program. Host preflight, grants and observation refs remain authoritative.
+Programs use tools.map for bounded independent cursor chains; each mapper awaits
+its actual dependencies. Calls, reuse and skipped outcomes expose host-owned tool
+identity. Context helpers share global and tools namespace implementations; datasets
+remain source-referenced arrays. tools.help publishes helper contracts.
+
+The scheduler is shared within one composition session, not across processes.
+Published read-only operations may overlap; unknown/mutating operations execute
+exclusively. Models still choose semantic dependencies; the host does not rewrite
+arbitrary JavaScript or infer business scope from names.
+See [design](../superpowers/specs/2026-11-05-structured-tool-batches-design.md)
+and the session baton for deployment, verification and pending gateway assistance.

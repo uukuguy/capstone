@@ -1,57 +1,87 @@
 # Live Session Checkpoint
 
-> Updated: 2026-11-05 10:00. Session remains active — not a final handoff.
+> Updated: 2026-11-05 23:10 CST. Session remains active — not a final handoff.
 
-## Active intranet update
+## Current task
 
-Deployment is complete but task acceptance failed:thread `thr_5a191f6f135269742038` ended with `intent_deadline_exceeded` at120 seconds. No CSV was produced; no continuation/restore pass and no acceptance tag. Four remote services remain healthy on2b6dd8a3; API/worker776c30a5 match. Receipt:`docs/reports/2026-11-05-intranet-deployment.md`. Next action is diagnose the saved recognition trace without automatic replay or deadline extension. Old6c55e6ee images and server backups remain. No branch integration,CI,cloud change or normal-index staging. Runtime repair files:runtime.py,test_runtime.py; test-only selector typing in CapstoneAssistantThread.test.tsx; these remain uncommitted with the preexisting mixed work. Recovery snapshot refs retain all source. Scoped cache cleanup completed. Browser tools unavailable,so no visual acceptance. The following paragraphs are operation history.
+User reports continued serial calls and many errors after4ba. User explicitly
+authorized notifying data-gateway for assistance. Continue fixing Capstone and
+validate realistic multi-chain pagination; do not treat a two-call trial as full
+task acceptance.
 
-Current runtime is fixed snapshot `2b6dd8a3c55ad8ef1a72db6c81f181ab9c5b560a`, recovery ref `refs/capstone/intranet-candidates/20261105-fixed`. All four roles healthy; API/worker image `776c30a5` matches. Initial73de5adb failed startup, rolled back, then fixed registry-to-recognizer adaptation with six passing runtime tests. Final backend layers rebake the exact-source catalog and fix uv cache ownership. Local canonical rebuild8eb5c353 is ready. Real verification thread `thr_5a191f6f135269742038` is running; next inspect `.capstone-agent/intranet-20261105/smoke.log`, finish receipt/tag/register/overview. No CI or cloud changes. Prior paragraph is initial candidate history.
+## Confirmed evidence
 
-User authorizes latest intranet deployment. Source snapshot `73de5adb3aa6c87809de9a83748323c2e5845d0e` is a commit-tree object, not a dev branch commit; dev/index and mixed work remain intact. Staging and logs: `.capstone-agent/intranet-20261105/`. Local canonical rebuild ready, same API/worker image `df8dec8c`; doctor and131 backend checks pass. App types/build pass after staging shared config/type dependency;271 App checks pass, one diagnostic-history fixture fails. No CI or remote activation. Remote old services healthy and no running attempts. Next: finish amd64 images, transfer with hashes, back up and activate, run real product/continuation checks. Buildkit proxy enabled after direct Docker Hub timeouts; cache retained. Earlier handoff follows as context.
+Latest attempt1579b781f690006a in thr_f21d1c070e2f134dc389:
+186tool starts,42errors:29gateway,7composition,6bash.
+114source queries, global maxoverlap4, but later59-call and31-call groups max1.
+Early batching works; separate pagination chains were still outer-loop serialized.
+Composition errors include full_result undefined, tools.saveContext missing and
+an oversized read. Program also selected results by r.tool, not supplied reliably.
 
-## TL;DR
+Local gateway container data-gateway-capstone-gateway-1 uses
+data-gateway:0.1.0-dameng-arm64. discover_object_catalog reports missing
+grid_database. Read-only import probe returnsNone; installed distribution37files
+has0grid_database files. Current sibling checkout already has packaging changes.
+Do not modify its dirty source, containers, config or data. Other internal_error
+request IDs still need owner attribution.
 
-- 本地执行过程与成果栏有一批未提交界面和收口改动。`dev` 仍是 `6c55e6ee`。不要提交这棵混杂工作树。
-- 理解超时单独说明，时限仍是 120 秒。指令结束时，仍在运行的文件收成 `incomplete`，失败的对话输入关闭。
-- 全屏右栏时「浏览产物」自动收起；收起后长指令只显示一行。并行细线只连接真正同时在跑的调用。
+## Notification
 
-## Where things stand
+Orca skill used; message msg_0c13593879cc to existing data-gateway workspace
+mailbox queued, not confirmed read. Legacy terminal-only mailbox can expire on
+terminal close. Also marked workspace unread with report comment.
+Report docs/reports/2026-11-05-data-gateway-runtime-assist.md has10request IDs.
+Receipts .capstone-agent/batch-regression-20261105/notify-*.json.
+No direct text was injected into its shell. No new agent was started.
 
-- 分支 `dev`，HEAD `6c55e6ee`，与上次交接的提交点相同。工作树大量已改和未跟踪文件，其中包含本次之前的排版、内网和网关改动。
-- 本次为收口重建过本地 API 与 worker。重建时迎峰度夏 `attempt_24d228a08c5fa95b` 被中断，原因 `lease_expired`（worker 于 19:43:38 换掉，19:45:57 记下中断）。要继续须重新发送该指令。
-- 内网、cloud-dev、cloud-demo、main 本次没有部署。不要启动 CI。
+## Candidate and verification
 
-## What this session delivered
+984131e388244ee4cf24e1d13c2af4a41f87ede4 at
+refs/capstone/fixes/batch-regression-20261105, parent4ba.
+Adds tools.map for bounded independent async chains, while each mapper awaits
+its cursor dependencies; ordered values, drains running mappers on error.
+Host-owned tool identity on new/reused/skipped results. tools.saveContext and
+tools.loadContext alias existing globals. tools.help publishes exact contracts;
+datasets still must be array; no implicit full_result magic variable.
+No JavaScript rewriting or business keyword routing.
 
-- 理解超时文案与错误码 `intent_deadline_exceeded`。120 秒保留：已完成理解 17 次，中位 9.4 秒，最慢 56.3 秒。`thread_worker.py`。
-- 指令结束收口：仍为 `running` 的捕获再记一版 `source_status=incomplete`；对话失败、取消、中断时关闭本条输入，原文留作明确重试。`thread_service.py`、`native_artifact_projection.py`、`thread_work.py`、`continuation_resources.py`、`thread_materials.py`。
-- LLM 标题显示简明说明；工具行不再重复这句话。`agent_tools_execute` 显示真实工具名，不用固定别名「执行多步数据处理」。`ProcessCallTrace.tsx`、`CapstoneAssistantThread.tsx`。
-- 并行分组改为必须整组同时重叠。一次最多约 4 路，不再把 59 项串成一条细线。
-- 执行过程底部的「进度登记未更新」已去掉。
-- 全屏右栏时「浏览产物」自动收起；收起时长指令一行。`ThreadWorkspace.tsx`、`resourceFullscreen.ts`、`ThreadProductsWorkspace.tsx`、`threadProducts.css`。
-- 数据网关重联：左栏「数据网关」里点「刷新所有网关连接」。不要走「添加网关」或 Skills/MCP 新建。
+4new regressions failed before implementation, then passed.55Node checks and
+20Python/1skip passed. Private backup, owned paths and original source under
+.capstone-agent/batch-regression-20261105/. Canonical rebuild/source audit1313,
+allrole source identity/readiness and private Env comparison passed. Source984deployed.
 
-## Next steps (immediate, action-level)
+Real attempt_f5928ad4d535dc30, thr_c422f7057df29e71949f, commercial-deepseek-flash:
+6independent chains ×2pages,12queries, maxoverlap4, queryspan1.5998s, wall40.9591s.
+All actual cursor sequences0→1;0tool errors. CSV203bytes/12rows/6chains×2pages,
+allstatusok/returned_rows1; downloadSHA matched
+ef937e12fa477c9a4d36660f04613c4ae0a7757719351d115d4c0901b7fce359.
+Browser source/file/refresh passed. No claim every model uses tools.map or full
+original task/29gateway failures are fixed. Report docs/reports/2026-11-05-batch-regression.md.
 
-1. 刷新本地页面，核对全屏收起、一行指令、并行分组和工具行名称。不要为这次界面改动再重建 API。
-2. 若要继续迎峰度夏，重新发送该指令。被中断的 Attempt 不会自动接着跑。
-3. 用户明确要求之前，不要提交、不要 CI、不要动内网和云环境。提交时把本次文件与更早的未提交改动分开。
+## Immediate next actions
 
-## Don't go down these paths again (ruled out)
+1. Await data-gateway owner reply; latest mailbox check still only sent message,
+   delivered_at=null. Do not claim notification read or 29gateway errors fixed.
+2. Control overview browser check, scoped cleanup and recovery receipt completed;
+   use refs/capstone/receipts/batch-regression-20261105 for saved recovery.
+3. Incorporate user's real task validation; do not rerun heavy whole task unprompted.
+   No CI/push/merge. Keep source and pending gateway repair distinct.
 
-- 不要把「执行多步数据处理」当作每次调用的说明。那是 `agent_tools_execute` 的固定别名。
-- 不要用传递重叠把一整串调用画成一组。并发上限是 4。
-- 不要把理解超时写成「未能开始执行」或「运行准备未完成」。
-- 不要把 120 秒理解时限再加长。超时是因为没有交出决策。
-- 不要在执行过程里再显示「进度登记未更新」。
-- 重联数据网关不要新建 MCP，也不要重新安装。
-- 不要把本次重建当成用户取消。那次中断是租约过期。
+## Runtime and boundaries
 
-## Ready-to-paste commands / configs
+Current local source984131e3. API/workers imagecb6678d6de8876806bb6b4edbeed17cf1787749d76e3ff4b0c00fd31d7a545db,
+native200f8447669b322991aad572933dc065525fbc45876c01ff3389838d7e833ac3.
+App fixed archive .capstone-agent/batch-regression-20261105/app PID91545,
+5173/proxy8767. Verify command/cwd before stopping. Prior PID77708 was stopped.
+GIT_CEILING_DIRECTORIES must equal repository root for fixed archive identity.
+Localdefault commercial-deepseek-flash, intranetdefaultdsv4:18804.
+DevHEAD6c55e6ee and normal index unchanged; preserve165mixed paths.
+63/66 lastconfirmed367374aa+overlay255c8855; no background probes.
+Local-demo/cloud/demo unchanged. Every CI needs explicit user approval.
+Use NO_PROXY=127.0.0.1,localhost for local HTTP tests.
+Enterprise browser URL needs workspace=enterprise.
 
-```sh
-curl --noproxy '*' -fsS http://127.0.0.1:8767/health/ready
-```
-
-本地成果栏是 Vite。界面改动刷新页面即可。后端收口已经在上次 `make capstone-local-rebuild` 的镜像里。不要为纯前端改动再重建。
+Final checks: doctor,18local document links, relative CLAUDE→AGENTS symlink and
+diff checks passed. Control23:12snapshot inspected at1920px, no overflow, visible
+distinct devHEAD6c55/local984 and real4ba→984ancestry edge. Independent review was
+not obtained; do not claim it. No running model probe remains; AppPID91545 stays up.
