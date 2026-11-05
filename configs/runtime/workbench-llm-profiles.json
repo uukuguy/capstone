@@ -1,6 +1,6 @@
 {
   "schema": "capstone-workbench-llm-profiles/1",
-  "defaults": {"local": "commercial-deepseek-flash", "intranet": "intranet-qwen-flash-next-8013"},
+  "defaults": {"local": "commercial-deepseek-flash", "intranet": "intranet-dsv4-18804"},
   "profiles": [
     {"id": "commercial-deepseek-flash", "label": "deepseek-flash", "icon": "deepseek", "provider": "deepseek", "model": "deepseek-flash", "credential_env": "DEEPSEEK_API_KEY", "network": "configured", "title_request_options": {"thinking": {"type": "disabled"}}, "context_policy": {"context_window_tokens": 1048576, "max_output_tokens": 32768, "compaction_reserve_tokens": 65536, "compaction_keep_recent_tokens": 20000}},
     {"id": "intranet-qwen-flash-next-8013", "label": "192.168.72.69:8013", "icon": "server", "provider": "openai-compatible", "base_url": "http://192.168.72.69:8013/v1", "model": "Qwen3.8-Flash-Next", "network": "direct", "context_policy": {"context_window_tokens": 262144, "max_output_tokens": 32768, "compaction_reserve_tokens": 32768, "compaction_keep_recent_tokens": 20000}},

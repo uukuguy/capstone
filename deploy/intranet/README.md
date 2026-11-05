@@ -8,9 +8,9 @@ Do not reuse a gateway database or another Capstone installation's data volumes.
 
 The default profile is selected with `CAPSTONE_WORKBENCH_PRESET=intranet`.
 Its model endpoint belongs to `configs/runtime/workbench-llm-profiles.json`.
-The default model is `Qwen3.8-Flash-Next` at `http://192.168.72.69:8013/v1`,
-with a 262,144-token context reported by the service. Existing dsv4 profiles
-remain selectable. Previously submitted tasks retain their frozen model selection.
+The default model is `dsv4` at `http://192.168.72.69:18804/v1`.
+Qwen and the other registered profiles remain selectable. Context limits come
+from the selected profile. Previously submitted tasks retain their frozen model selection.
 Mount a mode-0600 `connection.json` in the private gateway configuration directory;
 select the server's gateway and label it `内网联调`. Do not copy local session state
 or put connection tokens in this repository or browser build variables.
