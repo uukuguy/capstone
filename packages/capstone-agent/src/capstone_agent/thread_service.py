@@ -430,6 +430,8 @@ class ThreadProtocolUpgradeRequired(RuntimeError):
 
 
 class ThreadService(Protocol):
+    def validate_preview_claim(self, thread_id: str, attempt_id: str, lease_token: str,
+                               workspace_name: str) -> None: ...
     def read_thread_gateway(self, thread_id) -> dict | None: ...
     def submit_gateway_command(self, command, publication) -> CommandReceipt: ...
     def set_material_store(self, objects) -> None: ...
@@ -2358,20 +2360,20 @@ class InMemoryThreadService(NativeExecutionOwner):
 
     def validate_preview_claim(self, thread_id: str, attempt_id: str, lease_token: str,
                                workspace_name: str) -> None:
-        from types import SimpleNamespace
         with self._lock:
             self.require_workspace(thread_id, workspace_name)
-            claim = SimpleNamespace(thread_id=thread_id, lease_token=lease_token,
-                                    attempt=SimpleNamespace(attempt_id=attempt_id))
-            record = self._require_claim(claim)
+            record = self._require_active_lease(thread_id, attempt_id, lease_token)
             if record['attempt'].phase != 'running' or attempt_id in self._cancel_requests:
                 raise ThreadExecutionError('preview attempt is inactive')
 
     def _require_claim(self, claim: AttemptClaim) -> dict[str, Any]:
-        if claim.thread_id != self._snapshot.thread_id:
+        return self._require_active_lease(claim.thread_id, claim.attempt.attempt_id, claim.lease_token)
+
+    def _require_active_lease(self, thread_id: str, attempt_id: str, lease_token: str) -> dict[str, Any]:
+        if thread_id != self._snapshot.thread_id:
             raise ThreadExecutionError("attempt thread is invalid")
-        record = self._attempts.get(claim.attempt.attempt_id)
-        if (record is None or record["lease_token"] != claim.lease_token
+        record = self._attempts.get(attempt_id)
+        if (record is None or record["lease_token"] != lease_token
                 or record.get("lease_deadline") is None
                 or record["lease_deadline"] <= time.monotonic()):
             raise ThreadExecutionError("attempt lease is unavailable")

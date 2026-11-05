@@ -81,7 +81,7 @@ def _selected_references(claim: AttemptClaim) -> tuple[tuple[str, str], ...]:
     if document["attempt_id"] != claim.attempt.attempt_id:
         raise ValueError("intent decision belongs to another Attempt")
     allowed = {f"{profile_id}@{version}": (profile_id, version) for profile_id, version in enabled}
-    required = set()
+    required_set: set[tuple[str, str]] = set()
     for goal in decision.execution_goals:
         if goal["operation"] not in {"business_read", "business_execute"}:
             continue  # Catalog and history references describe metadata only.
@@ -91,9 +91,9 @@ def _selected_references(claim: AttemptClaim) -> tuple[tuple[str, str], ...]:
         for identity in refs:
             if identity not in allowed:
                 raise ValueError("intent capability is not in the enabled selection")
-            required.add(allowed[identity])
+            required_set.add(allowed[identity])
     # Preserve the application's selection order, independent of model output.
-    return tuple(reference for reference in enabled if reference in required)
+    return tuple(reference for reference in enabled if reference in required_set)
 
 
 @runtime_checkable
@@ -413,8 +413,12 @@ class ModelCapabilityContextOwner:
                     prepare = getattr(adapter, 'prepare_for_claim', None)
                     if model_context is None and (claim is None or not callable(prepare)):
                         raise RuntimeError('domain profile preparation requires a claim-scoped preparer')
-                    contribution = (prepare(handle, claim) if claim is not None and callable(prepare)
-                                    else adapter.prepare(handle, model_context=model_context))
+                    if claim is not None and callable(prepare):
+                        contribution = prepare(handle, claim)
+                    else:
+                        if model_context is None:
+                            raise RuntimeError('domain profile preparation requires a bound model')
+                        contribution = adapter.prepare(handle, model_context=model_context)
                     self._validate_contribution(contribution, reference, model_context)
                     if not isinstance(contribution, PreparedModelCapabilityContribution):
                         raise TypeError('prepared contribution is invalid')

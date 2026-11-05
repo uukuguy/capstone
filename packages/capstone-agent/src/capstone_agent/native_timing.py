@@ -4,6 +4,7 @@ import math
 import sys
 from threading import Lock
 import time
+from collections.abc import Mapping
 
 _PHASES = frozenset({'task_started', 'resources_configured', 'process_launch_requested',
     'process_spawned',
@@ -40,7 +41,7 @@ class NativeTiming:
         try:
             if callable(counts):
                 counts = counts()
-            if counts:
+            if isinstance(counts, Mapping):
                 record.update({key: min(value, 2**53-1) for key, value in counts.items()
                                if key in allowed and type(value) is int and value >= 0})
         except Exception:

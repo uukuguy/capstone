@@ -84,7 +84,7 @@ def load_domain_tool_catalogs(grant: dict, *, origins: dict[str, str] | None = N
     selected = origins if origins is not None else domain_tool_origins()
     secret = os.environ.get('CAPSTONE_OPERATOR_TOKEN', '') if token is None else token
     if not secret:
-        return {}, {}
+        return {}, {}, []
     tools, hashes, routes, mounted = {}, {}, {}, []
     for profile in grant['profiles']:
         origin = selected.get(profile['implementation_family'])

@@ -1462,9 +1462,11 @@ class NativeTaskRunner:
                     and not sdk_config.get('researchRuntime', {}).get('adaptiveAgentLoop')) else {})
             process = GeneralPiProcess(argv, environment, workspace, uid=uid, **role_options)
             timing.mark('process_launch_requested')
+            def process_started() -> None:
+                timing.mark('process_spawned')
             answer = process.run(request.instruction, timeout=request.timeout_seconds,
                                  cancelled=cancelled, on_event=emit, inventory_only=inventory_only,
-                                 on_process_started=lambda: timing.mark('process_spawned'))
+                                 on_process_started=process_started)
             return answer, ({'native_tools': process.tools, 'inventory': process.inventory} if inventory_only else process.usage)
         except Exception as error:
             if process is not None:

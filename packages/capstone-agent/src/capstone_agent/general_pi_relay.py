@@ -11,6 +11,7 @@ import time
 
 import httpx
 from .bounded_http_loop import write_http
+from .native_timing import NativeTiming
 
 _LOG = logging.getLogger(__name__)
 
@@ -111,7 +112,7 @@ class RelayLease:
     task: asyncio.Task | None = None
     provider_observed: bool = False
     provider_failure: str | None = None
-    timing: object | None = None
+    timing: NativeTiming | None = None
 
     def abort(self):
         self.cancelled.set()
@@ -248,9 +249,10 @@ async def forward_provider(handler, lease: RelayLease, upstream: str, body: byte
         raise asyncio.CancelledError()
     started, total, status = time.monotonic(), 0, None
     # Keep every first-response phase in the same exchange, even if it has no text.
-    first_exchange = lease.timing is not None and lease.timing.mark('provider_request_started',
+    timing = lease.timing
+    first_exchange = timing is not None and timing.mark('provider_request_started',
         counts=lambda: _request_counts(body))
-    mark = lease.timing.mark if first_exchange else lambda phase: None
+    mark = timing.mark if timing is not None and first_exchange else lambda phase: None
     stream, diagnostics, failure = False, StreamDiagnostics(on_semantic=mark), None
     try:
         async with httpx.AsyncClient(timeout=model_transport_timeout(), trust_env=False) as client, client.stream(

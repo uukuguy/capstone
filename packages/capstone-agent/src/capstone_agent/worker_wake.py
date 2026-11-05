@@ -175,18 +175,20 @@ def create_wake_app(
 
     @app.get('/domain-tools/catalog')
     def domain_catalog(profile_id: str, profile_version: str, authorization: str = Header(default='')):
-        if domain_tools is None or not callable(getattr(domain_tools, 'catalog', None)):
+        catalog = getattr(domain_tools, 'catalog', None)
+        if not callable(catalog):
             raise HTTPException(404, 'domain tools are not published by this worker')
         if not hmac.compare_digest(authorization, expected):
             raise HTTPException(401, 'unauthorized')
         try:
-            return domain_tools.catalog(profile_id, profile_version)
+            return catalog(profile_id, profile_version)
         except KeyError:
             raise HTTPException(404, 'domain pack is not published by this worker') from None
 
     @app.post('/domain-tools/invoke')
     def domain_invoke(body: dict, authorization: str = Header(default='')):
-        if domain_tools is None or not callable(getattr(domain_tools, 'invoke', None)):
+        invoke = getattr(domain_tools, 'invoke', None)
+        if not callable(invoke):
             raise HTTPException(404, 'domain tools are not published by this worker')
         if not hmac.compare_digest(authorization, expected):
             raise HTTPException(401, 'unauthorized')
@@ -194,7 +196,7 @@ def create_wake_app(
                 or not isinstance(body.get('call_id'), str) or not body['call_id']):
             raise HTTPException(422, 'domain tool call is invalid')
         try:
-            return domain_tools.invoke(body)
+            return invoke(body)
         except KeyError:
             raise HTTPException(404, 'domain tool is not published') from None
         except ValueError:

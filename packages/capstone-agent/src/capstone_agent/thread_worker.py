@@ -13,7 +13,7 @@ import threading
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import replace
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from .attempt_lease import AttemptLeaseRenewal
 from .harness import HarnessAttemptResult, HarnessAttemptRunner, HarnessRuntime, HarnessRuntimeConfigurationError
@@ -58,7 +58,9 @@ def run_pending_attempt(
                 origin, os.environ.get('CAPSTONE_OPERATOR_TOKEN', ''), claim))
         try:
             return _run_claimed_attempt(
-                writer or service, runtime_factory, claim, lease, lease_seconds, turn_router,
+                # ThinkingWriter delegates the remaining service operations.
+                cast(ThreadExecutionService, writer) if writer is not None else service,
+                runtime_factory, claim, lease, lease_seconds, turn_router,
             )
         except Exception:
             if writer is not None and writer.error is not None:

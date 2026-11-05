@@ -377,9 +377,9 @@ class IntentRuntimeFactory:
             if type(timeout) not in {int, float} or not math.isfinite(timeout) or timeout < 1:
                 raise ValueError('application task timeout is invalid')
 
-    def _recognizer_for_attempt(self, claim: AttemptClaim):
+    def _recognizer_for_attempt(self, claim: AttemptClaim) -> IntentRecognizer:
         selected = getattr(self._recognizer, 'for_attempt', None)
-        return selected(claim) if callable(selected) else self._recognizer()
+        return cast(IntentRecognizer, selected(claim)) if callable(selected) else self._recognizer()
 
     def _general_resources(self, claim: AttemptClaim) -> dict | None:
         if self._general is _LEGACY or self._general is None:
@@ -588,7 +588,10 @@ class IntentRuntimeFactory:
             saved = None if freeze_decision is None else freeze_decision(claim, None)
             if saved is None:
                 # An accepted legacy input must finish its original recognition.
-                return self._plan_unscoped_research_intent(claim, control, freeze, freeze_decision)
+                recognized = self._plan_unscoped_research_intent(claim, control, freeze, freeze_decision)
+                if recognized is None:
+                    raise HarnessRuntimeConfigurationError('accepted native intent input cannot be resumed')
+                return recognized
             replay = self._replay_frozen_domain_execution(claim, control, freeze, freeze_decision)
             # Legacy native decisions execute their admitted domain tools in the
             # same native chain. They do not become a professional handoff.

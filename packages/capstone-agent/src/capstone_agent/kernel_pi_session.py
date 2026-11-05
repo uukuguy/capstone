@@ -499,16 +499,19 @@ def _require_prepared_kernel_profile(
         raise TypeError("Thread capability contribution is not Kernel-prepared")
     if prepared.closed:
         raise RuntimeError("Kernel-prepared profile is already closed")
-    if prepared.model_binding.model_id != model_context.model_id:
+    model_binding = prepared.model_binding
+    if model_binding is None:
+        raise ValueError("Kernel-prepared profile has no selected model binding")
+    if model_binding.model_id != model_context.model_id:
         raise ValueError("Kernel-prepared model does not match Thread snapshot")
-    if prepared.model_binding.model_revision != model_context.model_revision:
+    if model_binding.model_revision != model_context.model_revision:
         raise ValueError("Kernel-prepared revision does not match Thread snapshot")
-    if prepared.model_binding.implementation_family != model_context.implementation_family:
+    if model_binding.implementation_family != model_context.implementation_family:
         raise ValueError("Kernel-prepared family does not match Thread snapshot")
     bindings = getattr(prepared.prepared_application, "bindings", None)
     if not isinstance(bindings, Mapping):
         raise TypeError("Kernel-prepared application bindings are unavailable")
-    binding = bindings.get(prepared.model_binding.binding_id)
+    binding = bindings.get(model_binding.binding_id)
     if binding is None:
         raise ValueError("Kernel-prepared Authority binding is unavailable")
     runtime = getattr(binding, "runtime", None)
@@ -576,6 +579,8 @@ def _render_attempt_model_context(
     ]
     for profile in profiles:
         binding = profile.model_binding
+        if binding is None:
+            raise ValueError("model prompt requires a selected model binding")
         lines.append(f"Binding {binding.binding_id}: authority context/model reference {binding.context_ref}")
         metadata = getattr(binding, "model_metadata", None)
         if isinstance(metadata, Mapping):
@@ -1251,15 +1256,15 @@ def _verify_bound_attempt_references(
                 bound = preset
             context_revisions = {bound.context_ref: bound.model_revision}
 
-            def context_revision(reference: object) -> str:
+            def context_revision(reference: object, *, model: AuthorityModelBinding = bound) -> str:
                 if not isinstance(reference, str):
                     raise ValueError("bound context reference is invalid")
                 if reference not in context_revisions:
                     method = getattr(authority, "verify_context_descendant", None)
                     if not callable(method):
                         raise ValueError("authority cannot verify derived context against the bound model")
-                    document = getattr(method(reference, bound.context_ref), "document", None)
-                    if not isinstance(document, Mapping) or document.get("model_id") != bound.model_id:
+                    document = getattr(method(reference, model.context_ref), "document", None)
+                    if not isinstance(document, Mapping) or document.get("model_id") != model.model_id:
                         raise ValueError("derived context does not match the bound model")
                     revision = document.get("revision_ref")
                     if not isinstance(revision, str):
@@ -1287,7 +1292,7 @@ def _verify_bound_attempt_references(
             evidence = tuple(ref for ref in evidence_refs if owners.get(ref) == binding_id)
             verified: set[tuple[str, str]] = set()
 
-            def verify(kind: str, reference: str) -> None:
+            def verify(kind: str, reference: str, *, model: AuthorityModelBinding = bound) -> None:
                 key = (kind, reference)
                 if key in verified:
                     return
@@ -1297,20 +1302,20 @@ def _verify_bound_attempt_references(
                 document = getattr(method(reference), "document", None)
                 if not isinstance(document, Mapping):
                     raise ValueError("bound authority artifact is invalid")
-                revision = context_revision(document.get("context_ref", bound.context_ref))
+                revision = context_revision(document.get("context_ref", model.context_ref))
                 for field, expected in (("revision_ref", revision), ("model_revision", revision),
-                                        ("model_id", bound.model_id)):
+                                        ("model_id", model.model_id)):
                     if field in document and document[field] != expected:
                         raise ValueError("authority artifact does not match the bound model context")
                 model_ref = document.get("model_ref")
-                accepted_model_ref = isinstance(model_ref, str) and bound.accepts_model_reference(model_ref)
+                accepted_model_ref = isinstance(model_ref, str) and model.accepts_model_reference(model_ref)
                 if "model_ref" in document and not accepted_model_ref:
                     raise ValueError("authority artifact does not match the bound model context")
                 linked_result = document.get("result_ref")
                 bound_identity = (
                     document.get("context_ref") in context_revisions
                     and document.get("revision_ref") == revision
-                ) if bound.context_ref.startswith("context:") else accepted_model_ref
+                ) if model.context_ref.startswith("context:") else accepted_model_ref
                 linked_evidence = kind == "evidence" and isinstance(linked_result, str)
                 if not bound_identity and not linked_evidence:
                     raise ValueError("authority artifact has incomplete bound model identity")
@@ -1517,12 +1522,15 @@ def _build_result_projections(
                         result_refs=owned_results,
                         result_evidence=owned_evidence,
                     )
-                    revision_resolver = None if profile.model_binding is None else profile.model_binding.model_revision_resolver
+                    model_binding = profile.model_binding
+                    revision_resolver = None if model_binding is None else model_binding.model_revision_resolver
                     if revision_resolver is None:
                         raw_projections = project_admitted(**projection_arguments)
                     else:
                         # Application-owned lineage resolution supplies the exact
                         # context for each scenario; the Pack still checks equality.
+                        if model_binding is None:
+                            raise ValueError("projection lineage requires a selected model binding")
                         raw_projections = []
                         verify_result = getattr(authority, "verify_result", None)
                         if not callable(verify_result):
@@ -1534,7 +1542,7 @@ def _build_result_projections(
                             result_context = document.get("model_ref")
                             if not isinstance(result_context, str):
                                 raise ValueError("projection result model reference is invalid")
-                            result_revision = profile.model_binding.revision_for_model_reference(result_context)
+                            result_revision = model_binding.revision_for_model_reference(result_context)
                             result_contexts[result_ref] = (result_context, result_revision)
                             projected = project_admitted(**{
                                 **projection_arguments, "context_ref": result_context,

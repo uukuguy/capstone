@@ -47,13 +47,17 @@ class PreparedKernelReferenceHandoffs:
             for record in previous["handoffs"]:
                 self._prepare(record["source_binding_id"], record["reference"])
         for source, profile in self._profiles.items():
-            self._prepare(source, profile.model_binding.context_ref)
+            binding = profile.model_binding
+            if binding is None:
+                continue
+            self._prepare(source, binding.context_ref)
 
     def _prepare(self, source: str, reference: str) -> None:
         profile = self._profiles.get(source)
         if profile is None:
             raise ValueError("reference has no application grant")
-        if not profile.model_binding.accepts_model_reference(reference):
+        binding = profile.model_binding
+        if binding is None or not binding.accepts_model_reference(reference):
             raise ValueError("handoff model reference is not bound to this Thread")
         if (source, reference) in self._prepared_refs:
             return

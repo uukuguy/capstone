@@ -34,7 +34,7 @@ def domain_execution_record(family: str, execution: Mapping[str, object] | None)
     if not isinstance(execution, Mapping):
         return record
     role = execution.get('role')
-    if role in {'node', 'report'}:
+    if isinstance(role, str) and role in {'node', 'report'}:
         record['role'] = role
     for key in ('parent_text', 'node_text'):
         value = execution.get(key)

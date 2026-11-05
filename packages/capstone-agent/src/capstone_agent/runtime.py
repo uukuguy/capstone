@@ -56,10 +56,12 @@ def resolve_harness_llm(repo_root: Path, environment: dict[str, str], *,
         and (workbench_selection is not None or (
             environment.get("CAPSTONE_PUBLIC_PROVIDER") == "openai-compatible"
             and not environment.get("CAPABILITY_AGENT_LLM_PROVIDER"))))
+    workbench_base_url: str | None = None
     if compatible_workbench:
         from .workbench_llm_profiles import ProfileRegistry
         registry = ProfileRegistry(repo_root / "configs/runtime/workbench-llm-profiles.json", environment=environment)
         profile = registry.resolve(workbench_selection if workbench_selection is not None else registry.freeze())
+        workbench_base_url = profile['base_url']
         environment = dict(environment)
         environment.update(CAPABILITY_AGENT_LLM_PROVIDER=("openai" if profile["provider"] == "openai-compatible" else profile["provider"]),
             CAPABILITY_AGENT_LLM_MODEL=profile["model"],
@@ -81,9 +83,9 @@ def resolve_harness_llm(repo_root: Path, environment: dict[str, str], *,
             environ=environment,
             env_file=repo_root / ".env",
         )
-        if compatible_workbench:
+        if workbench_base_url is not None:
             # The registered workbench profile owns private HTTP targets.
-            resolved = replace(resolved, config=replace(resolved.config, base_url=profile["base_url"]))
+            resolved = replace(resolved, config=replace(resolved.config, base_url=workbench_base_url))
         if ((environment.get("CAPSTONE_RUNTIME_PROFILE") == "capstone-dev-trial-v1" or compatible_workbench)
                 and resolved.config.provider == "openai"
                 and resolved.config.base_url.rstrip("/") != "https://api.openai.com/v1"):

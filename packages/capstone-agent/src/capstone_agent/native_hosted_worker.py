@@ -31,7 +31,7 @@ def native_runtime_factory(executor, *, research_root: Path | None = None,
     research_timeout = environment.get('CAPSTONE_ENTERPRISE_RESEARCH_TIMEOUT_SECONDS')
     def unavailable(*args):
         raise RuntimeError('professional execution is not registered on this worker')
-    unavailable.domain_execution = False
+    setattr(unavailable, 'domain_execution', False)
     business = unavailable if business_factory is None else business_factory
     factory = IntentRuntimeFactory(business, recognizer_factory or unavailable, unavailable,
                                    general_executor=executor,
@@ -103,19 +103,19 @@ def build_native_unscoped_recognizer(workspace_root: Path, environment=None):
     def factory():
         return for_attempt()
 
-    factory.for_attempt = for_attempt
+    setattr(factory, 'for_attempt', for_attempt)
     return factory
 
 
 def lazy_native_unscoped_recognizer(workspace_root: Path, environment=None):
     """Load the legacy recognizer only when an accepted input requires it."""
     def for_attempt(claim=None):
-        return build_native_unscoped_recognizer(workspace_root, environment).for_attempt(claim)
+        return getattr(build_native_unscoped_recognizer(workspace_root, environment), 'for_attempt')(claim)
 
     def factory():
         return for_attempt()
 
-    factory.for_attempt = for_attempt
+    setattr(factory, 'for_attempt', for_attempt)
     return factory
 
 

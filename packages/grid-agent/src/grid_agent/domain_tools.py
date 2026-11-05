@@ -55,7 +55,10 @@ class PandapowerDomainToolService:
             schema = document.get('input_schema')
             if not isinstance(name, str) or not isinstance(capability, str) or not isinstance(schema, dict):
                 continue
-            description = profile.tool_description_builder(document)
+            describe = profile.tool_description_builder
+            if describe is None:
+                raise ValueError('published domain tool description builder is unavailable')
+            description = describe(document)
             body = {'description': description, 'inputSchema': schema, 'capability': capability}
             tools[name] = {'description': description, 'inputSchema': schema}
             hashes[name] = hashlib.sha256(_canonical(body).encode()).hexdigest()
