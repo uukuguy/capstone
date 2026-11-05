@@ -452,9 +452,11 @@ class GeneralPiHost:
                         return
                 time.sleep(.02)
             raise InterruptedError('event delivery stopped with task')
-        from .stream_progress import TextDeltaBuffer
+        from .stream_progress import TextDeltaBuffer, thinking_delta_buffer, IdleFlushCallback
         text_buffer = TextDeltaBuffer(lambda text: publish({'type': 'assistant_delta', 'text': text}))
-        thinking_buffer = TextDeltaBuffer(lambda text: publish({'type': 'assistant_thinking_delta', 'text': text}))
+        thinking_buffer = thinking_delta_buffer(
+            lambda text: publish({'type': 'assistant_thinking_delta', 'text': text}),
+            preview=os.environ.get('CAPSTONE_THINKING_PREVIEW') == '1')
         from .incremental_artifacts import IncrementalArtifacts
         incremental = IncrementalArtifacts(workspace=self.root / 'tasks' / request.task_id,
             request=request, identity=self.identity, storage=self.storage,
@@ -833,7 +835,8 @@ class GeneralPiHost:
                     if cancelled():
                         raise InterruptedError('research bootstrap was not confirmed')
             try:
-                answer, usage = self._run(request, cancelled, emit)
+                answer, usage = self._run(request, cancelled,
+                    IdleFlushCallback(emit, thinking_buffer.flush_due))
             finally:
                 if not cancelled():
                     text_buffer.flush()

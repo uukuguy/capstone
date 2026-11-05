@@ -1,6 +1,24 @@
 from __future__ import annotations
 
 
+def test_preview_intent_uses_short_idle_flush_deadline(monkeypatch):
+    from capstone_agent.pi_intent import _ConversationPiPromptSession
+    monkeypatch.setenv('CAPSTONE_THINKING_PREVIEW', '1')
+    class Client:
+        def set_thinking_level(self, level):
+            pass
+        def prompt_and_wait(self, question, **callbacks):
+            assert callbacks['heartbeat_seconds'] == .075
+            callbacks['on_event']({'type': 'message_update',
+                'assistantMessageEvent': {'type': 'thinking_delta', 'delta': 'actual thought'}})
+            return ''
+    observed = []
+    session = _ConversationPiPromptSession(Client(), None, intent=True)
+    session.prompt_and_wait('understand', on_semantic_event=observed.append,
+        correlation_id='preview', on_heartbeat=lambda: None)
+    assert observed == [{'type': 'assistant_thinking_delta', 'text': 'actual thought'}]
+
+
 def test_intent_thinking_batches_before_durable_observer_and_flushes_before_decision():
     from types import SimpleNamespace
     from capstone_agent.pi_intent import _ConversationPiPromptSession

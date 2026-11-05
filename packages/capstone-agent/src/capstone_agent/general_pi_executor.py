@@ -463,6 +463,9 @@ class GeneralPiProcess:
                 try:
                     frame = frames.get(timeout=0.05)
                 except Empty:
+                    on_idle = getattr(on_event, 'on_idle', None)
+                    if callable(on_idle):
+                        on_idle()
                     continue
                 if frame is None:
                     raise RuntimeError('General Pi ended before completion')

@@ -525,8 +525,9 @@ def test_native_turn_boundaries_survive_bounded_host_projection(tmp_path):
 
 
 @pytest.mark.parametrize('fails', [False, True])
-def test_host_streams_only_displayable_sdk_thinking_with_bounded_ordered_chunks(tmp_path, fails):
+def test_host_streams_only_displayable_sdk_thinking_with_bounded_ordered_chunks(tmp_path, fails, monkeypatch):
     from capstone_agent.general_pi_server import GeneralPiHost
+    monkeypatch.setenv('CAPSTONE_THINKING_PREVIEW', '1')
     thought = '核对当前任务。' * 900
     tail = '再选择工具。'
     def run(request, cancelled, emit):
@@ -553,7 +554,7 @@ def test_host_streams_only_displayable_sdk_thinking_with_bounded_ordered_chunks(
     events = receipt['events']
     thinking = [event for event in events if event['type'] == 'assistant_thinking_delta']
     assert ''.join(event['text'] for event in thinking) == thought + tail
-    assert all(0 < len(event['text']) <= 1024 for event in thinking)
+    assert all(0 < len(event['text']) <= 256 for event in thinking)
     assert [event['event_id'] for event in events] == ['event-' + str(index + 1) for index in range(len(events))]
     draft_index = next(index for index, event in enumerate(events) if event['type'] == 'assistant_delta')
     assert ''.join(event['text'] for event in events[:draft_index] if event['type'] == 'assistant_thinking_delta') == thought
@@ -562,6 +563,27 @@ def test_host_streams_only_displayable_sdk_thinking_with_bounded_ordered_chunks(
     assert 'PRIVATE' not in str(receipt)
     assert receipt['result']['answer'] == ('Final answer' if not fails else '')
     assert receipt['result']['sources'] == []
+
+
+def test_preview_idle_callback_flushes_thinking_before_the_next_model_frame(tmp_path, monkeypatch):
+    from capstone_agent.general_pi_server import GeneralPiHost
+    monkeypatch.setenv('CAPSTONE_THINKING_PREVIEW', '1')
+    observed = []
+    def run(request, cancelled, emit):
+        for text in ('a', 'b'):
+            emit({'type': 'message_update', 'assistantMessageEvent': {'type': 'thinking_delta', 'delta': text}})
+        time.sleep(.1)
+        emit.on_idle()
+        observed.extend(event['text'] for event in host.read(request.task_id)['events']
+                        if event['type'] == 'assistant_thinking_delta')
+        return 'Done', {}
+    host = GeneralPiHost(root=tmp_path, identity={'engine': 'pi'}, run_task=run)
+    request = PiTaskRequest('idle-thinking-task', 'idle-attempt', 'direct', 'Explain', (), (), host.identity, 3)
+    host.submit(request)
+    deadline = time.monotonic() + 3
+    while host.read(request.task_id)['status'] == 'running' and time.monotonic() < deadline:
+        time.sleep(.005)
+    assert observed == ['a', 'b']
 
 
 def test_cancelled_native_thinking_drops_pending_and_late_text(tmp_path):

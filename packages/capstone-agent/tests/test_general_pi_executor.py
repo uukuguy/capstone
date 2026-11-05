@@ -25,6 +25,20 @@ def single_child_cleanup(monkeypatch):
     monkeypatch.setattr(GeneralPiProcess, 'stop', stop_fixture)
 
 
+def test_process_checks_display_idle_deadline_while_provider_is_quiet(tmp_path, single_child_cleanup):
+    from capstone_agent.general_pi_executor import GeneralPiProcess
+    from capstone_agent.stream_progress import IdleFlushCallback
+    script = tmp_path / 'quiet.py'
+    final = {'type': 'agent_end', 'messages': [{'role': 'assistant', 'stopReason': 'stop',
+        'content': [{'type': 'text', 'text': 'Done'}]}]}
+    script.write_text('import sys,time\nsys.stdin.readline()\ntime.sleep(.2)\nprint(' + repr(json.dumps(final)) + ',flush=True)\n')
+    idle = []
+    process = GeneralPiProcess((sys.executable, str(script)), {'PATH': '/usr/bin'}, tmp_path)
+    process.run('task', timeout=5, cancelled=lambda: False,
+                on_event=IdleFlushCallback(lambda event: None, lambda: idle.append(time.monotonic())))
+    assert len(idle) >= 2
+
+
 @pytest.mark.parametrize('mode', ['normal', 'debug'])
 @pytest.mark.parametrize('outcome', ['complete', 'cancelled', 'deadline'])
 def test_native_frame_backpressure_keeps_the_queue_bounded_without_aborting_research(tmp_path, monkeypatch, single_child_cleanup, mode, outcome):

@@ -4,6 +4,25 @@ from time import monotonic
 from math import isfinite
 
 
+def thinking_delta_buffer(emit: Callable[[str], None], *, preview: bool, clock=monotonic):
+    """Use display cadence only when a separate durable writer is enabled."""
+    return TextDeltaBuffer(emit, clock=clock,
+                           interval_seconds=.075 if preview else 1.0,
+                           max_chars=256 if preview else 4096)
+
+
+class IdleFlushCallback:
+    """Keep the native callback callable and expose its display idle deadline."""
+    def __init__(self, emit, flush_due):
+        self.emit, self.flush_due = emit, flush_due
+
+    def __call__(self, event):
+        self.emit(event)
+
+    def on_idle(self):
+        self.flush_due()
+
+
 class TextDeltaBuffer:
     def __init__(self, emit: Callable[[str], None], *, clock=monotonic,
                  interval_seconds: float = 1.0, max_chars: int = 4096):

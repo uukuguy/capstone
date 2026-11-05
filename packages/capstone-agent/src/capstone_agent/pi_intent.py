@@ -6,6 +6,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from hashlib import sha256
 import json
+import os
 from pathlib import Path
 import re
 import time
@@ -356,8 +357,10 @@ class _ConversationPiPromptSession:
             # Keep a visible reasoning stream. Ordinary instructions use the
             # shorter budget; complex instructions raise it before the prompt.
             self._client.set_thinking_level(self._thinking_level)
-        from .stream_progress import TextDeltaBuffer
-        thinking = TextDeltaBuffer(lambda text: on_semantic_event({"type": "assistant_thinking_delta", "text": text}))
+        from .stream_progress import thinking_delta_buffer
+        thinking = thinking_delta_buffer(
+            lambda text: on_semantic_event({"type": "assistant_thinking_delta", "text": text}),
+            preview=os.environ.get('CAPSTONE_THINKING_PREVIEW') == '1')
 
         def publish(event: Mapping[str, object]) -> None:
             # Same display stream the general executor records. Completed
@@ -381,7 +384,7 @@ class _ConversationPiPromptSession:
             return self._client.prompt_and_wait(question,
                 on_event=publish, on_semantic_event=semantic,
                 correlation_id=correlation_id, on_heartbeat=heartbeat,
-                heartbeat_seconds=1.0, require_answer_text=not self._intent)
+                heartbeat_seconds=thinking.interval, require_answer_text=not self._intent)
         finally:
             thinking.flush()
 
