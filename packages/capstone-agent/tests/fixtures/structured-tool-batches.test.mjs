@@ -97,3 +97,50 @@ test('cancellation removes waiting calls and releases shared capacity for the ne
  await assert.rejects(pending,/cancelled/);assert.ok(invoked<=4);
  const result=body(await t.execute('next',{calls:[calls[0]]}));assert.equal(result.result[0].data.n,0);
 }));
+
+test('call identities are host-owned for new and reused observations',()=>fixture(async cwd=>{
+ const t=tool(cwd,async()=>({content:[{type:'text',text:JSON.stringify({status:'ok',tool:'untrusted',data:{rows:[{n:3}]}})}]}));
+ const first=body(await t.execute('identity',{tools:['read'],program:`return tools.call('read',{});`}));
+ const second=body(await t.execute('reuse-identity',{tools:['read'],program:`return tools.call('read',{});`}));
+ assert.equal(first.result.tool,'data_gateway_read');assert.equal(second.result.tool,'data_gateway_read');
+ assert.equal(second.result.ref,first.result.ref);
+}));
+
+test('helper namespace and global context functions share the same exact contract',()=>fixture(async cwd=>{
+ const t=tool(cwd,async()=>({content:[{type:'text',text:JSON.stringify({status:'ok',data:{rows:[{n:3}]}})}]}));
+ const result=body(await t.execute('helpers',{tools:['read'],program:`
+ const r=await tools.call('read',{});
+ const saved=await tools.saveContext('sample',{bindings:{},datasets:[{name:'rows',call:r.ref,pointer:'/data/rows'}]});
+ const loaded=await tools.loadContext(saved.path);
+ return {aliases:tools.saveContext===saveContext&&tools.loadContext===loadContext,rows:loaded.datasets.rows.data,help:tools.help()};`}));
+ assert.equal(result.result.aliases,true);assert.deepEqual(result.result.rows,[{n:3}]);
+ assert.match(result.result.help.map,/concurrency/);assert.match(result.result.help.read,/full_result/);
+}));
+
+test('independent paginated chains overlap while each cursor remains sequential',()=>fixture(async cwd=>{
+ let active=0,peak=0;const pages=new Map();
+ const t=tool(cwd,async(_name,{chain,cursor})=>{
+  assert.equal(cursor,pages.get(chain)??0);pages.set(chain,cursor+1);active++;peak=Math.max(peak,active);
+  await delay(4);active--;return {content:[{type:'text',text:JSON.stringify({status:'ok',data:{next:cursor<2?cursor+1:null}})}]};
+ });
+ const result=body(await t.execute('chains',{tools:['read'],program:`
+ return tools.map([0,1,2,3,4,5],async chain=>{
+  const refs=[];let cursor=0;
+  do {const r=await tools.call('read',{chain,cursor});refs.push(r.ref);cursor=r.data.next;}while(cursor!==null);
+  return {chain,refs};
+ });`}));
+ assert.equal(peak,4);assert.equal(result.calls,18);assert.deepEqual(result.result.map(x=>x.chain),[0,1,2,3,4,5]);
+ assert.ok(result.result.every(x=>x.refs.length===3));assert.equal(pages.size,6);
+}));
+
+test('map rejects invalid limits and drains active mappers before surfacing failure',()=>fixture(async cwd=>{
+ let active=0;const t=tool(cwd,async(_name,{n})=>{active++;await delay(5);active--;return native(n);});
+ for(const limit of [0,5,1.5]){
+  const result=await t.execute('bad-map',{tools:['read'],program:`return tools.map([1,2],n=>tools.call('read',{n}),{concurrency:${limit}});`});
+  assert.equal(result.isError,true);assert.equal(active,0);
+ }
+ const result=await t.execute('map-failed',{tools:['read'],program:`
+ return tools.map([0,1,2,3,4],async n=>{const r=await tools.call('read',{n});if(n===0)throw Error('mapper failed');return r;},{concurrency:2});`});
+ assert.equal(result.isError,true);assert.equal(active,0);
+ const failed=JSON.parse(result.content[0].text);assert.match(failed.message,/mapper failed/);assert.ok(failed.completed_calls.length>=1);
+}));

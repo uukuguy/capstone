@@ -38,6 +38,31 @@ Record index and queue/start/end timing in composition receipts without source d
 
 ## Verification
 
+## Real-task correction (2026-11-05)
+
+The bounded two-call trial did not establish adoption for independent paginated
+chains. Actual attempt1579b781 had114query calls: an early9-call group overlapped4,
+but later59-call and31-call groups overlapped1. Individual page cursors depend on
+prior responses; separate objects/windows do not necessarily depend on one another.
+
+Add `tools.map(items,async mapper,{concurrency?})` in the isolated program worker.
+It returns mapped values in input order, defaults to the validated program limit,
+and preserves the host scheduler. Each mapper may await its own cursor chain.
+On mapper failure, stop claiming new items, drain active mappers, then throw;
+successful observation refs remain available in the normal completed-call receipt.
+This does not rewrite arbitrary user JavaScript or certify semantic independence.
+
+Return the host-resolved registered `tool` identity on all call/reuse outcomes.
+Source payloads must not override it. Alias tools.saveContext/loadContext to the
+existing globals, without weakening dataset/reference validation. tools.help()
+publishes exact helper signatures, including the datasets array and literal issued
+full_result object contract. No implicit full_result variable is introduced.
+
+Real task also revealed a separate local gateway installation missing grid_database.
+Owner received an authorized assistance notification and request IDs. Do not modify
+their dirty checkout or runtime. Gateway internal errors are not all attributed to
+one cause until owner checks the original exceptions.
+
 Test direct batches, whole-list rejection, duplicate IDs, input ambiguity, ordered
 results despite out-of-order completion, partial and transport failure, observation
 reuse, a dependent second stage, shared program capacity, unknown/write exclusion,
