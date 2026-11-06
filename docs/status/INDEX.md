@@ -1,6 +1,6 @@
 # docs/status INDEX
 
-2026-11-06：[三套dev部署](../reports/2026-11-06-three-dev-deployment.md)与推进图对齐：dev a4efea0e、main22cd1728同内容；研发快照tag已创建，三套dev均运行22cd1728，健康/源码/同镜像与真实短会话通过。
+2026-11-06：推进主图已精简为9个重要节点，109项细节移入折叠历史；部署引用与真实祖先关系保留。[三套dev部署](../reports/2026-11-06-three-dev-deployment.md)与推进图对齐：dev a4efea0e、main22cd1728同内容；研发快照tag已创建，三套dev均运行22cd1728，健康/源码/同镜像与真实短会话通过。
 
 2026-11-05：[真实任务补修](../reports/2026-11-05-batch-regression.md)984131e3已部署local-dev；6链×2页实际并发4、12次查询、0工具错误，CSV下载哈希和刷新通过。原任务59/31调用组仍串行已定位；[网关缺包协查](../reports/2026-11-05-data-gateway-runtime-assist.md)通知已入队，未收到回复。
 

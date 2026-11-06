@@ -1,3 +1,11 @@
+# Compact progress graph
+
+Main graph now keeps9milestones;109intermediate records remain in folded history.
+Canonical selection table: VERSION-CONTROL.md / 主图里程碑. Current HEADs,
+all exact deployed sources and release milestones are always retained. Edges are
+reduced over Git-verified ancestry between visible nodes. Runtime code unchanged.
+Browser checked9cards,6source references and no horizontal overflow.
+
 # Progress graph alignment
 
 Canonical VERSION-CONTROL and PROJECT-OVERVIEW now record dev a4efea0e,
